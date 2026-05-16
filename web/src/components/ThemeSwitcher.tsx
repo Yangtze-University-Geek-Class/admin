@@ -50,7 +50,7 @@ export default function ThemeSwitcher({ compact = false, direction = "down" }: P
       {open && (
         <div
           style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif", letterSpacing: 0 }}
-          className={`absolute p-1.5 z-50 max-h-[70vh] overflow-auto min-w-[240px] bg-ink-950 border border-ink-700/60 rounded-2xl shadow-xl ${
+          className={`dropdown-panel absolute p-1.5 z-50 max-h-[70vh] overflow-auto min-w-[240px] ${
           direction === "up" ? "bottom-full mb-2 left-0" : "top-full mt-2 right-0"
         }`}>
           {allowedThemes.map((t) => (
