@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { forumDb, type ForumUser } from "./forum-db.js";
+import { getUserGroups, getUserPermissions } from "./forum-permissions.js";
 
 const FORUM_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -53,5 +54,7 @@ export function selfForumUser(u: ForumUser) {
     has_password: Boolean(u.password_bcrypt),
     has_github: Boolean(u.github_id),
     legacy_mbbs_id: u.legacy_mbbs_id,
+    groups: getUserGroups(u.id),
+    permissions: Array.from(getUserPermissions(u.id)),
   };
 }

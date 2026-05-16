@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { forumDb } from "../../lib/forum-db.js";
 import { publicForumUser } from "../../lib/forum-auth.js";
 import { attachForumUser, requireForumAuth } from "../../middleware/require-forum-auth.js";
+import { hasCategoryPermission, hasPermission } from "../../lib/forum-permissions.js";
 
 const PAGE_SIZE = 20;
 
@@ -147,8 +148,11 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
       const { category_id, title, content, content_format } = req.body ?? ({} as any);
       if (!category_id || !title || !content) return reply.code(400).send({ error: "missing_fields" });
       if (title.length > 200) return reply.code(400).send({ error: "title_too_long" });
-      const cat = forumDb.prepare("SELECT id FROM forum_categories WHERE id = ?").get(category_id);
+      const cat = forumDb.prepare("SELECT id, legacy_mbbs_id FROM forum_categories WHERE id = ?").get(category_id) as any;
       if (!cat) return reply.code(400).send({ error: "invalid_category" });
+      if (!hasCategoryPermission(req.forumUser!.id, cat.legacy_mbbs_id, "createThread", req.forumUser!.role)) {
+        return reply.code(403).send({ error: "forbidden", message: "你所在的组没有在此分类发帖的权限" });
+      }
       const now = Date.now();
       const r = forumDb
         .prepare(

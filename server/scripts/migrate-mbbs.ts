@@ -31,7 +31,10 @@ function shortHash(s: string): string {
 const counts = { users: 0, categories: 0, tags: 0, threads: 0, posts: 0 };
 
 forumDb.transaction(() => {
-  forumDb.exec(`DELETE FROM forum_thread_tags;
+  forumDb.exec(`DELETE FROM forum_user_groups;
+                DELETE FROM forum_group_permissions;
+                DELETE FROM forum_groups;
+                DELETE FROM forum_thread_tags;
                 DELETE FROM forum_posts;
                 DELETE FROM forum_threads;
                 DELETE FROM forum_tags;
@@ -268,6 +271,71 @@ forumDb.transaction(() => {
        )`,
     )
     .run();
+
+  // groups
+  const insertGroup = forumDb.prepare(
+    `INSERT INTO forum_groups (name, icon, is_default, sort, legacy_mbbs_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const rawGroups = mbbs
+    .prepare("SELECT * FROM groups WHERE deleted_at IS NULL ORDER BY id")
+    .all() as any[];
+  const mbbsGroupToId = new Map<number, number>();
+  let groupSort = 0;
+  for (const g of rawGroups) {
+    const icon = g.icon ? `/forum/r/${g.icon}` : null;
+    const r = insertGroup.run(
+      g.name,
+      icon,
+      g.default ? 1 : 0,
+      groupSort++,
+      g.id,
+      toMs(g.created_at),
+      toMs(g.updated_at),
+    );
+    mbbsGroupToId.set(g.id, Number(r.lastInsertRowid));
+  }
+  console.log(`migrated groups: ${rawGroups.length}`);
+
+  // group permissions
+  const insertGroupPerm = forumDb.prepare(
+    "INSERT OR IGNORE INTO forum_group_permissions (group_id, permission) VALUES (?, ?)",
+  );
+  const rawPerms = mbbs.prepare("SELECT * FROM group_permission").all() as any[];
+  let permCount = 0;
+  for (const p of rawPerms) {
+    const newGid = mbbsGroupToId.get(p.group_id);
+    if (!newGid) continue;
+    insertGroupPerm.run(newGid, p.permission);
+    permCount++;
+  }
+  console.log(`migrated group permissions: ${permCount}`);
+
+  // user group memberships
+  const insertUserGroup = forumDb.prepare(
+    "INSERT OR IGNORE INTO forum_user_groups (user_id, group_id) VALUES (?, ?)",
+  );
+  const rawUserGroups = mbbs.prepare("SELECT * FROM group_user").all() as any[];
+  let ugCount = 0;
+  for (const ug of rawUserGroups) {
+    const newUid = mbbsIdToUserId.get(ug.user_id);
+    const newGid = mbbsGroupToId.get(ug.group_id);
+    if (!newUid || !newGid) continue;
+    insertUserGroup.run(newUid, newGid);
+    ugCount++;
+  }
+  console.log(`migrated user group memberships: ${ugCount}`);
+
+  // admin user (legacy_mbbs_id=1) into 系统管理员 group
+  const adminGroup = forumDb
+    .prepare("SELECT id FROM forum_groups WHERE name = '系统管理员' OR legacy_mbbs_id = 6 LIMIT 1")
+    .get() as any;
+  const adminUser = forumDb
+    .prepare("SELECT id FROM forum_users WHERE legacy_mbbs_id = 1")
+    .get() as any;
+  if (adminGroup && adminUser) {
+    insertUserGroup.run(adminUser.id, adminGroup.id);
+  }
 })();
 
 mbbs.close();
