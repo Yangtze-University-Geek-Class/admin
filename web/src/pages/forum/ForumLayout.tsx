@@ -86,6 +86,9 @@ export default function ForumLayout() {
                       {(u.role === "admin" || u.role === "mod") && (
                         <MenuLink to="/admin" onClick={() => setMenuOpen(false)}>论坛管理</MenuLink>
                       )}
+                      {(u.role === "teacher" || u.role === "admin" || u.role === "mod") && (
+                        <MenuLink to="/teacher" onClick={() => setMenuOpen(false)}>老师面板</MenuLink>
+                      )}
                       <div className="border-t border-brand-500/10 my-1" />
                       <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-ink-100 hover:bg-brand-500/8 rounded transition">退出登录</button>
                     </div>

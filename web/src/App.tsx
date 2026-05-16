@@ -33,6 +33,7 @@ import ForumMe from "./pages/forum/ForumMe";
 import ForumNotifications from "./pages/forum/ForumNotifications";
 import ForumArchive from "./pages/forum/ForumArchive";
 import ForumAdmin from "./pages/forum/ForumAdmin";
+import ForumTeacher from "./pages/forum/ForumTeacher";
 import { detectSite } from "./lib/site";
 
 export default function App() {
@@ -73,6 +74,7 @@ function ForumRoutes() {
         <Route path="archive" element={<ForumArchive />} />
         <Route path="archive/t/:id" element={<ForumThread />} />
         <Route path="admin" element={<ForumAdmin />} />
+        <Route path="teacher" element={<ForumTeacher />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

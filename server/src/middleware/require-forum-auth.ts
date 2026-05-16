@@ -41,3 +41,12 @@ export async function requireForumAdmin(req: FastifyRequest, reply: FastifyReply
     return reply.code(403).send({ error: "forbidden" });
   }
 }
+
+export async function requireForumTeacherOrAdmin(req: FastifyRequest, reply: FastifyReply) {
+  await requireForumAuth(req, reply);
+  if (reply.sent) return;
+  const role = req.forumUser?.role;
+  if (role !== "admin" && role !== "mod" && role !== "teacher") {
+    return reply.code(403).send({ error: "forbidden", message: "仅老师或负责人可访问" });
+  }
+}
