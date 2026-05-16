@@ -186,6 +186,13 @@ CREATE TABLE IF NOT EXISTS forum_user_groups (
 CREATE INDEX IF NOT EXISTS idx_forum_user_groups_group ON forum_user_groups(group_id);
 `);
 
+const cols = forumDb.prepare("PRAGMA table_info(forum_users)").all() as any[];
+const colNames = new Set(cols.map((c) => c.name));
+if (!colNames.has("qq_openid")) {
+  forumDb.exec("ALTER TABLE forum_users ADD COLUMN qq_openid TEXT");
+  forumDb.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_users_qq_openid ON forum_users(qq_openid) WHERE qq_openid IS NOT NULL");
+}
+
 export type ForumUser = {
   id: number;
   username: string;

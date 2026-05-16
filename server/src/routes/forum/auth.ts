@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
-import { config } from "../../config.js";
+import { config, qqOAuthEnabled } from "../../config.js";
 import { forumDb } from "../../lib/forum-db.js";
 import { createForumSession, destroyForumSession, selfForumUser } from "../../lib/forum-auth.js";
 import { setForumCookieOnReply } from "../../lib/forum-github.js";
@@ -111,6 +111,50 @@ export default async function forumAuthRoutes(app: FastifyInstance) {
       return { ok: true };
     },
   );
+
+  app.get<{ Querystring: { bind?: "1"; return_to?: string } }>(
+    "/auth/forum/qq",
+    async (req, reply) => {
+      if (!qqOAuthEnabled()) {
+        return reply.code(503).send({ error: "qq_oauth_disabled", message: "QQ 登录尚未配置 (缺少 QQ_APP_ID/QQ_APP_KEY)" });
+      }
+      const state = `forumqq-${randomBytes(16).toString("base64url")}`;
+      const bindMode = req.query.bind === "1";
+      const returnTo = req.query.return_to ?? "/";
+      const payload = `${state}|${bindMode ? "bind" : "login"}|${encodeURIComponent(returnTo)}`;
+      if (bindMode) {
+        await attachForumUser(req);
+        if (!req.forumUser) return reply.code(401).send({ error: "not_signed_in" });
+      }
+      reply.setCookie("forum_qq_state", payload, {
+        httpOnly: true, secure: true, sameSite: "lax", path: "/auth", maxAge: 600,
+        domain: config.cookieDomain,
+      });
+      const u = new URL("https://graph.qq.com/oauth2.0/authorize");
+      u.searchParams.set("response_type", "code");
+      u.searchParams.set("client_id", config.qq.appId);
+      u.searchParams.set("redirect_uri", `${config.publicOrigin}/auth/callback`);
+      u.searchParams.set("scope", "get_user_info");
+      u.searchParams.set("state", state);
+      return reply.redirect(u.toString());
+    },
+  );
+
+  app.get("/api/forum/auth/providers", async () => ({
+    github: true,
+    qq: qqOAuthEnabled(),
+    password: true,
+  }));
+
+  app.delete("/api/forum/auth/qq", { preHandler: requireForumAuth }, async (req, reply) => {
+    if (!req.forumUser!.password_bcrypt && !req.forumUser!.github_id) {
+      return reply.code(400).send({ error: "set_password_or_bind_github_first" });
+    }
+    forumDb
+      .prepare("UPDATE forum_users SET qq_openid = NULL, updated_at = ? WHERE id = ?")
+      .run(Date.now(), req.forumUser!.id);
+    return { ok: true };
+  });
 
   app.delete("/api/forum/auth/github", { preHandler: requireForumAuth }, async (req, reply) => {
     if (!req.forumUser!.password_bcrypt) {
