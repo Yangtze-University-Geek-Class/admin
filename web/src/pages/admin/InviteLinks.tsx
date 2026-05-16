@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
 import { useConfirm } from "../../components/ConfirmDialog";
 import Select from "../../components/Select";
+import NumberInput from "../../components/NumberInput";
 
 type Link = {
   token: string; org: string; created_by: string; note: string | null;
@@ -61,13 +62,13 @@ export default function InviteLinks() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
             <label className="label text-xs">有效期（小时）</label>
-            <input type="number" className="input" min={1} max={8760}
-              value={form.hours} onChange={(e) => setForm({ ...form, hours: Number(e.target.value) })} />
+            <NumberInput min={1} max={8760}
+              value={form.hours} onChange={(v) => setForm({ ...form, hours: v })} />
           </div>
           <div>
             <label className="label text-xs">最大使用次数</label>
-            <input type="number" className="input" min={1} max={1000}
-              value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: Number(e.target.value) })} />
+            <NumberInput min={1} max={1000}
+              value={form.max_uses} onChange={(v) => setForm({ ...form, max_uses: v })} />
           </div>
           <div className="md:col-span-2">
             <label className="label text-xs">备注（方便识别）</label>

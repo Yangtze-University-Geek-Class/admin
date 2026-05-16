@@ -60,6 +60,23 @@
   .input {
     @apply w-full bg-ink-900/60 border border-ink-700/70 rounded-lg px-3 py-2 text-ink-100 placeholder-ink-500 focus:outline-none focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/30 transition;
   }
+  .input[type=number]::-webkit-inner-spin-button,
+  .input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  .input[type=date], .input[type=time], .input[type=datetime-local], .input[type=month], .input[type=week] {
+    color-scheme: dark;
+  }
+  .input::-webkit-calendar-picker-indicator {
+    filter: invert(0.6) brightness(1.4);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+  .input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  .input::-webkit-search-cancel-button { -webkit-appearance: none; }
   .label { @apply block text-sm text-ink-300 mb-1.5; }
   .tag {
     @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
