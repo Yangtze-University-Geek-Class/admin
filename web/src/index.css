@@ -1,3 +1,10 @@
+@import "@fontsource/nunito/400.css";
+@import "@fontsource/nunito/500.css";
+@import "@fontsource/nunito/600.css";
+@import "@fontsource/nunito/700.css";
+@import "@fontsource/quicksand/500.css";
+@import "@fontsource/quicksand/600.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,6 +16,29 @@
     transition: background 0.3s ease;
   }
   *::selection { background: rgb(var(--brand-500) / 0.35); }
+}
+
+/* portal / forum 走圆润字体堆栈；admin 保持系统默认 */
+html[data-site="forum"], html[data-site="portal"], .font-rounded {
+  font-family: "Nunito", "Quicksand", -apple-system, BlinkMacSystemFont,
+               "MiSans", "HarmonyOS Sans SC", "PingFang SC",
+               "Hiragino Sans GB", "Source Han Sans SC",
+               "Microsoft YaHei UI", "Microsoft YaHei",
+               "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.005em;
+}
+html[data-site="forum"] .prose-forum {
+  line-height: 1.85;
+}
+html[data-site="forum"] .prose-forum h1,
+html[data-site="forum"] .prose-forum h2,
+html[data-site="forum"] .prose-forum h3 {
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+html[data-site="forum"] code,
+html[data-site="forum"] pre {
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, monospace;
 }
 
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }

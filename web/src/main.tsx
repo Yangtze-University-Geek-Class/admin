@@ -10,6 +10,7 @@ import "./index.css";
 
 const site = detectSite();
 document.title = site.title;
+document.documentElement.dataset.site = site.kind;
 const initialTheme = site.allowThemeSwitch
   ? loadTheme(site.defaultTheme)
   : site.defaultTheme;
