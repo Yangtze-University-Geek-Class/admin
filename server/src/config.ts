@@ -20,6 +20,10 @@ export const config = {
   sessionSecret: req("SESSION_SECRET"),
   encryptionKey: req("ENCRYPTION_KEY"),
   dbPath: process.env.DB_PATH ?? "./data/data.db",
+  allowedOrgs: (process.env.ALLOWED_ORGS ?? "Yangtze-University-Geek-Class")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
   turnstile: {
     siteKey: process.env.TURNSTILE_SITE_KEY ?? "",
     secretKey: process.env.TURNSTILE_SECRET_KEY ?? "",

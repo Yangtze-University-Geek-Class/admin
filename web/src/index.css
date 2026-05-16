@@ -48,13 +48,47 @@ html[data-site="forum"] pre {
 
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(4px) } to { opacity: 1; transform: scale(1) translateY(0) } }
-@keyframes bg-flow {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 30%; }
-  100% { background-position: 30% 70%; }
+
+/* 全站背景流动层。各主题通过 --brand-500 自动适配色调。 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -15%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 38% at 22% 18%, rgb(var(--brand-500) / 0.22), transparent 60%),
+    radial-gradient(44% 44% at 78% 72%, rgb(var(--brand-500) / 0.18), transparent 65%),
+    radial-gradient(30% 30% at 52% 92%, rgb(var(--brand-500) / 0.14), transparent 70%);
+  filter: blur(36px);
+  animation: bg-drift 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 50% at 70% 25%, rgb(var(--brand-500) / 0.12), transparent 70%),
+    radial-gradient(35% 35% at 15% 80%, rgb(var(--brand-500) / 0.10), transparent 70%);
+  filter: blur(48px);
+  animation: bg-drift-rev 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes bg-drift {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate3d(4%, -3%, 0) rotate(3deg) scale(1.06); }
+  100% { transform: translate3d(-3%, 4%, 0) rotate(-2deg) scale(1.04); }
+}
+@keyframes bg-drift-rev {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1.02); }
+  50%  { transform: translate3d(-4%, 3%, 0) rotate(-3deg) scale(0.96); }
+  100% { transform: translate3d(3%, -3%, 0) rotate(2deg) scale(1.08); }
 }
 @media (prefers-reduced-motion: reduce) {
-  body { animation: none !important; }
+  body::before, body::after { animation: none !important; }
 }
 
 .prose-doc { color: rgb(var(--ink-100)); line-height: 1.7; font-size: 15px; }
