@@ -33,19 +33,19 @@ const ENTRIES = [
 ];
 
 const PILLARS = [
-  { title: "项目驱动", body: "比起跟教学进度，我们更相信「做出一个能跑的东西」。" },
-  { title: "学长带学弟", body: "新生一进来就接触实际项目和真实代码，少绕弯。" },
-  { title: "开源共建", body: "组织所有工具、论坛、管理后台都开源在 GitHub，欢迎 PR。" },
-  { title: "竞赛集训", body: "ACM、CTF、AI、嵌入式等方向有学长牵头组队。" },
+  { title: "AI Native", body: "默认以 LLM / Agent / MCP 作为开发与协作底座，不是把 AI 当外挂。" },
+  { title: "项目驱动", body: "围绕真实工程产出学习，不刷题不内卷绩点。" },
+  { title: "开源共建", body: "论坛、管理后台、CLI、Skill 全部开源在 GitHub，组织成员共维护。" },
+  { title: "学长带学弟", body: "新生进来就接触 Agent 工作流、Prompt 工程和工程化协作，少绕弯。" },
 ];
 
-const GROUPS = [
-  { name: "算法与应用", desc: "ACM / Leetcode / 工程算法落地" },
-  { name: "深度学习", desc: "PyTorch / 论文复现 / 模型部署" },
-  { name: "嵌入式", desc: "MCU / RTOS / IoT 协议" },
-  { name: "信安", desc: "CTF / Web 渗透 / 二进制" },
-  { name: "爬虫与数据分析", desc: "采集 / 清洗 / 可视化" },
-  { name: "C 语言", desc: "新生筑基 · 系统编程入门" },
+const FOCUS = [
+  { title: "模型与基础", desc: "新模型、benchmark、scaling、推理优化", to: "/forum/c/models" },
+  { title: "Agent 与 MCP", desc: "Agent 框架、MCP server、工具调用、orchestration", to: "/forum/c/agent-mcp" },
+  { title: "AI Coding", desc: "Claude Code · Cursor · Aider · Codex 实战与 Skill", to: "/forum/c/ai-coding" },
+  { title: "Prompt 与上下文工程", desc: "Prompt 设计、CoT、RAG、上下文管理", to: "/forum/c/prompt" },
+  { title: "应用与产品", desc: "AI-first 产品 case study、设计、商业化", to: "/forum/c/products" },
+  { title: "求助与资源", desc: "新手提问、论文、教程、开源项目分享", to: "/forum/c/help-resources" },
 ];
 
 export default function Landing() {
@@ -74,12 +74,12 @@ export default function Landing() {
           PORTAL · yangtzeu.work
         </div>
         <h1 className="text-5xl sm:text-6xl font-bold text-ink-50 leading-[1.05] tracking-tight max-w-3xl">
-          提前出发的<br />
-          <span className="text-brand-500">技术之路</span>
+          长江大学的<br />
+          <span className="text-brand-500">AI Native 校内组织</span>
         </h1>
         <p className="mt-6 text-ink-200 text-lg leading-relaxed max-w-2xl">
-          长江大学极客班 (YUGC) 是一支学生自治的技术社区。
-          从这里出发，进入论坛交流、阅读文档、查看管理后台或访问 GitHub 组织。
+          YUGC (Yangtze University Geek Class) 是长江大学校内的 AI Native 组织。
+          我们围绕 LLM、Agent、MCP、AI Coding、Prompt 工程组织讨论、共建工具、跑项目，让 AI 成为每个成员的默认工作方式。
         </p>
       </section>
 
@@ -128,18 +128,19 @@ export default function Landing() {
       </section>
 
       <section className="max-w-6xl mx-auto px-6 pb-24">
-        <div className="text-brand-500 font-mono text-xs tracking-[0.3em] mb-3">GROUPS · 03</div>
-        <h2 className="text-2xl font-bold text-ink-50 mb-6">兴趣小组</h2>
+        <div className="text-brand-500 font-mono text-xs tracking-[0.3em] mb-3">FOCUS · 03</div>
+        <h2 className="text-2xl font-bold text-ink-50 mb-6">我们在讨论什么</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {GROUPS.map((g) => (
-            <div key={g.name} className="card p-4">
-              <div className="font-medium text-ink-50">{g.name}</div>
-              <div className="text-sm text-ink-300 mt-0.5">{g.desc}</div>
-            </div>
+          {FOCUS.map((f) => (
+            <a key={f.title} href={externalUrl("forum", f.to.replace(/^\/forum/, ""))}
+              className="card p-4 hover:border-brand-500/40 hover:shadow-md hover:shadow-brand-500/10 transition block">
+              <div className="font-medium text-ink-50">{f.title}</div>
+              <div className="text-sm text-ink-300 mt-0.5">{f.desc}</div>
+            </a>
           ))}
         </div>
         <p className="text-xs text-ink-400 mt-5">
-          想详细了解、加入小组或发起话题，请到 <a href={externalUrl("forum", "/")} className="text-brand-500 hover:underline">论坛</a>。
+          以上是论坛的 6 个常驻板块。要发帖、回帖、加入讨论，进 <a href={externalUrl("forum", "/")} className="text-brand-500 hover:underline">论坛</a>。
         </p>
       </section>
 
