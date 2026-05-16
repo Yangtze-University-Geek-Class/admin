@@ -17,7 +17,16 @@ const initialTheme = site.allowThemeSwitch
 applyTheme(site.themePalette.includes(initialTheme) ? initialTheme : site.defaultTheme);
 
 const qc = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: false } },
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      retry: false,
+      placeholderData: (prev: any) => prev,
+    },
+  },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
