@@ -3,18 +3,21 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import ThemeSwitcher from "../../components/ThemeSwitcher";
+import Select from "../../components/Select";
 
-const NAV_ALL = [
-  { to: "", label: "总览", end: true, icon: "M3 12 12 3l9 9M5 10v10h14V10", admin: false },
-  { to: "members", label: "成员", icon: "M16 11a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", admin: false },
-  { to: "invitations", label: "邀请", icon: "M3 8l9 6 9-6M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8M3 8l2-3h14l2 3", admin: true },
-  { to: "invite-links", label: "邀请链接", icon: "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7L11.5 5.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5", admin: true },
-  { to: "teams", label: "团队", icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", admin: false },
-  { to: "repos", label: "仓库", icon: "M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M4 19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2M4 19h16M9 7h6M9 11h6M9 15h4", admin: false },
-  { to: "activity", label: "活动", icon: "M3 12h4l3-9 4 18 3-9h4", admin: false },
-  { to: "security", label: "安全", icon: "M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3Z", admin: false },
-  { to: "org", label: "组织资料", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 9h6M9 13h6M9 17h6", admin: false },
-  { to: "logs", label: "操作日志", icon: "M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 9h6M9 13h6M9 17h4", admin: true },
+type NavItem = { to: string; label: string; end?: boolean; admin: boolean; svg: JSX.Element };
+
+const NAV_ALL: NavItem[] = [
+  { to: "", label: "总览", end: true, admin: false, svg: (<><path d="M3 12 12 3l9 9" /><path d="M5 10v10h14V10" /></>) },
+  { to: "members", label: "成员", admin: false, svg: (<><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></>) },
+  { to: "invitations", label: "邀请", admin: true, svg: (<><path d="M3 7l9 6 9-6" /><rect x="3" y="5" width="18" height="14" rx="2" /></>) },
+  { to: "invite-links", label: "邀请链接", admin: true, svg: (<><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" /><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" /></>) },
+  { to: "teams", label: "团队", admin: false, svg: (<><circle cx="9" cy="8" r="3.5" /><circle cx="17" cy="9" r="3" /><path d="M2 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" /><path d="M16 14h1a4 4 0 0 1 4 4v2" /></>) },
+  { to: "repos", label: "仓库", admin: false, svg: (<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>) },
+  { to: "activity", label: "活动", admin: false, svg: (<path d="M3 12h4l3-9 4 18 3-9h4" />) },
+  { to: "security", label: "安全", admin: false, svg: (<path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3Z" />) },
+  { to: "org", label: "组织资料", admin: false, svg: (<><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 9h.01M9 13h.01M9 17h.01M14 9h.01M14 13h.01M14 17h.01" /></>) },
+  { to: "logs", label: "操作日志", admin: true, svg: (<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 9h8M8 13h8M8 17h5" /></>) },
 ];
 
 type OverviewResp = { role: "admin" | "member"; org: any; counts: any };
@@ -68,8 +71,7 @@ export default function OrgLayout() {
     navigate("/admin/signin", { replace: true });
   };
 
-  const switchOrg = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const v = e.target.value;
+  const switchOrg = (v: string) => {
     if (v === "__list__") navigate("/admin");
     else navigate(`/admin/${v}`);
   };
@@ -85,12 +87,17 @@ export default function OrgLayout() {
           </div>
         </Link>
 
-        <select value={org} onChange={switchOrg} className="input text-sm mb-4 font-mono">
-          {orgs.data?.orgs.map((o: any) => (
-            <option key={o.login} value={o.login}>@{o.login} ({o.role})</option>
-          ))}
-          <option value="__list__">— 切换 / 全部组织 —</option>
-        </select>
+        <div className="mb-4">
+          <Select
+            value={org ?? ""}
+            onChange={switchOrg}
+            size="sm"
+            options={[
+              ...(orgs.data?.orgs ?? []).map((o: any) => ({ value: o.login, label: `@${o.login}`, hint: o.role })),
+              { value: "__list__", label: "— 切换 / 全部组织 —" },
+            ]}
+          />
+        </div>
 
         <nav className="space-y-1 flex-1 overflow-auto">
           {NAV.map((n) => (
@@ -104,8 +111,8 @@ export default function OrgLayout() {
                 }`
               }
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <path d={n.icon} strokeLinecap="round" strokeLinejoin="round" />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                {n.svg}
               </svg>
               {n.label}
             </NavLink>

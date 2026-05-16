@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import Select from "../../components/Select";
 
 type Ctx = { isAdmin: boolean };
 
@@ -79,16 +80,19 @@ export default function OrgSettings() {
 
       <div className="card p-5">
         <h2 className="font-semibold text-ink-100 mb-4">默认权限</h2>
-        <div className="mb-4">
+        <div className="mb-4 md:max-w-xs">
           <label className="label">所有成员对仓库的基础权限</label>
-          <select className="input md:max-w-xs" disabled={!isAdmin}
+          <Select
             value={get("default_repository_permission") ?? "read"}
-            onChange={(e) => set("default_repository_permission", e.target.value)}>
-            <option value="none">none</option>
-            <option value="read">read</option>
-            <option value="write">write</option>
-            <option value="admin">admin</option>
-          </select>
+            onChange={(v) => set("default_repository_permission", v)}
+            disabled={!isAdmin}
+            options={[
+              { value: "none",  label: "none",  hint: "无任何权限" },
+              { value: "read",  label: "read",  hint: "推荐：可读、可 fork" },
+              { value: "write", label: "write", hint: "可推送分支" },
+              { value: "admin", label: "admin", hint: "完全管理（不建议）" },
+            ]}
+          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {BOOL_FIELDS.map((f) => (

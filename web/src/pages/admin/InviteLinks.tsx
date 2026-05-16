@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
+import { useConfirm } from "../../components/ConfirmDialog";
+import Select from "../../components/Select";
 
 type Link = {
   token: string; org: string; created_by: string; note: string | null;
@@ -12,6 +14,7 @@ type Link = {
 export default function InviteLinks() {
   const { org } = useParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading, error } = useQuery({
     queryKey: ["invite-links", org],
     queryFn: () => api<{ links: Link[] }>(`/api/admin/${org}/invite-links`),
@@ -73,10 +76,14 @@ export default function InviteLinks() {
           </div>
           <div>
             <label className="label text-xs">自动加入 team（可选）</label>
-            <select className="input" value={form.team_slug} onChange={(e) => setForm({ ...form, team_slug: e.target.value })}>
-              <option value="">— 不绑定 —</option>
-              {teams.data?.teams.map((t: any) => <option key={t.slug} value={t.slug}>{t.name}</option>)}
-            </select>
+            <Select
+              value={form.team_slug}
+              onChange={(v) => setForm({ ...form, team_slug: v })}
+              options={[
+                { value: "", label: "— 不绑定 —" },
+                ...(teams.data?.teams ?? []).map((t: any) => ({ value: t.slug, label: t.name, hint: t.slug })),
+              ]}
+            />
           </div>
         </div>
         <button className="btn-primary mt-4" disabled={create.isPending} onClick={() => create.mutate()}>
@@ -138,7 +145,15 @@ export default function InviteLinks() {
                       {l.disabled ? "启用" : "禁用"}
                     </button>
                     <button className="btn-danger text-xs py-1 px-2"
-                      onClick={() => { if (confirm("删除该链接? 不影响已生效的邀请")) del.mutate(l.token); }}>删除</button>
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "删除邀请链接",
+                          body: `确定删除 /join/${l.token.slice(0, 12)}…？\n已通过此链接发出的邀请不会被撤回，只是后续不能再用这个链接。`,
+                          confirmText: "删除",
+                          variant: "danger",
+                        });
+                        if (ok) del.mutate(l.token);
+                      }}>删除</button>
                   </td>
                 </tr>
               );

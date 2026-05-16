@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
+import { useConfirm } from "../../components/ConfirmDialog";
 
 export default function Invitations() {
   const { org } = useParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading, error } = useQuery({
     queryKey: ["invitations", org],
     queryFn: () => api<{ pending: any[]; history: any[] }>(`/api/admin/${org}/invitations`),
@@ -44,7 +46,15 @@ export default function Invitations() {
                   <td className="px-5 py-3 text-ink-400">{fmtRelative(p.created_at)}</td>
                   <td className="px-5 py-3 text-right">
                     <button className="btn-danger text-xs py-1 px-2"
-                      onClick={() => { if (confirm("取消该邀请?")) cancel.mutate(p.id); }}>取消</button>
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "取消该 GitHub 邀请？",
+                          body: `${p.login ? `@${p.login}` : p.email} 将不再能通过此邀请加入。可随时重新发起。`,
+                          confirmText: "取消邀请",
+                          variant: "danger",
+                        });
+                        if (ok) cancel.mutate(p.id);
+                      }}>取消</button>
                   </td>
                 </tr>
               ))}

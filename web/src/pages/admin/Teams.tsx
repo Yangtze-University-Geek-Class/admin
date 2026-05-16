@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useOutletContext, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useConfirm } from "../../components/ConfirmDialog";
+import Select from "../../components/Select";
 
 type Ctx = { isAdmin: boolean };
 
@@ -9,6 +11,7 @@ export default function Teams() {
   const { org } = useParams();
   const { isAdmin } = useOutletContext<Ctx>();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading, error } = useQuery({
     queryKey: ["teams", org],
     queryFn: () => api<{ teams: any[] }>(`/api/admin/${org}/teams`),
@@ -40,10 +43,16 @@ export default function Teams() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <input className="input md:col-span-1" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <input className="input md:col-span-2" placeholder="描述" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            <select className="input md:col-span-1" value={form.privacy} onChange={(e) => setForm({ ...form, privacy: e.target.value as any })}>
-              <option value="closed">closed (组织内可见)</option>
-              <option value="secret">secret (仅成员可见)</option>
-            </select>
+            <div className="md:col-span-1">
+              <Select
+                value={form.privacy}
+                onChange={(v) => setForm({ ...form, privacy: v as any })}
+                options={[
+                  { value: "closed", label: "closed", hint: "组织内可见" },
+                  { value: "secret", label: "secret", hint: "仅成员可见" },
+                ]}
+              />
+            </div>
           </div>
           <button className="btn-primary mt-3" disabled={!form.name || create.isPending} onClick={() => create.mutate()}>
             {create.isPending ? "创建中…" : "创建"}
@@ -69,7 +78,15 @@ export default function Teams() {
               </div>
               {isAdmin && (
                 <button className="btn-danger text-xs py-1 px-2"
-                  onClick={() => { if (confirm(`删除团队 ${t.name}?`)) del.mutate(t.slug); }}>删除</button>
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `删除团队 ${t.name}？`,
+                      body: `团队的所有 ${t.member_count} 个成员将失去通过此 team 继承的权限，${t.repo_count} 个仓库的 team 授权同时被移除。成员本身不会被移除。`,
+                      confirmText: "删除团队",
+                      variant: "danger",
+                    });
+                    if (ok) del.mutate(t.slug);
+                  }}>删除</button>
               )}
             </div>
           </div>

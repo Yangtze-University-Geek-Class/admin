@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useConfirm } from "../../components/ConfirmDialog";
 
 type Ctx = { isAdmin: boolean };
 type Member = { login: string; id: number; avatar_url: string; html_url: string; role: string; state: string };
@@ -9,6 +10,7 @@ export default function Members() {
   const { org } = useParams();
   const { isAdmin } = useOutletContext<Ctx>();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data, isLoading, error } = useQuery({
     queryKey: ["members", org],
     queryFn: () => api<{ members: Member[] }>(`/api/admin/${org}/members`),
@@ -66,7 +68,15 @@ export default function Members() {
                       {m.role === "admin" ? "降为 member" : "升为 admin"}
                     </button>
                     <button className="btn-danger text-xs py-1 px-2"
-                      onClick={() => { if (confirm(`移除 @${m.login}?`)) remove.mutate(m.login); }}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `移除成员 @${m.login}？`,
+                          body: "对方将被从组织移除，所有继承自组织 / team 的权限失效。Ta 可以被重新邀请。",
+                          confirmText: "移除",
+                          variant: "danger",
+                        });
+                        if (ok) remove.mutate(m.login);
+                      }}
                       disabled={remove.isPending}>
                       移除
                     </button>
