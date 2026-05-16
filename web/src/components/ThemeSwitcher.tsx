@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { THEMES, applyTheme, loadTheme } from "../lib/themes";
 
-export default function ThemeSwitcher() {
+type Props = { compact?: boolean; direction?: "down" | "up" };
+
+export default function ThemeSwitcher({ compact = false, direction = "down" }: Props) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(loadTheme());
   const ref = useRef<HTMLDivElement>(null);
@@ -26,22 +28,28 @@ export default function ThemeSwitcher() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-ink-200 hover:bg-ink-800/60 border border-ink-700/60"
-        title="切换主题"
+        className={`flex items-center gap-2 rounded-lg text-ink-200 hover:bg-ink-800/60 border border-ink-700/60 transition ${
+          compact ? "p-2 justify-center" : "px-3 py-1.5 text-sm"
+        }`}
+        title={`切换主题: ${currentTheme.name}`}
+        aria-label="切换主题"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-          <circle cx="12" cy="12" r="4" />
-          <path strokeLinecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-        </svg>
-        <span className="hidden sm:inline">{currentTheme.name}</span>
+        <span className="w-4 h-4 rounded-full flex-shrink-0 border border-ink-600"
+          style={{
+            background: `rgb(${currentTheme.vars["--brand-500"]})`,
+            boxShadow: `inset 0 0 0 2px rgb(${currentTheme.vars["--ink-950"]})`,
+          }} />
+        {!compact && <span className="whitespace-nowrap">{currentTheme.name}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 card p-2 z-50 max-h-[80vh] overflow-auto">
+        <div className={`absolute card p-2 z-50 max-h-[70vh] overflow-auto min-w-[200px] ${
+          direction === "up" ? "bottom-full mb-2 left-0" : "top-full mt-2 right-0"
+        }`}>
           {THEMES.map((t) => (
             <button
               key={t.id}
               onClick={() => pick(t.id)}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-center gap-3 ${
+              className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-center gap-3 whitespace-nowrap ${
                 t.id === current ? "bg-brand-500/15 text-brand-500" : "text-ink-200 hover:bg-ink-800/60"
               }`}
             >

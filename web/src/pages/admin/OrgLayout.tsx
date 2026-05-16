@@ -6,7 +6,7 @@ import ThemeSwitcher from "../../components/ThemeSwitcher";
 
 const NAV_ALL = [
   { to: "", label: "总览", end: true, icon: "M3 12 12 3l9 9M5 10v10h14V10", admin: false },
-  { to: "members", label: "成员", icon: "M16 14a4 4 0 1 0-8 0M3 21v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2", admin: false },
+  { to: "members", label: "成员", icon: "M16 11a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", admin: false },
   { to: "invitations", label: "邀请", icon: "M3 8l9 6 9-6M3 8v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8M3 8l2-3h14l2 3", admin: true },
   { to: "invite-links", label: "邀请链接", icon: "M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7L11.5 5.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5", admin: true },
   { to: "teams", label: "团队", icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", admin: false },
@@ -113,16 +113,22 @@ export default function OrgLayout() {
         </nav>
 
         <div className="border-t border-ink-800/60 pt-3 mt-3 px-1 text-xs">
-          <div className="flex items-center gap-2 mb-2">
-            {me.data?.avatar_url && <img src={me.data.avatar_url} alt="" className="w-7 h-7 rounded-full border border-ink-700/60" />}
-            <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-3">
+            {me.data?.avatar_url && <img src={me.data.avatar_url} alt="" className="w-8 h-8 rounded-full border border-ink-700/60 flex-shrink-0" />}
+            <div className="min-w-0 flex-1">
               <div className="text-ink-200 font-mono truncate">@{me.data?.login}</div>
-              <div className="text-ink-500 text-[10px]">{currentOrg ? `${currentOrg.role} of @${org}` : ""}</div>
+              <div className="text-ink-500 text-[10px] truncate">{currentOrg ? `${currentOrg.role} of @${org}` : ""}</div>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <ThemeSwitcher />
-            <button onClick={signOut} className="text-rose-400 hover:text-rose-300 text-xs px-2">退出</button>
+          <div className="flex items-center gap-2">
+            <ThemeSwitcher compact direction="up" />
+            <button onClick={signOut}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-ink-700/60 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition text-xs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              退出
+            </button>
           </div>
         </div>
       </aside>
