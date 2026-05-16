@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { forumDb } from "../../lib/forum-db.js";
 import { requireForumAuth } from "../../middleware/require-forum-auth.js";
+import { hasPermission } from "../../lib/forum-permissions.js";
 
 export default async function forumPostsRoutes(app: FastifyInstance) {
   app.post<{ Body: { thread_id: number; content: string; reply_post_id?: number; content_format?: "markdown" | "html" } }>(
@@ -13,6 +14,9 @@ export default async function forumPostsRoutes(app: FastifyInstance) {
       if (!t) return reply.code(404).send({ error: "thread_not_found" });
       if (t.is_locked && req.forumUser!.role === "member") {
         return reply.code(403).send({ error: "thread_locked" });
+      }
+      if (!hasPermission(req.forumUser!.id, "thread.reply", req.forumUser!.role)) {
+        return reply.code(403).send({ error: "forbidden", message: "你所在的组没有回帖权限" });
       }
       const now = Date.now();
       const r = forumDb

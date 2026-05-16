@@ -154,6 +154,36 @@ CREATE TABLE IF NOT EXISTS forum_sessions (
   FOREIGN KEY (user_id) REFERENCES forum_users(id)
 );
 CREATE INDEX IF NOT EXISTS idx_forum_sessions_user ON forum_sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS forum_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  icon TEXT,
+  color TEXT,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0,
+  legacy_mbbs_id INTEGER UNIQUE,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_group_permissions (
+  group_id INTEGER NOT NULL,
+  permission TEXT NOT NULL,
+  PRIMARY KEY (group_id, permission),
+  FOREIGN KEY (group_id) REFERENCES forum_groups(id)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_group_perm_perm ON forum_group_permissions(permission);
+
+CREATE TABLE IF NOT EXISTS forum_user_groups (
+  user_id INTEGER NOT NULL,
+  group_id INTEGER NOT NULL,
+  PRIMARY KEY (user_id, group_id),
+  FOREIGN KEY (user_id) REFERENCES forum_users(id),
+  FOREIGN KEY (group_id) REFERENCES forum_groups(id)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_user_groups_group ON forum_user_groups(group_id);
 `);
 
 export type ForumUser = {
