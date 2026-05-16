@@ -2,6 +2,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, fmtRelative } from "../../lib/api";
 import { Avatar } from "./ForumLayout";
+import BackBar from "../../components/BackBar";
 
 type Me = { signed_in: boolean; user?: { id: number } };
 type Notif = {
@@ -12,14 +13,14 @@ type Notif = {
 
 export default function ForumNotifications() {
   const qc = useQueryClient();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const list = useQuery({
     queryKey: ["forum-notifications"],
     enabled: Boolean(me.data?.user),
-    queryFn: () => api<{ notifications: Notif[]; unread: number }>(`/api/me/notifications`),
+    queryFn: () => api<{ notifications: Notif[]; unread: number }>(`/api/forum/me/notifications`),
   });
   const markAll = useMutation({
-    mutationFn: () => api(`/api/me/notifications/read-all`, { method: "POST" }),
+    mutationFn: () => api(`/api/forum/me/notifications/read-all`, { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-notifications"] }),
   });
 
@@ -28,6 +29,7 @@ export default function ForumNotifications() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      <BackBar fallback="/me" label="返回" />
       <header className="flex items-end justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-ink-50">通知中心</h1>

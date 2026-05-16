@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { forumPath } from "../../lib/site";
+import BackBar from "../../components/BackBar";
 
 export default function ForumRegister() {
   const nav = useNavigate();
@@ -24,6 +25,7 @@ export default function ForumRegister() {
 
   return (
     <div className="max-w-md mx-auto px-6 py-10">
+      <BackBar label="返回" />
       <h1 className="text-2xl font-bold text-ink-50 mb-1">注册</h1>
       <p className="text-ink-300 text-sm mb-6">
         已有账号？<Link to={`/login?return_to=${encodeURIComponent(navReturnTo)}`} className="text-brand-500 hover:underline">去登录</Link>

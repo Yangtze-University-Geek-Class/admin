@@ -10,7 +10,7 @@ type Me = { signed_in: boolean; user?: { id: number; username: string } };
 export default function ForumNewThread() {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const cats = useQuery({ queryKey: ["forum-categories"], queryFn: () => api<{ categories: Category[] }>("/api/forum/categories") });
 
   const [categoryId, setCategoryId] = useState<string>(params.get("category") ?? "");
