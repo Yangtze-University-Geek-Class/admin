@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
@@ -6,6 +6,7 @@ import { renderPostContent } from "../../lib/forum-render";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useProseInteractions } from "../../components/ImageLightbox";
 import { Avatar } from "./ForumLayout";
+import BackBar from "../../components/BackBar";
 
 type Author = { id: number; username: string; display_name: string | null; avatar_url: string | null; role: string; signature: string | null };
 type Thread = {
@@ -13,7 +14,7 @@ type Thread = {
   view_count: number; reply_count: number; is_sticky: number; is_essence: number; is_locked: number;
   created_at: number; updated_at: number; last_posted_at: number;
   author: Author;
-  category: { slug: string; name: string };
+  category: { slug: string; name: string; is_legacy?: number };
 };
 type Post = {
   id: number; content: string; content_format: string; like_count: number; liked: boolean;
@@ -25,8 +26,10 @@ type Me = { signed_in: boolean; user?: { id: number; username: string; role: str
 export default function ForumThread() {
   const { id } = useParams();
   const nav = useNavigate();
+  const loc = useLocation();
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const inArchive = loc.pathname.startsWith("/archive");
   const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const detail = useQuery({
     queryKey: ["forum-thread", id],
@@ -60,8 +63,9 @@ export default function ForumThread() {
   const t = detail.data?.thread;
   const posts = detail.data?.posts ?? [];
   const u = me.data?.user;
-  const isMod = u?.role === "admin" || u?.role === "mod";
-  const canManageThread = Boolean(u && t && (u.id === t.author.id || isMod));
+  const isLegacy = Boolean(t?.category?.is_legacy) || inArchive;
+  const isMod = (u?.role === "admin" || u?.role === "mod") && !isLegacy;
+  const canManageThread = Boolean(u && t && (u.id === t.author.id || isMod)) && !isLegacy;
 
   const threadHtml = useMemo(() => t ? renderPostContent(t.content, t.content_format) : "", [t?.content, t?.content_format]);
   const articleRef = useRef<HTMLDivElement>(null);
@@ -73,11 +77,23 @@ export default function ForumThread() {
 
   return (
     <div ref={articleRef} className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-      <nav className="text-sm text-ink-400 mb-3">
-        <Link to="/" className="hover:text-brand-500">论坛</Link>
-        <span className="mx-2">/</span>
-        <Link to={`/c/${encodeURIComponent(t.category.slug)}`} className="hover:text-brand-500">{t.category.name}</Link>
-      </nav>
+      {inArchive ? (
+        <>
+          <BackBar fallback="/archive" label="返回归档" />
+          <nav className="text-sm text-ink-400 mb-3">
+            <Link to="/archive" className="hover:text-brand-500">老帖归档</Link>
+            <span className="mx-2">/</span>
+            <span className="text-ink-300">{t.category.name}</span>
+            <span className="ml-3 text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">只读归档</span>
+          </nav>
+        </>
+      ) : (
+        <nav className="text-sm text-ink-400 mb-3">
+          <Link to="/" className="hover:text-brand-500">论坛</Link>
+          <span className="mx-2">/</span>
+          <Link to={`/c/${encodeURIComponent(t.category.slug)}`} className="hover:text-brand-500">{t.category.name}</Link>
+        </nav>
+      )}
 
       <div className="card p-6 mb-5">
         <div className="flex items-start gap-3 mb-4">
@@ -143,12 +159,15 @@ export default function ForumThread() {
                   <div className="text-xs text-ink-400">#{idx + 2} · {fmtRelative(p.created_at)}</div>
                 </div>
                 <div className="flex items-center gap-1 text-xs">
-                  {u && (
+                  {u && !isLegacy && (
                     <button onClick={() => toggleLike.mutate(p.id)} className={`px-2 py-1 rounded transition ${p.liked ? "bg-brand-500/15 text-brand-500" : "text-ink-400 hover:bg-brand-500/8 hover:text-brand-500"}`}>
                       ♥ {p.like_count}
                     </button>
                   )}
-                  {u && !t.is_locked && <button onClick={() => { setReplyTo({ post_id: p.id, author: p.author.display_name ?? p.author.username }); document.getElementById("reply-box")?.scrollIntoView({ behavior: "smooth" }); }} className="px-2 py-1 rounded text-ink-400 hover:bg-brand-500/8 hover:text-brand-500 transition">回复</button>}
+                  {isLegacy && p.like_count > 0 && (
+                    <span className="px-2 py-1 text-ink-400">♥ {p.like_count}</span>
+                  )}
+                  {u && !t.is_locked && !isLegacy && <button onClick={() => { setReplyTo({ post_id: p.id, author: p.author.display_name ?? p.author.username }); document.getElementById("reply-box")?.scrollIntoView({ behavior: "smooth" }); }} className="px-2 py-1 rounded text-ink-400 hover:bg-brand-500/8 hover:text-brand-500 transition">回复</button>}
                   {canDel && (
                     <button onClick={async () => {
                       const ok = await confirm({ title: "删除回帖", body: "确认删除这条回复？", confirmText: "删除", variant: "danger" });
@@ -164,6 +183,13 @@ export default function ForumThread() {
         {posts.length === 0 && <div className="card p-8 text-center text-ink-300 text-sm">还没有回复</div>}
       </div>
 
+      {isLegacy ? (
+        <div className="mt-8 card p-5 text-center text-sm text-ink-400">
+          老帖归档为只读，无法回复 / 点赞 / 编辑。
+          {" "}
+          <Link to="/" className="text-brand-500 hover:underline">去新论坛发帖 →</Link>
+        </div>
+      ) : (
       <div id="reply-box" className="mt-8 card p-5">
         {!u && (
           <div className="text-center text-ink-300 py-6 text-sm">
@@ -200,6 +226,7 @@ export default function ForumThread() {
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
