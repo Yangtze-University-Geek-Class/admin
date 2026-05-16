@@ -50,6 +50,7 @@ export default function ForumLayout() {
             <ForumNav to="/" end>首页</ForumNav>
             <ForumNav to="/categories">分类</ForumNav>
             {u && <ForumNav to="/new">发帖</ForumNav>}
+            <ForumNav to="/archive">老帖归档</ForumNav>
             <a href={externalUrl("portal", "/")}
               className="px-3 py-1.5 rounded text-ink-200 hover:text-brand-500 hover:bg-brand-500/8 transition">← 主站</a>
           </nav>

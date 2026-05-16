@@ -11,7 +11,6 @@ import {
 import { audit } from "../lib/db.js";
 import { config } from "../config.js";
 import { handleForumGithubCallback, issueForumSessionForGithub } from "../lib/forum-github.js";
-import { handleForumQqCallback } from "../lib/forum-qq.js";
 
 function externalize(returnTo: string): string {
   if (/^https?:\/\//.test(returnTo)) return returnTo;
@@ -41,16 +40,13 @@ export default async function authRoutes(app: FastifyInstance) {
       if (state.startsWith("forum-")) {
         return handleForumGithubCallback(req, reply, code, state);
       }
-      if (state.startsWith("forumqq-")) {
-        return handleForumQqCallback(req, reply, code, state);
-      }
       const cookieRaw = req.cookies?.oauth_state ?? "";
       const [cookieState, returnToEnc] = cookieRaw.split("|");
       if (state !== cookieState) {
         return reply.code(400).send({ error: "invalid_state" });
       }
       const returnTo = decodeURIComponent(returnToEnc ?? "/admin");
-      reply.clearCookie("oauth_state", { path: "/auth" });
+      reply.clearCookie("oauth_state", { path: "/auth", domain: config.cookieDomain });
       const token = await exchangeCode(code);
       const user = await fetchAuthenticatedUser(token);
       const sid = createSession(user.login, user.id, user.avatar_url, token);
@@ -71,7 +67,13 @@ export default async function authRoutes(app: FastifyInstance) {
       destroySession(sid);
       if (s) audit(null, s.login, "auth.signout", undefined, undefined, req.ip);
     }
-    reply.clearCookie("sid", { path: "/" });
+    const forumSid = req.cookies?.forum_sid;
+    if (forumSid) {
+      const { destroyForumSession } = await import("../lib/forum-auth.js");
+      destroyForumSession(forumSid);
+    }
+    reply.clearCookie("sid", { path: "/", domain: config.cookieDomain });
+    reply.clearCookie("forum_sid", { path: "/", domain: config.cookieDomain });
     return { ok: true };
   });
 

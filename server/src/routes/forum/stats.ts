@@ -4,24 +4,46 @@ import { forumDb } from "../../lib/forum-db.js";
 export default async function forumStatsRoutes(app: FastifyInstance) {
   app.get("/api/forum/stats", async () => {
     const members = (forumDb.prepare("SELECT COUNT(*) AS c FROM forum_users WHERE role != 'banned'").get() as any).c;
-    const threads = (forumDb.prepare("SELECT COUNT(*) AS c FROM forum_threads WHERE is_deleted = 0").get() as any).c;
-    const posts = (forumDb.prepare("SELECT COUNT(*) AS c FROM forum_posts WHERE is_deleted = 0").get() as any).c;
-    const categories = (forumDb.prepare("SELECT COUNT(*) AS c FROM forum_categories WHERE hidden = 0").get() as any).c;
+    const threads = (forumDb
+      .prepare(
+        `SELECT COUNT(*) AS c FROM forum_threads t
+         JOIN forum_categories c ON c.id = t.category_id
+         WHERE t.is_deleted = 0 AND c.is_legacy = 0`,
+      )
+      .get() as any).c;
+    const posts = (forumDb
+      .prepare(
+        `SELECT COUNT(*) AS c FROM forum_posts p
+         JOIN forum_threads t ON t.id = p.thread_id
+         JOIN forum_categories c ON c.id = t.category_id
+         WHERE p.is_deleted = 0 AND c.is_legacy = 0`,
+      )
+      .get() as any).c;
+    const categories = (forumDb
+      .prepare("SELECT COUNT(*) AS c FROM forum_categories WHERE hidden = 0 AND is_legacy = 0")
+      .get() as any).c;
 
-    const groupParent = forumDb
-      .prepare("SELECT id FROM forum_categories WHERE slug = '小组专区' OR slug = 'groups' LIMIT 1")
-      .get() as any;
-    let groups: any[] = [];
-    if (groupParent) {
-      groups = forumDb
+    const newCats = forumDb
+      .prepare(
+        `SELECT id, slug, name, description, thread_count
+         FROM forum_categories
+         WHERE is_legacy = 0 AND hidden = 0
+         ORDER BY sort, id`,
+      )
+      .all();
+
+    const archive = {
+      threads: (forumDb
         .prepare(
-          `SELECT id, slug, name, description, thread_count
-           FROM forum_categories
-           WHERE parent_id = ? AND hidden = 0
-           ORDER BY sort, id`,
+          `SELECT COUNT(*) AS c FROM forum_threads t
+           JOIN forum_categories c ON c.id = t.category_id
+           WHERE t.is_deleted = 0 AND c.is_legacy = 1`,
         )
-        .all(groupParent.id);
-    }
+        .get() as any).c,
+      categories: (forumDb
+        .prepare("SELECT COUNT(*) AS c FROM forum_categories WHERE hidden = 0 AND is_legacy = 1")
+        .get() as any).c,
+    };
 
     const recent = forumDb
       .prepare(
@@ -31,14 +53,15 @@ export default async function forumStatsRoutes(app: FastifyInstance) {
          FROM forum_threads t
          JOIN forum_users u ON u.id = t.user_id
          JOIN forum_categories c ON c.id = t.category_id
-         WHERE t.is_deleted = 0 AND c.hidden = 0
+         WHERE t.is_deleted = 0 AND c.hidden = 0 AND c.is_legacy = 0
          ORDER BY t.last_posted_at DESC LIMIT 8`,
       )
       .all();
 
     return {
       counts: { members, threads, posts, categories },
-      groups,
+      groups: newCats,
+      archive,
       recent_threads: recent.map((r: any) => ({
         id: r.id,
         title: r.title,
