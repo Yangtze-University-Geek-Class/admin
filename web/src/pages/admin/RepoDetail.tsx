@@ -262,27 +262,104 @@ function IssuesTab() {
         {data && data.issues.length === 0 && <div className="p-8 text-center text-ink-500">无 issue</div>}
         <ul className="divide-y divide-ink-800/60">
           {data?.issues.map((i) => (
-            <li key={i.number} className="px-5 py-3 hover:bg-ink-800/30">
-              <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full ${i.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                <Link to={`/admin/${org}/repos/${repo}/issues/${i.number}`} className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">{i.title}</Link>
-                <span className="text-xs text-ink-500">#{i.number}</span>
-              </div>
-              <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
-                <span className="font-mono">@{i.user.login}</span>
-                <span>{fmtRelative(i.created_at)}</span>
-                {i.comments > 0 && <span>{i.comments} 评论</span>}
-                {i.labels?.map((l: any) => (
-                  <span key={l.name} className="px-1.5 py-0.5 rounded text-[10px]"
-                    style={{ backgroundColor: `#${l.color}33`, color: `#${l.color}`, border: `1px solid #${l.color}66` }}>
-                    {l.name}
-                  </span>
-                ))}
-              </div>
+            <li key={i.number}>
+              <Link to={`/admin/${org}/repos/${repo}/issues/${i.number}`} className="block px-5 py-3 hover:bg-ink-800/30 transition">
+                <div className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full ${i.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                  <div className="text-ink-100 font-medium flex-1 truncate">{i.title}</div>
+                  <span className="text-xs text-ink-500">#{i.number}</span>
+                </div>
+                <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
+                  <span className="font-mono">@{i.user.login}</span>
+                  <span>{fmtRelative(i.created_at)}</span>
+                  {i.comments > 0 && <span>{i.comments} 评论</span>}
+                  {i.labels?.map((l: any) => (
+                    <span key={l.name} className="px-1.5 py-0.5 rounded text-[10px]"
+                      style={{ backgroundColor: `#${l.color}33`, color: `#${l.color}`, border: `1px solid #${l.color}66` }}>
+                      {l.name}
+                    </span>
+                  ))}
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+function IssueComposer({ org, repo, n, queryKey, state, kind }: { org: string; repo: string; n: string; queryKey: any[]; state: "open" | "closed"; kind: "issue" | "pr" }) {
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const [body, setBody] = useState("");
+  const addComment = useMutation({
+    mutationFn: () => api(`/api/admin/${org}/repos/${repo}/issues/${n}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+    onSuccess: () => { setBody(""); qc.invalidateQueries({ queryKey }); },
+  });
+  const toggleState = useMutation({
+    mutationFn: (target: "open" | "closed") => api(`/api/admin/${org}/repos/${repo}/issues/${n}`, { method: "PATCH", body: JSON.stringify({ state: target }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  });
+  const label = kind === "pr" ? "PR" : "issue";
+  return (
+    <div className="card p-4 mt-4">
+      <textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)}
+        placeholder="评论 · 支持 Markdown" className="input font-mono text-sm resize-y w-full" />
+      <div className="flex items-center justify-end gap-2 mt-3">
+        {addComment.error && <div className="text-rose-400 text-xs mr-auto">{(addComment.error as Error).message}</div>}
+        {state === "open" ? (
+          <button onClick={async () => {
+            if (body.trim()) addComment.mutate();
+            const ok = await confirm({ title: `关闭${label}`, body: `确认关闭 #${n}？`, confirmText: "关闭" });
+            if (ok) toggleState.mutate("closed");
+          }} className="btn-ghost text-sm px-4 py-2">{body.trim() ? "评论并关闭" : "关闭"}</button>
+        ) : (
+          <button onClick={() => {
+            if (body.trim()) addComment.mutate();
+            toggleState.mutate("open");
+          }} className="btn-ghost text-sm px-4 py-2">{body.trim() ? "评论并重开" : "重开"}</button>
+        )}
+        <button onClick={() => addComment.mutate()} disabled={!body.trim() || addComment.isPending}
+          className="btn-primary text-sm px-5 py-2 disabled:opacity-50">
+          {addComment.isPending ? "提交…" : "评论"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MergeBox({ org, repo, n, head, base, queryKey }: { org: string; repo: string; n: string; head: string; base: string; queryKey: any[] }) {
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const [method, setMethod] = useState<"merge" | "squash" | "rebase">("merge");
+  const merge = useMutation({
+    mutationFn: () => api(`/api/admin/${org}/repos/${repo}/pulls/${n}/merge`, { method: "PUT", body: JSON.stringify({ merge_method: method }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+  });
+  return (
+    <div className="card p-4 mt-4 border-emerald-500/30 bg-emerald-500/5">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-ink-100">
+          合并 <code className="font-mono text-brand-500">{head}</code> → <code className="font-mono text-brand-500">{base}</code>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="w-36">
+            <Select value={method} onChange={(v) => setMethod(v as any)} options={[
+              { value: "merge", label: "Create merge commit" },
+              { value: "squash", label: "Squash and merge" },
+              { value: "rebase", label: "Rebase and merge" },
+            ]} />
+          </div>
+          <button onClick={async () => {
+            const ok = await confirm({ title: "合并 PR", body: `用 ${method} 方式合并 ${head} → ${base}？`, confirmText: "合并" });
+            if (ok) merge.mutate();
+          }} disabled={merge.isPending} className="btn-primary text-sm px-5 py-2 disabled:opacity-50">
+            {merge.isPending ? "合并中…" : "合并"}
+          </button>
+        </div>
+      </div>
+      {merge.error && <div className="text-rose-400 text-xs mt-2">{(merge.error as Error).message}</div>}
     </div>
   );
 }
@@ -337,6 +414,7 @@ function IssueDetail() {
         ))}
         {data.comments.length === 0 && <p className="text-ink-500 text-sm">暂无评论</p>}
       </div>
+      <IssueComposer org={org!} repo={repo!} n={n!} queryKey={["issue", org, repo, n]} state={data.state} kind="issue" />
     </div>
   );
 }
@@ -364,19 +442,21 @@ function PullsTab() {
         {data && data.pulls.length === 0 && <div className="p-8 text-center text-ink-500">无 PR</div>}
         <ul className="divide-y divide-ink-800/60">
           {data?.pulls.map((p) => (
-            <li key={p.number} className="px-5 py-3 hover:bg-ink-800/30">
-              <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full ${p.merged ? "bg-purple-500" : p.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                <Link to={`/admin/${org}/repos/${repo}/pulls/${p.number}`} className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">
-                  {p.draft && <span className="text-xs text-ink-500 mr-2">[Draft]</span>}{p.title}
-                </Link>
-                <span className="text-xs text-ink-500">#{p.number}</span>
-              </div>
-              <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
-                <span className="font-mono">@{p.user.login}</span>
-                <span>{fmtRelative(p.updated_at)}</span>
-                <span className="font-mono text-ink-400">{p.head} → {p.base}</span>
-              </div>
+            <li key={p.number}>
+              <Link to={`/admin/${org}/repos/${repo}/pulls/${p.number}`} className="block px-5 py-3 hover:bg-ink-800/30 transition">
+                <div className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full ${p.merged ? "bg-purple-500" : p.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                  <div className="text-ink-100 font-medium flex-1 truncate">
+                    {p.draft && <span className="text-xs text-ink-500 mr-2">[Draft]</span>}{p.title}
+                  </div>
+                  <span className="text-xs text-ink-500">#{p.number}</span>
+                </div>
+                <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
+                  <span className="font-mono">@{p.user.login}</span>
+                  <span>{fmtRelative(p.updated_at)}</span>
+                  <span className="font-mono text-ink-400">{p.head} → {p.base}</span>
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
@@ -451,6 +531,15 @@ function PullDetail() {
         ))}
         {data.comments.length === 0 && <p className="text-ink-500 text-sm">暂无评论</p>}
       </div>
+      {data.state === "open" && !data.merged && data.mergeable !== false && (
+        <MergeBox org={org!} repo={repo!} n={n!} head={data.head.ref} base={data.base.ref} queryKey={["pull", org, repo, n]} />
+      )}
+      {data.state === "open" && data.mergeable === false && (
+        <div className="card p-4 mt-4 border-rose-500/30 bg-rose-500/5 text-sm text-rose-300">
+          PR 当前不可自动合并（有冲突或缺 review）。请在 GitHub 上解决冲突后再回来。
+        </div>
+      )}
+      <IssueComposer org={org!} repo={repo!} n={n!} queryKey={["pull", org, repo, n]} state={data.merged ? "closed" : data.state} kind="pr" />
     </div>
   );
 }
