@@ -1,0 +1,14 @@
+{
+  "name": "yzgc-admin",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "start": "node server/dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,41 @@
+export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text);
+      throw new Error(body.error ?? body.message ?? `HTTP ${res.status}`);
+    } catch {
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+  }
+  if (res.headers.get("content-type")?.includes("application/json")) {
+    return res.json();
+  }
+  return undefined as T;
+}
+
+export const fmtDate = (iso: string | number | null | undefined) => {
+  if (!iso) return "—";
+  const d = typeof iso === "number" ? new Date(iso) : new Date(iso);
+  return d.toLocaleString("zh-CN", { hour12: false });
+};
+
+export const fmtRelative = (iso: string | number | null | undefined) => {
+  if (!iso) return "—";
+  const d = typeof iso === "number" ? new Date(iso) : new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const s = Math.round(diff / 1000);
+  if (s < 60) return `${s} 秒前`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  const day = Math.round(h / 24);
+  if (day < 30) return `${day} 天前`;
+  return d.toLocaleDateString("zh-CN");
+};

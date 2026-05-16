@@ -1,0 +1,18 @@
+[Unit]
+Description=YZGC Admin (GitHub org management for Yangtze-University-Geek-Class)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/yzgc-admin
+EnvironmentFile=/opt/yzgc-admin/.env
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/yzgc-admin.log
+StandardError=append:/var/log/yzgc-admin.log
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
