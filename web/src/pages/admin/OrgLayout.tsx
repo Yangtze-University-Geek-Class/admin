@@ -80,13 +80,17 @@ export default function OrgLayout() {
   return (
     <div className="min-h-screen flex">
       <aside className="hidden md:flex w-64 flex-col border-r border-ink-800/70 bg-ink-950/80 backdrop-blur p-4">
-        <Link to="/admin" className="flex items-center gap-3 px-2 py-3 mb-3 hover:bg-ink-800/30 rounded-lg">
+        <Link to="/admin" className="flex items-center gap-3 px-2 py-3 mb-2 hover:bg-ink-800/30 rounded-lg">
           <img src="/logo.png" alt="" className="w-8 h-8 rounded-md border border-ink-700" />
           <div className="min-w-0">
             <div className="font-mono text-[10px] text-ink-500 tracking-wider">YUGC ADMIN</div>
             <div className="text-ink-100 font-semibold text-sm">全部组织</div>
           </div>
         </Link>
+        <div className="flex items-center gap-1 mb-3 px-1">
+          <a href="https://yangtzeu.work/" className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">← 主站</a>
+          <a href="https://yangtzeu.work/forum" className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">论坛</a>
+        </div>
 
         <div className="mb-4">
           <Select

@@ -48,6 +48,14 @@ html[data-site="forum"] pre {
 
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(4px) } to { opacity: 1; transform: scale(1) translateY(0) } }
+@keyframes bg-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 30%; }
+  100% { background-position: 30% 70%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body { animation: none !important; }
+}
 
 .prose-doc { color: rgb(var(--ink-100)); line-height: 1.7; font-size: 15px; }
 .prose-doc h1 { font-size: 2rem; font-weight: 700; margin: 0 0 1.2rem; color: rgb(var(--ink-50)); border-bottom: 1px solid rgb(var(--ink-800) / 0.6); padding-bottom: 0.6rem; }
