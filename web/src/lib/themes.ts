@@ -172,6 +172,8 @@ export function applyTheme(id: string) {
   root.dataset.mode = t.mode;
   root.classList.toggle("dark", t.mode === "dark");
   document.body.style.background = t.vars["--bg-grad"];
+  document.body.style.backgroundSize = "200% 200%";
+  document.body.style.animation = "bg-flow 36s ease-in-out infinite alternate";
   try { localStorage.setItem(themeKey(), t.id); } catch {}
 }
 
