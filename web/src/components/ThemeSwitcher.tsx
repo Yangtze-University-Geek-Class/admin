@@ -48,15 +48,17 @@ export default function ThemeSwitcher({ compact = false, direction = "down" }: P
         {!compact && <span className="whitespace-nowrap">{currentTheme.name}</span>}
       </button>
       {open && (
-        <div className={`absolute p-2 z-50 max-h-[70vh] overflow-auto min-w-[220px] bg-ink-950 border border-ink-700/60 rounded-2xl shadow-xl ${
+        <div
+          style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif", letterSpacing: 0 }}
+          className={`absolute p-1.5 z-50 max-h-[70vh] overflow-auto min-w-[240px] bg-ink-950 border border-ink-700/60 rounded-2xl shadow-xl ${
           direction === "up" ? "bottom-full mb-2 left-0" : "top-full mt-2 right-0"
         }`}>
           {allowedThemes.map((t) => (
             <button
               key={t.id}
               onClick={() => pick(t.id)}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm transition flex items-center gap-3 whitespace-nowrap ${
-                t.id === current ? "bg-brand-500/15 text-brand-500" : "text-ink-200 hover:bg-ink-800/60"
+              className={`w-full text-left px-3 py-2.5 my-0.5 rounded-md text-sm leading-snug transition flex items-center gap-3 whitespace-nowrap ${
+                t.id === current ? "bg-brand-500/20 text-brand-500" : "text-ink-200 hover:bg-ink-800/80"
               }`}
             >
               <span className="w-4 h-4 rounded-full border border-ink-600 flex-shrink-0"

@@ -51,11 +51,16 @@ export default function ForumThread() {
     mutationFn: (postId: number) => api(`/api/forum/posts/${postId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-thread", id] }),
   });
+  const patchThread = useMutation({
+    mutationFn: (patch: Record<string, number>) => api(`/api/forum/threads/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-thread", id] }),
+  });
 
   const t = detail.data?.thread;
   const posts = detail.data?.posts ?? [];
   const u = me.data?.user;
-  const canManageThread = Boolean(u && t && (u.id === t.author.id || u.role === "admin" || u.role === "mod"));
+  const isMod = u?.role === "admin" || u?.role === "mod";
+  const canManageThread = Boolean(u && t && (u.id === t.author.id || isMod));
 
   const threadHtml = useMemo(() => t ? renderPostContent(t.content, t.content_format) : "", [t?.content, t?.content_format]);
 
@@ -81,12 +86,27 @@ export default function ForumThread() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-ink-50 mt-1 leading-snug">{t.title}</h1>
           </div>
-          {canManageThread && (
-            <button onClick={async () => {
-              const ok = await confirm({ title: "删除主题", body: `确认删除「${t.title}」？回帖会一并隐藏。`, confirmText: "删除", variant: "danger" });
-              if (ok) deleteThread.mutate();
-            }} className="btn-danger text-xs px-3 py-1.5 shrink-0">删除</button>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isMod && (
+              <>
+                <button onClick={() => patchThread.mutate({ is_sticky: t.is_sticky ? 0 : 1 })}
+                  className={`text-xs px-2.5 py-1.5 rounded-md border transition ${t.is_sticky ? "bg-brand-500/15 border-brand-500/40 text-brand-500" : "border-ink-700/60 text-ink-300 hover:bg-ink-800/60"}`}
+                  title="置顶">{t.is_sticky ? "已置顶" : "置顶"}</button>
+                <button onClick={() => patchThread.mutate({ is_essence: t.is_essence ? 0 : 1 })}
+                  className={`text-xs px-2.5 py-1.5 rounded-md border transition ${t.is_essence ? "bg-amber-500/15 border-amber-500/40 text-amber-500" : "border-ink-700/60 text-ink-300 hover:bg-ink-800/60"}`}
+                  title="加精">{t.is_essence ? "已加精" : "加精"}</button>
+                <button onClick={() => patchThread.mutate({ is_locked: t.is_locked ? 0 : 1 })}
+                  className={`text-xs px-2.5 py-1.5 rounded-md border transition ${t.is_locked ? "bg-rose-500/15 border-rose-500/40 text-rose-500" : "border-ink-700/60 text-ink-300 hover:bg-ink-800/60"}`}
+                  title="锁定">{t.is_locked ? "已锁定" : "锁定"}</button>
+              </>
+            )}
+            {canManageThread && (
+              <button onClick={async () => {
+                const ok = await confirm({ title: "删除主题", body: `确认删除「${t.title}」？回帖会一并隐藏。`, confirmText: "删除", variant: "danger" });
+                if (ok) deleteThread.mutate();
+              }} className="btn-danger text-xs px-3 py-1.5">删除</button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3 text-sm pb-4 border-b border-brand-500/10">
           <Avatar user={t.author} size={36} />

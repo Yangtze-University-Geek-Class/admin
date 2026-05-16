@@ -7,6 +7,7 @@ import forumUsersRoutes from "./users.js";
 import forumUploadRoutes from "./upload.js";
 import forumStatsRoutes from "./stats.js";
 import forumGroupsRoutes from "./groups.js";
+import forumAdminUsersRoutes from "./admin-users.js";
 
 export default async function forumRoutes(app: FastifyInstance) {
   await app.register(forumAuthRoutes);
@@ -17,4 +18,5 @@ export default async function forumRoutes(app: FastifyInstance) {
   await app.register(forumUploadRoutes);
   await app.register(forumStatsRoutes);
   await app.register(forumGroupsRoutes);
+  await app.register(forumAdminUsersRoutes);
 }
