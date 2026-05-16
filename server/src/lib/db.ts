@@ -58,6 +58,26 @@ CREATE TABLE IF NOT EXISTS invitations (
 );
 CREATE INDEX IF NOT EXISTS idx_invitations_org_created ON invitations(org, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org TEXT NOT NULL,
+  content TEXT NOT NULL,
+  category TEXT,
+  contact TEXT,
+  submitter_login TEXT,
+  submitter_id INTEGER,
+  source_ip TEXT,
+  user_agent TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  reply TEXT,
+  replied_by TEXT,
+  replied_at INTEGER,
+  votes INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_org_status ON feedback(org, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   org TEXT,

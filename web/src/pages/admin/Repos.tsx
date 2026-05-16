@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { api, fmtRelative } from "../../lib/api";
+
+type Ctx = { isAdmin: boolean };
 
 export default function Repos() {
   const { org } = useParams();
+  const ctx = useOutletContext<Ctx>();
   const { data, isLoading, error } = useQuery({
     queryKey: ["repos", org],
     queryFn: () => api<{ repos: any[] }>(`/api/admin/${org}/repos`),
@@ -16,6 +19,12 @@ export default function Repos() {
       <header className="mb-6 flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold text-ink-50">仓库</h1>
         <span className="text-ink-500 text-sm">{data!.repos.length} 个</span>
+        {ctx?.isAdmin && (
+          <Link to={`/admin/${org}/repos/new`} className="btn-primary text-sm ml-auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M12 5v14M5 12h14" /></svg>
+            新建仓库
+          </Link>
+        )}
       </header>
 
       {data!.repos.length === 0 ? (

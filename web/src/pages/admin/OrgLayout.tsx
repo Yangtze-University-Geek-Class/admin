@@ -15,6 +15,7 @@ const NAV_ALL: NavItem[] = [
   { to: "teams", label: "团队", admin: false, svg: (<><circle cx="9" cy="8" r="3.5" /><circle cx="17" cy="9" r="3" /><path d="M2 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" /><path d="M16 14h1a4 4 0 0 1 4 4v2" /></>) },
   { to: "repos", label: "仓库", admin: false, svg: (<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>) },
   { to: "activity", label: "活动", admin: false, svg: (<path d="M3 12h4l3-9 4 18 3-9h4" />) },
+  { to: "feedback", label: "意见箱", admin: true, svg: (<><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 15.2-5 8.4 8.4 0 0 1 .9 1.2Z" /></>) },
   { to: "security", label: "安全", admin: false, svg: (<path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3Z" />) },
   { to: "org", label: "组织资料", admin: false, svg: (<><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 9h.01M9 13h.01M9 17h.01M14 9h.01M14 13h.01M14 17h.01" /></>) },
   { to: "logs", label: "操作日志", admin: true, svg: (<><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 9h8M8 13h8M8 17h5" /></>) },

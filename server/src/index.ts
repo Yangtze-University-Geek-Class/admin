@@ -10,6 +10,8 @@ import { config } from "./config.js";
 import authRoutes from "./routes/auth.js";
 import joinRoutes from "./routes/join.js";
 import orgsRoutes from "./routes/orgs.js";
+import feedbackRoutes from "./routes/feedback.js";
+import adminFeedbackRoutes from "./routes/admin/feedback.js";
 import overviewRoutes from "./routes/admin/overview.js";
 import membersRoutes from "./routes/admin/members.js";
 import reposRoutes from "./routes/admin/repos.js";
@@ -36,6 +38,8 @@ async function main() {
   await app.register(authRoutes);
   await app.register(joinRoutes);
   await app.register(orgsRoutes);
+  await app.register(feedbackRoutes);
+  await app.register(adminFeedbackRoutes);
   await app.register(overviewRoutes);
   await app.register(membersRoutes);
   await app.register(reposRoutes);

@@ -33,6 +33,9 @@ export default function Landing() {
             <Link to="/admin/signin" className="btn-primary text-base px-6 py-3">
               进入管理后台
             </Link>
+            <Link to="/feedback" className="btn-ghost text-base px-6 py-3">
+              提交意见
+            </Link>
             <a href="https://github.com/Yangtze-University-Geek-Class" target="_blank" rel="noreferrer" className="btn-ghost text-base px-6 py-3">
               访问 GitHub 组织
             </a>
