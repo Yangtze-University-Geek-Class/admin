@@ -3,6 +3,7 @@ import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
 import { audit } from "../../lib/db.js";
+import { cached, invalidate } from "../../lib/cache.js";
 
 export default async function reposRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
@@ -11,46 +12,52 @@ export default async function reposRoutes(app: FastifyInstance) {
     preHandler: requireOrgRole("member"),
   }, async (req) => {
     const { org } = req.params;
-    const octokit = octokitWith(req.session!.accessToken);
-    const repos = await octokit.paginate("GET /orgs/{org}/repos", { org, per_page: 100, type: "all" });
-    return {
-      repos: repos.map((r) => ({
-        name: r.name,
-        full_name: r.full_name,
-        visibility: r.visibility,
-        default_branch: r.default_branch,
-        size_kb: r.size,
-        pushed_at: r.pushed_at,
-        updated_at: r.updated_at,
-        stargazers_count: r.stargazers_count,
-        forks_count: r.forks_count,
-        open_issues_count: r.open_issues_count,
-        archived: r.archived,
-        language: r.language,
-        topics: r.topics ?? [],
-        html_url: r.html_url,
-        description: r.description,
-      })),
-    };
+    const login = req.session!.login;
+    return cached(`repos:${login}:${org}`, 60_000, async () => {
+      const octokit = octokitWith(req.session!.accessToken);
+      const repos = await octokit.paginate("GET /orgs/{org}/repos", { org, per_page: 100, type: "all" });
+      return {
+        repos: repos.map((r) => ({
+          name: r.name,
+          full_name: r.full_name,
+          visibility: r.visibility,
+          default_branch: r.default_branch,
+          size_kb: r.size,
+          pushed_at: r.pushed_at,
+          updated_at: r.updated_at,
+          stargazers_count: r.stargazers_count,
+          forks_count: r.forks_count,
+          open_issues_count: r.open_issues_count,
+          archived: r.archived,
+          language: r.language,
+          topics: r.topics ?? [],
+          html_url: r.html_url,
+          description: r.description,
+        })),
+      };
+    });
   });
 
   app.get<{ Params: { org: string; repo: string } }>("/api/admin/:org/repos/:repo", {
     preHandler: requireOrgRole("member"),
   }, async (req) => {
     const { org, repo } = req.params;
-    const octokit = octokitWith(req.session!.accessToken);
-    const [info, branches, collabs, hooks] = await Promise.all([
-      octokit.request("GET /repos/{owner}/{repo}", { owner: org, repo }),
-      octokit.paginate("GET /repos/{owner}/{repo}/branches", { owner: org, repo, per_page: 100 }).catch(() => []),
-      octokit.paginate("GET /repos/{owner}/{repo}/collaborators", { owner: org, repo, per_page: 100 }).catch(() => []),
-      octokit.paginate("GET /repos/{owner}/{repo}/hooks", { owner: org, repo, per_page: 100 }).catch(() => []),
-    ]);
-    return {
-      info: info.data,
-      branches: branches.map((b: any) => ({ name: b.name, protected: b.protected })),
-      collaborators: collabs.map((c: any) => ({ login: c.login, avatar_url: c.avatar_url, role: c.role_name, permissions: c.permissions })),
-      hooks: hooks.map((h: any) => ({ id: h.id, name: h.name, active: h.active, events: h.events, url: h.config?.url })),
-    };
+    const login = req.session!.login;
+    return cached(`repo:${login}:${org}/${repo}`, 60_000, async () => {
+      const octokit = octokitWith(req.session!.accessToken);
+      const [info, branches, collabs, hooks] = await Promise.all([
+        octokit.request("GET /repos/{owner}/{repo}", { owner: org, repo }),
+        octokit.paginate("GET /repos/{owner}/{repo}/branches", { owner: org, repo, per_page: 100 }).catch(() => []),
+        octokit.paginate("GET /repos/{owner}/{repo}/collaborators", { owner: org, repo, per_page: 100 }).catch(() => []),
+        octokit.paginate("GET /repos/{owner}/{repo}/hooks", { owner: org, repo, per_page: 100 }).catch(() => []),
+      ]);
+      return {
+        info: info.data,
+        branches: (branches as any[]).map((b: any) => ({ name: b.name, protected: b.protected })),
+        collaborators: (collabs as any[]).map((c: any) => ({ login: c.login, avatar_url: c.avatar_url, role: c.role_name, permissions: c.permissions })),
+        hooks: (hooks as any[]).map((h: any) => ({ id: h.id, name: h.name, active: h.active, events: h.events, url: h.config?.url })),
+      };
+    });
   });
 
   app.get<{ Params: { org: string; repo: string }; Querystring: { ref?: string; path?: string } }>(
@@ -93,6 +100,9 @@ export default async function reposRoutes(app: FastifyInstance) {
     { preHandler: requireOrgRole("member") },
     async (req) => {
       const { org, repo } = req.params;
+      const login = req.session!.login;
+      const ckey = `repo:${login}:${org}/${repo}:commits:${req.query.sha ?? ""}:${req.query.path ?? ""}:${req.query.per_page ?? 30}:${req.query.page ?? 1}`;
+      return cached(ckey, 30_000, async () => {
       const octokit = octokitWith(req.session!.accessToken);
       const res = await octokit.request("GET /repos/{owner}/{repo}/commits", {
         owner: org, repo,
@@ -113,6 +123,7 @@ export default async function reposRoutes(app: FastifyInstance) {
           html_url: c.html_url,
         })),
       };
+      });
     }
   );
 
@@ -145,6 +156,8 @@ export default async function reposRoutes(app: FastifyInstance) {
     { preHandler: requireOrgRole("member") },
     async (req) => {
       const { org, repo } = req.params;
+      const login = req.session!.login;
+      return cached(`repo:${login}:${org}/${repo}:issues:${req.query.state ?? "open"}`, 30_000, async () => {
       const octokit = octokitWith(req.session!.accessToken);
       const issues = await octokit.paginate("GET /repos/{owner}/{repo}/issues", {
         owner: org, repo, state: req.query.state ?? "open", per_page: 50,
@@ -157,6 +170,7 @@ export default async function reposRoutes(app: FastifyInstance) {
           created_at: i.created_at, updated_at: i.updated_at, html_url: i.html_url,
         })),
       };
+      });
     }
   );
 
@@ -165,6 +179,8 @@ export default async function reposRoutes(app: FastifyInstance) {
     { preHandler: requireOrgRole("member") },
     async (req) => {
       const { org, repo } = req.params;
+      const login = req.session!.login;
+      return cached(`repo:${login}:${org}/${repo}:pulls:${req.query.state ?? "open"}`, 30_000, async () => {
       const octokit = octokitWith(req.session!.accessToken);
       const pulls = await octokit.paginate("GET /repos/{owner}/{repo}/pulls", {
         owner: org, repo, state: req.query.state ?? "open", per_page: 50, sort: "updated", direction: "desc",
@@ -179,6 +195,7 @@ export default async function reposRoutes(app: FastifyInstance) {
           created_at: p.created_at, updated_at: p.updated_at, html_url: p.html_url,
         })),
       };
+      });
     }
   );
 
@@ -255,6 +272,8 @@ export default async function reposRoutes(app: FastifyInstance) {
           sha: req.body?.sha,
         });
         audit(org, req.session!.login, "pr.merge", `${repo}#${num}`, { method: req.body?.merge_method ?? "merge" }, req.ip);
+        invalidate(`repo:`);
+        invalidate(`repos:`);
         return { ok: true, merged: r.data.merged, sha: r.data.sha, message: r.data.message };
       } catch (e: any) {
         const status = e?.status ?? 500;
@@ -274,6 +293,7 @@ export default async function reposRoutes(app: FastifyInstance) {
         owner: org, repo, issue_number: num, state: req.body?.state as any,
       });
       audit(org, req.session!.login, `issue.${req.body?.state}`, `${repo}#${num}`, undefined, req.ip);
+      invalidate(`repo:`);
       return { ok: true, state: r.data.state };
     },
   );
@@ -310,6 +330,7 @@ export default async function reposRoutes(app: FastifyInstance) {
         license_template: license_template || undefined,
       });
       audit(org, req.session!.login, "repo.create", name, { visibility }, req.ip);
+      invalidate(`repos:`);
       return { ok: true, repo: { name: res.data.name, full_name: res.data.full_name, html_url: res.data.html_url } };
     }
   );
@@ -322,6 +343,8 @@ export default async function reposRoutes(app: FastifyInstance) {
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("DELETE /repos/{owner}/{repo}", { owner: org, repo });
       audit(org, req.session!.login, "repo.delete", repo, undefined, req.ip);
+      invalidate(`repo:`);
+      invalidate(`repos:`);
       return { ok: true };
     }
   );
@@ -335,6 +358,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("PUT /repos/{owner}/{repo}/collaborators/{username}", { owner: org, repo, username: login, permission });
       audit(org, req.session!.login, "repo.collab.add", `${repo}/${login}`, { permission }, req.ip);
+      invalidate(`repo:`);
       return { ok: true };
     }
   );
@@ -347,6 +371,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("DELETE /repos/{owner}/{repo}/collaborators/{username}", { owner: org, repo, username: login });
       audit(org, req.session!.login, "repo.collab.remove", `${repo}/${login}`, undefined, req.ip);
+      invalidate(`repo:`);
       return { ok: true };
     }
   );
