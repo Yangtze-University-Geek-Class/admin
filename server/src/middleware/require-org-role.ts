@@ -7,10 +7,10 @@ export function requireOrgRole(minRole: "admin" | "member") {
     if (!req.session) return reply.code(401).send({ error: "not_signed_in" });
     const org = (req.params as { org?: string }).org;
     if (!org) return reply.code(400).send({ error: "missing org" });
-    if (!config.allowedOrgs.includes(org.toLowerCase())) {
+    if (config.allowedOrgs.length > 0 && !config.allowedOrgs.includes(org.toLowerCase())) {
       return reply.code(403).send({
         error: "org_not_whitelisted",
-        message: `本站只管理 ${config.allowedOrgs.join(", ")}。其他组织请用 GitHub 官方 settings 页`,
+        message: `本部署 ALLOWED_ORGS 仅含 ${config.allowedOrgs.join(", ")}`,
         org,
       });
     }

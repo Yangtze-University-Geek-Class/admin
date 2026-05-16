@@ -29,8 +29,8 @@ export default function SignIn() {
           </a>
           <p className="text-xs text-ink-500 mt-6">权限：read:user · user:email · admin:org · read:org · repo</p>
           <p className="text-xs text-ink-500 mt-2 leading-relaxed">
-            授权后，本站只会操作 <span className="font-mono text-ink-300">Yangtze-University-Geek-Class</span>，
-            服务端硬编码 org 白名单，访问其他组织直接 403。要切换可管理的组织需要联系负责人改 <code className="text-brand-500">ALLOWED_ORGS</code>。
+            登录后会列出你 owner / member 的所有 GitHub 组织。
+            服务端只按 path 里的 org 操作 GitHub，token 拿到的 scope 仅在你本就拥有 admin 权限的组织内生效。
           </p>
         </div>
       </div>

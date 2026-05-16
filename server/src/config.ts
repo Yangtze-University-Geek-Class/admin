@@ -20,7 +20,8 @@ export const config = {
   sessionSecret: req("SESSION_SECRET"),
   encryptionKey: req("ENCRYPTION_KEY"),
   dbPath: process.env.DB_PATH ?? "./data/data.db",
-  allowedOrgs: (process.env.ALLOWED_ORGS ?? "Yangtze-University-Geek-Class")
+  // empty = unrestricted (any org the user has membership in)
+  allowedOrgs: (process.env.ALLOWED_ORGS ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
