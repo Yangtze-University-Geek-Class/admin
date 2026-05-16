@@ -12,6 +12,8 @@ export default async function forumPostsRoutes(app: FastifyInstance) {
       if (!thread_id || !content) return reply.code(400).send({ error: "missing_fields" });
       const t = forumDb.prepare("SELECT * FROM forum_threads WHERE id = ? AND is_deleted = 0").get(thread_id) as any;
       if (!t) return reply.code(404).send({ error: "thread_not_found" });
+      const cat = forumDb.prepare("SELECT is_legacy FROM forum_categories WHERE id = ?").get(t.category_id) as any;
+      if (cat?.is_legacy) return reply.code(403).send({ error: "legacy_readonly", message: "老帖归档为只读区" });
       if (t.is_locked && req.forumUser!.role === "member") {
         return reply.code(403).send({ error: "thread_locked" });
       }

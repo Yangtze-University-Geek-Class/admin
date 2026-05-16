@@ -24,13 +24,7 @@ export const config = {
     siteKey: process.env.TURNSTILE_SITE_KEY ?? "",
     secretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
   },
-  qq: {
-    appId: process.env.QQ_APP_ID ?? "",
-    appKey: process.env.QQ_APP_KEY ?? "",
-  },
 };
-
-export const qqOAuthEnabled = () => Boolean(process.env.QQ_APP_ID && process.env.QQ_APP_KEY);
 
 export const turnstileEnabled = () =>
   Boolean(config.turnstile.siteKey && config.turnstile.secretKey);

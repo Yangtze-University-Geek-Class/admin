@@ -7,12 +7,13 @@ import { hasCategoryPermission, hasPermission } from "../../lib/forum-permission
 const PAGE_SIZE = 20;
 
 export default async function forumThreadsRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: { category?: string; page?: string; q?: string; sort?: "latest" | "hot" } }>(
+  app.get<{ Querystring: { category?: string; page?: string; q?: string; sort?: "latest" | "hot"; archive?: string } }>(
     "/api/forum/threads",
     async (req) => {
       const page = Math.max(1, Number(req.query.page ?? 1));
       const offset = (page - 1) * PAGE_SIZE;
-      const where: string[] = ["t.is_deleted = 0"];
+      const archiveMode = req.query.archive === "1";
+      const where: string[] = ["t.is_deleted = 0", archiveMode ? "c.is_legacy = 1" : "c.is_legacy = 0"];
       const args: any[] = [];
       if (req.query.category) {
         const cat = forumDb.prepare("SELECT id FROM forum_categories WHERE slug = ?").get(req.query.category) as any;
@@ -32,7 +33,7 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
         SELECT t.*,
                u.id AS u_id, u.username AS u_username, u.display_name AS u_display_name, u.avatar_url AS u_avatar_url, u.role AS u_role,
                lu.id AS lu_id, lu.username AS lu_username, lu.display_name AS lu_display_name, lu.avatar_url AS lu_avatar_url,
-               c.slug AS category_slug, c.name AS category_name
+               c.slug AS category_slug, c.name AS category_name, c.is_legacy AS category_is_legacy
         FROM forum_threads t
         JOIN forum_users u ON u.id = t.user_id
         LEFT JOIN forum_users lu ON lu.id = t.last_posted_user_id
@@ -42,7 +43,7 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
         LIMIT ? OFFSET ?`;
       const rows = forumDb.prepare(sql).all(...args, PAGE_SIZE, offset) as any[];
       const total = (forumDb
-        .prepare(`SELECT COUNT(*) AS c FROM forum_threads t WHERE ${where.join(" AND ")}`)
+        .prepare(`SELECT COUNT(*) AS c FROM forum_threads t JOIN forum_categories c ON c.id = t.category_id WHERE ${where.join(" AND ")}`)
         .get(...args) as any).c;
       return {
         threads: rows.map((r) => ({
@@ -148,10 +149,11 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
       const { category_id, title, content, content_format } = req.body ?? ({} as any);
       if (!category_id || !title || !content) return reply.code(400).send({ error: "missing_fields" });
       if (title.length > 200) return reply.code(400).send({ error: "title_too_long" });
-      const cat = forumDb.prepare("SELECT id, legacy_mbbs_id FROM forum_categories WHERE id = ?").get(category_id) as any;
+      const cat = forumDb.prepare("SELECT id, is_legacy FROM forum_categories WHERE id = ?").get(category_id) as any;
       if (!cat) return reply.code(400).send({ error: "invalid_category" });
-      if (!hasCategoryPermission(req.forumUser!.id, cat.legacy_mbbs_id, "createThread", req.forumUser!.role)) {
-        return reply.code(403).send({ error: "forbidden", message: "你所在的组没有在此分类发帖的权限" });
+      if (cat.is_legacy) return reply.code(403).send({ error: "legacy_readonly", message: "老帖归档为只读区" });
+      if (!hasPermission(req.forumUser!.id, "thread.create", req.forumUser!.role)) {
+        return reply.code(403).send({ error: "forbidden", message: "你所在的组没有发帖权限" });
       }
       const now = Date.now();
       const r = forumDb

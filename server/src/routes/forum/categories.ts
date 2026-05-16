@@ -3,12 +3,29 @@ import { forumDb } from "../../lib/forum-db.js";
 import { requireForumAdmin } from "../../middleware/require-forum-auth.js";
 
 export default async function forumCategoriesRoutes(app: FastifyInstance) {
-  app.get("/api/forum/categories", async () => {
+  app.get<{ Querystring: { include_legacy?: string } }>(
+    "/api/forum/categories",
+    async (req) => {
+      const includeLegacy = req.query.include_legacy === "1";
+      const where = includeLegacy ? "hidden = 0" : "hidden = 0 AND is_legacy = 0";
+      const cats = forumDb
+        .prepare(
+          `SELECT id, slug, name, description, icon, color, parent_id, sort, hidden, is_legacy, thread_count
+           FROM forum_categories
+           WHERE ${where}
+           ORDER BY COALESCE(parent_id, id), sort, id`,
+        )
+        .all();
+      return { categories: cats };
+    },
+  );
+
+  app.get("/api/forum/archive/categories", async () => {
     const cats = forumDb
       .prepare(
-        `SELECT id, slug, name, description, icon, color, parent_id, sort, hidden, thread_count
+        `SELECT id, slug, name, description, icon, color, parent_id, sort, thread_count
          FROM forum_categories
-         WHERE hidden = 0
+         WHERE is_legacy = 1 AND hidden = 0
          ORDER BY COALESCE(parent_id, id), sort, id`,
       )
       .all();
@@ -26,8 +43,8 @@ export default async function forumCategoriesRoutes(app: FastifyInstance) {
       const now = Date.now();
       const r = forumDb
         .prepare(
-          `INSERT INTO forum_categories (slug, name, description, icon, color, parent_id, sort, hidden, thread_count, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+          `INSERT INTO forum_categories (slug, name, description, icon, color, parent_id, sort, hidden, thread_count, is_legacy, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)`,
         )
         .run(slug, name, description ?? null, icon ?? null, color ?? null, parent_id ?? null, sort ?? 0, now, now);
       return { ok: true, id: r.lastInsertRowid };
