@@ -24,7 +24,7 @@ export default function ForumLayout() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-brand-500/15">
+      <header className="sticky top-0 z-30 bg-ink-950/85 backdrop-blur border-b border-brand-500/15">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2 text-ink-50 shrink-0">
             <img src="/logo.png" alt="" className="w-7 h-7 rounded" />
