@@ -588,22 +588,49 @@ function PullDetail() {
   );
 }
 
-function SettingsTab({ info, branches, collaborators, hooks }: { info: any; branches: any[]; collaborators: any[]; hooks: any[] }) {
-  const { org, repo } = useParams();
+function CollaboratorRow({ c, org, repo }: { c: any; org: string; repo: string }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const [newCollab, setNewCollab] = useState({ login: "", permission: "push" as "pull" | "triage" | "push" | "maintain" | "admin" });
-
-  const addCollab = useMutation({
-    mutationFn: () => api(`/api/admin/${org}/repos/${repo}/collaborators/${newCollab.login}`, {
-      method: "PUT", body: JSON.stringify({ permission: newCollab.permission }),
+  const [editing, setEditing] = useState(false);
+  const setPerm = useMutation({
+    mutationFn: (perm: string) => api(`/api/admin/${org}/repos/${repo}/collaborators/${c.login}`, {
+      method: "PUT", body: JSON.stringify({ permission: perm }),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["repo", org, repo] }); setNewCollab({ login: "", permission: "push" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["repo", org, repo] }); setEditing(false); },
   });
-  const rmCollab = useMutation({
-    mutationFn: (login: string) => api(`/api/admin/${org}/repos/${repo}/collaborators/${login}`, { method: "DELETE" }),
+  const rm = useMutation({
+    mutationFn: () => api(`/api/admin/${org}/repos/${repo}/collaborators/${c.login}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["repo", org, repo] }),
   });
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <img src={c.avatar_url} alt="" className="w-7 h-7 rounded-full border border-ink-700/60" />
+      <span className="flex-1 font-mono text-ink-200 text-sm">@{c.login}</span>
+      {editing ? (
+        <div className="w-44">
+          <Select value={c.role} onChange={(v) => setPerm.mutate(v)} options={[
+            { value: "pull", label: "read" },
+            { value: "triage", label: "triage" },
+            { value: "push", label: "write" },
+            { value: "maintain", label: "maintain" },
+            { value: "admin", label: "admin" },
+          ]} />
+        </div>
+      ) : (
+        <button onClick={() => setEditing(true)} className="tag-blue hover:bg-brand-500/25 transition">{c.role || "read"} · 改</button>
+      )}
+      <button className="text-xs text-rose-400 hover:underline ml-1"
+        onClick={async () => {
+          const ok = await confirm({ title: `撤销 @${c.login} 的额外权限？`, body: "撤销后回到组织默认权限 (read)。", confirmText: "撤销", variant: "danger" });
+          if (ok) rm.mutate();
+        }}>撤销</button>
+    </li>
+  );
+}
+
+function SettingsTab({ info, branches, collaborators, hooks }: { info: any; branches: any[]; collaborators: any[]; hooks: any[] }) {
+  const { org, repo } = useParams();
+  const confirm = useConfirm();
   const delRepo = useMutation({
     mutationFn: () => api(`/api/admin/${org}/repos/${repo}`, { method: "DELETE" }),
     onSuccess: () => { window.location.href = `/admin/${org}/repos`; },
@@ -624,35 +651,17 @@ function SettingsTab({ info, branches, collaborators, hooks }: { info: any; bran
       </div>
 
       <div className="card p-5">
-        <h2 className="font-semibold text-ink-100 mb-3">协作者 ({collaborators.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-          <input className="input md:col-span-2 font-mono text-sm" placeholder="GitHub 用户名"
-            value={newCollab.login} onChange={(e) => setNewCollab({ ...newCollab, login: e.target.value })} />
-          <Select value={newCollab.permission} onChange={(v) => setNewCollab({ ...newCollab, permission: v as any })}
-            options={[
-              { value: "pull", label: "pull (只读)" },
-              { value: "triage", label: "triage" },
-              { value: "push", label: "push (推荐)" },
-              { value: "maintain", label: "maintain" },
-              { value: "admin", label: "admin" },
-            ]} />
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="font-semibold text-ink-100">仓库权限 ({collaborators.length} 人)</h2>
+          <a href={`https://github.com/${org}/${repo}/settings/access`} target="_blank" rel="noreferrer"
+            className="text-xs text-ink-400 hover:text-brand-500">在 GitHub 管理 →</a>
         </div>
-        <button className="btn-primary text-sm" disabled={!newCollab.login || addCollab.isPending}
-          onClick={() => addCollab.mutate()}>添加协作者</button>
-        {addCollab.error && <div className="text-rose-400 text-xs mt-2">{(addCollab.error as Error).message}</div>}
-
-        <ul className="divide-y divide-ink-800/60 mt-4">
+        <p className="text-xs text-ink-400 mb-3">
+          组织 <span className="font-mono text-ink-300">@{org}</span> 的成员默认对此仓库有 read 权限。这里可以单独提升某人的权限到 triage / write / maintain / admin。
+        </p>
+        <ul className="divide-y divide-ink-800/60">
           {collaborators.map((c: any) => (
-            <li key={c.login} className="flex items-center gap-3 py-2.5">
-              <img src={c.avatar_url} alt="" className="w-7 h-7 rounded-full border border-ink-700/60" />
-              <span className="flex-1 font-mono text-ink-200 text-sm">@{c.login}</span>
-              <span className="tag-blue">{c.role}</span>
-              <button className="btn-danger text-xs py-1 px-2"
-                onClick={async () => {
-                  const ok = await confirm({ title: `移除 @${c.login}？`, variant: "danger", confirmText: "移除" });
-                  if (ok) rmCollab.mutate(c.login);
-                }}>移除</button>
-            </li>
+            <CollaboratorRow key={c.login} c={c} org={org!} repo={repo!} />
           ))}
         </ul>
       </div>
