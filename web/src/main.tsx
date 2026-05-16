@@ -6,6 +6,7 @@ import App, { GlobalFab } from "./App";
 import { applyTheme, loadTheme } from "./lib/themes";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { detectSite } from "./lib/site";
+import ImageLightbox from "./components/ImageLightbox";
 import "./index.css";
 
 const site = detectSite();
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <BrowserRouter basename={site.basePath || undefined}>
           <App />
           <GlobalFab />
+          <ImageLightbox />
         </BrowserRouter>
       </ConfirmProvider>
     </QueryClientProvider>

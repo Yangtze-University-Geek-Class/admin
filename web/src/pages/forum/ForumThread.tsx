@@ -1,9 +1,10 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
 import { renderPostContent } from "../../lib/forum-render";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { useProseInteractions } from "../../components/ImageLightbox";
 import { Avatar } from "./ForumLayout";
 
 type Author = { id: number; username: string; display_name: string | null; avatar_url: string | null; role: string; signature: string | null };
@@ -63,13 +64,15 @@ export default function ForumThread() {
   const canManageThread = Boolean(u && t && (u.id === t.author.id || isMod));
 
   const threadHtml = useMemo(() => t ? renderPostContent(t.content, t.content_format) : "", [t?.content, t?.content_format]);
+  const articleRef = useRef<HTMLDivElement>(null);
+  useProseInteractions(articleRef, [threadHtml, posts.length]);
 
   if (detail.isLoading) return <div className="max-w-4xl mx-auto px-6 py-12 text-ink-400">加载中…</div>;
   if (detail.error) return <div className="max-w-4xl mx-auto px-6 py-12 text-rose-500">{(detail.error as Error).message}</div>;
   if (!t) return null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+    <div ref={articleRef} className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
       <nav className="text-sm text-ink-400 mb-3">
         <Link to="/" className="hover:text-brand-500">论坛</Link>
         <span className="mx-2">/</span>
