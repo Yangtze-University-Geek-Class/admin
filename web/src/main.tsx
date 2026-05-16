@@ -23,7 +23,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={qc}>
       <ConfirmProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={site.basePath || undefined}>
           <App />
           <GlobalFab />
         </BrowserRouter>

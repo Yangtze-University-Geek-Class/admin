@@ -2,6 +2,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
+import { forumPath } from "../../lib/site";
 
 export default function ForumRegister() {
   const nav = useNavigate();
@@ -13,7 +14,7 @@ export default function ForumRegister() {
     : rawReturnTo;
   const oauthReturnTo = /^https?:\/\//.test(rawReturnTo)
     ? rawReturnTo
-    : `${window.location.origin}${rawReturnTo.startsWith("/") ? rawReturnTo : "/" + rawReturnTo}`;
+    : `${window.location.origin}${forumPath(rawReturnTo.startsWith("/") ? rawReturnTo : "/" + rawReturnTo)}`;
   const [form, setForm] = useState({ username: "", display_name: "", password: "", email: "" });
 
   const submit = useMutation({

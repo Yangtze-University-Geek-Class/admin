@@ -2,6 +2,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { api } from "../../lib/api";
+import { forumPath } from "../../lib/site";
 
 type Me = {
   signed_in: boolean;
@@ -123,7 +124,7 @@ export default function ForumMe() {
               解绑
             </button>
           ) : (
-            <a href={`/auth/forum/github?bind=1&return_to=${encodeURIComponent(`${window.location.origin}/me`)}`} className="btn-primary text-sm px-3 py-1.5">绑定</a>
+            <a href={`/auth/forum/github?bind=1&return_to=${encodeURIComponent(`${window.location.origin}${forumPath("/me")}`)}`} className="btn-primary text-sm px-3 py-1.5">绑定</a>
           )}
         </div>
         <div className="py-4">
