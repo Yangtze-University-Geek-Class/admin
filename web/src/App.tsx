@@ -32,6 +32,7 @@ import ForumProfile from "./pages/forum/ForumProfile";
 import ForumMe from "./pages/forum/ForumMe";
 import ForumNotifications from "./pages/forum/ForumNotifications";
 import ForumArchive from "./pages/forum/ForumArchive";
+import ForumAdmin from "./pages/forum/ForumAdmin";
 import { detectSite } from "./lib/site";
 
 export default function App() {
@@ -71,6 +72,7 @@ function ForumRoutes() {
         <Route path="me/notifications" element={<ForumNotifications />} />
         <Route path="archive" element={<ForumArchive />} />
         <Route path="archive/t/:id" element={<ForumThread />} />
+        <Route path="admin" element={<ForumAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

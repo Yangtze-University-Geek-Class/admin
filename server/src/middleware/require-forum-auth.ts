@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { getForumUserBySession } from "../lib/forum-auth.js";
 import type { ForumUser } from "../lib/forum-db.js";
+import { extractBearer, resolveBearerToForumUser } from "../lib/forum-bearer.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -8,19 +9,28 @@ declare module "fastify" {
   }
 }
 
-export async function requireForumAuth(req: FastifyRequest, reply: FastifyReply) {
+async function resolveForumUser(req: FastifyRequest): Promise<ForumUser | null> {
   const sid = req.cookies?.forum_sid;
-  if (!sid) return reply.code(401).send({ error: "not_signed_in" });
-  const user = getForumUserBySession(sid);
-  if (!user) return reply.code(401).send({ error: "session_expired" });
+  if (sid) {
+    const user = getForumUserBySession(sid);
+    if (user) return user;
+  }
+  const bearer = extractBearer(req as any);
+  if (bearer) {
+    return await resolveBearerToForumUser(bearer);
+  }
+  return null;
+}
+
+export async function requireForumAuth(req: FastifyRequest, reply: FastifyReply) {
+  const user = await resolveForumUser(req);
+  if (!user) return reply.code(401).send({ error: "not_signed_in" });
   if (user.role === "banned") return reply.code(403).send({ error: "banned" });
   req.forumUser = user;
 }
 
 export async function attachForumUser(req: FastifyRequest) {
-  const sid = req.cookies?.forum_sid;
-  if (!sid) return;
-  const user = getForumUserBySession(sid);
+  const user = await resolveForumUser(req);
   if (user && user.role !== "banned") req.forumUser = user;
 }
 
