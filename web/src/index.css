@@ -25,7 +25,12 @@ html[data-site="forum"], html[data-site="portal"], .font-rounded {
                "Hiragino Sans GB", "Source Han Sans SC",
                "Microsoft YaHei UI", "Microsoft YaHei",
                "Segoe UI", Roboto, sans-serif;
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
+  font-feature-settings: normal;
+  font-variant-ligatures: none;
+}
+html[data-site="forum"] *, html[data-site="portal"] * {
+  font-variant-ligatures: none;
 }
 html[data-site="forum"] .prose-forum {
   line-height: 1.85;

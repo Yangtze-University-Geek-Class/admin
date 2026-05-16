@@ -48,7 +48,7 @@ export default function ThemeSwitcher({ compact = false, direction = "down" }: P
         {!compact && <span className="whitespace-nowrap">{currentTheme.name}</span>}
       </button>
       {open && (
-        <div className={`absolute card p-2 z-50 max-h-[70vh] overflow-auto min-w-[200px] ${
+        <div className={`absolute p-2 z-50 max-h-[70vh] overflow-auto min-w-[220px] bg-ink-950 border border-ink-700/60 rounded-2xl shadow-xl ${
           direction === "up" ? "bottom-full mb-2 left-0" : "top-full mt-2 right-0"
         }`}>
           {allowedThemes.map((t) => (
