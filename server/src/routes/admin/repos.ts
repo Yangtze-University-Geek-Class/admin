@@ -239,6 +239,61 @@ export default async function reposRoutes(app: FastifyInstance) {
     }
   );
 
+  app.put<{ Params: { org: string; repo: string; n: string }; Body: { merge_method?: "merge" | "squash" | "rebase"; commit_title?: string; commit_message?: string; sha?: string } }>(
+    "/api/admin/:org/repos/:repo/pulls/:n/merge",
+    { preHandler: requireOrgRole("member") },
+    async (req, reply) => {
+      const { org, repo, n } = req.params;
+      const octokit = octokitWith(req.session!.accessToken);
+      const num = Number(n);
+      try {
+        const r = await octokit.request("PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge", {
+          owner: org, repo, pull_number: num,
+          merge_method: (req.body?.merge_method ?? "merge") as any,
+          commit_title: req.body?.commit_title,
+          commit_message: req.body?.commit_message,
+          sha: req.body?.sha,
+        });
+        audit(org, req.session!.login, "pr.merge", `${repo}#${num}`, { method: req.body?.merge_method ?? "merge" }, req.ip);
+        return { ok: true, merged: r.data.merged, sha: r.data.sha, message: r.data.message };
+      } catch (e: any) {
+        const status = e?.status ?? 500;
+        return reply.code(status).send({ error: "merge_failed", message: e?.response?.data?.message ?? String(e?.message ?? e) });
+      }
+    },
+  );
+
+  app.patch<{ Params: { org: string; repo: string; n: string }; Body: { state?: "open" | "closed" } }>(
+    "/api/admin/:org/repos/:repo/issues/:n",
+    { preHandler: requireOrgRole("member") },
+    async (req) => {
+      const { org, repo, n } = req.params;
+      const octokit = octokitWith(req.session!.accessToken);
+      const num = Number(n);
+      const r = await octokit.request("PATCH /repos/{owner}/{repo}/issues/{issue_number}", {
+        owner: org, repo, issue_number: num, state: req.body?.state as any,
+      });
+      audit(org, req.session!.login, `issue.${req.body?.state}`, `${repo}#${num}`, undefined, req.ip);
+      return { ok: true, state: r.data.state };
+    },
+  );
+
+  app.post<{ Params: { org: string; repo: string; n: string }; Body: { body: string } }>(
+    "/api/admin/:org/repos/:repo/issues/:n/comments",
+    { preHandler: requireOrgRole("member") },
+    async (req, reply) => {
+      const { org, repo, n } = req.params;
+      if (!req.body?.body || !req.body.body.trim()) return reply.code(400).send({ error: "empty_body" });
+      const octokit = octokitWith(req.session!.accessToken);
+      const num = Number(n);
+      const r = await octokit.request("POST /repos/{owner}/{repo}/issues/{issue_number}/comments", {
+        owner: org, repo, issue_number: num, body: req.body.body,
+      });
+      audit(org, req.session!.login, "issue.comment", `${repo}#${num}`, undefined, req.ip);
+      return { ok: true, id: r.data.id, html_url: r.data.html_url };
+    },
+  );
+
   app.post<{ Params: { org: string }; Body: { name: string; description?: string; visibility: "public" | "private" | "internal"; auto_init?: boolean; gitignore_template?: string; license_template?: string } }>(
     "/api/admin/:org/create-repo",
     { preHandler: requireOrgRole("admin") },
