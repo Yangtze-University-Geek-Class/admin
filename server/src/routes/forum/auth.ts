@@ -7,16 +7,23 @@ import { forumDb } from "../../lib/forum-db.js";
 import { createForumSession, destroyForumSession, publicForumUser, selfForumUser } from "../../lib/forum-auth.js";
 import { attachForumUser, requireForumAuth } from "../../middleware/require-forum-auth.js";
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: 14 * 24 * 60 * 60,
-};
+function externalize(returnTo: string): string {
+  if (/^https?:\/\//.test(returnTo)) return returnTo;
+  if (config.siteOrigin && config.siteOrigin !== config.publicOrigin) {
+    return `${config.siteOrigin}${returnTo.startsWith("/") ? returnTo : "/" + returnTo}`;
+  }
+  return returnTo;
+}
 
 function setForumCookie(reply: any, sid: string) {
-  reply.setCookie("forum_sid", sid, COOKIE_OPTS);
+  reply.setCookie("forum_sid", sid, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 14 * 24 * 60 * 60,
+    domain: config.cookieDomain,
+  });
 }
 
 function isValidUsername(s: string): boolean {
@@ -95,6 +102,7 @@ export default async function forumAuthRoutes(app: FastifyInstance) {
       }
       reply.setCookie("forum_oauth_state", payload, {
         httpOnly: true, secure: true, sameSite: "lax", path: "/auth", maxAge: 600,
+        domain: config.cookieDomain,
       });
       const u = new URL("https://github.com/login/oauth/authorize");
       u.searchParams.set("client_id", config.oauth.clientId);
@@ -154,7 +162,7 @@ export default async function forumAuthRoutes(app: FastifyInstance) {
         forumDb
           .prepare("UPDATE forum_users SET github_id = ?, github_login = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = ? WHERE id = ?")
           .run(gh.id, gh.login, gh.avatar_url, now, req.forumUser.id);
-        return reply.redirect(returnTo);
+        return reply.redirect(externalize(returnTo));
       }
 
       const existing = forumDb.prepare("SELECT * FROM forum_users WHERE github_id = ?").get(gh.id) as any;

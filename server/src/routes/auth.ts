@@ -9,6 +9,15 @@ import {
   getSession,
 } from "../lib/auth.js";
 import { audit } from "../lib/db.js";
+import { config } from "../config.js";
+
+function externalize(returnTo: string): string {
+  if (/^https?:\/\//.test(returnTo)) return returnTo;
+  if (config.siteOrigin && config.siteOrigin !== config.publicOrigin) {
+    return `${config.siteOrigin}${returnTo.startsWith("/") ? returnTo : "/" + returnTo}`;
+  }
+  return returnTo;
+}
 
 export default async function authRoutes(app: FastifyInstance) {
   app.get("/auth/github", async (req, reply) => {
@@ -16,6 +25,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const returnTo = (req.query as { return_to?: string }).return_to ?? "/admin";
     reply.setCookie("oauth_state", `${state}|${encodeURIComponent(returnTo)}`, {
       httpOnly: true, secure: true, sameSite: "lax", path: "/auth", maxAge: 600,
+      domain: (await import("../config.js")).config.cookieDomain,
     });
     return reply.redirect(buildAuthorizeUrl(state));
   });
@@ -38,8 +48,9 @@ export default async function authRoutes(app: FastifyInstance) {
       audit(null, user.login, "auth.signin", user.login, undefined, req.ip);
       reply.setCookie("sid", sid, {
         httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60,
+        domain: (await import("../config.js")).config.cookieDomain,
       });
-      return reply.redirect(returnTo);
+      return reply.redirect(externalize(returnTo));
     }
   );
 

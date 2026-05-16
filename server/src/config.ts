@@ -10,6 +10,8 @@ function req(key: string): string {
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   publicOrigin: req("PUBLIC_ORIGIN"),
+  siteOrigin: process.env.SITE_ORIGIN ?? process.env.PUBLIC_ORIGIN ?? "",
+  cookieDomain: process.env.COOKIE_DOMAIN || undefined,
   oauth: {
     clientId: req("OAUTH_CLIENT_ID"),
     clientSecret: req("OAUTH_CLIENT_SECRET"),
