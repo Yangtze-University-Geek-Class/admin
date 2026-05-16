@@ -79,6 +79,10 @@ export default async function forumPostsRoutes(app: FastifyInstance) {
       const id = Number(req.params.id);
       const p = forumDb.prepare("SELECT * FROM forum_posts WHERE id = ? AND is_deleted = 0").get(id) as any;
       if (!p) return reply.code(404).send({ error: "not_found" });
+      const cat = forumDb
+        .prepare("SELECT c.is_legacy FROM forum_threads t JOIN forum_categories c ON c.id = t.category_id WHERE t.id = ?")
+        .get(p.thread_id) as any;
+      if (cat?.is_legacy) return reply.code(403).send({ error: "legacy_readonly", message: "老帖归档为只读" });
       const exists = forumDb
         .prepare("SELECT 1 FROM forum_likes WHERE user_id = ? AND post_id = ?")
         .get(req.forumUser!.id, id);

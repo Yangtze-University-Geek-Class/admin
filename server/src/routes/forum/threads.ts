@@ -73,7 +73,7 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
         .prepare(
           `SELECT t.*,
                   u.id AS u_id, u.username AS u_username, u.display_name AS u_display_name, u.avatar_url AS u_avatar_url, u.role AS u_role, u.signature AS u_signature,
-                  c.slug AS category_slug, c.name AS category_name
+                  c.slug AS category_slug, c.name AS category_name, c.is_legacy AS category_is_legacy
            FROM forum_threads t
            JOIN forum_users u ON u.id = t.user_id
            JOIN forum_categories c ON c.id = t.category_id
@@ -125,7 +125,7 @@ export default async function forumThreadsRoutes(app: FastifyInstance) {
           created_at: t.created_at,
           updated_at: t.updated_at,
           author: { id: t.u_id, username: t.u_username, display_name: t.u_display_name, avatar_url: t.u_avatar_url, role: t.u_role, signature: t.u_signature },
-          category: { slug: t.category_slug, name: t.category_name },
+          category: { slug: t.category_slug, name: t.category_name, is_legacy: t.category_is_legacy },
         },
         posts: posts.map((p) => ({
           id: p.id,
