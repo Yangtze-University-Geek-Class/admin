@@ -23,6 +23,7 @@ import activityRoutes from "./routes/admin/activity.js";
 import securityRoutes from "./routes/admin/security.js";
 import orgRoutes from "./routes/admin/org.js";
 import logsRoutes from "./routes/admin/logs.js";
+import forumRoutes from "./routes/forum/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDist = resolve(here, "../../web/dist");
@@ -52,6 +53,7 @@ async function main() {
   await app.register(securityRoutes);
   await app.register(orgRoutes);
   await app.register(logsRoutes);
+  await app.register(forumRoutes);
 
   app.get("/healthz", async () => ({ ok: true, ts: Date.now() }));
 

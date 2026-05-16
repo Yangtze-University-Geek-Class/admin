@@ -140,6 +140,23 @@ export const THEMES: Theme[] = [
     "--brand-600": "30 117 178",
     "--bg-grad": "radial-gradient(1200px 800px at 20% -10%, rgb(38 139 210 / 0.18), transparent 60%), rgb(0 30 38)",
   }) },
+  { id: "yzgc-blue", name: "校徽蓝白 (论坛默认)", mode: "light", vars: light({
+    "--ink-50":  "0 33 71",
+    "--ink-100": "0 51 102",
+    "--ink-200": "30 73 138",
+    "--ink-300": "82 109 161",
+    "--ink-400": "120 144 184",
+    "--ink-500": "163 184 213",
+    "--ink-600": "208 220 234",
+    "--ink-700": "227 235 246",
+    "--ink-800": "240 245 251",
+    "--ink-900": "248 251 254",
+    "--ink-950": "255 255 255",
+    "--brand-500": "0 63 136",
+    "--brand-600": "0 50 110",
+    "--brand-700": "0 33 80",
+    "--bg-grad": "radial-gradient(1200px 800px at 15% -10%, rgb(0 63 136 / 0.10), transparent 60%), radial-gradient(900px 600px at 90% 0%, rgb(56 132 224 / 0.08), transparent 65%), linear-gradient(180deg, #FFFFFF 0%, #F0F5FB 100%)",
+  }) },
 ];
 
 export function applyTheme(id: string) {
@@ -154,5 +171,5 @@ export function applyTheme(id: string) {
 }
 
 export function loadTheme(): string {
-  return localStorage.getItem("theme") ?? "github-dark";
+  return localStorage.getItem("theme") ?? "yzgc-blue";
 }

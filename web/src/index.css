@@ -41,6 +41,28 @@
 .prose-doc hr { border: 0; border-top: 1px solid rgb(var(--ink-800) / 0.6); margin: 2rem 0; }
 .prose-doc img { max-width: 100%; border-radius: 6px; }
 
+.prose-forum { color: rgb(var(--ink-100)); line-height: 1.75; font-size: 15px; word-wrap: break-word; }
+.prose-forum h1 { font-size: 1.6rem; font-weight: 700; margin: 1.4rem 0 0.8rem; color: rgb(var(--ink-50)); }
+.prose-forum h2 { font-size: 1.35rem; font-weight: 600; margin: 1.2rem 0 0.7rem; color: rgb(var(--ink-50)); }
+.prose-forum h3 { font-size: 1.15rem; font-weight: 600; margin: 1rem 0 0.6rem; color: rgb(var(--ink-100)); }
+.prose-forum p { margin: 0.7rem 0; color: rgb(var(--ink-100)); }
+.prose-forum a { color: rgb(var(--brand-500)); text-decoration: underline; text-decoration-color: rgb(var(--brand-500) / 0.4); text-underline-offset: 3px; }
+.prose-forum a:hover { text-decoration-color: rgb(var(--brand-500)); }
+.prose-forum ul, .prose-forum ol { margin: 0.7rem 0; padding-left: 1.5rem; }
+.prose-forum ul { list-style: disc; }
+.prose-forum ol { list-style: decimal; }
+.prose-forum li { margin: 0.2rem 0; color: rgb(var(--ink-100)); }
+.prose-forum strong { color: rgb(var(--ink-50)); font-weight: 600; }
+.prose-forum code { background: rgb(var(--brand-500) / 0.08); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--brand-500)); }
+.prose-forum pre { background: rgb(var(--ink-900) / 0.7); border: 1px solid rgb(var(--brand-500) / 0.15); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+.prose-forum pre code { background: transparent; padding: 0; color: rgb(var(--ink-100)); font-size: 0.85em; }
+.prose-forum blockquote { border-left: 3px solid rgb(var(--brand-500) / 0.6); padding: 0.4rem 0 0.4rem 1rem; margin: 1rem 0; color: rgb(var(--ink-200)); background: rgb(var(--brand-500) / 0.05); border-radius: 0 6px 6px 0; }
+.prose-forum table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92em; }
+.prose-forum th, .prose-forum td { padding: 0.5rem 0.8rem; border: 1px solid rgb(var(--brand-500) / 0.15); text-align: left; }
+.prose-forum th { background: rgb(var(--brand-500) / 0.08); color: rgb(var(--ink-100)); font-weight: 600; }
+.prose-forum img { max-width: 100%; border-radius: 6px; margin: 0.5rem 0; }
+.prose-forum hr { border: 0; border-top: 1px solid rgb(var(--brand-500) / 0.15); margin: 1.5rem 0; }
+
 @layer components {
   .card {
     @apply bg-ink-900/70 backdrop-blur border border-ink-800/60 rounded-2xl shadow-card;

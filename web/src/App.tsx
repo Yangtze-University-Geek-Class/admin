@@ -20,6 +20,17 @@ import Logs from "./pages/admin/Logs";
 import AdminFeedback from "./pages/admin/Feedback";
 import Docs from "./pages/Docs";
 import FeedbackFab from "./components/FeedbackFab";
+import ForumLayout from "./pages/forum/ForumLayout";
+import ForumHome from "./pages/forum/ForumHome";
+import ForumCategoryList from "./pages/forum/ForumCategoryList";
+import ForumCategory from "./pages/forum/ForumCategory";
+import ForumThread from "./pages/forum/ForumThread";
+import ForumNewThread from "./pages/forum/ForumNewThread";
+import ForumLogin from "./pages/forum/ForumLogin";
+import ForumRegister from "./pages/forum/ForumRegister";
+import ForumProfile from "./pages/forum/ForumProfile";
+import ForumMe from "./pages/forum/ForumMe";
+import ForumNotifications from "./pages/forum/ForumNotifications";
 
 export default function App() {
   return (
@@ -30,6 +41,18 @@ export default function App() {
       <Route path="/feedback/:org" element={<Feedback />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/docs/:id" element={<Docs />} />
+      <Route path="/forum" element={<ForumLayout />}>
+        <Route index element={<ForumHome />} />
+        <Route path="categories" element={<ForumCategoryList />} />
+        <Route path="c/:slug" element={<ForumCategory />} />
+        <Route path="t/:id" element={<ForumThread />} />
+        <Route path="new" element={<ForumNewThread />} />
+        <Route path="login" element={<ForumLogin />} />
+        <Route path="register" element={<ForumRegister />} />
+        <Route path="u/:username" element={<ForumProfile />} />
+        <Route path="me" element={<ForumMe />} />
+        <Route path="me/notifications" element={<ForumNotifications />} />
+      </Route>
       <Route path="/admin/signin" element={<SignIn />} />
       <Route path="/admin" element={<MyOrgs />} />
       <Route path="/admin/:org" element={<OrgLayout />}>
