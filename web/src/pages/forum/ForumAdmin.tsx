@@ -73,6 +73,7 @@ function UsersPanel() {
   const confirm = useConfirm();
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const list = useQuery({
     queryKey: ["forum-admin-users", { q, role }],
     queryFn: () => api<{ users: ForumAdminUser[]; total: number }>(
@@ -93,13 +94,16 @@ function UsersPanel() {
           <Select value={role} onChange={setRole} options={[
             { value: "", label: "全部角色" },
             { value: "admin", label: "负责人" },
+            { value: "teacher", label: "老师" },
             { value: "mod", label: "协管" },
             { value: "member", label: "成员" },
             { value: "banned", label: "已封禁" },
           ]} />
         </div>
         <div className="text-sm text-ink-400 ml-auto">{list.data?.total ?? "—"} 用户</div>
+        <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm px-4 py-2">新建老师账号</button>
       </div>
+      {createOpen && <CreateTeacherDialog onClose={() => { setCreateOpen(false); qc.invalidateQueries({ queryKey: ["forum-admin-users"] }); }} />}
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-ink-900/40 text-ink-300 text-xs uppercase tracking-wider">
@@ -144,6 +148,12 @@ function UsersPanel() {
                         if (ok) setRoleMut.mutate({ id: u.id, role: "admin" });
                       }} className="text-xs px-2 py-1 rounded border border-brand-500/40 text-brand-500 hover:bg-brand-500/10">提为负责人</button>
                     )}
+                    {u.role !== "teacher" && u.role !== "admin" && (
+                      <button onClick={async () => {
+                        const ok = await confirm({ title: "设为老师", body: `授予 ${u.display_name ?? u.username} 老师身份（可看全部状态，不可改设置）？`, confirmText: "授予" });
+                        if (ok) setRoleMut.mutate({ id: u.id, role: "teacher" });
+                      }} className="text-xs px-2 py-1 rounded border border-violet-500/40 text-violet-400 hover:bg-violet-500/10">设为老师</button>
+                    )}
                     {u.role === "admin" && (
                       <button onClick={async () => {
                         const ok = await confirm({ title: "降为成员", body: `撤销 ${u.display_name ?? u.username} 的负责人权限？`, confirmText: "降级", variant: "danger" });
@@ -171,9 +181,69 @@ function UsersPanel() {
   );
 }
 
+function CreateTeacherDialog({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({ username: "", display_name: "", email: "", password: "" });
+  const [showPwd, setShowPwd] = useState(false);
+  const submit = useMutation({
+    mutationFn: () => api<{ ok: boolean; user_id: number; username: string }>(`/api/forum/admin/teachers`, { method: "POST", body: JSON.stringify(form) }),
+    onSuccess: () => onClose(),
+  });
+  const generatePwd = () => {
+    const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let p = "";
+    for (let i = 0; i < 12; i++) p += chars[Math.floor(Math.random() * chars.length)];
+    setForm({ ...form, password: p });
+    setShowPwd(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 backdrop-blur-sm">
+      <div className="card p-6 max-w-md w-full mx-4 bg-ink-950">
+        <h3 className="text-lg font-semibold text-ink-50 mb-1">新建老师账号</h3>
+        <p className="text-xs text-ink-400 mb-5">老师可看到全部组织状态，但不能改设置或发管理操作</p>
+        <form onSubmit={(e) => { e.preventDefault(); submit.mutate(); }} className="space-y-3">
+          <div>
+            <label className="label text-sm">用户名 · 2-32 字符</label>
+            <input autoFocus className="input" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required minLength={2} maxLength={32} placeholder="如 teacher-zhao" />
+          </div>
+          <div>
+            <label className="label text-sm">显示名</label>
+            <input className="input" value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} placeholder="如 赵老师" />
+          </div>
+          <div>
+            <label className="label text-sm">邮箱（可选）</label>
+            <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <label className="label text-sm flex items-center justify-between">
+              <span>初始密码 · 至少 6 位</span>
+              <button type="button" onClick={generatePwd} className="text-xs text-brand-500 hover:underline">随机生成</button>
+            </label>
+            <div className="flex gap-2">
+              <input type={showPwd ? "text" : "password"} className="input flex-1 font-mono" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
+              <button type="button" onClick={() => setShowPwd(!showPwd)} className="btn-ghost text-xs px-3">{showPwd ? "隐" : "显"}</button>
+            </div>
+            {form.password && showPwd && (
+              <p className="text-xs text-amber-500 mt-1.5">把账号 + 密码发给老师后让他立即修改</p>
+            )}
+          </div>
+          {submit.error && <div className="text-rose-500 text-sm">{(submit.error as Error).message}</div>}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-ghost text-sm px-4 py-2">取消</button>
+            <button type="submit" disabled={submit.isPending || !form.username || form.password.length < 6} className="btn-primary text-sm px-5 py-2 disabled:opacity-50">
+              {submit.isPending ? "创建中…" : "创建账号"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return <span className="tag-blue text-[10px]">负责人</span>;
   if (role === "mod") return <span className="tag-yellow text-[10px]">协管</span>;
+  if (role === "teacher") return <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-500/15 text-violet-400 border border-violet-500/30">老师</span>;
   if (role === "banned") return <span className="tag-red text-[10px]">已封禁</span>;
   return <span className="tag-gray text-[10px]">成员</span>;
 }
