@@ -182,6 +182,63 @@ export default async function reposRoutes(app: FastifyInstance) {
     }
   );
 
+  app.get<{ Params: { org: string; repo: string; n: string } }>(
+    "/api/admin/:org/repos/:repo/issues/:n",
+    { preHandler: requireOrgRole("member") },
+    async (req) => {
+      const { org, repo, n } = req.params;
+      const octokit = octokitWith(req.session!.accessToken);
+      const num = Number(n);
+      const [issue, comments] = await Promise.all([
+        octokit.request("GET /repos/{owner}/{repo}/issues/{issue_number}", { owner: org, repo, issue_number: num }),
+        octokit.paginate("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", { owner: org, repo, issue_number: num, per_page: 100 }),
+      ]);
+      const i: any = issue.data;
+      return {
+        number: i.number, title: i.title, body: i.body, state: i.state,
+        user: { login: i.user?.login, avatar_url: i.user?.avatar_url },
+        labels: (i.labels ?? []).map((l: any) => ({ name: l.name, color: l.color })),
+        assignees: (i.assignees ?? []).map((a: any) => ({ login: a.login, avatar_url: a.avatar_url })),
+        created_at: i.created_at, updated_at: i.updated_at, closed_at: i.closed_at, html_url: i.html_url,
+        comments: (comments as any[]).map((c) => ({
+          id: c.id, body: c.body, created_at: c.created_at,
+          user: { login: c.user?.login, avatar_url: c.user?.avatar_url },
+        })),
+      };
+    }
+  );
+
+  app.get<{ Params: { org: string; repo: string; n: string } }>(
+    "/api/admin/:org/repos/:repo/pulls/:n",
+    { preHandler: requireOrgRole("member") },
+    async (req) => {
+      const { org, repo, n } = req.params;
+      const octokit = octokitWith(req.session!.accessToken);
+      const num = Number(n);
+      const [pr, comments, files] = await Promise.all([
+        octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", { owner: org, repo, pull_number: num }),
+        octokit.paginate("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", { owner: org, repo, issue_number: num, per_page: 100 }),
+        octokit.paginate("GET /repos/{owner}/{repo}/pulls/{pull_number}/files", { owner: org, repo, pull_number: num, per_page: 100 }).catch(() => []),
+      ]);
+      const p: any = pr.data;
+      return {
+        number: p.number, title: p.title, body: p.body, state: p.state, draft: p.draft, merged: p.merged, mergeable: p.mergeable,
+        user: { login: p.user?.login, avatar_url: p.user?.avatar_url },
+        head: { ref: p.head?.ref, sha: p.head?.sha }, base: { ref: p.base?.ref, sha: p.base?.sha },
+        additions: p.additions, deletions: p.deletions, changed_files: p.changed_files,
+        created_at: p.created_at, updated_at: p.updated_at, merged_at: p.merged_at, closed_at: p.closed_at, html_url: p.html_url,
+        comments: (comments as any[]).map((c) => ({
+          id: c.id, body: c.body, created_at: c.created_at,
+          user: { login: c.user?.login, avatar_url: c.user?.avatar_url },
+        })),
+        files: (files as any[]).map((f) => ({
+          filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions,
+          patch: f.patch ? (f.patch.length > 20000 ? f.patch.slice(0, 20000) + "\n... (truncated)" : f.patch) : null,
+        })),
+      };
+    }
+  );
+
   app.post<{ Params: { org: string }; Body: { name: string; description?: string; visibility: "public" | "private" | "internal"; auto_init?: boolean; gitignore_template?: string; license_template?: string } }>(
     "/api/admin/:org/create-repo",
     { preHandler: requireOrgRole("admin") },

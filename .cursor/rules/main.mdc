@@ -1,0 +1,19 @@
+---
+description: Project conventions and architecture
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Project rules
+
+The full and canonical rules live in [AGENTS.md](mdc:AGENTS.md). Read it before editing.
+
+Key constraints to enforce:
+- Never hardcode hex colors in `web/src/**` — use Tailwind classes (`text-ink-*`, `bg-brand-*`) backed by CSS variables in `web/src/lib/themes.ts`.
+- Never use native `<select>` or `window.confirm()` — use `web/src/components/Select.tsx` and `useConfirm()` from `web/src/components/ConfirmDialog.tsx`.
+- Every admin API route needs both `requireAuth` (file-level hook) AND `requireOrgRole("admin" | "member")` (per-route preHandler).
+- Every mutating admin call must `audit(org, login, action, target, details, ip)`.
+- Doc sync rule: routing changes → `docs/ARCHITECTURE.md`; schema → `docs/ARCHITECTURE.md` + `docs/DEPLOY.md` if migration; env var → `.env.example` + `docs/DEPLOY.md`; user-visible feature → `docs/USAGE.md`; build commands → `README.md` + `AGENTS.md` §3.
+
+If anything in this file conflicts with AGENTS.md, AGENTS.md wins.

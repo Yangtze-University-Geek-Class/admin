@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { audit, db } from "../lib/db.js";
 import { getSession } from "../lib/auth.js";
 import { verifyTurnstile } from "../middleware/turnstile.js";
+import { preflightPublicSubmission, powDifficulty } from "../middleware/pow.js";
 import { turnstileEnabled } from "../config.js";
 
 type Body = {
@@ -10,13 +11,15 @@ type Body = {
   category?: string;
   contact?: string;
   turnstile_token?: string;
+  pow?: { timestamp: number; nonce: string };
+  website?: string;
 };
 
 const CATEGORIES = ["建议", "Bug", "新功能", "投诉", "其他"];
 const ORG_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 
 export default async function feedbackRoutes(app: FastifyInstance) {
-  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES }));
+  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty() }));
 
   app.post<{ Body: Body }>("/api/feedback", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
@@ -27,6 +30,9 @@ export default async function feedbackRoutes(app: FastifyInstance) {
     if (!text || text.length < 5) return reply.code(400).send({ error: "意见内容至少 5 个字" });
     if (text.length > 5000) return reply.code(400).send({ error: "意见内容过长（5000 字以内）" });
     if (category && !CATEGORIES.includes(category)) return reply.code(400).send({ error: "分类无效" });
+
+    const bodyForHash = `fb:${org}:${text}`;
+    if (!(await preflightPublicSubmission(req, reply, bodyForHash))) return;
 
     const captchaOk = await verifyTurnstile(turnstile_token, req.ip);
     if (!captchaOk) return reply.code(400).send({ error: "人机验证失败" });

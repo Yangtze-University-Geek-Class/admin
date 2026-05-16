@@ -3,9 +3,15 @@ import { audit, db } from "../lib/db.js";
 import { octokitWith } from "../lib/github.js";
 import { decrypt } from "../lib/crypto.js";
 import { verifyTurnstile } from "../middleware/turnstile.js";
+import { preflightPublicSubmission, powDifficulty } from "../middleware/pow.js";
 import { turnstileEnabled, config } from "../config.js";
 
-type Body = { github_login?: string; email?: string; note?: string; turnstile_token?: string };
+type Body = {
+  github_login?: string; email?: string; note?: string;
+  turnstile_token?: string;
+  pow?: { timestamp: number; nonce: string };
+  website?: string; // honeypot
+};
 type LinkRow = {
   token: string; org: string; created_by: string; created_by_token_encrypted: string;
   note: string | null; max_uses: number; current_uses: number; expires_at: number;
@@ -30,6 +36,7 @@ function linkStatus(row: LinkRow): { ok: true } | { ok: false; reason: string } 
 export default async function joinRoutes(app: FastifyInstance) {
   app.get("/api/public/config", async () => ({
     turnstile_site_key: turnstileEnabled() ? config.turnstile.siteKey : null,
+    pow_difficulty: powDifficulty(),
   }));
 
   app.get<{ Params: { token: string } }>("/api/join/:token", async (req, reply) => {
@@ -57,6 +64,8 @@ export default async function joinRoutes(app: FastifyInstance) {
       if (!s.ok) return reply.code(400).send({ error: s.reason });
 
       const { github_login, email, note, turnstile_token } = req.body ?? {};
+      const bodyForHash = `join:${req.params.token}:${(github_login ?? "").trim()}:${(email ?? "").trim()}`;
+      if (!(await preflightPublicSubmission(req, reply, bodyForHash))) return;
       const login = github_login?.trim();
       const mail = email?.trim();
       const noteText = note?.trim().slice(0, 280);

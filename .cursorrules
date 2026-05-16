@@ -1,0 +1,8 @@
+See AGENTS.md for the canonical project rules. Read it before editing.
+
+Key invariants:
+- Tailwind colors are CSS-variable-driven (themed). No hardcoded hex in web/src/**.
+- Use components/Select.tsx and components/ConfirmDialog.tsx (useConfirm) instead of native <select> / window.confirm.
+- Every admin route needs requireAuth + requireOrgRole.
+- Every mutating admin call calls audit(...).
+- Changing code without updating docs is banned. See AGENTS.md §4.7 for the doc sync table.

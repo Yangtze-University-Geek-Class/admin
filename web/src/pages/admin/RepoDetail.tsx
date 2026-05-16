@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
-import { api, fmtRelative } from "../../lib/api";
+import { marked } from "marked";
+import { api, fmtDate, fmtRelative } from "../../lib/api";
 import Select from "../../components/Select";
 import { useConfirm } from "../../components/ConfirmDialog";
 import DiffView from "../../components/DiffView";
@@ -32,13 +33,13 @@ export default function RepoDetail() {
 
       <nav className="flex flex-wrap items-center gap-1 border-b border-ink-800/60 mb-6 -mt-2">
         {[
-          { to: "", label: "代码", end: true },
-          { to: "commits", label: `Commits` },
-          { to: "issues", label: "Issues" },
-          { to: "pulls", label: "PRs" },
-          { to: "settings", label: "设置" },
+          { slug: "", label: "代码", end: true },
+          { slug: "commits", label: "Commits" },
+          { slug: "issues", label: "Issues" },
+          { slug: "pulls", label: "PRs" },
+          { slug: "settings", label: "设置" },
         ].map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end}
+          <NavLink key={t.slug} to={`/admin/${org}/repos/${repo}${t.slug ? "/" + t.slug : ""}`} end={t.end}
             className={({ isActive }) =>
               `px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
                 isActive ? "border-brand-500 text-brand-500" : "border-transparent text-ink-300 hover:text-ink-100"
@@ -52,7 +53,9 @@ export default function RepoDetail() {
         <Route index element={<CodeTab branches={branches} defaultBranch={defaultBranch} />} />
         <Route path="commits" element={<CommitsTab branches={branches} defaultBranch={defaultBranch} />} />
         <Route path="issues" element={<IssuesTab />} />
+        <Route path="issues/:n" element={<IssueDetail />} />
         <Route path="pulls" element={<PullsTab />} />
+        <Route path="pulls/:n" element={<PullDetail />} />
         <Route path="settings" element={<SettingsTab info={data.info} branches={branches} collaborators={data.collaborators} hooks={data.hooks} />} />
       </Routes>
     </div>
@@ -262,7 +265,7 @@ function IssuesTab() {
             <li key={i.number} className="px-5 py-3 hover:bg-ink-800/30">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${i.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                <a href={i.html_url} target="_blank" rel="noreferrer" className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">{i.title}</a>
+                <Link to={`/admin/${org}/repos/${repo}/issues/${i.number}`} className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">{i.title}</Link>
                 <span className="text-xs text-ink-500">#{i.number}</span>
               </div>
               <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
@@ -279,6 +282,60 @@ function IssuesTab() {
             </li>
           ))}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+function MarkdownBox({ src }: { src: string | null }) {
+  const html = useMemo(() => (src ? (marked.parse(src) as string) : ""), [src]);
+  if (!src) return <p className="text-ink-500 text-sm italic">无正文</p>;
+  return <div className="prose-doc text-sm" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function IssueDetail() {
+  const { org, repo, n } = useParams();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["issue", org, repo, n],
+    queryFn: () => api<any>(`/api/admin/${org}/repos/${repo}/issues/${n}`),
+  });
+  if (isLoading) return <div className="text-ink-500">加载…</div>;
+  if (error) return <div className="text-rose-400">{(error as Error).message}</div>;
+  return (
+    <div>
+      <Link to={`/admin/${org}/repos/${repo}/issues`} className="text-sm text-brand-500 hover:underline">← Issues</Link>
+      <header className="mt-3 mb-5">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <span className={`tag-${data.state === "open" ? "green" : "red"}`}>{data.state}</span>
+          <h1 className="text-2xl font-semibold text-ink-50 flex-1">{data.title} <span className="text-ink-500">#{data.number}</span></h1>
+          <a href={data.html_url} target="_blank" rel="noreferrer" className="btn-ghost text-xs">GitHub</a>
+        </div>
+        <div className="text-xs text-ink-500 flex items-center gap-2 flex-wrap">
+          {data.user.avatar_url && <img src={data.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />}
+          <span className="font-mono">@{data.user.login}</span>
+          <span>· {fmtDate(data.created_at)}</span>
+          {data.labels?.map((l: any) => (
+            <span key={l.name} className="px-1.5 py-0.5 rounded text-[10px]"
+              style={{ backgroundColor: `#${l.color}33`, color: `#${l.color}`, border: `1px solid #${l.color}66` }}>{l.name}</span>
+          ))}
+        </div>
+      </header>
+      <div className="card p-5">
+        <MarkdownBox src={data.body} />
+      </div>
+      <h2 className="text-lg font-medium text-ink-100 mt-8 mb-3">评论 ({data.comments.length})</h2>
+      <div className="space-y-3">
+        {data.comments.map((c: any) => (
+          <div key={c.id} className="card p-4">
+            <div className="flex items-center gap-2 mb-2 text-xs text-ink-500">
+              {c.user.avatar_url && <img src={c.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />}
+              <span className="font-mono">@{c.user.login}</span>
+              <span>· {fmtRelative(c.created_at)}</span>
+            </div>
+            <MarkdownBox src={c.body} />
+          </div>
+        ))}
+        {data.comments.length === 0 && <p className="text-ink-500 text-sm">暂无评论</p>}
       </div>
     </div>
   );
@@ -310,9 +367,9 @@ function PullsTab() {
             <li key={p.number} className="px-5 py-3 hover:bg-ink-800/30">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${p.merged ? "bg-purple-500" : p.state === "open" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                <a href={p.html_url} target="_blank" rel="noreferrer" className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">
+                <Link to={`/admin/${org}/repos/${repo}/pulls/${p.number}`} className="text-ink-100 font-medium hover:text-brand-500 flex-1 truncate">
                   {p.draft && <span className="text-xs text-ink-500 mr-2">[Draft]</span>}{p.title}
-                </a>
+                </Link>
                 <span className="text-xs text-ink-500">#{p.number}</span>
               </div>
               <div className="text-xs text-ink-500 mt-1 flex items-center gap-3 pl-5 flex-wrap">
@@ -323,6 +380,76 @@ function PullsTab() {
             </li>
           ))}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+function PullDetail() {
+  const { org, repo, n } = useParams();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["pull", org, repo, n],
+    queryFn: () => api<any>(`/api/admin/${org}/repos/${repo}/pulls/${n}`),
+  });
+  if (isLoading) return <div className="text-ink-500">加载…</div>;
+  if (error) return <div className="text-rose-400">{(error as Error).message}</div>;
+  const stateTag = data.merged ? "tag-blue" : data.state === "open" ? "tag-green" : "tag-red";
+  return (
+    <div>
+      <Link to={`/admin/${org}/repos/${repo}/pulls`} className="text-sm text-brand-500 hover:underline">← PRs</Link>
+      <header className="mt-3 mb-5">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <span className={stateTag}>{data.merged ? "merged" : data.state}</span>
+          {data.draft && <span className="tag-gray">draft</span>}
+          <h1 className="text-2xl font-semibold text-ink-50 flex-1">{data.title} <span className="text-ink-500">#{data.number}</span></h1>
+          <a href={data.html_url} target="_blank" rel="noreferrer" className="btn-ghost text-xs">GitHub</a>
+        </div>
+        <div className="text-xs text-ink-500 flex items-center gap-2 flex-wrap">
+          {data.user.avatar_url && <img src={data.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />}
+          <span className="font-mono">@{data.user.login}</span>
+          <span>· {fmtDate(data.created_at)}</span>
+          <span className="font-mono text-ink-400">{data.head.ref} → {data.base.ref}</span>
+          <span className="text-emerald-400">+{data.additions}</span>
+          <span className="text-rose-400">-{data.deletions}</span>
+          <span>{data.changed_files} 个文件</span>
+        </div>
+      </header>
+      <div className="card p-5">
+        <MarkdownBox src={data.body} />
+      </div>
+
+      {data.files?.length > 0 && (
+        <>
+          <h2 className="text-lg font-medium text-ink-100 mt-8 mb-3">改动 ({data.files.length} 文件)</h2>
+          <div className="space-y-3">
+            {data.files.map((f: any) => (
+              <div key={f.filename} className="card overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-ink-900/40 border-b border-ink-800/60 text-sm">
+                  <span className={`tag-${f.status === "added" ? "green" : f.status === "removed" ? "red" : "blue"}`}>{f.status}</span>
+                  <span className="font-mono text-ink-200 flex-1 truncate">{f.filename}</span>
+                  <span className="text-emerald-400 text-xs">+{f.additions}</span>
+                  <span className="text-rose-400 text-xs">-{f.deletions}</span>
+                </div>
+                <DiffView patch={f.patch} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h2 className="text-lg font-medium text-ink-100 mt-8 mb-3">评论 ({data.comments.length})</h2>
+      <div className="space-y-3">
+        {data.comments.map((c: any) => (
+          <div key={c.id} className="card p-4">
+            <div className="flex items-center gap-2 mb-2 text-xs text-ink-500">
+              {c.user.avatar_url && <img src={c.user.avatar_url} className="w-5 h-5 rounded-full" alt="" />}
+              <span className="font-mono">@{c.user.login}</span>
+              <span>· {fmtRelative(c.created_at)}</span>
+            </div>
+            <MarkdownBox src={c.body} />
+          </div>
+        ))}
+        {data.comments.length === 0 && <p className="text-ink-500 text-sm">暂无评论</p>}
       </div>
     </div>
   );

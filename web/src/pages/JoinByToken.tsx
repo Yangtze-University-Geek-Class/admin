@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
 import ThemeSwitcher from "../components/ThemeSwitcher";
+import { computePow } from "../lib/pow";
 
 declare global {
   interface Window { turnstile?: { render: (el: string | HTMLElement, opts: any) => string; reset: (id?: string) => void }; }
@@ -21,16 +22,20 @@ export default function JoinByToken() {
   const { token } = useParams();
   const [info, setInfo] = useState<LinkInfo | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [form, setForm] = useState({ github_login: "", email: "", note: "" });
+  const [form, setForm] = useState({ github_login: "", email: "", note: "", website: "" });
   const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<"" | "pow" | "submit">("");
   const [done, setDone] = useState<string | null>(null);
   const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [powDiff, setPowDiff] = useState(5);
   const [tsToken, setTsToken] = useState<string>("");
 
   useEffect(() => {
     api<LinkInfo>(`/api/join/${token}`).then(setInfo).catch((e) => setLoadErr(e.message));
-    api<{ turnstile_site_key: string | null }>("/api/public/config").then((c) => setSiteKey(c.turnstile_site_key));
+    api<{ turnstile_site_key: string | null; pow_difficulty: number }>("/api/public/config").then((c) => {
+      setSiteKey(c.turnstile_site_key);
+      setPowDiff(c.pow_difficulty);
+    });
   }, [token]);
 
   useEffect(() => {
@@ -58,9 +63,12 @@ export default function JoinByToken() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    setLoading(true);
+    setBusy("pow");
     try {
-      const body = { ...form, turnstile_token: tsToken };
+      const bodyForHash = `join:${token}:${form.github_login.trim()}:${form.email.trim()}`;
+      const pow = await computePow(bodyForHash, powDiff);
+      setBusy("submit");
+      const body = { ...form, turnstile_token: tsToken, pow };
       const r = await api<{ ok: boolean; message: string }>(`/api/join/${token}`, {
         method: "POST",
         body: JSON.stringify(body),
@@ -71,7 +79,7 @@ export default function JoinByToken() {
       window.turnstile?.reset();
       setTsToken("");
     } finally {
-      setLoading(false);
+      setBusy("");
     }
   };
 
@@ -160,14 +168,21 @@ export default function JoinByToken() {
                   />
                 </div>
 
+                {/* honeypot */}
+                <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+                  <label>请勿填写：<input tabIndex={-1} autoComplete="off"
+                    value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
+                </div>
+
                 {siteKey && <div id="turnstile-box" className="flex justify-center" />}
 
                 {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
 
                 <button type="submit" className="btn-primary w-full text-base py-3"
-                  disabled={loading || (!form.github_login && !form.email) || (!!siteKey && !tsToken)}>
-                  {loading ? "提交中…" : "申请加入"}
+                  disabled={Boolean(busy) || (!form.github_login && !form.email) || (!!siteKey && !tsToken)}>
+                  {busy === "pow" ? "防滥用计算中…" : busy === "submit" ? "提交中…" : "申请加入"}
                 </button>
+                {busy === "pow" && <p className="text-xs text-ink-500 text-center">浏览器在做一次哈希计算（约 1-2 秒）。</p>}
               </form>
             </>
           )}

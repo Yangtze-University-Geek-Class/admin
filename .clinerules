@@ -1,0 +1,12 @@
+See AGENTS.md.
+
+Must:
+- Match existing patterns (ESM, themed Tailwind, useConfirm, Select component)
+- Wire requireAuth + requireOrgRole on all admin routes; audit(...) on mutations
+- Update docs/USAGE.md, docs/ARCHITECTURE.md, .env.example as code changes touch them
+
+Must not:
+- Hardcode hex colors; use CSS-variable-backed Tailwind tokens
+- Use native <select> or window.confirm
+- Log secrets (tokens, client_secret)
+- Add tests/CI/Docker/i18n/SSR proactively

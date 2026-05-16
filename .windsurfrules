@@ -1,0 +1,9 @@
+See AGENTS.md for the canonical project rules.
+
+Hard constraints:
+- TypeScript ESM throughout. Node 20.
+- Tailwind colors driven by CSS variables (themes). No hardcoded hex in web/src/**.
+- Replace native <select> with components/Select.tsx; replace window.confirm with useConfirm.
+- Every admin route: requireAuth + requireOrgRole; every mutation: audit(...).
+- OAuth scope changes invalidate sessions — coordinate before editing config.ts.
+- Doc sync: code change without updating docs (USAGE/ARCHITECTURE/DEPLOY/README) is a review-blocker.

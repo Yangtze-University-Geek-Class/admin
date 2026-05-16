@@ -33,6 +33,9 @@ export default function Landing() {
             <Link to="/admin/signin" className="btn-primary text-base px-6 py-3">
               进入管理后台
             </Link>
+            <Link to="/docs" className="btn-ghost text-base px-6 py-3">
+              使用文档
+            </Link>
             <Link to="/feedback" className="btn-ghost text-base px-6 py-3">
               提交意见
             </Link>

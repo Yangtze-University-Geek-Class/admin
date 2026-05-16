@@ -3,23 +3,28 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "../lib/api";
 import Select from "../components/Select";
 import ThemeSwitcher from "../components/ThemeSwitcher";
+import { computePow } from "../lib/pow";
 
 export default function Feedback() {
   const { org: orgParam } = useParams();
   const [search] = useSearchParams();
   const initialOrg = orgParam ?? search.get("org") ?? "";
 
-  const [form, setForm] = useState({ org: initialOrg, category: "建议", content: "", contact: "" });
+  const [form, setForm] = useState({ org: initialOrg, category: "建议", content: "", contact: "", website: "" });
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<"" | "pow" | "submit">("");
   const [categories, setCategories] = useState<string[]>([]);
+  const [powDiff, setPowDiff] = useState(5);
   const [recent, setRecent] = useState<any[]>([]);
   const [siteKey, setSiteKey] = useState<string | null>(null);
   const [tsToken, setTsToken] = useState("");
 
   useEffect(() => {
-    api<{ categories: string[] }>("/api/feedback/categories").then((d) => setCategories(d.categories));
+    api<{ categories: string[]; pow_difficulty: number }>("/api/feedback/categories").then((d) => {
+      setCategories(d.categories);
+      setPowDiff(d.pow_difficulty);
+    });
     api<{ turnstile_site_key: string | null }>("/api/public/config").then((c) => setSiteKey(c.turnstile_site_key));
   }, []);
 
@@ -48,20 +53,23 @@ export default function Feedback() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    setLoading(true);
+    setBusy("pow");
     try {
+      const bodyForHash = `fb:${form.org}:${form.content.trim()}`;
+      const pow = await computePow(bodyForHash, powDiff);
+      setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
-        body: JSON.stringify({ ...form, turnstile_token: tsToken }),
+        body: JSON.stringify({ ...form, turnstile_token: tsToken, pow }),
       });
       setDone(r.message);
-      setForm({ ...form, content: "", contact: "" });
-      window.turnstile?.reset?.();
+      setForm({ ...form, content: "", contact: "", website: "" });
+      (window as any).turnstile?.reset?.();
       setTsToken("");
     } catch (e) {
       setErr((e as Error).message);
     } finally {
-      setLoading(false);
+      setBusy("");
     }
   };
 
@@ -114,12 +122,19 @@ export default function Feedback() {
                   value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
               </div>
 
+              {/* honeypot */}
+              <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+                <label>请勿填写：<input tabIndex={-1} autoComplete="off"
+                  value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
+              </div>
+
               {siteKey && <div id="turnstile-box-fb" className="flex justify-center" />}
               {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
 
-              <button type="submit" className="btn-primary w-full py-3" disabled={loading || form.content.length < 5 || !form.org || (!!siteKey && !tsToken)}>
-                {loading ? "提交中…" : "提交意见"}
+              <button type="submit" className="btn-primary w-full py-3" disabled={Boolean(busy) || form.content.length < 5 || !form.org || (!!siteKey && !tsToken)}>
+                {busy === "pow" ? "防滥用计算中…" : busy === "submit" ? "提交中…" : "提交意见"}
               </button>
+              {busy === "pow" && <p className="text-xs text-ink-500 text-center">浏览器在做一次哈希计算（约 1-2 秒），用来防机器人。</p>}
             </form>
           )}
         </div>

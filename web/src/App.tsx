@@ -18,6 +18,8 @@ import Security from "./pages/admin/Security";
 import OrgSettings from "./pages/admin/OrgSettings";
 import Logs from "./pages/admin/Logs";
 import AdminFeedback from "./pages/admin/Feedback";
+import Docs from "./pages/Docs";
+import FeedbackFab from "./components/FeedbackFab";
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
       <Route path="/join/:token" element={<JoinByToken />} />
       <Route path="/feedback" element={<Feedback />} />
       <Route path="/feedback/:org" element={<Feedback />} />
+      <Route path="/docs" element={<Docs />} />
+      <Route path="/docs/:id" element={<Docs />} />
       <Route path="/admin/signin" element={<SignIn />} />
       <Route path="/admin" element={<MyOrgs />} />
       <Route path="/admin/:org" element={<OrgLayout />}>
@@ -33,6 +37,8 @@ export default function App() {
         <Route path="members" element={<Members />} />
         <Route path="repos" element={<Repos />} />
         <Route path="repos/new" element={<CreateRepo />} />
+        <Route path="repos/:repo/issues/:n" element={<RepoDetail />} />
+        <Route path="repos/:repo/pulls/:n" element={<RepoDetail />} />
         <Route path="repos/:repo/*" element={<RepoDetail />} />
         <Route path="invitations" element={<Invitations />} />
         <Route path="invite-links" element={<InviteLinks />} />
@@ -46,4 +52,8 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+export function GlobalFab() {
+  return <FeedbackFab />;
 }

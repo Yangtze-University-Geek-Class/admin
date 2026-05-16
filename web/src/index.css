@@ -14,6 +14,33 @@
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(4px) } to { opacity: 1; transform: scale(1) translateY(0) } }
 
+.prose-doc { color: rgb(var(--ink-100)); line-height: 1.7; font-size: 15px; }
+.prose-doc h1 { font-size: 2rem; font-weight: 700; margin: 0 0 1.2rem; color: rgb(var(--ink-50)); border-bottom: 1px solid rgb(var(--ink-800) / 0.6); padding-bottom: 0.6rem; }
+.prose-doc h2 { font-size: 1.5rem; font-weight: 600; margin: 2.4rem 0 1rem; color: rgb(var(--ink-50)); border-bottom: 1px solid rgb(var(--ink-800) / 0.5); padding-bottom: 0.4rem; }
+.prose-doc h3 { font-size: 1.2rem; font-weight: 600; margin: 1.8rem 0 0.8rem; color: rgb(var(--ink-100)); }
+.prose-doc h4 { font-size: 1rem; font-weight: 600; margin: 1.4rem 0 0.6rem; color: rgb(var(--ink-100)); }
+.prose-doc p { margin: 0.8rem 0; color: rgb(var(--ink-200)); }
+.prose-doc a { color: rgb(var(--brand-500)); text-decoration: underline; text-decoration-color: rgb(var(--brand-500) / 0.4); text-underline-offset: 3px; }
+.prose-doc a:hover { text-decoration-color: rgb(var(--brand-500)); }
+.prose-doc ul, .prose-doc ol { margin: 0.8rem 0; padding-left: 1.5rem; }
+.prose-doc ul { list-style: disc; }
+.prose-doc ol { list-style: decimal; }
+.prose-doc li { margin: 0.3rem 0; color: rgb(var(--ink-200)); }
+.prose-doc li::marker { color: rgb(var(--ink-500)); }
+.prose-doc strong { color: rgb(var(--ink-50)); font-weight: 600; }
+.prose-doc em { color: rgb(var(--ink-100)); font-style: italic; }
+.prose-doc code { background: rgb(var(--ink-900) / 0.7); border: 1px solid rgb(var(--ink-800) / 0.6); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: rgb(var(--brand-500)); }
+.prose-doc pre { background: rgb(var(--ink-950) / 0.6); border: 1px solid rgb(var(--ink-800) / 0.6); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+.prose-doc pre code { background: transparent; border: 0; padding: 0; color: rgb(var(--ink-200)); font-size: 0.85em; }
+.prose-doc blockquote { border-left: 3px solid rgb(var(--brand-500) / 0.6); padding: 0.4rem 0 0.4rem 1rem; margin: 1rem 0; color: rgb(var(--ink-300)); background: rgb(var(--brand-500) / 0.05); border-radius: 0 6px 6px 0; }
+.prose-doc table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92em; }
+.prose-doc thead { background: rgb(var(--ink-900) / 0.6); }
+.prose-doc th, .prose-doc td { padding: 0.6rem 0.8rem; border-bottom: 1px solid rgb(var(--ink-800) / 0.6); text-align: left; }
+.prose-doc th { color: rgb(var(--ink-400)); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; }
+.prose-doc td { color: rgb(var(--ink-200)); }
+.prose-doc hr { border: 0; border-top: 1px solid rgb(var(--ink-800) / 0.6); margin: 2rem 0; }
+.prose-doc img { max-width: 100%; border-radius: 6px; }
+
 @layer components {
   .card {
     @apply bg-ink-900/70 backdrop-blur border border-ink-800/60 rounded-2xl shadow-card;
