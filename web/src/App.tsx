@@ -93,8 +93,6 @@ function AdminRoutes() {
         <Route path="members" element={<Members />} />
         <Route path="repos" element={<Repos />} />
         <Route path="repos/new" element={<CreateRepo />} />
-        <Route path="repos/:repo/issues/:n" element={<RepoDetail />} />
-        <Route path="repos/:repo/pulls/:n" element={<RepoDetail />} />
         <Route path="repos/:repo/*" element={<RepoDetail />} />
         <Route path="invitations" element={<Invitations />} />
         <Route path="invite-links" element={<InviteLinks />} />
