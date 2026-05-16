@@ -1,13 +1,17 @@
 import type { FastifyInstance } from "fastify";
-import { ORG, octokitService } from "../../lib/github.js";
+import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireOrgRole } from "../../middleware/require-org-role.js";
 
 export default async function reposRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
 
-  app.get("/api/admin/repos", async () => {
-    const octokit = octokitService();
-    const repos = await octokit.paginate("GET /orgs/{org}/repos", { org: ORG, per_page: 100, type: "all" });
+  app.get<{ Params: { org: string } }>("/api/admin/:org/repos", {
+    preHandler: requireOrgRole("member"),
+  }, async (req) => {
+    const { org } = req.params;
+    const octokit = octokitWith(req.session!.accessToken);
+    const repos = await octokit.paginate("GET /orgs/{org}/repos", { org, per_page: 100, type: "all" });
     return {
       repos: repos.map((r) => ({
         name: r.name,
@@ -24,18 +28,21 @@ export default async function reposRoutes(app: FastifyInstance) {
         language: r.language,
         topics: r.topics ?? [],
         html_url: r.html_url,
+        description: r.description,
       })),
     };
   });
 
-  app.get<{ Params: { repo: string } }>("/api/admin/repos/:repo", async (req) => {
-    const octokit = octokitService();
-    const { repo } = req.params;
+  app.get<{ Params: { org: string; repo: string } }>("/api/admin/:org/repos/:repo", {
+    preHandler: requireOrgRole("member"),
+  }, async (req) => {
+    const { org, repo } = req.params;
+    const octokit = octokitWith(req.session!.accessToken);
     const [info, branches, collabs, hooks] = await Promise.all([
-      octokit.request("GET /repos/{owner}/{repo}", { owner: ORG, repo }),
-      octokit.paginate("GET /repos/{owner}/{repo}/branches", { owner: ORG, repo, per_page: 100 }),
-      octokit.paginate("GET /repos/{owner}/{repo}/collaborators", { owner: ORG, repo, per_page: 100 }),
-      octokit.paginate("GET /repos/{owner}/{repo}/hooks", { owner: ORG, repo, per_page: 100 }).catch(() => []),
+      octokit.request("GET /repos/{owner}/{repo}", { owner: org, repo }),
+      octokit.paginate("GET /repos/{owner}/{repo}/branches", { owner: org, repo, per_page: 100 }).catch(() => []),
+      octokit.paginate("GET /repos/{owner}/{repo}/collaborators", { owner: org, repo, per_page: 100 }).catch(() => []),
+      octokit.paginate("GET /repos/{owner}/{repo}/hooks", { owner: org, repo, per_page: 100 }).catch(() => []),
     ]);
     return {
       info: info.data,

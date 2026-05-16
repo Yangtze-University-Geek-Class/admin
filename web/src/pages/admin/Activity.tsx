@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api, fmtRelative } from "../../lib/api";
 
 export default function Activity() {
+  const { org } = useParams();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["activity"],
-    queryFn: () => api<{ events: any[] }>("/api/admin/activity"),
+    queryKey: ["activity", org],
+    queryFn: () => api<{ events: any[] }>(`/api/admin/${org}/activity`),
   });
   if (isLoading) return <div className="p-8 text-ink-500">加载中…</div>;
   if (error) return <div className="p-8 text-rose-400">{(error as Error).message}</div>;
@@ -12,7 +14,6 @@ export default function Activity() {
   return (
     <div className="p-6 sm:p-8 max-w-5xl mx-auto">
       <header className="mb-6"><h1 className="text-2xl font-semibold text-ink-50">活动流</h1></header>
-
       <div className="card divide-y divide-ink-800/60">
         {data!.events.length === 0 && <div className="p-8 text-center text-ink-500">暂无活动</div>}
         {data!.events.map((e) => (

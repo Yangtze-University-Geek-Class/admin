@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
-  darkMode: "class",
+  darkMode: ["class", '[data-mode="dark"]'],
   theme: {
     extend: {
       fontFamily: {
@@ -10,30 +10,27 @@ export default {
       },
       colors: {
         brand: {
-          50: "#eef4ff",
-          100: "#dbe8ff",
-          500: "#5b8def",
-          600: "#3a6fe0",
-          700: "#2c54b0",
-          900: "#0f1f4a",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
         },
         ink: {
-          50: "#f8fafc",
-          100: "#f1f5f9",
-          200: "#e2e8f0",
-          300: "#cbd5e1",
-          400: "#94a3b8",
-          500: "#64748b",
-          600: "#475569",
-          700: "#334155",
-          800: "#1e293b",
-          900: "#0f172a",
-          950: "#020617",
+          50:  "rgb(var(--ink-50)  / <alpha-value>)",
+          100: "rgb(var(--ink-100) / <alpha-value>)",
+          200: "rgb(var(--ink-200) / <alpha-value>)",
+          300: "rgb(var(--ink-300) / <alpha-value>)",
+          400: "rgb(var(--ink-400) / <alpha-value>)",
+          500: "rgb(var(--ink-500) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          950: "rgb(var(--ink-950) / <alpha-value>)",
         },
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(91,141,239,0.4), 0 8px 30px -8px rgba(91,141,239,0.45)",
-        card: "0 1px 2px rgba(15,23,42,0.04), 0 4px 16px -6px rgba(15,23,42,0.08)",
+        glow: "0 0 0 1px rgb(var(--brand-500) / 0.4), 0 8px 30px -8px rgb(var(--brand-500) / 0.45)",
+        card: "0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px -6px rgb(0 0 0 / 0.08)",
       },
     },
   },

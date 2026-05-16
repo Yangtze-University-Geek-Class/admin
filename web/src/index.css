@@ -4,13 +4,11 @@
 
 @layer base {
   html, body, #root { height: 100%; }
-  :root { color-scheme: dark; }
   body {
-    background: radial-gradient(1200px 800px at 20% -10%, rgba(91,141,239,0.18), transparent 60%),
-                radial-gradient(900px 600px at 90% 10%, rgba(124,58,237,0.12), transparent 60%),
-                #020617;
+    @apply text-ink-100 antialiased;
+    transition: background 0.3s ease;
   }
-  *::selection { background: rgba(91,141,239,0.35); }
+  *::selection { background: rgb(var(--brand-500) / 0.35); }
 }
 
 @layer components {

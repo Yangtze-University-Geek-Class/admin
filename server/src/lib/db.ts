@@ -19,28 +19,48 @@ CREATE TABLE IF NOT EXISTS app_state (
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   login TEXT NOT NULL,
-  access_token TEXT NOT NULL,
+  user_id INTEGER,
+  avatar_url TEXT,
+  access_token_encrypted TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_sessions_login ON sessions(login);
+
+CREATE TABLE IF NOT EXISTS invite_links (
+  token TEXT PRIMARY KEY,
+  org TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_by_token_encrypted TEXT NOT NULL,
+  note TEXT,
+  max_uses INTEGER NOT NULL,
+  current_uses INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  team_slug TEXT,
+  disabled INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_invite_links_org ON invite_links(org);
 
 CREATE TABLE IF NOT EXISTS invitations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org TEXT NOT NULL,
+  invite_link_token TEXT,
   github_login TEXT,
   email TEXT,
   note TEXT,
   source_ip TEXT,
   user_agent TEXT,
-  turnstile_passed INTEGER NOT NULL DEFAULT 0,
   github_invitation_id INTEGER,
   status TEXT NOT NULL,
   error_message TEXT,
   created_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_invitations_created ON invitations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invitations_org_created ON invitations(org, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org TEXT,
   actor TEXT NOT NULL,
   action TEXT NOT NULL,
   target TEXT,
@@ -48,22 +68,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   ip TEXT,
   created_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at DESC);
 `);
 
-export function setState(key: string, value: string) {
+export function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
   db.prepare(
-    "INSERT INTO app_state(key, value, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
-  ).run(key, value, Date.now());
-}
-
-export function getState(key: string): string | null {
-  const row = db.prepare("SELECT value FROM app_state WHERE key = ?").get(key) as { value: string } | undefined;
-  return row?.value ?? null;
-}
-
-export function audit(actor: string, action: string, target?: string, details?: unknown, ip?: string) {
-  db.prepare(
-    "INSERT INTO audit_logs(actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?)"
-  ).run(actor, action, target ?? null, details ? JSON.stringify(details) : null, ip ?? null, Date.now());
+    "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
+  ).run(org, actor, action, target ?? null, details ? JSON.stringify(details) : null, ip ?? null, Date.now());
 }

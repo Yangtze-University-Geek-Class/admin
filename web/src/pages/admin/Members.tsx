@@ -1,24 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useOutletContext, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 
+type Ctx = { isAdmin: boolean };
 type Member = { login: string; id: number; avatar_url: string; html_url: string; role: string; state: string };
 
 export default function Members() {
+  const { org } = useParams();
+  const { isAdmin } = useOutletContext<Ctx>();
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["members"],
-    queryFn: () => api<{ members: Member[] }>("/api/admin/members"),
+    queryKey: ["members", org],
+    queryFn: () => api<{ members: Member[] }>(`/api/admin/${org}/members`),
   });
 
   const remove = useMutation({
-    mutationFn: (login: string) => api(`/api/admin/members/${login}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["members"] }),
+    mutationFn: (login: string) => api(`/api/admin/${org}/members/${login}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", org] }),
   });
-
   const setRole = useMutation({
     mutationFn: ({ login, role }: { login: string; role: "admin" | "member" }) =>
-      api(`/api/admin/members/${login}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["members"] }),
+      api(`/api/admin/${org}/members/${login}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", org] }),
   });
 
   if (isLoading) return <div className="p-8 text-ink-500">加载中…</div>;
@@ -29,6 +32,7 @@ export default function Members() {
       <header className="mb-6 flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold text-ink-50">成员</h1>
         <span className="text-ink-500 text-sm">{data!.members.length} 人</span>
+        {!isAdmin && <span className="ml-auto text-xs text-ink-500">只读视图（你不是 org admin）</span>}
       </header>
 
       <div className="card overflow-hidden">
@@ -38,7 +42,7 @@ export default function Members() {
               <th className="text-left px-5 py-3">用户</th>
               <th className="text-left px-5 py-3">角色</th>
               <th className="text-left px-5 py-3">状态</th>
-              <th className="text-right px-5 py-3">操作</th>
+              {isAdmin && <th className="text-right px-5 py-3">操作</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800/60">
@@ -54,22 +58,20 @@ export default function Members() {
                   {m.role === "admin" ? <span className="tag-blue">admin</span> : <span className="tag-gray">member</span>}
                 </td>
                 <td className="px-5 py-3 text-ink-400">{m.state}</td>
-                <td className="px-5 py-3 text-right space-x-2">
-                  <button
-                    className="btn-ghost text-xs py-1 px-2"
-                    onClick={() => setRole.mutate({ login: m.login, role: m.role === "admin" ? "member" : "admin" })}
-                    disabled={setRole.isPending}
-                  >
-                    {m.role === "admin" ? "降为 member" : "升为 admin"}
-                  </button>
-                  <button
-                    className="btn-danger text-xs py-1 px-2"
-                    onClick={() => { if (confirm(`移除 @${m.login}?`)) remove.mutate(m.login); }}
-                    disabled={remove.isPending}
-                  >
-                    移除
-                  </button>
-                </td>
+                {isAdmin && (
+                  <td className="px-5 py-3 text-right space-x-2 whitespace-nowrap">
+                    <button className="btn-ghost text-xs py-1 px-2"
+                      onClick={() => setRole.mutate({ login: m.login, role: m.role === "admin" ? "member" : "admin" })}
+                      disabled={setRole.isPending}>
+                      {m.role === "admin" ? "降为 member" : "升为 admin"}
+                    </button>
+                    <button className="btn-danger text-xs py-1 px-2"
+                      onClick={() => { if (confirm(`移除 @${m.login}?`)) remove.mutate(m.login); }}
+                      disabled={remove.isPending}>
+                      移除
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

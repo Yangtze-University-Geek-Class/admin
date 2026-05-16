@@ -1,25 +1,34 @@
 import type { FastifyInstance } from "fastify";
-import { ORG, octokitService } from "../../lib/github.js";
+import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireOrgRole } from "../../middleware/require-org-role.js";
 import { db } from "../../lib/db.js";
 
 export default async function overviewRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
 
-  app.get("/api/admin/overview", async () => {
-    const octokit = octokitService();
+  app.get<{ Params: { org: string } }>("/api/admin/:org/overview", {
+    preHandler: requireOrgRole("member"),
+  }, async (req) => {
+    const { org } = req.params;
+    const octokit = octokitWith(req.session!.accessToken);
     const [orgRes, members, invites, repos] = await Promise.all([
-      octokit.request("GET /orgs/{org}", { org: ORG }),
-      octokit.paginate("GET /orgs/{org}/members", { org: ORG, per_page: 100 }),
-      octokit.paginate("GET /orgs/{org}/invitations", { org: ORG, per_page: 100 }),
-      octokit.paginate("GET /orgs/{org}/repos", { org: ORG, per_page: 100, type: "all" }),
+      octokit.request("GET /orgs/{org}", { org }),
+      octokit.paginate("GET /orgs/{org}/members", { org, per_page: 100 }).catch(() => []),
+      octokit.paginate("GET /orgs/{org}/invitations", { org, per_page: 100 }).catch(() => []),
+      octokit.paginate("GET /orgs/{org}/repos", { org, per_page: 100, type: "all" }).catch(() => []),
     ]);
 
     const recentInvites = db.prepare(
-      "SELECT COUNT(*) as n FROM invitations WHERE created_at > ?"
-    ).get(Date.now() - 24 * 60 * 60 * 1000) as { n: number };
+      "SELECT COUNT(*) as n FROM invitations WHERE org = ? AND created_at > ?"
+    ).get(org, Date.now() - 24 * 60 * 60 * 1000) as { n: number };
+
+    const activeLinks = db.prepare(
+      "SELECT COUNT(*) as n FROM invite_links WHERE org = ? AND disabled = 0 AND expires_at > ?"
+    ).get(org, Date.now()) as { n: number };
 
     return {
+      role: req.orgRole,
       org: {
         login: orgRes.data.login,
         name: orgRes.data.name,
@@ -39,6 +48,7 @@ export default async function overviewRoutes(app: FastifyInstance) {
         repos: repos.length,
         pending_invites: invites.length,
         invites_24h: recentInvites.n,
+        active_invite_links: activeLinks.n,
       },
     };
   });

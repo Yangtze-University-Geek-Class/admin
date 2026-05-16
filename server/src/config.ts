@@ -9,13 +9,11 @@ function req(key: string): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
-  org: req("ORG"),
-  adminLogin: req("ADMIN_LOGIN"),
   publicOrigin: req("PUBLIC_ORIGIN"),
   oauth: {
     clientId: req("OAUTH_CLIENT_ID"),
     clientSecret: req("OAUTH_CLIENT_SECRET"),
-    scope: "read:user user:email admin:org",
+    scope: "read:user user:email admin:org read:org",
   },
   sessionSecret: req("SESSION_SECRET"),
   encryptionKey: req("ENCRYPTION_KEY"),

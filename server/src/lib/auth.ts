@@ -2,28 +2,52 @@ import { randomBytes } from "node:crypto";
 import { request as undiciRequest } from "undici";
 import { config } from "../config.js";
 import { db } from "./db.js";
+import { decrypt, encrypt } from "./crypto.js";
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function createSession(login: string, accessToken: string): string {
+export type Session = {
+  id: string;
+  login: string;
+  user_id: number | null;
+  avatar_url: string | null;
+  accessToken: string;
+  expires_at: number;
+};
+
+export function createSession(
+  login: string,
+  userId: number | null,
+  avatarUrl: string | null,
+  accessToken: string
+): string {
   const id = randomBytes(24).toString("base64url");
   const now = Date.now();
   db.prepare(
-    "INSERT INTO sessions(id, login, access_token, created_at, expires_at) VALUES(?, ?, ?, ?, ?)"
-  ).run(id, login, accessToken, now, now + SESSION_TTL_MS);
+    "INSERT INTO sessions(id, login, user_id, avatar_url, access_token_encrypted, created_at, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, login, userId, avatarUrl, encrypt(accessToken), now, now + SESSION_TTL_MS);
   return id;
 }
 
-export type Session = { id: string; login: string; access_token: string; expires_at: number };
-
 export function getSession(id: string): Session | null {
-  const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as Session | undefined;
+  const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as any;
   if (!row) return null;
   if (row.expires_at < Date.now()) {
     db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
     return null;
   }
-  return row;
+  try {
+    return {
+      id: row.id,
+      login: row.login,
+      user_id: row.user_id,
+      avatar_url: row.avatar_url,
+      accessToken: decrypt(row.access_token_encrypted),
+      expires_at: row.expires_at,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function destroySession(id: string) {
@@ -36,7 +60,6 @@ export function buildAuthorizeUrl(state: string): string {
   u.searchParams.set("redirect_uri", `${config.publicOrigin}/auth/callback`);
   u.searchParams.set("scope", config.oauth.scope);
   u.searchParams.set("state", state);
-  u.searchParams.set("allow_signup", "false");
   return u.toString();
 }
 
@@ -58,7 +81,7 @@ export async function exchangeCode(code: string): Promise<string> {
   return body.access_token;
 }
 
-export async function fetchAuthenticatedLogin(accessToken: string): Promise<string> {
+export async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string }> {
   const res = await undiciRequest("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -66,7 +89,7 @@ export async function fetchAuthenticatedLogin(accessToken: string): Promise<stri
       Accept: "application/vnd.github+json",
     },
   });
-  const body = (await res.body.json()) as { login?: string };
-  if (!body.login) throw new Error("failed to fetch user");
-  return body.login;
+  const body = (await res.body.json()) as { login?: string; id?: number; avatar_url?: string };
+  if (!body.login || !body.id) throw new Error("failed to fetch user");
+  return { login: body.login, id: body.id, avatar_url: body.avatar_url ?? "" };
 }
