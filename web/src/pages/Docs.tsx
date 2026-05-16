@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
@@ -13,9 +13,13 @@ marked.setOptions({ gfm: true, breaks: false });
 export default function Docs() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [lang, setLang] = useState<"zh" | "en">("zh");
+  const items = useQuery({ queryKey: ["docs"], queryFn: () => api<{ items: Item[] }>("/api/docs") }).data?.items ?? [];
 
-  const list = useQuery({ queryKey: ["docs"], queryFn: () => api<{ items: Item[] }>("/api/docs") });
+  // Language is derived from the current doc's id — not a separate state. This
+  // way the language toggle and the article are always in sync.
+  const currentItem = items.find((i) => i.id === id);
+  const lang: "zh" | "en" = currentItem?.lang ?? "zh";
+
   const current = useQuery({
     queryKey: ["doc", id],
     queryFn: () => api<Doc>(`/api/docs/${id}`),
@@ -23,13 +27,29 @@ export default function Docs() {
   });
 
   useEffect(() => {
-    if (!id && list.data?.items.length) {
-      const def = list.data.items.find((i) => i.lang === lang) ?? list.data.items[0];
+    if (!id && items.length) {
+      const def = items.find((i) => i.lang === "zh") ?? items[0];
       navigate(`/docs/${def.id}`, { replace: true });
     }
-  }, [id, list.data, lang, navigate]);
+  }, [id, items, navigate]);
 
-  const items = list.data?.items ?? [];
+  const switchLang = (target: "zh" | "en") => {
+    if (target === lang) return;
+    if (!id) return;
+    // Map current doc to its sibling in the target language.
+    // Convention: zh ids have no suffix; en ids end in "-en". Map both ways.
+    const base = id.endsWith("-en") ? id.slice(0, -3) : id;
+    const targetId = target === "en" ? `${base}-en` : base;
+    const found = items.find((i) => i.id === targetId);
+    if (found) {
+      navigate(`/docs/${found.id}`);
+    } else {
+      // Fallback: jump to the first doc of the target language.
+      const first = items.find((i) => i.lang === target);
+      if (first) navigate(`/docs/${first.id}`);
+    }
+  };
+
   const filtered = items.filter((i) => i.lang === lang);
 
   const html = useMemo(() => {
@@ -47,7 +67,7 @@ export default function Docs() {
         <div className="flex items-center gap-3">
           <div className="flex border border-ink-700/60 rounded-lg overflow-hidden text-sm">
             {(["zh", "en"] as const).map((l) => (
-              <button key={l} onClick={() => setLang(l)}
+              <button key={l} onClick={() => switchLang(l)}
                 className={`px-3 py-1.5 transition ${
                   lang === l ? "bg-brand-500/20 text-brand-500" : "text-ink-300 hover:bg-ink-800/60"
                 }`}>{l === "zh" ? "中文" : "English"}</button>
