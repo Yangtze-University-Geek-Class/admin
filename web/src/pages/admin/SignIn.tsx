@@ -28,6 +28,10 @@ export default function SignIn() {
             使用 GitHub 登录
           </a>
           <p className="text-xs text-ink-500 mt-6">权限：read:user · user:email · admin:org · read:org · repo</p>
+          <p className="text-xs text-ink-500 mt-2 leading-relaxed">
+            授权后，本站只会操作 <span className="font-mono text-ink-300">Yangtze-University-Geek-Class</span>，
+            服务端硬编码 org 白名单，访问其他组织直接 403。要切换可管理的组织需要联系负责人改 <code className="text-brand-500">ALLOWED_ORGS</code>。
+          </p>
         </div>
       </div>
     </div>
