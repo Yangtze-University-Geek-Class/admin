@@ -10,6 +10,7 @@ import {
 } from "../lib/auth.js";
 import { audit } from "../lib/db.js";
 import { config } from "../config.js";
+import { handleForumGithubCallback, issueForumSessionForGithub } from "../lib/forum-github.js";
 
 function externalize(returnTo: string): string {
   if (/^https?:\/\//.test(returnTo)) return returnTo;
@@ -35,9 +36,13 @@ export default async function authRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { code, state, error } = req.query;
       if (error) return reply.code(400).send({ error });
+      if (!code || !state) return reply.code(400).send({ error: "missing_params" });
+      if (state.startsWith("forum-")) {
+        return handleForumGithubCallback(req, reply, code, state);
+      }
       const cookieRaw = req.cookies?.oauth_state ?? "";
       const [cookieState, returnToEnc] = cookieRaw.split("|");
-      if (!code || !state || state !== cookieState) {
+      if (state !== cookieState) {
         return reply.code(400).send({ error: "invalid_state" });
       }
       const returnTo = decodeURIComponent(returnToEnc ?? "/admin");
@@ -48,8 +53,9 @@ export default async function authRoutes(app: FastifyInstance) {
       audit(null, user.login, "auth.signin", user.login, undefined, req.ip);
       reply.setCookie("sid", sid, {
         httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60,
-        domain: (await import("../config.js")).config.cookieDomain,
+        domain: config.cookieDomain,
       });
+      issueForumSessionForGithub(reply, user);
       return reply.redirect(externalize(returnTo));
     }
   );

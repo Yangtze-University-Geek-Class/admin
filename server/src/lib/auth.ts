@@ -81,7 +81,7 @@ export async function exchangeCode(code: string): Promise<string> {
   return body.access_token;
 }
 
-export async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string }> {
+export async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string; email: string | null; name: string | null }> {
   const res = await undiciRequest("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -89,7 +89,7 @@ export async function fetchAuthenticatedUser(accessToken: string): Promise<{ log
       Accept: "application/vnd.github+json",
     },
   });
-  const body = (await res.body.json()) as { login?: string; id?: number; avatar_url?: string };
+  const body = (await res.body.json()) as { login?: string; id?: number; avatar_url?: string; email?: string | null; name?: string | null };
   if (!body.login || !body.id) throw new Error("failed to fetch user");
-  return { login: body.login, id: body.id, avatar_url: body.avatar_url ?? "" };
+  return { login: body.login, id: body.id, avatar_url: body.avatar_url ?? "", email: body.email ?? null, name: body.name ?? null };
 }
