@@ -5,6 +5,7 @@ import { api, fmtDate, fmtRelative } from "../../lib/api";
 import { useConfirm } from "../../components/ConfirmDialog";
 import Select from "../../components/Select";
 import NumberInput from "../../components/NumberInput";
+import { externalUrl } from "../../lib/site";
 
 type Link = {
   token: string; org: string; created_by: string; note: string | null;
@@ -119,7 +120,8 @@ export default function InviteLinks() {
           <tbody className="divide-y divide-ink-800/60">
             {data!.links.length === 0 && <tr><td colSpan={7} className="px-5 py-8 text-center text-ink-500">还没有邀请链接</td></tr>}
             {data!.links.map((l) => {
-              const fullUrl = `${location.origin}/join/${l.token}`;
+              const portalBase = externalUrl("portal", "/").replace(/\/$/, "");
+              const fullUrl = `${portalBase || location.origin}/join/${l.token}`;
               const expired = l.expires_at < Date.now();
               const usedUp = l.current_uses >= l.max_uses;
               return (

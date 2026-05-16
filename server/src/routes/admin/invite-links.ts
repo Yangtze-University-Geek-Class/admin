@@ -53,7 +53,8 @@ export default async function inviteLinksRoutes(app: FastifyInstance) {
       now
     );
     audit(org, req.session!.login, "invite_link.create", token, { hours, max_uses, note, team_slug }, req.ip);
-    return { ok: true, token, url: `${process.env.PUBLIC_ORIGIN}/join/${token}`, expires_at: expires };
+    const joinBase = process.env.SITE_ORIGIN || process.env.PUBLIC_ORIGIN;
+    return { ok: true, token, url: `${joinBase}/join/${token}`, expires_at: expires };
   });
 
   app.patch<{ Params: { org: string; token: string }; Body: { disabled?: boolean } }>(
