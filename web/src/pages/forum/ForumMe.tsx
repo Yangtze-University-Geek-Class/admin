@@ -14,7 +14,7 @@ type Me = {
 
 export default function ForumMe() {
   const qc = useQueryClient();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
   const u = me.data?.user;
 
   const [profile, setProfile] = useState({ display_name: "", signature: "", bio: "", email: "", avatar_url: "" });
@@ -31,7 +31,7 @@ export default function ForumMe() {
   }, [u]);
 
   const saveProfile = useMutation({
-    mutationFn: () => api(`/api/forum/me/profile`, { method: "PATCH", body: JSON.stringify(profile) }),
+    mutationFn: () => api(`/api/me/profile`, { method: "PATCH", body: JSON.stringify(profile) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-me"] }),
   });
   const setPassword = useMutation({
@@ -56,7 +56,7 @@ export default function ForumMe() {
   });
 
   if (me.isLoading) return <div className="max-w-3xl mx-auto px-6 py-12 text-ink-400">…</div>;
-  if (!u) return <Navigate to="/forum/login?return_to=/forum/me" replace />;
+  if (!u) return <Navigate to="/login?return_to=/me" replace />;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -123,7 +123,7 @@ export default function ForumMe() {
               解绑
             </button>
           ) : (
-            <a href="/auth/forum/github?bind=1&return_to=/forum/me" className="btn-primary text-sm px-3 py-1.5">绑定</a>
+            <a href={`/auth/forum/github?bind=1&return_to=${encodeURIComponent(`${window.location.origin}/me`)}`} className="btn-primary text-sm px-3 py-1.5">绑定</a>
           )}
         </div>
         <div className="py-4">
@@ -140,8 +140,8 @@ export default function ForumMe() {
       </section>
 
       <div className="flex items-center justify-between text-sm">
-        <Link to="/forum" className="text-ink-300 hover:text-brand-500">← 返回论坛</Link>
-        <Link to="/forum/me/notifications" className="text-brand-500 hover:underline">通知中心 →</Link>
+        <Link to="/" className="text-ink-300 hover:text-brand-500">← 返回论坛</Link>
+        <Link to="/me/notifications" className="text-brand-500 hover:underline">通知中心 →</Link>
       </div>
     </div>
   );

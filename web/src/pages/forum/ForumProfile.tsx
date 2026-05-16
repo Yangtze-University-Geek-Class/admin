@@ -61,9 +61,9 @@ export default function ForumProfile() {
       <div className="card overflow-hidden divide-y divide-brand-500/10">
         {profile.data.recent_threads.length === 0 && <div className="p-6 text-center text-ink-400 text-sm">还没有发过主题</div>}
         {profile.data.recent_threads.map((t: any) => (
-          <Link key={t.id} to={`/forum/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
+          <Link key={t.id} to={`/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
             <div className="flex items-center gap-3">
-              <Link to={`/forum/c/${encodeURIComponent(t.category_slug)}`} onClick={(e) => e.stopPropagation()}
+              <Link to={`/c/${encodeURIComponent(t.category_slug)}`} onClick={(e) => e.stopPropagation()}
                 className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-500">{t.category_name}</Link>
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-ink-100 truncate">{t.title}</div>

@@ -12,19 +12,19 @@ type Notif = {
 
 export default function ForumNotifications() {
   const qc = useQueryClient();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
   const list = useQuery({
     queryKey: ["forum-notifications"],
     enabled: Boolean(me.data?.user),
-    queryFn: () => api<{ notifications: Notif[]; unread: number }>(`/api/forum/me/notifications`),
+    queryFn: () => api<{ notifications: Notif[]; unread: number }>(`/api/me/notifications`),
   });
   const markAll = useMutation({
-    mutationFn: () => api(`/api/forum/me/notifications/read-all`, { method: "POST" }),
+    mutationFn: () => api(`/api/me/notifications/read-all`, { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-notifications"] }),
   });
 
   if (me.isLoading) return <div className="max-w-3xl mx-auto px-6 py-12 text-ink-400">…</div>;
-  if (!me.data?.user) return <Navigate to="/forum/login?return_to=/forum/me/notifications" replace />;
+  if (!me.data?.user) return <Navigate to="/login?return_to=/me/notifications" replace />;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -40,7 +40,7 @@ export default function ForumNotifications() {
         {list.data?.notifications.length === 0 && <div className="p-10 text-center text-ink-400 text-sm">还没有通知</div>}
         {list.data?.notifications.map((n) => (
           <Link key={n.id}
-            to={n.thread_id ? `/forum/t/${n.thread_id}` : "#"}
+            to={n.thread_id ? `/t/${n.thread_id}` : "#"}
             className={`flex items-start gap-3 p-4 hover:bg-brand-500/5 transition ${!n.read_at ? "bg-brand-500/5" : ""}`}>
             {n.from_username && (
               <Avatar user={{ username: n.from_username, display_name: n.from_display_name, avatar_url: n.from_avatar_url }} size={36} />

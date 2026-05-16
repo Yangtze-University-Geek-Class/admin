@@ -3,7 +3,8 @@ import ThemeSwitcher from "../../components/ThemeSwitcher";
 
 export default function SignIn() {
   const loc = useLocation();
-  const returnTo = new URLSearchParams(loc.search).get("return_to") ?? "/admin";
+  const rawReturnTo = new URLSearchParams(loc.search).get("return_to") ?? "/admin";
+  const returnTo = /^https?:\/\//.test(rawReturnTo) ? rawReturnTo : `${window.location.origin}${rawReturnTo.startsWith("/") ? rawReturnTo : "/" + rawReturnTo}`;
 
   return (
     <div className="min-h-full">

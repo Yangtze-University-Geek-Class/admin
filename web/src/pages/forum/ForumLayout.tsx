@@ -1,9 +1,9 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { applyTheme } from "../../lib/themes";
 import ThemeSwitcher from "../../components/ThemeSwitcher";
+import { externalUrl } from "../../lib/site";
 
 type Me = { signed_in: boolean; user?: { id: number; username: string; display_name: string | null; avatar_url: string | null; role: string; has_password: boolean; has_github: boolean } };
 
@@ -13,17 +13,13 @@ export default function ForumLayout() {
   const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (!localStorage.getItem("theme")) applyTheme("yzgc-blue");
-  }, []);
-
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
   const u = me.data?.user;
 
   const logout = async () => {
     await api("/api/forum/auth/logout", { method: "POST" });
     qc.invalidateQueries({ queryKey: ["forum-me"] });
-    nav("/forum");
+    nav("/");
   };
 
   return (
@@ -35,9 +31,9 @@ export default function ForumLayout() {
             <span className="font-semibold text-sm hidden sm:inline">YUGC 论坛</span>
           </Link>
           <nav className="flex items-center gap-1 text-sm ml-2">
-            <ForumNav to="/forum" end>首页</ForumNav>
-            <ForumNav to="/forum/categories">分类</ForumNav>
-            {u && <ForumNav to="/forum/new">发帖</ForumNav>}
+            <ForumNav to="/" end>首页</ForumNav>
+            <ForumNav to="/categories">分类</ForumNav>
+            {u && <ForumNav to="/new">发帖</ForumNav>}
           </nav>
           <form className="ml-auto hidden md:flex" onSubmit={(e) => {
             e.preventDefault();
@@ -51,8 +47,8 @@ export default function ForumLayout() {
             {!me.data && <span className="text-ink-400 text-xs">…</span>}
             {me.data && !u && (
               <>
-                <Link to="/forum/login" className="btn-ghost text-sm py-1.5 px-3">登录</Link>
-                <Link to="/forum/register" className="btn-primary text-sm py-1.5 px-3">注册</Link>
+                <Link to="/login" className="btn-ghost text-sm py-1.5 px-3">登录</Link>
+                <Link to="/register" className="btn-primary text-sm py-1.5 px-3">注册</Link>
               </>
             )}
             {u && (
@@ -65,11 +61,11 @@ export default function ForumLayout() {
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
                     <div className="absolute right-0 top-full mt-1 w-56 card p-1 z-50 shadow-lg">
-                      <MenuLink to={`/forum/u/${u.username}`} onClick={() => setMenuOpen(false)}>我的主页</MenuLink>
-                      <MenuLink to="/forum/me" onClick={() => setMenuOpen(false)}>账号设置</MenuLink>
-                      <MenuLink to="/forum/me/notifications" onClick={() => setMenuOpen(false)}>通知中心</MenuLink>
+                      <MenuLink to={`/u/${u.username}`} onClick={() => setMenuOpen(false)}>我的主页</MenuLink>
+                      <MenuLink to="/me" onClick={() => setMenuOpen(false)}>账号设置</MenuLink>
+                      <MenuLink to="/me/notifications" onClick={() => setMenuOpen(false)}>通知中心</MenuLink>
                       {(u.role === "admin" || u.role === "mod") && (
-                        <MenuLink to="/forum/admin" onClick={() => setMenuOpen(false)}>论坛管理</MenuLink>
+                        <MenuLink to="/admin" onClick={() => setMenuOpen(false)}>论坛管理</MenuLink>
                       )}
                       <div className="border-t border-brand-500/10 my-1" />
                       <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-ink-100 hover:bg-brand-500/8 rounded transition">退出登录</button>

@@ -10,7 +10,7 @@ type Me = { signed_in: boolean; user?: { id: number; username: string } };
 export default function ForumNewThread() {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
   const cats = useQuery({ queryKey: ["forum-categories"], queryFn: () => api<{ categories: Category[] }>("/api/forum/categories") });
 
   const [categoryId, setCategoryId] = useState<string>(params.get("category") ?? "");
@@ -22,7 +22,7 @@ export default function ForumNewThread() {
       `/api/forum/threads`,
       { method: "POST", body: JSON.stringify({ category_id: Number(categoryId), title, content, content_format: "markdown" }) },
     ),
-    onSuccess: (r) => nav(`/forum/t/${r.id}`),
+    onSuccess: (r) => nav(`/t/${r.id}`),
   });
 
   if (me.isLoading) return <div className="max-w-3xl mx-auto px-6 py-12 text-ink-400">…</div>;
@@ -32,7 +32,7 @@ export default function ForumNewThread() {
         <div className="card p-8">
           <h1 className="text-lg font-semibold text-ink-50 mb-3">需要登录</h1>
           <p className="text-ink-300 text-sm mb-5">发帖前请先登录</p>
-          <Link to="/forum/login?return_to=/forum/new" className="btn-primary text-sm px-5 py-2">去登录</Link>
+          <Link to="/login?return_to=/new" className="btn-primary text-sm px-5 py-2">去登录</Link>
         </div>
       </div>
     );
@@ -44,7 +44,7 @@ export default function ForumNewThread() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <nav className="text-sm text-ink-400 mb-3">
-        <Link to="/forum" className="hover:text-brand-500">论坛</Link>
+        <Link to="/" className="hover:text-brand-500">论坛</Link>
         <span className="mx-2">/</span>
         <span className="text-ink-100">发帖</span>
       </nav>
@@ -69,7 +69,7 @@ export default function ForumNewThread() {
         </div>
         {submit.error && <div className="text-rose-500 text-sm">{(submit.error as Error).message}</div>}
         <div className="flex items-center justify-end gap-3">
-          <Link to="/forum" className="btn-ghost text-sm px-4 py-2">取消</Link>
+          <Link to="/" className="btn-ghost text-sm px-4 py-2">取消</Link>
           <button disabled={!categoryId || !title.trim() || !content.trim() || submit.isPending}
             onClick={() => submit.mutate()}
             className="btn-primary text-sm px-5 py-2 disabled:opacity-50">

@@ -159,6 +159,11 @@ export const THEMES: Theme[] = [
   }) },
 ];
 
+function themeKey(): string {
+  if (typeof window === "undefined") return "theme:default";
+  return `theme:${window.location.hostname}`;
+}
+
 export function applyTheme(id: string) {
   const t = THEMES.find((x) => x.id === id) ?? THEMES[0];
   const root = document.documentElement;
@@ -167,9 +172,10 @@ export function applyTheme(id: string) {
   root.dataset.mode = t.mode;
   root.classList.toggle("dark", t.mode === "dark");
   document.body.style.background = t.vars["--bg-grad"];
-  localStorage.setItem("theme", t.id);
+  try { localStorage.setItem(themeKey(), t.id); } catch {}
 }
 
-export function loadTheme(): string {
-  return localStorage.getItem("theme") ?? "yzgc-blue";
+export function loadTheme(fallback = "yzgc-blue"): string {
+  if (typeof window === "undefined") return fallback;
+  return localStorage.getItem(themeKey()) ?? fallback;
 }

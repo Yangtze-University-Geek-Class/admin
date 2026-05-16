@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { THEMES, applyTheme, loadTheme } from "../lib/themes";
+import { detectSite } from "../lib/site";
 
 type Props = { compact?: boolean; direction?: "down" | "up" };
 
 export default function ThemeSwitcher({ compact = false, direction = "down" }: Props) {
+  const site = detectSite();
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState(loadTheme());
+  const [current, setCurrent] = useState(loadTheme(site.defaultTheme));
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -16,13 +18,17 @@ export default function ThemeSwitcher({ compact = false, direction = "down" }: P
     return () => document.removeEventListener("click", onDoc);
   }, []);
 
+  if (!site.allowThemeSwitch) return null;
+
+  const allowedThemes = THEMES.filter((t) => site.themePalette.includes(t.id));
+
   const pick = (id: string) => {
     applyTheme(id);
     setCurrent(id);
     setOpen(false);
   };
 
-  const currentTheme = THEMES.find((t) => t.id === current) ?? THEMES[0];
+  const currentTheme = THEMES.find((t) => t.id === current) ?? allowedThemes[0] ?? THEMES[0];
 
   return (
     <div className="relative" ref={ref}>
@@ -45,7 +51,7 @@ export default function ThemeSwitcher({ compact = false, direction = "down" }: P
         <div className={`absolute card p-2 z-50 max-h-[70vh] overflow-auto min-w-[200px] ${
           direction === "up" ? "bottom-full mb-2 left-0" : "top-full mt-2 right-0"
         }`}>
-          {THEMES.map((t) => (
+          {allowedThemes.map((t) => (
             <button
               key={t.id}
               onClick={() => pick(t.id)}

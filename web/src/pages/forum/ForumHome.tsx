@@ -49,14 +49,14 @@ export default function ForumHome() {
 
         <div className="card overflow-hidden divide-y divide-brand-500/10">
           {list.data?.threads.map((t) => (
-            <Link key={t.id} to={`/forum/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
+            <Link key={t.id} to={`/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
               <div className="flex gap-3">
                 <Avatar user={t.author} size={40} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     {t.is_sticky ? <span className="tag-blue text-[10px]">置顶</span> : null}
                     {t.is_essence ? <span className="tag-yellow text-[10px]">精华</span> : null}
-                    <Link to={`/forum/c/${encodeURIComponent(t.category.slug)}`} className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-500 hover:bg-brand-500/20 transition" onClick={(e) => e.stopPropagation()}>{t.category.name}</Link>
+                    <Link to={`/c/${encodeURIComponent(t.category.slug)}`} className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-500 hover:bg-brand-500/20 transition" onClick={(e) => e.stopPropagation()}>{t.category.name}</Link>
                     <span className="text-sm sm:text-base text-ink-50 font-medium truncate">{t.title}</span>
                   </div>
                   <div className="text-xs text-ink-400 mt-1 flex items-center gap-2 flex-wrap">
@@ -93,7 +93,7 @@ export default function ForumHome() {
           <ul className="space-y-1 text-sm">
             {roots.map((c) => (
               <li key={c.id}>
-                <Link to={`/forum/c/${encodeURIComponent(c.slug)}`}
+                <Link to={`/c/${encodeURIComponent(c.slug)}`}
                   className="flex items-center justify-between px-3 py-2 rounded hover:bg-brand-500/8 transition">
                   <span className="text-ink-100">{c.name}</span>
                   <span className="text-xs text-ink-400">{c.thread_count}</span>
@@ -101,7 +101,7 @@ export default function ForumHome() {
               </li>
             ))}
           </ul>
-          <Link to="/forum/categories" className="block mt-3 text-xs text-brand-500 hover:underline">查看全部分类 →</Link>
+          <Link to="/categories" className="block mt-3 text-xs text-brand-500 hover:underline">查看全部分类 →</Link>
         </div>
         <div className="card p-5">
           <div className="text-xs font-mono text-brand-500 tracking-widest mb-3">QUICK LINKS</div>

@@ -19,7 +19,7 @@ export default function ForumCategoryList() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <nav className="text-sm text-ink-400 mb-3">
-        <Link to="/forum" className="hover:text-brand-500">论坛</Link>
+        <Link to="/" className="hover:text-brand-500">论坛</Link>
         <span className="mx-2">/</span>
         <span className="text-ink-100">全部分类</span>
       </nav>
@@ -31,7 +31,7 @@ export default function ForumCategoryList() {
             <div key={r.id} className="card overflow-hidden">
               <div className="p-5 border-b border-brand-500/10 flex items-center justify-between">
                 <div>
-                  <Link to={`/forum/c/${encodeURIComponent(r.slug)}`} className="font-semibold text-ink-50 text-lg hover:text-brand-500">{r.name}</Link>
+                  <Link to={`/c/${encodeURIComponent(r.slug)}`} className="font-semibold text-ink-50 text-lg hover:text-brand-500">{r.name}</Link>
                   {r.description && <p className="text-sm text-ink-300 mt-0.5">{r.description}</p>}
                 </div>
                 <div className="text-xs text-ink-400">{r.thread_count} 篇</div>
@@ -39,7 +39,7 @@ export default function ForumCategoryList() {
               {children.length > 0 && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 divide-x divide-y divide-brand-500/10">
                   {children.map((c) => (
-                    <Link key={c.id} to={`/forum/c/${encodeURIComponent(c.slug)}`}
+                    <Link key={c.id} to={`/c/${encodeURIComponent(c.slug)}`}
                       className="p-4 hover:bg-brand-500/5 transition">
                       <div className="font-medium text-ink-100 text-sm">{c.name}</div>
                       {c.description && <div className="text-xs text-ink-300 mt-0.5 line-clamp-2">{c.description}</div>}

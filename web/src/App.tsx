@@ -31,17 +31,33 @@ import ForumRegister from "./pages/forum/ForumRegister";
 import ForumProfile from "./pages/forum/ForumProfile";
 import ForumMe from "./pages/forum/ForumMe";
 import ForumNotifications from "./pages/forum/ForumNotifications";
+import { detectSite } from "./lib/site";
 
 export default function App() {
+  const site = detectSite();
+  if (site.kind === "forum") return <ForumRoutes />;
+  if (site.kind === "admin") return <AdminRoutes />;
+  return <PortalRoutes />;
+}
+
+function PortalRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/join/:token" element={<JoinByToken />} />
-      <Route path="/feedback" element={<Feedback />} />
-      <Route path="/feedback/:org" element={<Feedback />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/docs/:id" element={<Docs />} />
-      <Route path="/forum" element={<ForumLayout />}>
+      <Route path="/feedback" element={<Feedback />} />
+      <Route path="/feedback/:org" element={<Feedback />} />
+      <Route path="/join/:token" element={<JoinByToken />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function ForumRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<ForumLayout />}>
         <Route index element={<ForumHome />} />
         <Route path="categories" element={<ForumCategoryList />} />
         <Route path="c/:slug" element={<ForumCategory />} />
@@ -53,6 +69,16 @@ export default function App() {
         <Route path="me" element={<ForumMe />} />
         <Route path="me/notifications" element={<ForumNotifications />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function AdminRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/admin" replace />} />
+      <Route path="/signin" element={<SignIn />} />
       <Route path="/admin/signin" element={<SignIn />} />
       <Route path="/admin" element={<MyOrgs />} />
       <Route path="/admin/:org" element={<OrgLayout />}>
@@ -72,11 +98,13 @@ export default function App() {
         <Route path="feedback" element={<AdminFeedback />} />
         <Route path="logs" element={<Logs />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );
 }
 
 export function GlobalFab() {
+  const site = detectSite();
+  if (site.kind === "portal") return null;
   return <FeedbackFab />;
 }

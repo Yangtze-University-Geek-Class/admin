@@ -31,7 +31,7 @@ export default function ForumCategory() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <nav className="text-sm text-ink-400 mb-3">
-        <Link to="/forum" className="hover:text-brand-500">论坛</Link>
+        <Link to="/" className="hover:text-brand-500">论坛</Link>
         <span className="mx-2">/</span>
         <span className="text-ink-100">{cat?.name ?? slug}</span>
       </nav>
@@ -40,13 +40,13 @@ export default function ForumCategory() {
           <h1 className="text-2xl font-bold text-ink-50">{cat?.name ?? slug}</h1>
           {cat?.description && <p className="text-ink-300 text-sm mt-1 max-w-2xl">{cat.description}</p>}
         </div>
-        <Link to={`/forum/new?category=${cat?.id ?? ""}`} className="btn-primary text-sm px-4 py-2 shrink-0">发帖</Link>
+        <Link to={`/new?category=${cat?.id ?? ""}`} className="btn-primary text-sm px-4 py-2 shrink-0">发帖</Link>
       </header>
 
       {children.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
           {children.map((c) => (
-            <Link key={c.id} to={`/forum/c/${encodeURIComponent(c.slug)}`}
+            <Link key={c.id} to={`/c/${encodeURIComponent(c.slug)}`}
               className="card p-3 hover:border-brand-500/40 transition">
               <div className="font-medium text-ink-100 text-sm">{c.name}</div>
               <div className="text-xs text-ink-400 mt-0.5">{c.thread_count} 篇</div>
@@ -56,11 +56,11 @@ export default function ForumCategory() {
       )}
 
       {list.isLoading && <div className="text-ink-400">加载中…</div>}
-      {list.data?.threads.length === 0 && <div className="card p-10 text-center text-ink-300">这个分类下还没有帖子，<Link to={`/forum/new?category=${cat?.id ?? ""}`} className="text-brand-500 hover:underline">发第一个？</Link></div>}
+      {list.data?.threads.length === 0 && <div className="card p-10 text-center text-ink-300">这个分类下还没有帖子，<Link to={`/new?category=${cat?.id ?? ""}`} className="text-brand-500 hover:underline">发第一个？</Link></div>}
 
       <div className="card overflow-hidden divide-y divide-brand-500/10">
         {list.data?.threads.map((t) => (
-          <Link key={t.id} to={`/forum/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
+          <Link key={t.id} to={`/t/${t.id}`} className="block p-4 hover:bg-brand-500/5 transition">
             <div className="flex gap-3">
               <Avatar user={t.author} size={40} />
               <div className="min-w-0 flex-1">

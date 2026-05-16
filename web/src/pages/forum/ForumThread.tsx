@@ -26,7 +26,7 @@ export default function ForumThread() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
   const detail = useQuery({
     queryKey: ["forum-thread", id],
     enabled: Boolean(id),
@@ -45,7 +45,7 @@ export default function ForumThread() {
   });
   const deleteThread = useMutation({
     mutationFn: () => api(`/api/forum/threads/${id}`, { method: "DELETE" }),
-    onSuccess: () => nav("/forum"),
+    onSuccess: () => nav("/"),
   });
   const deletePost = useMutation({
     mutationFn: (postId: number) => api(`/api/forum/posts/${postId}`, { method: "DELETE" }),
@@ -66,9 +66,9 @@ export default function ForumThread() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
       <nav className="text-sm text-ink-400 mb-3">
-        <Link to="/forum" className="hover:text-brand-500">论坛</Link>
+        <Link to="/" className="hover:text-brand-500">论坛</Link>
         <span className="mx-2">/</span>
-        <Link to={`/forum/c/${encodeURIComponent(t.category.slug)}`} className="hover:text-brand-500">{t.category.name}</Link>
+        <Link to={`/c/${encodeURIComponent(t.category.slug)}`} className="hover:text-brand-500">{t.category.name}</Link>
       </nav>
 
       <div className="card p-6 mb-5">
@@ -91,7 +91,7 @@ export default function ForumThread() {
         <div className="flex items-center gap-3 text-sm pb-4 border-b border-brand-500/10">
           <Avatar user={t.author} size={36} />
           <div className="flex-1">
-            <Link to={`/forum/u/${t.author.username}`} className="text-ink-50 font-medium hover:text-brand-500">{t.author.display_name ?? t.author.username}</Link>
+            <Link to={`/u/${t.author.username}`} className="text-ink-50 font-medium hover:text-brand-500">{t.author.display_name ?? t.author.username}</Link>
             {t.author.role === "admin" && <span className="ml-2 tag-blue text-[10px]">admin</span>}
             <div className="text-xs text-ink-400 mt-0.5">{fmtDate(t.created_at)} · 阅读 {t.view_count}</div>
           </div>
@@ -115,7 +115,7 @@ export default function ForumThread() {
               <div className="flex items-start gap-3 mb-3">
                 <Avatar user={p.author} size={32} />
                 <div className="flex-1">
-                  <Link to={`/forum/u/${p.author.username}`} className="text-ink-100 text-sm font-medium hover:text-brand-500">{p.author.display_name ?? p.author.username}</Link>
+                  <Link to={`/u/${p.author.username}`} className="text-ink-100 text-sm font-medium hover:text-brand-500">{p.author.display_name ?? p.author.username}</Link>
                   {p.author.role === "admin" && <span className="ml-2 tag-blue text-[10px]">admin</span>}
                   <div className="text-xs text-ink-400">#{idx + 2} · {fmtRelative(p.created_at)}</div>
                 </div>
@@ -144,9 +144,9 @@ export default function ForumThread() {
       <div id="reply-box" className="mt-8 card p-5">
         {!u && (
           <div className="text-center text-ink-300 py-6 text-sm">
-            <Link to={`/forum/login?return_to=/forum/t/${id}`} className="text-brand-500 hover:underline">登录</Link>
+            <Link to={`/login?return_to=/t/${id}`} className="text-brand-500 hover:underline">登录</Link>
             {" 或 "}
-            <Link to={`/forum/register?return_to=/forum/t/${id}`} className="text-brand-500 hover:underline">注册</Link>
+            <Link to={`/register?return_to=/t/${id}`} className="text-brand-500 hover:underline">注册</Link>
             {" 后即可回帖"}
           </div>
         )}
