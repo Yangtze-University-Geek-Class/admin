@@ -26,7 +26,7 @@ export default function SignIn() {
           <a href={`/auth/github?return_to=${encodeURIComponent(returnTo)}`} className="btn-primary w-full py-3 text-base">
             使用 GitHub 登录
           </a>
-          <p className="text-xs text-ink-500 mt-6">权限：read:user · user:email · admin:org · read:org</p>
+          <p className="text-xs text-ink-500 mt-6">权限：read:user · user:email · admin:org · read:org · repo</p>
         </div>
       </div>
     </div>

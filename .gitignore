@@ -8,3 +8,4 @@ dist
 .DS_Store
 .vite
 data/
+web/tsconfig.tsbuildinfo

@@ -13,7 +13,7 @@ export const config = {
   oauth: {
     clientId: req("OAUTH_CLIENT_ID"),
     clientSecret: req("OAUTH_CLIENT_SECRET"),
-    scope: "read:user user:email admin:org read:org",
+    scope: "read:user user:email admin:org read:org repo",
   },
   sessionSecret: req("SESSION_SECRET"),
   encryptionKey: req("ENCRYPTION_KEY"),
