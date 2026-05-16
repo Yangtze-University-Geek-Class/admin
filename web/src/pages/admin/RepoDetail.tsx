@@ -115,7 +115,7 @@ function CodeTab({ branches, defaultBranch }: { branches: any[]; defaultBranch: 
           {fileQ.isLoading && <div className="p-6 text-ink-500">加载…</div>}
           {fileQ.data?.too_large && <div className="p-6 text-amber-400">文件超过 1MB，请在 GitHub 上查看</div>}
           {fileQ.data?.content !== undefined && !fileQ.data?.too_large && (
-            <pre className="text-xs font-mono overflow-auto p-4 max-h-[70vh] leading-relaxed text-ink-200">{fileQ.data.content}</pre>
+            <CollapsibleFileBody content={fileQ.data.content} />
           )}
         </div>
       ) : (
@@ -285,6 +285,55 @@ function IssuesTab() {
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+function CollapsibleFileBody({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const long = lines.length > 200;
+  const [expanded, setExpanded] = useState(!long);
+  const shown = expanded ? content : lines.slice(0, 200).join("\n");
+  return (
+    <div>
+      <pre className="text-xs font-mono overflow-auto p-4 max-h-[70vh] leading-relaxed text-ink-200">{shown}</pre>
+      {long && (
+        <div className="border-t border-ink-800/60 px-4 py-2 flex items-center justify-between text-xs">
+          <span className="text-ink-400">{lines.length} 行 · {expanded ? "已展开" : `显示前 200 行`}</span>
+          <button onClick={() => setExpanded(!expanded)} className="text-brand-500 hover:underline">
+            {expanded ? "折叠" : "展开全部"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CollapsibleFile({ file, defaultOpen }: { file: any; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const lineCount = file.patch ? file.patch.split("\n").length : 0;
+  return (
+    <div className="card overflow-hidden">
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-4 py-2.5 bg-ink-900/40 border-b border-ink-800/60 text-sm hover:bg-ink-900/60 transition text-left">
+        <svg viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 text-ink-400 transition ${open ? "rotate-90" : ""}`}>
+          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+        </svg>
+        <span className={`tag-${file.status === "added" ? "green" : file.status === "removed" ? "red" : "blue"}`}>{file.status}</span>
+        <span className="font-mono text-ink-200 flex-1 truncate">{file.filename}</span>
+        {lineCount > 0 && <span className="text-[11px] text-ink-500">{lineCount} 行</span>}
+        <span className="text-emerald-400 text-xs">+{file.additions}</span>
+        <span className="text-rose-400 text-xs">-{file.deletions}</span>
+      </button>
+      {open && <DiffView patch={file.patch} />}
+    </div>
+  );
+}
+
+function FilesBulkToggle({ filesCount }: { filesCount: number }) {
+  return (
+    <div className="text-xs text-ink-400">
+      {filesCount > 3 ? "默认折叠，点行展开" : ""}
     </div>
   );
 }
@@ -500,18 +549,13 @@ function PullDetail() {
 
       {data.files?.length > 0 && (
         <>
-          <h2 className="text-lg font-medium text-ink-100 mt-8 mb-3">改动 ({data.files.length} 文件)</h2>
+          <div className="flex items-center justify-between mt-8 mb-3">
+            <h2 className="text-lg font-medium text-ink-100">改动 ({data.files.length} 文件)</h2>
+            <FilesBulkToggle filesCount={data.files.length} />
+          </div>
           <div className="space-y-3">
-            {data.files.map((f: any) => (
-              <div key={f.filename} className="card overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-2.5 bg-ink-900/40 border-b border-ink-800/60 text-sm">
-                  <span className={`tag-${f.status === "added" ? "green" : f.status === "removed" ? "red" : "blue"}`}>{f.status}</span>
-                  <span className="font-mono text-ink-200 flex-1 truncate">{f.filename}</span>
-                  <span className="text-emerald-400 text-xs">+{f.additions}</span>
-                  <span className="text-rose-400 text-xs">-{f.deletions}</span>
-                </div>
-                <DiffView patch={f.patch} />
-              </div>
+            {data.files.map((f: any, idx: number) => (
+              <CollapsibleFile key={f.filename} file={f} defaultOpen={data.files.length <= 3 || idx === 0} />
             ))}
           </div>
         </>
