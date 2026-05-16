@@ -79,7 +79,7 @@ export default function ForumLayout() {
                 {menuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-56 card p-1 z-50 shadow-lg">
+                    <div className="dropdown-panel absolute right-0 top-full mt-2 w-56 p-1.5 z-50">
                       <MenuLink to={`/u/${u.username}`} onClick={() => setMenuOpen(false)}>我的主页</MenuLink>
                       <MenuLink to="/me" onClick={() => setMenuOpen(false)}>账号设置</MenuLink>
                       <MenuLink to="/me/notifications" onClick={() => setMenuOpen(false)}>通知中心</MenuLink>
@@ -89,8 +89,8 @@ export default function ForumLayout() {
                       {(u.role === "teacher" || u.role === "admin" || u.role === "mod") && (
                         <MenuLink to="/teacher" onClick={() => setMenuOpen(false)}>老师面板</MenuLink>
                       )}
-                      <div className="border-t border-brand-500/10 my-1" />
-                      <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-ink-100 hover:bg-brand-500/8 rounded transition">退出登录</button>
+                      <div className="border-t border-ink-700/40 my-1" />
+                      <button onClick={logout} className="w-full text-left px-3 py-2.5 text-sm text-ink-100 hover:bg-brand-500/15 rounded-md transition">退出登录</button>
                     </div>
                   </>
                 )}
@@ -128,7 +128,7 @@ function ForumNav({ to, end, children }: { to: string; end?: boolean; children: 
 
 function MenuLink({ to, onClick, children }: { to: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <Link to={to} onClick={onClick} className="block px-3 py-2 text-sm text-ink-100 hover:bg-brand-500/8 rounded transition">{children}</Link>
+    <Link to={to} onClick={onClick} className="block px-3 py-2.5 text-sm text-ink-100 hover:bg-brand-500/15 rounded-md transition">{children}</Link>
   );
 }
 
