@@ -15,7 +15,7 @@ type Me = {
 
 export default function ForumMe() {
   const qc = useQueryClient();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const u = me.data?.user;
 
   const [profile, setProfile] = useState({ display_name: "", signature: "", bio: "", email: "", avatar_url: "" });
@@ -32,7 +32,7 @@ export default function ForumMe() {
   }, [u]);
 
   const saveProfile = useMutation({
-    mutationFn: () => api(`/api/me/profile`, { method: "PATCH", body: JSON.stringify(profile) }),
+    mutationFn: () => api(`/api/forum/me/profile`, { method: "PATCH", body: JSON.stringify(profile) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forum-me"] }),
   });
   const setPassword = useMutation({

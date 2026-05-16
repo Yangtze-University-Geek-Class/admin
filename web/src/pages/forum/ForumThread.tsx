@@ -27,7 +27,7 @@ export default function ForumThread() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/me") });
+  const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const detail = useQuery({
     queryKey: ["forum-thread", id],
     enabled: Boolean(id),

@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, fmtDate, fmtRelative } from "../../lib/api";
 import { Avatar } from "./ForumLayout";
+import BackBar from "../../components/BackBar";
 
 type User = {
   id: number; username: string; display_name: string | null; avatar_url: string | null;
@@ -25,6 +26,7 @@ export default function ForumProfile() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <BackBar label="返回" />
       <div className="card p-6">
         <div className="flex items-start gap-5">
           <Avatar user={u} size={80} />
