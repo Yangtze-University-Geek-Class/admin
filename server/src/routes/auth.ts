@@ -11,6 +11,7 @@ import {
 import { audit } from "../lib/db.js";
 import { config } from "../config.js";
 import { handleForumGithubCallback, issueForumSessionForGithub } from "../lib/forum-github.js";
+import { handleForumQqCallback } from "../lib/forum-qq.js";
 
 function externalize(returnTo: string): string {
   if (/^https?:\/\//.test(returnTo)) return returnTo;
@@ -39,6 +40,9 @@ export default async function authRoutes(app: FastifyInstance) {
       if (!code || !state) return reply.code(400).send({ error: "missing_params" });
       if (state.startsWith("forum-")) {
         return handleForumGithubCallback(req, reply, code, state);
+      }
+      if (state.startsWith("forumqq-")) {
+        return handleForumQqCallback(req, reply, code, state);
       }
       const cookieRaw = req.cookies?.oauth_state ?? "";
       const [cookieState, returnToEnc] = cookieRaw.split("|");

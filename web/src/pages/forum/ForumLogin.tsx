@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { forumPath } from "../../lib/site";
@@ -17,6 +17,7 @@ export default function ForumLogin() {
     : `${window.location.origin}${forumPath(rawReturnTo.startsWith("/") ? rawReturnTo : "/" + rawReturnTo)}`;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const providers = useQuery({ queryKey: ["forum-providers"], queryFn: () => api<{ github: boolean; qq: boolean; password: boolean }>("/api/forum/auth/providers") });
 
   const submit = useMutation({
     mutationFn: () => api(`/api/forum/auth/login`, { method: "POST", body: JSON.stringify({ username, password }) }),
@@ -37,6 +38,13 @@ export default function ForumLogin() {
           <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.11.78-.25.78-.55v-1.95c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.27-5.24-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 015.79 0c2.21-1.49 3.18-1.18 3.18-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.07 0 4.4-2.69 5.36-5.25 5.65.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.79.55C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
           用 GitHub 登录
         </a>
+        {providers.data?.qq && (
+          <a href={`/auth/forum/qq?return_to=${encodeURIComponent(oauthReturnTo)}`}
+            className="mt-2 w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#12B7F5] text-white hover:opacity-90 transition text-sm font-medium">
+            <svg viewBox="0 0 1024 1024" fill="currentColor" className="w-5 h-5"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm225.5 632.2c-13.6 24-39.6 40.8-69.8 40.8h-13.4l-21.5 30.6-30.7-30.6h-180l-30.6 30.6-21.6-30.6h-13.4c-30.2 0-56.1-16.8-69.7-40.8-14-24.6-9.3-54.7 11.2-71.5L376 553.6c-7.3-29.8-14.5-65.5-14.5-91.7C361.5 363.4 428 256 512 256s150.5 107.4 150.5 205.9c0 26.2-7.2 61.9-14.5 91.7l78.3 70.9c20.5 16.8 25.2 46.9 11.2 71.7z"/></svg>
+            用 QQ 登录
+          </a>
+        )}
         <div className="flex items-center gap-3 my-5 text-xs text-ink-400">
           <div className="flex-1 h-px bg-brand-500/15" />
           <span>或用账号密码（兼容老论坛）</span>
