@@ -58,7 +58,7 @@ async function main() {
   app.get("/healthz", async () => ({ ok: true, ts: Date.now() }));
 
   if (existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist, prefix: "/", wildcard: false });
+    await app.register(fastifyStatic, { root: webDist, prefix: "/" });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith("/api") || req.url.startsWith("/auth") || req.url.startsWith("/healthz")) {
         return reply.code(404).send({ error: "not_found" });
