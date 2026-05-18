@@ -19,6 +19,7 @@ export default function FeedbackFab({ defaultOrg }: { defaultOrg?: string }) {
   const [form, setForm] = useState({ org: effectiveDefault, category: "建议", content: "", contact: "", website: "" });
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
+  const [powTries, setPowTries] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -39,9 +40,10 @@ export default function FeedbackFab({ defaultOrg }: { defaultOrg?: string }) {
     e.preventDefault();
     setErr(null);
     setBusy("pow");
+    setPowTries(0);
     try {
       const bodyForHash = `fb:${form.org}:${form.content.trim()}`;
-      const pow = await computePow(bodyForHash, cfg?.pow_difficulty ?? 5);
+      const pow = await computePow(bodyForHash, cfg?.pow_difficulty ?? 3, (n) => setPowTries(n));
       setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
@@ -141,7 +143,7 @@ export default function FeedbackFab({ defaultOrg }: { defaultOrg?: string }) {
                 <div className="flex items-center gap-2">
                   <button type="button" className="btn-ghost text-sm" onClick={() => setOpen(false)} disabled={Boolean(busy)}>取消</button>
                   <button type="submit" className="btn-primary text-sm flex-1" disabled={form.content.length < 5 || !form.org || Boolean(busy)}>
-                    {busy === "pow" ? "防滥用计算中…" : busy === "submit" ? "提交中…" : "提交意见"}
+                    {busy === "pow" ? `防滥用计算中… ${powTries > 0 ? `${(powTries / 1000).toFixed(0)}k 次` : ""}` : busy === "submit" ? "提交中…" : "提交意见"}
                   </button>
                 </div>
                 {busy === "pow" && (

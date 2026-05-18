@@ -17,7 +17,7 @@ export default function InviteLinks() {
   const { org } = useParams();
   const qc = useQueryClient();
   const confirm = useConfirm();
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["invite-links", org],
     queryFn: () => api<{ links: Link[] }>(`/api/admin/${org}/invite-links`),
   });
@@ -28,22 +28,45 @@ export default function InviteLinks() {
 
   const [form, setForm] = useState({ hours: 24, max_uses: 30, note: "", team_slug: "" });
   const [created, setCreated] = useState<{ url: string; token: string } | null>(null);
+  const [opError, setOpError] = useState<string | null>(null);
+
+  const reload = async () => {
+    setOpError(null);
+    await qc.invalidateQueries({ queryKey: ["invite-links", org] });
+    await refetch();
+  };
 
   const create = useMutation({
     mutationFn: () => api<{ ok: boolean; token: string; url: string; expires_at: number }>(
       `/api/admin/${org}/invite-links`,
       { method: "POST", body: JSON.stringify({ ...form, team_slug: form.team_slug || null }) }
     ),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["invite-links", org] }); setCreated({ url: r.url, token: r.token }); },
+    onSuccess: async (r) => {
+      setOpError(null);
+      setCreated({ url: r.url, token: r.token });
+      await qc.invalidateQueries({ queryKey: ["invite-links", org] });
+      await refetch();
+    },
+    onError: (e: any) => setOpError(`生成失败: ${e?.message ?? e}`),
   });
   const toggle = useMutation({
     mutationFn: ({ token, disabled }: { token: string; disabled: boolean }) =>
       api(`/api/admin/${org}/invite-links/${token}`, { method: "PATCH", body: JSON.stringify({ disabled }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invite-links", org] }),
+    onSuccess: async () => {
+      setOpError(null);
+      await qc.invalidateQueries({ queryKey: ["invite-links", org] });
+      await refetch();
+    },
+    onError: (e: any) => setOpError(`切换失败: ${e?.message ?? e}`),
   });
   const del = useMutation({
     mutationFn: (token: string) => api(`/api/admin/${org}/invite-links/${token}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invite-links", org] }),
+    onSuccess: async () => {
+      setOpError(null);
+      await qc.invalidateQueries({ queryKey: ["invite-links", org] });
+      await refetch();
+    },
+    onError: (e: any) => setOpError(`删除失败: ${e?.message ?? e}（如非 admin 角色或 session 过期会被拒）`),
   });
 
   const copy = (text: string) => navigator.clipboard.writeText(text);
@@ -53,10 +76,23 @@ export default function InviteLinks() {
 
   return (
     <div className="p-6 sm:p-8 max-w-7xl mx-auto space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink-50">邀请链接</h1>
-        <p className="text-ink-400 text-sm mt-1">生成临时链接 → 发给目标 → 对方填 GitHub 用户名自动收到邀请</p>
+      <header className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink-50">邀请链接</h1>
+          <p className="text-ink-400 text-sm mt-1">生成临时链接 → 发给目标 → 对方填 GitHub 用户名自动收到邀请</p>
+        </div>
+        <button onClick={reload} disabled={isFetching}
+          className="btn-ghost text-sm px-3 py-2 disabled:opacity-50">
+          {isFetching ? "刷新中…" : "刷新"}
+        </button>
       </header>
+
+      {opError && (
+        <div className="card p-4 border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm flex items-start justify-between gap-3">
+          <div>{opError}</div>
+          <button onClick={() => setOpError(null)} className="text-rose-400 hover:text-rose-200 text-xs">关闭</button>
+        </div>
+      )}
 
       <div className="card p-5">
         <h2 className="font-semibold text-ink-100 mb-4">生成新链接</h2>
@@ -143,11 +179,15 @@ export default function InviteLinks() {
                       : <span className="tag-green">active</span>}
                   </td>
                   <td className="px-5 py-3 text-right space-x-2 whitespace-nowrap">
-                    <button className="btn-ghost text-xs py-1 px-2"
+                    <button className="btn-ghost text-xs py-1 px-2 disabled:opacity-50"
+                      disabled={toggle.isPending && toggle.variables?.token === l.token}
                       onClick={() => toggle.mutate({ token: l.token, disabled: !l.disabled })}>
-                      {l.disabled ? "启用" : "禁用"}
+                      {toggle.isPending && toggle.variables?.token === l.token
+                        ? "…"
+                        : l.disabled ? "启用" : "禁用"}
                     </button>
-                    <button className="btn-danger text-xs py-1 px-2"
+                    <button className="btn-danger text-xs py-1 px-2 disabled:opacity-50"
+                      disabled={del.isPending && del.variables === l.token}
                       onClick={async () => {
                         const ok = await confirm({
                           title: "删除邀请链接",
@@ -156,7 +196,9 @@ export default function InviteLinks() {
                           variant: "danger",
                         });
                         if (ok) del.mutate(l.token);
-                      }}>删除</button>
+                      }}>
+                      {del.isPending && del.variables === l.token ? "删除中…" : "删除"}
+                    </button>
                   </td>
                 </tr>
               );
