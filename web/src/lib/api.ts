@@ -1,8 +1,15 @@
 export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
+  // 只在有 body 时设 Content-Type: application/json. fastify 默认开启了
+  // application/json content-type-parser 严格校验, 空 body + 该 header 会 400
+  // FST_ERR_CTP_EMPTY_JSON_BODY (尤其 DELETE / GET 这种没 body 的请求)
+  const userHeaders = (init?.headers ?? {}) as Record<string, string>;
+  const baseHeaders: Record<string, string> = init?.body
+    ? { "Content-Type": "application/json" }
+    : {};
   const res = await fetch(path, {
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init,
+    headers: { ...baseHeaders, ...userHeaders },
   });
   if (!res.ok) {
     const text = await res.text();
