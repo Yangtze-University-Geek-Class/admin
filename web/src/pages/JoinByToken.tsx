@@ -25,9 +25,10 @@ export default function JoinByToken() {
   const [form, setForm] = useState({ github_login: "", email: "", note: "", website: "" });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
+  const [powTries, setPowTries] = useState(0);
   const [done, setDone] = useState<string | null>(null);
   const [siteKey, setSiteKey] = useState<string | null>(null);
-  const [powDiff, setPowDiff] = useState(5);
+  const [powDiff, setPowDiff] = useState(3);
   const [tsToken, setTsToken] = useState<string>("");
 
   useEffect(() => {
@@ -64,9 +65,10 @@ export default function JoinByToken() {
     e.preventDefault();
     setErr(null);
     setBusy("pow");
+    setPowTries(0);
     try {
       const bodyForHash = `join:${token}:${form.github_login.trim()}:${form.email.trim()}`;
-      const pow = await computePow(bodyForHash, powDiff);
+      const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
       const body = { ...form, turnstile_token: tsToken, pow };
       const r = await api<{ ok: boolean; message: string }>(`/api/join/${token}`, {
@@ -180,7 +182,7 @@ export default function JoinByToken() {
 
                 <button type="submit" className="btn-primary w-full text-base py-3"
                   disabled={Boolean(busy) || (!form.github_login && !form.email) || (!!siteKey && !tsToken)}>
-                  {busy === "pow" ? "防滥用计算中…" : busy === "submit" ? "提交中…" : "申请加入"}
+                  {busy === "pow" ? `防滥用计算中… ${powTries > 0 ? `${(powTries / 1000).toFixed(0)}k 次` : ""}` : busy === "submit" ? "提交中…" : "申请加入"}
                 </button>
                 {busy === "pow" && <p className="text-xs text-ink-500 text-center">浏览器在做一次哈希计算（约 1-2 秒）。</p>}
               </form>

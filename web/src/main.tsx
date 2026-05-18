@@ -20,12 +20,11 @@ applyTheme(site.themePalette.includes(initialTheme) ? initialTheme : site.defaul
 const qc = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
+      staleTime: 15_000,
       gcTime: 10 * 60_000,
       refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnMount: true,
       retry: false,
-      placeholderData: (prev: any) => prev,
     },
   },
 });

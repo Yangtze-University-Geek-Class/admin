@@ -3,10 +3,13 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 // Proof-of-Work: client must find a nonce such that
 //   sha256(`${timestamp}:${bodyHash}:${nonce}`) starts with N hex zeros.
-// Default N=5 → ~1M expected hashes → ~1-2s on a modern CPU.
-// Brute attackers must spend CPU per request — turns mass spam expensive.
+// Default N=3 → 16^3 = 4096 expected hashes. With @noble/hashes/sha256 sync
+// impl on the client this is sub-50ms even on低端 Android. POW is mostly
+// kept as a token-of-effort against trivially scripted spam; for real
+// abuse defense rely on Turnstile + honeypot + rate-limit (those are
+// what actually stop bots). 历史: 5 → 卡几十秒, 4 → 部分低端机仍慢, 3 → 顺滑.
 
-const REQUIRED_PREFIX_ZEROS = Number(process.env.POW_DIFFICULTY ?? 5);
+const REQUIRED_PREFIX_ZEROS = Number(process.env.POW_DIFFICULTY ?? 3);
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export function checkPow(
