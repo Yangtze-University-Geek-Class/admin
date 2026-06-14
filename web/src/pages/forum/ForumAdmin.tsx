@@ -1,6 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, fmtRelative } from "../../lib/api";
 import { Avatar } from "./ForumLayout";
 import Select from "../../components/Select";
@@ -248,23 +248,97 @@ function RoleBadge({ role }: { role: string }) {
   return <span className="tag-gray text-[10px]">成员</span>;
 }
 
+type PermissionDef = { key: string; label: string; category: string; enforced: boolean };
+
 function GroupsPanel() {
   const list = useQuery({ queryKey: ["forum-groups"], queryFn: () => api<{ groups: Group[] }>("/api/forum/groups") });
+  const [editing, setEditing] = useState<Group | null>(null);
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {list.data?.groups.map((g) => (
-        <div key={g.id} className="card p-5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold text-ink-50">{g.name}</div>
-            {g.is_default ? <span className="tag-gray text-[10px]">默认</span> : null}
+    <div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.data?.groups.map((g) => (
+          <div key={g.id} className="card p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold text-ink-50">{g.name}</div>
+              {g.is_default ? <span className="tag-gray text-[10px]">默认</span> : null}
+            </div>
+            {g.description && <div className="text-xs text-ink-400 mb-3">{g.description}</div>}
+            <div className="flex items-center gap-4 text-xs text-ink-300 mb-4">
+              <div>{g.member_count} 成员</div>
+              <div>{g.permission_count} 权限</div>
+            </div>
+            <button onClick={() => setEditing(g)} className="btn-ghost text-xs px-3 py-1.5 mt-auto self-start">配置权限</button>
           </div>
-          {g.description && <div className="text-xs text-ink-400 mb-3">{g.description}</div>}
-          <div className="flex items-center gap-4 text-xs text-ink-300">
-            <div>{g.member_count} 成员</div>
-            <div>{g.permission_count} 权限</div>
+        ))}
+      </div>
+      {editing && <GroupPermsDialog group={editing} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+function GroupPermsDialog({ group, onClose }: { group: Group; onClose: () => void }) {
+  const qc = useQueryClient();
+  const catalog = useQuery({ queryKey: ["forum-permissions"], queryFn: () => api<{ permissions: PermissionDef[] }>("/api/forum/permissions") });
+  const detail = useQuery({ queryKey: ["forum-group", group.id], queryFn: () => api<{ permissions: string[] }>(`/api/forum/groups/${group.id}`) });
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (detail.data && selected === null) setSelected(new Set(detail.data.permissions));
+  }, [detail.data, selected]);
+
+  const save = useMutation({
+    mutationFn: () => api(`/api/forum/groups/${group.id}/permissions`, { method: "PUT", body: JSON.stringify({ permissions: Array.from(selected ?? []) }) }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["forum-groups"] });
+      await qc.invalidateQueries({ queryKey: ["forum-group", group.id] });
+      onClose();
+    },
+  });
+
+  const perms = catalog.data?.permissions ?? [];
+  const categories = perms.reduce<string[]>((acc, p) => (acc.includes(p.category) ? acc : [...acc, p.category]), []);
+  const toggle = (key: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev ?? []);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+  const loading = catalog.isLoading || detail.isLoading || selected === null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/60 backdrop-blur-sm p-4">
+      <div className="card p-6 max-w-lg w-full bg-ink-950 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-ink-50 mb-1">配置权限 · {group.name}</h3>
+        <p className="text-xs text-ink-400 mb-4">勾选该用户组拥有的权限。当前仅「发主题 / 回帖」实际生效，其余为预留位，暂不影响行为。</p>
+        {loading ? (
+          <div className="text-ink-400 text-sm py-8 text-center">载入中…</div>
+        ) : (
+          <div className="space-y-4">
+            {categories.map((cat) => (
+              <div key={cat}>
+                <div className="text-xs font-semibold text-ink-300 uppercase tracking-wider mb-2">{cat}</div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {perms.filter((p) => p.category === cat).map((p) => (
+                    <label key={p.key} className="flex items-center gap-2 text-sm text-ink-100 cursor-pointer select-none">
+                      <input type="checkbox" className="accent-brand-500 w-4 h-4" checked={selected!.has(p.key)} onChange={() => toggle(p.key)} />
+                      <span>{p.label}</span>
+                      {p.enforced ? <span className="tag-blue text-[10px]">生效</span> : <span className="tag-gray text-[10px]">预留</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+        )}
+        {save.error && <div className="text-rose-500 text-sm mt-3">{(save.error as Error).message}</div>}
+        <div className="flex items-center justify-end gap-3 pt-5">
+          <button type="button" onClick={onClose} className="btn-ghost text-sm px-4 py-2">取消</button>
+          <button type="button" onClick={() => save.mutate()} disabled={loading || save.isPending} className="btn-primary text-sm px-5 py-2 disabled:opacity-50">
+            {save.isPending ? "保存中…" : "保存"}
+          </button>
         </div>
-      ))}
+      </div>
     </div>
   );
 }

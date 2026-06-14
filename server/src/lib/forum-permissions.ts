@@ -59,6 +59,31 @@ export function hasCategoryPermission(userId: number | null, categoryLegacyId: n
   return false;
 }
 
+// Catalog of every permission key the forum knows about, for the admin group
+// config UI. `enforced` marks the ones that hasPermission() actually gates today
+// (thread.create / thread.reply). The rest exist as legacy/reserved records:
+// edit/hide/like/etc. are currently decided by isOwner / isMod checks in the
+// route handlers, NOT by these flags. Surfacing `enforced` keeps the UI honest.
+export type PermissionDef = { key: string; label: string; category: string; enforced: boolean };
+export const PERMISSION_CATALOG: PermissionDef[] = [
+  { key: "thread.view", label: "查看主题", category: "查看", enforced: false },
+  { key: "post.view", label: "查看帖子", category: "查看", enforced: false },
+  { key: "thread.create", label: "发主题", category: "发表", enforced: true },
+  { key: "thread.reply", label: "回帖", category: "发表", enforced: true },
+  { key: "attachment.upload", label: "上传附件", category: "发表", enforced: false },
+  { key: "thread.like", label: "点赞", category: "发表", enforced: false },
+  { key: "thread.editOwn", label: "编辑自己的主题", category: "自助", enforced: false },
+  { key: "thread.hideOwn", label: "删除自己的主题", category: "自助", enforced: false },
+  { key: "thread.editAny", label: "编辑任意主题", category: "版务", enforced: false },
+  { key: "thread.hideAny", label: "删除任意主题", category: "版务", enforced: false },
+  { key: "thread.sticky", label: "置顶", category: "版务", enforced: false },
+  { key: "thread.essence", label: "加精", category: "版务", enforced: false },
+  { key: "thread.lock", label: "锁帖", category: "版务", enforced: false },
+  { key: "category.manage", label: "管理分类", category: "版务", enforced: false },
+  { key: "group.manage", label: "管理用户组", category: "版务", enforced: false },
+  { key: "user.editAny", label: "管理用户", category: "版务", enforced: false },
+];
+
 const TEACHER_GROUP_NAME = "老师";
 const ADMIN_GROUP_NAME = "负责人";
 const MEMBER_GROUP_NAME = "成员";

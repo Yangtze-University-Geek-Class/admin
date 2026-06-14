@@ -1,8 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { forumDb } from "../../lib/forum-db.js";
 import { requireForumAdmin } from "../../middleware/require-forum-auth.js";
+import { PERMISSION_CATALOG } from "../../lib/forum-permissions.js";
 
 export default async function forumGroupsRoutes(app: FastifyInstance) {
+  app.get("/api/forum/permissions", { preHandler: requireForumAdmin }, async () => {
+    return { permissions: PERMISSION_CATALOG };
+  });
+
   app.get("/api/forum/groups", async () => {
     const groups = forumDb
       .prepare(
@@ -34,6 +39,26 @@ export default async function forumGroupsRoutes(app: FastifyInstance) {
       .all(id);
     return { group: g, permissions: perms, members };
   });
+
+  app.put<{ Params: { id: string }; Body: { permissions: string[] } }>(
+    "/api/forum/groups/:id/permissions",
+    { preHandler: requireForumAdmin },
+    async (req, reply) => {
+      const id = Number(req.params.id);
+      const g = forumDb.prepare("SELECT id FROM forum_groups WHERE id = ?").get(id);
+      if (!g) return reply.code(404).send({ error: "not_found" });
+      const valid = new Set(PERMISSION_CATALOG.map((p) => p.key));
+      const next = Array.from(new Set(req.body?.permissions ?? [])).filter((p) => valid.has(p));
+      const tx = forumDb.transaction(() => {
+        forumDb.prepare("DELETE FROM forum_group_permissions WHERE group_id = ?").run(id);
+        const ins = forumDb.prepare("INSERT OR IGNORE INTO forum_group_permissions (group_id, permission) VALUES (?, ?)");
+        for (const p of next) ins.run(id, p);
+        forumDb.prepare("UPDATE forum_groups SET updated_at = ? WHERE id = ?").run(Date.now(), id);
+      });
+      tx();
+      return { ok: true, permissions: next };
+    },
+  );
 
   app.post<{ Params: { id: string }; Body: { user_id: number } }>(
     "/api/forum/groups/:id/members",
