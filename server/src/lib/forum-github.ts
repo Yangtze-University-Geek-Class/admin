@@ -3,6 +3,7 @@ import { request as undiciRequest } from "undici";
 import { config } from "../config.js";
 import { forumDb } from "./forum-db.js";
 import { createForumSession } from "./forum-auth.js";
+import { syncRoleToGroup } from "./forum-permissions.js";
 import { attachForumUser } from "../middleware/require-forum-auth.js";
 
 export type GithubUserBasic = {
@@ -35,7 +36,9 @@ export function upsertForumUserFromGithub(gh: GithubUserBasic): number {
        VALUES (?, ?, ?, ?, ?, ?, 'member', ?, ?)`,
     )
     .run(username, gh.name ?? gh.login, gh.id, gh.login, gh.email, gh.avatar_url, now, now);
-  return Number(r.lastInsertRowid);
+  const newId = Number(r.lastInsertRowid);
+  syncRoleToGroup(newId, "member");
+  return newId;
 }
 
 export function setForumCookieOnReply(reply: FastifyReply, sid: string) {
