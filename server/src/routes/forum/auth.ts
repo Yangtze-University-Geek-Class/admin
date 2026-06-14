@@ -6,6 +6,7 @@ import { forumDb } from "../../lib/forum-db.js";
 import { createForumSession, destroyForumSession, selfForumUser } from "../../lib/forum-auth.js";
 import { setForumCookieOnReply } from "../../lib/forum-github.js";
 import { attachForumUser, requireForumAuth } from "../../middleware/require-forum-auth.js";
+import { syncRoleToGroup } from "../../lib/forum-permissions.js";
 
 function isValidUsername(s: string): boolean {
   return /^[a-zA-Z0-9_一-龥\-]{2,32}$/.test(s);
@@ -60,6 +61,7 @@ export default async function forumAuthRoutes(app: FastifyInstance) {
            VALUES (?, ?, ?, ?, 'member', ?, ?)`,
         )
         .run(username, display_name ?? username, hash, email ?? null, now, now);
+      syncRoleToGroup(Number(r.lastInsertRowid), "member");
       const sid = createForumSession(Number(r.lastInsertRowid), "password");
       setForumCookie(reply, sid);
       const fresh = forumDb.prepare("SELECT * FROM forum_users WHERE id = ?").get(r.lastInsertRowid) as any;
