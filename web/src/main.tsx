@@ -7,10 +7,13 @@ import { applyTheme, loadTheme } from "./lib/themes";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { detectSite } from "./lib/site";
 import ImageLightbox from "./components/ImageLightbox";
+import DevControlCenter from "./components/DevControlCenter";
+import { runtimeFeatures } from "./config";
 import "./index.css";
 import "./portal.css";
 
 const site = detectSite();
+const features = runtimeFeatures();
 document.title = site.title;
 document.documentElement.dataset.site = site.kind;
 const initialTheme = site.allowThemeSwitch
@@ -36,8 +39,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ConfirmProvider>
         <BrowserRouter basename={site.basePath || undefined}>
           <App />
-          <GlobalFab />
+          {features.feedbackFab && <GlobalFab />}
           <ImageLightbox />
+          <DevControlCenter />
         </BrowserRouter>
       </ConfirmProvider>
     </QueryClientProvider>

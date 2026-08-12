@@ -144,7 +144,7 @@ No. Deleting the link only removes our DB row. GitHub invitations already sent a
 
 ### Theme doesn't seem to switch
 
-Use the bottom-left compact theme button (admin) or top-right theme button (other pages). 10 themes; choice persists in localStorage.
+The portal, forum, and admin UI use one unified light YUGC blue theme. Dark themes and the theme switcher were removed; legacy stored theme IDs automatically fall back to YUGC blue.
 
 ### Loading is slow
 

@@ -1,4 +1,9 @@
+import { getDataSource } from "./runtime";
+import { mockApi } from "./mock-api";
+
 export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
+  if (getDataSource() === "mock") return mockApi<T>(path, init);
+
   // 只在有 body 时设 Content-Type: application/json. fastify 默认开启了
   // application/json content-type-parser 严格校验, 空 body + 该 header 会 400
   // FST_ERR_CTP_EMPTY_JSON_BODY (尤其 DELETE / GET 这种没 body 的请求)

@@ -73,16 +73,22 @@ yzgc-admin/
 │       ├── main.tsx                         ← ThemeProvider + QueryClient + ConfirmProvider + Router
 │       ├── App.tsx                          ← all routes
 │       ├── index.css                        ← shared Tailwind components + prose styles + global animations
-│       ├── portal.css                       ← portal visual prototype + public/community skins + mascot styles
+│       ├── portal.css                       ← portal soft-blue skin + motion effects + mascot styles
+│       ├── config/
+│       │   ├── app.config.json              ← frontend URLs, per-env policy/feature flags, portal + mascot tuning
+│       │   └── index.ts                     ← typed config access
 │       ├── lib/
-│       │   ├── api.ts                       ← fetch wrapper, fmtDate, fmtRelative
-│       │   └── themes.ts                    ← 10 themes (each: { id, mode, vars }), applyTheme/loadTheme
+│       │   ├── api.ts                       ← live/mock dispatcher + fetch wrapper, fmtDate, fmtRelative
+│       │   ├── mock-api.ts                  ← development-only local fixtures for protected pages
+│       │   ├── runtime.ts                   ← dev/prod site + data-source control
+│       │   └── themes.ts                    ← single light yzgc-blue theme, applyTheme/loadTheme
 │       ├── components/
+│       │   ├── DevControlCenter.tsx          ← development site/data/page switcher; hidden in production
 │       │   ├── ThemeSwitcher.tsx            ← compact / direction props
 │       │   ├── Select.tsx                   ← REPLACES native <select> everywhere (themed dropdown)
 │       │   ├── ConfirmDialog.tsx            ← useConfirm() — REPLACES window.confirm() everywhere
 │       │   ├── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
-│       │   └── mascot/Mascot.tsx            ← 8-pose portal mascot, public/community/preview modes
+│       │   └── mascot/Mascot.tsx            ← 8-pose mascot, portal/forum/preview layouts
 │       └── pages/
 │           ├── Landing.tsx                  ← /
 │           ├── JoinByToken.tsx              ← /join/:token
@@ -163,7 +169,7 @@ Add a column → write a `db.exec("ALTER TABLE ... ADD COLUMN ...")` in `db.ts` 
 
 ### 4.5 Theme system
 
-Tailwind colors are `rgb(var(--ink-X) / <alpha-value>)` — driven by `<html>` CSS vars set by `applyTheme()` in `lib/themes.ts`. **Never** hardcode hex colors in components. If you need a new color slot, add it to all 10 themes in `themes.ts`.
+Tailwind colors are `rgb(var(--ink-X) / <alpha-value>)` — driven by `<html>` CSS vars set by `applyTheme()` in `lib/themes.ts`. The product uses one light `yzgc-blue` theme and must not reintroduce dark themes. **Never** hardcode hex colors in components. Add new slots to the single theme and portal palette config.
 
 ### 4.6 No native `<select>` or `window.confirm()`
 
@@ -270,7 +276,7 @@ Don't proactively do these unless asked:
 - Add unit tests (no test infra yet — adding it is a separate explicit task)
 - Add CI/CD pipelines
 - Add internationalization (Chinese-only is fine for now)
-- Add light-mode-as-default (default is dark; toggle exists)
+- Add dark mode or theme switching (the product is intentionally light-only)
 - Add server-side rendering / Next.js migration
 - Add Docker / Kubernetes manifests (systemd is the deploy unit)
 - Refactor "for cleanliness" without a user-visible benefit
