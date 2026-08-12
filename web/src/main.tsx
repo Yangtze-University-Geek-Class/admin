@@ -8,6 +8,7 @@ import { ConfirmProvider } from "./components/ConfirmDialog";
 import { detectSite } from "./lib/site";
 import ImageLightbox from "./components/ImageLightbox";
 import "./index.css";
+import "./portal.css";
 
 const site = detectSite();
 document.title = site.title;

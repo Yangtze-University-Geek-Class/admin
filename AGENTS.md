@@ -72,7 +72,8 @@ yzgc-admin/
 │   └── src/
 │       ├── main.tsx                         ← ThemeProvider + QueryClient + ConfirmProvider + Router
 │       ├── App.tsx                          ← all routes
-│       ├── index.css                        ← @tailwind + .card .btn .input .tag-* + @keyframes
+│       ├── index.css                        ← shared Tailwind components + prose styles + global animations
+│       ├── portal.css                       ← portal visual prototype + public/community skins + mascot styles
 │       ├── lib/
 │       │   ├── api.ts                       ← fetch wrapper, fmtDate, fmtRelative
 │       │   └── themes.ts                    ← 10 themes (each: { id, mode, vars }), applyTheme/loadTheme
@@ -80,7 +81,8 @@ yzgc-admin/
 │       │   ├── ThemeSwitcher.tsx            ← compact / direction props
 │       │   ├── Select.tsx                   ← REPLACES native <select> everywhere (themed dropdown)
 │       │   ├── ConfirmDialog.tsx            ← useConfirm() — REPLACES window.confirm() everywhere
-│       │   └── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
+│       │   ├── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
+│       │   └── mascot/Mascot.tsx            ← 8-pose portal mascot, public/community/preview modes
 │       └── pages/
 │           ├── Landing.tsx                  ← /
 │           ├── JoinByToken.tsx              ← /join/:token
