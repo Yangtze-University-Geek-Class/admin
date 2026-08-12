@@ -92,7 +92,7 @@ See [SECURITY.en.md](./SECURITY.en.md).
 ## Frontend
 
 - Vite 6 + React 18 + React Router 7 + TanStack Query 5
-- Tailwind colors driven by CSS variables (10 themes via `data-theme` + `data-mode` on `<html>`)
+- Tailwind colors are driven by CSS variables; the product exposes one light `yzgc-blue` theme and automatically falls back from legacy dark theme IDs
 - Global providers: `<ConfirmProvider>` (themed modal replaces `window.confirm`), `<Select>` (themed dropdown replaces native `<select>`)
 - Floating Action Button: feedback submission available on every page (auto-hidden on `/feedback` and `/join`)
 - Markdown viewer for in-app docs (`/docs`) using `marked` + custom `.prose-doc` styles tied to theme vars

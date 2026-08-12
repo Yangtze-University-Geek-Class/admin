@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { api } from "../../lib/api";
+import { getDataSource } from "../../lib/runtime";
+import { appConfig } from "../../config";
 import ThemeSwitcher from "../../components/ThemeSwitcher";
 
 type Me = { signed_in: boolean; login?: string; avatar_url?: string };
@@ -23,6 +25,10 @@ export default function MyOrgs() {
   }, [me.isSuccess, me.data, navigate]);
 
   const signOut = async () => {
+    if (getDataSource() === "mock") {
+      navigate("/admin/signin", { replace: true });
+      return;
+    }
     await fetch("/auth/signout", { method: "POST" });
     navigate("/admin/signin", { replace: true });
   };
@@ -38,8 +44,8 @@ export default function MyOrgs() {
           <span className="font-semibold text-ink-100 text-lg">YUGC Admin</span>
         </Link>
         <div className="flex items-center gap-3">
-          <a href="https://yangtzeu.work/" className="px-3 py-1.5 text-sm text-ink-200 hover:text-brand-500 transition">← 主站</a>
-          <a href="https://yangtzeu.work/forum" className="px-3 py-1.5 text-sm text-ink-200 hover:text-brand-500 transition">论坛</a>
+          <a href={appConfig.urls.portal} className="px-3 py-1.5 text-sm text-ink-200 hover:text-brand-500 transition">← 主站</a>
+          <a href={appConfig.urls.forum} className="px-3 py-1.5 text-sm text-ink-200 hover:text-brand-500 transition">论坛</a>
           <ThemeSwitcher />
           {me.data.avatar_url && <img src={me.data.avatar_url} alt="" className="w-8 h-8 rounded-full border border-ink-700/60" />}
           <span className="text-sm text-ink-200 font-mono">@{me.data.login}</span>

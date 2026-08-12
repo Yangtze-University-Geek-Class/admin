@@ -2,6 +2,8 @@ import { NavLink, Outlet, useNavigate, useParams, Link } from "react-router-dom"
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { getDataSource } from "../../lib/runtime";
+import { appConfig } from "../../config";
 import ThemeSwitcher from "../../components/ThemeSwitcher";
 import Select from "../../components/Select";
 
@@ -68,6 +70,10 @@ export default function OrgLayout() {
   const currentOrg = orgs.data?.orgs.find((o: any) => o.login === org);
 
   const signOut = async () => {
+    if (getDataSource() === "mock") {
+      navigate("/admin/signin", { replace: true });
+      return;
+    }
     await fetch("/auth/signout", { method: "POST" });
     navigate("/admin/signin", { replace: true });
   };
@@ -88,8 +94,8 @@ export default function OrgLayout() {
           </div>
         </Link>
         <div className="flex items-center gap-1 mb-3 px-1">
-          <a href="https://yangtzeu.work/" className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">← 主站</a>
-          <a href="https://yangtzeu.work/forum" className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">论坛</a>
+          <a href={appConfig.urls.portal} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">← 主站</a>
+          <a href={appConfig.urls.forum} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">论坛</a>
         </div>
 
         <div className="mb-4">

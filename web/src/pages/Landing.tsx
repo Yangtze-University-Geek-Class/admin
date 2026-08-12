@@ -1,6 +1,7 @@
-import { useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import Mascot, { mascotImage, type MascotMode, type MascotPose } from "../components/mascot/Mascot";
+import { appConfig, runtimeFeatures } from "../config";
+import Mascot, { mascotImage, type MascotPose } from "../components/mascot/Mascot";
 import { externalUrl } from "../lib/site";
 
 const DIRECTIONS: Array<{
@@ -31,11 +32,24 @@ const THREADS = [
 ];
 
 export default function Landing() {
-  const [mode, setMode] = useState<MascotMode>("public");
+  const features = runtimeFeatures();
+  const palette = appConfig.portal.palette;
+  const paletteStyle = {
+    "--portal-bg": palette.bg,
+    "--portal-panel": palette.panel,
+    "--portal-panel-strong": palette.panelStrong,
+    "--portal-line": palette.line,
+    "--portal-accent": palette.accent,
+    "--portal-accent-soft": palette.accentSoft,
+    "--portal-text": palette.text,
+    "--portal-muted": palette.muted,
+    "--portal-warm": palette.warm,
+  } as CSSProperties;
 
   return (
-    <div className={`portal-prototype portal-mode-${mode}`}>
+    <div className="portal-prototype" style={paletteStyle}>
       <div className="portal-grid" />
+      {features.portalMotionEffects && <PortalAtmosphere />}
       <header className="portal-nav">
         <div className="portal-container portal-nav-inner">
           <Link to="/" className="portal-brand">
@@ -52,10 +66,7 @@ export default function Landing() {
             <Link to="/docs">文档</Link>
           </nav>
           <div className="portal-nav-actions">
-            <span className="portal-status"><i /> OPEN FOR BUILDERS</span>
-            <button type="button" className="portal-mode-toggle" onClick={() => setMode(mode === "public" ? "community" : "public")}>
-              {mode === "public" ? "社区模式" : "对外模式"}
-            </button>
+            <span className="portal-status"><i /> {appConfig.portal.hero.status}</span>
           </div>
         </div>
       </header>
@@ -63,10 +74,10 @@ export default function Landing() {
       <main>
         <section className="portal-hero portal-container">
           <div className="portal-hero-copy">
-            <div className="portal-eyebrow"><span /> YUGC · EST. 2023</div>
+            <div className="portal-eyebrow"><span /> {appConfig.portal.hero.eyebrow}</div>
             <h1>
-              在校园里，<br />
-              把<span>想法写成代码</span>。
+              {appConfig.portal.hero.titleLead}<br />
+              <span>{appConfig.portal.hero.titleAccent}</span>
             </h1>
             <p>
               长江大学极客班是面向在校学生的技术共建社区。我们围绕系统、人工智能、信息安全与开源协作，
@@ -105,7 +116,7 @@ export default function Landing() {
                 <div className="portal-direction-top">
                   <span>{direction.english}</span><i>↗</i>
                 </div>
-                <div className="portal-direction-figure"><img src={mascotImage(direction.pose)} alt="" /></div>
+                <div className={`portal-direction-figure portal-direction-${direction.pose}`}><img src={mascotImage(direction.pose)} alt="" /></div>
                 <h3>{direction.title}</h3>
                 <p>{direction.desc}</p>
                 <small>{direction.detail}</small>
@@ -154,22 +165,14 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="portal-section portal-container portal-mascot-lab">
+        {features.mascotPreview && <section className="portal-section portal-container portal-mascot-lab">
           <div className="portal-mascot-copy">
             <div className="portal-eyebrow"><span /> MASCOT MODULE · PROTOTYPE</div>
             <h2>极客娘，不只是装饰。</h2>
-            <p>模块已支持 8 套姿势、随机对话、公共轻量形态与社区常驻形态。点击角色或下面的姿势按钮查看交互。</p>
-            <div className="portal-mode-cards">
-              <button type="button" className={mode === "public" ? "is-active" : ""} onClick={() => setMode("public")}>
-                <b>PUBLIC</b><span>右下角轻量入口</span>
-              </button>
-              <button type="button" className={mode === "community" ? "is-active" : ""} onClick={() => setMode("community")}>
-                <b>COMMUNITY</b><span>侧边常驻对话</span>
-              </button>
-            </div>
+            <p>模块已支持 8 套姿势、随机对话和页面场景映射。主站保持右下角轻量入口，论坛保持左下角常驻展示。</p>
           </div>
-          <Mascot preview mode={mode} pose="intro" />
-        </section>
+          <Mascot preview mode="public" pose="intro" />
+        </section>}
       </main>
 
       <footer className="portal-footer">
@@ -179,7 +182,7 @@ export default function Landing() {
             <span>长江大学极客班 · Build in public, grow together.</span>
           </div>
           <div className="portal-footer-links">
-            <a href="https://github.com/Yangtze-University-Geek-Class" target="_blank" rel="noreferrer">GitHub</a>
+            <a href={appConfig.urls.githubOrg} target="_blank" rel="noreferrer">GitHub</a>
             <a href={externalUrl("forum", "/")}>论坛</a>
             <Link to="/docs">文档</Link>
             <a href={externalUrl("admin", "/admin")}>管理后台</a>
@@ -187,7 +190,26 @@ export default function Landing() {
         </div>
       </footer>
 
-      <Mascot mode={mode} pose="welcome" onModeChange={setMode} />
+      {features.mascot && <Mascot mode="public" pose="welcome" />}
+    </div>
+  );
+}
+
+function PortalAtmosphere() {
+  const snippets = appConfig.portal.effects.codeSnippets;
+  const symbols = Array.from({ length: appConfig.portal.effects.symbolCount }, (_, index) => index);
+  return (
+    <div className="portal-atmosphere" aria-hidden="true">
+      <div className="portal-code-stream">
+        {snippets.map((snippet, index) => (
+          <code key={snippet} style={{ "--code-index": index } as CSSProperties}>{snippet}</code>
+        ))}
+      </div>
+      <div className="portal-anime-symbols">
+        {symbols.map((index) => <i key={index} style={{ "--symbol-index": index } as CSSProperties} />)}
+      </div>
+      <div className="portal-hex portal-hex-one" />
+      <div className="portal-hex portal-hex-two" />
     </div>
   );
 }
