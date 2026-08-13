@@ -1,3 +1,6 @@
+// Development-only local fixtures. api() routes to this module when the data
+// source is "mock" so protected pages can be browsed without a backend.
+// Never used in production builds (production forces "live").
 import { appConfig } from "../config";
 
 const now = Date.now();
@@ -31,7 +34,7 @@ const orgInfo = {
   login: demoOrg, name: "长江大学极客班", avatar_url: avatar, html_url: appConfig.urls.githubOrg,
   description: "长江大学校内技术共建社区", plan: "free", public_repos: 18, total_private_repos: 6,
   billing_email: "admin@example.test", two_factor_required: true, disk_usage_mb: 328, created_at: "2023-09-01T08:00:00Z",
-  company: "Yangtze University", email: "hello@example.test", location: "Jingzhou, Hubei", blog: appConfig.urls.portal,
+  company: "Yangtze University", email: "hello@example.test", location: "Jingzhou, Hubei", blog: `https://${appConfig.sites.portal.host}`,
   twitter_username: "", default_repository_permission: "read", members_can_create_repositories: true,
   members_can_create_public_repositories: true, members_can_create_private_repositories: false,
   members_can_fork_private_repositories: true, members_can_create_pages: true,

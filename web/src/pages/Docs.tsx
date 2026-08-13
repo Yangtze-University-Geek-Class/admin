@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { api } from "../lib/api";
-import ThemeSwitcher from "../components/ThemeSwitcher";
 
 type Item = { id: string; label: string; lang: "zh" | "en" };
 type Doc = { id: string; label: string; lang: "zh" | "en"; file: string; content: string };
@@ -73,7 +72,6 @@ export default function Docs() {
                 }`}>{l === "zh" ? "中文" : "English"}</button>
             ))}
           </div>
-          <ThemeSwitcher />
           <Link to="/admin" className="btn-ghost text-sm">管理后台</Link>
         </div>
       </header>

@@ -1,13 +1,16 @@
+// Floating "意见" button with a modal form. Raised above the mascot on the
+// forum so the mascot bubble stays visible; auto-detects the org from the URL.
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { api } from "../lib/api";
 import { computePow } from "../lib/pow";
+import { appConfig } from "../config";
 import Select from "./Select";
 
 type Cfg = { categories: string[]; pow_difficulty: number };
 
-export default function FeedbackFab({ defaultOrg }: { defaultOrg?: string }) {
+export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg?: string; raised?: boolean }) {
   const loc = useLocation();
   // Auto-detect org from /admin/:org/ URL
   const orgFromPath = (() => {
@@ -70,7 +73,8 @@ export default function FeedbackFab({ defaultOrg }: { defaultOrg?: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-30 group flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-brand-600 hover:bg-brand-500 text-white shadow-glow transition"
+        className={`fixed right-6 z-30 group flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-brand-600 hover:bg-brand-500 text-white shadow-glow transition ${raised ? "" : "bottom-6"}`}
+        style={raised ? { bottom: appConfig.mascot.height + 28 } : undefined}
         aria-label="提交意见"
         title="提交意见"
       >

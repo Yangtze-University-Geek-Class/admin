@@ -1,8 +1,10 @@
+// Unified mascot module. One spec (size/position from app.config.json) used by
+// portal and forum, fixed bottom-right. Chat text renders in a dedicated
+// transparent panel above the feedback button (scrollable, decoupled from the character).
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { appConfig, type MascotPoseName } from "../../config";
+import { appConfig, type MascotPoseName } from "../config";
 
 export type MascotPose = MascotPoseName;
-export type MascotMode = "public" | "community";
 
 const POSE_NAMES = Object.keys(appConfig.mascot.poses) as MascotPose[];
 
@@ -24,23 +26,18 @@ export function mascotLabel(pose: MascotPose): string {
 }
 
 type Props = {
-  mode?: MascotMode;
   pose?: MascotPose;
   dialogs?: string[];
   className?: string;
   preview?: boolean;
-  onModeChange?: (mode: MascotMode) => void;
 };
 
 export default function Mascot({
-  mode = "public",
   pose = appConfig.mascot.defaultPose,
   dialogs,
   className = "",
   preview = false,
-  onModeChange,
 }: Props) {
-  const [open, setOpen] = useState(mode === "community");
   const [dialogIndex, setDialogIndex] = useState(0);
   const [currentPose, setCurrentPose] = useState<MascotPose>(pose);
   const dialogList = useMemo(
@@ -53,12 +50,7 @@ export default function Mascot({
     setDialogIndex(0);
   }, [pose]);
 
-  useEffect(() => {
-    setOpen(mode === "community");
-  }, [mode]);
-
   const nextDialog = () => {
-    setOpen(true);
     setDialogIndex((current) => (current + 1) % dialogList.length);
   };
 
@@ -94,34 +86,22 @@ export default function Mascot({
 
   return (
     <div
-      className={`mascot-shell mascot-${mode} mascot-pose-${currentPose} ${open ? "is-open" : ""} ${className}`}
+      className={`mascot-shell mascot-pose-${currentPose} ${className}`}
       style={{
-        "--mascot-public-width": `${appConfig.mascot.publicWidth}px`,
-        "--mascot-public-height": `${appConfig.mascot.publicHeight}px`,
-        "--mascot-community-width": `${appConfig.mascot.communityWidth}px`,
-        "--mascot-community-height": `${appConfig.mascot.communityHeight}px`,
-        "--mascot-dialog-gap": `${appConfig.mascot.dialogGap}px`,
+        "--mascot-width": `${appConfig.mascot.width}px`,
+        "--mascot-height": `${appConfig.mascot.height}px`,
       } as CSSProperties}
     >
-      <div className="mascot-dialog" role="status">
-        <span className="mascot-dialog-kicker">极客娘</span>
-        {dialogList[dialogIndex]}
-        {onModeChange && (
-          <button
-            type="button"
-            className="mascot-dialog-action"
-            onClick={() => onModeChange(mode === "public" ? "community" : "public")}
-          >
-            切换到{mode === "public" ? "社区" : "对外"}展示
-          </button>
-        )}
+      <div className="mascot-bubble-panel" role="status">
+        <div className="mascot-bubble">
+          <span className="mascot-dialog-kicker">极客娘</span>
+          {dialogList[dialogIndex]}
+        </div>
       </div>
       <button
         type="button"
         className="mascot-character"
         onClick={nextDialog}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => mode === "public" && setOpen(false)}
         aria-label="和极客娘对话"
       >
         <span className="mascot-status-dot" />

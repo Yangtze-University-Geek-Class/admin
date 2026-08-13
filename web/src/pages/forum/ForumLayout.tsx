@@ -2,9 +2,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import ThemeSwitcher from "../../components/ThemeSwitcher";
 import { externalUrl } from "../../lib/site";
-import Mascot, { type MascotPose } from "../../components/mascot/Mascot";
+import Mascot, { type MascotPose } from "../../components/Mascot";
 import { runtimeFeatures } from "../../config";
 
 type Me = {
@@ -66,7 +65,6 @@ export default function ForumLayout() {
             <input name="q" placeholder="搜帖子标题…" className="input text-sm h-8 w-56" defaultValue={new URLSearchParams(loc.search).get("q") ?? ""} />
           </form>
           <div className="flex items-center gap-2 ml-2">
-            <ThemeSwitcher compact />
             {!me.data && <span className="text-ink-400 text-xs">…</span>}
             {me.data && !u && (
               <>
@@ -120,7 +118,6 @@ export default function ForumLayout() {
       <Outlet />
       {features.forumMascot && (
         <Mascot
-          mode="community"
           pose={mascotPose}
           className="forum-mascot"
           dialogs={[forumMascotDialog(loc.pathname)]}

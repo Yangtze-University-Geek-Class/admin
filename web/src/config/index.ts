@@ -1,3 +1,4 @@
+// Typed access to app.config.json. Keep the types here in sync when editing the JSON.
 import rawConfig from "./app.config.json";
 
 export type AppSiteKind = "portal" | "forum" | "admin";
@@ -15,9 +16,6 @@ type RuntimeEnvironment = {
 type SiteEntry = {
   host: string;
   title: string;
-  defaultTheme: string;
-  allowThemeSwitch: boolean;
-  themePalette: string[];
   basePath: string;
 };
 
@@ -29,15 +27,28 @@ type MascotPoseConfig = {
   scale: number;
 };
 
+export type PortalNavigationItem = {
+  id: string;
+  label: string;
+  type: "route" | "site" | "external";
+  path?: string;
+  site?: AppSiteKind;
+  urlKey?: "githubOrg";
+  newTab?: boolean;
+  variant: "text" | "primary";
+};
+
 type AppConfig = {
   environment: { development: RuntimeEnvironment; production: RuntimeEnvironment };
   sites: Record<AppSiteKind, SiteEntry>;
-  urls: { portal: string; forum: string; admin: string; githubOrg: string; localApiOrigin: string };
+  urls: { githubOrg: string };
   features: {
     development: Record<string, boolean>;
     production: Record<string, boolean>;
   };
   portal: {
+    brand: { homePath: string; logo: string; logoAlt: string; title: string; subtitle: string };
+    navigation: PortalNavigationItem[];
     palette: {
       bg: string;
       panel: string;
@@ -54,11 +65,8 @@ type AppConfig = {
   };
   mascot: {
     defaultPose: MascotPoseName;
-    publicWidth: number;
-    publicHeight: number;
-    communityWidth: number;
-    communityHeight: number;
-    dialogGap: number;
+    width: number;
+    height: number;
     poses: Record<MascotPoseName, MascotPoseConfig>;
     dialogs: Record<MascotPoseName, string[]>;
   };
@@ -72,8 +80,4 @@ export function runtimeEnvironment(): RuntimeEnvironment {
 
 export function runtimeFeatures(): Record<string, boolean> {
   return import.meta.env.PROD ? appConfig.features.production : appConfig.features.development;
-}
-
-export function isDevelopmentBuild(): boolean {
-  return import.meta.env.DEV;
 }

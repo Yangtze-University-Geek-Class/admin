@@ -1,3 +1,5 @@
+// The single light "yzgc-blue" theme. Product UI is intentionally light-only;
+// legacy dark theme ids stored in localStorage are never applied (loadTheme rejects them).
 export type Theme = {
   id: string;
   name: string;

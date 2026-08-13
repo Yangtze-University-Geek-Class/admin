@@ -111,5 +111,5 @@ function AdminRoutes() {
 export function GlobalFab() {
   const site = detectSite();
   if (site.kind === "portal") return null;
-  return <FeedbackFab />;
+  return <FeedbackFab raised={site.kind === "forum"} />;
 }
