@@ -1,3 +1,6 @@
+// Runtime site + data-source resolution.
+// Dev build: __site / __data query params and localStorage win, gated by config.
+// Production build: always the configured defaults; overrides are ignored.
 import { appConfig, runtimeEnvironment, type AppSiteKind, type DataSource } from "../config";
 
 const SITE_KEY = "yugc:dev-site";

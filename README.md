@@ -17,7 +17,16 @@ Yangtze University Geek Class — 多 GitHub 组织统一管理后台。
 - 安全：Dependabot 警报（Pro+ 才有数据）、Audit log 状态
 - 意见箱：任何人都能向某个组织提建议 / 报 bug；admin 在后台分类、回复、改状态
 - 操作日志：所有 admin 操作（包括公开页提交）都入 SQLite，可审计
-- 10 个主题切换：GitHub Dark/Dimmed/Light、Gruvbox Dark/Light、Catppuccin Mocha/Latte、Tokyo Night、One Dark Pro、Solarized Dark
+- 官网主站：品牌落地页，柔和校徽蓝白浅色主题 + 看板娘模块（全站唯一浅色主题，无深色模式）
+- 论坛：技术讨论社区（帖子 / 分类 / 用户 / 通知 / 老师面板），与管理后台共用登录体系
+
+## 三个站点
+
+- 官网（portal）：https://yangtzeu.work/
+- 论坛（forum）：https://forum.yangtzeu.work/
+- 管理后台（admin）：https://github.yangtzeu.work/
+
+同一个 Vite 项目按域名渲染不同站点，切换逻辑见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 ## 谁能用
 
@@ -58,6 +67,14 @@ pnpm dev
 ```
 
 server 跑在 `127.0.0.1:3000`，web dev server 跑在 `5173`（带 proxy 转发到后端）。
+
+只做前端（不配 OAuth / 不起后端）也可以：
+
+```bash
+pnpm --filter @yzgc/web dev
+```
+
+页面右上角 `DEV CONTROL` 默认使用本地 mock 数据，可浏览官网 / 论坛 / 管理后台全部页面；随时切回真实 API。
 
 ## 部署
 

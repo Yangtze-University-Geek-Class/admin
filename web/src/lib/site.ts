@@ -1,3 +1,5 @@
+// Site identity + cross-site URL helpers. Single source for which skin/routes
+// a host serves; delegates host detection to lib/runtime.ts.
 import { appConfig, type AppSiteKind } from "../config";
 import { externalSiteUrl, resolveRuntimeSite } from "./runtime";
 
@@ -7,9 +9,6 @@ export type SiteConfig = {
   kind: SiteKind;
   host: string;
   title: string;
-  defaultTheme: string;
-  allowThemeSwitch: boolean;
-  themePalette: string[];
   basePath: string;
 };
 

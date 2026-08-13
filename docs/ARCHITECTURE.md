@@ -12,6 +12,8 @@ Node + Fastify (单进程, systemd 管)
   ├── routes/orgs.ts          /api/me/orgs (我的组织列表)
   ├── routes/join.ts          /api/join/:token  公开入会
   ├── routes/feedback.ts      /api/feedback     公开提交意见
+  ├── routes/docs.ts          /api/docs 文档内容
+  ├── routes/forum/*          论坛：auth/categories/threads/posts/users/groups/teacher/stats/admin-users/upload
   └── routes/admin/*          按 org 参数化, 所有 /api/admin/:org/...
         ├── overview.ts
         ├── members.ts
@@ -100,23 +102,22 @@ audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
 `web/src/config/app.config.json` 是前端运行时配置的单一入口：
 
 - `environment.development/production`：默认站点、mock/live 数据源、开发总控和覆盖权限。
-- `sites` / `urls`：三个站点的域名、标题、主题和外链。
+- `sites` / `urls`：三个站点的域名、标题和 GitHub 组织外链。域名只在 `sites.*.host` 维护一处，跨站链接一律走 `externalUrl()`。
 - `features.development/production`：看板娘、论坛看板娘、官网动态背景、预览区和意见悬浮按钮，可按环境分别设置。
-- `portal`：官网 Hero 文案、唯一柔和蓝色 palette、代码流和装饰符号参数。
-- `mascot`：尺寸、气泡间距、8 套姿势资源、fit/position/scale 和对话。
+- `portal`：品牌信息、顶部导航模型、官网 Hero 文案、唯一柔和蓝色 palette、代码流和装饰符号参数。
+- `mascot`：统一尺寸（154×245）、8 套姿势资源、fit/position/scale 和对话。
 
-`web/src/lib/runtime.ts` 负责解析开发覆盖；`web/src/lib/api.ts` 根据数据源分派到真实 fetch 或 `web/src/lib/mock-api.ts`。mock 层只存在于前端，不增加服务端路由。生产构建强制 live，忽略 `__site` / `__data` 和 localStorage 覆盖。
+`web/src/components/PortalHeader.tsx` 只负责渲染配置驱动的品牌和导航，不在组件中硬编码 URL 或菜单顺序。`web/src/lib/runtime.ts` 负责解析开发覆盖；`web/src/lib/api.ts` 根据数据源分派到真实 fetch 或 `web/src/lib/mock-api.ts`。mock 层只存在于前端，不增加服务端路由。生产构建强制 live，忽略 `__site` / `__data` 和 localStorage 覆盖。
 
 ## 前端架构
 
 - Vite 6 + React 18 + React Router 7 + TanStack Query 5
 - Tailwind 颜色由 CSS variables 驱动；产品只保留唯一的 `yzgc-blue` 浅色主题，旧深色主题 ID 自动回退
-- 全局组件: `<ConfirmProvider>` (替代 window.confirm), `<Select>` (替代 native dropdown)
-- 路由分 4 类:
-  - `/` `/feedback/*` `/join/:token` — 公开
-  - `/admin/signin` — 登录入口
-  - `/admin` — 我的 orgs
-  - `/admin/:org/*` — OrgLayout 包裹的所有功能页
+- 全局组件: `<ConfirmProvider>` (替代 window.confirm), `<Select>` (替代 native dropdown), `Mascot` (看板娘)
+- 一个代码库渲染三个站点，按 `detectSite()`（域名 + 开发覆盖）分流：
+  - **portal**（主站）：`/` `/docs` `/feedback/*` `/join/:token`
+  - **forum**（论坛）：`/` `/categories` `/c/:slug` `/t/:id` `/new` `/login` `/register` `/u/:username` `/me` `/me/notifications` `/archive` `/admin` `/teacher`
+  - **admin**（管理后台）：`/signin` `/admin` `/admin/:org/*`（OrgLayout 包裹全部功能页）
 
 ## 部署
 

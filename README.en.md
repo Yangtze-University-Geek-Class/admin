@@ -22,7 +22,16 @@ Live: https://github.yangtzeu.work/
 - Security tab: Dependabot alerts (Pro+), audit log status
 - Feedback box: anyone can submit suggestions / bugs to an org; admins triage, reply, set status; floating action button on every page
 - Audit log: every admin action + public API event written to SQLite
-- 10 themes: GitHub Dark/Dimmed/Light, Gruvbox Dark/Light, Catppuccin Mocha/Latte, Tokyo Night, One Dark Pro, Solarized Dark
+- Portal site: brand landing page with a soft YUGC-blue light theme and mascot module (single light theme across all sites, no dark mode)
+- Forum: technical discussion community (threads / categories / users / notifications / teacher panel), sharing the auth with the admin dashboard
+
+## Three sites
+
+- Portal: https://yangtzeu.work/
+- Forum: https://forum.yangtzeu.work/
+- Admin: https://github.yangtzeu.work/
+
+One Vite project renders different sites by hostname; see [docs/ARCHITECTURE.en.md](./docs/ARCHITECTURE.en.md).
 
 ## Who uses it
 
@@ -63,6 +72,14 @@ pnpm dev
 ```
 
 Server runs on `127.0.0.1:3000`, Vite dev server on `5173` (proxies `/api`, `/auth`, `/healthz` to backend).
+
+Frontend-only development (no OAuth / no backend) also works:
+
+```bash
+pnpm --filter @yzgc/web dev
+```
+
+The `DEV CONTROL` panel in the top-right defaults to local mock data, letting you browse every page of the portal / forum / admin sites; switch to the real API anytime.
 
 ## Deployment
 

@@ -19,34 +19,21 @@
     "portal": {
       "host": "yangtzeu.work",
       "title": "长江大学极客班 · YUGC",
-      "defaultTheme": "yzgc-blue",
-      "allowThemeSwitch": false,
-      "themePalette": ["yzgc-blue"],
       "basePath": ""
     },
     "forum": {
       "host": "forum.yangtzeu.work",
       "title": "YUGC 论坛 · 长江大学极客班",
-      "defaultTheme": "yzgc-blue",
-      "allowThemeSwitch": false,
-      "themePalette": ["yzgc-blue"],
       "basePath": ""
     },
     "admin": {
       "host": "github.yangtzeu.work",
       "title": "YUGC Admin · 组织管理",
-      "defaultTheme": "yzgc-blue",
-      "allowThemeSwitch": false,
-      "themePalette": ["yzgc-blue"],
       "basePath": ""
     }
   },
   "urls": {
-    "portal": "https://yangtzeu.work",
-    "forum": "https://forum.yangtzeu.work",
-    "admin": "https://github.yangtzeu.work",
-    "githubOrg": "https://github.com/Yangtze-University-Geek-Class",
-    "localApiOrigin": "http://127.0.0.1:3000"
+    "githubOrg": "https://github.com/Yangtze-University-Geek-Class"
   },
   "features": {
     "development": {
@@ -54,17 +41,30 @@
       "forumMascot": true,
       "mascotPreview": true,
       "portalMotionEffects": true,
-      "feedbackFab": false
+      "feedbackFab": true
     },
     "production": {
       "mascot": true,
       "forumMascot": true,
-      "mascotPreview": true,
+      "mascotPreview": false,
       "portalMotionEffects": true,
       "feedbackFab": true
     }
   },
   "portal": {
+    "brand": {
+      "homePath": "/",
+      "logo": "/logo.png",
+      "logoAlt": "YUGC",
+      "title": "长江大学极客班",
+      "subtitle": "YANGTZE UNIVERSITY GEEK CLASS"
+    },
+    "navigation": [
+      { "id": "docs", "label": "文档", "type": "route", "path": "/docs", "variant": "text" },
+      { "id": "forum", "label": "论坛", "type": "site", "site": "forum", "path": "/", "variant": "text" },
+      { "id": "admin", "label": "管理后台", "type": "site", "site": "admin", "path": "/admin", "variant": "text" },
+      { "id": "github", "label": "GitHub", "type": "external", "urlKey": "githubOrg", "newTab": true, "variant": "primary" }
+    ],
     "palette": {
       "bg": "229 241 254",
       "panel": "250 253 255",
@@ -89,11 +89,8 @@
   },
   "mascot": {
     "defaultPose": "welcome",
-    "publicWidth": 112,
-    "publicHeight": 132,
-    "communityWidth": 210,
-    "communityHeight": 360,
-    "dialogGap": 28,
+    "width": 154,
+    "height": 245,
     "poses": {
       "welcome": { "file": "/mascot/pose-01-welcome.webp", "label": "欢迎", "fit": "contain", "position": "center bottom", "scale": 1 },
       "coding": { "file": "/mascot/pose-02-coding.webp", "label": "编码", "fit": "contain", "position": "center center", "scale": 0.96 },

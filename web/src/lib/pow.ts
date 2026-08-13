@@ -1,3 +1,5 @@
+// Proof-of-work guard used before public submissions (feedback / invite / join).
+// Synchronous SHA-256 via @noble/hashes; yields every batch to keep the UI responsive.
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 

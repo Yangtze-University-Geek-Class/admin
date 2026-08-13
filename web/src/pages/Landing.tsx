@@ -1,7 +1,10 @@
+// Portal home. Static sample content (directions/articles/threads) until real
+// APIs are wired in. Structure: hero -> directions -> sharing -> community signal.
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { appConfig, runtimeFeatures } from "../config";
-import Mascot, { mascotImage, type MascotPose } from "../components/mascot/Mascot";
+import Mascot, { mascotImage, type MascotPose } from "../components/Mascot";
+import PortalHeader from "../components/PortalHeader";
 import { externalUrl } from "../lib/site";
 
 const DIRECTIONS: Array<{
@@ -50,26 +53,7 @@ export default function Landing() {
     <div className="portal-prototype" style={paletteStyle}>
       <div className="portal-grid" />
       {features.portalMotionEffects && <PortalAtmosphere />}
-      <header className="portal-nav">
-        <div className="portal-container portal-nav-inner">
-          <Link to="/" className="portal-brand">
-            <span className="portal-brand-mark"><img src="/logo.png" alt="YUGC" /></span>
-            <span>
-              <strong>长江大学极客班</strong>
-              <small>YANGTZE UNIVERSITY GEEK CLASS</small>
-            </span>
-          </Link>
-          <nav className="portal-nav-links" aria-label="主导航">
-            <a href="#directions">方向</a>
-            <a href="#sharing">分享</a>
-            <a href={externalUrl("forum", "/")}>论坛</a>
-            <Link to="/docs">文档</Link>
-          </nav>
-          <div className="portal-nav-actions">
-            <span className="portal-status"><i /> {appConfig.portal.hero.status}</span>
-          </div>
-        </div>
-      </header>
+      <PortalHeader />
 
       <main>
         <section className="portal-hero portal-container">
@@ -169,9 +153,9 @@ export default function Landing() {
           <div className="portal-mascot-copy">
             <div className="portal-eyebrow"><span /> MASCOT MODULE · PROTOTYPE</div>
             <h2>极客娘，不只是装饰。</h2>
-            <p>模块已支持 8 套姿势、随机对话和页面场景映射。主站保持右下角轻量入口，论坛保持左下角常驻展示。</p>
+            <p>模块已支持 8 套姿势、随机对话和页面场景映射。主站与论坛统一为右下角同尺寸展示。此板块仅开发环境可见，生产环境不展示；如需调整，修改 <code>web/src/config/app.config.json</code> 中 <code>features.production.mascotPreview</code>。</p>
           </div>
-          <Mascot preview mode="public" pose="intro" />
+          <Mascot preview pose="intro" />
         </section>}
       </main>
 
@@ -190,7 +174,7 @@ export default function Landing() {
         </div>
       </footer>
 
-      {features.mascot && <Mascot mode="public" pose="welcome" />}
+      {features.mascot && <Mascot pose="welcome" />}
     </div>
   );
 }

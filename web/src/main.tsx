@@ -1,3 +1,4 @@
+// App entry: site detection -> theme -> QueryClient -> providers -> router.
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -16,10 +17,7 @@ const site = detectSite();
 const features = runtimeFeatures();
 document.title = site.title;
 document.documentElement.dataset.site = site.kind;
-const initialTheme = site.allowThemeSwitch
-  ? loadTheme(site.defaultTheme)
-  : site.defaultTheme;
-applyTheme(site.themePalette.includes(initialTheme) ? initialTheme : site.defaultTheme);
+applyTheme(loadTheme("yzgc-blue"));
 
 const qc = new QueryClient({
   defaultOptions: {

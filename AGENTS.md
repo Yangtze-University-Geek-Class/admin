@@ -45,12 +45,15 @@ yzgc-admin/
 │       ├── middleware/
 │       │   ├── require-auth.ts               ← session cookie check, mounts req.session
 │       │   ├── require-org-role.ts           ← per-route { preHandler: requireOrgRole("admin"|"member") }
-│       │   └── turnstile.ts                  ← optional captcha verify
+│       │   ├── turnstile.ts                  ← optional captcha verify
+│       │   └── pow.ts                        ← proof-of-work guard for public submissions
 │       └── routes/
 │           ├── auth.ts                       ← /auth/github  /auth/callback  /auth/signout  /auth/me
 │           ├── orgs.ts                       ← /api/me/orgs
 │           ├── join.ts                       ← public /api/join/:token (GET info + POST accept)
 │           ├── feedback.ts                   ← public POST /api/feedback + GET /api/feedback/public
+│           ├── docs.ts                       ← /api/docs 文档内容
+│           ├── forum/                        ← auth/categories/threads/posts/users/groups/teacher/stats/admin-users/upload
 │           └── admin/
 │               ├── overview.ts               ← /api/admin/:org/overview
 │               ├── members.ts                ← list/remove/role
@@ -84,15 +87,17 @@ yzgc-admin/
 │       │   └── themes.ts                    ← single light yzgc-blue theme, applyTheme/loadTheme
 │       ├── components/
 │       │   ├── DevControlCenter.tsx          ← development site/data/page switcher; hidden in production
-│       │   ├── ThemeSwitcher.tsx            ← compact / direction props
+│       │   ├── PortalHeader.tsx              ← config-driven portal brand + docs/forum/admin/GitHub nav
 │       │   ├── Select.tsx                   ← REPLACES native <select> everywhere (themed dropdown)
 │       │   ├── ConfirmDialog.tsx            ← useConfirm() — REPLACES window.confirm() everywhere
 │       │   ├── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
-│       │   └── mascot/Mascot.tsx            ← 8-pose mascot, portal/forum/preview layouts
+│       │   └── Mascot.tsx                  ← unified 8-pose mascot, portal/forum/preview layouts
 │       └── pages/
-│           ├── Landing.tsx                  ← /
+│           ├── Landing.tsx                  ← / (portal)
+│           ├── Docs.tsx                     ← /docs /docs/:id
 │           ├── JoinByToken.tsx              ← /join/:token
 │           ├── Feedback.tsx                 ← /feedback  /feedback/:org
+│           ├── forum/                       ← Home/CategoryList/Category/Thread/NewThread/Login/Register/Profile/Me/Notifications/Archive/Admin/Teacher
 │           └── admin/
 │               ├── SignIn.tsx               ← /admin/signin
 │               ├── MyOrgs.tsx               ← /admin
@@ -206,11 +211,11 @@ This is enforced by code review.
 3. Add a nav entry to `NAV_ALL` in `OrgLayout.tsx` (set `admin: true` if admin-only)
 4. Use `useOutletContext<{ isAdmin: boolean; role: string; org: string }>()` to gate admin-only UI in the same page
 
-### Add a new theme
+### Adjust colors (no theming system)
 
-1. Add an entry to `THEMES` in `web/src/lib/themes.ts`
-2. Must set all 11 `--ink-*` slots, 3 `--brand-*` slots, and `--bg-grad`
-3. `applyTheme` picks it up automatically; no other change needed
+1. Product is intentionally single light theme; edit the one `THEMES[0]` entry in `web/src/lib/themes.ts` (11 `--ink-*` + 3 `--brand-*` + `--bg-grad`)
+2. Portal-only accents live in `app.config.json > portal.palette`
+3. Do not reintroduce dark themes or a theme switcher
 
 ### Add a public-facing endpoint (no login required)
 

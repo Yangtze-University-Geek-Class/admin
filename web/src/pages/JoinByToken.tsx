@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "../lib/api";
-import ThemeSwitcher from "../components/ThemeSwitcher";
 import { computePow } from "../lib/pow";
 
 declare global {
@@ -92,7 +91,6 @@ export default function JoinByToken() {
           <img src="/logo.png" alt="logo" className="w-9 h-9 rounded-lg border border-ink-700" />
           <span className="font-semibold text-ink-100 text-lg">YUGC Admin</span>
         </div>
-        <ThemeSwitcher />
       </header>
 
       <div className="flex items-center justify-center px-4 py-12">

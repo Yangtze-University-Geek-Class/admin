@@ -1,3 +1,5 @@
+// Development-only control center (site / data-source / page switcher).
+// Rendered only when environment.development.showControlCenter is true; never in production.
 import { runtimeEnvironment, type AppSiteKind, type DataSource } from "../config";
 import { detectSite } from "../lib/site";
 import { getDataSource, setDataSource, setSiteOverride } from "../lib/runtime";

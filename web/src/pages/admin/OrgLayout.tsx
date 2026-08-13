@@ -3,8 +3,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { getDataSource } from "../../lib/runtime";
-import { appConfig } from "../../config";
-import ThemeSwitcher from "../../components/ThemeSwitcher";
+import { externalUrl } from "../../lib/site";
 import Select from "../../components/Select";
 
 type NavItem = { to: string; label: string; end?: boolean; admin: boolean; svg: JSX.Element };
@@ -94,8 +93,8 @@ export default function OrgLayout() {
           </div>
         </Link>
         <div className="flex items-center gap-1 mb-3 px-1">
-          <a href={appConfig.urls.portal} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">← 主站</a>
-          <a href={appConfig.urls.forum} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">论坛</a>
+          <a href={externalUrl("portal", "/")} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">← 主站</a>
+          <a href={externalUrl("forum", "/")} className="flex-1 text-center px-2 py-1.5 text-xs text-ink-300 hover:text-brand-500 hover:bg-ink-800/30 rounded transition">论坛</a>
         </div>
 
         <div className="mb-4">
@@ -139,7 +138,6 @@ export default function OrgLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeSwitcher compact direction="up" />
             <button onClick={signOut}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-ink-700/60 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition text-xs">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">

@@ -2,6 +2,24 @@
 
 Live: https://github.yangtzeu.work/
 
+## Portal preview & mascot
+
+The portal (`https://yangtzeu.work/`) carries the current visual preview and the mascot module:
+
+- Portal, forum, and admin share one soft YUGC-blue light theme; no dark mode or theme switch.
+- The mascot sits fixed at the bottom-right on both the portal and the forum (154×245, config-driven); chat text renders in a dedicated transparent panel above the feedback button and scrolls when long.
+- The mascot pose/dialog switcher section at the end of the portal home is dev-only (hidden in production).
+
+### Dev control center
+
+Running `pnpm dev` or `pnpm --filter @yzgc/web dev` shows a `DEV CONTROL` panel in the top-right:
+
+- Site: switch portal / forum / admin without production domains.
+- Data: `Mock` intercepts front-end API calls with local fixtures (browse login- and permission-gated pages freely); `Live API` goes through the Vite proxy to :3000.
+- Pages: quick links for the current site.
+- Dev defaults to mock; production builds force live, never show the panel, and ignore `__site` / `__data` / localStorage overrides.
+- You can also navigate directly with `?__site=portal|forum|admin` and `?__data=mock|live`.
+
 This guide is organized by role: org admin / member / external visitor.
 
 ---

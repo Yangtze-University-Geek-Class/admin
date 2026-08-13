@@ -1,3 +1,5 @@
+// Unified fetch wrapper. Dispatches to mock-api.ts in dev/mock mode, otherwise
+// performs a same-origin fetch against the backend (Vite proxy in dev).
 import { getDataSource } from "./runtime";
 import { mockApi } from "./mock-api";
 
