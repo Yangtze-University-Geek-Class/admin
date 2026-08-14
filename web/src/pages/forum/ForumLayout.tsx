@@ -2,8 +2,9 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import ThemeSwitcher from "../../components/ThemeSwitcher";
 import { externalUrl } from "../../lib/site";
+import Mascot, { type MascotPose } from "../../components/Mascot";
+import { runtimeFeatures } from "../../config";
 
 type Me = {
   signed_in: boolean;
@@ -31,6 +32,8 @@ export default function ForumLayout() {
 
   const me = useQuery({ queryKey: ["forum-me"], queryFn: () => api<Me>("/api/forum/me") });
   const u = me.data?.user;
+  const features = runtimeFeatures();
+  const mascotPose = forumMascotPose(loc.pathname);
 
   const logout = async () => {
     await api("/api/forum/auth/logout", { method: "POST" });
@@ -62,7 +65,6 @@ export default function ForumLayout() {
             <input name="q" placeholder="搜帖子标题…" className="input text-sm h-8 w-56" defaultValue={new URLSearchParams(loc.search).get("q") ?? ""} />
           </form>
           <div className="flex items-center gap-2 ml-2">
-            <ThemeSwitcher compact />
             {!me.data && <span className="text-ink-400 text-xs">…</span>}
             {me.data && !u && (
               <>
@@ -114,8 +116,34 @@ export default function ForumLayout() {
         </div>
       )}
       <Outlet />
+      {features.forumMascot && (
+        <Mascot
+          pose={mascotPose}
+          className="forum-mascot"
+          dialogs={[forumMascotDialog(loc.pathname)]}
+        />
+      )}
     </div>
   );
+}
+
+function forumMascotPose(pathname: string): MascotPose {
+  if (pathname.startsWith("/new") || pathname.includes("/t/")) return "question";
+  if (pathname.startsWith("/archive")) return "sleep";
+  if (pathname.startsWith("/admin")) return "security";
+  if (pathname.startsWith("/teacher")) return "resource";
+  if (pathname.startsWith("/categories") || pathname.startsWith("/c/")) return "ai";
+  return "welcome";
+}
+
+function forumMascotDialog(pathname: string): string {
+  if (pathname.startsWith("/new")) return "把问题和上下文写清楚，更容易收到好答案。";
+  if (pathname.includes("/t/")) return "认真读完讨论，再留下你的补充吧。";
+  if (pathname.startsWith("/archive")) return "这里是只读归档，新的讨论请回到论坛首页。";
+  if (pathname.startsWith("/admin")) return "维护社区秩序，也要保护成员的数据。";
+  if (pathname.startsWith("/teacher")) return "这里可以观察社区的学习与贡献情况。";
+  if (pathname.startsWith("/categories") || pathname.startsWith("/c/")) return "选一个感兴趣的分类开始探索吧。";
+  return "论坛今天也有新的技术讨论。";
 }
 
 function ForumNav({ to, end, children }: { to: string; end?: boolean; children: React.ReactNode }) {

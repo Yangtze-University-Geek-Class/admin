@@ -30,7 +30,7 @@ export default function ForumArchive() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 grid lg:grid-cols-[1fr_280px] gap-8">
       <main>
         <div className="card p-5 mb-5 border-amber-500/40 bg-amber-500/5">
-          <div className="text-amber-600 dark:text-amber-400 font-semibold text-sm mb-1">老论坛归档</div>
+          <div className="text-amber-600 font-semibold text-sm mb-1">老论坛归档</div>
           <p className="text-ink-300 text-sm leading-relaxed">
             这里保留 mbbs 老论坛的全部主题和回帖，{cats.data?.categories.length ?? 0} 个老分类。仅供阅读，不能发帖、回帖、点赞。
             新讨论请去 <Link to="/" className="text-brand-500 hover:underline">新论坛</Link>。

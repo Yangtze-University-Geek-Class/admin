@@ -10,3 +10,7 @@ dist
 data/
 web/tsconfig.tsbuildinfo
 forum-migration/
+
+# 个人分析笔记 + 项目级 agent skill（不上传 git）
+.agent-notes/
+.pi/

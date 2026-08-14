@@ -43,10 +43,10 @@
 
 #### 1.3 Proof-of-Work 工作量证明
 - 客户端在每次提交前算 SHA-256：`sha256("${timestamp}:${bodyHash}:${nonce}")` 必须以 N 个 `0` 开头
-- `POW_DIFFICULTY` 默认 5（约 100 万次 SHA-256，~1-2 秒 CPU）
-- 服务端校验：时钟漂移 ±5 分钟内、nonce 合法、hash 前缀真的是 5 个 0
-- 攻击者要批量发请求必须为每条付出 CPU；100 万次 SHA-256 × N 条 = 显著成本
-- 可调高到 6（10x 更难）或调低到 4（10x 更快），通过 `.env` 的 `POW_DIFFICULTY` 控制
+- `POW_DIFFICULTY` 默认 3（16^3=4096 次期望哈希，秒级完成，低端机也可接受）
+- 服务端校验：时钟漂移 ±5 分钟内、nonce 合法、hash 前缀真的是 N 个 0
+- 攻击者要批量发请求必须为每条付出 CPU；调高难度指数级放大成本
+- 可调高到 4/5（各 10x 更难）或维持 3，通过 `.env` 的 `POW_DIFFICULTY` 控制
 
 #### 1.4 Cloudflare Turnstile（可选）
 - 配 `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` 启用

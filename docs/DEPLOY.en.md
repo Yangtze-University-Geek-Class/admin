@@ -53,7 +53,7 @@ PORT=3000
 SESSION_SECRET=<openssl rand -base64 32>
 ENCRYPTION_KEY=<openssl rand -base64 32>
 DB_PATH=/opt/yzgc-admin/data/data.db
-POW_DIFFICULTY=5
+POW_DIFFICULTY=3
 # Optional
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=

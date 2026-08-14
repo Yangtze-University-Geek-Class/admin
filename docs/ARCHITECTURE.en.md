@@ -84,7 +84,7 @@ audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
 
 - IP rate limit per public endpoint (`@fastify/rate-limit`)
 - Honeypot field (invisible to humans, auto-filled by bots → 400)
-- Client-side PoW: client computes SHA-256 nonce until hash starts with N zeros; server verifies. `POW_DIFFICULTY` env (default 5 ≈ ~1M hashes ≈ 1-2s CPU).
+- Client-side PoW: client computes SHA-256 nonce until hash starts with N zeros; server verifies. `POW_DIFFICULTY` env (default 3; 4/5 are 10x harder each).
 - Cloudflare Turnstile (optional via `TURNSTILE_*` env)
 
 See [SECURITY.en.md](./SECURITY.en.md).
@@ -92,7 +92,10 @@ See [SECURITY.en.md](./SECURITY.en.md).
 ## Frontend
 
 - Vite 6 + React 18 + React Router 7 + TanStack Query 5
-- Tailwind colors driven by CSS variables (10 themes via `data-theme` + `data-mode` on `<html>`)
+- Runtime configuration lives in `web/src/config/app.config.json` (typed access via `web/src/config/index.ts`): environment policy (dev mock / prod live), the three sites' hosts, feature flags per environment, portal brand + navigation, palette, motion effects, and mascot spec/poses/dialogs.
+- Dev build: `__site` / `__data` query params and the `DEV CONTROL` panel override site + data source (mock fixtures from `web/src/lib/mock-api.ts`). Production forces live and ignores overrides.
+- `web/src/components/PortalHeader.tsx` renders the config-driven brand + navigation; cross-site links go through `externalUrl()`.
+- Tailwind colors are driven by CSS variables; the product exposes one light `yzgc-blue` theme and automatically falls back from legacy dark theme IDs
 - Global providers: `<ConfirmProvider>` (themed modal replaces `window.confirm`), `<Select>` (themed dropdown replaces native `<select>`)
 - Floating Action Button: feedback submission available on every page (auto-hidden on `/feedback` and `/join`)
 - Markdown viewer for in-app docs (`/docs`) using `marked` + custom `.prose-doc` styles tied to theme vars
@@ -108,3 +111,4 @@ See [SECURITY.en.md](./SECURITY.en.md).
 | `/admin/signin` | yes | OAuth entry |
 | `/admin` | requires sign-in | list user's orgs |
 | `/admin/:org/*` | requires org membership | dashboard (read-only for member, full for admin) |
+| `/` `/categories` `/c/:slug` `/t/:id` `/new` `/login` `/register` `/u/:username` `/me` `/me/notifications` `/archive` `/admin` `/teacher` | forum (see [forum routes](./USAGE.en.md)) | community discussion |

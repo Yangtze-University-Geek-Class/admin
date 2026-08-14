@@ -56,6 +56,7 @@ DB_PATH=/opt/yzgc-admin/data/data.db
 # 选填
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
+# POW_DIFFICULTY=3        # 公开提交的 PoW 难度（默认 3；调高更慢更稳）
 ```
 
 ```bash
@@ -98,6 +99,16 @@ curl https://<你的域名>/healthz   # {"ok":true,...}
 ```
 
 浏览器打开 `https://<你的域名>/` 应看到 Landing 页。
+
+## 多站点（官网 / 论坛 / 管理后台）
+
+本项目同一个进程同时服务三个站点（域名不同）：
+
+- 管理后台：`deploy/nginx.conf`（server_name `github.yangtzeu.work`）
+- 主站：`deploy/nginx-yangtzeu.conf`（server_name `yangtzeu.work`）
+- 论坛：`deploy/forum-subdomain-setup.md` 里的 nginx 片段 + DNS（server_name `forum.yangtzeu.work`）
+
+三个 server block 都反代到同一 `127.0.0.1:3000`，前端按 Host 头自动渲染对应站点。只部署管理后台时忽略本节。
 
 ## 升级
 

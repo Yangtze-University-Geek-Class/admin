@@ -41,10 +41,10 @@ Every public POST (`/api/feedback`, `/api/join/:token`) goes through `server/src
 
 #### 1.3 Proof-of-Work
 - Client computes SHA-256: `sha256("${timestamp}:${bodyHash}:${nonce}")` must start with N `0`s
-- `POW_DIFFICULTY` default 5 (~1M hashes ≈ 1-2s CPU)
+- `POW_DIFFICULTY` default 3 (16^3 = 4096 expected hashes, second-scale on modest hardware)
 - Server checks: clock drift ≤ ±5 min, valid nonce length, hash prefix really starts with N zeros
-- Attackers batching requests pay CPU per item; 1M × N items is significant
-- Tunable: 6 (10× harder), 4 (10× faster) via `.env` `POW_DIFFICULTY`
+- Attackers batching requests pay CPU per item; raising the difficulty amplifies cost exponentially
+- Tunable: 4 or 5 (each 10× harder) via `.env` `POW_DIFFICULTY`
 
 #### 1.4 Cloudflare Turnstile (optional)
 - Enable by setting `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY`
