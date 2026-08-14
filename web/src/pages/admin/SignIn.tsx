@@ -1,6 +1,4 @@
 import { useLocation } from "react-router-dom";
-import ThemeSwitcher from "../../components/ThemeSwitcher";
-
 export default function SignIn() {
   const loc = useLocation();
   const rawReturnTo = new URLSearchParams(loc.search).get("return_to") ?? "/admin";
@@ -13,7 +11,6 @@ export default function SignIn() {
           <img src="/logo.png" alt="logo" className="w-9 h-9 rounded-lg border border-ink-700" />
           <span className="font-semibold text-ink-100 text-lg">YUGC Admin</span>
         </a>
-        <ThemeSwitcher />
       </header>
       <div className="flex items-center justify-center px-4 py-16">
         <div className="card p-10 max-w-md w-full text-center">

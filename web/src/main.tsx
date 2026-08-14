@@ -1,3 +1,4 @@
+// App entry: site detection -> theme -> QueryClient -> providers -> router.
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -7,15 +8,16 @@ import { applyTheme, loadTheme } from "./lib/themes";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { detectSite } from "./lib/site";
 import ImageLightbox from "./components/ImageLightbox";
+import DevControlCenter from "./components/DevControlCenter";
+import { runtimeFeatures } from "./config";
 import "./index.css";
+import "./portal.css";
 
 const site = detectSite();
+const features = runtimeFeatures();
 document.title = site.title;
 document.documentElement.dataset.site = site.kind;
-const initialTheme = site.allowThemeSwitch
-  ? loadTheme(site.defaultTheme)
-  : site.defaultTheme;
-applyTheme(site.themePalette.includes(initialTheme) ? initialTheme : site.defaultTheme);
+applyTheme(loadTheme("yzgc-blue"));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -35,8 +37,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ConfirmProvider>
         <BrowserRouter basename={site.basePath || undefined}>
           <App />
-          <GlobalFab />
+          {features.feedbackFab && <GlobalFab />}
           <ImageLightbox />
+          <DevControlCenter />
         </BrowserRouter>
       </ConfirmProvider>
     </QueryClientProvider>

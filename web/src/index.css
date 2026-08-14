@@ -4,7 +4,7 @@
 @import "@fontsource/nunito/700.css";
 @import "@fontsource/quicksand/500.css";
 @import "@fontsource/quicksand/600.css";
-@import "highlight.js/styles/atom-one-dark.css";
+@import "highlight.js/styles/github.css";
 
 /* Maple Mono NF CN: 等宽 + Nerd Font + 中文优化，开源 (subframe7536/maple-font) */
 @font-face {
@@ -70,27 +70,27 @@ html[data-site="forum"] pre {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgb(var(--brand-500) / 0.18);
-  background: #282c34; /* atom-one-dark base */
-  box-shadow: 0 4px 16px -4px rgba(0,0,0,0.25);
+  background: rgb(var(--ink-900));
+  box-shadow: 0 4px 16px -4px rgb(var(--brand-500) / 0.12);
 }
 .prose-forum .code-block-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: rgba(0,0,0,0.2);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgb(var(--brand-500) / 0.06);
+  border-bottom: 1px solid rgb(var(--brand-500) / 0.12);
   font-size: 12px;
 }
 .prose-forum .code-block-lang {
-  color: rgba(255,255,255,0.5);
+  color: rgb(var(--ink-300));
   font-family: "Maple Mono NF CN", ui-monospace, monospace;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .prose-forum .code-block-copy {
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.85);
+  background: rgb(var(--brand-500) / 0.10);
+  color: rgb(var(--brand-500));
   border: 0;
   padding: 3px 10px;
   border-radius: 5px;
@@ -99,8 +99,8 @@ html[data-site="forum"] pre {
   transition: background 0.15s, color 0.15s;
   font-family: inherit;
 }
-.prose-forum .code-block-copy:hover { background: rgba(255,255,255,0.16); color: #fff; }
-.prose-forum .code-block-copy.copied { background: rgb(var(--brand-500) / 0.5); color: #fff; }
+.prose-forum .code-block-copy:hover { background: rgb(var(--brand-500) / 0.18); color: rgb(var(--brand-700)); }
+.prose-forum .code-block-copy.copied { background: rgb(var(--brand-500) / 0.18); color: rgb(var(--brand-700)); }
 .prose-forum .code-block pre {
   margin: 0;
   padding: 14px 16px;
@@ -111,12 +111,12 @@ html[data-site="forum"] pre {
 .prose-forum .code-block pre code {
   background: transparent;
   padding: 0;
-  color: #abb2bf;
+  color: rgb(var(--ink-100));
   font-size: 0.85em;
   line-height: 1.55;
   font-family: "Maple Mono NF CN", "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, monospace;
 }
-/* hljs theme inherits from atom-one-dark.css import */
+/* hljs theme inherits from github.css import */
 
 /* 内联 code 不走 code-block 容器 */
 .prose-forum :not(.code-block) > code {
@@ -240,6 +240,36 @@ body::after {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
+/* Development-only global control center. It is not rendered by production config. */
+.dev-control-center {
+  position: fixed;
+  right: 16px;
+  top: 92px;
+  z-index: 90;
+  width: min(310px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid rgb(var(--brand-500) / 0.4);
+  border-radius: 14px;
+  background: rgb(var(--ink-950) / 0.93);
+  color: rgb(var(--ink-100));
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.28), 0 0 24px rgb(var(--brand-500) / 0.1);
+  backdrop-filter: blur(20px) saturate(135%);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.dev-control-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dev-control-head span { color: rgb(var(--ink-200)); font: 700 10px/1 ui-monospace, monospace; letter-spacing: .12em; }
+.dev-control-head i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: rgb(52 211 153); box-shadow: 0 0 10px rgb(52 211 153); }
+.dev-control-head b { padding: 3px 7px; border-radius: 5px; color: rgb(var(--brand-500)); background: rgb(var(--brand-500) / .12); font: 700 9px/1 ui-monospace, monospace; }
+.dev-control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 7px; }
+.dev-control-label { width: 34px; color: rgb(var(--ink-500)); font-size: 10px; }
+.dev-control-row button { padding: 5px 8px; border: 1px solid rgb(var(--ink-700) / .65); border-radius: 7px; color: rgb(var(--ink-300)); background: rgb(var(--ink-900) / .65); font-size: 10px; transition: .15s ease; }
+.dev-control-row button:hover, .dev-control-row button.is-active { color: rgb(var(--brand-500)); border-color: rgb(var(--brand-500) / .55); background: rgb(var(--brand-500) / .12); }
+.dev-control-center p { margin: 9px 2px 0; color: rgb(var(--ink-500)); font-size: 9px; line-height: 1.45; }
+@media (max-width: 760px) {
+  .dev-control-center { top: auto; right: 8px; bottom: 8px; width: calc(100vw - 16px); }
+  .dev-control-pages, .dev-control-center p { display: none; }
+}
+
 @layer components {
   .card {
     @apply bg-ink-900/70 backdrop-blur border border-ink-800/60 rounded-2xl shadow-card;
@@ -266,10 +296,10 @@ body::after {
   }
   .input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   .input[type=date], .input[type=time], .input[type=datetime-local], .input[type=month], .input[type=week] {
-    color-scheme: dark;
+    color-scheme: light;
   }
   .input::-webkit-calendar-picker-indicator {
-    filter: invert(0.6) brightness(1.4);
+    filter: none;
     cursor: pointer;
     opacity: 0.7;
     transition: opacity 0.15s;

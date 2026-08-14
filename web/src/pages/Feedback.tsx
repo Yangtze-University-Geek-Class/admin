@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "../lib/api";
 import Select from "../components/Select";
-import ThemeSwitcher from "../components/ThemeSwitcher";
 import { computePow } from "../lib/pow";
 
 export default function Feedback() {
@@ -82,7 +81,6 @@ export default function Feedback() {
           <img src="/logo.png" alt="logo" className="w-9 h-9 rounded-lg border border-ink-700" />
           <span className="font-semibold text-ink-100 text-lg">YUGC Admin</span>
         </a>
-        <ThemeSwitcher />
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8 grid md:grid-cols-5 gap-8">

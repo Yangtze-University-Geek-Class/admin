@@ -45,12 +45,15 @@ yzgc-admin/
 │       ├── middleware/
 │       │   ├── require-auth.ts               ← session cookie check, mounts req.session
 │       │   ├── require-org-role.ts           ← per-route { preHandler: requireOrgRole("admin"|"member") }
-│       │   └── turnstile.ts                  ← optional captcha verify
+│       │   ├── turnstile.ts                  ← optional captcha verify
+│       │   └── pow.ts                        ← proof-of-work guard for public submissions
 │       └── routes/
 │           ├── auth.ts                       ← /auth/github  /auth/callback  /auth/signout  /auth/me
 │           ├── orgs.ts                       ← /api/me/orgs
 │           ├── join.ts                       ← public /api/join/:token (GET info + POST accept)
 │           ├── feedback.ts                   ← public POST /api/feedback + GET /api/feedback/public
+│           ├── docs.ts                       ← /api/docs 文档内容
+│           ├── forum/                        ← auth/categories/threads/posts/users/groups/teacher/stats/admin-users/upload
 │           └── admin/
 │               ├── overview.ts               ← /api/admin/:org/overview
 │               ├── members.ts                ← list/remove/role
@@ -72,19 +75,29 @@ yzgc-admin/
 │   └── src/
 │       ├── main.tsx                         ← ThemeProvider + QueryClient + ConfirmProvider + Router
 │       ├── App.tsx                          ← all routes
-│       ├── index.css                        ← @tailwind + .card .btn .input .tag-* + @keyframes
+│       ├── index.css                        ← shared Tailwind components + prose styles + global animations
+│       ├── portal.css                       ← portal soft-blue skin + motion effects + mascot styles
+│       ├── config/
+│       │   ├── app.config.json              ← frontend URLs, per-env policy/feature flags, portal + mascot tuning
+│       │   └── index.ts                     ← typed config access
 │       ├── lib/
-│       │   ├── api.ts                       ← fetch wrapper, fmtDate, fmtRelative
-│       │   └── themes.ts                    ← 10 themes (each: { id, mode, vars }), applyTheme/loadTheme
+│       │   ├── api.ts                       ← live/mock dispatcher + fetch wrapper, fmtDate, fmtRelative
+│       │   ├── mock-api.ts                  ← development-only local fixtures for protected pages
+│       │   ├── runtime.ts                   ← dev/prod site + data-source control
+│       │   └── themes.ts                    ← single light yzgc-blue theme, applyTheme/loadTheme
 │       ├── components/
-│       │   ├── ThemeSwitcher.tsx            ← compact / direction props
+│       │   ├── DevControlCenter.tsx          ← development site/data/page switcher; hidden in production
+│       │   ├── PortalHeader.tsx              ← config-driven portal brand + docs/forum/admin/GitHub nav
 │       │   ├── Select.tsx                   ← REPLACES native <select> everywhere (themed dropdown)
 │       │   ├── ConfirmDialog.tsx            ← useConfirm() — REPLACES window.confirm() everywhere
-│       │   └── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
+│       │   ├── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
+│       │   └── Mascot.tsx                  ← unified 8-pose mascot, portal/forum/preview layouts
 │       └── pages/
-│           ├── Landing.tsx                  ← /
+│           ├── Landing.tsx                  ← / (portal)
+│           ├── Docs.tsx                     ← /docs /docs/:id
 │           ├── JoinByToken.tsx              ← /join/:token
 │           ├── Feedback.tsx                 ← /feedback  /feedback/:org
+│           ├── forum/                       ← Home/CategoryList/Category/Thread/NewThread/Login/Register/Profile/Me/Notifications/Archive/Admin/Teacher
 │           └── admin/
 │               ├── SignIn.tsx               ← /admin/signin
 │               ├── MyOrgs.tsx               ← /admin
@@ -161,7 +174,7 @@ Add a column → write a `db.exec("ALTER TABLE ... ADD COLUMN ...")` in `db.ts` 
 
 ### 4.5 Theme system
 
-Tailwind colors are `rgb(var(--ink-X) / <alpha-value>)` — driven by `<html>` CSS vars set by `applyTheme()` in `lib/themes.ts`. **Never** hardcode hex colors in components. If you need a new color slot, add it to all 10 themes in `themes.ts`.
+Tailwind colors are `rgb(var(--ink-X) / <alpha-value>)` — driven by `<html>` CSS vars set by `applyTheme()` in `lib/themes.ts`. The product uses one light `yzgc-blue` theme and must not reintroduce dark themes. **Never** hardcode hex colors in components. Add new slots to the single theme and portal palette config.
 
 ### 4.6 No native `<select>` or `window.confirm()`
 
@@ -198,11 +211,11 @@ This is enforced by code review.
 3. Add a nav entry to `NAV_ALL` in `OrgLayout.tsx` (set `admin: true` if admin-only)
 4. Use `useOutletContext<{ isAdmin: boolean; role: string; org: string }>()` to gate admin-only UI in the same page
 
-### Add a new theme
+### Adjust colors (no theming system)
 
-1. Add an entry to `THEMES` in `web/src/lib/themes.ts`
-2. Must set all 11 `--ink-*` slots, 3 `--brand-*` slots, and `--bg-grad`
-3. `applyTheme` picks it up automatically; no other change needed
+1. Product is intentionally single light theme; edit the one `THEMES[0]` entry in `web/src/lib/themes.ts` (11 `--ink-*` + 3 `--brand-*` + `--bg-grad`)
+2. Portal-only accents live in `app.config.json > portal.palette`
+3. Do not reintroduce dark themes or a theme switcher
 
 ### Add a public-facing endpoint (no login required)
 
@@ -268,7 +281,7 @@ Don't proactively do these unless asked:
 - Add unit tests (no test infra yet — adding it is a separate explicit task)
 - Add CI/CD pipelines
 - Add internationalization (Chinese-only is fine for now)
-- Add light-mode-as-default (default is dark; toggle exists)
+- Add dark mode or theme switching (the product is intentionally light-only)
 - Add server-side rendering / Next.js migration
 - Add Docker / Kubernetes manifests (systemd is the deploy unit)
 - Refactor "for cleanliness" without a user-visible benefit

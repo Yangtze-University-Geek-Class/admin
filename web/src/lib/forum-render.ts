@@ -1,3 +1,5 @@
+// Markdown -> sanitized HTML for forum posts: marked + DOMPurify + highlight.js
+// with only the languages we actually ship (keeps the bundle small).
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
