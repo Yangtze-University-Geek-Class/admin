@@ -1,5 +1,8 @@
 # 架构
 
+> 系统怎么设计的：拓扑、鉴权流程、数据模型、加密、防滥用。改后端路由 / DB / OAuth 之前先读这篇。
+> English: [ARCHITECTURE.en.md](./ARCHITECTURE.en.md)
+
 ## 总体
 
 ```
@@ -123,4 +126,4 @@ audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
 
 systemd Type=simple, 监听 127.0.0.1:3000, nginx 反代，证书 certbot 自动续期（cron / systemd timer 已自动配）。
 
-详见 [DEPLOY.md](./DEPLOY.md)。
+详见 [DEPLOY.md](../ops/DEPLOY.md)。

@@ -26,7 +26,7 @@ Yangtze University Geek Class — 多 GitHub 组织统一管理后台。
 - 论坛（forum）：https://forum.yangtzeu.work/
 - 管理后台（admin）：https://github.yangtzeu.work/
 
-同一个 Vite 项目按域名渲染不同站点，切换逻辑见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
+同一个 Vite 项目按域名渲染不同站点，切换逻辑见 [docs/architecture/ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md)。
 
 ## 谁能用
 
@@ -40,7 +40,7 @@ Yangtze University Geek Class — 多 GitHub 组织统一管理后台。
 1. 打开 https://github.yangtzeu.work/
 2. 点"使用 GitHub 登录"，授权 OAuth（首次需要点 GitHub 的 Authorize）
 3. 选择一个你 owner / member 的组织进入后台
-4. 详细用法见 [docs/USAGE.md](./docs/USAGE.md)
+4. 详细用法见 [docs/ops/USAGE.md](./docs/ops/USAGE.md)
 
 ## 技术栈
 
@@ -92,13 +92,26 @@ certbot --nginx -d <domain>
 systemctl daemon-reload && systemctl enable --now yzgc-admin
 ```
 
-详见 [docs/DEPLOY.md](./docs/DEPLOY.md)。
+详见 [docs/ops/DEPLOY.md](./docs/ops/DEPLOY.md)。
 
 ## 文档
 
-- [USAGE.md](./docs/USAGE.md) — 用户指南，含管理员 / 普通用户 / 外部访客三视角
-- [DEPLOY.md](./docs/DEPLOY.md) — 部署 + 运维
-- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 后端路由 / 数据库 / OAuth 流程 / 安全模型
+- 人工入口（改什么 → 看哪篇）：[docs/README.md](./docs/README.md)
+- 全部文档的生成索引：[docs/INDEX.md](./docs/INDEX.md)
+
+主要几篇：
+
+- [USAGE.md](./docs/ops/USAGE.md) — 用户指南，含管理员 / 普通用户 / 外部访客三视角
+- [DEPLOY.md](./docs/ops/DEPLOY.md) — 部署 + 运维
+- [ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md) — 后端路由 / 数据库 / OAuth 流程 / 安全模型
+- [CONTRIBUTING.md](./docs/conventions/CONTRIBUTING.md) — 贡献流程总入口
+- [COMMITS.md](./docs/conventions/COMMITS.md) — commit 规范
+- [ISSUES.md](./docs/conventions/ISSUES.md) — Issue 规范
+- [PULL-REQUESTS.md](./docs/conventions/PULL-REQUESTS.md) — PR 规范
+- [DESIGN.md](./docs/design/DESIGN.md) — 页面设计规范
+- [STACK.md](./docs/design/STACK.md) — 技术栈与版本基线
+- [WEB-SPLIT.md](./docs/plan/WEB-SPLIT.md) — 前端三站拆分方案
+- [REFACTOR.md](./docs/plan/REFACTOR.md) — 前端现状盘点
 
 ## License
 

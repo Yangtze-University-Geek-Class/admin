@@ -1,5 +1,8 @@
 # Usage
 
+> What each role (admin / member / external visitor) can see and do. Check it when changing a feature, to confirm the expected behaviour has not shifted.
+> 中文：[USAGE.md](./USAGE.md)
+
 Live: https://github.yangtzeu.work/
 
 ## Portal preview & mascot

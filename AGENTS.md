@@ -6,6 +6,47 @@ The project owner uses Chinese in chat. Code, identifiers, commit messages: Engl
 
 ---
 
+## 0. STOP — read the docs before you change anything
+
+**This is the first rule and it overrides eagerness to edit.** `docs/` is this project's accumulated knowledge base. Before writing or modifying code:
+
+1. **Stop.** Do not open an editor, do not plan a refactor, do not write a patch.
+2. **Classify the change.** What is actually being asked — which site, which layer, which contract?
+3. **Read the matching doc(s)** from the table below. Read the whole relevant section, not just a grep hit.
+4. **Only then** design and implement.
+
+Skipping step 3 is how this repo accumulated the defects catalogued in `docs/plan/REFACTOR.md` §8 — a dead cross-site link, a missing sanitizer, a mock fixture that never matched its page. Every one of those was a change made without reading the doc that already described the constraint.
+
+### Change type → required reading
+
+| If the change touches… | Read first |
+|---|---|
+| Anything UI: pages, components, interaction, states, copy | `docs/design/DESIGN.md` |
+| Dependencies, framework versions, build config, bundle output | `docs/design/STACK.md` |
+| Frontend directory layout, site boundaries, shared vs site code | `docs/plan/WEB-SPLIT.md` |
+| Which pages exist, which APIs each page calls, what is shared between sites | `docs/plan/REFACTOR.md` |
+| A backend route, DB schema/column, OAuth flow, at-rest encryption, abuse controls | `docs/architecture/ARCHITECTURE.md` |
+| Threat model, rate limits, Turnstile, PoW, what may not be exposed | `docs/architecture/SECURITY.md` |
+| Env vars, nginx, systemd, certbot, server-side runbook | `docs/ops/DEPLOY.md` |
+| Anything a user can see or do | `docs/ops/USAGE.md` |
+| Commit message wording or type/scope choice | `docs/conventions/COMMITS.md` |
+| Filing, labelling, or closing an issue | `docs/conventions/ISSUES.md` |
+| Opening, describing, or merging a pull request | `docs/conventions/PULL-REQUESTS.md` |
+| Onboarding, branch/deploy flow, hard constraints | `docs/conventions/CONTRIBUTING.md` |
+
+Cross-cutting changes require **all** applicable docs. `docs/README.md` is the human entry point ("what to read for what"); `docs/INDEX.md` is the generated catalogue of every document.
+
+### Rules
+
+- **A change that contradicts a doc is a decision, not an implementation detail.** Do not silently diverge. Either the doc is stale (update it in the same commit) or the change is wrong (stop and surface it).
+- **Update docs in the same commit** as the code change — see §4.7 for the enforced mapping.
+- **If the docs do not cover the area**, say so explicitly rather than inventing a convention, and add the missing doc as part of the work.
+- **Do not read `docs/*.en.md` and the Chinese file both** — they are translations. Read the Chinese one unless the task is specifically about the English text.
+- **Adding, moving, renaming, or retitling a doc requires regenerating `docs/INDEX.md`**: `node scripts/docs-index.mjs`. Verify with `node scripts/docs-index.mjs --check` (exits 1 when stale). Fix relative links when moving files; cross-folder references use `../<folder>/<file>.md`.
+- Docs marked as plans (`docs/plan/WEB-SPLIT.md` execution section) and inventories (`docs/plan/REFACTOR.md`) have a shelf life. If a doc contradicts the code, the code wins — but fix the doc.
+
+---
+
 ## 1. 这是什么
 
 `yzgc-admin` — 给 GitHub 组织管理员用的多组织统一后台。
@@ -28,9 +69,14 @@ yzgc-admin/
 ├── AGENTS.md              ← THIS FILE (SSOT for agents)
 ├── README.md              ← human entry point
 ├── docs/
-│   ├── USAGE.md           ← 按角色（admin / member / 外部）写的用法
-│   ├── DEPLOY.md          ← 服务器部署 + nginx + certbot + systemd
-│   └── ARCHITECTURE.md    ← 路由 / DB schema / OAuth / 加密 / 前端架构
+│   ├── INDEX.md           ← 生成物：全部文档的自动索引（node scripts/docs-index.mjs）
+│   ├── README.md          ← 人工入口：改什么 → 看哪篇；含"新文档该放哪"
+│   ├── conventions/       ← COMMITS · ISSUES · PULL-REQUESTS · CONTRIBUTING
+│   ├── design/            ← DESIGN（页面规范）· STACK（技术栈与版本）
+│   ├── architecture/      ← ARCHITECTURE · SECURITY
+│   ├── plan/              ← WEB-SPLIT（拆分方案）· REFACTOR（现状盘点）
+│   └── ops/               ← DEPLOY · USAGE
+│   （各篇均有 .en.md 英文版；§0 说明改代码前该读哪篇）
 ├── server/                Node 20 + Fastify + Octokit + better-sqlite3 (TS, ESM)
 │   ├── package.json
 │   ├── tsconfig.json
@@ -67,6 +113,10 @@ yzgc-admin/
 │               ├── feedback.ts               ← admin triage of feedback
 │               └── logs.ts                   ← audit log read
 ├── web/                   Vite + React 18 + TanStack Query + Tailwind (CSS vars for theming)
+│   │                      NOTE: this tree is one codebase rendering three sites
+│   │                      (portal / forum / admin). A physical split into
+│   │                      web/sites/{portal,forum,admin} + web/shared/ is planned —
+│   │                      read docs/plan/WEB-SPLIT.md before adding or moving files here.
 │   ├── package.json
 │   ├── vite.config.ts                       ← dev proxy /api /auth /healthz → :3000
 │   ├── tailwind.config.js                   ← colors are rgb(var(--brand-X) / <alpha-value>)
@@ -183,11 +233,16 @@ UI consistency rule. Use `<Select>` from `components/Select.tsx` and `useConfirm
 ### 4.7 Bottom-line: changing code without updating docs is BANNED
 
 If you change:
-- a route → update `docs/ARCHITECTURE.md` route table + this file's §2 file map
-- a DB column → update `docs/ARCHITECTURE.md` schema + `docs/DEPLOY.md` if migration is needed
-- env var → update `.env.example` AND `docs/DEPLOY.md`
-- a user-visible feature → update `docs/USAGE.md`
+- a route → update `docs/architecture/ARCHITECTURE.md` route table + this file's §2 file map
+- a DB column → update `docs/architecture/ARCHITECTURE.md` schema + `docs/ops/DEPLOY.md` if migration is needed
+- env var → update `.env.example` AND `docs/ops/DEPLOY.md`
+- a user-visible feature → update `docs/ops/USAGE.md`
 - a build / dev command → update `README.md` AND this file's §3
+- frontend directory layout, site boundary, or shared-vs-site placement → update `docs/plan/REFACTOR.md` AND `docs/plan/WEB-SPLIT.md`, and update this file's §2 file map
+- anything about how commits are written → `docs/conventions/COMMITS.md`
+- a document's title, path, or summary → regenerate `docs/INDEX.md` (`node scripts/docs-index.mjs`)
+
+When a change makes a doc wrong, fixing the doc is part of the change, not a follow-up. When a change cannot be reconciled with a doc, stop and surface the conflict (§0).
 
 This is enforced by code review.
 
@@ -249,7 +304,7 @@ This is enforced by code review.
 - nginx config: `/etc/nginx/sites-available/github.yangtzeu.work`
 - Cert: `/etc/letsencrypt/live/github.yangtzeu.work/`
 
-`docs/DEPLOY.md` has the full runbook including troubleshooting table.
+`docs/ops/DEPLOY.md` has the full runbook including troubleshooting table.
 
 ---
 
