@@ -166,7 +166,7 @@ new QueryClient({ staleTime: 15s, retry: false })
 | GET | `/auth/github`、`/auth/callback`、`/auth/me` |
 | POST | `/auth/signout` |
 
-### 3.2 论坛（38）
+### 3.2 论坛（37）
 
 | 文件 | 端点 |
 |---|---|
@@ -181,7 +181,7 @@ new QueryClient({ staleTime: 15s, retry: false })
 | `forum/stats.ts` | `GET /api/forum/stats` |
 | `forum/upload.ts` | `POST /api/forum/upload`、`GET /forum/u/:name` |
 
-### 3.3 管理后台（41）
+### 3.3 管理后台（37）
 
 全部 `/api/admin/:org/...` 参数化，`server/src/routes/admin/repos.ts` 一个文件占 17 个端点。
 

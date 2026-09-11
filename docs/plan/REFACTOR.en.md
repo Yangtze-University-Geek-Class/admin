@@ -166,7 +166,7 @@ A single Fastify process on `127.0.0.1:3000`. Route files and mounts are in `ser
 | GET | `/auth/github`, `/auth/callback`, `/auth/me` |
 | POST | `/auth/signout` |
 
-### 3.2 Forum (38)
+### 3.2 Forum (37)
 
 | File | Endpoints |
 |---|---|
@@ -181,7 +181,7 @@ A single Fastify process on `127.0.0.1:3000`. Route files and mounts are in `ser
 | `forum/stats.ts` | `GET /api/forum/stats` |
 | `forum/upload.ts` | `POST /api/forum/upload`, `GET /forum/u/:name` |
 
-### 3.3 Admin (41)
+### 3.3 Admin (37)
 
 All parameterised under `/api/admin/:org/...`; `server/src/routes/admin/repos.ts` alone carries 17 endpoints.
 
