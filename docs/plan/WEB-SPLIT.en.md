@@ -130,6 +130,37 @@ There are two ways to slice; this plan chooses **horizontal**:
 
 **Why horizontal**: all three ends share authentication, share database connections, and share deployment (one systemd service, one port, one machine) — so **independent deployment buys nothing today**. Horizontal already delivers directory isolation, separate build artefacts, and hard cross-end import blocking.
 
+#### 3.1.1 What the field actually does: `apps/` means "deployment unit", not a directory name
+
+I checked the real directory trees of 12 repositories. The finding is sharper than expected.
+
+**The mainstream is indeed `apps/<app>/` + `packages/`** (turborepo / create-t3-turbo / cal.com / supabase / dub / documenso / openstatus), but **the directory name is not the criterion**:
+
+| Repository | Structure | What it shows |
+|---|---|---|
+| `dubinc/dub` | `apps/web` + `packages/*` | **Only one app, yet still uses `apps/`** — so `apps/` does not mean "multiple applications" |
+| `twentyhq/twenty` | `packages/twenty-front` + `packages/twenty-server` | Two applications **inside `packages/`**, not `apps/` |
+| `excalidraw/excalidraw` | `excalidraw-app/` at the **root** + `packages/*` | The app sits at the root; `packages/` is entirely publishable libraries |
+| `bluesky-social/social-app` | `src/` + `bskyweb/` | **No workspace configuration at all** |
+| `documenso/documenso` | `apps/remix` holds the Hono server **and** the React Router UI | **When server and UI ship together, they live in one app** |
+| `openstatusHQ/openstatus` | `apps/{checker,private-location}` are **Go services** | `apps/` is a **deployment unit**, not a language unit; 10 apps each with their own `fly.toml`/`vercel.json`/`Dockerfile` |
+
+**The real criterion, induced from the evidence:** `apps/` holds **independently deployable units with their own build artefacts**; `packages/` holds **code reused by several apps or published separately**. The trigger is having ≥2 independent deployment units with differing deployment descriptors.
+
+**This project does not meet that trigger** (measured):
+
+```
+nginx:   yangtzeu.work        → proxy_pass 127.0.0.1:3000
+         github.yangtzeu.work → proxy_pass 127.0.0.1:3000
+systemd: one yzgc-admin.service, ExecStart=node server/dist/index.js
+```
+
+All three domains point at **the same process on the same port**; there is exactly one deployment unit. This is not "multiple apps" — it is **one app with three routed surfaces**.
+
+The closest structural analogue is `documenso`, which keeps the Hono server and the UI inside a single `apps/remix` precisely because the two **deploy together**. Same situation here.
+
+**Conclusion**: keep the two packages `web/` + `server/` and slice by end inside each layer. **Do not introduce `apps/`, and do not create `app/`.**
+
 **Upgrade path**: horizontal → vertical is mechanical (move `web/sites/x` and `server/src/routes/x` out, add a `package.json`). Do it when independent deployment actually becomes a requirement.
 
 ### 3.2 Frontend
@@ -213,20 +244,74 @@ The repo root keeps `server/` / `web/` / `docs/` / `scripts/` as-is, **with no `
 
 ### 3.5 What each end's AGENTS.md covers
 
-The root `AGENTS.md` remains the cross-end invariants and the overall routing table; end-level files hold **only that end's specific rules**, without restating the root:
+#### 3.5.1 Loading semantics (measured, not assumed)
 
-| File | Content |
+First, one fact the industry gets wrong when guessing: **a subdirectory AGENTS.md is not read automatically**, and tools disagree with each other.
+
+| Tool | Behaviour | Source |
+|---|---|---|
+| **agents.md spec** | "Closest wins" — `The closest AGENTS.md to the edited file wins` | https://agents.md |
+| **OpenAI Codex** | Collects every AGENTS.md **from the project root down to cwd** and concatenates; `We do not walk past the project root` | `openai/codex:codex-rs/core/src/agents_md.rs` |
+| **Claude Code** | Loads cwd and its **ancestors**, concatenated; subdirectory files load **on demand** — `included when Claude reads files in those subdirectories` | https://code.claude.com/docs/en/memory |
+| **Gemini CLI** | The only one that **scans downward** (JIT: when a file is accessed, its directory and ancestors are scanned), capped by `context.discoveryMaxDirs` (default 200) | `google-gemini/gemini-cli:docs/cli/gemini-md.md` |
+
+Two consequences that matter:
+
+1. **Do not assume an end-level file enters context on its own.** Codex working at the repo root will not read `web/sites/forum/AGENTS.md`; Claude only loads it once a file in that directory is actually opened. **The root file must point the way explicitly.**
+2. **Tools *concatenate*, they do not *override*.** Codex: `concatenate their contents in that order`; Claude: `concatenated into context rather than overriding each other`. "Closest wins" rests on ordering plus convention, **not on deduplication**. Therefore **end-level files must be deltas — duplicated content enters context twice.**
+
+#### 3.5.2 The root file carries a delegation table (copied from supabase)
+
+The closest real-world analogue to this project is `supabase/supabase`: its root `AGENTS.md` annotates each directory in a Structure table with whether it has its own AGENTS.md, then adds one explicit instruction at the end.
+
+Its own wording:
+
+```
+| `apps/studio` | Supabase Studio/Dashboard — has its own `apps/studio/AGENTS.md` (see below) |
+```
+
+```
+## Studio
+Before working on anything in `apps/studio`, read `apps/studio/AGENTS.md` if it isn't
+already in context — it maps Studio tasks to required skills and covers the TanStack
+Start migration rules.
+```
+
+**This is the only reliable fix for "Codex does not scan downward."** This project follows suit: the root `AGENTS.md` gains a delegation section pointing at the six end-level files, each with a line saying "read X before working here, and open it if it is not already in context."
+
+Other real forms worth comparing:
+
+| Repository | Form |
+|---|---|
+| `supabase/supabase` | Root delegation table + 3 nested files (`apps/{studio,docs,kb}/AGENTS.md`) |
+| `openstatusHQ/openstatus` | Root delegation table + 8 nested files (`apps/*/AGENTS.md`, `packages/*/AGENTS.md`) |
+| `vercel/ai` | Root + `apps/docs/AGENTS.md`, `packages/ai/AGENTS.md` |
+| `openai/codex` | Root file only, using `##` sections (their own repo skips nesting) |
+| `microsoft/vscode` | Root file only, a 3-line pointer |
+
+#### 3.5.3 Division of labour for the end-level files
+
+**One hard rule: any given fact appears in exactly one place.** Cross-end facts go in the root; end-specific facts go in the end file. Duplication is a violation — tools concatenate rather than override, so a repeated fact enters context twice.
+
+| File | Write only this (the end's delta) |
 |---|---|
 | `web/sites/portal/AGENTS.md` | The `portal-*` style namespace, why it does not use React Query, no auth concept, the `portal.css` boundary |
-| `web/sites/forum/AGENTS.md` | Forum session (`forum_sid`), `forum.db` ownership, archive read-only (`is_legacy`), the fact that only 2 permission rows are actually enforced |
+| `web/sites/forum/AGENTS.md` | Forum session `forum_sid`, `forum.db` ownership, archive read-only (`is_legacy`), the fact that only 2 permission rows are enforced |
 | `web/sites/admin/AGENTS.md` | The `requireAuth` + `requireOrgRole` + `audit()` triple, calling GitHub with the signed-in user's token, `data.db` ownership |
-| `server/src/routes/portal/AGENTS.md` | Rate limiting and Turnstile requirements for unauthenticated endpoints, the feedback two-sides relation |
-| `server/src/routes/forum/AGENTS.md` | `forum.db` is additive-only, the current state of permission checks, where archive read-only is enforced server-side |
+| `server/src/routes/portal/AGENTS.md` | Rate limiting and Turnstile for unauthenticated endpoints, the feedback two-sides relation |
+| `server/src/routes/forum/AGENTS.md` | `forum.db` is additive-only, current state of permission checks, where archive read-only is enforced |
 | `server/src/routes/admin/AGENTS.md` | The middleware triple, `audit()` writes, the single service-token exception (public invite links) |
 
-Each end-level `AGENTS.md` ships with a `CLAUDE.md` containing `@AGENTS.md` (same pattern as the root).
+End-level files **do not** contain: a full map of the end's directories (the root already has the overall layout), cross-end invariants, global commands (`pnpm install` / `pnpm -r run build`), or the deploy procedure.
 
-**Note**: an end-level AGENTS.md is only auto-loaded while working inside that directory (the behaviour of Claude Code and similar tools), so **cross-end invariants must still live in the root `AGENTS.md`**.
+Follow the actual shape of `supabase/supabase:apps/studio/AGENTS.md`: a one-line self-description (what this end is, which stack, which port) → sections of end-specific rules → no restatement of anything in the root file.
+
+#### 3.5.4 Bridge files and format
+
+- **AGENTS.md has no frontmatter convention.** Per agents.md: `No. AGENTS.md is just standard Markdown. Use any headings you like.` Frontmatter belongs to Cursor `.cursor/rules/*.mdc` and Claude `.claude/rules/*.md` — a different mechanism; do not mix it in.
+- **A root `CLAUDE.md` containing `@AGENTS.md` is Anthropic's official recommendation** (`create a CLAUDE.md that imports it so both tools read the same instructions without duplicating them`), which is what this repo already does. The official alternative is `ln -s AGENTS.md CLAUDE.md` — `vercel/ai` does exactly that at its root (git mode `120000`), while the same repo's `apps/docs/CLAUDE.md` uses `@AGENTS.md`. Both are mainstream.
+- **Each end directory also gets a `CLAUDE.md`** containing `@AGENTS.md`. Reason: Claude loads subdirectory files **on demand**, so having the bridge makes the behaviour deterministic; `vercel/ai` does this in `apps/docs/`. The cost is six one-line files.
+- `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`, and `CONVENTIONS.md` stay as they are: thin pointers plus a summary, aimed at the root `AGENTS.md`. End directories do not need a copy for every tool.
 
 ### 3.6 Docs do not scatter into the ends
 
