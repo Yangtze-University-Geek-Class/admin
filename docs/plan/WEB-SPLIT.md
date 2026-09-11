@@ -1,8 +1,43 @@
-# 前端三站拆分：目标架构与执行计划
+# 三端拆分：目标架构与执行计划
 
 > 状态：**待确认**（未执行）。现状盘点见 [REFACTOR.md](./REFACTOR.md)。
-> 目标：三个站点（portal / forum / admin）在目录、构建产物、依赖三层面都物理隔离，改一个站不可能碰坏另一个站。
+> 目标：三端（portal / forum / admin）在前端目录、后端路由目录、构建产物三个层面物理隔离，改一个端不可能碰坏另一个端。
 > English: [WEB-SPLIT.en.md](./WEB-SPLIT.en.md)
+
+---
+
+## 0. 「端」的定义与三层映射
+
+**端 = 用户能独立访问的产品边界。** 数出来是 **3 个**：portal、forum、admin。其余都是共享层，不是端。
+
+每个端横跨三层，以下是逐项实测的对应关系（不是按命名推断）：
+
+| 端 | 前端页面 | 后端端点 | 数据库 |
+|---|---|---|---|
+| **portal** 官网 | 4 页：`Landing` / `Docs` / `Feedback` / `JoinByToken` | 8 个：`docs.ts`(2) + `join.ts`(3) + `feedback.ts` 公开侧(3) | `data.db` 的 `feedback` 表 |
+| **forum** 论坛 | 13 页 + `ForumLayout` | 37 个：`routes/forum/*`（10 文件） | `forum.db`（**独占**，11 张表） |
+| **admin** 后台 | 15 页 + `OrgLayout` | 42 个：`routes/admin/*`(37) + `auth.ts`(4) + `orgs.ts`(1) | `data.db`（6 张表） |
+
+合计 87 个端点（8 + 37 + 42）。
+
+### 0.1 三处真实的跨端耦合
+
+拆分时这三处**不能**按端硬切：
+
+| 耦合点 | 事实 | 处理 |
+|---|---|---|
+| **`/auth/callback`** | 同一条回调路径**同时服务 admin 登录与 forum 的 GitHub 登录/绑定**。`routes/auth.ts:35-41` 收到 code 后按 `forum_oauth_state` cookie 分派给 `handleForumGithubCallback` | 留在共享层。OAuth 是跨端基础设施，不是某一端的私有实现 |
+| **feedback** | 提交口在 portal 页面**与** `FeedbackFab`（forum 与 admin 都挂载）；管理口在 admin（`routes/admin/feedback.ts`） | 公开侧归 portal，管理侧归 admin，中间的表与校验放共享层 |
+| **`lib/` 基础设施** | `db` / `crypto` / `cache` / `github` / `forum-db` / `forum-auth` / `forum-permissions` 被各端路由共同 import | 留共享层，不按端切 |
+
+### 0.2 两个数据库的真实归属
+
+| 库 | 归属 | 说明 |
+|---|---|---|
+| `forum.db` | **forum 独占** | 干净的端边界，11 张表全归论坛 |
+| `data.db` | **portal + admin 共用** | `feedback` 表被 portal 写入；`sessions` / `invite_links` / `invitations` / `audit_logs` / `app_state` 归 admin |
+
+结论：**数据库按 2 个文件切是天然边界，但 `data.db` 不能被某一个端独占。**
 
 ---
 
@@ -79,10 +114,30 @@
 
 ## 3. 目标结构
 
+### 3.1 分层方式：横向分层，层内按端切
+
+有两种切法，本方案选**横向**：
+
+| | 横向（本方案） | 纵向（每个端自包含前后端） |
+|---|---|---|
+| 形态 | `web/sites/<端>/` + `server/src/routes/<端>/` | `app/<端>/{web,server}/` |
+| 进程 | 一个 Fastify 进程，一个 Vite 构建 | 仍是同一个进程（`/auth/callback` 跨 admin 与 forum，切不开） |
+| 包边界 | 一个 `package.json` | 需要 workspace 多包 + 跨包 exports |
+| 边界强制 | 靠 `check-boundaries.mjs` 脚本拦跨端 import | 结构性（跨端 import 直接解析失败） |
+| 端独立部署 | 不支持 | 天然支持 |
+| 迁移成本 | 低（纯 `git mv`） | 中高（动包边界会连带 systemd 单元、nginx root、部署文档） |
+
+**选横向的理由**：三端共用认证、共用数据库连接、共用部署（同一个 systemd 服务、同一个端口、同一台机器），**独立部署这个收益现在用不上**。而横向已经能拿到目录隔离、独立构建产物、跨端 import 硬拦截。
+
+**升级路径**：横向 → 纵向是纯机械操作（把 `web/sites/x` 与 `server/src/routes/x` 挪出去加 `package.json`）。等真的需要三端独立部署时再做。
+
+### 3.2 前端
+
 ```
 web/
   sites/
     portal/
+      AGENTS.md  CLAUDE.md  README.md   ← 端专属规则 + 人读说明
       index.html
       main.tsx                    ← 原 main.tsx 的官网分支，去掉 detectSite()
       App.tsx                     ← 原 PortalRoutes + Landing 等页面
@@ -92,17 +147,19 @@ web/
       pages/
         Landing.tsx  Docs.tsx  Feedback.tsx  JoinByToken.tsx
     forum/
+      AGENTS.md  CLAUDE.md  README.md
       index.html
       main.tsx
       App.tsx
       pages/                      ← 原 pages/forum/ 的 14 个文件
         ForumLayout.tsx  ForumHome.tsx  ...
     admin/
+      AGENTS.md  CLAUDE.md  README.md
       index.html
       main.tsx
       App.tsx
       pages/                      ← 原 pages/admin/ 的 16 个文件
-        OrgLayout.tsx  MyOrg.tsx  RepoDetail.tsx  ...
+        OrgLayout.tsx  MyOrgs.tsx  RepoDetail.tsx  ...
   shared/
     ui/                           ← 原 components/ 的 9 个通用组件
       Select.tsx  ConfirmDialog.tsx  NumberInput.tsx  DiffView.tsx
@@ -119,7 +176,69 @@ web/
   tsconfig.json
 ```
 
+### 3.3 后端
+
+`server/src` 同样按端分组，但**进程不拆**（`index.ts` 仍注册全部路由）：
+
+```
+server/src/
+  index.ts                  ← 进程入口（唯一），注册三端路由 + 静态托管
+  config.ts                 ← 共享配置
+  lib/                      ← 共享基础设施，不按端切
+    db.ts  crypto.ts  cache.ts  github.ts
+    forum-db.ts  forum-auth.ts  forum-github.ts  forum-permissions.ts
+    auth.ts                 ← admin OAuth（含 /auth/callback 的 forum 分派）
+  middleware/               ← 共享中间件
+    require-auth.ts  require-org-role.ts    ← admin 用
+    require-forum-auth.ts                   ← forum 用
+    pow.ts  turnstile.ts                    ← 公开表单用
+  routes/
+    portal/      AGENTS.md   ← docs.ts(2) + join.ts(3) + feedback.ts(3)
+    forum/       AGENTS.md   ← 现 routes/forum/* 原样平移（10 文件 37 端点）
+    admin/       AGENTS.md   ← 现 routes/admin/* + auth.ts + orgs.ts（42 端点）
+```
+
+**`routes/portal/feedback.ts` 与 `routes/admin/feedback.ts` 是同一个功能的两侧**：前者是公开提交入口（三端都在用），后者是后台分类与回复。改动其中一侧时要同时看另一侧，这一点写进两处 AGENTS.md。
+
+### 3.4 存放位置：不新建 `app/`
+
+仓库根保持 `server/` / `web/` / `docs/` / `scripts/` 不变，**不引入 `app/` 顶层目录**：
+
+- `systemctl` 的 `ExecStart=/usr/bin/node server/dist/index.js`、nginx 的静态 root、部署文档里的全部路径都指向 `server/` 与 `web/`
+- 加一层 `app/` 只是把现有路径前缀改掉，组织收益与 §3.1 的横向分层完全相同
+- 若将来升级到纵向切片（每个端自包含），那时 `app/` 才有实际意义——因为它会真的装 workspace 多包
+
 搬迁是纯位移：`git mv` + 改 import 路径为 `@shared/*` / 相对路径，**逻辑一行不改**。
+
+### 3.5 每个端的 AGENTS.md 管什么
+
+根 `AGENTS.md` 仍是跨端不变量与总路由表；端级文件**只放该端独有的规则**，不重复根文件：
+
+| 文件 | 内容 |
+|---|---|
+| `web/sites/portal/AGENTS.md` | 样式命名空间 `portal-*`、不使用 React Query 的原因、无登录态、`portal.css` 边界 |
+| `web/sites/forum/AGENTS.md` | 论坛会话 `forum_sid`、`forum.db` 独占、归档只读（`is_legacy`）、权限表实际只强制 2 项 |
+| `web/sites/admin/AGENTS.md` | `requireAuth` + `requireOrgRole` + `audit()` 三件套、用登录者 token 调 GitHub、`data.db` 归属 |
+| `server/src/routes/portal/AGENTS.md` | 无鉴权接口的限流与 Turnstile 要求、feedback 两侧的关联 |
+| `server/src/routes/forum/AGENTS.md` | `forum.db` 只增列、权限判定现状、归档只读的服务端强制点 |
+| `server/src/routes/admin/AGENTS.md` | 三件套中间件、`audit()` 写入、service token 的唯一例外（公开邀请链接） |
+
+每个端级 `AGENTS.md` 配一份 `CLAUDE.md`，内容为 `@AGENTS.md`（与根目录同款做法）。
+
+**注意**：端级 AGENTS.md 只在该目录内被工具自动加载（Claude Code 等的行为），因此**跨端不变量不能只写在那里**——必须在根 `AGENTS.md` 有一份。
+
+### 3.6 文档不散进各端
+
+端专属设计文档放**根级 `docs/` 的子目录**，不放 `app/<端>/docs/`：
+
+```
+docs/
+  INDEX.md  README.md
+  conventions/  design/  architecture/  plan/  ops/     ← 跨端文档（现状）
+  portal/  forum/  admin/                                ← 端专属设计文档（按需新建）
+```
+
+理由：文档集中一处，`scripts/docs-index.mjs` 才能扫全；散到各端会让索引需要多根扫描，也让「改什么读哪篇」的人工入口失效。端专属文档**确有必要时才建**，并在 `docs/README.md` 里挂链接，不预先空建。
 
 ---
 
@@ -195,16 +314,7 @@ yangtzeu.work 其余           → portal 的 index.html
 
 ### 决策 2：停在"文件夹"还是升级成 workspace 包？
 
-| | 方案 A：`web/sites/*` 文件夹（推荐） | 方案 B：pnpm workspace 包 |
-|---|---|---|
-| 结构 | 一个 `web` 包内的目录划分 | `apps/portal`、`apps/forum`、`apps/admin` + `packages/ui`、`packages/core` |
-| 依赖声明 | 三站共用一个 `package.json` | 每站只声明自己用的依赖 |
-| 构建 | 一次 Vite 多入口 | 三个 Vite 配置 |
-| 隔离强度 | 靠边界脚本强制 | 结构性隔离（跨站 import 直接解析失败） |
-| 迁移成本 | 低 | 中（共享包要处理 exports/构建产物） |
-| 独立部署 | 需再改 | 天然支持 |
-
-**建议：先做方案 A。** 它拿到 90% 的收益（目录隔离 + 独立产物 + 边界强制），成本是方案 B 的三分之一，而且**A 升级到 B 是纯机械操作**（把 `sites/x` 挪出去加 `package.json`，`shared/*` 变成 `packages/*`）。等真的需要"三站独立部署"时再升级。
+**已在 §3.1 定论：本方案选横向分层（文件夹），不切 workspace 包。** 理由、两种切法的对比表、以及何时该升级，都在 §3.1。决策已并入目标结构，此处不再重复。
 
 ### 决策 3：`shared/ui` 是否要再按站点细分？
 
@@ -238,3 +348,4 @@ yangtzeu.work 其余           → portal 的 index.html
 - **不给后端加站点维度。** `/api/forum/*` 与 `/api/admin/:org/*` 前缀已经清晰，加站点参数是多余抽象。
 - **不在这次拆分里统一鉴权。** 三套凭据（`sid` / `forum_sid` / Bearer PAT）合并不兼容（论坛允许无 GitHub 账号的密码用户），风险远大于收益，单独立项。
 - **不引入 eslint / prettier / husky 全家桶。** 边界用脚本，格式靠现有约定。要上工具链另开一次改动并说明成本。
+- **不新建 `app/` 顶层目录、不切 workspace 多包。** 理由见 §3.1 与 §3.4：三端共用认证、共用部署，独立部署的收益现在用不上；加一层 `app/` 只是改路径前缀，却要连带改 systemd 单元、nginx root 与部署文档。等到真要独立部署时再升级。

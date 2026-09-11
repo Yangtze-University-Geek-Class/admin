@@ -41,7 +41,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`REFACTOR.md`](./plan/REFACTOR.md) | 分支：`next` · 建立于 2026-09-12 · 基线提交 `4959668` 用途：动手重构前先把「现在长什么样」钉死。本文只描述现状，不含改造动作。 中英对照见 REFACTOR.en.md。 | [EN](./plan/REFACTOR.en.md) |
-| [`WEB-SPLIT.md`](./plan/WEB-SPLIT.md) | 状态：**待确认**（未执行）。现状盘点见 REFACTOR.md。 目标：三个站点（portal / forum / admin）在目录、构建产物、依赖三层面都物理隔离，改一个站不可能碰坏另一个站。 | [EN](./plan/WEB-SPLIT.en.md) |
+| [`WEB-SPLIT.md`](./plan/WEB-SPLIT.md) | 状态：**待确认**（未执行）。现状盘点见 REFACTOR.md。 目标：三端（portal / forum / admin）在前端目录、后端路由目录、构建产物三个层面物理隔离，改一个端不可能碰坏另一个端。 | [EN](./plan/WEB-SPLIT.en.md) |
 
 ## ops/
 

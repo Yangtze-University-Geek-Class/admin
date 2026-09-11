@@ -1,10 +1,46 @@
-# Splitting the Three Frontend Sites: Target Architecture and Plan
+# Splitting the Three Ends: Target Architecture and Plan
 
 > Status: **awaiting decision** (not executed). Current-state inventory: [REFACTOR.md](./REFACTOR.md).
-> Goal: portal / forum / admin become physically isolated at the directory, build-artifact, and dependency levels — changing one site cannot break another.
+> Goal: portal / forum / admin become physically isolated across frontend directories, backend route directories, and build artefacts — changing one end cannot break another.
 > 中文：[WEB-SPLIT.md](./WEB-SPLIT.md)
 
 ---
+
+## 0. What an "end" is, and the three-layer mapping
+
+**An end is a product boundary a user can reach independently.** There are **three**: portal, forum, admin. Everything else is a shared layer, not an end.
+
+Each end spans three layers. The mapping below is measured, not inferred from naming:
+
+| End | Frontend pages | Backend endpoints | Database |
+|---|---|---|---|
+| **portal** | 4 pages: `Landing` / `Docs` / `Feedback` / `JoinByToken` | 8: `docs.ts`(2) + `join.ts`(3) + `feedback.ts` public side (3) | `feedback` table in `data.db` |
+| **forum** | 13 pages + `ForumLayout` | 37: `routes/forum/*` (10 files) | `forum.db` (**exclusive**, 11 tables) |
+| **admin** | 15 pages + `OrgLayout` | 42: `routes/admin/*`(37) + `auth.ts`(4) + `orgs.ts`(1) | `data.db` (6 tables) |
+
+87 endpoints in total (8 + 37 + 42).
+
+### 0.1 Three genuine cross-end couplings
+
+These **cannot** be cut along end boundaries:
+
+| Coupling | Fact | Handling |
+|---|---|---|
+| **`/auth/callback`** | One callback path serves **both admin login and forum GitHub login/bind**. `routes/auth.ts:35-41` dispatches to `handleForumGithubCallback` based on the `forum_oauth_state` cookie | Stays in the shared layer. OAuth is cross-end infrastructure, not one end's private implementation |
+| **feedback** | The submit side is the portal page **and** `FeedbackFab` (mounted on both forum and admin); the management side is admin (`routes/admin/feedback.ts`) | Public side → portal, management side → admin, the table and validation in between → shared |
+| **`lib/` infrastructure** | `db` / `crypto` / `cache` / `github` / `forum-db` / `forum-auth` / `forum-permissions` are imported by routes of every end | Stays shared, not split per end |
+
+### 0.2 Real database ownership
+
+| Database | Owner | Note |
+|---|---|---|
+| `forum.db` | **forum, exclusively** | Clean end boundary — all 11 tables belong to the forum |
+| `data.db` | **portal + admin, shared** | The `feedback` table is written by portal; `sessions` / `invite_links` / `invitations` / `audit_logs` / `app_state` belong to admin |
+
+Conclusion: **two database files are a natural boundary, but `data.db` cannot be owned by a single end.**
+
+---
+
 
 ## 1. Conclusion first: the code is already decoupled
 
@@ -79,10 +115,30 @@ Separately, `index.css` (318 lines) uses `html[data-site="forum"]` selectors for
 
 ## 3. Target structure
 
+### 3.1 Layering: horizontal, sliced by end inside each layer
+
+There are two ways to slice; this plan chooses **horizontal**:
+
+| | Horizontal (this plan) | Vertical (each end self-contained) |
+|---|---|---|
+| Shape | `web/sites/<end>/` + `server/src/routes/<end>/` | `app/<end>/{web,server}/` |
+| Process | One Fastify process, one Vite build | Still one process (`/auth/callback` spans admin and forum, it cannot be cut) |
+| Package boundary | One `package.json` | Requires workspace packages + cross-package exports |
+| Boundary enforcement | A `check-boundaries.mjs` script blocks cross-end imports | Structural (a cross-end import fails to resolve) |
+| Independent deploy per end | Not supported | Native |
+| Migration cost | Low (pure `git mv`) | Medium-high (moving package boundaries drags in the systemd unit, nginx root, and deploy docs) |
+
+**Why horizontal**: all three ends share authentication, share database connections, and share deployment (one systemd service, one port, one machine) — so **independent deployment buys nothing today**. Horizontal already delivers directory isolation, separate build artefacts, and hard cross-end import blocking.
+
+**Upgrade path**: horizontal → vertical is mechanical (move `web/sites/x` and `server/src/routes/x` out, add a `package.json`). Do it when independent deployment actually becomes a requirement.
+
+### 3.2 Frontend
+
 ```
 web/
   sites/
     portal/
+      AGENTS.md  CLAUDE.md  README.md   ← end-specific rules + human-readable notes
       index.html
       main.tsx                    ← the portal branch of the old main.tsx, no detectSite()
       App.tsx                     ← the old PortalRoutes
@@ -92,12 +148,14 @@ web/
       pages/
         Landing.tsx  Docs.tsx  Feedback.tsx  JoinByToken.tsx
     forum/
+      AGENTS.md  CLAUDE.md  README.md
       index.html
       main.tsx
       App.tsx
       pages/                      ← the 14 files from pages/forum/
         ForumLayout.tsx  ForumHome.tsx  ...
     admin/
+      AGENTS.md  CLAUDE.md  README.md
       index.html
       main.tsx
       App.tsx
@@ -120,6 +178,68 @@ web/
 ```
 
 The move is pure relocation: `git mv` plus updating import specifiers to `@shared/*`. **No logic changes.**
+
+### 3.3 Backend
+
+`server/src` is grouped by end too, but the **process is not split** (`index.ts` still registers every route):
+
+```
+server/src/
+  index.ts                  ← the only process entry; registers all three ends + static hosting
+  config.ts                 ← shared config
+  lib/                      ← shared infrastructure, not split by end
+    db.ts  crypto.ts  cache.ts  github.ts
+    forum-db.ts  forum-auth.ts  forum-github.ts  forum-permissions.ts
+    auth.ts                 ← admin OAuth (including the forum dispatch inside /auth/callback)
+  middleware/               ← shared middleware
+    require-auth.ts  require-org-role.ts    ← used by admin
+    require-forum-auth.ts                   ← used by forum
+    pow.ts  turnstile.ts                    ← used by public forms
+  routes/
+    portal/      AGENTS.md   ← docs.ts(2) + join.ts(3) + feedback.ts(3)
+    forum/       AGENTS.md   ← the current routes/forum/* moved as-is (10 files, 37 endpoints)
+    admin/       AGENTS.md   ← the current routes/admin/* + auth.ts + orgs.ts (42 endpoints)
+```
+
+**`routes/portal/feedback.ts` and `routes/admin/feedback.ts` are two sides of one feature**: the former is the public submit entry (used by all three ends), the latter is back-office triage and replies. Changing one means checking the other — noted in both AGENTS.md files.
+
+### 3.4 Location: no new `app/`
+
+The repo root keeps `server/` / `web/` / `docs/` / `scripts/` as-is, **with no `app/` top-level directory**:
+
+- The systemd `ExecStart=/usr/bin/node server/dist/index.js`, the nginx static root, and every path in the deploy docs point at `server/` and `web/`
+- Adding an `app/` level only rewrites existing path prefixes; the organisational benefit is identical to the horizontal layering in §3.1
+- If the project later moves to vertical slicing (each end self-contained), `app/` becomes meaningful then — because it will genuinely hold workspace packages
+
+### 3.5 What each end's AGENTS.md covers
+
+The root `AGENTS.md` remains the cross-end invariants and the overall routing table; end-level files hold **only that end's specific rules**, without restating the root:
+
+| File | Content |
+|---|---|
+| `web/sites/portal/AGENTS.md` | The `portal-*` style namespace, why it does not use React Query, no auth concept, the `portal.css` boundary |
+| `web/sites/forum/AGENTS.md` | Forum session (`forum_sid`), `forum.db` ownership, archive read-only (`is_legacy`), the fact that only 2 permission rows are actually enforced |
+| `web/sites/admin/AGENTS.md` | The `requireAuth` + `requireOrgRole` + `audit()` triple, calling GitHub with the signed-in user's token, `data.db` ownership |
+| `server/src/routes/portal/AGENTS.md` | Rate limiting and Turnstile requirements for unauthenticated endpoints, the feedback two-sides relation |
+| `server/src/routes/forum/AGENTS.md` | `forum.db` is additive-only, the current state of permission checks, where archive read-only is enforced server-side |
+| `server/src/routes/admin/AGENTS.md` | The middleware triple, `audit()` writes, the single service-token exception (public invite links) |
+
+Each end-level `AGENTS.md` ships with a `CLAUDE.md` containing `@AGENTS.md` (same pattern as the root).
+
+**Note**: an end-level AGENTS.md is only auto-loaded while working inside that directory (the behaviour of Claude Code and similar tools), so **cross-end invariants must still live in the root `AGENTS.md`**.
+
+### 3.6 Docs do not scatter into the ends
+
+End-specific design docs live in **a subfolder of the root `docs/`**, not in `app/<end>/docs/`:
+
+```
+docs/
+  INDEX.md  README.md
+  conventions/  design/  architecture/  plan/  ops/     ← cross-end docs (current state)
+  portal/  forum/  admin/                                ← end-specific design docs (create on demand)
+```
+
+Rationale: keeping docs in one place is what lets `scripts/docs-index.mjs` scan everything; scattering them into the ends would require multi-root scanning and would break the human entry point ("what to read for what"). End-specific docs are **created only when genuinely needed** and linked from `docs/README.md` — no pre-emptive empty folders.
 
 ---
 
@@ -197,16 +317,7 @@ yangtzeu.work otherwise      → portal's index.html
 
 ### Decision 2: stop at folders, or go all the way to workspace packages?
 
-| | Option A: `web/sites/*` folders (recommended) | Option B: pnpm workspace packages |
-|---|---|---|
-| Structure | Directories inside one `web` package | `apps/portal`, `apps/forum`, `apps/admin` + `packages/ui`, `packages/core` |
-| Dependency declaration | One `package.json` for all three | Each site declares only what it uses |
-| Build | One multi-entry Vite config | Three Vite configs |
-| Isolation strength | Enforced by the boundary script | Structural (a cross-site import fails to resolve) |
-| Migration cost | Low | Medium (shared packages need exports/build handling) |
-| Independent deploy | Requires further work | Native |
-
-**Recommendation: do A first.** It captures ~90% of the benefit (directory isolation, separate artefacts, enforced boundaries) at a third of the cost, and **A upgrades to B mechanically** (move `sites/x` out, add `package.json`, turn `shared/*` into `packages/*`). Upgrade when independent deployment actually becomes a requirement.
+**Settled in §3.1: this plan takes horizontal layering (folders) and does not split into workspace packages.** The rationale, the comparison of both slicing styles, and the trigger for upgrading all live in §3.1. The decision is folded into the target structure and is not repeated here.
 
 ### Decision 3: should `shared/ui` be subdivided per site?
 
@@ -240,3 +351,4 @@ Risks:
 - **Do not add a site dimension to the backend.** The `/api/forum/*` and `/api/admin/:org/*` prefixes are already clear; a site parameter would be a needless abstraction.
 - **Do not unify authentication in this effort.** Merging the three credential systems (`sid` / `forum_sid` / Bearer PAT) is incompatible by design — the forum allows password users with no GitHub account, unlike admin's OAuth-only model. Scope it as its own project; start only with removing the unenforced permission records.
 - **Do not introduce eslint / prettier / husky.** Boundaries are guarded by a dependency-free script; formatting follows existing convention. Adding a toolchain should be its own change with its own justification.
+- **Do not create an `app/` top-level directory, and do not split into workspace packages.** Rationale in §3.1 and §3.4: all three ends share authentication and deployment, so independent deployment buys nothing today; adding an `app/` level only rewrites path prefixes while dragging in the systemd unit, nginx root, and deploy docs. Upgrade when independent deployment is actually needed.
