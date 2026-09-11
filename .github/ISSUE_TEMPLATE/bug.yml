@@ -1,0 +1,91 @@
+name: 缺陷报告
+description: 报告一个线上或开发中的缺陷。提交前请先按 docs/conventions/ISSUES.md §1 查重。
+title: "<模块>：<用户可见的症状>"
+labels: ["bug", "P2"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **提交前必做**：按 [docs/conventions/ISSUES.md](../../docs/conventions/ISSUES.md) §1 完整读取开放 issue 列表与已关闭 issue，确认不是重复。
+
+        标题格式固定为 `<模块>：<用户可见的症状>`，模块名用下方「端」里的标签名。
+
+  - type: dropdown
+    id: site
+    attributes:
+      label: 端（主端）
+      description: 需要在哪个端实施或验收。跨端时在描述里补充其它端。
+      options:
+        - portal
+        - forum
+        - admin
+        - server
+        - shared
+        - deploy
+        - docs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      description: |
+        P0 = 线上不可用 / 数据丢失或损坏风险 / 阻断全员开发。
+        P1 = 主要功能受损但可绕过，或已明确排期。
+        P2 = 小缺陷、体验打磨、优化。
+        不确定时宁可低一档，禁止虚高 P0。
+      options:
+        - P1
+        - P2
+        - P0
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 现象
+      description: 实际发生了什么。附上观察到的文本、报错原文或截图描述。
+      placeholder: 点击「使用文档」后页面回到论坛首页，地址栏停在 /forum/docs。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 最小复现路径。
+      value: |
+        1. 打开
+        2. 点击 / 输入
+        3. 观察到
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望
+      description: 应该是什么样。
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: 分支 / commit / 站点 / 浏览器，或「线上实测」。
+      placeholder: next @ 4959668，线上 yangtzeu.work/forum，Chrome 130
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已按 docs/conventions/ISSUES.md §1 查重（含已关闭 issue）
+          required: true
+        - label: 标题格式为 `<模块>：<用户可见的症状>`
+          required: true

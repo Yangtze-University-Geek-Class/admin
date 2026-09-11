@@ -1,0 +1,20 @@
+name: 配置
+description: 调整仓库配置、模板或标签体系。
+title: "docs：<要改什么>"
+labels: ["P2", "docs"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 要改什么
+      description: 具体的配置项或模板文件。
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 为什么
+      description: 当前的问题，以及改动后解决什么。
+    validations:
+      required: true
