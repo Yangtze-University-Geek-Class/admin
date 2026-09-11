@@ -129,6 +129,37 @@
 
 **选横向的理由**：三端共用认证、共用数据库连接、共用部署（同一个 systemd 服务、同一个端口、同一台机器），**独立部署这个收益现在用不上**。而横向已经能拿到目录隔离、独立构建产物、跨端 import 硬拦截。
 
+#### 3.1.1 行业实测：`apps/` 的判据是「独立部署单元」，不是目录名
+
+查了 12 个真实仓库的一手目录树，结论比预想的更明确。
+
+**主流确实是 `apps/<app>/` + `packages/`**（turborepo / create-t3-turbo / cal.com / supabase / dub / documenso / openstatus），但**目录名不是判据**：
+
+| 仓库 | 结构 | 说明 |
+|---|---|---|
+| `dubinc/dub` | `apps/web` + `packages/*` | **只有 1 个 app 却仍用 apps/**——说明 apps/ 不等于「多个应用」 |
+| `twentyhq/twenty` | `packages/twenty-front` + `packages/twenty-server` | 两个应用**放在 packages/ 里**，不用 apps/ |
+| `excalidraw/excalidraw` | `excalidraw-app/` 在**根目录** + `packages/*` | 应用直接在根，packages/ 全是可发布库 |
+| `bluesky-social/social-app` | `src/` + `bskyweb/` | **连 workspace 都不用** |
+| `documenso/documenso` | `apps/remix` 内含 Hono server **与** React Router UI | **server 与 UI 同进程同构建时放同一个 app 内** |
+| `openstatusHQ/openstatus` | `apps/{checker,private-location}` 是 **Go 服务** | apps/ 是**部署单元**，不是语言单元；10 个 app 各自有 `fly.toml`/`vercel.json`/`Dockerfile` |
+
+**真正的判据（从证据归纳）：** `apps/` 装的是**独立部署/构建产物**，`packages/` 装的是**被多个 app 复用或需单独发布的包**。触发条件是有 ≥2 个独立部署单元、且部署描述符不同。
+
+**本项目不满足这个条件**（实测）：
+
+```
+nginx:  yangtzeu.work        → proxy_pass 127.0.0.1:3000
+        github.yangtzeu.work → proxy_pass 127.0.0.1:3000
+systemd: 单个 yzgc-admin.service，ExecStart=node server/dist/index.js
+```
+
+三个域名**全部指向同一个进程同一个端口**，只有一个部署单元。这不是「多 app」，是**一个 app 的三个路由面**。
+
+最接近的结构类比是 `documenso`：他们把 Hono server 与 UI 放进同一个 `apps/remix`，正是因为两者**一起部署**。本项目同理。
+
+**结论**：保持 `web/` + `server/` 两个包，层内按端切目录。**不引入 `apps/`，也不新建 `app/`。**
+
 **升级路径**：横向 → 纵向是纯机械操作（把 `web/sites/x` 与 `server/src/routes/x` 挪出去加 `package.json`）。等真的需要三端独立部署时再做。
 
 ### 3.2 前端
@@ -212,9 +243,56 @@ server/src/
 
 ### 3.5 每个端的 AGENTS.md 管什么
 
-根 `AGENTS.md` 仍是跨端不变量与总路由表；端级文件**只放该端独有的规则**，不重复根文件：
+#### 3.5.1 加载语义（实测，不是推测）
 
-| 文件 | 内容 |
+行业惯例先要搞清一件事：**子目录的 AGENTS.md 不会被自动读进来**，各工具行为还不一致。
+
+| 工具 | 行为 | 出处 |
+|---|---|---|
+| **agents.md 规范** | 「就近生效」——`The closest AGENTS.md to the edited file wins` | https://agents.md |
+| **OpenAI Codex** | 从 project root **向下收集到 cwd 为止**并拼接；`We do not walk past the project root` | `openai/codex:codex-rs/core/src/agents_md.rs` |
+| **Claude Code** | cwd 及其**祖先**全部加载并拼接；子目录文件**按需**——`included when Claude reads files in those subdirectories` | https://code.claude.com/docs/en/memory |
+| **Gemini CLI** | 唯一**向下自动扫描**的（JIT：访问某文件时扫其目录与祖先），广度上限 `context.discoveryMaxDirs`（默认 200） | `google-gemini/gemini-cli:docs/cli/gemini-md.md` |
+
+两个关键推论：
+
+1. **不能指望端级文件自发进入上下文。** Codex 在 repo root 工作时不会读 `web/sites/forum/AGENTS.md`；Claude 要等到实际打开该目录下的文件才加载。**根文件必须显式指路。**
+2. **工具是「拼接」而非「覆盖」。** Codex：`concatenate their contents in that order`；Claude：`concatenated into context rather than overriding each other`。所谓「就近胜出」靠的是顺序靠后 + 规范约定，**不做去重替换**。→ **端级文件必须是 delta，重复内容会双份进上下文。**
+
+#### 3.5.2 根文件写委派表（照抄 supabase）
+
+最贴近本项目的真实范例是 `supabase/supabase`：根 `AGENTS.md` 用 Structure 表逐条标注哪个目录有自己的 AGENTS.md，末尾再单独叮嘱一句。
+
+它的原文：
+
+```
+| `apps/studio` | Supabase Studio/Dashboard — has its own `apps/studio/AGENTS.md` (see below) |
+```
+
+```
+## Studio
+Before working on anything in `apps/studio`, read `apps/studio/AGENTS.md` if it isn't
+already in context — it maps Studio tasks to required skills and covers the TanStack
+Start migration rules.
+```
+
+**这是弥补「Codex 不向下扫」的唯一可靠手段**，本项目照此办理：根 `AGENTS.md` 增加一节委派表，逐条指向 6 个端级文件，并对每个端写一句「动手前先读 X，若不在上下文里就主动打开」。
+
+其他可对照的形态（都真实存在）：
+
+| 仓库 | 形态 |
+|---|---|
+| `supabase/supabase` | 根做委派表 + 3 个子文件（`apps/{studio,docs,kb}/AGENTS.md`） |
+| `openstatusHQ/openstatus` | 根做委派表 + 8 个子文件（`apps/*/AGENTS.md`、`packages/*/AGENTS.md`） |
+| `vercel/ai` | 根 + `apps/docs/AGENTS.md`、`packages/ai/AGENTS.md` |
+| `openai/codex` | 仅根文件，靠 `##` 分节（自己仓库不用嵌套） |
+| `microsoft/vscode` | 仅根文件，3 行纯指针 |
+
+#### 3.5.3 端级文件的分工
+
+**一条硬规则：一个信息只在一处出现。** 跨端一致的写根文件，端特有的写端文件。重复即违规——因为工具拼接而非覆盖，重复会双份进上下文。
+
+| 文件 | 只写这些（本端 delta） |
 |---|---|
 | `web/sites/portal/AGENTS.md` | 样式命名空间 `portal-*`、不使用 React Query 的原因、无登录态、`portal.css` 边界 |
 | `web/sites/forum/AGENTS.md` | 论坛会话 `forum_sid`、`forum.db` 独占、归档只读（`is_legacy`）、权限表实际只强制 2 项 |
@@ -223,9 +301,16 @@ server/src/
 | `server/src/routes/forum/AGENTS.md` | `forum.db` 只增列、权限判定现状、归档只读的服务端强制点 |
 | `server/src/routes/admin/AGENTS.md` | 三件套中间件、`audit()` 写入、service token 的唯一例外（公开邀请链接） |
 
-每个端级 `AGENTS.md` 配一份 `CLAUDE.md`，内容为 `@AGENTS.md`（与根目录同款做法）。
+端级文件**不写**：本端目录地图的全貌（根文件已有）、跨端不变量、全局命令（`pnpm install` / `pnpm -r run build`）、部署流程。
 
-**注意**：端级 AGENTS.md 只在该目录内被工具自动加载（Claude Code 等的行为），因此**跨端不变量不能只写在那里**——必须在根 `AGENTS.md` 有一份。
+参照 `supabase/supabase:apps/studio/AGENTS.md` 的实际结构：首行自我定位（本端是什么、什么栈、什么端口）→ 本端专属规则分节 → 不重复根文件任何一条。
+
+#### 3.5.4 桥接文件与格式
+
+- **`AGENTS.md` 没有 frontmatter 约定。** agents.md 原文：`No. AGENTS.md is just standard Markdown. Use any headings you like.` frontmatter 属于 Cursor `.cursor/rules/*.mdc` 与 Claude `.claude/rules/*.md` 那两套机制，不要混进来。
+- **根 `CLAUDE.md` 写 `@AGENTS.md` 是 Anthropic 官方推荐做法**（`create a CLAUDE.md that imports it so both tools read the same instructions without duplicating them`），本项目现状即符合。官方另给的替代是 `ln -s AGENTS.md CLAUDE.md`——`vercel/ai` 根目录就是这么做的（git mode `120000`），同一个仓库的 `apps/docs/CLAUDE.md` 又用 `@AGENTS.md`，两种接法都属主流。
+- **端级目录同样各放一份 `CLAUDE.md`**（内容 `@AGENTS.md`）。理由：Claude 对子目录文件是**按需加载**，放一份桥接可让行为确定；`vercel/ai` 在 `apps/docs/` 就是这么做的。代价是 6 个单行文件。
+- `GEMINI.md`、`.cursorrules`、`.windsurfrules`、`.clinerules`、`.github/copilot-instructions.md`、`CONVENTIONS.md` 维持现状：薄指针 + 摘要，指向根 `AGENTS.md`。端级不必为每个工具都放一份。
 
 ### 3.6 文档不散进各端
 
