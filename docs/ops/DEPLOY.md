@@ -1,5 +1,8 @@
 # 部署指南
 
+> 从零把服务跑起来，以及线上出问题时怎么查。含完整 runbook 与故障排查表。
+> English: [DEPLOY.en.md](./DEPLOY.en.md)
+
 ## 前置
 
 - 一台 Linux 服务器（Ubuntu 22.04 验证过）

@@ -1,6 +1,7 @@
 # Security model
 
-Threat model + current protection layers. Update this file whenever security posture changes.
+> Threat model plus the protection layers currently in place. Update this file whenever the security posture changes.
+> 中文：[SECURITY.md](./SECURITY.md)
 
 ---
 

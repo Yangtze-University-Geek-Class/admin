@@ -1,5 +1,8 @@
 # Deployment
 
+> Getting the service running from scratch, and how to investigate when production breaks. Includes the full runbook and troubleshooting table.
+> 中文：[DEPLOY.md](./DEPLOY.md)
+
 ## Prerequisites
 
 - Linux server (verified on Ubuntu 22.04)

@@ -1,5 +1,8 @@
 # Architecture
 
+> How the system is designed: topology, auth flows, data model, encryption, abuse controls. Read this before changing backend routes, the DB, or OAuth.
+> 中文：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
 ## Topology
 
 ```
@@ -111,4 +114,4 @@ See [SECURITY.en.md](./SECURITY.en.md).
 | `/admin/signin` | yes | OAuth entry |
 | `/admin` | requires sign-in | list user's orgs |
 | `/admin/:org/*` | requires org membership | dashboard (read-only for member, full for admin) |
-| `/` `/categories` `/c/:slug` `/t/:id` `/new` `/login` `/register` `/u/:username` `/me` `/me/notifications` `/archive` `/admin` `/teacher` | forum (see [forum routes](./USAGE.en.md)) | community discussion |
+| `/` `/categories` `/c/:slug` `/t/:id` `/new` `/login` `/register` `/u/:username` `/me` `/me/notifications` `/archive` `/admin` `/teacher` | forum (see [forum routes](../ops/USAGE.en.md)) | community discussion |

@@ -1,5 +1,8 @@
 # 使用指南
 
+> 各角色（管理员 / 普通用户 / 外部访客）能看到什么、能做什么。改功能时对照它确认预期行为有没有变。
+> English: [USAGE.en.md](./USAGE.en.md)
+
 线上：https://github.yangtzeu.work/
 
 ## 官网视觉样板
