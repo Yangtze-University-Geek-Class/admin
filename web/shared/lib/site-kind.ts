@@ -15,6 +15,12 @@ import { appConfig, type AppSiteKind } from "../config";
  */
 export function getBasePath(kind: AppSiteKind): string {
   const configured = appConfig.sites[kind].basePath;
+
+  // 开发态每个端由 Vite 从 /sites/<端>/ 提供（见 vite.config.ts 的
+  // devSiteFallback），路由前缀必须跟上，否则站内点击会跳到 /t/101
+  // 这种脱离入口的路径。生产不使用这个分支。
+  if (import.meta.env.DEV) return `/sites/${kind}`;
+
   if (typeof window === "undefined" || kind !== "forum") return configured;
 
   const onPortalHost = window.location.hostname === appConfig.sites.portal.host;

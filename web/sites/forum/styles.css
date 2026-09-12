@@ -1,0 +1,17 @@
+/* 论坛专属排版。拆目录前这些规则带 html[data-site="forum"] 前缀挤在共享的 base.css 里，
+   现在论坛有自己的入口与产物，前缀去掉即可 —— 其它端根本不会加载这个文件。 */
+
+.prose-forum {
+  line-height: 1.85;
+}
+.prose-forum h1,
+.prose-forum h2,
+.prose-forum h3 {
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+code,
+pre {
+  font-family: "Maple Mono NF CN", "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, monospace;
+  font-variant-ligatures: contextual;
+}

@@ -35,35 +35,6 @@
   *::selection { background: rgb(var(--brand-500) / 0.35); }
 }
 
-/* portal / forum 走圆润字体堆栈；admin 保持系统默认 */
-html[data-site="forum"], html[data-site="portal"], .font-rounded {
-  font-family: "Nunito", "Quicksand", -apple-system, BlinkMacSystemFont,
-               "MiSans", "HarmonyOS Sans SC", "PingFang SC",
-               "Hiragino Sans GB", "Source Han Sans SC",
-               "Microsoft YaHei UI", "Microsoft YaHei",
-               "Segoe UI", Roboto, sans-serif;
-  letter-spacing: 0;
-  font-feature-settings: normal;
-  font-variant-ligatures: none;
-}
-html[data-site="forum"] *, html[data-site="portal"] * {
-  font-variant-ligatures: none;
-}
-html[data-site="forum"] .prose-forum {
-  line-height: 1.85;
-}
-html[data-site="forum"] .prose-forum h1,
-html[data-site="forum"] .prose-forum h2,
-html[data-site="forum"] .prose-forum h3 {
-  font-weight: 700;
-  letter-spacing: -0.005em;
-}
-html[data-site="forum"] code,
-html[data-site="forum"] pre {
-  font-family: "Maple Mono NF CN", "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, monospace;
-  font-variant-ligatures: contextual;
-}
-
 /* 代码块整体（marked renderer 输出 .code-block 包 pre/code） */
 .prose-forum .code-block {
   margin: 1rem 0;
