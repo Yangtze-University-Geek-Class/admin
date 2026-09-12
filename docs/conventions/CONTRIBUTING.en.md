@@ -43,7 +43,7 @@ Frontend only, without a backend:
 pnpm --filter @yzgc/web dev
 ```
 
-Development mode serves local mock data by default (`web/src/lib/mock-api.ts`) and every page is browsable. Switch data sources via the `DEV CONTROL` panel on the page or the `?__data=live` URL parameter.
+Development mode serves local mock data by default (`web/shared/lib/mock-api.ts`) and every page is browsable. Switch data sources via the `DEV CONTROL` panel on the page or the `?__data=live` URL parameter.
 
 **Note**: the mock layer matches by suffix regex (`/overview$`, `/members$`) rather than a path prefix. Changing any API path requires updating the mock in lockstep, or development mode silently returns wrong data.
 
@@ -83,7 +83,7 @@ Step 0 is not optional. This repo has accumulated defects precisely because it w
 
 These are the invariants from `AGENTS.md` §4, summarised:
 
-1. **Tailwind colors must go through CSS variables** — hardcoded hex anywhere in `web/src/**` is forbidden.
+1. **Tailwind colors must go through CSS variables** — hardcoded hex anywhere in `web/{sites,shared}/**` is forbidden.
 2. **No native `<select>` and no `window.confirm()`** — use `Select` and `useConfirm()` from `shared`.
 3. **Backend admin routes** need both `requireAuth` and `requireOrgRole(...)`, and mutations must call `audit(...)`.
 4. **GitHub calls always use the signed-in user's own token** (`req.session.accessToken`); service tokens serve only the public invite-link flow.

@@ -26,7 +26,7 @@
 - 开发环境默认使用样板数据；生产构建强制使用真实 API，不显示总控，也不接受 query/localStorage 覆盖。
 - 除总控按钮外，也可直接带 URL 参数访问：`?__site=portal|forum|admin` 切换站点，`?__data=mock|live` 切换数据源。
 
-前端统一配置位于 `web/src/config/app.config.json`，包括域名、站点主题、开发/生产策略、功能开关、官网 Hero 文案和看板娘尺寸/姿势/对话。
+前端统一配置位于 `web/shared/config/app.config.json`，包括域名、站点主题、开发/生产策略、功能开关、官网 Hero 文案和看板娘尺寸/姿势/对话。
 
 本文档按 3 个角色组织：组织 admin / 普通成员 / 外部访客。
 
