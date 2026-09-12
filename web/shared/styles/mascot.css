@@ -1,0 +1,86 @@
+/* Mascot module — one unified spec, fixed bottom-right on every site.
+   Shared by portal and forum; admin does not mount it.
+   Production rules only. The preview/lab variant (.mascot-preview-*, .mascot-orbit)
+   lives in sites/portal/styles.css because it reads portal-only CSS variables. */
+
+.mascot-shell {
+  position: fixed;
+  right: 22px;
+  bottom: 18px;
+  z-index: 46;
+  width: var(--mascot-width, 154px);
+  height: var(--mascot-height, 245px);
+  pointer-events: none;
+}
+.mascot-character {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  filter: drop-shadow(0 12px 18px rgb(0 0 0 / .26));
+  transition: transform .28s ease;
+}
+.mascot-character img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+}
+.mascot-character:hover { transform: scale(1.06) translateY(-4px); }
+.mascot-status-dot {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  top: 11px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid rgb(var(--ink-950));
+  border-radius: 50%;
+  background: rgb(67 222 157);
+  box-shadow: 0 0 12px rgb(67 222 157);
+}
+
+/* Chat text lives in a dedicated transparent panel above the feedback button.
+   Fixed size, wheel-scrollable when text overflows, clicks are inert. Text
+   renders inside .mascot-bubble so copy changes never touch the layout. */
+.mascot-bubble-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 47;
+  width: 250px;
+  max-height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: transparent;
+  pointer-events: auto;
+  scrollbar-width: thin;
+}
+.forum-mascot .mascot-bubble-panel { bottom: calc(100% + 64px); }
+.mascot-bubble {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1px solid rgb(var(--brand-500) / .32);
+  border-radius: 13px 13px 3px 13px;
+  color: rgb(var(--ink-100));
+  background: rgb(var(--ink-950) / .92);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 16px 38px rgb(0 0 0 / .16);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.mascot-dialog-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: rgb(var(--brand-500));
+  font: 8px/1 ui-monospace, monospace;
+  letter-spacing: .16em;
+}
+
+@media (max-width: 760px) {
+  .mascot-shell { right: 12px; bottom: 12px; }
+  .mascot-bubble-panel { width: 200px; max-height: 96px; }
+  .mascot-bubble { padding: 8px 10px; font-size: 11px; }
+}
