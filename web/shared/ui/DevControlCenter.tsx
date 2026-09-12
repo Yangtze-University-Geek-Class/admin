@@ -1,8 +1,7 @@
 // Development-only control center (site / data-source / page switcher).
 // Rendered only when environment.development.showControlCenter is true; never in production.
 import { runtimeEnvironment, type AppSiteKind, type DataSource } from "../config";
-import { detectSite } from "../lib/site";
-import { getDataSource, setDataSource, setSiteOverride } from "../lib/runtime";
+import { crossSiteHref, getCurrentSite, getDataSource, setDataSource } from "../lib/runtime";
 
 const SITE_OPTIONS: Array<{ value: AppSiteKind; label: string }> = [
   { value: "portal", label: "官网" },
@@ -14,26 +13,11 @@ export default function DevControlCenter() {
   const runtime = runtimeEnvironment();
   if (!runtime.showControlCenter) return null;
 
-  const site = detectSite().kind;
+  const site = getCurrentSite();
   const source = getDataSource();
 
-  const openPath = (path: string) => {
-    const url = new URL(window.location.href);
-    url.pathname = path;
-    window.location.assign(url.toString());
-  };
-
-  const openSite = (target: AppSiteKind) => {
-    if (target === "admin") {
-      localStorage.setItem("yugc:dev-site", target);
-      const url = new URL(window.location.href);
-      url.pathname = "/admin";
-      url.searchParams.set("__site", target);
-      window.location.assign(url.toString());
-      return;
-    }
-    setSiteOverride(target);
-  };
+  // 开发态每个端是独立的 HTML 入口，站内跳转要带上 /sites/<端> 前缀
+  const openPath = (path: string) => window.location.assign(crossSiteHref(site, path));
 
   return (
     <aside className="dev-control-center" aria-label="开发环境总控">
@@ -44,7 +28,12 @@ export default function DevControlCenter() {
       <div className="dev-control-row">
         <span className="dev-control-label">站点</span>
         {SITE_OPTIONS.map((option) => (
-          <button key={option.value} type="button" className={site === option.value ? "is-active" : ""} onClick={() => openSite(option.value)}>
+          <button
+            key={option.value}
+            type="button"
+            className={site === option.value ? "is-active" : ""}
+            onClick={() => window.location.assign(crossSiteHref(option.value, "/"))}
+          >
             {option.label}
           </button>
         ))}

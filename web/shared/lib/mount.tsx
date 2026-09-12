@@ -12,7 +12,7 @@ import { ConfirmProvider } from "../ui/ConfirmDialog";
 import ImageLightbox from "../ui/ImageLightbox";
 import DevControlCenter from "../ui/DevControlCenter";
 import { applyTheme, loadTheme } from "./themes";
-import { getBasePath } from "./site-kind";
+import { getBasePath, setCurrentSite } from "./runtime";
 import { appConfig, type AppSiteKind } from "../config";
 
 import "@shared/styles/base.css";
@@ -42,6 +42,7 @@ export type MountOptions = {
 export function mountSite(kind: AppSiteKind, app: ReactNode, options: MountOptions = {}) {
   const { title = appConfig.sites[kind].title, chrome } = options;
 
+  setCurrentSite(kind);
   document.title = title;
   applyTheme(loadTheme("yzgc-blue"));
 
