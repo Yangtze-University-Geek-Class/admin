@@ -1,42 +1,16 @@
-// Site identity + cross-site URL helpers. Single source for which skin/routes
-// a host serves; delegates host detection to lib/runtime.ts.
-import { appConfig, type AppSiteKind } from "../config";
-import { externalSiteUrl, resolveRuntimeSite } from "./runtime";
+// 站点身份与跨端 URL 的统一入口。
+//
+// 「当前是哪个端」由 mountSite() 在挂载时声明（见 runtime.ts 的 setCurrentSite），
+// 不再靠 hostname 推断；basename 与跨端 URL 的规则都在 runtime.ts。
+import { getBasePath, externalSiteUrl } from "./runtime";
 
-export type SiteKind = AppSiteKind;
-
-export type SiteConfig = {
-  kind: SiteKind;
-  host: string;
-  title: string;
-  basePath: string;
-};
-
-export function detectSite(): SiteConfig {
-  const kind = resolveRuntimeSite();
-  const configured = appConfig.sites[kind];
-  const portalForumFallback = typeof window !== "undefined"
-    && kind === "forum"
-    && window.location.hostname === appConfig.sites.portal.host
-    && window.location.pathname.startsWith("/forum");
-  return {
-    kind,
-    ...configured,
-    host: portalForumFallback ? appConfig.sites.portal.host : configured.host,
-    basePath: portalForumFallback ? "/forum" : configured.basePath,
-  };
-}
-
-export function externalUrl(target: SiteKind, path = "/"): string {
+export function externalUrl(target: "portal" | "forum" | "admin", path = "/"): string {
   return externalSiteUrl(target, path);
 }
 
-export function forumBasePath(): string {
-  return detectSite().basePath;
-}
-
+/** 论坛站内路径的绝对形式，用于 OAuth 的 return_to —— 必须带上 basename。 */
 export function forumPath(path: string): string {
-  const base = forumBasePath();
+  const base = getBasePath("forum");
   if (path === "" || path === "/") return base || "/";
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${base}${normalized}`;

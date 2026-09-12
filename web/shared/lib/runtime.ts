@@ -1,39 +1,42 @@
-// Runtime site + data-source resolution.
-// Dev build: __site / __data query params and localStorage win, gated by config.
-// Production build: always the configured defaults; overrides are ignored.
+// 运行时状态：当前是哪个端、数据源是 mock 还是 live、跨端 URL 怎么拼。
+//
+// 拆分后每个端有独立入口（web/sites/<端>/main.tsx），入口挂载时通过
+// setCurrentSite() 声明自己是谁 —— 不再需要靠 hostname 去猜。
 import { appConfig, runtimeEnvironment, type AppSiteKind, type DataSource } from "../config";
 
-const SITE_KEY = "yugc:dev-site";
-const DATA_KEY = "yugc:dev-data-source";
+let currentSite: AppSiteKind | null = null;
 
-function readLocal<T extends string>(key: string, allowed: readonly T[]): T | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const value = localStorage.getItem(key) as T | null;
-    return value && allowed.includes(value) ? value : null;
-  } catch {
-    return null;
-  }
+/** 由 mountSite() 调用，标记当前渲染的是哪个端。 */
+export function setCurrentSite(kind: AppSiteKind): void {
+  currentSite = kind;
+  document.documentElement.dataset.site = kind;
 }
 
-export function getSiteOverride(): AppSiteKind | null {
-  const runtime = runtimeEnvironment();
-  if (!runtime.allowSiteOverride) return null;
-  const fromQuery = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("__site") as AppSiteKind | null
-    : null;
-  if (fromQuery && ["portal", "forum", "admin"].includes(fromQuery)) return fromQuery;
-  return readLocal(SITE_KEY, ["portal", "forum", "admin"] as const);
+export function getCurrentSite(): AppSiteKind {
+  return currentSite ?? runtimeEnvironment().defaultSite;
 }
 
-export function setSiteOverride(site: AppSiteKind): void {
-  if (!runtimeEnvironment().allowSiteOverride || typeof window === "undefined") return;
-  localStorage.setItem(SITE_KEY, site);
-  const url = new URL(window.location.href);
-  url.searchParams.set("__site", site);
-  url.pathname = site === "admin" ? "/admin" : "/";
-  window.location.assign(url.toString());
+/**
+ * 该端在当前浏览器地址下的路由 basename。
+ *
+ * 三个端的配置 basename 都是空串，例外有二：
+ *  · 开发态每个端由 Vite 从 `/sites/<端>/` 提供（见 vite.config.ts 的
+ *    devSiteFallback），路由前缀必须跟上，否则站内点击会跳出入口；
+ *  · 论坛挂在官网域名的 `/forum` 路径下时（子域尚未启用）。
+ */
+export function getBasePath(kind: AppSiteKind): string {
+  const configured = appConfig.sites[kind].basePath;
+
+  if (import.meta.env.DEV) return `/sites/${kind}`;
+
+  if (typeof window === "undefined" || kind !== "forum") return configured;
+
+  const onPortalHost = window.location.hostname === appConfig.sites.portal.host;
+  const underForumPath = window.location.pathname.startsWith("/forum");
+  return onPortalHost && underForumPath ? "/forum" : configured;
 }
+
+const DEV_DATA_KEY = "yugc:dev-data-source";
 
 export function getDataSource(): DataSource {
   const runtime = runtimeEnvironment();
@@ -42,41 +45,49 @@ export function getDataSource(): DataSource {
     ? new URLSearchParams(window.location.search).get("__data") as DataSource | null
     : null;
   if (fromQuery === "mock" || fromQuery === "live") return fromQuery;
-  return readLocal(DATA_KEY, ["mock", "live"] as const) ?? runtime.dataSource;
+  try {
+    const stored = localStorage.getItem(DEV_DATA_KEY) as DataSource | null;
+    if (stored === "mock" || stored === "live") return stored;
+  } catch {
+    /* localStorage 不可用时忽略，用默认值 */
+  }
+  return runtime.dataSource;
 }
 
 export function setDataSource(source: DataSource): void {
   if (!runtimeEnvironment().allowDataSourceOverride || typeof window === "undefined") return;
-  localStorage.setItem(DATA_KEY, source);
+  try {
+    localStorage.setItem(DEV_DATA_KEY, source);
+  } catch {
+    /* 忽略 */
+  }
   const url = new URL(window.location.href);
   url.searchParams.set("__data", source);
   window.location.assign(url.toString());
 }
 
-export function externalSiteUrl(target: AppSiteKind, path = "/"): string {
-  const entry = appConfig.sites[target];
-  if (typeof window === "undefined") return path;
-  const current = resolveRuntimeSite();
-  if (current === target) return path;
-  if (runtimeEnvironment().allowSiteOverride && !Object.values(appConfig.sites).some((site) => site.host === window.location.hostname)) {
-    const url = new URL(window.location.href);
-    url.pathname = target === "admin" ? (path.startsWith("/admin") ? path : "/admin") : path;
-    url.searchParams.set("__site", target);
-    return `${url.pathname}${url.search}`;
-  }
-  const proto = window.location.protocol === "http:" ? "http" : "https";
-  if (target === "forum" && window.location.hostname === appConfig.sites.portal.host) {
-    return path === "/" ? "/forum" : `/forum${path.startsWith("/") ? path : `/${path}`}`;
-  }
-  return `${proto}://${entry.host}${path.startsWith("/") ? path : `/${path}`}`;
+/** 跳到另一个端。开发态在同一个 Vite server 上按路径切换。 */
+export function crossSiteHref(target: AppSiteKind, path = "/"): string {
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return import.meta.env.DEV ? `/sites/${target}${suffix}` : `${window.location.protocol}//${appConfig.sites[target].host}${suffix}`;
 }
 
-export function resolveRuntimeSite(): AppSiteKind {
-  if (typeof window === "undefined") return runtimeEnvironment().defaultSite;
-  const override = getSiteOverride();
-  if (override) return override;
-  const host = window.location.hostname;
-  if (host === appConfig.sites.portal.host && window.location.pathname.startsWith("/forum")) return "forum";
-  const direct = (Object.entries(appConfig.sites) as [AppSiteKind, { host: string }][]).find(([, site]) => site.host === host);
-  return direct?.[0] ?? runtimeEnvironment().defaultSite;
+/**
+ * 跨端跳转的 URL。同端返回站内相对路径；跨端在开发态走 `/sites/<端>/…`，
+ * 生产态走绝对域名（论坛在官网域名下时特殊处理为 `/forum` 前缀）。
+ */
+export function externalSiteUrl(target: AppSiteKind, path = "/"): string {
+  if (typeof window === "undefined") return path;
+
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  if (getCurrentSite() === target) return path;
+
+  if (import.meta.env.DEV) return `/sites/${target}${suffix}`;
+
+  if (target === "forum" && window.location.hostname === appConfig.sites.portal.host) {
+    return suffix === "/" ? "/forum" : `/forum${suffix}`;
+  }
+
+  const proto = window.location.protocol === "http:" ? "http:" : "https:";
+  return `${proto}//${appConfig.sites[target].host}${suffix}`;
 }
