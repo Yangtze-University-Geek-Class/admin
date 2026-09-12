@@ -1,0 +1,18 @@
+/* portal 与 forum 共用圆润字体堆栈；admin 保持系统默认字体，因此不引这个文件。
+   原先靠 html[data-site="forum|portal"] 条件选择器实现，拆端后由入口各自引用，
+   不再依赖运行时的 data-site 属性。 */
+
+html,
+.font-rounded {
+  font-family: "Nunito", "Quicksand", -apple-system, BlinkMacSystemFont,
+               "MiSans", "HarmonyOS Sans SC", "PingFang SC",
+               "Hiragino Sans GB", "Source Han Sans SC",
+               "Microsoft YaHei UI", "Microsoft YaHei",
+               "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0;
+  font-feature-settings: normal;
+  font-variant-ligatures: none;
+}
+html * {
+  font-variant-ligatures: none;
+}

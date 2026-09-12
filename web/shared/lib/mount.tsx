@@ -37,14 +37,12 @@ export type MountOptions = {
 };
 
 /**
- * 挂载一个端。`kind` 决定 document 上的 data-site（供样式使用）
- * 与 basename（论坛可能挂在 /forum 路径下）。
+ * 挂载一个端。`kind` 决定 basename（论坛可能挂在 /forum 路径下）与默认标题。
  */
 export function mountSite(kind: AppSiteKind, app: ReactNode, options: MountOptions = {}) {
   const { title = appConfig.sites[kind].title, chrome } = options;
 
   document.title = title;
-  document.documentElement.dataset.site = kind;
   applyTheme(loadTheme("yzgc-blue"));
 
   const root = document.getElementById("root");
