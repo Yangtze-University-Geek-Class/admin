@@ -51,7 +51,8 @@ sudo vi .env
 ```ini
 OAUTH_CLIENT_ID=<client id>
 OAUTH_CLIENT_SECRET=<client secret>
-PUBLIC_ORIGIN=https://<你的域名>
+PUBLIC_ORIGIN=https://<后台域名>
+SITE_ORIGIN=https://<官网域名>
 PORT=3000
 SESSION_SECRET=<openssl rand -base64 32 生成>
 ENCRYPTION_KEY=<openssl rand -base64 32 生成>
@@ -61,6 +62,25 @@ TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
 # POW_DIFFICULTY=3        # 公开提交的 PoW 难度（默认 3；调高更慢更稳）
 ```
+
+**`.env.example` 里有每一项的注释**，包括三个站点域名的推导规则。改动 `.env` 后要 `systemctl restart yzgc-admin` 才生效。
+
+### 什么在 .env，什么不在
+
+| 位置 | 管什么 | 为什么 |
+|---|---|---|
+| `.env`（运行时） | OAuth 凭据、会话与加密密钥、数据库路径、Turnstile、PoW 难度、组织白名单、**站点域名** | 秘密与部署相关配置，不进版本库；systemd 通过 `EnvironmentFile` 读取 |
+| `web/shared/config/app.config.json`（构建期） | 前端域名、站点标题、功能开关、看板娘调参、官网文案 | Vite 的 `VITE_*` 是**编译期注入**，会把值烤进产物；而且这些不是秘密。改它要重新构建，不是重启 |
+
+**唯一的重叠是站点域名**：前端要它拼跨站绝对 URL（构建期），后端要它派发 `index.html`（运行时）。两处不一致不会报错，只会让某个链接指向不存在的地址 —— 论坛那条死链就是这么漏过去的。
+
+因此 `pnpm build` 前置了 `scripts/check-site-hosts.mjs`，在服务器上（有 `.env`）构建时自动比对两边，不一致直接失败：
+
+```bash
+node scripts/check-site-hosts.mjs   # 也可单独跑；无 .env 时跳过
+```
+
+**改域名时四处要一起改**：`.env` 的 `PUBLIC_ORIGIN`/`SITE_ORIGIN`、前端 `app.config.json` 的 `sites.*.host`、nginx 的 `server_name`、以及 GitHub OAuth App 的 Callback URL。
 
 ```bash
 sudo chmod 600 .env
