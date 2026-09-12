@@ -51,16 +51,36 @@ Required `.env`:
 ```ini
 OAUTH_CLIENT_ID=<client id>
 OAUTH_CLIENT_SECRET=<client secret>
-PUBLIC_ORIGIN=https://<your-domain>
+PUBLIC_ORIGIN=https://<admin domain>
+SITE_ORIGIN=https://<portal domain>
 PORT=3000
 SESSION_SECRET=<openssl rand -base64 32>
 ENCRYPTION_KEY=<openssl rand -base64 32>
 DB_PATH=/opt/yzgc-admin/data/data.db
-POW_DIFFICULTY=3
 # Optional
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
+# POW_DIFFICULTY=3        # proof-of-work difficulty for public submissions (default 3)
 ```
+
+**`.env.example` documents every variable**, including how the three site hosts are derived. After editing `.env`, run `systemctl restart yzgc-admin` for it to take effect.
+
+### What lives in .env, and what does not
+
+| Location | Governs | Why |
+|---|---|---|
+| `.env` (runtime) | OAuth credentials, session and encryption keys, DB paths, Turnstile, PoW difficulty, org allowlist, **site hosts** | Secrets and deployment-specific values; never committed. systemd reads it via `EnvironmentFile` |
+| `web/shared/config/app.config.json` (build time) | Frontend hosts, site titles, feature flags, mascot tuning, portal copy | Vite's `VITE_*` is **compiled in**, so values end up baked into the bundle; and none of it is secret. Changing it means rebuilding, not restarting |
+
+**The one overlap is the site hosts**: the frontend needs them to build absolute cross-site URLs (build time), and the backend needs them to dispatch `index.html` (runtime). A mismatch produces no error — only a link pointing at a host that does not exist. The forum's dead link shipped through exactly this kind of gap.
+
+So `pnpm build` is preceded by `scripts/check-site-hosts.mjs`, which compares the two on the server (where `.env` exists) and fails the build on a mismatch:
+
+```bash
+node scripts/check-site-hosts.mjs   # can also be run alone; skips when there is no .env
+```
+
+**Changing a domain means changing four places**: `.env`'s `PUBLIC_ORIGIN`/`SITE_ORIGIN`, the frontend's `app.config.json` `sites.*.host`, nginx's `server_name`, and the GitHub OAuth App's Callback URL.
 
 ```bash
 sudo chmod 600 .env
