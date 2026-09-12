@@ -7,12 +7,12 @@ import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { config } from "./config.js";
 
-import authRoutes from "./routes/auth.js";
-import joinRoutes from "./routes/join.js";
-import orgsRoutes from "./routes/orgs.js";
-import feedbackRoutes from "./routes/feedback.js";
+import authRoutes from "./routes/admin/auth.js";
+import joinRoutes from "./routes/portal/join.js";
+import orgsRoutes from "./routes/admin/orgs.js";
+import feedbackRoutes from "./routes/portal/feedback.js";
 import adminFeedbackRoutes from "./routes/admin/feedback.js";
-import docsRoutes from "./routes/docs.js";
+import docsRoutes from "./routes/portal/docs.js";
 import overviewRoutes from "./routes/admin/overview.js";
 import membersRoutes from "./routes/admin/members.js";
 import reposRoutes from "./routes/admin/repos.js";

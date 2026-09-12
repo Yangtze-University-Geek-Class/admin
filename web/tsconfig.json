@@ -18,7 +18,9 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "sites", "shared"]
 }
