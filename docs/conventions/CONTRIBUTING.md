@@ -22,7 +22,9 @@
 ## 1. 第一次上手
 
 ```bash
-# 环境：Node 20+、pnpm 9
+# 环境：Node 20 LTS（22 也可）、pnpm 9
+# 注意：Node 24+ 本地可能装不上 better-sqlite3（原生模块编译失败）。
+# 实测 20.20.2 正常。用 fnm/nvm 切到 20 即可。
 git clone git@github.com:Yangtze-University-Geek-Class/admin.git
 cd admin
 pnpm install --frozen-lockfile
