@@ -113,58 +113,45 @@ yzgc-admin/
 │               ├── feedback.ts               ← admin triage of feedback
 │               └── logs.ts                   ← audit log read
 ├── web/                   Vite + React 18 + TanStack Query + Tailwind (CSS vars for theming)
-│   │                      NOTE: this tree is one codebase rendering three sites
-│   │                      (portal / forum / admin). A physical split into
-│   │                      web/sites/{portal,forum,admin} + web/shared/ is planned —
-│   │                      read docs/plan/WEB-SPLIT.md before adding or moving files here.
+│   │                      一个代码库渲染三个端：portal / forum / admin。
+│   │                      每端有独立入口与构建产物，改一端不会碰坏另一端的代码。
+│   │                      边界规则见 docs/plan/WEB-SPLIT.md §4，由
+│   │                      scripts/check-boundaries.mjs 在 build 前置强制。
 │   ├── package.json
-│   ├── vite.config.ts                       ← dev proxy /api /auth /healthz → :3000
-│   ├── tailwind.config.js                   ← colors are rgb(var(--brand-X) / <alpha-value>)
-│   ├── index.html
+│   ├── vite.config.ts                       ← 多入口（三端各一份 index.html）+ dev 按端 SPA fallback
+│   ├── tailwind.config.js                   ← colors are rgb(var(--brand-X) / <alpha-value>)；content 覆盖 sites/ 与 shared/
 │   ├── public/                              ← logo.png + favicon-16/32 + logo-192
-│   └── src/
-│       ├── main.tsx                         ← ThemeProvider + QueryClient + ConfirmProvider + Router
-│       ├── App.tsx                          ← all routes
-│       ├── index.css                        ← shared Tailwind components + prose styles + global animations
-│       ├── portal.css                       ← portal soft-blue skin + motion effects + mascot styles
-│       ├── config/
-│       │   ├── app.config.json              ← frontend URLs, per-env policy/feature flags, portal + mascot tuning
-│       │   └── index.ts                     ← typed config access
+│   ├── sites/
+│   │   ├── portal/                          ← 官网。4 页，全匿名，不用 React Query
+│   │   │   ├── index.html  main.tsx  App.tsx
+│   │   │   ├── styles.css                   ← portal-* 皮肤（只有本端加载）
+│   │   │   ├── components/PortalHeader.tsx  ← ·唯一端专属组件
+│   │   │   └── pages/                       ← Landing / Docs / Feedback / JoinByToken
+│   │   ├── forum/                           ← 论坛。13 页 + ForumLayout，独立会话 forum_sid
+│   │   │   ├── index.html  main.tsx  App.tsx
+│   │   │   ├── styles.css                   ← .prose-forum 排版与代码字体
+│   │   │   └── pages/                       ← Home/CategoryList/Category/Thread/NewThread/Login/Register/Profile/Me/Notifications/Archive/Admin/Teacher
+│   │   └── admin/                           ← 组织管理后台。15 页 + OrgLayout，强制 GitHub OAuth
+│   │       ├── index.html  main.tsx  App.tsx
+│   │       └── pages/                       ← SignIn/MyOrgs/OrgLayout/Overview/Members/Repos/RepoDetail/CreateRepo/
+│   │                                           Invitations/InviteLinks/Teams/Activity/Security/OrgSettings/Feedback/Logs
+│   └── shared/                              ← 三端共用。禁止反向依赖 sites/*
 │       ├── lib/
 │       │   ├── api.ts                       ← live/mock dispatcher + fetch wrapper, fmtDate, fmtRelative
+│       │   ├── markdown.ts                  ← 全站唯一的 Markdown 入口（marked + DOMPurify）；renderForumContent 额外重写 bbs/ 附件
+│       │   ├── mount.tsx                    ← 三端共用挂载：主题 / QueryClient / ConfirmProvider / Lightbox / 开发总控
 │       │   ├── mock-api.ts                  ← development-only local fixtures for protected pages
-│       │   ├── runtime.ts                   ← dev/prod site + data-source control
+│       │   ├── runtime.ts                   ← 当前端、basename、数据源、跨端 URL
+│       │   ├── site.ts                      ← externalUrl() / forumPath()
 │       │   └── themes.ts                    ← single light yzgc-blue theme, applyTheme/loadTheme
-│       ├── components/
-│       │   ├── DevControlCenter.tsx          ← development site/data/page switcher; hidden in production
-│       │   ├── PortalHeader.tsx              ← config-driven portal brand + docs/forum/admin/GitHub nav
-│       │   ├── Select.tsx                   ← REPLACES native <select> everywhere (themed dropdown)
-│       │   ├── ConfirmDialog.tsx            ← useConfirm() — REPLACES window.confirm() everywhere
-│       │   ├── DiffView.tsx                 ← commit diff colorizer (@@/+ /-)
-│       │   └── Mascot.tsx                  ← unified 8-pose mascot, portal/forum/preview layouts
-│       └── pages/
-│           ├── Landing.tsx                  ← / (portal)
-│           ├── Docs.tsx                     ← /docs /docs/:id
-│           ├── JoinByToken.tsx              ← /join/:token
-│           ├── Feedback.tsx                 ← /feedback  /feedback/:org
-│           ├── forum/                       ← Home/CategoryList/Category/Thread/NewThread/Login/Register/Profile/Me/Notifications/Archive/Admin/Teacher
-│           └── admin/
-│               ├── SignIn.tsx               ← /admin/signin
-│               ├── MyOrgs.tsx               ← /admin
-│               ├── OrgLayout.tsx            ← /admin/:org wrapper (nav + org switcher)
-│               ├── Overview.tsx
-│               ├── Members.tsx
-│               ├── Repos.tsx
-│               ├── RepoDetail.tsx           ← tabs Code/Commits/Issues/PRs/Settings (nested routes)
-│               ├── CreateRepo.tsx
-│               ├── Invitations.tsx
-│               ├── InviteLinks.tsx
-│               ├── Teams.tsx
-│               ├── Activity.tsx
-│               ├── Security.tsx
-│               ├── OrgSettings.tsx
-│               ├── Feedback.tsx             ← admin triage
-│               └── Logs.tsx
+│       ├── ui/                              ← DevControlCenter / Mascot / FeedbackFab / ImageLightbox /
+│       │                                       ConfirmDialog / Select / NumberInput / DiffView / BackBar
+│       ├── config/app.config.json + index.ts ← 域名、per-env 策略与开关、portal 与 mascot 调参
+│       └── styles/
+│           ├── base.css                     ← Tailwind + card/btn/tag/prose 组件类
+│           ├── mascot.css                   ← 看板娘（由 Mascot.tsx 自己引用）
+│           └── rounded.css                  ← portal+forum 的圆润字体堆栈（admin 不引）
+
 └── deploy/
     ├── nginx.conf                           ← server block for github.yangtzeu.work
     ├── yzgc-admin.service                   ← systemd unit
@@ -191,11 +178,24 @@ cd server && pnpm build
 # web-only build
 cd web && pnpm build
 
+# 端边界检查（web build 的前置，也可单独跑）
+node scripts/check-boundaries.mjs
+
 # server prod start
 node server/dist/index.js
 ```
 
 No test framework yet. When adding one, prefer Vitest (matches Vite/web). Don't add Jest.
+
+**三端的前端入口**（dev 与生产路径不同）：
+
+| 端 | dev | 生产 |
+|---|---|---|
+| portal | `/sites/portal/` | `yangtzeu.work/` |
+| forum | `/sites/forum/` | `yangtzeu.work/forum` 或 `forum.yangtzeu.work/` |
+| admin | `/sites/admin/` | `github.yangtzeu.work/` |
+
+生产由 Fastify 按 host 派发到 `web/dist/sites/<端>/index.html`（见 `server/src/index.ts` 的 `resolveSiteEntry`）；dev 由 `vite.config.ts` 的 `devSiteFallback` 插件承担同样职责。
 
 To verify changes work end-to-end: rebuild, restart systemd, hit `/healthz`, then drive the live page via opencli (or curl `/api/admin/...` with a valid session cookie).
 
@@ -261,14 +261,22 @@ This is enforced by code review.
 
 ### Add a new admin page
 
-1. Create `web/src/pages/admin/<Name>.tsx` (use `useParams` for `:org`)
-2. Add `<Route path="<slug>" element={<Name />} />` under `/admin/:org` in `App.tsx`
+1. Create `web/sites/admin/pages/<Name>.tsx` (use `useParams` for `:org`)
+2. Add `<Route path="<slug>" element={<Name />} />` under `/admin/:org` in `web/sites/admin/App.tsx`
 3. Add a nav entry to `NAV_ALL` in `OrgLayout.tsx` (set `admin: true` if admin-only)
 4. Use `useOutletContext<{ isAdmin: boolean; role: string; org: string }>()` to gate admin-only UI in the same page
 
+### Add a page to portal or forum
+
+Same shape, but the route tree is `web/sites/<端>/App.tsx` and the page goes in
+`web/sites/<端>/pages/`. Cross-site links must go through `externalUrl()` — a
+same-site `<Link>` pointing at another end's route is caught by
+`scripts/check-boundaries.mjs` only if it imports across ends; a bad path is not,
+which is how the forum's dead `/docs` link shipped.
+
 ### Adjust colors (no theming system)
 
-1. Product is intentionally single light theme; edit the one `THEMES[0]` entry in `web/src/lib/themes.ts` (11 `--ink-*` + 3 `--brand-*` + `--bg-grad`)
+1. Product is intentionally single light theme; edit the one `THEMES[0]` entry in `web/shared/lib/themes.ts` (11 `--ink-*` + 3 `--brand-*` + `--bg-grad`)
 2. Portal-only accents live in `app.config.json > portal.palette`
 3. Do not reintroduce dark themes or a theme switcher
 

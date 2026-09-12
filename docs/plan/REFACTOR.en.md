@@ -4,6 +4,12 @@
 > Purpose: pin down "what the system looks like today" before touching anything. This file describes the current state only — no migration steps.
 > Chinese original: [REFACTOR.md](./REFACTOR.md).
 
+> **This document records the directory layout from before the split (`4959668`).** The
+> three-end split landed on 2026-09-12: the frontend now lives in `web/sites/<end>/` and
+> `web/shared/`, and backend routes in `server/src/routes/<end>/` — so paths like
+> `web/src/pages/*` below are historical. The page list, API table, and defect list remain
+> valid; for anything directory-related, trust the code and [WEB-SPLIT.md](./WEB-SPLIT.en.md).
+
 ---
 
 ## 0. The three sites

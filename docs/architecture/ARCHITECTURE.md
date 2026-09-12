@@ -102,7 +102,7 @@ audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
 
 ## 前端运行配置
 
-`web/src/config/app.config.json` 是前端运行时配置的单一入口：
+`web/shared/config/app.config.json` 是前端运行时配置的单一入口：
 
 - `environment.development/production`：默认站点、mock/live 数据源、开发总控和覆盖权限。
 - `sites` / `urls`：三个站点的域名、标题和 GitHub 组织外链。域名只在 `sites.*.host` 维护一处，跨站链接一律走 `externalUrl()`。
@@ -110,7 +110,7 @@ audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
 - `portal`：品牌信息、顶部导航模型、官网 Hero 文案、唯一柔和蓝色 palette、代码流和装饰符号参数。
 - `mascot`：统一尺寸（154×245）、8 套姿势资源、fit/position/scale 和对话。
 
-`web/src/components/PortalHeader.tsx` 只负责渲染配置驱动的品牌和导航，不在组件中硬编码 URL 或菜单顺序。`web/src/lib/runtime.ts` 负责解析开发覆盖；`web/src/lib/api.ts` 根据数据源分派到真实 fetch 或 `web/src/lib/mock-api.ts`。mock 层只存在于前端，不增加服务端路由。生产构建强制 live，忽略 `__site` / `__data` 和 localStorage 覆盖。
+`web/sites/portal/components/PortalHeader.tsx` 只负责渲染配置驱动的品牌和导航，不在组件中硬编码 URL 或菜单顺序。`web/shared/lib/runtime.ts` 负责解析开发覆盖；`web/shared/lib/api.ts` 根据数据源分派到真实 fetch 或 `web/shared/lib/mock-api.ts`。mock 层只存在于前端，不增加服务端路由。生产构建强制 live，忽略 `__site` / `__data` 和 localStorage 覆盖。
 
 ## 前端架构
 

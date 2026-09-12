@@ -95,9 +95,9 @@ See [SECURITY.en.md](./SECURITY.en.md).
 ## Frontend
 
 - Vite 6 + React 18 + React Router 7 + TanStack Query 5
-- Runtime configuration lives in `web/src/config/app.config.json` (typed access via `web/src/config/index.ts`): environment policy (dev mock / prod live), the three sites' hosts, feature flags per environment, portal brand + navigation, palette, motion effects, and mascot spec/poses/dialogs.
-- Dev build: `__site` / `__data` query params and the `DEV CONTROL` panel override site + data source (mock fixtures from `web/src/lib/mock-api.ts`). Production forces live and ignores overrides.
-- `web/src/components/PortalHeader.tsx` renders the config-driven brand + navigation; cross-site links go through `externalUrl()`.
+- Runtime configuration lives in `web/shared/config/app.config.json` (typed access via `web/shared/config/index.ts`): environment policy (dev mock / prod live), the three sites' hosts, feature flags per environment, portal brand + navigation, palette, motion effects, and mascot spec/poses/dialogs.
+- Dev build: `__site` / `__data` query params and the `DEV CONTROL` panel override site + data source (mock fixtures from `web/shared/lib/mock-api.ts`). Production forces live and ignores overrides.
+- `web/sites/portal/components/PortalHeader.tsx` renders the config-driven brand + navigation; cross-site links go through `externalUrl()`.
 - Tailwind colors are driven by CSS variables; the product exposes one light `yzgc-blue` theme and automatically falls back from legacy dark theme IDs
 - Global providers: `<ConfirmProvider>` (themed modal replaces `window.confirm`), `<Select>` (themed dropdown replaces native `<select>`)
 - Floating Action Button: feedback submission available on every page (auto-hidden on `/feedback` and `/join`)

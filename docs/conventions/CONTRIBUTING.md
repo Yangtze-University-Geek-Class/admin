@@ -43,7 +43,7 @@ pnpm dev            # server :3000 + vite :5173
 pnpm --filter @yzgc/web dev
 ```
 
-开发态默认走本地 mock 数据（`web/src/lib/mock-api.ts`），可浏览全部页面。数据源切换见页面上的 `DEV CONTROL` 面板或 URL 参数 `?__data=live`。
+开发态默认走本地 mock 数据（`web/shared/lib/mock-api.ts`），可浏览全部页面。数据源切换见页面上的 `DEV CONTROL` 面板或 URL 参数 `?__data=live`。
 
 **注意**：mock 层用正则尾匹配而非路径前缀（`/overview$`、`/members$`），改动任何 API 路径都要同步改 mock，否则开发态会静默返回错误数据。
 
@@ -83,7 +83,7 @@ pnpm --filter @yzgc/web dev
 
 这些是 `AGENTS.md` §4 的不变量，摘要如下：
 
-1. **Tailwind 颜色必须走 CSS 变量**，`web/src/**` 里禁止硬编码 hex。
+1. **Tailwind 颜色必须走 CSS 变量**，`web/{sites,shared}/**` 里禁止硬编码 hex。
 2. **禁止原生 `<select>` 与 `window.confirm()`**，用 `shared` 里的 `Select` 与 `useConfirm()`。
 3. **后端 admin 路由**必须同时有 `requireAuth` 与 `requireOrgRole(...)`，变更操作必须 `audit(...)`。
 4. **GitHub 调用一律用登录者本人的 token**（`req.session.accessToken`）；service token 只服务于公开邀请链接流程。

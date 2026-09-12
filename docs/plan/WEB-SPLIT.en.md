@@ -1,8 +1,9 @@
 # Splitting the Three Ends: Target Architecture and Plan
 
-> Status: **awaiting decision** (not executed). Current-state inventory: [REFACTOR.md](./REFACTOR.md).
-> Goal: portal / forum / admin become physically isolated across frontend directories, backend route directories, and build artefacts — changing one end cannot break another.
-> 中文：[WEB-SPLIT.md](./WEB-SPLIT.md)
+> Status: **executed** (2026-09-12, branch `next`). P0 defects, P1 skeleton, P2 build, and P3
+> cleanup have all landed; this document is kept as the decision record and the source of the
+> boundary rules. Read §3 and §4 before adding an end or moving a boundary.
+> Current-state inventory: [REFACTOR.md](./REFACTOR.md).
 
 ---
 

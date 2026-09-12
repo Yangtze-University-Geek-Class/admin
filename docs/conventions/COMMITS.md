@@ -65,7 +65,7 @@ scope 是**改动落在哪块**，不是"我碰了哪些文件"。本仓库的 s
 
 | scope | 范围 |
 |---|---|
-| `portal` | 官网站（`web/sites/portal` 或现行 `web/src/pages` 的官网部分） |
+| `portal` | 官网站（`web/sites/portal` 或现行 `web/sites/portal/pages` 的官网部分） |
 | `forum` | 论坛站 |
 | `admin` | 组织管理后台 |
 | `shared` | 三站共用：`shared/ui`、`shared/lib`、`shared/config` |
