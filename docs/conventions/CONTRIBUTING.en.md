@@ -22,7 +22,9 @@ All three share one frontend artefact and one backend process. Site boundaries, 
 ## 1. Getting started
 
 ```bash
-# Requires Node 20+ and pnpm 9
+# Requires Node 20 LTS (22 also works) and pnpm 9
+# Note: on Node 24+ the local install of better-sqlite3 may fail (native build).
+# Verified working on 20.20.2. Switch with fnm/nvm if needed.
 git clone git@github.com:Yangtze-University-Geek-Class/admin.git
 cd admin
 pnpm install --frozen-lockfile
