@@ -30,11 +30,18 @@ export const config = {
     secretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
   },
   // 三端各自的域名，用于把 SPA fallback 指到对应的 index.html。
-  // admin 默认跟随 PUBLIC_ORIGIN（OAuth 回调所在域名），portal 跟随 SITE_ORIGIN。
+  // 全部从既有变量推导，不硬编码任何域名：
+  //   admin  ← PUBLIC_ORIGIN（OAuth 回调所在域名，本来就必须配对）
+  //   portal ← SITE_ORIGIN
+  //   forum  ← portal 域名加 forum. 前缀，或显式 FORUM_HOST
+  // 前端在 web/shared/config/app.config.json 里另有一份（构建期常量），
+  // 两边必须一致 —— 见 .env.example 的说明。
   siteHosts: {
     admin: process.env.ADMIN_HOST || hostOf(process.env.PUBLIC_ORIGIN ?? ""),
     portal: process.env.PORTAL_HOST || hostOf(process.env.SITE_ORIGIN ?? process.env.PUBLIC_ORIGIN ?? ""),
-    forum: process.env.FORUM_HOST || "forum.yangtzeu.work",
+    forum:
+      process.env.FORUM_HOST ||
+      `forum.${hostOf(process.env.SITE_ORIGIN ?? process.env.PUBLIC_ORIGIN ?? "")}`,
   },
 };
 

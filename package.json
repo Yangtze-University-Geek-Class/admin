@@ -4,8 +4,11 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
+    "build": "node scripts/check-site-hosts.mjs && pnpm -r run build",
+    "check:hosts": "node scripts/check-site-hosts.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "docs:index": "node scripts/docs-index.mjs",
     "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build",
     "start": "node server/dist/index.js"
   },
   "engines": {
