@@ -4,15 +4,21 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=yzgc-admin
+Group=yzgc-admin
 WorkingDirectory=/opt/yzgc-admin
 EnvironmentFile=/opt/yzgc-admin/.env
 ExecStart=/usr/bin/node server/dist/index.js
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:/var/log/yzgc-admin.log
-StandardError=append:/var/log/yzgc-admin.log
+StandardOutput=journal
+StandardError=journal
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/yzgc-admin/data
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
