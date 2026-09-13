@@ -1,0 +1,34 @@
+<script setup lang="ts">
+import type { TabHeaderProps } from './types'
+
+defineOptions({
+  name: 'TxTabHeader',
+})
+
+const props = defineProps<TabHeaderProps>()
+const slotProps = props as TabHeaderProps
+</script>
+
+<template>
+  <div class="tx-tab-header fake-background">
+    <slot :props="slotProps" />
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.tx-tab-header {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.touch-blur .tx-tab-header {
+  --fake-opacity: 0;
+}
+</style>

@@ -1,0 +1,356 @@
+# AutoSizer 自适应尺寸
+
+> 用于让容器在内容变化时自动跟随宽/高，并带过渡动画。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/auto-sizer) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/auto-sizer.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/auto-sizer.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# AutoSizer 自适应尺寸
+
+> 实现基于 `ResizeObserver`。当内容中包含图片/异步渲染导致尺寸再次变化时，会自动触发重新测量。
+
+## 基础用法
+
+### 仅高度（推荐用于 Tabs/Accordion）
+
+### AutoSizer height
+官方示例：`AutoSizerAutoSizerHeightDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref<'a' | 'b'>('a')
+const sizerRef = ref<any>(null)
+
+function setTab(next: 'a' | 'b') {
+  void sizerRef.value?.action?.(() => {
+    active.value = next
+  })
+}
+</script>
+
+<template>
+  <div style="width: 420px; max-width: 100%;">
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <TxButton :variant="active === 'a' ? 'primary' : 'secondary'" @click="setTab('a')">
+        Tab A
+      </TxButton>
+      <TxButton :variant="active === 'b' ? 'primary' : 'secondary'" @click="setTab('b')">
+        Tab B
+      </TxButton>
+    </div>
+
+    <TxAutoSizer
+      ref="sizerRef"
+      :width="false"
+      :height="true"
+      :duration-ms="250"
+      outer-class="overflow-hidden"
+      style="border: 1px solid var(--tx-border-color); border-radius: 12px; padding: 12px;"
+    >
+      <div v-if="active === 'a'">
+        <div style="font-weight: 600; margin-bottom: 8px;">
+          Tab A
+        </div>
+        <div style="color: var(--tx-text-color-secondary);">
+          Short content.
+        </div>
+      </div>
+      <div v-else>
+        <div style="font-weight: 600; margin-bottom: 8px;">
+          Tab B
+        </div>
+        <div style="color: var(--tx-text-color-secondary); line-height: 1.6;">
+          Long content. Long content. Long content. Long content. Long content. Long content.
+        </div>
+        <div style="height: 24px;" />
+        <div style="color: var(--tx-text-color-secondary); line-height: 1.6;">
+          More lines. More lines. More lines.
+        </div>
+      </div>
+    </TxAutoSizer>
+  </div>
+</template>
+```
+
+### 宽度跟随（在 flex 容器内）
+
+> 当 AutoSizer 处于 flex item 且父容器把它 `flex: 1` 或者 `width: 100%` 撑满时，看起来就像“没跟随内容”。
+
+### AutoSizer width in flex
+官方示例：`AutoSizerAutoSizerWidthInFlexDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const wide = ref(false)
+const sizerRef = ref<any>(null)
+
+function toggle() {
+  void sizerRef.value?.action?.(() => {
+    wide.value = !wide.value
+  })
+}
+</script>
+
+<template>
+  <div
+    style="width: 520px; max-width: 100%; display: flex; align-items: center; gap: 12px; border: 1px solid var(--tx-border-color); border-radius: 12px; padding: 12px;"
+  >
+    <TxButton @click="toggle">
+      Toggle
+    </TxButton>
+
+    <TxAutoSizer ref="sizerRef" :width="true" :height="false" outer-class="overflow-hidden">
+      <TxButton variant="secondary">
+        {{ wide ? 'Very very long label' : 'Short' }}
+      </TxButton>
+    </TxAutoSizer>
+
+    <div style="flex: 1; text-align: right; color: var(--tx-text-color-secondary);">
+      Right Area
+    </div>
+  </div>
+</template>
+```
+
+### 仅宽度（推荐用于 Button 内容变化）
+
+### AutoSizer width
+官方示例：`AutoSizerAutoSizerWidthDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const loading = ref(false)
+const sizerRef = ref<any>(null)
+
+function toggle() {
+  void sizerRef.value?.action?.(() => {
+    loading.value = !loading.value
+  })
+}
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <TxButton @click="toggle">
+      Toggle loading
+    </TxButton>
+
+    <TxAutoSizer ref="sizerRef" :width="true" :height="false" outer-class="overflow-hidden">
+      <TxButton :loading="loading" variant="primary">
+        Submit
+      </TxButton>
+    </TxAutoSizer>
+  </div>
+</template>
+```
+
+### 数字过渡 + 宽度跟随（TextMorph）
+
+### AutoSizer + TextMorph
+官方示例：`AutoSizerAutoSizerTextMorphDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const value = ref(123.45)
+const sizerRef = ref<any>(null)
+
+function shuffle() {
+  const next = Math.random() > 0.5
+    ? 3243.6
+    : 1000000.12
+
+  void sizerRef.value?.action?.(() => {
+    value.value = next
+  })
+}
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <TxButton @click="shuffle">
+      Shuffle
+    </TxButton>
+
+    <TxAutoSizer ref="sizerRef" :width="true" :height="false" outer-class="overflow-hidden">
+      <TxButton variant="secondary">
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+          <span style="opacity: 0.7;">$</span>
+          <TxTextMorph :text="value" :decimals="2" />
+        </span>
+      </TxButton>
+    </TxAutoSizer>
+  </div>
+</template>
+```
+
+### 文本丝滑变换 + 宽度跟随（TextTransformer）
+
+> 该示例同时开启 `width + height` 跟随，并在外层设置 `overflow-hidden`，用于裁剪 blur 的边缘溢出。
+
+### AutoSizer + TextTransformer
+官方示例：`AutoSizerAutoSizerTextTransformerDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const sizerRef = ref<any>(null)
+const label = ref('Short')
+const accent = ref(false)
+const duration = ref(360)
+const blurPx = ref(10)
+
+function toggle() {
+  void sizerRef.value?.action?.(() => {
+    label.value = label.value === 'Short'
+      ? 'Very very long label (blur + fade) that will be clipped while resizing'
+      : 'Short'
+    accent.value = !accent.value
+  })
+}
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <TxButton @click="toggle">
+        Toggle
+      </TxButton>
+
+      <div style="width: 220px;">
+        <div style="font-size: 12px; opacity: 0.72; margin-bottom: 6px;">
+          duration (ms)
+        </div>
+        <TxSlider v-model="duration" :min="160" :max="720" :step="10" :show-value="true" />
+      </div>
+
+      <div style="width: 220px;">
+        <div style="font-size: 12px; opacity: 0.72; margin-bottom: 6px;">
+          blur (px)
+        </div>
+        <TxSlider v-model="blurPx" :min="0" :max="24" :step="1" :show-value="true" />
+      </div>
+    </div>
+
+    <TxAutoSizer
+      ref="sizerRef"
+      :width="true"
+      :height="true"
+      :inline="true"
+      :duration-ms="duration"
+      easing="cubic-bezier(0.2, 0, 0, 1)"
+      outer-class="overflow-hidden"
+    >
+      <TxCard variant="plain" background="mask" :padding="12" :radius="14" style="max-width: 360px;">
+        <div style="font-size: 13px; line-height: 1.4;">
+          <TxTextTransformer
+            :text="label"
+            :duration-ms="duration"
+            :blur-px="blurPx"
+            :style="{ color: accent ? 'var(--tx-color-primary)' : 'var(--tx-text-color-primary)' }"
+          />
+        </div>
+      </TxCard>
+    </TxAutoSizer>
+  </div>
+</template>
+```
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `as` | `string` | `div` | outer 渲染标签 |
+| `innerAs` | `string` | `div` | inner 渲染标签 |
+| `width` | `boolean` | `true` | 是否同步宽度 |
+| `height` | `boolean` | `true` | 是否同步高度 |
+| `inline` | `boolean` | - | 是否使用 shrink-to-content（默认仅在 `width=true && height=false` 时启用） |
+| `durationMs` | `number` | `200` | 过渡时长(ms) |
+| `easing` | `string` | `ease` | 过渡曲线 |
+| `outerClass` | `string` | `overflow-hidden` | outer class |
+| `innerClass` | `string` | - | inner class |
+| `rounding` | `'none' \| 'round' \| 'floor' \| 'ceil'` | `ceil` | 测量值取整策略 |
+| `immediate` | `boolean` | `true` | mount 后是否立即测量 |
+| `rafBatch` | `boolean` | `true` | 是否使用 rAF 合并测量 |
+| `observeTarget` | `'inner' \| 'outer' \| 'both'` | `inner` | 自动监听尺寸变化的目标元素。 |
+
+### Slots
+
+| 插槽名 | 说明 |
+|--------|------|
+| `default` | 渲染在 inner 包装层内的被测量内容。 |
+
+### 事件
+
+`TxAutoSizer` 不触发组件级 Vue 事件。父组件需要协调明确状态变更时，应使用暴露的 `action()`、`flip()` 或 `refresh()` 方法。
+
+### Expose
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `refresh()` | `() => Promise<void>` | 手动触发重新测量 |
+| `flip(action)` | `(action: () => void \| Promise<void>) => Promise<void>` | 以 action 触发一次尺寸过渡（适合 Tabs 切换/明确动作） |
+| `action(fn, options?)` | `(fn: (el: HTMLElement) => void \| Promise<void>, options?: AutoSizerActionOptions \| detect) => Promise<any>` | 执行一次“事务动作”，内部自动前后快照检测并触发过渡（推荐用于 demo/复杂切换） |
+| `size` | `{ width: number; height: number } \| null` | 最新测量结果 |
+| `focus()` | `() => void` | 当 outer 包装层可聚焦时，聚焦到该包装层。 |
+| `outerEl` | `HTMLElement \| null` | 暴露 outer 包装层元素，供高级集成使用。 |
+
+## 交互契约
+
+- outer 包装层接收透传 attrs，并合并 `outerClass`、外部 class、基础尺寸样式和外部 style；inner 包装层负责包裹被测内容，并使用 `display: flow-root`。
+- 仅开启宽度跟随（`width=true` 且 `height=false`）时，默认使用 inline shrink-to-content 布局；显式设置 `inline=false` 可保持块级布局。
+- `flip(action)` 会临时暂停自动 resize，执行 action 后运行尺寸 FLIP，再恢复测量。
+- `action(fn, options?)` 会在指定 `inner` / `outer` 目标上做前后快照，并返回变化的 `changedKeys`。
+- `observeTarget`、`rounding`、`immediate`、`rafBatch`、`durationMs` 和 `easing` 会透传给底层 resize / FLIP 工具。
+
+## 最佳实践
+
+- Tabs、Accordion、Dropdown 内容区优先使用 `height=true`、`width=false`，让外围布局维持原宽度。
+- Button 文案、内联标签、数字变化优先使用 `width=true`、`height=false`；该模式默认自动收缩到内容宽度。
+- 内容带 blur、scale 或 FLIP 动效时保留 `outerClass="overflow-hidden"`，避免过渡中间态溢出包装层。
+- 明确的状态切换用 `action()` 或 `flip()` 包裹，不要先改状态再手动 `refresh()`；这样才能保留过渡所需的前后快照。
+- 只有 outer 与 inner 都可能独立变化尺寸时才设置 `observeTarget="both"`；普通内容变化只观察 `inner` 可减少不必要刷新。
+- 文本和按钮标签默认使用 `rounding="ceil"`，避免亚像素测量导致内容被裁切；只有父级布局需要更紧边界时再改成 `floor`。
+
+## 审阅说明
+
+- 已对照 `packages/tuffex/packages/components/src/auto-sizer/src/types.ts`、`TxAutoSizer.vue` 与 `auto-sizer.test.ts` 核对。
+- 组件公开契约主要是暴露方法，而不是事件；示例应继续围绕 `action()` / `flip()` 的状态协调。
+- `observeTarget="both"` 属于高级用法；普通内容过渡只观察 `inner` 可减少额外测量。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/auto-sizer/src/TxAutoSizer.vue`.
+- Types: `packages/tuffex/packages/components/src/auto-sizer/src/types.ts`.
+- **实测覆盖:** `packages/tuffex/packages/components/src/auto-sizer/__tests__/auto-sizer.test.ts` 验证外层/内层标签渲染、尺寸选项转发、仅宽度模式的自动 inline 布局、暴露的 `refresh` / `focus` / `outerEl`，以及 `action()` 快照差异检测。
+
+## 离线完整示例源码
+
+- [AutoSizerAutoSizerHeightDemo](../snapshot/apps/nexus/app/components/content/demos/AutoSizerAutoSizerHeightDemo.vue.txt)
+- [AutoSizerAutoSizerWidthInFlexDemo](../snapshot/apps/nexus/app/components/content/demos/AutoSizerAutoSizerWidthInFlexDemo.vue.txt)
+- [AutoSizerAutoSizerWidthDemo](../snapshot/apps/nexus/app/components/content/demos/AutoSizerAutoSizerWidthDemo.vue.txt)
+- [AutoSizerAutoSizerTextMorphDemo](../snapshot/apps/nexus/app/components/content/demos/AutoSizerAutoSizerTextMorphDemo.vue.txt)
+- [AutoSizerAutoSizerTextTransformerDemo](../snapshot/apps/nexus/app/components/content/demos/AutoSizerAutoSizerTextTransformerDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [auto-sizer/index.ts](../snapshot/packages/tuffex/packages/components/src/auto-sizer/index.ts.txt)
+- [src/TxAutoSizer.vue](../snapshot/packages/tuffex/packages/components/src/auto-sizer/src/TxAutoSizer.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/auto-sizer/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

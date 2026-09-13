@@ -1,0 +1,285 @@
+# Container 容器
+
+> 容器组件是页面布局的基础，提供灵活的布局选项与响应式支持
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/container) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/container.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/container.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Container 容器
+
+## 基础用法
+
+### Container
+官方示例：`ContainerContainerDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxContainer max-width="680px" :padding="18">
+    <div style="display: grid; gap: 4px; margin-bottom: 14px;">
+      <strong>响应式容器</strong>
+      <span style="color: var(--tx-text-color-secondary); font-size: 12px;">同一组 Row / Col 会随断点切换列宽，Container 负责最大宽度和左右留白。</span>
+    </div>
+    <TxRow :gutter="{ xs: 10, sm: 14, md: 18 }" align="stretch">
+      <TxCol :xs="24" :sm="12" :md="8">
+        <div style="padding: 12px; border-radius: 10px; background: var(--tx-fill-color-light, #f5f7fa);">
+          <strong>概览</strong>
+          <span style="display: block; color: var(--tx-text-color-secondary); font-size: 12px;">span 12 / md 8</span>
+        </div>
+      </TxCol>
+      <TxCol :xs="24" :sm="12" :md="8">
+        <div style="padding: 12px; border-radius: 10px; background: var(--tx-fill-color-light, #f5f7fa);">
+          <strong>指标</strong>
+          <span style="display: block; color: var(--tx-text-color-secondary); font-size: 12px;">span 12 / md 8</span>
+        </div>
+      </TxCol>
+      <TxCol :xs="24" :sm="24" :md="8">
+        <div style="padding: 12px; border-radius: 10px; background: var(--tx-fill-color-light, #f5f7fa);">
+          <strong>操作</strong>
+          <span style="display: block; color: var(--tx-text-color-secondary); font-size: 12px;">span 24 / md 8</span>
+        </div>
+      </TxCol>
+    </TxRow>
+  </TxContainer>
+</template>
+```
+
+最简单的容器用法：
+
+```vue
+<template>
+  <TxContainer>
+    <p>这是容器内的内容</p>
+  </TxContainer>
+</template>
+```
+
+## 容器类型
+
+### 流体容器
+占满整个父容器的宽度：
+
+```vue
+<template>
+  <TxContainer fluid>
+    <p>流体容器，宽度100%</p>
+  </TxContainer>
+</template>
+```
+
+### 固定宽度容器
+根据断点设置最大宽度：
+
+```vue
+<template>
+  <TxContainer max-width="1200px">
+    <p>最大宽度1200px的容器</p>
+  </TxContainer>
+</template>
+```
+
+### 响应式容器
+在不同断点下有不同的最大宽度：
+
+```vue
+<template>
+  <TxContainer responsive>
+    <p>响应式容器</p>
+  </TxContainer>
+</template>
+```
+
+## 容器间距
+
+### 内边距
+```vue
+<template>
+  <div class="padding-demo">
+    <TxContainer padding="small">小间距容器</TxContainer>
+    <TxContainer padding="medium">中等间距容器</TxContainer>
+    <TxContainer padding="large">大间距容器</TxContainer>
+    <TxContainer :padding="32">自定义间距容器</TxContainer>
+  </div>
+</template>
+```
+
+### 外边距
+```vue
+<template>
+  <TxContainer margin="auto">
+    <p>水平居中的容器</p>
+  </TxContainer>
+</template>
+```
+
+## 栅格系统
+
+### 基础栅格
+```vue
+<template>
+  <TxContainer>
+    <TxRow>
+      <TxCol :span="12">
+        <div class="col-content">左侧内容</div>
+      </TxCol>
+      <TxCol :span="12">
+        <div class="col-content">右侧内容</div>
+      </TxCol>
+    </TxRow>
+  </TxContainer>
+</template>
+
+<style scoped>
+.col-content {
+  background: var(--tx-bg-color-overlay, #fff);
+  padding: 16px;
+  text-align: center;
+  border-radius: 8px;
+}
+</style>
+```
+
+### 响应式栅格
+```vue
+<template>
+  <TxContainer>
+    <TxRow :gutter="{ xs: 8, sm: 16, md: 24, lg: 32 }">
+      <TxCol :xs="24" :sm="12" :md="8" :lg="6">
+        <div class="col-content">响应式列1</div>
+      </TxCol>
+      <TxCol :xs="24" :sm="12" :md="8" :lg="6">
+        <div class="col-content">响应式列2</div>
+      </TxCol>
+      <TxCol :xs="24" :sm="12" :md="8" :lg="6">
+        <div class="col-content">响应式列3</div>
+      </TxCol>
+      <TxCol :xs="24" :sm="12" :md="8" :lg="6">
+        <div class="col-content">响应式列4</div>
+      </TxCol>
+    </TxRow>
+  </TxContainer>
+</template>
+```
+
+## API
+
+### Props
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| fluid | `boolean` | `false` | 移除最大宽度限制，填满父容器 |
+| maxWidth | `string` | `'1200px'` | 非流体模式下的最大宽度 |
+| responsive | `boolean` | `false` | 是否启用内置响应式容器宽度 |
+| padding | `'small' \| 'medium' \| 'large' \| number` | `'medium'` | 水平内边距预设或像素值 |
+| margin | `'auto' \| string \| number` | `'auto'` | 水平外边距；`auto` 表示居中 |
+
+### Row Props
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| gutter | `number \| Partial<Record<'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl', number>>` | `0` | 栅格间距，可按断点设置 |
+| align | `'top' \| 'middle' \| 'bottom' \| 'stretch'` | `'stretch'` | 垂直对齐方式 |
+| justify | `'start' \| 'end' \| 'center' \| 'space-around' \| 'space-between' \| 'space-evenly'` | `'start'` | 水平分布方式 |
+| wrap | `boolean` | `true` | 是否换行 |
+
+### Col Props
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| span | `number` | `24` | 栅格占据的列数 |
+| offset | `number` | `0` | 栅格左侧的间隔格数 |
+| xs | `number` | - | 640px 以下使用的列数 |
+| sm | `number` | - | 640px 到 767px 使用的列数 |
+| md | `number` | - | 768px 到 1023px 使用的列数 |
+| lg | `number` | - | 1024px 到 1279px 使用的列数 |
+| xl | `number` | - | 1280px 及以上使用的列数 |
+
+### Slots
+
+| 组件 | 插槽 | 参数 | 说明 |
+|------|------|------|------|
+| `TxContainer` | `default` | - | 受容器宽度和左右留白约束的页面或面板内容。 |
+| `TxRow` | `default` | - | `TxCol` 子项或其他 flex 子项。 |
+| `TxCol` | `default` | - | 列内容。 |
+
+### Events
+
+`TxContainer`、`TxRow` 和 `TxCol` 不触发事件。
+
+
+## 交互契约
+
+- `TxContainer` 始终渲染 `width: 100%` 的块级包裹；`fluid` 会移除最大宽度限制。
+- `padding` 预设分别映射为 12 / 16 / 24 px，数字 padding 会被限制为不小于 0。
+- `margin="auto"` 会水平居中；字符串或数字 margin 会按 `0 <value>` 应用到左右两侧。
+- `TxRow` 会按当前断点计算单一 gutter，并通过 `--tx-row-gutter` 暴露；列组件会把 gutter 均分到左右 padding。
+- 行通过负外边距抵消两侧最外缘的这份 padding，并用 `calc(100% + var(--tx-row-gutter))` 为其买单。单纯写 `100%` 是相对包含块的**内容**宽度解析的，负外边距只会把行整体左移而不加宽，导致右侧正好少一个 gutter——在有 padding 的 `TxContainer` 里，8px gutter 下就表现为左侧内缩 16px、右侧 24px。
+- `TxCol` 会把 `span` 和 `offset` 限制在 0–24 栅格内，断点 prop 未提供时回退到 `span`。
+## 响应式断点
+
+TouchX UI 使用以下断点：
+
+```css
+/* 超小屏幕 */
+@media (max-width: 639px) { /* xs */ }
+
+/* 小屏幕 */
+@media (min-width: 640px) { /* sm */ }
+
+/* 中等屏幕 */
+@media (min-width: 768px) { /* md */ }
+
+/* 大屏幕 */
+@media (min-width: 1024px) { /* lg */ }
+
+/* 超大屏幕 */
+@media (min-width: 1280px) { /* xl */ }
+```
+
+## 样式定制
+
+### CSS 变量
+
+```css
+.custom-container {
+  --tx-container-max-width: 1200px;
+  --tx-container-padding: 16px;
+  --tx-row-gutter: 16px;
+}
+```
+
+## 最佳实践
+
+- 每个页面区块优先只使用一个 `TxContainer`；多层嵌套会让宽度和留白难以判断。
+- 使用响应式 `xs` / `sm` / `md` / `lg` / `xl` span 切换布局，不要为不同断点复制多份 DOM。
+- `gutter` 应和页面间距尺度保持一致；避免同一行里混用过大的 gutter 和过小的列内边距。
+- 在布局原语内部放置语义元素（`main`、`aside`、`nav`、`section`），因为这些原语自身只渲染中性 `div`。
+- 只有横向滚动或固定宽度工具栏才设置 `wrap=false`；普通内容栅格应允许换行。
+
+## 审阅说明
+
+- 已核对 `packages/tuffex/packages/components/src/container/src/TxContainer.vue`、`TxRow.vue`、`TxCol.vue` 与 `container.test.ts`。
+- 现有测试覆盖容器 CSS 变量、padding 限制、fluid/responsive 类、自定义 margin、行 gutter/对齐/分布/换行样式、响应式 gutter 选择，以及列 span/offset/响应式样式。
+- 可访问性说明:三个原语都渲染中性 `div`;请在插槽内容里补充语义地标和标题,不要期待布局原语提供文档结构。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/container/src/TxContainer.vue`、`TxRow.vue` 与 `TxCol.vue`。
+- **实测覆盖:** `packages/tuffex/packages/components/src/container/__tests__/container.test.ts` 覆盖间距变量、数值限制、响应式类、行 flex 样式、响应式 gutter 与列尺寸。
+
+## 离线完整示例源码
+
+- [ContainerContainerDemo](../snapshot/apps/nexus/app/components/content/demos/ContainerContainerDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [container/index.ts](../snapshot/packages/tuffex/packages/components/src/container/index.ts.txt)
+- [src/TxCol.vue](../snapshot/packages/tuffex/packages/components/src/container/src/TxCol.vue.txt)
+- [src/TxContainer.vue](../snapshot/packages/tuffex/packages/components/src/container/src/TxContainer.vue.txt)
+- [src/TxRow.vue](../snapshot/packages/tuffex/packages/components/src/container/src/TxRow.vue.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

@@ -1,0 +1,209 @@
+import type { Component, VNode } from 'vue'
+
+declare const trustedDialogHtmlBrand: unique symbol
+
+/**
+ * HTML that has been explicitly reviewed and marked safe by the caller.
+ *
+ * This type does not sanitize. It prevents accidental bare string usage on
+ * dialog HTML props while keeping the default `message` path plain text.
+ *
+ * @public
+ */
+export type TrustedDialogHtml = string & {
+  readonly [trustedDialogHtmlBrand]: true
+}
+
+/**
+ * Dialog HTML prop value. Empty string is allowed for Vue prop defaults.
+ *
+ * @public
+ */
+export type DialogMessageHtml = TrustedDialogHtml | ''
+
+/**
+ * Mark already-sanitized or otherwise trusted dialog HTML for explicit use.
+ *
+ * @public
+ */
+export function asTrustedDialogHtml(html: string): TrustedDialogHtml {
+  return html as TrustedDialogHtml
+}
+
+/**
+ * Button type for visual styling.
+ *
+ * @public
+ */
+export type DialogButtonType = 'info' | 'warning' | 'error' | 'success'
+
+/**
+ * Interface for dialog button configuration.
+ *
+ * @public
+ */
+export interface DialogButton {
+  /**
+   * The text content displayed on the button.
+   */
+  content: string
+
+  /**
+   * The visual type/style of the button.
+   */
+  type?: DialogButtonType
+
+  /**
+   * Auto-click countdown timer in seconds.
+   * When provided, the button will automatically click after the specified time.
+   */
+  time?: number
+
+  /**
+   * Click handler function.
+   * Return true to close the dialog, false to keep it open.
+   */
+  onClick: () => Promise<boolean> | boolean
+
+  /**
+   * Loading callback function.
+   * Called with a done function that should be invoked when loading is complete.
+   */
+  loading?: (done: () => void) => void
+}
+
+/**
+ * Props interface for the TxBottomDialog component.
+ *
+ * @public
+ */
+export interface BottomDialogProps {
+  /**
+   * The title displayed in the dialog header.
+   * @default ''
+   */
+  title?: string
+
+  /**
+   * The message content of the dialog.
+   * Rendered as plain text. New lines are preserved by component styles.
+   * @default ''
+   */
+  message?: string
+
+  /**
+   * Reserved auto-close duration prop. The current runtime does not start a
+   * timer from `stay` alone; auto-close only occurs via a button's `time`
+   * countdown. Kept for API compatibility.
+   * @default 0
+   */
+  stay?: number
+
+  /**
+   * Callback function to close the dialog.
+   */
+  close: () => void
+
+  /**
+   * Array of button configurations.
+   * @default []
+   */
+  btns?: DialogButton[]
+
+  /**
+   * Legacy icon class prop. Not rendered by the current template; kept for
+   * API compatibility.
+   * @default ''
+   */
+  icon?: string
+
+  /**
+   * Z-index offset for the dialog.
+   * Final z-index = baseZIndex + index.
+   * @default 0
+   */
+  index?: number
+}
+
+/**
+ * Props interface for the TxBlowDialog component.
+ *
+ * @public
+ */
+export interface BlowDialogProps {
+  /**
+   * Callback function to close the dialog.
+   */
+  close: () => void
+
+  /**
+   * The title displayed in the dialog.
+   * @default ''
+   */
+  title?: string
+
+  /**
+   * The message content of the dialog.
+   * Rendered as plain text. New lines are preserved by component styles.
+   * @default ''
+   */
+  message?: string
+  /**
+   * Trusted HTML message content. Use only for sanitized internal call sites.
+   * @default ''
+   */
+  messageHtml?: DialogMessageHtml
+
+  /**
+   * Confirm button text.
+   * @default 'Confirm'
+   */
+  confirmText?: string
+
+  /**
+   * A Vue component to render in the dialog.
+   */
+  comp?: Component
+
+  /**
+   * A render function that returns a VNode.
+   */
+  render?: () => VNode
+}
+
+/**
+ * Emits interface for dialog components.
+ *
+ * @public
+ */
+export interface DialogEmits {
+  /**
+   * Emitted when the dialog is closed.
+   */
+  (e: 'close'): void
+}
+
+export interface PopperDialogProps {
+  close: () => void
+  title?: string
+  message?: string
+  messageHtml?: DialogMessageHtml
+  confirmText?: string
+  comp?: Component
+  render?: () => VNode
+}
+
+export interface TouchTipButton {
+  content: string
+  type?: DialogButtonType
+  onClick: () => Promise<boolean> | boolean
+  loading?: (done: () => void) => void
+}
+
+export interface TouchTipProps {
+  title?: string
+  message?: string
+  messageHtml?: DialogMessageHtml
+  buttons: TouchTipButton[]
+  close: () => void
+}

@@ -1,12 +1,3 @@
-See AGENTS.md.
+# Project instruction entry
 
-Must:
-- Match existing patterns (ESM, themed Tailwind, useConfirm, Select component)
-- Wire requireAuth + requireOrgRole on all admin routes; audit(...) on mutations
-- Update docs/USAGE.md, docs/ARCHITECTURE.md, .env.example as code changes touch them
-
-Must not:
-- Hardcode hex colors; use CSS-variable-backed Tailwind tokens
-- Use native <select> or window.confirm
-- Log secrets (tokens, client_secret)
-- Add tests/CI/Docker/i18n/SSR proactively
+Read [AGENTS.md](AGENTS.md). All normative content is centralized in [docs/README.md](docs/README.md). Do not maintain a second copy of rules in this file.

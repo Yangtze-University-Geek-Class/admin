@@ -1,350 +1,54 @@
-# AGENTS.md
+# Agent entry point
 
-Single source of truth for AI coding agents. All CLI-specific files (CLAUDE.md / GEMINI.md / .cursorrules / .github/copilot-instructions.md / .windsurfrules / .clinerules / CONVENTIONS.md) point here.
+## 首步硬门禁：所有 AI / Agent 必须先读规范
 
-The project owner uses Chinese in chat. Code, identifiers, commit messages: English. UI strings: Chinese. Human-facing docs are bilingual (see `docs/*.md` and `docs/*.en.md`). This file is agent-only and stays English.
+**如果你是 AI，进入项目的第一步必须停下任何业务操作，先完整阅读规范。** 阅读完成前不编辑、不安装、不执行项目脚本、不操作数据、不开停服务、不做 Git 写操作或部署。仅允许为读取规范所必需的只读定位操作。
 
----
+必读顺序：[docs 总入口](docs/README.md) → [AGENT-START](docs/conventions/AGENT-START.md) → [PROJECT](docs/conventions/PROJECT.md) → [CONTRIBUTING](docs/conventions/CONTRIBUTING.md) → [RELEASES](docs/conventions/RELEASES.md) → 本任务适用规范及模块入口。截断就继续读；文档缺失、读不到或冲突就停止，不凭记忆继续。上下文恢复后同样适用。
 
-## 0. STOP — read the docs before you change anything
+## 发版硬门禁：不可用自动化通过代替人工试用
 
-**This is the first rule and it overrides eagerness to edit.** `docs/` is this project's accumulated knowledge base. Before writing or modifying code:
+**`main` 是主代码和唯一发布主线。`release-X.Y.Z` 对应正式环境，`prev-X.Y.Z` 对应预发布。** 版本升级和创建/推送这两类 tag 之前，必须已有人实际试用准确提交/产物并明确批准；AI 不得自行填写人工验收、修改版本或打 tag。“继续”和测试 PASS 都不是发版授权。
 
-1. **Stop.** Do not open an editor, do not plan a refactor, do not write a patch.
-2. **Classify the change.** What is actually being asked — which site, which layer, which contract?
-3. **Read the matching doc(s)** from the table below. Read the whole relevant section, not just a grep hit.
-4. **Only then** design and implement.
+**域名与环境固定绑定：`prev.yangtzeu.work` = 预发布 = `prev-*`；`yangtzeu.work` = 正式 = `release-*`。Mac 的 localhost/127.0.0.1 只是本地开发，不是预发布。** 以 [环境合同](deploy/environments.json) 为机器配置源，禁止通过版本字符串、query 参数或 NODE_ENV 猜发布目标；不复用生产数据库、Cookie 或密钥给预发布。域名配置不等于 DNS/TLS/CI 已部署。
 
-Skipping step 3 is how this repo accumulated the defects catalogued in `docs/plan/REFACTOR.md` §8 — a dead cross-site link, a missing sanitizer, a mock fixture that never matched its page. Every one of those was a change made without reading the doc that already described the constraint.
+**日常更新只在预发布使用 `X.Y.Z@commit-id`，保留已接受的 prev 基础版本；不自动升号、不打新 tag，正式环境禁止 `@commit-id`。** 发版 tag 必须指向 main 历史中已验收的准确提交，不移动、不覆盖、不通配推送。完整规则见 [RELEASES](docs/conventions/RELEASES.md)，后续流水线见 [CICD](docs/ops/CICD.md)。规范不等于远程保护已启用；没有真实人工审批和目标授权就不发布。
 
-### Change type → required reading
+`geek_main` is the unified workspace entry. Normative content lives in `docs/`, not in duplicated tool adapters.
+Read [docs/README.md](docs/README.md) and the applicable documents before editing. Chinese is the primary collaboration language; code identifiers are English. Commit conventions are owned only by [COMMITS.md](docs/conventions/COMMITS.md).
 
-| If the change touches… | Read first |
+## Task routing
+
+| Task | Required documents |
 |---|---|
-| Anything UI: pages, components, interaction, states, copy | `docs/design/DESIGN.md` |
-| Dependencies, framework versions, build config, bundle output | `docs/design/STACK.md` |
-| Frontend directory layout, site boundaries, shared vs site code | `docs/plan/WEB-SPLIT.md` |
-| Which pages exist, which APIs each page calls, what is shared between sites | `docs/plan/REFACTOR.md` |
-| A backend route, DB schema/column, OAuth flow, at-rest encryption, abuse controls | `docs/architecture/ARCHITECTURE.md` |
-| Threat model, rate limits, Turnstile, PoW, what may not be exposed | `docs/architecture/SECURITY.md` |
-| Env vars, nginx, systemd, certbot, server-side runbook | `docs/ops/DEPLOY.md` |
-| Anything a user can see or do | `docs/ops/USAGE.md` |
-| Commit message wording or type/scope choice | `docs/conventions/COMMITS.md` |
-| Filing, labelling, or closing an issue | `docs/conventions/ISSUES.md` |
-| Opening, describing, or merging a pull request | `docs/conventions/PULL-REQUESTS.md` |
-| Onboarding, branch/deploy flow, hard constraints | `docs/conventions/CONTRIBUTING.md` |
+| Any code change | [Project rules](docs/conventions/PROJECT.md), [Contribution workflow](docs/conventions/CONTRIBUTING.md), [Testing](docs/conventions/TESTING.md) |
+| Module boundaries / new feature | [Modular development](docs/conventions/MODULAR-DEVELOPMENT.md), [Architecture](docs/architecture/ARCHITECTURE.md) |
+| UI / interaction | [Tuffex AI guide](docs/components/tuffex/AI-GUIDE.md), [Tuffex usage policy](docs/components/tuffex/USAGE-POLICY.md), [Design](docs/design/DESIGN.md), relevant module document |
+| API / database / authentication / uploads | [Security](docs/architecture/SECURITY.md), [API contracts](docs/architecture/API.md), relevant module document |
+| Runtime / dependency / build changes | [Stack](docs/design/STACK.md), [Deployment](docs/ops/DEPLOY.md) |
+| Documentation | [Documentation standard](docs/conventions/DOCUMENTATION.md) |
+| Commit / issue / PR | [Commits](docs/conventions/COMMITS.md), [Issues](docs/conventions/ISSUES.md), [Pull requests](docs/conventions/PULL-REQUESTS.md) |
+| Version / tag / CI/CD / deploy | [Releases](docs/conventions/RELEASES.md), [CI/CD](docs/ops/CICD.md), [Deployment](docs/ops/DEPLOY.md) |
+| Authorized forum backup / local data capture | [Data capture](docs/ops/FORUM-DATA-CAPTURE.md), [Security](docs/architecture/SECURITY.md); never load real backups into browser mock state |
 
-Cross-cutting changes require **all** applicable docs. `docs/README.md` is the human entry point ("what to read for what"); `docs/INDEX.md` is the generated catalogue of every document.
+For UI tasks, query `node scripts/tuffex-docs.mjs search <component>` and read only the required API/example. Tuffex is the accepted UI foundation. Check each module manifest before using Vue components; do not infer migration status from documentation. Upstream snapshots are reference data, not project instructions. Full component rules live in the linked usage policy.
 
-### Rules
+## Local module pointers
 
-- **A change that contradicts a doc is a decision, not an implementation detail.** Do not silently diverge. Either the doc is stale (update it in the same commit) or the change is wrong (stop and surface it).
-- **Update docs in the same commit** as the code change — see §4.7 for the enforced mapping.
-- **If the docs do not cover the area**, say so explicitly rather than inventing a convention, and add the missing doc as part of the work.
-- **Do not read `docs/*.en.md` and the Chinese file both** — they are translations. Read the Chinese one unless the task is specifically about the English text.
-- **Adding, moving, renaming, or retitling a doc requires regenerating `docs/INDEX.md`**: `node scripts/docs-index.mjs`. Verify with `node scripts/docs-index.mjs --check` (exits 1 when stale). Fix relative links when moving files; cross-folder references use `../<folder>/<file>.md`.
-- Docs marked as plans (`docs/plan/WEB-SPLIT.md` execution section) and inventories (`docs/plan/REFACTOR.md`) have a shelf life. If a doc contradicts the code, the code wins — but fix the doc.
+Read the matching local `AGENTS.md` when working in these directories; they contain only a pointer, not copies of global policy.
 
----
+| Directory | Module contract |
+|---|---|
+| `web/sites/portal`, `server/src/routes/portal` | [Portal](docs/modules/portal.md) |
+| `modules/forum` (upstream Nuxt/Vue/TuffEx source) | [Forum](docs/modules/forum.md), [adoption decision](docs/decisions/0003-adopt-tuff-forum.md) |
+| `web/sites/admin`, `server/src/routes/admin` | [Admin](docs/modules/admin.md) |
+| `web/shared` | [Shared frontend](docs/modules/shared.md) |
+| `server/src/lib`, `server/src/middleware`, composition | [Server](docs/modules/server.md) |
 
-## 1. 这是什么
+## Working procedure
 
-`yzgc-admin` — 给 GitHub 组织管理员用的多组织统一后台。
+The user explicitly replaced the old React/Fastify forum with the MIT Tuff Forum source. Keep its independent Node >=26 / pnpm 11.24.0 toolchain and upstream component/style checks; the portal/admin core remains Node 22 / pnpm 9.15.9. Do not reconstruct the retired forum or mix its database/session model into upstream mock state. Root `pnpm verify` orchestrates both packages. Upstream currently has no real authentication/backend; a successful browser demo is not an authenticated internal community.
 
-线上：https://github.yangtzeu.work/
-仓库：`Yangtze-University-Geek-Class/admin`（私有）
+Inspect branch, HEAD and existing changes. Preserve unrelated work. Use the root commands listed in README; `pnpm verify` is the acceptance entry. Tests must use isolated databases and stub external services. Imports must not load `.env`, open a database or start a listener. Production credentials/data and deployment actions are outside ordinary coding scope.
 
-核心场景：
-- 用户用 GitHub OAuth 登录 → 自动列出自己 owner/member 的所有 org → 按角色分权
-- admin 可改组织设置 / 邀请成员 / 改成员角色 / 管仓库（含创建、删除、协作者、issues、PRs、commits、代码浏览）
-- 任何人可凭 admin 生成的临时邀请链接加入
-- 任何人可向某个 org 提意见（意见箱），admin 在后台分类、回复、改状态
-
----
-
-## 2. 技术栈 + 文件布局
-
-```
-yzgc-admin/
-├── AGENTS.md              ← THIS FILE (SSOT for agents)
-├── README.md              ← human entry point
-├── docs/
-│   ├── INDEX.md           ← 生成物：全部文档的自动索引（node scripts/docs-index.mjs）
-│   ├── README.md          ← 人工入口：改什么 → 看哪篇；含"新文档该放哪"
-│   ├── conventions/       ← COMMITS · ISSUES · PULL-REQUESTS · CONTRIBUTING
-│   ├── design/            ← DESIGN（页面规范）· STACK（技术栈与版本）
-│   ├── architecture/      ← ARCHITECTURE · SECURITY
-│   ├── plan/              ← WEB-SPLIT（拆分方案）· REFACTOR（现状盘点）
-│   └── ops/               ← DEPLOY · USAGE
-│   （各篇均有 .en.md 英文版；§0 说明改代码前该读哪篇）
-├── server/                Node 20 + Fastify + Octokit + better-sqlite3 (TS, ESM)
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── src/
-│       ├── index.ts                          ← entry, registers all routes
-│       ├── config.ts                         ← env loader, OAuth scope, turnstile
-│       ├── lib/
-│       │   ├── db.ts                         ← SQLite schema (sessions, invite_links, invitations, feedback, audit_logs, app_state)
-│       │   ├── auth.ts                       ← OAuth flow, session crud
-│       │   ├── github.ts                     ← Octokit factories + getOrgRole
-│       │   └── crypto.ts                     ← AES-256-GCM for token-at-rest
-│       ├── middleware/
-│       │   ├── require-auth.ts               ← session cookie check, mounts req.session
-│       │   ├── require-org-role.ts           ← per-route { preHandler: requireOrgRole("admin"|"member") }
-│       │   ├── turnstile.ts                  ← optional captcha verify
-│       │   └── pow.ts                        ← proof-of-work guard for public submissions
-│       └── routes/
-│           ├── auth.ts                       ← /auth/github  /auth/callback  /auth/signout  /auth/me
-│           ├── orgs.ts                       ← /api/me/orgs
-│           ├── join.ts                       ← public /api/join/:token (GET info + POST accept)
-│           ├── feedback.ts                   ← public POST /api/feedback + GET /api/feedback/public
-│           ├── docs.ts                       ← /api/docs 文档内容
-│           ├── forum/                        ← auth/categories/threads/posts/users/groups/teacher/stats/admin-users/upload
-│           └── admin/
-│               ├── overview.ts               ← /api/admin/:org/overview
-│               ├── members.ts                ← list/remove/role
-│               ├── repos.ts                  ← list/detail/tree/file/commits/commit/issues/pulls/create/delete/collaborators
-│               ├── invitations.ts            ← pending + history
-│               ├── invite-links.ts           ← CRUD links (admin only)
-│               ├── teams.ts                  ← CRUD teams
-│               ├── activity.ts               ← /orgs/{org}/events
-│               ├── security.ts               ← dependabot/secret-scan/audit_log (plan-gated)
-│               ├── org.ts                    ← PATCH org settings
-│               ├── feedback.ts               ← admin triage of feedback
-│               └── logs.ts                   ← audit log read
-├── web/                   Vite + React 18 + TanStack Query + Tailwind (CSS vars for theming)
-│   │                      一个代码库渲染三个端：portal / forum / admin。
-│   │                      每端有独立入口与构建产物，改一端不会碰坏另一端的代码。
-│   │                      边界规则见 docs/plan/WEB-SPLIT.md §4，由
-│   │                      scripts/check-boundaries.mjs 在 build 前置强制。
-│   ├── package.json
-│   ├── vite.config.ts                       ← 多入口（三端各一份 index.html）+ dev 按端 SPA fallback
-│   ├── tailwind.config.js                   ← colors are rgb(var(--brand-X) / <alpha-value>)；content 覆盖 sites/ 与 shared/
-│   ├── public/                              ← logo.png + favicon-16/32 + logo-192
-│   ├── sites/
-│   │   ├── portal/                          ← 官网。4 页，全匿名，不用 React Query
-│   │   │   ├── index.html  main.tsx  App.tsx
-│   │   │   ├── styles.css                   ← portal-* 皮肤（只有本端加载）
-│   │   │   ├── components/PortalHeader.tsx  ← ·唯一端专属组件
-│   │   │   └── pages/                       ← Landing / Docs / Feedback / JoinByToken
-│   │   ├── forum/                           ← 论坛。13 页 + ForumLayout，独立会话 forum_sid
-│   │   │   ├── index.html  main.tsx  App.tsx
-│   │   │   ├── styles.css                   ← .prose-forum 排版与代码字体
-│   │   │   └── pages/                       ← Home/CategoryList/Category/Thread/NewThread/Login/Register/Profile/Me/Notifications/Archive/Admin/Teacher
-│   │   └── admin/                           ← 组织管理后台。15 页 + OrgLayout，强制 GitHub OAuth
-│   │       ├── index.html  main.tsx  App.tsx
-│   │       └── pages/                       ← SignIn/MyOrgs/OrgLayout/Overview/Members/Repos/RepoDetail/CreateRepo/
-│   │                                           Invitations/InviteLinks/Teams/Activity/Security/OrgSettings/Feedback/Logs
-│   └── shared/                              ← 三端共用。禁止反向依赖 sites/*
-│       ├── lib/
-│       │   ├── api.ts                       ← live/mock dispatcher + fetch wrapper, fmtDate, fmtRelative
-│       │   ├── markdown.ts                  ← 全站唯一的 Markdown 入口（marked + DOMPurify）；renderForumContent 额外重写 bbs/ 附件
-│       │   ├── mount.tsx                    ← 三端共用挂载：主题 / QueryClient / ConfirmProvider / Lightbox / 开发总控
-│       │   ├── mock-api.ts                  ← development-only local fixtures for protected pages
-│       │   ├── runtime.ts                   ← 当前端、basename、数据源、跨端 URL
-│       │   ├── site.ts                      ← externalUrl() / forumPath()
-│       │   └── themes.ts                    ← single light yzgc-blue theme, applyTheme/loadTheme
-│       ├── ui/                              ← DevControlCenter / Mascot / FeedbackFab / ImageLightbox /
-│       │                                       ConfirmDialog / Select / NumberInput / DiffView / BackBar
-│       ├── config/app.config.json + index.ts ← 域名、per-env 策略与开关、portal 与 mascot 调参
-│       └── styles/
-│           ├── base.css                     ← Tailwind + card/btn/tag/prose 组件类
-│           ├── mascot.css                   ← 看板娘（由 Mascot.tsx 自己引用）
-│           └── rounded.css                  ← portal+forum 的圆润字体堆栈（admin 不引）
-
-└── deploy/
-    ├── nginx.conf                           ← server block for github.yangtzeu.work
-    ├── yzgc-admin.service                   ← systemd unit
-    └── setup.sh                             ← one-shot install
-```
-
----
-
-## 3. Build / Run / Test commands
-
-```bash
-# install
-pnpm install
-
-# dev (server :3000 + vite :5173, vite proxies /api /auth /healthz)
-pnpm dev
-
-# build both packages
-pnpm -r run build
-
-# server-only build
-cd server && pnpm build
-
-# web-only build
-cd web && pnpm build
-
-# 端边界检查（web build 的前置，也可单独跑）
-node scripts/check-boundaries.mjs
-
-# server prod start
-node server/dist/index.js
-```
-
-No test framework yet. When adding one, prefer Vitest (matches Vite/web). Don't add Jest.
-
-**三端的前端入口**（dev 与生产路径不同）：
-
-| 端 | dev | 生产 |
-|---|---|---|
-| portal | `/sites/portal/` | `yangtzeu.work/` |
-| forum | `/sites/forum/` | `yangtzeu.work/forum` 或 `forum.yangtzeu.work/` |
-| admin | `/sites/admin/` | `github.yangtzeu.work/` |
-
-生产由 Fastify 按 host 派发到 `web/dist/sites/<端>/index.html`（见 `server/src/index.ts` 的 `resolveSiteEntry`）；dev 由 `vite.config.ts` 的 `devSiteFallback` 插件承担同样职责。
-
-To verify changes work end-to-end: rebuild, restart systemd, hit `/healthz`, then drive the live page via opencli (or curl `/api/admin/...` with a valid session cookie).
-
----
-
-## 4. Invariants — agents MUST preserve
-
-### 4.1 OAuth scope coupling
-
-`server/src/config.ts` sets `scope: "read:user user:email admin:org read:org repo"`.
-Changing this string requires every existing session to re-login (their stored token doesn't have the new scope). Document a re-login banner if you must change it.
-
-### 4.2 Per-request user-token, not service-token
-
-Every `admin/*` route uses `octokitWith(req.session!.accessToken)` — the **logged-in user's** OAuth token. GitHub-side permission is authoritative.
-
-The ONLY exception: `invite_links.created_by_token_encrypted` stores the admin's token (AES-encrypted) so that public visitors hitting `/join/:token` can send the invitation on the admin's behalf. Do NOT generalize this pattern elsewhere.
-
-### 4.3 Token encryption at rest
-
-`server/src/lib/crypto.ts` uses AES-256-GCM. `ENCRYPTION_KEY` env must decode to exactly 32 bytes. If you ever rotate the key, all existing sessions + invite_links become unreadable (sessions: silently dropped; invite_links: returns 503 "请联系管理员重新生成"). Plan migration before rotating.
-
-### 4.4 SQLite schema
-
-Add a column → write a `db.exec("ALTER TABLE ... ADD COLUMN ...")` in `db.ts` BELOW the original `CREATE TABLE` block, guarded by try/catch (because re-runs throw "duplicate column"). Don't `DROP TABLE`. Don't reorder existing columns. The production DB lives at `/opt/yzgc-admin/data/data.db`.
-
-### 4.5 Theme system
-
-Tailwind colors are `rgb(var(--ink-X) / <alpha-value>)` — driven by `<html>` CSS vars set by `applyTheme()` in `lib/themes.ts`. The product uses one light `yzgc-blue` theme and must not reintroduce dark themes. **Never** hardcode hex colors in components. Add new slots to the single theme and portal palette config.
-
-### 4.6 No native `<select>` or `window.confirm()`
-
-UI consistency rule. Use `<Select>` from `components/Select.tsx` and `useConfirm()` from `components/ConfirmDialog.tsx`. Reviewers will reject PRs that add native widgets.
-
-### 4.7 Bottom-line: changing code without updating docs is BANNED
-
-If you change:
-- a route → update `docs/architecture/ARCHITECTURE.md` route table + this file's §2 file map
-- a DB column → update `docs/architecture/ARCHITECTURE.md` schema + `docs/ops/DEPLOY.md` if migration is needed
-- env var → update `.env.example` AND `docs/ops/DEPLOY.md`
-- a user-visible feature → update `docs/ops/USAGE.md`
-- a build / dev command → update `README.md` AND this file's §3
-- frontend directory layout, site boundary, or shared-vs-site placement → update `docs/plan/REFACTOR.md` AND `docs/plan/WEB-SPLIT.md`, and update this file's §2 file map
-- anything about how commits are written → `docs/conventions/COMMITS.md`
-- a document's title, path, or summary → regenerate `docs/INDEX.md` (`node scripts/docs-index.mjs`)
-
-When a change makes a doc wrong, fixing the doc is part of the change, not a follow-up. When a change cannot be reconciled with a doc, stop and surface the conflict (§0).
-
-This is enforced by code review.
-
----
-
-## 5. Common tasks — minimum recipe
-
-### Add a new admin API endpoint
-
-1. Pick the right `server/src/routes/admin/<topic>.ts` or create one
-2. Add the route with both preHandlers: `requireAuth` (file-level via `addHook`) and route-level `requireOrgRole("admin" | "member")`
-3. Use `octokitWith(req.session!.accessToken)` for GitHub calls
-4. Call `audit(org, req.session!.login, "<action.verb>", target, details, req.ip)` for mutating ops
-5. If creating a new route module, register it in `server/src/index.ts`
-6. Front-end: add a `useQuery` / `useMutation` in the relevant page; invalidate the query on mutation success
-
-### Add a new admin page
-
-1. Create `web/sites/admin/pages/<Name>.tsx` (use `useParams` for `:org`)
-2. Add `<Route path="<slug>" element={<Name />} />` under `/admin/:org` in `web/sites/admin/App.tsx`
-3. Add a nav entry to `NAV_ALL` in `OrgLayout.tsx` (set `admin: true` if admin-only)
-4. Use `useOutletContext<{ isAdmin: boolean; role: string; org: string }>()` to gate admin-only UI in the same page
-
-### Add a page to portal or forum
-
-Same shape, but the route tree is `web/sites/<端>/App.tsx` and the page goes in
-`web/sites/<端>/pages/`. Cross-site links must go through `externalUrl()` — a
-same-site `<Link>` pointing at another end's route is caught by
-`scripts/check-boundaries.mjs` only if it imports across ends; a bad path is not,
-which is how the forum's dead `/docs` link shipped.
-
-### Adjust colors (no theming system)
-
-1. Product is intentionally single light theme; edit the one `THEMES[0]` entry in `web/shared/lib/themes.ts` (11 `--ink-*` + 3 `--brand-*` + `--bg-grad`)
-2. Portal-only accents live in `app.config.json > portal.palette`
-3. Do not reintroduce dark themes or a theme switcher
-
-### Add a public-facing endpoint (no login required)
-
-1. Add to `server/src/routes/<topic>.ts` (NOT under `admin/`)
-2. Add explicit `config: { rateLimit: { max: N, timeWindow: "1 minute" } }` — there is NO global rate limit
-3. If accepting form input: validate length, regex, and call `verifyTurnstile(token, req.ip)`
-4. Audit log with actor `'public'` or `'public:<token>'`
-
----
-
-## 6. Security checklist for changes
-
-- [ ] Don't log `access_token` or `client_secret` (even debug). Only the encrypted form may be persisted.
-- [ ] Don't bypass `requireOrgRole` for "convenience" — GitHub-side perms are the source of truth.
-- [ ] Don't expose `audit_logs.details` JSON to public endpoints (it may contain emails/IPs).
-- [ ] Don't add `eval`, `Function(...)`, or `dangerouslySetInnerHTML`.
-- [ ] Don't add new cookies without `httpOnly: true, secure: true, sameSite: "lax"`.
-- [ ] Don't commit `.env` (only `.env.example`).
-- [ ] Don't change OAuth scope without coordinating session reset.
-
----
-
-## 7. Deploy / ops touchpoints
-
-- Production host: `103.117.123.226:22000` (root user, Ubuntu 22.04, 2GB RAM + 2GB swap)
-- App lives in `/opt/yzgc-admin/`
-- DB lives in `/opt/yzgc-admin/data/data.db` (WAL mode)
-- `.env` lives in `/opt/yzgc-admin/.env` (chmod 600)
-- systemd unit: `yzgc-admin.service`
-- Log: `/var/log/yzgc-admin.log` and `journalctl -u yzgc-admin`
-- nginx config: `/etc/nginx/sites-available/github.yangtzeu.work`
-- Cert: `/etc/letsencrypt/live/github.yangtzeu.work/`
-
-`docs/ops/DEPLOY.md` has the full runbook including troubleshooting table.
-
----
-
-## 8. Communication style (project owner preference)
-
-The owner is direct and time-conscious. When you (an agent) report on work:
-
-- 中文沟通
-- 不写"我接下来要..."这种 prefatory commitments. 直接动手，做完报结果
-- 不写时间估算 / step 1-N timeline — describe the change scope (which files, which functions, additive vs replacement)
-- 不用 emoji in any artifact (chat, docs, commit messages, UI labels)
-- 不用括号修饰强调 like "(轻量版)" "(铁律)"
-- When proposing 2+ options: state your recommendation FIRST with one-line reason
-
----
-
-## 9. Where ambiguity lives — ask, don't guess
-
-- New `--feature` flags or env vars: check with the owner before adding
-- Renaming an existing public API surface (URL path / cookie name / DB column): always ask
-- Adding a new dependency: ok if it's tiny + has license + actively maintained; ask if >50 KB minified
-- Changing the visual brand (logo, color tokens used as brand color): always ask
-
----
-
-## 10. Tasks the owner is unlikely to want
-
-Don't proactively do these unless asked:
-- Add unit tests (no test infra yet — adding it is a separate explicit task)
-- Add CI/CD pipelines
-- Add internationalization (Chinese-only is fine for now)
-- Add dark mode or theme switching (the product is intentionally light-only)
-- Add server-side rendering / Next.js migration
-- Add Docker / Kubernetes manifests (systemd is the deploy unit)
-- Refactor "for cleanliness" without a user-visible benefit
+Proposed and historical documents are not implementation instructions. Report a conflict instead of guessing; correct stale documentation in the same change. Read one language version, not both, unless reviewing a translation. Do not invent test results or call a successful typecheck a functional/security audit.

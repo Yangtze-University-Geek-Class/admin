@@ -1,0 +1,145 @@
+# Alert 警告
+
+> 用于上下文反馈、语义提示和可关闭通知的内联状态横幅。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/alert) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/alert.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/alert.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Alert 警告
+
+## 基础用法
+
+### 提示类型
+
+官方示例：`AlertAlertVariantsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div>
+    <TxAlert title="提示" message="检查一下配置项。" type="info" />
+    <TxAlert title="成功" message="已保存。" type="success" />
+    <TxAlert title="注意" message="有需要处理的内容。" type="warning" />
+    <TxAlert title="失败" message="保存失败。" type="error" />
+  </div>
+</template>
+```
+
+## 组合示例
+
+### 常驻提示
+
+当消息属于页面状态、不应在本地消失时，使用 `closable=false`。
+
+```vue
+<template>
+  <TxAlert
+    type="warning"
+    title="需要人工复核"
+    message="此发布包含未签名产物。"
+    :closable="false"
+  />
+</template>
+```
+
+### 自定义标题与正文
+
+```vue
+<template>
+  <TxAlert type="success" @close="dismissed = true">
+    <template #title>
+      运行时证据已收集
+    </template>
+
+    <p>
+      Preview 检查通过。可在 evidence 面板查看截图和 trace。
+    </p>
+  </TxAlert>
+</template>
+```
+
+### 纯文本横幅
+
+```vue
+<template>
+  <TxAlert :show-icon="false" message="此页面展示本地 demo 数据。" />
+</template>
+```
+
+## 交互契约
+
+- 根节点渲染 `role="alert"`，并带类型 class（`tx-alert--info`、`--success`、`--warning` 或 `--error`）。
+- `type` 决定默认前置图标名：`info`、`check-circle`、`alert-triangle` 或 `x-circle`。
+- `showIcon=false` 会移除前置图标容器。
+- 只有存在 `title` 或 `title` 插槽时才渲染标题行。
+- 默认插槽会替换 `.tx-alert__message` 内的 `message`。
+- `closable=true` 会渲染关闭按钮，添加 `tx-alert--closable`，并预留右侧 padding。
+- 点击关闭按钮会发出 `close`**并且**隐藏自身，离场动画因此才有可播放的对象。宿主仍可继续用 `v-if` 驱动，但不再是必须的。
+- 根节点是 `<Transition name="tx-alert" appear>`：挂载时以 0.26s 淡入并轻微上移，离场为 0.16s。透传属性仍然落在 `.tx-alert` 上，渲染出的根元素也仍是该 div。
+- 实例上暴露 `open()` 与 `close()`，可以把已关闭的警示恢复回来——文档组件库页面的重置按钮就是用 `open()` 实现的。
+- 只动画 opacity 与 transform。根节点是 `display: flex`，高度塌缩会在动画途中接管布局、把图标/正文/关闭按钮重新堆叠。若需要收拢留下的空位，请把一组警示包进 `<TransitionGroup>`。
+- 在 `prefers-reduced-motion: reduce` 下改为 0.01s 纯淡入淡出，不做位移。
+- 关闭按钮只有图标文本，并使用 `aria-label="Close"`。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `type` | `'info' \| 'success' \| 'warning' \| 'error'` | `'info'` | 视觉意图与默认图标映射。 |
+| `title` | `string` | - | 可选标题文本。不存在且无 `title` 插槽时隐藏标题行。 |
+| `message` | `string` | - | 未提供默认插槽时使用的正文消息。 |
+| `closable` | `boolean` | `true` | 渲染关闭按钮和关闭区域 padding。 |
+| `showIcon` | `boolean` | `true` | 渲染语义前置图标。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `close` | - | 点击关闭按钮时触发。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|------|------|
+| `title` | - | 自定义标题内容。 |
+| `default` | - | 自定义正文内容，会替换 `message`。 |
+
+## 最佳实践
+
+- Alert 用于页面上下文反馈，不要替代 toast。
+- `type` 应符合用户影响：失败动作用 `error`，风险提示用 `warning`，中性引导用 `info`。
+- 在宿主中处理 `close`，通过移除 alert 或持久化关闭状态来完成隐藏。
+- 合规、阻塞或始终相关的提示使用 `closable=false`。
+- 不要把主流程塞进 alert 正文；操作按钮放在 alert 后方，布局和语义更清晰。
+
+
+## 审阅说明
+
+- 已核对 `packages/tuffex/packages/components/src/alert/src/TxAlert.vue`、`types.ts` 与 `alert.test.ts`。
+- **实测覆盖:** `alert.test.ts` 覆盖语义 alert role、type class、标题/消息渲染、图标可见性、标题/默认插槽、关闭按钮隐藏、`close` 事件行为，以及每种 `type` 都能解析到真实的 `builtin` 图标、关闭后隐藏且 `open()` 可恢复、透传属性落在 `.tx-alert` 而非 transition 上。
+- 可访问性说明：`role="alert"` 会强提示读屏器。文案应短、可执行，并避免一次性挂载多个新 alert。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/alert/src/TxAlert.vue`.
+- Types: `packages/tuffex/packages/components/src/alert/src/types.ts` exports `AlertProps`, `AlertEmits`, and `AlertType`.
+- Coverage: `packages/tuffex/packages/components/src/alert/__tests__/alert.test.ts` verifies role/class rendering, slots, close controls, and close events.
+
+## 离线完整示例源码
+
+- [AlertAlertVariantsDemo](../snapshot/apps/nexus/app/components/content/demos/AlertAlertVariantsDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [alert/index.ts](../snapshot/packages/tuffex/packages/components/src/alert/index.ts.txt)
+- [src/TxAlert.vue](../snapshot/packages/tuffex/packages/components/src/alert/src/TxAlert.vue.txt)
+- [src/index.ts](../snapshot/packages/tuffex/packages/components/src/alert/src/index.ts.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/alert/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

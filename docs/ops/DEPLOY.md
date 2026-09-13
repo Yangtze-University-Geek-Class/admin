@@ -1,185 +1,88 @@
-# 部署指南
+# 部署、维护与恢复规范
 
-> 从零把服务跑起来，以及线上出问题时怎么查。含完整 runbook 与故障排查表。
-> English: [DEPLOY.en.md](./DEPLOY.en.md)
+> 生产发布为独立授权操作；代码模板不等于实际部署完成。
 
-## 前置
+状态：`current` · 更新：2026-09-13
 
-- 一台 Linux 服务器（Ubuntu 22.04 验证过）
-- 一个域名（HTTPS 必需）
-- 一个 GitHub OAuth App（在你的组织设置里创建）
+## 发布前置
 
-## OAuth App 配置
+**先遵守 [RELEASES](../conventions/RELEASES.md)：main 为主代码；release- 正式、prev- 预发布；人工试用及明确批准必须发生在版本升级/打 tag 之前。日常预发布仅使用已有基础版本@准确 commit，不影响正式版本。** tag 部署检出 tag 对应 SHA，不在目标机临时 git pull main。后续实施步骤见 [CICD](CICD.md)，当前尚未启用远程自动发布。
 
-去 `https://github.com/organizations/<org>/settings/applications/new`：
+发布者明确目标环境、提交、回滚版本和维护窗口。使用项目 Node 22 与 pnpm 9.15.9，先在隔离环境执行 frozen-lockfile 安装与 pnpm verify，再完成相关浏览器、配置和迁移检查。不从含无关修改的工作区发布。
 
-- Application name: 任意（如 `Geek Class Admin`）
-- Homepage URL: `https://<你的域名>`
-- Authorization callback URL: `https://<你的域名>/auth/callback`
+核心 Fastify 承载 portal/admin 两个 React 入口；论坛改为独立 modules/forum 的 Nuxt/TuffEx 原仓。核心 Node 22/pnpm 9，论坛 Node >=26/pnpm 11，分别安装锁文件。本次只启动本机原仓演示，没有生产论坛后端或统一认证，禁止把演示页面直接作为内部论坛发布。静态生成通过不等于获得上线授权，详情见 [TUFF-FORUM](TUFF-FORUM.md)。
 
-创建后记下 Client ID + Client Secret（secret 只显示一次）。
+## 正式与预发布的固定入口
 
-## DNS
+正式域名为 `yangtzeu.work`，预发布域名为 `prev.yangtzeu.work`，以 [environments.json](../../deploy/environments.json) 为准。不能把本机 3456/5173 当成预发布，不能让 prev tag 更新正式域名。两个环境不共享数据库、上传目录、会话密钥或父域 Cookie；根域 Cookie 必须 host-only，不设置 Domain。旧的 github/forum 子域资料仅用于旧部署追溯，不替代本次已确认的整站环境入口；路径分流、DNS/TLS 和真实统一认证仍需发布前单独实施。
 
-把你的域名 A 记录指向服务器 IP。`dig <域名> +short` 看到 IP 才算生效。
+## 流水线部署布局
 
-## 服务器准备
+`deploy/remote/deploy-release.sh` 与 `deploy/remote/rollback.sh` 是当前唯一实现的目标机部署/回滚脚本，由 [CI/CD](CICD.md) 描述的 `preview.yml`/`release.yml` 的 `deploy` job 通过 SSH 调用；两者都是模板层面已落地，尚未在真实目标机验证过。部署根目录 `$DEPLOY_ROOT` 下固定布局：
 
-```bash
-# Node 20（NodeSource）
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-sudo apt install -y nodejs nginx certbot python3-certbot-nginx git
-sudo npm install -g pnpm@9
-
-# 加 swap（2GB 内存机器 build 容易爆）
-sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
-sudo mkswap /swapfile && sudo swapon /swapfile
-echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+```
+$DEPLOY_ROOT/
+├── releases/<releaseId>/   # 每个已部署产物的完整解包目录，releaseId = baseVersion-shortCommit12
+├── current -> releases/<releaseId>   # 原子切换的符号链接，systemd WorkingDirectory 指向它
+├── previous -> releases/<releaseId>  # 回滚目标，rollback.sh --to previous 切回这里
+├── shared/
+│   ├── .env    # 由维护者维护，脚本从不读取/复制/打印其内容，不随发布包分发
+│   └── data    # 该环境唯一可写目录，其余部署路径保持只读
+├── incoming/    # deploy job 上传产物的落点（<artifactName>.tar.gz、.sha256、对应版本的 deploy-release.sh）
+└── deploy-history.log   # 部署与回滚的追加日志
 ```
 
-## 拉代码 + 配置 + build
+服务名 `yzgc-admin`（正式，见 `deploy/yzgc-admin.service`）与 `yzgc-preview`（预发布，见 `deploy/yzgc-preview.service`）是两份 systemd 模板给出的默认值，均需维护者按目标机实际用户/路径/端口确认后再安装，不能直接照搬。两个服务必须完全隔离：独立系统用户、独立 `WorkingDirectory`、独立 `.env`、独立数据目录与数据库、独立会话签名密钥、独立监听端口；预发布不得复用正式环境任何一项。
 
-```bash
-sudo git clone git@github.com:Yangtze-University-Geek-Class/admin.git /opt/yzgc-admin
-cd /opt/yzgc-admin
-sudo cp .env.example .env
-sudo vi .env
-```
+目标机前置条件（脚本不自行安装、不猜测路径，见两脚本文件头注释）：已装 Node 22（>=22.13）与 pnpm 9.15.9 且 `PATH` 可见；部署用户为非 root，且 sudoers 只放行 `<部署用户> ALL=(root) NOPASSWD: /usr/bin/systemctl restart <服务名>` 这一条命令；nginx 需 `include` 本仓的 `deploy/nginx-release-metadata.conf`（暴露只读、`no-store` 的 `/release.json`）并为 `/healthz` 配反代，两环境的 `alias` 必须分别指向各自的 `current/release.json`，不能共用同一部署根目录。
 
-`.env` 必填：
+回滚用 `deploy/remote/rollback.sh --environment <preview|production> --to <releaseId|previous>`：只把 `current` 符号链接切回一个已存在且通过校验的历史发布目录，不移动 tag、不修改版本号、不触碰数据库；数据库字段不兼容时脚本会停下来交由人处理，不自动重置数据库代替回滚。`--environment` 必填且不是显示标签：`releaseId` 只由 `baseVersion-shortCommit12` 组成，同一提交在 preview 与 production 完全相同，脚本用它断言目标产物与线上 `release.json` 的 `environment`、`publicOrigin`，避免把另一环境的产物切上来。回滚目标是 `deploy-release.sh` 部署过的目录，里面有 `pnpm install --prod` 生成的 `node_modules`；随包分发的 `release-bundle.mjs verify` 会整棵跳过 `node_modules`，其余文件仍逐一比对 MANIFEST。正因为 verify 不覆盖 `node_modules`，`rollback.sh` 会在切换 `current` 之前用 `pnpm install --prod --frozen-lockfile --prefer-offline` 按锁文件重建目标版本的生产依赖，重建失败即拒绝回滚；这要求目标机装有 pnpm 9.15.9 且能访问 registry。回滚前脚本还会先核对目标目录里的 `release-bundle.mjs`、`release-policy.mjs`、`deployment-environment.mjs` 非空且 sha256 与同目录 `MANIFEST.sha256` 登记值一致，再运行 verify，避免用一个被清空的校验器自证通过（`node` 执行空文件退出码为 0）；这只把信任基点提到「校验器 + 清单一致」，两者被同时改写仍无法发现，最终防线是部署时 CI 端已核对过 tar 的 sha256。
 
-```ini
-OAUTH_CLIENT_ID=<client id>
-OAUTH_CLIENT_SECRET=<client secret>
-PUBLIC_ORIGIN=https://<后台域名>
-SITE_ORIGIN=https://<官网域名>
-PORT=3000
-SESSION_SECRET=<openssl rand -base64 32 生成>
-ENCRYPTION_KEY=<openssl rand -base64 32 生成>
-DB_PATH=/opt/yzgc-admin/data/data.db
-# 选填
-TURNSTILE_SITE_KEY=
-TURNSTILE_SECRET_KEY=
-# POW_DIFFICULTY=3        # 公开提交的 PoW 难度（默认 3；调高更慢更稳）
-```
+发布包里的 `forum/public` 目前没有任何服务提供：核心 Fastify 不托管它，`server/src/app.ts` 对 `/forum`、`/forum/*` 在生产直接返回 503（`forum_service_not_ready`）。要让论坛在域名下可访问，需要由 nginx 另行把对应路径指向 `current/forum/public`（静态）或指向真实论坛服务；这一步尚未配置，也未在任何目标机验证过。发布包携带该目录只是为了让产物与提交一一对应，不代表论坛已经上线。
 
-**`.env.example` 里有每一项的注释**，包括三个站点域名的推导规则。改动 `.env` 后要 `systemctl restart yzgc-admin` 才生效。
+## 配置合同
 
-### 什么在 .env，什么不在
-
-| 位置 | 管什么 | 为什么 |
-|---|---|---|
-| `.env`（运行时） | OAuth 凭据、会话与加密密钥、数据库路径、Turnstile、PoW 难度、组织白名单、**站点域名** | 秘密与部署相关配置，不进版本库；systemd 通过 `EnvironmentFile` 读取 |
-| `web/shared/config/app.config.json`（构建期） | 前端域名、站点标题、功能开关、看板娘调参、官网文案 | Vite 的 `VITE_*` 是**编译期注入**，会把值烤进产物；而且这些不是秘密。改它要重新构建，不是重启 |
-
-**唯一的重叠是站点域名**：前端要它拼跨站绝对 URL（构建期），后端要它派发 `index.html`（运行时）。两处不一致不会报错，只会让某个链接指向不存在的地址 —— 论坛那条死链就是这么漏过去的。
-
-因此 `pnpm build` 前置了 `scripts/check-site-hosts.mjs`，在服务器上（有 `.env`）构建时自动比对两边，不一致直接失败：
-
-```bash
-node scripts/check-site-hosts.mjs   # 也可单独跑；无 .env 时跳过
-```
-
-**改域名时四处要一起改**：`.env` 的 `PUBLIC_ORIGIN`/`SITE_ORIGIN`、前端 `app.config.json` 的 `sites.*.host`、nginx 的 `server_name`、以及 GitHub OAuth App 的 Callback URL。
-
-```bash
-sudo chmod 600 .env
-sudo pnpm install --frozen-lockfile
-sudo pnpm -r run build
-```
-
-## systemd
-
-```bash
-sudo install -m 644 deploy/yzgc-admin.service /etc/systemd/system/yzgc-admin.service
-sudo mkdir -p /opt/yzgc-admin/data
-sudo systemctl daemon-reload
-sudo systemctl enable --now yzgc-admin
-sudo systemctl status yzgc-admin
-curl http://127.0.0.1:3000/healthz   # 应返回 {"ok":true,...}
-```
-
-## nginx + 证书
-
-如果你的 nginx 已经有别的 server block 在主 `nginx.conf` 里，确认 `http {}` 块里有 `include /etc/nginx/sites-enabled/*;`，没有就加一行。
-
-```bash
-sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/<你的域名>
-sudo ln -sf /etc/nginx/sites-available/<你的域名> /etc/nginx/sites-enabled/<你的域名>
-
-# 先把 nginx.conf 改成 80 only（去掉 443 监听），重载，让 certbot 申请证书
-sudo certbot --nginx -d <你的域名> --email you@example.com --agree-tos --redirect
-
-# 申请完装回完整 config（含 443）
-sudo install -m 644 deploy/nginx.conf /etc/nginx/sites-available/<你的域名>
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-## 验证
-
-```bash
-curl https://<你的域名>/healthz   # {"ok":true,...}
-```
-
-浏览器打开 `https://<你的域名>/` 应看到 Landing 页。
-
-## 多站点（官网 / 论坛 / 管理后台）
-
-本项目同一个进程同时服务三个站点（域名不同）：
-
-- 管理后台：`deploy/nginx.conf`（server_name `github.yangtzeu.work`）
-- 主站：`deploy/nginx-yangtzeu.conf`（server_name `yangtzeu.work`）
-- 论坛：`deploy/forum-subdomain-setup.md` 里的 nginx 片段 + DNS（server_name `forum.yangtzeu.work`）
-
-三个 server block 都反代到同一 `127.0.0.1:3000`，前端按 Host 头自动渲染对应站点。只部署管理后台时忽略本节。
-
-## 升级
-
-```bash
-cd /opt/yzgc-admin
-sudo git pull
-sudo pnpm install --frozen-lockfile
-sudo pnpm -r run build
-sudo systemctl restart yzgc-admin
-```
-
-如果 better-sqlite3 因 Node major 版本变化导致 `ERR_DLOPEN_FAILED`：
-
-```bash
-cd /opt/yzgc-admin/node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3
-sudo npm run build-release
-sudo systemctl restart yzgc-admin
-```
-
-## 备份
-
-数据库就一个 SQLite 文件：
-
-```bash
-# 每天 cron 复制一份
-0 3 * * * cp /opt/yzgc-admin/data/data.db /backup/yzgc-admin/data-$(date +\%F).db
-```
-
-恢复直接覆盖回去 + 重启服务。
-
-## 故障排查
-
-```bash
-# 日志
-sudo tail -f /var/log/yzgc-admin.log
-sudo journalctl -u yzgc-admin -f
-
-# nginx 日志
-sudo tail -f /var/log/nginx/access.log /var/log/nginx/error.log
-
-# 重新申请证书
-sudo certbot renew --dry-run
-```
-
-| 症状 | 检查 |
+| 配置 | 用途 |
 |---|---|
-| 启动失败 ERR_DLOPEN_FAILED | better-sqlite3 native rebuild（上面命令） |
-| OAuth 跳回报 invalid_state | 服务器时钟偏差太大；同步 NTP |
-| 登录后 repos 列表空 | OAuth scope 没 `repo`；改 server/src/config.ts 重 build 重登录 |
-| 网页打不开 502 | yzgc-admin 服务挂了；`systemctl status` 看 |
-| 网页打不开 444 / 526 | nginx 在 listen 但 server_name 没匹配；检查 `nginx -T \| grep server_name` |
+| PUBLIC_ORIGIN | 管理端/OAuth 回调 origin，生产 HTTPS |
+| SITE_ORIGIN | 官网 origin，生产 HTTPS |
+| ADMIN_HOST、PORTAL_HOST、FORUM_HOST | 明确域名覆盖，与前端公开配置一致，不带协议或端口 |
+| COOKIE_DOMAIN | 旧字段；新双环境应留空以使用 host-only，禁止 .yangtzeu.work 导致正式与预发布共享会话 |
+| OAUTH_CLIENT_ID、OAUTH_CLIENT_SECRET | GitHub OAuth 配置，不在日志或仓库保存真实值 |
+| SESSION_SECRET | 至少 32 字符随机值 |
+| ENCRYPTION_KEY | 32 字节密钥的 base64，轮换需单独迁移方案 |
+| DB_PATH | 核心持久化路径，自动测试显式为内存 |
+| FORUM_DB_PATH、FORUM_UPLOAD_DIR | 旧字段仅暂存兼容；核心不打开旧论坛库或上传接口，旧数据保留 |
+| TURNSTILE_SITE_KEY、TURNSTILE_SECRET_KEY | 同时配置才启用，核实站点来源 |
+| POW_DIFFICULTY | 整数 0–5；生产基线 3，0 仅隔离开发 |
+| ALLOWED_ORGS、PORT | 组织允许列表及回环监听端口 |
+
+.env 由操作者提供，最小权限保存，不打印或提交。根路径解析不依赖 shell 当前目录；部署文件与原生模块需和运行时匹配。
+
+配置示例见 [开发环境模板](ENVIRONMENT.md)。该文档只含占位符，不依赖或读取已有敏感文件。生产启动会比对后端 host 与前端公开 host；构建时只检查公开配置，不加载私有环境文件。
+
+## 最小权限
+
+应用使用专用 yzgc-admin 用户，不以 root 运行。代码和构建产物只读，数据和上传目录按需可写。systemd 开启 NoNewPrivileges、PrivateTmp 和文件系统保护，日志进入 journal。模板变化必须由发布者检查实际路径和服务用户权限，不能盲目覆盖已有配置。
+
+Nginx 安全头通过公共 include 保持一致，子 location 设置缓存头时也包含安全头。已有两个不同 server block 模板不能同时启用而产生域名冲突。证书准备完成后才引用，先 nginx -t 再重载；本地代码验收不执行这些操作。
+
+## 数据迁移和备份
+
+极客班论坛原始数据库和附件已按独立授权拉到 Mac 私有目录，见 [FORUM-DATA-CAPTURE](FORUM-DATA-CAPTURE.md)。这是源数据保全，不是新 schema 导入，不自动替换线上库，也不放进 CI/发布产物。
+
+新表/列尽量增量兼容，不自动删除或重排。变更前使用 SQLite 在线 backup API 或停服的一致性备份，不能只复制活动 WAL 数据库主文件并假定完整。备份同时记录密钥版本、应用版本和必要上传文件，并完成恢复演练。
+
+新增 invite_attempts 保存邀请额度预留和结果。sent 可复用；unknown/reserved 表示需核对的外部结果，不自动重发。管理员核对 GitHub 是否已发邀请后，再通过授权维护修正状态/额度并记录审计。
+
+旧论坛维护脚本已随源码归档，不能对新论坛 localStorage 数据使用旧数据库脚本。旧数据库/附件不自动导入或删除；迁移需独立方案、授权和可验证备份。禁止将业务数据库用于自动测试。
+
+## 发布和回滚验收
+
+检查 healthz、三个入口和深链接、缺失资产 404、真实 OAuth/Cookie、验证码、权限、上传、邀请结果、审计和服务重启。HTML/资产及后端必须来自同一发布版本。数据库有新字段时回滚旧程序前确认兼容，不以重置数据库代替回滚。
+
+未执行的生产验证明确标注，不将本机的 verify PASS、模板文件或模拟测试称为线上验收。
+
+核心 OAuth 保留签名状态和十分钟有效期；不再签发 forum_sid 或支持旧论坛绑定回调。旧论坛 API 返回 410。新论坛真实 Provider、服务器会话和权限未接入前，不能仅用前端跳转或示例用户选择保护内部服务。后续发布需验证统一认证、回跳、Cookie 范围和退出语义。
+
+旧 deploy/setup.sh 的自动安装行为已退役。`bash deploy/setup.sh --check` 仅检查仓库模板，不修改系统服务、证书或数据。发布者按本规范准备专用用户、目录权限、证书和配置 include，再在已授权目标环境执行检查及重载；不要把旧一键命令用于本次版本。

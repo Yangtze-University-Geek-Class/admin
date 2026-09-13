@@ -1,0 +1,139 @@
+# FlatDropdown 扁平下拉
+
+> 插槽驱动的浮层下拉面板（`TxFlatDropdown`）。支持悬停 / 点击 / 手动触发，自动翻转定位，退出时带缩放与模糊动效。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/flat-dropdown) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/flat-dropdown.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/flat-dropdown.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`0.3.9`，syncStatus=`migrated`，verified=`false`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# FlatDropdown 扁平下拉
+
+## 基础用法
+
+悬停触发器即可展开。指针离开后面板会保留 `closeDelay` 毫秒，方便你把指针移进去。`close-on-content-click` 让面板在内部任意点击后关闭。
+
+### FlatDropdown（基础）
+官方示例：`FlatDropdownBasicDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const lastAction = ref('—')
+</script>
+
+<template>
+  <TxFlatDropdown trigger="hover" placement="bottom-start" close-on-content-click>
+    <template #trigger="{ open }">
+      <TxButton size="sm" :variant="open ? 'primary' : 'default'">操作</TxButton>
+    </template>
+
+    <button @click="lastAction = '复制'">复制</button>
+    <button @click="lastAction = '重命名'">重命名</button>
+  </TxFlatDropdown>
+</template>
+```
+
+## 触发方式
+
+`trigger` 决定面板如何被唤起：
+
+- `hover`（默认）—— 指针进入或获得焦点时展开，离开后延迟 `closeDelay` 关闭。
+- `click` —— 点击切换，不应用 `closeDelay`。
+- `manual` —— 组件永不自行展开，完全由 `v-model` 驱动。
+
+当面板需要跟随应用状态而非指针意图时（例如由快捷键唤起的下拉），使用 `manual`。
+
+## 受控与非受控
+
+不绑定 `v-model` 时组件自行维护开合状态。绑定后则由你接管 —— 组件仍会发出 `open` / `close` 事件，但除非交互被允许，否则不会自行改变该值。
+
+`disabled` 会阻断所有展开路径，包括通过触发器插槽的 `show()` 进行的程序化调用。
+
+## 尺寸控制
+
+面板默认由内容撑开。两个逃生舱：
+
+- `match-trigger-width` —— 将面板 `min-width` 设为实测的触发器宽度，适合选择器类菜单。
+- `width` —— 固定宽度（px 数值或任意 CSS 长度），优先级高于 `match-trigger-width`。
+
+## 关闭契约
+
+三条互相独立、可分别开关的关闭路径：
+
+| 属性 | 默认值 | 触发关闭的条件 |
+|---|---|---|
+| `closeOnClickOutside` | `true` | 点击落在触发器与面板之外 |
+| `closeOnEsc` | `true` | 按下 `Escape` |
+| `closeOnContentClick` | `false` | 面板内部发生任意点击 |
+
+`closeOnClickOutside` 仅对 `click` 与 `hover` 生效 —— `manual` 下关闭逻辑完全由宿主掌控。
+
+## API
+
+### TxFlatDropdown
+
+#### 属性
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `modelValue` | `boolean` | `undefined` | 受控开合状态，省略则为非受控。 |
+| `trigger` | `'hover' \| 'click' \| 'manual'` | `'hover'` | 面板唤起方式。 |
+| `placement` | `Placement` | `'bottom-start'` | 相对触发器的浮层位置。 |
+| `offset` | `number` | `10` | 触发器与面板之间的间距（px）。 |
+| `openDelay` | `number` | `0` | 悬停/聚焦后展开的延迟（ms）。 |
+| `closeDelay` | `number` | `600` | 指针离开后关闭的延迟（ms）。 |
+| `exitDuration` | `number` | `280` | 退出动画（缩放 + 模糊）时长（ms）。 |
+| `disabled` | `boolean` | `false` | 禁用全部交互。 |
+| `teleport` | `boolean \| string` | `'body'` | 传送目标，传 `false` 则就地渲染。 |
+| `matchTriggerWidth` | `boolean` | `false` | 面板最小宽度对齐触发器宽度。 |
+| `width` | `number \| string` | `undefined` | 固定面板宽度，覆盖 `matchTriggerWidth`。 |
+| `closeOnClickOutside` | `boolean` | `true` | 点击外部时关闭。 |
+| `closeOnEsc` | `boolean` | `true` | 按下 Escape 时关闭。 |
+| `closeOnContentClick` | `boolean` | `false` | 面板内点击后关闭。 |
+| `panelClass` | `TxFlatDropdownClass` | `undefined` | 合并到面板元素上的额外 class。 |
+
+#### 事件
+
+| 事件 | 参数 | 说明 |
+|---|---|---|
+| `update:modelValue` | `boolean` | 开合状态变化。 |
+| `open` | — | 面板已展开。 |
+| `close` | — | 面板已关闭。 |
+
+#### 插槽
+
+| 插槽 | 参数 | 说明 |
+|---|---|---|
+| `trigger` | `{ open, toggle, show, hide }` | 锚点元素。 |
+| `default` | `{ open, close, side }` | 面板内容，`side` 为翻转后的实际方向。 |
+
+## 最佳实践
+
+- 破坏性或会改变状态的菜单优先用 `trigger="click"` —— 悬停展开在触控板上很容易误触。
+- `hover` 模式下 `closeDelay` 要留足（默认 `600`）；太短会让指针斜向移入面板变得非常难受。
+- 当下拉位于自带层叠或裁剪上下文的容器内、且需要继承该上下文时，设 `teleport="false"`。注意就地渲染会重新暴露在祖先的 `overflow: hidden` 之下。
+- 用 `side` 插槽参数翻转你自己的装饰元素（箭头、阴影），以配合面板翻转到触发器上方的情况。
+- 不要假设面板在展开后就已完成定位 —— 位置是响应式异步写回的，若需读取绝对几何请放到 `requestAnimationFrame` 中测量。
+- 触发器包装元素会通过 `aria-haspopup`、`aria-expanded` 与 `aria-controls`（指向面板生成的 id）声明面板，插槽里的 `<button>` 触发器会自动获得展开语义。
+
+## 源码
+
+- 组件：`packages/tuffex/packages/components/src/flat-dropdown/src/TxFlatDropdown.vue`
+- 类型：`packages/tuffex/packages/components/src/flat-dropdown/src/types.ts`
+
+## 离线完整示例源码
+
+- [FlatDropdownBasicDemo](../snapshot/apps/nexus/app/components/content/demos/FlatDropdownBasicDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [flat-dropdown/index.ts](../snapshot/packages/tuffex/packages/components/src/flat-dropdown/index.ts.txt)
+- [src/TxFlatDropdown.vue](../snapshot/packages/tuffex/packages/components/src/flat-dropdown/src/TxFlatDropdown.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/flat-dropdown/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

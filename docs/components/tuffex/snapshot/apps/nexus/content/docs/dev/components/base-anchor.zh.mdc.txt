@@ -1,0 +1,458 @@
+---
+title: "BaseAnchor 锚点定位"
+description: "基于 Floating UI 与 GSAP 的锚点定位弹出层，默认琉光面板、弹簧展开，另有位移、聚焦缩放、透明度与液态模式。"
+category: Primitives
+status: beta
+since: 0.3.9
+tags: [popover, overlay, floating, gsap, animation]
+syncStatus: reviewed
+verified: true
+---
+# BaseAnchor 锚点定位
+
+## 基础用法
+
+### BaseAnchor
+:::TuffDemoWrapper{demo="BaseAnchorBasicDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open = ref(false)
+  </script>
+
+  <template>
+    <TxBaseAnchor v-model="open" placement="bottom-start">
+      <template #reference>
+        <TxButton>点击</TxButton>
+      </template>
+
+      <div style="width: 220px; padding: 4px;">
+        锚点定位弹出内容
+      </div>
+    </TxBaseAnchor>
+  </template>
+---
+:::
+
+### 位移动画
+
+`animation.type='transfer'`：内容从 placement 方向通过柔和边缘进入，关闭时原路回收。`show-arrow` 会让三角箭头跟随最终浮层方向与位置。
+
+#### 柔和边缘
+:::TuffDemoWrapper{demo="BaseAnchorSplitLineDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open = ref(false)
+  </script>
+
+  <template>
+    <TxBaseAnchor
+      v-model="open"
+      placement="bottom-start"
+      :show-arrow="true"
+    >
+      <template #reference>
+        <TxButton>柔和边缘</TxButton>
+      </template>
+
+      <div style="width: 240px; padding: 4px;">
+        内容从锚点方向浮现
+      </div>
+    </TxBaseAnchor>
+  </template>
+---
+:::
+
+### 方向
+
+内容从 placement 方向进入和退出。例如 `top` 时，内容从上方下来，关闭时原路返回上方。
+
+#### 不同方向
+:::TuffDemoWrapper{demo="BaseAnchorPlacementDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open1 = ref(false)
+  const open2 = ref(false)
+  const open3 = ref(false)
+  const open4 = ref(false)
+  </script>
+
+  <template>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; padding: 48px 0; justify-content: center;">
+      <TxBaseAnchor v-model="open1" placement="bottom" :show-arrow="true">
+        <template #reference>
+          <TxButton>下方</TxButton>
+        </template>
+        <div style="width: 180px; padding: 4px;">bottom</div>
+      </TxBaseAnchor>
+
+      <TxBaseAnchor v-model="open2" placement="top" :show-arrow="true">
+        <template #reference>
+          <TxButton>上方</TxButton>
+        </template>
+        <div style="width: 180px; padding: 4px;">top</div>
+      </TxBaseAnchor>
+
+      <TxBaseAnchor v-model="open3" placement="left" :show-arrow="true">
+        <template #reference>
+          <TxButton>左侧</TxButton>
+        </template>
+        <div style="width: 180px; padding: 4px;">left</div>
+      </TxBaseAnchor>
+
+      <TxBaseAnchor v-model="open4" placement="right" :show-arrow="true">
+        <template #reference>
+          <TxButton>右侧</TxButton>
+        </template>
+        <div style="width: 180px; padding: 4px;">right</div>
+      </TxBaseAnchor>
+    </div>
+  </template>
+---
+:::
+
+### 动画模式
+
+通过一个 `animation` 对象统一配置：`expand`（弹簧展开，默认）、`transfer`（位移）、`boom`（聚焦缩放）、`opacity`（透明度）、`none`（无动画）；液态的 `drip` / `bead` 见下节。
+
+#### 多种动画
+:::TuffDemoWrapper{demo="BaseAnchorAnimationDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  type AnchorAnimationType = 'expand' | 'transfer' | 'boom' | 'opacity' | 'none'
+
+  const modes: AnchorAnimationType[] = ['expand', 'transfer', 'boom', 'opacity', 'none']
+  const open = ref<Record<AnchorAnimationType, boolean>>({
+    expand: false,
+    transfer: false,
+    boom: false,
+    opacity: false,
+    none: false,
+  })
+
+  function resolveAnimation(type: AnchorAnimationType) {
+    if (type === 'expand')
+      return { type }
+
+    return {
+      type,
+      duration: type === 'none' ? 0 : 420,
+      ease: type === 'transfer' ? 'back.out(2)' : 'power2.out',
+      closeEase: type === 'transfer' ? 'power3.in' : 'power2.in',
+      scale: type === 'boom' ? 1.08 : undefined,
+      blur: type === 'boom' ? 14 : undefined,
+    }
+  }
+  </script>
+
+  <template>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+      <TxBaseAnchor
+        v-for="mode in modes"
+        :key="mode"
+        v-model="open[mode]"
+        placement="bottom"
+        :show-arrow="true"
+        :animation="resolveAnimation(mode)"
+      >
+        <template #reference>
+          <TxButton :variant="open[mode] ? 'primary' : 'secondary'">
+            {{ mode }}
+          </TxButton>
+        </template>
+
+        <div style="width: 230px; padding: 4px;">
+          {{ mode }}
+        </div>
+      </TxBaseAnchor>
+    </div>
+  </template>
+---
+:::
+
+### Drip 液滴下坠
+
+`animation.type='drip'` 让面板像一滴水从触发器自身淌出来。触发器**本体**与面板处于同一个 SVG goo 滤镜内（`feGaussianBlur` + `feColorMatrix` 硬 alpha 阈值），起初完全融合；随着面板上沿下落，两者之间的颈部变细、收紧、最终断裂。
+
+颈部不是画出来的几何，而是高斯场跌破阈值的副产物 —— 这也是两者必须共用一个滤镜的原因。灰色描边同样不画在任何一个元素上：它由**合并后的轮廓**腐蚀 1px 再对差集灌色得到，因此是一条连续的环，包住触发器、沿颈部延伸、合拢在面板四周。阴影由滤镜**外部**的孪生元素承载，否则会被 alpha 阈值切成一块硬边黑板。
+
+面板由**两条下落的边**描述，而不是一个变大的盒子：上沿从触发器中线快速落到最终位置后停住，高度则贯穿并越过断裂时刻继续填充。颈部断裂那一刻，面板已经长出约 **83%** 的身子且仍在生长。
+
+#### 液滴下坠
+:::TuffDemoWrapper{demo="BaseAnchorDripDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open = ref(false)
+  const items = ['个人空间', '团队协作', '归档项目', '新建工作区']
+  </script>
+
+  <template>
+    <TxBaseAnchor
+      v-model="open"
+      placement="bottom-start"
+      :offset="8"
+      :width="200"
+      :panel-radius="14"
+      :animation="{ type: 'drip' }"
+    >
+      <template #reference>
+        <button style="width: 200px; height: 40px; border: none; border-radius: 11px;">
+          选择工作区
+        </button>
+      </template>
+
+      <div style="display: grid; gap: 2px;">
+        <button v-for="item in items" :key="item" data-liquid-item style="height: 30px;">
+          {{ item }}
+        </button>
+      </div>
+    </TxBaseAnchor>
+  </template>
+---
+:::
+
+给菜单项加上 `data-liquid-item` 即可开启逐项揭示：每一项的透明度锚定面板当前高度，任何一项都不会在面板长到足以容纳它之前出现。不加则整个面板内容作为一个整体揭示，同样锚定生长量而非时钟。
+
+### Bead 张力收腰
+
+`animation.type='bead'` 与 `drip` 共用同一套引擎、同一套几何、同一套时序 —— 唯一的区别是**宽度**。
+
+`drip` 的面板宽度恒定；`bead` 让面板两侧被**运动速度**拉细，运动停息时回到全宽。也就是说，这个形状报告的是水滴**自己的速度**，而不是它的进度。
+
+速度测的不是 `p`。`p` 是线性推进的，导数恒定、根本读不出速度 —— 直接读它会让收腰永远张着不收。水滴有两种运动，报告的是当下更快的那一个：**上沿的下落**走 ease-out-quad，在断裂点减速到静止；**身体的填充**走 ease-out-cubic，一直涨到终点。只读上沿会让收腰在时间线 45% 处被硬生生切断 —— 面板还在明显生长，剪影却已经弹回全宽。只要还有一端在动，这张片子就仍处于张力之下。
+
+两条斜率都是 `t` 的**解析解**，不是帧间差分。差分在 `t=0` 没有前一个采样点，只能退化成 0，于是首帧报告了一个水滴根本没有的静止起步，剪影会从全宽瞬移到最深收腰。解析解在 `t=0` 和在别处一样有值，所以收腰不会弹跳，也不随刷新率变化 —— 60Hz 与 120Hz 在同一个 `t` 上算出完全相同的收腰量。
+
+收腰绕面板**中线**对称，所以是缩颈而不是侧移。因为它可以收得比面板内边距更深，菜单项会被 `clip-path` 裁到水滴宽度，随颈部松开而显露 —— 而不是靠淡出去遮，那样只能让溢出变淡、遮不干净。
+
+#### Bead
+:::TuffDemoWrapper{demo="BaseAnchorBeadDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open = ref(false)
+  const items = ['个人空间', '团队协作', '归档项目', '新建工作区']
+  </script>
+
+  <template>
+    <TxBaseAnchor
+      v-model="open"
+      placement="bottom-start"
+      :offset="8"
+      :width="200"
+      :panel-radius="14"
+      :animation="{ type: 'bead', beadPinch: 60 }"
+    >
+      <template #reference>
+        <button style="width: 200px; height: 40px; border: none; border-radius: 11px;">
+          选择工作区
+        </button>
+      </template>
+
+      <div style="display: grid; gap: 2px;">
+        <button v-for="item in items" :key="item" data-liquid-item style="height: 30px;">
+          {{ item }}
+        </button>
+      </div>
+    </TxBaseAnchor>
+  </template>
+---
+:::
+
+`beadPinch` 控制峰值收腰量（每侧 px，默认 60 —— 200px 面板最窄收到 80px），`beadVelocityRef` 控制多快算"最快"（默认 4）。收腰永远不会把面板收成零宽 —— 零宽矩形会整个掉出高斯场，颈部会提前断裂。
+
+### 自定义动画
+
+推荐使用 `animation` 对象控制动画类型、时长和 GSAP 缓动函数。`duration` / `ease` 仍保留兼容，但新用法应写入 `animation`。
+
+#### 弹性缓动
+:::TuffDemoWrapper{demo="BaseAnchorCustomEaseDemo" code-lang="vue"}
+---
+code: |
+  <script setup lang="ts">
+  import { ref } from 'vue'
+
+  const open = ref(false)
+  </script>
+
+  <template>
+    <TxBaseAnchor
+      v-model="open"
+      placement="bottom-start"
+      :animation="{ type: 'transfer', duration: 600, ease: 'elastic.out(1, 0.4)' }"
+    >
+      <template #reference>
+        <TxButton>弹性</TxButton>
+      </template>
+
+      <div style="width: 240px; padding: 4px;">
+        弹性缓动，时长 600ms
+      </div>
+    </TxBaseAnchor>
+  </template>
+---
+:::
+
+### 交互式 Playground
+
+在一个面板里自由调整关键属性，重点观察 `pure / mask / blur / glass / refraction`（琉光）不同 surface 的材质表现，以及 `auto / manual / off` 三种运动适配策略。
+
+#### Surface Playground
+:::TuffDemoWrapper{demo="BaseAnchorSurfacePlaygroundDemo" code-lang="vue"}
+---
+code: |
+  <template>
+    <BaseAnchorSurfacePlaygroundDemo />
+  </template>
+---
+:::
+
+## API
+
+### TxBaseAnchor Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` | `boolean` | `false` | 是否打开（v-model） |
+| `disabled` | `boolean` | `false` | 禁用 |
+| `eager` | `boolean` | `false` | 首次打开前就挂载浮层，适合需要预先测量尺寸的内容 |
+| `placement` | `BaseAnchorPlacement` | `'bottom-start'` | 浮动定位方向 |
+| `offset` | `number` | `8` | 与触发元素的间距 (px) |
+| `width` | `number` | `0` | 面板宽度（0 = 由内容宽度决定） |
+| `minWidth` | `number` | `0` | 最小宽度 |
+| `maxWidth` | `number` | `360` | 最大宽度 |
+| `maxHeight` | `number` | `420` | 面板最大高度，会结合视口可用高度自动收缩 |
+| `unlimitedHeight` | `boolean` | `false` | 关闭高度限制；`maxHeight <= 0` 时也会视为不限制 |
+| `matchReferenceWidth` | `boolean` | `false` | `width=0` 时是否跟随 reference 宽度 |
+| `referenceClass` | `BaseAnchorClassValue` | `undefined` | 追加到 reference 包装层的 class，不会作用于浮层面板 |
+| `virtualReference` | `BaseAnchorVirtualReference` | `undefined` | 使用虚拟 reference（如鼠标坐标）进行定位；适合 ContextMenu / 画布节点 / 光标菜单 |
+| `disableFlip` | `boolean` | `false` | 关掉 `flip` 中间件，面板贴近视口边缘时不再翻到 `placement` 的对侧。`shift` 仍在，面板依然会被推回视口内。用于宿主自行测量的 `virtualReference`（划词工具条、光标条）——中途换边会被读成另一个控件 |
+| `animation` | `BaseAnchorAnimationOptions` | `{ type: 'transfer' }` | 动画配置对象，统一控制动画类型、时长、缓动与效果参数 |
+| `useCard` | `boolean` | `true` | 是否使用内置 `TxCard` 包裹浮层内容 |
+| `panelVariant` | `'solid' \| 'dashed' \| 'plain'` | `'plain'` | `useCard=true` 时透传给 `TxCard` 的边框形态 |
+| `panelBackground` | `'pure' \| 'mask' \| 'blur' \| 'glass' \| 'refraction'` | `'refraction'` | 面板背景（TxCard background；`refraction` 即琉光） |
+| `panelShadow` | `'none' \| 'soft' \| 'medium'` | `'soft'` | 面板阴影（TxCard shadow） |
+| `panelRadius` | `number` | `18` | 面板圆角（TxCard radius） |
+| `panelPadding` | `number` | `10` | 面板 padding（TxCard padding） |
+| `panelCard` | `Partial<TxCardProps>` | `undefined` | 透传 `TxCard` 高级参数（如 `maskOpacity`、`fallbackMaskOpacity`、`surfaceMoving`、`refraction*`） |
+| `surfaceMotionAdaptation` | `'auto' \| 'manual' \| 'off'` | `'auto'` | 浮层运动降级策略：`auto` 自动跟随 Anchor 动画，`manual` 使用 `panelCard.surfaceMoving`，`off` 关闭降级适配 |
+| `showArrow` | `boolean` | `false` | 是否启用跟随浮层定位的三角箭头 |
+| `arrowSize` | `number` | `10` | 箭头尺寸（px） |
+| `keepAliveContent` | `boolean` | `false` | 关闭后保留浮层内容挂载状态，避免丢失内部状态 |
+| `closeOnClickOutside` | `boolean` | `true` | 点击外部关闭 |
+| `closeOnEsc` | `boolean` | `true` | ESC 关闭 |
+| `toggleOnReferenceClick` | `boolean` | `true` | 点击 reference 是否自动切换开关 |
+
+### BaseAnchorAnimationOptions
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `type` | `'transfer' \| 'boom' \| 'opacity' \| 'none' \| 'drip' \| 'bead'` | `'transfer'` | 动画类型。`boom` 为聚焦缩放效果，不用于中文命名；`drip` 与 `bead` 共用一套引擎、自带时序表，不继承旧的 `duration` / `ease` prop |
+| `closeType` | 同 `type` 的取值 | 同 `type` | 关闭阶段使用的动画类型。缺省时与 `type` 相同，因此不传即为对称播放。`drip` / `bead` 的两个方向共用同一套已测量的舞台（含模板读取的 `usesBeadMotion`），因此液态必须两端同型，混搭会回落为对称并在 dev 下告警 |
+| `duration` | `number` | 按类型（expand 400 / 经典 432 / 液态 260） | 打开动画时长 (ms) |
+| `closeDuration` | `number` | `duration * 0.45` | 关闭动画时长 (ms) |
+| `ease` | `string` | 按类型（expand `spring(10, 0.6)` / 经典 `back.out(2)` / 液态 `linear`） | 打开缓动：GSAP 字符串、`cubic-bezier(...)` 或 `spring(omega, zeta)` |
+| `closeEase` | `string` | `'power3.in'` | 关闭动画 GSAP 缓动 |
+| `distance` | `number` | `30` | `transfer` 位移距离 (px) |
+| `scale` | `number` | `1.08` | `boom` 打开初始/关闭结束缩放 |
+| `blur` | `number` | `12` | `boom` 打开初始/关闭结束模糊半径 (px) |
+| `opacity` | `number` | `0` | `boom` / `opacity` 打开初始与关闭结束透明度 |
+| `exit` | `{ scale?, distance?, blur?, opacity? }` | 见说明 | 仅作用于关闭阶段的几何覆盖。逐字段回落：先取同名共享字段（调用方显式写过的值），再取 `closeType` 自己的默认表。之所以需要它，是因为 `scale` 在不同类型下语义相反 —— `boom` 从大于 1 收进来，`expand` 从小于 1 长出去，两阶段共享一个值必然有一端是错的 |
+| `gooBlur` | `number` | `4.5` | 仅 `drip` / `bead`。goo 滤镜的 `feGaussianBlur` stdDeviation，与 `gooThreshold` 共同决定颈部能撑过多宽的间隙 |
+| `gooThreshold` | `number` | `20` | 仅 `drip` / `bead`。alpha 阈值矩阵的斜率 |
+| `gooThresholdOffset` | `number` | `-9` | 仅 `drip` / `bead`。alpha 阈值矩阵的偏移 |
+| `outlineColor` | `string` | `--tx-border-color` | 仅 `drip` / `bead`。灌进合并轮廓环的颜色，默认从 token 解析，因此跟随暗色主题 |
+| `triggerRadius` | `number` | 实测 | 仅 `drip` / `bead`。触发器幽灵的圆角，缺省时从 reference 实测 |
+| `seedHeight` | `number` | `12` | 仅 `drip` / `bead`。p=0 时的面板高度，即液滴被撕下来的种子 |
+| `itemSelector` | `string` | `'[data-liquid-item]'` | 仅 `drip` / `bead`。参与逐项揭示的选择器 |
+| `beadPinch` | `number` | `60` | 仅 `bead`。峰值收腰量（每侧 px）。它报告的是水滴速度，因此随运动停息衰减到 0；收得比面板内边距深时，菜单项会被裁到水滴宽度 |
+| `beadVelocityRef` | `number` | `4` | 仅 `bead`。收腰饱和所需的速度，取下落与填充两条斜率中较大的那条，按每单位归一化时间计 |
+
+`type` 为 `drip` 或 `bead` 时时序默认值另有一套：`duration` 为 `260`，`closeDuration` 为 `150`（明显更快，且走自己的曲线而不是打开的倒放），`ease` 为 `linear`，`closeEase` 为 `cubic-bezier(0.25, 0.46, 0.45, 0.94)`。
+
+`ease` 默认 `linear` 是有意的。`p` 是原始进度，塑形全部交给两条边各自的缓动 —— 上沿 ease-out-quad、高度 ease-out-cubic。若再叠一条前载的主曲线，合起来接近 8 阶 ease-out：60Hz 下整个撕裂过程会塌进 2 帧，剩下的时长只是几个像素的不可见爬行。仍可传入任意 `cubic-bezier(...)`；GSAP 缓动串与弹簧写法会被拒绝并回落到默认值。
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `open` | - | 打开时触发 |
+| `close` | - | 关闭时触发 |
+| `update:modelValue` | `boolean` | v-model 更新 |
+
+### Slots
+
+| 插槽名 | 说明 |
+|------|------|
+| `reference` | 触发元素 |
+| `default` | 弹出内容；会接收最终 Floating UI 定位方向 `{ side }` |
+
+### 暴露方法
+
+| 方法名 | 参数 | 说明 |
+|------|------|------|
+| `close` | - | 编程式关闭 |
+| `toggle` | - | 编程式切换 |
+| `updatePosition` | - | 手动刷新 Floating UI 定位 |
+
+## 交互契约
+
+- `modelValue` 支持受控与非受控用法。点击 reference 会触发 `update:modelValue`，状态变化时同步触发 `open` 或 `close`。
+- `disabled` 会阻断打开；已打开的非受控 Anchor 在切换为 disabled 后会关闭。
+- `closeOnClickOutside` 与 `closeOnEsc` 分别控制外部指针事件和 Escape 关闭。
+- `toggleOnReferenceClick=false` 会阻断 reference 点击切换，适合输入框等自行处理点击行为的 reference。
+- `virtualReference` 会覆盖 DOM reference 参与 Floating UI 定位，但 reference 插槽仍会渲染以保持结构与插槽契约。适合需要坐标锚点的组件。
+- `class`、`style` 与非 class attrs 会透传到浮层面板；reference 包装层样式使用 `referenceClass`。
+- `maxHeight` 会被视口剩余高度裁剪。只有面板内部自带滚动容器时才使用 `unlimitedHeight`。
+- 超出 `maxHeight` 时滚动的是卡片的 body，不是 `.tx-base-anchor__card` 本身——卡片只负责裁剪。面板背景由卡片内一个绝对定位的 surface 层绘制，让卡片自己滚会把这层背景一起滚走。面板内容需要滚动位置时，取的是卡片 body 而不是卡片。
+- `surfaceMotionAdaptation` 是真实策略：`auto` 使用 Anchor 内部运动态，`manual` 读取 `panelCard.surfaceMoving`，`off` 强制 `surfaceMoving=false`。
+- 新动画优先使用 `animation` 对象；`duration` / `ease` 仅作为兼容入口参与默认值合并。
+- `eager` 会在首次打开前挂载；`keepAliveContent` 会在关闭后保留内容状态。优先用于需要测量或保留表单状态的面板，不要滥用于静态文案。
+- `drip` / `bead` 只对纵向轴有定义。`left*` / `right*` 落位（包括 `flip` 翻出来的）会降级为 opacity 路径，时序保持不变。
+- `drip` / `bead` 通过 goo 滤镜自绘不透明表面，因此不渲染 `TxCard`，`panelBackground` / `panelShadow` / `panelVariant` 均不生效。四种非 `pure` 背景都依赖 `backdrop-filter`，它在 SVG 滤镜内不生效，且经 alpha 阈值会被切成硬边。
+- `drip` / `bead` 会抑制 `showArrow`（箭头与颈部语义冲突），并用合并轮廓推导的环取代原本的圆角矩形描边，不会出现双描边。
+- `drip` / `bead` 会把触发器内部从 goo 填充里挖空，因此触发器自身的填充与文字始终可见，与页面的层叠上下文无关。轮廓那一层不参与遮罩，所以推导出的环仍然包住触发器。代价是触发器必须自带不透明背景 —— 透明触发器会从挖空处透出页面。
+- `drip` / `bead` 需要可测量的面板高度；`unlimitedHeight`（或 `maxHeight <= 0`）会回落到瞬时显示/隐藏路径。
+- `prefers-reduced-motion: reduce` 下所有动画类型都直接跳到终态而不播放：GSAP 驱动的 `transfer` / `boom` / `opacity` 立即结束，`drip` / `bead` 通过其 prepare 步骤跳到终态（`none` 本就是瞬时）。
+
+## 最佳实践
+
+- 优先使用 `TxPopover`、`TxDropdownMenu` 或 `TxContextMenu`；只有在构建新的锚点基础组件或需要虚拟 reference 定位时才直接使用 `TxBaseAnchor`。
+- 浮层内容保持轻量；多步骤表单、危险确认或整屏流程应改用 Drawer/Dialog。
+- 坐标锚点菜单应传入 `virtualReference`，并在鼠标位置或画布变换后调用 `updatePosition()`。
+
+
+## 审阅说明
+
+- 已核对 `packages/tuffex/packages/components/src/base-anchor/src/TxBaseAnchor.vue`、`base-anchor-motion.ts`、`types.ts` 与 `base-anchor.test.ts`。
+- 现有测试覆盖非受控切换、受控的外部点击/Escape 关闭路径、禁用阻断、关闭/切换开关、floating attrs 与 reference class、动画变体及旧版 duration/ease 兼容，以及 surface-motion adaptation 策略。
+- 被否掉的做法：让 `.tx-base-anchor__card` 自己 `overflow: auto`。它曾是默认写法，但卡片的 surface 层是它的绝对定位子元素，包含块随卡片内容一起滚动——面板往下滚多少像素，底部就有多少像素只剩页面背景。自带列表滚动容器的面板（select、search-select）碰不到，把整个 body 交给卡片的 dropdown-menu 会。现在卡片 `overflow: hidden`、body `overflow: auto`，surface 留在原地。
+- `--tx-ba-max-height` 只由 `size` middleware 写入：正常为 `min(availableHeight, maxHeight)` 的像素值，unlimited 时为 `none`。根节点 `:style` 不声明这个变量——它曾被绑定为 `isUnlimitedHeight ? 'none' : undefined`，而 Vue 的样式 patch 会把 `undefined` 写成 `setProperty(name, '')`，每次定位后的重渲染都删掉 middleware 刚写入的值，面板始终回落到 CSS 默认的 420px 并向下溢出触发元素。
+- 可访问性说明：`TxBaseAnchor` 只是定位基础设施。上层封装必须按内容类型提供 menu/dialog/listbox role、焦点管理与键盘导航。
+- `drip` / `bead` 的覆盖分布在 `base-anchor-liquid.test.ts`（cubic-bezier 求解、弹簧拒绝、p=0 / 0.45 / 1 的稿值几何、两条边的独立性、逐项揭示）与 `base-anchor.test.ts`（单一合并 goo 滤镜、腐蚀推导的轮廓环、滤镜外的阴影孪生、箭头/描边/卡片抑制、横向降级、不走 gsap）。
+- `drip` / `bead` 由 rAF 循环驱动而非 GSAP：动效由两条 CSS cubic-bezier 定义，且每帧都要从单一进度标量派生 SVG 几何、阴影孪生与逐项透明度。
+- 浏览器支持：`liquid` 用的是 `filter: url(#…)`，Safari 与 Firefox 均支持。受限的只有 `backdrop-filter: url(#…)`，而 `liquid` 不使用它，因此不需要降级梯度。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/base-anchor/src/TxBaseAnchor.vue`。
+- Type contracts: `packages/tuffex/packages/components/src/base-anchor/src/types.ts` 导出 `BaseAnchorProps`、`BaseAnchorAnimationOptions` 与虚拟 reference 类型。
+- **实测覆盖:** `packages/tuffex/packages/components/src/base-anchor/__tests__/base-anchor.test.ts` 覆盖非受控切换、受控的外部点击/Escape 关闭、禁用行为、关闭/切换开关、floating attrs/reference class、动画及旧版兼容，以及 surface-motion adaptation。`base-anchor-max-height.test.ts` 覆盖 `--tx-ba-max-height` 的归属：面板打开稳定后与重渲染后都保持 middleware 写入的像素值（`unlimitedHeight` 时为 `none`），且没有任何空值写入将其清除。
+
+<TuffDocSourceLink />

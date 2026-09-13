@@ -1,0 +1,295 @@
+# DropdownMenu 下拉菜单
+
+> 基于 Popover 的下拉菜单（Windows 风格）。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/dropdown-menu) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/dropdown-menu.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/dropdown-menu.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# DropdownMenu 下拉菜单
+
+## 基础用法
+
+### DropdownMenu
+官方示例：`DropdownMenuDropdownMenuDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxDropdownMenu>
+    <template #trigger>
+      <TxButton>Menu</TxButton>
+    </template>
+
+    <TxDropdownItem>Open</TxDropdownItem>
+    <TxDropdownItem danger>Delete</TxDropdownItem>
+  </TxDropdownMenu>
+</template>
+```
+
+## 导航样式
+
+### DropdownMenu (nav)
+官方示例：`DropdownMenuDropdownMenuNavDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const open = ref(false)
+</script>
+
+<template>
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <TxDropdownMenu v-model="open" :min-width="240" placement="bottom-start" :panel-padding="8">
+      <template #trigger>
+        <div
+          style="display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--tx-border-color); border-radius: 12px; user-select: none; cursor: pointer;"
+        >
+          <div style="font-weight: 600;">
+            设计
+          </div>
+          <div style="color: var(--tx-text-color-secondary); font-weight: 600;">
+            生态
+          </div>
+          <TxIcon name="chevron-down" style="opacity: 0.65;" />
+        </div>
+      </template>
+
+      <TxDropdownItem arrow>
+        GitHub
+        <template #right>
+          <span style="opacity: 0.72; display: inline-flex; align-items: center;">
+            <i class="i-ri-external-link-line" style="font-size: 16px;" />
+          </span>
+        </template>
+      </TxDropdownItem>
+      <TxDropdownItem arrow>
+        NPM
+        <template #right>
+          <span style="opacity: 0.72; display: inline-flex; align-items: center;">
+            <i class="i-ri-external-link-line" style="font-size: 16px;" />
+          </span>
+        </template>
+      </TxDropdownItem>
+    </TxDropdownMenu>
+  </div>
+</template>
+```
+
+## 子菜单
+
+`TxDropdownSubmenu` 在菜单里嵌套一层子面板，支持任意层级。悬停触发行展开，指针在父子面板之间移动不会误关；子面板里的 `TxDropdownItem` 选中后按根菜单的 `closeOnSelect` 关闭整条链。
+
+### DropdownSubmenu
+官方示例：`DropdownMenuDropdownSubmenuDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxDropdownMenu>
+    <template #trigger>
+      <TxButton>操作</TxButton>
+    </template>
+
+    <TxDropdownItem>打开</TxDropdownItem>
+    <TxDropdownSubmenu>
+      导出为…
+      <template #menu>
+        <TxDropdownItem>PNG</TxDropdownItem>
+        <TxDropdownItem>SVG</TxDropdownItem>
+        <TxDropdownSubmenu>
+          更多格式
+          <template #menu>
+            <TxDropdownItem>WebP</TxDropdownItem>
+            <TxDropdownItem>AVIF</TxDropdownItem>
+          </template>
+        </TxDropdownSubmenu>
+      </template>
+    </TxDropdownSubmenu>
+  </TxDropdownMenu>
+</template>
+```
+
+## 后台导航配置组合
+
+后台页的导航与配置不应把所有内容塞进同一个表单。推荐用 `TxTabs` 固定一级分区，用 `TxDropdownMenu` 承载当前区的轻量操作，用 `TxPopover` 展示短说明，再把高密度配置放进 `TxDrawer`。
+
+官方示例：`ComponentsNavigationShellDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('总览')
+const drawerVisible = ref(false)
+</script>
+
+<template>
+  <section class="grid gap-3">
+    <TxDropdownMenu>
+      <template #trigger>
+        <TxButton>发布操作</TxButton>
+      </template>
+      <TxDropdownItem>快速发布</TxDropdownItem>
+    </TxDropdownMenu>
+
+    <TxPopover>
+      <template #reference>
+        <TxButton variant="secondary">策略说明</TxButton>
+      </template>
+      浮层只放短说明和轻量动作。
+    </TxPopover>
+
+    <TxTabs v-model="active" placement="left" indicator-variant="pill">
+      <TxTabItem name="总览" activation>总览配置</TxTabItem>
+      <TxTabItem name="发布">发布配置</TxTabItem>
+    </TxTabs>
+
+    <TxDrawer v-model:visible="drawerVisible" title="发布策略" />
+  </section>
+</template>
+```
+
+## API
+
+### TxDropdownMenu Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` | `boolean` | `undefined` | 是否打开（v-model）。省略时为非受控，开合状态由内部维护。 |
+| `trigger` | `'click' \| 'hover'` | `'click'` | 触发方式，透传给 `TxPopover`。`hover` 由它统一处理触发器与面板两侧的悬停，因此延迟与互斥交给共享延迟服务，宿主不必自己写关闭定时器。 |
+| `placement` | `DropdownPlacement` | `'bottom-start'` | 相对触发器的浮层位置。 |
+| `offset` | `number` | `6` | 触发器与面板之间的距离，单位 px。 |
+| `closeOnSelect` | `boolean` | `true` | 可用菜单项触发 `select` 后是否关闭父菜单。 |
+| `initialFocus` | `'first-item' \| 'none'` | `'first-item'` | 菜单打开时焦点的落点。`'first-item'` 聚焦第一个启用的菜单项；`'none'` 不移动焦点，由宿主自行落焦（例如面板顶部的搜索框），方向键仍可从该处进入列表。 |
+| `animation` | `BaseAnchorAnimationOptions` | `{}` | 透传给 BaseAnchor/Popover 的锚点动画配置；为空对象时使用 BaseAnchor 的默认动画。 |
+| `minWidth` | `number` | `220` | 面板最小宽度，单位 px。面板最大宽度固定为 360px，且没有对应 prop 可调整。 |
+| `maxHeight` | `number` | `420` | 面板最大可滚动高度，单位 px。 |
+| `unlimitedHeight` | `boolean` | `false` | 禁用面板最大高度限制。 |
+| `referenceClass` | `BaseAnchorClassValue` | - | 透传给触发锚点的额外 class。 |
+| `panelCard` | `BaseAnchorPanelCardProps` | - | 透传给 Popover 面板卡片的低层配置。 |
+| `panelVariant` | `'solid' \| 'dashed' \| 'plain'` | `'solid'` | 面板边框样式。 |
+| `panelBackground` | `'pure' \| 'mask' \| 'blur' \| 'glass' \| 'refraction'` | `'refraction'` | 面板背景效果。 |
+| `panelShadow` | `'none' \| 'soft' \| 'medium'` | `'soft'` | 面板阴影强度。 |
+| `panelRadius` | `number` | `18` | 面板圆角，单位 px。 |
+| `panelPadding` | `number` | `8` | 面板内边距，单位 px。 |
+
+### TxDropdownItem Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `disabled` | `boolean` | `false` | 禁用当前菜单项，不触发选择，也不会关闭父菜单。 |
+| `danger` | `boolean` | `false` | 使用危险操作文字样式。 |
+| `arrow` | `boolean` | `false` | 没有 `right` 插槽时显示右侧箭头。 |
+| `closeOnSelect` | `boolean` | `undefined` | 逐项覆盖菜单级 `closeOnSelect`；未设置时跟随菜单级配置。 |
+
+### TxDropdownSubmenu Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `disabled` | `boolean` | `false` | 禁用触发行，子面板不再展开。 |
+| `placement` | `DropdownPlacement` | `'right-start'` | 子面板相对触发行的位置。 |
+| `offset` | `number` | `4` | 触发行与子面板之间的距离，单位 px。 |
+| `width` | `number` | `0` | 子面板固定宽度；`0` 表示按内容与 `minWidth` 自适应。 |
+| `minWidth` | `number` | `160` | 子面板最小宽度，单位 px。 |
+| `maxHeight` | `number` | `420` | 子面板最大可滚动高度，单位 px。 |
+| `unlimitedHeight` | `boolean` | `false` | 禁用子面板最大高度限制。 |
+| `animation` | `BaseAnchorAnimationOptions` | `{}` | 子面板锚点动画配置。 |
+| `panelCard` | `BaseAnchorPanelCardProps` | - | 透传给子面板卡片的低层配置。 |
+| `panelVariant` | `'solid' \| 'dashed' \| 'plain'` | `'solid'` | 子面板边框样式。 |
+| `panelBackground` | `'pure' \| 'mask' \| 'blur' \| 'glass' \| 'refraction'` | `'refraction'` | 子面板背景效果。 |
+| `panelShadow` | `'none' \| 'soft' \| 'medium'` | `'soft'` | 子面板阴影强度。 |
+| `panelRadius` | `number` | `14` | 子面板圆角，单位 px。 |
+| `panelPadding` | `number` | `6` | 子面板内边距，单位 px。 |
+
+### TxDropdownMenu Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `(value: boolean)` | 菜单请求打开状态变更时触发。 |
+| `open` | - | 菜单请求打开时触发。 |
+| `close` | - | 菜单请求关闭时触发。 |
+
+### TxDropdownItem Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `select` | - | 可用菜单项被点击时触发。 |
+
+## Slots
+
+### TxDropdownMenu
+
+| 插槽 | 参数 | 说明 |
+|------|------|------|
+| `trigger` | - | 透传给 Popover reference 插槽的触发内容。 |
+| `default` | - | 菜单行，通常是 `TxDropdownItem` 子项，渲染在菜单面板内。 |
+
+### TxDropdownItem
+
+| 插槽 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 菜单项主标签。 |
+| `right` | - | 覆盖 `arrow` 自动生成的右侧箭头区域。 |
+
+### TxDropdownSubmenu
+
+| 插槽 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 触发行主标签。 |
+| `right` | - | 触发行右侧元信息，渲染在子菜单箭头之前。 |
+| `menu` | - | 子面板内容，通常是 `TxDropdownItem` 或嵌套的 `TxDropdownSubmenu`。 |
+
+## 交互契约
+
+- 菜单行与库中其它列表行使用同一套描边式悬停与选中样式。此前它单独用了一层半透明遮罩，但菜单的高亮方式与选择器、树、级联不一致，反而更让人困惑。
+
+- `TxDropdownMenu` 只承载短操作列表；包含说明、表单或复杂状态时改用 `TxPopover` / `TxDrawer`。
+- `TxDropdownMenu` 包装 `TxPopover`，因此 `placement`、`offset`、高度限制、panel card props 和动画都遵循同一套锚点行为。
+- `closeOnSelect` 默认会在可用菜单项触发 `select` 后关闭父菜单，禁用项不会触发选择或关闭。
+- 菜单面板使用 `role="menu"`，每个 `TxDropdownItem` 使用 `role="menuitem"`。
+- 菜单打开时，第一个启用的菜单项自动获得焦点；`initialFocus="none"` 跳过这一步，由宿主自行落焦（例如面板顶部的搜索框）。
+- 面板内 `ArrowDown` / `ArrowUp` 在启用项之间循环移动焦点，从搜索框等非菜单项按下时进入列表；`Home` / `End` 跳到首 / 末项，跳过 `aria-disabled` 项，但焦点在 `input`、`textarea` 或 `contenteditable` 内时放行，保留为光标移动。
+- `TxDropdownItem` 的 `select` 不带 payload；业务上下文应在渲染该 item 的 handler 中闭包保存。
+- `TxDropdownSubmenu` 触发行是 `role="menuitem"`：`ArrowRight` / `Enter` 展开子面板并聚焦首项，子面板内 `ArrowLeft` 收回并把焦点交还触发行。
+- 指针从父面板移入子面板不会误关父层；点击子面板内部也不会被父层当作 outside-click；父层关闭（含被其他菜单抢占）时子层级联关闭。
+
+## 最佳实践
+
+- Dropdown 只放短命令列表；如果面板需要段落、表单或多步骤交互，应改用 `TxPopover`、`TxDrawer` 或 `TxContextMenuPanel` 组合。
+- `danger` 只用于破坏性命令；列表变长时应让危险操作与普通操作保持视觉分组。
+- `arrow` 用于导航/二级菜单行；外链图标、快捷键提示或状态徽标使用 `right` 插槽。
+- 普通命令保持 `closeOnSelect=true`；只有该行会打开另一层浮层或进入多步骤流程时才设为 `false`。
+- 只有宿主会在打开后自己落焦（例如聚焦面板内的搜索框）时才设 `initialFocus="none"`；否则键盘用户打开菜单后焦点仍停在触发器上，要多按一次方向键才能进入列表。
+- 除非外层 surface 已经提供足够对比，否则优先保留默认 `panelBackground="refraction"` 与默认面板样式。
+
+## 审阅说明
+
+- 组件源码：`packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownMenu.vue` 透传 Popover 位置、尺寸、动画、面板视觉 props，以及 trigger/default 插槽。
+- 组件源码：`packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownItem.vue` 确认 disabled/danger/arrow/closeOnSelect props、`right` 插槽、`role="menuitem"` 和 close-on-select 注入行为。
+- 组件源码：`packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownSubmenu.vue` 确认悬停展开、键盘巡航与根上下文透传（子项选中关闭整条链）。
+- 类型契约：`packages/tuffex/packages/components/src/dropdown-menu/src/types.ts` 导出 `DropdownMenuProps`、`DropdownItemProps` 和支持的 placement 联合类型。
+- 键盘契约：`Home` / `End` 对 `input`、`textarea`、`contenteditable` 目标放行，因为面板内的搜索框需要这两个键移动光标，被菜单截走后字段就无法编辑。方向键在可编辑目标上仍由菜单接管，这是字段把焦点交给列表的唯一路径。曾考虑让宿主在字段上 `stopPropagation`，被否决：那会把这条例外复制进每个宿主。
+- **实测覆盖:** Coverage: `packages/tuffex/packages/components/src/dropdown-menu/__tests__/dropdown-menu.test.ts` 覆盖 props 透传、open/close 事件、可用项选择、禁用项无操作、`closeOnSelect=false`、`initialFocus="none"` 打开与重开都不移动焦点，以及面板内 input / contenteditable 上 `Home` / `End` 不被拦截而 `ArrowDown` 仍进入列表。
+
+## Source
+
+## 离线完整示例源码
+
+- [DropdownMenuDropdownMenuDemo](../snapshot/apps/nexus/app/components/content/demos/DropdownMenuDropdownMenuDemo.vue.txt)
+- [DropdownMenuDropdownMenuNavDemo](../snapshot/apps/nexus/app/components/content/demos/DropdownMenuDropdownMenuNavDemo.vue.txt)
+- [DropdownMenuDropdownSubmenuDemo](../snapshot/apps/nexus/app/components/content/demos/DropdownMenuDropdownSubmenuDemo.vue.txt)
+- [ComponentsNavigationShellDemo](../snapshot/apps/nexus/app/components/content/demos/ComponentsNavigationShellDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [dropdown-menu/index.ts](../snapshot/packages/tuffex/packages/components/src/dropdown-menu/index.ts.txt)
+- [src/TxDropdownItem.vue](../snapshot/packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownItem.vue.txt)
+- [src/TxDropdownMenu.vue](../snapshot/packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownMenu.vue.txt)
+- [src/TxDropdownSubmenu.vue](../snapshot/packages/tuffex/packages/components/src/dropdown-menu/src/TxDropdownSubmenu.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/dropdown-menu/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

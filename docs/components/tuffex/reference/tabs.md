@@ -1,0 +1,685 @@
+# Tabs 标签页
+
+> 支持多方向布局、分组导航、动态指示器和内容尺寸测量的组合式标签页。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/tabs) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/tabs.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/tabs.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Tabs 标签页
+
+## 基础用法
+
+### Tabs
+官方示例：`TabsTabsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('General')
+</script>
+
+<template>
+  <div style="height: 320px;">
+    <TxTabs v-model="active">
+      <TxTabItem name="General" icon-class="i-carbon-settings" activation>
+        <div style="padding: 8px;">
+          <h3 style="margin: 0 0 8px;">
+            General
+          </h3>
+          <p style="margin: 0; color: var(--tx-text-color-secondary);">
+            Basic settings content
+          </p>
+        </div>
+      </TxTabItem>
+      <TxTabItem name="Account" icon-class="i-carbon-user">
+        <div style="padding: 8px;">
+          <h3 style="margin: 0 0 8px;">
+            Account
+          </h3>
+          <p style="margin: 0; color: var(--tx-text-color-secondary);">
+            Account settings content
+          </p>
+        </div>
+      </TxTabItem>
+      <TxTabItem name="About" icon-class="i-carbon-information">
+        <div style="padding: 8px;">
+          <h3 style="margin: 0 0 8px;">
+            About
+          </h3>
+          <p style="margin: 0; color: var(--tx-text-color-secondary);">
+            About content
+          </p>
+        </div>
+      </TxTabItem>
+    </TxTabs>
+  </div>
+</template>
+```
+
+### Indicator Showcase
+
+#### Indicator variants & motions
+官方示例：`TabsIndicatorVariantsMotionsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+type Motion = 'stretch' | 'warp' | 'glide' | 'snap' | 'spring'
+type ContentMotion = 'fade' | 'slide' | 'zoom' | 'blur' | 'scale' | 'none'
+
+type TabValue = 'A' | 'B' | 'C'
+
+const motion = ref<Motion>('stretch')
+const contentMotion = ref<ContentMotion>('zoom')
+const showIndicator = ref(true)
+const active = ref<TabValue>('A')
+
+const variants = computed(() => {
+  return [
+    { value: 'line', label: 'line' },
+    { value: 'pill', label: 'pill' },
+    { value: 'block', label: 'block' },
+    { value: 'dot', label: 'dot' },
+    { value: 'outline', label: 'outline' },
+  ] as const
+})
+
+const motionOptions = [
+  { value: 'stretch', label: 'stretch' },
+  { value: 'warp', label: 'warp' },
+  { value: 'glide', label: 'glide' },
+  { value: 'snap', label: 'snap' },
+  { value: 'spring', label: 'spring' },
+] as const
+
+const contentMotionOptions = [
+  { value: 'zoom', label: 'zoom' },
+  { value: 'fade', label: 'fade' },
+  { value: 'slide', label: 'slide' },
+  { value: 'blur', label: 'blur' },
+  { value: 'scale', label: 'scale' },
+  { value: 'none', label: 'none' },
+] as const
+
+function next() {
+  active.value = active.value === 'A' ? 'B' : active.value === 'B' ? 'C' : 'A'
+}
+</script>
+
+<template>
+  <div class="tx-demo tx-demo__col" style="max-width: 860px;">
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14">
+      <div class="tx-demo__row" style="gap: 10px; flex-wrap: wrap;">
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">motion</span>
+          <TuffSelect v-model="motion" style="min-width: 190px;">
+            <TuffSelectItem v-for="opt in motionOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
+          </TuffSelect>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">content</span>
+          <TuffSelect v-model="contentMotion" style="min-width: 150px;">
+            <TuffSelectItem v-for="opt in contentMotionOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
+          </TuffSelect>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">indicator</span>
+          <TxButton size="small" @click="showIndicator = !showIndicator">
+            {{ showIndicator ? 'on' : 'off' }}
+          </TxButton>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">auto</span>
+          <TxButton size="small" @click="next">Next</TxButton>
+        </label>
+
+        <div style="opacity: 0.7; font-size: 12px;">
+          active: <b>{{ active }}</b>
+        </div>
+      </div>
+    </TxCard>
+
+    <div class="tx-demo__col" style="gap: 12px;">
+      <TxCard
+        v-for="v in variants"
+        :key="v.value"
+        variant="plain"
+        background="mask"
+        :padding="12"
+        :radius="14"
+      >
+        <div class="tx-demo__label" style="margin-bottom: 8px;">
+          {{ v.label }}
+        </div>
+
+        <TxTabs
+          v-model="active"
+          placement="top"
+          :content-scrollable="false"
+          :show-indicator="showIndicator"
+          :indicator-variant="v.value"
+          :indicator-motion="motion"
+          :animation="{ indicator: { durationMs: 350 }, content: { type: contentMotion, durationRatio: 0.5 } }"
+        >
+          <TxTabItem name="A" activation>
+            Overview
+          </TxTabItem>
+          <TxTabItem name="B">
+            Features
+          </TxTabItem>
+          <TxTabItem name="C">
+            Pricing
+          </TxTabItem>
+        </TxTabs>
+      </TxCard>
+    </div>
+  </div>
+</template>
+```
+
+### 动态内容尺寸（manual, rich content）
+
+#### Dynamic Content (manual)
+官方示例：`TabsDynamicContentManualDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+const active = ref<'Overview' | 'Details' | 'Form'>('Overview')
+
+const expanded = ref(false)
+const count = ref(3)
+const items = computed(() => Array.from({ length: count.value }).map((_, i) => `Item ${i + 1}`))
+
+const query = ref('')
+</script>
+
+<template>
+  <div style="display: grid; gap: 10px; min-height: 120px; max-width: 100%;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+      <TxButton size="small" @click="expanded = !expanded">
+        Toggle details
+      </TxButton>
+      <TxButton size="small" :disabled="count <= 0" @click="count--">
+        - Item
+      </TxButton>
+      <TxButton size="small" @click="count++">
+        + Item
+      </TxButton>
+    </div>
+
+    <TxTabs
+      v-model="active"
+      placement="left"
+      :content-scrollable="false"
+      auto-width
+      :animation="{ size: { enabled: true, durationMs: 260, easing: 'ease' } }"
+    >
+      <TxTabItem name="Overview" activation icon-class="i-carbon-dashboard">
+        <TxCard variant="solid" background="glass" shadow="soft" :radius="18" :padding="12">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-weight: 650;">
+              Overview
+            </div>
+            <div style="font-size: 12px; color: var(--tx-text-color-secondary, #909399);">
+              This tab is intentionally compact.
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <div style="font-size: 12px;">
+                Search
+              </div>
+              <div style="width: 220px; max-width: 100%;">
+                <TxSearchInput v-model="query" placeholder="Try typing..." />
+              </div>
+            </div>
+          </div>
+        </TxCard>
+      </TxTabItem>
+
+      <TxTabItem name="Details" icon-class="i-carbon-list">
+        <TxCard variant="solid" background="glass" shadow="soft" :radius="18" :padding="12">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+              <div style="font-weight: 650;">
+                Details
+              </div>
+              <div style="font-size: 12px; color: var(--tx-text-color-secondary, #909399);">
+                Items: {{ items.length }}
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+              <div
+                v-for="it in items"
+                :key="it"
+                style="border-radius: 12px; padding: 10px; border: 1px solid color-mix(in srgb, var(--tx-border-color, #dcdfe6) 65%, transparent);"
+              >
+                <div style="font-weight: 600;">
+                  {{ it }}
+                </div>
+                <div style="margin-top: 4px; font-size: 12px; color: var(--tx-text-color-secondary, #909399);">
+                  Dynamic grid cell
+                </div>
+              </div>
+            </div>
+
+            <div v-if="expanded" style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="font-weight: 600;">
+                Expanded block
+              </div>
+              <div style="font-size: 12px; color: var(--tx-text-color-secondary, #909399);">
+                This area appears/disappears and should trigger AutoSizer refresh.
+              </div>
+              <div
+                style="height: 110px; border-radius: 12px; background: color-mix(in srgb, var(--tx-color-primary, #409eff) 12%, transparent);"
+              />
+            </div>
+          </div>
+        </TxCard>
+      </TxTabItem>
+
+      <TxTabItem name="Form" icon-class="i-carbon-settings">
+        <TxCard variant="solid" background="glass" shadow="soft" :radius="18" :padding="12">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="font-weight: 650;">
+              Form
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+              <TxSearchInput v-model="query" placeholder="Field A" />
+              <TxSearchInput v-model="query" placeholder="Field B" />
+            </div>
+
+            <div
+              style="height: 160px; border-radius: 12px; background: color-mix(in srgb, var(--tx-color-success, #67c23a) 10%, transparent);"
+            />
+          </div>
+        </TxCard>
+      </TxTabItem>
+    </TxTabs>
+  </div>
+</template>
+```
+
+### 布局方向（placement）
+
+#### Placement + Header Slot
+官方示例：`TabsPlacementHeaderSlotDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const activeTop = ref('A')
+const activeRight = ref('General')
+const actionWide = ref(false)
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; gap: 12px; align-items: stretch;">
+    <div style="height: 240px;">
+      <TxTabs v-model="activeTop" placement="top" auto-width :animation="{ indicator: { durationMs: 220, easing: 'ease' } }">
+        <TxTabHeader v-slot="{ props }">
+          <div style="display: flex; align-items: center; width: 100%; padding: 10px 12px;">
+            <div style="font-weight: 600;">
+              {{ props.node?.props?.name }}
+            </div>
+          </div>
+        </TxTabHeader>
+
+        <template #nav-right>
+          <TxButton size="small" type="primary" @click="actionWide = !actionWide">
+            {{ actionWide ? 'More Actions' : 'Action' }}
+          </TxButton>
+        </template>
+
+        <TxTabItem name="A" activation>
+          <div style="padding: 8px;">
+            Top - A
+          </div>
+        </TxTabItem>
+        <TxTabItem name="B">
+          <div style="padding: 8px;">
+            Top - B
+          </div>
+        </TxTabItem>
+        <TxTabItem name="C">
+          <div style="padding: 8px;">
+            Top - C
+          </div>
+        </TxTabItem>
+      </TxTabs>
+    </div>
+
+    <div style="height: 240px;">
+      <TxTabs v-model="activeRight" placement="right">
+        <TxTabItem name="General" icon-class="i-carbon-settings" activation>
+          <div style="padding: 8px;">
+            Right - General
+          </div>
+        </TxTabItem>
+        <TxTabItem name="Account" icon-class="i-carbon-user">
+          <div style="padding: 8px;">
+            Right - Account
+          </div>
+        </TxTabItem>
+      </TxTabs>
+    </div>
+  </div>
+</template>
+```
+
+### 高度跟随内容（animation.size）
+
+#### Auto Size (contentScrollable=false)
+官方示例：`TabsAutoSizeContentScrollableFalseDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('Long')
+</script>
+
+<template>
+  <div style="min-height: 120px;">
+    <TxTabs
+      v-model="active"
+      placement="left"
+      :content-scrollable="false"
+      :animation="{ size: { enabled: true, durationMs: 260, easing: 'ease' } }"
+    >
+      <TxTabItem name="Long" activation>
+        <div style="padding: 10px;">
+          <div style="font-weight: 600; margin-bottom: 8px;">
+            Long Content
+          </div>
+          <div style="height: 260px; border-radius: 10px; background: color-mix(in srgb, var(--tx-color-primary, #409eff) 12%, transparent);" />
+        </div>
+      </TxTabItem>
+      <TxTabItem name="Short">
+        <div style="padding: 10px;">
+          <div style="font-weight: 600; margin-bottom: 8px;">
+            Short Content
+          </div>
+          <div style="height: 90px; border-radius: 10px; background: color-mix(in srgb, var(--tx-color-success, #67c23a) 12%, transparent);" />
+        </div>
+      </TxTabItem>
+    </TxTabs>
+  </div>
+</template>
+```
+
+### 关闭动画（indicator/content）
+
+#### Disable Animations
+官方示例：`TabsDisableAnimationsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('Left1')
+</script>
+
+<template>
+  <div style="height: 240px;">
+    <TxTabs
+      v-model="active"
+      placement="bottom"
+      :animation="{ indicator: false, content: false }"
+    >
+      <TxTabItem name="Left1" activation>
+        <div style="padding: 10px;">
+          Bottom - No animations
+        </div>
+      </TxTabItem>
+      <TxTabItem name="Left2">
+        <div style="padding: 10px;">
+          Bottom - No animations 2
+        </div>
+      </TxTabItem>
+      <TxTabItem name="Left3">
+        <div style="padding: 10px;">
+          Bottom - No animations 3
+        </div>
+      </TxTabItem>
+    </TxTabs>
+  </div>
+</template>
+```
+
+### 后台导航配置组合
+
+后台页的导航与配置不应把所有内容塞进同一个表单。推荐用 `TxTabs` 固定一级分区，用 `TxDropdownMenu` 承载当前区的轻量操作，用 `TxPopover` 展示短说明，再把高密度配置放进 `TxDrawer`。
+
+官方示例：`ComponentsNavigationShellDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('总览')
+const drawerVisible = ref(false)
+</script>
+
+<template>
+  <section class="grid gap-3">
+    <TxDropdownMenu>
+      <template #trigger>
+        <TxButton>发布操作</TxButton>
+      </template>
+      <TxDropdownItem>快速发布</TxDropdownItem>
+    </TxDropdownMenu>
+
+    <TxPopover>
+      <template #reference>
+        <TxButton variant="secondary">策略说明</TxButton>
+      </template>
+      浮层只放短说明和轻量动作。
+    </TxPopover>
+
+    <TxTabs
+      v-model="active"
+      placement="left"
+      :nav-min-width="176"
+      :content-scrollable="false"
+      indicator-variant="pill"
+      indicator-motion="glide"
+      auto-height
+      :animation="{ size: { enabled: true, durationMs: 220 }, content: true }"
+    >
+      <TxTabItem name="总览" icon-class="i-carbon-dashboard" activation>
+        <TxStatusBadge text="运行中" status="success" size="sm" />
+      </TxTabItem>
+      <TxTabItem name="发布" icon-class="i-carbon-rocket">
+        <TxProgressBar :percentage="82" status="success" show-text height="10px" />
+      </TxTabItem>
+      <TxTabItem name="安全" icon-class="i-carbon-security">
+        <TxStatusBadge text="待审批" status="warning" size="sm" />
+      </TxTabItem>
+    </TxTabs>
+
+    <TxDrawer v-model:visible="drawerVisible" title="发布策略">
+      <p>抽屉承载重设置表单，导航壳只负责切换。</p>
+    </TxDrawer>
+  </section>
+</template>
+```
+
+## API
+
+### TxTabs 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` | `string` | - | 受控激活 tab 名称。父级更新该值会切换面板，但不会再次触发 `change`。 |
+| `defaultValue` | `string` | - | 非受控初始激活 tab。必须匹配某个 `TxTabItem name`，否则不选中任何 tab。 |
+| `placement` | `'left' \| 'right' \| 'top' \| 'bottom'` | `'left'` | 导航位置；非法值回退为 `left`。 |
+| `offset` | `number` | `0` | `line` / `pill` 指示器沿当前轴线的额外偏移。 |
+| `navMinWidth` | `number` | `220` | 垂直布局下导航区域最小宽度。 |
+| `navMaxWidth` | `number` | `320` | 垂直布局下导航区域最大宽度。 |
+| `contentPadding` | `number` | `12` | 主内容区 padding。 |
+| `contentScrollable` | `boolean` | `true` | 是否包裹内部滚动容器；高度动画启用时会自动移除该容器以便直接测量。 |
+| `borderless` | `boolean` | `false` | 移除外层边框和背景，适合嵌入式布局。 |
+| `autoHeight` | `boolean` | `false` | 通过默认 `animation.size` 配置启用 AutoSizer 高度动画。 |
+| `autoWidth` | `boolean` | `false` | 通过默认 `animation.size` 配置启用 AutoSizer 宽度动画。 |
+| `showIndicator` | `boolean` | `true` | 是否渲染活动 tab 指示器；设为 `false` 可得到纯文本导航。 |
+| `indicatorVariant` | `'line' \| 'pill' \| 'block' \| 'dot' \| 'outline'` | `'line'` | 指示器样式；非法值回退为 `line`。 |
+| `indicatorMotion` | `'stretch' \| 'warp' \| 'glide' \| 'snap' \| 'spring'` | `'stretch'` | 指示器动效类型；非法值回退为 `stretch`。 |
+| `indicatorMotionStrength` | `number` | `1` | 控制指示器缩放弹性的非负数；负数会夹到 `0`。 |
+| `animation` | `TabsAnimation` | - | 分别配置 size、nav、indicator、content 动画。 |
+| `animation.size` | `boolean \| { enabled?; durationMs?; easing? }` | 从 `autoHeight` / `autoWidth` 推导 | 启用并配置 AutoSizer 尺寸动画；默认使用 `autoHeightDurationMs` / `autoHeightEasing`。 |
+| `animation.nav` | `boolean \| { enabled?; durationMs?; easing? }` | 启用，`220ms ease` | 配置导航宽度/布局过渡变量。 |
+| `animation.indicator` | `boolean \| { enabled?; durationMs?; easing? }` | 启用，`350ms cubic-bezier(...)` | 配置指示器位置和尺寸过渡。 |
+| `animation.content` | `boolean \| { enabled?; type?; durationMs?; durationRatio?; easing? }` | 启用 `zoom`，`180ms ease` | 配置活动面板入场动画。`type` 支持 `fade`、`slide`、`zoom`、`blur`、`scale`、`none`；`durationRatio` 可从指示器时长推导面板时长。 |
+| `autoHeightDurationMs` | `number` | `250` | `animation.size.durationMs` 未传时的默认尺寸动画时长。 |
+| `autoHeightEasing` | `string` | `ease` | `animation.size.easing` 未传时的默认尺寸动画缓动。 |
+
+### TxTabs 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `value: string` | 用户激活、`defaultValue` 或 `activation` 在非受控流程中改变当前 tab 时触发。 |
+| `change` | `value: string` | 激活后以相同 tab 名称触发；父级驱动的 `modelValue` 更新不会触发。 |
+
+### TxTabs 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 放置直接子级 `TxTabItem`、可选 `TxTabItemGroup` 与可选 `TxTabHeader`。支持 Fragment；无关节点会被忽略。 |
+| `nav-right` | - | 在导航栏末尾渲染紧凑操作区，常用于横向 tabs。 |
+
+### TxTabs 暴露方法
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `refresh` | `() => void` | 透传内部 AutoSizer `refresh()`。 |
+| `flip` | `(action: () => void \| Promise<void>) => Promise<void>` | 在可用时把一次变更包进内部 AutoSizer FLIP 过渡。 |
+| `action` | `(fn: (el: HTMLElement \| undefined) => void \| Promise<void>, optionsOrDetect?: any) => Promise<{ changedKeys: string[] } \| any>` | 透传内部 AutoSizer action helper；不可用时调用 `fn(undefined)`。 |
+| `size` | `() => { width: number; height: number } \| undefined` | 返回 AutoSizer 最近一次测得的尺寸。 |
+
+### TxTabItem 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `name` | `string` | *必填* | 唯一 tab 名称，同时作为激活值和查找 key。 |
+| `iconClass` | `string` | `''` | 导航标签前的可选图标 class。 |
+| `disabled` | `boolean` | `false` | 阻止点击激活，并渲染禁用的原生按钮。 |
+| `activation` | `boolean` | `false` | 当 `modelValue` 和 `defaultValue` 都没有选中 tab 时，作为非受控默认项。 |
+| `active` | `boolean` | `false` | 是否处于激活态；由 TxTabs 自动注入，仅独立使用 TxTabItem 时手动传入。 |
+
+### TxTabItem 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `click` | - | 独立使用 `TxTabItem` 且未禁用时触发；放在 `TxTabs` 内时由父级消费并更新活动状态。 |
+
+### TxTabItem 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 活动面板内容，由 `TxTabs` 渲染；未激活面板不会保持挂载。 |
+| `icon` | - | 自定义导航图标，替代 `iconClass`。 |
+| `name` | - | 自定义导航标签；默认显示 `name` prop。 |
+
+### TxTabHeader 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `node` | `unknown` | - | `TxTabs` 传入的当前活动 `TxTabItem` VNode；读取 `node?.props` 时需防御。 |
+
+### TxTabHeader 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | `{ props: { node?: unknown } }` | 渲染在活动面板上方的 sticky 内容头部。 |
+
+### TxTabItemGroup 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `name` | `string` | - | 导航列中的可选分组标题。 |
+
+### TxTabItemGroup 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 子级 `TxTabItem` 节点。该组件脱离 `TxTabs` 时自身不渲染 DOM。 |
+
+## 交互契约
+
+- `modelValue` 是受控状态来源。父级更新 `modelValue` 不会再次触发 `change` 或 `update:modelValue`。
+- 没有 `modelValue` 时，`defaultValue` 优先于 `activation`。如果 `defaultValue` 不匹配任何 tab，会渲染空状态，而不会回退到 `activation`。
+- 默认插槽只收集 `TxTabItem`、`TxTabItemGroup` 与 `TxTabHeader`；支持 Fragment，但会忽略任意包装组件。
+- `TxTabItemGroup` 只是导航分组标记；真实面板内容仍来自子级 `TxTabItem`。
+- `showIndicator=false` 会移除指示器 DOM 和指示器动画；尺寸动画启用时仍会观察内容与导航区域。
+- 指示器在首屏即可见，激活项来自 `modelValue`、`defaultValue` 或 `activation` 都一样，无需先点击一次才会出现。只有在激活项尚未获得非零尺寸之前才保持 `opacity: 0`，这样它会直接出现在正确位置，而不是从导航边缘滑入；根节点上的 `tx-tabs--indicator-pending` 正对应这段时间。
+- 高度动画会移除内部滚动容器，让 AutoSizer 直接测量面板高度；手动直测布局可使用 `contentScrollable=false`。
+- 未激活 tab 的面板不会挂载。需要跨切换保留的状态应放在面板子树之外。
+
+## 样式定制
+
+| 主题变量 / CSS 变量 | 用途 |
+|----------------------------|----------|
+| `--tx-border-color` | 外层边框和不同 placement 下的导航分隔线。 |
+| `--tx-bg-color` | Tabs 容器背景。 |
+| `--tx-fill-color` / `--tx-fill-color-light` | 活动与 hover 导航项表面。 |
+| `--tx-color-primary` | 指示器渐变、高光、描边和示例强调色。 |
+| `--tx-text-color-primary` / `--tx-text-color-secondary` | Tab 标签、图标、分组标题与空状态文字。 |
+| `--tx-tabs-indicator-duration` / `--tx-tabs-indicator-easing` / `--tx-tabs-indicator-strength` | 由指示器动画 props 生成的运行时变量。 |
+| `--tx-tabs-content-duration` / `--tx-tabs-content-easing` | 由内容动画 props 生成的运行时变量。 |
+| `--tx-tabs-nav-duration` / `--tx-tabs-nav-easing` | 由导航动画 props 生成的运行时变量。 |
+
+## 最佳实践
+
+- `TxTabItem name` 保持稳定且唯一，并与 `modelValue` / `defaultValue` 的值一致。
+- Dashboard 设置和高密度后台页优先使用 `placement="left"`；顶部/底部 tabs 更适合短二级切换。
+- 只有在匹配 tab 一定存在时才使用 `defaultValue`；静态非受控示例优先用 `activation`。
+- 不要把必须长期保留的表单状态只放在未激活面板内；切换时未激活内容会卸载。
+- 面板高度会在异步数据或图片加载后变化时，使用直接测量（`contentScrollable=false` 或 `autoHeight`）并在内容稳定后调用 `refresh()`。
+- `nav-right` 保持紧凑；复杂操作放入 `TxDropdownMenu`、`TxPopover` 或 `TxDrawer`，不要撑大 tab bar。
+
+## 审阅说明
+
+- 已对照 `packages/tuffex/packages/components/src/tabs/src/TxTabs.vue`、`TxTabItem.vue`、`TxTabHeader.vue`、`TxTabItemGroup.vue` 和 `types.ts` 核对。
+- `indicatorMotionStrength` 是 `TxTabs` 运行时 prop，已同步补入导出的 `TabsProps` 接口。
+- `TxTabItemGroup.vue` 刻意使用空模板；`TxTabs` 读取其子级 `TxTabItem` VNode 并创建分组 DOM。
+- `TxTabs` 会按组件名过滤默认插槽，文档示例不应展示任意包装组件包住 tab item。
+
+## Source
+
+- Component sources: `packages/tuffex/packages/components/src/tabs/src/TxTabs.vue`, `TxTabItem.vue`, `TxTabHeader.vue`, and `TxTabItemGroup.vue`.
+- Types: `packages/tuffex/packages/components/src/tabs/src/types.ts`.
+- **实测覆盖:** `packages/tuffex/packages/components/src/tabs/__tests__/tabs.test.ts` 覆盖 activation 渲染、可用与禁用 tab 切换、受控更新、fragment、异步 tab item、分组、内容动效变体、隐藏指示器、视觉 prop 归一化、暴露的 AutoSizer 方法，以及指示器在首次布局时显现、在尚无真实尺寸前保持隐藏。
+
+## 离线完整示例源码
+
+- [TabsTabsDemo](../snapshot/apps/nexus/app/components/content/demos/TabsTabsDemo.vue.txt)
+- [TabsIndicatorVariantsMotionsDemo](../snapshot/apps/nexus/app/components/content/demos/TabsIndicatorVariantsMotionsDemo.vue.txt)
+- [TabsDynamicContentManualDemo](../snapshot/apps/nexus/app/components/content/demos/TabsDynamicContentManualDemo.vue.txt)
+- [TabsPlacementHeaderSlotDemo](../snapshot/apps/nexus/app/components/content/demos/TabsPlacementHeaderSlotDemo.vue.txt)
+- [TabsAutoSizeContentScrollableFalseDemo](../snapshot/apps/nexus/app/components/content/demos/TabsAutoSizeContentScrollableFalseDemo.vue.txt)
+- [TabsDisableAnimationsDemo](../snapshot/apps/nexus/app/components/content/demos/TabsDisableAnimationsDemo.vue.txt)
+- [ComponentsNavigationShellDemo](../snapshot/apps/nexus/app/components/content/demos/ComponentsNavigationShellDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [tabs/index.ts](../snapshot/packages/tuffex/packages/components/src/tabs/index.ts.txt)
+- [src/TxTabHeader.vue](../snapshot/packages/tuffex/packages/components/src/tabs/src/TxTabHeader.vue.txt)
+- [src/TxTabItem.vue](../snapshot/packages/tuffex/packages/components/src/tabs/src/TxTabItem.vue.txt)
+- [src/TxTabItemGroup.vue](../snapshot/packages/tuffex/packages/components/src/tabs/src/TxTabItemGroup.vue.txt)
+- [src/TxTabs.vue](../snapshot/packages/tuffex/packages/components/src/tabs/src/TxTabs.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/tabs/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

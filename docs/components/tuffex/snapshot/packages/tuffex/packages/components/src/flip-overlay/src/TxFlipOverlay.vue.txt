@@ -1,0 +1,953 @@
+<script setup lang="ts">
+import type { BaseSurfaceMode } from '../../base-surface/src/types'
+import type { FlipOverlayEmits, FlipOverlayProps, FlipOverlaySlotProps } from './types'
+import type { Slots } from 'vue'
+import TxButton from '../../button/src/button.vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from 'vue'
+import TxBaseSurface from '../../base-surface/src/TxBaseSurface.vue'
+import { hasWindow } from '../../../../utils/env'
+import { useZIndexAllocator } from '../../../../utils/z-index-manager'
+import {
+  lockFlipOverlayBodyScroll,
+  unlockFlipOverlayBodyScroll,
+} from './flip-overlay-body-scroll-lock'
+import {
+  getOverlayStackVersion,
+  getVisibleOverlayStackEntries,
+  isOverlaySizeMatched,
+  nextOverlayInstanceId,
+  nextOverlayOpenSequence,
+  removeOverlayStackEntry,
+  resolveStackOpacity,
+  STACK_LAYER_MAX_DEPTH,
+  STACK_LAYER_OFFSET_Y,
+  STACK_LAYER_SCALE_STEP,
+  subscribeOverlayStackChanged,
+  upsertOverlayStackEntry,
+  type FlipOverlayStackEntry,
+} from './flip-overlay-stack'
+import { useFlipOverlayMotion } from './flip-overlay-motion'
+
+// Resolved in setup: inject is only valid here, while allocation happens later.
+const zIndexAllocator = useZIndexAllocator()
+
+defineOptions({
+  name: 'TxFlipOverlay',
+})
+
+const props = withDefaults(defineProps<FlipOverlayProps>(), {
+  modelValue: false,
+  source: null,
+  sourceRadius: null,
+  duration: 480,
+  rotateX: 6,
+  rotateY: 8,
+  tiltRange: 2,
+  perspective: 1200,
+  speedBoost: 1.12,
+  speedBoostAt: 0.7,
+  easeOut: 'back.out(1.25)',
+  easeIn: 'back.in(1)',
+  maskClosable: true,
+  preventAccidentalClose: false,
+  transitionName: 'TxFlipOverlay-Mask',
+  maskClass: '',
+  cardClass: '',
+  globalMask: true,
+  border: 'solid',
+  surface: 'mask',
+  surfaceColor: '',
+  surfaceOpacity: 0.96,
+  header: true,
+  headerTitle: '',
+  headerDesc: '',
+  closable: true,
+  closeAriaLabel: 'Close',
+  scrollable: true,
+  randomTilt: true,
+})
+
+const emit = defineEmits<FlipOverlayEmits>()
+const slots: Slots = useSlots()
+const instanceId = nextOverlayInstanceId()
+const titleId = useId()
+const descId = useId()
+let previouslyFocused: HTMLElement | null = null
+
+const cardRef = ref<HTMLElement | null>(null)
+const visible = ref(Boolean(props.modelValue))
+const expanded = ref(typeof props.expanded === 'boolean' ? props.expanded : false)
+const animating = ref(typeof props.animating === 'boolean' ? props.animating : false)
+const zIndex = ref(zIndexAllocator.get())
+const sourceRect = ref<DOMRect | null>(null)
+const sourceRadius = ref<string | null>(null)
+const tilt = ref({ x: 0, y: 0 })
+const blockedCloseWarning = ref(false)
+const openSequence = ref(0)
+const localStackVersion = ref(getOverlayStackVersion())
+const unsubscribeStackChange = hasWindow()
+  ? subscribeOverlayStackChanged(() => {
+      localStackVersion.value += 1
+    })
+  : () => {}
+let runId = 0
+let blockedCloseTimer: ReturnType<typeof setTimeout> | null = null
+let pageExitGuardBound = false
+
+const stackMeta = computed(() => {
+  localStackVersion.value
+
+  if (!visible.value) {
+    return {
+      depth: 0,
+      stackSize: 0,
+      isMaskOwner: true,
+      isLayered: false,
+      isDepthHidden: false,
+      translateY: 0,
+      scale: 1,
+      opacity: 1,
+    }
+  }
+
+  const stackEntries = getVisibleOverlayStackEntries()
+  const selfIndex = stackEntries.findIndex(entry => entry.id === instanceId)
+
+  if (selfIndex < 0) {
+    return {
+      depth: 0,
+      stackSize: stackEntries.length,
+      isMaskOwner: true,
+      isLayered: false,
+      isDepthHidden: false,
+      translateY: 0,
+      scale: 1,
+      opacity: 1,
+    }
+  }
+
+  const topIndex = stackEntries.length - 1
+  const depth = topIndex - selfIndex
+  const selfEntry = stackEntries[selfIndex]
+  const aboveEntry = depth > 0 ? stackEntries[selfIndex + 1] : undefined
+  let isLayered = false
+  if (selfEntry && aboveEntry) {
+    const isSizeReady = selfEntry.width > 0
+      && selfEntry.height > 0
+      && aboveEntry.width > 0
+      && aboveEntry.height > 0
+    isLayered = !isSizeReady || isOverlaySizeMatched(selfEntry, aboveEntry)
+  }
+  const layeredDepth = isLayered ? Math.min(depth, STACK_LAYER_MAX_DEPTH) : 0
+  const scale = Math.max(0, 1 - STACK_LAYER_SCALE_STEP * layeredDepth)
+  const opacity = resolveStackOpacity(depth)
+
+  return {
+    depth,
+    stackSize: stackEntries.length,
+    isMaskOwner: depth === 0,
+    isLayered,
+    isDepthHidden: opacity <= 0,
+    translateY: STACK_LAYER_OFFSET_Y * layeredDepth,
+    scale,
+    opacity,
+  }
+})
+
+const maskClassName = computed(() => {
+  const classes = ['TxFlipOverlay-Mask']
+  if (props.maskClass) {
+    const customMaskClasses = props.maskClass
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(Boolean)
+    classes.push(...customMaskClasses)
+  }
+  if (!stackMeta.value.isMaskOwner)
+    classes.push('is-stack-underlay-mask')
+  if (blockedCloseWarning.value)
+    classes.push('is-close-guard-warning')
+  return classes
+})
+
+const cardClassName = computed(() => {
+  let borderStyle: 'solid' | 'dashed' | 'none' = 'solid'
+  if (props.border === 'none') {
+    borderStyle = 'none'
+  }
+  else if (props.border === 'dashed' || props.border === 'dash') {
+    borderStyle = 'dashed'
+  }
+
+  const classes: Array<string | Record<string, boolean>> = [
+    'TxFlipOverlay-Card',
+    `is-border-${borderStyle}`,
+    {
+      'is-expanded': expanded.value,
+      'is-close-guard-warning': blockedCloseWarning.value,
+      'is-stack-layered': stackMeta.value.isLayered,
+      'is-stack-depth-hidden': stackMeta.value.isDepthHidden,
+    },
+  ]
+  if (props.cardClass)
+    classes.push(props.cardClass)
+  return classes
+})
+
+const bodyClassName = computed(() => {
+  const classes: Array<string | Record<string, boolean>> = [
+    'TxFlipOverlay-Body',
+    'TxFlipOverlay-Content',
+    { 'is-scrollable': props.scrollable },
+  ]
+  return classes
+})
+
+const shellClassName = computed(() => {
+  const classes: Array<string | Record<string, boolean>> = [
+    'TxFlipOverlay-Shell',
+    { 'is-close-guard-focus': blockedCloseWarning.value },
+  ]
+  return classes
+})
+
+const maskStyle = computed(() => {
+  const style: Record<string, number | string> = {
+    zIndex: zIndex.value,
+    pointerEvents: stackMeta.value.isMaskOwner ? 'auto' : 'none',
+  }
+
+  const usesSharedStackMask = props.globalMask && stackMeta.value.stackSize > 1
+  if (usesSharedStackMask || !stackMeta.value.isMaskOwner) {
+    style.background = 'transparent'
+    style.backdropFilter = 'none'
+    style.WebkitBackdropFilter = 'none'
+  }
+
+  return style
+})
+
+const surfaceMode = computed<BaseSurfaceMode>(() => {
+  if (props.surface === 'pure'
+    || props.surface === 'mask'
+    || props.surface === 'blur'
+    || props.surface === 'glass'
+    || props.surface === 'refraction') {
+    return props.surface
+  }
+  return 'mask'
+})
+
+const surfaceColor = computed(() => {
+  if (props.surfaceColor)
+    return props.surfaceColor
+  return 'var(--tx-bg-color-overlay, var(--tx-card-fake-background, #fff))'
+})
+
+const surfaceOpacity = computed(() => {
+  const value = typeof props.surfaceOpacity === 'number' ? props.surfaceOpacity : 0.96
+  if (!Number.isFinite(value))
+    return 0.96
+  return Math.max(0, Math.min(1, value))
+})
+
+const transitionName = computed(() => props.transitionName || 'TxFlipOverlay-Mask')
+const useMaskCssTransition = computed(() => {
+  if (!visible.value)
+    return true
+  // Keep mask brightness stable while handing off ownership in stacked state.
+  if (stackMeta.value.isMaskOwner && stackMeta.value.stackSize > 1)
+    return false
+  return true
+})
+const hasCustomHeaderSlot = computed<boolean>(() => Boolean(slots.header))
+const hasHeaderDisplaySlot = computed<boolean>(() => Boolean(slots['header-display']))
+const hasHeaderActionsSlot = computed<boolean>(() => Boolean(slots['header-actions']))
+const hasHeaderContent = computed(() => Boolean(props.headerTitle || props.headerDesc))
+const shouldRenderBuiltInHeader = computed(() => {
+  if (hasCustomHeaderSlot.value || !props.header)
+    return false
+  if (props.closable)
+    return true
+  return hasHeaderDisplaySlot.value || hasHeaderActionsSlot.value || hasHeaderContent.value
+})
+
+function syncExpanded(value: boolean): void {
+  if (expanded.value === value)
+    return
+  expanded.value = value
+}
+
+function syncAnimating(value: boolean): void {
+  if (animating.value === value)
+    return
+  animating.value = value
+}
+
+function clearBlockedCloseWarning(): void {
+  if (blockedCloseTimer) {
+    clearTimeout(blockedCloseTimer)
+    blockedCloseTimer = null
+  }
+  blockedCloseWarning.value = false
+}
+
+async function triggerBlockedCloseWarning(): Promise<void> {
+  if (!visible.value || !props.preventAccidentalClose)
+    return
+
+  if (blockedCloseTimer) {
+    clearTimeout(blockedCloseTimer)
+    blockedCloseTimer = null
+  }
+
+  // Restart the warning animation even on a repeated blocked close. Toggling the
+  // flag false→true within one tick coalesces to no DOM change (Vue batches), so
+  // the CSS animation never replays. Flush the removal to the DOM, force a reflow
+  // on a real boundary, then re-add the class.
+  blockedCloseWarning.value = false
+  await nextTick()
+  if (hasWindow())
+    void cardRef.value?.offsetWidth
+  blockedCloseWarning.value = true
+
+  blockedCloseTimer = setTimeout(() => {
+    blockedCloseWarning.value = false
+    blockedCloseTimer = null
+  }, 720)
+}
+
+watch(
+  () => props.expanded,
+  (value) => {
+    if (typeof value === 'boolean')
+      syncExpanded(value)
+  },
+)
+
+watch(
+  () => props.animating,
+  (value) => {
+    if (typeof value === 'boolean')
+      syncAnimating(value)
+  },
+)
+
+watch(expanded, value => emit('update:expanded', value))
+watch(animating, value => emit('update:animating', value))
+const bodyScrollLocked = ref(false)
+
+function resolveCardSize(card: HTMLElement | null): { width: number, height: number } {
+  if (!card)
+    return { width: 0, height: 0 }
+
+  const widthByOffset = card.offsetWidth || 0
+  const heightByOffset = card.offsetHeight || 0
+
+  if (widthByOffset > 0 && heightByOffset > 0) {
+    return {
+      width: widthByOffset,
+      height: heightByOffset,
+    }
+  }
+
+  let widthByStyle = 0
+  let heightByStyle = 0
+  if (hasWindow()) {
+    const cardStyles = getComputedStyle(card)
+    widthByStyle = Number.parseFloat(cardStyles.width) || 0
+    heightByStyle = Number.parseFloat(cardStyles.height) || 0
+  }
+
+  if (widthByStyle > 0 && heightByStyle > 0) {
+    return {
+      width: widthByStyle,
+      height: heightByStyle,
+    }
+  }
+
+  const rect = card.getBoundingClientRect()
+  return {
+    width: rect.width || 0,
+    height: rect.height || 0,
+  }
+}
+
+function upsertStackEntry(): void {
+  if (!hasWindow()) {
+    return
+  }
+
+  if (!visible.value) {
+    removeStackEntry()
+    return
+  }
+
+  const size = resolveCardSize(cardRef.value)
+  const nextEntry: FlipOverlayStackEntry = {
+    id: instanceId,
+    zIndex: zIndex.value,
+    openSequence: openSequence.value,
+    width: size.width,
+    height: size.height,
+    visible: true,
+    globalMask: props.globalMask,
+    maskClass: props.maskClass,
+  }
+
+  upsertOverlayStackEntry(nextEntry)
+}
+
+function removeStackEntry(): void {
+  removeOverlayStackEntry(instanceId)
+}
+
+function resolveSource(): void {
+  if (!hasWindow()) {
+    sourceRect.value = null
+    sourceRadius.value = null
+    return
+  }
+
+  const source = props.source
+  if (!source) {
+    sourceRect.value = null
+    sourceRadius.value = props.sourceRadius ?? null
+    return
+  }
+
+  if (source instanceof HTMLElement) {
+    sourceRect.value = source.getBoundingClientRect()
+    sourceRadius.value = props.sourceRadius ?? getComputedStyle(source).borderRadius
+    return
+  }
+
+  sourceRect.value = source
+  sourceRadius.value = props.sourceRadius ?? null
+}
+
+function resolveTilt(): void {
+  if (!props.randomTilt) {
+    tilt.value = { x: 0, y: 0 }
+    return
+  }
+  const tiltX = (Math.random() > 0.5 ? 1 : -1) * (props.rotateX + Math.random() * props.tiltRange)
+  const tiltY = (Math.random() > 0.5 ? 1 : -1) * (props.rotateY + Math.random() * props.tiltRange)
+  tilt.value = { x: tiltX, y: tiltY }
+}
+
+const {
+  applyStackCardState,
+  clearStackTween,
+  clearTween,
+  startCloseAnimation,
+  startOpenAnimation,
+} = useFlipOverlayMotion({
+  props,
+  cardRef,
+  visible,
+  expanded,
+  animating,
+  sourceRect,
+  sourceRadius,
+  tilt,
+  stackMeta,
+  isCurrentRun: currentRunId => currentRunId === runId,
+  getVisibleStackCount: () => getVisibleOverlayStackEntries().length,
+  syncExpanded,
+  syncAnimating,
+  removeStackEntry,
+  emit,
+})
+
+function requestOpen(): void {
+  zIndex.value = zIndexAllocator.next()
+  openSequence.value = nextOverlayOpenSequence()
+  if (!hasWindow()) {
+    visible.value = true
+    syncExpanded(true)
+    emit('opened')
+    return
+  }
+  visible.value = true
+  upsertStackEntry()
+  runId += 1
+  const currentRunId = runId
+  resolveSource()
+  resolveTilt()
+  syncExpanded(false)
+  emit('open')
+  nextTick(() => {
+    if (currentRunId !== runId)
+      return
+    upsertStackEntry()
+    startOpenAnimation(currentRunId)
+  })
+}
+
+function requestClose(): void {
+  if (!visible.value)
+    return
+  runId += 1
+  const currentRunId = runId
+  syncExpanded(false)
+  emit('close')
+  nextTick(() => {
+    if (currentRunId !== runId)
+      return
+    startCloseAnimation(currentRunId)
+  })
+}
+
+function handleMaskClick(): void {
+  if (props.preventAccidentalClose) {
+    void triggerBlockedCloseWarning()
+    return
+  }
+  if (!props.maskClosable)
+    return
+  requestClose()
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent): void {
+  if (!visible.value || !props.preventAccidentalClose)
+    return
+  void triggerBlockedCloseWarning()
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+function bindPageExitGuard(): void {
+  if (!hasWindow() || pageExitGuardBound)
+    return
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  pageExitGuardBound = true
+}
+
+function unbindPageExitGuard(): void {
+  if (!hasWindow() || !pageExitGuardBound)
+    return
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  pageExitGuardBound = false
+}
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (value) {
+      requestOpen()
+    }
+    else if (visible.value) {
+      requestClose()
+    }
+  },
+  { immediate: true },
+)
+
+// aria-modal="true" promises focus is inside the dialog, so move focus into the card
+// on open and restore it to the previously focused element on close.
+watch(visible, (isVisible) => {
+  if (!hasWindow())
+    return
+  if (isVisible) {
+    previouslyFocused = document.activeElement as HTMLElement | null
+    nextTick(() => {
+      cardRef.value?.focus()
+    })
+  }
+  else if (previouslyFocused) {
+    previouslyFocused.focus()
+    previouslyFocused = null
+  }
+})
+
+watch(
+  () => [
+    visible.value,
+    expanded.value,
+    animating.value,
+    zIndex.value,
+    openSequence.value,
+    props.globalMask,
+    props.maskClass,
+    localStackVersion.value,
+  ],
+  () => {
+    upsertStackEntry()
+    applyStackCardState()
+  },
+  { immediate: true, flush: 'post' },
+)
+
+watch(
+  cardRef,
+  () => {
+    upsertStackEntry()
+    applyStackCardState(true)
+  },
+  { flush: 'post' },
+)
+
+watch(
+  visible,
+  (value) => {
+    if (value && !bodyScrollLocked.value) {
+      lockFlipOverlayBodyScroll()
+      bodyScrollLocked.value = true
+      return
+    }
+    if (!value && bodyScrollLocked.value) {
+      unlockFlipOverlayBodyScroll()
+      bodyScrollLocked.value = false
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  [visible, () => props.preventAccidentalClose],
+  ([isVisible, preventAccidentalClose]) => {
+    if (isVisible && preventAccidentalClose) {
+      bindPageExitGuard()
+      return
+    }
+    unbindPageExitGuard()
+    if (!isVisible)
+      clearBlockedCloseWarning()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  unsubscribeStackChange()
+  clearTween()
+  clearStackTween()
+  unbindPageExitGuard()
+  clearBlockedCloseWarning()
+  removeStackEntry()
+  if (bodyScrollLocked.value) {
+    unlockFlipOverlayBodyScroll()
+    bodyScrollLocked.value = false
+  }
+})
+
+defineExpose({
+  close: requestClose,
+})
+
+const slotProps = computed<FlipOverlaySlotProps>(() => ({
+  close: requestClose,
+  expanded: expanded.value,
+  animating: animating.value,
+  closable: props.closable,
+  headerTitle: props.headerTitle || undefined,
+  headerDesc: props.headerDesc || undefined,
+}))
+</script>
+
+<template>
+  <Transition :name="transitionName" :css="useMaskCssTransition">
+    <div v-if="visible" :class="maskClassName" :style="maskStyle" @click="handleMaskClick">
+      <div
+        v-if="props.globalMask && stackMeta.isMaskOwner && stackMeta.stackSize <= 1"
+        class="TxFlipOverlay-GlobalMask"
+      />
+      <div
+        ref="cardRef"
+        :class="cardClassName"
+        :style="props.cardStyle"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        :aria-labelledby="(shouldRenderBuiltInHeader && props.headerTitle) ? titleId : undefined"
+        :aria-describedby="(shouldRenderBuiltInHeader && props.headerDesc) ? descId : undefined"
+        @click.stop
+        @keydown.esc="handleMaskClick"
+      >
+        <TxBaseSurface
+          class="TxFlipOverlay-Surface"
+          preset="card"
+          fake
+          :mode="surfaceMode"
+          :color="surfaceColor"
+          :opacity="surfaceOpacity"
+          :moving="animating"
+        />
+        <div :class="shellClassName">
+          <slot v-if="hasCustomHeaderSlot" name="header" v-bind="slotProps" />
+          <div v-else-if="shouldRenderBuiltInHeader" class="TxFlipOverlay-Header">
+            <div class="TxFlipOverlay-HeaderDisplay">
+              <slot name="header-display" v-bind="slotProps">
+                <p v-if="props.headerTitle" :id="titleId" class="TxFlipOverlay-HeaderTitle">
+                  {{ props.headerTitle }}
+                </p>
+                <p v-if="props.headerDesc" :id="descId" class="TxFlipOverlay-HeaderDesc">
+                  {{ props.headerDesc }}
+                </p>
+              </slot>
+            </div>
+            <div class="TxFlipOverlay-HeaderActions">
+              <slot name="header-actions" v-bind="slotProps" />
+              <template v-if="props.closable">
+                <slot name="header-close" v-bind="slotProps">
+                  <TxButton circle class="TxFlipOverlay-Close" :aria-label="props.closeAriaLabel" @click="requestClose">
+                    <span class="i-carbon-close w-4 h-4 text-lg inline-flex" aria-hidden="true" />
+                  </TxButton>
+                </slot>
+              </template>
+            </div>
+          </div>
+          <div :class="bodyClassName">
+            <slot v-bind="slotProps" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
+</template>
+
+<style lang="scss">
+.TxFlipOverlay-Mask {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.TxFlipOverlay-Mask.is-stack-underlay-mask {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.TxFlipOverlay-Mask.is-stack-underlay-mask .TxFlipOverlay-GlobalMask {
+  opacity: 0;
+}
+
+.TxFlipOverlay-GlobalMask {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--tx-overlay-mask, rgba(8, 10, 16, 0.52));
+  transition: opacity 120ms linear;
+}
+
+.TxFlipOverlay-Mask::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+}
+
+.TxFlipOverlay-Mask.is-close-guard-warning::after {
+  animation: tx-flip-overlay-mask-warning 420ms ease-out;
+}
+
+@keyframes tx-flip-overlay-mask-warning {
+  0% {
+    opacity: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 64, 64, 0) 0%, rgba(255, 64, 64, 0) 72%);
+  }
+
+  22% {
+    opacity: 1;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 66, 66, 0.022) 0%, rgba(255, 66, 66, 0.012) 42%, rgba(255, 66, 66, 0) 72%);
+  }
+
+  100% {
+    opacity: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 64, 64, 0) 0%, rgba(255, 64, 64, 0) 72%);
+  }
+}
+
+.TxFlipOverlay-Card {
+  --tx-flip-overlay-radius: 16px;
+
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 24px);
+  max-height: calc(90dvh - 24px);
+  border: 1px solid var(--tx-border-color-lighter);
+  border-radius: var(--tx-flip-overlay-radius);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
+  z-index: 1;
+}
+
+.TxFlipOverlay-Surface {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.TxFlipOverlay-Shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  transform-origin: 50% 50%;
+}
+
+.TxFlipOverlay-Card.is-close-guard-warning {
+  animation: tx-flip-overlay-close-guard-warning 720ms ease-out;
+}
+
+.TxFlipOverlay-Shell.is-close-guard-focus {
+  animation: tx-flip-overlay-close-guard-focus 360ms cubic-bezier(0.2, 0.72, 0.2, 1);
+}
+
+@keyframes tx-flip-overlay-close-guard-focus {
+  0% {
+    transform: scale(1);
+  }
+
+  28% {
+    transform: scale(1.04);
+  }
+
+  52% {
+    transform: scale(0.985);
+  }
+
+  72% {
+    transform: scale(1.015);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes tx-flip-overlay-close-guard-warning {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(255, 79, 79, 0));
+  }
+
+  18% {
+    filter:
+      drop-shadow(0 0 6px rgba(255, 96, 96, 0.098))
+      drop-shadow(0 0 22px rgba(255, 64, 64, 0.072))
+      drop-shadow(0 0 42px rgba(255, 47, 47, 0.05));
+  }
+
+  100% {
+    filter: drop-shadow(0 0 0 rgba(255, 79, 79, 0));
+  }
+}
+
+.TxFlipOverlay-Card.is-border-dashed {
+  border-style: dashed;
+}
+
+.TxFlipOverlay-Card.is-border-none {
+  border: none;
+}
+
+.TxFlipOverlay-Card.is-stack-depth-hidden {
+  visibility: hidden;
+}
+
+.TxFlipOverlay-Header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 10px;
+  min-width: 0;
+}
+
+.TxFlipOverlay-HeaderDisplay {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.TxFlipOverlay-HeaderTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.TxFlipOverlay-HeaderDesc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.72;
+}
+
+.TxFlipOverlay-HeaderActions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.TxFlipOverlay-Close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.TxFlipOverlay-Close:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.TxFlipOverlay-Close:active {
+  transform: scale(0.96);
+}
+
+.TxFlipOverlay-Close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.TxFlipOverlay-Body,
+.TxFlipOverlay-Content {
+  flex: 1;
+  max-height: inherit;
+  min-width: 0;
+  min-height: 0;
+}
+
+.TxFlipOverlay-Body.is-scrollable,
+.TxFlipOverlay-Content.is-scrollable {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+</style>

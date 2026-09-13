@@ -1,0 +1,110 @@
+// TUFF UI Global Styles
+@use './variables.scss';
+@use './mixins.scss';
+@use './bui-tokens.scss';
+
+// Fake background utility (glassmorphism effect)
+.fake-background {
+  position: relative;
+  &.isolate {
+    isolation: isolate;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  &:before {
+    z-index: var(--fake-index, 0);
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: var(--fake-inner-opacity, 1);
+    background: var(--fake-color, var(--tx-fill-color-lighter, #fafafa));
+    border-radius: var(--fake-radius, inherit);
+    pointer-events: none;
+  }
+
+  &:before {
+    opacity: var(--fake-opacity, 0.75) !important;
+  }
+}
+
+html[data-tx-coloring='true'],
+html.coloring {
+  .fake-background:not(.tx-button.borderless):not(.tx-button.variant-bare)::after,
+  .tx-base-surface::after,
+  .tx-card:not(.is-plain)::after,
+  .tx-modal__content::after,
+  .tx-command-palette__panel::after,
+  .tx-drawer__panel::after,
+  .tx-data-table::after,
+  .tx-code-editor::after,
+  .tx-markdown-editor::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: var(--tx-coloring-border-z-index, 6);
+    border-radius: inherit;
+    box-shadow: var(--tx-coloring-border-shadow);
+    pointer-events: none;
+  }
+
+  .tx-base-surface,
+  .tx-card:not(.is-plain),
+  .tx-modal__content,
+  .tx-command-palette__panel,
+  .tx-drawer__panel,
+  .tx-data-table,
+  .tx-code-editor,
+  .tx-markdown-editor {
+    position: relative;
+  }
+
+  .tx-input,
+  .tx-textarea,
+  .tx-number-input,
+  .tx-tag-input,
+  .tx-date-picker-field,
+  .tx-cascader,
+  .tx-tree-select,
+  .tx-select,
+  .tx-flat-select {
+    border-color: var(--tx-coloring-border-color);
+  }
+
+  .tx-button:not(.borderless):not(.variant-bare):not(.variant-ghost):not(.tone-text) {
+    --tx-button-border-color: var(--tx-coloring-border-color);
+  }
+
+  .tx-card:not(.is-plain):hover::after,
+  .tx-base-surface:hover::after,
+  .fake-background:not(.tx-button.borderless):not(.tx-button.variant-bare):hover::after {
+    box-shadow: var(--tx-coloring-border-shadow-hover);
+  }
+}
+
+html[data-tx-contrast='high'],
+html.contrast {
+  *:focus-visible {
+    outline-color: var(--tx-focus-ring-color, var(--tx-color-primary));
+    box-shadow: var(--tx-focus-ring-shadow);
+  }
+}
+
+.fake-background.index-fix {
+  z-index: var(--fake-fix-index, 0);
+}
+
+// Transition utilities
+.tx-transition {
+  transition: all var(--tx-transition-duration) var(--tx-transition-function);
+}
+
+.tx-transition-fast {
+  transition: all var(--tx-transition-duration-fast) var(--tx-transition-function);
+}

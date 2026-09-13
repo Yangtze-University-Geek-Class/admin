@@ -1,0 +1,253 @@
+# Popover 弹出层
+
+> 直接基于 BaseAnchor 构建的语义弹出层。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/popover) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/popover.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/popover.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Popover 弹出层
+
+## 基础用法
+
+### Popover
+官方示例：`PopoverPopoverDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxPopover v-model="open">
+    <template #reference>
+      <TxButton>Click</TxButton>
+    </template>
+
+    Popover content
+  </TxPopover>
+</template>
+```
+
+## 触发与面板行为
+
+### Popover (trigger and panel)
+官方示例：`PopoverPopoverVisualEffectsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const open = ref(false)
+const background = ref<'refraction' | 'pure' | 'mask' | 'blur' | 'glass'>('refraction')
+const placement = ref<'bottom-start' | 'bottom' | 'top' | 'right'>('bottom-start')
+const trigger = ref<'click' | 'hover'>('click')
+const showArrow = ref(true)
+const keepAliveContent = ref(true)
+</script>
+
+<template>
+  <div class="tx-demo tx-demo__col" style="gap: 12px; max-width: 860px;">
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14">
+      <div class="tx-demo__row" style="gap: 10px; flex-wrap: wrap;">
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">background</span>
+          <TuffSelect v-model="background" style="min-width: 160px;">
+            <TuffSelectItem value="refraction" label="refraction" />
+            <TuffSelectItem value="pure" label="pure" />
+            <TuffSelectItem value="mask" label="mask" />
+            <TuffSelectItem value="blur" label="blur" />
+            <TuffSelectItem value="glass" label="glass" />
+          </TuffSelect>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">placement</span>
+          <TuffSelect v-model="placement" style="min-width: 200px;">
+            <TuffSelectItem value="bottom-start" label="bottom-start" />
+            <TuffSelectItem value="bottom" label="bottom" />
+            <TuffSelectItem value="top" label="top" />
+            <TuffSelectItem value="right" label="right" />
+          </TuffSelect>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">arrow</span>
+          <TxSwitch v-model="showArrow" />
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">trigger</span>
+          <TuffSelect v-model="trigger" style="min-width: 140px;">
+            <TuffSelectItem value="click" label="click" />
+            <TuffSelectItem value="hover" label="hover" />
+          </TuffSelect>
+        </label>
+
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">keepAlive</span>
+          <TxSwitch v-model="keepAliveContent" />
+        </label>
+      </div>
+    </TxCard>
+
+    <div style="display: flex; justify-content: center; padding: 48px 0;">
+      <TxPopover
+        v-model="open"
+        :placement="placement"
+        :trigger="trigger"
+        :show-arrow="showArrow"
+        :keep-alive-content="keepAliveContent"
+        :panel-background="background"
+        panel-shadow="soft"
+        :panel-padding="12"
+      >
+        <template #reference>
+          <TxButton>Click me</TxButton>
+        </template>
+
+        <div style="width: 260px; display: grid; gap: 8px;">
+          <div style="font-weight: 600;">
+            Popover panel
+          </div>
+          <div style="color: var(--tx-text-color-secondary); font-size: 12px;">
+            Trigger + Surface + Arrow + KeepAlive
+          </div>
+          <TxButton size="small">
+            Action
+          </TxButton>
+        </div>
+      </TxPopover>
+    </div>
+  </div>
+</template>
+```
+
+## 后台导航配置组合
+
+后台页的导航与配置不应把所有内容塞进同一个表单。推荐用 `TxTabs` 固定一级分区，用 `TxDropdownMenu` 承载当前区的轻量操作，用 `TxPopover` 展示短说明，再把高密度配置放进 `TxDrawer`。
+
+官方示例：`ComponentsNavigationShellDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const active = ref('总览')
+const drawerVisible = ref(false)
+</script>
+
+<template>
+  <section class="grid gap-3">
+    <TxDropdownMenu>
+      <template #trigger>
+        <TxButton>发布操作</TxButton>
+      </template>
+      <TxDropdownItem>快速发布</TxDropdownItem>
+    </TxDropdownMenu>
+
+    <TxPopover>
+      <template #reference>
+        <TxButton variant="secondary">策略说明</TxButton>
+      </template>
+      浮层只放短说明和轻量动作。
+    </TxPopover>
+
+    <TxTabs v-model="active" placement="left" indicator-variant="pill">
+      <TxTabItem name="总览" activation>总览配置</TxTabItem>
+      <TxTabItem name="发布">发布配置</TxTabItem>
+    </TxTabs>
+
+    <TxDrawer v-model:visible="drawerVisible" title="发布策略" />
+  </section>
+</template>
+```
+
+## API
+
+### TxPopover Props / 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` | `boolean` | - | 是否打开（v-model） |
+| `disabled` | `boolean` | `false` | 禁用 |
+| `eager` | `boolean` | `false` | 通过 `TxBaseAnchor` 提前挂载锚点内容。 |
+| `placement` | `PopoverPlacement` | `'bottom-start'` | 浮层位置 |
+| `offset` | `number` | 自动计算 | 间距（有箭头时按 `arrowSize` 计算，无箭头为 `2`） |
+| `width` | `number` | `0` | 面板宽度（0 = 跟随 reference） |
+| `minWidth` | `number` | `0` | 最小宽度 |
+| `maxWidth` | `number` | `360` | 最大宽度 |
+| `maxHeight` | `number` | `420` | 面板内部滚动前的最大高度。 |
+| `unlimitedHeight` | `boolean` | `false` | 关闭最大高度限制，适合内部自行管理滚动的面板。 |
+| `referenceFullWidth` | `boolean` | `false` | reference 容器是否占满宽度 |
+| `referenceClass` | `BaseAnchorClassValue` | - | 额外透传到 BaseAnchor reference 包装层的 class。 |
+| `showArrow` | `boolean` | `true` | 是否显示箭头 |
+| `arrowSize` | `number` | `12` | 箭头尺寸 |
+| `trigger` | `'click' \| 'hover'` | `'click'` | 触发方式 |
+| `openDelay` | `number` | 见 `menu` 预设（`120`） | hover 模式打开延迟（ms）。不传时由共享延迟服务供给 |
+| `closeDelay` | `number` | 见 `menu` 预设（`100`） | hover 模式关闭延迟（ms）。不传时由共享延迟服务供给 |
+| `animation` | `BaseAnchorAnimationOptions` | `{ type: 'expand' }` | 透传给 BaseAnchor 的锚点动画配置；默认弹簧展开，经典类型（`transfer` 等）才注入 `duration: 180`、`ease: 'power2.out'` |
+| `keepAliveContent` | `boolean` | `true` | 是否保留弹层内部状态 |
+| `toggleOnReferenceClick` | `boolean` | `trigger === 'click'` | 点击 reference 时是否切换开关 |
+| `panelVariant` | `'solid' \| 'dashed' \| 'plain'` | `'solid'` | 面板边框形态（TxCard variant） |
+| `panelBackground` | `'pure' \| 'mask' \| 'blur' \| 'glass' \| 'refraction'` | `'refraction'` | 面板背景（TxCard background） |
+| `panelShadow` | `'none' \| 'soft' \| 'medium'` | `'soft'` | 面板阴影（TxCard shadow） |
+| `panelRadius` | `number` | `18` | 面板圆角（TxCard radius） |
+| `panelPadding` | `number` | `10` | 面板 padding（TxCard padding） |
+| `panelCard` | `BaseAnchorPanelCardProps` | - | 高级面板卡片覆盖配置，会透传给 BaseAnchor。 |
+| `closeOnClickOutside` | `boolean` | `true` | 点击外部关闭（仅 click 模式生效） |
+| `closeOnEsc` | `boolean` | `true` | ESC 关闭 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `open` | - | 内部或非受控状态打开时触发。 |
+| `close` | - | 内部或非受控状态关闭时触发。 |
+| `update:modelValue` | `boolean` | Popover 请求变更打开状态时触发（受控 / 非受控均会发出）。 |
+
+### 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `reference` | - | 渲染在锚点 reference 包装层内的触发内容。 |
+| `default` | `{ side: string }` | Popover 面板内容；`side` 来自 `TxBaseAnchor` 计算后的浮层方向。 |
+
+## 交互契约
+
+- `trigger="click"` 时支持外部点击与 Escape 关闭；`trigger="hover"` 会使用打开/关闭延迟，避免鼠标移入面板时闪退。
+- `keepAliveContent` 适合筛选器、短表单和带本地状态的说明面板；纯展示说明可以关闭以减少保留状态。
+- Popover 只放轻量内容；超过一屏、需要 footer 或多字段配置时升级为 Drawer。
+
+## 最佳实践
+
+- Popover 只放短说明、紧凑筛选和一两个轻量操作。
+- reference 内包含输入框或自定义焦点行为时使用 `toggleOnReferenceClick=false`，`TxSearchSelect` 就是这个模式。
+- 小表单或带本地状态的筛选器保留 `keepAliveContent=true`；纯静态说明才建议设为 `false`。
+- 选项面板使用 `maxHeight` 或内部滚动，不要让 Popover 覆盖整个视口。
+
+## 审阅说明
+
+- 已对照 `packages/tuffex/packages/components/src/popover/src/types.ts`、`TxPopover.vue` 与 `popover.test.ts` 核对。
+- 未传 `offset` 时会根据 `arrowSize` 自动计算；示例不应暗示固定默认间距。
+- `closeOnClickOutside` 仅对 click 触发模式生效，因为 hover 模式通过指针/焦点离开延迟控制关闭。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/popover/src/TxPopover.vue`.
+- Types: `packages/tuffex/packages/components/src/popover/src/types.ts`.
+- **实测覆盖:** `packages/tuffex/packages/components/src/popover/__tests__/popover.test.ts` 验证默认 BaseAnchor props 透传、offset 推导、hover 触发时序、禁用时关闭、全宽 reference class 与内容 side slot 参数。
+
+## 离线完整示例源码
+
+- [PopoverPopoverDemo](../snapshot/apps/nexus/app/components/content/demos/PopoverPopoverDemo.vue.txt)
+- [PopoverPopoverVisualEffectsDemo](../snapshot/apps/nexus/app/components/content/demos/PopoverPopoverVisualEffectsDemo.vue.txt)
+- [ComponentsNavigationShellDemo](../snapshot/apps/nexus/app/components/content/demos/ComponentsNavigationShellDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [popover/index.ts](../snapshot/packages/tuffex/packages/components/src/popover/index.ts.txt)
+- [src/TxPopover.vue](../snapshot/packages/tuffex/packages/components/src/popover/src/TxPopover.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/popover/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

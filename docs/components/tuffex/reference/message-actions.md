@@ -1,0 +1,86 @@
+# Message Actions
+
+> 消息下方的操作条，内置复制与重新生成，方向键在按钮间移动。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/message-actions) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/message-actions.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/message-actions.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`0.3.9`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Message Actions
+
+## 基础用法
+
+### Message Actions
+官方示例：`MessageActionsMessageActionsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxMessageActions
+    copy-text="要复制的回答正文"
+    regenerable
+    @copy="onCopy"
+    @regenerate="onRegenerate"
+  >
+    <button type="button">分享</button>
+  </TxMessageActions>
+</template>
+```
+
+## 交互契约
+
+- 复制按钮只在 `copyText` **有定义时**渲染——空字符串同样会渲染出按钮，但点击不做任何事。若要隐藏它，请不要传这个属性。
+- 点击复制会写入 `navigator.clipboard`；即使写入被权限策略拒绝，`copy` 事件仍会派发，宿主可以据此走自己的复制通道。
+- 复制后按钮进入「已复制」态并持续 1200ms，期间重复点击被忽略。
+- 整条操作条是 `role="toolbar"`：只占一个 Tab 停靠点，内部用 ← → ↑ ↓ 移动，Home / End 跳到首尾。
+- 漫游顺序是从 DOM 实时读取的（`button:not([disabled])`、`[href]`、`tabindex` 非 -1），因此**默认插槽里的自定义按钮会自动加入同一顺序**，无需额外接线。
+- 禁用的按钮会被排除在漫游之外。
+- `appear` 为真时挂载播放一次缓慢的模糊淡入；不需要入场动画时请显式关掉。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `copyText` | `string` | — | 复制按钮要写入的文本。未传时不渲染复制按钮。 |
+| `regenerable` | `boolean` | `false` | 是否显示重新生成按钮。 |
+| `appear` | `boolean` | `true` | 挂载时是否播放模糊淡入。 |
+| `copyLabel` | `string` | `'Copy'` | 复制按钮的可访问名称。 |
+| `copiedLabel` | `string` | `'Copied'` | 已复制状态下的可访问名称。 |
+| `regenerateLabel` | `string` | `'Regenerate'` | 重新生成按钮的可访问名称。 |
+| `label` | `string` | `'Message actions'` | 整条工具栏的可访问名称。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `copy` | `(text: string)` | 点击复制后派发，携带 `copyText`；剪贴板写入失败时同样派发。 |
+| `regenerate` | — | 点击重新生成时派发。 |
+
+## Slots
+
+| 插槽名 | 说明 |
+|------|------|
+| `default` | 追加在内置按钮之后。放在这里的可聚焦元素会自动并入方向键漫游顺序。 |
+
+## 最佳实践
+
+- 自定义按钮请用原生 `<button>`，漫游逻辑靠标签与 `tabindex` 识别，包一层 `<div>` 会被跳过。
+- 不要因为剪贴板可能失败就自己再复制一遍——监听 `copy` 事件即可，组件已经把两种情况统一了。
+- 本地化时把 `copyLabel`、`copiedLabel`、`regenerateLabel`、`label` 一起覆盖，它们都只作用于可访问名称，不影响视觉。
+- 消息还在流式输出时先不要挂上这条操作条，否则用户会复制到半截内容。
+
+## 离线完整示例源码
+
+- [MessageActionsMessageActionsDemo](../snapshot/apps/nexus/app/components/content/demos/MessageActionsMessageActionsDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [message-actions/index.ts](../snapshot/packages/tuffex/packages/components/src/message-actions/index.ts.txt)
+- [src/TxMessageActions.vue](../snapshot/packages/tuffex/packages/components/src/message-actions/src/TxMessageActions.vue.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

@@ -1,0 +1,453 @@
+// TUFF UI SCSS Mixins
+
+// Flexbox shortcuts
+@mixin flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+// Transitions
+@mixin transition($properties: all) {
+  transition: $properties var(--tx-transition-duration) var(--tx-transition-function);
+}
+
+@mixin transition-fast($properties: all) {
+  transition: $properties var(--tx-transition-duration-fast) var(--tx-transition-function);
+}
+
+// Disabled state
+@mixin disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+// Focus ring
+@mixin focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--tx-color-primary-light-7);
+}
+
+// Glass effect (glassmorphism)
+@mixin glass($blur: 12px, $opacity: 0.8) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: blur($blur) saturate(180%);
+  -webkit-backdrop-filter: blur($blur) saturate(180%);
+}
+
+// Elevation (shadows)
+@mixin elevation($level: 1) {
+  @if $level == 1 {
+    box-shadow: var(--tx-box-shadow-lighter);
+  } @else if $level == 2 {
+    box-shadow: var(--tx-box-shadow-light);
+  } @else if $level == 3 {
+    box-shadow: var(--tx-box-shadow);
+  } @else if $level == 4 {
+    box-shadow: var(--tx-box-shadow-dark);
+  }
+}
+
+// Text ellipsis
+@mixin ellipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+// Scrollbar styling
+@mixin custom-scrollbar($width: 6px, $track-color: transparent, $thumb-color: var(--tx-fill-color)) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+    border-radius: $width;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: $width;
+
+    &:hover {
+      background: var(--tx-text-color-secondary);
+    }
+  }
+}
+
+// Button base
+@mixin button-base {
+  @include flex-center;
+  @include transition;
+
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--tx-border-radius-base);
+  font-size: var(--tx-font-size-base);
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled,
+  &.is-disabled {
+    @include disabled;
+  }
+}
+
+// Skeleton placeholders
+//
+// Every skeleton component paints the same shimmering bar, so the gradient, the
+// timing and the reduced-motion guard live here instead of being re-declared in
+// each component. `skeleton-keyframes` is a separate mixin because `@keyframes`
+// cannot be nested inside a rule: a component emits it once at the top level of
+// its style block, then applies `skeleton-surface` to each placeholder element.
+//
+// The keyframes are deliberately emitted per component rather than pulled from
+// the global stylesheet — consumers import components by subpath and only get
+// that component's CSS, so a shared global definition would leave the animation
+// undefined for anyone who does not also load `base.css`.
+$skeleton-shimmer-duration: 1.2s !default;
+
+@mixin skeleton-keyframes {
+  @keyframes tx-skeleton-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+
+    100% {
+      background-position: -200% 0;
+    }
+  }
+}
+
+// Resolution order, widest override first:
+//   --tx-skeleton-base-color  a consumer pinning the bar to its own surface
+//   --tx-skeleton-color       the theme's own skeleton tone, tuned per light/dark
+//   --tx-fill-color           generic fill, for themes that define neither
+@mixin skeleton-surface($delay: 0s) {
+  $bar: var(--tx-skeleton-base-color, var(--tx-skeleton-color, var(--tx-fill-color, #f0f2f5)));
+
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, #{$bar} 70%, transparent) 0%,
+    color-mix(in srgb, #{$bar} 95%, transparent) 50%,
+    color-mix(in srgb, #{$bar} 70%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: tx-skeleton-shimmer $skeleton-shimmer-duration ease-in-out $delay infinite;
+
+  // Keep the placeholder — it is what holds the layout steady — and drop only
+  // the motion for users who asked for less of it.
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+// Beautiful UI (BUI) primitives
+//
+// Shared surface and motion vocabulary for the component family adapted from
+// Beautiful UI (https://www.beautifului.dev), © 2026 Shane Levine, MIT license.
+// Colour/shadow/radius tokens live in bui-tokens.scss. Keyframes follow the
+// same per-component emission model as the skeleton mixins above: a component
+// emits `bui-keyframes-*` once at the top level of its style block, then
+// applies the matching surface mixin per element — subpath consumers only get
+// that component's CSS, so globally defined keyframes would be undefined for
+// anyone who does not also load `base.css`.
+
+// Local reset + 13px base. BUI layouts assume Tailwind preflight (zeroed
+// buttons/lists/headings, block svg); tuffex base.css ships no such reset, so
+// every BUI component includes this on its root instead of leaking one global.
+@mixin bui-scope {
+  box-sizing: border-box;
+  font-family: var(--tx-font-family, "Inter", "Helvetica Neue", Arial, sans-serif);
+  font-size: 13px;
+  color: var(--tx-bui-ink, #1f2124);
+
+  // Emitted through `:where()` so the reset carries the specificity of the bare
+  // tag alone. Nested normally it compiled to `.tx-bui-x button` (0,1,1), which
+  // outranks every `&__name` rule the component writes for its own buttons:
+  // TxSidebarNav's rows lost `padding: 6px 8px` and rendered 19.5px tall, and
+  // TxSearchPanel's options lost their padding, size and colour. Nothing warns —
+  // the declaration is in the source and simply never wins. `:where(#{&}) button`
+  // is (0,0,1), so one class is enough to override it, which is the contract a
+  // reset should have.
+  @at-root {
+    :where(#{&}) {
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      button {
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 0;
+      }
+
+      ul,
+      ol {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        margin: 0;
+        font-size: inherit;
+        font-weight: inherit;
+      }
+
+      svg,
+      img {
+        display: block;
+      }
+    }
+  }
+}
+
+@mixin bui-keyframes-shimmer-text {
+  @keyframes tx-bui-shimmer-text {
+    0% {
+      background-position: 150%;
+    }
+
+    to {
+      background-position: -50%;
+    }
+  }
+}
+
+@mixin bui-keyframes-fade-up {
+  @keyframes tx-bui-fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@mixin bui-keyframes-fade-in {
+  @keyframes tx-bui-fade-in {
+    0% {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@mixin bui-keyframes-eq-bounce {
+  @keyframes tx-bui-eq-bounce {
+    0%,
+    to {
+      transform: scaleY(0.35);
+    }
+
+    50% {
+      transform: scaleY(1);
+    }
+  }
+}
+
+@mixin bui-keyframes-stream-in {
+  // Upstream ships `filter: blur()` — a Lightning CSS artefact of `blur(0)`
+  // that browsers drop as invalid, which happens to render correctly. Write
+  // the valid form here.
+  @keyframes tx-bui-stream-in {
+    0% {
+      opacity: 0;
+      filter: blur(4px);
+    }
+
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+}
+
+@mixin bui-keyframes-caret-blink {
+  @keyframes tx-bui-caret-blink {
+    0%,
+    to {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+@mixin bui-keyframes-pop-in {
+  @keyframes tx-bui-pop-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+@mixin bui-keyframes-spin {
+  @keyframes tx-bui-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@mixin bui-keyframes-pixel-on {
+  @keyframes tx-bui-pixel-on {
+    0%,
+    to {
+      opacity: 0.15;
+    }
+
+    18%,
+    42% {
+      opacity: 1;
+    }
+
+    62% {
+      opacity: 0.15;
+    }
+  }
+}
+
+// Shimmering status label — pairs with bui-keyframes-shimmer-text.
+// Reduced motion swaps the transparent-text gradient for a plain readable tone.
+@mixin bui-shimmer-text($duration: 1.4s) {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--tx-bui-ink-3, #9a9da3) 35%,
+    var(--tx-bui-ink, #1f2124) 50%,
+    var(--tx-bui-ink-3, #9a9da3) 65%
+  );
+  background-clip: text;
+  background-size: 200% 100%;
+  animation: tx-bui-shimmer-text $duration linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    color: var(--tx-bui-ink-2, #62656b);
+    background: none;
+    animation: none;
+  }
+}
+
+// Entrance — pairs with bui-keyframes-fade-up.
+@mixin bui-fade-up($duration: 300ms, $delay: 0ms) {
+  animation: tx-bui-fade-up $duration var(--tx-ease-out-strong, cubic-bezier(0.23, 1, 0.32, 1)) $delay both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+// Entrance — pairs with bui-keyframes-pop-in.
+@mixin bui-pop-in($duration: 300ms, $delay: 0ms) {
+  animation: tx-bui-pop-in $duration var(--tx-ease-out-strong, cubic-bezier(0.23, 1, 0.32, 1)) $delay both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+// Disclosure grammar: 0fr↔1fr grid collapse driven by an `.is-open` class.
+// Apply to the collapsing wrapper; its direct child gets `overflow: hidden`.
+// Same handoff as TxToolCallCard / TxChainOfThought / TxSources — kept as a
+// mixin so those components' tested class contracts stay untouched.
+@mixin bui-disclosure-collapse($duration: 0.3s) {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows $duration var(--tx-ease-out-strong, cubic-bezier(0.23, 1, 0.32, 1)),
+    opacity $duration var(--tx-ease-out-strong, cubic-bezier(0.23, 1, 0.32, 1));
+
+  > * {
+    overflow: hidden;
+  }
+
+  &.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+// Numbers that must not jitter (timers, counters, diff stats).
+@mixin bui-tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+// BUI card padding vocabulary (upstream `.primitive-card-bar` / `-pad`).
+@mixin bui-card-bar {
+  padding: 10px 12px;
+}
+
+@mixin bui-card-pad {
+  padding: 12px;
+}
+
+// Press feedback used across BUI controls.
+@mixin bui-press-scale($scale: 0.96) {
+  transition: transform 0.15s var(--tx-ease-out-strong, cubic-bezier(0.23, 1, 0.32, 1));
+
+  &:active {
+    transform: scale($scale);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:active {
+      transform: none;
+    }
+  }
+}

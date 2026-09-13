@@ -1,118 +1,70 @@
-# yzgc-admin
+# geek_main
 
-Yangtze University Geek Class — 多 GitHub 组织统一管理后台。
+长江大学极客班的统一项目入口。现有产品代码名为 `yzgc-admin`；保留 `@yzgc/web`、`@yzgc/server` 包名，以避免无收益的接口改名。
 
-线上：https://github.yangtzeu.work/
+这是统一编排的模块化工作区：官网 portal 和 GitHub 组织管理 admin 保留 React/Fastify；论坛直接采用 MIT 许可的 Tuff Forum 原代码，位于 `modules/forum`，使用 Nuxt/Vue/TuffEx 独立工程。旧 React/Fastify 论坛已经退出活动代码和构建，旧业务数据库不删除、不自动导入。
 
-## 它做什么
+**当前论坛前端不包含真实后端或认证。** 本机发现私有快照目录时只读显示极客班论坛归档（无登录、不可写）；否则为上游示例，示例身份不是 GitHub 登录，内容只保存于当前浏览器。公开宣传页 → 登录后内部 Hub → 论坛/组织管理/扩展服务是目标结构；统一内部认证、服务接入和 3D Hub 尚未落地，不能把这次原仓接入称为完整生产社区。
 
-- 用 GitHub 账号登录，自动列出你 owner / member 的所有组织
-- 按 GitHub 组织角色分权：org admin 看到全功能，member 只读
-- 仓库深度管理：代码浏览（按分支）、commit 历史 + diff、issues、PRs、协作者增删、新建 / 删除仓库
-- 临时邀请链接：admin 生成带有效期 + 次数 + 自动加入 team 的链接，发出去任何人凭链接填用户名即可自动收到邀请
-- 组织级设置同步：默认仓库权限、可创建 / fork / 删仓 / 改可见性 等开关一处管
-- 团队 CRUD
-- 成员管理：升降级 / 移除
-- 活动流：组织最近 push / PR / issue / release
-- 安全：Dependabot 警报（Pro+ 才有数据）、Audit log 状态
-- 意见箱：任何人都能向某个组织提建议 / 报 bug；admin 在后台分类、回复、改状态
-- 操作日志：所有 admin 操作（包括公开页提交）都入 SQLite，可审计
-- 官网主站：品牌落地页，柔和校徽蓝白浅色主题 + 看板娘模块（全站唯一浅色主题，无深色模式）
-- 论坛：技术讨论社区（帖子 / 分类 / 用户 / 通知 / 老师面板），与管理后台共用登录体系
+## 从哪里开始
 
-## 三个站点
-
-- 官网（portal）：https://yangtzeu.work/
-- 论坛（forum）：https://forum.yangtzeu.work/
-- 管理后台（admin）：https://github.yangtzeu.work/
-
-同一个 Vite 项目按域名渲染不同站点，切换逻辑见 [docs/architecture/ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md)。
-
-## 谁能用
-
-- **普通用户**：去 https://github.yangtzeu.work/ 登录，自动看到你的 org 列表
-- **组织 admin**：所有管理操作均可用
-- **组织 member**：只读视图，看不到 admin 操作按钮
-- **完全外部访客**：可访问 `/feedback/<org-login>` 提交意见，可凭 `/join/<token>` 链接申请加入
-
-## 上手最快路径
-
-1. 打开 https://github.yangtzeu.work/
-2. 点"使用 GitHub 登录"，授权 OAuth（首次需要点 GitHub 的 Authorize）
-3. 选择一个你 owner / member 的组织进入后台
-4. 详细用法见 [docs/ops/USAGE.md](./docs/ops/USAGE.md)
-
-## 技术栈
-
-| 层 | 选择 |
+| 需要做什么 | 入口 |
 |---|---|
-| 反代 + HTTPS | nginx + certbot（Let's Encrypt） |
-| 后端 | Node 20 + Fastify + Octokit + better-sqlite3 |
-| 数据库 | SQLite（单文件，WAL 模式） |
-| 前端 | Vite + React 18 + Tailwind + React Query + React Router |
-| 进程 | systemd |
-| 鉴权 | GitHub OAuth App（admin:org + repo + read:user + read:org + user:email） |
-| 防 spam | Cloudflare Turnstile（可选）+ IP 频率限制 |
+| 阅读全部项目、提交、贡献、模块化及技术文档规范 | [docs/README.md](docs/README.md) |
+| Agent 接手项目：第一步先读规范，不先操作 | [AGENTS.md](AGENTS.md)、[AGENT-START](docs/conventions/AGENT-START.md) |
+| 了解真实架构与数据归属 | [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
+| 了解实际技术栈，不混淆升级提议 | [STACK.md](docs/design/STACK.md) |
+| 操作部署环境 | [DEPLOY.md](docs/ops/DEPLOY.md) |
+| main、人工验收、release-/prev- 与预发布 @SHA | [RELEASES](docs/conventions/RELEASES.md)、[CI/CD 设计](docs/ops/CICD.md) |
+| 已拉取的论坛原始数据与本地核验 | [FORUM-DATA-CAPTURE](docs/ops/FORUM-DATA-CAPTURE.md) |
+| 本机启动核心预览和原仓论坛 | [LOCAL-PREVIEW.md](docs/ops/LOCAL-PREVIEW.md)、[TUFF-FORUM.md](docs/ops/TUFF-FORUM.md) |
+| 论坛代码来源、许可和替换边界 | [采用决策](docs/decisions/0003-adopt-tuff-forum.md) |
 
-## 本地开发
+## 目录边界
 
-```bash
-cp .env.example .env
-# 填好 OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET
-# SESSION_SECRET=$(openssl rand -base64 32)
-# ENCRYPTION_KEY=$(openssl rand -base64 32)
-# PUBLIC_ORIGIN=http://localhost:5173
-pnpm install
-pnpm dev
+```text
+geek_main/
+  modules/forum/                  上游 Tuff Forum 原代码，独立工具链/锁文件
+  web/sites/{portal,admin}/        核心两端页面、路由和业务组件
+  web/shared/                     跨端 UI、网络、渲染和配置适配
+  server/src/routes/{portal,admin}/  核心 HTTP 模块与各自契约
+  server/src/lib/                  数据工厂与共享业务规则
+  server/src/middleware/           请求认证与安全策略
+  server/src/app.ts                应用组装，可注入依赖，不监听端口
+  server/src/index.ts              唯一后端启动入口
+  tests/                          隔离回归、组件与工具测试
+  scripts/                        统一检查与文档生成
+  docs/                           全部规范、架构、模块合同、运维与决策
+  deploy/                         部署模板；普通开发不执行
 ```
 
-server 跑在 `127.0.0.1:3000`，web dev server 跑在 `5173`（带 proxy 转发到后端）。
+## 开发与验收
 
-只做前端（不配 OAuth / 不起后端）也可以：
-
-```bash
-pnpm --filter @yzgc/web dev
-```
-
-页面右上角 `DEV CONTROL` 默认使用本地 mock 数据，可浏览官网 / 论坛 / 管理后台全部页面；随时切回真实 API。
-
-## 部署
+核心包使用 `.nvmrc` 指定的 Node 22（最低 22.13）和 pnpm 9.15.9；论坛按原仓使用 Node >=26 和 pnpm 11.24.0。根 `forum:*` 命令选择独立工具链，不将论坛加入旧 pnpm 9 依赖解析。新环境配置见 TUFF-FORUM；本机已准备两套运行时。切换 Node 后不能复用另一 ABI 的 SQLite 二进制。
 
 ```bash
-# 服务器
-git clone git@github.com:Yangtze-University-Geek-Class/admin.git /opt/yzgc-admin
-cd /opt/yzgc-admin
-cp .env.example .env   # 填好生产值，注意 PUBLIC_ORIGIN 必须是 https
 pnpm install --frozen-lockfile
-pnpm -r run build
-install -m 644 deploy/yzgc-admin.service /etc/systemd/system/
-install -m 644 deploy/nginx.conf /etc/nginx/sites-available/<domain>
-ln -s /etc/nginx/sites-available/<domain> /etc/nginx/sites-enabled/<domain>
-certbot --nginx -d <domain>
-systemctl daemon-reload && systemctl enable --now yzgc-admin
+pnpm dev:web       # 前端只读 mock 预览；不需要 OAuth 或业务数据库
+pnpm dev           # 前后端开发；需要人工填写本机专用 .env
+pnpm check         # 运行时、边界、文档和类型检查
+pnpm release:plan --help # 只读版本/来源规划，不是人工批准，不打 tag 或部署
+pnpm test          # 真实应用路由、隔离 SQLite、模拟外部服务
+pnpm build         # 核心 portal/admin 和 Fastify 构建
+pnpm forum:install # 论坛 frozen-lockfile 独立安装
+pnpm forum:check   # 原仓类型、Lint、样式约束及单测
+pnpm forum:generate # 原仓 Nuxt 静态产物
+pnpm verify        # 核心 check/test/build + 论坛 check/generate
+pnpm test:e2e      # 核心浏览器验证
+pnpm forum:verify # 原仓 CDP 验收及路由烟测
+pnpm preview:local # 核心 5173/3000 + 独立论坛 3456
 ```
 
-详见 [docs/ops/DEPLOY.md](./docs/ops/DEPLOY.md)。
+核心页面在 `http://127.0.0.1:5173/sites/portal/`、`/sites/admin/`，论坛为 `http://127.0.0.1:3456/`。旧论坛页面入口转到新论坛首页，不猜测旧帖子 ID 映射。核心 mock 是只读；`pnpm forum:start` 在本机发现 `.tools/forum-runtime/` 下的只读快照时显示极客班论坛归档（无登录、不可写、不写 localStorage），`GEEK_FORUM_SOURCE=demo` 回到原仓示例交互；两种模式界面都明确提醒其并非真实认证或跨设备存储，详见 [TUFF-FORUM](docs/ops/TUFF-FORUM.md)。
 
-## 文档
+真实开发环境参照 [本地环境模板](docs/ops/ENVIRONMENT.md) 由操作者填写，不在仓库提交密钥，不连接生产数据库做测试；已有环境文件保持原样。常规测试只使用内存数据库及临时目录，不触发 GitHub、邮件或部署操作。生产部署需单独授权和发布验证，不能把本地构建通过视为线上验收。
 
-- 人工入口（改什么 → 看哪篇）：[docs/README.md](./docs/README.md)
-- 全部文档的生成索引：[docs/INDEX.md](./docs/INDEX.md)
+## 文档维护
 
-主要几篇：
+规范统一在 `docs/` 中维护。新增、移动或修改文档后运行 `pnpm docs:index`；提交前的 `pnpm check` 校验索引和相对链接。当前实现、提议和历史记录必须分开标注。中文是主要规范文本，英文伴随文档明确其范围。
 
-- [USAGE.md](./docs/ops/USAGE.md) — 用户指南，含管理员 / 普通用户 / 外部访客三视角
-- [DEPLOY.md](./docs/ops/DEPLOY.md) — 部署 + 运维
-- [ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md) — 后端路由 / 数据库 / OAuth 流程 / 安全模型
-- [CONTRIBUTING.md](./docs/conventions/CONTRIBUTING.md) — 贡献流程总入口
-- [COMMITS.md](./docs/conventions/COMMITS.md) — commit 规范
-- [ISSUES.md](./docs/conventions/ISSUES.md) — Issue 规范
-- [PULL-REQUESTS.md](./docs/conventions/PULL-REQUESTS.md) — PR 规范
-- [DESIGN.md](./docs/design/DESIGN.md) — 页面设计规范
-- [STACK.md](./docs/design/STACK.md) — 技术栈与版本基线
-- [WEB-SPLIT.md](./docs/plan/WEB-SPLIT.md) — 前端三站拆分方案
-- [REFACTOR.md](./docs/plan/REFACTOR.md) — 前端现状盘点
-
-## License
-
-私有项目，仅供 Yangtze-University-Geek-Class 组织内部使用。
+私有项目；未经授权不发布内部代码、文档或凭据。所采用的 Tuff Forum 原有版权和 MIT 许可证完整保留在 `modules/forum/LICENSE`，不得以本项目私有属性删除上游声明。

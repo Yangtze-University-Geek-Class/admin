@@ -1,0 +1,135 @@
+# Stack 堆叠
+
+> 以方向为核心的一维 Flexbox 包装器，用于纵向或横向间距布局。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/stack) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/stack.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/stack.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Stack 堆叠
+
+## 基础用法
+
+官方示例：`StackStackDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="width: 360px; padding: 16px; border: 1px solid var(--tx-border-color); border-radius: 12px;">
+    <TxStack :gap="10">
+      <TxButton>One</TxButton>
+      <TxButton variant="secondary">Two</TxButton>
+      <TxButton variant="ghost">Three</TxButton>
+    </TxStack>
+  </div>
+</template>
+```
+
+## 组合示例
+
+### 横向操作区
+
+```vue
+<template>
+  <TxStack direction="horizontal" align="center" justify="flex-end" :gap="8" wrap>
+    <TxButton variant="ghost">取消</TxButton>
+    <TxButton variant="primary">保存</TxButton>
+  </TxStack>
+</template>
+```
+
+### 行内堆叠
+
+```vue
+<template>
+  <span>
+    状态：
+    <TxStack inline direction="horizontal" align="center" gap="0.5rem">
+      <TxBadge value="Live" variant="success" />
+      <TxTag label="Beta" size="sm" />
+    </TxStack>
+  </span>
+</template>
+```
+
+## 交互契约
+
+- 根节点是 `div`，默认 `display: flex`。
+- `direction="vertical"` 映射为 `flex-direction: column`；`direction="horizontal"` 映射为 `row`。
+- 数字 `gap` 会转成 px；字符串会原样保留。
+- `align` 与 `justify` 会写入 CSS 变量，并分别作为 `align-items` 与 `justify-content` 使用。
+- `wrap=true` 映射为 `flex-wrap: wrap`；否则使用 `nowrap`。
+- `inline=true` 会把 display 从 `flex` 切换为 `inline-flex`。
+- 根节点设置 `min-width: 0`，确保子元素可以在受限卡片内收缩。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `direction` | `'horizontal' \| 'vertical'` | `'vertical'` | 主轴方向。 |
+| `gap` | `number \| string` | `12` | 子元素间距，数字会转为 px。 |
+| `align` | `string` | `'stretch'` | 交叉轴对齐，取任意合法 `align-items` 值（`stretch` / `center` / `flex-start` / `flex-end` / `baseline`）。类型未收窄为联合，便于传 `safe center` 等新值。 |
+| `justify` | `string` | `'flex-start'` | 主轴分布，取任意合法 `justify-content` 值（`flex-start` / `center` / `space-between` / `space-around` / `space-evenly`）。等分布局用 `space-between`，居中成组用 `center`。 |
+| `wrap` | `boolean` | `false` | 允许子元素换行。 |
+| `inline` | `boolean` | `false` | 使用 `inline-flex` 而不是块级 `flex`。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| - | - | `TxStack` 不触发自定义事件。子组件保留自己的事件行为。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|------|------|
+| `default` | - | 堆叠子元素。 |
+
+### CSS Variables
+
+| 变量 | 来源 | 说明 |
+|------|------|------|
+| `--tx-stack-gap` | `gap` | CSS gap。 |
+| `--tx-stack-align` | `align` | `align-items`。 |
+| `--tx-stack-justify` | `justify` | `justify-content`。 |
+| `--tx-stack-direction` | `direction` | 解析后的 flex direction。 |
+| `--tx-stack-wrap` | `wrap` | 解析后的换行模式。 |
+| `--tx-stack-display` | `inline` | `flex` 或 `inline-flex`。 |
+
+## 最佳实践
+
+- 当设计需要控制同级元素节奏时使用 `TxStack`，不要把它当成任意页面布局容器。
+- 表单与设置面板优先使用 `vertical`；操作行和紧凑元信息优先使用 `horizontal`。
+- 需要适配窄容器的按钮组应开启 `wrap`。
+- `gap` 使用 token 或数字值；不要用空子元素充当间隔。
+- 需要 `row-reverse` 或 `column-reverse` 等原生 flex 方向时使用 `TxFlex`。
+
+
+## 审阅说明
+
+- 已核对 `packages/tuffex/packages/components/src/stack/src/TxStack.vue`、`types.ts` 与 `stack.test.ts`。
+- 现有测试覆盖默认纵向变量、插槽内容渲染、横向 prop 映射、换行、行内 display 与数字 gap 归一化。
+- 可访问性说明：`TxStack` 不添加语义 role。列表、表单、导航语义应保留在子元素或外层容器上。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/stack/src/TxStack.vue`.
+- Types: `packages/tuffex/packages/components/src/stack/src/types.ts` exports `StackProps` and `StackDirection`.
+- **实测覆盖:** `packages/tuffex/packages/components/src/stack/__tests__/stack.test.ts` 覆盖默认纵向 CSS 变量与插槽渲染、横向 prop 映射、换行、行内 display，以及数字 gap 归一化。
+
+## 离线完整示例源码
+
+- [StackStackDemo](../snapshot/apps/nexus/app/components/content/demos/StackStackDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [stack/index.ts](../snapshot/packages/tuffex/packages/components/src/stack/index.ts.txt)
+- [src/TxStack.vue](../snapshot/packages/tuffex/packages/components/src/stack/src/TxStack.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/stack/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。
