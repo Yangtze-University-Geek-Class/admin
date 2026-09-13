@@ -1,3 +1,4 @@
+import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "@shared/lib/api";
@@ -19,6 +20,7 @@ export default function Feedback() {
   const [recent, setRecent] = useState<any[]>([]);
   const [siteKey, setSiteKey] = useState<string | null>(null);
   const [tsToken, setTsToken] = useState("");
+  const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
   useEffect(() => {
     api<{ categories: string[]; pow_difficulty: number }>("/api/feedback/categories").then((d) => {
@@ -31,24 +33,6 @@ export default function Feedback() {
   useEffect(() => {
     if (form.org) api<{ items: any[] }>(`/api/feedback/public?org=${encodeURIComponent(form.org)}&limit=10`).then((d) => setRecent(d.items));
   }, [form.org, done]);
-
-  useEffect(() => {
-    if (!siteKey) return;
-    const s = document.createElement("script");
-    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    s.async = true;
-    s.defer = true;
-    document.head.appendChild(s);
-    s.onload = () => {
-      const t = setInterval(() => {
-        if (window.turnstile) {
-          clearInterval(t);
-          window.turnstile.render("#turnstile-box-fb", { sitekey: siteKey, callback: (tok: string) => setTsToken(tok), theme: "auto" });
-        }
-      }, 100);
-    };
-    return () => { s.remove(); };
-  }, [siteKey]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,10 +49,11 @@ export default function Feedback() {
       });
       setDone(r.message);
       setForm({ ...form, content: "", contact: "", website: "" });
-      (window as any).turnstile?.reset?.();
+      setCaptchaEpoch(value => value + 1);
       setTsToken("");
     } catch (e) {
       setErr((e as Error).message);
+      setCaptchaEpoch(value => value + 1); setTsToken("");
     } finally {
       setBusy("");
     }
@@ -128,7 +113,7 @@ export default function Feedback() {
                   value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
               </div>
 
-              {siteKey && <div id="turnstile-box-fb" className="flex justify-center" />}
+              <TurnstileWidget siteKey={siteKey} onToken={setTsToken} resetKey={captchaEpoch} />
               {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
 
               <button type="submit" className="btn-primary w-full py-3" disabled={Boolean(busy) || form.content.length < 5 || !form.org || (!!siteKey && !tsToken)}>

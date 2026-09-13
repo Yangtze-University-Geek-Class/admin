@@ -1,10 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { externalUrl } from "@shared/lib/site";
+import { useProseInteractions } from "@shared/ui/ImageLightbox";
+import { getBasePath } from "@shared/lib/runtime";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/lib/api";
 import { renderMarkdown } from "@shared/lib/markdown";
 
-type Item = { id: string; label: string; lang: "zh" | "en" };
+type Item = { id: string; label: string; lang: "zh" | "en"; file?: string };
 type Doc = { id: string; label: string; lang: "zh" | "en"; file: string; content: string };
 
 export default function Docs() {
@@ -51,8 +54,18 @@ export default function Docs() {
 
   const html = useMemo(() => {
     if (!current.data?.content) return "";
-    return renderMarkdown(current.data.content);
-  }, [current.data?.content]);
+    return renderMarkdown(current.data.content, {
+      resolveAsset: path => {
+        if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(path) || !current.data?.file) return null;
+        const target = new URL(path, `https://docs.invalid/${current.data.file}`);
+        const linked = items.find(item => item.file === target.pathname.slice(1));
+        return linked ? `${getBasePath("portal")}/docs/${linked.id}${target.hash}` : null;
+      },
+    });
+  }, [current.data?.content, current.data?.file, items]);
+
+  const articleRef = useRef<HTMLElement>(null);
+  useProseInteractions(articleRef, [html]);
 
   return (
     <div className="min-h-full">
@@ -70,7 +83,7 @@ export default function Docs() {
                 }`}>{l === "zh" ? "中文" : "English"}</button>
             ))}
           </div>
-          <Link to="/admin" className="btn-ghost text-sm">管理后台</Link>
+          <a href={externalUrl("admin", "/admin")} className="btn-ghost text-sm">管理后台</a>
         </div>
       </header>
 
@@ -91,7 +104,7 @@ export default function Docs() {
           {current.isLoading && <div className="text-ink-500">加载中…</div>}
           {current.error && <div className="text-rose-400">{(current.error as Error).message}</div>}
           {current.data && (
-            <article className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />
+            <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />
           )}
         </main>
       </div>

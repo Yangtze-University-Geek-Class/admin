@@ -1,0 +1,49 @@
+{
+  "name": "tuff-forum",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "nuxt dev --port 3456",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "typecheck:tests": "vue-tsc --noEmit -p tsconfig.tests.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check:styles": "node scripts/check-styles.mjs",
+    "smoke": "node scripts/smoke-routes.mjs",
+    "verify": "node scripts/verify-all.mjs",
+    "check": "pnpm typecheck && pnpm typecheck:tests && pnpm lint && pnpm check:styles && pnpm test"
+  },
+  "dependencies": {
+    "@iconify-json/carbon": "1.2.27",
+    "@iconify-json/ri": "1.2.10",
+    "@nuxtjs/color-mode": "4.0.1",
+    "@pinia/nuxt": "1.0.2",
+    "@talex-touch/tuffex": "0.6.0",
+    "@unocss/nuxt": "66.10.2",
+    "@unocss/reset": "66.10.2",
+    "@vueuse/core": "14.4.0",
+    "@vueuse/nuxt": "14.4.0",
+    "dayjs": "1.11.23",
+    "nuxt": "4.5.2",
+    "pinia": "4.0.3",
+    "unocss": "66.10.2",
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "1.17.0",
+    "eslint": "^9.39.4",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.7",
+    "vue-tsc": "3.3.11"
+  }
+}

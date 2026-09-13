@@ -4,14 +4,44 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "build": "node scripts/check-site-hosts.mjs && pnpm -r run build",
+    "build": "pnpm check:runtime && pnpm check:hosts && pnpm --filter @yzgc/server build && pnpm --filter @yzgc/web build",
+    "check:runtime": "node scripts/check-runtime.mjs",
     "check:hosts": "node scripts/check-site-hosts.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "docs:index": "node scripts/docs-index.mjs",
+    "check:docs": "node scripts/docs-index.mjs --check && node scripts/check-docs.mjs && node scripts/tuffex-docs.mjs check",
+    "docs:tuffex": "node scripts/tuffex-docs.mjs",
+    "check:tuffex-docs": "node scripts/tuffex-docs.mjs check",
+    "release:plan": "node scripts/release-policy.mjs",
+    "check:environments": "node scripts/deployment-environment.mjs --check",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
+    "check": "pnpm check:runtime && pnpm check:hosts && pnpm check:environments && pnpm check:boundaries && pnpm check:docs && pnpm check:secrets && pnpm typecheck",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "verify": "pnpm check && pnpm test && pnpm build && pnpm forum:check && pnpm forum:generate",
+    "forum:install": "node scripts/forum.mjs install",
+    "forum:dev": "node scripts/forum.mjs dev --host 127.0.0.1",
+    "forum:start": "node scripts/forum.mjs start",
+    "forum:status": "node scripts/forum.mjs status",
+    "forum:stop": "node scripts/forum.mjs stop",
+    "forum:check": "node scripts/forum.mjs check",
+    "forum:generate": "node scripts/forum.mjs generate",
+    "forum:verify": "node scripts/forum.mjs verify",
+    "preview:local": "node scripts/local-preview.mjs start && node scripts/forum.mjs start",
+    "dev:web": "pnpm --filter @yzgc/web dev",
     "dev": "pnpm -r --parallel run dev",
-    "start": "node server/dist/index.js"
+    "start": "node scripts/check-runtime.mjs && node server/dist/index.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13.0 <23"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.7.2",
+    "@playwright/test": "^1.55.0"
   }
 }

@@ -1,0 +1,50 @@
+# pnpm settings only (pnpm 11 reads them from here, not from package.json or .npmrc).
+# No `packages` list: this is a single self-contained project, not a monorepo.
+
+# @talex-touch/utils (a tuffex runtime dependency) declares an `electron` peer.
+# Never let pnpm resolve or install Electron for a Nuxt app.
+autoInstallPeers: false
+strictPeerDependencies: false
+peerDependencyRules:
+  ignoreMissing:
+    - electron
+
+# pnpm 11 blocks dependency build scripts unless allow-listed. These are the
+# only three pnpm reported: esbuild/unrs-resolver only fall back to a postinstall
+# when no prebuilt binary matched, vue-demi's script pins the Vue major.
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true
+
+# Exact versions pinned by the design are younger than pnpm's default
+# minimumReleaseAge; pnpm wrote this list itself on first install.
+minimumReleaseAgeExclude:
+  - '@iconify-json/carbon@1.2.27'
+  - '@unocss/cli@66.10.2'
+  - '@unocss/config@66.10.2'
+  - '@unocss/core@66.10.2'
+  - '@unocss/extractor-arbitrary-variants@66.10.2'
+  - '@unocss/inspector@66.10.2'
+  - '@unocss/nuxt@66.10.2'
+  - '@unocss/preset-attributify@66.10.2'
+  - '@unocss/preset-icons@66.10.2'
+  - '@unocss/preset-mini@66.10.2'
+  - '@unocss/preset-tagify@66.10.2'
+  - '@unocss/preset-typography@66.10.2'
+  - '@unocss/preset-uno@66.10.2'
+  - '@unocss/preset-web-fonts@66.10.2'
+  - '@unocss/preset-wind3@66.10.2'
+  - '@unocss/preset-wind4@66.10.2'
+  - '@unocss/preset-wind@66.10.2'
+  - '@unocss/reset@66.10.2'
+  - '@unocss/rollup@66.10.2'
+  - '@unocss/rule-utils@66.10.2'
+  - '@unocss/transformer-attributify-jsx@66.10.2'
+  - '@unocss/transformer-compile-class@66.10.2'
+  - '@unocss/transformer-directives@66.10.2'
+  - '@unocss/transformer-variant-group@66.10.2'
+  - '@unocss/vite@66.10.2'
+  - '@unocss/webpack@66.10.2'
+  - unocss@66.10.2
+  - '@talex-touch/tuffex@0.6.0'

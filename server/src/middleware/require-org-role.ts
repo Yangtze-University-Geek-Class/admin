@@ -1,9 +1,10 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { getOrgRole } from "../lib/github.js";
-import { config } from "../config.js";
+
+
 
 export function requireOrgRole(minRole: "admin" | "member") {
   return async (req: FastifyRequest, reply: FastifyReply) => {
+    const { config, github: { getOrgRole } } = req.server.services;
     if (!req.session) return reply.code(401).send({ error: "not_signed_in" });
     const org = (req.params as { org?: string }).org;
     if (!org) return reply.code(400).send({ error: "missing org" });

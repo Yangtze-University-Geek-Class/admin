@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate, useParams, Link } from "react-router-dom";
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/lib/api";
 import { getDataSource } from "@shared/lib/runtime";
 import { externalUrl } from "@shared/lib/site";
@@ -28,6 +28,7 @@ type Me = { signed_in: boolean; login?: string; avatar_url?: string };
 export default function OrgLayout() {
   const { org } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/auth/me") });
   const orgs = useQuery({
     queryKey: ["my-orgs"],
@@ -73,7 +74,8 @@ export default function OrgLayout() {
       navigate("/admin/signin", { replace: true });
       return;
     }
-    await fetch("/auth/signout", { method: "POST" });
+    await api("/auth/signout", { method: "POST" });
+    qc.clear();
     navigate("/admin/signin", { replace: true });
   };
 
@@ -83,7 +85,13 @@ export default function OrgLayout() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col md:flex-row">
+      <header className="md:hidden p-4 border-b border-ink-700 space-y-3">
+        <Link className="text-brand-500" to="/admin">全部组织</Link>
+        <Select label="组织切换" value={org ?? ""} onChange={switchOrg} options={(orgs.data?.orgs ?? []).map((item: { login: string }) => ({ value: item.login, label: item.login }))} />
+        <nav aria-label="移动端管理导航" className="flex flex-wrap gap-2">{NAV.map(item => <NavLink key={item.to} to={item.to} end={item.end} className="btn-ghost text-sm">{item.label}</NavLink>)}</nav>
+        <button className="btn-ghost" onClick={signOut}>退出登录</button>
+      </header>
       <aside className="hidden md:flex w-64 flex-col border-r border-ink-800/70 bg-ink-950/80 backdrop-blur p-4">
         <Link to="/admin" className="flex items-center gap-3 px-2 py-3 mb-2 hover:bg-ink-800/30 rounded-lg">
           <img src="/logo.png" alt="" className="w-8 h-8 rounded-md border border-ink-700" />

@@ -1,5 +1,6 @@
 type Entry<T> = { value: T; expires: number };
 
+export function createCache() {
 const MAX_ENTRIES = 500;
 const store = new Map<string, Entry<unknown>>();
 
@@ -19,7 +20,7 @@ function evictIfFull() {
  * cache returns immediately. After expiry the next call re-runs `fn` and
  * refreshes. Errors are NOT cached — failures retry on next call.
  */
-export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = store.get(key) as Entry<T> | undefined;
   if (hit && hit.expires > Date.now()) return hit.value;
   const value = await fn();
@@ -28,12 +29,15 @@ export async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>
   return value;
 }
 
-export function invalidate(prefix: string) {
+function invalidate(prefix: string) {
   for (const k of store.keys()) {
     if (k.startsWith(prefix)) store.delete(k);
   }
 }
 
-export function cacheStats() {
+function cacheStats() {
   return { size: store.size, max: MAX_ENTRIES };
+}
+
+return { cached, invalidate, cacheStats };
 }

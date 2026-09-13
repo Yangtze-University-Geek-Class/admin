@@ -7,10 +7,18 @@ dist
 *.log
 .DS_Store
 .vite
-data/
+/data/
 web/tsconfig.tsbuildinfo
-forum-migration/
 
 # 个人分析笔记 + 项目级 agent skill（不上传 git）
 .agent-notes/
 .pi/
+.tools/
+coverage/
+test-results/
+playwright-report/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key
+__pycache__/

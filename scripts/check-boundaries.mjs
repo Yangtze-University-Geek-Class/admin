@@ -1,105 +1,103 @@
 #!/usr/bin/env node
-// 端边界检查 —— 阻止跨端 import 与 shared → sites 反向依赖。
-//
-//   node scripts/check-boundaries.mjs
-//
-// 为什么需要它：三端（portal / forum / admin）在目录上已隔离，但隔离本身
-// 不阻止有人写一条跨端 import。本脚本在构建前置跑，命中即 exit 1 并打印
-// 文件与行号。不引入 eslint 全家桶，零依赖。
-//
-// 规则（见 docs/plan/WEB-SPLIT.md §4）：
-//   允许   sites/* → shared/*          sites/* 内部自由引用
-//   禁止   sites/A → sites/B（A≠B）    shared/* → sites/*
-//
-// 后端同理：server/src/routes/{portal,forum,admin} 之间不得互相 import，
-// 但都允许引用 lib/ 与 middleware/。
+import ts from "typescript";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative, dirname, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-/** 递归收集指定扩展名的源文件。 */
-function walk(dir, ext = [".ts", ".tsx"]) {
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+export function walk(dir) {
   if (!existsSync(dir)) return [];
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(full, ext));
-    else if (ext.some((e) => entry.name.endsWith(e))) out.push(full);
-  }
-  return out;
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    if (entry.name.startsWith(".") || ["node_modules", "dist", "coverage"].includes(entry.name)) return [];
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? walk(path) : /\.(?:tsx?|m?js)$/.test(entry.name) ? [path] : [];
+  });
 }
-
-/** 从源文件里抽出所有相对/别名 import 的说明符。 */
-function specifiers(src) {
-  const out = [];
-  const re = /(?:from\s+|import\s*)["']([^"']+)["']/g;
-  let m;
-  while ((m = re.exec(src))) out.push({ spec: m[1], index: m.index });
-  return out;
-}
-
-/** 把 import 说明符解析为绝对路径（能解析到文件才算，解析不到返回 null）。 */
-function resolveSpec(fromFile, spec) {
-  let base;
-  if (spec.startsWith("@shared/")) base = join(ROOT, "web/shared", spec.slice("@shared/".length));
-  else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);
-  else return null; // 裸包名，不管
-
-  for (const cand of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")]) {
-    if (existsSync(cand) && statSync(cand).isFile()) return cand;
+export function specifiers(source, filename = "source.ts") {
+  const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
+  const result = [];
+  const add = node => {
+    if (node && ts.isStringLiteralLike(node)) result.push({ spec: node.text, line: ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1 });
+    else if (node) result.push({ spec: null, line: ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1 });
+  };
+  function visit(node) {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier);
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) add(node.moduleReference.expression);
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) add(node.argument.literal);
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) add(node.arguments[0]);
+    ts.forEachChild(node, visit);
   }
+  visit(ast);
+  return result;
+}
+export function domainOf(path, root = ROOT) {
+  const name = relative(root, path).split(sep).join("/");
+  const web = name.match(/^web\/sites\/([^/]+)\//);
+  if (web) return { layer: "web", kind: "site", name: web[1] };
+  if (name.startsWith("web/shared/")) return { layer: "web", kind: "shared", name: "shared" };
+  const server = name.match(/^server\/src\/routes\/([^/]+)\//);
+  if (server) return { layer: "server", kind: "route", name: server[1] };
+  if (/^server\/src\/(lib|middleware)\//.test(name)) return { layer: "server", kind: "infrastructure", name: "shared" };
+  if (name.startsWith("server/src/")) return { layer: "server", kind: "composition", name: "server" };
   return null;
 }
-
-const violations = [];
-
-/** 判定一个文件属于哪个「域」。 */
-function domainOf(absPath) {
-  const rel = relative(ROOT, absPath).split(sep).join("/");
-  let m;
-  if ((m = rel.match(/^web\/sites\/([a-z]+)\//))) return { kind: "site", name: m[1], layer: "web" };
-  if (rel.startsWith("web/shared/")) return { kind: "shared", name: "shared", layer: "web" };
-  if ((m = rel.match(/^server\/src\/routes\/([a-z]+)\//))) return { kind: "route", name: m[1], layer: "server" };
-  if (rel.startsWith("server/src/")) return { kind: "serverShared", name: "server-shared", layer: "server" };
-  return null;
+function compilerOptions(file, root) {
+  const configPath = join(root, relative(root, file).split(sep).join("/").startsWith("web/") ? "web/tsconfig.json" : "server/tsconfig.json");
+  if (!existsSync(configPath)) return { moduleResolution: ts.ModuleResolutionKind.Bundler };
+  const source = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (source.error) throw new Error(`Cannot read module configuration: ${relative(root, configPath)}`);
+  const parsed = ts.parseJsonConfigFileContent(source.config, ts.sys, dirname(configPath));
+  // Missing inputs in a synthetic test workspace are not configuration errors.
+  if (parsed.errors.some(error => error.code !== 18003)) throw new Error(`Invalid module configuration: ${relative(root, configPath)}`);
+  return parsed.options;
 }
-
-const files = [...walk(join(ROOT, "web/sites")), ...walk(join(ROOT, "web/shared")), ...walk(join(ROOT, "server/src"))];
-
-for (const file of files) {
-  const from = domainOf(file);
-  if (!from) continue;
-  const src = readFileSync(file, "utf8");
-
-  for (const { spec, index } of specifiers(src)) {
-    const target = resolveSpec(file, spec);
-    if (!target) continue;
-    const to = domainOf(target);
-    if (!to) continue;
-
-    const rel = relative(ROOT, file);
-    const line = src.slice(0, index).split("\n").length;
-    const hit = `${rel}:${line}  ${spec}`;
-
-    if (from.kind === "site" && to.kind === "site" && from.name !== to.name) {
-      violations.push(`跨端 import：${from.name} → ${to.name}\n    ${hit}`);
-    } else if (from.kind === "shared" && to.kind === "site") {
-      violations.push(`shared 反向依赖站点：${to.name}\n    ${hit}`);
-    } else if (from.kind === "route" && to.kind === "route" && from.name !== to.name) {
-      violations.push(`后端跨端 import：${from.name} → ${to.name}\n    ${hit}`);
+function isLocalSpecifier(spec, options) {
+  if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@shared/")) return true;
+  return Object.keys(options.paths ?? {}).some(pattern => {
+    const star = pattern.indexOf("*");
+    return star === -1 ? spec === pattern : spec.startsWith(pattern.slice(0, star)) && spec.endsWith(pattern.slice(star + 1));
+  });
+}
+export function resolveSpec(file, spec, root = ROOT, options = compilerOptions(file, root)) {
+  const resolved = ts.resolveModuleName(spec, file, options, ts.sys).resolvedModule?.resolvedFileName;
+  if (resolved) return resolve(resolved);
+  const base = spec.startsWith("@shared/") ? join(root, "web/shared", spec.slice(8)) : spec.startsWith(".") ? resolve(dirname(file), spec) : null;
+  if (!base) return null;
+  const clean = base.split("?")[0];
+  const candidates = [clean, clean.replace(/\.js$/, ".ts"), clean.replace(/\.js$/, ".tsx"), `${clean}.ts`, `${clean}.tsx`, join(clean,"index.ts"), join(clean,"index.tsx")];
+  return candidates.find(candidate => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
+}
+export function checkProject(root = ROOT) {
+  const files = ["web/sites", "web/shared", "server/src"].flatMap(dir => walk(join(root,dir)));
+  const violations = [];
+  let imports = 0;
+  for (const file of files) {
+    const from = domainOf(file,root);
+    if (!from) continue;
+    const options = compilerOptions(file, root);
+    for (const item of specifiers(readFileSync(file,"utf8"),file)) {
+      imports++;
+      const at = `${relative(root,file)}:${item.line}`;
+      if (item.spec === null) { violations.push(`${at}: nonliteral module import requires a static module map`); continue; }
+      const local = isLocalSpecifier(item.spec, options);
+      const target = resolveSpec(file,item.spec,root,options);
+      if (!target) { if (local) violations.push(`${at}: unresolved local import ${item.spec}`); continue; }
+      if (target.split(sep).includes("node_modules")) continue;
+      if (relative(root,target).startsWith("..")) { if (local) violations.push(`${at}: local import escapes repository`); continue; }
+      const to = domainOf(target,root);
+      if (!to) continue;
+      if (from.layer !== to.layer) violations.push(`${at}: frontend/backend implementation import is forbidden`);
+      if (from.kind === "site" && to.kind === "site" && from.name !== to.name) violations.push(`${at}: cross-site dependency ${from.name} -> ${to.name}`);
+      if (from.kind === "shared" && to.kind === "site") violations.push(`${at}: shared depends on site ${to.name}`);
+      if (from.kind === "route" && to.kind === "route" && from.name !== to.name) violations.push(`${at}: cross-module route dependency ${from.name} -> ${to.name}`);
+      if (relative(root, file).split(sep).join("/").startsWith("server/src/lib/") && relative(root, target).split(sep).join("/").startsWith("server/src/middleware/")) violations.push(`${at}: identity/storage adapters depend on HTTP middleware`);
+      if (from.kind === "infrastructure" && ["route","composition"].includes(to.kind) && !target.endsWith(`${sep}config.ts`)) violations.push(`${at}: infrastructure depends on application composition/routes`);
     }
   }
+  return { files: files.length, imports, violations };
 }
-
-if (violations.length) {
-  console.error(`✗ 发现 ${violations.length} 处边界违规：\n`);
-  for (const v of violations) console.error(`  ${v}\n`);
-  console.error("规则见 docs/plan/WEB-SPLIT.md §4。跨端跳转请用 externalUrl()，共享代码请放 shared/。");
-  process.exit(1);
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  const report = checkProject();
+  if (report.violations.length) { console.error(report.violations.join("\n")); process.exitCode = 1; }
+  else console.log(`Boundaries passed: ${report.files} files, ${report.imports} imports (static, dynamic, re-export, import-type).`);
 }
-
-console.log(`✓ 边界检查通过（${files.length} 个文件）`);

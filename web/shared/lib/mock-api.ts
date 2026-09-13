@@ -1,3 +1,4 @@
+import { ApiError } from "./http";
 // Development-only local fixtures. api() routes to this module when the data
 // source is "mock" so protected pages can be browsed without a backend.
 // Never used in production builds (production forces "live").
@@ -107,17 +108,18 @@ function route(path: string): unknown {
   if (/\/feedback$/.test(pathname)) return { items: [{ id: 1, category: "建议", status: "open", submitter_login: "student", contact: "", content: "希望增加更多项目复盘和新生任务。", reply: null, created_at: now - 72e5 }], counts: { open: 1, triaged: 0, in_progress: 0, done: 0, wont_do: 0, spam: 0 } };
   if (/\/logs$/.test(pathname)) return { logs: [{ id: 1, created_at: now - 18e5, actor: "demo-admin", action: "repo.preview", target: `${demoOrg}/admin`, ip: "127.0.0.1", details: { source: "mock" } }] };
 
-  if (pathname === "/api/docs") return { items: [{ id: "usage", title: "使用指南", description: "开发预览文档" }] };
-  if (pathname.startsWith("/api/docs/")) return { id: "usage", title: "使用指南", content: "# 开发预览\n\n当前使用本地 mock 数据。" };
+  if (pathname === "/api/docs") return { items: [{ id: "usage", label: "使用指南", lang: "zh" }, { id: "usage-en", label: "Usage", lang: "en" }] };
+  if (pathname.startsWith("/api/docs/")) return { id: pathname.split("/").pop(), label: "使用指南", lang: pathname.endsWith("-en") ? "en" : "zh", file: "docs/ops/USAGE.md", content: "# 开发预览\n\n当前使用本地 mock 数据。" };
   if (pathname === "/api/feedback/categories") return { categories: ["建议", "Bug", "新功能", "其他"], pow_difficulty: 1 };
   if (pathname === "/api/public/config") return { turnstile_site_key: null, pow_difficulty: 1 };
   if (pathname === "/api/feedback/public") return { items: [] };
   if (pathname.startsWith("/api/join/")) return { valid: true, org: demoOrg, note: "开发预览邀请", expires_at: now + 864e5, remaining_uses: 23, pow_difficulty: 1 };
 
-  return { ok: true, mock: true };
+  throw new ApiError(404, "mock_route_missing", `开发预览未实现此接口：${pathname}`);
 }
 
 export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
+  if ((init?.method ?? "GET").toUpperCase() !== "GET") throw new ApiError(501, "mock_read_only", "开发预览为只读，操作验证请使用隔离测试或本地真实数据源");
   await new Promise((resolve) => setTimeout(resolve, init?.method && init.method !== "GET" ? 180 : 90));
   return jsonClone(route(path)) as T;
 }

@@ -1,11 +1,11 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { config } from "../config.js";
 
-mkdirSync(dirname(config.dbPath), { recursive: true });
+export function createDatabase(path: string) {
+if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 
-export const db = new Database(config.dbPath);
+const db = new Database(path);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
@@ -91,8 +91,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at DESC);
 `);
 
-export function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
+
+  db.exec(`CREATE TABLE IF NOT EXISTS invite_attempts (
+    id TEXT PRIMARY KEY, token TEXT NOT NULL, recipient TEXT NOT NULL,
+    state TEXT NOT NULL, github_invitation_id INTEGER, created_at INTEGER NOT NULL,
+    UNIQUE(token, recipient)
+  );`);
+function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
   db.prepare(
     "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
   ).run(org, actor, action, target ?? null, details ? JSON.stringify(details) : null, ip ?? null, Date.now());
+}
+
+return { db, audit };
 }

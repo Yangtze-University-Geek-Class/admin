@@ -68,6 +68,7 @@ export function setDataSource(source: DataSource): void {
 
 /** 跳到另一个端。开发态在同一个 Vite server 上按路径切换。 */
 export function crossSiteHref(target: AppSiteKind, path = "/"): string {
+  if (target === "forum" && import.meta.env.DEV) return `http://127.0.0.1:3456${path.startsWith("/") ? path : "/" + path}`;
   const suffix = path.startsWith("/") ? path : `/${path}`;
   return import.meta.env.DEV ? `/sites/${target}${suffix}` : `${window.location.protocol}//${appConfig.sites[target].host}${suffix}`;
 }
@@ -77,16 +78,13 @@ export function crossSiteHref(target: AppSiteKind, path = "/"): string {
  * 生产态走绝对域名（论坛在官网域名下时特殊处理为 `/forum` 前缀）。
  */
 export function externalSiteUrl(target: AppSiteKind, path = "/"): string {
+  if (target === "forum") return crossSiteHref(target, path);
   if (typeof window === "undefined") return path;
 
   const suffix = path.startsWith("/") ? path : `/${path}`;
   if (getCurrentSite() === target) return path;
 
   if (import.meta.env.DEV) return `/sites/${target}${suffix}`;
-
-  if (target === "forum" && window.location.hostname === appConfig.sites.portal.host) {
-    return suffix === "/" ? "/forum" : `/forum${suffix}`;
-  }
 
   const proto = window.location.protocol === "http:" ? "http:" : "https:";
   return `${proto}//${appConfig.sites[target].host}${suffix}`;

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "$comment": "极客班论坛只读快照的编辑层：老帖归档、对标 LINUX DO 的精简一级分类、话题归类与润色正文。改动后重启 pnpm forum:start 生效。",
+  "archive": {
+    "id": "c-archive",
+    "slug": "archive",
+    "name": "老帖归档",
+    "description": "极客班原论坛的历史帖子，只读保存；按原分类标签筛选。",
+    "color": "#94a3b8",
+    "icon": "i-ri-archive-stack-line",
+    "tagPrefix": "legacy-",
+    "tagColor": "#94a3b8"
+  },
+  "categories": [
+    { "id": "c-announcements", "slug": "announcements", "name": "班级公告", "description": "极客班通知、活动安排与规则说明。", "color": "#e5484d", "icon": "i-ri-megaphone-line" },
+    { "id": "c-courses", "slug": "courses", "name": "课程与作业", "description": "课程内容、作业讨论、考试与选课经验。", "color": "#2f6fed", "icon": "i-ri-book-open-line" },
+    { "id": "c-competitions", "slug": "competitions", "name": "竞赛与项目", "description": "竞赛信息、组队招募、项目进展与成果展示。", "color": "#f59e0b", "icon": "i-ri-trophy-line" },
+    { "id": "c-careers", "slug": "careers", "name": "求职与升学", "description": "实习、校招、考研与出国经验交流。", "color": "#0ea5e9", "icon": "i-ri-briefcase-line" },
+    { "id": "c-ai", "slug": "ai", "name": "人工智能", "description": "大模型、Agent、AI Coding、Prompt 工程、工作流与应用落地。", "color": "#6366f1", "icon": "i-ri-brain-line" }
+  ],
+  "categoryOmissions": [
+    "c16",
+    "c17",
+    "c18",
+    "c19",
+    "c20"
+  ],
+  "categoryOrder": [
+    "c-announcements",
+    "c-courses",
+    "c-competitions",
+    "c-careers",
+    "c-ai",
+    "c21",
+    "c-archive"
+  ],
+  "categoryPatches": {
+    "c21": { "name": "资源荟萃", "color": "#14b8a6", "description": "精选学习资源、开发工具、开源项目与教程资料汇总。", "icon": "i-ri-book-read-line" }
+  },
+  "tags": [
+    { "id": "tag-talk", "slug": "talk", "name": "分享会", "color": "#f97316" },
+    { "id": "tag-notes", "slug": "notes", "name": "知识整理", "color": "#14b8a6" },
+    { "id": "tag-roadmap", "slug": "ai-roadmap", "name": "AI路线", "color": "#10b981" },
+    { "id": "tag-models", "slug": "models", "name": "模型基础", "color": "#6366f1" },
+    { "id": "tag-agents", "slug": "agents", "name": "Agent", "color": "#8b5cf6" },
+    { "id": "tag-prompt", "slug": "prompt", "name": "Prompt工程", "color": "#ec4899" },
+    { "id": "tag-coding", "slug": "ai-coding", "name": "AICoding", "color": "#14b8a6" },
+    { "id": "tag-workflow", "slug": "ai-workflow", "name": "AI工作流", "color": "#f97316" },
+    { "id": "tag-products", "slug": "products", "name": "应用产品", "color": "#3b82f6" }
+  ],
+  "topics": {
+    "t78": {
+      "title": "LLM Wiki 搭建经验谈：别把知识库当垃圾场（2026-06-14 i3eg1nner 分享会整理）",
+      "categoryId": "c-ai",
+      "tagIds": ["tag-workflow", "tag-talk"]
+    },
+    "t84": {
+      "title": "Vibe Coding 知识点整理：从大模型到 Coding Agent（大模型基础 · Agent 原理 · 工具选型 · 实战工作流）",
+      "categoryId": "c-ai",
+      "tagIds": ["tag-coding", "tag-notes"]
+    }
+  },
+  "posts": {
+    "body-78": { "contentFile": "posts/body-78.md" },
+    "body-84": { "contentFile": "posts/body-84.md" }
+  }
+}
