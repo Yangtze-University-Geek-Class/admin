@@ -1,0 +1,230 @@
+# geek_main 持续集成（CI）
+#
+# 边界声明（与 docs/conventions/RELEASES.md、docs/ops/CICD.md 一致）：
+#   * 本工作流只做机器验证——隔离安装、静态检查、测试、构建、工作流自检。
+#   * 机器 PASS 不等于人工试用；它不构成任何发版授权或验收记录。
+#   * 不部署任何环境（既不碰 prev.yangtzeu.work，也不碰 yangtzeu.work）。
+#   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
+#   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
+#   * 不使用 continue-on-error 掩盖失败；不上传 artifact。
+# 后续按 tag 发版的流水线是另一套独立工作流，其人工门禁见 RELEASES.md。
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    # main 是唯一发布主线，主线每个提交都要留下完整的机器验证证据。
+    # next 只是长期集成分支，在这里跑仅为早期反馈，不因此获得任何发布含义。
+    branches: [main, next]
+  workflow_dispatch:
+
+# 最小权限：只读仓库内容。任何需要写权限的动作（tag、release、部署）都不属于本工作流。
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # 只对 pull_request 取消旧运行（PR 会频繁 force-push）。
+  # push 到 main / next 的运行必须跑完，否则主线提交会缺少验证证据。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # 显式声明 CI，供 core 及其余 job 的脚本使用（部分工具据此关闭交互与进度动画）。
+  CI: 'true'
+
+jobs:
+  # 核心工具链：Node 22（.nvmrc）+ pnpm 9.15.9（根 package.json packageManager）。
+  core:
+    name: core (Node 22 / pnpm 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 不把 GITHUB_TOKEN 写进 .git/config：本 job 只读代码，不做任何 Git 写操作。
+          persist-credentials: false
+
+      # pnpm 必须先于 setup-node 安装：setup-node 的 pnpm 缓存需要调用 pnpm 解析 store 路径。
+      # 不传 version，由根 package.json 的 packageManager (pnpm@9.15.9) 决定，避免两处版本漂移。
+      - name: 安装 pnpm（读取根 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 依赖安装（锁文件不可变）
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: 静态检查（pnpm check）
+        shell: bash
+        run: pnpm check
+
+      - name: 单元测试（pnpm test）
+        shell: bash
+        run: pnpm test
+
+      - name: 构建（pnpm build）
+        shell: bash
+        run: pnpm build
+
+  # 论坛工具链：modules/forum 是独立上游仓，锁文件、Node 与包管理器都与核心不同，
+  # 必须单独安装、单独运行，禁止让一套 Node 去跑另一套 ABI 的原生依赖。
+  forum:
+    name: forum (Node 26 / pnpm 11.24.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NUXT_TELEMETRY_DISABLED: '1'
+      # 上游锁定版本；同时用于 npm pack 的包名和安装后的断言。
+      FORUM_PNPM_VERSION: '11.24.0'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 Node 26（论坛独立运行时）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # modules/forum/package.json 要求 engines.node >=26。
+          node-version: '26'
+          # 根 packageManager 是 pnpm 而非 npm，这里显式关掉 setup-node 的自动包管理器缓存，
+          # 论坛 store 由下面的 actions/cache 单独管理，避免误用核心工具链的缓存。
+          package-manager-cache: false
+
+      - name: 安装 pnpm 11.24.0 到 .tools/pnpm11
+        shell: bash
+        run: |
+          set -u
+          tmp="$(mktemp -d)"
+          # npm pack 从 registry 下载并按 integrity 校验 tarball；
+          # 解包后得到 .tools/pnpm11/package/bin/pnpm.cjs，与本机开发布局一致，
+          # 这样 scripts/forum.mjs 的默认 FORUM_PNPM 路径无需改动。
+          npm pack "pnpm@${FORUM_PNPM_VERSION}" --pack-destination "$tmp"
+          rm -rf .tools/pnpm11
+          mkdir -p .tools/pnpm11
+          tar -xzf "${tmp}/pnpm-${FORUM_PNPM_VERSION}.tgz" -C .tools/pnpm11
+          rm -rf "$tmp"
+
+      - name: 断言论坛工具链版本并锁定 FORUM_NODE
+        shell: bash
+        run: |
+          set -u
+          # 必须在 modules/forum 目录内调用 pnpm.cjs：pnpm 10+ 的启动器会按「最近的 package.json
+          # 的 packageManager 字段」自适应版本。仓库根声明的是 pnpm@9.15.9，在根目录运行这个
+          # 启动器会解析成 9.15.9（全新 runner 上还会先去下载 pnpm 9），断言必然失败；
+          # 只有在 modules/forum 内才会解析成上游锁定的 11.24.0。
+          actual="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs --version)"
+          if [ "$actual" != "$FORUM_PNPM_VERSION" ]; then
+            echo "论坛包管理器版本不符：期望 ${FORUM_PNPM_VERSION}，实际 ${actual}" >&2
+            exit 1
+          fi
+          # scripts/forum.mjs 会逐个探测候选 Node 并要求主版本 >=26；
+          # 这里显式指向 setup-node 装好的那一个，不依赖探测顺序。
+          echo "FORUM_NODE=$(command -v node)" >> "$GITHUB_ENV"
+          echo "forum node: $(node --version); forum pnpm: ${actual}"
+
+      - name: 解析论坛 pnpm store 路径
+        id: forum-store
+        shell: bash
+        run: |
+          set -u
+          # 必须在 modules/forum 内解析：store 位置受该目录的 pnpm 配置影响，
+          # 且 pnpm.cjs 的版本自适应同样按最近的 packageManager 字段决定（同上一步的原因）。
+          store="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs store path)"
+          echo "path=${store}" >> "$GITHUB_OUTPUT"
+          echo "forum pnpm store: ${store}"
+
+      - name: 缓存论坛 pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.forum-store.outputs.path }}
+          key: forum-pnpm-store-${{ runner.os }}-${{ hashFiles('modules/forum/pnpm-lock.yaml') }}
+          # 只缓存包内容寻址的 store，不缓存 node_modules；
+          # 命中与否都不改变 --frozen-lockfile 的安装结果。
+          restore-keys: |
+            forum-pnpm-store-${{ runner.os }}-
+
+      - name: 论坛依赖安装（frozen-lockfile）
+        shell: bash
+        run: node scripts/forum.mjs install
+
+      - name: 论坛检查（强制 demo 种子）
+        shell: bash
+        # forum.mjs 会先跑 scripts/check-forum-adoption.mjs 核对上游来源，
+        # 并强制 GEEK_FORUM_SOURCE=demo：CI 永远不接触本地私有快照或真实数据。
+        run: node scripts/forum.mjs check
+
+      - name: 论坛静态生成（强制 demo 种子）
+        shell: bash
+        run: node scripts/forum.mjs generate
+
+  # 汇总 job：给 branch protection 用的单一 required check 名称。
+  # if: always() 是必须的——若上游 job 被跳过或取消，required check 不能因“没跑”而算通过。
+  # 必须把 lint-workflows 也纳入 needs 与汇总条件：否则工作流自身的静态错误虽然让
+  # lint-workflows 变红，却不会让唯一的 required check 变红，等于没有强制力。
+  # 它只汇总机器结果，不代表人工验收，也不授权任何部署。
+  verify:
+    name: verify (required check)
+    needs: [core, forum, lint-workflows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 汇总上游 job 结果
+        shell: bash
+        env:
+          CORE_RESULT: ${{ needs.core.result }}
+          FORUM_RESULT: ${{ needs.forum.result }}
+          LINT_WORKFLOWS_RESULT: ${{ needs.lint-workflows.result }}
+        run: |
+          set -u
+          echo "core=${CORE_RESULT} forum=${FORUM_RESULT} lint-workflows=${LINT_WORKFLOWS_RESULT}"
+          if [ "$CORE_RESULT" != "success" ] || [ "$FORUM_RESULT" != "success" ] \
+             || [ "$LINT_WORKFLOWS_RESULT" != "success" ]; then
+            echo "机器验证未通过：failure / cancelled / skipped 一律视为失败。" >&2
+            exit 1
+          fi
+          echo "机器验证通过。这是自动化结论，不等于人工试用，也不是发版授权。"
+
+  # 工作流自检：把 CI 配置本身也纳入验证，避免 YAML/表达式/shell 错误只能靠线上试错发现。
+  lint-workflows:
+    name: lint-workflows (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # 固定版本 + 固定 SHA-256。选择“直接下载二进制并核对内联摘要”而不是
+      # docker run rhysd/actionlint:<tag>：镜像 tag 可变，而这里的摘要一旦改动就必须走代码评审。
+      ACTIONLINT_VERSION: '1.7.12'
+      # actionlint_1.7.12_linux_amd64.tar.gz 的 SHA-256，取自上游 checksums.txt 并在本机复核过。
+      ACTIONLINT_SHA256: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 下载并校验 actionlint
+        shell: bash
+        run: |
+          set -u
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 --retry-all-errors -o actionlint.tar.gz "$url"
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum -c -
+          mkdir -p .tools/actionlint
+          tar -xzf actionlint.tar.gz -C .tools/actionlint actionlint
+          chmod +x .tools/actionlint/actionlint
+          rm -f actionlint.tar.gz
+          .tools/actionlint/actionlint --version
+
+      - name: 检查 .github/workflows 下的全部工作流
+        shell: bash
+        # ubuntu-latest 预装 shellcheck，actionlint 会顺带检查每个 run 块的 shell 代码。
+        run: .tools/actionlint/actionlint -no-color -oneline .github/workflows/*.yml

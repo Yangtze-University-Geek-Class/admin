@@ -1,0 +1,1021 @@
+# geek_main 预发布流水线（preview / https://prev.yangtzeu.work）
+#
+# 边界声明（与 docs/conventions/RELEASES.md、docs/ops/CICD.md 一致）：
+#   * 本工作流只把「已由人试用并批准过的候选」搬上预发布环境，它自身不产生任何批准。
+#   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
+#   * 顶层权限仅 contents: read；需要更多权限的 job 单独最小化声明。
+#   * 不使用 pull_request_target；不使用 continue-on-error 掩盖失败。
+#   * tag 名一律交给 scripts/release-policy.mjs 严格解析——on.push.tags 的 glob 只是触发过滤，不是版本语法校验。
+#   * 任何 shell 步骤都不把 ${{ github.* }} / ${{ inputs.* }} / ${{ needs.* }} 直接内插进命令，
+#     一律先赋给 env: 再用 "$VAR"，避免表达式内容进入 shell 语法层。
+#
+# 两种进入方式（对应 RELEASES.md 的两行）：
+#   1. 推送 prev-X.Y.Z 里程碑 tag  -> release-policy tag 模式，展示版本 X.Y.Z，不需要基准证据。
+#   2. workflow_dispatch 日常增量  -> release-policy preview 模式，展示版本 X.Y.Z@<12位>，
+#      必须先证明基准 prev tag 的提交已有成功的 preview 部署记录（即已被接受），否则失败关闭。
+
+name: Preview release
+
+on:
+  push:
+    # glob 只负责触发；prev-1.2.3-rc1 这种也会进来，随后由 release-policy 拒绝。
+    tags: ['prev-*']
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: '预发布日常增量的准确提交：40 位小写十六进制完整 SHA，且必须是 main 历史中的准确提交（不是分支名、不是短 SHA、不是运行期间又前进的 HEAD）'
+        required: true
+        type: string
+      base_tag:
+        description: '已被人工接受的预发布基准 tag，形如 prev-X.Y.Z；本次不提升基础版本、不创建新 tag'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # plan：解析发布身份 + 核对「已接受基准」证据。不安装依赖、不构建、不部署。
+  # ---------------------------------------------------------------------------
+  plan:
+    name: plan (release-policy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # 读取 preview 的历史部署记录，用来证明基准 tag 已被接受。只读，不创建。
+      deployments: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      environment: ${{ steps.plan.outputs.environment }}
+      githubEnvironment: ${{ steps.plan.outputs.githubEnvironment }}
+      tag: ${{ steps.plan.outputs.tag }}
+      baseVersion: ${{ steps.plan.outputs.baseVersion }}
+      displayVersion: ${{ steps.plan.outputs.displayVersion }}
+      commit: ${{ steps.plan.outputs.commit }}
+      shortCommit: ${{ steps.plan.outputs.shortCommit }}
+      publicOrigin: ${{ steps.plan.outputs.publicOrigin }}
+      releaseId: ${{ steps.plan.outputs.releaseId }}
+      baselineCommit: ${{ steps.plan.outputs.baselineCommit }}
+    steps:
+      - name: 断言触发形状并归一化输入
+        id: trigger
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF: ${{ github.ref }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+          INPUT_BASE_TAG: ${{ inputs.base_tag }}
+        run: |
+          set -u
+          # 里程碑必须来自 refs/tags/，绝不接受同名分支 refs/heads/prev-...（CICD.md 明确要求区分）。
+          if [ "$EVENT_NAME" = "push" ]; then
+            if [ "$REF_TYPE" != "tag" ]; then
+              echo "拒绝：push 触发必须是 tag，实际 ref_type=${REF_TYPE}。" >&2
+              exit 1
+            fi
+            case "$REF" in
+              refs/tags/prev-*) ;;
+              *) echo "拒绝：预发布里程碑只接受 refs/tags/prev-*，实际 ${REF}。" >&2; exit 1 ;;
+            esac
+            tag="${REF#refs/tags/}"
+            {
+              echo "mode=tag"
+              echo "tag=${tag}"
+              echo "commit="
+              echo "baseTag="
+            } >> "$GITHUB_OUTPUT"
+            echo "触发：预发布里程碑 tag ${tag}（版本语法仍由 release-policy 判定）。"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # 先做形状校验（快速失败、便于报错），再交给 release-policy 做权威判定。
+            if [[ ! "$INPUT_COMMIT" =~ ^[a-f0-9]{40}$ ]]; then
+              echo "拒绝：commit 必须是 40 位小写十六进制完整 SHA。" >&2
+              exit 1
+            fi
+            if [[ ! "$INPUT_BASE_TAG" =~ ^prev-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "拒绝：base_tag 必须形如 prev-X.Y.Z（无前导零、无 v/@/rc/build 后缀）。" >&2
+              exit 1
+            fi
+            {
+              echo "mode=preview"
+              echo "tag="
+              echo "commit=${INPUT_COMMIT}"
+              echo "baseTag=${INPUT_BASE_TAG}"
+            } >> "$GITHUB_OUTPUT"
+            echo "触发：预发布日常增量，基准 ${INPUT_BASE_TAG}。"
+          else
+            echo "拒绝：不支持的事件 ${EVENT_NAME}。" >&2
+            exit 1
+          fi
+
+      - name: 检出代码（完整历史与 tag）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # release-policy 要做 main 祖先检查并枚举 refs/tags，必须有完整历史与全部 tag。
+          fetch-depth: 0
+          fetch-tags: true
+          # fetch-depth: 0 + fetch-tags: true 已经把完整历史、全部分支的远程跟踪 ref 与全部 tag 取下来，
+          # 本 job 运行期不再做任何 Git 网络操作，因此不把 GITHUB_TOKEN 写进 .git/config。
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: 确认 refs/remotes/origin/main 存在
+        shell: bash
+        run: |
+          set -u
+          # 绝不 checkout 到 main：只需要一个可用于祖先判定的远程跟踪 ref。
+          # 上一步的 fetch-depth: 0 已经取回该 ref，这里不再运行期补 fetch——
+          # 补 fetch 需要凭据，而为此保留凭据会把 GITHUB_TOKEN 留在 .git/config 里。
+          # 缺这个 ref 说明 checkout 配置被改动或远程没有 main，直接失败关闭，不静默降级。
+          if ! git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
+            echo "缺少 refs/remotes/origin/main：release-policy 无法做 main 祖先判定。" >&2
+            echo "请确认 checkout 步骤仍为 fetch-depth: 0，且远程存在 main 分支。" >&2
+            exit 1
+          fi
+          echo "refs/remotes/origin/main：$(git rev-parse refs/remotes/origin/main)"
+
+      - name: 运行 release-policy 并解析为 job outputs
+        id: plan
+        shell: bash
+        env:
+          MODE: ${{ steps.trigger.outputs.mode }}
+          TAG_INPUT: ${{ steps.trigger.outputs.tag }}
+          COMMIT_INPUT: ${{ steps.trigger.outputs.commit }}
+          BASE_TAG_INPUT: ${{ steps.trigger.outputs.baseTag }}
+          EXPECTED_ENVIRONMENT: preview
+          EXPECTED_GITHUB_ENVIRONMENT: preview
+          # tag 模式交叉核对目标域名：prev tag 配正式域名会被 deploymentTarget 拒绝。
+          TARGET_ORIGIN: https://prev.yangtzeu.work
+        run: |
+          set -u
+          policy="${RUNNER_TEMP}/release-policy.json"
+          if [ "$MODE" = "tag" ]; then
+            node scripts/release-policy.mjs tag \
+              --tag "$TAG_INPUT" \
+              --main-ref refs/remotes/origin/main \
+              --target-origin "$TARGET_ORIGIN" > "$policy"
+          else
+            # preview 模式不接受 --target-origin 之外的目标覆盖，域名由环境合同决定。
+            node scripts/release-policy.mjs preview \
+              --base-tag "$BASE_TAG_INPUT" \
+              --commit "$COMMIT_INPUT" \
+              --main-ref refs/remotes/origin/main \
+              --target-origin "$TARGET_ORIGIN" > "$policy"
+          fi
+
+          cat >"${RUNNER_TEMP}/emit-plan.mjs" <<'NODE'
+          // 把 release-policy 的 JSON 逐字段校验后写成 job outputs。
+          // 校验不是重复劳动：outputs 会流向后续 shell 与 SSH 命令，形状必须先钉死。
+          import { appendFileSync, readFileSync } from 'node:fs';
+
+          const fail = (message) => { console.error(`发布计划校验失败：${message}`); process.exit(1); };
+          const policyFile = process.env.POLICY_FILE;
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (!policyFile || !outputFile) fail('缺少 POLICY_FILE 或 GITHUB_OUTPUT。');
+
+          const policy = JSON.parse(readFileSync(policyFile, 'utf8'));
+          const contract = JSON.parse(readFileSync('deploy/environments.json', 'utf8'));
+
+          const SHA = /^[a-f0-9]{40}$/;
+          const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+          const DISPLAY = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(@[a-f0-9]{12})?$/;
+          const TAG = /^(prev|release)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+          const ORIGIN = /^https:\/\/[a-z0-9.-]{3,120}$/;
+          const ENV_NAME = /^[a-z][a-z0-9-]{0,30}$/;
+
+          // release-policy 永远不授权部署；这个字段变成 true 说明校验器被改过。
+          if (policy.deploymentAuthorized !== false) fail('deploymentAuthorized 必须恒为 false。');
+          if (policy.environment !== process.env.EXPECTED_ENVIRONMENT) {
+            fail(`环境不符：期望 ${process.env.EXPECTED_ENVIRONMENT}，实际 ${policy.environment}。`);
+          }
+          if (!SHA.test(policy.commit ?? '')) fail('commit 不是 40 位小写 SHA。');
+          if (policy.shortCommit !== policy.commit.slice(0, 12)) fail('shortCommit 与 commit 不一致。');
+          if (!VERSION.test(policy.baseVersion ?? '')) fail('baseVersion 不是 X.Y.Z。');
+          if (!DISPLAY.test(policy.displayVersion ?? '')) fail('displayVersion 形状非法。');
+          if (policy.environment === 'production' && policy.displayVersion !== policy.baseVersion) {
+            fail('正式版本禁止 @ 后缀。');
+          }
+          if (!ORIGIN.test(policy.publicOrigin ?? '')) fail('publicOrigin 必须是 https 域名。');
+
+          const contractEnv = contract.environments?.[policy.environment];
+          if (!contractEnv) fail('deploy/environments.json 缺少该环境。');
+          if (contractEnv.origin !== policy.publicOrigin) fail('publicOrigin 与环境合同不一致。');
+          const githubEnvironment = contractEnv.githubEnvironment;
+          if (!ENV_NAME.test(githubEnvironment ?? '')) fail('githubEnvironment 形状非法。');
+          // 工作流里的 environment.name 是字面量，这里确认合同没有被改到别的名字上。
+          if (githubEnvironment !== process.env.EXPECTED_GITHUB_ENVIRONMENT) {
+            fail(`环境合同的 githubEnvironment=${githubEnvironment}，与工作流写死的 ${process.env.EXPECTED_GITHUB_ENVIRONMENT} 不符。`);
+          }
+
+          const tag = policy.tag ?? '';
+          if (tag !== '' && !TAG.test(tag)) fail('tag 形状非法。');
+          const baselineCommit = policy.baselineCommit ?? '';
+          if (baselineCommit !== '' && !SHA.test(baselineCommit)) fail('baselineCommit 不是 40 位小写 SHA。');
+          if (policy.mode === 'preview' && baselineCommit === '') fail('预发布增量必须给出基准提交。');
+          if (policy.mode === 'tag' && baselineCommit !== '') fail('tag 模式不应出现基准提交。');
+
+          const values = {
+            mode: policy.mode,
+            environment: policy.environment,
+            githubEnvironment,
+            tag,
+            baseVersion: policy.baseVersion,
+            displayVersion: policy.displayVersion,
+            commit: policy.commit,
+            shortCommit: policy.shortCommit,
+            publicOrigin: policy.publicOrigin,
+            // releaseId 不含 @，用于目录名与部署记录；展示版本另算。
+            releaseId: `${policy.baseVersion}-${policy.shortCommit}`,
+            baselineCommit,
+          };
+          for (const [key, value] of Object.entries(values)) {
+            if (typeof value !== 'string' || /[\r\n]/.test(value)) fail(`输出 ${key} 类型非法或含换行。`);
+            appendFileSync(outputFile, `${key}=${value}\n`);
+          }
+          console.log(`发布计划：环境 ${values.environment} · 展示版本 ${values.displayVersion} · commit ${values.commit} · releaseId ${values.releaseId}`);
+          console.log('release-policy 只做离线命名与 main 来源检查，不代表人工试用、审批或部署授权。');
+          NODE
+
+          POLICY_FILE="$policy" node "${RUNNER_TEMP}/emit-plan.mjs"
+
+          {
+            echo '### release-policy 输出（完整 JSON）'
+            echo
+            echo '```json'
+            cat "$policy"
+            echo '```'
+            echo
+            echo "> 以上为离线规划结果，\`deploymentAuthorized\` 恒为 false，不代表人工试用或部署批准。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 核对预发布基准的已接受证据
+        # 只有日常增量需要基准证据；里程碑 tag（prev-X.Y.Z 推送）本身就是人工接受的产物。
+        if: steps.plan.outputs.mode == 'preview'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_COMMIT: ${{ steps.plan.outputs.baselineCommit }}
+          BASE_TAG_INPUT: ${{ steps.trigger.outputs.baseTag }}
+          BOOTSTRAP: ${{ vars.GEEK_PREVIEW_BOOTSTRAP }}
+        run: |
+          set -u
+          # RELEASES.md：流水线必须从可信发布记录读取「已接受」状态，
+          # 不能只见到一个同名前缀 tag 就认定它通过了人工验收。
+          # 这里的可信记录 = 本仓库 preview 环境上、基准提交的成功部署记录。
+          accepted=0
+          ids="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=preview&sha=${BASELINE_COMMIT}&per_page=100" --jq '.[].id')"
+          for id in $ids; do
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses?per_page=1" --jq '.[0].state // ""')"
+            echo "基准部署记录 ${id}：最新状态 ${state:-<无>}"
+            if [ "$state" = "success" ]; then accepted=1; break; fi
+          done
+
+          if [ "$accepted" = "1" ]; then
+            echo "基准 ${BASE_TAG_INPUT}（${BASELINE_COMMIT}）已有成功的 preview 部署记录。"
+            {
+              echo '### 基准证据'
+              echo
+              echo "- 基准 tag：\`${BASE_TAG_INPUT}\`"
+              echo "- 基准提交：\`${BASELINE_COMMIT}\`"
+              echo '- 结论：已有成功的 preview 部署记录，可作为已接受基准。'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "${BOOTSTRAP:-}" = "enabled" ]; then
+            # 收紧后的放行条件：这个开关只在「本仓库 preview 环境历史上从未有过任何
+            # status 为 success 的部署」这一种冷启动情形下有效。只要出现过一次成功部署，
+            # 冷启动阶段就已结束，此后再设置该变量只会变成一个无范围的长期后门——
+            # 因此即使取值为 enabled 也必须失败，并提示删除该变量。
+            # 读不到部署历史就无法判定是否处于冷启动，此时必须失败关闭而不是当作「没有记录」放行。
+            if ! all_ids="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments?environment=preview&per_page=100" --jq '.[].id')"; then
+              echo "无法读取 preview 环境的部署历史，不能判定冷启动状态，拒绝 bootstrap 放行。" >&2
+              exit 1
+            fi
+            history_success=0
+            for id in $all_ids; do
+              # 这里看的是该部署的全部历史状态，不只是最新一条：曾经成功过就算冷启动结束。
+              if ! states="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses?per_page=100" --jq '.[].state')"; then
+                echo "无法读取部署记录 ${id} 的状态历史，拒绝 bootstrap 放行。" >&2
+                exit 1
+              fi
+              if printf '%s\n' "$states" | grep -qx 'success'; then
+                history_success=1
+                break
+              fi
+            done
+
+            if [ "$history_success" = "1" ]; then
+              echo "GEEK_PREVIEW_BOOTSTRAP=enabled 无效：preview 环境已经有过成功的部署记录，冷启动阶段已经结束。" >&2
+              echo "请删除仓库变量 GEEK_PREVIEW_BOOTSTRAP，并按 RELEASES.md 选择一个真正已被接受的基准 tag。" >&2
+              exit 1
+            fi
+
+            echo "::warning title=bootstrap 放行::preview 环境尚无任何成功部署记录，本次按冷启动放行"
+            {
+              echo '### bootstrap 放行（仅冷启动有效的一次性开关）'
+              echo
+              echo "- 基准 tag：\`${BASE_TAG_INPUT}\`"
+              echo "- 基准提交：\`${BASELINE_COMMIT}\`"
+              echo "- 放行依据：本仓库 \`preview\` 环境**历史上从未有过任何成功的部署记录**，属冷启动。"
+              echo "- 一旦出现第一条成功记录，\`GEEK_PREVIEW_BOOTSTRAP\` 即失效，继续保留只会让流水线失败。"
+              echo '- 这不是人工验收；首个基准建立后请立即删除该变量。'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "基准 tag 尚无成功的 preview 部署记录，不能作为已接受基准。" >&2
+          echo "基准 tag=${BASE_TAG_INPUT}，基准提交=${BASELINE_COMMIT}。" >&2
+          echo "请先按 RELEASES.md 完成该基准的人工试用与预发布部署；冷启动可临时设置仓库变量 GEEK_PREVIEW_BOOTSTRAP=enabled。" >&2
+          exit 1
+
+      - name: 提示 preview 环境保护规则（只告警，不失败）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ENVIRONMENT: ${{ steps.plan.outputs.githubEnvironment }}
+        run: |
+          set -u
+          # 与 release.yml 的「证据 3」对称，但刻意只告警：
+          # RELEASES.md 把预发布的人工环节放在「打 prev tag 之前的人工试用」和
+          # 「workflow_dispatch 由维护者本人选定 commit + base_tag」上，
+          # 不要求 preview 环境配置 required_reviewers；只有 production 强制，且由 release.yml 失败关闭。
+          # 因此这里读不到环境、无权限或当前 GitHub 计划不支持时，都不阻断预发布。
+          rules=""
+          if gh api "repos/${GITHUB_REPOSITORY}/environments/${GH_ENVIRONMENT}" \
+               > "${RUNNER_TEMP}/preview-environment.json" 2>"${RUNNER_TEMP}/preview-environment-error.txt"; then
+            rules="$(node -e 'const fs=require("node:fs");const e=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write((e.protection_rules||[]).map(r=>r.type).join(","));' "${RUNNER_TEMP}/preview-environment.json")"
+            echo "preview 环境保护规则：${rules:-<无>}"
+            if [ -z "$rules" ]; then
+              echo "::warning title=preview 环境没有任何保护规则::environment: preview 这一行不会自动产生门禁，建议至少限制 allowed tags 为 prev-* 并禁止自批"
+            fi
+          else
+            echo "::warning title=preview 环境保护规则未知::读取环境失败（环境不存在、GITHUB_TOKEN 无权读取，或当前 GitHub 计划不为私有仓库提供环境保护规则）"
+            sed -n '1,10p' "${RUNNER_TEMP}/preview-environment-error.txt"
+          fi
+          {
+            echo '### preview 环境保护规则（提示，不构成门禁）'
+            echo
+            echo "- 环境：\`${GH_ENVIRONMENT}\`"
+            echo "- 保护规则：\`${rules:-<读取不到或为空>}\`"
+            echo "- 预发布不强制 \`required_reviewers\`：人工环节按 RELEASES.md 落在打 \`prev-*\` tag 前的试用与 dispatch 的维护者选择上。"
+            echo "- \`production\` 才强制 \`required_reviewers\`，由 \`release.yml\` 的 evidence job 实测并失败关闭。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # build：在 plan 解析出的准确提交上做隔离构建，产出不可变发布包。
+  # 复用 ci.yml 的双工具链步骤：核心 Node 22 / pnpm 9.15.9，论坛 Node 26 / pnpm 11.24.0。
+  # ---------------------------------------------------------------------------
+  build:
+    name: build (双工具链 + 发布包)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      NUXT_TELEMETRY_DISABLED: '1'
+      FORUM_PNPM_VERSION: '11.24.0'
+    outputs:
+      artifactName: ${{ steps.bundle.outputs.artifactName }}
+      tarSha256: ${{ steps.bundle.outputs.tarSha256 }}
+      manifestSha256: ${{ steps.bundle.outputs.manifestSha256 }}
+      componentsServer: ${{ steps.bundle.outputs.componentsServer }}
+      componentsWeb: ${{ steps.bundle.outputs.componentsWeb }}
+      componentsForum: ${{ steps.bundle.outputs.componentsForum }}
+    steps:
+      - name: 检出 plan 解析出的准确提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 构建对象必须是 plan 已做过 main 祖先检查的那个 40 位 SHA，不是 tag 名、不是分支 HEAD。
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+
+      - name: 确认检出的就是计划提交
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: |
+          set -u
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$EXPECTED_COMMIT" ]; then
+            echo "检出提交与发布计划不一致：期望 ${EXPECTED_COMMIT}，实际 ${actual}。" >&2
+            exit 1
+          fi
+          echo "构建提交：${actual}"
+
+      # pnpm 必须先于 setup-node 安装：setup-node 的 pnpm 缓存需要调用 pnpm 解析 store 路径。
+      - name: 安装 pnpm（读取根 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 记录核心工具链版本
+        shell: bash
+        run: |
+          set -u
+          # 必须在切换到论坛 Node 26 之前记录，否则拿到的是论坛运行时。
+          {
+            echo "CORE_NODE_VERSION=$(node --version)"
+            echo "CORE_PNPM_VERSION=$(pnpm --version)"
+          } >> "$GITHUB_ENV"
+          node scripts/check-runtime.mjs
+
+      - name: 核心依赖安装（锁文件不可变）
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: 核心静态检查（pnpm check）
+        shell: bash
+        run: pnpm check
+
+      - name: 核心单元测试（pnpm test）
+        shell: bash
+        run: pnpm test
+
+      - name: 核心构建（pnpm build）
+        shell: bash
+        run: pnpm build
+
+      - name: 安装 Node 26（论坛独立运行时）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          package-manager-cache: false
+
+      - name: 安装 pnpm 11.24.0 到 .tools/pnpm11
+        shell: bash
+        run: |
+          set -u
+          tmp="$(mktemp -d)"
+          npm pack "pnpm@${FORUM_PNPM_VERSION}" --pack-destination "$tmp"
+          rm -rf .tools/pnpm11
+          mkdir -p .tools/pnpm11
+          tar -xzf "${tmp}/pnpm-${FORUM_PNPM_VERSION}.tgz" -C .tools/pnpm11
+          rm -rf "$tmp"
+
+      - name: 断言论坛工具链版本并锁定 FORUM_NODE
+        shell: bash
+        run: |
+          set -u
+          # 必须在 modules/forum 目录内调用 pnpm.cjs：pnpm 10+ 的启动器会按「最近的 package.json
+          # 的 packageManager 字段」自适应版本。仓库根声明的是 pnpm@9.15.9，在根目录运行这个
+          # 启动器会解析成 9.15.9（全新 runner 上还会先去下载 pnpm 9），断言必然失败；
+          # 只有在 modules/forum 内才会解析成上游锁定的 11.24.0。
+          actual="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs --version)"
+          if [ "$actual" != "$FORUM_PNPM_VERSION" ]; then
+            echo "论坛包管理器版本不符：期望 ${FORUM_PNPM_VERSION}，实际 ${actual}" >&2
+            exit 1
+          fi
+          {
+            echo "FORUM_NODE=$(command -v node)"
+            echo "FORUM_NODE_VERSION=$(node --version)"
+          } >> "$GITHUB_ENV"
+          echo "forum node: $(node --version); forum pnpm: ${actual}"
+
+      - name: 解析论坛 pnpm store 路径
+        id: forum-store
+        shell: bash
+        run: |
+          set -u
+          # 与上一步同因：store 路径与 pnpm.cjs 的版本自适应都按最近的 packageManager 字段决定，
+          # 必须在 modules/forum 内执行。
+          store="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs store path)"
+          echo "path=${store}" >> "$GITHUB_OUTPUT"
+          echo "forum pnpm store: ${store}"
+
+      - name: 缓存论坛 pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.forum-store.outputs.path }}
+          key: forum-pnpm-store-${{ runner.os }}-${{ hashFiles('modules/forum/pnpm-lock.yaml') }}
+          restore-keys: |
+            forum-pnpm-store-${{ runner.os }}-
+
+      - name: 论坛依赖安装（frozen-lockfile）
+        shell: bash
+        run: node scripts/forum.mjs install
+
+      - name: 论坛检查（强制 demo 种子）
+        shell: bash
+        # forum.mjs 会先跑 check-forum-adoption.mjs 并强制 GEEK_FORUM_SOURCE=demo：
+        # 流水线永远不接触本地私有快照或真实论坛数据。
+        run: node scripts/forum.mjs check
+
+      - name: 论坛静态生成（注入构建身份）
+        shell: bash
+        env:
+          # RELEASES.md：论坛「关于」页的环境与版本必须构建时显式注入，
+          # 不能靠 NODE_ENV=production 猜正式/预发布。
+          GEEK_DEPLOYMENT_ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.displayVersion }}
+          GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: node scripts/forum.mjs generate
+
+      - name: 打包发布产物（release-bundle build）
+        id: bundle
+        shell: bash
+        env:
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          DISPLAY_VERSION: ${{ needs.plan.outputs.displayVersion }}
+          BASE_VERSION: ${{ needs.plan.outputs.baseVersion }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          RELEASE_ID: ${{ needs.plan.outputs.releaseId }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -u
+          out="${RUNNER_TEMP}/bundle"
+          toolchain="${RUNNER_TEMP}/toolchain.json"
+          # 工具链元数据由本次实际使用的版本拼成，不是手写常量。
+          node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({coreNode:process.env.CORE_NODE_VERSION,corePnpm:process.env.CORE_PNPM_VERSION,forumNode:process.env.FORUM_NODE_VERSION,forumPnpm:process.env.FORUM_PNPM_VERSION}));' "$toolchain"
+          cat "$toolchain"
+
+          args=(build
+            --environment "$ENVIRONMENT"
+            --display-version "$DISPLAY_VERSION"
+            --base-version "$BASE_VERSION"
+            --commit "$COMMIT"
+            --built-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --run-id "$RUN_ID"
+            --run-number "$RUN_NUMBER"
+            --toolchain "$(cat "$toolchain")"
+            --out "$out")
+          # 日常增量没有 tag；release-bundle 的参数解析要求每个开关都带取值，不能传空串。
+          if [ -n "$TAG" ]; then args+=(--tag "$TAG"); fi
+
+          node scripts/release-bundle.mjs "${args[@]}" > "${RUNNER_TEMP}/bundle-result.json"
+
+          cat >"${RUNNER_TEMP}/emit-bundle.mjs" <<'NODE'
+          // 把 release-bundle 的 stdout JSON 校验后写成 job outputs。
+          import { appendFileSync, readFileSync } from 'node:fs';
+
+          const fail = (message) => { console.error(`发布包结果校验失败：${message}`); process.exit(1); };
+          const result = JSON.parse(readFileSync(process.env.BUNDLE_RESULT, 'utf8'));
+          const outputFile = process.env.GITHUB_OUTPUT;
+          if (!outputFile) fail('缺少 GITHUB_OUTPUT。');
+
+          const HEX64 = /^[a-f0-9]{64}$/;
+          const ARTIFACT = /^geek-(preview|production)-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[a-f0-9]{12}$/;
+
+          if (!ARTIFACT.test(result.artifactName ?? '')) fail('artifactName 形状非法。');
+          if (result.releaseId !== process.env.RELEASE_ID) {
+            fail(`releaseId 与发布计划不一致：计划 ${process.env.RELEASE_ID}，产物 ${result.releaseId}。`);
+          }
+          if (result.artifactName !== `geek-${process.env.ENVIRONMENT}-${result.releaseId}`) {
+            fail('artifactName 与环境/releaseId 不一致。');
+          }
+          for (const key of ['tarSha256', 'manifestSha256']) {
+            if (!HEX64.test(result[key] ?? '')) fail(`${key} 不是 64 位小写十六进制。`);
+          }
+          for (const name of ['server', 'web', 'forum']) {
+            if (!HEX64.test(result.components?.[name] ?? '')) fail(`components.${name} 摘要形状非法。`);
+          }
+
+          const values = {
+            artifactName: result.artifactName,
+            tarPath: result.tarPath,
+            tarSha256: result.tarSha256,
+            manifestSha256: result.manifestSha256,
+            componentsServer: result.components.server,
+            componentsWeb: result.components.web,
+            componentsForum: result.components.forum,
+          };
+          for (const [key, value] of Object.entries(values)) {
+            if (typeof value !== 'string' || /[\r\n]/.test(value)) fail(`输出 ${key} 类型非法或含换行。`);
+            appendFileSync(outputFile, `${key}=${value}\n`);
+          }
+          console.log(`发布包 ${values.artifactName}：tar ${values.tarSha256.slice(0, 16)}… manifest ${values.manifestSha256.slice(0, 16)}…`);
+          NODE
+
+          BUNDLE_RESULT="${RUNNER_TEMP}/bundle-result.json" node "${RUNNER_TEMP}/emit-bundle.mjs"
+
+          # 只把三个文件放进上传目录：发布包 tar、它的摘要文件、构建身份 release.json。
+          # 绝不上传解包后的目录、node_modules、.tools、数据库或任何环境文件。
+          artifact_name="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).artifactName);' "${RUNNER_TEMP}/bundle-result.json")"
+          upload="${RUNNER_TEMP}/upload"
+          mkdir -p "$upload"
+          cp "${out}/${artifact_name}.tar.gz" "$upload/"
+          cp "${out}/${artifact_name}.tar.gz.sha256" "$upload/"
+          cp "${out}/${artifact_name}/release.json" "$upload/"
+          ls -l "$upload"
+
+          {
+            echo '### 发布包'
+            echo
+            echo "- 环境：\`${ENVIRONMENT}\`"
+            echo "- 展示版本：\`${DISPLAY_VERSION}\`"
+            echo "- 提交：\`${COMMIT}\`"
+            echo "- releaseId：\`${RELEASE_ID}\`"
+            echo "- artifact：\`${artifact_name}\`"
+            echo
+            echo '```json'
+            cat "${RUNNER_TEMP}/bundle-result.json"
+            echo '```'
+            echo
+            echo '> 机器构建完成不代表人工验收或部署批准。'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传发布包（仅 tar / sha256 / release.json）
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.bundle.outputs.artifactName }}
+          path: ${{ runner.temp }}/upload
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 部署开关状态提示
+        shell: bash
+        env:
+          DEPLOY_SWITCH: ${{ vars.GEEK_DEPLOY_PREVIEW }}
+        run: |
+          set -u
+          # 开关未启用时必须显式说明，避免「跑绿了就以为上线了」的静默误读。
+          if [ "${DEPLOY_SWITCH:-}" != "enabled" ]; then
+            echo "::warning title=部署开关未启用::部署开关未启用：仅产出并校验产物，未部署"
+            {
+              echo '### 部署开关未启用：仅产出并校验产物，未部署'
+              echo
+              echo "仓库变量 \`GEEK_DEPLOY_PREVIEW\` 不等于 \`enabled\`，deploy job 已跳过。"
+              echo '预发布环境 https://prev.yangtzeu.work 未发生任何变化。'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "部署开关已启用，deploy job 将执行。"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # deploy：默认关闭。开关、环境保护规则、secrets/vars 都必须由维护者显式配置。
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: deploy (preview)
+    needs: [plan, build]
+    # 默认关闭：仓库变量未显式设为 enabled 时，整个 job 不运行。
+    if: vars.GEEK_DEPLOY_PREVIEW == 'enabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      # 字面量与 deploy/environments.json 的 githubEnvironment 一致，plan 已断言过。
+      # 注意：仅写这一行不会自动产生人工门禁，保护规则需在仓库设置中单独配置（见 CICD.md）。
+      name: preview
+      url: ${{ needs.plan.outputs.publicOrigin }}
+    concurrency:
+      # 同一环境串行；预发布也不取消进行中的部署，避免旧请求覆盖更晚版本。
+      group: deploy-preview
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      # 只为写显式部署记录；不含 contents: write，拿不到打 tag 的能力。
+      deployments: write
+    steps:
+      - name: 检出 plan 解析出的准确提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # deploy/remote/deploy-release.sh 必须取自本次构建的同一提交：
+          # 它要在解包之前存在于目标机，所以无法从发布包内部取。
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+
+      - name: 下载发布包
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.build.outputs.artifactName }}
+          path: ${{ runner.temp }}/artifact
+
+      - name: 重算 sha256 并与构建结果比对
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifactName }}
+          EXPECTED_TAR_SHA: ${{ needs.build.outputs.tarSha256 }}
+          EXPECTED_COMMIT: ${{ needs.plan.outputs.commit }}
+          EXPECTED_ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          EXPECTED_RELEASE_ID: ${{ needs.plan.outputs.releaseId }}
+          EXPECTED_DISPLAY_VERSION: ${{ needs.plan.outputs.displayVersion }}
+          EXPECTED_PUBLIC_ORIGIN: ${{ needs.plan.outputs.publicOrigin }}
+        run: |
+          set -u
+          dir="${RUNNER_TEMP}/artifact"
+          tar_file="${dir}/${ARTIFACT_NAME}.tar.gz"
+          [ -f "$tar_file" ] || { echo "发布包缺失：${tar_file}" >&2; exit 1; }
+
+          actual="$(sha256sum "$tar_file" | cut -d' ' -f1)"
+          if [ "$actual" != "$EXPECTED_TAR_SHA" ]; then
+            echo "发布包 sha256 与构建结果不一致：期望 ${EXPECTED_TAR_SHA}，实际 ${actual}。" >&2
+            exit 1
+          fi
+          # 随包上传的 .sha256 文件也必须一致，否则说明两条记录已经分叉。
+          sha_from_file="$(cut -d' ' -f1 < "${tar_file}.sha256")"
+          if [ "$sha_from_file" != "$EXPECTED_TAR_SHA" ]; then
+            echo ".sha256 文件与构建结果不一致：${sha_from_file}" >&2
+            exit 1
+          fi
+
+          # release.json 的身份必须与发布计划完全一致，再谈上传。
+          # JS 模板字面量的 ${} 必须由 node 解释，不能被 shell 展开。
+          # shellcheck disable=SC2016
+          node -e '
+            const fs = require("node:fs");
+            const release = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const expect = {
+              environment: process.env.EXPECTED_ENVIRONMENT,
+              commit: process.env.EXPECTED_COMMIT,
+              releaseId: process.env.EXPECTED_RELEASE_ID,
+              displayVersion: process.env.EXPECTED_DISPLAY_VERSION,
+              // 产物内的 publicOrigin 来自构建提交的 deploy/environments.json；
+              // 它必须与 plan 解析出的目标域名一致，否则两份环境合同已经分叉。
+              publicOrigin: process.env.EXPECTED_PUBLIC_ORIGIN,
+            };
+            for (const [key, value] of Object.entries(expect)) {
+              if (release[key] !== value) {
+                console.error(`release.json 的 ${key} 与发布计划不一致：期望 ${value}，实际 ${release[key]}`);
+                process.exit(1);
+              }
+            }
+            if (release.deploymentAuthorized !== false) {
+              console.error("release.json 的 deploymentAuthorized 必须恒为 false。");
+              process.exit(1);
+            }
+          ' "${dir}/release.json"
+          echo "发布包完整性与身份校验通过：${actual}"
+
+      - name: 校验部署配置是否齐备
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+          DEPLOY_SERVICE: ${{ vars.DEPLOY_SERVICE }}
+          DEPLOY_LOCAL_HEALTH: ${{ vars.DEPLOY_LOCAL_HEALTH }}
+          DEPLOY_TARGET_ENVIRONMENT: ${{ vars.DEPLOY_TARGET_ENVIRONMENT }}
+        run: |
+          set -u
+          # 缺任何一项都明确失败：不猜生产默认路径、默认端口或默认服务名。
+          missing=0
+          for name in DEPLOY_SSH_HOST DEPLOY_SSH_PORT DEPLOY_SSH_USER DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS; do
+            if [ -z "${!name:-}" ]; then echo "缺少环境级 secret：${name}" >&2; missing=1; fi
+          done
+          for name in DEPLOY_ROOT DEPLOY_SERVICE DEPLOY_LOCAL_HEALTH DEPLOY_TARGET_ENVIRONMENT; do
+            if [ -z "${!name:-}" ]; then echo "缺少环境级变量：${name}" >&2; missing=1; fi
+          done
+          [ "$missing" = "0" ] || { echo "部署配置不完整，拒绝继续。" >&2; exit 1; }
+
+          # preview 与 production 使用同名 secrets/vars。环境级缺失时 GitHub 会静默回落到
+          # 仓库级同名值，两个环境因此可能指向同一台机器、同一个目录和同一个服务。
+          # DEPLOY_TARGET_ENVIRONMENT 必须逐字等于本 job 的环境名。但 GitHub 是逐个变量独立解析的
+          # （environment > repository > organization），所以该哨兵只证明 DEPLOY_TARGET_ENVIRONMENT
+          # 本身配在环境级；DEPLOY_ROOT、DEPLOY_SERVICE、DEPLOY_LOCAL_HEALTH 与 5 个 SSH secret
+          # 仍须维护者逐项确认配在环境级，并且不要在仓库级创建任何同名 DEPLOY_* 项
+          # （仓库级一旦存在就可能静默回落）。
+          if [ "$DEPLOY_TARGET_ENVIRONMENT" != "preview" ]; then
+            echo "DEPLOY_TARGET_ENVIRONMENT=${DEPLOY_TARGET_ENVIRONMENT}，与本 job 的环境名 preview 不符。" >&2
+            echo "环境级变量未配置或被仓库级值覆盖：请在 preview 环境下把它设为 preview（见 docs/ops/CICD.md）。" >&2
+            exit 1
+          fi
+
+          # 形状校验只对非机密项报值；secret 只判空，绝不回显。
+          fail_shape() { echo "部署配置取值非法：$1" >&2; exit 1; }
+          [[ "$DEPLOY_ROOT" =~ ^/[A-Za-z0-9._/-]{1,200}$ ]] || fail_shape "DEPLOY_ROOT=${DEPLOY_ROOT}"
+          [[ "$DEPLOY_SERVICE" =~ ^[A-Za-z0-9@._-]{1,120}$ ]] || fail_shape "DEPLOY_SERVICE=${DEPLOY_SERVICE}"
+          [[ "$DEPLOY_LOCAL_HEALTH" =~ ^http://127\.0\.0\.1:[0-9]{2,5}/[A-Za-z0-9._/-]*$ ]] || fail_shape "DEPLOY_LOCAL_HEALTH=${DEPLOY_LOCAL_HEALTH}"
+          [[ "$DEPLOY_SSH_PORT" =~ ^[0-9]{1,5}$ ]] || fail_shape "DEPLOY_SSH_PORT（取值不回显）"
+          [[ "$DEPLOY_SSH_HOST" =~ ^[A-Za-z0-9.:_-]{3,255}$ ]] || fail_shape "DEPLOY_SSH_HOST（取值不回显）"
+          [[ "$DEPLOY_SSH_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail_shape "DEPLOY_SSH_USER（取值不回显）"
+          echo "部署配置齐备（DEPLOY_ROOT=${DEPLOY_ROOT} DEPLOY_SERVICE=${DEPLOY_SERVICE}）。"
+
+      - name: 上传产物与部署脚本并执行远端部署
+        id: remote-deploy
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+          DEPLOY_SERVICE: ${{ vars.DEPLOY_SERVICE }}
+          DEPLOY_LOCAL_HEALTH: ${{ vars.DEPLOY_LOCAL_HEALTH }}
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifactName }}
+          TAR_SHA256: ${{ needs.build.outputs.tarSha256 }}
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          RELEASE_ID: ${{ needs.plan.outputs.releaseId }}
+          PUBLIC_ORIGIN: ${{ needs.plan.outputs.publicOrigin }}
+        run: |
+          set -u
+          key="${RUNNER_TEMP}/deploy_key"
+          known="${RUNNER_TEMP}/known_hosts"
+          # umask 先行，保证文件从创建瞬间就不是全局可读。
+          umask 077
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$key"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$known"
+          chmod 600 "$key" "$known"
+
+          # StrictHostKeyChecking=yes + 显式 known_hosts：主机指纹不匹配直接断开，不接受首次信任。
+          ssh_opts=(-i "$key" -o "IdentitiesOnly=yes" -o "StrictHostKeyChecking=yes"
+            -o "UserKnownHostsFile=${known}" -o "BatchMode=yes" -o "ConnectTimeout=20"
+            -o "ServerAliveInterval=30" -o "LogLevel=ERROR")
+          dest="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+
+          incoming="${DEPLOY_ROOT}/incoming"
+          remote_tar="${incoming}/${ARTIFACT_NAME}.tar.gz"
+          remote_sha="${incoming}/${ARTIFACT_NAME}.tar.gz.sha256"
+          # 部署脚本版本 = 本次构建提交：它取自 checkout 的 deploy/remote/，与发布包同源。
+          remote_script="${incoming}/deploy-release.${RELEASE_ID}.sh"
+
+          run_ssh() {
+            # 远端命令整串由调用方用 printf %q 组装，这里不再拼接。
+            ssh -p "$DEPLOY_SSH_PORT" "${ssh_opts[@]}" "$dest" "$1"
+          }
+          put_file() {
+            # $1=本地文件 $2=远端绝对路径；用 ssh cat 而非 scp，远端路径只经一次 %q 转义。
+            ssh -p "$DEPLOY_SSH_PORT" "${ssh_opts[@]}" "$dest" "cat > $(printf %q "$2")" < "$1"
+          }
+
+          run_ssh "mkdir -p $(printf %q "$incoming")"
+          put_file "${RUNNER_TEMP}/artifact/${ARTIFACT_NAME}.tar.gz" "$remote_tar"
+          put_file "${RUNNER_TEMP}/artifact/${ARTIFACT_NAME}.tar.gz.sha256" "$remote_sha"
+          put_file "deploy/remote/deploy-release.sh" "$remote_script"
+          echo "已上传发布包与部署脚本（脚本版本 = 构建提交 ${COMMIT}）。"
+
+          cmd="bash $(printf %q "$remote_script")"
+          cmd="${cmd} --environment $(printf %q "$ENVIRONMENT")"
+          cmd="${cmd} --deploy-root $(printf %q "$DEPLOY_ROOT")"
+          cmd="${cmd} --service $(printf %q "$DEPLOY_SERVICE")"
+          cmd="${cmd} --tar $(printf %q "$remote_tar")"
+          cmd="${cmd} --sha256 $(printf %q "$TAR_SHA256")"
+          cmd="${cmd} --commit $(printf %q "$COMMIT")"
+          cmd="${cmd} --release-id $(printf %q "$RELEASE_ID")"
+          cmd="${cmd} --public-origin $(printf %q "$PUBLIC_ORIGIN")"
+          cmd="${cmd} --local-health $(printf %q "$DEPLOY_LOCAL_HEALTH")"
+          run_ssh "$cmd"
+
+      - name: 清理远端 incoming（尽力而为）
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifactName }}
+          RELEASE_ID: ${{ needs.plan.outputs.releaseId }}
+        run: |
+          set -u
+          key="${RUNNER_TEMP}/deploy_key"
+          known="${RUNNER_TEMP}/known_hosts"
+          if [ ! -f "$key" ] || [ ! -f "$known" ]; then
+            echo "SSH 凭据文件不存在，跳过远端清理。"
+            exit 0
+          fi
+          incoming="${DEPLOY_ROOT}/incoming"
+          cmd="rm -f $(printf %q "${incoming}/${ARTIFACT_NAME}.tar.gz")"
+          cmd="${cmd} $(printf %q "${incoming}/${ARTIFACT_NAME}.tar.gz.sha256")"
+          cmd="${cmd} $(printf %q "${incoming}/deploy-release.${RELEASE_ID}.sh")"
+          # 清理失败不改变部署结论：部署成败已由上一步决定，这里只避免磁盘堆积。
+          if ssh -p "$DEPLOY_SSH_PORT" -i "$key" -o "IdentitiesOnly=yes" -o "StrictHostKeyChecking=yes" \
+               -o "UserKnownHostsFile=${known}" -o "BatchMode=yes" -o "ConnectTimeout=20" -o "LogLevel=ERROR" \
+               "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" "$cmd"; then
+            echo "远端 incoming 已清理。"
+          else
+            echo "远端 incoming 清理失败（不影响本次部署结论）。"
+          fi
+
+      - name: 销毁 runner 上的 SSH 材料
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          rm -f "${RUNNER_TEMP}/deploy_key" "${RUNNER_TEMP}/known_hosts"
+          echo "已删除 runner 上的 SSH 私钥与 known_hosts。"
+
+      - name: runner 侧独立复核公开入口
+        id: verify-public
+        shell: bash
+        env:
+          PUBLIC_ORIGIN: ${{ needs.plan.outputs.publicOrigin }}
+          EXPECTED_COMMIT: ${{ needs.plan.outputs.commit }}
+          EXPECTED_DISPLAY_VERSION: ${{ needs.plan.outputs.displayVersion }}
+          EXPECTED_ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+        run: |
+          set -u
+          # 目标机脚本失败时已自动回滚，但 runner 必须独立再看一眼公开入口，
+          # 否则「服务器说成功」就成了唯一证据来源。
+          status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-all-errors "${PUBLIC_ORIGIN}/healthz" || echo 000)"
+          if [ "$status" != "200" ]; then
+            echo "公开健康检查失败：${PUBLIC_ORIGIN}/healthz 返回 ${status}。" >&2
+            exit 1
+          fi
+          curl -fsS --max-time 20 --retry 3 --retry-all-errors -o "${RUNNER_TEMP}/public-release.json" "${PUBLIC_ORIGIN}/release.json"
+          # JS 模板字面量的 ${} 必须由 node 解释，不能被 shell 展开。
+          # shellcheck disable=SC2016
+          node -e '
+            const fs = require("node:fs");
+            const release = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (release.commit !== process.env.EXPECTED_COMMIT) {
+              console.error(`线上 release.json 的 commit 不是本次提交：期望 ${process.env.EXPECTED_COMMIT}，实际 ${release.commit}`);
+              process.exit(1);
+            }
+            if (release.displayVersion !== process.env.EXPECTED_DISPLAY_VERSION) {
+              console.error(`线上 release.json 的 displayVersion 不一致：期望 ${process.env.EXPECTED_DISPLAY_VERSION}，实际 ${release.displayVersion}`);
+              process.exit(1);
+            }
+            // 只比 commit 与 displayVersion 不够：同一提交在两个环境上构建出的 commit/displayVersion
+            // 在 tag 模式下可以完全相同，环境和入口却指向另一台机器。environment 与 publicOrigin
+            // 必须一并断言，才能证明「这个入口上跑的确实是本工作流这个环境的产物」。
+            if (release.environment !== process.env.EXPECTED_ENVIRONMENT) {
+              console.error(`线上 release.json 的 environment 不是本工作流环境：期望 ${process.env.EXPECTED_ENVIRONMENT}，实际 ${release.environment}`);
+              process.exit(1);
+            }
+            if (release.publicOrigin !== process.env.PUBLIC_ORIGIN) {
+              console.error(`线上 release.json 的 publicOrigin 与发布计划不一致：期望 ${process.env.PUBLIC_ORIGIN}，实际 ${release.publicOrigin}`);
+              process.exit(1);
+            }
+            console.log(`线上确认：${release.environment} ${release.displayVersion} ${release.commit} ${release.publicOrigin}`);
+          ' "${RUNNER_TEMP}/public-release.json"
+
+      - name: 记录显式部署结果
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ENVIRONMENT: ${{ needs.plan.outputs.githubEnvironment }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          RELEASE_ID: ${{ needs.plan.outputs.releaseId }}
+          DISPLAY_VERSION: ${{ needs.plan.outputs.displayVersion }}
+          PUBLIC_ORIGIN: ${{ needs.plan.outputs.publicOrigin }}
+          DEPLOY_OUTCOME: ${{ steps.remote-deploy.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify-public.outcome }}
+        run: |
+          set -u
+          # 这条记录是后续「已接受基准 / 预发布已试用」判定的唯一可信来源，
+          # 所以成功与失败都要写，不能只在成功时留痕。
+          if [ "$DEPLOY_OUTCOME" = "success" ] && [ "$VERIFY_OUTCOME" = "success" ]; then
+            state="success"
+          else
+            state="failure"
+          fi
+
+          # JS 模板字面量的 ${} 必须由 node 解释，不能被 shell 展开。
+          # shellcheck disable=SC2016
+          node -e '
+            const fs = require("node:fs");
+            fs.writeFileSync(process.argv[1], JSON.stringify({
+              ref: process.env.COMMIT,
+              environment: process.env.GH_ENVIRONMENT,
+              auto_merge: false,
+              required_contexts: [],
+              production_environment: process.env.GH_ENVIRONMENT === "production",
+              transient_environment: false,
+              description: `releaseId=${process.env.RELEASE_ID} displayVersion=${process.env.DISPLAY_VERSION}`,
+            }));
+          ' "${RUNNER_TEMP}/deployment.json"
+
+          id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments" -X POST --input "${RUNNER_TEMP}/deployment.json" --jq '.id')"
+          if [ -z "$id" ]; then
+            echo "未能创建部署记录。" >&2
+            exit 1
+          fi
+
+          # JS 模板字面量的 ${} 必须由 node 解释，不能被 shell 展开。
+          # shellcheck disable=SC2016
+          DEPLOY_STATE="$state" node -e '
+            const fs = require("node:fs");
+            fs.writeFileSync(process.argv[1], JSON.stringify({
+              state: process.env.DEPLOY_STATE,
+              environment: process.env.GH_ENVIRONMENT,
+              environment_url: process.env.PUBLIC_ORIGIN,
+              description: `releaseId=${process.env.RELEASE_ID} commit=${process.env.COMMIT}`,
+            }));
+          ' "${RUNNER_TEMP}/deployment-status.json"
+
+          gh api "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses" -X POST \
+            --input "${RUNNER_TEMP}/deployment-status.json" --jq '.state'
+
+          {
+            echo '### 部署记录'
+            echo
+            echo "- 环境：\`${GH_ENVIRONMENT}\`（${PUBLIC_ORIGIN}）"
+            echo "- 提交：\`${COMMIT}\`"
+            echo "- releaseId：\`${RELEASE_ID}\`"
+            echo "- 部署记录 ID：\`${id}\`，状态：\`${state}\`"
+            echo
+            echo '> 部署记录证明「这个产物上过这个环境」，不证明有人试用并批准过它。'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$state" = "success" ] || echo "本次部署未成功，已记录 failure 状态。"
