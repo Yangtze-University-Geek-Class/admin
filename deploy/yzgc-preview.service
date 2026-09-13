@@ -1,0 +1,34 @@
+# 预发布环境（https://prev.yangtzeu.work）的 systemd 模板。
+#
+# 这是模板，不是已生效配置：维护者必须按目标机的真实用户、目录、端口和证书情况确认后再安装。
+# 预发布与正式必须完全隔离：独立用户、独立 WorkingDirectory、独立 .env、独立数据目录与数据库、
+# 独立会话密钥、独立监听端口；不得复用 yzgc-admin 的任何一项（不要修改 deploy/yzgc-admin.service）。
+# WorkingDirectory 指向 current 符号链接，由 deploy/remote/deploy-release.sh 原子切换到 releases/<releaseId>。
+[Unit]
+Description=YZGC preview (prev.yangtzeu.work, 预发布环境)
+After=network.target
+
+[Service]
+Type=simple
+User=yzgc-preview
+Group=yzgc-preview
+# current 是符号链接；systemd 会解析到具体 release 目录，重启后即生效新版本。
+WorkingDirectory=/opt/yzgc-preview/current
+# 环境文件由维护者维护，不随发布包分发，也不进入仓库、日志或产物。
+EnvironmentFile=/opt/yzgc-preview/shared/.env
+# 监听端口由 .env 的 PORT 决定，必须与正式环境不同；服务只监听 127.0.0.1，由 nginx 反代。
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# 只有预发布自己的数据目录可写；代码与发布包保持只读。
+ReadWritePaths=/opt/yzgc-preview/shared/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
