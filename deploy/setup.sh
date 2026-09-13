@@ -1,30 +1,17 @@
 #!/usr/bin/env bash
-# Run as root on the server.
+# Repository-only preflight. Publishing is an explicitly authorized runbook operation.
 set -euo pipefail
 
-APP_DIR=/opt/yzgc-admin
-DOMAIN=github.yangtzeu.work
-
-cd "$APP_DIR"
-
-corepack enable >/dev/null 2>&1 || true
-corepack prepare pnpm@9.15.9 --activate >/dev/null 2>&1 || true
-
-pnpm install --frozen-lockfile
-pnpm -r run build
-
-install -m 644 deploy/yzgc-admin.service /etc/systemd/system/yzgc-admin.service
-install -m 644 deploy/nginx.conf /etc/nginx/sites-available/${DOMAIN}
-ln -sf /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/${DOMAIN}
-
-if [ ! -d /etc/letsencrypt/live/${DOMAIN} ]; then
-  certbot certonly --nginx -d ${DOMAIN} --non-interactive --agree-tos --email "${LE_EMAIL:-admin@yangtzeu.work}" --redirect
+if [[ "${1:-}" != "--check" ]]; then
+  printf '%s\n' 'Automatic production installation has been retired.' 'Use --check for repository preflight, then follow docs/ops/DEPLOY.md for an authorized release.' >&2
+  exit 2
 fi
 
-nginx -t
-systemctl reload nginx
-systemctl daemon-reload
-systemctl enable yzgc-admin
-systemctl restart yzgc-admin
-
-echo "deployed. tail -f /var/log/yzgc-admin.log"
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+node scripts/check-runtime.mjs
+node scripts/check-site-hosts.mjs
+for file in deploy/yzgc-admin.service deploy/nginx.conf deploy/nginx-yangtzeu.conf deploy/nginx-security-headers.conf; do
+  test -s "$file"
+done
+printf '%s\n' 'Repository templates present. No services, certificates, databases or system configuration were modified.' 'Actual nginx syntax, TLS paths, service-user permissions and rollback require release-environment verification.'

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "preview": {
+      "label": "预发布环境",
+      "origin": "https://prev.yangtzeu.work",
+      "tagPrefix": "prev-",
+      "githubEnvironment": "preview",
+      "allowCommitSuffix": true
+    },
+    "production": {
+      "label": "正式环境",
+      "origin": "https://yangtzeu.work",
+      "tagPrefix": "release-",
+      "githubEnvironment": "production",
+      "allowCommitSuffix": false
+    }
+  }
+}
