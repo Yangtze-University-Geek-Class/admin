@@ -1,0 +1,98 @@
+# Stream Markdown
+
+> 面向流式输出的 Markdown 渲染器，尾部带光标，围栏块可按语言接管。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/stream-markdown) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/stream-markdown.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/stream-markdown.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`0.3.9`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Stream Markdown
+
+## 基础用法
+
+### Stream Markdown
+官方示例：`StreamMarkdownStreamMarkdownDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import TxMermaidBlock from '@talex-touch/tuffex/stream-markdown'
+
+const content = ref('# 标题\n\n正在生成…')
+</script>
+
+<template>
+  <TxStreamMarkdown
+    :content="content"
+    streaming
+    :renderers="{ mermaid: TxMermaidBlock }"
+  />
+</template>
+```
+
+## 交互契约
+
+- 文档被切成块逐块渲染，因此追加文本不会导致整篇重排——这是流式场景下的关键性质。
+- `streaming` 为真时尾部显示光标，且**尚未闭合的尾部围栏会推迟渲染**：半截的代码块不会先以错误的形态闪现，等闭合后再交给渲染器。
+- `fenceClosed` 只对流式文档的尾部围栏为 `false`；缩进代码没有围栏，也报 `false`，组件把任何非尾部块都视作已完成。
+- `sanitize` 默认开启，通过动态 `import('dompurify')` 加载。**请保持开启**——内容来自模型输出。
+- dompurify 加载失败时 `sanitizer` 置空，组件不会因此崩溃；这意味着净化是尽力而为，不能替代服务端的信任边界。
+- 每个实例持有自己的 `Marked`（开启 `gfm` 与 `breaks`），不会修改全局单例——否则会影响应用内其他所有使用方。
+- `renderers` 按围栏语言（首个单词、转小写）匹配；未注册的语言走默认代码块渲染。
+- 注册的渲染器组件会收到 `StreamMarkdownBlockContext` 作为 props，其中包含 `fenceClosed`，可据此在未闭合时显示占位。
+- `theme` 支持 `light` / `dark` / `auto`，`auto` 跟随环境主题。
+- 随组件打包的 GitHub-Markdown 样式表是 *全局* 引入的，因此其中每条规则都被限定在 `:where(.tx-markdown-view, .tx-stream-md)` 下。`.markdown-body` 是一个非常通用的类名——加限定之前，只要引入本组件，宿主页面自己用该类名承载的正文也会被重新设置样式。`:where()` 不增加特异度，所以这层限定只收窄作用范围，不改变这些规则彼此之间的优先级关系。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `content` | `string` | — | Markdown 原文。必填。 |
+| `streaming` | `boolean` | `false` | 是否仍在输出；控制尾部光标与尾部围栏的延迟渲染。 |
+| `sanitize` | `boolean` | `true` | 是否通过 dompurify 净化 HTML。 |
+| `theme` | `'light' \| 'dark' \| 'auto'` | `'auto'` | 配色主题。 |
+| `renderers` | `Record<string, StreamMarkdownBlockRenderer>` | — | 按语言注册的围栏块渲染组件，例如 `{ mermaid: TxMermaidBlock }`。 |
+
+### Events
+
+`TxStreamMarkdown` 不派发组件事件。
+
+## Slots
+
+`TxStreamMarkdown` 不暴露插槽。要自定义某类内容的渲染，请通过 `renderers` 按语言注册组件。
+
+## 最佳实践
+
+- 不要关闭 `sanitize`。模型输出属于不可信内容，而这里是它变成 DOM 的地方。
+- 流式期间保持 `streaming` 为真，结束后再置假；一直为真会让光标永远留在末尾。
+- 自定义渲染器要处理 `fenceClosed` 为 `false` 的情况，给出加载态而不是尝试解析半截内容。
+- `renderers` 的 key 用小写语言名，与围栏首个单词一致（` ```mermaid ` → `mermaid`）。
+- 需要非流式的静态 Markdown 时用 `TxMarkdownView`，不必为它开这套分块与光标机制。
+
+## 离线完整示例源码
+
+- [StreamMarkdownStreamMarkdownDemo](../snapshot/apps/nexus/app/components/content/demos/StreamMarkdownStreamMarkdownDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [stream-markdown/index.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/index.ts.txt)
+- [src/TxCodeBlock.vue](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/TxCodeBlock.vue.txt)
+- [src/TxMermaidBlock.vue](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/TxMermaidBlock.vue.txt)
+- [src/TxStreamMarkdown.vue](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/TxStreamMarkdown.vue.txt)
+- [src/complete-inline-markup.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/complete-inline-markup.ts.txt)
+- [src/harden-html.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/harden-html.ts.txt)
+- [src/math-extension.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/math-extension.ts.txt)
+- [src/remote-image-policy.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/remote-image-policy.ts.txt)
+- [src/shiki-runtime.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/shiki-runtime.ts.txt)
+- [src/table-csv.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/table-csv.ts.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/types.ts.txt)
+- [src/use-auto-theme.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/use-auto-theme.ts.txt)
+- [src/use-block-stream.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/use-block-stream.ts.txt)
+- [src/use-fresh-chunks.ts](../snapshot/packages/tuffex/packages/components/src/stream-markdown/src/use-fresh-chunks.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

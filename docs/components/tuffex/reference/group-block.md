@@ -1,0 +1,615 @@
+# GroupBlock 分组块
+
+> 用于偏好设置界面的可折叠分组容器与块状行。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/group-block) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/group-block.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/group-block.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GroupBlock 分组块
+
+## 基础用法
+
+### GroupBlock
+官方示例：`GroupBlockGroupBlockDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock
+    name="通用设置"
+    default-icon="i-ri-settings-3-line"
+    active-icon="i-ri-settings-3-fill"
+    description="配置基本选项"
+  >
+    <TxBlockSwitch
+      v-model="notifications"
+      title="通知"
+      description="启用推送通知"
+      default-icon="i-ri-notification-line"
+      active-icon="i-ri-notification-fill"
+    />
+    <TxBlockSlot title="语言" description="选择显示语言" default-icon="i-carbon-translate">
+      <TxSelect v-model="language" placeholder="选择语言">
+        <TuffSelectItem value="en" label="English" />
+        <TuffSelectItem value="zh" label="中文" />
+      </TxSelect>
+    </TxBlockSlot>
+    <TxBlockLine title="版本" description="2.4.13-beta.3" />
+  </TxGroupBlock>
+</template>
+```
+
+### 初始折叠
+
+使用 `:default-expand="false"` 让分组首屏折叠；`collapsed` 更适合作为外部状态输入，并且只会在持久化状态或用户交互接管前生效。
+
+#### GroupBlock (collapsed)
+官方示例：`GroupBlockGroupBlockCollapsedDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock
+    name="高级设置"
+    description="折叠展示内容"
+    default-icon="i-ri-folder-line"
+    active-icon="i-ri-folder-open-line"
+    :default-expand="false"
+  >
+    <TxBlockLine title="展示内容" description="高级内容已保持挂载" />
+  </TxGroupBlock>
+</template>
+```
+
+### 记忆展开状态
+
+为 `memory-name` 指定唯一键，组件会持久化展开状态。
+
+#### GroupBlock (memory)
+官方示例：`GroupBlockGroupBlockMemoryDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock
+    name="更新策略"
+    description="记忆展开状态"
+    default-icon="i-ri-refresh-line"
+    active-icon="i-ri-refresh-line"
+    memory-name="tx-group-block-demo"
+  >
+    <TxBlockSwitch
+      v-model="autoUpdate"
+      title="自动更新"
+      description="后台自动检查更新"
+      default-icon="i-ri-refresh-line"
+      active-icon="i-ri-refresh-line"
+    />
+  </TxGroupBlock>
+</template>
+```
+
+### 头部扩展
+
+使用 `header-extra` 插槽放置操作区。
+
+#### GroupBlock (header-extra)
+官方示例：`GroupBlockGroupBlockHeaderExtraDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock
+    name="同步"
+    description="手动触发同步"
+    default-icon="i-ri-loop-left-line"
+    :collapsible="false"
+  >
+    <template #header-extra>
+      <TxButton size="small" variant="secondary">立即同步</TxButton>
+    </template>
+    <TxBlockLine title="上次同步" description="刚刚" />
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+# BlockLine 块行
+
+用于显示标题和描述的简单行项目。
+
+## 基础用法
+
+### BlockLine
+官方示例：`GroupBlockBlockLineBasicDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="版本信息" description="展示只读配置行" default-icon="i-ri-information-line" :collapsible="false">
+    <TxBlockLine title="版本" description="2.4.13-beta.3" />
+    <TxBlockLine title="构建日期" description="2026.07.06" />
+  </TxGroupBlock>
+</template>
+```
+
+### 链接样式
+
+显示为可点击的链接。
+
+#### BlockLine (link)
+官方示例：`GroupBlockBlockLineLinkDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="资源链接" description="可点击的跳转行" default-icon="i-ri-links-line" :collapsible="false">
+    <TxBlockLine title="查看文档" link>
+      <template #description>
+        打开开发者文档
+        <span class="i-carbon-arrow-up-right" aria-hidden="true" />
+      </template>
+    </TxBlockLine>
+    <TxBlockLine title="查看仓库" link>
+      <template #description>
+        浏览源码示例
+        <span class="i-carbon-code" aria-hidden="true" />
+      </template>
+    </TxBlockLine>
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+# BlockSlot 块插槽
+
+带有图标、标题、描述和自定义控件插槽的块容器。
+
+## 基础用法
+
+### BlockSlot
+官方示例：`GroupBlockBlockSlotDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="外观设置" description="自定义控件插槽" default-icon="i-ri-palette-line" :collapsible="false">
+    <TxBlockSlot title="主题" description="选择您偏好的主题" default-icon="i-ri-palette-line">
+      <TxSelect v-model="theme" placeholder="选择主题">
+        <TuffSelectItem value="light" label="浅色" />
+        <TuffSelectItem value="dark" label="深色" />
+        <TuffSelectItem value="auto" label="跟随系统" />
+      </TxSelect>
+    </TxBlockSlot>
+  </TxGroupBlock>
+</template>
+```
+
+### 激活态与标签
+
+#### BlockSlot (active)
+官方示例：`GroupBlockBlockSlotActiveDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="工作区偏好" description="激活态与标签" default-icon="i-ri-star-line" :collapsible="false">
+    <TxBlockSlot
+      title="置顶工作区"
+      description="优先显示该工作区"
+      default-icon="i-ri-star-line"
+      active-icon="i-ri-star-fill"
+      active
+    >
+      <template #tags>
+        <TxTag label="已启用" icon="i-carbon-checkmark-filled" color="var(--tx-color-success)" />
+      </template>
+      <TxButton size="small" variant="secondary">管理</TxButton>
+    </TxBlockSlot>
+  </TxGroupBlock>
+</template>
+```
+
+### 自定义标签
+
+#### BlockSlot (custom label)
+官方示例：`GroupBlockBlockSlotCustomLabelDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="资料字段" description="自定义标签区域" default-icon="i-ri-user-settings-line" :collapsible="false">
+    <TxBlockSlot default-icon="i-ri-profile-line">
+      <template #label>
+        <div>
+          <strong>资料名称</strong>
+          <p>显示在共享工作区。</p>
+        </div>
+      </template>
+      <TuffInput v-model="profileName" placeholder="输入资料名称" />
+    </TxBlockSlot>
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+# BlockInput 块输入
+
+当设置行需要标准文本输入，同时保留 GroupBlock 的间距、图标、标签和禁用态时，使用 `TxBlockInput`。
+
+### BlockInput
+官方示例：`GroupBlockBlockInputDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="账号资料" description="输入控件保持设置行节奏" default-icon="i-ri-user-settings-line" :collapsible="false">
+    <TxBlockInput
+      v-model="displayName"
+      title="显示名称"
+      description="用于协作空间和通知。"
+      placeholder="输入显示名称"
+      default-icon="i-carbon-user-profile"
+      clearable
+    />
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+# BlockSelect 块选择
+
+当设置行需要紧凑 `TxSelect`，且不想手写行容器结构时，使用 `TxBlockSelect`。
+
+### BlockSelect
+官方示例：`GroupBlockBlockSelectDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="工作区默认值" description="选择控件复用同一行布局" default-icon="i-ri-dashboard-line" :collapsible="false">
+    <TxBlockSelect
+      v-model="timezone"
+      title="时间显示"
+      description="选择活动时间的展示方式。"
+      placeholder="选择时间显示"
+      default-icon="i-carbon-time"
+    >
+      <TuffSelectItem value="local" label="本地时间" />
+      <TuffSelectItem value="utc" label="UTC" />
+      <TuffSelectItem value="relative" label="相对时间" />
+    </TxBlockSelect>
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+# BlockSwitch 块开关
+
+带有集成开关控件的块容器。
+
+## 基础用法
+
+### BlockSwitch
+官方示例：`GroupBlockBlockSwitchDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="更新策略" description="使用 CoreApp 同款行高和间距" default-icon="i-ri-refresh-line" :collapsible="false">
+    <TxBlockSwitch
+      v-model="autoUpdate"
+      title="自动更新"
+      description="后台自动检查并下载更新"
+      default-icon="i-ri-refresh-line"
+      active-icon="i-ri-refresh-line"
+    />
+  </TxGroupBlock>
+</template>
+```
+
+### 加载状态
+
+#### BlockSwitch (loading)
+`loading` 直接透传给内部开关：滑块变成旋转环，整行冻结但不压暗，行上再叠一层 shimmer。
+官方示例：`GroupBlockBlockSwitchLoadingDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="同步状态" description="加载中滑块变为旋转环并冻结整行" default-icon="i-ri-refresh-line" :collapsible="false">
+    <TxBlockSwitch
+      v-model="loading"
+      title="正在同步"
+      description="等待最新状态返回"
+      default-icon="i-ri-refresh-line"
+      active-icon="i-ri-refresh-line"
+      loading
+    />
+  </TxGroupBlock>
+</template>
+```
+
+### 禁用状态
+
+#### BlockSwitch (disabled)
+官方示例：`GroupBlockBlockSwitchDisabledDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="受管设置" description="禁用态保持同一视觉体系" default-icon="i-ri-lock-line" :collapsible="false">
+    <TxBlockSwitch
+      v-model="locked"
+      title="高级功能"
+      description="需要订阅或管理员授权"
+      default-icon="i-ri-lock-line"
+      active-icon="i-ri-lock-fill"
+      disabled
+    />
+  </TxGroupBlock>
+</template>
+```
+
+### 引导模式
+
+显示为导航项而非开关。
+
+#### BlockSwitch (guidance)
+官方示例：`GroupBlockBlockSwitchGuidanceDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGroupBlock name="安全中心" description="引导模式用于进入下一层设置" default-icon="i-ri-shield-keyhole-line" :collapsible="false">
+    <TxBlockSwitch
+      v-model="dummy"
+      title="隐私设置"
+      description="管理设备、数据和授权选项"
+      default-icon="i-ri-shield-keyhole-line"
+      guidance
+      @click="handleClick"
+    />
+  </TxGroupBlock>
+</template>
+```
+
+---
+
+## API
+
+### TxGroupBlock 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `name` | `string` | *必填* | 分组标题。 |
+| `description` | `string` | `''` | 分组标题下方的辅助说明。 |
+| `defaultIcon` | `TxIconSource \| string` | - | 折叠时图标；未提供激活图标时也作为回退。 |
+| `activeIcon` | `TxIconSource \| string` | - | 展开时图标；未提供时回退到 `defaultIcon`。 |
+| `iconSize` | `number` | `22` | 头部图标像素尺寸。 |
+| `collapsible` | `boolean` | `true` | 是否允许点击头部切换内容区。 |
+| `collapsed` | `boolean` | `false` | 外部折叠输入；仅在没有持久化状态且用户尚未交互时被监听。首屏折叠优先使用 `:default-expand="false"`。 |
+| `defaultExpand` | `boolean` | `true` | 没有持久化状态时的初始展开状态；设为 `false` 可让首屏折叠。 |
+| `memoryName` | `string` | `''` | 使用 `tuff-block-storage-` 前缀写入 `localStorage`，持久化展开状态。 |
+
+### TxGroupBlock 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:expanded` | `expanded: boolean` | 可折叠分组展开状态变化后触发。 |
+| `toggle` | `expanded: boolean` | 点击头部切换后触发，参数与最新状态一致。 |
+
+### TxGroupBlock 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 分组内容行。 |
+| `icon` | `{ active: boolean }` | 自定义头部图标，替代 `defaultIcon` / `activeIcon`。 |
+| `header-extra` | `{ active: boolean }` | 头部操作区，位于折叠箭头之前。 |
+
+### TxBlockLine 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 行标题。 |
+| `description` | `string` | `''` | `link=false` 时的行内容，可被 `description` 插槽替换。 |
+| `link` | `boolean` | `false` | 渲染为带链接样式的原生按钮并启用点击事件。 |
+
+### TxBlockLine 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `click` | `event: MouseEvent` | 仅在 `link=true` 时触发。 |
+
+### TxBlockLine 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `description` | - | 自定义行内容或链接内容。 |
+
+### TxBlockSlot 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 默认标题；提供 `label` 插槽后不再渲染。 |
+| `description` | `string` | `''` | 默认描述；提供 `label` 插槽后不再渲染。 |
+| `defaultIcon` | `TxIconSource \| string` | - | `active=false` 时图标；未提供激活图标时也作为回退。 |
+| `activeIcon` | `TxIconSource \| string` | - | `active=true` 时图标；未提供时回退到 `defaultIcon`。 |
+| `iconSize` | `number` | `20` | 图标像素尺寸。 |
+| `active` | `boolean` | `false` | 为 `true` 时切换到 `activeIcon`，并把 `active` 传入 `icon`/`default` 插槽作用域；不改变行背景等视觉样式。 |
+| `disabled` | `boolean` | `false` | 应用禁用样式并阻止行点击事件。 |
+
+### TxBlockSlot 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `click` | `event: MouseEvent` | 点击行且 `disabled=false` 时触发。 |
+
+### TxBlockSlot 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | `{ active: boolean }` | 右侧控件区。 |
+| `icon` | `{ active: boolean }` | 自定义图标区。 |
+| `label` | - | 完全自定义标签区，替代 `title` 和 `description`。 |
+| `tags` | - | 标题旁或自定义标签下方的元信息。 |
+
+### TxBlockInput 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `modelValue` | `string \| number` | `''` | 当前输入值，用于 `v-model`。 |
+| `title` | `string` | `''` | 行标题。 |
+| `description` | `string` | `''` | 行描述。 |
+| `defaultIcon` | `TxIconSource \| string` | - | 未聚焦时图标；未提供激活图标时也作为回退。 |
+| `activeIcon` | `TxIconSource \| string` | - | 输入框聚焦时图标。 |
+| `disabled` | `boolean` | `false` | 禁用行和内部输入框。 |
+| `placeholder` | `string` | `''` | 输入框占位文本。 |
+| `clearable` | `boolean` | `false` | 透传给 `TxInput`。 |
+| `inputType` | `'text' \| 'password' \| 'number' \| 'email'` | `'text'` | 透传为 `TxInput` 的类型。 |
+
+### TxBlockInput 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `value: string \| number` | 内部输入值变化时触发。 |
+| `input` | `value: string \| number` | 透传内部 `TxInput` 的 input 事件。 |
+| `focus` | `event: FocusEvent` | 输入框获得焦点时触发。 |
+| `blur` | `event: FocusEvent` | 输入框失去焦点时触发。 |
+
+### TxBlockInput 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `control` | `{ value: string \| number, focused: boolean }` | 替换默认 `TxInput`。 |
+| `tags` | - | 透传到行标题区的元信息。 |
+
+### TxBlockSelect 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `modelValue` | `string \| number` | `''` | 当前选择值，用于 `v-model`。 |
+| `title` | `string` | `''` | 行标题。 |
+| `description` | `string` | `''` | 行描述。 |
+| `defaultIcon` | `TxIconSource \| string` | - | 未选中值时图标；未提供激活图标时也作为回退。 |
+| `activeIcon` | `TxIconSource \| string` | - | 已选中值时图标。 |
+| `disabled` | `boolean` | `false` | 禁用行和内部选择器。 |
+| `placeholder` | `string` | `''` | 选择器占位文本。 |
+
+### TxBlockSelect 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `value: string \| number` | 选择值变化时触发。 |
+| `change` | `value: string \| number` | 选择值变化后以相同载荷触发。 |
+
+### TxBlockSelect 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | `TxSelect` 的选项子组件，例如 `TuffSelectItem`。 |
+| `tags` | - | 透传到行标题区的元信息。 |
+
+### TxBlockSwitch 属性
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `modelValue` | `boolean` | *必填* | 当前开关值，用于 `v-model`。 |
+| `title` | `string` | *必填* | 开关行标题。 |
+| `description` | `string` | *必填* | 开关行描述。 |
+| `defaultIcon` | `TxIconSource \| string` | - | 开关关闭时图标；未提供激活图标时也作为回退。 |
+| `activeIcon` | `TxIconSource \| string` | - | 开关开启时图标；未提供时回退到 `defaultIcon`。 |
+| `disabled` | `boolean` | `false` | 禁用行和内部开关。 |
+| `guidance` | `boolean` | `false` | 渲染为带箭头的导航行，而不是开关。 |
+| `loading` | `boolean` | `false` | 透传给内部 `TuffSwitch` 的 `loading`：滑块变为旋转环，行上叠加 shimmer，并临时禁用开关交互。 |
+
+### TxBlockSwitch 事件
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `value: boolean` | 内部开关值变化时触发。 |
+| `change` | `value: boolean` | 用户交互后透传开关 change 事件。 |
+| `click` | `event: MouseEvent` | 仅在 `guidance` 模式触发。 |
+
+### TxBlockSwitch 插槽
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `tags` | - | 透传到行标题区的元信息。 |
+
+## 暴露方法
+
+无。请使用 props、`update:expanded`、`toggle` 以及各行组件事件，不要依赖命令式句柄。
+
+## 交互契约
+
+- `memoryName` 优先于初始默认值；持久化内容以 `{ expand: boolean }` 写入 `localStorage`。
+- 没有持久化状态时，`defaultExpand` 决定首屏展开状态；`collapsed` 随后作为外部输入被监听，直到用户手动切换分组。
+- 用户手动切换分组后，后续 `collapsed` / `defaultExpand` prop 变化不再覆盖当前选择。
+- 分组内容始终保持挂载；展开/折叠只改变高度、透明度和 display。
+- `TxBlockLine` 默认渲染非交互 `div`，仅在 `link=true` 时渲染 `button type="button"`。
+- `TxBlockSlot` 把每个控件槽固定为 `flex-shrink: 0`，让定宽控件永远不会被压扁。`TxBlockInput` 单独解除了这条：它的输入框会向 `min-width: 120px` 收缩，而不是死守 180px 去挤掉本行标题——在 240px 容器里那会让标题只剩 10px。
+- `TxBlockSlot` 禁用时不触发点击；`TxBlockSwitch` 在 `loading=true` 时同样冻结整行的指针事件，但行不会被压暗——`tx-block-switch--loading:not(.tx-block-switch--disabled)` 会把 slot 的 `opacity: .5` 收回来，让忙碌态和禁用态在视觉上分开。
+- `TxBlockSwitch` 的忙碌提示只有一处：`loading` 透传给内部 `TuffSwitch`，由滑块变成旋转环；行本身只叠加 shimmer，不再额外渲染 spinner。
+- `TxBlockSwitch` 的 guidance 模式只显示箭头并触发 `click`，不会改写 `modelValue`。
+
+## 样式定制
+
+| 主题变量 | 用途 |
+|-------------|----------|
+| `--tx-border-color-lighter` | 分组卡片边框与头部分隔线。 |
+| `--tx-fill-color-dark` / `--tx-fill-color` / `--tx-fill-color-light` | 头部、行、hover 与 touch-blur 表面。 |
+| `--tx-text-color-primary` / `--tx-text-color-secondary` | 分组标题、行标签、描述、引导箭头与开关加载环颜色。 |
+| `--tx-color-primary` / `--tx-color-primary-dark-2` | `TxBlockLine link` 文本色与 hover 色。 |
+| `--tx-color-white` | `TxBlockSwitch` 加载遮罩中的 shimmer 高光。 |
+
+## 最佳实践
+
+- 用 `TxGroupBlock` 组织紧凑设置和偏好项，每个分组聚焦一个产品区域。
+- `memoryName` 需唯一且稳定，不要在无关分组之间复用同一个 key。
+- 永远可见的状态或表单段落应设置 `collapsible=false`，避免暗示存在隐藏状态。
+- 只读值和轻量跳转用 `TxBlockLine`，自定义控件用 `TxBlockSlot`，标准表单行用 `TxBlockInput` / `TxBlockSelect`，布尔值或导航引导用 `TxBlockSwitch`。
+- 行标题保持简短；长说明放在描述行或相邻帮助模式中，不要在行内嵌套复杂布局。
+- 组内行的直角由分组负责，而不是行自己：`TxGroupBlock` 会重置每一行的 `--fake-radius` 与外边距，让圆角只出现在分组卡片上。行单独使用时仍保留自身的 12px 圆角，因此不要通过在行上硬写 `border-radius: 0` 来复刻分组里的扁平外观。
+
+## 审阅说明
+
+- 已对照 `packages/tuffex/packages/components/src/group-block/src/types.ts` 以及 group-block 包内 6 个 Vue 入口核对。
+- `TxBlockLine` 只有在 `link=true` 时才具备交互语义，不应描述成通用可点击行。
+- `TxBlockSwitch` 的 loading 模式会阻止值变更；guidance 模式只触发 `click`，应按导航行说明，而不是布尔开关。
+- **忙碌态归属:** loading 的视觉由内部 `TuffSwitch` 承担（`is-loading` + `aria-busy`），`TxBlockSwitch` 自己只负责行级 shimmer 和取消压暗。改动开关的加载表现时，两个组件的文档都要同步。
+- 折叠示例刻意使用 `:default-expand="false"`；当前源码中 `collapsed` 仅在持久化状态或用户交互接管前被监听。
+- **拉平所用的选择器:** 把行拉成直角的那条重置使用普通后代选择器。`TxGroupBlock` 的 `<style>` 是*非 scoped* 的，其中的 `:deep()` 会原样输出、被浏览器当作未知伪类整条丢弃——现已有包级测试，对任何非 scoped 块里的 `:deep()` 直接失败。
+- **实测覆盖:** 展开状态持久化、静态分组行为、语义化链接行、禁用 slot 点击阻断、guidance 模式、loading 状态下的值变更守卫，以及 loading 行内只有开关自身携带 `is-loading` / `aria-busy`、不存在第二个 spinner。
+
+## Source
+
+- Component sources: `packages/tuffex/packages/components/src/group-block/src/TxGroupBlock.vue`, `TxBlockLine.vue`, `TxBlockSlot.vue`, `TxBlockInput.vue`, `TxBlockSelect.vue`, and `TxBlockSwitch.vue`.
+- Types: `packages/tuffex/packages/components/src/group-block/src/types.ts`.
+- Coverage: `packages/tuffex/packages/components/src/group-block/__tests__/group-block.test.ts` verifies persistence, static groups, semantic link rows, slot click blocking, guidance mode, and loading-state value guards.
+
+## 离线完整示例源码
+
+- [GroupBlockGroupBlockDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockGroupBlockDemo.vue.txt)
+- [GroupBlockGroupBlockCollapsedDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockGroupBlockCollapsedDemo.vue.txt)
+- [GroupBlockGroupBlockMemoryDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockGroupBlockMemoryDemo.vue.txt)
+- [GroupBlockGroupBlockHeaderExtraDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockGroupBlockHeaderExtraDemo.vue.txt)
+- [GroupBlockBlockLineBasicDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockLineBasicDemo.vue.txt)
+- [GroupBlockBlockLineLinkDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockLineLinkDemo.vue.txt)
+- [GroupBlockBlockSlotDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSlotDemo.vue.txt)
+- [GroupBlockBlockSlotActiveDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSlotActiveDemo.vue.txt)
+- [GroupBlockBlockSlotCustomLabelDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSlotCustomLabelDemo.vue.txt)
+- [GroupBlockBlockInputDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockInputDemo.vue.txt)
+- [GroupBlockBlockSelectDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSelectDemo.vue.txt)
+- [GroupBlockBlockSwitchDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSwitchDemo.vue.txt)
+- [GroupBlockBlockSwitchLoadingDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSwitchLoadingDemo.vue.txt)
+- [GroupBlockBlockSwitchDisabledDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSwitchDisabledDemo.vue.txt)
+- [GroupBlockBlockSwitchGuidanceDemo](../snapshot/apps/nexus/app/components/content/demos/GroupBlockBlockSwitchGuidanceDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [group-block/index.ts](../snapshot/packages/tuffex/packages/components/src/group-block/index.ts.txt)
+- [src/TxBlockInput.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxBlockInput.vue.txt)
+- [src/TxBlockLine.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxBlockLine.vue.txt)
+- [src/TxBlockSelect.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxBlockSelect.vue.txt)
+- [src/TxBlockSlot.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxBlockSlot.vue.txt)
+- [src/TxBlockSwitch.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxBlockSwitch.vue.txt)
+- [src/TxGroupBlock.vue](../snapshot/packages/tuffex/packages/components/src/group-block/src/TxGroupBlock.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/group-block/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

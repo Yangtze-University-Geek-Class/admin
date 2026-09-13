@@ -1,0 +1,321 @@
+<script setup lang="ts">
+import type { GlassSurfaceProps } from '../index'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { hasDocument, hasNavigator, hasWindow } from '../../../../utils/env'
+
+defineOptions({
+  name: 'TxGlassSurface',
+})
+
+const props = withDefaults(defineProps<GlassSurfaceProps>(), {
+  width: '200px',
+  height: '200px',
+  borderRadius: 20,
+  borderWidth: 0.07,
+  brightness: 70,
+  opacity: 0.93,
+  blur: 11,
+  displace: 0.5,
+  backgroundOpacity: 0,
+  saturation: 1,
+  distortionScale: -180,
+  redOffset: 0,
+  greenOffset: 10,
+  blueOffset: 20,
+  xChannel: 'R',
+  yChannel: 'G',
+  mixBlendMode: 'difference',
+})
+
+const containerRef = ref<HTMLDivElement | null>(null)
+const feImageRef = ref<SVGImageElement | null>(null)
+const redChannelRef = ref<SVGFEDisplacementMapElement | null>(null)
+const greenChannelRef = ref<SVGFEDisplacementMapElement | null>(null)
+const blueChannelRef = ref<SVGFEDisplacementMapElement | null>(null)
+const gaussianBlurRef = ref<SVGFEGaussianBlurElement | null>(null)
+
+function generateUniqueId() {
+  return Math.random().toString(36).substring(2, 15)
+}
+
+const uniqueId = generateUniqueId()
+const filterId = `tx-glass-filter-${uniqueId}`
+const redGradId = `tx-glass-red-grad-${uniqueId}`
+const blueGradId = `tx-glass-blue-grad-${uniqueId}`
+
+let resizeObserver: ResizeObserver | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
+let isUnmounted = false
+
+function supportsSVGFilters() {
+  if (!hasWindow() || !hasNavigator() || !hasDocument())
+    return false
+
+  const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+  const isFirefox = /Firefox/.test(navigator.userAgent)
+
+  if (isWebkit || isFirefox)
+    return false
+
+  const value = `url(#${filterId})`
+  if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function')
+    return false
+  return CSS.supports('backdrop-filter', value) || CSS.supports('-webkit-backdrop-filter', value)
+}
+
+function supportsBackdropFilter() {
+  if (!hasWindow())
+    return false
+  if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function')
+    return false
+  return CSS.supports('backdrop-filter', 'blur(10px)')
+}
+
+function generateDisplacementMap() {
+  const rect = containerRef.value?.getBoundingClientRect()
+  const actualWidth = rect?.width || 400
+  const actualHeight = rect?.height || 200
+  const edgeSize = Math.min(actualWidth, actualHeight) * (props.borderWidth * 0.5)
+
+  const svgContent = `
+      <svg viewBox="0 0 ${actualWidth} ${actualHeight}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="${redGradId}" x1="100%" y1="0%" x2="0%" y2="0%">
+            <stop offset="0%" stop-color="#0000"/>
+            <stop offset="100%" stop-color="red"/>
+          </linearGradient>
+          <linearGradient id="${blueGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#0000"/>
+            <stop offset="100%" stop-color="blue"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" fill="black"></rect>
+        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" rx="${props.borderRadius}" fill="url(#${redGradId})" />
+        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" rx="${props.borderRadius}" fill="url(#${blueGradId})" style="mix-blend-mode: ${props.mixBlendMode}" />
+        <rect x="${edgeSize}" y="${edgeSize}" width="${actualWidth - edgeSize * 2}" height="${actualHeight - edgeSize * 2}" rx="${props.borderRadius}" fill="hsl(0 0% ${props.brightness}% / ${props.opacity})" style="filter:blur(${props.blur}px)" />
+      </svg>
+    `
+
+  return `data:image/svg+xml,${encodeURIComponent(svgContent)}`
+}
+
+function updateDisplacementMap() {
+  if (isUnmounted)
+    return
+
+  if (feImageRef.value) {
+    feImageRef.value.setAttribute('href', generateDisplacementMap())
+  }
+}
+
+function updateFilterElements() {
+  if (isUnmounted)
+    return
+
+  const elements = [
+    { el: redChannelRef.value, offset: props.redOffset },
+    { el: greenChannelRef.value, offset: props.greenOffset },
+    { el: blueChannelRef.value, offset: props.blueOffset },
+  ]
+
+  for (const { el, offset } of elements) {
+    if (el) {
+      el.setAttribute('scale', (props.distortionScale + offset).toString())
+      el.setAttribute('xChannelSelector', props.xChannel)
+      el.setAttribute('yChannelSelector', props.yChannel)
+    }
+  }
+
+  if (gaussianBlurRef.value) {
+    gaussianBlurRef.value.setAttribute('stdDeviation', props.displace.toString())
+  }
+}
+
+const containerStyles = computed(() => {
+  const monochromeMask = 'var(--tx-surface-refraction-mask-rgb, 255 255 255)'
+  const baseStyles: Record<string, string | number> = {
+    width: typeof props.width === 'number' ? `${props.width}px` : props.width,
+    height: typeof props.height === 'number' ? `${props.height}px` : props.height,
+    borderRadius: `${props.borderRadius}px`,
+  }
+
+  const fallbackBlur = Math.max(0, props.blur)
+  const svgSupported = supportsSVGFilters()
+  const backdropFilterSupported = supportsBackdropFilter()
+
+  if (svgSupported) {
+    return {
+      ...baseStyles,
+      background: `rgb(${monochromeMask} / ${props.backgroundOpacity})`,
+      backdropFilter: `url(#${filterId}) saturate(${props.saturation})`,
+    }
+  }
+
+  if (!backdropFilterSupported) {
+    return {
+      ...baseStyles,
+      background: `rgb(${monochromeMask} / 0.4)`,
+      border: `1px solid rgb(${monochromeMask} / 0.24)`,
+    }
+  }
+
+  return {
+    ...baseStyles,
+    background: `rgb(${monochromeMask} / 0.22)`,
+    backdropFilter: `blur(${fallbackBlur}px) saturate(1.8) brightness(1.06)`,
+    WebkitBackdropFilter: `blur(${fallbackBlur}px) saturate(1.8) brightness(1.06)`,
+    border: `1px solid rgb(${monochromeMask} / 0.24)`,
+  }
+})
+
+onMounted(() => {
+  isUnmounted = false
+
+  nextTick(() => {
+    if (isUnmounted)
+      return
+
+    updateDisplacementMap()
+    updateFilterElements()
+
+    if (containerRef.value && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (resizeTimer)
+          clearTimeout(resizeTimer)
+        resizeTimer = setTimeout(() => {
+          resizeTimer = null
+          updateDisplacementMap()
+        }, 0)
+      })
+      resizeObserver.observe(containerRef.value)
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  isUnmounted = true
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+    resizeTimer = null
+  }
+})
+
+watch(
+  [
+    () => props.width,
+    () => props.height,
+    () => props.borderRadius,
+    () => props.borderWidth,
+    () => props.brightness,
+    () => props.opacity,
+    () => props.blur,
+    () => props.displace,
+    () => props.distortionScale,
+    () => props.redOffset,
+    () => props.greenOffset,
+    () => props.blueOffset,
+    () => props.xChannel,
+    () => props.yChannel,
+    () => props.mixBlendMode,
+  ],
+  () => {
+    updateDisplacementMap()
+    updateFilterElements()
+  },
+)
+</script>
+
+<template>
+  <div ref="containerRef" class="tx-glass-surface" :style="containerStyles">
+    <svg class="tx-glass-surface__svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter :id="filterId" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+          <feImage
+            ref="feImageRef"
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+            result="map"
+          />
+
+          <feDisplacementMap ref="redChannelRef" in="SourceGraphic" in2="map" result="dispRed" />
+          <feColorMatrix
+            in="dispRed"
+            type="matrix"
+            values="1 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 1 0"
+            result="red"
+          />
+
+          <feDisplacementMap ref="greenChannelRef" in="SourceGraphic" in2="map" result="dispGreen" />
+          <feColorMatrix
+            in="dispGreen"
+            type="matrix"
+            values="0 0 0 0 0
+                    0 1 0 0 0
+                    0 0 0 0 0
+                    0 0 0 1 0"
+            result="green"
+          />
+
+          <feDisplacementMap ref="blueChannelRef" in="SourceGraphic" in2="map" result="dispBlue" />
+          <feColorMatrix
+            in="dispBlue"
+            type="matrix"
+            values="0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 1 0 0
+                    0 0 0 1 0"
+            result="blue"
+          />
+
+          <feBlend in="red" in2="green" mode="screen" result="rg" />
+          <feBlend in="rg" in2="blue" mode="screen" result="output" />
+          <feGaussianBlur ref="gaussianBlurRef" in="output" stdDeviation="0.7" />
+        </filter>
+      </defs>
+    </svg>
+
+    <div class="tx-glass-surface__content">
+      <slot />
+    </div>
+  </div>
+</template>
+
+<style lang="scss">
+.tx-glass-surface {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 260ms ease-out;
+}
+
+.tx-glass-surface__svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  z-index: -1;
+}
+
+.tx-glass-surface__content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  position: relative;
+  z-index: 1;
+}
+</style>

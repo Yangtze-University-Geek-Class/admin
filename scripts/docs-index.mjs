@@ -20,7 +20,7 @@ const INDEX = join(DOCS, "INDEX.md");
 const CHECK = process.argv.includes("--check");
 
 // 文件夹展示顺序；未列出的目录按字母序追加在后面。
-const FOLDER_ORDER = ["conventions", "design", "architecture", "plan", "ops"];
+const FOLDER_ORDER = ["conventions", "components", "design", "architecture", "plan", "ops"];
 
 const FOLDER_LABEL = {
   conventions: "规范",
@@ -35,6 +35,9 @@ function walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".")) continue;
     const full = join(dir, entry.name);
+    // Generated vendor references have a dedicated catalogue; keep this index small.
+    const rel = relative(DOCS, full).replaceAll(String.fromCharCode(92), "/");
+    if (["components/tuffex/reference", "components/tuffex/snapshot"].includes(rel)) continue;
     if (entry.isDirectory()) out.push(...walk(full));
     else if (entry.name.endsWith(".md")) out.push(full);
   }
@@ -123,7 +126,7 @@ function build() {
   lines.push("> 本文件由 `node scripts/docs-index.mjs` 生成，**请勿手工编辑**。");
   lines.push("> 改了文档标题或摘要后重新生成；提交前用 `node scripts/docs-index.mjs --check` 自查。");
   lines.push("");
-  lines.push("改代码前该读哪篇，见 [`README.md`](./README.md) 的「按改动类型找文档」表；强制规则见 [`../AGENTS.md`](../AGENTS.md) §0。");
+  lines.push("任务与规范导航见 [`README.md`](./README.md) 和 [`../AGENTS.md`](../AGENTS.md)。Tuffex 完整组件索引见 [`COMPONENTS.md`](./components/tuffex/COMPONENTS.md)，不在总索引重复展开。");
   lines.push("");
 
   const describe = (folder) => {

@@ -1,0 +1,236 @@
+<script setup lang="ts">
+/**
+ * TxBlockSlot Component
+ *
+ * A block container with icon, title, description, and a slot for custom content.
+ * Ideal for settings rows with custom controls.
+ */
+import type { TxIconSource } from '../../icon'
+import type { BlockSlotEmits, BlockSlotProps } from './types'
+import { computed, getCurrentInstance } from 'vue'
+import { TuffIcon } from '../../icon'
+
+defineOptions({
+  name: 'TxBlockSlot',
+})
+
+const props = withDefaults(defineProps<BlockSlotProps>(), {
+  title: '',
+  description: '',
+  iconSize: 20,
+  disabled: false,
+  active: false,
+})
+
+const emit = defineEmits<BlockSlotEmits>()
+
+type IconValue = TxIconSource | string | null | undefined
+
+function handleClick(event: MouseEvent): void {
+  if (props.disabled)
+    return
+  emit('click', event)
+}
+
+// The row is keyboard-interactive whenever a click listener is attached, so its
+// documented row/guidance action is reachable by keyboard, not only by mouse.
+// `click` is a declared emit, so the listener is read from the component vnode.
+const instance = getCurrentInstance()
+const interactive = computed(() => !!instance?.vnode.props?.onClick)
+
+function handleKeydown(event: KeyboardEvent): void {
+  // Only the row itself activates; ignore Enter/Space bubbling up from controls
+  // in the slot so their own keyboard handling is preserved.
+  if (event.target !== event.currentTarget)
+    return
+  if (props.disabled || !interactive.value)
+    return
+  if (event.key !== 'Enter' && event.key !== ' ')
+    return
+  event.preventDefault()
+  emit('click', event as unknown as MouseEvent)
+}
+
+function toIcon(icon?: IconValue): TxIconSource | null {
+  if (!icon)
+    return null
+  if (typeof icon === 'string')
+    return { type: 'class', value: icon }
+  return icon
+}
+
+const defaultIcon = computed(() => {
+  return toIcon(props.defaultIcon)
+})
+
+const activeIcon = computed(() => {
+  if (props.activeIcon !== undefined)
+    return toIcon(props.activeIcon)
+  return null
+})
+
+const currentIcon = computed(() => {
+  if (props.active)
+    return activeIcon.value ?? defaultIcon.value
+  return defaultIcon.value ?? activeIcon.value
+})
+</script>
+
+<template>
+  <div
+    class="tx-block-slot fake-background index-fix"
+    :class="{ 'tx-block-slot--disabled': disabled, disabled }"
+    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive && !disabled ? 0 : undefined"
+    :aria-disabled="interactive && disabled ? true : undefined"
+    @click="handleClick"
+    @keydown="handleKeydown"
+  >
+    <div class="tx-block-slot__content">
+      <slot name="icon" :active="active">
+        <TuffIcon v-if="currentIcon" :icon="currentIcon" :size="iconSize" />
+      </slot>
+      <div class="tx-block-slot__label">
+        <template v-if="$slots.label">
+          <slot name="label" />
+          <div v-if="$slots.tags" class="tx-block-slot__tags tx-block-slot__tags--after">
+            <slot name="tags" />
+          </div>
+        </template>
+        <template v-else>
+          <div class="tx-block-slot__title-row">
+            <h5 class="tx-block-slot__title">
+              {{ title }}
+            </h5>
+            <div v-if="$slots.tags" class="tx-block-slot__tags">
+              <slot name="tags" />
+            </div>
+          </div>
+          <p class="tx-block-slot__description">
+            {{ description }}
+          </p>
+        </template>
+      </div>
+    </div>
+    <div class="tx-block-slot__slot">
+      <slot :active="active" />
+    </div>
+  </div>
+</template>
+
+<style lang="scss">
+.tx-block-slot {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 4px 16px;
+  width: 100%;
+  height: 56px;
+  user-select: none;
+  box-sizing: border-box;
+  --fake-color: var(--tx-fill-color-dark, #e4e7ed);
+  --fake-radius: 12px;
+  --fake-opacity: 0.5;
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s ease;
+
+  &.disabled,
+  &--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .tx-block-slot__content {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+
+    > * {
+      margin-right: 16px;
+      font-size: 24px;
+    }
+
+    > .tx-block-slot__label {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tx-block-slot__title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--tx-text-color-primary, #303133);
+    }
+
+    .tx-block-slot__description {
+      margin: 4px 0 0;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 16px;
+      opacity: 0.5;
+      color: var(--tx-text-color-secondary, #909399);
+    }
+  }
+
+  .tx-block-slot__title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .tx-block-slot__tags {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+    max-width: 100%;
+    align-self: flex-start;
+    height: auto;
+
+    &--after {
+      margin-top: 4px;
+    }
+  }
+
+  .tx-block-slot__slot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  &:hover {
+    --fake-color: var(--tx-fill-color, #f0f2f5);
+  }
+
+  &:active:not(.disabled):not(.tx-block-slot--disabled) {
+    transform: scale(0.985);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--tx-color-primary, #409eff) 60%, transparent);
+    outline-offset: -2px;
+  }
+}
+
+.touch-blur .tx-block-slot {
+  --fake-color: var(--tx-fill-color, #f0f2f5);
+
+  &:hover {
+    --fake-color: var(--tx-fill-color-dark, #e4e7ed);
+  }
+}
+</style>

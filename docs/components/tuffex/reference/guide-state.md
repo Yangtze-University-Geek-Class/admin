@@ -1,0 +1,124 @@
+# GuideState 引导状态
+
+> 基于 TxEmptyState 的引导态快捷组件，固定 guide 变体，并透传文案、操作、布局、表面和命名插槽。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/guide-state) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/guide-state.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/guide-state.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`2.4.7`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GuideState 引导状态
+
+## 基础用法
+
+当外围页面已经说明上下文时，可以使用默认的 guide 标题和描述。
+
+官方示例：`GuideStateBasicDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGuideState
+    :primary-action="{ label: '开始配置', type: 'primary' }"
+    :secondary-action="{ label: '查看指南' }"
+  />
+</template>
+```
+
+## 自定义内容
+
+当引导需要独立出现在页面或面板中时，覆盖文案并使用卡片表面。
+
+官方示例：`GuideStateCustomDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGuideState
+    title="创建第一个工作区"
+    description="工作区帮助你整理项目、成员和自动化流程。按照引导完成初始配置。"
+    surface="card"
+    size="large"
+    :primary-action="{ label: '创建工作区', type: 'primary' }"
+  />
+</template>
+```
+
+## API
+
+`TxGuideState` 接收 `GuideStateProps`，其类型定义为 `Omit<EmptyStateProps, 'variant'>`。组件会把这些 props 透传给 `TxEmptyState`，并注入 `variant="guide"`。完整基础契约见 [EmptyState](./empty-state.md)。
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `title` | `string` | `'Start here'` | 覆盖从 `TxEmptyState` 继承的 guide 预设标题。 |
+| `description` | `string` | `'Follow the steps to get started.'` | 覆盖 guide 预设描述。 |
+| `icon` | `TxIconSource \| string \| null` | guide 插画 | 替换预设 guide 插画；设为 `null` 时隐藏图标区。 |
+| `iconSize` | `number` | 尺寸预设 | 自定义图标或 spinner 的像素尺寸。 |
+| `layout` | `'vertical' \| 'horizontal'` | `'vertical'` | 透传给 `TxEmptyState` 的布局方向。 |
+| `align` | `'start' \| 'center' \| 'end'` | `'center'` | 透传给 `TxEmptyState` 的对齐方式。 |
+| `size` | `'small' \| 'medium' \| 'large'` | `'medium'` | 视觉尺寸。 |
+| `surface` | `'plain' \| 'card'` | `'plain'` | 设为 `card` 时启用空态卡片表面。 |
+| `primaryAction` | `EmptyStateAction` | - | 生成的主操作，点击后由 `TxEmptyState` 触发 `primary`。 |
+| `secondaryAction` | `EmptyStateAction` | - | 生成的次操作，点击后由 `TxEmptyState` 触发 `secondary`。 |
+| `actionSize` | `TxButtonProps['size']` | `'small'` | 生成操作按钮的默认尺寸。 |
+| `loading` | `boolean` | `false` | 未提供 icon slot 或 icon prop 时显示 spinner。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `primary` | `()` | 从生成的主操作按钮透传。 |
+| `secondary` | `()` | 从生成的次操作按钮透传。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|-------|------|
+| `icon` | - | 透传给 `TxEmptyState`，替换 guide 插画。 |
+| `title` | - | 透传标题内容。 |
+| `description` | - | 透传描述内容。 |
+| `actions` | - | 替换生成的主/次按钮。 |
+
+## 交互契约
+
+- `TxGuideState` 始终以 `variant="guide"` 渲染 `TxEmptyState`；调用方不能通过 props 改变变体。
+- 其它所有 `EmptyStateProps` 字段都会原样透传。
+- 只有提供了 `icon`、`title`、`description`、`actions` 插槽时，组件才会转发对应插槽。
+- 生成的操作按钮以及 `primary`/`secondary` 事件都来自 `TxEmptyState`。
+- 组件自身没有额外包裹 DOM；样式和语义都由 `TxEmptyState` 决定。
+
+## 最佳实践
+
+- 用于首次使用帮助、设置提示或“从这里开始”的面板。数据缺失场景用 `TxEmptyState variant="no-data"` 或专用包装更准确。
+- 引导文案要指向行动。标题应命名下一步，而不是只描述空屏。
+- 引导位于后台内容之间时使用 `surface="card"`；已经有外框的面板内部保持 `plain`。
+- 只有预设插画或生成按钮无法表达目标操作时，再传入 slot 内容。
+- 操作文案保持具体，例如“创建工作区”或“连接账号”，避免泛泛的“继续”。
+
+## 审阅说明
+
+- **可访问性说明：** `TxGuideState` 不添加额外包裹 DOM 或独立语义；可访问结构、标题、操作文案与生成按钮事件都直接来自 `TxEmptyState`。
+- **实测覆盖:** `guide-state.test.ts` 覆盖固定 `variant="guide"`、向 `TxEmptyState` 透传 props、命名插槽转发，以及以 `TxGuideState` 名称完成插件安装。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/guide-state/src/TxGuideState.vue`。
+- Types: `packages/tuffex/packages/components/src/guide-state/src/types.ts` 将 `GuideStateProps` 导出为 `Omit<EmptyStateProps, 'variant'>`。
+- Export alias: `packages/tuffex/packages/components/src/guide-state/index.ts` 导出 `TxGuideState`、`GuideStateProps` 与 `TxGuideStateInstance`。
+- Coverage: `packages/tuffex/packages/components/src/guide-state/__tests__/guide-state.test.ts` 覆盖 variant 锁定、props/slot 透传与安装注册。
+
+## 离线完整示例源码
+
+- [GuideStateBasicDemo](../snapshot/apps/nexus/app/components/content/demos/GuideStateBasicDemo.vue.txt)
+- [GuideStateCustomDemo](../snapshot/apps/nexus/app/components/content/demos/GuideStateCustomDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [guide-state/index.ts](../snapshot/packages/tuffex/packages/components/src/guide-state/index.ts.txt)
+- [src/TxGuideState.vue](../snapshot/packages/tuffex/packages/components/src/guide-state/src/TxGuideState.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/guide-state/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

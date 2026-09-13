@@ -1,0 +1,200 @@
+# CommandPalette 命令面板
+
+> 用于全局快捷指令、插件入口和搜索动作的命令面板。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/command-palette) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/command-palette.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/command-palette.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# CommandPalette 命令面板
+
+## 启动器场景
+
+官方示例：`CommandPaletteCommandPaletteDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+interface CommandItem {
+  id: string
+  title: string
+  description: string
+  keywords: string[]
+  icon: string
+  shortcut: string
+  disabled?: boolean
+}
+
+const open = ref(false)
+const selectedId = ref('search-files')
+
+const commands: CommandItem[] = [
+  {
+    id: 'search-files',
+    title: '搜索文件',
+    description: '在文档、下载和桌面中查找本地文件',
+    keywords: ['file', 'finder', 'everything', '文件'],
+    icon: 'i-carbon-search',
+    shortcut: '⌘ K',
+  },
+  {
+    id: 'quick-note',
+    title: '保存快速笔记',
+    description: '把当前剪贴板文本保存到片段库',
+    keywords: ['snippet', 'note', 'clipboard', '片段'],
+    icon: 'i-carbon-notebook',
+    shortcut: '⌘ ⇧ N',
+  },
+  {
+    id: 'browser-open',
+    title: '用浏览器打开',
+    description: '使用默认浏览器打开输入的 URL',
+    keywords: ['url', 'link', 'browser', '网页'],
+    icon: 'i-carbon-launch',
+    shortcut: '⌘ ↵',
+  },
+  {
+    id: 'sync-settings',
+    title: '同步设置',
+    description: '打开账户同步与设备管理',
+    keywords: ['sync', 'account', 'device', '同步'],
+    icon: 'i-carbon-cloud',
+    shortcut: '⌘ ,',
+  },
+  {
+    id: 'locked-admin',
+    title: '管理员脚本',
+    description: '需要管理员权限后才能运行',
+    keywords: ['admin', 'shell', 'script', '权限'],
+    icon: 'i-carbon-locked',
+    shortcut: '⌘ ⇧ S',
+    disabled: true,
+  },
+]
+
+const selected = computed(() => commands.find(command => command.id === selectedId.value))
+
+function onSelect(command: CommandItem) {
+  selectedId.value = command.id
+}
+</script>
+
+<template>
+  <div class="tx-demo tx-demo__col tx-demo--max-520">
+    <TxButton variant="primary" @click="open = true">
+      打开命令面板
+    </TxButton>
+    <TxCard variant="plain" background="mask" :padding="10" :radius="14">
+      <div class="tx-demo__meta">
+        最近动作：{{ selected?.title }}
+      </div>
+    </TxCard>
+  </div>
+
+  <TxCommandPalette
+    v-model="open"
+    :commands="commands"
+    placeholder="搜索命令、插件或设置..."
+    empty-text="没有匹配的命令"
+    :max-height="280"
+    @select="onSelect"
+  />
+</template>
+```
+
+## 体验要点
+
+- 标题、描述和 `keywords` 都会参与过滤，适合把英文别名、中文别名和插件关键词放在同一条命令上。
+- `icon` 可传图标类名或 `TxIconSource`；`shortcut` 用于展示键盘提示，不负责注册全局快捷键。
+- `disabled` 命令会显示但无法选中，适合表达缺权限、平台不支持或功能未启用的状态。
+- `closeOnSelect=false` 可用于批量动作或设置面板，默认选中后关闭。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|------|------|
+| `modelValue` | `boolean` | - | 显示状态 |
+| `commands` | `CommandPaletteItem[]` | `[]` | 命令列表 |
+| `placeholder` | `string` | `'Search commands'` | 搜索占位 |
+| `emptyText` | `string` | `'No commands found'` | 空提示 |
+| `maxHeight` | `number` | `320` | 列表最大高度 |
+| `autoFocus` | `boolean` | `true` | 自动聚焦 |
+| `closeOnSelect` | `boolean` | `true` | 选中后关闭 |
+| `overlayClass` | `string \| string[] \| Record<string, boolean>` | - | 叠层自定义类名 |
+| `panelClass` | `string \| string[] \| Record<string, boolean>` | - | 面板自定义类名 |
+
+### CommandPaletteItem
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `string` | 唯一标识 |
+| `title` | `string` | 标题 |
+| `description` | `string` | 描述 |
+| `keywords` | `string[]` | 关键词 |
+| `icon` | `TxIconSource \| string` | 图标 |
+| `shortcut` | `string` | 快捷键 |
+| `disabled` | `boolean` | 禁用 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `(value)` | 显示状态 |
+| `select` | `(item)` | 选中命令 |
+| `open` | - | 打开 |
+| `close` | - | 关闭 |
+| `update:query` | `(value)` | 搜索输入 |
+
+### Slots
+
+| 插槽名 | 参数 | 说明 |
+|------|------|------|
+| `empty` | `{ query, emptyText }` | 自定义空状态 |
+| `footer` | `{ query, visibleCount }` | 自定义底部区域 |
+
+## 交互契约
+
+- `modelValue` 是显示状态的唯一来源；面板显示时触发 `open`，从已打开状态关闭时触发 `close`。
+- 搜索只在本地对 `title`、`description` 和每个 `keywords` 做包含匹配；组件不负责排序、节流或远程请求。
+- `ArrowDown` / `ArrowUp` 在可见命令间循环并跳过禁用项，高亮不会停留在不可用命令上；`Enter` 选择当前命令；`Escape` 关闭面板。初始高亮落在第一个可用命令上；所有命令都禁用时方向键不做任何操作。
+- 输入法组合态（`isComposing`、keyCode `229` 或正在 composition）会阻止键盘选择，避免中文/日文/韩文输入被提前提交。
+- `select` 会返回原始 `CommandPaletteItem`；禁用命令以 `role="option"` 保持可见，带 `aria-disabled="true"` 并移出 tab 顺序（`tabindex="-1"`），不会触发 `select`；`closeOnSelect=false` 会在选择后保持面板打开。
+
+## 最佳实践
+
+- `id` 需要跨版本稳定；埋点、持久化和权限判断都应使用 `id`，不要依赖本地化后的标题。
+- 将同义词、英文别名、插件名和本地化搜索词放进 `keywords`，不要为了搜索变体复制多条命令。
+- 全局快捷键应在应用外壳注册，再驱动 `v-model` 打开面板；`shortcut` 只负责展示键盘提示。
+- `footer` 适合放数据来源、结果数量或键盘帮助；`empty` 适合展示当前 query 和恢复动作。
+- 命令较多时限制 `maxHeight`，保持面板可键盘浏览，并避免超出视口。
+
+## 审阅说明
+
+- 已核对 `packages/tuffex/packages/components/src/command-palette/src/types.ts`、`TxCommandPalette.vue` 与 `command-palette.test.ts`。
+- 现有测试覆盖本地过滤与选择、禁用命令跳过及 `aria-disabled` / `tabindex` 标记、输入法组合态保护、命中文本高亮，以及自定义 `empty` / `footer` 插槽。
+- 可访问性说明:叠层渲染 `role="dialog"` 与 `aria-modal="true"`;触发按钮文案和 placeholder 应说明当前命令域,不要把展示用 `shortcut` 当作实际快捷键注册。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/command-palette/src/TxCommandPalette.vue`。
+- Types: `packages/tuffex/packages/components/src/command-palette/src/types.ts` 导出 `CommandPaletteProps`、`CommandPaletteEmits`、`CommandPaletteItem` 与 `CommandPaletteClassValue`。
+- **实测覆盖:** `packages/tuffex/packages/components/src/command-palette/__tests__/command-palette.test.ts` 覆盖过滤、选择事件、禁用命令跳过及 `aria-disabled` / `tabindex` 标记、输入法保护、命中高亮与插槽。
+
+## 离线完整示例源码
+
+- [CommandPaletteCommandPaletteDemo](../snapshot/apps/nexus/app/components/content/demos/CommandPaletteCommandPaletteDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [command-palette/index.ts](../snapshot/packages/tuffex/packages/components/src/command-palette/index.ts.txt)
+- [src/TxCommandPalette.vue](../snapshot/packages/tuffex/packages/components/src/command-palette/src/TxCommandPalette.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/command-palette/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

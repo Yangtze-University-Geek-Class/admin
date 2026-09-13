@@ -1,0 +1,267 @@
+# Transition 动效
+
+> 用于带 key 内容切换、列表动效与平滑尺寸变化的通用过渡封装。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/transition) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/transition.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/transition.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Transition 动效
+
+## 内容切换（X）
+
+### Transition Content
+官方示例：`TransitionTransitionContentDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+type Preset = 'fade' | 'slide-fade' | 'rebound' | 'smooth-size'
+
+const preset = ref<Preset>('fade')
+const value = ref<'A' | 'B'>('A')
+
+const contentKey = computed(() => value.value)
+
+function toggle() {
+  value.value = value.value === 'A' ? 'B' : 'A'
+}
+</script>
+
+<template>
+  <div class="tx-demo tx-demo__col" style="gap: 12px; width: 520px;">
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14">
+      <div class="tx-demo__row" style="gap: 10px; flex-wrap: wrap; align-items: center;">
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">preset</span>
+          <TuffSelect v-model="preset" style="min-width: 180px;">
+            <TuffSelectItem value="fade" label="fade" />
+            <TuffSelectItem value="slide-fade" label="slide-fade" />
+            <TuffSelectItem value="rebound" label="rebound" />
+            <TuffSelectItem value="smooth-size" label="smooth-size" />
+          </TuffSelect>
+        </label>
+
+        <TxButton size="small" type="primary" @click="toggle">
+          Toggle
+        </TxButton>
+
+        <div style="opacity: 0.75; font-size: 12px;">
+          key: <b>{{ contentKey }}</b>
+        </div>
+      </div>
+    </TxCard>
+
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14" style="width: 100%;">
+      <TxTransition :preset="preset" :duration="220" mode="out-in">
+        <div :key="contentKey" style="padding: 10px 12px;">
+          <div style="font-weight: 600; margin-bottom: 8px;">
+            Panel {{ value }}
+          </div>
+          <div
+            :style="{
+              height: value === 'A' ? '90px' : '180px',
+              borderRadius: '12px',
+              background: value === 'A'
+                ? 'color-mix(in srgb, var(--tx-color-primary, #409eff) 12%, transparent)'
+                : 'color-mix(in srgb, var(--tx-color-success, #67c23a) 12%, transparent)',
+            }"
+          />
+        </div>
+      </TxTransition>
+    </TxCard>
+
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14" style="width: 100%;">
+      <div class="tx-demo__label" style="margin-bottom: 8px;">
+        Semantic Components
+      </div>
+
+      <div class="tx-demo__row" style="gap: 10px; flex-wrap: wrap;">
+        <TxTransitionFade :duration="180" mode="out-in">
+          <div :key="`fade-${contentKey}`" style="padding: 8px 10px; border-radius: 12px; border: 1px solid var(--tx-border-color-lighter);">
+            Fade {{ value }}
+          </div>
+        </TxTransitionFade>
+
+        <TxTransitionSlideFade :duration="180" mode="out-in">
+          <div :key="`slide-${contentKey}`" style="padding: 8px 10px; border-radius: 12px; border: 1px solid var(--tx-border-color-lighter);">
+            SlideFade {{ value }}
+          </div>
+        </TxTransitionSlideFade>
+
+        <TxTransitionRebound :duration="200" mode="out-in">
+          <div :key="`rebound-${contentKey}`" style="padding: 8px 10px; border-radius: 12px; border: 1px solid var(--tx-border-color-lighter);">
+            Rebound {{ value }}
+          </div>
+        </TxTransitionRebound>
+      </div>
+    </TxCard>
+  </div>
+</template>
+```
+
+## 列表增删（Y）
+
+### Transition List
+官方示例：`TransitionTransitionListDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+type Preset = 'fade' | 'slide-fade' | 'rebound'
+
+const preset = ref<Preset>('slide-fade')
+
+const seq = ref(3)
+const items = ref([
+  { id: 'a', text: 'Alpha' },
+  { id: 'b', text: 'Beta' },
+  { id: 'c', text: 'Gamma' },
+])
+
+const list = computed(() => items.value)
+
+function add() {
+  seq.value += 1
+  items.value.unshift({ id: `${Date.now()}`, text: `New ${seq.value}` })
+}
+
+function remove() {
+  items.value.shift()
+}
+</script>
+
+<template>
+  <div class="tx-demo tx-demo__col" style="gap: 12px; width: 520px;">
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14">
+      <div class="tx-demo__row" style="gap: 10px; flex-wrap: wrap; align-items: center;">
+        <label class="tx-demo__row" style="gap: 8px;">
+          <span class="tx-demo__label">preset</span>
+          <TuffSelect v-model="preset" style="min-width: 180px;">
+            <TuffSelectItem value="fade" label="fade" />
+            <TuffSelectItem value="slide-fade" label="slide-fade" />
+            <TuffSelectItem value="rebound" label="rebound" />
+          </TuffSelect>
+        </label>
+
+        <TxButton size="small" @click="add">
+          Add
+        </TxButton>
+        <TxButton size="small" @click="remove">
+          Remove
+        </TxButton>
+      </div>
+    </TxCard>
+
+    <TxCard variant="plain" background="mask" :padding="14" :radius="14" style="width: 100%;">
+      <TxTransition :preset="preset" group tag="div" :duration="180" style="display: grid; gap: 10px;">
+        <div
+          v-for="item in list"
+          :key="item.id"
+          style="padding: 10px 12px; border-radius: 12px; border: 1px solid var(--tx-border-color-lighter); background: var(--tx-fill-color-blank);"
+        >
+          {{ item.text }}
+        </div>
+      </TxTransition>
+    </TxCard>
+  </div>
+</template>
+```
+
+## API
+
+### TxTransition Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `preset` | `'fade' \| 'slide-fade' \| 'rebound' \| 'smooth-size'` | `'fade'` | 选择过渡 class 名。只有 `group=false` 时，`smooth-size` 才会切换到 `TxTransitionSmoothSize`。 |
+| `group` | `boolean` | `false` | 使用 Vue `TransitionGroup` 渲染带 key 的列表。列表场景优先使用 `fade`、`slide-fade` 或 `rebound`。 |
+| `tag` | `string` | `'div'` | `group=true` 时传给 `TransitionGroup` 的根标签。 |
+| `appear` | `boolean` | `true` | 首次渲染时是否执行进入动效。 |
+| `mode` | `'in-out' \| 'out-in'` | `'out-in'` | 单子节点 `Transition` 模式；`TransitionGroup` 不使用该属性。 |
+| `duration` | `number` | `180` | 动画时长（ms），写入 `--tx-transition-duration`。 |
+| `easing` | `string` | `'cubic-bezier(0.2, 0, 0, 1)'` | CSS 缓动函数，写入 `--tx-transition-easing`。 |
+
+### TxTransitionSmoothSize Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `appear` | `boolean` | `true` | 首次渲染时是否执行进入动效。 |
+| `mode` | `'in-out' \| 'out-in'` | `'out-in'` | `TxAutoSizer` 内部带 key 子节点的 `Transition` 模式。 |
+| `duration` | `number` | `220` | 尺寸测量过渡与内部内容动效共用的时长。 |
+| `easing` | `string` | `'cubic-bezier(0.2, 0, 0, 1)'` | 尺寸与内容动效共用的缓动函数。 |
+| `width` | `boolean` | `false` | 通过 `TxAutoSizer` 动画宽度变化。 |
+| `height` | `boolean` | `true` | 通过 `TxAutoSizer` 动画高度变化。 |
+| `motion` | `'fade' \| 'slide-fade' \| 'rebound'` | `'fade'` | 外层动画尺寸时，内部内容使用的动效。 |
+
+### 语义化组件
+
+| 组件 | 预设 |
+|------|------|
+| `TxTransitionFade` | `fade` |
+| `TxTransitionSlideFade` | `slide-fade` |
+| `TxTransitionRebound` | `rebound` |
+| `TxTransitionSmoothSize` | 支持尺寸动画的封装，可配置内部 `motion` |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| - | - | 没有组件自定义事件。非 smooth 模式会把 Vue transition 监听器属性转发给底层 `Transition` / `TransitionGroup`；smooth-size 模式会把 attrs 转发给 `TxAutoSizer`。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|-------|------|
+| `default` | - | 单个带 key 子节点用于 `Transition`；`group=true` 时放置多个带稳定 key 的列表子节点。 |
+
+## 交互契约
+
+- `class` 与 `style` 会合并到外层 `.tx-transition`；非 smooth 模式下，其余 attrs 转发给 `Transition` / `TransitionGroup`。
+- `smooth-size` 是单子节点模式。它用 `TxAutoSizer` 包住内容，默认只动画高度，并在测量期间隐藏溢出。
+- `group=true` 会切换为 `TransitionGroup`；此时 `mode` 不生效，每个列表项都必须有稳定 key。
+- 各预设共用 `--tx-transition-duration` 与 `--tx-transition-easing` CSS 变量；`rebound` 的 enter 阶段刻意使用弹性曲线。
+- 在 `prefers-reduced-motion: reduce` 下，所有预设都会收敛到近乎瞬时的时长并去掉 `translateY`/`scale` 偏移，切换与列表动效仍能完成、只是不再有动画。
+
+## 最佳实践
+
+- 带 key 的面板切换优先使用 `mode="out-in"`，保证旧内容先离场，新内容再进入。
+- 内容高度变化时用 `smooth-size`；列表和重复行使用普通 `fade` / `slide-fade` / `rebound`。
+- 列表 key 使用稳定业务 id。文档示例可以用 `Date.now()`，生产可排序列表不要用临时下标。
+- 高频动效保持短时长；`rebound` 只用于小面积、允许轻微回弹的反馈。
+
+## 审阅说明
+
+- **属性说明:** `class` 与 `style` 会落到 `.tx-transition` 包装层；非样式 attrs 会转发给 Vue `Transition` / `TransitionGroup`，因此测试中不会出现在包装层上。
+- **smooth-size 说明:** 只有 `group=false` 时，`preset="smooth-size"` 才会委托给 `TxTransitionSmoothSize`。列表分组场景仍会渲染为 transition name，不建议使用，因为尺寸感知包装器面向单子节点。
+- **实测覆盖:** `transition.test.ts` 覆盖 preset 到 name 的映射、时长 CSS 变量、group tag、smooth-size 委托、`TxAutoSizer` 尺寸 prop 转发、语义化包装组件 preset、attrs 转发与 slot 渲染。
+
+## Source
+
+- Component sources: `packages/tuffex/packages/components/src/transition/src/TxTransition.vue`、`TxTransitionSmoothSize.vue`、`TxTransitionFade.vue`、`TxTransitionSlideFade.vue` 与 `TxTransitionRebound.vue`。
+- Types: `packages/tuffex/packages/components/src/transition/src/types.ts` 导出 `TransitionPreset`、`TxTransitionProps` 与 `TxTransitionSmoothSizeProps`。
+- Export alias: `packages/tuffex/packages/components/src/transition/index.ts` 导出可安装 transition 别名、原始 `Tx*` 组件、prop 类型与实例类型。
+- Coverage: `packages/tuffex/packages/components/src/transition/__tests__/transition.test.ts` 覆盖 preset 映射、smooth-size 行为、语义化组件、attrs、样式与 slot。
+
+## 离线完整示例源码
+
+- [TransitionTransitionContentDemo](../snapshot/apps/nexus/app/components/content/demos/TransitionTransitionContentDemo.vue.txt)
+- [TransitionTransitionListDemo](../snapshot/apps/nexus/app/components/content/demos/TransitionTransitionListDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [transition/index.ts](../snapshot/packages/tuffex/packages/components/src/transition/index.ts.txt)
+- [src/TxTransition.vue](../snapshot/packages/tuffex/packages/components/src/transition/src/TxTransition.vue.txt)
+- [src/TxTransitionFade.vue](../snapshot/packages/tuffex/packages/components/src/transition/src/TxTransitionFade.vue.txt)
+- [src/TxTransitionRebound.vue](../snapshot/packages/tuffex/packages/components/src/transition/src/TxTransitionRebound.vue.txt)
+- [src/TxTransitionSlideFade.vue](../snapshot/packages/tuffex/packages/components/src/transition/src/TxTransitionSlideFade.vue.txt)
+- [src/TxTransitionSmoothSize.vue](../snapshot/packages/tuffex/packages/components/src/transition/src/TxTransitionSmoothSize.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/transition/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

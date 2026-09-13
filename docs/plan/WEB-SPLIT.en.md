@@ -1,5 +1,11 @@
 # Splitting the Three Ends: Target Architecture and Plan
 
+> 历史阶段记录：旧路径、版本、数量和完成声明仅供追溯。
+
+状态：`historical` · 标注：2026-09-12
+
+当前实施规范见 [当前架构](../architecture/ARCHITECTURE.md) 与 [模块规范](../conventions/MODULAR-DEVELOPMENT.md)，不以本文中的旧完成声明代替验收。
+
 > Status: **executed** (2026-09-12, branch `next`). P0 defects, P1 skeleton, P2 build, and P3
 > cleanup have all landed; this document is kept as the decision record and the source of the
 > boundary rules. Read §3 and §4 before adding an end or moving a boundary.

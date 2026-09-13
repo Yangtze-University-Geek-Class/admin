@@ -1,129 +1,42 @@
-# 架构
+# 当前系统架构
 
-> 系统怎么设计的：拓扑、鉴权流程、数据模型、加密、防滥用。改后端路由 / DB / OAuth 之前先读这篇。
-> English: [ARCHITECTURE.en.md](./ARCHITECTURE.en.md)
+> 统一根入口、保留核心服务、独立采用 Nuxt/TuffEx 原仓论坛；明确当前实现与目标的差异。
 
-## 总体
+状态：`current` · 更新：2026-09-13
 
-```
-Internet
-  │ 443 HTTPS
-nginx ─── certbot (Let's Encrypt 自动续期)
-  │ proxy_pass localhost:3000
-Node + Fastify (单进程, systemd 管)
-  ├── routes/auth.ts          OAuth flow + session
-  ├── routes/orgs.ts          /api/me/orgs (我的组织列表)
-  ├── routes/join.ts          /api/join/:token  公开入会
-  ├── routes/feedback.ts      /api/feedback     公开提交意见
-  ├── routes/docs.ts          /api/docs 文档内容
-  ├── routes/forum/*          论坛：auth/categories/threads/posts/users/groups/teacher/stats/admin-users/upload
-  └── routes/admin/*          按 org 参数化, 所有 /api/admin/:org/...
-        ├── overview.ts
-        ├── members.ts
-        ├── repos.ts          (含 tree/file/commits/issues/pulls/create/delete/collab)
-        ├── invitations.ts
-        ├── invite-links.ts
-        ├── teams.ts
-        ├── activity.ts
-        ├── security.ts
-        ├── org.ts
-        ├── feedback.ts
-        └── logs.ts
-SQLite (WAL)
-  ├── sessions
-  ├── invite_links
-  ├── invitations
-  ├── feedback
-  ├── audit_logs
-  └── app_state
+## 当前拓扑
+
+```text
+geek_main 根 README / AGENTS / 命令 / docs
+  ├─ web/sites/portal、admin  [React / Vite，Node 22]
+  │      └─ HTTP -> server/src/app.ts -> portal/admin 路由
+  │                   └─ services -> data.db、GitHub、Turnstile
+  └─ modules/forum           [原仓 Nuxt / Vue / TuffEx，Node >=26]
+         └─ Pinia：示例种子 + localStorage，或本机只读快照（dev 专用 /api/local-forum）
 ```
 
-## 鉴权 / 授权
+论坛不再是 web/sites 下的 React 入口。根 `pnpm verify` 编排核心与论坛各自检查，两个 pnpm 锁文件、运行时和 node_modules 分开管理。独立技术栈是用户明确采用原仓的要求，不是为了目录外观创建微服务。
 
-### 登录 flow
+核心 Vite 生成 portal/admin 两个 HTML；论坛由 Nuxt generate 生成独立静态产物。本机核心在 5173/3000，新论坛在 3456；旧论坛链接转到新首页，旧帖子 ID 不尝试猜测映射。生产环境尚未部署新论坛。
 
-1. 用户访问 `/admin/signin` → 点击"GitHub 登录"
-2. 浏览器跳 `/auth/github?return_to=<原始 URL>` → 后端生成 state，写到 `oauth_state` cookie，redirect 到 `https://github.com/login/oauth/authorize?...`
-3. 用户 Authorize → GitHub callback 到 `/auth/callback?code=...&state=...`
-4. 后端验证 state，用 code 交换 access_token，调 `GET /user` 拿 login + avatar
-5. 创建 session record（access_token 经 AES-256-GCM 加密落库）
-6. 设 httpOnly + secure + sameSite=lax 的 `sid` cookie
-7. 跳回 `return_to`
+## 核心数据与身份
 
-OAuth scope：`read:user user:email admin:org read:org repo`
+`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。data.db 的 sessions、invite_links、invite_attempts、invitations、feedback、audit_logs、app_state 保留。核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
 
-### 权限校验
+原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。跨设备的新论坛存储和旧数据导入必须另立方案。
 
-每个 admin API 路由有两个 preHandler：
+## 上游论坛的真实边界
 
-1. `requireAuth` → 验 session cookie，把 `req.session = { login, accessToken, ... }` 挂上
-2. `requireOrgRole("admin" | "member")` → 用 session 的 accessToken 调 `GET /orgs/{org}/memberships/{login}` 拿当前用户在该 org 的 role；若 role 不够直接 403
+依据 modules/forum/README.md、app/stores/session.ts 和 app/plugins/persist.client.ts：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、固定游客会话、把示例登录换成只读说明并停止把论坛状态写入 localStorage；这只是本机展示，没有服务端认证、写入或跨设备存储，静态产物中不存在这些路由。
 
-**关键**：所有对 GitHub API 的调用都用**登录用户自己的 access_token**，不是全局 service token。
-GitHub 端的权限模型直接生效，无需在我们这一层再实现 RBAC。
+原仓文件、MIT 声明和提交摘要保留，业务页面未重写为 React。少量集成差异包括本地提醒、根入口、进程管理和隔离浏览器验证，详见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
 
-唯一例外是公开 invite link：链接生成时把 admin 的 access_token AES 加密存进 `invite_links.created_by_token_encrypted`，访客提交时用它调 `POST /orgs/.../invitations`。
+## 目标结构，尚未完整实现
 
-## 数据库 schema 关键点
+公开宣传主页 -> GitHub 等 Provider 登录 -> 内部 Hub -> 论坛 / GitHub 组织管理 / 可扩展服务。用户要求的蓝白科技、3D 游戏感 Hub 和 DIY 服务注册仍是后续实施目标。TuffEx 已为后续 UI 选定，但组件文档或导入原仓不证明所有模块已经迁到 Vue。
 
-```sql
-sessions(id PK, login, user_id, avatar_url,
-         access_token_encrypted, created_at, expires_at)
--- 7 天过期
+## 验证和发布
 
-invite_links(token PK, org, created_by, created_by_token_encrypted,
-             note, max_uses, current_uses, expires_at, team_slug, disabled, created_at)
--- 删除链接 ≠ 撤销已发出的 GitHub invitation
+核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。旧 /api/forum/* 返回 410；生产未接入新服务时 /forum 返回 503。真实认证、服务器权限、跨设备存储、内容安全和部署回滚未验证前，不开放新论坛为生产内部服务。
 
-invitations(id, org, invite_link_token FK?, github_login, email,
-            note, source_ip, user_agent, github_invitation_id, status, error_message, created_at)
--- 本系统发起的邀请历史, status: sent / failed / pending_admin
-
-feedback(id, org, content, category, contact, submitter_login, submitter_id,
-         source_ip, user_agent, status, reply, replied_by, replied_at, votes, created_at, updated_at)
--- status: open / triaged / in_progress / done / wont_do / spam
-
-audit_logs(id, org, actor, action, target, details JSON, ip, created_at)
--- actor 可能是 GitHub login, 也可能是 'public:<token>' 表示通过公开 API
-```
-
-## 加密
-
-- `ENCRYPTION_KEY` 32 字节 base64
-- 算法 AES-256-GCM, 12 字节 random IV, 16 字节 auth tag
-- 编码格式: base64(iv || tag || ciphertext)
-- 加密对象: session.access_token, invite_link.created_by_token
-
-## 防滥用
-
-- 公开 invite POST: `@fastify/rate-limit` 5 req/min per IP
-- 公开 feedback POST: 10 req/min per IP
-- Cloudflare Turnstile：可选（`TURNSTILE_SITE_KEY/SECRET_KEY` 配置开启）
-
-## 前端运行配置
-
-`web/shared/config/app.config.json` 是前端运行时配置的单一入口：
-
-- `environment.development/production`：默认站点、mock/live 数据源、开发总控和覆盖权限。
-- `sites` / `urls`：三个站点的域名、标题和 GitHub 组织外链。域名只在 `sites.*.host` 维护一处，跨站链接一律走 `externalUrl()`。
-- `features.development/production`：看板娘、论坛看板娘、官网动态背景、预览区和意见悬浮按钮，可按环境分别设置。
-- `portal`：品牌信息、顶部导航模型、官网 Hero 文案、唯一柔和蓝色 palette、代码流和装饰符号参数。
-- `mascot`：统一尺寸（154×245）、8 套姿势资源、fit/position/scale 和对话。
-
-`web/sites/portal/components/PortalHeader.tsx` 只负责渲染配置驱动的品牌和导航，不在组件中硬编码 URL 或菜单顺序。`web/shared/lib/runtime.ts` 负责解析开发覆盖；`web/shared/lib/api.ts` 根据数据源分派到真实 fetch 或 `web/shared/lib/mock-api.ts`。mock 层只存在于前端，不增加服务端路由。生产构建强制 live，忽略 `__site` / `__data` 和 localStorage 覆盖。
-
-## 前端架构
-
-- Vite 6 + React 18 + React Router 7 + TanStack Query 5
-- Tailwind 颜色由 CSS variables 驱动；产品只保留唯一的 `yzgc-blue` 浅色主题，旧深色主题 ID 自动回退
-- 全局组件: `<ConfirmProvider>` (替代 window.confirm), `<Select>` (替代 native dropdown), `Mascot` (看板娘)
-- 一个代码库渲染三个站点，按 `detectSite()`（域名 + 开发覆盖）分流：
-  - **portal**（主站）：`/` `/docs` `/feedback/*` `/join/:token`
-  - **forum**（论坛）：`/` `/categories` `/c/:slug` `/t/:id` `/new` `/login` `/register` `/u/:username` `/me` `/me/notifications` `/archive` `/admin` `/teacher`
-  - **admin**（管理后台）：`/signin` `/admin` `/admin/:org/*`（OrgLayout 包裹全部功能页）
-
-## 部署
-
-systemd Type=simple, 监听 127.0.0.1:3000, nginx 反代，证书 certbot 自动续期（cron / systemd timer 已自动配）。
-
-详见 [DEPLOY.md](../ops/DEPLOY.md)。
+参见 [API](API.md)、[SECURITY](SECURITY.md)、[模块规则](../conventions/MODULAR-DEVELOPMENT.md) 与 [本地运行](../ops/TUFF-FORUM.md)。

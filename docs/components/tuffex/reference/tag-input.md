@@ -1,0 +1,153 @@
+# TagInput 标签输入
+
+> 用于快速录入标签，支持分隔符与回车确认。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/tag-input) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/tag-input.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/tag-input.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# TagInput 标签输入
+
+## 基础用法
+
+官方示例：`TagInputTagInputDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const tags = ref(['Design', 'Docs'])
+</script>
+
+<template>
+  <TxTagInput v-model="tags" placeholder="输入标签后回车" />
+</template>
+```
+
+## 发布策略配置
+
+这组组件适合后台“先选范围，再定策略，再给阈值和标签”的配置流：`TxCascader` 负责层级范围，`TxFlatSelect` 负责低噪音单选，`TxSegmentedSlider` / `TxSlider` 负责离散风险和连续比例，`TxTagInput` 负责检索元数据。
+
+官方示例：`ComponentsReleasePolicyDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const releasePath = ref(['desktop', 'stable', 'macos'])
+const packageFormat = ref('signed')
+const rolloutMode = ref('phased')
+const riskLevel = ref(2)
+const traffic = ref(35)
+const labels = ref(['nexus', 'verified'])
+const scopeOptions = [
+  {
+    value: 'desktop',
+    label: '桌面端',
+    children: [
+      {
+        value: 'stable',
+        label: '稳定通道',
+        children: [{ value: 'macos', label: 'macOS', leaf: true }],
+      },
+    ],
+  },
+]
+const riskSegments = [
+  { value: 1, label: '低' },
+  { value: 2, label: '中' },
+  { value: 3, label: '高' },
+  { value: 4, label: '冻结' },
+]
+</script>
+
+<template>
+  <section class="grid gap-3">
+    <TxCascader v-model="releasePath" :options="scopeOptions" placeholder="发布范围" />
+    <TxFlatSelect v-model="packageFormat" placeholder="包格式">
+      <TxFlatSelectItem value="signed" label="签名构建" />
+      <TxFlatSelectItem value="archive" label="归档包" />
+    </TxFlatSelect>
+    <TxFlatSelect v-model="rolloutMode" placeholder="发布模式">
+      <TxFlatSelectItem value="phased" label="分阶段" />
+      <TxFlatSelectItem value="guarded" label="护栏发布" />
+    </TxFlatSelect>
+    <TxSegmentedSlider v-model="riskLevel" :segments="riskSegments" />
+    <TxSlider v-model="traffic" :min="5" :max="100" :step="5" show-value :format-value="value => value + '%'" />
+    <TxTagInput v-model="labels" placeholder="输入标签后回车" :max="5" />
+  </section>
+</template>
+```
+
+## 交互契约
+
+- `modelValue` 是唯一数据源；每次新增或移除都会用新数组触发 `update:modelValue` 和 `change`。
+- 输入文本会先 trim；空标签会被忽略。
+- 除非 `allowDuplicates=true`，否则 trim 后完全相同的标签会被抑制。
+- `separators` 会拆分粘贴或键入的文本；Enter 始终确认当前输入。
+- `confirmOnBlur=true` 时，失焦会先发出原生 blur 事件，再提交未确认输入。
+- 只有输入框为空时，Backspace 才会移除最后一个标签。
+- `disabled` 会阻止新增/移除，并禁用已有标签的关闭操作。
+- 达到 `max` 后，内部输入框会被禁用，占位文本会清空。
+
+## API
+
+### TxTagInput Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|------|------|
+| `modelValue` | `string[]` | `[]` | 受控标签列表，也是唯一数据源；每次增删都会用新数组触发 `update:modelValue`。 |
+| `placeholder` | `string` | `'Add tag'` | 占位文本；达到 `max` 后会被清空。 |
+| `disabled` | `boolean` | `false` | 禁用后不可新增/移除，已有标签的关闭按钮也失效。 |
+| `max` | `number` | `20` | 标签数量硬上限；设为流程真正需要的最小值。达到上限后内部输入框禁用、占位文本隐藏。 |
+| `allowDuplicates` | `boolean` | `false` | 是否允许重复标签；关闭时按 trim 后精确匹配去重（区分大小写）。 |
+| `separators` | `string[]` | `[',']` | 拆分粘贴 / 键入文本的分隔符；帮助文案里出现的分隔符都要加进来。Enter 始终确认当前输入。 |
+| `confirmOnBlur` | `boolean` | `true` | 失焦时是否提交未确认的输入。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `(tags: string[])` | 使用下一份完整标签列表更新 v-model。 |
+| `change` | `(tags: string[])` | 新增或移除后用同一份下一列表触发。 |
+| `add` | `(tags: string[])` | 当前操作实际接收的标签。 |
+| `remove` | `(tag: string)` | 被移除的标签值。 |
+| `focus` | `(event: FocusEvent)` | 透传原生 input focus 事件。 |
+| `blur` | `(event: FocusEvent)` | 透传原生 input blur 事件；`confirmOnBlur=true` 时可能提交未确认输入。 |
+
+### Slots
+
+`TxTagInput` 不暴露自定义插槽。已有标签由 `TxTag` 渲染；标签说明、帮助文本或校验提示应放在组件外层组合。
+
+## 最佳实践
+
+- 标签只承载短元数据，发布备注、审批原因和长说明应使用文本域或详情表单。
+- `max` 应设置为当前流程真正需要的最小上限；达到上限后内部输入框会禁用，占位文本也会隐藏。
+- 除非同一集合内重复标签有明确业务含义，否则保持 `allowDuplicates` 关闭。去重只在 trim 后做精确匹配，不做大小写归一。
+- 帮助文案里提到的分隔符都要写进 `separators`；Enter 始终确认当前输入，`confirmOnBlur` 决定失焦时是否提交未确认文本。
+
+## 审阅说明
+
+- 组件源码:`packages/tuffex/packages/components/src/tag-input/src/TxTagInput.vue` 确认分隔符拆分、trim 归一化、重复检查、最大数量行为、Enter/backspace/blur 处理、禁用保护和 `TxTag` 关闭绑定。
+- 类型契约:`packages/tuffex/packages/components/src/tag-input/src/types.ts` 导出 `TagInputProps` 和 `TagInputEmits`。
+- **实测覆盖:** `packages/tuffex/packages/components/src/tag-input/__tests__/tag-input.test.ts` 验证 Enter 新增和关闭按钮移除。
+- 截图:`.codex-screenshots/nexus-tag-input-release-policy-demo-playwright-2026-05-28.png`。
+
+## Source
+
+## 离线完整示例源码
+
+- [TagInputTagInputDemo](../snapshot/apps/nexus/app/components/content/demos/TagInputTagInputDemo.vue.txt)
+- [ComponentsReleasePolicyDemo](../snapshot/apps/nexus/app/components/content/demos/ComponentsReleasePolicyDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [tag-input/index.ts](../snapshot/packages/tuffex/packages/components/src/tag-input/index.ts.txt)
+- [src/TxTagInput.vue](../snapshot/packages/tuffex/packages/components/src/tag-input/src/TxTagInput.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/tag-input/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

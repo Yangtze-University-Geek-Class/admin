@@ -1,0 +1,165 @@
+# InsightCards 洞察卡
+
+> 「洞察 N ‹ ›」翻页壳：一句结论、一张卡、一条追问，内容全部由插槽提供。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/insight-cards) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/insight-cards.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/insight-cards.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`0.3.9`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# InsightCards 洞察卡
+
+## 基础用法
+
+### 完整案例
+
+官方示例：`InsightCardsInsightCardsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const page = ref(0)
+const pages = [
+  { key: 'compare', prose: '表现最差的是 Rocky Road —— 下跌 6%。', suggestion: '要不要重新配比口味？' },
+  { key: 'allocation', prose: '你在香草上压得很重 —— 它占了整箱的 72.5%。', suggestion: '只看季节限定会怎样？' },
+]
+</script>
+
+<template>
+  <TxInsightCards v-model:active-index="page" :pages="pages" @follow-up="ask($event)">
+    <template #default="{ page: current }">
+      <FlavourCard :key="current.key" />
+    </template>
+  </TxInsightCards>
+</template>
+```
+
+## 壳与内容的边界
+
+这个组件只负责壳：标题与页数、前后翻页按钮、结论段落、卡片插槽、追问 pill。**卡片内容一律由宿主给**——上游那三张卡分别是双序列折线、带指标切换的异常图和占比条，在 tuffex 里对应 `TxSparkChart` / `TxChartScrubber` / `TxAllocationBar`，通过默认插槽组合，而不是写死在壳里。
+
+`activeIndex` 不传时组件自己翻页，传了就完全听宿主的；越界的下标会被夹回有效范围而不是把内容清空。
+
+翻页是**硬切**，没有过渡。上游注释里写了「blurred crossfade」，但那段内联样式是常量、`duration-250` 也不是有效的 Tailwind 档位——它从未生效过。同理，注释提到的自动播放在上游源码里根本不存在（没有任何定时器），这里也不提供。需要过渡的话，把默认插槽的内容包进宿主自己的 `<Transition>` 即可。
+
+## InsightMetric 指标块
+
+`TxInsightMetric` 是这些卡片里的数字块：一行带色点的标签 + 一个带符号的大数 + 一行等宽小字。同目录导出，可单独使用。
+
+`value` 走默认格式化时，负号用 **U+2212（`−`）** 而不是 ASCII 连字符：整列数字都在 `tabular-nums` 下对齐，连字符更窄、位置也偏高。`tone` 缺省由数值符号推导（正=绿、负=红、零=中性），也可以显式覆盖；`detail` 原样输出，负号由宿主自己写成 `−`。
+
+官方示例：`InsightCardsInsightMetricDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxInsightMetric
+    label="薄荷脆片"
+    color="var(--tx-bui-orange)"
+    :value="-4.41"
+    detail="−$2,377.66"
+  />
+  <TxInsightMetric
+    label="开心果"
+    color="var(--tx-bui-accent)"
+    :value="1.15"
+    detail="+$617.22"
+  />
+</template>
+```
+
+## API
+
+### InsightCards Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `pages` | `InsightPage[]` | — | 页数据，`{ key, prose?, suggestion? }`。 |
+| `activeIndex` | `number` | — | 当前页。省略则组件自持。 |
+| `title` | `string` | `'Insights'` | 头部标题。 |
+| `showCount` | `boolean` | `true` | 是否在标题旁显示总页数。 |
+| `loop` | `boolean` | `true` | 首尾是否环绕。关掉后两端按钮会禁用。 |
+| `previousLabel` / `nextLabel` | `string` | `'Previous insight'` / `'Next insight'` | 翻页按钮的可访问名。 |
+
+### InsightCards Events
+
+| 事件名 | 回调参数 | 说明 |
+|------|------|------|
+| `update:activeIndex` | `(index: number)` | 翻页。 |
+| `change` | `(page, index)` | 同上，带页对象。 |
+| `followUp` | `(page)` | 点击追问 pill。 |
+
+### InsightCards Slots
+
+| 插槽名 | 作用域参数 | 说明 |
+|------|------|------|
+| `default` | `{ page, index }` | 卡片主体。 |
+| `prose` | `{ page, index }` | 富文本结论，替换 `page.prose`。 |
+| `follow-up` | `{ page, index }` | 替换追问 pill。 |
+
+### InsightCards Exposed
+
+| 方法名 | 说明 |
+|------|------|
+| `previous()` / `next()` / `goTo(index)` | 命令式翻页，与按钮同一条路径。 |
+
+### InsightMetric Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `label` | `string` | — | 标签文案。 |
+| `color` | `string` | — | 标签前的色点。不传则不渲染点。 |
+| `value` | `number` | — | 带符号的大数，走默认格式化。 |
+| `delta` | `string` | — | 预格式化的大数，优先于 `value`。 |
+| `unit` | `string` | `'%'` | 默认格式化追加的单位。 |
+| `precision` | `number` | `2` | 默认格式化的小数位。 |
+| `detail` | `string` | — | 等宽副行，原样输出。 |
+| `tone` | `'positive' \| 'negative' \| 'neutral'` | — | 覆盖由符号推导的色调。 |
+| `formatter` | `(value: number) => string` | — | 完全接管数字格式化。 |
+
+## 交互契约
+
+- 两个翻页按钮都有 `aria-label`；`loop` 关掉时端点按钮带 `disabled`，不是只做视觉变灰。
+- `pages` 为空时只渲染头部，两个按钮都禁用，不会渲染出空白卡片。
+- `suggestion` 缺省的页不渲染追问 pill；`followUp` 只在 pill 被点击时发出。
+- 内容切换靠 `page.key`：宿主在插槽里给卡片带上 `:key`，翻页时才会真正重建（图表需要重绘时尤其重要）。
+- 大数与页数都是 `tabular-nums`，翻页与刷新时数字宽度不跳。
+
+## 最佳实践
+
+- 一页只讲一件事：一句结论 + 一个证据卡 + 一个可执行的追问。
+- 结论段落里的实体提及、行内数字这类富文本走 `prose` 插槽，`page.prose` 只收纯文本。
+- 卡片内容自己控高（上游是 278px 下限），否则翻页时页面会随内容高度跳动。
+- 追问 pill 的文案写成用户会问的原话，而不是「了解更多」。
+
+## Source
+
+- 组件源码：`packages/tuffex/packages/components/src/insight-cards/src/TxInsightCards.vue`、`TxInsightMetric.vue`。
+- 类型：`packages/tuffex/packages/components/src/insight-cards/src/types.ts`。
+- **实测覆盖:** `packages/tuffex/packages/components/src/insight-cards/__tests__/insight-cards.test.ts`（18 项）覆盖受控/非受控翻页、环绕与端点禁用、越界夹取、空数据、追问 pill 条件渲染、插槽作用域、命令式翻页，以及 InsightMetric 的符号→色调映射、U+2212 断言、单位与精度、预格式化与自定义格式化。
+- 移植自 Beautiful UI（https://www.beautifului.dev），© 2026 Shane Levine，MIT。
+
+
+
+## 审阅说明
+
+- **图表区域没有上游视觉基准:** 上游截图的图表位置显示的是「No data to display」。卡片外框、指标块、追问 pill 的截图仍然有效，图表按规格实现，详见 `SparkChart` 的审阅说明。
+- **两个「文档里有、源码里没有」的功能:** 自动播放与翻页模糊淡入在上游都只存在于注释中（前者没有任何定时器，后者的内联样式是常量）。这里不把它们当作「还原」来实现。
+- **U+2212 是刻意偏离:** 上游这一处用的是 `toFixed` 产出的 ASCII 连字符；这一族的差分数字统一用 U+2212，`formatter` 可以改回去。
+
+## 离线完整示例源码
+
+- [InsightCardsInsightCardsDemo](../snapshot/apps/nexus/app/components/content/demos/InsightCardsInsightCardsDemo.vue.txt)
+- [InsightCardsInsightMetricDemo](../snapshot/apps/nexus/app/components/content/demos/InsightCardsInsightMetricDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [insight-cards/index.ts](../snapshot/packages/tuffex/packages/components/src/insight-cards/index.ts.txt)
+- [src/TxInsightCards.vue](../snapshot/packages/tuffex/packages/components/src/insight-cards/src/TxInsightCards.vue.txt)
+- [src/TxInsightMetric.vue](../snapshot/packages/tuffex/packages/components/src/insight-cards/src/TxInsightMetric.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/insight-cards/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

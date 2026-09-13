@@ -1,5 +1,11 @@
 # 重构前置清单
 
+> 历史阶段记录：旧路径、版本、数量和完成声明仅供追溯。
+
+状态：`historical` · 标注：2026-09-12
+
+当前实施规范见 [当前架构](../architecture/ARCHITECTURE.md) 与 [模块规范](../conventions/MODULAR-DEVELOPMENT.md)，不以本文中的旧完成声明代替验收。
+
 > 分支：`next` · 建立于 2026-09-12 · 基线提交 `4959668`
 > 用途：动手重构前先把「现在长什么样」钉死。本文只描述现状，不含改造动作。
 > 中英对照见 [REFACTOR.en.md](./REFACTOR.en.md)。

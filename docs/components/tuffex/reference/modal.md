@@ -1,0 +1,107 @@
+# Modal 模态框
+
+> 基于 Teleport 的轻量对话框，适合短阻塞任务，支持焦点恢复、Escape/遮罩关闭和头尾插槽。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/modal) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/modal.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/modal.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Modal 模态框
+
+## 基础用法
+
+从按钮打开对话框，正文保持简短，并通过更新绑定的 model 关闭。
+
+官方示例：`ModalBasicDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const open = ref(false)
+</script>
+
+<template>
+  <TxButton variant="primary" @click="open = true">
+    打开模态框
+  </TxButton>
+
+  <TxModal v-model="open" title="确认同步设置" width="min(92vw, 520px)">
+    <p>模态框适合短确认或小型表单。</p>
+    <template #footer>
+      <TxButton variant="ghost" @click="open = false">取消</TxButton>
+      <TxButton variant="primary" @click="open = false">确认同步</TxButton>
+    </template>
+  </TxModal>
+</template>
+```
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` | `boolean` | 必填 | 控制对话框是否显示，用于 `v-model`。 |
+| `title` | `string` | `''` | 默认头部标题；非空时生成的标题会与 `aria-labelledby` 关联。 |
+| `width` | `string` | `'480px'` | 内容面板的内联宽度。推荐使用 `min(92vw, 520px)` 这类响应式值。 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `(value: boolean)` | 组件请求更新可见状态时触发。 |
+| `close` | `()` | 点击遮罩、按 Escape 或点击关闭按钮后触发。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|-------|------|
+| `default` | - | 对话框主体内容。 |
+| `header` | - | 替换生成的标题区域，同时保留内置关闭按钮。 |
+| `footer` | - | 底部操作区；未提供时不渲染。 |
+
+## 交互契约
+
+- 遮罩挂载在 `body` 下，打开时从共享 z-index 管理器获取新的层级，关闭时通过 `v-if` 移除。
+- 遮罩暴露 `role="dialog"`、`aria-modal="true"` 和 `tabindex="-1"`。
+- 使用默认头部且 `title` 非空时，对话框会把 `aria-labelledby` 指向生成的标题。
+- 打开时聚焦遮罩根节点；关闭或卸载时恢复打开前的焦点元素。
+- Tab / Shift+Tab 会在对话框内循环焦点（焦点陷阱），焦点不会移动到模态框背后的页面。
+- 点击遮罩空白、按 Escape、点击关闭按钮都会依次触发 `update:modelValue(false)` 和 `close`。
+- `TModal` 会把 props、attrs、`update:modelValue`、`close` 与 `default/header/footer` 插槽转发给 `TxModal`。
+
+## 最佳实践
+
+- 把模态框限制在确认、单步输入或短决策内；需要导航、筛选或长表单时改用抽屉或页面。
+- 优先使用默认 `title` 头部以获得自动可访问性关联。替换 `header` 时保持可见标题，并避免传入与自定义头部不匹配的旧 `title`。
+- 破坏性或最终操作放在 `footer`；次要操作的视觉权重应低于主操作。
+- 文档和应用界面都建议使用响应式 `width`，因为内容面板本身还有内边距。
+- 不要把长耗时异步状态只保存在模态框内容里；如果关闭会取消任务，应由父级显式建模取消逻辑。
+
+## 审阅说明
+
+- **可访问性说明:** `aria-labelledby` 只会根据默认 `title` 标题生成。提供自定义 `header` 时，除非插槽内也渲染带生成 id 的元素，否则应保持 `title` 为空，避免对话框指向不存在的标签。
+- **实测覆盖:** `modal.test.ts` 覆盖对话框语义、标题关联、内联宽度、正文/底部插槽、关闭/卸载后的焦点恢复、遮罩/Escape/关闭按钮关闭、自定义 header 无标题关联，以及 `TModal` 标题转发。
+
+## Source
+
+- Component sources: `packages/tuffex/packages/components/src/modal/src/TxModal.vue` 与 `TModal.vue`。
+- Export alias: `packages/tuffex/packages/components/src/modal/index.ts` 导出可安装的 `TxModal` 与 `TModal`；默认导出为 `TxModal`。
+- Coverage: `packages/tuffex/packages/components/src/modal/__tests__/modal.test.ts` 覆盖对话框语义、焦点行为、关闭事件、插槽与包装组件转发。
+
+## 离线完整示例源码
+
+- [ModalBasicDemo](../snapshot/apps/nexus/app/components/content/demos/ModalBasicDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [modal/index.ts](../snapshot/packages/tuffex/packages/components/src/modal/index.ts.txt)
+- [src/TModal.vue](../snapshot/packages/tuffex/packages/components/src/modal/src/TModal.vue.txt)
+- [src/TxModal.vue](../snapshot/packages/tuffex/packages/components/src/modal/src/TxModal.vue.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

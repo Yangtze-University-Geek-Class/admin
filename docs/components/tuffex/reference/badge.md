@@ -1,0 +1,195 @@
+# Badge 徽标
+
+> 用于紧凑界面的内联计数、状态和圆点提示。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/badge) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/badge.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/badge.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Badge 徽标
+
+## 基础用法
+
+### 徽标样式
+
+官方示例：`BadgeBadgeVariantsDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const initialCount = 8
+const count = ref(initialCount)
+const errorDot = ref(true)
+const resetDemo = () => {
+  count.value = initialCount
+  errorDot.value = true
+}
+</script>
+
+<template>
+  <TxFlex direction="column" gap="16px">
+    <TxFlex align="center" gap="12px" wrap="wrap">
+      <TxBadge :value="count" />
+      <TxBadge value="New" variant="primary" />
+      <TxBadge value="99+" variant="success" />
+      <TxBadge v-if="errorDot" dot variant="error" />
+    </TxFlex>
+    <TxFlex align="center" gap="8px" wrap="wrap">
+      <TxButton size="sm" @click="count++">新增</TxButton>
+      <TxButton size="sm" variant="secondary" :disabled="count === 0" @click="count--">减少</TxButton>
+      <TxButton size="sm" variant="secondary" @click="resetDemo">重置</TxButton>
+      <TxSwitch v-model="errorDot" />
+    </TxFlex>
+  </TxFlex>
+</template>
+```
+
+### 弹出动效
+
+`open` 驱动角标的出现与消失：出现时从锚点偏移滑入并带 scale/blur 弹出，关闭时快速弹出消失、保留布局占位。数字内容经 `TxTextMorph` 渲染，计数变化按位值滚动——只有真正改变的那几列会动。
+
+官方示例：`BadgeBadgeMotionDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const open = ref(true)
+const count = ref(8)
+</script>
+
+<template>
+  <span style="position: relative; display: inline-flex">
+    <TxButton variant="secondary">收件箱</TxButton>
+    <TxBadge variant="error" :value="count" :open="open" class="corner" />
+  </span>
+  <TxSwitch v-model="open" />
+  <TxButton size="sm" round @click="count++">+1</TxButton>
+</template>
+
+<style scoped>
+.corner {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  pointer-events: none;
+}
+</style>
+```
+
+## 组合示例
+
+### 自定义插槽内容
+
+```vue
+<template>
+  <TxBadge variant="primary">
+    <strong>Beta</strong>
+  </TxBadge>
+</template>
+```
+
+### 自定义颜色
+
+```vue
+<template>
+  <TxBadge value="Internal" color="#111827" />
+</template>
+```
+
+### 圆点提示
+
+```vue
+<template>
+  <TxFlex align="center" gap="8px">
+    <TxBadge dot variant="error" />
+    <span>服务降级</span>
+  </TxFlex>
+</template>
+```
+
+## 交互契约
+
+- 根节点是带 pill 样式的内联 `span`。
+- `variant` 控制默认背景、文本和边框 CSS 变量。
+- `color` 会通过 `--tx-badge-bg` 覆盖背景，并强制 `--tx-badge-text: #ffffff`。
+- `dot=true` 时，组件渲染 `.tx-badge__dot`，添加 `tx-badge--dot`，并不渲染 `value` 或默认插槽文本。
+- `dot=false` 时，默认插槽优先于 `value`。
+- `value` 默认是 `0`，因此未传 slot 且未启用 dot 时会显示 `0`。
+- 数字 `value` 经 `TxTextMorph` 渲染，数值变化时按位值滚动（9 → 10 是数字长出一位，而不是整体替换）；字符串与插槽内容按原样渲染。徽标宽度跟随形变引擎自己的容器动画，不再另行测量。
+- `open` 切换驱动弹出动效：开启时滑入 + scale/blur 弹出，关闭时快速弹出消失并保留布局占位；首次挂载不播放入场动画。
+- `prefers-reduced-motion: reduce` 下弹出动效停用，形变引擎也遵循同一偏好、直接写入新值。
+- `TxBadge` 没有 click 事件、定位逻辑、溢出截断或目标元素锚定行为。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `variant` | `'default' \| 'primary' \| 'success' \| 'warning' \| 'error'` | `'default'` | 颜色预设。 |
+| `value` | `number \| string` | `0` | 未使用默认插槽且 `dot=false` 时的徽标文本。数字会经 `TxTextMorph` 按位值滚动。 |
+| `color` | `string` | - | 自定义背景色，同时把文本色设为白色。 |
+| `dot` | `boolean` | `false` | 渲染紧凑圆点并隐藏文本内容。 |
+| `open` | `boolean` | `true` | 显隐开关；切换时播放滑入/弹出动效，关闭时保留布局占位。 |
+
+### Events
+
+`TxBadge` 不派发组件事件。徽标需要作为筛选器或通知目标交互时，应把交互绑定在外层控件上。
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|------|------|
+| `default` | - | 自定义 pill 内容；`dot=true` 时忽略。 |
+
+### CSS Variables
+
+| 变量 | 来源 | 说明 |
+|------|------|------|
+| `--tx-badge-bg` | `variant` / `color` | 徽标背景色。 |
+| `--tx-badge-text` | `variant` / `color` | 徽标文本色。 |
+| `--tx-badge-border` | `variant` | 徽标边框色。 |
+| `--tx-badge-offset-x` / `--tx-badge-offset-y` | 消费方可选 | 滑入起始偏移，默认 `-8.2px` / `12.4px`。 |
+| `--tx-badge-slide-dur` | 消费方可选 | 滑入时长，默认 `260ms`。 |
+| `--tx-badge-pop-dur` / `--tx-badge-pop-close-dur` | 消费方可选 | 弹出/收起的 scale+blur 时长，默认 `500ms` / `180ms`。 |
+| `--tx-badge-fade-dur` / `--tx-badge-fade-close-dur` | 消费方可选 | 淡入/淡出时长，默认 `400ms` / `180ms`。 |
+| `--tx-badge-blur` | 消费方可选 | 收起态模糊量，默认 `2px`。 |
+| `--tx-badge-slide-ease` / `--tx-badge-pop-ease` / `--tx-badge-close-ease` | 消费方可选 | 三段动效的缓动曲线。 |
+
+## 最佳实践
+
+- `TxBadge` 用于计数和小状态提示。需要状态图标或权限映射时使用 `TxStatusBadge`。
+- 徽标文本保持简短；组件使用 `white-space: nowrap`，不会自动换行。
+- 目标角标通知需要在宿主组件里定位 `TxBadge`；`TxBadge` 不会自行锚定。
+- 关键状态不要只依赖圆点颜色，圆点旁应配合文本。
+- 语义状态优先使用 variants，`color` 只用于品牌色或自定义分类标签。
+- 角标通知场景把 `open` 绑定到未读状态，让弹入/弹出动效处理出现与消失；不要在徽标上再叠加自己的 transform。
+
+## 审阅说明
+
+- 组件源码:`packages/tuffex/packages/components/src/badge/src/TxBadge.vue` 确认内联 `span` 渲染、`variant` class、自定义颜色 CSS 变量、dot 模式和默认插槽优先于 `value`。
+- 类型契约:`packages/tuffex/packages/components/src/badge/src/types.ts` 定义 `BadgeVariant` 和 `BadgeProps`（含 `open`）。数字值经 `TxTextMorph` 渲染。
+- **实测覆盖:** Coverage: `packages/tuffex/packages/components/src/badge/__tests__/badge.test.ts` 覆盖 value 渲染、插槽内容、dot 模式和自定义颜色变量。
+- 导出入口:`packages/tuffex/packages/components/src/badge/index.ts` 使用 `withInstall` 包装组件并导出 `TxBadgeInstance`。
+
+## Source
+
+## 离线完整示例源码
+
+- [BadgeBadgeVariantsDemo](../snapshot/apps/nexus/app/components/content/demos/BadgeBadgeVariantsDemo.vue.txt)
+- [BadgeBadgeMotionDemo](../snapshot/apps/nexus/app/components/content/demos/BadgeBadgeMotionDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [badge/index.ts](../snapshot/packages/tuffex/packages/components/src/badge/index.ts.txt)
+- [src/TxBadge.vue](../snapshot/packages/tuffex/packages/components/src/badge/src/TxBadge.vue.txt)
+- [src/index.ts](../snapshot/packages/tuffex/packages/components/src/badge/src/index.ts.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/badge/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

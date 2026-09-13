@@ -1,5 +1,11 @@
 # Pre-Refactor Inventory
 
+> 历史阶段记录：旧路径、版本、数量和完成声明仅供追溯。
+
+状态：`historical` · 标注：2026-09-12
+
+当前实施规范见 [当前架构](../architecture/ARCHITECTURE.md) 与 [模块规范](../conventions/MODULAR-DEVELOPMENT.md)，不以本文中的旧完成声明代替验收。
+
 > Branch: `next` · created 2026-09-12 · baseline commit `4959668`
 > Purpose: pin down "what the system looks like today" before touching anything. This file describes the current state only — no migration steps.
 > Chinese original: [REFACTOR.md](./REFACTOR.md).

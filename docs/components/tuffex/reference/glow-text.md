@@ -1,0 +1,191 @@
+# GlowText 扫光
+
+> 用于在文本或任意内容（包括图片/卡片）上叠加“高光扫过”的动效。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/glow-text) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/glow-text.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/glow-text.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GlowText 扫光
+
+> 默认启用 `adaptive` 模式（容器级扫光，适合图片/卡片）；文本建议使用 `mode="text-clip"`，扫光会裁切到文字字形。
+>
+> `text-clip` 当前采用右 -> 左扫动方向（与 ShinyText 参考效果一致）。
+
+## 基础用法
+
+### GlowText
+官方示例：`GlowTextGlowTextDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <TxGlowText
+      mode="text-clip"
+      :band-size="24"
+      :duration-ms="1300"
+      :opacity="0.95"
+      color="rgba(255, 255, 255, 0.98)"
+      style="font-size: 20px; font-weight: 700; color: var(--tx-text-color-secondary, #a9b1bd);"
+    >
+      GlowText
+    </TxGlowText>
+
+    <TxGlowText
+      mode="text-clip"
+      :angle="18"
+      :band-size="26"
+      :duration-ms="1700"
+      :opacity="0.92"
+      color="rgba(125, 211, 252, 0.95)"
+      style="font-size: 14px; font-weight: 500; color: var(--tx-text-color-secondary, #9ea8b7);"
+    >
+      Subtle sweep for captions
+    </TxGlowText>
+
+    <TxGlowText mode="text-clip" :angle="18" :band-size="30" :duration-ms="1400" color="rgba(99, 102, 241, 0.9)" style="font-size: 15px; font-weight: 600;">
+      Sweep highlight over text
+    </TxGlowText>
+
+    <TxGlowText mode="text-clip" :angle="20" :band-size="34" :duration-ms="1600" style="font-size: 16px; font-weight: 700;">
+      <span style="background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6); -webkit-background-clip: text; color: transparent;">
+        Colorful text still shines
+      </span>
+    </TxGlowText>
+  </div>
+</template>
+```
+
+## 作用于图片/卡片
+
+### GlowText on image
+官方示例：`GlowTextGlowTextOnImageDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <TxGlowText tag="div" :radius="14" :angle="20" :band-size="34" :duration-ms="1600" color="rgba(255, 255, 255, 0.95)">
+      <div
+        style="width: 240px; height: 120px; border-radius: 14px; background: linear-gradient(135deg, #111827, #0f766e); border: 1px solid var(--tx-border-color-light);"
+      />
+    </TxGlowText>
+
+    <TxGlowText tag="div" :radius="12" :angle="-12" :band-size="40" :duration-ms="2000" :opacity="0.55" color="rgba(255, 255, 255, 0.85)" blend-mode="soft-light">
+      <div
+        style="width: 240px; height: 120px; border-radius: 12px; background: linear-gradient(135deg, #f8fafc, #e2e8f0); border: 1px solid rgba(148, 163, 184, 0.25);"
+      />
+    </TxGlowText>
+  </div>
+</template>
+```
+
+## 更多案例
+
+### GlowText in UI
+官方示例：`GlowTextGlowTextCasesDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <TxGlowText tag="div" :radius="999" :angle="-20" :band-size="28" :duration-ms="1200" :repeat="false">
+      <div
+        style="padding: 8px 14px; border-radius: 999px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #ffffff; font-weight: 600; font-size: 13px; letter-spacing: 0.02em;"
+      >
+        New Feature
+      </div>
+    </TxGlowText>
+
+    <TxGlowText tag="div" :radius="12" :angle="16" :band-size="36" :duration-ms="1800" :opacity="0.6" color="rgba(255, 255, 255, 0.85)">
+      <div
+        style="padding: 12px 14px; border-radius: 12px; background: #0b1220; color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.2); display: flex; align-items: center; gap: 10px;"
+      >
+        <div style="width: 8px; height: 8px; border-radius: 999px; background: #22c55e;"></div>
+        <div>
+          <div style="font-size: 12px; opacity: 0.8;">Connected</div>
+          <div style="font-size: 14px; font-weight: 600;">Realtime Sync</div>
+        </div>
+      </div>
+    </TxGlowText>
+  </div>
+</template>
+```
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `tag` | `string` | `span` | 包裹默认插槽的根元素标签；行内文本保持 `span`，卡片/图片容器改 `div`。 |
+| `active` | `boolean` | `true` | 是否启用扫光 |
+| `repeat` | `boolean` | `true` | 是否循环 |
+| `durationMs` | `number` | `2000` | 动画时长(ms) |
+| `delayMs` | `number` | `0` | 延迟(ms) |
+| `angle` | `number` | `20` | 扫光渐变角度（度）；接近 `0` 为水平掠过，增大则倾斜。 |
+| `bandSize` | `number` | `38` | 高光带宽度占渐变的百分比；调小得到更锐的窄光，调大更柔和。 |
+| `color` | `string` | `rgba(255, 255, 255, 0.9)` | 高光颜色 |
+| `opacity` | `number` | `0.75` | 高光不透明度 |
+| `blendMode` | `string` | - | 自定义 CSS `mix-blend-mode`；未传时 `adaptive` 会优先使用 `plus-lighter`，不支持时回退到 `screen`。 |
+| `mode` | `'classic' \| 'adaptive' \| 'text-clip'` | `adaptive` | `classic` 使用普通覆盖层，`adaptive` 会为容器场景补充混合/背景滤镜默认值，`text-clip` 会镜像插槽文本并把扫光裁切到字形。 |
+| `backdrop` | `string` | - | 自定义 `backdrop-filter`（如 `brightness(1.2) saturate(1.1)`） |
+| `radius` | `number` | `10` | 圆角(px) |
+
+
+### Slots
+
+| 名称 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 接收扫光的文本或紧凑内容；`text-clip` 模式下会把纯文本镜像到 `aria-hidden` 的高光层。 |
+
+### Events
+
+`TxGlowText` 不触发事件。
+
+## 交互契约
+
+- 根节点由 `tag` 控制；文本保持默认 `span`，卡片、图片或徽章容器使用 `div`。
+- `active=false` 只隐藏扫光层，插槽内容仍正常渲染。
+- `repeat=false` 只运行动画一次并保留最终帧；可结合 `delayMs` 做一次性功能提示徽章。
+- `mode="adaptive"` 使用 `screen`（支持时为 `plus-lighter`）混合，而它只提亮。因此在浅色表面上，浅色的 `color` 什么都不会改变——组件照常渲染、照常播放动画，就是看不见，而且没有任何报错可循。adaptive 适用于深色卡片、图片和缩略图；浅色页面上的文字应当使用 `text-clip`，浅色卡片则应配 `blendMode="soft-light"` 与更深的 `color`。
+- `mode="text-clip"` 会在挂载后及文本变更时读取插槽文本；适合简单文本，不适合包裹复杂交互内容。
+- 光带匀速前进，走完后停在画外：两种扫光都使用 `linear`，并在周期的 65% 处结束行进，其余时间保持静止。改用缓动会让光带在离开前先减速、然后瞬间重新开始，观感是犹豫而不是掠过。`--tx-glow-ease` 仍可覆盖。
+- `opacity` 在整段行进中保持不变，而不是沿途淡入淡出。两个端点本来就在根节点之外，而根节点是 `overflow: hidden`，因此没有什么需要淡化——旧写法在行进途中就把光带溶掉，它还在元素上方时就消失了，看起来从未离开。透明度只用于在画外停顿时隐藏该层。
+- 用户启用 `prefers-reduced-motion: reduce` 时组件会停止扫动动画，只保留静态高光。
+
+## 最佳实践
+
+- 标签、标题、渐变文字优先用 `text-clip`；图片缩略图、卡片和状态 chip 使用 `adaptive`。
+- 文本场景建议将 `bandSize` 控制在 `24` 到 `40`；更宽的高光带更适合图片或卡片表面。
+- 深色表面优先使用浅色 `color` 和中等 `opacity`；浅色卡片降低 `opacity` 或使用 `blendMode="soft-light"`。
+- 不要遮挡可聚焦控件；如果包裹按钮或输入框，必须确认扫光不会覆盖 focus ring。
+- 不要把 `GlowText` 当加载骨架使用；加载反馈应使用 `TxSkeleton`、`TxProgressBar` 或 `TxLoadingState`。
+
+## 审阅说明
+
+- **可访问性说明：** 两个扫光层都设置为 `aria-hidden`；`text-clip` 模式中的镜像文字只是装饰层，真实可读文本必须保留在默认插槽中。
+- **实测覆盖:** `glow-text.test.ts` 覆盖默认 adaptive 渲染、`aria-hidden` 扫光层、自定义根标签与 CSS 变量、inactive/one-shot class、text-clip 镜像文字，以及切回 adaptive 模式后的清理。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/glow-text/src/TxGlowText.vue`。
+- Types: `packages/tuffex/packages/components/src/glow-text/src/types.ts` 导出 `GlowTextProps`。
+- Export alias: `packages/tuffex/packages/components/src/glow-text/index.ts` 导出 `GlowText`、`TxGlowText`、`GlowTextProps` 与 `TxGlowTextInstance`。
+- Coverage: `packages/tuffex/packages/components/src/glow-text/__tests__/glow-text.test.ts` 覆盖 adaptive 默认值、CSS 变量映射、状态 class、`aria-hidden` 扫光层与 text-clip 模式切换。
+
+## 离线完整示例源码
+
+- [GlowTextGlowTextDemo](../snapshot/apps/nexus/app/components/content/demos/GlowTextGlowTextDemo.vue.txt)
+- [GlowTextGlowTextOnImageDemo](../snapshot/apps/nexus/app/components/content/demos/GlowTextGlowTextOnImageDemo.vue.txt)
+- [GlowTextGlowTextCasesDemo](../snapshot/apps/nexus/app/components/content/demos/GlowTextGlowTextCasesDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [glow-text/index.ts](../snapshot/packages/tuffex/packages/components/src/glow-text/index.ts.txt)
+- [src/TxGlowText.vue](../snapshot/packages/tuffex/packages/components/src/glow-text/src/TxGlowText.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/glow-text/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

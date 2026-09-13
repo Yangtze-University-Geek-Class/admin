@@ -1,0 +1,216 @@
+# GlassSurface 玻璃拟态
+
+> 带 SVG displacement、backdrop-filter 与纯色兜底路径的折射玻璃容器。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/glass-surface) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/glass-surface.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/glass-surface.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GlassSurface 玻璃拟态
+
+## 基础用法
+
+### GlassSurface
+官方示例：`GlassSurfaceGlassSurfaceDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div
+    style="
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      overflow: hidden;
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(255, 122, 122, 0.72), transparent 25%),
+        radial-gradient(circle at 78% 24%, rgba(89, 203, 255, 0.7), transparent 28%),
+        linear-gradient(135deg, #f8e3c5 0%, #d7ebff 48%, #d6f5df 100%);
+    "
+  >
+    <div style="position: absolute; top: 32px; left: 36px; max-width: 390px; color: rgba(28, 29, 34, 0.82);">
+      <strong style="display: block; margin-bottom: 8px; font-size: 24px;">Layered clarity with visible depth</strong>
+      <span style="font-size: 14px;">Background bands and text make blur, refraction, and edge highlights visible.</span>
+    </div>
+
+    <TxGlassSurface :width="360" :height="160" :border-radius="20" :background-opacity="0.08">
+      <div style="display: grid; width: 100%; height: 100%; place-items: center; padding: 16px; color: rgba(20, 22, 28, 0.78); font-weight: 700;">
+        GlassSurface
+      </div>
+    </TxGlassSurface>
+  </div>
+</template>
+```
+
+## 参数调节（滑块）
+
+### GlassSurface 参数调节
+官方示例：`GlassSurfaceGlassSurface2Demo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+// 每个光学参数用一个 ref 绑定到一个 TxSlider；此处只示意其中几个，
+// 完整控制面板（14 个滑块 + xChannel / yChannel / mixBlendMode 下拉）见 demo 源码。
+const blur = ref(10)
+const displace = ref(0.6)
+const distortionScale = ref(-180)
+</script>
+
+<template>
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    <TxGlassSurface
+      :width="360"
+      :height="160"
+      :blur="blur"
+      :displace="displace"
+      :distortion-scale="distortionScale"
+    >
+      <div style="padding: 18px 20px; font-weight: 600; color: rgba(0, 0, 0, 0.68);">
+        GlassSurface
+      </div>
+    </TxGlassSurface>
+
+    <TxSlider v-model="blur" :min="0" :max="24" :step="1" show-value />
+    <TxSlider v-model="displace" :min="0" :max="6" :step="0.1" show-value />
+    <TxSlider v-model="distortionScale" :min="-600" :max="0" :step="10" show-value />
+  </div>
+</template>
+```
+
+## API
+
+### Props
+
+```yaml
+rows:
+  - name: width
+    type: "string | number"
+    default: "'200px'"
+    description: 表面宽度。数字值会归一化为 px；字符串会原样透传。
+  - name: height
+    type: "string | number"
+    default: "'200px'"
+    description: 表面高度。数字值会归一化为 px；字符串会原样透传。
+  - name: borderRadius
+    type: number
+    default: 20
+    description: 外层圆角 px 值，也用于生成 displacement map 内的矩形圆角。
+  - name: borderWidth
+    type: number
+    default: 0.07
+    description: 生成 displacement map 遮罩时使用的边缘尺寸倍率。
+  - name: brightness
+    type: number
+    default: 70
+    description: 生成内部 displacement 遮罩时使用的亮度百分比。
+  - name: opacity
+    type: number
+    default: 0.93
+    description: 生成内部 displacement 遮罩时使用的透明度。
+  - name: blur
+    type: number
+    default: 11
+    description: displacement 遮罩的模糊半径，也驱动 backdrop-filter 兜底路径的 blur。
+  - name: displace
+    type: number
+    default: 0.5
+    description: RGB displacement map 混合后最终 SVG feGaussianBlur.stdDeviation。
+  - name: backgroundOpacity
+    type: number
+    default: 0
+    description: SVG filter 渲染路径上的背景透明度。
+  - name: saturation
+    type: number
+    default: 1
+    description: 追加到 SVG filter backdrop-filter 链路中的饱和度。
+  - name: distortionScale
+    type: number
+    default: -180
+    description: 应用于红、绿、蓝三组 map 的基础 SVG displacement scale。
+  - name: redOffset
+    type: number
+    default: 0
+    description: 叠加到 distortionScale 上的红色 displacement map 偏移。
+  - name: greenOffset
+    type: number
+    default: 10
+    description: 叠加到 distortionScale 上的绿色 displacement map 偏移。
+  - name: blueOffset
+    type: number
+    default: 20
+    description: 叠加到 distortionScale 上的蓝色 displacement map 偏移。
+  - name: xChannel
+    type: "'R' | 'G' | 'B'"
+    default: "'R'"
+    description: 透传给所有 RGB map 的 SVG displacement X 轴通道选择器。
+  - name: yChannel
+    type: "'R' | 'G' | 'B'"
+    default: "'G'"
+    description: 透传给所有 RGB map 的 SVG displacement Y 轴通道选择器。
+  - name: mixBlendMode
+    type: "'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity' | 'plus-darker' | 'plus-lighter'"
+    default: "'difference'"
+    description: 生成 displacement map 时蓝色渐变矩形使用的 CSS mix-blend-mode。
+```
+
+### Events
+
+`TxGlassSurface` 不会 emit 自定义事件。玻璃面板内需要交互时，把控件放进默认插槽并在控件自身处理原生事件。
+
+### Slots
+
+| 插槽名 | 参数 | 说明 |
+|--------|------|------|
+| `default` | - | 面板内容，渲染在生成的 SVG filter 层之上，并由 `.tx-glass-surface__content` 居中。 |
+
+## Fallback 降级
+
+`TxGlassSurface` 会按浏览器能力依次选择渲染路径：
+
+1. **SVG filter 折射路径**：当浏览器支持 `backdrop-filter: url(#filter)` 时，使用组件生成的 SVG displacement map，保留 RGB 通道位移、`distortionScale`、`redOffset` / `greenOffset` / `blueOffset`、`xChannel` / `yChannel`、`displace`、`saturation` 等折射参数。
+2. **backdrop-filter 模糊路径**：当 SVG filter 不可用、但支持原生 `backdrop-filter` 时，降级为 `blur(${blur}px) saturate(1.8) brightness(1.06)` 的毛玻璃背景，并保留半透明背景与边框；此时不再渲染 RGB 位移 / 色散效果。
+3. **纯半透明背景路径**：当 `backdrop-filter` 也不可用时，最终降级为半透明背景 + 边框，不再提供真实模糊和折射，但仍保持容器尺寸、圆角和基础可读性。
+
+Safari 与 Firefox 当前会跳过 SVG filter 折射路径，优先进入后两级 fallback。
+
+## 最佳实践
+
+- 只有当周围插画、图片或渐变背景确实需要折射感时才使用该组件。普通卡片优先使用 `TxBaseSurface` 或 `TxCard`，保证对比度稳定。
+- 玻璃层覆盖滚动内容或图片时，显式控制 `width`、`height` 与 `borderRadius`；displacement map 会根据实测容器尺寸重新生成。
+- `blur`、`backgroundOpacity` 与 `saturation` 必须结合真实背景调参。低对比内容上使用过重模糊，会让背后的文字不可读。
+- `distortionScale` 与 RGB offsets 是视觉导演参数。大幅负值或宽通道偏移只适合 hero / preview 表面，不适合密集表单。
+- Safari、Firefox、SSR、测试环境和不支持 `CSS.supports` 的环境会进入 fallback 路径；这些路径保留布局和可读性，但不会保留 RGB 折射。
+- 重要交互控件应放在默认插槽内；生成的 SVG 只负责装饰，非交互，并位于 `.tx-glass-surface__content` 下方。
+
+## 审阅说明
+
+- **渲染契约：** 数字 `width` / `height` 会归一化为 px 字符串，字符串尺寸原样透传，并用实测边界生成 displacement map。
+- **降级契约：** SVG displacement 是高保真路径；不支持时依次降级到原生 `backdrop-filter` 和纯半透明表面，后两者保留布局与可读性但不保留 RGB 折射。
+- **交互契约：** 生成的 SVG/filter 层只负责装饰。可交互控件应放进默认插槽，并位于 `.tx-glass-surface__content` 上方。
+- **实测覆盖:** `glass-surface.test.ts` 覆盖尺寸归一化、插槽渲染、纯色兜底样式和 RGB displacement 通道透传。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/glass-surface/src/TxGlassSurface.vue`.
+- Types: `packages/tuffex/packages/components/src/glass-surface/index.ts` exports `GlassSurfaceProps` and `TxGlassSurfaceInstance`.
+- Coverage: `packages/tuffex/packages/components/src/glass-surface/__tests__/glass-surface.test.ts` verifies numeric dimension normalization, slot rendering, solid fallback styling, and SVG displacement channel forwarding.
+
+## 离线完整示例源码
+
+- [GlassSurfaceGlassSurfaceDemo](../snapshot/apps/nexus/app/components/content/demos/GlassSurfaceGlassSurfaceDemo.vue.txt)
+- [GlassSurfaceGlassSurface2Demo](../snapshot/apps/nexus/app/components/content/demos/GlassSurfaceGlassSurface2Demo.vue.txt)
+
+## 离线类型与实现参考
+
+- [glass-surface/index.ts](../snapshot/packages/tuffex/packages/components/src/glass-surface/index.ts.txt)
+- [src/TxGlassSurface.vue](../snapshot/packages/tuffex/packages/components/src/glass-surface/src/TxGlassSurface.vue.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

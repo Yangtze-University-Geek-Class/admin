@@ -1,0 +1,284 @@
+# Dialog 对话框
+
+> 关键确认与多形态对话框
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/dialog) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/dialog.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/dialog.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Dialog 对话框
+
+## BottomDialog 底部对话框
+
+底部定位的对话框，带有可自定义的按钮与动画效果。
+
+### BottomDialog
+底部滑入的确认对话框。
+官方示例：`DialogBottomDialogDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxButton @click="bottomOpen = true">显示对话框</TxButton>
+  <TxBottomDialog
+    v-if="bottomOpen"
+    title="确认操作"
+    message="您确定要继续吗？"
+    :btns="[
+      { content: '取消', type: 'info', onClick: () => true },
+      { content: '确认', type: 'success', onClick: async () => true },
+    ]"
+    :close="() => (bottomOpen = false)"
+  />
+</template>
+```
+
+### 按钮类型
+
+```ts
+const btns = [
+  { content: '信息', type: 'info', onClick: () => true },
+  { content: '警告', type: 'warning', onClick: () => true },
+  { content: '错误', type: 'error', onClick: () => true },
+  { content: '成功', type: 'success', onClick: () => true },
+]
+```
+
+### 自动点击计时器
+
+```ts
+const btns = [
+  {
+    content: '自动确认',
+    type: 'success',
+    time: 5,
+    onClick: () => true,
+  },
+]
+```
+
+### 加载状态
+
+```ts
+const btns = [
+  {
+    content: '提交',
+    type: 'success',
+    onClick: async () => {
+      await saveData()
+      return true
+    },
+  },
+]
+```
+
+## BlowDialog 爆炸对话框
+
+带有戏剧性爆炸动画效果的居中对话框。
+
+### BlowDialog
+突出展示的居中对话框。
+官方示例：`DialogBlowDialogDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxButton @click="blowOpen = true">显示爆炸对话框</TxButton>
+  <TxBlowDialog
+    v-if="blowOpen"
+    title="欢迎"
+    message="你好！欢迎使用我们的应用。"
+    confirm-text="确认"
+    :close="() => (blowOpen = false)"
+  />
+</template>
+```
+
+## PopperDialog 弹出对话框
+
+### PopperDialog
+轻量弹出式提示。
+官方示例：`DialogPopperDialogDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxButton @click="popperOpen = true">显示弹出对话框</TxButton>
+  <TxPopperDialog
+    v-if="popperOpen"
+    title="Tip"
+    message="这是一段提示内容。"
+    confirm-text="确认"
+    :close="() => (popperOpen = false)"
+  />
+</template>
+```
+
+## TouchTip 触控提示
+
+### TouchTip
+面向触控场景的引导提示。
+官方示例：`DialogTouchTipDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxButton @click="tipOpen = true">显示 TouchTip</TxButton>
+  <TxTouchTip
+    v-if="tipOpen"
+    title="提示"
+    message="请选择一个操作。"
+    :buttons="[
+      { content: '取消', type: 'info', onClick: () => true },
+      { content: '确定', type: 'success', onClick: async () => true },
+    ]"
+    :close="() => (tipOpen = false)"
+  />
+</template>
+```
+
+## 自定义组件
+
+```ts
+import CustomContent from './CustomContent.vue'
+
+function showCustomDialog() {
+  return h(TxBlowDialog, {
+    comp: CustomContent,
+    close: () => {},
+  })
+}
+```
+
+## 渲染函数
+
+```ts
+function showRenderDialog() {
+  return h(TxBlowDialog, {
+    render: () => h('div', [
+      h('h2', '动态内容'),
+      h('p', '使用渲染函数创建'),
+    ]),
+    close: () => {},
+  })
+}
+```
+
+## API
+
+`message` 始终按纯文本渲染，并通过组件样式保留换行。需要展示 HTML 时，只能使用显式的 `messageHtml`，且调用点必须确保内容可信并已清洗。
+
+### TxBottomDialog Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 对话框标题 |
+| `message` | `string` | `''` | 对话框消息 |
+| `stay` | `number` | `0` | 预留的自动关闭时长 prop；当前运行时不会仅根据 `stay` 启动关闭计时器。 |
+| `close` | `() => void` | *必填* | 关闭回调 |
+| `btns` | `DialogButton[]` | `[]` | 按钮配置 |
+| `icon` | `string` | `''` | 历史 icon class prop；当前模板不渲染该值。 |
+| `index` | `number` | `0` | z-index 偏移量 |
+
+### DialogButton 接口
+
+```ts
+interface DialogButton {
+  content: string
+  type?: 'info' | 'warning' | 'error' | 'success'
+  time?: number
+  onClick: () => Promise<boolean> | boolean
+  loading?: (done: () => void) => void
+}
+```
+
+### TxBlowDialog Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 对话框标题 |
+| `message` | `string` | `''` | 纯文本消息内容 |
+| `messageHtml` | `DialogMessageHtml` | `''` | 可信 HTML 消息，仅限已清洗的内部调用点 |
+| `confirmText` | `string` | `'Confirm'` | 确认按钮文案 |
+| `close` | `() => void` | *必填* | 关闭回调 |
+| `comp` | `Component` | `undefined` | 自定义组件 |
+| `render` | `() => VNode` | `undefined` | 渲染函数 |
+
+### TxPopperDialog Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 对话框标题 |
+| `message` | `string` | `''` | 纯文本消息内容 |
+| `messageHtml` | `DialogMessageHtml` | `''` | 可信 HTML 消息，仅限已清洗的内部调用点 |
+| `confirmText` | `string` | `'Confirm'` | 确认按钮文案 |
+| `close` | `() => void` | *必填* | 关闭回调 |
+| `comp` | `Component` | `undefined` | 自定义组件 |
+| `render` | `() => VNode` | `undefined` | 渲染函数 |
+
+### TxTouchTip Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|-------------|
+| `title` | `string` | `''` | 标题 |
+| `message` | `string` | `''` | 文本内容 |
+| `messageHtml` | `DialogMessageHtml` | `''` | 可信 HTML 内容，仅限已清洗的内部调用点 |
+| `buttons` | `TouchTipButton[]` | `[]` | 按钮配置 |
+| `close` | `() => void` | *必填* | 关闭回调 |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| - | - | 各 Dialog 变体不触发 Vue 自定义事件；关闭统一通过必填的 `close` prop 回调完成。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|-------|------|
+| - | - | Dialog 变体不暴露插槽。`TxBlowDialog` / `TxPopperDialog` 的自定义内容使用 `comp` 或 `render`。 |
+
+## 交互契约
+
+- 所有 Dialog 变体都会 teleport 到 `body`，通过共享 z-index manager 分配层级，并通过必填 `close()` 回调关闭。
+- Escape 会在离场动画后关闭当前 dialog；`TxBottomDialog`、`TxBlowDialog`、`TxPopperDialog` 与 `TxTouchTip` 卸载时恢复之前的焦点元素。
+- `TxBottomDialog`、`TxTouchTip` 与 `TxBlowDialog` 都用 `useId()` 生成实例级标题 / 描述 id；`TxPopperDialog` 对默认标题 / 内容区域使用稳定内部 id。
+- 普通 `message` 按文本渲染并保留换行。只有调用方完成清洗并通过 `asTrustedDialogHtml()` 标记后，才使用 `messageHtml`。
+- 每个变体的正文都设置了 `overflow-wrap: anywhere`。哈希、id 或 URL 没有任何断行机会，纵向滚动救不了它——token 会直接越过面板，而面板把它裁掉。用 `anywhere` 而不是 `break-word`，是因为只有前者允许该 token 缩小内容的 min-content 宽度，长值因此也不会再把面板撑宽。
+- 每个变体的正文都自行限高并滚动。面板是 `overflow: hidden`，所以正文没有自己的高度上限时会被裁切而不是滚动：`TxBottomDialog` 限到 `46vh`，`TxTouchTip` 在其固定高度内滚动，与 `TxBlowDialog`、`TxPopperDialog` 早已使用的 `300px` 对齐。
+- `DialogButton.onClick()` / `TouchTipButton.onClick()` resolve `true` 时关闭，resolve `false` 时保持打开。
+
+## 最佳实践
+
+- `TxBottomDialog` 用于移动端风格的底部确认和破坏性流程检查点。
+- `TxBlowDialog` 只用于高强调公告；它的背景 transform 动效本身就很强。
+- `TxPopperDialog` 用于紧凑的居中提示，同时保留 modal 语义。
+- `TxTouchTip` 用于触控优先、需要多个动作按钮的引导提示。
+- 不要把 `messageHtml` 接到用户生成内容路径；除非调用方已经显式清洗并标记为 trusted。
+
+## 审阅说明
+
+- 组件源码:`packages/tuffex/packages/components/src/dialog/src/TxBottomDialog.vue`、`TxBlowDialog.vue`、`TxPopperDialog.vue` 与 `TxTouchTip.vue` 确认 teleport 到 body、z-index 分配、Escape 关闭、焦点恢复、按钮返回值语义、文本与可信 HTML 路径，以及 component/render 内容挂载方式。
+- 类型契约:`packages/tuffex/packages/components/src/dialog/src/types.ts` 定义可信 HTML 品牌、`asTrustedDialogHtml`、按钮接口、dialog props 和导出实例类型。
+- **实测覆盖:** Coverage: `packages/tuffex/packages/components/src/dialog/__tests__/dialog.test.ts` 校验 ARIA 关联、Escape 关闭、焦点恢复、文本与可信 HTML 渲染、按钮返回值语义。
+- 导出入口:`packages/tuffex/packages/components/src/dialog/index.ts` 使用 `withInstall` 包装每个 dialog，导出所有变体、`asTrustedDialogHtml` 和公共类型。
+
+## Source
+
+## 离线完整示例源码
+
+- [DialogBottomDialogDemo](../snapshot/apps/nexus/app/components/content/demos/DialogBottomDialogDemo.vue.txt)
+- [DialogBlowDialogDemo](../snapshot/apps/nexus/app/components/content/demos/DialogBlowDialogDemo.vue.txt)
+- [DialogPopperDialogDemo](../snapshot/apps/nexus/app/components/content/demos/DialogPopperDialogDemo.vue.txt)
+- [DialogTouchTipDemo](../snapshot/apps/nexus/app/components/content/demos/DialogTouchTipDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [dialog/index.ts](../snapshot/packages/tuffex/packages/components/src/dialog/index.ts.txt)
+- [src/TxBlowDialog.vue](../snapshot/packages/tuffex/packages/components/src/dialog/src/TxBlowDialog.vue.txt)
+- [src/TxBottomDialog.vue](../snapshot/packages/tuffex/packages/components/src/dialog/src/TxBottomDialog.vue.txt)
+- [src/TxPopperDialog.vue](../snapshot/packages/tuffex/packages/components/src/dialog/src/TxPopperDialog.vue.txt)
+- [src/TxTouchTip.vue](../snapshot/packages/tuffex/packages/components/src/dialog/src/TxTouchTip.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/dialog/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

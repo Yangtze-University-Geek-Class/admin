@@ -1,0 +1,258 @@
+# DataTable 数据表格
+
+> 轻量数据表格组件，提供排序、行选择与自定义渲染能力
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/data-table) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/data-table.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/data-table.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# DataTable 数据表格
+
+## 基础用法
+
+官方示例：`DataTableDataTableDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+const columns = [
+  { key: 'name', title: 'Name' },
+  { key: 'role', title: 'Role' },
+  { key: 'score', title: 'Score', sortable: true },
+]
+
+const data = [
+  { id: 1, name: 'Ava', role: 'Designer', score: 92 },
+  { id: 2, name: 'Noah', role: 'Engineer', score: 88 },
+  { id: 3, name: 'Mia', role: 'PM', score: 95 },
+]
+</script>
+
+<template>
+  <TxDataTable :columns="columns" :data="data" striped bordered />
+</template>
+```
+
+## 行选择
+
+官方示例：`DataTableDataTableSelectableDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const selectedKeys = ref([])
+</script>
+
+<template>
+  <TxDataTable
+    v-model:selected-keys="selectedKeys"
+    :columns="columns"
+    :data="data"
+    row-key="id"
+    selectable
+  />
+</template>
+```
+
+## 排序交互
+
+可排序表头会暴露 `aria-sort` 状态，并支持鼠标点击、Enter 与 Space 在升序、降序、未排序之间切换。`sortOnClient=false` 时仍会触发 `sortChange`，但不会重排本地数据。
+
+## 后台数据运维面板
+
+在 Dashboard 数据区中，`TxDataTable` 负责主列表，`TxPagination` 负责页码切换，加载预览用 `TxSkeleton` / `TxLayoutSkeleton` 承接，避免空白等待。
+
+官方示例：`ComponentsDataOperationsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <section class="grid gap-3">
+    <TxDataTable
+      v-model:selected-keys="selectedKeys"
+      :columns="columns"
+      :data="pagedRows"
+      row-key="id"
+      selectable
+      striped
+      bordered
+    />
+    <TxPagination v-model:current-page="page" :total="rows.length" :page-size="4" show-info />
+  </section>
+</template>
+```
+
+## Records 场景
+
+宽表 CRM 版式：表头吸顶、汇总行吸底、首列固定、部分选中三态、单元格原语组合。这些能力全部默认关闭，只有显式开启时才改变渲染。
+
+组成这套版式的关键点：
+
+- `maxHeight` 让表格自己成为滚动容器，表头与汇总行才有可吸附的参照；`scrollX` 负责横向。**不要把它塞进 `TxScroll` 默认模式**——那是 transform 位移滚动，会让内部所有 `position: sticky` 失效。
+- `stickyHeader` / `stickyFooter` 开启后，表格在 `.is-sticky-shell` 内部切到 `border-collapse: separate`。这不是风格选择：合并边框由表格绘制而非单元格绘制，吸顶的 `<th>` 一旦脱离就会丢掉自己的分隔线。切换只在该 class 内生效，`bordered` / `striped` 在别处观感不变。
+- 汇总行来自 `footer` 或 `footer-<key>` 插槽；不传插槽就完全不渲染 `<tfoot>`。
+- 全选框在部分选中时自动进入 `indeterminate`，向屏幕阅读器报告 `aria-checked="mixed"`。
+- 排序读时间戳字段，不要对「9 天前」这类可读文本做 `localeCompare`——那会把「1 年多前」排到「3 周前」和「9 天前」中间，还声称这是时间顺序。
+- `sortCycle="bi"` 让表格永不回到未排序态，适合始终需要一个明确顺序的记录列表。
+
+官方示例：`DataTableRecordsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxDataTable
+    v-model:selected-keys="selectedKeys"
+    :columns="columns"
+    :data="rows"
+    :sort="sort"
+    row-key="id"
+    selectable
+    highlight-selected
+    table-layout="fixed"
+    nowrap
+    sort-cycle="bi"
+    :max-height="380"
+    scroll-x
+    sticky-header
+    sticky-footer
+    @update:sort="sort = $event"
+  >
+    <template #cell-tags="{ value }">
+      <TxTag v-for="tag in value" :key="tag" :label="tag" :dot="TAG_COLORS[tag]" variant="soft" />
+    </template>
+    <template #cell-strength="{ row }">
+      <TxDotIndicator :color="STRENGTH_TONE[row.strength]" :label="STRENGTH_LABEL[row.strength]" />
+    </template>
+    <template #cell-website="{ value }">
+      <TxCellLink :href="`https://${value}`" :label="value" external @open="openSite" />
+    </template>
+
+    <template #footer-name>
+      <strong>{{ rows.length }}</strong> 条记录
+    </template>
+    <template #footer-website>
+      {{ linkCount }} 个链接
+    </template>
+  </TxDataTable>
+</template>
+```
+
+行悬停与选中底色都暴露为 CSS 变量，因此这类「纸面」表格可以换成中性灰，而不必加 prop 或 `!important`：
+
+```css
+.records-shell {
+  --tx-data-table-row-hover-bg: var(--tx-bui-hover);
+  --tx-data-table-row-selected-bg: color-mix(in srgb, var(--tx-bui-accent) 7%, var(--tx-bui-surface));
+}
+```
+
+## API
+
+### TxDataTable Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|------|------|
+| `columns` | `DataTableColumn[]` | `[]` | 列配置 |
+| `data` | `any[]` | `[]` | 数据源 |
+| `rowKey` | `keyof T \| (row: T, index: number) => string \| number` | `index` | 行唯一标识 |
+| `loading` | `boolean` | `false` | 加载状态 |
+| `emptyText` | `string` | `'No data'` | 空数据提示 |
+| `striped` | `boolean` | `false` | 斑马纹 |
+| `bordered` | `boolean` | `false` | 表格边框 |
+| `hover` | `boolean` | `true` | 悬浮高亮 |
+| `interactiveRows` | `boolean` | `false` | 让整行可聚焦（`tabindex="0"`）并支持 Enter/Space 触发 `rowClick`；绑定了 `rowClick` 监听时会自动开启 |
+| `selectable` | `boolean` | `false` | 是否可选择 |
+| `selectedKeys` | `Array<string \| number>` | `[]` | 选中 key 列表 |
+| `defaultSort` | `{ key: string; order: 'asc' \| 'desc' \| null }` | `null` | 非受控模式的初始排序，之后由组件自己持有。与 `sort` 互斥，二选一 |
+| `sort` | `{ key: string; order: 'asc' \| 'desc' \| null } \| null` | - | 受控排序。传了它（包括传 `null` 表示未排序）组件就不再持有自身状态，只通过 `update:sort` 上报用户意图，并渲染父级回传的值。完全不传则走 `defaultSort` 的非受控模式 |
+| `sortOnClient` | `boolean` | `true` | 是否前端排序 |
+| `sortCycle` | `'tri' \| 'bi'` | `'tri'` | 表头点击循环：`tri` 为升序→降序→取消排序，`bi` 为升序→降序→升序（永不取消） |
+| `tableLayout` | `'auto' \| 'fixed'` | `'auto'` | 原生 table-layout 模式；列宽需要稳定时使用 `fixed` |
+| `nowrap` | `boolean` | `false` | 全局禁止表头与单元格内容换行 |
+| `maxHeight` | `string \| number` | - | 限制表格高度并让组件自己成为纵向滚动容器。除非外层已有滚动祖先，否则 `stickyHeader` / `stickyFooter` 需要它才有吸附对象 |
+| `scrollX` | `boolean` | `false` | 让表格在组件内部横向滚动，宽表配固定列时需要 |
+| `stickyHeader` | `boolean` | `false` | 表头吸顶 |
+| `stickyFooter` | `boolean` | `false` | 汇总行吸底 |
+| `rowClass` | `(row, index) => string \| string[] \| Record<string, boolean>` | - | 按行追加 class，例如按状态给整行上色 |
+| `highlightSelected` | `boolean` | `false` | 给选中行加底色。默认关闭，既有表格的选中态仍只由复选框表达 |
+
+### DataTableColumn
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `key` | `string` | 列 key |
+| `title` | `string` | 表头文本 |
+| `dataIndex` | `string` | 数据字段名 |
+| `width` | `string \| number` | 列宽 |
+| `minWidth` | `string \| number` | 列最小宽度 |
+| `maxWidth` | `string \| number` | 列最大宽度 |
+| `auto` | `boolean` | 强制列宽为 `auto` |
+| `fixed` | `boolean \| 'left' \| 'right'` | 固定列方向；`true` 等价于 `'left'`。未开启 `scrollX` / `maxHeight` 时，存在固定列会让根元素从 `overflow: hidden` 切到 `overflow: visible`，横向滚动需由外层容器提供，否则 sticky 偏移无处附着；开启 `scrollX` 后由组件自己承担这个滚动容器。 |
+| `nowrap` | `boolean` | 禁止当前列换行 |
+| `align` | `'left' \| 'center' \| 'right'` | 对齐方式 |
+| `sortable` | `boolean` | 是否可排序 |
+| `sorter` | `(a, b) => number` | 自定义排序器 |
+| `format` | `(value, row, index) => string` | 默认文本格式化 |
+| `headerClass` | `string` | 表头 class |
+| `cellClass` | `string` | 单元格 class |
+
+### Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:selectedKeys` | `(keys)` | 选中变化 |
+| `selectionChange` | `(keys)` | 选中变化 |
+| `sortChange` | `(sort)` | 排序变化 |
+| `update:sort` | `(sort)` | 排序变化；受控与非受控模式都会触发，配合 `sort` 使用 |
+| `rowClick` | `({ row, index })` | 行点击 |
+
+### Slots
+
+| 名称 | 说明 |
+|------|------|
+| `header-<columnKey>` | 自定义表头；接收 `{ column, sorted, order, toggle }`。`sorted` 表示该列是否为当前排序列，`order` 为方向（非当前列时为 `null`），`toggle` 按配置的循环推进该列 |
+| `cell-<columnKey>` | 自定义单元格；接收 `{ row, column, value, index }` |
+| `footer` | 汇总行的整行内容，由使用方自己提供 `<td>`，因此可以跨列合并。提供任一 footer 插槽才会渲染 `<tfoot>` |
+| `footer-<columnKey>` | 按列填充汇总单元格；接收 `{ column, data }`。与 `footer` 同时存在时以 `footer` 为准 |
+| `empty` | 无展示行且 `loading=false` 时渲染的空状态 |
+
+## 最佳实践
+
+- 业务列表必须传稳定 `rowKey`；需要跨页保留选择时，用业务 id 驱动 `selectedKeys`，不要依赖默认 index。
+- 可排序列支持点击、Enter 与 Space；远程排序时设置 `sortOnClient=false` 并监听 `sortChange`。
+- `tableLayout="fixed"` 配合显式 `width` / `minWidth`，能避免运维表格在加载或排序时宽度跳动。
+- 固定列优先使用数值 px 的 `width` 或 `minWidth`；sticky 偏移会根据这些值计算。
+- 横向滚动二选一：开 `scrollX` 让组件自己成为滚动容器，或者维持默认、把表格包进外层 `overflow-x: auto` 容器。两种方式都能给 sticky 列提供可滚动的参照，但不要两层都滚。
+- 需要吸顶表头或吸底汇总行时必须给 `maxHeight`（或确保外层已有滚动祖先），否则没有可吸附的对象；滚动容器不能是 transform 位移式的（如默认模式的 `TxScroll`），那会让 sticky 整体失效。
+- 排序请基于时间戳、序号这类可比较字段，不要对格式化后的相对时间文本排序。
+- 自定义单元格要保留可读文本或状态徽标文本，因为可排序表头会通过 `aria-sort` 暴露状态。
+- 外壳按圆角裁切，因此组件会去掉表格最后一段末行的下边框；带汇总 `tfoot` 时，分隔正文与汇总的那条线仍然保留。自定义单元格边框时请一并处理，否则表格底部会多出一条横线。
+
+## 审阅说明
+
+- **可访问性说明：**`TxDataTable` 渲染原生表格；可排序表头使用 `scope="col"`、`aria-sort`、键盘焦点，以及 Enter/Space 处理器。
+- **类型：**`rowKey` 声明为 `keyof T` 或返回字符串/数字的回调；`sortChange` 可触发 `DataTableSortState` 或 `null`。
+- **实测覆盖:** 组件测试覆盖表头和行渲染、指针排序与键盘 `aria-sort` 状态切换、选择事件，以及 layout/nowrap/auto/固定列样式；末行分隔线的重置直接针对 SFC 源码断言，因为 vitest 不会执行 `<style>` 块。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/data-table/src/TxDataTable.vue`。
+- Type contracts: `packages/tuffex/packages/components/src/data-table/src/types.ts` 导出 `DataTableProps`、`DataTableColumn`、排序状态、行 key 与 emit 类型。
+- Coverage: `packages/tuffex/packages/components/src/data-table/__tests__/data-table.test.ts` 覆盖表头和行渲染、指针与键盘排序（包括 `aria-sort`）、选择事件、layout/nowrap/auto/固定列样式，以及末行分隔线的重置。
+
+## 离线完整示例源码
+
+- [DataTableDataTableDemo](../snapshot/apps/nexus/app/components/content/demos/DataTableDataTableDemo.vue.txt)
+- [DataTableDataTableSelectableDemo](../snapshot/apps/nexus/app/components/content/demos/DataTableDataTableSelectableDemo.vue.txt)
+- [ComponentsDataOperationsDemo](../snapshot/apps/nexus/app/components/content/demos/ComponentsDataOperationsDemo.vue.txt)
+- [DataTableRecordsDemo](../snapshot/apps/nexus/app/components/content/demos/DataTableRecordsDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [data-table/index.ts](../snapshot/packages/tuffex/packages/components/src/data-table/index.ts.txt)
+- [src/TxDataTable.vue](../snapshot/packages/tuffex/packages/components/src/data-table/src/TxDataTable.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/data-table/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

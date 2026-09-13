@@ -1,0 +1,288 @@
+# Radio 单选框
+
+> 单选控件，支持按钮组、标准单选、卡片单选、键盘导航、禁用状态和按钮指示器动效。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/radio) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/radio.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/radio.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Radio 单选框
+
+## 标准单选形式
+
+标准样式展示圆点指示器和标签。短选项可以使用 `direction="row"` 横向排列，长列表可以切回纵向。
+
+### Radio (standard)
+官方示例：`RadioRadioStandardDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+const value = ref<TxRadioValue>('editor')
+</script>
+
+<template>
+  <TxRadioGroup v-model="value" type="standard" direction="row">
+    <TxRadio value="viewer" label="只读成员" />
+    <TxRadio value="editor" label="编辑成员" />
+    <TxRadio value="owner" label="管理员" />
+  </TxRadioGroup>
+</template>
+```
+
+## 卡片单选形式
+
+卡片样式通过默认插槽承载更丰富的选项内容。禁用卡片仍然可见，但不能被选择，也会被键盘导航跳过。
+
+### Radio (card)
+官方示例：`RadioRadioCardDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+const value = ref<TxRadioValue>('sync')
+</script>
+
+<template>
+  <TxRadioGroup v-model="value" type="card">
+    <TxRadio value="local">
+      <div class="tx-demo__title">仅本地</div>
+      <div class="tx-demo__desc">只保存在当前设备。</div>
+    </TxRadio>
+    <TxRadio value="sync">
+      <div class="tx-demo__title">跨设备同步</div>
+      <div class="tx-demo__desc">通过账号同步偏好设置。</div>
+    </TxRadio>
+    <TxRadio value="managed" disabled>
+      <div class="tx-demo__title">组织托管</div>
+      <div class="tx-demo__desc">当前租户未启用托管策略。</div>
+    </TxRadio>
+  </TxRadioGroup>
+</template>
+```
+
+## 按钮组形式
+
+按钮组是默认样式，表现为紧凑分段控件，并带有随选项移动的指示器。
+
+### Radio (simple)
+官方示例：`RadioRadioSimpleDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+const value = ref<TxRadioValue>('week')
+</script>
+
+<template>
+  <TxRadioGroup v-model="value">
+    <TxRadio value="day">日</TxRadio>
+    <TxRadio value="week">周</TxRadio>
+    <TxRadio value="month">月</TxRadio>
+  </TxRadioGroup>
+</template>
+```
+
+## 指示器动效
+
+按钮组支持 solid、outline、blur、glass 四种指示器。`elastic` 控制拉伸/撞击动效，`stiffness` 和 `damping` 用于调整弹簧手感。
+
+### Radio (indicator)
+官方示例：`RadioRadioIndicatorDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+const value = ref<TxRadioValue>('focus')
+</script>
+
+<template>
+  <TxRadioGroup v-model="value" indicator-variant="glass">
+    <TxRadio value="focus">专注</TxRadio>
+    <TxRadio value="review">复盘</TxRadio>
+    <TxRadio value="ship">发布</TxRadio>
+  </TxRadioGroup>
+</template>
+```
+
+## 禁用状态
+
+整组不可操作时禁用 `TxRadioGroup`；只有部分选项不可用时，禁用对应 `TxRadio` 即可。
+
+### Radio (disabled)
+官方示例：`RadioRadioDisabledDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+const groupValue = ref<TxRadioValue>('locked')
+const optionValue = ref<TxRadioValue>('manual')
+</script>
+
+<template>
+  <TxRadioGroup v-model="groupValue" disabled>
+    <TxRadio value="locked">锁定</TxRadio>
+    <TxRadio value="archived">归档</TxRadio>
+  </TxRadioGroup>
+
+  <TxRadioGroup v-model="optionValue">
+    <TxRadio value="automatic" disabled>自动</TxRadio>
+    <TxRadio value="manual">手动</TxRadio>
+  </TxRadioGroup>
+</template>
+```
+
+## Playground
+
+Playground 暴露核心 group props，方便直接比较类型、方向、禁用状态、指示器样式和动效参数。
+
+### RadioGroup (playground)
+官方示例：`RadioRadioGroupPlaygroundDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import type { TxRadioValue } from '@talex-touch/tuffex'
+import { ref } from 'vue'
+
+type GroupType = 'button' | 'standard' | 'card'
+type IndicatorVariant = 'solid' | 'outline' | 'glass' | 'blur'
+
+const type = ref<GroupType>('button')
+const indicatorVariant = ref<IndicatorVariant>('solid')
+const value = ref<TxRadioValue>('alpha')
+</script>
+
+<template>
+  <TxRadioGroup v-model="value" :type="type" :indicator-variant="indicatorVariant">
+    <TxRadio value="alpha">Alpha</TxRadio>
+    <TxRadio value="beta">Beta</TxRadio>
+    <TxRadio value="gamma">Gamma</TxRadio>
+  </TxRadioGroup>
+</template>
+```
+
+## 交互契约
+
+- `TxRadioGroup` 持有当前选中的原始值，并向子级提供类型、禁用状态和键盘导航。
+- 点击一个启用且未选中的 `TxRadio` 时，该项会触发 `click`，父级会触发 `update:modelValue` / `change`。
+- 点击已经选中的 radio 不会重复触发选择；RadioGroup 始终是单选。
+- group 级 `disabled` 会禁用所有子项；item 级 `disabled` 只禁用当前项。
+- 键盘导航只遍历启用项：方向键循环切换，`Home` / `End` 跳到第一个 / 最后一个启用项。
+- 按钮组会渲染动画指示器。`glass` 和 `blur` 指示器下，`updateOnSettled` 默认等指示器动画收敛后再发出模型更新。
+- 按钮组的指示器可横向拖拽：在 `type="button"` 组里按住指示器拖动，松手时会吸附并选中最近的启用项，触发 `update:modelValue` / `change`；整组 `disabled` 时忽略拖拽（pointerdown 不响应）。
+- `direction` 只影响 `standard` 和 `card`；按钮组始终解析为横向布局。
+
+## API
+
+### TxRadioGroup Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `modelValue` / `v-model` | `string \| number` | - | 当前选中的 radio 值。 |
+| `disabled` | `boolean` | `false` | 禁用整组，并阻止键盘选择。 |
+| `type` | `'button' \| 'standard' \| 'card'` | `'button'` | 子级 radio 共享的视觉样式。 |
+| `direction` | `'row' \| 'column'` | - | 排列方向。`button` 固定为 row，`standard` 默认 row，`card` 默认 column。 |
+| `indicatorVariant` | `'solid' \| 'outline' \| 'glass' \| 'blur'` | - | 按钮组指示器样式。未传时，`glass` 映射为 `glass`，`blur` 映射为 `blur`，否则为 `solid`。 |
+| `glass` | `boolean` | `false` | `glass` 按钮指示器的快捷开关。 |
+| `blur` | `boolean` | `false` | `blur` 按钮指示器的快捷开关。 |
+| `updateOnSettled` | `boolean` | - | 按钮组下是否等指示器动画收敛后再触发 v-model/change；`glass` 或 `blur` 默认启用。 |
+| `stiffness` | `number` | `110` | 按钮指示器弹簧刚度，数值越高收敛越快。 |
+| `damping` | `number` | `12` | 按钮指示器弹簧阻尼，数值越低越弹。 |
+| `blurAmount` | `number` | `1` | `blur` 指示器的背景模糊强度。 |
+| `elastic` | `boolean` | `true` | 是否启用指示器拉伸/撞击动效。 |
+
+### TxRadioGroup Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `update:modelValue` | `(value: string \| number)` | 启用子项选中新的值时触发。 |
+| `change` | `(value: string \| number)` | 启用选择完成后触发。 |
+
+### Keyboard
+
+| 按键 | 行为 |
+|------|------|
+| `ArrowRight` / `ArrowDown` | 选择下一个启用 radio。 |
+| `ArrowLeft` / `ArrowUp` | 选择上一个启用 radio。 |
+| `Home` / `End` | 选择第一个 / 最后一个启用 radio。 |
+
+### TxRadio Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `value` | `string \| number` | - | 选中时写入父级 `TxRadioGroup` 的值。 |
+| `label` | `string` | `''` | 没有默认插槽时的备用可见文本。 |
+| `disabled` | `boolean` | `false` | 禁用当前 radio，并从 group 键盘导航中移除。 |
+| `type` | `'button' \| 'standard' \| 'card'` | `'button'` | 未受 group 控制时的独立视觉样式；在 group 内会继承 group 类型。 |
+
+### TxRadio Events
+
+| 事件名 | 参数 | 说明 |
+|------|------|------|
+| `click` | `(value: string \| number)` | 启用且未选中的 radio 通过父级选中自身后触发。 |
+
+## Slots
+
+### TxRadioGroup
+
+| 插槽 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 放置 `TxRadio` 子项；group 通过注入提供选中值、禁用状态和视觉类型。 |
+
+### TxRadio
+
+| 插槽 | 参数 | 说明 |
+|------|------|------|
+| `default` | - | 可见标签或卡片富内容；未传时回退到 `label` 属性。 |
+
+## 最佳实践
+
+- 同一个 group 内每个 `TxRadio.value` 必须唯一；重复原始值会让选中状态不可区分。
+- 简单纯文本选项用 `label`；卡片内容或格式化标签用默认插槽。
+- 长表单选项优先用 `type="standard" direction="column"`，短分段选择用 `type="button"`，需要解释文本时用 `type="card"`。
+- 使用 `glass` / `blur` 指示器时，除非表单校验必须立即触发，否则保持 `updateOnSettled` 默认行为，让动画收敛后再发出更新。
+- 单个不可用选项应单独禁用，让用户知道该选项存在但当前不可选；只有只读或加载态才禁用整组。
+- 不要依赖 `direction` 改变按钮组布局；按钮 radio 始终解析为横向布局。
+
+## 审阅说明
+
+- 组件源码：`packages/tuffex/packages/components/src/radio/src/TxRadioGroup.vue` 定义 group 默认值、方向解析、指示器样式解析、键盘处理接线和按钮指示器渲染。
+- 组件源码：`packages/tuffex/packages/components/src/radio/src/TxRadio.vue` 确认 `button` / `standard` / `card` 三种 item 结构、`label` 回退、禁用处理，以及只有启用且未选中项才触发 `click`。
+- 模型行为：`packages/tuffex/packages/components/src/radio/src/radio-group-model.ts` 只在 `updateOnSettled` 生效时延迟 `update:modelValue` / `change`。
+- **实测覆盖:** `packages/tuffex/packages/components/src/radio/__tests__/radio.test.ts` 覆盖 radiogroup 语义、选中与禁用状态渲染、跳过禁用项的方向键导航、Home/End 选择，以及整组禁用时键盘无操作。
+
+## Source
+
+## 离线完整示例源码
+
+- [RadioRadioStandardDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioStandardDemo.vue.txt)
+- [RadioRadioCardDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioCardDemo.vue.txt)
+- [RadioRadioSimpleDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioSimpleDemo.vue.txt)
+- [RadioRadioIndicatorDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioIndicatorDemo.vue.txt)
+- [RadioRadioDisabledDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioDisabledDemo.vue.txt)
+- [RadioRadioGroupPlaygroundDemo](../snapshot/apps/nexus/app/components/content/demos/RadioRadioGroupPlaygroundDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [radio/index.ts](../snapshot/packages/tuffex/packages/components/src/radio/index.ts.txt)
+- [src/TxRadio.vue](../snapshot/packages/tuffex/packages/components/src/radio/src/TxRadio.vue.txt)
+- [src/TxRadioGroup.vue](../snapshot/packages/tuffex/packages/components/src/radio/src/TxRadioGroup.vue.txt)
+- [src/radio-group-indicator.ts](../snapshot/packages/tuffex/packages/components/src/radio/src/radio-group-indicator.ts.txt)
+- [src/radio-group-model.ts](../snapshot/packages/tuffex/packages/components/src/radio/src/radio-group-model.ts.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/radio/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

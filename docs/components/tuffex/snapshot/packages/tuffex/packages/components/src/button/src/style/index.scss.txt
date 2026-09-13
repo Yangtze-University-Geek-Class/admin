@@ -1,0 +1,503 @@
+.tx-button {
+  position: relative;
+  &:hover {
+    background-color: var(--tx-button-bg-color-hover);
+  }
+  .tx-spinner {
+    color: currentColor;
+  }
+  --fake-index: -1;
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 0.5rem;
+  min-width: 80px;
+  height: 32px;
+
+  user-select: none;
+  /*
+   * A `<button>` defaults to `cursor: default`, so without this the base button
+   * was the one control in the library that gave no pointer feedback on hover —
+   * the `disabled` / `loading` rules below were the only cursors it ever had.
+   * Both of those outrank this on specificity (`.tx-button.disabled` beats
+   * `.tx-button`), so they still win regardless of source order.
+   */
+  cursor: pointer;
+  color: var(--tx-text-color);
+  border-radius: var(--tx-button-radius, 12px);
+  background-color: transparent;
+  --fake-radius: var(--tx-button-radius, 12px);
+  border: 1px solid var(--tx-button-border-color);
+
+  --tx-button-radius: 12px;
+  --tx-button-bg-color-hover: var(--tx-bg-color-page);
+  --tx-button-border-color: var(--tx-border-color);
+
+  &.block {
+    width: 100%;
+  }
+
+  &.round {
+    --tx-button-radius: 999px;
+  }
+
+  &.circle {
+    --tx-button-radius: 999px;
+    padding: 0;
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+  }
+
+  &.circle.block {
+    width: 100%;
+    --tx-button-radius: 50%;
+    padding: 0 0.5rem;
+    min-width: 80px;
+  }
+
+  &.dashed {
+    border-style: dashed;
+  }
+
+  &.borderless {
+    border-color: transparent;
+    --tx-button-border-color: transparent;
+  }
+
+  &.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+
+    --fake-index: 1;
+    --fake-opacity: 0.25;
+  }
+
+  &.loading {
+    cursor: progress;
+  }
+
+  &.variant-primary {
+    color: var(--tx-color-primary);
+    --tx-button-bg-color-hover: var(--tx-color-primary-light-9);
+    --tx-button-border-color: var(--tx-color-primary);
+  }
+
+  &.variant-success {
+    color: var(--tx-color-success);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-success) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-success);
+  }
+
+  &.variant-warning {
+    color: var(--tx-color-warning);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-warning) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-warning);
+  }
+
+  &.variant-secondary {
+    color: var(--tx-text-color-secondary);
+    --tx-button-bg-color-hover: var(--tx-fill-color);
+    --tx-button-border-color: var(--tx-border-color-light);
+  }
+
+  &.variant-flat {
+    color: var(--tx-text-color);
+    --tx-button-bg-color-hover: var(--tx-fill-color);
+    --tx-button-border-color: var(--tx-border-color);
+    --tx-button-radius: 8px;
+    min-width: 120px;
+  }
+
+  &.variant-bare {
+    min-width: 0;
+    height: auto;
+    padding: var(--tx-button-bare-padding, 0.5rem);
+    border: none;
+    --tx-button-radius: var(--tx-button-bare-radius, 10px);
+    background: var(--tx-button-bare-bg, transparent);
+    --fake-inner-opacity: var(--tx-button-bare-fake-opacity, 0);
+    --tx-button-bg-color-hover: var(--tx-button-bare-hover, var(--tx-fill-color));
+    --tx-button-border-color: transparent;
+    justify-content: flex-start;
+  }
+
+  &.variant-bare .tx-button__inner {
+    display: flex;
+    width: 100%;
+    align-items: inherit;
+    justify-content: inherit;
+    gap: inherit;
+    white-space: inherit;
+  }
+
+  &.variant-flat.tone-primary {
+    color: var(--tx-color-primary);
+    --tx-button-bg-color-hover: var(--tx-color-primary-light-9);
+    --tx-button-border-color: var(--tx-color-primary);
+  }
+
+  &.variant-flat.tone-success {
+    color: var(--tx-color-success);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-success) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-success);
+  }
+
+  &.variant-flat.tone-warning {
+    color: var(--tx-color-warning);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-warning) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-warning);
+  }
+
+  &.variant-flat.tone-danger {
+    color: var(--tx-color-danger);
+    --tx-button-bg-color-hover: var(--tx-color-danger-light-9);
+    --tx-button-border-color: var(--tx-color-danger);
+  }
+
+  &.variant-flat.tone-info {
+    color: var(--tx-color-info);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-info) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-info);
+  }
+
+  &.variant-flat.tone-text {
+    color: var(--tx-text-color-secondary);
+    --tx-button-bg-color-hover: var(--tx-fill-color);
+    --tx-button-border-color: #0000;
+  }
+
+  &.variant-ghost {
+    color: var(--tx-text-color-secondary);
+    --tx-button-bg-color-hover: var(--tx-fill-color);
+    --tx-button-border-color: #0000;
+
+    &:hover:not(.disabled) {
+      background: var(--tx-fill-color, #f5f7fa);
+    }
+  }
+
+  &.variant-danger {
+    color: var(--tx-color-danger);
+    --tx-button-bg-color-hover: var(--tx-color-danger-light-9);
+    --tx-button-border-color: var(--tx-color-danger);
+  }
+
+  &.variant-info {
+    color: var(--tx-color-info);
+    --tx-button-bg-color-hover: color-mix(in srgb, var(--tx-color-info) 12%, transparent);
+    --tx-button-border-color: var(--tx-color-info);
+  }
+
+  &.plain {
+    background: transparent;
+  }
+
+  .tx-button__inner {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    --tx-button-gap: 0.5rem;
+    gap: var(--tx-button-gap);
+    white-space: nowrap;
+    transition: width var(--tx-transition-duration-fast) var(--tx-transition-function);
+  }
+
+  .tx-button__spinner-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    overflow: hidden;
+    margin-right: calc(-1 * var(--tx-button-gap));
+    transition: width 0.18s cubic-bezier(0.2, 0, 0, 1), margin-right 0.18s cubic-bezier(0.2, 0, 0, 1);
+    will-change: width, margin-right;
+
+    &.is-visible {
+      width: var(--tx-button-spinner-size, 16px);
+      margin-right: 0;
+    }
+  }
+
+  .tx-button__spinner {
+    position: relative;
+    opacity: 1;
+    filter: blur(0);
+    scale: 1;
+    transition: opacity 0.18s cubic-bezier(0.2, 0, 0, 1), filter 0.18s cubic-bezier(0.2, 0, 0, 1), scale 0.18s cubic-bezier(0.2, 0, 0, 1);
+    will-change: opacity, filter, scale;
+  }
+
+  .tx-button__spinner.is-overlay {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+  }
+
+  .tx-button__loading-layer {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--tx-button-radius, 12px);
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        120deg,
+        transparent 40%,
+        color-mix(in srgb, currentColor 18%, transparent) 50%,
+        transparent 60%
+      );
+      background-size: 200% 100%;
+      animation: tx-button-loading-sweep 1.33s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+  }
+
+  &.loading-bar {
+    .tx-button__spinner,
+    .tx-button__spinner-slot {
+      display: none;
+    }
+
+    .tx-button__inner {
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  &:not(.loading) {
+    .tx-button__spinner {
+      opacity: 0;
+      filter: blur(4px);
+      scale: 0.86;
+      pointer-events: none;
+    }
+  }
+
+  &.loading {
+    .tx-button__inner > :not(.tx-button__spinner) {
+      opacity: 0.92;
+    }
+
+    .tx-button__spinner.is-overlay {
+      z-index: 1;
+    }
+
+    .tx-button__spinner.is-overlay ~ .tx-button__icon,
+    .tx-button__spinner.is-overlay ~ :not(.tx-button__spinner) {
+      opacity: 0;
+      filter: blur(2px);
+    }
+  }
+
+  &.auto-width {
+    .tx-button__inner {
+      overflow: hidden;
+    }
+  }
+
+  &.tx-size-sm {
+    padding: 0 0.5rem;
+    height: 26px;
+    min-width: 60px;
+    font-size: 13px;
+    --tx-button-radius: 10px;
+  }
+
+  &.variant-flat.tx-size-sm {
+    padding: 0 0.75rem;
+    height: 32px;
+    min-width: 32px;
+    font-size: 13px;
+  }
+
+  &.tx-size-lg {
+    padding: 0 1.5rem;
+    height: 38px;
+    font-size: 15px;
+  }
+}
+
+@keyframes tx-button-loading-sweep {
+  0% {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.55;
+  }
+  60% {
+    background-position: -100% 0;
+    opacity: 0.55;
+  }
+  100% {
+    background-position: -100% 0;
+    opacity: 0;
+  }
+}
+
+.tx-split-button {
+  --tx-split-button-bg: var(--tx-color-primary, #409eff);
+  --tx-split-button-fg: #fff;
+
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--tx-split-button-radius, 10px);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+  &.variant-success { --tx-split-button-bg: var(--tx-color-success, #67c23a); }
+  &.variant-warning { --tx-split-button-bg: var(--tx-color-warning, #e6a23c); }
+  &.variant-danger { --tx-split-button-bg: var(--tx-color-danger, #f56c6c); }
+  &.variant-info { --tx-split-button-bg: var(--tx-color-info, #909399); }
+  &.variant-secondary { --tx-split-button-bg: var(--tx-text-color-secondary, #606266); }
+  &.variant-ghost {
+    --tx-split-button-bg: color-mix(in srgb, var(--tx-fill-color, #f5f7fa) 78%, transparent);
+    --tx-split-button-fg: var(--tx-text-color, #303133);
+    box-shadow: none;
+  }
+
+  &.is-disabled,
+  &.is-loading {
+    opacity: 0.72;
+    cursor: not-allowed;
+  }
+
+  &.tx-size-sm {
+    .tx-split-button__primary,
+    .tx-split-button__menu {
+      height: 28px;
+    }
+
+    .tx-split-button__primary {
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    .tx-split-button__menu {
+      width: 30px;
+    }
+  }
+
+  &.tx-size-lg {
+    .tx-split-button__primary,
+    .tx-split-button__menu {
+      height: 40px;
+    }
+
+    .tx-split-button__primary {
+      padding: 0 18px;
+      font-size: 14px;
+    }
+
+    .tx-split-button__menu {
+      width: 40px;
+    }
+  }
+}
+
+.tx-split-button__primary,
+.tx-split-button__menu {
+  border: 0;
+  background: var(--tx-split-button-bg);
+  color: var(--tx-split-button-fg);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tx-split-button-bg) 88%, #000);
+  }
+}
+
+.tx-split-button__primary {
+  height: 32px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tx-split-button__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.tx-split-button__spinner-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  overflow: hidden;
+  margin-right: -8px;
+  transition: width 0.18s cubic-bezier(0.2, 0, 0, 1), margin-right 0.18s cubic-bezier(0.2, 0, 0, 1);
+
+  &.is-visible {
+    width: 16px;
+    margin-right: 0;
+  }
+}
+
+.tx-split-button__spinner {
+  color: currentColor;
+}
+
+.tx-split-button__icon,
+.tx-split-button__menu-icon {
+  font-size: 16px;
+}
+
+.tx-split-button__menu {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tx-split-button-bg) 86%, #000);
+  }
+}
+
+/* Haptic click shake — the visual counterpart of `vibrate`. Amplitude comes
+   from --tx-button-shake-amp, set per click from the resolved vibrate type. */
+.tx-button.is-haptic-shake {
+  animation: tx-button-haptic-shake 260ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes tx-button-haptic-shake {
+  10%, 90% {
+    transform: translateX(calc(var(--tx-button-shake-amp, 1px) * -0.6));
+  }
+  20%, 80% {
+    transform: translateX(calc(var(--tx-button-shake-amp, 1px) * 0.9));
+  }
+  30%, 50%, 70% {
+    transform: translateX(calc(var(--tx-button-shake-amp, 1px) * -1));
+  }
+  40%, 60% {
+    transform: translateX(var(--tx-button-shake-amp, 1px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tx-button.is-haptic-shake {
+    animation: none;
+  }
+}

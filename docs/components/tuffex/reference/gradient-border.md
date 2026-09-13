@@ -1,0 +1,140 @@
+# GradientBorder 渐变边框
+
+> 用于强调卡片、Hero 面板和提示容器的动态渐变边框包装器。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/gradient-border) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/gradient-border.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/gradient-border.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GradientBorder 渐变边框
+
+## 基础用法
+
+官方示例：`GradientBorderGradientBorderDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TxGradientBorder :padding="16" :border-radius="16">
+    <div style="background: var(--tx-bg-color); border-radius: 12px; padding: 16px;">
+      Content
+    </div>
+  </TxGradientBorder>
+</template>
+```
+
+## 组合示例
+
+### 语义化根节点
+
+高亮区域需要作为语义区块或列表项时，使用 `as` 指定根元素。
+
+```vue
+<template>
+  <TxGradientBorder as="section" :border-width="3" :border-radius="20" padding="1rem 1.25rem">
+    <article class="rounded-[16px] bg-[var(--tx-bg-color)] p-4">
+      <h3>候选版本</h3>
+      <p>已准备进入人工 QA。</p>
+    </article>
+  </TxGradientBorder>
+</template>
+```
+
+### 自定义单位
+
+数字尺寸 props 会转成 px；字符串会原样保留，因此可以使用 CSS 变量和多值 padding。
+
+```vue
+<template>
+  <TxGradientBorder
+    border-width="0.125rem"
+    border-radius="var(--radius-lg)"
+    padding="1rem 1.5rem"
+    :animation-duration="6"
+  >
+    <div class="rounded-[inherit] bg-[var(--tx-bg-color)] p-4">
+      使用项目 token
+    </div>
+  </TxGradientBorder>
+</template>
+```
+
+## 交互契约
+
+- 根元素由 `<component :is="as">` 渲染，默认根元素是 `div`。
+- 组件会在默认插槽外包一层 `.tx-gradient-border__inner`。
+- `borderWidth`、`borderRadius`、`padding` 支持数字或字符串。数字会转为 px，字符串原样透传。
+- `animationDuration` 是以秒为单位的数字，并会带 `s` 后缀写入 `--tx-gradient-duration`。
+- 渐变层是带 `pointer-events: none` 的伪元素；真实交互由插槽内容负责。
+- 包装器使用 `overflow: hidden`，子元素焦点环或阴影超出圆角时可能被裁剪。
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `as` | `string` | `'div'` | 包装器根元素标签。 |
+| `borderWidth` | `string \| number` | `'2px'` | 渐变边框宽度，数字会转为 px。 |
+| `borderRadius` | `string \| number` | `'12px'` | 应用到包装器和渐变层的圆角，数字会转为 px。 |
+| `padding` | `string \| number` | `'12px'` | 应用到内部内容包装器的 padding，数字会转为 px。 |
+| `animationDuration` | `number` | `4` | 渐变旋转动画时长，单位为秒。 |
+
+### Slots
+
+| 插槽名 | Props | 说明 |
+|------|------|------|
+| `default` | - | 渲染在 `.tx-gradient-border__inner` 内的内容。 |
+
+### Events
+
+不发出公开事件。
+
+### Exposed Methods
+
+不暴露公开实例方法。
+
+### CSS Variables
+
+| 变量 | 来源 | 说明 |
+|------|------|------|
+| `--tx-gradient-border-width` | `borderWidth` | 边框厚度与 blur 距离。 |
+| `--tx-gradient-border-radius` | `borderRadius` | 包装器和渐变层圆角。 |
+| `--tx-gradient-inner-padding` | `padding` | 内部包装器 padding。 |
+| `--tx-gradient-duration` | `animationDuration` | 旋转动画时长。 |
+| `--tx-gradient-angle` | 内部动画 | 渐变使用的已注册角度属性。 |
+
+## 最佳实践
+
+- 在包装器内部放置真实 surface，并让内部圆角接近 `borderRadius - borderWidth`，避免露出尖角。
+- 区块、列表项或文章卡片需要语义时，用 `as` 指定根元素，不要再套额外 landmark。
+- 页面中有多个动态边框时，应放慢 `animationDuration`；过快动画会抢占主内容注意力。
+- 控件焦点环必须外溢时，不要直接包在该组件里，或在内部内容中自行处理 focus 样式。
+- 一个视图区块内优先只保留一个渐变高亮面；小状态点用 `TxBadge` 或 `TxTag`。
+- 在 `prefers-reduced-motion: reduce` 下会停用旋转动画，边框停在静态渐变角度。
+
+## 审阅说明
+
+- 已人工核对 `packages/tuffex/packages/components/src/gradient-border/index.ts`、`TxGradientBorder.vue` 与 `gradient-border.test.ts`。
+- Props 定义在 `index.ts` 中；该组件没有单独的 `src/types.ts`。
+- 动态渐变是非交互伪元素。插槽内容仍负责所有交互和 focus 样式。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/gradient-border/src/TxGradientBorder.vue`。
+- Types: `packages/tuffex/packages/components/src/gradient-border/index.ts`。
+- **实测覆盖:** Coverage: `packages/tuffex/packages/components/src/gradient-border/__tests__/gradient-border.test.ts` 验证默认根节点、自定义根标签、数字单位归一化、秒级动画时长和字符串 CSS 单位保留。
+
+## 离线完整示例源码
+
+- [GradientBorderGradientBorderDemo](../snapshot/apps/nexus/app/components/content/demos/GradientBorderGradientBorderDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [gradient-border/index.ts](../snapshot/packages/tuffex/packages/components/src/gradient-border/index.ts.txt)
+- [src/TxGradientBorder.vue](../snapshot/packages/tuffex/packages/components/src/gradient-border/src/TxGradientBorder.vue.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

@@ -1,0 +1,402 @@
+# GradualBlur 渐变模糊
+
+> 用于父容器或页面边缘的分层 backdrop-filter 渐变模糊，覆盖预设、hover 强度、滚动触发、响应式尺寸与 GPU 提示。
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/gradual-blur) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/gradual-blur.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/gradual-blur.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# GradualBlur 渐变模糊
+
+## 基础用法
+
+### GradualBlur
+官方示例：`GradualBlurGradualBlurDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <section style="position: relative; height: 320px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+    <div style="height: 100%; overflow-y: auto; padding: 2rem 1rem; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));">
+      <div style="font-weight: 600; margin-bottom: 8px;">
+        Scrollable Content
+      </div>
+      <div style="color: var(--tx-text-color-secondary); line-height: 1.7;">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+        <div style="height: 16px;" />
+        Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+        <div style="height: 16px;" />
+        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+        <div style="height: 16px;" />
+        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+        <div style="height: 16px;" />
+        More lines. More lines. More lines. More lines. More lines.
+        <div style="height: 120px;" />
+        Bottom.
+      </div>
+    </div>
+
+    <TxGradualBlur
+      target="parent"
+      position="bottom"
+      height="6rem"
+      :strength="2"
+      :div-count="5"
+      curve="bezier"
+      :exponential="true"
+      :opacity="1"
+    />
+  </section>
+</template>
+```
+
+### 方向（Top / Bottom / Left / Right）
+
+#### Positions
+官方示例：`GradualBlurPositionsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 620px;">
+    <section style="position: relative; height: 220px; overflow: hidden; border-radius: 16px; border: 1px solid var(--tx-border-color); background: linear-gradient(180deg, rgba(125,211,252,.24), rgba(255,255,255,0));">
+      <div style="height: 100%; overflow-y: auto; padding: 1.4rem 1.2rem; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+          <span>Top fade</span>
+          <span style="font-size: 20px;">↑</span>
+        </div>
+        <p style="color: var(--tx-text-color-secondary); line-height: 1.6; margin: 0;">
+          Headline content stays sharp，向上滚动时才看到模糊层。
+        </p>
+        <div style="height: 160px;" />
+        <p style="color: var(--tx-text-color-secondary); margin: 0;">
+          End.
+        </p>
+      </div>
+      <TxGradualBlur position="top" height="4.5rem" :strength="2.2" :div-count="6" curve="ease-out" />
+    </section>
+
+    <section style="position: relative; height: 220px; overflow: hidden; border-radius: 16px; border: 1px solid var(--tx-border-color); background: linear-gradient(180deg, rgba(168,85,247,.08), rgba(255,255,255,0));">
+      <div style="height: 100%; overflow-y: auto; padding: 1.4rem 1.2rem; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+          <span>Bottom fade</span>
+          <span style="font-size: 20px;">↓</span>
+        </div>
+        <p style="color: var(--tx-text-color-secondary); line-height: 1.6; margin: 0;">
+          适合卡片底部补强，底部 CTA 始终可读。
+        </p>
+        <div style="height: 200px;" />
+        <p style="color: var(--tx-text-color-secondary); margin: 0;">
+          End.
+        </p>
+      </div>
+      <TxGradualBlur position="bottom" height="5rem" :strength="2.2" :div-count="6" curve="ease-out" />
+    </section>
+
+    <section style="position: relative; height: 200px; overflow: hidden; border-radius: 16px; border: 1px solid var(--tx-border-color); background: linear-gradient(90deg, rgba(14,165,233,.06), rgba(255,255,255,0));">
+      <div style="height: 100%; overflow-y: auto; padding: 1.2rem; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+          <span>Left pane</span>
+          <span style="font-size: 20px;">←</span>
+        </div>
+        <p style="color: var(--tx-text-color-secondary); line-height: 1.5; margin: 0;">
+          侧边栏文字 + 图标列表，模糊处理外侧图片。
+        </p>
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+          <div style="height: 48px; border-radius: 8px; background: rgba(125,211,252,.35);" />
+          <div style="height: 48px; border-radius: 8px; background: rgba(59,130,246,.25);" />
+          <div style="height: 48px; border-radius: 8px; background: rgba(37,99,235,.25);" />
+        </div>
+      </div>
+      <TxGradualBlur position="left" width="5rem" :strength="2.5" :div-count="7" curve="bezier" />
+    </section>
+
+    <section style="position: relative; height: 200px; overflow: hidden; border-radius: 16px; border: 1px solid var(--tx-border-color); background: linear-gradient(90deg, rgba(236,72,153,.08), rgba(255,255,255,0));">
+      <div style="height: 100%; overflow-y: auto; padding: 1.2rem; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600;">
+          <span>Right pane</span>
+          <span style="font-size: 20px;">→</span>
+        </div>
+        <p style="color: var(--tx-text-color-secondary); line-height: 1.5; margin: 0;">
+          可保护右侧媒体或聊天面板，避免抢占焦点。
+        </p>
+        <div style="flex: 1; display: flex; gap: 6px;">
+          <div style="flex: 1; border-radius: 10px; background: rgba(248,113,113,.15);" />
+          <div style="flex: 1; border-radius: 10px; background: rgba(251,146,60,.15);" />
+        </div>
+      </div>
+      <TxGradualBlur position="right" width="5rem" :strength="2.5" :div-count="7" curve="bezier" />
+    </section>
+  </div>
+</template>
+```
+
+### Preset 预设
+
+#### Presets
+官方示例：`GradualBlurPresetsDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 640px;">
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          subtle
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="subtle" />
+    </section>
+
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          intense
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="intense" />
+    </section>
+
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          smooth
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="smooth" />
+    </section>
+
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          sharp
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="sharp" />
+    </section>
+
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          header
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="header" />
+    </section>
+
+    <section style="position: relative; height: 140px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+      <div style="height: 100%; overflow-y: auto; padding: 1rem;">
+        <div style="font-weight: 600;">
+          footer
+        </div>
+        <div style="height: 120px;" />
+      </div>
+      <TxGradualBlur preset="footer" />
+    </section>
+  </div>
+</template>
+```
+
+### Hover 强度增强（hoverIntensity）
+
+#### HoverIntensity
+官方示例：`GradualBlurHoverIntensityDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <section style="position: relative; height: 220px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+    <div style="height: 100%; overflow-y: auto; padding: 1.25rem 1rem;">
+      <div style="font-weight: 600; margin-bottom: 8px;">
+        Hover the blurred area
+      </div>
+      <div style="color: var(--tx-text-color-secondary); line-height: 1.7;">
+        When hoverIntensity is provided, the blur overlay will accept pointer events.
+        <div style="height: 220px;" />
+        End.
+      </div>
+    </div>
+
+    <TxGradualBlur
+      position="bottom"
+      height="6rem"
+      :strength="2"
+      :div-count="6"
+      curve="bezier"
+      :hover-intensity="1.8"
+      :exponential="true"
+    />
+  </section>
+</template>
+```
+
+### 进入视口触发（animated="scroll"）
+
+#### Animated scroll
+官方示例：`GradualBlurAnimatedScrollDemo`（完整源码见本页末尾）
+
+```vue
+<script setup lang="ts">
+import GradualBlurAnimatedDemo from './GradualBlurAnimatedDemo.vue'
+</script>
+
+<template>
+  <GradualBlurAnimatedDemo />
+</template>
+```
+
+### Page 目标（target="page"）
+
+#### Target page
+官方示例：`GradualBlurTargetPageDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <div style="position: relative; height: 220px; border-radius: 12px; border: 1px solid var(--tx-border-color); overflow: hidden;">
+    <div style="padding: 1rem; color: var(--tx-text-color-secondary);">
+      This box only exists to show a fixed blur overlay.
+    </div>
+
+    <TxGradualBlur
+      target="page"
+      preset="page-footer"
+      :div-count="8"
+      :exponential="true"
+      :opacity="1"
+      :strength="2.5"
+      :z-index="9999"
+      :style="{ left: 0, right: 0 }"
+    />
+  </div>
+</template>
+```
+
+### 响应式尺寸（responsive）
+
+#### Responsive sizes
+官方示例：`GradualBlurResponsiveSizesDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <section style="position: relative; height: 220px; overflow: hidden; border-radius: 12px; border: 1px solid var(--tx-border-color);">
+    <div style="height: 100%; overflow-y: auto; padding: 1.25rem 1rem;">
+      <div style="font-weight: 600; margin-bottom: 8px;">
+        Resize window to see height changes
+      </div>
+      <div style="color: var(--tx-text-color-secondary); line-height: 1.7;">
+        desktop/tablet/mobile heights can be configured.
+        <div style="height: 220px;" />
+        End.
+      </div>
+    </div>
+
+    <TxGradualBlur
+      position="bottom"
+      :strength="2"
+      responsive
+      height="6rem"
+      mobile-height="4rem"
+      tablet-height="5rem"
+      desktop-height="7rem"
+    />
+  </section>
+</template>
+```
+
+## API
+
+### Props
+
+| 属性名 | 类型 | 默认值 | 说明 |
+|------|------|---------|------|
+| `position` | `'top' \| 'bottom' \| 'left' \| 'right'` | `'bottom'` | 挂载边缘，同时决定 mask 渐变方向。 |
+| `strength` | `number` | `2` | 每层 blur 半径的倍率。 |
+| `height` | `string` | `'6rem'` | top/bottom 的覆盖厚度；left/right 在未传 `width` 时也会用它兜底。 |
+| `width` | `string` | - | 覆盖宽度；top/bottom 默认 `100%`，left/right 未传时回退到 `height`。 |
+| `divCount` | `number` | `5` | 分层数量；会向下取整，并至少保留 1 层。 |
+| `exponential` | `boolean` | `false` | 使用指数式 blur 递增，而不是线性递增。 |
+| `curve` | `'linear' \| 'bezier' \| 'ease-in' \| 'ease-out' \| 'ease-in-out'` | `'linear'` | 控制各层 blur 进度分布。 |
+| `opacity` | `number` | `1` | 应用到每个 blur layer 的透明度。 |
+| `animated` | `boolean \| 'scroll'` | `false` | 启用 opacity/filter 过渡；`'scroll'` 会等进入视口后淡入。 |
+| `duration` | `string` | `'0.3s'` | opacity 与 blur 过渡时长。 |
+| `easing` | `string` | `'ease-out'` | opacity 与 blur 过渡曲线。 |
+| `zIndex` | `number` | `1000` | 基础层级；`target="page"` 会在此基础上加 `100`。 |
+| `target` | `'parent' \| 'page'` | `'parent'` | `parent` 使用 absolute 定位；`page` 使用 fixed 定位。 |
+| `hoverIntensity` | `number` | - | hover 时乘到 `strength` 上，并让覆盖层接收 pointer events。 |
+| `responsive` | `boolean` | `false` | 根据窗口宽度切换 height/width，并安装防抖 resize 监听。 |
+| `mobileHeight` | `string` | - | `responsive` 下 viewport `<= 480px` 时使用的 height。 |
+| `tabletHeight` | `string` | - | `responsive` 下 viewport `<= 768px` 时使用的 height。 |
+| `desktopHeight` | `string` | - | `responsive` 下 viewport `<= 1024px` 时使用的 height。 |
+| `mobileWidth` | `string` | - | `responsive` 下 viewport `<= 480px` 时使用的 width。 |
+| `tabletWidth` | `string` | - | `responsive` 下 viewport `<= 768px` 时使用的 width。 |
+| `desktopWidth` | `string` | - | `responsive` 下 viewport `<= 1024px` 时使用的 width。 |
+| `preset` | `'top' \| 'bottom' \| 'left' \| 'right' \| 'subtle' \| 'intense' \| 'smooth' \| 'sharp' \| 'header' \| 'footer' \| 'sidebar' \| 'page-header' \| 'page-footer'` | - | 先应用预设配置；显式传入的 prop 仍会覆盖预设。 |
+| `gpuOptimized` | `boolean` | `false` | 增加 `will-change: backdrop-filter, opacity` 与 `translateZ(0)`。 |
+| `onAnimationComplete` | `() => void` | - | `animated="scroll"` 进入可见区域并经过 `duration` 后调用。 |
+| `className` | `string` | `''` | 追加到根节点的额外 class。 |
+| `style` | `CSSProperties` | `{}` | 追加到根节点的内联样式；会在生成的定位样式之后合并。 |
+
+### Slots
+
+| 插槽名 | 说明 |
+|------|------|
+| `default` | 可选内容，渲染在覆盖层根节点内，并位于 blur layers 之上。 |
+
+### Events
+
+不派发 Vue 事件；`animated="scroll"` 需要完成回调时使用 `onAnimationComplete`。
+
+## 交互契约
+
+- 先合并 preset，再用显式传入的 props 覆盖预设值。
+- `position` 同时控制挂载边缘与 mask 渐变方向；垂直边缘使用 `height`，水平边缘优先使用 `width`，否则回退到 `height`。
+- `target="parent"` 渲染为 `position: absolute`；`target="page"` 渲染为 `position: fixed`，垂直边缘默认占满 viewport 宽度，并在 `zIndex` 上加 `100`。
+- `divCount` 会向下取整并至少保留一层；每层都有独立的 mask 区间与 `backdrop-filter` blur 值。
+- `hoverIntensity` 会启用 pointer events，并只在 hover 时把倍率乘到 `strength` 上。
+- `animated="scroll"` 初始隐藏，通过 `IntersectionObserver` 观察根节点；进入可见区域后经过 `duration` 再调用 `onAnimationComplete`。
+- `responsive` 会安装防抖 resize 监听，并按 viewport 宽度应用 mobile/tablet/desktop 尺寸（`<=480`、`<=768`、`<=1024`）。
+- `style` 在生成的定位样式之后合并，因此页面可以有意覆盖坐标。
+
+## 最佳实践
+
+- 卡片内边缘渐隐应让父容器保持 `position: relative` 与 `overflow: hidden`；固定页面 chrome 才使用 `target="page"`。
+- 需要更顺滑的渐变时先增加 `divCount`，再调 `strength`；过高的层数会增加 backdrop-filter 成本。
+- 常见页眉/页脚优先使用 preset，再覆盖少量 props，避免重复维护整套参数。
+- 默认覆盖层不接收 pointer events；除非需要 hover 强度，不要把交互控件放在覆盖层下方。
+- 两套主题都要检查对比度，因为 `backdrop-filter` 的实际效果取决于后方内容。
+
+## 审阅说明
+
+- **可访问性说明：** 模糊根节点默认只是装饰层且不接收 pointer events。启用 `hoverIntensity` 会打开 pointer events，除非确实需要 hover 强度增强，否则不要覆盖可聚焦控件。
+- **实测覆盖:** `gradual-blur.test.ts` 覆盖配置化 layer 渲染、插槽内容、page target 定位与 z-index 偏移、GPU 样式、preset 合并和 `divCount` 下限、hover 强度变化，以及响应式尺寸。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/gradual-blur/src/TxGradualBlur.vue`。
+- Types: `packages/tuffex/packages/components/src/gradual-blur/src/types.ts` 导出 `GradualBlurProps` 以及 position、curve、animated、target 联合类型。
+- Export alias: `packages/tuffex/packages/components/src/gradual-blur/index.ts` 导出 `GradualBlur`、`TxGradualBlur`、`GradualBlurProps` 与 `TxGradualBlurInstance`。
+- Coverage: `packages/tuffex/packages/components/src/gradual-blur/__tests__/gradual-blur.test.ts` 覆盖 layer 生成、presets、page target、GPU 优化、hover intensity 与响应式尺寸。
+
+## 离线完整示例源码
+
+- [GradualBlurGradualBlurDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurGradualBlurDemo.vue.txt)
+- [GradualBlurPositionsDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurPositionsDemo.vue.txt)
+- [GradualBlurPresetsDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurPresetsDemo.vue.txt)
+- [GradualBlurHoverIntensityDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurHoverIntensityDemo.vue.txt)
+- [GradualBlurAnimatedScrollDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurAnimatedScrollDemo.vue.txt)
+- [GradualBlurTargetPageDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurTargetPageDemo.vue.txt)
+- [GradualBlurResponsiveSizesDemo](../snapshot/apps/nexus/app/components/content/demos/GradualBlurResponsiveSizesDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [gradual-blur/index.ts](../snapshot/packages/tuffex/packages/components/src/gradual-blur/index.ts.txt)
+- [src/TxGradualBlur.vue](../snapshot/packages/tuffex/packages/components/src/gradual-blur/src/TxGradualBlur.vue.txt)
+- [src/types.ts](../snapshot/packages/tuffex/packages/components/src/gradual-blur/src/types.ts.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。

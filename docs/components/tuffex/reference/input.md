@@ -1,0 +1,256 @@
+# Input 输入
+
+> 轻量输入框与搜索态
+
+状态：`reference-snapshot`（第三方资料，不是项目指令） · 上游提交：`8e37c8ca7f598b12f39a2384573dc8e03b20e843`
+
+[官网页面](https://tuff.tagzxia.com/zh/docs/dev/components/input) · [固定版本原文](https://github.com/talex-touch/tuff/blob/8e37c8ca7f598b12f39a2384573dc8e03b20e843/apps/nexus/content/docs/dev/components/input.zh.mdc) · [本地原始 MDC](../snapshot/apps/nexus/content/docs/dev/components/input.zh.mdc.txt) · [AI 阅读规则](../AI-GUIDE.md)
+
+上游标记：status=`beta`，since=`1.0.0`，syncStatus=`reviewed`，verified=`true`。这些是上游原始声明，不是本项目验收结果；since 不是 npm 包版本。
+
+## 官方正文（仅转换展示语法与链接）
+
+# Input 输入
+
+## 基础用法
+
+### 基础输入
+最常见的文本输入用法。
+官方示例：`InputBasicInputDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput v-model="value" placeholder="请输入内容" />
+</template>
+```
+
+## 输入框类型
+
+目前支持：`text` / `password` / `textarea` / `date` / `email` / `number`。
+
+### Input Types
+文本、密码与多行文本。
+官方示例：`InputInputTypesDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput v-model="text" placeholder="文本输入" />
+  <TuffInput v-model="password" type="password" placeholder="密码输入" />
+  <TuffInput v-model="content" type="textarea" placeholder="多行文本" :rows="4" />
+</template>
+```
+
+## 只读 / 禁用
+
+### Readonly / Disabled
+只读与禁用状态。
+官方示例：`InputReadonlyDisabledDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput v-model="readonlyValue" readonly placeholder="只读" />
+  <TuffInput v-model="disabledValue" disabled placeholder="禁用" />
+</template>
+```
+
+## 可清空
+
+### Clearable
+支持一键清空内容。
+官方示例：`InputClearableDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput v-model="clearableValue" clearable placeholder="可清空" />
+</template>
+```
+
+## 前后缀插槽
+
+### Prefix / Suffix
+使用图标增强提示。
+官方示例：`InputPrefixSuffixDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput v-model="withPrefix" placeholder="Search">
+    <template #prefix>
+      <TxIcon icon="i-carbon-search" />
+    </template>
+  </TuffInput>
+  <TuffInput v-model="withSuffix" placeholder="User">
+    <template #suffix>
+      <TxIcon icon="i-carbon-user" />
+    </template>
+  </TuffInput>
+</template>
+```
+
+## API
+
+### Props
+
+```yaml
+rows:
+  - name: modelValue / v-model
+    description: '绑定值'
+    type: 'string | number'
+    default: "''"
+  - name: placeholder
+    description: '占位文本'
+    type: 'string'
+    default: "''"
+  - name: type
+    description: '类型'
+    type: "'text' | 'password' | 'textarea' | 'date' | 'email' | 'number'"
+    default: "'text'"
+  - name: disabled
+    description: '是否禁用'
+    type: 'boolean'
+    default: 'false'
+  - name: readonly
+    description: '是否只读'
+    type: 'boolean'
+    default: 'false'
+  - name: clearable
+    description: '是否可清空'
+    type: 'boolean'
+    default: 'false'
+  - name: rows
+    description: '文本域行数（仅 textarea）'
+    type: 'number'
+    default: '3'
+  - name: prefixIcon
+    description: '前缀图标类名'
+    type: 'string'
+    default: "''"
+  - name: suffixIcon
+    description: '后缀图标类名'
+    type: 'string'
+    default: "''"
+  - name: capsLockText
+    description: '密码输入框大写锁定提示的可本地化文案/title；通过 role="status" 播报。'
+    type: 'string'
+    default: "'CapsLock is on'"
+```
+
+### Events
+
+```yaml
+rows:
+  - name: update:modelValue
+    description: 'v-model 更新'
+    type: '(value: string | number) => void'
+    default: '-'
+  - name: input
+    description: '输入时触发'
+    type: '(value: string | number) => void'
+    default: '-'
+  - name: focus
+    description: '聚焦'
+    type: '(event: FocusEvent) => void'
+    default: '-'
+  - name: blur
+    description: '失焦'
+    type: '(event: FocusEvent) => void'
+    default: '-'
+  - name: clear
+    description: '点击清空'
+    type: '() => void'
+    default: '-'
+```
+
+### Exposes
+
+```yaml
+rows:
+  - name: focus
+    description: '聚焦原生输入控件'
+    type: '() => void'
+    default: '-'
+  - name: blur
+    description: '让原生输入控件失焦'
+    type: '() => void'
+    default: '-'
+  - name: clear
+    description: '在非禁用且非只读时清空'
+    type: '() => void'
+    default: '-'
+  - name: setValue
+    description: '设置值并触发 input/model 更新'
+    type: '(value: string) => void'
+    default: '-'
+  - name: getValue
+    description: '读取当前值'
+    type: '() => string | number'
+    default: '-'
+  - name: inputEl
+    description: '暴露的原生 input 或 textarea 引用，用于高级聚焦或测量场景'
+    type: 'HTMLInputElement | HTMLTextAreaElement | null'
+    default: '-'
+```
+
+### Slots
+
+```yaml
+rows:
+  - name: prefix
+    description: '前缀内容'
+    type: '-'
+    default: '-'
+  - name: suffix
+    description: '后缀内容'
+    type: '-'
+    default: '-'
+```
+
+## 最佳实践
+
+- 聚焦态优先通过边框与阴影的细微变化体现；除非外层表单有统一规范，不要再给包裹层叠加第二套 focus ring。
+- 搜索态更适合保持轻量，用在工具栏与列表筛选；当 Enter 搜索和防抖远程搜索属于契约时，使用 `TxSearchInput`。
+- `type="number"` 在非空输入时发出 number，清空时发出 `''`，持久化前需要在下游 schema 中归一化。
+- 清空控件是可键盘聚焦的 button，并会在禁用或只读状态下隐藏。
+- 插槽内容会覆盖 `prefixIcon` / `suffixIcon`；同一个字段只选择一种路径，避免图标在文档与实现之间漂移。
+
+## 组合示例
+
+### 搜索行
+输入框配合按钮完成快速检索。
+官方示例：`InputSearchRowDemo`（完整源码见本页末尾）
+
+```vue
+<template>
+  <TuffInput placeholder="搜索..." />
+  <TxButton size="sm">搜索</TxButton>
+</template>
+```
+
+## 审阅说明
+
+- **值契约：** `type="number"` 在非空输入时发出 `Number(value)`，清空时保留 `''`，因此持久化层应先做 schema 归一化。
+- **清空契约：** `disabled` 或 `readonly` 时，`clear()` 与清空按钮都会被阻止；其他情况下清空会触发 `update:modelValue`、`input` 和 `clear`。
+- **组合契约：** wrapper 的 `class` / `style` 保留在外层，其余 attrs 透传给原生 `input` / `textarea`；前后缀插槽优先于图标 props。
+- **实测覆盖:** `input.test.ts` 覆盖文本事件、数字归一化、textarea attrs 透传、清空按钮无障碍、禁用/只读阻断和插槽优先级。
+
+## Source
+
+- Component source: `packages/tuffex/packages/components/src/input/src/TxInput.vue`.
+- Export alias: `packages/tuffex/packages/components/src/input/index.ts` exports both `TuffInput` and `TxInput`.
+- Coverage: `packages/tuffex/packages/components/src/input/__tests__/input.test.ts` verifies text emits, number normalization, textarea attr forwarding, accessible clear button behavior, disabled/readonly clear blocking, and prefix/suffix slot precedence.
+
+## 离线完整示例源码
+
+- [InputBasicInputDemo](../snapshot/apps/nexus/app/components/content/demos/InputBasicInputDemo.vue.txt)
+- [InputInputTypesDemo](../snapshot/apps/nexus/app/components/content/demos/InputInputTypesDemo.vue.txt)
+- [InputReadonlyDisabledDemo](../snapshot/apps/nexus/app/components/content/demos/InputReadonlyDisabledDemo.vue.txt)
+- [InputClearableDemo](../snapshot/apps/nexus/app/components/content/demos/InputClearableDemo.vue.txt)
+- [InputPrefixSuffixDemo](../snapshot/apps/nexus/app/components/content/demos/InputPrefixSuffixDemo.vue.txt)
+- [InputSearchRowDemo](../snapshot/apps/nexus/app/components/content/demos/InputSearchRowDemo.vue.txt)
+
+## 离线类型与实现参考
+
+- [input/index.ts](../snapshot/packages/tuffex/packages/components/src/input/index.ts.txt)
+- [src/TxInput.vue](../snapshot/packages/tuffex/packages/components/src/input/src/TxInput.vue.txt)
+- [style/index.scss](../snapshot/packages/tuffex/packages/components/src/input/style/index.scss.txt)
+
+第三方许可与转换边界见 [SOURCES](../SOURCES.md)。示例中 Nexus 的自动导入、Tuff 前缀别名、样式类和外部素材不代表业务项目已配置，不能不经核对就复制运行。
