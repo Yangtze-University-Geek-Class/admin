@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
-import { config } from "../../config.js";
-import { cached } from "../../lib/cache.js";
 
 export default async function orgsRoutes(app: FastifyInstance) {
+  const { octokitWith } = app.services.github;
+  const { config } = app.services;
+  const { cached } = app.services.cache;
   app.addHook("preHandler", requireAuth);
 
   app.get("/api/me/orgs", async (req) => {

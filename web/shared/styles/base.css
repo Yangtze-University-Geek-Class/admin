@@ -287,3 +287,12 @@ body::after {
   .tag-red { @apply tag bg-rose-500/15 text-rose-400 border border-rose-500/30; }
   .tag-gray { @apply tag bg-ink-700/40 text-ink-300 border border-ink-700/60; }
 }
+
+:root { --overlay-rgb: 15 23 42; --surface-on-overlay: 255 255 255; }
+.app-modal { width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; overflow: auto; border: 1px solid rgb(var(--ink-700)); color: rgb(var(--ink-100)); background: rgb(var(--ink-950)); }
+.app-modal::backdrop { background: rgb(var(--overlay-rgb) / .65); backdrop-filter: blur(4px); }
+.app-lightbox { width: min(90rem, calc(100vw - 2rem)); }
+:focus-visible { outline: 2px solid rgb(var(--brand-500)); outline-offset: 3px; }
+html { scroll-padding-top: 5rem; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+@media (pointer: coarse) { button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; } }

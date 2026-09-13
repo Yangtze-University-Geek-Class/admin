@@ -1,36 +1,15 @@
 // Unified fetch wrapper. Dispatches to mock-api.ts in dev/mock mode, otherwise
 // performs a same-origin fetch against the backend (Vite proxy in dev).
 import { getDataSource } from "./runtime";
-import { mockApi } from "./mock-api";
+import { requestJson } from "./http";
+export { ApiError } from "./http";
 
-export async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
-  if (getDataSource() === "mock") return mockApi<T>(path, init);
-
-  // 只在有 body 时设 Content-Type: application/json. fastify 默认开启了
-  // application/json content-type-parser 严格校验, 空 body + 该 header 会 400
-  // FST_ERR_CTP_EMPTY_JSON_BODY (尤其 DELETE / GET 这种没 body 的请求)
-  const userHeaders = (init?.headers ?? {}) as Record<string, string>;
-  const baseHeaders: Record<string, string> = init?.body
-    ? { "Content-Type": "application/json" }
-    : {};
-  const res = await fetch(path, {
-    credentials: "same-origin",
-    ...init,
-    headers: { ...baseHeaders, ...userHeaders },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text);
-      throw new Error(body.error ?? body.message ?? `HTTP ${res.status}`);
-    } catch {
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-    }
+export async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  if (import.meta.env.DEV && getDataSource() === "mock") {
+    const { mockApi } = await import("./mock-api");
+    return mockApi<T>(path, init);
   }
-  if (res.headers.get("content-type")?.includes("application/json")) {
-    return res.json();
-  }
-  return undefined as T;
+  return requestJson<T>(path, init);
 }
 
 export const fmtDate = (iso: string | number | null | undefined) => {

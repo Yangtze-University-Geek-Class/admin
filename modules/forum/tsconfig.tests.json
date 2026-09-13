@@ -1,0 +1,9 @@
+// `pnpm typecheck` runs Nuxt's project references, and `.nuxt/tsconfig.app.json`
+// only includes `tests/nuxt/**` — the vitest suites in `tests/*.test.ts` are
+// type-checked by nothing. This config reuses the app project's compiler
+// options and points them at the test files instead.
+{
+  "extends": "./.nuxt/tsconfig.app.json",
+  "include": ["./.nuxt/nuxt.d.ts", "./tests/**/*.ts"],
+  "exclude": []
+}

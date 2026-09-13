@@ -1,11 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { request as undiciRequest } from "undici";
-import { config } from "../config.js";
-import { db } from "./db.js";
-import { decrypt, encrypt } from "./crypto.js";
-
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
+import { request as defaultRequest } from "undici";
+import type Database from "better-sqlite3";
+import type { AppConfig } from "../config.js";
+import type { createCrypto } from "./crypto.js";
 export type Session = {
   id: string;
   login: string;
@@ -15,7 +12,11 @@ export type Session = {
   expires_at: number;
 };
 
-export function createSession(
+export function createAuth(db: Database.Database, crypto: ReturnType<typeof createCrypto>, config: AppConfig, undiciRequest = defaultRequest) {
+const { encrypt, decrypt } = crypto;
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function createSession(
   login: string,
   userId: number | null,
   avatarUrl: string | null,
@@ -29,7 +30,7 @@ export function createSession(
   return id;
 }
 
-export function getSession(id: string): Session | null {
+function getSession(id: string): Session | null {
   const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as any;
   if (!row) return null;
   if (row.expires_at < Date.now()) {
@@ -50,11 +51,11 @@ export function getSession(id: string): Session | null {
   }
 }
 
-export function destroySession(id: string) {
+function destroySession(id: string) {
   db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
 }
 
-export function buildAuthorizeUrl(state: string): string {
+function buildAuthorizeUrl(state: string): string {
   const u = new URL("https://github.com/login/oauth/authorize");
   u.searchParams.set("client_id", config.oauth.clientId);
   u.searchParams.set("redirect_uri", `${config.publicOrigin}/auth/callback`);
@@ -63,7 +64,7 @@ export function buildAuthorizeUrl(state: string): string {
   return u.toString();
 }
 
-export async function exchangeCode(code: string): Promise<string> {
+async function exchangeCode(code: string): Promise<string> {
   const res = await undiciRequest("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -81,7 +82,7 @@ export async function exchangeCode(code: string): Promise<string> {
   return body.access_token;
 }
 
-export async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string; email: string | null; name: string | null }> {
+async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string; email: string | null; name: string | null }> {
   const res = await undiciRequest("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -92,4 +93,7 @@ export async function fetchAuthenticatedUser(accessToken: string): Promise<{ log
   const body = (await res.body.json()) as { login?: string; id?: number; avatar_url?: string; email?: string | null; name?: string | null };
   if (!body.login || !body.id) throw new Error("failed to fetch user");
   return { login: body.login, id: body.id, avatar_url: body.avatar_url ?? "", email: body.email ?? null, name: body.name ?? null };
+}
+
+return { createSession, getSession, destroySession, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser };
 }

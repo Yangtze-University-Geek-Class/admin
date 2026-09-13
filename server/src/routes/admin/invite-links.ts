@@ -2,8 +2,6 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
-import { audit, db } from "../../lib/db.js";
-import { encrypt } from "../../lib/crypto.js";
 
 type CreateBody = {
   hours: number;
@@ -13,6 +11,8 @@ type CreateBody = {
 };
 
 export default async function inviteLinksRoutes(app: FastifyInstance) {
+  const { audit, db } = app.services.storage;
+  const { encrypt } = app.services.crypto;
   app.addHook("preHandler", requireAuth);
 
   app.get<{ Params: { org: string } }>("/api/admin/:org/invite-links", {

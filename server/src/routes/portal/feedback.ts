@@ -1,9 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { audit, db } from "../../lib/db.js";
-import { getSession } from "../../lib/auth.js";
-import { verifyTurnstile } from "../../middleware/turnstile.js";
-import { preflightPublicSubmission, powDifficulty } from "../../middleware/pow.js";
-import { turnstileEnabled } from "../../config.js";
 
 type Body = {
   org: string;
@@ -19,6 +14,12 @@ const CATEGORIES = ["建议", "Bug", "新功能", "投诉", "其他"];
 const ORG_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 
 export default async function feedbackRoutes(app: FastifyInstance) {
+  const { audit, db } = app.services.storage;
+  const { getSession } = app.services.auth;
+  const { verifyTurnstile } = app.services.turnstile;
+  const { preflightPublicSubmission, powDifficulty } = app.services.publicSubmission;
+  const { config } = app.services;
+  const { turnstileEnabled } = app.services.turnstile;
   app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty() }));
 
   app.post<{ Body: Body }>("/api/feedback", {

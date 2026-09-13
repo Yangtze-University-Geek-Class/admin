@@ -4,28 +4,19 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 
-const here = dirname(fileURLToPath(import.meta.url));
-// repo root is two levels up from server/dist/routes
-const REPO_ROOT = resolve(here, "../../..");
-
-const DOC_FILES: { id: string; label: string; file: string; lang: "zh" | "en" }[] = [
-  { id: "readme",       label: "README",      file: "README.md",              lang: "zh" },
-  { id: "readme-en",    label: "README (en)", file: "README.en.md",           lang: "en" },
-  { id: "usage",        label: "使用指南",      file: "docs/ops/USAGE.md",      lang: "zh" },
-  { id: "usage-en",     label: "Usage (en)",  file: "docs/ops/USAGE.en.md",   lang: "en" },
-  { id: "deploy",       label: "部署",          file: "docs/ops/DEPLOY.md",     lang: "zh" },
-  { id: "deploy-en",    label: "Deploy (en)", file: "docs/ops/DEPLOY.en.md",  lang: "en" },
-  { id: "architecture", label: "架构",          file: "docs/architecture/ARCHITECTURE.md",   lang: "zh" },
-  { id: "architecture-en", label: "Architecture (en)", file: "docs/architecture/ARCHITECTURE.en.md", lang: "en" },
-  { id: "security",     label: "安全",          file: "docs/architecture/SECURITY.md",       lang: "zh" },
-  { id: "security-en",  label: "Security (en)", file: "docs/architecture/SECURITY.en.md",   lang: "en" },
+import { REPO_ROOT } from "../../config.js";
+const DOC_FILES = [
+  { id: "readme", label: "项目介绍", file: "docs/public/README.md", lang: "zh" },
+  { id: "readme-en", label: "Introduction", file: "docs/public/README.en.md", lang: "en" },
+  { id: "usage", label: "使用指南", file: "docs/ops/USAGE.md", lang: "zh" },
+  { id: "usage-en", label: "Usage", file: "docs/ops/USAGE.en.md", lang: "en" },
 ];
 
 export default async function docsRoutes(app: FastifyInstance) {
   app.get("/api/docs", async () => {
     const items = DOC_FILES
       .filter((d) => existsSync(resolve(REPO_ROOT, d.file)))
-      .map((d) => ({ id: d.id, label: d.label, lang: d.lang }));
+      .map((d) => ({ id: d.id, label: d.label, lang: d.lang, file: d.file }));
     return { items };
   });
 

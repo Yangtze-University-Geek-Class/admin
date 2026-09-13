@@ -1,11 +1,8 @@
+import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "@shared/lib/api";
 import { computePow } from "@shared/lib/pow";
-
-declare global {
-  interface Window { turnstile?: { render: (el: string | HTMLElement, opts: any) => string; reset: (id?: string) => void }; }
-}
 
 type LinkInfo = {
   org: string;
@@ -29,6 +26,7 @@ export default function JoinByToken() {
   const [siteKey, setSiteKey] = useState<string | null>(null);
   const [powDiff, setPowDiff] = useState(3);
   const [tsToken, setTsToken] = useState<string>("");
+  const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
   useEffect(() => {
     api<LinkInfo>(`/api/join/${token}`).then(setInfo).catch((e) => setLoadErr(e.message));
@@ -37,28 +35,6 @@ export default function JoinByToken() {
       setPowDiff(c.pow_difficulty);
     });
   }, [token]);
-
-  useEffect(() => {
-    if (!siteKey) return;
-    const s = document.createElement("script");
-    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    s.async = true;
-    s.defer = true;
-    document.head.appendChild(s);
-    s.onload = () => {
-      const t = setInterval(() => {
-        if (window.turnstile) {
-          clearInterval(t);
-          window.turnstile.render("#turnstile-box", {
-            sitekey: siteKey,
-            callback: (tok: string) => setTsToken(tok),
-            theme: "auto",
-          });
-        }
-      }, 100);
-    };
-    return () => { s.remove(); };
-  }, [siteKey]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +53,7 @@ export default function JoinByToken() {
       setDone(r.message);
     } catch (e) {
       setErr((e as Error).message);
-      window.turnstile?.reset();
+      setCaptchaEpoch(value => value + 1);
       setTsToken("");
     } finally {
       setBusy("");
@@ -174,7 +150,7 @@ export default function JoinByToken() {
                     value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
                 </div>
 
-                {siteKey && <div id="turnstile-box" className="flex justify-center" />}
+                <TurnstileWidget siteKey={siteKey} onToken={setTsToken} resetKey={captchaEpoch} />
 
                 {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
 

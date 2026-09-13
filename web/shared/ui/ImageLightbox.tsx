@@ -1,3 +1,4 @@
+import Modal from "./Modal";
 import { useEffect, useState } from "react";
 
 type Ctx = { open: (src: string, alt?: string) => void };
@@ -13,36 +14,10 @@ export default function ImageLightbox() {
     ctx = { open: (src, alt) => setState({ src, alt }) };
     return () => { if (ctx?.open) ctx = null; };
   }, []);
-  useEffect(() => {
-    if (!state) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setState(null); };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [state]);
   if (!state) return null;
-  return (
-    <div
-      role="dialog"
-      onClick={() => setState(null)}
-      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out", backdropFilter: "blur(8px)" }}
-    >
-      <img
-        src={state.src}
-        alt={state.alt ?? ""}
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: "94vw", maxHeight: "92vh", objectFit: "contain", boxShadow: "0 24px 64px rgba(0,0,0,0.6)", borderRadius: 8, cursor: "default" }}
-      />
-      <button
-        onClick={() => setState(null)}
-        aria-label="关闭"
-        style={{ position: "fixed", top: 20, right: 24, background: "rgba(255,255,255,0.1)", color: "#fff", border: 0, padding: "8px 16px", borderRadius: 8, fontSize: 14, cursor: "pointer", backdropFilter: "blur(8px)" }}
-      >关闭 (Esc)</button>
-    </div>
-  );
+  return <Modal title={state.alt || "图片预览"} className="app-lightbox" onClose={() => setState(null)}>
+    <img src={state.src} alt={state.alt ?? ""} className="max-w-full max-h-[75dvh] object-contain mx-auto" />
+  </Modal>;
 }
 
 export function useProseInteractions(rootRef: React.RefObject<HTMLElement | null>, deps: any[] = []) {
@@ -75,11 +50,16 @@ export function useProseInteractions(rootRef: React.RefObject<HTMLElement | null
       }
     };
 
+    const onImageKey = (event: KeyboardEvent) => {
+      if ((event.key === "Enter" || event.key === " ") && (event.target as HTMLElement).tagName === "IMG") onClickImg(event);
+    };
+    root.addEventListener("keydown", onImageKey);
     root.addEventListener("click", onClickImg);
     root.addEventListener("click", onClickCopy);
-    root.querySelectorAll("img").forEach((img) => { (img as HTMLElement).style.cursor = "zoom-in"; img.setAttribute("loading", "lazy"); });
+    root.querySelectorAll("img").forEach((img) => { (img as HTMLElement).style.cursor = "zoom-in"; img.setAttribute("loading", "lazy"); img.tabIndex = 0; img.setAttribute("role", "button"); img.setAttribute("aria-label", img.alt ? `查看图片：${img.alt}` : "查看大图"); });
 
     return () => {
+      root.removeEventListener("keydown", onImageKey);
       root.removeEventListener("click", onClickImg);
       root.removeEventListener("click", onClickCopy);
     };

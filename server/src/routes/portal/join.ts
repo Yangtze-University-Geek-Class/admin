@@ -1,10 +1,5 @@
+import { reserveInvite, failInvite } from "../../lib/invite-reservation.js";
 import type { FastifyInstance } from "fastify";
-import { audit, db } from "../../lib/db.js";
-import { octokitWith } from "../../lib/github.js";
-import { decrypt } from "../../lib/crypto.js";
-import { verifyTurnstile } from "../../middleware/turnstile.js";
-import { preflightPublicSubmission, powDifficulty } from "../../middleware/pow.js";
-import { turnstileEnabled, config } from "../../config.js";
 
 type Body = {
   github_login?: string; email?: string; note?: string;
@@ -21,7 +16,7 @@ type LinkRow = {
 const LOGIN_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function loadLink(token: string): LinkRow | null {
+function loadLink(db: import("better-sqlite3").Database, token: string): LinkRow | null {
   const row = db.prepare("SELECT * FROM invite_links WHERE token = ?").get(token) as LinkRow | undefined;
   return row ?? null;
 }
@@ -34,13 +29,20 @@ function linkStatus(row: LinkRow): { ok: true } | { ok: false; reason: string } 
 }
 
 export default async function joinRoutes(app: FastifyInstance) {
+  const { audit, db } = app.services.storage;
+  const { octokitWith } = app.services.github;
+  const { decrypt } = app.services.crypto;
+  const { verifyTurnstile } = app.services.turnstile;
+  const { preflightPublicSubmission, powDifficulty } = app.services.publicSubmission;
+  const { config } = app.services;
+  const { turnstileEnabled } = app.services.turnstile;
   app.get("/api/public/config", async () => ({
     turnstile_site_key: turnstileEnabled() ? config.turnstile.siteKey : null,
     pow_difficulty: powDifficulty(),
   }));
 
   app.get<{ Params: { token: string } }>("/api/join/:token", async (req, reply) => {
-    const row = loadLink(req.params.token);
+    const row = loadLink(db, req.params.token);
     if (!row) return reply.code(404).send({ error: "邀请链接不存在" });
     const s = linkStatus(row);
     return {
@@ -58,10 +60,8 @@ export default async function joinRoutes(app: FastifyInstance) {
     "/api/join/:token",
     { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (req, reply) => {
-      const row = loadLink(req.params.token);
+      const row = loadLink(db, req.params.token);
       if (!row) return reply.code(404).send({ error: "邀请链接不存在" });
-      const s = linkStatus(row);
-      if (!s.ok) return reply.code(400).send({ error: s.reason });
 
       const { github_login, email, note, turnstile_token } = req.body ?? {};
       const bodyForHash = `join:${req.params.token}:${(github_login ?? "").trim()}:${(email ?? "").trim()}`;
@@ -89,7 +89,11 @@ export default async function joinRoutes(app: FastifyInstance) {
         return reply.code(503).send({ error: "邀请链接的发起人 token 失效，请联系管理员重新生成链接" });
       }
 
+      const attempt = reserveInvite(db, row.token, login ? `login:${login.toLowerCase()}` : `email:${mail!.toLowerCase()}`);
+      if (attempt.state === "sent") return { ok: true, invitation_id: attempt.github_invitation_id, message: "邀请已发出，请查看 GitHub 通知。" };
       const octokit = octokitWith(token);
+      let invitationSubmitted = false;
+      let invitationConfirmed = false;
       try {
         let body: Record<string, unknown>;
         let teamIds: number[] | undefined;
@@ -97,7 +101,7 @@ export default async function joinRoutes(app: FastifyInstance) {
           try {
             const t = await octokit.request("GET /orgs/{org}/teams/{team_slug}", { org: row.org, team_slug: row.team_slug });
             teamIds = [t.data.id];
-          } catch {}
+          } catch { throw new Error("invite_team_unavailable"); }
         }
         if (login) {
           const user = await octokit.users.getByUsername({ username: login });
@@ -107,18 +111,25 @@ export default async function joinRoutes(app: FastifyInstance) {
           body = { email: mail, role: "direct_member" };
           if (teamIds) body.team_ids = teamIds;
         }
+        invitationSubmitted = true;
         const inv = await octokit.request("POST /orgs/{org}/invitations", { org: row.org, ...body });
+        invitationConfirmed = true;
+        db.transaction(() => {
         const r = insertStmt.run(row.org, row.token, login ?? null, mail ?? null, noteText ?? null, req.ip, req.headers["user-agent"] ?? null, "sent", null, Date.now());
         db.prepare("UPDATE invitations SET github_invitation_id = ? WHERE id = ?").run(inv.data.id, r.lastInsertRowid);
-        db.prepare("UPDATE invite_links SET current_uses = current_uses + 1 WHERE token = ?").run(row.token);
+        db.prepare("UPDATE invite_attempts SET state = 'sent', github_invitation_id = ? WHERE id = ?").run(inv.data.id, attempt.id);
         audit(row.org, `public:${row.token}`, "invite.sent", login ?? mail ?? "", { invitation_id: inv.data.id }, req.ip);
+        })();
         return { ok: true, invitation_id: inv.data.id, message: "邀请已发出，请到 GitHub 邮箱或通知中心接受。" };
       } catch (e) {
-        const message = (e as Error).message;
-        insertStmt.run(row.org, row.token, login ?? null, mail ?? null, noteText ?? null, req.ip, req.headers["user-agent"] ?? null, "failed", message, Date.now());
+        const status = (e as { status?: number }).status;
+        const knownFailure = !invitationConfirmed && (!invitationSubmitted || Boolean(status && status >= 400 && status < 500));
+        failInvite(db, attempt.id, row.token, knownFailure);
+        const message = knownFailure ? "邀请未发送" : "邀请结果待管理员核对";
+        insertStmt.run(row.org, row.token, login ?? null, mail ?? null, noteText ?? null, req.ip, req.headers["user-agent"] ?? null, knownFailure ? "failed" : "pending_admin", message, Date.now());
         audit(row.org, `public:${row.token}`, "invite.failed", login ?? mail ?? "", { error: message }, req.ip);
         const friendly = message.includes("Already") ? "该用户已在组织中" : message.includes("422") ? "GitHub 拒绝邀请（账号不存在或邮箱已被邀请）" : "邀请失败，稍后重试";
-        return reply.code(400).send({ error: friendly });
+        return reply.code(knownFailure ? 400 : 503).send({ error: knownFailure ? friendly : "邀请结果待核对，请勿重复提交并联系管理员" });
       }
     }
   );

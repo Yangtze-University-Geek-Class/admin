@@ -1,0 +1,32 @@
+import type { FastifyInstance } from "fastify";
+import { registerContracts } from "../../lib/http-contracts.js";
+import { adminContracts } from "./contracts.js";
+import r0 from "./invitations.js";
+import r1 from "./logs.js";
+import r2 from "./repos.js";
+import r3 from "./overview.js";
+import r4 from "./activity.js";
+import r5 from "./security.js";
+import r6 from "./teams.js";
+import r7 from "./orgs.js";
+import r8 from "./feedback.js";
+import r9 from "./members.js";
+import r10 from "./invite-links.js";
+import r11 from "./org.js";
+import r12 from "./auth.js";
+export default async function adminRoutes(app: FastifyInstance) {
+  registerContracts(app, adminContracts);
+  await app.register(r0);
+  await app.register(r1);
+  await app.register(r2);
+  await app.register(r3);
+  await app.register(r4);
+  await app.register(r5);
+  await app.register(r6);
+  await app.register(r7);
+  await app.register(r8);
+  await app.register(r9);
+  await app.register(r10);
+  await app.register(r11);
+  await app.register(r12);
+}

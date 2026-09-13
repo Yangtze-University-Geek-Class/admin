@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
-import { audit, db } from "../../lib/db.js";
 
 const VALID_STATUS = ["open", "triaged", "in_progress", "done", "wont_do", "spam"];
 
 export default async function adminFeedbackRoutes(app: FastifyInstance) {
+  const { audit, db } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
   app.get<{ Params: { org: string }; Querystring: { status?: string; limit?: string } }>(

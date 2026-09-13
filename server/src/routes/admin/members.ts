@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
-import { audit } from "../../lib/db.js";
 
 export default async function membersRoutes(app: FastifyInstance) {
+  const { octokitWith } = app.services.github;
+  const { audit } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
   app.get<{ Params: { org: string } }>("/api/admin/:org/members", {

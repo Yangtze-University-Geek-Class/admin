@@ -1,8 +1,9 @@
+import Modal from "./Modal";
+import TurnstileWidget from "./TurnstileWidget";
 // Floating "意见" button with a modal form. Raised above the mascot on the
 // forum so the mascot bubble stays visible; auto-detects the org from the URL.
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { createPortal } from "react-dom";
 import { api } from "../lib/api";
 import { computePow } from "../lib/pow";
 import { appConfig } from "../config";
@@ -25,10 +26,14 @@ export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg
   const [powTries, setPowTries] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [tsToken, setTsToken] = useState("");
+  const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
   useEffect(() => {
     if (!open) return;
-    if (!cfg) api<Cfg>("/api/feedback/categories").then(setCfg);
+    if (!cfg) api<Cfg>("/api/feedback/categories").then(setCfg).catch(error => setErr(error.message));
+    api<{ turnstile_site_key: string | null }>("/api/public/config").then(value => setSiteKey(value.turnstile_site_key)).catch(error => setErr(error.message));
   }, [open, cfg]);
 
   useEffect(() => {
@@ -52,14 +57,14 @@ export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg
         method: "POST",
         body: JSON.stringify({
           org: form.org, category: form.category, content: form.content,
-          contact: form.contact, website: form.website, pow,
+          contact: form.contact, website: form.website, pow, turnstile_token: tsToken,
         }),
       });
       setDone(r.message);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
-      setBusy("");
+      setBusy(""); setTsToken(""); setCaptchaEpoch(value => value+1);
     }
   };
 
@@ -85,19 +90,7 @@ export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg
         <span className="text-sm font-medium">意见</span>
       </button>
 
-      {open && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm animate-[fadeIn_120ms_ease-out]" onClick={() => !busy && setOpen(false)} />
-          <div className="relative card w-full max-w-lg p-6 animate-[popIn_140ms_ease-out]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-ink-100">提交意见</h2>
-              <button onClick={() => !busy && setOpen(false)} className="text-ink-500 hover:text-ink-200" aria-label="关闭">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" strokeLinecap="round">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
+      {open && <Modal title="提交意见" onClose={() => setOpen(false)} dismissible={!busy}>
             {done ? (
               <div className="text-center py-8">
                 <div className="inline-flex w-12 h-12 rounded-full bg-emerald-500/15 text-emerald-400 items-center justify-center mb-3">
@@ -142,11 +135,12 @@ export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg
                     value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
                 </div>
 
+                <TurnstileWidget siteKey={siteKey} onToken={setTsToken} resetKey={captchaEpoch} />
                 {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
 
                 <div className="flex items-center gap-2">
                   <button type="button" className="btn-ghost text-sm" onClick={() => setOpen(false)} disabled={Boolean(busy)}>取消</button>
-                  <button type="submit" className="btn-primary text-sm flex-1" disabled={form.content.length < 5 || !form.org || Boolean(busy)}>
+                  <button type="submit" className="btn-primary text-sm flex-1" disabled={form.content.length < 5 || !form.org || Boolean(busy) || (!!siteKey && !tsToken)}>
                     {busy === "pow" ? `防滥用计算中… ${powTries > 0 ? `${(powTries / 1000).toFixed(0)}k 次` : ""}` : busy === "submit" ? "提交中…" : "提交意见"}
                   </button>
                 </div>
@@ -155,10 +149,7 @@ export default function FeedbackFab({ defaultOrg, raised = false }: { defaultOrg
                 )}
               </form>
             )}
-          </div>
-        </div>,
-        document.body
-      )}
+      </Modal>}
     </>
   );
 }

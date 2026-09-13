@@ -1,8 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
-import { audit } from "../../lib/db.js";
 
 const EDITABLE_KEYS = [
   "name", "description", "company", "email", "location", "blog", "twitter_username",
@@ -16,6 +14,8 @@ const EDITABLE_KEYS = [
 ] as const;
 
 export default async function orgRoutes(app: FastifyInstance) {
+  const { octokitWith } = app.services.github;
+  const { audit } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
   app.get<{ Params: { org: string } }>("/api/admin/:org/org", {

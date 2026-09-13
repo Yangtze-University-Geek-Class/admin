@@ -1,0 +1,23 @@
+{
+  // Static SPA deployment: `pnpm generate` writes .output/public, and this
+  // Worker does nothing but serve it. No `main` — an assets-only Worker has no
+  // script to keep in sync with the app.
+  "name": "tuff-forum",
+  "compatibility_date": "2026-09-11",
+
+  "assets": {
+    "directory": ".output/public",
+    // The router owns every URL and state lives in localStorage, so an unknown
+    // path must hand back the shell (deep links like /t/t1 are client-rendered)
+    // rather than the 404 page Nitro also emits.
+    "not_found_handling": "single-page-application"
+  },
+
+  // A Workers custom domain, not a DNS record we manage: Cloudflare creates the
+  // CNAME and the edge certificate for the hostname on deploy.
+  "routes": [
+    { "pattern": "tuff-forum.tagzxia.com", "custom_domain": true }
+  ],
+
+  "observability": { "enabled": true }
+}

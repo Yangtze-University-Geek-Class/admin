@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
+export function createPublicSubmission(REQUIRED_PREFIX_ZEROS: number) {
 // Proof-of-Work: client must find a nonce such that
 //   sha256(`${timestamp}:${bodyHash}:${nonce}`) starts with N hex zeros.
 // Default N=3 → 16^3 = 4096 expected hashes. With @noble/hashes/sha256 sync
@@ -9,10 +10,10 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 // abuse defense rely on Turnstile + honeypot + rate-limit (those are
 // what actually stop bots). 历史: 5 → 卡几十秒, 4 → 部分低端机仍慢, 3 → 顺滑.
 
-const REQUIRED_PREFIX_ZEROS = Number(process.env.POW_DIFFICULTY ?? 3);
+
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
-export function checkPow(
+function checkPow(
   bodyForHash: string,
   pow: { timestamp: number; nonce: string } | undefined
 ): { ok: true } | { ok: false; reason: string } {
@@ -31,18 +32,18 @@ export function checkPow(
   return { ok: true };
 }
 
-export function powDifficulty(): number {
+function powDifficulty(): number {
   return REQUIRED_PREFIX_ZEROS;
 }
 
 // Honeypot — invisible form field. Real users leave it blank. Bots auto-fill it.
-export function checkHoneypot(body: Record<string, unknown> | undefined): boolean {
+function checkHoneypot(body: Record<string, unknown> | undefined): boolean {
   if (!body) return true;
   const trap = (body as any).website ?? (body as any).homepage ?? (body as any).url_ref;
   return trap === undefined || trap === null || trap === "";
 }
 
-export async function preflightPublicSubmission(
+async function preflightPublicSubmission(
   req: FastifyRequest,
   reply: FastifyReply,
   bodyForHash: string
@@ -57,4 +58,7 @@ export async function preflightPublicSubmission(
     return reply.code(400).send({ error: "防滥用校验失败，请刷新页面重试" }), false;
   }
   return true;
+}
+
+return { checkPow, checkHoneypot, preflightPublicSubmission, powDifficulty };
 }

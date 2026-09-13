@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { octokitWith } from "../../lib/github.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireOrgRole } from "../../middleware/require-org-role.js";
 
 export default async function securityRoutes(app: FastifyInstance) {
+  const { octokitWith } = app.services.github;
   app.addHook("preHandler", requireAuth);
 
   app.get<{ Params: { org: string } }>("/api/admin/:org/security", {

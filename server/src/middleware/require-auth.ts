@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { getSession } from "../lib/auth.js";
+
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -17,7 +17,7 @@ declare module "fastify" {
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   const sid = req.cookies?.sid;
   if (!sid) return reply.code(401).send({ error: "not_signed_in" });
-  const s = getSession(sid);
+  const s = req.server.services.auth.getSession(sid);
   if (!s) return reply.code(401).send({ error: "session_expired" });
   req.session = {
     id: s.id,
