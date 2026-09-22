@@ -2,12 +2,13 @@
 //   投递简历 → /apply（本服务的表单页）
 //   了解我们 → 论坛（Tuff Forum，独立服务，沿用论坛自己的皮肤）
 //   组织情况 → GitHub 组织主页
-// 页面节奏：滚动舞台（首屏代码窗口 + 三个按钮 → 滚动驱动的 LED 大字与 NANO 章节）→ 冰白图纸上的三个入口卡与收尾 → 页脚。
+// 页面节奏：滚动舞台（首屏代码窗口 + 三个按钮 → 滚动驱动的挥手帧序列、LED 大字与 NANO 章节）→ 冰白图纸上的三个入口卡 → 页脚。
+// 不再有单独的收尾条：舞台最后一章 JOIN 已经以「投递简历」收尾。
 // 文案与素材全部来自 app.config.json > portal；视觉语言见 docs/design/DESIGN.md 与 ../theme.css。
 import { useEffect, useRef, useState } from "react";
 import { appConfig } from "@shared/config";
 import PortalLink, { findNavigationItem } from "../components/PortalLink";
-import ScrollStage from "../components/ScrollStage";
+import ScrollStage, { inlineCode } from "../components/ScrollStage";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import "../theme.css";
@@ -50,7 +51,7 @@ function useReveal() {
 }
 
 export default function Landing() {
-  const { stage, entries, closing } = appConfig.portal;
+  const { stage, entries } = appConfig.portal;
   const reducedMotion = usePrefersReducedMotion();
   const root = useReveal();
   const [docked, setDocked] = useState(false);
@@ -72,8 +73,8 @@ export default function Landing() {
                       {item.word}
                     </p>
                     <h2 className="yg-chapter-static-title">
-                      {item.lead}
-                      {item.accent}
+                      {inlineCode(item.lead)}
+                      {inlineCode(item.accent)}
                     </h2>
                     <p className="yg-chapter-desc">{item.desc}</p>
                     {item.link && (
@@ -128,21 +129,6 @@ export default function Landing() {
                   </PortalLink>
                 );
               })}
-            </div>
-
-            <div className="yg-closing" data-reveal>
-              <div>
-                <h2>{closing.title}</h2>
-                <p>{closing.desc}</p>
-              </div>
-              <div className="yg-closing-actions">
-                <PortalLink item={findNavigationItem("apply")} className="yg-btn yg-btn-primary">
-                  投递简历 <span aria-hidden="true">→</span>
-                </PortalLink>
-                <PortalLink item={findNavigationItem("forum")} className="yg-btn yg-btn-ghost">
-                  先逛逛论坛 <span aria-hidden="true">→</span>
-                </PortalLink>
-              </div>
             </div>
           </div>
         </section>

@@ -93,7 +93,7 @@
         "import { campus } from \"@yangtzeu/geek\";",
         "const nano = await campus.join(\"yugc\");"
       ],
-      "comment": "写代码、做项目、一起复盘。",
+      "comment": "长江大学的 AI Native 技术社团 · 写代码、做项目、一起复盘。",
       "signature": "NANO",
       "signatureNote": "长江大学极客班 · 吉祥物",
       "robot": "/portal/nano-robot.webp",
@@ -106,28 +106,33 @@
           "pose": {
             "image": "/portal/nano-wave.webp",
             "small": "/portal/nano-wave-560.webp",
-            "width": 748,
-            "height": 1370,
-            "alt": "吉祥物 NANO 挥手打招呼"
+            "width": 814,
+            "height": 1396,
+            "alt": "吉祥物 NANO 挥手打招呼",
+            "sequence": {
+              "base": "/portal/wave/",
+              "count": 24,
+              "ext": "webp"
+            }
           }
         },
         {
           "word": "CODE",
-          "lead": "和 AI 一起写代码，",
+          "lead": "和 `AI` 一起写代码，",
           "accent": "把问题摊开来讨论。",
           "desc": "模型、Agent 与 AI Coding 是日常工具；卡住的地方发到论坛，总有人一起想办法。",
           "link": "forum",
           "linkLabel": "去论坛看看",
           "pose": {
             "image": "/portal/nano-code.webp",
-            "width": 934,
-            "height": 1016,
-            "alt": "NANO 坐在电脑前专心写代码"
+            "width": 964,
+            "height": 1080,
+            "alt": "NANO 坐在电脑前专心写代码，屏幕上满是代码"
           }
         },
         {
           "word": "OPEN",
-          "lead": "从 issue 到上线，",
+          "lead": "从 `issue` 到上线，",
           "accent": "每一步都公开。",
           "desc": "议题、分支、审查和复盘都在 GitHub 组织里，做过的东西留给后来的人。",
           "link": "github",
@@ -167,8 +172,8 @@
           "hint": "两分钟 · 四项信息",
           "desc": "姓名、班级、邮箱，再写几句你的特长和优点。四项填完，我们会尽快联系你。",
           "action": "开始填写",
-          "image": "/mascot/pose-07-intro.webp",
-          "alt": "NANO 双手插兜、眨眼微笑",
+          "image": "/portal/card-apply.webp",
+          "alt": "NANO 拿着写字板和笔，像是在填一份报名表",
           "path": "~/yugc/apply"
         },
         {
@@ -178,8 +183,8 @@
           "hint": "日常讨论 · 项目复盘",
           "desc": "论坛里有日常讨论、项目复盘和问答，先看看大家在聊什么。",
           "action": "进入论坛",
-          "image": "/mascot/pose-05-question.webp",
-          "alt": "NANO 举手提问，头顶有一个问号气泡",
+          "image": "/portal/card-forum.webp",
+          "alt": "NANO 把手放在嘴边招呼大家，身边飘着两个聊天气泡",
           "path": "~/yugc/forum"
         },
         {
@@ -189,15 +194,11 @@
           "hint": "仓库 · 提交 · 议题",
           "desc": "仓库、提交和议题都公开在 GitHub 组织里。",
           "action": "打开 GitHub",
-          "image": "/mascot/pose-06-resource.webp",
-          "alt": "NANO 抱着一摞书走来",
+          "image": "/portal/card-github.webp",
+          "alt": "NANO 举着一台笔记本电脑，屏幕上是一格格代码贡献图",
           "path": "~/yugc/github"
         }
       ]
-    },
-    "closing": {
-      "title": "准备好了，就来聊聊。",
-      "desc": "写清楚你做过什么、想做什么就够了，我们会认真读每一份投递。"
     }
   },
   "mascot": {
