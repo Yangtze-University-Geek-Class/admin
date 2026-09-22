@@ -42,7 +42,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ## 核心数据与身份
 
-`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`audit_logs`、`app_state` 保留。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
+`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`audit_logs`、`app_state` 保留，其中 `app_state` 当前无读写（预留）；各表用途、读写方与未使用对象见 [server 数据模型](../services/server/data-model.md)。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
 
 核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
 
