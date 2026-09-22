@@ -16,6 +16,8 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 核心 OAuth 回调和 sid 保留，oauth_state 保持签名和有效期检查；不再创建旧 forum_sid。Nuxt 的选择示例用户不进入此会话模型，不为其签发真实权限。开发专用 `/__geek_forum` 仅标记受控预览进程，明确 realAuthentication=false / serverPersistence=false、contentSource 和 snapshotConfigured（快照目录已配置，不是数据库连接），生产不提供该标记。dev 专用、仅 GET/HEAD 的 `/api/local-forum/state`（整份只读快照文档）和 `/api/local-forum/assets/:hash`（按索引提供附件，支持单段 Range，多段请求退化为完整正文）只在设置快照目录时存在，静态产物中没有；它们没有会话，也不是业务写接口。机器码：404 `local_snapshot_not_configured` / `asset_not_found` / `asset_missing_on_disk`，405 `method_not_allowed`，416 `range_not_satisfiable`，500 `asset_size_mismatch`，503 `invalid_document` / `invalid_state` / `invalid_asset_index` / `snapshot_unavailable`。dev 错误处理器会在错误体附带堆栈，这是这些路由不进生产的原因之一。后续真实论坛 API 必须另立契约及权限测试。
 
+管理端意见箱 `GET /api/admin/:org/feedback` 返回 `{ items, counts }`，`items` 只含具名列 `id`、`category`、`content`、`contact`、`submitter_login`、`status`、`reply`、`replied_by`、`replied_at`、`created_at`（`app/server/src/routes/admin/feedback.ts` 的 `AdminFeedbackItem`）；提交者 `source_ip`、`user_agent`、`submitter_id` 以及 `votes`、`updated_at` 只留在服务端，不下发浏览器。回归测试见 `tests/server/core.test.ts`。
+
 ## 投递简历端点
 
 `POST /api/portal/apply` 是官网「投递简历」的匿名写接口：无会话、无 cookie 依赖，只写 `applications` 表。前端页面与本节同批发布，字段名与 PoW 摘要输入属于跨端契约，改一端必须同时改另一端。
