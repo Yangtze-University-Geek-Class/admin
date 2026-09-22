@@ -5,7 +5,6 @@ import { externalUrl } from "@shared/lib/site";
 
 export default function SiteFooter() {
   const { brand, stage } = appConfig.portal;
-  const year = new Date().getFullYear();
 
   return (
     <footer className="yg-footer">
@@ -28,7 +27,7 @@ export default function SiteFooter() {
           </a>
         </nav>
         <p className="yg-footer-meta">
-          © {year} {brand.title} · {brand.subtitle}
+          © {brand.title} · {brand.subtitle}
         </p>
       </div>
     </footer>

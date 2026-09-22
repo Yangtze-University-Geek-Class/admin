@@ -52,12 +52,23 @@ export type PortalEntryItem = {
   alt: string;
 };
 
-/** 滚动舞台里的一张吉祥物立绘（透明底 webp）；width/height 是原图像素，用于占位与 contain 排版。 */
-export type PortalPose = { image: string; small?: string; width: number; height: number; alt: string };
+/**
+ * 滚动舞台里的一张吉祥物立绘（透明底 webp）；width/height 是原图像素，用于占位与 contain 排版。
+ * sequence 是可选的滚动擦洗帧序列（<base>001.<ext> …），必须与 image 用同一裁切框导出才能对齐。
+ */
+export type PortalPose = {
+  image: string;
+  small?: string;
+  width: number;
+  height: number;
+  alt: string;
+  sequence?: { base: string; count: number; ext: string };
+};
 
 /** 滚动舞台的一章：LED 点阵大字 + 两行标题 + 一段说明 + 这一章的 NANO 姿势。第一章就是首屏。 */
 export type PortalChapter = {
   word: string;
+  /** 两行标题；用反引号包住的英文词（如 `AI`）以等宽字体显示 */
   lead: string;
   accent: string;
   desc: string;
@@ -104,7 +115,6 @@ type AppConfig = {
       desc: string;
       items: PortalEntryItem[];
     };
-    closing: { title: string; desc: string };
   };
   mascot: {
     defaultPose: MascotPoseName;
