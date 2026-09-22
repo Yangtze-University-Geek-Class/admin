@@ -21,6 +21,7 @@ interface DirectoryRow {
 const forum = useForumStore()
 const router = useRouter()
 const { formatDate } = useRelativeTime()
+const { href } = useAppLink()
 
 const query = ref('')
 
@@ -86,7 +87,7 @@ function open(user: User) {
           <UserAvatar :user="row.user" size="small" />
           <TxFlex direction="column" :gap="0" class="min-w-0">
             <TxCellLink
-              :href="`/u/${row.user.username}`"
+              :href="href(`/u/${row.user.username}`)"
               :label="row.user.displayName"
               @open="open(row.user)"
             />
