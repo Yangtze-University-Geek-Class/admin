@@ -4,11 +4,14 @@
 
 状态：`current` · 更新：2026-09-13
 
+> **模型变更（2026-09-23）**：本文记录于 `next` 分支 / `main`+`release-*`+`prev-*` tag 发布模型时代；该模型已被 [BRANCHING](../conventions/BRANCHING.md)（长期只有 `main` 与 `stage`）与 [RELEASES](../conventions/RELEASES.md)（分支驱动、无 tag 流程）取代。下文引用的分支名与 tag 规则只作当时证据。
+
+
 ## 任务与基线
 
 用户明确要求通过 Mac 拉取 tuff-forum，直接采用代码、放弃原论坛，而非只参考设计重写。项目 geek_main，next 分支，核心 HEAD 0602bb5e4b376c2842edb1edfd1faf9da73dd4ad。原有规范化改动及并行新增的 TuffEx 文档均保留，发生哈希不一致时重新读取并合并，没有覆盖新增规范。
 
-上游来源：https://github.com/talex-touch/tuff-forum ，提交 37164f75c0258b65922ea2151592e1f4efce8bde。82 个跟踪文件完整引入 modules/forum，MIT © 2026 TalexDreamSoul。UPSTREAM.json 保留原始 SHA256；80 个原始文件逐字节不变，2 个原始文件有已登记集成改动：default 布局插入演示提醒；CDP 工具支持本机 Chromium 路径并使用自有进程组清理。新增模块指针、提醒组件、进程身份标记和元数据不替换上游业务实现。
+上游来源：https://github.com/talex-touch/tuff-forum ，提交 37164f75c0258b65922ea2151592e1f4efce8bde。82 个跟踪文件完整引入 `app/forum`，MIT © 2026 TalexDreamSoul。`app/forum/UPSTREAM.json` 保留原始 SHA256；80 个原始文件逐字节不变，2 个原始文件有已登记集成改动：default 布局插入演示提醒；CDP 工具支持本机 Chromium 路径并使用自有进程组清理。新增模块指针、提醒组件、进程身份标记和元数据不替换上游业务实现。
 
 ## 已交付
 

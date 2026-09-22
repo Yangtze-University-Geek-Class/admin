@@ -1,0 +1,103 @@
+# 环境与 `.env` 契约
+
+> 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
+
+状态：`current` · 更新：2026-09-23 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+
+## 可见性规则
+
+1. **环境变量只经 `.env` 文件**，不同环境用不同后缀：`deploy/env/.env.production`、`deploy/env/.env.preview`。
+2. 这两个文件**提交入库**。**非密钥项**（服务地址、端口、域名、路径、开关）全部预填真实值——部署事实直接可见，机器与人都能一眼看清每个环境长什么样。
+3. **密钥项必须留空**（`KEY=`），由 CI/CD 用 GitHub 环境级 secrets 渲染到目标机 `<STACK_ROOT>/.env.<environment>`，仓库里永远没有真值。留空的值在渲染/校验时**失败关闭**：缺密钥就没有部署。
+4. 语义上「留空即代表无值」的字段（`COOKIE_DOMAIN`、`ALLOWED_ORGS`）同样留空，但含义明确，不算缺失。
+5. 目标机运行时文件名固定为 `<STACK_ROOT>/.env.production` / `<STACK_ROOT>/.env.preview`，由 `docker compose --env-file <文件> -f deploy/compose/<环境>.yml` 消费。
+6. 禁止把真实密钥写入仓库、镜像、日志或发布记录；不得把某环境的密钥复用到另一环境。
+
+## 字段契约
+
+下表列出两份模板中都存在的字段。取值列为当前入库值（地址/端口是部署事实）。
+
+| 字段 | 可见性 | production | preview |
+|---|---|---|---|
+| `GEEK_DEPLOYMENT_ENVIRONMENT` | 可见 | `production` | `preview` |
+| `GEEK_ENVIRONMENT_ORIGIN` | 可见 | `https://yangtzeu.work` | `https://prev.yangtzeu.work` |
+| `COMPOSE_PROJECT_NAME` | 可见 | `yzgc-production` | `yzgc-preview` |
+| `STACK_ROOT` | 可见 | `/opt/yzgc/production` | `/opt/yzgc/preview` |
+| `DEPLOY_HOST` | 可见 | `103.117.123.226` | 同左（同机不同栈） |
+| `DEPLOY_PORT` | 可见 | `22000` | `22000` |
+| `DEPLOY_USER` | 可见 | `root` | `root` |
+| `IMAGE_TAG` | 可见 | `unset`（部署时写入本次 `<sha12>`） | 同左 |
+| `WEB_BIND` | 可见 | `127.0.0.1:18100`（宿主 → web 容器 8080） | `127.0.0.1:18200`（宿主 → web 容器 8080） |
+| `SERVER_BIND` | 可见 | `127.0.0.1:18101` | `127.0.0.1:18201` |
+| `SERVER_PORT` / `FORUM_PORT` | 可见 | `3000` / `3000`（容器内） | `3000` / `3000`（容器内） |
+| `PORT` | 可见 | `3000`（容器内监听） | `3000` |
+| `FORUM_PORT` 改值注意 | — | 必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 及 web 容器 `proxy_pass http://forum:3000/` 三处同时改 | 同左 |
+| `HOST` | 可见 | `0.0.0.0`（容器内必须绑定全网卡，否则 web 容器连不上） | `0.0.0.0` |
+| `TRUST_PROXY` | 可见 | `true`（反代来自 compose 网络而非回环） | `true` |
+| `PUBLIC_ORIGIN` | 可见 | `https://github.yangtzeu.work` | `https://prev-admin.yangtzeu.work` |
+| `SITE_ORIGIN` | 可见 | `https://yangtzeu.work` | `https://prev.yangtzeu.work` |
+| `ADMIN_HOST` | 可见 | `github.yangtzeu.work` | `prev-admin.yangtzeu.work` |
+| `PORTAL_HOST` | 可见 | `yangtzeu.work` | `prev.yangtzeu.work` |
+| `FORUM_HOST` | 可见 | `yangtzeu.work`（论坛在 `/forum` 路径下） | `prev.yangtzeu.work` |
+| `NODE_ENV` | 可见 | `production` | `production` |
+| `DB_PATH` | 可见 | `/data/data.db`（命名卷内） | `/data/data.db` |
+| `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，当前无活动论坛后端） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
+| `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only | 空 = host-only；**禁止** `.yangtzeu.work` |
+| `POW_DIFFICULTY` | 可见 | `3` | `3` |
+| `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |
+| `GEEK_RELEASE_DISPLAY_SUFFIX` | **已移除** | 不再出现在 env 文件里：它是 `BUILD_ONLY_FIELDS`（发布身份只走 build args），写进 `.env` 不会被读取 | 同左 |
+| `OAUTH_CLIENT_ID` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+| `OAUTH_CLIENT_SECRET` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+| `SESSION_SECRET` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+| `ENCRYPTION_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+| `TURNSTILE_SITE_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+| `TURNSTILE_SECRET_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
+
+校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、密钥留空、两环境取值差异以及与 `deploy/environments.json` 的一致性；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
+
+**不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`；预发布 `X.Y.Z@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
+
+本机开发用的 `.env` 是另一回事：模板见 [ENVIRONMENT](ENVIRONMENT.md)，由操作者自建、不入库、只连本机数据。
+
+## GitHub Environment 配置
+
+环境名固定为 `preview` 与 `production`，两者条目**同名**、**取值必须不同**。工作流行为与证据链见 [CICD](CICD.md)；这里是配置清单本身。
+
+### 环境级 secrets（`preview` / `production` 各一套）
+
+| 名称 | 用途 |
+|---|---|
+| `DEPLOY_SSH_HOST` | 部署目标机地址 |
+| `DEPLOY_SSH_PORT` | SSH 端口 |
+| `DEPLOY_SSH_USER` | 部署用户 |
+| `DEPLOY_SSH_KEY` | SSH 私钥全文 |
+| `DEPLOY_SSH_KNOWN_HOSTS` | 目标机主机公钥行（`StrictHostKeyChecking=yes`） |
+| `OAUTH_CLIENT_ID` | GitHub OAuth 应用 ID → 渲染进运行时 `.env` |
+| `OAUTH_CLIENT_SECRET` | GitHub OAuth 应用密钥 → 运行时 `.env` |
+| `SESSION_SECRET` | 会话签名密钥（≥32 字符随机值） |
+| `ENCRYPTION_KEY` | 32 字节密钥的 base64（GitHub token 加密） |
+| `TURNSTILE_SITE_KEY` | Cloudflare Turnstile 站点键 |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile 服务端密钥 |
+
+### vars
+
+| 层级 | 名称 | 取值 / 作用 |
+|---|---|---|
+| 环境级 | `DEPLOY_TARGET_ENVIRONMENT` | 哨兵：必须逐字等于所在环境名（`preview` / `production`）；不等即失败关闭 |
+| 仓库级 | `DEPLOY_PREVIEW_ENABLED` | 取值 `enabled` 才运行 `deploy-preview` 的部署 job；默认不设置 = 关闭 |
+| 仓库级 | `DEPLOY_PRODUCTION_ENABLED` | 取值 `enabled` 才运行 `deploy-production` 的部署 job；默认不设置 = 关闭 |
+
+**不要在仓库级创建任何 `DEPLOY_*` 同名条目**：环境级缺失时 GitHub 会静默回落到仓库级值，两个环境可能因此指向同一台机器。
+
+## DNS / TLS 前置
+
+| 域名 | 指向 | 用途 |
+|---|---|---|
+| `yangtzeu.work` | 本机 | 正式 portal |
+| `github.yangtzeu.work` | 本机 | 正式 admin |
+| `prev.yangtzeu.work` | **需新增 A 记录到同一主机** | 预发布 portal |
+| `prev-admin.yangtzeu.work` | **需新增 A 记录到同一主机** | 预发布 admin |
+
+- 两个 `prev-*` 域名当前**尚未配置**；在 A 记录生效并签发证书之前，预发布入口不可用（容器端口可通，但域名访问失败）。
+- TLS 由宿主 nginx 终止，证书用 certbot 按域名签发；本地开发不执行这些操作。
+- 改完 nginx 配置先 `nginx -t` 再 reload；不要为了排错关闭 HTTPS 或引入 HTTP 回退。

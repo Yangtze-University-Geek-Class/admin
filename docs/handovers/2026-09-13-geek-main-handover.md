@@ -3,7 +3,9 @@
 > 2026-09-13 上午的交接记录：论坛原仓已引入，真实数据已备份并生成展示投影，当时本地论坛仍显示上游示例（中午起已改为只读显示极客班快照，见第 6 行）；统一主站、真实论坛服务和远程 CI/CD 尚未完成。
 
 状态：`historical`（2026-09-13 10:25 交接时点记录，不是发版验收或新的授权）  
-后续更新：2026-09-13 中午起本机论坛已按 [forum 模块合同](../modules/forum.md) 的只读快照模式显示极客班归档。本文中“本地论坛仍为上游示例 / browser-demo / 仍为示例内容”的表述（摘要、第 0、6.4、7.1、8.2、12.1 节）已过时；其余未完成项不变。  
+后续更新：2026-09-13 中午起本机论坛已按 [forum 服务合同](../services/forum/README.md) 的只读快照模式显示极客班归档。本文中“本地论坛仍为上游示例 / browser-demo / 仍为示例内容”的表述（摘要、第 0、6.4、7.1、8.2、12.1 节）已过时；其余未完成项不变。
+
+**2026-09-23 追加（monorepo 改造）**：本文记录的是 `next` 分支 + `modules/forum` 目录 + systemd/`/opt/yzgc-admin` 部署时代的快照，这些模型已被取代——分支模型见 [BRANCHING](../conventions/BRANCHING.md)，发布模型见 [RELEASES](../conventions/RELEASES.md)，服务路径为 `app/{server,web,forum}`（见 [services](../services/README.md)），部署为同机两套 Docker 栈（见 [DEPLOY](../ops/DEPLOY.md) 的历史章节）。本文其余内容仅作历史追溯。  
 交接日期：2026-09-13  
 现场只读核对时间：2026-09-13 02:25:38 UTC，即北京时间 10:25:38  
 项目位置：`/Users/crosery/work_file/geek_main`  
@@ -862,7 +864,7 @@ pnpm check:environments
 | 根 AI 入口 | [AGENTS.md](../../AGENTS.md) |
 | 规范总入口 | [docs/README.md](../README.md) |
 | 当前架构 | [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) |
-| 当前论坛边界 | [forum.md](../modules/forum.md) |
+| 当前论坛边界 | [forum 服务合同](../services/forum/README.md)（原为 `docs/modules/forum.md`，目录已迁移） |
 | 安全与未完成保障 | [SECURITY.md](../architecture/SECURITY.md) |
 | 实际技术栈 | [STACK.md](../design/STACK.md) |
 | UI 设计与组件选择 | [DESIGN.md](../design/DESIGN.md)、[Tuffex 政策](../components/tuffex/USAGE-POLICY.md) |

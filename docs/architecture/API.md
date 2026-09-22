@@ -12,7 +12,7 @@ JSON 写操作定义类型、长度、范围、枚举与必填项，拒绝未知
 
 ## 接口族
 
-portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/public/config；admin 包括 /auth/*、/api/me/orgs、/api/admin/:org/*。旧 `/api/forum` 及其子路径、`/auth/forum/*`、`/forum/u/*` 返回 410 legacy_forum_retired。新论坛位于 modules/forum，上游没有论坛业务 API，不将旧 API 改为模拟成功。开发态 `/forum/*` 跳转新首页，生产未接好服务时返回 503。
+portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/public/config；admin 包括 /auth/*、/api/me/orgs、`/api/admin/:org/*`。旧 `/api/forum` 及其子路径、`/auth/forum/*`、`/forum/u/*` 返回 410 legacy_forum_retired。新论坛是独立服务 `app/forum`（[forum 合同](../services/forum/README.md)），上游没有论坛业务 API，不将旧 API 改为模拟成功。开发态 `/forum/*` 跳转新首页，生产由 web 容器把 `/forum/*` 反代到 forum 容器；服务未就绪时核心返回 503。
 
 核心 OAuth 回调和 sid 保留，oauth_state 保持签名和有效期检查；不再创建旧 forum_sid。Nuxt 的选择示例用户不进入此会话模型，不为其签发真实权限。开发专用 `/__geek_forum` 仅标记受控预览进程，明确 realAuthentication=false / serverPersistence=false、contentSource 和 snapshotConfigured（快照目录已配置，不是数据库连接），生产不提供该标记。dev 专用、仅 GET/HEAD 的 `/api/local-forum/state`（整份只读快照文档）和 `/api/local-forum/assets/:hash`（按索引提供附件，支持单段 Range，多段请求退化为完整正文）只在设置快照目录时存在，静态产物中没有；它们没有会话，也不是业务写接口。机器码：404 `local_snapshot_not_configured` / `asset_not_found` / `asset_missing_on_disk`，405 `method_not_allowed`，416 `range_not_satisfiable`，500 `asset_size_mismatch`，503 `invalid_document` / `invalid_state` / `invalid_asset_index` / `snapshot_unavailable`。dev 错误处理器会在错误体附带堆栈，这是这些路由不进生产的原因之一。后续真实论坛 API 必须另立契约及权限测试。
 

@@ -1,61 +1,71 @@
-# 版本、Tag 与人工发版规范
+# 发布与人工验收规范
 
-> main 为主代码；release- 为正式发版，prev- 为预发布发版；版本升级和打 tag 必须先有真实人工验收。
+> 分支即发布：`stage` 是预发布、`main` 是正式；人工验收与明确批准必须发生在合入 `main` 之前，版本号不自动提升。
 
-状态：`current` · 更新：2026-09-13 · 依据：项目所有者本次明确指令。
+状态：`current` · 更新：2026-09-23 · 依据：项目所有者本次明确指令。分支规则见 [BRANCHING](BRANCHING.md)。
 
-## 不可变规则
+## 发布模型：分支驱动
 
-`main` 是唯一发布主线。所有发版或预发布增量选中的提交必须属于 main 历史；`next`、功能分支和 PR 合并模拟提交不直接作为发布来源。检查的是完整提交对象和 main 的祖先关系，不能靠分支名称字符串或运行工作流时的默认 HEAD 代替。
-
-| 类型 | Git 触发/基准 | 展示版本 | 人工条件 |
+| 动作 | 触发 | 结果 | 前置条件 |
 |---|---|---|---|
-| 正式发版 | `release-X.Y.Z` | `X.Y.Z` | 对该准确提交/产物人工试用和批准后，才能打 tag 并部署 |
-| 预发布版本里程碑 | `prev-X.Y.Z` | `X.Y.Z` | 同样先人工试用和批准，不能自动生成或升级 |
-| 预发布日常增量 | 已有 `prev-X.Y.Z` 基准 + main 中的准确 commit | `X.Y.Z@<commit-id>` | 不提升基础版本、不打新 tag；仅在获准的预发布流程执行 |
+| 预发布 | `stage` 收到推送 | 构建镜像并部署到预发布栈 `/opt/yzgc/preview` → `https://prev.yangtzeu.work` | 人工验收**不建议**用于预发布本身；由 `vars.DEPLOY_PREVIEW_ENABLED` 开关控制，默认关闭 |
+| 正式发布 | `stage` 合入 `main` | 构建镜像并部署到正式栈 `/opt/yzgc/production` → `https://yangtzeu.work` | ① 人工在预发布试用并明确批准；② 同一 commit 已有成功预发布部署证据；③ `vars.DEPLOY_PRODUCTION_ENABLED=enabled` 且 production 环境审批通过 |
 
-前缀必须逐字使用 `release-` 和 `prev-`，不能替换成 `v`、`preview-`、`pre-` 或 `releases/`。版本正文约定为无前导零的三段整数 `X.Y.Z`；`0.1.0` 可以，`01.1.0` 不可以。正式/预发布 tag 不带 `@`、额外 `-rc` 或 `+build` 后缀。
+**没有 tag 步骤。** 历史上基于 `release-X.Y.Z` / `prev-X.Y.Z` tag 与 `版本@commit-id` 的发布流程已退役：新模型用分支身份（`main`/`stage`）加 commit SHA 定位发布内容，不再创建、推送或依赖发布 tag。遗留的历史 tag 只作追溯，不移动、不覆盖、不删除重建；发现误标由维护者决定处理方式，不用改 tag 来「修正」线上内容。
 
-`@commit-id` 是项目的预发布展示约定，不是 SemVer/npm 版本，也不是 Git tag。默认展示完整 SHA 的前 12 位；部署记录必须同时保存完整 40 位 SHA，短 SHA 不能当作唯一发布身份。它指本次构建选中的准确末端提交，不是基准 tag 的 SHA 或执行期间又前进的分支 HEAD。生产版本绝对不能带 `@`。
+## 人工验收先于合入 `main`
 
-## 固定环境与域名
+正确顺序：
 
-唯一机器配置为 [deploy/environments.json](../../deploy/environments.json)。`preview` 的入口必须为 `https://prev.yangtzeu.work`，只接收 `prev-*` 里程碑或已批准基准的增量；`production` 的入口必须为 `https://yangtzeu.work`，只接收 `release-*`。本机 `localhost` / `127.0.0.1` 标为 local/未发布，绝不能标成已在 prev 环境试用。
+1. `task/<issue>-<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`；
+2. `stage` 部署到预发布栈，得到该 commit 的真实运行产物；
+3. **人**在预发布环境实际试用该产物，记录结论并明确批准；
+4. 维护者把 `stage` 合入 `main`（只允许快进或干净合并，见 [BRANCHING](BRANCHING.md) 不变量）；
+5. 正式部署流水线核对证据（同一 commit 的成功预发布部署记录 + 环境审批），再部署到正式栈。
 
-release-policy 的输出包含 `publicOrigin` 和完整 `target`；可用 `--target-origin` 交叉核对实际目标。prev tag 配正式域名、release tag 配 prev 域名、HTTP、非标准端口和不可信域名均拒绝。检查通过仍然 `deploymentAuthorized: false`，不证明环境已经开通。
+合入 `main` 之后的环境审批**不能**替代第 3 步的人工试用。人工验收不是对 `stage` 整条分支的「一次性放行」，而是对**某个具体 commit 的产物**的判断。
 
-论坛“关于”页显示环境与版本，构建时须显式提供 GEEK_DEPLOYMENT_ENVIRONMENT、GEEK_RELEASE_VERSION 和 GEEK_RELEASE_COMMIT；不根据 NODE_ENV=production 判断正式/预发布。正式版本禁止 @；预发布 @ 后 12 位必须匹配完整 commit。域名与构建声明不符时显示配置错误，不视作有效发布。当前本机为未发布，未改变 package.json 版本。
+### 验收记录至少包含
 
-## 人工验收必须在打 tag 之前
+验收人、时间（ISO 8601 含时区）、目标环境（`preview` / `production`）、完整提交 SHA（40 位小写十六进制）、被试用产物的 SHA-256、试用范围/结果（实际点击/操作了什么、观察到什么）、已知问题、回滚对象、明确的放行结论（批准/不批准）、可追溯的审批记录链接。模板见 [RELEASE-ACCEPTANCE-TEMPLATE](../ops/RELEASE-ACCEPTANCE-TEMPLATE.md)。
 
-正确顺序：选定 main 中的候选提交 → 机器验证和隔离构建 → 实际运行候选产物并由人试用 → 人记录结论并明确批准环境/版本/SHA → 创建不可变 tag → tag 流水线再次核对证据与产物 → 部署。tag 后的环境审批不能替代 tag 前的人工试用。
+Agent 可以整理候选改动、测试结果、差异和空白模板，**不能替验收人填写「已试用」**，不能伪造审批人/时间，不能靠 `approved=true`、环境变量或改校验器解除门禁。Git 作者名称、提交邮箱、签名存在或手填 JSON 不能单独证明有人实际验收。
 
-人工验收至少记录：验收人、时间、目标环境、拟发布 tag、完整提交 SHA、被试用产物的 SHA-256、试用范围/结果、已知问题、回滚对象、明确放行结论，以及可追溯的审批记录。Agent 可以生成空白模板，不能替验收人填通过。
+验收记录保存在受访问控制的审批/部署记录中（GitHub Deployment、审批工单等），**不要为了把记录写进候选提交而制造自引用**：在候选 commit 之后再追加一个引用该 commit 的验收文件会产生新提交，新提交不能冒用旧验收。候选内容变化后重新验证。
 
-证明应保存在受访问控制的审批/部署记录中，绑定准确 SHA 和产物摘要。不要为了把记录写进候选提交而形成自引用：追加一个含旧 SHA 的验收文件会产生新提交，新提交不能冒用旧验收。构建产物变化或候选提交变化后，重新验证并获得对应确认。
+## 版本号与展示值
 
-即使 `pnpm verify`、浏览器测试全部通过，也不自动获得打 tag、修改版本、推送或部署权限。禁止用 semantic-release、版本机器人或基于 commit type 的脚本自行推进版本。
+- **版本号不自动提升**：`package.json` 的 `version` 由人决定何时改，禁止 semantic-release、版本机器人或基于 commit type 的脚本自行推进版本；`feat`/`fix` 提交消息不是发版许可。
+- **展示值来源**：界面上显示的版本 = 构建时读取的 `package.json` `version`（`X.Y.Z`）+ 本次构建的完整 commit SHA。展示规则：
+  - 正式环境：`X.Y.Z`（**禁止** `@` 后缀）；
+  - 预发布环境：`X.Y.Z@<sha12>`（SHA 前 12 位）；
+  - 本机：明确标记「本地开发 · 未发布」。
+- 版本展示由受控构建注入（`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`），不从 `NODE_ENV` 猜目标环境。展示值只是构建身份，不是人工验收的证据，也不能当作发布凭据。
+- 发布身份另由镜像 tag 承担：三个镜像的 tag 都是本次 commit 的 `<sha12>`，部署时写入目标机 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG`。
 
-## 预发布增量的基准和顺序
+## 环境与入口绑定
 
-日常更新固定最近一个在该提交历史上可达的、已人工接受的 `prev-X.Y.Z` 基准。流水线从可信发布记录读取已接受状态，不能只见到一个同名前缀 tag 就认定它已通过人工验收。无法唯一确定基准、基准不属于所选 main 提交历史、没有已批准基准时失败关闭。
+| 环境 | 分支 | 栈根 | 入口 | Compose 项目 |
+|---|---|---|---|---|
+| preview | `stage` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work`（管理端 `prev-admin.yangtzeu.work`） | `yzgc-preview` |
+| production | `main` | `/opt/yzgc/production` | `https://yangtzeu.work`（管理端 `github.yangtzeu.work`） | `yzgc-production` |
 
-例如已确认基准是 `prev-1.2.0`：后续两个 main commit 分别展示 `1.2.0@abcdef123456`、`1.2.0@fedcba654321`。它们不会自动变成 1.2.1，也不会生成新 prev/release tag。人对一个候选提交试用通过并批准新版本后，才可建立 `prev-1.3.0`。这些数字只是说明例子，不是本项目已发布版本。
+两套栈同机、完全隔离：独立目录、独立 compose 项目、独立数据卷、独立端口（18100/18101 与 18200/18201）、独立密钥、独立域名。Cookie 使用 host-only（不写 `Domain`），禁止 `.yangtzeu.work` 这种父域共享。本机 `localhost`/`127.0.0.1` 只能标为 local/未发布，绝不能标成已在预发布环境试用。配置细节见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)，部署操作见 [DEPLOY](../ops/DEPLOY.md)。
 
-首次尚无 prev tag 时，先由人指定候选版本，在本地/隔离验收环境按 SHA 构建和试用，再建立首个 prev tag；不能把 package.json 中既有 `0.1.0` 当成已验收的发布基准。package.json、锁文件和上游论坛包版本是包元数据，不自动充当整站发版真相。
+## 回滚
 
-预发布和正式版本各自禁止意外降级或复用旧号。正式推广建议使用已在预发布试用的同一提交和同一产物；有差异就重新试用，不把“上一个预发布通过”推广到未测试代码。
+回滚是把某个环境切回一个**已验证的历史镜像 tag**，不是移动分支、不是改版本号、不是重置数据库：
 
-## Tag 和产物不可变
+1. 选定该环境此前部署成功过的 `IMAGE_TAG`（历史 commit 的 `<sha12>`）；
+2. 用 `deploy/remote/rollback-stack.sh` 把 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG` 切到该值并 `docker compose up -d`；
+3. 数据库结构不兼容时停下来由人处理，不自动重置数据库代替回滚。
 
-已发布 tag 不移动、不覆盖、不删除重建。不执行 force-push、强制 tag 更新或通配式 `git push --tags`。发现误标时停止并由维护者决定修正；回滚是部署一个已确认的历史产物，不是移动 tag 或重置数据库。
-
-发版部署必须检出 tag 解析后的 commit，不能在服务器执行 `git pull main` 后称为 tag 发布。同一版本绑定 commit、产物摘要、工具链及数据库兼容性；不得把 Mac node_modules 或本次拉取的真实数据库打进 Linux 发布包。
+同一环境同一时刻只允许一个部署任务（串行锁）；正式环境部署不得在切换过程中被新任务取消。
 
 ## 实现与核验边界
 
-`scripts/release-policy.mjs` 仅做离线命名、版本展示、固定目标域名和本地 Git 来源检查，不创建 tag、不改文件、不连服务器，也不证明人工批准。它的输出明确 `deploymentAuthorized: false`。后续 CI/CD 设计见 [CICD](../ops/CICD.md)，实际运维见 [DEPLOY](../ops/DEPLOY.md)。
-
-GitHub refs 保护、审批人的真实身份和访问权限、GitHub 计划支持、环境隔离、秘密和部署适配器都必须实际配置并验收；仅靠本文件或一个可随意填写的批准字段不够。缺任何必需门禁就不发布。
-
-外部依据（2026-09-13 核对）：https://semver.org/ 定义三段语义版本；本项目 tag 前缀和 @ 展示是自有约定。https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets 描述分支/tag 保护。完整平台接入限制见 CICD。
+- 发布身份由只读规划器给出：`node scripts/release-policy.mjs plan --branch <main|stage> --commit <40 位 SHA>`（stdout 只输出 JSON，人类可读结论走 stderr）。分支 → 环境是唯一映射（`main` → `production`、`stage` → `preview`），镜像 tag = SHA 前 12 位；输出里 `deploymentAuthorized` 恒为 `false`。脚本不创建 tag、不写文件、不连服务器，也不证明人工批准；它只拒绝个人分支、任务分支和非分支末端的提交。
+- 分支不变量与 `main` 保护由 `scripts/check-branch-invariants.mjs`（CI 的 `branch-guard` 与本地 pre-push）与仓库 refs 保护共同承担；**规范不等于远程保护已启用**，GitHub 计划能力需维护者实测确认（见 [CICD](../ops/CICD.md)）。
+- 机器检查（`pnpm verify`、CI 全绿、构建成功、`release-policy` 输出）**不构成**人工验收记录，也不授权任何部署或发版动作。
+- 部署开关默认关闭：`DEPLOY_PREVIEW_ENABLED`、`DEPLOY_PRODUCTION_ENABLED` 只有取值 `enabled` 时才部署。
+- tag 语义已整体退役：`deploy/environments.json` 只保留环境身份（`label` / `origin` / `githubEnvironment`），旧的 `tagPrefix` / `allowCommitSuffix` 字段已删除，不要据它们恢复 tag 流程；旧发布包布局（`release-bundle` + `scripts/release-bundle.mjs`）、systemd 部署与旧目标机脚本均已删除，见 [DEPLOY](../ops/DEPLOY.md) 的历史章节。

@@ -1,10 +1,10 @@
-# Admin 模块合同
+# Admin 模块合同（`app/web/sites/admin`）
 
 > 使用当前用户 GitHub 权限的组织管理模块。
 
-状态：`current` · 更新：2026-09-12
+状态：`current` · 更新：2026-09-23
 
-前端 `web/sites/admin`，后端 `server/src/routes/admin`，data.db 保存会话、邀请、反馈和审计。仓库详情按代码、提交、Issue、PR、设置职责划分 feature。
+前端 `app/web/sites/admin`（`pages/` + 按职责划分的 `features/`），后端 `app/server/src/routes/admin`，data.db 保存会话、邀请、反馈和审计。仓库详情按代码、提交、Issue、PR、设置职责划分 feature。
 
 组织 API 先 requireAuth，再 requireOrgRole；membership 必须 active，使用当前用户 token。组织设置、成员和仓库管理要求组织 admin；Issue/PR 还受 GitHub 实际仓库权限限制。按钮不是授权机制。
 

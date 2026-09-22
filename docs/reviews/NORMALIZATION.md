@@ -4,6 +4,9 @@
 
 状态：`historical` · 更新：2026-09-13
 
+> **模型变更（2026-09-23）**：本文记录于 `next` 分支 / `main`+`release-*`+`prev-*` tag 发布模型时代；该模型已被 [BRANCHING](../conventions/BRANCHING.md)（长期只有 `main` 与 `stage`）与 [RELEASES](../conventions/RELEASES.md)（分支驱动、无 tag 流程）取代。下文引用的分支名与 tag 规则只作当时证据。
+
+
 本报告记录采用 Tuff Forum 之前的整改，不是当前论坛实现或测试数量。论坛已按用户要求直接替换为上游代码，旧实现及专属测试退出活动工程。当前架构以 [ARCHITECTURE](../architecture/ARCHITECTURE.md)、[采用决策](../decisions/0003-adopt-tuff-forum.md) 为准；下文保留为历史验收证据，不把旧 48 项通过复用为新论坛证明。
 
 ## 基线与范围

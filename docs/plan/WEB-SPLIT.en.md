@@ -4,6 +4,8 @@
 
 状态：`historical` · 标注：2026-09-12
 
+> **Model change (2026-09-23)**: this record was written in the `next` branch / `main` + `release-*` + `prev-*` tag era. That model was replaced by [BRANCHING](../conventions/BRANCHING.md) (only `main` and `stage` are long-lived) and [RELEASES](../conventions/RELEASES.md) (branch-driven releases, no tag flow). The branch names, tag rules, `modules/forum` paths and systemd/`/opt/yzgc-admin` deployment referenced below are historical evidence only; current paths are `app/{server,web,forum}` (see [services](../services/README.md) and [DEPLOY](../ops/DEPLOY.md)).
+
 当前实施规范见 [当前架构](../architecture/ARCHITECTURE.md) 与 [模块规范](../conventions/MODULAR-DEVELOPMENT.md)，不以本文中的旧完成声明代替验收。
 
 > Status: **executed** (2026-09-12, branch `next`). P0 defects, P1 skeleton, P2 build, and P3

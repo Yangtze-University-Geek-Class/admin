@@ -2,7 +2,7 @@
 
 长江大学极客班的统一项目入口。现有产品代码名为 `yzgc-admin`；保留 `@yzgc/web`、`@yzgc/server` 包名，以避免无收益的接口改名。
 
-这是统一编排的模块化工作区：官网 portal 和 GitHub 组织管理 admin 保留 React/Fastify；论坛直接采用 MIT 许可的 Tuff Forum 原代码，位于 `modules/forum`，使用 Nuxt/Vue/TuffEx 独立工程。旧 React/Fastify 论坛已经退出活动代码和构建，旧业务数据库不删除、不自动导入。
+严格 monorepo：`app/server`（Fastify + SQLite 核心后端）、`app/web`（portal + admin，React/Vite）、`app/forum`（直接采用的 MIT 许可 Tuff Forum 原代码，Nuxt/Vue/TuffEx，独立工具链与锁文件）。旧 React/Fastify 论坛已退出活动代码和构建，旧业务数据库不删除、不自动导入。
 
 **当前论坛前端不包含真实后端或认证。** 本机发现私有快照目录时只读显示极客班论坛归档（无登录、不可写）；否则为上游示例，示例身份不是 GitHub 登录，内容只保存于当前浏览器。公开宣传页 → 登录后内部 Hub → 论坛/组织管理/扩展服务是目标结构；统一内部认证、服务接入和 3D Hub 尚未落地，不能把这次原仓接入称为完整生产社区。
 
@@ -10,61 +10,82 @@
 
 | 需要做什么 | 入口 |
 |---|---|
-| 阅读全部项目、提交、贡献、模块化及技术文档规范 | [docs/README.md](docs/README.md) |
-| Agent 接手项目：第一步先读规范，不先操作 | [AGENTS.md](AGENTS.md)、[AGENT-START](docs/conventions/AGENT-START.md) |
+| 阅读全部规范与 app ↔ docs ↔ 规范地图 | [docs/README.md](docs/README.md) |
+| Agent 接手项目：先确认分支，再读规范 | [AGENTS.md](AGENTS.md)、[AGENT-START](docs/conventions/AGENT-START.md) |
+| 确认分支模型与不变量 | [BRANCHING](docs/conventions/BRANCHING.md) |
+| 审查 diff / 开 MR 前 | [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)、[PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) |
+| 发布与人工验收（分支驱动，无 tag 流程） | [RELEASES](docs/conventions/RELEASES.md) |
+| 了解服务边界与源码位置 | [server](docs/services/server/README.md)、[web](docs/services/web/README.md)、[forum](docs/services/forum/README.md) |
 | 了解真实架构与数据归属 | [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
 | 了解实际技术栈，不混淆升级提议 | [STACK.md](docs/design/STACK.md) |
-| 操作部署环境 | [DEPLOY.md](docs/ops/DEPLOY.md) |
-| main、人工验收、release-/prev- 与预发布 @SHA | [RELEASES](docs/conventions/RELEASES.md)、[CI/CD 设计](docs/ops/CICD.md) |
-| 已拉取的论坛原始数据与本地核验 | [FORUM-DATA-CAPTURE](docs/ops/FORUM-DATA-CAPTURE.md) |
+| 操作部署环境（两套 Docker 栈） | [DEPLOY.md](docs/ops/DEPLOY.md)、[ENVIRONMENTS](docs/ops/ENVIRONMENTS.md) |
+| 查 CI/CD 工作流与部署开关 | [CICD](docs/ops/CICD.md) |
 | 本机启动核心预览和原仓论坛 | [LOCAL-PREVIEW.md](docs/ops/LOCAL-PREVIEW.md)、[TUFF-FORUM.md](docs/ops/TUFF-FORUM.md) |
-| 论坛代码来源、许可和替换边界 | [采用决策](docs/decisions/0003-adopt-tuff-forum.md) |
+| 已拉取的论坛原始数据与本地核验 | [FORUM-DATA-CAPTURE](docs/ops/FORUM-DATA-CAPTURE.md) |
 
 ## 目录边界
 
 ```text
 geek_main/
-  modules/forum/                  上游 Tuff Forum 原代码，独立工具链/锁文件
-  web/sites/{portal,admin}/        核心两端页面、路由和业务组件
-  web/shared/                     跨端 UI、网络、渲染和配置适配
-  server/src/routes/{portal,admin}/  核心 HTTP 模块与各自契约
-  server/src/lib/                  数据工厂与共享业务规则
-  server/src/middleware/           请求认证与安全策略
-  server/src/app.ts                应用组装，可注入依赖，不监听端口
-  server/src/index.ts              唯一后端启动入口
-  tests/                          隔离回归、组件与工具测试
-  scripts/                        统一检查与文档生成
-  docs/                           全部规范、架构、模块合同、运维与决策
-  deploy/                         部署模板；普通开发不执行
+  AGENTS.md                          唯一 agent 入口（硬门禁 + 任务映射）
+  app/
+    server/                          @yzgc/server，Fastify + SQLite（含 Dockerfile）
+    web/                             @yzgc/web，Vite 的 portal/admin 两端 + shared（含 Dockerfile）
+    forum/                           @yzgc/forum，Tuff Forum 原仓，独立工具链/锁文件（含 Dockerfile）
+  deploy/
+    env/.env.production|preview      入库配置模板：地址端口域名写真实值，密钥留空
+    compose/                         两套栈的 compose 文件
+    nginx/                           宿主 nginx server block（TLS 由宿主机终止）
+    remote/                          目标机部署与回滚脚本
+    environments.json                环境身份契约（域名、GitHub environment）
+  data/                              本地运行数据（gitignore）
+  docs/                              全部规范、服务合同、架构、运维与决策
+  scripts/                           统一检查、文档生成与发布规划
+  tests/                             隔离回归（vitest + playwright）
 ```
+
+## 分支
+
+长期分支只有两条：`main`（正式 = 稳定版，只能由 `stage` 合入）与 `stage`（预发布 = 动态版）。开发从 `stage` 拉 `task/<issue>-<slug>`，MR 合并后**立即删除**（`branch-hygiene.yml` 自动完成这一步，残留分支每周巡检告警）；`dev-<github-username>` 是个人自由分支，不部署、也不作为进入 `stage` 的凭据。**任何操作前先确认当前分支**：`git branch --show-current`。完整规则（含两条不变量）见 [BRANCHING](docs/conventions/BRANCHING.md)。
 
 ## 开发与验收
 
-核心包使用 `.nvmrc` 指定的 Node 22（最低 22.13）和 pnpm 9.15.9；论坛按原仓使用 Node >=26 和 pnpm 11.24.0。根 `forum:*` 命令选择独立工具链，不将论坛加入旧 pnpm 9 依赖解析。新环境配置见 TUFF-FORUM；本机已准备两套运行时。切换 Node 后不能复用另一 ABI 的 SQLite 二进制。
+核心包使用 `.nvmrc` 指定的 Node 22（最低 22.13）和 pnpm 9.15.9；论坛按原仓使用 Node ≥26 和 pnpm 11.24.0。根 `forum:*` 命令选择独立工具链，不将论坛加入旧 pnpm 9 依赖解析。新环境配置见 TUFF-FORUM；本机已准备两套运行时。切换 Node 后不能复用另一 ABI 的 SQLite 二进制。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev:web       # 前端只读 mock 预览；不需要 OAuth 或业务数据库
-pnpm dev           # 前后端开发；需要人工填写本机专用 .env
-pnpm check         # 运行时、边界、文档和类型检查
-pnpm release:plan --help # 只读版本/来源规划，不是人工批准，不打 tag 或部署
-pnpm test          # 真实应用路由、隔离 SQLite、模拟外部服务
-pnpm build         # 核心 portal/admin 和 Fastify 构建
-pnpm forum:install # 论坛 frozen-lockfile 独立安装
-pnpm forum:check   # 原仓类型、Lint、样式约束及单测
+pnpm dev:web        # 前端只读 mock 预览；不需要 OAuth 或业务数据库
+pnpm dev            # 前后端开发；需要人工填写本机专用 .env
+pnpm check          # 运行时、环境契约、边界、文档和类型检查
+pnpm check:docs     # 文档索引与相对链接
+pnpm test           # 真实应用路由、隔离 SQLite、模拟外部服务
+pnpm build          # 核心 portal/admin 与 Fastify 构建
+pnpm forum:install  # 论坛 frozen-lockfile 独立安装
+pnpm forum:check    # 原仓类型、Lint、样式约束及单测
 pnpm forum:generate # 原仓 Nuxt 静态产物
-pnpm verify        # 核心 check/test/build + 论坛 check/generate
-pnpm test:e2e      # 核心浏览器验证
-pnpm forum:verify # 原仓 CDP 验收及路由烟测
-pnpm preview:local # 核心 5173/3000 + 独立论坛 3456
+pnpm verify         # 核心 check/test/build + 论坛 check/generate
+pnpm test:e2e       # 核心浏览器验证
+pnpm forum:verify   # 原仓 CDP 验收及路由烟测
+pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456
 ```
 
-核心页面在 `http://127.0.0.1:5173/sites/portal/`、`/sites/admin/`，论坛为 `http://127.0.0.1:3456/`。旧论坛页面入口转到新论坛首页，不猜测旧帖子 ID 映射。核心 mock 是只读；`pnpm forum:start` 在本机发现 `.tools/forum-runtime/` 下的只读快照时显示极客班论坛归档（无登录、不可写、不写 localStorage），`GEEK_FORUM_SOURCE=demo` 回到原仓示例交互；两种模式界面都明确提醒其并非真实认证或跨设备存储，详见 [TUFF-FORUM](docs/ops/TUFF-FORUM.md)。
+核心页面在 `http://127.0.0.1:5173/sites/portal/`、`/sites/admin/`，论坛为 `http://127.0.0.1:3456/`。旧论坛页面入口转到 `app/forum` 的新论坛首页，不猜测旧帖子 ID 映射。核心 mock 是只读；`pnpm forum:start` 在本机发现 `.tools/forum-runtime/` 下的只读快照时显示极客班论坛归档（无登录、不可写、不写 localStorage），`GEEK_FORUM_SOURCE=demo` 回到原仓示例交互；两种模式界面都明确提醒其并非真实认证或跨设备存储，详见 [TUFF-FORUM](docs/ops/TUFF-FORUM.md)。
 
-真实开发环境参照 [本地环境模板](docs/ops/ENVIRONMENT.md) 由操作者填写，不在仓库提交密钥，不连接生产数据库做测试；已有环境文件保持原样。常规测试只使用内存数据库及临时目录，不触发 GitHub、邮件或部署操作。生产部署需单独授权和发布验证，不能把本地构建通过视为线上验收。
+真实开发环境参照 [本地环境模板](docs/ops/ENVIRONMENT.md) 由操作者填写，不在仓库提交密钥，不连接生产数据库做测试。常规测试只使用内存数据库及临时目录，不触发 GitHub、邮件或部署操作。生产部署需单独授权和发布验证，不能把本地构建通过视为线上验收。
+
+## 部署入口
+
+线上是**同机两套 Docker 栈**，由宿主 nginx 做 TLS 终止：
+
+| 环境 | 分支 | 栈根 | 入口 | web 宿主端口 |
+|---|---|---|---|---|
+| production | `main` | `/opt/yzgc/production` | `https://yangtzeu.work` | `127.0.0.1:18100` |
+| preview | `stage` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work` | `127.0.0.1:18200` |
+
+镜像 `yzgc/{server,web,forum}:<sha12>`，tag 写入 `<栈根>/.env.<environment>` 的 `IMAGE_TAG`；回滚就是切回历史 tag。字段契约与密钥注入规则见 [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md)，工作流与部署开关（默认关闭）见 [CICD](docs/ops/CICD.md)。合入 `main` 即正式发布，人工验收必须在合入之前完成（见 [RELEASES](docs/conventions/RELEASES.md)）。
 
 ## 文档维护
 
-规范统一在 `docs/` 中维护。新增、移动或修改文档后运行 `pnpm docs:index`；提交前的 `pnpm check` 校验索引和相对链接。当前实现、提议和历史记录必须分开标注。中文是主要规范文本，英文伴随文档明确其范围。
+规范统一在 `docs/` 中维护。**新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md`**（硬规则）。新增、移动或修改文档后运行 `pnpm docs:index`；提交前的 `pnpm check` 校验索引和相对链接。当前实现、提议和历史记录必须分开标注（`current` / `accepted` / `proposed` / `historical`）。中文是主要规范文本，英文伴随文档明确其范围。
 
-私有项目；未经授权不发布内部代码、文档或凭据。所采用的 Tuff Forum 原有版权和 MIT 许可证完整保留在 `modules/forum/LICENSE`，不得以本项目私有属性删除上游声明。
+私有项目；未经授权不发布内部代码、文档或凭据。所采用的 Tuff Forum 原有版权和 MIT 许可证完整保留在 `app/forum/LICENSE`，不得以本项目私有属性删除上游声明。

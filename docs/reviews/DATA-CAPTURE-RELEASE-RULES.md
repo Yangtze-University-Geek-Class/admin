@@ -4,6 +4,9 @@
 
 状态：`current` · 更新：2026-09-13
 
+> **模型变更（2026-09-23）**：本文记录于 `next` 分支 / `main`+`release-*`+`prev-*` tag 发布模型时代；该模型已被 [BRANCHING](../conventions/BRANCHING.md)（长期只有 `main` 与 `stage`）与 [RELEASES](../conventions/RELEASES.md)（分支驱动、无 tag 流程）取代。下文引用的分支名与 tag 规则只作当时证据。
+
+
 ## 范围与基线
 
 项目 geek_main，工作分支 next，HEAD 保持 0602bb5e4b376c2842edb1edfd1faf9da73dd4ad。最新用户指令要求先拉取到本地，CI/CD 后续接入；因此本阶段不转换目标 schema、不替换演示状态、不激活旧身份、不修改线上服务。不创建项目提交或 tag，不推送，不升级 package 版本。

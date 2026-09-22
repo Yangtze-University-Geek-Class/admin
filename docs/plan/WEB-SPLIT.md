@@ -4,6 +4,9 @@
 
 状态：`historical` · 标注：2026-09-12
 
+> **模型变更（2026-09-23）**：本文记录于 `next` 分支 / `main`+`release-*`+`prev-*` tag 发布模型时代；该模型已被 [BRANCHING](../conventions/BRANCHING.md)（长期只有 `main` 与 `stage`）与 [RELEASES](../conventions/RELEASES.md)（分支驱动、无 tag 流程）取代。下文引用的分支名与 tag 规则只作当时证据。
+
+
 当前实施规范见 [当前架构](../architecture/ARCHITECTURE.md) 与 [模块规范](../conventions/MODULAR-DEVELOPMENT.md)，不以本文中的旧完成声明代替验收。
 
 > 状态：**已执行**（2026-09-12，`next` 分支）。P0 缺陷、P1 骨架、P2 构建、P3 清理均已落地，

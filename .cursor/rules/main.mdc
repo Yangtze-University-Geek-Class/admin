@@ -1,6 +1,0 @@
----
-description: Canonical project instruction entry
-alwaysApply: true
----
-
-Read `AGENTS.md` at the repository root, then follow its document and module routing table. All normative content lives in `docs/`. This adapter intentionally contains no duplicated project rules.
