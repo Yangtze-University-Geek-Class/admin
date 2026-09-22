@@ -44,7 +44,7 @@ portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个�
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`admin.md`](./services/web/admin.md) | 使用当前用户 GitHub 权限的组织管理模块。 | — |
-| [`portal.md`](./services/web/portal.md) | 公开介绍、文档、反馈和邀请落地；无独立登录态。 | — |
+| [`portal.md`](./services/web/portal.md) | 公开介绍、投递简历、文档、反馈和邀请落地；无独立登录态。 | — |
 | [`shared.md`](./services/web/shared.md) | 共享 UI、网络、渲染和配置，不反向依赖站点。 | — |
 
 ## components/
