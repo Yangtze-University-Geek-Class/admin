@@ -1,6 +1,6 @@
-// 官网导航项 → 链接的唯一解析点。页头和首页入口卡都经过这里，
+// 官网导航项 → 链接的唯一解析点。页头、首页按钮、章节链接和入口卡都经过这里，
 // 路由 / 跨站 / 外链三种规则只写一次（数据来自 app.config.json > portal.navigation）。
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { appConfig, type PortalNavigationItem } from "@shared/config";
 import { externalUrl } from "@shared/lib/site";
@@ -11,18 +11,15 @@ export function findNavigationItem(id: string): PortalNavigationItem {
   return item;
 }
 
-export default function PortalLink({
-  item,
-  className,
-  children,
-}: {
+type Props = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "target" | "rel" | "children"> & {
   item: PortalNavigationItem;
-  className?: string;
   children: ReactNode;
-}) {
+};
+
+export default function PortalLink({ item, children, ...rest }: Props) {
   if (item.type === "route") {
     return (
-      <Link to={item.path ?? "/"} className={className}>
+      <Link to={item.path ?? "/"} {...rest}>
         {children}
       </Link>
     );
@@ -30,7 +27,7 @@ export default function PortalLink({
 
   if (item.type === "site" && item.site) {
     return (
-      <a href={externalUrl(item.site, item.path ?? "/")} className={className}>
+      <a href={externalUrl(item.site, item.path ?? "/")} {...rest}>
         {children}
       </a>
     );
@@ -38,7 +35,7 @@ export default function PortalLink({
 
   const url = item.urlKey ? appConfig.urls[item.urlKey] : "#";
   return (
-    <a href={url} className={className} {...(item.newTab ? { target: "_blank", rel: "noreferrer" } : {})}>
+    <a href={url} {...rest} {...(item.newTab ? { target: "_blank", rel: "noreferrer" } : {})}>
       {children}
     </a>
   );

@@ -1,17 +1,24 @@
-// 官网页脚（MiMo 风格，黑底）。只放少量文字链接，不放营销区块。
+// 官网页脚（冰白图纸）：左侧一块图纸标题栏，右侧少量文字链接，不放营销区块。
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { externalUrl } from "@shared/lib/site";
 
 export default function SiteFooter() {
-  const { brand } = appConfig.portal;
+  const { brand, stage } = appConfig.portal;
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mimo-footer">
-      <div className="mimo-wrap mimo-footer-inner">
-        <strong>{brand.title}</strong>
-        <nav className="mimo-footer-links" aria-label="页脚导航">
+    <footer className="yg-footer">
+      <div className="yg-wrap yg-footer-inner">
+        <dl className="yg-titleblock">
+          <dt>Sheet</dt>
+          <dd>01 — {stage.signature}</dd>
+          <dt>Project</dt>
+          <dd>{brand.title}</dd>
+          <dt>Org</dt>
+          <dd>{brand.subtitle}</dd>
+        </dl>
+        <nav className="yg-footer-links" aria-label="页脚导航">
           <Link to="/apply">投递简历</Link>
           <a href={externalUrl("forum", "/")}>论坛</a>
           <Link to="/docs">文档</Link>
@@ -20,7 +27,7 @@ export default function SiteFooter() {
             GitHub
           </a>
         </nav>
-        <p className="mimo-footer-meta">
+        <p className="yg-footer-meta">
           © {year} {brand.title} · {brand.subtitle}
         </p>
       </div>
