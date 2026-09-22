@@ -1,0 +1,78 @@
+import portalRoutes from "./routes/portal/index.js";
+import adminRoutes from "./routes/admin/index.js";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
+import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { APP_ROOT, type AppConfig } from "./config.js";
+import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
+import { registerHttpPolicy } from "./middleware/http-policy.js";
+
+const webDist = resolve(APP_ROOT, "web/dist");
+
+/**
+ * 按 host（必要时结合 path）决定回哪一份 SPA 入口。
+ *
+ * 本服务只承载 portal/admin。论坛源码和构建归 app/forum，绝不回退到旧 React 论坛。
+ */
+export function resolveSiteEntry(config: AppConfig, host: string | undefined, url: string): string {
+  const hosts = config.siteHosts;
+  const hostname = (host ?? "").split(":")[0].toLowerCase();
+  if (hostname === hosts.admin.toLowerCase()) return "sites/admin/index.html";
+  // 本地开发与直连 IP：没有匹配的域名，回官网
+  return "sites/portal/index.html";
+}
+
+export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | false; logger?: boolean };
+export async function buildApp(options: BuildAppOptions) {
+  const config = options.config;
+  const services = options.services ?? createServices(config, options.overrides);
+  const app = Fastify({
+    logger: options.logger ?? false,
+    trustProxy: config.trustProxy,
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
+  });
+
+  app.decorate("services", services);
+  app.addHook("onClose", async () => { if (!options.services) services.close(); });
+  registerHttpPolicy(app);
+  await app.register(cookie, { secret: config.sessionSecret });
+  await app.register(rateLimit, { global: false });
+
+  await app.register(portalRoutes);
+  await app.register(adminRoutes);
+  // Old forum APIs are retired, not silently mapped to a browser-only mock.
+  const retired = async (_req: unknown, reply: import("fastify").FastifyReply) => reply.code(410).send({
+    error: "legacy_forum_retired", message: "旧论坛接口已停用。新论坛采用 Tuff Forum，当前上游仅提供浏览器演示，不提供真实后端。",
+  });
+  for (const url of ["/api/forum", "/api/forum/*", "/auth/forum/*", "/forum/u/*"]) {
+    app.route({ method: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], url, handler: retired });
+  }
+  for (const url of ["/forum", "/forum/*"]) {
+    app.get(url, async (_req, reply) => {
+      if (config.production) return reply.code(503).send({ error: "forum_service_not_ready", message: "新论坛的真实认证和持久化尚未接入，未对外开放。" });
+      return reply.redirect("http://127.0.0.1:3456/");
+    });
+  }
+
+  app.get("/healthz", async () => ({ ok: true, ts: Date.now() }));
+
+  const staticRoot = options.staticRoot === false ? null : options.staticRoot ?? webDist;
+  if (staticRoot && existsSync(staticRoot)) {
+    await app.register(fastifyStatic, { root: staticRoot, prefix: "/" });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.url.startsWith("/api") || req.url.startsWith("/auth") || req.url.startsWith("/healthz")) {
+        return reply.code(404).send({ error: "not_found" });
+      }
+      if (/\.[a-z0-9]+(?:\?|$)/i.test(req.url) || !["GET", "HEAD"].includes(req.method)) return reply.code(404).send({ error: "not_found" });
+      reply.header("Cache-Control", "no-cache");
+      return reply.sendFile(resolveSiteEntry(config, req.headers.host, req.url));
+    });
+  } else {
+    app.get("/", async () => ({ ok: true, note: "app/web/dist not built yet" }));
+  }
+
+  return app;
+}

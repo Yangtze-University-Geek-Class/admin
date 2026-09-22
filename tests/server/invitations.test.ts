@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import type { ServiceOverrides } from '../../server/src/services';
+import type { ServiceOverrides } from '../../app/server/src/services';
 import { testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });

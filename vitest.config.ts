@@ -4,9 +4,9 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
-      "@shared": fileURLToPath(new URL("./web/shared", import.meta.url)),
-      "react": fileURLToPath(new URL("./web/node_modules/react", import.meta.url)),
-      "react-dom": fileURLToPath(new URL("./web/node_modules/react-dom", import.meta.url)),
+      "@shared": fileURLToPath(new URL("./app/web/shared", import.meta.url)),
+      "react": fileURLToPath(new URL("./app/web/node_modules/react", import.meta.url)),
+      "react-dom": fileURLToPath(new URL("./app/web/node_modules/react-dom", import.meta.url)),
     },
   },
   test: {

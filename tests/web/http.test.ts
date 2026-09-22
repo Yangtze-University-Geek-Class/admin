@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { ApiError, requestJson } from "../../web/shared/lib/http";
-import { mockApi } from "../../web/shared/lib/mock-api";
+import { ApiError, requestJson } from "../../app/web/shared/lib/http";
+import { mockApi } from "../../app/web/shared/lib/mock-api";
 
 afterEach(() => vi.unstubAllGlobals());
 it("preserves a structured user error instead of catching its own exception", async () => {

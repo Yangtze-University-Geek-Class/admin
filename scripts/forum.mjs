@@ -13,7 +13,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const script = fileURLToPath(import.meta.url);
 const root = resolve(dirname(script), '..');
-const moduleRoot = join(root, 'modules/forum');
+const moduleRoot = join(root, 'app/forum');
 const stateDir = join(root, '.tools/tuff-forum');
 const stateFile = join(stateDir, 'runtime.json');
 const snapshotRoot = join(root, '.tools/forum-runtime');
@@ -68,12 +68,12 @@ function toolchain({ contentDir = '' } = {}) {
   const env = { PATH: `${bin}:${dirname(node)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME || root, TMPDIR: process.env.TMPDIR || tmpdir(), NUXT_TELEMETRY_DISABLED: '1' };
   env.FORUM_NODE = node;
   env.FORUM_PNPM = pnpm;
-  for (const key of ['GEEK_DEPLOYMENT_ENVIRONMENT', 'GEEK_RELEASE_VERSION', 'GEEK_RELEASE_COMMIT']) {
+  for (const key of ['GEEK_DEPLOYMENT_ENVIRONMENT', 'GEEK_RELEASE_VERSION', 'GEEK_RELEASE_COMMIT', 'GEEK_FORUM_BASE_PATH']) {
     if (process.env[key]) env[key] = process.env[key];
   }
   // The snapshot reaches nuxt only through the explicit `contentDir` chosen for
   // start/dev; every other command is pinned to the seed even if a stray .env
-  // inside modules/forum names a directory.
+  // inside app/forum names a directory.
   if (contentDir) env.GEEK_FORUM_CONTENT_DIR = contentDir;
   else env.GEEK_FORUM_SOURCE = 'demo';
   // The upstream CDP suites default to http://localhost:3456, which on macOS

@@ -1,6 +1,6 @@
-import { buildApp } from '../../server/src/app';
-import { createConfig } from '../../server/src/config';
-import type { ServiceOverrides } from '../../server/src/services';
+import { buildApp } from '../../app/server/src/app';
+import { createConfig } from '../../app/server/src/config';
+import type { ServiceOverrides } from '../../app/server/src/services';
 
 /** Core-only fixture. A missing/deprecated FORUM_DB_PATH must never be opened. */
 export async function testApp(overrides: ServiceOverrides = {}, production = false) {

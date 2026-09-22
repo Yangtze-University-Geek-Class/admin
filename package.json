@@ -15,7 +15,7 @@
     "release:plan": "node scripts/release-policy.mjs",
     "check:environments": "node scripts/deployment-environment.mjs --check",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
+    "typecheck": "tsc -p app/server/tsconfig.json --noEmit && tsc -p app/web/tsconfig.json --noEmit",
     "check": "pnpm check:runtime && pnpm check:hosts && pnpm check:environments && pnpm check:boundaries && pnpm check:docs && pnpm check:secrets && pnpm typecheck",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -31,7 +31,7 @@
     "preview:local": "node scripts/local-preview.mjs start && node scripts/forum.mjs start",
     "dev:web": "pnpm --filter @yzgc/web dev",
     "dev": "pnpm -r --parallel run dev",
-    "start": "node scripts/check-runtime.mjs && node server/dist/index.js"
+    "start": "node scripts/check-runtime.mjs && node app/server/dist/index.js"
   },
   "engines": {
     "node": ">=22.13.0 <23"

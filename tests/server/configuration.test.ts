@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assertSiteHosts, createConfig } from "../../server/src/config";
+import { assertSiteHosts, createConfig } from "../../app/server/src/config";
 
 function env() {
   return {
@@ -20,4 +20,12 @@ it("rejects invalid runtime credentials, production HTTP and unbounded PoW", () 
   expect(() => createConfig({ ...env(), SESSION_SECRET: "short" })).toThrow("32 characters");
   expect(() => createConfig({ ...env(), NODE_ENV: "production", PUBLIC_ORIGIN: "http://localhost:5173" })).toThrow("HTTPS");
   expect(() => createConfig({ ...env(), POW_DIFFICULTY: "99" })).toThrow("0 to 5");
+});
+it("stays on loopback unless a container deployment asks for another interface", () => {
+  const local = createConfig(env());
+  expect([local.host, local.trustProxy]).toEqual(["127.0.0.1", "loopback"]);
+  const container = createConfig({ ...env(), HOST: "0.0.0.0", TRUST_PROXY: "true" });
+  expect([container.host, container.trustProxy]).toEqual(["0.0.0.0", true]);
+  expect(createConfig({ ...env(), TRUST_PROXY: "false" }).trustProxy).toBe(false);
+  expect(() => createConfig({ ...env(), HOST: "127.0.0.1:3000" })).toThrow("without a port");
 });

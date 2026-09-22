@@ -12,32 +12,32 @@ import './static'; export { x } from './export'; const y = import('./dynamic'); 
  expect(result.map((item: {spec:string})=>item.spec)).toEqual(['./static','./export','./dynamic','./type']);
 });
 it("rejects backend cross-module .js imports resolving to TypeScript",()=>{
- const root=fixture({'server/src/routes/forum/a.ts':`import {x} from '../admin/b.js';`,'server/src/routes/admin/b.ts':`export const x=1;`});
+ const root=fixture({'app/server/src/routes/forum/a.ts':`import {x} from '../admin/b.js';`,'app/server/src/routes/admin/b.ts':`export const x=1;`});
  expect(checkProject(root).violations.join(' ')).toContain('cross-module');
 });
 it("rejects dynamic cross-site imports and shared reverse imports",()=>{
- const root=fixture({'web/sites/portal/a.ts':`import('../forum/b');`,'web/sites/forum/b.ts':`export const x=1;`,'web/shared/x.ts':`export {x} from '../sites/forum/b';`});
+ const root=fixture({'app/web/sites/portal/a.ts':`import('../forum/b');`,'app/web/sites/forum/b.ts':`export const x=1;`,'app/web/shared/x.ts':`export {x} from '../sites/forum/b';`});
  expect(checkProject(root).violations).toHaveLength(2);
 });
 it("fails closed on an unresolved relative module",()=>{
- const root=fixture({'web/sites/portal/a.ts':`import './missing';`}); expect(checkProject(root).violations[0]).toContain('unresolved');
+ const root=fixture({'app/web/sites/portal/a.ts':`import './missing';`}); expect(checkProject(root).violations[0]).toContain('unresolved');
 });
 it("rejects identity adapters that import HTTP middleware",()=>{
- const root=fixture({'server/src/lib/identity.ts':`import { authorize } from '../middleware/auth.js';`,'server/src/middleware/auth.ts':`export const authorize = () => true;`});
+ const root=fixture({'app/server/src/lib/identity.ts':`import { authorize } from '../middleware/auth.js';`,'app/server/src/middleware/auth.ts':`export const authorize = () => true;`});
  expect(checkProject(root).violations.join(' ')).toContain('adapters depend on HTTP middleware');
 });
 it("resolves arbitrary tsconfig aliases before deciding the module boundary",()=>{
  const root=fixture({
-   'web/tsconfig.json':JSON.stringify({compilerOptions:{moduleResolution:'Bundler',paths:{'@forum/*':['./sites/forum/*']}}}),
-   'web/sites/portal/a.ts':`export { x } from '@forum/b';`,
-   'web/sites/forum/b.ts':`export const x=1;`,
+   'app/web/tsconfig.json':JSON.stringify({compilerOptions:{moduleResolution:'Bundler',paths:{'@forum/*':['./sites/forum/*']}}}),
+   'app/web/sites/portal/a.ts':`export { x } from '@forum/b';`,
+   'app/web/sites/forum/b.ts':`export const x=1;`,
  });
  expect(checkProject(root).violations.join(' ')).toContain('cross-site dependency');
 });
 it("fails closed for an unresolved declared alias without mistaking a builtin for local code",()=>{
  const root=fixture({
-   'server/tsconfig.json':JSON.stringify({compilerOptions:{moduleResolution:'Bundler',paths:{'@domain/*':['./src/lib/*']}}}),
-   'server/src/routes/forum/a.ts':`import fs from 'node:fs'; import { x } from '@domain/missing';`,
+   'app/server/tsconfig.json':JSON.stringify({compilerOptions:{moduleResolution:'Bundler',paths:{'@domain/*':['./src/lib/*']}}}),
+   'app/server/src/routes/forum/a.ts':`import fs from 'node:fs'; import { x } from '@domain/missing';`,
  });
  const violations=checkProject(root).violations;
  expect(violations).toHaveLength(1);
