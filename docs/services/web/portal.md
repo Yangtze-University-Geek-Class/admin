@@ -8,7 +8,9 @@
 
 前端 `app/web/sites/portal/App.tsx`，后端 `app/server/src/routes/portal/index.ts`。路由：`/`（首页，只保留三个入口：投递简历、了解我们→论坛、组织情况→GitHub）、`/apply`（投递简历表单）、`/docs`、`/feedback`、`/join/:token`。路由只从自己的模块目录注册，不导入 admin/forum 路由。
 
-首页与投递简历页共用 MiMo 风格基线，令牌与组件在 `app/web/sites/portal/theme.css`，首页文案与配图路径在 `app.config.json > portal`，静态素材（webp 配图、主视觉循环视频）在 `app/web/public/portal/`，规范正文见 [DESIGN](../../design/DESIGN.md) 的「官网视觉语言：MiMo 风格基线」；文档、反馈、邀请等历史页面仍是校徽蓝皮肤，后续按同一基线迁移。
+首页与投递简历页共用「NANO · 代码窗口 × LED 点阵」视觉语言：令牌与组件在 `app/web/sites/portal/theme.css`（`.yg-page` 作用域），首页滚动舞台在 `components/ScrollStage.tsx`，LED 点阵字库与画板在 `lib/ledFont.ts`、`lib/ledBoard.ts`（纯函数部分由 `tests/web/led-font.test.ts` 覆盖）。首页文案、章节与素材路径在 `app.config.json > portal.stage / entries / closing`，静态素材（透明底 NANO 立绘 webp）在 `app/web/public/portal/`，入口卡复用 `app/web/public/mascot/`。规范正文见 [DESIGN](../../design/DESIGN.md) 的「官网视觉语言」；文档、反馈、邀请等历史页面仍是校徽蓝皮肤，后续按同一基线迁移。
+
+第四轮视觉方向的来历：先用生图出了四个方向的概念稿（LED 夜景、蓝图白昼、代码窗口、游戏 UI），再由「所有者视角 / 设计评论 / 可实现性」三个评审独立打分，代码窗口方向 2:1 胜出；LED 夜景被评为风险最高（与已否决的第三轮同构）。第三轮的 LED 素材与 72 帧序列已移出仓库（不再引用）。
 
 ## 数据与协议
 
