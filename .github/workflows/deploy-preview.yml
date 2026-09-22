@@ -1,0 +1,362 @@
+# 预发布部署（stage → preview）
+#
+# 触发：push 到 stage（唯一预发布来源）与手工 dispatch；其它分支一律拒绝（plan job 里硬断言 ref）。
+# 开关：仓库级 vars.DEPLOY_PREVIEW_ENABLED 必须显式等于 enabled，未设置 = 不部署。
+#
+# 边界：
+#   * 只有 build 与 deploy 两个阶段；构建期不接触任何环境级密钥。
+#   * 部署用环境级 secrets（GitHub Environment `preview`），与 PR 构建、正式环境完全隔离。
+#   * 镜像 tag 只用 SHA 前 12 位，禁止 latest；tag/版本里程碑不参与发布身份。
+#   * 部署记录走 GitHub Deployments API，正式环境用它做「先预发布后正式」的证据。
+
+name: Deploy Preview
+
+on:
+  push:
+    branches: [stage]
+  workflow_dispatch:
+
+# 默认最小权限：只读仓库内容。写 deployments 的权限只在 deploy job 上单独声明。
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-preview
+  # 预发布允许取消被新提交取代的运行：stage 移动快，旧运行没有保留价值。
+  cancel-in-progress: true
+
+jobs:
+  # 规划：解析分支 → 发布身份（镜像 tag、栈目录、入口、产物名），并硬断言触发来源。
+  plan:
+    name: plan (stage → preview 身份)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      image_tag: ${{ steps.identity.outputs.image_tag }}
+      release_version: ${{ steps.identity.outputs.release_version }}
+      origin: ${{ steps.identity.outputs.origin }}
+      stack_root: ${{ steps.identity.outputs.stack_root }}
+      incoming_dir: ${{ steps.identity.outputs.incoming_dir }}
+      runtime_env_file: ${{ steps.identity.outputs.runtime_env_file }}
+      images_archive: ${{ steps.identity.outputs.images_archive }}
+      compose_project: ${{ steps.identity.outputs.compose_project }}
+    steps:
+      - name: 检出代码（取全部远端分支，不保留凭据）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 硬断言触发来源是 stage
+        shell: bash
+        # 只有 stage 能进预发布：其它分支（task/*、dev-*、main）一概拒绝，没有回落到 stage 的路径。
+        run: |
+          set -eu
+          if [ "${GITHUB_REF}" != "refs/heads/stage" ]; then
+            echo "本工作流只接受 refs/heads/stage（当前：${GITHUB_REF}，事件：${GITHUB_EVENT_NAME}）" >&2
+            exit 1
+          fi
+          echo "触发来源确认：${GITHUB_REF}（事件 ${GITHUB_EVENT_NAME}）"
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 规划发布身份（分支模型，禁止 tag 语义）
+        id: identity
+        shell: bash
+        # release-policy 会额外校验：提交存在、且必须是 origin/stage 的 tip；tag/版本/批准开关一律拒绝。
+        run: |
+          set -eu
+          node scripts/release-policy.mjs plan --branch stage --commit "$GITHUB_SHA" > "$RUNNER_TEMP/plan.json"
+          {
+            echo "commit=$(jq -r '.commit' "$RUNNER_TEMP/plan.json")"
+            echo "image_tag=$(jq -r '.imageTag' "$RUNNER_TEMP/plan.json")"
+            echo "release_version=$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")"
+            echo "origin=$(jq -r '.origin' "$RUNNER_TEMP/plan.json")"
+            echo "stack_root=$(jq -r '.stackRoot' "$RUNNER_TEMP/plan.json")"
+            echo "incoming_dir=$(jq -r '.incomingDir' "$RUNNER_TEMP/plan.json")"
+            echo "runtime_env_file=$(jq -r '.runtimeEnvFile' "$RUNNER_TEMP/plan.json")"
+            echo "images_archive=$(jq -r '.imagesArchive' "$RUNNER_TEMP/plan.json")"
+            echo "compose_project=$(jq -r '.composeProject' "$RUNNER_TEMP/plan.json")"
+          } >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/plan.json"
+
+      - name: 校验环境契约（部署事实来源不许漂移）
+        shell: bash
+        run: node scripts/deployment-environment.mjs --check
+
+  # 构建：三条镜像 → 单个归档 + 校验和（不推送 registry，目标机 docker load）。
+  build:
+    name: build (镜像归档)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 pnpm（读取根 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 依赖安装（锁文件不可变）
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（提交态 = production 值；镜像内部的构建会按 preview 渲染）
+        shell: bash
+        # 这一步只证明「同一份提交在 runner 上能构建」，产物不进镜像：
+        # 三个 Dockerfile 各自在容器里重新安装与构建，并用 build args 渲染 preview 身份与域名。
+        env:
+          GEEK_DEPLOYMENT_ENVIRONMENT: preview
+          GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+          GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: pnpm build
+
+      - name: 构建三个镜像（tag = SHA 前 12 位）
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+          GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: |
+          set -eu
+          for service in server web forum; do
+            docker build \
+              --file "app/${service}/Dockerfile" \
+              --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=preview \
+              --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+              --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+              --tag "yzgc/${service}:${IMAGE_TAG}" .
+          done
+          docker image list --format '{{.Repository}}:{{.Tag}}' | grep '^yzgc/'
+
+      - name: 打包镜像归档与校验和
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          IMAGES_ARCHIVE: ${{ needs.plan.outputs.images_archive }}
+        run: |
+          set -eu
+          out="${RUNNER_TEMP}/bundle"
+          mkdir -p "$out"
+          # docker save 直接进 gzip：中间不落地未压缩 tar，runner 上不留第二份镜像数据。
+          docker save "yzgc/server:${IMAGE_TAG}" "yzgc/web:${IMAGE_TAG}" "yzgc/forum:${IMAGE_TAG}" \
+            | gzip -9 > "${out}/${IMAGES_ARCHIVE}"
+          ( cd "$out" && sha256sum "${IMAGES_ARCHIVE}" > "${IMAGES_ARCHIVE}.sha256" )
+          ls -lh "$out"
+          cat "${out}/${IMAGES_ARCHIVE}.sha256"
+
+      - name: 上传镜像归档（保留 7 天，不推 registry）
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: yzgc-images-preview-${{ needs.plan.outputs.image_tag }}
+          path: |
+            ${{ runner.temp }}/bundle/${{ needs.plan.outputs.images_archive }}
+            ${{ runner.temp }}/bundle/${{ needs.plan.outputs.images_archive }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # 部署：只有显式打开仓库级开关才跑。环境级 secrets 只在本 job 出现。
+  deploy:
+    name: deploy (preview stack)
+    needs: [plan, build]
+    # 未设置或不是 enabled 一律不部署；哨兵值在第一个 step 里再硬校验一次。
+    if: vars.DEPLOY_PREVIEW_ENABLED == 'enabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: preview
+      url: ${{ needs.plan.outputs.origin }}
+    permissions:
+      contents: read
+      # 写部署记录（GitHub Deployments API）：正式环境据此判断同一 commit 是否已在预发布验证过。
+      deployments: write
+    env:
+      IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+      COMMIT: ${{ needs.plan.outputs.commit }}
+      STACK_ROOT: ${{ needs.plan.outputs.stack_root }}
+      INCOMING_DIR: ${{ needs.plan.outputs.incoming_dir }}
+      RUNTIME_ENV_FILE: ${{ needs.plan.outputs.runtime_env_file }}
+      IMAGES_ARCHIVE: ${{ needs.plan.outputs.images_archive }}
+      ORIGIN: ${{ needs.plan.outputs.origin }}
+      COMPOSE_PROJECT: ${{ needs.plan.outputs.compose_project }}
+    steps:
+      - name: 校验环境哨兵（防止仓库级变量静默回落）
+        shell: bash
+        # 环境级 vars 必须显式等于本环境名：仓库级同名变量或空值都不能让部署悄悄跑起来。
+        env:
+          DEPLOY_TARGET_ENVIRONMENT: ${{ vars.DEPLOY_TARGET_ENVIRONMENT }}
+        run: |
+          set -eu
+          if [ "${DEPLOY_TARGET_ENVIRONMENT}" != "preview" ]; then
+            echo "环境哨兵不匹配：GitHub Environment 'preview' 的 DEPLOY_TARGET_ENVIRONMENT 必须是 preview，实际 '${DEPLOY_TARGET_ENVIRONMENT}'" >&2
+            exit 1
+          fi
+          echo "环境哨兵确认：preview"
+
+      - name: 检出代码（取部署物料：compose 与远端脚本）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 下载镜像归档
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: yzgc-images-preview-${{ needs.plan.outputs.image_tag }}
+          path: ${{ runner.temp }}/bundle
+
+      - name: 渲染运行时 env 文件（模板 + 环境级 secrets + IMAGE_TAG）
+        shell: bash
+        # 模板取 deploy/env/.env.preview，密钥字段用本 GitHub Environment 的 secrets 覆盖；
+        # 脚本只回显字段名与 tag，永不回显密钥值；缺任一密钥即失败关闭。
+        env:
+          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+        run: |
+          set -eu
+          node scripts/deployment-environment.mjs render \
+            --environment preview \
+            --out "$RUNNER_TEMP/bundle/.env.preview" \
+            --image-tag "$IMAGE_TAG"
+
+      - name: 准备 SSH（私钥与 known_hosts 只落在 runner 的临时目录）
+        shell: bash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/ssh/id_deploy"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
+          chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
+          # 私钥与 known_hosts 都来自环境级 secrets；不打印内容，只确认长度。
+          echo "SSH 物料就绪：私钥 $(wc -l < "$RUNNER_TEMP/ssh/id_deploy") 行，known_hosts $(wc -l < "$RUNNER_TEMP/ssh/known_hosts") 行"
+
+      - name: 创建部署记录（in_progress）
+        id: record
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          deployment_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
+            -f ref="$COMMIT" -f environment=preview -f auto_inactive=false \
+            -f description="stage → preview（镜像 tag ${IMAGE_TAG}）" \
+            -f "payload[image_tag]=${IMAGE_TAG}" -f "payload[branch]=stage" \
+            --jq '.id')"
+          echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+            -f state=in_progress -f description="分发镜像与 env 文件到 ${STACK_ROOT}" > /dev/null
+          echo "部署记录已创建：deployment ${deployment_id}（${COMMIT}）"
+
+      - name: 分发镜像、env 文件与 compose 物料
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          set -eu
+          key="$RUNNER_TEMP/ssh/id_deploy"
+          known="$RUNNER_TEMP/ssh/known_hosts"
+          target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+          ssh_options=(-i "$key" -o IdentitiesOnly=yes -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
+          scp_options=(-i "$key" -o IdentitiesOnly=yes -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
+          # 目标机只接收物料：incoming/ 放本次归档与渲染好的 env 文件，deploy/compose/ 放两套栈定义（长期存在）。
+          ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$target" \
+            "mkdir -p '$INCOMING_DIR' '$STACK_ROOT/deploy/compose' && chmod 700 '$INCOMING_DIR'"
+          scp "${scp_options[@]}" -P "$DEPLOY_SSH_PORT" \
+            "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}" "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}.sha256" \
+            "$RUNNER_TEMP/bundle/.env.preview" deploy/remote/deploy-stack.sh \
+            "${target}:${INCOMING_DIR}/"
+          scp "${scp_options[@]}" -P "$DEPLOY_SSH_PORT" \
+            deploy/compose/production.yml deploy/compose/preview.yml \
+            "${target}:${STACK_ROOT}/deploy/compose/"
+          ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$target" \
+            "chmod 600 '${INCOMING_DIR}/.env.preview' && ls -l '${INCOMING_DIR}' && sha256sum -c '${INCOMING_DIR}/${IMAGES_ARCHIVE}.sha256' --ignore-missing"
+
+      - name: 执行远端部署（load 镜像 → compose up → 健康检查）
+        id: deploy-stack
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          set -eu
+          target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+          # deploy-stack.sh 只从 env 文件取事实（IMAGE_TAG/STACK_ROOT/COMPOSE_PROJECT_NAME），
+          # 传进来的 --image-tag/--stack-root 只做交叉校验；健康检查失败会自动回滚到上一个 tag 并非零退出。
+          ssh -i "$RUNNER_TEMP/ssh/id_deploy" -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -p "$DEPLOY_SSH_PORT" "$target" \
+            "bash '${INCOMING_DIR}/deploy-stack.sh' --environment preview --stack-root '${STACK_ROOT}' \
+              --image-tag '${IMAGE_TAG}' --incoming-dir '${INCOMING_DIR}' --env-file '${INCOMING_DIR}/.env.preview'"
+
+      - name: 记录部署结果
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.deploy-stack.outcome }}
+          DEPLOYMENT_ID: ${{ steps.record.outputs.deployment_id }}
+        run: |
+          set -eu
+          if [ -z "${DEPLOYMENT_ID:-}" ]; then
+            echo "::warning::部署记录未创建（前置步骤失败），跳过状态更新。"
+            exit 0
+          fi
+          if [ "$OUTCOME" = "success" ]; then
+            state=success
+            description="preview 部署成功（镜像 tag ${IMAGE_TAG}）"
+          else
+            state=failure
+            description="preview 部署失败或未执行（$OUTCOME）"
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
+          echo "部署记录已更新：${state}"
+
+      - name: 输出入口与身份
+        if: always()
+        shell: bash
+        run: |
+          set -eu
+          {
+            echo "## 预发布部署"
+            echo ""
+            echo "- 环境：preview（GitHub Environment: preview）"
+            echo "- 分支：stage"
+            echo "- commit：\`${COMMIT}\`"
+            echo "- 镜像 tag：\`${IMAGE_TAG}\`"
+            echo "- compose 项目：\`${COMPOSE_PROJECT}\`"
+            echo "- 栈根目录：\`${STACK_ROOT}\`"
+            echo "- 入口：${ORIGIN}"
+            echo ""
+            echo "机器部署成功不等于人工试用通过；正式环境仍需要单独的证据检查与批准。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "预发布入口：${ORIGIN}"

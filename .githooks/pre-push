@@ -1,0 +1,43 @@
+#!/bin/sh
+# geek_main 分支模型守卫（pre-push）。
+#
+# 每次 push 前强制两条硬不变量与来源规则：
+#   I1 stage 必须包含 main（git merge-base --is-ancestor origin/main origin/stage 为真）
+#   I2 main 不得领先 stage（写入 main 的提交必须已经存在于 stage）
+#   *  推 refs/heads/main  ：被推的 main tip 必须已经在 stage 里（main 只做 stage 的快进）
+#   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>-<slug> 分支，且必须已包含 origin/main
+#
+# 启用方式（每台克隆各做一次，写入本仓库的 .git/config，不影响其它仓库）：
+#   git config core.hooksPath .githooks
+# 停用：git config --unset core.hooksPath
+# 临时跳过单次检查：git push --no-verify（CI 仍会独立重判，跳过本地钩子省不掉远端门禁）
+#
+# 本钩子只读本地 Git 证据，不 fetch、不改 refs、不联网。git 自己会把
+# 「<local ref> <local sha> <remote ref> <remote sha>」逐行写到本脚本的 stdin。
+
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+script="$repo_root/scripts/check-branch-invariants.mjs"
+
+if [ ! -f "$script" ]; then
+  echo "pre-push: 找不到 $script；跳过本地分支守卫（CI 仍会判定）。" >&2
+  exit 0
+fi
+
+node_bin=${NODE:-node}
+if ! command -v "$node_bin" >/dev/null 2>&1; then
+  echo "pre-push: 找不到 node；跳过本地分支守卫（CI 仍会判定）。" >&2
+  exit 0
+fi
+
+# 不吞掉 stdin：把它原样交给校验脚本，由脚本逐行解析。
+if "$node_bin" "$script" --push --repo "$repo_root"; then
+  exit 0
+fi
+
+echo "" >&2
+echo "pre-push: 分支规则未通过，推送已被本地钩子拒绝。" >&2
+echo "  启用/停用方式：git config core.hooksPath .githooks / git config --unset core.hooksPath" >&2
+echo "  提交前请先读 docs/conventions/ISSUES.md 与 docs/conventions/RELEASES.md 的分支模型。" >&2
+exit 1

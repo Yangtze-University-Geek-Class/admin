@@ -1,23 +1,26 @@
 # geek_main 持续集成（CI）
 #
-# 边界声明（与 docs/conventions/RELEASES.md、docs/ops/CICD.md 一致）：
-#   * 本工作流只做机器验证——隔离安装、静态检查、测试、构建、工作流自检。
+# 边界声明：
+#   * 只做机器验证——隔离安装、静态检查、测试、构建、镜像构建、环境契约、工作流自检、分支不变量。
 #   * 机器 PASS 不等于人工试用；它不构成任何发版授权或验收记录。
 #   * 不部署任何环境（既不碰 prev.yangtzeu.work，也不碰 yangtzeu.work）。
 #   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
 #   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
-#   * 不使用 continue-on-error 掩盖失败；不上传 artifact。
-# 后续按 tag 发版的流水线是另一套独立工作流，其人工门禁见 RELEASES.md。
+#   * 不使用 continue-on-error 掩盖失败。
+#
+# 分支模型：长期分支只有 main（正式）与 stage（预发布）；task/<issue>-<slug> 从 stage 拉出、
+# PR 回 stage、合并后删除；dev-<username> 是个人分支，只验证、不部署，也不能作为进入 stage 的凭据。
+# 硬不变量由 branch-guard 强制（scripts/check-branch-invariants.mjs）。
+#
+# 触发：pull_request → main/stage；push → main/stage/task/**(任务分支)/dev-*(个人分支)；手工 dispatch。
 
 name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, stage]
   push:
-    # main 是唯一发布主线，主线每个提交都要留下完整的机器验证证据。
-    # next 只是长期集成分支，在这里跑仅为早期反馈，不因此获得任何发布含义。
-    branches: [main, next]
+    branches: [main, stage, 'task/**', 'dev-*']
   workflow_dispatch:
 
 # 最小权限：只读仓库内容。任何需要写权限的动作（tag、release、部署）都不属于本工作流。
@@ -27,7 +30,7 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   # 只对 pull_request 取消旧运行（PR 会频繁 force-push）。
-  # push 到 main / next 的运行必须跑完，否则主线提交会缺少验证证据。
+  # push 到长期分支的运行必须跑完，否则主线提交会缺少验证证据。
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -35,6 +38,24 @@ env:
   CI: 'true'
 
 jobs:
+  # 分支不变量：stage 必须包含 main，main 不得领先 stage。
+  # 长期分支命名违规只告警（硬失败只针对上面两条不变量），见脚本内的分级说明。
+  branch-guard:
+    name: branch-guard (main/stage 不变量)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码（取全部远端分支，不保留凭据）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 判定不变量需要 origin/main 与 origin/stage 两个远端 ref，浅克隆拿不到。
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 判定分支不变量
+        shell: bash
+        run: node scripts/check-branch-invariants.mjs --require-remote-refs
+
   # 核心工具链：Node 22（.nvmrc）+ pnpm 9.15.9（根 package.json packageManager）。
   core:
     name: core (Node 22 / pnpm 9)
@@ -74,7 +95,7 @@ jobs:
         shell: bash
         run: pnpm build
 
-  # 论坛工具链：modules/forum 是独立上游仓，锁文件、Node 与包管理器都与核心不同，
+  # 论坛工具链：app/forum 是独立上游仓，锁文件、Node 与包管理器都与核心不同，
   # 必须单独安装、单独运行，禁止让一套 Node 去跑另一套 ABI 的原生依赖。
   forum:
     name: forum (Node 26 / pnpm 11.24.0)
@@ -93,7 +114,7 @@ jobs:
       - name: 安装 Node 26（论坛独立运行时）
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          # modules/forum/package.json 要求 engines.node >=26。
+          # app/forum/package.json 要求 engines.node >=26。
           node-version: '26'
           # 根 packageManager 是 pnpm 而非 npm，这里显式关掉 setup-node 的自动包管理器缓存，
           # 论坛 store 由下面的 actions/cache 单独管理，避免误用核心工具链的缓存。
@@ -117,11 +138,11 @@ jobs:
         shell: bash
         run: |
           set -u
-          # 必须在 modules/forum 目录内调用 pnpm.cjs：pnpm 10+ 的启动器会按「最近的 package.json
+          # 必须在 app/forum 目录内调用 pnpm.cjs：pnpm 10+ 的启动器会按「最近的 package.json
           # 的 packageManager 字段」自适应版本。仓库根声明的是 pnpm@9.15.9，在根目录运行这个
           # 启动器会解析成 9.15.9（全新 runner 上还会先去下载 pnpm 9），断言必然失败；
-          # 只有在 modules/forum 内才会解析成上游锁定的 11.24.0。
-          actual="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs --version)"
+          # 只有在 app/forum 内才会解析成上游锁定的 11.24.0。
+          actual="$(cd app/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs --version)"
           if [ "$actual" != "$FORUM_PNPM_VERSION" ]; then
             echo "论坛包管理器版本不符：期望 ${FORUM_PNPM_VERSION}，实际 ${actual}" >&2
             exit 1
@@ -136,9 +157,9 @@ jobs:
         shell: bash
         run: |
           set -u
-          # 必须在 modules/forum 内解析：store 位置受该目录的 pnpm 配置影响，
+          # 必须在 app/forum 内解析：store 位置受该目录的 pnpm 配置影响，
           # 且 pnpm.cjs 的版本自适应同样按最近的 packageManager 字段决定（同上一步的原因）。
-          store="$(cd modules/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs store path)"
+          store="$(cd app/forum && node ../../.tools/pnpm11/package/bin/pnpm.cjs store path)"
           echo "path=${store}" >> "$GITHUB_OUTPUT"
           echo "forum pnpm store: ${store}"
 
@@ -146,7 +167,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.forum-store.outputs.path }}
-          key: forum-pnpm-store-${{ runner.os }}-${{ hashFiles('modules/forum/pnpm-lock.yaml') }}
+          key: forum-pnpm-store-${{ runner.os }}-${{ hashFiles('app/forum/pnpm-lock.yaml') }}
           # 只缓存包内容寻址的 store，不缓存 node_modules；
           # 命中与否都不改变 --frozen-lockfile 的安装结果。
           restore-keys: |
@@ -166,6 +187,136 @@ jobs:
         shell: bash
         run: node scripts/forum.mjs generate
 
+  # 环境契约：deploy/env/.env.<environment> ↔ deploy/environments.json ↔ deploy/compose/*.yml。
+  # 这一条是部署前的硬门禁——两套栈的端口、目录、域名、密钥留空状态不许静默漂移。
+  env-contract:
+    name: env-contract (.env ↔ environments.json ↔ compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 pnpm（读取根 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          # 本 job 不需要依赖，只跑仓库自带的 Node 脚本。
+          package-manager-cache: false
+
+      - name: 校验环境契约（模板 ↔ 契约 ↔ compose ↔ 远端脚本）
+        shell: bash
+        run: pnpm check:environments
+
+      - name: 站点域名必须等于 production 契约（提交态）
+        shell: bash
+        run: node scripts/render-web-config.mjs --environment production --check
+
+      - name: 预发布渲染可用（构建期改写 → 校验 → 还原提交态）
+        shell: bash
+        # 镜像构建会在容器里执行同一脚本；这里先证明两个方向都能工作，
+        # 并且渲染出来的预发布值同样能通过站点域名门禁。
+        run: |
+          set -eu
+          node scripts/render-web-config.mjs --environment preview
+          node scripts/render-web-config.mjs --environment preview --check
+          pnpm check:hosts
+          node scripts/render-web-config.mjs --environment production
+          node scripts/render-web-config.mjs --environment production --check
+          git diff --exit-code -- app/web/shared/config/app.config.json
+
+      - name: 密钥门禁（模板 env 只允许留空密钥）
+        shell: bash
+        run: pnpm check:secrets
+
+  # 镜像构建验证：三条 Dockerfile 各构建一次（只构建、不推送、不打 latest）。
+  docker:
+    name: docker (三条 Dockerfile 构建验证)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 解析提交态的发布身份
+        shell: bash
+        # CI 只验证「能不能用提交态的正式身份构建」，不代表发版；镜像 tag 用 SHA 前 12 位，不用 latest。
+        run: |
+          set -eu
+          version="$(node -p "require('./package.json').version")"
+          {
+            echo "GEEK_RELEASE_VERSION=${version}"
+            echo "GEEK_RELEASE_COMMIT=${GITHUB_SHA}"
+            echo "IMAGE_TAG=${GITHUB_SHA:0:12}"
+          } >> "$GITHUB_ENV"
+          echo "构建身份：version=${version} commit=${GITHUB_SHA} tag=${GITHUB_SHA:0:12}"
+
+      - name: 解析两套 compose（与各自 env 文件配对）
+        shell: bash
+        # 只解析不启动：证明 compose 文件在真实 env 值下语法与变量引用都成立。
+        run: |
+          set -eu
+          for environment in production preview; do
+            docker compose --env-file "deploy/env/.env.${environment}" -f "deploy/compose/${environment}.yml" config --quiet
+            echo "deploy/compose/${environment}.yml 解析通过"
+          done
+
+      - name: 构建 server 镜像
+        shell: bash
+        run: |
+          set -eu
+          docker build \
+            --file app/server/Dockerfile \
+            --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+            --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+            --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --tag "yzgc/server:$IMAGE_TAG" .
+
+      - name: 构建 web 镜像
+        shell: bash
+        run: |
+          set -eu
+          docker build \
+            --file app/web/Dockerfile \
+            --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+            --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+            --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --tag "yzgc/web:$IMAGE_TAG" .
+
+      - name: 构建 forum 镜像
+        shell: bash
+        run: |
+          set -eu
+          docker build \
+            --file app/forum/Dockerfile \
+            --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+            --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+            --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --tag "yzgc/forum:$IMAGE_TAG" .
+
+      - name: 断言三个镜像都有健康检查与非 root 运行身份
+        shell: bash
+        run: |
+          set -eu
+          for service in server web forum; do
+            image="yzgc/${service}:${IMAGE_TAG}"
+            docker image inspect "$image" --format '{{.Config.Healthcheck.Test}}' | grep -q . \
+              || { echo "${image} 缺少健康检查" >&2; exit 1; }
+            user="$(docker image inspect "$image" --format '{{.Config.User}}')"
+            if [ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "0" ]; then
+              echo "${image} 必须以非 root 用户运行（当前：${user:-未设置}）" >&2
+              exit 1
+            fi
+            echo "${image} 构建成功：healthcheck=有，user=${user}"
+          done
+
   # 汇总 job：给 branch protection 用的单一 required check 名称。
   # if: always() 是必须的——若上游 job 被跳过或取消，required check 不能因“没跑”而算通过。
   # 必须把 lint-workflows 也纳入 needs 与汇总条件：否则工作流自身的静态错误虽然让
@@ -173,7 +324,7 @@ jobs:
   # 它只汇总机器结果，不代表人工验收，也不授权任何部署。
   verify:
     name: verify (required check)
-    needs: [core, forum, lint-workflows]
+    needs: [branch-guard, core, forum, env-contract, docker, lint-workflows]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -181,14 +332,18 @@ jobs:
       - name: 汇总上游 job 结果
         shell: bash
         env:
+          BRANCH_GUARD_RESULT: ${{ needs.branch-guard.result }}
           CORE_RESULT: ${{ needs.core.result }}
           FORUM_RESULT: ${{ needs.forum.result }}
+          ENV_CONTRACT_RESULT: ${{ needs.env-contract.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
           LINT_WORKFLOWS_RESULT: ${{ needs.lint-workflows.result }}
         run: |
           set -u
-          echo "core=${CORE_RESULT} forum=${FORUM_RESULT} lint-workflows=${LINT_WORKFLOWS_RESULT}"
-          if [ "$CORE_RESULT" != "success" ] || [ "$FORUM_RESULT" != "success" ] \
-             || [ "$LINT_WORKFLOWS_RESULT" != "success" ]; then
+          echo "branch-guard=${BRANCH_GUARD_RESULT} core=${CORE_RESULT} forum=${FORUM_RESULT} env-contract=${ENV_CONTRACT_RESULT} docker=${DOCKER_RESULT} lint-workflows=${LINT_WORKFLOWS_RESULT}"
+          if [ "$BRANCH_GUARD_RESULT" != "success" ] || [ "$CORE_RESULT" != "success" ] \
+             || [ "$FORUM_RESULT" != "success" ] || [ "$ENV_CONTRACT_RESULT" != "success" ] \
+             || [ "$DOCKER_RESULT" != "success" ] || [ "$LINT_WORKFLOWS_RESULT" != "success" ]; then
             echo "机器验证未通过：failure / cancelled / skipped 一律视为失败。" >&2
             exit 1
           fi

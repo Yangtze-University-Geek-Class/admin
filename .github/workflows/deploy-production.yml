@@ -1,0 +1,425 @@
+# 正式部署（main → production）
+#
+# 触发：push 到 main（唯一正式来源）与手工 dispatch；其它分支一律拒绝（plan job 里硬断言 ref）。
+# 前置证据：同一个 commit 必须在 preview 环境有**成功**的部署记录，否则整个工作流失败关闭。
+# 开关：仓库级 vars.DEPLOY_PRODUCTION_ENABLED 必须显式等于 enabled，未设置 = 不部署。
+#
+# 边界：
+#   * 只有 main 能进正式环境；stage 的提交必须先经过预发布验证。
+#   * 部署用环境级 secrets（GitHub Environment `production`，应配置人工审批），与 PR 构建、预发布完全隔离。
+#   * 正式部署不设 cancel-in-progress：已经开始的上线必须跑完或明确失败，不允许被后来的提交静默取消。
+
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 默认最小权限：只读仓库内容。读 deployments 与写 deployments 的权限按 job 单独声明。
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  # 正式环境串行但不取消：正在跑的部署必须收敛成成功或失败，留下完整记录。
+  cancel-in-progress: false
+
+jobs:
+  # 规划：解析分支 → 发布身份，并硬断言触发来源。
+  plan:
+    name: plan (main → production 身份)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      image_tag: ${{ steps.identity.outputs.image_tag }}
+      release_version: ${{ steps.identity.outputs.release_version }}
+      origin: ${{ steps.identity.outputs.origin }}
+      stack_root: ${{ steps.identity.outputs.stack_root }}
+      incoming_dir: ${{ steps.identity.outputs.incoming_dir }}
+      runtime_env_file: ${{ steps.identity.outputs.runtime_env_file }}
+      images_archive: ${{ steps.identity.outputs.images_archive }}
+      compose_project: ${{ steps.identity.outputs.compose_project }}
+    steps:
+      - name: 检出代码（取全部远端分支，不保留凭据）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 硬断言触发来源是 main
+        shell: bash
+        run: |
+          set -eu
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "本工作流只接受 refs/heads/main（当前：${GITHUB_REF}，事件：${GITHUB_EVENT_NAME}）" >&2
+            exit 1
+          fi
+          echo "触发来源确认：${GITHUB_REF}（事件 ${GITHUB_EVENT_NAME}）"
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 规划发布身份（分支模型，禁止 tag 语义）
+        id: identity
+        shell: bash
+        # 正式环境禁止版本 @ 后缀：releaseVersion 必须等于 package.json 的 X.Y.Z，且提交必须是 origin/main 的 tip。
+        run: |
+          set -eu
+          node scripts/release-policy.mjs plan --branch main --commit "$GITHUB_SHA" > "$RUNNER_TEMP/plan.json"
+          {
+            echo "commit=$(jq -r '.commit' "$RUNNER_TEMP/plan.json")"
+            echo "image_tag=$(jq -r '.imageTag' "$RUNNER_TEMP/plan.json")"
+            echo "release_version=$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")"
+            echo "origin=$(jq -r '.origin' "$RUNNER_TEMP/plan.json")"
+            echo "stack_root=$(jq -r '.stackRoot' "$RUNNER_TEMP/plan.json")"
+            echo "incoming_dir=$(jq -r '.incomingDir' "$RUNNER_TEMP/plan.json")"
+            echo "runtime_env_file=$(jq -r '.runtimeEnvFile' "$RUNNER_TEMP/plan.json")"
+            echo "images_archive=$(jq -r '.imagesArchive' "$RUNNER_TEMP/plan.json")"
+            echo "compose_project=$(jq -r '.composeProject' "$RUNNER_TEMP/plan.json")"
+          } >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/plan.json"
+          case "$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")" in
+            *@*) echo "正式发布身份不允许 @ 后缀：$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")" >&2; exit 1 ;;
+          esac
+
+      - name: 校验环境契约（部署事实来源不许漂移）
+        shell: bash
+        run: node scripts/deployment-environment.mjs --check
+
+  # 证据：同一 commit 必须已经在预发布环境成功部署过。没有证据就不上线（失败关闭）。
+  evidence:
+    name: evidence (同 commit 已有成功的 preview 部署)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - name: 查询 preview 环境的部署记录
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          deployments="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=preview&per_page=100" --paginate \
+            --jq ".[] | select(.sha == \"${GITHUB_SHA}\") | .id")"
+          if [ -z "$deployments" ]; then
+            echo "没有找到 commit ${GITHUB_SHA} 在 preview 环境的任何部署记录；正式上线必须先经过预发布。" >&2
+            exit 1
+          fi
+          verified=""
+          for deployment in $deployments; do
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deployment}/statuses?per_page=1" --jq '.[0].state')"
+            echo "preview deployment ${deployment}: ${state:-无状态}"
+            if [ "$state" = "success" ]; then
+              verified="$deployment"
+            fi
+          done
+          if [ -z "$verified" ]; then
+            echo "commit ${GITHUB_SHA} 在 preview 环境没有成功的部署记录：拒绝进入正式环境。" >&2
+            exit 1
+          fi
+          echo "证据成立：${GITHUB_SHA} 已在 preview 环境部署成功（deployment ${verified}）。"
+
+      - name: 核对预发布站点当前就是该提交
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+          PREVIEW_ORIGIN: https://prev.yangtzeu.work
+        # 部署记录可能是上一轮留下的：再直接读预发布站点的 release.json，
+        # 确认线上跑的就是这个 commit（避免「上一个预发布通过」被推广到未经试用的新代码）。
+        run: |
+          set -eu
+          body="$(curl -fsS --max-time 20 --retry 3 --retry-all-errors "${PREVIEW_ORIGIN}/release.json")"
+          echo "预发布 release.json：${body}"
+          echo "$body" | jq -e --arg commit "$GITHUB_SHA" --arg version "$RELEASE_VERSION" \
+            '.environment == "preview" and .commit == $commit and .version == $version' > /dev/null \
+            || { echo "预发布站点当前不是 commit ${GITHUB_SHA}（version ${RELEASE_VERSION}）：拒绝进入正式环境。" >&2; exit 1; }
+          echo "证据成立：${PREVIEW_ORIGIN}/release.json 与本次正式发布的 commit/版本一致。"
+
+  # 构建：与预发布同构，但按正式身份（无 @ 后缀）构建。
+  build:
+    name: build (镜像归档)
+    needs: [plan, evidence]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 pnpm（读取根 packageManager）
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 依赖安装（锁文件不可变）
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（提交态 = production 值）
+        shell: bash
+        env:
+          GEEK_DEPLOYMENT_ENVIRONMENT: production
+          GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+          GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: pnpm build
+
+      - name: 构建三个镜像（tag = SHA 前 12 位）
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+          GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+        run: |
+          set -eu
+          for service in server web forum; do
+            docker build \
+              --file "app/${service}/Dockerfile" \
+              --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+              --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+              --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+              --tag "yzgc/${service}:${IMAGE_TAG}" .
+          done
+          docker image list --format '{{.Repository}}:{{.Tag}}' | grep '^yzgc/'
+
+      - name: 打包镜像归档与校验和
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          IMAGES_ARCHIVE: ${{ needs.plan.outputs.images_archive }}
+        run: |
+          set -eu
+          out="${RUNNER_TEMP}/bundle"
+          mkdir -p "$out"
+          docker save "yzgc/server:${IMAGE_TAG}" "yzgc/web:${IMAGE_TAG}" "yzgc/forum:${IMAGE_TAG}" \
+            | gzip -9 > "${out}/${IMAGES_ARCHIVE}"
+          ( cd "$out" && sha256sum "${IMAGES_ARCHIVE}" > "${IMAGES_ARCHIVE}.sha256" )
+          ls -lh "$out"
+          cat "${out}/${IMAGES_ARCHIVE}.sha256"
+
+      - name: 上传镜像归档（保留 30 天，供回滚与审计）
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: yzgc-images-production-${{ needs.plan.outputs.image_tag }}
+          path: |
+            ${{ runner.temp }}/bundle/${{ needs.plan.outputs.images_archive }}
+            ${{ runner.temp }}/bundle/${{ needs.plan.outputs.images_archive }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  # 部署：需要显式开关；GitHub Environment `production` 应配置人工审批（这是真正的放行点）。
+  deploy:
+    name: deploy (production stack)
+    needs: [plan, build]
+    if: vars.DEPLOY_PRODUCTION_ENABLED == 'enabled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ needs.plan.outputs.origin }}
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+      COMMIT: ${{ needs.plan.outputs.commit }}
+      STACK_ROOT: ${{ needs.plan.outputs.stack_root }}
+      INCOMING_DIR: ${{ needs.plan.outputs.incoming_dir }}
+      RUNTIME_ENV_FILE: ${{ needs.plan.outputs.runtime_env_file }}
+      IMAGES_ARCHIVE: ${{ needs.plan.outputs.images_archive }}
+      ORIGIN: ${{ needs.plan.outputs.origin }}
+      COMPOSE_PROJECT: ${{ needs.plan.outputs.compose_project }}
+    steps:
+      - name: 校验 production 环境保护（人工审批必须真实存在）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # 不信任「YAML 里写了 environment: production」这一行：直接读 REST 的环境配置，
+        # 没有 required reviewers 就拒绝上线（详见 docs/ops/CICD.md 的证据链一节）。
+        run: |
+          set -eu
+          if ! environment="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" 2>/dev/null)"; then
+            echo "读不到 GitHub Environment 'production'（可能尚未创建，或当前计划不支持环境保护）：拒绝上线。" >&2
+            exit 1
+          fi
+          reviewers="$(echo "$environment" | jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length')"
+          if [ "$reviewers" -lt 1 ]; then
+            echo "Environment 'production' 没有 required reviewers 保护规则：人工审批无法生效，拒绝上线。" >&2
+            echo "请在仓库 Settings → Environments → production 配置 required reviewers 后再打开部署开关。" >&2
+            exit 1
+          fi
+          echo "production 环境保护确认：required reviewers 规则 ${reviewers} 条。"
+
+      - name: 校验环境哨兵（防止仓库级变量静默回落）
+        shell: bash
+        # 环境级 vars 必须显式等于 production：任何回落（仓库级同名变量、空值）都拒绝部署。
+        env:
+          DEPLOY_TARGET_ENVIRONMENT: ${{ vars.DEPLOY_TARGET_ENVIRONMENT }}
+        run: |
+          set -eu
+          if [ "${DEPLOY_TARGET_ENVIRONMENT}" != "production" ]; then
+            echo "环境哨兵不匹配：GitHub Environment 'production' 的 DEPLOY_TARGET_ENVIRONMENT 必须是 production，实际 '${DEPLOY_TARGET_ENVIRONMENT}'" >&2
+            exit 1
+          fi
+          echo "环境哨兵确认：production"
+
+      - name: 检出代码（取部署物料：compose 与远端脚本）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 下载镜像归档
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: yzgc-images-production-${{ needs.plan.outputs.image_tag }}
+          path: ${{ runner.temp }}/bundle
+
+      - name: 渲染运行时 env 文件（模板 + 环境级 secrets + IMAGE_TAG）
+        shell: bash
+        env:
+          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+        run: |
+          set -eu
+          node scripts/deployment-environment.mjs render \
+            --environment production \
+            --out "$RUNNER_TEMP/bundle/.env.production" \
+            --image-tag "$IMAGE_TAG"
+
+      - name: 准备 SSH（私钥与 known_hosts 只落在 runner 的临时目录）
+        shell: bash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/ssh/id_deploy"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
+          chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
+          echo "SSH 物料就绪：私钥 $(wc -l < "$RUNNER_TEMP/ssh/id_deploy") 行，known_hosts $(wc -l < "$RUNNER_TEMP/ssh/known_hosts") 行"
+
+      - name: 创建部署记录（in_progress）
+        id: record
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          deployment_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
+            -f ref="$COMMIT" -f environment=production -f auto_inactive=false \
+            -f description="main → production（镜像 tag ${IMAGE_TAG}）" \
+            -f "payload[image_tag]=${IMAGE_TAG}" -f "payload[branch]=main" \
+            --jq '.id')"
+          echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+            -f state=in_progress -f description="分发镜像与 env 文件到 ${STACK_ROOT}" > /dev/null
+          echo "部署记录已创建：deployment ${deployment_id}（${COMMIT}）"
+
+      - name: 分发镜像、env 文件与 compose 物料
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          set -eu
+          key="$RUNNER_TEMP/ssh/id_deploy"
+          known="$RUNNER_TEMP/ssh/known_hosts"
+          target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+          ssh_options=(-i "$key" -o IdentitiesOnly=yes -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
+          scp_options=(-i "$key" -o IdentitiesOnly=yes -o UserKnownHostsFile="$known" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
+          ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$target" \
+            "mkdir -p '$INCOMING_DIR' '$STACK_ROOT/deploy/compose' && chmod 700 '$INCOMING_DIR'"
+          scp "${scp_options[@]}" -P "$DEPLOY_SSH_PORT" \
+            "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}" "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}.sha256" \
+            "$RUNNER_TEMP/bundle/.env.production" deploy/remote/deploy-stack.sh \
+            "${target}:${INCOMING_DIR}/"
+          scp "${scp_options[@]}" -P "$DEPLOY_SSH_PORT" \
+            deploy/compose/production.yml deploy/compose/preview.yml \
+            "${target}:${STACK_ROOT}/deploy/compose/"
+          ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$target" \
+            "chmod 600 '${INCOMING_DIR}/.env.production' && ls -l '${INCOMING_DIR}' && sha256sum -c '${INCOMING_DIR}/${IMAGES_ARCHIVE}.sha256' --ignore-missing"
+
+      - name: 执行远端部署（load 镜像 → compose up → 健康检查）
+        id: deploy-stack
+        shell: bash
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          set -eu
+          target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
+          ssh -i "$RUNNER_TEMP/ssh/id_deploy" -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -p "$DEPLOY_SSH_PORT" "$target" \
+            "bash '${INCOMING_DIR}/deploy-stack.sh' --environment production --stack-root '${STACK_ROOT}' \
+              --image-tag '${IMAGE_TAG}' --incoming-dir '${INCOMING_DIR}' --env-file '${INCOMING_DIR}/.env.production'"
+
+      - name: 记录部署结果
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.deploy-stack.outcome }}
+          DEPLOYMENT_ID: ${{ steps.record.outputs.deployment_id }}
+        run: |
+          set -eu
+          if [ -z "${DEPLOYMENT_ID:-}" ]; then
+            echo "::warning::部署记录未创建（前置步骤失败），跳过状态更新。"
+            exit 0
+          fi
+          if [ "$OUTCOME" = "success" ]; then
+            state=success
+            description="production 部署成功（镜像 tag ${IMAGE_TAG}）"
+          else
+            state=failure
+            description="production 部署失败或未执行（$OUTCOME）"
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
+          echo "部署记录已更新：${state}"
+
+      - name: 输出入口与身份
+        if: always()
+        shell: bash
+        run: |
+          set -eu
+          {
+            echo "## 正式部署"
+            echo ""
+            echo "- 环境：production（GitHub Environment: production）"
+            echo "- 分支：main"
+            echo "- commit：\`${COMMIT}\`"
+            echo "- 镜像 tag：\`${IMAGE_TAG}\`"
+            echo "- compose 项目：\`${COMPOSE_PROJECT}\`"
+            echo "- 栈根目录：\`${STACK_ROOT}\`"
+            echo "- 入口：${ORIGIN}"
+            echo ""
+            echo "回滚：\`deploy/remote/rollback-stack.sh\`（切 IMAGE_TAG 到历史镜像 → compose up -d）。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "正式入口：${ORIGIN}"

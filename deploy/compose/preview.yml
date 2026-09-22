@@ -1,0 +1,138 @@
+# 预发布环境栈（preview）：web(nginx) → server(Fastify) / forum(Nuxt 静态)。
+#
+# 用法（本地与目标机一致，事实来源是 env 文件，不在这份 compose 里写环境值）：
+#   docker compose --env-file deploy/env/.env.preview -f deploy/compose/preview.yml config
+#   docker compose --env-file deploy/env/.env.preview -f deploy/compose/preview.yml build
+#   docker compose --env-file deploy/env/.env.preview -f deploy/compose/preview.yml up -d
+#
+# 与 production.yml 结构完全一致：同一台机器上两套完整隔离的栈，只有 env 文件
+# （端口 18200/18201、域名 prev*.yangtzeu.work、密钥）与项目名/卷名不同。
+# 目标机上的 env 文件固定叫 <STACK_ROOT>/.env.preview。
+#
+# 隔离与暴露边界：
+#   - 独立 compose 项目名 + 独立命名卷，SQLite 与上传文件与正式环境互不可见；
+#   - 宿主端口一律绑 127.0.0.1（WEB_BIND / SERVER_BIND 整串就是「回环地址:端口」），
+#     公网入口只有宿主 nginx，容器端口不对 0.0.0.0 暴露；forum 不发布任何端口；
+#   - 网络叫 internal 表示「只给本栈服务互连」。故意不开 docker 的 internal: true：
+#     那个开关会切断容器出网，而 server 必须能访问 api.github.com 完成 OAuth 登录。
+
+name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}
+
+services:
+  server:
+    image: yzgc/server:${IMAGE_TAG:?部署流程必须把发布 SHA 前 12 位写进 env 文件的 IMAGE_TAG}
+    container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-server
+    restart: unless-stopped
+    # 让 Node 进程正确收到 SIGTERM（index.ts 里注册了优雅关闭）。
+    init: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${SERVER_PORT:?}
+      # 容器内监听全网卡，宿主侧只发布回环端口（SERVER_BIND）；
+      # web 容器走 compose 网络访问 server:3000，因此不能只监听 127.0.0.1。
+      HOST: ${HOST:?}
+      # 反代来自 compose 网络而不是回环，必须显式信任 X-Forwarded-*。
+      TRUST_PROXY: ${TRUST_PROXY:?}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?}
+      SITE_ORIGIN: ${SITE_ORIGIN:?}
+      PORTAL_HOST: ${PORTAL_HOST:?}
+      ADMIN_HOST: ${ADMIN_HOST:?}
+      FORUM_HOST: ${FORUM_HOST:?}
+      # 预发布同样只设 host-only cookie：留空即不写 Domain。
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      POW_DIFFICULTY: ${POW_DIFFICULTY:-3}
+      ALLOWED_ORGS: ${ALLOWED_ORGS:-}
+      DB_PATH: ${DB_PATH:?}
+      FORUM_DB_PATH: ${FORUM_DB_PATH:?}
+      FORUM_UPLOAD_DIR: ${FORUM_UPLOAD_DIR:?}
+      GEEK_DEPLOYMENT_ENVIRONMENT: ${GEEK_DEPLOYMENT_ENVIRONMENT:?}
+      GEEK_ENVIRONMENT_ORIGIN: ${GEEK_ENVIRONMENT_ORIGIN:?}
+      IMAGE_TAG: ${IMAGE_TAG:?}
+      # 密钥：仓库里的 env 文件留空，目标机上由 CI/CD 注入（与正式环境取值不同）；空值会在 server 启动时失败关闭。
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+    ports:
+      # 宿主回环，只给本机调试与部署脚本的健康检查用。
+      - "${SERVER_BIND:?}:${SERVER_PORT:?}"
+    volumes:
+      # SQLite（data.db / forum.db）与论坛上传目录都落在 /data（预发布自己的卷）。
+      - data:/data
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 健康检查在 app/server/Dockerfile 里定义（HEALTHCHECK 打 /healthz），此处不重复。
+
+  web:
+    image: yzgc/web:${IMAGE_TAG:?}
+    container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-web
+    restart: unless-stopped
+    # nginx 启动时要解析 server / forum 两个上游名，因此必须等它们先起容器。
+    depends_on:
+      server:
+        condition: service_healthy
+      forum:
+        condition: service_started
+    ports:
+      # 宿主回环 → 容器 8080（容器内 nginx 以 nginx 用户运行，不监听特权端口）。
+      - "${WEB_BIND:?}:8080"
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/release.json || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  forum:
+    image: yzgc/forum:${IMAGE_TAG:?}
+    container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-forum
+    restart: unless-stopped
+    # 只声明不发布：论坛端口只给本栈的 web 容器用。
+    # FORUM_PORT 是镜像里的固定监听端口（见 app/forum/Dockerfile 的 listen/EXPOSE），
+    # web 容器的反代目标也是 3000；要改这个值必须同时改镜像与 web 的 nginx 配置。
+    expose:
+      - "${FORUM_PORT:?}"
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/200.html || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 论坛当前是浏览器端演示/静态产物，没有服务端持久化数据，因此不发布端口、不挂卷。
+    # 将来接入真实后端时，再按需要加命名卷与 FORUM_DB_PATH/FORUM_UPLOAD_DIR 挂载。
+
+networks:
+  internal:
+    name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-internal
+    driver: bridge
+
+volumes:
+  data:
+    name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-data

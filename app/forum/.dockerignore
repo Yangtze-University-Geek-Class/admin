@@ -1,0 +1,29 @@
+# 构建上下文是仓库根（geek_main/）；本文件属于 app/forum 镜像的构建输入清单。
+#
+# 注意：当前构建用 `docker build -f app/forum/Dockerfile .`，Docker 只读
+# 上下文根的 /.dockerignore，本文件在当前流程下不生效；保留它是给
+# 「把 app/forum 当上下文」的场景（上下文根即本目录时才会被读取）。
+# 三条 Dockerfile 的实际排除规则见仓库根 .dockerignore。
+
+# 依赖与产物：builder 里重新安装/生成，绝不从宿主复制。
+node_modules
+.nuxt
+.output
+dist
+.data
+reports
+*.log
+
+# 版本库与本机状态
+.git
+.DS_Store
+
+# 文档与测试产物
+docs
+test-results
+coverage
+
+# 部署物料
+../compose
+../nginx
+../remote
