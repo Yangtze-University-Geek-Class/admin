@@ -37,6 +37,10 @@
 
 核心 portal/admin 的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
+| 文档 | 说明 | EN |
+|---|---|---|
+| [`data-model.md`](./services/server/data-model.md) | data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。 | — |
+
 ## services/web/
 
 portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个环境的 HTTP 入口容器。
@@ -156,4 +160,4 @@ portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个�
 
 ---
 
-共 52 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 53 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
