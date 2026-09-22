@@ -14,7 +14,7 @@
 
 既有 web 包仍为 React，新建或迁移模块按各自 manifest 核对。此文档任务不改变应用运行框架，也不覆盖其他并行的迁移工作。不能把 Vue 组件直接导入 React 页面，也不能使用同名 React 仿制品代替真正的 Tuffex。
 
-论坛现已另按 [ADR-0003](../../decisions/0003-adopt-tuff-forum.md) 直接采用 `modules/forum` 的 Nuxt/Vue/TuffEx 原代码和上游检查；保留核心 React 页面不意味着论坛仍未迁移。该原仓仅提供浏览器演示，组件接入不代表真实认证、数据库和内部 Hub 已完成。
+论坛现已另按 [ADR-0003](../../decisions/0003-adopt-tuff-forum.md) 直接采用 `app/forum` 的 Nuxt/Vue/TuffEx 原代码和上游检查；保留核心 React 页面不意味着论坛仍未迁移。该原仓仅提供浏览器演示，组件接入不代表真实认证、数据库和内部 Hub 已完成。
 
 后续实施按产品迁移范围完成 Vue 模块、构建和依赖接入。未迁移的 React 页面保留必要维护，不为新方向扩建另一套基础组件库。实际接入需核对发行版本；当前参考源码包 0.6.0 声明 Node >=26、Vue ^3.5.27，与现有 Node 22/React 环境不同。
 
