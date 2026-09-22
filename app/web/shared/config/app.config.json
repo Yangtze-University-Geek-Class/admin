@@ -60,31 +60,40 @@
       "subtitle": "YANGTZE UNIVERSITY GEEK CLASS"
     },
     "navigation": [
-      { "id": "docs", "label": "文档", "type": "route", "path": "/docs", "variant": "text" },
-      { "id": "forum", "label": "论坛", "type": "site", "site": "forum", "path": "/", "variant": "text" },
-      { "id": "admin", "label": "管理后台", "type": "site", "site": "admin", "path": "/admin", "variant": "text" },
-      { "id": "github", "label": "GitHub", "type": "external", "urlKey": "githubOrg", "newTab": true, "variant": "primary" }
+      {
+        "id": "apply",
+        "label": "投递简历",
+        "type": "route",
+        "path": "/apply",
+        "variant": "text"
+      },
+      {
+        "id": "forum",
+        "label": "论坛",
+        "type": "site",
+        "site": "forum",
+        "path": "/",
+        "variant": "text"
+      },
+      {
+        "id": "github",
+        "label": "组织情况",
+        "type": "external",
+        "urlKey": "githubOrg",
+        "newTab": true,
+        "variant": "primary"
+      }
     ],
-    "palette": {
-      "bg": "229 241 254",
-      "panel": "250 253 255",
-      "panelStrong": "239 247 255",
-      "line": "91 143 202",
-      "accent": "43 108 190",
-      "accentSoft": "78 145 213",
-      "text": "25 55 91",
-      "muted": "91 118 150",
-      "warm": "188 218 247"
-    },
-    "effects": {
-      "codeSnippets": ["const idea = await build();", "agent.use(context);", "git commit -m 'ship'", "while (curious) learn();", "MCP.connect(tools);", "openSource.contribute();"],
-      "symbolCount": 12
-    },
     "hero": {
-      "eyebrow": "YUGC · EST. 2023",
+      "eyebrow": "YUGC · YANGTZE UNIVERSITY GEEK CLASS",
       "titleLead": "在校园里，",
-      "titleAccent": "把想法写成代码。",
-      "status": "OPEN FOR BUILDERS"
+      "titleAccent": "把想法写成能跑的东西。",
+      "lead": "长江大学极客班是一个 AI Native 的校内技术组织：用真实项目、开源协作和持续复盘，把课堂上学到的东西变成能交付的作品。",
+      "status": "OPEN FOR BUILDERS",
+      "pose": "welcome",
+      "caption": "极客娘 · 欢迎来聊",
+      "cardTitle": "三个入口，足够了解我们",
+      "cardDesc": "投递简历加入、进论坛看讨论、去 GitHub 看我们在做什么。"
     }
   },
   "mascot": {
@@ -92,24 +101,97 @@
     "width": 154,
     "height": 245,
     "poses": {
-      "welcome": { "file": "/mascot/pose-01-welcome.webp", "label": "欢迎", "fit": "contain", "position": "center bottom", "scale": 1 },
-      "coding": { "file": "/mascot/pose-02-coding.webp", "label": "编码", "fit": "contain", "position": "center center", "scale": 0.96 },
-      "ai": { "file": "/mascot/pose-03-ai.webp", "label": "AI", "fit": "contain", "position": "center center", "scale": 0.92 },
-      "security": { "file": "/mascot/pose-04-security.webp", "label": "信安", "fit": "contain", "position": "center bottom", "scale": 1 },
-      "question": { "file": "/mascot/pose-05-question.webp", "label": "提问", "fit": "contain", "position": "center bottom", "scale": 0.98 },
-      "resource": { "file": "/mascot/pose-06-resource.webp", "label": "资源", "fit": "contain", "position": "center bottom", "scale": 1 },
-      "intro": { "file": "/mascot/pose-07-intro.webp", "label": "介绍", "fit": "contain", "position": "center bottom", "scale": 1 },
-      "sleep": { "file": "/mascot/pose-08-sleep.webp", "label": "休息", "fit": "contain", "position": "center center", "scale": 0.9 }
+      "welcome": {
+        "file": "/mascot/pose-01-welcome.webp",
+        "label": "欢迎",
+        "fit": "contain",
+        "position": "center bottom",
+        "scale": 1
+      },
+      "coding": {
+        "file": "/mascot/pose-02-coding.webp",
+        "label": "编码",
+        "fit": "contain",
+        "position": "center center",
+        "scale": 0.96
+      },
+      "ai": {
+        "file": "/mascot/pose-03-ai.webp",
+        "label": "AI",
+        "fit": "contain",
+        "position": "center center",
+        "scale": 0.92
+      },
+      "security": {
+        "file": "/mascot/pose-04-security.webp",
+        "label": "信安",
+        "fit": "contain",
+        "position": "center bottom",
+        "scale": 1
+      },
+      "question": {
+        "file": "/mascot/pose-05-question.webp",
+        "label": "提问",
+        "fit": "contain",
+        "position": "center bottom",
+        "scale": 0.98
+      },
+      "resource": {
+        "file": "/mascot/pose-06-resource.webp",
+        "label": "资源",
+        "fit": "contain",
+        "position": "center bottom",
+        "scale": 1
+      },
+      "intro": {
+        "file": "/mascot/pose-07-intro.webp",
+        "label": "介绍",
+        "fit": "contain",
+        "position": "center bottom",
+        "scale": 1
+      },
+      "sleep": {
+        "file": "/mascot/pose-08-sleep.webp",
+        "label": "休息",
+        "fit": "contain",
+        "position": "center center",
+        "scale": 0.9
+      }
     },
     "dialogs": {
-      "welcome": ["欢迎来到长江大学极客班。", "今天想探索什么技术？", "从一个真实项目开始吧。"],
-      "coding": ["代码先跑起来，再把问题拆小。", "编译器没有情绪，报错都是线索。"],
-      "ai": ["Agent、MCP、上下文工程，这里都有人聊。", "让 AI 成为工作流，而不只是聊天框。"],
-      "security": ["先确认边界，再开始测试。", "安全不是功能上线后的补丁。"],
-      "question": ["问题描述越清楚，答案来得越快。", "贴上复现步骤和报错信息吧。"],
-      "resource": ["好资料要分享，也要写清适用范围。", "这里收集课程、论文与开源项目。"],
-      "intro": ["我们用项目连接同学、技术与开源。", "想认识极客班？从方向组开始。"],
-      "sleep": ["页面走丢了，先休息一下。", "这里暂时没有内容。"]
+      "welcome": [
+        "欢迎来到长江大学极客班。",
+        "今天想探索什么技术？",
+        "从一个真实项目开始吧。"
+      ],
+      "coding": [
+        "代码先跑起来，再把问题拆小。",
+        "编译器没有情绪，报错都是线索。"
+      ],
+      "ai": [
+        "Agent、MCP、上下文工程，这里都有人聊。",
+        "让 AI 成为工作流，而不只是聊天框。"
+      ],
+      "security": [
+        "先确认边界，再开始测试。",
+        "安全不是功能上线后的补丁。"
+      ],
+      "question": [
+        "问题描述越清楚，答案来得越快。",
+        "贴上复现步骤和报错信息吧。"
+      ],
+      "resource": [
+        "好资料要分享，也要写清适用范围。",
+        "这里收集课程、论文与开源项目。"
+      ],
+      "intro": [
+        "我们用项目连接同学、技术与开源。",
+        "想认识极客班？从方向组开始。"
+      ],
+      "sleep": [
+        "页面走丢了，先休息一下。",
+        "这里暂时没有内容。"
+      ]
     }
   }
 }
