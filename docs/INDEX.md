@@ -109,7 +109,7 @@ portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个�
 | [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 保留官网和管理后台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。 | — |
 | [`RELEASE-ACCEPTANCE-TEMPLATE.md`](./ops/RELEASE-ACCEPTANCE-TEMPLATE.md) | 空白模板，供验收人逐字段手工填写；不是流水线自动生成的通过证明。 | — |
 | [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机默认只读显示极客班快照，不将其冒充生产论坛。 | — |
-| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明；区分核心 GitHub 管理和新论坛浏览器演示，不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
+| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：投递简历、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
 
 ## decisions/
 
