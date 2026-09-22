@@ -30,6 +30,7 @@ const forum = useForumStore()
 const { user, can } = useCurrentUser()
 const { loginOpen } = useShell()
 const { fromNow, formatAbsolute } = useRelativeTime()
+const { href, absoluteUrl } = useAppLink()
 
 const author = computed(() => forum.userById(props.post.authorId))
 const replyTarget = computed(() => (props.post.replyToPostId ? forum.postById(props.post.replyToPostId) : undefined))
@@ -44,8 +45,8 @@ const canEdit = computed(() => !props.post.deleted && can('editPost', { post: pr
 const canDelete = computed(() => canEdit.value && !forum.isFirstPost(props.post.id))
 const canReply = computed(() => !props.post.deleted && can('reply', { topic: props.topic }))
 
-/** Absolute, so the copied link survives being pasted anywhere. */
-const permalink = computed(() => `${window.location.origin}/t/${props.topic.id}#post-${props.post.id}`)
+/** Absolute and under the app base, so the copied link survives being pasted anywhere. */
+const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, hash: `#post-${props.post.id}` }))
 
 const editing = ref(false)
 const draft = ref('')
@@ -107,7 +108,7 @@ function remove() {
           <TxFlex align="center" :gap="8" wrap="wrap">
             <TxCellLink
               v-if="author"
-              :href="`/u/${author.username}`"
+              :href="href(`/u/${author.username}`)"
               :label="author.displayName"
               @open="navigateTo(`/u/${author.username}`)"
             />
