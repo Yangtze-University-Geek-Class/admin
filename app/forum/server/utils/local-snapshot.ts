@@ -6,7 +6,7 @@ import { basename, join, resolve, sep } from 'node:path'
 import { applyCuration, parseCuration } from '../../shared/local-curation'
 import { parseAssetIndex, parseSnapshotDocument, parseSnapshotState, SnapshotError, summarize } from '../../shared/local-snapshot'
 
-/** Nitro server-assets mount of `modules/forum/content/` (see nuxt.config.ts). */
+/** Nitro server-assets mount of `app/forum/content/` (see nuxt.config.ts). */
 const CONTENT_ASSETS = 'assets:content'
 const CONTENT_FILE = /^posts\/[a-z0-9-]+\.md$/
 
@@ -91,7 +91,7 @@ async function load(): Promise<LoadedSnapshot> {
     throw new SnapshotError('invalid_asset_index', '快照目录缺少 assets/ 子目录')
   const raw = parseSnapshotDocument(content)
   // The editorial layer (archive category, new-era categories, polished
-  // bodies) is versioned in modules/forum/content/; the result is validated
+  // bodies) is versioned in app/forum/content/; the result is validated
   // again so a bad curation fails the load, not the pages.
   const state = parseSnapshotState(applyCuration(raw.state, await loadCuration()))
   return {
