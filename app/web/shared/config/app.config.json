@@ -106,12 +106,12 @@
           "pose": {
             "image": "/portal/nano-wave.webp",
             "small": "/portal/nano-wave-560.webp",
-            "width": 814,
-            "height": 1396,
+            "width": 900,
+            "height": 1515,
             "alt": "吉祥物 NANO 挥手打招呼",
             "sequence": {
               "base": "/portal/wave/",
-              "count": 24,
+              "count": 18,
               "ext": "webp"
             }
           }
@@ -184,7 +184,7 @@
           "desc": "论坛里有日常讨论、项目复盘和问答，先看看大家在聊什么。",
           "action": "进入论坛",
           "image": "/portal/card-forum.webp",
-          "alt": "NANO 把手放在嘴边招呼大家，身边飘着两个聊天气泡",
+          "alt": "NANO 一手放在嘴边招呼大家，一手向外摊开",
           "path": "~/yugc/forum"
         },
         {

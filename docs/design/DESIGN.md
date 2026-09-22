@@ -30,14 +30,14 @@
 ### 形状、排版与图层
 
 - 圆角：按钮与窗口内控件 10px、代码窗口 14px、卡片 20px，页头是唯一的胶囊。
-- 字体：标题（h1、章节 h2、入口区 h2、入口卡标题、投递页 h1）用自托管子集字体 **YG Display**（Noto Sans SC Black，SIL OFL 1.1，许可随文件放在 `app/web/public/fonts/OFL-NotoSansSC.txt`），只含标题用到的字（`yg-display.chars.txt`，约 18KB）；正文与标签用系统中文栈 + 系统等宽栈（JetBrains Mono / SF Mono / Menlo / Consolas）。标题里的英文词用反引号标记（如 `` `AI` ``），以等宽字体显示。改标题文案后必须重新生成子集：`pyftsubset NotoSansSC-Black.otf --text-file=yg-display.chars.txt --flavor=woff2 --layout-features=kern,palt,halt --no-hinting --desubroutinize`，`tests/web/portal-display-font.test.ts` 会拦住缺字。三档字号至少相差 4 倍：LED 大字（首屏约 25svh 高、章节约 28svh 高）/ 标题 `clamp(32px, 3.3vw, 52px)` / 等宽标签 11–13px。
+- 字体：标题（h1、章节 h2、入口区 h2、入口卡标题、投递页 h1）用自托管子集字体 **YG Display**（Noto Sans SC Black，SIL OFL 1.1，许可随文件放在 `app/web/public/fonts/OFL-NotoSansSC.txt`），只含标题用到的字（`yg-display.chars.txt`，约 22KB；也含文档、意见箱、邀请页的固定标题与文档目录名）；正文与标签用系统中文栈 + 系统等宽栈（JetBrains Mono / SF Mono / Menlo / Consolas）。标题里的英文词用反引号标记（如 `` `AI` ``），以等宽字体显示。改标题文案后必须重新生成子集：`pyftsubset NotoSansSC-Black.otf --text-file=yg-display.chars.txt --flavor=woff2 --layout-features=kern,palt,halt --no-hinting --desubroutinize`，`tests/web/portal-display-font.test.ts` 会拦住缺字。三档字号至少相差 4 倍：LED 大字（首屏约 25svh 高、章节约 28svh 高）/ 标题 `clamp(32px, 3.3vw, 52px)` / 等宽标签 11–13px。
 - 首屏图层（后 → 前）：底板（径向辉光 + 24px 点阵 + 3–5% 噪点）→ LED 点阵大字 GEEK（Canvas）→ 代码窗口与三个按钮（DOM）→ NANO 立绘与机器人 → 签名与 HUD。NANO 的脸在大字上方的干净底板上，身体压住中间字母（教程第 6 步）。
 - HUD 只用于装饰（读屏隐藏）：四角裁切标记、`YUGC://main`、`● RECRUITING`、`FRAME 001/120`（跟随真实滚动进度）、竖排校名、六边形章节进度器。≤1279px 隐藏角标文字、签名与帧计数；≤899px 再隐藏裁切标记、竖排校名、进度器（只留顶部两枚标签）。页面上只有一个闪烁元素：提示符后的琥珀光标。
 
 ### 页面节奏与组件
 
 - **滚动舞台**（`components/ScrollStage.tsx`）：section 高 430svh（窄屏 360svh），内部 100svh 吸顶；四章 `GEEK → CODE → OPEN → JOIN`，每章一组「LED 大字 + 两行标题 + 说明 + NANO 姿势 + 行动链接」，第一章就是首屏（其标题是页面唯一 h1）。滚动进度 → `sequenceAt()`（每章首尾各停 30%）算出当前章与过渡量 t → 旧词从右往左碎成光点飘散，新词在 t>0.3 时就从左侧开始聚拢（过渡中段不空屏）；姿势在 t≈0.5 处短暂交叉切换，章节文案在 t>0.5 后淡入。不自动播放、不用定时器（仅首次点亮扫描 0.9s，reduced-motion 下跳过），向上滚就是倒放。
-- **挥手帧序列**（`lib/frameSequence.ts`，教程第 3–5 步）：首屏停顿期（舞台进度 0→0.12，约 350px 滚动）由 Canvas 按进度逐帧画 NANO 挥手，共 24 帧（`public/portal/wave/001–024.webp`，约 1.3MB）。帧来自高清挥手立绘的图生视频，逐帧 Vision 抠像，并与静帧 `nano-wave.webp` 用同一裁切框导出，所以回到第 0 帧时无缝换回清晰静帧；帧文件在首次滚动时才开始加载（首帧优先 + 二分加密），没滚动的访客不下载。
+- **挥手帧序列**（`lib/frameSequence.ts`，教程第 3–5 步）：首屏停顿期（舞台进度 0→0.12，约 350px 滚动）由 Canvas 按进度逐帧画 NANO 挥手，共 18 帧（`public/portal/wave/001–018.webp`，720px 宽，约 1.4MB）。帧来自高清挥手立绘的 2MP 图生视频，逐帧 Vision 抠像；静帧 `nano-wave.webp` 以腿脚（不动的部分）为基准配准到视频第 0 帧（轮廓重合度 IoU≈0.985），视频帧再按静帧做逐通道色调匹配，两者用同一裁切框导出，所以滚动开始时 NANO 不跳、不变色；帧文件在首次滚动时才开始加载（首帧优先 + 二分加密），没滚动的访客不下载。
 - **首屏**：左侧代码窗口（标签栏 `nano.tsx`、行号铺满整个窗口、两行装饰代码、`// ● 我们正在招人`、两行标题、一行说明我们是谁的注释）垂直居中，下接 `$ ./join --yugc` 提示符、**一排三个等宽按钮**（投递简历为钴蓝实心，其余描边；等宽序号 01/02/03 只是视觉标签，不绑定单键快捷键）和一行等宽说明。右侧 NANO 挥手立绘，机器人骑在窗口右上角（位置由脚本按窗口实际位置写入 `--win-right/--win-top`）。1024–1279px 放不下「词在身后」，GEEK 改为窗口上方的一条横带。
 - **页头**：居中悬浮玻璃胶囊（fixed，藏青 92% 不透明，压在浅色页面上也不发灰），品牌 + 三个入口，链接热区 ≥44px；首页首屏时「投递简历」是文字态，首屏按钮离开后变成钴蓝实心胶囊（`data-docked`），在投递页本身显示为淡色「当前位置」态。
 - **图纸衔接**：冰白图纸区以 28px 圆角上沿压住夜色舞台底部（负外边距 + 向上投影），盖住舞台下沿的裁切标记。
@@ -51,19 +51,19 @@
 - NANO 一律使用干净赛璐璐立绘（不用 LED 化的人物），透明底 webp，`object-fit: contain` + 底部对齐，永不 cover 裁切；首屏立绘按 2 倍屏准备（约 1370px 高），不放大位图。
 - 立绘须对上人设：一根呆毛、两枚六边形发夹 + 一枚雪花发夹、藏青短发、白色电路纹外套、水手领与领带、藏青百褶裙、胸前工牌挂绳、白色袜子与藏青白运动鞋；不皱眉、不放大头身比。
 - 生成与抠图流程：以仓库 `app/web/public/mascot/*.webp` 为参考，mox-image 图生图重绘到 1024×1536（纯色底），再用 macOS Vision 前景分割抠出透明底，最后 cwebp 压缩。素材放 `app/web/public/portal/`，路径只写在 `app.config.json > portal.stage`；入口卡复用 `public/mascot/` 里的原始立绘（显示尺寸不超过原图）。
-- 体积：首屏必需约 0.4MB（静帧、机器人、标题字体）；`public/portal/` 合计约 2MB，其中挥手帧序列 1.3MB 只在首次滚动后加载（第三轮 6.1MB 且全部预载）；单张立绘 ≤200KB，入口卡立绘约 40KB；LED 大字全部程序绘制，零位图。
+- 体积：首屏必需约 0.4MB（静帧、机器人、标题字体）；`public/portal/` 合计约 2.1MB，其中挥手帧序列 1.4MB 只在首次滚动后加载（第三轮 6.1MB 且全部预载）；单张立绘 ≤200KB，入口卡立绘约 40KB；LED 大字全部程序绘制，零位图。
 - 抠像边缘：Vision 抠出的透明图先把 alpha 收缩 1px（`magick in.png -channel A -morphology Erode Disk:1 +channel out.png`），避免在夜色底上出现浅色描边。
 
 ### 必须 / 禁止
 
-- 必须：只用令牌（业务组件不写任意 hex）；触控目标 ≥44px；焦点可见；错误不只靠颜色；首屏按钮淡出后置 `inert`，看不见的章节不接收指针、其链接不可 Tab 聚焦；`prefers-reduced-motion` 下舞台不吸顶、LED 直接全亮、章节改为静态卡片列表；文案与配置分离（`app.config.json > portal.stage / entries / closing`，跳转规则只在 `portal.navigation` 定义一次，由 `components/PortalLink.tsx` 解析）。
+- 必须：只用令牌（业务组件不写任意 hex）；触控目标 ≥44px；焦点可见；错误不只靠颜色；首屏按钮淡出后置 `inert`，看不见的章节不接收指针、其链接不可 Tab 聚焦；`prefers-reduced-motion` 下舞台不吸顶、LED 直接全亮、章节改为静态卡片列表；文案与配置分离（`app.config.json > portal.stage / entries`，跳转规则只在 `portal.navigation` 定义一次，由 `components/PortalLink.tsx` 解析）。
 - 动效只有：滚动驱动的挥手帧序列、LED 过渡与姿势切换、首次点亮扫描、滚动显现（28px + 渐显）、卡片 hover 抬升、机器人上下浮动 6px、提示符光标闪烁。首屏按钮隐藏时若焦点在按钮上，先把焦点移到当前章节链接再置 `inert`。
 - 禁止：纯黑整页 + LED 人物（第三轮）；风景墙纸式背景（第二轮）；居中标题 + 三块瓷片的 SaaS 模板首屏；位图放大；渐变文字；学期、年份、成员数等会过期或编造的数字；复制参照站的文案、图标或品牌元素；把该皮肤套到管理员端或论坛。
 
 ### 已实现范围与已知不足
 
-- 已实现：官网首页（`pages/Landing.tsx` + `components/ScrollStage.tsx` + `lib/ledFont.ts`、`lib/ledBoard.ts`、`lib/frameSequence.ts`）、投递简历服务（`pages/Apply.tsx`）、文档 / 意见箱 / 邀请加入（`pages/Docs.tsx`、`Feedback.tsx`、`JoinByToken.tsx`，同一外壳 + 冰白图纸，表单用同一套 `yg-field` / `yg-input` / 窗口式表单卡，标题用系统中文栈——这些页的标题是动态内容，不进子集字体）、共享页头页脚与链接解析（`components/SiteHeader.tsx`、`SiteFooter.tsx`、`PortalLink.tsx`）。
-- 已知不足：对比度与屏幕阅读器未做专项测试；iOS Safari 真机与中低端安卓的滚动性能未测；挥手帧序列在 2 倍屏上比静帧略软（帧宽 520px）。
+- 已实现：官网首页（`pages/Landing.tsx` + `components/ScrollStage.tsx` + `lib/ledFont.ts`、`lib/ledBoard.ts`、`lib/frameSequence.ts`）、投递简历服务（`pages/Apply.tsx`）、文档 / 意见箱 / 邀请加入（`pages/Docs.tsx`、`Feedback.tsx`、`JoinByToken.tsx`，同一外壳 + 冰白图纸，表单用同一套 `yg-field` / `yg-input` / 窗口式表单卡，标题同样用 YG Display；邀请页只有本组织显示中文品牌名，其他组织标题写「加入组织」并把 slug 用等宽另起一行）、共享页头页脚与链接解析（`components/SiteHeader.tsx`、`SiteFooter.tsx`、`PortalLink.tsx`）。
+- 已知不足：对比度与屏幕阅读器未做专项测试；iOS Safari 真机与中低端安卓的滚动性能未测；挥手帧序列在 2 倍屏上约放大 1.15 倍，比静帧略软。
 
 ## 既有 React 模块的过渡期交互原语
 

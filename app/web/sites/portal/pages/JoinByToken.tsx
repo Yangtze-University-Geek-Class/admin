@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "@shared/lib/api";
 import { computePow, powProof } from "@shared/lib/pow";
+import { appConfig } from "@shared/config";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import "../theme.css";
@@ -18,6 +19,9 @@ type LinkInfo = {
   valid: boolean;
   reason: string | null;
 };
+
+/** 本组织的 GitHub slug（组织地址最后一段）；是本组织时标题显示中文品牌名，否则显示 slug。 */
+const DEFAULT_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
 export default function JoinByToken() {
   const { token } = useParams();
@@ -98,7 +102,16 @@ export default function JoinByToken() {
             <header className="yg-page-head is-center">
               <div>
                 <p className="yg-kicker">// INVITE · 邀请加入</p>
-                <h1>加入 {info.org}</h1>
+                <h1>
+                  {info.org === DEFAULT_ORG ? (
+                    <>加入 {appConfig.portal.brand.title}</>
+                  ) : (
+                    <>
+                      加入组织
+                      <span className="yg-org-slug">{info.org}</span>
+                    </>
+                  )}
+                </h1>
                 <p>
                   {info.note ?? "邀请链接有效"} · 剩余 {info.remaining_uses} 次 · 到期 {fmtDate(info.expires_at)}
                 </p>
