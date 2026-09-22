@@ -8,7 +8,7 @@
 
 | 路径 | 职责 |
 |---|---|
-| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由、`pages/`、`components/`、`index.html` 入口；无独立登录态 |
+| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由、`pages/`、`components/`、`theme.css`（MiMo 风格基线令牌与组件）、`index.html` 入口；无独立登录态 |
 | `app/web/sites/admin/` | 组织管理站点：`App.tsx` 路由、`pages/`、`features/`（按代码/提交/Issue/PR/设置分 feature） |
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 真正跨端复用的交互原语：Modal、ConfirmDialog、Select、NumberInput、ImageLightbox、TurnstileWidget、Mascot 等 |

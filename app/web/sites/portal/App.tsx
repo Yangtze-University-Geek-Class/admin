@@ -1,17 +1,19 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
+import Apply from "./pages/Apply";
 import Docs from "./pages/Docs";
 import Feedback from "./pages/Feedback";
 import JoinByToken from "./pages/JoinByToken";
 
 /**
  * 官网路由。全部匿名可访问，无登录态概念。
- * 站内路径：/ /docs /docs/:id /feedback /feedback/:org /join/:token
+ * 站内路径：/ /apply /docs /docs/:id /feedback /feedback/:org /join/:token
  */
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/apply" element={<Apply />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/docs/:id" element={<Docs />} />
       <Route path="/feedback" element={<Feedback />} />
