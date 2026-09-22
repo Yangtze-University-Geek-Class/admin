@@ -152,7 +152,10 @@ export default function Feedback() {
           <aside className="yg-feed" aria-labelledby="fb-recent-title">
             <h2 className="yg-kicker" id="fb-recent-title">// 最近的反馈</h2>
             {recent.length === 0 ? (
-              <p className="yg-field-hint">还没有公开反馈</p>
+              <div className="yg-feed-empty">
+                <img src="/portal/card-forum.webp" alt="" width={315} height={640} loading="lazy" decoding="async" />
+                <p>这里还没有公开反馈。提建议、报 bug、提需求都可以，第一条可以是你的。</p>
+              </div>
             ) : (
               <ul>
                 {recent.map((r) => (
