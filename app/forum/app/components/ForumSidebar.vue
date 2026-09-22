@@ -17,9 +17,7 @@ const router = useRouter()
 const query = ref('')
 const resetOpen = ref(false)
 
-const workspace = computed(() => isSnapshot
-  ? { name: siteName, description: '只读快照', initials: '极' }
-  : { name: siteName, description: '开发者社区', initials: 'T' })
+const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '只读快照' : '开发者社区' }))
 
 function onSelect(item: SidebarNavItem) {
   select(item)
@@ -53,14 +51,25 @@ function confirmReset() {
       class="[--tx-bui-sidebar-nav-width:100%]"
       @select="onSelect"
     >
+      <!--
+        The 极客班 logo instead of the letter chip, composed from TxCardItem
+        rather than TxSidebarNav's internal workspace classes. The logo is
+        decorative: the row's accessible name is the visible site name.
+      -->
       <template #workspace>
-        <button type="button" class="tx-bui-sidebar-nav__workspace cursor-pointer" aria-label="极客班论坛" @click="goTo('/')">
-          <img src="/logo.png" alt="极客班 Logo" class="h-8 w-8 rounded-lg object-contain shrink-0" >
-          <span class="tx-bui-sidebar-nav__workspace-text text-left">
-            <span class="tx-bui-sidebar-nav__workspace-name">{{ workspace.name }}</span>
-            <span v-if="workspace.description" class="tx-bui-sidebar-nav__workspace-desc">{{ workspace.description }}</span>
-          </span>
-        </button>
+        <TxCardItem
+          clickable
+          role="link"
+          align="center"
+          :title="workspace.name"
+          :subtitle="workspace.description"
+          class="mb-2 [--tx-card-item-gap:10px] [--tx-card-item-padding:6px]"
+          @click="goTo('/')"
+        >
+          <template #avatar>
+            <img src="/logo.png" alt="" class="block h-8 w-8 rounded-lg object-contain">
+          </template>
+        </TxCardItem>
       </template>
 
       <template #item-icon="{ item }">

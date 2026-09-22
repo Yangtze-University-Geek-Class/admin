@@ -65,50 +65,32 @@ function onBreadcrumb(_item: unknown, index: number) {
     <!-- No `href`: TxBreadcrumb renders a real <a>, which would reload the SPA. -->
     <TxBreadcrumb :items="breadcrumb" @click="onBreadcrumb" />
 
+    <!--
+      Upstream puts the stats in TxCardItem's #right slot, where the two
+      full-width TxStatCards stack into a tall column. Here they sit in a
+      two-column TxGrid beside the heading and wrap under it on a phone.
+    -->
     <TxCard>
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <TxBadge dot :color="category.color" class="shrink-0" />
-          <div>
-            <h1 class="text-xl font-semibold text-$tx-text-color-primary leading-tight">
+      <TxFlex align="center" justify="space-between" :gap="16" wrap="wrap">
+        <TxCardItem :description="category.description" class="min-w-60 flex-1">
+          <template #avatar>
+            <TxBadge dot :color="category.color" />
+          </template>
+          <!-- The category name is the page heading. -->
+          <template #title>
+            <h1 class="truncate text-xl font-semibold">
               {{ category.name }}
             </h1>
-            <p v-if="category.description" class="text-sm text-$tx-text-color-secondary mt-1">
-              {{ category.description }}
-            </p>
-          </div>
+          </template>
+        </TxCardItem>
+        <!-- TxGrid pins its own width to 100%, so the wrapper carries the size. -->
+        <div class="w-full sm:w-72">
+          <TxGrid :cols="2" :gap="12">
+            <TxStatCard :value="topicCount" label="话题" icon-class="i-carbon-forum" />
+            <TxStatCard :value="postCount" label="帖子" icon-class="i-carbon-chat" />
+          </TxGrid>
         </div>
-
-        <div class="flex items-center gap-3 shrink-0">
-          <div class="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-$tx-border-color-lighter bg-$tx-bg-color-page min-w-[96px]">
-            <div class="w-8 h-8 rounded-lg bg-$tx-color-primary-light flex items-center justify-center text-$tx-color-primary shrink-0">
-              <i class="i-carbon-forum text-base" />
-            </div>
-            <div>
-              <div class="text-base font-bold text-$tx-text-color-primary leading-tight">
-                {{ topicCount }}
-              </div>
-              <div class="text-xs text-$tx-text-color-secondary">
-                话题
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-3 px-3.5 py-2 rounded-xl border border-$tx-border-color-lighter bg-$tx-bg-color-page min-w-[96px]">
-            <div class="w-8 h-8 rounded-lg bg-$tx-color-success-light flex items-center justify-center text-$tx-color-success shrink-0">
-              <i class="i-carbon-chat text-base" />
-            </div>
-            <div>
-              <div class="text-base font-bold text-$tx-text-color-primary leading-tight">
-                {{ postCount }}
-              </div>
-              <div class="text-xs text-$tx-text-color-secondary">
-                帖子
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      </TxFlex>
     </TxCard>
 
     <TopicListNav
