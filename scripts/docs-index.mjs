@@ -8,7 +8,8 @@
 // 抽取标题与摘要，因此新增文档只需写好这两处，再跑一次本脚本。
 //
 // 文件夹说明取自各目录的 README.md 首个引用块。README.md 本身是目录落地页，
-// 不作为普通文档列出。
+// 不作为普通文档列出；只有 README.md 的目录同样成组出现，用它的引用块当说明，
+// 这样「一个目录一份契约」的文档（如 docs/services/<service>/）不会被跳过。
 
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
@@ -19,16 +20,9 @@ const DOCS = join(ROOT, "docs");
 const INDEX = join(DOCS, "INDEX.md");
 const CHECK = process.argv.includes("--check");
 
-// 文件夹展示顺序；未列出的目录按字母序追加在后面。
-const FOLDER_ORDER = ["conventions", "components", "design", "architecture", "plan", "ops"];
-
-const FOLDER_LABEL = {
-  conventions: "规范",
-  design: "设计与技术选型",
-  architecture: "系统设计",
-  plan: "计划与现状",
-  ops: "运维与使用",
-};
+// 顶层目录展示顺序；未列出的目录按字母序追加在后面。
+// 子目录（如 services/<service>）跟随其顶层目录排序，保证同一个顶层目录下的文档成组出现。
+const FOLDER_ORDER = ["conventions", "services", "components", "design", "architecture", "plan", "ops"];
 
 function walk(dir) {
   const out = [];
@@ -115,10 +109,15 @@ function build() {
     }
   }
 
-  const order = [
-    ...FOLDER_ORDER.filter((f) => folders.has(f)),
-    ...[...folders.keys()].filter((f) => !FOLDER_ORDER.includes(f)).sort(),
-  ];
+  // 只有 README 的目录（例如 docs/services/<service>/）也要出现：该 README 就是目录说明，
+  // 否则「一个目录一份契约」的文档会被静默跳过。
+  for (const folder of folderReadme.keys()) if (!folders.has(folder)) folders.set(folder, []);
+
+  const rank = (folder) => {
+    const index = FOLDER_ORDER.indexOf(folder.split("/")[0]);
+    return index === -1 ? FOLDER_ORDER.length : index;
+  };
+  const order = [...folders.keys()].sort((a, b) => rank(a) - rank(b) || (a < b ? -1 : a > b ? 1 : 0));
 
   const lines = [];
   lines.push("# 文档索引");
@@ -159,10 +158,11 @@ function build() {
       lines.push(desc);
       lines.push("");
     }
-    table(folders.get(folder).sort((a, b) => a.file.localeCompare(b.file)));
+    const rows = folders.get(folder).sort((a, b) => a.file.localeCompare(b.file));
+    if (rows.length) table(rows);
   }
 
-  const total = primary.filter((r) => !r.endsWith("README.md")).length;
+  const total = rootDocs.length + [...folders.values()].reduce((count, rows) => count + rows.length, 0);
   lines.push("---");
   lines.push("");
   lines.push(`共 ${total} 篇文档（另有 ${englishBy.size} 篇英文版）。索引按目录分组，组内按文件名排序。`);

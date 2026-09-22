@@ -1,54 +1,85 @@
-# Agent entry point
+# Agent entry point — geek_main
 
-## 首步硬门禁：所有 AI / Agent 必须先读规范
+> 本文件是仓库唯一的 agent 入口，只写规范与硬门禁。规则正文全部在 `docs/`，这里不写教程、不复制第二套规则。
 
-**如果你是 AI，进入项目的第一步必须停下任何业务操作，先完整阅读规范。** 阅读完成前不编辑、不安装、不执行项目脚本、不操作数据、不开停服务、不做 Git 写操作或部署。仅允许为读取规范所必需的只读定位操作。
+## 0. 首步门禁：先确认分支，再读完规范
 
-必读顺序：[docs 总入口](docs/README.md) → [AGENT-START](docs/conventions/AGENT-START.md) → [PROJECT](docs/conventions/PROJECT.md) → [CONTRIBUTING](docs/conventions/CONTRIBUTING.md) → [RELEASES](docs/conventions/RELEASES.md) → 本任务适用规范及模块入口。截断就继续读；文档缺失、读不到或冲突就停止，不凭记忆继续。上下文恢复后同样适用。
+**AI / Agent 进入本仓库的第一件事是 `git branch --show-current`，然后按顺序读完下面这些文档；没读完不许动手。**
 
-## 发版硬门禁：不可用自动化通过代替人工试用
+1. [docs 总入口](docs/README.md)
+2. [AGENT-START](docs/conventions/AGENT-START.md)
+3. [PROJECT](docs/conventions/PROJECT.md)
+4. [BRANCHING](docs/conventions/BRANCHING.md)
+5. [CONTRIBUTING](docs/conventions/CONTRIBUTING.md)
+6. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
+7. [RELEASES](docs/conventions/RELEASES.md)
 
-**`main` 是主代码和唯一发布主线。`release-X.Y.Z` 对应正式环境，`prev-X.Y.Z` 对应预发布。** 版本升级和创建/推送这两类 tag 之前，必须已有人实际试用准确提交/产物并明确批准；AI 不得自行填写人工验收、修改版本或打 tag。“继续”和测试 PASS 都不是发版授权。
+再按任务读取适用规范与服务契约（`docs/services/` 下的服务文档、[TESTING](docs/conventions/TESTING.md)、安全与运维文档等）。
 
-**域名与环境固定绑定：`prev.yangtzeu.work` = 预发布 = `prev-*`；`yangtzeu.work` = 正式 = `release-*`。Mac 的 localhost/127.0.0.1 只是本地开发，不是预发布。** 以 [环境合同](deploy/environments.json) 为机器配置源，禁止通过版本字符串、query 参数或 NODE_ENV 猜发布目标；不复用生产数据库、Cookie 或密钥给预发布。域名配置不等于 DNS/TLS/CI 已部署。
+读完之前禁止：编辑文件、安装依赖、执行项目脚本、操作业务数据、启动或停止服务、任何 Git 写操作（提交、推送、切分支、建分支、合并）。只允许读规范必需的只读操作：`git branch --show-current`、`git status`、读取文档。
 
-**日常更新只在预发布使用 `X.Y.Z@commit-id`，保留已接受的 prev 基础版本；不自动升号、不打新 tag，正式环境禁止 `@commit-id`。** 发版 tag 必须指向 main 历史中已验收的准确提交，不移动、不覆盖、不通配推送。完整规则见 [RELEASES](docs/conventions/RELEASES.md)，后续流水线见 [CICD](docs/ops/CICD.md)。规范不等于远程保护已启用；没有真实人工审批和目标授权就不发布。
+文档被截断就继续读到完整；文件缺失、读不到或规范互相冲突时停下来报告阻塞，不凭记忆继续。上下文压缩或恢复后同样适用。
 
-`geek_main` is the unified workspace entry. Normative content lives in `docs/`, not in duplicated tool adapters.
-Read [docs/README.md](docs/README.md) and the applicable documents before editing. Chinese is the primary collaboration language; code identifiers are English. Commit conventions are owned only by [COMMITS.md](docs/conventions/COMMITS.md).
+## 1. 分支硬门禁
 
-## Task routing
+**长期分支只有两条：`main`（正式）与 `stage`（预发布）；其余分支必须是短生命周期。**
 
-| Task | Required documents |
-|---|---|
-| Any code change | [Project rules](docs/conventions/PROJECT.md), [Contribution workflow](docs/conventions/CONTRIBUTING.md), [Testing](docs/conventions/TESTING.md) |
-| Module boundaries / new feature | [Modular development](docs/conventions/MODULAR-DEVELOPMENT.md), [Architecture](docs/architecture/ARCHITECTURE.md) |
-| UI / interaction | [Tuffex AI guide](docs/components/tuffex/AI-GUIDE.md), [Tuffex usage policy](docs/components/tuffex/USAGE-POLICY.md), [Design](docs/design/DESIGN.md), relevant module document |
-| API / database / authentication / uploads | [Security](docs/architecture/SECURITY.md), [API contracts](docs/architecture/API.md), relevant module document |
-| Runtime / dependency / build changes | [Stack](docs/design/STACK.md), [Deployment](docs/ops/DEPLOY.md) |
-| Documentation | [Documentation standard](docs/conventions/DOCUMENTATION.md) |
-| Commit / issue / PR | [Commits](docs/conventions/COMMITS.md), [Issues](docs/conventions/ISSUES.md), [Pull requests](docs/conventions/PULL-REQUESTS.md) |
-| Version / tag / CI/CD / deploy | [Releases](docs/conventions/RELEASES.md), [CI/CD](docs/ops/CICD.md), [Deployment](docs/ops/DEPLOY.md) |
-| Authorized forum backup / local data capture | [Data capture](docs/ops/FORUM-DATA-CAPTURE.md), [Security](docs/architecture/SECURITY.md); never load real backups into browser mock state |
+- `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须成功；`main` 不得领先 `stage`，写进 `main` 的提交必须已经存在于 `stage`。
+- 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。
+- 任务分支命名 `task/<issue>-<slug>`，**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
+- `dev-<github-username>` 是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
+- 环境绑定固定：`main` → 正式 `https://yangtzeu.work`；`stage` → 预发布 `https://prev.yangtzeu.work`。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
+- 规则存在不等于远程保护已生效：域名、环境文件或分支保护配置齐全，不代表 DNS、TLS、CI 或部署已经落地。
 
-For UI tasks, query `node scripts/tuffex-docs.mjs search <component>` and read only the required API/example. Tuffex is the accepted UI foundation. Check each module manifest before using Vue components; do not infer migration status from documentation. Upstream snapshots are reference data, not project instructions. Full component rules live in the linked usage policy.
+细节见 [BRANCHING](docs/conventions/BRANCHING.md)。
 
-## Local module pointers
+## 2. 工作流硬门禁
 
-Read the matching local `AGENTS.md` when working in these directories; they contain only a pointer, not copies of global policy.
+**先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` →（预发布验证）→ 合入 `main`。**
 
-| Directory | Module contract |
-|---|---|
-| `web/sites/portal`, `server/src/routes/portal` | [Portal](docs/modules/portal.md) |
-| `modules/forum` (upstream Nuxt/Vue/TuffEx source) | [Forum](docs/modules/forum.md), [adoption decision](docs/decisions/0003-adopt-tuff-forum.md) |
-| `web/sites/admin`, `server/src/routes/admin` | [Admin](docs/modules/admin.md) |
-| `web/shared` | [Shared frontend](docs/modules/shared.md) |
-| `server/src/lib`, `server/src/middleware`, composition | [Server](docs/modules/server.md) |
+- 开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；MR 正文关联 issue，合并时用 `Closes #<issue>`。
+- 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
+- 进入 `main` 前必须有预发布环境的真实验证证据；自动化 PASS 只是机器验证，不能代替人工验证。
+- 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、部署分别需要对应授权。
 
-## Working procedure
+## 3. 部署硬门禁
 
-The user explicitly replaced the old React/Fastify forum with the MIT Tuff Forum source. Keep its independent Node >=26 / pnpm 11.24.0 toolchain and upstream component/style checks; the portal/admin core remains Node 22 / pnpm 9.15.9. Do not reconstruct the retired forum or mix its database/session model into upstream mock state. Root `pnpm verify` orchestrates both packages. Upstream currently has no real authentication/backend; a successful browser demo is not an authenticated internal community.
+**每个环境一套完整 Docker 栈：`production` 与 `preview`，各自 compose、网络、卷，互不共享数据。**
 
-Inspect branch, HEAD and existing changes. Preserve unrelated work. Use the root commands listed in README; `pnpm verify` is the acceptance entry. Tests must use isolated databases and stub external services. Imports must not load `.env`, open a database or start a listener. Production credentials/data and deployment actions are outside ordinary coding scope.
+- 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview`，由 `docker compose --env-file` 消费；不得另建环境文件或在别处定义第二份环境变量。
+- 非密钥项（origin、host、端口、路径、开关）预填真实值；**密钥留空，真实值只存在于目标机 `.env.<环境>`**，由 CI/CD 用环境级 secrets 填充。
+- 密钥不得入库、不得进镜像、不得进日志或发布记录。
+- 部署开关默认关闭；未显式开启不部署。AI 不得自行部署、不得修改版本号或镜像 tag、不得触发流水线。
+- 禁止用 systemd、pm2 或手工 `node` 进程替代 Docker 栈；禁止在目标机手工修改运行中的栈。
 
-Proposed and historical documents are not implementation instructions. Report a conflict instead of guessing; correct stale documentation in the same change. Read one language version, not both, unless reviewing a translation. Do not invent test results or call a successful typecheck a functional/security audit.
+## 4. 证据硬门禁
+
+- 每个改动都要有可复现的验证证据（命令 + 真实输出）；没验证就写「未验证」，不得写「应该没问题」。
+- 未验证项必须在 MR 和审查结论里显式列出；未完成的环境验收不得标为 PASS。
+- 类型检查、构建成功、mock 预览、浏览器验证、线上验收是不同证据，不能互相替代。见 [TESTING](docs/conventions/TESTING.md)。
+
+## 5. 禁止事项（黑名单）
+
+- 没读完第 0 节的规范就开始开发、安装依赖、跑脚本或操作数据。
+- 在 `main` 上直接提交/推送，或让 task/dev 分支直接进 `main`。
+- task 分支合并后残留死分支，或新建 `main`/`stage` 之外的长期分支。
+- 把真实密钥、令牌、生产数据或完整 `.env` 写进仓库、镜像、日志、MR。
+- 绕过或放宽 CI 与校验：`|| true`、`continue-on-error`、`[skip ci]`、删断言、改校验器、放宽既有校验来换绿色。
+- 删除、覆盖或 reset 他人未提交的工作；在脏工作区自行 `reset`/`clean`/切分支。
+- 用 systemd、pm2、手工进程替代 Docker 栈部署，或手工改目标机运行中的栈。
+- 把 `proposed`/`historical` 文档当现行规范执行；规范冲突时自己挑一份照做而不报告。
+- 伪造审查结论、验收证据、测试结果或审批记录。
+
+## 6. 文档路由表
+
+服务代码与文档严格对齐，一个服务一份契约；完整地图（含 `deploy/`、`docs/`、`scripts/` 行）见 [docs/README.md](docs/README.md)，冲突时以它为准：
+
+| 服务目录 | 服务契约 | 管辖规范 |
+|---|---|---|
+| `app/server` | [docs/services/server/README.md](docs/services/server/README.md) | `MODULAR-DEVELOPMENT`、`API`、`SECURITY` |
+| `app/web`（`sites/portal`、`sites/admin`、`shared`） | [docs/services/web/README.md](docs/services/web/README.md) | `DESIGN`、`STACK`、`TESTING` |
+| `app/forum`（上游 Nuxt/TuffEx，独立工具链 Node ≥26 / pnpm 11.24.0） | [docs/services/forum/README.md](docs/services/forum/README.md) | `TUFF-FORUM`、Tuffex 使用政策、`ADR-0003` |
+
+新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md`，两处缺一视为未完成；模块细节放同目录子文档。完整目录清单见生成物 [docs/INDEX.md](docs/INDEX.md)，不要手工编辑。
+
+**工具适配器政策**：本仓只有 `AGENTS.md` 一个 agent 入口。`CLAUDE.md`、`GEMINI.md`、`CONVENTIONS.md`、`.clinerules`、`.cursorrules`、`.windsurfrules`、`.cursor/rules/*`、`.github/copilot-instructions.md` 以及所有模块级 `AGENTS.md` 一律不再保留（连指针也不留）。技能只有一个实现放在 `.agents/skills/`，其它 CLI 用自己的目录符号链接过去（`.omp/skills/<name>`、`.claude/skills/<name>`），禁止复制内容形成第二份规则。

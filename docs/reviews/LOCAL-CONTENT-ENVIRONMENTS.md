@@ -4,6 +4,9 @@
 
 状态：`historical` · 更新：2026-09-13 · 已被 [FORUM-DATA-CAPTURE](../ops/FORUM-DATA-CAPTURE.md) 的最新接入状态取代
 
+> **模型变更（2026-09-23）**：本文记录于 `next` 分支 / `main`+`release-*`+`prev-*` tag 发布模型时代；该模型已被 [BRANCHING](../conventions/BRANCHING.md)（长期只有 `main` 与 `stage`）与 [RELEASES](../conventions/RELEASES.md)（分支驱动、无 tag 流程）取代。下文引用的分支名与 tag 规则只作当时证据。
+
+
 ## 用户明确的目标
 
 预发布为 prev.yangtzeu.work，对应 prev-*；正式为 yangtzeu.work，对应 release-*。main 是唯一发布主线；人工试用和批准先于升级版本/打 tag。Mac localhost 仅为 local，不当成 preview。

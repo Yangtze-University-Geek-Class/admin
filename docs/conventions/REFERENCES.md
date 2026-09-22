@@ -11,13 +11,13 @@
 | 来源 | 采用范围 | 本项目落点 |
 |---|---|---|
 | [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) | type、可选 scope、breaking change 的提交结构 | [COMMITS](COMMITS.md)；中文说明和 scope 词表是本项目选择 |
-| [Fastify Testing](https://fastify.dev/docs/latest/Guides/Testing/) | 构造与监听分离、inject 注册真实插件/路由、关闭资源 | [测试规范](TESTING.md)、`server/src/app.ts`、`tests/server` |
-| [Fastify Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/) | 运行时 HTTP Schema 与类型声明各有职责 | [API](../architecture/API.md)、模块 `contracts.ts` |
-| [OWASP File Upload](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) | 扩展名与内容联合检查、限制大小、随机文件名、重写图片、授权和纵深防御 | `server/src/routes/forum/upload.ts` 与真实图片回归；SVG 禁用是项目决策 |
+| [Fastify Testing](https://fastify.dev/docs/latest/Guides/Testing/) | 构造与监听分离、inject 注册真实插件/路由、关闭资源 | [测试规范](TESTING.md)、`app/server/src/app.ts`、`tests/server` |
+| [Fastify Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/) | 运行时 HTTP Schema 与类型声明各有职责 | [API](../architecture/API.md)、`app/server/src/routes/*/contracts.ts` |
+| [OWASP File Upload](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) | 扩展名与内容联合检查、限制大小、随机文件名、重写图片、授权和纵深防御 | 曾用于已退役的旧论坛上传路径（`app/server` 中仅剩 `sharp` 依赖，无活动上传接口）；`app/forum` 当前没有上传后端，重新实现时必须按本表落地 |
 | [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) | 会话验证、有效期、身份变化后的更新以及 Cookie 范围风险 | [安全模型](../architecture/SECURITY.md)、OAuth 流程和会话撤销回归 |
-| [W3C APG modal dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) | 弹层名称、焦点进入/圈定/恢复、危险操作优先聚焦取消 | `web/shared/ui/Modal.tsx`、`ConfirmDialog.tsx` 和浏览器测试 |
+| [W3C APG modal dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) | 弹层名称、焦点进入/圈定/恢复、危险操作优先聚焦取消 | `app/web/shared/ui/Modal.tsx`、`ConfirmDialog.tsx` 和浏览器测试 |
 | [TypeScript module reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html) | 后端 .js 对应 TS 源文件、tsconfig paths 的真实解析 | `scripts/check-boundaries.mjs` 及跨端导入反例 |
-| [Nginx headers module](https://nginx.org/en/docs/http/ngx_http_headers_module.html) | 子 location 的 add_header 与继承行为 | `deploy/nginx-security-headers.conf`；实际部署仍需响应头验收 |
+| [Nginx headers module](https://nginx.org/en/docs/http/ngx_http_headers_module.html) | 子 location 的 add_header 与继承行为 | `deploy/nginx/production.conf`、`deploy/nginx/preview.conf`（安全头在宿主 nginx 统一下发，容器内不重复）；实际部署仍需响应头验收。根目录旧 `deploy/nginx*.conf` 属退役模型 |
 
 ## 使用和维护
 

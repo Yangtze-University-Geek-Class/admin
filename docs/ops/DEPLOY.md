@@ -1,88 +1,152 @@
 # 部署、维护与恢复规范
 
-> 生产发布为独立授权操作；代码模板不等于实际部署完成。
+> 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。
 
-状态：`current` · 更新：2026-09-13
+状态：`current` · 更新：2026-09-23
 
 ## 发布前置
 
-**先遵守 [RELEASES](../conventions/RELEASES.md)：main 为主代码；release- 正式、prev- 预发布；人工试用及明确批准必须发生在版本升级/打 tag 之前。日常预发布仅使用已有基础版本@准确 commit，不影响正式版本。** tag 部署检出 tag 对应 SHA，不在目标机临时 git pull main。后续实施步骤见 [CICD](CICD.md)，当前尚未启用远程自动发布。
+**先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：`stage` 是预发布、`main` 是正式；人工试用及明确批准必须发生在把 `stage` 合入 `main` 之前。** 发布内容由分支 + commit SHA 决定，没有 tag 步骤；镜像 tag 是本次 commit 的 `<sha12>`。
 
-发布者明确目标环境、提交、回滚版本和维护窗口。使用项目 Node 22 与 pnpm 9.15.9，先在隔离环境执行 frozen-lockfile 安装与 pnpm verify，再完成相关浏览器、配置和迁移检查。不从含无关修改的工作区发布。
+发布者明确目标环境、commit、镜像 tag、回滚对象和维护窗口。先在本地或 CI 完成 `pnpm verify` 与相关浏览器检查，再部署；不从含无关修改的工作区发布。核心与论坛使用两套工具链（Node 22/pnpm 9.15.9 与 Node ≥26/pnpm 11.24.0），镜像构建在容器内完成，不上传 Mac 原生依赖。
 
-核心 Fastify 承载 portal/admin 两个 React 入口；论坛改为独立 modules/forum 的 Nuxt/TuffEx 原仓。核心 Node 22/pnpm 9，论坛 Node >=26/pnpm 11，分别安装锁文件。本次只启动本机原仓演示，没有生产论坛后端或统一认证，禁止把演示页面直接作为内部论坛发布。静态生成通过不等于获得上线授权，详情见 [TUFF-FORUM](TUFF-FORUM.md)。
+## 拓扑
 
-## 正式与预发布的固定入口
-
-正式域名为 `yangtzeu.work`，预发布域名为 `prev.yangtzeu.work`，以 [environments.json](../../deploy/environments.json) 为准。不能把本机 3456/5173 当成预发布，不能让 prev tag 更新正式域名。两个环境不共享数据库、上传目录、会话密钥或父域 Cookie；根域 Cookie 必须 host-only，不设置 Domain。旧的 github/forum 子域资料仅用于旧部署追溯，不替代本次已确认的整站环境入口；路径分流、DNS/TLS 和真实统一认证仍需发布前单独实施。
-
-## 流水线部署布局
-
-`deploy/remote/deploy-release.sh` 与 `deploy/remote/rollback.sh` 是当前唯一实现的目标机部署/回滚脚本，由 [CI/CD](CICD.md) 描述的 `preview.yml`/`release.yml` 的 `deploy` job 通过 SSH 调用；两者都是模板层面已落地，尚未在真实目标机验证过。部署根目录 `$DEPLOY_ROOT` 下固定布局：
-
-```
-$DEPLOY_ROOT/
-├── releases/<releaseId>/   # 每个已部署产物的完整解包目录，releaseId = baseVersion-shortCommit12
-├── current -> releases/<releaseId>   # 原子切换的符号链接，systemd WorkingDirectory 指向它
-├── previous -> releases/<releaseId>  # 回滚目标，rollback.sh --to previous 切回这里
-├── shared/
-│   ├── .env    # 由维护者维护，脚本从不读取/复制/打印其内容，不随发布包分发
-│   └── data    # 该环境唯一可写目录，其余部署路径保持只读
-├── incoming/    # deploy job 上传产物的落点（<artifactName>.tar.gz、.sha256、对应版本的 deploy-release.sh）
-└── deploy-history.log   # 部署与回滚的追加日志
+```text
+互联网
+  └─ 宿主 nginx（TLS 终止，certbot 证书，server_name 分流，安全头在此下发）
+       ├─ yangtzeu.work / prev.yangtzeu.work             → 127.0.0.1:18100 / 18200（web 容器）
+       └─ github.yangtzeu.work / prev-admin.yangtzeu.work → 同一 web 容器，注入 X-YZGC-Site 选择 admin SPA
+            └─ web 容器（nginx，容器内监听 8080：静态产物 + 反代）
+                 ├─ /healthz  → server:3000（web 也代理，部署脚本用它做健康门）
+                 ├─ /api/*    → server:3000（Fastify + /data 命名卷）
+                 └─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀）
 ```
 
-服务名 `yzgc-admin`（正式，见 `deploy/yzgc-admin.service`）与 `yzgc-preview`（预发布，见 `deploy/yzgc-preview.service`）是两份 systemd 模板给出的默认值，均需维护者按目标机实际用户/路径/端口确认后再安装，不能直接照搬。两个服务必须完全隔离：独立系统用户、独立 `WorkingDirectory`、独立 `.env`、独立数据目录与数据库、独立会话签名密钥、独立监听端口；预发布不得复用正式环境任何一项。
+宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头、`X-YZGC-Site` 注入都在这里）。容器镜像里不含任何环境域名：SPA 入口按宿主注入的 `X-YZGC-Site` 选择，域名差异只体现在宿主 nginx。
 
-目标机前置条件（脚本不自行安装、不猜测路径，见两脚本文件头注释）：已装 Node 22（>=22.13）与 pnpm 9.15.9 且 `PATH` 可见；部署用户为非 root，且 sudoers 只放行 `<部署用户> ALL=(root) NOPASSWD: /usr/bin/systemctl restart <服务名>` 这一条命令；nginx 需 `include` 本仓的 `deploy/nginx-release-metadata.conf`（暴露只读、`no-store` 的 `/release.json`）并为 `/healthz` 配反代，两环境的 `alias` 必须分别指向各自的 `current/release.json`，不能共用同一部署根目录。
+`/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
 
-回滚用 `deploy/remote/rollback.sh --environment <preview|production> --to <releaseId|previous>`：只把 `current` 符号链接切回一个已存在且通过校验的历史发布目录，不移动 tag、不修改版本号、不触碰数据库；数据库字段不兼容时脚本会停下来交由人处理，不自动重置数据库代替回滚。`--environment` 必填且不是显示标签：`releaseId` 只由 `baseVersion-shortCommit12` 组成，同一提交在 preview 与 production 完全相同，脚本用它断言目标产物与线上 `release.json` 的 `environment`、`publicOrigin`，避免把另一环境的产物切上来。回滚目标是 `deploy-release.sh` 部署过的目录，里面有 `pnpm install --prod` 生成的 `node_modules`；随包分发的 `release-bundle.mjs verify` 会整棵跳过 `node_modules`，其余文件仍逐一比对 MANIFEST。正因为 verify 不覆盖 `node_modules`，`rollback.sh` 会在切换 `current` 之前用 `pnpm install --prod --frozen-lockfile --prefer-offline` 按锁文件重建目标版本的生产依赖，重建失败即拒绝回滚；这要求目标机装有 pnpm 9.15.9 且能访问 registry。回滚前脚本还会先核对目标目录里的 `release-bundle.mjs`、`release-policy.mjs`、`deployment-environment.mjs` 非空且 sha256 与同目录 `MANIFEST.sha256` 登记值一致，再运行 verify，避免用一个被清空的校验器自证通过（`node` 执行空文件退出码为 0）；这只把信任基点提到「校验器 + 清单一致」，两者被同时改写仍无法发现，最终防线是部署时 CI 端已核对过 tar 的 sha256。
+论坛不再是独立子域，而是 portal 域名下的 `/forum` 路径；旧 `forum.yangtzeu.work` 子域模型已退役（见文末历史章节）。
 
-发布包里的 `forum/public` 目前没有任何服务提供：核心 Fastify 不托管它，`server/src/app.ts` 对 `/forum`、`/forum/*` 在生产直接返回 503（`forum_service_not_ready`）。要让论坛在域名下可访问，需要由 nginx 另行把对应路径指向 `current/forum/public`（静态）或指向真实论坛服务；这一步尚未配置，也未在任何目标机验证过。发布包携带该目录只是为了让产物与提交一一对应，不代表论坛已经上线。
+## 两套栈
+
+| 项 | production（正式） | preview（预发布） |
+|---|---|---|
+| 分支 | `main` | `stage` |
+| 栈根目录 | `/opt/yzgc/production` | `/opt/yzgc/preview` |
+| compose 文件 | `deploy/compose/production.yml` | `deploy/compose/preview.yml` |
+| compose 项目名 | `yzgc-production` | `yzgc-preview` |
+| 环境文件（目标机） | `<栈根>/.env.production`（脚本安装为 600） | `<栈根>/.env.preview` |
+| 入口域名 | `yangtzeu.work`、`github.yangtzeu.work` | `prev.yangtzeu.work`、`prev-admin.yangtzeu.work` |
+| web 宿主端口 | `127.0.0.1:18100` → 容器 8080 | `127.0.0.1:18200` → 容器 8080 |
+| server 宿主端口（调试/健康门） | `127.0.0.1:18101` → 容器 3000 | `127.0.0.1:18201` → 容器 3000 |
+| 容器内端口 | web 8080 / server 3000 / forum 3000 | web 8080 / server 3000 / forum 3000 |
+| 数据 | 命名卷 `<项目名>-data` 挂到 server 的 `/data` | 独立命名卷，不共享 |
+| 部署锁与历史 | `<栈根>/.deploy.lock`、`<栈根>/deploy-history.log` | 同结构，互相独立 |
+
+两栈**完全隔离**：独立目录、独立 compose 项目、独立端口、独立数据卷、独立密钥、独立域名、独立锁。不得共用数据库、上传目录、会话密钥或父域 Cookie；Cookie 使用 host-only，禁止 `.yangtzeu.work`。宿主 3000/443/2568/8787/8080 已被现有服务占用，新栈只绑回环的 18100/18101 与 18200/18201；forum 容器不发布任何宿主端口。
+
+镜像名 `yzgc/server:<tag>`、`yzgc/web:<tag>`、`yzgc/forum:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
+
+## 部署流程
+
+```bash
+# 1) 可信机器上构建并打包镜像（CI 或人工，两条工具链分别构建）
+docker compose --env-file deploy/env/.env.production -f deploy/compose/production.yml build \
+  --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+  --build-arg GEEK_RELEASE_VERSION=<X.Y.Z> \
+  --build-arg GEEK_RELEASE_COMMIT=<40 位 SHA>
+docker save yzgc/server:<sha12> yzgc/web:<sha12> yzgc/forum:<sha12> -o yzgc-<sha12>.tar
+sha256sum yzgc-<sha12>.tar > yzgc-<sha12>.tar.sha256
+
+# 2) 分发 tar(+sha256) 与渲染好的运行时 env 文件到目标机，然后：
+bash deploy-stack.sh --environment production \
+  --images ./yzgc-<sha12>.tar --env-file ./runtime/.env.production
+```
+
+`deploy/remote/deploy-stack.sh` 的行为（目标机上，参数即契约）：
+
+| 参数 | 含义 |
+|---|---|
+| `--environment <production\|preview>` | 必填；决定 compose 文件与历史记录中的环境列 |
+| `--images <tar\|tar.gz\|目录>` | 待 `docker load` 的镜像包 |
+| `--env-file <路径>` | 运行时 env 文件的唯一事实源 |
+| `--incoming-dir <目录>` | 镜像与 env 的落地目录（默认在栈根下） |
+| `--image-tag <sha12>` / `--stack-root <目录>` | **仅交叉核对**：与 env 文件中的 `IMAGE_TAG`、`STACK_ROOT` 不一致即硬失败 |
+| `--compose-file <路径>` | 覆盖 compose 文件解析结果 |
+| `--health-timeout <秒>` | 健康门超时（默认 180） |
+
+- **env 文件是唯一事实源**：`STACK_ROOT`、`COMPOSE_PROJECT_NAME`、`IMAGE_TAG`、`SERVER_BIND`、`WEB_BIND`、`SERVER_PORT` 都从它读取，脚本把它原子安装为 `<栈根>/.env.<environment>`（权限 600）。
+- **镜像包校验失败关闭**：必须能核到 sha256（`<包>.sha256`、去扩展名的同名 `.sha256`，或同目录的 `SHA256SUMS`/`sha256sums.txt`/`checksums.txt`），缺失或不等即拒绝部署。
+- **串行锁**：`flock <栈根>/.deploy.lock`（等待 900s），production 与 preview 各自独立串行。
+- **健康门**：轮询 `http://127.0.0.1:<SERVER_BIND 端口>/healthz` 与 `http://127.0.0.1:<WEB_BIND 端口>/healthz`（web nginx 代理 `/healthz` → server:3000），两者都必须返回 HTTP 200 且 `"ok":true`；默认 180s 超时、3s 间隔。失败时脚本把 `IMAGE_TAG` 切回部署前的值、重新 `compose up -d` 并复检。
+- **历史记录**：追加写 `<栈根>/deploy-history.log`，制表符分列 `<UTC ISO8601> <环境> <生效版本> <结果> <说明>`。第 3 列是**该次动作后真正在跑的 tag**：`OK` / `MANUAL_ROLLBACK` 行 = 部署后生效的 tag；`FAILED` 行 = 尝试部署但没起来的 tag；`ROLLED_BACK` 行 = 回滚后真正生效的旧 tag（说明里写明目标版本未上线）。镜像保留策略与 `rollback-stack.sh --to previous` 都按这一列判断。结果取值：`OK` / `FAILED` / `ROLLED_BACK` / `ROLLBACK_FAILED` / `ROLLBACK_SKIPPED`（部署）与 `MANUAL_ROLLBACK` / `MANUAL_ROLLBACK_FAILED`（回滚）。
+- **镜像构成**：`node:22-bookworm-slim`（server 构建与运行）、`node:22-bookworm-slim` + `nginx:1.31-alpine`（web 构建 + 运行）、`node:26-bookworm-slim` + `nginx:1.31-alpine`（forum 构建 + 运行）。基础镜像大版本变更必须单独验证（1.27 系列已下线，不要再回退到旧 tag）。
+- **`FORUM_PORT` 三处一致**：compose 用 `expose: ["${FORUM_PORT}"]` 声明容器内端口，必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 以及 web 容器 `proxy_pass http://forum:3000/` 三处同时一致；改值要一起改镜像与 web 的 nginx 配置。
+- **镜像保留**：部署成功后清理其它 `yzgc/*` tag，保留历史中最新 5 个不同 tag + 当前 + 上一个；正在使用的镜像不会被强制删除。
+- 目标机只 `docker load` 镜像并 `up -d`，**不在服务器上 `git pull` 后构建**。
+- 同一环境同一时刻只允许一个部署任务（锁保证）；正式环境部署不得在切换过程中被新任务取消。
+
+**实施状态**：`deploy/compose/{production,preview}.yml`、`deploy/nginx/{production,preview}.conf`、`deploy/remote/{deploy-stack,rollback-stack}.sh` 已入库并定义本模型。旧 systemd / 发布包模型的文件已随本次改造**删除**：`deploy/remote/{deploy-release,rollback}.sh`、`deploy/yzgc-admin.service`、`deploy/yzgc-preview.service`、`deploy/setup.sh`、根目录旧 `deploy/nginx*.conf`（含 `nginx-release-metadata.conf`）、`deploy/forum-subdomain-setup.md`、`scripts/release-bundle.mjs`、`tests/tooling/release-bundle.test.ts`。这些路径只存在于历史章节，不要按旧流程重建。
+
+## 前置条件（部署前必须由维护者确认）
+
+1. DNS：`prev.yangtzeu.work`、`prev-admin.yangtzeu.work` 需有指向本机 IP 的 A 记录（与正式域名同一主机、不同栈）。记录未生效前，预发布入口不可用。
+2. TLS：宿主 nginx 用 certbot 为四个域名签发/续期证书（`certbot certonly --webroot -w /var/www/html -d <域名>`）；证书准备完成前不引用，改完先 `nginx -t` 再 reload。
+3. 宿主 nginx：把 `deploy/nginx/production.conf`、`deploy/nginx/preview.conf` 分别安装到 `/etc/nginx/sites-available/` 并 symlink 进 `sites-enabled/`；TLS、ACME 挑战、安全头与 `X-YZGC-Site` 注入都由这两个文件负责，不要把两者配成同名 `server_name` 而冲突。
+4. Docker 与 Compose v2 已安装；栈根目录存在且属部署用户；`<栈根>/.env.<environment>` 由部署脚本原子安装（含真实密钥，权限 600）。
+5. 环境文件里的必填项（`HOST`、`TRUST_PROXY`、`PUBLIC_ORIGIN`、`DB_PATH`、`IMAGE_TAG` 等）缺失时 compose 会直接拒绝启动；不要靠临时改 compose 文件绕过。
 
 ## 配置合同
 
-| 配置 | 用途 |
-|---|---|
-| PUBLIC_ORIGIN | 管理端/OAuth 回调 origin，生产 HTTPS |
-| SITE_ORIGIN | 官网 origin，生产 HTTPS |
-| ADMIN_HOST、PORTAL_HOST、FORUM_HOST | 明确域名覆盖，与前端公开配置一致，不带协议或端口 |
-| COOKIE_DOMAIN | 旧字段；新双环境应留空以使用 host-only，禁止 .yangtzeu.work 导致正式与预发布共享会话 |
-| OAUTH_CLIENT_ID、OAUTH_CLIENT_SECRET | GitHub OAuth 配置，不在日志或仓库保存真实值 |
-| SESSION_SECRET | 至少 32 字符随机值 |
-| ENCRYPTION_KEY | 32 字节密钥的 base64，轮换需单独迁移方案 |
-| DB_PATH | 核心持久化路径，自动测试显式为内存 |
-| FORUM_DB_PATH、FORUM_UPLOAD_DIR | 旧字段仅暂存兼容；核心不打开旧论坛库或上传接口，旧数据保留 |
-| TURNSTILE_SITE_KEY、TURNSTILE_SECRET_KEY | 同时配置才启用，核实站点来源 |
-| POW_DIFFICULTY | 整数 0–5；生产基线 3，0 仅隔离开发 |
-| ALLOWED_ORGS、PORT | 组织允许列表及回环监听端口 |
+环境变量**只**经 `.env` 文件：`deploy/env/.env.production` 与 `deploy/env/.env.preview` 提交入库，非密值（地址、端口、域名、路径、开关）预填真实值，密钥字段留空由 CI/CD 注入。完整字段契约、可见性规则与 GitHub 环境 secrets/vars 清单见 [ENVIRONMENTS](ENVIRONMENTS.md)；本机开发模板见 [ENVIRONMENT](ENVIRONMENT.md)。
 
-.env 由操作者提供，最小权限保存，不打印或提交。根路径解析不依赖 shell 当前目录；部署文件与原生模块需和运行时匹配。
+关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`、`SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST`、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代来自 compose 网络，必须为 `true`）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
 
-配置示例见 [开发环境模板](ENVIRONMENT.md)。该文档只含占位符，不依赖或读取已有敏感文件。生产启动会比对后端 host 与前端公开 host；构建时只检查公开配置，不加载私有环境文件。
+禁止把真实密钥写入仓库、镜像、日志或发布记录；`.env` 由目标机最小权限保存，不打印、不提交。
+
+## 数据与备份
+
+- 每个环境的数据都在自己的命名卷里（server 的 `/data`：`data.db`、旧论坛兼容路径）；forum 容器当前不挂卷、无服务端持久化。两栈互不可见。
+- 旧站数据已按独立授权拉到 Mac 私有目录，见 [FORUM-DATA-CAPTURE](FORUM-DATA-CAPTURE.md)；这是源数据保全，不是 schema 迁移，不自动替换线上库，也不放进镜像或 CI。
+- 变更表结构尽量增量兼容，不自动删除或重排。变更前使用 SQLite 在线 backup API 或停服的一致性备份，不能只复制活动 WAL 主文件并假定完整。备份同时记录镜像 tag、环境与应用版本，并完成恢复演练。
+- 镜像保留策略（最新 5 个 tag + 当前 + 上一个）只清理镜像，不清理数据卷；**回滚不重置数据库**，结构不兼容时停下来由人处理。
+- 禁止把业务数据库用于自动测试。
+
+## 回滚
+
+```bash
+# 目标机（栈根）：
+bash deploy-stack.sh  ... # 部署失败时自动回滚（见上文健康门）
+bash rollback-stack.sh --environment production --to <sha12|previous>
+```
+
+`rollback-stack.sh` 只做两件事：把 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 改成目标 tag，然后 `docker compose up -d`。它**不触碰数据卷、不删除数据、不清理镜像、不改分支或版本号**；`previous` = `deploy-history.log` 中与当前不同的最近一个 tag。可选参数 `--env-file`、`--stack-root`、`--compose-file`、`--health-timeout` 与部署脚本同名同义，健康门同样生效；结果写入同一份 `deploy-history.log`。
+
+回滚后重新执行健康检查并记录结果。旧日志、旧请求排队不能覆盖更晚版本；切换前再次核对目标环境、镜像 tag 与当前部署序号。
 
 ## 最小权限
 
-应用使用专用 yzgc-admin 用户，不以 root 运行。代码和构建产物只读，数据和上传目录按需可写。systemd 开启 NoNewPrivileges、PrivateTmp 和文件系统保护，日志进入 journal。模板变化必须由发布者检查实际路径和服务用户权限，不能盲目覆盖已有配置。
-
-Nginx 安全头通过公共 include 保持一致，子 location 设置缓存头时也包含安全头。已有两个不同 server block 模板不能同时启用而产生域名冲突。证书准备完成后才引用，先 nginx -t 再重载；本地代码验收不执行这些操作。
-
-## 数据迁移和备份
-
-极客班论坛原始数据库和附件已按独立授权拉到 Mac 私有目录，见 [FORUM-DATA-CAPTURE](FORUM-DATA-CAPTURE.md)。这是源数据保全，不是新 schema 导入，不自动替换线上库，也不放进 CI/发布产物。
-
-新表/列尽量增量兼容，不自动删除或重排。变更前使用 SQLite 在线 backup API 或停服的一致性备份，不能只复制活动 WAL 数据库主文件并假定完整。备份同时记录密钥版本、应用版本和必要上传文件，并完成恢复演练。
-
-新增 invite_attempts 保存邀请额度预留和结果。sent 可复用；unknown/reserved 表示需核对的外部结果，不自动重发。管理员核对 GitHub 是否已发邀请后，再通过授权维护修正状态/额度并记录审计。
-
-旧论坛维护脚本已随源码归档，不能对新论坛 localStorage 数据使用旧数据库脚本。旧数据库/附件不自动导入或删除；迁移需独立方案、授权和可验证备份。禁止将业务数据库用于自动测试。
+- 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
+- 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。
+- 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets；不在仓库、脚本或日志中出现。
+- 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料。
 
 ## 发布和回滚验收
 
-检查 healthz、三个入口和深链接、缺失资产 404、真实 OAuth/Cookie、验证码、权限、上传、邀请结果、审计和服务重启。HTML/资产及后端必须来自同一发布版本。数据库有新字段时回滚旧程序前确认兼容，不以重置数据库代替回滚。
+检查 `/healthz`（server 与 web 各一次）、四个域名入口与深链接、`/api/*` 与 `/forum/*` 是否正确反代、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
 
-未执行的生产验证明确标注，不将本机的 verify PASS、模板文件或模拟测试称为线上验收。
+未执行的生产验证明确标注，不将本机的 `pnpm verify` PASS、模板文件或模拟测试称为线上验收。
 
-核心 OAuth 保留签名状态和十分钟有效期；不再签发 forum_sid 或支持旧论坛绑定回调。旧论坛 API 返回 410。新论坛真实 Provider、服务器会话和权限未接入前，不能仅用前端跳转或示例用户选择保护内部服务。后续发布需验证统一认证、回跳、Cookie 范围和退出语义。
+## 历史：systemd 与发布包模型（`historical`，已删除）
 
-旧 deploy/setup.sh 的自动安装行为已退役。`bash deploy/setup.sh --check` 仅检查仓库模板，不修改系统服务、证书或数据。发布者按本规范准备专用用户、目录权限、证书和配置 include，再在已授权目标环境执行检查及重载；不要把旧一键命令用于本次版本。
+以下内容属于 **2026-09-23 之前** 的部署模型，保留仅供追溯，**不是现行操作规范**，对应文件已在本次改造中删除（不要按这些路径重建）：
+
+- systemd 单元 `deploy/yzgc-admin.service`（正式）与 `deploy/yzgc-preview.service`（预发布），服务用户 `yzgc-admin`，`WorkingDirectory=/opt/yzgc-admin`，`EnvironmentFile=<部署根>/.env`。
+- 发布包布局：`$DEPLOY_ROOT/releases/<releaseId>` + `current`/`previous` 符号链接 + `shared/{.env,data}` + `incoming/` + `deploy-history.log`；`releaseId = baseVersion-shortCommit12`；打包器 `scripts/release-bundle.mjs`。
+- 目标机脚本 `deploy/remote/deploy-release.sh`、`deploy/remote/rollback.sh`（基于符号链接切换，不基于镜像 tag）。
+- 宿主 nginx 直接把 `/` 反代到 `127.0.0.1:3000`（根目录旧 `deploy/nginx.conf`、`deploy/nginx-yangtzeu.conf`、`deploy/nginx-security-headers.conf`、`deploy/nginx-release-metadata.conf`），论坛按 `/forum/r/` alias 到旧 mbbs 资源目录。
+- 旧一键安装 `deploy/setup.sh` 的自动安装行为已退役。
+- 论坛子域模型（`forum.yangtzeu.work`，配套 `deploy/forum-subdomain-setup.md`）已退役：论坛现由 portal 域名下的 `/forum` 路径提供。
+- 发布 tag（`release-X.Y.Z` / `prev-X.Y.Z`）不再产生新的发布身份，见 [RELEASES](../conventions/RELEASES.md)。

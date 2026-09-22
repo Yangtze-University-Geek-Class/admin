@@ -1,33 +1,56 @@
 # 当前系统架构
 
-> 统一根入口、保留核心服务、独立采用 Nuxt/TuffEx 原仓论坛；明确当前实现与目标的差异。
+> 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。
 
-状态：`current` · 更新：2026-09-13
+状态：`current` · 更新：2026-09-23
 
 ## 当前拓扑
 
 ```text
 geek_main 根 README / AGENTS / 命令 / docs
-  ├─ web/sites/portal、admin  [React / Vite，Node 22]
-  │      └─ HTTP -> server/src/app.ts -> portal/admin 路由
+  ├─ app/web/sites/{portal,admin}   [React / Vite，Node 22]  + app/web/shared（跨端适配）
+  │      └─ HTTP -> app/server/src/app.ts -> portal/admin 路由
   │                   └─ services -> data.db、GitHub、Turnstile
-  └─ modules/forum           [原仓 Nuxt / Vue / TuffEx，Node >=26]
-         └─ Pinia：示例种子 + localStorage，或本机只读快照（dev 专用 /api/local-forum）
+  ├─ app/forum                      [原仓 Nuxt / Vue / TuffEx，Node ≥26]
+  │      └─ Pinia：示例种子 + localStorage，或本机只读快照（dev 专用 /api/local-forum）
+  └─ deploy/                        [compose 模板 + env 契约 + 目标机脚本；两套栈]
 ```
 
-论坛不再是 web/sites 下的 React 入口。根 `pnpm verify` 编排核心与论坛各自检查，两个 pnpm 锁文件、运行时和 node_modules 分开管理。独立技术栈是用户明确采用原仓的要求，不是为了目录外观创建微服务。
+每个服务在 `docs/services/<service>/` 有对应合同（[server](../services/server/README.md)、[web](../services/web/README.md)、[forum](../services/forum/README.md)）；`app/` 与 `docs/` 严格对齐是硬规则。
 
-核心 Vite 生成 portal/admin 两个 HTML；论坛由 Nuxt generate 生成独立静态产物。本机核心在 5173/3000，新论坛在 3456；旧论坛链接转到新首页，旧帖子 ID 不尝试猜测映射。生产环境尚未部署新论坛。
+论坛不再是 `app/web/sites` 下的 React 入口。根 `pnpm verify` 编排核心与论坛各自检查，两个 pnpm 锁文件、运行时和 node_modules 分开管理。独立技术栈是用户明确采用原仓的要求，不是为了目录外观创建微服务——三个服务仍由同一套 compose 模板、同一台机器上的两套栈交付。
+
+核心 Vite 生成 portal/admin 两个 HTML；论坛由 Nuxt generate 生成静态产物。本机核心在 5173/3000、论坛在 3456（见 [LOCAL-PREVIEW](../ops/LOCAL-PREVIEW.md)）；容器内 server 与 forum 都监听 3000，由 web 容器按路径反代（`/api/*` → server，`/forum/*` → forum）。
+
+## 交付拓扑（两套栈）
+
+```text
+宿主 nginx（TLS 终止，certbot 证书）
+  ├─ yangtzeu.work / prev.yangtzeu.work          → 127.0.0.1:18100 / 18200
+  └─ github.yangtzeu.work / prev-admin.yangtzeu.work → 同上（web 容器按 host 分流 SPA）
+       └─ web 容器（nginx：静态 + 反代）
+            ├─ /api/*   → server 容器（Fastify，/data 命名卷，/healthz）
+            └─ /forum/* → forum 容器（Nuxt 静态产物）
+```
+
+| 环境 | 分支 | 栈根 | compose 项目 | 数据 |
+|---|---|---|---|---|
+| production | `main` | `/opt/yzgc/production` | `yzgc-production` | 独立命名卷 |
+| preview | `stage` | `/opt/yzgc/preview` | `yzgc-preview` | 独立命名卷 |
+
+两环境隔离维度：目录、compose 项目、端口、卷、密钥、域名、Cookie 域（host-only）。细节见 [DEPLOY](../ops/DEPLOY.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[CICD](../ops/CICD.md)。
 
 ## 核心数据与身份
 
-`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。data.db 的 sessions、invite_links、invite_attempts、invitations、feedback、audit_logs、app_state 保留。核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
+`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`audit_logs`、`app_state` 保留。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
+
+核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
 
 原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。跨设备的新论坛存储和旧数据导入必须另立方案。
 
 ## 上游论坛的真实边界
 
-依据 modules/forum/README.md、app/stores/session.ts 和 app/plugins/persist.client.ts：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、固定游客会话、把示例登录换成只读说明并停止把论坛状态写入 localStorage；这只是本机展示，没有服务端认证、写入或跨设备存储，静态产物中不存在这些路由。
+依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、固定游客会话、把示例登录换成只读说明并停止把论坛状态写入 localStorage；这只是本机展示，没有服务端认证、写入或跨设备存储，静态产物中不存在这些路由。
 
 原仓文件、MIT 声明和提交摘要保留，业务页面未重写为 React。少量集成差异包括本地提醒、根入口、进程管理和隔离浏览器验证，详见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
 
@@ -37,6 +60,8 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ## 验证和发布
 
-核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。旧 /api/forum/* 返回 410；生产未接入新服务时 /forum 返回 503。真实认证、服务器权限、跨设备存储、内容安全和部署回滚未验证前，不开放新论坛为生产内部服务。
+核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。旧 `/api/forum/*` 返回 410；生产未接入新服务时 `/forum` 返回 503。真实认证、服务器权限、跨设备存储、内容安全和部署回滚未验证前，不开放新论坛为生产内部服务。
+
+发布由分支驱动（`stage` 预发布、`main` 正式），见 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)。
 
 参见 [API](API.md)、[SECURITY](SECURITY.md)、[模块规则](../conventions/MODULAR-DEVELOPMENT.md) 与 [本地运行](../ops/TUFF-FORUM.md)。

@@ -6,13 +6,13 @@
 
 ## 代码和环境
 
-实际代码为根 `modules/forum`，上游提交 `37164f75c0258b65922ea2151592e1f4efce8bde`，MIT 版权声明保留。`UPSTREAM.json` 记录最初 82 个文件摘要。完整上游说明见 [原仓 README](../../modules/forum/README.md)，项目决策见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
+实际代码为 `app/forum`，上游提交 `37164f75c0258b65922ea2151592e1f4efce8bde`，MIT 版权声明保留。`UPSTREAM.json` 记录最初 82 个文件摘要。完整上游说明见 [原仓 README](../../app/forum/README.md)，服务合同（源码地图、契约、验证、限制）见 [forum 服务合同](../services/forum/README.md)，项目决策见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。线上由 `yzgc/forum:<sha12>` 镜像提供静态产物，由 web 容器按 `/forum/*` 反代（见 [DEPLOY](DEPLOY.md)）。
 
 论坛要求 Node >=26、pnpm 11.24.0；核心仍要求 Node 22、pnpm 9.15.9。`scripts/forum.mjs` 从根选择论坛工具链，不改系统默认 Node，不让 pnpm 9 改写论坛锁文件。当前 Mac 使用 `/opt/homebrew/bin/node` 和已隔离安装的 `.tools/pnpm11/package/bin/pnpm.cjs`。新机器应提供对应版本，可通过 `FORUM_NODE` 指定 Node 原生可执行文件，通过 `FORUM_PNPM` 指向 pnpm.cjs。它们是工具路径，不是登录凭据。
 
 `GEEK_FORUM_CONTENT_DIR` 指定只读快照目录（须含 content.json、asset-index.json、manifest.json 和 assets/，相对路径按仓库根解析，不合格时 start 直接报错）；未设置时 `start|dev` 自动选择 `.tools/forum-runtime/` 下名称最大的合格快照目录，没有则用示例种子。`GEEK_FORUM_SOURCE=demo` 强制示例种子。`check`、`generate`、`verify` 永远以 `GEEK_FORUM_SOURCE=demo` 运行，静态产物里也没有快照路由。start 确认实例后会用 HEAD 探测 `/api/local-forum/state`，快照损坏时直接打印机器码。
 
-分类、标签、话题归类与润色正文在 `modules/forum/content/curation.json` 和 `content/posts/*.md` 中维护（规则见 [forum 模块合同](../modules/forum.md)）：旧分类自动并入「老帖归档」并以原分类名作标签，新时代分类按 `categoryOrder` 排在侧栏；改动后重启 `pnpm forum:start` 生效，引用错误会让快照加载失败并显示错误。
+分类、标签、话题归类与润色正文在 `app/forum/content/curation.json` 和 `app/forum/content/posts/*.md` 中维护（规则见 [forum 服务合同](../services/forum/README.md)）：旧分类自动并入「老帖归档」并以原分类名作标签，新时代分类按 `categoryOrder` 排在侧栏；改动后重启 `pnpm forum:start` 生效，引用错误会让快照加载失败并显示错误。
 
 上游 pnpm-workspace 设置不自动安装 Electron peer，只允许其列出的依赖安装脚本。本次安装沿用 frozen-lockfile；不要把论坛加入旧根 pnpm workspace 后统一重算版本。
 
