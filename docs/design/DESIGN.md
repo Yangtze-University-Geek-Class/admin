@@ -62,8 +62,8 @@
 
 ### 已实现范围与已知不足
 
-- 已实现：官网首页（`pages/Landing.tsx` + `components/ScrollStage.tsx` + `lib/ledFont.ts`、`lib/ledBoard.ts`、`lib/frameSequence.ts`）、投递简历服务（`pages/Apply.tsx`）、共享页头页脚与链接解析（`components/SiteHeader.tsx`、`SiteFooter.tsx`、`PortalLink.tsx`）。
-- 已知不足：文档、反馈、邀请页（`/docs`、`/feedback`、`/join/:token`）仍是校徽蓝旧皮肤；对比度与屏幕阅读器未做专项测试；iOS Safari 真机与中低端安卓的滚动性能未测；挥手帧序列在 2 倍屏上比静帧略软（帧宽 520px）。
+- 已实现：官网首页（`pages/Landing.tsx` + `components/ScrollStage.tsx` + `lib/ledFont.ts`、`lib/ledBoard.ts`、`lib/frameSequence.ts`）、投递简历服务（`pages/Apply.tsx`）、文档 / 意见箱 / 邀请加入（`pages/Docs.tsx`、`Feedback.tsx`、`JoinByToken.tsx`，同一外壳 + 冰白图纸，表单用同一套 `yg-field` / `yg-input` / 窗口式表单卡，标题用系统中文栈——这些页的标题是动态内容，不进子集字体）、共享页头页脚与链接解析（`components/SiteHeader.tsx`、`SiteFooter.tsx`、`PortalLink.tsx`）。
+- 已知不足：对比度与屏幕阅读器未做专项测试；iOS Safari 真机与中低端安卓的滚动性能未测；挥手帧序列在 2 倍屏上比静帧略软（帧宽 520px）。
 
 ## 既有 React 模块的过渡期交互原语
 
