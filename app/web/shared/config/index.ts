@@ -49,19 +49,18 @@ type AppConfig = {
   portal: {
     brand: { homePath: string; logo: string; logoAlt: string; title: string; subtitle: string };
     navigation: PortalNavigationItem[];
-    palette: {
-      bg: string;
-      panel: string;
-      panelStrong: string;
-      line: string;
-      accent: string;
-      accentSoft: string;
-      text: string;
-      muted: string;
-      warm: string;
+    /** 首页主视觉文案与配图。视觉令牌在 app/web/sites/portal/theme.css，规范见 docs/design/DESIGN.md。 */
+    hero: {
+      eyebrow: string;
+      titleLead: string;
+      titleAccent: string;
+      lead: string;
+      status: string;
+      pose: MascotPoseName;
+      caption: string;
+      cardTitle: string;
+      cardDesc: string;
     };
-    effects: { codeSnippets: string[]; symbolCount: number };
-    hero: { eyebrow: string; titleLead: string; titleAccent: string; status: string };
   };
   mascot: {
     defaultPose: MascotPoseName;
