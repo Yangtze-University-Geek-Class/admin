@@ -128,9 +128,9 @@ export default function Apply() {
         <aside className="yg-form-aside">
           <div className="yg-form-head">
             <p className="yg-kicker">// JOIN · 投递简历</p>
-            <h1>留下联系方式，我们会找你聊聊</h1>
+            <h1>留下联系方式，我们会找你聊聊。</h1>
             <p>
-              填四项就够：姓名、班级、邮箱，以及你的特长和优点。收到后我们会尽快阅读，并通过邮箱或论坛私信联系你。
+              填四项就够：姓名、班级、邮箱，以及你的特长和优点。收到后我们会尽快阅读，并通过邮箱联系你。
             </p>
           </div>
           {codingPose && (
@@ -140,9 +140,9 @@ export default function Apply() {
             </figure>
           )}
           <ol className="yg-steps">
-            <li>填写四项信息，提交后拿到编号</li>
+            <li>填写四项信息，提交后拿到一个编号</li>
             <li>我们会认真阅读每一份投递</li>
-            <li>通过邮箱或论坛私信约一次聊天</li>
+            <li>通过邮箱约一次聊天</li>
           </ol>
         </aside>
 
@@ -204,7 +204,7 @@ export default function Apply() {
                     value={form.className}
                     error={errors.className}
                     autoComplete="organization"
-                    placeholder="例如 计科 2301"
+                    placeholder="例如 计科 1 班"
                     onChange={update("className")}
                   />
                 </div>
@@ -254,7 +254,7 @@ export default function Apply() {
                   <button type="submit" className="yg-btn yg-btn-primary" disabled={busy !== ""}>
                     {busy === "pow" ? `正在校验提交凭据…（${tries}）` : busy === "submit" ? "正在提交…" : "提交简历"}
                   </button>
-                  <span className="yg-field-hint">提交后会得到编号，可用于后续查询。</span>
+                  <span className="yg-field-hint">提交后会得到一个编号，联系我们时报上它就行。</span>
                 </div>
 
                 <TurnstileWidget siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileEpoch} />

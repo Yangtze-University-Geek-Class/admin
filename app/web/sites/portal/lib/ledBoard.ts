@@ -112,7 +112,8 @@ export class LedBoard {
       return;
     }
     if (t < 0.6) this.paintWord(from, t, "leave", intro);
-    if (t > 0.4) this.paintWord(to, t, "arrive", intro);
+    // 新词在旧词碎裂的同时开始聚拢，过渡中段不会出现空屏
+    if (t > 0.3) this.paintWord(to, t, "arrive", intro);
   }
 
   private paintWord(index: number, t: number, mode: "leave" | "arrive", intro: number) {
@@ -144,7 +145,7 @@ export class LedBoard {
       const bootAt = led.u * 0.8 + (led.row / layout.rows) * 0.2;
       if (intro < 1 && bootAt > intro * 1.1 - r4 * 0.1) continue;
 
-      const k = mode === "leave" ? clamp01((t - (1 - led.u) * 0.3) / 0.28) : 1 - clamp01((t - 0.42 - led.u * 0.3) / 0.28);
+      const k = mode === "leave" ? clamp01((t - (1 - led.u) * 0.3) / 0.28) : 1 - clamp01((t - 0.3 - led.u * 0.3) / 0.28);
       // k=0 在原位全亮，k=1 完全飞散熄灭；每颗点熄灭的快慢不同，碎裂更自然
       const alpha = 1 - Math.pow(k, 0.6 + r3 * 1.4);
       if (alpha <= 0.02) continue;

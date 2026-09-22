@@ -7,6 +7,7 @@
 // 不自动播放、不用定时器（首次点亮的扫描除外，且 reduced-motion 下跳过）；向上滚就是倒放。
 import { useEffect, useRef, useState } from "react";
 import { appConfig, type PortalChapter } from "@shared/config";
+import { FrameSequence } from "../lib/frameSequence";
 import { LedBoard } from "../lib/ledBoard";
 import { clamp01, sequenceAt } from "../lib/ledFont";
 import PortalLink, { findNavigationItem } from "./PortalLink";
@@ -15,6 +16,10 @@ const FRAMES = 120;
 const INTRO_MS = 900;
 /** 舞台两端的停顿：进入后先停一小段再开始第一次过渡，结束前也停一小段 */
 const EDGE = 0.04;
+/** 每章首尾的停顿占比；剩下的中段才是过渡 */
+const HOLD = 0.3;
+/** 首屏挥手帧序列占用的滚动区间（舞台进度 0 → WAVE_END），正好落在第一章的停顿里 */
+const WAVE_END = 0.12;
 
 type Props = {
   /** false 时（prefers-reduced-motion）舞台不吸顶、不接管滚动，只显示首屏 */
@@ -41,6 +46,7 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
   const frameText = useRef<HTMLSpanElement>(null);
   const dock = useRef<HTMLDivElement>(null);
   const editor = useRef<HTMLDivElement>(null);
+  const waveCanvas = useRef<HTMLCanvasElement>(null);
   const [chapter, setChapter] = useState(0);
   const dockRef = useRef(onDockChange);
   dockRef.current = onDockChange;
@@ -57,6 +63,9 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
       return { cx: rect.left - base.left + rect.width / 2, cy: rect.top - base.top + rect.height / 2, width: rect.width, height: rect.height };
     });
     board.setWords(chapters.map((item) => item.word));
+    const waveSource = hero.pose.sequence;
+    const wave = scrub && waveSource && waveCanvas.current ? new FrameSequence(waveCanvas.current, waveSource) : null;
+    let waveOn = false;
 
     let target = 0;
     let shown = 0;
@@ -67,8 +76,17 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
 
     const paint = () => {
       const progress = clamp01((shown - EDGE) / (1 - EDGE * 2));
-      const { from, to, t, nearest } = sequenceAt(progress, chapters.length);
+      const { from, to, t, nearest } = sequenceAt(progress, chapters.length, HOLD);
       board.render(from, to, t, intro);
+      if (wave) {
+        // 首屏停顿期里，滚动进度驱动 NANO 挥手；第 0 帧与静帧相同，所以回到顶部时换回清晰静帧
+        const drawn = wave.loaded ? wave.draw(Math.round(clamp01(shown / WAVE_END) * (waveSource!.count - 1))) : -1;
+        const nextOn = drawn > 0;
+        if (nextOn !== waveOn) {
+          waveOn = nextOn;
+          node.dataset.seq = waveOn ? "on" : "off";
+        }
+      }
       node.style.setProperty("--hero", (from === 0 ? 1 - t : 0).toFixed(4));
       chapters.forEach((_, index) => node.style.setProperty(`--v${index}`, visibility(index, from, to, t).toFixed(4)));
       if (frameText.current) frameText.current.textContent = String(Math.min(FRAMES, Math.floor(shown * (FRAMES - 1)) + 1)).padStart(3, "0");
@@ -96,6 +114,7 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
     };
 
     const wake = () => {
+      wave?.load();
       measure();
       if (!frame) frame = requestAnimationFrame(tick);
     };
@@ -112,12 +131,14 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
 
     const observer = new ResizeObserver(() => {
       board.resize();
+      wave?.resize();
       measure();
       paint();
       pinRobot();
     });
     observer.observe(surface);
     board.resize();
+    wave?.resize();
     measure();
     shown = target;
     paint();
@@ -128,22 +149,30 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
       window.addEventListener("resize", wake);
     }
     return () => {
+      wave?.dispose();
       observer.disconnect();
       window.removeEventListener("scroll", wake);
       window.removeEventListener("resize", wake);
       cancelAnimationFrame(frame);
     };
-  }, [chapters, scrub]);
+  }, [chapters, hero, scrub]);
 
   const heroActive = chapter === 0;
 
-  // 首屏按钮淡出后不可聚焦，避免键盘焦点落到看不见的按钮上（React 18 还不认识 inert 属性，直接写 DOM）
+  // 首屏按钮淡出后不可聚焦，避免键盘焦点落到看不见的按钮上（React 18 还不认识 inert 属性，直接写 DOM）。
+  // 如果焦点正在按钮上，先把它移到当前章节的链接（或舞台本身），不让焦点丢到 body。
   useEffect(() => {
-    dock.current?.toggleAttribute("inert", scrub && !heroActive);
+    const node = dock.current;
+    const hide = scrub && !heroActive;
+    if (hide && node?.contains(document.activeElement)) {
+      const next = section.current?.querySelector<HTMLElement>('.yg-chapter[aria-current="step"] a') ?? section.current;
+      next?.focus({ preventScroll: true });
+    }
+    node?.toggleAttribute("inert", hide);
   }, [scrub, heroActive]);
 
   return (
-    <section ref={section} className={`yg-stage${scrub ? " is-scrub" : ""}`} aria-labelledby="stage-title" data-chapter={chapter}>
+    <section ref={section} className={`yg-stage${scrub ? " is-scrub" : ""}`} aria-labelledby="stage-title" data-chapter={chapter} tabIndex={-1}>
       <div className="yg-stage-sticky">
         <div className="yg-plate" aria-hidden="true" />
         <div className="yg-word-slot is-hero" ref={heroSlot} aria-hidden="true" />
@@ -155,6 +184,7 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
           {chapters.map((item, index) => (
             <Pose key={item.word} chapter={item} index={index} eager={index === 0} />
           ))}
+          {scrub && hero.pose.sequence && <canvas className="yg-pose is-hero is-seq" ref={waveCanvas} style={{ ["--v" as string]: "var(--v0)" }} aria-hidden="true" />}
           <img className="yg-robot" src={stage.robot} alt="" aria-hidden="true" decoding="async" />
           <p className="yg-signature" aria-hidden="true">
             <strong>{stage.signature}</strong>
@@ -180,7 +210,6 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
                     <Code line={line} />
                   </li>
                 ))}
-                <li />
               </ol>
               <p className="yg-status">
                 <i aria-hidden="true" />
@@ -193,8 +222,8 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
                 <span className="yg-title-hash" aria-hidden="true">
                   #
                 </span>
-                <span>{hero.lead}</span>
-                <span className="yg-title-accent">{hero.accent}</span>
+                <span>{inlineCode(hero.lead)}</span>
+                <span className="yg-title-accent">{inlineCode(hero.accent)}</span>
               </h1>
               <p className="yg-window-note">
                 <span className="yg-comment" aria-hidden="true">
@@ -244,8 +273,8 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
                     {String(index + 1).padStart(2, "0")} / {String(chapters.length).padStart(2, "0")} · {item.word}
                   </p>
                   <h2>
-                    <span>{item.lead}</span>
-                    <span className="yg-title-accent">{item.accent}</span>
+                    <span>{inlineCode(item.lead)}</span>
+                    <span className="yg-title-accent">{inlineCode(item.accent)}</span>
                   </h2>
                   <p className="yg-chapter-desc">{item.desc}</p>
                   {item.link && (
@@ -291,7 +320,7 @@ function Pose({ chapter, index, eager }: { chapter: PortalChapter; index: number
   const { pose } = chapter;
   return (
     <img
-      className={`yg-pose is-${chapter.word.toLowerCase()}`}
+      className={`yg-pose ${index === 0 ? "is-hero" : "is-chapter"}`}
       style={{ ["--v" as string]: `var(--v${index})`, aspectRatio: `${pose.width} / ${pose.height}` }}
       src={pose.image}
       srcSet={pose.small ? `${pose.small} 560w, ${pose.image} ${pose.width}w` : undefined}
@@ -303,6 +332,19 @@ function Pose({ chapter, index, eager }: { chapter: PortalChapter; index: number
       loading={eager ? "eager" : "lazy"}
       decoding="async"
     />
+  );
+}
+
+/** 标题里用反引号包住的英文词（如 `AI`、`issue`）用等宽字体显示。 */
+export function inlineCode(text: string) {
+  return text.split(/`([^`]+)`/g).map((part, index) =>
+    index % 2 ? (
+      <code key={index} className="yg-title-code">
+        {part}
+      </code>
+    ) : (
+      part
+    ),
   );
 }
 
