@@ -1,0 +1,106 @@
+# 分支卫生（Branch hygiene）
+#
+# 两条互相独立的职责：
+#   1. PR 合并后删除已合并的 task 分支（只删 task/**；dev-* 与长期分支永不自动删除）。
+#   2. 每周巡检远端 task/* 分支：14 天无提交活动且没有 open PR 的残留分支输出告警清单。
+#      只告警、不删除——删分支是不可逆动作，保留给人决定。
+#
+# 权限：删除 job 单独要 contents: write，其余只读；不接触任何 secrets。
+# 边界：不创建 tag、不动 main/stage、不改 PR 状态。
+
+name: Branch hygiene
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    # 每周一 03:17 UTC 巡检一次（避开整点高峰）。
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-hygiene-${{ github.event.pull_request.number || 'weekly' }}
+  cancel-in-progress: false
+
+jobs:
+  # 合并后清理：head 是 task/** 且来自本仓库时，删除远端 head 分支。
+  delete-merged-task-branch:
+    name: 删除已合并的 task 分支
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.merged == true
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'task/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: 删除远端 head 分支
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -eu
+          # 只删 task/**（上面 if 已限定）；分支名可能带斜杠，直接放进 REST 路径。
+          gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${HEAD_REF}"
+          echo "已删除已合并的任务分支：${HEAD_REF}"
+
+  # 每周巡检：只输出清单与告警注解，不做任何删除。
+  stale-task-branches:
+    name: 残留 task 分支巡检（只告警）
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: 扫描 14 天无活动且无 open PR 的 task 分支
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          cutoff="$(date -u -d '14 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+          list="${RUNNER_TEMP}/task-branches.txt"
+          report="${RUNNER_TEMP}/stale.txt"
+          : > "$report"
+          gh api "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --paginate \
+            --jq '.[] | select(.name | startswith("task/")) | .name' > "$list"
+          total="$(wc -l < "$list" | tr -d ' ')"
+          echo "远端 task 分支数量：${total}；判定阈值：最后提交早于 ${cutoff} 且没有 open PR"
+          while IFS= read -r branch; do
+            [ -n "$branch" ] || continue
+            last="$(gh api "repos/${GITHUB_REPOSITORY}/commits?sha=${branch}&per_page=1" --jq '.[0].commit.committer.date')"
+            open_prs="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}:${branch}" --jq 'length')"
+            if [ "$open_prs" -eq 0 ] && [ "$last" \< "$cutoff" ]; then
+              printf '%s\t%s\t%s\n' "$branch" "$last" "$open_prs" >> "$report"
+            fi
+          done < "$list"
+          if [ ! -s "$report" ]; then
+            echo "没有残留的 task 分支：全部已合并删除或有 open PR。"
+            exit 0
+          fi
+          echo "发现残留 task 分支（请人工确认后删除）："
+          cat "$report"
+          while IFS="$(printf '\t')" read -r branch last _; do
+            echo "::warning::残留任务分支 ${branch}（最后提交 ${last}，无 open PR）：确认已合并后删除 git push origin --delete ${branch}"
+          done < "$report"
+          {
+            echo "## 残留 task 分支（仅告警，未删除）"
+            echo ""
+            echo "判定：最后提交早于 \`${cutoff}\` 且没有 open PR。"
+            echo ""
+            echo "| 分支 | 最后提交 |"
+            echo "|---|---|"
+            while IFS="$(printf '\t')" read -r branch last _; do
+              echo "| \`${branch}\` | ${last} |"
+            done < "$report"
+            echo ""
+            echo "删除方式：\`git push origin --delete <branch>\`。自动化只处理已合并 PR 的 task/** head 分支。"
+          } >> "$GITHUB_STEP_SUMMARY"

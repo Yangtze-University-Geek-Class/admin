@@ -1,0 +1,46 @@
+# 构建上下文是仓库根（geek_main/）；本文件属于 app/web 镜像的构建输入清单。
+#
+# 注意：当前构建用 `docker build -f app/web/Dockerfile .`，Docker 只读
+# 上下文根的 /.dockerignore，本文件在当前流程下不生效；保留它是给
+# 「把 app/web 当上下文」的场景（上下文根即本目录时才会被读取）。
+# 三条 Dockerfile 的实际排除规则见仓库根 .dockerignore。
+
+# 依赖与产物：builder 里重新安装/编译，绝不从宿主复制。
+node_modules
+**/node_modules
+**/dist
+app/web/dist
+app/server/dist
+app/forum/.nuxt
+app/forum/.output
+app/web/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# 版本库与本机状态
+.git
+.gitignore
+.beads
+.cursor
+.preview
+preview
+
+# 本地运行数据
+data
+
+# 本机工具链与缓存
+.tools
+
+# 文档与测试产物
+docs
+test-results
+playwright-report
+coverage
+*.log
+
+# 论坛有独立工具链与锁文件，不属于 web 的构建输入
+app/forum
+
+# 部署物料
+deploy/compose
+deploy/nginx
+deploy/remote

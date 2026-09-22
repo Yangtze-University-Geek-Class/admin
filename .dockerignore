@@ -1,0 +1,49 @@
+# 构建上下文 = 仓库根（geek_main/），所以只有本文件生效：
+#   docker build -f app/<service>/Dockerfile .   ← 读这个
+# app/<service>/.dockerignore 是给「以服务目录为上下文」的场景预留的，当前构建不使用。
+#
+# 目标：三个镜像（server / web / forum）共用的构建输入清单。
+# 依赖与产物一律不进上下文 —— 镜像里由 pnpm 重新安装、重新编译；
+# 把宿主的 node_modules 带进去会直接污染镜像（macOS 依赖装进 linux 镜像）。
+
+# 依赖与产物
+node_modules
+**/node_modules
+**/dist
+app/forum/.nuxt
+app/forum/.output
+*.tsbuildinfo
+
+# 版本库与本机状态
+.git
+.beads
+.cursor
+.preview
+preview
+
+# 本地运行数据（真实数据库、上传文件）
+data
+
+# 本机工具链与缓存
+.tools
+
+# 文档、测试与报告：镜像构建不需要，测试产物更不该进镜像
+docs
+tests
+test-results
+playwright-report
+coverage
+.agents
+
+# 顶层说明文档（含本机整理稿），构建不依赖
+*.md
+
+# 部署物料：运行镜像不需要 compose / 宿主 nginx / 远端脚本
+deploy/compose
+deploy/nginx
+deploy/remote
+# 注意：deploy/env/.env.production 与 .env.preview 保留在上下文里（构建参数来源），
+# 不做任何排除。
+
+# 日志
+*.log

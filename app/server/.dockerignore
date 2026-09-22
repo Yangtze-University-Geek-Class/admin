@@ -1,0 +1,45 @@
+# 构建上下文是仓库根（geek_main/）；本文件属于 app/server 镜像的构建输入清单。
+# 规则：只保留「编译 server 需要的源码 + 仓库清单」，其余一律不进上下文。
+#
+# 注意：当前构建用 `docker build -f app/server/Dockerfile .`，Docker 只读
+# 上下文根的 /.dockerignore，本文件在当前流程下不生效；保留它是给
+# 「把 app/server 当上下文」的场景（上下文根即本目录时才会被读取）。
+# 三条 Dockerfile 的实际排除规则见仓库根 .dockerignore。
+
+# 依赖与产物：镜像里由 pnpm 重新安装、tsc 重新编译，绝不从宿主复制。
+node_modules
+**/node_modules
+**/dist
+app/server/dist
+app/web/dist
+app/forum/.nuxt
+app/forum/.output
+
+# 版本库与本机状态
+.git
+.gitignore
+.beads
+.cursor
+.preview
+preview
+
+# 本地运行数据（真实数据库、上传文件；绝不能进镜像）
+data
+
+# 本机工具链与缓存
+.tools
+
+# 文档、测试产物与其它服务的构建输入
+docs
+test-results
+playwright-report
+coverage
+*.log
+
+# 论坛有独立工具链与锁文件，不属于 server 的构建输入
+app/forum
+
+# 部署物料：运行镜像不需要 compose/nginx/远端脚本
+deploy/compose
+deploy/nginx
+deploy/remote
