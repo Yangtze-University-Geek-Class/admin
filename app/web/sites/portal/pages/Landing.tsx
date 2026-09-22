@@ -73,8 +73,8 @@ export default function Landing() {
                       {item.word}
                     </p>
                     <h2 className="yg-chapter-static-title">
-                      {inlineCode(item.lead)}
-                      {inlineCode(item.accent)}
+                      <span>{inlineCode(item.lead)}</span>
+                      <span>{inlineCode(item.accent)}</span>
                     </h2>
                     <p className="yg-chapter-desc">{item.desc}</p>
                     {item.link && (

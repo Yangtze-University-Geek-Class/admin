@@ -21,9 +21,19 @@ describe("官网标题子集字体", () => {
     expect(missing).toEqual([]);
   });
 
+  it("子页的固定标题与文档目录名也在子集里", () => {
+    const docs = readFileSync(new URL("../../app/server/src/routes/portal/docs.ts", import.meta.url), "utf8");
+    const labels = [...docs.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
+    expect(labels.length).toBeGreaterThan(0);
+    const fixed = ["意见箱", "链接不可用", "邀请已发送", "加入组织", `加入 ${appConfig.portal.brand.title}`, "文档"];
+    const missing = [...new Set([...labels, ...fixed].join(""))].filter((char) => !subset.has(char));
+    expect(missing).toEqual([]);
+  });
+
   it("投递页标题也在子集里", () => {
     const source = readFileSync(new URL("../../app/web/sites/portal/pages/Apply.tsx", import.meta.url), "utf8");
-    const title = source.match(/<h1>([^<]+)<\/h1>/)?.[1] ?? "";
+    const heading = source.match(/<h1>([\s\S]*?)<\/h1>/)?.[1] ?? "";
+    const title = heading.replace(/<[^>]+>/g, "").replace(/\s+/g, "");
     expect(title.length).toBeGreaterThan(0);
     expect([...title].filter((char) => !subset.has(char))).toEqual([]);
   });

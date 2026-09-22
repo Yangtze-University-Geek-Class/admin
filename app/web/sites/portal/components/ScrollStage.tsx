@@ -74,10 +74,15 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
     let docked = false;
     const introStart = performance.now();
 
-    const paint = () => {
+    let lastKey = "";
+    const paint = (force = false) => {
       const progress = clamp01((shown - EDGE) / (1 - EDGE * 2));
       const { from, to, t, nearest } = sequenceAt(progress, chapters.length, HOLD);
-      board.render(from, to, t, intro);
+      // 停顿期里 LED 画面不变，跳过重画与样式写入（挥手帧序列另算）
+      const key = `${from}|${to}|${t.toFixed(4)}|${intro.toFixed(3)}`;
+      const still = !force && key === lastKey;
+      lastKey = key;
+      if (!still) board.render(from, to, t, intro);
       if (wave) {
         // 首屏停顿期里，滚动进度驱动 NANO 挥手；第 0 帧与静帧相同，所以回到顶部时换回清晰静帧
         const drawn = wave.loaded ? wave.draw(Math.round(clamp01(shown / WAVE_END) * (waveSource!.count - 1))) : -1;
@@ -87,8 +92,10 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
           node.dataset.seq = waveOn ? "on" : "off";
         }
       }
-      node.style.setProperty("--hero", (from === 0 ? 1 - t : 0).toFixed(4));
-      chapters.forEach((_, index) => node.style.setProperty(`--v${index}`, visibility(index, from, to, t).toFixed(4)));
+      if (!still) {
+        node.style.setProperty("--hero", (from === 0 ? 1 - t : 0).toFixed(4));
+        chapters.forEach((_, index) => node.style.setProperty(`--v${index}`, visibility(index, from, to, t).toFixed(4)));
+      }
       if (frameText.current) frameText.current.textContent = String(Math.min(FRAMES, Math.floor(shown * (FRAMES - 1)) + 1)).padStart(3, "0");
       setChapter(nearest);
       const nextDocked = from > 0 || t > 0.35;
@@ -133,7 +140,7 @@ export default function ScrollStage({ scrub, onDockChange }: Props) {
       board.resize();
       wave?.resize();
       measure();
-      paint();
+      paint(true);
       pinRobot();
     });
     observer.observe(surface);

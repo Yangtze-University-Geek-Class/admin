@@ -128,7 +128,10 @@ export default function Apply() {
         <aside className="yg-form-aside">
           <div className="yg-form-head">
             <p className="yg-kicker">// JOIN · 投递简历</p>
-            <h1>留下联系方式，我们会找你聊聊。</h1>
+            <h1>
+              <span>留下联系方式，</span>
+              <span>我们会找你聊聊。</span>
+            </h1>
             <p>
               填四项就够：姓名、班级、邮箱，以及你的特长和优点。收到后我们会尽快阅读，并通过邮箱联系你。
             </p>
