@@ -1,7 +1,8 @@
 /* Mascot module — one unified spec, fixed bottom-right on every site.
    Shared by portal and forum; admin does not mount it.
    Production rules only. The preview/lab variant (.mascot-preview-*, .mascot-orbit)
-   lives in sites/portal/styles.css because it reads portal-only CSS variables. */
+   has no stylesheet: its old home sites/portal/styles.css was never imported by any
+   entry and was removed on 2026-09-23. */
 
 .mascot-shell {
   position: fixed;
