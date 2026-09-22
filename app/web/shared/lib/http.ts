@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public requestId?: string) {
+  constructor(public status: number, public code: string, message: string, public requestId?: string, public payload?: Record<string, unknown>) {
     super(message);
     this.name = "ApiError";
   }
@@ -18,7 +18,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
     const code = typeof data.error === "string" ? data.error : "request_failed";
     const message = typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : `请求失败（HTTP ${response.status}）`;
-    throw new ApiError(response.status, code, message, typeof data.request_id === "string" ? data.request_id : undefined);
+    throw new ApiError(response.status, code, message, typeof data.request_id === "string" ? data.request_id : undefined, data);
   }
   return payload as T;
 }
