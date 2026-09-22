@@ -18,7 +18,7 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 type Receipt = { id: string; submitted_at: number; message: string };
 type PublicConfig = { turnstile_site_key: string | null; pow_difficulty: number };
 
-const applyEntry = appConfig.portal.entries.items.find((entry) => entry.navId === "apply");
+const codingPose = appConfig.portal.stage.chapters.find((chapter) => chapter.word === "CODE")?.pose;
 
 const EMPTY: FormState = { name: "", className: "", email: "", strengths: "", website: "" };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -121,140 +121,152 @@ export default function Apply() {
   };
 
   return (
-    <div className="mimo-page">
+    <div className="yg-page is-sheet">
       <SiteHeader />
 
-      <main className="mimo-wrap mimo-form-page">
-        <aside className="mimo-form-aside">
-          <div className="mimo-form-head">
-            <p className="mimo-eyebrow">JOIN · 投递简历</p>
+      <main className="yg-wrap yg-form-page">
+        <aside className="yg-form-aside">
+          <div className="yg-form-head">
+            <p className="yg-kicker">// JOIN · 投递简历</p>
             <h1>留下联系方式，我们会找你聊聊</h1>
             <p>
-              填四项就够：姓名、班级、邮箱，以及你的特长和优点。我们会按学期批次处理，通过邮箱或论坛私信联系你。
+              填四项就够：姓名、班级、邮箱，以及你的特长和优点。收到后我们会尽快阅读，并通过邮箱或论坛私信联系你。
             </p>
           </div>
-          {applyEntry && (
-            <figure className="mimo-form-visual">
-              <img src={applyEntry.image} alt={applyEntry.alt} />
+          {codingPose && (
+            <figure className="yg-form-visual">
+              <img src={codingPose.image} alt={codingPose.alt} />
+              <figcaption aria-hidden="true">~/yugc/apply</figcaption>
             </figure>
           )}
-          <ol className="mimo-steps">
+          <ol className="yg-steps">
             <li>填写四项信息，提交后拿到编号</li>
-            <li>我们按学期批次阅读每一份投递</li>
+            <li>我们会认真阅读每一份投递</li>
             <li>通过邮箱或论坛私信约一次聊天</li>
           </ol>
         </aside>
 
-        <div className="mimo-card">
-          {receipt ? (
-            <div role="status" aria-live="polite" className="mimo-form">
-              <p className="mimo-status mimo-status-success">{receipt.message}</p>
-              <dl className="mimo-receipt">
-                <dt>编号</dt>
-                <dd>{receipt.id}</dd>
-                <dt>提交时间</dt>
-                <dd>{new Date(receipt.submitted_at).toLocaleString("zh-CN", { hour12: false })}</dd>
-              </dl>
-              <div className="mimo-form-actions">
-                <Link className="mimo-btn mimo-btn-outline" to="/">
-                  返回首页
-                </Link>
-                <button
-                  type="button"
-                  className="mimo-btn mimo-btn-quiet"
-                  onClick={() => {
-                    setReceipt(null);
-                    setForm(EMPTY);
-                    setErrors({});
-                    setStatus(null);
-                    setTurnstileToken("");
-                    setTurnstileEpoch((value) => value + 1);
-                  }}
-                >
-                  再投一份
-                </button>
+        <div className="yg-form-card">
+          <div className="yg-card-bar" aria-hidden="true">
+            <span className="yg-dots">
+              <i />
+              <i />
+              <i />
+            </span>
+            apply.form
+            <span className="yg-card-index">{receipt ? "SENT" : "DRAFT"}</span>
+          </div>
+          <div className="yg-form-card-body">
+            {receipt ? (
+              <div role="status" aria-live="polite" className="yg-form">
+                <p className="yg-status-box yg-status-success">{receipt.message}</p>
+                <dl className="yg-receipt">
+                  <dt>编号</dt>
+                  <dd>{receipt.id}</dd>
+                  <dt>提交时间</dt>
+                  <dd>{new Date(receipt.submitted_at).toLocaleString("zh-CN", { hour12: false })}</dd>
+                </dl>
+                <div className="yg-form-actions">
+                  <Link className="yg-btn yg-btn-outline" to="/">
+                    返回首页
+                  </Link>
+                  <button
+                    type="button"
+                    className="yg-btn yg-btn-quiet"
+                    onClick={() => {
+                      setReceipt(null);
+                      setForm(EMPTY);
+                      setErrors({});
+                      setStatus(null);
+                      setTurnstileToken("");
+                      setTurnstileEpoch((value) => value + 1);
+                    }}
+                  >
+                    再投一份
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <form className="mimo-form" onSubmit={submit} noValidate>
-              <div className="mimo-grid-2">
-                <Field
-                  id="apply-name"
-                  label="姓名"
-                  value={form.name}
-                  error={errors.name}
-                  autoComplete="name"
-                  placeholder="怎么称呼你"
-                  onChange={update("name")}
-                />
-                <Field
-                  id="apply-class"
-                  label="班级"
-                  value={form.className}
-                  error={errors.className}
-                  autoComplete="organization"
-                  placeholder="例如 计科 2301"
-                  onChange={update("className")}
-                />
-              </div>
+            ) : (
+              <form className="yg-form" onSubmit={submit} noValidate>
+                <div className="yg-grid-2">
+                  <Field
+                    id="apply-name"
+                    label="姓名"
+                    value={form.name}
+                    error={errors.name}
+                    autoComplete="name"
+                    placeholder="怎么称呼你"
+                    onChange={update("name")}
+                  />
+                  <Field
+                    id="apply-class"
+                    label="班级"
+                    value={form.className}
+                    error={errors.className}
+                    autoComplete="organization"
+                    placeholder="例如 计科 2301"
+                    onChange={update("className")}
+                  />
+                </div>
 
-              <Field
-                id="apply-email"
-                label="邮箱"
-                type="email"
-                value={form.email}
-                error={errors.email}
-                autoComplete="email"
-                placeholder="name@example.com"
-                hint="用于我们联系你；不会出现在论坛或公开页面"
-                onChange={update("email")}
-              />
-
-              <div className="mimo-field">
-                <label htmlFor="apply-strengths">个人特长和优点</label>
-                <textarea
-                  id="apply-strengths"
-                  className="mimo-textarea"
-                  value={form.strengths}
-                  onChange={update("strengths")}
-                  aria-invalid={errors.strengths ? true : undefined}
-                  aria-describedby={errors.strengths ? "apply-strengths-error" : "apply-strengths-hint"}
-                  placeholder="做过什么、擅长什么、想做什么。项目、比赛、课程作业、自己折腾的小东西都算。"
-                  maxLength={2000}
+                <Field
+                  id="apply-email"
+                  label="邮箱"
+                  type="email"
+                  value={form.email}
+                  error={errors.email}
+                  autoComplete="email"
+                  placeholder="name@example.com"
+                  hint="用于我们联系你；不会出现在论坛或公开页面"
+                  onChange={update("email")}
                 />
-                {errors.strengths ? (
-                  <p className="mimo-field-error" id="apply-strengths-error" role="alert">
-                    {errors.strengths}
-                  </p>
-                ) : (
-                  <p className="mimo-field-hint" id="apply-strengths-hint">
-                    {form.strengths.trim().length}/2000 · 具体一点比形容词更有用
+
+                <div className="yg-field">
+                  <label htmlFor="apply-strengths">个人特长和优点</label>
+                  <textarea
+                    id="apply-strengths"
+                    className="yg-textarea"
+                    value={form.strengths}
+                    onChange={update("strengths")}
+                    aria-invalid={errors.strengths ? true : undefined}
+                    aria-describedby={errors.strengths ? "apply-strengths-error" : "apply-strengths-hint"}
+                    placeholder="做过什么、擅长什么、想做什么。项目、比赛、课程作业、自己折腾的小东西都算。"
+                    maxLength={2000}
+                  />
+                  {errors.strengths ? (
+                    <p className="yg-field-error" id="apply-strengths-error" role="alert">
+                      {errors.strengths}
+                    </p>
+                  ) : (
+                    <p className="yg-field-hint" id="apply-strengths-hint">
+                      {form.strengths.trim().length}/2000 · 具体一点比形容词更有用
+                    </p>
+                  )}
+                </div>
+
+                {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
+                <div className="yg-hide-trap" aria-hidden="true">
+                  <label htmlFor="apply-website">个人主页（不要填写）</label>
+                  <input id="apply-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={update("website")} />
+                </div>
+
+                <div className="yg-form-actions">
+                  <button type="submit" className="yg-btn yg-btn-primary" disabled={busy !== ""}>
+                    {busy === "pow" ? `正在校验提交凭据…（${tries}）` : busy === "submit" ? "正在提交…" : "提交简历"}
+                  </button>
+                  <span className="yg-field-hint">提交后会得到编号，可用于后续查询。</span>
+                </div>
+
+                <TurnstileWidget siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileEpoch} />
+
+                {status && (
+                  <p className={`yg-status-box ${status.kind === "error" ? "yg-status-error" : "yg-status-info"}`} role="alert">
+                    {status.text}
                   </p>
                 )}
-              </div>
-
-              {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
-              <div className="mimo-hide-trap" aria-hidden="true">
-                <label htmlFor="apply-website">个人主页（不要填写）</label>
-                <input id="apply-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={update("website")} />
-              </div>
-
-              <div className="mimo-form-actions">
-                <button type="submit" className="mimo-btn mimo-btn-primary" disabled={busy !== ""}>
-                  {busy === "pow" ? `正在校验提交凭据…（${tries}）` : busy === "submit" ? "正在提交…" : "提交简历"}
-                </button>
-                <span className="mimo-field-hint">提交后会得到编号，可用于后续查询。</span>
-              </div>
-
-              <TurnstileWidget siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileEpoch} />
-
-              {status && (
-                <p className={`mimo-status ${status.kind === "error" ? "mimo-status-error" : "mimo-status-info"}`} role="alert">
-                  {status.text}
-                </p>
-              )}
-            </form>
-          )}
+              </form>
+            )}
+          </div>
         </div>
       </main>
 
@@ -285,11 +297,11 @@ function Field({
   placeholder?: string;
 }) {
   return (
-    <div className="mimo-field">
+    <div className="yg-field">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
-        className="mimo-input"
+        className="yg-input"
         type={type}
         value={value}
         onChange={onChange}
@@ -300,11 +312,11 @@ function Field({
         aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
       />
       {error ? (
-        <p className="mimo-field-error" id={`${id}-error`} role="alert">
+        <p className="yg-field-error" id={`${id}-error`} role="alert">
           {error}
         </p>
       ) : hint ? (
-        <p className="mimo-field-hint" id={`${id}-hint`}>
+        <p className="yg-field-hint" id={`${id}-hint`}>
           {hint}
         </p>
       ) : null}
