@@ -8,7 +8,7 @@
 
 前端 `app/web/sites/portal/App.tsx`，后端 `app/server/src/routes/portal/index.ts`。路由：`/`（首页，只保留三个入口：投递简历、了解我们→论坛、组织情况→GitHub）、`/apply`（投递简历表单）、`/docs`、`/feedback`、`/join/:token`。路由只从自己的模块目录注册，不导入 admin/forum 路由。
 
-首页与投递简历页共用 MiMo 风格基线，令牌与组件在 `app/web/sites/portal/theme.css`，规范正文见 [DESIGN](../../design/DESIGN.md) 的「官网视觉语言：MiMo 风格基线」；文档、反馈、邀请等历史页面仍是校徽蓝皮肤，后续按同一基线迁移。
+首页与投递简历页共用 MiMo 风格基线，令牌与组件在 `app/web/sites/portal/theme.css`，首页文案与配图路径在 `app.config.json > portal`，静态素材（webp 配图、主视觉循环视频）在 `app/web/public/portal/`，规范正文见 [DESIGN](../../design/DESIGN.md) 的「官网视觉语言：MiMo 风格基线」；文档、反馈、邀请等历史页面仍是校徽蓝皮肤，后续按同一基线迁移。
 
 ## 数据与协议
 

@@ -90,10 +90,76 @@
       "titleAccent": "把想法写成能跑的东西。",
       "lead": "长江大学极客班是一个 AI Native 的校内技术组织：用真实项目、开源协作和持续复盘，把课堂上学到的东西变成能交付的作品。",
       "status": "OPEN FOR BUILDERS",
+      "season": "2026 秋季招新",
       "pose": "welcome",
       "caption": "极客娘 · 欢迎来聊",
-      "cardTitle": "三个入口，足够了解我们",
-      "cardDesc": "投递简历加入、进论坛看讨论、去 GitHub 看我们在做什么。"
+      "art": {
+        "image": "/portal/hero-river.webp",
+        "video": "/portal/hero-river.mp4"
+      }
+    },
+    "entries": {
+      "kicker": "ENTRY POINTS",
+      "title": "三个入口，足够了解我们",
+      "desc": "投递简历加入、进论坛看讨论、去 GitHub 看我们在做什么。",
+      "items": [
+        {
+          "navId": "apply",
+          "index": "01",
+          "title": "投递简历",
+          "desc": "姓名、班级、邮箱，再写几句你的特长和优点。四项填完，我们按学期批次联系你。",
+          "action": "开始填写",
+          "image": "/portal/entry-apply.webp",
+          "alt": "晨光下的书桌，笔记本上画着草图"
+        },
+        {
+          "navId": "forum",
+          "index": "02",
+          "title": "了解我们",
+          "desc": "论坛里有日常讨论、项目复盘和问答，先看看大家在聊什么。",
+          "action": "进入论坛",
+          "image": "/portal/entry-forum.webp",
+          "alt": "几位同学围着笔记本电脑讨论"
+        },
+        {
+          "navId": "github",
+          "index": "03",
+          "title": "组织情况",
+          "desc": "仓库、提交和议题都公开在 GitHub 组织里。",
+          "action": "打开 GitHub",
+          "image": "/portal/entry-github.webp",
+          "alt": "黄昏里的机械键盘和显示器"
+        }
+      ]
+    },
+    "principles": {
+      "kicker": "HOW WE WORK",
+      "title": "我们怎么做事",
+      "desc": "没有复杂的门槛，只有几条一直在用的习惯。",
+      "image": "/portal/river-dawn.webp",
+      "alt": "清晨薄雾中的江面与远处的大桥",
+      "items": [
+        {
+          "title": "AI Native",
+          "desc": "把模型、Agent 和 AI Coding 当作日常工具，而不是课外话题。"
+        },
+        {
+          "title": "真实项目",
+          "desc": "做有人会用的东西：校内服务、工具和开源仓库。"
+        },
+        {
+          "title": "开源协作",
+          "desc": "issue、分支、审查，一步不省，协作过程公开可追溯。"
+        },
+        {
+          "title": "持续复盘",
+          "desc": "每个项目结束都写复盘，踩过的坑留给下一届。"
+        }
+      ]
+    },
+    "closing": {
+      "title": "准备好了，就来聊聊。",
+      "desc": "不需要简历模板，也不需要证书。写清楚你做过什么、想做什么就够了。"
     }
   },
   "mascot": {

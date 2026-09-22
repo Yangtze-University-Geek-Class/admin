@@ -11,12 +11,13 @@
      --mimo-canvas / surface*  中性白与暖米色面板
      --mimo-ink* / muted       文本三档
      --mimo-accent             鼠尾草绿，仅用于强调与状态，不做大面积底色
-     --mimo-radius-*           8 / 12 / 20 / 28 / pill
-   字体走系统中文栈（与参照站一致），不额外加载品牌字体。
+     --mimo-radius-*           8 / 12 / 16 / 20 / 28 / pill
+     --mimo-space-*            4px 基数的间距刻度，区块间距只取 section
+   字体走系统字体栈，不额外加载品牌字体。
    ───────────────────────────────────────────────────────────── */
 
 .mimo-page {
-  --mimo-canvas: #ffffff;
+  --mimo-canvas: #fcfbf9;
   --mimo-surface: #f6f3ee;
   --mimo-surface-strong: #efebe4;
   --mimo-sand: #e7e0d6;
@@ -28,6 +29,9 @@
   --mimo-accent: #526e3e;
   --mimo-accent-ink: #33461f;
   --mimo-accent-soft: rgb(82 110 62 / 12%);
+  --mimo-on-ink: #ffffff;
+  --mimo-ink-hover: #26262c;
+  --mimo-glass: rgb(255 255 255 / 86%);
   --mimo-danger: #a3271f;
   --mimo-success: #2f6b3f;
   --mimo-radius-xs: 8px;
@@ -38,8 +42,20 @@
   --mimo-radius-pill: 999px;
   --mimo-shadow-card: 0 1px 2px rgb(15 15 15 / 4%), 0 14px 34px rgb(15 15 15 / 5%);
   --mimo-shadow-raised: 0 2px 6px rgb(15 15 15 / 6%), 0 22px 48px rgb(15 15 15 / 8%);
-  --mimo-max: 1180px;
+  --mimo-space-2: 8px;
+  --mimo-space-3: 12px;
+  --mimo-space-4: 16px;
+  --mimo-space-5: 20px;
+  --mimo-space-6: 24px;
+  --mimo-space-8: 32px;
+  --mimo-space-10: 40px;
+  --mimo-space-12: 48px;
+  --mimo-space-section: clamp(88px, 11vw, 144px);
+  --mimo-max: 1200px;
+  --mimo-ease: cubic-bezier(.2, .7, .2, 1);
   --mimo-font: "PingFang SC", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  /* 画布卡里的拉丁字标用系统衬线（Mac/Win 自带），不下载字体。 */
+  --mimo-font-mark: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
 
   min-height: 100%;
   background: var(--mimo-canvas);
@@ -53,117 +69,228 @@
 .mimo-page *,
 .mimo-page *::before,
 .mimo-page *::after { box-sizing: border-box; }
-.mimo-page h1, .mimo-page h2, .mimo-page h3, .mimo-page p, .mimo-page figure { margin: 0; }
+/* 重置用 :where() 保持零优先级，组件类（.mimo-lead 等）的外边距才能生效。 */
+:where(.mimo-page) :where(h1, h2, h3, p, figure, ol, ul, dl) { margin: 0; }
+:where(.mimo-page) :where(ol, ul) { padding: 0; list-style: none; }
+:where(.mimo-page) :where(img, video) { display: block; max-width: 100%; }
 .mimo-page a { color: inherit; text-decoration: none; }
 .mimo-page :focus-visible { outline: 2px solid var(--mimo-accent); outline-offset: 3px; border-radius: var(--mimo-radius-xs); }
-.mimo-wrap { width: min(var(--mimo-max), calc(100% - 48px)); margin-inline: auto; }
+.mimo-wrap { width: min(var(--mimo-max), calc(100% - 64px)); margin-inline: auto; }
 
 /* ── 顶部公告条（黑底白字，随页面滚动） ── */
-.mimo-bar { background: var(--mimo-ink); color: #fff; font-size: 13.5px; }
-.mimo-bar-inner { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding-block: 8px; text-align: center; }
-.mimo-bar a { border-bottom: 1px solid rgb(255 255 255 / 45%); padding-bottom: 1px; }
-.mimo-bar a:hover { border-color: #fff; }
+.mimo-bar { background: var(--mimo-ink); color: var(--mimo-on-ink); font-size: 13px; letter-spacing: .01em; }
+.mimo-bar-inner { display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 42px; padding-block: 8px; text-align: center; }
+.mimo-bar a { white-space: nowrap; border-bottom: 1px solid rgb(255 255 255 / 45%); padding-bottom: 1px; }
+.mimo-bar a:hover { border-color: var(--mimo-on-ink); }
 
-/* ── 页头：白底、吸顶、细分割线 ── */
-.mimo-header { position: sticky; top: 0; z-index: 40; background: rgb(255 255 255 / 88%); backdrop-filter: blur(18px) saturate(140%); border-bottom: 1px solid var(--mimo-line); }
-.mimo-header-inner { display: flex; align-items: center; gap: 32px; min-height: 76px; }
-.mimo-brand { display: flex; align-items: center; gap: 12px; }
-.mimo-brand-mark { width: 36px; height: 36px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--mimo-line-strong); border-radius: var(--mimo-radius-sm); background: var(--mimo-surface); }
-.mimo-brand-mark img { width: 26px; height: 26px; object-fit: contain; }
-.mimo-brand strong { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
-.mimo-brand small { display: block; margin-top: 1px; color: var(--mimo-muted); font-size: 10.5px; letter-spacing: .12em; }
-.mimo-nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.mimo-nav-link { padding: 9px 14px; border-radius: var(--mimo-radius-xs); color: var(--mimo-ink-soft); font-size: 15px; transition: background .18s ease, color .18s ease; }
+/* ── 页头：半透明白、吸顶、细分割线 ── */
+.mimo-header { position: sticky; top: 0; z-index: 40; background: rgb(252 251 249 / 84%); backdrop-filter: blur(18px) saturate(140%); border-bottom: 1px solid var(--mimo-line); }
+.mimo-header-inner { display: flex; align-items: center; gap: 24px; min-height: 68px; }
+.mimo-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mimo-brand-mark { flex: none; width: 34px; height: 34px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--mimo-line-strong); border-radius: var(--mimo-radius-sm); background: var(--mimo-surface); }
+.mimo-brand-mark img { width: 24px; height: 24px; object-fit: contain; }
+.mimo-brand-text { min-width: 0; }
+.mimo-brand strong { display: block; font-size: 16px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; white-space: nowrap; }
+.mimo-brand small { display: block; margin-top: 2px; color: var(--mimo-muted); font-size: 10px; line-height: 1.2; letter-spacing: .14em; white-space: nowrap; }
+.mimo-nav { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.mimo-nav-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: var(--mimo-radius-pill); color: var(--mimo-ink-soft); font-size: 14.5px; white-space: nowrap; transition: background .18s ease, color .18s ease; }
 .mimo-nav-link:hover { color: var(--mimo-ink); background: var(--mimo-surface); }
-.mimo-nav-link.is-primary { margin-left: 8px; color: #fff; background: var(--mimo-ink); font-weight: 500; }
-.mimo-nav-link.is-primary:hover { color: #fff; background: #24242a; }
+.mimo-page .mimo-nav-link.is-primary { margin-left: 8px; min-height: 40px; padding: 0 18px; color: var(--mimo-on-ink); background: var(--mimo-ink); font-weight: 500; }
+.mimo-page .mimo-nav-link.is-primary:hover { color: var(--mimo-on-ink); background: var(--mimo-ink-hover); }
 
-/* ── 主视觉 ── */
-.mimo-hero { padding: 84px 0 0; text-align: center; }
-.mimo-eyebrow { color: var(--mimo-accent-ink); font-size: 12px; letter-spacing: .22em; text-transform: uppercase; }
-.mimo-display { margin-top: 22px; font-size: clamp(38px, 6vw, 68px); font-weight: 400; line-height: 1.1; letter-spacing: -.03em; }
-.mimo-display strong { display: block; font-weight: 400; }
+/* ── 通用排版 ── */
+.mimo-eyebrow { color: var(--mimo-accent-ink); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: .22em; text-transform: uppercase; }
+.mimo-section { padding-top: var(--mimo-space-section); }
+.mimo-section-head { max-width: 640px; }
+.mimo-section-head h2 { margin-top: var(--mimo-space-4); font-size: clamp(30px, 3.6vw, 44px); font-weight: 400; line-height: 1.18; letter-spacing: -.025em; text-wrap: balance; }
+.mimo-section-head > p:last-child { margin-top: var(--mimo-space-4); color: var(--mimo-muted); font-size: 16.5px; line-height: 1.75; }
+
+/* ── 主视觉：居中标题块 ── */
+.mimo-hero { padding-top: clamp(64px, 8vw, 104px); }
+.mimo-hero-head { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.mimo-display { margin-top: var(--mimo-space-6); font-size: clamp(40px, 6.2vw, 76px); font-weight: 400; line-height: 1.1; letter-spacing: -.035em; }
+.mimo-display > span { display: block; }
 .mimo-display-accent { color: var(--mimo-accent); }
-.mimo-lead { margin: 26px auto 0; max-width: 640px; color: var(--mimo-muted); font-size: 17px; line-height: 1.85; }
-.mimo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 38px; }
-.mimo-hero-art { margin-top: 56px; }
+.mimo-lead { margin-top: var(--mimo-space-6); max-width: 34em; color: var(--mimo-muted); font-size: 17px; line-height: 1.85; text-wrap: pretty; }
+.mimo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--mimo-space-3); margin-top: var(--mimo-space-10); }
 
 /* ── 按钮：黑实心 / 白描边 / 文字 ── */
-/* 注意：`.mimo-page a { color: inherit }` 的优先级高于单类选择器，
-   所以按钮配色一律带 `.mimo-page` 前缀，否则实心按钮会出现黑底黑字。 */
-.mimo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 12px 24px; border: 1px solid transparent; border-radius: var(--mimo-radius-pill); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; }
-.mimo-page .mimo-btn-primary { color: #fff; background: var(--mimo-ink); }
-.mimo-page .mimo-btn-primary:hover { color: #fff; background: #26262c; transform: translateY(-1px); }
-.mimo-page .mimo-btn-outline { color: var(--mimo-ink); background: #fff; border-color: var(--mimo-line-strong); }
+/* `.mimo-page a { color: inherit }` 的优先级高于单类选择器，按钮配色一律带 `.mimo-page` 前缀。 */
+.mimo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 26px; border: 1px solid transparent; border-radius: var(--mimo-radius-pill); font: inherit; font-size: 15px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: transform .2s var(--mimo-ease), background .18s ease, border-color .18s ease, color .18s ease; }
+.mimo-page .mimo-btn-primary { color: var(--mimo-on-ink); background: var(--mimo-ink); }
+.mimo-page .mimo-btn-primary:hover { color: var(--mimo-on-ink); background: var(--mimo-ink-hover); transform: translateY(-1px); }
+.mimo-page .mimo-btn-outline { color: var(--mimo-ink); background: var(--mimo-canvas); border-color: var(--mimo-line-strong); }
 .mimo-page .mimo-btn-outline:hover { color: var(--mimo-ink); border-color: var(--mimo-ink); transform: translateY(-1px); }
 .mimo-page .mimo-btn-quiet { color: var(--mimo-ink-soft); background: transparent; }
 .mimo-page .mimo-btn-quiet:hover { color: var(--mimo-ink); background: var(--mimo-surface); }
-.mimo-btn-arrow { font-size: 15px; line-height: 1; }
+.mimo-btn-arrow { font-size: 15px; line-height: 1; transition: transform .2s var(--mimo-ease); }
+.mimo-btn:hover .mimo-btn-arrow { transform: translateX(2px); }
 .mimo-btn[disabled], .mimo-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; transform: none; }
 
-/* ── 大圆角画布卡：鼠尾草绿纹理 + 角色 ── */
-.mimo-art { position: relative; overflow: hidden; border-radius: var(--mimo-radius-xl); background: linear-gradient(150deg, #dfe3d2, #c9d2b4 58%, #b9c4a2); box-shadow: var(--mimo-shadow-card); }
-.mimo-art-inner { position: relative; display: grid; place-items: end center; min-height: 420px; padding: 40px 40px 0; }
-.mimo-art-inner img { position: relative; z-index: 1; width: min(360px, 62%); height: auto; filter: drop-shadow(0 26px 28px rgb(38 48 24 / 22%)); }
-.mimo-art-caption { position: absolute; left: 50%; bottom: 20px; z-index: 2; translate: -50% 0; padding: 9px 18px; border-radius: var(--mimo-radius-pill); background: rgb(255 255 255 / 88%); color: var(--mimo-ink); font-size: 13px; backdrop-filter: blur(8px); }
-.mimo-art-note { position: absolute; left: 28px; top: 26px; color: var(--mimo-accent-ink); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; }
-.mimo-figure-caption { display: grid; gap: 6px; margin-top: 20px; text-align: left; }
-.mimo-figure-caption h2 { font-size: 22px; font-weight: 600; letter-spacing: -.015em; }
-.mimo-figure-caption p { color: var(--mimo-muted); font-size: 15px; }
+/* ── 画布卡：江流纹理（图/视频）+ 衬线字标 + 角色 ── */
+.mimo-stage { position: relative; margin-top: clamp(48px, 6vw, 72px); aspect-ratio: 1200 / 600; min-height: 420px; overflow: hidden; border-radius: var(--mimo-radius-xl); background: var(--mimo-sand); isolation: isolate; }
+.mimo-stage-media { position: absolute; inset: 0; z-index: -1; }
+.mimo-stage-media img, .mimo-stage-media video { width: 100%; height: 100%; object-fit: cover; }
+/* 底部压一层暖色，给角色和说明留出落脚点 */
+.mimo-stage::after { content: ""; position: absolute; inset: auto 0 0; z-index: -1; height: 45%; background: linear-gradient(to top, rgb(233 228 214 / 55%), transparent); pointer-events: none; }
+.mimo-stage-top { position: absolute; inset: 24px 28px auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--mimo-accent-ink); }
+.mimo-stage-status { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: var(--mimo-radius-pill); background: var(--mimo-glass); backdrop-filter: blur(8px); }
+.mimo-stage-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--mimo-accent); box-shadow: 0 0 0 4px var(--mimo-accent-soft); animation: mimo-pulse 2.4s ease-in-out infinite; }
+.mimo-stage-season { letter-spacing: .08em; }
+.mimo-stage-mark { position: absolute; left: 6%; top: 50%; translate: 0 -46%; color: var(--mimo-accent-ink); font-family: var(--mimo-font-mark); font-size: clamp(96px, 17vw, 232px); font-weight: 400; line-height: .9; letter-spacing: -.035em; mix-blend-mode: multiply; opacity: .88; user-select: none; }
+.mimo-stage-mascot { position: absolute; right: 7%; bottom: 0; height: 92%; width: auto; filter: drop-shadow(0 24px 30px rgb(38 48 24 / 20%)); }
+.mimo-stage-caption { position: absolute; left: 28px; bottom: 24px; padding: 9px 18px; border-radius: var(--mimo-radius-pill); background: var(--mimo-glass); color: var(--mimo-ink); font-size: 13px; backdrop-filter: blur(8px); }
+
+@keyframes mimo-pulse { 50% { box-shadow: 0 0 0 7px rgb(82 110 62 / 0%); } }
+
+/* ── 入口卡（bento）：左大右二 ── */
+.mimo-bento { display: grid; grid-template-columns: 1.3fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--mimo-space-5); margin-top: var(--mimo-space-12); }
+.mimo-entry { position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--mimo-line); border-radius: var(--mimo-radius-xl); background: var(--mimo-surface); transition: box-shadow .3s var(--mimo-ease), transform .3s var(--mimo-ease), border-color .3s ease; }
+.mimo-entry:hover { box-shadow: var(--mimo-shadow-raised); transform: translateY(-2px); border-color: var(--mimo-line-strong); }
+.mimo-entry.is-featured { grid-row: 1 / span 2; }
+.mimo-entry-media { display: block; overflow: hidden; background: var(--mimo-sand); }
+.mimo-entry-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .8s var(--mimo-ease); }
+.mimo-entry:hover .mimo-entry-media img { transform: scale(1.035); }
+.mimo-entry.is-featured .mimo-entry-media { flex: 1 1 auto; min-height: 300px; }
+.mimo-entry:not(.is-featured) { display: grid; grid-template-columns: 44% 1fr; }
+.mimo-entry-body { display: flex; flex-direction: column; gap: var(--mimo-space-2); padding: var(--mimo-space-8); }
+.mimo-entry-index { color: var(--mimo-muted); font-size: 12px; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.mimo-entry-title { margin-top: var(--mimo-space-2); font-size: 24px; font-weight: 500; line-height: 1.3; letter-spacing: -.015em; }
+.mimo-entry.is-featured .mimo-entry-title { font-size: clamp(26px, 2.6vw, 32px); }
+.mimo-entry-desc { color: var(--mimo-muted); font-size: 15px; line-height: 1.7; max-width: 30em; }
+.mimo-entry-action { display: inline-flex; align-items: center; gap: 10px; margin-top: auto; padding-top: var(--mimo-space-5); font-size: 14.5px; font-weight: 500; }
+.mimo-entry-arrow { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--mimo-line-strong); border-radius: 50%; background: var(--mimo-canvas); transition: transform .25s var(--mimo-ease), background .2s ease, color .2s ease, border-color .2s ease; }
+.mimo-entry:hover .mimo-entry-arrow { transform: translateX(3px); background: var(--mimo-ink); border-color: var(--mimo-ink); color: var(--mimo-on-ink); }
+
+/* ── 做事方式：通栏图 + 左标题右列表 ── */
+.mimo-band { overflow: hidden; aspect-ratio: 1200 / 440; border-radius: var(--mimo-radius-xl); background: var(--mimo-sand); }
+.mimo-band img { width: 100%; height: 100%; object-fit: cover; }
+.mimo-principles { display: grid; grid-template-columns: 5fr 7fr; gap: var(--mimo-space-12); margin-top: var(--mimo-space-12); }
+.mimo-principle-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mimo-space-10) var(--mimo-space-8); }
+.mimo-principle-list li { padding-top: var(--mimo-space-5); border-top: 1px solid var(--mimo-line-strong); }
+.mimo-principle-index { color: var(--mimo-accent); font-size: 12px; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.mimo-principle-list h3 { margin-top: var(--mimo-space-3); font-size: 19px; font-weight: 500; letter-spacing: -.01em; }
+.mimo-principle-list p { margin-top: var(--mimo-space-2); color: var(--mimo-muted); font-size: 15px; line-height: 1.7; }
+
+/* ── 收尾邀请 ── */
+.mimo-closing { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--mimo-space-8); overflow: hidden; padding: clamp(40px, 5vw, 64px) clamp(28px, 5vw, 64px) 0; border: 1px solid var(--mimo-line); border-radius: var(--mimo-radius-xl); background: var(--mimo-surface); }
+.mimo-closing-copy { align-self: center; padding-bottom: clamp(40px, 5vw, 64px); }
+.mimo-closing h2 { font-size: clamp(30px, 3.6vw, 44px); font-weight: 400; line-height: 1.18; letter-spacing: -.025em; }
+.mimo-closing p { margin-top: var(--mimo-space-4); max-width: 30em; color: var(--mimo-muted); font-size: 16.5px; }
+.mimo-closing .mimo-btn { margin-top: var(--mimo-space-8); }
+.mimo-closing-mascot { width: clamp(200px, 24vw, 300px); height: auto; margin-bottom: -6px; }
+
+/* ── 滚动显现：仅在脚本接管后隐藏，脚本失败时内容照常可见 ── */
+.mimo-page.has-reveal [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity .9s var(--mimo-ease), transform .9s var(--mimo-ease); }
+.mimo-page.has-reveal [data-reveal].is-visible { opacity: 1; transform: none; }
 
 /* ── 页脚：黑底 ── */
-.mimo-footer { margin-top: 96px; background: var(--mimo-ink); color: rgb(255 255 255 / 72%); }
-.mimo-footer-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; padding-block: 42px; font-size: 13.5px; }
-.mimo-footer strong { color: #fff; font-size: 15px; font-weight: 600; letter-spacing: .02em; }
-.mimo-footer-links { display: flex; flex-wrap: wrap; gap: 22px; }
-.mimo-footer-links a { color: rgb(255 255 255 / 72%); }
-.mimo-footer-links a:hover { color: #fff; }
+.mimo-footer { margin-top: var(--mimo-space-section); background: var(--mimo-ink); color: rgb(255 255 255 / 72%); }
+.mimo-footer-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; padding-block: 48px 40px; font-size: 13.5px; }
+.mimo-footer strong { color: var(--mimo-on-ink); font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+.mimo-footer-links { display: flex; flex-wrap: wrap; gap: 4px 22px; }
+.mimo-footer-links a { display: inline-flex; align-items: center; min-height: 44px; color: rgb(255 255 255 / 72%); }
+.mimo-footer-links a:hover { color: var(--mimo-on-ink); }
 .mimo-footer-meta { width: 100%; padding-top: 16px; border-top: 1px solid rgb(255 255 255 / 12%); color: rgb(255 255 255 / 45%); font-size: 12px; }
 
-/* ── 表单（投递简历服务） ── */
-.mimo-form-page { padding: 72px 0 96px; }
-.mimo-form-head { max-width: 720px; }
-.mimo-form-head h1 { margin-top: 18px; font-size: clamp(32px, 4.4vw, 48px); font-weight: 400; line-height: 1.16; letter-spacing: -.025em; }
-.mimo-form-head p { margin-top: 20px; color: var(--mimo-muted); font-size: 16px; }
-.mimo-card { margin-top: 40px; padding: 36px; border: 1px solid var(--mimo-line); border-radius: var(--mimo-radius-xl); background: var(--mimo-surface); box-shadow: var(--mimo-shadow-card); }
+/* ── 表单（投递简历服务）：左侧说明 + 右侧表单卡 ── */
+.mimo-form-page { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; gap: clamp(40px, 6vw, 88px); padding-block: clamp(56px, 7vw, 96px) 0; }
+.mimo-form-aside { position: sticky; top: 100px; }
+.mimo-form-head h1 { margin-top: var(--mimo-space-4); font-size: clamp(32px, 3.8vw, 46px); font-weight: 400; line-height: 1.18; letter-spacing: -.025em; text-wrap: balance; }
+.mimo-form-head p { margin-top: var(--mimo-space-5); color: var(--mimo-muted); font-size: 16px; }
+.mimo-form-visual { margin-top: var(--mimo-space-8); overflow: hidden; aspect-ratio: 3 / 2; border-radius: var(--mimo-radius-lg); background: var(--mimo-sand); }
+.mimo-form-visual img { width: 100%; height: 100%; object-fit: cover; }
+.mimo-steps { display: grid; gap: var(--mimo-space-3); margin-top: var(--mimo-space-8); counter-reset: mimo-step; }
+.mimo-steps li { display: grid; grid-template-columns: 28px 1fr; gap: var(--mimo-space-3); color: var(--mimo-ink-soft); font-size: 14.5px; line-height: 1.6; counter-increment: mimo-step; }
+.mimo-steps li::before { content: counter(mimo-step, decimal-leading-zero); color: var(--mimo-accent); font-size: 12px; letter-spacing: .1em; line-height: 1.6rem; font-variant-numeric: tabular-nums; }
+.mimo-card { padding: clamp(24px, 3.4vw, 40px); border: 1px solid var(--mimo-line); border-radius: var(--mimo-radius-xl); background: var(--mimo-surface); box-shadow: var(--mimo-shadow-card); }
 .mimo-form { display: grid; gap: 24px; }
 .mimo-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .mimo-field { display: grid; gap: 8px; }
 .mimo-field > label { font-size: 14px; font-weight: 500; color: var(--mimo-ink-soft); }
 .mimo-field-hint { color: var(--mimo-muted); font-size: 12.5px; }
-.mimo-input, .mimo-textarea { width: 100%; padding: 13px 15px; border: 1px solid var(--mimo-line-strong); border-radius: var(--mimo-radius-sm); background: #fff; color: var(--mimo-ink); font: inherit; font-size: 15px; transition: border-color .18s ease, box-shadow .18s ease; }
+.mimo-input, .mimo-textarea { width: 100%; min-height: 48px; padding: 12px 15px; border: 1px solid var(--mimo-line-strong); border-radius: var(--mimo-radius-sm); background: var(--mimo-canvas); color: var(--mimo-ink); font: inherit; font-size: 15px; transition: border-color .18s ease, box-shadow .18s ease; }
 .mimo-input::placeholder, .mimo-textarea::placeholder { color: rgb(11 11 12 / 35%); }
 .mimo-input:focus, .mimo-textarea:focus { border-color: var(--mimo-accent); box-shadow: 0 0 0 4px var(--mimo-accent-soft); outline: none; }
-.mimo-textarea { min-height: 170px; resize: vertical; line-height: 1.75; }
+.mimo-textarea { min-height: 180px; resize: vertical; line-height: 1.75; }
 .mimo-input[aria-invalid="true"], .mimo-textarea[aria-invalid="true"] { border-color: var(--mimo-danger); }
 .mimo-field-error { display: flex; align-items: center; gap: 6px; color: var(--mimo-danger); font-size: 13px; }
+.mimo-field-error::before { content: "!"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--mimo-danger); color: var(--mimo-on-ink); font-size: 11px; font-weight: 700; line-height: 1; }
 .mimo-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .mimo-status { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: var(--mimo-radius-sm); font-size: 14px; }
 .mimo-status-error { color: var(--mimo-danger); background: rgb(163 39 31 / 8%); }
 .mimo-status-info { color: var(--mimo-accent-ink); background: var(--mimo-accent-soft); }
 .mimo-status-success { color: var(--mimo-success); background: rgb(47 107 63 / 10%); }
-.mimo-receipt { display: grid; gap: 10px; margin-top: 18px; padding: 20px; border: 1px dashed var(--mimo-line-strong); border-radius: var(--mimo-radius-md); background: #fff; }
+.mimo-receipt { display: grid; gap: 10px; padding: 20px; border: 1px dashed var(--mimo-line-strong); border-radius: var(--mimo-radius-md); background: var(--mimo-canvas); }
 .mimo-receipt dl { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
 .mimo-receipt dt { color: var(--mimo-muted); }
 .mimo-receipt dd { margin: 0; font-variant-numeric: tabular-nums; }
 .mimo-hide-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-@media (max-width: 900px) {
-  .mimo-wrap { width: min(100% - 32px, var(--mimo-max)); }
-  .mimo-header-inner { min-height: 66px; gap: 14px; flex-wrap: wrap; padding-block: 10px; }
-  .mimo-brand { width: 100%; }
-  .mimo-nav { width: 100%; margin-left: 0; overflow-x: auto; }
-  .mimo-nav-link { white-space: nowrap; }
-  .mimo-hero { padding-top: 56px; }
-  .mimo-lead { font-size: 15.5px; }
-  .mimo-actions { margin-top: 30px; }
-  .mimo-actions .mimo-btn { flex: 1 1 100%; }
-  .mimo-art-inner { min-height: 320px; padding: 28px 24px 0; }
+/* ── 1024 档：入口卡改上下堆叠，做事方式改单列 ── */
+@media (max-width: 1080px) {
+  .mimo-bento { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+  .mimo-entry.is-featured { grid-column: 1 / -1; grid-row: auto; display: grid; grid-template-columns: 1.2fr 1fr; }
+  .mimo-entry.is-featured .mimo-entry-media { min-height: 340px; }
+  .mimo-entry:not(.is-featured) { grid-template-columns: 1fr; }
+  .mimo-entry:not(.is-featured) .mimo-entry-media { aspect-ratio: 16 / 9; }
+  .mimo-principles { grid-template-columns: 1fr; gap: var(--mimo-space-10); }
+  .mimo-stage-mascot { right: 4%; height: 86%; }
+}
+
+@media (max-width: 860px) {
+  .mimo-form-page { grid-template-columns: 1fr; }
+  .mimo-form-aside { position: static; }
+  .mimo-form-visual { display: none; }
+}
+
+/* ── 窄屏（390 档） ── */
+@media (max-width: 640px) {
+  .mimo-wrap { width: calc(100% - 32px); }
+  .mimo-bar { font-size: 12.5px; }
+  .mimo-bar-extra { display: none; }
+  .mimo-bar-inner { gap: 10px; }
+  .mimo-header-inner { min-height: 60px; gap: 8px; }
+  .mimo-brand { gap: 9px; }
+  .mimo-brand-mark { width: 30px; height: 30px; border-radius: 10px; }
+  .mimo-brand-mark img { width: 21px; height: 21px; }
+  .mimo-brand strong { font-size: 15px; }
+  .mimo-brand small { display: none; }
+  .mimo-nav-link { padding: 0 9px; font-size: 14px; }
+  .mimo-page .mimo-nav-link.is-primary { margin-left: 4px; min-height: 36px; padding: 0 12px; }
+  .mimo-hero { padding-top: 48px; }
+  .mimo-eyebrow { font-size: 11px; letter-spacing: .16em; }
+  .mimo-display { margin-top: var(--mimo-space-4); font-size: clamp(30px, 8vw, 44px); letter-spacing: -.03em; }
+  .mimo-lead { font-size: 15.5px; line-height: 1.8; }
+  .mimo-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: var(--mimo-space-8); }
+  .mimo-actions .mimo-btn-primary { grid-column: 1 / -1; }
+  .mimo-btn { padding: 0 18px; }
+  .mimo-stage { aspect-ratio: 4 / 5; min-height: 0; margin-top: var(--mimo-space-10); border-radius: var(--mimo-radius-lg); }
+  .mimo-stage-top { inset: 16px 16px auto; font-size: 10.5px; }
+  .mimo-stage-season { display: none; }
+  .mimo-stage-mark { left: 50%; top: 13%; translate: -50% 0; font-size: 26vw; }
+  .mimo-stage-mascot { right: 50%; translate: 50% 0; height: 62%; }
+  .mimo-stage-caption { left: 50%; bottom: 16px; translate: -50% 0; white-space: nowrap; }
+  .mimo-section-head h2 { font-size: 30px; }
+  .mimo-bento { grid-template-columns: 1fr; gap: var(--mimo-space-4); margin-top: var(--mimo-space-8); }
+  .mimo-entry.is-featured { grid-template-columns: 1fr; }
+  .mimo-entry.is-featured .mimo-entry-media { min-height: 0; aspect-ratio: 16 / 10; }
+  .mimo-entry-body { padding: var(--mimo-space-6); }
+  .mimo-entry-title, .mimo-entry.is-featured .mimo-entry-title { font-size: 22px; }
+  .mimo-band { aspect-ratio: 4 / 3; border-radius: var(--mimo-radius-lg); }
+  .mimo-principles { margin-top: var(--mimo-space-8); }
+  .mimo-principle-list { grid-template-columns: 1fr; gap: var(--mimo-space-6); }
+  .mimo-closing { grid-template-columns: 1fr; padding: 32px 24px 0; border-radius: var(--mimo-radius-lg); }
+  .mimo-closing-copy { padding-bottom: 0; }
+  .mimo-closing .mimo-btn { width: 100%; }
+  .mimo-closing-mascot { justify-self: center; width: 200px; }
   .mimo-grid-2 { grid-template-columns: 1fr; }
-  .mimo-card { padding: 24px 20px; border-radius: var(--mimo-radius-lg); }
-  .mimo-footer { margin-top: 64px; }
+  .mimo-card { border-radius: var(--mimo-radius-lg); }
+  .mimo-form-actions .mimo-btn { width: 100%; }
+  .mimo-receipt dl { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mimo-page *, .mimo-page *::before, .mimo-page *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .mimo-page *, .mimo-page *::before, .mimo-page *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .mimo-page.has-reveal [data-reveal] { opacity: 1; transform: none; }
 }
