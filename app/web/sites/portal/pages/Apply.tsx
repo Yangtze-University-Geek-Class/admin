@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
-import { computePow } from "@shared/lib/pow";
+import { computePow, powProof } from "@shared/lib/pow";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import "../theme.css";
@@ -99,7 +99,7 @@ export default function Apply() {
           email,
           strengths: form.strengths.trim(),
           website: form.website,
-          pow: { timestamp: pow.timestamp, nonce: pow.nonce },
+          pow: powProof(pow),
           turnstile_token: turnstileToken,
         }),
       });

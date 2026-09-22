@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "@shared/lib/api";
 import Select from "@shared/ui/Select";
-import { computePow } from "@shared/lib/pow";
+import { computePow, powProof } from "@shared/lib/pow";
 
 export default function Feedback() {
   const { org: orgParam } = useParams();
@@ -45,7 +45,7 @@ export default function Feedback() {
       setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
-        body: JSON.stringify({ ...form, turnstile_token: tsToken, pow }),
+        body: JSON.stringify({ ...form, turnstile_token: tsToken, pow: powProof(pow) }),
       });
       setDone(r.message);
       setForm({ ...form, content: "", contact: "", website: "" });

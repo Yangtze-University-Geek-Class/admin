@@ -2,7 +2,7 @@ import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "@shared/lib/api";
-import { computePow } from "@shared/lib/pow";
+import { computePow, powProof } from "@shared/lib/pow";
 
 type LinkInfo = {
   org: string;
@@ -45,7 +45,7 @@ export default function JoinByToken() {
       const bodyForHash = `join:${token}:${form.github_login.trim()}:${form.email.trim()}`;
       const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
-      const body = { ...form, turnstile_token: tsToken, pow };
+      const body = { ...form, turnstile_token: tsToken, pow: powProof(pow) };
       const r = await api<{ ok: boolean; message: string }>(`/api/join/${token}`, {
         method: "POST",
         body: JSON.stringify(body),
