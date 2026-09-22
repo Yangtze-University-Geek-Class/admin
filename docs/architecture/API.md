@@ -43,6 +43,8 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 校验 400、未登录 401、权限/来源 403、不存在 404、冲突 409、超大 413、不支持图片 415、频率限制 429、服务异常 5xx。错误体含机器码 error、必要 message 和可用的 request_id；不得暴露 Token、SQL、完整外部响应或堆栈。
 
+路由未自行捕获的 GitHub 上游错误（Octokit 只带 `status`）由 `app/server/src/middleware/http-policy.ts` 统一处理：上游 4xx 按原状态码返回，机器码 `upstream_rejected`，message 是按状态码给出的中文说明，不回显上游原文；上游 5xx、无状态码或状态码无效的异常一律脱敏为 5xx `internal_error`。公开邀请 `POST /api/join/:token` 自行处理上游错误：明确失败返回 `400 { error }`，按上游状态区分「该用户已在组织中」、422 拒绝、GitHub 用户名不存在与其它失败；结果不确定时返回 503。回归测试见 `tests/server/upstream-errors.test.ts` 与 `tests/server/invitations.test.ts`。
+
 ## 幂等与验证
 
 核心邀请按链接与标准化收件人记录，成功重试复用结果；明确失败补偿，未知结果保留额度并待核对。PR 合并带 head SHA；评论并关闭先确认，再依次等待成功。旧论坛软删除策略已经退出运行，其历史测试不能作为新论坛后端行为证明。
