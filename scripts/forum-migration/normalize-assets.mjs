@@ -11,7 +11,7 @@ if (!jobPath.startsWith(root + '/.tools/forum-runtime/')) throw new Error('Priva
 const job = JSON.parse(readFileSync(jobPath, 'utf8'));
 const output = resolve(dirname(jobPath), 'assets');
 mkdirSync(output, { recursive: true, mode: 0o700 });
-const sharp = createRequire(resolve(root, 'server/package.json'))('sharp');
+const sharp = createRequire(resolve(root, 'app/server/package.json'))('sharp');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const result = { assets: {}, aliases: {}, rejected: [] };
 for (const item of job.files) {

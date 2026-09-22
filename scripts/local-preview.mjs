@@ -38,7 +38,7 @@ function runtime() {
 async function start() {
   const existing = await current();
   if (existing) { console.log(JSON.stringify({ status: "already_running", ...existing })); return; }
-  if (!existsSync(join(root, "server/dist/app.js"))) throw new Error("Build the project first with pnpm build.");
+  if (!existsSync(join(root, "app/server/dist/app.js"))) throw new Error("Build the project first with pnpm build.");
   await mkdir(stateDir, { recursive: true });
   const instance = randomUUID();
   const executable = runtime();
@@ -79,8 +79,8 @@ async function serve(instance) {
     } catch { /* No state was published by this instance. */ }
   };
   try {
-    const { createConfig } = await import(pathToFileURL(join(root, "server/dist/config.js")).href);
-    const { buildApp } = await import(pathToFileURL(join(root, "server/dist/app.js")).href);
+    const { createConfig } = await import(pathToFileURL(join(root, "app/server/dist/config.js")).href);
+    const { buildApp } = await import(pathToFileURL(join(root, "app/server/dist/app.js")).href);
     const config = createConfig({
       NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin, SITE_ORIGIN: webOrigin,
       PORT: "3000", DB_PATH: ":memory:", FORUM_DB_PATH: ":memory:", FORUM_UPLOAD_DIR: scratch,
@@ -96,10 +96,10 @@ async function serve(instance) {
     app.get("/__local_preview", async () => ({ instance, pid: process.pid, project: root, database: "memory", external_integrations: false }));
     await app.listen({ host: "127.0.0.1", port: 3000 });
 
-    const requireWeb = createRequire(join(root, "web/package.json"));
+    const requireWeb = createRequire(join(root, "app/web/package.json"));
     const { createServer } = await import(pathToFileURL(requireWeb.resolve("vite")).href);
     vite = await createServer({
-      root: join(root, "web"), configFile: join(root, "web/vite.config.ts"), envFile: false, envDir: scratch,
+      root: join(root, "app/web"), configFile: join(root, "app/web/vite.config.ts"), envFile: false, envDir: scratch,
       plugins: [{ name: "local-preview-root", configureServer(server) {
         server.middlewares.use((req, res, next) => {
           if (req.url === "/") { res.statusCode = 302; res.setHeader("Location", "/sites/portal/?__data=mock"); res.end(); return; }
@@ -108,7 +108,7 @@ async function serve(instance) {
       } }],
       server: { host: "127.0.0.1", port: 5173, strictPort: true, open: false,
         proxy: { "/__local_preview": "http://127.0.0.1:3000" },
-        fs: { deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "**/.tools/**", "**/data/**", "**/docs/**", "**/server/**"] },
+        fs: { deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "**/.tools/**", "**/data/**", "**/docs/**", "**/app/server/**"] },
       },
     });
     await vite.listen();

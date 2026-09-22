@@ -8,7 +8,7 @@ dist
 .DS_Store
 .vite
 /data/
-web/tsconfig.tsbuildinfo
+app/web/tsconfig.tsbuildinfo
 
 # 个人分析笔记 + 项目级 agent skill（不上传 git）
 .agent-notes/

@@ -3,9 +3,9 @@ import { beforeAll, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { ConfirmProvider, useConfirm } from "../../web/shared/ui/ConfirmDialog";
-import Select from "../../web/shared/ui/Select";
-import NumberInput from "../../web/shared/ui/NumberInput";
+import { ConfirmProvider, useConfirm } from "../../app/web/shared/ui/ConfirmDialog";
+import Select from "../../app/web/shared/ui/Select";
+import NumberInput from "../../app/web/shared/ui/NumberInput";
 
 beforeAll(() => {
   // jsdom does not implement the dialog top layer. Browser tests verify that behavior separately.

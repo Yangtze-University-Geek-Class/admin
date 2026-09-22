@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
-import type { ServiceOverrides } from '../../server/src/services';
-import { safeReturnTo } from '../../server/src/lib/safe-return';
-import { resolveSiteEntry } from '../../server/src/app';
+import type { ServiceOverrides } from '../../app/server/src/services';
+import { safeReturnTo } from '../../app/server/src/lib/safe-return';
+import { resolveSiteEntry } from '../../app/server/src/app';
 import { testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 async function setup(overrides?: ServiceOverrides, production = false) { const c = await testApp(overrides, production); contexts.push(c); return c; }

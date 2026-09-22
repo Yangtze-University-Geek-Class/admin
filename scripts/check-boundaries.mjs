@@ -32,17 +32,17 @@ export function specifiers(source, filename = "source.ts") {
 }
 export function domainOf(path, root = ROOT) {
   const name = relative(root, path).split(sep).join("/");
-  const web = name.match(/^web\/sites\/([^/]+)\//);
+  const web = name.match(/^app\/web\/sites\/([^/]+)\//);
   if (web) return { layer: "web", kind: "site", name: web[1] };
-  if (name.startsWith("web/shared/")) return { layer: "web", kind: "shared", name: "shared" };
-  const server = name.match(/^server\/src\/routes\/([^/]+)\//);
+  if (name.startsWith("app/web/shared/")) return { layer: "web", kind: "shared", name: "shared" };
+  const server = name.match(/^app\/server\/src\/routes\/([^/]+)\//);
   if (server) return { layer: "server", kind: "route", name: server[1] };
-  if (/^server\/src\/(lib|middleware)\//.test(name)) return { layer: "server", kind: "infrastructure", name: "shared" };
-  if (name.startsWith("server/src/")) return { layer: "server", kind: "composition", name: "server" };
+  if (/^app\/server\/src\/(lib|middleware)\//.test(name)) return { layer: "server", kind: "infrastructure", name: "shared" };
+  if (name.startsWith("app/server/src/")) return { layer: "server", kind: "composition", name: "server" };
   return null;
 }
 function compilerOptions(file, root) {
-  const configPath = join(root, relative(root, file).split(sep).join("/").startsWith("web/") ? "web/tsconfig.json" : "server/tsconfig.json");
+  const configPath = join(root, relative(root, file).split(sep).join("/").startsWith("app/web/") ? "app/web/tsconfig.json" : "app/server/tsconfig.json");
   if (!existsSync(configPath)) return { moduleResolution: ts.ModuleResolutionKind.Bundler };
   const source = ts.readConfigFile(configPath, ts.sys.readFile);
   if (source.error) throw new Error(`Cannot read module configuration: ${relative(root, configPath)}`);
@@ -61,14 +61,14 @@ function isLocalSpecifier(spec, options) {
 export function resolveSpec(file, spec, root = ROOT, options = compilerOptions(file, root)) {
   const resolved = ts.resolveModuleName(spec, file, options, ts.sys).resolvedModule?.resolvedFileName;
   if (resolved) return resolve(resolved);
-  const base = spec.startsWith("@shared/") ? join(root, "web/shared", spec.slice(8)) : spec.startsWith(".") ? resolve(dirname(file), spec) : null;
+  const base = spec.startsWith("@shared/") ? join(root, "app/web/shared", spec.slice(8)) : spec.startsWith(".") ? resolve(dirname(file), spec) : null;
   if (!base) return null;
   const clean = base.split("?")[0];
   const candidates = [clean, clean.replace(/\.js$/, ".ts"), clean.replace(/\.js$/, ".tsx"), `${clean}.ts`, `${clean}.tsx`, join(clean,"index.ts"), join(clean,"index.tsx")];
   return candidates.find(candidate => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
 }
 export function checkProject(root = ROOT) {
-  const files = ["web/sites", "web/shared", "server/src"].flatMap(dir => walk(join(root,dir)));
+  const files = ["app/web/sites", "app/web/shared", "app/server/src"].flatMap(dir => walk(join(root,dir)));
   const violations = [];
   let imports = 0;
   for (const file of files) {
@@ -90,7 +90,7 @@ export function checkProject(root = ROOT) {
       if (from.kind === "site" && to.kind === "site" && from.name !== to.name) violations.push(`${at}: cross-site dependency ${from.name} -> ${to.name}`);
       if (from.kind === "shared" && to.kind === "site") violations.push(`${at}: shared depends on site ${to.name}`);
       if (from.kind === "route" && to.kind === "route" && from.name !== to.name) violations.push(`${at}: cross-module route dependency ${from.name} -> ${to.name}`);
-      if (relative(root, file).split(sep).join("/").startsWith("server/src/lib/") && relative(root, target).split(sep).join("/").startsWith("server/src/middleware/")) violations.push(`${at}: identity/storage adapters depend on HTTP middleware`);
+      if (relative(root, file).split(sep).join("/").startsWith("app/server/src/lib/") && relative(root, target).split(sep).join("/").startsWith("app/server/src/middleware/")) violations.push(`${at}: identity/storage adapters depend on HTTP middleware`);
       if (from.kind === "infrastructure" && ["route","composition"].includes(to.kind) && !target.endsWith(`${sep}config.ts`)) violations.push(`${at}: infrastructure depends on application composition/routes`);
     }
   }
