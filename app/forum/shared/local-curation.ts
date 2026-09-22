@@ -3,7 +3,7 @@ import { SnapshotError } from './local-snapshot'
 
 /**
  * Editorial layer over the read-only snapshot, described by
- * `modules/forum/content/curation.json` and applied by the server before the
+ * `app/forum/content/curation.json` and applied by the server before the
  * state is served:
  *
  * - every category the projection marks `archived` collapses into one
