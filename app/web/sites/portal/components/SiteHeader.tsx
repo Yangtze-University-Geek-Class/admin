@@ -2,8 +2,8 @@
 // 导航项来自 app.config.json > portal.navigation，不在组件里硬编码；
 // 样式令牌与组件规则见 app/web/sites/portal/theme.css 与 docs/design/DESIGN.md。
 import { Link } from "react-router-dom";
-import { appConfig, type PortalNavigationItem } from "@shared/config";
-import { externalUrl } from "@shared/lib/site";
+import { appConfig } from "@shared/config";
+import PortalLink from "./PortalLink";
 
 export default function SiteHeader() {
   const { brand, navigation } = appConfig.portal;
@@ -15,44 +15,19 @@ export default function SiteHeader() {
           <span className="mimo-brand-mark">
             <img src={brand.logo} alt="" />
           </span>
-          <span>
+          <span className="mimo-brand-text">
             <strong>{brand.title}</strong>
             <small>{brand.subtitle}</small>
           </span>
         </Link>
         <nav className="mimo-nav" aria-label="主导航">
           {navigation.map((item) => (
-            <HeaderLink key={item.id} item={item} />
+            <PortalLink key={item.id} item={item} className={`mimo-nav-link${item.variant === "primary" ? " is-primary" : ""}`}>
+              {item.label}
+            </PortalLink>
           ))}
         </nav>
       </div>
     </header>
-  );
-}
-
-function HeaderLink({ item }: { item: PortalNavigationItem }) {
-  const className = `mimo-nav-link${item.variant === "primary" ? " is-primary" : ""}`;
-
-  if (item.type === "route") {
-    return (
-      <Link to={item.path ?? "/"} className={className}>
-        {item.label}
-      </Link>
-    );
-  }
-
-  if (item.type === "site" && item.site) {
-    return (
-      <a href={externalUrl(item.site, item.path ?? "/")} className={className}>
-        {item.label}
-      </a>
-    );
-  }
-
-  const url = item.urlKey ? appConfig.urls[item.urlKey] : "#";
-  return (
-    <a href={url} className={className} {...(item.newTab ? { target: "_blank", rel: "noreferrer" } : {})}>
-      {item.label}
-    </a>
   );
 }

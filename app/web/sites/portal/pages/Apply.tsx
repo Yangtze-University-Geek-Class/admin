@@ -5,6 +5,7 @@
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
 import { computePow } from "@shared/lib/pow";
 import SiteFooter from "../components/SiteFooter";
@@ -16,6 +17,8 @@ type FieldName = "name" | "className" | "email" | "strengths";
 type FieldErrors = Partial<Record<FieldName, string>>;
 type Receipt = { id: string; submitted_at: number; message: string };
 type PublicConfig = { turnstile_site_key: string | null; pow_difficulty: number };
+
+const applyEntry = appConfig.portal.entries.items.find((entry) => entry.navId === "apply");
 
 const EMPTY: FormState = { name: "", className: "", email: "", strengths: "", website: "" };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -122,13 +125,25 @@ export default function Apply() {
       <SiteHeader />
 
       <main className="mimo-wrap mimo-form-page">
-        <div className="mimo-form-head">
-          <p className="mimo-eyebrow">JOIN · 投递简历</p>
-          <h1>留下联系方式，我们会找你聊聊</h1>
-          <p>
-            填四项就够：姓名、班级、邮箱，以及你的特长和优点。我们会按学期批次处理，通过邮箱或论坛私信联系你。
-          </p>
-        </div>
+        <aside className="mimo-form-aside">
+          <div className="mimo-form-head">
+            <p className="mimo-eyebrow">JOIN · 投递简历</p>
+            <h1>留下联系方式，我们会找你聊聊</h1>
+            <p>
+              填四项就够：姓名、班级、邮箱，以及你的特长和优点。我们会按学期批次处理，通过邮箱或论坛私信联系你。
+            </p>
+          </div>
+          {applyEntry && (
+            <figure className="mimo-form-visual">
+              <img src={applyEntry.image} alt={applyEntry.alt} />
+            </figure>
+          )}
+          <ol className="mimo-steps">
+            <li>填写四项信息，提交后拿到编号</li>
+            <li>我们按学期批次阅读每一份投递</li>
+            <li>通过邮箱或论坛私信约一次聊天</li>
+          </ol>
+        </aside>
 
         <div className="mimo-card">
           {receipt ? (
