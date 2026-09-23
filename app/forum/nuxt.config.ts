@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import deploymentContract from '../../deploy/environments.json'
 import { createDeploymentMetadata } from './shared/deployment'
+import { markdownPrerenderRoutes, seedTopicIds } from './shared/forum-markdown'
 
 const siteDeployment = createDeploymentMetadata(
   deploymentContract,
@@ -30,8 +31,12 @@ export default defineNuxtConfig({
   // The editorial layer over the read-only snapshot (categories, tags,
   // polished bodies) lives in ./content and is read by server/utils through
   // `useStorage('assets:content')`.
+  // `/llms.txt` and `/t/<id>.md` are answered by server/middleware/forum-markdown.ts;
+  // prerendering them makes `nuxt generate` write one file per seed topic,
+  // which is all the static image can serve.
   nitro: {
     serverAssets: [{ baseName: 'content', dir: fileURLToPath(new URL('./content', import.meta.url)) }],
+    prerender: { routes: markdownPrerenderRoutes(seedTopicIds()) },
   },
 
 
