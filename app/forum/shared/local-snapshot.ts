@@ -1,4 +1,5 @@
 import type { Category, ForumState, Post, Topic, User } from '../app/data/types'
+import { isUserTitle } from '../app/data/titles'
 
 /**
  * Read-only local snapshot of the 极客班 forum archive.
@@ -239,6 +240,10 @@ function validateUser(value: unknown, index: number): User {
     delete value.avatarUrl
   if (value.avatarUrl !== undefined && (typeof value.avatarUrl !== 'string' || !value.avatarUrl.startsWith(ASSET_ROUTE_PREFIX)))
     throw new SnapshotError('invalid_state', `users[${index}] 的 avatarUrl 必须指向本地资产路由`)
+  // A title can make its holder forum staff, so a malformed one must fail the
+  // load rather than render as an unknown badge.
+  if (value.title !== undefined && !isUserTitle(value.title))
+    throw new SnapshotError('invalid_state', `users[${index}] 的 title 不合法`)
   return value as unknown as User
 }
 

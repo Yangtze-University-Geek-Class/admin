@@ -10,7 +10,7 @@
     "app/pages/categories.vue": "Category rows show both cues: category.icon as the TxCardItem icon-class avatar and upstream's TxBadge colour dot in front of the name (title slot), so the upstream 8-dot assertion holds; rows carry role=link; recent-topic TxCellLink hrefs carry app.baseURL.",
     "app/pages/c/[slug].vue": "Banner keeps upstream TxCardItem + TxStatCard but lays them out with TxFlex: heading beside a two-column TxGrid of stats, wrapping under it on a phone (upstream's #right slot stacked the full-width stat cards into a tall column); the category name is the page h1.",
     "app/pages/tag/[slug].vue": "Banner keeps upstream TxCardItem + TxStatCard but lays them out with TxFlex: heading beside a two-column TxGrid of stats, wrapping under it on a phone (upstream's #right slot stacked the full-width stat cards into a tall column); the tag is the page h1.",
-    "app/pages/users.vue": "The member TxCellLink href carries app.baseURL (useAppLink), so copy-link and open-in-new-tab stay under /forum/.",
+    "app/pages/users.vue": "The member TxCellLink href carries app.baseURL (useAppLink); the 角色 cell shows the 极客班 TitleBadge when the user has a title (the forum role badge otherwise), sorts by titleRank then role rank, and is widened to fit 「社区部 · 负责人」. The header text stays 角色 because the upstream directory check asserts it.",
     "app/layouts/default.vue": "Wrap the page area in LocalSnapshotGate; no business rewrite.",
     "app/app.vue": "Site name from the content source in the title template; hide the /new command when the snapshot is read-only.",
     "app/error.vue": "Site name from the content source in the error page title template.",
@@ -19,12 +19,16 @@
     "app/components/ForumSidebar.vue": "Workspace slot is a TxCardItem link with the official 极客班 logo instead of the generic letter chip (decorative image, accessible name = visible site name); the site blurb sits in its description, not subtitle, because the upstream shell check reads the signed-in footer card as the sidebar's only subtitle; fine-tuned font sizes; category rows show the category icon with upstream's TxBadge colour dot on its corner (both cues, upstream dot assertion intact); no 重置示例数据 in snapshot mode.",
     "app/composables/useForumNav.ts": "Pass category.icon to sidebar nav items; the sidebar pairs that icon with upstream's dotColors colour dot.",
     "app/components/LoginModal.vue": "In snapshot mode every 登录 trigger opens a read-only notice instead of the mock member picker.",
-    "app/components/PostCard.vue": "Wrap Markdown view in an overflow container for mobile table/code scrolling; the copied permalink and the author TxCellLink href carry app.baseURL (useAppLink).",
+    "app/components/PostCard.vue": "Wrap Markdown view in an overflow container for mobile table/code scrolling; the copied permalink and the author TxCellLink href carry app.baseURL (useAppLink); the author row shows the 极客班 TitleBadge when the author has a title, the upstream role badge otherwise.",
     "app/components/TopicControls.vue": "Guest prompt wording for the read-only snapshot; the share link carries app.baseURL (useAppLink).",
     "app/components/UserAvatar.vue": "Pass the optional avatarUrl (local asset route) to TxAvatar; initials stay the fallback.",
-    "app/data/types.ts": "Optional User.avatarUrl for snapshot avatars; the seed never sets it.",
+    "app/data/types.ts": "Optional User.avatarUrl for snapshot avatars (the seed never sets it) and optional User.title (极客班 称号, see app/data/titles.ts); role semantics unchanged.",
     "uno.config.ts": "Safelist the category icons that arrive as snapshot/curation data (the scanner cannot see them) and re-run the config when content/curation.json changes.",
-    "scripts/lib/cdp.mjs": "Configurable Chromium executable, unique temporary profiles, own-process-group cleanup instead of broad pkill. Original assertions remain intact."
+    "scripts/lib/cdp.mjs": "Configurable Chromium executable, unique temporary profiles, own-process-group cleanup instead of broad pkill. Original assertions remain intact.",
+    "app/pages/u/[username]/index.vue": "Profile banner shows the 极客班 TitleBadge (size md) beside the name, in addition to the unchanged forum-role badge.",
+    "app/data/seed-content.ts": "UserSeed.title and the demo 极客班 titles: talex 班长, mika 社区部 · 负责人, yuki 技术部 · 负责人, kai 技术部 · 干事, lin 领航员, six plain members; bruce none. No role changed, so the one-admin/one-moderator seed test and the upstream suites' author/other members (ryan, xiaoyu) are unaffected.",
+    "app/data/seed.ts": "buildUsers copies the optional seed title onto the user (a fresh object per user); consumes no PRNG draws, so every other seeded value is unchanged.",
+    "app/data/permissions.ts": "Adds hasForumCapability(user, capability): admin/moderator by role hold every forum capability as before, anyone else holds what their 极客班 title carries (titleForumCapabilities, mirroring the server catalogue's forum packs). isStaff = forum.post.moderate (edit/delete others' posts, reply in closed topics); pinTopic reads forum.topic.pin and closeTopic reads forum.topic.close. Demo permissions only, not an authorization boundary; every other ForumAction rule is unchanged."
   },
   "addedIntegrationFiles": [
     "shared/deployment.ts",
@@ -47,6 +51,8 @@
     "tests/deployment.test.ts",
     "tests/local-snapshot.test.ts",
     "tests/local-curation.test.ts",
+    "app/data/titles.ts",
+    "app/components/TitleBadge.vue",
     "UPSTREAM.json",
     "ADOPTION.json"
   ],
