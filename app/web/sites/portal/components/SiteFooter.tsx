@@ -21,7 +21,7 @@ export default function SiteFooter() {
           <Link to="/apply">投递简历</Link>
           <a href={externalUrl("forum", "/")}>论坛</a>
           <Link to="/docs">文档</Link>
-          <a href={externalUrl("admin", "/admin")}>管理后台</a>
+          <a href={externalUrl("admin", "/console")}>控制台</a>
           <a href={appConfig.urls.githubOrg} target="_blank" rel="noreferrer">
             GitHub
           </a>

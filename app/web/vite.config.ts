@@ -6,14 +6,18 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
-const SITE_NAMES = ["portal", "admin"] as const;
+const SITE_NAMES = ["portal"] as const;
+
+/** 控制台是独立的 Vue 包（app/console），开发态跑在 5186；这里只负责把入口路径转过去。 */
+const CONSOLE_DEV_ORIGIN = "http://127.0.0.1:5186";
+const CONSOLE_PATH = /^\/(?:(?:admin|console)(?:\/|$)|signin$)/;
 
 /**
  * 开发态的按端 SPA fallback。
  *
- * 生产由 web 镜像的 nginx（直连时由 Fastify）按路径派发到 dist/sites/<端>/index.html
- * （/admin、/console、/signin 进 admin，其余进 portal）；Vite dev 默认只服务
- * 真实的 HTML 文件，portal/admin 深链接需要回落到各自入口。
+ * 生产由 web 镜像的 nginx（直连时由 Fastify）按路径派发：/admin、/console、/signin 进
+ * 控制台（app/console 的 dist/sites/console/index.html），其余进 portal；Vite dev 默认只服务
+ * 真实的 HTML 文件，portal 深链接需要回落到入口。
  * 这里把 `/sites/<端>/<任意非文件路径>` 一律回落到该端的 index.html，
  * 与生产行为一致。
  */
@@ -29,6 +33,16 @@ function devSiteFallback(): Plugin {
           if (path === "/forum" || path.startsWith("/forum/") || path === "/sites/forum" || path.startsWith("/sites/forum/")) {
             _res.statusCode = 302;
             _res.setHeader("Location", `http://127.0.0.1:3456${path.startsWith("/forum") ? path : "/"}`);
+            _res.end();
+            return;
+          }
+          // 控制台（/console、/admin、/signin，以及旧的 /sites/admin/…）由 app/console 的 dev server 提供
+          const legacy = path === "/sites/admin" || path.startsWith("/sites/admin/");
+          const consolePath = legacy ? path.slice("/sites/admin".length).replace(/^\/?$/, "/console") : path;
+          if (CONSOLE_PATH.test(consolePath)) {
+            const query = String(req.url ?? "").includes("?") ? `?${String(req.url).split("?").slice(1).join("?")}` : "";
+            _res.statusCode = 302;
+            _res.setHeader("Location", `${CONSOLE_DEV_ORIGIN}${consolePath}${query}`);
             _res.end();
             return;
           }
@@ -62,11 +76,10 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     rollupOptions: {
-      // portal/admin 的 React 入口；Nuxt 论坛由 app/forum 单独构建。
-      // 因此稳定产出 dist/sites/<端>/index.html，服务端据此按路径派发。
+      // portal 的 React 入口；控制台由 app/console（Vue）单独构建，Nuxt 论坛由 app/forum 单独构建。
+      // 稳定产出 dist/sites/portal/index.html；控制台产物是 app/console/dist/sites/console/index.html。
       input: {
         portal: resolve(here, "sites/portal/index.html"),
-        admin: resolve(here, "sites/admin/index.html"),
       },
       output: {
         // 不拆的话这些库会被并进某个端命名的 chunk（Rollup 会挑 `pow` 这种
