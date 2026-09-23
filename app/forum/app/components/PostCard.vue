@@ -112,8 +112,10 @@ function remove() {
               :label="author.displayName"
               @open="navigateTo(`/u/${author.username}`)"
             />
+            <!-- The 极客班 title when there is one; the forum role badge otherwise. -->
+            <TitleBadge v-if="author?.title" :title="author.title" />
             <TxStatusBadge
-              v-if="author && author.role !== 'member'"
+              v-else-if="author && author.role !== 'member'"
               :text="roleLabel(author.role)"
               :status="roleTone(author.role)"
               size="sm"

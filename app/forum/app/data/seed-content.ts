@@ -10,6 +10,7 @@
  * `@iconify-json/carbon/icons.json` (`i-carbon-bug` does not exist).
  */
 
+import type { UserTitle } from './titles'
 import type { UserRole } from './types'
 
 export interface UserSeed {
@@ -19,6 +20,8 @@ export interface UserSeed {
   location: string
   website: string
   role: UserRole
+  /** 极客班 title shown beside the name; `role` is unchanged by it. */
+  title?: UserTitle
   /** Days before `now` the account was created. */
   joinedDaysAgo: number
 }
@@ -72,6 +75,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '杭州',
     website: 'https://github.com/talex-touch',
     role: 'admin',
+    title: { id: 'captain' },
     joinedDaysAgo: 730,
   },
   {
@@ -81,6 +85,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '上海',
     website: '',
     role: 'moderator',
+    title: { id: 'head', department: 'community' },
     joinedDaysAgo: 640,
   },
   {
@@ -90,6 +95,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '深圳',
     website: 'https://github.com/ryan-k',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 520,
   },
   {
@@ -99,6 +105,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '成都',
     website: '',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 460,
   },
   {
@@ -108,6 +115,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '北京',
     website: 'https://github.com/leon-dev',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 410,
   },
   {
@@ -117,6 +125,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '东京',
     website: 'https://dribbble.com/ayako',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 380,
   },
   {
@@ -126,6 +135,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '武汉',
     website: '',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 340,
   },
   {
@@ -135,6 +145,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '广州',
     website: 'https://github.com/nova-ml',
     role: 'member',
+    title: { id: 'member' },
     joinedDaysAgo: 300,
   },
   {
@@ -144,6 +155,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '西安',
     website: '',
     role: 'member',
+    title: { id: 'member', department: 'tech' },
     joinedDaysAgo: 270,
   },
   {
@@ -153,6 +165,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '南京',
     website: 'https://github.com/lin-docs',
     role: 'member',
+    title: { id: 'alumni' },
     joinedDaysAgo: 230,
   },
   {
@@ -162,6 +175,7 @@ export const USER_SEEDS: UserSeed[] = [
     location: '',
     website: '',
     role: 'member',
+    title: { id: 'head', department: 'tech' },
     joinedDaysAgo: 200,
   },
   {

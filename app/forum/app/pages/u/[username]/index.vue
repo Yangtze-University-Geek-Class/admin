@@ -182,6 +182,11 @@ function openWebsite(href: string) {
         <template #title>
           <TxFlex align="center" :gap="8" wrap="wrap" class="whitespace-normal">
             <span class="text-xl font-semibold">{{ profile.displayName }}</span>
+            <!--
+              The profile is the full identity card: the 极客班 title and, for
+              admins and moderators, the forum role as well.
+            -->
+            <TitleBadge v-if="profile.title" :title="profile.title" size="md" />
             <TxStatusBadge
               v-if="profile.role !== 'member'"
               :text="roleLabel(profile.role)"

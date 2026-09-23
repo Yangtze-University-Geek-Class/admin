@@ -111,6 +111,8 @@ function buildUsers(rng: Prng, now: number): User[] {
     avatarColor: AVATAR_PALETTE[index % AVATAR_PALETTE.length] as string,
     joinedAt: now - seed.joinedDaysAgo * DAY - rng.int(0, 23) * HOUR - rng.int(0, 59) * MINUTE,
     role: seed.role,
+    // Copied, not shared: the store mutates users in place.
+    ...(seed.title ? { title: { ...seed.title } } : {}),
     notifyPrefs: { reply: true, like: true, follow: true },
   }))
 }
