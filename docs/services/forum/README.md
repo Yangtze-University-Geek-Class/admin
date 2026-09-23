@@ -42,7 +42,7 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 称号
 
-用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。权威清单是服务端 `app/server/src/lib/roles.ts`（经 `/api/console/catalogue` 下发）；论坛在 `app/forum/app/data/titles.ts` 保留一份零依赖副本，因为静态构建不能跨包导入核心代码。副本与服务端逐项一致：称号 id、中文、英文标签、图标、色调与 rank，干事样式（`CREW`：`CREW` 标签、`slate` 色调、rank 2），八个色调色值，四个默认部门（id、名称、标签、图标、色调）及其负责人 / 干事权限包中的 `forum.*` 部分，论坛能力清单和部门 id 格式。图标在服务端是 Carbon 名称（`star-filled`），论坛写成完整类名（`i-carbon-star-filled`）便于 UnoCSS 扫描。`app/forum/tests/titles.test.ts` 把服务端清单手抄成独立的规格表并逐项断言；服务端文件改动时这张表和论坛副本要一起改，跨包自动比对留到两边合流时补上。
+用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。权威清单是服务端 `app/server/src/lib/roles.ts`（经 `/api/console/catalogue` 下发）；论坛在 `app/forum/app/data/titles.ts` 保留一份零依赖副本，因为静态构建不能跨包导入核心代码。副本与服务端逐项一致：称号 id、中文、英文标签、图标、色调与 rank，干事样式（`CREW`：`CREW` 标签、`slate` 色调、rank 2），八个色调色值，四个默认部门（id、名称、标签、图标、色调）及其负责人 / 干事权限包中的 `forum.*` 部分，论坛能力清单和部门 id 格式。图标在服务端是 Carbon 名称（`star-filled`），论坛写成完整类名（`i-carbon-star-filled`）便于 UnoCSS 扫描。`app/forum/tests/titles.test.ts` 把服务端清单手抄成独立的规格表并逐项断言；`app/forum/tests/titles-server-parity.test.ts` 直接读取服务端 `roles.ts` 源码文本逐项比对（不导入服务端模块），服务端改了清单而论坛副本没跟上时 `forum:check` 失败。
 
 | 称号 | 显示 | 图标 | 色调 | 排序 |
 |---|---|---|---|---|
