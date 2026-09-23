@@ -82,7 +82,7 @@ async function serve(instance) {
     const { createConfig } = await import(pathToFileURL(join(root, "app/server/dist/config.js")).href);
     const { buildApp } = await import(pathToFileURL(join(root, "app/server/dist/app.js")).href);
     const config = createConfig({
-      NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin, SITE_ORIGIN: webOrigin,
+      NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin,
       PORT: "3000", DB_PATH: ":memory:", FORUM_DB_PATH: ":memory:", FORUM_UPLOAD_DIR: scratch,
       SESSION_SECRET: randomBytes(32).toString("hex"), ENCRYPTION_KEY: randomBytes(32).toString("base64"),
       OAUTH_CLIENT_ID: "local-preview-disabled", OAUTH_CLIENT_SECRET: "local-preview-disabled", POW_DIFFICULTY: "0",

@@ -4,6 +4,8 @@
  *
  * 契约边界：
  *   * `deploy/environments.json` 是环境身份（域名、GitHub environment 名）的唯一机器配置。
+ *   * 每个环境只有一个对外 origin：`PUBLIC_ORIGIN` 必须逐字等于契约里的 origin；
+ *     管理端靠 URL 路径（/admin、/console）区分，不再有独立域名或按站点的 host 字段。
  *   * `deploy/env/.env.production|preview` 是**提交入库的模板**：地址/端口/域名写真实值，
  *     密钥项必须为空；目标机运行时文件由 CI 用环境级 secrets 渲染后落盘（本脚本 render 模式）。
  *   * 本脚本只读仓库、只写显式 `--out` 目标；不连接服务器、不发版、不改任何 Git 状态。
@@ -47,10 +49,6 @@ const REQUIRED_FIELDS = Object.freeze([
   'SERVER_PORT',
   'FORUM_PORT',
   'PUBLIC_ORIGIN',
-  'SITE_ORIGIN',
-  'PORTAL_HOST',
-  'ADMIN_HOST',
-  'FORUM_HOST',
   'NODE_ENV',
   'PORT',
   'HOST',
@@ -64,13 +62,13 @@ const REQUIRED_FIELDS = Object.freeze([
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */
 const BUILD_ONLY_FIELDS = Object.freeze(['GEEK_RELEASE_VERSION', 'GEEK_RELEASE_COMMIT', 'GEEK_RELEASE_DISPLAY_SUFFIX']);
+/** 模板允许出现的全部字段：契约外的键（例如已退役的按站点 host 字段）一律拒绝，防止悄悄长出第二份配置。 */
+const KNOWN_FIELDS = Object.freeze(new Set([...REQUIRED_FIELDS, ...EMPTY_IS_MEANINGFUL]));
 /** 逐字固定的入口域名：论坛构建（app/forum/shared/deployment.ts）与 env 模板都要对得上。 */
 export const EXPECTED_ORIGINS = Object.freeze({
   preview: 'https://prev.yangtzeu.work',
   production: 'https://yangtzeu.work',
 });
-/** 站点 → env 字段名。 */
-export const HOST_FIELDS = Object.freeze({ portal: 'PORTAL_HOST', admin: 'ADMIN_HOST', forum: 'FORUM_HOST' });
 /** 任何名字长得像密钥的键，一旦有非空值即拒绝（防止未来新增字段悄悄带上真值）。 */
 const SECRET_KEY_RE = /(?:^|_)(?:SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|ENCRYPTION_KEY|SSH_KEY|PRIVATE_KEY)(?:_|$)/i;
 const HOST_RE = /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -190,26 +188,11 @@ function readTemplate(root, name) {
   return { path, relativePath: `${ENV_FILE_DIR}/.env.${name}`, text, values };
 }
 
-function hostsOf(values, label) {
-  const hosts = {};
-  for (const [site, field] of Object.entries(HOST_FIELDS)) {
-    const value = values.get(field);
-    if (!value) fail(`${label} 缺少 ${field}`);
-    if (!HOST_RE.test(value)) fail(`${label} 的 ${field} 不是合法域名：${value}`);
-    hosts[site] = value;
-  }
-  if (hosts.portal === hosts.admin) {
-    fail(`${label} 的 PORTAL_HOST 与 ADMIN_HOST 不得相同：同一个 host 无法区分两套 SPA 入口`);
-  }
-  return Object.freeze(hosts);
-}
-
-/** 读取单个环境的模板与解析结果（供 check-site-hosts / release-policy 复用）。 */
+/** 读取单个环境的模板与解析结果（供 release-policy 复用）。 */
 export function readEnvironment(root, name) {
   const contract = validateEnvironmentContract(loadContract(root));
   if (!ENVIRONMENTS.includes(name)) fail(`环境必须是 ${ENVIRONMENTS.join(' / ')}，收到 ${name}`);
   const template = readTemplate(root, name);
-  const label = `${ENV_FILE_DIR}/.env.${name}`;
   return {
     name,
     entry: contract.environments[name],
@@ -217,7 +200,6 @@ export function readEnvironment(root, name) {
     relativePath: template.relativePath,
     text: template.text,
     values: template.values,
-    hosts: hostsOf(template.values, label),
     stackRoot: template.values.get('STACK_ROOT'),
     composeProject: template.values.get('COMPOSE_PROJECT_NAME'),
     runtimeEnvFile: `${template.values.get('STACK_ROOT')}/.env.${name}`,
@@ -250,6 +232,10 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
 
     for (const field of REQUIRED_FIELDS) if (!values.has(field)) problem(`缺少字段 ${field}`);
     for (const [key, value] of values) {
+      if (!KNOWN_FIELDS.has(key) && !BUILD_ONLY_FIELDS.includes(key)) {
+        problem(`${key} 不在环境契约里：每个环境只有 PUBLIC_ORIGIN 一个对外地址，不接受额外的域名或站点字段`);
+        continue;
+      }
       if (SECRET_FIELDS.includes(key)) {
         if (value) problem(`${key} 必须在入库模板里留空（由环境级 secrets 注入）`);
         continue;
@@ -277,23 +263,16 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     const imageTag = values.get('IMAGE_TAG') ?? '';
     if (imageTag === 'latest') problem('IMAGE_TAG 禁止 latest');
     else if (imageTag !== 'unset' && !IMAGE_TAG_RE.test(imageTag)) problem(`IMAGE_TAG 只能是 unset 或 12 位 SHA：${imageTag}`);
-    let hosts;
+    // 单一 origin：OAuth 回调、邀请链接、登录回跳都由它拼出，必须与环境身份逐字一致。
     try {
-      hosts = hostsOf(values, label);
-    } catch (error) {
-      problem(error.message.replace(`${label} `, ''));
-      hosts = null;
-    }
-    for (const [field, hostField] of [['PUBLIC_ORIGIN', 'ADMIN_HOST'], ['SITE_ORIGIN', 'PORTAL_HOST']]) {
-      try {
-        const origin = parseHttpsOrigin(values.get(field), field);
-        const host = values.get(hostField);
-        if (host && new URL(origin).hostname !== host) problem(`${field} 的域名必须等于 ${hostField}（${host}）`);
-      } catch (error) {
-        problem(error.message);
+      const publicOrigin = parseHttpsOrigin(values.get('PUBLIC_ORIGIN'), 'PUBLIC_ORIGIN');
+      if (publicOrigin !== expectedOrigin || values.get('PUBLIC_ORIGIN') !== expectedOrigin) {
+        problem(`PUBLIC_ORIGIN 必须逐字等于 deploy/environments.json 的 ${expectedOrigin}（每个环境只有这一个对外地址），收到 ${values.get('PUBLIC_ORIGIN')}`);
       }
+    } catch (error) {
+      problem(error.message);
     }
-    if (name === 'production' && values.get('COOKIE_DOMAIN')) problem('production 只允许 host-only cookie：COOKIE_DOMAIN 必须留空');
+    if (values.get('COOKIE_DOMAIN')) problem('只允许 host-only cookie：COOKIE_DOMAIN 必须留空');
     for (const field of BUILD_ONLY_FIELDS) {
       if (values.has(field)) problem(`${field} 属于构建期 build args（CI 按分支生成），不得写进部署 env 文件`);
     }
@@ -310,24 +289,19 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     if (text.includes('0.0.0.0') && !/^HOST=0\.0\.0\.0$/m.test(text)) {
       problem('模板里出现 0.0.0.0：只允许容器内 HOST=0.0.0.0，宿主侧端口必须绑回环');
     }
-    environments.push({ name, label, relativePath, values, hosts, origin: expectedOrigin });
+    environments.push({ name, label, relativePath, values, origin: expectedOrigin });
   }
 
   const byName = new Map(environments.map(item => [item.name, item]));
   if (byName.size === ENVIRONMENTS.length) {
     const production = byName.get('production');
     const preview = byName.get('preview');
-    for (const field of ['STACK_ROOT', 'COMPOSE_PROJECT_NAME', 'WEB_BIND', 'SERVER_BIND']) {
+    for (const field of ['STACK_ROOT', 'COMPOSE_PROJECT_NAME', 'WEB_BIND', 'SERVER_BIND', 'PUBLIC_ORIGIN']) {
       if (production.values.get(field) === preview.values.get(field)) {
         problems.push(`两套栈必须完全隔离：production 与 preview 的 ${field} 相同（${production.values.get(field)}）`);
       }
     }
     if (production.origin === preview.origin) problems.push('两套环境的入口域名必须不同');
-    for (const site of Object.keys(HOST_FIELDS)) {
-      if (production.hosts?.[site] === preview.hosts?.[site]) {
-        problems.push(`两套环境的 ${HOST_FIELDS[site]} 相同：会造成域名归属不清`);
-      }
-    }
     for (const field of ['DEPLOY_HOST', 'DEPLOY_PORT', 'DEPLOY_USER']) {
       if (production.values.get(field) !== preview.values.get(field)) {
         warnings.push(`production 与 preview 的 ${field} 不同（契约要求同机双栈）：${production.values.get(field)} vs ${preview.values.get(field)}`);

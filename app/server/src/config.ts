@@ -1,7 +1,6 @@
 import { config as loadEnv } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
 
 /** 仓库根：geek_main/。配置、docs、pnpm 工作区清单都在这里。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -16,17 +15,17 @@ export function createConfig(env: Record<string, string | undefined>) {
     if (!value) throw new Error(`missing env: ${key}`);
     return value;
   };
-  const origin = (value: string): string => {
-    const url = new URL(value);
+  // 每个环境只有一个对外 origin：OAuth 回调、邀请链接、登录回跳与写请求的 Origin 校验都只认它。
+  // 管理端不再占独立域名，而是同一 origin 下的 /admin、/console 路径（见 app.ts 的 resolveSiteEntry）。
+  const publicOrigin = (() => {
+    const url = new URL(required("PUBLIC_ORIGIN"));
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-      throw new Error("site origins must be plain HTTP(S) origins");
+      throw new Error("PUBLIC_ORIGIN must be a plain HTTP(S) origin");
     }
     return url.origin;
-  };
-  const publicOrigin = origin(required("PUBLIC_ORIGIN"));
-  const siteOrigin = origin(env.SITE_ORIGIN || publicOrigin);
+  })();
   const production = env.NODE_ENV === "production";
-  if (production && [publicOrigin, siteOrigin].some(value => !value.startsWith("https:"))) throw new Error("production requires HTTPS origins");
+  if (production && !publicOrigin.startsWith("https:")) throw new Error("production requires an HTTPS PUBLIC_ORIGIN");
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid PORT");
   const powDifficulty = Number(env.POW_DIFFICULTY ?? 3);
@@ -37,12 +36,6 @@ export function createConfig(env: Record<string, string | undefined>) {
   if (sessionSecret.length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters");
   const encryptionKey = required("ENCRYPTION_KEY");
   if (Buffer.from(encryptionKey, "base64").length !== 32) throw new Error("ENCRYPTION_KEY must decode to 32 bytes");
-  const host = (value: string | undefined, fallback: string) => {
-    const result = (value || fallback).toLowerCase();
-    if (!/^[a-z0-9.-]+$/.test(result)) throw new Error("site host must be a hostname without a port");
-    return result;
-  };
-  const portalHost = host(env.PORTAL_HOST, new URL(siteOrigin).hostname);
   // 容器里必须监听 0.0.0.0，本机开发仍默认回环；见 deploy/env/.env.<环境> 的 HOST。
   const listenHost = (env.HOST || "127.0.0.1").trim();
   if (!/^[a-z0-9.-]+$/i.test(listenHost)) throw new Error("HOST must be an address without a port");
@@ -60,7 +53,7 @@ export function createConfig(env: Record<string, string | undefined>) {
   if (!GITHUB_LOGIN_REGEX.test(consoleOrg)) throw new Error("CONSOLE_ORG must be a GitHub organization login");
   if (allowedOrgs.length > 0 && !allowedOrgs.includes(consoleOrg.toLowerCase())) throw new Error("ALLOWED_ORGS must include CONSOLE_ORG");
   return {
-    production, port, publicOrigin, siteOrigin, host: listenHost, trustProxy, consoleOrg,
+    production, port, publicOrigin, host: listenHost, trustProxy, consoleOrg,
     cookieDomain: env.COOKIE_DOMAIN || undefined,
     cookieSecure: publicOrigin.startsWith("https:"),
     oauth: { clientId: required("OAUTH_CLIENT_ID"), clientSecret: required("OAUTH_CLIENT_SECRET"), scope: "read:user user:email admin:org read:org repo" },
@@ -69,22 +62,10 @@ export function createConfig(env: Record<string, string | undefined>) {
     allowedOrgs,
     turnstile: { siteKey: env.TURNSTILE_SITE_KEY ?? "", secretKey: env.TURNSTILE_SECRET_KEY ?? "" },
     powDifficulty,
-    siteHosts: { admin: host(env.ADMIN_HOST, new URL(publicOrigin).hostname), portal: portalHost, forum: host(env.FORUM_HOST, `forum.${portalHost}`) },
   };
 }
 export type AppConfig = ReturnType<typeof createConfig>;
 export function loadConfig(): AppConfig {
   loadEnv({ path: resolve(REPO_ROOT, ".env") });
-  const config = createConfig(process.env);
-  if (config.production) {
-    const frontend = JSON.parse(readFileSync(resolve(APP_ROOT, "web/shared/config/app.config.json"), "utf8")) as { sites: Record<string, { host: string }> };
-    assertSiteHosts(config, frontend.sites);
-  }
-  return config;
-}
-
-export function assertSiteHosts(config: AppConfig, sites: Record<string, { host: string }>) {
-  for (const site of ["portal", "forum", "admin"] as const) {
-    if (config.siteHosts[site] !== sites[site]?.host?.toLowerCase()) throw new Error(`Frontend/backend hostname mismatch: ${site}`);
-  }
+  return createConfig(process.env);
 }

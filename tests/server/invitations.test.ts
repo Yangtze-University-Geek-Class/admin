@@ -42,3 +42,15 @@ it.each([
   expect(response.statusCode).toBe(400); expect(response.json().error).toBe(expected);
   expect(JSON.stringify(response.json())).not.toMatch(/stub|Validation Failed/);
 });
+it('builds invite links on the single public origin', async () => {
+  const context = await testApp({ octokitFactory: (() => ({ request: async (method: string) => {
+    if (method !== 'GET /orgs/{org}/memberships/{username}') throw new Error('Unexpected upstream operation');
+    return { data: { state: 'active', role: 'admin' } };
+  } })) as ServiceOverrides['octokitFactory'] });
+  contexts.push(context);
+  const sid = context.app.services.auth.createSession('test-admin', 9, null, 'test-stub-only');
+  const response = await context.app.inject({ method: 'POST', url: '/api/admin/test-org/invite-links', headers: { cookie: `sid=${sid}`, origin: 'https://example.test' }, payload: { hours: 1, max_uses: 1 } });
+  expect(response.statusCode).toBe(200);
+  const { token, url } = response.json();
+  expect(url).toBe(`https://example.test/join/${token}`);
+});

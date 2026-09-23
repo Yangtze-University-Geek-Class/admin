@@ -2,7 +2,7 @@
 
 > 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-24
 
 ## 当前拓扑
 
@@ -26,11 +26,13 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ```text
 宿主 nginx（TLS 终止，certbot 证书）
-  ├─ yangtzeu.work / prev.yangtzeu.work          → 127.0.0.1:18100 / 18200
-  └─ github.yangtzeu.work / prev-admin.yangtzeu.work → 同上（web 容器按 host 分流 SPA）
-       └─ web 容器（nginx：静态 + 反代）
+  ├─ yangtzeu.work / prev.yangtzeu.work → 127.0.0.1:18100 / 18200（每个环境只有这一个域名）
+  └─ github.yangtzeu.work（已退役）      → 301 到 https://yangtzeu.work
+       └─ web 容器（nginx：静态 + 反代，按路径选 SPA 入口）
             ├─ /api/*、/auth、/auth/*、/healthz → server 容器（Fastify，/data 命名卷）
-            └─ /forum/*                         → forum 容器（Nuxt 静态产物）
+            ├─ /forum/*                         → forum 容器（Nuxt 静态产物）
+            ├─ /admin/*、/console/*、/signin     → 管理端 SPA
+            └─ 其余路径                         → portal SPA
 ```
 
 | 环境 | 分支 | 栈根 | compose 项目 | 数据 |
@@ -38,7 +40,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 | production | `main` | `/opt/yzgc/production` | `yzgc-production` | 独立命名卷 |
 | preview | `stage` | `/opt/yzgc/preview` | `yzgc-preview` | 独立命名卷 |
 
-两环境隔离维度：目录、compose 项目、端口、卷、密钥、域名、Cookie 域（host-only）。细节见 [DEPLOY](../ops/DEPLOY.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[CICD](../ops/CICD.md)。
+两环境隔离维度：目录、compose 项目、端口、卷、密钥、域名、Cookie 域（host-only）。每个环境只有一个 origin（`PUBLIC_ORIGIN`）：官网、管理端、论坛同域，管理端靠路径区分，服务端（`resolveSiteEntry`）与 web 容器 nginx 用同一套路径规则选 SPA 入口。细节见 [DEPLOY](../ops/DEPLOY.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[CICD](../ops/CICD.md)。
 
 ## 核心数据与身份
 

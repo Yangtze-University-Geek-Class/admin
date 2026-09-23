@@ -11,7 +11,8 @@ const SITE_NAMES = ["portal", "admin"] as const;
 /**
  * 开发态的按端 SPA fallback。
  *
- * 生产由 Fastify 按 host 派发到 dist/sites/<端>/index.html；Vite dev 默认只服务
+ * 生产由 web 镜像的 nginx（直连时由 Fastify）按路径派发到 dist/sites/<端>/index.html
+ * （/admin、/console、/signin 进 admin，其余进 portal）；Vite dev 默认只服务
  * 真实的 HTML 文件，portal/admin 深链接需要回落到各自入口。
  * 这里把 `/sites/<端>/<任意非文件路径>` 一律回落到该端的 index.html，
  * 与生产行为一致。
@@ -62,7 +63,7 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       // portal/admin 的 React 入口；Nuxt 论坛由 app/forum 单独构建。
-      // 因此稳定产出 dist/sites/<端>/index.html，服务端据此按 host 派发。
+      // 因此稳定产出 dist/sites/<端>/index.html，服务端据此按路径派发。
       input: {
         portal: resolve(here, "sites/portal/index.html"),
         admin: resolve(here, "sites/admin/index.html"),

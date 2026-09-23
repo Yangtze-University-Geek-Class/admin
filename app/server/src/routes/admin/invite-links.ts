@@ -53,8 +53,8 @@ export default async function inviteLinksRoutes(app: FastifyInstance) {
       now
     );
     audit(org, req.session!.login, "invite_link.create", token, { hours, max_uses, note, team_slug }, req.ip);
-    const joinBase = process.env.SITE_ORIGIN || process.env.PUBLIC_ORIGIN;
-    return { ok: true, token, url: `${joinBase}/join/${token}`, expires_at: expires };
+    // 邀请页在官网 SPA 的 /join/<token>，与管理端同一个 origin。
+    return { ok: true, token, url: `${app.services.config.publicOrigin}/join/${token}`, expires_at: expires };
   });
 
   app.patch<{ Params: { org: string; token: string }; Body: { disabled?: boolean } }>(

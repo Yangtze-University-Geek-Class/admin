@@ -1,19 +1,24 @@
 import { expect, it } from "vitest";
-import { assertSiteHosts, createConfig } from "../../app/server/src/config";
+import { createConfig } from "../../app/server/src/config";
 
 function env() {
   return {
-    NODE_ENV: "test", PUBLIC_ORIGIN: "https://admin.example.test", SITE_ORIGIN: "https://example.test",
-    FORUM_HOST: "forum.example.test", DB_PATH: ":memory:", FORUM_DB_PATH: ":memory:",
+    NODE_ENV: "test", PUBLIC_ORIGIN: "https://example.test", DB_PATH: ":memory:", FORUM_DB_PATH: ":memory:",
     SESSION_SECRET: "configuration-test-secret-at-least-32", ENCRYPTION_KEY: Buffer.alloc(32, 2).toString("base64"),
     OAUTH_CLIENT_ID: "test-client", OAUTH_CLIENT_SECRET: "test-secret",
   };
 }
-it("validates public backend/frontend hosts without reading private environment files", () => {
-  const config = createConfig(env());
-  const sites = { admin: { host: "admin.example.test" }, portal: { host: "example.test" }, forum: { host: "forum.example.test" } };
-  expect(() => assertSiteHosts(config, sites)).not.toThrow();
-  expect(() => assertSiteHosts(config, { ...sites, forum: { host: "other.example.test" } })).toThrow("hostname mismatch: forum");
+it("keeps exactly one public origin and ignores the retired per-site host variables", () => {
+  const config = createConfig({ ...env(), SITE_ORIGIN: "https://other.example.test", ADMIN_HOST: "admin.example.test", PORTAL_HOST: "x.example.test", FORUM_HOST: "y.example.test" });
+  expect(config.publicOrigin).toBe("https://example.test");
+  expect(config).not.toHaveProperty("siteOrigin");
+  expect(config).not.toHaveProperty("siteHosts");
+  expect(createConfig({ ...env(), PUBLIC_ORIGIN: "https://example.test/" }).publicOrigin).toBe("https://example.test");
+  for (const origin of ["https://example.test/admin", "https://user:pass@example.test", "https://example.test/?q=1", "ftp://example.test"]) {
+    expect(() => createConfig({ ...env(), PUBLIC_ORIGIN: origin })).toThrow("plain HTTP(S) origin");
+  }
+  const { PUBLIC_ORIGIN: _omitted, ...missing } = env();
+  expect(() => createConfig(missing)).toThrow("missing env: PUBLIC_ORIGIN");
 });
 it("rejects invalid runtime credentials, production HTTP and unbounded PoW", () => {
   expect(() => createConfig({ ...env(), ENCRYPTION_KEY: "invalid" })).toThrow("32 bytes");
