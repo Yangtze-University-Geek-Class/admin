@@ -1,5 +1,7 @@
 // Development-only control center (site / data-source / page switcher).
 // Rendered only when environment.development.showControlCenter is true; never in production.
+// 默认收起成左下角的小胶囊，点开才展开面板，不遮挡页面内容（官网全屏场景、系统桌面的 Dock 都在底部中间与右侧）。
+import { useState } from "react";
 import { runtimeEnvironment, type AppSiteKind, type DataSource } from "../config";
 import { crossSiteHref, getCurrentSite, getDataSource, setDataSource } from "../lib/runtime";
 
@@ -12,18 +14,33 @@ const SITE_OPTIONS: Array<{ value: AppSiteKind; label: string }> = [
 export default function DevControlCenter() {
   const runtime = runtimeEnvironment();
   if (!runtime.showControlCenter) return null;
+  return <DevControlPanel />;
+}
 
+function DevControlPanel() {
+  const [open, setOpen] = useState(false);
   const site = getCurrentSite();
   const source = getDataSource();
 
   // 开发态每个端是独立的 HTML 入口，站内跳转要带上 /sites/<端> 前缀
   const openPath = (path: string) => window.location.assign(crossSiteHref(site, path));
 
+  if (!open) {
+    return (
+      <button type="button" className="dev-control-pill" aria-label="展开开发环境总控" aria-expanded="false" onClick={() => setOpen(true)}>
+        <i /> DEV · {source === "mock" ? "MOCK" : "LIVE"}
+      </button>
+    );
+  }
+
   return (
     <aside className="dev-control-center" aria-label="开发环境总控">
       <div className="dev-control-head">
         <span><i /> DEV CONTROL</span>
         <b>{source === "mock" ? "MOCK" : "LIVE"}</b>
+        <button type="button" className="dev-control-close" aria-label="收起开发环境总控" aria-expanded="true" onClick={() => setOpen(false)}>
+          收起
+        </button>
       </div>
       <div className="dev-control-row">
         <span className="dev-control-label">站点</span>

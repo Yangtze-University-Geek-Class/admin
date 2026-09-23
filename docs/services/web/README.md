@@ -8,7 +8,8 @@
 
 | 路径 | 职责 |
 |---|---|
-| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由、`pages/`、`components/`（含首页滚动舞台 `ScrollStage.tsx`）、`lib/`（LED 点阵字库与画板）、`theme.css`（NANO · 代码窗口 × LED 点阵视觉令牌与组件）、`index.html` 入口；无独立登录态 |
+| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由（`/`、`/join-us`、`/forum-3d`、`/github`、`/docs`、`/feedback`、`/join/:token`）、`pages/`、`three/`（按需加载的 three.js 场景：书桌、信封、论坛气泡、GitHub 天际线）、`components/`（YUGC OS 桌面、加载动画、页面外壳）、`lib/`（状态机、进度、相机数学、链接、快照、图标）、`styles/`（浅色书桌 × YUGC OS 视觉令牌）、`index.html` 入口；无独立登录态 |
+
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 官网复用的交互原语：Modal、ConfirmDialog、Select、ImageLightbox、TurnstileWidget、Mascot 等 |
 | `app/web/shared/styles/` | 基础样式与令牌（`base.css`、`mascot.css`、`rounded.css`） |

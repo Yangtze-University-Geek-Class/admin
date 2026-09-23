@@ -1,0 +1,136 @@
+/* ─────────────────────────────────────────────────────────────
+   官网视觉基线：浅色书桌 × YUGC OS（规范正文 docs/design/DESIGN.md「官网视觉语言」）。
+   改这里的值等于改规范：先改文档，再改令牌。作用域 .pt-root，管理员端与论坛不受影响。
+   令牌：纸色 / 冰白底，墨色文字，钴蓝 #3346c8 是唯一的实心主色，琥珀只做光标与点缀。
+   性能：不在大面积全屏层上用 backdrop-filter（改用实色半透明填充）。
+   图标：一律用 components/Icon.tsx（Remix 线性图标），界面里禁止 emoji 与装饰性 unicode 箭头。
+   ───────────────────────────────────────────────────────────── */
+
+/* 共享 base.css 在 body 上挂了两层全屏、带 blur(36–48px) 滤镜且无限循环的「背景流动层」：
+   每帧都要重新模糊整屏，实测把页面锁在 30fps（M4 Pro、DPR 2）。官网自己画不透明背景，这两层看不见，
+   所以在官网入口直接关掉；管理员端不受影响。 */
+html[data-site="portal"] body::before,
+html[data-site="portal"] body::after { content: none; display: none; animation: none; }
+html[data-site="portal"] body { background: #f5f4f0 !important; }
+/* 开发态总控（shared/ui/DevControlCenter，生产不渲染）：窄屏官网的底部是 Dock、版块列表、仓库列表或回执，
+   收起的胶囊缩成右侧边缘中间的一个小圆点（只剩状态灯），展开的面板放到右上角顶栏下方，都不压住这些固定栏。 */
+@media (max-width: 860px) {
+  html[data-site="portal"] .dev-control-pill { left: auto; right: 2px; bottom: auto; top: 50%; gap: 0; padding: 6px; font-size: 0; letter-spacing: 0; }
+  html[data-site="portal"] .dev-control-center { left: auto; right: 10px; bottom: auto; top: 72px; }
+}
+
+
+.pt-root {
+  --pt-paper: #f5f4f0;
+  --pt-ice: #fbfbfd;
+  --pt-card: #ffffff;
+  --pt-ink: #1b2140;
+  --pt-ink-soft: #5b6283;
+  /* 弱化文字：在纸色与冰白底上都 ≥4.5:1（原 #8a91b0 只有 2.8:1） */
+  --pt-ink-mute: #646b8a;
+  --pt-line: rgb(27 33 64 / 12%);
+  --pt-line-soft: rgb(27 33 64 / 7%);
+  --pt-cobalt: #3346c8;
+  --pt-cobalt-deep: #2638b8;
+  --pt-cobalt-soft: #e6e9fb;
+  --pt-cobalt-wash: rgb(51 70 200 / 7%);
+  --pt-amber: #f5a524;
+  --pt-green: #1fa971;
+  --pt-red: #c13939;
+  --pt-radius-sm: 8px;
+  --pt-radius: 12px;
+  --pt-radius-lg: 16px;
+  /* 卡片只用一种层级：细描边 + 贴身的短投影（不再叠一层大范围柔影） */
+  --pt-shadow: 0 1px 2px rgb(27 33 64 / 6%);
+  /* 浮层（窗口、菜单、启动器、Dock）：没有描边，靠一层有偏移的投影 */
+  --pt-shadow-float: 0 2px 6px rgb(27 33 64 / 8%), 0 24px 48px -24px rgb(27 33 64 / 40%);
+  --pt-ease: cubic-bezier(.2, .8, .2, 1);
+  --pt-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --pt-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--pt-paper);
+  color: var(--pt-ink);
+  font-family: var(--pt-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-variant-ligatures: none;
+  caret-color: var(--pt-cobalt);
+  accent-color: var(--pt-cobalt);
+  scrollbar-color: rgb(27 33 64 / 22%) transparent;
+  scrollbar-width: thin;
+}
+.pt-root *, .pt-root *::before, .pt-root *::after { box-sizing: border-box; }
+/* 浏览器自带的表面也用官网的颜色：选中文字、滚动条、链接下划线 */
+.pt-root ::selection { background: rgb(51 70 200 / 20%); color: var(--pt-ink); }
+.pt-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+.pt-root ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: rgb(27 33 64 / 20%) padding-box; }
+.pt-root ::-webkit-scrollbar-thumb:hover { background-color: rgb(27 33 64 / 34%); }
+.pt-root ::-webkit-scrollbar-track { background: transparent; }
+:where(.pt-root) a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+/* 数字：计数、时钟、百分比一律等宽数字，跳动时不左右晃 */
+.pt-num, .pt-root time, .pt-root kbd, .pt-root code { font-variant-numeric: tabular-nums; }
+:where(.pt-root) :where(h1, h2, h3, p, ol, ul, dl, dd, figure) { margin: 0; }
+:where(.pt-root) :where(ol, ul) { padding: 0; list-style: none; }
+:where(.pt-root) :where(img, svg, canvas) { display: block; }
+:where(.pt-root) a { color: inherit; }
+/* 零优先级：组件类（.pt-btn、.pt-chip、.pt-termmini…）自己的字体设置必须能覆盖它 */
+:where(.pt-root) button { font: inherit; color: inherit; }
+.pt-root :focus-visible { outline: 2px solid var(--pt-cobalt); outline-offset: 2px; border-radius: 4px; }
+.pt-icon { flex: none; display: inline-block; vertical-align: -0.18em; }
+.pt-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.pt-route-fallback { min-height: 100svh; background: #f5f4f0; }
+/* 表单蜜罐：真人看不见也不会填 */
+.pt-trap { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+.pt-root kbd {
+  display: inline-flex; align-items: center; gap: 2px;
+  font: 500 10.5px/1.4 var(--pt-mono); padding: 1px 5px; border: 1px solid var(--pt-line); border-radius: 5px; background: #fff; color: var(--pt-ink-soft);
+}
+.pt-hint { font-size: 12.5px; color: var(--pt-ink-soft); }
+.pt-empty { color: var(--pt-ink-soft); font-size: 13px; padding: 10px 2px; }
+.pt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.pt-dot.is-round { border-radius: 50%; }
+.pt-caret { display: inline-block; width: 8px; height: 15px; margin-left: 4px; vertical-align: -2px; background: var(--pt-amber); animation: pt-blink 1.1s steps(1) infinite; }
+@keyframes pt-blink { 50% { opacity: 0; } }
+
+/* 按钮：主操作钴蓝实心；描边次要；墨色用于 GitHub */
+.pt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px;
+  padding: 10px 16px; border: 1px solid var(--pt-line); border-radius: 12px; background: #fff; color: var(--pt-ink);
+  font: 600 14px/1.2 var(--pt-sans); text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: border-color .18s, color .18s, background .18s, transform .18s var(--pt-ease), box-shadow .18s;
+}
+.pt-btn:hover { border-color: rgb(51 70 200 / 45%); color: var(--pt-cobalt); }
+.pt-btn.is-primary { background: var(--pt-cobalt); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -8px rgb(51 70 200 / 70%); }
+.pt-btn.is-primary:hover { background: var(--pt-cobalt-deep); color: #fff; }
+.pt-btn.is-primary kbd { background: rgb(255 255 255 / 16%); border-color: transparent; color: #dfe4ff; }
+.pt-btn.is-ink { background: var(--pt-ink); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -8px rgb(27 33 64 / 60%); }
+.pt-btn.is-ink:hover { background: var(--pt-cobalt); color: #fff; }
+.pt-btn.is-quiet { background: transparent; }
+.pt-btn.is-lg { min-height: 48px; padding: 12px 18px; font-size: 15px; border-radius: 12px; }
+.pt-btn.is-sm { min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 10px; }
+.pt-btn:active:not(:disabled) { transform: translateY(1px); }
+.pt-btn:disabled { opacity: .6; cursor: not-allowed; }
+.pt-btn[aria-busy="true"] { cursor: progress; }
+.pt-row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 称号 / 部门小标签 */
+.pt-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--c, #3346c8) 30%, #fff); border-radius: 999px;
+  background: color-mix(in srgb, var(--c, #3346c8) 11%, #fff); color: var(--c, #3346c8);
+  font: 600 12px/1.3 var(--pt-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+button.pt-chip { cursor: pointer; transition: transform .15s var(--pt-ease), box-shadow .15s; }
+button.pt-chip:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c, #3346c8) 55%, #fff); }
+.pt-chip.is-soft { background: #fff; font-weight: 500; }
+.pt-chip small { font-weight: 400; color: var(--pt-ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-root *, .pt-root *::before, .pt-root *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

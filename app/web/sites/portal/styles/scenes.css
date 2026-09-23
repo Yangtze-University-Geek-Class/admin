@@ -1,0 +1,129 @@
+/* 三个 3D 场景页（加入我们 / 论坛 / GitHub）共用的外壳：全屏画布、顶栏、左侧说明；以及信纸表单与回执。 */
+.pt-scene { height: 100svh; overflow: hidden; }
+.pt-scene-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.pt-scene-canvas.is-grab { cursor: grab; }
+
+.pt-scenebar { position: fixed; top: 0; left: 0; right: 0; z-index: 8; display: flex; align-items: center; gap: 14px; padding: 18px 26px; pointer-events: none; }
+.pt-scenebar > * { pointer-events: auto; }
+.pt-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 15px 8px 11px; border: 1px solid var(--pt-line); border-radius: 999px; background: rgb(255 255 255 / 92%); font-size: 13.5px; text-decoration: none; }
+.pt-back:hover { color: var(--pt-cobalt); border-color: rgb(51 70 200 / 40%); }
+.pt-crumb { font: 12px var(--pt-mono); color: var(--pt-ink-soft); letter-spacing: .04em; }
+.pt-crumb b { color: var(--pt-cobalt); font-weight: 600; }
+.pt-spacer { flex: 1; }
+.pt-scenebrand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; text-decoration: none; }
+.pt-scenebrand img { width: 26px; height: 26px; }
+
+.pt-intro { position: fixed; left: clamp(22px, 5vw, 80px); top: 50%; z-index: 3; max-width: 380px; transform: translateY(-50%); transition: opacity .45s var(--pt-ease), transform .6s var(--pt-ease); }
+.pt-intro h1 { margin-bottom: 12px; font-size: clamp(30px, 3vw, 44px); line-height: 1.15; letter-spacing: -.01em; font-weight: 800; text-wrap: balance; }
+.pt-intro > p { color: var(--pt-ink-soft); font-size: 14.5px; line-height: 1.75; }
+.pt-intro > .pt-btn { margin-top: 20px; }
+.pt-intro.is-away { opacity: 0; transform: translate(-24px, -50%); pointer-events: none; }
+/* 加入我们：信封停在正中，左侧说明收窄，不压信封 */
+.pt-join .pt-intro { max-width: 300px; }
+.pt-scene-note { position: fixed; left: 50%; bottom: 22px; z-index: 2; transform: translateX(-50%); font-size: 12.5px; color: var(--pt-ink-soft); white-space: nowrap; }
+.pt-tip { position: fixed; left: 0; top: 0; z-index: 6; padding: 6px 11px; border-radius: 999px; background: var(--pt-ink); color: #fff; font-size: 12.5px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; will-change: transform; }
+.pt-tip.is-on { opacity: 1; }
+.pt-wipe { position: fixed; inset: 0; z-index: 9; background: #fbfbfd; opacity: 0; pointer-events: none; }
+
+/* ── 加入我们：信纸就是表单，落在屏幕正中 ── */
+.pt-letter {
+  position: fixed; left: 50%; top: calc(50% + 12px); z-index: 4;
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100svh - 104px); overflow: auto;
+  transform: translate(-50%, -50%); padding: 30px 38px 26px; border-radius: 4px;
+  background-color: #fbfaf6;
+  /* 横格线从 96px 往下画、不重复（第一条在 129px，之后每 34px 一条），和 three/join.ts 的信纸贴图逐像素一致，交接时不跳 */
+  background-image:
+    radial-gradient(120% 80% at 0% 0%, rgb(255 255 255 / 70%), transparent 60%),
+    repeating-linear-gradient(transparent 0 33px, rgb(51 70 200 / 8%) 33px 34px);
+  background-position: 0 0, 0 96px;
+  background-size: 100% 100%, 100% calc(100% - 96px);
+  background-repeat: no-repeat;
+  box-shadow: 0 1px 0 #fff inset, 0 0 0 1px rgb(27 33 64 / 6%), 0 40px 80px -40px rgb(27 33 64 / 45%), 0 12px 24px -18px rgb(27 33 64 / 25%);
+  opacity: 0; visibility: hidden; transition: opacity .18s linear, visibility 0s .18s;
+}
+.pt-letter.is-on { opacity: 1; visibility: visible; transition: opacity .18s linear; }
+.pt-letter::before { content: ""; position: absolute; inset: 10px; border: 1px solid rgb(51 70 200 / 7%); border-radius: 2px; pointer-events: none; }
+.pt-letter-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.pt-letter-head h2 { font-size: 22px; font-weight: 700; letter-spacing: .01em; }
+.pt-letter-head img { width: 44px; height: 44px; flex: none; border-radius: 50%; }
+.pt-letter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.pt-lf { display: block; margin-bottom: 14px; }
+.pt-lf > span { display: block; font-size: 13px; font-weight: 600; color: var(--pt-ink-soft); }
+.pt-lf input, .pt-lf textarea {
+  display: block; width: 100%; margin-top: 4px; padding: 6px 2px 7px; border: 0; border-bottom: 1.5px solid rgb(27 33 64 / 20%); border-radius: 0;
+  background: transparent; color: var(--pt-ink); font: 16px var(--pt-sans); resize: none;
+}
+.pt-lf textarea { min-height: 136px; padding-top: 2px; line-height: 34px; border-bottom-style: dashed; }
+.pt-lf input:focus, .pt-lf textarea:focus { outline: none; border-bottom-color: var(--pt-cobalt); box-shadow: 0 1.5px 0 var(--pt-cobalt); }
+.pt-lf input::placeholder, .pt-lf textarea::placeholder { color: var(--pt-ink-mute); }
+.pt-lf [aria-invalid="true"] { border-bottom-color: var(--pt-red); }
+.pt-lf em, .pt-lf small { display: block; margin-top: 4px; font-style: normal; font-size: 12.5px; }
+.pt-lf em { color: var(--pt-red); }
+.pt-lf small { color: var(--pt-ink-mute); }
+.pt-letter-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 8px; }
+.pt-letter-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--pt-ink-soft); }
+.pt-letter-status.is-error { color: var(--pt-red); }
+
+/* 回执放在左侧（信箱与弹起的小旗在右侧，不被挡住）；窄屏改为底部卡片 */
+.pt-receipt {
+  position: fixed; left: clamp(22px, 7vw, 120px); top: 50%; z-index: 5; width: min(460px, calc(100% - 32px));
+  padding: 22px 24px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgb(27 33 64 / 7%), var(--pt-shadow-float);
+  opacity: 0; transform: translate(-16px, -50%); pointer-events: none; transition: opacity .4s, transform .5s var(--pt-ease);
+}
+.pt-receipt.is-on { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
+.pt-receipt h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 21px; }
+.pt-receipt h2 .pt-icon { color: var(--pt-green); }
+.pt-receipt > p { color: var(--pt-ink-soft); font-size: 14px; }
+.pt-receipt-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; padding: 12px 14px; border-radius: 12px; background: var(--pt-paper); }
+.pt-receipt-meta dt { font-size: 12px; color: var(--pt-ink-mute); }
+.pt-receipt-meta dd { font-size: 13.5px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.pt-receipt-meta > div:first-child { grid-column: 1 / -1; }
+.pt-receipt code { font: 13px var(--pt-mono); color: var(--pt-cobalt); }
+.pt-receipt-note { margin-bottom: 14px; font-size: 13px !important; }
+.pt-join .pt-scene-note { left: auto; right: 26px; transform: none; }
+.pt-join[data-phase="writing"] .pt-scene-note, .pt-join[data-phase="done"] .pt-scene-note { opacity: 0; }
+
+/* ── 论坛 ── */
+.pt-forum-intro { top: 50%; }
+.pt-boards { display: grid; gap: 4px; width: 320px; margin-top: 20px; }
+.pt-boards a { display: grid; grid-template-columns: 28px auto minmax(0, 1fr); align-items: center; gap: 10px; min-height: 42px; padding: 6px 10px; border: 1px solid transparent; border-radius: 11px; font-size: 14px; text-decoration: none; }
+.pt-boards a:hover, .pt-boards a:focus-visible, .pt-boards a.is-hot { border-color: var(--pt-line); background: #fff; outline: none; }
+.pt-board-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; }
+.pt-board-name { font-weight: 600; white-space: nowrap; }
+.pt-boards small { justify-self: end; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--pt-ink-soft); }
+
+/* ── GitHub ── */
+.pt-gh-intro { top: 50%; }
+.pt-gh-repos { display: grid; gap: 6px; margin-top: 18px; }
+.pt-gh-repos a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--pt-line); border-radius: 11px; background: rgb(255 255 255 / 92%); text-decoration: none; }
+.pt-gh-repos a:hover { border-color: rgb(51 70 200 / 40%); }
+.pt-gh-repos b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13.5px var(--pt-mono); }
+.pt-gh-repos span { margin-left: auto; font: 11.5px var(--pt-mono); color: var(--pt-ink-soft); }
+.pt-legend { position: fixed; right: 28px; bottom: 24px; z-index: 2; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--pt-ink-soft); }
+.pt-legend i { width: 11px; height: 11px; border-radius: 3px; }
+.pt-snap { margin-top: 12px; max-width: 34em; font-size: 12.5px; line-height: 1.6; color: var(--pt-ink-soft); }
+
+@media (max-width: 760px) {
+  .pt-scenebar { padding: 14px; }
+  .pt-crumb, .pt-scenebrand span, .pt-scene-note, .pt-legend { display: none; }
+  .pt-intro { top: 70px; left: 18px; right: 18px; max-width: none; transform: none; }
+  .pt-intro.is-away { transform: translateY(-12px); }
+  .pt-intro h1 { font-size: 28px; }
+  .pt-join .pt-intro > p { display: none; }
+  .pt-letter { top: calc(50% + 24px); max-height: calc(100svh - 88px); padding: 22px 20px 18px; }
+  .pt-letter-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .pt-letter-head { margin-bottom: 10px; }
+  .pt-letter-head h2 { font-size: 19px; }
+  .pt-lf { margin-bottom: 10px; }
+  .pt-lf textarea { min-height: 102px; }
+  .pt-letter-foot .pt-btn { width: 100%; }
+  .pt-letter-foot .pt-btn kbd { display: none; }
+  .pt-forum-intro > p, .pt-gh-intro > p { display: none; }
+  .pt-boards { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; margin: 0; padding: 6px; border: 1px solid var(--pt-line); border-radius: 16px; background: rgb(255 255 255 / 94%); }
+  .pt-boards small { display: none; }
+  .pt-snap { display: none; }
+  .pt-gh-repos { display: grid; position: fixed; left: 12px; right: 12px; bottom: 44px; margin: 0; }
+  .pt-receipt { left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; transform: translateY(16px); }
+  .pt-receipt.is-on { transform: none; }
+  .pt-receipt .pt-row-btns .pt-btn { flex: 1 1 auto; }
+}

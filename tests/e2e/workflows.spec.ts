@@ -31,11 +31,19 @@ test("public docs have usable labels/language switching and a console link", asy
 });
 
 test("portal forum entry targets the adopted Nuxt module, not the retired React page", async ({ page }) => {
-  await page.goto("/sites/portal/");
+  await page.goto("/sites/portal/docs");
   const navigationLink = page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "论坛", exact: true });
   const footerLink = page.getByRole("contentinfo").getByRole("link", { name: "论坛", exact: true });
   await expect(navigationLink).toHaveAttribute("href", "http://127.0.0.1:3456/");
   await expect(footerLink).toHaveAttribute("href", "http://127.0.0.1:3456/");
+});
+
+test("legacy /apply redirects to the join-us letter", async ({ page }) => {
+  await page.goto("/sites/portal/apply");
+  await expect(page).toHaveURL(/\/sites\/portal\/join-us$/);
+  await expect(page.getByRole("heading", { level: 1, name: "加入我们" })).toBeVisible();
+  // 信纸在信封打开后才对辅助技术可见（此前 aria-hidden），给 3D 入场动画留足时间。
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
 });
 
 test("console navigation follows the persona's capabilities", async ({ page }) => {
