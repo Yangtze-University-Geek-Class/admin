@@ -34,20 +34,20 @@ function go(path: string) {
         <template v-for="(category, index) in categories" :key="category.id">
           <!--
             A category row navigates, so it says so: TxCardItem has no implicit
-            role. Snapshot/curation categories carry an icon; seed categories
-            keep the colour dot.
+            role. Every row carries both cues: the category icon as the
+            avatar, and upstream's colour dot in front of the name (Discourse's
+            category badge). A category without an icon keeps just the dot.
           -->
           <TxCardItem
             clickable
             role="link"
-            :title="category.name"
             :description="category.description"
             :icon-class="category.icon"
             avatar-shape="rounded"
             @click="go(`/c/${category.slug}`)"
           >
-            <template v-if="!category.icon" #avatar>
-              <TxBadge dot :color="category.color" />
+            <template #title>
+              <TxBadge dot :color="category.color" class="mr-2 align-middle" />{{ category.name }}
             </template>
             <template #right>
               <TxBadge :value="forum.topicCountOfCategory(category.id)" />
