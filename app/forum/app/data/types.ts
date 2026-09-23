@@ -1,3 +1,5 @@
+import type { UserTitle } from './titles'
+
 /**
  * Forum entities. Everything the app shows derives from `ForumState`; counts
  * (replies, likes, followers…) are computed by the store, never stored twice.
@@ -34,6 +36,12 @@ export interface User {
   avatarUrl?: string
   joinedAt: number
   role: UserRole
+  /**
+   * Optional 极客班 title (班长, 部门负责人, 领航员 …) shown beside the name.
+   * Identity only; forum permissions still come from `role`, except that
+   * `titleGrantsForumStaff` can make a title holder staff as well.
+   */
+  title?: UserTitle
   notifyPrefs: NotifyPrefs
 }
 

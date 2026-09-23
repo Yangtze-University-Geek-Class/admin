@@ -121,6 +121,21 @@ describe('parseSnapshotState', () => {
     expect(() => parseSnapshotState(remote)).toThrow(/avatarUrl/)
   })
 
+  it('accepts a 极客班 title and rejects a malformed one', () => {
+    const titled = state()
+    ;(titled.users[0] as { title?: unknown }).title = { id: 'captain' }
+    ;(titled.users[1] as { title?: unknown }).title = { id: 'head', department: 'community' }
+    const parsed = parseSnapshotState(titled)
+    expect(parsed.users[0]!.title).toEqual({ id: 'captain' })
+    expect(parsed.users[1]!.title).toEqual({ id: 'head', department: 'community' })
+
+    for (const bad of ['captain', { id: 'guest' }, { id: 'king' }, { id: 'head', department: 'Community Dept' }, { id: 'member', department: 7 }, []]) {
+      const broken = state()
+      ;(broken.users[1] as { title?: unknown }).title = bad
+      expect(() => parseSnapshotState(broken), JSON.stringify(bad)).toThrow(/title/)
+    }
+  })
+
   it('drops an empty or null avatarUrl so the initials fallback applies', () => {
     const blank = state()
     ;(blank.users[0] as { avatarUrl?: string | null }).avatarUrl = ''

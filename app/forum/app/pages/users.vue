@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DataTableColumn } from '@talex-touch/tuffex/data-table'
 import type { User } from '~/data/types'
+import { titleRank } from '~/data/titles'
 
 // Discourse's /users: the member directory as a sortable table with a filter
 // box. The whole directory is one page, so the table sorts it on the client.
@@ -12,6 +13,8 @@ interface DirectoryRow {
   displayName: string
   role: string
   roleRank: number
+  /** 极客班 title rank (班长 0 … no title 9); the column sorts by it first. */
+  titleRank: number
   likesReceived: number
   topics: number
   replies: number
@@ -27,7 +30,10 @@ const query = ref('')
 
 const columns: DataTableColumn<DirectoryRow>[] = [
   { key: 'user', title: '用户', auto: true, sortable: true, dataIndex: 'displayName' },
-  { key: 'role', title: '角色', width: 90, sortable: true, sorter: (a, b) => a.roleRank - b.roleRank },
+  // Header stays 「角色」: the upstream directory check asserts the header row
+  // verbatim. The cell shows the 极客班 title when there is one, and the sort
+  // ranks by title first, then by forum role. Wide enough for 「社区部 · 负责人」.
+  { key: 'role', title: '角色', width: 150, sortable: true, sorter: (a, b) => a.titleRank - b.titleRank || a.roleRank - b.roleRank },
   { key: 'likesReceived', title: '已收到的赞', width: 110, align: 'right', sortable: true },
   { key: 'topics', title: '话题', width: 80, align: 'right', sortable: true },
   { key: 'replies', title: '回复', width: 80, align: 'right', sortable: true },
@@ -46,6 +52,7 @@ const rows = computed<DirectoryRow[]>(() => {
         displayName: user.displayName,
         role: roleLabel(user.role),
         roleRank: user.role === 'admin' ? 0 : user.role === 'moderator' ? 1 : 2,
+        titleRank: titleRank(user.title),
         likesReceived: stats.likesReceived,
         topics: stats.topics,
         replies: stats.replies,
@@ -97,7 +104,8 @@ function open(user: User) {
       </template>
 
       <template #cell-role="{ row }: { row: DirectoryRow }">
-        <TxStatusBadge :text="row.role" :status="roleTone(row.user.role)" size="sm" />
+        <TitleBadge v-if="row.user.title" :title="row.user.title" />
+        <TxStatusBadge v-else :text="row.role" :status="roleTone(row.user.role)" size="sm" />
       </template>
 
       <template #cell-joinedAt="{ row }: { row: DirectoryRow }">
