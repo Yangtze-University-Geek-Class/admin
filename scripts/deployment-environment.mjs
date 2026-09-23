@@ -140,8 +140,8 @@ export function loadContract(root = repositoryRoot()) {
 }
 
 /**
- * 校验环境身份契约。tag 语义已整体退役：这里**不**要求 tagPrefix / allowCommitSuffix，
- * 存在也不参与判定（发布身份只由分支 + commit SHA 决定）。
+ * 校验环境身份契约：只有环境身份（label / origin / githubEnvironment）。发布 tag 的规则
+ * 唯一实现在 scripts/release-policy.mjs，这里**不**读取旧的 tagPrefix / allowCommitSuffix，存在也不参与判定。
  */
 export function validateEnvironmentContract(value = loadContract()) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('环境契约必须是 JSON 对象');

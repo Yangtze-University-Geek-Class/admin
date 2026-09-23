@@ -6,7 +6,7 @@
 
 ## 发布前置
 
-**先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：`stage` 是预发布、`main` 是正式；人工试用及明确批准必须发生在把 `stage` 合入 `main` 之前。** 发布内容由分支 + commit SHA 决定，没有 tag 步骤；镜像 tag 是本次 commit 的 `<sha12>`。
+**先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：发版只靠打 tag。`vX.Y.Z-rc.N` 打在 `stage` 的提交上部署预发布；所有者在预发布试用并明确批准后，`main` 快进到同一提交，再打 `vX.Y.Z` 部署正式。** push `stage`/`main` 不部署。发布内容由发布 tag 指向的提交决定；镜像 tag 是该提交的 `<sha12>`。
 
 发布者明确目标环境、commit、镜像 tag、回滚对象和维护窗口。先在本地或 CI 完成 `pnpm verify` 与相关浏览器检查，再部署；不从含无关修改的工作区发布。核心与论坛使用两套工具链（Node 22/pnpm 9.15.9 与 Node ≥26/pnpm 11.24.0），镜像构建在容器内完成，不上传 Mac 原生依赖。
 
@@ -35,7 +35,7 @@
 
 | 项 | production（正式） | preview（预发布） |
 |---|---|---|
-| 分支 | `main` | `stage` |
+| 发布 tag（提交所在分支） | `vX.Y.Z`（`main`） | `vX.Y.Z-rc.N`（`stage`） |
 | 栈根目录 | `/opt/yzgc/production` | `/opt/yzgc/preview` |
 | compose 文件 | `deploy/compose/production.yml` | `deploy/compose/preview.yml` |
 | compose 项目名 | `yzgc-production` | `yzgc-preview` |
@@ -49,15 +49,17 @@
 
 两栈**完全隔离**：独立目录、独立 compose 项目、独立端口、独立数据卷、独立密钥、独立域名、独立锁。不得共用数据库、上传目录、会话密钥或父域 Cookie；Cookie 使用 host-only，禁止 `.yangtzeu.work`。宿主 3000/443/2568/8787/8080 已被现有服务占用，新栈只绑回环的 18100/18101 与 18200/18201；forum 容器不发布任何宿主端口。
 
-镜像名 `yzgc/server:<tag>`、`yzgc/web:<tag>`、`yzgc/forum:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
+镜像名 `yzgc/server:<tag>`、`yzgc/web:<tag>`、`yzgc/forum:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z-rc.N@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
 
 ## 部署流程
 
 ```bash
+# 0) 部署工作流由发布 tag 触发，并先用规划器核对 tag、提交、版本号与所在分支：
+node scripts/release-policy.mjs plan --tag <vX.Y.Z> --commit <40 位 SHA>
 # 1) 可信机器上构建并打包镜像（CI 或人工，两条工具链分别构建）
 docker compose --env-file deploy/env/.env.production -f deploy/compose/production.yml build \
   --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
-  --build-arg GEEK_RELEASE_VERSION=<X.Y.Z> \
+  --build-arg GEEK_RELEASE_VERSION=<X.Y.Z，预发布为 X.Y.Z-rc.N@<sha12>> \
   --build-arg GEEK_RELEASE_COMMIT=<40 位 SHA>
 docker save yzgc/server:<sha12> yzgc/web:<sha12> yzgc/forum:<sha12> -o yzgc-<sha12>.tar
 sha256sum yzgc-<sha12>.tar > yzgc-<sha12>.tar.sha256
@@ -127,6 +129,8 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 
 `rollback-stack.sh` 只做两件事：把 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 改成目标 tag，然后 `docker compose up -d`。它**不触碰数据卷、不删除数据、不清理镜像、不改分支或版本号**；`previous` = `deploy-history.log` 中与当前不同的最近一个 tag。可选参数 `--env-file`、`--stack-root`、`--compose-file`、`--health-timeout` 与部署脚本同名同义，健康门同样生效；结果写入同一份 `deploy-history.log`。
 
+回滚目标用发布 tag 来选：切回某个更早的 `vX.Y.Z`，对应镜像 tag 是 `git rev-parse "vX.Y.Z^{commit}" | cut -c1-12`。回滚不移动、不删除、不重打任何 tag，后续修复走新的 rc（见 [RELEASES](../conventions/RELEASES.md)）。
+
 回滚后重新执行健康检查并记录结果。旧日志、旧请求排队不能覆盖更晚版本；切换前再次核对目标环境、镜像 tag 与当前部署序号。
 
 ## 最小权限
@@ -153,4 +157,5 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 - 旧一键安装 `deploy/setup.sh` 的自动安装行为已退役。
 - 论坛子域模型（`forum.yangtzeu.work`，配套 `deploy/forum-subdomain-setup.md`）已退役：论坛现由 portal 域名下的 `/forum` 路径提供。
 - 管理端独立域名模型（2026-09-24 退役）：正式 `github.yangtzeu.work`、预发布 `prev-admin.yangtzeu.work` 各占一个域名，宿主 nginx 注入站点头让 web 容器选 admin SPA，env 另有按站点的 host 字段，前端 `app.config.json` 的 host 在镜像构建时按环境重写。现在每个环境只有一个域名，管理端按路径进入；`github.yangtzeu.work` 只保留 301。
-- 发布 tag（`release-X.Y.Z` / `prev-X.Y.Z`）不再产生新的发布身份，见 [RELEASES](../conventions/RELEASES.md)。
+- 旧发布 tag（`release-X.Y.Z` / `prev-X.Y.Z`）不再产生发布身份；现行发布 tag 是 SemVer 的 `vX.Y.Z-rc.N` / `vX.Y.Z`，见 [RELEASES](../conventions/RELEASES.md)。
+- 2026-09-23 至 2026-09-24 短暂使用过「push `stage` 部署预发布、push `main` 部署正式」的分支触发模型，已由发布 tag 触发取代。

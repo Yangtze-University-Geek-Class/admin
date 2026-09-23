@@ -2,7 +2,7 @@
 
 > 只有 `main`（正式）与 `stage`（预发布）两条长期分支；task 分支合并后必须立即删除，任何操作前先确认当前分支。
 
-状态：`current` · 更新：2026-09-23 · 依据：项目所有者本次明确指令。
+状态：`current` · 更新：2026-09-24 · 依据：项目所有者明确指令（2026-09-23 分支模型；2026-09-24 改为打 tag 发版）。
 
 ## 第负一步：先确认分支
 
@@ -10,10 +10,12 @@
 
 ## 长期分支
 
-| 分支 | 角色 | 生命周期 | 部署目标 |
+| 分支 | 角色 | 生命周期 | 在这条分支的提交上打的发布 tag |
 |---|---|---|---|
-| `main` | 正式稳定版，只能由 `stage` 合入 | 长期 | 正式栈 `/opt/yzgc/production` → `https://yangtzeu.work` |
-| `stage` | 动态更新版，集成分支 | 长期 | 预发布栈 `/opt/yzgc/preview` → `https://prev.yangtzeu.work` |
+| `main` | 正式稳定版，只能由 `stage` 合入（发版时快进到被验收的 rc 提交） | 长期 | `vX.Y.Z` → 正式栈 `/opt/yzgc/production` → `https://yangtzeu.work` |
+| `stage` | 动态更新版，集成分支 | 长期 | `vX.Y.Z-rc.N` → 预发布栈 `/opt/yzgc/preview` → `https://prev.yangtzeu.work` |
+
+**推送分支不部署。** push `stage` / `main` 只跑 CI；部署只由发布 tag 触发，规则见 [RELEASES](RELEASES.md)。
 
 除这两条以外，**不允许存在第三条长期分支**。历史上使用过的 `next` 已退役（本地已改名），不得再把 `next`、`develop`、`release` 等当作集成分支；`documentation`/`feature` 等旧命名同样不再有效。
 
@@ -57,7 +59,7 @@ node scripts/check-branch-invariants.mjs --json             # 机器可读输出
 node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 之外的长期分支」升级为失败
 ```
 
-`--push` 模式读 git 的 pre-push 四段输入，额外断言「推 `main` 的提交必须已在 `stage`」「推 `stage` 只能来自 `stage` 自身或合规的 `task/<issue>/<slug>` 且必须已包含 `origin/main`」「不得删除远端 `main`/`stage`」，可用作本地 pre-push 守卫。首次推送新分支（远端 SHA 全 0）同样照常判定命名与不变量。脚本只读 Git 证据：不 fetch、不改 refs、不删分支、不建提交、不连远端。
+`--push` 模式读 git 的 pre-push 四段输入，额外断言「推 `main` 的提交必须已在 `stage`」「推 `stage` 只能来自 `stage` 自身或合规的 `task/<issue>/<slug>` 且必须已包含 `origin/main`」「不得删除远端 `main`/`stage`」，可用作本地 pre-push 守卫。首次推送新分支（远端 SHA 全 0）同样照常判定命名与不变量。同一模式还核对发布 tag：格式不对的 `v` 开头 tag、提交不在 `stage` 上的 `vX.Y.Z-rc.N`、提交不在 `main` 上的 `vX.Y.Z`、版本号与该提交 `package.json` 不一致、删除或强制移动发布 tag，都会被拒绝；正式 tag 的同一提交本地没有 rc tag 只告警（以部署工作流的证据为准）；其它 tag 只告警。规则详见 [RELEASES](RELEASES.md)。脚本只读 Git 证据：不 fetch、不改 refs、不删分支、不建提交或 tag、不连远端。
 
 违反任一条即视为分支模型被破坏，必须先修复再继续开发；不要用 force-push 掩盖差异。
 
@@ -68,7 +70,7 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 - 禁止在新分支名里使用 `-`（见上文「命名规则」）。
 - 禁止在没有 issue 的情况下开 task 分支：开发前先在仓库开 issue，见 [ISSUES](ISSUES.md)。
 - 禁止向 `stage` 提交未审查的内容：进入 `stage` 前必须走 [CODE-REVIEW](CODE-REVIEW.md)，MR 描述里带审查结论。
-- 禁止长期保留已合并的 task 分支，禁止用分支名当版本号或发布凭据。
+- 禁止长期保留已合并的 task 分支，禁止用分支名当版本号或发布凭据；发布凭据只有所有者授权后打的发布 tag。
 - 禁止 force-push `main`/`stage`，禁止整分支 reset 覆盖他人提交。
 
 ## 日常流程
@@ -84,4 +86,4 @@ git switch -c task/<issue>/<slug>  # 3. 从 stage 拉 task 分支，例：task/1
 #    （branch-hygiene.yml 会在 PR 合并后自动删；每周巡检只告警残留的 task/**，不自动删个人分支）
 ```
 
-发布相关（把 `stage` 合入 `main`、部署、验收）见 [RELEASES](RELEASES.md)。分支与部署目标的绑定关系由 [deploy/environments.json](../../deploy/environments.json) 与 [CICD](../ops/CICD.md) 描述。
+发布相关（打 rc tag、验收、把 `main` 快进到被验收的提交、打正式 tag、回滚）见 [RELEASES](RELEASES.md)。发布 tag 与部署目标的绑定关系由 [deploy/environments.json](../../deploy/environments.json)、[scripts/release-policy.mjs](../../scripts/release-policy.mjs) 与 [CICD](../ops/CICD.md) 描述。

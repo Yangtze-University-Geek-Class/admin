@@ -3,7 +3,8 @@
 # 边界声明：
 #   * 只做机器验证——隔离安装、静态检查、测试、构建、镜像构建、环境契约、工作流自检、分支不变量。
 #   * 机器 PASS 不等于人工试用；它不构成任何发版授权或验收记录。
-#   * 不部署任何环境（既不碰 prev.yangtzeu.work，也不碰 yangtzeu.work）。
+#   * 不部署任何环境（既不碰 prev.yangtzeu.work，也不碰 yangtzeu.work）：push stage / main 只跑本工作流。
+#     发版只由发布 tag 触发（vX.Y.Z-rc.N → deploy-preview.yml，vX.Y.Z → deploy-production.yml）。
 #   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
 #   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
 #   * 不使用 continue-on-error 掩盖失败。
@@ -14,6 +15,7 @@
 # 硬不变量由 branch-guard 强制（scripts/check-branch-invariants.mjs）。
 #
 # 触发：pull_request → main/stage；push → main/stage/task/**(任务分支)/dev/**(个人分支)；手工 dispatch。
+# push 只写了 branches、没写 tags：推送 tag 不会触发 CI（GitHub 对未声明的 ref 类型不运行）。
 
 name: CI
 

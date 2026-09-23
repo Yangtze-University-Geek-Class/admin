@@ -35,10 +35,10 @@ geek_main 根 README / AGENTS / 命令 / docs
             └─ 其余路径                         → portal SPA
 ```
 
-| 环境 | 分支 | 栈根 | compose 项目 | 数据 |
+| 环境 | 发布 tag（提交所在分支） | 栈根 | compose 项目 | 数据 |
 |---|---|---|---|---|
-| production | `main` | `/opt/yzgc/production` | `yzgc-production` | 独立命名卷 |
-| preview | `stage` | `/opt/yzgc/preview` | `yzgc-preview` | 独立命名卷 |
+| production | `vX.Y.Z`（`main`） | `/opt/yzgc/production` | `yzgc-production` | 独立命名卷 |
+| preview | `vX.Y.Z-rc.N`（`stage`） | `/opt/yzgc/preview` | `yzgc-preview` | 独立命名卷 |
 
 两环境隔离维度：目录、compose 项目、端口、卷、密钥、域名、Cookie 域（host-only）。每个环境只有一个 origin（`PUBLIC_ORIGIN`）：官网、管理端、论坛同域，管理端靠路径区分，服务端（`resolveSiteEntry`）与 web 容器 nginx 用同一套路径规则选 SPA 入口。细节见 [DEPLOY](../ops/DEPLOY.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[CICD](../ops/CICD.md)。
 
@@ -64,6 +64,6 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。旧 `/api/forum/*` 返回 410；生产未接入新服务时 `/forum` 返回 503。真实认证、服务器权限、跨设备存储、内容安全和部署回滚未验证前，不开放新论坛为生产内部服务。
 
-发布由分支驱动（`stage` 预发布、`main` 正式），见 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)。
+发版只靠打 tag（`stage` 提交上的 `vX.Y.Z-rc.N` 发预发布，`main` 同一提交上的 `vX.Y.Z` 发正式），推送分支不部署，见 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)。
 
 参见 [API](API.md)、[SECURITY](SECURITY.md)、[模块规则](../conventions/MODULAR-DEVELOPMENT.md) 与 [本地运行](../ops/TUFF-FORUM.md)。
