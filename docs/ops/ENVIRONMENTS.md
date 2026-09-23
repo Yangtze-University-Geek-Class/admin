@@ -45,6 +45,7 @@
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
 | `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |
+| `CONSOLE_ORG` | 可见 | `Yangtze-University-Geek-Class`（极客班控制台 `/api/console/*` 固定管理的组织；`ALLOWED_ORGS` 非空时必须包含它，否则 server 启动失败） | 同左 |
 | `GEEK_RELEASE_DISPLAY_SUFFIX` | **已移除** | 不再出现在 env 文件里：它是 `BUILD_ONLY_FIELDS`（发布身份只走 build args），写进 `.env` 不会被读取 | 同左 |
 | `OAUTH_CLIENT_ID` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 | `OAUTH_CLIENT_SECRET` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
