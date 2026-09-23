@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可只读显示极客班论坛快照，仍无真实认证与后端。
 
-状态：`current` · 更新：2026-09-23 · 源码：`app/forum/` · 镜像：`yzgc/forum:<tag>`
+状态：`current` · 更新：2026-09-24 · 源码：`app/forum/` · 镜像：`yzgc/forum:<tag>`
 
 ## 源码地图
 
@@ -14,11 +14,12 @@
 | `app/forum/app/data/` | 类型、示例种子、权限 helper 与序列化 |
 | `app/forum/app/plugins/` | `persist.client.ts`（浏览器存储）、`local-snapshot.client.ts`（只读快照替换 store） |
 | `app/forum/server/routes/api/local-forum/` | dev 专用只读快照路由：`state`、`assets/[hash]` |
-| `app/forum/shared/` | `local-snapshot.ts`（投影校验）、`local-curation.ts`（编辑层）、`deployment.ts`（环境/版本展示） |
+| `app/forum/server/middleware/forum-markdown.ts` | 给 AI 读取的 `/t/<id>.md` 与 `/llms.txt`，`nuxt generate` 时逐个写成静态文件 |
+| `app/forum/shared/` | `local-snapshot.ts`（投影校验）、`local-curation.ts`（编辑层）、`deployment.ts`（环境/版本展示）、`forum-markdown.ts`（话题 Markdown 与 llms.txt 的生成规则） |
 | `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层 |
 | `app/forum/scripts/` | 上游样式 guard、路由 smoke、CDP 四套验证脚本 |
 | `app/forum/UPSTREAM.json` `ADOPTION.json` `LICENSE` | 上游文件摘要、本项目集成差异清单、MIT 声明（必须保留） |
-| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败 |
+| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面 |
 
 ## 所有权与来源
 
@@ -59,6 +60,20 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 - **种子**：talex 班长、mika 社区部负责人、yuki 技术部负责人、kai 技术部干事、lin 领航员，ryan 等六人为成员，bruce 无称号；所有 `role` 不变，上游验收用到的 ryan / xiaoyu 仍是普通成员。`FORUM_STATE_VERSION` 仍为 1，浏览器里已有的示例数据要点「重置示例数据」才会出现称号。
 - **快照**：`shared/local-snapshot.ts` 校验可选的 `title`（对象、id 属于可存储称号且不是 guest、department 符合部门 id 格式），不合法即 `invalid_state`。真实成员的称号需要所有者提供名单，本期快照不带称号。
 
+## 契约：给 AI 读取的 Markdown
+
+帖子正文本来就是 Markdown，页面把它渲染成 HTML。在话题地址后面加 `.md` 拿到的是同一份原文，供 AI 和脚本读取；`llms.txt` 按 [llms.txt](https://llmstxt.org/) 约定列出全部话题。
+
+| 地址（线上前缀 `/forum`） | 类型 | 内容 |
+|---|---|---|
+| `/forum/t/<id>.md` | `text/markdown; charset=utf-8` | YAML 头（`title`、`category`、`author`、`author_username`、`created` ISO 8601、有标签时 `tags`、`replies`、`url` 为话题页地址），然后是标题、首帖原文，最后 `## 回复` 下按楼层排列的回复，每条以 `### #<楼层> <显示名> (@<用户名>) · <时间>` 开头；回复某一楼时下一行写明「回复 #<楼层>」；已删除的帖子只写「（此帖已被删除）」 |
+| `/forum/llms.txt` | `text/plain; charset=utf-8` | 标题、一段说明，然后每个分类一节，每个话题一行 `- [标题](.md 地址): 首帖摘要`；置顶在前，其余按发帖时间从新到旧 |
+| 话题页 `<head>` | — | `<link rel="alternate" type="text/markdown" href="/forum/t/<id>.md">`，只在该话题有 `.md` 文件时出现 |
+
+正文与回复原样输出页面渲染用的 Markdown，不转成 HTML；标题、显示名、摘要这类纯文本字段转义 Markdown 符号。生成规则只在 `shared/forum-markdown.ts` 一处，由 `tests/forum-markdown.test.ts` 覆盖转义、代码块原样保留、楼层顺序和无回复的情况。链接的站点前缀取自环境契约：正式与预发布构建是 `https://<域名>/forum/…`，本机是站点相对路径。
+
+**限制**：论坛还没有后端。静态镜像里只有 `nuxt generate` 时写出的文件，即示例种子里的每个话题（`t1`…`tN`）加一份 `llms.txt`；用户在浏览器里新发的话题和回复只存在该浏览器的 localStorage，服务器上没有对应的 `.md`，请求会得到 404，这类话题页也不输出 `alternate` 链接。已有种子话题在浏览器里新增的回复、编辑、删除同样不会出现在 `.md` 里，文件内容停在构建时刻，时间也按构建时刻推算。本机 dev 服务器配置了只读快照时，`.md` 与 `llms.txt` 按请求从快照生成，覆盖快照里的全部话题；快照不进静态产物。接入真实后端后改由服务端按数据库生成。
+
 ## 环境与版本显示
 
 “关于”页的 DeploymentInfo 显示 local / preview / production，并按 [RELEASES](../../conventions/RELEASES.md) 说明预发布对应 `stage` 分支、版本显示 `X.Y.Z@<sha12>`，正式对应 `main` 分支、显示 `X.Y.Z`。固定域名来自根 [deploy/environments.json](../../../deploy/environments.json)：`prev.yangtzeu.work` 预发布，`yangtzeu.work` 正式；两套环境同机不同栈，容器内论坛端口都是 3000，宿主侧由 `web` 容器按 `/forum` 路径反代。本机明确标记“本地开发 · 未发布”，另按内容来源标记“上游示例”或“极客班论坛只读快照 + 采集时间”。Nuxt 配置只读取公共的域名/版本合同，不跨模块引用 React、Fastify 或业务数据。`GEEK_RELEASE_VERSION` 和完整 `GEEK_RELEASE_COMMIT` 只由受控构建注入，不是人已验收的证据。
@@ -78,7 +93,7 @@ pnpm forum:stop
 
 ```bash
 pnpm forum:check     # Nuxt 类型、测试类型、ESLint、样式 guard、Vitest
-pnpm forum:generate  # 静态构建（始终以示例种子运行）
+pnpm forum:generate  # 静态构建（始终以示例种子运行），产物含每个种子话题的 t/<id>.md 与 llms.txt
 pnpm forum:verify    # guard 自测 + 原仓 CDP 四套交互 + 全路由 smoke
 node scripts/check-forum-adoption.mjs   # 上游文件摘要与集成差异
 ```

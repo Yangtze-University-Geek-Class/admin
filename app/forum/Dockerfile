@@ -61,7 +61,12 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
     pnpm exec nuxt generate \
  # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
- && ! grep -q 'href="/_nuxt/' .output/public/index.html
+ && ! grep -q 'href="/_nuxt/' .output/public/index.html \
+ # 给 AI 读取的 Markdown 原文与索引必须随产物生成（nuxt.config.ts 的 nitro.prerender.routes），
+ # 链接要带上 /forum/ 前缀。
+ && test -s .output/public/llms.txt \
+ && test -s .output/public/t/t1.md \
+ && grep -q '/forum/t/t1.md' .output/public/llms.txt
 
 # 容器内 nginx：静态托管，SPA 回落 200.html（Nuxt ssr:false 的约定）。
 COPY <<'NGINX_MAIN' /nginx-out/nginx.conf
@@ -99,11 +104,31 @@ server {
     server_tokens off;
 
     gzip on;
-    gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
+    gzip_types text/plain text/markdown text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
     gzip_min_length 1024;
 
     access_log /dev/stdout;
     error_log /dev/stderr warn;
+
+    # 给 AI 读取的话题 Markdown（t/<id>.md）与索引 llms.txt，构建时逐个生成。
+    # 官方 mime.types 没有 md，这里显式给出类型；charset 默认只加在 text/html 等少数类型上，
+    # 因此列出两种类型。文件不存在就是 404，不回落 SPA 壳：浏览器里新发的话题没有 .md。
+    location ~ \.md$ {
+        types { }
+        default_type text/markdown;
+        charset utf-8;
+        charset_types text/markdown;
+        add_header X-Content-Type-Options nosniff always;
+        try_files $uri =404;
+    }
+    location = /llms.txt {
+        types { }
+        default_type text/plain;
+        charset utf-8;
+        charset_types text/plain;
+        add_header X-Content-Type-Options nosniff always;
+        try_files $uri =404;
+    }
 
     # 带内容哈希的产物：长缓存。
     location /_nuxt/ {
