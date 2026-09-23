@@ -112,6 +112,20 @@ describe("图标注册表与界面禁用字符", () => {
     }
   });
 
+  it("同一个类的基础规则只在一个样式表里定义（避免书桌浮层这类样式串到别的页面）", () => {
+    const owners = new Map<string, string[]>();
+    for (const file of files.filter((path) => path.endsWith(".css"))) {
+      const css = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const match of css.matchAll(/(?:^|[},])\s*(\.pt-[a-z0-9-]+)\s*(?=[{,])/g)) {
+        const list = owners.get(match[1]) ?? [];
+        const name = file.slice(PORTAL.length);
+        if (!list.includes(name)) list.push(name);
+        owners.set(match[1], list);
+      }
+    }
+    expect([...owners].filter(([, list]) => list.length > 1)).toEqual([]);
+  });
+
   it("官网界面源码里没有 emoji 与装饰性箭头/符号（注释除外）", () => {
     const banned = /[\u{1F000}-\u{1FFFF}\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u2190-\u21FF\u25A0-\u25FF]/u;
     const hits: string[] = [];

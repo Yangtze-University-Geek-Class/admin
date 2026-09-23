@@ -230,7 +230,7 @@ export default function Home() {
           </div>
         </section>
       </div>
-      <div className="pt-hint" ref={hint} aria-hidden="true" />
+      <div className="pt-desk-tip" ref={hint} aria-hidden="true" />
 
       <div ref={osRef} className={view.os ? "pt-os is-on" : "pt-os"} aria-hidden={!view.os}>
         <div
