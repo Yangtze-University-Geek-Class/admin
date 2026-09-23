@@ -38,8 +38,9 @@ export interface User {
   role: UserRole
   /**
    * Optional 极客班 title (班长, 部门负责人, 领航员 …) shown beside the name.
-   * Identity only; forum permissions still come from `role`, except that
-   * `titleGrantsForumStaff` can make a title holder staff as well.
+   * `role` is unchanged by it. Forum permissions read both: an admin or
+   * moderator holds every forum capability, anyone else what their title
+   * carries (`hasForumCapability` in `permissions.ts`).
    */
   title?: UserTitle
   notifyPrefs: NotifyPrefs

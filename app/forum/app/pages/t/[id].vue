@@ -17,7 +17,7 @@ const BREADCRUMB_TITLE_LENGTH = 24
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
-const { isStaff, can } = useCurrentUser()
+const { can } = useCurrentUser()
 const { isDesktop } = useShell()
 
 const topicId = String(route.params.id)
@@ -25,6 +25,12 @@ const topicId = String(route.params.id)
 // replaces the whole state, and a captured entity would keep rendering (and
 // answering `can()`) from a tree nothing writes to any more.
 const topic = computed(() => forum.topicById(topicId))
+
+// The 话题管理 menu lists only what the viewer may do. Pinning and closing are
+// separate forum capabilities (a 项目部 head may pin but not close), so each
+// item asks can() on its own and the menu shows when either one holds.
+const canPin = computed(() => topic.value !== undefined && can('pinTopic', { topic: topic.value }))
+const canClose = computed(() => topic.value !== undefined && can('closeTopic', { topic: topic.value }))
 
 // Raised rather than thrown: a `throw` in setup still renders the template once
 // with every binding undefined, which logs a handful of Vue warnings on the way
@@ -146,14 +152,14 @@ onBeforeUnmount(() => clearTimeout(flashTimer))
           <span>{{ topic.title }}</span>
         </h1>
 
-        <TxDropdownMenu v-if="isStaff" placement="bottom-end" reference-class="ml-auto">
+        <TxDropdownMenu v-if="canPin || canClose" placement="bottom-end" reference-class="ml-auto">
           <template #trigger>
             <TxIconButton icon="i-carbon-overflow-menu-horizontal" label="话题管理" />
           </template>
-          <TxDropdownItem @select="togglePinned">
+          <TxDropdownItem v-if="canPin" @select="togglePinned">
             {{ topic.pinned ? '取消置顶' : '置顶话题' }}
           </TxDropdownItem>
-          <TxDropdownItem @select="toggleClosed">
+          <TxDropdownItem v-if="canClose" @select="toggleClosed">
             {{ topic.closed ? '重新开放' : '关闭话题' }}
           </TxDropdownItem>
         </TxDropdownMenu>
