@@ -1,0 +1,69 @@
+{
+ "summary": {
+  "capturedAt": "2026-09-12T19:03:18Z",
+  "topics": 69,
+  "posts": 104,
+  "users": 183,
+  "categories": [
+   {
+    "slug": "announcements",
+    "name": "班级公告",
+    "color": "#e5484d",
+    "count": 0
+   },
+   {
+    "slug": "courses",
+    "name": "课程与作业",
+    "color": "#2f6fed",
+    "count": 0
+   },
+   {
+    "slug": "competitions",
+    "name": "竞赛与项目",
+    "color": "#f59e0b",
+    "count": 0
+   },
+   {
+    "slug": "careers",
+    "name": "求职与升学",
+    "color": "#0ea5e9",
+    "count": 0
+   },
+   {
+    "slug": "ai",
+    "name": "人工智能",
+    "color": "#6366f1",
+    "count": 2
+   },
+   {
+    "slug": "help-resources",
+    "name": "资源荟萃",
+    "color": "#14b8a6",
+    "count": 0
+   }
+  ]
+ },
+ "latest": [
+  {
+   "id": "t84",
+   "title": "Vibe Coding 知识点整理：从大模型到 Coding Agent（大模型基础 · Agent 原理 · 工具选型 · 实战工作流）",
+   "category": "人工智能",
+   "categorySlug": "ai",
+   "color": "#6366f1",
+   "replies": 0,
+   "views": 12,
+   "at": 1788913530731
+  },
+  {
+   "id": "t78",
+   "title": "LLM Wiki 搭建经验谈：别把知识库当垃圾场（2026-06-14 i3eg1nner 分享会整理）",
+   "category": "人工智能",
+   "categorySlug": "ai",
+   "color": "#6366f1",
+   "replies": 0,
+   "views": 46,
+   "at": 1781447662203
+  }
+ ],
+ "source": "极客班论坛归档的只读快照（不是实时数据）"
+}

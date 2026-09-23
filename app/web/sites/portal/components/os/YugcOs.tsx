@@ -1,0 +1,422 @@
+// YUGC OS：开机后的「极客班内部系统」。菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）+ 铺满屏幕的仪表盘网格
+// （左列欢迎与三个主入口，中间是论坛、仓库、组织、招新、终端、日历组件）+ 右侧桌面图标 + 可拖动窗口 + Dock + ⌘K 启动器。
+// 背景是纯 CSS（渐变网格 + 图纸线 + 校徽水印），没有大面积 backdrop-filter。
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { appConfig } from "@shared/config";
+import { links } from "../../lib/links";
+import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
+import Emblem from "../Emblem";
+import Icon from "../Icon";
+import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
+import { ClockWidget, ForumWidget, OrgWidget, RecruitWidget, ReposWidget, TerminalWidget } from "./Widgets";
+
+type Props = {
+  /** 桌面是否在前台（开机画面播完）；为 false 时不响应快捷键 */
+  active: boolean;
+  onBack: () => void;
+};
+
+type MenuName = "system" | "go" | "window" | "help";
+
+export default function YugcOs({ active, onBack }: Props) {
+  const navigate = useNavigate();
+  const [now, setNow] = useState(() => new Date());
+  const [wins, setWins] = useState<WindowState[]>([]);
+  const [menu, setMenu] = useState<{ name: MenuName; left: number } | null>(null);
+  const [launcher, setLauncher] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState(0);
+  const [selectedIcon, setSelectedIcon] = useState<AppId | null>(null);
+  const [flight, setFlight] = useState<{ app: OsApp; x: number; y: number } | null>(null);
+  const zTop = useRef(20);
+  const cascade = useRef(0);
+  const root = useRef<HTMLDivElement>(null);
+  const launcherInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), 15000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+
+  const front = useMemo(() => wins.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0] ?? null, [wins]);
+  const frontName = front ? { about: "关于极客班", org: "组织架构", terminal: "终端", "forum-feed": "论坛" }[front.id] : "桌面";
+
+  const openWindow = useCallback((id: WindowId) => {
+    setWins((current) => {
+      const existing = current.find((w) => w.id === id);
+      const z = ++zTop.current;
+      if (existing) return current.map((w) => (w.id === id ? { ...w, z, minimized: false } : w));
+      const n = cascade.current++ % 4;
+      const width = Math.min(windowWidth(id), window.innerWidth - 24);
+      const x = Math.max(12, Math.min(window.innerWidth - width - 140, window.innerWidth * 0.3 + n * 40));
+      const y = 64 + n * 36;
+      return [...current, { id, z, x, y, minimized: false, zoomed: false }];
+    });
+  }, []);
+
+  const launchScene = useCallback(
+    (app: OsApp, from?: HTMLElement | null) => {
+      if (app.open.kind !== "scene") return;
+      const path = app.open.path;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduced) {
+        navigate(path);
+        return;
+      }
+      const rect = from?.getBoundingClientRect();
+      setFlight({ app, x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2, y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2 });
+      window.setTimeout(() => navigate(path), 520);
+    },
+    [navigate],
+  );
+
+  const open = useCallback(
+    (id: AppId | "forum-feed", from?: HTMLElement | null) => {
+      setMenu(null);
+      if (id === "forum-feed") return openWindow("forum-feed");
+      const app = appById(id);
+      if (!app) return;
+      switch (app.open.kind) {
+        case "window":
+          return openWindow(app.id as WindowId);
+        case "route":
+          return navigate(app.open.path);
+        case "site":
+          window.location.assign(links.console());
+          return;
+        case "scene":
+          return launchScene(app, from);
+      }
+    },
+    [launchScene, navigate, openWindow],
+  );
+
+  const commands = useMemo(() => launcherCommands(), []);
+  const shown = useMemo(() => filterCommands(commands, query), [commands, query]);
+  const runCommand = (id: string) => {
+    setLauncher(false);
+    if (id.startsWith("app:")) return open(id.slice(4) as AppId);
+    if (id === "forum-home") return window.location.assign(links.forumHome());
+    if (id === "forum-feed") return open("forum-feed");
+    if (id === "docs") return navigate("/docs");
+    if (id === "back") return onBack();
+  };
+
+  const closeWindow = (id: WindowId) => setWins((current) => current.filter((w) => w.id !== id));
+  const patchWindow = (id: WindowId, patch: Partial<WindowState>) => setWins((current) => current.map((w) => (w.id === id ? { ...w, ...patch } : w)));
+  const focusWindow = (id: WindowId) => {
+    if (front?.id === id) return;
+    patchWindow(id, { z: ++zTop.current });
+  };
+
+  // 键盘：⌘K 启动器、Esc 逐层关闭、1/2/3 打开主入口
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setLauncher((value) => !value);
+        setQuery("");
+        setSelected(0);
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea")) {
+        if (event.key === "Escape" && target !== launcherInput.current) target.blur();
+        return;
+      }
+      if (event.key === "Escape") {
+        if (menu) return setMenu(null);
+        if (launcher) return setLauncher(false);
+        if (front) return closeWindow(front.id);
+        return onBack();
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const app = appByKey(event.key);
+      if (app) open(app.id, root.current?.querySelector<HTMLElement>(`[data-cta="${app.id}"]`));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, front, launcher, menu, onBack, open]);
+
+  useEffect(() => {
+    if (launcher) launcherInput.current?.focus();
+  }, [launcher]);
+
+  const MENUS: Record<MenuName, Array<{ label: string; run: () => void; key?: string } | null>> = {
+    system: [{ label: "关于极客班", run: () => open("about") }, { label: "组织架构", run: () => open("org") }, null, { label: "回到书桌", run: onBack, key: "Esc" }],
+    go: OS_APPS.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key })),
+    window: [
+      { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
+      { label: "关闭全部", run: () => setWins([]) },
+    ],
+    help: [{ label: "终端命令", run: () => open("terminal") }, { label: "文档", run: () => navigate("/docs") }, { label: "快捷键：1 2 3 · ⌘K · Esc", run: () => undefined }],
+  };
+  const toggleMenu = (name: MenuName, anchor: HTMLElement) => {
+    setMenu((current) => (current?.name === name ? null : { name, left: anchor.getBoundingClientRect().left }));
+  };
+
+  const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false });
+  const primaries = OS_APPS.filter((app) => app.key);
+
+  return (
+    <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
+      <header className="pt-mb" role="menubar" aria-label="菜单栏">
+        <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
+          <img src={appConfig.portal.brand.logo} alt="" />
+        </button>
+        <b className="pt-mb-app">{frontName}</b>
+        {(["go", "window", "help"] as const).map((name) => (
+          <button key={name} type="button" className="pt-mb-item" data-menu aria-haspopup="menu" aria-expanded={menu?.name === name} onClick={(e) => toggleMenu(name, e.currentTarget)}>
+            {{ go: "前往", window: "窗口", help: "帮助" }[name]}
+          </button>
+        ))}
+        <span className="pt-mb-spacer" />
+        <button type="button" className="pt-mb-search" onClick={() => setLauncher(true)}>
+          <Icon name="search-line" size={14} />
+          <span>搜索</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <span className="pt-mb-stat" aria-hidden="true">
+          <Icon name="wifi-line" size={15} />
+        </span>
+        <span className="pt-mb-clock">{time}</span>
+      </header>
+      {menu && (
+        <div className="pt-menu" role="menu" style={{ left: menu.left }}>
+          {MENUS[menu.name].map((item, index) =>
+            item ? (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                autoFocus={index === 0}
+                onClick={() => {
+                  setMenu(null);
+                  item.run();
+                }}
+              >
+                {item.label}
+                {item.key && <kbd>{item.key}</kbd>}
+              </button>
+            ) : (
+              <hr key={`sep-${index}`} />
+            ),
+          )}
+        </div>
+      )}
+
+      <main className="pt-dt">
+        <div className="pt-dt-bg" aria-hidden="true">
+          <Emblem variant="mark" className="pt-dt-mark" />
+        </div>
+        <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
+        <div className="pt-dash">
+          <section className="pt-card pt-hero" aria-labelledby="pt-hero-title">
+            <p className="pt-hero-prompt">
+              nano@yugc:~$ ./welcome<i className="pt-caret" aria-hidden="true" />
+            </p>
+            <h2 id="pt-hero-title">
+              欢迎来到
+              <br />
+              <span>长江大学极客班。</span>
+            </h2>
+            <p className="pt-hero-lead">长江大学的 AI Native 技术社团：写代码、做项目、一起复盘。这是我们的内部系统，按 1 2 3 或 ⌘K 快速打开。</p>
+            <div className="pt-hero-cta">
+              {primaries.map((app) => (
+                <button key={app.id} type="button" data-cta={app.id} className={app.primary ? "pt-cta is-primary" : "pt-cta"} onClick={(e) => open(app.id, e.currentTarget)}>
+                  <span className="pt-cta-ico">
+                    <Icon name={app.icon} size={18} />
+                  </span>
+                  <span className="pt-cta-text">
+                    <b>{app.name}</b>
+                    <small>{app.blurb}</small>
+                  </span>
+                  <kbd>{app.key}</kbd>
+                </button>
+              ))}
+            </div>
+            <dl className="pt-hero-facts">
+              <div>
+                <dt>
+                  <Icon name="code-s-slash-line" size={14} /> 做什么
+                </dt>
+                <dd>课程之外的工程项目、竞赛、开源与 AI Coding</dd>
+              </div>
+              <div>
+                <dt>
+                  <Icon name="team-line" size={14} /> 怎么协作
+                </dt>
+                <dd>论坛讨论 · GitHub 协作 · 按部门分工</dd>
+              </div>
+              <div>
+                <dt>
+                  <Icon name="mail-line" size={14} /> 怎么加入
+                </dt>
+                <dd>写一封信投进信箱，我们用邮件联系你</dd>
+              </div>
+            </dl>
+            <div className="pt-hero-foot">
+              <Link to="/docs">
+                <Icon name="file-text-line" size={14} /> 文档
+              </Link>
+              <Link to="/feedback">
+                <Icon name="feedback-line" size={14} /> 意见箱
+              </Link>
+              <a href={links.console()}>
+                <Icon name="shield-user-line" size={14} /> 控制台
+              </a>
+            </div>
+          </section>
+          <RecruitWidget onOpen={open} />
+          <ForumWidget onOpen={open} />
+          <ReposWidget onOpen={open} />
+          <OrgWidget onOpen={open} />
+          <TerminalWidget onOpen={open} />
+          <ClockWidget now={now} />
+        </div>
+
+        <ul className="pt-icons" aria-label="桌面图标">
+          {OS_APPS.map((app) => (
+            <li key={app.id}>
+              <button
+                type="button"
+                className={selectedIcon === app.id ? "pt-dti is-sel" : "pt-dti"}
+                title={app.blurb}
+                onClick={() => setSelectedIcon(app.id)}
+                onDoubleClick={(e) => open(app.id, e.currentTarget)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") open(app.id, e.currentTarget);
+                }}
+              >
+                <span className="pt-dti-glyph" style={{ ["--tint" as string]: app.tint }}>
+                  <Icon name={app.icon} size={24} />
+                  {app.lock && (
+                    <em>
+                      <Icon name="lock-line" size={10} />
+                    </em>
+                  )}
+                </span>
+                <span className="pt-dti-name">{app.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <div className="pt-windows">
+          {wins.map((win) => (
+            <OsWindow
+              key={win.id}
+              win={win}
+              front={front?.id === win.id}
+              onFocus={() => focusWindow(win.id)}
+              onClose={() => closeWindow(win.id)}
+              onMinimize={() => patchWindow(win.id, { minimized: true })}
+              onZoom={() => patchWindow(win.id, { zoomed: !win.zoomed })}
+              onMove={(x, y) => patchWindow(win.id, { x, y })}
+              onOpen={open}
+            />
+          ))}
+        </div>
+      </main>
+
+      <nav className="pt-dock" aria-label="Dock">
+        <button type="button" className="pt-dk" title="回到书桌（Esc）" aria-label="回到书桌" onClick={onBack}>
+          <Icon name="arrow-left-line" size={20} />
+        </button>
+        <span className="pt-dk-sep" aria-hidden="true" />
+        {OS_APPS.map((app) => (
+          <button
+            key={app.id}
+            type="button"
+            className={wins.some((w) => w.id === app.id) ? "pt-dk is-running" : "pt-dk"}
+            title={`${app.name}${app.key ? `（${app.key}）` : ""}`}
+            aria-label={app.name}
+            style={{ ["--tint" as string]: app.tint }}
+            onClick={(e) => open(app.id, e.currentTarget)}
+          >
+            <Icon name={app.icon} size={20} />
+            <i className="pt-dk-dot" aria-hidden="true" />
+          </button>
+        ))}
+      </nav>
+
+      {launcher && (
+        <div className="pt-launcher" role="dialog" aria-modal="true" aria-label="启动器" onPointerDown={(e) => e.target === e.currentTarget && setLauncher(false)}>
+          <div className="pt-ln-box">
+            <label className="pt-ln-input">
+              <Icon name="search-line" size={18} />
+              <input
+                ref={launcherInput}
+                value={query}
+                placeholder="搜索应用或命令，例如「加入」「forum」「docs」"
+                autoComplete="off"
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="pt-ln-list"
+                aria-activedescendant={shown[selected] ? `pt-ln-${shown[selected].id}` : undefined}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSelected(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelected((current) => moveSelection(current, e.key === "ArrowDown" ? 1 : -1, shown.length));
+                  } else if (e.key === "Enter" && shown[selected]) runCommand(shown[selected].id);
+                  else if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setLauncher(false);
+                  }
+                }}
+              />
+            </label>
+            <ul id="pt-ln-list" role="listbox" aria-label="结果">
+              {shown.map((command, index) => (
+                <li
+                  key={command.id}
+                  id={`pt-ln-${command.id}`}
+                  role="option"
+                  aria-selected={index === selected}
+                  onPointerEnter={() => setSelected(index)}
+                  onClick={() => runCommand(command.id)}
+                >
+                  <Icon name={command.icon} size={17} />
+                  <b>{command.label}</b>
+                  <span>{command.hint}</span>
+                </li>
+              ))}
+              {shown.length === 0 && <li className="pt-empty">没有匹配的应用</li>}
+            </ul>
+            <footer>
+              <span>
+                <kbd>
+                  <Icon name="arrow-up-s-line" size={11} />
+                </kbd>
+                <kbd>
+                  <Icon name="arrow-down-s-line" size={11} />
+                </kbd>
+                选择
+              </span>
+              <span>
+                <kbd>Enter</kbd> 打开
+              </span>
+              <span>
+                <kbd>Esc</kbd> 关闭
+              </span>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {flight && (
+        <div className="pt-flight" aria-hidden="true" style={{ left: flight.x - 36, top: flight.y - 36, ["--tint" as string]: flight.app.tint }}>
+          <Icon name={flight.app.icon} size={30} />
+        </div>
+      )}
+    </div>
+  );
+}
