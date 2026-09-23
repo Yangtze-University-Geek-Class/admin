@@ -16,8 +16,10 @@
 | `app/server/src/routes/portal/contracts.ts` | portal 请求 Schema（本模块输入协议源） |
 | `app/server/src/routes/admin/index.ts` | admin 路由注册入口（`/auth/*`、`/api/me/*`、`/api/admin/:org/*`） |
 | `app/server/src/routes/admin/contracts.ts` | admin 请求 Schema |
-| `app/server/src/middleware/` | `require-auth`、`require-org-role`、`oauth-state`、`http-policy`、`pow`、`turnstile` |
-| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
+| `app/server/src/routes/console/index.ts` | 极客班控制台路由注册入口（`/api/console/*`：me、catalogue、summary、departments、assignments、applications、feedback、audit） |
+| `app/server/src/routes/console/contracts.ts` | 控制台请求 Schema（拒绝未知字段；投递参数按 UUID 校验） |
+| `app/server/src/middleware/` | `require-auth`、`require-org-role`、`require-capability`（控制台按能力授权）、`oauth-state`、`http-policy`、`pow`、`turnstile` |
+| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
 | `app/server/Dockerfile` | Node 22 多阶段构建，非 root 运行，`/data` 卷，健康检查 `/healthz` |
 | `app/server/scripts/` | 已退役的占位文件（`test-invite-*.ts`）：运行只打印「改用 `pnpm test`」并以退出码 1 结束，没有可用的手工流程 |
 
@@ -27,8 +29,9 @@
 
 - **入口职责**：`buildApp` 注册真实应用但不监听；只有 `index.ts` 读取环境并监听。测试通过 `inject` 注册真实路由，只把 `DB_PATH` 指向内存库。
 - **依赖方向**：`config → lib → middleware → routes`。`middleware` 不导入 `routes`；`lib` 不反向依赖 `middleware`；身份/持久化适配器只接收普通参数，不接受 Fastify 请求/响应对象。
-- **运行时装**：`DB_PATH` 指向 SQLite（WAL，better-sqlite3）；`sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`audit_logs`、`app_state` 由本服务拥有，其中 `app_state` 当前无读写（预留）。每张表的写入方、读取方、个人信息字段和未使用对象见 [数据模型](data-model.md)。
+- **运行时装**：`DB_PATH` 指向 SQLite（WAL，better-sqlite3）；`sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`application_reviews`、`departments`、`role_assignments`、`audit_logs`、`app_state` 由本服务拥有，其中 `app_state` 当前无读写（预留）。每张表的写入方、读取方、个人信息字段和未使用对象见 [数据模型](data-model.md)。
 - **身份**：GitHub OAuth 保留签名 state、十分钟有效期和允许列表回跳，只签发 `sid`（服务器会话）；不签发、不桥接旧 `forum_sid`。
+- **极客班控制台**：`/api/console/*` 组织固定为 `CONSOLE_ORG`（非密钥环境变量，默认 `Yangtze-University-Geek-Class`；`ALLOWED_ORGS` 非空时必须包含它，否则启动失败），按称号 → 能力授权，GitHub 能力受用户自身组织角色上限约束，GitHub 登录后默认回到 `/console`。模型见 [SECURITY](../../architecture/SECURITY.md)，端点见 [API](../../architecture/API.md)。
 - **旧论坛接口**：`/api/forum*`、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`；服务不打开 `forum.db`。生产环境缺少新论坛服务时 `/forum` 返回 503，不用模拟成功填补缺口。
 - **投递简历**：`POST /api/portal/apply` 是匿名写接口，无会话依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs`。准入沿用公开表单的 PoW、蜜罐与 Turnstile，路由限流 5 次/分钟。字段约束在 `routes/portal/apply.ts` 内单一校验层实现（该端点不注册 `contracts.ts` body schema），校验失败不落库；`website`、`homepage`、`url_ref` 任一非空即按蜜罐命中处理，返回与成功一致的 201 形状但不落库。审计记录目标 id 和来源 IP，details 只含脱敏邮箱、班级、`name_length` 与 `strengths_length`，不记姓名和候选人正文。字段、错误码与限流细则见 [API](../../architecture/API.md)。
 - **数据所有权**：`app/forum` 的数据不归本服务；本服务不读取论坛私有备份或只读投影。

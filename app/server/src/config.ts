@@ -7,6 +7,9 @@ import { readFileSync } from "node:fs";
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 /** 服务根：geek_main/app/。所有可部署服务都在 app/<service> 下。 */
 export const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+/** GitHub 用户名 / 组织名：字母数字与单个连字符，1–39 字符。 */
+export const GITHUB_LOGIN_REGEX = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+export const DEFAULT_CONSOLE_ORG = "Yangtze-University-Geek-Class";
 export function createConfig(env: Record<string, string | undefined>) {
   const required = (key: string): string => {
     const value = env[key];
@@ -51,14 +54,19 @@ export function createConfig(env: Record<string, string | undefined>) {
     if (["0", "false", "no"].includes(raw.toLowerCase())) return false;
     return raw;
   })();
+  const allowedOrgs = (env.ALLOWED_ORGS ?? "").split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+  // 极客班控制台固定管理的 GitHub 组织（非密钥）；本机与测试可不设。
+  const consoleOrg = (env.CONSOLE_ORG ?? "").trim() || DEFAULT_CONSOLE_ORG;
+  if (!GITHUB_LOGIN_REGEX.test(consoleOrg)) throw new Error("CONSOLE_ORG must be a GitHub organization login");
+  if (allowedOrgs.length > 0 && !allowedOrgs.includes(consoleOrg.toLowerCase())) throw new Error("ALLOWED_ORGS must include CONSOLE_ORG");
   return {
-    production, port, publicOrigin, siteOrigin, host: listenHost, trustProxy,
+    production, port, publicOrigin, siteOrigin, host: listenHost, trustProxy, consoleOrg,
     cookieDomain: env.COOKIE_DOMAIN || undefined,
     cookieSecure: publicOrigin.startsWith("https:"),
     oauth: { clientId: required("OAUTH_CLIENT_ID"), clientSecret: required("OAUTH_CLIENT_SECRET"), scope: "read:user user:email admin:org read:org repo" },
     sessionSecret, encryptionKey, dbPath, forumDbPath,
     uploadDir: resolve(REPO_ROOT, env.FORUM_UPLOAD_DIR ?? "data/forum-uploads"),
-    allowedOrgs: (env.ALLOWED_ORGS ?? "").split(",").map(value => value.trim().toLowerCase()).filter(Boolean),
+    allowedOrgs,
     turnstile: { siteKey: env.TURNSTILE_SITE_KEY ?? "", secretKey: env.TURNSTILE_SECRET_KEY ?? "" },
     powDifficulty,
     siteHosts: { admin: host(env.ADMIN_HOST, new URL(publicOrigin).hostname), portal: portalHost, forum: host(env.FORUM_HOST, `forum.${portalHost}`) },
