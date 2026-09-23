@@ -20,7 +20,7 @@
  *
  * --push 模式从 stdin 读 pre-push 的四段行：`<local ref> <local sha> <remote ref> <remote sha>`，
  * 并额外断言：推 refs/heads/main 的提交必须已经存在于 stage；推 refs/heads/stage 只能来自
- * stage 自身或 task/<issue>/<slug> 分支，且必须已经包含 origin/main。
+ * stage 自身或 task/<issue>/<slug> 分支，且必须已经包含 origin/main；不得删除远端 main/stage。
  */
 
 import { spawnSync } from 'node:child_process';
@@ -202,9 +202,11 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
   for (const push of pushes) {
     const { localRef, localSha, remoteRef, remoteSha } = push;
     const target = `${localRef} → ${remoteRef}`;
-    if (ZERO_SHA.test(remoteSha)) {
+    // githooks(5)：删除时 <local ref> 为 `(delete)`、<local sha> 全 0；<remote sha> 全 0 只表示远端还没有这个 ref
+    // （首次推送新分支），不是删除，必须照常判定命名与不变量。
+    if (localRef === '(delete)' || ZERO_SHA.test(localSha)) {
       if (remoteRef === 'refs/heads/main' || remoteRef === 'refs/heads/stage') {
-        warnings.push(`正在删除远端长期分支 ${remoteRef}：长期分支只允许 main 与 stage，删除前请确认这是有意的。`);
+        violations.push(`拒绝删除远端长期分支 ${remoteRef}：长期分支只允许 main 与 stage，删除会破坏分支模型。`);
       }
       continue;
     }

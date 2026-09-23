@@ -243,6 +243,57 @@ describe('pre-push guard', () => {
     expect(warnings).not.toContain('refs/heads/task/7/forum_path ');
   });
 
+  it('still checks a first push whose remote ref does not exist yet (all-zero <remote sha>)', () => {
+    // git 的约定：<remote sha> 全 0 = 远端还没有这个 ref（新建分支），不是删除；命名与不变量都必须照常判定。
+    const f = fixture({ divergent: true });
+    const zero = '0'.repeat(40);
+    const fresh = (name: string) => ({ localRef: `refs/heads/${name}`, localSha: f.stageTip, remoteRef: `refs/heads/${name}`, remoteSha: zero });
+    const naming = checkPushes({ repo: f.cwd, pushes: [fresh('task/12-foo'), fresh('dev-crosery'), fresh('dev/crosery'), fresh('task/12/portal_redesign')] });
+    expect(naming.ok).toBe(true);
+    const warnings = naming.warnings.join('\n');
+    expect(warnings).toContain('refs/heads/task/12-foo');
+    expect(warnings).toContain('refs/heads/dev-crosery');
+    expect(warnings).not.toContain('refs/heads/dev/crosery ');
+    expect(warnings).not.toContain('refs/heads/task/12/portal_redesign ');
+
+    const newMain = checkPushes({
+      repo: f.cwd,
+      pushes: [{ localRef: 'refs/heads/main', localSha: f.mainAhead, remoteRef: 'refs/heads/main', remoteSha: zero }],
+    });
+    expect(newMain.ok).toBe(false);
+    expect(newMain.violations.join('\n')).toContain(INVARIANTS[1]);
+
+    const newStageFromOldTask = checkPushes({
+      repo: f.cwd,
+      pushes: [{ localRef: 'refs/heads/task/12-foo', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha: zero }],
+    });
+    expect(newStageFromOldTask.ok).toBe(false);
+    expect(newStageFromOldTask.violations.join('\n')).toContain('既不是 stage 自身');
+  });
+
+  it('treats "(delete)" with an all-zero <local sha> as a deletion: blocks main/stage, stays quiet for others', () => {
+    const f = fixture();
+    const zero = '0'.repeat(40);
+    const del = (name: string) => ({ localRef: '(delete)', localSha: zero, remoteRef: `refs/heads/${name}`, remoteSha: f.stageTip });
+    for (const longLived of ['stage', 'main']) {
+      const result = checkPushes({ repo: f.cwd, pushes: [del(longLived)] });
+      expect(result.ok).toBe(false);
+      expect(result.violations.join('\n')).toContain(`拒绝删除远端长期分支 refs/heads/${longLived}`);
+    }
+    // 合并后删 task 分支、迁移时删旧的 dev-crosery：都是规范要求的动作，不阻断也不报命名告警。
+    const cleanup = checkPushes({ repo: f.cwd, pushes: [del('task/12/portal_redesign'), del('dev-crosery')] });
+    expect(cleanup.ok).toBe(true);
+    expect(cleanup.warnings).toEqual([]);
+
+    const cli = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], {
+      encoding: 'utf8',
+      input: `(delete) ${zero} refs/heads/stage ${f.stageTip}\n`,
+    });
+    expect(cli.status).toBe(1);
+    expect(cli.stdout).toContain('拒绝删除远端长期分支 refs/heads/stage');
+    expect(cli.stderr).not.toContain('无法判定祖先关系');
+  });
+
   it('reads the hook payload from stdin through the CLI', () => {
     const f = fixture({ divergent: true });
     const stdin = `refs/heads/main ${f.mainAhead} refs/heads/main ${'b'.repeat(40)}\n`;
