@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { IconName } from "../../lib/icons";
 import { links } from "../../lib/links";
-import { agoLabel, monthGrid, rowsThatFit, type AppId } from "../../lib/osApps";
+import { OS_APPS, agoLabel, monthGrid, rowsThatFit, type AppId } from "../../lib/osApps";
 import { snapshotLabel, useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
 import Icon from "../Icon";
 
@@ -64,8 +64,8 @@ export function ForumWidget({ onOpen }: { onOpen: OpenApp }) {
       }
     >
       <ol className="pt-feed" ref={listRef}>
-        {snapshot.status === "loading" && <li className="pt-empty">正在读取快照…</li>}
-        {snapshot.status === "error" && <li className="pt-empty">快照读取失败，去论坛首页看看吧。</li>}
+        {snapshot.status === "loading" && <li className="pt-empty">正在读取论坛快照…</li>}
+        {snapshot.status === "error" && <li className="pt-empty">论坛快照没加载出来，可以直接进论坛首页看。</li>}
         {topics.slice(0, rows).map((topic) => (
           <li key={topic.id}>
             <a href={links.forumTopic(topic.id)} title={topic.title}>
@@ -109,7 +109,7 @@ export function ReposWidget({ onOpen }: { onOpen: OpenApp }) {
   return (
     <Card id="w-repos" className="pt-w-repos" icon="git-repository-line" title="公开仓库" meta={snapshot.status === "ready" ? snapshotLabel(snapshot.data.capturedAt) : undefined}>
       <ul className="pt-repos" ref={ref as React.RefObject<HTMLUListElement>}>
-        {snapshot.status === "error" && <li className="pt-empty">快照读取失败，去 GitHub 组织看看吧。</li>}
+        {snapshot.status === "error" && <li className="pt-empty">仓库快照没加载出来，可以直接打开 GitHub 组织看。</li>}
         {repos.slice(0, Math.max(1, rows)).map((repo) => (
           <li key={repo.name}>
             <a href={repo.url} target="_blank" rel="noreferrer">
@@ -117,7 +117,7 @@ export function ReposWidget({ onOpen }: { onOpen: OpenApp }) {
                 <Icon name="git-repository-line" size={14} />
                 <b>{repo.name}</b>
               </span>
-              <span className="pt-repo-desc">{repo.description ?? "（没有描述）"}</span>
+              <span className="pt-repo-desc">{repo.description ?? "没有简介"}</span>
               <span className="pt-repo-meta">
                 <i className="pt-dot is-round" style={{ background: repo.language ? LANG_COLOR[repo.language] ?? "#8a91b0" : "#c8ccd9" }} />
                 {repo.language ?? "—"}
@@ -134,7 +134,7 @@ export function ReposWidget({ onOpen }: { onOpen: OpenApp }) {
       </ul>
       <footer className="pt-card-foot">
         <button type="button" className="pt-card-link" onClick={(event) => onOpen("github", event.currentTarget)}>
-          <Icon name="sparkling-line" size={13} /> 3D 天际线
+          <Icon name="sparkling-line" size={13} /> 3D 场景
         </button>
         <a className="pt-card-link" href={links.githubOrg()} target="_blank" rel="noreferrer">
           打开 GitHub 组织 <Icon name="external-link-line" size={13} />
@@ -145,10 +145,11 @@ export function ReposWidget({ onOpen }: { onOpen: OpenApp }) {
 }
 
 export const DEPARTMENTS: ReadonlyArray<{ name: string; icon: IconName; does: string; tint: string }> = [
-  { name: "招新部", icon: "user-add-line", does: "收信、面谈、迎新", tint: "#3346c8" },
-  { name: "技术部", icon: "code-s-slash-line", does: "仓库、CI、技术分享", tint: "#5b5fd6" },
-  { name: "社区部", icon: "discuss-line", does: "论坛、活动、内容", tint: "#128a7e" },
-  { name: "项目部", icon: "git-repository-line", does: "项目孵化、竞赛组队", tint: "#b7791f" },
+  // 部门与职责来自服务端 app/server/src/lib/roles.ts 的 DEFAULT_DEPARTMENTS
+  { name: "招新部", icon: "user-add-line", does: "招新和面试", tint: "#3346c8" },
+  { name: "技术部", icon: "code-s-slash-line", does: "仓库和基础设施", tint: "#5b5fd6" },
+  { name: "社区部", icon: "discuss-line", does: "论坛和意见箱", tint: "#128a7e" },
+  { name: "项目部", icon: "git-repository-line", does: "项目立项和展示", tint: "#a16207" },
 ];
 
 export function OrgWidget({ onOpen }: { onOpen: OpenApp }) {
@@ -165,7 +166,7 @@ export function OrgWidget({ onOpen }: { onOpen: OpenApp }) {
           <button type="button" className="pt-chip is-soft" style={{ ["--c" as string]: "#3346c8" }} onClick={open}>
             <Icon name="user-line" size={13} /> 极客班成员
           </button>
-          <button type="button" className="pt-chip is-soft" style={{ ["--c" as string]: "#0f766e" }} onClick={open} title="毕业的学长学姐，回头为大家指路">
+          <button type="button" className="pt-chip is-soft" style={{ ["--c" as string]: "#0f766e" }} onClick={open} title="已毕业的学长学姐">
             <Icon name="compass-3-line" size={13} /> 领航员
           </button>
         </div>
@@ -188,27 +189,25 @@ export function OrgWidget({ onOpen }: { onOpen: OpenApp }) {
 export function RecruitWidget({ onOpen }: { onOpen: OpenApp }) {
   return (
     <section className="pt-card pt-w-recruit" aria-labelledby="w-recruit-title">
-      <p className="pt-recruit-status">
-        <i aria-hidden="true" /> RECRUITING · 招新中
-      </p>
       <h2 id="w-recruit-title">
-        我们正在招人，<span>下一个就是你。</span>
+        <i className="pt-recruit-dot" aria-hidden="true" />
+        我们正在招人
       </h2>
       <ol className="pt-steps">
         <li>
-          <b>01</b>
+          <b>1</b>
           <span>写一封信</span>
-          <small>姓名、班级、邮箱和特长</small>
+          <small>姓名、班级、邮箱和你会什么</small>
         </li>
         <li>
-          <b>02</b>
-          <span>我们认真读</span>
-          <small>每一封都会有人看</small>
+          <b>2</b>
+          <span>招新部看信</span>
+          <small>网站上查不到进度，留意邮箱</small>
         </li>
         <li>
-          <b>03</b>
-          <span>邮件约聊</span>
-          <small>从一次聊天开始</small>
+          <b>3</b>
+          <span>邮件联系你</span>
+          <small>合适的话约时间面试</small>
         </li>
       </ol>
       <button type="button" className="pt-btn is-primary" onClick={(event) => onOpen("join", event.currentTarget)}>
@@ -223,13 +222,13 @@ export function TerminalWidget({ onOpen }: { onOpen: OpenApp }) {
     <Card id="w-term" className="pt-w-term" icon="terminal-box-line" title="终端" meta="zsh">
       <button type="button" className="pt-termmini" onClick={(event) => onOpen("terminal", event.currentTarget)} aria-label="打开终端">
         <span>
-          <b>nano@yugc:~$</b> ./welcome
+          <b>nano@yugc:~$</b> ls
         </span>
-        <span className="is-ok">[ OK ] 8 个应用 · 3 个 3D 场景</span>
+        <span>{OS_APPS.map((app) => app.id).join("  ")}</span>
         <span>
           <b>nano@yugc:~$</b> help
         </span>
-        <span className="is-dim">open join · repos · whoami · clear</span>
+        <span className="is-dim">ls · open · ./join · repos · whoami · clear</span>
         <span>
           <b>nano@yugc:~$</b> <i className="pt-caret" aria-hidden="true" />
         </span>
@@ -237,7 +236,7 @@ export function TerminalWidget({ onOpen }: { onOpen: OpenApp }) {
       <footer className="pt-card-foot">
         <span>
           <kbd>⌘</kbd>
-          <kbd>K</kbd> 搜索应用与命令
+          <kbd>K</kbd> 搜索应用和命令
         </span>
       </footer>
     </Card>
@@ -260,7 +259,7 @@ export function ClockWidget({ now }: { now: Date }) {
           {now.getMonth() + 1} 月 {today} 日 · 星期{WEEK[(now.getDay() + 6) % 7]}
         </p>
         <p className="pt-clock-note">
-          <Icon name="map-pin-line" size={13} /> 长江大学 · 荆州
+          <Icon name="time-line" size={13} /> 本机时间
         </p>
       </div>
       <div className="pt-cal" role="grid" aria-label={`${now.getFullYear()} 年 ${now.getMonth() + 1} 月`}>

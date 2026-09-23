@@ -18,12 +18,13 @@ import "../styles/portal.css";
 import "../styles/desk.css";
 import "../styles/os.css";
 
+// 开机日志：只写桌面上真的会加载的东西
 const BOOT_LINES: Array<[string, string]> = [
-  ["mount", "/campus/yangtzeu"],
-  ["load", "nano.driver"],
-  ["link", "github.com/Yangtze-University-Geek-Class"],
-  ["start", "forum.service"],
-  ["ready", "8 apps · 加入我们 / 论坛 / GitHub"],
+  ["load", "论坛最新（快照）"],
+  ["load", "公开仓库（快照）"],
+  ["load", "组织架构"],
+  ["open", "加入我们 · 论坛 · GitHub 组织"],
+  ["ready", "YUGC OS"],
 ];
 
 export default function Home() {
@@ -72,12 +73,12 @@ export default function Home() {
   // 加载 three 分包并搭书桌；卸载时释放全部 GPU 资源
   useEffect(() => {
     let cancelled = false;
-    report("start", "mount /campus/yangtzeu");
+    report("start", "开始加载");
     (async () => {
       try {
         const module = await import("../three/desk");
         if (cancelled || !canvas.current || !hint.current) return;
-        report("chunk", "load three.js · desk scene");
+        report("chunk", "3D 引擎已下载");
         const handle = await module.createDesk(canvas.current, {
           reducedMotion,
           hint: hint.current,
@@ -101,7 +102,7 @@ export default function Home() {
       } catch {
         // 没有 WebGL（或分包加载失败）：直接给系统桌面，三个入口照常可用
         if (cancelled) return;
-        report("frame", "webgl unavailable · static desktop");
+        report("frame", "这台设备不支持 3D，直接进桌面");
         dispatch({ type: "fallback" });
       }
     })();
@@ -222,17 +223,16 @@ export default function Home() {
           </span>
           <span className="pt-status">
             <i aria-hidden="true" />
-            RECRUITING · 我们正在招人
+            我们正在招人
           </span>
         </div>
         <section className="pt-hud-copy" aria-labelledby="pt-home-title">
-          <p className="pt-kicker">~/yugc $ ./boot</p>
           <h1 id="pt-home-title">
-            <span>在校园里，</span>
+            <span>长江大学</span>
             <br />
-            <span className="is-accent">把想法写成能跑的东西。</span>
+            <span className="is-accent">极客班</span>
           </h1>
-          <p>长江大学的 AI Native 技术社团：写代码、做项目、一起复盘。点一下桌上的电脑，开机进去看看。</p>
+          <p>点一下桌上的电脑开机。报名、逛论坛、看我们在 GitHub 上的代码，都从这里进。</p>
           <div className="pt-hud-actions">
             <button ref={enterButton} type="button" className="pt-enter" onClick={() => enter(false)}>
               <Icon name="shut-down-line" size={16} /> 打开电脑 <kbd>Enter</kbd>
@@ -256,7 +256,7 @@ export default function Home() {
             <div className="pt-boot-title">YUGC&nbsp;OS</div>
             <div className="pt-boot-lines">
               {BOOT_LINES.map(([key, value], i) => (
-                <div key={key} className={i < bootLines ? "is-on" : undefined}>
+                <div key={i} className={i < bootLines ? "is-on" : undefined}>
                   <b>[ OK ]</b> {key} {value}
                 </div>
               ))}

@@ -82,10 +82,6 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
         x.fillText(board.desc, 36, 256);
         x.fillStyle = board.color;
         x.fillRect(36, 282, hot ? 200 : 64, 6);
-        x.fillStyle = PALETTE.inkSoft;
-        x.font = '22px "SF Mono", Menlo, monospace';
-        x.textAlign = "right";
-        x.fillText(`/c/${board.slug}`, w - 36, 88);
       },
       TEXT_SCALE,
     );

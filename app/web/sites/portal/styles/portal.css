@@ -59,6 +59,8 @@ html[data-site="portal"] body { background: #f5f4f0 !important; }
 :where(.pt-root) button { font: inherit; color: inherit; }
 .pt-root :focus-visible { outline: 2px solid var(--pt-cobalt); outline-offset: 2px; }
 .pt-icon { flex: none; display: inline-block; vertical-align: -0.18em; }
+/* 数字：计数、时钟、百分比一律等宽数字，跳动时不左右晃 */
+.pt-num { font-variant-numeric: tabular-nums; }
 .pt-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .pt-route-fallback { min-height: 100svh; background: #f5f4f0; }
 /* 表单蜜罐：真人看不见也不会填 */
@@ -68,7 +70,6 @@ html[data-site="portal"] body { background: #f5f4f0 !important; }
   display: inline-flex; align-items: center; gap: 2px;
   font: 500 10.5px/1.4 var(--pt-mono); padding: 1px 5px; border: 1px solid var(--pt-line); border-radius: 5px; background: #fff; color: var(--pt-ink-soft);
 }
-.pt-kicker { font: 500 12px/1.5 var(--pt-mono); letter-spacing: .1em; color: var(--pt-cobalt); }
 .pt-hint { font-size: 12.5px; color: var(--pt-ink-soft); }
 .pt-empty { color: var(--pt-ink-soft); font-size: 13px; padding: 10px 2px; }
 .pt-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; flex: none; }

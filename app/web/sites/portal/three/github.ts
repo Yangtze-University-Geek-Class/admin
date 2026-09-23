@@ -124,11 +124,11 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
   tStand.position.set(0, 0.025, 0.02);
   const tNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.24, 12), shellMat);
   tNeck.position.y = 0.16;
+  // 真终端里的内容：命令与输出都照实写（仓库数来自快照）
   const SCRIPT = [
-    "$ gh org view Yangtze-University-Geek-Class",
-    `ok ${repos.length} public repos · members hidden`,
-    ...repos.slice(0, 3).map((repo) => `  ${repo.name.padEnd(10)} ${repo.language ?? "—"}`),
-    "$ open github.com/yugc",
+    "$ gh repo list Yangtze-University-Geek-Class",
+    ...repos.slice(0, 3).map((repo) => `${repo.name.padEnd(10)} ${repo.language ?? "-"}`),
+    `${repos.length} 个公开仓库（快照）`,
   ];
   const TOTAL = SCRIPT.join("\n").length;
   const screenTex = canvasTexture<{ typed: number; cursor: boolean }>(768, 480, (x, w, h, arg) => {
@@ -146,7 +146,7 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
     x.fillStyle = PALETTE.inkSoft;
     x.font = '20px "SF Mono", Menlo, monospace';
     x.textAlign = "center";
-    x.fillText("nano@yugc — zsh", w / 2, 29);
+    x.fillText("zsh", w / 2, 29);
     x.textAlign = "left";
     x.font = '24px "SF Mono", Menlo, monospace';
     const lines: string[] = [];
@@ -157,7 +157,7 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
       left -= line.length + 1;
     }
     lines.forEach((line, k) => {
-      x.fillStyle = line.startsWith("$") ? PALETTE.cobalt : line.startsWith("ok") ? PALETTE.green : PALETTE.ink;
+      x.fillStyle = line.startsWith("$") ? PALETTE.cobalt : PALETTE.ink;
       x.fillText(line, 28, 94 + k * 38);
     });
     if (arg?.cursor) {

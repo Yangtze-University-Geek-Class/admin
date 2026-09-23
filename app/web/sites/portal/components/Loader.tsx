@@ -103,8 +103,7 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
   return (
     <div ref={root} className={["pt-loader", quick ? "is-quick" : "", open ? "is-open" : ""].filter(Boolean).join(" ")} role="status" aria-live="polite" aria-label="正在加载">
       <div className="ld-top" aria-hidden="true">
-        <span>YUGC://BOOT</span>
-        <span>长江大学 · 计算机科学学院</span>
+        <span>长江大学计算机科学学院 · 极客班</span>
       </div>
       <div className="ld-word" aria-hidden="true">
         <span className="ld-stroke">YUGC</span>
@@ -116,7 +115,6 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
       </div>
       <p className="ld-sign" aria-hidden="true">
         Geek Class
-        <small>SUPERCODER · SINCE 2021</small>
       </p>
       <div className="ld-bottom">
         <div className="ld-log">
