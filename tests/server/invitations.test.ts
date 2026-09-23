@@ -3,12 +3,15 @@ import type { ServiceOverrides } from '../../app/server/src/services';
 import { testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
-async function fixture(failure?: number) {
+async function fixture(failure?: number, options: { message?: string; lookup?: number } = {}) {
   let sends = 0;
-  const context = await testApp({ octokitFactory: (() => ({ users: { getByUsername: async () => ({ data: { id: 1 } }) }, request: async (method: string) => {
+  const context = await testApp({ octokitFactory: (() => ({ users: { getByUsername: async () => {
+    if (options.lookup) throw Object.assign(new Error('stub lookup rejection'), { status: options.lookup });
+    return { data: { id: 1 } };
+  } }, request: async (method: string) => {
     if (!method.startsWith('POST')) throw new Error('Unexpected upstream operation');
     sends++; await new Promise(resolve => setTimeout(resolve, 15));
-    if (failure) throw Object.assign(new Error('stub rejection'), { status: failure });
+    if (failure) throw Object.assign(new Error(options.message ?? 'stub rejection'), { status: failure });
     return { data: { id: 42 } };
   } })) as ServiceOverrides['octokitFactory'] });
   contexts.push(context);
@@ -28,4 +31,14 @@ it('reuses a successful invitation without sending twice', async () => {
 it.each([400, 500])('preserves conservative quota handling after upstream %s', async status => {
   const { app, send } = await fixture(status); await send('alpha');
   expect(app.services.storage.db.prepare('SELECT current_uses FROM invite_links').get()).toEqual({ current_uses: status === 400 ? 0 : 1 });
+});
+it.each([
+  ['an existing member', 422, { message: 'Validation Failed: {"message":"Invitee is already a part of this organization"}' }, '该用户已在组织中'],
+  ['any other 422', 422, {}, 'GitHub 拒绝邀请（账号不存在或邮箱已被邀请）'],
+  ['an unknown GitHub login', undefined, { lookup: 404 }, 'GitHub 用户名不存在，请检查拼写'],
+  ['an unclassified 4xx', 403, {}, '邀请失败，稍后重试'],
+] as const)('tells %s apart instead of always asking to retry', async (_case, failure, options, expected) => {
+  const { send } = await fixture(failure, options); const response = await send('alpha');
+  expect(response.statusCode).toBe(400); expect(response.json().error).toBe(expected);
+  expect(JSON.stringify(response.json())).not.toMatch(/stub|Validation Failed/);
 });

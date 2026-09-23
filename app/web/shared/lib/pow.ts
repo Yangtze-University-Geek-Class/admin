@@ -33,3 +33,11 @@ export async function computePow(
     await new Promise((r) => setTimeout(r, 0));
   }
 }
+
+/**
+ * 提交给服务端的 PoW 证明：接口契约只接受 { timestamp, nonce }（additionalProperties: false），
+ * computePow 额外返回的 tries 只用于界面进度，不能原样发出去。
+ */
+export function powProof(pow: { timestamp: number; nonce: string }): { timestamp: number; nonce: string } {
+  return { timestamp: pow.timestamp, nonce: pow.nonce };
+}

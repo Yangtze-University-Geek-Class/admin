@@ -8,14 +8,14 @@
 
 | 路径 | 职责 |
 |---|---|
-| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由、`pages/`、`components/`、`index.html` 入口；无独立登录态 |
+| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由、`pages/`、`components/`（含首页滚动舞台 `ScrollStage.tsx`）、`lib/`（LED 点阵字库与画板）、`theme.css`（NANO · 代码窗口 × LED 点阵视觉令牌与组件）、`index.html` 入口；无独立登录态 |
 | `app/web/sites/admin/` | 组织管理站点：`App.tsx` 路由、`pages/`、`features/`（按代码/提交/Issue/PR/设置分 feature） |
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 真正跨端复用的交互原语：Modal、ConfirmDialog、Select、NumberInput、ImageLightbox、TurnstileWidget、Mascot 等 |
 | `app/web/shared/styles/` | 基础样式与令牌（`base.css`、`mascot.css`、`rounded.css`） |
 | `app/web/shared/config/` | 公开前端配置（`app.config.json` → `config/index.ts` 的站点/域名合同） |
 | `app/web/Dockerfile` | Node 22 构建 Vite 产物 → nginx 托管静态与反代；容器内监听 8080（非特权），并生成 `release.json` 供发布身份核对 |
-| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*` → `server:3000`；`/forum/*` → `forum:3000`；按宿主注入的 `X-YZGC-Site` 选择 portal/admin SPA 入口；安全头由宿主 nginx 统一下发，容器不重复 |
+| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*`、`/auth`、`/auth/*`（OAuth 登录与回调）、`/healthz` → `server:3000`；`/forum` 308 到 `/forum/`，`/forum/*` 剥掉前缀后 → `forum:3000`；`/sites/*` 只提供真实文件，不存在即 404；其余路径按宿主注入的 `X-YZGC-Site` 回落到 portal/admin SPA 入口；安全头由宿主 nginx 统一下发，容器不重复 |
 
 模块细节：[portal](portal.md)、[admin](admin.md)、[shared](shared.md)。依赖方向：站点 → shared → 通用依赖；shared 不得反向导入站点，站点之间不得互相导入。
 
@@ -53,6 +53,6 @@ node scripts/check-site-hosts.mjs     # 前后端 host 一致性
 ## 已知限制
 
 - 本机 mock 预览是只读样板，不操作真实 GitHub；真实数据只在连上 `app/server` 后出现。
-- 旧 `/sites/forum/*` 与 `/forum` 前端入口跳转到 `app/forum` 的新论坛首页，不猜测旧帖子 ID 映射。
+- 旧入口跳转**只存在于本机 Vite dev**（`vite.config.ts` 的开发中间件）：`/sites/forum/*` 302 到新论坛首页 `http://127.0.0.1:3456/`，`/forum`、`/forum/*` 保留路径 302 到 3456；不猜测旧帖子 ID 映射。容器栈里 `/sites/forum/*` 返回 404，`/forum/*` 由 nginx 反代到 forum 容器。
 - WCAG 2.2 AA 是目标而非已达成结论；对比度、放大、屏幕阅读器需独立测量。
 - 论坛前端（`app/forum`，Vue/TuffEx）与本包无代码复用：Vue 组件不能当作 React 组件使用。

@@ -9,9 +9,15 @@ const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.val
 
 <template>
   <TxContainer max-width="1400px" class="pt-3">
+    <!--
+      A standing notice, composed from TxCard + TxFlex rather than TxAlert: the
+      upstream topic-page suite treats the first .tx-alert outside a post as the
+      topic control bar, and a page-wide alert would also be announced
+      assertively (role="alert") on every load.
+    -->
     <TxCard>
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
-        <div class="flex flex-wrap items-center gap-2">
+      <TxFlex align="center" justify="space-between" :gap="12" wrap="wrap" class="text-sm">
+        <TxFlex align="center" :gap="8" wrap="wrap">
           <TxStatusBadge
             :text="`${deployment.label} · ${deployment.displayVersion}`"
             :status="isSnapshot ? 'info' : 'warning'"
@@ -24,12 +30,12 @@ const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.val
           <span v-else class="text-$tx-text-color-secondary leading-normal">
             当前数据：上游示例，尚未接通极客班真实帖子。示例身份不是真实登录，请勿填写敏感资料。
           </span>
-        </div>
-        <div class="flex items-center gap-4 shrink-0 whitespace-nowrap pt-1 sm:pt-0">
+        </TxFlex>
+        <TxFlex align="center" :gap="16" class="shrink-0 whitespace-nowrap">
           <a :href="portal" class="text-$tx-color-primary underline">返回宣传主页</a>
           <NuxtLink to="/about" class="text-$tx-color-primary underline">查看环境与版本</NuxtLink>
-        </div>
-      </div>
+        </TxFlex>
+      </TxFlex>
     </TxCard>
   </TxContainer>
 </template>

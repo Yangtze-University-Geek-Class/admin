@@ -20,7 +20,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 论坛不再是 `app/web/sites` 下的 React 入口。根 `pnpm verify` 编排核心与论坛各自检查，两个 pnpm 锁文件、运行时和 node_modules 分开管理。独立技术栈是用户明确采用原仓的要求，不是为了目录外观创建微服务——三个服务仍由同一套 compose 模板、同一台机器上的两套栈交付。
 
-核心 Vite 生成 portal/admin 两个 HTML；论坛由 Nuxt generate 生成静态产物。本机核心在 5173/3000、论坛在 3456（见 [LOCAL-PREVIEW](../ops/LOCAL-PREVIEW.md)）；容器内 server 与 forum 都监听 3000，由 web 容器按路径反代（`/api/*` → server，`/forum/*` → forum）。
+核心 Vite 生成 portal/admin 两个 HTML；论坛由 Nuxt generate 生成静态产物。本机核心在 5173/3000、论坛在 3456（见 [LOCAL-PREVIEW](../ops/LOCAL-PREVIEW.md)）；容器内 server 与 forum 都监听 3000，由 web 容器按路径反代（`/api/*`、`/auth`、`/auth/*`、`/healthz` → server，`/forum/*` → forum），逐条规则见 [web 合同](../services/web/README.md)。
 
 ## 交付拓扑（两套栈）
 
@@ -29,8 +29,8 @@ geek_main 根 README / AGENTS / 命令 / docs
   ├─ yangtzeu.work / prev.yangtzeu.work          → 127.0.0.1:18100 / 18200
   └─ github.yangtzeu.work / prev-admin.yangtzeu.work → 同上（web 容器按 host 分流 SPA）
        └─ web 容器（nginx：静态 + 反代）
-            ├─ /api/*   → server 容器（Fastify，/data 命名卷，/healthz）
-            └─ /forum/* → forum 容器（Nuxt 静态产物）
+            ├─ /api/*、/auth、/auth/*、/healthz → server 容器（Fastify，/data 命名卷）
+            └─ /forum/*                         → forum 容器（Nuxt 静态产物）
 ```
 
 | 环境 | 分支 | 栈根 | compose 项目 | 数据 |
@@ -42,7 +42,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ## 核心数据与身份
 
-`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`audit_logs`、`app_state` 保留。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
+`buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`audit_logs`、`app_state` 保留，其中 `app_state` 当前无读写（预留）；各表用途、读写方与未使用对象见 [server 数据模型](../services/server/data-model.md)。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
 
 核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
 
