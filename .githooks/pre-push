@@ -1,5 +1,5 @@
 #!/bin/sh
-# geek_main 分支模型守卫（pre-push）。
+# geek_main 分支模型与发布 tag 守卫（pre-push）。
 #
 # 每次 push 前强制两条硬不变量与来源规则：
 #   I1 stage 必须包含 main（git merge-base --is-ancestor origin/main origin/stage 为真）
@@ -7,6 +7,13 @@
 #   *  推 refs/heads/main  ：被推的 main tip 必须已经在 stage 里（main 只做 stage 的快进）
 #   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>/<slug> 分支，且必须已包含 origin/main
 #   *  删除远端 main/stage：一律拒绝；首次推送的新分支（远端 SHA 全 0）照常判定命名
+#   *  推发布 tag（发版只靠打 tag，见 docs/conventions/RELEASES.md）：
+#        vX.Y.Z-rc.N 必须打在 stage（本地 stage 或 origin/stage）的提交上 → 否则拒绝
+#        vX.Y.Z      必须打在 main（本地 main 或 origin/main）的提交上 → 否则拒绝；
+#                    同一提交本地没有 vX.Y.Z-rc.N 只告警，以 CI 的预发布证据为准
+#        X.Y.Z 必须等于该提交 package.json 的 version；格式不对的 v 开头 tag 一律拒绝
+#        删除或移动（force）发布 tag 一律拒绝；其它 tag 只告警，不参与发版
+#   本钩子只做推送前的本地拦截，不会替你创建 tag，也不代表发版已获授权。
 #
 # 启用方式（每台克隆各做一次，写入本仓库的 .git/config，不影响其它仓库）：
 #   git config core.hooksPath .githooks
@@ -38,7 +45,7 @@ if "$node_bin" "$script" --push --repo "$repo_root"; then
 fi
 
 echo "" >&2
-echo "pre-push: 分支规则未通过，推送已被本地钩子拒绝。" >&2
+echo "pre-push: 分支或发布 tag 规则未通过，推送已被本地钩子拒绝。" >&2
 echo "  启用/停用方式：git config core.hooksPath .githooks / git config --unset core.hooksPath" >&2
-echo "  提交前请先读 docs/conventions/ISSUES.md 与 docs/conventions/RELEASES.md 的分支模型。" >&2
+echo "  提交前请先读 docs/conventions/BRANCHING.md 的分支模型与 docs/conventions/RELEASES.md 的发布 tag 规则。" >&2
 exit 1

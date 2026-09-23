@@ -21,12 +21,21 @@
  * --push 模式从 stdin 读 pre-push 的四段行：`<local ref> <local sha> <remote ref> <remote sha>`，
  * 并额外断言：推 refs/heads/main 的提交必须已经存在于 stage；推 refs/heads/stage 只能来自
  * stage 自身或 task/<issue>/<slug> 分支，且必须已经包含 origin/main；不得删除远端 main/stage。
+ *
+ * 发布 tag（发版只靠打 tag，规则唯一实现见 scripts/release-policy.mjs）在 --push 模式下：
+ *   v 开头且紧跟数字的 tag 都按发布 tag 判定，格式不是 vX.Y.Z-rc.N / vX.Y.Z → 违规
+ *   vX.Y.Z-rc.N 的提交不在 stage / origin/stage 里 → 违规
+ *   vX.Y.Z 的提交不在 main / origin/main 里 → 违规；同一提交本地没有 vX.Y.Z-rc.N → 告警（以 CI 证据为准）
+ *   X.Y.Z 与该提交 package.json 的 version 不一致、或给已正式发布的版本再打 rc → 违规
+ *   删除或移动（force）发布 tag → 违规（删除格式不合规的 v 开头 tag 只告警，属于清理）
+ *   其它 tag 只告警：不参与发版。
  */
 
 import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { RELEASE_TAG_RE, listTagCommits, packageVersionAt, parseReleaseTag, previewTagsFor } from './release-policy.mjs';
 
 /** 两条硬不变量原文（失败时必须原样打印）。 */
 export const INVARIANTS = Object.freeze([
@@ -39,6 +48,8 @@ export const TASK_BRANCH_RE = /^task\/[0-9]+\/[a-z0-9]+(?:_[a-z0-9]+)*$/;
 export const DEV_BRANCH_RE = /^dev\/[a-z0-9]+(?:_[a-z0-9]+)*$/;
 const ZERO_SHA = /^0{40}$/;
 const SHA_RE = /^[a-f0-9]{40}$/;
+/** v（或 V）后紧跟数字的 tag 都在声称自己是发布 tag，必须完全符合 RELEASE_TAG_RE。 */
+const RELEASE_SHAPED_TAG_RE = /^[vV][0-9]/;
 
 const FIX_MAIN = [
   '  修复：先把 main 上的提交合回 stage，再让 main 只做快进：',
@@ -194,7 +205,7 @@ function pickMainRef(repo) {
   return null;
 }
 
-/** pre-push 模式：main/stage 的推送规则。 */
+/** pre-push 模式：main/stage 与发布 tag 的推送规则。 */
 export function checkPushes({ repo = process.cwd(), pushes }) {
   const violations = [];
   const warnings = [];
@@ -202,6 +213,10 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
   for (const push of pushes) {
     const { localRef, localSha, remoteRef, remoteSha } = push;
     const target = `${localRef} → ${remoteRef}`;
+    if (remoteRef.startsWith('refs/tags/')) {
+      checkTagPush({ repo, push, violations, warnings, notes });
+      continue;
+    }
     // githooks(5)：删除时 <local ref> 为 `(delete)`、<local sha> 全 0；<remote sha> 全 0 只表示远端还没有这个 ref
     // （首次推送新分支），不是删除，必须照常判定命名与不变量。
     if (localRef === '(delete)' || ZERO_SHA.test(localSha)) {
@@ -260,11 +275,93 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
       }
       continue;
     }
-    if (remoteRef.startsWith('refs/tags/')) {
-      warnings.push(`${remoteRef}：分支模型不使用发布 tag，部署身份只由 commit SHA 决定（tag 不参与发布）。`);
-    }
   }
   return { ok: violations.length === 0, violations, warnings, notes };
+}
+
+function firstContaining(repo, commit, refs) {
+  const available = refs.map(ref => ({ ref, sha: resolveCommit(repo, ref) })).filter(entry => entry.sha);
+  return { available, container: available.find(entry => isAncestor(repo, commit, entry.sha)) ?? null };
+}
+
+/** pre-push 模式：refs/tags/* 的推送规则（发布 tag 不可删、不可移、只能打在对应长期分支的提交上）。 */
+export function checkTagPush({ repo, push, violations, warnings, notes }) {
+  const { localRef, localSha, remoteRef, remoteSha } = push;
+  const name = remoteRef.slice('refs/tags/'.length);
+  const releaseShaped = RELEASE_SHAPED_TAG_RE.test(name);
+  if (localRef === '(delete)' || ZERO_SHA.test(localSha)) {
+    if (parseReleaseTag(name)) {
+      violations.push(`拒绝删除发布 tag ${remoteRef}：发布 tag 不可删除、不可重建；发错了就在新提交上打下一个 rc，或先升版本号。`);
+    } else if (releaseShaped) {
+      warnings.push(`${remoteRef}：删除的是格式不合规的 v 开头 tag（它从来不会触发部署），允许清理。`);
+    } else warnings.push(`${remoteRef}：删除的是非发布 tag，不影响发版。`);
+    return;
+  }
+  const moving = !ZERO_SHA.test(remoteSha) && remoteSha !== localSha;
+  if (!releaseShaped) {
+    warnings.push(
+      `${remoteRef} 不是发布 tag（只有 vX.Y.Z-rc.N 与 vX.Y.Z 会触发部署）${moving ? '，并且这次推送会移动远端已有的同名 tag' : ''}。`,
+    );
+    return;
+  }
+  if (moving) {
+    violations.push(
+      `拒绝移动发布 tag ${remoteRef}：远端现有对象 ${remoteSha.slice(0, 12)}，这次要换成 ${localSha.slice(0, 12)}。`
+        + '发布 tag 不可移动；要发新内容就打下一个 rc。',
+    );
+    return;
+  }
+  const release = parseReleaseTag(name);
+  if (!release) {
+    violations.push(`发布 tag ${name} 格式不对：只接受 vX.Y.Z-rc.N（预发布，N 从 1 开始）或 vX.Y.Z（正式），正则 ${RELEASE_TAG_RE}。`);
+    return;
+  }
+  const commit = SHA_RE.test(localSha) ? resolveCommit(repo, localSha) : null;
+  if (!commit) {
+    violations.push(`发布 tag ${name} 没有指向一个本地能解析的提交（${localSha}）。`);
+    return;
+  }
+  const short = commit.slice(0, 12);
+  const refs = release.kind === 'rc'
+    ? ['refs/heads/stage', 'refs/remotes/origin/stage']
+    : ['refs/heads/main', 'refs/remotes/origin/main'];
+  const { available, container } = firstContaining(repo, commit, refs);
+  if (!available.length) {
+    violations.push(`拒绝推送 ${name}：本地既没有 ${refs.join(' 也没有 ')}，确认不了它打在 ${release.branch} 的提交上。\n  修复：git fetch origin ${release.branch}`);
+    return;
+  }
+  if (!container) {
+    const where = available.map(entry => `${entry.ref}@${entry.sha.slice(0, 12)}`).join('、');
+    violations.push(
+      release.kind === 'rc'
+        ? `预发布 tag ${name} 必须打在 stage 的提交上：${short} 不在 ${where} 的历史里。先把改动经 task PR 合进 stage，再在 stage 的提交上打 tag。`
+        : `正式 tag ${name} 必须打在 main 的提交上：${short} 不在 ${where} 的历史里。先把 main 快进到验收过的 rc 提交（git merge --ff-only v${release.version}-rc.<N>），再打正式 tag。`,
+    );
+    return;
+  }
+  let version;
+  try {
+    version = packageVersionAt(repo, commit);
+  } catch (error) {
+    violations.push(`拒绝推送 ${name}：${error.message}`);
+    return;
+  }
+  if (version !== release.version) {
+    violations.push(`发布 tag ${name} 的版本 ${release.version} 与提交 ${short} 里 package.json 的 version ${version} 不一致：先经 task PR 改 version，再打 tag。`);
+    return;
+  }
+  if (release.kind === 'rc') {
+    if (listTagCommits(repo).some(entry => entry.name === `v${release.version}`)) {
+      violations.push(`v${release.version} 已有正式 tag：同一版本不能再发预发布 ${name}，先经 task PR 升 package.json 的 version。`);
+      return;
+    }
+    notes.push(`${name}：${short} 在 ${container.ref} 里，version ${version} 一致，推送后触发预发布部署（开关打开时）。`);
+    return;
+  }
+  const previews = previewTagsFor(repo, release.version, commit);
+  if (!previews.length) {
+    warnings.push(`正式 tag ${name} 所在提交 ${short} 本地没有 v${release.version}-rc.N：正式部署的证据 job 会拒绝它（本地缺 tag 时先 git fetch --tags 再确认）。`);
+  } else notes.push(`${name}：${short} 在 ${container.ref} 里，同一提交的预发布 tag ${previews.join('、')}。`);
 }
 
 const USAGE = `分支模型门禁：
@@ -277,7 +374,10 @@ const USAGE = `分支模型门禁：
 分支命名（不用 -，只用 / 分层，段内词间用 _）：
   main | stage
   task/<issue>/<slug>  ${TASK_BRANCH_RE}
-  dev/<username>       ${DEV_BRANCH_RE}`;
+  dev/<username>       ${DEV_BRANCH_RE}
+
+发布 tag（--push 模式判定）：
+  vX.Y.Z-rc.N 打在 stage 的提交上，vX.Y.Z 打在 main 的提交上  ${RELEASE_TAG_RE}`;
 
 function annotationEscape(text) {
   return text.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
@@ -299,8 +399,11 @@ function report(result, { json }) {
   for (const note of result.notes ?? []) console.log(`[证据] ${note}`);
   for (const warning of result.warnings) emit('warning', warning);
   if (!result.ok) {
-    console.log('[不变量原文]');
-    INVARIANTS.forEach((text, index) => console.log(`  ${index + 1}. ${text}`));
+    // 只有违规涉及两条不变量时才打印原文：发布 tag 的违规与它们无关，打印出来只会误导。
+    if (result.violations.some(violation => INVARIANTS.some(text => violation.includes(text)))) {
+      console.log('[不变量原文]');
+      INVARIANTS.forEach((text, index) => console.log(`  ${index + 1}. ${text}`));
+    }
     for (const violation of result.violations) emit('error', violation);
   }
 }
@@ -328,7 +431,7 @@ function main(argv) {
     : checkInvariants({ repo: options.repo, requireRemote: options.requireRemote, strictLongLived: options.strictLongLived });
   report(result, options);
   if (result.ok) {
-    console.log(options.push ? 'pre-push 分支规则通过。' : '分支不变量通过：stage ≥ main，且没有 main 领先 stage 的提交。');
+    console.log(options.push ? 'pre-push 分支与发布 tag 规则通过。' : '分支不变量通过：stage ≥ main，且没有 main 领先 stage 的提交。');
     return;
   }
   process.exitCode = 1;

@@ -27,7 +27,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 |---|---|
 | 分支模型、不变量、合并后删分支 | [BRANCHING](conventions/BRANCHING.md) |
 | diff 审查清单与结论格式 | [CODE-REVIEW](conventions/CODE-REVIEW.md) |
-| 分支驱动发布、人工验收、版本展示 | [RELEASES](conventions/RELEASES.md) |
+| 打 tag 发版、人工验收、版本展示、回滚 | [RELEASES](conventions/RELEASES.md) |
 | 项目身份、范围、授权边界与完成定义 | [PROJECT](conventions/PROJECT.md) |
 | 环境准备、开发与贡献流程 | [CONTRIBUTING](conventions/CONTRIBUTING.md) |
 | 提交格式与职责范围 | [COMMITS](conventions/COMMITS.md) |

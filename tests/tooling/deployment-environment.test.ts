@@ -6,8 +6,12 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   ENVIRONMENTS,
+  IMAGE_SERVICES,
   SECRET_FIELDS,
+  composeImageReferences,
   deploymentTarget,
+  imageReference,
+  imageRepositoryPrefix,
   parseEnvFileText,
   readEnvironment,
   renderRuntimeEnv,
@@ -23,11 +27,15 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function fixtureRoot() {
+function fixtureRoot({ withStack = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'geek-env-fixture-'));
   roots.push(root);
   cpSync(join(repoRoot, 'deploy/env'), join(root, 'deploy/env'), { recursive: true });
   cpSync(join(repoRoot, 'deploy/environments.json'), join(root, 'deploy/environments.json'));
+  if (withStack) {
+    cpSync(join(repoRoot, 'deploy/compose'), join(root, 'deploy/compose'), { recursive: true });
+    cpSync(join(repoRoot, 'deploy/remote'), join(root, 'deploy/remote'), { recursive: true });
+  }
   return root;
 }
 
@@ -147,6 +155,53 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(report.ok, `${name}: ${to}`).toBe(false);
       expect(report.problems.join('\n')).toMatch(message);
     }
+  });
+});
+
+describe('per-environment image repositories on the shared Docker host', () => {
+  const sha = '0123456789ab';
+  const composeText = (root: string, environment: string) => readFileSync(join(root, `deploy/compose/${environment}.yml`), 'utf8');
+
+  it('resolves the two committed compose files to disjoint image references for the same SHA', () => {
+    const preview = composeImageReferences(composeText(repoRoot, 'preview'), sha).sort();
+    const production = composeImageReferences(composeText(repoRoot, 'production'), sha).sort();
+    expect(preview).toEqual(IMAGE_SERVICES.map(service => `yzgc-preview/${service}:${sha}`).sort());
+    expect(production).toEqual(IMAGE_SERVICES.map(service => `yzgc-production/${service}:${sha}`).sort());
+    // 两套栈共用一个 Docker 守护进程：同一提交绝不能落到同一个镜像引用上。
+    expect(preview.filter(reference => production.includes(reference))).toEqual([]);
+    expect(imageRepositoryPrefix('preview')).toBe('yzgc-preview');
+    expect(imageReference('production', 'web', sha)).toBe(`yzgc-production/web:${sha}`);
+    expect(() => imageRepositoryPrefix('staging')).toThrow();
+    expect(() => imageReference('preview', 'db', sha)).toThrow();
+  });
+
+  it('passes the full compose check on the committed stack', () => {
+    const report = validateEnvironmentFiles();
+    expect(report.problems).toEqual([]);
+    expect(report.ok).toBe(true);
+  });
+
+  it('fails when both compose files resolve to the same image reference for the same SHA', () => {
+    // 回到修复前的写法：两套栈都用 yzgc/<服务>:${IMAGE_TAG}。
+    const shared = fixtureRoot({ withStack: true });
+    for (const environment of ENVIRONMENTS) {
+      const path = join(shared, `deploy/compose/${environment}.yml`);
+      writeFileSync(path, readFileSync(path, 'utf8').replaceAll(`image: yzgc-${environment}/`, 'image: yzgc/'));
+    }
+    const report = validateEnvironmentFiles({ root: shared });
+    expect(report.ok).toBe(false);
+    const problems = report.problems.join('\n');
+    expect(problems).toContain('两套 compose 在同一提交上解析出同一个镜像引用 yzgc/web:<sha12>');
+    expect(problems).toContain('必须使用 yzgc-preview/server');
+  });
+
+  it('fails when one stack points at the other environment\'s repository', () => {
+    const crossed = fixtureRoot({ withStack: true });
+    const path = join(crossed, 'deploy/compose/preview.yml');
+    writeFileSync(path, readFileSync(path, 'utf8').replace('image: yzgc-preview/web:', 'image: yzgc-production/web:'));
+    const problems = validateEnvironmentFiles({ root: crossed }).problems.join('\n');
+    expect(problems).toContain('yzgc-production/web:${IMAGE_TAG} 不属于 yzgc-preview/');
+    expect(problems).toContain('同一个镜像引用 yzgc-production/web:<sha12>');
   });
 });
 

@@ -20,9 +20,13 @@ export function createDeploymentMetadata(contract: Contract, environment = 'loca
     throw new Error('Deployment domain contract mismatch')
   if (environment === 'local')
     return { environment, label: '本地开发', origin: '', displayVersion: '未发布', commit: '', previewOrigin, productionOrigin }
-  const version = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:@([a-f0-9]{12}))?$/
+  // Releases are cut from tags (docs/conventions/RELEASES.md): production shows the bare
+  // `X.Y.Z` of tag vX.Y.Z; preview shows `X.Y.Z-rc.N@<sha12>` of tag vX.Y.Z-rc.N. The `-rc.N`
+  // part is only valid together with the `@<sha12>` suffix, and preview needs both.
+  const version = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-rc\.[1-9]\d*@([a-f0-9]{12}))?$/
   const match = displayVersion.match(version)
-  if (!match || !/^[a-f0-9]{40}$/.test(commit) || (environment === 'production' && match[1]) || (match[1] && match[1] !== commit.slice(0, 12)))
+  const isPreviewShape = Boolean(match?.[1])
+  if (!match || !/^[a-f0-9]{40}$/.test(commit) || isPreviewShape !== (environment === 'preview') || (isPreviewShape && match[1] !== commit.slice(0, 12)))
     throw new Error('Release metadata must bind version, environment and exact commit')
   const selected = contract.environments[environment as 'preview' | 'production']
   return { environment: environment as DeploymentEnvironment, label: selected.label, origin: selected.origin, displayVersion, commit, previewOrigin, productionOrigin }

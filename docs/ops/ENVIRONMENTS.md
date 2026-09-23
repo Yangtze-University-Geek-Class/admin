@@ -54,7 +54,7 @@
 
 校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、契约外字段、密钥留空、`PUBLIC_ORIGIN` 与 `deploy/environments.json` 逐字一致、两环境取值差异；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
 
-**不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`；预发布 `X.Y.Z@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
+**不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 tag `vX.Y.Z` → `X.Y.Z`；预发布 tag `vX.Y.Z-rc.N` → `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
 本机开发用的 `.env` 是另一回事：模板见 [ENVIRONMENT](ENVIRONMENT.md)，由操作者自建、不入库、只连本机数据。
 
