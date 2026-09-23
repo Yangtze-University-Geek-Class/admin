@@ -1,0 +1,148 @@
+/*
+ * 控制台主题：只覆盖 Tuffex 官方 --tx-* / --tx-bui-* 令牌（见 docs/components/tuffex/reference/theming.md）。
+ * 视觉：冰白纸面 + 钴蓝主色。组件不写任何颜色值，统一读这里的令牌；
+ * 称号与状态的色调来自 /api/console/catalogue 的 tones，运行时作为 TxTag 的 color 传入。
+ */
+:root {
+  /* 品牌：钴蓝 #3346C8（白底 7.0:1），派生色按官方做法用 color-mix 从主色推出。 */
+  --tx-color-primary: #3346c8;
+  --tx-color-primary-rgb: 51 70 200;
+  --tx-color-primary-light-3: color-mix(in srgb, #3346c8 70%, white);
+  --tx-color-primary-light-5: color-mix(in srgb, #3346c8 50%, white);
+  --tx-color-primary-light-7: color-mix(in srgb, #3346c8 30%, white);
+  --tx-color-primary-light-8: color-mix(in srgb, #3346c8 20%, white);
+  --tx-color-primary-light-9: color-mix(in srgb, #3346c8 9%, white);
+  --tx-color-primary-dark-2: color-mix(in srgb, #3346c8 82%, black);
+  --tx-color-on-primary: #ffffff;
+
+  /* 语义色取自服务端 roles.ts 的色调（白底均 ≥5:1），与称号徽章同一套。 */
+  --tx-color-success: #18694a;
+  --tx-color-success-rgb: 24 105 74;
+  --tx-color-warning: #855700;
+  --tx-color-warning-rgb: 133 87 0;
+  --tx-color-danger: #b42318;
+  --tx-color-danger-rgb: 180 35 24;
+  --tx-color-danger-light-5: color-mix(in srgb, #b42318 50%, white);
+  --tx-color-danger-light-7: color-mix(in srgb, #b42318 30%, white);
+  --tx-color-danger-light-9: color-mix(in srgb, #b42318 9%, white);
+  --tx-color-info: #5b6475;
+  --tx-color-info-rgb: 91 100 117;
+
+  /* 墨色：藏青偏冷，与钴蓝同一色相。次级文字 #535B85 在白底 6.3:1。 */
+  --tx-text-color-primary: #151b45;
+  --tx-text-color-regular: #353d68;
+  --tx-text-color-secondary: #535b85;
+  --tx-text-color-placeholder: #8a90b0;
+  --tx-text-color-disabled: #a9aec8;
+
+  --tx-border-color: #d5daec;
+  --tx-border-color-rgb: 213 218 236;
+  --tx-border-color-light: #e1e5f2;
+  --tx-border-color-lighter: #eaedf6;
+  --tx-border-color-extra-light: #f2f4fa;
+
+  --tx-fill-color: #eceff8;
+  --tx-fill-color-rgb: 236 239 248;
+  --tx-fill-color-light: #f3f5fb;
+  --tx-fill-color-lighter: #f8f9fd;
+  --tx-fill-color-darker: #e2e6f3;
+  --tx-fill-color-blank: #ffffff;
+
+  --tx-bg-color: #ffffff;
+  --tx-bg-color-page: #f4f6fc;
+  --tx-bg-color-overlay: #ffffff;
+
+  --tx-border-radius-base: 8px;
+  --tx-border-radius-small: 6px;
+
+  /* 界面只用一套无衬线字体；等宽字体只给 GitHub 登录名、编号与代码（.mono）。 */
+  --tx-font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tx-font-size-base: 14px;
+
+  /* SidebarNav 等 BUI 组件读 --tx-bui-*：强调色对齐钴蓝，墨色对齐上面的文字色。 */
+  --tx-bui-accent: #3346c8;
+  --tx-bui-accent-ink: #2a3aa8;
+  --tx-bui-accent-tint: color-mix(in srgb, #3346c8 9%, white);
+  --tx-bui-ink: #151b45;
+  --tx-bui-ink-2: #535b85;
+  --tx-bui-ink-3: #6f7699;
+  --tx-bui-line: #e1e5f2;
+  --tx-bui-line-strong: #d5daec;
+  --tx-bui-hover: #eef1f9;
+  --tx-bui-surface: #ffffff;
+  --tx-bui-page: #f4f6fc;
+  --tx-bui-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --console-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --console-sidebar-width: 248px;
+
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--tx-bg-color-page);
+  color: var(--tx-text-color-primary);
+  font-family: var(--tx-font-family);
+  font-size: var(--tx-font-size-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 纸面：只在主内容区铺一层很淡的图纸网格（主色 4%），面板本身是纯白。 */
+.console-ground {
+  background-color: var(--tx-bg-color-page);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--tx-color-primary) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--tx-color-primary) 4%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+.mono {
+  font-family: var(--console-mono);
+  font-size: 0.93em;
+  letter-spacing: 0;
+}
+
+.muted {
+  color: var(--tx-text-color-secondary);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+a {
+  color: var(--tx-color-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--tx-color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
