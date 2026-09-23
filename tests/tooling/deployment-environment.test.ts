@@ -93,12 +93,14 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(production.get(field)).toBe('');
       expect(preview.get(field)).toBe('');
     }
-    // 论坛已改为官网域名下的 /forum 路径：production 的 forum host 与 portal 相同。
-    expect(readEnvironment(repoRoot, 'production').hosts).toEqual({
-      portal: 'yangtzeu.work',
-      forum: 'yangtzeu.work',
-      admin: 'github.yangtzeu.work',
-    });
+    // 每个环境只有一个对外 origin，逐字等于 deploy/environments.json；按站点的 host 字段已退役。
+    expect(production.get('PUBLIC_ORIGIN')).toBe('https://yangtzeu.work');
+    expect(preview.get('PUBLIC_ORIGIN')).toBe('https://prev.yangtzeu.work');
+    for (const retired of ['SITE_ORIGIN', 'ADMIN_HOST', 'PORTAL_HOST', 'FORUM_HOST']) {
+      expect(production.has(retired)).toBe(false);
+      expect(preview.has(retired)).toBe(false);
+    }
+    expect(readEnvironment(repoRoot, 'production')).not.toHaveProperty('hosts');
   });
 
   it('fails closed when a template carries a real secret or loses isolation', () => {
@@ -115,6 +117,36 @@ describe('committed env templates are the single source of deploy facts', () => 
     const collidedReport = validateEnvironmentFiles({ root: collided, checkCompose: false });
     expect(collidedReport.ok).toBe(false);
     expect(collidedReport.problems.join('\n')).toContain('WEB_BIND');
+  });
+
+  it('pins PUBLIC_ORIGIN to the environment origin and rejects the retired host split', () => {
+    const edit = (name: string, from: string, to: string) => {
+      const root = fixtureRoot();
+      const path = join(root, `deploy/env/.env.${name}`);
+      const before = readFileSync(path, 'utf8');
+      expect(before).toContain(from);
+      writeFileSync(path, before.replace(from, to));
+      return validateEnvironmentFiles({ root, checkCompose: false });
+    };
+    const cases: Array<[string, string, string, RegExp]> = [
+      // 管理端子域不再是合法 origin，两环境也不能互换或共用同一个 origin。
+      ['production', 'PUBLIC_ORIGIN=https://yangtzeu.work', 'PUBLIC_ORIGIN=https://github.yangtzeu.work', /PUBLIC_ORIGIN 必须逐字等于.*https:\/\/yangtzeu\.work/],
+      ['preview', 'PUBLIC_ORIGIN=https://prev.yangtzeu.work', 'PUBLIC_ORIGIN=https://prev-admin.yangtzeu.work', /PUBLIC_ORIGIN 必须逐字等于/],
+      ['preview', 'PUBLIC_ORIGIN=https://prev.yangtzeu.work', 'PUBLIC_ORIGIN=https://yangtzeu.work', /PUBLIC_ORIGIN/],
+      ['production', 'PUBLIC_ORIGIN=https://yangtzeu.work', 'PUBLIC_ORIGIN=https://yangtzeu.work/', /PUBLIC_ORIGIN 必须逐字等于/],
+      ['production', 'PUBLIC_ORIGIN=https://yangtzeu.work', 'PUBLIC_ORIGIN=http://yangtzeu.work', /https/],
+      ['production', 'PUBLIC_ORIGIN=https://yangtzeu.work\n', '', /缺少字段 PUBLIC_ORIGIN/],
+      // 退役字段重新出现即失败：它们会悄悄长出第二份域名配置。
+      ['production', 'PUBLIC_ORIGIN=https://yangtzeu.work', 'PUBLIC_ORIGIN=https://yangtzeu.work\nADMIN_HOST=github.yangtzeu.work', /ADMIN_HOST 不在环境契约里/],
+      ['preview', 'PUBLIC_ORIGIN=https://prev.yangtzeu.work', 'PUBLIC_ORIGIN=https://prev.yangtzeu.work\nSITE_ORIGIN=https://prev.yangtzeu.work', /SITE_ORIGIN 不在环境契约里/],
+      // host-only cookie 对两个环境都成立。
+      ['preview', 'COOKIE_DOMAIN=', 'COOKIE_DOMAIN=.yangtzeu.work', /COOKIE_DOMAIN 必须留空/],
+    ];
+    for (const [name, from, to, message] of cases) {
+      const report = edit(name, from, to);
+      expect(report.ok, `${name}: ${to}`).toBe(false);
+      expect(report.problems.join('\n')).toMatch(message);
+    }
   });
 });
 
@@ -164,7 +196,7 @@ describe('env file parsing', () => {
 
 describe('repo-wide secret guard', () => {
   it('rejects non-empty secret keys in template env files, credential material and private env files', () => {
-    expect(scanText('deploy/env/.env.preview', 'PORTAL_HOST=yangtzeu.work\nOAUTH_CLIENT_ID=\nSESSION_SECRET=\n').join('\n')).toBe('');
+    expect(scanText('deploy/env/.env.preview', 'PUBLIC_ORIGIN=https://yangtzeu.work\nOAUTH_CLIENT_ID=\nSESSION_SECRET=\n').join('\n')).toBe('');
     expect(scanText('deploy/env/.env.preview', 'SESSION_SECRET=committed-value').join('\n')).toContain('SESSION_SECRET');
     expect(scanText('deploy/env/.env.production', 'ENCRYPTION_KEY="dGhpcy1pcy1hLWtleQ=="').join('\n')).toContain('ENCRYPTION_KEY');
     expect(scanText('scripts/tooling-fixture.mjs', `const token = "ghp_${'a'.repeat(36)}"`).join('\n')).toContain('GitHub token');

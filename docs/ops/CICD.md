@@ -2,7 +2,7 @@
 
 > 四工作流（ci / deploy-preview / deploy-production / branch-hygiene）+ `.env` 驱动；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-09-23 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`（旧的 `preview.yml`、`release.yml` tag 触发模型已删除，actionlint 全绿）。GitHub Environments（`preview`/`production`）、环境级 secrets/vars、目标机栈目录与镜像分发通道均**尚未配置**：这些是启用部署前必须由维护者手工完成的前置条件，本文档或任何工作流都不会自动创建。
+状态：`accepted` · 更新：2026-09-24 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`（旧的 `preview.yml`、`release.yml` tag 触发模型已删除，actionlint 全绿）。GitHub Environments（`preview`/`production`）、环境级 secrets/vars、目标机栈目录与镜像分发通道均**尚未配置**：这些是启用部署前必须由维护者手工完成的前置条件，本文档或任何工作流都不会自动创建。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -10,7 +10,7 @@
 
 | 工作流 | 触发 | 行为 |
 |---|---|---|
-| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev/**`；`workflow_dispatch` | `branch-guard`（分支不变量）→ `core`（Node 22：check/test/build）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）→ `verify` 汇总 |
+| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev/**`；`workflow_dispatch` | `branch-guard`（分支不变量）→ `core`（Node 22：check/test/build）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性，前端站点配置不含域名）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）→ `verify` 汇总 |
 | `deploy-preview.yml` | push `stage`；`workflow_dispatch` | 构建镜像 → 校验 env → 渲染 `.env.preview` → SSH 分发镜像与环境文件 → `deploy-stack.sh` → 健康检查 → 记录 deployment。开关 `vars.DEPLOY_PREVIEW_ENABLED` |
 | `deploy-production.yml` | push `main`；`workflow_dispatch` | 证据检查（同一 commit 已有成功预发布部署）→ 构建镜像 → 分发 `.env.production` → 部署 → 记录 deployment。开关 `vars.DEPLOY_PRODUCTION_ENABLED`，`environment: production` |
 | `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev/**` 或长期分支）；每周巡检远端 `task/**`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
@@ -20,7 +20,7 @@
 
 - `ci.yml` 顶层权限仅 `contents: read`，不挂载任何 secrets，不产出可部署产物。
 - `branch-guard` 运行 `node scripts/check-branch-invariants.mjs`（`--require-remote-refs`）：核对两条不变量（`stage ≥ main`、`main` 不领先 `stage`）与分支命名卫生，并检查写入 `main` 的提交来源。不变量定义见 [BRANCHING](../conventions/BRANCHING.md)。
-- `env-contract` 校验两份 `.env` 的字段契约（非密值必填、密钥必空、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性。
+- `env-contract` 校验两份 `.env` 的字段契约（非密值必填、契约外字段拒绝、密钥必空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性，并用 `pnpm check:site-config` 确认前端 `app.config.json` 不含任何域名（每个环境一个 origin，管理端按路径区分）。
 - 部署工作流用 **build args** 把发布身份注入镜像：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`，预发布 `X.Y.Z@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 SHA），不写进 `.env`；展示规则见 [RELEASES](../conventions/RELEASES.md)。
 - `verify` 是单一 required check 输出，供分支保护引用；任一上游 job 失败即汇总为失败。不得用 `continue-on-error` 掩盖失败。
 - **部署开关默认关闭**：`DEPLOY_PREVIEW_ENABLED`、`DEPLOY_PRODUCTION_ENABLED` 不设置即不部署；不设置时 `ci`/构建仍照常运行并产出镜像校验结果。取值必须逐字为 `enabled`。
@@ -29,8 +29,8 @@
 
 | 环境 | 分支 | GitHub Environment | 栈根 | 入口 |
 |---|---|---|---|---|
-| preview | `stage` | `preview` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work`（管理端 `prev-admin.yangtzeu.work`） |
-| production | `main` | `production` | `/opt/yzgc/production` | `https://yangtzeu.work`（管理端 `github.yangtzeu.work`） |
+| preview | `stage` | `preview` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work`（管理端 `/admin`、`/console`） |
+| production | `main` | `production` | `/opt/yzgc/production` | `https://yangtzeu.work`（管理端 `/admin`、`/console`） |
 
 [deploy/environments.json](../../deploy/environments.json) 是环境身份的唯一机器配置，两份 `.env` 的 `GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`STACK_ROOT`、`COMPOSE_PROJECT_NAME` 必须与之一致，由 `env-contract` 与实际部署脚本双重核对。两环境同机不同栈，不共享数据库、卷、密钥或 Cookie 域。
 
@@ -47,7 +47,7 @@
 | `DEPLOY_SSH_USER` | 部署用户 |
 | `DEPLOY_SSH_KEY` | SSH 私钥全文 |
 | `DEPLOY_SSH_KNOWN_HOSTS` | 目标机主机公钥行（`StrictHostKeyChecking=yes`） |
-| `OAUTH_CLIENT_ID` | GitHub OAuth 应用 |
+| `OAUTH_CLIENT_ID` | GitHub OAuth 应用（每个环境一个，Callback URL 为 `<origin>/auth/callback`，见 [ENVIRONMENTS](ENVIRONMENTS.md#github-oauth-app-回调地址)） |
 | `OAUTH_CLIENT_SECRET` | GitHub OAuth 应用密钥 |
 | `SESSION_SECRET` | 会话签名密钥（≥32 字符随机值） |
 | `ENCRYPTION_KEY` | 32 字节密钥的 base64（GitHub token 加密） |
@@ -81,8 +81,8 @@
 
 1. **GitHub Environment**：创建 `preview`、`production`；`production` 必须配置 required reviewers（若计划不支持私有仓库的该能力，见下）；建议限制 allowed branches 为 `stage`/`main`，禁止自批。
 2. **环境级 secrets/vars**：按上表配置两套，取值互不相同。
-3. **目标机**：安装 Docker 与 Compose v2；创建 `/opt/yzgc/production`、`/opt/yzgc/preview`（属部署用户）；宿主机 nginx 配置四个域名的 server block 与安全头 include；certbot 证书就绪。
-4. **DNS**：`prev.yangtzeu.work`、`prev-admin.yangtzeu.work` 需有指向同一主机的 A 记录。
+3. **目标机**：安装 Docker 与 Compose v2；创建 `/opt/yzgc/production`、`/opt/yzgc/preview`（属部署用户）；宿主机 nginx 安装 `deploy/nginx/{production,preview}.conf`（`yangtzeu.work`、`prev.yangtzeu.work` 两个入口，外加 `github.yangtzeu.work` 的 301）；certbot 证书就绪。
+4. **DNS 与 OAuth**：`prev.yangtzeu.work` 的 A 记录已指向同一主机（2026-09-24 核对），不需要管理端子域；两个环境的 GitHub OAuth App Callback URL 分别为 `https://yangtzeu.work/auth/callback`、`https://prev.yangtzeu.work/auth/callback`。
 5. **仓库级开关**：确认第 1–4 步与一次手工演练通过后，才把 `DEPLOY_PREVIEW_ENABLED` 设为 `enabled`；正式部署开关在预发布稳定运行且人工验收流程跑通后再打开。
 
 ### 平台能力实测（2026-09-13，`gh api` 只读核对）

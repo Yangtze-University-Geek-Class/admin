@@ -73,8 +73,8 @@ export default defineNuxtConfig({
   },
 
   app: {
-    // 论坛挂在官网域名下的 /forum 路径（见 deploy/env/.env.* 的 FORUM_HOST 与
-    // web 容器的 nginx 反代）。静态产物的资源与路由前缀由 baseURL 决定，
+    // 论坛挂在环境唯一域名（deploy/env/.env.* 的 PUBLIC_ORIGIN）下的 /forum 路径，
+    // 由 web 容器的 nginx 反代。静态产物的资源与路由前缀由 baseURL 决定，
     // 因此镜像构建时必须传 GEEK_FORUM_BASE_PATH=/forum/；本地开发保持站点根。
     baseURL: process.env.GEEK_FORUM_BASE_PATH || '/',
     head: {
