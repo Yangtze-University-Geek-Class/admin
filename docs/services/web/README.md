@@ -2,7 +2,7 @@
 
 > portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-09-23 · 源码：`app/web/` · 镜像：`yzgc/web:<tag>`
+状态：`current` · 更新：2026-09-24 · 源码：`app/web/` · 镜像：`yzgc/web:<tag>`
 
 ## 源码地图
 
@@ -13,18 +13,18 @@
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 真正跨端复用的交互原语：Modal、ConfirmDialog、Select、NumberInput、ImageLightbox、TurnstileWidget、Mascot 等 |
 | `app/web/shared/styles/` | 基础样式与令牌（`base.css`、`mascot.css`、`rounded.css`） |
-| `app/web/shared/config/` | 公开前端配置（`app.config.json` → `config/index.ts` 的站点/域名合同） |
+| `app/web/shared/config/` | 公开前端配置（`app.config.json` → `config/index.ts` 的站点标题与 basePath 合同；不含域名） |
 | `app/web/Dockerfile` | Node 22 构建 Vite 产物 → nginx 托管静态与反代；容器内监听 8080（非特权），并生成 `release.json` 供发布身份核对 |
-| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*`、`/auth`、`/auth/*`（OAuth 登录与回调）、`/healthz` → `server:3000`；`/forum` 308 到 `/forum/`，`/forum/*` 剥掉前缀后 → `forum:3000`；`/sites/*` 只提供真实文件，不存在即 404；其余路径按宿主注入的 `X-YZGC-Site` 回落到 portal/admin SPA 入口；安全头由宿主 nginx 统一下发，容器不重复 |
+| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*`、`/auth`、`/auth/*`（OAuth 登录与回调）、`/healthz` → `server:3000`；`/forum` 308 到 `/forum/`，`/forum/*` 剥掉前缀后 → `forum:3000`；`/sites/*` 只提供真实文件，不存在即 404；其余路径按路径回落到 SPA 入口（`/admin`、`/console` 及其子路径与 `/signin` → 管理端入口，其余 → portal），与 Host 无关；安全头由宿主 nginx 统一下发，容器不重复 |
 
 模块细节：[portal](portal.md)、[admin](admin.md)、[shared](shared.md)。依赖方向：站点 → shared → 通用依赖；shared 不得反向导入站点，站点之间不得互相导入。
 
 ## 契约
 
 - **两个入口、一个包**：portal 与 admin 由同一 Vite 构建产出两份 HTML；`web` 镜像同时承担 TLS 之后的静态托管与反向代理，是唯一对宿主机暴露业务端口的容器（容器内 8080，宿主 production `127.0.0.1:18100`、preview `127.0.0.1:18200`）。
-- **域名**：portal `yangtzeu.work` / `prev.yangtzeu.work`，admin `github.yangtzeu.work` / `prev-admin.yangtzeu.work`；论坛不再是独立子域，而是 portal 域名下的 `/forum` 路径（子域模型退役说明见 [DEPLOY](../../ops/DEPLOY.md)）。
-- **HTTP 边界**：前端只通过 `shared/lib/api` 访问 `/api/*`；跨端链接使用 `externalUrl`，同端使用 Router。
-- **配置**：构建期只读公开配置（`app.config.json`），不加载私有 `.env`；后端 host 与前端公开 host 必须一致，由 `scripts/check-site-hosts.mjs` 校验。
+- **域名**：每个环境只有一个域名——正式 `yangtzeu.work`、预发布 `prev.yangtzeu.work`。portal、admin、论坛同域，按路径区分：admin 是 `/admin/…`（登录页 `/admin/signin`，另保留 `/signin` 与 `/console/…` 入口），论坛是 `/forum/…`，其余路径是 portal。旧的管理端独立子域与论坛子域都已退役（见 [DEPLOY](../../ops/DEPLOY.md) 历史章节）。
+- **HTTP 边界**：前端只通过 `shared/lib/api` 访问 `/api/*`；跨端链接使用 `externalUrl`，同端使用 Router。生产态跨端链接是同源路径（`/forum/…`、`/admin/…`），不拼域名；开发态仍走 `/sites/<端>/…`，论坛指向本机 3456。
+- **配置**：构建期只读公开配置（`app.config.json`），不加载私有 `.env`，也不含任何域名，同一份产物在两个环境通用；`scripts/check-site-config.mjs`（`pnpm check:site-config`）校验站点不带 host、论坛 basePath 非空且不与其他站点重叠、production 数据源固定为 live。
 - **UI 选型**：既有 React 模块为过渡期实现，后续新增/迁移界面按 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)。不引入平行基础 UI 体系。
 
 ## 运行
@@ -35,7 +35,7 @@ pnpm dev            # 前后端开发（需要本机 .env，模板见 ../../ops/
 pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456，见 ../../ops/LOCAL-PREVIEW.md
 ```
 
-本机地址 `http://127.0.0.1:5173/sites/portal/`、`http://127.0.0.1:5173/sites/admin/admin?__data=mock`。容器内由 nginx 托管构建产物；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
+本机地址 `http://127.0.0.1:5173/sites/portal/`、`http://127.0.0.1:5173/sites/admin/admin?__data=mock`。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
 
 ## 验证命令
 
@@ -45,7 +45,7 @@ pnpm test                             # 组件与共享层单测
 pnpm test:e2e                         # 浏览器验证（Playwright）
 pnpm build                            # Vite 产物
 node scripts/check-boundaries.mjs     # 站点/shared 依赖方向
-node scripts/check-site-hosts.mjs     # 前后端 host 一致性
+node scripts/check-site-config.mjs    # 站点配置不含域名、论坛 basePath、production 数据源
 ```
 
 浏览器验收项（键盘/焦点、错误与空状态、窄屏与移动导航、模态背景 inert、分页 URL）见 [TESTING](../../conventions/TESTING.md) 与 [DESIGN](../../design/DESIGN.md)。

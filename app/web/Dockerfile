@@ -9,17 +9,18 @@
 # 容器内监听 8080（非特权端口，以 nginx 用户运行）；宿主暴露由 compose 的
 # 127.0.0.1:<WEB_BIND> 控制。宿主 nginx 只做 TLS 终止与 server_name 转发。
 #
-# SPA 入口按 host 选择，但选择依据不是 Host 头，而是宿主 nginx 注入的
-# X-YZGC-Site（admin | portal）：这样镜像不需要把域名写成构建参数，
-# 同一个镜像文件在不同环境的事实来源仍然是各自的宿主 nginx 配置。
-# 直连容器（不带该头）时回落官网，与旧行为一致。
+# 每个环境只有一个域名，SPA 入口只按 URL 路径选择，与 Host 头无关：
+#   /admin、/admin/…、/console、/console/…、/signin → sites/admin/index.html
+#   其余路径                                         → sites/portal/index.html
+# 规则与 app/server/src/app.ts 的 resolveSiteEntry 保持一致。镜像里不含任何域名，
+# 同一个镜像在两个环境通用。
 #
 # 反代约定（与 app/server 路由、deploy/compose/*.yml 一致）：
 #   /api/、/auth、/healthz → server:3000（Fastify）
 #   /forum、/forum/        → forum:3000（Nuxt 产物以 /forum/ 为 baseURL 构建，转发时剥前缀）
 # 安全头（HSTS/CSP 等）由宿主 nginx 统一加，容器不重复下发，避免同一响应带两份 CSP。
 
-# ── 构建阶段：装依赖 → 渲染前端配置 → Vite 构建 → 生成 release.json 与 nginx 配置 ──
+# ── 构建阶段：装依赖 → Vite 构建 → 生成 release.json 与 nginx 配置 ──
 FROM node:22-bookworm-slim AS builder
 
 ENV CI=1 \
@@ -51,20 +52,13 @@ COPY app/web/shared app/web/shared
 COPY app/web/public app/web/public
 COPY app/web/package.json app/web/tsconfig.json app/web/vite.config.ts app/web/postcss.config.js \
      app/web/tailwind.config.js app/web/vite-env.d.ts app/web/
-# render-web-config.mjs 经 deployment-environment.mjs 读取环境身份契约与入库的环境模板
-# （模板里密钥字段一律留空）。只在构建阶段使用，运行阶段不复制 deploy/。
-COPY deploy/environments.json deploy/environments.json
-COPY deploy/env deploy/env
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
 
-# app.config.json 的 host 必须与环境一致（server 在生产启动时会比对），
-# 渲染脚本由仓库统一维护，此处只调用、不实现。
+# 前端产物与环境无关（app.config.json 不含域名），环境名只进下面的 release.json。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
- && test -f scripts/render-web-config.mjs \
- && node scripts/render-web-config.mjs --environment "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && pnpm --filter @yzgc/web build
 
 # 发布身份元数据：静态文件，宿主 nginx 原样透传 /release.json。
@@ -80,6 +74,7 @@ RUN set -eu; \
     cat /release/release.json
 
 # 容器内 nginx 配置：全部静态、与环境无关，环境差异只体现为域名与证书（宿主侧）。
+# tests/tooling/web-nginx.test.ts 会从本文件抽出这三段配置，用本机 nginx 实跑路径分流。
 RUN mkdir -p /nginx-out/conf.d
 COPY <<'NGINX_MAIN' /nginx-out/nginx.conf
 worker_processes auto;
@@ -106,14 +101,6 @@ http {
 NGINX_MAIN
 
 COPY <<'NGINX_SITE' /nginx-out/conf.d/10-web.conf
-# SPA 入口选择：宿主 nginx 为每个 server block 显式注入 X-YZGC-Site，
-# 客户端自带的值会被宿主覆盖，未知值时回落官网。
-map $http_x_yzgc_site $yzgc_spa_entry {
-    default                  sites/portal/index.html;
-    portal                   sites/portal/index.html;
-    admin                    sites/admin/index.html;
-}
-
 server {
     listen 8080;
     server_name _;
@@ -168,6 +155,15 @@ server {
         include /etc/nginx/conf.d/90-proxy-headers.conf;
     }
 
+    # ── 管理端 SPA 入口：路径清单与入口文件都只写在这一处 ──
+    # /admin、/console 及其子路径，外加 /signin；与 app/server/src/app.ts 的
+    # ADMIN_SPA_PATHS / ADMIN_SPA_ENTRY 一致。/administrator、/consoles 不匹配。
+    # 必须放在下面的图片正则之前：nginx 取第一个匹配的正则，仓库名这类路径段
+    # 即使以 .svg/.png 结尾，也要进管理端入口而不是 404。
+    location ~ ^/(?:(?:admin|console)(?:/|$)|signin$) {
+        try_files $uri /sites/admin/index.html;
+    }
+
     # 带内容哈希的构建产物：内容不变则文件名不变，可以长缓存。
     location /assets/ {
         expires 1y;
@@ -186,9 +182,9 @@ server {
         try_files $uri =404;
     }
 
-    # 其余路径按宿主注入的站点标识回落到对应 SPA 入口（React Router 深链接）。
+    # 其余路径进官网（React Router 深链接）。
     location / {
-        try_files $uri /$yzgc_spa_entry;
+        try_files $uri /sites/portal/index.html;
     }
 }
 NGINX_SITE
