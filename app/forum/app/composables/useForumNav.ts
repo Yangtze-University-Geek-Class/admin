@@ -20,7 +20,7 @@ export function useForumNav() {
   const route = useRoute()
   const router = useRouter()
 
-  /** Category items show Discourse's colour square instead of an icon. */
+  /** Category items pair their icon with Discourse's colour dot (see ForumSidebar). */
   const dotColors = computed(() => new Map(
     forum.state.categories.map(category => [`/c/${category.slug}` as SidebarNavValue, category.color]),
   ))
