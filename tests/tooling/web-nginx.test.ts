@@ -77,13 +77,16 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
     writeFileSync(join(html, 'assets', 'app-abc123.js'), 'export {};\n');
     writeFileSync(join(html, 'logo.png'), 'png');
     writeFileSync(join(html, 'release.json'), '{"environment":"test"}\n');
-    // 只替换运行环境相关的四处：监听端口、站点根、include 路径、上游地址（测试不访问上游）。
+    // 只替换运行环境相关的五处：监听端口、站点根、include 路径、上游地址（测试不访问上游）、
+    // 日志去向（容器写 /dev/stdout、/dev/stderr；CI runner 上没有可打开的终端设备，nginx -t 会失败）。
     const site = siteConf
       .replace('listen 8080;', `listen 127.0.0.1:${port};`)
       .replace('root /usr/share/nginx/html;', `root ${html};`)
       .replaceAll('/etc/nginx/conf.d/90-proxy-headers.conf', join(root, '90-proxy-headers.conf'))
-      .replaceAll(/http:\/\/(?:server|forum):3000/g, 'http://127.0.0.1:9');
-    expect(site).not.toMatch(/listen 8080|\/usr\/share\/nginx|\/etc\/nginx|server:3000|forum:3000/);
+      .replaceAll(/http:\/\/(?:server|forum):3000/g, 'http://127.0.0.1:9')
+      .replaceAll('/dev/stdout', join(root, 'access.log'))
+      .replaceAll('/dev/stderr', join(root, 'error.log'));
+    expect(site).not.toMatch(/listen 8080|\/usr\/share\/nginx|\/etc\/nginx|server:3000|forum:3000|\/dev\/std/);
     writeFileSync(join(root, '10-web.conf'), site);
     writeFileSync(join(root, '90-proxy-headers.conf'), proxyHeaders);
     for (const dir of ['client', 'proxy', 'fastcgi', 'uwsgi', 'scgi']) mkdirSync(join(root, `${dir}_temp`));
