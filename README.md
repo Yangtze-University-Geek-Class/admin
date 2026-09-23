@@ -46,7 +46,7 @@ geek_main/
 
 ## 分支
 
-长期分支只有两条：`main`（正式 = 稳定版，只能由 `stage` 合入）与 `stage`（预发布 = 动态版）。开发从 `stage` 拉 `task/<issue>-<slug>`，MR 合并后**立即删除**（`branch-hygiene.yml` 自动完成这一步，残留分支每周巡检告警）；`dev-<github-username>` 是个人自由分支，不部署、也不作为进入 `stage` 的凭据。**任何操作前先确认当前分支**：`git branch --show-current`。完整规则（含两条不变量）见 [BRANCHING](docs/conventions/BRANCHING.md)。
+长期分支只有两条：`main`（正式 = 稳定版，只能由 `stage` 合入）与 `stage`（预发布 = 动态版）。开发从 `stage` 拉 `task/<issue>/<slug>`，MR 合并后**立即删除**（`branch-hygiene.yml` 自动完成这一步，残留分支每周巡检告警）；`dev/<github-username>` 是个人自由分支（分支名一律不用 `-`，只用 `/` 分层），不部署、也不作为进入 `stage` 的凭据。**任何操作前先确认当前分支**：`git branch --show-current`。完整规则（含两条不变量）见 [BRANCHING](docs/conventions/BRANCHING.md)。
 
 ## 开发与验收
 

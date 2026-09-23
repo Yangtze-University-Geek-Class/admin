@@ -10,12 +10,12 @@
 
 | 工作流 | 触发 | 行为 |
 |---|---|---|
-| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev-*`；`workflow_dispatch` | `branch-guard`（分支不变量）→ `core`（Node 22：check/test/build）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）→ `verify` 汇总 |
+| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev/**`；`workflow_dispatch` | `branch-guard`（分支不变量）→ `core`（Node 22：check/test/build）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）→ `verify` 汇总 |
 | `deploy-preview.yml` | push `stage`；`workflow_dispatch` | 构建镜像 → 校验 env → 渲染 `.env.preview` → SSH 分发镜像与环境文件 → `deploy-stack.sh` → 健康检查 → 记录 deployment。开关 `vars.DEPLOY_PREVIEW_ENABLED` |
 | `deploy-production.yml` | push `main`；`workflow_dispatch` | 证据检查（同一 commit 已有成功预发布部署）→ 构建镜像 → 分发 `.env.production` → 部署 → 记录 deployment。开关 `vars.DEPLOY_PRODUCTION_ENABLED`，`environment: production` |
-| `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev-*` 或长期分支）；每周巡检远端 `task/*`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
+| `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev/**` 或长期分支）；每周巡检远端 `task/**`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
 
-- `dev-*` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev-*` 不得作为进入 `stage` 的凭据（见 [BRANCHING](../conventions/BRANCHING.md)）。
+- `dev/**` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev/**` 不得作为进入 `stage` 的凭据；旧的 `dev-*` 名字不再触发 `ci.yml`（见 [BRANCHING](../conventions/BRANCHING.md) 命名规则）。
 - `branch-hygiene.yml` 是「合并后立即删除 task 分支」的执行者；它不创建 tag、不动 `main`/`stage`、不改 PR 状态，也不接触任何 secrets。巡检发现残留分支只告警，删除留给人工决定。
 
 - `ci.yml` 顶层权限仅 `contents: read`，不挂载任何 secrets，不产出可部署产物。

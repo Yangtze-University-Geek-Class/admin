@@ -17,7 +17,7 @@
 
 正确顺序：
 
-1. `task/<issue>-<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`；
+1. `task/<issue>/<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`；
 2. `stage` 部署到预发布栈，得到该 commit 的真实运行产物；
 3. **人**在预发布环境实际试用该产物，记录结论并明确批准；
 4. 维护者把 `stage` 合入 `main`（只允许快进或干净合并，见 [BRANCHING](BRANCHING.md) 不变量）；

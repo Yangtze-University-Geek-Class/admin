@@ -8,18 +8,19 @@
  *   I1  `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须为真（即 stage ≥ main）。
  *   I2  `main` 不得领先 `stage`：任何写入 `main` 的提交都必须已经存在于 `stage`（只允许把 stage 快进/合并进 main）。
  *
- * 分支命名规范：
+ * 分支命名规范（2026-09-23 起分支名一律不用 `-`，只用 `/` 分层；每段只含小写字母与数字，段内多个词用 `_` 连接）：
  *   main / stage         长期分支，只允许这两条
- *   task/<issue>-<slug>  从 stage 拉出，PR 回 stage，合并后删除
- *   dev-<username>       个人自由开发分支：只做验证、不部署，也不得作为进入 stage 的凭据
- *   其它名字             违规。默认只告警（CI 上不硬失败），--strict-long-lived 时升级为失败。
+ *   task/<issue>/<slug>  从 stage 拉出，PR 回 stage，合并后删除；例：task/12/portal_redesign
+ *   dev/<username>       个人自由开发分支：只做验证、不部署，也不得作为进入 stage 的凭据；例：dev/crosery
+ *   其它名字             违规（含旧的 task/<issue>-<slug> 与 dev-<username>）。默认只告警（CI 上不硬失败），
+ *                        --strict-long-lived 时升级为失败。
  *
  * 用法：
  *   node scripts/check-branch-invariants.mjs [--repo <path>] [--require-remote-refs] [--strict-long-lived] [--json] [--push]
  *
  * --push 模式从 stdin 读 pre-push 的四段行：`<local ref> <local sha> <remote ref> <remote sha>`，
  * 并额外断言：推 refs/heads/main 的提交必须已经存在于 stage；推 refs/heads/stage 只能来自
- * stage 自身或 task/* 分支，且必须已经包含 origin/main。
+ * stage 自身或 task/<issue>/<slug> 分支，且必须已经包含 origin/main；不得删除远端 main/stage。
  */
 
 import { spawnSync } from 'node:child_process';
@@ -33,8 +34,9 @@ export const INVARIANTS = Object.freeze([
   '`main` 不得领先 `stage`：任何写入 `main` 的提交都必须已经存在于 `stage`（只允许把 stage 快进/合并进 main）。',
 ]);
 export const LONG_LIVED_BRANCHES = Object.freeze(['main', 'stage']);
-export const TASK_BRANCH_RE = /^task\/[0-9]+-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const DEV_BRANCH_RE = /^dev-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+// 段规则 [a-z0-9]+(?:_[a-z0-9]+)*：不允许 `-`、大写、首尾或连续的 `_`。GitHub 用户名里的 `-` 写成 `_`。
+export const TASK_BRANCH_RE = /^task\/[0-9]+\/[a-z0-9]+(?:_[a-z0-9]+)*$/;
+export const DEV_BRANCH_RE = /^dev\/[a-z0-9]+(?:_[a-z0-9]+)*$/;
 const ZERO_SHA = /^0{40}$/;
 const SHA_RE = /^[a-f0-9]{40}$/;
 
@@ -45,13 +47,14 @@ const FIX_MAIN = [
 ].join('\n');
 const FIX_STAGE = [
   '  修复：只在 stage 上合并任务分支，再推送 stage：',
-  '    git switch stage && git merge --no-ff <task/issue-slug> && git push origin stage',
+  '    git switch stage && git merge --no-ff task/<issue>/<slug> && git push origin stage',
 ].join('\n');
 
+/** 旧的 `task-…` / `dev-…` 前缀也归到对应的 malformed，让告警直接指出新写法。 */
 export function classifyBranch(name) {
   if (LONG_LIVED_BRANCHES.includes(name)) return 'long-lived';
-  if (name.startsWith('task/')) return TASK_BRANCH_RE.test(name) ? 'task' : 'task-malformed';
-  if (name.startsWith('dev-')) return DEV_BRANCH_RE.test(name) ? 'personal' : 'personal-malformed';
+  if (name.startsWith('task/') || name.startsWith('task-')) return TASK_BRANCH_RE.test(name) ? 'task' : 'task-malformed';
+  if (name.startsWith('dev/') || name.startsWith('dev-')) return DEV_BRANCH_RE.test(name) ? 'personal' : 'personal-malformed';
   return 'unexpected';
 }
 
@@ -121,13 +124,13 @@ function branchNamingMessage(branch) {
   const kind = classifyBranch(branch.name);
   const where = [branch.remote ? 'origin' : null, branch.local ? '本地' : null].filter(Boolean).join('+') || '未知来源';
   if (kind === 'unexpected') {
-    return `分支 ${branch.name}（${where}）不是长期分支 main/stage，也不是 task/<issue>-<slug> 或 dev-<username>：长期分支只允许 main 与 stage，请合并后删除。`;
+    return `分支 ${branch.name}（${where}）不是长期分支 main/stage，也不是 task/<issue>/<slug> 或 dev/<username>：长期分支只允许 main 与 stage，请合并后删除。`;
   }
   if (kind === 'task-malformed') {
-    return `分支 ${branch.name}（${where}）不符合 task/<issue>-<slug> 命名：请按 docs/conventions/ISSUES.md 先开 issue 再改名。`;
+    return `分支 ${branch.name}（${where}）不符合 task/<issue>/<slug> 命名（分支名不用 -，只用 / 分层，slug 词间用 _，例：task/12/portal_redesign）：请按 docs/conventions/ISSUES.md 先开 issue 再改名。`;
   }
   if (kind === 'personal-malformed') {
-    return `分支 ${branch.name}（${where}）不符合 dev-<github-username> 命名：个人分支不部署，也不能作为进入 stage 的凭据。`;
+    return `分支 ${branch.name}（${where}）不符合 dev/<github-username> 命名（分支名不用 -，例：dev/crosery；旧名用 git branch -m 改名）：个人分支不部署，也不能作为进入 stage 的凭据。`;
   }
   return null;
 }
@@ -199,9 +202,11 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
   for (const push of pushes) {
     const { localRef, localSha, remoteRef, remoteSha } = push;
     const target = `${localRef} → ${remoteRef}`;
-    if (ZERO_SHA.test(remoteSha)) {
+    // githooks(5)：删除时 <local ref> 为 `(delete)`、<local sha> 全 0；<remote sha> 全 0 只表示远端还没有这个 ref
+    // （首次推送新分支），不是删除，必须照常判定命名与不变量。
+    if (localRef === '(delete)' || ZERO_SHA.test(localSha)) {
       if (remoteRef === 'refs/heads/main' || remoteRef === 'refs/heads/stage') {
-        warnings.push(`正在删除远端长期分支 ${remoteRef}：长期分支只允许 main 与 stage，删除前请确认这是有意的。`);
+        violations.push(`拒绝删除远端长期分支 ${remoteRef}：长期分支只允许 main 与 stage，删除会破坏分支模型。`);
       }
       continue;
     }
@@ -232,7 +237,7 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
       const fromTask = localRef.startsWith('refs/heads/task/') && TASK_BRANCH_RE.test(localRef.slice('refs/heads/'.length));
       if (!fromStage && !fromTask) {
         violations.push(
-          `拒绝推送到 refs/heads/stage：来源 ${localRef} 既不是 stage 自身，也不是 task/<issue>-<slug> 分支（dev-* 与其它分支不得进入 stage）。\n${FIX_STAGE}`,
+          `拒绝推送到 refs/heads/stage：来源 ${localRef} 既不是 stage 自身，也不是 task/<issue>/<slug> 分支（dev/<username> 与其它分支不得进入 stage）。\n${FIX_STAGE}`,
         );
       }
       const main = pickMainRef(repo);
@@ -251,7 +256,7 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
     if (remoteRef.startsWith('refs/heads/')) {
       const name = remoteRef.slice('refs/heads/'.length);
       if (classifyBranch(name) !== 'task' && classifyBranch(name) !== 'personal' && classifyBranch(name) !== 'long-lived') {
-        warnings.push(`${remoteRef} 不在 main/stage/task/*/dev-* 命名规范内：CI 只做验证，该分支也不会被部署。`);
+        warnings.push(`${remoteRef} 不在 main、stage、task/<issue>/<slug>、dev/<username> 命名规范内（分支名不用 -）：CI 只做验证，该分支也不会被部署。`);
       }
       continue;
     }
@@ -267,7 +272,12 @@ const USAGE = `分支模型门禁：
   node scripts/check-branch-invariants.mjs --push [--repo <path>] < pre-push-stdin
     pre-push 行格式：<local ref> <local sha> <remote ref> <remote sha>
 
-不变量：\n  1. ${INVARIANTS[0]}\n  2. ${INVARIANTS[1]}`;
+不变量：\n  1. ${INVARIANTS[0]}\n  2. ${INVARIANTS[1]}
+
+分支命名（不用 -，只用 / 分层，段内词间用 _）：
+  main | stage
+  task/<issue>/<slug>  ${TASK_BRANCH_RE}
+  dev/<username>       ${DEV_BRANCH_RE}`;
 
 function annotationEscape(text) {
   return text.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');

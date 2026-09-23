@@ -5,7 +5,8 @@
 #   I1 stage 必须包含 main（git merge-base --is-ancestor origin/main origin/stage 为真）
 #   I2 main 不得领先 stage（写入 main 的提交必须已经存在于 stage）
 #   *  推 refs/heads/main  ：被推的 main tip 必须已经在 stage 里（main 只做 stage 的快进）
-#   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>-<slug> 分支，且必须已包含 origin/main
+#   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>/<slug> 分支，且必须已包含 origin/main
+#   *  删除远端 main/stage：一律拒绝；首次推送的新分支（远端 SHA 全 0）照常判定命名
 #
 # 启用方式（每台克隆各做一次，写入本仓库的 .git/config，不影响其它仓库）：
 #   git config core.hooksPath .githooks

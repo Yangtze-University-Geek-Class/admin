@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { INVARIANTS, checkInvariants, checkPushes, classifyBranch, parsePushLines } from '../../scripts/check-branch-invariants.mjs';
+import {
+  DEV_BRANCH_RE,
+  INVARIANTS,
+  TASK_BRANCH_RE,
+  checkInvariants,
+  checkPushes,
+  classifyBranch,
+  parsePushLines,
+} from '../../scripts/check-branch-invariants.mjs';
 
 // 全部夹具都是临时目录里的合成仓库：测试从不修改 geek_main 的分支、远端或工作区。
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -50,15 +58,60 @@ function fixture({ divergent = false } = {}) {
 }
 
 describe('branch naming model', () => {
-  it('accepts only main/stage as long-lived branches, task/<issue>-<slug> and dev-<user> for work', () => {
+  it('accepts only main/stage as long-lived branches, task/<issue>/<slug> and dev/<user> for work', () => {
     expect(classifyBranch('main')).toBe('long-lived');
     expect(classifyBranch('stage')).toBe('long-lived');
-    expect(classifyBranch('task/123-add-login')).toBe('task');
-    expect(classifyBranch('dev-crosery')).toBe('personal');
+    expect(classifyBranch('task/123/add_login')).toBe('task');
+    expect(classifyBranch('task/12/portal')).toBe('task');
+    expect(classifyBranch('dev/crosery')).toBe('personal');
+    expect(classifyBranch('dev/joe_smith')).toBe('personal');
     expect(classifyBranch('next')).toBe('unexpected');
     expect(classifyBranch('feature/x')).toBe('unexpected');
-    expect(classifyBranch('task/add-login')).toBe('task-malformed');
-    expect(classifyBranch('dev-Joe')).toBe('personal-malformed');
+    expect(classifyBranch('task/add_login')).toBe('task-malformed');
+    expect(classifyBranch('dev/Joe')).toBe('personal-malformed');
+  });
+
+  it('rejects "-" anywhere in a branch name: the old dash forms are now malformed', () => {
+    // 所有者指令（2026-09-23）：分支名一律不用 -，只用 / 分层。
+    for (const name of ['task/123-add-login', 'task/12-foo', 'task/12/add-login', 'task-12/foo', 'task-12-foo']) {
+      expect(classifyBranch(name)).toBe('task-malformed');
+    }
+    for (const name of ['dev-crosery', 'dev-Joe', 'dev/joe-smith', 'dev-crosery/x']) {
+      expect(classifyBranch(name)).toBe('personal-malformed');
+    }
+  });
+
+  it('pins the exact segment grammar: [a-z0-9]+ words joined by single "_"', () => {
+    for (const name of ['task/12/', 'task//x', 'task/12/x/y', 'task/1a/x', 'task/12/_x', 'task/12/x_', 'task/12/x__y', 'task/12/X']) {
+      expect(TASK_BRANCH_RE.test(name)).toBe(false);
+    }
+    for (const name of ['dev/', 'dev/crosery/x', 'dev/_x', 'dev/x_', 'dev/a__b', 'dev/Crosery']) {
+      expect(DEV_BRANCH_RE.test(name)).toBe(false);
+    }
+    expect(TASK_BRANCH_RE.test('task/7/forum_path')).toBe(true);
+    expect(DEV_BRANCH_RE.test('dev/crosery')).toBe(true);
+  });
+
+  it('keeps the regex table in BRANCHING.md identical to the script', () => {
+    const doc = readFileSync(join(repoRoot, 'docs/conventions/BRANCHING.md'), 'utf8');
+    expect(doc).toContain(`\`${TASK_BRANCH_RE.source}\``);
+    expect(doc).toContain(`\`${DEV_BRANCH_RE.source}\``);
+  });
+
+  it('names the new form in the hygiene warning for an old dash branch', () => {
+    const f = fixture();
+    git(f.cwd, 'branch', 'dev-crosery');
+    git(f.cwd, 'branch', 'task/12-foo');
+    git(f.cwd, 'branch', 'dev/crosery');
+    const result = checkInvariants({ repo: f.cwd });
+    expect(result.ok).toBe(true);
+    const warnings = result.warnings.join('\n');
+    expect(warnings).toContain('dev-crosery');
+    expect(warnings).toContain('dev/<github-username>');
+    expect(warnings).toContain('task/12-foo');
+    expect(warnings).toContain('task/<issue>/<slug>');
+    expect(warnings).not.toMatch(/分支 dev\/crosery（/);
+    expect(checkInvariants({ repo: f.cwd, strictLongLived: true }).ok).toBe(false);
   });
 });
 
@@ -126,13 +179,20 @@ describe('pre-push guard', () => {
   it('rejects a stage push from a dev branch, and one that does not contain origin/main yet', () => {
     const f = fixture({ divergent: true });
     const remoteSha = 'b'.repeat(40);
-    git(f.cwd, 'branch', 'dev-crosery');
+    git(f.cwd, 'branch', 'dev/crosery');
     const fromDev = checkPushes({
       repo: f.cwd,
-      pushes: [{ localRef: 'refs/heads/dev-crosery', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
+      pushes: [{ localRef: 'refs/heads/dev/crosery', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
     });
     expect(fromDev.ok).toBe(false);
     expect(fromDev.violations.join('\n')).toContain('既不是 stage 自身');
+
+    // 旧的 dev-<user> 同样不能进 stage。
+    const fromOldDev = checkPushes({
+      repo: f.cwd,
+      pushes: [{ localRef: 'refs/heads/dev-crosery', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
+    });
+    expect(fromOldDev.violations.join('\n')).toContain('既不是 stage 自身');
 
     const behindMain = checkPushes({
       repo: f.cwd,
@@ -143,9 +203,19 @@ describe('pre-push guard', () => {
 
     const fromTask = checkPushes({
       repo: f.cwd,
-      pushes: [{ localRef: 'refs/heads/task/7-forum-path', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
+      pushes: [{ localRef: 'refs/heads/task/7/forum_path', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
     });
     expect(fromTask.violations.join('\n')).not.toContain('既不是 stage 自身');
+
+    // 旧的 task/<issue>-<slug> 已不是合法 task 分支，不能再作为 stage 的来源。
+    for (const oldTask of ['task/7-forum-path', 'task/7/forum-path']) {
+      const fromOldTask = checkPushes({
+        repo: f.cwd,
+        pushes: [{ localRef: `refs/heads/${oldTask}`, localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha }],
+      });
+      expect(fromOldTask.ok).toBe(false);
+      expect(fromOldTask.violations.join('\n')).toContain('既不是 stage 自身');
+    }
   });
 
   it('warns instead of failing for personal/task targets and tag pushes', () => {
@@ -154,15 +224,74 @@ describe('pre-push guard', () => {
     const result = checkPushes({
       repo: f.cwd,
       pushes: [
+        target('dev/crosery'),
+        target('task/7/forum_path'),
+        target('scratch'),
         target('dev-crosery'),
         target('task/7-forum-path'),
-        target('scratch'),
         { localRef: 'refs/tags/release-1.0.0', localSha: f.mainTip, remoteRef: 'refs/tags/release-1.0.0', remoteSha: 'b'.repeat(40) },
       ],
     });
     expect(result.ok).toBe(true);
-    expect(result.warnings.join('\n')).toContain('refs/heads/scratch');
-    expect(result.warnings.join('\n')).toContain('部署身份只由 commit SHA 决定');
+    const warnings = result.warnings.join('\n');
+    expect(warnings).toContain('refs/heads/scratch');
+    expect(warnings).toContain('部署身份只由 commit SHA 决定');
+    // 旧的带 - 分支名推到自己的远端分支：不阻断，但要告警。
+    expect(warnings).toContain('refs/heads/dev-crosery');
+    expect(warnings).toContain('refs/heads/task/7-forum-path');
+    expect(warnings).not.toContain('refs/heads/dev/crosery ');
+    expect(warnings).not.toContain('refs/heads/task/7/forum_path ');
+  });
+
+  it('still checks a first push whose remote ref does not exist yet (all-zero <remote sha>)', () => {
+    // git 的约定：<remote sha> 全 0 = 远端还没有这个 ref（新建分支），不是删除；命名与不变量都必须照常判定。
+    const f = fixture({ divergent: true });
+    const zero = '0'.repeat(40);
+    const fresh = (name: string) => ({ localRef: `refs/heads/${name}`, localSha: f.stageTip, remoteRef: `refs/heads/${name}`, remoteSha: zero });
+    const naming = checkPushes({ repo: f.cwd, pushes: [fresh('task/12-foo'), fresh('dev-crosery'), fresh('dev/crosery'), fresh('task/12/portal_redesign')] });
+    expect(naming.ok).toBe(true);
+    const warnings = naming.warnings.join('\n');
+    expect(warnings).toContain('refs/heads/task/12-foo');
+    expect(warnings).toContain('refs/heads/dev-crosery');
+    expect(warnings).not.toContain('refs/heads/dev/crosery ');
+    expect(warnings).not.toContain('refs/heads/task/12/portal_redesign ');
+
+    const newMain = checkPushes({
+      repo: f.cwd,
+      pushes: [{ localRef: 'refs/heads/main', localSha: f.mainAhead, remoteRef: 'refs/heads/main', remoteSha: zero }],
+    });
+    expect(newMain.ok).toBe(false);
+    expect(newMain.violations.join('\n')).toContain(INVARIANTS[1]);
+
+    const newStageFromOldTask = checkPushes({
+      repo: f.cwd,
+      pushes: [{ localRef: 'refs/heads/task/12-foo', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha: zero }],
+    });
+    expect(newStageFromOldTask.ok).toBe(false);
+    expect(newStageFromOldTask.violations.join('\n')).toContain('既不是 stage 自身');
+  });
+
+  it('treats "(delete)" with an all-zero <local sha> as a deletion: blocks main/stage, stays quiet for others', () => {
+    const f = fixture();
+    const zero = '0'.repeat(40);
+    const del = (name: string) => ({ localRef: '(delete)', localSha: zero, remoteRef: `refs/heads/${name}`, remoteSha: f.stageTip });
+    for (const longLived of ['stage', 'main']) {
+      const result = checkPushes({ repo: f.cwd, pushes: [del(longLived)] });
+      expect(result.ok).toBe(false);
+      expect(result.violations.join('\n')).toContain(`拒绝删除远端长期分支 refs/heads/${longLived}`);
+    }
+    // 合并后删 task 分支、迁移时删旧的 dev-crosery：都是规范要求的动作，不阻断也不报命名告警。
+    const cleanup = checkPushes({ repo: f.cwd, pushes: [del('task/12/portal_redesign'), del('dev-crosery')] });
+    expect(cleanup.ok).toBe(true);
+    expect(cleanup.warnings).toEqual([]);
+
+    const cli = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], {
+      encoding: 'utf8',
+      input: `(delete) ${zero} refs/heads/stage ${f.stageTip}\n`,
+    });
+    expect(cli.status).toBe(1);
+    expect(cli.stdout).toContain('拒绝删除远端长期分支 refs/heads/stage');
+    expect(cli.stderr).not.toContain('无法判定祖先关系');
   });
 
   it('reads the hook payload from stdin through the CLI', () => {
@@ -173,7 +302,7 @@ describe('pre-push guard', () => {
     expect(result.stdout).toContain(INVARIANTS[1]);
     const passing = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], {
       encoding: 'utf8',
-      input: `refs/heads/dev-crosery ${f.stageTip} refs/heads/dev-crosery ${'b'.repeat(40)}\n`,
+      input: `refs/heads/dev/crosery ${f.stageTip} refs/heads/dev/crosery ${'b'.repeat(40)}\n`,
     });
     expect(passing.status).toBe(0);
   });
