@@ -29,12 +29,16 @@ RUN pnpm install --frozen-lockfile
 # 生成输入：源码与静态资源逐项列出，宿主 node_modules/.nuxt/.output 绝不进上下文。
 COPY app/forum/nuxt.config.ts app/forum/uno.config.ts app/forum/tsconfig.json \
      app/forum/eslint.config.mjs app/forum/wrangler.jsonc ./
-COPY app/forum/app app/forum/app
-COPY app/forum/content app/forum/content
-COPY app/forum/modules app/forum/modules
-COPY app/forum/public app/forum/public
-COPY app/forum/server app/forum/server
-COPY app/forum/shared app/forum/shared
+# 目标写成相对 WORKDIR 的 ./<目录>：写成 app/forum/<目录> 会落到 /repo/app/forum/app/forum/<目录>，
+# nuxt.config.ts 的 import './shared/deployment' 就找不到了。
+COPY app/forum/app ./app
+COPY app/forum/content ./content
+COPY app/forum/modules ./modules
+COPY app/forum/public ./public
+COPY app/forum/server ./server
+COPY app/forum/shared ./shared
+# uno.config.ts 在加载配置时 import 这个脚本（扫描 tuffex 产物里的图标类名做 safelist）。
+COPY app/forum/scripts/tuffex-icon-classes.mjs ./scripts/tuffex-icon-classes.mjs
 # nuxt.config.ts 直接 import 环境身份契约（../../deploy/environments.json）。
 COPY deploy/environments.json /repo/deploy/environments.json
 
