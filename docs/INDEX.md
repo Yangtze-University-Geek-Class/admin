@@ -29,6 +29,10 @@
 
 与 `app/` 一一对应的服务文档：每个服务一份 README（源码地图、契约、运行、验证、限制）。
 
+## services/console/
+
+极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
+
 ## services/forum/
 
 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可只读显示极客班论坛快照，仍无真实认证与后端。
