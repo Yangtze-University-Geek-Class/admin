@@ -2,7 +2,7 @@
 
 > Conventional Commits 结构，中文说明，一次提交一个可回滚目的。
 
-状态：`current` · 更新：2026-09-13
+状态：`current` · 更新：2026-09-23
 
 ## 格式
 
@@ -26,6 +26,6 @@ scope 使用 `portal`、`forum`、`admin`、`shared`、`server`、`auth`、`db`�
 
 ## 提交不等于发版
 
-Conventional Commits 只规定消息结构，不自动计算或推进本项目发布版本。分支模型（`main`/`stage`/`task-*`）、人工验收与版本展示的唯一约定见 [BRANCHING](BRANCHING.md) 与 [RELEASES](RELEASES.md)。禁止为了自动 changelog/semantic-release 而越过人工试用与批准，也禁止把 `feat`/`fix` 当作自动升号或自动部署的依据。
+Conventional Commits 只规定消息结构，不自动计算或推进本项目发布版本。分支模型（`main`/`stage`/`task/<issue>/<slug>`/`dev/<username>`）、人工验收与版本展示的唯一约定见 [BRANCHING](BRANCHING.md) 与 [RELEASES](RELEASES.md)。禁止为了自动 changelog/semantic-release 而越过人工试用与批准，也禁止把 `feat`/`fix` 当作自动升号或自动部署的依据。
 
 依据：Conventional Commits 1.0.0 的消息结构；中文简述和 scope 词表是本项目约定，而不是该标准的语言要求。官方来源：https://www.conventionalcommits.org/en/v1.0.0/

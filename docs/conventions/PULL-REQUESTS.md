@@ -6,7 +6,7 @@
 
 ## 目标分支
 
-MR 只能指向 `stage`。`main` 不接受来自 `task/*`、`dev-*` 的 MR，只接受把 `stage` 合入 `main` 的发布操作（见 [BRANCHING](BRANCHING.md) 与 [RELEASES](RELEASES.md)）。合并后立刻删除来源 task 分支。
+MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，只接受把 `stage` 合入 `main` 的发布操作（见 [BRANCHING](BRANCHING.md) 与 [RELEASES](RELEASES.md)）。合并后立刻删除来源 task 分支。
 
 ## PR 内容
 
