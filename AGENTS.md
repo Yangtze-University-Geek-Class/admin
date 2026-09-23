@@ -80,7 +80,8 @@
 | 服务目录 | 服务契约 | 管辖规范 |
 |---|---|---|
 | `app/server` | [docs/services/server/README.md](docs/services/server/README.md) | `MODULAR-DEVELOPMENT`、`API`、`SECURITY` |
-| `app/web`（`sites/portal`、`sites/admin`、`shared`） | [docs/services/web/README.md](docs/services/web/README.md) | `DESIGN`、`STACK`、`TESTING` |
+| `app/web`（`sites/portal`、`shared`） | [docs/services/web/README.md](docs/services/web/README.md) | `DESIGN`、`STACK`、`TESTING` |
+| `app/console`（极客班控制台，Vue 3 + Tuffex，根工作区 Node 22 / pnpm 9） | [docs/services/console/README.md](docs/services/console/README.md) | `DESIGN`、Tuffex 使用政策、`TESTING` |
 | `app/forum`（上游 Nuxt/TuffEx，独立工具链 Node ≥26 / pnpm 11.24.0） | [docs/services/forum/README.md](docs/services/forum/README.md) | `TUFF-FORUM`、Tuffex 使用政策、`ADR-0003` |
 
 新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md`，两处缺一视为未完成；模块细节放同目录子文档。完整目录清单见生成物 [docs/INDEX.md](docs/INDEX.md)，不要手工编辑。

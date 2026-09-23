@@ -43,3 +43,25 @@ it("fails closed for an unresolved declared alias without mistaking a builtin fo
  expect(violations).toHaveLength(1);
  expect(violations[0]).toContain('unresolved local import @domain/missing');
 });
+it("parses imports inside Vue single-file component scripts only",()=>{
+ const result=specifiers(`<template><div>import './not-a-module'</div></template>
+<script setup lang="ts">
+import A from './a.vue';
+const b = import('./b');
+</script>`,'x.vue');
+ expect(result.map((item: {spec:string})=>item.spec)).toEqual(['./a.vue','./b']);
+ expect(result[0].line).toBe(3);
+});
+it("keeps the console app separate from the web sites and the server",()=>{
+ const root=fixture({
+   'app/console/src/a.ts':`import '../../web/shared/lib/http';`,
+   'app/console/src/b.vue':`<script setup lang="ts">import { x } from '../../server/src/lib/roles';</script>`,
+   'app/web/shared/lib/http.ts':`import '../../../console/src/c';`,
+   'app/console/src/c.ts':`export const c=1;`,
+   'app/server/src/lib/roles.ts':`export const x=1;`,
+ });
+ const violations=checkProject(root).violations.join('\n');
+ expect(violations).toContain('app/console/src/a.ts:1: console and web must not import each other (console -> web)');
+ expect(violations).toContain('app/web/shared/lib/http.ts:1: console and web must not import each other (web -> console)');
+ expect(violations).toContain('app/console/src/b.vue:1: frontend/backend implementation import is forbidden (console -> server)');
+});

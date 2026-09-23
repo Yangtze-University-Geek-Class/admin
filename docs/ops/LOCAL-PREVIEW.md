@@ -1,15 +1,15 @@
 # 本机核心预览与独立论坛
 
-> 保留官网和管理后台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。
+> 保留官网和控制台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-24
 
 ## 地址
 
 | 模块 | 本机地址 | 数据 |
 |---|---|---|
 | 宣传主页 | http://127.0.0.1:5173/sites/portal/ | 核心前端 |
-| GitHub 管理预览 | http://127.0.0.1:5173/sites/admin/admin?__data=mock | 只读样板，不操作真实 GitHub |
+| 极客班控制台 | http://127.0.0.1:5186/console（`pnpm dev:console`） | 默认只读样板（`?__persona=` 切换身份，`?__data=live` 连 3000 后端）；不操作真实 GitHub。5173 上的 `/console`、`/admin`、`/signin`、`/sites/admin/*` 在开发态 302 到这里 |
 | 新论坛 | http://127.0.0.1:3456/ | 发现 `.tools/forum-runtime/<快照>/` 时为极客班只读快照，否则为原仓浏览器 localStorage 演示；`GEEK_FORUM_SOURCE=demo` 强制示例（见 [TUFF-FORUM](TUFF-FORUM.md)） |
 | 核心 API | http://127.0.0.1:3000/healthz | 独立内存 data.db |
 
@@ -26,7 +26,7 @@ node scripts/forum.mjs status
 node scripts/forum.mjs stop
 ```
 
-根 `pnpm preview:local` 启动两者。核心选择项目 Node 22；论坛选择 Node >=26 和独立 pnpm 11。两者均核对本任务实例标识，不因端口占用停止无关进程。端口仅绑定回环，不开放局域网/公网，没有开机自启。
+根 `pnpm preview:local` 启动两者（控制台另用 `pnpm dev:console` 启动）。核心选择项目 Node 22；论坛选择 Node >=26 和独立 pnpm 11。两者均核对本任务实例标识，不因端口占用停止无关进程。端口仅绑定回环，不开放局域网/公网，没有开机自启。
 
 核心日志在 .tools/local-preview/preview.log，论坛日志在 .tools/tuff-forum/dev.log；目录属于本机缓存。已有 4173 等服务不因本任务停止。
 

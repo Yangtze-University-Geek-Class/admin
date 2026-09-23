@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "build": "pnpm check:runtime && pnpm check:site-config && pnpm --filter @yzgc/server build && pnpm --filter @yzgc/web build",
+    "build": "pnpm check:runtime && pnpm check:site-config && pnpm --filter @yzgc/server build && pnpm --filter @yzgc/web build && pnpm --filter @yzgc/console build",
     "check:runtime": "node scripts/check-runtime.mjs",
     "check:site-config": "node scripts/check-site-config.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs",
@@ -17,7 +17,7 @@
     "check:branch-invariants":"node scripts/check-branch-invariants.mjs",
     "hooks:enable":"git config core.hooksPath .githooks",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "typecheck": "tsc -p app/server/tsconfig.json --noEmit && tsc -p app/web/tsconfig.json --noEmit",
+    "typecheck": "tsc -p app/server/tsconfig.json --noEmit && tsc -p app/web/tsconfig.json --noEmit && pnpm --filter @yzgc/console typecheck",
     "check": "pnpm check:runtime && pnpm check:site-config && pnpm check:environments && pnpm check:boundaries && pnpm check:docs && pnpm check:secrets && pnpm typecheck",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -32,6 +32,7 @@
     "forum:verify": "node scripts/forum.mjs verify",
     "preview:local": "node scripts/local-preview.mjs start && node scripts/forum.mjs start",
     "dev:web": "pnpm --filter @yzgc/web dev",
+    "dev:console": "pnpm --filter @yzgc/console dev",
     "dev": "pnpm -r --parallel run dev",
     "start": "node scripts/check-runtime.mjs && node app/server/dist/index.js"
   },
@@ -45,5 +46,24 @@
     "jsdom": "^26.1.0",
     "typescript": "^5.7.2",
     "@playwright/test": "^1.55.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@unocss/inspector>@vitejs/devtools-kit": "0.7.3"
+    },
+    "packageExtensions": {
+      "@talex-touch/utils": {
+        "peerDependenciesMeta": {
+          "electron": {
+            "optional": true
+          }
+        }
+      },
+      "unocss@66.10.2": {
+        "peerDependencies": {
+          "vite": "^7.0.0"
+        }
+      }
+    }
   }
 }

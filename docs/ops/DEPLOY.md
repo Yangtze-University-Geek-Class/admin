@@ -17,7 +17,8 @@
   └─ 宿主 nginx（TLS 终止，certbot 证书，安全头在此下发）
        ├─ yangtzeu.work / prev.yangtzeu.work → 127.0.0.1:18100 / 18200（web 容器），每个环境只有这一个域名
        └─ github.yangtzeu.work（已退役）      → 301 到 https://yangtzeu.work，保留路径
-            └─ web 容器（nginx，容器内监听 8080：静态产物 + 反代）
+            └─ web 容器（nginx，容器内监听 8080：官网与控制台两份静态产物 + 反代）
+                 ├─ /console、/admin、/signin（含子路径） → sites/console/index.html（app/console，Vue + Tuffex）
                  ├─ /healthz  → server:3000（web 也代理，部署脚本用它做健康门）
                  ├─ /api/*、/auth/* → server:3000（Fastify + /data 命名卷）
                  ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀）
@@ -25,7 +26,9 @@
                  └─ 其余路径 → portal SPA 入口
 ```
 
-宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头都在这里，不注入任何站点头）。**每个环境只有一个域名**，管理端靠 URL 路径区分：web 容器 nginx 按路径选 SPA 入口（规则与 `app/server/src/app.ts` 的 `resolveSiteEntry` 一致），镜像与前端产物里不含任何环境域名，同一个镜像在两个环境通用。旧的「管理端独立子域 + 宿主注入站点头」模型已退役：正式的 `github.yangtzeu.work` 只剩 301 跳转，预发布不再有管理端子域。
+web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控制台），把两份 dist 叠进同一个站点根（`sites/portal/` + `assets/`，`sites/console/` + `console-assets/`，目录不重叠）。
+
+宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头都在这里，不注入任何站点头）。**每个环境只有一个域名**，管理端靠 URL 路径区分：web 容器 nginx 按路径选 SPA 入口（`/admin`、`/console` 及其子路径与 `/signin` 进控制台入口 `sites/console/index.html`，其余进官网；规则与 `app/server/src/app.ts` 的 `resolveSiteEntry` 一致），镜像与前端产物里不含任何环境域名，同一个镜像在两个环境通用。旧的「管理端独立子域 + 宿主注入站点头」模型已退役：正式的 `github.yangtzeu.work` 只剩 301 跳转，预发布不再有管理端子域。
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
 

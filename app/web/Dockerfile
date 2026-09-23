@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.7
-# @yzgc/web 运行镜像：Vite 产物（portal + admin）+ nginx 静态托管与反代。
+# @yzgc/web 运行镜像：官网 Vite 产物（app/web，React）+ 控制台产物（app/console，Vue + Tuffex）
+# + nginx 静态托管与反代。两个前端包分别构建，产物叠进同一个站点根：
+#   sites/portal/index.html + assets/          ← app/web/dist
+#   sites/console/index.html + console-assets/ ← app/console/dist（目录名不重叠）
 #
 # 构建上下文 = 仓库根（geek_main/）：
 #   docker build --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
@@ -11,8 +14,8 @@
 # 127.0.0.1:<WEB_BIND> 控制。宿主 nginx 只做 TLS 终止与 server_name 转发。
 #
 # 每个环境只有一个域名，SPA 入口只按 URL 路径选择，与 Host 头无关：
-#   /admin、/admin/…、/console、/console/…、/signin → sites/admin/index.html
-#   其余路径                                         → sites/portal/index.html
+#   /admin、/admin/…、/console、/console/…、/signin → sites/console/index.html（app/console）
+#   其余路径                                         → sites/portal/index.html（app/web）
 # 规则与 app/server/src/app.ts 的 resolveSiteEntry 保持一致。镜像里不含任何域名，
 # 同一个镜像在两个环境通用。
 #
@@ -34,11 +37,12 @@ RUN corepack enable \
 
 WORKDIR /repo
 
-# 依赖层：只复制工作区清单（根工作区成员 = app/server, app/web）。
+# 依赖层：只复制工作区清单（根工作区成员 = app/server, app/web, app/console）。
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY app/server/package.json app/server/package.json
 COPY app/web/package.json app/web/package.json
-RUN pnpm install --frozen-lockfile --filter @yzgc/web...
+COPY app/console/package.json app/console/package.json
+RUN pnpm install --frozen-lockfile --filter @yzgc/web... --filter @yzgc/console...
 
 # 构建输入逐项列出（不写 COPY . .）：宿主 node_modules / dist / tsbuildinfo
 # 绝不能进上下文，否则会覆盖镜像里刚装好的 linux 依赖。
@@ -53,6 +57,11 @@ COPY app/web/shared app/web/shared
 COPY app/web/public app/web/public
 COPY app/web/package.json app/web/tsconfig.json app/web/vite.config.ts app/web/postcss.config.js \
      app/web/tailwind.config.js app/web/vite-env.d.ts app/web/
+# 控制台：源码与构建配置（check-boundaries.mjs 也会扫描 app/console/src）。
+COPY app/console/src app/console/src
+COPY app/console/scripts app/console/scripts
+COPY app/console/package.json app/console/index.html app/console/tsconfig.json app/console/env.d.ts \
+     app/console/vite.config.ts app/console/uno.config.ts app/console/
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
@@ -60,7 +69,9 @@ ARG GEEK_RELEASE_COMMIT=""
 
 # 前端产物与环境无关（app.config.json 不含域名），环境名只进下面的 release.json。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
- && pnpm --filter @yzgc/web build
+ && pnpm --filter @yzgc/web build \
+ && pnpm --filter @yzgc/console build \
+ && test -f app/console/dist/sites/console/index.html
 
 # 发布身份元数据：静态文件，宿主 nginx 原样透传 /release.json。
 # 取值只来自构建参数；先按字符白名单校验再拼 JSON，避免构建参数破坏 JSON 结构。
@@ -156,17 +167,24 @@ server {
         include /etc/nginx/conf.d/90-proxy-headers.conf;
     }
 
-    # ── 管理端 SPA 入口：路径清单与入口文件都只写在这一处 ──
+    # ── 管理端（控制台）SPA 入口：路径清单与入口文件都只写在这一处 ──
     # /admin、/console 及其子路径，外加 /signin；与 app/server/src/app.ts 的
     # ADMIN_SPA_PATHS / ADMIN_SPA_ENTRY 一致。/administrator、/consoles 不匹配。
     # 必须放在下面的图片正则之前：nginx 取第一个匹配的正则，仓库名这类路径段
-    # 即使以 .svg/.png 结尾，也要进管理端入口而不是 404。
+    # 即使以 .svg/.png 结尾，也要进控制台入口而不是 404。入口页每次部署都换哈希，回源校验。
     location ~ ^/(?:(?:admin|console)(?:/|$)|signin$) {
-        try_files $uri /sites/admin/index.html;
+        expires -1;
+        try_files $uri /sites/console/index.html;
     }
 
     # 带内容哈希的构建产物：内容不变则文件名不变，可以长缓存。
+    # /assets/ 是官网（app/web），/console-assets/ 是控制台（app/console）。
     location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+        access_log off;
+    }
+    location /console-assets/ {
         expires 1y;
         try_files $uri =404;
         access_log off;
@@ -217,6 +235,8 @@ ENV GEEK_DEPLOYMENT_ENVIRONMENT=${GEEK_DEPLOYMENT_ENVIRONMENT} \
 # 官方镜像已把 /usr/share/nginx/html 设为站点根并自带 nginx 用户；内容整体替换。
 RUN rm -rf /usr/share/nginx/html /etc/nginx/conf.d/*
 COPY --from=builder /repo/app/web/dist /usr/share/nginx/html
+# 控制台产物叠进同一个站点根（sites/console/、console-assets/，与官网目录不重叠）。
+COPY --from=builder /repo/app/console/dist/ /usr/share/nginx/html/
 COPY --from=builder /release/release.json /usr/share/nginx/html/release.json
 COPY --from=builder /nginx-out/nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /nginx-out/conf.d/ /etc/nginx/conf.d/
