@@ -7,7 +7,7 @@ settings:
 overrides:
   '@unocss/inspector>@vitejs/devtools-kit': 0.7.3
 
-packageExtensionsChecksum: 7f880d625077052653597e09c7f98cc3
+packageExtensionsChecksum: c5678bce93d4e58c8bfea2d7c0617200
 
 importers:
 
@@ -3680,6 +3680,7 @@ packages:
       '@unocss/astro': 66.10.2
       '@unocss/postcss': 66.10.2
       '@unocss/webpack': 66.10.2
+      vite: ^7.0.0
     peerDependenciesMeta:
       '@unocss/astro':
         optional: true
@@ -7630,6 +7631,7 @@ snapshots:
       '@unocss/transformer-directives': 66.10.2
       '@unocss/transformer-variant-group': 66.10.2
       '@unocss/vite': 66.10.2(@devframes/hub@0.9.20(crossws@0.4.12(srvx@1.0.5))(devframe@0.9.20(cac@7.0.0)(srvx@1.0.5)))(cac@7.0.0)(crossws@0.4.12(srvx@1.0.5))(srvx@1.0.5)(vite@7.3.6(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.1))
+      vite: 7.3.6(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@devframes/hub'
       - '@devframes/hub-ui'
@@ -7640,7 +7642,6 @@ snapshots:
       - rolldown
       - rollup
       - srvx
-      - vite
 
   unplugin-utils@0.3.2:
     dependencies:

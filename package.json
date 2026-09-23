@@ -58,6 +58,11 @@
             "optional": true
           }
         }
+      },
+      "unocss@66.10.2": {
+        "peerDependencies": {
+          "vite": "^7.0.0"
+        }
       }
     }
   }
