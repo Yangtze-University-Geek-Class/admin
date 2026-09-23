@@ -32,7 +32,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /api/feedback/public?org=&limit=` | **匿名**，不校验 `ALLOWED_ORGS` | 无 | 200 `{ items }`：该组织非 `spam` 反馈按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org` 时 `items` 为空 | `limit` 默认 20、取 `min(limit, 100)`，**未做整数与下界校验**：负数会让 SQLite 取消行数上限，非整数触发 SQLite `datatype mismatch` 而返回 500。这是已知缺口，与上文「分页为有界正整数」不符，待修 |
 | `GET /api/join/:token` | 匿名（链接令牌即能力） | 无 | 200 `{ org, note, team_slug, expires_at, remaining_uses, valid, reason }` | 404 `邀请链接不存在` |
 | `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；503：发起人 token 失效或结果待核对 |
-| `POST /api/portal/apply` | 匿名 | 5 次/分钟 | 201 | 见「投递简历端点」 |
+| `POST /api/portal/apply` | 匿名 | 5 次/分钟 | 201 | 见「加入我们（投递）端点」 |
 | `GET /auth/github` | 匿名 | 无 | 302 到 GitHub 授权页，写入签名的 `oauth_state` cookie | — |
 | `GET /auth/callback` | `oauth_state` cookie | 无 | 302 回允许列表内的 `return_to`，签发 `sid` | 400 `missing_params` / `invalid_state` / GitHub 回传的 `error`；410 `legacy_forum_retired`（`state` 以 `forum-` 开头） |
 | `POST /auth/signout` | 可选 `sid` | 无 | 200 `{ ok: true }`，清除 `sid` 与旧 `forum_sid` cookie | — |
@@ -74,9 +74,9 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 - **Mock**：开发预览 `?__data=mock` 覆盖控制台所有 GET（`?__persona=` 切换身份），写请求照旧返回 501 `mock_read_only`，不伪造写成功。
 - 回归测试见 `tests/server/console.test.ts`。
 
-## 投递简历端点
+## 加入我们（投递）端点
 
-`POST /api/portal/apply` 是官网「投递简历」的匿名写接口：无会话、无 cookie 依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs` 审计。前端页面与本节同批发布，字段名与 PoW 摘要输入属于跨端契约，改一端必须同时改另一端。
+`POST /api/portal/apply` 是官网「加入我们」（`/join-us` 信封页）的匿名写接口：无会话、无 cookie 依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs` 审计。前端页面与本节同批发布，字段名与 PoW 摘要输入属于跨端契约，改一端必须同时改另一端。
 
 | 请求字段 | 约束 |
 |---|---|

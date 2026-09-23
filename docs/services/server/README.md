@@ -35,7 +35,7 @@
 - **身份**：GitHub OAuth 保留签名 state、十分钟有效期和允许列表回跳，只签发 `sid`（服务器会话）；不签发、不桥接旧 `forum_sid`。
 - **极客班控制台**：`/api/console/*` 组织固定为 `CONSOLE_ORG`（非密钥环境变量，默认 `Yangtze-University-Geek-Class`；`ALLOWED_ORGS` 非空时必须包含它，否则启动失败），按称号 → 能力授权，GitHub 能力受用户自身组织角色上限约束，GitHub 登录后默认回到 `/console`。模型见 [SECURITY](../../architecture/SECURITY.md)，端点见 [API](../../architecture/API.md)。
 - **旧论坛接口**：`/api/forum*`、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`；服务不打开 `forum.db`。生产环境缺少新论坛服务时 `/forum` 返回 503，不用模拟成功填补缺口。
-- **投递简历**：`POST /api/portal/apply` 是匿名写接口，无会话依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs`。准入沿用公开表单的 PoW、蜜罐与 Turnstile，路由限流 5 次/分钟。字段约束在 `routes/portal/apply.ts` 内单一校验层实现（该端点不注册 `contracts.ts` body schema），校验失败不落库；`website`、`homepage`、`url_ref` 任一非空即按蜜罐命中处理，返回与成功一致的 201 形状但不落库。审计记录目标 id 和来源 IP，details 只含脱敏邮箱、班级、`name_length` 与 `strengths_length`，不记姓名和候选人正文。字段、错误码与限流细则见 [API](../../architecture/API.md)。
+- **加入我们（投递）**：`POST /api/portal/apply` 是匿名写接口，无会话依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs`。准入沿用公开表单的 PoW、蜜罐与 Turnstile，路由限流 5 次/分钟。字段约束在 `routes/portal/apply.ts` 内单一校验层实现（该端点不注册 `contracts.ts` body schema），校验失败不落库；`website`、`homepage`、`url_ref` 任一非空即按蜜罐命中处理，返回与成功一致的 201 形状但不落库。审计记录目标 id 和来源 IP，details 只含脱敏邮箱、班级、`name_length` 与 `strengths_length`，不记姓名和候选人正文。字段、错误码与限流细则见 [API](../../architecture/API.md)。
 - **数据所有权**：`app/forum` 的数据不归本服务；本服务不读取论坛私有备份或只读投影。
 - **接口清单与错误语义**见 [API](../../architecture/API.md)，安全边界见 [SECURITY](../../architecture/SECURITY.md)。
 

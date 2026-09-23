@@ -52,7 +52,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`admin.md`](./services/web/admin.md) | 管理端前端已从 `app/web/sites/admin`（React）迁到独立的 Vue 包 `app/console`；本页只记录迁移事实与仍然有效的服务端约定。 | — |
-| [`portal.md`](./services/web/portal.md) | 公开介绍、投递简历、文档、反馈和邀请落地；无独立登录态。 | — |
+| [`portal.md`](./services/web/portal.md) | 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；无独立登录态。 | — |
 | [`shared.md`](./services/web/shared.md) | 共享 UI、网络、渲染和配置，不反向依赖站点。 | — |
 
 ## components/
@@ -113,7 +113,7 @@
 | [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 保留官网和控制台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。 | — |
 | [`RELEASE-ACCEPTANCE-TEMPLATE.md`](./ops/RELEASE-ACCEPTANCE-TEMPLATE.md) | 空白模板，供验收人逐字段手工填写；不是流水线自动生成的通过证明。 | — |
 | [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机默认只读显示极客班快照，不将其冒充生产论坛。 | — |
-| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：投递简历、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
+| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：加入我们、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
 
 ## decisions/
 
