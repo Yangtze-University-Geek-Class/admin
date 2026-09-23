@@ -40,7 +40,7 @@
 - `<issue>` 是纯数字的 issue 编号；`<slug>` 与用户名段都是 `[a-z0-9]+(?:_[a-z0-9]+)*`：不允许大写、`-`、首尾 `_` 或连续 `__`，也不允许再多一层 `/`。
 - GitHub 用户名里带 `-` 的，个人分支里写成 `_`（例：`joe-smith` 写成 `dev/joe_smith`）；大写一律转小写。
 - 旧写法 `task/<issue>-<slug>`、`dev-<username>`（以及 `task-…`）已**不合规**：`check-branch-invariants.mjs` 把它们归为 `task-malformed` / `personal-malformed` 并告警，pre-push 拒绝以它们为来源推 `stage`，`ci.yml` 也不再对 `dev-*` 的 push 触发。
-- 迁移记录（2026-09-23，所有者指令）：`dev-crosery` 改名为 `dev/crosery`。本地改名 `git branch -m dev-crosery dev/crosery`；远端新名推送与删除旧名由分支所有者自行执行（Git 不允许 `dev` 与 `dev/…` 同时存在，但 `dev-crosery` 与 `dev/crosery` 可以并存）。
+- 迁移（2026-09-23，所有者指令）：旧个人分支 `dev-crosery` 需改名为 `dev/crosery`，由分支所有者执行，引入本规则的提交本身不改任何本地或远端分支：本地 `git branch -m dev-crosery dev/crosery` → 推送新名 `git push -u origin dev/crosery` → 确认后删除旧远端 `git push origin --delete dev-crosery`（pre-push 对删除非长期分支放行）。Git 不允许 `dev` 与 `dev/…` 同时存在，但 `dev-crosery` 与 `dev/crosery` 可以并存。
 
 ## 不变量
 
