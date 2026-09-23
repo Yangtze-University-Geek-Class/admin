@@ -5,7 +5,7 @@
 
 .pt-scenebar { position: fixed; top: 0; left: 0; right: 0; z-index: 8; display: flex; align-items: center; gap: 14px; padding: 18px 26px; pointer-events: none; }
 .pt-scenebar > * { pointer-events: auto; }
-.pt-back { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 14px 8px 10px; border: 1px solid var(--pt-line); border-radius: 999px; background: rgb(255 255 255 / 92%); font: 12.5px var(--pt-mono); text-decoration: none; }
+.pt-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 15px 8px 11px; border: 1px solid var(--pt-line); border-radius: 999px; background: rgb(255 255 255 / 92%); font-size: 13.5px; text-decoration: none; }
 .pt-back:hover { color: var(--pt-cobalt); border-color: rgb(51 70 200 / 40%); }
 .pt-crumb { font: 12px var(--pt-mono); color: var(--pt-ink-soft); letter-spacing: .04em; }
 .pt-crumb b { color: var(--pt-cobalt); font-weight: 600; }
@@ -54,9 +54,10 @@
   background: transparent; color: var(--pt-ink); font: 16px var(--pt-sans); resize: none;
 }
 .pt-lf textarea { min-height: 136px; padding-top: 2px; line-height: 34px; border-bottom-style: dashed; }
-.pt-lf input:focus, .pt-lf textarea:focus { outline: none; border-bottom-color: var(--pt-cobalt); }
+.pt-lf input:focus, .pt-lf textarea:focus { outline: none; border-bottom-color: var(--pt-cobalt); box-shadow: 0 1.5px 0 var(--pt-cobalt); }
+.pt-lf input::placeholder, .pt-lf textarea::placeholder { color: var(--pt-ink-mute); }
 .pt-lf [aria-invalid="true"] { border-bottom-color: var(--pt-red); }
-.pt-lf em, .pt-lf small { display: block; margin-top: 4px; font-style: normal; font-size: 12px; }
+.pt-lf em, .pt-lf small { display: block; margin-top: 4px; font-style: normal; font-size: 12.5px; }
 .pt-lf em { color: var(--pt-red); }
 .pt-lf small { color: var(--pt-ink-mute); }
 .pt-letter-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 8px; }
@@ -66,7 +67,7 @@
 /* 回执放在左侧（信箱与弹起的小旗在右侧，不被挡住）；窄屏改为底部卡片 */
 .pt-receipt {
   position: fixed; left: clamp(22px, 7vw, 120px); top: 50%; z-index: 5; width: min(460px, calc(100% - 32px));
-  padding: 22px 24px; border: 1px solid var(--pt-line); border-radius: 16px; background: #fff; box-shadow: 0 30px 60px -30px rgb(27 33 64 / 45%);
+  padding: 22px 24px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgb(27 33 64 / 7%), var(--pt-shadow-float);
   opacity: 0; transform: translate(-16px, -50%); pointer-events: none; transition: opacity .4s, transform .5s var(--pt-ease);
 }
 .pt-receipt.is-on { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
@@ -75,7 +76,7 @@
 .pt-receipt > p { color: var(--pt-ink-soft); font-size: 14px; }
 .pt-receipt-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; padding: 12px 14px; border-radius: 12px; background: var(--pt-paper); }
 .pt-receipt-meta dt { font-size: 12px; color: var(--pt-ink-mute); }
-.pt-receipt-meta dd { font-size: 13.5px; overflow-wrap: anywhere; }
+.pt-receipt-meta dd { font-size: 13.5px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .pt-receipt-meta > div:first-child { grid-column: 1 / -1; }
 .pt-receipt code { font: 13px var(--pt-mono); color: var(--pt-cobalt); }
 .pt-receipt-note { margin-bottom: 14px; font-size: 13px !important; }
