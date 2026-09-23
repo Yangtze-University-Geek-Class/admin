@@ -1,4 +1,4 @@
-// GitHub 天际线与「贡献示意」条共用的装饰数据（纯函数，不依赖 three，tests/web/portal-skyline.test.ts 覆盖）。
+// GitHub 天际线与「贡献示意」条共用的装饰数据（纯函数，不依赖 three，tests/web/portal-math.test.ts 覆盖）。
 // 高度与色阶由固定种子生成：开学季更忙、周末更闲。它们是装饰，不是真实提交数据，界面上必须标「示意」。
 
 export const WEEKS = 53;
