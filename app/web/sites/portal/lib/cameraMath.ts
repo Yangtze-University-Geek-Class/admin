@@ -1,4 +1,4 @@
-// 相机与摆放的纯数学（不依赖 three，tests/web/portal-camera.test.ts 覆盖）。
+// 相机与摆放的纯数学（不依赖 three，tests/web/portal-math.test.ts 覆盖）。
 // 角度一律用「竖直视场角（度）」，与 THREE.PerspectiveCamera.fov 一致。
 
 const tanHalf = (fovDeg: number): number => Math.tan((fovDeg * Math.PI) / 360);

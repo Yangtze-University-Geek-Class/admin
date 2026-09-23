@@ -1,4 +1,4 @@
-// 首页「书桌 → 开机 → YUGC OS」的状态机（纯函数，tests/web/portal-desk-machine.test.ts 覆盖）。
+// 首页「书桌 → 开机 → YUGC OS」的状态机（纯函数，tests/web/portal-desk.test.ts 覆盖）。
 //
 //   loading ──ready──▶ idle ──enter──▶ focusing ──arrived──▶ booting ──bootDone──▶ desktop
 //      │                 ▲                 │ (instant)                                │
