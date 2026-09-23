@@ -46,16 +46,20 @@
 .ld-emblem { position: relative; width: min(24vw, 210px); aspect-ratio: 1; filter: drop-shadow(0 30px 40px rgb(27 33 64 / 18%)); }
 .ld-emblem svg { width: 100%; height: 100%; overflow: visible; }
 .ld-ring { fill: #fff; stroke: var(--pt-cobalt); stroke-width: 7; }
-.ld-ring-in { fill: none; stroke: var(--pt-cobalt); stroke-width: 1.4; opacity: .35; stroke-dasharray: 3 5; transform-origin: center; animation: ld-spin 14s linear infinite; }
+.ld-ring-in { fill: none; stroke: var(--pt-cobalt); stroke-width: 1.4; opacity: .35; stroke-dasharray: 3 5; transform-box: fill-box; transform-origin: center; animation: ld-spin 14s linear infinite; }
 @keyframes ld-spin { to { transform: rotate(360deg); } }
 .ld-petal { fill: #e3e7fb; transform-box: fill-box; transform-origin: center; transform: scale(.82); transition: fill .35s, transform .45s cubic-bezier(.2,.9,.25,1.3); }
+/* 同一会话再次进入：加载动画只有约 0.5s，花瓣过渡跟着缩短，合幕前一定完整 */
+.pt-loader.is-quick .ld-petal { transition-duration: .12s, .16s; }
 .ld-petal.is-on { fill: var(--pt-cobalt); transform: none; }
 .ld-core { fill: var(--pt-amber); transform-box: fill-box; transform-origin: center; animation: ld-pulse 1.4s ease-in-out infinite; }
 @keyframes ld-pulse { 50% { transform: scale(.82); } }
+/* 手写签名随进度从左往右写出：进度 80% 时写完（之后不再裁切）。签名的连笔会伸出文字盒，
+   所以裁切框四周各多留 0.3em、右侧再多留 0.6em，写完时整条签名完整可见。 */
 .ld-sign {
-  position: absolute; left: 50%; top: calc(50% + min(14vw, 128px)); transform: translate(-50%, 0) rotate(-5deg); margin: 0; white-space: nowrap;
-  font: 400 clamp(44px, 6.4vw, 92px)/1 "Snell Roundhand", "Apple Chancery", "Segoe Script", cursive; color: var(--pt-ink);
-  clip-path: inset(-20% calc((1 - min(1, var(--p, 0) * 1.25)) * 100%) -20% 0);
+  position: absolute; left: 50%; top: calc(50% + min(14vw, 128px)); transform: translate(-50%, 0) rotate(-5deg); margin: 0; padding: .1em .3em; white-space: nowrap;
+  font: 400 clamp(44px, 6.4vw, 92px)/1.1 "Snell Roundhand", "Apple Chancery", "Segoe Script", cursive; color: var(--pt-ink);
+  clip-path: inset(-.3em calc(-.6em + (1 - min(1, var(--p, 0) * 1.25)) * (100% + .6em)) -.3em -.3em);
 }
 .ld-sign small { display: block; margin-top: 10px; text-align: right; font: 11px var(--pt-mono); letter-spacing: .3em; color: var(--pt-ink-soft); }
 .ld-top { position: absolute; top: 22px; left: 28px; right: 28px; display: flex; justify-content: space-between; font: 11px var(--pt-mono); letter-spacing: .14em; color: var(--pt-ink-soft); }

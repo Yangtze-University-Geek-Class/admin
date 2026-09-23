@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { pixelToCameraPlane } from "../lib/cameraMath";
 import { ease, lerp, span } from "../lib/motion";
-import { Motion, PALETTE, Stage, canvasTexture, loadImage, softShadow, type CanvasTexture } from "./stage";
+import { Motion, PALETTE, Stage, TEXT_SCALE, canvasTexture, drawEmblem, loadImage, softShadow, type CanvasTexture } from "./stage";
 
 export type JoinPhase = "arrive" | "open" | "land" | "writing" | "sealing" | "posting" | "done";
 
@@ -38,6 +38,11 @@ const LETTER_Z = 0.002;
 const PAPER_BACK = "#f7f4ec";
 /** 写信时信封缩小平躺在信纸下方（露出带邮戳的下半截），不抢信纸的焦点 */
 const REST_SCALE = 0.6;
+/** 信纸落位后，3D 信纸在 DOM 表单下面再留这么久（秒），等表单淡入完再藏，交接时不闪 */
+const HANDOFF_S = 0.3;
+/** 信纸贴图宽度的上下限（像素）：按 DOM 信纸宽 × 设备像素比（封顶 2）取值，落位那一帧与表单一样清楚 */
+const LETTER_TEX_MIN = 512;
+const LETTER_TEX_MAX = 1536;
 
 type Layout = {
   fov: number;
@@ -211,26 +216,35 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   let letterAspect = 1.15;
   let letterTex: CanvasTexture<string[]> | null = null;
   let filledLines: string[] | undefined;
+  /** DOM 信纸的 CSS 宽度：贴图按它换算，窄屏上横格线与标题也和表单对得上 */
+  let letterCssW = 640;
   const drawLetter = (x: CanvasRenderingContext2D, w: number, h: number, lines?: string[]) => {
-    const s = w / 640;
+    const s = w / letterCssW;
     x.fillStyle = PAPER;
     x.fillRect(0, 0, w, h);
-    x.strokeStyle = "rgba(51,70,200,0.09)";
-    x.lineWidth = Math.max(1, s);
-    for (let y = 104 * s; y < h - 30 * s; y += 34 * s) {
-      x.beginPath();
-      x.moveTo(40 * s, y);
-      x.lineTo(w - 40 * s, y);
-      x.stroke();
-    }
+    // 左上角一团淡白高光，同 DOM 信纸的 radial-gradient(120% 80% at 0% 0%, …)
+    x.save();
+    x.scale(1.2 * w, 0.8 * h);
+    const glow = x.createRadialGradient(0, 0, 0, 0, 0, 1);
+    glow.addColorStop(0, "rgba(255,255,255,0.7)");
+    glow.addColorStop(0.6, "rgba(255,255,255,0)");
+    x.fillStyle = glow;
+    x.fillRect(0, 0, 1 / 1.2, 1 / 0.8);
+    x.restore();
+    // 横格线与内框和 DOM 信纸（styles/scenes.css 的 .pt-letter 背景与 ::before）一致：第一条在 129px，之后每 34px 一条
+    x.fillStyle = "rgba(51,70,200,0.08)";
+    for (let y = 129 * s; y < h; y += 34 * s) x.fillRect(0, y, w, s);
+    x.strokeStyle = "rgba(51,70,200,0.07)";
+    x.lineWidth = s;
+    x.strokeRect(10.5 * s, 10.5 * s, w - 21 * s, h - 21 * s);
     x.textAlign = "left";
     x.fillStyle = PALETTE.cobalt;
     x.font = `${Math.round(11 * s)}px "SF Mono", Menlo, monospace`;
     x.fillText("YUGC POST · 加入我们", 38 * s, 44 * s);
     x.fillStyle = PALETTE.ink;
-    x.font = `600 ${Math.round(22 * s)}px "PingFang SC", "Hiragino Sans GB", sans-serif`;
+    x.font = `700 ${Math.round(22 * s)}px "PingFang SC", "Hiragino Sans GB", sans-serif`;
     x.fillText("致 长江大学极客班：", 38 * s, 76 * s);
-    if (logo) x.drawImage(logo, w - 80 * s, 36 * s, 40 * s, 40 * s);
+    if (logo) drawEmblem(x, logo, w - 60 * s, 52 * s, 44 * s);
     if (lines?.length) {
       x.fillStyle = PALETTE.cobalt;
       x.font = `${Math.round(19 * s)}px "PingFang SC", "Hiragino Sans GB", sans-serif`;
@@ -250,10 +264,18 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
       x.fillText("YUGC POST", w - 40 * s, h - 30 * s);
     }
   };
+  let drawnCssW = 0;
   const ensureLetterTexture = (aspect: number) => {
-    const width = 1024;
-    const height = Math.round(Math.min(2200, Math.max(560, width / aspect)));
-    if (letterTex && letterTex.canvas.height === height) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.round(Math.min(LETTER_TEX_MAX, Math.max(LETTER_TEX_MIN, letterCssW * ratio)));
+    const height = Math.round(Math.min(width * 2.4, Math.max(width * 0.55, width / aspect)));
+    // 尺寸与排版都没变就不重画：重画会重新上传整张贴图，动画中途会卡一帧
+    if (letterTex && letterTex.canvas.width === width && letterTex.canvas.height === height && drawnCssW === letterCssW) return;
+    drawnCssW = letterCssW;
+    if (letterTex && letterTex.canvas.width === width && letterTex.canvas.height === height) {
+      letterTex.redraw(filledLines);
+      return;
+    }
     letterTex?.texture.dispose();
     letterTex = canvasTexture<string[]>(width, height, drawLetter);
     if (filledLines) letterTex.redraw(filledLines);
@@ -288,7 +310,14 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   botPanel.position.y = -1 / 6;
   botPivot.add(botPanel);
   letter.add(midPanel, topPivot, botPivot);
-  ensureLetterTexture(letterAspect);
+  // 贴图一开始就按 DOM 信纸的尺寸建好（表单此时已在页面里，只是隐藏），抽出信纸时不用再换贴图
+  let texAspect = letterAspect;
+  const initialRect = options.letterRect();
+  if (initialRect && initialRect.width && initialRect.height) {
+    letterCssW = initialRect.width;
+    texAspect = initialRect.width / initialRect.height;
+  }
+  ensureLetterTexture(texAspect);
   const tintPaper = new THREE.Color();
   const WHITE = new THREE.Color("#ffffff");
   const CREASE = new THREE.Color("#d9d5ca");
@@ -323,16 +352,21 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   dome.position.y = 1.71;
   const slot = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.06, 0.02, 2, 0.01), new THREE.MeshStandardMaterial({ color: "#141a44" }));
   slot.position.set(0, 1.55, 0.605);
-  const plate = canvasTexture(256, 96, (x, w, h) => {
-    x.fillStyle = PAPER;
-    x.fillRect(0, 0, w, h);
-    x.fillStyle = PALETTE.ink;
-    x.textAlign = "center";
-    x.font = '700 34px "SF Mono", Menlo, monospace';
-    x.fillText("YUGC", w / 2, 44);
-    x.font = '20px "PingFang SC", sans-serif';
-    x.fillText("极客班信箱", w / 2, 78);
-  });
+  const plate = canvasTexture(
+    256,
+    96,
+    (x, w) => {
+      x.fillStyle = PAPER;
+      x.fillRect(0, 0, w, 96);
+      x.fillStyle = PALETTE.ink;
+      x.textAlign = "center";
+      x.font = '700 34px "SF Mono", Menlo, monospace';
+      x.fillText("YUGC", w / 2, 44);
+      x.font = '20px "PingFang SC", sans-serif';
+      x.fillText("极客班信箱", w / 2, 78);
+    },
+    TEXT_SCALE,
+  );
   const label = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.19), new THREE.MeshStandardMaterial({ map: plate.texture, roughness: 0.6 }));
   label.position.set(0, 1.3, 0.606);
   const flagPivot = new THREE.Group();
@@ -379,6 +413,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     boxShadow.position.set(L.box.x, 0.002, L.box.z);
     boxShadow.scale.setScalar(L.boxScale / 0.78);
     applyCam(camIn);
+    readDomRect();
     if (phase === "writing" || phase === "arrive" || phase === "open") placeEnvelopeForPhase();
     stage.markShadows();
   };
@@ -402,12 +437,18 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   const right = new THREE.Vector3();
   const up = new THREE.Vector3();
   const fwd = new THREE.Vector3();
+  const plane = { x: 0, y: 0 };
+  /** DOM 信纸的位置：固定定位，只在阶段开始和窗口尺寸变化时读一次（逐帧读会触发布局并分配 DOMRect） */
+  let domRect: DOMRect | null = null;
+  const readDomRect = () => {
+    domRect = options.letterRect();
+  };
   const computeDomPose = (): boolean => {
-    const rect = options.letterRect();
+    const rect = domRect;
     const vw = canvas.clientWidth;
     const vh = canvas.clientHeight;
     if (!rect || !rect.width || !rect.height || !vw || !vh) return false;
-    const p = pixelToCameraPlane(rect.left + rect.width / 2, rect.top + rect.height / 2, vw, vh, camera.fov, LAND_DIST);
+    const p = pixelToCameraPlane(rect.left + rect.width / 2, rect.top + rect.height / 2, vw, vh, camera.fov, LAND_DIST, plane);
     const perPx = (2 * LAND_DIST * Math.tan((camera.fov * Math.PI) / 360)) / vh;
     const q = camera.quaternion;
     right.set(1, 0, 0).applyQuaternion(q);
@@ -420,8 +461,12 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     return true;
   };
   const syncAspect = () => {
-    const rect = options.letterRect();
-    if (rect && rect.width && rect.height) letterAspect = rect.width / rect.height;
+    readDomRect();
+    const rect = domRect;
+    if (rect && rect.width && rect.height) {
+      letterAspect = rect.width / rect.height;
+      letterCssW = rect.width;
+    }
     ensureLetterTexture(letterAspect);
     setInEnvelopeScale();
   };
@@ -439,6 +484,8 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   const fromScale = new THREE.Vector3();
   const fromEnvPos = new THREE.Vector3();
   const fromEnvRot = new THREE.Euler(0, 0, 0, "YXZ");
+  /** 投递开始时贴地柔影的不透明度：从这里淡到 0，不从固定值起跳 */
+  let fromShadow = 0;
   const mouthLocal = new THREE.Vector3();
   const IDENTITY = new THREE.Quaternion();
   let letterReturned = false;
@@ -511,13 +558,17 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         setFold(1 - unfold, 1 - unfold);
         if (p >= 1.3) {
           setFold(0, 0);
-          letter.visible = false;
           setPhase("writing");
         }
         motion = Motion.Active;
         break;
       }
       case "writing":
+        // DOM 信纸在 3D 信纸上面淡入；淡入完成后再把 3D 信纸藏起来
+        if (letter.visible) {
+          if (p >= HANDOFF_S) letter.visible = false;
+          motion = Motion.Active;
+        }
         break;
       case "sealing": {
         const fb = ease.inOut(span(p, 0.1, 0.5));
@@ -565,6 +616,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         if (p >= 3.3) {
           fromEnvPos.copy(envelope.position);
           fromEnvRot.copy(envelope.rotation);
+          fromShadow = envShadow.material.opacity;
           setPhase("posting");
         }
         motion = Motion.Active;
@@ -575,7 +627,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         scene.updateMatrixWorld();
         slot.getWorldPosition(slotWorld);
         inward.set(0, 0, -0.35 * L.boxScale).applyAxisAngle(tmp.set(0, 1, 0), box.rotation.y);
-        slotWorld.addScaledVector(inward, k > 0.8 ? (k - 0.8) / 0.2 : 0);
+        slotWorld.addScaledVector(inward, ease.smooth(span(k, 0.7, 1)));
         mid.lerpVectors(fromEnvPos, slotWorld, 0.5).add(tmp.set(0, 1.1, 0.6));
         arcA.lerpVectors(fromEnvPos, mid, k);
         arcB.lerpVectors(mid, slotWorld, k);
@@ -584,7 +636,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         envelope.rotation.set(lerp(fromEnvRot.x, -Math.PI / 2 + 0.08, ease.inOut(span(k, 0.35, 1))), lerp(fromEnvRot.y, box.rotation.y, k), Math.sin(k * Math.PI) * 0.35);
         envelope.scale.setScalar(lerp(ENV_SCALE, 0.2 * (L.boxScale / 0.78), k));
         envShadow.position.set(envelope.position.x, 0.002, envelope.position.z);
-        envShadow.material.opacity = 0.4 * (1 - k);
+        envShadow.material.opacity = fromShadow * (1 - k);
         postCam.lerpVectors(L.cam, tmp.copy(L.cam).add(right.set(L.box.x * 0.45, 0.2, -0.4)), k);
         // 镜头只朝信箱偏一点：信箱停在画面右侧，左侧留给回执
         postTarget.lerpVectors(L.target, tmp.copy(L.box).setY(1.1 * L.boxScale), k * 0.3);
@@ -636,7 +688,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     setEnvelope(START.pos, START.rot.x, START.rot.y, START.rot.z);
     options.onPhase("arrive");
   }
-  await stage.warmUp();
+  await stage.warmUp([seal]);
   stage.invalidate();
 
   return {

@@ -35,10 +35,13 @@
   width: min(640px, calc(100vw - 32px)); max-height: calc(100svh - 104px); overflow: auto;
   transform: translate(-50%, -50%); padding: 30px 38px 26px; border-radius: 4px;
   background-color: #fbfaf6;
+  /* 横格线从 96px 往下画、不重复（第一条在 129px，之后每 34px 一条），和 three/join.ts 的信纸贴图逐像素一致，交接时不跳 */
   background-image:
     radial-gradient(120% 80% at 0% 0%, rgb(255 255 255 / 70%), transparent 60%),
     repeating-linear-gradient(transparent 0 33px, rgb(51 70 200 / 8%) 33px 34px);
   background-position: 0 0, 0 96px;
+  background-size: 100% 100%, 100% calc(100% - 96px);
+  background-repeat: no-repeat;
   box-shadow: 0 1px 0 #fff inset, 0 0 0 1px rgb(27 33 64 / 6%), 0 40px 80px -40px rgb(27 33 64 / 45%), 0 12px 24px -18px rgb(27 33 64 / 25%);
   opacity: 0; visibility: hidden; transition: opacity .18s linear, visibility 0s .18s;
 }
@@ -47,7 +50,7 @@
 .pt-letter-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 .pt-letter-kicker { font: 11px var(--pt-mono); letter-spacing: .14em; color: var(--pt-cobalt); margin-bottom: 6px; }
 .pt-letter-head h2 { font-size: 22px; font-weight: 700; letter-spacing: .01em; }
-.pt-letter-head img { width: 44px; height: 44px; flex: none; }
+.pt-letter-head img { width: 44px; height: 44px; flex: none; border-radius: 50%; }
 .pt-letter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .pt-lf { display: block; margin-bottom: 14px; }
 .pt-lf > span { display: block; font: 11.5px var(--pt-mono); letter-spacing: .08em; color: var(--pt-ink-soft); }

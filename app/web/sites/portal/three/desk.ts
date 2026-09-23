@@ -1,15 +1,17 @@
 // 首页首屏：浅色书桌 + 笔记本电脑（程序化建模，无外部模型）。点击屏幕 → 镜头推近 → 交给 DOM 版 YUGC OS。
 // 由 pages/Home.tsx 动态加载；本模块不碰 React，只接收一个 canvas、一个悬停提示元素和几个回调。
 //
-// 相对原型的性能调整：像素比上限 1.5、阴影 1024 且只在物体移动时刷新、机器人与热气不投实时阴影
+// 相对原型的性能调整：像素比由 Stage 的调速器管（起步 2，跟不上就降档）、阴影 1024 且只在物体移动时刷新、机器人与热气不投实时阴影
 // （贴地柔影代替）、去掉看不出的 clearcoat、键盘按键只更新变化的实例、拾取用代理几何与键盘平面换算、
 // 环境动画（热气、悬浮、叶子）只在用户最近有操作时播放，静置几秒后停到静止姿态、循环停止；进入系统桌面后整个循环停下。
+// 屏幕拆成三层：静态底图（大贴图，只画一次）+「开机」按钮 + 时钟（两张小贴图，悬停和走时只重画小的），
+// 推近时再盖一层与开机画面同色的「幕」渐显，最后一帧与 DOM 开机画面严丝合缝，不重画大贴图、没有跳变。
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { coverDistance, viewOffset } from "../lib/cameraMath";
 import type { LoaderStep } from "../lib/loaderProgress";
-import { ease } from "../lib/motion";
-import { Motion, Stage, canvasTexture, loadImage, softShadow } from "./stage";
+import { damp, ease, span } from "../lib/motion";
+import { Motion, Stage, TEXT_SCALE, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
 export type DeskOptions = {
   reducedMotion: boolean;
@@ -29,7 +31,7 @@ export type DeskHandle = {
   focus(options: { instant: boolean; onArrive: () => void }): Promise<void>;
   /** 从屏幕退回书桌 */
   unfocus(instant: boolean): Promise<void>;
-  /** 系统桌面盖住画布时停下渲染循环 */
+  /** 系统桌面盖住画布时停下渲染循环（镜头还在飞时等它飞完再停，开机画面淡入期间画面不冻住） */
   setActive(active: boolean): void;
   /** 真键盘敲一下，桌上的键盘也按一下 */
   pressKey(): void;
@@ -39,7 +41,14 @@ export type DeskHandle = {
 
 const SCREEN_W = 1.1;
 const SCREEN_H = 0.6875;
+/** 屏幕贴图的逻辑尺寸（绘制坐标）；实际画布按 SCREEN_SCALE 放大 */
+const SCREEN_PX_W = 1280;
+const SCREEN_PX_H = 800;
+const SCREEN_SCALE = 1.6;
+const SCREEN_Y = 0.398;
 const PAPER = "#f5f4f0";
+/** 开机画面的底色（与 styles/portal.css 的 --pt-ice 一致） */
+const ICE = "#fbfbfd";
 
 type Pose = { pos: THREE.Vector3; target: THREE.Vector3; fov: number; ox: number; oy: number };
 
@@ -160,75 +169,113 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   bezel.position.set(0, 0.392, 0.0112);
   lid.add(bezel);
 
-  const screenTex = canvasTexture<{ mode: "idle" | "boot"; hot: boolean }>(1280, 800, (x, W, H, arg) => {
-    const mode = arg?.mode ?? "idle";
-    const hot = arg?.hot ?? false;
-    x.textAlign = "left";
-    if (mode === "boot") {
-      x.fillStyle = "#fbfbfd";
+  // 屏幕底图：只画一次（和校徽加载完再补画一次），悬停与走时都不碰它
+  const screenTex = canvasTexture(
+    SCREEN_PX_W,
+    SCREEN_PX_H,
+    (x, W, H) => {
+      const g = x.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#f9faff");
+      g.addColorStop(1, "#e4e9ff");
+      x.fillStyle = g;
       x.fillRect(0, 0, W, H);
-      return;
-    }
-    const g = x.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#f9faff");
-    g.addColorStop(1, "#e4e9ff");
-    x.fillStyle = g;
-    x.fillRect(0, 0, W, H);
-    x.fillStyle = "rgba(51,70,200,0.10)";
-    for (let y = 70; y < H; y += 32) for (let X = 22; X < W; X += 32) x.fillRect(X, y, 2, 2);
-    x.fillStyle = "rgba(255,255,255,0.8)";
-    x.fillRect(0, 0, W, 44);
-    if (logo) x.drawImage(logo, 20, 9, 26, 26);
-    x.fillStyle = "#1b2140";
-    x.font = '600 21px -apple-system, "PingFang SC", sans-serif';
-    x.fillText("YUGC OS", 58, 29);
-    x.fillStyle = "#5b6283";
-    x.font = '20px "SF Mono", Menlo, monospace';
-    x.textAlign = "right";
-    x.fillText(new Date().toTimeString().slice(0, 5), W - 24, 29);
-    x.textAlign = "center";
-    if (logo) x.drawImage(logo, W / 2 - 110, 150, 220, 220);
-    x.fillStyle = "#1b2140";
-    x.font = '700 46px "SF Mono", Menlo, monospace';
-    x.fillText("Y U G C   O S", W / 2, 450);
-    x.fillStyle = "#5b6283";
-    x.font = '26px -apple-system, "PingFang SC", sans-serif';
-    x.fillText("长江大学极客班", W / 2, 496);
-    const pw = 320;
-    const ph = 70;
-    const px = W / 2 - pw / 2;
-    const py = 560;
-    if (hot) {
-      x.fillStyle = "rgba(51,70,200,0.16)";
-      x.beginPath();
-      x.roundRect(px - 12, py - 12, pw + 24, ph + 24, 47);
-      x.fill();
-    }
-    x.fillStyle = hot ? "#2436b8" : "#3346c8";
-    x.beginPath();
-    x.roundRect(px, py, pw, ph, 35);
-    x.fill();
-    x.fillStyle = "#fff";
-    x.font = '600 28px -apple-system, "PingFang SC", sans-serif';
-    x.fillText("点击开机", W / 2, py + 46);
-    x.fillStyle = "#8a91b0";
-    x.font = '18px "SF Mono", Menlo, monospace';
-    x.fillText("nano@yugc:~$ ./join --yugc", W / 2, 720);
-  });
-  screenTex.texture.anisotropy = 8;
+      x.fillStyle = "rgba(51,70,200,0.10)";
+      for (let y = 70; y < H; y += 32) for (let X = 22; X < W; X += 32) x.fillRect(X, y, 2, 2);
+      x.fillStyle = "rgba(255,255,255,0.8)";
+      x.fillRect(0, 0, W, 44);
+      if (logo) drawEmblem(x, logo, 33, 22, 26);
+      x.textAlign = "left";
+      x.fillStyle = "#1b2140";
+      x.font = '600 21px -apple-system, "PingFang SC", sans-serif';
+      x.fillText("YUGC OS", 58, 29);
+      x.textAlign = "center";
+      if (logo) drawEmblem(x, logo, W / 2, 260, 220);
+      x.fillStyle = "#1b2140";
+      x.font = '700 46px "SF Mono", Menlo, monospace';
+      x.fillText("Y U G C   O S", W / 2, 450);
+      x.fillStyle = "#5b6283";
+      x.font = '26px -apple-system, "PingFang SC", sans-serif';
+      x.fillText("长江大学极客班", W / 2, 494);
+      x.fillStyle = "#8a91b0";
+      x.font = '18px "SF Mono", Menlo, monospace';
+      x.fillText("nano@yugc:~$ ./join --yugc", W / 2, 720);
+    },
+    SCREEN_SCALE,
+  );
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ map: screenTex.texture, toneMapped: false }));
-  screen.position.set(0, 0.398, 0.0116);
+  screen.position.set(0, SCREEN_Y, 0.0116);
   lid.add(screen);
+  /** 屏幕贴图上的一块矩形（绘制坐标）→ 盖在屏幕上的小平面 */
+  const screenPatch = (left: number, top: number, width: number, height: number, map: THREE.Texture, z: number) => {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry((SCREEN_W * width) / SCREEN_PX_W, (SCREEN_H * height) / SCREEN_PX_H),
+      new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false }),
+    );
+    mesh.position.set(((left + width / 2) / SCREEN_PX_W - 0.5) * SCREEN_W, SCREEN_Y + (0.5 - (top + height / 2) / SCREEN_PX_H) * SCREEN_H, z);
+    mesh.renderOrder = 1;
+    lid.add(mesh);
+    return mesh;
+  };
+  // 「开机」按钮（悬停时加深、外面一圈光晕）
+  const buttonTex = canvasTexture<boolean>(
+    344,
+    94,
+    (x, w, h, hot) => {
+      x.clearRect(0, 0, w, h);
+      if (hot) {
+        x.fillStyle = "rgba(51,70,200,0.16)";
+        x.beginPath();
+        x.roundRect(0, 0, w, h, h / 2);
+        x.fill();
+      }
+      x.fillStyle = hot ? "#2436b8" : "#3346c8";
+      x.beginPath();
+      x.roundRect(12, 12, w - 24, h - 24, (h - 24) / 2);
+      x.fill();
+      x.fillStyle = "#fff";
+      x.textAlign = "center";
+      x.font = '600 28px -apple-system, "PingFang SC", sans-serif';
+      x.fillText("点击开机", w / 2, 58);
+    },
+    TEXT_SCALE,
+  );
+  screenPatch(SCREEN_PX_W / 2 - 172, 548, 344, 94, buttonTex.texture, 0.0118);
+  // 顶栏右侧的时钟：每 20 秒只重画这一小块
+  const clockTex = canvasTexture(
+    120,
+    44,
+    (x, w) => {
+      x.clearRect(0, 0, w, 44);
+      x.fillStyle = "#5b6283";
+      x.font = '20px "SF Mono", Menlo, monospace';
+      x.textAlign = "right";
+      x.fillText(new Date().toTimeString().slice(0, 5), w - 14, 29);
+    },
+    TEXT_SCALE,
+  );
+  screenPatch(SCREEN_PX_W - 130, 0, 120, 44, clockTex.texture, 0.0118);
+  // 推近时渐显的「幕」：与开机画面同色，盖住屏幕内容
+  const veil = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ color: ICE, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  veil.position.set(0, SCREEN_Y, 0.012);
+  veil.renderOrder = 2;
+  veil.visible = false;
+  lid.add(veil);
+  const setVeil = (opacity: number) => {
+    veil.material.opacity = opacity;
+    veil.visible = opacity > 0.001;
+  };
   const webcam = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12), new THREE.MeshBasicMaterial({ color: "#2b3150" }));
   webcam.position.set(0, 0.758, 0.0114);
   lid.add(webcam);
   cast(laptop);
   keys.castShadow = false;
-  screen.castShadow = false;
-  screen.receiveShadow = false;
-  let screenMode: "idle" | "boot" = "idle";
+  lid.traverse((o) => {
+    if (o !== shell && o !== bezel) {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    }
+  });
   let screenHot = false;
-  const drawScreen = () => screenTex.redraw({ mode: screenMode, hot: screenHot });
 
   // ── 桌面小物 ───────────────────────────────────────────────────────────
   const mug = new THREE.Group();
@@ -356,16 +403,21 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   scene.add(cast(pencil));
 
   const note = (text: string, color: string, size = 0.2) => {
-    const tex = canvasTexture(256, 256, (x, W) => {
-      x.fillStyle = color;
-      x.fillRect(0, 0, W, W);
-      x.fillStyle = "rgba(0,0,0,0.05)";
-      x.fillRect(0, 0, W, 34);
-      x.fillStyle = "#1b2140";
-      x.font = '600 30px "SF Mono", Menlo, monospace';
-      x.textAlign = "center";
-      text.split("\n").forEach((line, i) => x.fillText(line, W / 2, 120 + i * 44));
-    });
+    const tex = canvasTexture(
+      256,
+      256,
+      (x, W) => {
+        x.fillStyle = color;
+        x.fillRect(0, 0, W, W);
+        x.fillStyle = "rgba(0,0,0,0.05)";
+        x.fillRect(0, 0, W, 34);
+        x.fillStyle = "#1b2140";
+        x.font = '600 30px "SF Mono", Menlo, "PingFang SC", monospace';
+        x.textAlign = "center";
+        text.split("\n").forEach((line, i) => x.fillText(line, W / 2, 120 + i * 44));
+      },
+      TEXT_SCALE,
+    );
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex.texture, roughness: 0.9 }));
     mesh.receiveShadow = true;
     return mesh;
@@ -379,18 +431,23 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   n2.position.set(0.96, 0.0016, 0.86);
   scene.add(n2);
 
-  const poster = canvasTexture(512, 640, (x) => {
-    x.fillStyle = "#fbfaf7";
-    x.fillRect(0, 0, 512, 640);
-    if (logo) x.drawImage(logo, 106, 90, 300, 300);
-    x.fillStyle = "#1b2140";
-    x.textAlign = "center";
-    x.font = '700 34px "SF Mono", Menlo, monospace';
-    x.fillText("HELLO, GEEK.", 256, 470);
-    x.fillStyle = "#5b6283";
-    x.font = '20px "SF Mono", Menlo, monospace';
-    x.fillText("SUPERCODER · 2021", 256, 512);
-  });
+  const poster = canvasTexture(
+    512,
+    640,
+    (x) => {
+      x.fillStyle = "#fbfaf7";
+      x.fillRect(0, 0, 512, 640);
+      if (logo) drawEmblem(x, logo, 256, 250, 300);
+      x.fillStyle = "#1b2140";
+      x.textAlign = "center";
+      x.font = '700 34px "SF Mono", Menlo, monospace';
+      x.fillText("HELLO, GEEK.", 256, 470);
+      x.fillStyle = "#5b6283";
+      x.font = '20px "SF Mono", Menlo, monospace';
+      x.fillText("SUPERCODER · 2021", 256, 512);
+    },
+    TEXT_SCALE,
+  );
   const frame = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.9, 0.03, 2, 0.008), new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }));
   frame.position.set(-0.55, 0.92, -1.48);
   frame.scale.setScalar(0.8);
@@ -405,6 +462,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let idle: Pose = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 33, ox: 0, oy: 0 };
   const pose = { pos: new THREE.Vector3(), target: new THREE.Vector3(), shift: 1 };
   let focused = false;
+  /** 指针视差的权重：镜头飞行时为 0，落回书桌后缓缓回到 1，飞行结束的那一帧不会被视差「拽」一下 */
+  let parallaxK = 1;
+  /** 外部希望循环运行吗（系统桌面盖住画布时为 false）；飞行中先不停，飞完再停 */
+  let wantActive = true;
   const focusPos = new THREE.Vector3();
   const focusTarget = new THREE.Vector3();
   const tmpNormal = new THREE.Vector3();
@@ -416,14 +477,15 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     const d = coverDistance(camera.fov, camera.aspect, SCREEN_W, SCREEN_H, 0.88);
     focusPos.copy(focusTarget).addScaledVector(tmpNormal, d);
   };
+  const offset = { x: 0, y: 0 };
   const applyCamera = () => {
     camera.position.copy(pose.pos);
     camera.lookAt(pose.target);
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (pose.shift > 0.001) {
-      const o = viewOffset(w, h, idle.ox, idle.oy, pose.shift);
-      camera.setViewOffset(w, h, o.x, o.y, w, h);
+      viewOffset(w, h, idle.ox, idle.oy, pose.shift, offset);
+      camera.setViewOffset(w, h, offset.x, offset.y, w, h);
     } else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   };
@@ -477,15 +539,22 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       pose.target.lerpVectors(anim.fromTarget, anim.toTarget, e);
       pose.shift = anim.fromShift + (anim.toShift - anim.fromShift) * e;
       anim.onProgress?.(p);
+      parallaxK = 0;
       moving = true;
       if (p >= 1) {
         const done = anim.done;
         anim = null;
         done();
+        if (!wantActive) stage.setPaused(true);
       }
     } else if (!focused && !reducedMotion) {
+      if (parallaxK < 0.999) {
+        parallaxK = damp(parallaxK, 1, 3, dt);
+        moving = true;
+      } else parallaxK = 1;
       const s = stage.smooth;
-      pose.pos.set(idle.pos.x + s.x * 0.22, idle.pos.y + s.y * 0.1, idle.pos.z - s.x * 0.08);
+      const k = parallaxK;
+      pose.pos.set(idle.pos.x + s.x * 0.22 * k, idle.pos.y + s.y * 0.1 * k, idle.pos.z - s.x * 0.08 * k);
       pose.target.copy(idle.target);
     }
     applyCamera();
@@ -510,6 +579,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     { name: "mug", hint: "续一杯", object: mug },
     { name: "plant", hint: "记得浇水", object: plant },
   ];
+  const screenParts: THREE.Object3D[] = [screen, bezel, shell];
   const pick = (clientX: number, clientY: number, touchKeys: boolean): Target | null => {
     const rect = canvas.getBoundingClientRect();
     ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
@@ -527,10 +597,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
         if (c >= 0 && c < COLS && r >= 0 && r < ROWS) press(r * COLS + c);
       }
     }
-    for (const target of TARGETS) {
+    for (let i = 0; i < TARGETS.length; i++) {
+      const target = TARGETS[i];
       if (target.exact) {
         hits.length = 0;
-        ray.intersectObjects([screen, bezel, shell], false, hits);
+        ray.intersectObjects(screenParts, false, hits);
         if (hits.length) return target;
         continue;
       }
@@ -555,7 +626,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     if (next?.name === hot?.name) return;
     if ((next?.name === "screen") !== (hot?.name === "screen")) {
       screenHot = next?.name === "screen";
-      drawScreen();
+      buttonTex.redraw(screenHot);
     }
     hot = next;
     canvas.classList.toggle("is-hot", Boolean(hot));
@@ -587,10 +658,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   canvas.addEventListener("pointerleave", onLeave);
   canvas.addEventListener("click", onClick);
 
-  // 屏幕上的时钟：每 20 秒重画一次贴图（只在书桌可见时）
+  // 屏幕上的时钟：每 20 秒重画一次那一小块贴图（只在书桌可见时）
   const clock = window.setInterval(() => {
     if (!stage.isPaused && !focused) {
-      drawScreen();
+      clockTex.redraw();
       stage.invalidate();
     }
   }, 20000);
@@ -615,7 +686,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     robot.rotation.z = Math.sin(robotHop * Math.PI * 2) * 0.12;
     const s = stage.smooth;
     const yaw = Math.atan2(camera.position.x + s.x * 1.2 - robot.position.x, camera.position.z - robot.position.z);
-    const k = Math.min(1, dt * 4);
+    const k = 1 - Math.exp(-4 * dt);
     const dYaw = yaw - head.rotation.y;
     const dPitch = -s.y * 0.35 - head.rotation.x;
     head.rotation.y += dYaw * k;
@@ -652,7 +723,8 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       steamBurst = Math.max(0, steamBurst - dt * 0.5);
       motion = Motion.Active;
     }
-    for (const sprite of steam) {
+    for (let i = 0; i < steam.length; i++) {
+      const sprite = steam[i];
       const phase = sprite.userData.phase as number;
       const p = (time * (0.22 + steamBurst * 0.5) + phase) % 1;
       sprite.position.set(Math.sin(time * 1.3 + phase * 9) * 0.03, 0.26 + p * 0.42, 0);
@@ -682,11 +754,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     dispose();
     return null;
   }
-  drawScreen();
+  screenTex.redraw();
   poster.redraw();
   report("emblem", "load emblem.png");
   stage.resize();
-  await stage.warmUp();
+  await stage.warmUp([veil]);
   if (options.cancelled()) {
     dispose();
     return null;
@@ -713,12 +785,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     stage,
     async focus({ instant, onArrive }) {
       setHot(null);
-      screenMode = "boot";
-      drawScreen();
       computeFocus();
       focused = true;
       if (instant || reducedMotion) {
         anim = null;
+        setVeil(1);
         pose.pos.copy(focusPos);
         pose.target.copy(focusTarget);
         pose.shift = 0;
@@ -728,7 +799,9 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
         return;
       }
       let arrived = false;
+      // 幕在镜头飞到 30%–75% 之间渐显；82% 时屏幕已经铺满视口，交给 DOM 开机画面（同色，看不出交接）
       await fly(focusPos, focusTarget, 0, 1350, (p) => {
+        setVeil(ease.inOut(span(p, 0.3, 0.75)));
         if (!arrived && p > 0.82) {
           arrived = true;
           onArrive();
@@ -738,12 +811,13 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     },
     async unfocus(instant) {
       focused = false;
-      screenMode = "idle";
       screenHot = false;
-      drawScreen();
+      buttonTex.redraw(false);
       stage.setPaused(false);
       if (instant || reducedMotion) {
         anim = null;
+        setVeil(0);
+        parallaxK = 1;
         pose.pos.copy(idle.pos);
         pose.target.copy(idle.target);
         pose.shift = 1;
@@ -751,10 +825,12 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
         stage.invalidate();
         return;
       }
-      await fly(idle.pos, idle.target, 1, 1100);
+      // 退回时幕在前 40% 渐隐（此时 DOM 桌面也在淡出），镜头落回书桌后视差再缓缓接上
+      await fly(idle.pos, idle.target, 1, 1100, (p) => setVeil(1 - ease.inOut(span(p, 0.05, 0.45))));
     },
     setActive(active) {
-      stage.setPaused(!active);
+      wantActive = active;
+      if (active || !anim) stage.setPaused(!active);
     },
     pressKey() {
       if (focused) return;

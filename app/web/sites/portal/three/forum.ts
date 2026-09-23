@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { IconName } from "../lib/icons";
 import { damp, ease, lerp } from "../lib/motion";
-import { Motion, PALETTE, Stage, canvasTexture, drawIcon, loadImage, softShadow, type CanvasTexture } from "./stage";
+import { Motion, PALETTE, Stage, TEXT_SCALE, canvasTexture, drawIcon, loadImage, softShadow, type CanvasTexture } from "./stage";
 
 export type ForumBoard = { slug: string; name: string; desc: string; color: string; icon: IconName };
 
@@ -60,30 +60,35 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
   type Bubble = { group: THREE.Group; face: CanvasTexture<boolean>; dots: THREE.Mesh[]; shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>; hover: number; lit: boolean };
   const bubbles: Bubble[] = boards.map((board) => {
     const group = new THREE.Group();
-    const face = canvasTexture<boolean>(512, 320, (x, w, h, hot) => {
-      x.fillStyle = "#ffffff";
-      x.fillRect(0, 0, w, h);
-      x.fillStyle = board.color;
-      x.globalAlpha = 0.12;
-      x.beginPath();
-      x.roundRect(36, 40, 92, 92, 24);
-      x.fill();
-      x.globalAlpha = 1;
-      drawIcon(x, board.icon, 54, 58, 56, board.color);
-      x.textAlign = "left";
-      x.fillStyle = PALETTE.ink;
-      x.font = '700 50px "PingFang SC", "Hiragino Sans GB", sans-serif';
-      x.fillText(board.name, 36, 204);
-      x.fillStyle = PALETTE.inkSoft;
-      x.font = '28px "PingFang SC", "Hiragino Sans GB", sans-serif';
-      x.fillText(board.desc, 36, 256);
-      x.fillStyle = board.color;
-      x.fillRect(36, 282, hot ? 200 : 64, 6);
-      x.fillStyle = PALETTE.inkSoft;
-      x.font = '22px "SF Mono", Menlo, monospace';
-      x.textAlign = "right";
-      x.fillText(`/c/${board.slug}`, w - 36, 88);
-    });
+    const face = canvasTexture<boolean>(
+      512,
+      320,
+      (x, w, h, hot) => {
+        x.fillStyle = "#ffffff";
+        x.fillRect(0, 0, w, h);
+        x.fillStyle = board.color;
+        x.globalAlpha = 0.12;
+        x.beginPath();
+        x.roundRect(36, 40, 92, 92, 24);
+        x.fill();
+        x.globalAlpha = 1;
+        drawIcon(x, board.icon, 54, 58, 56, board.color);
+        x.textAlign = "left";
+        x.fillStyle = PALETTE.ink;
+        x.font = '700 50px "PingFang SC", "Hiragino Sans GB", sans-serif';
+        x.fillText(board.name, 36, 204);
+        x.fillStyle = PALETTE.inkSoft;
+        x.font = '28px "PingFang SC", "Hiragino Sans GB", sans-serif';
+        x.fillText(board.desc, 36, 256);
+        x.fillStyle = board.color;
+        x.fillRect(36, 282, hot ? 200 : 64, 6);
+        x.fillStyle = PALETTE.inkSoft;
+        x.font = '22px "SF Mono", Menlo, monospace';
+        x.textAlign = "right";
+        x.fillText(`/c/${board.slug}`, w - 36, 88);
+      },
+      TEXT_SCALE,
+    );
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     const front = new THREE.Mesh(faceGeo, new THREE.MeshBasicMaterial({ map: face.texture, toneMapped: false }));
     front.position.z = 0.1205;
@@ -157,7 +162,10 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
   let coinSpin = 0;
   /** 转场：elapsed 按夹紧后的帧 dt 累加（秒），卡帧不跳步 */
   let opening: { index: number; elapsed: number; fromPos: THREE.Vector3; fromTarget: THREE.Vector3; done: boolean } | null = null;
+  let lastWipe = 0;
   const groups = bubbles.map((b) => b.group);
+  const coinParts: THREE.Object3D[] = [coin, podium];
+  const tips = boards.map((board) => `进入「${board.name}」`);
   const bubbleIndex = (object: THREE.Object3D | null): number => {
     let o = object;
     while (o && !groups.includes(o as THREE.Group)) o = o.parent;
@@ -200,7 +208,7 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
   const onUp = (event: PointerEvent) => {
     dragging = false;
     if (moved >= 6) return;
-    if (stage.pick(event.clientX, event.clientY, [coin, podium])) return startOpening(-1);
+    if (stage.pick(event.clientX, event.clientY, coinParts)) return startOpening(-1);
     const hit = stage.pick(event.clientX, event.clientY, groups);
     const index = bubbleIndex(hit?.object ?? null);
     if (index >= 0) startOpening(index);
@@ -217,7 +225,7 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
       stage.invalidate();
       return;
     }
-    if (stage.pick(event.clientX, event.clientY, [coin, podium])) {
+    if (stage.pick(event.clientX, event.clientY, coinParts)) {
       canvas.style.cursor = "pointer";
       coinHot = 1;
       setHot(-1);
@@ -228,7 +236,7 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
     const index = bubbleIndex(stage.pick(event.clientX, event.clientY, groups)?.object ?? null);
     setHot(index);
     canvas.style.cursor = index >= 0 ? "pointer" : "grab";
-    options.onTip(index >= 0 ? `进入「${boards[index].name}」` : "", event.clientX, event.clientY);
+    options.onTip(index >= 0 ? tips[index] : "", event.clientX, event.clientY);
   };
   const onLeave = () => {
     coinHot = 0;
@@ -310,7 +318,11 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
       framePos.lerpVectors(opening.fromPos, camTo, k);
       frameTarget.lerpVectors(opening.fromTarget, lookTo, k);
       stage.frame(framePos, frameTarget);
-      options.onWipe(Math.max(0, (k - 0.7) / 0.3));
+      const wipe = Math.max(0, (k - 0.7) / 0.3);
+      if (Math.abs(wipe - lastWipe) > 0.01 || (wipe === 1 && lastWipe !== 1)) {
+        lastWipe = wipe;
+        options.onWipe(wipe);
+      }
       if (k >= 1 && !opening.done) {
         opening.done = true;
         options.onOpen(opening.index);

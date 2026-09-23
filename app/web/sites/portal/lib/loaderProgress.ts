@@ -7,6 +7,9 @@
 
 export const LOADER_SESSION_KEY = "yugc:booted";
 
+/** 进度到 100% 后停留多久再合幕（毫秒）：比花瓣点亮的过渡略长，保证合幕前画面完整 */
+export const LOADER_HOLD_MS = 300;
+
 /** 各步骤完成时对应的真实进度。顺序即首页实际执行顺序。 */
 export const LOADER_STEPS = {
   start: 0.04,
@@ -30,6 +33,12 @@ export function loaderGoal(target: number, elapsedMs: number, minMs: number): nu
   const real = Math.min(1, Math.max(0, target));
   if (minMs <= 0) return real;
   return Math.min(real, Math.max(0, elapsedMs) / minMs);
+}
+
+/** 每帧趋近系数：按帧间隔换算（60Hz 时约 0.12），120Hz 屏上不会走得更快。 */
+export function approachFactor(dtMs: number, lambda = 7.7): number {
+  const dt = Number.isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, 100) : 1000 / 60;
+  return 1 - Math.exp((-lambda * dt) / 1000);
 }
 
 /** 平滑趋近目标；差距很小时直接贴齐，保证能真正到达 1。 */

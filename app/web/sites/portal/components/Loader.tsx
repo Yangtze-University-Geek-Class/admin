@@ -4,8 +4,10 @@
 // 进度只来自真实完成的步骤（three 分包、环境贴图、场景、校徽、着色器编译、第一帧），
 // 规则在 ../lib/loaderProgress.ts：显示值永远不超过真实进度；同一会话第一次至少约 2.1s，之后 0.5s；
 // 减少动态效果时整个加载动画跳过。
+// 到 100% 后先停一拍（LOADER_HOLD_MS）再合幕：花瓣的过渡、签名的最后一笔都画完，幕布拉开前画面是完整的；
+// 同一会话再次进入时花瓣过渡改短（is-quick），0.5 秒里也能完整走完，不会带着半成品合幕。
 import { useEffect, useRef, useState } from "react";
-import { LOADER_SESSION_KEY, approach, loaderFinished, loaderGoal, loaderMinDuration, percentLabel, petalLit } from "../lib/loaderProgress";
+import { LOADER_HOLD_MS, LOADER_SESSION_KEY, approach, approachFactor, loaderFinished, loaderGoal, loaderMinDuration, percentLabel, petalLit } from "../lib/loaderProgress";
 import Emblem from "./Emblem";
 
 export type LoaderApi = { progress: (value: number, text?: string) => void };
@@ -32,6 +34,7 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
   const [lines, setLines] = useState<string[]>([]);
   const [lit, setLit] = useState(0);
   const [open, setOpen] = useState(false);
+  const [quick] = useState(seenThisSession);
   const target = useRef(0);
   const done = useRef(onDone);
   done.current = onDone;
@@ -62,8 +65,10 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
     let litShown = 0;
     let raf = 0;
     let timer = 0;
+    let last = 0;
     const frame = (now: number) => {
-      shown = approach(shown, loaderGoal(target.current, now - started, minMs));
+      shown = approach(shown, loaderGoal(target.current, now - started, minMs), approachFactor(last ? now - last : 0));
+      last = now;
       root.current?.style.setProperty("--p", shown.toFixed(3));
       if (pct.current) pct.current.textContent = percentLabel(shown);
       let nextLit = 0;
@@ -78,8 +83,10 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
         } catch {
           /* 隐私模式下 sessionStorage 不可写时忽略 */
         }
-        setOpen(true);
-        timer = window.setTimeout(() => done.current(), 900);
+        timer = window.setTimeout(() => {
+          setOpen(true);
+          timer = window.setTimeout(() => done.current(), 900);
+        }, LOADER_HOLD_MS);
         return;
       }
       raf = requestAnimationFrame(frame);
@@ -94,7 +101,7 @@ export default function Loader({ reducedMotion, onApi, onDone }: Props) {
   if (reducedMotion) return null;
 
   return (
-    <div ref={root} className={open ? "pt-loader is-open" : "pt-loader"} role="status" aria-live="polite" aria-label="正在加载">
+    <div ref={root} className={["pt-loader", quick ? "is-quick" : "", open ? "is-open" : ""].filter(Boolean).join(" ")} role="status" aria-live="polite" aria-label="正在加载">
       <div className="ld-top" aria-hidden="true">
         <span>YUGC://BOOT</span>
         <span>长江大学 · 计算机科学学院</span>

@@ -27,19 +27,39 @@ export function distanceForPixelHeight(fovDeg: number, viewH: number, worldH: nu
  * 屏幕像素 (px, py) 在相机前方距离 d 处的相机空间坐标（x 向右、y 向上，单位同世界）。
  * 用来把 3D 信纸摆到 DOM 表单所在的位置：两者在最后一帧严丝合缝，再交叉淡入。
  */
-export function pixelToCameraPlane(px: number, py: number, viewW: number, viewH: number, fovDeg: number, d: number): { x: number; y: number } {
+export function pixelToCameraPlane(
+  px: number,
+  py: number,
+  viewW: number,
+  viewH: number,
+  fovDeg: number,
+  d: number,
+  out: { x: number; y: number } = { x: 0, y: 0 },
+): { x: number; y: number } {
   const halfH = d * tanHalf(fovDeg);
   const halfW = halfH * (viewW / viewH);
-  return { x: (px / viewW) * 2 * halfW - halfW, y: halfH - (py / viewH) * 2 * halfH };
+  out.x = (px / viewW) * 2 * halfW - halfW;
+  out.y = halfH - (py / viewH) * 2 * halfH;
+  return out;
 }
 
 /**
  * 书桌首屏的镜头偏移（PerspectiveCamera.setViewOffset 的 x/y）：
  * 让书桌落在文案右侧；shift 从 1 过渡到 0 时镜头回正，推近屏幕时不歪。
+ * 每帧调用时传入 out 复用同一个对象（渲染循环里不分配）。
  */
-export function viewOffset(width: number, height: number, ox: number, oy: number, shift: number): { x: number; y: number } {
+export function viewOffset(
+  width: number,
+  height: number,
+  ox: number,
+  oy: number,
+  shift: number,
+  out: { x: number; y: number } = { x: 0, y: 0 },
+): { x: number; y: number } {
   const s = Math.min(1, Math.max(0, shift));
-  return { x: ox * width * s, y: oy * height * s };
+  out.x = ox * width * s;
+  out.y = oy * height * s;
+  return out;
 }
 
 /**

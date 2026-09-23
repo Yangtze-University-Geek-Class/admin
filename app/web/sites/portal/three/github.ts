@@ -7,7 +7,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { RepoSnapshot } from "../lib/osApps";
 import { damp, ease, span } from "../lib/motion";
 import { DAYS, LEVEL_COLORS, WEEKS, decorativeLevels } from "../lib/skyline";
-import { Motion, PALETTE, Stage, canvasTexture, softShadow } from "./stage";
+import { Motion, PALETTE, Stage, TEXT_SCALE, canvasTexture, softShadow } from "./stage";
 
 export type GithubOptions = {
   reducedMotion: boolean;
@@ -83,23 +83,28 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
   const tallest = Array.from(heights.keys()).sort((a, b) => heights[b] - heights[a]);
   const signs = repos.slice(0, 4).map((repo, k) => {
     const index = tallest[k * 17 + 3] ?? 0;
-    const tex = canvasTexture(512, 128, (x, w, h) => {
-      x.clearRect(0, 0, w, h);
-      x.fillStyle = "#ffffff";
-      x.beginPath();
-      x.roundRect(4, 4, w - 8, h - 8, 26);
-      x.fill();
-      x.strokeStyle = "rgba(27,33,64,0.12)";
-      x.lineWidth = 3;
-      x.stroke();
-      x.fillStyle = repo.language === "Rust" ? "#dea584" : PALETTE.cobalt;
-      x.beginPath();
-      x.arc(46, h / 2, 12, 0, Math.PI * 2);
-      x.fill();
-      x.fillStyle = PALETTE.ink;
-      x.font = '600 40px "SF Mono", Menlo, monospace';
-      x.fillText(repo.name, 74, h / 2 + 14);
-    });
+    const tex = canvasTexture(
+      512,
+      128,
+      (x, w, h) => {
+        x.clearRect(0, 0, w, h);
+        x.fillStyle = "#ffffff";
+        x.beginPath();
+        x.roundRect(4, 4, w - 8, h - 8, 26);
+        x.fill();
+        x.strokeStyle = "rgba(27,33,64,0.12)";
+        x.lineWidth = 3;
+        x.stroke();
+        x.fillStyle = repo.language === "Rust" ? "#dea584" : PALETTE.cobalt;
+        x.beginPath();
+        x.arc(46, h / 2, 12, 0, Math.PI * 2);
+        x.fill();
+        x.fillStyle = PALETTE.ink;
+        x.font = '600 40px "SF Mono", Menlo, monospace';
+        x.fillText(repo.name, 74, h / 2 + 14);
+      },
+      TEXT_SCALE,
+    );
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.texture, depthWrite: false, transparent: true }));
     sprite.scale.set(0.9, 0.225, 1);
     board.add(sprite);
@@ -188,8 +193,9 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
 
   // 悬停：方块附近微微抬起
   let hoverCell = -1;
+  const cellParts: THREE.Object3D[] = [cells];
   const onMove = (event: PointerEvent) => {
-    const hit = stage.pick(event.clientX, event.clientY, [cells]);
+    const hit = stage.pick(event.clientX, event.clientY, cellParts);
     const next = hit?.instanceId ?? -1;
     if (next !== hoverCell) {
       hoverCell = next;
@@ -250,7 +256,8 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
     }
     if (!risingDone || leaving || hoverActive) motion = Motion.Active;
 
-    for (const { sprite, index } of signs) {
+    for (let s = 0; s < signs.length; s++) {
+      const { sprite, index } = signs[s];
       const w = Math.floor(index / DAYS);
       const k = reducedMotion ? 1 : ease.out(span(p, 1.3 + w * 0.01, 1.8 + w * 0.01)) * (leaving ? 1 - span(lp, 0, 0.3) : 1);
       sprite.position.set(cellX(index), heights[index] + 0.34 + Math.sin(time * 1.6 + cellX(index)) * 0.02 * stage.ambient, cellZ(index));
