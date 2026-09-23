@@ -8,11 +8,12 @@
 #   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
 #   * 不使用 continue-on-error 掩盖失败。
 #
-# 分支模型：长期分支只有 main（正式）与 stage（预发布）；task/<issue>-<slug> 从 stage 拉出、
-# PR 回 stage、合并后删除；dev-<username> 是个人分支，只验证、不部署，也不能作为进入 stage 的凭据。
+# 分支模型：长期分支只有 main（正式）与 stage（预发布）；task/<issue>/<slug> 从 stage 拉出、
+# PR 回 stage、合并后删除；dev/<username> 是个人分支，只验证、不部署，也不能作为进入 stage 的凭据。
+# 分支名不用 -，只用 / 分层（见 docs/conventions/BRANCHING.md）。
 # 硬不变量由 branch-guard 强制（scripts/check-branch-invariants.mjs）。
 #
-# 触发：pull_request → main/stage；push → main/stage/task/**(任务分支)/dev-*(个人分支)；手工 dispatch。
+# 触发：pull_request → main/stage；push → main/stage/task/**(任务分支)/dev/**(个人分支)；手工 dispatch。
 
 name: CI
 
@@ -20,7 +21,7 @@ on:
   pull_request:
     branches: [main, stage]
   push:
-    branches: [main, stage, 'task/**', 'dev-*']
+    branches: [main, stage, 'task/**', 'dev/**']
   workflow_dispatch:
 
 # 最小权限：只读仓库内容。任何需要写权限的动作（tag、release、部署）都不属于本工作流。
