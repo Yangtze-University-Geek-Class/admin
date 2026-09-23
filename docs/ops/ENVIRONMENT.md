@@ -23,6 +23,8 @@ TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
 COOKIE_DOMAIN=
 ALLOWED_ORGS=
+# 可不设，默认 Yangtze-University-Geek-Class
+CONSOLE_ORG=Yangtze-University-Geek-Class
 ```
 
 这些占位值不能直接用于运行，密钥必须满足实际尺寸校验。生产须使用 HTTPS 并明确三个域名，前后端公开 host 一致，配置 Cookie Domain 前确认子域信任范围。详见 [部署规范](DEPLOY.md)。

@@ -59,6 +59,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'FORUM_DB_PATH',
   'FORUM_UPLOAD_DIR',
   'POW_DIFFICULTY',
+  'CONSOLE_ORG',
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */

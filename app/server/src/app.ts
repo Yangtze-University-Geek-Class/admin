@@ -1,5 +1,6 @@
 import portalRoutes from "./routes/portal/index.js";
 import adminRoutes from "./routes/admin/index.js";
+import consoleRoutes from "./routes/console/index.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -43,6 +44,7 @@ export async function buildApp(options: BuildAppOptions) {
 
   await app.register(portalRoutes);
   await app.register(adminRoutes);
+  await app.register(consoleRoutes);
   // Old forum APIs are retired, not silently mapped to a browser-only mock.
   const retired = async (_req: unknown, reply: import("fastify").FastifyReply) => reply.code(410).send({
     error: "legacy_forum_retired", message: "旧论坛接口已停用。新论坛采用 Tuff Forum，当前上游仅提供浏览器演示，不提供真实后端。",
