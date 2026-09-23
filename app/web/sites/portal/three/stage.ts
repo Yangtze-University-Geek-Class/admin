@@ -2,16 +2,43 @@
 // 纯 three.js，不依赖 React；由各页面组件用 import() 动态加载，所以 three 不进首屏包。
 //
 // 性能约束（docs/services/web/portal.md「性能预算」）：
-//   · 像素比上限 1.5；阴影贴图 1024，且 shadowMap.autoUpdate = false，只有物体真的动了才刷新；
+//   · 像素比起步 min(devicePixelRatio, 2)，由 ../lib/pixelRatio.ts 的调速器按帧间隔自动降档（2 → 1.5 → 1.25），
+//     同一会话只降不升（降到的档位记在 sessionStorage，换场景也从这一档起步）；
+//   · 阴影贴图 1024，且 shadowMap.autoUpdate = false，只有物体真的动了才刷新；
 //   · 按需渲染：没有动画、指针没动时整个循环停下（不再每帧 render）；
 //     「环境动画」（热气、机器人悬浮、气泡转圈）只在用户最近有操作时播放（engaged），
 //     无操作 settleMs 后缓缓停到静止姿态，循环随之完全停止；标签页隐藏、画布离开视口、被外部 pause 时同样停止；
 //   · 动画进行中每个 rAF 都画：不做「隔帧跳过」式限速（实测在 Chromium 里，画 / 不画交替的 rAF 会让下一帧被推迟到约 1s，反而卡顿）；
-//   · 循环里不分配对象（Vector3 等都预先建好）。
+//   · 循环里不分配对象（Vector3 等都预先建好；更新函数存在数组里，逐帧遍历不创建迭代器）。
+//   · 带字的程序化贴图按 2 倍左右的分辨率画（canvasTexture 的 scale），各向异性过滤取显卡上限（封顶 8），斜着看也清楚。
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { ICONS, type IconName } from "../lib/icons";
 import { damp } from "../lib/motion";
+import { PixelRatioGovernor, initialPixelRatio } from "../lib/pixelRatio";
+
+/** 本会话降到的像素比档位（只降不升，换场景也沿用） */
+const RATIO_KEY = "yugc:pixel-ratio";
+function sessionRatioCap(): number | null {
+  try {
+    const value = Number(sessionStorage.getItem(RATIO_KEY));
+    return value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+function rememberRatioCap(value: number) {
+  try {
+    sessionStorage.setItem(RATIO_KEY, String(value));
+  } catch {
+    /* 隐私模式下 sessionStorage 不可写时忽略：本页照样降档，只是下个场景重新测 */
+  }
+}
+
+/** 程序化贴图的各向异性过滤：第一个 Stage 建好后按显卡能力设置（封顶 8） */
+let textureAnisotropy = 4;
+/** 本会话见过的最短帧间隔（估计屏幕刷新间隔），跨场景沿用 */
+let sessionRefreshMs = Infinity;
 
 export const PALETTE = {
   paper: "#f6f5f1",
@@ -43,6 +70,7 @@ export type StageOptions = {
   studio?: boolean;
   /** 用户停止操作多久后，环境动画停到静止姿态（毫秒） */
   settleMs?: number;
+  /** 像素比上限（默认 2）；实际值由调速器按帧间隔往下调 */
   pixelRatioCap?: number;
   reducedMotion?: boolean;
 };
@@ -66,10 +94,14 @@ export class Stage {
   onLayout: ((width: number, height: number) => void) | null = null;
   /** 渲染计数，供性能验收读取 */
   renders = 0;
+  /** 像素比调速器：连续绘制时按帧间隔决定要不要降一档 */
+  readonly governor: PixelRatioGovernor;
+  /** 为 false 时不给调速器喂帧（例如首页加载动画还盖在画布上，那时的帧耗时不全是 3D 的） */
+  governing = true;
 
   /** 环境动画幅度 0..1：用户最近有操作时趋向 1，停止操作 settleMs 后趋向 0 */
   ambient = 1;
-  private readonly updaters = new Set<Updater>();
+  private readonly updaters: Updater[] = [];
   private readonly settleMs: number;
   private lastInput = performance.now();
   private raf = 0;
@@ -97,13 +129,18 @@ export class Stage {
   };
 
   constructor(canvas: HTMLCanvasElement, options: StageOptions = {}) {
-    const { fov = 32, background = PALETTE.paper, studio = true, settleMs = 8000, pixelRatioCap = 1.5, reducedMotion = false } = options;
+    const { fov = 32, background = PALETTE.paper, studio = true, settleMs = 8000, pixelRatioCap = 2, reducedMotion = false } = options;
     this.canvas = canvas;
     this.reducedMotion = reducedMotion;
     this.settleMs = settleMs;
     if (reducedMotion) this.ambient = 0;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap));
+    const ratio = initialPixelRatio(window.devicePixelRatio || 1, sessionRatioCap(), pixelRatioCap);
+    this.renderer.setPixelRatio(ratio);
+    // 前 30 帧里有着色器编译与贴图上传，不算进调速窗口
+    this.governor = new PixelRatioGovernor(ratio, { warmupFrames: 30, refreshMs: sessionRefreshMs });
+    this.probeRefresh();
+    textureAnisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.02;
@@ -137,6 +174,23 @@ export class Stage {
     this.io.observe(canvas);
     if (import.meta.env.DEV) (window as unknown as { __yugcStage?: Stage }).__yugcStage = this;
     this.resize();
+  }
+
+  /** 用几十个空 rAF 估计屏幕刷新间隔（此时通常只有加载动画在跑），供调速器判断预算 */
+  private probeRefresh(frames = 40) {
+    let last = 0;
+    let left = frames;
+    const step = (now: number) => {
+      if (this.disposed) return;
+      if (last) {
+        const interval = now - last;
+        this.governor.noteRefresh(interval);
+        if (interval >= 4 && interval < sessionRefreshMs) sessionRefreshMs = interval;
+      }
+      last = now;
+      if (--left > 0) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   private buildStudio(background: string) {
@@ -185,9 +239,12 @@ export class Stage {
   }
 
   add(updater: Updater): () => void {
-    this.updaters.add(updater);
+    this.updaters.push(updater);
     this.invalidate();
-    return () => this.updaters.delete(updater);
+    return () => {
+      const index = this.updaters.indexOf(updater);
+      if (index >= 0) this.updaters.splice(index, 1);
+    };
   }
 
   /** 相机基准位姿（复制，不持有传入对象）；立即生效，同一帧里后续计算拿到的就是新相机 */
@@ -268,16 +325,26 @@ export class Stage {
     this.ticking = true;
     this.again = false;
     const dt = this.lastRender ? Math.min(0.05, (now - this.lastRender) / 1000) : 1 / 60;
+    // 连续绘制的帧间隔喂给调速器：GPU 跟不上时降一档像素比
+    if (this.lastRender && this.governing) {
+      const interval = now - this.lastRender;
+      if (interval >= 4 && interval < sessionRefreshMs) sessionRefreshMs = interval;
+      const next = this.governor.sample(interval);
+      if (next !== null) {
+        this.renderer.setPixelRatio(next);
+        rememberRatioCap(next);
+      }
+    }
     // 环境动画幅度：操作中淡入、停止操作后约 1.5s 淡出到静止
     const goal = this.engaged ? 1 : 0;
     const ambientMoving = Math.abs(this.ambient - goal) > 0.002;
-    this.ambient = ambientMoving ? this.ambient + (goal - this.ambient) * Math.min(1, dt * 2.5) : goal;
+    this.ambient = ambientMoving ? damp(this.ambient, goal, 2.5, dt) : goal;
 
     let motion: Motion = ambientMoving || this.ambient > 0 ? Motion.Active : Motion.Idle;
     const dx = this.pointer.x - this.smooth.x;
     const dy = this.pointer.y - this.smooth.y;
     if (Math.abs(dx) > 1e-4 || Math.abs(dy) > 1e-4) {
-      const k = Math.min(1, dt * 3);
+      const k = 1 - Math.exp(-3 * dt);
       this.smooth.x += dx * k;
       this.smooth.y += dy * k;
       if (!this.reducedMotion && this.parallax > 0) motion = Motion.Active;
@@ -285,8 +352,8 @@ export class Stage {
     if (this.rig) {
       if (this.rig(dt)) motion = Motion.Active;
     } else this.applyBaseCamera();
-    for (const update of this.updaters) {
-      const m = update(dt, now / 1000);
+    for (let i = 0; i < this.updaters.length; i++) {
+      const m = this.updaters[i](dt, now / 1000);
       if (m > motion) motion = m;
     }
 
@@ -310,12 +377,18 @@ export class Stage {
     this.invalidate();
   }
 
-  /** 着色器预编译 + 首帧，用于真实加载进度 */
-  async warmUp(): Promise<void> {
+  /**
+   * 着色器预编译 + 首帧，用于真实加载进度。three 只编译可见物体：hidden 里的物体（稍后才出现的火漆、推近时的幕）
+   * 在编译期间临时显示，免得它们第一次出现的那一帧才编译着色器、卡一下。
+   */
+  async warmUp(hidden: readonly THREE.Object3D[] = []): Promise<void> {
+    for (const object of hidden) object.visible = true;
     try {
       await this.renderer.compileAsync(this.scene, this.camera);
     } catch {
       this.renderer.compile(this.scene, this.camera);
+    } finally {
+      for (const object of hidden) object.visible = false;
     }
   }
 
@@ -363,7 +436,7 @@ export class Stage {
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.io.disconnect();
-    this.updaters.clear();
+    this.updaters.length = 0;
     disposeTree(this.scene);
     this.envTarget.dispose();
     this.renderer.dispose();
@@ -397,21 +470,29 @@ export type CanvasTexture<T> = {
   redraw: (arg?: T) => void;
 };
 
-/** 程序化贴图：画在 2D canvas 上，redraw 时只更新这一张贴图 */
+/** 带字贴图的超采样倍数：屏幕上占几百像素、会被推近或斜着看的贴图用它，文字边缘不糊 */
+export const TEXT_SCALE = 2;
+
+/**
+ * 程序化贴图：画在 2D canvas 上，redraw 时只更新这一张贴图。
+ * width/height 是绘制用的逻辑尺寸；scale > 1 时画布按倍数放大、坐标系同步缩放，draw 里的坐标不用改。
+ */
 export function canvasTexture<T = undefined>(
   width: number,
   height: number,
   draw: (ctx: CanvasRenderingContext2D, width: number, height: number, arg?: T) => void,
+  scale = 1,
 ): CanvasTexture<T> {
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = textureAnisotropy;
   const ctx = canvas.getContext("2d");
   const redraw = (arg?: T) => {
     if (!ctx) return;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     draw(ctx, width, height, arg);
     texture.needsUpdate = true;
   };
@@ -442,6 +523,16 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: numbe
   ctx.scale(size / 24, size / 24);
   ctx.fillStyle = color;
   for (const d of ICONS[name]) ctx.fill(new Path2D(d));
+  ctx.restore();
+}
+
+/** 把校徽画成圆形（裁掉 PNG 四角的白底），cx、cy 为圆心，size 为直径 */
+export function drawEmblem(ctx: CanvasRenderingContext2D, image: HTMLImageElement, cx: number, cy: number, size: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.49, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(image, cx - size / 2, cy - size / 2, size, size);
   ctx.restore();
 }
 

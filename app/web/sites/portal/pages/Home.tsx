@@ -36,6 +36,7 @@ export default function Home() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const [loaderVisible, setLoaderVisible] = useState(!resume.current);
+  const loaderShown = useRef(!resume.current);
   const [bootRun, setBootRun] = useState(0);
   const [bootLines, setBootLines] = useState(0);
   const [nanoUp, setNanoUp] = useState(false);
@@ -91,6 +92,8 @@ export default function Home() {
           return;
         }
         desk.current = handle;
+        // 加载动画盖在画布上时，帧耗时里有加载动画自己的开销：这段时间不给像素比调速器喂帧
+        handle.stage.governing = !loaderShown.current;
         if (stateRef.current === "desktop") {
           await handle.focus({ instant: true, onArrive: () => undefined });
           handle.setActive(false);
@@ -195,7 +198,17 @@ export default function Home() {
   const { brand } = appConfig.portal;
   return (
     <div className="pt-root pt-home" data-state={state}>
-      {loaderVisible && <Loader reducedMotion={reducedMotion} onApi={onLoaderApi} onDone={() => setLoaderVisible(false)} />}
+      {loaderVisible && (
+        <Loader
+          reducedMotion={reducedMotion}
+          onApi={onLoaderApi}
+          onDone={() => {
+            loaderShown.current = false;
+            if (desk.current) desk.current.stage.governing = true;
+            setLoaderVisible(false);
+          }}
+        />
+      )}
       <canvas ref={canvas} className="pt-desk-canvas" aria-hidden="true" />
 
       <div ref={hudRef} className={view.hud ? "pt-hud" : "pt-hud is-off"}>
