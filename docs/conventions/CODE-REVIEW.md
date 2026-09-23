@@ -19,7 +19,7 @@
 
 ## 必须逐项检查的清单
 
-1. **分支不变量**：当前分支是否为 `task/<issue>-<slug>` 或 `stage`；`stage` 是否包含 `main`（`git merge-base --is-ancestor origin/main origin/stage`）；是否存在把 `task/*`、`dev-*` 直接指向 `main` 的路径。
+1. **分支不变量**：当前分支是否为 `task/<issue>/<slug>` 或 `stage`（分支名不含 `-`，见 [BRANCHING](BRANCHING.md) 命名规则）；`stage` 是否包含 `main`（`git merge-base --is-ancestor origin/main origin/stage`）；是否存在把 `task/**`、`dev/**` 直接指向 `main` 的路径。
 2. **是否直推 `main`**：MR 的目标分支、提交来源、CI 触发 ref；发现任何绕过 `stage` 的写入 `main` 的路径即阻塞。
 3. **密钥是否入库**：diff 里不得出现真实 token、密码、会话 Cookie、SSH 私钥、`OAUTH_CLIENT_SECRET`/`SESSION_SECRET`/`ENCRYPTION_KEY`/`TURNSTILE_SECRET_KEY` 的真值。`node scripts/check-secrets.mjs` 只覆盖部分文本模式，**通过它不等于没有泄漏**，必须人眼过一遍 diff 中的新增字符串。
 4. **`.env` 只允许非密值**：`deploy/env/.env.production`、`deploy/env/.env.preview` 入库的只能是地址、端口、域名、路径、开关等可见事实；密钥字段必须留空，由 CI/CD 用环境级 secrets 注入。字段增删要同步 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [deploy/environments.json](../../deploy/environments.json)。

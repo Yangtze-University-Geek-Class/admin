@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -90,6 +90,12 @@ describe('branch naming model', () => {
     }
     expect(TASK_BRANCH_RE.test('task/7/forum_path')).toBe(true);
     expect(DEV_BRANCH_RE.test('dev/crosery')).toBe(true);
+  });
+
+  it('keeps the regex table in BRANCHING.md identical to the script', () => {
+    const doc = readFileSync(join(repoRoot, 'docs/conventions/BRANCHING.md'), 'utf8');
+    expect(doc).toContain(`\`${TASK_BRANCH_RE.source}\``);
+    expect(doc).toContain(`\`${DEV_BRANCH_RE.source}\``);
   });
 
   it('names the new form in the hygiene warning for an old dash branch', () => {
