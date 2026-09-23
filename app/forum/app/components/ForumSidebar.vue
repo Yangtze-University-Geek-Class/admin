@@ -11,7 +11,7 @@ const forum = useForumStore()
 const { user } = useCurrentUser()
 const { loginOpen } = useShell()
 const { isSnapshot, siteName } = useContentSource()
-const { groups, items, active, select } = useForumNav()
+const { groups, items, active, dotColors, select } = useForumNav()
 const router = useRouter()
 
 const query = ref('')
@@ -55,6 +55,9 @@ function confirmReset() {
         The 极客班 logo instead of the letter chip, composed from TxCardItem
         rather than TxSidebarNav's internal workspace classes. The logo is
         decorative: the row's accessible name is the visible site name.
+        The site blurb goes in `description`, not `subtitle`: the footer's
+        signed-in card is the sidebar's only subtitle, which the upstream
+        shell check reads as `@<handle> · <role>`.
       -->
       <template #workspace>
         <TxCardItem
@@ -62,7 +65,7 @@ function confirmReset() {
           role="link"
           align="center"
           :title="workspace.name"
-          :subtitle="workspace.description"
+          :description="workspace.description"
           class="mb-2 [--tx-card-item-gap:10px] [--tx-card-item-padding:6px]"
           @click="goTo('/')"
         >
@@ -72,8 +75,21 @@ function confirmReset() {
         </TxCardItem>
       </template>
 
+      <!--
+        Category rows keep both cues: the category icon, and upstream's colour
+        dot pinned to its corner (the icon box is too narrow to sit them side
+        by side). Other rows show their icon alone.
+      -->
       <template #item-icon="{ item }">
-        <i v-if="item.icon" :class="item.icon" aria-hidden="true" />
+        <span v-if="dotColors.has(item.value)" class="relative inline-flex">
+          <i v-if="item.icon" :class="item.icon" aria-hidden="true" />
+          <TxBadge
+            dot
+            :color="dotColors.get(item.value)"
+            class="pointer-events-none absolute -bottom-0.5 -right-1"
+          />
+        </span>
+        <i v-else-if="item.icon" :class="item.icon" aria-hidden="true" />
       </template>
 
       <template #footer>
