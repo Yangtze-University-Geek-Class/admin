@@ -34,6 +34,15 @@ export default function YugcOs({ active, onBack }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const launcherInput = useRef<HTMLInputElement>(null);
 
+  // 桌面变为可交互时（开机结束、跳过动画、从场景页返回），把焦点放进桌面：
+  // 触发开机的按钮所在的书桌层此时已 inert，不移焦点的话键盘用户会落在 <body> 上。
+  useEffect(() => {
+    if (!active) return;
+    const current = document.activeElement;
+    if (current && current !== document.body && root.current?.contains(current)) return;
+    root.current?.querySelector<HTMLElement>('[data-cta="join"]')?.focus({ preventScroll: true });
+  }, [active]);
+
   useEffect(() => {
     if (!active) return;
     setNow(new Date());
@@ -164,7 +173,7 @@ export default function YugcOs({ active, onBack }: Props) {
 
   return (
     <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
-      <header className="pt-mb" role="menubar" aria-label="菜单栏">
+      <header className="pt-mb" aria-label="菜单栏">
         <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
           <img src={appConfig.portal.brand.logo} alt="" />
         </button>
