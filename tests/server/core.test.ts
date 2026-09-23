@@ -1,7 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { safeReturnTo } from '../../app/server/src/lib/safe-return';
-import { resolveSiteEntry } from '../../app/server/src/app';
+import { ADMIN_SPA_ENTRY, ADMIN_SPA_PATHS, PORTAL_SPA_ENTRY, buildApp, resolveSiteEntry } from '../../app/server/src/app';
+import { createConfig } from '../../app/server/src/config';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 async function setup(overrides?: ServiceOverrides, production = false) { const c = await testApp(overrides, production); contexts.push(c); return c; }
@@ -42,6 +46,9 @@ it('preserves authentication and cross-origin protection for organization manage
   const { app } = await setup();
   expect((await app.inject('/api/admin/example/repos')).statusCode).toBe(401);
   expect((await app.inject({ method: 'POST', url: '/auth/signout', headers: { origin: 'https://untrusted.test' } })).statusCode).toBe(403);
+  // 管理端与官网同源：只放行环境唯一的 origin，退役的管理端子域一律拒绝。
+  expect((await app.inject({ method: 'POST', url: '/auth/signout', headers: { origin: 'https://admin.example.test' } })).statusCode).toBe(403);
+  expect((await app.inject({ method: 'POST', url: '/auth/signout', headers: { origin: 'https://example.test' } })).statusCode).toBe(200);
   expect((await app.inject('/auth/me')).headers['cache-control']).toBe('no-store');
 });
 it('preserves core sessions without minting or reading old forum sessions', async () => {
@@ -59,19 +66,61 @@ it('rejects a tampered OAuth state before calling an external provider', async (
 it('completes the real core callback with a stub provider and issues only sid', async () => {
   const httpRequest = (async (url: string) => ({ statusCode: 200, body: { json: async () => url.includes('/access_token') ? { access_token: 'test-provider-token' } : { id: 7, login: 'test-github-user', avatar_url: '' } } })) as unknown as ServiceOverrides['httpRequest'];
   const { app } = await setup({ httpRequest }); const start = await app.inject('/auth/github');
-  const state = new URL(String(start.headers.location)).searchParams.get('state');
+  const authorize = new URL(String(start.headers.location));
+  // OAuth 回调固定在环境唯一的 origin 下：GitHub OAuth App 登记的就是这一条。
+  expect(authorize.searchParams.get('redirect_uri')).toBe('https://example.test/auth/callback');
+  const state = authorize.searchParams.get('state');
   const cookie = String(start.headers['set-cookie']).split(';')[0];
   const response = await app.inject({ url: `/auth/callback?code=isolated&state=${state}`, headers: { cookie } });
   expect(response.statusCode).toBe(302);
+  expect(response.headers.location).toBe('https://example.test/console');
   const cookies = ([] as string[]).concat(response.headers['set-cookie'] || []);
   expect(cookies.some(c => c.startsWith('sid='))).toBe(true);
   expect(cookies.some(c => c.startsWith('forum_sid='))).toBe(false);
 });
-it('keeps safe return origins and no longer resolves a React forum entry', async () => {
-  const { app } = await setup();
-  expect(safeReturnTo('//untrusted.test/', app.services.config, '/safe')).toBe('/safe');
-  expect(resolveSiteEntry(app.services.config, 'example.test', '/')).toBe('sites/portal/index.html');
-  expect(resolveSiteEntry(app.services.config, 'admin.example.test', '/admin')).toBe('sites/admin/index.html');
+it('keeps return targets on the single public origin', async () => {
+  const { app } = await setup(); const config = app.services.config;
+  expect(safeReturnTo('//untrusted.test/', config, '/safe')).toBe('/safe');
+  expect(safeReturnTo('/admin/demo', config, '/safe')).toBe('https://example.test/admin/demo');
+  expect(safeReturnTo('https://example.test/forum/', config, '/safe')).toBe('https://example.test/forum/');
+  // 退役的管理端子域和其它子域都不再是合法回跳目标。
+  for (const raw of ['https://admin.example.test/admin', 'https://forum.example.test/', 'http://example.test/admin', 'https://user@example.test/admin']) {
+    expect(safeReturnTo(raw, config, '/safe')).toBe('/safe');
+  }
+});
+it.each([
+  ['/admin', 'admin'], ['/admin/', 'admin'], ['/admin/demo/repos', 'admin'], ['/admin/signin?return_to=/admin', 'admin'],
+  ['/console', 'admin'], ['/console/people', 'admin'], ['/signin', 'admin'],
+  ['/', 'portal'], ['/join-us', 'portal'], ['/join/abc', 'portal'], ['/docs/usage', 'portal'], ['/administrator', 'portal'],
+  ['/consoles', 'portal'], ['/signin/extra', 'portal'], ['/?next=/admin', 'portal'],
+])('picks the SPA entry for %s by path only (%s), never by host', (url, site) => {
+  expect(resolveSiteEntry(url)).toBe(site === 'admin' ? ADMIN_SPA_ENTRY : PORTAL_SPA_ENTRY);
+});
+it('keeps the admin path list and entry file in one place', () => {
+  expect(ADMIN_SPA_PATHS).toEqual({ exact: ['/signin'], prefixes: ['/admin', '/console'] });
+  expect([ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY]).toEqual(['sites/admin/index.html', 'sites/portal/index.html']);
+});
+it('serves the admin or portal index for deep links on the same host', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'geek-site-entry-'));
+  try {
+    for (const site of ['portal', 'admin']) {
+      mkdirSync(join(root, 'sites', site), { recursive: true });
+      writeFileSync(join(root, 'sites', site, 'index.html'), `<main data-entry="${site}"></main>`);
+    }
+    const config = createConfig({
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', FORUM_DB_PATH: ':memory:',
+      SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+      OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
+    });
+    const app = await buildApp({ config, staticRoot: root });
+    try {
+      for (const [url, site] of [['/admin/demo', 'admin'], ['/console/people', 'admin'], ['/join-us', 'portal']]) {
+        const response = await app.inject({ url, headers: { host: 'example.test' } });
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain(`data-entry="${site}"`);
+      }
+    } finally { await app.close(); }
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 it('lists admin feedback without the submitter IP, user agent or numeric account id', async () => {
   const octokitFactory = (() => ({ request: async () => ({ data: { state: 'active', role: 'admin' } }) })) as unknown as ServiceOverrides['octokitFactory'];

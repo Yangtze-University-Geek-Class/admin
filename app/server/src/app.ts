@@ -14,16 +14,20 @@ import { registerHttpPolicy } from "./middleware/http-policy.js";
 const webDist = resolve(APP_ROOT, "web/dist");
 
 /**
- * 按 host（必要时结合 path）决定回哪一份 SPA 入口。
- *
- * 本服务只承载 portal/admin。论坛源码和构建归 app/forum，绝不回退到旧 React 论坛。
+ * 管理端 SPA 的路径与入口：每个环境只有一个域名，管理端靠路径区分，与 Host 无关。
+ * 服务端只在这里定义一次；web 镜像内 nginx 的 location 必须与之一致（app/web/Dockerfile）。
+ * 管理端换成别的前端产物时，只改 ADMIN_SPA_ENTRY（nginx 侧同样只有一处入口路径）。
  */
-export function resolveSiteEntry(config: AppConfig, host: string | undefined, url: string): string {
-  const hosts = config.siteHosts;
-  const hostname = (host ?? "").split(":")[0].toLowerCase();
-  if (hostname === hosts.admin.toLowerCase()) return "sites/admin/index.html";
-  // 本地开发与直连 IP：没有匹配的域名，回官网
-  return "sites/portal/index.html";
+export const ADMIN_SPA_PATHS = Object.freeze({ exact: ["/signin"], prefixes: ["/admin", "/console"] });
+export const ADMIN_SPA_ENTRY = "sites/admin/index.html";
+export const PORTAL_SPA_ENTRY = "sites/portal/index.html";
+
+/** 按路径决定回哪一份 SPA 入口。本服务只承载 portal/admin，论坛归 app/forum，绝不回退到旧 React 论坛。 */
+export function resolveSiteEntry(url: string): string {
+  const path = url.split(/[?#]/)[0];
+  const admin = ADMIN_SPA_PATHS.exact.includes(path)
+    || ADMIN_SPA_PATHS.prefixes.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  return admin ? ADMIN_SPA_ENTRY : PORTAL_SPA_ENTRY;
 }
 
 export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | false; logger?: boolean };
@@ -70,7 +74,7 @@ export async function buildApp(options: BuildAppOptions) {
       }
       if (/\.[a-z0-9]+(?:\?|$)/i.test(req.url) || !["GET", "HEAD"].includes(req.method)) return reply.code(404).send({ error: "not_found" });
       reply.header("Cache-Control", "no-cache");
-      return reply.sendFile(resolveSiteEntry(config, req.headers.host, req.url));
+      return reply.sendFile(resolveSiteEntry(req.url));
     });
   } else {
     app.get("/", async () => ({ ok: true, note: "app/web/dist not built yet" }));
