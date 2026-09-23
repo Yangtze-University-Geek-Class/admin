@@ -1,11 +1,15 @@
+// 官网「文档」页：公开产品介绍与用户指南（白名单由 /api/docs 决定）。
+// 外壳与首页、投递页一致：页头胶囊 + 冰白图纸 + 页脚（../theme.css 的 .yg-page）。
 import { useEffect, useMemo, useRef } from "react";
-import { externalUrl } from "@shared/lib/site";
 import { useProseInteractions } from "@shared/ui/ImageLightbox";
 import { getBasePath } from "@shared/lib/runtime";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/lib/api";
 import { renderMarkdown } from "@shared/lib/markdown";
+import SiteFooter from "../components/SiteFooter";
+import SiteHeader from "../components/SiteHeader";
+import "../theme.css";
 
 type Item = { id: string; label: string; lang: "zh" | "en"; file?: string };
 type Doc = { id: string; label: string; lang: "zh" | "en"; file: string; content: string };
@@ -68,46 +72,47 @@ export default function Docs() {
   useProseInteractions(articleRef, [html]);
 
   return (
-    <div className="min-h-full">
-      <header className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/logo.png" alt="logo" className="w-9 h-9 rounded-lg border border-ink-700" />
-          <span className="font-semibold text-ink-100 text-lg">YUGC Admin · 文档</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <div className="flex border border-ink-700/60 rounded-lg overflow-hidden text-sm">
+    <div className="yg-page is-sheet">
+      <SiteHeader />
+
+      <main className="yg-wrap yg-subpage">
+        <header className="yg-page-head">
+          <div>
+            <p className="yg-kicker">// DOCS · 文档</p>
+            <h1>{currentItem?.label ?? "文档"}</h1>
+          </div>
+          <div className="yg-segment" role="group" aria-label="文档语言">
             {(["zh", "en"] as const).map((l) => (
-              <button key={l} onClick={() => switchLang(l)}
-                className={`px-3 py-1.5 transition ${
-                  lang === l ? "bg-brand-500/20 text-brand-500" : "text-ink-300 hover:bg-ink-800/60"
-                }`}>{l === "zh" ? "中文" : "English"}</button>
+              <button key={l} type="button" onClick={() => switchLang(l)} aria-pressed={lang === l} className={lang === l ? "is-on" : undefined}>
+                {l === "zh" ? "中文" : "English"}
+              </button>
             ))}
           </div>
-          <a href={externalUrl("admin", "/admin")} className="btn-ghost text-sm">管理后台</a>
-        </div>
-      </header>
+        </header>
 
-      <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-[220px_minmax(0,1fr)] gap-8">
-        <aside className="md:sticky md:top-4 self-start">
-          <nav className="space-y-1">
+        <div className="yg-docs">
+          <nav className="yg-docs-nav" aria-label="文档目录">
             {filtered.map((it) => (
-              <Link key={it.id} to={`/docs/${it.id}`}
-                className={`block px-3 py-2 rounded-lg text-sm transition ${
-                  it.id === id ? "bg-brand-500/15 text-brand-500 border border-brand-500/30" : "text-ink-300 hover:bg-ink-800/60 border border-transparent"
-                }`}>{it.label}</Link>
+              <Link key={it.id} to={`/docs/${it.id}`} aria-current={it.id === id ? "page" : undefined}>
+                {it.label}
+              </Link>
             ))}
-            {filtered.length === 0 && <p className="text-xs text-ink-500 px-3">无</p>}
+            {filtered.length === 0 && <p className="yg-field-hint">暂无文档</p>}
           </nav>
-        </aside>
 
-        <main className="min-w-0 pb-16">
-          {current.isLoading && <div className="text-ink-500">加载中…</div>}
-          {current.error && <div className="text-rose-400">{(current.error as Error).message}</div>}
-          {current.data && (
-            <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />
-          )}
-        </main>
-      </div>
+          <div className="yg-sheet-card yg-doc">
+            {current.isLoading && <p className="yg-field-hint">加载中…</p>}
+            {current.error && (
+              <p className="yg-status-box yg-status-error" role="alert">
+                {(current.error as Error).message}
+              </p>
+            )}
+            {current.data && <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />}
+          </div>
+        </div>
+      </main>
+
+      <SiteFooter />
     </div>
   );
 }

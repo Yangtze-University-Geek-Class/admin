@@ -21,6 +21,14 @@ function loadLink(db: import("better-sqlite3").Database, token: string): LinkRow
   return row ?? null;
 }
 
+/** Copy for a known (quota-released) invite failure, chosen by upstream status and keywords; GitHub's text is never echoed. */
+function inviteFailureCopy(cause: unknown, invitationSubmitted: boolean): string {
+  const { status, message } = cause as { status?: number; message?: unknown };
+  if (status === 422) return /already a (part|member) of/i.test(String(message ?? "")) ? "该用户已在组织中" : "GitHub 拒绝邀请（账号不存在或邮箱已被邀请）";
+  if (status === 404 && !invitationSubmitted) return "GitHub 用户名不存在，请检查拼写";
+  return "邀请失败，稍后重试";
+}
+
 function linkStatus(row: LinkRow): { ok: true } | { ok: false; reason: string } {
   if (row.disabled) return { ok: false, reason: "邀请链接已被禁用" };
   if (row.expires_at < Date.now()) return { ok: false, reason: "邀请链接已过期" };
@@ -128,8 +136,7 @@ export default async function joinRoutes(app: FastifyInstance) {
         const message = knownFailure ? "邀请未发送" : "邀请结果待管理员核对";
         insertStmt.run(row.org, row.token, login ?? null, mail ?? null, noteText ?? null, req.ip, req.headers["user-agent"] ?? null, knownFailure ? "failed" : "pending_admin", message, Date.now());
         audit(row.org, `public:${row.token}`, "invite.failed", login ?? mail ?? "", { error: message }, req.ip);
-        const friendly = message.includes("Already") ? "该用户已在组织中" : message.includes("422") ? "GitHub 拒绝邀请（账号不存在或邮箱已被邀请）" : "邀请失败，稍后重试";
-        return reply.code(knownFailure ? 400 : 503).send({ error: knownFailure ? friendly : "邀请结果待核对，请勿重复提交并联系管理员" });
+        return reply.code(knownFailure ? 400 : 503).send({ error: knownFailure ? inviteFailureCopy(e, invitationSubmitted) : "邀请结果待核对，请勿重复提交并联系管理员" });
       }
     }
   );

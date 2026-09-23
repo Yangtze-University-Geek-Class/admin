@@ -73,6 +73,19 @@ it('keeps safe return origins and no longer resolves a React forum entry', async
   expect(resolveSiteEntry(app.services.config, 'example.test', '/')).toBe('sites/portal/index.html');
   expect(resolveSiteEntry(app.services.config, 'admin.example.test', '/admin')).toBe('sites/admin/index.html');
 });
+it('lists admin feedback without the submitter IP, user agent or numeric account id', async () => {
+  const octokitFactory = (() => ({ request: async () => ({ data: { state: 'active', role: 'admin' } }) })) as unknown as ServiceOverrides['octokitFactory'];
+  const { app } = await setup({ octokitFactory }); const now = Date.now();
+  app.services.storage.db.prepare('INSERT INTO feedback(org,content,category,contact,submitter_login,submitter_id,source_ip,user_agent,status,votes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run('test-org', 'test feedback body', '建议', 'test-contact', 'test-student', 424242, '203.0.113.9', 'test-agent/1.0', 'open', 3, now, now);
+  const sid = app.services.auth.createSession('test-admin', 1, null, 'test-access');
+  const response = await app.inject({ url: '/api/admin/test-org/feedback', headers: { cookie: `sid=${sid}` } });
+  expect(response.statusCode).toBe(200);
+  const { items, counts } = response.json();
+  expect(counts).toEqual({ open: 1 });
+  expect(Object.keys(items[0]).sort()).toEqual(['category', 'contact', 'content', 'created_at', 'id', 'replied_at', 'replied_by', 'reply', 'status', 'submitter_login']);
+  expect(response.body).not.toMatch(/203\.0\.113\.9|test-agent|424242/);
+});
 it('rejects invalid feedback data before persistence', async () => {
   const { app } = await setup();
   expect((await app.inject({ method: 'POST', url: '/api/feedback', payload: { org: 'demo', content: {} } })).statusCode).toBe(400);

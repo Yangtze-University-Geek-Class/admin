@@ -4,6 +4,9 @@ dist
 .env.local
 *.db
 *.db-journal
+# SQLite WAL 模式（db.ts journal_mode = WAL）的附属文件，可能含未 checkpoint 的数据
+*.db-wal
+*.db-shm
 *.log
 .DS_Store
 .vite

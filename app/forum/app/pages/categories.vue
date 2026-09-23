@@ -12,6 +12,7 @@ const forum = useForumStore()
 const router = useRouter()
 const { isDesktop } = useShell()
 const { fromNow } = useRelativeTime()
+const { href } = useAppLink()
 
 const categories = computed(() => forum.state.categories)
 
@@ -29,49 +30,44 @@ function go(path: string) {
 <template>
   <TxRow :gutter="24">
     <TxCol :span="24" :lg="14">
-      <TxStack :gap="12">
-        <TxCard
-          v-for="category in categories"
-          :key="category.id"
-          class="cursor-pointer transition-colors hover:border-$tx-color-primary"
-          @click="go(`/c/${category.slug}`)"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex items-center gap-3">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-$tx-border-color-lighter bg-$tx-bg-color-page text-$tx-color-primary">
-                <i v-if="category.icon" :class="[category.icon, 'text-xl']" aria-hidden="true" />
-                <TxBadge v-else dot :color="category.color" />
-              </div>
-              <div>
-                <h2 class="text-base font-semibold text-$tx-text-color-primary">
-                  {{ category.name }}
-                </h2>
-                <p v-if="category.description" class="mt-1 text-sm text-$tx-text-color-secondary leading-normal">
-                  {{ category.description }}
-                </p>
-              </div>
-            </div>
+      <TxCard variant="plain" :padding="0">
+        <template v-for="(category, index) in categories" :key="category.id">
+          <!--
+            A category row navigates, so it says so: TxCardItem has no implicit
+            role. Snapshot/curation categories carry an icon; seed categories
+            keep the colour dot.
+          -->
+          <TxCardItem
+            clickable
+            role="link"
+            :title="category.name"
+            :description="category.description"
+            :icon-class="category.icon"
+            avatar-shape="rounded"
+            @click="go(`/c/${category.slug}`)"
+          >
+            <template v-if="!category.icon" #avatar>
+              <TxBadge dot :color="category.color" />
+            </template>
+            <template #right>
+              <TxBadge :value="forum.topicCountOfCategory(category.id)" />
+            </template>
+          </TxCardItem>
 
-            <TxBadge :value="forum.topicCountOfCategory(category.id)" class="shrink-0" />
-          </div>
-
-          <div v-if="recentOf(category).length" class="mt-3.5 border-t border-$tx-border-color-lighter flex flex-col gap-2 pl-13 pt-3">
-            <div
+          <TxStack :gap="4" class="px-4 pb-3 pl-14">
+            <TxCellLink
               v-for="topic in recentOf(category)"
               :key="topic.id"
-              class="flex items-center justify-between text-sm group"
-              @click.stop="go(`/t/${topic.id}`)"
-            >
-              <span class="line-clamp-1 text-$tx-text-color-primary transition-colors group-hover:text-$tx-color-primary">
-                {{ topic.title }}
-              </span>
-              <span class="ml-4 shrink-0 text-xs text-$tx-text-color-secondary">
-                {{ fromNow(topic.lastActivityAt) }}
-              </span>
-            </div>
-          </div>
-        </TxCard>
-      </TxStack>
+              :href="href(`/t/${topic.id}`)"
+              :label="topic.title"
+              muted
+              @open="go(`/t/${topic.id}`)"
+            />
+          </TxStack>
+
+          <TxDivider v-if="index < categories.length - 1" />
+        </template>
+      </TxCard>
     </TxCol>
 
     <TxCol v-if="isDesktop" :span="24" :lg="10">

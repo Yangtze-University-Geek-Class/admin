@@ -16,6 +16,7 @@ const forum = useForumStore()
 const { user, isLoggedIn, can } = useCurrentUser()
 const { loginOpen } = useShell()
 const { isSnapshot } = useContentSource()
+const { absoluteUrl } = useAppLink()
 
 // Notification level is page-local mock state: there is no subscription model
 // in the store, and inventing one would be state nothing else can read.
@@ -31,7 +32,7 @@ const firstPost = computed(() => forum.firstPostOf(props.topic.id))
 const bookmarked = computed(() =>
   !!user.value && !!firstPost.value && forum.isBookmarked(user.value.id, firstPost.value.id))
 const canReply = computed(() => can('reply', { topic: props.topic }))
-const shareLink = computed(() => `${window.location.origin}/t/${props.topic.id}`)
+const shareLink = computed(() => absoluteUrl(`/t/${props.topic.id}`))
 
 function bookmark() {
   const current = user.value

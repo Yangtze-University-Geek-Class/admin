@@ -1,8 +1,14 @@
+// 官网「邀请加入」落地页：邀请链接是能力令牌，填 GitHub 用户名或邮箱即可申请加入组织。
+// 外壳与首页、投递页一致（../theme.css 的 .yg-page）；准入同其它公开表单（PoW + 蜜罐 + 可选 Turnstile）。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fmtDate } from "@shared/lib/api";
-import { computePow } from "@shared/lib/pow";
+import { computePow, powProof } from "@shared/lib/pow";
+import { appConfig } from "@shared/config";
+import SiteFooter from "../components/SiteFooter";
+import SiteHeader from "../components/SiteHeader";
+import "../theme.css";
 
 type LinkInfo = {
   org: string;
@@ -13,6 +19,9 @@ type LinkInfo = {
   valid: boolean;
   reason: string | null;
 };
+
+/** 本组织的 GitHub slug（组织地址最后一段）；是本组织时标题显示中文品牌名，否则显示 slug。 */
+const DEFAULT_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
 export default function JoinByToken() {
   const { token } = useParams();
@@ -45,7 +54,7 @@ export default function JoinByToken() {
       const bodyForHash = `join:${token}:${form.github_login.trim()}:${form.email.trim()}`;
       const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
-      const body = { ...form, turnstile_token: tsToken, pow };
+      const body = { ...form, turnstile_token: tsToken, pow: powProof(pow) };
       const r = await api<{ ok: boolean; message: string }>(`/api/join/${token}`, {
         method: "POST",
         body: JSON.stringify(body),
@@ -61,109 +70,109 @@ export default function JoinByToken() {
   };
 
   return (
-    <div className="min-h-full">
-      <header className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="logo" className="w-9 h-9 rounded-lg border border-ink-700" />
-          <span className="font-semibold text-ink-100 text-lg">YUGC Admin</span>
-        </div>
-      </header>
+    <div className="yg-page is-sheet">
+      <SiteHeader />
 
-      <div className="flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-xl">
-          {loadErr && <div className="card p-8 text-center text-rose-400">{loadErr}</div>}
+      <main className="yg-wrap yg-subpage yg-join">
+        {loadErr && (
+          <p className="yg-status-box yg-status-error" role="alert">
+            {loadErr}
+          </p>
+        )}
 
-          {info && !info.valid && (
-            <div className="card p-10 text-center">
-              <div className="inline-flex w-14 h-14 rounded-full bg-rose-500/15 text-rose-400 items-center justify-center mb-5">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7">
-                  <path d="M12 8v5M12 16.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-semibold text-ink-50 mb-2">链接不可用</h2>
-              <p className="text-ink-400">{info.reason}</p>
-              <p className="text-xs text-ink-500 mt-4">请联系发出该链接的管理员</p>
-            </div>
-          )}
+        {info && !info.valid && (
+          <div className="yg-sheet-card yg-join-state" role="status">
+            <p className="yg-kicker">// INVITE · 链接不可用</p>
+            <h1>链接不可用</h1>
+            <p>{info.reason}</p>
+            <p className="yg-field-hint">请联系发出该链接的管理员。</p>
+          </div>
+        )}
 
-          {info && info.valid && done && (
-            <div className="card p-10 text-center">
-              <div className="inline-flex w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-400 items-center justify-center mb-5">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7">
-                  <path d="m5 12 5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-semibold text-ink-50 mb-2">邀请已发送</h2>
-              <p className="text-ink-400">{done}</p>
-            </div>
-          )}
+        {info && info.valid && done && (
+          <div className="yg-sheet-card yg-join-state" role="status" aria-live="polite">
+            <p className="yg-kicker">// INVITE · SENT</p>
+            <h1>邀请已发送</h1>
+            <p>{done}</p>
+          </div>
+        )}
 
-          {info && info.valid && !done && (
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-4xl font-bold text-ink-50 tracking-tight">加入 {info.org}</h1>
-                <p className="mt-3 text-ink-400 text-sm">
+        {info && info.valid && !done && (
+          <>
+            <header className="yg-page-head is-center">
+              <div>
+                <p className="yg-kicker">// INVITE · 邀请加入</p>
+                <h1>
+                  {info.org === DEFAULT_ORG ? (
+                    <>加入 {appConfig.portal.brand.title}</>
+                  ) : (
+                    <>
+                      加入组织
+                      <span className="yg-org-slug">{info.org}</span>
+                    </>
+                  )}
+                </h1>
+                <p>
                   {info.note ?? "邀请链接有效"} · 剩余 {info.remaining_uses} 次 · 到期 {fmtDate(info.expires_at)}
                 </p>
-                {info.team_slug && (
-                  <p className="mt-2 text-xs text-brand-500">将自动加入 team: {info.team_slug}</p>
-                )}
+                {info.team_slug && <p className="yg-card-hint">将自动加入 team：{info.team_slug}</p>}
               </div>
+            </header>
 
-              <form onSubmit={submit} className="card p-6 sm:p-8 space-y-5">
-                <div>
-                  <label className="label">GitHub 用户名</label>
-                  <input
-                    className="input font-mono"
-                    placeholder="例如 octocat"
-                    value={form.github_login}
-                    onChange={(e) => setForm({ ...form, github_login: e.target.value })}
-                    autoComplete="off" spellCheck={false}
-                  />
+            <div className="yg-form-card">
+              <div className="yg-card-bar" aria-hidden="true">
+                <span className="yg-dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                join.request
+                <span className="yg-card-index">{info.org}</span>
+              </div>
+              <form onSubmit={submit} className="yg-form yg-form-card-body">
+                <div className="yg-field">
+                  <label htmlFor="join-login">GitHub 用户名</label>
+                  <input id="join-login" className="yg-input yg-mono" placeholder="例如 octocat" value={form.github_login}
+                    onChange={(e) => setForm({ ...form, github_login: e.target.value })} autoComplete="off" spellCheck={false} />
                 </div>
 
-                <div className="text-center text-ink-600 text-xs flex items-center gap-3">
-                  <span className="flex-1 h-px bg-ink-800" />或<span className="flex-1 h-px bg-ink-800" />
+                <p className="yg-or" aria-hidden="true">或</p>
+
+                <div className="yg-field">
+                  <label htmlFor="join-email">邮箱（如果你还没注册 GitHub）</label>
+                  <input id="join-email" className="yg-input" type="email" placeholder="me@example.com" value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
                 </div>
 
-                <div>
-                  <label className="label">邮箱（如果你还没注册 GitHub）</label>
-                  <input
-                    className="input" type="email" placeholder="me@example.com"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
+                <div className="yg-field">
+                  <label htmlFor="join-note">备注（选填，写学号或姓名方便管理员核对）</label>
+                  <textarea id="join-note" className="yg-textarea is-short" maxLength={280} value={form.note}
+                    onChange={(e) => setForm({ ...form, note: e.target.value })} />
                 </div>
 
-                <div>
-                  <label className="label">备注 <span className="text-ink-600">选填，写学号/姓名方便管理员核对</span></label>
-                  <textarea
-                    className="input min-h-[80px]" maxLength={280}
-                    value={form.note}
-                    onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  />
-                </div>
-
-                {/* honeypot */}
-                <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+                {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
+                <div className="yg-hide-trap" aria-hidden="true">
                   <label>请勿填写：<input tabIndex={-1} autoComplete="off"
                     value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
                 </div>
 
                 <TurnstileWidget siteKey={siteKey} onToken={setTsToken} resetKey={captchaEpoch} />
 
-                {err && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-sm px-4 py-3">{err}</div>}
+                {err && <p className="yg-status-box yg-status-error" role="alert">{err}</p>}
 
-                <button type="submit" className="btn-primary w-full text-base py-3"
-                  disabled={Boolean(busy) || (!form.github_login && !form.email) || (!!siteKey && !tsToken)}>
-                  {busy === "pow" ? `防滥用计算中… ${powTries > 0 ? `${(powTries / 1000).toFixed(0)}k 次` : ""}` : busy === "submit" ? "提交中…" : "申请加入"}
-                </button>
-                {busy === "pow" && <p className="text-xs text-ink-500 text-center">浏览器在做一次哈希计算（约 1-2 秒）。</p>}
+                <div className="yg-form-actions">
+                  <button type="submit" className="yg-btn yg-btn-primary" disabled={Boolean(busy) || (!form.github_login && !form.email) || (!!siteKey && !tsToken)}>
+                    {busy === "pow" ? `防滥用计算中… ${powTries > 0 ? `${(powTries / 1000).toFixed(0)}k 次` : ""}` : busy === "submit" ? "提交中…" : "申请加入"}
+                  </button>
+                  {busy === "pow" && <span className="yg-field-hint">浏览器在做一次哈希计算（约 1–2 秒）。</span>}
+                </div>
               </form>
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </>
+        )}
+      </main>
+
+      <SiteFooter />
     </div>
   );
 }

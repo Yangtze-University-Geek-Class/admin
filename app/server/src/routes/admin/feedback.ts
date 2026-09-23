@@ -4,6 +4,13 @@ import { requireOrgRole } from "../../middleware/require-org-role.js";
 
 const VALID_STATUS = ["open", "triaged", "in_progress", "done", "wont_do", "spam"];
 
+/** Admin list DTO: only what the feedback page renders; submitter IP, UA and numeric account id stay server-side. */
+type AdminFeedbackItem = {
+  id: number; category: string | null; content: string; contact: string | null; submitter_login: string | null;
+  status: string; reply: string | null; replied_by: string | null; replied_at: number | null; created_at: number;
+};
+const ADMIN_FEEDBACK_COLUMNS = "id, category, content, contact, submitter_login, status, reply, replied_by, replied_at, created_at";
+
 export default async function adminFeedbackRoutes(app: FastifyInstance) {
   const { audit, db } = app.services.storage;
   app.addHook("preHandler", requireAuth);
@@ -14,12 +21,12 @@ export default async function adminFeedbackRoutes(app: FastifyInstance) {
     async (req) => {
       const { org } = req.params;
       const limit = Math.min(Number(req.query.limit ?? 200), 500);
-      let sql = "SELECT * FROM feedback WHERE org = ?";
+      let sql = `SELECT ${ADMIN_FEEDBACK_COLUMNS} FROM feedback WHERE org = ?`;
       const params: any[] = [org];
       if (req.query.status) { sql += " AND status = ?"; params.push(req.query.status); }
       sql += " ORDER BY created_at DESC LIMIT ?";
       params.push(limit);
-      const rows = db.prepare(sql).all(...params);
+      const rows = db.prepare(sql).all(...params) as AdminFeedbackItem[];
 
       const counts = db.prepare(
         "SELECT status, COUNT(*) as n FROM feedback WHERE org = ? GROUP BY status"

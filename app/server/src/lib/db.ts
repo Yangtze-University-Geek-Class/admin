@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_org_status ON feedback(org, status, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS applications (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  class_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  strengths TEXT NOT NULL,
+  source_ip TEXT,
+  user_agent TEXT,
+  status TEXT NOT NULL DEFAULT 'received',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_applications_email ON applications(email);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   org TEXT,
