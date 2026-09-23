@@ -6,11 +6,11 @@
 
 ## §1 开发前先开 issue
 
-**任何 `task/<issue>-<slug>` 分支都必须先有对应 issue**（唯一例外是维护者明确声明的紧急修复，且事后 24 小时内补 issue）。先查重再开新 issue：在 issue 列表按模块、关键词、错误信息搜索，确认没有同一个问题的未关闭 issue；重复的直接在原 issue 补充复现信息。issue 编号进入分支名与 MR 正文，三者互相关联：
+**任何 `task/<issue>/<slug>` 分支都必须先有对应 issue**（唯一例外是维护者明确声明的紧急修复，且事后 24 小时内补 issue）。先查重再开新 issue：在 issue 列表按模块、关键词、错误信息搜索，确认没有同一个问题的未关闭 issue；重复的直接在原 issue 补充复现信息。issue 编号进入分支名与 MR 正文，三者互相关联：
 
 | 关联字段 | 位置 | 要求 |
 |---|---|---|
-| issue 编号 | `task/<issue>-<slug>` 分支名、MR 正文 `Closes #<issue>` | 一一对应，一个 task 分支只处理一个 issue |
+| issue 编号 | `task/<issue>/<slug>` 分支名、MR 正文 `Closes #<issue>` | 一一对应，一个 task 分支只处理一个 issue |
 | 分支名 | issue 正文「实施」段 | 开 issue 后回填实际分支名，或写明「待从 `stage` 拉取」 |
 | MR 链接 | issue 正文「实施」段 | MR 打开后回填链接与最终状态 |
 
@@ -26,7 +26,7 @@
 
 ## §3 环境字段
 
-填写环境时写清分支（`main` / `stage` / `task/<issue>-<slug>`）与完整 commit SHA，不写 `next`、`feat/*` 等已退役的分支名；版本号写 `package.json` 的 `X.Y.Z`，预发布附 `@<sha12>`（见 [RELEASES](RELEASES.md)）。
+填写环境时写清分支（`main` / `stage` / `task/<issue>/<slug>`）与完整 commit SHA，不写 `next`、`feat/*`、`dev-*`、`task/<issue>-<slug>` 等已退役的分支名；版本号写 `package.json` 的 `X.Y.Z`，预发布附 `@<sha12>`（见 [RELEASES](RELEASES.md)）。
 
 ## §4 关闭与安全
 

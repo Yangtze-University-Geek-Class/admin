@@ -26,8 +26,9 @@
 
 - `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须成功；`main` 不得领先 `stage`，写进 `main` 的提交必须已经存在于 `stage`。
 - 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。
-- 任务分支命名 `task/<issue>-<slug>`，**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
-- `dev-<github-username>` 是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
+- 分支名一律不用 `-`，只用 `/` 分层，段内多词用 `_`（正则见 [BRANCHING](docs/conventions/BRANCHING.md)）。
+- 任务分支命名 `task/<issue>/<slug>`（例 `task/12/portal_redesign`），**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
+- `dev/<github-username>`（例 `dev/crosery`）是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
 - 环境绑定固定：`main` → 正式 `https://yangtzeu.work`；`stage` → 预发布 `https://prev.yangtzeu.work`。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
 - 规则存在不等于远程保护已生效：域名、环境文件或分支保护配置齐全，不代表 DNS、TLS、CI 或部署已经落地。
 

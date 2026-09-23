@@ -69,7 +69,7 @@ function packageVersion(root) {
  */
 export function planDeployment({ repo = process.cwd(), root = repo, branch, commit, origin, tipRef, checkTip = true } = {}) {
   if (typeof branch !== 'string' || !Object.hasOwn(BRANCH_ENVIRONMENTS, branch)) {
-    throw new Error('只有 main（正式）与 stage（预发布）参与部署；task/* 与 dev-* 分支只做验证，永不部署。');
+    throw new Error('只有 main（正式）与 stage（预发布）参与部署；task/<issue>/<slug> 与 dev/<username> 分支只做验证，永不部署。');
   }
   if (typeof commit !== 'string' || !SHA_RE.test(commit)) {
     throw new Error('必须提供准确的 40 位小写 commit SHA；不接受 tag、分支名或短 SHA。');
