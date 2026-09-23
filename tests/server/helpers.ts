@@ -6,8 +6,7 @@ import type { ServiceOverrides } from '../../app/server/src/services';
 export async function testApp(overrides: ServiceOverrides = {}, production = false) {
   const config = createConfig({
     NODE_ENV: production ? 'production' : 'test',
-    PUBLIC_ORIGIN: 'https://admin.example.test', SITE_ORIGIN: 'https://example.test',
-    FORUM_HOST: 'forum.example.test', DB_PATH: ':memory:',
+    PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),

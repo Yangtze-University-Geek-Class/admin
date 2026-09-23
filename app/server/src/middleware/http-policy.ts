@@ -16,9 +16,8 @@ export function registerHttpPolicy(app: FastifyInstance) {
     const cfg = app.services.config;
     if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return;
     const origin = req.headers.origin;
-    const allowed = new Set([cfg.publicOrigin, cfg.siteOrigin, `${new URL(cfg.siteOrigin).protocol}//${cfg.siteHosts.forum}`]);
-    // Dev requests are proxied from the Vite origin configured in PUBLIC_ORIGIN.
-    if (origin && !allowed.has(origin)) return reply.code(403).send({ error: "invalid_origin", message: "请求来源不被允许" });
+    // One origin per environment (portal, admin and forum share it); dev requests are proxied from the Vite origin in PUBLIC_ORIGIN.
+    if (origin && origin !== cfg.publicOrigin) return reply.code(403).send({ error: "invalid_origin", message: "请求来源不被允许" });
     if (!origin && req.headers["sec-fetch-site"] === "cross-site") return reply.code(403).send({ error: "invalid_origin" });
   });
   app.addHook("onSend", async (req, reply, payload) => {
