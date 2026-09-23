@@ -31,11 +31,17 @@ test("public docs have usable labels/language switching and a console link", asy
 });
 
 test("portal forum entry targets the adopted Nuxt module, not the retired React page", async ({ page }) => {
-  await page.goto("/sites/portal/");
+  await page.goto("/sites/portal/docs");
   const navigationLink = page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "论坛", exact: true });
   const footerLink = page.getByRole("contentinfo").getByRole("link", { name: "论坛", exact: true });
   await expect(navigationLink).toHaveAttribute("href", "http://127.0.0.1:3456/");
   await expect(footerLink).toHaveAttribute("href", "http://127.0.0.1:3456/");
+});
+
+test("legacy /apply redirects to the join-us letter", async ({ page }) => {
+  await page.goto("/sites/portal/apply");
+  await expect(page).toHaveURL(/\/sites\/portal\/join-us$/);
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeAttached();
 });
 
 test("console navigation follows the persona's capabilities", async ({ page }) => {

@@ -1,5 +1,5 @@
 // 官网「文档」页：公开产品介绍与用户指南（白名单由 /api/docs 决定）。
-// 外壳与首页、投递页一致：页头胶囊 + 冰白图纸 + 页脚（../theme.css 的 .yg-page）。
+// 外壳是 ../components/PageShell.tsx（与 YUGC OS 同一套浅色语言）。
 import { useEffect, useMemo, useRef } from "react";
 import { useProseInteractions } from "@shared/ui/ImageLightbox";
 import { getBasePath } from "@shared/lib/runtime";
@@ -7,9 +7,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/lib/api";
 import { renderMarkdown } from "@shared/lib/markdown";
-import SiteFooter from "../components/SiteFooter";
-import SiteHeader from "../components/SiteHeader";
-import "../theme.css";
+import PageShell, { WindowCard } from "../components/PageShell";
 
 type Item = { id: string; label: string; lang: "zh" | "en"; file?: string };
 type Doc = { id: string; label: string; lang: "zh" | "en"; file: string; content: string };
@@ -72,47 +70,41 @@ export default function Docs() {
   useProseInteractions(articleRef, [html]);
 
   return (
-    <div className="yg-page is-sheet">
-      <SiteHeader />
-
-      <main className="yg-wrap yg-subpage">
-        <header className="yg-page-head">
-          <div>
-            <p className="yg-kicker">// DOCS · 文档</p>
-            <h1>{currentItem?.label ?? "文档"}</h1>
-          </div>
-          <div className="yg-segment" role="group" aria-label="文档语言">
-            {(["zh", "en"] as const).map((l) => (
-              <button key={l} type="button" onClick={() => switchLang(l)} aria-pressed={lang === l} className={lang === l ? "is-on" : undefined}>
-                {l === "zh" ? "中文" : "English"}
-              </button>
-            ))}
-          </div>
-        </header>
-
-        <div className="yg-docs">
-          <nav className="yg-docs-nav" aria-label="文档目录">
-            {filtered.map((it) => (
-              <Link key={it.id} to={`/docs/${it.id}`} aria-current={it.id === id ? "page" : undefined}>
-                {it.label}
-              </Link>
-            ))}
-            {filtered.length === 0 && <p className="yg-field-hint">暂无文档</p>}
-          </nav>
-
-          <div className="yg-sheet-card yg-doc">
-            {current.isLoading && <p className="yg-field-hint">加载中…</p>}
-            {current.error && (
-              <p className="yg-status-box yg-status-error" role="alert">
-                {(current.error as Error).message}
-              </p>
-            )}
-            {current.data && <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />}
-          </div>
+    <PageShell path="~/yugc/docs">
+      <header className="pt-pagehead">
+        <div>
+          <p className="pt-kicker">// DOCS · 文档</p>
+          <h1>{currentItem?.label ?? "文档"}</h1>
         </div>
-      </main>
+        <div className="pt-segment" role="group" aria-label="文档语言">
+          {(["zh", "en"] as const).map((l) => (
+            <button key={l} type="button" onClick={() => switchLang(l)} aria-pressed={lang === l} className={lang === l ? "is-on" : undefined}>
+              {l === "zh" ? "中文" : "English"}
+            </button>
+          ))}
+        </div>
+      </header>
 
-      <SiteFooter />
-    </div>
+      <div className="pt-docs">
+        <nav className="pt-docs-nav" aria-label="文档目录">
+          {filtered.map((it) => (
+            <Link key={it.id} to={`/docs/${it.id}`} aria-current={it.id === id ? "page" : undefined}>
+              {it.label}
+            </Link>
+          ))}
+          {filtered.length === 0 && <p className="pt-hint">暂无文档</p>}
+        </nav>
+
+        <WindowCard path={current.data ? `~/docs/${current.data.file}` : "~/docs"} className="pt-doc">
+          {current.isLoading && <p className="pt-hint">加载中…</p>}
+          {current.error && (
+            <p className="pt-alert is-error" role="alert">
+              {(current.error as Error).message}
+            </p>
+          )}
+          {current.data && <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />}
+        </WindowCard>
+      </div>
+    </PageShell>
   );
 }
