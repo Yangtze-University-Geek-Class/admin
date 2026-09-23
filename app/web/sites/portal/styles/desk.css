@@ -28,11 +28,12 @@
 .pt-enter kbd { background: var(--pt-paper); }
 .pt-enter:hover, .pt-enter:focus-visible { border-color: var(--pt-cobalt); color: var(--pt-cobalt); }
 .pt-skip { min-height: 44px; padding: 0 4px; font: 12px var(--pt-mono); color: var(--pt-ink-soft); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.pt-hint {
+/* 书桌上跟随指针的小提示（不能叫 .pt-hint：那是普通页面表单提示的通用类，同名会把它们变成隐藏的浮层） */
+.pt-desk-tip {
   position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; padding: 6px 10px; border-radius: 999px; background: var(--pt-ink); color: #fff;
   font: 11px var(--pt-mono); letter-spacing: .08em; white-space: nowrap; opacity: 0; transition: opacity .2s; will-change: transform;
 }
-.pt-hint.is-on { opacity: 1; }
+.pt-desk-tip.is-on { opacity: 1; }
 
 /* ── 加载动画（分层：底板 → 巨字 → 校徽 → 签名 → 日志） ── */
 .pt-loader { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow: hidden; background: var(--pt-paper); }
