@@ -51,6 +51,10 @@ COPY scripts scripts
 COPY app/server/src app/server/src
 COPY app/server/tsconfig.json app/server/tsconfig.json
 COPY app/web/shared app/web/shared
+# render-web-config.mjs 经 deployment-environment.mjs 读取环境身份契约与入库的环境模板
+# （模板里密钥字段一律留空）。只在构建阶段使用，运行阶段不复制 deploy/。
+COPY deploy/environments.json deploy/environments.json
+COPY deploy/env deploy/env
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION
