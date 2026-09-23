@@ -6,7 +6,7 @@
 
 ## 当前边界
 
-- 前端：核心站点在 `app/web/sites/portal`、`app/web/sites/admin`，拥有本端路由、页面、业务组件；共享 React 适配在 `app/web/shared`，不得反向导入站点。
+- 前端：官网在 `app/web/sites/portal`，拥有本端路由、页面、业务组件；共享 React 适配在 `app/web/shared`，不得反向导入站点。极客班控制台是独立的 Vue 3 + Tuffex 包 `app/console`（[console 合同](../services/console/README.md)），与 `app/web` 互不导入，也不导入 `app/server` 源码。
 - 论坛：`app/forum` 是直接采用的 Nuxt/Vue/TuffEx 原仓工程，不导入核心 React 实现，也不被核心导入。
 - 后端：`app/server/src/routes/<module>/index.ts` 是模块注册入口，`contracts.ts` 是输入协议源，路由只处理 HTTP 映射、授权与调用。多处写操作共用的规则放在具名策略/服务中，不在每个 handler 复制归档、锁定、删除幂等或额度校验。
 - 组装：`app/web` 两个站点由同一 Vite 构建产出，`app/server` 由 `app.ts` 组装、`index.ts` 监听，`app/forum` 独立构建。三个服务分别打包为 `web`、`server`、`forum` 镜像，镜像仓库按环境分开（`yzgc-preview/*`、`yzgc-production/*`，见 [DEPLOY](../ops/DEPLOY.md)）。

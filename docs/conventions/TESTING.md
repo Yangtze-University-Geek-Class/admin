@@ -6,9 +6,9 @@
 
 ## 根入口和分工
 
-`pnpm check/test/build` 验证核心 `app/web` + `app/server`；`pnpm forum:check` 验证 `app/forum` 的 Nuxt 类型、测试类型、ESLint、样式规则和单测；`pnpm forum:generate` 生成静态产物。根 `pnpm verify` 顺序编排两者，任一步失败应非零退出。
+`pnpm check/test/build` 验证核心 `app/web` + `app/server` + `app/console`（控制台单测在 `tests/console/`，类型检查用 vue-tsc）；`pnpm forum:check` 验证 `app/forum` 的 Nuxt 类型、测试类型、ESLint、样式规则和单测；`pnpm forum:generate` 生成静态产物。根 `pnpm verify` 顺序编排两者，任一步失败应非零退出。
 
-浏览器分别执行 `pnpm test:e2e` 和 `pnpm forum:verify`。后者保留上游样式 guard 自测、四套 CDP 行为测试和全路由 smoke，并验证图标真正渲染。未找到浏览器不能算套件通过。工具版本分别固定，不能让 Node 26 测试复用核心 SQLite 的 Node 22 二进制。
+浏览器分别执行 `pnpm test:e2e`（同时起官网 5179 与控制台 5189 两个 dev server，控制台用样板数据与 `__persona`）和 `pnpm forum:verify`。后者保留上游样式 guard 自测、四套 CDP 行为测试和全路由 smoke，并验证图标真正渲染。未找到浏览器不能算套件通过。工具版本分别固定，不能让 Node 26 测试复用核心 SQLite 的 Node 22 二进制。
 
 ## 隔离
 
@@ -22,7 +22,7 @@
 
 论坛：种子确定性、store 状态、权限 helper、持久化解析、提及；桌面/移动 shell、主题筛选/排序/分页、回复/引用/编辑/软删/收藏/点赞、用户资料、通知与全路由图标。开发提醒不得遮挡主流程。
 
-核心 UI：危险操作取消、焦点返回、移动导航、文档语言及入口；门户论坛链接必须指向 `app/forum` 的新入口，不加载旧 React 论坛。工程检查要覆盖真实导入解析、别名、反向依赖、站点配置不含域名（`check-site-config`）、SPA 入口按路径选择（服务端 `resolveSiteEntry` 与 web 容器 nginx，`tests/tooling/web-nginx.test.ts` 在本机有 nginx 时实跑）和文档同步。
+核心 UI：危险操作取消、焦点返回、移动导航、文档语言及入口；控制台按身份的导航可见性、缺能力说明、未登录跳转、成员按称号分页签排序、无原生下拉框/复选框、窄屏抽屉导航与无页面级横向溢出；门户论坛链接必须指向 `app/forum` 的新入口，不加载旧 React 论坛。工程检查要覆盖真实导入解析、别名、反向依赖（含 `app/console` 与 `app/web`、`app/server` 互不导入）、站点配置不含域名（`check-site-config`）、SPA 入口按路径选择（服务端 `resolveSiteEntry` 与 web 容器 nginx，`tests/tooling/web-nginx.test.ts` 在本机有 nginx 时实跑，管理端入口是控制台产物）和文档同步。
 
 ## 分支、环境与发布门禁回归
 

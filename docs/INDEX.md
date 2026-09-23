@@ -47,11 +47,11 @@
 
 ## services/web/
 
-portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个环境的 HTTP 入口容器。
+官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
 | 文档 | 说明 | EN |
 |---|---|---|
-| [`admin.md`](./services/web/admin.md) | 使用当前用户 GitHub 权限的组织管理模块。 | — |
+| [`admin.md`](./services/web/admin.md) | 管理端前端已从 `app/web/sites/admin`（React）迁到独立的 Vue 包 `app/console`；本页只记录迁移事实与仍然有效的服务端约定。 | — |
 | [`portal.md`](./services/web/portal.md) | 公开介绍、投递简历、文档、反馈和邀请落地；无独立登录态。 | — |
 | [`shared.md`](./services/web/shared.md) | 共享 UI、网络、渲染和配置，不反向依赖站点。 | — |
 
@@ -110,7 +110,7 @@ portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个�
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
 | [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。 | — |
 | [`FORUM-DATA-CAPTURE.md`](./ops/FORUM-DATA-CAPTURE.md) | 已通过 Mac SSH 获取三份 SQLite 在线备份及两代附件；本机论坛可只读显示由此生成的投影，未导入可写库或切换线上服务。 | — |
-| [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 保留官网和管理后台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。 | — |
+| [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 保留官网和控制台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。 | — |
 | [`RELEASE-ACCEPTANCE-TEMPLATE.md`](./ops/RELEASE-ACCEPTANCE-TEMPLATE.md) | 空白模板，供验收人逐字段手工填写；不是流水线自动生成的通过证明。 | — |
 | [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机默认只读显示极客班快照，不将其冒充生产论坛。 | — |
 | [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：投递简历、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
