@@ -8,8 +8,8 @@
 
 | 服务 | 源码 | 文档 | 镜像 |
 |---|---|---|---|
-| server | `app/server/` | [server](server/README.md) | `yzgc/server:<tag>` |
-| web | `app/web/` | [web](web/README.md)、[portal](web/portal.md)、[admin](web/admin.md)、[shared](web/shared.md) | `yzgc/web:<tag>` |
-| forum | `app/forum/` | [forum](forum/README.md) | `yzgc/forum:<tag>` |
+| server | `app/server/` | [server](server/README.md) | `yzgc-<environment>/server:<sha12>` |
+| web | `app/web/` | [web](web/README.md)、[portal](web/portal.md)、[admin](web/admin.md)、[shared](web/shared.md) | `yzgc-<environment>/web:<sha12>` |
+| forum | `app/forum/` | [forum](forum/README.md) | `yzgc-<environment>/forum:<sha12>` |
 
 服务边界、依赖方向与契约变更流程见 [模块化开发规范](../conventions/MODULAR-DEVELOPMENT.md)；运行环境与部署入口见 [DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。

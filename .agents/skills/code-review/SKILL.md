@@ -60,7 +60,7 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 2. **是否直推 main**：MR 的目标分支、提交来源、CI 触发 ref 三处交叉验证；发现绕过 `stage` 写 `main` 的路径即阻塞。
 3. **密钥是否入库**：`pnpm check:secrets` 只覆盖部分文本模式，**通过它不等于没有泄漏**，必须人眼过一遍 diff 中所有新增字符串（token、密码、会话 Cookie、SSH 私钥、`OAUTH_CLIENT_SECRET`/`SESSION_SECRET`/`ENCRYPTION_KEY`/`TURNSTILE_SECRET_KEY` 的真值）。
 4. **`.env` 只允许非密值**：`deploy/env/.env.production`、`deploy/env/.env.preview` 里只许出现地址、端口、域名、路径、开关；密钥字段必须留空。字段增删要同步 `docs/ops/ENVIRONMENTS.md` 与 `deploy/environments.json`。
-5. **Dockerfile 与 compose**：`dockerfile:` 是否仍指向 `app/<service>/Dockerfile`、构建上下文是否仍是仓库根、镜像 tag 语义（`<sha12>`）是否被改、健康检查是否还在、命名卷有没有被换成宿主目录。
+5. **Dockerfile 与 compose**：`dockerfile:` 是否仍指向 `app/<service>/Dockerfile`、构建上下文是否仍是仓库根、镜像 tag 语义（`<sha12>`）是否被改、镜像仓库是否仍按环境分开（`yzgc-preview/*` 与 `yzgc-production/*`）、健康检查是否还在、命名卷有没有被换成宿主目录。
 6. **端口与卷隔离**：宿主回环 production `127.0.0.1:18100`(web)/`18101`(server 调试)、preview `18200`/`18201`，不得与宿主已占用端口（443/2568/3000/8080/8787）冲突；容器内 web 8080、server/forum 3000；两栈命名卷不得共享，也不得把命名卷换成宿主目录。
 7. **测试与文档同步**：看真实验证证据（命令 + 输出），不是「本地通过」四个字；改动的 API、环境变量、命令、路径是否同步到 `docs/services/**`、`docs/architecture/API.md`、`docs/ops/ENVIRONMENTS.md`、根 `README.md`；`node scripts/docs-index.mjs --check` 与 `node scripts/check-docs.mjs` 是否通过。
 8. **边界规则**：`pnpm check:boundaries`；`app/` 与 `docs/` 严格对齐（新增服务必须同时有 `docs/services/<svc>/README.md`）；站点互导、shared → 站点、路由模块互导、`lib` 反向依赖 `middleware`、论坛导入核心 React/Fastify 实现都是禁止方向。

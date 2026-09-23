@@ -2,7 +2,7 @@
 
 > portal 与 admin 两个 React/Vite 站点 + shared 适配层；同时是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/web/` · 镜像：`yzgc/web:<tag>`
+状态：`current` · 更新：2026-09-24 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 

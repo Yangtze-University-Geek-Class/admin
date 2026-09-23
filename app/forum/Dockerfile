@@ -3,7 +3,8 @@
 #
 # 构建上下文 = 仓库根（geek_main/）：
 #   docker build --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
-#     -f app/forum/Dockerfile -t yzgc/forum:<sha12> .
+#     -f app/forum/Dockerfile -t yzgc-production/forum:<sha12> .
+#   （镜像仓库按环境分开：预发布构建用 yzgc-preview/forum，正式构建用 yzgc-production/forum，见 docs/ops/DEPLOY.md）
 #
 # 论坛有自己的工具链与锁文件（pnpm 11.24.0 / Node >= 26），
 # 绝不并入核心仓库的 pnpm 9 工作区：根 pnpm-workspace.yaml 只列 app/server 与 app/web，

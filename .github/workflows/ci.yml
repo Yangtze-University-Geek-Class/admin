@@ -246,17 +246,25 @@ jobs:
             echo "GEEK_RELEASE_COMMIT=${GITHUB_SHA}"
             echo "IMAGE_TAG=${GITHUB_SHA:0:12}"
           } >> "$GITHUB_ENV"
-          echo "构建身份：version=${version} commit=${GITHUB_SHA} tag=${GITHUB_SHA:0:12}"
+          echo "构建身份：version=${version} commit=${GITHUB_SHA} tag=${GITHUB_SHA:0:12}（按正式身份构建，镜像仓库 yzgc-production/）"
 
       - name: 解析两套 compose（与各自 env 文件配对）
         shell: bash
-        # 只解析不启动：证明 compose 文件在真实 env 值下语法与变量引用都成立。
+        # 只解析不启动：证明 compose 文件在真实 env 值下语法与变量引用都成立；
+        # 再用同一个 IMAGE_TAG 解析两套镜像引用，必须互不相同（两套栈共用目标机的 Docker 守护进程）。
         run: |
           set -eu
           for environment in production preview; do
             docker compose --env-file "deploy/env/.env.${environment}" -f "deploy/compose/${environment}.yml" config --quiet
-            echo "deploy/compose/${environment}.yml 解析通过"
+            IMAGE_TAG="$IMAGE_TAG" docker compose --env-file "deploy/env/.env.${environment}" -f "deploy/compose/${environment}.yml" \
+              config --images | sort -u > "${RUNNER_TEMP}/images-${environment}.txt"
+            echo "deploy/compose/${environment}.yml 解析通过：$(tr '\n' ' ' < "${RUNNER_TEMP}/images-${environment}.txt")"
           done
+          shared="$(comm -12 "${RUNNER_TEMP}/images-production.txt" "${RUNNER_TEMP}/images-preview.txt")"
+          if [ -n "$shared" ]; then
+            echo "两套 compose 在同一提交上解析出相同的镜像引用：${shared}" >&2
+            exit 1
+          fi
 
       - name: 构建 server 镜像
         shell: bash
@@ -267,7 +275,7 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
-            --tag "yzgc/server:$IMAGE_TAG" .
+            --tag "yzgc-production/server:$IMAGE_TAG" .
 
       - name: 构建 web 镜像
         shell: bash
@@ -278,7 +286,7 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
-            --tag "yzgc/web:$IMAGE_TAG" .
+            --tag "yzgc-production/web:$IMAGE_TAG" .
 
       - name: 构建 forum 镜像
         shell: bash
@@ -289,14 +297,14 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
-            --tag "yzgc/forum:$IMAGE_TAG" .
+            --tag "yzgc-production/forum:$IMAGE_TAG" .
 
       - name: 断言三个镜像都有健康检查与非 root 运行身份
         shell: bash
         run: |
           set -eu
           for service in server web forum; do
-            image="yzgc/${service}:${IMAGE_TAG}"
+            image="yzgc-production/${service}:${IMAGE_TAG}"
             docker image inspect "$image" --format '{{.Config.Healthcheck.Test}}' | grep -q . \
               || { echo "${image} 缺少健康检查" >&2; exit 1; }
             user="$(docker image inspect "$image" --format '{{.Config.User}}')"
