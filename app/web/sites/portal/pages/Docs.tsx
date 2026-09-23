@@ -7,6 +7,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/lib/api";
 import { renderMarkdown } from "@shared/lib/markdown";
+import Icon from "../components/Icon";
 import PageShell, { WindowCard } from "../components/PageShell";
 
 type Item = { id: string; label: string; lang: "zh" | "en"; file?: string };
@@ -15,7 +16,8 @@ type Doc = { id: string; label: string; lang: "zh" | "en"; file: string; content
 export default function Docs() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const items = useQuery({ queryKey: ["docs"], queryFn: () => api<{ items: Item[] }>("/api/docs") }).data?.items ?? [];
+  const itemsQuery = useQuery({ queryKey: ["docs"], queryFn: () => api<{ items: Item[] }>("/api/docs") });
+  const items = itemsQuery.data?.items ?? [];
 
   // Language is derived from the current doc's id — not a separate state. This
   // way the language toggle and the article are always in sync.
@@ -73,7 +75,6 @@ export default function Docs() {
     <PageShell path="~/yugc/docs">
       <header className="pt-pagehead">
         <div>
-          <p className="pt-kicker">// DOCS · 文档</p>
           <h1>{currentItem?.label ?? "文档"}</h1>
         </div>
         <div className="pt-segment" role="group" aria-label="文档语言">
@@ -92,14 +93,14 @@ export default function Docs() {
               {it.label}
             </Link>
           ))}
-          {filtered.length === 0 && <p className="pt-hint">暂无文档</p>}
+          {items.length === 0 && !itemsQuery.isLoading && <p className="pt-hint">{itemsQuery.error ? "目录没加载出来，请刷新页面。" : "还没有公开文档。"}</p>}
         </nav>
 
         <WindowCard path={current.data ? `~/docs/${current.data.file}` : "~/docs"} className="pt-doc">
-          {current.isLoading && <p className="pt-hint">加载中…</p>}
+          {current.isLoading && <p className="pt-hint">正在读取文档…</p>}
           {current.error && (
             <p className="pt-alert is-error" role="alert">
-              {(current.error as Error).message}
+              <Icon name="error-warning-line" size={16} /> 这篇文档没打开：{(current.error as Error).message}。从左边目录换一篇试试。
             </p>
           )}
           {current.data && <article ref={articleRef} className="prose-doc" dangerouslySetInnerHTML={{ __html: html }} />}

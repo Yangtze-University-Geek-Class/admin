@@ -54,13 +54,8 @@ export default function GithubScene() {
       <canvas ref={canvas} className="pt-scene-canvas" aria-hidden="true" />
       <SceneBar crumb="github" />
       <section className="pt-intro pt-gh-intro" aria-labelledby="pt-gh-title">
-        <p className="pt-kicker">$ gh org view yugc</p>
-        <h1 id="pt-gh-title">
-          做过的东西，
-          <br />
-          都留在这里。
-        </h1>
-        <p>仓库、提交和议题全部公开。右边的天际线一格是一天，越高越忙。</p>
+        <h1 id="pt-gh-title">GitHub 组织</h1>
+        <p>下面是极客班在 GitHub 组织里的公开仓库。点按钮去组织主页看更多。</p>
         <a
           className="pt-btn is-ink is-lg"
           href={links.githubOrg()}
@@ -72,10 +67,10 @@ export default function GithubScene() {
             scene.current.leave();
           }}
         >
-          <Icon name="github-fill" size={18} /> 打开 GitHub 组织 <Icon name="external-link-line" size={15} />
+          <Icon name="github-line" size={18} /> 打开 GitHub 组织 <Icon name="external-link-line" size={15} />
         </a>
         <ul className="pt-gh-repos" aria-label="公开仓库">
-          {failed && <li className="pt-empty">仓库快照读取失败。</li>}
+          {failed && <li className="pt-empty">仓库列表没加载出来，点上面的按钮直接去 GitHub 看。</li>}
           {repos?.repos.map((repo) => (
             <li key={repo.name}>
               <a href={repo.url} target="_blank" rel="noreferrer">
@@ -86,16 +81,15 @@ export default function GithubScene() {
             </li>
           ))}
         </ul>
-        <p className="pt-snap">{repos ? `仓库列表${snapshotLabel(repos.capturedAt)} · 天际线高度为示意` : "仓库列表快照"}</p>
+        <p className="pt-snap">{repos ? `${snapshotLabel(repos.capturedAt)} · 方块高度只是装饰` : "仓库快照 · 方块高度只是装饰"}</p>
       </section>
-      <div className="pt-legend" aria-label="色阶说明：示意，不是真实提交数据">
+      <div className="pt-legend" aria-label="色阶说明：装饰用，不是真实提交数据">
         少
         {LEVEL_COLORS.map((color) => (
           <i key={color} style={{ background: color }} />
         ))}
-        多 · 示意
+        多（示意）
       </div>
-
     </div>
   );
 }

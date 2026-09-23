@@ -136,10 +136,8 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     x.stroke();
     x.fillStyle = "rgba(51,70,200,0.55)";
     x.textAlign = "center";
-    x.font = '700 22px "SF Mono", Menlo, monospace';
-    x.fillText("YUGC", 0, -4);
-    x.font = '14px "SF Mono", Menlo, monospace';
-    x.fillText("POST", 0, 18);
+    x.font = '700 22px "PingFang SC", "Hiragino Sans GB", sans-serif';
+    x.fillText("极客班", 0, 8);
     for (let k = 0; k < 4; k++) {
       x.beginPath();
       x.moveTo(80, -30 + k * 20);
@@ -238,12 +236,9 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     x.lineWidth = s;
     x.strokeRect(10.5 * s, 10.5 * s, w - 21 * s, h - 21 * s);
     x.textAlign = "left";
-    x.fillStyle = PALETTE.cobalt;
-    x.font = `${Math.round(11 * s)}px "SF Mono", Menlo, monospace`;
-    x.fillText("YUGC POST · 加入我们", 38 * s, 44 * s);
     x.fillStyle = PALETTE.ink;
     x.font = `700 ${Math.round(22 * s)}px "PingFang SC", "Hiragino Sans GB", sans-serif`;
-    x.fillText("致 长江大学极客班：", 38 * s, 76 * s);
+    x.fillText("致 长江大学极客班：", 38 * s, 56 * s);
     if (logo) drawEmblem(x, logo, w - 60 * s, 52 * s, 44 * s);
     if (lines?.length) {
       x.fillStyle = PALETTE.cobalt;
@@ -258,10 +253,6 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         y += 34 * s;
         if (y > h - 60 * s) break;
       }
-      x.fillStyle = PALETTE.inkSoft;
-      x.font = `${Math.round(13 * s)}px "SF Mono", Menlo, monospace`;
-      x.textAlign = "right";
-      x.fillText("YUGC POST", w - 40 * s, h - 30 * s);
     }
   };
   let drawnCssW = 0;

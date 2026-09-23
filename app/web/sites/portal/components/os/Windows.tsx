@@ -107,31 +107,29 @@ function About({ onOpen }: { onOpen: OpenApp }) {
     <div className="pt-about">
       <img src={brand.logo} alt="长江大学计算机科学学院极客班徽标" width={112} height={112} />
       <div>
-        <h3>
-          {brand.title} <small>YUGC · SUPERCODER</small>
-        </h3>
-        <p>长江大学计算机科学学院的 AI Native 技术社团。我们一起写代码、做项目、打比赛，做完了就复盘，把经验写下来留给下一届。</p>
+        <h3>{brand.title}</h3>
+        <p>极客班在长江大学计算机科学学院。在读的同学是成员，毕业的学长学姐是领航员。大家在论坛讨论课程、竞赛和求职，代码放在 GitHub 组织里。</p>
         <dl>
           <div>
             <dt>
               <Icon name="code-s-slash-line" size={15} />
-              做什么
+              平时做什么
             </dt>
-            <dd>课程之外的工程项目、竞赛、开源与 AI Coding</dd>
+            <dd>做项目、打比赛，也聊课程、求职和 AI</dd>
           </div>
           <div>
             <dt>
               <Icon name="team-line" size={15} />
-              怎么协作
+              怎么分工
             </dt>
-            <dd>论坛讨论、GitHub 协作、按部门分工</dd>
+            <dd>班长总负责，下面分招新、技术、社区、项目四个部门</dd>
           </div>
           <div>
             <dt>
               <Icon name="mail-line" size={15} />
               怎么加入
             </dt>
-            <dd>写一封信投进信箱，我们会用邮件联系你</dd>
+            <dd>在「加入我们」写封信，我们用邮件联系你</dd>
           </div>
         </dl>
         <div className="pt-row-btns">
@@ -139,7 +137,7 @@ function About({ onOpen }: { onOpen: OpenApp }) {
             <Icon name="mail-send-line" size={16} /> 加入我们
           </button>
           <button type="button" className="pt-btn" onClick={(e) => onOpen("org", e.currentTarget)}>
-            <Icon name="organization-chart" size={16} /> 看组织架构
+            <Icon name="organization-chart" size={16} /> 查看组织架构
           </button>
           <Link className="pt-btn" to="/docs">
             <Icon name="file-text-line" size={16} /> 文档
@@ -157,7 +155,7 @@ function OrgChart() {
         <span className="pt-chip is-lead" style={{ ["--c" as string]: "#a8740a" }}>
           <Icon name="vip-crown-line" size={14} /> 班长
         </span>
-        <small>总负责人 · 全部权限</small>
+        <small>总负责人，控制台里拥有全部权限</small>
       </div>
       <div className="pt-orgc-line" aria-hidden="true" />
       <div className="pt-orgc-depts">
@@ -184,10 +182,10 @@ function OrgChart() {
         <span className="pt-chip" style={{ ["--c" as string]: "#0f766e" }}>
           <Icon name="compass-3-line" size={13} /> 领航员
         </span>
-        <small>毕业的学长学姐，回头为大家指路</small>
+        <small>已毕业的学长学姐</small>
       </div>
       <p className="pt-orgc-note">
-        <Icon name="lock-line" size={13} /> 称号同时显示在论坛和控制台；权限由控制台按称号与部门分配，GitHub 操作仍以本人在 GitHub 上的身份为准。
+        <Icon name="lock-line" size={13} /> 称号会显示在论坛和控制台。控制台按称号和部门分权限；涉及 GitHub 的操作，还要看你在 GitHub 组织里的角色。
       </p>
     </div>
   );
@@ -196,8 +194,13 @@ function OrgChart() {
 function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
   const snapshot = useForumSnapshot();
   const now = Date.now();
-  if (snapshot.status === "loading") return <p className="pt-empty">正在读取快照…</p>;
-  if (snapshot.status === "error") return <p className="pt-empty">快照读取失败，直接去论坛首页看看吧。</p>;
+  if (snapshot.status === "loading") return <p className="pt-empty">正在读取论坛快照…</p>;
+  if (snapshot.status === "error")
+    return (
+      <p className="pt-empty">
+        论坛快照没加载出来。<a href={links.forumHome()}>直接进论坛首页</a>
+      </p>
+    );
   const { summary, latest } = snapshot.data;
   return (
     <div className="pt-feedwin">
@@ -248,7 +251,7 @@ function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
 
 function Terminal({ onOpen }: { onOpen: OpenApp }) {
   const repos = useRepoSnapshot();
-  const [lines, setLines] = useState<TerminalLine[]>([{ kind: "dim", text: "YUGC OS 1.0 · 输入 help 查看命令" }]);
+  const [lines, setLines] = useState<TerminalLine[]>([{ kind: "dim", text: "输入 help 查看命令" }]);
   const [value, setValue] = useState("");
   const history = useRef<string[]>([]);
   const cursor = useRef(0);

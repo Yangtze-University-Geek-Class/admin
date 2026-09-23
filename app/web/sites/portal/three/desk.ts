@@ -55,7 +55,7 @@ type Pose = { pos: THREE.Vector3; target: THREE.Vector3; fov: number; ox: number
 export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions): Promise<DeskHandle | null> {
   const { reducedMotion, hint, report } = options;
   const stage = new Stage(canvas, { fov: 34, background: PAPER, studio: false, reducedMotion });
-  report("env", "bake room.environment · pmrem");
+  report("env", "灯光已就绪");
   if (options.cancelled()) {
     stage.dispose();
     return null;
@@ -191,14 +191,14 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       x.textAlign = "center";
       if (logo) drawEmblem(x, logo, W / 2, 260, 220);
       x.fillStyle = "#1b2140";
-      x.font = '700 46px "SF Mono", Menlo, monospace';
-      x.fillText("Y U G C   O S", W / 2, 450);
+      x.font = '700 52px -apple-system, "PingFang SC", sans-serif';
+      x.fillText("YUGC OS", W / 2, 448);
       x.fillStyle = "#5b6283";
       x.font = '26px -apple-system, "PingFang SC", sans-serif';
       x.fillText("长江大学极客班", W / 2, 494);
-      x.fillStyle = "#8a91b0";
-      x.font = '18px "SF Mono", Menlo, monospace';
-      x.fillText("nano@yugc:~$ ./join --yugc", W / 2, 720);
+      x.fillStyle = "#676e8e";
+      x.font = '20px -apple-system, "PingFang SC", sans-serif';
+      x.fillText("按 Enter 也能开机", W / 2, 716);
     },
     SCREEN_SCALE,
   );
@@ -235,7 +235,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       x.fillStyle = "#fff";
       x.textAlign = "center";
       x.font = '600 28px -apple-system, "PingFang SC", sans-serif';
-      x.fillText("点击开机", w / 2, 58);
+      x.fillText("开机", w / 2, 58);
     },
     TEXT_SCALE,
   );
@@ -422,11 +422,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     mesh.receiveShadow = true;
     return mesh;
   };
-  const n1 = note("./join\n--yugc", "#ffe27a");
+  const n1 = note("TODO\n写 README", "#ffe27a");
   n1.rotation.set(-Math.PI / 2, 0, -0.25);
   n1.position.set(0.78, 0.0015, 0.66);
   scene.add(n1);
-  const n2 = note("hello,\ngeek!", "#dfe5ff", 0.17);
+  const n2 = note("git pull", "#dfe5ff", 0.17);
   n2.rotation.set(-Math.PI / 2, 0, 0.18);
   n2.position.set(0.96, 0.0016, 0.86);
   scene.add(n2);
@@ -440,11 +440,8 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       if (logo) drawEmblem(x, logo, 256, 250, 300);
       x.fillStyle = "#1b2140";
       x.textAlign = "center";
-      x.font = '700 34px "SF Mono", Menlo, monospace';
-      x.fillText("HELLO, GEEK.", 256, 470);
-      x.fillStyle = "#5b6283";
-      x.font = '20px "SF Mono", Menlo, monospace';
-      x.fillText("SUPERCODER · 2021", 256, 512);
+      x.font = '700 40px "PingFang SC", "Hiragino Sans GB", sans-serif';
+      x.fillText("长江大学极客班", 256, 500);
     },
     TEXT_SCALE,
   );
@@ -456,7 +453,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   posterMesh.position.set(-0.55, 0.92, -1.463);
   posterMesh.scale.setScalar(0.8);
   scene.add(posterMesh);
-  report("scene", "build desk · 9 objects");
+  report("scene", "书桌已摆好");
 
   // ── 镜头 ───────────────────────────────────────────────────────────────
   let idle: Pose = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 33, ox: 0, oy: 0 };
@@ -574,10 +571,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const planePoint = new THREE.Vector3();
   type Target = { name: "screen" | "robot" | "mug" | "plant"; hint: string };
   const TARGETS: Array<Target & { object: THREE.Object3D; exact?: boolean }> = [
-    { name: "screen", hint: "点击开机", object: lid, exact: true },
-    { name: "robot", hint: "嗨，我是 NANO 的小机器人", object: robot },
-    { name: "mug", hint: "续一杯", object: mug },
-    { name: "plant", hint: "记得浇水", object: plant },
+    { name: "screen", hint: "打开电脑", object: lid, exact: true },
+    { name: "robot", hint: "NANO · 点一下会跳", object: robot },
+    { name: "mug", hint: "点一下冒热气", object: mug },
+    { name: "plant", hint: "点一下会晃", object: plant },
   ];
   const screenParts: THREE.Object3D[] = [screen, bezel, shell];
   const pick = (clientX: number, clientY: number, touchKeys: boolean): Target | null => {
@@ -756,20 +753,20 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   }
   screenTex.redraw();
   poster.redraw();
-  report("emblem", "load emblem.png");
+  report("emblem", "校徽已加载");
   stage.resize();
   await stage.warmUp([veil]);
   if (options.cancelled()) {
     dispose();
     return null;
   }
-  report("compile", "compile shaders");
+  report("compile", "着色器已编译");
   await stage.nextFrame();
   if (options.cancelled()) {
     dispose();
     return null;
   }
-  report("frame", "ready · 点一下电脑开机");
+  report("frame", "准备好了");
 
   function dispose() {
     window.clearInterval(clock);

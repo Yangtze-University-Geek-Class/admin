@@ -162,7 +162,7 @@ export default function YugcOs({ active, onBack }: Props) {
       { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
       { label: "关闭全部", run: () => setWins([]) },
     ],
-    help: [{ label: "终端命令", run: () => open("terminal") }, { label: "文档", run: () => navigate("/docs") }, { label: "快捷键：1 2 3 · ⌘K · Esc", run: () => undefined }],
+    help: [{ label: "打开终端", run: () => open("terminal") }, { label: "文档", run: () => navigate("/docs") }, { label: "搜索应用和命令", run: () => setLauncher(true), key: "⌘K" }],
   };
   const toggleMenu = (name: MenuName, anchor: HTMLElement) => {
     setMenu((current) => (current?.name === name ? null : { name, left: anchor.getBoundingClientRect().left }));
@@ -225,15 +225,12 @@ export default function YugcOs({ active, onBack }: Props) {
         <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
         <div className="pt-dash">
           <section className="pt-card pt-hero" aria-labelledby="pt-hero-title">
-            <p className="pt-hero-prompt">
-              nano@yugc:~$ ./welcome<i className="pt-caret" aria-hidden="true" />
-            </p>
             <h2 id="pt-hero-title">
               欢迎来到
               <br />
-              <span>长江大学极客班。</span>
+              <span>长江大学极客班</span>
             </h2>
-            <p className="pt-hero-lead">长江大学的 AI Native 技术社团：写代码、做项目、一起复盘。这是我们的内部系统，按 1 2 3 或 ⌘K 快速打开。</p>
+            <p className="pt-hero-lead">想报名就点「加入我们」，想看看大家在聊什么就去论坛。键盘按 1、2、3 或 ⌘K 也能打开。</p>
             <div className="pt-hero-cta">
               {primaries.map((app) => (
                 <button key={app.id} type="button" data-cta={app.id} className={app.primary ? "pt-cta is-primary" : "pt-cta"} onClick={(e) => open(app.id, e.currentTarget)}>
@@ -251,21 +248,21 @@ export default function YugcOs({ active, onBack }: Props) {
             <dl className="pt-hero-facts">
               <div>
                 <dt>
-                  <Icon name="code-s-slash-line" size={14} /> 做什么
+                  <Icon name="code-s-slash-line" size={14} /> 平时做什么
                 </dt>
-                <dd>课程之外的工程项目、竞赛、开源与 AI Coding</dd>
+                <dd>做项目、打比赛，也聊课程、求职和 AI</dd>
               </div>
               <div>
                 <dt>
-                  <Icon name="team-line" size={14} /> 怎么协作
+                  <Icon name="team-line" size={14} /> 在哪交流
                 </dt>
-                <dd>论坛讨论 · GitHub 协作 · 按部门分工</dd>
+                <dd>论坛发帖讨论，代码放在 GitHub 组织</dd>
               </div>
               <div>
                 <dt>
                   <Icon name="mail-line" size={14} /> 怎么加入
                 </dt>
-                <dd>写一封信投进信箱，我们用邮件联系你</dd>
+                <dd>在「加入我们」写封信，我们用邮件联系你</dd>
               </div>
             </dl>
             <div className="pt-hero-foot">
@@ -361,7 +358,7 @@ export default function YugcOs({ active, onBack }: Props) {
               <input
                 ref={launcherInput}
                 value={query}
-                placeholder="搜索应用或命令，例如「加入」「forum」「docs」"
+                placeholder="搜索应用或命令，比如「论坛」「文档」"
                 autoComplete="off"
                 role="combobox"
                 aria-expanded="true"
@@ -398,7 +395,7 @@ export default function YugcOs({ active, onBack }: Props) {
                   <span>{command.hint}</span>
                 </li>
               ))}
-              {shown.length === 0 && <li className="pt-empty">没有匹配的应用</li>}
+              {shown.length === 0 && <li className="pt-empty">没找到「{query.trim()}」。试试「论坛」或「加入」</li>}
             </ul>
             <footer>
               <span>

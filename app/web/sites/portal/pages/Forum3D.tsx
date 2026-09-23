@@ -10,12 +10,13 @@ import type { ForumBoard, ForumHandle } from "../three/forum";
 import "../styles/portal.css";
 import "../styles/scenes.css";
 
+// 版块名称与说明取自论坛的 app/forum/content/curation.json
 export const FORUM_BOARDS: readonly ForumBoard[] = [
-  { slug: "announcements", name: "班级公告", desc: "通知、活动与规则", color: "#e5484d", icon: "megaphone-line" },
-  { slug: "courses", name: "课程与作业", desc: "课程、作业与选课经验", color: "#2f6fed", icon: "book-open-line" },
-  { slug: "competitions", name: "竞赛与项目", desc: "组队、进展与成果", color: "#e39410", icon: "trophy-line" },
-  { slug: "careers", name: "求职与升学", desc: "实习、校招与考研", color: "#0e8fc9", icon: "briefcase-line" },
-  { slug: "ai", name: "人工智能", desc: "大模型、Agent 与 AI Coding", color: "#5b5fd6", icon: "brain-line" },
+  { slug: "announcements", name: "班级公告", desc: "通知、活动安排和规则", color: "#e5484d", icon: "megaphone-line" },
+  { slug: "courses", name: "课程与作业", desc: "作业讨论、考试和选课", color: "#2f6fed", icon: "book-open-line" },
+  { slug: "competitions", name: "竞赛与项目", desc: "比赛信息、组队和项目进展", color: "#e39410", icon: "trophy-line" },
+  { slug: "careers", name: "求职与升学", desc: "实习、校招、考研和出国", color: "#0e8fc9", icon: "briefcase-line" },
+  { slug: "ai", name: "人工智能", desc: "大模型、Agent 和 AI Coding", color: "#5b5fd6", icon: "brain-line" },
 ];
 
 export default function Forum3D() {
@@ -88,13 +89,8 @@ export default function Forum3D() {
       <canvas ref={canvas} className="pt-scene-canvas is-grab" aria-hidden="true" />
       <SceneBar crumb="forum" />
       <section className="pt-intro pt-forum-intro" aria-labelledby="pt-forum-title">
-        <p className="pt-kicker">$ open forum</p>
-        <h1 id="pt-forum-title">
-          大家在聊
-          <br />
-          什么？
-        </h1>
-        <p>五个版块，挑一个感兴趣的点进去；点中间的校徽直接进论坛首页。</p>
+        <h1 id="pt-forum-title">论坛</h1>
+        <p>极客班的讨论区，公告、课程、竞赛、求职都在这里。选一个版块进去，或者直接进论坛首页。</p>
         <a
           className="pt-btn is-primary is-lg"
           href={links.forumHome()}
@@ -104,7 +100,7 @@ export default function Forum3D() {
             scene.current.goHome();
           }}
         >
-          <Icon name="discuss-line" size={18} /> 进入论坛首页 <Icon name="arrow-right-line" size={16} />
+          <Icon name="discuss-line" size={18} /> 进入论坛首页
         </a>
         <nav className="pt-boards" aria-label="论坛版块">
           {FORUM_BOARDS.map((board, index) => (
@@ -131,7 +127,7 @@ export default function Forum3D() {
       </section>
       <div className="pt-tip" ref={tip} aria-hidden="true" />
       <p className="pt-scene-note" aria-hidden="true">
-        拖动旋转 · 点击气泡进入版块 · 方向键切换 · 点校徽进入首页
+        拖动或按方向键转动，点气泡进版块，点中间的校徽进论坛首页
       </p>
       <div className="pt-wipe" ref={wipe} aria-hidden="true" />
     </div>

@@ -36,14 +36,14 @@ export default function PageShell({ path, children }: { path: string; children: 
         </span>
         <nav aria-label="页脚导航">
           <Link to="/" state={RESUME_DESKTOP}>
-            YUGC OS
+            回到桌面
           </Link>
           <Link to="/join-us">加入我们</Link>
           <a href={links.forumHome()}>论坛</a>
           <Link to="/docs">文档</Link>
           <a href={links.console()}>控制台</a>
           <a href={links.githubOrg()} target="_blank" rel="noreferrer">
-            GitHub
+            GitHub 组织
           </a>
         </nav>
       </footer>

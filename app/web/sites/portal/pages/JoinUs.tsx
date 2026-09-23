@@ -35,12 +35,13 @@ export function validateJoin(form: FormState): FieldErrors {
   const className = form.className.trim();
   const email = form.email.trim();
   const strengths = form.strengths.trim();
-  if (name.length < 2 || name.length > 40) errors.name = "姓名需要 2–40 个字符";
-  if (className.length < 2 || className.length > 40) errors.className = "班级需要 2–40 个字符";
-  else if (!CLASS_RE.test(className)) errors.className = "班级只能包含中文、字母、数字、空格、· 或 -";
-  if (!email) errors.email = "请填写邮箱";
-  else if (email.length > 120 || !EMAIL_RE.test(email)) errors.email = "邮箱格式不正确";
-  if (strengths.length < 10 || strengths.length > 2000) errors.strengths = "写 10–2000 个字，具体一点会更容易被记住";
+  if (name.length < 2 || name.length > 40) errors.name = "姓名写 2 到 40 个字";
+  if (className.length < 2 || className.length > 40) errors.className = "班级写 2 到 40 个字";
+  else if (!CLASS_RE.test(className)) errors.className = "班级只能用中文、字母、数字、空格、· 和 -";
+  if (!email) errors.email = "请填写邮箱，我们靠它联系你";
+  else if (email.length > 120 || !EMAIL_RE.test(email)) errors.email = "邮箱格式不对，检查一下有没有漏掉 @";
+  if (strengths.length < 10) errors.strengths = "至少写 10 个字";
+  else if (strengths.length > 2000) errors.strengths = "最多 2000 字，请删减一些";
   return errors;
 }
 
@@ -55,7 +56,6 @@ export default function JoinUs() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<{ kind: "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
-  const [tries, setTries] = useState(0);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [powDifficulty, setPowDifficulty] = useState(3);
   const [siteKey, setSiteKey] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export default function JoinUs() {
         setPowDifficulty(config.pow_difficulty);
         setSiteKey(config.turnstile_site_key);
       })
-      .catch(() => setStatus({ kind: "error", text: "无法读取服务配置，请刷新页面重试" }));
+      .catch(() => setStatus({ kind: "error", text: "连不上服务器，暂时寄不出去。请刷新页面再试。" }));
   }, []);
 
   const onPhase = useCallback((next: JoinPhase) => setPhase(next), []);
@@ -127,22 +127,21 @@ export default function JoinUs() {
     const found = validateJoin(form);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      setStatus({ kind: "error", text: "还有几处需要改一下" });
+      setStatus({ kind: "error", text: "有几项没填好，按红字改完再寄" });
       letter.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
     }
     if (siteKey && !turnstileToken) {
-      setStatus({ kind: "error", text: "请先完成人机验证" });
+      setStatus({ kind: "error", text: "先完成上面的人机验证，再寄出" });
       return;
     }
     const name = form.name.trim();
     const email = form.email.trim();
     setStatus(null);
-    setTries(0);
     setBusy("pow");
     try {
       // 与后端约定的载荷指纹：apply:<姓名>:<邮箱>（trim 之后，半角冒号）
-      const pow = await computePow(`apply:${name}:${email}`, powDifficulty, setTries);
+      const pow = await computePow(`apply:${name}:${email}`, powDifficulty);
       setBusy("submit");
       const result = await requestJson<Receipt>("/api/portal/apply", {
         method: "POST",
@@ -164,9 +163,9 @@ export default function JoinUs() {
       if (error instanceof ApiError) {
         const fields = (error.payload?.fields ?? {}) as FieldErrors;
         setErrors(fields);
-        setStatus({ kind: "error", text: Object.keys(fields).length > 0 ? "提交未通过校验，请看字段提示" : error.message });
+        setStatus({ kind: "error", text: Object.keys(fields).length > 0 ? "服务器没收下这封信，按红字改完再寄" : error.message });
       } else {
-        setStatus({ kind: "error", text: (error as Error).message || "网络好像断了，稍后再试" });
+        setStatus({ kind: "error", text: (error as Error).message || "没寄出去，可能是网络断了。内容还在，稍后再点一次。" });
       }
       setTurnstileToken("");
       setTurnstileEpoch((value) => value + 1);
@@ -190,32 +189,13 @@ export default function JoinUs() {
       <SceneBar crumb="join" />
 
       <section className={phase === "arrive" || phase === "open" ? "pt-intro" : "pt-intro is-away"} aria-labelledby="pt-join-title">
-        <p className="pt-kicker">$ ./join --yugc</p>
-        <h1 id="pt-join-title">
-          给极客班
-          <br />
-          写一封信。
-        </h1>
-        <p>四项就够：姓名、班级、邮箱，再写几句你的特长。封好投进信箱，我们会用邮件联系你。</p>
-        <ol className="pt-intro-steps">
-          <li>
-            <b>01</b>写信
-          </li>
-          <li>
-            <b>02</b>封口
-          </li>
-          <li>
-            <b>03</b>投进信箱
-          </li>
-        </ol>
+        <h1 id="pt-join-title">加入我们</h1>
+        <p>给极客班写一封信，写上姓名、班级、邮箱，再说说你会什么、想做什么。寄出之后，我们用邮件联系你。</p>
       </section>
 
       <form ref={letter} className={letterOn ? "pt-letter is-on" : "pt-letter"} noValidate aria-labelledby="pt-letter-title" onSubmit={submit} onKeyDown={onKeyDown} aria-hidden={!letterOn}>
         <header className="pt-letter-head">
-          <div>
-            <p className="pt-letter-kicker">YUGC POST · 加入我们</p>
-            <h2 id="pt-letter-title">致 长江大学极客班：</h2>
-          </div>
+          <h2 id="pt-letter-title">致 长江大学极客班：</h2>
           <img src={appConfig.portal.brand.logo} alt="" width={44} height={44} />
         </header>
         <div className="pt-letter-row">
@@ -230,7 +210,7 @@ export default function JoinUs() {
           </label>
           <label className="pt-lf">
             <span>班级</span>
-            <input name="className" value={form.className} onChange={update("className")} autoComplete="organization" placeholder="例如 计科 1 班" maxLength={40} aria-invalid={errors.className ? true : undefined} aria-describedby={errors.className ? "lf-class-err" : undefined} />
+            <input name="className" value={form.className} onChange={update("className")} autoComplete="organization" placeholder="例如 计科 2301 班" maxLength={40} aria-invalid={errors.className ? true : undefined} aria-describedby={errors.className ? "lf-class-err" : undefined} />
             {errors.className && (
               <em id="lf-class-err" role="alert">
                 {errors.className}
@@ -246,18 +226,18 @@ export default function JoinUs() {
               {errors.email}
             </em>
           ) : (
-            <small id="lf-email-hint">只用来联系你，不会出现在论坛或公开页面。</small>
+            <small id="lf-email-hint">只用来联系你，不会公开</small>
           )}
         </label>
         <label className="pt-lf">
-          <span>特长和优点</span>
+          <span>你会什么，想做什么</span>
           <textarea
             name="strengths"
             rows={5}
             value={form.strengths}
             onChange={update("strengths")}
             maxLength={2000}
-            placeholder="做过什么、擅长什么、想做什么。项目、比赛、课程作业、自己折腾的小东西都算。"
+            placeholder="做过的项目、参加过的比赛、课程作业、自己写的小工具都可以写。"
             aria-invalid={errors.strengths ? true : undefined}
             aria-describedby={errors.strengths ? "lf-str-err" : "lf-str-count"}
           />
@@ -266,7 +246,9 @@ export default function JoinUs() {
               {errors.strengths}
             </em>
           ) : (
-            <small id="lf-str-count">{count}/2000 · 具体一点比形容词更有用</small>
+            <small id="lf-str-count">
+              <span className="pt-num">{count}</span> / 2000 字，至少 10 字
+            </small>
           )}
         </label>
         {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
@@ -280,7 +262,7 @@ export default function JoinUs() {
         <footer className="pt-letter-foot">
           <button type="submit" className="pt-btn is-primary is-lg" disabled={busy !== ""}>
             <Icon name="send-plane-2-line" size={17} />
-            {busy === "pow" ? `正在封信…（${tries}）` : busy === "submit" ? "正在投递…" : "封好信，投进信箱"}
+            {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在寄出…" : "寄出这封信"}
             <kbd>⌘ Enter</kbd>
           </button>
           {status && (
@@ -295,10 +277,9 @@ export default function JoinUs() {
       <div ref={receiptRef} className={phase === "done" && receipt ? "pt-receipt is-on" : "pt-receipt"} role="status" aria-live="polite">
         {receipt && (
           <>
-            <p className="pt-receipt-ok">
-              <Icon name="mail-check-line" size={15} /> DELIVERED · 已投递
-            </p>
-            <h2>信已经投进极客班信箱。</h2>
+            <h2>
+              <Icon name="mail-check-line" size={20} /> 信收到了
+            </h2>
             <p>{receipt.message}</p>
             <dl className="pt-receipt-meta">
               <div>
@@ -312,13 +293,13 @@ export default function JoinUs() {
                 <dd>{new Date(receipt.submitted_at).toLocaleString("zh-CN", { hour12: false })}</dd>
               </div>
             </dl>
-            <p className="pt-receipt-note">请记下编号，联系时报上它就行。我们读完会通过你填写的邮箱联系你。</p>
+            <p className="pt-receipt-note">记下编号，之后联系我们时报上它。网站上查不到进度，请留意邮箱。</p>
             <div className="pt-row-btns">
               <Link className="pt-btn is-primary" to="/" state={RESUME_DESKTOP}>
                 回到桌面
               </Link>
               <Link className="pt-btn" to="/forum-3d">
-                先去论坛逛逛
+                去论坛看看
               </Link>
               <button type="button" className="pt-btn is-quiet" onClick={() => window.location.reload()}>
                 再写一封
@@ -327,9 +308,6 @@ export default function JoinUs() {
           </>
         )}
       </div>
-      <p className="pt-scene-note" aria-hidden="true">
-        YUGC POST · 提交后会得到一个编号
-      </p>
     </div>
   );
 }

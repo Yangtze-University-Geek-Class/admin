@@ -26,14 +26,14 @@ export type OsApp = {
 };
 
 export const OS_APPS: readonly OsApp[] = [
-  { id: "join", name: "加入我们", icon: "mail-send-line", tint: "#3346c8", key: "1", primary: true, open: { kind: "scene", path: "/join-us" }, blurb: "写一封信投进极客班信箱，两分钟、四项信息。" },
-  { id: "forum", name: "论坛", icon: "discuss-line", tint: "#5b5fd6", key: "2", open: { kind: "scene", path: "/forum-3d" }, blurb: "课程作业、竞赛项目、AI 与复盘。" },
-  { id: "github", name: "GitHub", icon: "github-fill", tint: "#1b2140", key: "3", open: { kind: "scene", path: "/github" }, blurb: "仓库、提交和议题全部公开。" },
-  { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "我们是谁、在做什么。" },
-  { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "班长、四个部门与领航员。" },
-  { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 看看能做什么。" },
-  { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "匿名提建议、报 bug。" },
-  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "成员用 GitHub 登录，按权限管理。" },
+  { id: "join", name: "加入我们", icon: "mail-send-line", tint: "#3346c8", key: "1", primary: true, open: { kind: "scene", path: "/join-us" }, blurb: "写封信报名，我们用邮件联系你" },
+  { id: "forum", name: "论坛", icon: "discuss-line", tint: "#5b5fd6", key: "2", open: { kind: "scene", path: "/forum-3d" }, blurb: "班级公告，课程、竞赛和求职讨论" },
+  { id: "github", name: "GitHub 组织", icon: "github-line", tint: "#1b2140", key: "3", open: { kind: "scene", path: "/github" }, blurb: "极客班的公开仓库" },
+  { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "极客班是做什么的" },
+  { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "班长、四个部门和领航员" },
+  { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
+  { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },
+  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "成员用 GitHub 账号登录" },
 ];
 
 export function appById(id: string): OsApp | undefined {
@@ -58,9 +58,9 @@ export type LauncherCommand = {
 export function launcherCommands(): LauncherCommand[] {
   return [
     ...OS_APPS.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: `${app.id} ${app.name}` })),
-    { id: "forum-home", label: "进入论坛首页", hint: "论坛 · 全部话题", icon: "external-link-line", keywords: "forum home 论坛 首页 bbs" },
+    { id: "forum-home", label: "进入论坛首页", hint: "全部话题", icon: "external-link-line", keywords: "forum home 论坛 首页 bbs" },
     { id: "forum-feed", label: "论坛最新", hint: "最近的话题（快照）", icon: "fire-line", keywords: "latest feed 最新 帖子 话题 topic" },
-    { id: "docs", label: "文档", hint: "产品介绍与使用指南", icon: "file-text-line", keywords: "docs 文档 guide 指南 help" },
+    { id: "docs", label: "文档", hint: "官网和论坛的使用说明", icon: "file-text-line", keywords: "docs 文档 guide 指南 help" },
     { id: "back", label: "回到书桌", hint: "Esc", icon: "arrow-left-line", keywords: "back desk 书桌 返回 exit" },
   ];
 }
@@ -106,10 +106,10 @@ export type RepoSnapshot = { name: string; description: string | null; language:
 const HELP: Array<[string, string]> = [
   ["help", "显示这份帮助"],
   ["ls", "列出应用"],
-  ["open <app>", "打开应用：join / forum / github / about / org"],
-  ["./join --yugc", "去写信加入我们"],
-  ["repos", "看公开仓库（快照）"],
-  ["whoami", "你是谁"],
+  ["open <app>", "打开应用，例如 open forum"],
+  ["./join", "打开「加入我们」"],
+  ["repos", "列出公开仓库（快照）"],
+  ["whoami", "显示当前身份"],
   ["clear", "清屏"],
 ];
 
@@ -126,7 +126,7 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
     case "clear":
       return { lines: [], clear: true };
     case "whoami":
-      return reply([{ kind: "out", text: "访客。写封信加入我们之后，这里会显示你的称号。" }]);
+      return reply([{ kind: "out", text: "访客（官网不需要登录）" }]);
     case "repos":
       return reply(
         repos.length
@@ -134,9 +134,9 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
           : [{ kind: "dim", text: "没有公开仓库" }],
       );
     case "./join":
-      return reply([{ kind: "ok", text: "正在打开信封…" }], "join");
+      return reply([{ kind: "ok", text: "打开 加入我们" }], "join");
     case "sudo":
-      return reply([{ kind: "err", text: "权限不足：请先让班长给你分配称号。" }]);
+      return reply([{ kind: "err", text: "sudo: 这个终端没有管理员权限。管理组织请用控制台。" }]);
     case "open": {
       const app = appById(rest[0] ?? "");
       if (!app) return reply([{ kind: "err", text: `open: 没有叫 ${rest[0] ?? "（空）"} 的应用，试试 ls` }]);
