@@ -49,7 +49,7 @@
 
 两栈**完全隔离**：独立目录、独立 compose 项目、独立端口、独立数据卷、独立密钥、独立域名、独立锁。不得共用数据库、上传目录、会话密钥或父域 Cookie；Cookie 使用 host-only，禁止 `.yangtzeu.work`。宿主 3000/443/2568/8787/8080 已被现有服务占用，新栈只绑回环的 18100/18101 与 18200/18201；forum 容器不发布任何宿主端口。
 
-镜像名 `yzgc/server:<tag>`、`yzgc/web:<tag>`、`yzgc/forum:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z-rc.N@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
+镜像名按环境分仓库：正式 `yzgc-production/{server,web,forum}:<tag>`，预发布 `yzgc-preview/{server,web,forum}:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。两套栈共用同一个 Docker 守护进程，同一提交的正式与预发布镜像构建参数不同（`release.json`、版本串），共用镜像名会在 `docker load` 时互相覆盖；仓库名在 compose 文件里是字面量，不从 env 文件读取，`scripts/deployment-environment.mjs --check` 会拒绝两套 compose 在同一 SHA 上解析出相同镜像引用。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z-rc.N@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
 
 ## 部署流程
 
@@ -61,12 +61,14 @@ docker compose --env-file deploy/env/.env.production -f deploy/compose/productio
   --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
   --build-arg GEEK_RELEASE_VERSION=<X.Y.Z，预发布为 X.Y.Z-rc.N@<sha12>> \
   --build-arg GEEK_RELEASE_COMMIT=<40 位 SHA>
-docker save yzgc/server:<sha12> yzgc/web:<sha12> yzgc/forum:<sha12> -o yzgc-<sha12>.tar
-sha256sum yzgc-<sha12>.tar > yzgc-<sha12>.tar.sha256
+# 镜像必须带本环境的仓库名：compose 文件的 image 就是 yzgc-production/<服务>:${IMAGE_TAG}
+docker save yzgc-production/server:<sha12> yzgc-production/web:<sha12> yzgc-production/forum:<sha12> \
+  -o yzgc-images-production-<sha12>.tar
+sha256sum yzgc-images-production-<sha12>.tar > yzgc-images-production-<sha12>.tar.sha256
 
 # 2) 分发 tar(+sha256) 与渲染好的运行时 env 文件到目标机，然后：
 bash deploy-stack.sh --environment production \
-  --images ./yzgc-<sha12>.tar --env-file ./runtime/.env.production
+  --images ./yzgc-images-production-<sha12>.tar --env-file ./runtime/.env.production
 ```
 
 `deploy/remote/deploy-stack.sh` 的行为（目标机上，参数即契约）：
@@ -82,13 +84,15 @@ bash deploy-stack.sh --environment production \
 | `--health-timeout <秒>` | 健康门超时（默认 180） |
 
 - **env 文件是唯一事实源**：`STACK_ROOT`、`COMPOSE_PROJECT_NAME`、`IMAGE_TAG`、`SERVER_BIND`、`WEB_BIND`、`SERVER_PORT` 都从它读取，脚本把它原子安装为 `<栈根>/.env.<environment>`（权限 600）。
+- **镜像只属于本环境**：装载前读归档里 `manifest.json` 的 `RepoTags`，只接受 `yzgc-<environment>/{server,web,forum}:<IMAGE_TAG>` 这三个，出现另一环境、旧的 `yzgc/*` 或别的 tag 即拒绝（不 `docker load`，也不重新打 tag）；compose 文件解析出的镜像也必须恰好是这三个，目标机上残留旧版 compose 文件时直接失败。
 - **镜像包校验失败关闭**：必须能核到 sha256（`<包>.sha256`、去扩展名的同名 `.sha256`，或同目录的 `SHA256SUMS`/`sha256sums.txt`/`checksums.txt`），缺失或不等即拒绝部署。
 - **串行锁**：`flock <栈根>/.deploy.lock`（等待 900s），production 与 preview 各自独立串行。
 - **健康门**：轮询 `http://127.0.0.1:<SERVER_BIND 端口>/healthz` 与 `http://127.0.0.1:<WEB_BIND 端口>/healthz`（web nginx 代理 `/healthz` → server:3000），两者都必须返回 HTTP 200 且 `"ok":true`；默认 180s 超时、3s 间隔。失败时脚本把 `IMAGE_TAG` 切回部署前的值、重新 `compose up -d` 并复检。
 - **历史记录**：追加写 `<栈根>/deploy-history.log`，制表符分列 `<UTC ISO8601> <环境> <生效版本> <结果> <说明>`。第 3 列是**该次动作后真正在跑的 tag**：`OK` / `MANUAL_ROLLBACK` 行 = 部署后生效的 tag；`FAILED` 行 = 尝试部署但没起来的 tag；`ROLLED_BACK` 行 = 回滚后真正生效的旧 tag（说明里写明目标版本未上线）。镜像保留策略与 `rollback-stack.sh --to previous` 都按这一列判断。结果取值：`OK` / `FAILED` / `ROLLED_BACK` / `ROLLBACK_FAILED` / `ROLLBACK_SKIPPED`（部署）与 `MANUAL_ROLLBACK` / `MANUAL_ROLLBACK_FAILED`（回滚）。
 - **镜像构成**：`node:22-bookworm-slim`（server 构建与运行）、`node:22-bookworm-slim` + `nginx:1.31-alpine`（web 构建 + 运行）、`node:26-bookworm-slim` + `nginx:1.31-alpine`（forum 构建 + 运行）。基础镜像大版本变更必须单独验证（1.27 系列已下线，不要再回退到旧 tag）。
 - **`FORUM_PORT` 三处一致**：compose 用 `expose: ["${FORUM_PORT}"]` 声明容器内端口，必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 以及 web 容器 `proxy_pass http://forum:3000/` 三处同时一致；改值要一起改镜像与 web 的 nginx 配置。
-- **镜像保留**：部署成功后清理其它 `yzgc/*` tag，保留历史中最新 5 个不同 tag + 当前 + 上一个；正在使用的镜像不会被强制删除。
+- **镜像保留**：部署成功后只清理本环境仓库 `yzgc-<environment>/*` 的其它 tag，保留本栈历史中最新 5 个不同 tag + 当前 + 上一个；另一环境的仓库不在清理范围内；正在使用的镜像不会被强制删除。旧模型遗留的 `yzgc/*` 镜像两个脚本都不再使用也不清理，确认两套栈都已切到新仓库后由维护者手工删除。
+- **自动回滚前先确认镜像在**：健康门失败时，若本机没有本环境上一个版本的三个镜像，记 `ROLLBACK_SKIPPED` 并停下，不会用另一环境的同名 SHA 顶替。
 - 目标机只 `docker load` 镜像并 `up -d`，**不在服务器上 `git pull` 后构建**。
 - 同一环境同一时刻只允许一个部署任务（锁保证）；正式环境部署不得在切换过程中被新任务取消。
 
@@ -127,7 +131,7 @@ bash deploy-stack.sh  ... # 部署失败时自动回滚（见上文健康门）
 bash rollback-stack.sh --environment production --to <sha12|previous>
 ```
 
-`rollback-stack.sh` 只做两件事：把 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 改成目标 tag，然后 `docker compose up -d`。它**不触碰数据卷、不删除数据、不清理镜像、不改分支或版本号**；`previous` = `deploy-history.log` 中与当前不同的最近一个 tag。可选参数 `--env-file`、`--stack-root`、`--compose-file`、`--health-timeout` 与部署脚本同名同义，健康门同样生效；结果写入同一份 `deploy-history.log`。
+`rollback-stack.sh` 只做两件事：把 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 改成目标 tag，然后 `docker compose up -d`。目标镜像只在本环境仓库 `yzgc-<environment>/…` 里找，另一环境同一 SHA 的镜像不能代替；compose 文件解析出的镜像不是本环境仓库时直接失败。它**不触碰数据卷、不删除数据、不清理镜像、不改分支或版本号**；`previous` = `deploy-history.log` 中与当前不同的最近一个 tag。可选参数 `--env-file`、`--stack-root`、`--compose-file`、`--health-timeout` 与部署脚本同名同义，健康门同样生效；结果写入同一份 `deploy-history.log`。
 
 回滚目标用发布 tag 来选：切回某个更早的 `vX.Y.Z`，对应镜像 tag 是 `git rev-parse "vX.Y.Z^{commit}" | cut -c1-12`。回滚不移动、不删除、不重打任何 tag，后续修复走新的 rc（见 [RELEASES](../conventions/RELEASES.md)）。
 

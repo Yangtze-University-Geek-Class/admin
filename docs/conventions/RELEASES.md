@@ -74,7 +74,8 @@
   - 预发布环境：`X.Y.Z-rc.N@<sha12>`（`<sha12>` 是提交 SHA 前 12 位）；
   - 本机：明确标记「本地开发 · 未发布」。
 - 版本展示由受控构建以 build args 注入（`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`），不从 `NODE_ENV` 猜环境。论坛构建会校验组合（[app/forum/shared/deployment.ts](../../app/forum/shared/deployment.ts)）：`-rc.N` 只能和 `@<sha12>` 一起出现且只用于预发布，正式只能是 `X.Y.Z`，`<sha12>` 必须等于提交前 12 位。web 镜像内置的 `/release.json` 带同一个版本值。
-- 镜像 tag 仍是提交的 `<sha12>`（`yzgc/{server,web,forum}:<sha12>`），部署时写入目标机 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG`。镜像 tag 标识代码，发布 tag 标识一次发版。
+- 镜像 tag 是提交的 `<sha12>`，部署时写入目标机 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG`。镜像 tag 标识代码，发布 tag 标识一次发版。
+- **镜像仓库按环境分开**：预发布用 `yzgc-preview/{server,web,forum}:<sha12>`，正式用 `yzgc-production/{server,web,forum}:<sha12>`。两套栈共用目标机的一个 Docker 守护进程，同一提交会先按预发布身份、再按正式身份各构建一次（`release.json`、版本串等构建参数不同）。如果共用一个镜像名，后装载的一方会把另一方的镜像改名覆盖，之后预发布回滚或重建容器就会跑正式构建。所以同一提交在两个环境里绝不共用镜像引用；`deploy/env` 与 compose 的契约校验、CI 和部署脚本都会核对这一点。
 - 展示值只是构建身份，不是人工验收的证据，也不能当作发布凭据。
 
 ## 人工验收先于正式 tag
@@ -105,8 +106,8 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 回滚是把某个环境切回一个**更早发布 tag 的镜像**。不移动分支，不移动、删除或重打 tag，不改版本号，不重置数据库：
 
 1. 选定该环境此前部署成功过的发布 tag（正式环境即更早的 `vX.Y.Z`），它的镜像 tag 是 `git rev-parse "vX.Y.Z^{commit}" | cut -c1-12`，可在目标机 `<栈根>/deploy-history.log` 第 3 列核对；
-2. 在目标机运行 `deploy/remote/rollback-stack.sh --environment <environment> --to <sha12|previous>`，它把 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG` 切到该值并 `docker compose up -d`；
-3. 数据库结构不兼容时停下来由人处理，不用重置数据库代替回滚；目标镜像已被保留策略清理时也停下来，由维护者从该 tag 的部署工作流产物重新分发，不在服务器上临时构建。
+2. 在目标机运行 `deploy/remote/rollback-stack.sh --environment <environment> --to <sha12|previous>`，它只在本环境的仓库 `yzgc-<environment>/…` 里找目标镜像，把 `<STACK_ROOT>/.env.<environment>` 的 `IMAGE_TAG` 切到该值并 `docker compose up -d`；另一环境同一 SHA 的镜像不能拿来回滚；
+3. 数据库结构不兼容时停下来由人处理，不用重置数据库代替回滚；本环境的目标镜像已被保留策略清理时也停下来，由维护者从该 tag 在本环境的部署工作流产物重新分发，不在服务器上临时构建。
 
 回滚之后的修复走新的 rc（必要时先升版本号），不改写已发布的 tag。同一环境同一时刻只允许一个部署任务（串行锁）；正式环境部署不得在切换过程中被新任务取消。
 

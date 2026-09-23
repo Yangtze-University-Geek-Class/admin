@@ -19,7 +19,14 @@ import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { deploymentTarget, readEnvironment, repositoryRoot } from './deployment-environment.mjs';
+import {
+  IMAGE_SERVICES,
+  deploymentTarget,
+  imageReference,
+  imageRepositoryPrefix,
+  readEnvironment,
+  repositoryRoot,
+} from './deployment-environment.mjs';
 
 /** 发布 tag 的唯一正则：RELEASES.md 的 tag 表逐字引用它（测试核对两处一致）。 */
 export const RELEASE_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.([1-9]\d*))?$/;
@@ -206,12 +213,10 @@ export function planDeployment({ repo = process.cwd(), root = repo, tag, commit,
     commit,
     shortCommit,
     imageTag: shortCommit,
-    imagePrefix: 'yzgc',
-    images: {
-      server: `yzgc/server:${shortCommit}`,
-      web: `yzgc/web:${shortCommit}`,
-      forum: `yzgc/forum:${shortCommit}`,
-    },
+    // 镜像仓库按环境分开（yzgc-preview/… 与 yzgc-production/…）：两套栈共用一个 Docker 守护进程，
+    // 同一提交的两次构建参数不同，共用镜像名会互相覆盖。IMAGE_TAG 仍是提交的 12 位 SHA。
+    imageRepository: imageRepositoryPrefix(environment),
+    images: Object.fromEntries(IMAGE_SERVICES.map(service => [service, imageReference(environment, service, shortCommit)])),
     imagesArchive: `yzgc-images-${environment}-${shortCommit}.tar.gz`,
     version,
     releaseVersion,
@@ -280,7 +285,7 @@ function main(argv) {
   const identity = planDeployment(parseOptions(rest));
   for (const note of identity.notes) console.error(`[证据] ${note}`);
   console.error(
-    `${identity.tag} → ${identity.environment}（${identity.origin}）：镜像 tag ${identity.imageTag}，`
+    `${identity.tag} → ${identity.environment}（${identity.origin}）：镜像 ${identity.imageRepository}/<服务>:${identity.imageTag}，`
       + `产物 ${identity.imagesArchive}，发布版本 ${identity.releaseVersion}，开关 ${identity.enableVar}。`,
   );
   console.log(JSON.stringify(identity, null, 2));

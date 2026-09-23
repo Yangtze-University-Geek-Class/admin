@@ -82,7 +82,7 @@ pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456
 | production | `vX.Y.Z`（`main`） | `/opt/yzgc/production` | `https://yangtzeu.work` | `127.0.0.1:18100` |
 | preview | `vX.Y.Z-rc.N`（`stage`） | `/opt/yzgc/preview` | `https://prev.yangtzeu.work` | `127.0.0.1:18200` |
 
-镜像 `yzgc/{server,web,forum}:<sha12>`，镜像 tag 写入 `<栈根>/.env.<environment>` 的 `IMAGE_TAG`；回滚就是切回更早发布 tag 的镜像。字段契约与密钥注入规则见 [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md)，工作流与部署开关（默认关闭）见 [CICD](docs/ops/CICD.md)。推送分支不部署：在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布，所有者验收通过后在同一提交上打 `vX.Y.Z` 发正式；打 tag 需要所有者授权（见 [RELEASES](docs/conventions/RELEASES.md)）。
+镜像按环境分仓库：`yzgc-production/{server,web,forum}:<sha12>` 与 `yzgc-preview/{server,web,forum}:<sha12>`（两套栈共用一个 Docker 守护进程，同一提交的两次构建不能共用镜像名），镜像 tag 写入 `<栈根>/.env.<environment>` 的 `IMAGE_TAG`；回滚就是切回更早发布 tag 的镜像。字段契约与密钥注入规则见 [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md)，工作流与部署开关（默认关闭）见 [CICD](docs/ops/CICD.md)。推送分支不部署：在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布，所有者验收通过后在同一提交上打 `vX.Y.Z` 发正式；打 tag 需要所有者授权（见 [RELEASES](docs/conventions/RELEASES.md)）。
 
 ## 文档维护
 

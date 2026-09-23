@@ -64,6 +64,35 @@ const REQUIRED_FIELDS = Object.freeze([
 const BUILD_ONLY_FIELDS = Object.freeze(['GEEK_RELEASE_VERSION', 'GEEK_RELEASE_COMMIT', 'GEEK_RELEASE_DISPLAY_SUFFIX']);
 /** 模板允许出现的全部字段：契约外的键（例如已退役的按站点 host 字段）一律拒绝，防止悄悄长出第二份配置。 */
 const KNOWN_FIELDS = Object.freeze(new Set([...REQUIRED_FIELDS, ...EMPTY_IS_MEANINGFUL]));
+/** 三个镜像对应的服务名（compose 服务名、Dockerfile 目录名一致）。 */
+export const IMAGE_SERVICES = Object.freeze(['server', 'web', 'forum']);
+/**
+ * 每个环境独立的镜像仓库前缀，等于该环境的 COMPOSE_PROJECT_NAME。
+ * 两套栈在同一个 Docker 守护进程上：同一提交的预发布与正式镜像构建参数不同（release.json、版本串、
+ * 站点配置），如果共用 `<仓库>:<sha12>`，后 load 的一方会把另一方的镜像改名覆盖，回滚与重建容器会用错镜像。
+ * 所以镜像仓库按环境分开，IMAGE_TAG 仍只是提交的 12 位 SHA。
+ */
+export function imageRepositoryPrefix(environment) {
+  if (!ENVIRONMENTS.includes(environment)) fail(`未知部署环境：${environment}`);
+  return `yzgc-${environment}`;
+}
+/** 某环境某服务某提交的完整镜像引用，例如 yzgc-preview/web:0123456789ab。 */
+export function imageReference(environment, service, imageTag) {
+  if (!IMAGE_SERVICES.includes(service)) fail(`未知镜像服务：${service}`);
+  return `${imageRepositoryPrefix(environment)}/${service}:${imageTag}`;
+}
+/**
+ * 从 compose 文本解析出全部 `image:` 引用，并把 ${IMAGE_TAG...} 代入给定的 tag。
+ * 其它变量不代入：镜像仓库名必须是字面量，由 env 文件改不了。
+ */
+export function composeImageReferences(text, imageTag) {
+  const references = [];
+  for (const match of String(text).matchAll(/^[ \t]*image:[ \t]*(.+?)[ \t]*$/gm)) {
+    const raw = match[1].replace(/^(['"])(.*)\1$/, '$2');
+    references.push(raw.replace(/\$\{IMAGE_TAG(?::[?-][^}]*)?\}/g, imageTag));
+  }
+  return references;
+}
 /** 逐字固定的入口域名：论坛构建（app/forum/shared/deployment.ts）与 env 模板都要对得上。 */
 export const EXPECTED_ORIGINS = Object.freeze({
   preview: 'https://prev.yangtzeu.work',
@@ -310,6 +339,9 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
   }
 
   if (checkCompose) {
+    // 用同一个示例 SHA 解析两套 compose：同一提交的两个环境绝不能落到同一个镜像引用上。
+    const sampleTag = '0123456789ab';
+    const referencesByEnvironment = new Map();
     for (const name of ENVIRONMENTS) {
       const composePath = resolve(root, `deploy/compose/${name}.yml`);
       if (!existsSync(composePath)) {
@@ -318,14 +350,30 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
       }
       const compose = readFileSync(composePath, 'utf8');
       if (!compose.includes('COMPOSE_PROJECT_NAME')) problems.push(`deploy/compose/${name}.yml 必须使用 \${COMPOSE_PROJECT_NAME} 作为项目名`);
-      for (const service of ['server', 'web', 'forum']) {
-        const imageRef = new RegExp(`yzgc/${service}:\\$\\{IMAGE_TAG(?::[^}]*)?\\}`);
+      const prefix = imageRepositoryPrefix(name);
+      for (const service of IMAGE_SERVICES) {
+        const imageRef = new RegExp(`^[ \\t]*image:[ \\t]*${prefix}/${service}:\\$\\{IMAGE_TAG(?::[^}]*)?\\}[ \\t]*$`, 'm');
         if (!imageRef.test(compose)) {
-          problems.push(`deploy/compose/${name}.yml 必须使用 yzgc/${service}:\${IMAGE_TAG...}（禁止 latest 或写死 tag）`);
+          problems.push(`deploy/compose/${name}.yml 必须使用 ${prefix}/${service}:\${IMAGE_TAG...}（镜像仓库按环境分开；禁止 latest 或写死 tag）`);
         }
       }
+      const references = composeImageReferences(compose, sampleTag);
+      const expected = IMAGE_SERVICES.map(service => imageReference(name, service, sampleTag));
+      for (const reference of references) {
+        if (!expected.includes(reference)) {
+          problems.push(`deploy/compose/${name}.yml 的镜像 ${reference.replace(sampleTag, '${IMAGE_TAG}')} 不属于 ${prefix}/：每个环境只能用自己的镜像仓库`);
+        }
+      }
+      referencesByEnvironment.set(name, references);
       if (/0\.0\.0\.0:\d/.test(compose)) problems.push(`deploy/compose/${name}.yml 把端口发布到 0.0.0.0：宿主侧只能绑 127.0.0.1`);
       if (compose.includes(':latest')) problems.push(`deploy/compose/${name}.yml 出现 latest 标签`);
+    }
+    const [first, second] = ENVIRONMENTS.map(name => referencesByEnvironment.get(name) ?? []);
+    for (const shared of first.filter(reference => second.includes(reference))) {
+      problems.push(
+        `两套 compose 在同一提交上解析出同一个镜像引用 ${shared.replace(sampleTag, '<sha12>')}：`
+          + '同一台 Docker 主机上预发布与正式镜像会互相覆盖，必须用各自环境的镜像仓库。',
+      );
     }
     for (const script of ['deploy/remote/deploy-stack.sh', 'deploy/remote/rollback-stack.sh']) {
       if (!existsSync(resolve(root, script))) problems.push(`缺少 ${script}：目标机部署入口必须入库`);

@@ -114,7 +114,8 @@ describe('tag → environment release identity', () => {
       imagesArchive: `yzgc-images-preview-${short}.tar.gz`,
       composeFile: 'deploy/compose/preview.yml',
     });
-    expect(preview.images).toEqual({ server: `yzgc/server:${short}`, web: `yzgc/web:${short}`, forum: `yzgc/forum:${short}` });
+    expect(preview.imageRepository).toBe('yzgc-preview');
+    expect(preview.images).toEqual({ server: `yzgc-preview/server:${short}`, web: `yzgc-preview/web:${short}`, forum: `yzgc-preview/forum:${short}` });
     expect(preview.buildEnv).toEqual({
       GEEK_DEPLOYMENT_ENVIRONMENT: 'preview',
       GEEK_RELEASE_VERSION: `0.1.0-rc.1@${short}`,
@@ -127,6 +128,8 @@ describe('tag → environment release identity', () => {
     // 正常流程：rc 打在 stage 的提交上 → 所有者验收 → main 快进到同一提交 → 打正式 tag。
     git(f.cwd, 'tag', 'v0.1.0-rc.1', f.mainTip);
     git(f.cwd, 'tag', '-a', 'v0.1.0-rc.2', '-m', 'annotated rc', f.mainTip);
+    // 打正式 tag 之前先规划同一提交的预发布：打了正式 tag 以后这个版本不能再发 rc。
+    const preview = plan(f.cwd, 'v0.1.0-rc.2', f.mainTip);
     git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
     const production = plan(f.cwd, 'v0.1.0', f.mainTip);
     const short = f.mainTip.slice(0, 12);
@@ -149,6 +152,13 @@ describe('tag → environment release identity', () => {
     });
     expect(production.buildEnv.GEEK_RELEASE_VERSION).toBe('0.1.0');
     expect(previewTagsFor(f.cwd, '0.1.0', f.mainTip)).toEqual(['v0.1.0-rc.1', 'v0.1.0-rc.2']);
+    // 同一提交的预发布与正式镜像：IMAGE_TAG 相同，镜像引用必须不同（两套栈共用一个 Docker 守护进程）。
+    expect(production.imageTag).toBe(preview.imageTag);
+    expect(production.imageRepository).toBe('yzgc-production');
+    for (const service of ['server', 'web', 'forum'] as const) {
+      expect(production.images[service]).toBe(`yzgc-production/${service}:${short}`);
+      expect(production.images[service]).not.toBe(preview.images[service]);
+    }
   });
 
   it('refuses a final tag whose commit has no rc tag of the same version', () => {

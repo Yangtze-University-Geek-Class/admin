@@ -22,6 +22,10 @@
 # 事实来源：env 文件。脚本不内联任何密钥、不猜测端口、不写死域名，
 # 只读 STACK_ROOT / COMPOSE_PROJECT_NAME / IMAGE_TAG / SERVER_BIND / WEB_BIND / SERVER_PORT。
 #
+# 镜像按环境分仓库：本环境只用 yzgc-<environment>/<server|web|forum>:<IMAGE_TAG>。
+# 两套栈共用同一个 Docker 守护进程，同一提交的预发布与正式镜像构建参数不同；
+# 归档里只要出现别的仓库或别的 tag 就拒绝装载，镜像清理与回滚也只动本环境的仓库。
+#
 # compose 文件查找顺序（取第一个存在的）：
 #   --compose-file > <STACK_ROOT>/deploy/compose/<env>.yml > <STACK_ROOT>/compose/<env>.yml
 #   > <STACK_ROOT>/compose.yml > <脚本目录>/../compose/<env>.yml
@@ -129,8 +133,33 @@ checksum_for() {
 }
 
 snapshot_tags() {
-  # $1=服务名 → 当前本机该仓库的全部 tag（每行一个，已排序）
-  docker images --filter "reference=yzgc/$1:*" --format '{{.Tag}}' 2>/dev/null | sort -u
+  # $1=服务名 → 当前本机本环境该服务仓库的全部 tag（每行一个，已排序）
+  docker images --filter "reference=$IMAGE_REPO/$1:*" --format '{{.Tag}}' 2>/dev/null | sort -u
+}
+
+archive_repo_tags() {
+  # $1=docker save 出来的归档（.tar 或 .tar.gz）→ 每行一个 manifest.json 里的 RepoTags 条目。
+  # 只读归档，不装载；读不到 manifest.json 或没有条目时返回非 0。
+  local manifest
+  manifest=$(tar -xOf "$1" manifest.json 2>/dev/null) || return 1
+  [ -n "$manifest" ] || return 1
+  printf '%s' "$manifest" | tr -d '\n' | grep -o '"RepoTags":[[:space:]]*\[[^]]*\]' \
+    | sed -e 's/^"RepoTags":[[:space:]]*\[//' -e 's/\]$//' | tr ',' '\n' \
+    | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' | grep -v '^$'
+}
+
+is_expected_ref() {
+  local ref="$1" expected
+  for expected in "${EXPECTED_REFS[@]}"; do [ "$expected" = "$ref" ] && return 0; done
+  return 1
+}
+
+compose_images_match() {
+  # $1=env 文件 → compose 解析出的镜像必须恰好是本环境本版本的三个镜像（目标机上的 compose 文件可能是旧版本）。
+  local actual expected
+  actual=$(docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$1" -f "$COMPOSE_FILE" config --images 2>/dev/null | sort -u) || return 1
+  expected=$(printf '%s\n' "${EXPECTED_REFS[@]}" | sort -u)
+  [ -n "$actual" ] && [ "$actual" = "$expected" ]
 }
 
 http_ok() {
@@ -194,7 +223,8 @@ resolve_compose_file() {
 }
 
 prune_tags() {
-  # 保留：当前 IMAGE_TAG + previous + 历史里最近的 KEEP_TAGS 个不同 tag；其余 yzgc/* tag 删除。
+  # 保留：当前 IMAGE_TAG + previous + 本栈历史里最近的 KEEP_TAGS 个不同 tag；本环境仓库（$IMAGE_REPO/*）的其余 tag 删除。
+  # 另一环境的仓库不在清理范围内：它的历史记在另一个 STACK_ROOT 下，这里看不到也不该动。
   # 正在被容器使用的 tag 删不掉（没有 -f），忽略失败并如实记录。
   local keep_file lines=() i line svc tag removed=0 added=0
   keep_file=$(mktemp)
@@ -214,13 +244,13 @@ prune_tags() {
     while IFS= read -r tag; do
       [ -n "$tag" ] || continue
       grep -qxF "$tag" "$keep_file" && continue
-      if docker rmi "yzgc/$svc:$tag" >/dev/null 2>&1; then
-        printf '已清理旧镜像：yzgc/%s:%s\n' "$svc" "$tag"
+      if docker rmi "$IMAGE_REPO/$svc:$tag" >/dev/null 2>&1; then
+        printf '已清理旧镜像：%s/%s:%s\n' "$IMAGE_REPO" "$svc" "$tag"
         removed=$((removed + 1))
       fi
     done < <(snapshot_tags "$svc")
   done
-  printf '镜像清理完成：保留最近 %s 个 tag，本次删除 %s 个未被占用的旧 tag\n' "$KEEP_TAGS" "$removed"
+  printf '镜像清理完成（%s）：保留最近 %s 个 tag，本次删除 %s 个未被占用的旧 tag\n' "$IMAGE_REPO" "$KEEP_TAGS" "$removed"
   rm -f "$keep_file"
 }
 
@@ -243,6 +273,8 @@ done
 [ -n "$ENVIRONMENT" ] || { usage; die "缺少 --environment"; }
 case "$ENVIRONMENT" in production | preview) : ;; *) usage; die "--environment 只能是 production 或 preview" ;; esac
 require_match "$HEALTH_TIMEOUT" '^[1-9][0-9]{0,3}$' --health-timeout
+# 本环境的镜像仓库前缀：只由 --environment 决定，与 deploy/compose/<environment>.yml 里的字面量一致。
+IMAGE_REPO="yzgc-$ENVIRONMENT"
 
 if [ -n "$INCOMING_DIR" ]; then
   [ -d "$INCOMING_DIR" ] || die "incoming 目录不存在：$INCOMING_DIR"
@@ -257,6 +289,7 @@ command -v docker >/dev/null 2>&1 || die "目标机缺少 docker"
 docker compose version >/dev/null 2>&1 || die "目标机缺少 docker compose v2 插件"
 command -v curl >/dev/null 2>&1 || die "目标机缺少 curl"
 command -v flock >/dev/null 2>&1 || die "目标机缺少 flock，无法串行化部署"
+command -v tar >/dev/null 2>&1 || die "目标机缺少 tar，无法核对镜像归档内容"
 
 # ── env 文件是唯一事实来源 ────────────────────────────────────
 FILE_ENVIRONMENT=$(env_value GEEK_DEPLOYMENT_ENVIRONMENT "$ENV_FILE")
@@ -279,6 +312,7 @@ require_match "$IMAGE_TAG" '^[0-9a-f]{12}$' IMAGE_TAG
 require_match "$SERVER_BIND" '^127\.0\.0\.1:[0-9]{2,5}$' SERVER_BIND
 require_match "$WEB_BIND" '^127\.0\.0\.1:[0-9]{2,5}$' WEB_BIND
 require_match "$SERVER_PORT" '^[0-9]{2,5}$' SERVER_PORT
+EXPECTED_REFS=("$IMAGE_REPO/server:$IMAGE_TAG" "$IMAGE_REPO/web:$IMAGE_TAG" "$IMAGE_REPO/forum:$IMAGE_TAG")
 
 STACK_ROOT="$FILE_STACK_ROOT"
 mkdir -p "$STACK_ROOT"
@@ -301,7 +335,8 @@ PREVIOUS_TAG=$(env_value IMAGE_TAG "$STACK_ENV_FILE")
 if : >>"$HISTORY_LOG" 2>/dev/null; then HISTORY_READY=1; fi
 
 printf '部署开始：环境=%s 版本=%s 上一个版本=%s\n' "$ENVIRONMENT" "$IMAGE_TAG" "${PREVIOUS_TAG:-无}"
-printf 'compose 文件：%s\nenv 文件：%s\n' "$COMPOSE_FILE" "$STACK_ENV_FILE"
+printf 'compose 文件：%s\nenv 文件：%s\n镜像：%s\n' "$COMPOSE_FILE" "$STACK_ENV_FILE" "${EXPECTED_REFS[*]}"
+compose_images_match "$ENV_FILE" || die "compose 文件解析出的镜像不是 ${IMAGE_REPO}/<server|web|forum>:${IMAGE_TAG}（${COMPOSE_FILE} 可能还是按旧镜像名写的）"
 
 # ── 1) 校验 sha256 ────────────────────────────────────────────
 archives=()
@@ -324,37 +359,31 @@ for archive in "${archives[@]}"; do
   printf 'sha256 校验通过：%s\n' "$(basename -- "$archive")"
 done
 
+# 装载前先读归档清单：只接受本环境本版本的三个镜像，别的仓库（另一环境、旧的 yzgc/*）或别的 tag 一律拒绝，
+# 否则 docker load 会直接改写另一环境同名镜像的指向。
+seen_refs=" "
+for archive in "${archives[@]}"; do
+  refs=$(archive_repo_tags "$archive") || die "读不到镜像归档的 manifest.json（RepoTags）：$archive"
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    is_expected_ref "$ref" || die "镜像归档里有不属于本环境本版本的镜像 ${ref}（只接受 ${IMAGE_REPO}/<server|web|forum>:${IMAGE_TAG}）：$archive"
+    seen_refs="${seen_refs}${ref} "
+  done <<<"$refs"
+done
+for ref in "${EXPECTED_REFS[@]}"; do
+  case "$seen_refs" in *" $ref "*) : ;; *) die "镜像归档里缺少 ${ref}" ;; esac
+done
+
 # ── 2) 装载镜像 ───────────────────────────────────────────────
-before_server=$(snapshot_tags server)
-before_web=$(snapshot_tags web)
-before_forum=$(snapshot_tags forum)
 for archive in "${archives[@]}"; do
   docker load -i "$archive" >/dev/null || die "docker load 失败：$archive"
   printf '已装载：%s\n' "$(basename -- "$archive")"
 done
 
-# ── 3) 按 <sha12> 打 tag（归档里若已是该 tag 则跳过）──────────
-ensure_tag() {
-  # $1=服务名 $2=装载前的 tag 列表
-  local svc="$1" before="$2" new_tags=() candidate line
-  if docker image inspect "yzgc/$svc:$IMAGE_TAG" >/dev/null 2>&1; then return 0; fi
-  while IFS= read -r line || [ -n "$line" ]; do
-    [ -n "$line" ] && new_tags+=("$line")
-  done < <(comm -13 <(printf '%s\n' $before | sort -u) <(snapshot_tags "$svc"))
-  if [ "${#new_tags[@]}" -eq 1 ]; then
-    candidate="${new_tags[0]}"
-    docker tag "yzgc/$svc:$candidate" "yzgc/$svc:$IMAGE_TAG" || die "打 tag 失败：yzgc/$svc:$candidate → $IMAGE_TAG"
-    printf '已打 tag：yzgc/%s:%s ← %s\n' "$svc" "$IMAGE_TAG" "$candidate"
-    return 0
-  fi
-  if [ "${#new_tags[@]}" -eq 0 ]; then
-    die "归档里没有 yzgc/$svc 镜像（装载前后本机都没有对应新 tag）"
-  fi
-  die "归档里的 yzgc/$svc 新 tag 不唯一（${new_tags[*]}），无法判断该给 $IMAGE_TAG 用哪个"
-}
-ensure_tag server "$before_server"
-ensure_tag web "$before_web"
-ensure_tag forum "$before_forum"
+# ── 3) 装载后再确认三个镜像都在（不重新打 tag：镜像名只来自归档清单）──
+for ref in "${EXPECTED_REFS[@]}"; do
+  docker image inspect "$ref" >/dev/null 2>&1 || die "装载后本机仍没有 ${ref}"
+done
 
 # ── 4) 安装 env 文件（原子替换，只有目标机上这一份被 compose 读取）──
 if [ "$(cd -- "$(dirname -- "$ENV_FILE")" && pwd)/$(basename -- "$ENV_FILE")" != "$STACK_ENV_FILE" ]; then
@@ -384,6 +413,12 @@ if [ -z "$PREVIOUS_TAG" ]; then
   die "健康检查失败且没有上一个版本可回滚，栈处于失败状态，需要人工处理"
 fi
 [ "$PREVIOUS_TAG" = "$IMAGE_TAG" ] && { write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "上一个版本与当前版本相同"; die "健康检查失败且无可回滚版本"; }
+for svc in server web forum; do
+  if ! docker image inspect "$IMAGE_REPO/$svc:$PREVIOUS_TAG" >/dev/null 2>&1; then
+    write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "本机没有 $IMAGE_REPO/$svc:$PREVIOUS_TAG，无法自动回滚"
+    die "健康检查失败，且本机没有上一个版本的 ${IMAGE_REPO}/$svc:${PREVIOUS_TAG}，需要人工处理"
+  fi
+done
 
 set_env_image_tag "$STACK_ENV_FILE" "$PREVIOUS_TAG" || die "回滚失败：无法把 IMAGE_TAG 写回 $PREVIOUS_TAG"
 printf '已把 %s 的 IMAGE_TAG 切回 %s\n' "$STACK_ENV_FILE" "$PREVIOUS_TAG"

@@ -18,9 +18,12 @@
 
 name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}
 
+# 镜像仓库按环境分开：本栈只用 yzgc-preview/<服务>:<IMAGE_TAG>，另一套栈用 yzgc-production/…。
+# 两套栈共用同一个 Docker 守护进程，同一提交的预发布镜像与另一环境的镜像构建参数不同（release.json、版本串），
+# 共用 yzgc/<服务>:<sha12> 会被后装载的一方覆盖。仓库名是字面量，不从 env 文件读取，IMAGE_TAG 仍是提交的 12 位 SHA。
 services:
   server:
-    image: yzgc/server:${IMAGE_TAG:?部署流程必须把发布 SHA 前 12 位写进 env 文件的 IMAGE_TAG}
+    image: yzgc-preview/server:${IMAGE_TAG:?部署流程必须把发布 SHA 前 12 位写进 env 文件的 IMAGE_TAG}
     container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-server
     restart: unless-stopped
     # 让 Node 进程正确收到 SIGTERM（index.ts 里注册了优雅关闭）。
@@ -71,7 +74,7 @@ services:
     # 健康检查在 app/server/Dockerfile 里定义（HEALTHCHECK 打 /healthz），此处不重复。
 
   web:
-    image: yzgc/web:${IMAGE_TAG:?}
+    image: yzgc-preview/web:${IMAGE_TAG:?}
     container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-web
     restart: unless-stopped
     # nginx 启动时要解析 server / forum 两个上游名，因此必须等它们先起容器。
@@ -100,7 +103,7 @@ services:
         max-file: "3"
 
   forum:
-    image: yzgc/forum:${IMAGE_TAG:?}
+    image: yzgc-preview/forum:${IMAGE_TAG:?}
     container_name: ${COMPOSE_PROJECT_NAME:-yzgc-preview}-forum
     restart: unless-stopped
     # 只声明不发布：论坛端口只给本栈的 web 容器用。

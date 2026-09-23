@@ -2,7 +2,8 @@
 #
 # 构建上下文 = 仓库根（geek_main/），不是 app/server：
 #   docker build --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
-#     -f app/server/Dockerfile -t yzgc/server:<sha12> .
+#     -f app/server/Dockerfile -t yzgc-production/server:<sha12> .
+#   （镜像仓库按环境分开：预发布构建用 yzgc-preview/server，正式构建用 yzgc-production/server，见 docs/ops/DEPLOY.md）
 #
 # 镜像内必须保持仓库布局，因为 src/config.ts 用 dist/ 的相对层级推导路径：
 #   REPO_ROOT = dist/config.js 的 ../../.. → 容器内必须是 /app
