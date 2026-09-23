@@ -17,17 +17,14 @@
   },
   "sites": {
     "portal": {
-      "host": "yangtzeu.work",
       "title": "长江大学极客班 · YUGC",
       "basePath": ""
     },
     "forum": {
-      "host": "yangtzeu.work",
       "title": "YUGC 论坛 · 长江大学极客班",
       "basePath": "/forum"
     },
     "admin": {
-      "host": "github.yangtzeu.work",
       "title": "YUGC Admin · 组织管理",
       "basePath": ""
     }

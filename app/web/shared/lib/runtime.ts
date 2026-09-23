@@ -19,21 +19,13 @@ export function getCurrentSite(): AppSiteKind {
 /**
  * 该端在当前浏览器地址下的路由 basename。
  *
- * 三个端的配置 basename 都是空串，例外有二：
- *  · 开发态每个端由 Vite 从 `/sites/<端>/` 提供（见 vite.config.ts 的
- *    devSiteFallback），路由前缀必须跟上，否则站内点击会跳出入口；
- *  · 论坛挂在官网域名的 `/forum` 路径下时（子域尚未启用）。
+ * 每个环境只有一个域名：portal 与 admin 的 basename 都是空串（admin 路由自带 `/admin`
+ * 前缀），论坛是同域名下的 `/forum`。例外只有开发态：每个端由 Vite 从 `/sites/<端>/`
+ * 提供（见 vite.config.ts 的 devSiteFallback），路由前缀必须跟上，否则站内点击会跳出入口。
  */
 export function getBasePath(kind: AppSiteKind): string {
-  const configured = appConfig.sites[kind].basePath;
-
   if (import.meta.env.DEV) return `/sites/${kind}`;
-
-  if (typeof window === "undefined" || kind !== "forum") return configured;
-
-  const onPortalHost = window.location.hostname === appConfig.sites.portal.host;
-  const underForumPath = window.location.pathname.startsWith("/forum");
-  return onPortalHost && underForumPath ? "/forum" : configured;
+  return appConfig.sites[kind].basePath;
 }
 
 const DEV_DATA_KEY = "yugc:dev-data-source";
@@ -66,28 +58,23 @@ export function setDataSource(source: DataSource): void {
   window.location.assign(url.toString());
 }
 
-/** 跳到另一个端。开发态在同一个 Vite server 上按路径切换。 */
+/**
+ * 跳到另一个端。生产态三端同一个域名，只拼同源路径（目标端 basePath + 路径），不写域名；
+ * 开发态在同一个 Vite server 上按 `/sites/<端>/…` 切换，论坛在独立的 3456 端口。
+ */
 export function crossSiteHref(target: AppSiteKind, path = "/"): string {
-  if (target === "forum" && import.meta.env.DEV) return `http://127.0.0.1:3456${path.startsWith("/") ? path : "/" + path}`;
   const suffix = path.startsWith("/") ? path : `/${path}`;
-  // 生产态跨端链接必须带上目标端的 basePath：论坛挂在官网域名的 /forum 路径下。
-  const base = import.meta.env.DEV ? "" : appConfig.sites[target].basePath ?? "";
-  return import.meta.env.DEV ? `/sites/${target}${suffix}` : `${window.location.protocol}//${appConfig.sites[target].host}${base}${suffix}`;
+  if (import.meta.env.DEV) return target === "forum" ? `http://127.0.0.1:3456${suffix}` : `/sites/${target}${suffix}`;
+  return `${appConfig.sites[target].basePath}${suffix}`;
 }
 
 /**
- * 跨端跳转的 URL。同端返回站内相对路径；跨端在开发态走 `/sites/<端>/…`，
- * 生产态走绝对域名（论坛在官网域名下时特殊处理为 `/forum` 前缀）。
+ * 跨端跳转的 URL。同端返回站内相对路径；跨端交给 crossSiteHref：生产态是同源路径
+ * （论坛 `/forum/…`、管理端 `/admin/…`），整页跳转后由服务端按路径选入口。
  */
 export function externalSiteUrl(target: AppSiteKind, path = "/"): string {
   if (target === "forum") return crossSiteHref(target, path);
   if (typeof window === "undefined") return path;
-
-  const suffix = path.startsWith("/") ? path : `/${path}`;
   if (getCurrentSite() === target) return path;
-
-  if (import.meta.env.DEV) return `/sites/${target}${suffix}`;
-
-  const proto = window.location.protocol === "http:" ? "http:" : "https:";
-  return `${proto}//${appConfig.sites[target].host}${suffix}`;
+  return crossSiteHref(target, path);
 }
