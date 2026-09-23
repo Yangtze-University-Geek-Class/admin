@@ -69,12 +69,15 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
     root = mkdtempSync(join(tmpdir(), 'geek-web-nginx-'));
     port = await freePort();
     const html = join(root, 'html');
-    for (const site of ['portal', 'admin']) {
-      mkdirSync(join(html, 'sites', site), { recursive: true });
-      writeFileSync(join(html, 'sites', site, 'index.html'), `<main data-entry="${site}"></main>\n`);
+    // 管理端入口是控制台产物（app/console）叠进同一个站点根的 sites/console/index.html。
+    for (const [site, entry] of [['portal', PORTAL_SPA_ENTRY], ['admin', ADMIN_SPA_ENTRY]]) {
+      mkdirSync(join(html, entry, '..'), { recursive: true });
+      writeFileSync(join(html, entry), `<main data-entry="${site}"></main>\n`);
     }
     mkdirSync(join(html, 'assets'), { recursive: true });
     writeFileSync(join(html, 'assets', 'app-abc123.js'), 'export {};\n');
+    mkdirSync(join(html, 'console-assets'), { recursive: true });
+    writeFileSync(join(html, 'console-assets', 'index-abc123.js'), 'export {};\n');
     writeFileSync(join(html, 'logo.png'), 'png');
     writeFileSync(join(html, 'release.json'), '{"environment":"test"}\n');
     // 只替换运行环境相关的五处：监听端口、站点根、include 路径、上游地址（测试不访问上游）、
@@ -147,6 +150,11 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
     expect(await entryOf('/', { 'X-YZGC-Site': 'admin' })).toEqual({ status: 200, entry: 'portal' });
     expect((await fetch(`http://127.0.0.1:${port}/logo.png`)).status).toBe(200);
     expect((await fetch(`http://127.0.0.1:${port}/assets/missing.js`)).status).toBe(404);
+    // 控制台自己的哈希资源目录：真实文件长缓存，缺失文件 404，不回落到入口页。
+    const consoleAsset = await fetch(`http://127.0.0.1:${port}/console-assets/index-abc123.js`);
+    expect(consoleAsset.status).toBe(200);
+    expect(consoleAsset.headers.get('cache-control')).toContain('max-age=31536000');
+    expect((await fetch(`http://127.0.0.1:${port}/console-assets/missing.js`)).status).toBe(404);
     expect((await fetch(`http://127.0.0.1:${port}/release.json`)).headers.get('cache-control')).toBe('no-store');
   });
 });

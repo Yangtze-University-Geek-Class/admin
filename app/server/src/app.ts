@@ -11,18 +11,20 @@ import { APP_ROOT, type AppConfig } from "./config.js";
 import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
 import { registerHttpPolicy } from "./middleware/http-policy.js";
 
+/** 官网产物（app/web）与控制台产物（app/console）分开构建，静态托管时两个目录叠在一起。 */
 const webDist = resolve(APP_ROOT, "web/dist");
+const consoleDist = resolve(APP_ROOT, "console/dist");
 
 /**
  * 管理端 SPA 的路径与入口：每个环境只有一个域名，管理端靠路径区分，与 Host 无关。
  * 服务端只在这里定义一次；web 镜像内 nginx 的 location 必须与之一致（app/web/Dockerfile）。
- * 管理端换成别的前端产物时，只改 ADMIN_SPA_ENTRY（nginx 侧同样只有一处入口路径）。
+ * 管理端是独立的 Vue 包 app/console（极客班控制台），产物入口在 app/console/dist/sites/console/index.html。
  */
 export const ADMIN_SPA_PATHS = Object.freeze({ exact: ["/signin"], prefixes: ["/admin", "/console"] });
-export const ADMIN_SPA_ENTRY = "sites/admin/index.html";
+export const ADMIN_SPA_ENTRY = "sites/console/index.html";
 export const PORTAL_SPA_ENTRY = "sites/portal/index.html";
 
-/** 按路径决定回哪一份 SPA 入口。本服务只承载 portal/admin，论坛归 app/forum，绝不回退到旧 React 论坛。 */
+/** 按路径决定回哪一份 SPA 入口：控制台或官网。论坛归 app/forum，绝不回退到旧 React 论坛。 */
 export function resolveSiteEntry(url: string): string {
   const path = url.split(/[?#]/)[0];
   const admin = ADMIN_SPA_PATHS.exact.includes(path)
@@ -30,7 +32,8 @@ export function resolveSiteEntry(url: string): string {
   return admin ? ADMIN_SPA_ENTRY : PORTAL_SPA_ENTRY;
 }
 
-export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | false; logger?: boolean };
+/** `staticRoot`：false 关闭静态托管；不传时依次查找 app/web/dist 与 app/console/dist。 */
+export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean };
 export async function buildApp(options: BuildAppOptions) {
   const config = options.config;
   const services = options.services ?? createServices(config, options.overrides);
@@ -65,9 +68,9 @@ export async function buildApp(options: BuildAppOptions) {
 
   app.get("/healthz", async () => ({ ok: true, ts: Date.now() }));
 
-  const staticRoot = options.staticRoot === false ? null : options.staticRoot ?? webDist;
-  if (staticRoot && existsSync(staticRoot)) {
-    await app.register(fastifyStatic, { root: staticRoot, prefix: "/" });
+  const staticRoots = options.staticRoot === false ? [] : [options.staticRoot ?? [webDist, consoleDist]].flat().filter(root => existsSync(root));
+  if (staticRoots.length) {
+    await app.register(fastifyStatic, { root: staticRoots, prefix: "/" });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith("/api") || req.url.startsWith("/auth") || req.url.startsWith("/healthz")) {
         return reply.code(404).send({ error: "not_found" });
@@ -77,7 +80,7 @@ export async function buildApp(options: BuildAppOptions) {
       return reply.sendFile(resolveSiteEntry(req.url));
     });
   } else {
-    app.get("/", async () => ({ ok: true, note: "app/web/dist not built yet" }));
+    app.get("/", async () => ({ ok: true, note: "app/web/dist and app/console/dist not built yet" }));
   }
 
   return app;
