@@ -34,11 +34,12 @@ RUN apt-get update \
 WORKDIR /repo
 
 # 依赖层单独一层：只要锁文件不变就命中缓存。
-# 根工作区成员是 app/server 与 app/web（见仓库根 pnpm-workspace.yaml），
-# 两个清单都要在，否则 pnpm 无法按锁文件解析工作区。
+# 根工作区成员是 app/server、app/web 与 app/console（见仓库根 pnpm-workspace.yaml），
+# 清单都要在，否则 pnpm 无法按锁文件解析工作区。
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY app/server/package.json app/server/package.json
 COPY app/web/package.json app/web/package.json
+COPY app/console/package.json app/console/package.json
 RUN pnpm install --frozen-lockfile --filter @yzgc/server...
 
 # 只复制编译需要的源码与 tsconfig：宿主的 node_modules / dist / test 脚本不进上下文。

@@ -54,22 +54,23 @@ geek_main/
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev:web        # 前端只读 mock 预览；不需要 OAuth 或业务数据库
+pnpm dev:web        # 官网只读 mock 预览；不需要 OAuth 或业务数据库
+pnpm dev:console    # 极客班控制台（app/console，Vue + Tuffex），默认只读样板数据
 pnpm dev            # 前后端开发；需要人工填写本机专用 .env
-pnpm check          # 运行时、环境契约、边界、文档和类型检查
+pnpm check          # 运行时、环境契约、边界、文档和类型检查（含控制台 vue-tsc）
 pnpm check:docs     # 文档索引与相对链接
 pnpm test           # 真实应用路由、隔离 SQLite、模拟外部服务
-pnpm build          # 核心 portal/admin 与 Fastify 构建
+pnpm build          # 核心 portal、控制台与 Fastify 构建
 pnpm forum:install  # 论坛 frozen-lockfile 独立安装
 pnpm forum:check    # 原仓类型、Lint、样式约束及单测
 pnpm forum:generate # 原仓 Nuxt 静态产物
 pnpm verify         # 核心 check/test/build + 论坛 check/generate
-pnpm test:e2e       # 核心浏览器验证
+pnpm test:e2e       # 官网与控制台浏览器验证
 pnpm forum:verify   # 原仓 CDP 验收及路由烟测
 pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456
 ```
 
-核心页面在 `http://127.0.0.1:5173/sites/portal/`、`/sites/admin/`，论坛为 `http://127.0.0.1:3456/`。旧论坛页面入口转到 `app/forum` 的新论坛首页，不猜测旧帖子 ID 映射。核心 mock 是只读；`pnpm forum:start` 在本机发现 `.tools/forum-runtime/` 下的只读快照时显示极客班论坛归档（无登录、不可写、不写 localStorage），`GEEK_FORUM_SOURCE=demo` 回到原仓示例交互；两种模式界面都明确提醒其并非真实认证或跨设备存储，详见 [TUFF-FORUM](docs/ops/TUFF-FORUM.md)。
+官网在 `http://127.0.0.1:5173/sites/portal/`，控制台在 `http://127.0.0.1:5186/console`，论坛为 `http://127.0.0.1:3456/`。旧论坛页面入口转到 `app/forum` 的新论坛首页，不猜测旧帖子 ID 映射。核心 mock 是只读；`pnpm forum:start` 在本机发现 `.tools/forum-runtime/` 下的只读快照时显示极客班论坛归档（无登录、不可写、不写 localStorage），`GEEK_FORUM_SOURCE=demo` 回到原仓示例交互；两种模式界面都明确提醒其并非真实认证或跨设备存储，详见 [TUFF-FORUM](docs/ops/TUFF-FORUM.md)。
 
 真实开发环境参照 [本地环境模板](docs/ops/ENVIRONMENT.md) 由操作者填写，不在仓库提交密钥，不连接生产数据库做测试。常规测试只使用内存数据库及临时目录，不触发 GitHub、邮件或部署操作。生产部署需单独授权和发布验证，不能把本地构建通过视为线上验收。
 

@@ -98,12 +98,13 @@ it.each([
 });
 it('keeps the admin path list and entry file in one place', () => {
   expect(ADMIN_SPA_PATHS).toEqual({ exact: ['/signin'], prefixes: ['/admin', '/console'] });
-  expect([ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY]).toEqual(['sites/admin/index.html', 'sites/portal/index.html']);
+  // 管理端是 Vue 控制台（app/console），入口在它自己的产物里。
+  expect([ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY]).toEqual(['sites/console/index.html', 'sites/portal/index.html']);
 });
-it('serves the admin or portal index for deep links on the same host', async () => {
+it('serves the console or portal index for deep links on the same host', async () => {
   const root = mkdtempSync(join(tmpdir(), 'geek-site-entry-'));
   try {
-    for (const site of ['portal', 'admin']) {
+    for (const site of ['portal', 'console']) {
       mkdirSync(join(root, 'sites', site), { recursive: true });
       writeFileSync(join(root, 'sites', site, 'index.html'), `<main data-entry="${site}"></main>`);
     }
@@ -114,7 +115,7 @@ it('serves the admin or portal index for deep links on the same host', async () 
     });
     const app = await buildApp({ config, staticRoot: root });
     try {
-      for (const [url, site] of [['/admin/demo', 'admin'], ['/console/people', 'admin'], ['/join-us', 'portal']]) {
+      for (const [url, site] of [['/admin/demo', 'console'], ['/console/people', 'console'], ['/signin', 'console'], ['/join-us', 'portal']]) {
         const response = await app.inject({ url, headers: { host: 'example.test' } });
         expect(response.statusCode).toBe(200);
         expect(response.body).toContain(`data-entry="${site}"`);
@@ -138,4 +139,29 @@ it('lists admin feedback without the submitter IP, user agent or numeric account
 it('rejects invalid feedback data before persistence', async () => {
   const { app } = await setup();
   expect((await app.inject({ method: 'POST', url: '/api/feedback', payload: { org: 'demo', content: {} } })).statusCode).toBe(400);
+});
+it('serves the portal and the console from two separate build outputs', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'geek-static-'));
+  const web = join(root, 'web'); const consoleDist = join(root, 'console');
+  mkdirSync(join(web, 'sites/portal'), { recursive: true }); mkdirSync(join(web, 'assets'), { recursive: true });
+  mkdirSync(join(consoleDist, 'sites/console'), { recursive: true }); mkdirSync(join(consoleDist, 'console-assets'), { recursive: true });
+  writeFileSync(join(web, 'sites/portal/index.html'), 'portal-index');
+  writeFileSync(join(web, 'assets/portal.js'), 'portal-js');
+  writeFileSync(join(consoleDist, 'sites/console/index.html'), 'console-index');
+  writeFileSync(join(consoleDist, 'console-assets/app.js'), 'console-js');
+  const { app: base } = await setup();
+  const app = await buildApp({ config: base.services.config, staticRoot: [web, consoleDist] });
+  try {
+    const body = async (url: string) => (await app.inject({ url, headers: { host: 'example.test' } })).body;
+    expect(await body('/console/people')).toBe('console-index');
+    expect(await body('/admin')).toBe('console-index');
+    expect(await body('/signin')).toBe('console-index');
+    expect(await body('/apply')).toBe('portal-index');
+    expect(await body('/console-assets/app.js')).toBe('console-js');
+    expect(await body('/assets/portal.js')).toBe('portal-js');
+    expect((await app.inject('/console-assets/missing.js')).statusCode).toBe(404);
+  } finally {
+    await app.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

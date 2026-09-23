@@ -2,7 +2,7 @@
 
 > 统一浅色品牌、可靠平台交互与可验证状态，区分标准要求和项目偏好。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-24
 
 ## 已确定的组件体系
 
@@ -12,7 +12,7 @@
 
 保留浅色校徽蓝，三端信息密度可以不同。颜色走已有 CSS 变量或语义角色，不在业务组件新增任意 hex。外部 GitHub 标签色只在受验证的适配边界处理，不扩散为组件色板。
 
-**例外与更新（2026-09-23）：官网 portal 已按用户指定改用下面的「NANO · 代码窗口 × LED 点阵」视觉语言**（首页舞台为藏青夜色，入口卡、页脚与投递页为冰白图纸），`app/web/sites/portal` 的新页面不再使用校徽蓝；管理员端仍是浅色校徽蓝，论坛沿用 Tuff Forum 自带皮肤。三端各自皮肤独立，不互相继承。
+**例外与更新（2026-09-23）：官网 portal 已按用户指定改用下面的「NANO · 代码窗口 × LED 点阵」视觉语言**（首页舞台为藏青夜色，入口卡、页脚与投递页为冰白图纸），`app/web/sites/portal` 的新页面不再使用校徽蓝；控制台（`app/console`）是冰白纸面 + 钴蓝、经 Tuffex 令牌表达（见下文「控制台视觉与组件规则」），论坛沿用 Tuff Forum 自带皮肤。三端各自皮肤独立，不互相继承。
 
 间距优先 4/8px 体系，正文按场景 14–16px，合理的 20px 间距不是违规。字号使用 rem、支持放大，但不声称 rem 是唯一可访问实现。长内容优先 min-height；二维表格可在自身容器内滚动，不能为了禁止滚动截断内容。
 
@@ -65,6 +65,18 @@
 - 已实现：官网首页（`pages/Landing.tsx` + `components/ScrollStage.tsx` + `lib/ledFont.ts`、`lib/ledBoard.ts`、`lib/frameSequence.ts`）、投递简历服务（`pages/Apply.tsx`）、文档 / 意见箱 / 邀请加入（`pages/Docs.tsx`、`Feedback.tsx`、`JoinByToken.tsx`，同一外壳 + 冰白图纸，表单用同一套 `yg-field` / `yg-input` / 窗口式表单卡，标题同样用 YG Display；邀请页只有本组织显示中文品牌名，其他组织标题写「加入组织」并把 slug 用等宽另起一行）、共享页头页脚与链接解析（`components/SiteHeader.tsx`、`SiteFooter.tsx`、`PortalLink.tsx`）。
 - 已知不足：对比度与屏幕阅读器未做专项测试；iOS Safari 真机与中低端安卓的滚动性能未测；挥手帧序列在 2 倍屏上约放大 1.15 倍，比静帧略软。
 
+## 控制台视觉与组件规则（app/console）
+
+2026-09-24（#13）起，极客班控制台是 Vue 3 + Tuffex 包，所有控件都用 Tuffex 组件，不再有浏览器原生下拉框、复选框。实现与令牌清单见 [console 合同](../services/console/README.md)。这是 Operate 界面：先求扫读、一致、平静。
+
+- **只经令牌换肤**：`app/console/src/styles/theme.css` 只覆盖 Tuffex 官方的 `--tx-*` 与 `--tx-bui-*` 令牌——主色钴蓝 `#3346C8`（`--tx-color-primary`，派生色按官方做法 color-mix）、藏青墨色、冷灰边框与填充、页面底 `#F4F6FC`；语义色取服务端 `roles.ts` 的色调（白底 ≥5:1）。组件不写颜色值；自写 CSS 只管版式和页面底（4% 钴蓝图纸网格，面板纯白）。
+- **称号徽章**：TxTag（soft）+ 称号图标 + 中文称号，颜色来自 `/api/console/catalogue` 的 `tones`：班长 amber、部门负责人随部门色、部门干事 slate、极客班成员 sky、领航员 violet、访客 slate。名单里部门另起一列，徽章只写「部门负责人」「部门干事」。
+- **字体**：一套无衬线（系统中文栈）；等宽只给 GitHub 登录名、编号、提交号和代码。
+- **组件对应**：导航 TxSidebarNav（≤900px 收进 TxDrawer）；列表 TxDataTable（窄屏在自己的容器里横向滚动）；分区 TxTabs；筛选 TxFilterChips；表单 TxForm/TxFormItem + TxInput/TxTextarea/TxSelect/TxCheckbox/TxRadio/TxSwitch/TxNumberInput；对话框 TxModal；反馈 TxToastHost、TxAlert；状态 TxSkeleton、TxEmptyState、TxErrorState、TxPermissionState；指标 TxStatCard。Tuffex 里有的就不自己写。
+- **状态**：加载、空、失败（带重试和 `HTTP · 机器码 · request id`）、缺能力（写明缺哪项，被 GitHub 组织角色挡住时说明原因）、未登录分开。危险操作先确认，初始焦点在「取消」。
+- **文案**：短、具体、从用户这边说。标签说名字，按钮说动作，空/错状态说发生了什么、下一步做什么。不写口号，不用「赋能 / 打造 / 一站式 / 沉浸式」，不用 emoji 和装饰性箭头符号；图标只用 Tuffex/Carbon。
+- **成员与权限**：顶层「成员 / 部门与权限包」两个分区；成员按「全部 / 班长 / 部门负责人 / 部门干事 / 极客班成员 / 领航员」分页签，每页一张按「称号 rank → 部门顺序 → 登录名」排好的表，没有页内搜索。
+
 ## 既有 React 模块的过渡期交互原语
 
 Modal 使用 dialog.showModal，提供名称、适当描述、关闭、焦点进入/返回和背景 inert；组件内显式处理首尾 Tab/Shift+Tab 循环，避免焦点进入浏览器界面或背景。破坏性操作用 alertdialog，初始焦点取消；不全局监听 Enter 直接确认。确认排队，卸载取消未完成请求。
@@ -87,7 +99,7 @@ Select 是唯一项目选择器适配器，内部使用平台选择语义；撤�
 
 ## 当前选型与验收
 
-既有 `app/web` 包使用 React 18、Tailwind 3 和自有适配器；后续 UI 已由用户指定采用 Tuffex（Vue 3）。文档库落地不代表各业务模块已迁移。按各服务的实际框架、依赖和发布版本验证接入，不再引入平行基础 UI 体系。
+既有 `app/web` 包（官网）使用 React 18、Tailwind 3 和自有适配器；后续 UI 已由用户指定采用 Tuffex（Vue 3）。控制台已迁到 `app/console`（Vue 3 + Tuffex 0.6.0），论坛是 `app/forum`；官网仍是 React。按各服务的实际框架、依赖和发布版本验证接入，不再引入平行基础 UI 体系。
 
 组件测试验证取消、焦点目标、异步参数、错误；浏览器验证 Tab/Esc、背景模态性、移动导航和分页。对比度、屏幕阅读器、多浏览器及放大测试单独记录，不能从源码推断整个产品通过 WCAG。
 

@@ -10,11 +10,21 @@ export function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     if (entry.name.startsWith(".") || ["node_modules", "dist", "coverage"].includes(entry.name)) return [];
     const path = join(dir, entry.name);
-    return entry.isDirectory() ? walk(path) : /\.(?:tsx?|m?js)$/.test(entry.name) ? [path] : [];
+    return entry.isDirectory() ? walk(path) : /\.(?:tsx?|m?js|vue)$/.test(entry.name) ? [path] : [];
   });
 }
+/** Vue 单文件组件只解析 <script> 块；非脚本部分替换成等长空白，行号保持与源文件一致。 */
+export function scriptSource(source, filename) {
+  if (!filename.endsWith(".vue")) return source;
+  let out = source.replace(/[^\n]/g, " ");
+  for (const match of source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) {
+    const start = match.index + match[0].indexOf(">") + 1;
+    out = out.slice(0, start) + match[1] + out.slice(start + match[1].length);
+  }
+  return out;
+}
 export function specifiers(source, filename = "source.ts") {
-  const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
+  const ast = ts.createSourceFile(filename.replace(/\.vue$/, ".vue.ts"), scriptSource(source, filename), ts.ScriptTarget.Latest, true);
   const result = [];
   const add = node => {
     if (node && ts.isStringLiteralLike(node)) result.push({ spec: node.text, line: ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1 });
@@ -32,6 +42,7 @@ export function specifiers(source, filename = "source.ts") {
 }
 export function domainOf(path, root = ROOT) {
   const name = relative(root, path).split(sep).join("/");
+  if (name.startsWith("app/console/src/")) return { layer: "console", kind: "app", name: "console" };
   const web = name.match(/^app\/web\/sites\/([^/]+)\//);
   if (web) return { layer: "web", kind: "site", name: web[1] };
   if (name.startsWith("app/web/shared/")) return { layer: "web", kind: "shared", name: "shared" };
@@ -42,7 +53,8 @@ export function domainOf(path, root = ROOT) {
   return null;
 }
 function compilerOptions(file, root) {
-  const configPath = join(root, relative(root, file).split(sep).join("/").startsWith("app/web/") ? "app/web/tsconfig.json" : "app/server/tsconfig.json");
+  const name = relative(root, file).split(sep).join("/");
+  const configPath = join(root, name.startsWith("app/web/") ? "app/web/tsconfig.json" : name.startsWith("app/console/") ? "app/console/tsconfig.json" : "app/server/tsconfig.json");
   if (!existsSync(configPath)) return { moduleResolution: ts.ModuleResolutionKind.Bundler };
   const source = ts.readConfigFile(configPath, ts.sys.readFile);
   if (source.error) throw new Error(`Cannot read module configuration: ${relative(root, configPath)}`);
@@ -68,7 +80,7 @@ export function resolveSpec(file, spec, root = ROOT, options = compilerOptions(f
   return candidates.find(candidate => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
 }
 export function checkProject(root = ROOT) {
-  const files = ["app/web/sites", "app/web/shared", "app/server/src"].flatMap(dir => walk(join(root,dir)));
+  const files = ["app/web/sites", "app/web/shared", "app/server/src", "app/console/src"].flatMap(dir => walk(join(root,dir)));
   const violations = [];
   let imports = 0;
   for (const file of files) {
@@ -86,7 +98,12 @@ export function checkProject(root = ROOT) {
       if (relative(root,target).startsWith("..")) { if (local) violations.push(`${at}: local import escapes repository`); continue; }
       const to = domainOf(target,root);
       if (!to) continue;
-      if (from.layer !== to.layer) violations.push(`${at}: frontend/backend implementation import is forbidden`);
+      if (from.layer !== to.layer) {
+        const pair = [from.layer, to.layer];
+        violations.push(pair.includes("console") && pair.includes("web")
+          ? `${at}: console and web must not import each other (${from.layer} -> ${to.layer})`
+          : `${at}: frontend/backend implementation import is forbidden (${from.layer} -> ${to.layer})`);
+      }
       if (from.kind === "site" && to.kind === "site" && from.name !== to.name) violations.push(`${at}: cross-site dependency ${from.name} -> ${to.name}`);
       if (from.kind === "shared" && to.kind === "site") violations.push(`${at}: shared depends on site ${to.name}`);
       if (from.kind === "route" && to.kind === "route" && from.name !== to.name) violations.push(`${at}: cross-module route dependency ${from.name} -> ${to.name}`);
