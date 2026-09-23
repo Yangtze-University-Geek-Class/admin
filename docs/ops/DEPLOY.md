@@ -2,7 +2,7 @@
 
 > 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-24
 
 ## 发布前置
 
@@ -14,16 +14,18 @@
 
 ```text
 互联网
-  └─ 宿主 nginx（TLS 终止，certbot 证书，server_name 分流，安全头在此下发）
-       ├─ yangtzeu.work / prev.yangtzeu.work             → 127.0.0.1:18100 / 18200（web 容器）
-       └─ github.yangtzeu.work / prev-admin.yangtzeu.work → 同一 web 容器，注入 X-YZGC-Site 选择 admin SPA
+  └─ 宿主 nginx（TLS 终止，certbot 证书，安全头在此下发）
+       ├─ yangtzeu.work / prev.yangtzeu.work → 127.0.0.1:18100 / 18200（web 容器），每个环境只有这一个域名
+       └─ github.yangtzeu.work（已退役）      → 301 到 https://yangtzeu.work，保留路径
             └─ web 容器（nginx，容器内监听 8080：静态产物 + 反代）
                  ├─ /healthz  → server:3000（web 也代理，部署脚本用它做健康门）
-                 ├─ /api/*    → server:3000（Fastify + /data 命名卷）
-                 └─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀）
+                 ├─ /api/*、/auth/* → server:3000（Fastify + /data 命名卷）
+                 ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀）
+                 ├─ /admin、/admin/*、/console、/console/*、/signin → admin SPA 入口
+                 └─ 其余路径 → portal SPA 入口
 ```
 
-宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头、`X-YZGC-Site` 注入都在这里）。容器镜像里不含任何环境域名：SPA 入口按宿主注入的 `X-YZGC-Site` 选择，域名差异只体现在宿主 nginx。
+宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头都在这里，不注入任何站点头）。**每个环境只有一个域名**，管理端靠 URL 路径区分：web 容器 nginx 按路径选 SPA 入口（规则与 `app/server/src/app.ts` 的 `resolveSiteEntry` 一致），镜像与前端产物里不含任何环境域名，同一个镜像在两个环境通用。旧的「管理端独立子域 + 宿主注入站点头」模型已退役：正式的 `github.yangtzeu.work` 只剩 301 跳转，预发布不再有管理端子域。
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
 
@@ -38,7 +40,7 @@
 | compose 文件 | `deploy/compose/production.yml` | `deploy/compose/preview.yml` |
 | compose 项目名 | `yzgc-production` | `yzgc-preview` |
 | 环境文件（目标机） | `<栈根>/.env.production`（脚本安装为 600） | `<栈根>/.env.preview` |
-| 入口域名 | `yangtzeu.work`、`github.yangtzeu.work` | `prev.yangtzeu.work`、`prev-admin.yangtzeu.work` |
+| 入口域名（唯一） | `yangtzeu.work`（`github.yangtzeu.work` 仅 301 到这里） | `prev.yangtzeu.work` |
 | web 宿主端口 | `127.0.0.1:18100` → 容器 8080 | `127.0.0.1:18200` → 容器 8080 |
 | server 宿主端口（调试/健康门） | `127.0.0.1:18101` → 容器 3000 | `127.0.0.1:18201` → 容器 3000 |
 | 容器内端口 | web 8080 / server 3000 / forum 3000 | web 8080 / server 3000 / forum 3000 |
@@ -92,17 +94,18 @@ bash deploy-stack.sh --environment production \
 
 ## 前置条件（部署前必须由维护者确认）
 
-1. DNS：`prev.yangtzeu.work`、`prev-admin.yangtzeu.work` 需有指向本机 IP 的 A 记录（与正式域名同一主机、不同栈）。记录未生效前，预发布入口不可用。
-2. TLS：宿主 nginx 用 certbot 为四个域名签发/续期证书（`certbot certonly --webroot -w /var/www/html -d <域名>`）；证书准备完成前不引用，改完先 `nginx -t` 再 reload。
-3. 宿主 nginx：把 `deploy/nginx/production.conf`、`deploy/nginx/preview.conf` 分别安装到 `/etc/nginx/sites-available/` 并 symlink 进 `sites-enabled/`；TLS、ACME 挑战、安全头与 `X-YZGC-Site` 注入都由这两个文件负责，不要把两者配成同名 `server_name` 而冲突。
-4. Docker 与 Compose v2 已安装；栈根目录存在且属部署用户；`<栈根>/.env.<environment>` 由部署脚本原子安装（含真实密钥，权限 600）。
-5. 环境文件里的必填项（`HOST`、`TRUST_PROXY`、`PUBLIC_ORIGIN`、`DB_PATH`、`IMAGE_TAG` 等）缺失时 compose 会直接拒绝启动；不要靠临时改 compose 文件绕过。
+1. DNS：`prev.yangtzeu.work` 已有指向本机 IP 的 A 记录（2026-09-24 `dig` 核对为 `103.117.123.226`，与正式域名同一主机、不同栈）；不需要任何管理端子域记录。
+2. TLS：宿主 nginx 用 certbot 签发/续期三张证书：`yangtzeu.work`、`prev.yangtzeu.work`、`github.yangtzeu.work`（最后一张只服务 301 跳转）；命令 `certbot certonly --webroot -w /var/www/html -d <域名>`。证书准备完成前不引用，改完先 `nginx -t` 再 reload。
+3. 宿主 nginx：把 `deploy/nginx/production.conf`、`deploy/nginx/preview.conf` 分别安装到 `/etc/nginx/sites-available/` 并 symlink 进 `sites-enabled/`；TLS、ACME 挑战、安全头与旧管理端域名的 301 都由这两个文件负责，不要把两者配成同名 `server_name` 而冲突。
+4. GitHub OAuth App：Callback URL 必须是 `<origin>/auth/callback`。正式环境切换当天，所有者要把现有 OAuth App 的 Callback URL 改成 `https://yangtzeu.work/auth/callback`；预发布另建一个 Callback URL 为 `https://prev.yangtzeu.work/auth/callback` 的 OAuth App（密钥不跨环境共用）。细节见 [ENVIRONMENTS](ENVIRONMENTS.md#github-oauth-app-回调地址)。
+5. Docker 与 Compose v2 已安装；栈根目录存在且属部署用户；`<栈根>/.env.<environment>` 由部署脚本原子安装（含真实密钥，权限 600）。
+6. 环境文件里的必填项（`HOST`、`TRUST_PROXY`、`PUBLIC_ORIGIN`、`DB_PATH`、`IMAGE_TAG` 等）缺失时 compose 会直接拒绝启动；不要靠临时改 compose 文件绕过。
 
 ## 配置合同
 
 环境变量**只**经 `.env` 文件：`deploy/env/.env.production` 与 `deploy/env/.env.preview` 提交入库，非密值（地址、端口、域名、路径、开关）预填真实值，密钥字段留空由 CI/CD 注入。完整字段契约、可见性规则与 GitHub 环境 secrets/vars 清单见 [ENVIRONMENTS](ENVIRONMENTS.md)；本机开发模板见 [ENVIRONMENT](ENVIRONMENT.md)。
 
-关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`、`SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST`、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代来自 compose 网络，必须为 `true`）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
+关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`（环境唯一的对外地址，逐字等于 `deploy/environments.json` 的 origin）、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代来自 compose 网络，必须为 `true`）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
 
 禁止把真实密钥写入仓库、镜像、日志或发布记录；`.env` 由目标机最小权限保存，不打印、不提交。
 
@@ -135,7 +138,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 
 ## 发布和回滚验收
 
-检查 `/healthz`（server 与 web 各一次）、四个域名入口与深链接、`/api/*` 与 `/forum/*` 是否正确反代、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
+检查 `/healthz`（server 与 web 各一次）、入口域名与深链接（`/`、`/join-us`、`/admin`、`/console/...` 分别进官网与管理端）、`github.yangtzeu.work` 的 301（仅正式环境）、`/api/*` 与 `/forum/*` 是否正确反代、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
 
 未执行的生产验证明确标注，不将本机的 `pnpm verify` PASS、模板文件或模拟测试称为线上验收。
 
@@ -149,4 +152,5 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 - 宿主 nginx 直接把 `/` 反代到 `127.0.0.1:3000`（根目录旧 `deploy/nginx.conf`、`deploy/nginx-yangtzeu.conf`、`deploy/nginx-security-headers.conf`、`deploy/nginx-release-metadata.conf`），论坛按 `/forum/r/` alias 到旧 mbbs 资源目录。
 - 旧一键安装 `deploy/setup.sh` 的自动安装行为已退役。
 - 论坛子域模型（`forum.yangtzeu.work`，配套 `deploy/forum-subdomain-setup.md`）已退役：论坛现由 portal 域名下的 `/forum` 路径提供。
+- 管理端独立域名模型（2026-09-24 退役）：正式 `github.yangtzeu.work`、预发布 `prev-admin.yangtzeu.work` 各占一个域名，宿主 nginx 注入站点头让 web 容器选 admin SPA，env 另有按站点的 host 字段，前端 `app.config.json` 的 host 在镜像构建时按环境重写。现在每个环境只有一个域名，管理端按路径进入；`github.yangtzeu.work` 只保留 301。
 - 发布 tag（`release-X.Y.Z` / `prev-X.Y.Z`）不再产生新的发布身份，见 [RELEASES](../conventions/RELEASES.md)。

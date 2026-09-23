@@ -32,11 +32,8 @@ services:
       HOST: ${HOST:?}
       # 反代来自 compose 网络而不是回环，必须显式信任 X-Forwarded-*。
       TRUST_PROXY: ${TRUST_PROXY:?}
+      # 环境唯一的对外 origin：官网、管理端（/admin、/console）、论坛（/forum）同域，按路径区分。
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?}
-      SITE_ORIGIN: ${SITE_ORIGIN:?}
-      PORTAL_HOST: ${PORTAL_HOST:?}
-      ADMIN_HOST: ${ADMIN_HOST:?}
-      FORUM_HOST: ${FORUM_HOST:?}
       # 正式环境只设 host-only cookie：留空即不写 Domain。
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       POW_DIFFICULTY: ${POW_DIFFICULTY:-3}

@@ -19,6 +19,7 @@ const heredoc = (name: string) => {
 };
 const siteConf = heredoc('NGINX_SITE');
 const proxyHeaders = heredoc('NGINX_HEADERS');
+const hostConf = (name: string) => readFileSync(join(repoRoot, `deploy/nginx/${name}.conf`), 'utf8');
 
 describe('web container nginx picks the SPA entry by path', () => {
   it('declares the admin paths and entry in one location, before the image rule, with no host switch', () => {
@@ -28,6 +29,23 @@ describe('web container nginx picks the SPA entry by path', () => {
     expect(siteConf.indexOf(`/${ADMIN_SPA_ENTRY}`)).toBeLessThan(siteConf.indexOf('location ~* \\.(?:png'));
     expect(siteConf).toMatch(new RegExp(`location / \\{\\s*try_files \\$uri /${PORTAL_SPA_ENTRY.replaceAll('/', '\\/').replaceAll('.', '\\.')};\\s*\\}`));
     expect(dockerfile).not.toMatch(/X-YZGC|x_yzgc|yzgc_spa_entry|render-web-config/i);
+  });
+
+  it('keeps each host nginx template to one origin, with the retired admin domain redirected', () => {
+    const production = hostConf('production');
+    const preview = hostConf('preview');
+    for (const text of [production, preview]) {
+      expect(text).not.toMatch(/X-YZGC|prev-admin/i);
+      expect(text).toContain('client_max_body_size 6m;');
+      expect(text).toContain('/.well-known/acme-challenge/');
+      expect(text).toContain('Content-Security-Policy');
+    }
+    expect(production).toContain('proxy_pass http://127.0.0.1:18100;');
+    const retired = /server_name github\.yangtzeu\.work;([\s\S]*?)\n\}/.exec(production)?.[1] ?? '';
+    expect(retired).toContain('return 301 https://yangtzeu.work$request_uri;');
+    expect(retired).not.toContain('proxy_pass');
+    expect(preview).toContain('proxy_pass http://127.0.0.1:18200;');
+    expect(preview.match(/server_name [^;]+;/g)).toEqual(['server_name prev.yangtzeu.work;', 'server_name prev.yangtzeu.work;']);
   });
 });
 
