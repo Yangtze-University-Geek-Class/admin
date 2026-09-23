@@ -17,5 +17,17 @@ async function getOrgRole(token: string, org: string, login: string): Promise<Or
   }
 }
 
-return { octokitWith, getOrgRole };
+/** 按用户名查 GitHub 账号（用调用者自己的 token）；不存在返回 null，其它错误原样抛出。 */
+async function getUser(token: string, login: string): Promise<{ login: string; id: number } | null> {
+  const octokit = octokitWith(token);
+  try {
+    const res = await octokit.request("GET /users/{username}", { username: login });
+    return { login: String(res.data.login), id: Number(res.data.id) };
+  } catch (e: any) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+return { octokitWith, getOrgRole, getUser };
 }

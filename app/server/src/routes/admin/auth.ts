@@ -14,7 +14,7 @@ export default async function authRoutes(app: FastifyInstance) {
   const { config } = app.services;
   app.get("/auth/github", async (req, reply) => {
     const state = randomBytes(16).toString("base64url");
-    const returnTo = safeReturnTo((req.query as { return_to?: string }).return_to, config, `${config.publicOrigin}/admin`);
+    const returnTo = safeReturnTo((req.query as { return_to?: string }).return_to, config, `${config.publicOrigin}/console`);
     setOAuthState(reply, config, "oauth_state", { state, kind: "admin", returnTo });
     return reply.redirect(buildAuthorizeUrl(state));
   });
@@ -39,7 +39,7 @@ export default async function authRoutes(app: FastifyInstance) {
         httpOnly: true, secure: config.cookieSecure, sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60,
         domain: config.cookieDomain,
       });
-      return reply.redirect(safeReturnTo(returnTo, config, `${config.publicOrigin}/admin`));
+      return reply.redirect(safeReturnTo(returnTo, config, `${config.publicOrigin}/console`));
     }
   );
 
