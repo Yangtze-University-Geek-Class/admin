@@ -57,7 +57,7 @@ node scripts/check-branch-invariants.mjs --json             # 机器可读输出
 node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 之外的长期分支」升级为失败
 ```
 
-`--push` 模式读 git 的 pre-push 四段输入，额外断言「推 `main` 的提交必须已在 `stage`」「推 `stage` 只能来自 `stage` 自身或合规的 `task/<issue>/<slug>` 且必须已包含 `origin/main`」，可用作本地 pre-push 守卫。脚本只读 Git 证据：不 fetch、不改 refs、不删分支、不建提交、不连远端。
+`--push` 模式读 git 的 pre-push 四段输入，额外断言「推 `main` 的提交必须已在 `stage`」「推 `stage` 只能来自 `stage` 自身或合规的 `task/<issue>/<slug>` 且必须已包含 `origin/main`」「不得删除远端 `main`/`stage`」，可用作本地 pre-push 守卫。首次推送新分支（远端 SHA 全 0）同样照常判定命名与不变量。脚本只读 Git 证据：不 fetch、不改 refs、不删分支、不建提交、不连远端。
 
 违反任一条即视为分支模型被破坏，必须先修复再继续开发；不要用 force-push 掩盖差异。
 
