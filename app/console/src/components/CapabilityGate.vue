@@ -15,10 +15,11 @@ const router = useRouter();
 
 const allowed = computed(() => canAny(props.anyOf));
 const blocked = computed(() => me.value?.blocked.find(item => props.anyOf.includes(item.capability)) ?? null);
-const title = computed(() => `你没有「${capabilityLabel(blocked.value?.capability ?? props.anyOf[0])}」权限`);
+const needed = computed(() => capabilityLabel(blocked.value?.capability ?? props.anyOf[0]));
+const title = computed(() => `你没有「${needed.value}」权限`);
 const description = computed(() => blocked.value
   ? `你的称号包含这项权限，但${BLOCK_REASON_TEXT[blocked.value.reason]}才能使用。控制台不能超出你在 GitHub 组织里的角色。`
-  : "这个页面需要上面的权限。请联系班长，在「成员与权限」里为你指派包含它的称号。");
+  : `请联系班长，在「成员与权限」里给你指派带有「${needed.value}」的称号。`);
 </script>
 
 <template>
