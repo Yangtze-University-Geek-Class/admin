@@ -21,7 +21,7 @@
 - **班长临时代任（bootstrap）**：没有显式 captain 行时，`CONSOLE_ORG` 的每一位 GitHub 组织 admin 都临时是班长（`source: "bootstrap"`，`bootstrap: true`），控制台显示横幅提醒尽快正式指定。一旦存在显式 captain 行，临时代任对所有人立刻失效；显式班长全站唯一（部分唯一索引 `uq_role_assignments_captain`），移交在单个事务里完成。captain 行只能由班长本人删除（删除后恢复临时代任）。
 - **负责人范围**：`roles.department.manage` 只允许任免自己负责部门的干事，跨部门返回 403 `out_of_department_scope`。
 - **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免把临时代任的班长锁在外面。
-- **审计**：控制台写操作、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。
+- **审计**：控制台写操作、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
 - **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制；论坛类能力目前只记录和展示，论坛没有服务端执行点。
 
 **个人信息**：投递（姓名、班级、邮箱、特长）对所有持有 `applications.read` 的人完整可见；列表与详情不下发来源 IP 和 User-Agent。只有查看详情和导出会被审计，CSV 离开系统后无法追踪。
