@@ -26,7 +26,7 @@
 
 ## §3 环境字段
 
-填写环境时写清分支（`main` / `stage` / `task/<issue>/<slug>`）与完整 commit SHA，不写 `next`、`feat/*`、`dev-*`、`task/<issue>-<slug>` 等已退役的分支名；版本号写 `package.json` 的 `X.Y.Z`，预发布附 `@<sha12>`（见 [RELEASES](RELEASES.md)）。
+填写环境时写清分支（`main` / `stage` / `task/<issue>/<slug>`）与完整 commit SHA，不写 `next`、`feat/*`、`dev-*`、`task/<issue>-<slug>` 等已退役的分支名；版本写页面显示的值：正式 `X.Y.Z`，预发布 `X.Y.Z-rc.N@<sha12>`，能对应到发布 tag 时一并写上（见 [RELEASES](RELEASES.md)）。
 
 ## §4 关闭与安全
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -30,6 +30,8 @@ const git = (cwd: string, ...args: string[]) =>
       'core.hooksPath=/dev/null',
       '-c',
       'commit.gpgSign=false',
+      '-c',
+      'tag.gpgSign=false',
       '-c',
       'user.name=Branch fixture',
       '-c',
@@ -218,7 +220,7 @@ describe('pre-push guard', () => {
     }
   });
 
-  it('warns instead of failing for personal/task targets and tag pushes', () => {
+  it('warns instead of failing for personal/task targets and non-release tag pushes', () => {
     const f = fixture();
     const target = (name: string) => ({ localRef: `refs/heads/${name}`, localSha: f.mainTip, remoteRef: `refs/heads/${name}`, remoteSha: 'b'.repeat(40) });
     const result = checkPushes({
@@ -235,7 +237,8 @@ describe('pre-push guard', () => {
     expect(result.ok).toBe(true);
     const warnings = result.warnings.join('\n');
     expect(warnings).toContain('refs/heads/scratch');
-    expect(warnings).toContain('部署身份只由 commit SHA 决定');
+    // release-1.0.0 不是 v 开头的发布 tag：只告警，不参与发版。
+    expect(warnings).toContain('refs/tags/release-1.0.0 不是发布 tag');
     // 旧的带 - 分支名推到自己的远端分支：不阻断，但要告警。
     expect(warnings).toContain('refs/heads/dev-crosery');
     expect(warnings).toContain('refs/heads/task/7-forum-path');
@@ -305,5 +308,163 @@ describe('pre-push guard', () => {
       input: `refs/heads/dev/crosery ${f.stageTip} refs/heads/dev/crosery ${'b'.repeat(40)}\n`,
     });
     expect(passing.status).toBe(0);
+  });
+});
+
+/**
+ * 发布 tag 夹具：带 package.json（version 0.1.0）的 main/stage 仓库。
+ * mainTip 是 stageTip 的祖先；taskTip 在一条未合并的任务分支上。
+ */
+function releaseFixture() {
+  const cwd = mkdtempSync(join(tmpdir(), 'geek-tag-guard-'));
+  roots.push(cwd);
+  writeFileSync(join(cwd, 'package.json'), `${JSON.stringify({ name: 'fixture', version: '0.1.0' }, null, 2)}\n`);
+  git(cwd, 'init', '--initial-branch=main');
+  git(cwd, 'add', '.');
+  git(cwd, 'commit', '-m', 'main baseline');
+  const mainTip = git(cwd, 'rev-parse', 'HEAD');
+  git(cwd, 'checkout', '-b', 'stage');
+  git(cwd, 'commit', '--allow-empty', '-m', 'stage integration');
+  const stageTip = git(cwd, 'rev-parse', 'HEAD');
+  git(cwd, 'checkout', '-b', 'task/7/tag_release');
+  git(cwd, 'commit', '--allow-empty', '-m', 'unmerged task work');
+  const taskTip = git(cwd, 'rev-parse', 'HEAD');
+  git(cwd, 'checkout', 'stage');
+  return { cwd, mainTip, stageTip, taskTip };
+}
+
+const zero = '0'.repeat(40);
+const tagPush = (name: string, localSha: string, remoteSha = zero) => ({
+  localRef: `refs/tags/${name}`,
+  localSha,
+  remoteRef: `refs/tags/${name}`,
+  remoteSha,
+});
+
+describe('pre-push guard: release tags', () => {
+  it('allows an rc tag on a stage commit and a final tag on a main commit that already has an rc', () => {
+    const f = releaseFixture();
+    git(f.cwd, 'tag', 'v0.1.0-rc.1', f.mainTip);
+    const result = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.2', f.stageTip), tagPush('v0.1.0-rc.1', f.mainTip), tagPush('v0.1.0', f.mainTip)] });
+    expect(result.violations).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.notes.join('\n')).toContain('同一提交的预发布 tag v0.1.0-rc.1');
+  });
+
+  it('rejects malformed v-tags, including an uppercase V', () => {
+    const f = releaseFixture();
+    for (const name of ['v0.1', 'v0.1.0-rc.0', 'v0.1.0-rc.01', 'v0.1.0-rc1', 'v0.1.0-beta.1', 'v01.1.0', 'V0.1.0', 'v0.1.0.1']) {
+      const result = checkPushes({ repo: f.cwd, pushes: [tagPush(name, f.stageTip)] });
+      expect(result.ok, name).toBe(false);
+      expect(result.violations.join('\n'), name).toContain('格式不对');
+    }
+  });
+
+  it('rejects an rc tag whose commit is not on stage', () => {
+    const f = releaseFixture();
+    const result = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.1', f.taskTip)] });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join('\n')).toContain('预发布 tag v0.1.0-rc.1 必须打在 stage 的提交上');
+    // 本地 stage 不含但 origin/stage 含：任一证据包含即可（推送前 fetch 过的情况）。
+    git(f.cwd, 'update-ref', 'refs/remotes/origin/stage', f.taskTip);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.1', f.taskTip)] }).ok).toBe(true);
+  });
+
+  it('rejects a final tag whose commit is not on main, and warns when the same commit has no rc locally', () => {
+    const f = releaseFixture();
+    git(f.cwd, 'tag', 'v0.1.0-rc.1', f.stageTip);
+    const offMain = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0', f.stageTip)] });
+    expect(offMain.ok).toBe(false);
+    expect(offMain.violations.join('\n')).toContain('正式 tag v0.1.0 必须打在 main 的提交上');
+    expect(offMain.violations.join('\n')).toContain('git merge --ff-only');
+
+    const withoutRc = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0', f.mainTip)] });
+    expect(withoutRc.ok).toBe(true);
+    expect(withoutRc.warnings.join('\n')).toContain('本地没有 v0.1.0-rc.N');
+  });
+
+  it('rejects a tag whose X.Y.Z differs from package.json, and an rc for an already released version', () => {
+    const f = releaseFixture();
+    const mismatch = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.2.0-rc.1', f.stageTip)] });
+    expect(mismatch.ok).toBe(false);
+    expect(mismatch.violations.join('\n')).toContain('package.json 的 version 0.1.0');
+
+    git(f.cwd, 'tag', 'v0.1.0-rc.1', f.mainTip);
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    const rerun = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.2', f.stageTip)] });
+    expect(rerun.ok).toBe(false);
+    expect(rerun.violations.join('\n')).toContain('已有正式 tag');
+  });
+
+  it('rejects deleting or moving a release tag, but only warns for other tags', () => {
+    const f = releaseFixture();
+    const del = (name: string) => ({ localRef: '(delete)', localSha: zero, remoteRef: `refs/tags/${name}`, remoteSha: f.stageTip });
+    for (const name of ['v0.1.0-rc.1', 'v0.1.0']) {
+      const deleted = checkPushes({ repo: f.cwd, pushes: [del(name)] });
+      expect(deleted.ok, name).toBe(false);
+      expect(deleted.violations.join('\n'), name).toContain(`拒绝删除发布 tag refs/tags/${name}`);
+    }
+    // 格式不合规的 v 开头 tag 从来不会触发部署：删除它是清理，只告警。
+    const cleanup = checkPushes({ repo: f.cwd, pushes: [del('v9.9.9-garbage')] });
+    expect(cleanup.ok).toBe(true);
+    expect(cleanup.warnings.join('\n')).toContain('格式不合规的 v 开头 tag');
+    // 远端已有同名 tag、这次指向别的提交 = force 移动 tag。
+    const moved = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.1', f.stageTip, f.mainTip)] });
+    expect(moved.ok).toBe(false);
+    expect(moved.violations.join('\n')).toContain('拒绝移动发布 tag refs/tags/v0.1.0-rc.1');
+    // 远端已有且指向同一提交：重复推送不算移动。
+    git(f.cwd, 'tag', 'v0.1.0-rc.1', f.stageTip);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.1', f.stageTip, f.stageTip)] }).ok).toBe(true);
+    // 附注 tag：pre-push 传的是 tag 对象 SHA，同样要剥到提交再判定，改指向同样算移动。
+    git(f.cwd, 'tag', '-a', 'v0.1.0-rc.2', '-m', 'annotated rc', f.stageTip);
+    const annotated = git(f.cwd, 'rev-parse', 'refs/tags/v0.1.0-rc.2');
+    expect(annotated).not.toBe(f.stageTip);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.2', annotated)] }).ok).toBe(true);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.2', annotated, f.stageTip)] }).ok).toBe(false);
+    git(f.cwd, 'tag', '-a', 'v0.1.0-rc.3', '-m', 'annotated rc off stage', f.taskTip);
+    const offStage = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.3', git(f.cwd, 'rev-parse', 'refs/tags/v0.1.0-rc.3'))] });
+    expect(offStage.violations.join('\n')).toContain('必须打在 stage 的提交上');
+
+    const others = checkPushes({
+      repo: f.cwd,
+      pushes: [
+        tagPush('backup-2026', f.taskTip),
+        tagPush('experiment', f.taskTip, f.stageTip),
+        { localRef: '(delete)', localSha: zero, remoteRef: 'refs/tags/old-note', remoteSha: f.stageTip },
+      ],
+    });
+    expect(others.ok).toBe(true);
+    const warnings = others.warnings.join('\n');
+    expect(warnings).toContain('refs/tags/backup-2026 不是发布 tag');
+    expect(warnings).toContain('移动远端已有的同名 tag');
+    expect(warnings).toContain('refs/tags/old-note：删除的是非发布 tag');
+  });
+
+  it('rejects a release tag when neither the local nor the remote-tracking branch exists', () => {
+    const f = releaseFixture();
+    git(f.cwd, 'checkout', 'task/7/tag_release');
+    git(f.cwd, 'branch', '-D', 'stage');
+    const result = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-rc.1', f.stageTip)] });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join('\n')).toContain('git fetch origin stage');
+  });
+
+  it('reads tag pushes from stdin through the CLI', () => {
+    const f = releaseFixture();
+    const rejected = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], {
+      encoding: 'utf8',
+      input: `refs/tags/v0.1.0-rc.1 ${f.taskTip} refs/tags/v0.1.0-rc.1 ${zero}\n`,
+    });
+    expect(rejected.status).toBe(1);
+    expect(rejected.stdout).toContain('必须打在 stage 的提交上');
+    // tag 违规与两条分支不变量无关：不打印不变量原文，免得误导排查方向。
+    expect(rejected.stdout).not.toContain('[不变量原文]');
+    const accepted = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], {
+      encoding: 'utf8',
+      input: `refs/tags/v0.1.0-rc.1 ${f.stageTip} refs/tags/v0.1.0-rc.1 ${zero}\n`,
+    });
+    expect(accepted.status).toBe(0);
+    expect(accepted.stdout).toContain('pre-push 分支与发布 tag 规则通过');
   });
 });

@@ -2,7 +2,7 @@
 
 > 核心 portal/admin 的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/server/` · 镜像：`yzgc/server:<tag>`
+状态：`current` · 更新：2026-09-24 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 

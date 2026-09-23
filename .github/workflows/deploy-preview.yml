@@ -1,20 +1,30 @@
-# 预发布部署（stage → preview）
+# 预发布部署（vX.Y.Z-rc.N → preview）
 #
-# 触发：push 到 stage（唯一预发布来源）与手工 dispatch；其它分支一律拒绝（plan job 里硬断言 ref）。
+# 触发：推送预发布 tag vX.Y.Z-rc.N（N 从 1 开始，提交必须在 stage 上），或手工 dispatch：
+# 「Use workflow from」选这个 tag，并在 tag 输入框里再填同一个 tag。push stage / main 不再部署。
+# plan job 硬断言触发 ref 就是 refs/tags/<rc tag>，其它 ref（分支、正式 tag、格式不对的 tag）一律拒绝。
 # 开关：仓库级 vars.DEPLOY_PREVIEW_ENABLED 必须显式等于 enabled，未设置 = 不部署。
 #
 # 边界：
+#   * 本工作流不创建、不移动、不删除 tag；tag 由所有者授权后手工打（见 docs/conventions/RELEASES.md）。
 #   * 只有 build 与 deploy 两个阶段；构建期不接触任何环境级密钥。
 #   * 部署用环境级 secrets（GitHub Environment `preview`），与 PR 构建、正式环境完全隔离。
-#   * 镜像 tag 只用 SHA 前 12 位，禁止 latest；tag/版本里程碑不参与发布身份。
-#   * 部署记录走 GitHub Deployments API，正式环境用它做「先预发布后正式」的证据。
+#   * 镜像 tag 只用提交 SHA 前 12 位，禁止 latest；展示版本是 X.Y.Z-rc.N@<sha12>。
+#   * 部署记录走 GitHub Deployments API（payload 带 rc tag），正式环境用它做「先预发布后正式」的证据。
 
 name: Deploy Preview
 
 on:
   push:
-    branches: [stage]
+    # GitHub 的过滤模式匹配整个 tag 名：只有 vX.Y.Z-rc.N 形状会触发，正式 tag vX.Y.Z 不会。
+    # 前导 0 等细节由 plan job 的正则再判一次。
+    tags: ['v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '预发布 tag（vX.Y.Z-rc.N），必须与「Use workflow from」选中的 tag 相同'
+        required: true
+        type: string
 
 # 默认最小权限：只读仓库内容。写 deployments 的权限只在 deploy job 上单独声明。
 permissions:
@@ -22,18 +32,21 @@ permissions:
 
 concurrency:
   group: deploy-preview
-  # 预发布允许取消被新提交取代的运行：stage 移动快，旧运行没有保留价值。
-  cancel-in-progress: true
+  # 同一时刻只跑一个预发布部署。不取消正在跑的运行：半途被取消的部署可能停在 load 镜像与
+  # compose up 之间；新的 rc tag 排队等待（GitHub 只保留最新一个排队中的运行）。
+  cancel-in-progress: false
 
 jobs:
-  # 规划：解析分支 → 发布身份（镜像 tag、栈目录、入口、产物名），并硬断言触发来源。
+  # 规划：硬断言触发来源是 rc tag → 解析发布身份（镜像 tag、栈目录、入口、产物名）。
   plan:
-    name: plan (stage → preview 身份)
+    name: plan (rc tag → preview 身份)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      tag: ${{ steps.source.outputs.tag }}
       commit: ${{ steps.identity.outputs.commit }}
       image_tag: ${{ steps.identity.outputs.image_tag }}
+      image_repository: ${{ steps.identity.outputs.image_repository }}
       release_version: ${{ steps.identity.outputs.release_version }}
       origin: ${{ steps.identity.outputs.origin }}
       stack_root: ${{ steps.identity.outputs.stack_root }}
@@ -42,22 +55,39 @@ jobs:
       images_archive: ${{ steps.identity.outputs.images_archive }}
       compose_project: ${{ steps.identity.outputs.compose_project }}
     steps:
-      - name: 检出代码（取全部远端分支，不保留凭据）
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: 硬断言触发来源是 stage
+      - name: 硬断言触发来源是预发布 tag
+        id: source
         shell: bash
-        # 只有 stage 能进预发布：其它分支（task/**、dev/**、main）一概拒绝，没有回落到 stage 的路径。
+        # 只有 vX.Y.Z-rc.N 能进预发布：分支、正式 tag、格式不对的 tag 一概拒绝，没有回落路径。
+        # 手工触发时输入的 tag 必须就是运行所在的 ref，工作流定义与被部署的代码来自同一个 tag。
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -eu
-          if [ "${GITHUB_REF}" != "refs/heads/stage" ]; then
-            echo "本工作流只接受 refs/heads/stage（当前：${GITHUB_REF}，事件：${GITHUB_EVENT_NAME}）" >&2
+          case "${GITHUB_EVENT_NAME}" in
+            push) tag="${GITHUB_REF_NAME}" ;;
+            workflow_dispatch) tag="${INPUT_TAG}" ;;
+            *) echo "不支持的触发事件：${GITHUB_EVENT_NAME}" >&2; exit 1 ;;
+          esac
+          rc_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$'
+          if ! [[ "$tag" =~ $rc_re ]]; then
+            echo "预发布只接受 vX.Y.Z-rc.N（N 从 1 开始，不带前导 0）：收到 '${tag}'" >&2
             exit 1
           fi
+          if [ "${GITHUB_REF}" != "refs/tags/${tag}" ]; then
+            echo "本工作流只接受 refs/tags/${tag}（当前：${GITHUB_REF}，事件：${GITHUB_EVENT_NAME}）。手工触发时「Use workflow from」必须选同一个 tag。" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "触发来源确认：${GITHUB_REF}（事件 ${GITHUB_EVENT_NAME}）"
+
+      - name: 检出发布 tag（取全部分支与 tag，不保留凭据）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.source.outputs.tag }}
+          # 判定「提交在 stage 上」需要 origin/stage，核对 tag 需要全部 tag，浅克隆拿不到。
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: 安装 Node（读取 .nvmrc）
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -65,16 +95,26 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
-      - name: 规划发布身份（分支模型，禁止 tag 语义）
+      - name: 规划发布身份（tag 模型）
         id: identity
         shell: bash
-        # release-policy 会额外校验：提交存在、且必须是 origin/stage 的 tip；tag/版本/批准开关一律拒绝。
+        # release-policy 校验：tag 指向检出的提交、X.Y.Z 等于该提交 package.json 的 version、
+        # 提交在 origin/stage 的历史里、该版本还没有正式 tag。任一不成立即失败关闭。
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
         run: |
           set -eu
-          node scripts/release-policy.mjs plan --branch stage --commit "$GITHUB_SHA" > "$RUNNER_TEMP/plan.json"
+          commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$commit" ]; then
+            echo "检出的 HEAD 不是 ${RELEASE_TAG} 指向的提交 ${commit}：拒绝规划。" >&2
+            exit 1
+          fi
+          node scripts/release-policy.mjs plan --tag "$RELEASE_TAG" --commit "$commit" \
+            --branch-ref refs/remotes/origin/stage --require-tag > "$RUNNER_TEMP/plan.json"
           {
             echo "commit=$(jq -r '.commit' "$RUNNER_TEMP/plan.json")"
             echo "image_tag=$(jq -r '.imageTag' "$RUNNER_TEMP/plan.json")"
+            echo "image_repository=$(jq -r '.imageRepository' "$RUNNER_TEMP/plan.json")"
             echo "release_version=$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")"
             echo "origin=$(jq -r '.origin' "$RUNNER_TEMP/plan.json")"
             echo "stack_root=$(jq -r '.stackRoot' "$RUNNER_TEMP/plan.json")"
@@ -96,9 +136,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: 检出代码
+      - name: 检出 plan 核对过的提交
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # 用 plan 输出的完整 SHA，而不是再按 tag 名解析一次：tag 在两次检出之间被改动也构建不到别的代码。
+          ref: ${{ needs.plan.outputs.commit }}
           persist-credentials: false
 
       - name: 安装 pnpm（读取根 packageManager）
@@ -124,10 +166,13 @@ jobs:
           GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
         run: pnpm build
 
-      - name: 构建三个镜像（tag = SHA 前 12 位）
+      - name: 构建三个镜像（preview 专用仓库，tag = SHA 前 12 位）
         shell: bash
+        # 镜像仓库按环境分开（yzgc-preview/<服务>）：两套栈共用目标机的 Docker 守护进程，
+        # 同一提交的预发布与正式镜像构建参数不同，共用镜像名会在 docker load 时互相覆盖。
         env:
           IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
           GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
           GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
         run: |
@@ -138,21 +183,22 @@ jobs:
               --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=preview \
               --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
               --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
-              --tag "yzgc/${service}:${IMAGE_TAG}" .
+              --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
           done
-          docker image list --format '{{.Repository}}:{{.Tag}}' | grep '^yzgc/'
+          docker image list --format '{{.Repository}}:{{.Tag}}' | grep "^${IMAGE_REPOSITORY}/"
 
       - name: 打包镜像归档与校验和
         shell: bash
         env:
           IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
           IMAGES_ARCHIVE: ${{ needs.plan.outputs.images_archive }}
         run: |
           set -eu
           out="${RUNNER_TEMP}/bundle"
           mkdir -p "$out"
           # docker save 直接进 gzip：中间不落地未压缩 tar，runner 上不留第二份镜像数据。
-          docker save "yzgc/server:${IMAGE_TAG}" "yzgc/web:${IMAGE_TAG}" "yzgc/forum:${IMAGE_TAG}" \
+          docker save "${IMAGE_REPOSITORY}/server:${IMAGE_TAG}" "${IMAGE_REPOSITORY}/web:${IMAGE_TAG}" "${IMAGE_REPOSITORY}/forum:${IMAGE_TAG}" \
             | gzip -9 > "${out}/${IMAGES_ARCHIVE}"
           ( cd "$out" && sha256sum "${IMAGES_ARCHIVE}" > "${IMAGES_ARCHIVE}.sha256" )
           ls -lh "$out"
@@ -184,7 +230,10 @@ jobs:
       # 写部署记录（GitHub Deployments API）：正式环境据此判断同一 commit 是否已在预发布验证过。
       deployments: write
     env:
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
       IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+      IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
       COMMIT: ${{ needs.plan.outputs.commit }}
       STACK_ROOT: ${{ needs.plan.outputs.stack_root }}
       INCOMING_DIR: ${{ needs.plan.outputs.incoming_dir }}
@@ -206,9 +255,10 @@ jobs:
           fi
           echo "环境哨兵确认：preview"
 
-      - name: 检出代码（取部署物料：compose 与远端脚本）
+      - name: 检出 plan 核对过的提交（取部署物料：compose 与远端脚本）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.commit }}
           persist-credentials: false
 
       - name: 安装 Node（读取 .nvmrc）
@@ -265,8 +315,9 @@ jobs:
           set -eu
           deployment_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
             -f ref="$COMMIT" -f environment=preview -f auto_inactive=false \
-            -f description="stage → preview（镜像 tag ${IMAGE_TAG}）" \
-            -f "payload[image_tag]=${IMAGE_TAG}" -f "payload[branch]=stage" \
+            -f description="${RELEASE_TAG} → preview（${RELEASE_VERSION}，镜像 tag ${IMAGE_TAG}）" \
+            -f "payload[tag]=${RELEASE_TAG}" -f "payload[release_version]=${RELEASE_VERSION}" \
+            -f "payload[image_tag]=${IMAGE_TAG}" -f "payload[image_repository]=${IMAGE_REPOSITORY}" \
             --jq '.id')"
           echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
           gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
@@ -332,10 +383,10 @@ jobs:
           fi
           if [ "$OUTCOME" = "success" ]; then
             state=success
-            description="preview 部署成功（镜像 tag ${IMAGE_TAG}）"
+            description="${RELEASE_TAG} 预发布部署成功（镜像 tag ${IMAGE_TAG}）"
           else
             state=failure
-            description="preview 部署失败或未执行（$OUTCOME）"
+            description="${RELEASE_TAG} 预发布部署失败或未执行（$OUTCOME）"
           fi
           gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
@@ -350,13 +401,14 @@ jobs:
             echo "## 预发布部署"
             echo ""
             echo "- 环境：preview（GitHub Environment: preview）"
-            echo "- 分支：stage"
+            echo "- 发布 tag：\`${RELEASE_TAG}\`"
+            echo "- 展示版本：\`${RELEASE_VERSION}\`"
             echo "- commit：\`${COMMIT}\`"
-            echo "- 镜像 tag：\`${IMAGE_TAG}\`"
+            echo "- 镜像：\`${IMAGE_REPOSITORY}/{server,web,forum}:${IMAGE_TAG}\`"
             echo "- compose 项目：\`${COMPOSE_PROJECT}\`"
             echo "- 栈根目录：\`${STACK_ROOT}\`"
             echo "- 入口：${ORIGIN}"
             echo ""
-            echo "机器部署成功不等于人工试用通过；正式环境仍需要单独的证据检查与批准。"
+            echo "机器部署成功不等于人工试用通过。所有者在预发布试用并明确批准后，才把 main 快进到这个提交并打正式 tag。"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "预发布入口：${ORIGIN}"

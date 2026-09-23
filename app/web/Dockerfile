@@ -4,7 +4,8 @@
 # 构建上下文 = 仓库根（geek_main/）：
 #   docker build --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
 #     --build-arg GEEK_RELEASE_VERSION=0.1.0 --build-arg GEEK_RELEASE_COMMIT=<sha> \
-#     -f app/web/Dockerfile -t yzgc/web:<sha12> .
+#     -f app/web/Dockerfile -t yzgc-production/web:<sha12> .
+#   （镜像仓库按环境分开：预发布构建用 yzgc-preview/web，正式构建用 yzgc-production/web，见 docs/ops/DEPLOY.md）
 #
 # 容器内监听 8080（非特权端口，以 nginx 用户运行）；宿主暴露由 compose 的
 # 127.0.0.1:<WEB_BIND> 控制。宿主 nginx 只做 TLS 终止与 server_name 转发。

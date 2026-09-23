@@ -8,7 +8,7 @@
 | [`BRANCHING.md`](./BRANCHING.md) | 任何提交/推送/切分支之前；确认自己在 `main`/`stage`/`task/<issue>/<slug>` 上 |
 | [`CODE-REVIEW.md`](./CODE-REVIEW.md) | review 别人的 diff，或提交 MR 想合入 `stage` 之前 |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | 第一次参与，或需要确认分支/环境/沟通约定 |
-| [`RELEASES.md`](./RELEASES.md) | 把 `stage` 合入 `main`、改版本号或准备部署之前 |
+| [`RELEASES.md`](./RELEASES.md) | 打发布 tag、把 `main` 快进到被验收的提交、改版本号或准备部署之前 |
 | [`COMMITS.md`](./COMMITS.md) | 写 commit message 之前 |
 | [`ISSUES.md`](./ISSUES.md) | 开 issue 之前（开发前必须先有 issue） |
 | [`PULL-REQUESTS.md`](./PULL-REQUESTS.md) | 开 MR 之前 |

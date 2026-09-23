@@ -21,6 +21,9 @@
 # 事实来源：env 文件里的 STACK_ROOT / COMPOSE_PROJECT_NAME / IMAGE_TAG / SERVER_BIND / WEB_BIND。
 # 脚本不内联密钥，不猜测端口。
 #
+# 镜像只从本环境的仓库 yzgc-<environment>/<server|web|forum> 里找；另一环境同一 SHA 的镜像
+# 构建参数不同，不能拿来回滚。本机没有目标镜像就停下，由维护者重新分发该版本的本环境归档。
+#
 # 记录：<STACK_ROOT>/deploy-history.log（追加，制表符分隔）
 #   时间(UTC ISO8601)  环境  生效版本  结果  说明
 set -euo pipefail
@@ -160,6 +163,7 @@ case "$ENVIRONMENT" in production | preview) : ;; *) usage; die "--environment �
 [ -n "$TO" ] || { usage; die "缺少 --to"; }
 require_match "$HEALTH_TIMEOUT" '^[1-9][0-9]{0,3}$' --health-timeout
 if [ "$TO" != "previous" ]; then require_match "$TO" '^[0-9a-f]{12}$' --to; fi
+IMAGE_REPO="yzgc-$ENVIRONMENT"
 
 # ── 定位 env 文件（唯一事实来源）──────────────────────────────
 if [ -z "$ENV_FILE" ]; then
@@ -212,9 +216,16 @@ else
 fi
 [ "$TARGET_TAG" = "$CURRENT_TAG" ] && die "目标版本与当前版本相同（${TARGET_TAG}），无需回滚"
 
-# 镜像必须在本机：被清理掉的旧版本（只保留最近 5 个 tag）无法回滚，如实报错而不是拉取。
+# compose 文件必须按本环境仓库取镜像：目标机上的旧 compose 文件会让回滚悄悄用上别的镜像。
+compose_images=$(docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --images 2>/dev/null | sort -u) \
+  || die "无法解析 compose 文件的镜像（${COMPOSE_FILE}）"
+expected_images=$(printf '%s\n' "$IMAGE_REPO/server:$CURRENT_TAG" "$IMAGE_REPO/web:$CURRENT_TAG" "$IMAGE_REPO/forum:$CURRENT_TAG" | sort -u)
+[ "$compose_images" = "$expected_images" ] || die "compose 文件解析出的镜像不是 ${IMAGE_REPO}/<server|web|forum>:<IMAGE_TAG>（${COMPOSE_FILE} 可能还是按旧镜像名写的）"
+
+# 镜像必须在本机、并且在本环境的仓库里：被清理掉的旧版本（只保留最近 5 个 tag）无法回滚，如实报错而不是拉取；
+# 另一环境同一 SHA 的镜像不能代替。
 for svc in server web forum; do
-  docker image inspect "yzgc/$svc:$TARGET_TAG" >/dev/null 2>&1 || die "本机没有 yzgc/$svc:${TARGET_TAG}（镜像可能已被保留策略清理），请先重新分发该版本镜像"
+  docker image inspect "$IMAGE_REPO/$svc:$TARGET_TAG" >/dev/null 2>&1 || die "本机没有 ${IMAGE_REPO}/$svc:${TARGET_TAG}（镜像可能已被保留策略清理），请先重新分发该版本的 ${ENVIRONMENT} 镜像归档"
 done
 
 printf '回滚开始：环境=%s 当前=%s 目标=%s\n' "$ENVIRONMENT" "$CURRENT_TAG" "$TARGET_TAG"

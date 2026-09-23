@@ -29,19 +29,19 @@
 - 分支名一律不用 `-`，只用 `/` 分层，段内多词用 `_`（正则见 [BRANCHING](docs/conventions/BRANCHING.md)）。
 - 任务分支命名 `task/<issue>/<slug>`（例 `task/12/portal_redesign`），**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
 - `dev/<github-username>`（例 `dev/crosery`）是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
-- 环境绑定固定：`main` → 正式 `https://yangtzeu.work`；`stage` → 预发布 `https://prev.yangtzeu.work`。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
+- 推送分支不部署：push `stage`/`main` 只跑 CI。发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上 → 预发布 `https://prev.yangtzeu.work`；`vX.Y.Z` 打在 `main` 的同一提交上 → 正式 `https://yangtzeu.work`。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
 - 规则存在不等于远程保护已生效：域名、环境文件或分支保护配置齐全，不代表 DNS、TLS、CI 或部署已经落地。
 
 细节见 [BRANCHING](docs/conventions/BRANCHING.md)。
 
 ## 2. 工作流硬门禁
 
-**先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` →（预发布验证）→ 合入 `main`。**
+**先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
 - 开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；MR 正文关联 issue，合并时用 `Closes #<issue>`。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
-- 进入 `main` 前必须有预发布环境的真实验证证据；自动化 PASS 只是机器验证，不能代替人工验证。
-- 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、部署分别需要对应授权。
+- 进入 `main` 和打正式 tag 前，必须有所有者在预发布环境对同一提交的真实验收记录；自动化 PASS 只是机器验证，不能代替人工验证。
+- 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、打 tag、部署分别需要对应授权。发版流程、tag 规则与回滚见 [RELEASES](docs/conventions/RELEASES.md)。
 
 ## 3. 部署硬门禁
 
@@ -50,7 +50,8 @@
 - 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview`，由 `docker compose --env-file` 消费；不得另建环境文件或在别处定义第二份环境变量。
 - 非密钥项（origin、host、端口、路径、开关）预填真实值；**密钥留空，真实值只存在于目标机 `.env.<环境>`**，由 CI/CD 用环境级 secrets 填充。
 - 密钥不得入库、不得进镜像、不得进日志或发布记录。
-- 部署开关默认关闭；未显式开启不部署。AI 不得自行部署、不得修改版本号或镜像 tag、不得触发流水线。
+- 部署只由发布 tag 触发（`deploy-preview.yml` / `deploy-production.yml`），部署开关默认关闭，未显式开启不部署。AI 不得自行部署、不得创建/推送/移动/删除发布 tag、不得修改版本号或镜像 tag、不得触发流水线。
+- 发布 tag 不可移动、不可删除；创建发布 tag 需要所有者对该版本的明确授权，正式 tag 还需要所有者对同一提交的预发布验收记录。
 - 禁止用 systemd、pm2 或手工 `node` 进程替代 Docker 栈；禁止在目标机手工修改运行中的栈。
 
 ## 4. 证据硬门禁
@@ -70,6 +71,7 @@
 - 用 systemd、pm2、手工进程替代 Docker 栈部署，或手工改目标机运行中的栈。
 - 把 `proposed`/`historical` 文档当现行规范执行；规范冲突时自己挑一份照做而不报告。
 - 伪造审查结论、验收证据、测试结果或审批记录。
+- 未经所有者授权创建或推送发布 tag，或者移动、删除已推送的发布 tag。
 
 ## 6. 文档路由表
 

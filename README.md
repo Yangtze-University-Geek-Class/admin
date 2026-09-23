@@ -14,7 +14,7 @@
 | Agent 接手项目：先确认分支，再读规范 | [AGENTS.md](AGENTS.md)、[AGENT-START](docs/conventions/AGENT-START.md) |
 | 确认分支模型与不变量 | [BRANCHING](docs/conventions/BRANCHING.md) |
 | 审查 diff / 开 MR 前 | [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)、[PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) |
-| 发布与人工验收（分支驱动，无 tag 流程） | [RELEASES](docs/conventions/RELEASES.md) |
+| 发布与人工验收（打 tag 发版：`vX.Y.Z-rc.N` 预发布，`vX.Y.Z` 正式） | [RELEASES](docs/conventions/RELEASES.md) |
 | 了解服务边界与源码位置 | [server](docs/services/server/README.md)、[web](docs/services/web/README.md)、[forum](docs/services/forum/README.md) |
 | 了解真实架构与数据归属 | [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
 | 了解实际技术栈，不混淆升级提议 | [STACK.md](docs/design/STACK.md) |
@@ -77,12 +77,12 @@ pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456
 
 线上是**同机两套 Docker 栈**，由宿主 nginx 做 TLS 终止：
 
-| 环境 | 分支 | 栈根 | 入口 | web 宿主端口 |
+| 环境 | 发布 tag（提交所在分支） | 栈根 | 入口 | web 宿主端口 |
 |---|---|---|---|---|
-| production | `main` | `/opt/yzgc/production` | `https://yangtzeu.work` | `127.0.0.1:18100` |
-| preview | `stage` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work` | `127.0.0.1:18200` |
+| production | `vX.Y.Z`（`main`） | `/opt/yzgc/production` | `https://yangtzeu.work` | `127.0.0.1:18100` |
+| preview | `vX.Y.Z-rc.N`（`stage`） | `/opt/yzgc/preview` | `https://prev.yangtzeu.work` | `127.0.0.1:18200` |
 
-镜像 `yzgc/{server,web,forum}:<sha12>`，tag 写入 `<栈根>/.env.<environment>` 的 `IMAGE_TAG`；回滚就是切回历史 tag。字段契约与密钥注入规则见 [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md)，工作流与部署开关（默认关闭）见 [CICD](docs/ops/CICD.md)。合入 `main` 即正式发布，人工验收必须在合入之前完成（见 [RELEASES](docs/conventions/RELEASES.md)）。
+镜像按环境分仓库：`yzgc-production/{server,web,forum}:<sha12>` 与 `yzgc-preview/{server,web,forum}:<sha12>`（两套栈共用一个 Docker 守护进程，同一提交的两次构建不能共用镜像名），镜像 tag 写入 `<栈根>/.env.<environment>` 的 `IMAGE_TAG`；回滚就是切回更早发布 tag 的镜像。字段契约与密钥注入规则见 [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md)，工作流与部署开关（默认关闭）见 [CICD](docs/ops/CICD.md)。推送分支不部署：在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布，所有者验收通过后在同一提交上打 `vX.Y.Z` 发正式；打 tag 需要所有者授权（见 [RELEASES](docs/conventions/RELEASES.md)）。
 
 ## 文档维护
 
