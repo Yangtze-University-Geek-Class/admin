@@ -1,12 +1,13 @@
 // 官网「意见箱」：匿名向组织提建议 / 报 bug，旁边列出该组织公开的近期反馈。
 // 外壳是 ../components/PageShell.tsx；准入同其它公开表单（PoW + 蜜罐 + 可选 Turnstile）。
+// 分类只有几项，用单选按钮组（../components/ChoiceChips.tsx）而不是原生下拉框。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "@shared/lib/api";
 import { appConfig } from "@shared/config";
-import Select from "@shared/ui/Select";
 import { computePow, powProof } from "@shared/lib/pow";
+import ChoiceChips from "../components/ChoiceChips";
 import Icon from "../components/Icon";
 import PageShell, { WindowCard } from "../components/PageShell";
 
@@ -109,11 +110,13 @@ export default function Feedback() {
               </div>
 
               <div className="pt-field">
-                <label htmlFor="fb-category">分类</label>
+                <span className="pt-field-label" id="fb-category-label">
+                  分类
+                </span>
                 {categoriesFailed ? (
                   <p className="pt-hint">分类没加载出来，这条会按「未分类」提交。</p>
                 ) : (
-                  <Select id="fb-category" label="分类" className="pt-input" value={form.category} onChange={(v) => setForm({ ...form, category: v })} options={categories.map((c) => ({ value: c, label: c }))} />
+                  <ChoiceChips name="category" labelledBy="fb-category-label" value={form.category} options={categories} onChange={(category) => setForm({ ...form, category })} />
                 )}
               </div>
 
