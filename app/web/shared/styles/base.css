@@ -212,10 +212,32 @@ body::after {
 }
 
 /* Development-only global control center. It is not rendered by production config. */
+.dev-control-pill {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgb(var(--brand-500) / 0.4);
+  border-radius: 999px;
+  background: rgb(var(--ink-950) / 0.88);
+  color: rgb(var(--ink-200));
+  font: 700 10px/1 ui-monospace, monospace;
+  letter-spacing: .1em;
+  cursor: pointer;
+  opacity: .72;
+  transition: opacity .15s;
+}
+.dev-control-pill:hover, .dev-control-pill:focus-visible { opacity: 1; }
+.dev-control-pill i { width: 6px; height: 6px; border-radius: 50%; background: rgb(52 211 153); }
+.dev-control-close { margin-left: 8px; padding: 3px 8px; border: 1px solid rgb(var(--ink-700) / .65); border-radius: 6px; color: rgb(var(--ink-300)); background: transparent; font-size: 10px; cursor: pointer; }
 .dev-control-center {
   position: fixed;
-  right: 16px;
-  top: 92px;
+  left: 10px;
+  bottom: 10px;
   z-index: 90;
   width: min(310px, calc(100vw - 32px));
   padding: 12px;
@@ -237,7 +259,7 @@ body::after {
 .dev-control-row button:hover, .dev-control-row button.is-active { color: rgb(var(--brand-500)); border-color: rgb(var(--brand-500) / .55); background: rgb(var(--brand-500) / .12); }
 .dev-control-center p { margin: 9px 2px 0; color: rgb(var(--ink-500)); font-size: 9px; line-height: 1.45; }
 @media (max-width: 760px) {
-  .dev-control-center { top: auto; right: 8px; bottom: 8px; width: calc(100vw - 16px); }
+  .dev-control-center { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
   .dev-control-pages, .dev-control-center p { display: none; }
 }
 
