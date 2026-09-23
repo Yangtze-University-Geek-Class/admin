@@ -256,7 +256,7 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
     if (remoteRef.startsWith('refs/heads/')) {
       const name = remoteRef.slice('refs/heads/'.length);
       if (classifyBranch(name) !== 'task' && classifyBranch(name) !== 'personal' && classifyBranch(name) !== 'long-lived') {
-        warnings.push(`${remoteRef} 不在 main/stage/task/<issue>/<slug>/dev/<username> 命名规范内（分支名不用 -）：CI 只做验证，该分支也不会被部署。`);
+        warnings.push(`${remoteRef} 不在 main、stage、task/<issue>/<slug>、dev/<username> 命名规范内（分支名不用 -）：CI 只做验证，该分支也不会被部署。`);
       }
       continue;
     }
