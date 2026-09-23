@@ -7,12 +7,12 @@
 # 镜像内必须保持仓库布局，因为 src/config.ts 用 dist/ 的相对层级推导路径：
 #   REPO_ROOT = dist/config.js 的 ../../.. → 容器内必须是 /app
 #   APP_ROOT  = dist/config.js 的 ../..   → 容器内必须是 /app/app
-# 于是运行时关键路径固定为 /app/package.json、/app/app/server/dist、
-# /app/app/web/shared/config/app.config.json；改动任何一个都会让配置错位。
+# 于是运行时关键路径固定为 /app/package.json 与 /app/app/server/dist；改动任何一个都会让配置错位。
+# 服务端不读前端配置：每个环境只有一个 PUBLIC_ORIGIN，SPA 入口按路径选择（见 src/app.ts）。
 # 数据库与上传目录由 env 文件给定绝对路径（DB_PATH=/data/data.db 等），
 # 因此落在 /data 卷上，不依赖 REPO_ROOT 的内部目录。
 
-# ── 构建阶段：装依赖 → 渲染前端配置 → 编译 TS → 裁掉 devDependencies ──
+# ── 构建阶段：装依赖 → 编译 TS → 裁掉 devDependencies ──
 FROM node:22-bookworm-slim AS builder
 
 ENV CI=1 \
@@ -40,29 +40,16 @@ COPY app/server/package.json app/server/package.json
 COPY app/web/package.json app/web/package.json
 RUN pnpm install --frozen-lockfile --filter @yzgc/server...
 
-# 生产环境启动时 config.ts 会断言「前端 app.config.json 的 host」与
-# 「env 里的 ADMIN_HOST/PORTAL_HOST/FORUM_HOST」一致，所以镜像里的
-# app.config.json 必须是按环境渲染过的，不能直接复制仓库里的原始文件。
-# 渲染脚本由仓库统一维护（scripts/render-web-config.mjs），此处只调用、不实现。
-# 它还会 import 同目录的 deployment-environment.mjs（环境契约解析的唯一实现），
-# 所以整个 scripts/ 一起进构建上下文，避免漏掉新的辅助模块。
-COPY scripts scripts
 # 只复制编译需要的源码与 tsconfig：宿主的 node_modules / dist / test 脚本不进上下文。
 COPY app/server/src app/server/src
 COPY app/server/tsconfig.json app/server/tsconfig.json
-COPY app/web/shared app/web/shared
-# render-web-config.mjs 经 deployment-environment.mjs 读取环境身份契约与入库的环境模板
-# （模板里密钥字段一律留空）。只在构建阶段使用，运行阶段不复制 deploy/。
-COPY deploy/environments.json deploy/environments.json
-COPY deploy/env deploy/env
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION
 ARG GEEK_RELEASE_COMMIT
 
+# 编译产物与环境无关；仍要求显式传入环境名，与另外两个镜像的构建参数契约一致。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
- && test -f scripts/render-web-config.mjs \
- && node scripts/render-web-config.mjs --environment "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && pnpm --filter @yzgc/server build \
  && pnpm install --frozen-lockfile --prod --filter @yzgc/server... --filter yzgc-admin
 
@@ -88,7 +75,6 @@ COPY --from=builder --chown=node:node /repo/package.json /app/package.json
 COPY --from=builder --chown=node:node /repo/node_modules /app/node_modules
 COPY --from=builder --chown=node:node /repo/app/server/node_modules /app/app/server/node_modules
 COPY --from=builder --chown=node:node /repo/app/server/dist /app/app/server/dist
-COPY --from=builder --chown=node:node /repo/app/web/shared/config/app.config.json /app/app/web/shared/config/app.config.json
 
 # 命名卷挂到 /data 时由镜像目录继承属主，容器内的 node 用户才能写 SQLite 与上传文件。
 RUN mkdir -p /data && chown node:node /data

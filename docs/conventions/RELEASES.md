@@ -47,10 +47,10 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 
 | 环境 | 分支 | 栈根 | 入口 | Compose 项目 |
 |---|---|---|---|---|
-| preview | `stage` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work`（管理端 `prev-admin.yangtzeu.work`） | `yzgc-preview` |
-| production | `main` | `/opt/yzgc/production` | `https://yangtzeu.work`（管理端 `github.yangtzeu.work`） | `yzgc-production` |
+| preview | `stage` | `/opt/yzgc/preview` | `https://prev.yangtzeu.work`（管理端 `/admin`、`/console`） | `yzgc-preview` |
+| production | `main` | `/opt/yzgc/production` | `https://yangtzeu.work`（管理端 `/admin`、`/console`） | `yzgc-production` |
 
-两套栈同机、完全隔离：独立目录、独立 compose 项目、独立数据卷、独立端口（18100/18101 与 18200/18201）、独立密钥、独立域名。Cookie 使用 host-only（不写 `Domain`），禁止 `.yangtzeu.work` 这种父域共享。本机 `localhost`/`127.0.0.1` 只能标为 local/未发布，绝不能标成已在预发布环境试用。配置细节见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)，部署操作见 [DEPLOY](../ops/DEPLOY.md)。
+两套栈同机、完全隔离：独立目录、独立 compose 项目、独立数据卷、独立端口（18100/18101 与 18200/18201）、独立密钥、独立域名（每个环境只有一个域名，管理端按路径进入）。Cookie 使用 host-only（不写 `Domain`），禁止 `.yangtzeu.work` 这种父域共享。本机 `localhost`/`127.0.0.1` 只能标为 local/未发布，绝不能标成已在预发布环境试用。配置细节见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)，部署操作见 [DEPLOY](../ops/DEPLOY.md)。
 
 ## 回滚
 

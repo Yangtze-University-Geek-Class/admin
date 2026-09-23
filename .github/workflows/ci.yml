@@ -214,22 +214,9 @@ jobs:
         shell: bash
         run: pnpm check:environments
 
-      - name: 站点域名必须等于 production 契约（提交态）
+      - name: 前端站点配置不含域名（每个环境一个 origin，管理端按路径区分）
         shell: bash
-        run: node scripts/render-web-config.mjs --environment production --check
-
-      - name: 预发布渲染可用（构建期改写 → 校验 → 还原提交态）
-        shell: bash
-        # 镜像构建会在容器里执行同一脚本；这里先证明两个方向都能工作，
-        # 并且渲染出来的预发布值同样能通过站点域名门禁。
-        run: |
-          set -eu
-          node scripts/render-web-config.mjs --environment preview
-          node scripts/render-web-config.mjs --environment preview --check
-          pnpm check:hosts
-          node scripts/render-web-config.mjs --environment production
-          node scripts/render-web-config.mjs --environment production --check
-          git diff --exit-code -- app/web/shared/config/app.config.json
+        run: pnpm check:site-config
 
       - name: 密钥门禁（模板 env 只允许留空密钥）
         shell: bash

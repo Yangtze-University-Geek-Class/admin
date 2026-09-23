@@ -177,8 +177,7 @@ const octokitFactory = (() => ({
 async function boot(dbPath: string) {
   const config = createConfig({
     NODE_ENV: 'test',
-    PUBLIC_ORIGIN: 'https://admin.example.test', SITE_ORIGIN: 'https://example.test',
-    FORUM_HOST: 'forum.example.test', DB_PATH: dbPath,
+    PUBLIC_ORIGIN: 'https://example.test', DB_PATH: dbPath,
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY,

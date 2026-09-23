@@ -6,7 +6,7 @@
 #   docker compose --env-file deploy/env/.env.preview -f deploy/compose/preview.yml up -d
 #
 # 与 production.yml 结构完全一致：同一台机器上两套完整隔离的栈，只有 env 文件
-# （端口 18200/18201、域名 prev*.yangtzeu.work、密钥）与项目名/卷名不同。
+# （端口 18200/18201、域名 prev.yangtzeu.work、密钥）与项目名/卷名不同。
 # 目标机上的 env 文件固定叫 <STACK_ROOT>/.env.preview。
 #
 # 隔离与暴露边界：
@@ -33,11 +33,8 @@ services:
       HOST: ${HOST:?}
       # 反代来自 compose 网络而不是回环，必须显式信任 X-Forwarded-*。
       TRUST_PROXY: ${TRUST_PROXY:?}
+      # 环境唯一的对外 origin：官网、管理端（/admin、/console）、论坛（/forum）同域，按路径区分。
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?}
-      SITE_ORIGIN: ${SITE_ORIGIN:?}
-      PORTAL_HOST: ${PORTAL_HOST:?}
-      ADMIN_HOST: ${ADMIN_HOST:?}
-      FORUM_HOST: ${FORUM_HOST:?}
       # 预发布同样只设 host-only cookie：留空即不写 Domain。
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       POW_DIFFICULTY: ${POW_DIFFICULTY:-3}

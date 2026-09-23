@@ -13,8 +13,8 @@ type RuntimeEnvironment = {
   allowDataSourceOverride: boolean;
 };
 
+// 每个环境只有一个域名：站点不带 host，portal/admin 由 URL 路径区分，论坛挂在 basePath（/forum）下。
 type SiteEntry = {
-  host: string;
   title: string;
   basePath: string;
 };

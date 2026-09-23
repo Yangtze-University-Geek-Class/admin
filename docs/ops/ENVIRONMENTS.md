@@ -2,7 +2,7 @@
 
 > 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
 
-状态：`current` · 更新：2026-09-23 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+状态：`current` · 更新：2026-09-24 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
 
 ## 可见性规则
 
@@ -34,15 +34,11 @@
 | `FORUM_PORT` 改值注意 | — | 必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 及 web 容器 `proxy_pass http://forum:3000/` 三处同时改 | 同左 |
 | `HOST` | 可见 | `0.0.0.0`（容器内必须绑定全网卡，否则 web 容器连不上） | `0.0.0.0` |
 | `TRUST_PROXY` | 可见 | `true`（反代来自 compose 网络而非回环） | `true` |
-| `PUBLIC_ORIGIN` | 可见 | `https://github.yangtzeu.work` | `https://prev-admin.yangtzeu.work` |
-| `SITE_ORIGIN` | 可见 | `https://yangtzeu.work` | `https://prev.yangtzeu.work` |
-| `ADMIN_HOST` | 可见 | `github.yangtzeu.work` | `prev-admin.yangtzeu.work` |
-| `PORTAL_HOST` | 可见 | `yangtzeu.work` | `prev.yangtzeu.work` |
-| `FORUM_HOST` | 可见 | `yangtzeu.work`（论坛在 `/forum` 路径下） | `prev.yangtzeu.work` |
+| `PUBLIC_ORIGIN` | 可见 | `https://yangtzeu.work`（必须逐字等于 `deploy/environments.json` 的 origin） | `https://prev.yangtzeu.work`（同左） |
 | `NODE_ENV` | 可见 | `production` | `production` |
 | `DB_PATH` | 可见 | `/data/data.db`（命名卷内） | `/data/data.db` |
 | `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，当前无活动论坛后端） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
-| `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only | 空 = host-only；**禁止** `.yangtzeu.work` |
+| `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
 | `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |
 | `CONSOLE_ORG` | 可见 | `Yangtze-University-Geek-Class`（极客班控制台 `/api/console/*` 固定管理的组织；`ALLOWED_ORGS` 非空时必须包含它，否则 server 启动失败） | 同左 |
@@ -54,7 +50,9 @@
 | `TURNSTILE_SITE_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 | `TURNSTILE_SECRET_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 
-校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、密钥留空、两环境取值差异以及与 `deploy/environments.json` 的一致性；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
+**一个环境只有一个域名**（项目所有者 2026-09-23 决定）：官网、管理端、论坛共用 `PUBLIC_ORIGIN`，按 URL 路径区分——`/admin`、`/admin/…`、`/console`、`/console/…`、`/signin` 进管理端 SPA，`/forum/…` 进论坛，其余进官网。旧的按站点分域名字段 `SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST` 已退役，校验器把模板里任何契约外的字段判为失败，防止重新长出第二份域名配置。
+
+校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、契约外字段、密钥留空、`PUBLIC_ORIGIN` 与 `deploy/environments.json` 逐字一致、两环境取值差异；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
 
 **不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`；预发布 `X.Y.Z@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
@@ -73,7 +71,7 @@
 | `DEPLOY_SSH_USER` | 部署用户 |
 | `DEPLOY_SSH_KEY` | SSH 私钥全文 |
 | `DEPLOY_SSH_KNOWN_HOSTS` | 目标机主机公钥行（`StrictHostKeyChecking=yes`） |
-| `OAUTH_CLIENT_ID` | GitHub OAuth 应用 ID → 渲染进运行时 `.env` |
+| `OAUTH_CLIENT_ID` | GitHub OAuth 应用 ID → 渲染进运行时 `.env`（每个环境一个独立的 OAuth App，见下文） |
 | `OAUTH_CLIENT_SECRET` | GitHub OAuth 应用密钥 → 运行时 `.env` |
 | `SESSION_SECRET` | 会话签名密钥（≥32 字符随机值） |
 | `ENCRYPTION_KEY` | 32 字节密钥的 base64（GitHub token 加密） |
@@ -90,15 +88,26 @@
 
 **不要在仓库级创建任何 `DEPLOY_*` 同名条目**：环境级缺失时 GitHub 会静默回落到仓库级值，两个环境可能因此指向同一台机器。
 
+### GitHub OAuth App 回调地址
+
+服务端发起登录时的 `redirect_uri` 固定为 `<PUBLIC_ORIGIN>/auth/callback`（`app/server/src/lib/auth.ts`）。GitHub 在 OAuth App 未开启通配匹配时要求它与登记的 Callback URL **完全一致**（[GitHub 文档](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)，2026-09-24 核对），所以：
+
+| 环境 | Callback URL | 说明 |
+|---|---|---|
+| production | `https://yangtzeu.work/auth/callback` | 沿用现有 OAuth App，**切换当天由所有者把它的 Callback URL 从 `https://github.yangtzeu.work/auth/callback` 改成这一条**；不改则正式环境登录失败 |
+| preview | `https://prev.yangtzeu.work/auth/callback` | 需要单独建一个 OAuth App：密钥永不跨环境共用，它的 ID/密钥只放进 `preview` 环境的 secrets |
+
+登录成功后默认回到 `<PUBLIC_ORIGIN>/console`；`return_to` 只接受同一个 origin。
+
 ## DNS / TLS 前置
 
 | 域名 | 指向 | 用途 |
 |---|---|---|
-| `yangtzeu.work` | 本机 | 正式 portal |
-| `github.yangtzeu.work` | 本机 | 正式 admin |
-| `prev.yangtzeu.work` | **需新增 A 记录到同一主机** | 预发布 portal |
-| `prev-admin.yangtzeu.work` | **需新增 A 记录到同一主机** | 预发布 admin |
+| `yangtzeu.work` | `103.117.123.226` | 正式环境唯一入口（官网、`/admin`、`/console`、`/forum`） |
+| `prev.yangtzeu.work` | `103.117.123.226`（A 记录已生效） | 预发布环境唯一入口（同上） |
+| `github.yangtzeu.work` | `103.117.123.226` | 已退役的正式管理端域名：宿主 nginx 整站 301 到 `https://yangtzeu.work`（保留路径），旧书签和已发出的 `/join/<token>` 邀请链接继续可用；保留证书续期即可 |
 
-- 两个 `prev-*` 域名当前**尚未配置**；在 A 记录生效并签发证书之前，预发布入口不可用（容器端口可通，但域名访问失败）。
+- 2026-09-24 用 `dig +short` 核对：上面三个域名都解析到 `103.117.123.226`。预发布**不需要**额外的管理端子域名记录。
+- `prev.yangtzeu.work` 的证书尚未确认已签发；签发前预发布入口不可用（容器端口可通，但 HTTPS 访问失败）。
 - TLS 由宿主 nginx 终止，证书用 certbot 按域名签发；本地开发不执行这些操作。
 - 改完 nginx 配置先 `nginx -t` 再 reload；不要为了排错关闭 HTTPS 或引入 HTTP 回退。
