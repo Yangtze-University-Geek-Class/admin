@@ -53,6 +53,7 @@
     "tests/local-curation.test.ts",
     "app/data/titles.ts",
     "app/components/TitleBadge.vue",
+    "tests/titles.test.ts",
     "UPSTREAM.json",
     "ADOPTION.json"
   ],
