@@ -50,7 +50,7 @@ jobs:
 
       - name: 硬断言触发来源是 stage
         shell: bash
-        # 只有 stage 能进预发布：其它分支（task/*、dev-*、main）一概拒绝，没有回落到 stage 的路径。
+        # 只有 stage 能进预发布：其它分支（task/**、dev/**、main）一概拒绝，没有回落到 stage 的路径。
         run: |
           set -eu
           if [ "${GITHUB_REF}" != "refs/heads/stage" ]; then

@@ -93,7 +93,7 @@ describe('branch → environment release identity', () => {
       GEEK_RELEASE_COMMIT: f.stageTip,
     });
 
-    for (const branch of ['task/12-add-login', 'dev-crosery', 'next', 'feature/x', '']) {
+    for (const branch of ['task/12/add_login', 'dev/crosery', 'task/12-add-login', 'dev-crosery', 'next', 'feature/x', '']) {
       expect(() => planDeployment({ repo: f.cwd, root: f.cwd, branch, commit: f.stageTip })).toThrow(/main.*stage|部署/);
     }
   });
