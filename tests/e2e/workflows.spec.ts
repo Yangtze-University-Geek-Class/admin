@@ -41,7 +41,9 @@ test("portal forum entry targets the adopted Nuxt module, not the retired React 
 test("legacy /apply redirects to the join-us letter", async ({ page }) => {
   await page.goto("/sites/portal/apply");
   await expect(page).toHaveURL(/\/sites\/portal\/join-us$/);
-  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeAttached();
+  await expect(page.getByRole("heading", { level: 1, name: /写一封信/ })).toBeVisible();
+  // 信纸在信封打开后才对辅助技术可见（此前 aria-hidden），给 3D 入场动画留足时间。
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
 });
 
 test("console navigation follows the persona's capabilities", async ({ page }) => {
