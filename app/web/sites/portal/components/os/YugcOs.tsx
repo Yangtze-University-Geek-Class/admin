@@ -257,7 +257,7 @@ export default function YugcOs({ active, onBack }: Props) {
       )}
 
       <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
-        <WallpaperLayer wallpaper={wallpaper} active={active} />
+        <WallpaperLayer wallpaper={wallpaper} />
         <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
         <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
         {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
@@ -325,10 +325,7 @@ export default function YugcOs({ active, onBack }: Props) {
                     onClick={() => chooseWallpaper(item)}
                   >
                     <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
-                    <span>
-                      {item.name}
-                      {item.video && <small>动态</small>}
-                    </span>
+                    <span>{item.name}</span>
                   </button>
                 </li>
               ))}

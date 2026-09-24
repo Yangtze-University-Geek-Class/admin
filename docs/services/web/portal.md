@@ -35,7 +35,7 @@
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
-| `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；壁纸图层与换壁纸面板在 `Wallpaper.tsx`，壁纸清单在 `lib/wallpapers.ts`，文件在 `public/portal/wallpapers/`（每张一张静态图 + 视频服务生成的原片 mp4，不加工） |
+| `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；壁纸图层与换壁纸面板在 `Wallpaper.tsx`，壁纸清单在 `lib/wallpapers.ts`，文件在 `public/portal/wallpapers/`（每张一张 1920×1080 静态图和一张缩略图） |
 | `components/Loader.tsx`、`Emblem.tsx`、`SceneBar.tsx`、`PageShell.tsx` | 加载动画、校徽几何、场景页顶栏、普通页外壳 |
 | `components/ChoiceChips.tsx` | 少量选项的单选胶囊（原生 radio，方向键切换）；官网表单不用原生下拉框 |
 | `styles/*.css` | 视觉令牌与组件样式（`.pt-root` 作用域），规范见 [DESIGN](../../design/DESIGN.md)「官网视觉语言」 |
