@@ -72,16 +72,16 @@ function onSelect(item: SidebarNavItem) {
       <template #footer>
         <div class="console-nav__footer">
           <div class="console-nav__me">
-            <TxAvatar :src="me.avatar_url ?? undefined" :name="me.login" :size="32" />
+            <TxAvatar :src="me.avatar_url ?? undefined" :name="me.login" :size="36" />
             <div class="console-nav__me-text">
-              <span class="mono console-nav__login">@{{ me.login }}</span>
+              <span class="mono console-nav__login" :title="`@${me.login}`">@{{ me.login }}</span>
               <TitleBadge :title="me.title" />
             </div>
           </div>
           <div class="console-nav__links">
             <TxButton variant="ghost" size="sm" icon="i-carbon-home" @click="openSite('portal')">官网</TxButton>
             <TxButton variant="ghost" size="sm" icon="i-carbon-forum" @click="openSite('forum')">论坛</TxButton>
-            <TxButton variant="ghost" size="sm" icon="i-carbon-logout" @click="emit('signout')">退出登录</TxButton>
+            <TxButton variant="ghost" size="sm" icon="i-carbon-logout" class="console-nav__signout" @click="emit('signout')">退出</TxButton>
           </div>
         </div>
       </template>
@@ -94,8 +94,19 @@ function onSelect(item: SidebarNavItem) {
   height: 100%;
   --tx-bui-sidebar-nav-width: 100%;
 }
+/* TxSidebarNav 的根是一列普通块：品牌、导航、footer 依次往下排，footer 会跟在最后一项后面悬在半中间。
+   改成满高的纵向 flex：导航区吃掉剩余高度并在超出时自己滚动，账号区钉在底部。 */
 .console-nav :deep(.tx-bui-sidebar-nav) {
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+.console-nav :deep(.tx-bui-sidebar-nav__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .console-nav__brand {
   margin-bottom: 8px;
@@ -110,10 +121,12 @@ function onSelect(item: SidebarNavItem) {
   object-fit: contain;
 }
 .console-nav__footer {
+  flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 4px 2px;
   border-top: 1px solid var(--tx-border-color-light);
 }
 .console-nav__me {
@@ -136,9 +149,18 @@ function onSelect(item: SidebarNavItem) {
   white-space: nowrap;
   color: var(--tx-text-color-primary);
 }
+/* 三个按钮等宽排一行，不再按字数长短一左一右参差换行 */
 .console-nav__links {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
+}
+.console-nav__links :deep(.tx-button) {
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+.console-nav__signout {
+  color: var(--tx-text-color-secondary);
 }
 </style>
