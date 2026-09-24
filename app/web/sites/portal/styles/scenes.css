@@ -7,8 +7,6 @@
 .pt-scenebar > * { pointer-events: auto; }
 .pt-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 15px 8px 11px; border: 1px solid var(--pt-line); border-radius: 999px; background: rgb(255 255 255 / 92%); font-size: 13.5px; text-decoration: none; }
 .pt-back:hover { color: var(--pt-cobalt); border-color: rgb(51 70 200 / 40%); }
-.pt-crumb { font: 12px var(--pt-mono); color: var(--pt-ink-soft); letter-spacing: .04em; }
-.pt-crumb b { color: var(--pt-cobalt); font-weight: 600; }
 .pt-spacer { flex: 1; }
 .pt-scenebrand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; text-decoration: none; }
 .pt-scenebrand img { width: 26px; height: 26px; }
@@ -24,6 +22,9 @@
 .pt-tip { position: fixed; left: 0; top: 0; z-index: 6; padding: 6px 11px; border-radius: 999px; background: var(--pt-ink); color: #fff; font-size: 12.5px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; will-change: transform; }
 .pt-tip.is-on { opacity: 1; }
 .pt-wipe { position: fixed; inset: 0; z-index: 9; background: #fbfbfd; opacity: 0; pointer-events: none; }
+
+/* 触屏没有键盘：不显示按键提示 */
+@media (hover: none) { .pt-scene kbd { display: none; } }
 
 /* ── 加入我们：信纸就是表单，落在屏幕正中 ── */
 .pt-letter {
@@ -99,16 +100,24 @@
 .pt-gh-repos a:hover { border-color: rgb(51 70 200 / 40%); }
 .pt-gh-repos b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13.5px var(--pt-mono); }
 .pt-gh-repos span { margin-left: auto; font: 11.5px var(--pt-mono); color: var(--pt-ink-soft); }
-.pt-legend { position: fixed; right: 28px; bottom: 24px; z-index: 2; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--pt-ink-soft); }
-.pt-legend i { width: 11px; height: 11px; border-radius: 3px; }
-.pt-snap { margin-top: 12px; max-width: 34em; font-size: 12.5px; line-height: 1.6; color: var(--pt-ink-soft); }
 
+/* 竖屏（手机、竖放的平板）：说明叠在顶部，列表贴底，3D 占中间。媒体查询与 lib/cameraMath.ts 的 STACKED_QUERY 一致，
+   场景据此换成竖屏镜头。 */
+@media (max-width: 760px), (max-aspect-ratio: 9/10) {
+  .pt-intro { top: 76px; left: 22px; right: 22px; max-width: 34em; transform: none; }
+  .pt-intro.is-away { transform: translateY(-12px); }
+  .pt-intro > p { max-width: 30em; }
+  .pt-boards { position: fixed; left: 50%; right: auto; bottom: 16px; width: min(560px, calc(100vw - 24px)); margin: 0; padding: 6px; transform: translateX(-50%); border: 1px solid var(--pt-line); border-radius: 16px; background: rgb(255 255 255 / 94%); }
+  .pt-gh-repos { position: fixed; left: 50%; right: auto; bottom: 16px; width: min(560px, calc(100vw - 24px)); margin: 0; transform: translateX(-50%); }
+  .pt-scene-note { display: none; }
+}
 @media (max-width: 760px) {
   .pt-scenebar { padding: 14px; }
-  .pt-crumb, .pt-scenebrand span, .pt-scene-note, .pt-legend { display: none; }
-  .pt-intro { top: 70px; left: 18px; right: 18px; max-width: none; transform: none; }
-  .pt-intro.is-away { transform: translateY(-12px); }
-  .pt-intro h1 { font-size: 28px; }
+  .pt-scenebrand span, .pt-scene-note { display: none; }
+  /* 标题和主按钮并成一行，省下的高度留给 3D */
+  .pt-intro { top: 68px; left: 18px; right: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; }
+  .pt-intro h1 { margin: 0; font-size: 26px; }
+  .pt-intro > .pt-btn.is-lg { margin-top: 0; min-height: 42px; padding: 0 14px; font-size: 14px; }
   .pt-join .pt-intro > p { display: none; }
   .pt-letter { top: calc(50% + 24px); max-height: calc(100svh - 88px); padding: 22px 20px 18px; }
   .pt-letter-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -117,12 +126,11 @@
   .pt-lf { margin-bottom: 10px; }
   .pt-lf textarea { min-height: 102px; }
   .pt-letter-foot .pt-btn { width: 100%; }
-  .pt-letter-foot .pt-btn kbd { display: none; }
   .pt-forum-intro > p, .pt-gh-intro > p { display: none; }
-  .pt-boards { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; margin: 0; padding: 6px; border: 1px solid var(--pt-line); border-radius: 16px; background: rgb(255 255 255 / 94%); }
+  .pt-boards { bottom: 12px; }
+  .pt-boards a { min-height: 40px; }
   .pt-boards small { display: none; }
-  .pt-snap { display: none; }
-  .pt-gh-repos { display: grid; position: fixed; left: 12px; right: 12px; bottom: 44px; margin: 0; }
+  .pt-gh-repos { bottom: 12px; }
   .pt-receipt { left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; transform: translateY(16px); }
   .pt-receipt.is-on { transform: none; }
   .pt-receipt .pt-row-btns .pt-btn { flex: 1 1 auto; }

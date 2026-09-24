@@ -9,6 +9,7 @@ import Emblem from "../components/Emblem";
 import Icon from "../components/Icon";
 import Loader, { type LoaderApi } from "../components/Loader";
 import YugcOs from "../components/os/YugcOs";
+import { STACKED_QUERY } from "../lib/cameraMath";
 import { deskView, nextDeskState, type DeskEvent, type DeskState } from "../lib/deskMachine";
 import { wantsDesktop } from "../lib/links";
 import { LOADER_STEPS, type LoaderStep } from "../lib/loaderProgress";
@@ -20,8 +21,8 @@ import "../styles/os.css";
 
 // 开机日志：只写桌面上真的会加载的东西
 const BOOT_LINES: Array<[string, string]> = [
-  ["load", "论坛最新（快照）"],
-  ["load", "公开仓库（快照）"],
+  ["load", "论坛最新"],
+  ["load", "公开仓库"],
   ["load", "组织架构"],
   ["open", "加入我们 · 论坛 · GitHub 组织"],
   ["ready", "YUGC OS"],
@@ -43,6 +44,8 @@ export default function Home() {
   const [nanoUp, setNanoUp] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const hint = useRef<HTMLDivElement>(null);
+  const hudTop = useRef<HTMLDivElement>(null);
+  const hudCopy = useRef<HTMLElement>(null);
   const desk = useRef<DeskHandle | null>(null);
   const loader = useRef<LoaderApi | null>(null);
   const pending = useRef<Array<[number, string]>>([]);
@@ -83,6 +86,12 @@ export default function Home() {
           reducedMotion,
           hint: hint.current,
           logoUrl: appConfig.portal.brand.logo,
+          // 文案叠在画面下方时，书桌只取顶栏与文案之间那条横带
+          band: () => {
+            if (!window.matchMedia(STACKED_QUERY).matches || !hudTop.current || !hudCopy.current) return null;
+            const h = window.innerHeight;
+            return { top: hudTop.current.getBoundingClientRect().bottom / h, bottom: hudCopy.current.getBoundingClientRect().top / h };
+          },
           onEnter: () => enterRef.current(false),
           isIdle: () => stateRef.current === "idle",
           report,
@@ -113,6 +122,17 @@ export default function Home() {
       desk.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载时建一次场景
+  }, []);
+
+  // 竖屏时书桌按文案上方的横带取景：文案尺寸变了（字体加载、旋转屏幕、窗口缩放）就重新取景
+  useEffect(() => {
+    const top = hudTop.current;
+    const copy = hudCopy.current;
+    if (!top || !copy) return;
+    const observer = new ResizeObserver(() => desk.current?.stage.resize());
+    observer.observe(top);
+    observer.observe(copy);
+    return () => observer.disconnect();
   }, []);
 
   // 桌面盖住画布时停下渲染循环；回到书桌时恢复
@@ -213,7 +233,7 @@ export default function Home() {
       <canvas ref={canvas} className="pt-desk-canvas" aria-hidden="true" />
 
       <div ref={hudRef} className={view.hud ? "pt-hud" : "pt-hud is-off"}>
-        <div className="pt-hud-top">
+        <div className="pt-hud-top" ref={hudTop}>
           <span className="pt-brand">
             <img src={brand.logo} alt="" width={34} height={34} />
             <span>
@@ -226,7 +246,7 @@ export default function Home() {
             我们正在招人
           </span>
         </div>
-        <section className="pt-hud-copy" aria-labelledby="pt-home-title">
+        <section className="pt-hud-copy" ref={hudCopy} aria-labelledby="pt-home-title">
           <h1 id="pt-home-title">
             <span>长江大学</span>
             <br />

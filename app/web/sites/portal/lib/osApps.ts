@@ -59,7 +59,7 @@ export function launcherCommands(): LauncherCommand[] {
   return [
     ...OS_APPS.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: `${app.id} ${app.name}` })),
     { id: "forum-home", label: "进入论坛首页", hint: "全部话题", icon: "external-link-line", keywords: "forum home 论坛 首页 bbs" },
-    { id: "forum-feed", label: "论坛最新", hint: "最近的话题（快照）", icon: "fire-line", keywords: "latest feed 最新 帖子 话题 topic" },
+    { id: "forum-feed", label: "论坛最新", hint: "最近的话题", icon: "fire-line", keywords: "latest feed 最新 帖子 话题 topic" },
     { id: "docs", label: "文档", hint: "官网和论坛的使用说明", icon: "file-text-line", keywords: "docs 文档 guide 指南 help" },
     { id: "back", label: "回到书桌", hint: "Esc", icon: "arrow-left-line", keywords: "back desk 书桌 返回 exit" },
   ];
@@ -108,7 +108,7 @@ const HELP: Array<[string, string]> = [
   ["ls", "列出应用"],
   ["open <app>", "打开应用，例如 open forum"],
   ["./join", "打开「加入我们」"],
-  ["repos", "列出公开仓库（快照）"],
+  ["repos", "列出公开仓库"],
   ["whoami", "显示当前身份"],
   ["clear", "清屏"],
 ];

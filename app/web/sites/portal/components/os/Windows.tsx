@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { links } from "../../lib/links";
 import { agoLabel, OS_APPS, runTerminal, type AppId, type TerminalLine } from "../../lib/osApps";
-import { snapshotLabel, useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
+import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
 import Icon from "../Icon";
 import { DEPARTMENTS } from "./Widgets";
 
@@ -194,11 +194,11 @@ function OrgChart() {
 function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
   const snapshot = useForumSnapshot();
   const now = Date.now();
-  if (snapshot.status === "loading") return <p className="pt-empty">正在读取论坛快照…</p>;
+  if (snapshot.status === "loading") return <p className="pt-empty">正在读取论坛…</p>;
   if (snapshot.status === "error")
     return (
       <p className="pt-empty">
-        论坛快照没加载出来。<a href={links.forumHome()}>直接进论坛首页</a>
+        论坛话题没加载出来。<a href={links.forumHome()}>直接进论坛首页</a>
       </p>
     );
   const { summary, latest } = snapshot.data;
@@ -234,7 +234,7 @@ function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
       </div>
       <footer>
         <span>
-          {snapshotLabel(summary.capturedAt)} · {summary.topics} 个话题 · {summary.users} 位用户
+          {summary.topics} 个话题 · {summary.users} 位用户
         </span>
         <span className="pt-row-btns">
           <button type="button" className="pt-btn" onClick={(e) => onOpen("forum", e.currentTarget)}>

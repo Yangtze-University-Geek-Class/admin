@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { IconName } from "../../lib/icons";
 import { links } from "../../lib/links";
 import { OS_APPS, agoLabel, monthGrid, rowsThatFit, type AppId } from "../../lib/osApps";
-import { snapshotLabel, useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
+import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
 import Icon from "../Icon";
 
 type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
@@ -44,7 +44,7 @@ function useFitRows(rowH: number, gap: number, max: number) {
 export function ForumWidget({ onOpen }: { onOpen: OpenApp }) {
   const snapshot = useForumSnapshot();
   const topics = snapshot.status === "ready" ? snapshot.data.latest : [];
-  // 快照只收录少量公开话题；放不满时用同样行高的版块入口补齐，卡片里不留大块空白
+  // 构建时只收录少量公开话题；放不满时用同样行高的版块入口补齐，卡片里不留大块空白
   const categories = snapshot.status === "ready" ? snapshot.data.summary.categories : [];
   const { ref, rows } = useFitRows(38, 2, topics.length + categories.length || 8);
   const categoryRows = categories.slice(0, Math.max(0, rows - topics.length));
@@ -56,7 +56,6 @@ export function ForumWidget({ onOpen }: { onOpen: OpenApp }) {
       className="pt-w-forum"
       icon="fire-line"
       title="论坛最新"
-      meta={snapshot.status === "ready" ? snapshotLabel(snapshot.data.summary.capturedAt) : undefined}
       action={
         <button type="button" className="pt-card-link" onClick={(event) => onOpen("forum-feed", event.currentTarget)}>
           全部 <Icon name="arrow-right-s-line" size={14} />
@@ -64,8 +63,8 @@ export function ForumWidget({ onOpen }: { onOpen: OpenApp }) {
       }
     >
       <ol className="pt-feed" ref={listRef}>
-        {snapshot.status === "loading" && <li className="pt-empty">正在读取论坛快照…</li>}
-        {snapshot.status === "error" && <li className="pt-empty">论坛快照没加载出来，可以直接进论坛首页看。</li>}
+        {snapshot.status === "loading" && <li className="pt-empty">正在读取论坛…</li>}
+        {snapshot.status === "error" && <li className="pt-empty">论坛话题没加载出来，可以直接进论坛首页看。</li>}
         {topics.slice(0, rows).map((topic) => (
           <li key={topic.id}>
             <a href={links.forumTopic(topic.id)} title={topic.title}>
@@ -107,9 +106,9 @@ export function ReposWidget({ onOpen }: { onOpen: OpenApp }) {
   const { ref, rows } = useFitRows(62, 6, 4);
   const now = Date.now();
   return (
-    <Card id="w-repos" className="pt-w-repos" icon="git-repository-line" title="公开仓库" meta={snapshot.status === "ready" ? snapshotLabel(snapshot.data.capturedAt) : undefined}>
+    <Card id="w-repos" className="pt-w-repos" icon="git-repository-line" title="公开仓库">
       <ul className="pt-repos" ref={ref as React.RefObject<HTMLUListElement>}>
-        {snapshot.status === "error" && <li className="pt-empty">仓库快照没加载出来，可以直接打开 GitHub 组织看。</li>}
+        {snapshot.status === "error" && <li className="pt-empty">仓库列表没加载出来，可以直接打开 GitHub 组织看。</li>}
         {repos.slice(0, Math.max(1, rows)).map((repo) => (
           <li key={repo.name}>
             <a href={repo.url} target="_blank" rel="noreferrer">

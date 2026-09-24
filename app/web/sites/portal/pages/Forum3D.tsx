@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { appConfig } from "@shared/config";
 import Icon from "../components/Icon";
 import SceneBar from "../components/SceneBar";
+import { measureBand } from "../lib/cameraMath";
 import { links } from "../lib/links";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import type { ForumBoard, ForumHandle } from "../three/forum";
@@ -25,6 +26,8 @@ export default function Forum3D() {
   const scene = useRef<ForumHandle | null>(null);
   const tip = useRef<HTMLDivElement>(null);
   const wipe = useRef<HTMLDivElement>(null);
+  const intro = useRef<HTMLElement>(null);
+  const boardsNav = useRef<HTMLElement>(null);
   const [hot, setHot] = useState(-1);
 
   const go = useCallback((index: number) => {
@@ -41,6 +44,7 @@ export default function Forum3D() {
           reducedMotion,
           logoUrl: appConfig.portal.brand.logo,
           boards: FORUM_BOARDS,
+          band: () => measureBand(intro.current?.querySelector(":scope > .pt-btn") ?? null, boardsNav.current),
           onHot: setHot,
           onTip: (text, x, y) => {
             const el = tip.current;
@@ -87,8 +91,8 @@ export default function Forum3D() {
   return (
     <div className="pt-root pt-scene pt-forum3d">
       <canvas ref={canvas} className="pt-scene-canvas is-grab" aria-hidden="true" />
-      <SceneBar crumb="forum" />
-      <section className="pt-intro pt-forum-intro" aria-labelledby="pt-forum-title">
+      <SceneBar />
+      <section ref={intro} className="pt-intro pt-forum-intro" aria-labelledby="pt-forum-title">
         <h1 id="pt-forum-title">论坛</h1>
         <p>极客班的讨论区，公告、课程、竞赛、求职都在这里。选一个版块进去，或者直接进论坛首页。</p>
         <a
@@ -102,7 +106,7 @@ export default function Forum3D() {
         >
           <Icon name="discuss-line" size={18} /> 进入论坛首页
         </a>
-        <nav className="pt-boards" aria-label="论坛版块">
+        <nav ref={boardsNav} className="pt-boards" aria-label="论坛版块">
           {FORUM_BOARDS.map((board, index) => (
             <a
               key={board.slug}
