@@ -37,6 +37,7 @@ function state() {
 function curation(overrides: Record<string, unknown> = {}) {
   return {
     schemaVersion: 1,
+    legacy: { mode: 'archive', include: [] },
     archive: { id: 'c-archive', slug: 'archive', name: '老帖归档', description: '旧帖', color: '#8a94a6', icon: 'i-carbon-archive', tagPrefix: 'legacy-', tagColor: '#8a94a6' },
     categories: [
       { id: 'c-school', slug: 'school', name: '课程与作业', description: '校园', color: '#2f6fed', icon: 'i-carbon-education' },
@@ -62,8 +63,54 @@ describe('parseCuration', () => {
     ['archive colour', { archive: { id: 'c-archive', slug: 'archive', name: '老帖归档', description: '', color: 'grey', icon: 'i-carbon-archive', tagPrefix: 'legacy-', tagColor: '#8a94a6' } }],
     ['category icon outside carbon or ri', { categories: [{ id: 'x', slug: 'x', name: 'X', description: '', color: '#000000', icon: 'not-an-icon' }] }],
     ['empty post body', { posts: { 'body-3': { content: '   ' } } }],
+    ['legacy mode', { legacy: { mode: 'delete' } }],
+    ['legacy include id', { legacy: { mode: 'hide', include: ['T 1'] } }],
   ])('rejects a bad %s', (_label, overrides) => {
     expect(() => parseCuration(curation(overrides))).toThrow(SnapshotError)
+  })
+})
+
+describe('applyCuration: legacy.mode = hide（默认）', () => {
+  const hide = (include: string[] = []) => curation({ legacy: { mode: 'hide', include }, categoryOrder: ['c-school', 'c3', 'c-archive'] })
+
+  it('没写 legacy 时默认 hide', () => {
+    const { legacy: _legacy, ...rest } = curation()
+    expect(parseCuration(rest).legacy).toEqual({ mode: 'hide', include: [] })
+  })
+
+  it('旧帖、旧回复、老帖归档类别、旧分类标签都不出现，只留新内容', () => {
+    const result = applyCuration(parseSnapshotState(state()), parseCuration(hide()))
+    expect(result.topics.map(topic => topic.id)).toEqual(['t3'])
+    expect(result.posts.map(post => post.id)).toEqual(['body-3'])
+    expect(result.categories.map(category => category.id)).toEqual(['c-school', 'c3'])
+    expect(result.categories.some(category => category.name === '老帖归档')).toBe(false)
+    expect(result.tags.some(tag => tag.id.startsWith('legacy-'))).toBe(false)
+    // tag1 只被旧帖 t2 用过，但 t3 的补丁又加上了它，所以保留；没人用的标签会被去掉
+    expect(result.tags.map(tag => tag.id).sort()).toEqual(['tag-notes', 'tag1'].sort())
+    expect(() => parseSnapshotState(result)).not.toThrow()
+  })
+
+  it('只出现在旧帖里的账号不再列出', () => {
+    const input = state()
+    input.users.push({ id: 'u2', username: 'beta', displayName: '乙', bio: '', location: '', website: '', avatarColor: '#654321', joinedAt: 2, role: 'member', notifyPrefs: { reply: true, like: true, follow: true } } as never)
+    input.posts.push({ id: 'p9', topicId: 't1', authorId: 'u2', content: '旧回复', createdAt: 13, isTopicBody: false, likeUserIds: [] } as never)
+    const result = applyCuration(parseSnapshotState(input), parseCuration(hide()))
+    expect(result.users.map(user => user.id)).toEqual(['u1'])
+  })
+
+  it('开启名单里的旧帖按普通话题显示，可以放进新类别，其余仍隐藏', () => {
+    const doc = hide(['t2'])
+    ;(doc.topics as Record<string, unknown>).t2 = { categoryId: 'c-school' }
+    const result = applyCuration(parseSnapshotState(state()), parseCuration(doc))
+    expect(result.topics.map(topic => topic.id).sort()).toEqual(['t2', 't3'])
+    const opened = result.topics.find(topic => topic.id === 't2') as unknown as Record<string, unknown>
+    expect(opened).toMatchObject({ categoryId: 'c-school', pinned: false })
+    expect(opened.archived).toBeUndefined()
+    expect(result.posts.map(post => post.id).sort()).toEqual(['body-2', 'body-3'])
+  })
+
+  it('开启名单写了不存在的话题：加载失败，不静默忽略', () => {
+    expect(() => applyCuration(parseSnapshotState(state()), parseCuration(hide(['t99'])))).toThrow(SnapshotError)
   })
 })
 

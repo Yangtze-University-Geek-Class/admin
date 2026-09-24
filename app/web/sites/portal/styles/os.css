@@ -180,6 +180,8 @@
 .pt-term-out .is-err { color: var(--pt-red); }
 .pt-term-in { display: flex; align-items: center; gap: 8px; }
 .pt-term-in input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; color: inherit; caret-color: var(--pt-amber); }
+/* 终端的焦点提示就是闪烁的光标：压掉全站 .pt-root :focus-visible 的蓝色圆角描边（它的优先级更高） */
+.pt-root .pt-term-in input:focus-visible { outline: none; }
 
 /* ── 启动器（半透明实色遮罩，不模糊） ── */
 .pt-launcher { position: absolute; inset: 0; z-index: 45; display: grid; justify-items: center; padding-top: 14vh; background: rgb(236 237 243 / 72%); }

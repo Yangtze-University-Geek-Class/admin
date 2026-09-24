@@ -12,7 +12,7 @@
 
 `GEEK_FORUM_CONTENT_DIR` 指定只读快照目录（须含 content.json、asset-index.json、manifest.json 和 assets/，相对路径按仓库根解析，不合格时 start 直接报错）；未设置时 `start|dev` 自动选择 `.tools/forum-runtime/` 下名称最大的合格快照目录，没有则用示例种子。`GEEK_FORUM_SOURCE=demo` 强制示例种子。`check`、`generate`、`verify` 永远以 `GEEK_FORUM_SOURCE=demo` 运行，静态产物里也没有快照路由。start 确认实例后会用 HEAD 探测 `/api/local-forum/state`，快照损坏时直接打印机器码。
 
-分类、标签、话题归类与润色正文在 `app/forum/content/curation.json` 和 `app/forum/content/posts/*.md` 中维护（规则见 [forum 服务合同](../services/forum/README.md)）：旧分类自动并入「老帖归档」并以原分类名作标签，新时代分类按 `categoryOrder` 排在侧栏；改动后重启 `pnpm forum:start` 生效，引用错误会让快照加载失败并显示错误。
+分类、标签、话题归类与润色正文在 `app/forum/content/curation.json` 和 `app/forum/content/posts/*.md` 中维护（规则见 [forum 服务合同](../services/forum/README.md)）：旧论坛内容默认不显示（`legacy.mode = "hide"`，没有「老帖归档」类别），要重新开启哪篇旧帖就把话题编号写进 `legacy.include`；新时代分类按 `categoryOrder` 排在侧栏；改动后重启 `pnpm forum:start` 生效，引用错误会让快照加载失败并显示错误。
 
 上游 pnpm-workspace 设置不自动安装 Electron peer，只允许其列出的依赖安装脚本。本次安装沿用 frozen-lockfile；不要把论坛加入旧根 pnpm workspace 后统一重算版本。
 
