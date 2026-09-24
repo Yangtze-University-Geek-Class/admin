@@ -19,6 +19,27 @@ import "../styles/portal.css";
 import "../styles/desk.css";
 import "../styles/os.css";
 
+/** 系统桌面的壁纸：开机画面放完之前一定要解码好，桌面露出来时是完整的一张图，不会一块块地加载出来 */
+const WALLPAPERS = ["/portal/wallpaper-nano.webp", "/portal/wallpaper-nano-portrait.webp"];
+let wallpaperReady: Promise<void> | null = null;
+let wallpaperDecoded = false;
+function preloadWallpaper(): Promise<void> {
+  if (!wallpaperReady) {
+    const portrait = window.matchMedia("(max-aspect-ratio: 9/10)").matches;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = WALLPAPERS[portrait ? 1 : 0];
+    // 解码失败（离线、被拦）也放行：桌面有底色，不能让开机画面卡住
+    wallpaperReady = image
+      .decode()
+      .catch(() => undefined)
+      .then(() => {
+        wallpaperDecoded = true;
+      });
+  }
+  return wallpaperReady;
+}
+
 // 开机日志：只写桌面上真的会加载的东西
 const BOOT_LINES: Array<[string, string]> = [
   ["load", "论坛最新"],
@@ -40,8 +61,12 @@ export default function Home() {
   const [loaderVisible, setLoaderVisible] = useState(!resume.current);
   const loaderShown = useRef(!resume.current);
   const [bootRun, setBootRun] = useState(0);
+  /** 第几次开机（同步计数，定时器和异步回调里读它，不读渲染时的 bootRun） */
+  const bootRunRef = useRef(0);
   const [bootLines, setBootLines] = useState(0);
   const [nanoUp, setNanoUp] = useState(false);
+  /** 跳过动画时桌面壁纸还没下完：按钮显示「正在打开」，下完再直接进桌面 */
+  const [waiting, setWaiting] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const hint = useRef<HTMLDivElement>(null);
   const hudTop = useRef<HTMLDivElement>(null);
@@ -108,6 +133,8 @@ export default function Home() {
           await handle.focus({ instant: true, onArrive: () => undefined });
           handle.setActive(false);
         } else dispatch({ type: "ready" });
+        // 书桌搭好后就开始下载桌面壁纸：用户看书桌、点电脑的这几秒足够它下完
+        void preloadWallpaper();
       } catch {
         // 没有 WebGL（或分包加载失败）：直接给系统桌面，三个入口照常可用
         if (cancelled) return;
@@ -145,15 +172,21 @@ export default function Home() {
     timers.current = [];
   };
 
+  // 开机结束：日志补满，等壁纸解码好再切到桌面（通常早就好了；慢网时开机画面多停一会儿，而不是露出半张桌面）
   const finishBoot = useCallback(() => {
     clearTimers();
     setBootLines(BOOT_LINES.length);
-    dispatch({ type: "bootDone" });
+    // 按开机的轮次对账：壁纸还在解码时用户又退回书桌、再开一次机，旧的这次不能把新的开机画面提前切走
+    const run = bootRunRef.current;
+    void preloadWallpaper().then(() => {
+      if (bootRunRef.current === run && stateRef.current === "booting") dispatch({ type: "bootDone" });
+    });
   }, []);
 
   const startBoot = useCallback(() => {
     dispatch({ type: "arrived" });
-    setBootRun((n) => n + 1);
+    bootRunRef.current += 1;
+    setBootRun(bootRunRef.current);
     setBootLines(0);
     setNanoUp(false);
     BOOT_LINES.forEach((_, i) => timers.current.push(window.setTimeout(() => setBootLines(i + 1), 1050 + i * 250)));
@@ -166,6 +199,15 @@ export default function Home() {
       if (stateRef.current !== "idle") return;
       const handle = desk.current;
       const skip = instant || reducedMotion || !handle;
+      // 跳过动画会直接露出桌面：先等壁纸解码好（书桌搭好时就开始下载了，通常已经好了）
+      if (skip && !wallpaperDecoded) {
+        setWaiting(true);
+        void preloadWallpaper().then(() => {
+          setWaiting(false);
+          enterRef.current(instant);
+        });
+        return;
+      }
       dispatch({ type: "enter", instant: skip });
       if (!handle) return;
       void handle.focus({
@@ -241,10 +283,6 @@ export default function Home() {
               <small>{brand.subtitle}</small>
             </span>
           </span>
-          <span className="pt-status">
-            <i aria-hidden="true" />
-            我们正在招人
-          </span>
         </div>
         <section className="pt-hud-copy" ref={hudCopy} aria-labelledby="pt-home-title">
           <h1 id="pt-home-title">
@@ -257,8 +295,8 @@ export default function Home() {
             <button ref={enterButton} type="button" className="pt-enter" onClick={() => enter(false)}>
               <Icon name="shut-down-line" size={16} /> 打开电脑 <kbd>Enter</kbd>
             </button>
-            <button type="button" className="pt-skip" onClick={() => enter(true)}>
-              跳过动画
+            <button type="button" className="pt-skip" aria-busy={waiting || undefined} disabled={waiting} onClick={() => enter(true)}>
+              {waiting ? "正在打开…" : "跳过动画"}
             </button>
           </div>
         </section>
