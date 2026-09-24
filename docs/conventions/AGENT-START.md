@@ -10,7 +10,7 @@
 
 必须先停止：代码编辑、安装、脚本执行、服务启停、数据访问、Git 写操作和发布操作。不得先运行项目命令，事后补读。
 
-阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
+阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [TRACKING](TRACKING.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
 
 文档被截断就继续读到完整。文件缺失、权限不足、规范冲突或无法确认版本时停止相关实施，说明阻塞项，不能猜测。新会话、上下文压缩后丢失规范、切换模块或发现规范更新，都要重新确认并补读。
 

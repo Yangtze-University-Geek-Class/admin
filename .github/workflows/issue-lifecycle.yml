@@ -1,0 +1,175 @@
+# issue 与 PR 的生命周期（docs/conventions/TRACKING.md §1）
+#
+# 一件事 = 一个 issue = 一个 task/<issue>/<slug> 分支 = 一个 PR。三件事：
+#   1. pr-contract：每个进 stage 的 PR 检查正文契约（Closes #<issue> 与分支号一致、issue 开着、
+#      九个必需段落齐全、有验收证据、有审查结论）。改 PR 描述会自动重跑。
+#   2. close-on-merge：PR 合并进 stage 后关闭对应 issue，并在 issue 与 PR 上各留一条追踪记录。
+#      GitHub 只在合进默认分支 main 时才按 Closes #n 自动关闭，所以这里自己关。
+#      删 task 分支由 branch-hygiene.yml 负责，这里不重复。
+#   3. weekly-sweep：每周列出「PR 已合并但 issue 还开着」「issue 开着但 task 分支已经没有了、也没有 open PR」，只告警。
+#
+# 权限：各 job 单独声明；不读任何 secrets，只用 GITHUB_TOKEN。不使用 pull_request_target：
+# 契约检查只读 PR 正文与 issue 状态（事件里自带），不检出也不执行 PR 的代码。
+
+name: Issue lifecycle
+
+on:
+  pull_request:
+    branches: [stage]
+    types: [opened, edited, synchronize, reopened, ready_for_review, closed]
+  schedule:
+    # 每周一 03:37 UTC（错开 branch-hygiene 的 03:17）
+    - cron: '37 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-lifecycle-${{ github.event.pull_request.number || 'weekly' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+
+jobs:
+  pr-contract:
+    name: pr-contract (PR 正文契约)
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: 检出默认分支上的检查脚本（不检出 PR 代码）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+          sparse-checkout: scripts/pr-contract.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: 核对正文、分支号与 issue 状态
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -eu
+          # 契约脚本随本工作流一起进入 stage；引入它的那一个 PR 合并前，stage 上还没有它
+          if [ ! -f scripts/pr-contract.mjs ]; then
+            echo "::notice title=PR 正文契约::目标分支上还没有 scripts/pr-contract.mjs，本次跳过（只会发生在引入契约检查的那个 PR 上）。"
+            exit 0
+          fi
+          printf '%s' "$PR_BODY" > "${RUNNER_TEMP}/body.md"
+          args=(check --branch "$HEAD_REF" --body-file "${RUNNER_TEMP}/body.md")
+          if issue="$(node scripts/pr-contract.mjs issue --branch "$HEAD_REF")"; then
+            if gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json number,state,title > "${RUNNER_TEMP}/issue.json" 2>/dev/null; then
+              args+=(--issue-state-file "${RUNNER_TEMP}/issue.json")
+            else
+              echo "::error title=PR 正文契约::找不到 issue #${issue}：分支 ${HEAD_REF} 指向的 issue 不存在，先开 issue 再提 PR。"
+              exit 1
+            fi
+          fi
+          node scripts/pr-contract.mjs "${args[@]}"
+
+  close-on-merge:
+    name: 合并后关闭 issue 并留追踪记录
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action == 'closed'
+      && github.event.pull_request.merged == true
+      && startsWith(github.event.pull_request.head.ref, 'task/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: 关闭 issue，两边留言
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -eu
+          issue="$(printf '%s' "$HEAD_REF" | sed -nE 's#^task/([0-9]+)/.*#\1#p')"
+          if [ -z "$issue" ]; then
+            echo "::warning::分支 ${HEAD_REF} 不是 task/<issue>/<slug>，没有可关闭的 issue。"
+            exit 0
+          fi
+          sha12="$(printf '%s' "$MERGE_SHA" | cut -c1-12)"
+          state="$(gh issue view "$issue" --repo "$GITHUB_REPOSITORY" --json state --jq .state)"
+          # 追踪记录格式见 docs/conventions/TRACKING.md §3
+          issue_note="$(printf '%s\n%s\n\n%s\n%s\n%s\n' \
+            "<!-- yzgc:track v1 kind=closed stage=merged -->" \
+            "**关闭**｜PR #${PR_NUMBER} 已合并进 \`${BASE_REF}\`，这个 issue 结束" \
+            "**现状**：合并提交 ${MERGE_SHA}；task 分支 \`${HEAD_REF}\` 由 branch-hygiene 删除。" \
+            "**下一步**：随下一个 \`vX.Y.Z-rc.N\` 发到预发布，由所有者验收（docs/conventions/RELEASES.md）。" \
+            "**引用**：#${PR_NUMBER} · ${sha12}")"
+          pr_note="$(printf '%s\n%s\n\n%s\n%s\n' \
+            "<!-- yzgc:track v1 kind=closed stage=merged -->" \
+            "**关闭**｜已合并进 \`${BASE_REF}\`，issue #${issue} 已关闭" \
+            "**现状**：合并提交 ${MERGE_SHA}。" \
+            "**引用**：#${issue} · ${sha12}")"
+          if [ "$state" = "OPEN" ]; then
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --reason completed --comment "$issue_note"
+            echo "已关闭 issue #${issue}（PR #${PR_NUMBER}「${PR_TITLE}」合并）"
+          else
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$issue_note"
+            echo "issue #${issue} 原本已关闭，只补一条追踪记录"
+          fi
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$pr_note"
+
+  weekly-sweep:
+    name: 巡检未关闭的 issue（只告警）
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: 列出 PR 已合并但 issue 还开着、以及分支已消失的 issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          merged="${RUNNER_TEMP}/merged.tsv"
+          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base stage --limit 200 \
+            --json number,headRefName --jq '.[] | select(.headRefName | startswith("task/")) | "\(.headRefName)\t\(.number)"' > "$merged"
+          branches="${RUNNER_TEMP}/branches.txt"
+          gh api "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --paginate --jq '.[].name' > "$branches"
+          open_prs="${RUNNER_TEMP}/open.txt"
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json headRefName --jq '.[].headRefName' > "$open_prs"
+          report="${RUNNER_TEMP}/report.md"
+          : > "$report"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json number,title --jq '.[] | "\(.number)\t\(.title)"' |
+          while IFS="$(printf '\t')" read -r number title; do
+            pr="$(awk -F'\t' -v n="$number" '$1 ~ "^task/" n "/" {print $2; exit}' "$merged")"
+            if [ -n "$pr" ]; then
+              echo "::warning::issue #${number} 的 PR #${pr} 已合并但 issue 还开着：${title}"
+              echo "| #${number} | PR #${pr} 已合并，issue 未关 | ${title} |" >> "$report"
+              continue
+            fi
+            if grep -qE "^task/${number}/" "$branches" || grep -qE "^task/${number}/" "$open_prs"; then continue; fi
+            echo "| #${number} | 没有 task 分支、也没有 open PR（还没开工，或已放弃但没关） | ${title} |" >> "$report"
+          done
+          {
+            echo "## 开着的 issue 巡检"
+            echo ""
+            if [ -s "$report" ]; then
+              echo "| issue | 情况 | 标题 |"
+              echo "|---|---|---|"
+              cat "$report"
+              echo ""
+              echo "处理方式见 docs/conventions/TRACKING.md §1：已完成的补「关闭」记录后关掉；放弃的写明原因再关；还没开工的保持开着。"
+            else
+              echo "没有需要处理的 issue。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
