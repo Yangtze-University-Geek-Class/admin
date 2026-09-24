@@ -1,17 +1,20 @@
 // GitHub 组织：一块悬浮的「贡献日历」地形——53 周 × 7 天的小方块，从地面依次升起成一座天际线。
 // 前方一台小终端逐字敲出 `gh org view`；公开仓库是天际线上立起的楼牌。点「打开 GitHub」时方块像瀑布一样依次熄灭。
-// 方块高度是装饰性的（种子随机，页面上标「示意」），不冒充真实提交数据；仓库列表来自快照 JSON。
+// 方块高度是装饰性的（种子随机），页面上不标数值、不做图例，不冒充真实提交数据；仓库列表来自快照 JSON。
 // 由 pages/GithubScene.tsx 动态加载。
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { RepoSnapshot } from "../lib/osApps";
+import type { Band } from "../lib/cameraMath";
 import { damp, ease, span } from "../lib/motion";
 import { DAYS, LEVEL_COLORS, WEEKS, decorativeLevels } from "../lib/skyline";
-import { Motion, PALETTE, Stage, TEXT_SCALE, canvasTexture, softShadow } from "./stage";
+import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, softShadow } from "./stage";
 
 export type GithubOptions = {
   reducedMotion: boolean;
   repos: readonly RepoSnapshot[];
+  /** 竖屏时留给 3D 的横带（标题下沿到仓库列表上沿）；横屏返回 null */
+  band: () => Band | null;
   /** 离场瀑布播完 */
   onLeft: () => void;
 };
@@ -33,6 +36,7 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
   stage.parallax = 0.3;
 
   const { heights, levels } = decorativeLevels();
+  const maxHeight = Math.max(...heights);
   const board = new THREE.Group();
   board.rotation.y = -0.38;
   board.position.set(1.5, 0.2, -0.9);
@@ -124,11 +128,11 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
   tStand.position.set(0, 0.025, 0.02);
   const tNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.24, 12), shellMat);
   tNeck.position.y = 0.16;
-  // 真终端里的内容：命令与输出都照实写（仓库数来自快照）
+  // 真终端里的内容：命令与输出都照实写（仓库数来自构建时的快照）
   const SCRIPT = [
     "$ gh repo list Yangtze-University-Geek-Class",
     ...repos.slice(0, 3).map((repo) => `${repo.name.padEnd(10)} ${repo.language ?? "-"}`),
-    `${repos.length} 个公开仓库（快照）`,
+    `共 ${repos.length} 个公开仓库`,
   ];
   const TOTAL = SCRIPT.join("\n").length;
   const screenTex = canvasTexture<{ typed: number; cursor: boolean }>(768, 480, (x, w, h, arg) => {
@@ -177,18 +181,41 @@ export async function createGithubScene(canvas: HTMLCanvasElement, options: Gith
   scene.add(termShadow);
 
   // 相机
+  // 竖屏：横着放的天际线只剩窄窄一条，上下大片空白。改成让地形顺着视线往远处延伸（最近几周在近处），
+  // 终端挪到右前方；再按地形与终端的包围盒把它们放进标题与仓库列表之间的横带（stage.ts 的 bandPose）。
+  const PORTRAIT_DIR = new THREE.Vector3(1.55, 2.1, 3.5);
+  const fitBox = new THREE.Box3();
   stage.onLayout = (w, h) => {
-    const narrow = w / h < 0.9;
-    camera.fov = narrow ? 52 : 30;
+    const band = options.band();
+    const narrow = band !== null;
+    camera.fov = narrow ? 40 : 30;
     camera.updateProjectionMatrix();
-    // 竖屏：镜头对准天际线中心（地形中心在 x=1.5, z=-0.9），拉远到整块地形入画；雾往后推，远处不发白
+    board.rotation.y = narrow ? -1.2 : -0.38;
+    boardShadow.rotation.z = board.rotation.y;
+    term.position.set(narrow ? 2.55 : -0.9, 0, narrow ? 1.25 : 1.55);
+    term.rotation.y = narrow ? -0.5 : 0.28;
+    termShadow.position.set(term.position.x, 0.002, term.position.z);
     const fog = scene.fog as THREE.Fog | null;
-    if (fog) {
-      fog.near = narrow ? 14 : 9;
-      fog.far = narrow ? 26 : 18;
+    if (band) {
+      scene.updateMatrixWorld(true);
+      // 方块此刻可能还没升起：地形按底板加上最高方块与楼牌的高度估算（地形局部坐标），终端取机身
+      fitBox.set(new THREE.Vector3(-W / 2 - 0.15, -0.08, -D / 2 - 0.15), new THREE.Vector3(W / 2 + 0.15, maxHeight + 0.2, D / 2 + 0.15));
+      tBody.geometry.computeBoundingBox();
+      const points = [...boxCorners(fitBox, board.matrixWorld), ...boxCorners(tBody.geometry.boundingBox!, tBody.matrixWorld)];
+      const { pos, target, offset } = bandPose(points, PORTRAIT_DIR, camera.fov, w / h, band, 0.96);
+      stage.frame(pos, target, offset);
+      if (fog) {
+        fog.near = pos.distanceTo(target) + 2;
+        fog.far = fog.near + 12;
+      }
+    } else {
+      stage.frame(new THREE.Vector3(0.2, 3.4, 8.6), new THREE.Vector3(0.2, 0.55, -0.2), { x: 0, y: 0 });
+      if (fog) {
+        fog.near = 9;
+        fog.far = 18;
+      }
     }
-    if (narrow) stage.frame(new THREE.Vector3(1.5, 5.2, 10.6), new THREE.Vector3(1.5, 0.35, -0.9));
-    else stage.frame(new THREE.Vector3(0.2, 3.4, 8.6), new THREE.Vector3(0.2, 0.55, -0.2));
+    stage.markShadows();
   };
 
   // 悬停：方块附近微微抬起

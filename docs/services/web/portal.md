@@ -14,7 +14,7 @@
 | `/join-us` | `pages/JoinUs.tsx` | 加入我们：信封场景，DOM 信纸就是表单，真实提交 `POST /api/portal/apply` |
 | `/apply` | — | 旧地址，`<Navigate replace>` 到 `/join-us`，已发出的链接不失效 |
 | `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标 |
-| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（高度为示意，页面标注）+ 公开仓库快照 |
+| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表 |
 | `/docs`、`/docs/:id` | `pages/Docs.tsx` | 公开产品介绍与用户指南（白名单由 `/api/docs` 决定） |
 | `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；未指定组织时默认本组织 |
 | `/join/:token` | `pages/JoinByToken.tsx` | GitHub 组织邀请链接（能力令牌）落地页 |
@@ -48,8 +48,8 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 
 - 论坛首页 `externalUrl("forum", "/")`：生产为 `https://yangtzeu.work/forum/`，本机开发为 `http://127.0.0.1:3456/`；版块 `/c/<slug>`，话题 `/t/<id>`（论坛按话题 id 解析，例如 `/t/t84`；`topic-84` 这类 slug 打不开）。
 - 控制台 `externalUrl("admin", "/console")`：生产与预发布都是本域名下的 `/console`（每个环境只有一个域名，管理端按路径进入），本机开发为 `/sites/admin/console`。意见箱是站内 `/feedback`。
-- 论坛最新与公开仓库在生产官网拿不到实时接口（论坛的本地状态接口只在开发时存在），因此随构建发布静态快照 `public/portal/forum-latest.json`、`public/portal/repos.json`，界面一律标「快照 <日期>」，不冒充实时数据。论坛快照只收录已在仓库里公开编辑过的话题（`app/forum/content/curation.json` 的 `topics`），字段白名单为 id、标题、分类、颜色、回复数、浏览数、时间，**不带作者或任何用户名**：论坛私有投影里的用户名含真实姓名，不得进入公开官网包。更新快照 = 替换这两个文件并跑 `tests/web/portal-snapshots.test.ts`（它校验字段白名单与话题 id）。
-- GitHub 天际线的方块高度由固定种子生成（`lib/skyline.ts`），页面标「示意」，不是提交统计。
+- 论坛最新与公开仓库在生产官网拿不到实时接口（论坛的本地状态接口只在开发时存在），因此随构建发布静态快照 `public/portal/forum-latest.json`、`public/portal/repos.json`。界面上不写「快照」「示意」这类给开发者看的说明（`tests/web/portal-os.test.ts` 扫描拦截），数字只写数据里真有的（话题数、用户数、仓库数）。论坛快照只收录已在仓库里公开编辑过的话题（`app/forum/content/curation.json` 的 `topics`），字段白名单为 id、标题、分类、颜色、回复数、浏览数、时间，**不带作者或任何用户名**：论坛私有投影里的用户名含真实姓名，不得进入公开官网包。更新快照 = 替换这两个文件并跑 `tests/web/portal-snapshots.test.ts`（它校验字段白名单与话题 id）。
+- GitHub 天际线的方块高度由固定种子生成（`lib/skyline.ts`），只是造型：页面上不做色阶图例、不标数值，也不在任何地方把它说成提交统计。
 
 ## 加入我们（投递）
 
@@ -108,6 +108,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - 界面里禁止 emoji 与装饰性 unicode 箭头/符号（↵ ↗ ✓ ▶ ← → ● 之类），图标一律用 `components/Icon.tsx`；允许 ⌘、·、…、×。`tests/web/portal-os.test.ts` 扫描官网源码拦截违规，并检查每个用到的图标名都在注册表里。
 - 用户可见的招新入口统一叫「加入我们」。
 - 开发态总控（`shared/ui/DevControlCenter.tsx`）默认收起成左下角小胶囊，点开才展开；生产配置下不渲染。窄屏（≤860px）官网里改放右上角顶栏下方，不压住 Dock 与底部固定栏。
+- 竖屏（`lib/cameraMath.ts` 的 `STACKED_QUERY`：宽 ≤760px 或宽高比 <0.9，CSS 用同一条媒体查询）：文案叠在画面上下，3D 主体放进文案之间留出的横带。横带由页面量 DOM 得出（首页：顶栏下沿到文案上沿；场景页：主按钮下沿到底部列表上沿），`three/stage.ts` 的 `bandPose` 取主体贴身的角点、按透视投影算相机距离与 `setViewOffset` 偏移（纯数学在 `fitInBand`，有单测），文案尺寸变化时重新取景。不再为每种屏幕比例手调相机坐标。竖屏时首页不挂墙上的海报（会落在顶栏品牌后面）；触屏（`hover: none`）不显示 Enter 之类的按键提示。
 - 窄屏（≤860px）的 YUGC OS：Dock 不再浮在内容上，而是排在滚动区下面的一条底栏（含 `safe-area-inset-bottom`），任何卡片的按钮都不会被它盖住。
 - 文案：像班里的人在说话，短、具体，说清这是什么、给谁用、接下来会怎样；不写口号式标题和装饰性英文大写标签（RECRUITING、YUGC POST 之类），终端提示符只出现在真的终端里（终端窗口、终端组件、GitHub 场景里的小终端）。只写仓库里有出处的事实（部门职责取自 `app/server/src/lib/roles.ts`，版块说明取自 `app/forum/content/curation.json`）；服务端返回的文案（投递、意见箱、邀请的回执）原样显示。
 - 浏览器自带的表面也用官网颜色：文字选中、光标、滚动条、焦点环、`accent-color`；计数、时钟、百分比用等宽数字（`font-variant-numeric: tabular-nums`）。卡片只有一种层级：细描边 + 贴身短投影；浮层（窗口、菜单、启动器、Dock）只用有偏移的投影。弱化文字 `--pt-ink-mute: #646b8a`，在纸色与冰白底上 ≥4.5:1。

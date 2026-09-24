@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { snapshotLabel, type ForumSnapshot, type RepoList } from "../../app/web/sites/portal/lib/snapshots";
+import type { ForumSnapshot, RepoList } from "../../app/web/sites/portal/lib/snapshots";
 
 const read = <T>(name: string): T => JSON.parse(readFileSync(new URL(`../../app/web/public/portal/${name}`, import.meta.url), "utf8")) as T;
 const curation = JSON.parse(readFileSync(new URL("../../app/forum/content/curation.json", import.meta.url), "utf8")) as {
@@ -41,10 +41,5 @@ describe("官网静态快照", () => {
       expect(repo.url.startsWith(`https://github.com/${list.org}/`)).toBe(true);
       expect(repo.pushed).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
-  });
-
-  it("界面标签只取日期部分", () => {
-    expect(snapshotLabel("2026-09-12T19:03:18Z")).toBe("快照 2026-09-12");
-    expect(snapshotLabel(undefined)).toBe("快照");
   });
 });
