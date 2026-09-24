@@ -33,7 +33,7 @@ const LETTER_IN_W = W * 0.84;
 /** 落位时信纸离相机的距离（比信封近得多，永远在最前面） */
 const LAND_DIST = 1.6;
 const PAPER = "#fbfaf6";
-/** 信纸在信封里的 z（夹在底板 -0.004 与口袋 0.008 之间） */
+/** 信纸在信封里的 z（夹在底板内衬 -0.001 与口袋 0.008 之间；折好后最厚到 0.0052） */
 const LETTER_Z = 0.002;
 const PAPER_BACK = "#f7f4ec";
 /** 写信时信封缩小平躺在信纸下方（露出带邮戳的下半截），不抢信纸的焦点 */
@@ -69,9 +69,10 @@ function layoutFor(aspect: number): Layout {
       targetIn: v(0, 1.05, 0),
       home: v(0, 1.62, 0),
       rest: v(0, 0.06, 0.35),
-      box: v(0.78, 0, -1.4),
-      boxScale: 0.46,
-      boxRot: -0.45,
+      // 竖屏：信箱立在地上、放在信封右下方靠前的位置，信封停在正中时不压住信箱顶，信箱连同立柱整个在画面里
+      box: v(0.66, 0, -0.2),
+      boxScale: 0.4,
+      boxRot: -0.4,
     };
   }
   return {
@@ -95,18 +96,53 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
   stage.parallax = 0.12;
   const logo = await loadImage(options.logoUrl);
 
-  // ── 信封：底板、口袋（左右下三襟连成一片）、可翻的封舌、火漆 ─────────────
-  const face = canvasTexture(1100, 700, (x, w, h) => {
-    x.fillStyle = "#ffffff";
-    x.fillRect(0, 0, w, h);
-    const b = 26;
+  // ── 纸的质感：所有纸面共用一张凹凸贴图（细颗粒 + 短纤维），光照下看得出是纸 ─────────
+  let seed = 20260924;
+  const rand = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  /** 印在纸上的细小杂点：暖灰与亮白各一半，让大面积纸色不是一块死平的颜色 */
+  const speckle = (x: CanvasRenderingContext2D, w: number, h: number, count: number, alpha: number) => {
+    for (let i = 0; i < count; i++) {
+      x.fillStyle = rand() < 0.5 ? `rgba(90,70,40,${alpha * rand()})` : `rgba(255,255,255,${alpha * 1.6 * rand()})`;
+      x.fillRect(rand() * w, rand() * h, 1 + rand() * 1.6, 1 + rand() * 1.6);
+    }
+  };
+  const grain = canvasTexture(256, 256, (x, w, h) => {
+    const image = x.createImageData(w, h);
+    for (let i = 0; i < image.data.length; i += 4) {
+      const n = 128 + (rand() - 0.5) * 46;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = n;
+      image.data[i + 3] = 255;
+    }
+    x.putImageData(image, 0, 0);
+    x.lineCap = "round";
+    for (let i = 0; i < 140; i++) {
+      x.strokeStyle = rand() < 0.5 ? `rgba(255,255,255,${0.18 + rand() * 0.2})` : `rgba(0,0,0,${0.12 + rand() * 0.14})`;
+      x.lineWidth = 0.6 + rand() * 0.8;
+      const sx = rand() * w;
+      const sy = rand() * h;
+      const angle = rand() * Math.PI * 2;
+      const len = 4 + rand() * 14;
+      x.beginPath();
+      x.moveTo(sx, sy);
+      x.quadraticCurveTo(sx + Math.cos(angle + 0.6) * len * 0.5, sy + Math.sin(angle + 0.6) * len * 0.5, sx + Math.cos(angle) * len, sy + Math.sin(angle) * len);
+      x.stroke();
+    }
+  });
+  grain.texture.colorSpace = THREE.NoColorSpace;
+  grain.texture.wrapS = grain.texture.wrapT = THREE.RepeatWrapping;
+  grain.texture.repeat.set(5, 3.2);
+
+  /** 航空信封的斜条纹边：钴蓝与琥珀交替，中间留纸色的缝 */
+  const airmail = (x: CanvasRenderingContext2D, w: number, h: number) => {
+    const inset = 8;
+    const band = 20;
     x.save();
     x.beginPath();
-    x.rect(0, 0, w, h);
-    x.rect(b, b, w - 2 * b, h - 2 * b);
+    x.rect(inset, inset, w - 2 * inset, h - 2 * inset);
+    x.rect(inset + band, inset + band, w - 2 * (inset + band), h - 2 * (inset + band));
     x.clip("evenodd");
-    for (let i = -h; i < w + h; i += 44) {
-      x.fillStyle = (i / 44) % 2 === 0 ? PALETTE.cobalt : PALETTE.amber;
+    for (let i = -h, k = 0; i < w + h; i += 34, k++) {
+      x.fillStyle = k % 2 === 0 ? "rgba(51,70,200,0.86)" : "rgba(236,152,32,0.9)";
       x.beginPath();
       x.moveTo(i, 0);
       x.lineTo(i + 22, 0);
@@ -116,97 +152,328 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
       x.fill();
     }
     x.restore();
-    x.strokeStyle = "rgba(27,33,64,0.07)";
-    x.lineWidth = 3;
-    x.beginPath();
-    x.moveTo(b, h - b);
-    x.lineTo(w / 2, h * 0.48);
-    x.lineTo(w - b, h - b);
-    x.stroke();
-    x.save();
-    x.translate(w - 190, h - 150);
-    x.rotate(-0.18);
-    x.strokeStyle = "rgba(51,70,200,0.45)";
-    x.lineWidth = 4;
-    x.beginPath();
-    x.arc(0, 0, 62, 0, Math.PI * 2);
-    x.stroke();
-    x.beginPath();
-    x.arc(0, 0, 50, 0, Math.PI * 2);
-    x.stroke();
-    x.fillStyle = "rgba(51,70,200,0.55)";
-    x.textAlign = "center";
-    x.font = '700 22px "PingFang SC", "Hiragino Sans GB", sans-serif';
-    x.fillText("极客班", 0, 8);
-    for (let k = 0; k < 4; k++) {
+  };
+  /** 折口：纸在边上翻过去的地方略暗（四边各一道渐变，top 单独给强度，封舌的翻折线用得上） */
+  const foldShade = (x: CanvasRenderingContext2D, w: number, h: number, top: number) => {
+    const shade = (x0: number, y0: number, x1: number, y1: number, alpha: number) => {
+      const g = x.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, `rgba(90,70,40,${alpha})`);
+      g.addColorStop(1, "rgba(90,70,40,0)");
+      x.fillStyle = g;
+      x.fillRect(0, 0, w, h);
+    };
+    shade(0, 0, w * 0.05, 0, 0.08);
+    shade(w, 0, w * 0.95, 0, 0.08);
+    shade(0, h, 0, h * 0.93, 0.07);
+    shade(0, 0, 0, h * 0.07, top);
+  };
+  const IVORY = "#fbf8f1";
+
+  // 封舌这一面（镜头看到的一面）：下襟压在左右两襟上，下襟略亮，两条斜边上一道软阴影和一道细折痕
+  const face = canvasTexture(
+    1100,
+    700,
+    (x, w, h) => {
+      x.fillStyle = IVORY;
+      x.fillRect(0, 0, w, h);
+      const cx = w / 2;
+      const cy = h * 0.5;
+      x.fillStyle = "rgba(255,255,255,0.55)";
       x.beginPath();
-      x.moveTo(80, -30 + k * 20);
-      for (let X = 80; X < 230; X += 10) x.lineTo(X, -30 + k * 20 + Math.sin(X / 9) * 5);
+      x.moveTo(0, h);
+      x.lineTo(cx, cy);
+      x.lineTo(w, h);
+      x.closePath();
+      x.fill();
+      x.save();
+      x.shadowColor = "rgba(70,55,30,0.24)";
+      x.shadowBlur = 16;
+      x.shadowOffsetY = -4;
+      x.strokeStyle = "rgba(70,55,30,0.16)";
+      x.lineWidth = 1.6;
+      x.beginPath();
+      x.moveTo(0, h);
+      x.lineTo(cx, cy);
+      x.lineTo(w, h);
       x.stroke();
-    }
-    x.restore();
-  });
-  const envMat = new THREE.MeshStandardMaterial({ map: face.texture, roughness: 0.75, side: THREE.DoubleSide });
-  const envInner = new THREE.MeshStandardMaterial({ color: "#4a5ad2", roughness: 0.8, side: THREE.DoubleSide });
-  const panel = (points: Array<[number, number]>, offsetY = 0) => {
+      x.restore();
+      foldShade(x, w, h, 0.09);
+      speckle(x, w, h, 2600, 0.12);
+      airmail(x, w, h);
+    },
+    TEXT_SCALE,
+  );
+  // 封舌外侧：只有纸、条纹边和靠近翻折线的一道暗
+  const flapFace = canvasTexture(
+    1100,
+    700,
+    (x, w, h) => {
+      x.fillStyle = IVORY;
+      x.fillRect(0, 0, w, h);
+      foldShade(x, w, h, 0.12);
+      speckle(x, w, h, 2600, 0.12);
+      airmail(x, w, h);
+    },
+    TEXT_SCALE,
+  );
+  // 地址面（信封翻过来时看到）：左上六个邮编框、右上一枚带齿孔的邮票和邮戳、手写的收件人
+  const address = canvasTexture(
+    1100,
+    700,
+    (x, w, h) => {
+      x.fillStyle = IVORY;
+      x.fillRect(0, 0, w, h);
+      foldShade(x, w, h, 0.07);
+      speckle(x, w, h, 2600, 0.12);
+      airmail(x, w, h);
+      x.strokeStyle = "rgba(213,72,64,0.75)";
+      x.lineWidth = 3;
+      for (let i = 0; i < 6; i++) x.strokeRect(70 + i * 56, 66, 44, 44);
+      // 邮票：先画纸色的齿孔底，再铺票面
+      const sx = w - 236;
+      const sy = 56;
+      const sw = 156;
+      const sh = 188;
+      x.fillStyle = "#ffffff";
+      x.fillRect(sx, sy, sw, sh);
+      x.fillStyle = IVORY;
+      for (let t = 0; t <= sw; t += 13) {
+        for (const yy of [sy, sy + sh]) {
+          x.beginPath();
+          x.arc(sx + t, yy, 4.5, 0, Math.PI * 2);
+          x.fill();
+        }
+      }
+      for (let t = 0; t <= sh; t += 13) {
+        for (const xx of [sx, sx + sw]) {
+          x.beginPath();
+          x.arc(xx, sy + t, 4.5, 0, Math.PI * 2);
+          x.fill();
+        }
+      }
+      x.fillStyle = PALETTE.cobaltSoft;
+      x.fillRect(sx + 12, sy + 12, sw - 24, sh - 24);
+      if (logo) drawEmblem(x, logo, sx + sw / 2, sy + 82, 88);
+      x.fillStyle = PALETTE.cobalt;
+      x.textAlign = "center";
+      x.font = '700 22px "PingFang SC", "Hiragino Sans GB", sans-serif';
+      x.fillText("极客班", sx + sw / 2, sy + sh - 30);
+      // 邮戳压在邮票左边缘
+      x.save();
+      x.translate(sx - 6, sy + 120);
+      x.rotate(-0.2);
+      x.strokeStyle = "rgba(51,70,200,0.42)";
+      x.lineWidth = 3.5;
+      x.beginPath();
+      x.arc(0, 0, 58, 0, Math.PI * 2);
+      x.stroke();
+      x.beginPath();
+      x.arc(0, 0, 46, 0, Math.PI * 2);
+      x.stroke();
+      x.fillStyle = "rgba(51,70,200,0.5)";
+      x.font = '700 20px "PingFang SC", "Hiragino Sans GB", sans-serif';
+      x.fillText("YUGC", 0, 7);
+      for (let k = 0; k < 4; k++) {
+        x.beginPath();
+        x.moveTo(-230, -30 + k * 20);
+        for (let X = -230; X < -70; X += 10) x.lineTo(X, -30 + k * 20 + Math.sin(X / 9) * 5);
+        x.stroke();
+      }
+      x.restore();
+      // 收件人：手写体 + 淡淡的地址横线
+      x.strokeStyle = "rgba(90,70,40,0.18)";
+      x.lineWidth = 1.5;
+      for (const yy of [388, 488]) {
+        x.beginPath();
+        x.moveTo(150, yy);
+        x.lineTo(w - 150, yy);
+        x.stroke();
+      }
+      x.fillStyle = "rgba(27,33,64,0.86)";
+      x.textAlign = "left";
+      x.font = '52px "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", serif';
+      x.fillText("长江大学", 190, 372);
+      x.font = '64px "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", serif';
+      x.fillText("极客班 收", 430, 474);
+    },
+    TEXT_SCALE,
+  );
+  // 内衬：深钴蓝底上一层细线六边形，像保密信封的内衬
+  const liner = canvasTexture(
+    640,
+    400,
+    (x, w, h) => {
+      x.fillStyle = "#2c3cb2";
+      x.fillRect(0, 0, w, h);
+      x.strokeStyle = "rgba(170,184,255,0.22)";
+      x.lineWidth = 1.2;
+      const r = 11;
+      const dx = r * Math.sqrt(3);
+      const dy = r * 1.5;
+      for (let row = 0, y = -r; y < h + r * 2; row++, y += dy) {
+        for (let X = (row % 2 ? dx / 2 : 0) - dx; X < w + dx; X += dx) {
+          x.beginPath();
+          for (let k = 0; k <= 6; k++) {
+            const angle = Math.PI / 6 + (k * Math.PI) / 3;
+            if (k === 0) x.moveTo(X + Math.cos(angle) * r, y + Math.sin(angle) * r);
+            else x.lineTo(X + Math.cos(angle) * r, y + Math.sin(angle) * r);
+          }
+          x.stroke();
+        }
+      }
+      const vignette = x.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, w * 0.7);
+      vignette.addColorStop(0, "rgba(10,14,60,0)");
+      vignette.addColorStop(1, "rgba(10,14,60,0.35)");
+      x.fillStyle = vignette;
+      x.fillRect(0, 0, w, h);
+    },
+    TEXT_SCALE,
+  );
+  const paperBump = { bumpMap: grain.texture, bumpScale: 0.6 };
+  const faceMat = new THREE.MeshStandardMaterial({ map: face.texture, roughness: 0.86, ...paperBump });
+  const flapMat = new THREE.MeshStandardMaterial({ map: flapFace.texture, roughness: 0.86, ...paperBump });
+  const addressMat = new THREE.MeshStandardMaterial({ map: address.texture, roughness: 0.86, ...paperBump });
+  const linerMat = new THREE.MeshStandardMaterial({ map: liner.texture, roughness: 0.78, ...paperBump });
+  const linerBack = new THREE.MeshStandardMaterial({ map: liner.texture, roughness: 0.78, side: THREE.BackSide, ...paperBump });
+  const edgeMat = new THREE.MeshStandardMaterial({ color: "#ece5d6", roughness: 0.9 });
+
+  const shapeOf = (points: Array<[number, number]>) => {
     const shape = new THREE.Shape();
     shape.moveTo(points[0][0], points[0][1]);
     for (const [px, py] of points.slice(1)) shape.lineTo(px, py);
     shape.closePath();
-    const geometry = new THREE.ShapeGeometry(shape);
+    return shape;
+  };
+  /** 按信封局部坐标给顶点铺 UV：口袋、封舌、底板共用一套贴图坐标 */
+  const mapUv = <G extends THREE.BufferGeometry>(geometry: G, offsetY = 0): G => {
     const pos = geometry.attributes.position as THREE.BufferAttribute;
     const uv = geometry.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + W / 2) / W, (pos.getY(i) + offsetY + H / 2) / H);
     return geometry;
   };
 
+  // 信封的层次（信封局部 z）：底板 -0.011..-0.001 │ 信纸 0.002..0.0052 │ 口袋 0.008..0.012 │ 封舌 0.013 │ 火漆
+  // 左右与下边各一条窄边墙把底板和口袋连起来，侧面看是一个有厚度的纸袋，不是两张分开的面片
   const envelope = new THREE.Group();
   envelope.rotation.order = "YXZ";
   envelope.scale.setScalar(ENV_SCALE);
   scene.add(envelope);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(W, H), envInner);
-  back.position.z = -0.004;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.01), [edgeMat, edgeMat, edgeMat, edgeMat, linerMat, addressMat]);
+  back.position.z = -0.006;
   envelope.add(back);
-  const pocket = new THREE.Mesh(panel([[-W / 2, H / 2], [0, H * 0.02], [W / 2, H / 2], [W / 2, -H / 2], [-W / 2, -H / 2]]), envMat);
+  const pocket = new THREE.Mesh(
+    mapUv(new THREE.ExtrudeGeometry(shapeOf([[-W / 2, H / 2], [0, H * 0.02], [W / 2, H / 2], [W / 2, -H / 2], [-W / 2, -H / 2]]), { depth: 0.004, bevelEnabled: false })),
+    [faceMat, edgeMat],
+  );
   pocket.position.z = 0.008;
   envelope.add(pocket);
+  const wallGeo = new THREE.BoxGeometry(1, 1, 0.009);
+  for (const [px, py, sw, sh] of [
+    [-W / 2 + 0.002, 0, 0.004, H],
+    [W / 2 - 0.002, 0, 0.004, H],
+    [0, -H / 2 + 0.002, W, 0.004],
+  ] as const) {
+    const wall = new THREE.Mesh(wallGeo, edgeMat);
+    wall.scale.set(sw, sh, 1);
+    wall.position.set(px, py, 0.0035);
+    envelope.add(wall);
+  }
   const flapPivot = new THREE.Group();
-  flapPivot.position.set(0, H / 2, 0.01);
+  flapPivot.position.set(0, H / 2, 0.013);
   envelope.add(flapPivot);
-  const flap = new THREE.Mesh(panel([[-W / 2, 0], [W / 2, 0], [0, -H * 0.62]], H / 2), envMat);
-  flapPivot.add(flap);
-  // 封舌合上时的两条斜边：一道淡淡的描边，让信封一眼看得出是「封好的」
-  const flapEdgeGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-W / 2, 0, 0.002), new THREE.Vector3(0, -H * 0.62, 0.002), new THREE.Vector3(W / 2, 0, 0.002)]);
-  const flapEdge = new THREE.Line(flapEdgeGeo, new THREE.LineBasicMaterial({ color: "#c9ccdb" }));
-  flapPivot.add(flapEdge);
-  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(W, H)), new THREE.LineBasicMaterial({ color: "#d9dbe6" }));
-  edge.position.z = 0.009;
-  envelope.add(edge);
-
-  const sealTex = canvasTexture(256, 256, (x, w) => {
-    x.clearRect(0, 0, w, w);
-    x.fillStyle = PALETTE.cobalt;
+  const flapGeo = mapUv(new THREE.ShapeGeometry(shapeOf([[-W / 2, 0], [W / 2, 0], [0, -H * 0.62]])), H / 2);
+  // 封舌外侧是纸、翻过来是内衬：两张共用几何体的单面网格，翻到哪面就看到哪面，不用中途换材质
+  flapPivot.add(new THREE.Mesh(flapGeo, flapMat), new THREE.Mesh(flapGeo, linerBack));
+  // 封舌合上时投在口袋上的一道软影（贴图只画封舌三角形外缘的模糊），翻开就淡掉
+  const flapShadowTex = canvasTexture(512, 336, (x, w, h) => {
+    x.clearRect(0, 0, w, h);
+    x.shadowColor = "rgba(40,30,10,0.4)";
+    x.shadowBlur = 14;
+    x.shadowOffsetY = 6;
+    x.fillStyle = "rgba(40,30,10,0.2)";
     x.beginPath();
-    x.arc(w / 2, w / 2, w / 2, 0, Math.PI * 2);
+    x.moveTo(0, 0);
+    x.lineTo(w, 0);
+    x.lineTo(w / 2, h * (0.62 / 0.7));
+    x.closePath();
     x.fill();
-    if (logo) {
-      x.save();
-      x.beginPath();
-      x.arc(w / 2, w / 2, w * 0.36, 0, Math.PI * 2);
-      x.clip();
-      x.drawImage(logo, w * 0.14, w * 0.14, w * 0.72, w * 0.72);
-      x.restore();
-    }
   });
-  const sealSide = new THREE.MeshStandardMaterial({ color: PALETTE.cobaltDeep, roughness: 0.35 });
-  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.035, 36), [sealSide, new THREE.MeshStandardMaterial({ map: sealTex.texture, roughness: 0.35 }), sealSide]);
-  seal.rotation.x = Math.PI / 2;
-  seal.position.set(0, H / 2 - H * 0.6, 0.03);
+  const flapShadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, H * 0.7),
+    new THREE.MeshBasicMaterial({ map: flapShadowTex.texture, transparent: true, depthWrite: false }),
+  );
+  flapShadow.position.set(0, H / 2 - H * 0.35, 0.0125);
+  envelope.add(flapShadow);
+
+  // 火漆：不规则的一团蜡（挤出 + 倒角出体积），顶面压着校徽，校徽同时做凹凸贴图，看得出是压进去的
+  const sealShape = new THREE.Shape();
+  for (let i = 0; i <= 72; i++) {
+    const angle = (i / 72) * Math.PI * 2;
+    const radius = 0.15 * (1 + 0.05 * Math.sin(angle * 5 + 1.3) + 0.025 * Math.sin(angle * 13 + 0.4));
+    if (i === 0) sealShape.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    else sealShape.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+  }
+  const sealGeo = new THREE.ExtrudeGeometry(sealShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.016, bevelSize: 0.022, bevelSegments: 5, curveSegments: 4 });
+  sealGeo.center();
+  {
+    const pos = sealGeo.attributes.position as THREE.BufferAttribute;
+    const uv = sealGeo.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / 0.4, 0.5 + pos.getY(i) / 0.4);
+  }
+  const sealFace = canvasTexture(
+    256,
+    256,
+    (x, w) => {
+      const g = x.createRadialGradient(w * 0.42, w * 0.38, w * 0.05, w / 2, w / 2, w * 0.55);
+      g.addColorStop(0, "#4b5de0");
+      g.addColorStop(1, "#23309a");
+      x.fillStyle = g;
+      x.fillRect(0, 0, w, w);
+      x.lineWidth = 5;
+      x.strokeStyle = "rgba(10,16,70,0.45)";
+      x.beginPath();
+      x.arc(w / 2, w / 2, w * 0.34, 0, Math.PI * 2);
+      x.stroke();
+      if (logo) {
+        x.globalAlpha = 0.55;
+        x.globalCompositeOperation = "multiply";
+        drawEmblem(x, logo, w / 2, w / 2, w * 0.56);
+      }
+    },
+    TEXT_SCALE,
+  );
+  const sealBump = canvasTexture(
+    256,
+    256,
+    (x, w) => {
+      x.fillStyle = "#b4b4b4";
+      x.fillRect(0, 0, w, w);
+      x.lineWidth = 7;
+      x.strokeStyle = "#5a5a5a";
+      x.beginPath();
+      x.arc(w / 2, w / 2, w * 0.34, 0, Math.PI * 2);
+      x.stroke();
+      if (logo) {
+        x.globalCompositeOperation = "multiply";
+        drawEmblem(x, logo, w / 2, w / 2, w * 0.56);
+      }
+    },
+    TEXT_SCALE,
+  );
+  sealBump.texture.colorSpace = THREE.NoColorSpace;
+  const seal = new THREE.Mesh(sealGeo, [
+    new THREE.MeshStandardMaterial({ map: sealFace.texture, bumpMap: sealBump.texture, bumpScale: 2.2, roughness: 0.3 }),
+    new THREE.MeshStandardMaterial({ color: "#2a37a8", roughness: 0.28 }),
+  ]);
+  /** 火漆落定时中心的 z：贴在合上的封舌表面（0.013）上，厚度一半 0.022 */
+  const SEAL_Z = 0.036;
+  seal.position.set(0, H / 2 - H * 0.6, SEAL_Z);
   seal.visible = false;
   envelope.add(seal);
   envelope.traverse((m) => {
     if ((m as THREE.Mesh).isMesh) m.castShadow = true;
   });
+  flapShadow.castShadow = false;
   const envShadow = softShadow(2.4, 0.16);
   scene.add(envShadow);
 
@@ -278,7 +545,24 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
 
   const letter = new THREE.Group();
   const frontMats: THREE.MeshBasicMaterial[] = [];
-  const backMat = new THREE.MeshBasicMaterial({ color: PAPER_BACK, side: THREE.BackSide });
+  // 信纸背面：受光的纸（颗粒凹凸），透出一点正面的横格线；折起来时看到的就是这一面
+  const letterBack = canvasTexture(512, 512, (x, w, h) => {
+    x.fillStyle = PAPER_BACK;
+    x.fillRect(0, 0, w, h);
+    speckle(x, w, h, 900, 0.1);
+    x.fillStyle = "rgba(51,70,200,0.05)";
+    for (let y = 0.232 * h; y < h; y += 0.061 * h) x.fillRect(0, y, w, 1.2);
+  });
+  // 正面是不受光的贴图（要和 DOM 表单一模一样），背面受光但带一点自发光：翻过来背光时仍是纸色，不会变成一块灰板
+  const backMat = new THREE.MeshStandardMaterial({
+    map: letterBack.texture,
+    bumpMap: grain.texture,
+    bumpScale: 0.4,
+    roughness: 0.92,
+    emissive: "#efe9dc",
+    emissiveIntensity: 0.55,
+    side: THREE.BackSide,
+  });
   const makePanel = (k: 0 | 1 | 2) => {
     const geometry = new THREE.PlaneGeometry(1, 1 / 3);
     const uv = geometry.attributes.uv as THREE.BufferAttribute;
@@ -381,7 +665,8 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
 
   // ── 布局与镜头 ─────────────────────────────────────────────────────────
   let L = layoutFor(1.6);
-  const START = { pos: new THREE.Vector3(), rot: new THREE.Euler(0.6, -1.1, 0.6, "YXZ") };
+  // 从正上方偏后落下来：信箱在右边（从右上方进场会穿过信箱），左边是说明文字（从左上方进场会压在字后面）
+  const START = { pos: new THREE.Vector3(), rot: new THREE.Euler(1.0, 0.5, -0.5, "YXZ") };
   const HOME_ROT = new THREE.Euler(-0.12, 0, 0, "YXZ");
   const REST_ROT = new THREE.Euler(-1.45, 0, 0, "YXZ");
   const camPos = new THREE.Vector3();
@@ -397,7 +682,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     L = layoutFor(w / h);
     camera.fov = L.fov;
     camera.updateProjectionMatrix();
-    START.pos.copy(L.home).add(tmp.set(3.6, 2.6, -2.6));
+    START.pos.copy(L.home).add(tmp.set(0, 3.4, -2.4));
     box.position.copy(L.box);
     box.rotation.y = L.boxRot;
     box.scale.setScalar(L.boxScale);
@@ -599,10 +884,10 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         if (drop > 0) {
           seal.visible = true;
           const d = ease.inOut(drop);
-          seal.position.z = lerp(0.5, 0.03, d);
+          seal.position.z = lerp(0.5, SEAL_Z, d);
           const squash = Math.sin(Math.PI * span(p, 2.88, 3.12));
           const grow = lerp(1.35, 1, d);
-          seal.scale.set(grow * (1 + squash * 0.14), 1 - squash * 0.45, grow * (1 + squash * 0.14));
+          seal.scale.set(grow * (1 + squash * 0.14), grow * (1 + squash * 0.14), 1 - squash * 0.45);
         }
         if (p >= 3.3) {
           fromEnvPos.copy(envelope.position);
@@ -617,15 +902,20 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
         const k = ease.inOut(span(p, 0, 1.5));
         scene.updateMatrixWorld();
         slot.getWorldPosition(slotWorld);
-        inward.set(0, 0, -0.35 * L.boxScale).applyAxisAngle(tmp.set(0, 1, 0), box.rotation.y);
-        slotWorld.addScaledVector(inward, ease.smooth(span(k, 0.7, 1)));
-        mid.lerpVectors(fromEnvPos, slotWorld, 0.5).add(tmp.set(0, 1.1, 0.6));
-        arcA.lerpVectors(fromEnvPos, mid, k);
-        arcB.lerpVectors(mid, slotWorld, k);
-        envelope.position.lerpVectors(arcA, arcB, k);
-        // 投信口是正面的一条横缝：信封放平、朝向信箱，沿信箱法线送进去
-        envelope.rotation.set(lerp(fromEnvRot.x, -Math.PI / 2 + 0.08, ease.inOut(span(k, 0.35, 1))), lerp(fromEnvRot.y, box.rotation.y, k), Math.sin(k * Math.PI) * 0.35);
-        envelope.scale.setScalar(lerp(ENV_SCALE, 0.2 * (L.boxScale / 0.78), k));
+        // 投信口是信箱正面的一条横缝。分两段走：
+        //   1) 前 70%：沿一条向上拱的弧线飞到投信口正前方（法线方向离开信箱一段距离），路上转正、放平、缩到比缝窄；
+        //   2) 后 30%：沿信箱法线直直推进缝里。信封在信箱前方时已经比缝小，不会从侧面或圆顶上穿过信箱。
+        inward.set(0, 0, 1).applyAxisAngle(tmp.set(0, 1, 0), box.rotation.y);
+        mid.copy(slotWorld).addScaledVector(inward, 0.9 * L.boxScale);
+        const fly = ease.inOut(span(k, 0, 0.7));
+        arcA.lerpVectors(fromEnvPos, mid, fly);
+        arcA.y += Math.sin(fly * Math.PI) * 0.5;
+        const push = ease.inOut(span(k, 0.7, 1));
+        arcB.copy(mid).addScaledVector(inward, -(0.9 + 0.35) * L.boxScale * push);
+        envelope.position.copy(push > 0 ? arcB : arcA);
+        const turn = ease.inOut(span(k, 0.05, 0.62));
+        envelope.rotation.set(lerp(fromEnvRot.x, -Math.PI / 2, turn), lerp(fromEnvRot.y, box.rotation.y, turn), Math.sin(turn * Math.PI) * 0.25);
+        envelope.scale.setScalar(lerp(ENV_SCALE, 0.17 * (L.boxScale / 0.78), ease.inOut(span(k, 0, 0.62))));
         envShadow.position.set(envelope.position.x, 0.002, envelope.position.z);
         envShadow.material.opacity = fromShadow * (1 - k);
         postCam.lerpVectors(L.cam, tmp.copy(L.cam).add(right.set(L.box.x * 0.45, 0.2, -0.4)), k);
@@ -658,9 +948,10 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     }
     // 封舌绕上沿向前翻起、越过竖直后略向后靠（-1.06π），翻开时在信纸背后，不压住信纸；过了一半换成内侧颜色
     flapPivot.rotation.x = lerp(0, -Math.PI * 1.06, flapOpen);
-    flapPivot.position.z = flapOpen > 0.5 ? -0.012 : 0.01;
-    flap.material = flapOpen > 0.5 ? envInner : envMat;
-    flapEdge.visible = flapOpen < 0.05;
+    // 翻过一半后铰链挪到底板后面：翻开的封舌根部在信纸后方，信纸抽出、塞回时都不会穿过它
+    flapPivot.position.z = flapOpen > 0.5 ? -0.013 : 0.013;
+    flapShadow.material.opacity = 1 - span(flapOpen, 0, 0.12);
+    flapShadow.visible = flapOpen < 0.12;
     return motion;
   });
 
@@ -679,7 +970,7 @@ export async function createJoinScene(canvas: HTMLCanvasElement, options: JoinOp
     setEnvelope(START.pos, START.rot.x, START.rot.y, START.rot.z);
     options.onPhase("arrive");
   }
-  await stage.warmUp([seal]);
+  await stage.warmUp([seal, flapShadow]);
   stage.invalidate();
 
   return {
