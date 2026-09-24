@@ -19,13 +19,17 @@ const siteDeployment = createDeploymentMetadata(
 const geekForumContentDir = process.env.GEEK_FORUM_SOURCE === 'demo' ? '' : (process.env.GEEK_FORUM_CONTENT_DIR ?? '').trim()
 const contentSource = geekForumContentDir ? 'local-snapshot' : 'upstream-seed'
 const siteName = geekForumContentDir ? '极客班论坛' : 'Tuff Forum'
+// 登录方式与内容来源分开：默认是全站统一的 GitHub 登录（部署的镜像、CI 的静态生成、本机真实数据）。
+// 只有 scripts/forum.mjs 为上游 CDP 验收和本机示例预览设 GEEK_FORUM_LOGIN=demo，保留原仓的「选择一个身份」；
+// 真实数据（快照）永远走统一登录。
+const loginMode = contentSource === 'upstream-seed' && process.env.GEEK_FORUM_LOGIN === 'demo' ? 'demo' : 'site'
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-11',
   runtimeConfig: {
     geekForumContentDir,
-    public: { siteDeployment, contentSource, siteName },
+    public: { siteDeployment, contentSource, siteName, loginMode },
   },
 
   // The editorial layer over the read-only snapshot (categories, tags,
@@ -40,8 +44,10 @@ export default defineNuxtConfig({
     // 本机开发：论坛单独跑在 3456，统一登录的会话在核心后端（127.0.0.1:3000）。cookie 按主机不按端口，
     // 5173 上登录后 127.0.0.1:3456 也带着同一个 sid，这里把 /auth 转给后端，论坛就能读 /auth/me。
     // 线上论坛与核心同域（/forum/ 由 web 容器反代），devProxy 不进静态产物。
+    // 核心只接受 PUBLIC_ORIGIN（本机是 5173）发来的写请求；论坛在 3456，退出（POST /auth/signout）
+    // 带的 Origin 对不上会被 403，所以开发代理把 Origin 换成 5173，与线上同域时一致。
     devProxy: {
-      '/auth': { target: 'http://127.0.0.1:3000/auth', changeOrigin: false },
+      '/auth': { target: 'http://127.0.0.1:3000/auth', changeOrigin: false, headers: { origin: 'http://127.0.0.1:5173' } },
     },
   },
 

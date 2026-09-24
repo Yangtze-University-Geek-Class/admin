@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CommandPaletteItem } from '@talex-touch/tuffex/command-palette'
 
-const { isSnapshot, siteName } = useContentSource()
+const { siteLogin, siteName } = useContentSource()
 
 // Body styling goes through utility classes: the project ships no custom CSS,
 // and tuffex's stylesheet deliberately leaves `body` alone.
@@ -32,7 +32,7 @@ const { paletteOpen } = useShell()
 
 const commands = computed<CommandPaletteItem[]>(() => [
   // The read-only snapshot has no composer.
-  ...PAGE_COMMANDS.filter(command => !isSnapshot || command.id !== '/new'),
+  ...PAGE_COMMANDS.filter(command => !siteLogin || command.id !== '/new'),
   ...forum.sortedTopics({ mode: 'latest' }).slice(0, RECENT_TOPIC_COUNT).map(topic => ({
     id: `/t/${topic.id}`,
     title: topic.title,

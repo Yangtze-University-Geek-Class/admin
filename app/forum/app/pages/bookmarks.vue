@@ -12,7 +12,7 @@ const forum = useForumStore()
 const router = useRouter()
 const { user, isLoggedIn } = useCurrentUser()
 const { loginOpen } = useShell()
-const { isSnapshot } = useContentSource()
+const { siteLogin } = useContentSource()
 const { fromNow } = useRelativeTime()
 
 const entries = computed(() => (user.value ? forum.bookmarksOf(user.value.id) : []))
@@ -44,9 +44,9 @@ function authorOf(entry: BookmarkEntry): string {
     <TxEmptyState
       v-if="!isLoggedIn"
       variant="permission"
-      :title="isSnapshot ? '书签还没开放' : '登录后才能查看书签'"
-      :description="isSnapshot ? '书签正在接入。' : '书签属于某个身份，先选一个再回来。'"
-      :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
+      :title="siteLogin ? '书签还没开放' : '登录后才能查看书签'"
+      :description="siteLogin ? '书签正在接入。' : '书签属于某个身份，先选一个再回来。'"
+      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
 

@@ -15,7 +15,7 @@ const emit = defineEmits<{ reply: [] }>()
 const forum = useForumStore()
 const { user, isLoggedIn, can } = useCurrentUser()
 const { loginOpen } = useShell()
-const { isSnapshot } = useContentSource()
+const { siteLogin } = useContentSource()
 const { absoluteUrl } = useAppLink()
 
 // Notification level is page-local mock state: there is no subscription model
@@ -53,9 +53,9 @@ function bookmark() {
       variant="permission"
       size="small"
       layout="horizontal"
-      :title="isSnapshot ? '回复还没开放' : '登录后参与讨论'"
-      :description="isSnapshot ? '回复、点赞和收藏正在接入。' : '选择一个身份即可回复、点赞和收藏。'"
-      :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
+      :title="siteLogin ? '回复还没开放' : '登录后参与讨论'"
+      :description="siteLogin ? '回复、点赞和收藏正在接入。' : '选择一个身份即可回复、点赞和收藏。'"
+      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
 

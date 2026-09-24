@@ -2,15 +2,16 @@
 // Discourse's top bar: logo, search, sidebar toggle, theme, notifications and
 // the user menu. "New topic" deliberately lives in the topic-list nav row.
 const { isDesktop, loginOpen, toggleSidebar } = useShell()
-const { siteName, isSnapshot } = useContentSource()
+const { siteName, siteLogin } = useContentSource()
 const { account, loaded, signOut } = useSiteAccount()
 const route = useRoute()
 const { absoluteUrl } = useAppLink()
-/** 统一登录：走核心服务的 GitHub 登录，登录后回到当前论坛页面。本机开发时统一登录在官网 5173 上。 */
+/** 本机开发时论坛单独跑在 3456，统一登录和控制台都在官网的 5173 上；线上同域，用站内路径。 */
+const portalOrigin = import.meta.dev ? 'http://127.0.0.1:5173' : ''
+/** 统一登录：走核心服务的 GitHub 登录，登录后回到当前论坛页面（带着查询和锚点）。 */
 const signInHref = computed(() => {
-  const portal = import.meta.dev ? 'http://127.0.0.1:5173' : ''
-  const back = import.meta.dev ? `${portal}/forum${route.fullPath}` : absoluteUrl({ path: route.fullPath })
-  return `${portal}/auth/github?return_to=${encodeURIComponent(back)}`
+  const back = import.meta.dev ? `${portalOrigin}/forum${route.fullPath}` : absoluteUrl(route.fullPath)
+  return `${portalOrigin}/auth/github?return_to=${encodeURIComponent(back)}`
 })
 const { user } = useCurrentUser()
 const session = useSessionStore()
@@ -48,7 +49,7 @@ function goSignIn() {
 
 /** 控制台在同域的 `/console`，不经论坛的路由器 */
 function openConsole() {
-  window.location.assign('/console')
+  window.location.assign(`${portalOrigin}/console`)
 }
 </script>
 
@@ -126,8 +127,8 @@ function openConsole() {
             </TxDropdownMenu>
           </template>
 
-          <!-- 真实数据：只有这一个登录入口，走全站统一的 GitHub 登录（同一个 cookie）；登录后显示头像，不登录也能以游客身份看帖子。 -->
-          <template v-else-if="isSnapshot">
+          <!-- 统一登录：只有这一个登录入口，走全站统一的 GitHub 登录（同一个 cookie）；登录后显示头像，不登录也能以游客身份看帖子。 -->
+          <template v-else-if="siteLogin">
             <TxDropdownMenu v-if="account" placement="bottom-end">
               <template #trigger>
                 <TxIconButton :label="`@${account.login}`" shape="circle">
@@ -145,8 +146,9 @@ function openConsole() {
                 退出
               </TxDropdownItem>
             </TxDropdownMenu>
-            <TxButton v-else-if="loaded" variant="primary" size="sm" icon="i-carbon-logo-github" @click="goSignIn">
-              用 GitHub 登录
+            <!-- 手机顶栏放不下完整文字，只写「登录」，读屏仍读完整说明 -->
+            <TxButton v-else-if="loaded" variant="primary" size="sm" icon="i-carbon-logo-github" :aria-label="isDesktop ? undefined : '用 GitHub 登录'" @click="goSignIn">
+              {{ isDesktop ? '用 GitHub 登录' : '登录' }}
             </TxButton>
           </template>
           <TxButton v-else variant="primary" size="sm" @click="loginOpen = true">

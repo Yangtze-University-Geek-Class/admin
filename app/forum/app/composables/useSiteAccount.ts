@@ -20,9 +20,12 @@ export interface SiteAccount {
 const SIGNIN_OUTCOMES: Record<string, { title: string, description: string, variant: 'info' | 'warning' }> = {
   not_member: { title: '只有极客班成员可以登录', description: '这个 GitHub 账号不在极客班的 GitHub 组织里。不登录也能看帖子。', variant: 'warning' },
   invite_pending: { title: '还没接受组织邀请', description: '到 GitHub 的通知或邮件里接受极客班组织的邀请，再回来登录。', variant: 'warning' },
-  cancelled: { title: '已取消登录', description: '需要时再点右上角的「用 GitHub 登录」。', variant: 'info' },
-  failed: { title: '登录没有完成', description: '这次没能连上 GitHub，稍后再试一次。', variant: 'warning' },
+  cancelled: { title: '已取消登录', description: '需要时再点右上角的登录。', variant: 'info' },
+  failed: { title: '登录没有完成', description: '请稍后再试一次。', variant: 'warning' },
 }
+
+/** 同一页面里顶栏和侧栏都会调用本组合函数；只发一次 /auth/me。 */
+let inflight: Promise<void> | null = null
 
 export function useSiteAccount() {
   const account = useState<SiteAccount | null>('site-account', () => null)
@@ -31,9 +34,14 @@ export function useSiteAccount() {
   const route = useRoute()
   const router = useRouter()
 
-  async function refresh(): Promise<void> {
+  function refresh(): Promise<void> {
     if (!import.meta.client)
-      return
+      return Promise.resolve()
+    inflight ??= fetchAccount().finally(() => { inflight = null })
+    return inflight
+  }
+
+  async function fetchAccount(): Promise<void> {
     try {
       const response = await fetch('/auth/me', { credentials: 'same-origin', headers: { accept: 'application/json' } })
       const body = response.ok && response.headers.get('content-type')?.includes('application/json')
@@ -57,17 +65,22 @@ export function useSiteAccount() {
       return
     if (outcome)
       toast({ ...outcome, duration: 8000 })
-    void router.replace({ query: { ...route.query, signin: undefined } })
+    void router.replace({ query: { ...route.query, signin: undefined }, hash: route.hash })
   }
 
-  /** 在任一处退出，官网、论坛、控制台一起变成未登录（同一个 `sid`）。 */
+  /**
+   * 在任一处退出，官网、论坛、控制台一起变成未登录（同一个 `sid`）。
+   * 只有服务端确认清掉了会话才显示已退出；没成功就保持原样并说明，不让界面和实际状态对不上。
+   */
   async function signOut(): Promise<void> {
-    try {
-      await fetch('/auth/signout', { method: 'POST', credentials: 'same-origin' })
-    }
-    finally {
+    const ok = await fetch('/auth/signout', { method: 'POST', credentials: 'same-origin' })
+      .then(response => response.ok)
+      .catch(() => false)
+    if (ok) {
       account.value = null
+      return
     }
+    toast({ title: '没有退出成功', description: '请刷新页面后再试一次。', variant: 'warning' })
   }
 
   if (import.meta.client && !loaded.value)

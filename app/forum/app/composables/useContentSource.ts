@@ -21,6 +21,11 @@ export function useContentSource() {
   const source = config.public.contentSource as ContentSource
   const siteName = config.public.siteName as string
   const isSnapshot = source === 'local-snapshot'
+  /**
+   * 全站统一 GitHub 登录（见 nuxt.config.ts 的 loginMode）：论坛没有自己的登录，示例身份选择不出现，
+   * 本机不保存示例会话。只有 scripts/forum.mjs 的示例预览与上游验收是 false。
+   */
+  const siteLogin = config.public.loginMode !== 'demo'
 
   const snapshot = useState<SnapshotInfo>('geek:snapshot', () => ({ status: 'idle', capturedAt: '', summary: null, error: '' }))
   const ready = computed(() => !isSnapshot || snapshot.value.status === 'ready')
@@ -41,7 +46,7 @@ export function useContentSource() {
     }
   }
 
-  return { source, siteName, isSnapshot, snapshot, ready, load }
+  return { source, siteName, isSnapshot, siteLogin, snapshot, ready, load }
 }
 
 function describeError(error: unknown): string {
