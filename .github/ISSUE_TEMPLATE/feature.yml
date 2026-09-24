@@ -59,6 +59,22 @@ body:
       required: true
 
   - type: textarea
+    id: scope
+    attributes:
+      label: 范围与不做什么
+      description: 这次包括什么、明确不包括什么；涉及的接口、权限、数据。
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收条件
+      description: 怎样算完成：可观察的结果，以及要在哪些尺寸 / 设备 / 环境看。
+    validations:
+      required: true
+
+  - type: textarea
     id: alternatives
     attributes:
       label: 已考虑过的替代方案
