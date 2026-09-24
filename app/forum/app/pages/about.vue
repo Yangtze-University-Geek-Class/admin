@@ -43,7 +43,7 @@ function open(username: string) {
           成员资料、分类、话题与回复；已删除内容、私信、密码和会话不会出现在这里。
         </p>
         <p class="text-$tx-text-color-secondary">
-          登录统一在官网桌面，用 GitHub 账号；论坛本身不单独登录。发帖、回复和资料修改正在接入。
+          登录用 GitHub 账号，官网、论坛、控制台共用同一次登录。发帖、回复和资料修改正在接入。
         </p>
       </TxStack>
       <TxStack v-else :gap="12" class="leading-relaxed">

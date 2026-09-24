@@ -109,7 +109,7 @@ async function submit() {
       v-if="!isLoggedIn"
       variant="permission"
       :title="isSnapshot ? '发帖还没开放' : '登录后才能发布话题'"
-      :description="isSnapshot ? '发帖正在接入，接好后用官网的 GitHub 登录就能用。' : '选择一个身份即可发起新话题。'"
+      :description="isSnapshot ? '发帖正在接入。' : '选择一个身份即可发起新话题。'"
       :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
