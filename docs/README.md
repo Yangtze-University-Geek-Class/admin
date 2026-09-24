@@ -2,7 +2,7 @@
 
 > 所有项目规范集中于 docs；`docs/` 与 `app/` 严格对齐，根目录及工具文件只负责导航。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## AI 第一操作
 
@@ -33,7 +33,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 环境准备、开发与贡献流程 | [CONTRIBUTING](conventions/CONTRIBUTING.md) |
 | 提交格式与职责范围 | [COMMITS](conventions/COMMITS.md) |
 | Issue（开发前必开）与 MR | [ISSUES](conventions/ISSUES.md)、[PULL-REQUESTS](conventions/PULL-REQUESTS.md) |
-| issue ↔ 分支 ↔ PR 的生命周期、互相引用、评论里的追踪记录格式 | [TRACKING](conventions/TRACKING.md) |
+| issue ↔ 分支 ↔ PR 的生命周期、互相引用、评论里的追踪记录格式；审查机器人接不接 issue、怎么评论 | [TRACKING](conventions/TRACKING.md) |
 | 测试、隔离、验收证据 | [TESTING](conventions/TESTING.md) |
 | 文档结构、状态词表与事实来源 | [DOCUMENTATION](conventions/DOCUMENTATION.md) |
 | 官方标准、采用范围与核对日期 | [REFERENCES](conventions/REFERENCES.md) |
@@ -50,7 +50,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 本机预览与论坛运行 | [LOCAL-PREVIEW](ops/LOCAL-PREVIEW.md)、[TUFF-FORUM](ops/TUFF-FORUM.md) |
 | 极客班论坛原始数据拉取与本地备份 | [FORUM-DATA-CAPTURE](ops/FORUM-DATA-CAPTURE.md) |
 | 用户指南，可公开 | [USAGE](ops/USAGE.md) |
-| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md) |
+| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md)、[ADR-0004](decisions/0004-review-bot-deploy-target.md)（proposed） |
 | 交付证据与历史整改记录 | [reviews](reviews/README.md)；历史材料见 [history](history/README.md)、[plan](plan/README.md)、[handovers](handovers/README.md) |
 
 ## 文档类别与优先级

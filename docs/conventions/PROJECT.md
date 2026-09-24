@@ -2,13 +2,13 @@
 
 > 项目定位、授权边界、统一入口和完成定义。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 身份与入口
 
 所有 AI 进入项目第一步先确认当前分支（`git branch --show-current`），再读 [AGENT-START](AGENT-START.md) 及 docs 必读规范；未完成之前不做业务操作。分支与发布唯一规则见 [BRANCHING](BRANCHING.md) 与 [RELEASES](RELEASES.md)：只有 `main`（正式）与 `stage`（预发布）两条长期分支，发版只靠打 tag（`vX.Y.Z-rc.N` 预发布、`vX.Y.Z` 正式），人工验收先于合入 `main` 和打正式 tag，版本号不自动提升。
 
-仓库工作区为 `geek_main`，产品和包的既有标识保持兼容（`yzgc-admin`、`@yzgc/web`、`@yzgc/server`）。所有开发与验收命令从根目录运行。三个产品服务是 `app/server`、`app/web`、`app/forum`，各自的合同见 [docs/services](../services/README.md)；`app/web/shared` 是适配层，不是独立产品。
+仓库工作区为 `geek_main`，产品和包的既有标识保持兼容（`yzgc-admin`、`@yzgc/web`、`@yzgc/server`）。所有开发与验收命令从根目录运行。三个产品服务是 `app/server`、`app/web`、`app/forum`，各自的合同见 [docs/services](../services/README.md)；`app/web/shared` 是适配层，不是独立产品。组织审查机器人 `app/bot` 是提议中的内部服务，不对外提供产品功能，部署在另一台机器上，见 [ADR-0004](../decisions/0004-review-bot-deploy-target.md)（`proposed`，未实施）。
 
 ## 变更边界
 

@@ -21,6 +21,7 @@ body:
         - admin
         - server
         - shared
+        - bot
         - deploy
         - docs
     validations:

@@ -125,6 +125,7 @@
 | [`0001-modular-monolith.md`](./decisions/0001-modular-monolith.md) | 保留一个部署单元，通过模块合同、应用工厂和自动检查降低耦合。 | — |
 | [`0002-tuffex-ui-foundation.md`](./decisions/0002-tuffex-ui-foundation.md) | 记录用户指定的组件体系，并提供有固定版本、可离线检索的开发文档。 | — |
 | [`0003-adopt-tuff-forum.md`](./decisions/0003-adopt-tuff-forum.md) | 用户明确选择使用原仓代码，而不是模仿 UI 或重写一套 React 论坛。 | — |
+| [`0004-review-bot-deploy-target.md`](./decisions/0004-review-bot-deploy-target.md) | 组织审查机器人（`app/bot`）不进 preview/production 两套栈，单独部署在另一台机器 crosery-arch 上：用 Docker 运行，每个 PR 任务开一台临时 VM。本文说明为什么开这个例外，以及部署、配置、密钥、网络和授权怎么安排。 | — |
 
 ## handovers/
 
@@ -165,4 +166,4 @@
 
 ---
 
-共 54 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 55 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

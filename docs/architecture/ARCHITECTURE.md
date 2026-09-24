@@ -2,7 +2,7 @@
 
 > 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 当前拓扑
 
@@ -55,6 +55,10 @@ geek_main 根 README / AGENTS / 命令 / docs
 依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、固定游客会话、把示例登录换成只读说明并停止把论坛状态写入 localStorage；这只是本机展示，没有服务端认证、写入或跨设备存储，静态产物中不存在这些路由。
 
 原仓文件、MIT 声明和提交摘要保留，业务页面未重写为 React。少量集成差异包括本地提醒、根入口、进程管理和隔离浏览器验证，详见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
+
+## 提议中：审查机器人（未实施）
+
+组织审查机器人 `app/bot` 提议作为第三个部署目标，跑在另一台机器 crosery-arch 上：Docker 运行，PR 任务每个开一台临时 VM，状态经 HTTPS 上报给 `app/server`，控制台再从 `app/server` 读。它不进上面的两套栈。决策与未定项见 [ADR-0004](../decisions/0004-review-bot-deploy-target.md)，处理规则见 [TRACKING](../conventions/TRACKING.md) §6。截至 2026-09-25 没有任何代码或部署。
 
 ## 目标结构，尚未完整实现
 

@@ -55,6 +55,7 @@
 - 部署只由发布 tag 触发（`deploy-preview.yml` / `deploy-production.yml`），部署开关默认关闭，未显式开启不部署。AI 不得自行部署、不得创建/推送/移动/删除发布 tag、不得修改版本号或镜像 tag、不得触发流水线。
 - 发布 tag 不可移动、不可删除；创建发布 tag 需要所有者对该版本的明确授权，正式 tag 还需要所有者对同一提交的预发布验收记录。
 - 禁止用 systemd、pm2 或手工 `node` 进程替代 Docker 栈；禁止在目标机手工修改运行中的栈。
+- 唯一例外：组织审查机器人 `app/bot` 作为第三个部署目标跑在另一台机器上，只用 Docker，非密配置用单独的 `deploy/env/.env.bot`，见 [ADR-0004](docs/decisions/0004-review-bot-deploy-target.md)。它目前是 `proposed`：在 `accepted` 之前不得新增 `.env.bot` 或部署机器人。
 
 ## 4. 证据硬门禁
 
