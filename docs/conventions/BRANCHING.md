@@ -26,7 +26,7 @@
 | `task/<issue>/<slug>` | 从 `stage` 拉出 → MR 回 `stage`，正文写 `Closes #<issue>` | **极短**：MR 合并后必须立即删除，禁止残留死分支。`branch-hygiene.yml` 会在 PR 合并后自动删除，也可以手工 `git push origin --delete` |
 | `dev/<github-username>` | 个人自由开发区，内容随意 | 个人自行维护；**不得作为任何提交进入 `stage` 的凭据**，也不部署（只在 `ci.yml` 里跑机器验证） |
 
-- 一次任务一条 task 分支；一个 task 分支只对应一个 issue。合并方式默认 squash 或普通 merge，由维护者决定，但分支本身必须在合并后删除。
+- 一次任务一条 task 分支；一个 task 分支只对应一个 issue，并且**在自己的 git worktree 里开发**（见下节）。合并方式默认 squash 或普通 merge，由维护者决定，但分支本身必须在合并后删除。
 - `dev/<github-username>` 是个人实验区：可以自由提交、可以 force-push 自己的分支，但把内容送上 `stage` 的唯一合法路径是「从 `stage` 拉一条干净的 `task/<issue>/<slug>`，重新提交或 cherry-pick 经过审查的改动」。`dev/**` 的提交历史、分支名和 CI 绿标都不是审查凭据。
 - 禁止把 `dev/**`、`task/**` 直接合并进 `main`。
 
@@ -73,17 +73,28 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 - 禁止长期保留已合并的 task 分支，禁止用分支名当版本号或发布凭据；发布凭据只有所有者授权后打的发布 tag。
 - 禁止 force-push `main`/`stage`，禁止整分支 reset 覆盖他人提交。
 
+## task worktree：一个 issue 一个工作目录
+
+**一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR，四者生命周期相同，都跟着 issue 走**（[TRACKING](TRACKING.md) §1）：
+
+- **开工**：`node scripts/task.mjs start <issue> <slug>`。它先确认 issue 开着，再从最新 `origin/stage` 建分支，同时在主工作区的 `.claude/worktrees/task-<issue>` 建一个独立 worktree，并在 issue 上留一条开工记录。之后这件事的所有编辑、安装、构建、测试、提交都在这个 worktree 里做。
+- **不碰主工作区**：主工作区（以及别的 task 的 worktree）上可能有别人的未提交改动、正在跑的预览或论坛进程；在自己的 worktree 里做，互不影响，也不用切分支、stash。
+- **一个 issue 只有一个 worktree**：`start` 发现已有同号 worktree 会拒绝，直接进去继续做。不要在同一个 worktree 里做第二件事。
+- **结束**：PR 合并进 `stage` 后，`branch-hygiene` 删远端分支，`issue-lifecycle` 关 issue；本机运行 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（在主工作区运行，不要在要删的 worktree 里运行）。`node scripts/task.mjs list` 列出每个 worktree 的 issue / PR 状态；`prune` 一次清掉所有可清理的。
+- **什么时候不删**：worktree 有未提交改动、PR 还开着、或 issue 还开着且 PR 没合并时，脚本只报告原因不删除；放弃的 issue 先按 TRACKING 留「关闭」记录再关，之后就能清理。
+- `.claude/worktrees/` 已被 `.gitignore` 忽略；每个 worktree 需要自己 `pnpm install --frozen-lockfile`（pnpm 的全局仓库会复用已下载的包）。
+
 ## 日常流程
 
 ```bash
-git branch --show-current          # 1. 确认分支
+git branch --show-current                      # 1. 确认当前在哪
 # 2. 按 ISSUES.md 开 issue，记下编号
-git fetch origin && git switch stage && git pull --ff-only
-git switch -c task/<issue>/<slug>  # 3. 从 stage 拉 task 分支，例：task/12/portal_redesign
-# 4. 开发、验证、提交（见 CONTRIBUTING.md）；提交前再确认一次分支
-# 5. 开 MR → stage，正文 Closes #<issue>，写明验证命令与结果、CODE-REVIEW 结论
-# 6. 合并后：git push origin --delete task/<issue>/<slug>；本地 git branch -d
-#    （branch-hygiene.yml 会在 PR 合并后自动删；每周巡检只告警残留的 task/**，不自动删个人分支）
+node scripts/task.mjs start <issue> <slug>     # 3. 从最新 origin/stage 建 task/<issue>/<slug> 与 .claude/worktrees/task-<issue>
+cd .claude/worktrees/task-<issue> && pnpm install --frozen-lockfile
+# 4. 在 worktree 里开发、验证、提交（见 CONTRIBUTING.md），每个阶段在 issue 上留追踪记录（TRACKING.md §3）
+# 5. 开 PR → stage，正文按 PULL-REQUESTS.md 的契约写（Closes #<issue>、解决链路、验收证据、人工验收步骤）
+# 6. 合并后：远端分支与 issue 由 branch-hygiene / issue-lifecycle 自动处理；
+cd <主工作区> && node scripts/task.mjs finish <issue>   #    本机删 worktree 与本地分支
 ```
 
 发布相关（打 rc tag、验收、把 `main` 快进到被验收的提交、打正式 tag、回滚）见 [RELEASES](RELEASES.md)。发布 tag 与部署目标的绑定关系由 [deploy/environments.json](../../deploy/environments.json)、[scripts/release-policy.mjs](../../scripts/release-policy.mjs) 与 [CICD](../ops/CICD.md) 描述。
