@@ -3,8 +3,7 @@ import { toast } from '@talex-touch/tuffex/utils'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
-// In snapshot mode the same trigger opens a read-only notice instead: the
-// store then holds real members, and none of them may be impersonated.
+// 真实数据模式没有论坛登录（统一登录在官网桌面），这里什么也不渲染；store 里是真实成员，谁都不能冒充。
 const { loginOpen } = useShell()
 const { isSnapshot } = useContentSource()
 const forum = useForumStore()
@@ -19,19 +18,7 @@ function pick(user: User) {
 </script>
 
 <template>
-  <TxModal v-if="isSnapshot" v-model="loginOpen" title="只读快照，暂不开放登录">
-    <TxStack :gap="12">
-      <p class="text-$tx-text-color-secondary">
-        当前显示的是极客班论坛的只读快照。发帖、回复、点赞、收藏和资料修改要等真实后端与统一登录接入后才会开放。
-      </p>
-      <TxFlex justify="flex-end">
-        <TxButton variant="primary" @click="loginOpen = false">
-          知道了
-        </TxButton>
-      </TxFlex>
-    </TxStack>
-  </TxModal>
-  <TxModal v-else v-model="loginOpen" title="选择一个身份登录">
+  <TxModal v-if="!isSnapshot" v-model="loginOpen" title="选择一个身份登录">
     <TxStack :gap="4" class="max-h-[60vh] overflow-y-auto">
       <TxCardItem
         v-for="user in forum.state.users"

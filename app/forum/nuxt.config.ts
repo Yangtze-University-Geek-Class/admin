@@ -37,6 +37,12 @@ export default defineNuxtConfig({
   nitro: {
     serverAssets: [{ baseName: 'content', dir: fileURLToPath(new URL('./content', import.meta.url)) }],
     prerender: { routes: markdownPrerenderRoutes(seedTopicIds()) },
+    // 本机开发：论坛单独跑在 3456，统一登录的会话在核心后端（127.0.0.1:3000）。cookie 按主机不按端口，
+    // 5173 上登录后 127.0.0.1:3456 也带着同一个 sid，这里把 /auth 转给后端，论坛就能读 /auth/me。
+    // 线上论坛与核心同域（/forum/ 由 web 容器反代），devProxy 不进静态产物。
+    devProxy: {
+      '/auth': { target: 'http://127.0.0.1:3000/auth', changeOrigin: false },
+    },
   },
 
 

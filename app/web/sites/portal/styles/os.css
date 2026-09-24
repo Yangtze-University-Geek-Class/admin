@@ -17,6 +17,14 @@
 .pt-mb-spacer { flex: 1; }
 .pt-mb .pt-mb-search { margin-right: 6px; color: var(--pt-ink-soft); border: 1px solid var(--pt-line); background: #fff; }
 .pt-mb-stat { display: inline-flex; padding: 0 6px; color: var(--pt-ink-soft); }
+.pt-mb .pt-mb-account img { width: 20px; height: 20px; border-radius: 50%; }
+.pt-mb-account span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-mb-signin {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 26px; margin: 0 4px; padding: 3px 11px; border-radius: 6px;
+  background: var(--pt-cobalt); color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.pt-mb-signin:hover { filter: brightness(1.08); }
+.pt-mb-signin:focus-visible { outline: 2px solid var(--pt-cobalt); outline-offset: 2px; }
 .pt-mb-clock { padding: 0 6px 0 4px; font: 12.5px var(--pt-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pt-menu {
   position: absolute; top: 36px; z-index: 40; min-width: 210px; padding: 5px; border-radius: 12px;

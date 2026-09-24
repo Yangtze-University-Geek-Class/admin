@@ -2,7 +2,16 @@
 // Discourse's top bar: logo, search, sidebar toggle, theme, notifications and
 // the user menu. "New topic" deliberately lives in the topic-list nav row.
 const { isDesktop, loginOpen, toggleSidebar } = useShell()
-const { siteName } = useContentSource()
+const { siteName, isSnapshot } = useContentSource()
+const { account, loaded, signOut } = useSiteAccount()
+const route = useRoute()
+const { absoluteUrl } = useAppLink()
+/** 统一登录：走核心服务的 GitHub 登录，登录后回到当前论坛页面。本机开发时统一登录在官网 5173 上。 */
+const signInHref = computed(() => {
+  const portal = import.meta.dev ? 'http://127.0.0.1:5173' : ''
+  const back = import.meta.dev ? `${portal}/forum${route.fullPath}` : absoluteUrl({ path: route.fullPath })
+  return `${portal}/auth/github?return_to=${encodeURIComponent(back)}`
+})
 const { user } = useCurrentUser()
 const session = useSessionStore()
 const forum = useForumStore()
@@ -31,6 +40,15 @@ function toggleTheme() {
 function logout() {
   session.logout()
   go('/')
+}
+
+function goSignIn() {
+  window.location.assign(signInHref.value)
+}
+
+/** 控制台在同域的 `/console`，不经论坛的路由器 */
+function openConsole() {
+  window.location.assign('/console')
 }
 </script>
 
@@ -108,7 +126,29 @@ function logout() {
             </TxDropdownMenu>
           </template>
 
-          <!-- In snapshot mode LoginModal shows the read-only notice instead of the mock picker. -->
+          <!-- 真实数据：只有这一个登录入口，走全站统一的 GitHub 登录（同一个 cookie）；登录后显示头像，不登录也能以游客身份看帖子。 -->
+          <template v-else-if="isSnapshot">
+            <TxDropdownMenu v-if="account" placement="bottom-end">
+              <template #trigger>
+                <TxIconButton :label="`@${account.login}`" shape="circle">
+                  <TxAvatar :src="account.avatarUrl ?? undefined" :name="account.login" size="small" />
+                </TxIconButton>
+              </template>
+              <TxDropdownItem disabled>
+                @{{ account.login }}
+              </TxDropdownItem>
+              <TxDivider />
+              <TxDropdownItem @select="openConsole">
+                控制台
+              </TxDropdownItem>
+              <TxDropdownItem danger @select="signOut">
+                退出
+              </TxDropdownItem>
+            </TxDropdownMenu>
+            <TxButton v-else-if="loaded" variant="primary" size="sm" icon="i-carbon-logo-github" @click="goSignIn">
+              用 GitHub 登录
+            </TxButton>
+          </template>
           <TxButton v-else variant="primary" size="sm" @click="loginOpen = true">
             登录
           </TxButton>

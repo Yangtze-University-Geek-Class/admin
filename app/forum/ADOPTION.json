@@ -5,7 +5,7 @@
   "decision": "../../docs/decisions/0003-adopt-tuff-forum.md",
   "mode": "upstream-frontend + local read-only snapshot adapter",
   "modifiedUpstreamFiles": {
-    "nuxt.config.ts": "Inject public environment/version metadata from the root declarative domain contract, expose contentSource/siteName from GEEK_FORUM_CONTENT_DIR (GEEK_FORUM_SOURCE=demo wins), and set app.baseURL from GEEK_FORUM_BASE_PATH so the static build can be served under the portal domain /forum path; prerender /llms.txt and /t/<id>.md for every seed topic (answered by server/middleware/forum-markdown.ts) so the static build ships them as files; no static head title. Local is not preview, and metadata does not authorize deployment.",
+    "nuxt.config.ts": "Inject public environment/version metadata from the root declarative domain contract, expose contentSource/siteName from GEEK_FORUM_CONTENT_DIR (GEEK_FORUM_SOURCE=demo wins), and set app.baseURL from GEEK_FORUM_BASE_PATH so the static build can be served under the portal domain /forum path; prerender /llms.txt and /t/<id>.md for every seed topic (answered by server/middleware/forum-markdown.ts) so the static build ships them as files; no static head title. Local is not preview, and metadata does not authorize deployment. Dev only: nitro.devProxy forwards /auth to the local core server (127.0.0.1:3000) so the forum dev server can read the site-wide session; not part of the static build.",
     "app/pages/about.vue": "Show the owner's preview/production domains and environment/version card (DeploymentInfo: preview is released by a vX.Y.Z-rc.N tag on a stage commit and shows X.Y.Z-rc.N@<sha12>; production by vX.Y.Z on the same commit and shows X.Y.Z; pushing a branch releases nothing); describe the 极客班 read-only snapshot when it is the content source, upstream demo text otherwise.",
     "app/pages/categories.vue": "Category rows show both cues: category.icon as the TxCardItem icon-class avatar and upstream's TxBadge colour dot in front of the name (title slot), so the upstream 8-dot assertion holds; rows carry role=link; recent-topic TxCellLink hrefs carry app.baseURL.",
     "app/pages/c/[slug].vue": "Banner keeps upstream TxCardItem + TxStatCard but lays them out with TxFlex: heading beside a two-column TxGrid of stats, wrapping under it on a phone (upstream's #right slot stacked the full-width stat cards into a tall column); the category name is the page h1.",
@@ -15,10 +15,10 @@
     "app/app.vue": "Site name from the content source in the title template; hide the /new command when the snapshot is read-only.",
     "app/error.vue": "Site name from the content source in the error page title template.",
     "app/plugins/persist.client.ts": "Skip localStorage hydration and writes entirely in snapshot mode so the real archive never lands in the demo storage.",
-    "app/components/ForumHeader.vue": "Site name from content source; retains the animated TxTuffLogoStroke component.",
-    "app/components/ForumSidebar.vue": "Workspace slot is a TxCardItem link with the official 极客班 logo instead of the generic letter chip (decorative image, accessible name = visible site name); the site blurb sits in its description, not subtitle, because the upstream shell check reads the signed-in footer card as the sidebar's only subtitle; fine-tuned font sizes; category rows show the category icon with upstream's TxBadge colour dot on its corner (both cues, upstream dot assertion intact); no 重置示例数据 in snapshot mode.",
+    "app/components/ForumHeader.vue": "Site name from content source; retains the animated TxTuffLogoStroke component. In real-data (snapshot) mode the forum has no login of its own: login is the site-wide GitHub login of the core service (one sid cookie for portal, forum and console). In that mode the header reads /auth/me: signed in shows the GitHub avatar with 控制台 / 退出; signed out shows a single 用 GitHub 登录 button that goes to /auth/github with return_to back to the current forum page. Demo mode keeps the upstream mock login unchanged.",
+    "app/components/ForumSidebar.vue": "Workspace slot is a TxCardItem link with the official 极客班 logo instead of the generic letter chip (decorative image, accessible name = visible site name); the site blurb sits in its description, not subtitle, because the upstream shell check reads the signed-in footer card as the sidebar's only subtitle; fine-tuned font sizes; category rows show the category icon with upstream's TxBadge colour dot on its corner (both cues, upstream dot assertion intact); no 重置示例数据 in snapshot mode. In snapshot mode the footer has no 登录 button (the header holds the only entry) and shows the site-wide signed-in account; the blurb reads 长江大学极客班.",
     "app/composables/useForumNav.ts": "Pass category.icon to sidebar nav items; the sidebar pairs that icon with upstream's dotColors colour dot.",
-    "app/components/LoginModal.vue": "In snapshot mode every 登录 trigger opens a read-only notice instead of the mock member picker.",
+    "app/components/LoginModal.vue": "The mock member picker renders only in demo mode; in snapshot mode nothing is rendered (no in-forum login).",
     "app/components/PostCard.vue": "Wrap Markdown view in an overflow container for mobile table/code scrolling; the copied permalink and the author TxCellLink href carry app.baseURL (useAppLink); the author row shows the 极客班 TitleBadge when the author has a title, the upstream role badge otherwise.",
     "app/components/TopicControls.vue": "Guest prompt wording for the read-only snapshot; the share link carries app.baseURL (useAppLink).",
     "app/components/UserAvatar.vue": "Pass the optional avatarUrl (local asset route) to TxAvatar; initials stay the fallback.",
@@ -29,7 +29,11 @@
     "app/data/seed-content.ts": "UserSeed.title and the demo 极客班 titles: talex 班长, mika 社区部 · 负责人, yuki 技术部 · 负责人, kai 技术部 · 干事, lin 领航员, six plain members; bruce none. No role changed, so the one-admin/one-moderator seed test and the upstream suites' author/other members (ryan, xiaoyu) are unaffected. Three seed bodies say the same thing without the → arrow character (the owner bans decorative arrows); no topic, title, count or reply changes.",
     "app/data/seed.ts": "buildUsers copies the optional seed title onto the user (a fresh object per user); consumes no PRNG draws, so every other seeded value is unchanged.",
     "app/data/permissions.ts": "Adds hasForumCapability(user, capability): admin/moderator by role hold every forum capability as before, anyone else holds what their 极客班 title carries (titleForumCapabilities, mirroring the server catalogue's forum packs). isStaff = forum.post.moderate (edit/delete others' posts, reply in closed topics); pinTopic reads forum.topic.pin and closeTopic reads forum.topic.close. Demo permissions only, not an authorization boundary; every other ForumAction rule is unchanged.",
-    "app/pages/t/[id].vue": "The 话题管理 menu shows when the viewer may pin or close (can('pinTopic') / can('closeTopic')) instead of isStaff, and lists only the items they may use, so a title that carries forum.topic.pin alone (项目部 head) sees 置顶话题 without 关闭话题. Admins and moderators still get both items; the upstream staff pin check is unchanged. Add <link rel=\"alternate\" type=\"text/markdown\"> to the topic head, only for topics that have a Markdown file (seed topics, or every topic of the dev snapshot); the post stream is unchanged."
+    "app/pages/t/[id].vue": "The 话题管理 menu shows when the viewer may pin or close (can('pinTopic') / can('closeTopic')) instead of isStaff, and lists only the items they may use, so a title that carries forum.topic.pin alone (项目部 head) sees 置顶话题 without 关闭话题. Admins and moderators still get both items; the upstream staff pin check is unchanged. Add <link rel=\"alternate\" type=\"text/markdown\"> to the topic head, only for topics that have a Markdown file (seed topics, or every topic of the dev snapshot); the post stream is unchanged.",
+    "app/pages/bookmarks.vue": "In snapshot mode the guest empty state for bookmarks says the feature is not open yet and shows no 登录 button; demo mode unchanged.",
+    "app/pages/new.vue": "In snapshot mode the guest empty state for new topic says the feature is not open yet and shows no 登录 button; demo mode unchanged.",
+    "app/pages/notifications.vue": "In snapshot mode the guest empty state for notifications says the feature is not open yet and shows no 登录 button; demo mode unchanged.",
+    "app/pages/u/[username]/preferences.vue": "In snapshot mode the guest empty state for preferences says the feature is not open yet and shows no 登录 button; demo mode unchanged."
   },
   "addedIntegrationFiles": [
     "shared/deployment.ts",
@@ -60,7 +64,8 @@
     "tests/seed-copy.test.ts",
     "shared/forum-markdown.ts",
     "server/middleware/forum-markdown.ts",
-    "tests/forum-markdown.test.ts"
+    "tests/forum-markdown.test.ts",
+    "app/composables/useSiteAccount.ts"
   ],
   "realAuthentication": false,
   "serverPersistence": false,

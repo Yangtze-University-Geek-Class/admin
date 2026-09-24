@@ -39,11 +39,11 @@ function open(username: string) {
       <TxStack v-if="isSnapshot" :gap="12" class="leading-relaxed">
         <p>
           极客班论坛正在迁移到基于 Tuff Forum 与 <code>@talex-touch/tuffex</code> 的新前端。
-          当前显示的是原论坛数据的只读快照<template v-if="capturedAt">（采集于 {{ capturedAt }}）</template>，
-          包含公开的成员资料、分类、话题与回复；已删除内容、私信、密码和会话不会出现在这里。
+          当前显示极客班论坛的公开内容<template v-if="capturedAt">（更新于 {{ capturedAt }}）</template>：
+          成员资料、分类、话题与回复；已删除内容、私信、密码和会话不会出现在这里。
         </p>
         <p class="text-$tx-text-color-secondary">
-          登录、发帖、回复和资料修改要等真实后端与统一认证接入后才会开放。
+          登录统一在官网桌面，用 GitHub 账号；论坛本身不单独登录。发帖、回复和资料修改正在接入。
         </p>
       </TxStack>
       <TxStack v-else :gap="12" class="leading-relaxed">

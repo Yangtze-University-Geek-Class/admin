@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import dayjs from 'dayjs'
-
 const deployment = useDeploymentInfo()
-const { isSnapshot, snapshot } = useContentSource()
+const { isSnapshot } = useContentSource()
 const portal = computed(() => import.meta.dev ? 'http://127.0.0.1:5173/sites/portal/' : deployment.value.origin || '/')
-const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.value.capturedAt).format('YYYY-MM-DD HH:mm') : '')
 </script>
 
 <template>
@@ -25,7 +22,7 @@ const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.val
             class="shrink-0 whitespace-nowrap"
           />
           <span v-if="isSnapshot" class="text-$tx-text-color-secondary leading-normal">
-            当前数据：极客班论坛只读快照<template v-if="capturedAt">，采集于 {{ capturedAt }}</template>。尚未接入真实登录与后端，暂不能发帖、回复或修改资料。
+            发帖和回复正在接入，现在可以浏览。登录在官网桌面，用 GitHub 账号。
           </span>
           <span v-else class="text-$tx-text-color-secondary leading-normal">
             当前数据：上游示例，尚未接通极客班真实帖子。示例身份不是真实登录，请勿填写敏感资料。

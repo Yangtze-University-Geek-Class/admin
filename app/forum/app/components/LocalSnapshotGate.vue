@@ -25,7 +25,7 @@ const { snapshot, ready, load } = useContentSource()
   <TxCard v-else role="status" aria-live="polite">
     <TxStack :gap="12">
       <p class="text-sm text-$tx-text-color-secondary">
-        正在加载极客班论坛只读快照…
+        正在加载极客班论坛…
       </p>
       <TxSkeleton :lines="6" />
     </TxStack>
