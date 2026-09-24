@@ -36,7 +36,7 @@
 
 ## services/forum/
 
-直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可只读显示极客班论坛快照，仍无真实认证与后端。
+直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可显示极客班论坛快照；登录只走全站 GitHub 登录（上游验收与本机示例预览除外）；论坛仍没有后端。
 
 ## services/server/
 
@@ -53,7 +53,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`admin.md`](./services/web/admin.md) | 管理端前端已从 `app/web/sites/admin`（React）迁到独立的 Vue 包 `app/console`；本页只记录迁移事实与仍然有效的服务端约定。 | — |
-| [`portal.md`](./services/web/portal.md) | 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；无独立登录态。 | — |
+| [`portal.md`](./services/web/portal.md) | 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。 | — |
 | [`shared.md`](./services/web/shared.md) | 共享 UI、网络、渲染和配置，不反向依赖站点。 | — |
 
 ## components/
@@ -111,10 +111,10 @@
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
 | [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。 | — |
 | [`FORUM-DATA-CAPTURE.md`](./ops/FORUM-DATA-CAPTURE.md) | 已通过 Mac SSH 获取三份 SQLite 在线备份及两代附件；本机论坛可只读显示由此生成的投影，未导入可写库或切换线上服务。 | — |
-| [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 保留官网和控制台的隔离预览；论坛直接运行原仓 Nuxt/TuffEx，不再启动旧论坛。 | — |
+| [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。 | — |
 | [`RELEASE-ACCEPTANCE-TEMPLATE.md`](./ops/RELEASE-ACCEPTANCE-TEMPLATE.md) | 空白模板，供验收人逐字段手工填写；不是流水线自动生成的通过证明。 | — |
-| [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机默认只读显示极客班快照，不将其冒充生产论坛。 | — |
-| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：加入我们、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
+| [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机有私有快照时显示极客班论坛内容，登录只走全站 GitHub 登录，不将其冒充生产论坛。 | — |
+| [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：全站 GitHub 登录、加入我们、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
 
 ## decisions/
 

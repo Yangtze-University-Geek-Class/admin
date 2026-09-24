@@ -2,7 +2,7 @@
 
 > 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 当前拓扑
 
@@ -46,13 +46,13 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 `buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`audit_logs`、`app_state` 保留，其中 `app_state` 当前无读写（预留）；各表用途、读写方与未使用对象见 [server 数据模型](../services/server/data-model.md)。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
 
-核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。
+核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。全站只有这一个登录：官网、论坛、控制台共用同一个 host-only `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，登录没成功时带 `?signin=<原因>` 回到发起登录的页面（见 [SECURITY](SECURITY.md)「登录门槛」）。官网菜单栏和论坛只经同域 `/auth/me` 读身份；论坛没有自己的登录，也还没有据此授权的后端。
 
 原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。跨设备的新论坛存储和旧数据导入必须另立方案。
 
 ## 上游论坛的真实边界
 
-依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、固定游客会话、把示例登录换成只读说明并停止把论坛状态写入 localStorage；这只是本机展示，没有服务端认证、写入或跨设备存储，静态产物中不存在这些路由。
+依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、论坛会话固定为游客、不渲染示例登录（顶栏换成全站 GitHub 登录入口，本机经 `nitro.devProxy` 把 `/auth` 转给核心）并停止把论坛状态写入 localStorage；这只是本机展示，论坛没有服务端授权、写入或跨设备存储，静态产物中不存在这些路由，镜像里的论坛仍是示例模式。
 
 原仓文件、MIT 声明和提交摘要保留，业务页面未重写为 React。少量集成差异包括本地提醒、根入口、进程管理和隔离浏览器验证，详见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
 

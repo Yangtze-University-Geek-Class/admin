@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-09-25 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -28,7 +28,7 @@
 
 | 路径 | 页面 | 所需能力（任一） |
 |---|---|---|
-| `/signin` | GitHub 登录 | 无 |
+| `/signin` | GitHub 登录；`?signin=<原因>` 时说明上次登录为什么没成功 | 无 |
 | `/console` | 概览 | `console.access` |
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
@@ -47,13 +47,24 @@
 
 - `/api/console/*`：`me`、`catalogue`、`summary`、`departments`、`assignments`、`applications`（含 `export.csv` 下载链接）、`feedback`、`audit`。契约见 [API](../../architecture/API.md)「极客班控制台」。
 - `/api/admin/:org/*`：GitHub 组织页面，`:org` 取 `/api/console/me` 返回的 `org`。
-- `/auth/github?return_to=<本站地址>` 登录；`POST /auth/signout` 退出。
+- `/auth/github?return_to=<本站地址>` 登录；`POST /auth/signout` 退出。登录是全站共用的（官网、论坛、控制台同一个 `sid`），只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」。
 
 请求一律同源 `fetch`、`credentials: "same-origin"`，错误体解析成 `ApiError { status, code, message, requestId, payload }`，与 `app/web/shared/lib/http.ts` 同一契约。写操作经服务端的 Origin/Fetch Metadata 检查，控制台与接口同域，不需要额外处理。
 
 ## 状态
 
-每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。已登录但没有任何能力显示访客说明。写操作失败用 TxAlert 内联提示，保留已填内容；危险操作一律先确认（初始焦点在「取消」）。
+每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。登录没成功时核心服务把人送回原来的控制台地址并带 `?signin=<原因>`；`ConsoleRoot.vue` 把 `signin` 从 `return_to` 里拿掉、单独传给 `/signin`，再次登录成功后不会带着旧原因回去。已登录但没有任何能力显示访客说明。
+
+登录页（`SignIn.vue`）写「只对极客班 GitHub 组织的成员开放。能看到哪些页面、做哪些操作，取决于你的称号。」，按 `signin` 参数在按钮上方显示一条不可关闭的 TxAlert，未知取值不显示：
+
+| `signin` | 类型 | 标题 | 正文 |
+|---|---|---|---|
+| `not_member` | warning | 只有极客班成员可以登录 | 这个 GitHub 账号不在极客班的 GitHub 组织里，控制台只对成员开放。 |
+| `invite_pending` | warning | 还没接受组织邀请 | 到 GitHub 的通知或邮件里接受极客班组织的邀请，再回来登录。 |
+| `cancelled` | info | 已取消登录 | — |
+| `failed` | warning | 登录没有完成 | 请稍后再试一次。 |
+
+`?signed_out=1` 另显示「你已退出登录」。写操作失败用 TxAlert 内联提示，保留已填内容；危险操作一律先确认（初始焦点在「取消」）。
 
 ## 构建与托管
 
@@ -70,13 +81,14 @@ app/console/dist/
 ## 开发
 
 ```bash
-pnpm dev:console                     # http://127.0.0.1:5186/console ，默认样板数据
+pnpm dev:console                     # http://127.0.0.1:5186/console ，默认连本地后端（Vite 把 /api、/auth 代理到 127.0.0.1:3000）
 # 地址参数（仅开发态）：
-#   ?__data=live      改连本地后端（Vite 把 /api、/auth 代理到 127.0.0.1:3000）
-#   ?__persona=<名>   切换样板身份：captain、bootstrap、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
+#   ?__data=mock      改用样板数据（自动化测试用，tests/e2e 显式带上）
+#   ?__data=live      切回本地后端
+#   ?__persona=<名>   样板数据下切换身份：captain、bootstrap、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
 ```
 
-数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。
+开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。
 
 ## 设计令牌
 
