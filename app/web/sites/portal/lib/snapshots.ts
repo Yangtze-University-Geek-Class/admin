@@ -66,7 +66,3 @@ export const useForumSnapshot = () => useSnapshot<ForumSnapshot>(FORUM_SNAPSHOT_
 export const useRepoSnapshot = () => useSnapshot<RepoList>(REPOS_SNAPSHOT_URL);
 export const loadRepoSnapshot = () => load<RepoList>(REPOS_SNAPSHOT_URL);
 
-/** 「快照 2026-09-12」：只取日期部分 */
-export function snapshotLabel(capturedAt: string | undefined): string {
-  return capturedAt ? `快照 ${capturedAt.slice(0, 10)}` : "快照";
-}

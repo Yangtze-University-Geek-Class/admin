@@ -126,6 +126,23 @@ describe("图标注册表与界面禁用字符", () => {
     expect([...owners].filter(([, list]) => list.length > 1)).toEqual([]);
   });
 
+  it("官网界面不出现写给开发者看的说明（快照、示意、装饰、占位之类，注释除外）", () => {
+    const banned = /快照|示意|装饰|占位|仅供|演示数据|mock/i;
+    const hits: string[] = [];
+    for (const file of files.filter((name) => /\.tsx?$/.test(name))) {
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          const code = line.trim();
+          if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) return;
+          // 只看字符串与 JSX 文本：去掉行尾注释，再去掉标识符（useForumSnapshot 之类的函数名不算界面文案）
+          const text = code.replace(/\/\/.*$/, "").replace(/[A-Za-z_$][\w$]*/g, (word) => (/^mock$/i.test(word) ? word : ""));
+          if (banned.test(text)) hits.push(`${file.slice(PORTAL.length)}:${index + 1}: ${code}`);
+        });
+    }
+    expect(hits).toEqual([]);
+  });
+
   it("官网界面源码里没有 emoji 与装饰性箭头/符号（注释除外）", () => {
     const banned = /[\u{1F000}-\u{1FFFF}\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u2190-\u21FF\u25A0-\u25FF]/u;
     const hits: string[] = [];

@@ -3,9 +3,10 @@
 // 点中间的校徽 → 进入论坛首页。由 pages/Forum3D.tsx 动态加载，链接地址由页面传入。
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import type { Band } from "../lib/cameraMath";
 import type { IconName } from "../lib/icons";
 import { damp, ease, lerp } from "../lib/motion";
-import { Motion, PALETTE, Stage, TEXT_SCALE, canvasTexture, drawIcon, loadImage, softShadow, type CanvasTexture } from "./stage";
+import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, canvasTexture, drawIcon, loadImage, softShadow, type CanvasTexture } from "./stage";
 
 export type ForumBoard = { slug: string; name: string; desc: string; color: string; icon: IconName };
 
@@ -13,6 +14,8 @@ export type ForumOptions = {
   reducedMotion: boolean;
   logoUrl: string;
   boards: readonly ForumBoard[];
+  /** 竖屏时留给 3D 的横带（按钮下沿到版块列表上沿）；横屏返回 null */
+  band: () => Band | null;
   /** 悬停的版块变化（-1 表示没有）；页面据此高亮 DOM 列表 */
   onHot: (index: number) => void;
   /** 指针提示：text 为空表示隐藏 */
@@ -131,18 +134,38 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
 
   // ── 相机 ───────────────────────────────────────────────────────────────
   const camBase = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
+  const PORTRAIT_DIR = new THREE.Vector3(0, 1.1, 3.2);
+  // 气泡环的外轮廓：半径 + 半个气泡宽的圆柱，从桌面到气泡顶
+  const ringPoints = Array.from({ length: 32 }, (_, i) => {
+    const a = ((i % 16) / 16) * Math.PI * 2;
+    return new THREE.Vector3(CENTER.x + Math.sin(a) * (RADIUS + 0.8), i < 16 ? 0 : 1.75, CENTER.z + Math.cos(a) * (RADIUS + 0.8));
+  });
   stage.onLayout = (w, h) => {
-    const narrow = w / h < 0.9;
-    camera.fov = narrow ? 50 : 32;
+    // 竖屏：气泡环的外轮廓整体放进按钮与版块列表之间的横带（stage.ts 的 bandPose）；
+    // 雾跟着相机距离走，拉远后不会把整个环吞成白色
+    const band = options.band();
+    camera.fov = band ? 40 : 32;
     camera.updateProjectionMatrix();
-    if (narrow) {
-      camBase.pos.set(1.7, 3.3, 9.4);
-      camBase.target.set(1.7, 0.55, -0.4);
+    const fog = scene.fog as THREE.Fog | null;
+    let offset = { x: 0, y: 0 };
+    if (band) {
+      const pose = bandPose(ringPoints, PORTRAIT_DIR, camera.fov, w / h, band, 0.96);
+      camBase.pos.copy(pose.pos);
+      camBase.target.copy(pose.target);
+      offset = pose.offset;
+      if (fog) {
+        fog.near = pose.pos.distanceTo(pose.target) + 2.5;
+        fog.far = fog.near + 12;
+      }
     } else {
+      if (fog) {
+        fog.near = 9;
+        fog.far = 18;
+      }
       camBase.pos.set(0.9, 2.6, 8.4);
       camBase.target.set(0.7, 1.0, -0.4);
     }
-    if (!opening) stage.frame(camBase.pos, camBase.target);
+    if (!opening) stage.frame(camBase.pos, camBase.target, offset);
   };
 
   // ── 交互 ───────────────────────────────────────────────────────────────
@@ -157,7 +180,9 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
   let coinLift = 0;
   let coinSpin = 0;
   /** 转场：elapsed 按夹紧后的帧 dt 累加（秒），卡帧不跳步 */
-  let opening: { index: number; elapsed: number; fromPos: THREE.Vector3; fromTarget: THREE.Vector3; done: boolean } | null = null;
+  let opening: { index: number; elapsed: number; fromPos: THREE.Vector3; fromTarget: THREE.Vector3; fromOffset: { x: number; y: number }; done: boolean } | null = null;
+  /** 转场时画面偏移从竖屏取景的值缓到 0，推近的气泡落在画面正中 */
+  const flyOffset = { x: 0, y: 0 };
   let lastWipe = 0;
   const groups = bubbles.map((b) => b.group);
   const coinParts: THREE.Object3D[] = [coin, podium];
@@ -191,7 +216,7 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
       options.onOpen(index);
       return;
     }
-    opening = { index, elapsed: 0, fromPos: stage.basePos.clone(), fromTarget: stage.baseTarget.clone(), done: false };
+    opening = { index, elapsed: 0, fromPos: stage.basePos.clone(), fromTarget: stage.baseTarget.clone(), fromOffset: { ...stage.baseOffset }, done: false };
     stage.invalidate();
   };
 
@@ -313,7 +338,9 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
       }
       framePos.lerpVectors(opening.fromPos, camTo, k);
       frameTarget.lerpVectors(opening.fromTarget, lookTo, k);
-      stage.frame(framePos, frameTarget);
+      flyOffset.x = opening.fromOffset.x * (1 - k);
+      flyOffset.y = opening.fromOffset.y * (1 - k);
+      stage.frame(framePos, frameTarget, flyOffset);
       const wipe = Math.max(0, (k - 0.7) / 0.3);
       if (Math.abs(wipe - lastWipe) > 0.01 || (wipe === 1 && lastWipe !== 1)) {
         lastWipe = wipe;
