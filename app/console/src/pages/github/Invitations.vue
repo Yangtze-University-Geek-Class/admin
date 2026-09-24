@@ -41,12 +41,12 @@ const pendingColumns = [
   { key: "actions", title: "操作", width: 110, align: "right" as const },
 ];
 const historyColumns = [
-  { key: "who", title: "受邀人", width: 180 },
+  { key: "who", title: "受邀人", width: 150 },
   { key: "note", title: "备注" },
-  { key: "link", title: "邀请链接", width: 180 },
-  { key: "status", title: "结果", width: 110 },
-  { key: "ip", title: "来源 IP", width: 130 },
-  { key: "created_at", title: "时间", width: 160 },
+  { key: "link", title: "邀请链接", width: 130 },
+  { key: "status", title: "结果", width: 84 },
+  { key: "ip", title: "来源 IP", width: 116 },
+  { key: "created_at", title: "时间", width: 120 },
 ];
 const STATUS: Record<string, { text: string; status: "success" | "danger" | "warning" | "muted" }> = {
   sent: { text: "已发出", status: "success" },
@@ -82,7 +82,7 @@ const STATUS: Record<string, { text: string; status: "success" | "danger" | "war
 
       <TxCard :padding="0">
         <template #header><div class="card-head table-head"><h2 class="section-title">本站发出的记录</h2><span class="count">{{ data.data.value.history.length }} 条</span></div></template>
-        <TxDataTable style="--table-min: 900px" :columns="historyColumns" :data="data.data.value.history" row-key="id" table-layout="fixed" scroll-x>
+        <TxDataTable style="--table-min: 680px" :columns="historyColumns" :data="data.data.value.history" row-key="id" table-layout="fixed" scroll-x>
           <template #cell-who="{ row }: { row: History }"><span class="mono">{{ who(row) }}</span></template>
           <template #cell-note="{ row }: { row: History }"><span :class="{ muted: !row.note }">{{ row.note ?? "无" }}</span></template>
           <template #cell-link="{ row }: { row: History }"><span class="mono muted ellipsis">{{ row.invite_link_token ?? "无" }}</span></template>

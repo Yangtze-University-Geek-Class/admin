@@ -38,14 +38,14 @@ function linkState(link: Link) {
   return { text: "可用", status: "success" as const };
 }
 
+// 六列在 1024 宽的窗口里不用横向滚动也放得下：链接和备注合成一列（备注在下面一行），
+// 自动加入的团队挪到「已用 / 上限」下面，复制只留图标（读屏仍读「复制链接」）。
 const columns = [
-  { key: "link", title: "链接" },
-  { key: "note", title: "备注", width: 160 },
-  { key: "uses", title: "已用 / 上限", width: 110, align: "right" as const },
-  { key: "expires", title: "到期", width: 150 },
-  { key: "team", title: "自动加入团队", width: 130 },
-  { key: "state", title: "状态", width: 100 },
-  { key: "actions", title: "操作", width: 150, align: "right" as const },
+  { key: "link", title: "链接与备注", minWidth: 200 },
+  { key: "uses", title: "已用 / 上限", width: 132 },
+  { key: "expires", title: "到期", width: 136 },
+  { key: "state", title: "状态", width: 92 },
+  { key: "actions", title: "操作", width: 148, align: "right" as const },
 ];
 
 const creating = ref(false);
@@ -94,19 +94,25 @@ async function askRemove(link: Link) {
     <ErrorPanel v-if="links.error.value" :error="links.error.value" :retry="links.reload" />
     <LoadingBlock v-else-if="!links.data.value" :lines="6" />
     <TxCard v-else :padding="0">
-      <TxDataTable style="--table-min: 1080px" :columns="columns" :data="links.data.value.links" row-key="token" table-layout="fixed" scroll-x>
+      <TxDataTable style="--table-min: 640px" :columns="columns" :data="links.data.value.links" row-key="token" table-layout="fixed" scroll-x>
         <template #cell-link="{ row }: { row: Link }">
           <span class="link-cell">
-            <span class="mono ellipsis">/join/{{ row.token }}</span>
-            <TxCopyButton :text="joinUrl(row.token)" copy-label="复制" copied-label="已复制" />
+            <span class="cell-stack">
+              <span class="mono ellipsis" :title="`/join/${row.token}`">/join/{{ row.token }}</span>
+              <span class="cell-sub ellipsis" :class="{ muted: !row.note }">{{ row.note || "没有备注" }}</span>
+            </span>
+            <TxCopyButton class="copy-icon" :text="joinUrl(row.token)" copy-label="复制链接" copied-label="已复制" :title="`复制 /join/${row.token}`" />
           </span>
         </template>
-        <template #cell-note="{ row }: { row: Link }"><span :class="{ muted: !row.note }">{{ row.note || "无" }}</span></template>
-        <template #cell-uses="{ row }: { row: Link }"><span class="num">{{ row.current_uses }} / {{ row.max_uses }}</span></template>
+        <template #cell-uses="{ row }: { row: Link }">
+          <span class="cell-stack">
+            <span class="num">{{ row.current_uses }} / {{ row.max_uses }}</span>
+            <span class="cell-sub ellipsis" :title="row.team_slug ? `加入后自动进入团队 ${row.team_slug}` : undefined">{{ row.team_slug ? `进入团队 ${row.team_slug}` : "不自动进团队" }}</span>
+          </span>
+        </template>
         <template #cell-expires="{ row }: { row: Link }">
           <span class="cell-stack"><span>{{ fmtRelative(row.expires_at) }}</span><span class="cell-sub">{{ fmtDate(row.expires_at) }}</span></span>
         </template>
-        <template #cell-team="{ row }: { row: Link }"><span class="mono" :class="{ muted: !row.team_slug }">{{ row.team_slug ?? "无" }}</span></template>
         <template #cell-state="{ row }: { row: Link }"><TxStatusBadge :text="linkState(row).text" :status="linkState(row).status" size="sm" /></template>
         <template #cell-actions="{ row }: { row: Link }">
           <span class="row-actions">
@@ -163,12 +169,29 @@ async function askRemove(link: Link) {
   gap: 8px;
   min-width: 0;
 }
+.link-cell > .cell-stack {
+  flex: 1;
+  min-width: 0;
+}
+/* 表格里的复制按钮只留图标，文字只给读屏（按钮自带 aria-label） */
+.copy-icon {
+  flex: none;
+}
+.copy-icon :deep(.tx-copy-button__label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .num {
   font-variant-numeric: tabular-nums;
 }
 .row-actions {
   display: inline-flex;
   gap: 4px;
+  white-space: nowrap;
 }
 .danger-text {
   color: var(--tx-color-danger);
