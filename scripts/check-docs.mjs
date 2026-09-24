@@ -12,6 +12,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     if (["node_modules", ".git", ".tools", "dist", "coverage", "test-results"].includes(entry.name)) return [];
+    // task worktree 是另一份完整的检出，文档归它自己的分支检查
+    if (entry.name === "worktrees" && dir.endsWith(".claude")) return [];
     const path = join(dir, entry.name);
     return entry.isDirectory() ? walk(path) : /\.(?:md|mdc)$/.test(entry.name) ? [path] : [];
   });
