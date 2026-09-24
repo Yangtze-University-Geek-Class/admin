@@ -14,9 +14,9 @@ AI 先执行 [AGENT-START](AGENT-START.md) 的阅读门禁，不能先运行下�
 
 长期分支只有 `main`（正式）和 `stage`（预发布），完整规则（含不变量、禁止事项、清理要求）见 [BRANCHING](BRANCHING.md)：
 
-- 开发前先按 [ISSUES](ISSUES.md) 开 issue，再从 `stage` 拉 `task/<issue>/<slug>`（例 `task/12/portal_redesign`；分支名不用 `-`）；
-- 一次任务一条 task 分支，MR 回 `stage`，正文写 `Closes #<issue>`；
-- **MR 合并后必须立即删除 task 分支**，不留死分支；
+- 开发前先按 [ISSUES](ISSUES.md) 开 issue，再用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 拉 `task/<issue>/<slug>`（例 `task/12/portal_redesign`；分支名不用 `-`），**同时得到一个独立的 worktree**，所有开发都在里面做，不在主工作区切分支（见 [BRANCHING](BRANCHING.md)「task worktree」）；
+- 一次任务一条 task 分支、一个 worktree，MR 回 `stage`，正文按 [PULL-REQUESTS](PULL-REQUESTS.md) 的契约写；
+- **MR 合并后远端分支与 issue 自动清理，本机用 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支**，不留死分支、死目录；
 - `dev/<github-username>`（例 `dev/crosery`）是个人自由分支，想怎么改都行，但不得作为进入 `stage` 的凭据，也不部署；
 - 禁止直接向 `main` 提交，禁止 `task/**`、`dev/**` 直接进 `main`。`main` 只接受来自 `stage` 的合并。
 
