@@ -1,4 +1,4 @@
-// YUGC OS 的应用清单、启动器过滤、终端命令与日历（纯逻辑，tests/web/portal-os.test.ts 覆盖）。
+// YUGC OS 的应用清单、启动器过滤、终端命令与时间文案（纯逻辑，tests/web/portal-os.test.ts 覆盖）。
 // 链接的实际地址在组件里按站点规则解析（externalUrl / Router），这里只描述「打开什么」。
 import type { IconName } from "./icons";
 
@@ -84,12 +84,6 @@ export function filterCommands(commands: readonly LauncherCommand[], query: stri
   return scored.sort((a, b) => a.score - b.score || a.index - b.index).map((item) => item.command);
 }
 
-/** 在 available 像素高的列表里放得下多少行（行高 rowH、行距 gap），至少 0 行；组件卡片据此截断列表，绝不溢出 */
-export function rowsThatFit(available: number, rowH: number, gap = 0): number {
-  if (!(available > 0) || rowH <= 0) return 0;
-  return Math.max(0, Math.floor((available + gap) / (rowH + gap)));
-}
-
 /** 在列表里上下移动选中项，两端夹紧；空列表返回 0 */
 export function moveSelection(current: number, delta: number, length: number): number {
   if (length <= 0) return 0;
@@ -147,22 +141,7 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
   }
 }
 
-// ── 日历与时间 ─────────────────────────────────────────────────────────
-
-/** 一个月的日历格（周一开头，6 行 × 7 列，不属于本月的格子为 null） */
-export function monthGrid(year: number, month: number): Array<number | null> {
-  const first = new Date(year, month, 1);
-  const days = new Date(year, month + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;
-  const cells: Array<number | null> = [];
-  for (let i = 0; i < 42; i++) {
-    const day = i - lead + 1;
-    cells.push(day >= 1 && day <= days ? day : null);
-  }
-  // 最后一整行都空时去掉，只保留 5 行
-  if (cells.slice(35).every((cell) => cell === null)) cells.length = 35;
-  return cells;
-}
+// ── 时间 ───────────────────────────────────────────────────────────────
 
 /** 距今多久（中文）：今天 / N 天前 / N 个月前 / N 年前 */
 export function agoLabel(timestamp: number, now: number): string {
