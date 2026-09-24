@@ -1,0 +1,58 @@
+[
+  {
+    "file": "geek.mp4",
+    "sha256": "9f614931d8e2a6cb5603268702d01b09bed705c11a1df3cbabcbe38c13477a7b",
+    "width": 1920,
+    "height": 1080,
+    "fps": 48,
+    "frames": 213,
+    "lumaDrift": 1.44,
+    "blockDrift": 0.61,
+    "worstFrame": 159,
+    "posterDiff": 2.17,
+    "seam": 0.83,
+    "maxStep": 2.15
+  },
+  {
+    "file": "geek.webm",
+    "sha256": "8bce4c4018ac00887bc35d547f5065a72eb11c2712c347d37f8530adc161eb37",
+    "width": 1920,
+    "height": 1080,
+    "fps": 48,
+    "frames": 213,
+    "lumaDrift": 1.31,
+    "blockDrift": 0.55,
+    "worstFrame": 157,
+    "posterDiff": 2.15,
+    "seam": 0.75,
+    "maxStep": 2.18
+  },
+  {
+    "file": "yugc.mp4",
+    "sha256": "93addb10b3e9161362466ab5e465f2edf9806640ec95945d400b31c1f27a3433",
+    "width": 1920,
+    "height": 1080,
+    "fps": 48,
+    "frames": 213,
+    "lumaDrift": 0.84,
+    "blockDrift": 0.58,
+    "worstFrame": 79,
+    "posterDiff": 2.21,
+    "seam": 0.47,
+    "maxStep": 0.99
+  },
+  {
+    "file": "yugc.webm",
+    "sha256": "15d521dd9b8f931b801895786b195b53c4ec6d5180dbae9e24f9dfecf8fb28bc",
+    "width": 1920,
+    "height": 1080,
+    "fps": 48,
+    "frames": 213,
+    "lumaDrift": 0.76,
+    "blockDrift": 0.52,
+    "worstFrame": 79,
+    "posterDiff": 2.21,
+    "seam": 0.52,
+    "maxStep": 1.08
+  }
+]
