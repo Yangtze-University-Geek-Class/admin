@@ -56,11 +56,11 @@ const rows = computed(() => rowsForTab(sorted.value, tab.value));
 const deptName = (id: string) => depts.value.find(d => d.id === id)?.name ?? "";
 
 const columns = computed(() => [
-  { key: "login", title: "成员", width: 200 },
-  { key: "title", title: "称号", width: 150 },
-  { key: "department", title: "部门", width: 120 },
+  { key: "login", title: "成员", width: 170 },
+  { key: "title", title: "称号", width: 120 },
+  { key: "department", title: "部门", width: 96 },
   { key: "note", title: "备注" },
-  { key: "granted", title: "指派人 · 时间", width: 190 },
+  { key: "granted", title: "指派人 · 时间", width: 150 },
   { key: "actions", title: "操作", width: 96, align: "right" as const },
 ]);
 
@@ -123,7 +123,7 @@ const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
                   <span class="tab-label">{{ item.label }} <TxBadge :value="counts[item.id]" /></span>
                 </template>
 
-                <TxDataTable style="--table-min: 900px" :columns="columns" :data="rows" row-key="id" table-layout="fixed" scroll-x class="people-table">
+                <TxDataTable style="--table-min: 690px" :columns="columns" :data="rows" row-key="id" table-layout="fixed" scroll-x class="people-table">
                   <template #cell-login="{ row }: { row: Assignment }">
                     <UserCell :login="row.github_login" link />
                   </template>
