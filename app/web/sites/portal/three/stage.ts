@@ -13,6 +13,7 @@
 //   · 带字的程序化贴图按 2 倍左右的分辨率画（canvasTexture 的 scale），各向异性过滤取显卡上限（封顶 8），斜着看也清楚。
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { fitInBand, type Band } from "../lib/cameraMath";
 import { ICONS, type IconName } from "../lib/icons";
 import { damp } from "../lib/motion";
 import { PixelRatioGovernor, initialPixelRatio } from "../lib/pixelRatio";
@@ -89,6 +90,8 @@ export class Stage {
   /** 相机基准位姿；默认相机装置在此基础上叠加视差 */
   readonly basePos = new THREE.Vector3(0, 2, 8);
   readonly baseTarget = new THREE.Vector3();
+  /** 画面偏移（视口宽高的比例，交给 setViewOffset）：竖屏把主体挪到文案与列表之间的横带里 */
+  readonly baseOffset = { x: 0, y: 0 };
   /** 自定义相机装置（书桌场景用）；返回 true 表示相机还在动 */
   rig: ((dt: number) => boolean) | null = null;
   onLayout: ((width: number, height: number) => void) | null = null;
@@ -248,9 +251,13 @@ export class Stage {
   }
 
   /** 相机基准位姿（复制，不持有传入对象）；立即生效，同一帧里后续计算拿到的就是新相机 */
-  frame(position: THREE.Vector3, target: THREE.Vector3) {
+  frame(position: THREE.Vector3, target: THREE.Vector3, offset?: { x: number; y: number }) {
     this.basePos.copy(position);
     this.baseTarget.copy(target);
+    if (offset) {
+      this.baseOffset.x = offset.x;
+      this.baseOffset.y = offset.y;
+    }
     if (!this.rig) this.applyBaseCamera();
     this.invalidate();
   }
@@ -260,6 +267,13 @@ export class Stage {
     const p = this.reducedMotion ? 0 : this.parallax;
     this.camera.position.set(this.basePos.x + this.smooth.x * p, this.basePos.y + this.smooth.y * p * 0.5, this.basePos.z);
     this.camera.lookAt(this.baseTarget);
+    const { x, y } = this.baseOffset;
+    const view = this.camera.view;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if ((x || y) && w && h) {
+      if (!view?.enabled || view.offsetX !== x * w || view.offsetY !== y * h || view.fullWidth !== w || view.fullHeight !== h) this.camera.setViewOffset(w, h, x * w, y * h, w, h);
+    } else if (view?.enabled) this.camera.clearViewOffset();
     this.camera.updateMatrixWorld();
   }
 
@@ -534,6 +548,32 @@ export function drawEmblem(ctx: CanvasRenderingContext2D, image: HTMLImageElemen
   ctx.clip();
   ctx.drawImage(image, cx - size / 2, cy - size / 2, size, size);
   ctx.restore();
+}
+
+/** 包围盒的 8 个角；传 matrix 时先把盒子（物体局部坐标）变换到世界坐标，得到的是贴着物体的斜盒子而不是更大的轴对齐盒 */
+export function boxCorners(box: THREE.Box3, matrix?: THREE.Matrix4): THREE.Vector3[] {
+  return Array.from({ length: 8 }, (_, i) => {
+    const corner = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z);
+    return matrix ? corner.applyMatrix4(matrix) : corner;
+  });
+}
+
+/**
+ * 竖屏取景：从 dir（从主体指向相机的方向）看过去，求出让这些世界坐标点完整落在横带 band 里的相机位置与画面偏移。
+ * 投影与距离的算法在 lib/cameraMath.ts 的 fitInBand（有单测）；这里只把点换到镜头坐标系。
+ */
+export function bandPose(points: readonly THREE.Vector3[], dir: THREE.Vector3, fovDeg: number, aspect: number, band: Band, fill = 1) {
+  const back = dir.clone().normalize();
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), back).normalize();
+  const up = new THREE.Vector3().crossVectors(back, right);
+  const target = new THREE.Box3().setFromPoints(points as THREE.Vector3[]).getCenter(new THREE.Vector3());
+  const rel = new THREE.Vector3();
+  const local = points.map((point) => {
+    rel.copy(point).sub(target);
+    return { r: rel.dot(right), u: rel.dot(up), b: rel.dot(back) };
+  });
+  const { distance, ox, oy } = fitInBand(local, fovDeg, aspect, band, fill);
+  return { pos: target.clone().addScaledVector(back, distance), target, offset: { x: ox, y: oy } };
 }
 
 /** 读取一张图片；失败时返回 null（贴图照常画，只是少了校徽） */

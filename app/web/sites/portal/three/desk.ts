@@ -8,10 +8,10 @@
 // 推近时再盖一层与开机画面同色的「幕」渐显，最后一帧与 DOM 开机画面严丝合缝，不重画大贴图、没有跳变。
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { coverDistance, viewOffset } from "../lib/cameraMath";
+import { coverDistance, viewOffset, type Band } from "../lib/cameraMath";
 import type { LoaderStep } from "../lib/loaderProgress";
 import { damp, ease, span } from "../lib/motion";
-import { Motion, Stage, TEXT_SCALE, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
+import { Motion, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
 export type DeskOptions = {
   reducedMotion: boolean;
@@ -20,6 +20,11 @@ export type DeskOptions = {
   logoUrl: string;
   /** 点中了屏幕 */
   onEnter: () => void;
+  /**
+   * 文案在画面下方时（竖屏），视口里留给书桌的横带（按视口高度的比例：顶栏下沿到文案上沿）；
+   * 文案在左侧时返回 null，用横屏取景
+   */
+  band: () => Band | null;
   /** 只有空闲书桌才响应悬停与点击 */
   isIdle: () => boolean;
   report: (step: LoaderStep, text: string) => void;
@@ -196,9 +201,12 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       x.fillStyle = "#5b6283";
       x.font = '26px -apple-system, "PingFang SC", sans-serif';
       x.fillText("长江大学极客班", W / 2, 494);
-      x.fillStyle = "#676e8e";
-      x.font = '20px -apple-system, "PingFang SC", sans-serif';
-      x.fillText("按 Enter 也能开机", W / 2, 716);
+      // 触屏设备没有 Enter 键，不写这行
+      if (!window.matchMedia("(hover: none)").matches) {
+        x.fillStyle = "#676e8e";
+        x.font = '20px -apple-system, "PingFang SC", sans-serif';
+        x.fillText("按 Enter 也能开机", W / 2, 716);
+      }
     },
     SCREEN_SCALE,
   );
@@ -486,10 +494,24 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     } else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   };
+  // 竖屏：电脑落在顶栏与文案之间那条横带的正中，横向尽量占满（stage.ts 的 bandPose 按透视算距离与偏移）；
+  // 手机、竖放平板、分屏窗口都用同一套算法，不为每种比例单独调数。取机身与屏幕外壳贴身的角点，四周留 6%
+  const PORTRAIT_FOV = 40;
+  const PORTRAIT_DIR = new THREE.Vector3(1.0, 2.0, 3.3);
+  const portraitPose = (aspect: number, band: Band): Pose => {
+    scene.updateMatrixWorld(true);
+    base.geometry.computeBoundingBox();
+    shell.geometry.computeBoundingBox();
+    const points = [...boxCorners(base.geometry.boundingBox!, base.matrixWorld), ...boxCorners(shell.geometry.boundingBox!, shell.matrixWorld)];
+    const { pos, target, offset } = bandPose(points, PORTRAIT_DIR, PORTRAIT_FOV, aspect, band, 0.94);
+    return { pos, target, fov: PORTRAIT_FOV, ox: offset.x, oy: offset.y };
+  };
   stage.onLayout = (w, h) => {
-    const portrait = w / h < 0.9;
-    idle = portrait
-      ? { pos: new THREE.Vector3(1.05, 2.35, 3.25), target: new THREE.Vector3(-0.05, 0.2, 0.05), fov: 46, ox: 0, oy: 0.2 }
+    const band = options.band();
+    // 竖屏镜头从高处俯看，墙上的海报会落在顶栏品牌字后面（校徽也和品牌重复），竖屏不挂
+    frame.visible = posterMesh.visible = band === null;
+    idle = band
+      ? portraitPose(w / h, band)
       : { pos: new THREE.Vector3(2.25, 1.6, 2.75), target: new THREE.Vector3(-0.1, 0.36, 0.0), fov: 33, ox: -0.17, oy: 0.02 };
     camera.fov = idle.fov;
     camera.aspect = w / h;
@@ -572,7 +594,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   type Target = { name: "screen" | "robot" | "mug" | "plant"; hint: string };
   const TARGETS: Array<Target & { object: THREE.Object3D; exact?: boolean }> = [
     { name: "screen", hint: "打开电脑", object: lid, exact: true },
-    { name: "robot", hint: "NANO · 点一下会跳", object: robot },
+    { name: "robot", hint: "点一下会跳", object: robot },
     { name: "mug", hint: "点一下冒热气", object: mug },
     { name: "plant", hint: "点一下会晃", object: plant },
   ];
@@ -760,7 +782,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     dispose();
     return null;
   }
-  report("compile", "着色器已编译");
+  report("compile", "画面预热完成");
   await stage.nextFrame();
   if (options.cancelled()) {
     dispose();

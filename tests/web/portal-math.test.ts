@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containDistance, coverDistance, distanceForPixelHeight, letterFolds, pixelToCameraPlane, viewOffset } from "../../app/web/sites/portal/lib/cameraMath";
+import { containDistance, coverDistance, distanceForPixelHeight, fitInBand, letterFolds, pixelToCameraPlane, viewOffset } from "../../app/web/sites/portal/lib/cameraMath";
 import { clamp01, damp, ease, lerp, span } from "../../app/web/sites/portal/lib/motion";
 import { DAYS, LEVEL_COLORS, WEEKS, decorativeLevels } from "../../app/web/sites/portal/lib/skyline";
 
@@ -48,6 +48,34 @@ describe("相机与摆放", () => {
     expect(Math.abs(zero.x)).toBe(0);
     expect(Math.abs(zero.y)).toBe(0);
     expect(viewOffset(1000, 1000, 0.1, 0.1, 3)).toEqual(viewOffset(1000, 1000, 0.1, 0.1, 1));
+  });
+
+  it("竖屏横带取景：透视投影后主体不超出横带且至少一个方向贴满，外框中心落在横带中线", () => {
+    // 一台斜放的「电脑」：8 个角，近处的角 b 更大（更靠近相机）
+    const corners = [-1, 1].flatMap((r) => [-1, 1].flatMap((u) => [-1, 1].map((b) => ({ r: r * 0.66 + b * 0.1, u: u * 0.45 + 0.1, b: b * 0.5 }))));
+    for (const [aspect, top, bottom] of [
+      [390 / 844, 0.07, 0.79],
+      [360 / 780, 0.08, 0.72],
+      [768 / 1024, 0.2, 0.6],
+    ]) {
+      const band = { top, bottom };
+      const fill = 0.9;
+      const { distance, ox, oy } = fitInBand(corners, 40, aspect, band, fill);
+      const t = tanHalf(40);
+      const xs = corners.map((p) => p.r / ((distance - p.b) * t * aspect));
+      const ys = corners.map((p) => p.u / ((distance - p.b) * t));
+      const halfW = (Math.max(...xs) - Math.min(...xs)) / 2;
+      const halfH = (Math.max(...ys) - Math.min(...ys)) / 2;
+      const bandH = bottom - top;
+      expect(halfW).toBeLessThanOrEqual(fill + 1e-6);
+      expect(halfH).toBeLessThanOrEqual(bandH * fill + 1e-6);
+      expect(Math.max(halfW / fill, halfH / (bandH * fill))).toBeCloseTo(1, 4);
+      // setViewOffset(ox·w, oy·h) 之后，外框中心的像素位置（按视口比例）
+      const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
+      const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+      expect((cx + 1) / 2 - ox).toBeCloseTo(0.5, 6);
+      expect((1 - cy) / 2 - oy).toBeCloseTo((top + bottom) / 2, 6);
+    }
   });
 
   it("信纸三折：三片等高，两条折痕对称", () => {

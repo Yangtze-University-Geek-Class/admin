@@ -186,7 +186,7 @@ export default function JoinUs() {
   return (
     <div className="pt-root pt-scene pt-join" data-phase={phase}>
       <canvas ref={canvas} className="pt-scene-canvas" aria-hidden="true" />
-      <SceneBar crumb="join" />
+      <SceneBar />
 
       <section className={phase === "arrive" || phase === "open" ? "pt-intro" : "pt-intro is-away"} aria-labelledby="pt-join-title">
         <h1 id="pt-join-title">加入我们</h1>

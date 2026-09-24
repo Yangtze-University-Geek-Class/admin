@@ -63,6 +63,64 @@ export function viewOffset(
 }
 
 /**
+ * 文案叠在画面上下（而不是左侧）的布局：手机和竖放的平板。CSS 里同一条媒体查询切换页面布局，
+ * 3D 场景用它决定按横带取景（fitInBand），两边必须一致，否则文案会压在主体上。
+ */
+export const STACKED_QUERY = "(max-width: 760px), (max-aspect-ratio: 9/10)";
+
+/**
+ * 竖屏时 3D 可用的横带：above 的下沿到 below 的上沿（缺哪个就用视口边缘，再各留 gap 像素）。
+ * 不是竖屏布局时返回 null，场景用横屏镜头。
+ */
+export function measureBand(above: Element | null, below: Element | null, gap = 12): Band | null {
+  if (typeof window === "undefined" || !window.matchMedia(STACKED_QUERY).matches) return null;
+  const h = window.innerHeight;
+  const top = above ? above.getBoundingClientRect().bottom + gap : 0;
+  const bottom = below ? below.getBoundingClientRect().top - gap : h;
+  return { top: top / h, bottom: bottom / h };
+}
+
+/** 视口里的一条横带，按视口高度的比例（0 = 顶，1 = 底） */
+export type Band = { top: number; bottom: number };
+/** 镜头坐标系里的一个点：r 向右、u 向上、b 指向相机，原点是镜头看向的点 */
+export type CamPoint = { r: number; u: number; b: number };
+
+/**
+ * 竖屏取景：让主体（若干角点）完整落在横带里，横向不超过 fill、纵向不超过横带高度 × fill，且至少一个方向贴满。
+ * 按透视投影二分出相机距离（近处的角在透视下更大，正交估算会裁掉它们），
+ * 再给出 setViewOffset 用的比例偏移 ox、oy：投影外框的中心落在视口水平中线与横带中线上。
+ */
+export function fitInBand(points: readonly CamPoint[], fovDeg: number, aspect: number, band: Band, fill = 0.9): { distance: number; ox: number; oy: number } {
+  const t = tanHalf(fovDeg);
+  const bandH = Math.min(1, Math.max(0.2, band.bottom - band.top));
+  const box = { x0: 0, x1: 0, y0: 0, y1: 0 };
+  const measure = (d: number) => {
+    box.x0 = box.y0 = Infinity;
+    box.x1 = box.y1 = -Infinity;
+    for (const p of points) {
+      const depth = d - p.b;
+      const x = p.r / (depth * t * aspect);
+      const y = p.u / (depth * t);
+      box.x0 = Math.min(box.x0, x);
+      box.x1 = Math.max(box.x1, x);
+      box.y0 = Math.min(box.y0, y);
+      box.y1 = Math.max(box.y1, y);
+    }
+    return (box.x1 - box.x0) / 2 <= fill && (box.y1 - box.y0) / 2 <= bandH * fill;
+  };
+  let lo = Math.max(0, ...points.map((p) => p.b)) + 1e-3;
+  let hi = lo + 1;
+  for (let i = 0; i < 40 && !measure(hi); i++) hi = lo + (hi - lo) * 2;
+  for (let i = 0; i < 48; i++) {
+    const mid = (lo + hi) / 2;
+    if (measure(mid)) hi = mid;
+    else lo = mid;
+  }
+  measure(hi);
+  return { distance: hi, ox: (box.x0 + box.x1) / 4, oy: (1 - (box.y0 + box.y1) / 2) / 2 - (band.top + band.bottom) / 2 };
+}
+
+/**
  * 信纸三折：返回上、中、下三片的高度与两条折痕的 y（以信纸中心为原点，向上为正）。
  * 先折下片、再折上片，折完只剩中间一片的高度。
  */

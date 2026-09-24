@@ -26,6 +26,8 @@
   transition: background .18s, transform .18s var(--pt-ease);
 }
 .pt-enter kbd { background: rgb(255 255 255 / 16%); border-color: transparent; color: #dfe4ff; }
+/* 触屏没有键盘：不显示按键提示 */
+@media (hover: none) { .pt-enter kbd { display: none; } }
 .pt-enter:hover, .pt-enter:focus-visible { background: var(--pt-cobalt-deep); }
 .pt-enter:active { transform: translateY(1px); }
 .pt-skip { min-height: 44px; padding: 0 4px; font-size: 13.5px; color: var(--pt-ink-soft); background: none; border: 0; cursor: pointer; text-decoration: underline; text-decoration-color: rgb(27 33 64 / 25%); text-underline-offset: 4px; }
@@ -102,13 +104,24 @@
 .pt-nano img { width: 100%; height: auto; filter: drop-shadow(0 20px 30px rgb(27 33 64 / 18%)); }
 .pt-nano-bubble { position: absolute; left: -128px; top: 30px; padding: 10px 14px; border-radius: 14px 14px 4px 14px; background: #fff; font-size: 13px; white-space: nowrap; box-shadow: 0 1px 2px rgb(27 33 64 / 10%), 0 10px 24px -14px rgb(27 33 64 / 40%); }
 
-@media (max-width: 760px) {
-  .pt-hud::before { background: linear-gradient(0deg, rgb(245 244 240 / 96%) 0%, rgb(245 244 240 / 85%) 34%, rgb(245 244 240 / 0%) 58%); }
+/* 竖屏（手机、竖放的平板）：文案叠在画面下方。媒体查询与 lib/cameraMath.ts 的 STACKED_QUERY 保持一致——
+   书桌场景按顶栏下沿到文案上沿之间的横带取景，电脑落在横带正中。 */
+@media (max-width: 760px), (max-aspect-ratio: 9/10) {
+  /* 下方托住文案；上方一条浅浅的纸色，墙上的海报不会和顶栏的品牌字叠在一起 */
+  .pt-hud::before {
+    background:
+      linear-gradient(180deg, rgb(245 244 240 / 92%) 0, rgb(245 244 240 / 70%) 56px, rgb(245 244 240 / 0%) 108px),
+      linear-gradient(0deg, rgb(245 244 240 / 97%) 0%, rgb(245 244 240 / 90%) 22%, rgb(245 244 240 / 0%) 38%);
+  }
   .pt-hud-top { top: 16px; left: 18px; right: 18px; }
+  .pt-hud-copy { top: auto; bottom: max(24px, env(safe-area-inset-bottom)); left: 22px; right: 22px; max-width: 34em; transform: none; }
+  .pt-hud-copy h1 { margin-bottom: 10px; font-size: clamp(32px, 8.4vw, 46px); }
+  .pt-hud-copy > p { margin-bottom: 18px; font-size: 14px; line-height: 1.65; }
+}
+@media (max-width: 760px) {
   .pt-status, .pt-brand small { display: none; }
-  .pt-hud-copy { top: auto; bottom: 26px; left: 22px; right: 22px; transform: none; }
-  .pt-hud-copy h1 { font-size: 32px; }
-  .pt-hud-copy > p { display: none; }
+  .pt-hud-actions { gap: 10px; }
+  .pt-enter { flex: 1 1 auto; justify-content: center; }
   .pt-nano { width: 130px; right: 6%; }
   .pt-nano-bubble { left: -110px; }
   .pt-boot-lines { width: min(320px, calc(100vw - 48px)); }
