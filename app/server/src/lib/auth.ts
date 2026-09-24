@@ -15,6 +15,8 @@ export type Session = {
 export function createAuth(db: Database.Database, crypto: ReturnType<typeof createCrypto>, config: AppConfig, undiciRequest = defaultRequest) {
 const { encrypt, decrypt } = crypto;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** 与 Octokit 的 15 秒一致：GitHub 连不上时登录尽快失败并回到原页面，而不是挂到默认的 300 秒 */
+const GITHUB_TIMEOUT_MS = 15_000;
 
 function createSession(
   login: string,
@@ -67,6 +69,7 @@ function buildAuthorizeUrl(state: string): string {
 async function exchangeCode(code: string): Promise<string> {
   const res = await undiciRequest("https://github.com/login/oauth/access_token", {
     method: "POST",
+    headersTimeout: GITHUB_TIMEOUT_MS, bodyTimeout: GITHUB_TIMEOUT_MS,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
       client_id: config.oauth.clientId,
@@ -84,6 +87,7 @@ async function exchangeCode(code: string): Promise<string> {
 
 async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: string; id: number; avatar_url: string; email: string | null; name: string | null }> {
   const res = await undiciRequest("https://api.github.com/user", {
+    headersTimeout: GITHUB_TIMEOUT_MS, bodyTimeout: GITHUB_TIMEOUT_MS,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "User-Agent": "yzgc-admin",

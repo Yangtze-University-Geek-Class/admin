@@ -3,7 +3,7 @@ import { toast } from '@talex-touch/tuffex/utils'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
-// 真实数据模式没有论坛登录（统一登录在官网桌面），这里什么也不渲染；store 里是真实成员，谁都不能冒充。
+// 真实数据模式没有论坛自己的登录（全站统一走 GitHub 登录，入口在顶栏右上角），这里什么也不渲染；store 里是真实成员，谁都不能冒充。
 const { loginOpen } = useShell()
 const { isSnapshot } = useContentSource()
 const forum = useForumStore()

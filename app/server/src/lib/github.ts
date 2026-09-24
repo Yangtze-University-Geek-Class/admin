@@ -17,6 +17,22 @@ async function getOrgRole(token: string, org: string, login: string): Promise<Or
   }
 }
 
+/**
+ * 登录用：当前用户自己在组织里的成员状态（用刚换到的 token，需要 read:org）。
+ * 不是成员（404）返回 null；已受邀未接受是 "pending"。其它错误（含组织限制 OAuth App 时的 403）原样抛出，
+ * 不能当成「不是成员」告诉用户。
+ */
+async function getOwnMembership(token: string, org: string): Promise<"active" | "pending" | null> {
+  const octokit = octokitWith(token);
+  try {
+    const res = await octokit.request("GET /user/memberships/orgs/{org}", { org });
+    return res.data.state === "active" || res.data.state === "pending" ? res.data.state : null;
+  } catch (e: any) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
 /** 按用户名查 GitHub 账号（用调用者自己的 token）；不存在返回 null，其它错误原样抛出。 */
 async function getUser(token: string, login: string): Promise<{ login: string; id: number } | null> {
   const octokit = octokitWith(token);
@@ -29,5 +45,5 @@ async function getUser(token: string, login: string): Promise<{ login: string; i
   }
 }
 
-return { octokitWith, getOrgRole, getUser };
+return { octokitWith, getOrgRole, getOwnMembership, getUser };
 }
