@@ -224,7 +224,7 @@ const AUDIT = [
   { id: 33, created_at: now - 5 * DAY, actor: "zhao-yi", action: "team.create", target: "ai-native", ip: "10.0.0.19", details: { name: "AI Native" } },
   { id: 32, created_at: now - 7 * DAY, actor: "chen-hang", action: "role.assign", target: "gao-yuan", ip: "10.0.0.8", details: { role: "alumni", department_id: "", note_length: 14 } },
   { id: 29, created_at: now - 12 * DAY, actor: "li-xiaoman", action: "role.assign", target: "he-miao", ip: "10.0.0.12", details: { role: "member", department_id: "recruitment", note_length: 6 } },
-  { id: 28, created_at: now - 14 * DAY, actor: "chen-hang", action: "invite_link.create", target: "development-preview-token", ip: "10.0.0.8", details: { hours: 72, max_uses: 30, note: "新生群", team_slug: null } },
+  { id: 28, created_at: now - 14 * DAY, actor: "chen-hang", action: "invite_link.create", target: "develo…", /* 服务端只下发邀请 token 前 6 位 */ ip: "10.0.0.8", details: { hours: 72, max_uses: 30, note: "新生群", team_slug: null } },
   { id: 27, created_at: now - 20 * DAY, actor: "chen-hang", action: "department.update", target: "community", ip: "10.0.0.8", details: { changed: ["member_capabilities"] } },
 ].sort((a, b) => b.created_at - a.created_at);
 

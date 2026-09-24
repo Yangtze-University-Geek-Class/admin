@@ -55,7 +55,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /api/console/feedback?status=&limit=` | `feedback.read` | 无 | 200 `{ items, counts }`，形状同管理端意见箱，组织固定为 `CONSOLE_ORG` | 401；403 |
 | `PATCH /api/console/feedback/:id` | `feedback.manage` | 无 | 200 `{ ok: true }`，审计 `feedback.update` | 400；404 |
 | `DELETE /api/console/feedback/:id` | `feedback.manage` | 无 | 200 `{ ok: true }`，审计 `feedback.delete` | 404 |
-| `GET /api/console/audit?limit=&offset=&action=` | `audit.read` | 无 | 200 `{ logs }`，只含 `org = CONSOLE_ORG` 的行，`action` 按前缀匹配 | 401；403 |
+| `GET /api/console/audit?limit=&offset=&action=` | `audit.read` | 无 | 200 `{ logs }`，只含 `org = CONSOLE_ORG` 的行，`action` 按前缀匹配；邀请链接 token 只下发前 6 位加 `…`（`invite_link.*` 的 `target`、`invite.*` 的 `public:<token>` 操作者） | 401；403 |
 | `GET /healthz` | 匿名 | 无 | 200 `{ ok: true, ts }` | — |
 | `GET /forum`、`GET /forum/*`（server 自身） | 匿名 | 无 | 开发态 302 到 `http://127.0.0.1:3456/` | 生产 503 `forum_service_not_ready`。容器栈里 web nginx 先把 `/forum/*` 反代到 forum 容器，只有直连 server 才会走到这里 |
 
@@ -69,7 +69,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 - **身份**：`GET /api/console/me` 返回 `{ login, avatar_url, org, github_role, title, titles, capabilities, blocked, bootstrap, head_of }`。`TitleView = { id, label, tag, icon, tone, department, source, assignment_id }`，`source ∈ assignment | bootstrap | github | none`；`capabilities` 按能力清单顺序。能力模型、GitHub 上限与临时代任规则见 [SECURITY](SECURITY.md)。
 - **GitHub 调用**：只用会话里调用者自己的 token（组织角色查询、指派时的 `GET /users/{login}`）。GitHub 角色缓存 60 秒（错误不缓存）；GitHub 出错走下文「错误」的统一映射，**不**当成「不是组织成员」。
 - **契约细节**：投递路径参数叫 `:application_id` 并按 UUID 校验（`:id` 会被公共校验强制成数字）；`export.csv` 是静态路由，优先于 `/:application_id`。`limit` 1–200（意见箱 1–500），`offset` 0–99999999，`q` ≤100 字，按 LIKE 匹配姓名、班级、邮箱并转义 `%`、`_`、`\`。CSV 以 `= + - @ \t \r` 开头的单元格前加 `'`，防表格公式注入。
-- **审计**：所有控制台写操作以及投递的查看、导出都以 `org = CONSOLE_ORG` 写审计，现有 `GET /api/admin/:org/logs` 也能看到。审核备注只存 `application_reviews`，不进审计。
+- **审计**：所有控制台写操作以及投递的查看、导出都以 `org = CONSOLE_ORG` 写审计，现有 `GET /api/admin/:org/logs` 也能看到。审核备注只存 `application_reviews`，不进审计。`GET /api/console/audit` 把邀请链接 token 截成前 6 位：`audit.read` 可以放进任何部门权限包、不要求 GitHub 组织管理员，而完整 token 能直接调用 `POST /api/join/:token`，用链接发起人的授权发出组织邀请。旧 `GET /api/admin/:org/logs` 只给组织管理员，仍返回原值。
 - **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制，本次没有加能力检查。
 - **Mock**：开发预览 `?__data=mock` 覆盖控制台所有 GET（`?__persona=` 切换身份），写请求照旧返回 501 `mock_read_only`，不伪造写成功。
 - 回归测试见 `tests/server/console.test.ts`。

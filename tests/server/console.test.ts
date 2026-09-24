@@ -372,6 +372,26 @@ describe('summary, feedback and audit', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM audit_logs').get()).toEqual({ n: 4 });
   });
 
+  it('never hands a live invite-link token to an audit reader who is not a GitHub org admin', async () => {
+    // frank 是技术部负责人（部门包里有 audit.read），但不在 GitHub 组织里：控制台不能让他拿到可用的邀请凭据。
+    const { app, as, assign } = await setup({ alice: 'admin' });
+    const created = await app.inject({ method: 'POST', url: `/api/admin/${CONSOLE_ORG}/invite-links`, headers: as('alice'), payload: { hours: 24, max_uses: 5 } });
+    expect(created.statusCode).toBe(200);
+    const token = created.json().token as string;
+    app.services.storage.audit(CONSOLE_ORG, `public:${token}`, 'invite.sent', 'newcomer', { invitation_id: 7 }, '203.0.113.5');
+    assign('frank', 'head', 'tech');
+
+    const response = await app.inject({ url: '/api/console/audit', headers: as('frank') });
+    expect(response.statusCode).toBe(200);
+    const logs = response.json().logs as { action: string; actor: string; target: string }[];
+    expect(logs.map(row => row.action).sort()).toEqual(['invite.sent', 'invite_link.create']);
+    expect(response.body).not.toContain(token);
+    expect(logs.find(row => row.action === 'invite_link.create')!.target).toBe(`${token.slice(0, 6)}…`);
+    expect(logs.find(row => row.action === 'invite.sent')!.actor).toBe(`public:${token.slice(0, 6)}…`);
+    // 旧入口只给组织管理员，他们本来就能列出链接，行为不变。
+    expect((await app.inject({ url: `/api/admin/${CONSOLE_ORG}/logs`, headers: as('alice') })).body).toContain(token);
+  });
+
   it('publishes the catalogue with the captain-only list and the navigator title', async () => {
     const { app, as } = await setup({ bob: 'member' });
     const catalogue = (await app.inject({ url: '/api/console/catalogue', headers: as('bob') })).json();
