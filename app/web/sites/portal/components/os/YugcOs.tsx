@@ -8,6 +8,8 @@ import { links } from "../../lib/links";
 import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
+import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Wallpaper } from "../../lib/wallpapers";
+import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
 
 type Props = {
@@ -38,6 +40,17 @@ export default function YugcOs({ active, onBack }: Props) {
       return true;
     }
   });
+  const [wallpaper, setWallpaper] = useState<Wallpaper>(() => readWallpaperChoice());
+  const [picker, setPicker] = useState(false);
+  const pickerBox = useRef<HTMLDivElement>(null);
+  // 打开面板时把焦点放到当前壁纸上；preventScroll：autoFocus 会让浏览器滚动整个桌面去「露出」按钮，桌面整体上移
+  useEffect(() => {
+    if (picker) pickerBox.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+  }, [picker]);
+  const chooseWallpaper = (next: Wallpaper) => {
+    setWallpaper(next);
+    saveWallpaperChoice(next.id);
+  };
   const toggleNote = (show: boolean) => {
     setNote(show);
     try {
@@ -113,6 +126,9 @@ export default function YugcOs({ active, onBack }: Props) {
         case "site":
           window.location.assign(links.console());
           return;
+        case "panel":
+          setPicker(true);
+          return;
         case "scene":
           return launchScene(app, from);
       }
@@ -176,6 +192,7 @@ export default function YugcOs({ active, onBack }: Props) {
     system: [{ label: "关于极客班", run: () => open("about") }, { label: "组织架构", run: () => open("org") }, null, { label: "回到书桌", run: onBack, key: "Esc" }],
     go: OS_APPS.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key })),
     window: [
+      { label: "更换壁纸…", run: () => setPicker(true) },
       { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
       { label: "关闭全部", run: () => setWins([]) },
     ],
@@ -240,6 +257,7 @@ export default function YugcOs({ active, onBack }: Props) {
       )}
 
       <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
+        <WallpaperLayer wallpaper={wallpaper} active={active} />
         <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
         <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
         {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
@@ -286,6 +304,38 @@ export default function YugcOs({ active, onBack }: Props) {
           </button>
         ))}
       </nav>
+
+      {picker && (
+        <div className="pt-picker" role="dialog" aria-modal="true" aria-label="更换壁纸" onPointerDown={(e) => e.target === e.currentTarget && setPicker(false)} onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setPicker(false))}>
+          <div className="pt-picker-box" ref={pickerBox}>
+            <header>
+              <h2>更换壁纸</h2>
+              <button type="button" className="pt-note-close" aria-label="关闭" onClick={() => setPicker(false)}>
+                <Icon name="close-line" size={14} />
+              </button>
+            </header>
+            <ul role="radiogroup" aria-label="壁纸">
+              {WALLPAPERS.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={wallpaper.id === item.id}
+                    className={wallpaper.id === item.id ? "is-on" : undefined}
+                    onClick={() => chooseWallpaper(item)}
+                  >
+                    <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
+                    <span>
+                      {item.name}
+                      {item.loop && <small>会动</small>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {launcher && (
         <div className="pt-launcher" role="dialog" aria-modal="true" aria-label="启动器" onPointerDown={(e) => e.target === e.currentTarget && setLauncher(false)}>

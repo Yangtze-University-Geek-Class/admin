@@ -12,6 +12,7 @@ import YugcOs from "../components/os/YugcOs";
 import { STACKED_QUERY } from "../lib/cameraMath";
 import { deskView, nextDeskState, type DeskEvent, type DeskState } from "../lib/deskMachine";
 import { wantsDesktop } from "../lib/links";
+import { readWallpaperChoice } from "../lib/wallpapers";
 import { LOADER_STEPS, type LoaderStep } from "../lib/loaderProgress";
 import { useInert, useReducedMotion } from "../lib/useReducedMotion";
 import type { DeskHandle } from "../three/desk";
@@ -19,16 +20,14 @@ import "../styles/portal.css";
 import "../styles/desk.css";
 import "../styles/os.css";
 
-/** 系统桌面的壁纸：开机画面放完之前一定要解码好，桌面露出来时是完整的一张图，不会一块块地加载出来 */
-const WALLPAPERS = ["/portal/wallpaper-nano.webp", "/portal/wallpaper-nano-portrait.webp"];
+/** 系统桌面的壁纸（用户选的那张的静态图）：开机画面放完之前一定要解码好，桌面露出来时是完整的一张图 */
 let wallpaperReady: Promise<void> | null = null;
 let wallpaperDecoded = false;
 function preloadWallpaper(): Promise<void> {
   if (!wallpaperReady) {
-    const portrait = window.matchMedia("(max-aspect-ratio: 9/10)").matches;
     const image = new Image();
     image.decoding = "async";
-    image.src = WALLPAPERS[portrait ? 1 : 0];
+    image.src = readWallpaperChoice().image;
     // 解码失败（离线、被拦）也放行：桌面有底色，不能让开机画面卡住
     wallpaperReady = image
       .decode()

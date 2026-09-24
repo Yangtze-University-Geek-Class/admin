@@ -3,7 +3,7 @@
    便签贴在右上角；Dock 在底部，每个图标下面有名字。桌面上不铺组件卡片。
    壁纸是静态图片；不做全屏 backdrop-filter，只有便签和 Dock 这种小面积用一点模糊。 */
 
-.pt-os-shell { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.pt-os-shell { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; }
 
 /* ── 菜单栏（不透明白，细边） ── */
 .pt-mb {
@@ -32,9 +32,38 @@
   --dock-room: calc(106px + env(safe-area-inset-bottom, 0px));
   position: relative; flex: 1; min-height: 0; overflow: hidden;
   padding: 22px 24px var(--dock-room);
-  background: #eef1fb url("/portal/wallpaper-nano.webp") center / cover no-repeat;
+  background: #eef1fb;
 }
-@media (max-aspect-ratio: 9/10) { .pt-dt { background-image: url("/portal/wallpaper-nano-portrait.webp"); background-position: center bottom; } }
+
+/* 壁纸：两层叠放，新层在上面淡入（components/os/Wallpaper.tsx，时长 WALLPAPER_FADE_MS）。
+   静态图先铺满，循环视频解码出第一帧后再淡入到图上；竖屏裁切保留人物所在的右侧。 */
+.pt-walls { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.pt-wall {
+  position: absolute; inset: 0; opacity: 0; background: center / cover no-repeat;
+  transition: opacity .7s cubic-bezier(.4, 0, .2, 1); will-change: opacity;
+}
+.pt-wall.is-shown { opacity: 1; }
+.pt-wall-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .5s ease; }
+.pt-wall-video.is-ready { opacity: 1; }
+@media (max-aspect-ratio: 9/10) {
+  .pt-wall { background-position: 78% center; }
+  .pt-wall-video { object-position: 78% center; }
+}
+@media (prefers-reduced-motion: reduce) { .pt-wall { transition-duration: .01s; } }
+
+/* 更换壁纸：缩略图单选 */
+.pt-picker { position: absolute; inset: 0; z-index: 46; display: grid; place-items: center; background: rgb(236 237 243 / 55%); }
+.pt-picker-box { width: min(560px, calc(100% - 32px)); padding: 18px; border-radius: 18px; background: #fff; box-shadow: 0 0 0 1px rgb(27 33 64 / 8%), var(--pt-shadow-float); animation: pt-win-in .2s var(--pt-ease); }
+.pt-picker-box header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.pt-picker-box h2 { font-size: 16px; font-weight: 700; }
+.pt-picker-box ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.pt-picker-box li button { display: grid; gap: 8px; width: 100%; padding: 6px; border: 2px solid transparent; border-radius: 14px; background: none; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.pt-picker-box li button:hover { background: var(--pt-cobalt-wash); }
+.pt-picker-box li button.is-on { border-color: var(--pt-cobalt); }
+.pt-picker-box li button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(51 70 200 / 35%); }
+.pt-picker-box img { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 9px; object-fit: cover; }
+.pt-picker-box span { display: flex; align-items: center; gap: 8px; padding: 0 2px 2px; font-size: 13.5px; font-weight: 600; }
+.pt-picker-box small { padding: 1px 7px; border-radius: 999px; background: var(--pt-cobalt-soft); color: var(--pt-cobalt); font-size: 11px; font-weight: 600; }
 
 /* 桌面图标：左上角往下排，排满一列换下一列（和电脑桌面一样）。名字压在壁纸上，靠一层柔和的文字阴影保证可读 */
 .pt-icons {

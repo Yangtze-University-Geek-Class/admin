@@ -77,7 +77,9 @@
 @keyframes ld-curtain { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(50% 0 50% 0); } }
 
 /* ── 开机画面与系统层 ── */
-.pt-os { position: fixed; inset: 0; z-index: 10; background: var(--pt-ice); opacity: 0; pointer-events: none; transition: opacity .35s; overflow: hidden; }
+/* overflow: clip 而不是 hidden：hidden 的盒子仍能被脚本、焦点和点击「滚到可见」滚动；
+   藏在屏幕下方的 .pt-nano 让内容比视口高 370px，一滚整个桌面就上移。clip 不产生滚动容器，滚不动 */
+.pt-os { position: fixed; inset: 0; z-index: 10; background: var(--pt-ice); opacity: 0; pointer-events: none; transition: opacity .35s; overflow: hidden; overflow: clip; }
 .pt-os.is-on { opacity: 1; pointer-events: auto; }
 .pt-boot { position: absolute; inset: 0; z-index: 70; display: grid; place-items: center; background: var(--pt-ice); opacity: 0; pointer-events: none; transition: opacity .4s; }
 /* 开机画面进场不做渐变：它和外层 .pt-os 同时淡入时，半透明的开机画面会透出底下已经挂好的桌面（先闪一下桌面）。
