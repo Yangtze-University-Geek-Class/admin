@@ -30,13 +30,14 @@ describe("桌面壁纸", () => {
     }
   });
 
-  it("验收规则拦得住整段变暗、帧率不够和首尾接不上", () => {
+  it("验收规则拦得住整段变暗、帧率不够、首尾接不上和末尾停住", () => {
     const good = report[0];
     expect(problems(good)).toEqual([]);
     expect(problems({ ...good, lumaDrift: 116.2, blockDrift: 132.9, worstFrame: 50 }).join()).toMatch(/第 50 帧亮度偏离/);
     expect(problems({ ...good, fps: 24 }).join()).toMatch(/帧率 24/);
     expect(problems({ ...good, seam: 7.6, maxStep: 2 }).join()).toMatch(/循环会跳/);
     expect(problems({ ...good, posterDiff: 7.6 }).join()).toMatch(/第一帧与静态图/);
+    expect(problems({ ...good, minMotion: 0.08, stillFrame: 192 }).join()).toMatch(/第 192 帧起的 0.25 秒几乎不动/);
   });
 
   it("至少一张动态壁纸，默认用第一张", () => {

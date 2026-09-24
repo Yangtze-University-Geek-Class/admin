@@ -8,7 +8,9 @@
  *   2. 视频第一帧就是同名静态图 <id>.webp：两者平均逐像素差 ≤ 3（静态图与视频的色彩换算不同，留一点余量），
  *      视频淡入时画面不跳；
  *   3. 首尾无缝：最后一帧与第一帧的差不超过相邻两帧差的最大值（循环接回去不比正常一帧跳得多）；
- *   4. 帧率 48、分辨率 1920×1080。
+ *   4. 不许停：把相邻帧差按 0.25 秒一段取平均，最慢的一段不低于全片中位数的 40%。
+ *      「首尾收回同一帧」的做法会让人物在循环末尾慢慢停住、定格一下再重新动，看起来像卡了一下；
+ *   5. 帧率 48、分辨率 1920×1080。
  * 结果连同文件 sha256 写进 tests/web/fixtures/wallpaper-qa.json；tests/web/portal-wallpapers.test.ts
  * 只核对 sha256 与阈值（CI 没有 ffmpeg），所以视频换了却没重跑验收，单元测试就会失败。
  *
@@ -29,7 +31,7 @@ const W = 480;
 const H = 270;
 const BLOCK = 30;
 
-export const LIMITS = Object.freeze({ fps: 48, width: 1920, height: 1080, lumaDrift: 1.5, posterDiff: 3 });
+export const LIMITS = Object.freeze({ fps: 48, width: 1920, height: 1080, lumaDrift: 1.5, posterDiff: 3, minMotion: 0.4 });
 
 function run(command, args) {
   const result = spawnSync(command, args, { maxBuffer: 1 << 30 });
@@ -76,6 +78,17 @@ function median(values) {
 
 const round = (value) => Math.round(value * 100) / 100;
 
+/** 按 0.25 秒一段看动作快慢：最慢那一段相对全片中位数的比例，以及它从第几帧开始 */
+function motion(steps, window) {
+  const segments = [];
+  for (let start = 0; start + window <= steps.length; start += window) {
+    segments.push({ start, value: steps.slice(start, start + window).reduce((sum, value) => sum + value, 0) / window });
+  }
+  const typical = median(segments.map((segment) => segment.value));
+  const slowest = segments.reduce((low, segment) => (segment.value < low.value ? segment : low), segments[0]);
+  return { minMotion: round(typical > 0 ? slowest.value / typical : 0), stillFrame: slowest.start };
+}
+
 function measure(file, poster) {
   const path = join(root, DIR, file);
   const probe = JSON.parse(run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', path]).toString()).streams[0];
@@ -109,6 +122,7 @@ function measure(file, poster) {
     posterDiff: round(meanAbsDiff(frames[0], poster)),
     seam: round(meanAbsDiff(frames[frames.length - 1], frames[0])),
     maxStep: round(Math.max(...steps)),
+    ...motion(steps, Math.round(num / den / 4)),
   };
 }
 
@@ -120,6 +134,7 @@ export function problems(entry) {
   if (entry.lumaDrift > LIMITS.lumaDrift || entry.blockDrift > LIMITS.lumaDrift) out.push(`第 ${entry.worstFrame} 帧亮度偏离第一帧（平均 ${entry.lumaDrift}、小块中位 ${entry.blockDrift}，上限 ${LIMITS.lumaDrift}）`);
   if (entry.posterDiff > LIMITS.posterDiff) out.push(`第一帧与静态图差 ${entry.posterDiff}，上限 ${LIMITS.posterDiff}`);
   if (entry.seam > entry.maxStep) out.push(`首尾差 ${entry.seam} 大于相邻帧最大差 ${entry.maxStep}，循环会跳`);
+  if (!(entry.minMotion >= LIMITS.minMotion)) out.push(`第 ${entry.stillFrame} 帧起的 0.25 秒几乎不动（只有平时的 ${Math.round(entry.minMotion * 100)}%，下限 ${LIMITS.minMotion * 100}%），看起来会停一下`);
   return out;
 }
 
@@ -133,7 +148,7 @@ function main() {
     const entry = measure(file, grayFrames(posterPath)[0]);
     report.push(entry);
     const bad = problems(entry);
-    console.log(`${bad.length ? '不合格' : '合格'}  ${file}  ${entry.frames} 帧 @${entry.fps}  亮度偏离 ${entry.lumaDrift}/${entry.blockDrift}  首帧差 ${entry.posterDiff}  首尾差 ${entry.seam}（相邻帧最大 ${entry.maxStep}）`);
+    console.log(`${bad.length ? '不合格' : '合格'}  ${file}  ${entry.frames} 帧 @${entry.fps}  亮度偏离 ${entry.lumaDrift}/${entry.blockDrift}  首帧差 ${entry.posterDiff}  首尾差 ${entry.seam}（相邻帧最大 ${entry.maxStep}）  最慢一段 ${Math.round(entry.minMotion * 100)}%`);
     for (const reason of bad) console.log(`        ${reason}`);
   }
   writeFileSync(join(root, REPORT), `${JSON.stringify(report, null, 2)}\n`);
