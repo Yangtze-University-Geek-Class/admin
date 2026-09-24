@@ -1,7 +1,19 @@
 import { Octokit } from "@octokit/rest";
 
 export type OrgRole = "admin" | "member" | null;
-export function createGithub(factory: (token: string) => Octokit = token => new Octokit({ auth: token, userAgent: "yzgc-admin", request: { timeout: 15000 } })) {
+
+/** GitHub 调用一律 15 秒超时：卡住时尽快失败（登录回到原页面、接口报错），而不是挂到 undici 默认的 300 秒。 */
+export const GITHUB_TIMEOUT_MS = 15_000;
+
+/** Octokit 当前版本不读 request.timeout，超时只能套在它用的 fetch 上；调用方自己的 signal 照样生效。 */
+export function withTimeout(base: typeof fetch, ms: number): typeof fetch {
+  return (input, init) => {
+    const timeout = AbortSignal.timeout(ms);
+    return base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+  };
+}
+
+export function createGithub(factory: (token: string) => Octokit = token => new Octokit({ auth: token, userAgent: "yzgc-admin", request: { fetch: withTimeout(fetch, GITHUB_TIMEOUT_MS) } })) {
 const octokitWith = factory;
 
 

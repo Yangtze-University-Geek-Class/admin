@@ -18,7 +18,8 @@ export default async function authRoutes(app: FastifyInstance) {
   destroySession,
   exchangeCode,
   fetchAuthenticatedUser,
-  getSession, } = app.services.auth;
+  getSession,
+  revokeGrant, } = app.services.auth;
   const { audit } = app.services.storage;
   const { config, github } = app.services;
 
@@ -57,6 +58,9 @@ export default async function authRoutes(app: FastifyInstance) {
       // 只有极客班 GitHub 组织的正式成员能登录。不是成员（包括邀请还没接受）不建会话，照旧可以不登录浏览。
       if (membership !== "active") {
         audit(null, user.login, "auth.signin_denied", user.login, { org: config.consoleOrg, reason: membership ?? "not_member" }, req.ip);
+        await revokeGrant(token).catch((cause: { code?: string; status?: number }) => {
+          req.log.warn({ code: cause?.code, status: cause?.status, requestId: req.id }, "github grant revoke failed");
+        });
         return reply.redirect(withSigninOutcome(back, membership === "pending" ? "invite_pending" : "not_member"));
       }
       const sid = createSession(user.login, user.id, user.avatar_url, token);
