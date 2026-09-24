@@ -10,9 +10,10 @@ const { snapshot, ready, load } = useContentSource()
 
   <TxCard v-else-if="snapshot.status === 'error'" role="alert">
     <TxStack :gap="12">
-      <TxAlert type="error" title="无法加载极客班论坛快照" :message="snapshot.error" :closable="false" />
+      <!-- 排查步骤（快照目录、dev.log）写在 docs/ops/TUFF-FORUM.md，页面上只说结果和错误码 -->
+      <TxAlert type="error" title="极客班论坛的帖子没有加载出来" :message="snapshot.error" :closable="false" />
       <p class="text-sm text-$tx-text-color-secondary">
-        页面不会回退到上游示例内容。请检查 GEEK_FORUM_CONTENT_DIR 指向的快照目录是否完整，或查看 .tools/tuff-forum/dev.log。
+        页面不会改用示例内容。可以点「重试」，还不行就把上面的错误码发给维护者。
       </p>
       <TxFlex :gap="8">
         <TxButton variant="primary" icon="i-carbon-renew" @click="load">

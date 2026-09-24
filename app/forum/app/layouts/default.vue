@@ -37,7 +37,7 @@ const sidebarVisible = computed(() => isDesktop.value && sidebarOpen.value)
       <ForumSidebar @navigate="drawerOpen = false" />
     </TxDrawer>
 
-    <!-- Mock identity picker in demo mode; a read-only notice in snapshot mode, so every "登录" trigger still answers. -->
+    <!-- Mock identity picker in demo login mode; under the site-wide login a short toast, so every "登录" trigger still answers. -->
     <LoginModal />
   </div>
 </template>

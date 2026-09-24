@@ -49,7 +49,7 @@ function snapshotDirectory() {
   return candidates.at(-1) ?? '';
 }
 
-function toolchain({ contentDir = '' } = {}) {
+function toolchain({ contentDir = '', demoLogin = false } = {}) {
   const candidates = [process.env.FORUM_NODE, process.execPath, '/opt/homebrew/bin/node', '/usr/local/bin/node'].filter(Boolean);
   const node = candidates.find(candidate => {
     if (!existsSync(candidate)) return false;
@@ -76,6 +76,9 @@ function toolchain({ contentDir = '' } = {}) {
   // inside app/forum names a directory.
   if (contentDir) env.GEEK_FORUM_CONTENT_DIR = contentDir;
   else env.GEEK_FORUM_SOURCE = 'demo';
+  // 论坛默认走全站统一的 GitHub 登录（部署镜像与 generate 都是）。只有示例预览（start/dev 没有快照）
+  // 和上游 CDP 验收要原仓的「选择一个身份」，由这里显式打开；真实数据永远不用示例身份。
+  if (!contentDir && demoLogin) env.GEEK_FORUM_LOGIN = 'demo';
   // The upstream CDP suites default to http://localhost:3456, which on macOS
   // may resolve to ::1 and reach a different listener than our 127.0.0.1 one.
   env.TUFF_FORUM_URL = process.env.TUFF_FORUM_URL || origin;
@@ -139,7 +142,7 @@ async function status() {
 async function serve(instance) {
   if (!instance) throw new Error('Missing instance identity');
   const contentDir = process.env.GEEK_FORUM_CONTENT_DIR ?? '';
-  const { node, pnpm, env } = toolchain({ contentDir });
+  const { node, pnpm, env } = toolchain({ contentDir, demoLogin: true });
   // The pnpm wrapper and nuxt get their own process group so the supervisor can
   // signal both without signalling itself.
   const child = spawn(node, [pnpm, 'exec', 'nuxt', 'dev', '--host', '127.0.0.1', '--port', '3456', '--no-fork'], {
@@ -243,7 +246,7 @@ async function main() {
     if (listening?.mode === 'local-snapshot') throw new Error('A local-snapshot preview is on 3456. Run `pnpm forum:stop` first; `forum:verify` then starts its own demo-seed server.');
     if (!listening && await httpOnce('/')) throw new Error('Something that is not this repository\'s preview answers on 127.0.0.1:3456; stop it before `forum:verify`.');
   }
-  const { node, pnpm, env } = toolchain(command === 'dev' ? { contentDir: snapshotDirectory() } : {});
+  const { node, pnpm, env } = toolchain(command === 'dev' ? { contentDir: snapshotDirectory(), demoLogin: true } : { demoLogin: command === 'verify' });
   if (command === 'dev') console.error(env.GEEK_FORUM_CONTENT_DIR ? `Content source: local snapshot ${env.GEEK_FORUM_CONTENT_DIR}` : 'Content source: upstream demo seed');
   const args = command === 'install' ? [pnpm, 'install', '--frozen-lockfile'] : [pnpm, command, ...process.argv.slice(3)];
   const child = spawn(node, args, { cwd: moduleRoot, env, stdio: 'inherit' });

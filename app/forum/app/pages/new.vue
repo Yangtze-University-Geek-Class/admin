@@ -16,7 +16,7 @@ const router = useRouter()
 const forum = useForumStore()
 const { user, isLoggedIn, can } = useCurrentUser()
 const { loginOpen } = useShell()
-const { isSnapshot } = useContentSource()
+const { siteLogin } = useContentSource()
 
 const formRef = ref<TxFormInstance | null>(null)
 const submitting = ref(false)
@@ -108,9 +108,9 @@ async function submit() {
     <TxEmptyState
       v-if="!isLoggedIn"
       variant="permission"
-      :title="isSnapshot ? '发帖还没开放' : '登录后才能发布话题'"
-      :description="isSnapshot ? '发帖正在接入。' : '选择一个身份即可发起新话题。'"
-      :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
+      :title="siteLogin ? '发帖还没开放' : '登录后才能发布话题'"
+      :description="siteLogin ? '发帖正在接入。' : '选择一个身份即可发起新话题。'"
+      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
 
