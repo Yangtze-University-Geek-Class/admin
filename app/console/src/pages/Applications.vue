@@ -54,10 +54,10 @@ const chips = computed(() => [
 ]);
 
 const columns = [
-  { key: "name", title: "姓名", width: 150 },
-  { key: "email", title: "邮箱", width: 220 },
+  { key: "name", title: "姓名", width: 120 },
+  { key: "email", title: "邮箱", width: 180 },
   { key: "strengths", title: "特长摘要" },
-  { key: "status", title: "状态", width: 150 },
+  { key: "status", title: "状态", width: 120 },
   { key: "created_at", title: "投递时间", width: 110, align: "right" as const },
 ];
 const detailHref = (row: ApplicationItem) => `/console/applications/${row.id}`;
@@ -89,7 +89,7 @@ const exportHref = computed(() => `/api/console/applications/export.csv${status.
     <ErrorPanel v-if="list.error.value" :error="list.error.value" :retry="list.reload" />
     <LoadingBlock v-else-if="!list.data.value" :lines="8" />
     <TxCard v-else :padding="0" class="table-card">
-      <TxDataTable style="--table-min: 860px" :columns="columns" :data="list.data.value.items" row-key="id" table-layout="fixed" scroll-x :loading="list.loading.value" @row-click="({ row }: { row: ApplicationItem }) => router.push(detailHref(row))">
+      <TxDataTable style="--table-min: 680px" :columns="columns" :data="list.data.value.items" row-key="id" table-layout="fixed" scroll-x :loading="list.loading.value" @row-click="({ row }: { row: ApplicationItem }) => router.push(detailHref(row))">
         <template #cell-name="{ row }: { row: ApplicationItem }">
           <span class="cell-stack">
             <TxCellLink :href="detailHref(row)" :label="row.name" @open="router.push(detailHref(row))" />

@@ -139,6 +139,10 @@
   min-width: 0;
   max-width: 100%;
 }
+/* align-items: flex-start 会让子项按内容撑宽、越过单元格，里面的 .ellipsis 就截不住：子项最多和单元格一样宽 */
+.cell-stack > * {
+  max-width: 100%;
+}
 
 .cell-sub {
   font-size: 12px;
