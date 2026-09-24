@@ -35,10 +35,12 @@ export function useAccount() {
     };
   }, []);
 
-  /** 退出是全站的：官网、论坛、控制台一起变成未登录 */
+  /** 退出是全站的：官网、论坛、控制台一起变成未登录。服务端确认后才显示已退出。 */
   const signOut = useCallback(async () => {
-    await fetch("/auth/signout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
-    setAccount(null);
+    const ok = await fetch("/auth/signout", { method: "POST", credentials: "same-origin" })
+      .then((response) => response.ok)
+      .catch(() => false);
+    if (ok) setAccount(null);
   }, []);
 
   return { account, loaded, signOut };

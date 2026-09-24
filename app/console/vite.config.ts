@@ -35,9 +35,11 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5186,
     strictPort: true,
+    // 核心只接受 PUBLIC_ORIGIN（本机是官网的 5173）发来的写请求；控制台开发时在 5186，
+    // 代理把 Origin 换成 5173，与线上同域时一致，否则本机的保存、审核和退出都会被 403。
     proxy: {
-      "/api": "http://127.0.0.1:3000",
-      "/auth": "http://127.0.0.1:3000",
+      "/api": { target: "http://127.0.0.1:3000", headers: { origin: "http://127.0.0.1:5173" } },
+      "/auth": { target: "http://127.0.0.1:3000", headers: { origin: "http://127.0.0.1:5173" } },
     },
   },
   build: {
