@@ -183,7 +183,7 @@ async function main() {
     if (!state) { console.log("No matching local preview; no process was stopped."); return; }
     process.kill(state.pid, "SIGTERM");
     for (let attempt = 0; attempt < 40; attempt++) {
-      if (!await current()) { console.log("Local preview stopped; isolated in-memory data cleared."); return; }
+      if (!await current()) { console.log(state.database === "file" ? "Local preview stopped; sign-ins and data stay in .tools/local-preview." : "Local preview stopped; isolated in-memory data cleared."); return; }
       await delay(100);
     }
     throw new Error("Shutdown not confirmed; no force kill was attempted.");
