@@ -1,15 +1,14 @@
-// YUGC OS：开机后的「极客班内部系统」。菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）+ 铺满屏幕的仪表盘网格
-// （左列欢迎与三个主入口，中间是论坛、仓库、组织、招新、终端、日历组件）+ 右侧桌面图标 + 可拖动窗口 + Dock + ⌘K 启动器。
-// 背景是纯 CSS（渐变网格 + 图纸线 + 校徽水印），没有大面积 backdrop-filter。
+// YUGC OS：开机后的「极客班内部系统」，按桌面操作系统来排：菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）、
+// 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
+// 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { links } from "../../lib/links";
 import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
-import Emblem from "../Emblem";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
-import { ClockWidget, ForumWidget, OrgWidget, RecruitWidget, ReposWidget, TerminalWidget } from "./Widgets";
+import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
 
 type Props = {
   /** 桌面是否在前台（开机画面播完）；为 false 时不响应快捷键 */
@@ -19,6 +18,8 @@ type Props = {
 
 type MenuName = "system" | "go" | "window" | "help";
 
+const NOTE_KEY = "yugc:start-note";
+
 export default function YugcOs({ active, onBack }: Props) {
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
@@ -27,8 +28,24 @@ export default function YugcOs({ active, onBack }: Props) {
   const [launcher, setLauncher] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
-  const [selectedIcon, setSelectedIcon] = useState<AppId | null>(null);
   const [flight, setFlight] = useState<{ app: OsApp; x: number; y: number } | null>(null);
+  const [selectedIcon, setSelectedIcon] = useState<AppId | null>(null);
+  // 便签收起后本次浏览不再自动出现（菜单栏「帮助」里能重新打开）
+  const [note, setNote] = useState(() => {
+    try {
+      return sessionStorage.getItem(NOTE_KEY) !== "closed";
+    } catch {
+      return true;
+    }
+  });
+  const toggleNote = (show: boolean) => {
+    setNote(show);
+    try {
+      sessionStorage.setItem(NOTE_KEY, show ? "open" : "closed");
+    } catch {
+      /* 隐私模式下写不了：只影响刷新后是否再次显示 */
+    }
+  };
   const zTop = useRef(20);
   const cascade = useRef(0);
   const root = useRef<HTMLDivElement>(null);
@@ -162,14 +179,18 @@ export default function YugcOs({ active, onBack }: Props) {
       { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
       { label: "关闭全部", run: () => setWins([]) },
     ],
-    help: [{ label: "打开终端", run: () => open("terminal") }, { label: "文档", run: () => navigate("/docs") }, { label: "搜索应用和命令", run: () => setLauncher(true), key: "⌘K" }],
+    help: [
+      { label: "新来的看这里", run: () => toggleNote(true) },
+      { label: "打开终端", run: () => open("terminal") },
+      { label: "文档", run: () => navigate("/docs") },
+      { label: "搜索应用和命令", run: () => setLauncher(true), key: "⌘K" },
+    ],
   };
   const toggleMenu = (name: MenuName, anchor: HTMLElement) => {
     setMenu((current) => (current?.name === name ? null : { name, left: anchor.getBoundingClientRect().left }));
   };
 
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false });
-  const primaries = OS_APPS.filter((app) => app.key);
 
   return (
     <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
@@ -218,99 +239,10 @@ export default function YugcOs({ active, onBack }: Props) {
         </div>
       )}
 
-      <main className="pt-dt">
-        <div className="pt-dt-bg" aria-hidden="true">
-          <Emblem variant="mark" className="pt-dt-mark" />
-        </div>
+      <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
         <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
-        <div className="pt-dash">
-          <section className="pt-card pt-hero" aria-labelledby="pt-hero-title">
-            <h2 id="pt-hero-title">
-              欢迎来到
-              <br />
-              <span>长江大学极客班</span>
-            </h2>
-            <p className="pt-hero-lead">想报名就点「加入我们」，想看看大家在聊什么就去论坛。键盘按 1、2、3 或 ⌘K 也能打开。</p>
-            <div className="pt-hero-cta">
-              {primaries.map((app) => (
-                <button key={app.id} type="button" data-cta={app.id} className={app.primary ? "pt-cta is-primary" : "pt-cta"} onClick={(e) => open(app.id, e.currentTarget)}>
-                  <span className="pt-cta-ico">
-                    <Icon name={app.icon} size={18} />
-                  </span>
-                  <span className="pt-cta-text">
-                    <b>{app.name}</b>
-                    <small>{app.blurb}</small>
-                  </span>
-                  <kbd>{app.key}</kbd>
-                </button>
-              ))}
-            </div>
-            <dl className="pt-hero-facts">
-              <div>
-                <dt>
-                  <Icon name="code-s-slash-line" size={14} /> 平时做什么
-                </dt>
-                <dd>做项目、打比赛，也聊课程、求职和 AI</dd>
-              </div>
-              <div>
-                <dt>
-                  <Icon name="team-line" size={14} /> 在哪交流
-                </dt>
-                <dd>论坛发帖讨论，代码放在 GitHub 组织</dd>
-              </div>
-              <div>
-                <dt>
-                  <Icon name="mail-line" size={14} /> 怎么加入
-                </dt>
-                <dd>在「加入我们」写封信，我们用邮件联系你</dd>
-              </div>
-            </dl>
-            <div className="pt-hero-foot">
-              <Link to="/docs">
-                <Icon name="file-text-line" size={14} /> 文档
-              </Link>
-              <Link to="/feedback">
-                <Icon name="feedback-line" size={14} /> 意见箱
-              </Link>
-              <a href={links.console()}>
-                <Icon name="shield-user-line" size={14} /> 控制台
-              </a>
-            </div>
-          </section>
-          <RecruitWidget onOpen={open} />
-          <ForumWidget onOpen={open} />
-          <ReposWidget onOpen={open} />
-          <OrgWidget onOpen={open} />
-          <TerminalWidget onOpen={open} />
-          <ClockWidget now={now} />
-        </div>
-
-        <ul className="pt-icons" aria-label="桌面图标">
-          {OS_APPS.map((app) => (
-            <li key={app.id}>
-              <button
-                type="button"
-                className={selectedIcon === app.id ? "pt-dti is-sel" : "pt-dti"}
-                title={app.blurb}
-                onClick={() => setSelectedIcon(app.id)}
-                onDoubleClick={(e) => open(app.id, e.currentTarget)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") open(app.id, e.currentTarget);
-                }}
-              >
-                <span className="pt-dti-glyph" style={{ ["--tint" as string]: app.tint }}>
-                  <Icon name={app.icon} size={24} />
-                  {app.lock && (
-                    <em>
-                      <Icon name="lock-line" size={10} />
-                    </em>
-                  )}
-                </span>
-                <span className="pt-dti-name">{app.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
+        {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
 
         <div className="pt-windows">
           {wins.map((win) => (
@@ -330,21 +262,26 @@ export default function YugcOs({ active, onBack }: Props) {
       </main>
 
       <nav className="pt-dock" aria-label="Dock">
-        <button type="button" className="pt-dk" title="回到书桌（Esc）" aria-label="回到书桌" onClick={onBack}>
+        <button type="button" className="pt-dk is-back" aria-label="回到书桌" onClick={onBack}>
           <Icon name="arrow-left-line" size={20} />
+          <span className="pt-dk-label" aria-hidden="true">
+            回到书桌 <kbd>Esc</kbd>
+          </span>
         </button>
         <span className="pt-dk-sep" aria-hidden="true" />
         {OS_APPS.map((app) => (
           <button
             key={app.id}
             type="button"
-            className={wins.some((w) => w.id === app.id) ? "pt-dk is-running" : "pt-dk"}
-            title={`${app.name}${app.key ? `（${app.key}）` : ""}`}
+            className={["pt-dk", app.key ? "" : "is-extra", wins.some((w) => w.id === app.id) ? "is-running" : ""].filter(Boolean).join(" ")}
             aria-label={app.name}
-            style={{ ["--tint" as string]: app.tint }}
             onClick={(e) => open(app.id, e.currentTarget)}
           >
-            <Icon name={app.icon} size={20} />
+            <AppGlyph app={app} size={20} />
+            <span className="pt-dk-label" aria-hidden="true">
+              {app.name}
+              {app.key && <kbd>{app.key}</kbd>}
+            </span>
             <i className="pt-dk-dot" aria-hidden="true" />
           </button>
         ))}
