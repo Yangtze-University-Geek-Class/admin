@@ -45,7 +45,7 @@ function authorOf(entry: BookmarkEntry): string {
       v-if="!isLoggedIn"
       variant="permission"
       :title="isSnapshot ? '书签还没开放' : '登录后才能查看书签'"
-      :description="isSnapshot ? '书签正在接入，接好后用官网的 GitHub 登录就能用。' : '书签属于某个身份，先选一个再回来。'"
+      :description="isSnapshot ? '书签正在接入。' : '书签属于某个身份，先选一个再回来。'"
       :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />

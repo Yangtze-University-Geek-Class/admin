@@ -21,7 +21,7 @@ const { isSnapshot } = useContentSource()
       v-else-if="!isLoggedIn"
       variant="permission"
       :title="isSnapshot ? '通知还没开放' : '登录后才能查看通知'"
-      :description="isSnapshot ? '通知正在接入，接好后用官网的 GitHub 登录就能用。' : '通知属于某个身份，先选一个再回来。'"
+      :description="isSnapshot ? '通知正在接入。' : '通知属于某个身份，先选一个再回来。'"
       :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
