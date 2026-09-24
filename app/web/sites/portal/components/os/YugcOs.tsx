@@ -327,7 +327,7 @@ export default function YugcOs({ active, onBack }: Props) {
                     <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
                     <span>
                       {item.name}
-                      {item.loop && <small>会动</small>}
+                      {item.video && <small>动态</small>}
                     </span>
                   </button>
                 </li>

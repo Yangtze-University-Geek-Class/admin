@@ -1,8 +1,8 @@
 // 桌面壁纸：两层叠放，换壁纸时新的一层在上面淡入，淡入完成后旧的一层才卸掉，全程没有空白帧。
-// 每层先显示静态图；有循环视频且允许动态时，视频解码出第一帧后再淡入到图上面（首尾帧一致，无缝循环）。
+// 每层先显示静态图；有视频且允许动态时，视频开始播放后再淡入到图上面，循环播放。
 // 视频播不了（格式不支持、自动播放被拦、省流量）就一直停在静态图上。
 import { useEffect, useRef, useState } from "react";
-import { shouldPlayLoop, type Wallpaper } from "../../lib/wallpapers";
+import { shouldPlayVideo, type Wallpaper } from "../../lib/wallpapers";
 
 type Layer = { key: number; wallpaper: Wallpaper };
 
@@ -40,7 +40,7 @@ function WallpaperFace({ wallpaper, entering, active, onShown }: { wallpaper: Wa
   const [allowLoop] = useState(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
-    return shouldPlayLoop(wallpaper, { reducedMotion, saveData });
+    return shouldPlayVideo(wallpaper, { reducedMotion, saveData });
   });
 
   // 新层：图片解码好了再开始淡入，淡入结束通知上层卸掉旧层
@@ -77,7 +77,7 @@ function WallpaperFace({ wallpaper, entering, active, onShown }: { wallpaper: Wa
 
   return (
     <div className={shown ? "pt-wall is-shown" : "pt-wall"} style={{ backgroundColor: wallpaper.tint, backgroundImage: `url("${wallpaper.image}")` }}>
-      {allowLoop && wallpaper.loop && (
+      {allowLoop && wallpaper.video && (
         <video
           ref={video}
           className={videoReady ? "pt-wall-video is-ready" : "pt-wall-video"}
@@ -90,8 +90,7 @@ function WallpaperFace({ wallpaper, entering, active, onShown }: { wallpaper: Wa
           disablePictureInPicture
           onPlaying={() => setVideoReady(true)}
         >
-          <source src={wallpaper.loop.webm} type="video/webm" />
-          <source src={wallpaper.loop.mp4} type="video/mp4" />
+          <source src={wallpaper.video} type="video/mp4" />
         </video>
       )}
     </div>
