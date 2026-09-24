@@ -11,8 +11,9 @@
 3. [PROJECT](docs/conventions/PROJECT.md)
 4. [BRANCHING](docs/conventions/BRANCHING.md)
 5. [CONTRIBUTING](docs/conventions/CONTRIBUTING.md)
-6. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
-7. [RELEASES](docs/conventions/RELEASES.md)
+6. [TRACKING](docs/conventions/TRACKING.md)
+7. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
+8. [RELEASES](docs/conventions/RELEASES.md)
 
 再按任务读取适用规范与服务契约（`docs/services/` 下的服务文档、[TESTING](docs/conventions/TESTING.md)、安全与运维文档等）。
 
@@ -38,7 +39,8 @@
 
 **先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
-- 开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；MR 正文关联 issue，合并时用 `Closes #<issue>`。
+- **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）：开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
+- 每个阶段的进展以 [TRACKING](docs/conventions/TRACKING.md) §3 的「追踪记录」格式写成 issue / PR 评论；恢复上下文先读 issue 正文和最后几条追踪记录，不凭记忆续做。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
 - 进入 `main` 和打正式 tag 前，必须有所有者在预发布环境对同一提交的真实验收记录；自动化 PASS 只是机器验证，不能代替人工验证。
 - 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、打 tag、部署分别需要对应授权。发版流程、tag 规则与回滚见 [RELEASES](docs/conventions/RELEASES.md)。

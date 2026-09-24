@@ -17,13 +17,14 @@
 | [`COMMITS.md`](./conventions/COMMITS.md) | Conventional Commits 结构，中文说明，一次提交一个可回滚目的。 | [EN](./conventions/COMMITS.en.md) |
 | [`CONTRIBUTING.md`](./conventions/CONTRIBUTING.md) | 统一入口、最小变更、可审查的提交与资源隔离。 | [EN](./conventions/CONTRIBUTING.en.md) |
 | [`DOCUMENTATION.md`](./conventions/DOCUMENTATION.md) | 区分当前事实、已接受决策、未实施提议和历史材料；`docs/` 与 `app/` 严格对齐。 | — |
-| [`ISSUES.md`](./conventions/ISSUES.md) | 记录可复现问题、影响范围、验收条件及安全边界；开发前先有 issue，issue 是 task 分支的来源。 | [EN](./conventions/ISSUES.en.md) |
+| [`ISSUES.md`](./conventions/ISSUES.md) | issue 是一件事的主档：开发前先开 issue，写清现象、复现、环境与验收条件；之后每一步进展都以追踪记录留在评论里，PR 合并即关闭。 | [EN](./conventions/ISSUES.en.md) |
 | [`MODULAR-DEVELOPMENT.md`](./conventions/MODULAR-DEVELOPMENT.md) | 职责清楚、依赖单向、契约明确；`app/` 与 `docs/services/` 严格对齐，不为目录形式制造部署复杂度。 | — |
 | [`PROJECT.md`](./conventions/PROJECT.md) | 项目定位、授权边界、统一入口和完成定义。 | — |
-| [`PULL-REQUESTS.md`](./conventions/PULL-REQUESTS.md) | 审查代码、合同、权限、数据一致性、文档与实际验证证据；每个 MR 都写清 range、验证命令与审查结论。 | [EN](./conventions/PULL-REQUESTS.en.md) |
+| [`PULL-REQUESTS.md`](./conventions/PULL-REQUESTS.md) | PR 是一次改动的证据档：写清解决链路、验证结果、可以直接照着做的人工验收步骤和截图录屏；审查与返工写成评论，合并后 issue 自动关闭。 | [EN](./conventions/PULL-REQUESTS.en.md) |
 | [`REFERENCES.md`](./conventions/REFERENCES.md) | 可追溯的工程依据，不把外部建议、产品选择和已完成验收混为一谈。 | — |
 | [`RELEASES.md`](./conventions/RELEASES.md) | 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，所有者在预发布验收通过后，在同一提交上打 `vX.Y.Z` 发正式。tag 不可移动、不可删除，版本号不自动提升。 | — |
 | [`TESTING.md`](./conventions/TESTING.md) | 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。 | — |
+| [`TRACKING.md`](./conventions/TRACKING.md) | 一件事从提出到关闭，每一步都以固定格式的评论留在 issue 与 PR 上；人扫一眼能看懂进展，Agent 按字段就能读出状态。 | — |
 
 ## services/
 
@@ -105,7 +106,7 @@
 
 | 文档 | 说明 | EN |
 |---|---|---|
-| [`CICD.md`](./ops/CICD.md) | 四工作流（ci / deploy-preview / deploy-production / branch-hygiene）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
+| [`CICD.md`](./ops/CICD.md) | 五工作流（ci / deploy-preview / deploy-production / branch-hygiene / issue-lifecycle）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
 | [`DEPLOY.md`](./ops/DEPLOY.md) | 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。 | [EN](./ops/DEPLOY.en.md) |
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
 | [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。 | — |
@@ -164,4 +165,4 @@
 
 ---
 
-共 53 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 54 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

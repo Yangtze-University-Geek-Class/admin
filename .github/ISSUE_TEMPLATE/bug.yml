@@ -72,13 +72,40 @@ body:
       required: true
 
   - type: textarea
+    id: impact
+    attributes:
+      label: 影响
+      description: 谁会遇到、多严重、有没有绕过办法。决定优先级。
+    validations:
+      required: true
+
+  - type: textarea
     id: env
     attributes:
       label: 环境
-      description: 分支 / commit / 站点 / 浏览器，或「线上实测」。
-      placeholder: next @ 4959668，线上 yangtzeu.work/forum，Chrome 130
+      description: |
+        必填：分支与完整 commit SHA、站点地址、页面显示的版本（正式 X.Y.Z / 预发布 X.Y.Z-rc.N@sha12）。
+        按问题类型补设备信息（docs/conventions/ISSUES.md §3）：布局问题写视口尺寸与像素比；3D / 动画写浏览器、GPU / 机型、刷新率，是否前台真实浏览器；触屏写设备型号与系统。与问题无关的不写。
+      placeholder: stage @ f293035…（完整 SHA），https://prev.yangtzeu.work，0.1.0-rc.1@f293035a1b2c，iPhone 15 / iOS 19 / Safari，390×844
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 证据
+      description: 截图、录屏（直接拖进来上传）、报错原文、requestId。不贴令牌、会话、完整请求头或真实数据。
     validations:
       required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收条件
+      description: 怎样算修好：可观察的结果，以及要在哪些尺寸 / 设备 / 环境看。
+      placeholder: 390×844 与 1440×900 下点「打开电脑」，开机画面期间看不到桌面；慢网时开机画面等壁纸加载完再切。
+    validations:
+      required: true
 
   - type: checkboxes
     id: checklist
