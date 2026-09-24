@@ -4,15 +4,17 @@
 
 状态：`current` · 更新：2026-09-24 · 适用：所有 issue、PR 的评论，人与 Agent 都遵守。
 
-## §1 生命周期：一件事 = 一个 issue = 一个 task 分支 = 一个 PR
+## §1 生命周期：一件事 = 一个 issue = 一个 task 分支 = 一个 worktree = 一个 PR
 
 ```
-开 issue ──▶ 拉 task/<issue>/<slug> ──▶ 开 PR（Closes #<issue>）──▶ 审查 + CI ──▶ 合并进 stage
-   │                                                                                │
-   └──────────── 每个阶段在 issue 上发一条「追踪记录」─────────────────────────────┘
-                                                                                     ▼
-                                                   自动：删 task 分支、关闭 issue、两边互相留言
+开 issue ──▶ task.mjs start：从 stage 拉 task/<issue>/<slug> + 独立 worktree ──▶ 开 PR（Closes #<issue>）──▶ 审查 + CI ──▶ 合并进 stage
+   │                                                                                                                    │
+   └──────────────────────────── 每个阶段在 issue 上发一条「追踪记录」─────────────────────────────────────────────────┘
+                                                                                                                         ▼
+                                          自动：删远端 task 分支、关闭 issue、两边互相留言；本机：task.mjs finish 删 worktree 与本地分支
 ```
+
+- **worktree 跟着 issue 走**：开工时由 `node scripts/task.mjs start` 与分支一起建，合并（或放弃关闭）后由 `node scripts/task.mjs finish` 与本地分支一起删；详见 [BRANCHING](BRANCHING.md)「task worktree」。
 
 - **issue 是这件事的主档**：现象、复现、验收条件写在正文；之后的每一步进展写成评论，**不改写已发出的评论**（改正文只补「实施」段与链接）。
 - **PR 是这次改动的证据档**：解决链路、验收证据、人工验收步骤写在正文（[PULL-REQUESTS](PULL-REQUESTS.md)）；审查与返工写成评论。

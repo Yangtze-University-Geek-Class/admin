@@ -39,7 +39,7 @@
 
 **先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
-- **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）：开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
+- **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）。开工用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 建分支和独立 worktree，所有开发都在 worktree 里做，不在主工作区切分支；合并后 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（[BRANCHING](docs/conventions/BRANCHING.md)「task worktree」）。开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
 - 每个阶段的进展以 [TRACKING](docs/conventions/TRACKING.md) §3 的「追踪记录」格式写成 issue / PR 评论；恢复上下文先读 issue 正文和最后几条追踪记录，不凭记忆续做。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
 - 进入 `main` 和打正式 tag 前，必须有所有者在预发布环境对同一提交的真实验收记录；自动化 PASS 只是机器验证，不能代替人工验证。
@@ -66,7 +66,8 @@
 
 - 没读完第 0 节的规范就开始开发、安装依赖、跑脚本或操作数据。
 - 在 `main` 上直接提交/推送，或让 task/dev 分支直接进 `main`。
-- task 分支合并后残留死分支，或新建 `main`/`stage` 之外的长期分支。
+- task 分支合并后残留死分支或死 worktree，或新建 `main`/`stage` 之外的长期分支。
+- 在主工作区里切 task 分支开发，或在同一个 worktree 里做两个 issue。
 - 把真实密钥、令牌、生产数据或完整 `.env` 写进仓库、镜像、日志、MR。
 - 绕过或放宽 CI 与校验：`|| true`、`continue-on-error`、`[skip ci]`、删断言、改校验器、放宽既有校验来换绿色。
 - 删除、覆盖或 reset 他人未提交的工作；在脏工作区自行 `reset`/`clean`/切分支。
