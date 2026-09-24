@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
-  "$comment": "极客班论坛只读快照的编辑层：老帖归档、对标 LINUX DO 的精简一级分类、话题归类与润色正文。改动后重启 pnpm forum:start 生效。",
+  "$comment": "极客班论坛只读快照的编辑层。legacy.mode=hide：旧论坛的帖子、「老帖归档」类别、旧分类标签和只出现在旧帖里的账号都不显示，只留新内容；想重新开启某篇旧帖，把它的话题编号（如 \"t12\"）写进 legacy.include，再用 topics 把它放进新类别。对标 LINUX DO 的精简一级分类、话题归类与润色正文。改动后重启 pnpm forum:start 生效。",
+  "legacy": { "mode": "hide", "include": [] },
   "archive": {
     "id": "c-archive",
     "slug": "archive",
@@ -31,8 +32,7 @@
     "c-competitions",
     "c-careers",
     "c-ai",
-    "c21",
-    "c-archive"
+    "c21"
   ],
   "categoryPatches": {
     "c21": { "name": "资源荟萃", "color": "#14b8a6", "description": "精选学习资源、开发工具、开源项目与教程资料汇总。", "icon": "i-ri-book-read-line" }
