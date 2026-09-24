@@ -2,7 +2,8 @@
 // Local integration preview only. Never import index.ts or load an existing .env.
 // GitHub 登录：启动时环境里有 OAUTH_CLIENT_ID 与 OAUTH_CLIENT_SECRET（由调用方从钥匙串 / 本机凭据取，不进仓库、不打印），
 // 就走真实 GitHub 登录，数据库与会话密钥落在 .tools/local-preview/（不入库），重启不丢登录；没有就保持原来的隔离模式。
-import { spawn } from "node:child_process";
+// 出站代理：本机直连 github.com 可能不通（浏览器走的是系统代理），GitHub 登录时预览进程也走同一个代理，见 outboundProxy()。
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, openSync, closeSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
@@ -45,12 +46,14 @@ async function start() {
   const instance = randomUUID();
   const executable = runtime();
   const output = openSync(logFile, "a", 0o600);
+  const proxy = outboundProxy();
   const child = spawn(executable, [script, "serve", instance], {
     cwd: root, detached: true, stdio: ["ignore", output, output],
     env: {
       PATH: `${dirname(executable)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME ?? root, TMPDIR: process.env.TMPDIR ?? tmpdir(), NODE_ENV: "development",
       // 只透传 GitHub 登录需要的两项；其余环境变量一概不带进预览进程
       ...(process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET && { OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET }),
+      ...(proxy && { LOCAL_PREVIEW_PROXY: proxy }),
     },
   });
   closeSync(output);
@@ -88,6 +91,11 @@ async function serve(instance) {
     const { createConfig } = await import(pathToFileURL(join(root, "app/server/dist/config.js")).href);
     const { buildApp } = await import(pathToFileURL(join(root, "app/server/dist/app.js")).href);
     const github = Boolean(process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET);
+    if (github && process.env.LOCAL_PREVIEW_PROXY) {
+      // 核心服务的 undici request 与 Octokit 用的全局 fetch 共用这一个全局 dispatcher
+      const undici = await import(pathToFileURL(createRequire(join(root, "app/server/package.json")).resolve("undici")).href);
+      undici.setGlobalDispatcher(new undici.ProxyAgent(process.env.LOCAL_PREVIEW_PROXY));
+    }
     const keys = github ? await localKeys() : { session: randomBytes(32).toString("hex"), encryption: randomBytes(32).toString("base64") };
     const config = createConfig({
       NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin, PORT: "3000", POW_DIFFICULTY: "0",
@@ -130,8 +138,26 @@ async function serve(instance) {
     const shutdown = () => { close().catch(error => { console.error(error); process.exitCode = 1; }); };
     process.once("SIGTERM", shutdown);
     process.once("SIGINT", shutdown);
-    console.log(`Core preview ready: ${webOrigin} (GitHub login ${github ? "on, data in .tools/local-preview" : "off, in-memory data"}; forum at http://127.0.0.1:3456)`);
+    console.log(`Core preview ready: ${webOrigin} (GitHub login ${github ? `on${process.env.LOCAL_PREVIEW_PROXY ? " via the outbound proxy" : ""}, data in .tools/local-preview` : "off, in-memory data"}; forum at http://127.0.0.1:3456)`);
   } catch (error) { await close(); throw error; }
+}
+
+/**
+ * GitHub 登录要连 github.com 换 token。本机直连不通、浏览器走系统代理时，预览进程也得走同一个代理，否则登录回调会超时。
+ * 优先用调用方环境里的 HTTPS_PROXY / HTTP_PROXY；没有时在 macOS 上读系统代理设置（scutil --proxy）。都没有就直连。
+ */
+function outboundProxy() {
+  const fromEnv = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  if (fromEnv) return fromEnv;
+  if (process.platform !== "darwin") return null;
+  try {
+    const settings = execFileSync("/usr/sbin/scutil", ["--proxy"], { encoding: "utf8", timeout: 2000 });
+    const field = name => settings.match(new RegExp(`\\b${name} : (\\S+)`))?.[1];
+    if (field("HTTPSEnable") !== "1") return null;
+    const host = field("HTTPSProxy");
+    const port = field("HTTPSPort");
+    return host && port ? `http://${host}:${port}` : null;
+  } catch { return null; }
 }
 
 /** 本机预览自己的会话与加密密钥：首次随机生成，存在不入库的 .tools/local-preview/keys.json（0600），重启后旧会话仍能解密。 */
