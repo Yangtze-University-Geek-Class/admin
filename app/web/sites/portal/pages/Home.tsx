@@ -22,9 +22,9 @@ import "../styles/os.css";
 // 开机日志：只写桌面上真的会加载的东西
 const BOOT_LINES: Array<[string, string]> = [
   ["load", "论坛最新"],
-  ["load", "公开仓库"],
-  ["load", "组织架构"],
-  ["open", "加入我们 · 论坛 · GitHub 组织"],
+  ["open", "加入我们"],
+  ["open", "论坛"],
+  ["open", "GitHub 组织"],
   ["ready", "YUGC OS"],
 ];
 
