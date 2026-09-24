@@ -53,8 +53,8 @@ function bookmark() {
       variant="permission"
       size="small"
       layout="horizontal"
-      :title="isSnapshot ? '只读快照' : '登录后参与讨论'"
-      :description="isSnapshot ? '当前为只读展示，真实登录与后端接入后开放回复、点赞和收藏。' : '选择一个身份即可回复、点赞和收藏。'"
+      :title="isSnapshot ? '回复还没开放' : '登录后参与讨论'"
+      :description="isSnapshot ? '回复、点赞和收藏正在接入，接好后用官网的 GitHub 登录就能用。' : '选择一个身份即可回复、点赞和收藏。'"
       :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />

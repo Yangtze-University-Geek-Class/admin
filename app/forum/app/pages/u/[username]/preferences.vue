@@ -13,6 +13,7 @@ const router = useRouter()
 const forum = useForumStore()
 const { user: viewer, isLoggedIn, can } = useCurrentUser()
 const { loginOpen } = useShell()
+const { isSnapshot } = useContentSource()
 const colorMode = useColorMode()
 
 const username = String(route.params.username)
@@ -94,9 +95,9 @@ function setTheme(value: string | number) {
   <TxCard v-if="profile && !isLoggedIn">
     <TxEmptyState
       variant="permission"
-      title="登录后才能修改偏好设置"
-      description="偏好设置属于某个身份，先选一个再回来。"
-      :primary-action="{ label: '登录', variant: 'primary' }"
+      :title="isSnapshot ? '资料修改还没开放' : '登录后才能修改偏好设置'"
+      :description="isSnapshot ? '资料修改正在接入，接好后用官网的 GitHub 登录就能用。' : '偏好设置属于某个身份，先选一个再回来。'"
+      :primary-action="isSnapshot ? undefined : { label: '登录', variant: 'primary' }"
       @primary="loginOpen = true"
     />
   </TxCard>

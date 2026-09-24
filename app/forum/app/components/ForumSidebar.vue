@@ -17,7 +17,8 @@ const router = useRouter()
 const query = ref('')
 const resetOpen = ref(false)
 
-const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '只读快照' : '开发者社区' }))
+const { account } = useSiteAccount()
+const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '长江大学极客班' : '开发者社区' }))
 
 function onSelect(item: SidebarNavItem) {
   select(item)
@@ -105,6 +106,14 @@ function confirmReset() {
               <UserAvatar :user="user" size="small" />
             </template>
           </TxCardItem>
+          <!-- 真实数据：论坛没有登录按钮，只显示在官网登录过的人 -->
+          <template v-else-if="isSnapshot">
+            <TxCardItem v-if="account" :title="`@${account.login}`">
+              <template #avatar>
+                <TxAvatar :src="account.avatarUrl ?? undefined" :name="account.login" size="small" />
+              </template>
+            </TxCardItem>
+          </template>
           <TxButton v-else variant="primary" block @click="loginOpen = true">
             登录
           </TxButton>
