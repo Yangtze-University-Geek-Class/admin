@@ -3,6 +3,7 @@ import { request as defaultRequest } from "undici";
 import type Database from "better-sqlite3";
 import type { AppConfig } from "../config.js";
 import type { createCrypto } from "./crypto.js";
+import { GITHUB_TIMEOUT_MS } from "./github.js";
 export type Session = {
   id: string;
   login: string;
@@ -15,8 +16,6 @@ export type Session = {
 export function createAuth(db: Database.Database, crypto: ReturnType<typeof createCrypto>, config: AppConfig, undiciRequest = defaultRequest) {
 const { encrypt, decrypt } = crypto;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-/** 与 Octokit 的 15 秒一致：GitHub 连不上时登录尽快失败并回到原页面，而不是挂到默认的 300 秒 */
-const GITHUB_TIMEOUT_MS = 15_000;
 
 function createSession(
   login: string,
@@ -80,7 +79,8 @@ async function exchangeCode(code: string): Promise<string> {
   });
   const body = (await res.body.json()) as { access_token?: string; error?: string; error_description?: string };
   if (!body.access_token) {
-    throw new Error(`oauth exchange failed: ${body.error_description ?? body.error ?? "unknown"}`);
+    // 只带 GitHub 的错误枚举（bad_verification_code、incorrect_client_credentials……），日志据此分得清配置错误和超时；不带说明文字
+    throw Object.assign(new Error("oauth exchange failed"), { code: body.error ?? "oauth_exchange_failed", status: res.statusCode });
   }
   return body.access_token;
 }
@@ -95,9 +95,30 @@ async function fetchAuthenticatedUser(accessToken: string): Promise<{ login: str
     },
   });
   const body = (await res.body.json()) as { login?: string; id?: number; avatar_url?: string; email?: string | null; name?: string | null };
-  if (!body.login || !body.id) throw new Error("failed to fetch user");
+  if (!body.login || !body.id) throw Object.assign(new Error("failed to fetch user"), { code: "github_user_failed", status: res.statusCode });
   return { login: body.login, id: body.id, avatar_url: body.avatar_url ?? "", email: body.email ?? null, name: body.name ?? null };
 }
 
-return { createSession, getSession, destroySession, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser };
+/**
+ * 撤销这个用户对本应用的授权（整条 grant，不只是这个 token）。登录被拒的非成员已经在 GitHub 上授了权限，
+ * 服务端不存他的 token，也不该让这份授权一直挂在他的账号里。成功是 204；其它结果抛出，由调用方记日志后忽略。
+ */
+async function revokeGrant(accessToken: string): Promise<void> {
+  const basic = Buffer.from(`${config.oauth.clientId}:${config.oauth.clientSecret}`).toString("base64");
+  const res = await undiciRequest(`https://api.github.com/applications/${encodeURIComponent(config.oauth.clientId)}/grant`, {
+    method: "DELETE",
+    headersTimeout: GITHUB_TIMEOUT_MS, bodyTimeout: GITHUB_TIMEOUT_MS,
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "User-Agent": "yzgc-admin",
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ access_token: accessToken }),
+  });
+  await res.body?.dump?.();
+  if (res.statusCode !== 204) throw Object.assign(new Error("grant revoke failed"), { code: "github_revoke_failed", status: res.statusCode });
+}
+
+return { createSession, getSession, destroySession, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant };
 }
