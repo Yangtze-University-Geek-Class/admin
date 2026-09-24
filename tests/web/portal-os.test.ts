@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
-import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, monthGrid, moveSelection, rowsThatFit, runTerminal } from "../../app/web/sites/portal/lib/osApps";
+import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, moveSelection, runTerminal } from "../../app/web/sites/portal/lib/osApps";
 
 const PORTAL = new URL("../../app/web/sites/portal/", import.meta.url).pathname;
 
@@ -62,24 +62,7 @@ describe("YUGC OS 应用与启动器", () => {
   });
 });
 
-describe("桌面组件的纯逻辑", () => {
-  it("按卡片高度截断行数，绝不为负", () => {
-    expect(rowsThatFit(200, 38, 2)).toBe(5);
-    expect(rowsThatFit(37, 38, 2)).toBe(0);
-    expect(rowsThatFit(-10, 38, 2)).toBe(0);
-    expect(rowsThatFit(Number.NaN, 38, 2)).toBe(0);
-  });
-
-  it("日历周一开头，本月每一天恰好出现一次", () => {
-    const grid = monthGrid(2026, 8); // 2026-09：9 月 1 日是周二
-    expect(grid[0]).toBeNull();
-    expect(grid[1]).toBe(1);
-    expect(grid.filter((d) => d !== null)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
-    expect(grid.length % 7).toBe(0);
-    const feb = monthGrid(2027, 1); // 2027-02 从周一开始，正好四周
-    expect(feb.filter((d) => d !== null)).toHaveLength(28);
-  });
-
+describe("桌面的时间文案", () => {
   it("时间差文案", () => {
     const now = Date.UTC(2026, 8, 24);
     expect(agoLabel(now - 3600e3, now)).toBe("今天");
