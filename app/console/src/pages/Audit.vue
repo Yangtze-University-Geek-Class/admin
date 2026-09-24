@@ -54,11 +54,11 @@ function detailText(details: unknown): string {
 }
 
 const columns = [
-  { key: "time", title: "时间", width: 170 },
-  { key: "actor", title: "操作人", width: 140 },
-  { key: "action", title: "动作", width: 190 },
+  { key: "time", title: "时间", width: 150 },
+  { key: "actor", title: "操作人", width: 120 },
+  { key: "action", title: "动作", width: 160 },
   { key: "target", title: "对象与详情" },
-  { key: "ip", title: "IP", width: 120 },
+  { key: "ip", title: "IP", width: 110 },
 ];
 </script>
 
@@ -71,11 +71,11 @@ const columns = [
     <ErrorPanel v-if="logs.error.value" :error="logs.error.value" :retry="logs.reload" />
     <LoadingBlock v-else-if="!logs.data.value" :lines="10" />
     <TxCard v-else :padding="0">
-      <TxDataTable style="--table-min: 900px" :columns="columns" :data="rows" row-key="id" table-layout="fixed" scroll-x :loading="logs.loading.value">
+      <TxDataTable style="--table-min: 690px" :columns="columns" :data="rows" row-key="id" table-layout="fixed" scroll-x :loading="logs.loading.value">
         <template #cell-time="{ row }: { row: AuditRow }">
           <span class="cell-stack">
             <span>{{ fmtRelative(row.created_at) }}</span>
-            <span class="cell-sub mono">{{ fmtDate(row.created_at) }}</span>
+            <span class="cell-sub mono ellipsis" :title="fmtDate(row.created_at)">{{ fmtDate(row.created_at) }}</span>
           </span>
         </template>
         <template #cell-actor="{ row }: { row: AuditRow }">

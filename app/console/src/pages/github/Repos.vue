@@ -39,8 +39,8 @@ const chips = computed(() => [
 
 const columns = [
   { key: "name", title: "仓库" },
-  { key: "visibility", title: "可见性", width: 110 },
-  { key: "language", title: "语言", width: 120 },
+  { key: "visibility", title: "可见性", width: 96 },
+  { key: "language", title: "语言", width: 110 },
   { key: "issues", title: "未关闭 Issue", width: 110, align: "right" as const },
   { key: "pushed_at", title: "最近推送", width: 120, align: "right" as const },
 ];
@@ -60,7 +60,7 @@ const open = (repo: Repo) => router.push(`${base}/repos/${repo.name}`);
     <ErrorPanel v-if="repos.error.value" :error="repos.error.value" :retry="repos.reload" />
     <LoadingBlock v-else-if="!repos.data.value" :lines="8" />
     <TxCard v-else :padding="0" class="table-card">
-      <TxDataTable style="--table-min: 720px" :columns="columns" :data="rows" row-key="name" table-layout="fixed" scroll-x @row-click="({ row }: { row: Repo }) => open(row)">
+      <TxDataTable style="--table-min: 640px" :columns="columns" :data="rows" row-key="name" table-layout="fixed" scroll-x @row-click="({ row }: { row: Repo }) => open(row)">
         <template #cell-name="{ row }: { row: Repo }">
           <span class="cell-stack">
             <TxCellLink :href="`${base}/repos/${row.name}`" :label="row.name" class="mono" @open="open(row)" />
