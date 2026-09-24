@@ -42,8 +42,21 @@ export interface CurationTopicPatch {
   pinned?: boolean
 }
 
+/**
+ * 旧论坛（快照里 archived 的主题与分类）怎么处理：
+ * - `hide`（默认）：旧主题连同回复全部不显示，「老帖归档」类别、按旧分类生成的标签、空着的旧分类、
+ *   没有出现在可见内容里的旧账号一并去掉；`include` 里列出的话题编号例外，按普通话题显示
+ *   （通常再用 topics 补丁把它放进新类别）。所有者 2026-09-24：「我们不要老帖归档，目前的数据都不需要了」。
+ * - `archive`：旧行为，旧主题集中到「老帖归档」类别，按原分类打标签。
+ */
+export interface CurationLegacy {
+  mode: 'hide' | 'archive'
+  include: string[]
+}
+
 export interface Curation {
   schemaVersion: typeof CURATION_SCHEMA_VERSION
+  legacy: CurationLegacy
   archive: CurationArchive
   categories: CurationCategory[]
   categoryOmissions?: string[]
@@ -67,6 +80,7 @@ export function parseCuration(raw: unknown): Curation {
   if (!isRecord(raw.archive) || typeof raw.archive.tagPrefix !== 'string' || !ID.test(raw.archive.tagPrefix) || typeof raw.archive.tagColor !== 'string' || !HEX.test(raw.archive.tagColor))
     throw new SnapshotError('invalid_document', 'curation.archive 需要合法的 tagPrefix 与 tagColor')
   const archive: CurationArchive = { ...archiveCategory, tagPrefix: raw.archive.tagPrefix, tagColor: raw.archive.tagColor }
+  const legacy = parseLegacy(raw.legacy)
   const categories = Array.isArray(raw.categories) ? raw.categories.map((value, index) => parseCategory(value, `categories[${index}]`)) : []
   const categoryOmissions = Array.isArray(raw.categoryOmissions) ? raw.categoryOmissions.map(String) : []
   const tags = Array.isArray(raw.tags) ? raw.tags.map((value, index) => parseTag(value, index)) : []
@@ -96,10 +110,63 @@ export function parseCuration(raw: unknown): Curation {
       posts[id] = { content: patch.content }
     }
   }
-  return { schemaVersion: CURATION_SCHEMA_VERSION, archive, categories, categoryOmissions, tags, categoryOrder, categoryPatches, topics, posts }
+  return { schemaVersion: CURATION_SCHEMA_VERSION, legacy, archive, categories, categoryOmissions, tags, categoryOrder, categoryPatches, topics, posts }
 }
 
-export function applyCuration(state: ForumState, curation: Curation): ForumState {
+function parseLegacy(value: unknown): CurationLegacy {
+  if (value === undefined)
+    return { mode: 'hide', include: [] }
+  if (!isRecord(value) || (value.mode !== 'hide' && value.mode !== 'archive'))
+    throw new SnapshotError('invalid_document', 'curation.legacy.mode 只能是 hide 或 archive')
+  const include = value.include === undefined ? [] : value.include
+  if (!Array.isArray(include) || include.some(id => typeof id !== 'string' || !ID.test(id)))
+    throw new SnapshotError('invalid_document', 'curation.legacy.include 必须是话题编号数组（如 "t12"）')
+  return { mode: value.mode, include: [...new Set(include as string[])] }
+}
+
+/**
+ * hide 模式：删掉旧主题（include 例外）及其帖子，以及因此变空的旧分类、只被旧内容用到的标签与账号。
+ * 在编辑层其余步骤之前做，后面的步骤只看到新内容。
+ */
+function dropLegacy(state: ForumState, legacy: CurationLegacy): ForumState {
+  const archivedCategoryIds = new Set(state.categories.filter(category => (category as ArchivedCategory).archived === true).map(category => category.id))
+  const include = new Set(legacy.include)
+  for (const id of include) {
+    if (!state.topics.some(topic => topic.id === id))
+      throw new SnapshotError('invalid_state', `curation.legacy.include 引用了不存在的话题 ${id}`)
+  }
+  const isLegacy = (topic: Topic) => (topic as ArchivedTopic).archived === true || archivedCategoryIds.has(topic.categoryId)
+  const topics = state.topics.filter(topic => !isLegacy(topic) || include.has(topic.id)).map((topic) => {
+    if (!include.has(topic.id))
+      return topic
+    // 开启的旧帖按普通话题显示：去掉 archived，不再置顶
+    const { archived: _archived, ...rest } = topic as ArchivedTopic
+    return { ...rest, pinned: false }
+  })
+  const topicIds = new Set(topics.map(topic => topic.id))
+  const posts = state.posts.filter(post => topicIds.has(post.topicId))
+  const usedCategories = new Set(topics.map(topic => topic.categoryId))
+  const categories = state.categories.filter(category => !archivedCategoryIds.has(category.id) || usedCategories.has(category.id))
+  // 标签先全部保留：后面的话题补丁可能给新话题加上旧标签；没人用的标签在 applyCuration 最后统一去掉
+  const tags = state.tags
+  const people = new Set<string>()
+  for (const topic of topics) people.add(topic.authorId)
+  for (const post of posts) {
+    people.add(post.authorId)
+    for (const id of post.likeUserIds ?? []) people.add(id)
+  }
+  const users = state.users.filter(user => people.has(user.id))
+  const postIds = new Set(posts.map(post => post.id))
+  // 通知、收藏、关注只留两端都还在的；快照里这三样目前都是空的，这里只保证结构一致
+  const notifications = state.notifications.filter(item => people.has(item.recipientId) && people.has(item.actorId) && (!item.topicId || topicIds.has(item.topicId)) && (!item.postId || postIds.has(item.postId)))
+  const bookmarks = state.bookmarks.filter(item => people.has(item.userId) && postIds.has(item.postId))
+  const follows = state.follows.filter(item => people.has(item.followerId) && people.has(item.followeeId))
+  return { ...state, users, categories: categories.map(category => ({ ...category, archived: false }) as ArchivedCategory), tags, topics, posts, notifications, bookmarks, follows }
+}
+
+export function applyCuration(input: ForumState, curation: Curation): ForumState {
+  const hide = curation.legacy.mode === 'hide'
+  const state = hide ? dropLegacy(input, curation.legacy) : input
   const categories: ArchivedCategory[] = state.categories.map(category => ({ ...category }))
   const topics: ArchivedTopic[] = state.topics.map(topic => ({ ...topic, tagIds: [...topic.tagIds] }))
   const tags: Tag[] = state.tags.map(tag => ({ ...tag }))
@@ -140,7 +207,8 @@ export function applyCuration(state: ForumState, curation: Curation): ForumState
   }
   const kept = categories.filter(category => !archivedCategories.has(category.id) && !omissions.has(category.id))
   const { tagPrefix: _prefix, tagColor: _color, ...archiveCategory } = curation.archive
-  kept.push({ ...archiveCategory, archived: true })
+  if (!hide)
+    kept.push({ ...archiveCategory, archived: true })
   for (const tag of originTags.values())
     tags.push(tag)
 
@@ -163,7 +231,8 @@ export function applyCuration(state: ForumState, curation: Curation): ForumState
   }
 
   // 3. Sidebar order: listed ids first, everything else in original order.
-  const rank = new Map(curation.categoryOrder.map((id, index) => [id, index]))
+  // hide 模式下没有归档类别：排序里写着它也不报错，直接跳过
+  const rank = new Map(curation.categoryOrder.filter(id => !(hide && id === curation.archive.id)).map((id, index) => [id, index]))
   for (const id of rank.keys()) {
     if (!kept.some(category => category.id === id))
       throw new SnapshotError('invalid_state', `curation.categoryOrder 引用了不存在的分类 ${id}`)
@@ -198,7 +267,11 @@ export function applyCuration(state: ForumState, curation: Curation): ForumState
     post.content = patch.content
   }
 
-  return { ...state, categories: kept, tags, topics, posts }
+  // hide 模式：去掉最后没有任何话题在用的标签（旧分类、旧帖专用的标签）；编辑层新增的标签即使暂时没用也保留
+  const curatedTags = new Set(curation.tags.map(tag => tag.id))
+  const usedTags = new Set(topics.flatMap(topic => topic.tagIds))
+  const finalTags = hide ? tags.filter(tag => usedTags.has(tag.id) || curatedTags.has(tag.id)) : tags
+  return { ...state, categories: kept, tags: finalTags, topics, posts }
 }
 
 function parseCategory(value: unknown, label: string): CurationCategory {
