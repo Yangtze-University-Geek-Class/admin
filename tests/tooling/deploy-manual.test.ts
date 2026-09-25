@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, deploy, deploymentPayload, expectedDigest, parseArgs,
-  REQUIRED_CONTEXT, archiveCheckCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
+  REQUIRED_CONTEXT, archiveCheckCommand, deployStackCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
 import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
@@ -217,6 +217,15 @@ describe('deploy-manual orchestration', () => {
       const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
       expect(workflow).toContain(`"cd '\${INCOMING_DIR}' && chmod 600 '.env.${env}' && ls -la && sha256sum -c '\${IMAGES_ARCHIVE}.sha256'"`);
       expect(workflow).not.toContain('--ignore-missing');
+    }
+    // 远端部署只装这次的归档（--images），不会被 incoming 里上一次留下的归档挡住；两条工作流同样。
+    const deployCall = world.calls.find(call => call.command === 'ssh' && call.args.some(arg => arg.includes('deploy-stack.sh')))!;
+    const archiveName = `yzgc-images-preview-${COMMIT.slice(0, 12)}.tar.gz`;
+    expect(deployCall.args.at(-1)).toBe(deployStackCommand({ incomingDir: '/opt/yzgc/preview/incoming', stackRoot: '/opt/yzgc/preview', imageTag: COMMIT.slice(0, 12), imagesArchive: archiveName }, 'preview'));
+    expect(deployCall.args.at(-1)).toContain(`--images '/opt/yzgc/preview/incoming/${archiveName}'`);
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      expect(workflow).toContain(`--images '\${INCOMING_DIR}/\${IMAGES_ARCHIVE}'`);
     }
     // 部署成功后记录置为 success，临时目录删掉。
     expect(world.calls.some(call => call.args.includes('state=success'))).toBe(true);

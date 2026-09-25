@@ -365,11 +365,14 @@ jobs:
           target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
           # deploy-stack.sh 只从 env 文件取事实（IMAGE_TAG/STACK_ROOT/COMPOSE_PROJECT_NAME），
           # 传进来的 --image-tag/--stack-root 只做交叉校验；健康检查失败会自动回滚到上一个 tag 并非零退出。
+          # --images 只指这次的归档：incoming 里会留着上一次的归档，不指定时 deploy-stack.sh 会把整个目录都当成本次输入，
+          # 看到别的版本的镜像就拒绝部署（v0.1.0-rc.2 的归档留在预发布机上，审查时复现过）。
           ssh -i "$RUNNER_TEMP/ssh/id_deploy" -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
             -p "$DEPLOY_SSH_PORT" "$target" \
             "bash '${INCOMING_DIR}/deploy-stack.sh' --environment preview --stack-root '${STACK_ROOT}' \
-              --image-tag '${IMAGE_TAG}' --incoming-dir '${INCOMING_DIR}' --env-file '${INCOMING_DIR}/.env.preview'"
+              --image-tag '${IMAGE_TAG}' --incoming-dir '${INCOMING_DIR}' --images '${INCOMING_DIR}/${IMAGES_ARCHIVE}' \
+              --env-file '${INCOMING_DIR}/.env.preview'"
 
       - name: 记录部署结果
         if: always()
