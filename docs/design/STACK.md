@@ -37,7 +37,7 @@
 | 组件与样式 | @talex-touch/tuffex 0.6.0、UnoCSS 66.10.2 |
 | 内部构建 | Vite 8.2.2、Nitro 2.13.4，Nuxt SPA 模式 ssr:false |
 | 测试 | Vitest 3.2.7、原仓 CDP Chromium 验收 |
-| 数据与认证 | 部署镜像（site 模式）：极客班论坛自己的分类和标签在构建时写入，没有帖子和用户，不写 localStorage；示例模式：浏览器 localStorage 和示例身份；本机快照模式：dev 专用 Nitro 只读路由提供的极客班投影；论坛本身都没有后端和认证，顶栏登录入口走全站 GitHub 登录（示例预览和上游验收除外） |
+| 数据与认证 | 部署镜像（site 模式）：极客班论坛自己的分类和标签在构建时写入，没有帖子和用户，浏览器里不存论坛内容和会话（主题与侧栏偏好仍存在本机）；示例模式：浏览器 localStorage 和示例身份；本机快照模式：dev 专用 Nitro 只读路由提供的极客班投影；论坛本身都没有后端和认证，顶栏登录入口走全站 GitHub 登录（示例预览和上游验收除外） |
 
 来源为 `app/forum` 的 manifest、独立锁文件、已安装包及 Nuxt 启动输出，不声称 npm latest。工具链通过根 forum:* 编排，两套 node_modules 不混用，MIT 许可保留。详见 [论坛服务合同](../services/forum/README.md)。
 
