@@ -2,7 +2,7 @@
 
 > 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 发布前置
 
@@ -109,6 +109,15 @@ bash deploy-stack.sh --environment production \
 4. GitHub OAuth App：Callback URL 必须是 `<origin>/auth/callback`。正式环境切换当天，所有者要把现有 OAuth App 的 Callback URL 改成 `https://yangtzeu.work/auth/callback`；预发布另建一个 Callback URL 为 `https://prev.yangtzeu.work/auth/callback` 的 OAuth App（密钥不跨环境共用）。细节见 [ENVIRONMENTS](ENVIRONMENTS.md#github-oauth-app-回调地址)。
 5. Docker 与 Compose v2 已安装；栈根目录存在且属部署用户；`<栈根>/.env.<environment>` 由部署脚本原子安装（含真实密钥，权限 600）。
 6. 环境文件里的必填项（`HOST`、`TRUST_PROXY`、`PUBLIC_ORIGIN`、`DB_PATH`、`IMAGE_TAG` 等）缺失时 compose 会直接拒绝启动；不要靠临时改 compose 文件绕过。
+
+## 证书续期与到期监控
+
+所有者 2026-09-25：「这个签证书是要永久签哈，要一直监控着签。」
+
+- **续期**：目标机 `certbot.timer`（systemd，每天两次）对 `/etc/letsencrypt/renewal/` 下的全部证书执行 `certbot renew`；`prev.yangtzeu.work` 与 `yangtzeu.work` 都走 webroot `/var/www/html`（两个 server block 的 80 端口都放行 `/.well-known/acme-challenge/`）。
+- **续期后生效**：`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` 在任何证书续期成功后执行 `nginx -t -q && systemctl reload nginx`；配置检查不过就不 reload，旧证书继续服务，由到期监控报警。
+- **监控**：`.github/workflows/cert-watch.yml` 每天从公网核对两个入口的证书（有效、名字匹配、剩余不少于总有效期的四分之一，90 天证书约 22 天），不满足即失败，GitHub 通知维护者；它只在默认分支 `main` 上生效，所以合入 `main` 之后才开始每天检查。
+- **已知噪音**：同一台机上还有不属于本项目的证书，其中一张续期失败、一张续期配置损坏，它们让 `certbot.service` 每次都以失败结束，但不影响其它证书续期；所以本项目的证书以 `cert-watch.yml` 的结论为准，不看 `certbot.service` 的整体状态。
 
 ## 配置合同
 

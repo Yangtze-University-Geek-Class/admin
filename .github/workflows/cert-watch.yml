@@ -1,0 +1,61 @@
+# 证书到期监控（Certificate watch）
+#
+# 所有者 2026-09-25：「这个签证书是要永久签哈，要一直监控着签。」
+# 续期由目标机的 certbot.timer 负责（每天两次，续期成功后
+# /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh 在 nginx -t 通过后 reload）；
+# 这里从公网独立核对结果：每个入口的证书必须有效、名字对得上、剩余时间不少于总有效期的四分之一
+# （90 天证书约 22 天；Let's Encrypt 2027 年起缩短有效期时阈值跟着缩，不会按周期误报；certbot 在剩三分之一时续期）。
+# 任一项不满足即失败，GitHub 把失败通知发给维护者。只读，不接触任何 secrets。
+# 定时与手动运行只在默认分支（main）上的工作流文件生效：合入 main 之后才开始每天检查。
+
+name: Certificate watch
+
+on:
+  schedule:
+    # 每天 01:43 UTC（北京时间 09:43）检查一次，避开整点。
+    - cron: '43 1 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cert-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: 证书有效期（yangtzeu.work / prev.yangtzeu.work）
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HOSTS: yangtzeu.work prev.yangtzeu.work
+    steps:
+      - name: 从公网核对证书
+        shell: bash
+        run: |
+          set -u
+          failed=0
+          now="$(date -u +%s)"
+          for host in $HOSTS; do
+            # -verify_return_error：链不可信就握手失败；-verify_hostname：证书名字必须覆盖这个入口。
+            if ! pem="$(timeout 20 openssl s_client -connect "${host}:443" -servername "$host" \
+                  -verify_return_error -verify_hostname "$host" </dev/null 2>/dev/null \
+                  | openssl x509 2>/dev/null)" || [ -z "$pem" ]; then
+              echo "::error title=${host}::连不上，或证书无效、名字不匹配"
+              failed=1
+              continue
+            fi
+            not_before="$(printf '%s\n' "$pem" | openssl x509 -noout -startdate | cut -d= -f2)"
+            not_after="$(printf '%s\n' "$pem" | openssl x509 -noout -enddate | cut -d= -f2)"
+            issuer="$(printf '%s\n' "$pem" | openssl x509 -noout -issuer | sed 's/^issuer=//')"
+            start="$(date -u -d "$not_before" +%s)"
+            end="$(date -u -d "$not_after" +%s)"
+            days=$(( (end - now) / 86400 ))
+            lifetime=$(( (end - start) / 86400 ))
+            echo "${host}：剩余 ${days} 天，总有效期 ${lifetime} 天（到期 ${not_after}；签发者 ${issuer}）"
+            if [ $(( days * 4 )) -lt "$lifetime" ]; then
+              echo "::error title=${host}::证书只剩 ${days} 天（不到总有效期 ${lifetime} 天的四分之一），目标机的自动续期可能失败了"
+              failed=1
+            fi
+          done
+          exit "$failed"
