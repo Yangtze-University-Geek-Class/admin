@@ -57,8 +57,8 @@ export const USAGE = `维护者机器部署（只部署 CI 为该发布 tag 构�
   node scripts/deploy-manual.mjs --environment preview --tag vX.Y.Z-rc.N [--dry-run]
   node scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <所有者批准评论的链接> [--dry-run]
 
---acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过、发在预发布部署成功之后，
-正文里有单独一行正好是「批准发布 vX.Y.Z」（格式细节见 docs/ops/CICD.md「维护者机器部署」）。
+--acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过也没有被折叠、
+发在预发布部署成功之后，正文里有单独一行正好是「批准发布 vX.Y.Z」（格式细节见 docs/ops/CICD.md「维护者机器部署」）。
 环境变量：DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment）、${[...SECRET_ENV, ...SSH_ENV].join(' ')}。
 --dry-run 做完全部核对、下载与渲染，不连目标机、不写部署记录。`;
 
@@ -93,32 +93,85 @@ export function acceptanceComment(url) {
   return match ? { repo: match[1], number: Number(match[2]), id: match[3] } : null;
 }
 
+/** 剥掉的内容逐行换成这个字符：它不是空白，trim 去不掉，所在的行也就不可能再凑成批准句（#69）。 */
+const HIDDEN = '\uFFFC';
+/** 标签名之后的属性：引号里的值可以含 `>`，也可以跨行（`<a title="a>b">`）；引号外不会有 `<`。 */
+const ATTRS = `(?=[\\s/>])(?:[^<>"']|"[^"]*"|'[^']*')*>`;
+/** 注释、CDATA、声明、处理指令：没有结尾就一直到正文结束。 */
+const OPAQUE = /<!--(?:-?>|[\s\S]*?(?:-->|$))|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<![A-Za-z][\s\S]*?(?:>|$)|<\?[\s\S]*?(?:\?>|$)/g;
+/** 最内层元素：内容里没有别的标签。反复替换，外层 details 不会停在内层的 `</details>` 上。 */
+const INNERMOST = new RegExp(`<([A-Za-z][A-Za-z0-9-]*)${ATTRS}(?:(?!<\\/?[A-Za-z])[\\s\\S])*?<\\/\\1\\s*>`, 'gi');
+/** 剥完成对的元素还剩下的起始标签，只要不是空元素就是没闭合：它之后的内容都在它里面（没闭合的 details 默认收起）。 */
+const UNCLOSED = new RegExp(`<(?!(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)[\\s/>])[A-Za-z][A-Za-z0-9-]*${ATTRS}[\\s\\S]*$`, 'i');
+/** 其余单独的标签（空元素、落单的结束标签）。 */
+const TAG = new RegExp(`<\\/?[A-Za-z][A-Za-z0-9-]*${ATTRS}`, 'g');
+/** 内容按原文处理、结尾不看空行的元素（CommonMark 的 HTML 块第 1 类）。 */
+const RAW_TEXT = /^(?:pre|script|style|textarea)$/i;
+/** 像围栏的行：前面可以有缩进、引用或列表标记。 */
+const FENCE_LIKE = /^[ \t]*(?:(?:[>＞]|[-*+]|\d{1,9}[.)])[ \t]*)*(?:`{3}|~{3})/;
+
 /**
  * 批准评论本身：必须有单独一行（去掉首尾空白）正好是「批准发布 vX.Y.Z」，行尾可带一个句号或叹号。
- * 渲染后看不到或不是正文的内容都不算：HTML 注释、HTML 标签（如 blockquote、details）里的内容、围栏代码块、
- * 缩进代码、`>` 引用以及紧跟引用、中间没有空行的懒续行。「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」也不算。
+ * 渲染后看不到或不是正文的内容都不算：HTML 注释与标签（含属性里、没闭合的元素之后）、围栏代码块、缩进代码、
+ * `>` 引用以及紧跟引用、中间没有空行的懒续行；带过标签的行（`<strong>暂不</strong>批准发布 v0.1.0`、
+ * `批准发布 v0.1.0<sup>-rc.1</sup>`）也不算，「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」同样不算。
+ * 这不是完整的 CommonMark 解析：围栏和 HTML 搅在一起、缩进或列表里的围栏这类判断不准的写法，之后一律不算。
  * 作者权限、是否被编辑过、所在 issue 与时间另查。
  */
 export function acceptanceSays(body, version) {
-  const line = new RegExp(`^批准发布\\s*v?${version.replaceAll('.', '\\.')}\\s*[。.！!]?$`);
-  let text = String(body ?? '').replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?(?:-->|$)/g, '');
+  const approval = new RegExp(`^批准发布\\s*v?${version.replaceAll('.', '\\.')}\\s*[。.！!]?$`);
+  const source = String(body ?? '').replace(/\r\n?/g, '\n');
+  // 逐行换成占位符、保留换行：剥完以后行号不变，下面按原文判断区块、按剥过的文本判断这一行写了什么。
+  const hide = match => match.replace(/[^\n]+/g, HIDDEN);
+  // 注释、处理指令与第 1 类元素只在各自的结尾标记处结束，中间有空行也不断；里面夹着围栏，逐行扫描就判断不准。
+  let tangled = false;
+  const fenced = match => match.split('\n').slice(1).some(line => FENCE_LIKE.test(line));
+  let text = source.replace(OPAQUE, match => { tangled ||= fenced(match); return hide(match); });
   for (let previous = ''; previous !== text;) {
     previous = text;
-    text = text.replace(/<([A-Za-z][\w-]*)\b[^>]*>[\s\S]*?<\/\1\s*>/g, '');
+    text = text.replace(INNERMOST, (match, name) => { tangled ||= RAW_TEXT.test(name) && fenced(match); return hide(match); });
   }
+  text = text.replace(UNCLOSED, hide).replace(TAG, hide);
+  if (tangled) return false;
+  const shown = text.split('\n');
   let fence = null;
   let quoted = false;
-  for (const raw of text.split('\n')) {
-    const trimmed = raw.trim();
-    const marker = /^(```+|~~~+)/.exec(trimmed);
-    if (fence) { if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null; continue; }
-    if (marker) { fence = marker[1]; continue; }
-    if (!trimmed) { quoted = false; continue; }
-    if (trimmed.startsWith('>') || trimmed.startsWith('＞')) { quoted = true; continue; }
-    if (quoted || /^( {4}|\t)/.test(raw)) continue;
-    if (line.test(trimmed)) return true;
+  let html = false;
+  // 区块结构（围栏、引用、缩进、HTML 块）按原文逐行判断，与渲染器先分块、再解析行内 HTML 的顺序一致。
+  for (const [index, line] of source.split('\n').entries()) {
+    if (fence) {
+      // 关闭围栏只认缩进不超过 3 格、只有标记本身的行：「``` 结束」不关闭代码块。
+      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (!line.trim()) { quoted = false; html = false; continue; }
+    if (/^\s*[>＞]/.test(line)) { quoted = true; continue; }
+    if (FENCE_LIKE.test(line)) {
+      // 只认顶格的开始围栏（反引号围栏的信息串里不能有反引号）；HTML 块、缩进或列表里的围栏判断不准，之后一律不算。
+      const open = /^(?:(`{3,})[^`]*|(~{3,}).*)$/.exec(line);
+      if (html || !open) return false;
+      fence = open[1] ?? open[2];
+      quoted = false;
+      continue;
+    }
+    // 以标签开头的行开始一个 HTML 块，一直延续到空行；块里的围栏只是 HTML 文本。
+    if (/^\s*</.test(line)) html = true;
+    if (quoted || /^( {4}|\t)/.test(line)) continue;
+    if (approval.test(shown[index].trim())) return true;
   }
   return false;
+}
+
+/**
+ * 批准评论是否被编辑过、是否被折叠：GraphQL 的 `lastEditedAt` 只在正文被编辑过时有值，与表情回应无关；
+ * `isMinimized` 表示评论在页面上被折叠隐藏。拿不到这两项（节点不是 IssueComment、接口报错）一律当作不能用。
+ */
+export const COMMENT_STATE_QUERY = 'query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt isMinimized } } }';
+export function commentState(response) {
+  const node = JSON.parse(response)?.data?.node;
+  if (!node || node.lastEditedAt === undefined || typeof node.isMinimized !== 'boolean') throw new Error(`读不到批准评论的编辑状态：${response}`);
+  return { lastEditedAt: node.lastEditedAt, isMinimized: node.isMinimized };
 }
 
 /** origin 远端的 `owner/repo`；tag、运行记录、部署记录都以它为准。 */
@@ -244,6 +297,9 @@ export async function deploy(options, deps = defaultDeps()) {
   const work = deps.tempDir();
   const untrap = deps.trap(() => deps.removeDir(work));
   let deploymentId = null;
+  // 状态一律带 auto_inactive=false：默认会把同一环境里更早的成功记录置为 inactive，正式证据读的正是预发布的这些记录。
+  const setStatus = (...fields) => run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`,
+    '-F', 'auto_inactive=false', ...fields.flatMap(field => ['-f', field])]);
   try {
     // 物料一律取自 tag 指向的提交：规划器、环境契约、render、compose、deploy-stack.sh 都用这一份。
     const src = join(work, 'src');
@@ -268,8 +324,11 @@ export async function deploy(options, deps = defaultDeps()) {
       const comment = ghJson(`repos/${repo}/issues/comments/${id}`);
       if (!String(comment.issue_url ?? '').endsWith(`/issues/${number}`)) throw new Error(`批准评论不在链接写的 #${number} 里`);
       // 有写权限的人能编辑别人的评论而作者不变：被编辑过的评论一律不认，请所有者重新发一条。
-      if (comment.updated_at !== comment.created_at) throw new Error('批准评论被编辑过：请所有者重新发一条新的批准评论');
-      if (!acceptanceSays(comment.body, plan.version)) throw new Error(`批准评论里没有单独一行写「批准发布 v${plan.version}」`);
+      // 看 GraphQL 的 lastEditedAt，不看 REST 的 updated_at（后者会不会随表情回应变化没有文档保证）。
+      const state = commentState(run('gh', ['api', 'graphql', '-f', `query=${COMMENT_STATE_QUERY}`, '-f', `id=${comment.node_id ?? ''}`]));
+      if (state.lastEditedAt !== null) throw new Error(`批准评论在 ${state.lastEditedAt} 被编辑过：请所有者重新发一条新的批准评论`);
+      if (state.isMinimized) throw new Error('批准评论在页面上被折叠隐藏了：请所有者重新发一条新的批准评论');
+      if (!acceptanceSays(comment.body, plan.version)) throw new Error(`批准评论里没有单独一行写「批准发布 v${plan.version}」（不带引用、代码块或 HTML 标签）`);
       const permission = ghJson(`repos/${repo}/collaborators/${encodeURIComponent(comment.user?.login ?? '')}/permission`).permission;
       if (permission !== 'admin') throw new Error(`批准评论的作者 @${comment.user?.login} 不是仓库管理员`);
       if (!plan.previewTags?.length) throw new Error(`提交 ${commit} 上没有 v${plan.version}-rc.N：正式版只能发在发过预发布的同一提交上`);
@@ -312,10 +371,11 @@ export async function deploy(options, deps = defaultDeps()) {
     if (dryRun) { log('--dry-run：核对、下载与渲染都已完成，没有连接目标机，也没有写部署记录'); return { plan, dryRun: true }; }
 
     const payload = deploymentPayload(plan, acceptance);
+    // auto_merge 默认 true：重新部署落后于默认分支的旧 rc 时 GitHub 会去合并默认分支，这里只部署 tag 指向的提交。
     deploymentId = run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments`, '-f', `ref=${commit}`, '-f', `environment=${environment}`,
-      '-F', 'auto_inactive=false', '-f', `required_contexts[]=${REQUIRED_CONTEXT}`, '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
+      '-F', 'auto_merge=false', '-f', `required_contexts[]=${REQUIRED_CONTEXT}`, '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
       ...Object.entries(payload).flatMap(([key, value]) => ['-f', `payload[${key}]=${value}`]), '--jq', '.id']).trim();
-    run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=in_progress', '-f', `description=分发镜像与 env 文件到 ${plan.stackRoot}`]);
+    setStatus('state=in_progress', `description=分发镜像与 env 文件到 ${plan.stackRoot}`);
     log(`部署记录已创建：deployment ${deploymentId}`);
 
     const step = ([command, args]) => run(command, args, { quiet: false });
@@ -324,14 +384,13 @@ export async function deploy(options, deps = defaultDeps()) {
     step(remote.scp([join(src, 'deploy/compose/production.yml'), join(src, 'deploy/compose/preview.yml')], `${plan.stackRoot}/deploy/compose/`));
     step(remote.ssh(archiveCheckCommand(plan.incomingDir, environment, plan.imagesArchive)));
     step(remote.ssh(deployStackCommand(plan, environment)));
-    run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=success', '-f', `environment_url=${plan.origin}`,
-      '-f', `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`]);
+    setStatus('state=success', `environment_url=${plan.origin}`, `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`);
     log(`完成：${plan.origin}/release.json 应显示 ${plan.releaseVersion}`);
     return { plan, deploymentId };
   } catch (error) {
     if (deploymentId) {
       try {
-        run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=failure', '-f', `description=${tag} 部署失败（维护者机器部署）`]);
+        setStatus('state=failure', `description=${tag} 部署失败（维护者机器部署）`);
       } catch { log('部署记录状态没能更新为 failure，请手工核对'); }
     }
     throw error;

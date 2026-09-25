@@ -20,6 +20,7 @@
 - **push `stage` 或 `main` 不部署任何环境**，只跑 `ci.yml`。部署只由发布 tag 触发，规则见 [RELEASES](../conventions/RELEASES.md)。GitHub 的 tag 过滤按整个 tag 名匹配：`deploy-production.yml` 的 `v[0-9]+.[0-9]+.[0-9]+` 不含 `-`，匹配不到 `vX.Y.Z-rc.N`；两条部署工作流的 plan job 还会用完整正则再断言一次，前导 0、`rc.0` 等格式也会被拒绝。
 - 手工运行部署工作流时，「Use workflow from」必须选同一个发布 tag，并在 `tag` 输入框里填这个 tag；ref 与输入不一致即失败。手工运行只用于重新部署已有 tag，不创建 tag。
 - 一次只推一个发布 tag：GitHub 在一次推送超过三个 tag 时不产生 push 事件，工作流不会运行。
+- **打 tag 之前先等这个提交上 `ci.yml` 的 `verify (required check)` 跑完并通过。** 部署记录用 `required_contexts` 只要求这一项检查，它还在跑或没通过时，创建部署记录返回 409，部署 job 在这一步失败（`scripts/deploy-manual.mjs` 同样）。刚合并进 `stage` 的提交要等 push `stage` 触发的那次 CI 结束再打 rc tag。
 - tag 推送触发的是**该 tag 所在提交里**的工作流文件；手工运行也按所选 tag 的工作流文件执行，但入口要求工作流文件已经存在于默认分支（`main`）。
 - `dev/**` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev/**` 不得作为进入 `stage` 的凭据；旧的 `dev-*` 名字不再触发 `ci.yml`（见 [BRANCHING](../conventions/BRANCHING.md) 命名规则）。
 - `branch-hygiene.yml` 是「合并后立即删除 task 分支」的执行者；它不创建 tag、不动 `main`/`stage`、不改 PR 状态，也不接触任何 secrets。巡检发现残留分支只告警，删除留给人工决定。
@@ -77,7 +78,7 @@
 `deploy-production` 在构建前核对以下证据，任一缺失即失败关闭：
 
 1. 正式 tag `vX.Y.Z` 所在提交上有同一 `X.Y.Z` 的 `vX.Y.Z-rc.N`（plan job 在带全部 tag 的检出里查找，evidence job 再核对一遍列表）；
-2. 同一提交在 `preview` 环境有最新状态为 `success` 的 GitHub deployment 记录，且记录 payload 里的 `tag` 是上一条列出的 rc tag 之一（只按显式 deployment 记录判断；分支时代留下的、不带 tag 的旧记录不算）；
+2. 同一提交在 `preview` 环境有最新状态为 `success` 的 GitHub deployment 记录，且记录 payload 里的 `tag` 是上一条列出的 rc tag 之一（只按显式 deployment 记录判断；分支时代留下的、不带 tag 的旧记录不算）。部署 job 带 `environment: preview`，GitHub Actions 会为它另建一条不带 payload 的记录（ref 是 tag 名），并在 job 结束时置为 `success`，比工作流自己的记录晚几秒；GitHub 文档说新的 `success` 会把同一环境更早的成功记录置为 `inactive`，但 2026-09-25 实测（#69，`gh api repos/<仓库>/deployments/<id>/statuses`）没有发生：`v0.1.0-rc.3`、`rc.4`、`rc.5` 工作流建的记录在自动记录置 success 之后、以及后续 rc 部署成功之后，最新状态仍是 `success`，GraphQL 的 `state` 仍是 `ACTIVE`。所以这里只看最新状态；两条部署工作流和 `deploy-manual.mjs` 自己发的状态一律带 `-F auto_inactive=false`，不会把旧记录置为 `inactive`；
 3. `https://prev.yangtzeu.work/release.json` 的 `environment` 是 `preview`，`commit` 是这个提交，`version` 是其中一个 rc 的 `X.Y.Z-rc.N@<sha12>`（`release.json` 由 web 镜像内置）：避免把「上一个预发布通过」推广到未经试用的新代码；
 4. `production` GitHub Environment 已配置审批要求（部署 job 用 REST 实测 protection rules，不信任 YAML 里写了 `environment: production` 这一行）；
 5. `DEPLOY_TARGET_ENVIRONMENT` 等于 `production`（防环境级变量回落）。
@@ -108,12 +109,12 @@
 
 1. 进程环境里的 `DEPLOY_TARGET_ENVIRONMENT` 必须等于 `--environment`（对应 CI 的环境哨兵，防止导出的是另一个环境的密钥）；仓库取自 `origin` 远端。
 2. `git archive <提交> deploy scripts package.json` 解到临时目录（不是 Git 仓库，所以 `--check` 会打两条「无法通过 git check-ignore 判定」的警告，这是预期的：物料来自 `git archive`，必然是入库文件），用**这一份**的 `release-policy` 规划（与工作流同一个 `--branch-ref`、`--require-tag`，`--root` 指向这份物料）并跑环境契约 `--check`；rc tag 只能进 `preview`，正式 tag 只能进 `production`。`DEPLOY_SSH_HOST/PORT/USER` 必须与这份物料里该环境模板的 `DEPLOY_HOST/PORT/USER` 一致。
-3. 正式环境先核对所有者批准：`--acceptance` 必须是本仓库 issue 或 PR 里的一条评论链接（评论确实在链接写的那个编号下），作者是仓库管理员，**没有被编辑过**（有写权限的人能改别人的评论而作者不变，编辑过就请所有者重新发一条），发在预发布部署成功之后，并且正文里有**单独一行**正好是 `批准发布 vX.Y.Z`（`v` 可省，行尾可带一个句号或叹号；`>` 引用及其懒续行、代码块、缩进代码、HTML 注释与标签里的、「暂不批准发布」、只写 rc 的都不算）；再重做证据 job 的三项核对（同一提交上有同版本的 rc tag、`preview` 有 payload.tag 为这些 rc 之一且最新状态 `success` 的部署记录、`https://prev.yangtzeu.work/release.json` 就是这个提交的 rc 版本）。都在下载之前。
+3. 正式环境先核对所有者批准：`--acceptance` 必须是本仓库 issue 或 PR 里的一条评论链接（评论确实在链接写的那个编号下），作者是仓库管理员，**没有被编辑过**（按 GraphQL `IssueComment.lastEditedAt` 判断，表情回应不算编辑；有写权限的人能改别人的评论而作者不变，编辑过就请所有者重新发一条）、没有被折叠隐藏（`isMinimized`），发在预发布部署成功之后，并且正文里有**单独一行**正好是 `批准发布 vX.Y.Z`（`v` 可省，行尾可带一个句号或叹号；`>` 引用及其懒续行、代码块、缩进代码、HTML 注释、HTML 元素里的与属性里的、没闭合的 HTML 元素之后的、这一行里带任何 HTML 标签或注释的（如 `<strong>暂不</strong>批准发布 v0.1.0`、`批准发布 v0.1.0<sup>-rc.1</sup>`）、「暂不批准发布」、只写 rc 的都不算；代码块和 HTML 交错、列表或缩进里的代码块这类判断不准的写法，之后的内容一律不算，请所有者单独发一条只有这一行的评论）；再重做证据 job 的三项核对（同一提交上有同版本的 rc tag、`preview` 有 payload.tag 为这些 rc 之一且最新状态 `success` 的部署记录、`https://prev.yangtzeu.work/release.json` 就是这个提交的 rc 版本）。都在下载之前。
 4. 找到这个 tag 的 push 触发的 `deploy-<environment>.yml` 运行（tag 名与提交都要对上、build job 成功），用 `gh run download` 取镜像归档，**先在本机流式核对 sha256**；从不在本机或目标机构建镜像。
 5. 用这份物料里的 `render` 在临时目录渲染 0600 的运行时 env：密钥只经 render 的子进程环境传入（其它子进程的环境里去掉了密钥），不进命令行；子进程都用和脚本同一个 Node（`process.execPath`）；临时目录在结束、出错或 Ctrl-C 时删除。SSH 用 `-F none`、只认 `DEPLOY_SSH_KNOWN_HOSTS_FILE`、`StrictHostKeyChecking=yes`。
-6. 写 GitHub 部署记录（payload 键与 CI 相同，正式另有 `preview_tags`，另加 `deployed_from: "maintainer"` 与批准链接；与两条部署工作流一样用 `required_contexts=["verify (required check)"]`：GitHub 默认要求提交上的全部检查都已通过，会把正在运行或已失败的部署 job 也算进去而一直返回 409，`v0.1.0-rc.1` 首次部署时实测），把这份物料里的 compose 与 `deploy-stack.sh` 分发到同样的远端路径，运行同样参数的 `deploy-stack.sh`，按结果把记录置为 `success` / `failure`。
+6. 写 GitHub 部署记录（payload 键与 CI 相同，正式另有 `preview_tags`，另加 `deployed_from: "maintainer"` 与批准链接；与两条部署工作流一样用 `required_contexts=["verify (required check)"]`：GitHub 默认要求提交上的全部检查都已通过，会把正在运行或已失败的部署 job 也算进去而一直返回 409，`v0.1.0-rc.1` 首次部署时实测；与工作流一样显式 `-F auto_merge=false`，不让 GitHub 去合并默认分支，状态一律 `-F auto_inactive=false`，见上文「证据链」第 2 条），把这份物料里的 compose 与 `deploy-stack.sh` 分发到同样的远端路径，运行同样参数的 `deploy-stack.sh`，按结果把记录置为 `success` / `failure`。
 
-`--dry-run` 做完核对、下载与渲染后停下，不连目标机、不写记录。脚本不创建、不移动 tag，也不替代所有者在预发布上的试用与批准。编排顺序（先核对后下载、物料来自该提交、dry-run 不连目标机、失败置 failure 并清理）由 `tests/tooling/deploy-manual.test.ts` 用注入的假依赖核对。
+`--dry-run` 做完核对、下载与渲染后停下，不连目标机、不写记录。脚本不创建、不移动 tag，也不替代所有者在预发布上的试用与批准。编排顺序（先核对后下载、物料来自该提交、dry-run 不连目标机、失败置 failure 并清理）由 `tests/tooling/deploy-manual.test.ts` 用注入的假依赖核对；批准行的正反例、评论编辑状态的解析和部署记录的参数（含两条工作流的写法）也在同一个文件里。
 
 ## 明确不做的事
 
