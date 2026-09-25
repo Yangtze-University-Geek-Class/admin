@@ -1,18 +1,9 @@
 // YUGC OS 桌面上的东西：左上角一列应用图标（加入我们、论坛、GitHub 组织在最前面），
 // 图标右边、壁纸天空里一张「新来的看这里」便签，按顺序说清怎么加入。壁纸是极客娘，桌面上不再铺组件卡片。
-import type { IconName } from "../../lib/icons";
 import { OS_APPS, type AppId, type OsApp } from "../../lib/osApps";
 import Icon from "../Icon";
 
 type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
-
-export const DEPARTMENTS: ReadonlyArray<{ name: string; icon: IconName; does: string; tint: string }> = [
-  // 部门与职责来自服务端 app/server/src/lib/roles.ts 的 DEFAULT_DEPARTMENTS
-  { name: "招新部", icon: "user-add-line", does: "招新和面试", tint: "#3346c8" },
-  { name: "技术部", icon: "code-s-slash-line", does: "仓库和基础设施", tint: "#5b5fd6" },
-  { name: "社区部", icon: "discuss-line", does: "论坛和意见箱", tint: "#128a7e" },
-  { name: "项目部", icon: "git-repository-line", does: "项目立项和展示", tint: "#a16207" },
-];
 
 /**
  * 桌面图标：单击选中、双击或回车打开（和电脑桌面一样）。触屏上单击就打开。

@@ -57,8 +57,13 @@ function openConsole() {
   <header class="sticky top-0 z-30 border-b border-$tx-border-color-light bg-$tx-bg-color">
     <TxContainer max-width="1400px">
       <TxFlex align="center" :gap="12" class="h-14">
+        <!--
+          The 极客班 logo, same public file the sidebar used to show. A literal
+          `src` so the build rewrites it under app.baseURL (/forum/logo.png in
+          the image). Decorative: the link's name is the visible site name.
+        -->
         <NuxtLink to="/" class="inline-flex items-center gap-2 text-inherit no-underline">
-          <TxTuffLogoStroke :size="28" mode="hover" />
+          <img src="/logo.png" alt="" class="block h-7 w-7 shrink-0 object-contain">
           <span class="text-lg font-semibold">{{ siteName }}</span>
         </NuxtLink>
 
@@ -105,6 +110,11 @@ function openConsole() {
                   <UserAvatar :user="user" size="small" />
                 </TxIconButton>
               </template>
+              <!-- 账号只在这里显示（侧栏不再有账号卡片），和统一登录的菜单一样先写是谁 -->
+              <TxDropdownItem disabled>
+                @{{ user.username }} · {{ roleLabel(user.role) }}
+              </TxDropdownItem>
+              <TxDivider />
               <TxDropdownItem @select="go(`/u/${user.username}`)">
                 我的主页
               </TxDropdownItem>

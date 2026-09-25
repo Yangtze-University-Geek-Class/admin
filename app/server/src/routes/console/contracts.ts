@@ -1,6 +1,6 @@
 import { choices, integer, object, text, type RouteContracts } from "../../lib/http-contracts.js";
 import {
-  APPLICATION_STATUS_IDS, ASSIGNABLE_ROLES, CAPABILITY_IDS, DEPARTMENT_ICONS, DEPARTMENT_ID_PATTERN, DEPARTMENT_TAG_PATTERN, TONE_IDS,
+  APPLICATION_STATUS_IDS, ASSIGNABLE_ROLES, CAPABILITY_IDS, DEPARTMENT_ICONS, DEPARTMENT_ID_PATTERN, DEPARTMENT_TAG_PATTERN, TITLE_IDS, TITLE_TAG_PATTERN, TONE_IDS,
 } from "../../lib/roles.js";
 import { FEEDBACK_STATUSES } from "../../lib/feedback-store.js";
 
@@ -10,7 +10,7 @@ const UUID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const login = { type: "string", pattern: GITHUB_LOGIN_PATTERN };
 const departmentId = { type: "string", pattern: DEPARTMENT_ID_PATTERN };
-/** 权限包：只接受清单内的能力 id；仅班长能力在路由里单独拒绝（captain_only_capability），重复项在存储时去重。 */
+/** 权限包：只接受清单内的能力 id；仅舰长能力在路由里单独拒绝（captain_only_capability），重复项在存储时去重。 */
 const bundle = { type: "array", items: choices(...CAPABILITY_IDS), maxItems: CAPABILITY_IDS.length * 2 };
 /** 查询串里的有界正整数（coerceTypes 关闭，查询值都是字符串）。 */
 const LIMIT_PATTERNS = { 200: "^(?:[1-9][0-9]?|1[0-9]{2}|200)$", 500: "^(?:[1-9][0-9]?|[1-4][0-9]{2}|500)$" } as const;
@@ -34,10 +34,25 @@ export const consoleContracts: RouteContracts = {
     ...noQuery,
     body: object({ id: departmentId, ...departmentFields }, ["id", "name", "tag", "icon", "tone", "head_capabilities"]),
   },
+  "PATCH /api/console/titles/:title_id": {
+    ...noQuery,
+    params: object({ title_id: choices(...TITLE_IDS) }, ["title_id"]),
+    body: {
+      ...object({
+        label: { ...text(8, 1), pattern: "\\S" }, tag: { type: "string", pattern: TITLE_TAG_PATTERN }, icon: choices(...DEPARTMENT_ICONS),
+        tone: choices(...TONE_IDS), description: text(200), capabilities: bundle,
+      }),
+      minProperties: 1,
+    },
+  },
   "PATCH /api/console/departments/:department_id": {
     ...noQuery,
     params: object({ department_id: departmentId }, ["department_id"]),
     body: { ...object({ ...departmentFields, archived: { type: "boolean" } }), minProperties: 1 },
+  },
+  "DELETE /api/console/departments/:department_id": {
+    ...noQuery,
+    params: object({ department_id: departmentId }, ["department_id"]),
   },
   "GET /api/console/assignments": {
     querystring: object({ department_id: departmentId, role: choices(...ASSIGNABLE_ROLES) }),
@@ -47,6 +62,7 @@ export const consoleContracts: RouteContracts = {
     body: object({ github_login: login, role: choices(...ASSIGNABLE_ROLES), department_id: departmentId, note: text(200) }, ["github_login", "role"]),
   },
   "DELETE /api/console/assignments/:id": noQuery,
+  "GET /api/console/people": noQuery,
   "GET /api/console/applications": {
     querystring: object({ status: choices(...APPLICATION_STATUS_IDS), q: text(100), limit: limit(200), offset }),
   },

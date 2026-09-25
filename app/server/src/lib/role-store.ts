@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import {
-  DEFAULT_DEPARTMENTS, isCapability, normalizeBundle,
-  type AssignableRole, type AssignmentRow, type Capability, type Department, type DepartmentIcon, type Tone,
+  CAPABILITY_IDS, CAPTAIN_ONLY, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, TITLE_IDS, isCapability, normalizeBundle,
+  type AssignableRole, type AssignmentRow, type Capability, type Department, type DepartmentIcon, type TitleConfigs, type TitleId, type Tone,
 } from "./roles.js";
 
 type DepartmentRecord = {
@@ -14,6 +14,8 @@ export type DepartmentInput = {
   head_capabilities: Capability[]; member_capabilities?: Capability[]; sort_order?: number;
 };
 export type DepartmentPatch = Partial<Omit<DepartmentInput, "id">> & { archived?: boolean };
+export type TitlePatch = Partial<{ label: string; tag: string; icon: string; tone: Tone; description: string; capabilities: Capability[] }>;
+type TitleRecord = { id: TitleId; label: string; tag: string; icon: string; tone: string; description: string; capabilities: string; updated_by: string | null; updated_at: number };
 export type AssignmentInput = {
   github_login: string; github_user_id: number | null; role: AssignableRole; department_id: string;
   note: string | null; granted_by: string;
@@ -28,6 +30,13 @@ function parseBundle(raw: string): Capability[] {
     return Array.isArray(value) ? normalizeBundle(value.filter(isCapability)) : [];
   } catch { return []; }
 }
+/** 称号的权限包可以含仅舰长能力（roles.manage 只能在舰长包里，由路由检查），所以不走 normalizeBundle。 */
+function parseTitleBundle(raw: string): Capability[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? CAPABILITY_IDS.filter(id => value.includes(id)) : [];
+  } catch { return []; }
+}
 function toDepartment(row: DepartmentRecord): Department & { created_at: number; updated_at: number } {
   return {
     id: row.id, name: row.name, tag: row.tag, icon: row.icon as DepartmentIcon, tone: row.tone as Tone, description: row.description,
@@ -36,19 +45,75 @@ function toDepartment(row: DepartmentRecord): Department & { created_at: number;
   };
 }
 
-/** 部门与称号指派的持久化。只接收普通参数；授权判断在调用方。 */
+/** 称号设置、部门与称号指派的持久化。只接收普通参数；授权判断在调用方。 */
 export function createRoleStore(db: Database.Database) {
+  // 称号：代码里的默认值只在第一次启动写入，之后以数据库为准（提督在控制台改的不会被覆盖）。
+  const seedTitle = db.prepare(`INSERT OR IGNORE INTO titles(id, label, tag, icon, tone, description, capabilities, updated_by, updated_at)
+    VALUES(@id, @label, @tag, @icon, @tone, @description, @capabilities, NULL, @now)`);
+  db.transaction(() => {
+    for (const id of TITLE_IDS) {
+      const title = DEFAULT_TITLE_CONFIGS[id];
+      seedTitle.run({ ...title, capabilities: JSON.stringify(title.capabilities), now: Date.now() });
+    }
+  })();
+
+  /** 全部称号设置。提督的权限包不管库里存了什么都是全部能力，乘客没有权限包。 */
+  function titleConfigs(): TitleConfigs {
+    const rows = db.prepare("SELECT * FROM titles").all() as TitleRecord[];
+    const result = structuredClone(DEFAULT_TITLE_CONFIGS);
+    for (const row of rows) {
+      if (!(row.id in result)) continue;
+      result[row.id] = {
+        id: row.id, label: row.label, tag: row.tag, icon: row.icon, tone: row.tone as Tone, description: row.description,
+        capabilities: row.id === "admin" ? [...CAPABILITY_IDS] : row.id === "guest" ? []
+          // 仅舰长能力只认舰长那一行：路由已经挡住，这里读出时再兜一层，库被别处改过也不会放大权限
+          : parseTitleBundle(row.capabilities).filter(capability => row.id === "captain" || !CAPTAIN_ONLY.includes(capability)),
+      };
+    }
+    return result;
+  }
+  /** 返回实际改动的字段名；称号不存在时返回 null。权限包规则（titleBundleError）由调用方先查。 */
+  function updateTitle(id: TitleId, patch: TitlePatch, actor: string): string[] | null {
+    const current = titleConfigs()[id];
+    if (!current) return null;
+    const columns: string[] = [];
+    const values: unknown[] = [];
+    const changed: string[] = [];
+    for (const key of ["label", "tag", "icon", "tone", "description"] as const) {
+      // 名字和说明去掉首尾空白再存：控制台已经 trim，直接调接口也不会存进「 舰长 」
+      const next = typeof patch[key] === "string" ? patch[key]!.trim() : patch[key];
+      if (next === undefined || next === current[key]) continue;
+      columns.push(`${key} = ?`); values.push(next); changed.push(key);
+    }
+    if (patch.capabilities !== undefined) {
+      const next = CAPABILITY_IDS.filter(capability => patch.capabilities!.includes(capability));
+      if (JSON.stringify(next) !== JSON.stringify(current.capabilities)) {
+        columns.push("capabilities = ?"); values.push(JSON.stringify(next)); changed.push("capabilities");
+      }
+    }
+    if (columns.length === 0) return [];
+    db.prepare(`UPDATE titles SET ${columns.join(", ")}, updated_by = ?, updated_at = ? WHERE id = ?`).run(...values, actor, Date.now(), id);
+    return changed;
+  }
+
   const seed = db.prepare(`INSERT OR IGNORE INTO departments(id, name, tag, icon, tone, description, head_capabilities, member_capabilities, sort_order, archived, created_at, updated_at)
     VALUES(@id, @name, @tag, @icon, @tone, @description, @head_capabilities, @member_capabilities, @sort_order, 0, @now, @now)`);
   const now = Date.now();
+  // 默认部门只在第一次启动写入：部门可以在控制台删除，重启时不能把删掉的默认部门补回来。
+  // 这条标记之前就已经有部门的库（本功能上线前的数据）只补记标记，不再写默认部门。
   db.transaction(() => {
-    for (const department of DEFAULT_DEPARTMENTS) {
-      seed.run({
-        ...department, now,
-        head_capabilities: JSON.stringify(department.head_capabilities),
-        member_capabilities: JSON.stringify(department.member_capabilities),
-      });
+    if (db.prepare("SELECT 1 FROM console_seeds WHERE name = 'departments'").get()) return;
+    const existing = (db.prepare("SELECT COUNT(*) AS n FROM departments").get() as { n: number }).n;
+    if (existing === 0) {
+      for (const department of DEFAULT_DEPARTMENTS) {
+        seed.run({
+          ...department, now,
+          head_capabilities: JSON.stringify(department.head_capabilities),
+          member_capabilities: JSON.stringify(department.member_capabilities),
+        });
+      }
     }
+    db.prepare("INSERT INTO console_seeds(name, seeded_at) VALUES('departments', ?)").run(now);
   })();
 
   function listDepartments() {
@@ -69,6 +134,18 @@ export function createRoleStore(db: Database.Database) {
       input.sort_order ?? 100, at, at,
     );
     return result.changes === 1;
+  }
+  /**
+   * 删除部门，同一事务里撤掉这个部门的全部队长与舰员指派。返回被撤掉的指派；部门不存在时返回 null。
+   */
+  function deleteDepartment(id: string): AssignmentRow[] | null {
+    return db.transaction(() => {
+      if (!getDepartment(id)) return null;
+      const removed = db.prepare(`SELECT ${ASSIGNMENT_COLUMNS} FROM role_assignments WHERE department_id = ? ORDER BY id`).all(id) as AssignmentRow[];
+      db.prepare("DELETE FROM role_assignments WHERE department_id = ?").run(id);
+      db.prepare("DELETE FROM departments WHERE id = ?").run(id);
+      return removed;
+    })();
   }
   /** 返回实际改动的字段名；部门不存在时返回 null。 */
   function updateDepartment(id: string, patch: DepartmentPatch): string[] | null {
@@ -169,7 +246,8 @@ export function createRoleStore(db: Database.Database) {
   const countAssignments = () => (db.prepare("SELECT COUNT(*) AS n FROM role_assignments").get() as { n: number }).n;
 
   return {
-    listDepartments, getDepartment, insertDepartment, updateDepartment,
+    titleConfigs, updateTitle,
+    listDepartments, getDepartment, insertDepartment, updateDepartment, deleteDepartment,
     assignmentsFor, listAssignments, getAssignment, findAssignment, insertAssignment, transferCaptain, deleteAssignment,
     captain, captainExists, crewCounts, countAssignments,
   };

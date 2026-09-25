@@ -113,6 +113,23 @@ CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at D
 
 // 极客班控制台：部门、称号指派与投递审核历史。只新增表和索引，不改动已有表（没有迁移框架）。
 db.exec(`
+CREATE TABLE IF NOT EXISTS console_seeds (
+  name TEXT PRIMARY KEY,
+  seeded_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS titles (
+  id TEXT PRIMARY KEY CHECK (id IN ('admin','captain','head','member','alumni','guest')),
+  label TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  tone TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  capabilities TEXT NOT NULL DEFAULT '[]',
+  updated_by TEXT,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS departments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
