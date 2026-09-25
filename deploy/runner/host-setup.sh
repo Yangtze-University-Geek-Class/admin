@@ -49,11 +49,17 @@ EOF
 systemctl daemon-reload
 systemctl enable --now incus-docker-forward.service
 
-# 出站 ACL：容器不许碰家里局域网、tailscale、netbird、docker0 与宿主机本身，其余放行。
+# 出站 ACL：容器不许碰家里局域网、tailscale、netbird、docker0、宿主机本身和代理的 fake-ip 段，其余放行。
+# 挡不住的：经家里公网 IP 绕回路由器端口转发的连接（见 docs/ops/CICD.md「自托管 runner」的剩余风险）。
+PRIVATE=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,169.254.0.0/16,198.18.0.0/15
 incus network acl show runner-egress >/dev/null 2>&1 || incus network acl create runner-egress
-incus network acl show runner-egress | grep -q "10.0.0.0/8" || \
-  incus network acl rule add runner-egress egress action=reject \
-    destination=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,169.254.0.0/16
+if ! incus network acl show runner-egress | grep -q "destination: $PRIVATE\$"; then
+  # 网段清单变了：先删掉旧的拒绝规则再按新清单加（整条比对，不只看某一个网段）
+  incus network acl show runner-egress | sed -n 's/^ *destination: //p' | while read -r old; do
+    incus network acl rule remove runner-egress egress action=reject destination="$old"
+  done
+  incus network acl rule add runner-egress egress action=reject destination="$PRIVATE"
+fi
 incus network set incusbr0 security.acls=runner-egress \
   security.acls.default.egress.action=allow security.acls.default.ingress.action=allow
 

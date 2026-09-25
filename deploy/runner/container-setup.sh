@@ -1,5 +1,6 @@
 #!/bin/sh
-# yzgc-runner 容器内：装 Docker 与 CI 用到的工具，建 runner 用户，下载并校验 actions runner（#93）。可重复执行。
+# yzgc-runner 容器内：装 Docker 与 CI 用到的工具，建 runner 用户，下载并校验 actions runner（#93）。可重复执行，
+# 但重跑会重启容器里的 docker，正在构建镜像的 job 会失败；在没有 job 时跑。
 set -eu
 export DEBIAN_FRONTEND=noninteractive
 RUNNER_VERSION=2.337.0

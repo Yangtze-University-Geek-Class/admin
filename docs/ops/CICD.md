@@ -126,22 +126,27 @@
 | 隔离 | 非特权 incus 系统容器 `yzgc-runner`（Ubuntu 24.04，`security.nesting=true`，容器里有自己的 Docker），限 8 线程、16G 内存；存储池是 80G 的 btrfs 镜像文件，放在单独的子卷 `/var/lib/incus`，不进宿主机的 snapper 快照 |
 | 注册 | 只注册到本仓库；两个实例 `crosery-arch-1`、`crosery-arch-2`，一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
 | 与托管 runner 对齐 | 托管 runner 每个 job 一台新机器，这里用两条规则补齐：每个实例一个 HOME（`/home/runner/r<N>/home`，`~/setup-pnpm`、pnpm 的 SQLite 索引、npm 缓存不在并发 job 之间共用，共用时 pnpm 报 `disk I/O error`）；每个 job 开始前由 `ACTIONS_RUNNER_HOOK_JOB_STARTED` 清空工作目录（上一个 job 的 sparse-checkout 会让下一个 job 缺文件，#93 第一轮 CI 实测） |
-| 出站 | incus 网络 ACL `runner-egress` 拒绝容器访问 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`（家里局域网、tailscale、netbird、宿主机与它的 Docker 网桥），其余放行 |
+| 出站 | incus 网络 ACL `runner-egress` 拒绝容器访问 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`、`198.18.0.0/15`（家里局域网、tailscale、netbird、宿主机与它的 Docker 网桥、代理的 fake-ip 段），其余放行 |
 | 预装 | 对齐 ubuntu-latest 里工作流直接用到的工具：Node 22 LTS（`branch-guard`、`docker`、`pr-contract` 不经 setup-node 直接调 `node`，官方包按 SHASUMS256 校验）、git、gh、jq、shellcheck、openssl、Docker + buildx + compose。新工作流用到别的预装工具时，先在容器里装上再切过来 |
 | 镜像源 | 家里连不上 Docker Hub，容器内 Docker 走 `docker.m.daocloud.io`、`docker.1ms.run` 镜像加速 |
 | 清理 | 容器内定时器每天清掉 72 小时前的镜像与构建缓存 |
 
-**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)，每一份都能重复执行。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`register.sh` 用 `incus file push` 放进容器，先跑前者（工具、Docker、Node、runner 用户，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌经环境变量传进去注册两个实例。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。
+**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册两个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker、重跑 `register.sh` 会重启两个 runner 服务，正在跑的 job 会失败，挑没有 job 的时候跑。
 
-**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在这台机器上；删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。两条部署工作流读另一个变量 `DEPLOY_RUNNER`，默认不设：部署 job 会拿到环境级 secrets（部署私钥等），要不要放到这台机器上跑，由所有者单独决定。
+**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在这台机器上；删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。两条部署工作流读另一个变量 `DEPLOY_RUNNER`，默认不设，也**不要指向这台常驻 runner**（原因见下面的剩余风险）。
+
+**发版还缺一步**：`DEPLOY_RUNNER` 不设时部署工作流仍用托管 runner，托管额度用完就连 plan、build 都起不来；`scripts/deploy-manual.mjs` 要用这次运行 build job 的产物，同样用不上。所以本 runner 只解决了 CI，rc 发版要等所有者在下面几条里选一条：调高支出上限只给部署用（CI 已不耗托管分钟，一次预发布约 15–20 分钟）；或为部署另建一次性 runner（每个 job 一个全新容器、JIT 注册、跑完即删）；或等下个计费周期额度恢复。
 
 **掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`。
 
-**安全边界**：
+**安全边界**（下文「自托管运行器不得接在有生产凭据或真实数据的机器上执行不可信 PR」在这里靠下面几条成立，不是无条件满足）：
 
-- 只有能向本仓库推分支的人能让 job 跑到这台机器上（私有仓库，没有 fork PR）。job 在容器里以普通用户 `runner` 运行，能用容器里的 Docker（相当于容器内 root），但容器是非特权的，拿不到宿主机的 root、家目录、SSH 材料、凭据和数据库，所以满足下文「自托管运行器不得接在有生产凭据或真实数据的机器上」的要求。
-- 容器里除 runner 自己的注册凭据外不放任何密钥。runner 自动更新保持开启（版本落后太多时 GitHub 不再派发 job）。
-- 镜像加速源是第三方服务：CI 只用它构建验证用的镜像，不产出部署物；部署镜像仍在托管 runner 上构建，除非打开 `DEPLOY_RUNNER`。
+- 谁能让代码跑到这里：私有仓库、没有 fork PR，只有能向本仓库推分支的协作者。他们推任意 `task/**`、`dev/**` 分支，改了的工作流就会在这台 runner 上执行。
+- 隔离到哪一层：job 在非特权容器里以 `runner` 用户运行，但 `runner` 在容器的 docker 组里，等于**容器内 root**。容器里没有宿主机的家目录、SSH 材料、凭据和数据库，除 runner 自己的注册凭据外不放任何密钥；出站拒绝上表的私网段。宿主机隔离靠 Linux 内核的命名空间，容器与宿主机共用内核，内核漏洞可以逃逸到维护者的个人机器。
+- 剩余风险一：**runner 是常驻的，不是一次性的**。拿到容器内 root 的人可以改掉 `job-started.sh`、`/usr/local/bin/node`、runner 本体或构建缓存，影响之后任何分支（包括 `stage`）上的 CI 结果，`verify (required check)` 的绿色因此只证明「这台 runner 上跑过」。发现可疑时重建容器（`incus delete -f yzgc-runner` 后按上文重建，并在仓库设置里移除两个旧 runner）。改成每个 job 一个全新容器前，这条风险一直在。
+- 剩余风险二：ACL 挡的是私网段，挡不住经家里公网 IP 绕回路由器端口转发的连接。
+- 所以部署 job 不放到这台 runner 上：部署要用预发布环境的 SSH 私钥（与正式环境同一台服务器），一旦容器被人动过，私钥就可能被带走。
+- 镜像加速源是第三方服务：CI 只用它构建验证用的镜像，不产出部署物。runner 自动更新保持开启（版本落后太多时 GitHub 不再派发 job）。
 
 ## 明确不做的事
 

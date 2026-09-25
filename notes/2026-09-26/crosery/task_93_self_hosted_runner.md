@@ -61,3 +61,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：gh pr create（#94）；PR 正文按九段契约写，验收证据填 CI 运行 36180935964 的每个 job 与 runner 名
 - 结果：push 运行 36180935964 在自托管 runner 上全部通过（verify success；core 118s、forum 79s、docker 337s）；pull_request 运行只差「PR」「审查」记录；pr-contract 待审查结论
+
+## 03:57:32 +08:00 · 审查 · #93 · 第一轮独立审查：有条件通过，4 条应修
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 dd50473（范围 02b97d0..dd50473），按 CODE-REVIEW 逐项核对
+- 结果：有条件通过：应修 4 条（CICD.md 把安全边界说满、register.sh 令牌进 argv、重建步骤漏 job-started.sh、合并后 rc 发版仍没有 runner），建议 3 条；另注：「PR」记录写的 03:48:15 是补记时刻，PR #94 实际创建于 03:31:34
+
+## 03:57:33 +08:00 · 返工 · #93 · 按第一轮审查改：安全边界写成条件加剩余风险，令牌走 stdin，重建步骤补全
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：CICD.md 自托管 runner 一节：安全边界改成成立条件 + 剩余风险（常驻 runner 可被污染、共用内核、端口转发绕回），写明 DEPLOY_RUNNER 不指向这台 runner、合并后 rc 发版仍需所有者选路子；重建步骤补 job-started.sh 与重跑影响；register.sh 令牌从 stdin 读、经 ACTIONS_RUNNER_INPUT_TOKEN 给 config.sh；job-started.sh 只认 _work/<仓库>/<仓库> 且拒绝 ..；host-setup.sh ACL 加 198.18.0.0/15、整条比对；机器上 ACL 与钩子同步更新
+- 结果：shellcheck 无输出；actionlint 0 个问题；pnpm check:docs 通过；钩子路径判断 7 个用例符合预期；容器内 198.18.0.1 blocked、api.github.com 200
