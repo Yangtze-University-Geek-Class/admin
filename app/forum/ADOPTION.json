@@ -34,8 +34,7 @@
     "app/pages/new.vue": "Under the site-wide login the guest empty state for new topic says the feature is not open yet and shows no 登录 button; demo login mode unchanged.",
     "app/pages/notifications.vue": "Under the site-wide login the guest empty state for notifications says the feature is not open yet and shows no 登录 button; demo login mode unchanged.",
     "app/pages/u/[username]/preferences.vue": "Under the site-wide login the guest empty state for preferences says the feature is not open yet and shows no 登录 button; demo login mode unchanged.",
-    "scripts/verify-shell.mjs": "Follows #62: the header marker is the 极客班 logo image (loaded, alt=\"\") instead of .tx-tuff-logo-stroke, also on the 404 page; the sidebar must start at 筛选侧栏 with no card rows; the demo user menu lists 「@talex · 管理员」 first; after logout the sidebar has no 登录 button or card; after switching to Mika the signed-in 「@mika · 版主」 is read from the header avatar menu instead of the removed sidebar footer card; /about counts only its staff card items.",
-    "scripts/verify-user-pages.mjs": "Comment only (#62): the profile banner lookup no longer mentions the removed sidebar footer card; the page-only filter is unchanged."
+    "scripts/verify-shell.mjs": "Follows #62: the header marker is the 极客班 logo image (loaded, alt=\"\") instead of .tx-tuff-logo-stroke, also on the 404 page; the sidebar must start at 筛选侧栏 with no card rows; the demo user menu lists 「@talex · 管理员」 first; after logout the sidebar has no 登录 button or card; after switching to Mika the signed-in 「@mika · 版主」 is read from the header avatar menu instead of the removed sidebar footer card; /about counts only its staff card items."
   },
   "addedIntegrationFiles": [
     "shared/deployment.ts",

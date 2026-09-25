@@ -60,7 +60,8 @@ try {
     themeIcon: ${has('header .i-carbon-moon')} || ${has('header .i-carbon-sun')},
     menu: ${has('header .i-carbon-menu')},
     search: ${has('header .tx-search-input__icon')},
-    logo: ${q(LOGO)}?.getAttribute('alt') === '',
+    // Decorative logo inside the home link whose accessible name is the visible site name.
+    logo: ${q(LOGO)}?.getAttribute('alt') === '' && ${q(LOGO)}.closest('a')?.textContent.trim() === 'Tuff Forum',
     groups: [...document.querySelectorAll('.tx-bui-sidebar-nav__group-label')].map(e => e.textContent.trim()),
     items: ${count('.tx-bui-sidebar-nav__row')},
     dots: ${count('.tx-bui-sidebar-nav__icon .tx-badge--dot')},
@@ -127,15 +128,20 @@ try {
   assert(closedDrawer && !closedDrawer.visible && closedDrawer.inert && closedDrawer.hidden === 'true', `closed drawer ${JSON.stringify(closedDrawer)}`)
   assert(await evaluate(clickByLabel('切换侧栏')), 'mobile toggle')
   await waitFor(has('.tx-drawer--visible .tx-bui-sidebar-nav'))
-  const drawer = await evaluate(`({ left: ${has('.tx-drawer--left.tx-drawer--visible')}, title: document.querySelector('.tx-drawer__title')?.textContent.trim() })`)
-  assert(drawer.left && drawer.title === '导航', `drawer ${JSON.stringify(drawer)}`)
+  const drawer = await evaluate(`({
+    left: ${has('.tx-drawer--left.tx-drawer--visible')},
+    title: document.querySelector('.tx-drawer__title')?.textContent.trim(),
+    first: document.querySelector('.tx-drawer--visible .tx-bui-sidebar-nav input')?.placeholder ?? null,
+    cards: ${count('.tx-drawer--visible .tx-bui-sidebar-nav .tx-card-item')},
+  })`)
+  assert(drawer.left && drawer.title === '导航' && drawer.first === '筛选侧栏' && drawer.cards === 0, `drawer ${JSON.stringify(drawer)}`)
   await sleep(500)
   await screenshot('reports/shell-mobile-drawer.png')
   // Picking an item closes the drawer.
   assert(await evaluate(clickByText('.tx-drawer--visible .tx-bui-sidebar-nav__row', '关于')), 'drawer item 关于')
   await waitFor(`!${has('.tx-drawer--visible')} && location.pathname === '/about'`)
   assertClean('mobile drawer')
-  record('mobile drawer hosts the sidebar', { note: 'no inline column; closed drawer is inert + aria-hidden; left drawer titled 导航 opens with the nav, closes on navigate to /about' })
+  record('mobile drawer hosts the sidebar', { note: 'no inline column; closed drawer is inert + aria-hidden; left drawer titled 导航 opens with the nav starting at 筛选侧栏 and no card rows, closes on navigate to /about' })
 
   // ------------------------------------------------------------ session
   await emulate({ width: 1280, height: 800 })
