@@ -15,6 +15,13 @@ const WITHHELD = '这篇没有公开'
 const LINK = /(!?)\[([^\]\n]*)\]\(([^)\s]+)\)/g
 
 /**
+ * HTML images, outside fenced code: `<img src="…" …>` as Typora writes them
+ * when a picture is scaled (`style="zoom:33%"`). They go through the same
+ * image rules as Markdown images.
+ */
+const HTML_IMAGE = /<img\b[^>]*?\bsrc=(["'])([^"'\s]+)\1[^>]*>/gi
+
+/**
  * Query parameters that identify whoever shared a link rather than the page:
  * B 站的 `vd_source`/`spm_id_from`、公众号的 `sharer_*`/`srcid`. They are
  * dropped; everything else (a video's `t=`, an article's `sn`) stays.
@@ -74,6 +81,18 @@ function outsideFences(markdown, fn) {
   }).join('\n')
 }
 
+/** The text outside fences and inline code: what a reader sees rendered as images and links. */
+function prose(markdown) {
+  let inFence = false
+  return markdown.split('\n').filter((line) => {
+    if (/^\s*(?:(?:[-*+]|\d+[.)])\s+)?(?:```|~~~)/.test(line)) {
+      inFence = !inFence
+      return false
+    }
+    return !inFence
+  }).map(line => line.replace(/`[^`\n]*`/g, '')).join('\n')
+}
+
 /**
  * Rewrites one topic's Markdown for the published forum.
  *
@@ -86,25 +105,42 @@ function outsideFences(markdown, fn) {
  * - Other links into the old forum (`/c/…`, `/u/…`) lose the link and keep
  *   their text (none when it only repeated the old site title): those pages
  *   do not exist any more.
- * - Images go through `image(target)`, which returns the new relative path,
- *   `{ text }` to replace the image with a note in parentheses, or `null` to
- *   leave an external image as it is.
+ * - Images, Markdown or HTML `<img src>`, go through `image(target)`, which
+ *   returns the new relative path, `{ text }` to replace the image with a note
+ *   in parentheses, or `null` to leave an external image as it is (listed in
+ *   `externalImages`, so the review record counts every image).
  * - Other external links lose sharer-tracking parameters (`cleanUrl`).
  *
  * Returns the new Markdown and what was rewritten, for the review record.
  */
 export function rewriteLinks(markdown, { titles, image }) {
-  const report = { topicLinks: [], withheldLinks: [], unlinked: [], images: [], droppedImages: [], cleanedLinks: [] }
-  const content = outsideFences(markdown, line => line.replace(LINK, (whole, bang, text, target) => {
+  const report = { topicLinks: [], withheldLinks: [], unlinked: [], images: [], droppedImages: [], externalImages: [], cleanedLinks: [] }
+  /** One image target → `null` (keep), `{ text }` (drop) or the local path, recorded in the report. */
+  const imageTarget = (target, html) => {
+    const local = image(target)
+    if (local === null)
+      report.externalImages.push({ from: target, html })
+    else if (typeof local === 'object')
+      report.droppedImages.push({ from: target, text: local.text, html })
+    else
+      report.images.push({ from: target, to: local, html })
+    return local
+  }
+  const htmlImages = line => line.replace(HTML_IMAGE, (whole, quote, target) => {
+    const local = imageTarget(target, true)
+    if (local === null)
+      return whole
+    if (typeof local === 'object')
+      return `（${local.text}）`
+    return whole.replace(`${quote}${target}${quote}`, `${quote}${local}${quote}`)
+  })
+  const content = outsideFences(markdown, line => htmlImages(line).replace(LINK, (whole, bang, text, target) => {
     if (bang) {
-      const local = image(target)
+      const local = imageTarget(target, false)
       if (local === null)
         return whole
-      if (typeof local === 'object') {
-        report.droppedImages.push({ from: target, text: local.text })
+      if (typeof local === 'object')
         return `（${local.text}）`
-      }
-      report.images.push({ from: target, to: local })
       return `![${text}](${local})`
     }
     const id = topicIdOf(target)
@@ -158,11 +194,20 @@ export function publishedProblems(markdown) {
     problems.push('还有旧论坛的资产地址 /api/local-forum/')
   if (/\]\((?:\.\/)?bbs\//.test(markdown))
     problems.push('还有旧论坛的 bbs/ 相对图片')
+  // Every image a reader sees is either one of ours or an https original; code samples that
+  // show the syntax (`![描述](图片的链接)` in a fence) are not images.
+  const visible = prose(markdown)
+  if (/!\[[^\]\n]*\]\((?!https:\/\/|\.\.\/published\/)/.test(visible))
+    problems.push('有图片既不是导出的站内图，也不是 https 外链')
+  if (/<img\b[^>]*?\bsrc=(["'])(?!https:\/\/|\.\.\/published\/)/i.test(visible))
+    problems.push('有 HTML 图片既不是导出的站内图，也不是 https 外链')
   if (/yangtzeu\.work\/forum\/archive/.test(markdown))
     problems.push('还有指回旧论坛归档的地址')
   if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(markdown))
     problems.push('有邮箱地址')
   if (/(?:账户|账号)\s*\**\s*[:：]/.test(markdown))
     problems.push('有写出来的账户')
+  if (/(?:密码|提取码)\s*\**\s*[:：]\s*\w/.test(markdown))
+    problems.push('有写出来的密码或提取码')
   return problems
 }

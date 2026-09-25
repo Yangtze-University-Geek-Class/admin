@@ -108,19 +108,41 @@ async function edited(source, rule) {
   return buffer
 }
 
+/** RIFF chunk ids of a WebP file; the original is only kept verbatim when it carries no EXIF/XMP. */
+function webpChunks(bytes) {
+  const ids = []
+  for (let offset = 12; offset + 8 <= bytes.length;) {
+    ids.push(bytes.toString('latin1', offset, offset + 4))
+    offset += 8 + bytes.readUInt32LE(offset + 4) + (bytes.readUInt32LE(offset + 4) % 2)
+  }
+  return ids
+}
+
 // Images are re-encoded once per source: at most 1600 px wide, lossy WebP. The name is the
-// SHA-256 prefix of the encoded bytes, so a changed image never reuses a cached name.
+// SHA-256 prefix of the encoded bytes, so a changed image never reuses a cached name. The bytes
+// depend on the sharp/libvips build (app/server's sharp); another version gives other names.
+// The same original written under two addresses must carry the same rule, otherwise whichever
+// came first would decide whether the other one gets its cover — the export stops instead.
 const encoded = new Map()
 async function encode(key, source, { mime, rule }) {
-  if (encoded.has(key))
-    return encoded.get(key)
+  const ruleKey = JSON.stringify({ cover: rule?.cover ?? null, crop: rule?.crop ?? null })
+  if (encoded.has(key)) {
+    const cached = encoded.get(key)
+    if (cached.ruleKey !== ruleKey)
+      throw new Error(`同一张原图（${key}）在两个地址下用了不同的图片规则，给两个地址写同样的规则`)
+    return cached
+  }
   const input = await edited(source, rule)
   const image = sharp(input, { limitInputPixels: 40_000_000, animated: false, failOn: 'error' })
   const lossy = await image.resize({ width: 1600, withoutEnlargement: true }).webp({ quality: 72, effort: 6 }).toBuffer()
-  // A small lossless WebP can come out larger when re-encoded; keep the original then.
-  const bytes = !rule && mime === 'image/webp' && source.length <= lossy.length ? source : lossy
+  // A small lossless WebP can come out larger when re-encoded; keep the original then, unless it
+  // carries EXIF/XMP (the re-encode drops metadata).
+  const plain = !rule?.cover?.length && !rule?.crop
+  const verbatim = plain && mime === 'image/webp' && source.length <= lossy.length
+    && !webpChunks(source).some(id => id === 'EXIF' || id === 'XMP ')
+  const bytes = verbatim ? source : lossy
   const name = `${createHash('sha256').update(bytes).digest('hex').slice(0, 16)}.webp`
-  const result = { name, bytes, sourceBytes: source.length }
+  const result = { name, bytes, sourceBytes: source.length, ruleKey }
   encoded.set(key, result)
   return result
 }

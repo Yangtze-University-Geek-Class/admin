@@ -107,7 +107,7 @@ describe('siteForumState', () => {
       expect(text).not.toContain(topic.title)
     }
     for (const id of Object.keys(curation.posts))
-      expect(text).not.toContain(`"${id}"`)
+      expect(text).not.toContain(id)
   })
 
   it('returns a fresh state on every call', () => {

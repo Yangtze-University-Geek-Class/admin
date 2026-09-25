@@ -80,6 +80,7 @@
     "shared/site-state.ts",
     "shared/published.ts",
     "app/plugins/site-state.client.ts",
+    "app/middleware/topic-trailing-slash.global.ts",
     "tests/content-source.test.ts",
     "tests/site-state.test.ts",
     "shared/signin-outcomes.ts",

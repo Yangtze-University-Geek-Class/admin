@@ -54,6 +54,21 @@ describe("rewriteLinks", () => {
     expect(report.droppedImages).toHaveLength(1);
   });
 
+  it("HTML 的 <img src> 和 Markdown 图片走同一套规则，留作外链的也记进导出记录", () => {
+    const image = (target: string) => (target.endsWith("local.png") ? "../published/abc.webp" : target.endsWith("drop.png") ? { text: "这张截图没有公开" } : null);
+    const md = '<img src="https://s.example.com/local.png" alt="a" style="zoom:33%;" />\n<img src="https://s.example.com/drop.png" />\n<img src=\'https://s.example.com/keep.png\'>\n![k](https://oss.example.com/keep2.png)';
+    const { content, report } = rewriteLinks(md, { titles, image });
+    expect(content).toBe('<img src="../published/abc.webp" alt="a" style="zoom:33%;" />\n（这张截图没有公开）\n<img src=\'https://s.example.com/keep.png\'>\n![k](https://oss.example.com/keep2.png)');
+    expect(report.images).toEqual([{ from: "https://s.example.com/local.png", to: "../published/abc.webp", html: true }]);
+    expect(report.droppedImages.map((item: { from: string }) => item.from)).toEqual(["https://s.example.com/drop.png"]);
+    expect(report.externalImages).toEqual([{ from: "https://s.example.com/keep.png", html: true }, { from: "https://oss.example.com/keep2.png", html: false }]);
+  });
+
+  it("代码块里的 <img> 原样保留", () => {
+    const md = "```html\n<img src=\"bbs/1.png\">\n```";
+    expect(rewriteLinks(md, { titles, image: () => "../published/abc.webp" }).content).toBe(md);
+  });
+
   it("外部链接去掉分享人的追踪参数，其它参数保留", () => {
     const { content, report } = rewriteLinks("[视频](https://www.bilibili.com/video/BV1x/?spm_id_from=333.1&vd_source=abc&t=12)", { titles, image: noImages });
     expect(content).toBe("[视频](https://www.bilibili.com/video/BV1x/?t=12)");
@@ -82,12 +97,19 @@ describe("applyRedactions", () => {
 
 describe("publishedProblems", () => {
   it("导出后的正文里还有旧资产地址、旧归档链接、邮箱或写出来的账户，都报出来", () => {
-    expect(publishedProblems("![a](/api/local-forum/assets/ab)")).toHaveLength(1);
-    expect(publishedProblems("![a](bbs/1.png)")).toHaveLength(1);
+    expect(publishedProblems("![a](/api/local-forum/assets/ab)")).toEqual(["还有旧论坛的资产地址 /api/local-forum/", "有图片既不是导出的站内图，也不是 https 外链"]);
+    expect(publishedProblems("![a](bbs/1.png)")).toEqual(["还有旧论坛的 bbs/ 相对图片", "有图片既不是导出的站内图，也不是 https 外链"]);
     expect(publishedProblems("见 https://yangtzeu.work/forum/archive/t/3")).toHaveLength(1);
     expect(publishedProblems("联系 someone@example.com")).toHaveLength(1);
     expect(publishedProblems("**账户**：abc")).toHaveLength(1);
     expect(publishedProblems("[第四期极客班招新机试指南](./t9)\n![img](../published/abc.webp)")).toEqual([]);
+  });
+
+  it("代码块之外既不是站内图也不是 https 的图片（含 HTML）、写出来的密码，都报出来；代码里的语法示例不算", () => {
+    expect(publishedProblems("![a](http://img.example.com/a.png)")).toEqual(["有图片既不是导出的站内图，也不是 https 外链"]);
+    expect(publishedProblems('<img src="bbs/1.png" />')).toEqual(["有 HTML 图片既不是导出的站内图，也不是 https 外链"]);
+    expect(publishedProblems("下载地址：https://pan.example.com/x 密码:abcd")).toEqual(["有写出来的密码或提取码"]);
+    expect(publishedProblems("```markdown\n![描述](图片的链接)\n```\n写成 `![描述](图片的链接)`\n<img src=\"https://s.example.com/a.png\">")).toEqual([]);
   });
 });
 

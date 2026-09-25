@@ -33,13 +33,15 @@
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040905136.png", "sha256": "7695f97f95b745ed541e9bfdb5d62bb8868c494d40701e082c753281a34911bf", "crop": { "top": 112 } },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040907259.png", "sha256": "db2bbb0991fb460859d716fa94edb8274f2f4475aae7adf7c5c2b73cc8a06399", "crop": { "top": 112 } },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040908326.png", "sha256": "33cd7e689aafcb757e549852350b1420c5ff032c725c3b73d5a36344ba80002c", "crop": { "top": 112 } },
-    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040909520.png", "sha256": "189f30827f951a62f8d65a4270e84ed3a2803c4ab7854c43f42485912b25397f", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040909520.png", "sha256": "189f30827f951a62f8d65a4270e84ed3a2803c4ab7854c43f42485912b25397f", "cover": [[384, 195, 236, 20], [384, 226, 236, 35], [2270, 1402, 285, 28]], "crop": { "top": 112 } },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409041850822.png", "sha256": "33fada4e8cd38e0141d28c021f04bc9934fe919c1922c71b07b7ea6740f1df7b", "crop": { "top": 116 } },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202410082339782.png", "sha256": "0b9f230e1156d68f34aa47c075854009c67226441b81896e823f719da9052635", "crop": { "top": 112 } },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202410082304792.png", "sha256": "a1fc35789b39e5ed62fc2ab5fd5c1a0932b14354c58d14d2c3252e2d6f055277", "crop": { "top": 116, "left": 266 } },
     { "source": "/api/local-forum/assets/a76e34288aa563dc7a3fc9d93397ca0df12361c917fd112c45059b19aeff4345", "cover": [[0, 56, 1920, 30]] },
     { "source": "bbs/1760677959632_12.png", "cover": [[0, 44, 1920, 38]] },
     { "source": "bbs/1760678111805_13.png", "cover": [[0, 42, 1920, 38]] },
+    { "source": "/api/local-forum/assets/2a408af31f75562e6bbc4ff1fa8d2f9325f974a0b646de0e827ceacaddf96a5b", "cover": [[60, 20, 265, 32], [10, 212, 222, 58], [10, 270, 416, 28], [10, 352, 416, 30]] },
+    { "source": "https://s2.loli.net/2023/09/29/1lPkwFKEGQrmd8s.png", "sha256": "cefd7b145392698bf4f72178da420ac7e9cf7fac37ed32e9f470a71fb64a54ed", "cover": [[0, 620, 620, 385]] },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251910685.png", "drop": "这张截图没有公开" },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251910176.png", "drop": "这张截图没有公开" },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251936487.png", "drop": "这张截图没有公开" },
@@ -66,6 +68,54 @@
       "topic": "t35",
       "pattern": "#### 2、代理配置 \\+ 国外大模型账户注册和使用",
       "replacement": "#### 2、国外大模型账户注册和使用",
+      "count": 1
+    },
+    {
+      "topic": "t35",
+      "pattern": "\\[git二次上传\\]\\([^)\\s]*\\.mp4\\)",
+      "replacement": "git二次上传（录屏没有公开）",
+      "count": 1
+    },
+    {
+      "topic": "t12",
+      "pattern": "\\[虚拟机VMware 17来袭，附下载安装教程！ \\(qq\\.com\\)\\]\\(https://mp\\.weixin\\.qq\\.com/[^)\\s]*\\)",
+      "replacement": "虚拟机VMware 17来袭，附下载安装教程！（原文已被发布者删除）",
+      "count": 1
+    },
+    {
+      "topic": "t9",
+      "pattern": "不过这个教程好像要开梯子才能进去查看",
+      "replacement": "不过这个教程在有些网络下打不开",
+      "count": 1
+    },
+    {
+      "topic": "t73",
+      "pattern": "不过这个教程好像要开梯子才能进去查看",
+      "replacement": "不过这个教程在有些网络下打不开",
+      "count": 1
+    },
+    {
+      "topic": "t73",
+      "pattern": "\\[谷歌账户注册教程\\]\\([^)\\s]*\\) （共享账户找班长要）",
+      "replacement": "谷歌账户（共享账户找班长要）",
+      "count": 1
+    },
+    {
+      "topic": "t13",
+      "pattern": "不过需要梯子才能访问",
+      "replacement": "不过在国内网络下可能打不开",
+      "count": 1
+    },
+    {
+      "topic": "t10",
+      "pattern": "Picgo的下载地址：https://\\S*lanzou\\S* 密码:\\w+",
+      "replacement": "Picgo的下载地址：https://github.com/Molunerfinn/PicGo/releases （官方发布页）",
+      "count": 1
+    },
+    {
+      "topic": "t10",
+      "pattern": "Typora的下载地址：https://\\S*lanzou\\S* 密码:\\w+",
+      "replacement": "Typora的下载地址：https://typora.io/ （官网）",
       "count": 1
     }
   ]

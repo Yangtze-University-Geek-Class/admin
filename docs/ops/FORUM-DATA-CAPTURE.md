@@ -79,7 +79,7 @@ python3 scripts/forum-migration/verify.py \
 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/geek-20260913 --fetch
 ```
 
-`--fetch` 只在清单要编辑的外链原图还没下载时联网一次，按清单里的 SHA-256 核对后存到快照的 `external/` 下；之后不加它也能离线重跑。它只读快照，写出 `app/forum/content/published/topics.json` 和 `app/forum/public/published/*.webp`，并把每篇改了什么（站内链接、不公开的链接、去掉的链接、换掉的图片、替换次数）打印到终端，这份记录不入库，贴进 PR 的审查里。入库前逐篇核对正文和图片里没有账号、密码、令牌、邮箱、手机号和真实姓名；外链图片同样要看。作者统一写「极客班」，旧论坛的昵称和用户名不导出，回复不导出。字段和改写规则见 [forum 合同](../services/forum/README.md)「公开的旧帖」。
+`--fetch` 只在清单要编辑的外链原图还没下载时联网一次，按清单里的 SHA-256 核对后存到快照的 `external/` 下；之后不加它也能离线重跑。它只读快照，写出 `app/forum/content/published/topics.json` 和 `app/forum/public/published/*.webp`，并把每篇改了什么（站内链接、不公开的链接、去掉的链接、换掉的图片、去掉的图片、留作外链的图片、替换次数）打印到终端，这份记录不入库，逐篇摘要（不含私密值）贴进 PR。入库前逐篇核对正文和图片（包括 HTML `<img>` 和留作外链的图）里没有账号、密码、令牌、邮箱、手机号、真实姓名和别人的本机用户名；留下的第三方内容（原作者自己在截图里的网名、需要特殊网络才能打开的外部服务）在 PR 的复核记录里写明理由。话题和作者字段统一写「极客班」，旧论坛的作者昵称和用户名不进作者字段，回复不导出。字段和改写规则见 [forum 合同](../services/forum/README.md)「公开的旧帖」。
 
 ## 敏感性和禁止操作
 
