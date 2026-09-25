@@ -49,3 +49,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：运行 36180370198/36180376068：pr-contract 的 sparse-checkout 让同一 runner 上下一个 job 缺 package.json、scripts/*.mjs；两个实例共用 /home/runner 时 pnpm/action-setup 报 [ERR_SQLITE_ERROR] disk I/O error。容器内加 ACTIONS_RUNNER_HOOK_JOB_STARTED=/home/runner/job-started.sh（清空 GITHUB_WORKSPACE）与 HOME=/home/runner/r<N>/home，重启两个服务（打断了当时在跑的 job）；deploy/runner 与 CICD.md 同步
 - 结果：日志里已看到 job-started: 已清空 /home/runner/r1/_work/admin/admin；两个服务 active；新一轮 CI 待复核
+
+## 03:48:15 +08:00 · 推送 · #93 · task/93/self_hosted_runner 推到远端
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：git push origin task/93/self_hosted_runner（2034f9d → a2fb0ba → 035fb93 → 743f901）
+- 结果：pre-push 分支与发布 tag 规则通过；每次推送都在 crosery-arch-1/2 上触发 CI
+
+## 03:48:15 +08:00 · PR · #93 · 开 PR #94 → stage，填入 runner 上的 CI 证据
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create（#94）；PR 正文按九段契约写，验收证据填 CI 运行 36180935964 的每个 job 与 runner 名
+- 结果：push 运行 36180935964 在自托管 runner 上全部通过（verify success；core 118s、forum 79s、docker 337s）；pull_request 运行只差「PR」「审查」记录；pr-contract 待审查结论
