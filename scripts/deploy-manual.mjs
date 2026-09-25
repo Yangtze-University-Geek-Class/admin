@@ -39,6 +39,15 @@ export const REQUIRED_CONTEXT = 'verify (required check)';
  */
 export const archiveCheckCommand = (incomingDir, environment, imagesArchive) =>
   `cd '${incomingDir}' && chmod 600 '.env.${environment}' && sha256sum -c '${imagesArchive}.sha256'`;
+
+/**
+ * 目标机上执行部署。`--images` 只指这次的归档：incoming 里会留着上一次的归档，
+ * 不指定时 deploy-stack.sh 会把整个目录当成本次输入，看到别的版本的镜像就拒绝部署。
+ */
+export const deployStackCommand = (plan, environment) =>
+  `bash '${plan.incomingDir}/deploy-stack.sh' --environment ${environment} --stack-root '${plan.stackRoot}' `
+  + `--image-tag '${plan.imageTag}' --incoming-dir '${plan.incomingDir}' --images '${plan.incomingDir}/${plan.imagesArchive}' `
+  + `--env-file '${plan.incomingDir}/.env.${environment}'`;
 const SSH_ENV = ['DEPLOY_SSH_HOST', 'DEPLOY_SSH_PORT', 'DEPLOY_SSH_USER', 'DEPLOY_SSH_KEY_FILE', 'DEPLOY_SSH_KNOWN_HOSTS_FILE'];
 const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'];
 /** 取出哪些路径：规划器、环境契约、render 与远端物料都在这里面。 */
@@ -314,8 +323,7 @@ export async function deploy(options, deps = defaultDeps()) {
     step(remote.scp([archive, `${archive}.sha256`, envFile, join(src, 'deploy/remote/deploy-stack.sh')], `${plan.incomingDir}/`));
     step(remote.scp([join(src, 'deploy/compose/production.yml'), join(src, 'deploy/compose/preview.yml')], `${plan.stackRoot}/deploy/compose/`));
     step(remote.ssh(archiveCheckCommand(plan.incomingDir, environment, plan.imagesArchive)));
-    step(remote.ssh(`bash '${plan.incomingDir}/deploy-stack.sh' --environment ${environment} --stack-root '${plan.stackRoot}' `
-      + `--image-tag '${plan.imageTag}' --incoming-dir '${plan.incomingDir}' --env-file '${plan.incomingDir}/.env.${environment}'`));
+    step(remote.ssh(deployStackCommand(plan, environment)));
     run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=success', '-f', `environment_url=${plan.origin}`,
       '-f', `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`]);
     log(`完成：${plan.origin}/release.json 应显示 ${plan.releaseVersion}`);
