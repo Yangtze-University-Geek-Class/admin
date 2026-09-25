@@ -6,7 +6,7 @@
 
 ## AI 第一操作
 
-Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md) 和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
+Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md) 和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
 
 ## app ↔ docs ↔ 规范 地图
 
@@ -34,6 +34,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 提交格式与职责范围 | [COMMITS](conventions/COMMITS.md) |
 | Issue（开发前必开）与 MR | [ISSUES](conventions/ISSUES.md)、[PULL-REQUESTS](conventions/PULL-REQUESTS.md) |
 | issue ↔ 分支 ↔ PR 的生命周期、互相引用、评论里的追踪记录格式 | [TRACKING](conventions/TRACKING.md) |
+| 每个人、每个 agent 的执行记录（`notes/`，按北京日期和 GitHub 用户名） | [NOTES](conventions/NOTES.md) |
 | 测试、隔离、验收证据 | [TESTING](conventions/TESTING.md) |
 | 文档结构、状态词表与事实来源 | [DOCUMENTATION](conventions/DOCUMENTATION.md) |
 | 官方标准、采用范围与核对日期 | [REFERENCES](conventions/REFERENCES.md) |

@@ -21,6 +21,7 @@
 - **合并即结束**：PR 合并进 `stage` 后，`issue-lifecycle` 工作流删除 task 分支、关闭 issue，并在 issue 和 PR 上各留一条「关闭」记录。GitHub 只在合进默认分支 `main` 时才按 `Closes #n` 自动关闭，所以不能依赖它；工作流失败时由合并的人手工补关，并照 §3 的格式留言。
 - **一件事做不完**：在原 issue 留「阻塞」或「拆分」记录，拆出的新 issue 用 `Refs #<原 issue>` 互相引用；不在已合并的分支上继续提交。
 - **不再需要的事**：留「关闭」记录写明原因（重复、不做、被 #n 取代），再关闭；不静默关闭。
+- 评论之外，执行者自己的每一步记在仓库的 `notes/` 里（[NOTES](NOTES.md)）：评论给所有人看进展，`notes/` 按人和时间追溯每个 agent 做过什么，两者都要写。
 - 每周一 `issue-lifecycle` 巡检一次：PR 已合并但 issue 还开着、issue 开着但对应分支已不存在，都会列出来。
 
 ## §2 互相引用
@@ -88,4 +89,4 @@
 
 ## §5 与其它规范的关系
 
-issue 正文字段见 [ISSUES](ISSUES.md)，PR 正文字段与 CI 契约见 [PULL-REQUESTS](PULL-REQUESTS.md)，审查清单见 [CODE-REVIEW](CODE-REVIEW.md)，分支规则见 [BRANCHING](BRANCHING.md)。本文件只规定评论与生命周期，不重复它们的内容。
+issue 正文字段见 [ISSUES](ISSUES.md)，PR 正文字段与 CI 契约见 [PULL-REQUESTS](PULL-REQUESTS.md)，审查清单见 [CODE-REVIEW](CODE-REVIEW.md)，分支规则见 [BRANCHING](BRANCHING.md)，仓库内的执行记录见 [NOTES](NOTES.md)。本文件只规定评论与生命周期，不重复它们的内容。
