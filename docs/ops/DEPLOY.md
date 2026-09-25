@@ -161,7 +161,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 ## 最小权限
 
 - 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
-- 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。
+- 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。唯一例外是论坛容器的 CSP：站点策略加上论坛内联脚本的哈希，宿主模板开头的 `map` 看到上游带了 CSP 就不再叠加第二份（#78）。改宿主模板后要重新安装到服务器（先备份、`nginx -t` 再 reload），这一步不在 CI 里。
 - 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
 - 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料。
 
