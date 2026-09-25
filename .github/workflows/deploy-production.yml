@@ -461,7 +461,7 @@ jobs:
             deploy/compose/production.yml deploy/compose/preview.yml \
             "${target}:${STACK_ROOT}/deploy/compose/"
           ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$target" \
-            "chmod 600 '${INCOMING_DIR}/.env.production' && ls -l '${INCOMING_DIR}' && sha256sum -c '${INCOMING_DIR}/${IMAGES_ARCHIVE}.sha256' --ignore-missing"
+            "cd '${INCOMING_DIR}' && chmod 600 '.env.production' && ls -la && sha256sum -c '${IMAGES_ARCHIVE}.sha256'"
 
       - name: 执行远端部署（load 镜像 → compose up → 健康检查）
         id: deploy-stack

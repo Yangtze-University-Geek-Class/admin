@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, deploy, deploymentPayload, expectedDigest, parseArgs,
-  REQUIRED_CONTEXT, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
+  REQUIRED_CONTEXT, archiveCheckCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
 import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
@@ -208,6 +208,15 @@ describe('deploy-manual orchestration', () => {
       expect(workflow).toContain(`-f "required_contexts[]=${REQUIRED_CONTEXT}"`);
       const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
       expect(ci).toContain(`name: ${REQUIRED_CONTEXT}`);
+    }
+    // 归档校验先进入 incoming 目录再 `sha256sum -c`，不跳过缺失文件；两条工作流写法相同。
+    const check = world.calls.find(call => call.command === 'ssh' && call.args.some(arg => arg.includes('sha256sum')))!;
+    expect(check.args.at(-1)).toBe(archiveCheckCommand('/opt/yzgc/preview/incoming', 'preview', `yzgc-images-preview-${COMMIT.slice(0, 12)}.tar.gz`));
+    expect(archiveCheckCommand('/i', 'preview', 'a.tar.gz')).toBe("cd '/i' && chmod 600 '.env.preview' && sha256sum -c 'a.tar.gz.sha256'");
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      expect(workflow).toContain(`"cd '\${INCOMING_DIR}' && chmod 600 '.env.${env}' && ls -la && sha256sum -c '\${IMAGES_ARCHIVE}.sha256'"`);
+      expect(workflow).not.toContain('--ignore-missing');
     }
     // 部署成功后记录置为 success，临时目录删掉。
     expect(world.calls.some(call => call.args.includes('state=success'))).toBe(true);
