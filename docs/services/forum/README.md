@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可只读显示极客班论坛快照，仍无真实认证与后端。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-09-25 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -43,21 +43,23 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 称号
 
-用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。权威清单是服务端 `app/server/src/lib/roles.ts`（经 `/api/console/catalogue` 下发）；论坛在 `app/forum/app/data/titles.ts` 保留一份零依赖副本，因为静态构建不能跨包导入核心代码。副本与服务端逐项一致：称号 id、中文、英文标签、图标、色调与 rank，干事样式（`CREW`：`CREW` 标签、`slate` 色调、rank 2），八个色调色值，四个默认部门（id、名称、标签、图标、色调）及其负责人 / 干事权限包中的 `forum.*` 部分，论坛能力清单和部门 id 格式。图标在服务端是 Carbon 名称（`star-filled`），论坛写成完整类名（`i-carbon-star-filled`）便于 UnoCSS 扫描。`app/forum/tests/titles.test.ts` 把服务端清单手抄成独立的规格表并逐项断言；`app/forum/tests/titles-server-parity.test.ts` 直接读取服务端 `roles.ts` 源码文本逐项比对（不导入服务端模块），服务端改了清单而论坛副本没跟上时 `forum:check` 失败。
+用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。权威清单是服务端 `app/server/src/lib/roles.ts`（经 `/api/console/catalogue` 下发）；论坛在 `app/forum/app/data/titles.ts` 保留一份零依赖副本，因为静态构建不能跨包导入核心代码。副本与服务端逐项一致：称号 id、中文、英文标签、图标、色调与 rank，部门舰员样式（`CREW`：`CREW` 标签、`slate` 色调、rank 2），八个色调色值，四个默认部门（id、名称、标签、图标、色调）及其队长 / 舰员权限包中的 `forum.*` 部分，论坛能力清单和部门 id 格式。图标在服务端是 Carbon 名称（`star-filled`），论坛写成完整类名（`i-carbon-star-filled`）便于 UnoCSS 扫描。`app/forum/tests/titles.test.ts` 把服务端清单手抄成独立的规格表并逐项断言；`app/forum/tests/titles-server-parity.test.ts` 直接读取服务端 `roles.ts` 源码文本逐项比对（不导入服务端模块），服务端改了清单而论坛副本没跟上时 `forum:check` 失败。
 
-| 称号 | 显示 | 图标 | 色调 | 排序 |
-|---|---|---|---|---|
-| `captain` | 班长 | `star-filled` | amber | 0 |
-| `head` + 部门 | 「{部门} · 负责人」 | 部门图标，未知部门用 `badge` | 部门色调，未知部门 cobalt | 1 |
-| `member` + 部门 | 「{部门} · 干事」 | 部门图标 | slate | 2 |
-| `alumni` | 领航员（毕业的学长学姐） | `compass` | violet | 3 |
-| `member` | 极客班成员 | `code` | sky | 4 |
+| 称号 | 显示 | 标签 | 图标 | 色调 | 排序 |
+|---|---|---|---|---|---|
+| `captain` | 舰长 | `CAPTAIN` | `star-filled` | amber | 0 |
+| `head` + 部门 | 「{部门} · 队长」 | `LEADER` | 部门图标，未知部门用 `badge` | 部门色调，未知部门 cobalt | 1 |
+| `member` + 部门 | 「{部门} · 舰员」 | `CREW` | 部门图标 | slate | 2 |
+| `alumni` | 领航员（毕业的学长学姐） | `NAVIGATOR` | `compass` | violet | 3 |
+| `member` | 舰员 | `CREW` | `code` | sky | 4 |
 
-默认部门：招新部 `recruitment`（`user-follow`，coral）、技术部 `tech`（`terminal`，jade）、社区部 `community`（`forum`，rose）、项目部 `projects`（`application`，cobalt）。控制台新建的部门论坛看不到，按通用负责人 / 干事样式显示，且不带任何论坛能力。
+显示名按所有者 2026-09-25 的星舰命名（舰长、队长、舰员、领航员、乘客），见 [SECURITY](../../architecture/SECURITY.md)；称号 id 与存储值不变。乘客（`guest`，`PASSENGER`）不在论坛显示。
 
-- **显示**：`TitleBadge.vue` 只渲染 Tuffex `TxTag`（默认 outline 配方，`color` 取清单色值），不写样式、不绑定点击，因此不成为 Tab 停留点。干事也用 outline + 清单里的中性 slate，而不是 `plain` 变体：`plain` 忽略 `color`，文字取 `--tx-text-color-secondary`，在自己的底色上不到 3:1。深色模式不另起色板，而是 `color-mix(in srgb, <清单色> 40%, var(--tx-text-color-primary))`，向 Tuffex 自己的文字令牌提亮。单测按 WCAG 公式核对：浅色沿用服务端的口径（白底与 12% 同色底 ≥5:1）；深色从 `@talex-touch/tuffex/base.css` 读出深色与深色高对比的真实令牌（`--tx-bg-color`、`-page`、`-overlay`、`--tx-fill-color-light`），在每个底色及 12% 同色底上都 ≥5:1。单测只覆盖白底：浅色页面底 `#f2f3f5`（及浅色高对比的 `#eef2f7`）上，文字本身仍 ≥5.3:1，但在 12% 同色底上 amber、violet、coral、rose、slate 降到约 4.5–4.8:1（slate 最低，约 4.5:1），高于 WCAG AA 普通文本的 4.5:1，未达服务端 5:1 的口径；称号目前都渲染在白色卡片里，因此没有另行调整色值。帖子作者行、`/users` 的「角色」列在有称号时显示称号、否则保留原角色徽章；个人页横幅同时显示称号与角色徽章。`/users` 表头仍写「角色」，因为上游目录验收逐字断言表头；排序先按称号排序值，再按角色。
-- **论坛能力**：`permissions.ts#hasForumCapability(user, capability)`：admin / moderator 仍持有全部论坛能力；其他人按称号取能力（`titleForumCapabilities`，与服务端 `computeAccess` 的论坛部分一致）——班长持有全部，负责人与干事持有所在默认部门权限包里的 `forum.*`，领航员、成员、未知部门与无称号都没有。动作对应：`forum.topic.pin` 对应 pinTopic，`forum.topic.close` 对应 closeTopic，`forum.post.moderate` 对应编辑或删除他人帖子、在已关闭话题回复；`forum.category.manage` 与 `forum.badge.assign` 暂无对应动作。`isStaff`（版务，「关于」页管理团队据此显示）= 持有 `forum.post.moderate`，与控制台「论坛管理」页的版务定义一致：默认是 admin、moderator、班长、社区部负责人和社区部干事。话题页的「话题管理」菜单不看 `isStaff`，而是逐项问 `can()`：能置顶或能关闭就显示菜单，菜单里只列本人能用的项。项目部负责人只能置顶、不算版务，菜单里只有「置顶话题」。这仍是前端演示权限，不是服务端授权。
-- **种子**：talex 班长、mika 社区部负责人、yuki 技术部负责人、kai 技术部干事、lin 领航员，ryan 等六人为成员，bruce 无称号；所有 `role` 不变，上游验收用到的 ryan / xiaoyu 仍是普通成员。`FORUM_STATE_VERSION` 仍为 1，浏览器里已有的示例数据要点「重置示例数据」才会出现称号。
+默认部门：招新部 `recruitment`（`user-follow`，coral）、技术部 `tech`（`terminal`，jade）、社区部 `community`（`forum`，rose）、项目部 `projects`（`application`，cobalt）。控制台新建的部门论坛看不到，按通用队长 / 舰员样式显示，且不带任何论坛能力。
+
+- **显示**：`TitleBadge.vue` 只渲染 Tuffex `TxTag`（默认 outline 配方，`color` 取清单色值），不写样式、不绑定点击，因此不成为 Tab 停留点。部门舰员也用 outline + 清单里的中性 slate，而不是 `plain` 变体：`plain` 忽略 `color`，文字取 `--tx-text-color-secondary`，在自己的底色上不到 3:1。深色模式不另起色板，而是 `color-mix(in srgb, <清单色> 40%, var(--tx-text-color-primary))`，向 Tuffex 自己的文字令牌提亮。单测按 WCAG 公式核对：浅色沿用服务端的口径（白底与 12% 同色底 ≥5:1）；深色从 `@talex-touch/tuffex/base.css` 读出深色与深色高对比的真实令牌（`--tx-bg-color`、`-page`、`-overlay`、`--tx-fill-color-light`），在每个底色及 12% 同色底上都 ≥5:1。单测只覆盖白底：浅色页面底 `#f2f3f5`（及浅色高对比的 `#eef2f7`）上，文字本身仍 ≥5.3:1，但在 12% 同色底上 amber、violet、coral、rose、slate 降到约 4.5–4.8:1（slate 最低，约 4.5:1），高于 WCAG AA 普通文本的 4.5:1，未达服务端 5:1 的口径；称号目前都渲染在白色卡片里，因此没有另行调整色值。帖子作者行、`/users` 的「角色」列在有称号时显示称号、否则保留原角色徽章；个人页横幅同时显示称号与角色徽章。`/users` 表头仍写「角色」，因为上游目录验收逐字断言表头；排序先按称号排序值，再按角色。
+- **论坛能力**：`permissions.ts#hasForumCapability(user, capability)`：admin / moderator 仍持有全部论坛能力；其他人按称号取能力（`titleForumCapabilities`，与服务端 `computeAccess` 的论坛部分一致）——舰长持有全部，队长与部门舰员持有所在默认部门权限包里的 `forum.*`，领航员、不属于部门的舰员、未知部门与无称号都没有。动作对应：`forum.topic.pin` 对应 pinTopic，`forum.topic.close` 对应 closeTopic，`forum.post.moderate` 对应编辑或删除他人帖子、在已关闭话题回复；`forum.category.manage` 与 `forum.badge.assign` 暂无对应动作。`isStaff`（版务，「关于」页管理团队据此显示）= 持有 `forum.post.moderate`，与控制台「论坛管理」页的版务定义一致：默认是 admin、moderator、舰长、社区部队长和社区部舰员。话题页的「话题管理」菜单不看 `isStaff`，而是逐项问 `can()`：能置顶或能关闭就显示菜单，菜单里只列本人能用的项。项目部队长只能置顶、不算版务，菜单里只有「置顶话题」。这仍是前端演示权限，不是服务端授权。
+- **种子**：talex 舰长、mika 社区部队长、yuki 技术部队长、kai 技术部舰员、lin 领航员，ryan 等六人为舰员，bruce 无称号；所有 `role` 不变，上游验收用到的 ryan / xiaoyu 仍是普通成员。`FORUM_STATE_VERSION` 仍为 1，浏览器里已有的示例数据要点「重置示例数据」才会出现称号。
 - **快照**：`shared/local-snapshot.ts` 校验可选的 `title`（对象、id 属于可存储称号且不是 guest、department 符合部门 id 格式），不合法即 `invalid_state`。真实成员的称号需要所有者提供名单，本期快照不带称号。
 
 ## 契约：给 AI 读取的 Markdown

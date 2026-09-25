@@ -2,7 +2,7 @@
 
 > 区分保留核心服务的真实安全边界与原仓论坛的浏览器演示；新论坛尚不具备生产安全条件。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 核心服务
 
@@ -12,21 +12,21 @@
 
 ## 极客班控制台：称号与能力
 
-控制台 `/api/console/*` 在「GitHub 组织角色」之外，加了一层由班长维护的**称号 → 能力**授权。模型的唯一来源是 `app/server/src/lib/roles.ts`，判定在 `middleware/require-capability.ts`，端点与错误码见 [API](API.md)。
+控制台 `/api/console/*` 在「GitHub 组织角色」之外，加了一层由舰长维护的**称号 → 能力**授权。模型的唯一来源是 `app/server/src/lib/roles.ts`，判定在 `middleware/require-capability.ts`，端点与错误码见 [API](API.md)。
 
-- **称号**：班长（CAPTAIN）、部门负责人（`{部门} · 负责人`，HEAD）、部门干事（`{部门} · 干事`，CREW）、领航员（NAVIGATOR，已毕业的学长学姐）、极客班成员（MEMBER，GitHub 组织 active 成员自动获得）、访客（GUEST）。一个人可有多个称号，主称号取 rank 最小者。显式指派存在 `role_assignments` 表；有显式领航员时不再自动派生成员称号。
-- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部），每个部门有负责人与干事两份**权限包**。新增部门不改代码；新增「能力」才需要改代码，因为能力必须有执行点。
-- **能力**是扁平清单（`console.* github.* forum.* applications.* feedback.* audit.* roles.*`），取蕴含闭包（`*.manage` → `*.read`，任何 `github.*.manage` → `github.org.read`，`roles.manage` → `roles.department.manage`）。班长拥有全部能力（按清单动态计算）；`roles.manage` 仅班长持有，不能放进部门权限包（服务端拒绝，`captain_only_capability`）。
+- **称号**：舰长（CAPTAIN）、队长（`{部门} · 队长`，LEADER）、部门舰员（`{部门} · 舰员`，CREW）、领航员（NAVIGATOR，已毕业的学长学姐）、舰员（CREW，GitHub 组织 active 成员自动获得）、乘客（PASSENGER，没登录的人，只能看帖子）。显示名按所有者 2026-09-25 的决定采用星舰命名：舰长、队长、舰员、领航员、乘客；称号 id（`captain` / `head` / `member` / `alumni` / `guest`）、数据库取值和 API 字段不变。一个人可有多个称号，主称号取 rank 最小者。显式指派存在 `role_assignments` 表；有显式领航员时不再自动派生舰员称号。
+- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部），每个部门有队长与舰员两份**权限包**。新增部门不改代码；新增「能力」才需要改代码，因为能力必须有执行点。
+- **能力**是扁平清单（`console.* github.* forum.* applications.* feedback.* audit.* roles.*`），取蕴含闭包（`*.manage` → `*.read`，任何 `github.*.manage` → `github.org.read`，`roles.manage` → `roles.department.manage`）。舰长拥有全部能力（按清单动态计算）；`roles.manage` 仅舰长持有，不能放进部门权限包（服务端拒绝，`captain_only_capability`）。
 - **GitHub 上限**：GitHub 操作一律用会话里用户自己的 token，控制台**不能授予任何 GitHub 权力**。最终 `github.*` 能力 = 称号给的能力 ∩ 用户在 `CONSOLE_ORG` 的 GitHub 角色上限（admin：全部；member：只有 `github.org.read`；非成员：无）。被挡掉的能力放进 `blocked`（`github_admin_required` / `github_membership_required`）。非 GitHub 能力（投递、意见箱、审计、称号管理、论坛）不需要组织身份。
-- **班长临时代任（bootstrap）**：没有显式 captain 行时，`CONSOLE_ORG` 的每一位 GitHub 组织 admin 都临时是班长（`source: "bootstrap"`，`bootstrap: true`），控制台显示横幅提醒尽快正式指定。一旦存在显式 captain 行，临时代任对所有人立刻失效；显式班长全站唯一（部分唯一索引 `uq_role_assignments_captain`），移交在单个事务里完成。captain 行只能由班长本人删除（删除后恢复临时代任）。
-- **负责人范围**：`roles.department.manage` 只允许任免自己负责部门的干事，跨部门返回 403 `out_of_department_scope`。
-- **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免把临时代任的班长锁在外面。
+- **舰长临时代任（bootstrap）**：没有显式 captain 行时，`CONSOLE_ORG` 的每一位 GitHub 组织 admin 都临时是舰长（`source: "bootstrap"`，`bootstrap: true`），控制台显示横幅提醒尽快正式指定。一旦存在显式 captain 行，临时代任对所有人立刻失效；显式舰长全站唯一（部分唯一索引 `uq_role_assignments_captain`），移交在单个事务里完成。captain 行只能由舰长本人删除（删除后恢复临时代任）。
+- **队长范围**：`roles.department.manage` 只允许任免自己负责部门的舰员，跨部门返回 403 `out_of_department_scope`。
+- **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免把临时代任的舰长锁在外面。
 - **审计**：控制台写操作、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
 - **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制；论坛类能力目前只记录和展示，论坛没有服务端执行点。
 
 **个人信息**：投递（姓名、班级、邮箱、特长）对所有持有 `applications.read` 的人完整可见；列表与详情不下发来源 IP 和 User-Agent。只有查看详情和导出会被审计，CSV 离开系统后无法追踪。
 
-**残余风险**：GitHub 角色缓存 60 秒，撤销组织 admin 最长 60 秒后生效；临时代任期间所有组织 admin 都是班长，上线后应尽快正式指定；班长的 GitHub 账号丢失时，只能由授权运维直接删除 captain 行以恢复临时代任（尚未写进运维手册）；称号清单在论坛另有一份副本，一致性测试只覆盖默认部门，数据库里新增的部门论坛看不到；按钮显隐只是提示，授权只在服务端。
+**残余风险**：GitHub 角色缓存 60 秒，撤销组织 admin 最长 60 秒后生效；临时代任期间所有组织 admin 都是舰长，上线后应尽快正式指定；舰长的 GitHub 账号丢失时，只能由授权运维直接删除 captain 行以恢复临时代任（尚未写进运维手册）；称号清单在论坛另有一份副本，一致性测试只覆盖默认部门，数据库里新增的部门论坛看不到；按钮显隐只是提示，授权只在服务端。
 
 ## 论坛代码替换的边界
 
