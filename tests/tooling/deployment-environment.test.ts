@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ENVIRONMENTS,
   IMAGE_SERVICES,
+  OPTIONAL_SECRET_PAIR,
   SECRET_FIELDS,
   composeImageReferences,
   deploymentTarget,
@@ -237,6 +238,40 @@ describe('runtime env rendering', () => {
     for (const imageTag of ['latest', 'A1B2C3D4E5F6', 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4']) {
       expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag, env: secrets })).toThrow(/IMAGE_TAG/);
     }
+  });
+});
+
+describe('optional Turnstile pair', () => {
+  it('treats both Turnstile keys empty as Turnstile off and writes them empty', () => {
+    const root = fixtureRoot();
+    const out = join(root, 'runtime/.env.preview');
+    const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY, ...rest } = secrets;
+    void TURNSTILE_SITE_KEY; void TURNSTILE_SECRET_KEY;
+    const result = renderRuntimeEnv({ root, environment: 'preview', out, imageTag: 'a1b2c3d4e5f6', env: rest });
+    expect(result.turnstile).toBe('off');
+    expect(result.secretFields).toEqual(SECRET_FIELDS.filter(field => !OPTIONAL_SECRET_PAIR.includes(field)));
+    const values = parseEnvFileText(readFileSync(out, 'utf8'), 'rendered');
+    expect(values.get('TURNSTILE_SITE_KEY')).toBe('');
+    expect(values.get('TURNSTILE_SECRET_KEY')).toBe('');
+    expect(values.get('SESSION_SECRET')).toBe(secrets.SESSION_SECRET);
+    // 空字符串与缺失一样算「没填」。
+    expect(renderRuntimeEnv({ root, environment: 'preview', out, imageTag: 'a1b2c3d4e5f6', env: { ...rest, TURNSTILE_SITE_KEY: '', TURNSTILE_SECRET_KEY: '' } }).turnstile).toBe('off');
+  });
+
+  it('refuses exactly one Turnstile key and still requires every other secret', () => {
+    const root = fixtureRoot();
+    const out = join(root, 'runtime/.env.production');
+    expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SECRET_KEY: '' } })).toThrow(/只配了一项/);
+    expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SITE_KEY: '' } })).toThrow(/只配了一项/);
+    // Turnstile 关闭时，其余每一个密钥仍然必填。
+    const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY, ...required } = secrets;
+    void TURNSTILE_SITE_KEY; void TURNSTILE_SECRET_KEY;
+    for (const field of SECRET_FIELDS.filter(name => !OPTIONAL_SECRET_PAIR.includes(name))) {
+      const { [field]: missing, ...rest } = required as Record<string, string>;
+      void missing;
+      expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: rest })).toThrow(new RegExp(field));
+    }
+    expect(renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: secrets }).turnstile).toBe('on');
   });
 });
 
