@@ -109,7 +109,8 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
       '  default_type application/octet-stream;',
       ...['client', 'proxy', 'fastcgi', 'uwsgi', 'scgi'].map(dir => `  ${dir === 'client' ? 'client_body' : dir}_temp_path ${join(root, `${dir}_temp`)};`),
       `  include ${join(root, '10-web.conf')};`,
-      `  server { listen 127.0.0.1:${forumPort}; location / { default_type text/plain; return 200 "forum $uri"; } }`,
+      // 桩 server 自己不写日志：否则 nginx 用编译时的默认路径（CI 上是不可写的 /var/log/nginx/access.log），-t 直接失败。
+      `  server { listen 127.0.0.1:${forumPort}; access_log off; location / { default_type text/plain; return 200 "forum $uri"; } }`,
       '}',
       '',
     ].join('\n'));
