@@ -7,14 +7,17 @@ export default defineEventHandler((event) => {
   }
   setHeader(event, 'Cache-Control', 'no-store')
   const snapshot = snapshotConfigured()
+  const { contentSource } = useRuntimeConfig().public
   return {
     module: 'tuff-forum',
     instance: process.env.GEEK_FORUM_INSTANCE ?? '',
     // `local-snapshot` means the pages read the 极客班 archive through
     // /api/local-forum. It is a static read-only projection: no database is
-    // connected, nothing is written, nobody is authenticated.
-    mode: snapshot ? 'local-snapshot' : 'browser-demo',
-    contentSource: snapshot ? 'local-snapshot' : 'upstream-seed',
+    // connected, nothing is written, nobody is authenticated. `site` is
+    // 极客班论坛 as the images are built: its own categories and tags, no
+    // topics, no browser storage.
+    mode: snapshot ? 'local-snapshot' : contentSource === 'site' ? 'site' : 'browser-demo',
+    contentSource: snapshot ? 'local-snapshot' : contentSource,
     snapshotConfigured: snapshot,
     realAuthentication: false,
     serverPersistence: false,

@@ -114,6 +114,13 @@ function open(user: User) {
     </TxDataTable>
 
     <TxEmptyState
+      v-else-if="!forum.state.users.length"
+      variant="no-data"
+      title="还没有用户"
+      description="成员列表还没接入。"
+    />
+
+    <TxEmptyState
       v-else
       variant="search-empty"
       title="没有匹配的用户"

@@ -22,6 +22,9 @@ const ICONS: Record<NotificationType, string> = {
 const forum = useForumStore()
 const router = useRouter()
 const { fromNow } = useRelativeTime()
+const { siteName } = useContentSource()
+// 中文里夹西文名时两边各留一个空格：「来自 Tuff Forum 的系统消息」「来自极客班论坛的系统消息」。
+const systemSender = /^[\x20-\x7E]+$/.test(siteName) ? ` ${siteName} ` : siteName
 
 const filter = ref<'unread' | 'all'>('unread')
 
@@ -62,7 +65,7 @@ function sentence(notification: Notification): string {
     case 'follow':
       return `${actor} 关注了你`
     case 'system':
-      return '来自 Tuff Forum 的系统消息'
+      return `来自${systemSender}的系统消息`
   }
 }
 

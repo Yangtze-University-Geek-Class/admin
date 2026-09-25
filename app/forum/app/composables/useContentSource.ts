@@ -1,7 +1,8 @@
+import type { ContentSource } from '../../shared/content-source'
 import type { SnapshotSummary } from '../../shared/local-snapshot'
 import { parseSnapshotDocument } from '../../shared/local-snapshot'
 
-export type ContentSource = 'upstream-seed' | 'local-snapshot'
+export type { ContentSource }
 export type SnapshotStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface SnapshotInfo {
@@ -15,12 +16,15 @@ export interface SnapshotInfo {
  * Which data the pages are showing and, for the 极客班 snapshot, whether it
  * has arrived. `load()` replaces the whole store and forces the guest
  * session; it never merges with the demo seed and never falls back to it.
+ * `isSite` is 极客班论坛 itself (the deployed images): its own categories and
+ * tags, no topics yet, nothing to wait for.
  */
 export function useContentSource() {
   const config = useRuntimeConfig()
   const source = config.public.contentSource as ContentSource
   const siteName = config.public.siteName as string
   const isSnapshot = source === 'local-snapshot'
+  const isSite = source === 'site'
   /**
    * 全站统一 GitHub 登录（见 nuxt.config.ts 的 loginMode）：论坛没有自己的登录，示例身份选择不出现，
    * 本机不保存示例会话。只有 scripts/forum.mjs 的示例预览与上游验收是 false。
@@ -46,7 +50,7 @@ export function useContentSource() {
     }
   }
 
-  return { source, siteName, isSnapshot, siteLogin, snapshot, ready, load }
+  return { source, siteName, isSnapshot, isSite, siteLogin, snapshot, ready, load }
 }
 
 function describeError(error: unknown): string {

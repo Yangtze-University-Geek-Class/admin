@@ -50,6 +50,9 @@ onMounted(() => {
 
 const showSkeleton = useDeferredLoading(firstPaint, { delay: 0, minDuration: 400 })
 
+/** A forum without any topic (极客班论坛 before posting opens) is not a filter miss. */
+const forumEmpty = computed(() => forum.state.topics.length === 0)
+
 const pageCount = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
 const rangeStart = computed(() => (props.currentPage - 1) * props.pageSize + 1)
 const rangeEnd = computed(() => Math.min(props.currentPage * props.pageSize, props.total))
@@ -94,6 +97,13 @@ const excerpts = computed(() => new Map(
     <TxCard v-if="showSkeleton" variant="plain">
       <TxRowSkeleton :rows="pageSize" leading description trailing separated />
     </TxCard>
+
+    <TxEmptyState
+      v-else-if="!topics.length && forumEmpty"
+      variant="no-data"
+      title="还没有话题"
+      description="发帖和回复还没开放。"
+    />
 
     <TxEmptyState
       v-else-if="!topics.length"

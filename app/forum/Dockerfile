@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# @yzgc/forum 运行镜像：Nuxt 4 静态产物（Tuff Forum）+ nginx 静态托管。
+# @yzgc/forum 运行镜像：极客班论坛（基于 Tuff Forum 的 Nuxt 4 静态产物）+ nginx 静态托管。
 #
 # 构建上下文 = 仓库根（geek_main/）：
 #   docker build --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
@@ -50,15 +50,16 @@ ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
 
-# GEEK_FORUM_SOURCE=demo 与 scripts/forum.mjs 的 check/generate 行为一致：
-# 镜像里没有本地快照目录，构建固定用上游示例内容，不用机器上的私有数据。
+# GEEK_FORUM_SOURCE=site：镜像是极客班论坛自己——站名「极客班论坛」、app/forum/content/curation.json
+# 里的分类和标签，没有帖子、用户和通知（论坛还没有后端）。不带上游示例帖子，也不读任何内容目录，
+# 机器上的私有快照进不来。上游示例种子只留给 scripts/forum.mjs 的 check/generate/verify。
 # GEEK_FORUM_BASE_PATH=/forum/ 是路径挂载的前提（nuxt.config.ts 把它写进 app.baseURL）：
 # 产物 HTML 里的资源与路由前缀都必须是 /forum/，否则浏览器会去官网根路径找论坛资源
 # （见 app.config.json 的 sites.forum.basePath=/forum 与 web 容器的 /forum 反代）。
 # 产物仍然落在 .output/public 根目录，不会多出 forum/ 子目录，所以容器按站点根服务。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && GEEK_FORUM_BASE_PATH=/forum/ \
-    GEEK_FORUM_SOURCE=demo \
+    GEEK_FORUM_SOURCE=site \
     GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
     GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
@@ -66,11 +67,14 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
- # 给 AI 读取的 Markdown 原文与索引必须随产物生成（nuxt.config.ts 的 nitro.prerender.routes），
- # 链接要带上 /forum/ 前缀。
+ # 给 AI 读取的索引 llms.txt 必须随产物生成（nuxt.config.ts 的 nitro.prerender.routes），
+ # 写的是极客班论坛；极客班论坛还没有话题，所以不生成 t/<id>.md。
  && test -s .output/public/llms.txt \
- && test -s .output/public/t/t1.md \
- && grep -q '/forum/t/t1.md' .output/public/llms.txt
+ && grep -q '极客班论坛' .output/public/llms.txt \
+ && ! test -e .output/public/t \
+ # 产物里不能有上游示例内容（示例帖子标题、示例分类）。
+ && ! grep -rq 'Tuff 2.5' .output/public \
+ && ! grep -rq 'CoreBox' .output/public
 
 # 容器内 nginx：静态托管，SPA 回落 200.html（Nuxt ssr:false 的约定）。
 COPY <<'NGINX_MAIN' /nginx-out/nginx.conf
