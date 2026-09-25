@@ -156,6 +156,22 @@ describe('deploy-stack.sh keeps each environment inside its own image repository
     expect(readFileSync(join(preview.stackRoot, 'deploy-history.log'), 'utf8')).toMatch(new RegExp(`\\tpreview\\t${SHA}\\tOK\\t`));
   });
 
+  it('deploys only the archive named by --images when an earlier archive is still in incoming', () => {
+    const h = host();
+    const preview = stack(h.root, 'preview', SHA);
+    const incoming = join(preview.stackRoot, 'incoming');
+    // 上一次部署（另一个 SHA）的归档留在 incoming 里，没有任何步骤删它。
+    archive(incoming, `yzgc-images-preview-${OLD}.tar.gz`, refs('yzgc-preview', OLD));
+    const current = archive(incoming, `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    const whole = run(h, 'deploy-stack.sh', ['--environment', 'preview', '--incoming-dir', incoming, '--health-timeout', '5']);
+    expect(whole.status).toBe(1);
+    expect(whole.stderr).toMatch(/不属于本环境本版本/);
+    const named = run(h, 'deploy-stack.sh', ['--environment', 'preview', '--incoming-dir', incoming, '--images', current, '--health-timeout', '5']);
+    expect(named.stderr).toBe('');
+    expect(named.status).toBe(0);
+    expect(readFileSync(join(h.state, 'in-use.txt'), 'utf8').split('\n').filter(Boolean).sort()).toEqual(refs('yzgc-preview', SHA).sort());
+  });
+
   it.each([
     ['the old shared name', ['yzgc/server', 'yzgc/web', 'yzgc/forum'].map(repository => `${repository}:${SHA}`)],
     ['the other environment', refs('yzgc-production', SHA)],
