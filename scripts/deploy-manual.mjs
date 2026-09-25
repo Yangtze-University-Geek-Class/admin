@@ -41,7 +41,7 @@ export const archiveCheckCommand = (incomingDir, environment, imagesArchive) =>
   `cd '${incomingDir}' && chmod 600 '.env.${environment}' && sha256sum -c '${imagesArchive}.sha256'`;
 
 /**
- * 目标机上执行部署。`--images` 只指这次的归档：incoming 里会留着上一次的归档，
+ * 目标机上执行部署。`--images` 只指这次的归档：失败的部署会在 incoming 里留下归档（成功的部署会清掉），
  * 不指定时 deploy-stack.sh 会把整个目录当成本次输入，看到别的版本的镜像就拒绝部署。
  */
 export const deployStackCommand = (plan, environment) =>

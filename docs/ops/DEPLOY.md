@@ -81,7 +81,7 @@ bash deploy-stack.sh --environment production \
 | `--environment <production\|preview>` | 必填；决定 compose 文件与历史记录中的环境列 |
 | `--images <tar\|tar.gz\|目录>` | 待 `docker load` 的镜像包 |
 | `--env-file <路径>` | 运行时 env 文件的唯一事实源 |
-| `--incoming-dir <目录>` | 镜像与 env 的落地目录（默认在栈根下） |
+| `--incoming-dir <目录>` | 镜像与 env 的落地目录（工作流与 `deploy-manual.mjs` 都用 `<栈根>/incoming`）；部署成功后清理其中本环境的归档与 env 文件，见下文「incoming 清理」 |
 | `--image-tag <sha12>` / `--stack-root <目录>` | **仅交叉核对**：与 env 文件中的 `IMAGE_TAG`、`STACK_ROOT` 不一致即硬失败 |
 | `--compose-file <路径>` | 覆盖 compose 文件解析结果 |
 | `--health-timeout <秒>` | 健康门超时（默认 180） |
@@ -89,15 +89,17 @@ bash deploy-stack.sh --environment production \
 - **env 文件是唯一事实源**：`STACK_ROOT`、`COMPOSE_PROJECT_NAME`、`IMAGE_TAG`、`SERVER_BIND`、`WEB_BIND`、`SERVER_PORT` 都从它读取，脚本把它原子安装为 `<栈根>/.env.<environment>`（权限 600）。
 - **镜像只属于本环境**：装载前读归档里 `manifest.json` 的 `RepoTags`，只接受 `yzgc-<environment>/{server,web,forum}:<IMAGE_TAG>` 这三个，出现另一环境、旧的 `yzgc/*` 或别的 tag 即拒绝（不 `docker load`，也不重新打 tag）；compose 文件解析出的镜像也必须恰好是这三个，目标机上残留旧版 compose 文件时直接失败。
 - **镜像包校验失败关闭**：必须能核到 sha256（`<包>.sha256`、去扩展名的同名 `.sha256`，或同目录的 `SHA256SUMS`/`sha256sums.txt`/`checksums.txt`），缺失或不等即拒绝部署。
-- **串行锁**：`flock <栈根>/.deploy.lock`（等待 900s），production 与 preview 各自独立串行。
-- **健康门**：轮询 `http://127.0.0.1:<SERVER_BIND 端口>/healthz` 与 `http://127.0.0.1:<WEB_BIND 端口>/healthz`（web nginx 代理 `/healthz` → server:3000），两者都必须返回 HTTP 200 且 `"ok":true`；默认 180s 超时、3s 间隔。失败时脚本把 `IMAGE_TAG` 切回部署前的值、重新 `compose up -d` 并复检。
+- **串行锁**：`flock <栈根>/.deploy.lock`（等待 900s），production 与 preview 各自独立串行。锁只包住 `deploy-stack.sh`（`rollback-stack.sh` 用同一把），上传归档与 env 文件（scp）在锁外，见下文「同一环境同一时刻只允许一个部署任务」。
+- **健康门**：轮询 `http://127.0.0.1:<SERVER_BIND 端口>/healthz` 与 `http://127.0.0.1:<WEB_BIND 端口>/healthz`（web nginx 代理 `/healthz` → server:3000），两者都必须返回 HTTP 200 且 `"ok":true`；默认 180s 超时、3s 间隔。每一轮先探测、再看是否超时，所以至少探测一次（先判断超时的话，bash 的 `SECONDS` 整秒跳变正好落在算出截止时间之后时，会一次不探测就判失败）；`rollback-stack.sh` 相同。
+- **失败即回滚**：`docker compose up -d` 本身失败（web 对 server 是 `depends_on: condition: service_healthy`，新 server 起不来时 up 自己就非零退出）与健康门超时走同一条路：记 `FAILED`（说明里写是哪一种），有上一个版本就把 `IMAGE_TAG` 切回部署前的值、重新 `compose up -d` 并复检，通过记 `ROLLED_BACK`，不通过记 `ROLLBACK_FAILED`；无论哪种结局脚本都非零退出。回滚只用本机已装载的镜像，不读 incoming 里的归档。
 - **历史记录**：追加写 `<栈根>/deploy-history.log`，制表符分列 `<UTC ISO8601> <环境> <生效版本> <结果> <说明>`。第 3 列是**该次动作后真正在跑的 tag**：`OK` / `MANUAL_ROLLBACK` 行 = 部署后生效的 tag；`FAILED` 行 = 尝试部署但没起来的 tag；`ROLLED_BACK` 行 = 回滚后真正生效的旧 tag（说明里写明目标版本未上线）。镜像保留策略与 `rollback-stack.sh --to previous` 都按这一列判断。结果取值：`OK` / `FAILED` / `ROLLED_BACK` / `ROLLBACK_FAILED` / `ROLLBACK_SKIPPED`（部署）与 `MANUAL_ROLLBACK` / `MANUAL_ROLLBACK_FAILED`（回滚）。
 - **镜像构成**：`node:22-bookworm-slim`（server 构建与运行）、`node:22-bookworm-slim` + `nginx:1.31-alpine`（web 构建 + 运行）、`node:26-bookworm-slim` + `nginx:1.31-alpine`（forum 构建 + 运行）。基础镜像大版本变更必须单独验证（1.27 系列已下线，不要再回退到旧 tag）。
 - **`FORUM_PORT` 三处一致**：compose 用 `expose: ["${FORUM_PORT}"]` 声明容器内端口，必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 以及 web 容器 `proxy_pass http://forum:3000/` 三处同时一致；改值要一起改镜像与 web 的 nginx 配置。
 - **镜像保留**：部署成功后只清理本环境仓库 `yzgc-<environment>/*` 的其它 tag，保留本栈历史中最新 5 个不同 tag + 当前 + 上一个；另一环境的仓库不在清理范围内；正在使用的镜像不会被强制删除。旧模型遗留的 `yzgc/*` 镜像两个脚本都不再使用也不清理，确认两套栈都已切到新仓库后由维护者手工删除。
-- **自动回滚前先确认镜像在**：健康门失败时，若本机没有本环境上一个版本的三个镜像，记 `ROLLBACK_SKIPPED` 并停下，不会用另一环境的同名 SHA 顶替。
+- **自动回滚前先确认镜像在**：部署失败（compose up 或健康门）时，若本机没有本环境上一个版本的三个镜像，记 `ROLLBACK_SKIPPED` 并停下，不会用另一环境的同名 SHA 顶替；没有上一个版本（首次部署）同样记 `ROLLBACK_SKIPPED`。
+- **incoming 清理**：部署成功（记 `OK`）后，删掉 `--incoming-dir` 里本环境的镜像归档（`yzgc-images-<environment>-<sha12>.tar.gz` 等及其 `.sha256`）和 `.env.<environment>`，本次和更早留下的都删，免得归档越积越多、密钥在磁盘上多一份副本。只看这个目录的直接文件，文件名要整串对上（末尾带换行之类的名字不算），另一环境的文件、别的文件（如分发来的 `deploy-stack.sh`）、子目录和目录之外的路径都不碰；与已安装的 `<栈根>/.env.<environment>` 是同一个文件的（`--incoming-dir` 就是栈根，或者栈根的 env 是指向它的符号链接、硬链接）也不删；没给 `--incoming-dir` 时不清理。部署失败（含已回滚）时不清理，留给维护者排查或在目标机上重跑。删除失败不改变部署结果（退出码 0，历史记 `OK`）：stderr 逐个报出没删掉的文件，stdout 另打一行 `::warning::清理 incoming 失败…`，经 ssh 回到 runner 后在 Actions 里显示成部署步骤的警告，由人删除残留（可能含带密钥的 env）。清理不影响回滚：自动回滚与 `rollback-stack.sh` 只用本机已装载的镜像和栈根里的 env 文件，镜像保留策略保证上一个版本的镜像还在。
 - 目标机只 `docker load` 镜像并 `up -d`，**不在服务器上 `git pull` 后构建**。
-- 同一环境同一时刻只允许一个部署任务（锁保证）；正式环境部署不得在切换过程中被新任务取消。
+- 同一环境同一时刻只允许一个部署任务；正式环境部署不得在切换过程中被新任务取消。工作流的 `concurrency: deploy-<environment>` 只让同环境的 CI 部署彼此排队，`flock` 只包住 `deploy-stack.sh`，上传在锁外，`scripts/deploy-manual.mjs` 两者都管不到。所以**不要让 `deploy-manual.mjs` 与同环境的 CI 部署同时跑**：运行前先确认这个环境没有正在跑或排队的部署工作流。两者重叠时，前一次成功后的 incoming 清理会删掉后一次已经上传的归档与 env 文件，后一次失败关闭、不会部署错版本；视时机停在上传后的 `sha256sum -c`、`deploy-stack.sh` 的「env 文件不存在」，或者等锁之后的「compose 文件解析出的镜像不是 …」（这时是 env 文件没了，不是 compose 文件旧）。
 
 **实施状态**：`deploy/compose/{production,preview}.yml`、`deploy/nginx/{production,preview}.conf`、`deploy/remote/{deploy-stack,rollback-stack}.sh` 已入库并定义本模型。旧 systemd / 发布包模型的文件已随本次改造**删除**：`deploy/remote/{deploy-release,rollback}.sh`、`deploy/yzgc-admin.service`、`deploy/yzgc-preview.service`、`deploy/setup.sh`、根目录旧 `deploy/nginx*.conf`（含 `nginx-release-metadata.conf`）、`deploy/forum-subdomain-setup.md`、`scripts/release-bundle.mjs`、`tests/tooling/release-bundle.test.ts`。这些路径只存在于历史章节，不要按旧流程重建。
 
@@ -148,7 +150,7 @@ bash deploy-stack.sh --environment production \
 
 ```bash
 # 目标机（栈根）：
-bash deploy-stack.sh  ... # 部署失败时自动回滚（见上文健康门）
+bash deploy-stack.sh  ... # 部署失败时自动回滚（见上文「失败即回滚」）
 bash rollback-stack.sh --environment production --to <sha12|previous>
 ```
 
@@ -163,7 +165,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 - 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
 - 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。唯一例外是论坛页面的 CSP：论坛容器下发站点策略加上论坛内联脚本的哈希，宿主模板开头的 `map` 只在 `/forum/` 下、上游已带 CSP 时不再叠加第二份，其它路径照发站点策略（#78）。改宿主模板后要重新安装到服务器（只装对应环境那一份，先备份、`nginx -t` 再 reload），这一步不在 CI 里；发版后经公网确认 `/forum/` 只有一条带 `sha256-` 的 CSP（部署脚本的健康检查不经过宿主 nginx，查不出来）。
 - 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
-- 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料。
+- 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料；incoming 里分发来的归档与 env 副本在部署成功后删除（见「incoming 清理」）。
 
 ## 发布和回滚验收
 
