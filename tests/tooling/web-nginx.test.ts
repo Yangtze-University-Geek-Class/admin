@@ -29,6 +29,8 @@ describe('web container nginx picks the SPA entry by path', () => {
     expect(siteConf.indexOf(`/${ADMIN_SPA_ENTRY}`)).toBeLessThan(siteConf.indexOf('location ~* \\.(?:png'));
     expect(siteConf).toMatch(new RegExp(`location / \\{\\s*try_files \\$uri /${PORTAL_SPA_ENTRY.replaceAll('/', '\\/').replaceAll('.', '\\.')};\\s*\\}`));
     expect(dockerfile).not.toMatch(/X-YZGC|x_yzgc|yzgc_spa_entry|render-web-config/i);
+    // 论坛前缀必须是 ^~，否则下面的图片正则会截走 /forum/ 下的图片（#81）。
+    expect(siteConf).toMatch(/^\s*location \^~ \/forum\/ \{$/m);
   });
 
   it('keeps each host nginx template to one origin, with the retired admin domain redirected', () => {
@@ -54,6 +56,7 @@ const nginxBinary = spawnSync('nginx', ['-v'], { encoding: 'utf8' }).status === 
 describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopback)', () => {
   let root = '';
   let port = 0;
+  let forumPort = 0;
   let child: ChildProcess | null = null;
 
   const freePort = () => new Promise<number>((resolve, reject) => {
@@ -68,6 +71,7 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
   beforeAll(async () => {
     root = mkdtempSync(join(tmpdir(), 'geek-web-nginx-'));
     port = await freePort();
+    forumPort = await freePort();
     const html = join(root, 'html');
     // 管理端入口是控制台产物（app/console）叠进同一个站点根的 sites/console/index.html。
     for (const [site, entry] of [['portal', PORTAL_SPA_ENTRY], ['admin', ADMIN_SPA_ENTRY]]) {
@@ -80,13 +84,14 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
     writeFileSync(join(html, 'console-assets', 'index-abc123.js'), 'export {};\n');
     writeFileSync(join(html, 'logo.png'), 'png');
     writeFileSync(join(html, 'release.json'), '{"environment":"test"}\n');
-    // 只替换运行环境相关的五处：监听端口、站点根、include 路径、上游地址（测试不访问上游）、
+    // 只替换运行环境相关的五处：监听端口、站点根、include 路径、上游地址（server 不访问；forum 换成同一 nginx 里回显路径的桩）、
     // 日志去向（容器写 /dev/stdout、/dev/stderr；CI runner 上没有可打开的终端设备，nginx -t 会失败）。
     const site = siteConf
       .replace('listen 8080;', `listen 127.0.0.1:${port};`)
       .replace('root /usr/share/nginx/html;', `root ${html};`)
       .replaceAll('/etc/nginx/conf.d/90-proxy-headers.conf', join(root, '90-proxy-headers.conf'))
-      .replaceAll(/http:\/\/(?:server|forum):3000/g, 'http://127.0.0.1:9')
+      .replaceAll('http://forum:3000/', `http://127.0.0.1:${forumPort}/`)
+      .replaceAll('http://server:3000', 'http://127.0.0.1:9')
       .replaceAll('/dev/stdout', join(root, 'access.log'))
       .replaceAll('/dev/stderr', join(root, 'error.log'));
     expect(site).not.toMatch(/listen 8080|\/usr\/share\/nginx|\/etc\/nginx|server:3000|forum:3000|\/dev\/std/);
@@ -104,6 +109,8 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
       '  default_type application/octet-stream;',
       ...['client', 'proxy', 'fastcgi', 'uwsgi', 'scgi'].map(dir => `  ${dir === 'client' ? 'client_body' : dir}_temp_path ${join(root, `${dir}_temp`)};`),
       `  include ${join(root, '10-web.conf')};`,
+      // 桩 server 自己不写日志：否则 nginx 用编译时的默认路径（CI 上是不可写的 /var/log/nginx/access.log），-t 直接失败。
+      `  server { listen 127.0.0.1:${forumPort}; access_log off; location / { default_type text/plain; return 200 "forum $uri"; } }`,
       '}',
       '',
     ].join('\n'));
@@ -144,6 +151,15 @@ describe.skipIf(!nginxBinary)('web container nginx routing (live nginx on loopba
     expect(await entryOf(path)).toEqual({ status: 200, entry: site });
     // 服务端直连时（resolveSiteEntry）必须给出同一个入口。
     expect(resolveSiteEntry(path)).toBe(site === 'admin' ? ADMIN_SPA_ENTRY : PORTAL_SPA_ENTRY);
+  });
+
+  it('sends everything under /forum/ to the forum, images and fonts included', async () => {
+    for (const [path, upstream] of [['/forum/', '/'], ['/forum/logo.png', '/logo.png'], ['/forum/fonts/x.woff2', '/fonts/x.woff2'], ['/forum/_nuxt/a.js', '/_nuxt/a.js']]) {
+      const response = await fetch(`http://127.0.0.1:${port}${path}`);
+      expect([path, response.status, await response.text()]).toEqual([path, 200, `forum ${upstream}`]);
+    }
+    // 官网自己的图片仍由 web 的站点根服务。
+    expect(await (await fetch(`http://127.0.0.1:${port}/logo.png`)).text()).toBe('png');
   });
 
   it('ignores a client-supplied site header and still serves real files', async () => {
