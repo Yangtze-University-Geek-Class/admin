@@ -130,6 +130,8 @@
 | 镜像源 | 家里连不上 Docker Hub，容器内 Docker 走 `docker.m.daocloud.io`、`docker.1ms.run` 镜像加速 |
 | 清理 | 容器内定时器每天清掉 72 小时前的镜像与构建缓存 |
 
+**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)，每一份都能重复执行。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`register.sh` 用 `incus file push` 放进容器，先跑前者（工具、Docker、Node、runner 用户，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌经环境变量传进去注册两个实例。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。
+
 **切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在这台机器上；删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。两条部署工作流读另一个变量 `DEPLOY_RUNNER`，默认不设：部署 job 会拿到环境级 secrets（部署私钥等），要不要放到这台机器上跑，由所有者单独决定。
 
 **掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`。
