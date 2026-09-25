@@ -20,6 +20,15 @@ export type LoginMode = 'demo' | 'site'
 export const GEEK_SITE_NAME = '极客班论坛'
 export const UPSTREAM_SITE_NAME = 'Tuff Forum'
 
+/**
+ * The site name as it sits inside a Chinese sentence: a Latin name gets one
+ * space on each side (「来自 Tuff Forum 的系统消息」), a Chinese one none
+ * (「来自极客班论坛的系统消息」). Trim the side that starts or ends the text.
+ */
+export function siteNameInText(siteName: string): string {
+  return /^[\x20-\x7E]+$/.test(siteName) ? ` ${siteName} ` : siteName
+}
+
 /** `process.env` or a test double; only the three variables below are read. */
 export interface ContentSourceEnv {
   [name: string]: string | undefined

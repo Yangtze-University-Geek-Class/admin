@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { isStaff } from '~/data/permissions'
+import { siteNameInText } from '../../shared/content-source'
 
 useHead({ title: '关于' })
 
 const forum = useForumStore()
 const router = useRouter()
 const { isSnapshot, isSite, siteName, snapshot } = useContentSource()
+// 「关于 Tuff Forum」「关于极客班论坛」
+const heading = `关于${siteNameInText(siteName).trimEnd()}`
 const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.value.capturedAt).format('YYYY-MM-DD HH:mm') : '')
 
 const stats = computed(() => [
@@ -33,7 +36,7 @@ function open(username: string) {
     <TxCard>
       <template #header>
         <h1 class="text-2xl font-semibold">
-          关于 {{ siteName }}
+          {{ heading }}
         </h1>
       </template>
       <!-- 极客班论坛（部署的镜像）：还没有帖子和成员资料，所以下面的数字和管理团队不显示 -->

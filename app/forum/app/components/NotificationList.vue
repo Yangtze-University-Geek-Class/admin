@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FilterChipItem } from '@talex-touch/tuffex/filter-chips'
 import type { Notification, NotificationType } from '~/data/types'
+import { siteNameInText } from '../../shared/content-source'
 
 /**
  * Discourse's notification list: an icon per kind, the sentence that explains
@@ -23,8 +24,7 @@ const forum = useForumStore()
 const router = useRouter()
 const { fromNow } = useRelativeTime()
 const { siteName } = useContentSource()
-// 中文里夹西文名时两边各留一个空格：「来自 Tuff Forum 的系统消息」「来自极客班论坛的系统消息」。
-const systemSender = /^[\x20-\x7E]+$/.test(siteName) ? ` ${siteName} ` : siteName
+const systemSender = siteNameInText(siteName)
 
 const filter = ref<'unread' | 'all'>('unread')
 
