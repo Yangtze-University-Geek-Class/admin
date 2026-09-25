@@ -43,3 +43,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：build(deploy): 自托管 runner 的宿主机、容器与注册脚本入库（e88ef5b9f560）；shellcheck、pnpm check、pnpm test
 - 结果：shellcheck 无输出；pnpm check 通过；pnpm test Tests 452 passed
+
+## 03:38:32 +08:00 · 开发 · #93 · runner 与托管 runner 对齐：每个 job 清空工作目录、每个实例独立 HOME
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：运行 36180370198/36180376068：pr-contract 的 sparse-checkout 让同一 runner 上下一个 job 缺 package.json、scripts/*.mjs；两个实例共用 /home/runner 时 pnpm/action-setup 报 [ERR_SQLITE_ERROR] disk I/O error。容器内加 ACTIONS_RUNNER_HOOK_JOB_STARTED=/home/runner/job-started.sh（清空 GITHUB_WORKSPACE）与 HOME=/home/runner/r<N>/home，重启两个服务（打断了当时在跑的 job）；deploy/runner 与 CICD.md 同步
+- 结果：日志里已看到 job-started: 已清空 /home/runner/r1/_work/admin/admin；两个服务 active；新一轮 CI 待复核

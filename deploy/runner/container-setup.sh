@@ -73,6 +73,8 @@ for n in 1 2; do
   d=/home/runner/r$n
   [ -x "$d/config.sh" ] || { mkdir -p "$d"; tar -xzf "$tarball" -C "$d"; }
 done
+# job-started.sh 与本脚本放在同一目录推进容器（incus file push），装到 runner 的 HOME 外面、两个实例共用。
+install -o runner -g runner -m 0755 "$(dirname "$0")/job-started.sh" /home/runner/job-started.sh
 chown -R runner:runner /home/runner
 docker version --format 'docker {{.Server.Version}}'
 docker info --format 'storage={{.Driver}} mirrors={{.RegistryConfig.Mirrors}}'
