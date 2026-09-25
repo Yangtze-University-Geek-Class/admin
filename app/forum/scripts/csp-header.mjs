@@ -25,11 +25,14 @@ const DATA_TYPES = new Set(['application/json', 'application/ld+json'])
  */
 export function inlineScriptHashes(html) {
   const hashes = []
-  const elements = [...html.matchAll(/<script(?=[\s>])([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
-  const openTags = html.match(/<script(?=[\s>])/gi)?.length ?? 0
+  const elements = [...html.matchAll(/<script(?=[\s/>])([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+  const openTags = html.match(/<script(?=[\s/>])/gi)?.length ?? 0
   if (openTags !== elements.length)
     throw new Error(`HTML 里有 ${openTags} 个 <script> 开始标签，只认出 ${elements.length} 段完整脚本`)
   for (const [, attributes, body] of elements) {
+    // 属性值里带 > 时，上面的 [^>]* 会在引号中间截断，引号就成了单数。
+    if ((attributes.split('"').length - 1) % 2 || (attributes.split("'").length - 1) % 2)
+      throw new Error(`认不准这个 <script> 开始标签的属性：<script${attributes}>`)
     if (/(?:^|\s)src\s*=/i.test(attributes)) continue
     const type = (/(?:^|\s)type\s*=\s*["']?([^"'\s>]+)/i.exec(attributes)?.[1] ?? '').toLowerCase()
     if (DATA_TYPES.has(type)) continue

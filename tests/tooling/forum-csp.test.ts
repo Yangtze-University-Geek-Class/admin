@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,8 @@ describe('forum CSP script', () => {
   it('fails instead of guessing when it cannot read every script exactly', () => {
     expect(() => inlineScriptHashes('<script>a()</script><script>b()')).toThrow(/2 个 <script> 开始标签，只认出 1 段/);
     expect(() => inlineScriptHashes('<script>a()\r\nb()</script>')).toThrow(/CR/);
+    expect(() => inlineScriptHashes('<script data-x="a>b">a()</script>')).toThrow(/认不准/);
+    expect(inlineScriptHashes('<script/>a()</script>')).toEqual([sha('a()')]);
   });
 
   it('reads the site policy from each host template and keeps both templates on the same policy', () => {
@@ -116,7 +119,7 @@ describe('forum CSP wiring', () => {
     expect(locations.filter(location => location.body.includes('add_header')).map(location => location.name)).toEqual(['~ \\.md$', '= /llms.txt']);
     // 页面不缓存：发版后旧页面配新哈希会白屏。
     for (const name of ['= /200.html', '= /404.html', '/']) expect(locations.find(location => location.name === name)?.body, name).toContain('expires -1;');
-    // web 容器与 server 都不发 CSP；要发必须从同一份站点策略出发，并同步这里。
+    // web 容器不发 CSP（server 也不发，已搜过 app/server/src）；要发必须从同一份站点策略出发，并同步这里。
     expect(webDockerfile).not.toMatch(/Content-Security-Policy/i);
   });
 });
@@ -237,6 +240,15 @@ describe.skipIf(!nginxBinary)('forum CSP through host → web → forum (live ng
 
   const UPSTREAM_CSP = "default-src * 'unsafe-inline'";
   // fetch 把重复的响应头用 ", " 连起来；CSP 里没有逗号，所以值等于某一份策略就说明只有一份。
+  const rawCspOf = (path: string) => new Promise<string | undefined>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port: ports.host, path, agent: false }, response => {
+      response.resume();
+      const value = response.headers['content-security-policy'];
+      resolve(Array.isArray(value) ? value.join(', ') : value);
+    });
+    req.on('error', reject);
+    req.end();
+  });
   const cspOf = async (path: string) => (await fetch(`http://127.0.0.1:${ports.host}${path}`, { redirect: 'manual' })).headers.get('content-security-policy');
 
   it('forum pages carry exactly the forum policy with the inline script hashes', async () => {
@@ -246,9 +258,10 @@ describe.skipIf(!nginxBinary)('forum CSP through host → web → forum (live ng
 
   it('everything else keeps exactly the host policy', async () => {
     const site = siteCsp(hostConf('preview'));
-    // /forum/t/t1.md 的 location 有自己的 add_header，不继承论坛那份，由宿主补上站点策略；
-    // /forum/../console 经宿主规整成 /console，拿到的是控制台和站点策略。
-    for (const path of ['/', '/console', '/forum', '/forum/t/t1.md', '/forum/../console']) expect(await cspOf(path), path).toBe(site);
+    // /forum/t/t1.md 的 location 有自己的 add_header，不继承论坛那份，由宿主补上站点策略。
+    for (const path of ['/', '/console', '/forum', '/forum/t/t1.md']) expect(await cspOf(path), path).toBe(site);
+    // 点段绕行原样发给宿主（fetch 会先在客户端规整路径，测不到宿主），宿主规整成 /console，拿到的是站点策略。
+    for (const path of ['/forum/../console', '/forum/%2e%2e/console', '/forum/..%2fconsole']) expect(await rawCspOf(path), path).toBe(site);
   });
 
   it('never drops the site policy outside the forum, even when an upstream sends its own', async () => {
