@@ -315,15 +315,18 @@ jobs:
           set -eu
           # required_contexts 只认 CI 的「verify (required check)」：默认会要求这个提交上的全部检查都已通过，
           # 而本 job 自己此刻还在运行，GitHub 永远返回 409（v0.1.0-rc.1 首次部署时实测）。
+          # auto_merge 默认 true：重新部署落后于默认分支的旧 tag 时 GitHub 会去合并默认分支；这里只部署 plan 核对过的提交。
+          # 状态 POST 一律 -F auto_inactive=false（布尔要用 -F）：默认会把同一环境里更早的成功记录置为 inactive，
+          # 正式环境的证据 job 读的正是预发布的这些记录。
           deployment_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
-            -f ref="$COMMIT" -f environment=preview -f auto_inactive=false \
+            -f ref="$COMMIT" -f environment=preview -F auto_merge=false \
             -f "required_contexts[]=verify (required check)" \
             -f description="${RELEASE_TAG} → preview（${RELEASE_VERSION}，镜像 tag ${IMAGE_TAG}）" \
             -f "payload[tag]=${RELEASE_TAG}" -f "payload[release_version]=${RELEASE_VERSION}" \
             -f "payload[image_tag]=${IMAGE_TAG}" -f "payload[image_repository]=${IMAGE_REPOSITORY}" \
             --jq '.id')"
           echo "deployment_id=${deployment_id}" >> "$GITHUB_OUTPUT"
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" -F auto_inactive=false \
             -f state=in_progress -f description="分发镜像与 env 文件到 ${STACK_ROOT}" > /dev/null
           echo "部署记录已创建：deployment ${deployment_id}（${COMMIT}）"
 
@@ -364,8 +367,9 @@ jobs:
           set -eu
           target="${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}"
           # deploy-stack.sh 只从 env 文件取事实（IMAGE_TAG/STACK_ROOT/COMPOSE_PROJECT_NAME），
-          # 传进来的 --image-tag/--stack-root 只做交叉校验；健康检查失败会自动回滚到上一个 tag 并非零退出。
-          # --images 只指这次的归档：incoming 里会留着上一次的归档，不指定时 deploy-stack.sh 会把整个目录都当成本次输入，
+          # 传进来的 --image-tag/--stack-root 只做交叉校验；compose up 或健康检查失败会自动回滚到上一个 tag 并非零退出，
+          # 成功后删掉 incoming 里本环境的归档与 .env.preview。
+          # --images 只指这次的归档：失败的部署会在 incoming 里留下归档，不指定时 deploy-stack.sh 会把整个目录都当成本次输入，
           # 看到别的版本的镜像就拒绝部署（v0.1.0-rc.2 的归档留在预发布机上，审查时复现过）。
           ssh -i "$RUNNER_TEMP/ssh/id_deploy" -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
@@ -394,7 +398,7 @@ jobs:
             state=failure
             description="${RELEASE_TAG} 预发布部署失败或未执行（$OUTCOME）"
           fi
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" -F auto_inactive=false \
             -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
           echo "部署记录已更新：${state}"
 

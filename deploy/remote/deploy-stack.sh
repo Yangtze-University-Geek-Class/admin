@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 目标机部署脚本（docker 栈版）：load 镜像 → compose up -d → 健康检查 → 失败自动回滚。
+# 目标机部署脚本（docker 栈版）：load 镜像 → compose up -d → 健康检查 → 成功后清理 incoming；
+# compose up 失败或健康检查失败都自动回滚到上一个版本。
 #
 # 与旧 systemd/release-bundle 流程的区别：目标机不再安装 Node、不再解包发布目录，
 # 只消费 CI 构建好的镜像归档 + 渲染好的 env 文件。
@@ -13,7 +14,8 @@
 #                                       docker save 出来的 .tar/.tar.gz（单个）或该目录下的全部归档
 #   --env-file <path>                   env 文件（模板 + 注入的密钥 + IMAGE_TAG=<sha12>）；
 #                                       会原子复制到 <STACK_ROOT>/.env.<environment>，compose 只读这份
-#   --incoming-dir <dir>                可选：归档与 env 文件所在目录（缺省用 <incoming-dir>/.env.<env>）
+#   --incoming-dir <dir>                可选：归档与 env 文件所在目录（缺省用 <incoming-dir>/.env.<env>）；
+#                                       部署成功后删掉其中本环境的镜像归档（含 .sha256）与 .env.<env>，不给就不清理
 #   --image-tag <sha12>                 可选：与 env 文件里的 IMAGE_TAG 交叉校验（不一致即失败）
 #   --stack-root <dir>                  可选：与 env 文件里的 STACK_ROOT 交叉校验
 #   --compose-file <path>               可选：显式指定 compose 文件（默认按约定顺序查找，见下）
@@ -169,12 +171,13 @@ http_ok() {
 
 health_check() {
   # 返回 0 表示通过。$1=用于日志的标签
+  # 先探测、再看是否超时：SECONDS 按整秒跳变，先判断超时的话，跳变正好落在算 deadline 之后时一次都不探测就判失败。
   local label="$1" server_url="$2" web_url="$3" deadline=$((SECONDS + HEALTH_TIMEOUT))
   local body status
   body=$(mktemp)
   # shellcheck disable=SC2064
   trap "rm -f '$body'" RETURN
-  while [ "$SECONDS" -lt "$deadline" ]; do
+  while :; do
     status=$(http_ok "$server_url" "$body")
     if [ "$status" = "200" ] && grep -q '"ok":true' "$body" 2>/dev/null; then
       # 再从 web 入口验一次：/healthz 会穿过 web → server，能暴露反代与依赖注入问题
@@ -187,9 +190,9 @@ health_check() {
     else
       printf '等待 server 健康（%s）：%s 返回 %s\n' "$label" "$server_url" "$status"
     fi
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep "$HEALTH_INTERVAL"
   done
-  return 1
 }
 
 set_env_image_tag() {
@@ -252,6 +255,40 @@ prune_tags() {
   done
   printf '镜像清理完成（%s）：保留最近 %s 个 tag，本次删除 %s 个未被占用的旧 tag\n' "$IMAGE_REPO" "$KEEP_TAGS" "$removed"
   rm -f "$keep_file"
+}
+
+clean_incoming() {
+  # 只在部署成功后调用：删掉 --incoming-dir 里本环境的镜像归档（含 .sha256）与 .env.<environment>，本次和更早的都删。
+  # 部署锁只包住本脚本，上传在锁外：deploy-manual.mjs 不能与同环境的 CI 部署同时跑（见 docs/ops/DEPLOY.md），
+  # 否则这里会删掉排队那次已上传的文件，那次部署会失败关闭。
+  # 回滚不需要它们：自动回滚与 rollback-stack.sh 只用本机已装载的镜像，运行中的 env 在 <STACK_ROOT>/.env.<environment>。
+  # 另一环境的文件、别的文件名、子目录、incoming 之外的路径都不碰；与已安装 env 是同一个文件的（incoming 就是栈根、
+  # 符号链接或硬链接）也不删。
+  local dir path name removed=0 failed=0
+  local archive_re="^yzgc-images-${ENVIRONMENT}-[0-9a-f]{12}\.(tar|tar\.gz|tgz)(\.sha256)?$"
+  if [ -z "$INCOMING_DIR" ]; then
+    printf '未指定 --incoming-dir，不清理归档与 env 文件\n'
+    return 0
+  fi
+  dir=$(cd -- "$INCOMING_DIR" && pwd -P) || return 1
+  shopt -s nullglob
+  for path in "$dir/yzgc-images-$ENVIRONMENT-"* "$dir/.env.$ENVIRONMENT"; do
+    # 不用 basename 的命令替换：它会去掉文件名末尾的换行，让不合规的名字也对上正则。
+    name=${path##*/}
+    [ -f "$path" ] || continue
+    [[ "$name" =~ $archive_re || "$name" = ".env.$ENVIRONMENT" ]] || continue
+    [ "$path" -ef "$STACK_ENV_FILE" ] && continue
+    if rm -f -- "$path"; then
+      printf '已清理 incoming：%s\n' "$name"
+      removed=$((removed + 1))
+    else
+      printf '清理 incoming 失败：%s/%s\n' "$dir" "$name" >&2
+      failed=$((failed + 1))
+    fi
+  done
+  shopt -u nullglob
+  printf 'incoming 清理完成（%s）：删除 %s 个本环境的归档与 env 文件\n' "$dir" "$removed"
+  [ "$failed" -eq 0 ]
 }
 
 # ── 参数解析 ──────────────────────────────────────────────────
@@ -395,39 +432,55 @@ if [ "$(cd -- "$(dirname -- "$ENV_FILE")" && pwd)/$(basename -- "$ENV_FILE")" !=
 fi
 
 # ── 5) 启动栈 + 健康检查 ──────────────────────────────────────
-compose_up || die "docker compose up -d 失败（${COMPOSE_FILE}）"
-
-if health_check "$IMAGE_TAG" "$SERVER_HEALTH_URL" "$WEB_HEALTH_URL"; then
-  write_history OK "$IMAGE_TAG" "compose up 成功且健康检查通过"
-  prune_tags
-  printf '部署成功：%s %s\n' "$ENVIRONMENT" "$IMAGE_TAG"
-  exit 0
+# compose up 失败与健康检查超时走同一条失败路径：记 FAILED，有上一个版本就回滚。
+# web 对 server 是 depends_on: service_healthy，新 server 起不来时 up -d 自己就非零退出，不能在这里直接退出。
+if compose_up; then
+  if health_check "$IMAGE_TAG" "$SERVER_HEALTH_URL" "$WEB_HEALTH_URL"; then
+    write_history OK "$IMAGE_TAG" "compose up 成功且健康检查通过"
+    prune_tags
+    # 清理失败不改变部署结果（新版本已上线、历史已记 OK），但要报出来，由人删除残留（可能含带密钥的 env）。
+    # stdout 的 ::warning:: 经 ssh 原样回到 runner，Actions 会把它显示成这一步的警告，job 是绿的也看得见。
+    if ! clean_incoming; then
+      printf '部署已成功，但 incoming 没有清理干净（见上文），请人工删除残留的归档与 env 文件\n' >&2
+      printf '::warning::清理 incoming 失败：%s 里还留着本环境的归档或 env 文件，部署本身已成功，请人工删除\n' "$INCOMING_DIR"
+    fi
+    printf '部署成功：%s %s\n' "$ENVIRONMENT" "$IMAGE_TAG"
+    exit 0
+  fi
+  FAILURE="健康检查超时（${HEALTH_TIMEOUT} 秒，${SERVER_HEALTH_URL}）"
+else
+  FAILURE="docker compose up -d 失败（${COMPOSE_FILE}）"
 fi
 
-printf '健康检查失败（%s 秒超时），尝试回滚到上一个版本 %s\n' "$HEALTH_TIMEOUT" "${PREVIOUS_TAG:-无}" >&2
-write_history FAILED "$IMAGE_TAG" "健康检查超时（${SERVER_HEALTH_URL}）"
+printf '%s，尝试回滚到上一个版本 %s\n' "$FAILURE" "${PREVIOUS_TAG:-无}" >&2
+write_history FAILED "$IMAGE_TAG" "$FAILURE"
 
-# ── 6) 自动回滚到上一个 IMAGE_TAG ─────────────────────────────
+# ── 6) 自动回滚到上一个 IMAGE_TAG（只用本机已装载的镜像，不读归档）──
 if [ -z "$PREVIOUS_TAG" ]; then
   write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "没有可回滚的上一个版本"
-  die "健康检查失败且没有上一个版本可回滚，栈处于失败状态，需要人工处理"
+  die "${FAILURE}，且没有上一个版本可回滚，栈处于失败状态，需要人工处理"
 fi
-[ "$PREVIOUS_TAG" = "$IMAGE_TAG" ] && { write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "上一个版本与当前版本相同"; die "健康检查失败且无可回滚版本"; }
+[ "$PREVIOUS_TAG" = "$IMAGE_TAG" ] && { write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "上一个版本与当前版本相同"; die "${FAILURE}，且上一个版本与本次相同，无可回滚版本"; }
 for svc in server web forum; do
   if ! docker image inspect "$IMAGE_REPO/$svc:$PREVIOUS_TAG" >/dev/null 2>&1; then
     write_history ROLLBACK_SKIPPED "$IMAGE_TAG" "本机没有 $IMAGE_REPO/$svc:$PREVIOUS_TAG，无法自动回滚"
-    die "健康检查失败，且本机没有上一个版本的 ${IMAGE_REPO}/$svc:${PREVIOUS_TAG}，需要人工处理"
+    die "${FAILURE}，且本机没有上一个版本的 ${IMAGE_REPO}/$svc:${PREVIOUS_TAG}，需要人工处理"
   fi
 done
 
 set_env_image_tag "$STACK_ENV_FILE" "$PREVIOUS_TAG" || die "回滚失败：无法把 IMAGE_TAG 写回 $PREVIOUS_TAG"
 printf '已把 %s 的 IMAGE_TAG 切回 %s\n' "$STACK_ENV_FILE" "$PREVIOUS_TAG"
-if compose_up && health_check "$PREVIOUS_TAG" "$SERVER_HEALTH_URL" "$WEB_HEALTH_URL"; then
-  write_history ROLLED_BACK "$PREVIOUS_TAG" "已回滚到 $PREVIOUS_TAG 并通过健康检查（目标版本 $IMAGE_TAG 未上线）"
-  printf '已回滚：%s 现在是 %s（目标版本 %s 未上线）\n' "$ENVIRONMENT" "$PREVIOUS_TAG" "$IMAGE_TAG" >&2
-  exit 1
+if compose_up; then
+  if health_check "$PREVIOUS_TAG" "$SERVER_HEALTH_URL" "$WEB_HEALTH_URL"; then
+    write_history ROLLED_BACK "$PREVIOUS_TAG" "已回滚到 $PREVIOUS_TAG 并通过健康检查（目标版本 $IMAGE_TAG 未上线）"
+    printf '已回滚：%s 现在是 %s（目标版本 %s 未上线）\n' "$ENVIRONMENT" "$PREVIOUS_TAG" "$IMAGE_TAG" >&2
+    exit 1
+  fi
+  ROLLBACK_FAILURE="回滚到 $PREVIOUS_TAG 后健康检查仍失败"
+else
+  ROLLBACK_FAILURE="回滚到 $PREVIOUS_TAG 时 docker compose up -d 失败"
 fi
 
-write_history ROLLBACK_FAILED "$PREVIOUS_TAG" "回滚到 $PREVIOUS_TAG 后健康检查仍失败"
-printf '回滚失败：%s 仍未通过健康检查，需要人工介入\n' "$PREVIOUS_TAG" >&2
+write_history ROLLBACK_FAILED "$PREVIOUS_TAG" "$ROLLBACK_FAILURE"
+printf '回滚失败：%s，需要人工介入\n' "$ROLLBACK_FAILURE" >&2
 exit 1

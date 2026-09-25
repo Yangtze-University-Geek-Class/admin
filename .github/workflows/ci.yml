@@ -59,6 +59,22 @@ jobs:
         shell: bash
         run: node scripts/check-branch-invariants.mjs --require-remote-refs
 
+      # 执行记录（docs/conventions/NOTES.md）：task 分支进 stage 的 PR 必须新增引用本 issue 的 notes/ 记录。
+      # 分支名经环境变量传入，不直接拼进脚本。
+      - name: 执行记录（notes/）
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'task/')
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/note.mjs check --pr --base "origin/${BASE_REF}" --head "${HEAD_REF}"
+
+      # 全部链路的一览表贴进运行摘要：stage、main 上随时能看到每个人的链路（入口 notes/INDEX.md）。
+      - name: 执行记录一览（运行摘要）
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: node scripts/note.mjs index --summary >> "$GITHUB_STEP_SUMMARY"
+
   # 核心工具链：Node 22（.nvmrc）+ pnpm 9.15.9（根 package.json packageManager）。
   core:
     name: core (Node 22 / pnpm 9)
