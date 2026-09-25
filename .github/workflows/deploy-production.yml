@@ -423,8 +423,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
+          # required_contexts 只认 CI 的「verify (required check)」：默认会要求这个提交上的全部检查都已通过，
+          # 而本 job 自己此刻还在运行，GitHub 永远返回 409（v0.1.0-rc.1 首次部署时实测）。
           deployment_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
             -f ref="$COMMIT" -f environment=production -f auto_inactive=false \
+            -f "required_contexts[]=verify (required check)" \
             -f description="${RELEASE_TAG} → production（镜像 tag ${IMAGE_TAG}，预发布 ${PREVIEW_TAGS}）" \
             -f "payload[tag]=${RELEASE_TAG}" -f "payload[release_version]=${RELEASE_VERSION}" \
             -f "payload[preview_tags]=${PREVIEW_TAGS}" -f "payload[image_tag]=${IMAGE_TAG}" \
