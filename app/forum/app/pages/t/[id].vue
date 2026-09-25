@@ -2,7 +2,7 @@
 import type { BreadcrumbItem } from '@talex-touch/tuffex/breadcrumb'
 import type { Post } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
-import { seedTopicIds, topicMarkdownPath } from '../../../shared/forum-markdown'
+import { topicMarkdownPath } from '../../../shared/forum-markdown'
 
 // Discourse's /t/<slug>/<id>: the post stream with its right-hand timeline,
 // the topic control bar, the bottom composer and the suggested topics.
@@ -53,11 +53,14 @@ useHead({ title: () => topic.value?.title ?? '话题' })
 
 // The Markdown twin for AI readers (server/middleware/forum-markdown.ts). Only
 // advertised where a file exists: every topic of the dev server's snapshot,
-// otherwise the seed topics the static build wrote. A topic started in this
-// browser lives in localStorage alone and has none.
+// otherwise the topics the static build wrote (`markdownTopicIds` from
+// nuxt.config.ts: the seed topics, none for 极客班论坛 yet). A topic started
+// in this browser lives in localStorage alone and has none. The list comes
+// from the runtime config rather than the seed module, so a 极客班论坛 build
+// does not bundle the demo topics for this check.
 const { isSnapshot } = useContentSource()
-const { app: { baseURL } } = useRuntimeConfig()
-const markdownHref = computed(() => (topic.value && (isSnapshot || seedTopicIds().includes(topic.value.id))
+const { app: { baseURL }, public: { markdownTopicIds } } = useRuntimeConfig()
+const markdownHref = computed(() => (topic.value && (isSnapshot || markdownTopicIds.includes(topic.value.id))
   ? `${baseURL}${topicMarkdownPath(topic.value.id)}`
   : undefined))
 useHead({

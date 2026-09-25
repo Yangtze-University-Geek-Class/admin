@@ -12,7 +12,7 @@ geek_main 根 README / AGENTS / 命令 / docs
   │      └─ HTTP -> app/server/src/app.ts -> portal/admin 路由
   │                   └─ services -> data.db、GitHub、Turnstile
   ├─ app/forum                      [原仓 Nuxt / Vue / TuffEx，Node ≥26]
-  │      └─ Pinia：示例种子 + localStorage，或本机只读快照（dev 专用 /api/local-forum）
+  │      └─ Pinia：镜像是极客班论坛（curation.json 的分类和标签，没有帖子）；本机是示例种子 + localStorage，或只读快照（dev 专用 /api/local-forum）
   └─ deploy/                        [compose 模板 + env 契约 + 目标机脚本；两套栈]
 ```
 

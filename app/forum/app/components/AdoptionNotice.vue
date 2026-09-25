@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const deployment = useDeploymentInfo()
-const { isSnapshot, siteLogin } = useContentSource()
+const { isSnapshot, isSite, siteLogin } = useContentSource()
 const portal = computed(() => import.meta.dev ? 'http://127.0.0.1:5173/sites/portal/' : deployment.value.origin || '/')
 </script>
 
@@ -17,11 +17,15 @@ const portal = computed(() => import.meta.dev ? 'http://127.0.0.1:5173/sites/por
         <TxFlex align="center" :gap="8" wrap="wrap">
           <TxStatusBadge
             :text="`${deployment.label} · ${deployment.displayVersion}`"
-            :status="isSnapshot ? 'info' : 'warning'"
+            :status="isSnapshot || isSite ? 'info' : 'warning'"
             size="sm"
             class="shrink-0 whitespace-nowrap"
           />
-          <span v-if="siteLogin" class="text-$tx-text-color-secondary leading-normal">
+          <!-- 极客班论坛还没有帖子，所以这里不说「不登录也能看帖子」 -->
+          <span v-if="isSite" class="text-$tx-text-color-secondary leading-normal">
+            论坛刚换到新系统，发帖和回复还没开放，以前的帖子暂时不显示。极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录。
+          </span>
+          <span v-else-if="siteLogin" class="text-$tx-text-color-secondary leading-normal">
             {{ isSnapshot ? '发帖和回复正在接入，现在可以浏览。' : '当前是示例帖子，极客班的帖子还没接入。' }}极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录；不登录也能看帖子。
           </span>
           <span v-else class="text-$tx-text-color-secondary leading-normal">

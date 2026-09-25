@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import deploymentContract from '../../deploy/environments.json'
+import { selectContentSource } from './shared/content-source'
 import { createDeploymentMetadata } from './shared/deployment'
 import { markdownPrerenderRoutes, seedTopicIds } from './shared/forum-markdown'
 
@@ -10,37 +11,44 @@ const siteDeployment = createDeploymentMetadata(
   process.env.GEEK_RELEASE_COMMIT,
 )
 
-// Set by the root `scripts/forum.mjs` for `start`/`dev` when a private
-// 极客班 snapshot directory exists. It switches the pages from the upstream
-// demo seed to the read-only archive served by /api/local-forum; it does not
-// add authentication or persistence. GEEK_FORUM_SOURCE=demo wins over any
-// directory (including one that a local .env might inject), which is how
-// check/generate/verify stay on the seed.
-const geekForumContentDir = process.env.GEEK_FORUM_SOURCE === 'demo' ? '' : (process.env.GEEK_FORUM_CONTENT_DIR ?? '').trim()
-const contentSource = geekForumContentDir ? 'local-snapshot' : 'upstream-seed'
-const siteName = geekForumContentDir ? '极客班论坛' : 'Tuff Forum'
+// 内容来源与登录方式都由构建环境决定，规则在 shared/content-source.ts（单测覆盖）：
+// - GEEK_FORUM_SOURCE=site：极客班论坛自己的站名、分类和标签（content/curation.json），没有帖子、用户和通知。
+//   预发布与正式镜像（app/forum/Dockerfile）这样构建，不带任何示例内容，也不读内容目录。
+// - GEEK_FORUM_SOURCE=demo：上游示例种子。scripts/forum.mjs 的 check/generate/verify 默认用它
+//   （上游 CDP 验收依赖示例数据），它也压过本机 .env 里可能写着的快照目录。
+// - 不设置：GEEK_FORUM_CONTENT_DIR 非空时是本机只读快照（只有 dev 服务器的 /api/local-forum 提供），否则是示例种子。
 // 登录方式与内容来源分开：默认是全站统一的 GitHub 登录（部署的镜像、CI 的静态生成、本机真实数据）。
 // 只有 scripts/forum.mjs 为上游 CDP 验收和本机示例预览设 GEEK_FORUM_LOGIN=demo，保留原仓的「选择一个身份」；
-// 真实数据（快照）永远走统一登录。
-const loginMode = contentSource === 'upstream-seed' && process.env.GEEK_FORUM_LOGIN === 'demo' ? 'demo' : 'site'
+// 真实数据（快照）和极客班论坛永远走统一登录。
+const { contentSource, contentDir: geekForumContentDir, siteName, loginMode } = selectContentSource(process.env)
+// 有静态 /t/<id>.md 的话题：示例种子的每个话题；极客班论坛还没有话题，只生成 /llms.txt。
+// 页面按这份名单决定要不要输出 alternate 链接（快照模式由 dev 服务器按请求生成，另算）。
+const markdownTopicIds = contentSource === 'site' ? [] : seedTopicIds()
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-11',
   runtimeConfig: {
     geekForumContentDir,
-    public: { siteDeployment, contentSource, siteName, loginMode },
+    public: { siteDeployment, contentSource, siteName, loginMode, markdownTopicIds },
+  },
+
+  // 构建时常量：极客班论坛的构建里，app/stores/forum.ts 的初始状态直接是 siteForumState()，
+  // createSeed 与上游示例帖子因此整段不进浏览器产物（镜像构建断言产物里没有示例帖子标题）。
+  vite: {
+    define: { 'import.meta.env.GEEK_FORUM_SITE': JSON.stringify(contentSource === 'site') },
   },
 
   // The editorial layer over the read-only snapshot (categories, tags,
   // polished bodies) lives in ./content and is read by server/utils through
   // `useStorage('assets:content')`.
   // `/llms.txt` and `/t/<id>.md` are answered by server/middleware/forum-markdown.ts;
-  // prerendering them makes `nuxt generate` write one file per seed topic,
-  // which is all the static image can serve.
+  // prerendering them makes `nuxt generate` write one file per seed topic
+  // (only llms.txt for 极客班论坛, which has no topics yet), which is all the
+  // static image can serve.
   nitro: {
     serverAssets: [{ baseName: 'content', dir: fileURLToPath(new URL('./content', import.meta.url)) }],
-    prerender: { routes: markdownPrerenderRoutes(seedTopicIds()) },
+    prerender: { routes: markdownPrerenderRoutes(markdownTopicIds) },
     // 本机开发：论坛单独跑在 3456，统一登录的会话在核心后端（127.0.0.1:3000）。cookie 按主机不按端口，
     // 5173 上登录后 127.0.0.1:3456 也带着同一个 sid，这里把 /auth 转给后端，论坛就能读 /auth/me。
     // 线上论坛与核心同域（/forum/ 由 web 容器反代），devProxy 不进静态产物。

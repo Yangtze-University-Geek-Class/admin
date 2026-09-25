@@ -14,6 +14,7 @@ import { computed, ref } from 'vue'
 import { extractMentions } from '~/data/mentions'
 import { createSeed, tagSlug, topicSlug } from '~/data/seed'
 import { AVATAR_PALETTE } from '~/data/seed-content'
+import { siteForumState } from '../../shared/site-state'
 
 /**
  * The whole forum lives in one Pinia setup store: `state` is the seed (or the
@@ -112,8 +113,19 @@ function pushReactive<T extends object>(list: T[], item: T): T {
   return list[list.length - 1] as T
 }
 
+/**
+ * The seed, except in a 极客班论坛 build (`contentSource: 'site'`), which starts
+ * from its own categories and tags. `import.meta.env.GEEK_FORUM_SITE` is a
+ * build-time constant (nuxt.config.ts `vite.define`), so that build drops
+ * `createSeed` and the whole demo seed from the bundle; the vitest suites
+ * leave it undefined and get the seed.
+ */
+function initialState(now?: number): ForumState {
+  return import.meta.env.GEEK_FORUM_SITE === true ? siteForumState() : createSeed(now)
+}
+
 export const useForumStore = defineStore('forum', () => {
-  const state = ref<ForumState>(createSeed())
+  const state = ref<ForumState>(initialState())
 
   // ---------------------------------------------------------------- indexes
 
@@ -670,7 +682,7 @@ export const useForumStore = defineStore('forum', () => {
 
   /** Back to the sample data. Persistence follows through the store subscription. */
   function reset(now?: number): void {
-    state.value = createSeed(now)
+    state.value = initialState(now)
   }
 
   return {

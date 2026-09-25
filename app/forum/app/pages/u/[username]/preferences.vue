@@ -134,7 +134,7 @@ function setTheme(value: string | number) {
               v-model="draft.bio"
               title="简介"
               description="一句话介绍自己"
-              placeholder="比如：在做 CoreBox 的搜索"
+              placeholder="比如：计科 2024 级，在学前端"
               clearable
             />
             <TxBlockInput

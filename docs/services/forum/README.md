@@ -1,6 +1,6 @@
 # Forum 服务合同（`app/forum`）
 
-> 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可显示极客班论坛快照；登录只走全站 GitHub 登录（上游验收与本机示例预览除外）；论坛仍没有后端。
+> 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；线上镜像是极客班论坛自己的站名、分类和标签（还没有帖子）；本机可显示极客班论坛快照；登录只走全站 GitHub 登录（上游验收与本机示例预览除外）；论坛仍没有后端。
 
 状态：`current` · 更新：2026-09-25 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
@@ -12,14 +12,14 @@
 | `app/forum/app/components/` | 组合与展示；组件自动注册，不手工仿制同名 React 组件 |
 | `app/forum/app/composables/` `app/forum/app/stores/` | 交互状态与原仓数据操作（Pinia）；`useSiteAccount.ts` 读全站登录（同域 `/auth/me`）、退出、说明登录结果 |
 | `app/forum/app/data/` | 类型、示例种子、权限 helper 与序列化 |
-| `app/forum/app/plugins/` | `persist.client.ts`（浏览器存储）、`local-snapshot.client.ts`（只读快照替换 store） |
+| `app/forum/app/plugins/` | `persist.client.ts`（浏览器存储）、`local-snapshot.client.ts`（只读快照替换 store）、`site-state.client.ts`（极客班论坛：挂载前换成自己的分类和标签，会话固定为游客） |
 | `app/forum/server/routes/api/local-forum/` | dev 专用只读快照路由：`state`、`assets/[hash]` |
 | `app/forum/server/middleware/forum-markdown.ts` | 给 AI 读取的 `/t/<id>.md` 与 `/llms.txt`，`nuxt generate` 时逐个写成静态文件 |
-| `app/forum/shared/` | `local-snapshot.ts`（投影校验）、`local-curation.ts`（编辑层）、`deployment.ts`（环境/版本展示）、`forum-markdown.ts`（话题 Markdown 与 llms.txt 的生成规则） |
-| `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层 |
+| `app/forum/shared/` | `content-source.ts`（按构建环境选内容来源、站名与登录方式）、`site-state.ts`（极客班论坛的初始状态）、`local-snapshot.ts`（投影校验）、`local-curation.ts`（编辑层）、`deployment.ts`（环境/版本展示）、`forum-markdown.ts`（话题 Markdown 与 llms.txt 的生成规则） |
+| `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层；镜像的分类和标签也取自 `curation.json` |
 | `app/forum/scripts/` | 上游样式 guard、路由 smoke、CDP 四套验证脚本；`csp-header.mjs`（本项目新增）在镜像构建时把产物里内联脚本的 sha256 加进站点 CSP，写成容器 nginx 的 `add_header` |
 | `app/forum/UPSTREAM.json` `ADOPTION.json` `LICENSE` | 上游文件摘要、本项目集成差异清单、MIT 声明（必须保留） |
-| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`） |
+| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内断言 `llms.txt` 写的是极客班论坛、没有 `t/` 目录、产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`） |
 
 ## 所有权与来源
 
@@ -33,7 +33,11 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 契约：身份与数据
 
-登录方式与内容来源是两件事。内容来源是示例种子或本机快照（见下）；登录方式由 `nuxt.config.ts` 的 `loginMode` 决定：默认 `site`（全站统一登录，见下文「全站登录」），部署镜像、`forum:generate` 和快照模式都是它；只有 `scripts/forum.mjs` 在示例种子上为 `verify`（上游 CDP 验收）和 `start`/`dev`（本机示例预览）设 `GEEK_FORUM_LOGIN=demo`，这时才是上游的示例登录。快照模式永远是 `site`。
+登录方式与内容来源是两件事。内容来源是极客班论坛、示例种子或本机快照（见下）；登录方式由 `nuxt.config.ts` 的 `loginMode` 决定：默认 `site`（全站统一登录，见下文「全站登录」），部署镜像、`forum:generate`、极客班论坛和快照模式都是它；只有 `scripts/forum.mjs` 在示例种子上为 `verify`（上游 CDP 验收）和 `start`/`dev`（本机示例预览）设 `GEEK_FORUM_LOGIN=demo`，这时才是上游的示例登录。快照模式永远是 `site`。
+
+内容来源：构建时由 `shared/content-source.ts` 的 `selectContentSource`（单测 `tests/content-source.test.ts`）按环境变量决定，`nuxt.config.ts` 只调用它：`GEEK_FORUM_SOURCE=site` 是极客班论坛（`contentSource: site`，站名「极客班论坛」，不读任何内容目录）；`GEEK_FORUM_SOURCE=demo` 是上游示例种子（站名 Tuff Forum，压过任何快照目录）；不设置时 `GEEK_FORUM_CONTENT_DIR` 非空是本机只读快照（站名「极客班论坛」），否则是示例种子；其它取值直接让构建失败。
+
+极客班论坛（`contentSource: site`，预发布与正式镜像）：`shared/site-state.ts` 的 `siteForumState()` = 空状态 + `content/curation.json` 里的分类（按 `categoryOrder`：班级公告、课程与作业、竞赛与项目、求职与升学、人工智能）和标签；没有用户、话题、帖子、通知、书签、关注。只按名字取 `categories`/`categoryOrder`/`tags` 三个字段，`curation.json` 里的快照话题标题和正文补丁不进浏览器产物（它们的作者只在私有快照里）。构建常量 `import.meta.env.GEEK_FORUM_SITE`（`nuxt.config.ts` 的 `vite.define`）让 `stores/forum.ts` 的初始状态直接是 `siteForumState()`，`createSeed` 与示例帖子整段不进产物；`app/plugins/site-state.client.ts` 在挂载前再换一次状态并把会话设为游客，示例种子一帧也不会出现。`persist.client.ts` 不读也不写浏览器里的论坛状态和会话。页面文案：顶部提示「论坛刚换到新系统，发帖和回复还没开放，以前的帖子暂时不显示。」加统一登录那句；关于页是一段极客班论坛简介和一行出处（基于开源项目 Tuff Forum，talex-touch/tuff-forum，MIT 许可），不显示用户/话题/帖子数字和管理团队；首页、单个类别页和标签页的话题列表以及类别总览的「最新」在没有话题时显示「还没有话题 / 发帖和回复还没开放。」，用户页显示「还没有用户 / 成员列表还没接入。」；系统通知写「来自极客班论坛的系统消息」。
 
 示例登录（`loginMode=demo`）：`app/stores/session.ts` 的 login 只是选择示例用户；`app/plugins/persist.client.ts` 使用 localStorage 保存示例状态。没有真实认证、服务端权限、共享数据库、附件存储或邮件服务。界面权限和 store 测试仅验证演示行为，不承担安全边界。不得加载旧论坛会话或向后台传递示例 role 以取得真实权限。
 
@@ -90,11 +94,11 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 正文与回复原样输出页面渲染用的 Markdown，不转成 HTML；标题、显示名、摘要这类纯文本字段转义 Markdown 符号。生成规则只在 `shared/forum-markdown.ts` 一处，由 `tests/forum-markdown.test.ts` 覆盖转义、代码块原样保留、楼层顺序和无回复的情况。链接的站点前缀取自环境契约：正式与预发布构建是 `https://<域名>/forum/…`，本机是站点相对路径。
 
-**限制**：论坛还没有后端。静态镜像里只有 `nuxt generate` 时写出的文件，即示例种子里的每个话题（`t1`…`tN`）加一份 `llms.txt`；用户在浏览器里新发的话题和回复只存在该浏览器的 localStorage，服务器上没有对应的 `.md`，请求会得到 404，这类话题页也不输出 `alternate` 链接。已有种子话题在浏览器里新增的回复、编辑、删除同样不会出现在 `.md` 里，文件内容停在构建时刻，时间也按构建时刻推算。本机 dev 服务器配置了只读快照时，`.md` 与 `llms.txt` 按请求从快照生成，覆盖快照里的全部话题；快照不进静态产物。接入真实后端后改由服务端按数据库生成。
+**限制**：论坛还没有后端。静态产物里只有 `nuxt generate` 时写出的文件：极客班论坛（镜像）还没有话题，只有一份 `llms.txt`，写明站名和「还没有话题。」，没有 `t/<id>.md`，话题页也不输出 `alternate` 链接；示例种子的构建是每个话题（`t1`…`tN`）加一份 `llms.txt`，有 `.md` 的话题编号经运行时配置 `markdownTopicIds` 传给页面。用户在浏览器里新发的话题和回复只存在该浏览器的 localStorage，服务器上没有对应的 `.md`，请求会得到 404，这类话题页也不输出 `alternate` 链接。已有种子话题在浏览器里新增的回复、编辑、删除同样不会出现在 `.md` 里，文件内容停在构建时刻，时间也按构建时刻推算。本机 dev 服务器配置了只读快照时，`.md` 与 `llms.txt` 按请求从快照生成，覆盖快照里的全部话题；快照不进静态产物。接入真实后端后改由服务端按数据库生成。
 
 ## 环境与版本显示
 
-“关于”页的 DeploymentInfo 显示 local / preview / production，并按 [RELEASES](../../conventions/RELEASES.md) 说明发版方式：预发布由打在 `stage` 提交上的 `vX.Y.Z-rc.N` tag 部署，版本显示 `X.Y.Z-rc.N@<sha12>`；正式由打在 `main` 同一提交上的 `vX.Y.Z` tag 部署，显示 `X.Y.Z`；推送分支本身不部署。固定域名来自根 [deploy/environments.json](../../../deploy/environments.json)：`prev.yangtzeu.work` 预发布，`yangtzeu.work` 正式；两套环境同机不同栈，容器内论坛端口都是 3000，宿主侧由 `web` 容器按 `/forum` 路径反代。本机明确标记“本地开发 · 未发布”，另按内容来源说明「当前页面仍使用上游示例内容」或「当前页面显示极客班论坛的帖子，发帖与回复还没接入」；快照模式下「关于」页写「当前显示极客班论坛的公开内容（更新于 <采集时间>）」，界面不再出现「只读快照」字样。Nuxt 配置只读取公共的域名/版本合同，不跨模块引用 React、Fastify 或业务数据。`GEEK_RELEASE_VERSION` 和完整 `GEEK_RELEASE_COMMIT` 只由受控构建注入，不是人已验收的证据。`-rc.N` 只能与 `@<sha12>` 同时出现且只用于预发布，`<sha12>` 必须等于提交前 12 位；`shared/deployment.ts` 对其它组合直接报错，构建因此失败。
+“关于”页的 DeploymentInfo 显示 local / preview / production，并按 [RELEASES](../../conventions/RELEASES.md) 说明发版方式：预发布由打在 `stage` 提交上的 `vX.Y.Z-rc.N` tag 部署，版本显示 `X.Y.Z-rc.N@<sha12>`；正式由打在 `main` 同一提交上的 `vX.Y.Z` tag 部署，显示 `X.Y.Z`；推送分支本身不部署。固定域名来自根 [deploy/environments.json](../../../deploy/environments.json)：`prev.yangtzeu.work` 预发布，`yangtzeu.work` 正式；两套环境同机不同栈，容器内论坛端口都是 3000，宿主侧由 `web` 容器按 `/forum` 路径反代。本机明确标记“本地开发 · 未发布”，另按内容来源说明「当前页面是极客班论坛，发帖和回复还没接入。」（极客班论坛）、「当前页面仍使用上游示例内容」（示例种子）或「当前页面显示极客班论坛的帖子，发帖与回复还没接入」（快照）；快照模式下「关于」页写「当前显示极客班论坛的公开内容（更新于 <采集时间>）」，界面不再出现「只读快照」字样。Nuxt 配置只读取公共的域名/版本合同，不跨模块引用 React、Fastify 或业务数据。`GEEK_RELEASE_VERSION` 和完整 `GEEK_RELEASE_COMMIT` 只由受控构建注入，不是人已验收的证据。`-rc.N` 只能与 `@<sha12>` 同时出现且只用于预发布，`<sha12>` 必须等于提交前 12 位；`shared/deployment.ts` 对其它组合直接报错，构建因此失败。
 
 ## 运行
 
@@ -111,18 +115,19 @@ pnpm forum:stop
 
 ```bash
 pnpm forum:check     # Nuxt 类型、测试类型、ESLint、样式 guard、Vitest
-pnpm forum:generate  # 静态构建（始终以示例种子运行），产物含每个种子话题的 t/<id>.md 与 llms.txt
+pnpm forum:generate  # 静态构建（默认示例种子），产物含每个种子话题的 t/<id>.md 与 llms.txt
+GEEK_FORUM_SOURCE=site GEEK_FORUM_BASE_PATH=/forum/ node scripts/forum.mjs generate  # 按镜像的方式构建极客班论坛，只有 llms.txt
 pnpm forum:verify    # guard 自测 + 原仓 CDP 四套交互 + 全路由 smoke
 node scripts/check-forum-adoption.mjs   # 上游文件摘要与集成差异
 ```
 
-CDP 使用独立临时浏览器，只清理本次进程组。原仓单测与旧 Fastify 的历史测试不能混算。`forum:check/generate/verify` 始终以示例种子运行、不转发快照目录；3456 上若有快照模式预览，`forum:verify` 拒绝执行并要求先 `forum:stop`。快照文档与资产索引的解析规则由 `app/forum/tests/local-snapshot.test.ts` 用虚构夹具覆盖，测试不读取真实投影。
+CDP 使用独立临时浏览器，只清理本次进程组。原仓单测与旧 Fastify 的历史测试不能混算。`forum:check/generate/verify` 默认以示例种子运行、不转发快照目录；调用方给 `GEEK_FORUM_SOURCE=site` 时 `check`/`generate` 按极客班论坛构建，`verify` 忽略它（上游 CDP 套件断言示例数据）。3456 上若有快照模式或极客班论坛模式的预览，`forum:verify` 拒绝执行并要求先 `forum:stop`。快照文档与资产索引的解析规则由 `app/forum/tests/local-snapshot.test.ts` 用虚构夹具覆盖，测试不读取真实投影。
 
 ## 已知限制与生产准入
 
 - 快照投影仍在 `.tools/` 私有目录，不进 Git、CI 缓存或发布包；`pnpm forum:generate` 产物中不存在 dev 专用路由。
 - 全站 GitHub 登录已接入界面，但论坛后端持久化、服务器授权与内部 Hub 未实现前（#57），不作为生产内部论坛开放。后续在该原代码上接入真实服务，而不是重新启用旧论坛。
-- 镜像（预发布、正式）的内容仍是上游示例种子（快照不进镜像），登录方式是全站统一登录：顶栏只有「用 GitHub 登录」，登录后显示头像；关于页与顶部提示写明是示例帖子。
+- 镜像（预发布、正式）是极客班论坛：站名、分类和标签是自己的，还没有帖子、用户和通知（快照不进镜像，上游示例内容也不进），登录方式是全站统一登录：顶栏只有「用 GitHub 登录」，登录后显示头像；顶部提示与关于页写明发帖和回复还没开放、以前的帖子暂时不显示。论坛后端见 #57。
 - 发帖、回复、点赞、书签、通知、资料修改都没有后端；这些按钮只弹「现在还不能操作」。
 - 原始数据库和附件已按后续明确授权拉到 Mac 私有备份目录，见 [数据保全](../../ops/FORUM-DATA-CAPTURE.md)；由 `prepare.py` 生成的只读投影可按上文快照模式在本机显示，但未导入可写数据库、未激活旧会话。
 - 目标数据模型转换、身份认领和上线仍需另行设计/验收，不删除源数据。**未做**：旧论坛账号（包括当年用 GitHub 登录过的）还没有和现在的 GitHub 登录关联，改过的姓名也没有同步，登录后不会自动认领旧帖子。

@@ -54,7 +54,7 @@ function go(path: string) {
             </template>
           </TxCardItem>
 
-          <TxStack :gap="4" class="px-4 pb-3 pl-14">
+          <TxStack v-if="recentOf(category).length" :gap="4" class="px-4 pb-3 pl-14">
             <TxCellLink
               v-for="topic in recentOf(category)"
               :key="topic.id"
@@ -77,7 +77,8 @@ function go(path: string) {
             最新
           </h2>
         </template>
-        <TxStack :gap="0">
+        <TxEmptyState v-if="!latest.length" variant="no-data" title="还没有话题" description="发帖和回复还没开放。" size="small" />
+        <TxStack v-else :gap="0">
           <TxCardItem
             v-for="topic in latest"
             :key="topic.id"

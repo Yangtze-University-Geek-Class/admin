@@ -26,7 +26,9 @@
 
 2026-09-13 实施状态：本机可按 [forum 服务合同](../services/forum/README.md) 的只读快照模式显示极客班归档，其余目标未变。目标结构为公开宣传主页、受服务器会话保护的内部 Hub、论坛/GitHub 管理/扩展服务入口。真实 GitHub 统一认证、可扩展 Provider 协议、论坛后端及跨设备存储、服务注册规范、3D 游戏感 Hub 均需后续实施。该上游没有可直接复用的生产实现，不能把示例身份作为安全边界。旧账号、帖子和附件是否迁移需显式数据方案，不默认搬运或丢弃。
 
-2026-09-25 实施状态：全站 GitHub 登录已接入。官网、论坛、控制台共用核心服务签发的 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录；论坛的登录方式与内容来源分开（`loginMode`）：默认统一登录，去掉了示例登录和只读说明，没有自己的登录，只有 `scripts/forum.mjs` 的上游验收和本机示例预览保留示例登录；只经同域 HTTP（`GET /auth/me`、`POST /auth/signout`、跳转 `/auth/github`）接入核心，不导入核心代码（见 [forum 服务合同](../services/forum/README.md)「全站登录」）。仍未实施：论坛后端与服务端授权、跨设备存储、旧论坛账号与 GitHub 登录的关联、可扩展 Provider 协议、服务注册规范、3D 游戏感 Hub；镜像里的论坛内容仍是上游示例种子（登录方式已是统一登录）。
+2026-09-25 实施状态：全站 GitHub 登录已接入。官网、论坛、控制台共用核心服务签发的 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录；论坛的登录方式与内容来源分开（`loginMode`）：默认统一登录，去掉了示例登录和只读说明，没有自己的登录，只有 `scripts/forum.mjs` 的上游验收和本机示例预览保留示例登录；只经同域 HTTP（`GET /auth/me`、`POST /auth/signout`、跳转 `/auth/github`）接入核心，不导入核心代码（见 [forum 服务合同](../services/forum/README.md)「全站登录」）。仍未实施：论坛后端与服务端授权、跨设备存储、旧论坛账号与 GitHub 登录的关联、可扩展 Provider 协议、服务注册规范、3D 游戏感 Hub。
+
+2026-09-25（#80）：预发布与正式镜像改用 `GEEK_FORUM_SOURCE=site` 构建，线上是极客班论坛自己——站名「极客班论坛」、`app/forum/content/curation.json` 的分类和标签，还没有帖子、用户和通知，不再带上游示例帖子；上游示例种子只留给本机示例预览与上游 CDP 验收。代码仍是采用的 Tuff Forum，关于页注明出处。
 
 ## 验证和回滚
 
