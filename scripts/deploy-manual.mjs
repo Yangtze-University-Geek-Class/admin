@@ -41,7 +41,8 @@ export const USAGE = `维护者机器部署（只部署 CI 为该发布 tag 构�
   node scripts/deploy-manual.mjs --environment preview --tag vX.Y.Z-rc.N [--dry-run]
   node scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <所有者批准评论的链接> [--dry-run]
 
---acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>），作者是仓库管理员，内容写明「批准发布」和这个版本号。
+--acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过、发在预发布部署成功之后，
+正文里有单独一行正好是「批准发布 vX.Y.Z」（格式细节见 docs/ops/CICD.md「维护者机器部署」）。
 环境变量：DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment）、${[...SECRET_ENV, ...SSH_ENV].join(' ')}。
 --dry-run 做完全部核对、下载与渲染，不连目标机、不写部署记录。`;
 
@@ -77,12 +78,31 @@ export function acceptanceComment(url) {
 }
 
 /**
- * 批准评论本身：必须有单独一行（去掉首尾空白、不是 `>` 引用）正好是「批准发布 vX.Y.Z」，行尾可带一个句号或叹号。
- * 「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」、引用别人的批准都不算。作者权限、所在 issue 与时间另查。
+ * 批准评论本身：必须有单独一行（去掉首尾空白）正好是「批准发布 vX.Y.Z」，行尾可带一个句号或叹号。
+ * 渲染后看不到或不是正文的内容都不算：HTML 注释、HTML 标签（如 blockquote、details）里的内容、围栏代码块、
+ * 缩进代码、`>` 引用以及紧跟引用、中间没有空行的懒续行。「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」也不算。
+ * 作者权限、是否被编辑过、所在 issue 与时间另查。
  */
 export function acceptanceSays(body, version) {
   const line = new RegExp(`^批准发布\\s*v?${version.replaceAll('.', '\\.')}\\s*[。.！!]?$`);
-  return String(body ?? '').split(/\r?\n/).map(text => text.trim()).some(text => !text.startsWith('>') && line.test(text));
+  let text = String(body ?? '').replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?(?:-->|$)/g, '');
+  for (let previous = ''; previous !== text;) {
+    previous = text;
+    text = text.replace(/<([A-Za-z][\w-]*)\b[^>]*>[\s\S]*?<\/\1\s*>/g, '');
+  }
+  let fence = null;
+  let quoted = false;
+  for (const raw of text.split('\n')) {
+    const trimmed = raw.trim();
+    const marker = /^(```+|~~~+)/.exec(trimmed);
+    if (fence) { if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null; continue; }
+    if (marker) { fence = marker[1]; continue; }
+    if (!trimmed) { quoted = false; continue; }
+    if (trimmed.startsWith('>') || trimmed.startsWith('＞')) { quoted = true; continue; }
+    if (quoted || /^( {4}|\t)/.test(raw)) continue;
+    if (line.test(trimmed)) return true;
+  }
+  return false;
 }
 
 /** origin 远端的 `owner/repo`；tag、运行记录、部署记录都以它为准。 */
@@ -161,7 +181,7 @@ export function sshTarget(env, template) {
   };
 }
 
-const withoutSecrets = env => Object.fromEntries(Object.entries(env).filter(([name]) => !SECRET_ENV.includes(name)));
+export const withoutSecrets = env => Object.fromEntries(Object.entries(env).filter(([name]) => !SECRET_ENV.includes(name)));
 
 /** 真实的外部动作；测试注入假的，核对编排顺序。 */
 export function defaultDeps() {
@@ -171,7 +191,7 @@ export function defaultDeps() {
     run: (command, args, { env, quiet } = {}) => execFileSync(command, args, {
       cwd: ROOT, encoding: 'utf8', env: env ?? withoutSecrets(process.env), stdio: ['ignore', quiet === false ? 'inherit' : 'pipe', 'inherit'],
     }) ?? '',
-    fetchJson: url => JSON.parse(execFileSync('curl', ['-fsS', '--max-time', '20', '--retry', '3', url], { encoding: 'utf8' })),
+    fetchJson: url => JSON.parse(execFileSync('curl', ['-fsS', '--max-time', '20', '--retry', '3', url], { encoding: 'utf8', env: withoutSecrets(process.env) })),
     readText: path => readFileSync(path, 'utf8'),
     hashFile: path => new Promise((done, failed) => {
       const hash = createHash('sha256');
@@ -227,10 +247,12 @@ export async function deploy(options, deps = defaultDeps()) {
     log(`${tag} → ${environment}：提交 ${commit}，镜像 ${plan.imageRepository}/*:${plan.imageTag}，栈 ${plan.stackRoot}，物料取自该提交`);
 
     if (environment === 'production') {
-      // 所有者批准：本仓库里的一条评论，作者是仓库管理员，写明「批准发布」与版本号。
+      // 所有者批准：本仓库里的一条未被编辑的评论，作者是仓库管理员，正文单独一行「批准发布 vX.Y.Z」，晚于预发布成功。
       const { id, number } = acceptanceComment(acceptance);
       const comment = ghJson(`repos/${repo}/issues/comments/${id}`);
       if (!String(comment.issue_url ?? '').endsWith(`/issues/${number}`)) throw new Error(`批准评论不在链接写的 #${number} 里`);
+      // 有写权限的人能编辑别人的评论而作者不变：被编辑过的评论一律不认，请所有者重新发一条。
+      if (comment.updated_at !== comment.created_at) throw new Error('批准评论被编辑过：请所有者重新发一条新的批准评论');
       if (!acceptanceSays(comment.body, plan.version)) throw new Error(`批准评论里没有单独一行写「批准发布 v${plan.version}」`);
       const permission = ghJson(`repos/${repo}/collaborators/${encodeURIComponent(comment.user?.login ?? '')}/permission`).permission;
       if (permission !== 'admin') throw new Error(`批准评论的作者 @${comment.user?.login} 不是仓库管理员`);
