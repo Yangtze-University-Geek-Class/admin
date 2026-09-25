@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, deploy, deploymentPayload, expectedDigest, parseArgs,
-  pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, workflowFile,
+  REQUIRED_CONTEXT, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
+import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
 
 const COMMIT = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
@@ -187,6 +188,15 @@ describe('deploy-manual orchestration', () => {
     const scps = world.calls.filter(call => call.command === 'scp').flatMap(call => call.args.filter(arg => arg.includes('deploy/')));
     expect(scps.length).toBeGreaterThan(0);
     for (const path of scps.filter(arg => !arg.includes(':'))) expect(path.startsWith(src)).toBe(true);
+    // 部署记录只要求 CI 的 verify 通过（与两条部署工作流一致），不会被部署 job 自己的检查挡住。
+    const create = world.calls.find(call => call.args.includes('--jq') && call.args.some(arg => arg.endsWith('/deployments')))!;
+    expect(create.args).toContain(`required_contexts[]=${REQUIRED_CONTEXT}`);
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      expect(workflow).toContain(`-f "required_contexts[]=${REQUIRED_CONTEXT}"`);
+      const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+      expect(ci).toContain(`name: ${REQUIRED_CONTEXT}`);
+    }
     // 部署成功后记录置为 success，临时目录删掉。
     expect(world.calls.some(call => call.args.includes('state=success'))).toBe(true);
     expect(world.removed).toEqual([world.work]);

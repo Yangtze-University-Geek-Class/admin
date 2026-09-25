@@ -30,6 +30,8 @@ export const RELEASE_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.(
 const REMOTE_SAFE = /^[A-Za-z0-9._/-]+$/;
 /** SSH 目标：不以 - 开头（否则 ssh 会当成选项），端口只能是数字。 */
 const SSH_NAME = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
+/** 部署记录只要求 CI 的这项检查通过；默认的「全部检查」会把正在运行或失败的部署 job 也算进去而一直 409。 */
+export const REQUIRED_CONTEXT = 'verify (required check)';
 const SSH_ENV = ['DEPLOY_SSH_HOST', 'DEPLOY_SSH_PORT', 'DEPLOY_SSH_USER', 'DEPLOY_SSH_KEY_FILE', 'DEPLOY_SSH_KNOWN_HOSTS_FILE'];
 const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'];
 /** 取出哪些路径：规划器、环境契约、render 与远端物料都在这里面。 */
@@ -273,7 +275,7 @@ export async function deploy(options, deps = defaultDeps()) {
 
     const payload = deploymentPayload(plan, acceptance);
     deploymentId = run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments`, '-f', `ref=${commit}`, '-f', `environment=${environment}`,
-      '-F', 'auto_inactive=false', '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
+      '-F', 'auto_inactive=false', '-f', `required_contexts[]=${REQUIRED_CONTEXT}`, '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
       ...Object.entries(payload).flatMap(([key, value]) => ['-f', `payload[${key}]=${value}`]), '--jq', '.id']).trim();
     run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=in_progress', '-f', `description=分发镜像与 env 文件到 ${plan.stackRoot}`]);
     log(`部署记录已创建：deployment ${deploymentId}`);
