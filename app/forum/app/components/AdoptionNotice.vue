@@ -1,8 +1,9 @@
 <script setup lang="ts">
 const deployment = useDeploymentInfo()
 const { isSnapshot, isSite, siteLogin } = useContentSource()
-// 已经登录的人不再提示去右上角登录（与顶栏共用同一份 /auth/me 结果）
-const { account } = useSiteAccount()
+// 已经登录的人不再提示去右上角登录（与顶栏共用同一份 /auth/me 结果）；
+// 等 /auth/me 返回再显示，和顶栏的登录按钮同时出现，已登录的人不会先看到再消失
+const { account, loaded } = useSiteAccount()
 const portal = computed(() => import.meta.dev ? 'http://127.0.0.1:5173/sites/portal/' : deployment.value.origin || '/')
 </script>
 
@@ -23,9 +24,8 @@ const portal = computed(() => import.meta.dev ? 'http://127.0.0.1:5173/sites/por
             size="sm"
             class="shrink-0 whitespace-nowrap"
           />
-          <!-- 极客班论坛还没有帖子，所以这里不说「不登录也能看帖子」 -->
           <span v-if="isSite" class="text-$tx-text-color-secondary leading-normal">
-            论坛刚换到新系统，发帖和回复还没开放，以前的帖子暂时不显示。<template v-if="!account">极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录。</template>
+            论坛刚换到新系统，发帖和回复还没开放；旧论坛先放出了招新机试文档和入门资料，其余帖子暂时不显示。<template v-if="loaded && !account">极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录；不登录也能看帖子。</template>
           </span>
           <span v-else-if="siteLogin" class="text-$tx-text-color-secondary leading-normal">
             {{ isSnapshot ? '发帖和回复正在接入，现在可以浏览。' : '当前是示例帖子，极客班的帖子还没接入。' }}极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录；不登录也能看帖子。

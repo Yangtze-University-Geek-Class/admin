@@ -13,6 +13,7 @@
     "tagColor": "#94a3b8"
   },
   "categories": [
+    { "id": "c-exam", "slug": "exam", "name": "招新与机试", "description": "极客班招新机试文档，以及机试要用到的入门资料。", "color": "#0f766e", "icon": "i-ri-file-list-3-line" },
     { "id": "c-announcements", "slug": "announcements", "name": "班级公告", "description": "极客班通知、活动安排与规则说明。", "color": "#e5484d", "icon": "i-ri-megaphone-line" },
     { "id": "c-courses", "slug": "courses", "name": "课程与作业", "description": "课程内容、作业讨论、考试与选课经验。", "color": "#2f6fed", "icon": "i-ri-book-open-line" },
     { "id": "c-competitions", "slug": "competitions", "name": "竞赛与项目", "description": "竞赛信息、组队招募、项目进展与成果展示。", "color": "#f59e0b", "icon": "i-ri-trophy-line" },
@@ -27,6 +28,7 @@
     "c20"
   ],
   "categoryOrder": [
+    "c-exam",
     "c-announcements",
     "c-courses",
     "c-competitions",
@@ -38,6 +40,9 @@
     "c21": { "name": "资源荟萃", "color": "#14b8a6", "description": "精选学习资源、开发工具、开源项目与教程资料汇总。", "icon": "i-ri-book-read-line" }
   },
   "tags": [
+    { "id": "tag-grade25", "slug": "grade-25", "name": "25级", "color": "#0f766e" },
+    { "id": "tag-grade24", "slug": "grade-24", "name": "24级", "color": "#0891b2" },
+    { "id": "tag-starter", "slug": "starter", "name": "入门资料", "color": "#65a30d" },
     { "id": "tag-talk", "slug": "talk", "name": "分享会", "color": "#f97316" },
     { "id": "tag-notes", "slug": "notes", "name": "知识整理", "color": "#14b8a6" },
     { "id": "tag-roadmap", "slug": "ai-roadmap", "name": "AI路线", "color": "#10b981" },

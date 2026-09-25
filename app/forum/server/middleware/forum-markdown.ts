@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
 
 async function markdownSource(): Promise<{ state: ForumState, notice: string }> {
   if (useRuntimeConfig().public.contentSource === 'site')
-    return { state: siteForumState(), notice: '发帖和回复还没开放，以前的帖子暂时不显示。' }
+    return { state: siteForumState(), notice: '发帖和回复还没开放；旧论坛先放出了招新机试文档和入门资料，其余帖子暂时不显示。' }
   if (import.meta.dev && snapshotConfigured()) {
     try {
       const { document } = await loadLocalSnapshot()

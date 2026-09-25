@@ -3,6 +3,7 @@ import deploymentContract from '../../deploy/environments.json'
 import { selectContentSource } from './shared/content-source'
 import { createDeploymentMetadata } from './shared/deployment'
 import { markdownPrerenderRoutes, seedTopicIds } from './shared/forum-markdown'
+import { publishedTopicIds } from './shared/published'
 
 const siteDeployment = createDeploymentMetadata(
   deploymentContract,
@@ -12,7 +13,8 @@ const siteDeployment = createDeploymentMetadata(
 )
 
 // 内容来源与登录方式都由构建环境决定，规则在 shared/content-source.ts（单测覆盖）：
-// - GEEK_FORUM_SOURCE=site：极客班论坛自己的站名、分类和标签（content/curation.json），没有帖子、用户和通知。
+// - GEEK_FORUM_SOURCE=site：极客班论坛自己的站名、分类和标签（content/curation.json），加上公开的旧帖
+//   （content/published，只有首帖，作者统一是「极客班」）；没有回复、其他用户和通知。
 //   预发布与正式镜像（app/forum/Dockerfile）这样构建：不带示例帖子、用户与通知（示例种子不进产物），也不读内容目录；
 //   上游组件里只在示例模式可达的文案分支仍在打包结果里，运行时走不到。
 // - GEEK_FORUM_SOURCE=demo：上游示例种子。scripts/forum.mjs 的 check/generate/verify 默认用它
@@ -22,9 +24,9 @@ const siteDeployment = createDeploymentMetadata(
 // 只有 scripts/forum.mjs 为上游 CDP 验收和本机示例预览设 GEEK_FORUM_LOGIN=demo，保留原仓的「选择一个身份」；
 // 真实数据（快照）和极客班论坛永远走统一登录。
 const { contentSource, contentDir: geekForumContentDir, siteName, loginMode } = selectContentSource(process.env)
-// 有静态 /t/<id>.md 的话题：示例种子的每个话题；极客班论坛还没有话题，只生成 /llms.txt。
+// 有静态 /t/<id>.md 的话题：示例种子的每个话题；极客班论坛是公开的旧帖。
 // 页面按这份名单决定要不要输出 alternate 链接（快照模式由 dev 服务器按请求生成，另算）。
-const markdownTopicIds = contentSource === 'site' ? [] : seedTopicIds()
+const markdownTopicIds = contentSource === 'site' ? publishedTopicIds() : seedTopicIds()
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({

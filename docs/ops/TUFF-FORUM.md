@@ -10,7 +10,7 @@
 
 论坛要求 Node >=26、pnpm 11.24.0；核心仍要求 Node 22、pnpm 9.15.9。`scripts/forum.mjs` 从根选择论坛工具链，不改系统默认 Node，不让 pnpm 9 改写论坛锁文件。当前 Mac 使用 `/opt/homebrew/bin/node` 和已隔离安装的 `.tools/pnpm11/package/bin/pnpm.cjs`。新机器应提供对应版本，可通过 `FORUM_NODE` 指定 Node 原生可执行文件，通过 `FORUM_PNPM` 指向 pnpm.cjs。它们是工具路径，不是登录凭据。
 
-`GEEK_FORUM_CONTENT_DIR` 指定只读快照目录（须含 content.json、asset-index.json、manifest.json 和 assets/，相对路径按仓库根解析，不合格时 start 直接报错）；未设置时 `start|dev` 自动选择 `.tools/forum-runtime/` 下名称最大的合格快照目录，没有则用示例种子。`GEEK_FORUM_SOURCE=demo` 强制示例种子。`check`、`generate`、`verify` 默认以 `GEEK_FORUM_SOURCE=demo` 运行，静态产物里也没有快照路由。调用方显式给 `GEEK_FORUM_SOURCE=site` 时（只认这一个值），`generate`/`check`/`start`/`dev` 按镜像的方式构建极客班论坛：站名「极客班论坛」、`curation.json` 里的分类和标签，没有帖子、用户和通知，也不读快照目录；`verify` 忽略它，上游 CDP 验收只跑示例种子。例：`GEEK_FORUM_SOURCE=site GEEK_FORUM_BASE_PATH=/forum/ node scripts/forum.mjs generate`。start 确认实例后会用 HEAD 探测 `/api/local-forum/state`，快照损坏时直接打印机器码。
+`GEEK_FORUM_CONTENT_DIR` 指定只读快照目录（须含 content.json、asset-index.json、manifest.json 和 assets/，相对路径按仓库根解析，不合格时 start 直接报错）；未设置时 `start|dev` 自动选择 `.tools/forum-runtime/` 下名称最大的合格快照目录，没有则用示例种子。`GEEK_FORUM_SOURCE=demo` 强制示例种子。`check`、`generate`、`verify` 默认以 `GEEK_FORUM_SOURCE=demo` 运行，静态产物里也没有快照路由。调用方显式给 `GEEK_FORUM_SOURCE=site` 时，`generate`/`check`/`start`/`dev` 按镜像的方式构建极客班论坛：站名「极客班论坛」、`curation.json` 里的分类和标签、`content/published` 里公开的旧帖，也不读快照目录（`GEEK_FORUM_SOURCE` 只接受不设置、空、`demo`、`site`，写错时 `forum.mjs` 以退出码 2 退出）；`verify` 忽略它，上游 CDP 验收只跑示例种子。例：`GEEK_FORUM_SOURCE=site GEEK_FORUM_BASE_PATH=/forum/ node scripts/forum.mjs generate`。start 确认实例后会用 HEAD 探测 `/api/local-forum/state`，快照损坏时直接打印机器码。
 
 分类、标签、话题归类与润色正文在 `app/forum/content/curation.json` 和 `app/forum/content/posts/*.md` 中维护（规则见 [forum 服务合同](../services/forum/README.md)）：旧论坛内容默认不显示（`legacy.mode = "hide"`，没有「老帖归档」类别），要重新开启哪篇旧帖就把话题编号写进 `legacy.include`；新时代分类按 `categoryOrder` 排在侧栏；改动后重启 `pnpm forum:start` 生效，引用错误会让快照加载失败并显示错误。
 
@@ -38,7 +38,7 @@ CDP 浏览器套件可通过 `TUFF_FORUM_CHROME` 指定 Chrome/Chromium 原生�
 
 登录只用于识别身份：GitHub 账号**没有**对应到论坛成员，论坛 store 里的会话仍固定为游客。发帖、回复、点赞、书签、通知和资料修改都没有后端；`/new`、`/bookmarks`、`/notifications`、偏好设置页对游客显示「……还没开放」「……正在接入」，不给登录按钮，话题页最后一帖下方对游客显示「回复还没开放」。每一帖上的「赞」「书签」和个人页的「关注」按钮仍然显示，点了弹 toast「现在还不能操作」，说明发帖、回复、点赞和收藏正在接入。论坛状态与会话不写 localStorage（侧栏、主题等 UI 偏好仍存浏览器），附件经 `/api/local-forum/assets/<hash>` 只读提供并支持单段 Range，加载失败显示错误而不回退示例。
 
-极客班论坛（`mode: site`，预发布与正式镜像用 `GEEK_FORUM_SOURCE=site` 构建）：站名「极客班论坛」，分类和标签来自 `app/forum/content/curation.json`，没有帖子、用户、通知，也没有上游示例内容；页面、`/llms.txt` 都按这份状态生成（`llms.txt` 写明还没有话题，不生成 `t/<id>.md`），浏览器里不读也不写论坛状态和会话。
+极客班论坛（`mode: site`，预发布与正式镜像用 `GEEK_FORUM_SOURCE=site` 构建）：站名「极客班论坛」，分类和标签来自 `app/forum/content/curation.json`，帖子只有 `app/forum/content/published` 里公开的旧帖（只有首帖，作者是「极客班」），没有回复、其他用户、通知，也没有上游示例内容；页面、`/llms.txt` 与每篇公开旧帖的 `t/<id>.md` 都按这份状态生成，浏览器里不读也不写论坛状态和会话。
 
 示例种子（`mode: browser-demo`，`forum:generate` 默认用它）只决定内容。只有 `forum.mjs verify` 与没有快照目录的 `start`/`dev` 设 `GEEK_FORUM_LOGIN=demo`，保留上游模拟身份选择及 localStorage，顶栏是示例的「登录」；默认的 `forum:generate` 是统一登录，不恢复浏览器里存过的示例会话，内容仍是上游示例帖子。发帖/回复/收藏等交互只改变本浏览器演示数据；换浏览器不会共享，清理浏览器存储或使用上游重置功能会丢失示例修改。停止 Nuxt 进程不会主动清空浏览器存储。请勿输入真实凭据、患者/学生资料或需要保留的数据。
 

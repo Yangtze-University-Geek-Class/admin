@@ -71,6 +71,16 @@ python3 scripts/forum-migration/verify.py \
 
 初次只用 mode=ro 打开冻结 WAL 模式镜像时，本机 SQLite 返回 unable to open database file。随后使用只适用于冻结备份的 `mode=ro&immutable=1` 成功执行完整核验和内存恢复；未修改备份，也未将此选项用于正在写入的线上库。校验不是业务功能验收，也不是完整数据库迁移演练。
 
+## 公开导出（#87）
+
+快照本身不入库。要把其中几篇放到线上极客班论坛，只能走一条路：在 `app/forum/content/published/manifest.json` 里列出话题编号、类别、标签和替换规则，再运行
+
+```bash
+node scripts/forum-migration/export-published.mjs .tools/forum-runtime/geek-20260913 --fetch
+```
+
+`--fetch` 只在清单要编辑的外链原图还没下载时联网一次，按清单里的 SHA-256 核对后存到快照的 `external/` 下；之后不加它也能离线重跑。它只读快照，写出 `app/forum/content/published/topics.json` 和 `app/forum/public/published/*.webp`，并把每篇改了什么（站内链接、不公开的链接、去掉的链接、换掉的图片、替换次数）打印到终端，这份记录不入库，贴进 PR 的审查里。入库前逐篇核对正文和图片里没有账号、密码、令牌、邮箱、手机号和真实姓名；外链图片同样要看。作者统一写「极客班」，旧论坛的昵称和用户名不导出，回复不导出。字段和改写规则见 [forum 合同](../services/forum/README.md)「公开的旧帖」。
+
 ## 敏感性和禁止操作
 
 完整源库包含用户私有字段以及历史会话/凭据记录，必须作为敏感备份保管；这些记录没有被激活为新论坛登录态。备份仅存于用户 Mac，不上传聊天附件、Git、CI 缓存或 Actions artifacts，不放入 Nuxt public、浏览器 localStorage、演示种子或发布包。没有抓取无关项目、组织管理库、服务器日志或应用密钥。

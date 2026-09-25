@@ -1,4 +1,5 @@
 import { toast } from '@talex-touch/tuffex/utils'
+import { publishedTopicIds } from '../../shared/published'
 import { signinOutcomes } from '../../shared/signin-outcomes'
 
 /**
@@ -51,7 +52,7 @@ export function useSiteAccount() {
     outcomeShown.value = true
     const raw = route.query.signin
     // 登录没成功的原因在这里说明一次，然后把参数从地址里拿掉，刷新页面不会重复提示。
-    const outcomes = signinOutcomes({ hasPosts: !useContentSource().isSite })
+    const outcomes = signinOutcomes({ hasPosts: !useContentSource().isSite || publishedTopicIds().length > 0 })
     const outcome = typeof raw === 'string' ? outcomes[raw] : undefined
     if (raw === undefined)
       return

@@ -1,0 +1,72 @@
+{
+  "$comment": "从旧论坛快照公开到极客班论坛的话题（#87）。改这里后运行 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<source> 重新生成 topics.json 和 public/published/ 下的图片。withheld 是不公开的话题：指向它们的链接变成「这篇没有公开」。images 按旧正文里写的图片地址处理：drop 换成一句括号说明，cover 用灰块盖住矩形（原图像素 [左, 上, 宽, 高]），crop 裁掉四边；要编辑的外链图写原图 sha256，第一次导出加 --fetch 下载到快照的 external/ 下。redactions 按话题替换正文，count 是应命中的次数，对不上导出就停；替换规则里不能写被去掉的原文。",
+  "schemaVersion": 1,
+  "source": "geek-20260913",
+  "author": {
+    "id": "u-geekclass",
+    "username": "geekclass",
+    "displayName": "极客班",
+    "bio": "极客班官方账号。旧论坛的文档先以它的名义放出，原作者以后可以认领。",
+    "avatarColor": "#2f6fed",
+    "role": "admin"
+  },
+  "topics": [
+    { "id": "t73", "categoryId": "c-exam", "tagIds": ["tag-grade25"], "pinned": true },
+    { "id": "t72", "categoryId": "c-exam", "tagIds": ["tag-grade25"], "pinned": false },
+    { "id": "t71", "categoryId": "c-exam", "tagIds": ["tag-grade25"], "pinned": false },
+    { "id": "t9", "categoryId": "c-exam", "tagIds": ["tag-grade24"], "pinned": true },
+    { "id": "t35", "categoryId": "c-exam", "tagIds": ["tag-grade24"], "pinned": false },
+    { "id": "t6", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t7", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t8", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t10", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t11", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t12", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t13", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t16", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t25", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false }
+  ],
+  "withheld": ["t5", "t15"],
+  "images": [
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040900356.png", "sha256": "5d2ab8170e59341189f993913dade439584034aeea990d598818cd222daf56cf", "crop": { "top": 116 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040904581.png", "sha256": "3185dff0bd65deb730634ba865ffcfac197de6b5f500ab91c9a49e568817fd07", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040905136.png", "sha256": "7695f97f95b745ed541e9bfdb5d62bb8868c494d40701e082c753281a34911bf", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040907259.png", "sha256": "db2bbb0991fb460859d716fa94edb8274f2f4475aae7adf7c5c2b73cc8a06399", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040908326.png", "sha256": "33cd7e689aafcb757e549852350b1420c5ff032c725c3b73d5a36344ba80002c", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409040909520.png", "sha256": "189f30827f951a62f8d65a4270e84ed3a2803c4ab7854c43f42485912b25397f", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409041850822.png", "sha256": "33fada4e8cd38e0141d28c021f04bc9934fe919c1922c71b07b7ea6740f1df7b", "crop": { "top": 116 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202410082339782.png", "sha256": "0b9f230e1156d68f34aa47c075854009c67226441b81896e823f719da9052635", "crop": { "top": 112 } },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202410082304792.png", "sha256": "a1fc35789b39e5ed62fc2ab5fd5c1a0932b14354c58d14d2c3252e2d6f055277", "crop": { "top": 116, "left": 266 } },
+    { "source": "/api/local-forum/assets/a76e34288aa563dc7a3fc9d93397ca0df12361c917fd112c45059b19aeff4345", "cover": [[0, 56, 1920, 30]] },
+    { "source": "bbs/1760677959632_12.png", "cover": [[0, 44, 1920, 38]] },
+    { "source": "bbs/1760678111805_13.png", "cover": [[0, 42, 1920, 38]] },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251910685.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251910176.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251936487.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251926864.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251927124.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251929847.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251930617.png", "drop": "这张截图没有公开" },
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251930898.png", "drop": "这张截图没有公开" }
+  ],
+  "redactions": [
+    {
+      "topic": "t73",
+      "pattern": "（\\*\\*账户\\*\\*：[^）]*）左边是提供的共享账户",
+      "replacement": "（共享账户找班长要）",
+      "count": 1
+    },
+    {
+      "topic": "t9",
+      "pattern": "下面给出其他两个的教程，然后教程文档默认是给的GPT的教程\\n\\n\\*\\*Gemini：[^\\n]*\\n\\n\\*\\*Claude：[^\\n]*\\n\\n",
+      "replacement": "",
+      "count": 1
+    },
+    {
+      "topic": "t35",
+      "pattern": "#### 2、代理配置 \\+ 国外大模型账户注册和使用",
+      "replacement": "#### 2、国外大模型账户注册和使用",
+      "count": 1
+    }
+  ]
+}
