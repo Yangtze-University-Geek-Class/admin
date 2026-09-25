@@ -46,6 +46,34 @@ test("legacy /apply redirects to the join-us letter", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
 });
 
+const PROMO_CDN = "https://cdn.crosery.com/yzgc/static/promo/**";
+
+test("first visit to join-us never gets stuck behind the promo: whatever the player does, the letter opens", async ({ page }) => {
+  // beforeEach 已经拦掉所有外部请求：能播就加载失败，播不了就直接放行，两种都必须进到信纸。
+  await page.goto("/sites/portal/join-us");
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("dialog", { name: "极客班宣传片" })).toHaveCount(0);
+});
+
+test("the promo can be skipped on the first visit and does not autoplay again", async ({ page, context }) => {
+  await page.goto("/sites/portal/docs");
+  const canPlay = await page.evaluate(() => typeof MediaSource !== "undefined" && MediaSource.isTypeSupported('video/mp4; codecs="avc1.640029, mp4a.40.2"'));
+  test.skip(!canPlay, "这个 Chromium 没有 H.264/AAC：播放层走「播不了就放行」，由上一条用例覆盖");
+  // CDN 挂起不应答：播放层停在加载中，等人点「跳过」
+  await page.route(PROMO_CDN, () => {});
+  await page.goto("/sites/portal/join-us");
+  const promo = page.getByRole("dialog", { name: "极客班宣传片" });
+  await expect(promo).toBeVisible();
+  await expect(page.getByRole("button", { name: /跳过/ })).toBeFocused();
+  await page.getByRole("button", { name: /跳过/ }).click();
+  await expect(promo).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
+  expect((await context.cookies()).find((cookie) => cookie.name === "yugc_promo_seen")?.value).toBe("1");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
+  await expect(promo).toHaveCount(0);
+});
+
 test("console navigation follows the persona's capabilities", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "控制台导航" });
   await openConsole(page, "/console", "captain");

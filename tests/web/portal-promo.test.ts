@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest";
+import { OS_APPS } from "../../app/web/sites/portal/lib/osApps";
+import { PROMO, PROMO_BASE, PROMO_COOKIE, choosePlayback, clock, firstSegment, hasSeenPromo, promoCookie, startVariant } from "../../app/web/sites/portal/lib/promo";
+
+describe("宣传片：只自动播一次的 cookie", () => {
+  it("只认 yugc_promo_seen=1 这一个完整的键值", () => {
+    expect(hasSeenPromo("")).toBe(false);
+    expect(hasSeenPromo("sid=abc; yugc_promo_seen=1")).toBe(true);
+    expect(hasSeenPromo("yugc_promo_seen=1")).toBe(true);
+    expect(hasSeenPromo("yugc_promo_seen=0")).toBe(false);
+    expect(hasSeenPromo("xyugc_promo_seen=1")).toBe(false);
+    expect(hasSeenPromo("yugc_promo_seen=10")).toBe(false);
+  });
+
+  it("host-only、一年、全站路径、Lax；https 下带 Secure；只有一个 1，不带任何个人信息", () => {
+    const secure = promoCookie(true);
+    expect(secure).toBe(`${PROMO_COOKIE}=1; Max-Age=31536000; Path=/; SameSite=Lax; Secure`);
+    expect(promoCookie(false)).not.toContain("Secure");
+    expect(secure).not.toMatch(/domain=/i);
+  });
+});
+
+describe("宣传片：挑播放方式", () => {
+  const none = { mse: false, mseAv1Smooth: false, native: false, nativeAv1: false };
+
+  it("有 MediaSource 就用 hls.js；AV1 只在流畅时用，否则 H.264", () => {
+    expect(choosePlayback({ ...none, mse: true, mseAv1Smooth: true })).toEqual({ engine: "hls.js", codec: "av1", src: PROMO.masters.av1 });
+    expect(choosePlayback({ ...none, mse: true })).toEqual({ engine: "hls.js", codec: "h264", src: PROMO.masters.h264 });
+    // 同时能原生播也先走 hls.js
+    expect(choosePlayback({ mse: true, mseAv1Smooth: false, native: true, nativeAv1: true })?.engine).toBe("hls.js");
+  });
+
+  it("没有 MediaSource 时退到原生 HLS（老 iOS、微信）；两条路都没有就不播", () => {
+    expect(choosePlayback({ ...none, native: true, nativeAv1: true })).toEqual({ engine: "native", codec: "av1", src: PROMO.masters.av1 });
+    expect(choosePlayback({ ...none, native: true })).toEqual({ engine: "native", codec: "h264", src: PROMO.masters.h264 });
+    expect(choosePlayback(none)).toBeNull();
+  });
+
+  it("所有地址都在七牛 CDN 的 yzgc/static/promo/<版本>-<内容哈希>/ 下", () => {
+    expect(PROMO_BASE).toMatch(/^https:\/\/cdn\.crosery\.com\/yzgc\/static\/promo\/[a-z0-9-]+-[0-9a-f]{12}\/$/);
+    for (const url of [PROMO.masters.av1, PROMO.masters.h264, PROMO.poster]) expect(url.startsWith(PROMO_BASE)).toBe(true);
+    expect(PROMO.masters.av1).toMatch(/master-av1\.m3u8$/);
+    expect(PROMO.masters.h264).toMatch(/master-h264\.m3u8$/);
+  });
+
+  it("进度文案", () => {
+    expect(clock(0)).toBe("0:00");
+    expect(clock(65.9)).toBe("1:05");
+    expect(clock(PROMO.seconds)).toBe("1:45");
+    expect(clock(Number.NaN)).toBe("0:00");
+    expect(clock(-3)).toBe("0:00");
+  });
+});
+
+describe("宣传片：桌面应用", () => {
+  it("桌面上有「宣传片」，打开的是全屏面板，不是主入口、没有快捷键", () => {
+    const promo = OS_APPS.find((app) => app.id === "promo");
+    expect(promo).toMatchObject({ name: "宣传片", icon: "film-line", open: { kind: "panel", panel: "promo" } });
+    expect(promo?.key).toBeUndefined();
+    expect(promo?.primary).toBeUndefined();
+    expect(OS_APPS.find((app) => app.id === "wallpaper")?.open).toEqual({ kind: "panel", panel: "wallpaper" });
+    // 三个主入口仍排在最前
+    expect(OS_APPS.slice(0, 4).map((app) => app.id)).toEqual(["join", "forum", "github", "promo"]);
+  });
+});
+
+describe("宣传片：起播那一段的预取地址", () => {
+  const master = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:7",
+    '#EXT-X-STREAM-INF:BANDWIDTH=2151112,AVERAGE-BANDWIDTH=1376527,CODECS="avc1.64001f,mp4a.40.2",RESOLUTION=1280x720',
+    "h264_720/index.m3u8",
+    '#EXT-X-STREAM-INF:BANDWIDTH=1227252,AVERAGE-BANDWIDTH=844947,CODECS="avc1.64001e,mp4a.40.2",RESOLUTION=854x480',
+    "h264_480/index.m3u8",
+    '#EXT-X-STREAM-INF:BANDWIDTH=3660452,CODECS="avc1.640029,mp4a.40.2",RESOLUTION=1920x1080',
+    "h264_1080/index.m3u8",
+  ].join("\n");
+
+  it("挑码率最低的一档（播放器 startLevel 0 起播的就是它），地址相对 master 解析", () => {
+    expect(startVariant(master, PROMO.masters.h264)).toBe(`${PROMO_BASE}h264_480/index.m3u8`);
+    expect(startVariant("#EXTM3U\n", PROMO.masters.h264)).toBeNull();
+  });
+
+  it("取初始化段与第一个分片", () => {
+    const level = `${PROMO_BASE}av1_720/index.m3u8`;
+    const playlist = ["#EXTM3U", "#EXT-X-TARGETDURATION:4", '#EXT-X-MAP:URI="init.mp4"', "#EXTINF:4.000000,", "seg_000.m4s", "#EXTINF:4.000000,", "seg_001.m4s", "#EXT-X-ENDLIST"].join("\n");
+    expect(firstSegment(playlist, level)).toEqual({ init: `${PROMO_BASE}av1_720/init.mp4`, segment: `${PROMO_BASE}av1_720/seg_000.m4s` });
+    expect(firstSegment("#EXTM3U\n#EXT-X-ENDLIST", level)).toEqual({ init: null, segment: null });
+  });
+});

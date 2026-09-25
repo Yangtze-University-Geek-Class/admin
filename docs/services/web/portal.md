@@ -32,6 +32,7 @@
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
 | `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
+| `lib/promo.ts`、`components/PromoPlayer.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
 | `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
@@ -65,6 +66,19 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 ## 加入我们（投递）
 
 `POST /api/portal/apply` 匿名可提交，准入与邀请落地共用（蜜罐 + PoW + 可选 Turnstile），落库 `applications` 表并写审计；接口细节见 [API](../../architecture/API.md)。前端 PoW 指纹与后端逐字一致：`apply:<姓名>:<邮箱>`（均为 trim 后取值），`pow` 只发 `{ timestamp, nonce }`（`powProof`）。提交成功后才开始折信、封口、投递动画，回执显示服务端返回的编号、时间和原文消息；失败时信纸留在原位并显示错误，不做假成功。
+
+## 宣传片
+
+所有者 2026-09-25：「点击投递简历的时候第一次默认会播放这个宣传视频，要求进行分片让人无感大小快速播放，也可以选择去进行跳过，只播放一次，跟随浏览器 cookie 走，也可以在桌面里面看到这个宣传片点击再次播放。」（#77）
+
+- **什么时候播**：`pages/JoinUs.tsx` 挂载时看 cookie `yugc_promo_seen`，没有就先挂全屏播放层，播完或跳过才开始信封动画。所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。cookie 是 host-only、一年、`Path=/`、`SameSite=Lax`（https 下 `Secure`），值只有 `1`。真正开始播放、跳过、播完或浏览器根本播不了时写入；加载失败不写，下次再试。
+- **桌面重看**：`lib/osApps.ts` 的「宣传片」应用（`{ kind: "panel", panel: "promo" }`）在桌面上打开同一个播放层，不读也不写 cookie。
+- **片源**：七牛 CDN `https://cdn.crosery.com/yzgc/static/promo/v5-tone-c70f489a19e9/`，地址只在 `lib/promo.ts` 的 `PROMO_BASE`。AV1 10-bit 两档（720p、1080p）与 H.264 三档（480p、720p、1080p）各一份 master（`master-av1.m3u8`、`master-h264.m3u8`），fMP4 分片 4 秒一段、所有档位关键帧对齐，另有封面 `poster.jpg`。画质参数沿用所有者片子目录 `qa/verification.md` 交付的 web264-28 与 av1-46；分片包由片子目录里的 `scripts/package-hls.sh` 生成、`scripts/qiniu-promo.mjs` 上传（insertOnly，只写 `yzgc/static/promo/` 下），不进 Git。路径带内容哈希，CDN 缓存一年；换片子就换目录并改 `PROMO_BASE`。
+- **挑播放方式**（`choosePlayback`）：有 MediaSource（含 iOS 17.1+ 的 ManagedMediaSource）就用 hls.js，AV1 只在 `MediaSource.isTypeSupported` 且 `mediaCapabilities` 说 1080p 流畅时用，否则 H.264；没有 MediaSource 时退到原生 HLS（老 iOS、微信），`canPlayType` 对 AV1 是 `probably` 才用 AV1；两条路都没有就不播、直接进信纸。hls.js 从码率最低的一档起播（`startLevel: 0`），不开 worker（fMP4 不需要转封装，也不用给 CSP 加 `worker-src`）。hls.js 是独立分包（gzip 约 186KB），只在要播时加载。
+- **声音与减少动态效果**：先带声音自动播；浏览器不让就静音播并显示「打开声音」；静音也不让、或开了减少动态效果，就停在封面等人点「播放宣传片」。
+- **起播预取**：桌面出现、这个浏览器还没看过宣传片、没开省流量时，先 preconnect CDN，空闲时预取「加入我们」页、播放器、hls.js 分包，以及起播那一档的 master、播放列表、初始化段与第一个分片（约 0.5–0.8MB）。点「加入我们」后这些都从缓存来。
+- **CSP 与防盗链**：宿主 nginx 的站点策略 `media-src` 与 `connect-src` 放行 `https://cdn.crosery.com`（见 [DEPLOY](../../ops/DEPLOY.md)）；CDN 按 Referer 只放行本站域名、`localhost` 与空 Referer，**本机开发要用 `http://localhost:5173` 打开**，用 `127.0.0.1` 时 CDN 返回 403，播放层按「加载失败」直接放行到信纸。
+- **2026-09-26 实测**（ego-browser 内置 Chromium，M4 Pro，生产构建在 `localhost` 上，CDP 限速 Fast 4G = 9 Mbps / RTT 150ms）：在桌面停留、预取完成后按 1 打开「加入我们」，从按键到第一帧 587–628ms（三次，含 520ms 图标飞行动画），AV1，带声音。刚到桌面就立刻点（预取没做完）或直接打开 `/join-us`：播放层出现后 1.7–2.1s 出第一帧；Slow 4G（1.6 Mbps / RTT 560ms）约 8s。Safari（macOS、iOS）与微信内置浏览器未测。
 
 ## 性能预算
 

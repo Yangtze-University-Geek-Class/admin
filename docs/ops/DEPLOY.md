@@ -163,7 +163,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 ## 最小权限
 
 - 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
-- 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。唯一例外是论坛页面的 CSP：论坛容器下发站点策略加上论坛内联脚本的哈希，宿主模板开头的 `map` 只在 `/forum/` 下、上游已带 CSP 时不再叠加第二份，其它路径照发站点策略（#78）。改宿主模板后要重新安装到服务器（只装对应环境那一份，先备份、`nginx -t` 再 reload），这一步不在 CI 里；发版后经公网确认 `/forum/` 只有一条带 `sha256-` 的 CSP（部署脚本的健康检查不经过宿主 nginx，查不出来）。
+- 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。唯一例外是论坛页面的 CSP：论坛容器下发站点策略加上论坛内联脚本的哈希，宿主模板开头的 `map` 只在 `/forum/` 下、上游已带 CSP 时不再叠加第二份，其它路径照发站点策略（#78）。站点策略的 `media-src` 与 `connect-src` 放行 `https://cdn.crosery.com`（官网宣传片是 HLS，hls.js 用 XHR 取分片、以 `blob:` 地址交给 `<video>`，#77）。改宿主模板后要重新安装到服务器（只装对应环境那一份，先备份、`nginx -t` 再 reload），这一步不在 CI 里；发版后经公网确认 `/forum/` 只有一条带 `sha256-` 的 CSP（部署脚本的健康检查不经过宿主 nginx，查不出来）。
 - 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
 - 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料；incoming 里分发来的归档与 env 副本在部署成功后删除（见「incoming 清理」）。
 

@@ -4,8 +4,10 @@
 // PoW 指纹 `apply:<姓名>:<邮箱>`（trim 后）与后端逐字一致；没有 mock 分支，也不做假成功。
 // 画面顺序：信封飞入停在正中 → 封舌打开 → 信纸抽出 → 镜头推近、信纸落到屏幕正中并展平（此时换成 DOM 表单）
 // → 提交成功后信纸在原位折两道、塞回信封、封口盖火漆 → 信封飞进一侧的信箱，小旗弹起 → 回执。
+// 这个浏览器第一次进来时先全屏播宣传片（#77，能跳过），播完或跳过才开始信封动画；之后靠 cookie 不再自动播。
+// 所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
@@ -13,10 +15,13 @@ import { computePow, powProof } from "@shared/lib/pow";
 import Icon from "../components/Icon";
 import SceneBar from "../components/SceneBar";
 import { RESUME_DESKTOP } from "../lib/links";
-import { useReducedMotion } from "../lib/useReducedMotion";
+import { hasSeenPromo, promoCookie } from "../lib/promo";
+import { useInert, useReducedMotion } from "../lib/useReducedMotion";
 import type { JoinHandle, JoinPhase } from "../three/join";
 import "../styles/portal.css";
 import "../styles/scenes.css";
+
+const PromoPlayer = lazy(() => import("../components/PromoPlayer"));
 
 type FormState = { name: string; className: string; email: string; strengths: string; website: string };
 type FieldName = "name" | "className" | "email" | "strengths";
@@ -47,6 +52,8 @@ export function validateJoin(form: FormState): FieldErrors {
 
 export default function JoinUs() {
   const reducedMotion = useReducedMotion();
+  const [promo, setPromo] = useState(() => typeof document !== "undefined" && !hasSeenPromo(document.cookie));
+  const page = useInert<HTMLDivElement>(promo);
   const canvas = useRef<HTMLCanvasElement>(null);
   const letter = useRef<HTMLFormElement>(null);
   const scene = useRef<JoinHandle | null>(null);
@@ -75,6 +82,7 @@ export default function JoinUs() {
   const onPhase = useCallback((next: JoinPhase) => setPhase(next), []);
 
   useEffect(() => {
+    if (promo) return;
     let cancelled = false;
     (async () => {
       try {
@@ -104,8 +112,8 @@ export default function JoinUs() {
       scene.current?.dispose();
       scene.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载时建一次场景
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 场景只建一次：没有宣传片时挂载就建，有宣传片时等它结束（promo 只会从 true 变 false）
+  }, [promo]);
 
   const writing = phase === "writing";
   useEffect(() => {
@@ -184,130 +192,143 @@ export default function JoinUs() {
   const count = form.strengths.trim().length;
   const letterOn = writing && !receipt;
   return (
-    <div className="pt-root pt-scene pt-join" data-phase={phase}>
-      <canvas ref={canvas} className="pt-scene-canvas" aria-hidden="true" />
-      <SceneBar />
+    <>
+      <div ref={page} className="pt-root pt-scene pt-join" data-phase={phase}>
+        <canvas ref={canvas} className="pt-scene-canvas" aria-hidden="true" />
+        <SceneBar />
 
-      <section className={phase === "arrive" || phase === "open" ? "pt-intro" : "pt-intro is-away"} aria-labelledby="pt-join-title">
-        <h1 id="pt-join-title">加入我们</h1>
-        <p>给极客班写一封信，写上姓名、班级、邮箱，再说说你会什么、想做什么。寄出之后，我们用邮件联系你。</p>
-      </section>
+        <section className={phase === "arrive" || phase === "open" ? "pt-intro" : "pt-intro is-away"} aria-labelledby="pt-join-title">
+          <h1 id="pt-join-title">加入我们</h1>
+          <p>给极客班写一封信，写上姓名、班级、邮箱，再说说你会什么、想做什么。寄出之后，我们用邮件联系你。</p>
+        </section>
 
-      <form ref={letter} className={letterOn ? "pt-letter is-on" : "pt-letter"} noValidate aria-labelledby="pt-letter-title" onSubmit={submit} onKeyDown={onKeyDown} aria-hidden={!letterOn}>
-        <header className="pt-letter-head">
-          <h2 id="pt-letter-title">致 长江大学极客班：</h2>
-          <img src={appConfig.portal.brand.logo} alt="" width={44} height={44} />
-        </header>
-        <div className="pt-letter-row">
+        <form ref={letter} className={letterOn ? "pt-letter is-on" : "pt-letter"} noValidate aria-labelledby="pt-letter-title" onSubmit={submit} onKeyDown={onKeyDown} aria-hidden={!letterOn}>
+          <header className="pt-letter-head">
+            <h2 id="pt-letter-title">致 长江大学极客班：</h2>
+            <img src={appConfig.portal.brand.logo} alt="" width={44} height={44} />
+          </header>
+          <div className="pt-letter-row">
+            <label className="pt-lf">
+              <span>姓名</span>
+              <input name="name" value={form.name} onChange={update("name")} autoComplete="name" placeholder="怎么称呼你" maxLength={40} aria-invalid={errors.name ? true : undefined} aria-describedby={errors.name ? "lf-name-err" : undefined} />
+              {errors.name && (
+                <em id="lf-name-err" role="alert">
+                  {errors.name}
+                </em>
+              )}
+            </label>
+            <label className="pt-lf">
+              <span>班级</span>
+              <input name="className" value={form.className} onChange={update("className")} autoComplete="organization" placeholder="例如 计科 2301 班" maxLength={40} aria-invalid={errors.className ? true : undefined} aria-describedby={errors.className ? "lf-class-err" : undefined} />
+              {errors.className && (
+                <em id="lf-class-err" role="alert">
+                  {errors.className}
+                </em>
+              )}
+            </label>
+          </div>
           <label className="pt-lf">
-            <span>姓名</span>
-            <input name="name" value={form.name} onChange={update("name")} autoComplete="name" placeholder="怎么称呼你" maxLength={40} aria-invalid={errors.name ? true : undefined} aria-describedby={errors.name ? "lf-name-err" : undefined} />
-            {errors.name && (
-              <em id="lf-name-err" role="alert">
-                {errors.name}
+            <span>邮箱</span>
+            <input name="email" type="email" value={form.email} onChange={update("email")} autoComplete="email" placeholder="name@example.com" maxLength={120} aria-invalid={errors.email ? true : undefined} aria-describedby={errors.email ? "lf-email-err" : "lf-email-hint"} />
+            {errors.email ? (
+              <em id="lf-email-err" role="alert">
+                {errors.email}
               </em>
+            ) : (
+              <small id="lf-email-hint">只用来联系你，不会公开</small>
             )}
           </label>
           <label className="pt-lf">
-            <span>班级</span>
-            <input name="className" value={form.className} onChange={update("className")} autoComplete="organization" placeholder="例如 计科 2301 班" maxLength={40} aria-invalid={errors.className ? true : undefined} aria-describedby={errors.className ? "lf-class-err" : undefined} />
-            {errors.className && (
-              <em id="lf-class-err" role="alert">
-                {errors.className}
+            <span>你会什么，想做什么</span>
+            <textarea
+              name="strengths"
+              rows={5}
+              value={form.strengths}
+              onChange={update("strengths")}
+              maxLength={2000}
+              placeholder="做过的项目、参加过的比赛、课程作业、自己写的小工具都可以写。"
+              aria-invalid={errors.strengths ? true : undefined}
+              aria-describedby={errors.strengths ? "lf-str-err" : "lf-str-count"}
+            />
+            {errors.strengths ? (
+              <em id="lf-str-err" role="alert">
+                {errors.strengths}
               </em>
+            ) : (
+              <small id="lf-str-count">
+                <span className="pt-num">{count}</span> / 2000 字，至少 10 字
+              </small>
             )}
           </label>
-        </div>
-        <label className="pt-lf">
-          <span>邮箱</span>
-          <input name="email" type="email" value={form.email} onChange={update("email")} autoComplete="email" placeholder="name@example.com" maxLength={120} aria-invalid={errors.email ? true : undefined} aria-describedby={errors.email ? "lf-email-err" : "lf-email-hint"} />
-          {errors.email ? (
-            <em id="lf-email-err" role="alert">
-              {errors.email}
-            </em>
-          ) : (
-            <small id="lf-email-hint">只用来联系你，不会公开</small>
-          )}
-        </label>
-        <label className="pt-lf">
-          <span>你会什么，想做什么</span>
-          <textarea
-            name="strengths"
-            rows={5}
-            value={form.strengths}
-            onChange={update("strengths")}
-            maxLength={2000}
-            placeholder="做过的项目、参加过的比赛、课程作业、自己写的小工具都可以写。"
-            aria-invalid={errors.strengths ? true : undefined}
-            aria-describedby={errors.strengths ? "lf-str-err" : "lf-str-count"}
-          />
-          {errors.strengths ? (
-            <em id="lf-str-err" role="alert">
-              {errors.strengths}
-            </em>
-          ) : (
-            <small id="lf-str-count">
-              <span className="pt-num">{count}</span> / 2000 字，至少 10 字
-            </small>
-          )}
-        </label>
-        {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
-        <div className="pt-trap" aria-hidden="true">
-          <label>
-            个人主页（不要填写）
-            <input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={update("website")} />
-          </label>
-        </div>
-        <TurnstileWidget siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileEpoch} />
-        <footer className="pt-letter-foot">
-          <button type="submit" className="pt-btn is-primary is-lg" disabled={busy !== ""}>
-            <Icon name="send-plane-2-line" size={17} />
-            {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在寄出…" : "寄出这封信"}
-            <kbd>⌘ Enter</kbd>
-          </button>
-          {status && (
-            <p className={status.kind === "error" ? "pt-letter-status is-error" : "pt-letter-status"} role="alert">
-              {status.kind === "error" && <Icon name="error-warning-line" size={15} />}
-              {status.text}
-            </p>
-          )}
-        </footer>
-      </form>
+          {/* 蜜罐字段：真人看不见也不会填，机器人会填。 */}
+          <div className="pt-trap" aria-hidden="true">
+            <label>
+              个人主页（不要填写）
+              <input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={update("website")} />
+            </label>
+          </div>
+          <TurnstileWidget siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileEpoch} />
+          <footer className="pt-letter-foot">
+            <button type="submit" className="pt-btn is-primary is-lg" disabled={busy !== ""}>
+              <Icon name="send-plane-2-line" size={17} />
+              {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在寄出…" : "寄出这封信"}
+              <kbd>⌘ Enter</kbd>
+            </button>
+            {status && (
+              <p className={status.kind === "error" ? "pt-letter-status is-error" : "pt-letter-status"} role="alert">
+                {status.kind === "error" && <Icon name="error-warning-line" size={15} />}
+                {status.text}
+              </p>
+            )}
+          </footer>
+        </form>
 
-      <div ref={receiptRef} className={phase === "done" && receipt ? "pt-receipt is-on" : "pt-receipt"} role="status" aria-live="polite">
-        {receipt && (
-          <>
-            <h2>
-              <Icon name="mail-check-line" size={20} /> 信收到了
-            </h2>
-            <p>{receipt.message}</p>
-            <dl className="pt-receipt-meta">
-              <div>
-                <dt>编号</dt>
-                <dd>
-                  <code>{receipt.id}</code>
-                </dd>
+        <div ref={receiptRef} className={phase === "done" && receipt ? "pt-receipt is-on" : "pt-receipt"} role="status" aria-live="polite">
+          {receipt && (
+            <>
+              <h2>
+                <Icon name="mail-check-line" size={20} /> 信收到了
+              </h2>
+              <p>{receipt.message}</p>
+              <dl className="pt-receipt-meta">
+                <div>
+                  <dt>编号</dt>
+                  <dd>
+                    <code>{receipt.id}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>提交时间</dt>
+                  <dd>{new Date(receipt.submitted_at).toLocaleString("zh-CN", { hour12: false })}</dd>
+                </div>
+              </dl>
+              <p className="pt-receipt-note">记下编号，之后联系我们时报上它。网站上查不到进度，请留意邮箱。</p>
+              <div className="pt-row-btns">
+                <Link className="pt-btn is-primary" to="/" state={RESUME_DESKTOP}>
+                  回到桌面
+                </Link>
+                <Link className="pt-btn" to="/forum-3d">
+                  去论坛看看
+                </Link>
+                <button type="button" className="pt-btn is-quiet" onClick={() => window.location.reload()}>
+                  再写一封
+                </button>
               </div>
-              <div>
-                <dt>提交时间</dt>
-                <dd>{new Date(receipt.submitted_at).toLocaleString("zh-CN", { hour12: false })}</dd>
-              </div>
-            </dl>
-            <p className="pt-receipt-note">记下编号，之后联系我们时报上它。网站上查不到进度，请留意邮箱。</p>
-            <div className="pt-row-btns">
-              <Link className="pt-btn is-primary" to="/" state={RESUME_DESKTOP}>
-                回到桌面
-              </Link>
-              <Link className="pt-btn" to="/forum-3d">
-                去论坛看看
-              </Link>
-              <button type="button" className="pt-btn is-quiet" onClick={() => window.location.reload()}>
-                再写一封
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+      {promo && (
+        <Suspense fallback={null}>
+          <PromoPlayer
+            mode="gate"
+            onSeen={() => {
+              document.cookie = promoCookie(window.location.protocol === "https:");
+            }}
+            onClose={() => setPromo(false)}
+          />
+        </Suspense>
+      )}
+    </>
   );
 }

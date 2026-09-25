@@ -1,17 +1,20 @@
 // YUGC OS：开机后的「极客班内部系统」，按桌面操作系统来排：菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）、
 // 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
-// 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
 import { links } from "../../lib/links";
 import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
+import { choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
 import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Wallpaper } from "../../lib/wallpapers";
 import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
+
+const PromoPlayer = lazy(() => import("../PromoPlayer"));
 
 type Props = {
   /** 桌面是否在前台（开机画面播完）；为 false 时不响应快捷键 */
@@ -44,6 +47,7 @@ export default function YugcOs({ active, onBack }: Props) {
   });
   const [wallpaper, setWallpaper] = useState<Wallpaper>(() => readWallpaperChoice());
   const [picker, setPicker] = useState(false);
+  const [promo, setPromo] = useState(false);
   const pickerBox = useRef<HTMLDivElement>(null);
   // 打开面板时把焦点放到当前壁纸上；preventScroll：autoFocus 会让浏览器滚动整个桌面去「露出」按钮，桌面整体上移
   useEffect(() => {
@@ -129,7 +133,8 @@ export default function YugcOs({ active, onBack }: Props) {
           window.location.assign(links.console());
           return;
         case "panel":
-          setPicker(true);
+          if (app.open.panel === "promo") setPromo(true);
+          else setPicker(true);
           return;
         case "scene":
           return launchScene(app, from);
@@ -158,7 +163,7 @@ export default function YugcOs({ active, onBack }: Props) {
 
   // 键盘：⌘K 启动器、Esc 逐层关闭、1/2/3 打开主入口
   useEffect(() => {
-    if (!active) return;
+    if (!active || promo) return;
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -184,11 +189,44 @@ export default function YugcOs({ active, onBack }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, front, launcher, menu, onBack, open]);
+  }, [active, front, launcher, menu, onBack, open, promo]);
 
   useEffect(() => {
     if (launcher) launcherInput.current?.focus();
   }, [launcher]);
+
+  // 还没看过宣传片的人接下来多半点「加入我们」：桌面出现时就和 CDN 握手，空闲时预取「加入我们」页、播放器、
+  // hls.js 分包和起播那一段（#77 验收：点下去 1 秒内出第一帧）。开了省流量就只握手。
+  useEffect(() => {
+    if (!active || hasSeenPromo(document.cookie)) return;
+    preconnectPromo();
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (connection?.saveData) return;
+    let cancelled = false;
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200));
+    idle(() => {
+      if (cancelled) return;
+      void Promise.all([import("../../pages/JoinUs"), import("../PromoPlayer"), import("hls.js")])
+        .then(() => detectCapabilities(document.createElement("video")))
+        .then((caps) => {
+          const choice = choosePlayback(caps);
+          if (choice && !cancelled) return prefetchPromoStart(choice.codec);
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+
+  // 宣传片盖住桌面时桌面不可聚焦、不可点（播放层挂在桌面外面）
+  useEffect(() => {
+    if (root.current) root.current.inert = promo;
+  }, [promo]);
+  const closePromo = () => {
+    setPromo(false);
+    window.setTimeout(() => root.current?.querySelector<HTMLElement>('[data-cta="promo"]')?.focus({ preventScroll: true }), 0);
+  };
 
   const MENUS: Record<MenuName, Array<{ label: string; run: () => void; key?: string } | null>> = {
     system: [{ label: "关于极客班", run: () => open("about") }, { label: "组织架构", run: () => open("org") }, null, { label: "回到书桌", run: onBack, key: "Esc" }],
@@ -220,217 +258,224 @@ export default function YugcOs({ active, onBack }: Props) {
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false });
 
   return (
-    <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
-      <header className="pt-mb" aria-label="菜单栏">
-        <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
-          <img src={appConfig.portal.brand.logo} alt="" />
-        </button>
-        <b className="pt-mb-app">{frontName}</b>
-        {(["go", "window", "help"] as const).map((name) => (
-          <button key={name} type="button" className="pt-mb-item" data-menu aria-haspopup="menu" aria-expanded={menu?.name === name} onClick={(e) => toggleMenu(name, e.currentTarget)}>
-            {{ go: "前往", window: "窗口", help: "帮助" }[name]}
+    <>
+      <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
+        <header className="pt-mb" aria-label="菜单栏">
+          <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
+            <img src={appConfig.portal.brand.logo} alt="" />
           </button>
-        ))}
-        <span className="pt-mb-spacer" />
-        <button type="button" className="pt-mb-search" onClick={() => setLauncher(true)}>
-          <Icon name="search-line" size={14} />
-          <span>搜索</span>
-          <kbd>⌘K</kbd>
-        </button>
-        <span className="pt-mb-stat" aria-hidden="true">
-          <Icon name="wifi-line" size={15} />
-        </span>
-        {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台 / 退出） */}
-        {account ? (
-          <button type="button" className="pt-mb-account" data-menu aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
-            {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={15} />}
-            <span>{account.login}</span>
-          </button>
-        ) : (
-          loaded && (
-            <a className="pt-mb-signin" href={signInHref()}>
-              <Icon name="github-line" size={15} />
-              <span>用 GitHub 登录</span>
-            </a>
-          )
-        )}
-        <span className="pt-mb-clock">{time}</span>
-      </header>
-      {menu && (
-        <div className="pt-menu" role="menu" style={{ left: menu.left }}>
-          {MENUS[menu.name].map((item, index) =>
-            item ? (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                autoFocus={index === 0}
-                onClick={() => {
-                  setMenu(null);
-                  item.run();
-                }}
-              >
-                {item.label}
-                {item.key && <kbd>{item.key}</kbd>}
-              </button>
-            ) : (
-              <hr key={`sep-${index}`} />
-            ),
-          )}
-        </div>
-      )}
-
-      <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
-        <WallpaperLayer wallpaper={wallpaper} />
-        <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
-        <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
-        {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
-
-        <div className="pt-windows">
-          {wins.map((win) => (
-            <OsWindow
-              key={win.id}
-              win={win}
-              front={front?.id === win.id}
-              onFocus={() => focusWindow(win.id)}
-              onClose={() => closeWindow(win.id)}
-              onMinimize={() => patchWindow(win.id, { minimized: true })}
-              onZoom={() => patchWindow(win.id, { zoomed: !win.zoomed })}
-              onMove={(x, y) => patchWindow(win.id, { x, y })}
-              onOpen={open}
-            />
+          <b className="pt-mb-app">{frontName}</b>
+          {(["go", "window", "help"] as const).map((name) => (
+            <button key={name} type="button" className="pt-mb-item" data-menu aria-haspopup="menu" aria-expanded={menu?.name === name} onClick={(e) => toggleMenu(name, e.currentTarget)}>
+              {{ go: "前往", window: "窗口", help: "帮助" }[name]}
+            </button>
           ))}
-        </div>
-      </main>
-
-      <nav className="pt-dock" aria-label="Dock">
-        <button type="button" className="pt-dk is-back" aria-label="回到书桌" onClick={onBack}>
-          <Icon name="arrow-left-line" size={20} />
-          <span className="pt-dk-label" aria-hidden="true">
-            回到书桌 <kbd>Esc</kbd>
-          </span>
-        </button>
-        <span className="pt-dk-sep" aria-hidden="true" />
-        {OS_APPS.map((app) => (
-          <button
-            key={app.id}
-            type="button"
-            className={["pt-dk", app.key ? "" : "is-extra", wins.some((w) => w.id === app.id) ? "is-running" : ""].filter(Boolean).join(" ")}
-            aria-label={app.name}
-            onClick={(e) => open(app.id, e.currentTarget)}
-          >
-            <AppGlyph app={app} size={20} />
-            <span className="pt-dk-label" aria-hidden="true">
-              {app.name}
-              {app.key && <kbd>{app.key}</kbd>}
-            </span>
-            <i className="pt-dk-dot" aria-hidden="true" />
+          <span className="pt-mb-spacer" />
+          <button type="button" className="pt-mb-search" onClick={() => setLauncher(true)}>
+            <Icon name="search-line" size={14} />
+            <span>搜索</span>
+            <kbd>⌘K</kbd>
           </button>
-        ))}
-      </nav>
-
-      {picker && (
-        <div className="pt-picker" role="dialog" aria-modal="true" aria-label="更换壁纸" onPointerDown={(e) => e.target === e.currentTarget && setPicker(false)} onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setPicker(false))}>
-          <div className="pt-picker-box" ref={pickerBox}>
-            <header>
-              <h2>更换壁纸</h2>
-              <button type="button" className="pt-note-close" aria-label="关闭" onClick={() => setPicker(false)}>
-                <Icon name="close-line" size={14} />
-              </button>
-            </header>
-            <ul role="radiogroup" aria-label="壁纸">
-              {WALLPAPERS.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={wallpaper.id === item.id}
-                    className={wallpaper.id === item.id ? "is-on" : undefined}
-                    onClick={() => chooseWallpaper(item)}
-                  >
-                    <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
-                    <span>{item.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {launcher && (
-        <div className="pt-launcher" role="dialog" aria-modal="true" aria-label="启动器" onPointerDown={(e) => e.target === e.currentTarget && setLauncher(false)}>
-          <div className="pt-ln-box">
-            <label className="pt-ln-input">
-              <Icon name="search-line" size={18} />
-              <input
-                ref={launcherInput}
-                value={query}
-                placeholder="搜索应用或命令，比如「论坛」「文档」"
-                autoComplete="off"
-                role="combobox"
-                aria-expanded="true"
-                aria-controls="pt-ln-list"
-                aria-activedescendant={shown[selected] ? `pt-ln-${shown[selected].id}` : undefined}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setSelected(0);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setSelected((current) => moveSelection(current, e.key === "ArrowDown" ? 1 : -1, shown.length));
-                  } else if (e.key === "Enter" && shown[selected]) runCommand(shown[selected].id);
-                  else if (e.key === "Escape") {
-                    e.stopPropagation();
-                    setLauncher(false);
-                  }
-                }}
-              />
-            </label>
-            <ul id="pt-ln-list" role="listbox" aria-label="结果">
-              {shown.map((command, index) => (
-                <li
-                  key={command.id}
-                  id={`pt-ln-${command.id}`}
-                  role="option"
-                  aria-selected={index === selected}
-                  onPointerEnter={() => setSelected(index)}
-                  onClick={() => runCommand(command.id)}
+          <span className="pt-mb-stat" aria-hidden="true">
+            <Icon name="wifi-line" size={15} />
+          </span>
+          {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台 / 退出） */}
+          {account ? (
+            <button type="button" className="pt-mb-account" data-menu aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
+              {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={15} />}
+              <span>{account.login}</span>
+            </button>
+          ) : (
+            loaded && (
+              <a className="pt-mb-signin" href={signInHref()}>
+                <Icon name="github-line" size={15} />
+                <span>用 GitHub 登录</span>
+              </a>
+            )
+          )}
+          <span className="pt-mb-clock">{time}</span>
+        </header>
+        {menu && (
+          <div className="pt-menu" role="menu" style={{ left: menu.left }}>
+            {MENUS[menu.name].map((item, index) =>
+              item ? (
+                <button
+                  key={item.label}
+                  type="button"
+                  role="menuitem"
+                  autoFocus={index === 0}
+                  onClick={() => {
+                    setMenu(null);
+                    item.run();
+                  }}
                 >
-                  <Icon name={command.icon} size={17} />
-                  <b>{command.label}</b>
-                  <span>{command.hint}</span>
-                </li>
-              ))}
-              {shown.length === 0 && <li className="pt-empty">没找到「{query.trim()}」。试试「论坛」或「加入」</li>}
-            </ul>
-            <footer>
-              <span>
-                <kbd>
-                  <Icon name="arrow-up-s-line" size={11} />
-                </kbd>
-                <kbd>
-                  <Icon name="arrow-down-s-line" size={11} />
-                </kbd>
-                选择
-              </span>
-              <span>
-                <kbd>Enter</kbd> 打开
-              </span>
-              <span>
-                <kbd>Esc</kbd> 关闭
-              </span>
-            </footer>
+                  {item.label}
+                  {item.key && <kbd>{item.key}</kbd>}
+                </button>
+              ) : (
+                <hr key={`sep-${index}`} />
+              ),
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {flight && (
-        <div className="pt-flight" aria-hidden="true" style={{ left: flight.x - 36, top: flight.y - 36, ["--tint" as string]: flight.app.tint }}>
-          <Icon name={flight.app.icon} size={30} />
-        </div>
+        <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
+          <WallpaperLayer wallpaper={wallpaper} />
+          <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
+          <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
+          {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
+
+          <div className="pt-windows">
+            {wins.map((win) => (
+              <OsWindow
+                key={win.id}
+                win={win}
+                front={front?.id === win.id}
+                onFocus={() => focusWindow(win.id)}
+                onClose={() => closeWindow(win.id)}
+                onMinimize={() => patchWindow(win.id, { minimized: true })}
+                onZoom={() => patchWindow(win.id, { zoomed: !win.zoomed })}
+                onMove={(x, y) => patchWindow(win.id, { x, y })}
+                onOpen={open}
+              />
+            ))}
+          </div>
+        </main>
+
+        <nav className="pt-dock" aria-label="Dock">
+          <button type="button" className="pt-dk is-back" aria-label="回到书桌" onClick={onBack}>
+            <Icon name="arrow-left-line" size={20} />
+            <span className="pt-dk-label" aria-hidden="true">
+              回到书桌 <kbd>Esc</kbd>
+            </span>
+          </button>
+          <span className="pt-dk-sep" aria-hidden="true" />
+          {OS_APPS.map((app) => (
+            <button
+              key={app.id}
+              type="button"
+              className={["pt-dk", app.key ? "" : "is-extra", wins.some((w) => w.id === app.id) ? "is-running" : ""].filter(Boolean).join(" ")}
+              aria-label={app.name}
+              onClick={(e) => open(app.id, e.currentTarget)}
+            >
+              <AppGlyph app={app} size={20} />
+              <span className="pt-dk-label" aria-hidden="true">
+                {app.name}
+                {app.key && <kbd>{app.key}</kbd>}
+              </span>
+              <i className="pt-dk-dot" aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+
+        {picker && (
+          <div className="pt-picker" role="dialog" aria-modal="true" aria-label="更换壁纸" onPointerDown={(e) => e.target === e.currentTarget && setPicker(false)} onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setPicker(false))}>
+            <div className="pt-picker-box" ref={pickerBox}>
+              <header>
+                <h2>更换壁纸</h2>
+                <button type="button" className="pt-note-close" aria-label="关闭" onClick={() => setPicker(false)}>
+                  <Icon name="close-line" size={14} />
+                </button>
+              </header>
+              <ul role="radiogroup" aria-label="壁纸">
+                {WALLPAPERS.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={wallpaper.id === item.id}
+                      className={wallpaper.id === item.id ? "is-on" : undefined}
+                      onClick={() => chooseWallpaper(item)}
+                    >
+                      <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
+                      <span>{item.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {launcher && (
+          <div className="pt-launcher" role="dialog" aria-modal="true" aria-label="启动器" onPointerDown={(e) => e.target === e.currentTarget && setLauncher(false)}>
+            <div className="pt-ln-box">
+              <label className="pt-ln-input">
+                <Icon name="search-line" size={18} />
+                <input
+                  ref={launcherInput}
+                  value={query}
+                  placeholder="搜索应用或命令，比如「论坛」「文档」"
+                  autoComplete="off"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-controls="pt-ln-list"
+                  aria-activedescendant={shown[selected] ? `pt-ln-${shown[selected].id}` : undefined}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setSelected(0);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setSelected((current) => moveSelection(current, e.key === "ArrowDown" ? 1 : -1, shown.length));
+                    } else if (e.key === "Enter" && shown[selected]) runCommand(shown[selected].id);
+                    else if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setLauncher(false);
+                    }
+                  }}
+                />
+              </label>
+              <ul id="pt-ln-list" role="listbox" aria-label="结果">
+                {shown.map((command, index) => (
+                  <li
+                    key={command.id}
+                    id={`pt-ln-${command.id}`}
+                    role="option"
+                    aria-selected={index === selected}
+                    onPointerEnter={() => setSelected(index)}
+                    onClick={() => runCommand(command.id)}
+                  >
+                    <Icon name={command.icon} size={17} />
+                    <b>{command.label}</b>
+                    <span>{command.hint}</span>
+                  </li>
+                ))}
+                {shown.length === 0 && <li className="pt-empty">没找到「{query.trim()}」。试试「论坛」或「加入」</li>}
+              </ul>
+              <footer>
+                <span>
+                  <kbd>
+                    <Icon name="arrow-up-s-line" size={11} />
+                  </kbd>
+                  <kbd>
+                    <Icon name="arrow-down-s-line" size={11} />
+                  </kbd>
+                  选择
+                </span>
+                <span>
+                  <kbd>Enter</kbd> 打开
+                </span>
+                <span>
+                  <kbd>Esc</kbd> 关闭
+                </span>
+              </footer>
+            </div>
+          </div>
+        )}
+
+        {flight && (
+          <div className="pt-flight" aria-hidden="true" style={{ left: flight.x - 36, top: flight.y - 36, ["--tint" as string]: flight.app.tint }}>
+            <Icon name={flight.app.icon} size={30} />
+          </div>
+        )}
+      </div>
+      {promo && (
+        <Suspense fallback={null}>
+          <PromoPlayer mode="replay" onClose={closePromo} />
+        </Suspense>
       )}
-    </div>
+    </>
   );
 }
