@@ -49,3 +49,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：PromoPlayer 根节点 tabIndex -1；promo.css 加 (hover: none) 隐藏 kbd、减少动态效果选择器改 .pt-root.pt-promo、加载提示 pointer-events none（新 e2e 发现它挡住了点视频）；新增 PromoLazy.tsx，分包加载失败按 failed 结束；改用 hls.js/light（加 hls-light.d.ts）；startVariant 注释写明与 hls.js 排序的假设；新增组件测试 portal-promo-lazy 与 e2e「点视频后 Esc 仍能跳过」。更正：上一条开发记录里「单测 16 条 + 组件测试 7 条」重复计数，实际是单测 9 条 + 组件测试 7 条
 - 结果：pnpm verify 通过（核心 Tests 469 passed，论坛 Tests 240 passed）；pnpm test:e2e 13 passed；hls 分包 gzip 186KB → 118KB
+
+## 04:44:36 +08:00 · 审查 · #77 · 第二轮独立审查：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 243d249（范围 696180a..243d249），逐条复核第一轮 2 条应修、5 条建议，另核对 hls.js/light 的能力与拦掉播放层分包后的页面
+- 结果：通过：全部已解决；新建议 1 条（PromoLazy 的 effect 把 onClose 返回值当清理函数、可能重复调用）；CI push 36186710701、PR 36186714168、pr-contract 36186837806 全部 success
+
+## 04:44:36 +08:00 · 返工 · #77 · PromoLazy 只结束一次
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：PromoUnavailable 用 ref 保证 onClose("failed") 只调一次、effect 不返回值；组件测试补「父组件重渲染换了新的 onClose 也只调一次」
+- 结果：tsc 通过；promo 相关 vitest 17 passed
