@@ -29,12 +29,26 @@ function isSnapshotDir(dir) {
 }
 
 // Only `start`/`dev` serve the private read-only 极客班 snapshot. Checks, the
-// upstream CDP suites and static generation always run against the demo seed:
-// those suites assert seeded behaviour, and the snapshot must never end up in
-// a build artifact. GEEK_FORUM_SOURCE=demo forces the seed for start/dev too.
-// A relative GEEK_FORUM_CONTENT_DIR is resolved against the repository root.
+// upstream CDP suites and static generation run against the demo seed by
+// default: those suites assert seeded behaviour, and the snapshot must never
+// end up in a build artifact. GEEK_FORUM_SOURCE=demo forces the seed for
+// start/dev too. A relative GEEK_FORUM_CONTENT_DIR is resolved against the
+// repository root.
+//
+// GEEK_FORUM_SOURCE=site is the one value taken from the caller: 极客班论坛
+// as the images build it (its own categories and tags, no topics), e.g.
+// `GEEK_FORUM_SOURCE=site node scripts/forum.mjs generate`. It never reads a
+// snapshot, and `verify` ignores it because the CDP suites need the seed.
+const forumSource = process.env.GEEK_FORUM_SOURCE ?? '';
+// 与 app/forum/shared/content-source.ts 一致：拼错的值直接失败，不悄悄退回示例或本机快照。
+if (!['', 'demo', 'site'].includes(forumSource)) {
+  console.error(`GEEK_FORUM_SOURCE 只能是 demo 或 site（或不设），收到：${JSON.stringify(forumSource)}`);
+  process.exit(2);
+}
+const siteRequested = forumSource === 'site';
+
 function snapshotDirectory() {
-  if (process.env.GEEK_FORUM_SOURCE === 'demo') return '';
+  if (process.env.GEEK_FORUM_SOURCE === 'demo' || siteRequested) return '';
   const explicit = process.env.GEEK_FORUM_CONTENT_DIR?.trim();
   if (explicit) {
     const dir = resolve(root, explicit);
@@ -49,7 +63,7 @@ function snapshotDirectory() {
   return candidates.at(-1) ?? '';
 }
 
-function toolchain({ contentDir = '', demoLogin = false } = {}) {
+function toolchain({ contentDir = '', demoLogin = false, seedOnly = false } = {}) {
   const candidates = [process.env.FORUM_NODE, process.execPath, '/opt/homebrew/bin/node', '/usr/local/bin/node'].filter(Boolean);
   const node = candidates.find(candidate => {
     if (!existsSync(candidate)) return false;
@@ -72,13 +86,13 @@ function toolchain({ contentDir = '', demoLogin = false } = {}) {
     if (process.env[key]) env[key] = process.env[key];
   }
   // The snapshot reaches nuxt only through the explicit `contentDir` chosen for
-  // start/dev; every other command is pinned to the seed even if a stray .env
-  // inside app/forum names a directory.
+  // start/dev; every other command is pinned to the seed (or to an explicit
+  // GEEK_FORUM_SOURCE=site) even if a stray .env inside app/forum names a directory.
   if (contentDir) env.GEEK_FORUM_CONTENT_DIR = contentDir;
-  else env.GEEK_FORUM_SOURCE = 'demo';
+  else env.GEEK_FORUM_SOURCE = siteRequested && !seedOnly ? 'site' : 'demo';
   // 论坛默认走全站统一的 GitHub 登录（部署镜像与 generate 都是）。只有示例预览（start/dev 没有快照）
-  // 和上游 CDP 验收要原仓的「选择一个身份」，由这里显式打开；真实数据永远不用示例身份。
-  if (!contentDir && demoLogin) env.GEEK_FORUM_LOGIN = 'demo';
+  // 和上游 CDP 验收要原仓的「选择一个身份」，由这里显式打开；真实数据和极客班论坛永远不用示例身份。
+  if (!contentDir && demoLogin && env.GEEK_FORUM_SOURCE === 'demo') env.GEEK_FORUM_LOGIN = 'demo';
   // The upstream CDP suites default to http://localhost:3456, which on macOS
   // may resolve to ::1 and reach a different listener than our 127.0.0.1 one.
   env.TUFF_FORUM_URL = process.env.TUFF_FORUM_URL || origin;
@@ -163,7 +177,7 @@ async function serve(instance) {
   });
   await writeFile(stateFile, JSON.stringify({
     project: root, module: 'tuff-forum', instance, pid: process.pid, origin,
-    contentSource: contentDir ? 'local-snapshot' : 'upstream-seed', contentDir,
+    contentSource: contentDir ? 'local-snapshot' : env.GEEK_FORUM_SOURCE === 'site' ? 'site' : 'upstream-seed', contentDir,
     started_at: new Date().toISOString(), log: join(stateDir, 'dev.log'),
   }, null, 2), { mode: 0o600 });
 }
@@ -223,7 +237,7 @@ async function main() {
     // Do not spawn over a foreign listener; an unknown result is not a retry.
     if (await portListening()) throw new Error('127.0.0.1:3456 is already held by another process (a `forum:dev` session, an orphaned nuxt, or another project). This script never stops it; check `lsof -iTCP:3456` yourself.');
     const contentDir = snapshotDirectory();
-    console.error(contentDir ? `Content source: local snapshot ${contentDir}` : 'Content source: upstream demo seed (no snapshot directory found)');
+    console.error(contentDir ? `Content source: local snapshot ${contentDir}` : siteRequested ? 'Content source: 极客班论坛 (GEEK_FORUM_SOURCE=site)' : 'Content source: upstream demo seed (no snapshot directory found)');
     const { node, env } = toolchain({ contentDir });
     const instance = randomUUID();
     const output = openSync(join(stateDir, 'dev.log'), 'a', 0o600);
@@ -243,11 +257,11 @@ async function main() {
     // CDP suites assert seeded demo behaviour. Only our own demo-mode preview
     // may be reused; a snapshot preview or a foreign listener must not be.
     const listening = await probe();
-    if (listening?.mode === 'local-snapshot') throw new Error('A local-snapshot preview is on 3456. Run `pnpm forum:stop` first; `forum:verify` then starts its own demo-seed server.');
+    if (listening?.mode === 'local-snapshot' || listening?.mode === 'site') throw new Error(`A ${listening.mode} preview is on 3456. Run \`pnpm forum:stop\` first; \`forum:verify\` then starts its own demo-seed server.`);
     if (!listening && await httpOnce('/')) throw new Error('Something that is not this repository\'s preview answers on 127.0.0.1:3456; stop it before `forum:verify`.');
   }
-  const { node, pnpm, env } = toolchain(command === 'dev' ? { contentDir: snapshotDirectory(), demoLogin: true } : { demoLogin: command === 'verify' });
-  if (command === 'dev') console.error(env.GEEK_FORUM_CONTENT_DIR ? `Content source: local snapshot ${env.GEEK_FORUM_CONTENT_DIR}` : 'Content source: upstream demo seed');
+  const { node, pnpm, env } = toolchain(command === 'dev' ? { contentDir: snapshotDirectory(), demoLogin: true } : { demoLogin: command === 'verify', seedOnly: command === 'verify' });
+  if (command === 'dev') console.error(env.GEEK_FORUM_CONTENT_DIR ? `Content source: local snapshot ${env.GEEK_FORUM_CONTENT_DIR}` : env.GEEK_FORUM_SOURCE === 'site' ? 'Content source: 极客班论坛 (GEEK_FORUM_SOURCE=site)' : 'Content source: upstream demo seed');
   const args = command === 'install' ? [pnpm, 'install', '--frozen-lockfile'] : [pnpm, command, ...process.argv.slice(3)];
   const child = spawn(node, args, { cwd: moduleRoot, env, stdio: 'inherit' });
   child.once('error', error => { console.error(error.message); process.exitCode = 1; });

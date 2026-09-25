@@ -1,6 +1,7 @@
 import type { ForumState, Post, Topic, User } from '../app/data/types'
 import { TOPIC_SEEDS } from '../app/data/seed-content'
 import { postExcerpt } from '../app/utils/excerpt'
+import { siteNameInText } from './content-source'
 
 /**
  * Markdown views of the forum for AI readers: `/t/<id>.md` is one topic with
@@ -27,6 +28,7 @@ export interface MarkdownSite {
 
 const UNKNOWN_USER = '未知用户'
 const SUMMARY_LENGTH = 80
+export const NO_TOPICS = '还没有话题。'
 
 /** `t/<id>.md`, relative to the app base; the one place that spells the Markdown address. */
 export function topicMarkdownPath(topicId: string): string {
@@ -123,15 +125,19 @@ export function topicMarkdown(state: ForumState, topicId: string, site: Markdown
 /**
  * The llms.txt index: title, a one-paragraph summary, then one H2 section per
  * category holding nothing but its topic links, which is the shape llms.txt
- * readers parse.
+ * readers parse. A forum without topics (极客班论坛 before posting opens)
+ * says so in one line instead of leaving the reader with a bare header.
  */
 export function forumLlmsTxt(state: ForumState, site: MarkdownSite): string {
   const lines = [
     `# ${escapeInline(site.siteName)}`,
     '',
-    `> ${escapeInline(site.siteName)} 的话题索引。每个话题都有一份 Markdown 原文，地址是话题页地址后面加 .md，内容依次是标题、分类、作者、发帖时间、首帖正文和按楼层排列的回复。${site.notice}`,
+    `> ${siteNameInText(escapeInline(site.siteName)).trimStart()}的话题索引。每个话题都有一份 Markdown 原文，地址是话题页地址后面加 .md，内容依次是标题、分类、作者、发帖时间、首帖正文和按楼层排列的回复。${site.notice}`,
     '',
   ]
+
+  if (state.topics.length === 0)
+    lines.push(NO_TOPICS, '')
 
   for (const category of state.categories) {
     const topics = state.topics

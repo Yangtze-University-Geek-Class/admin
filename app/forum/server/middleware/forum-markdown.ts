@@ -3,6 +3,7 @@ import type { ForumState } from '../../app/data/types'
 import type { MarkdownSite } from '../../shared/forum-markdown'
 import { createSeed } from '../../app/data/seed'
 import { forumLlmsTxt, topicMarkdown } from '../../shared/forum-markdown'
+import { siteForumState } from '../../shared/site-state'
 import { loadLocalSnapshot, snapshotConfigured, snapshotHttpError } from '../utils/local-snapshot'
 
 /**
@@ -13,10 +14,12 @@ import { loadLocalSnapshot, snapshotConfigured, snapshotHttpError } from '../uti
  * answer `/t/<id>` and shadow the topic page on the dev server.
  *
  * `nuxt generate` prerenders both paths for every seed topic (see
- * nuxt.config.ts), so the image ships them as plain files. The dev server
- * answers from the same state its pages show: the read-only snapshot when one
- * is configured, the upstream seed otherwise. Topics created in a browser
- * live only in that browser's localStorage and have no Markdown here.
+ * nuxt.config.ts), so the image ships them as plain files. Every answer comes
+ * from the same state the pages show: 极客班论坛's own categories and tags in
+ * a `site` build (the deployed images; no topics yet, so only llms.txt is
+ * prerendered and it says there are none), the read-only snapshot on a dev
+ * server that has one, the upstream seed otherwise. Topics created in a
+ * browser live only in that browser's localStorage and have no Markdown here.
  */
 
 const TOPIC_MARKDOWN = /^\/t\/([^/]+)\.md$/
@@ -49,6 +52,8 @@ export default defineEventHandler(async (event) => {
 })
 
 async function markdownSource(): Promise<{ state: ForumState, notice: string }> {
+  if (useRuntimeConfig().public.contentSource === 'site')
+    return { state: siteForumState(), notice: '发帖和回复还没开放，以前的帖子暂时不显示。' }
   if (import.meta.dev && snapshotConfigured()) {
     try {
       const { document } = await loadLocalSnapshot()

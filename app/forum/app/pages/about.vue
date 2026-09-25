@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { isStaff } from '~/data/permissions'
+import { siteNameInText } from '../../shared/content-source'
 
 useHead({ title: '关于' })
 
 const forum = useForumStore()
 const router = useRouter()
-const { isSnapshot, siteName, snapshot } = useContentSource()
+const { isSnapshot, isSite, siteName, snapshot } = useContentSource()
+// 「关于 Tuff Forum」「关于极客班论坛」
+const heading = `关于${siteNameInText(siteName).trimEnd()}`
 const capturedAt = computed(() => snapshot.value.capturedAt ? dayjs(snapshot.value.capturedAt).format('YYYY-MM-DD HH:mm') : '')
 
 const stats = computed(() => [
@@ -33,10 +36,22 @@ function open(username: string) {
     <TxCard>
       <template #header>
         <h1 class="text-2xl font-semibold">
-          关于 {{ siteName }}
+          {{ heading }}
         </h1>
       </template>
-      <TxStack v-if="isSnapshot" :gap="12" class="leading-relaxed">
+      <!-- 极客班论坛（部署的镜像）：还没有帖子和成员资料，所以下面的数字和管理团队不显示 -->
+      <TxStack v-if="isSite" :gap="12" class="leading-relaxed">
+        <p>
+          长江大学极客班的论坛。发帖、回复和旧帖迁移正在接入，现在可以看到论坛的分类和标签。
+        </p>
+        <p class="text-$tx-text-color-secondary">
+          登录用 GitHub 账号，官网、论坛、控制台共用同一次登录。
+        </p>
+        <p class="text-sm text-$tx-text-color-secondary">
+          论坛基于开源项目 Tuff Forum（<a href="https://github.com/talex-touch/tuff-forum" class="text-$tx-color-primary underline" target="_blank" rel="noopener noreferrer">talex-touch/tuff-forum</a>，MIT 许可）搭建。
+        </p>
+      </TxStack>
+      <TxStack v-else-if="isSnapshot" :gap="12" class="leading-relaxed">
         <p>
           极客班论坛正在迁移到基于 Tuff Forum 与 <code>@talex-touch/tuffex</code> 的新前端。
           当前显示极客班论坛的公开内容<template v-if="capturedAt">（更新于 {{ capturedAt }}）</template>：
@@ -57,7 +72,7 @@ function open(username: string) {
       </TxStack>
     </TxCard>
 
-    <TxGrid :cols="{ xs: 1, sm: 3 }" :gap="12">
+    <TxGrid v-if="!isSite" :cols="{ xs: 1, sm: 3 }" :gap="12">
       <TxStatCard
         v-for="stat in stats"
         :key="stat.label"
@@ -67,7 +82,7 @@ function open(username: string) {
       />
     </TxGrid>
 
-    <TxCard>
+    <TxCard v-if="!isSite">
       <template #header>
         <h2 class="text-lg font-semibold">
           管理团队

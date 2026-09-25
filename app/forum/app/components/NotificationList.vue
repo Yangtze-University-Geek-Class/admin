@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FilterChipItem } from '@talex-touch/tuffex/filter-chips'
 import type { Notification, NotificationType } from '~/data/types'
+import { siteNameInText } from '../../shared/content-source'
 
 /**
  * Discourse's notification list: an icon per kind, the sentence that explains
@@ -22,6 +23,8 @@ const ICONS: Record<NotificationType, string> = {
 const forum = useForumStore()
 const router = useRouter()
 const { fromNow } = useRelativeTime()
+const { siteName } = useContentSource()
+const systemSender = siteNameInText(siteName)
 
 const filter = ref<'unread' | 'all'>('unread')
 
@@ -62,7 +65,7 @@ function sentence(notification: Notification): string {
     case 'follow':
       return `${actor} 关注了你`
     case 'system':
-      return '来自 Tuff Forum 的系统消息'
+      return `来自${systemSender}的系统消息`
   }
 }
 
