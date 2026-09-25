@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { TxDrawer } from "@talex-touch/tuffex/drawer";
 import { TxButton } from "@talex-touch/tuffex/button";
-import { TxAlert } from "@talex-touch/tuffex/alert";
 import ConsoleNav from "./ConsoleNav.vue";
 import CapabilityGate from "./CapabilityGate.vue";
 import TitleBadge from "./TitleBadge.vue";
@@ -55,11 +54,6 @@ async function signOut() {
         <span class="shell__role">{{ roleText }}</span>
         <span v-if="isMock()" class="shell__mock">开发预览 · 样板数据</span>
       </div>
-      <div v-if="me.bootstrap" class="shell__notice">
-        <TxAlert type="warning" title="还没有正式舰长" :closable="false">
-          现在由 GitHub 组织管理员临时代任舰长。请在「成员与权限」里用「添加称号」指定正式舰长。
-        </TxAlert>
-      </div>
       <RouterView v-slot="{ Component, route: current }">
         <CapabilityGate :key="current.path" :any-of="(current.meta.anyOf as string[] | undefined) ?? ['console.access']">
           <component :is="Component" />
@@ -106,11 +100,6 @@ async function signOut() {
   border-radius: 999px;
   border: 1px dashed var(--tx-border-color);
 }
-.shell__notice {
-  max-width: 1360px;
-  margin: 12px auto 0;
-  padding: 0 32px;
-}
 
 @media (max-width: 900px) {
   .shell {
@@ -148,9 +137,6 @@ async function signOut() {
   .shell__context {
     justify-content: flex-start;
     padding: 12px 16px 0;
-  }
-  .shell__notice {
-    padding: 0 16px;
   }
 }
 </style>

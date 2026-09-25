@@ -3,12 +3,13 @@ import { computed } from "vue";
 import { TxAlert } from "@talex-touch/tuffex/alert";
 import { describeError, errorTrace } from "../lib/errors";
 import { useSession } from "../lib/session";
+import { assignerText } from "../lib/titles";
 
 /** 写操作失败：内联横幅，保留用户已填的内容。 */
 const props = defineProps<{ error: unknown }>();
 defineEmits<{ close: [] }>();
-const { capabilityLabel } = useSession();
-const view = computed(() => describeError(props.error, capabilityLabel));
+const { catalogue, capabilityLabel } = useSession();
+const view = computed(() => describeError(props.error, capabilityLabel, assignerText(catalogue.value)));
 </script>
 
 <template>

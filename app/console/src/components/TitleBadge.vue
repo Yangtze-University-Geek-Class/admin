@@ -6,7 +6,7 @@ import { useSession } from "../lib/session";
 import { badgeTone, toneColor } from "../lib/titles";
 import type { TitleView } from "../lib/types";
 
-/** 称号徽章：TxTag + 称号图标 + 中文称号。色调来自 catalogue（舰长琥珀、队长随部门、舰员灰蓝、成员天蓝、领航员紫）。 */
+/** 称号徽章：TxTag + 称号图标 + 称号名字。名字、图标、色调都是 catalogue 里的数据；head 的色调跟部门走。 */
 const props = withDefaults(defineProps<{ title: Pick<TitleView, "id" | "label" | "icon" | "tone" | "department">; size?: "sm" | "md" }>(), { size: "sm" });
 const { catalogue } = useSession();
 const color = computed(() => toneColor(badgeTone(props.title), catalogue.value));

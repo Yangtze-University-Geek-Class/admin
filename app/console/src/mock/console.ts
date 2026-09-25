@@ -1,7 +1,10 @@
 // 开发预览：`/api/console/*` 的只读样板数据（全部虚构）。
 // 只在 DEV 且数据源为 mock 时由 lib/http.ts 动态导入；生产构建里这段导入被删掉，不进产物。
-// 称号、能力与部门必须与 app/server/src/lib/roles.ts 一致，tests/console/mock-sync.test.ts 会逐项核对。
+// 称号、能力与部门必须与 app/server/src/lib/roles.ts 的默认值一致，tests/console/mock-sync.test.ts 会逐项核对。
 import { ApiError } from "../lib/http";
+import { DEPARTMENT_ICONS } from "../lib/icons";
+import { DEFAULT_CREW, DEFAULT_TITLES, kindRank, makeTitle, titleBundleError, titleKind } from "../lib/titles";
+import type { Assignment, GithubRole, Person, TitleId, TitleView, Tone } from "../lib/types";
 
 const now = Date.now();
 const MIN = 60_000;
@@ -9,22 +12,14 @@ const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 export const MOCK_ORG = "Yangtze-University-Geek-Class";
 
-type Tone = "amber" | "cobalt" | "violet" | "jade" | "sky" | "coral" | "rose" | "slate";
-type TitleId = "captain" | "head" | "member" | "alumni" | "guest";
-
 export const MOCK_TONES: Record<Tone, string> = {
   amber: "#855700", cobalt: "#3346C8", violet: "#6E44C9", jade: "#18694A",
   sky: "#08609A", coral: "#A63F16", rose: "#B4235A", slate: "#5B6475",
 };
 
-export const MOCK_TITLES = [
-  { id: "captain", label: "舰长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
-  { id: "head", label: "队长", tag: "LEADER", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
-  { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
-  { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "violet", rank: 3, description: "已毕业的学长学姐" },
-  { id: "guest", label: "乘客", tag: "PASSENGER", icon: "user", tone: "slate", rank: 9, description: "没登录的人，只能看帖子" },
-] as const;
-const CREW = { tag: "CREW", tone: "slate" as Tone, rank: 2 };
+/** 样板数据只读，称号就是服务端的默认值（与控制台兜底用的是同一张表）。 */
+export const MOCK_TITLES = DEFAULT_TITLES;
+const CREW = DEFAULT_CREW;
 
 export const MOCK_CAPABILITIES = [
   { id: "console.access", domain: "console", label: "进入控制台", description: "进入控制台；持有任意一项能力就自动获得" },
@@ -45,15 +40,37 @@ export const MOCK_CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅舰长，不可放进部门权限包" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅提督和舰长，不可放进部门权限包" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门舰员", description: "任免本部门舰员（只限自己负责的部门）" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
+/** GitHub 类的管理能力：只有组织所有者能用，其他人被 GitHub 上限挡住。 */
+const GITHUB_MANAGE = ALL.filter(id => id.startsWith("github.") && id !== "github.org.read");
 const DOMAINS = [
   { id: "console", label: "控制台" }, { id: "applications", label: "招新投递" }, { id: "forum", label: "论坛" },
   { id: "github", label: "GitHub 组织" }, { id: "feedback", label: "意见箱" }, { id: "audit", label: "审计" }, { id: "roles", label: "称号与权限" },
 ];
-const ICONS = ["star-filled", "badge", "code", "compass", "user", "user-follow", "terminal", "forum", "application", "bullhorn", "education", "idea", "trophy", "user-favorite", "chart-network", "logo-github", "book"];
+export const MOCK_IMPLIES: Record<string, string[]> = {
+  "github.org.manage": ["github.org.read"],
+  "github.members.manage": ["github.org.read"],
+  "github.repos.manage": ["github.org.read"],
+  "github.teams.manage": ["github.org.read"],
+  "github.invites.manage": ["github.org.read"],
+  "applications.review": ["applications.read"],
+  "applications.export": ["applications.read"],
+  "feedback.manage": ["feedback.read"],
+  "roles.manage": ["roles.department.manage"],
+};
+export const MOCK_CAPTAIN_ONLY = ["roles.manage"];
+/** 各称号的权限包默认值（服务端 ROLE_BASE）。 */
+export const MOCK_ROLE_BASE: Record<TitleId, string[]> = {
+  admin: ALL,
+  captain: ALL,
+  head: ["console.access", "github.org.read", "feedback.read", "roles.department.manage"],
+  member: ["console.access", "github.org.read"],
+  alumni: ["console.access", "github.org.read", "feedback.read"],
+  guest: [],
+};
 const STATUSES = [
   { id: "received", label: "已收到" }, { id: "reviewing", label: "评估中" }, { id: "interview", label: "待面试" },
   { id: "accepted", label: "已录取" }, { id: "rejected", label: "未通过" },
@@ -88,23 +105,27 @@ const deptView = (id: string) => {
   return { id: d.id, name: d.name, tag: d.tag, icon: d.icon, tone: d.tone };
 };
 
-type Source = "assignment" | "bootstrap" | "github" | "none";
-function title(role: TitleId, department: string | null, source: Source, assignment_id: number | null) {
-  const base = MOCK_TITLES.find(item => item.id === role)!;
-  if (role === "head" && department) {
-    const d = deptView(department);
-    return { id: role, label: `${d.name} · 队长`, tag: base.tag, icon: d.icon, tone: d.tone, department: d, source, assignment_id };
-  }
-  if (role === "member" && department) {
-    const d = deptView(department);
-    return { id: role, label: `${d.name} · 舰员`, tag: CREW.tag, icon: d.icon, tone: CREW.tone, department: d, source, assignment_id };
-  }
-  return { id: role, label: base.label, tag: base.tag, icon: base.icon, tone: base.tone as Tone, department: null, source, assignment_id };
-}
+/** GitHub 组织名单：xu-yan 是组织所有者；du-ke 已毕业并退出了组织，只剩称号。 */
+export const MOCK_MEMBERS: { login: string; id: number; role: "admin" | "member" }[] = [
+  { login: "xu-yan", id: 1000, role: "admin" },
+  { login: "chen-hang", id: 1001, role: "member" },
+  { login: "li-xiaoman", id: 1002, role: "member" },
+  { login: "wang-zhe", id: 1003, role: "member" },
+  { login: "sun-qiao", id: 1004, role: "member" },
+  { login: "zhao-yi", id: 1005, role: "member" },
+  { login: "he-miao", id: 1006, role: "member" },
+  { login: "liu-xing", id: 1007, role: "member" },
+  { login: "gao-yuan", id: 1008, role: "member" },
+  { login: "tang-yu", id: 1009, role: "member" },
+  { login: "fang-lin", id: 1010, role: "member" },
+  { login: "bai-shuo", id: 1011, role: "member" },
+  { login: "qin-yue", id: 1014, role: "member" },
+  { login: "lu-an", id: 1015, role: "member" },
+];
 
-/** 虚构人员：舰长、四位队长、舰员若干、成员若干、领航员两位。 */
-const ASSIGNMENTS = [
-  { id: 1, github_login: "chen-hang", github_user_id: 1001, role: "captain", department_id: "", note: "第三届舰长", granted_by: "chen-hang", created_at: now - 40 * DAY },
+/** 虚构的称号指派：captain 一位（由组织所有者任命）、head 四位、带部门的 member 若干、不带部门的 member 两位、alumni 两位。 */
+export const MOCK_ASSIGNMENTS: Assignment[] = [
+  { id: 1, github_login: "chen-hang", github_user_id: 1001, role: "captain", department_id: "", note: "第三届舰长", granted_by: "xu-yan", created_at: now - 40 * DAY },
   { id: 2, github_login: "li-xiaoman", github_user_id: 1002, role: "head", department_id: "recruitment", note: null, granted_by: "chen-hang", created_at: now - 38 * DAY },
   { id: 3, github_login: "wang-zhe", github_user_id: 1003, role: "head", department_id: "tech", note: null, granted_by: "chen-hang", created_at: now - 38 * DAY },
   { id: 4, github_login: "sun-qiao", github_user_id: 1004, role: "head", department_id: "community", note: "兼管意见箱", granted_by: "chen-hang", created_at: now - 37 * DAY },
@@ -117,56 +138,81 @@ const ASSIGNMENTS = [
   { id: 8, github_login: "gao-yuan", github_user_id: 1008, role: "alumni", department_id: "", note: "已毕业，前技术部队长", granted_by: "chen-hang", created_at: now - 30 * DAY },
   { id: 12, github_login: "du-ke", github_user_id: 1012, role: "alumni", department_id: "", note: null, granted_by: "chen-hang", created_at: now - 25 * DAY },
 ];
+const ASSIGNMENTS = MOCK_ASSIGNMENTS;
+
+const origin = (source: TitleView["source"], assignment_id: number | null) => ({ source, assignment_id });
+
+/** 与服务端 computeAccess 同一规则算出一个人的称号（只算称号；能力在身份表里写明，由测试核对）。 */
+export function mockTitles(login: string, orgRole: GithubRole): TitleView[] {
+  const rows = ASSIGNMENTS.filter(row => row.github_login === login);
+  const titles: TitleView[] = rows.map(row =>
+    makeTitle(row.role, row.department_id ? deptView(row.department_id) : null, null, origin("assignment", row.id)));
+  if (orgRole === "admin") titles.push(makeTitle("admin", null, null, origin("github", null)));
+  const hasAlumni = rows.some(row => row.role === "alumni");
+  const hasPlainMember = titles.some(title => title.id === "member" && !title.department);
+  if (orgRole === "member" && !hasAlumni && !hasPlainMember) titles.push(makeTitle("member", null, null, origin("github", null)));
+  titles.sort((a, b) => kindRank(titleKind(a)) - kindRank(titleKind(b)));
+  return titles.length ? titles : [makeTitle("guest", null, null, origin("none", null))];
+}
+
+/** 成员全名单：组织里的每个人，加上有称号但已不在组织里的人；按主称号层级、再按登录名排（同服务端）。 */
+export function mockPeople(): Person[] {
+  const inOrg = new Set(MOCK_MEMBERS.map(member => member.login));
+  const people: Person[] = MOCK_MEMBERS.map(member => ({
+    login: member.login, user_id: member.id, avatar_url: null, github_role: member.role, titles: mockTitles(member.login, member.role),
+  }));
+  for (const row of ASSIGNMENTS) {
+    if (inOrg.has(row.github_login) || people.some(person => person.login === row.github_login)) continue;
+    people.push({ login: row.github_login, user_id: row.github_user_id, avatar_url: null, github_role: null, titles: mockTitles(row.github_login, null) });
+  }
+  const rank = (person: Person) => kindRank(titleKind(person.titles[0]));
+  return people.sort((a, b) => rank(a) - rank(b) || a.login.localeCompare(b.login));
+}
 
 type Persona = {
-  login: string; github_role: "admin" | "member" | null; bootstrap: boolean; head_of: string[];
-  titles: ReturnType<typeof title>[]; capabilities: string[]; blocked: { capability: string; reason: string }[];
+  login: string; github_role: GithubRole; head_of: string[];
+  titles: TitleView[]; capabilities: string[]; blocked: { capability: string; reason: string }[];
 };
-const MEMBER_FROM_GITHUB = title("member", null, "github", null);
+const makePersona = (login: string, github_role: GithubRole, rest: Omit<Persona, "login" | "github_role" | "titles">): Persona =>
+  ({ login, github_role, titles: mockTitles(login, github_role), ...rest });
+const cappedByGithub = GITHUB_MANAGE.map(capability => ({ capability, reason: "github_admin_required" }));
+
 export const MOCK_PERSONAS: Record<string, Persona> = {
-  captain: { login: "chen-hang", github_role: "admin", bootstrap: false, head_of: [], titles: [title("captain", null, "assignment", 1), MEMBER_FROM_GITHUB], capabilities: ALL, blocked: [] },
-  bootstrap: { login: "chen-hang", github_role: "admin", bootstrap: true, head_of: [], titles: [title("captain", null, "bootstrap", null), MEMBER_FROM_GITHUB], capabilities: ALL, blocked: [] },
-  recruitment: {
-    login: "li-xiaoman", github_role: "member", bootstrap: false, head_of: ["recruitment"],
-    titles: [title("head", "recruitment", "assignment", 2), MEMBER_FROM_GITHUB],
+  admin: makePersona("xu-yan", "admin", { head_of: [], capabilities: ALL, blocked: [] }),
+  captain: makePersona("chen-hang", "member", { head_of: [], capabilities: ALL.filter(id => !GITHUB_MANAGE.includes(id)), blocked: cappedByGithub }),
+  recruitment: makePersona("li-xiaoman", "member", {
+    head_of: ["recruitment"],
     capabilities: ["console.access", "github.org.read", "applications.read", "applications.review", "applications.export", "feedback.read", "roles.department.manage"],
     blocked: [{ capability: "github.invites.manage", reason: "github_admin_required" }],
-  },
-  tech: {
-    login: "wang-zhe", github_role: "admin", bootstrap: false, head_of: ["tech"],
-    titles: [title("head", "tech", "assignment", 3), MEMBER_FROM_GITHUB],
-    capabilities: ["console.access", "github.org.read", "github.repos.manage", "github.teams.manage", "feedback.read", "audit.read", "roles.department.manage"],
-    blocked: [],
-  },
-  community: {
-    login: "sun-qiao", github_role: "member", bootstrap: false, head_of: ["community"],
-    titles: [title("head", "community", "assignment", 4), MEMBER_FROM_GITHUB],
+  }),
+  tech: makePersona("wang-zhe", "member", {
+    head_of: ["tech"],
+    capabilities: ["console.access", "github.org.read", "feedback.read", "audit.read", "roles.department.manage"],
+    blocked: [{ capability: "github.repos.manage", reason: "github_admin_required" }, { capability: "github.teams.manage", reason: "github_admin_required" }],
+  }),
+  community: makePersona("sun-qiao", "member", {
+    head_of: ["community"],
     capabilities: ["console.access", "github.org.read", "forum.topic.pin", "forum.topic.close", "forum.post.moderate", "forum.category.manage", "forum.badge.assign", "feedback.read", "feedback.manage", "roles.department.manage"],
     blocked: [],
-  },
-  projects: {
-    login: "zhao-yi", github_role: "member", bootstrap: false, head_of: ["projects"],
-    titles: [title("head", "projects", "assignment", 5), MEMBER_FROM_GITHUB],
+  }),
+  projects: makePersona("zhao-yi", "member", {
+    head_of: ["projects"],
     capabilities: ["console.access", "github.org.read", "forum.topic.pin", "feedback.read", "roles.department.manage"],
     blocked: [{ capability: "github.repos.manage", reason: "github_admin_required" }, { capability: "github.teams.manage", reason: "github_admin_required" }],
-  },
-  crew: {
-    login: "he-miao", github_role: "member", bootstrap: false, head_of: [],
-    titles: [title("member", "recruitment", "assignment", 6), MEMBER_FROM_GITHUB],
-    capabilities: ["console.access", "github.org.read", "applications.read", "applications.review"], blocked: [],
-  },
-  member: { login: "liu-xing", github_role: "member", bootstrap: false, head_of: [], titles: [title("member", null, "assignment", 7)], capabilities: ["console.access", "github.org.read"], blocked: [] },
-  alumni: { login: "gao-yuan", github_role: "member", bootstrap: false, head_of: [], titles: [title("alumni", null, "assignment", 8)], capabilities: ["console.access", "github.org.read", "feedback.read"], blocked: [] },
-  guest: { login: "visitor-01", github_role: null, bootstrap: false, head_of: [], titles: [title("guest", null, "none", null)], capabilities: [], blocked: [] },
+  }),
+  crew: makePersona("he-miao", "member", { head_of: [], capabilities: ["console.access", "github.org.read", "applications.read", "applications.review"], blocked: [] }),
+  member: makePersona("liu-xing", "member", { head_of: [], capabilities: ["console.access", "github.org.read"], blocked: [] }),
+  alumni: makePersona("gao-yuan", "member", { head_of: [], capabilities: ["console.access", "github.org.read", "feedback.read"], blocked: [] }),
+  guest: makePersona("visitor-01", null, { head_of: [], capabilities: [], blocked: [] }),
 };
 
 /** 不是身份的预览状态：未登录（/api/console/me 返回 401）。 */
 export const SIGNED_OUT = "signed_out";
 
 const PERSONA_KEY = "yugc:console-persona";
-/** `?__persona=` 优先，其次本标签页记住的身份，默认舰长。 */
+/** `?__persona=` 优先，其次本标签页记住的身份，默认是组织所有者（拥有全部能力）。 */
 export function currentPersona(): string {
-  if (typeof window === "undefined") return "captain";
+  if (typeof window === "undefined") return "admin";
   const valid = (value: string | null): value is string => Boolean(value && (value in MOCK_PERSONAS || value === SIGNED_OUT));
   const fromQuery = new URLSearchParams(window.location.search).get("__persona");
   if (valid(fromQuery)) {
@@ -177,7 +223,7 @@ export function currentPersona(): string {
     const stored = sessionStorage.getItem(PERSONA_KEY);
     if (valid(stored)) return stored;
   } catch { /* 忽略 */ }
-  return "captain";
+  return "admin";
 }
 
 const APPLICATIONS = [
@@ -224,7 +270,7 @@ const AUDIT = [
   { id: 33, created_at: now - 5 * DAY, actor: "zhao-yi", action: "team.create", target: "ai-native", ip: "10.0.0.19", details: { name: "AI Native" } },
   { id: 32, created_at: now - 7 * DAY, actor: "chen-hang", action: "role.assign", target: "gao-yuan", ip: "10.0.0.8", details: { role: "alumni", department_id: "", note_length: 14 } },
   { id: 29, created_at: now - 12 * DAY, actor: "li-xiaoman", action: "role.assign", target: "he-miao", ip: "10.0.0.12", details: { role: "member", department_id: "recruitment", note_length: 6 } },
-  { id: 28, created_at: now - 14 * DAY, actor: "chen-hang", action: "invite_link.create", target: "develo…", /* 服务端只下发邀请 token 前 6 位 */ ip: "10.0.0.8", details: { hours: 72, max_uses: 30, note: "新生群", team_slug: null } },
+  { id: 28, created_at: now - 14 * DAY, actor: "xu-yan", action: "invite_link.create", target: "develo…", /* 服务端只下发邀请 token 前 6 位 */ ip: "10.0.0.8", details: { hours: 72, max_uses: 30, note: "新生群", team_slug: null } },
   { id: 27, created_at: now - 20 * DAY, actor: "chen-hang", action: "department.update", target: "community", ip: "10.0.0.8", details: { changed: ["member_capabilities"] } },
 ].sort((a, b) => b.created_at - a.created_at);
 
@@ -261,6 +307,30 @@ export function mockPersona(): Persona | null {
   return name === SIGNED_OUT ? null : MOCK_PERSONAS[name];
 }
 
+/**
+ * 写请求不伪造成功（见 docs/architecture/API.md），由上层一律返回 501 mock_read_only。
+ * 改称号的请求先按服务端的顺序核对能力与权限包规则，不合法的得到与服务端相同的 403/400。
+ */
+export function checkConsoleWrite(url: URL, method: string, body: unknown): void {
+  const match = url.pathname.match(/^\/api\/console\/titles\/([^/]+)$/);
+  if (method !== "PATCH" || !match) return;
+  const name = currentPersona();
+  if (name === SIGNED_OUT) throw new ApiError(401, "not_signed_in", "请先登录", undefined, { error: "not_signed_in" });
+  need(MOCK_PERSONAS[name], "roles.manage");
+  const title = MOCK_TITLES.find(item => item.id === match[1]);
+  if (!title) throw new ApiError(400, "validation_error", "称号不存在", undefined, { error: "validation_error" });
+  const capabilities = body && typeof body === "object" ? (body as { capabilities?: unknown }).capabilities : undefined;
+  if (!Array.isArray(capabilities)) return;
+  const error = titleBundleError(title.id, capabilities.filter((item): item is string => typeof item === "string"), MOCK_CAPTAIN_ONLY);
+  if (!error) return;
+  const label = (id: TitleId) => MOCK_TITLES.find(item => item.id === id)!.label;
+  const capability = MOCK_CAPABILITIES.find(item => item.id === MOCK_CAPTAIN_ONLY[0])!.label;
+  const message = error === "title_capabilities_fixed"
+    ? `${label("admin")}永远拥有全部权限，${label("guest")}没有权限，这两个称号的权限不能改`
+    : `「${capability}」只能放进${label("captain")}的权限`;
+  throw new ApiError(400, error, message, undefined, { error, message });
+}
+
 /** 处理 `/api/console/*` 的 GET；未知路径返回 undefined，交回上层报 404。 */
 export function routeConsole(url: URL): unknown {
   const path = url.pathname;
@@ -273,18 +343,15 @@ export function routeConsole(url: URL): unknown {
     return {
       login: persona.login, avatar_url: null, org: MOCK_ORG, github_role: persona.github_role,
       title: persona.titles[0], titles: persona.titles, capabilities: persona.capabilities,
-      blocked: persona.blocked, bootstrap: persona.bootstrap, head_of: persona.head_of,
+      blocked: persona.blocked, head_of: persona.head_of,
     };
   }
   if (path === "/api/console/catalogue") {
     need(persona, "console.access");
     return {
       titles: MOCK_TITLES, crew: CREW, tones: MOCK_TONES, capabilities: MOCK_CAPABILITIES, domains: DOMAINS,
-      role_base: {
-        captain: ALL, head: ["console.access", "github.org.read", "feedback.read", "roles.department.manage"],
-        member: ["console.access", "github.org.read"], alumni: ["console.access", "github.org.read", "feedback.read"], guest: [],
-      },
-      captain_only: ["roles.manage"], department_icons: ICONS, application_statuses: STATUSES,
+      role_base: MOCK_ROLE_BASE, implies: MOCK_IMPLIES, captain_only: MOCK_CAPTAIN_ONLY,
+      department_icons: [...DEPARTMENT_ICONS], application_statuses: STATUSES,
     };
   }
   if (path === "/api/console/summary") {
@@ -295,7 +362,7 @@ export function routeConsole(url: URL): unknown {
     }
     if (persona.capabilities.includes("feedback.read")) result.feedback = { open: FEEDBACK.filter(f => f.status === "open").length, total: FEEDBACK.length };
     if (persona.capabilities.some(c => c === "roles.manage" || c === "roles.department.manage")) {
-      result.people = { assignments: name === "bootstrap" ? ASSIGNMENTS.length - 1 : ASSIGNMENTS.length, departments: MOCK_DEPARTMENTS.length };
+      result.people = { assignments: ASSIGNMENTS.length, departments: MOCK_DEPARTMENTS.length };
     }
     return result;
   }
@@ -305,14 +372,18 @@ export function routeConsole(url: URL): unknown {
   }
   if (path === "/api/console/assignments") {
     need(persona, "roles.manage", "roles.department.manage");
-    let rows = name === "bootstrap" ? ASSIGNMENTS.filter(a => a.role !== "captain") : ASSIGNMENTS;
+    let rows = ASSIGNMENTS;
     if (!persona.capabilities.includes("roles.manage")) rows = rows.filter(a => persona.head_of.includes(a.department_id));
     const role = search.get("role");
     const department = search.get("department_id");
     if (role) rows = rows.filter(a => a.role === role);
     if (department) rows = rows.filter(a => a.department_id === department);
-    const captain = name === "bootstrap" ? null : { github_login: "chen-hang" };
-    return { assignments: rows, captain, bootstrap_active: captain === null };
+    const captain = ASSIGNMENTS.find(a => a.role === "captain");
+    return { assignments: rows, captain: captain ? { github_login: captain.github_login } : null };
+  }
+  if (path === "/api/console/people") {
+    need(persona, "roles.manage", "roles.department.manage");
+    return { people: mockPeople() };
   }
   if (path === "/api/console/applications") {
     need(persona, "applications.read");

@@ -45,6 +45,8 @@ describe("describeError", () => {
     expect(view.kind).toBe("forbidden");
     expect(view.title).toBe("没有「查看审计日志」权限");
     expect(view.detail).toContain("舰长");
+    // 称号名字是数据：提示里联系谁，跟着 catalogue 的名字走。
+    expect(describeError(error, labelOf, "提督或船长").detail).toContain("请联系提督或船长");
   });
 
   it("says when the GitHub organisation role is what blocks the capability", () => {

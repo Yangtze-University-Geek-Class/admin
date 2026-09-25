@@ -11,20 +11,28 @@ import { api, jsonBody } from "../../lib/http";
 import { confirm } from "../../lib/confirm";
 import { GITHUB_LOGIN } from "../../lib/people";
 import { useAction } from "../../lib/resource";
+import { useSession } from "../../lib/session";
+import { kindLabel, titleDef, titleLabel } from "../../lib/titles";
 import type { AssignableRole, Department } from "../../lib/types";
 
 /**
- * 添加称号。舰长能指派全部称号（「舰长」一项只有现任舰长能选，等于移交）；
- * 只管本部门的队长只能把人设为本部门舰员。服务端会用你自己的 GitHub 授权核对用户名是否存在。
+ * 添加称号。能管理全部称号的人能指派 captain 以外的全部称号；captain 一项只有 admin 和现任 captain 能选，
+ * 已有 captain 时等于移交。只管本部门的人只能把人设为本部门的 crew。称号名字取 catalogue。
+ * 服务端会用你自己的 GitHub 授权核对用户名是否存在。`initialLogin` 给了就预先填好用户名（从名单某一行打开时）。
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   open: boolean;
   departments: Department[];
   scope: "all" | string[];
   canAssignCaptain: boolean;
   captain: string | null;
-}>();
+  initialLogin?: string | null;
+}>(), { initialLogin: null });
 const emit = defineEmits<{ "update:open": [value: boolean]; done: [] }>();
+const { me, catalogue } = useSession();
+const label = (id: Parameters<typeof titleLabel>[0]) => titleLabel(id, catalogue.value);
+/** 自己就是现任 captain：选 captain 等于把它交出去。 */
+const selfIsCaptain = computed(() => Boolean(props.captain && me.value && props.captain.toLowerCase() === me.value.login.toLowerCase()));
 
 const limited = computed(() => props.scope !== "all");
 const allowedDepartments = computed(() => {
@@ -33,14 +41,18 @@ const allowedDepartments = computed(() => {
 });
 
 type RoleChoice = AssignableRole | "crew";
+function captainHint(): string {
+  if (!props.captain) return `现在没有${label("captain")}`;
+  return selfIsCaptain.value ? `移交后你不再是${label("captain")}` : `现任是 @${props.captain}，指定后由新人接任`;
+}
 const roleOptions = computed(() => limited.value
-  ? [{ value: "crew", label: "部门舰员" }]
+  ? [{ value: "crew", label: kindLabel("crew", catalogue.value) }]
   : [
-    ...(props.canAssignCaptain ? [{ value: "captain", label: "舰长", description: props.captain ? "移交后你不再是舰长" : "指定正式舰长" }] : []),
-    { value: "head", label: "队长" },
-    { value: "crew", label: "部门舰员" },
-    { value: "member", label: "舰员", description: "不属于任何部门" },
-    { value: "alumni", label: "领航员", description: "已毕业的学长学姐" },
+    ...(props.canAssignCaptain ? [{ value: "captain", label: label("captain"), description: captainHint() }] : []),
+    { value: "head", label: label("head") },
+    { value: "crew", label: kindLabel("crew", catalogue.value) },
+    { value: "member", label: label("member"), description: "不属于任何部门" },
+    { value: "alumni", label: label("alumni"), description: titleDef("alumni", catalogue.value).description || undefined },
   ]);
 
 const login = ref("");
@@ -51,7 +63,7 @@ const touched = ref(false);
 
 watch(() => props.open, open => {
   if (!open) return;
-  login.value = "";
+  login.value = props.initialLogin ?? "";
   note.value = "";
   touched.value = false;
   role.value = limited.value ? "crew" : "head";
@@ -84,12 +96,20 @@ async function submit() {
   touched.value = true;
   if (!canSubmit.value) return;
   if (role.value === "captain" && props.captain) {
-    const ok = await confirm({
-      title: `把舰长移交给 @${login.value.trim()}？`,
-      body: "移交后你不再是舰长，会失去管理称号与部门等全部舰长权限。",
-      confirmText: "确认移交",
-      danger: true,
-    });
+    const captain = label("captain");
+    const ok = await confirm(selfIsCaptain.value
+      ? {
+        title: `把${captain}移交给 @${login.value.trim()}？`,
+        body: `移交后你不再是${captain}，会失去${captain}的全部权限。`,
+        confirmText: "确认移交",
+        danger: true,
+      }
+      : {
+        title: `让 @${login.value.trim()} 接任${captain}？`,
+        body: `现任 @${props.captain} 会同时失去${captain}称号和它带来的权限。`,
+        confirmText: "确认接任",
+        danger: true,
+      });
     if (!ok) return;
   }
   await create.execute();

@@ -1,6 +1,7 @@
 // 把接口错误翻成用户能看懂的一段话：出了什么事、下一步做什么。纯函数，tests/console 直接测。
 import { ApiError } from "./http";
 import { BLOCK_REASON_TEXT } from "./nav";
+import { assignerText } from "./titles";
 import type { BlockReason } from "./types";
 
 export type ErrorView = {
@@ -16,8 +17,11 @@ export type ErrorView = {
 
 const isBlockReason = (value: unknown): value is BlockReason => value === "github_admin_required" || value === "github_membership_required";
 
-/** `labelOf` 把能力 id 换成中文名（来自 catalogue）；没有 catalogue 时原样返回 id。 */
-export function describeError(error: unknown, labelOf: (capability: string) => string = id => id): ErrorView {
+/**
+ * `labelOf` 把能力 id 换成中文名（来自 catalogue）；没有 catalogue 时原样返回 id。
+ * `assigner` 是能指派称号的人的称呼（由 catalogue 的称号名字拼成，见 titles.assignerText）。
+ */
+export function describeError(error: unknown, labelOf: (capability: string) => string = id => id, assigner = assignerText()): ErrorView {
   if (!(error instanceof ApiError)) {
     return {
       kind: "network", title: "连不上服务器", detail: "请检查网络后重试。", code: "network_error",
@@ -36,7 +40,7 @@ export function describeError(error: unknown, labelOf: (capability: string) => s
       ...base, kind: "forbidden", title: `没有「${name}」权限`,
       detail: reason
         ? `你的称号包含这项权限，但${BLOCK_REASON_TEXT[reason]}才能使用。`
-        : "请联系舰长，为你指派包含这项权限的称号。",
+        : `请联系${assigner}，为你指派包含这项权限的称号。`,
     };
   }
   if (error.status === 403) return { ...base, kind: "forbidden", title: "没有权限", detail: error.message || "当前账号不能执行这个操作。" };

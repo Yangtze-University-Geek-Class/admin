@@ -14,7 +14,8 @@ import { FORUM_CAPABILITIES } from "../lib/nav";
 import { useResource } from "../lib/resource";
 import { siteUrl } from "../lib/runtime";
 import { useSession } from "../lib/session";
-import type { Department, TitleView } from "../lib/types";
+import { closure, makeTitle, titleLabel } from "../lib/titles";
+import type { Department, TitleId, TitleView } from "../lib/types";
 
 /** 论坛类能力对应的论坛动作。论坛还没有服务端，这张表是给未来论坛接口的约定。 */
 const FORUM_ACTIONS: Record<string, string> = {
@@ -30,21 +31,26 @@ const departments = useResource(() => api<{ departments: Department[] }>("/api/c
 
 const mine = computed(() => FORUM_CAPABILITIES.map(id => ({ id, label: capabilityLabel(id), action: FORUM_ACTIONS[id], has: Boolean(me.value?.capabilities.includes(id)) })));
 
-const baseTitle = (id: "captain" | "member" | "alumni"): TitleView => {
-  const item = catalogue.value?.titles.find(title => title.id === id);
-  return { id, label: item?.label ?? id, tag: item?.tag ?? "", icon: item?.icon ?? "user", tone: item?.tone ?? "slate", department: null, source: "assignment", assignment_id: null };
-};
-
-type MatrixRow = { key: string; title: TitleView; role: string; caps: string[] };
+type MatrixRow = { key: string; title: TitleView; caps: string[] };
+/**
+ * 每个称号实际拿到的论坛权限：称号自己的权限包（catalogue.role_base，可在「称号」里改），
+ * head 与带部门的 member 再加部门权限包；admin 永远是全部。
+ */
 const matrix = computed<MatrixRow[]>(() => {
-  const rows: MatrixRow[] = [{ key: "captain", title: baseTitle("captain"), role: "全部权限", caps: FORUM_CAPABILITIES }];
+  const cat = catalogue.value;
+  const forum = (...bundles: string[][]) => {
+    const held = closure(bundles.flat(), cat?.implies);
+    return FORUM_CAPABILITIES.filter(id => held.has(id));
+  };
+  const base = (id: TitleId) => cat?.role_base[id] ?? [];
+  const row = (id: TitleId): MatrixRow => ({ key: id, title: makeTitle(id, null, cat), caps: id === "admin" ? FORUM_CAPABILITIES : forum(base(id)) });
+  const rows: MatrixRow[] = [row("admin"), row("captain")];
   for (const dept of (departments.data.value?.departments ?? []).filter(d => !d.archived)) {
     const view = { id: dept.id, name: dept.name, tag: dept.tag, icon: dept.icon, tone: dept.tone };
-    rows.push({ key: `${dept.id}-head`, role: "队长", caps: dept.head_capabilities, title: { id: "head", label: `${dept.name} · 队长`, tag: "LEADER", icon: dept.icon, tone: dept.tone, department: view, source: "assignment", assignment_id: null } });
-    rows.push({ key: `${dept.id}-crew`, role: "舰员", caps: dept.member_capabilities, title: { id: "member", label: `${dept.name} · 舰员`, tag: "CREW", icon: dept.icon, tone: "slate", department: view, source: "assignment", assignment_id: null } });
+    rows.push({ key: `${dept.id}-head`, title: makeTitle("head", view, cat), caps: forum(base("head"), dept.head_capabilities) });
+    rows.push({ key: `${dept.id}-crew`, title: makeTitle("member", view, cat), caps: forum(base("member"), dept.member_capabilities) });
   }
-  rows.push({ key: "alumni", title: baseTitle("alumni"), role: "", caps: [] });
-  rows.push({ key: "member", title: baseTitle("member"), role: "", caps: [] });
+  rows.push(row("alumni"), row("member"));
   return rows;
 });
 
@@ -116,7 +122,7 @@ const openForum = () => window.open(siteUrl("forum", "/"), "_blank", "noopener")
           <i v-else class="i-carbon-subtract cell-no" role="img" aria-label="无" />
         </template>
       </TxDataTable>
-      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门与权限包」里修改。舰长默认拥有全部论坛权限。</p>
+      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门与权限包」或「称号」里修改。{{ titleLabel("admin", catalogue) }}永远拥有全部论坛权限。</p>
     </TxCard>
   </div>
 </template>
