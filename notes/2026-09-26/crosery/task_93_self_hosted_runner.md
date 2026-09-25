@@ -37,3 +37,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：CI 运行 36179768712（push 2034f9d）：forum、core、env-contract、lint-workflows 在 crosery-arch-1/2 上通过；docker、branch-guard 报 node: command not found（这两个 job 与 pr-contract 不经 setup-node 直接用 ubuntu-latest 预装的 node）。容器内装 nodejs.org 的 v22.23.3（SHASUMS256 校验通过）到 /usr/local；CICD.md 表里补「预装」一行
 - 结果：runner 用户 command -v node → /usr/local/bin/node，v22.23.3；待下一轮 CI 复核
+
+## 03:32:56 +08:00 · 提交 · #93 · runner 搭建脚本入库
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：build(deploy): 自托管 runner 的宿主机、容器与注册脚本入库（e88ef5b9f560）；shellcheck、pnpm check、pnpm test
+- 结果：shellcheck 无输出；pnpm check 通过；pnpm test Tests 452 passed
