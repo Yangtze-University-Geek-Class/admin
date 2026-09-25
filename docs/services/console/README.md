@@ -14,9 +14,9 @@
 |---|---|
 | `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost |
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`） |
-| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（含 `people/` 的两个对话框）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
+| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框和称号列表 `TitleList`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`）、能力门 `CapabilityGate`、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
-| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案）、`nav`（导航与能力可见性）、`people`（名单分页签与排序）、`titles`（称号色调）、`org-settings`（组织资料改动计算）、`statuses`、`format`、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
+| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`statuses`、`format`、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/mock/` | 开发预览样板数据（全部虚构），只在 DEV 且数据源为 mock 时动态导入，生产构建不含 |
 | `src/styles/theme.css`、`layout.css` | 主题令牌覆盖与页面版式（见「设计令牌」） |
 | `scripts/tuffex-icon-classes.mjs` | 扫描已安装 Tuffex 的 dist，给 UnoCSS 列出组件自带的 `i-carbon-*` 图标类（做法同论坛） |
@@ -92,13 +92,13 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ## 设计令牌
 
-浅色「冰白纸面 + 钴蓝」，全部经 Tuffex 官方令牌表达（`src/styles/theme.css`）：`--tx-color-primary: #3346C8`，文字与边框换成同色相的藏青/冷灰，语义色用服务端 `roles.ts` 的色调（白底 ≥5:1），`--tx-bui-*` 同步给 SidebarNav。页面底铺一层 4% 钴蓝的图纸网格，面板纯白。称号徽章用 TxTag + 称号图标，颜色取 `/api/console/catalogue` 的 `tones`：舰长 amber、队长随部门色、部门舰员 slate、舰员 sky、领航员 violet。一套无衬线字体；等宽只给 GitHub 登录名、编号、代码。规则总表见 [DESIGN](../../design/DESIGN.md)「控制台」。
+浅色「冰白纸面 + 钴蓝」，全部经 Tuffex 官方令牌表达（`src/styles/theme.css`）：`--tx-color-primary: #3346C8`，文字与边框换成同色相的藏青/冷灰，语义色用服务端 `roles.ts` 的色调（白底 ≥5:1），`--tx-bui-*` 同步给 SidebarNav。页面底铺一层 4% 钴蓝的图纸网格，面板纯白。称号徽章用 TxTag + 称号图标，名字、图标和色调取 `/api/console/catalogue`（可在「称号」里改），默认提督 violet、舰长 amber、队长随部门色、部门舰员 slate、舰员 sky、领航员 jade。一套无衬线字体；等宽只给 GitHub 登录名、编号、代码。规则总表见 [DESIGN](../../design/DESIGN.md)「控制台」。
 
 ## 验证
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与分页签、组织资料改动、错误映射、与服务端清单同步
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、与服务端清单同步
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

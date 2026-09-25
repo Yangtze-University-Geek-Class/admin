@@ -22,10 +22,15 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
 
   app.get("/api/console/departments", { preHandler: requireCapability("console.access") }, async () => ({ departments: view() }));
 
+  const captainOnlyMessage = () => {
+    const names = roles.titleConfigs();
+    return `「管理称号与部门」只属于${names.admin.label}和${names.captain.label}，不能放进部门权限包`;
+  };
+
   app.post<{ Body: DepartmentInput }>("/api/console/departments", { preHandler: requireCapability("roles.manage") }, async (req, reply) => {
     const body = req.body;
     if (includesCaptainOnly(body.head_capabilities, body.member_capabilities)) {
-      return reply.code(400).send({ error: "captain_only_capability", message: "「管理称号与部门」只属于提督和舰长，不能放进部门权限包" });
+      return reply.code(400).send({ error: "captain_only_capability", message: captainOnlyMessage() });
     }
     if (!roles.insertDepartment(body)) return reply.code(409).send({ error: "department_exists", message: "部门 id 已存在" });
     audit(config.consoleOrg, req.session!.login, "department.create", body.id, { name: body.name }, req.ip);
@@ -38,7 +43,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { department_id: id } = req.params;
       if (includesCaptainOnly(req.body.head_capabilities, req.body.member_capabilities)) {
-        return reply.code(400).send({ error: "captain_only_capability", message: "「管理称号与部门」只属于提督和舰长，不能放进部门权限包" });
+        return reply.code(400).send({ error: "captain_only_capability", message: captainOnlyMessage() });
       }
       const changed = roles.updateDepartment(id, req.body);
       if (changed === null) return reply.code(404).send({ error: "not_found", message: "部门不存在" });

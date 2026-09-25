@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import {
-  CAPABILITY_IDS, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, TITLE_IDS, isCapability, normalizeBundle,
+  CAPABILITY_IDS, CAPTAIN_ONLY, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, TITLE_IDS, isCapability, normalizeBundle,
   type AssignableRole, type AssignmentRow, type Capability, type Department, type DepartmentIcon, type TitleConfigs, type TitleId, type Tone,
 } from "./roles.js";
 
@@ -65,7 +65,9 @@ export function createRoleStore(db: Database.Database) {
       if (!(row.id in result)) continue;
       result[row.id] = {
         id: row.id, label: row.label, tag: row.tag, icon: row.icon, tone: row.tone as Tone, description: row.description,
-        capabilities: row.id === "admin" ? [...CAPABILITY_IDS] : row.id === "guest" ? [] : parseTitleBundle(row.capabilities),
+        capabilities: row.id === "admin" ? [...CAPABILITY_IDS] : row.id === "guest" ? []
+          // 仅舰长能力只认舰长那一行：路由已经挡住，这里读出时再兜一层，库被别处改过也不会放大权限
+          : parseTitleBundle(row.capabilities).filter(capability => row.id === "captain" || !CAPTAIN_ONLY.includes(capability)),
       };
     }
     return result;

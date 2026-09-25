@@ -286,4 +286,21 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     const me = (await second.inject({ url: '/api/console/me', headers: as('legacy-session-alice') })).json();
     expect(me).toMatchObject({ github_role: 'admin', title: { id: 'admin' } });
   });
+
+  it('upgrades a stage-era database (departments, no seed marker) without re-adding deleted defaults', async () => {
+    const path = legacyDatabase();
+    const first = await boot(path);
+    const { db } = first.services.storage;
+    // 模拟本功能上线前的库：部门已经有了（删掉一个默认部门、加一个自建部门），但还没有 console_seeds 标记。
+    first.services.roles.deleteDepartment('projects');
+    first.services.roles.insertDepartment({ id: 'design', name: '设计部', tag: 'DESIGN', icon: 'idea', tone: 'rose', head_capabilities: [] });
+    db.prepare("DELETE FROM console_seeds").run();
+    await first.close();
+    apps.splice(apps.indexOf(first), 1);
+
+    const second = await boot(path);
+    const ids = second.services.roles.listDepartments().map(item => item.id).sort();
+    expect(ids).toEqual(['community', 'design', 'recruitment', 'tech']);
+    expect(second.services.storage.db.prepare("SELECT name FROM console_seeds").all()).toEqual([{ name: 'departments' }]);
+  });
 });

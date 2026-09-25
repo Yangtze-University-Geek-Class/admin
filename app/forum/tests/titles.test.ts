@@ -60,10 +60,10 @@ const SERVER_TONES: Record<Tone, string> = {
 }
 
 const SERVER_TITLES = {
-  admin: { label: '提督', tag: 'ADMIRAL', icon: 'user-admin', tone: 'violet', rank: 0, description: 'GitHub 组织的 owner，拥有全部能力，任命舰长' },
+  admin: { label: '提督', tag: 'ADMIRAL', icon: 'user-admin', tone: 'violet', rank: 0, description: 'GitHub 组织的所有者，拥有全部权限，任命舰长' },
   captain: { label: '舰长', tag: 'CAPTAIN', icon: 'star-filled', tone: 'amber', rank: 1, description: '带领全班，权限仅次于提督' },
   head: { label: '队长', tag: 'LEADER', icon: 'badge', tone: 'cobalt', rank: 2, description: '负责一个部门的日常事务' },
-  member: { label: '舰员', tag: 'CREW', icon: 'code', tone: 'sky', rank: 5, description: '在读成员；GitHub 组织的 active 成员自动获得' },
+  member: { label: '舰员', tag: 'CREW', icon: 'code', tone: 'sky', rank: 5, description: '在读成员；加入 GitHub 组织后自动获得' },
   alumni: { label: '领航员', tag: 'NAVIGATOR', icon: 'compass', tone: 'jade', rank: 4, description: '已毕业的学长学姐' },
   guest: { label: '乘客', tag: 'PASSENGER', icon: 'user', tone: 'slate', rank: 9, description: '没登录的人，只能看帖子' },
 } as const

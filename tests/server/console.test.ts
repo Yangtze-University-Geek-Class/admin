@@ -460,6 +460,28 @@ describe('titles are data the 提督 can edit', () => {
     expect(byCaptain.statusCode).toBe(403);
   });
 
+  it('lets only the 提督 edit the top two titles, and words errors with the current names', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', carol: 'member' });
+    assign('carol', 'captain');
+    const patch = (who: string, id: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'PATCH', url: `/api/console/titles/${id}`, headers: as(who), payload });
+    // 舰长持有 roles.manage，能改别的称号，但不能改自己这一级和提督那一级（否则能给自己加权限）。
+    for (const id of ['captain', 'admin']) {
+      const response = await patch('carol', id, { description: '自己改自己' });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: 'admiral_required', message: '只有提督能修改「提督」和「舰长」这两个称号' });
+    }
+    expect((await patch('carol', 'member', { label: '水手' })).statusCode).toBe(200);
+    // 改名后，提示里用新名字。
+    expect((await patch('alice', 'captain', { label: '班长' })).statusCode).toBe(200);
+    expect((await patch('carol', 'captain', { label: '大班长' })).json().message).toBe('只有提督能修改「提督」和「班长」这两个称号');
+    expect((await patch('alice', 'head', { capabilities: ['roles.manage'] })).json().message).toBe('「管理称号与部门」只能放进班长的权限');
+    const noDepartment = await app.inject({ method: 'POST', url: '/api/console/assignments', headers: as('alice'), payload: { github_login: 'bob', role: 'head' } });
+    expect(noDepartment.json()).toMatchObject({ error: 'department_required', message: '队长必须指定部门' });
+    // 只有空白的名字不接受。
+    expect((await patch('alice', 'member', { label: '   ' })).statusCode).toBe(400);
+  });
+
   it('refuses title edits without roles.manage and rejects unknown titles or fields', async () => {
     const { app, as, assign } = await setup({ alice: 'admin', bob: 'member' });
     assign('bob', 'head', 'tech');

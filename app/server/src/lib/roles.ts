@@ -40,10 +40,10 @@ export type TitleDefinition = { id: TitleId; label: string; tag: string; icon: s
  * 「舰长只有一个」「队长属于部门」这些规则靠它执行。一个人可以有多个称号；主称号取 rank 最小者。
  */
 export const TITLES: Record<TitleId, TitleDefinition> = {
-  admin: { id: "admin", label: "提督", tag: "ADMIRAL", icon: "user-admin", tone: "violet", rank: 0, description: "GitHub 组织的 owner，拥有全部能力，任命舰长" },
+  admin: { id: "admin", label: "提督", tag: "ADMIRAL", icon: "user-admin", tone: "violet", rank: 0, description: "GitHub 组织的所有者，拥有全部权限，任命舰长" },
   captain: { id: "captain", label: "舰长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 1, description: "带领全班，权限仅次于提督" },
   head: { id: "head", label: "队长", tag: "LEADER", icon: "badge", tone: "cobalt", rank: 2, description: "负责一个部门的日常事务" },
-  member: { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 5, description: "在读成员；GitHub 组织的 active 成员自动获得" },
+  member: { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 5, description: "在读成员；加入 GitHub 组织后自动获得" },
   alumni: { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "jade", rank: 4, description: "已毕业的学长学姐" },
   guest: { id: "guest", label: "乘客", tag: "PASSENGER", icon: "user", tone: "slate", rank: 9, description: "没登录的人，只能看帖子" },
 };
@@ -81,8 +81,8 @@ export const CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅提督和舰长，不可放进部门权限包" },
-  { id: "roles.department.manage", domain: "roles", label: "任免本部门舰员", description: "任免本部门舰员（只限自己负责的部门）" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；只能给最高的两级称号，不能放进部门权限包" },
+  { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
 ] as const satisfies readonly { id: string; domain: CapabilityDomain; label: string; description: string }[];
 export type Capability = (typeof CAPABILITIES)[number]["id"];
 export const CAPABILITY_IDS: Capability[] = CAPABILITIES.map(item => item.id);

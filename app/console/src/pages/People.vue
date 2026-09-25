@@ -330,7 +330,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
           </template>
 
           <template v-else-if="id === 'titles'">
-            <TitleList v-if="catalogue" :catalogue="catalogue" @changed="refreshTitles" />
+            <TitleList v-if="catalogue" :catalogue="catalogue" :admiral="Boolean(me?.titles.some(title => title.id === 'admin'))" @changed="refreshTitles" />
             <TxEmptyState
               v-else-if="catalogueFailed"
               title="没有读到称号设置"

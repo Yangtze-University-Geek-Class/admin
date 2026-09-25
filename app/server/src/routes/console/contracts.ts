@@ -39,7 +39,7 @@ export const consoleContracts: RouteContracts = {
     params: object({ title_id: choices(...TITLE_IDS) }, ["title_id"]),
     body: {
       ...object({
-        label: text(8, 1), tag: { type: "string", pattern: TITLE_TAG_PATTERN }, icon: choices(...DEPARTMENT_ICONS),
+        label: { ...text(8, 1), pattern: "\\S" }, tag: { type: "string", pattern: TITLE_TAG_PATTERN }, icon: choices(...DEPARTMENT_ICONS),
         tone: choices(...TONE_IDS), description: text(200), capabilities: bundle,
       }),
       minProperties: 1,

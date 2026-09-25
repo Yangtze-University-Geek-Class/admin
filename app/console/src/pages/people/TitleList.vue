@@ -7,10 +7,13 @@ import TitleDialog from "./TitleDialog.vue";
 import type { Catalogue, CatalogueTitle } from "../../lib/types";
 
 /**
- * 「称号」分区：按层级列出全部称号的徽章、名字、英文标签、说明和权限，每个都能编辑。
- * 只有持有 roles.manage 的人看得到这个分区（服务端也只认这项能力）。名字、说明、权限全部来自 catalogue。
+ * 「称号」分区：按层级列出全部称号的徽章、名字、英文标签、说明和权限。
+ * 只有持有 roles.manage 的人看得到这个分区（服务端也只认这项能力）；最高的两级（admin、captain）只有 admin 本人能改，
+ * 与服务端的 admiral_required 一致。名字、说明、权限全部来自 catalogue。
  */
-const props = defineProps<{ catalogue: Catalogue }>();
+const props = defineProps<{ catalogue: Catalogue; admiral: boolean }>();
+const editable = (title: CatalogueTitle) => props.admiral || (title.id !== "admin" && title.id !== "captain");
+const adminLabel = computed(() => props.catalogue.titles.find(item => item.id === "admin")?.label ?? "");
 const emit = defineEmits<{ changed: [] }>();
 
 const ordered = computed(() => [...props.catalogue.titles].sort((a, b) => a.rank - b.rank));
@@ -46,7 +49,8 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
           <p class="muted">{{ title.description || "没有填写说明" }}</p>
           <p v-if="note(title)" class="title-item__note">{{ note(title) }}</p>
         </div>
-        <TxButton size="sm" icon="i-carbon-edit" :aria-label="`编辑「${title.label}」`" @click="editing = title">编辑</TxButton>
+        <TxButton v-if="editable(title)" size="sm" icon="i-carbon-edit" :aria-label="`编辑「${title.label}」`" @click="editing = title">编辑</TxButton>
+        <span v-else class="muted title-item__locked">只有{{ adminLabel }}能改</span>
       </div>
       <div class="title-item__caps">
         <h4>权限</h4>
@@ -65,6 +69,10 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
 </template>
 
 <style scoped>
+.title-item__locked {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
 .title-list {
   display: flex;
   flex-direction: column;

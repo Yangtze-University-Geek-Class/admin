@@ -77,15 +77,20 @@ test("signed-out visitors land on the GitHub sign-in page with a return path", a
   await expect(page.getByRole("button", { name: "用 GitHub 登录" })).toBeVisible();
 });
 
-test("people are grouped into title tabs, each a sorted table, with no in-page search", async ({ page }) => {
+test("people are grouped by department like a contacts list, with lead and superior, and no in-page search", async ({ page }) => {
   await openConsole(page, "/console/people");
   await expect(page.getByRole("heading", { name: "成员与权限", level: 1 })).toBeVisible();
-  for (const tab of ["全部", "舰长", "队长", "部门舰员", "舰员", "领航员"]) await expect(page.getByRole("tab", { name: new RegExp(`^${tab}`) })).toBeVisible();
+  const groups = page.getByRole("navigation", { name: "按部门查看" });
+  for (const name of ["全部成员", "招新部", "技术部", "社区部", "项目部", "没有部门"]) await expect(groups.getByRole("button", { name: new RegExp(`^${name}`) })).toBeVisible();
   await expect(page.getByRole("searchbox")).toHaveCount(0);
-  await page.getByRole("tab", { name: /^队长/ }).click();
-  await expect(page).toHaveURL(/tab=head/);
+  await groups.getByRole("button", { name: /^招新部/ }).click();
+  await expect(page).toHaveURL(/group=recruitment/);
+  const head = page.locator(".group-head");
+  await expect(head.getByRole("heading", { name: "招新部" })).toBeVisible();
+  await expect(head.getByText("上级")).toBeVisible();
+  await expect(head.getByText("@li-xiaoman")).toBeVisible();
   const logins = await page.locator("tbody tr .user-cell__login").allTextContents();
-  expect(logins).toEqual(["@li-xiaoman", "@wang-zhe", "@sun-qiao", "@zhao-yi"]);
+  expect(logins).toEqual(["@li-xiaoman", "@fang-lin", "@he-miao"]);
 });
 
 test("no native select or checkbox is visible; permission bundles use Tuffex checkboxes", async ({ page }) => {

@@ -64,12 +64,12 @@
 2026-09-24（#13）起，极客班控制台是 Vue 3 + Tuffex 包，所有控件都用 Tuffex 组件，不再有浏览器原生下拉框、复选框。实现与令牌清单见 [console 合同](../services/console/README.md)。这是 Operate 界面：先求扫读、一致、平静。
 
 - **只经令牌换肤**：`app/console/src/styles/theme.css` 只覆盖 Tuffex 官方的 `--tx-*` 与 `--tx-bui-*` 令牌——主色钴蓝 `#3346C8`（`--tx-color-primary`，派生色按官方做法 color-mix）、藏青墨色、冷灰边框与填充、页面底 `#F4F6FC`；语义色取服务端 `roles.ts` 的色调（白底 ≥5:1）。组件不写颜色值；自写 CSS 只管版式和页面底（4% 钴蓝图纸网格，面板纯白）。
-- **称号徽章**：TxTag（soft）+ 称号图标 + 中文称号，颜色来自 `/api/console/catalogue` 的 `tones`：舰长 amber、队长随部门色、部门舰员 slate、舰员 sky、领航员 violet、乘客 slate。显示名是所有者 2026-09-25 定的星舰命名（见 [SECURITY](../architecture/SECURITY.md)）。名单里部门另起一列，徽章只写「队长」「部门舰员」。
+- **称号徽章**：TxTag（soft）+ 称号图标 + 称号名字；名字、图标、色调都是数据（控制台「称号」里改，经 `/api/console/catalogue` 下发），默认值是提督 violet、舰长 amber、队长随部门色、部门舰员 slate、舰员 sky、领航员 jade、乘客 slate（所有者 2026-09-25 定的星舰命名，见 [SECURITY](../architecture/SECURITY.md)）。队长与部门舰员的徽章写「部门名 · 称号名」并用部门图标。
 - **字体**：一套无衬线（系统中文栈）；等宽只给 GitHub 登录名、编号、提交号和代码。
 - **组件对应**：导航 TxSidebarNav（≤900px 收进 TxDrawer）；列表 TxDataTable（窄屏在自己的容器里横向滚动）；分区 TxTabs；筛选 TxFilterChips；表单 TxForm/TxFormItem + TxInput/TxTextarea/TxSelect/TxCheckbox/TxRadio/TxSwitch/TxNumberInput；对话框 TxModal；反馈 TxToastHost、TxAlert；状态 TxSkeleton、TxEmptyState、TxErrorState、TxPermissionState；指标 TxStatCard。Tuffex 里有的就不自己写。
 - **状态**：加载、空、失败（带重试和 `HTTP · 机器码 · request id`）、缺能力（写明缺哪项，被 GitHub 组织角色挡住时说明原因）、未登录分开。危险操作先确认，初始焦点在「取消」。
 - **文案**：短、具体、从用户这边说。标签说名字，按钮说动作，空/错状态说发生了什么、下一步做什么。不写口号，不用「赋能 / 打造 / 一站式 / 沉浸式」，不用 emoji 和装饰性箭头符号；图标只用 Tuffex/Carbon。
-- **成员与权限**：顶层「成员 / 部门与权限包」两个分区；成员按「全部 / 舰长 / 队长 / 部门舰员 / 舰员 / 领航员」分页签，每页一张按「称号 rank → 部门顺序 → 登录名」排好的表，没有页内搜索。
+- **成员与权限**：顶层「成员 / 称号 / 部门与权限包」三个分区（「称号」只给能管理称号的人）。「成员」像飞书通讯录：左边是「全部成员」、各部门和「没有部门」（带人数），右边先是这一组的卡片（全班写提督、舰长；部门写负责人、上级和人数），下面是一张按「称号层级 → 部门顺序 → 登录名」排好的表，没有页内搜索；窄屏时左边的列表横排在上面。
 
 ## 既有 React 模块的过渡期交互原语
 

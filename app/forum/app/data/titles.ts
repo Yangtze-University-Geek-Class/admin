@@ -109,10 +109,10 @@ export interface TitleDefinition extends TitleLook {
 
 /** The server's `TITLES`, keyed the same way. */
 export const TITLES: Readonly<Record<TitleId, TitleDefinition>> = {
-  admin: { id: 'admin', label: '提督', tag: 'ADMIRAL', icon: 'i-carbon-user-admin', tone: 'violet', rank: 0, description: 'GitHub 组织的 owner，拥有全部能力，任命舰长' },
+  admin: { id: 'admin', label: '提督', tag: 'ADMIRAL', icon: 'i-carbon-user-admin', tone: 'violet', rank: 0, description: 'GitHub 组织的所有者，拥有全部权限，任命舰长' },
   captain: { id: 'captain', label: '舰长', tag: 'CAPTAIN', icon: 'i-carbon-star-filled', tone: 'amber', rank: 1, description: '带领全班，权限仅次于提督' },
   head: { id: 'head', label: '队长', tag: 'LEADER', icon: 'i-carbon-badge', tone: 'cobalt', rank: 2, description: '负责一个部门的日常事务' },
-  member: { id: 'member', label: '舰员', tag: 'CREW', icon: 'i-carbon-code', tone: 'sky', rank: 5, description: '在读成员；GitHub 组织的 active 成员自动获得' },
+  member: { id: 'member', label: '舰员', tag: 'CREW', icon: 'i-carbon-code', tone: 'sky', rank: 5, description: '在读成员；加入 GitHub 组织后自动获得' },
   alumni: { id: 'alumni', label: '领航员', tag: 'NAVIGATOR', icon: 'i-carbon-compass', tone: 'jade', rank: 4, description: '已毕业的学长学姐' },
   guest: { id: 'guest', label: '乘客', tag: 'PASSENGER', icon: 'i-carbon-user', tone: 'slate', rank: 9, description: '没登录的人，只能看帖子' },
 }

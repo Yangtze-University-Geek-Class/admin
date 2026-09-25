@@ -40,8 +40,8 @@ export const MOCK_CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅提督和舰长，不可放进部门权限包" },
-  { id: "roles.department.manage", domain: "roles", label: "任免本部门舰员", description: "任免本部门舰员（只限自己负责的部门）" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；只能给最高的两级称号，不能放进部门权限包" },
+  { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
 /** GitHub 类的管理能力：只有组织所有者能用，其他人被 GitHub 上限挡住。 */
@@ -319,11 +319,15 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
   need(MOCK_PERSONAS[name], "roles.manage");
   const title = MOCK_TITLES.find(item => item.id === match[1]);
   if (!title) throw new ApiError(400, "validation_error", "称号不存在", undefined, { error: "validation_error" });
+  const label = (id: TitleId) => MOCK_TITLES.find(item => item.id === id)!.label;
+  if ((title.id === "admin" || title.id === "captain") && !MOCK_PERSONAS[name].titles.some(item => item.id === "admin")) {
+    const message = `只有${label("admin")}能修改「${label("admin")}」和「${label("captain")}」这两个称号`;
+    throw new ApiError(403, "admiral_required", message, undefined, { error: "admiral_required", message });
+  }
   const capabilities = body && typeof body === "object" ? (body as { capabilities?: unknown }).capabilities : undefined;
   if (!Array.isArray(capabilities)) return;
   const error = titleBundleError(title.id, capabilities.filter((item): item is string => typeof item === "string"), MOCK_CAPTAIN_ONLY);
   if (!error) return;
-  const label = (id: TitleId) => MOCK_TITLES.find(item => item.id === id)!.label;
   const capability = MOCK_CAPABILITIES.find(item => item.id === MOCK_CAPTAIN_ONLY[0])!.label;
   const message = error === "title_capabilities_fixed"
     ? `${label("admin")}永远拥有全部权限，${label("guest")}没有权限，这两个称号的权限不能改`
