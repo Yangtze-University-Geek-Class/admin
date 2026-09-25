@@ -49,45 +49,45 @@ describe('deploy-manual helpers', () => {
     expect(() => repoFromRemote('https://gitlab.com/o/r.git')).toThrow(/GitHub/);
   });
 
-  it('accepts an approval only as its own line 「批准发布 vX.Y.Z」, not negated, quoted or rc-only', () => {
-    expect(acceptanceSays('批准发布 v0.1.0', '0.1.0')).toBe(true);
-    expect(acceptanceSays('预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0。', '0.1.0')).toBe(true);
-    expect(acceptanceSays('批准发布 0.1.0.', '0.1.0')).toBe(true);
+  it('accepts an approval only when the whole comment is the one line 「批准发布 vX.Y.Z」 (whitelist, #69)', () => {
+    // 只认整条评论就是这一行；末尾的空格、制表符、换行（含 CRLF）不算。
+    for (const text of ['批准发布 v0.1.0', '批准发布 v0.1.0\n', '批准发布 v0.1.0\r\n', '批准发布 v0.1.0  \n\n', '批准发布 v0.1.0\t\r\n']) {
+      expect(acceptanceSays(text, '0.1.0'), JSON.stringify(text)).toBe(true);
+    }
     for (const text of [
-      '暂不批准发布 v0.1.0，等修完', '批准发布 v0.1.0-rc.1 到预发布；v0.1.0 还要再看', '> 批准发布 v0.1.0', '批准发布 v0.1.0-rc.1',
-      '看起来不错 v0.1.0', '批准发布 v0.2.0', '批准发布 v0.1.01', '不批准发布 v0.1.0',
-      // 渲染后不是正文的地方：代码块、缩进代码、注释、HTML 标签内、引用与懒续行
-      '回复下面这行：\n```\n批准发布 v0.1.0\n```', '~~~md\n批准发布 v0.1.0\n~~~', '    批准发布 v0.1.0', '\t批准发布 v0.1.0',
-      '<!-- 批准发布 v0.1.0 -->', '<!--\n批准发布 v0.1.0\n-->', '<blockquote>\n批准发布 v0.1.0\n</blockquote>', '<details><summary>模板</summary>\n\n批准发布 v0.1.0\n</details>',
-      '> 所有者说：\n批准发布 v0.1.0', '＞ 批准发布 v0.1.0',
-    ]) expect(acceptanceSays(text, '0.1.0'), text).toBe(false);
-    // 引用结束（空行）之后、代码块关闭之后的正文照常算。
-    expect(acceptanceSays('> 上次的讨论\n\n批准发布 v0.1.0', '0.1.0')).toBe(true);
-    expect(acceptanceSays('```\nlog\n```\n批准发布 v0.1.0', '0.1.0')).toBe(true);
-  });
-
-  it('never lets stripped markup take part in the approval line (#69)', () => {
-    for (const text of [
-      // 剥掉的标签换成占位符而不是空串：页面上是「暂不批准发布」、rc 版本的，剩下的部分不能凑成批准句。
+      // 这一行本身写得不对：否定、rc、别的版本、省略 v、句号、多一个空格、全角空格、大写 V、前后多字。
+      '暂不批准发布 v0.1.0，等修完', '不批准发布 v0.1.0', '批准发布 v0.1.0-rc.1', '批准发布 v0.1.0-rc.1 到预发布；v0.1.0 还要再看', '批准发布 v0.2.0',
+      '批准发布 v0.1.01', '批准发布 v0.1.00', '看起来不错 v0.1.0', '批准发布 0.1.0', '批准发布 0.1.0.', '批准发布 v0.1.0。', '批准发布 v0.1.0!',
+      '批准发布  v0.1.0', '批准发布v0.1.0', '批准发布　v0.1.0', '批准发布 v0.1.0　', '批准发布 V0.1.0', '批准发布 v0.1.0​', '', '\n',
+      // 前面有任何东西都不算：缩进、空行、引用、加粗。
+      '    批准发布 v0.1.0', '\t批准发布 v0.1.0', ' 批准发布 v0.1.0', '\n批准发布 v0.1.0', '> 批准发布 v0.1.0', '＞ 批准发布 v0.1.0', '**批准发布 v0.1.0**',
+      // 多写一句话都不算，哪怕另起一行、页面上看得见。
+      '批准发布 v0.1.0\n谢谢', '预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0', '预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0。',
+      '> 上次的讨论\n\n批准发布 v0.1.0', '```\nlog\n```\n批准发布 v0.1.0', '测过 `Promise<void>` 的返回\n批准发布 v0.1.0', '<!-- 模板 -->\n批准发布 v0.1.0',
+      '试过了，<b>登录</b>和成员页都没问题<br>\n批准发布 v0.1.0', '<details><summary>日志</summary>\n\n```\nlog\n```\n\n</details>\n\n批准发布 v0.1.0',
+      '> 引用\n```\nx\n```\n批准发布 v0.1.0', '````\n```\n````\n批准发布 v0.1.0', '~~~\n```\n~~~\n批准发布 v0.1.0',
+      // 代码块、注释、HTML 里的，以及引用的懒续行。
+      '回复下面这行：\n```\n批准发布 v0.1.0\n```', '~~~md\n批准发布 v0.1.0\n~~~', '<!-- 批准发布 v0.1.0 -->', '<!--\n批准发布 v0.1.0\n-->',
+      '<blockquote>\n批准发布 v0.1.0\n</blockquote>', '<details><summary>模板</summary>\n\n批准发布 v0.1.0\n</details>', '> 所有者说：\n批准发布 v0.1.0',
       '<strong>暂不</strong>批准发布 v0.1.0', '批准发布 v0.1.0<sup>-rc.1</sup>', '批准发布 v0.1.0<code>-rc.1</code>', '<!-- x -->批准发布 v0.1.0',
-      // 属性值里的 `>` 不结束标签，跨行的属性值整个都看不到。
       '<a title="a>b">暂不</a>批准发布 v0.1.0', '<img alt="x>\n批准发布 v0.1.0\n">',
-      // 从最内层开始剥：外层 details 不停在内层的 </details> 上；没闭合的元素之后都看不到。
       '<details>\n<details>\n内层\n</details>\n批准发布 v0.1.0\n</details>', '<details>\n\n批准发布 v0.1.0', '<details><summary>模板</summary>\n\n批准发布 v0.1.0',
       '<DETAILS>\n批准发布 v0.1.0\n</details>', '<del>\n批准发布 v0.1.0',
-      // 关闭围栏只认只有标记的行（缩进不超过 3 格）；「``` 结束」之后仍在代码块里。
       '```\nlog\n``` 结束\n批准发布 v0.1.0', '~~~\nlog\n~~~ 结束\n批准发布 v0.1.0', '```\n    ```\n批准发布 v0.1.0', '```\n```\n```\n批准发布 v0.1.0',
-      // 判断不准的围栏：列表或缩进里的、信息串带反引号的、HTML 块或注释里的，之后一律不算。
       '- ```\n  批准发布 v0.1.0', '  ```\n批准发布 v0.1.0\n```', '```a`b\n```\n批准发布 v0.1.0\n```',
       '<div>说明</div>\n```\n\n```\n批准发布 v0.1.0\n```', '<!--\n\n```\n-->\n```\n批准发布 v0.1.0\n```',
       '<pre>\n\n```\n</pre>\n```\n批准发布 v0.1.0\n```', '<details>\n\n```\n</details>\n批准发布 v0.1.0\n```',
-    ]) expect(acceptanceSays(text, '0.1.0'), text).toBe(false);
-    // 别的行里的标签、闭合的注释和元素、自成一段的代码块，都不影响后面单独一行的批准。
-    for (const text of [
-      '试过了，<b>登录</b>和成员页都没问题<br>\n批准发布 v0.1.0', '<!-- 模板 -->\n批准发布 v0.1.0',
-      '<details><summary>日志</summary>\n\n```\nlog\n```\n\n</details>\n\n批准发布 v0.1.0', '> 引用\n```\nx\n```\n批准发布 v0.1.0',
-      '````\n```\n````\n批准发布 v0.1.0', '~~~\n```\n~~~\n批准发布 v0.1.0',
-    ]) expect(acceptanceSays(text, '0.1.0'), text).toBe(true);
+      // 第一轮审查找出的、逐行规则会误判的写法：代码或转义里的 </details>、HTML 块开头、没写完的标签、跨行的行内结构、列表里的引用。
+      '<details>\n\n`</details>`\n批准发布 v0.1.0', '<details>\n\n\\</details>\n批准发布 v0.1.0', '<details>\n\n    </details>\n\n批准发布 v0.1.0',
+      '<details>\n\n```\n</details>\n```\n批准发布 v0.1.0',
+      '<hr>暂不\n批准发布 v0.1.0', '<div></div>暂不\n批准发布 v0.1.0', '<details><summary>日志</summary>x</details>暂不\n批准发布 v0.1.0',
+      '<details\n批准发布 v0.1.0', '<div title="\n批准发布 v0.1.0', '<details x=a"b>\n批准发布 v0.1.0',
+      '![\n批准发布 v0.1.0\n](https://github.githubassets.com/favicons/favicon.png)', '[看这里](https://example.com "\n批准发布 v0.1.0\n")',
+      "[x]: https://example.com '\n批准发布 v0.1.0\n'", '[\n批准发布 v0.1.0\n]: https://example.com', '暂不 `\n批准发布 v0.1.0\n` 等修完',
+      '- > 暂不\n批准发布 v0.1.0', '1. > 暂不\n批准发布 v0.1.0', '模板：\n\n \t批准发布 v0.1.0',
+    ]) expect(acceptanceSays(text, '0.1.0'), JSON.stringify(text)).toBe(false);
+    expect(acceptanceSays(null, '0.1.0')).toBe(false);
+    expect(acceptanceSays(undefined, '0.1.0')).toBe(false);
   });
 
   it('reads whether the approval comment was edited or hidden from GraphQL, and refuses anything else', () => {
@@ -163,10 +163,10 @@ describe('deploy-manual helpers', () => {
 });
 
 type Call = { command: string; args: string[]; env?: Record<string, string> };
-type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string; editedAt?: string | null; minimized?: boolean; touchedAt?: string };
+type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string; editedAt?: string | null; minimized?: boolean; touchedAt?: string; approval?: string };
 
 /** 假的外部世界：记录每个命令，按命令给出固定回答；可以指定在哪一步失败。 */
-function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z', editedAt = null, minimized = false, touchedAt }: WorldOptions = {}) {
+function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z', editedAt = null, minimized = false, touchedAt, approval = '批准发布 v0.1.0\n' }: WorldOptions = {}) {
   const calls: Call[] = [];
   const removed: string[] = [];
   const work = '/tmp/yzgc-deploy-test';
@@ -188,7 +188,7 @@ function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 
     if (line === 'git remote get-url origin') return `git@github.com:${REPO}.git\n`;
     if (command === 'git' && args[0] === 'rev-parse') return `${COMMIT}\n`;
     if (line.includes('release-policy.mjs plan')) return JSON.stringify(plan);
-    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: '试过了。\n批准发布 v0.1.0', user: { login: 'Crosery' }, node_id: 'IC_555', issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt, updated_at: touchedAt ?? approvedAt });
+    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: approval, user: { login: 'Crosery' }, node_id: 'IC_555', issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt, updated_at: touchedAt ?? approvedAt });
     if (line.startsWith('gh api graphql') && line.endsWith('id=IC_555')) return JSON.stringify({ data: { node: { lastEditedAt: editedAt, isMinimized: minimized } } });
     if (line.includes('/permission')) return JSON.stringify({ permission });
     if (line.includes('deployments?environment=preview')) return JSON.stringify([{ id: 7, payload: { tag: 'v0.1.0-rc.1' } }]);
@@ -313,6 +313,8 @@ describe('deploy-manual orchestration', () => {
       [{ approvedAt: '2026-09-25T09:00:00Z' }, /早于预发布部署成功/],
       [{ editedAt: '2026-09-25T12:00:00Z' }, /被编辑过/],
       [{ minimized: true }, /折叠/],
+      // 批准评论里多写了试用结论：不算，报错告诉所有者另发一条只写这一行的评论。
+      [{ approval: '试过了。\n批准发布 v0.1.0' }, /另发一条新评论，只写这一行/],
     ]) {
       const world = fakeWorld({ environment: 'production', tag: 'v0.1.0', ...overrides });
       await expect(deploy(options, world.deps)).rejects.toThrow(message);

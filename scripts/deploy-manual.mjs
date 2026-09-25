@@ -58,7 +58,7 @@ export const USAGE = `维护者机器部署（只部署 CI 为该发布 tag 构�
   node scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <所有者批准评论的链接> [--dry-run]
 
 --acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过也没有被折叠、
-发在预发布部署成功之后，正文里有单独一行正好是「批准发布 vX.Y.Z」（格式细节见 docs/ops/CICD.md「维护者机器部署」）。
+发在预发布部署成功之后，整条评论只有一行「批准发布 vX.Y.Z」，别的一个字都不能有（见 docs/ops/CICD.md「维护者机器部署」）。
 环境变量：DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment）、${[...SECRET_ENV, ...SSH_ENV].join(' ')}。
 --dry-run 做完全部核对、下载与渲染，不连目标机、不写部署记录。`;
 
@@ -93,74 +93,14 @@ export function acceptanceComment(url) {
   return match ? { repo: match[1], number: Number(match[2]), id: match[3] } : null;
 }
 
-/** 剥掉的内容逐行换成这个字符：它不是空白，trim 去不掉，所在的行也就不可能再凑成批准句（#69）。 */
-const HIDDEN = '\uFFFC';
-/** 标签名之后的属性：引号里的值可以含 `>`，也可以跨行（`<a title="a>b">`）；引号外不会有 `<`。 */
-const ATTRS = `(?=[\\s/>])(?:[^<>"']|"[^"]*"|'[^']*')*>`;
-/** 注释、CDATA、声明、处理指令：没有结尾就一直到正文结束。 */
-const OPAQUE = /<!--(?:-?>|[\s\S]*?(?:-->|$))|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<![A-Za-z][\s\S]*?(?:>|$)|<\?[\s\S]*?(?:\?>|$)/g;
-/** 最内层元素：内容里没有别的标签。反复替换，外层 details 不会停在内层的 `</details>` 上。 */
-const INNERMOST = new RegExp(`<([A-Za-z][A-Za-z0-9-]*)${ATTRS}(?:(?!<\\/?[A-Za-z])[\\s\\S])*?<\\/\\1\\s*>`, 'gi');
-/** 剥完成对的元素还剩下的起始标签，只要不是空元素就是没闭合：它之后的内容都在它里面（没闭合的 details 默认收起）。 */
-const UNCLOSED = new RegExp(`<(?!(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)[\\s/>])[A-Za-z][A-Za-z0-9-]*${ATTRS}[\\s\\S]*$`, 'i');
-/** 其余单独的标签（空元素、落单的结束标签）。 */
-const TAG = new RegExp(`<\\/?[A-Za-z][A-Za-z0-9-]*${ATTRS}`, 'g');
-/** 内容按原文处理、结尾不看空行的元素（CommonMark 的 HTML 块第 1 类）。 */
-const RAW_TEXT = /^(?:pre|script|style|textarea)$/i;
-/** 像围栏的行：前面可以有缩进、引用或列表标记。 */
-const FENCE_LIKE = /^[ \t]*(?:(?:[>＞]|[-*+]|\d{1,9}[.)])[ \t]*)*(?:`{3}|~{3})/;
-
 /**
- * 批准评论本身：必须有单独一行（去掉首尾空白）正好是「批准发布 vX.Y.Z」，行尾可带一个句号或叹号。
- * 渲染后看不到或不是正文的内容都不算：HTML 注释与标签（含属性里、没闭合的元素之后）、围栏代码块、缩进代码、
- * `>` 引用以及紧跟引用、中间没有空行的懒续行；带过标签的行（`<strong>暂不</strong>批准发布 v0.1.0`、
- * `批准发布 v0.1.0<sup>-rc.1</sup>`）也不算，「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」同样不算。
- * 这不是完整的 CommonMark 解析：围栏和 HTML 搅在一起、缩进或列表里的围栏这类判断不准的写法，之后一律不算。
- * 作者权限、是否被编辑过、所在 issue 与时间另查。
+ * 批准评论本身（白名单）：整条评论去掉末尾的空格、制表符和换行（CRLF 先换成 LF）之后，必须正好是「批准发布 vX.Y.Z」。
+ * 不去推测 GitHub 怎么渲染 Markdown 与 HTML：#69 第一轮审查找出了十几种页面上看不到、或和别的字连在一起，
+ * 却能被逐行规则接受的写法。所以多写一句话、前面有缩进、放进引用、代码块或 HTML、加粗、句号、全角空格、省略 v、
+ * 「暂不批准发布」、rc 版本都不算；试用结论与别的说明另发一条评论。作者权限、是否被编辑或折叠、所在 issue 与时间另查。
  */
 export function acceptanceSays(body, version) {
-  const approval = new RegExp(`^批准发布\\s*v?${version.replaceAll('.', '\\.')}\\s*[。.！!]?$`);
-  const source = String(body ?? '').replace(/\r\n?/g, '\n');
-  // 逐行换成占位符、保留换行：剥完以后行号不变，下面按原文判断区块、按剥过的文本判断这一行写了什么。
-  const hide = match => match.replace(/[^\n]+/g, HIDDEN);
-  // 注释、处理指令与第 1 类元素只在各自的结尾标记处结束，中间有空行也不断；里面夹着围栏，逐行扫描就判断不准。
-  let tangled = false;
-  const fenced = match => match.split('\n').slice(1).some(line => FENCE_LIKE.test(line));
-  let text = source.replace(OPAQUE, match => { tangled ||= fenced(match); return hide(match); });
-  for (let previous = ''; previous !== text;) {
-    previous = text;
-    text = text.replace(INNERMOST, (match, name) => { tangled ||= RAW_TEXT.test(name) && fenced(match); return hide(match); });
-  }
-  text = text.replace(UNCLOSED, hide).replace(TAG, hide);
-  if (tangled) return false;
-  const shown = text.split('\n');
-  let fence = null;
-  let quoted = false;
-  let html = false;
-  // 区块结构（围栏、引用、缩进、HTML 块）按原文逐行判断，与渲染器先分块、再解析行内 HTML 的顺序一致。
-  for (const [index, line] of source.split('\n').entries()) {
-    if (fence) {
-      // 关闭围栏只认缩进不超过 3 格、只有标记本身的行：「``` 结束」不关闭代码块。
-      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
-      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
-      continue;
-    }
-    if (!line.trim()) { quoted = false; html = false; continue; }
-    if (/^\s*[>＞]/.test(line)) { quoted = true; continue; }
-    if (FENCE_LIKE.test(line)) {
-      // 只认顶格的开始围栏（反引号围栏的信息串里不能有反引号）；HTML 块、缩进或列表里的围栏判断不准，之后一律不算。
-      const open = /^(?:(`{3,})[^`]*|(~{3,}).*)$/.exec(line);
-      if (html || !open) return false;
-      fence = open[1] ?? open[2];
-      quoted = false;
-      continue;
-    }
-    // 以标签开头的行开始一个 HTML 块，一直延续到空行；块里的围栏只是 HTML 文本。
-    if (/^\s*</.test(line)) html = true;
-    if (quoted || /^( {4}|\t)/.test(line)) continue;
-    if (approval.test(shown[index].trim())) return true;
-  }
-  return false;
+  return String(body ?? '').replace(/\r\n?/g, '\n').replace(/[ \t\n]+$/, '') === `批准发布 v${version}`;
 }
 
 /**
@@ -319,7 +259,7 @@ export async function deploy(options, deps = defaultDeps()) {
     log(`${tag} → ${environment}：提交 ${commit}，镜像 ${plan.imageRepository}/*:${plan.imageTag}，栈 ${plan.stackRoot}，物料取自该提交`);
 
     if (environment === 'production') {
-      // 所有者批准：本仓库里的一条未被编辑的评论，作者是仓库管理员，正文单独一行「批准发布 vX.Y.Z」，晚于预发布成功。
+      // 所有者批准：本仓库里的一条未被编辑的评论，作者是仓库管理员，整条评论只有「批准发布 vX.Y.Z」一行，晚于预发布成功。
       const { id, number } = acceptanceComment(acceptance);
       const comment = ghJson(`repos/${repo}/issues/comments/${id}`);
       if (!String(comment.issue_url ?? '').endsWith(`/issues/${number}`)) throw new Error(`批准评论不在链接写的 #${number} 里`);
@@ -328,7 +268,9 @@ export async function deploy(options, deps = defaultDeps()) {
       const state = commentState(run('gh', ['api', 'graphql', '-f', `query=${COMMENT_STATE_QUERY}`, '-f', `id=${comment.node_id ?? ''}`]));
       if (state.lastEditedAt !== null) throw new Error(`批准评论在 ${state.lastEditedAt} 被编辑过：请所有者重新发一条新的批准评论`);
       if (state.isMinimized) throw new Error('批准评论在页面上被折叠隐藏了：请所有者重新发一条新的批准评论');
-      if (!acceptanceSays(comment.body, plan.version)) throw new Error(`批准评论里没有单独一行写「批准发布 v${plan.version}」（不带引用、代码块或 HTML 标签）`);
+      if (!acceptanceSays(comment.body, plan.version)) {
+        throw new Error(`批准评论必须整条只有一行「批准发布 v${plan.version}」：请所有者另发一条新评论，只写这一行，试用结论等说明另发`);
+      }
       const permission = ghJson(`repos/${repo}/collaborators/${encodeURIComponent(comment.user?.login ?? '')}/permission`).permission;
       if (permission !== 'admin') throw new Error(`批准评论的作者 @${comment.user?.login} 不是仓库管理员`);
       if (!plan.previewTags?.length) throw new Error(`提交 ${commit} 上没有 v${plan.version}-rc.N：正式版只能发在发过预发布的同一提交上`);
