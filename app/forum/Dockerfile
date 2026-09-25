@@ -156,8 +156,10 @@ server {
     }
 
     # 预渲染过的路由（about/、categories/ …）直接命中目录里的 index.html，
-    # 其余路径回落 200.html 交给客户端路由。
+    # 其余路径回落 200.html 交给客户端路由。页面同样不缓存：发版后页面里的内联脚本变了，
+    # 缓存里的旧页面配上新的 CSP 哈希会白屏（#78）。expires 不是 add_header，http 层的 CSP 照样继承。
     location / {
+        expires -1;
         try_files $uri $uri/ /200.html;
     }
 }

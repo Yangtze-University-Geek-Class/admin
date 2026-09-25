@@ -17,7 +17,7 @@
 | [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) | 会话验证、有效期、身份变化后的更新以及 Cookie 范围风险 | [安全模型](../architecture/SECURITY.md)、OAuth 流程和会话撤销回归 |
 | [W3C APG modal dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) | 弹层名称、焦点进入/圈定/恢复、危险操作优先聚焦取消 | `app/web/shared/ui/Modal.tsx`、`ConfirmDialog.tsx` 和浏览器测试 |
 | [TypeScript module reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html) | 后端 .js 对应 TS 源文件、tsconfig paths 的真实解析 | `scripts/check-boundaries.mjs` 及跨端导入反例 |
-| [Nginx headers module](https://nginx.org/en/docs/http/ngx_http_headers_module.html) | 子 location 的 add_header 与继承行为 | `deploy/nginx/production.conf`、`deploy/nginx/preview.conf`（安全头在宿主 nginx 统一下发，容器内不重复）；实际部署仍需响应头验收。根目录旧 `deploy/nginx*.conf` 属退役模型 |
+| [Nginx headers module](https://nginx.org/en/docs/http/ngx_http_headers_module.html) | 子 location 的 add_header 与继承行为 | `deploy/nginx/production.conf`、`deploy/nginx/preview.conf`（安全头在宿主 nginx 统一下发，容器内不重复；论坛页面的 CSP 例外见 [DEPLOY](../ops/DEPLOY.md)「最小权限」）；实际部署仍需响应头验收。根目录旧 `deploy/nginx*.conf` 属退役模型 |
 
 ## 使用和维护
 

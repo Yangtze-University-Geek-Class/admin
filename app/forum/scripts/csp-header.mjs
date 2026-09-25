@@ -18,24 +18,32 @@ import { pathToFileURL } from 'node:url'
 /** 不会被执行的脚本类型：数据块不受 script-src 约束，不用算哈希。 */
 const DATA_TYPES = new Set(['application/json', 'application/ld+json'])
 
-/** 一段 HTML 里所有内联可执行脚本（含 importmap）的 `'sha256-…'`，按出现顺序去重。 */
+/**
+ * 一段 HTML 里所有内联可执行脚本（含 importmap）的 `'sha256-…'`，按出现顺序去重。
+ * 认不准就直接失败，不猜：脚本标签数与认出来的脚本数对不上、正文里有 CR（浏览器会先把 CRLF 换成 LF
+ * 再算哈希，这里算出来的就对不上）都会报错，构建随之失败，不会生成一份放行了错误脚本的策略。
+ */
 export function inlineScriptHashes(html) {
   const hashes = []
-  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    const attributes = match[1]
-    if (/\bsrc\s*=/i.test(attributes)) continue
-    const type = (/\btype\s*=\s*["']?([^"'\s>]+)/i.exec(attributes)?.[1] ?? '').toLowerCase()
+  const elements = [...html.matchAll(/<script(?=[\s>])([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+  const openTags = html.match(/<script(?=[\s>])/gi)?.length ?? 0
+  if (openTags !== elements.length)
+    throw new Error(`HTML 里有 ${openTags} 个 <script> 开始标签，只认出 ${elements.length} 段完整脚本`)
+  for (const [, attributes, body] of elements) {
+    if (/(?:^|\s)src\s*=/i.test(attributes)) continue
+    const type = (/(?:^|\s)type\s*=\s*["']?([^"'\s>]+)/i.exec(attributes)?.[1] ?? '').toLowerCase()
     if (DATA_TYPES.has(type)) continue
-    const hash = `'sha256-${createHash('sha256').update(match[2], 'utf8').digest('base64')}'`
+    if (body.includes('\r')) throw new Error('内联脚本里有 CR 换行，浏览器算哈希前会改写它，无法按原文放行')
+    const hash = `'sha256-${createHash('sha256').update(body, 'utf8').digest('base64')}'`
     if (!hashes.includes(hash)) hashes.push(hash)
   }
   return hashes
 }
 
-/** 从宿主 nginx 模板里取站点 CSP（map 的默认值那一行）。 */
+/** 从宿主 nginx 模板里取站点 CSP（map 的 default 分支）。 */
 export function siteCsp(confText) {
-  const policy = /^\s*""\s+"(default-src [^"]+)";\s*$/m.exec(confText)?.[1]
-  if (!policy) throw new Error('宿主 nginx 模板里找不到站点 CSP（map 的 "" 分支）')
+  const policy = /^\s*default\s+"(default-src [^"]+)";\s*$/m.exec(confText)?.[1]
+  if (!policy) throw new Error('宿主 nginx 模板里找不到站点 CSP（map 的 default 分支）')
   return policy
 }
 
