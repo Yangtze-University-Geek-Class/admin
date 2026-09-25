@@ -74,6 +74,21 @@ test("the promo can be skipped on the first visit and does not autoplay again", 
   await expect(promo).toHaveCount(0);
 });
 
+test("clicking the video keeps keyboard control: Esc still skips the promo", async ({ page }) => {
+  await page.goto("/sites/portal/docs");
+  const canPlay = await page.evaluate(() => typeof MediaSource !== "undefined" && MediaSource.isTypeSupported('video/mp4; codecs="avc1.640029, mp4a.40.2"'));
+  test.skip(!canPlay, "这个 Chromium 没有 H.264/AAC：播放层走「播不了就放行」");
+  await page.route(PROMO_CDN, () => {});
+  await page.goto("/sites/portal/join-us");
+  const promo = page.getByRole("dialog", { name: "极客班宣传片" });
+  await expect(promo).toBeVisible();
+  await page.locator(".pt-promo-video").click();
+  await expect(promo).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(promo).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
+});
+
 test("console navigation follows the persona's capabilities", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "控制台导航" });
   await openConsole(page, "/console", "captain");

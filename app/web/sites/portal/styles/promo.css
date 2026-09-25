@@ -8,6 +8,7 @@
   font-family: var(--pt-sans);
   animation: pt-promo-in .25s var(--pt-ease);
 }
+.pt-root.pt-promo:focus { outline: none; }
 @keyframes pt-promo-in { from { opacity: 0; } }
 .pt-promo-video { width: 100%; height: 100%; object-fit: contain; background: var(--pt-ink); cursor: pointer; }
 
@@ -44,6 +45,7 @@
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   display: inline-flex; align-items: center; gap: 8px; margin: 0;
   padding: 10px 16px; border-radius: 999px; background: rgb(27 33 64 / 70%); font-size: 14px;
+  pointer-events: none; /* 只是提示，点击要落到下面的视频上 */
 }
 .pt-spin { animation: pt-promo-spin 1s linear infinite; }
 @keyframes pt-promo-spin { to { transform: rotate(1turn); } }
@@ -63,7 +65,11 @@
   .pt-promo-top { justify-content: flex-end; }
   .pt-promo-chip kbd { display: none; }
 }
+/* 触屏不显示按键提示（portal.md「界面规则」） */
+@media (hover: none) {
+  .pt-promo-chip kbd { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .pt-promo { animation: none; }
+  .pt-root.pt-promo { animation: none; }
   .pt-spin { animation: none; }
 }

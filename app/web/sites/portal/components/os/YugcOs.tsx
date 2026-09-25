@@ -1,7 +1,7 @@
 // YUGC OS：开机后的「极客班内部系统」，按桌面操作系统来排：菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）、
 // 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
 // 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
@@ -13,8 +13,8 @@ import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Window
 import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Wallpaper } from "../../lib/wallpapers";
 import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
+import { LazyPromoPlayer } from "../PromoLazy";
 
-const PromoPlayer = lazy(() => import("../PromoPlayer"));
 
 type Props = {
   /** 桌面是否在前台（开机画面播完）；为 false 时不响应快捷键 */
@@ -206,7 +206,7 @@ export default function YugcOs({ active, onBack }: Props) {
     const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 1200));
     idle(() => {
       if (cancelled) return;
-      void Promise.all([import("../../pages/JoinUs"), import("../PromoPlayer"), import("hls.js")])
+      void Promise.all([import("../../pages/JoinUs"), import("../PromoPlayer"), import("hls.js/light")])
         .then(() => detectCapabilities(document.createElement("video")))
         .then((caps) => {
           const choice = choosePlayback(caps);
@@ -473,7 +473,7 @@ export default function YugcOs({ active, onBack }: Props) {
       </div>
       {promo && (
         <Suspense fallback={null}>
-          <PromoPlayer mode="replay" onClose={closePromo} />
+          <LazyPromoPlayer mode="replay" onClose={closePromo} />
         </Suspense>
       )}
     </>

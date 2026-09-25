@@ -7,12 +7,13 @@
 // 这个浏览器第一次进来时先全屏播宣传片（#77，能跳过），播完或跳过才开始信封动画；之后靠 cookie 不再自动播。
 // 所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
 import { computePow, powProof } from "@shared/lib/pow";
 import Icon from "../components/Icon";
+import { LazyPromoPlayer } from "../components/PromoLazy";
 import SceneBar from "../components/SceneBar";
 import { RESUME_DESKTOP } from "../lib/links";
 import { hasSeenPromo, promoCookie } from "../lib/promo";
@@ -21,7 +22,6 @@ import type { JoinHandle, JoinPhase } from "../three/join";
 import "../styles/portal.css";
 import "../styles/scenes.css";
 
-const PromoPlayer = lazy(() => import("../components/PromoPlayer"));
 
 type FormState = { name: string; className: string; email: string; strengths: string; website: string };
 type FieldName = "name" | "className" | "email" | "strengths";
@@ -320,7 +320,7 @@ export default function JoinUs() {
       </div>
       {promo && (
         <Suspense fallback={null}>
-          <PromoPlayer
+          <LazyPromoPlayer
             mode="gate"
             onSeen={() => {
               document.cookie = promoCookie(window.location.protocol === "https:");

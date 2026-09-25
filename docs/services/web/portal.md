@@ -32,7 +32,7 @@
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
 | `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
-| `lib/promo.ts`、`components/PromoPlayer.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
+| `lib/promo.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
 | `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
@@ -74,7 +74,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - **什么时候播**：`pages/JoinUs.tsx` 挂载时看 cookie `yugc_promo_seen`，没有就先挂全屏播放层，播完或跳过才开始信封动画。所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。cookie 是 host-only、一年、`Path=/`、`SameSite=Lax`（https 下 `Secure`），值只有 `1`。真正开始播放、跳过、播完或浏览器根本播不了时写入；加载失败不写，下次再试。
 - **桌面重看**：`lib/osApps.ts` 的「宣传片」应用（`{ kind: "panel", panel: "promo" }`）在桌面上打开同一个播放层，不读也不写 cookie。
 - **片源**：七牛 CDN `https://cdn.crosery.com/yzgc/static/promo/v5-tone-c70f489a19e9/`，地址只在 `lib/promo.ts` 的 `PROMO_BASE`。AV1 10-bit 两档（720p、1080p）与 H.264 三档（480p、720p、1080p）各一份 master（`master-av1.m3u8`、`master-h264.m3u8`），fMP4 分片 4 秒一段、所有档位关键帧对齐，另有封面 `poster.jpg`。画质参数沿用所有者片子目录 `qa/verification.md` 交付的 web264-28 与 av1-46；分片包由片子目录里的 `scripts/package-hls.sh` 生成、`scripts/qiniu-promo.mjs` 上传（insertOnly，只写 `yzgc/static/promo/` 下），不进 Git。路径带内容哈希，CDN 缓存一年；换片子就换目录并改 `PROMO_BASE`。
-- **挑播放方式**（`choosePlayback`）：有 MediaSource（含 iOS 17.1+ 的 ManagedMediaSource）就用 hls.js，AV1 只在 `MediaSource.isTypeSupported` 且 `mediaCapabilities` 说 1080p 流畅时用，否则 H.264；没有 MediaSource 时退到原生 HLS（老 iOS、微信），`canPlayType` 对 AV1 是 `probably` 才用 AV1；两条路都没有就不播、直接进信纸。hls.js 从码率最低的一档起播（`startLevel: 0`），不开 worker（fMP4 不需要转封装，也不用给 CSP 加 `worker-src`）。hls.js 是独立分包（gzip 约 186KB），只在要播时加载。
+- **挑播放方式**（`choosePlayback`）：有 MediaSource（含 iOS 17.1+ 的 ManagedMediaSource）就用 hls.js，AV1 只在 `MediaSource.isTypeSupported` 且 `mediaCapabilities` 说 1080p 流畅时用，否则 H.264；没有 MediaSource 时退到原生 HLS（老 iOS、微信），`canPlayType` 对 AV1 是 `probably` 才用 AV1；两条路都没有就不播、直接进信纸。hls.js 从码率最低的一档起播（`startLevel: 0`），不开 worker（fMP4 不需要转封装，也不用给 CSP 加 `worker-src`）。用的是 hls.js 精简版（`hls.js/light`，片源没有字幕、多音轨、DRM），独立分包 gzip 约 118KB，只在要播时加载；播放层分包加载失败时按「加载失败」直接结束（`components/PromoLazy.tsx`），不让官网跟着卸载。点视频或空白处后焦点留在播放层上，Esc、空格（播放 / 暂停）、M（静音）照样能用；触屏不显示按键提示。
 - **声音与减少动态效果**：先带声音自动播；浏览器不让就静音播并显示「打开声音」；静音也不让、或开了减少动态效果，就停在封面等人点「播放宣传片」。
 - **起播预取**：桌面出现、这个浏览器还没看过宣传片、没开省流量时，先 preconnect CDN，空闲时预取「加入我们」页、播放器、hls.js 分包，以及起播那一档的 master、播放列表、初始化段与第一个分片（约 0.5–0.8MB）。点「加入我们」后这些都从缓存来。
 - **CSP 与防盗链**：宿主 nginx 的站点策略 `media-src` 与 `connect-src` 放行 `https://cdn.crosery.com`（见 [DEPLOY](../../ops/DEPLOY.md)）；CDN 按 Referer 只放行本站域名、`localhost` 与空 Referer，**本机开发要用 `http://localhost:5173` 打开**，用 `127.0.0.1` 时 CDN 返回 403，播放层按「加载失败」直接放行到信纸。

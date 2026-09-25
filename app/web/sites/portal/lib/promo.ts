@@ -99,7 +99,11 @@ export function preconnectPromo(): void {
   document.head.append(link);
 }
 
-/** master 里码率最低的一档（播放器固定从它起播：startLevel 0），返回它的播放列表地址 */
+/**
+ * master 里码率最低的一档（播放器固定从它起播：startLevel 0），返回它的播放列表地址。
+ * hls.js 给档位排序时先比分辨率、再比码率；现在这套档位里码率最低的正好也是分辨率最低的，两者一致。
+ * 换片子时如果出现「低分辨率反而码率高」的档位，这里要改成先比 RESOLUTION，否则预取的不是起播那一档。
+ */
 export function startVariant(master: string, masterUrl: string): string | null {
   const lines = master.split(/\r?\n/);
   let best: { bandwidth: number; uri: string } | null = null;

@@ -37,3 +37,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：gh pr create（#95），九段正文；6 张截图经 PR 评论框上传拿到 user-attachments 链接（未发评论）后写进「验收证据」
 - 结果：PR #95 已开，验收证据 6 张；审查结论待独立审查
+
+## 04:35:37 +08:00 · 审查 · #77 · 第一轮独立审查：有条件通过，2 条应修
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 696180a（范围 02b97d0..696180a），按 CODE-REVIEW 逐项核对，另用 Playwright 冷缓存复核预取命中
+- 结果：有条件通过：应修 2 条（点视频后焦点落到 body、Esc 失效；触屏平板露出 Esc 提示），建议 5 条（减少动态效果时进场动画没关、播放层分包失败会卸载整站、可改 hls.js/light、startVariant 与 hls.js 排序的假设、执行记录里测试条数重复计）；新增依赖 hls.js 是否经所有者批准待确认
+
+## 04:35:37 +08:00 · 返工 · #77 · 按第一轮审查改：焦点、触屏提示、减少动态效果、分包失败、hls.js 精简版
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：PromoPlayer 根节点 tabIndex -1；promo.css 加 (hover: none) 隐藏 kbd、减少动态效果选择器改 .pt-root.pt-promo、加载提示 pointer-events none（新 e2e 发现它挡住了点视频）；新增 PromoLazy.tsx，分包加载失败按 failed 结束；改用 hls.js/light（加 hls-light.d.ts）；startVariant 注释写明与 hls.js 排序的假设；新增组件测试 portal-promo-lazy 与 e2e「点视频后 Esc 仍能跳过」。更正：上一条开发记录里「单测 16 条 + 组件测试 7 条」重复计数，实际是单测 9 条 + 组件测试 7 条
+- 结果：pnpm verify 通过（核心 Tests 469 passed，论坛 Tests 240 passed）；pnpm test:e2e 13 passed；hls 分包 gzip 186KB → 118KB

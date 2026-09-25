@@ -5,7 +5,7 @@
 // 浏览器两种方式都不支持（unsupported）或加载失败（failed）时直接结束（gate 进信纸），宣传片不挡报名；
 // unsupported 以后也播不了，算作看过；failed 可能只是网络问题，不记，下次再试。
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import type Hls from "hls.js";
+import type Hls from "hls.js/light";
 import { PROMO, choosePlayback, clock, detectCapabilities, type Playback } from "../lib/promo";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import Icon from "./Icon";
@@ -59,7 +59,7 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     if (!element) return;
     let cancelled = false;
     // hls.js 分包与能力探测同时开始：多数浏览器会用 hls.js，串行等会多一次往返
-    const hlsModule = import("hls.js");
+    const hlsModule = import("hls.js/light");
     hlsModule.catch(() => undefined);
     (async () => {
       const choice = choosePlayback(await detectCapabilities(element));
@@ -69,7 +69,7 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
       if (choice.engine === "native") {
         element.src = choice.src;
       } else {
-        let HlsJs: typeof import("hls.js").default;
+        let HlsJs: typeof import("hls.js/light").default;
         try {
           HlsJs = (await hlsModule).default;
         } catch {
@@ -168,7 +168,8 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
   const duration = video.current?.duration && Number.isFinite(video.current.duration) ? video.current.duration : PROMO.seconds;
   const closeLabel = mode === "gate" ? "跳过" : "关闭";
   return (
-    <div ref={dialog} className="pt-root pt-promo" role="dialog" aria-modal="true" aria-label="极客班宣传片" onKeyDown={onKeyDown} data-codec={playback?.codec} data-engine={playback?.engine}>
+    // tabIndex -1：点视频或空白处时焦点落在播放层上而不是 body，Esc、空格、M 照样能用
+    <div ref={dialog} className="pt-root pt-promo" role="dialog" aria-modal="true" aria-label="极客班宣传片" tabIndex={-1} onKeyDown={onKeyDown} data-codec={playback?.codec} data-engine={playback?.engine}>
       <video
         ref={video}
         className="pt-promo-video"
