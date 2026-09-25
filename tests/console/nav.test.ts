@@ -24,8 +24,14 @@ describe("console navigation per persona", () => {
   const ids = (name: string) => visibleNav(MOCK_PERSONAS[name] as never).map(item => item.id);
   const groups = (name: string) => [...new Set(visibleNav(MOCK_PERSONAS[name] as never).map(item => item.group ?? "home"))];
 
-  it("gives the captain every page", () => {
+  it("gives the admin (GitHub organisation owner) every page, none disabled", () => {
+    expect(ids("admin")).toEqual(CONSOLE_NAV.map(item => item.id));
+    expect(visibleNav(MOCK_PERSONAS.admin as never).every(item => item.state === "visible")).toBe(true);
+  });
+  it("gives the captain every page, with GitHub management capped by their organisation role", () => {
     expect(ids("captain")).toEqual(CONSOLE_NAV.map(item => item.id));
+    const invites = visibleNav(MOCK_PERSONAS.captain as never).find(item => item.id === "github-invitations");
+    expect(invites).toMatchObject({ state: "disabled", reason: "github_admin_required" });
   });
   it("gives a plain member only the overview and the GitHub read pages", () => {
     expect(groups("member")).toEqual(["home", "github"]);

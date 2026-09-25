@@ -37,7 +37,7 @@ export interface User {
   joinedAt: number
   role: UserRole
   /**
-   * Optional 极客班 title (班长, 部门负责人, 领航员 …) shown beside the name.
+   * Optional 极客班 title (舰长, 队长, 领航员 …) shown beside the name.
    * `role` is unchanged by it. Forum permissions read both: an admin or
    * moderator holds every forum capability, anyone else what their title
    * carries (`hasForumCapability` in `permissions.ts`).

@@ -33,6 +33,7 @@
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
 | `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
+| `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
 | `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
@@ -120,7 +121,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - 开发态总控（`shared/ui/DevControlCenter.tsx`）默认收起成左下角小胶囊，点开才展开；生产配置下不渲染。窄屏（≤860px）官网里改放右上角顶栏下方，不压住 Dock 与底部固定栏。
 - 竖屏（`lib/cameraMath.ts` 的 `STACKED_QUERY`：宽 ≤760px 或宽高比 <0.9，CSS 用同一条媒体查询）：文案叠在画面上下，3D 主体放进文案之间留出的横带。横带由页面量 DOM 得出（首页：顶栏下沿到文案上沿；场景页：主按钮下沿到底部列表上沿），`three/stage.ts` 的 `bandPose` 取主体贴身的角点、按透视投影算相机距离与 `setViewOffset` 偏移（纯数学在 `fitInBand`，有单测），文案尺寸变化时重新取景。不再为每种屏幕比例手调相机坐标。竖屏时首页不挂墙上的海报（会落在顶栏品牌后面）；触屏（`hover: none`）不显示 Enter 之类的按键提示。
 - 窄屏（≤860px）的 YUGC OS：Dock 不再浮在内容上，而是排在滚动区下面的一条底栏（含 `safe-area-inset-bottom`），任何卡片的按钮都不会被它盖住。
-- 文案：像班里的人在说话，短、具体，说清这是什么、给谁用、接下来会怎样；不写口号式标题和装饰性英文大写标签（RECRUITING、YUGC POST 之类），终端提示符只出现在真的终端里（终端窗口、终端组件、GitHub 场景里的小终端）。只写仓库里有出处的事实（部门职责取自 `app/server/src/lib/roles.ts`，版块说明取自 `app/forum/content/curation.json`）；服务端返回的文案（投递、意见箱、邀请的回执）原样显示。
+- 文案：像班里的人在说话，短、具体，说清这是什么、给谁用、接下来会怎样；不写口号式标题和装饰性英文大写标签（RECRUITING、YUGC POST 之类），终端提示符只出现在真的终端里（终端窗口、终端组件、GitHub 场景里的小终端）。只写仓库里有出处的事实（部门与称号取自 `/api/public/org`，默认值与 `app/server/src/lib/roles.ts` 一致，版块说明取自 `app/forum/content/curation.json`）；服务端返回的文案（投递、意见箱、邀请的回执）原样显示。
 - 浏览器自带的表面也用官网颜色：文字选中、光标、滚动条、焦点环、`accent-color`；计数、时钟、百分比用等宽数字（`font-variant-numeric: tabular-nums`）。卡片只有一种层级：细描边 + 贴身短投影；浮层（窗口、菜单、启动器、Dock）只用有偏移的投影。弱化文字 `--pt-ink-mute: #646b8a`，在纸色与冰白底上 ≥4.5:1。
 - 官网表单不用原生下拉框：选项只有几个时用 `components/ChoiceChips.tsx`（意见箱分类）。
 

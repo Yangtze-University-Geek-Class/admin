@@ -7,14 +7,17 @@ import { toast } from "@talex-touch/tuffex/utils";
 import ErrorAlert from "../../components/ErrorAlert.vue";
 import { api, jsonBody } from "../../lib/http";
 import { useAction } from "../../lib/resource";
+import { titleLabel } from "../../lib/titles";
 import type { Catalogue, Department } from "../../lib/types";
 
 /**
- * 编辑部门权限包：按能力类别分组，每项两个复选框（负责人 / 干事）。
- * 「管理称号与部门」只属于班长，不列出；「进入控制台」是自动获得的，也不列出。
+ * 编辑部门权限包：按能力类别分组，每项两个复选框（head / 带部门的 member，名字取 catalogue）。
+ * catalogue.captain_only 里的能力不能放进部门权限包，不列出；「进入控制台」是自动获得的，也不列出。
  */
 const props = defineProps<{ open: boolean; department: Department | null; catalogue: Catalogue }>();
 const emit = defineEmits<{ "update:open": [value: boolean]; done: [] }>();
+const headLabel = computed(() => titleLabel("head", props.catalogue));
+const crewLabel = computed(() => titleLabel("member", props.catalogue));
 
 const head = ref(new Set<string>());
 const crew = ref(new Set<string>());
@@ -70,8 +73,8 @@ const save = useAction(async () => {
     <div class="bundle">
       <div class="bundle__head" aria-hidden="true">
         <span />
-        <span>负责人</span>
-        <span>干事</span>
+        <span>{{ headLabel }}</span>
+        <span>{{ crewLabel }}</span>
       </div>
       <fieldset v-for="group in groups" :key="group.id" class="bundle__group">
         <legend>{{ group.label }}</legend>
@@ -82,12 +85,12 @@ const save = useAction(async () => {
           </span>
           <TxCheckbox
             :model-value="head.has(item.id)"
-            :aria-label="`负责人：${item.label}`"
+            :aria-label="`${headLabel}：${item.label}`"
             @update:model-value="(value: boolean) => toggle('head', item.id, value)"
           />
           <TxCheckbox
             :model-value="crew.has(item.id)"
-            :aria-label="`干事：${item.label}`"
+            :aria-label="`${crewLabel}：${item.label}`"
             @update:model-value="(value: boolean) => toggle('crew', item.id, value)"
           />
         </div>

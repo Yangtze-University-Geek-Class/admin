@@ -26,7 +26,7 @@ export function createAccess({ consoleOrg, getOrgRole, cached, roles }: AccessDe
       login, orgRole: githubRole,
       assignments: roles.assignmentsFor(login, userId),
       departments: roles.listDepartments(),
-      captainExists: roles.captainExists(),
+      titles: roles.titleConfigs(),
     });
   }
   return { consoleOrg, resolve, orgRole };
