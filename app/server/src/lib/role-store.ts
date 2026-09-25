@@ -95,14 +95,21 @@ export function createRoleStore(db: Database.Database) {
   const seed = db.prepare(`INSERT OR IGNORE INTO departments(id, name, tag, icon, tone, description, head_capabilities, member_capabilities, sort_order, archived, created_at, updated_at)
     VALUES(@id, @name, @tag, @icon, @tone, @description, @head_capabilities, @member_capabilities, @sort_order, 0, @now, @now)`);
   const now = Date.now();
+  // 默认部门只在第一次启动写入：部门可以在控制台删除，重启时不能把删掉的默认部门补回来。
+  // 这条标记之前就已经有部门的库（本功能上线前的数据）只补记标记，不再写默认部门。
   db.transaction(() => {
-    for (const department of DEFAULT_DEPARTMENTS) {
-      seed.run({
-        ...department, now,
-        head_capabilities: JSON.stringify(department.head_capabilities),
-        member_capabilities: JSON.stringify(department.member_capabilities),
-      });
+    if (db.prepare("SELECT 1 FROM console_seeds WHERE name = 'departments'").get()) return;
+    const existing = (db.prepare("SELECT COUNT(*) AS n FROM departments").get() as { n: number }).n;
+    if (existing === 0) {
+      for (const department of DEFAULT_DEPARTMENTS) {
+        seed.run({
+          ...department, now,
+          head_capabilities: JSON.stringify(department.head_capabilities),
+          member_capabilities: JSON.stringify(department.member_capabilities),
+        });
+      }
     }
+    db.prepare("INSERT INTO console_seeds(name, seeded_at) VALUES('departments', ?)").run(now);
   })();
 
   function listDepartments() {
@@ -123,6 +130,18 @@ export function createRoleStore(db: Database.Database) {
       input.sort_order ?? 100, at, at,
     );
     return result.changes === 1;
+  }
+  /**
+   * 删除部门，同一事务里撤掉这个部门的全部队长与舰员指派。返回被撤掉的指派；部门不存在时返回 null。
+   */
+  function deleteDepartment(id: string): AssignmentRow[] | null {
+    return db.transaction(() => {
+      if (!getDepartment(id)) return null;
+      const removed = db.prepare(`SELECT ${ASSIGNMENT_COLUMNS} FROM role_assignments WHERE department_id = ? ORDER BY id`).all(id) as AssignmentRow[];
+      db.prepare("DELETE FROM role_assignments WHERE department_id = ?").run(id);
+      db.prepare("DELETE FROM departments WHERE id = ?").run(id);
+      return removed;
+    })();
   }
   /** 返回实际改动的字段名；部门不存在时返回 null。 */
   function updateDepartment(id: string, patch: DepartmentPatch): string[] | null {
@@ -224,7 +243,7 @@ export function createRoleStore(db: Database.Database) {
 
   return {
     titleConfigs, updateTitle,
-    listDepartments, getDepartment, insertDepartment, updateDepartment,
+    listDepartments, getDepartment, insertDepartment, updateDepartment, deleteDepartment,
     assignmentsFor, listAssignments, getAssignment, findAssignment, insertAssignment, transferCaptain, deleteAssignment,
     captain, captainExists, crewCounts, countAssignments,
   };

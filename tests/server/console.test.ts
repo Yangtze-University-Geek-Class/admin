@@ -492,6 +492,33 @@ describe('titles are data the 提督 can edit', () => {
     expect((await app.inject({ url: '/api/console/people', headers: as('dave') })).statusCode).toBe(403);
   });
 
+  it('deletes a department with its heads and crew, audits who lost a title, and does not bring it back on restart', async () => {
+    const { app, as, assign, audits } = await setup({ alice: 'admin', bob: 'member', carol: 'member', dave: 'member' });
+    assign('bob', 'head', 'tech');
+    assign('carol', 'member', 'tech');
+    assign('dave', 'member', 'community');
+    const byHead = await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('bob') });
+    expect(byHead.statusCode).toBe(403);
+    const response = await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('alice') });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, removed: 2 });
+    expect((await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('alice') })).statusCode).toBe(404);
+    const departments = (await app.inject({ url: '/api/console/departments', headers: as('alice') })).json().departments as { id: string }[];
+    expect(departments.map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    // 队长回到组织成员的默认称号；别的部门不受影响。
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.title.id).toBe('member');
+    expect(bob.head_of).toEqual([]);
+    expect(app.services.roles.listAssignments().map(row => [row.github_login, row.department_id])).toEqual([['dave', 'community']]);
+    const logged = audits().find(row => row.action === 'department.delete')!;
+    expect(logged).toMatchObject({ org: CONSOLE_ORG, actor: 'alice', target: 'tech' });
+    expect(JSON.parse(logged.details!)).toEqual({ name: '技术部', removed: [{ github_login: 'bob', role: 'head' }, { github_login: 'carol', role: 'member' }] });
+    expect((await app.inject('/api/public/org')).json().departments.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    // 重启（重新建 role store）不会把删掉的默认部门补回来。
+    const { createRoleStore } = await import('../../app/server/src/lib/role-store');
+    expect(createRoleStore(app.services.storage.db).listDepartments().map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+  });
+
   it('keeps an edited title across a restart because defaults only fill empty rows', async () => {
     const { app, as } = await setup({ alice: 'admin' });
     await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '水手' } });

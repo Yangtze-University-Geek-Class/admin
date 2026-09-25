@@ -50,6 +50,10 @@ export const consoleContracts: RouteContracts = {
     params: object({ department_id: departmentId }, ["department_id"]),
     body: { ...object({ ...departmentFields, archived: { type: "boolean" } }), minProperties: 1 },
   },
+  "DELETE /api/console/departments/:department_id": {
+    ...noQuery,
+    params: object({ department_id: departmentId }, ["department_id"]),
+  },
   "GET /api/console/assignments": {
     querystring: object({ department_id: departmentId, role: choices(...ASSIGNABLE_ROLES) }),
   },

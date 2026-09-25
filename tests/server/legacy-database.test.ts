@@ -105,7 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at D
 `;
 
 const LEGACY_TABLES = ['app_state', 'audit_logs', 'feedback', 'invitations', 'invite_links', 'sessions', 'sqlite_sequence'];
-const CONSOLE_TABLES = ['applications', 'application_reviews', 'departments', 'invite_attempts', 'role_assignments', 'titles'];
+const CONSOLE_TABLES = ['applications', 'application_reviews', 'console_seeds', 'departments', 'invite_attempts', 'role_assignments', 'titles'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
