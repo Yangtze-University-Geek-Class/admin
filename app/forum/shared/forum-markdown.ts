@@ -1,6 +1,7 @@
 import type { ForumState, Post, Topic, User } from '../app/data/types'
 import { TOPIC_SEEDS } from '../app/data/seed-content'
 import { postExcerpt } from '../app/utils/excerpt'
+import { siteNameInText } from './content-source'
 
 /**
  * Markdown views of the forum for AI readers: `/t/<id>.md` is one topic with
@@ -131,7 +132,7 @@ export function forumLlmsTxt(state: ForumState, site: MarkdownSite): string {
   const lines = [
     `# ${escapeInline(site.siteName)}`,
     '',
-    `> ${escapeInline(site.siteName)} 的话题索引。每个话题都有一份 Markdown 原文，地址是话题页地址后面加 .md，内容依次是标题、分类、作者、发帖时间、首帖正文和按楼层排列的回复。${site.notice}`,
+    `> ${siteNameInText(escapeInline(site.siteName)).trimStart()}的话题索引。每个话题都有一份 Markdown 原文，地址是话题页地址后面加 .md，内容依次是标题、分类、作者、发帖时间、首帖正文和按楼层排列的回复。${site.notice}`,
     '',
   ]
 

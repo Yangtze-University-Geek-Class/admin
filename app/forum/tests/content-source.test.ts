@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GEEK_SITE_NAME, selectContentSource, UPSTREAM_SITE_NAME } from '../shared/content-source'
+import { GEEK_SITE_NAME, selectContentSource, siteNameInText, UPSTREAM_SITE_NAME } from '../shared/content-source'
 
 // Every build reads its content source from these three variables (nuxt.config.ts).
 // The directory values are made up; nothing here reads a real snapshot.
@@ -53,5 +53,13 @@ describe('selectContentSource', () => {
   it('fails the build on any other source value instead of shipping the demo', () => {
     for (const value of ['Site', 'snapshot', 'production', ' site'])
       expect(() => selectContentSource({ GEEK_FORUM_SOURCE: value })).toThrow(/GEEK_FORUM_SOURCE/)
+  })
+})
+
+describe('siteNameInText', () => {
+  it('spaces a Latin site name inside Chinese text and leaves a Chinese one tight', () => {
+    expect(`来自${siteNameInText(UPSTREAM_SITE_NAME)}的系统消息`).toBe('来自 Tuff Forum 的系统消息')
+    expect(`来自${siteNameInText(GEEK_SITE_NAME)}的系统消息`).toBe('来自极客班论坛的系统消息')
+    expect(`关于${siteNameInText(GEEK_SITE_NAME).trimEnd()}`).toBe('关于极客班论坛')
   })
 })

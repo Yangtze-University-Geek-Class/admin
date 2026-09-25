@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CommandPaletteItem } from '@talex-touch/tuffex/command-palette'
 
-const { siteLogin, siteName } = useContentSource()
+const { isSite, siteLogin, siteName } = useContentSource()
 
 // Body styling goes through utility classes: the project ships no custom CSS,
 // and tuffex's stylesheet deliberately leaves `body` alone.
@@ -23,7 +23,8 @@ const PAGE_COMMANDS: CommandPaletteItem[] = [
   { id: '/notifications', title: '通知', icon: 'i-carbon-notification', keywords: ['notifications'] },
   { id: '/bookmarks', title: '书签', icon: 'i-carbon-bookmark', keywords: ['bookmarks'] },
   { id: '/new', title: '新话题', description: '发起一个新话题', icon: 'i-carbon-add', keywords: ['new', 'post'] },
-  { id: '/about', title: '关于', description: '站点简介与管理团队', icon: 'i-carbon-information', keywords: ['about'] },
+  // 极客班论坛的关于页没有管理团队（还没有成员资料）。
+  { id: '/about', title: '关于', description: isSite ? '论坛简介' : '站点简介与管理团队', icon: 'i-carbon-information', keywords: ['about'] },
 ]
 
 const forum = useForumStore()

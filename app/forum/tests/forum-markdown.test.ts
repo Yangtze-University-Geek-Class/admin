@@ -158,7 +158,7 @@ describe('forumLlmsTxt', () => {
   it('starts with the title and a one-paragraph summary', () => {
     expect(lines[0]).toBe('# 测试论坛')
     expect(lines[1]).toBe('')
-    expect(lines[2]).toMatch(/^> 测试论坛 的话题索引。.*这是夹具。$/)
+    expect(lines[2]).toMatch(/^> 测试论坛的话题索引。.*这是夹具。$/)
   })
 
   it('has one section per non-empty category, holding only topic links', () => {
@@ -177,6 +177,10 @@ describe('forumLlmsTxt', () => {
 
   it('stays site-relative without an origin', () => {
     expect(forumLlmsTxt(state, LOCAL)).toContain('](/t/t2.md)')
+  })
+
+  it('keeps one space after a Latin site name in the summary', () => {
+    expect(forumLlmsTxt(state, { ...SITE, siteName: 'Tuff Forum' }).split('\n')[2]).toMatch(/^> Tuff Forum 的话题索引。/)
   })
 })
 
