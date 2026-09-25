@@ -54,3 +54,9 @@
 - 做了什么：checkPullRequest 支持 --for-review 并强化只追加校验；finish/flush 完善未合并与未开工边界；record 支持 post-stage 暂存；realpath 修复入口判定；ci 摘要加 if: !cancelled()
 - 结果：单测 23 条通过，pnpm check 全部通过，actionlint 通过
 - 下一步：更新 PR #92 正文并推送到远端
+
+## 01:37:41 +08:00 · 收尾 · #91 · PR #92 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 91：删 worktree .claude/worktrees/task-91 与本地分支 task/91/agent_notes
+- 结果：PR 已合并
