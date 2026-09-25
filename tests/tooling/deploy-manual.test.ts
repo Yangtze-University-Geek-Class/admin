@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, deploy, deploymentPayload, expectedDigest, parseArgs,
-  REQUIRED_CONTEXT, archiveCheckCommand, deployStackCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
+  RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, commentState, deploy, deploymentPayload, expectedDigest, parseArgs,
+  COMMENT_STATE_QUERY, REQUIRED_CONTEXT, archiveCheckCommand, deployStackCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
 import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
@@ -49,21 +49,55 @@ describe('deploy-manual helpers', () => {
     expect(() => repoFromRemote('https://gitlab.com/o/r.git')).toThrow(/GitHub/);
   });
 
-  it('accepts an approval only as its own line 「批准发布 vX.Y.Z」, not negated, quoted or rc-only', () => {
-    expect(acceptanceSays('批准发布 v0.1.0', '0.1.0')).toBe(true);
-    expect(acceptanceSays('预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0。', '0.1.0')).toBe(true);
-    expect(acceptanceSays('批准发布 0.1.0.', '0.1.0')).toBe(true);
+  it('accepts an approval only when the whole comment is the one line 「批准发布 vX.Y.Z」 (whitelist, #69)', () => {
+    // 只认整条评论就是这一行；末尾的空格、制表符、换行（含 CRLF）不算。
+    for (const text of ['批准发布 v0.1.0', '批准发布 v0.1.0\n', '批准发布 v0.1.0\r\n', '批准发布 v0.1.0  \n\n', '批准发布 v0.1.0\t\r\n']) {
+      expect(acceptanceSays(text, '0.1.0'), JSON.stringify(text)).toBe(true);
+    }
     for (const text of [
-      '暂不批准发布 v0.1.0，等修完', '批准发布 v0.1.0-rc.1 到预发布；v0.1.0 还要再看', '> 批准发布 v0.1.0', '批准发布 v0.1.0-rc.1',
-      '看起来不错 v0.1.0', '批准发布 v0.2.0', '批准发布 v0.1.01', '不批准发布 v0.1.0',
-      // 渲染后不是正文的地方：代码块、缩进代码、注释、HTML 标签内、引用与懒续行
-      '回复下面这行：\n```\n批准发布 v0.1.0\n```', '~~~md\n批准发布 v0.1.0\n~~~', '    批准发布 v0.1.0', '\t批准发布 v0.1.0',
-      '<!-- 批准发布 v0.1.0 -->', '<!--\n批准发布 v0.1.0\n-->', '<blockquote>\n批准发布 v0.1.0\n</blockquote>', '<details><summary>模板</summary>\n\n批准发布 v0.1.0\n</details>',
-      '> 所有者说：\n批准发布 v0.1.0', '＞ 批准发布 v0.1.0',
-    ]) expect(acceptanceSays(text, '0.1.0'), text).toBe(false);
-    // 引用结束（空行）之后、代码块关闭之后的正文照常算。
-    expect(acceptanceSays('> 上次的讨论\n\n批准发布 v0.1.0', '0.1.0')).toBe(true);
-    expect(acceptanceSays('```\nlog\n```\n批准发布 v0.1.0', '0.1.0')).toBe(true);
+      // 这一行本身写得不对：否定、rc、别的版本、省略 v、句号、多一个空格、全角空格、大写 V、前后多字。
+      '暂不批准发布 v0.1.0，等修完', '不批准发布 v0.1.0', '批准发布 v0.1.0-rc.1', '批准发布 v0.1.0-rc.1 到预发布；v0.1.0 还要再看', '批准发布 v0.2.0',
+      '批准发布 v0.1.01', '批准发布 v0.1.00', '看起来不错 v0.1.0', '批准发布 0.1.0', '批准发布 0.1.0.', '批准发布 v0.1.0。', '批准发布 v0.1.0!',
+      '批准发布  v0.1.0', '批准发布v0.1.0', '批准发布　v0.1.0', '批准发布 v0.1.0　', '批准发布 V0.1.0', '批准发布 v0.1.0​', '', '\n',
+      // 前面有任何东西都不算：缩进、空行、引用、加粗。
+      '    批准发布 v0.1.0', '\t批准发布 v0.1.0', ' 批准发布 v0.1.0', '\n批准发布 v0.1.0', '> 批准发布 v0.1.0', '＞ 批准发布 v0.1.0', '**批准发布 v0.1.0**',
+      // 多写一句话都不算，哪怕另起一行、页面上看得见。
+      '批准发布 v0.1.0\n谢谢', '预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0', '预发布试过了，登录和成员页都没问题。\n批准发布 v0.1.0。',
+      '> 上次的讨论\n\n批准发布 v0.1.0', '```\nlog\n```\n批准发布 v0.1.0', '测过 `Promise<void>` 的返回\n批准发布 v0.1.0', '<!-- 模板 -->\n批准发布 v0.1.0',
+      '试过了，<b>登录</b>和成员页都没问题<br>\n批准发布 v0.1.0', '<details><summary>日志</summary>\n\n```\nlog\n```\n\n</details>\n\n批准发布 v0.1.0',
+      '> 引用\n```\nx\n```\n批准发布 v0.1.0', '````\n```\n````\n批准发布 v0.1.0', '~~~\n```\n~~~\n批准发布 v0.1.0',
+      // 代码块、注释、HTML 里的，以及引用的懒续行。
+      '回复下面这行：\n```\n批准发布 v0.1.0\n```', '~~~md\n批准发布 v0.1.0\n~~~', '<!-- 批准发布 v0.1.0 -->', '<!--\n批准发布 v0.1.0\n-->',
+      '<blockquote>\n批准发布 v0.1.0\n</blockquote>', '<details><summary>模板</summary>\n\n批准发布 v0.1.0\n</details>', '> 所有者说：\n批准发布 v0.1.0',
+      '<strong>暂不</strong>批准发布 v0.1.0', '批准发布 v0.1.0<sup>-rc.1</sup>', '批准发布 v0.1.0<code>-rc.1</code>', '<!-- x -->批准发布 v0.1.0',
+      '<a title="a>b">暂不</a>批准发布 v0.1.0', '<img alt="x>\n批准发布 v0.1.0\n">',
+      '<details>\n<details>\n内层\n</details>\n批准发布 v0.1.0\n</details>', '<details>\n\n批准发布 v0.1.0', '<details><summary>模板</summary>\n\n批准发布 v0.1.0',
+      '<DETAILS>\n批准发布 v0.1.0\n</details>', '<del>\n批准发布 v0.1.0',
+      '```\nlog\n``` 结束\n批准发布 v0.1.0', '~~~\nlog\n~~~ 结束\n批准发布 v0.1.0', '```\n    ```\n批准发布 v0.1.0', '```\n```\n```\n批准发布 v0.1.0',
+      '- ```\n  批准发布 v0.1.0', '  ```\n批准发布 v0.1.0\n```', '```a`b\n```\n批准发布 v0.1.0\n```',
+      '<div>说明</div>\n```\n\n```\n批准发布 v0.1.0\n```', '<!--\n\n```\n-->\n```\n批准发布 v0.1.0\n```',
+      '<pre>\n\n```\n</pre>\n```\n批准发布 v0.1.0\n```', '<details>\n\n```\n</details>\n批准发布 v0.1.0\n```',
+      // 第一轮审查找出的、逐行规则会误判的写法：代码或转义里的 </details>、HTML 块开头、没写完的标签、跨行的行内结构、列表里的引用。
+      '<details>\n\n`</details>`\n批准发布 v0.1.0', '<details>\n\n\\</details>\n批准发布 v0.1.0', '<details>\n\n    </details>\n\n批准发布 v0.1.0',
+      '<details>\n\n```\n</details>\n```\n批准发布 v0.1.0',
+      '<hr>暂不\n批准发布 v0.1.0', '<div></div>暂不\n批准发布 v0.1.0', '<details><summary>日志</summary>x</details>暂不\n批准发布 v0.1.0',
+      '<details\n批准发布 v0.1.0', '<div title="\n批准发布 v0.1.0', '<details x=a"b>\n批准发布 v0.1.0',
+      '![\n批准发布 v0.1.0\n](https://github.githubassets.com/favicons/favicon.png)', '[看这里](https://example.com "\n批准发布 v0.1.0\n")',
+      "[x]: https://example.com '\n批准发布 v0.1.0\n'", '[\n批准发布 v0.1.0\n]: https://example.com', '暂不 `\n批准发布 v0.1.0\n` 等修完',
+      '- > 暂不\n批准发布 v0.1.0', '1. > 暂不\n批准发布 v0.1.0', '模板：\n\n \t批准发布 v0.1.0',
+    ]) expect(acceptanceSays(text, '0.1.0'), JSON.stringify(text)).toBe(false);
+    expect(acceptanceSays(null, '0.1.0')).toBe(false);
+    expect(acceptanceSays(undefined, '0.1.0')).toBe(false);
+  });
+
+  it('reads whether the approval comment was edited or hidden from GraphQL, and refuses anything else', () => {
+    expect(COMMENT_STATE_QUERY).toContain('... on IssueComment { lastEditedAt isMinimized }');
+    expect(commentState('{"data":{"node":{"lastEditedAt":null,"isMinimized":false}}}')).toEqual({ lastEditedAt: null, isMinimized: false });
+    expect(commentState('{"data":{"node":{"lastEditedAt":"2026-09-25T12:00:00Z","isMinimized":true}}}')).toEqual({ lastEditedAt: '2026-09-25T12:00:00Z', isMinimized: true });
+    // 节点不是 IssueComment 时 GraphQL 返回空对象；报错或没有 node 同样不能当作「没编辑过」。
+    for (const response of ['{"data":{"node":{}}}', '{"data":{"node":null}}', '{"errors":[{"message":"x"}]}', '{"data":{"node":{"lastEditedAt":null}}}']) {
+      expect(() => commentState(response), response).toThrow(/编辑状态/);
+    }
   });
 
   it('strips every secret from the environment handed to other child processes', () => {
@@ -129,10 +163,10 @@ describe('deploy-manual helpers', () => {
 });
 
 type Call = { command: string; args: string[]; env?: Record<string, string> };
-type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string; editedAt?: string };
+type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string; editedAt?: string | null; minimized?: boolean; touchedAt?: string; approval?: string };
 
 /** 假的外部世界：记录每个命令，按命令给出固定回答；可以指定在哪一步失败。 */
-function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z', editedAt }: WorldOptions = {}) {
+function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z', editedAt = null, minimized = false, touchedAt, approval = '批准发布 v0.1.0\n' }: WorldOptions = {}) {
   const calls: Call[] = [];
   const removed: string[] = [];
   const work = '/tmp/yzgc-deploy-test';
@@ -154,7 +188,8 @@ function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 
     if (line === 'git remote get-url origin') return `git@github.com:${REPO}.git\n`;
     if (command === 'git' && args[0] === 'rev-parse') return `${COMMIT}\n`;
     if (line.includes('release-policy.mjs plan')) return JSON.stringify(plan);
-    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: '试过了。\n批准发布 v0.1.0', user: { login: 'Crosery' }, issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt, updated_at: editedAt ?? approvedAt });
+    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: approval, user: { login: 'Crosery' }, node_id: 'IC_555', issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt, updated_at: touchedAt ?? approvedAt });
+    if (line.startsWith('gh api graphql') && line.endsWith('id=IC_555')) return JSON.stringify({ data: { node: { lastEditedAt: editedAt, isMinimized: minimized } } });
     if (line.includes('/permission')) return JSON.stringify({ permission });
     if (line.includes('deployments?environment=preview')) return JSON.stringify([{ id: 7, payload: { tag: 'v0.1.0-rc.1' } }]);
     if (line.includes('deployments/7/statuses')) return JSON.stringify([{ state: previewState, created_at: '2026-09-25T10:00:00Z' }]);
@@ -209,6 +244,21 @@ describe('deploy-manual orchestration', () => {
       const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
       expect(ci).toContain(`name: ${REQUIRED_CONTEXT}`);
     }
+    // 创建记录不传 auto_inactive（那是状态接口的参数），显式关掉 auto_merge（布尔要用 -F）；
+    // 每个状态 POST 都带 -F auto_inactive=false，不把预发布上更早的成功记录置为 inactive。两条工作流写法相同。
+    expect(create.args.join(' ')).toContain('-F auto_merge=false');
+    expect(create.args.join(' ')).not.toContain('auto_inactive');
+    const statuses = world.calls.filter(call => call.args.some(arg => arg.endsWith('/statuses')));
+    expect(statuses.map(call => call.args.find(arg => arg.startsWith('state=')))).toEqual(['state=in_progress', 'state=success']);
+    for (const call of statuses) expect(call.args.join(' ')).toContain('-F auto_inactive=false');
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      expect(workflow).toContain(`-f ref="$COMMIT" -f environment=${env} -F auto_merge=false`);
+      expect(workflow).not.toMatch(/-f auto_(?:inactive|merge)/);
+      const posts = workflow.split('\n').filter(line => line.includes('gh api --method POST') && line.includes('/statuses"'));
+      expect(posts).toHaveLength(2);
+      for (const post of posts) expect(post).toContain('-F auto_inactive=false');
+    }
     // 归档校验先进入 incoming 目录再 `sha256sum -c`，不跳过缺失文件；两条工作流写法相同。
     const check = world.calls.find(call => call.command === 'ssh' && call.args.some(arg => arg.includes('sha256sum')))!;
     expect(check.args.at(-1)).toBe(archiveCheckCommand('/opt/yzgc/preview/incoming', 'preview', `yzgc-images-preview-${COMMIT.slice(0, 12)}.tar.gz`));
@@ -262,6 +312,9 @@ describe('deploy-manual orchestration', () => {
       [{ commentIssue: 64 }, /不在链接写的 #63/],
       [{ approvedAt: '2026-09-25T09:00:00Z' }, /早于预发布部署成功/],
       [{ editedAt: '2026-09-25T12:00:00Z' }, /被编辑过/],
+      [{ minimized: true }, /折叠/],
+      // 批准评论里多写了试用结论：不算，报错告诉所有者另发一条只写这一行的评论。
+      [{ approval: '试过了。\n批准发布 v0.1.0' }, /另发一条新评论，只写这一行/],
     ]) {
       const world = fakeWorld({ environment: 'production', tag: 'v0.1.0', ...overrides });
       await expect(deploy(options, world.deps)).rejects.toThrow(message);
@@ -272,12 +325,18 @@ describe('deploy-manual orchestration', () => {
     const world = fakeWorld({ environment: 'production', tag: 'v0.1.0' });
     await deploy({ ...options, dryRun: true }, world.deps);
     expect(world.index('/permission')).toBeLessThan(world.index('gh run download'));
+    // 编辑状态按评论的 node_id 查 GraphQL，也在下载之前。
+    expect(world.index('id=IC_555')).toBeGreaterThan(-1);
+    expect(world.index('id=IC_555')).toBeLessThan(world.index('gh run download'));
+    // updated_at 不再作数：只有 lastEditedAt 表示正文被编辑过。
+    await deploy({ ...options, dryRun: true }, fakeWorld({ environment: 'production', tag: 'v0.1.0', touchedAt: '2026-09-25T12:00:00Z' }).deps);
   });
 
   it('marks the deployment record failed and cleans up when the remote step fails', async () => {
     const world = fakeWorld({ failOn: "bash '" });
     await expect(deploy({ environment: 'preview', tag: 'v0.1.0-rc.1' }, world.deps)).rejects.toThrow(/fake failure/);
     expect(world.calls.some(call => call.args.includes('state=failure'))).toBe(true);
+    expect(world.calls.find(call => call.args.includes('state=failure'))!.args.join(' ')).toContain('-F auto_inactive=false');
     expect(world.calls.some(call => call.args.includes('state=success'))).toBe(false);
     expect(world.removed).toEqual([world.work]);
   });
