@@ -32,6 +32,22 @@ const REMOTE_SAFE = /^[A-Za-z0-9._/-]+$/;
 const SSH_NAME = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 /** 部署记录只要求 CI 的这项检查通过；默认的「全部检查」会把正在运行或失败的部署 job 也算进去而一直 409。 */
 export const REQUIRED_CONTEXT = 'verify (required check)';
+
+/**
+ * 目标机上核对刚传过去的镜像归档。`.sha256` 里是相对文件名，`sha256sum -c` 按当前目录找，
+ * 所以先进入 incoming 目录；不带 `--ignore-missing`，缺文件直接失败（v0.1.0-rc.2 在这里「一个都没校验」）。
+ */
+export const archiveCheckCommand = (incomingDir, environment, imagesArchive) =>
+  `cd '${incomingDir}' && chmod 600 '.env.${environment}' && sha256sum -c '${imagesArchive}.sha256'`;
+
+/**
+ * 目标机上执行部署。`--images` 只指这次的归档：incoming 里会留着上一次的归档，
+ * 不指定时 deploy-stack.sh 会把整个目录当成本次输入，看到别的版本的镜像就拒绝部署。
+ */
+export const deployStackCommand = (plan, environment) =>
+  `bash '${plan.incomingDir}/deploy-stack.sh' --environment ${environment} --stack-root '${plan.stackRoot}' `
+  + `--image-tag '${plan.imageTag}' --incoming-dir '${plan.incomingDir}' --images '${plan.incomingDir}/${plan.imagesArchive}' `
+  + `--env-file '${plan.incomingDir}/.env.${environment}'`;
 const SSH_ENV = ['DEPLOY_SSH_HOST', 'DEPLOY_SSH_PORT', 'DEPLOY_SSH_USER', 'DEPLOY_SSH_KEY_FILE', 'DEPLOY_SSH_KNOWN_HOSTS_FILE'];
 const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'];
 /** 取出哪些路径：规划器、环境契约、render 与远端物料都在这里面。 */
@@ -306,9 +322,8 @@ export async function deploy(options, deps = defaultDeps()) {
     step(remote.ssh(`mkdir -p '${plan.incomingDir}' '${plan.stackRoot}/deploy/compose' && chmod 700 '${plan.incomingDir}'`));
     step(remote.scp([archive, `${archive}.sha256`, envFile, join(src, 'deploy/remote/deploy-stack.sh')], `${plan.incomingDir}/`));
     step(remote.scp([join(src, 'deploy/compose/production.yml'), join(src, 'deploy/compose/preview.yml')], `${plan.stackRoot}/deploy/compose/`));
-    step(remote.ssh(`chmod 600 '${plan.incomingDir}/.env.${environment}' && sha256sum -c '${plan.incomingDir}/${plan.imagesArchive}.sha256' --ignore-missing`));
-    step(remote.ssh(`bash '${plan.incomingDir}/deploy-stack.sh' --environment ${environment} --stack-root '${plan.stackRoot}' `
-      + `--image-tag '${plan.imageTag}' --incoming-dir '${plan.incomingDir}' --env-file '${plan.incomingDir}/.env.${environment}'`));
+    step(remote.ssh(archiveCheckCommand(plan.incomingDir, environment, plan.imagesArchive)));
+    step(remote.ssh(deployStackCommand(plan, environment)));
     run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=success', '-f', `environment_url=${plan.origin}`,
       '-f', `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`]);
     log(`完成：${plan.origin}/release.json 应显示 ${plan.releaseVersion}`);
