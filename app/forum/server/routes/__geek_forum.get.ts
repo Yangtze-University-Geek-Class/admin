@@ -14,8 +14,9 @@ export default defineEventHandler((event) => {
     // `local-snapshot` means the pages read the 极客班 archive through
     // /api/local-forum. It is a static read-only projection: no database is
     // connected, nothing is written, nobody is authenticated. `site` is
-    // 极客班论坛 as the images are built: its own categories and tags, no
-    // topics, no browser storage.
+    // 极客班论坛 as the images are built: its own categories and tags and the
+    // old-forum documents it publishes (content/published); no forum content
+    // or session is kept in the browser (theme and sidebar preferences are).
     mode: snapshot ? 'local-snapshot' : contentSource === 'site' ? 'site' : 'browser-demo',
     contentSource: snapshot ? 'local-snapshot' : contentSource,
     snapshotConfigured: snapshot,

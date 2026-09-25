@@ -1,6 +1,6 @@
 /**
  * 登录没成功时，核心服务回到原页面并带上 `?signin=<原因>`（见 app/server/src/routes/admin/auth.ts），
- * 论坛顶栏按这里的文案提示一次。极客班论坛（site 构建）还没有帖子，所以不说「不登录也能看帖子」。
+ * 论坛顶栏按这里的文案提示一次。论坛里一篇帖子都没有时（极客班论坛没有公开任何旧帖），不说「不登录也能看帖子」。
  */
 export interface SigninOutcome { title: string, description: string, variant: 'info' | 'warning' }
 

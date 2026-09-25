@@ -51,7 +51,8 @@ ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
 
 # GEEK_FORUM_SOURCE=site：镜像是极客班论坛自己——站名「极客班论坛」、app/forum/content/curation.json
-# 里的分类和标签，没有帖子、用户和通知（论坛还没有后端）。不带上游示例帖子，也不读任何内容目录，
+# 里的分类和标签，加上 content/published 里公开的旧帖（去掉凭据后导出，只有首帖，作者是「极客班」）；
+# 没有回复、其他用户和通知（论坛还没有后端）。不带上游示例帖子，也不读任何内容目录，
 # 机器上的私有快照进不来。上游示例种子只留给 scripts/forum.mjs 的 check/generate/verify。
 # GEEK_FORUM_BASE_PATH=/forum/ 是路径挂载的前提（nuxt.config.ts 把它写进 app.baseURL）：
 # 产物 HTML 里的资源与路由前缀都必须是 /forum/，否则浏览器会去官网根路径找论坛资源
@@ -67,11 +68,18 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
- # 给 AI 读取的索引 llms.txt 必须随产物生成（nuxt.config.ts 的 nitro.prerender.routes），
- # 写的是极客班论坛；极客班论坛还没有话题，所以不生成 t/<id>.md。
+ # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
+ # nitro.prerender.routes）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \
  && grep -q '极客班论坛' .output/public/llms.txt \
- && ! test -e .output/public/t \
+ && grep -q '极客班25级机试考核文档' .output/public/llms.txt \
+ && test -s .output/public/t/t73.md \
+ && test -s .output/public/t/t9.md \
+ && ! test -e .output/public/t/t5.md \
+ && ! test -e .output/public/t/t15.md \
+ && test -n "$(find .output/public/published -name '*.webp' -print -quit)" \
+ # 产物的文本文件里不能有邮箱地址（t73 原文里的共享账户已在导出时去掉），与 vitest 里的检查同一条规则；-I 跳过图片和字体，免得二进制字节碰巧像邮箱。
+ && ! grep -rqEI '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.]+' .output/public \
  # 产物里不能有上游示例内容（示例帖子标题、示例分类）。
  && ! grep -rq 'Tuff 2.5' .output/public \
  && ! grep -rq 'CoreBox' .output/public

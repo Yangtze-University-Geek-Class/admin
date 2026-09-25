@@ -37,7 +37,14 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 内容来源：构建时由 `shared/content-source.ts` 的 `selectContentSource`（单测 `tests/content-source.test.ts`）按环境变量决定，`nuxt.config.ts` 只调用它：`GEEK_FORUM_SOURCE=site` 是极客班论坛（`contentSource: site`，站名「极客班论坛」，不读任何内容目录）；`GEEK_FORUM_SOURCE=demo` 是上游示例种子（站名 Tuff Forum，压过任何快照目录）；不设置时 `GEEK_FORUM_CONTENT_DIR` 非空是本机只读快照（站名「极客班论坛」），否则是示例种子；其它取值直接让构建失败。
 
-极客班论坛（`contentSource: site`，预发布与正式镜像）：`shared/site-state.ts` 的 `siteForumState()` = 空状态 + `content/curation.json` 里的分类（按 `categoryOrder`：班级公告、课程与作业、竞赛与项目、求职与升学、人工智能）和标签；没有用户、话题、帖子、通知、书签、关注。只按名字取 `categories`/`categoryOrder`/`tags` 三个字段，`curation.json` 里的快照话题标题和正文补丁不进浏览器产物（它们的作者只在私有快照里）。构建常量 `import.meta.env.GEEK_FORUM_SITE`（`nuxt.config.ts` 的 `vite.define`）让 `stores/forum.ts` 的初始状态直接是 `siteForumState()`，`createSeed` 与示例帖子整段不进产物；`app/plugins/site-state.client.ts` 在挂载前再换一次状态并把会话设为游客，示例种子一帧也不会出现。`persist.client.ts` 不读也不写浏览器里的论坛状态和会话。页面文案：顶部提示「论坛刚换到新系统，发帖和回复还没开放，以前的帖子暂时不显示。」加统一登录那句；关于页是一段极客班论坛简介和一行出处（基于开源项目 Tuff Forum，talex-touch/tuff-forum，MIT 许可），不显示用户/话题/帖子数字和管理团队；首页、单个类别页和标签页的话题列表以及类别总览的「最新」在没有话题时显示「还没有话题 / 发帖和回复还没开放。」，用户页显示「还没有用户 / 成员列表还没接入。」；系统通知写「来自极客班论坛的系统消息」。
+极客班论坛（`contentSource: site`，预发布与正式镜像）：`shared/site-state.ts` 的 `siteForumState()` = 空状态 + `content/curation.json` 里的分类（按 `categoryOrder`：招新与机试、班级公告、课程与作业、竞赛与项目、求职与升学、人工智能）和标签 + `shared/published.ts` 读出的公开旧帖（见下文「公开的旧帖」）；除了「极客班」这个作者账号没有其他用户，也没有回复、通知、书签、关注。只按名字取 `categories`/`categoryOrder`/`tags` 三个字段，`curation.json` 里的快照话题标题和正文补丁不进浏览器产物（它们的作者只在私有快照里）。构建常量 `import.meta.env.GEEK_FORUM_SITE`（`nuxt.config.ts` 的 `vite.define`）让 `stores/forum.ts` 的初始状态直接是 `siteForumState()`，`createSeed` 与示例帖子整段不进产物；`app/plugins/site-state.client.ts` 在挂载前再换一次状态并把会话设为游客，示例种子一帧也不会出现。`persist.client.ts` 不读也不写浏览器里的论坛状态和会话。页面文案：顶部提示「论坛刚换到新系统，发帖和回复还没开放；旧论坛先放出了招新机试文档和入门资料，其余帖子暂时不显示。」，没登录时（等 `/auth/me` 返回后，和顶栏登录按钮同时出现）再加统一登录那句，已登录不显示；关于页是一段极客班论坛简介和一行出处（基于开源项目 Tuff Forum，talex-touch/tuff-forum，MIT 许可），不显示用户/话题/帖子数字和管理团队；单个类别页和标签页的话题列表以及类别总览的「最新」在没有话题时显示「还没有话题 / 发帖和回复还没开放。」，用户页显示「还没有用户 / 成员列表还没接入。」；系统通知写「来自极客班论坛的系统消息」。
+
+**公开的旧帖**（#87）：旧论坛的 25 级、24 级机试文档和它们链到的入门资料共 14 篇（`t73` `t72` `t71` `t9` `t35` 与 `t6` `t7` `t8` `t10` `t11` `t12` `t13` `t16` `t25`），都在「招新与机试」类别，`t73`、`t9` 置顶，标签「25级」「24级」「入门资料」；作者统一是「极客班」（`u-geekclass`，管理员），原作者以后按 #58 认领，旧帖的回复不公开。
+
+- 清单是 `app/forum/content/published/manifest.json`：话题编号、类别、标签、置顶，不公开的话题（`withheld`：`t5` 代理配置教程、`t15`），按图片地址的处理规则（`drop` 换成「（这张截图没有公开）」，`cover` 用灰块盖住矩形，`crop` 裁边；要编辑的外链图记原图 `sha256`），以及按话题的替换规则（写模式和应命中的次数，不写被去掉的原文）。
+- `node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<快照>` 按清单从私有快照导出 `content/published/topics.json`（标题、时间、浏览数、首帖正文）和 `public/published/<哈希>.webp`（最宽 1600、有损 WebP），同一快照重跑结果逐字节相同。改写规则在 `scripts/forum-migration/published-transform.mjs`：指向公开话题的链接改成相对地址 `./tN`（任何 base 下都能跳，链接文字只是旧站名时换成目标标题），指向不公开话题的链接变成「这篇没有公开」，旧论坛的分类和用户页链接只留文字，外部链接去掉分享人的追踪参数（B 站 `vd_source` 等、公众号 `sharer_*`，gitee 外链跳转换成目标地址），旧论坛里的图片和清单要编辑的外链图换成导出的 WebP，其余外链图片不动；Markdown 图片和 HTML `<img src>` 走同一套规则，导出记录逐篇列出换掉、去掉和留作外链的每一张。同一张原图在两个地址下写了不同的图片规则时导出直接失败；导出结果依赖 app/server 的 sharp 版本，换版本会得到不同的文件名。导出后正文里还有旧资产地址、旧归档链接、邮箱、写出来的账户或密码，或者代码块之外还有既不是站内 WebP 也不是 https 的图片，就直接失败。话题页只在 `<base>t/<id>` 下工作，带尾斜杠的地址由 `app/middleware/topic-trailing-slash.global.ts` 换成不带的，相对链接和图片才不会多一层。
+- `shared/published.ts` 把 `topics.json` 变成用户、话题和首帖，`siteForumState()` 与 `nuxt.config.ts` 的 `markdownTopicIds` 都从这里取。
+- 断言：`tests/site-state.test.ts` 核对 14 篇的类别、标签、置顶和作者，站内链接只指向公开话题、图片文件都在，正文里没有邮箱和写出来的账户；镜像构建断言 `t/t73.md`、`t/t9.md` 存在，`t/t5.md`、`t/t15.md` 不存在，产物里没有 Gmail 地址。
 
 示例登录（`loginMode=demo`）：`app/stores/session.ts` 的 login 只是选择示例用户；`app/plugins/persist.client.ts` 使用 localStorage 保存示例状态。没有真实认证、服务端权限、共享数据库、附件存储或邮件服务。界面权限和 store 测试仅验证演示行为，不承担安全边界。不得加载旧论坛会话或向后台传递示例 role 以取得真实权限。
 
@@ -94,7 +101,7 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 正文与回复原样输出页面渲染用的 Markdown，不转成 HTML；标题、显示名、摘要这类纯文本字段转义 Markdown 符号。生成规则只在 `shared/forum-markdown.ts` 一处，由 `tests/forum-markdown.test.ts` 覆盖转义、代码块原样保留、楼层顺序和无回复的情况。链接的站点前缀取自环境契约：正式与预发布构建是 `https://<域名>/forum/…`，本机是站点相对路径。
 
-**限制**：论坛还没有后端。静态产物里只有 `nuxt generate` 时写出的文件：极客班论坛（镜像）还没有话题，只有一份 `llms.txt`，写明站名和「还没有话题。」，没有 `t/<id>.md`，话题页也不输出 `alternate` 链接；示例种子的构建是每个话题（`t1`…`tN`）加一份 `llms.txt`，有 `.md` 的话题编号经运行时配置 `markdownTopicIds` 传给页面。用户在浏览器里新发的话题和回复只存在该浏览器的 localStorage，服务器上没有对应的 `.md`，请求会得到 404，这类话题页也不输出 `alternate` 链接。已有种子话题在浏览器里新增的回复、编辑、删除同样不会出现在 `.md` 里，文件内容停在构建时刻，时间也按构建时刻推算。本机 dev 服务器配置了只读快照时，`.md` 与 `llms.txt` 按请求从快照生成，覆盖快照里的全部话题；快照不进静态产物。接入真实后端后改由服务端按数据库生成。
+**限制**：论坛还没有后端。静态产物里只有 `nuxt generate` 时写出的文件：极客班论坛（镜像）是每篇公开旧帖的 `t/<id>.md` 加一份 `llms.txt`；示例种子的构建是每个话题（`t1`…`tN`）加一份 `llms.txt`，有 `.md` 的话题编号经运行时配置 `markdownTopicIds` 传给页面。用户在浏览器里新发的话题和回复只存在该浏览器的 localStorage，服务器上没有对应的 `.md`，请求会得到 404，这类话题页也不输出 `alternate` 链接。已有种子话题在浏览器里新增的回复、编辑、删除同样不会出现在 `.md` 里，文件内容停在构建时刻，时间也按构建时刻推算。本机 dev 服务器配置了只读快照时，`.md` 与 `llms.txt` 按请求从快照生成，覆盖快照里的全部话题；快照不进静态产物。接入真实后端后改由服务端按数据库生成。
 
 ## 环境与版本显示
 
@@ -127,7 +134,7 @@ CDP 使用独立临时浏览器，只清理本次进程组。原仓单测与旧 
 
 - 快照投影仍在 `.tools/` 私有目录，不进 Git、CI 缓存或发布包；`pnpm forum:generate` 产物中不存在 dev 专用路由。
 - 全站 GitHub 登录已接入界面，但论坛后端持久化、服务器授权与内部 Hub 未实现前（#57），不作为生产内部论坛开放。后续在该原代码上接入真实服务，而不是重新启用旧论坛。
-- 镜像（预发布、正式）是极客班论坛：站名、分类和标签是自己的，还没有帖子、用户和通知（快照不进镜像，上游示例内容也不进），登录方式是全站统一登录：顶栏只有「用 GitHub 登录」，登录后显示头像；顶部提示与关于页写明发帖和回复还没开放、以前的帖子暂时不显示。论坛后端见 #57。
+- 镜像（预发布、正式）是极客班论坛：站名、分类和标签是自己的，帖子只有「招新与机试」里公开的旧帖（#87），没有回复、其他用户和通知（快照不进镜像，上游示例内容也不进），登录方式是全站统一登录：顶栏只有「用 GitHub 登录」，登录后显示头像；顶部提示与关于页写明发帖和回复还没开放、其余旧帖暂时不显示。论坛后端见 #57。
 - 发帖、回复、点赞、书签、通知、资料修改都没有后端；这些按钮只弹「现在还不能操作」。
 - 原始数据库和附件已按后续明确授权拉到 Mac 私有备份目录，见 [数据保全](../../ops/FORUM-DATA-CAPTURE.md)；由 `prepare.py` 生成的只读投影可按上文快照模式在本机显示，但未导入可写数据库、未激活旧会话。
 - 目标数据模型转换、身份认领和上线仍需另行设计/验收，不删除源数据。**未做**：旧论坛账号（包括当年用 GitHub 登录过的）还没有和现在的 GitHub 登录关联，改过的姓名也没有同步，登录后不会自动认领旧帖子。

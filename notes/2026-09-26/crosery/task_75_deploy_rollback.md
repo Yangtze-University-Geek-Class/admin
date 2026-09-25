@@ -42,3 +42,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：独立审查复核 fd0150f 及合并 stage 后的 f2a72e2，确认阻塞项已修复、建议项均落实、单测 19 条全过、CI 全绿
 - 结果：结论：通过，准予合并
+
+## 01:44:11 +08:00 · 收尾 · #75 · PR #90 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 75：删 worktree .claude/worktrees/task-75 与本地分支 task/75/deploy_rollback
+- 结果：PR 已合并
