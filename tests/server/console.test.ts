@@ -541,6 +541,19 @@ describe('titles are data the 提督 can edit', () => {
     expect(createRoleStore(app.services.storage.db).listDepartments().map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
   });
 
+  it('trims names on save and never reads 管理称号与部门 out of a non-captain row, even if the database has it', async () => {
+    const { app, as, assign, db } = await setup({ alice: 'admin', bob: 'member' });
+    assign('bob', 'head', 'tech');
+    await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: ' 水手 ' } });
+    expect(app.services.roles.titleConfigs().member.label).toBe('水手');
+    // 绕过接口直接写库：读出时仍然剔除，队长拿不到 roles.manage。
+    db.prepare("UPDATE titles SET capabilities = ? WHERE id = 'head'").run(JSON.stringify(['console.access', 'roles.manage']));
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.capabilities).not.toContain('roles.manage');
+    const catalogue = (await app.inject({ url: '/api/console/catalogue', headers: as('alice') })).json();
+    expect(catalogue.role_base.head).not.toContain('roles.manage');
+  });
+
   it('keeps an edited title across a restart because defaults only fill empty rows', async () => {
     const { app, as } = await setup({ alice: 'admin' });
     await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '水手' } });

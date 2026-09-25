@@ -80,8 +80,10 @@ export function createRoleStore(db: Database.Database) {
     const values: unknown[] = [];
     const changed: string[] = [];
     for (const key of ["label", "tag", "icon", "tone", "description"] as const) {
-      if (patch[key] === undefined || patch[key] === current[key]) continue;
-      columns.push(`${key} = ?`); values.push(patch[key]); changed.push(key);
+      // 名字和说明去掉首尾空白再存：控制台已经 trim，直接调接口也不会存进「 舰长 」
+      const next = typeof patch[key] === "string" ? patch[key]!.trim() : patch[key];
+      if (next === undefined || next === current[key]) continue;
+      columns.push(`${key} = ?`); values.push(next); changed.push(key);
     }
     if (patch.capabilities !== undefined) {
       const next = CAPABILITY_IDS.filter(capability => patch.capabilities!.includes(capability));
