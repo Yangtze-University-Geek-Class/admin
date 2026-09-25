@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import {
-  DEFAULT_DEPARTMENTS, isCapability, normalizeBundle,
-  type AssignableRole, type AssignmentRow, type Capability, type Department, type DepartmentIcon, type Tone,
+  CAPABILITY_IDS, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, TITLE_IDS, isCapability, normalizeBundle,
+  type AssignableRole, type AssignmentRow, type Capability, type Department, type DepartmentIcon, type TitleConfigs, type TitleId, type Tone,
 } from "./roles.js";
 
 type DepartmentRecord = {
@@ -14,6 +14,8 @@ export type DepartmentInput = {
   head_capabilities: Capability[]; member_capabilities?: Capability[]; sort_order?: number;
 };
 export type DepartmentPatch = Partial<Omit<DepartmentInput, "id">> & { archived?: boolean };
+export type TitlePatch = Partial<{ label: string; tag: string; icon: string; tone: Tone; description: string; capabilities: Capability[] }>;
+type TitleRecord = { id: TitleId; label: string; tag: string; icon: string; tone: string; description: string; capabilities: string; updated_by: string | null; updated_at: number };
 export type AssignmentInput = {
   github_login: string; github_user_id: number | null; role: AssignableRole; department_id: string;
   note: string | null; granted_by: string;
@@ -28,6 +30,13 @@ function parseBundle(raw: string): Capability[] {
     return Array.isArray(value) ? normalizeBundle(value.filter(isCapability)) : [];
   } catch { return []; }
 }
+/** 称号的权限包可以含仅舰长能力（roles.manage 只能在舰长包里，由路由检查），所以不走 normalizeBundle。 */
+function parseTitleBundle(raw: string): Capability[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? CAPABILITY_IDS.filter(id => value.includes(id)) : [];
+  } catch { return []; }
+}
 function toDepartment(row: DepartmentRecord): Department & { created_at: number; updated_at: number } {
   return {
     id: row.id, name: row.name, tag: row.tag, icon: row.icon as DepartmentIcon, tone: row.tone as Tone, description: row.description,
@@ -36,8 +45,53 @@ function toDepartment(row: DepartmentRecord): Department & { created_at: number;
   };
 }
 
-/** 部门与称号指派的持久化。只接收普通参数；授权判断在调用方。 */
+/** 称号设置、部门与称号指派的持久化。只接收普通参数；授权判断在调用方。 */
 export function createRoleStore(db: Database.Database) {
+  // 称号：代码里的默认值只在第一次启动写入，之后以数据库为准（提督在控制台改的不会被覆盖）。
+  const seedTitle = db.prepare(`INSERT OR IGNORE INTO titles(id, label, tag, icon, tone, description, capabilities, updated_by, updated_at)
+    VALUES(@id, @label, @tag, @icon, @tone, @description, @capabilities, NULL, @now)`);
+  db.transaction(() => {
+    for (const id of TITLE_IDS) {
+      const title = DEFAULT_TITLE_CONFIGS[id];
+      seedTitle.run({ ...title, capabilities: JSON.stringify(title.capabilities), now: Date.now() });
+    }
+  })();
+
+  /** 全部称号设置。提督的权限包不管库里存了什么都是全部能力，乘客没有权限包。 */
+  function titleConfigs(): TitleConfigs {
+    const rows = db.prepare("SELECT * FROM titles").all() as TitleRecord[];
+    const result = structuredClone(DEFAULT_TITLE_CONFIGS);
+    for (const row of rows) {
+      if (!(row.id in result)) continue;
+      result[row.id] = {
+        id: row.id, label: row.label, tag: row.tag, icon: row.icon, tone: row.tone as Tone, description: row.description,
+        capabilities: row.id === "admin" ? [...CAPABILITY_IDS] : row.id === "guest" ? [] : parseTitleBundle(row.capabilities),
+      };
+    }
+    return result;
+  }
+  /** 返回实际改动的字段名；称号不存在时返回 null。权限包规则（titleBundleError）由调用方先查。 */
+  function updateTitle(id: TitleId, patch: TitlePatch, actor: string): string[] | null {
+    const current = titleConfigs()[id];
+    if (!current) return null;
+    const columns: string[] = [];
+    const values: unknown[] = [];
+    const changed: string[] = [];
+    for (const key of ["label", "tag", "icon", "tone", "description"] as const) {
+      if (patch[key] === undefined || patch[key] === current[key]) continue;
+      columns.push(`${key} = ?`); values.push(patch[key]); changed.push(key);
+    }
+    if (patch.capabilities !== undefined) {
+      const next = CAPABILITY_IDS.filter(capability => patch.capabilities!.includes(capability));
+      if (JSON.stringify(next) !== JSON.stringify(current.capabilities)) {
+        columns.push("capabilities = ?"); values.push(JSON.stringify(next)); changed.push("capabilities");
+      }
+    }
+    if (columns.length === 0) return [];
+    db.prepare(`UPDATE titles SET ${columns.join(", ")}, updated_by = ?, updated_at = ? WHERE id = ?`).run(...values, actor, Date.now(), id);
+    return changed;
+  }
+
   const seed = db.prepare(`INSERT OR IGNORE INTO departments(id, name, tag, icon, tone, description, head_capabilities, member_capabilities, sort_order, archived, created_at, updated_at)
     VALUES(@id, @name, @tag, @icon, @tone, @description, @head_capabilities, @member_capabilities, @sort_order, 0, @now, @now)`);
   const now = Date.now();
@@ -169,6 +223,7 @@ export function createRoleStore(db: Database.Database) {
   const countAssignments = () => (db.prepare("SELECT COUNT(*) AS n FROM role_assignments").get() as { n: number }).n;
 
   return {
+    titleConfigs, updateTitle,
     listDepartments, getDepartment, insertDepartment, updateDepartment,
     assignmentsFor, listAssignments, getAssignment, findAssignment, insertAssignment, transferCaptain, deleteAssignment,
     captain, captainExists, crewCounts, countAssignments,

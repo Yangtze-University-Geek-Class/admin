@@ -4,6 +4,7 @@ import { consoleContracts } from "./contracts.js";
 import me from "./me.js";
 import catalogue from "./catalogue.js";
 import departments from "./departments.js";
+import titles from "./titles.js";
 import assignments from "./assignments.js";
 import applications from "./applications.js";
 import feedback from "./feedback.js";
@@ -15,6 +16,7 @@ export default async function consoleRoutes(app: FastifyInstance) {
   await app.register(me);
   await app.register(catalogue);
   await app.register(departments);
+  await app.register(titles);
   await app.register(assignments);
   await app.register(applications);
   await app.register(feedback);

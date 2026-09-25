@@ -105,7 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at D
 `;
 
 const LEGACY_TABLES = ['app_state', 'audit_logs', 'feedback', 'invitations', 'invite_links', 'sessions', 'sqlite_sequence'];
-const CONSOLE_TABLES = ['applications', 'application_reviews', 'departments', 'invite_attempts', 'role_assignments'];
+const CONSOLE_TABLES = ['applications', 'application_reviews', 'departments', 'invite_attempts', 'role_assignments', 'titles'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
@@ -212,11 +212,11 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(db.prepare('SELECT id FROM departments ORDER BY sort_order').all()).toEqual(DEFAULT_DEPARTMENTS.map(({ id }) => ({ id })));
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
 
-    // 旧会话仍然有效；没有显式班长时 GitHub 组织管理员临时代任班长。
+    // 旧会话仍然有效；GitHub 组织 owner 是提督，拥有全部能力。
     const me = await app.inject({ url: '/api/console/me', headers: as('legacy-session-alice') });
     expect(me.statusCode).toBe(200);
-    expect(me.json()).toMatchObject({ login: 'alice', github_role: 'admin', bootstrap: true, capabilities: CAPABILITY_IDS });
-    expect(me.json().title).toMatchObject({ id: 'captain', source: 'bootstrap' });
+    expect(me.json()).toMatchObject({ login: 'alice', github_role: 'admin', capabilities: CAPABILITY_IDS });
+    expect(me.json().title).toMatchObject({ id: 'admin', source: 'github' });
 
     const summary = await app.inject({ url: '/api/console/summary', headers: as('legacy-session-alice') });
     expect(summary.statusCode).toBe(200);
@@ -252,19 +252,18 @@ describe('booting on the existing production data.db (legacy schema, no applicat
 
     // 普通组织成员只是极客班成员。
     const bob = (await app.inject({ url: '/api/console/me', headers: as('legacy-session-bob') })).json();
-    expect(bob).toMatchObject({ github_role: 'member', bootstrap: false, capabilities: ['console.access', 'github.org.read'] });
+    expect(bob).toMatchObject({ github_role: 'member', capabilities: ['console.access', 'github.org.read'] });
     expect(bob.title).toMatchObject({ id: 'member', source: 'github' });
 
-    // 临时代任的班长指定正式班长后，临时代任立即结束。
+    // 提督指定舰长后，自己仍是提督。
     const assign = await app.inject({
       method: 'POST', url: '/api/console/assignments', headers: as('legacy-session-alice'),
       payload: { github_login: 'carol', role: 'captain' },
     });
     expect(assign.statusCode).toBe(201);
     const after = (await app.inject({ url: '/api/console/me', headers: as('legacy-session-alice') })).json();
-    expect(after.bootstrap).toBe(false);
-    expect(after.title).toMatchObject({ id: 'member', source: 'github' });
-    expect(after.capabilities).not.toContain('roles.manage');
+    expect(after.title).toMatchObject({ id: 'admin', source: 'github' });
+    expect(after.capabilities).toEqual(CAPABILITY_IDS);
   });
 
   it('boots twice on the same upgraded file without touching data (restart / rollback-forward)', async () => {
@@ -281,10 +280,10 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     for (const [table, rows] of Object.entries(upgraded.rows)) {
       expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
     }
-    // 默认部门是 INSERT OR IGNORE：班长改过的不会被启动覆盖；显式班长仍在，管理员不再临时代任。
+    // 默认部门与称号是 INSERT OR IGNORE：改过的不会被启动覆盖；显式舰长仍在，组织 owner 仍是提督。
     expect(second.services.roles.getDepartment('tech')?.description).toBe('班长改过的描述');
     expect(second.services.roles.captain()).toMatchObject({ github_login: 'carol', role: 'captain' });
     const me = (await second.inject({ url: '/api/console/me', headers: as('legacy-session-alice') })).json();
-    expect(me).toMatchObject({ github_role: 'admin', bootstrap: false });
+    expect(me).toMatchObject({ github_role: 'admin', title: { id: 'admin' } });
   });
 });
