@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-25
 
 ## 合同
 
@@ -14,7 +14,7 @@ JSON 写操作定义类型、长度、范围、枚举与必填项，拒绝未知
 
 portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply、/api/public/config；admin 包括 /auth/*、/api/me/orgs、`/api/admin/:org/*`；极客班控制台包括 `/api/console/*`（组织固定为 `CONSOLE_ORG`，按能力授权，见下方「极客班控制台」）；另有基础设施端点 `/healthz` 与 server 自身的 `/forum` 占位（逐条见下方「端点清单」）。旧 `/api/forum` 及其子路径、`/auth/forum/*`、`/forum/u/*` 返回 410 legacy_forum_retired。新论坛是独立服务 `app/forum`（[forum 合同](../services/forum/README.md)），上游没有论坛业务 API，不将旧 API 改为模拟成功。开发态 `/forum/*` 跳转新首页，生产由 web 容器把 `/forum/*` 反代到 forum 容器；服务未就绪时核心返回 503。
 
-核心 OAuth 回调和 sid 保留，oauth_state 保持签名和有效期检查；不再创建旧 forum_sid。Nuxt 的选择示例用户不进入此会话模型，不为其签发真实权限。开发专用 `/__geek_forum` 仅标记受控预览进程，明确 realAuthentication=false / serverPersistence=false、contentSource 和 snapshotConfigured（快照目录已配置，不是数据库连接），生产不提供该标记。dev 专用、仅 GET/HEAD 的 `/api/local-forum/state`（整份只读快照文档）和 `/api/local-forum/assets/:hash`（按索引提供附件，支持单段 Range，多段请求退化为完整正文）只在设置快照目录时存在，静态产物中没有；它们没有会话，也不是业务写接口。机器码：404 `local_snapshot_not_configured` / `asset_not_found` / `asset_missing_on_disk`，405 `method_not_allowed`，416 `range_not_satisfiable`，500 `asset_size_mismatch`，503 `invalid_document` / `invalid_state` / `invalid_asset_index` / `snapshot_unavailable`。dev 错误处理器会在错误体附带堆栈，这是这些路由不进生产的原因之一。后续真实论坛 API 必须另立契约及权限测试。
+核心 OAuth 回调和 sid 保留，oauth_state 保持签名和有效期检查；不再创建旧 forum_sid。官网、论坛、控制台共用这一个登录：官网菜单栏和论坛（快照模式）只经同域 `GET /auth/me` 读会话显示身份，退出调 `POST /auth/signout`，论坛没有自己的登录接口。Nuxt 的选择示例用户不进入此会话模型，不为其签发真实权限。开发专用 `/__geek_forum` 仅标记受控预览进程，明确 realAuthentication=false / serverPersistence=false、contentSource 和 snapshotConfigured（快照目录已配置，不是数据库连接），生产不提供该标记。dev 专用、仅 GET/HEAD 的 `/api/local-forum/state`（整份只读快照文档）和 `/api/local-forum/assets/:hash`（按索引提供附件，支持单段 Range，多段请求退化为完整正文）只在设置快照目录时存在，静态产物中没有；它们没有会话，也不是业务写接口。机器码：404 `local_snapshot_not_configured` / `asset_not_found` / `asset_missing_on_disk`，405 `method_not_allowed`，416 `range_not_satisfiable`，500 `asset_size_mismatch`，503 `invalid_document` / `invalid_state` / `invalid_asset_index` / `snapshot_unavailable`。dev 错误处理器会在错误体附带堆栈，这是这些路由不进生产的原因之一。后续真实论坛 API 必须另立契约及权限测试。
 
 管理端意见箱 `GET /api/admin/:org/feedback` 返回 `{ items, counts }`，`items` 只含具名列 `id`、`category`、`content`、`contact`、`submitter_login`、`status`、`reply`、`replied_by`、`replied_at`、`created_at`（`app/server/src/lib/feedback-store.ts` 的 `AdminFeedbackItem`，管理端与控制台 `GET /api/console/feedback` 共用同一份 SQL）；提交者 `source_ip`、`user_agent`、`submitter_id` 以及 `votes`、`updated_at` 只留在服务端，不下发浏览器。回归测试见 `tests/server/core.test.ts`。
 
@@ -34,7 +34,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；503：发起人 token 失效或结果待核对 |
 | `POST /api/portal/apply` | 匿名 | 5 次/分钟 | 201 | 见「加入我们（投递）端点」 |
 | `GET /auth/github` | 匿名 | 无 | 302 到 GitHub 授权页，写入签名的 `oauth_state` cookie | — |
-| `GET /auth/callback` | `oauth_state` cookie | 无 | 302 回允许列表内的 `return_to`，签发 `sid` | 400 `missing_params` / `invalid_state` / GitHub 回传的 `error`；410 `legacy_forum_retired`（`state` 以 `forum-` 开头） |
+| `GET /auth/callback` | `oauth_state` cookie | 无 | 一律 302 回允许列表内的 `return_to`（不合规时 `<PUBLIC_ORIGIN>/console`）。登录者在 `CONSOLE_ORG` 是 `active` 成员：签发 `sid`，审计 `auth.signin`。其余情况不签发 `sid`，在回跳地址上加 `signin` 参数：`not_member`（成员查询 404）、`invite_pending`（成员状态 `pending`），这两种审计 `auth.signin_denied` 并尽力撤销这次授权（`DELETE /applications/{client_id}/grant`）；`cancelled`（GitHub 回传 `error=access_denied`）；`failed`（GitHub 回传其它 `error`，或换 token、取 `/user`、查成员身份出错，含 403 与超时） | 400 `missing_params`（缺 `state`，或 `code` 与 `error` 都没有）/ `invalid_state`（state 签名、有效期或 cookie 不符，GitHub 回传 `error` 时也先做这项检查）；410 `legacy_forum_retired`（`state` 以 `forum-` 开头）。这些情况返回 JSON，不跳转。规则见 [SECURITY](SECURITY.md)「登录门槛」 |
 | `POST /auth/signout` | 可选 `sid` | 无 | 200 `{ ok: true }`，清除 `sid` 与旧 `forum_sid` cookie | — |
 | `GET /auth/me` | 可选 `sid` | 无 | 200 `{ signed_in: false }` 或 `{ signed_in: true, login, user_id, avatar_url }` | — |
 | `GET /api/me/orgs` | `sid` | 无 | 200 `{ orgs, allowed_orgs }`，按 `ALLOWED_ORGS` 过滤，缓存 120 秒 | 401 `not_signed_in` / `session_expired` |

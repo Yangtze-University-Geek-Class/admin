@@ -21,7 +21,11 @@ void loadMe();
 
 const signedOut = computed(() => meError.value instanceof ApiError && meError.value.status === 401);
 watch(signedOut, value => {
-  if (value) void router.replace({ path: "/signin", query: { return_to: route.fullPath } });
+  if (!value) return;
+  // 登录没成功回到这里时（?signin=<原因>），原因交给登录页说明，不跟着塞进 return_to
+  const { signin, ...query } = route.query;
+  const returnTo = router.resolve({ path: route.path, query, hash: route.hash }).fullPath;
+  void router.replace({ path: "/signin", query: { return_to: returnTo, ...(typeof signin === "string" && { signin }) } });
 }, { immediate: true });
 
 const guest = computed(() => me.value && me.value.capabilities.length === 0);

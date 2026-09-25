@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
+import { signInHref, useAccount } from "../../lib/account";
 import { links } from "../../lib/links";
 import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
 import Icon from "../Icon";
@@ -16,12 +17,13 @@ type Props = {
   onBack: () => void;
 };
 
-type MenuName = "system" | "go" | "window" | "help";
+type MenuName = "system" | "go" | "window" | "help" | "account";
 
 const NOTE_KEY = "yugc:start-note";
 
 export default function YugcOs({ active, onBack }: Props) {
   const navigate = useNavigate();
+  const { account, loaded, signOut } = useAccount();
   const [now, setNow] = useState(() => new Date());
   const [wins, setWins] = useState<WindowState[]>([]);
   const [menu, setMenu] = useState<{ name: MenuName; left: number } | null>(null);
@@ -185,9 +187,17 @@ export default function YugcOs({ active, onBack }: Props) {
       { label: "文档", run: () => navigate("/docs") },
       { label: "搜索应用和命令", run: () => setLauncher(true), key: "⌘K" },
     ],
+    account: [
+      { label: "论坛", run: () => window.location.assign(links.forumHome()) },
+      { label: "控制台", run: () => window.location.assign(links.console()) },
+      null,
+      { label: "退出", run: () => void signOut() },
+    ],
   };
   const toggleMenu = (name: MenuName, anchor: HTMLElement) => {
-    setMenu((current) => (current?.name === name ? null : { name, left: anchor.getBoundingClientRect().left }));
+    // 菜单宽约 220px：靠右的菜单（头像）往左收，不出屏幕
+    const left = Math.min(anchor.getBoundingClientRect().left, window.innerWidth - 228);
+    setMenu((current) => (current?.name === name ? null : { name, left }));
   };
 
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false });
@@ -213,6 +223,20 @@ export default function YugcOs({ active, onBack }: Props) {
         <span className="pt-mb-stat" aria-hidden="true">
           <Icon name="wifi-line" size={15} />
         </span>
+        {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台 / 退出） */}
+        {account ? (
+          <button type="button" className="pt-mb-account" data-menu aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
+            {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={15} />}
+            <span>{account.login}</span>
+          </button>
+        ) : (
+          loaded && (
+            <a className="pt-mb-signin" href={signInHref()}>
+              <Icon name="github-line" size={15} />
+              <span>用 GitHub 登录</span>
+            </a>
+          )
+        )}
         <span className="pt-mb-clock">{time}</span>
       </header>
       {menu && (

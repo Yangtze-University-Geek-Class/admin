@@ -25,7 +25,7 @@
 | `application_reviews` | 投递审核历史（追加式，避免 `ALTER TABLE applications`） | 控制台 `PATCH /api/console/applications/:application_id`，与状态更新同一事务 | 控制台投递列表（`last_review`）与详情（`reviews`） | `note` ≤2000 字，属于候选人相关信息，不写进审计；外键 `ON DELETE CASCADE` |
 | `departments` | 部门与两份权限包（队长 / 舰员） | `lib/role-store.ts`：启动时 `INSERT OR IGNORE` 写入 4 个默认部门（已改过的不覆盖）；控制台 `POST/PATCH /api/console/departments` | `lib/access.ts`（计算能力）；控制台 `GET /api/console/departments` | 无个人信息。`head_capabilities` / `member_capabilities` 是 JSON 数组，只含可下放的能力；`archived=1` 的部门不再授予称号 |
 | `role_assignments` | 显式称号指派（captain / head / member / alumni） | 控制台 `POST/DELETE /api/console/assignments` | `lib/access.ts`（按 `github_user_id`，或尚无 id 时按小写 `github_login` 匹配）；控制台 `GET /api/console/assignments` | `github_login`（小写）、`github_user_id`、`note`（≤200 字）、`granted_by`。`UNIQUE(github_login, role, department_id)`；部分唯一索引 `uq_role_assignments_captain` 保证显式舰长唯一 |
-| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录、登出、加入我们投递）不会通过任何接口返回 |
+| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }` |
 | `app_state` | 键值状态 | 无 | 无 | 未使用，见下节 |
 
 ## 未使用的表、列和索引

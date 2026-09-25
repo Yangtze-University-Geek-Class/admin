@@ -5,10 +5,10 @@ export type DataSource = "mock" | "live";
 
 const DATA_KEY = "yugc:console-data-source";
 
-/** 开发态默认样板数据；`?__data=live|mock` 切换并记在本标签页。生产恒为 live。 */
+/** 开发态默认真实数据（本机预览走真实 GitHub 登录）；`?__data=mock` 切到样板数据并记在本标签页（自动化测试用）。生产恒为 live。 */
 export function dataSource(): DataSource {
   if (!import.meta.env.DEV) return "live";
-  if (typeof window === "undefined") return "mock";
+  if (typeof window === "undefined") return "live";
   const fromQuery = new URLSearchParams(window.location.search).get("__data");
   if (fromQuery === "mock" || fromQuery === "live") {
     try { sessionStorage.setItem(DATA_KEY, fromQuery); } catch { /* 存储不可用时只用本次的查询参数 */ }
@@ -18,7 +18,7 @@ export function dataSource(): DataSource {
     const stored = sessionStorage.getItem(DATA_KEY);
     if (stored === "mock" || stored === "live") return stored;
   } catch { /* 忽略 */ }
-  return "mock";
+  return "live";
 }
 
 export const isMock = () => dataSource() === "mock";
