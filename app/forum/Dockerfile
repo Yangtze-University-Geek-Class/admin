@@ -166,7 +166,7 @@ server {
 NGINX_SITE
 
 # 论坛页面的 CSP（http 层，站点里没有自己 add_header 的 location 都继承）：站点策略 + 内联脚本哈希。
-# 宿主 nginx 看到上游带了 CSP 就不再叠加自己那份，见 deploy/nginx/*.conf 开头的 map。
+# 宿主只在 /forum/ 下、上游已带 CSP 时不再叠加自己那份，见 deploy/nginx/*.conf 开头的 map。
 RUN node scripts/csp-header.mjs --html .output/public --site-conf /repo/deploy/nginx/production.conf --out /nginx-out/conf.d/00-csp.conf \
  && grep -q "sha256-" /nginx-out/conf.d/00-csp.conf
 
