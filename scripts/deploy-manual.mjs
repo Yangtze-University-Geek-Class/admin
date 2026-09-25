@@ -57,8 +57,8 @@ export const USAGE = `维护者机器部署（只部署 CI 为该发布 tag 构�
   node scripts/deploy-manual.mjs --environment preview --tag vX.Y.Z-rc.N [--dry-run]
   node scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <所有者批准评论的链接> [--dry-run]
 
---acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过、发在预发布部署成功之后，
-正文里有单独一行正好是「批准发布 vX.Y.Z」（格式细节见 docs/ops/CICD.md「维护者机器部署」）。
+--acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过也没有被折叠、
+发在预发布部署成功之后，整条评论只有一行「批准发布 vX.Y.Z」，别的一个字都不能有（见 docs/ops/CICD.md「维护者机器部署」）。
 环境变量：DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment）、${[...SECRET_ENV, ...SSH_ENV].join(' ')}。
 --dry-run 做完全部核对、下载与渲染，不连目标机、不写部署记录。`;
 
@@ -94,31 +94,24 @@ export function acceptanceComment(url) {
 }
 
 /**
- * 批准评论本身：必须有单独一行（去掉首尾空白）正好是「批准发布 vX.Y.Z」，行尾可带一个句号或叹号。
- * 渲染后看不到或不是正文的内容都不算：HTML 注释、HTML 标签（如 blockquote、details）里的内容、围栏代码块、
- * 缩进代码、`>` 引用以及紧跟引用、中间没有空行的懒续行。「暂不批准发布 v0.1.0」「批准发布 v0.1.0-rc.1」也不算。
- * 作者权限、是否被编辑过、所在 issue 与时间另查。
+ * 批准评论本身（白名单）：整条评论去掉末尾的空格、制表符和换行（CRLF 先换成 LF）之后，必须正好是「批准发布 vX.Y.Z」。
+ * 不去推测 GitHub 怎么渲染 Markdown 与 HTML：#69 第一轮审查找出了十几种页面上看不到、或和别的字连在一起，
+ * 却能被逐行规则接受的写法。所以多写一句话、前面有缩进、放进引用、代码块或 HTML、加粗、句号、全角空格、省略 v、
+ * 「暂不批准发布」、rc 版本都不算；试用结论与别的说明另发一条评论。作者权限、是否被编辑或折叠、所在 issue 与时间另查。
  */
 export function acceptanceSays(body, version) {
-  const line = new RegExp(`^批准发布\\s*v?${version.replaceAll('.', '\\.')}\\s*[。.！!]?$`);
-  let text = String(body ?? '').replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?(?:-->|$)/g, '');
-  for (let previous = ''; previous !== text;) {
-    previous = text;
-    text = text.replace(/<([A-Za-z][\w-]*)\b[^>]*>[\s\S]*?<\/\1\s*>/g, '');
-  }
-  let fence = null;
-  let quoted = false;
-  for (const raw of text.split('\n')) {
-    const trimmed = raw.trim();
-    const marker = /^(```+|~~~+)/.exec(trimmed);
-    if (fence) { if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null; continue; }
-    if (marker) { fence = marker[1]; continue; }
-    if (!trimmed) { quoted = false; continue; }
-    if (trimmed.startsWith('>') || trimmed.startsWith('＞')) { quoted = true; continue; }
-    if (quoted || /^( {4}|\t)/.test(raw)) continue;
-    if (line.test(trimmed)) return true;
-  }
-  return false;
+  return String(body ?? '').replace(/\r\n?/g, '\n').replace(/[ \t\n]+$/, '') === `批准发布 v${version}`;
+}
+
+/**
+ * 批准评论是否被编辑过、是否被折叠：GraphQL 的 `lastEditedAt` 只在正文被编辑过时有值，与表情回应无关；
+ * `isMinimized` 表示评论在页面上被折叠隐藏。拿不到这两项（节点不是 IssueComment、接口报错）一律当作不能用。
+ */
+export const COMMENT_STATE_QUERY = 'query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt isMinimized } } }';
+export function commentState(response) {
+  const node = JSON.parse(response)?.data?.node;
+  if (!node || node.lastEditedAt === undefined || typeof node.isMinimized !== 'boolean') throw new Error(`读不到批准评论的编辑状态：${response}`);
+  return { lastEditedAt: node.lastEditedAt, isMinimized: node.isMinimized };
 }
 
 /** origin 远端的 `owner/repo`；tag、运行记录、部署记录都以它为准。 */
@@ -244,6 +237,9 @@ export async function deploy(options, deps = defaultDeps()) {
   const work = deps.tempDir();
   const untrap = deps.trap(() => deps.removeDir(work));
   let deploymentId = null;
+  // 状态一律带 auto_inactive=false：默认会把同一环境里更早的成功记录置为 inactive，正式证据读的正是预发布的这些记录。
+  const setStatus = (...fields) => run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`,
+    '-F', 'auto_inactive=false', ...fields.flatMap(field => ['-f', field])]);
   try {
     // 物料一律取自 tag 指向的提交：规划器、环境契约、render、compose、deploy-stack.sh 都用这一份。
     const src = join(work, 'src');
@@ -263,13 +259,18 @@ export async function deploy(options, deps = defaultDeps()) {
     log(`${tag} → ${environment}：提交 ${commit}，镜像 ${plan.imageRepository}/*:${plan.imageTag}，栈 ${plan.stackRoot}，物料取自该提交`);
 
     if (environment === 'production') {
-      // 所有者批准：本仓库里的一条未被编辑的评论，作者是仓库管理员，正文单独一行「批准发布 vX.Y.Z」，晚于预发布成功。
+      // 所有者批准：本仓库里的一条未被编辑的评论，作者是仓库管理员，整条评论只有「批准发布 vX.Y.Z」一行，晚于预发布成功。
       const { id, number } = acceptanceComment(acceptance);
       const comment = ghJson(`repos/${repo}/issues/comments/${id}`);
       if (!String(comment.issue_url ?? '').endsWith(`/issues/${number}`)) throw new Error(`批准评论不在链接写的 #${number} 里`);
       // 有写权限的人能编辑别人的评论而作者不变：被编辑过的评论一律不认，请所有者重新发一条。
-      if (comment.updated_at !== comment.created_at) throw new Error('批准评论被编辑过：请所有者重新发一条新的批准评论');
-      if (!acceptanceSays(comment.body, plan.version)) throw new Error(`批准评论里没有单独一行写「批准发布 v${plan.version}」`);
+      // 看 GraphQL 的 lastEditedAt，不看 REST 的 updated_at（后者会不会随表情回应变化没有文档保证）。
+      const state = commentState(run('gh', ['api', 'graphql', '-f', `query=${COMMENT_STATE_QUERY}`, '-f', `id=${comment.node_id ?? ''}`]));
+      if (state.lastEditedAt !== null) throw new Error(`批准评论在 ${state.lastEditedAt} 被编辑过：请所有者重新发一条新的批准评论`);
+      if (state.isMinimized) throw new Error('批准评论在页面上被折叠隐藏了：请所有者重新发一条新的批准评论');
+      if (!acceptanceSays(comment.body, plan.version)) {
+        throw new Error(`批准评论必须整条只有一行「批准发布 v${plan.version}」：请所有者另发一条新评论，只写这一行，试用结论等说明另发`);
+      }
       const permission = ghJson(`repos/${repo}/collaborators/${encodeURIComponent(comment.user?.login ?? '')}/permission`).permission;
       if (permission !== 'admin') throw new Error(`批准评论的作者 @${comment.user?.login} 不是仓库管理员`);
       if (!plan.previewTags?.length) throw new Error(`提交 ${commit} 上没有 v${plan.version}-rc.N：正式版只能发在发过预发布的同一提交上`);
@@ -312,10 +313,11 @@ export async function deploy(options, deps = defaultDeps()) {
     if (dryRun) { log('--dry-run：核对、下载与渲染都已完成，没有连接目标机，也没有写部署记录'); return { plan, dryRun: true }; }
 
     const payload = deploymentPayload(plan, acceptance);
+    // auto_merge 默认 true：重新部署落后于默认分支的旧 rc 时 GitHub 会去合并默认分支，这里只部署 tag 指向的提交。
     deploymentId = run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments`, '-f', `ref=${commit}`, '-f', `environment=${environment}`,
-      '-F', 'auto_inactive=false', '-f', `required_contexts[]=${REQUIRED_CONTEXT}`, '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
+      '-F', 'auto_merge=false', '-f', `required_contexts[]=${REQUIRED_CONTEXT}`, '-f', `description=${tag} → ${environment}（${plan.releaseVersion}，镜像 tag ${plan.imageTag}，维护者机器部署）`,
       ...Object.entries(payload).flatMap(([key, value]) => ['-f', `payload[${key}]=${value}`]), '--jq', '.id']).trim();
-    run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=in_progress', '-f', `description=分发镜像与 env 文件到 ${plan.stackRoot}`]);
+    setStatus('state=in_progress', `description=分发镜像与 env 文件到 ${plan.stackRoot}`);
     log(`部署记录已创建：deployment ${deploymentId}`);
 
     const step = ([command, args]) => run(command, args, { quiet: false });
@@ -324,14 +326,13 @@ export async function deploy(options, deps = defaultDeps()) {
     step(remote.scp([join(src, 'deploy/compose/production.yml'), join(src, 'deploy/compose/preview.yml')], `${plan.stackRoot}/deploy/compose/`));
     step(remote.ssh(archiveCheckCommand(plan.incomingDir, environment, plan.imagesArchive)));
     step(remote.ssh(deployStackCommand(plan, environment)));
-    run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=success', '-f', `environment_url=${plan.origin}`,
-      '-f', `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`]);
+    setStatus('state=success', `environment_url=${plan.origin}`, `description=${tag} 部署成功（镜像 tag ${plan.imageTag}，维护者机器部署）`);
     log(`完成：${plan.origin}/release.json 应显示 ${plan.releaseVersion}`);
     return { plan, deploymentId };
   } catch (error) {
     if (deploymentId) {
       try {
-        run('gh', ['api', '--method', 'POST', `repos/${repo}/deployments/${deploymentId}/statuses`, '-f', 'state=failure', '-f', `description=${tag} 部署失败（维护者机器部署）`]);
+        setStatus('state=failure', `description=${tag} 部署失败（维护者机器部署）`);
       } catch { log('部署记录状态没能更新为 failure，请手工核对'); }
     }
     throw error;
