@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
+import { ORG_ICONS } from "../../app/web/sites/portal/lib/org";
 import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, moveSelection, runTerminal } from "../../app/web/sites/portal/lib/osApps";
 
 const PORTAL = new URL("../../app/web/sites/portal/", import.meta.url).pathname;
@@ -78,14 +79,20 @@ describe("图标注册表与界面禁用字符", () => {
 
   it("官网源码里用到的每个图标名都在注册表里", () => {
     const used = new Set<string>();
+    // lib/org.ts 的默认称号与部门用服务端的 Carbon 图标名，渲染前经 ORG_ICONS 换成注册表里的图标，单独核对
+    const carbon = new Set<string>();
     for (const file of files) {
       const text = readFileSync(file, "utf8");
+      const org = file.slice(PORTAL.length) === "lib/org.ts";
       for (const match of text.matchAll(/<Icon\s+name="([a-z0-9-]+)"/g)) used.add(match[1]);
-      for (const match of text.matchAll(/\bicon:\s*"([a-z0-9-]+)"/g)) used.add(match[1]);
+      for (const match of text.matchAll(/\bicon:\s*"([a-z0-9-]+)"/g)) (org ? carbon : used).add(match[1]);
       for (const match of text.matchAll(/drawIcon\(\s*\w+,\s*"([a-z0-9-]+)"/g)) used.add(match[1]);
     }
     expect(used.size).toBeGreaterThan(20);
     expect([...used].filter((name) => !isIconName(name))).toEqual([]);
+    expect(carbon.size).toBeGreaterThan(5);
+    expect([...carbon].filter((name) => !(name in ORG_ICONS))).toEqual([]);
+    expect(Object.values(ORG_ICONS).filter((name) => !isIconName(name))).toEqual([]);
   });
 
   it("每个图标都有路径数据", () => {

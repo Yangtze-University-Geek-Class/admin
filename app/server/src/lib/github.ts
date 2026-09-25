@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 
 export type OrgRole = "admin" | "member" | null;
+export type OrgMember = { login: string; id: number; avatar_url: string; role: "admin" | "member" };
 
 /** GitHub 调用一律 15 秒超时：卡住时尽快失败（登录回到原页面、接口报错），而不是挂到 undici 默认的 300 秒。 */
 export const GITHUB_TIMEOUT_MS = 15_000;
@@ -57,5 +58,19 @@ async function getUser(token: string, login: string): Promise<{ login: string; i
   }
 }
 
-return { octokitWith, getOrgRole, getOwnMembership, getUser };
+/** 组织的全部正式成员与角色（用调用者自己的 token）。按角色分两次列，省掉逐个查成员身份；错误原样抛出。 */
+async function listOrgMembers(token: string, org: string): Promise<OrgMember[]> {
+  const octokit = octokitWith(token);
+  const result: OrgMember[] = [];
+  for (const role of ["admin", "member"] as const) {
+    for (let page = 1; ; page += 1) {
+      const res = await octokit.request("GET /orgs/{org}/members", { org, role, per_page: 100, page });
+      for (const member of res.data) result.push({ login: String(member.login), id: Number(member.id), avatar_url: String(member.avatar_url ?? ""), role });
+      if (res.data.length < 100) break;
+    }
+  }
+  return result;
+}
+
+return { octokitWith, getOrgRole, getOwnMembership, getUser, listOrgMembers };
 }

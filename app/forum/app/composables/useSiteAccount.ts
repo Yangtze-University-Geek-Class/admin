@@ -24,7 +24,7 @@ const SIGNIN_OUTCOMES: Record<string, { title: string, description: string, vari
   failed: { title: '登录没有完成', description: '请稍后再试一次。', variant: 'warning' },
 }
 
-/** 同一页面里顶栏和侧栏都会调用本组合函数；只发一次 /auth/me。 */
+/** 顶栏调用本组合函数；同一页面只发一次 /auth/me。 */
 let inflight: Promise<void> | null = null
 
 export function useSiteAccount() {
