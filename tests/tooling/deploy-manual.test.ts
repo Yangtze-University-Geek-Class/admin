@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, deploy, deploymentPayload, expectedDigest, parseArgs,
-  pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, workflowFile,
+  REQUIRED_CONTEXT, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
+import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
 
 const COMMIT = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
@@ -55,7 +56,19 @@ describe('deploy-manual helpers', () => {
     for (const text of [
       '暂不批准发布 v0.1.0，等修完', '批准发布 v0.1.0-rc.1 到预发布；v0.1.0 还要再看', '> 批准发布 v0.1.0', '批准发布 v0.1.0-rc.1',
       '看起来不错 v0.1.0', '批准发布 v0.2.0', '批准发布 v0.1.01', '不批准发布 v0.1.0',
+      // 渲染后不是正文的地方：代码块、缩进代码、注释、HTML 标签内、引用与懒续行
+      '回复下面这行：\n```\n批准发布 v0.1.0\n```', '~~~md\n批准发布 v0.1.0\n~~~', '    批准发布 v0.1.0', '\t批准发布 v0.1.0',
+      '<!-- 批准发布 v0.1.0 -->', '<!--\n批准发布 v0.1.0\n-->', '<blockquote>\n批准发布 v0.1.0\n</blockquote>', '<details><summary>模板</summary>\n\n批准发布 v0.1.0\n</details>',
+      '> 所有者说：\n批准发布 v0.1.0', '＞ 批准发布 v0.1.0',
     ]) expect(acceptanceSays(text, '0.1.0'), text).toBe(false);
+    // 引用结束（空行）之后、代码块关闭之后的正文照常算。
+    expect(acceptanceSays('> 上次的讨论\n\n批准发布 v0.1.0', '0.1.0')).toBe(true);
+    expect(acceptanceSays('```\nlog\n```\n批准发布 v0.1.0', '0.1.0')).toBe(true);
+  });
+
+  it('strips every secret from the environment handed to other child processes', () => {
+    const env = { PATH: '/bin', HOME: '/h', OAUTH_CLIENT_SECRET: 's', SESSION_SECRET: 's', ENCRYPTION_KEY: 'k', OAUTH_CLIENT_ID: 'i', TURNSTILE_SITE_KEY: 't', TURNSTILE_SECRET_KEY: 't', DEPLOY_SSH_HOST: 'h' };
+    expect(withoutSecrets(env)).toEqual({ PATH: '/bin', HOME: '/h', DEPLOY_SSH_HOST: 'h' });
   });
 
   it('picks the newest finished push run for exactly this tag and commit', () => {
@@ -116,10 +129,10 @@ describe('deploy-manual helpers', () => {
 });
 
 type Call = { command: string; args: string[]; env?: Record<string, string> };
-type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string };
+type WorldOptions = { environment?: string; tag?: string; permission?: string; previewState?: string; releaseCommit?: string; failOn?: string | null; commentIssue?: number; approvedAt?: string; editedAt?: string };
 
 /** 假的外部世界：记录每个命令，按命令给出固定回答；可以指定在哪一步失败。 */
-function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z' }: WorldOptions = {}) {
+function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 'admin', previewState = 'success', releaseCommit = COMMIT, failOn = null, commentIssue = 63, approvedAt = '2026-09-25T11:00:00Z', editedAt }: WorldOptions = {}) {
   const calls: Call[] = [];
   const removed: string[] = [];
   const work = '/tmp/yzgc-deploy-test';
@@ -141,7 +154,7 @@ function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 
     if (line === 'git remote get-url origin') return `git@github.com:${REPO}.git\n`;
     if (command === 'git' && args[0] === 'rev-parse') return `${COMMIT}\n`;
     if (line.includes('release-policy.mjs plan')) return JSON.stringify(plan);
-    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: '试过了。\n批准发布 v0.1.0', user: { login: 'Crosery' }, issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt });
+    if (line.includes('/issues/comments/555')) return JSON.stringify({ body: '试过了。\n批准发布 v0.1.0', user: { login: 'Crosery' }, issue_url: `https://api.github.com/repos/${REPO}/issues/${commentIssue}`, created_at: approvedAt, updated_at: editedAt ?? approvedAt });
     if (line.includes('/permission')) return JSON.stringify({ permission });
     if (line.includes('deployments?environment=preview')) return JSON.stringify([{ id: 7, payload: { tag: 'v0.1.0-rc.1' } }]);
     if (line.includes('deployments/7/statuses')) return JSON.stringify([{ state: previewState, created_at: '2026-09-25T10:00:00Z' }]);
@@ -187,6 +200,15 @@ describe('deploy-manual orchestration', () => {
     const scps = world.calls.filter(call => call.command === 'scp').flatMap(call => call.args.filter(arg => arg.includes('deploy/')));
     expect(scps.length).toBeGreaterThan(0);
     for (const path of scps.filter(arg => !arg.includes(':'))) expect(path.startsWith(src)).toBe(true);
+    // 部署记录只要求 CI 的 verify 通过（与两条部署工作流一致），不会被部署 job 自己的检查挡住。
+    const create = world.calls.find(call => call.args.includes('--jq') && call.args.some(arg => arg.endsWith('/deployments')))!;
+    expect(create.args).toContain(`required_contexts[]=${REQUIRED_CONTEXT}`);
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      expect(workflow).toContain(`-f "required_contexts[]=${REQUIRED_CONTEXT}"`);
+      const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+      expect(ci).toContain(`name: ${REQUIRED_CONTEXT}`);
+    }
     // 部署成功后记录置为 success，临时目录删掉。
     expect(world.calls.some(call => call.args.includes('state=success'))).toBe(true);
     expect(world.removed).toEqual([world.work]);
@@ -196,6 +218,10 @@ describe('deploy-manual orchestration', () => {
     const world = fakeWorld();
     await deploy({ environment: 'preview', tag: 'v0.1.0-rc.1', dryRun: true }, world.deps);
     const render = world.calls[world.index('deployment-environment.mjs render')];
+    // plan、--check、render 都用和脚本同一个 Node。
+    for (const needle of ['release-policy.mjs plan', 'deployment-environment.mjs --check', 'deployment-environment.mjs render']) {
+      expect(world.calls[world.index(needle)].command).toBe(process.execPath);
+    }
     expect(render.env).toMatchObject({ SESSION_SECRET: 'session-value', ENCRYPTION_KEY: 'key-value' });
     for (const call of world.calls) expect(call.args.join(' ')).not.toMatch(/secret-value|session-value|key-value/);
   });
@@ -217,6 +243,7 @@ describe('deploy-manual orchestration', () => {
       [{ releaseCommit: 'f'.repeat(40) }, /release\.json/],
       [{ commentIssue: 64 }, /不在链接写的 #63/],
       [{ approvedAt: '2026-09-25T09:00:00Z' }, /早于预发布部署成功/],
+      [{ editedAt: '2026-09-25T12:00:00Z' }, /被编辑过/],
     ]) {
       const world = fakeWorld({ environment: 'production', tag: 'v0.1.0', ...overrides });
       await expect(deploy(options, world.deps)).rejects.toThrow(message);
