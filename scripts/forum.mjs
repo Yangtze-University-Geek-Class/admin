@@ -39,7 +39,13 @@ function isSnapshotDir(dir) {
 // as the images build it (its own categories and tags, no topics), e.g.
 // `GEEK_FORUM_SOURCE=site node scripts/forum.mjs generate`. It never reads a
 // snapshot, and `verify` ignores it because the CDP suites need the seed.
-const siteRequested = process.env.GEEK_FORUM_SOURCE === 'site';
+const forumSource = process.env.GEEK_FORUM_SOURCE ?? '';
+// 与 app/forum/shared/content-source.ts 一致：拼错的值直接失败，不悄悄退回示例或本机快照。
+if (!['', 'demo', 'site'].includes(forumSource)) {
+  console.error(`GEEK_FORUM_SOURCE 只能是 demo 或 site（或不设），收到：${JSON.stringify(forumSource)}`);
+  process.exit(2);
+}
+const siteRequested = forumSource === 'site';
 
 function snapshotDirectory() {
   if (process.env.GEEK_FORUM_SOURCE === 'demo' || siteRequested) return '';

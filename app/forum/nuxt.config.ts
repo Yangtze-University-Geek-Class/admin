@@ -13,7 +13,8 @@ const siteDeployment = createDeploymentMetadata(
 
 // 内容来源与登录方式都由构建环境决定，规则在 shared/content-source.ts（单测覆盖）：
 // - GEEK_FORUM_SOURCE=site：极客班论坛自己的站名、分类和标签（content/curation.json），没有帖子、用户和通知。
-//   预发布与正式镜像（app/forum/Dockerfile）这样构建，不带任何示例内容，也不读内容目录。
+//   预发布与正式镜像（app/forum/Dockerfile）这样构建：不带示例帖子、用户与通知（示例种子不进产物），也不读内容目录；
+//   上游组件里只在示例模式可达的文案分支仍在打包结果里，运行时走不到。
 // - GEEK_FORUM_SOURCE=demo：上游示例种子。scripts/forum.mjs 的 check/generate/verify 默认用它
 //   （上游 CDP 验收依赖示例数据），它也压过本机 .env 里可能写着的快照目录。
 // - 不设置：GEEK_FORUM_CONTENT_DIR 非空时是本机只读快照（只有 dev 服务器的 /api/local-forum 提供），否则是示例种子。

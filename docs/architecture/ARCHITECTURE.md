@@ -52,7 +52,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ## 上游论坛的真实边界
 
-依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、论坛会话固定为游客、不渲染示例登录（顶栏换成全站 GitHub 登录入口，本机经 `nitro.devProxy` 把 `/auth` 转给核心）并停止把论坛状态写入 localStorage；这只是本机展示，论坛没有服务端授权、写入或跨设备存储，静态产物中不存在这些路由，镜像里的论坛是极客班论坛（site 模式：curation.json 的分类和标签，没有帖子、用户和浏览器存储）。
+依据 `app/forum/README.md`、`app/forum/app/stores/session.ts` 和 `app/forum/app/plugins/persist.client.ts`：选择用户是 mock，全部数据在浏览器，没有服务端认证或业务 API。Nuxt dev server 和本地进程标记不等于论坛后端。上游 Cloudflare PRD 是 Draft，未作为已实现能力。不能将页面权限按钮或 localStorage 状态当作内部社区安全边界。本机 `forum:start` 发现私有快照目录时，dev 专用 Nitro 路由 `/api/local-forum/*` 只读提供极客班归档，前端整体替换 store、论坛会话固定为游客、不渲染示例登录（顶栏换成全站 GitHub 登录入口，本机经 `nitro.devProxy` 把 `/auth` 转给核心）并停止把论坛状态写入 localStorage；这只是本机展示，论坛没有服务端授权、写入或跨设备存储，静态产物中不存在这些路由，镜像里的论坛是极客班论坛（site 模式：curation.json 的分类和标签，没有帖子和用户，浏览器里不存论坛内容和会话，主题与侧栏偏好仍存在本机）。
 
 原仓文件、MIT 声明和提交摘要保留，业务页面未重写为 React。少量集成差异包括本地提醒、根入口、进程管理和隔离浏览器验证，详见 [ADR-0003](../decisions/0003-adopt-tuff-forum.md)。
 
