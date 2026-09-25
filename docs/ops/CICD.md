@@ -126,6 +126,7 @@
 | 隔离 | 非特权 incus 系统容器 `yzgc-runner`（Ubuntu 24.04，`security.nesting=true`，容器里有自己的 Docker），限 8 线程、16G 内存；存储池是 80G 的 btrfs 镜像文件，放在单独的子卷 `/var/lib/incus`，不进宿主机的 snapper 快照 |
 | 注册 | 只注册到本仓库；两个实例 `crosery-arch-1`、`crosery-arch-2`，一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
 | 出站 | incus 网络 ACL `runner-egress` 拒绝容器访问 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`（家里局域网、tailscale、netbird、宿主机与它的 Docker 网桥），其余放行 |
+| 预装 | 对齐 ubuntu-latest 里工作流直接用到的工具：Node 22 LTS（`branch-guard`、`docker`、`pr-contract` 不经 setup-node 直接调 `node`，官方包按 SHASUMS256 校验）、git、gh、jq、shellcheck、openssl、Docker + buildx + compose。新工作流用到别的预装工具时，先在容器里装上再切过来 |
 | 镜像源 | 家里连不上 Docker Hub，容器内 Docker 走 `docker.m.daocloud.io`、`docker.1ms.run` 镜像加速 |
 | 清理 | 容器内定时器每天清掉 72 小时前的镜像与构建缓存 |
 

@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：ci(deploy): runs-on 改读仓库变量，CI 可跑在家里 Arch 的自托管 runner（b75309936b3b）；pnpm verify；actionlint 1.7.12
 - 结果：pnpm verify 通过（核心 Tests 452 passed，论坛 Tests 240 passed）；actionlint 0 个问题
+
+## 03:31:23 +08:00 · 开发 · #93 · runner 上第一轮 CI：docker 与 branch-guard 缺 node，容器补装 Node 22
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：CI 运行 36179768712（push 2034f9d）：forum、core、env-contract、lint-workflows 在 crosery-arch-1/2 上通过；docker、branch-guard 报 node: command not found（这两个 job 与 pr-contract 不经 setup-node 直接用 ubuntu-latest 预装的 node）。容器内装 nodejs.org 的 v22.23.3（SHASUMS256 校验通过）到 /usr/local；CICD.md 表里补「预装」一行
+- 结果：runner 用户 command -v node → /usr/local/bin/node，v22.23.3；待下一轮 CI 复核
