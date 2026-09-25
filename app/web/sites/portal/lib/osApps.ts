@@ -2,12 +2,13 @@
 // 链接的实际地址在组件里按站点规则解析（externalUrl / Router），这里只描述「打开什么」。
 import type { IconName } from "./icons";
 
-export type AppId = "join" | "forum" | "github" | "about" | "org" | "terminal" | "feedback" | "console";
+export type AppId = "join" | "forum" | "github" | "about" | "org" | "terminal" | "feedback" | "console" | "wallpaper";
 
-/** scene：进入官网内的 3D 场景页；window：在桌面里开窗口；route：站内普通页面；site：跨站 */
+/** scene：进入官网内的 3D 场景页；window：在桌面里开窗口；panel：桌面自带的面板（换壁纸）；route：站内普通页面；site：跨站 */
 export type AppOpen =
   | { kind: "scene"; path: "/join-us" | "/forum-3d" | "/github" }
   | { kind: "window" }
+  | { kind: "panel" }
   | { kind: "route"; path: string }
   | { kind: "site"; site: "admin"; path: string };
 
@@ -32,6 +33,7 @@ export const OS_APPS: readonly OsApp[] = [
   { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "极客班是做什么的" },
   { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "班长、四个部门和领航员" },
   { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
+  { id: "wallpaper", name: "壁纸", icon: "image-line", tint: "#0e9f8f", open: { kind: "panel" }, blurb: "换一张桌面壁纸" },
   { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },
   { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "成员用 GitHub 账号登录" },
 ];
