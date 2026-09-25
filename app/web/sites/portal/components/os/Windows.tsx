@@ -108,7 +108,7 @@ function About({ onOpen }: { onOpen: OpenApp }) {
       <img src={brand.logo} alt="长江大学计算机科学学院极客班徽标" width={112} height={112} />
       <div>
         <h3>{brand.title}</h3>
-        <p>极客班在长江大学计算机科学学院。在读的同学是成员，毕业的学长学姐是领航员。大家在论坛讨论课程、竞赛和求职，代码放在 GitHub 组织里。</p>
+        <p>极客班在长江大学计算机科学学院。在读的同学是舰员，毕业的学长学姐是领航员。大家在论坛讨论课程、竞赛和求职，代码放在 GitHub 组织里。</p>
         <dl>
           <div>
             <dt>
@@ -122,7 +122,7 @@ function About({ onOpen }: { onOpen: OpenApp }) {
               <Icon name="team-line" size={15} />
               怎么分工
             </dt>
-            <dd>班长总负责，下面分招新、技术、社区、项目四个部门</dd>
+            <dd>提督和舰长总负责，下面分招新、技术、社区、项目四个部门，部门里是队长和舰员</dd>
           </div>
           <div>
             <dt>
@@ -148,15 +148,27 @@ function About({ onOpen }: { onOpen: OpenApp }) {
   );
 }
 
+/**
+ * 组织架构。称呼是所有者 2026-09-25 定的「星舰」一套，与服务端 app/server/src/lib/roles.ts 的称号一致：
+ * 提督（GitHub 组织 owner）> 舰长 > 各部门队长 > 舰员；毕业的学长学姐是领航员，没登录的人是乘客。
+ */
 function OrgChart() {
   return (
     <div className="pt-orgc">
-      <div className="pt-orgc-top">
-        <span className="pt-chip is-lead" style={{ ["--c" as string]: "#a8740a" }}>
-          <Icon name="vip-crown-line" size={14} /> 班长
-        </span>
-        <small>总负责人，控制台里拥有全部权限</small>
-      </div>
+      <ol className="pt-orgc-chain">
+        <li>
+          <span className="pt-chip is-lead" style={{ ["--c" as string]: "#6e44c9" }}>
+            <Icon name="vip-crown-line" size={14} /> 提督
+          </span>
+          <small>GitHub 组织的 owner，拥有全部权限，任命舰长</small>
+        </li>
+        <li>
+          <span className="pt-chip is-lead" style={{ ["--c" as string]: "#a8740a" }}>
+            <Icon name="star-line" size={14} /> 舰长
+          </span>
+          <small>带全班，权限仅次于提督；增减部门，给每个部门配权限</small>
+        </li>
+      </ol>
       <div className="pt-orgc-line" aria-hidden="true" />
       <div className="pt-orgc-depts">
         {DEPARTMENTS.map((dept) => (
@@ -166,26 +178,34 @@ function OrgChart() {
               <b>{dept.name}</b>
             </header>
             <span className="pt-chip" style={{ ["--c" as string]: dept.tint }}>
-              负责人
-            </span>
-            <span className="pt-chip is-soft" style={{ ["--c" as string]: dept.tint }}>
-              干事
+              <Icon name="flag-line" size={12} /> 队长
             </span>
             <p>{dept.does}</p>
           </article>
         ))}
       </div>
-      <div className="pt-orgc-foot">
+      <div className="pt-orgc-crew">
         <span className="pt-chip is-soft" style={{ ["--c" as string]: "#3346c8" }}>
-          <Icon name="user-line" size={13} /> 极客班成员
+          <Icon name="team-line" size={13} /> 舰员
         </span>
-        <span className="pt-chip" style={{ ["--c" as string]: "#0f766e" }}>
-          <Icon name="compass-3-line" size={13} /> 领航员
-        </span>
-        <small>已毕业的学长学姐</small>
+        <small>在读的极客班成员。可以加入一个部门，直属这个部门的队长；能在论坛发帖</small>
+      </div>
+      <div className="pt-orgc-foot">
+        <p>
+          <span className="pt-chip" style={{ ["--c" as string]: "#0f766e" }}>
+            <Icon name="compass-3-line" size={13} /> 领航员
+          </span>
+          <small>毕业的学长学姐，控制台里什么都能看，不能改</small>
+        </p>
+        <p>
+          <span className="pt-chip is-soft" style={{ ["--c" as string]: "#5b6475" }}>
+            <Icon name="eye-line" size={13} /> 乘客
+          </span>
+          <small>没登录的人，可以看论坛的帖子</small>
+        </p>
       </div>
       <p className="pt-orgc-note">
-        <Icon name="lock-line" size={13} /> 称号会显示在论坛和控制台。控制台按称号和部门分权限；涉及 GitHub 的操作，还要看你在 GitHub 组织里的角色。
+        <Icon name="lock-line" size={13} /> 只有 GitHub 组织里的人能登录。称号显示在论坛和控制台；部门随时可以增减，每个部门的权限由提督和舰长来配。
       </p>
     </div>
   );

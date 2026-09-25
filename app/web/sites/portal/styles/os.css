@@ -139,8 +139,13 @@
 .pt-about dl div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; }
 .pt-about dt { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--pt-cobalt); }
 
-.pt-orgc-top { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.pt-orgc-top small, .pt-orgc-foot small { color: var(--pt-ink-soft); font-size: 12px; }
+/* 直属关系从上往下：提督 → 舰长，中间一段竖线；舰长下面的横线连到各部门 */
+.pt-orgc-chain { display: grid; justify-items: center; margin: 0; padding: 0; list-style: none; }
+.pt-orgc-chain li { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pt-orgc-chain li + li { position: relative; margin-top: 22px; }
+.pt-orgc-chain li + li::after { content: ""; position: absolute; top: -18px; left: 50%; width: 1px; height: 14px; background: var(--pt-line); }
+.pt-orgc-chain small, .pt-orgc-crew small, .pt-orgc-foot small { color: var(--pt-ink-soft); font-size: 12px; }
+.pt-orgc-crew { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--pt-line); }
 .pt-orgc-line { position: relative; width: 1px; height: 22px; margin: 6px auto 0; background: var(--pt-line); }
 .pt-orgc-line::after { content: ""; position: absolute; left: -260px; right: -260px; bottom: 0; border-top: 1px solid var(--pt-line); }
 .pt-orgc-depts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
@@ -148,7 +153,8 @@
 .pt-orgc-depts header { display: flex; align-items: center; gap: 6px; color: var(--tint); }
 .pt-orgc-depts header b { color: var(--pt-ink); }
 .pt-orgc-depts p { font-size: 12.5px; color: var(--pt-ink-soft); }
-.pt-orgc-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+.pt-orgc-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 24px; margin-top: 12px; }
+.pt-orgc-foot p { display: flex; align-items: center; gap: 8px; }
 .pt-orgc-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; font-size: 12.5px; color: var(--pt-ink-soft); text-align: center; }
 
 .pt-feedwin-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
