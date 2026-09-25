@@ -68,7 +68,8 @@
     "shared/forum-markdown.ts",
     "server/middleware/forum-markdown.ts",
     "tests/forum-markdown.test.ts",
-    "app/composables/useSiteAccount.ts"
+    "app/composables/useSiteAccount.ts",
+    "scripts/csp-header.mjs"
   ],
   "realAuthentication": false,
   "serverPersistence": false,

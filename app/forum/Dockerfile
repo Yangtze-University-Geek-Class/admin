@@ -40,6 +40,9 @@ COPY app/forum/server ./server
 COPY app/forum/shared ./shared
 # uno.config.ts 在加载配置时 import 这个脚本（扫描 tuffex 产物里的图标类名做 safelist）。
 COPY app/forum/scripts/tuffex-icon-classes.mjs ./scripts/tuffex-icon-classes.mjs
+# 生成论坛 CSP：站点策略取自宿主 nginx 模板，加上本次产物内联脚本的哈希（#78）。
+COPY app/forum/scripts/csp-header.mjs ./scripts/csp-header.mjs
+COPY deploy/nginx/production.conf /repo/deploy/nginx/production.conf
 # nuxt.config.ts 直接 import 环境身份契约（../../deploy/environments.json）。
 COPY deploy/environments.json /repo/deploy/environments.json
 
@@ -153,12 +156,19 @@ server {
     }
 
     # 预渲染过的路由（about/、categories/ …）直接命中目录里的 index.html，
-    # 其余路径回落 200.html 交给客户端路由。
+    # 其余路径回落 200.html 交给客户端路由。页面同样不缓存：发版后页面里的内联脚本变了，
+    # 缓存里的旧页面配上新的 CSP 哈希会白屏（#78）。expires 不是 add_header，http 层的 CSP 照样继承。
     location / {
+        expires -1;
         try_files $uri $uri/ /200.html;
     }
 }
 NGINX_SITE
+
+# 论坛页面的 CSP（http 层，站点里没有自己 add_header 的 location 都继承）：站点策略 + 内联脚本哈希。
+# 宿主只在 /forum/ 下、上游已带 CSP 时不再叠加自己那份，见 deploy/nginx/*.conf 开头的 map。
+RUN node scripts/csp-header.mjs --html .output/public --site-conf /repo/deploy/nginx/production.conf --out /nginx-out/conf.d/00-csp.conf \
+ && grep -q "sha256-" /nginx-out/conf.d/00-csp.conf
 
 # ── 运行阶段：nginx 1.31（alpine），以 nginx 用户（uid 101）运行 ──
 # 版本说明：任务书建议的 1.27 已从 Docker Hub 下线（官方只维护 1.30/1.31 两条线），

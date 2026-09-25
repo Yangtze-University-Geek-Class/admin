@@ -41,6 +41,8 @@ coverage
 # 部署物料：运行镜像不需要 compose / 宿主 nginx / 远端脚本
 deploy/compose
 deploy/nginx
+# 例外：论坛镜像构建时从正式模板读站点 CSP，加上内联脚本哈希（app/forum/scripts/csp-header.mjs）。
+!deploy/nginx/production.conf
 deploy/remote
 # 注意：deploy/env/.env.production 与 .env.preview 保留在上下文里（构建参数来源），
 # 不做任何排除。
