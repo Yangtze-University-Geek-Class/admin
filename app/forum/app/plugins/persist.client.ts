@@ -22,7 +22,9 @@ export default defineNuxtPlugin({
   setup() {
     // The 极客班 snapshot is read-only and belongs to the server, not to this
     // browser: never hydrate from, or write it into, the demo's localStorage.
-    if (useContentSource().isSnapshot)
+    // 统一登录下也不恢复示例会话：浏览器里存过的示例身份不能冒充登录。
+    const { isSnapshot, siteLogin } = useContentSource()
+    if (isSnapshot || siteLogin)
       return
 
     const forum = useForumStore()

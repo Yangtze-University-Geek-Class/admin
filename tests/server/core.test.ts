@@ -1,6 +1,7 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { safeReturnTo } from '../../app/server/src/lib/safe-return';
+import { withTimeout } from '../../app/server/src/lib/github';
 import { ADMIN_SPA_ENTRY, ADMIN_SPA_PATHS, PORTAL_SPA_ENTRY, buildApp, resolveSiteEntry } from '../../app/server/src/app';
 import { createConfig } from '../../app/server/src/config';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -63,9 +64,33 @@ it('rejects a tampered OAuth state before calling an external provider', async (
   const state = new URL(String(start.headers.location)).searchParams.get('state');
   expect((await app.inject({ url: `/auth/callback?code=test&state=${state}`, headers: { cookie: 'oauth_state=tampered' } })).statusCode).toBe(400);
 });
+/** 假的 GitHub：换 token、取用户、撤销授权（204）；calls 记下每次请求的方法、地址和 Authorization */
+const providerCalls: { method: string; url: string; authorization?: string; body?: string }[] = [];
+const stubProvider = (async (url: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}) => {
+  providerCalls.push({ method: options.method ?? 'GET', url, authorization: options.headers?.Authorization, body: options.body });
+  if (url.includes('/grant')) return { statusCode: 204, body: { dump: async () => undefined } };
+  return { statusCode: 200, body: { json: async () => url.includes('/access_token') ? { access_token: 'test-provider-token' } : { id: 7, login: 'test-github-user', avatar_url: '' } } };
+}) as unknown as ServiceOverrides['httpRequest'];
+beforeEach(() => { providerCalls.length = 0; });
+/** 登录时查的是「当前用户自己在组织里的成员状态」；state 为 null 表示 404（不是成员） */
+const membershipStub = (state: 'active' | 'pending' | null, seen: string[] = []) => (() => ({
+  request: async (route: string, params: { org?: string }) => {
+    seen.push(`${route} ${params.org}`);
+    if (state === null) throw Object.assign(new Error('Not Found'), { status: 404 });
+    return { data: { state, role: 'member' } };
+  },
+})) as unknown as ServiceOverrides['octokitFactory'];
+async function startSignIn(app: Awaited<ReturnType<typeof setup>>['app'], returnTo?: string) {
+  const start = await app.inject(returnTo ? `/auth/github?return_to=${encodeURIComponent(returnTo)}` : '/auth/github');
+  const state = new URL(String(start.headers.location)).searchParams.get('state');
+  return { state, cookie: String(start.headers['set-cookie']).split(';')[0] };
+}
+const setCookies = (response: { headers: Record<string, unknown> }) => ([] as string[]).concat((response.headers['set-cookie'] as string[] | string | undefined) ?? []);
+
 it('completes the real core callback with a stub provider and issues only sid', async () => {
-  const httpRequest = (async (url: string) => ({ statusCode: 200, body: { json: async () => url.includes('/access_token') ? { access_token: 'test-provider-token' } : { id: 7, login: 'test-github-user', avatar_url: '' } } })) as unknown as ServiceOverrides['httpRequest'];
-  const { app } = await setup({ httpRequest }); const start = await app.inject('/auth/github');
+  const httpRequest = stubProvider;
+  const seen: string[] = [];
+  const { app } = await setup({ httpRequest, octokitFactory: membershipStub('active', seen) }); const start = await app.inject('/auth/github');
   const authorize = new URL(String(start.headers.location));
   // OAuth 回调固定在环境唯一的 origin 下：GitHub OAuth App 登记的就是这一条。
   expect(authorize.searchParams.get('redirect_uri')).toBe('https://example.test/auth/callback');
@@ -77,6 +102,88 @@ it('completes the real core callback with a stub provider and issues only sid', 
   const cookies = ([] as string[]).concat(response.headers['set-cookie'] || []);
   expect(cookies.some(c => c.startsWith('sid='))).toBe(true);
   expect(cookies.some(c => c.startsWith('forum_sid='))).toBe(false);
+  // 成员身份按 CONSOLE_ORG 查，而且查的是用户自己（/user/memberships），不是按用户名去查别人
+  expect(seen).toEqual(['GET /user/memberships/orgs/{org} Yangtze-University-Geek-Class']);
+});
+it('returns a member to the page that started the sign-in', async () => {
+  const { app } = await setup({ httpRequest: stubProvider, octokitFactory: membershipStub('active') });
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/t/12?page=2');
+  const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
+  expect(response.statusCode).toBe(302);
+  expect(response.headers.location).toBe('https://example.test/forum/t/12?page=2');
+  expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(true);
+  // 成员的授权不撤销
+  expect(providerCalls.some(call => call.url.includes('/grant'))).toBe(false);
+});
+it.each([
+  ['not a member of the organization', null, 'not_member'],
+  ['invited but has not accepted yet', 'pending', 'invite_pending'],
+] as const)('refuses to sign in a GitHub user who is %s and says why on the original page', async (_case, membership, outcome) => {
+  const { app } = await setup({ httpRequest: stubProvider, octokitFactory: membershipStub(membership) });
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
+  const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
+  expect(response.statusCode).toBe(302);
+  expect(response.headers.location).toBe(`https://example.test/forum/?signin=${outcome}`);
+  expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
+  expect(app.services.storage.db.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 0 });
+  const denied = app.services.storage.db.prepare("SELECT actor, details FROM audit_logs WHERE action = 'auth.signin_denied'").get() as { actor: string; details: string };
+  expect(denied.actor).toBe('test-github-user');
+  expect(JSON.parse(denied.details)).toEqual({ org: 'Yangtze-University-Geek-Class', reason: membership ?? 'not_member' });
+  // 被拒的人在 GitHub 上的授权被撤掉：用应用自己的 client_id:client_secret，撤的是这次换到的 token 所属的 grant
+  const revoke = providerCalls.find(call => call.url.includes('/grant'));
+  expect(revoke).toMatchObject({ method: 'DELETE', url: 'https://api.github.com/applications/test-client/grant' });
+  expect(revoke?.authorization).toBe(`Basic ${Buffer.from('test-client:test-only-placeholder').toString('base64')}`);
+  expect(JSON.parse(revoke?.body ?? '{}')).toEqual({ access_token: 'test-provider-token' });
+});
+it('still sends a refused user back with the reason when revoking the grant fails', async () => {
+  const revokeFails = (async (url: string, options: { method?: string } = {}) => {
+    if (url.includes('/grant')) throw Object.assign(new Error('connect timeout'), { code: 'UND_ERR_CONNECT_TIMEOUT', method: options.method });
+    return { statusCode: 200, body: { json: async () => url.includes('/access_token') ? { access_token: 'test-provider-token' } : { id: 7, login: 'test-github-user', avatar_url: '' } } };
+  }) as unknown as ServiceOverrides['httpRequest'];
+  const { app } = await setup({ httpRequest: revokeFails, octokitFactory: membershipStub(null) });
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
+  const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
+  expect(response.headers.location).toBe('https://example.test/forum/?signin=not_member');
+  expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
+});
+it('gives every GitHub API call a timeout, because Octokit ignores request.timeout', async () => {
+  const hanging = ((_input: unknown, init?: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+  })) as unknown as typeof fetch;
+  await expect(withTimeout(hanging, 20)('https://api.github.com/user/memberships/orgs/x')).rejects.toMatchObject({ name: 'TimeoutError' });
+  // 调用方自己的 signal 仍然生效
+  const own = new AbortController();
+  const pending = withTimeout(hanging, 60_000)('https://api.github.com/user', { signal: own.signal });
+  own.abort(new Error('caller cancelled'));
+  await expect(pending).rejects.toThrow('caller cancelled');
+});
+it('goes back to the original page instead of a JSON error when GitHub cannot be reached', async () => {
+  const unreachable = (async () => { throw Object.assign(new Error('connect timeout'), { code: 'UND_ERR_CONNECT_TIMEOUT' }); }) as unknown as ServiceOverrides['httpRequest'];
+  const { app } = await setup({ httpRequest: unreachable });
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
+  const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
+  expect(response.statusCode).toBe(302);
+  expect(response.headers.location).toBe('https://example.test/forum/?signin=failed');
+  expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
+});
+it('does not treat a failed membership lookup as "not a member"', async () => {
+  const forbidden = (() => ({ request: async () => { throw Object.assign(new Error('OAuth App access restricted'), { status: 403 }); } })) as unknown as ServiceOverrides['octokitFactory'];
+  const { app } = await setup({ httpRequest: stubProvider, octokitFactory: forbidden });
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
+  const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
+  // 403 不能当成「不是成员」：成员也会被组织的 OAuth App 限制挡住，这时只能说登录没完成
+  expect(response.headers.location).toBe('https://example.test/forum/?signin=failed');
+  expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
+});
+it('takes a cancelled GitHub authorization back to the original page', async () => {
+  const { app } = await setup();
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
+  const response = await app.inject({ url: `/auth/callback?error=access_denied&state=${state}`, headers: { cookie } });
+  expect(response.statusCode).toBe(302);
+  expect(response.headers.location).toBe('https://example.test/forum/?signin=cancelled');
+  // 没有有效 state 的错误回调仍然就地拒绝，不跳到任何地方
+  expect((await app.inject('/auth/callback?error=access_denied&state=forged')).statusCode).toBe(400);
+  expect((await app.inject('/auth/callback?error=access_denied')).statusCode).toBe(400);
 });
 it('keeps return targets on the single public origin', async () => {
   const { app } = await setup(); const config = app.services.config;

@@ -2,13 +2,13 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-09-25 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
 | 路径 | 职责 |
 |---|---|
-| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由（`/`、`/join-us`、`/forum-3d`、`/github`、`/docs`、`/feedback`、`/join/:token`）、`pages/`、`three/`（按需加载的 three.js 场景：书桌、信封、论坛气泡、GitHub 天际线）、`components/`（YUGC OS 桌面、加载动画、页面外壳）、`lib/`（状态机、进度、相机数学、链接、快照、图标）、`styles/`（浅色书桌 × YUGC OS 视觉令牌）、`index.html` 入口；无独立登录态 |
+| `app/web/sites/portal/` | 公开站点：`App.tsx` 路由（`/`、`/join-us`、`/forum-3d`、`/github`、`/docs`、`/feedback`、`/join/:token`）、`pages/`、`three/`（按需加载的 three.js 场景：书桌、信封、论坛气泡、GitHub 天际线）、`components/`（YUGC OS 桌面、加载动画、页面外壳）、`lib/`（状态机、进度、相机数学、链接、快照、图标、全站登录状态 `account.ts`）、`styles/`（浅色书桌 × YUGC OS 视觉令牌）、`index.html` 入口；不自建登录态，菜单栏显示全站 GitHub 登录的账号或登录入口（见 [portal](portal.md)「登录入口」） |
 
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 官网复用的交互原语：Modal、ConfirmDialog、Select、ImageLightbox、TurnstileWidget、Mascot 等 |
@@ -31,12 +31,12 @@
 
 ```bash
 pnpm dev:web        # 官网只读 mock 预览，无需 OAuth 或业务数据库
-pnpm dev:console    # 控制台（app/console），默认样板数据
+pnpm dev:console    # 控制台（app/console），默认连本地后端，?__data=mock 切样板数据
 pnpm dev            # 前后端开发（需要本机 .env，模板见 ../../ops/ENVIRONMENT.md）
 pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456，见 ../../ops/LOCAL-PREVIEW.md
 ```
 
-本机地址：官网 `http://127.0.0.1:5173/sites/portal/`；控制台 `http://127.0.0.1:5186/console`（`pnpm dev:console`）。5173 上的 `/console`、`/admin`、`/signin` 与旧的 `/sites/admin/*` 在开发态 302 到 5186。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
+本机地址：官网 `http://127.0.0.1:5173/sites/portal/`；控制台 `http://127.0.0.1:5186/console`（`pnpm dev:console`）。5173 上的 `/console`、`/admin`、`/signin` 与旧的 `/sites/admin/*` 在开发态 302 到 5186；`/forum/<路径>` 302 到 `http://127.0.0.1:3456/<路径>`（去掉 `/forum` 前缀，查询参数保留，登录后回到论坛原页面靠它）。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
 
 ## 验证命令
 
