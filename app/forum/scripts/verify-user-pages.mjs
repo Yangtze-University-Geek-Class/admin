@@ -255,8 +255,8 @@ const PROFILE = `(() => {
     title: document.title,
     tabs: [...document.querySelectorAll('[role="tab"]')].map(text),
     activeTab: text(document.querySelector('[role="tab"][aria-selected="true"]')),
-    // NOT document-wide: the sidebar footer renders a card item for the signed-in
-    // user that also reads "<display name>@<handle> · <role>".
+    // NOT document-wide: other card items (the login modal, the sidebar in
+    // other layouts) must not be mistaken for the profile banner.
     banner: text(pageOnly([...document.querySelectorAll('.tx-card-item')])[0]),
     badges: pageOnly([...document.querySelectorAll('.tx-status-badge')]).map(text),
     statLabels: [...document.querySelectorAll('.tx-stat-card__label')].map(text),

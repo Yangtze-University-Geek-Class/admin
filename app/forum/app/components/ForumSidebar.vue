@@ -8,26 +8,15 @@ import { toast } from '@talex-touch/tuffex/utils'
 const emit = defineEmits<{ navigate: [path: string] }>()
 
 const forum = useForumStore()
-const { user } = useCurrentUser()
-const { loginOpen } = useShell()
-const { isSnapshot, siteLogin, siteName } = useContentSource()
+const { siteLogin } = useContentSource()
 const { groups, items, active, dotColors, select } = useForumNav()
-const router = useRouter()
 
 const query = ref('')
 const resetOpen = ref(false)
 
-const { account } = useSiteAccount()
-const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '长江大学极客班' : '开发者社区' }))
-
 function onSelect(item: SidebarNavItem) {
   select(item)
   emit('navigate', String(item.value))
-}
-
-function goTo(path: string) {
-  void router.push(path)
-  emit('navigate', path)
 }
 
 function confirmReset() {
@@ -39,43 +28,22 @@ function confirmReset() {
 
 <template>
   <div class="sidebar-tuned">
+    <!--
+      No `workspace` prop: TxSidebarNav would draw its own switcher chip there.
+      The 极客班 logo and the site name sit in ForumHeader's top-left, and the
+      account only in its avatar menu, so the filter field is the first row.
+    -->
     <TxSidebarNav
       v-model:query="query"
       :model-value="active"
       :items="items"
       :groups="groups"
-      :workspace="workspace"
       search-placeholder="筛选侧栏"
       search-hint="/"
       aria-label="站点导航"
-      workspace-label="站点"
       class="[--tx-bui-sidebar-nav-width:100%]"
       @select="onSelect"
     >
-      <!--
-        The 极客班 logo instead of the letter chip, composed from TxCardItem
-        rather than TxSidebarNav's internal workspace classes. The logo is
-        decorative: the row's accessible name is the visible site name.
-        The site blurb goes in `description`, not `subtitle`: the footer's
-        signed-in card is the sidebar's only subtitle, which the upstream
-        shell check reads as `@<handle> · <role>`.
-      -->
-      <template #workspace>
-        <TxCardItem
-          clickable
-          role="link"
-          align="center"
-          :title="workspace.name"
-          :description="workspace.description"
-          class="mb-2 [--tx-card-item-gap:10px] [--tx-card-item-padding:6px]"
-          @click="goTo('/')"
-        >
-          <template #avatar>
-            <img src="/logo.png" alt="" class="block h-8 w-8 rounded-lg object-contain">
-          </template>
-        </TxCardItem>
-      </template>
-
       <!--
         Category rows keep both cues: the category icon, and upstream's colour
         dot pinned to its corner (the icon box is too narrow to sit them side
@@ -93,40 +61,16 @@ function confirmReset() {
         <i v-else-if="item.icon" :class="item.icon" aria-hidden="true" />
       </template>
 
-      <template #footer>
-        <TxStack :gap="8">
-          <TxCardItem
-            v-if="user"
-            clickable
-            :title="user.displayName"
-            :subtitle="`@${user.username} · ${roleLabel(user.role)}`"
-            @click="goTo(`/u/${user.username}`)"
-          >
-            <template #avatar>
-              <UserAvatar :user="user" size="small" />
-            </template>
-          </TxCardItem>
-          <!-- 统一登录：侧栏没有登录按钮（入口在顶栏右上角），只显示已登录的人 -->
-          <template v-else-if="siteLogin">
-            <TxCardItem v-if="account" :title="`@${account.login}`">
-              <template #avatar>
-                <TxAvatar :src="account.avatarUrl ?? undefined" :name="account.login" size="small" />
-              </template>
-            </TxCardItem>
-          </template>
-          <TxButton v-else variant="primary" block @click="loginOpen = true">
-            登录
-          </TxButton>
-          <!--
-            The sample data belongs to this browser rather than to the signed-in
-            identity, so a guest who inherited someone's edits can restore it too.
-            The read-only snapshot has nothing to reset, and under the site-wide
-            login nothing is kept in this browser.
-          -->
-          <TxButton v-if="!siteLogin" variant="ghost" size="sm" icon="i-carbon-reset" @click="resetOpen = true">
-            重置示例数据
-          </TxButton>
-        </TxStack>
+      <!--
+        The sample data belongs to this browser rather than to the signed-in
+        identity, so a guest who inherited someone's edits can restore it too.
+        The read-only snapshot has nothing to reset, and under the site-wide
+        login nothing is kept in this browser, so there is no footer at all.
+      -->
+      <template v-if="!siteLogin" #footer>
+        <TxButton variant="ghost" size="sm" icon="i-carbon-reset" class="mt-2" @click="resetOpen = true">
+          重置示例数据
+        </TxButton>
       </template>
     </TxSidebarNav>
   </div>
