@@ -78,6 +78,8 @@
 | `TURNSTILE_SITE_KEY` | Cloudflare Turnstile 站点键 |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile 服务端密钥 |
 
+Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `OPTIONAL_SECRET_PAIR`）：**都为空＝明确关闭**，渲染时写空值并提示；只填一项仍拒绝渲染；其余密钥一律必填。关闭时服务端 `middleware/turnstile.ts` 不校验人机验证，公开的投递、反馈、邀请只靠工作量证明（`POW_DIFFICULTY`）、蜜罐字段与限流；遗留风险是批量脚本的成本只剩计算量，要开启时在 Cloudflare 建站点后把两项同时配进环境级 secrets 并重新部署。首次上线（2026-09-25）两个环境都关闭。
+
 ### vars
 
 | 层级 | 名称 | 取值 / 作用 |
