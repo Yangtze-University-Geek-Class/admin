@@ -135,13 +135,13 @@
 
 **切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在这台机器上；删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。两条部署工作流读另一个变量 `DEPLOY_RUNNER`，默认不设，也**不要指向这台常驻 runner**（原因见下面的剩余风险）。
 
-**发版还缺一步**：`DEPLOY_RUNNER` 不设时部署工作流仍用托管 runner，托管额度用完就连 plan、build 都起不来；`scripts/deploy-manual.mjs` 要用这次运行 build job 的产物，同样用不上。所以本 runner 只解决了 CI，rc 发版要等所有者在下面几条里选一条：调高支出上限只给部署用（CI 已不耗托管分钟，一次预发布约 15–20 分钟）；或为部署另建一次性 runner（每个 job 一个全新容器、JIT 注册、跑完即删）；或等下个计费周期额度恢复。
+**发版还缺一步**：`DEPLOY_RUNNER` 不设时部署工作流仍用托管 runner，托管额度用完就连 plan、build 都起不来；`scripts/deploy-manual.mjs` 要用这次运行 build job 的产物，同样用不上。所以本 runner 只解决了 CI，rc 发版要等所有者在下面几条里选一条：调高支出上限只给部署用（CI 已不耗托管分钟，一次预发布按 job 向上取整约 11 分钟，见运行 36150157239、36144065990）；或为部署另建一次性 runner（每个 job 一个全新容器、JIT 注册、跑完即删）；或等下个计费周期额度恢复。
 
 **掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`。
 
 **安全边界**（下文「自托管运行器不得接在有生产凭据或真实数据的机器上执行不可信 PR」在这里靠下面几条成立，不是无条件满足）：
 
-- 谁能让代码跑到这里：私有仓库、没有 fork PR，只有能向本仓库推分支的协作者。他们推任意 `task/**`、`dev/**` 分支，改了的工作流就会在这台 runner 上执行。
+- 谁能让代码跑到这里：私有仓库、没有 fork PR，只有能向本仓库推分支的协作者。他们推任意分支（包括在分支里新增一个写 `runs-on: yzgc-arch` 的工作流），代码就会在这台 runner 上执行。
 - 隔离到哪一层：job 在非特权容器里以 `runner` 用户运行，但 `runner` 在容器的 docker 组里，等于**容器内 root**。容器里没有宿主机的家目录、SSH 材料、凭据和数据库，除 runner 自己的注册凭据外不放任何密钥；出站拒绝上表的私网段。宿主机隔离靠 Linux 内核的命名空间，容器与宿主机共用内核，内核漏洞可以逃逸到维护者的个人机器。
 - 剩余风险一：**runner 是常驻的，不是一次性的**。拿到容器内 root 的人可以改掉 `job-started.sh`、`/usr/local/bin/node`、runner 本体或构建缓存，影响之后任何分支（包括 `stage`）上的 CI 结果，`verify (required check)` 的绿色因此只证明「这台 runner 上跑过」。发现可疑时重建容器（`incus delete -f yzgc-runner` 后按上文重建，并在仓库设置里移除两个旧 runner）。改成每个 job 一个全新容器前，这条风险一直在。
 - 剩余风险二：ACL 挡的是私网段，挡不住经家里公网 IP 绕回路由器端口转发的连接。

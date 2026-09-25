@@ -73,3 +73,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：CICD.md 自托管 runner 一节：安全边界改成成立条件 + 剩余风险（常驻 runner 可被污染、共用内核、端口转发绕回），写明 DEPLOY_RUNNER 不指向这台 runner、合并后 rc 发版仍需所有者选路子；重建步骤补 job-started.sh 与重跑影响；register.sh 令牌从 stdin 读、经 ACTIONS_RUNNER_INPUT_TOKEN 给 config.sh；job-started.sh 只认 _work/<仓库>/<仓库> 且拒绝 ..；host-setup.sh ACL 加 198.18.0.0/15、整条比对；机器上 ACL 与钩子同步更新
 - 结果：shellcheck 无输出；actionlint 0 个问题；pnpm check:docs 通过；钩子路径判断 7 个用例符合预期；容器内 198.18.0.1 blocked、api.github.com 200
+
+## 04:05:24 +08:00 · 审查 · #93 · 第二轮独立审查：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 0229891（范围 dd50473..0229891），逐条复核第一轮 4 条应修并核对 runner v2.337.0 源码对 ACTIONS_RUNNER_INPUT_TOKEN 的处理
+- 结果：通过：4 条应修全部已解决；另 3 条建议（发布耗时写实测 11 分钟、钩子注释、「推任意分支」）已在本提交改完；HEAD 的 push 运行 36182831708、PR 运行 36182837253 全部 success（crosery-arch-1/2），pr-contract 运行 36182871736 success

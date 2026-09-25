@@ -3,7 +3,8 @@
 # _work/<仓库>/<仓库>；上一个 job 的 sparse-checkout（pr-contract 只检出一个文件）会让下一个 job 缺文件。
 set -eu
 ws=${GITHUB_WORKSPACE:-}
-# 只清 /home/runner/r<N>/_work/<仓库>/<仓库> 这一层，路径里带 .. 的一律不碰。
+# 只认 /home/runner/r<N>/_work/ 下至少两层、不以 . 开头的目录（正常就是 _work/<仓库>/<仓库>），删除范围出不了 _work；
+# 路径里带 .. 的一律不碰。
 case "$ws" in
   *..*) echo "job-started: 跳过，路径里有 ..：$ws"; exit 0 ;;
   /home/runner/r[0-9]/_work/[!.]*/[!.]*) ;;
