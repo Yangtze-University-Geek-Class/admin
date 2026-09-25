@@ -33,7 +33,7 @@ jobs:
   pr-contract:
     name: pr-contract (PR 正文契约)
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
       && github.event.action == 'closed'
       && github.event.pull_request.merged == true
       && startsWith(github.event.pull_request.head.ref, 'task/')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       issues: write
@@ -127,7 +127,7 @@ jobs:
   weekly-sweep:
     name: 巡检未关闭的 issue（只告警）
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read

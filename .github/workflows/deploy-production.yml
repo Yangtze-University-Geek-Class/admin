@@ -8,6 +8,7 @@
 #   2. 该提交在 preview 环境有**成功**的部署记录，且记录来自这些 rc tag 之一；
 #   3. https://prev.yangtzeu.work/release.json 当前就是这个提交与这个 rc 版本。
 # 开关：仓库级 vars.DEPLOY_PRODUCTION_ENABLED 必须显式等于 enabled，未设置 = 不部署。
+# 运行位置：runs-on 读仓库变量 DEPLOY_RUNNER，没设时用 ubuntu-latest（见 docs/ops/CICD.md「自托管 runner」）。
 #
 # 边界：
 #   * 本工作流不创建、不移动、不删除 tag；正式 tag 由所有者在预发布验收并授权后手工打。
@@ -41,7 +42,7 @@ jobs:
   # 规划：硬断言触发来源是正式 tag → 解析发布身份。
   plan:
     name: plan (正式 tag → production 身份)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.source.outputs.tag }}
@@ -146,7 +147,7 @@ jobs:
   evidence:
     name: evidence (同提交已有成功的 rc 预发布部署)
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -230,7 +231,7 @@ jobs:
   build:
     name: build (镜像归档)
     needs: [plan, evidence]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - name: 检出 plan 核对过的提交
@@ -313,7 +314,7 @@ jobs:
     name: deploy (production stack)
     needs: [plan, build]
     if: vars.DEPLOY_PRODUCTION_ENABLED == 'enabled'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     environment:
       name: production
