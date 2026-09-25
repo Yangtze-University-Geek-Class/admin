@@ -16,6 +16,7 @@ AI 先执行 [AGENT-START](AGENT-START.md) 的阅读门禁，不能先运行下�
 
 - 开发前先按 [ISSUES](ISSUES.md) 开 issue，再用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 拉 `task/<issue>/<slug>`（例 `task/12/portal_redesign`；分支名不用 `-`），**同时得到一个独立的 worktree**，所有开发都在里面做，不在主工作区切分支（见 [BRANCHING](BRANCHING.md)「task worktree」）；
 - 一次任务一条 task 分支、一个 worktree，MR 回 `stage`，正文按 [PULL-REQUESTS](PULL-REQUESTS.md) 的契约写；
+- 从开工到收尾，每一步都按 [NOTES](NOTES.md) 写进 `notes/`：`task.mjs start` / `finish` 自动记开工和收尾，中间的提交、PR、审查、返工用 `node scripts/note.mjs add` 记；
 - **MR 合并后远端分支与 issue 自动清理，本机用 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支**，不留死分支、死目录；
 - `dev/<github-username>`（例 `dev/crosery`）是个人自由分支，想怎么改都行，但不得作为进入 `stage` 的凭据，也不部署；
 - 禁止直接向 `main` 提交，禁止 `task/**`、`dev/**` 直接进 `main`。`main` 只接受来自 `stage` 的合并。
@@ -26,7 +27,7 @@ AI 先执行 [AGENT-START](AGENT-START.md) 的阅读门禁，不能先运行下�
 
 ## 提交前
 
-运行根 `pnpm verify`；影响浏览器行为时跑 `pnpm test:e2e`。审阅 diff，补文档，确认无密钥、真实数据或编译产物。失败和未验证项如实写入 MR，不能只截取部分成功输出。改动触及标题/摘要/路径时重新生成文档索引（`pnpm docs:index`）。
+运行根 `pnpm verify`（其中 `check:notes` 核对执行记录）；影响浏览器行为时跑 `pnpm test:e2e`。审阅 diff，补文档，确认无密钥、真实数据或编译产物。失败和未验证项如实写入 MR，不能只截取部分成功输出。改动触及标题/摘要/路径时重新生成文档索引（`pnpm docs:index`）。
 
 提交遵循 [COMMITS](COMMITS.md)，审查按 [CODE-REVIEW](CODE-REVIEW.md) 逐项过一遍并把结论写进 MR，MR 字段要求见 [PULL-REQUESTS](PULL-REQUESTS.md)。提交、push、合并、部署分别需要对应授权；要求改代码不等于要求自动发布。
 

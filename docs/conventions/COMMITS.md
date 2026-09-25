@@ -14,7 +14,7 @@
 
 首行不超过 72 字符，使用半角冒号，不加句末句号或 emoji。代码标识符和路径保持英文。type 为 `feat`、`fix`、`refactor`、`perf`、`docs`、`test`、`build`、`ci`、`chore`、`style`。`style` 只表示格式，不表示界面功能改动。
 
-scope 使用 `portal`、`forum`、`admin`、`shared`、`server`、`auth`、`db`、`docs`、`deploy`、`tooling`、`deps`、`release`。按职责中心选择，不罗列全部文件：`portal`/`admin`/`shared` 属于 `app/web` 内部模块，`forum` 指 `app/forum`，`server` 指 `app/server`，`docs`/`deploy`/`tooling` 分别指文档、部署模板与根脚本。
+scope 使用 `portal`、`forum`、`admin`、`shared`、`server`、`auth`、`db`、`docs`、`notes`、`deploy`、`tooling`、`deps`、`release`。按职责中心选择，不罗列全部文件：`portal`/`admin`/`shared` 属于 `app/web` 内部模块，`forum` 指 `app/forum`，`server` 指 `app/server`，`docs`/`deploy`/`tooling` 分别指文档、部署模板与根脚本，`notes` 指只补 `notes/` 执行记录的提交（`docs(notes): …`）。
 
 例：`fix(forum): 防止重复删除回帖破坏统计计数`；`test(auth): 验证密码变更撤销旧会话`；`docs(tooling): 统一根目录验收入口`。
 

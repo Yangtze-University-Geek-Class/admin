@@ -10,13 +10,13 @@
 
 必须先停止：代码编辑、安装、脚本执行、服务启停、数据访问、Git 写操作和发布操作。不得先运行项目命令，事后补读。
 
-阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [TRACKING](TRACKING.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
+阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [TRACKING](TRACKING.md) → [NOTES](NOTES.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
 
 文档被截断就继续读到完整。文件缺失、权限不足、规范冲突或无法确认版本时停止相关实施，说明阻塞项，不能猜测。新会话、上下文压缩后丢失规范、切换模块或发现规范更新，都要重新确认并补读。
 
 ## 读完后的执行顺序
 
-确认当前用户指令、允许的动作和目标；确认分支与 HEAD（见 [BRANCHING](BRANCHING.md)）和现有改动；确定受影响服务、数据归属和验收方式，再执行范围内工作。脏工作区不可自动 reset、清理、切分支或覆盖其他人的改动。不在 `task/<issue>/<slug>` 或 `stage` 上时，不要擅自切换或合并，先说明现状。
+确认当前用户指令、允许的动作和目标；确认分支与 HEAD（见 [BRANCHING](BRANCHING.md)）和现有改动；确定受影响服务、数据归属和验收方式，再执行范围内工作。设好执行记录的身份（`GEEK_NOTES_USER`、`GEEK_NOTES_BY`），开工前先有「开工」记录，之后每一步都记（[NOTES](NOTES.md)）；恢复上下文时连同自己的链路文件一起读。脏工作区不可自动 reset、清理、切分支或覆盖其他人的改动。不在 `task/<issue>/<slug>` 或 `stage` 上时，不要擅自切换或合并，先说明现状。
 
 一次普通修改不包含自动提交、推送、合并、触发部署、覆盖数据库或重启线上服务。授权必须与动作、目标环境和具体提交匹配；“继续”“验收一下”“测试都过了”不等于人工试用通过或发版授权。
 
