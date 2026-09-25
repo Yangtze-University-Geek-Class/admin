@@ -6,6 +6,7 @@ import catalogue from "./catalogue.js";
 import departments from "./departments.js";
 import titles from "./titles.js";
 import assignments from "./assignments.js";
+import people from "./people.js";
 import applications from "./applications.js";
 import feedback from "./feedback.js";
 import audit from "./audit.js";
@@ -18,6 +19,7 @@ export default async function consoleRoutes(app: FastifyInstance) {
   await app.register(departments);
   await app.register(titles);
   await app.register(assignments);
+  await app.register(people);
   await app.register(applications);
   await app.register(feedback);
   await app.register(audit);

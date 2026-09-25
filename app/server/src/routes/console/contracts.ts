@@ -58,6 +58,7 @@ export const consoleContracts: RouteContracts = {
     body: object({ github_login: login, role: choices(...ASSIGNABLE_ROLES), department_id: departmentId, note: text(200) }, ["github_login", "role"]),
   },
   "DELETE /api/console/assignments/:id": noQuery,
+  "GET /api/console/people": noQuery,
   "GET /api/console/applications": {
     querystring: object({ status: choices(...APPLICATION_STATUS_IDS), q: text(100), limit: limit(200), offset }),
   },

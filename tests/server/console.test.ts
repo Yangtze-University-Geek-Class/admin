@@ -20,6 +20,12 @@ function github(roles: Record<string, Role>, users: Record<string, number> = {},
         if (!role) throw Object.assign(new Error('stub not found'), { status: 404 });
         return { data: { state: 'active', role } };
       }
+      if (route === 'GET /orgs/{org}/members') {
+        if (params.org !== CONSOLE_ORG) throw Object.assign(new Error('stub not found'), { status: 404 });
+        const data = Object.entries(roles).filter(([, role]) => role === params.role)
+          .map(([login]) => ({ login, id: users[login] ?? 0, avatar_url: `https://avatars.example.test/${login}` }));
+        return { data };
+      }
       if (route === 'GET /users/{username}') {
         const id = users[params.username.toLowerCase()];
         if (!id) throw Object.assign(new Error('stub not found'), { status: 404 });
@@ -428,6 +434,7 @@ describe('titles are data the 提督 can edit', () => {
     expect(org.titles.find((title: { id: string }) => title.id === 'alumni')).toMatchObject({ label: '老船长', rank: 4 });
     expect(org.titles[0]).toMatchObject({ id: 'admin', label: '提督' });
     expect(org.titles[0]).not.toHaveProperty('capabilities');
+    expect(org.tones.jade).toBe('#18694A');
     expect(org.departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
   });
 
@@ -462,6 +469,27 @@ describe('titles are data the 提督 can edit', () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/pirate', headers: as('alice'), payload: { label: '海盗' } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { rank: 0 } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '这个名字实在是太长了不行' } })).statusCode).toBe(400);
+  });
+
+  it('lists every org member with the title they would see, plus title holders who left the org', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'member', carol: 'member', dave: 'member' });
+    assign('bob', 'head', 'tech');
+    assign('carol', 'captain');
+    assign('gina', 'alumni'); // 已不在组织里
+    await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '水手' } });
+    const response = await app.inject({ url: '/api/console/people', headers: as('alice') });
+    expect(response.statusCode).toBe(200);
+    const people = response.json().people as { login: string; github_role: string | null; titles: { id: string; label: string }[] }[];
+    expect(people.map(p => [p.login, p.github_role, p.titles[0].id, p.titles[0].label])).toEqual([
+      ['alice', 'admin', 'admin', '提督'],
+      ['carol', 'member', 'captain', '舰长'],
+      ['bob', 'member', 'head', '技术部 · 队长'],
+      ['gina', null, 'alumni', '领航员'],
+      ['dave', 'member', 'member', '水手'],
+    ]);
+    // 队长能看名单（任免本部门舰员要挑人）；只有组织成员身份的舰员不能。
+    expect((await app.inject({ url: '/api/console/people', headers: as('bob') })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/console/people', headers: as('dave') })).statusCode).toBe(403);
   });
 
   it('keeps an edited title across a restart because defaults only fill empty rows', async () => {
