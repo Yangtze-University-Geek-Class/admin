@@ -32,6 +32,11 @@ export const SECRET_FIELDS = Object.freeze([
   'TURNSTILE_SITE_KEY',
   'TURNSTILE_SECRET_KEY',
 ]);
+/**
+ * Cloudflare Turnstile 是可选的一对：两项都为空 = 明确关闭（服务端 middleware/turnstile.ts 此时只靠工作量证明与限流），
+ * 只填一项仍视为半配置。其余密钥一律必填。
+ */
+export const OPTIONAL_SECRET_PAIR = Object.freeze(['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']);
 /** 允许为空但不属于密钥的字段（留空是明确的语义）。 */
 const EMPTY_IS_MEANINGFUL = Object.freeze(new Set([...SECRET_FIELDS, 'COOKIE_DOMAIN', 'ALLOWED_ORGS']));
 /** 模板里必须存在的非密钥字段。 */
@@ -390,8 +395,17 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
   if (!IMAGE_TAG_RE.test(tag)) fail(`IMAGE_TAG 必须是 12 位小写 SHA：${tag}`);
   const updated = new Map(deployment.values);
   const secretFields = [];
+  const pairFilled = OPTIONAL_SECRET_PAIR.map(field => typeof env[field] === 'string' && env[field] !== '');
+  if (pairFilled[0] !== pairFilled[1]) {
+    fail(`${OPTIONAL_SECRET_PAIR.join(' 与 ')} 只配了一项：要么都填（开启 Turnstile），要么都留空（关闭）`);
+  }
+  const turnstileOff = !pairFilled[0];
   for (const field of SECRET_FIELDS) {
     const value = env[field];
+    if (turnstileOff && OPTIONAL_SECRET_PAIR.includes(field)) {
+      updated.set(field, '');
+      continue;
+    }
     if (typeof value !== 'string' || !value) fail(`缺少环境密钥 ${field}：拒绝生成半配置的运行时环境文件`);
     if (!SECRET_VALUE_RE.test(value)) fail(`环境密钥 ${field} 含非法字符（不接受空白、引号、$、#）：拒绝写入`);
     updated.set(field, value);
@@ -405,10 +419,10 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
     const value = updated.get(match[1]) ?? '';
     return `${match[1]}=${/^[A-Za-z0-9._+/=:@~-]*$/.test(value) ? value : `"${value}"`}`;
   });
-  const header = '# 本文件由 CI 渲染（模板 deploy/env/.env.' + environment + '）：含环境密钥，禁止入库、禁止写入日志。';
+  const header = '# 本文件由 deployment-environment render 渲染（模板 deploy/env/.env.' + environment + '）：含环境密钥，禁止入库、禁止写入日志。';
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${header}\n${lines.join('\n')}`, { mode: 0o600 });
-  return { out, environment, imageTag: tag, secretFields, bytes: Buffer.byteLength(lines.join('\n')) };
+  return { out, environment, imageTag: tag, secretFields, turnstile: turnstileOff ? 'off' : 'on', bytes: Buffer.byteLength(lines.join('\n')) };
 }
 
 const USAGE = `环境契约校验与运行时环境文件渲染：
@@ -449,6 +463,7 @@ function main(argv) {
     console.log(
       `已渲染 ${result.environment} 运行时环境文件：${result.out}（注入 ${result.secretFields.length} 个密钥字段，IMAGE_TAG=${result.imageTag}，${result.bytes} 字节）。值不回显。`,
     );
+    if (result.turnstile === 'off') console.warn(`[提示] ${OPTIONAL_SECRET_PAIR.join('、')} 都为空：Turnstile 关闭，公开表单只靠工作量证明与限流。`);
     return;
   }
   throw new Error(`未知子命令：${command}`);
