@@ -21,21 +21,25 @@
 
 ## 极客班控制台：称号与能力
 
-控制台 `/api/console/*` 在「GitHub 组织角色」之外，加了一层由舰长维护的**称号 → 能力**授权。模型的唯一来源是 `app/server/src/lib/roles.ts`，判定在 `middleware/require-capability.ts`，端点与错误码见 [API](API.md)。
+控制台 `/api/console/*` 在「GitHub 组织角色」之外，加了一层**称号 → 能力**授权。称号和部门都是数据，由提督（以及权限包里有 `roles.manage` 的舰长）在控制台维护，不改代码；代码里固定的只有称号 id 与层级、能力清单、色调调色板和图标清单。规则与默认值在 `app/server/src/lib/roles.ts`，持久化在 `lib/role-store.ts`，判定在 `middleware/require-capability.ts`，端点与错误码见 [API](API.md)。
 
-- **称号**：舰长（CAPTAIN）、队长（`{部门} · 队长`，LEADER）、部门舰员（`{部门} · 舰员`，CREW）、领航员（NAVIGATOR，已毕业的学长学姐）、舰员（CREW，GitHub 组织 active 成员自动获得）、乘客（PASSENGER，没登录的人，只能看帖子）。显示名按所有者 2026-09-25 的决定采用星舰命名：舰长、队长、舰员、领航员、乘客；称号 id（`captain` / `head` / `member` / `alumni` / `guest`）、数据库取值和 API 字段不变。一个人可有多个称号，主称号取 rank 最小者。显式指派存在 `role_assignments` 表；有显式领航员时不再自动派生舰员称号。
-- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部），每个部门有队长与舰员两份**权限包**。新增部门不改代码；新增「能力」才需要改代码，因为能力必须有执行点。
-- **能力**是扁平清单（`console.* github.* forum.* applications.* feedback.* audit.* roles.*`），取蕴含闭包（`*.manage` → `*.read`，任何 `github.*.manage` → `github.org.read`，`roles.manage` → `roles.department.manage`）。舰长拥有全部能力（按清单动态计算）；`roles.manage` 仅舰长持有，不能放进部门权限包（服务端拒绝，`captain_only_capability`）。
+- **称号是数据**：称号 id 固定为 `admin` / `captain` / `head` / `member` / `alumni` / `guest`，每个称号的名字、英文标签、图标、色调、说明和权限包存在 `titles` 表。服务启动时把 `roles.ts` 的默认值写进去（`INSERT OR IGNORE`），已有的行不覆盖：第一次启动之后以数据库为准，重启、升级都不会把控制台里改过的值改回去。默认值是所有者 2026-09-25 定的星舰命名：提督（ADMIRAL，GitHub 组织的 owner）、舰长（CAPTAIN）、队长（LEADER）、舰员（CREW，GitHub 组织 active 成员自动获得）、领航员（NAVIGATOR，已毕业的学长学姐）、乘客（PASSENGER，没登录的人，只能看帖子）。队长显示为「{部门名} · {队长称号的名字}」、用部门的图标和色调；属于部门的舰员显示为「{部门名} · {舰员称号的名字}」、标签取舰员称号的标签、用部门图标和固定的 slate 色调。
+- **层级固定在代码里**：提督 0、舰长 1、队长 2、带部门的舰员 3、领航员 4、舰员 5、乘客 9（`TITLES[*].rank` 与 `CREW_TITLE.rank`），因为「提督 = 组织 owner」「舰长只有一个」「队长属于部门」这些规则靠它执行，控制台改不了。一个人可有多个称号，主称号取 rank 最小者。显式指派存在 `role_assignments` 表；有显式领航员时不再自动派生舰员称号。
+- **谁能改称号**：`PATCH /api/console/titles/:title_id` 要 `roles.manage`。服务端强制两条固定规则（`titleBundleError`）：提督的权限包永远是全部能力、乘客永远没有，这两个称号的权限包不能改（400 `title_capabilities_fixed`，名字、标签等显示字段可以改），读取时也不看库里存的值；`roles.manage` 只能放进舰长的权限包（400 `captain_only_capability`）。图标只能取 `DEPARTMENT_ICONS` 里的一个，色调只能取固定调色板里的一个。有实际改动时审计 `title.update`。权限包改动在下一次请求就对所有持有该称号的人生效（每次请求都重新读称号设置）。
+- **提督 = GitHub 组织 owner**：`CONSOLE_ORG` 的组织 owner（GitHub 组织角色 `admin`）自动获得提督称号（`source: "github"`），不经指派、不能在控制台撤下，拥有全部能力，不管有没有舰长。旧的「没有舰长时组织 admin 临时代任舰长（bootstrap）」已删除：`/api/console/me` 不再有 `bootstrap` 字段，`/api/console/assignments` 不再有 `bootstrap_active`，`source` 也不再有 `bootstrap`。
+- **舰长**：全站最多一位（部分唯一索引 `uq_role_assignments_captain`）。只有提督或现任舰长能任命或移交舰长，其他人 403 `captain_required`；移交在单个事务里删掉旧行、插入新行。captain 行只能由舰长本人卸任或由提督撤下，其他人 409 `captain_transfer_required`；撤下后暂时没有舰长，提督不受影响。舰长的权限包默认是全部能力（含 `roles.manage`），和其他称号一样可以在控制台改。
+- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部），每个部门有队长与舰员两份**权限包**，叠加在队长、舰员称号自己的权限包之上。新增部门、改称号都不改代码；新增「能力」才需要改代码，因为能力必须有执行点。持有 `roles.manage` 的人可以删除部门（`DELETE /api/console/departments/:id`）：同一事务里撤掉这个部门的全部队长与舰员指派并审计被撤掉的人（`department.delete`），他们的其它称号不受影响；默认部门只在第一次启动写入（`console_seeds` 标记），删掉后重启不会复活。
+- **能力**是扁平清单（`console.* github.* forum.* applications.* feedback.* audit.* roles.*`），取蕴含闭包（`*.manage` → `*.read`，任何 `github.*.manage` → `github.org.read`，`roles.manage` → `roles.department.manage`）。提督拥有全部能力（按清单动态计算）；`roles.manage` 只有提督和舰长的权限包里能有，不能放进部门权限包，也不能放进队长、舰员、领航员的称号权限包（服务端拒绝，`captain_only_capability`）。
 - **GitHub 上限**：GitHub 操作一律用会话里用户自己的 token，控制台**不能授予任何 GitHub 权力**。最终 `github.*` 能力 = 称号给的能力 ∩ 用户在 `CONSOLE_ORG` 的 GitHub 角色上限（admin：全部；member：只有 `github.org.read`；非成员：无）。被挡掉的能力放进 `blocked`（`github_admin_required` / `github_membership_required`）。非 GitHub 能力（投递、意见箱、审计、称号管理、论坛）不需要组织身份。
-- **舰长临时代任（bootstrap）**：没有显式 captain 行时，`CONSOLE_ORG` 的每一位 GitHub 组织 admin 都临时是舰长（`source: "bootstrap"`，`bootstrap: true`），控制台显示横幅提醒尽快正式指定。一旦存在显式 captain 行，临时代任对所有人立刻失效；显式舰长全站唯一（部分唯一索引 `uq_role_assignments_captain`），移交在单个事务里完成。captain 行只能由舰长本人删除（删除后恢复临时代任）。
-- **队长范围**：`roles.department.manage` 只允许任免自己负责部门的舰员，跨部门返回 403 `out_of_department_scope`。
-- **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免把临时代任的舰长锁在外面。
-- **审计**：控制台写操作、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
-- **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制；论坛类能力目前只记录和展示，论坛没有服务端执行点。
+- **队长范围**：`roles.department.manage` 只允许任免自己负责部门的舰员，跨部门返回 403 `out_of_department_scope`。成员全名单 `GET /api/console/people` 不按部门收窄：持有 `roles.department.manage` 的队长也能看到整个组织的成员（登录名、头像、GitHub 组织角色）和每个人的称号；名单用调用者自己的 token 向 GitHub 列组织成员。
+- **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免 GitHub 一时出错就把提督当成非成员、收掉他的权限。
+- **公开的组织架构**：`GET /api/public/org` 匿名可读，只给称号与未归档部门的显示信息（名字、标签、图标、色调、说明、层级）和色调色值，不含权限包、不含任何人。官网「组织架构」窗口和论坛的称号徽章读它，读不到时用各自内置的默认值。
+- **审计**：控制台写操作（含 `title.update`）、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
+- **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制；论坛类能力目前只记录和展示，论坛没有服务端执行点。论坛判断论坛能力时用的称号权限包是论坛自带的默认值（公开接口不下发权限包），控制台里改过的权限包在论坛后端（#57）接好之前不影响论坛。
 
 **个人信息**：投递（姓名、班级、邮箱、特长）对所有持有 `applications.read` 的人完整可见；列表与详情不下发来源 IP 和 User-Agent。只有查看详情和导出会被审计，CSV 离开系统后无法追踪。
 
-**残余风险**：成员身份只在登录时检查，登录后被移出组织的人，会话在 7 天有效期内仍在：`github.*` 能力随 60 秒角色缓存失效，显式称号给的非 GitHub 能力仍有效，没有显式称号的人变成乘客。登录门槛不看称号，已经不在组织里的领航员也登录不了。组织若开启 OAuth App 访问限制而对应环境的 OAuth App 没被批准，所有人的登录都会以 `failed` 结束。GitHub 角色缓存 60 秒，撤销组织 admin 最长 60 秒后生效；临时代任期间所有组织 admin 都是舰长，上线后应尽快正式指定；舰长的 GitHub 账号丢失时，只能由授权运维直接删除 captain 行以恢复临时代任（尚未写进运维手册）；称号清单在论坛另有一份副本，一致性测试只覆盖默认部门，数据库里新增的部门论坛看不到；按钮显隐只是提示，授权只在服务端。
+**残余风险**：成员身份只在登录时检查，登录后被移出组织的人，会话在 7 天有效期内仍在：`github.*` 能力随 60 秒角色缓存失效，显式称号给的非 GitHub 能力仍有效，没有显式称号的人变成乘客。登录门槛不看称号，已经不在组织里的领航员也登录不了。组织若开启 OAuth App 访问限制而对应环境的 OAuth App 没被批准，所有人的登录都会以 `failed` 结束。GitHub 角色缓存 60 秒，撤销组织 owner 最长 60 秒后才失去提督。组织里有几位 owner 就有几位提督，每位都拥有控制台全部能力并能改所有称号的权限包，所以给 GitHub 组织加 owner 就等于给控制台最高权限。提督和舰长可以把队长、舰员、领航员的称号权限包改宽（`roles.manage` 除外），改动立即对所有持有该称号的人生效，`title.update` 审计只记改了哪些字段，不记改前改后的值。舰长的 GitHub 账号丢失时由提督在控制台撤下 captain 行、重新任命；没有提督能登录、也没有舰长时，控制台里没人能任命舰长或改称号。官网和论坛在 `/api/public/org` 读不到时显示内置的默认称号，可能与控制台里改过的不一致；论坛的称号权限包始终是本地默认值，在论坛后端（#57）之前与控制台的设置无关，论坛本身也没有服务端授权。按钮显隐只是提示，授权只在服务端。
 
 ## 论坛代码替换的边界
 

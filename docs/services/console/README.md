@@ -32,7 +32,7 @@
 | `/console` | 概览 | `console.access` |
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
-| `/console/people` | 成员与权限（`?view=departments` 为部门与权限包，`?tab=` 为称号页签） | `roles.manage`、`roles.department.manage` |
+| `/console/people` | 成员与权限：「成员」像飞书通讯录，左边是全部成员、各部门与「没有部门」（`?group=<部门 id>`），右边是选中那一组的负责人、上级和名单；`?view=titles` 为「称号」（只给 `roles.manage`：六个称号的名字、英文标签、图标、色调、说明和权限都在这里改）；`?view=departments` 为部门与权限包（可编辑权限包、删除部门） | `roles.manage`、`roles.department.manage` |
 | `/console/feedback` | 意见箱 | `feedback.read` |
 | `/console/audit` | 审计日志 | `audit.read` |
 | `/console/github/**` | GitHub 组织页面；邀请与邀请链接另需 `github.invites.manage`，新建仓库另需 `github.repos.manage` | `github.org.read` |
@@ -45,7 +45,7 @@
 
 只调用 `app/server` 已有的接口，不新增、不改后端：
 
-- `/api/console/*`：`me`、`catalogue`、`summary`、`departments`、`assignments`、`applications`（含 `export.csv` 下载链接）、`feedback`、`audit`。契约见 [API](../../architecture/API.md)「极客班控制台」。
+- `/api/console/*`：`me`、`catalogue`、`summary`、`departments`（含删除）、`titles`、`people`、`assignments`、`applications`（含 `export.csv` 下载链接）、`feedback`、`audit`。称号的名字、标签、图标、色调、说明和权限一律取自 `catalogue`，代码里只有加载前的默认值（`lib/titles.ts` 的 `DEFAULT_TITLES`）。契约见 [API](../../architecture/API.md)「极客班控制台」。
 - `/api/admin/:org/*`：GitHub 组织页面，`:org` 取 `/api/console/me` 返回的 `org`。
 - `/auth/github?return_to=<本站地址>` 登录；`POST /auth/signout` 退出。登录是全站共用的（官网、论坛、控制台同一个 `sid`），只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」。
 
@@ -85,7 +85,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 # 地址参数（仅开发态）：
 #   ?__data=mock      改用样板数据（自动化测试用，tests/e2e 显式带上）
 #   ?__data=live      切回本地后端
-#   ?__persona=<名>   样板数据下切换身份：captain、bootstrap、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
+#   ?__persona=<名>   样板数据下切换身份：admin（组织 owner）、captain、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
 ```
 
 开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。
