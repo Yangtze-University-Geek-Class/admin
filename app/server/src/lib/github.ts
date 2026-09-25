@@ -1,7 +1,19 @@
 import { Octokit } from "@octokit/rest";
 
 export type OrgRole = "admin" | "member" | null;
-export function createGithub(factory: (token: string) => Octokit = token => new Octokit({ auth: token, userAgent: "yzgc-admin", request: { timeout: 15000 } })) {
+
+/** GitHub 调用一律 15 秒超时：卡住时尽快失败（登录回到原页面、接口报错），而不是挂到 undici 默认的 300 秒。 */
+export const GITHUB_TIMEOUT_MS = 15_000;
+
+/** Octokit 当前版本不读 request.timeout，超时只能套在它用的 fetch 上；调用方自己的 signal 照样生效。 */
+export function withTimeout(base: typeof fetch, ms: number): typeof fetch {
+  return (input, init) => {
+    const timeout = AbortSignal.timeout(ms);
+    return base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+  };
+}
+
+export function createGithub(factory: (token: string) => Octokit = token => new Octokit({ auth: token, userAgent: "yzgc-admin", request: { fetch: withTimeout(fetch, GITHUB_TIMEOUT_MS) } })) {
 const octokitWith = factory;
 
 
@@ -11,6 +23,22 @@ async function getOrgRole(token: string, org: string, login: string): Promise<Or
   try {
     const res = await octokit.request("GET /orgs/{org}/memberships/{username}", { org, username: login });
     return res.data.state === "active" ? res.data.role as OrgRole : null;
+  } catch (e: any) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+/**
+ * 登录用：当前用户自己在组织里的成员状态（用刚换到的 token，需要 read:org）。
+ * 不是成员（404）返回 null；已受邀未接受是 "pending"。其它错误（含组织限制 OAuth App 时的 403）原样抛出，
+ * 不能当成「不是成员」告诉用户。
+ */
+async function getOwnMembership(token: string, org: string): Promise<"active" | "pending" | null> {
+  const octokit = octokitWith(token);
+  try {
+    const res = await octokit.request("GET /user/memberships/orgs/{org}", { org });
+    return res.data.state === "active" || res.data.state === "pending" ? res.data.state : null;
   } catch (e: any) {
     if (e.status === 404) return null;
     throw e;
@@ -29,5 +57,5 @@ async function getUser(token: string, login: string): Promise<{ login: string; i
   }
 }
 
-return { octokitWith, getOrgRole, getUser };
+return { octokitWith, getOrgRole, getOwnMembership, getUser };
 }

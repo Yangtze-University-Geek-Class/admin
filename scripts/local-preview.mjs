@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Local integration preview only. Never import index.ts or load an existing .env.
-import { spawn } from "node:child_process";
+// GitHub 登录：启动时环境里有 OAUTH_CLIENT_ID 与 OAUTH_CLIENT_SECRET（由调用方从钥匙串 / 本机凭据取，不进仓库、不打印），
+// 就走真实 GitHub 登录，数据库与会话密钥落在 .tools/local-preview/（不入库），重启不丢登录；没有就保持原来的隔离模式。
+// 出站代理：本机直连 github.com 可能不通（浏览器走的是系统代理），GitHub 登录时预览进程也走同一个代理，见 outboundProxy()。
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, openSync, closeSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
@@ -43,9 +46,15 @@ async function start() {
   const instance = randomUUID();
   const executable = runtime();
   const output = openSync(logFile, "a", 0o600);
+  const proxy = outboundProxy();
   const child = spawn(executable, [script, "serve", instance], {
     cwd: root, detached: true, stdio: ["ignore", output, output],
-    env: { PATH: `${dirname(executable)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME ?? root, TMPDIR: process.env.TMPDIR ?? tmpdir(), NODE_ENV: "development" },
+    env: {
+      PATH: `${dirname(executable)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME ?? root, TMPDIR: process.env.TMPDIR ?? tmpdir(), NODE_ENV: "development",
+      // 只透传 GitHub 登录需要的两项；其余环境变量一概不带进预览进程
+      ...(process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET && { OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET }),
+      ...(proxy && { LOCAL_PREVIEW_PROXY: proxy }),
+    },
   });
   closeSync(output);
   let spawnError;
@@ -81,19 +90,31 @@ async function serve(instance) {
   try {
     const { createConfig } = await import(pathToFileURL(join(root, "app/server/dist/config.js")).href);
     const { buildApp } = await import(pathToFileURL(join(root, "app/server/dist/app.js")).href);
+    const github = Boolean(process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET);
+    if (github && process.env.LOCAL_PREVIEW_PROXY) {
+      // 核心服务的 undici request 与 Octokit 用的全局 fetch 共用这一个全局 dispatcher
+      const undici = await import(pathToFileURL(createRequire(join(root, "app/server/package.json")).resolve("undici")).href);
+      undici.setGlobalDispatcher(new undici.ProxyAgent(process.env.LOCAL_PREVIEW_PROXY));
+    }
+    const keys = github ? await localKeys() : { session: randomBytes(32).toString("hex"), encryption: randomBytes(32).toString("base64") };
     const config = createConfig({
-      NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin,
-      PORT: "3000", DB_PATH: ":memory:", FORUM_DB_PATH: ":memory:", FORUM_UPLOAD_DIR: scratch,
-      SESSION_SECRET: randomBytes(32).toString("hex"), ENCRYPTION_KEY: randomBytes(32).toString("base64"),
-      OAUTH_CLIENT_ID: "local-preview-disabled", OAUTH_CLIENT_SECRET: "local-preview-disabled", POW_DIFFICULTY: "0",
+      NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin, PORT: "3000", POW_DIFFICULTY: "0",
+      DB_PATH: github ? join(stateDir, "core.db") : ":memory:",
+      FORUM_DB_PATH: github ? join(stateDir, "forum.db") : ":memory:",
+      FORUM_UPLOAD_DIR: scratch,
+      SESSION_SECRET: keys.session, ENCRYPTION_KEY: keys.encryption,
+      OAUTH_CLIENT_ID: github ? process.env.OAUTH_CLIENT_ID : "local-preview-disabled",
+      OAUTH_CLIENT_SECRET: github ? process.env.OAUTH_CLIENT_SECRET : "local-preview-disabled",
     });
     const unavailable = () => { throw Object.assign(new Error("External integrations are disabled in local preview"), { statusCode: 503, code: "local_preview_external_disabled" }); };
-    app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: unavailable, octokitFactory: unavailable } });
-    app.addHook("onRequest", async (req, reply) => {
-      const path = req.url.split("?")[0];
-      if (["/auth/github", "/auth/callback"].includes(path)) return reply.code(503).send({ error: "local_preview_external_disabled", message: "本地后台未连接 GitHub，请切换样板数据。新论坛为独立 Tuff Forum 浏览器演示，不使用旧论坛登录。" });
-    });
-    app.get("/__local_preview", async () => ({ instance, pid: process.pid, project: root, database: "memory", external_integrations: false }));
+    app = await buildApp({ config, staticRoot: false, ...(!github && { overrides: { httpRequest: unavailable, octokitFactory: unavailable } }) });
+    if (!github) {
+      app.addHook("onRequest", async (req, reply) => {
+        const path = req.url.split("?")[0];
+        if (["/auth/github", "/auth/callback"].includes(path)) return reply.code(503).send({ error: "local_preview_external_disabled", message: "本地预览没有配置 GitHub 登录：启动时在环境里提供 OAUTH_CLIENT_ID 与 OAUTH_CLIENT_SECRET。" });
+      });
+    }
+    app.get("/__local_preview", async () => ({ instance, pid: process.pid, project: root, database: github ? "file" : "memory", external_integrations: github }));
     await app.listen({ host: "127.0.0.1", port: 3000 });
 
     const requireWeb = createRequire(join(root, "app/web/package.json"));
@@ -102,7 +123,8 @@ async function serve(instance) {
       root: join(root, "app/web"), configFile: join(root, "app/web/vite.config.ts"), envFile: false, envDir: scratch,
       plugins: [{ name: "local-preview-root", configureServer(server) {
         server.middlewares.use((req, res, next) => {
-          if (req.url === "/") { res.statusCode = 302; res.setHeader("Location", "/sites/portal/?__data=mock"); res.end(); return; }
+          // 接了 GitHub 登录就用真实数据（本机后端），否则用样板数据
+          if (req.url === "/") { res.statusCode = 302; res.setHeader("Location", `/sites/portal/?__data=${github ? "live" : "mock"}`); res.end(); return; }
           next();
         });
       } }],
@@ -112,12 +134,43 @@ async function serve(instance) {
       },
     });
     await vite.listen();
-    await writeFile(stateFile, JSON.stringify({ instance, pid: process.pid, project: root, web: webOrigin, api: "http://127.0.0.1:3000", database: "memory", started_at: new Date().toISOString(), log: logFile }, null, 2), { mode: 0o600 });
+    await writeFile(stateFile, JSON.stringify({ instance, pid: process.pid, project: root, web: webOrigin, api: "http://127.0.0.1:3000", database: github ? "file" : "memory", github_login: github, started_at: new Date().toISOString(), log: logFile }, null, 2), { mode: 0o600 });
     const shutdown = () => { close().catch(error => { console.error(error); process.exitCode = 1; }); };
     process.once("SIGTERM", shutdown);
     process.once("SIGINT", shutdown);
-    console.log(`Core preview ready: ${webOrigin} (isolated API; GitHub disabled; independent Tuff Forum at http://127.0.0.1:3456)`);
+    console.log(`Core preview ready: ${webOrigin} (GitHub login ${github ? `on${process.env.LOCAL_PREVIEW_PROXY ? " via the outbound proxy" : ""}, data in .tools/local-preview` : "off, in-memory data"}; forum at http://127.0.0.1:3456)`);
   } catch (error) { await close(); throw error; }
+}
+
+/**
+ * GitHub 登录要连 github.com 换 token。本机直连不通、浏览器走系统代理时，预览进程也得走同一个代理，否则登录回调会超时。
+ * 优先用调用方环境里的 HTTPS_PROXY / HTTP_PROXY；没有时在 macOS 上读系统代理设置（scutil --proxy）。都没有就直连。
+ */
+function outboundProxy() {
+  const fromEnv = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  if (fromEnv) return fromEnv;
+  if (process.platform !== "darwin") return null;
+  try {
+    const settings = execFileSync("/usr/sbin/scutil", ["--proxy"], { encoding: "utf8", timeout: 2000 });
+    const field = name => settings.match(new RegExp(`\\b${name} : (\\S+)`))?.[1];
+    if (field("HTTPSEnable") !== "1") return null;
+    const host = field("HTTPSProxy");
+    const port = field("HTTPSPort");
+    return host && port ? `http://${host}:${port}` : null;
+  } catch { return null; }
+}
+
+/** 本机预览自己的会话与加密密钥：首次随机生成，存在不入库的 .tools/local-preview/keys.json（0600），重启后旧会话仍能解密。 */
+async function localKeys() {
+  const file = join(stateDir, "keys.json");
+  try {
+    const saved = JSON.parse(await readFile(file, "utf8"));
+    if (saved.session && saved.encryption) return saved;
+  } catch { /* 第一次启动 */ }
+  const keys = { session: randomBytes(32).toString("hex"), encryption: randomBytes(32).toString("base64") };
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(file, JSON.stringify(keys), { mode: 0o600 });
+  return keys;
 }
 
 async function main() {
@@ -130,7 +183,7 @@ async function main() {
     if (!state) { console.log("No matching local preview; no process was stopped."); return; }
     process.kill(state.pid, "SIGTERM");
     for (let attempt = 0; attempt < 40; attempt++) {
-      if (!await current()) { console.log("Local preview stopped; isolated in-memory data cleared."); return; }
+      if (!await current()) { console.log(state.database === "file" ? "Local preview stopped; sign-ins and data stay in .tools/local-preview." : "Local preview stopped; isolated in-memory data cleared."); return; }
       await delay(100);
     }
     throw new Error("Shutdown not confirmed; no force kill was attempted.");

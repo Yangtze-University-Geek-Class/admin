@@ -10,14 +10,15 @@ const emit = defineEmits<{ navigate: [path: string] }>()
 const forum = useForumStore()
 const { user } = useCurrentUser()
 const { loginOpen } = useShell()
-const { isSnapshot, siteName } = useContentSource()
+const { isSnapshot, siteLogin, siteName } = useContentSource()
 const { groups, items, active, dotColors, select } = useForumNav()
 const router = useRouter()
 
 const query = ref('')
 const resetOpen = ref(false)
 
-const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '只读快照' : '开发者社区' }))
+const { account } = useSiteAccount()
+const workspace = computed(() => ({ name: siteName, description: isSnapshot ? '长江大学极客班' : '开发者社区' }))
 
 function onSelect(item: SidebarNavItem) {
   select(item)
@@ -105,15 +106,24 @@ function confirmReset() {
               <UserAvatar :user="user" size="small" />
             </template>
           </TxCardItem>
+          <!-- 统一登录：侧栏没有登录按钮（入口在顶栏右上角），只显示已登录的人 -->
+          <template v-else-if="siteLogin">
+            <TxCardItem v-if="account" :title="`@${account.login}`">
+              <template #avatar>
+                <TxAvatar :src="account.avatarUrl ?? undefined" :name="account.login" size="small" />
+              </template>
+            </TxCardItem>
+          </template>
           <TxButton v-else variant="primary" block @click="loginOpen = true">
             登录
           </TxButton>
           <!--
             The sample data belongs to this browser rather than to the signed-in
             identity, so a guest who inherited someone's edits can restore it too.
-            The read-only snapshot has nothing to reset.
+            The read-only snapshot has nothing to reset, and under the site-wide
+            login nothing is kept in this browser.
           -->
-          <TxButton v-if="!isSnapshot" variant="ghost" size="sm" icon="i-carbon-reset" @click="resetOpen = true">
+          <TxButton v-if="!siteLogin" variant="ghost" size="sm" icon="i-carbon-reset" @click="resetOpen = true">
             重置示例数据
           </TxButton>
         </TxStack>
@@ -121,7 +131,7 @@ function confirmReset() {
     </TxSidebarNav>
   </div>
 
-  <TxModal v-if="!isSnapshot" v-model="resetOpen" title="重置示例数据">
+  <TxModal v-if="!siteLogin" v-model="resetOpen" title="重置示例数据">
     <p class="text-$tx-text-color-secondary">
       这会丢弃你在本机创建的话题、回复、点赞、书签和资料修改，恢复到内置的示例数据。此操作不可撤销。
     </p>

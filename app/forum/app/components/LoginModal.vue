@@ -3,12 +3,21 @@ import { toast } from '@talex-touch/tuffex/utils'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
-// In snapshot mode the same trigger opens a read-only notice instead: the
-// store then holds real members, and none of them may be impersonated.
+// 统一登录下论坛没有自己的登录（全站走 GitHub 登录，入口在顶栏右上角），示例身份选择不渲染，谁都不能冒充。
+// 这时点赞、书签、关注等要求登录的按钮仍会打开 loginOpen：给一句说明再关上，不让点击没有反应。
 const { loginOpen } = useShell()
-const { isSnapshot } = useContentSource()
+const { siteLogin } = useContentSource()
 const forum = useForumStore()
 const session = useSessionStore()
+
+if (siteLogin) {
+  watch(loginOpen, (open) => {
+    if (!open)
+      return
+    loginOpen.value = false
+    toast({ id: 'forum-read-only', title: '现在还不能操作', description: '发帖、回复、点赞和收藏正在接入，现在可以浏览。' })
+  })
+}
 
 function pick(user: User) {
   if (!session.login(user.id))
@@ -19,19 +28,7 @@ function pick(user: User) {
 </script>
 
 <template>
-  <TxModal v-if="isSnapshot" v-model="loginOpen" title="只读快照，暂不开放登录">
-    <TxStack :gap="12">
-      <p class="text-$tx-text-color-secondary">
-        当前显示的是极客班论坛的只读快照。发帖、回复、点赞、收藏和资料修改要等真实后端与统一登录接入后才会开放。
-      </p>
-      <TxFlex justify="flex-end">
-        <TxButton variant="primary" @click="loginOpen = false">
-          知道了
-        </TxButton>
-      </TxFlex>
-    </TxStack>
-  </TxModal>
-  <TxModal v-else v-model="loginOpen" title="选择一个身份登录">
+  <TxModal v-if="!siteLogin" v-model="loginOpen" title="选择一个身份登录">
     <TxStack :gap="4" class="max-h-[60vh] overflow-y-auto">
       <TxCardItem
         v-for="user in forum.state.users"
