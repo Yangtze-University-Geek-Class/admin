@@ -78,8 +78,8 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && ! test -e .output/public/t/t5.md \
  && ! test -e .output/public/t/t15.md \
  && test -n "$(find .output/public/published -name '*.webp' -print -quit)" \
- # 公开的旧帖（t/*.md）里不能有邮箱地址（t73 原文里的共享账户已在导出时去掉），与 vitest 里的检查同一条规则。
- && ! grep -rqE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.]+' .output/public/t \
+ # 产物的文本文件里不能有邮箱地址（t73 原文里的共享账户已在导出时去掉），与 vitest 里的检查同一条规则；-I 跳过图片和字体，免得二进制字节碰巧像邮箱。
+ && ! grep -rqEI '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.]+' .output/public \
  # 产物里不能有上游示例内容（示例帖子标题、示例分类）。
  && ! grep -rq 'Tuff 2.5' .output/public \
  && ! grep -rq 'CoreBox' .output/public
