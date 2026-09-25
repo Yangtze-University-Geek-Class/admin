@@ -25,3 +25,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：incus 7.3（按本机 8-23 的软件源索引从 archive.archlinux.org 取包，SHA256 与索引一致、签名通过）；incusbr0 10.77.0.1/24 + ACL runner-egress；DOCKER-USER 放行 incusbr0；容器 yzgc-runner（Ubuntu 24.04，nesting，8 核 16G）装 docker.io 29.1.3 + 镜像加速、gh、jq、shellcheck；actions runner 2.337.0（SHA256 与官方发布说明一致）注册 crosery-arch-1/2，标签 yzgc-arch；gh variable set CI_RUNNER=yzgc-arch
 - 结果：两个 runner online；容器内 hello-world 与 node:22-bookworm-slim 拉取 23 秒、构建运行通过；容器访问 10.77.0.1:22/445、192.168.1.4、192.168.1.1、100.64.0.12、10.250.143.57、172.17.0.1 全部 blocked，GitHub/npm/镜像源正常；本机 actionlint 1.7.12 检查全部工作流 0 个问题
+
+## 03:26:57 +08:00 · 提交 · #93 · 工作流、CICD.md 与执行记录一起提交
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：ci(deploy): runs-on 改读仓库变量，CI 可跑在家里 Arch 的自托管 runner（b75309936b3b）；pnpm verify；actionlint 1.7.12
+- 结果：pnpm verify 通过（核心 Tests 452 passed，论坛 Tests 240 passed）；actionlint 0 个问题
