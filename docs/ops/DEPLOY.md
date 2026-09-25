@@ -119,6 +119,15 @@ bash deploy-stack.sh --environment production \
 - **监控**：`.github/workflows/cert-watch.yml` 每天从公网核对两个入口的证书（有效、名字匹配、剩余不少于总有效期的四分之一，90 天证书约 22 天），不满足即失败，GitHub 通知维护者；它只在默认分支 `main` 上生效，所以合入 `main` 之后才开始每天检查。
 - **已知噪音**：同一台机上还有不属于本项目的证书，其中一张续期失败、一张续期配置损坏，它们让 `certbot.service` 每次都以失败结束，但不影响其它证书续期；所以本项目的证书以 `cert-watch.yml` 的结论为准，不看 `certbot.service` 的整体状态。
 
+## 首次上线记录（2026-09-25，#63）
+
+只记录做了什么，不含任何密钥或私钥内容。
+
+- 目标机 `103.117.123.226`（Ubuntu 22.04，2 核 2 GB，Docker 29 / Compose v5 已装）：先用只含 ACME 挑战的临时 80 端口块签发 `prev.yangtzeu.work` 证书，再换成入库的 `deploy/nginx/preview.conf`（`nginx -t` 通过后 reload）；新建 `/opt/yzgc/preview`；加上面的续期钩子。同机其它站点未改动。
+- 部署 SSH：新的 ed25519 密钥（公钥以 `restrict` 选项加入目标机部署用户的 `authorized_keys`），私钥只在维护者机器与 `preview` 环境级 secrets 里；known_hosts 取自已信任的主机公钥。
+- GitHub OAuth：正式环境用「Geek Class Admin」应用，新增回调 `https://yangtzeu.work/auth/callback`（旧的 `github.yangtzeu.work` 回调保留到旧站下线）；预发布用另一个应用，回调含 `https://prev.yangtzeu.work/auth/callback`。两个环境的会话密钥、加密密钥各自独立生成。
+- Turnstile 未配（没有 Cloudflare 账号）：两项都为空＝关闭，见 [ENVIRONMENTS](ENVIRONMENTS.md)。
+
 ## 配置合同
 
 环境变量**只**经 `.env` 文件：`deploy/env/.env.production` 与 `deploy/env/.env.preview` 提交入库，非密值（地址、端口、域名、路径、开关）预填真实值，密钥字段留空由 CI/CD 注入。完整字段契约、可见性规则与 GitHub 环境 secrets/vars 清单见 [ENVIRONMENTS](ENVIRONMENTS.md)；本机开发模板见 [ENVIRONMENT](ENVIRONMENT.md)。
@@ -153,7 +162,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 
 - 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
 - 宿主 nginx 只做 TLS 终止与反代，不读取应用密钥；安全头统一在宿主下发，容器不重复。
-- 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets；不在仓库、脚本或日志中出现。
+- 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
 - 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料。
 
 ## 发布和回滚验收
