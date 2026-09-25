@@ -21,7 +21,7 @@
                  ├─ /console、/admin、/signin（含子路径） → sites/console/index.html（app/console，Vue + Tuffex）
                  ├─ /healthz  → server:3000（web 也代理，部署脚本用它做健康门）
                  ├─ /api/*、/auth/* → server:3000（Fastify + /data 命名卷）
-                 ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀）
+                 ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀；location ^~，图片、字体也转给论坛）
                  ├─ /admin、/admin/*、/console、/console/*、/signin → admin SPA 入口
                  └─ 其余路径 → portal SPA 入口
 ```

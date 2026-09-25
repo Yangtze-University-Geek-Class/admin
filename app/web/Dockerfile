@@ -159,10 +159,11 @@ server {
     }
 
     # ── 论坛：产物以 /forum/ 为 baseURL，转发时剥掉前缀，容器内即站点根 ──
+    # ^~：前缀命中后不再看下面的正则 location，否则 /forum/ 下的图片、字体会被官网的图片规则截走（#81）。
     location = /forum {
         return 308 /forum/;
     }
-    location /forum/ {
+    location ^~ /forum/ {
         proxy_pass http://forum:3000/;
         include /etc/nginx/conf.d/90-proxy-headers.conf;
     }
