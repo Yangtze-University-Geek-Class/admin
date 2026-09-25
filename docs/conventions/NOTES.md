@@ -77,7 +77,7 @@ notes/
 
 - **开发前**：`node scripts/task.mjs start <issue> <slug>` 建分支和 worktree 时写下「开工」，没有开工记录不许改代码。启动时必须带身份（见 §5），缺了直接报错。
 - **开发中**：每完成上表里的一步就记一条，至少包括每次提交、开 PR、收到审查结论、每轮返工。
-- **合并前**：PR 的链路里必须已经有引用本 issue 的「开工」「提交」「PR」「审查」，并且这个 PR 新增了引用本 issue 的记录（§6 的 CI 检查会拦）。「PR」和「审查」要在开 PR、拿到审查结论之后补记，再推一次。
+- **合并前**：PR 的链路里必须已经有引用本 issue 的「开工」「提交」「PR」「审查」，并且这个 PR 新增了引用本 issue 的记录（§6 的 CI 检查会拦）。审查人在审查进行中先核对已有的开工、提交、PR 记录（可用 `node scripts/note.mjs check --pr --for-review`）；审查结论给出后，作者补齐 PR 描述并补一条「审查」记录（`docs(notes): …`），推送到 task 分支，CI 变绿后方可合并。
 - **开发后**：合并、发布、验收在 task 分支之外发生，照样要记（会先暂存，见 §5）；`node scripts/task.mjs finish <issue>` 删 worktree 前写下「收尾」。链路以收尾结束才算完整。
 - 委派子代理时，把身份和链路交代给它；子代理自己记，执行者写它自己。
 - 本规范生效前已经开工、还没合并的 task：合并 stage 之后的第一次提交前补一条「开工」，「做了什么」写明原来的开工时间和「本规范生效前开工，补记」，之后照常记。时间就是补记的时刻，不往前改。
@@ -106,7 +106,7 @@ node scripts/task.mjs finish 91                      # 写「收尾」
 | 在哪 | 查什么 |
 |---|---|
 | `pnpm check`（`check:notes` → `node scripts/note.mjs check`） | 目录只能是 `<日期>/<用户名>/<链路>.md`；标题、负责人和目录一致；每条记录的标题、阶段和必填项；时间不倒退；每条链路第一条是「开工」、收尾之后没有记录；`notes/INDEX.md` 是最新的 |
-| CI `branch-guard` 的「执行记录（notes/）」（task 分支进 stage 的 PR） | 上面全部，加上：这个 task 的链路存在；有引用本 issue 的「开工」「提交」「PR」「审查」；本次 PR 新增了引用本 issue 的记录 |
+| CI `branch-guard` 的「执行记录（notes/）」（task 分支进 stage 的 PR） | 上面全部，加上：这个 task 的链路存在；有引用本 issue 的「开工」「提交」「PR」「审查」；本次 PR 新增了引用本 issue 的记录；已有记录未被改写或删除（严格只追加） |
 | CI `branch-guard` 的运行摘要（每次运行） | 把全部链路的一览表贴进 Actions 的运行摘要，stage 和 main 上随时能看到所有人的链路 |
 
 检查不过就补记录，不许改检查脚本来换绿色，也不许补写没发生过的事。脚本只能核对格式和是否记了，记的内容是否属实由审查人对照提交、PR 和 CI 核对（[CODE-REVIEW](CODE-REVIEW.md)）。

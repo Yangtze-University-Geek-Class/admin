@@ -12,10 +12,10 @@
 // start 与 finish 都要知道是谁在干活（docs/conventions/NOTES.md）：--user <GitHub 用户名> --by <执行者>，
 // 或环境变量 GEEK_NOTES_USER / GEEK_NOTES_BY；缺了就不开工、不收尾。
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { addNote, BY_RE, flushPending, PENDING_DIR, renderIndex, USER_RE } from "./note.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { addNote, branchSlug, BY_RE, collectChains, flushPending, PENDING_DIR, renderIndex, USER_RE } from "./note.mjs";
 
 /** task/<issue>/<slug>：与 check-branch-invariants.mjs、pr-contract.mjs 同一条规则 */
 export const TASK_BRANCH_RE = /^task\/([0-9]+)\/[a-z0-9]+(?:_[a-z0-9]+)*$/;
@@ -122,6 +122,16 @@ function notesIdentity(flags) {
   return { user, by };
 }
 
+export function finishTitle(pr, issue) {
+  if (pr?.state === "MERGED") {
+    return `PR #${pr.number} 已合并，清理 worktree`;
+  }
+  if (pr?.state === "CLOSED") {
+    return `PR #${pr.number} 已关闭未合并，放弃，清理 worktree`;
+  }
+  return "放弃，清理 worktree";
+}
+
 function start(issue, slug, flags = {}) {
   const identity = notesIdentity(flags);
   const root = mainRoot();
@@ -150,7 +160,12 @@ function start(issue, slug, flags = {}) {
     did: `node scripts/task.mjs start ${Number(issue)} ${slug}：建分支与 worktree ${relative(root, path)}，在 issue 上留开工记录`,
     result: commented ? "worktree 已建好，issue 上已留开工记录" : "worktree 已建好；gh 不可用，issue 上的开工记录要手工补",
   });
-  const flushed = flushPending(join(root, PENDING_DIR), path);
+  let flushed = [];
+  try {
+    flushed = flushPending(join(root, PENDING_DIR), path);
+  } catch (err) {
+    console.warn(`暂存记录并入跳过或异常：${err instanceof Error ? err.message : String(err)}`);
+  }
   writeFileSync(join(path, "notes", "INDEX.md"), renderIndex(path));
   console.log(`已建 task：${branch}`);
   console.log(`worktree：${path}`);
@@ -187,13 +202,37 @@ function finishOne(root, wt, identity) {
     return false;
   }
   if (resolve(process.cwd()).startsWith(resolve(row.path))) throw new Error(`当前目录在要删的 worktree 里（${row.path}）：先 cd 到主工作区再运行。`);
-  // 链路最后一条：收尾。worktree 马上要删，先暂存到主工作区，下一个 task 开工时随它入库。
-  addNote(join(root, PENDING_DIR), {
-    ...identity, chain: row.branch, stage: "收尾", issues: [String(row.issue)],
-    title: row.pr.number ? `PR #${row.pr.number} 已合并，清理 worktree` : "放弃，清理 worktree",
-    did: `node scripts/task.mjs finish ${row.issue}：删 worktree ${relative(root, row.path)} 与本地分支 ${row.branch}`,
-    result: row.decision.reason,
-  });
+
+  const chainSlug = branchSlug(row.branch);
+  const wtChains = collectChains(row.path);
+  const wtChain = [...wtChains.values()].find((c) => c.slug === chainSlug);
+  const stageChains = collectChains(root);
+  const stageChain = [...stageChains.values()].find((c) => c.slug === chainSlug);
+
+  const hasStart = (wtChain && wtChain.files.some((f) => f.entries.some((e) => e.stage === "开工"))) ||
+                   (stageChain && stageChain.files.some((f) => f.entries.some((e) => e.stage === "开工")));
+
+  if (hasStart) {
+    // 如果 PR 未合并（被放弃关闭），将 worktree 中尚未并入 stage 的 notes 记录复制到 pending，避免只有「收尾」导致链路断裂
+    if (row.pr.state !== "MERGED" && wtChain) {
+      for (const file of wtChain.files) {
+        const dest = join(root, PENDING_DIR, file.rel);
+        mkdirSync(dirname(dest), { recursive: true });
+        const content = readFileSync(join(row.path, file.rel), "utf8");
+        writeFileSync(dest, content);
+      }
+    }
+    // 链路最后一条：收尾。worktree 马上要删，先暂存到主工作区，下一个 task 开工时随它入库。
+    addNote(join(root, PENDING_DIR), {
+      ...identity, chain: row.branch, stage: "收尾", issues: [String(row.issue)],
+      title: finishTitle(row.pr, row.issue),
+      did: `node scripts/task.mjs finish ${row.issue}：删 worktree ${relative(root, row.path)} 与本地分支 ${row.branch}`,
+      result: row.decision.reason,
+    });
+  } else {
+    console.log(`链路 ${row.branch} 没有「开工」记录，跳过写入收尾记录。`);
+  }
+
   run("git", ["-C", root, "worktree", "remove", row.path]);
   // 合并后本地分支落后于 stage 或已被 squash：-D 删除是预期的；前面已确认 PR 合并或 issue 放弃
   run("git", ["-C", root, "branch", "-D", row.branch]);
@@ -237,7 +276,16 @@ function main() {
   throw new Error("用法：node scripts/task.mjs start <issue> <slug> | list | finish <issue> | prune，start/finish/prune 还要 --user <GitHub 用户名> --by <执行者>（或 GEEK_NOTES_USER / GEEK_NOTES_BY）");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return pathToFileURL(realpathSync(resolve(process.argv[1]))).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
   try {
     main();
   } catch (error) {

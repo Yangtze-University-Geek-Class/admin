@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   addNote, beijingNow, branchSlug, checkAll, checkChainFile, checkPullRequest, collectChains, checkChainOrder,
-  flushPending, renderIndex, renderSummary,
+  flushPending, mergeEntries, renderIndex, renderSummary,
 } from "../../scripts/note.mjs";
+import { finishTitle } from "../../scripts/task.mjs";
 
 // scripts/note.mjs：执行记录的写入、索引与核对（docs/conventions/NOTES.md，#91）。全部在临时目录里跑。
 const dirs: string[] = [];
@@ -219,5 +220,58 @@ describe("checkPullRequest", () => {
   it("不是 task 分支（例如 stage 进 main）时不要求", () => {
     const root = repo();
     expect(checkPullRequest(root, { base: "stage", head: "stage" })).toEqual([]);
+  });
+
+  it("审查模式（forReview: true）允许暂缺「审查」记录", () => {
+    const root = repo();
+    record(root, "开工", 0);
+    record(root, "提交", 5);
+    record(root, "PR", 10);
+    commit(root);
+    expect(checkPullRequest(root, { base: "stage", head: "task/91/agent_notes", forReview: true })).toEqual([]);
+  });
+
+  it("修改或删除已有记录时拒绝通过（只能追加）", () => {
+    const root = repo();
+    record(root, "开工", 0);
+    record(root, "提交", 5);
+    record(root, "PR", 10);
+    record(root, "审查", 20);
+    commit(root);
+    // 把分支切回 stage，合并这个提交，模拟已有记录进入 base
+    git(root, "checkout", "-q", "stage");
+    git(root, "merge", "-q", "task/91/agent_notes");
+    git(root, "checkout", "-q", "task/91/agent_notes");
+
+    // 尝试篡改已有记录内容
+    const chainPath = join(root, "notes/2026-09-26/crosery/task_91_agent_notes.md");
+    const original = readFileSync(chainPath, "utf8");
+    writeFileSync(chainPath, original.replace("有结果", "篡改的结果"));
+    // 追加一条新记录以满足新增记录检查
+    record(root, "返工", 30);
+    commit(root);
+
+    const problems = checkPullRequest(root, { base: "stage", head: "task/91/agent_notes" });
+    expect(problems.join("\n")).toMatch(/发现删除或修改已有记录的行/);
+  });
+});
+
+describe("mergeEntries 与 finishTitle", () => {
+  it("mergeEntries 按时间排序并去重", () => {
+    const dir = temp();
+    const file = join(dir, "notes/2026-09-26/crosery/test.md");
+    const meta = { date: "2026-09-26", user: "crosery", chain: "task/1/test" };
+    const b1 = "## 10:00:00 +08:00 · 开工 · #1 · 开工\n\n- 执行者：human-crosery\n- 做了什么：x\n- 结果：y\n";
+    const b2 = "## 09:00:00 +08:00 · 方案 · #1 · 早期方案\n\n- 执行者：human-crosery\n- 做了什么：x\n- 结果：y\n";
+    mergeEntries(file, meta, [b1, b2, b1]);
+    const text = readFileSync(file, "utf8");
+    expect(text.indexOf("09:00:00")).toBeLessThan(text.indexOf("10:00:00"));
+    expect(text.split("## 10:00:00").length).toBe(2); // 仅出现一次，已去重
+  });
+
+  it("finishTitle 准确反映 PR 状态", () => {
+    expect(finishTitle({ state: "MERGED", number: 42 }, 1)).toBe("PR #42 已合并，清理 worktree");
+    expect(finishTitle({ state: "CLOSED", number: 42 }, 1)).toBe("PR #42 已关闭未合并，放弃，清理 worktree");
+    expect(finishTitle(null, 1)).toBe("放弃，清理 worktree");
   });
 });

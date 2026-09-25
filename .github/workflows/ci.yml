@@ -71,6 +71,7 @@ jobs:
 
       # 全部链路的一览表贴进运行摘要：stage、main 上随时能看到每个人的链路（入口 notes/INDEX.md）。
       - name: 执行记录一览（运行摘要）
+        if: ${{ !cancelled() }}
         shell: bash
         run: node scripts/note.mjs index --summary >> "$GITHUB_STEP_SUMMARY"
 

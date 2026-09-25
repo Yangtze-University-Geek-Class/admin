@@ -11,9 +11,9 @@
 //
 // 时间一律取北京时间（Asia/Shanghai，+08:00），由脚本读系统时钟，不接受手填。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const TIME_ZONE = "Asia/Shanghai";
 /** 链路里一条记录的阶段；开工在最前，收尾在最后。 */
@@ -77,6 +77,34 @@ export function formatEntry({ time, stage, issues, title, by, did, result, next 
 
 function header({ date, user, chain }) {
   return `# ${chain} · ${user} · ${date}\n\n负责人：${user}\n`;
+}
+
+/** 按时间排序并合并条目，同一标题不重复写入 */
+export function mergeEntries(file, meta, newBlocks) {
+  mkdirSync(dirname(file), { recursive: true });
+  const currentText = existsSync(file) ? readFileSync(file, "utf8").replace(/\r\n/g, "\n") : header(meta);
+  const currentBlocks = currentText.split(/\n(?=## )/).slice(1).map(b => b.replace(/\n*$/, "\n"));
+
+  const allBlocks = [...currentBlocks];
+  const seenHeadings = new Set(currentBlocks.map(b => b.split("\n")[0].trim()));
+
+  for (const block of newBlocks) {
+    const trimmed = block.replace(/\n*$/, "\n");
+    const heading = trimmed.split("\n")[0].trim();
+    if (!seenHeadings.has(heading)) {
+      seenHeadings.add(heading);
+      allBlocks.push(trimmed);
+    }
+  }
+
+  const parsed = allBlocks.map(b => {
+    const firstLine = b.split("\n")[0];
+    const m = /^## (\d{2}:\d{2}:\d{2})/.exec(firstLine);
+    return { time: m ? m[1] : "00:00:00", block: b };
+  });
+  parsed.sort((a, b) => a.time.localeCompare(b.time));
+
+  writeFileSync(file, `${header(meta)}\n${parsed.map(p => p.block.trimEnd()).join("\n\n")}\n`);
 }
 
 /** 在文件末尾追加若干条记录；文件不存在时先写标题。 */
@@ -179,8 +207,8 @@ export function collectChains(root) {
   if (!existsSync(base)) return chains;
   for (const date of readdirSync(base).filter(name => DATE_RE.test(name)).sort()) {
     const dateDir = join(base, date);
-    for (const user of readdirSync(dateDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort()) {
-      for (const name of readdirSync(join(dateDir, user)).filter(n => n.endsWith(".md")).sort()) {
+    for (const user of readdirSync(dateDir, { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith(".")).map(d => d.name).sort()) {
+      for (const name of readdirSync(join(dateDir, user)).filter(n => n.endsWith(".md") && !n.startsWith(".")).sort()) {
         const rel = `notes/${date}/${user}/${name}`;
         const parsed = parseChain(readFileSync(join(root, rel), "utf8"));
         const key = `${user}/${name.slice(0, -3)}`;
@@ -215,7 +243,7 @@ export function renderIndex(root) {
   ];
   if (!dates.length) lines.push("还没有记录。");
   for (const date of dates) {
-    const users = readdirSync(join(base, date), { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort();
+    const users = readdirSync(join(base, date), { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith(".")).map(d => d.name).sort();
     lines.push(`- ${date}：${users.map(user => `[${user}](${date}/${user}/)`).join("、")}`);
   }
   return `${lines.join("\n")}\n`;
@@ -244,11 +272,12 @@ export function checkAll(root) {
   const problems = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
       const path = join(dir, entry.name);
       const rel = relative(root, path).split("\\").join("/");
       if (entry.isDirectory()) walk(path);
       else if (rel === "notes/INDEX.md") continue;
-      else if (rel.split("/").length !== 4) problems.push(`${rel}：notes/ 下只放 <日期>/<用户>/<链路>.md 和 INDEX.md`);
+      else if (!rel.endsWith(".md") || rel.split("/").length !== 4) problems.push(`${rel}：notes/ 下只放 <日期>/<用户>/<链路>.md 和 INDEX.md`);
       else problems.push(...checkChainFile(rel, readFileSync(path, "utf8")));
     }
   };
@@ -265,9 +294,11 @@ function git(root, args) {
 
 /**
  * task/<issue>/<slug> 进 stage 的 PR：这个分支的链路里必须有引用 #<issue> 的开工、提交、PR、审查，
- * 并且这次改动新增了引用 #<issue> 的记录。不是 task 分支时不要求。返回问题列表。
+ * 并且这次改动新增了引用 #<issue> 的记录。forReview 为 true 时允许暂缺「审查」记录。
+ * 此外，严格检查 notes/ 下已有记录不能被修改或删除（除 INDEX.md 外）。
+ * 不是 task 分支时不要求。返回问题列表。
  */
-export function checkPullRequest(root, { base, head }) {
+export function checkPullRequest(root, { base, head, forReview = false }) {
   const task = TASK_RE.exec(head ?? "");
   if (!task) return [];
   const issue = task[1];
@@ -276,56 +307,123 @@ export function checkPullRequest(root, { base, head }) {
   const entries = mine.flatMap(chain => chain.files.flatMap(file => file.entries)).filter(entry => entry.issues.includes(issue));
   const hint = stage => `  node scripts/note.mjs add --stage ${stage} --issue ${issue} --title "<一句话>" --did "<做了什么>" --result "<结果和证据>"`;
   if (!mine.length) return [`没有 ${head} 的执行链路：notes/<日期>/<GitHub 用户名>/${slug}.md 不存在。开工时 task.mjs start 会写第一条，之后每一步都要记（docs/conventions/NOTES.md）。`];
-  const problems = REQUIRED_BEFORE_MERGE.filter(stage => !entries.some(entry => entry.stage === stage))
+
+  const required = forReview ? REQUIRED_BEFORE_MERGE.filter(stage => stage !== "审查") : REQUIRED_BEFORE_MERGE;
+  const problems = required.filter(stage => !entries.some(entry => entry.stage === stage))
     .map(stage => `${head} 的链路里还没有引用 #${issue} 的「${stage}」记录，例如：\n${hint(stage)}`);
-  const diff = git(root, ["diff", "--unified=0", "--no-color", "--diff-filter=AM", `${base}...HEAD`, "--", "notes/"]);
+
+  // 只能追加，不改不删（NOTES §3、AGENTS.md 黑名单）
+  try {
+    const statusLines = git(root, ["diff", "--no-renames", "--name-status", `${base}...HEAD`, "--", "notes/"]).split("\n").filter(Boolean);
+    for (const line of statusLines) {
+      const parts = line.split(/\s+/);
+      const status = parts[0];
+      const path = parts[1];
+      if (path === "notes/INDEX.md") continue;
+      if (status === "D" || status === "R") {
+        problems.push(`不能删除或改名执行记录：${path}（状态 ${status}）违反「只能追加，已写的记录不改不删」`);
+      }
+    }
+    const diffLines = git(root, ["diff", "--no-renames", "--unified=0", "--no-color", `${base}...HEAD`, "--", "notes/"]).split("\n");
+    let currentDiffFile = "";
+    for (const line of diffLines) {
+      if (line.startsWith("diff --git a/")) {
+        const parts = line.split(" ");
+        currentDiffFile = (parts[2] ?? "").replace(/^a\//, "");
+        continue;
+      }
+      if (currentDiffFile === "notes/INDEX.md") continue;
+      if (line.startsWith("-") && !line.startsWith("--- ")) {
+        problems.push(`${currentDiffFile}：发现删除或修改已有记录的行（「${line.slice(1).trim()}」），违反「只能往末尾追加，已写的记录不改不删」`);
+        break;
+      }
+    }
+  } catch (err) {}
+
+  const diff = git(root, ["diff", "--no-renames", "--unified=0", "--no-color", "--diff-filter=AM", `${base}...HEAD`, "--", "notes/"]);
   const added = diff.split("\n").filter(line => line.startsWith("+## ")).map(line => ENTRY_RE.exec(line.slice(1))).filter(Boolean);
   if (!added.some(m => m[5].split(" ").includes(`#${issue}`))) problems.push(`这次改动没有新增引用 #${issue} 的记录：链路要随开发持续往后记。`);
   return problems;
 }
 
-/** 把 from/notes 下暂存的记录并进 to/notes（按文件追加），然后删掉暂存。返回并进的文件。 */
+/** 把 from/notes 下暂存的记录并进 to/notes（按时间合并，去重），然后删掉暂存。返回并进的文件。 */
 export function flushPending(from, to) {
   const base = join(from, "notes");
   if (!existsSync(base)) return [];
   const moved = [];
+  const targetBranch = currentBranch(to);
+  const targetSlug = branchSlug(targetBranch);
+
+  const activeTaskBranches = new Set();
+  try {
+    const text = git(to, ["worktree", "list", "--porcelain"]);
+    for (const b of text.trim().split("\n\n")) {
+      const brLine = b.split("\n").find(l => l.startsWith("branch refs/heads/task/"));
+      if (brLine) {
+        activeTaskBranches.add(branchSlug(brLine.replace(/^branch refs\/heads\//, "")));
+      }
+    }
+  } catch {}
+
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(path);
+        continue;
+      }
+      if (!entry.name.endsWith(".md")) continue;
+      const slug = entry.name.slice(0, -3);
+      if (slug !== targetSlug && activeTaskBranches.has(slug)) {
         continue;
       }
       const rel = relative(from, path).split("\\").join("/");
       const text = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
       const parsed = parseChain(text);
       const blocks = text.split(/\n(?=## )/).slice(1);
-      if (!parsed.chain || !blocks.length) throw new Error(`暂存的 ${rel} 格式不对，没有并进去；请手工处理`);
-      appendEntries(join(to, rel), { date: parsed.date, user: parsed.user, chain: parsed.chain }, blocks);
+      if (!parsed.chain || !blocks.length) continue;
+      mergeEntries(join(to, rel), { date: parsed.date, user: parsed.user, chain: parsed.chain }, blocks);
       rmSync(path);
       moved.push(rel);
     }
   };
   walk(base);
-  rmSync(base, { recursive: true, force: true });
+  const cleanEmpty = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) cleanEmpty(join(dir, entry.name));
+    }
+    if (readdirSync(dir).length === 0) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  cleanEmpty(base);
   return moved;
 }
 
 // ── 命令行 ───────────────────────────────────────────────────────────────
+
+const ALLOWED_OPTIONS = new Set([
+  "user", "by", "chain", "stage", "issue", "title", "did", "result", "next",
+  "base", "head", "pr", "for-review", "summary"
+]);
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   const options = { issues: [] };
   for (let i = 0; i < rest.length; i += 1) {
     const key = rest[i];
-    if (key === "--pr" || key === "--summary") {
+    if (key === "--pr" || key === "--summary" || key === "--for-review") {
       options[key.slice(2)] = true;
       continue;
     }
     if (!key.startsWith("--") || i + 1 >= rest.length) throw new Error(`参数不对：${key}`);
+    const name = key.slice(2);
+    if (!ALLOWED_OPTIONS.has(name)) throw new Error(`不认识的参数：${key}`);
     const value = rest[++i];
-    if (key === "--issue") options.issues.push(...value.split(/[\s,]+/).filter(Boolean).map(v => v.replace(/^#/, "")));
-    else options[key.slice(2)] = value;
+    if (name === "issue") options.issues.push(...value.split(/[\s,]+/).filter(Boolean).map(v => String(Number(v.replace(/^#/, "")))));
+    else options[name] = value;
   }
   return { command, options };
 }
@@ -348,13 +446,51 @@ export function mainRoot(root) {
  * 写一条记录。当前 worktree 就在这条链路的 task 分支上时写进去并更新索引；否则（release
  * worktree、主工作区、别的链路）暂存到主工作区的 .claude/notes-pending/，下一个 task 开工时并进去。
  */
+export function worktreeForBranch(root, branch) {
+  try {
+    const text = git(root, ["worktree", "list", "--porcelain"]);
+    const blocks = text.trim().split("\n\n");
+    for (const b of blocks) {
+      const lines = b.split("\n");
+      const wtLine = lines.find(l => l.startsWith("worktree "));
+      const brLine = lines.find(l => l.startsWith("branch "));
+      if (wtLine && brLine) {
+        const wtPath = wtLine.replace(/^worktree\s+/, "");
+        const brName = brLine.replace(/^branch\s+refs\/heads\//, "");
+        if (brName === branch) return wtPath;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function record(repo, options) {
   const branch = currentBranch(repo);
   const chain = options.chain ?? branch;
-  const here = TASK_RE.test(branch) && branchSlug(chain) === branchSlug(branch);
-  const target = here ? repo : join(mainRoot(repo), PENDING_DIR);
+  const isPostStage = ["合并", "发布", "验收", "收尾"].includes(options.stage);
+
+  let targetRepo = null;
+  const directWorktree = worktreeForBranch(repo, chain);
+  if (directWorktree && !isPostStage) {
+    let alreadyMerged = false;
+    try {
+      git(directWorktree, ["merge-base", "--is-ancestor", "HEAD", "origin/stage"]);
+      alreadyMerged = true;
+    } catch {}
+    if (!alreadyMerged) {
+      targetRepo = directWorktree;
+    }
+  }
+
+  const here = targetRepo !== null;
+  const target = here ? targetRepo : join(mainRoot(repo), PENDING_DIR);
   const file = addNote(target, { ...options, chain });
-  if (here) writeFileSync(join(repo, "notes", "INDEX.md"), renderIndex(repo));
+  if (here) {
+    mkdirSync(join(target, "notes"), { recursive: true });
+    writeFileSync(join(target, "notes", "INDEX.md"), renderIndex(target));
+  }
   return { file, here };
 }
 
@@ -390,7 +526,7 @@ function main() {
   }
   if (command === "check") {
     const problems = checkAll(repo);
-    if (options.pr) problems.push(...checkPullRequest(repo, { base: options.base ?? "origin/stage", head: options.head ?? currentBranch(repo) }));
+    if (options.pr) problems.push(...checkPullRequest(repo, { base: options.base ?? "origin/stage", head: options.head ?? currentBranch(repo), forReview: !!options["for-review"] }));
     if (problems.length) {
       for (const problem of problems) console.error(problem);
       process.exit(1);
@@ -402,7 +538,16 @@ function main() {
   process.exit(2);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isDirectRun() {
+  if (!process.argv[1]) return false;
+  try {
+    return pathToFileURL(realpathSync(resolve(process.argv[1]))).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
   try {
     main();
   }
