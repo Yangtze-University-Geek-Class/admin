@@ -1,8 +1,8 @@
 # Portal 模块合同（`app/web/sites/portal`）
 
-> 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；无独立登录态。
+> 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-25
 
 ## 范围与路由
 
@@ -33,6 +33,7 @@
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
 | `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
+| `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
 | `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；壁纸图层与换壁纸面板在 `Wallpaper.tsx`，壁纸清单在 `lib/wallpapers.ts`，文件在 `public/portal/wallpapers/`（每张一张 1920×1080 静态图和一张缩略图） |
@@ -50,6 +51,15 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - 控制台 `externalUrl("admin", "/console")`：生产与预发布都是本域名下的 `/console`（每个环境只有一个域名，管理端按路径进入），本机开发为 `/sites/admin/console`。意见箱是站内 `/feedback`。
 - 论坛最新与公开仓库在生产官网拿不到实时接口（论坛的本地状态接口只在开发时存在），因此随构建发布静态快照 `public/portal/forum-latest.json`、`public/portal/repos.json`。界面上不写「快照」「示意」这类给开发者看的说明（`tests/web/portal-os.test.ts` 扫描拦截），数字只写数据里真有的（话题数、用户数、仓库数）。论坛快照只收录已在仓库里公开编辑过的话题（`app/forum/content/curation.json` 的 `topics`），字段白名单为 id、标题、分类、颜色、回复数、浏览数、时间，**不带作者或任何用户名**：论坛私有投影里的用户名含真实姓名，不得进入公开官网包。更新快照 = 替换这两个文件并跑 `tests/web/portal-snapshots.test.ts`（它校验字段白名单与话题 id）。
 - GitHub 天际线的方块高度由固定种子生成（`lib/skyline.ts`），只是造型：页面上不做色阶图例、不标数值，也不在任何地方把它说成提交统计。
+
+## 登录入口（菜单栏）
+
+官网不自建登录态，只显示核心服务的全站 GitHub 登录（官网、论坛、控制台共用同一个 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」）。`components/os/YugcOs.tsx` 在菜单栏时钟左边放这个入口，`lib/account.ts` 读完 `/auth/me` 之前不显示：
+
+- 未登录：「用 GitHub 登录」链接（GitHub 图标 + 文字，钴蓝底），指向 `/auth/github?return_to=<当前 origin>/forum/`，登录后进论坛首页。本机开发时 5173 把 `/auth` 代理给 127.0.0.1:3000，回到的 `/forum/` 再 302 到 3456（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。
+- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
+
+官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像内容是上游示例种子，但登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
 
 ## 加入我们（投递）
 

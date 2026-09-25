@@ -32,7 +32,10 @@ function devSiteFallback(): Plugin {
           // 论坛是独立工程（app/forum，Nuxt dev server 在 3456），开发态深链接一并转过去
           if (path === "/forum" || path.startsWith("/forum/") || path === "/sites/forum" || path.startsWith("/sites/forum/")) {
             _res.statusCode = 302;
-            _res.setHeader("Location", `http://127.0.0.1:3456${path.startsWith("/forum") ? path : "/"}`);
+            // 开发态论坛在站点根，去掉 /forum 前缀（统一登录后 return_to=/forum/… 会经这里回到论坛原页面）
+            const query = String(req.url ?? "").includes("?") ? `?${String(req.url).split("?").slice(1).join("?")}` : "";
+            const forumPath = path.startsWith("/forum") ? path.slice("/forum".length) || "/" : "/";
+            _res.setHeader("Location", `http://127.0.0.1:3456${forumPath}${query}`);
             _res.end();
             return;
           }

@@ -1,8 +1,8 @@
 # Forum 服务合同（`app/forum`）
 
-> 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可只读显示极客班论坛快照，仍无真实认证与后端。
+> 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；本机可显示极客班论坛快照；登录只走全站 GitHub 登录（上游验收与本机示例预览除外）；论坛仍没有后端。
 
-状态：`current` · 更新：2026-09-24 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-09-25 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -10,7 +10,7 @@
 |---|---|
 | `app/forum/app/pages/` | Nuxt 路由（首页、话题、分类、标签、用户、通知等） |
 | `app/forum/app/components/` | 组合与展示；组件自动注册，不手工仿制同名 React 组件 |
-| `app/forum/app/composables/` `app/forum/app/stores/` | 交互状态与原仓数据操作（Pinia） |
+| `app/forum/app/composables/` `app/forum/app/stores/` | 交互状态与原仓数据操作（Pinia）；`useSiteAccount.ts` 读全站登录（同域 `/auth/me`）、退出、说明登录结果 |
 | `app/forum/app/data/` | 类型、示例种子、权限 helper 与序列化 |
 | `app/forum/app/plugins/` | `persist.client.ts`（浏览器存储）、`local-snapshot.client.ts`（只读快照替换 store） |
 | `app/forum/server/routes/api/local-forum/` | dev 专用只读快照路由：`state`、`assets/[hash]` |
@@ -33,11 +33,26 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 契约：身份与数据
 
-示例模式：`app/stores/session.ts` 的 login 只是选择示例用户；`app/plugins/persist.client.ts` 使用 localStorage 保存示例状态。没有真实认证、服务端权限、共享数据库、附件存储或邮件服务。界面权限和 store 测试仅验证演示行为，不承担安全边界。不得加载旧论坛会话或向后台传递示例 role 以取得真实权限。
+登录方式与内容来源是两件事。内容来源是示例种子或本机快照（见下）；登录方式由 `nuxt.config.ts` 的 `loginMode` 决定：默认 `site`（全站统一登录，见下文「全站登录」），部署镜像、`forum:generate` 和快照模式都是它；只有 `scripts/forum.mjs` 在示例种子上为 `verify`（上游 CDP 验收）和 `start`/`dev`（本机示例预览）设 `GEEK_FORUM_LOGIN=demo`，这时才是上游的示例登录。快照模式永远是 `site`。
 
-只读快照模式：根 `scripts/forum.mjs start|dev` 发现 `.tools/forum-runtime/<快照>/` 或收到 `GEEK_FORUM_CONTENT_DIR` 时，把该目录交给 Nuxt。dev 专用 Nitro 路由 `server/routes/api/local-forum/state` 与 `assets/[hash]` 只读提供 `content.json`、`asset-index.json` 和 `assets/`；`app/plugins/local-snapshot.client.ts` 经 `shared/local-snapshot.ts` 校验后整体替换 store，会话固定为游客，`persist.client.ts` 不把论坛状态和会话写入 localStorage（侧栏、主题等 UI 偏好仍存本机浏览器）；示例用户选择器、重置控件和 `/new` 命令不再出现，所有「登录」触发点改为打开只读说明；`LocalSnapshotGate` 在数据到达前不挂载页面，加载失败显示错误而不回退示例种子。两条路由仅 dev 服务器提供、只接受 GET/HEAD，资产只按 64 位小写哈希解析，类型与 disposition 取自索引，SVG 不在允许列表，响应 no-store，支持单段 Range。这仍是本机只读展示：没有真实登录、写入、跨设备持久化或服务端授权；`GEEK_FORUM_SOURCE=demo` 可强制回到示例种子。
+示例登录（`loginMode=demo`）：`app/stores/session.ts` 的 login 只是选择示例用户；`app/plugins/persist.client.ts` 使用 localStorage 保存示例状态。没有真实认证、服务端权限、共享数据库、附件存储或邮件服务。界面权限和 store 测试仅验证演示行为，不承担安全边界。不得加载旧论坛会话或向后台传递示例 role 以取得真实权限。
 
-编辑层：`app/forum/content/curation.json` 与 `app/forum/content/posts/*.md` 由 `app/forum/shared/local-curation.ts` 在服务端应用于快照，再经 `parseSnapshotState` 重新校验。规则固定为：投影里标记 `archived` 的旧分类全部并入「老帖归档」一个分类，每个旧帖以 `legacy-<原分类 id>` 标签保留原分类名；`categories`/`tags` 新增新时代分类与标签，`categoryPatches` 只允许改 name/description/color/icon，`categoryOrder` 决定侧栏顺序，`topics` 可改标题、分类、标签、置顶，`posts` 用 `contentFile` 指向润色后的 Markdown。任何引用不存在的 id 都让加载失败（503 `invalid_state`），不静默跳过。编辑后需重启 `pnpm forum:start`。原投影文件不被修改；旧分类 URL（`legacyLinks.categories`）尚未映射到归档标签页。
+只读快照模式：根 `scripts/forum.mjs start|dev` 发现 `.tools/forum-runtime/<快照>/` 或收到 `GEEK_FORUM_CONTENT_DIR` 时，把该目录交给 Nuxt。dev 专用 Nitro 路由 `server/routes/api/local-forum/state` 与 `assets/[hash]` 只读提供 `content.json`、`asset-index.json` 和 `assets/`；`app/plugins/local-snapshot.client.ts` 经 `shared/local-snapshot.ts` 校验后整体替换 store，论坛 store 的会话固定为游客，`persist.client.ts` 不把论坛状态和会话写入 localStorage（侧栏、主题等 UI 偏好仍存本机浏览器）；示例用户选择器、重置控件和 `/new` 命令不再出现（统一登录下都不出现），登录见下文「全站登录」；`LocalSnapshotGate` 在数据到达前不挂载页面，加载失败显示错误而不回退示例种子。两条路由仅 dev 服务器提供、只接受 GET/HEAD，资产只按 64 位小写哈希解析，类型与 disposition 取自索引，SVG 不在允许列表，响应 no-store，支持单段 Range。这仍是本机只读展示：没有写入、跨设备持久化或服务端授权；`GEEK_FORUM_SOURCE=demo` 可强制回到示例种子。
+
+全站登录（`loginMode=site`）：论坛没有自己的登录，登录就是核心服务的 GitHub 登录（`/auth/github` → GitHub → `/auth/callback`，写下 `sid`），官网、论坛、控制台共用这一个 cookie，只有 `CONSOLE_ORG` 的 active 成员能登录成功（规则见 [SECURITY](../../architecture/SECURITY.md)）。`useSiteAccount.ts` 在浏览器里读同域 `/auth/me`：返回 `signed_in: true` 就是已登录，404、HTML 或请求失败都当作未登录。`ForumHeader.vue` 右上角是唯一入口，`/auth/me` 读完之前不显示：未登录是 Tuffex 按钮「用 GitHub 登录」（窄屏只写「登录」，读屏名称不变），跳到 `/auth/github?return_to=<当前论坛页面的完整地址，含查询和锚点>`（非开发态由 `useAppLink().absoluteUrl(route.fullPath)` 生成，带 `/forum` 前缀）；开发态指向 `http://127.0.0.1:5173/auth/github?return_to=http://127.0.0.1:5173/forum<当前路径>`，因为 `return_to` 只接受 `PUBLIC_ORIGIN`。已登录是 GitHub 头像，菜单里是 `@<登录名>`、「控制台」（线上同域 `/console`，开发态 `http://127.0.0.1:5173/console`）和「退出」（`POST /auth/signout`，全站一起退出；服务端返回成功才显示已退出，失败弹 toast「没有退出成功」）。同一页面顶栏与侧栏共用一次 `/auth/me` 请求。`ForumSidebar.vue` 底部不再有登录按钮，登录后显示同一个账号，工作区说明写「长江大学极客班」。登录没成功时核心服务带 `?signin=<原因>` 回到原页面，`useSiteAccount` 按原因弹一次 Tuffex toast（8 秒）并用 `router.replace` 去掉这个参数，刷新不会重复提示：
+
+| `signin` | 标题 | 说明 |
+|---|---|---|
+| `not_member` | 只有极客班成员可以登录 | 这个 GitHub 账号不在极客班的 GitHub 组织里。不登录也能看帖子。 |
+| `invite_pending` | 还没接受组织邀请 | 到 GitHub 的通知或邮件里接受极客班组织的邀请，再回来登录。 |
+| `cancelled` | 已取消登录 | 需要时再点右上角的登录。 |
+| `failed` | 登录没有完成 | 请稍后再试一次。 |
+
+去掉 `signin` 参数时保留锚点（`#post-N`）。
+
+登录只识别身份，GitHub 账号不对应任何论坛成员，store 会话仍是游客，所以已登录的成员也不能发帖、回复。`/new`、`/bookmarks`、`/notifications`、`/u/<用户名>/preferences` 对游客显示「发帖还没开放」「书签还没开放」「通知还没开放」「资料修改还没开放」和「……正在接入」，没有登录按钮；`TopicControls.vue` 的游客提示是「回复还没开放」。每一帖的「赞」「书签」和个人页的「关注」按钮仍然显示；点击会打开 `loginOpen`，统一登录下 `LoginModal.vue` 不渲染示例选择器，而是弹 toast「现在还不能操作 / 发帖、回复、点赞和收藏正在接入，现在可以浏览。」再关上。`persist.client.ts` 在统一登录下不恢复浏览器里存过的示例会话。线上论坛与核心同域（`/forum/` 由 web 容器反代），直接请求 `/auth/me`；本机论坛单独跑在 3456，`nuxt.config.ts` 的 `nitro.devProxy` 把 `/auth` 转给 `http://127.0.0.1:3000/auth`，并把 `Origin` 换成 `http://127.0.0.1:5173`（核心只接受 `PUBLIC_ORIGIN` 的写请求，否则退出会被 403），这条代理不进静态产物（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。示例登录不变：顶栏和侧栏仍是上游的示例「登录」，不显示全站账号；`useSiteAccount` 在两种登录方式下都会读 `/auth/me` 并处理 `?signin=`。
+
+编辑层：`app/forum/content/curation.json` 与 `app/forum/content/posts/*.md` 由 `app/forum/shared/local-curation.ts` 在服务端应用于快照，再经 `parseSnapshotState` 重新校验。规则固定为：**旧论坛内容默认不显示**（`legacy.mode = "hide"`，所有者 2026-09-24：「我们不要老帖归档，目前的数据都不需要了」）——投影里标记 `archived` 的旧主题连同回复、旧分类、只被旧帖用到的标签、只出现在旧帖里的账号都去掉，也没有「老帖归档」类别；所有者挑出的代表性旧帖把话题编号写进 `legacy.include` 就按普通话题重新显示（取消置顶，通常再用 `topics` 放进新类别），编号不存在时加载失败。`legacy.mode = "archive"` 保留旧行为（旧分类并入「老帖归档」，每个旧帖以 `legacy-<原分类 id>` 标签保留原分类名），只用于回看。`categories`/`tags` 新增新时代分类与标签，`categoryPatches` 只允许改 name/description/color/icon，`categoryOrder` 决定侧栏顺序，`topics` 可改标题、分类、标签、置顶，`posts` 用 `contentFile` 指向润色后的 Markdown。任何引用不存在的 id 都让加载失败（503 `invalid_state`），不静默跳过。编辑后需重启 `pnpm forum:start`。原投影文件不被修改；旧分类 URL（`legacyLinks.categories`）尚未映射到归档标签页。
 
 演示种子可复现；测试不允许通过随机新 ID 改写原仓确定性约定。用户浏览器内的示例内容不在不同设备同步。上游“重置示例数据”只由用户明确点击执行，不在迁移脚本中清理用户存储。
 
@@ -76,7 +91,7 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 环境与版本显示
 
-“关于”页的 DeploymentInfo 显示 local / preview / production，并按 [RELEASES](../../conventions/RELEASES.md) 说明发版方式：预发布由打在 `stage` 提交上的 `vX.Y.Z-rc.N` tag 部署，版本显示 `X.Y.Z-rc.N@<sha12>`；正式由打在 `main` 同一提交上的 `vX.Y.Z` tag 部署，显示 `X.Y.Z`；推送分支本身不部署。固定域名来自根 [deploy/environments.json](../../../deploy/environments.json)：`prev.yangtzeu.work` 预发布，`yangtzeu.work` 正式；两套环境同机不同栈，容器内论坛端口都是 3000，宿主侧由 `web` 容器按 `/forum` 路径反代。本机明确标记“本地开发 · 未发布”，另按内容来源标记“上游示例”或“极客班论坛只读快照 + 采集时间”。Nuxt 配置只读取公共的域名/版本合同，不跨模块引用 React、Fastify 或业务数据。`GEEK_RELEASE_VERSION` 和完整 `GEEK_RELEASE_COMMIT` 只由受控构建注入，不是人已验收的证据。`-rc.N` 只能与 `@<sha12>` 同时出现且只用于预发布，`<sha12>` 必须等于提交前 12 位；`shared/deployment.ts` 对其它组合直接报错，构建因此失败。
+“关于”页的 DeploymentInfo 显示 local / preview / production，并按 [RELEASES](../../conventions/RELEASES.md) 说明发版方式：预发布由打在 `stage` 提交上的 `vX.Y.Z-rc.N` tag 部署，版本显示 `X.Y.Z-rc.N@<sha12>`；正式由打在 `main` 同一提交上的 `vX.Y.Z` tag 部署，显示 `X.Y.Z`；推送分支本身不部署。固定域名来自根 [deploy/environments.json](../../../deploy/environments.json)：`prev.yangtzeu.work` 预发布，`yangtzeu.work` 正式；两套环境同机不同栈，容器内论坛端口都是 3000，宿主侧由 `web` 容器按 `/forum` 路径反代。本机明确标记“本地开发 · 未发布”，另按内容来源说明「当前页面仍使用上游示例内容」或「当前页面显示极客班论坛的帖子，发帖与回复还没接入」；快照模式下「关于」页写「当前显示极客班论坛的公开内容（更新于 <采集时间>）」，界面不再出现「只读快照」字样。Nuxt 配置只读取公共的域名/版本合同，不跨模块引用 React、Fastify 或业务数据。`GEEK_RELEASE_VERSION` 和完整 `GEEK_RELEASE_COMMIT` 只由受控构建注入，不是人已验收的证据。`-rc.N` 只能与 `@<sha12>` 同时出现且只用于预发布，`<sha12>` 必须等于提交前 12 位；`shared/deployment.ts` 对其它组合直接报错，构建因此失败。
 
 ## 运行
 
@@ -103,6 +118,8 @@ CDP 使用独立临时浏览器，只清理本次进程组。原仓单测与旧 
 ## 已知限制与生产准入
 
 - 快照投影仍在 `.tools/` 私有目录，不进 Git、CI 缓存或发布包；`pnpm forum:generate` 产物中不存在 dev 专用路由。
-- 真实统一认证、后端持久化、服务器授权与内部 Hub 未实现前，不作为生产内部论坛开放。后续在该原代码上接入真实服务，而不是重新启用旧论坛。
+- 全站 GitHub 登录已接入界面，但论坛后端持久化、服务器授权与内部 Hub 未实现前（#57），不作为生产内部论坛开放。后续在该原代码上接入真实服务，而不是重新启用旧论坛。
+- 镜像（预发布、正式）的内容仍是上游示例种子（快照不进镜像），登录方式是全站统一登录：顶栏只有「用 GitHub 登录」，登录后显示头像；关于页与顶部提示写明是示例帖子。
+- 发帖、回复、点赞、书签、通知、资料修改都没有后端；这些按钮只弹「现在还不能操作」。
 - 原始数据库和附件已按后续明确授权拉到 Mac 私有备份目录，见 [数据保全](../../ops/FORUM-DATA-CAPTURE.md)；由 `prepare.py` 生成的只读投影可按上文快照模式在本机显示，但未导入可写数据库、未激活旧会话。
-- 目标数据模型转换、身份认领和上线仍需另行设计/验收，不删除源数据。
+- 目标数据模型转换、身份认领和上线仍需另行设计/验收，不删除源数据。**未做**：旧论坛账号（包括当年用 GitHub 登录过的）还没有和现在的 GitHub 登录关联，改过的姓名也没有同步，登录后不会自动认领旧帖子。
