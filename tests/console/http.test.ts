@@ -44,7 +44,7 @@ describe("describeError", () => {
     const view = describeError(error, labelOf);
     expect(view.kind).toBe("forbidden");
     expect(view.title).toBe("没有「查看审计日志」权限");
-    expect(view.detail).toContain("班长");
+    expect(view.detail).toContain("舰长");
   });
 
   it("says when the GitHub organisation role is what blocks the capability", () => {

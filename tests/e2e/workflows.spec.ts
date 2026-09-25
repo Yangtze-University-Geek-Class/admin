@@ -80,9 +80,9 @@ test("signed-out visitors land on the GitHub sign-in page with a return path", a
 test("people are grouped into title tabs, each a sorted table, with no in-page search", async ({ page }) => {
   await openConsole(page, "/console/people");
   await expect(page.getByRole("heading", { name: "成员与权限", level: 1 })).toBeVisible();
-  for (const tab of ["全部", "班长", "部门负责人", "部门干事", "极客班成员", "领航员"]) await expect(page.getByRole("tab", { name: new RegExp(`^${tab}`) })).toBeVisible();
+  for (const tab of ["全部", "舰长", "队长", "部门舰员", "舰员", "领航员"]) await expect(page.getByRole("tab", { name: new RegExp(`^${tab}`) })).toBeVisible();
   await expect(page.getByRole("searchbox")).toHaveCount(0);
-  await page.getByRole("tab", { name: /^部门负责人/ }).click();
+  await page.getByRole("tab", { name: /^队长/ }).click();
   await expect(page).toHaveURL(/tab=head/);
   const logins = await page.locator("tbody tr .user-cell__login").allTextContents();
   expect(logins).toEqual(["@li-xiaoman", "@wang-zhe", "@sun-qiao", "@zhao-yi"]);

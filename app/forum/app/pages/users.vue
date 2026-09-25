@@ -13,7 +13,7 @@ interface DirectoryRow {
   displayName: string
   role: string
   roleRank: number
-  /** 极客班 title rank (班长 0 … no title 9); the column sorts by it first. */
+  /** 极客班 title rank (舰长 0 … no title 9); the column sorts by it first. */
   titleRank: number
   likesReceived: number
   topics: number
@@ -32,7 +32,7 @@ const columns: DataTableColumn<DirectoryRow>[] = [
   { key: 'user', title: '用户', auto: true, sortable: true, dataIndex: 'displayName' },
   // Header stays 「角色」: the upstream directory check asserts the header row
   // verbatim. The cell shows the 极客班 title when there is one, and the sort
-  // ranks by title first, then by forum role. Wide enough for 「社区部 · 负责人」.
+  // ranks by title first, then by forum role. Wide enough for 「社区部 · 队长」.
   { key: 'role', title: '角色', width: 150, sortable: true, sorter: (a, b) => a.titleRank - b.titleRank || a.roleRank - b.roleRank },
   { key: 'likesReceived', title: '已收到的赞', width: 110, align: 'right', sortable: true },
   { key: 'topics', title: '话题', width: 80, align: 'right', sortable: true },

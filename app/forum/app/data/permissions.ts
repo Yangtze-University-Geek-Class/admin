@@ -44,7 +44,7 @@ export function hasForumCapability(user: User | null | undefined, capability: Fo
 
 /**
  * Forum staff (版务), as the console defines it: whoever may moderate posts —
- * an admin or moderator by role, the 班长, or a head or crew member whose
+ * an admin or moderator by role, the 舰长, or a head or crew member whose
  * department pack includes `forum.post.moderate`.
  */
 export function isStaff(user: User | null | undefined): boolean {

@@ -12,7 +12,7 @@ import { ApiError } from "../lib/http";
 import { loadMe, useSession } from "../lib/session";
 import { siteUrl } from "../lib/runtime";
 
-/** /console 下所有页面的入口：先取身份，未登录去 /signin，没有任何能力显示访客说明。 */
+/** /console 下所有页面的入口：先取身份，未登录去 /signin，没有任何能力显示乘客说明。 */
 const { me, meError, meLoading, reload } = useSession();
 const route = useRoute();
 const router = useRouter();
@@ -49,7 +49,7 @@ const openOrg = () => window.open(`https://github.com/${me.value?.org ?? ""}`, "
         你用 GitHub 账号 <span class="mono">@{{ me.login }}</span> 登录了，但还没有加入
         <span class="mono">{{ me.org }}</span>，也没有被指派称号。
       </p>
-      <p>加入 GitHub 组织后刷新本页；或者请班长在「成员与权限」里给你指派称号。</p>
+      <p>加入 GitHub 组织后刷新本页；或者请舰长在「成员与权限」里给你指派称号。</p>
       <div class="guest__badge"><TitleBadge :title="me.title" /></div>
       <div class="guest__actions">
         <TxButton variant="secondary" @click="goPortal">回到官网</TxButton>

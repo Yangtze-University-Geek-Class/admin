@@ -8,7 +8,7 @@ type ListQuery = { department_id?: string; role?: AssignableRole };
 
 const isEffectiveCaptain = (access: Access) => access.titles.some(title => title.id === "captain");
 const outOfScope = (reply: FastifyReply) =>
-  reply.code(403).send({ error: "out_of_department_scope", message: "只能任免自己负责部门的干事" });
+  reply.code(403).send({ error: "out_of_department_scope", message: "只能任免自己负责部门的舰员" });
 
 /**
  * 称号指派。班长（roles.manage）可以指派任何称号；部门负责人（roles.department.manage）
@@ -51,16 +51,16 @@ export default async function consoleAssignmentRoutes(app: FastifyInstance) {
       const note = req.body.note?.trim() || null;
       const login = req.body.github_login.toLowerCase();
 
-      if (role === "head" && !departmentId) return reply.code(400).send({ error: "department_required", message: "部门负责人必须指定部门" });
+      if (role === "head" && !departmentId) return reply.code(400).send({ error: "department_required", message: "队长必须指定部门" });
       if ((role === "captain" || role === "alumni") && departmentId) {
-        return reply.code(400).send({ error: "department_not_allowed", message: "班长和领航员不属于任何部门" });
+        return reply.code(400).send({ error: "department_not_allowed", message: "舰长和领航员不属于任何部门" });
       }
       if (departmentId) {
         const department = roles.getDepartment(departmentId);
         if (!department || department.archived) return reply.code(400).send({ error: "unknown_department", message: "部门不存在或已归档" });
       }
       if (role === "captain") {
-        if (!isEffectiveCaptain(access)) return reply.code(403).send({ error: "captain_required", message: "只有现任班长可以指定或移交班长" });
+        if (!isEffectiveCaptain(access)) return reply.code(403).send({ error: "captain_required", message: "只有现任舰长可以指定或移交舰长" });
       } else if (!access.capabilities.has("roles.manage")) {
         if (role !== "member") return reply.code(403).send(missingCapability(access, ["roles.manage"]));
         if (!inScope(access, { role, department_id: departmentId })) return outOfScope(reply);
@@ -95,7 +95,7 @@ export default async function consoleAssignmentRoutes(app: FastifyInstance) {
       if (!row) return reply.code(404).send({ error: "not_found", message: "指派不存在" });
       if (row.role === "captain") {
         const isSelf = access.titles.some(title => title.id === "captain" && title.assignment_id === row.id);
-        if (!isSelf) return reply.code(409).send({ error: "captain_transfer_required", message: "班长只能由本人卸任，或由本人移交给下一任" });
+        if (!isSelf) return reply.code(409).send({ error: "captain_transfer_required", message: "舰长只能由本人卸任，或由本人移交给下一任" });
       } else if (!inScope(access, row)) {
         return access.capabilities.has("roles.department.manage") && row.role === "member"
           ? outOfScope(reply)

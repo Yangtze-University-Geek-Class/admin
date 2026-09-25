@@ -9,7 +9,7 @@ export const FALLBACK_TONES: Record<Tone, string> = {
 
 export const toneColor = (tone: Tone, catalogue?: Catalogue | null) => catalogue?.tones[tone] ?? FALLBACK_TONES[tone];
 
-/** 名单里的称号类别：带部门的 member 是「部门干事」，不带的是「极客班成员」。 */
+/** 名单里的称号类别：带部门的 member 是「部门舰员」，不带的是「舰员」。 */
 export type PeopleKind = "captain" | "head" | "crew" | "member" | "alumni";
 
 export function kindOf(row: Pick<Assignment, "role" | "department_id">): PeopleKind {
@@ -17,9 +17,9 @@ export function kindOf(row: Pick<Assignment, "role" | "department_id">): PeopleK
   return row.role;
 }
 
-/** 名单里称号徽章的短名：部门另起一列显示，所以负责人、干事不重复部门名。 */
+/** 名单里称号徽章的短名：部门另起一列显示，所以队长、舰员不重复部门名。 */
 export const KIND_LABEL: Record<PeopleKind, string> = {
-  captain: "班长", head: "部门负责人", crew: "部门干事", member: "极客班成员", alumni: "领航员",
+  captain: "舰长", head: "队长", crew: "部门舰员", member: "舰员", alumni: "领航员",
 };
 
 const deptView = (department: Department | undefined): DepartmentView | null =>
@@ -31,15 +31,15 @@ export function titleOf(row: Assignment, departments: Department[], catalogue?: 
   const base = catalogue?.titles.find(item => item.id === row.role);
   const common = { source: "assignment" as const, assignment_id: row.id, department: deptView(department) };
   if (row.role === "head") {
-    return { ...common, id: "head", label: `${department?.name ?? "部门"} · 负责人`, tag: "HEAD", icon: department?.icon ?? "badge", tone: department?.tone ?? "cobalt" };
+    return { ...common, id: "head", label: `${department?.name ?? "部门"} · 队长`, tag: "LEADER", icon: department?.icon ?? "badge", tone: department?.tone ?? "cobalt" };
   }
   if (row.role === "member" && department) {
-    return { ...common, id: "member", label: `${department.name} · 干事`, tag: catalogue?.crew.tag ?? "CREW", icon: department.icon, tone: catalogue?.crew.tone ?? "slate" };
+    return { ...common, id: "member", label: `${department.name} · 舰员`, tag: catalogue?.crew.tag ?? "CREW", icon: department.icon, tone: catalogue?.crew.tone ?? "slate" };
   }
   return { ...common, id: row.role, label: base?.label ?? KIND_LABEL[kindOf(row)], tag: base?.tag ?? row.role.toUpperCase(), icon: base?.icon ?? "user", tone: base?.tone ?? "slate" };
 }
 
-/** 徽章色调：班长琥珀、负责人跟部门走、干事中性、成员天蓝、领航员紫（都来自 catalogue）。 */
+/** 徽章色调：舰长琥珀、队长跟部门走、舰员中性、成员天蓝、领航员紫（都来自 catalogue）。 */
 export function badgeTone(title: Pick<TitleView, "id" | "tone" | "department">): Tone {
   if (title.id === "head" && title.department) return title.department.tone;
   return title.tone;

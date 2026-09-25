@@ -40,8 +40,8 @@ const matrix = computed<MatrixRow[]>(() => {
   const rows: MatrixRow[] = [{ key: "captain", title: baseTitle("captain"), role: "全部权限", caps: FORUM_CAPABILITIES }];
   for (const dept of (departments.data.value?.departments ?? []).filter(d => !d.archived)) {
     const view = { id: dept.id, name: dept.name, tag: dept.tag, icon: dept.icon, tone: dept.tone };
-    rows.push({ key: `${dept.id}-head`, role: "负责人", caps: dept.head_capabilities, title: { id: "head", label: `${dept.name} · 负责人`, tag: "HEAD", icon: dept.icon, tone: dept.tone, department: view, source: "assignment", assignment_id: null } });
-    rows.push({ key: `${dept.id}-crew`, role: "干事", caps: dept.member_capabilities, title: { id: "member", label: `${dept.name} · 干事`, tag: "CREW", icon: dept.icon, tone: "slate", department: view, source: "assignment", assignment_id: null } });
+    rows.push({ key: `${dept.id}-head`, role: "队长", caps: dept.head_capabilities, title: { id: "head", label: `${dept.name} · 队长`, tag: "LEADER", icon: dept.icon, tone: dept.tone, department: view, source: "assignment", assignment_id: null } });
+    rows.push({ key: `${dept.id}-crew`, role: "舰员", caps: dept.member_capabilities, title: { id: "member", label: `${dept.name} · 舰员`, tag: "CREW", icon: dept.icon, tone: "slate", department: view, source: "assignment", assignment_id: null } });
   }
   rows.push({ key: "alumni", title: baseTitle("alumni"), role: "", caps: [] });
   rows.push({ key: "member", title: baseTitle("member"), role: "", caps: [] });
@@ -116,7 +116,7 @@ const openForum = () => window.open(siteUrl("forum", "/"), "_blank", "noopener")
           <i v-else class="i-carbon-subtract cell-no" role="img" aria-label="无" />
         </template>
       </TxDataTable>
-      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门与权限包」里修改。班长默认拥有全部论坛权限。</p>
+      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门与权限包」里修改。舰长默认拥有全部论坛权限。</p>
     </TxCard>
   </div>
 </template>

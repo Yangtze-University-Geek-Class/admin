@@ -34,13 +34,13 @@ export type TitleDefinition = { id: TitleId; label: string; tag: string; icon: s
 
 /** 称号。一个人可以有多个；主称号取 rank 最小者。`head` 与带部门的 `member` 的显示名由部门决定。 */
 export const TITLES: Record<TitleId, TitleDefinition> = {
-  captain: { id: "captain", label: "班长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
-  head: { id: "head", label: "部门负责人", tag: "HEAD", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
-  member: { id: "member", label: "极客班成员", tag: "MEMBER", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
+  captain: { id: "captain", label: "舰长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
+  head: { id: "head", label: "队长", tag: "LEADER", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
+  member: { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
   alumni: { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "violet", rank: 3, description: "已毕业的学长学姐" },
-  guest: { id: "guest", label: "访客", tag: "GUEST", icon: "user", tone: "slate", rank: 9, description: "未登录，或已登录但没有任何称号" },
+  guest: { id: "guest", label: "乘客", tag: "PASSENGER", icon: "user", tone: "slate", rank: 9, description: "没登录的人，只能看帖子" },
 };
-/** 部门干事（`member` + 部门）：rank 2，中性色，徽章用 plain 变体。 */
+/** 部门舰员（`member` + 部门）：rank 2，中性色，徽章用 plain 变体。 */
 export const CREW_TITLE = { tag: "CREW", tone: "slate" as Tone, rank: 2 };
 
 export type CapabilityDomain = "console" | "github" | "forum" | "applications" | "feedback" | "audit" | "roles";
@@ -74,8 +74,8 @@ export const CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅班长，不可放进部门权限包" },
-  { id: "roles.department.manage", domain: "roles", label: "任免本部门干事", description: "任免本部门干事（只限自己负责的部门）" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅舰长，不可放进部门权限包" },
+  { id: "roles.department.manage", domain: "roles", label: "任免本部门舰员", description: "任免本部门舰员（只限自己负责的部门）" },
 ] as const satisfies readonly { id: string; domain: CapabilityDomain; label: string; description: string }[];
 export type Capability = (typeof CAPABILITIES)[number]["id"];
 export const CAPABILITY_IDS: Capability[] = CAPABILITIES.map(item => item.id);
@@ -205,14 +205,14 @@ export function titleView(role: TitleId, department: Department | null, source: 
   const base = TITLES[role];
   if (role === "head") {
     return {
-      id: "head", label: department ? `${department.name} · 负责人` : base.label, tag: base.tag,
+      id: "head", label: department ? `${department.name} · 队长` : base.label, tag: base.tag,
       icon: department?.icon ?? base.icon, tone: department?.tone ?? base.tone,
       department: department ? departmentView(department) : null, source, assignment_id: assignmentId,
     };
   }
   if (role === "member" && department) {
     return {
-      id: "member", label: `${department.name} · 干事`, tag: CREW_TITLE.tag, icon: department.icon, tone: CREW_TITLE.tone,
+      id: "member", label: `${department.name} · 舰员`, tag: CREW_TITLE.tag, icon: department.icon, tone: CREW_TITLE.tone,
       department: departmentView(department), source, assignment_id: assignmentId,
     };
   }

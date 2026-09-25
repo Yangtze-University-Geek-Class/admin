@@ -14,8 +14,8 @@ import { useAction } from "../../lib/resource";
 import type { AssignableRole, Department } from "../../lib/types";
 
 /**
- * 添加称号。班长能指派全部称号（「班长」一项只有现任班长能选，等于移交）；
- * 只管本部门的负责人只能把人设为本部门干事。服务端会用你自己的 GitHub 授权核对用户名是否存在。
+ * 添加称号。舰长能指派全部称号（「舰长」一项只有现任舰长能选，等于移交）；
+ * 只管本部门的队长只能把人设为本部门舰员。服务端会用你自己的 GitHub 授权核对用户名是否存在。
  */
 const props = defineProps<{
   open: boolean;
@@ -34,12 +34,12 @@ const allowedDepartments = computed(() => {
 
 type RoleChoice = AssignableRole | "crew";
 const roleOptions = computed(() => limited.value
-  ? [{ value: "crew", label: "部门干事" }]
+  ? [{ value: "crew", label: "部门舰员" }]
   : [
-    ...(props.canAssignCaptain ? [{ value: "captain", label: "班长", description: props.captain ? "移交后你不再是班长" : "指定正式班长" }] : []),
-    { value: "head", label: "部门负责人" },
-    { value: "crew", label: "部门干事" },
-    { value: "member", label: "极客班成员", description: "不属于任何部门" },
+    ...(props.canAssignCaptain ? [{ value: "captain", label: "舰长", description: props.captain ? "移交后你不再是舰长" : "指定正式舰长" }] : []),
+    { value: "head", label: "队长" },
+    { value: "crew", label: "部门舰员" },
+    { value: "member", label: "舰员", description: "不属于任何部门" },
     { value: "alumni", label: "领航员", description: "已毕业的学长学姐" },
   ]);
 
@@ -85,8 +85,8 @@ async function submit() {
   if (!canSubmit.value) return;
   if (role.value === "captain" && props.captain) {
     const ok = await confirm({
-      title: `把班长移交给 @${login.value.trim()}？`,
-      body: "移交后你不再是班长，会失去管理称号与部门等全部班长权限。",
+      title: `把舰长移交给 @${login.value.trim()}？`,
+      body: "移交后你不再是舰长，会失去管理称号与部门等全部舰长权限。",
       confirmText: "确认移交",
       danger: true,
     });

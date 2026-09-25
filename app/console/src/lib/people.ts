@@ -4,19 +4,19 @@ import type { Assignment, Catalogue, Department } from "./types";
 
 export type PeopleTab = "all" | PeopleKind;
 
-/** 页签顺序是所有者给定的：全部 / 班长 / 部门负责人 / 部门干事 / 极客班成员 / 领航员。 */
+/** 页签顺序是所有者给定的：全部 / 舰长 / 队长 / 部门舰员 / 舰员 / 领航员。 */
 export const PEOPLE_TABS: { id: PeopleTab; label: string }[] = [
   { id: "all", label: "全部" },
-  { id: "captain", label: "班长" },
-  { id: "head", label: "部门负责人" },
-  { id: "crew", label: "部门干事" },
-  { id: "member", label: "极客班成员" },
+  { id: "captain", label: "舰长" },
+  { id: "head", label: "队长" },
+  { id: "crew", label: "部门舰员" },
+  { id: "member", label: "舰员" },
   { id: "alumni", label: "领航员" },
 ];
 
 export const isPeopleTab = (value: unknown): value is PeopleTab => PEOPLE_TABS.some(tab => tab.id === value);
 
-/** 服务端 roles.ts 的 rank：班长 0、负责人 1、干事 2、领航员 3、成员 4。catalogue 未到时用它。 */
+/** 服务端 roles.ts 的 rank：舰长 0、队长 1、舰员 2、领航员 3、成员 4。catalogue 未到时用它。 */
 const FALLBACK_RANK: Record<PeopleKind, number> = { captain: 0, head: 1, crew: 2, alumni: 3, member: 4 };
 
 export function kindRank(kind: PeopleKind, catalogue?: Catalogue | null): number {
@@ -49,8 +49,8 @@ export function tabCounts(rows: Assignment[]): Record<PeopleTab, number> {
 }
 
 /**
- * 显示哪些页签：「全部」总在；班长能任免所有称号，所以六个都显示；
- * 只管本部门的负责人只会拿到本部门的行，只显示有人的页签和「部门干事」。
+ * 显示哪些页签：「全部」总在；舰长能任免所有称号，所以六个都显示；
+ * 只管本部门的队长只会拿到本部门的行，只显示有人的页签和「部门舰员」。
  */
 export function visibleTabs(rows: Assignment[], canManageAll: boolean): PeopleTab[] {
   if (canManageAll) return PEOPLE_TABS.map(tab => tab.id);
@@ -58,7 +58,7 @@ export function visibleTabs(rows: Assignment[], canManageAll: boolean): PeopleTa
   return PEOPLE_TABS.map(tab => tab.id).filter(id => id === "all" || id === "crew" || counts[id] > 0);
 }
 
-/** 谁能撤销哪一行：班长那行只有本人能卸任；其余行班长都能撤，负责人只能撤本部门干事。 */
+/** 谁能撤销哪一行：舰长那行只有本人能卸任；其余行舰长都能撤，队长只能撤本部门舰员。 */
 export function mayRevoke(row: Assignment, me: { head_of: string[]; titles: { id: string; assignment_id: number | null }[] }, canManageAll: boolean): boolean {
   if (row.role === "captain") return me.titles.some(title => title.id === "captain" && title.assignment_id === row.id);
   return canManageAll || (row.role === "member" && row.department_id !== "" && me.head_of.includes(row.department_id));

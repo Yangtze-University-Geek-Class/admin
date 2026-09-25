@@ -30,11 +30,11 @@ describe("sortAssignments", () => {
   it("orders by title rank, then department sort order, then login (case-insensitive)", () => {
     const sorted = sortAssignments(rows, departments).map(r => r.github_login);
     expect(sorted).toEqual([
-      "eve", // 班长
-      "dan", "Bob", "gus", "fay", // 负责人：招新部(10) → 技术部(20) → 已归档 → 未知部门
-      "ann", "abe", "cat", // 干事：招新部 → 技术部（abe < cat）
+      "eve", // 舰长
+      "dan", "Bob", "gus", "fay", // 队长：招新部(10) → 技术部(20) → 已归档 → 未知部门
+      "ann", "abe", "cat", // 舰员：招新部 → 技术部（abe < cat）
       "amy", // 领航员（rank 3）
-      "zed", // 极客班成员（rank 4）
+      "zed", // 舰员（rank 4）
     ]);
   });
 
@@ -49,7 +49,7 @@ describe("tabs", () => {
   const sorted = sortAssignments(rows, departments);
 
   it("follows the owner's tab order", () => {
-    expect(PEOPLE_TABS.map(t => t.label)).toEqual(["全部", "班长", "部门负责人", "部门干事", "极客班成员", "领航员"]);
+    expect(PEOPLE_TABS.map(t => t.label)).toEqual(["全部", "舰长", "队长", "部门舰员", "舰员", "领航员"]);
   });
 
   it("splits member rows into crew (with department) and plain members", () => {
@@ -97,8 +97,8 @@ describe("title display", () => {
     expect(kindTone(row("x", "alumni"), departments)).toBe("violet");
   });
   it("builds the same title labels as the server", () => {
-    expect(titleOf(row("x", "head", "tech"), departments).label).toBe("tech-name · 负责人");
-    expect(titleOf(row("x", "member", "tech"), departments).label).toBe("tech-name · 干事");
+    expect(titleOf(row("x", "head", "tech"), departments).label).toBe("tech-name · 队长");
+    expect(titleOf(row("x", "member", "tech"), departments).label).toBe("tech-name · 舰员");
     expect(titleOf(row("x", "alumni"), departments).label).toBe("领航员");
   });
 });

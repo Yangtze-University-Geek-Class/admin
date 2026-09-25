@@ -74,14 +74,14 @@ async function refreshAll() {
 
 const revoke = useAction(async (row: Assignment) => {
   await api(`/api/console/assignments/${row.id}`, { method: "DELETE" });
-  toast({ title: row.role === "captain" ? "已卸任班长" : "已撤销称号", description: `@${row.github_login}`, variant: "success" });
+  toast({ title: row.role === "captain" ? "已卸任舰长" : "已撤销称号", description: `@${row.github_login}`, variant: "success" });
   await refreshAll();
 });
 
 async function askRevoke(row: Assignment) {
   const captainRow = row.role === "captain";
   const ok = await confirm(captainRow
-    ? { title: "卸任班长？", body: "卸任后没有正式班长，由 GitHub 组织管理员临时代任，直到指定下一任。", confirmText: "卸任", danger: true }
+    ? { title: "卸任舰长？", body: "卸任后没有正式舰长，由 GitHub 组织管理员临时代任，直到指定下一任。", confirmText: "卸任", danger: true }
     : { title: `撤销 @${row.github_login} 的称号？`, body: "对方会立刻失去这个称号带来的权限。", confirmText: "撤销", danger: true });
   if (ok) await revoke.execute(row);
 }
@@ -89,7 +89,7 @@ async function askRevoke(row: Assignment) {
 const headOfNames = computed(() => (me.value?.head_of ?? []).map(deptName).filter(Boolean).join("、"));
 const description = computed(() => canManageAll.value
   ? "给成员指派称号，维护每个部门的权限包。GitHub 类权限始终受对方自己的组织角色限制。"
-  : `你负责${headOfNames.value || "本部门"}，可以任免本部门干事。`);
+  : `你负责${headOfNames.value || "本部门"}，可以任免本部门舰员。`);
 
 const bundleLabels = (ids: string[]) => ids.map(capabilityLabel);
 const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
@@ -104,8 +104,8 @@ const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
       </template>
     </PageHeader>
 
-    <TxAlert v-if="assignments.data.value?.bootstrap_active" type="warning" title="还没有正式班长" :closable="false">
-      现在由 GitHub 组织管理员临时代任。{{ isCaptain ? "用「添加称号」选择「班长」来指定正式班长。" : "请联系组织管理员指定正式班长。" }}
+    <TxAlert v-if="assignments.data.value?.bootstrap_active" type="warning" title="还没有正式舰长" :closable="false">
+      现在由 GitHub 组织管理员临时代任。{{ isCaptain ? "用「添加称号」选择「舰长」来指定正式舰长。" : "请联系组织管理员指定正式舰长。" }}
     </TxAlert>
     <ErrorAlert v-if="revoke.error.value" :error="revoke.error.value" @close="revoke.reset()" />
 
@@ -167,7 +167,7 @@ const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
 
           <ErrorPanel v-if="departments.error.value" :error="departments.error.value" :retry="departments.reload" />
           <div v-else class="dept-list">
-            <p class="dept-intro">部门的权限包决定负责人和干事在基础权限之外还能做什么。班长可以修改；新增部门不需要改代码。</p>
+            <p class="dept-intro">部门的权限包决定队长和舰员在基础权限之外还能做什么。舰长可以修改；新增部门不需要改代码。</p>
             <article v-for="dept in orderedDepts" :key="dept.id" class="dept" :class="{ 'dept--archived': dept.archived }">
               <div class="dept__head">
                 <span class="dept__icon" :style="{ color: toneColor(dept.tone, catalogue), background: `color-mix(in srgb, ${toneColor(dept.tone, catalogue)} 10%, white)` }">
@@ -181,24 +181,24 @@ const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
                   </h3>
                   <p class="muted">{{ dept.description || "没有填写说明" }}</p>
                   <p class="dept__people">
-                    负责人
+                    队长
                     <span class="mono">{{ dept.heads.length ? dept.heads.map(h => `@${h}`).join("、") : "空缺" }}</span>
                     <span class="muted">·</span>
-                    干事 {{ dept.crew_count }} 人
+                    舰员 {{ dept.crew_count }} 人
                   </p>
                 </div>
                 <TxButton v-if="canManageAll" size="sm" icon="i-carbon-edit" @click="editing = dept">编辑权限包</TxButton>
               </div>
               <div class="dept__bundles">
                 <div>
-                  <h4>负责人额外权限</h4>
+                  <h4>队长额外权限</h4>
                   <div class="tags">
                     <TxTag v-for="label in bundleLabels(dept.head_capabilities)" :key="label" :label="label" size="sm" variant="plain" />
                     <span v-if="!dept.head_capabilities.length" class="muted">无</span>
                   </div>
                 </div>
                 <div>
-                  <h4>干事权限</h4>
+                  <h4>舰员权限</h4>
                   <div class="tags">
                     <TxTag v-for="label in bundleLabels(dept.member_capabilities)" :key="label" :label="label" size="sm" variant="plain" />
                     <span v-if="!dept.member_capabilities.length" class="muted">无</span>

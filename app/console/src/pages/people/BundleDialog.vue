@@ -10,8 +10,8 @@ import { useAction } from "../../lib/resource";
 import type { Catalogue, Department } from "../../lib/types";
 
 /**
- * 编辑部门权限包：按能力类别分组，每项两个复选框（负责人 / 干事）。
- * 「管理称号与部门」只属于班长，不列出；「进入控制台」是自动获得的，也不列出。
+ * 编辑部门权限包：按能力类别分组，每项两个复选框（队长 / 舰员）。
+ * 「管理称号与部门」只属于舰长，不列出；「进入控制台」是自动获得的，也不列出。
  */
 const props = defineProps<{ open: boolean; department: Department | null; catalogue: Catalogue }>();
 const emit = defineEmits<{ "update:open": [value: boolean]; done: [] }>();
@@ -70,8 +70,8 @@ const save = useAction(async () => {
     <div class="bundle">
       <div class="bundle__head" aria-hidden="true">
         <span />
-        <span>负责人</span>
-        <span>干事</span>
+        <span>队长</span>
+        <span>舰员</span>
       </div>
       <fieldset v-for="group in groups" :key="group.id" class="bundle__group">
         <legend>{{ group.label }}</legend>
@@ -82,12 +82,12 @@ const save = useAction(async () => {
           </span>
           <TxCheckbox
             :model-value="head.has(item.id)"
-            :aria-label="`负责人：${item.label}`"
+            :aria-label="`队长：${item.label}`"
             @update:model-value="(value: boolean) => toggle('head', item.id, value)"
           />
           <TxCheckbox
             :model-value="crew.has(item.id)"
-            :aria-label="`干事：${item.label}`"
+            :aria-label="`舰员：${item.label}`"
             @update:model-value="(value: boolean) => toggle('crew', item.id, value)"
           />
         </div>

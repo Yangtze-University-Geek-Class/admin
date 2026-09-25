@@ -68,7 +68,7 @@ describe('identity and capabilities', () => {
     expect(response.statusCode).toBe(200);
     const me = response.json();
     expect(me).toMatchObject({ login: 'alice', org: CONSOLE_ORG, github_role: 'admin', bootstrap: true, blocked: [] });
-    expect(me.title).toMatchObject({ id: 'captain', label: '班长', tag: 'CAPTAIN', tone: 'amber', source: 'bootstrap', assignment_id: null });
+    expect(me.title).toMatchObject({ id: 'captain', label: '舰长', tag: 'CAPTAIN', tone: 'amber', source: 'bootstrap', assignment_id: null });
     expect(me.capabilities).toEqual(CAPABILITY_IDS);
     expect(calls.every(call => call.includes(CONSOLE_ORG))).toBe(true);
   });
@@ -78,7 +78,7 @@ describe('identity and capabilities', () => {
     assign('carol', 'captain');
     const me = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
     expect(me.bootstrap).toBe(false);
-    expect(me.title).toMatchObject({ id: 'member', label: '极客班成员', source: 'github' });
+    expect(me.title).toMatchObject({ id: 'member', label: '舰员', source: 'github' });
     // GitHub admin 上限允许更多 github.*，但称号只给了查看。
     expect(me.capabilities).toEqual(['console.access', 'github.org.read']);
   });
@@ -94,7 +94,7 @@ describe('identity and capabilities', () => {
     const { app, as } = await setup();
     const me = (await app.inject({ url: '/api/console/me', headers: as('dave') })).json();
     expect(me).toMatchObject({ github_role: null, capabilities: [], blocked: [], bootstrap: false });
-    expect(me.title).toMatchObject({ id: 'guest', label: '访客', source: 'none' });
+    expect(me.title).toMatchObject({ id: 'guest', label: '乘客', source: 'none' });
     const denied = await app.inject({ url: '/api/console/catalogue', headers: as('dave') });
     expect(denied.statusCode).toBe(403);
     expect(denied.json()).toMatchObject({ error: 'missing_capability', capability: 'console.access' });
@@ -104,7 +104,7 @@ describe('identity and capabilities', () => {
     const { app, as, assign } = await setup({ erin: 'member' });
     assign('erin', 'head', 'recruitment');
     const me = (await app.inject({ url: '/api/console/me', headers: as('erin') })).json();
-    expect(me.title).toMatchObject({ id: 'head', label: '招新部 · 负责人', tone: 'coral', icon: 'user-follow', source: 'assignment' });
+    expect(me.title).toMatchObject({ id: 'head', label: '招新部 · 队长', tone: 'coral', icon: 'user-follow', source: 'assignment' });
     expect(me.title.department).toMatchObject({ id: 'recruitment', name: '招新部' });
     expect(me.capabilities).toEqual(expect.arrayContaining(['applications.read', 'applications.review', 'applications.export', 'feedback.read', 'roles.department.manage']));
     expect(me.capabilities).not.toContain('github.invites.manage');

@@ -119,7 +119,7 @@ const stats = computed<Stat[]>(() => {
             </div>
             <p v-if="domain.reason" class="domain__note">带锁的一项{{ BLOCK_REASON_TEXT[domain.reason] }}才能使用。</p>
           </section>
-          <p class="domain__note">需要更多权限，请联系班长指派称号。</p>
+          <p class="domain__note">需要更多权限，请联系舰长指派称号。</p>
         </div>
       </TxCard>
 

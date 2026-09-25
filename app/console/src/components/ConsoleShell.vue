@@ -56,8 +56,8 @@ async function signOut() {
         <span v-if="isMock()" class="shell__mock">开发预览 · 样板数据</span>
       </div>
       <div v-if="me.bootstrap" class="shell__notice">
-        <TxAlert type="warning" title="还没有正式班长" :closable="false">
-          现在由 GitHub 组织管理员临时代任班长。请在「成员与权限」里用「添加称号」指定正式班长。
+        <TxAlert type="warning" title="还没有正式舰长" :closable="false">
+          现在由 GitHub 组织管理员临时代任舰长。请在「成员与权限」里用「添加称号」指定正式舰长。
         </TxAlert>
       </div>
       <RouterView v-slot="{ Component, route: current }">

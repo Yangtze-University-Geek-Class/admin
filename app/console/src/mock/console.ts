@@ -18,11 +18,11 @@ export const MOCK_TONES: Record<Tone, string> = {
 };
 
 export const MOCK_TITLES = [
-  { id: "captain", label: "班长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
-  { id: "head", label: "部门负责人", tag: "HEAD", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
-  { id: "member", label: "极客班成员", tag: "MEMBER", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
+  { id: "captain", label: "舰长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
+  { id: "head", label: "队长", tag: "LEADER", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
+  { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
   { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "violet", rank: 3, description: "已毕业的学长学姐" },
-  { id: "guest", label: "访客", tag: "GUEST", icon: "user", tone: "slate", rank: 9, description: "未登录，或已登录但没有任何称号" },
+  { id: "guest", label: "乘客", tag: "PASSENGER", icon: "user", tone: "slate", rank: 9, description: "没登录的人，只能看帖子" },
 ] as const;
 const CREW = { tag: "CREW", tone: "slate" as Tone, rank: 2 };
 
@@ -45,8 +45,8 @@ export const MOCK_CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅班长，不可放进部门权限包" },
-  { id: "roles.department.manage", domain: "roles", label: "任免本部门干事", description: "任免本部门干事（只限自己负责的部门）" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅舰长，不可放进部门权限包" },
+  { id: "roles.department.manage", domain: "roles", label: "任免本部门舰员", description: "任免本部门舰员（只限自己负责的部门）" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
 const DOMAINS = [
@@ -93,18 +93,18 @@ function title(role: TitleId, department: string | null, source: Source, assignm
   const base = MOCK_TITLES.find(item => item.id === role)!;
   if (role === "head" && department) {
     const d = deptView(department);
-    return { id: role, label: `${d.name} · 负责人`, tag: base.tag, icon: d.icon, tone: d.tone, department: d, source, assignment_id };
+    return { id: role, label: `${d.name} · 队长`, tag: base.tag, icon: d.icon, tone: d.tone, department: d, source, assignment_id };
   }
   if (role === "member" && department) {
     const d = deptView(department);
-    return { id: role, label: `${d.name} · 干事`, tag: CREW.tag, icon: d.icon, tone: CREW.tone, department: d, source, assignment_id };
+    return { id: role, label: `${d.name} · 舰员`, tag: CREW.tag, icon: d.icon, tone: CREW.tone, department: d, source, assignment_id };
   }
   return { id: role, label: base.label, tag: base.tag, icon: base.icon, tone: base.tone as Tone, department: null, source, assignment_id };
 }
 
-/** 虚构人员：班长、四位部门负责人、干事若干、成员若干、领航员两位。 */
+/** 虚构人员：舰长、四位队长、舰员若干、成员若干、领航员两位。 */
 const ASSIGNMENTS = [
-  { id: 1, github_login: "chen-hang", github_user_id: 1001, role: "captain", department_id: "", note: "第三届班长", granted_by: "chen-hang", created_at: now - 40 * DAY },
+  { id: 1, github_login: "chen-hang", github_user_id: 1001, role: "captain", department_id: "", note: "第三届舰长", granted_by: "chen-hang", created_at: now - 40 * DAY },
   { id: 2, github_login: "li-xiaoman", github_user_id: 1002, role: "head", department_id: "recruitment", note: null, granted_by: "chen-hang", created_at: now - 38 * DAY },
   { id: 3, github_login: "wang-zhe", github_user_id: 1003, role: "head", department_id: "tech", note: null, granted_by: "chen-hang", created_at: now - 38 * DAY },
   { id: 4, github_login: "sun-qiao", github_user_id: 1004, role: "head", department_id: "community", note: "兼管意见箱", granted_by: "chen-hang", created_at: now - 37 * DAY },
@@ -114,7 +114,7 @@ const ASSIGNMENTS = [
   { id: 10, github_login: "fang-lin", github_user_id: 1010, role: "member", department_id: "recruitment", note: "宣传海报", granted_by: "li-xiaoman", created_at: now - 8 * DAY },
   { id: 7, github_login: "liu-xing", github_user_id: 1007, role: "member", department_id: "", note: null, granted_by: "chen-hang", created_at: now - 9 * DAY },
   { id: 11, github_login: "bai-shuo", github_user_id: 1011, role: "member", department_id: "", note: "转专业过来", granted_by: "chen-hang", created_at: now - 3 * DAY },
-  { id: 8, github_login: "gao-yuan", github_user_id: 1008, role: "alumni", department_id: "", note: "已毕业，前技术部负责人", granted_by: "chen-hang", created_at: now - 30 * DAY },
+  { id: 8, github_login: "gao-yuan", github_user_id: 1008, role: "alumni", department_id: "", note: "已毕业，前技术部队长", granted_by: "chen-hang", created_at: now - 30 * DAY },
   { id: 12, github_login: "du-ke", github_user_id: 1012, role: "alumni", department_id: "", note: null, granted_by: "chen-hang", created_at: now - 25 * DAY },
 ];
 
@@ -164,7 +164,7 @@ export const MOCK_PERSONAS: Record<string, Persona> = {
 export const SIGNED_OUT = "signed_out";
 
 const PERSONA_KEY = "yugc:console-persona";
-/** `?__persona=` 优先，其次本标签页记住的身份，默认班长。 */
+/** `?__persona=` 优先，其次本标签页记住的身份，默认舰长。 */
 export function currentPersona(): string {
   if (typeof window === "undefined") return "captain";
   const valid = (value: string | null): value is string => Boolean(value && (value in MOCK_PERSONAS || value === SIGNED_OUT));

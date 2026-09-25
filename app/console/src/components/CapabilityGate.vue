@@ -19,7 +19,7 @@ const needed = computed(() => capabilityLabel(blocked.value?.capability ?? props
 const title = computed(() => `你没有「${needed.value}」权限`);
 const description = computed(() => blocked.value
   ? `你的称号包含这项权限，但${BLOCK_REASON_TEXT[blocked.value.reason]}才能使用。控制台不能超出你在 GitHub 组织里的角色。`
-  : `请联系班长，在「成员与权限」里给你指派带有「${needed.value}」的称号。`);
+  : `请联系舰长，在「成员与权限」里给你指派带有「${needed.value}」的称号。`);
 </script>
 
 <template>

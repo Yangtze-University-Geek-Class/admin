@@ -55,11 +55,11 @@ const SERVER_TONES: Record<Tone, string> = {
 }
 
 const SERVER_TITLES = {
-  captain: { label: '班长', tag: 'CAPTAIN', icon: 'star-filled', tone: 'amber', rank: 0 },
-  head: { label: '部门负责人', tag: 'HEAD', icon: 'badge', tone: 'cobalt', rank: 1 },
-  member: { label: '极客班成员', tag: 'MEMBER', icon: 'code', tone: 'sky', rank: 4 },
+  captain: { label: '舰长', tag: 'CAPTAIN', icon: 'star-filled', tone: 'amber', rank: 0 },
+  head: { label: '队长', tag: 'LEADER', icon: 'badge', tone: 'cobalt', rank: 1 },
+  member: { label: '舰员', tag: 'CREW', icon: 'code', tone: 'sky', rank: 4 },
   alumni: { label: '领航员', tag: 'NAVIGATOR', icon: 'compass', tone: 'violet', rank: 3 },
-  guest: { label: '访客', tag: 'GUEST', icon: 'user', tone: 'slate', rank: 9 },
+  guest: { label: '乘客', tag: 'PASSENGER', icon: 'user', tone: 'slate', rank: 9 },
 } as const
 
 const SERVER_CREW = { tag: 'CREW', tone: 'slate', rank: 2 } as const
@@ -175,14 +175,14 @@ describe('title catalogue', () => {
 
 describe('title helpers', () => {
   it('labels heads and crew by department and falls back for unknown ones', () => {
-    expect(titleLabel({ id: 'captain' })).toBe('班长')
-    expect(titleLabel({ id: 'head', department: 'recruitment' })).toBe('招新部 · 负责人')
-    expect(titleLabel({ id: 'member', department: 'tech' })).toBe('技术部 · 干事')
+    expect(titleLabel({ id: 'captain' })).toBe('舰长')
+    expect(titleLabel({ id: 'head', department: 'recruitment' })).toBe('招新部 · 队长')
+    expect(titleLabel({ id: 'member', department: 'tech' })).toBe('技术部 · 舰员')
     expect(titleLabel({ id: 'alumni' })).toBe('领航员')
-    expect(titleLabel({ id: 'member' })).toBe('极客班成员')
-    expect(titleLabel({ id: 'head', department: 'publicity' })).toBe('部门负责人')
-    expect(titleLabel({ id: 'head' })).toBe('部门负责人')
-    expect(titleLabel({ id: 'member', department: 'publicity' })).toBe('部门干事')
+    expect(titleLabel({ id: 'member' })).toBe('舰员')
+    expect(titleLabel({ id: 'head', department: 'publicity' })).toBe('队长')
+    expect(titleLabel({ id: 'head' })).toBe('队长')
+    expect(titleLabel({ id: 'member', department: 'publicity' })).toBe('部门舰员')
   })
 
   it('gives heads their department look, crew the department icon in the crew tone', () => {
@@ -193,7 +193,7 @@ describe('title helpers', () => {
     expect(titleIcon({ id: 'member', department: 'projects' })).toBe('i-carbon-application')
     expect(titleTone({ id: 'member', department: 'projects' })).toBe('slate')
     expect(titleTag({ id: 'member', department: 'projects' })).toBe('CREW')
-    expect(titleTag({ id: 'member' })).toBe('MEMBER')
+    expect(titleTag({ id: 'member' })).toBe('CREW')
     expect(titleTone({ id: 'member' })).toBe('sky')
   })
 

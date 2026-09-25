@@ -36,7 +36,7 @@ export function describeError(error: unknown, labelOf: (capability: string) => s
       ...base, kind: "forbidden", title: `没有「${name}」权限`,
       detail: reason
         ? `你的称号包含这项权限，但${BLOCK_REASON_TEXT[reason]}才能使用。`
-        : "请联系班长，为你指派包含这项权限的称号。",
+        : "请联系舰长，为你指派包含这项权限的称号。",
     };
   }
   if (error.status === 403) return { ...base, kind: "forbidden", title: "没有权限", detail: error.message || "当前账号不能执行这个操作。" };

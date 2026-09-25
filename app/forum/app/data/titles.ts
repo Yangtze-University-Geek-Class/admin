@@ -67,14 +67,14 @@ export interface TitleDefinition {
 
 /** The server's `TITLES`, keyed the same way. */
 export const TITLES: Readonly<Record<TitleId, TitleDefinition>> = {
-  captain: { id: 'captain', label: '班长', tag: 'CAPTAIN', icon: 'i-carbon-star-filled', tone: 'amber', rank: 0 },
-  head: { id: 'head', label: '部门负责人', tag: 'HEAD', icon: 'i-carbon-badge', tone: 'cobalt', rank: 1 },
-  member: { id: 'member', label: '极客班成员', tag: 'MEMBER', icon: 'i-carbon-code', tone: 'sky', rank: 4 },
+  captain: { id: 'captain', label: '舰长', tag: 'CAPTAIN', icon: 'i-carbon-star-filled', tone: 'amber', rank: 0 },
+  head: { id: 'head', label: '队长', tag: 'LEADER', icon: 'i-carbon-badge', tone: 'cobalt', rank: 1 },
+  member: { id: 'member', label: '舰员', tag: 'CREW', icon: 'i-carbon-code', tone: 'sky', rank: 4 },
   alumni: { id: 'alumni', label: '领航员', tag: 'NAVIGATOR', icon: 'i-carbon-compass', tone: 'violet', rank: 3 },
-  guest: { id: 'guest', label: '访客', tag: 'GUEST', icon: 'i-carbon-user', tone: 'slate', rank: 9 },
+  guest: { id: 'guest', label: '乘客', tag: 'PASSENGER', icon: 'i-carbon-user', tone: 'slate', rank: 9 },
 }
 
-/** The server's `CREW_TITLE`: `{部门} · 干事` wears the department icon in the neutral tone. */
+/** The server's `CREW_TITLE`: `{部门} · 舰员` wears the department icon in the neutral tone. */
 export const CREW = { tag: 'CREW', tone: 'slate', rank: 2 } as const satisfies { tag: string, tone: Tone, rank: number }
 
 /** The server's `DEPARTMENT_ID_PATTERN`. */
@@ -88,7 +88,7 @@ export interface DepartmentDefinition {
   tone: Tone
   /** The `forum.*` part of the department head's permission pack. */
   headForum: readonly ForumCapability[]
-  /** The `forum.*` part of the crew (干事) permission pack. */
+  /** The `forum.*` part of the crew (舰员) permission pack. */
   crewForum: readonly ForumCapability[]
 }
 
@@ -148,17 +148,17 @@ export function isUserTitle(value: unknown): value is UserTitle {
   return department === undefined || (typeof department === 'string' && DEPARTMENT_ID.test(department))
 }
 
-/** `班长`, `社区部 · 负责人`, `技术部 · 干事`, `领航员`, `极客班成员`. */
+/** `舰长`, `社区部 · 队长`, `技术部 · 舰员`, `领航员`, `舰员`. */
 export function titleLabel(title: UserTitle): string {
   const department = departmentOf(title)
   if (title.id === 'head')
-    return department ? `${department.name} · 负责人` : TITLES.head.label
+    return department ? `${department.name} · 队长` : TITLES.head.label
   if (isCrew(title))
-    return department ? `${department.name} · 干事` : '部门干事'
+    return department ? `${department.name} · 舰员` : '部门舰员'
   return TITLES[title.id].label
 }
 
-/** English tag, e.g. `HEAD`, `CREW`. */
+/** English tag, e.g. `LEADER`, `CREW`. */
 export function titleTag(title: UserTitle): string {
   return isCrew(title) ? CREW.tag : TITLES[title.id].tag
 }
