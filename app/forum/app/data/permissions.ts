@@ -30,9 +30,10 @@ export interface PermissionContext {
 /**
  * Whether the user holds a forum capability of the 极客班 catalogue. An admin
  * or moderator by forum role holds all of them, as before; anyone else holds
- * what their title carries (`titleForumCapabilities`). The server has no forum
- * endpoint yet, so this is the demo's reading of the future contract, not an
- * authorization boundary.
+ * what their title carries (`titleForumCapabilities`, the local default packs:
+ * the server publishes no permission packs to the forum). The server has no
+ * forum endpoint yet (issue #57), so this is the demo's reading of the future
+ * contract, not an authorization boundary.
  */
 export function hasForumCapability(user: User | null | undefined, capability: ForumCapability): boolean {
   if (!user)
@@ -44,8 +45,8 @@ export function hasForumCapability(user: User | null | undefined, capability: Fo
 
 /**
  * Forum staff (版务), as the console defines it: whoever may moderate posts —
- * an admin or moderator by role, the 舰长, or a head or crew member whose
- * department pack includes `forum.post.moderate`.
+ * an admin or moderator by role, the 提督 or the 舰长, or a head or crew
+ * member whose department pack includes `forum.post.moderate`.
  */
 export function isStaff(user: User | null | undefined): boolean {
   return hasForumCapability(user, 'forum.post.moderate')

@@ -3,10 +3,13 @@ import type { UserTitle } from '~/data/titles'
 import { titleColor, titleIcon, titleLabel } from '~/data/titles'
 
 /**
- * A user's 极客班 title as a TxTag: icon + Chinese label, e.g. 「舰长」 or
- * 「社区部 · 队长」, on TxTag's default outline recipe in the catalogue tone.
- * Crew (部门舰员) wears the catalogue's neutral crew tone rather than TxTag's
- * `plain` variant: `plain` ignores `color` and paints the label in
+ * A user's 极客班 title as a TxTag: icon + Chinese label (the title's own
+ * label, or 「{部门} · {head label}」 for a department head), on TxTag's
+ * default outline recipe in the title's tone. Labels, icons and tones come from `/api/public/org` through
+ * `useOrgTitles` (the console can rename them), with `app/data/titles.ts` as
+ * the defaults until that answers; the badge redraws when it does.
+ * Crew (member with a department) wears the neutral crew tone rather than
+ * TxTag's `plain` variant: `plain` ignores `color` and paints the label in
  * `--tx-text-color-secondary`, which reads at under 3:1 on its own fill.
  * The label carries the meaning on its own, so the colour is decoration.
  *
@@ -21,19 +24,20 @@ const props = withDefaults(defineProps<{
   size: 'sm',
 })
 
-// The catalogue hexes are tuned for the light surface; under `html.dark`
+// The palette hexes are tuned for the light surface; under `html.dark`
 // `titleColor` lifts them toward Tuffex's own ink token.
 const colorMode = useColorMode()
 const dark = computed(() => colorMode.value === 'dark')
+const org = useOrgTitles()
 
 const badge = computed(() => {
   const title = props.title
   if (!title)
     return null
   return {
-    label: titleLabel(title),
-    icon: titleIcon(title),
-    color: titleColor(title, dark.value),
+    label: titleLabel(title, org.value),
+    icon: titleIcon(title, org.value),
+    color: titleColor(title, dark.value, org.value),
   }
 })
 </script>

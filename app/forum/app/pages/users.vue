@@ -13,7 +13,7 @@ interface DirectoryRow {
   displayName: string
   role: string
   roleRank: number
-  /** 极客班 title rank (舰长 0 … no title 9); the column sorts by it first. */
+  /** 极客班 title rank (提督 0 … no title 9); the column sorts by it first. */
   titleRank: number
   likesReceived: number
   topics: number
