@@ -82,11 +82,12 @@ http_ok() {
 }
 
 health_check() {
+  # 先探测、再看是否超时：SECONDS 按整秒跳变，先判断超时的话，跳变正好落在算 deadline 之后时一次都不探测就判失败。
   local label="$1" deadline=$((SECONDS + HEALTH_TIMEOUT)) body status
   body=$(mktemp)
   # shellcheck disable=SC2064
   trap "rm -f '$body'" RETURN
-  while [ "$SECONDS" -lt "$deadline" ]; do
+  while :; do
     status=$(http_ok "$SERVER_HEALTH_URL" "$body")
     if [ "$status" = "200" ] && grep -q '"ok":true' "$body" 2>/dev/null; then
       status=$(http_ok "$WEB_HEALTH_URL" "$body")
@@ -98,9 +99,9 @@ health_check() {
     else
       printf '等待 server 健康（%s）：%s 返回 %s\n' "$label" "$SERVER_HEALTH_URL" "$status"
     fi
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep "$HEALTH_INTERVAL"
   done
-  return 1
 }
 
 set_env_image_tag() {

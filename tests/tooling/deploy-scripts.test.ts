@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -86,6 +88,14 @@ printf '200'
 `;
 
 const FAKE_FLOCK = '#!/bin/bash\nexit 0\n';
+
+// health_check 算完 deadline 紧接着调用不带参数的 mktemp：在这里睡过一个整秒边界，SECONDS 一定已经走到 deadline，
+// 把「整秒跳变正好落在算 deadline 之后」这个偶发时机变成每次都发生。带参数的调用（原子替换 env 文件）不受影响。
+const REAL_MKTEMP = execFileSync('sh', ['-c', 'command -v mktemp'], { encoding: 'utf8' }).trim();
+const SLOW_MKTEMP = `#!/bin/bash
+[ "$#" -eq 0 ] && sleep 1.1
+exec '${REAL_MKTEMP}' "$@"
+`;
 
 const SHA = 'aaaaaaaaaaaa';
 const OLD = 'bbbbbbbbbbbb';
@@ -256,6 +266,38 @@ describe('deploy-stack.sh rolls back the same way whether compose up or the heal
   });
 });
 
+describe('health_check probes before it looks at the deadline', () => {
+  const slowMktemp = (h: ReturnType<typeof host>) => {
+    writeFileSync(join(h.bin, 'mktemp'), SLOW_MKTEMP);
+    chmodSync(join(h.bin, 'mktemp'), 0o755);
+  };
+
+  it('deploy-stack.sh passes when the first probe is healthy even if SECONDS already reached the deadline', () => {
+    const h = host();
+    slowMktemp(h);
+    const preview = stack(h.root, 'preview', SHA);
+    const incoming = join(preview.stackRoot, 'incoming');
+    archive(incoming, `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    const result = run(h, 'deploy-stack.sh', ['--environment', 'preview', '--incoming-dir', incoming, '--health-timeout', '1']);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(history(preview.stackRoot).map(row => [row[2], row[3]])).toEqual([[SHA, 'OK']]);
+  });
+
+  it('rollback-stack.sh passes when the first probe is healthy even if SECONDS already reached the deadline', () => {
+    const h = host();
+    slowMktemp(h);
+    const preview = stack(h.root, 'preview', SHA);
+    const stackEnv = join(preview.stackRoot, '.env.preview');
+    cpSync(preview.envFile, stackEnv);
+    seed(h, [...refs('yzgc-preview', SHA), ...refs('yzgc-preview', OLD)]);
+    const result = run(h, 'rollback-stack.sh', ['--environment', 'preview', '--to', OLD, '--env-file', stackEnv, '--health-timeout', '1']);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(history(preview.stackRoot).map(row => [row[2], row[3]])).toEqual([[OLD, 'MANUAL_ROLLBACK']]);
+  });
+});
+
 describe('deploy-stack.sh clears incoming only after a successful deploy', () => {
   it('removes this environment\'s archives and env file from incoming, this run\'s and older, and nothing else', () => {
     const h = host();
@@ -311,6 +353,61 @@ describe('deploy-stack.sh clears incoming only after a successful deploy', () =>
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
     for (const file of [current, `${current}.sha256`, envFile, preview.envFile]) expect(existsSync(file)).toBe(true);
+  });
+
+  it('keeps a file whose name only matches the archive pattern once its trailing newline is stripped', () => {
+    const h = host();
+    const preview = stack(h.root, 'preview', SHA);
+    const incoming = join(preview.stackRoot, 'incoming');
+    const current = archive(incoming, `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    const trailing = join(incoming, `yzgc-images-preview-${OLD}.tar.gz\n`);
+    writeFileSync(trailing, 'not an archive of ours\n');
+    const result = run(h, 'deploy-stack.sh', [
+      '--environment', 'preview', '--incoming-dir', incoming, '--images', current, '--env-file', preview.envFile, '--health-timeout', '5',
+    ]);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(existsSync(current)).toBe(false);
+    expect(existsSync(trailing)).toBe(true);
+  });
+
+  it('keeps the incoming env file when the installed env is a symlink to it', () => {
+    const h = host();
+    const preview = stack(h.root, 'preview', SHA);
+    const incoming = join(preview.stackRoot, 'incoming');
+    const current = archive(incoming, `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    // 工作流不会这样装，但手工做成的链接不能在清理后变成悬空链接。
+    const stackEnv = join(preview.stackRoot, '.env.preview');
+    symlinkSync(preview.envFile, stackEnv);
+    const result = run(h, 'deploy-stack.sh', [
+      '--environment', 'preview', '--incoming-dir', incoming, '--images', current, '--env-file', stackEnv, '--health-timeout', '5',
+    ]);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(existsSync(current)).toBe(false);
+    expect(lstatSync(stackEnv).isSymbolicLink()).toBe(true);
+    expect(readFileSync(stackEnv, 'utf8')).toContain(`IMAGE_TAG=${SHA}`);
+  });
+
+  // root 不受目录权限限制，删不失败，这条路径造不出来。
+  it.skipIf(process.getuid?.() === 0)('reports a failed cleanup as a warning without failing the deploy', () => {
+    const h = host();
+    const preview = stack(h.root, 'preview', SHA);
+    const incoming = join(preview.stackRoot, 'incoming');
+    const current = archive(incoming, `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    chmodSync(incoming, 0o500);
+    try {
+      const result = run(h, 'deploy-stack.sh', [
+        '--environment', 'preview', '--incoming-dir', incoming, '--images', current, '--env-file', preview.envFile, '--health-timeout', '5',
+      ]);
+      expect(result.status).toBe(0);
+      expect(history(preview.stackRoot).at(-1)?.slice(2, 4)).toEqual([SHA, 'OK']);
+      expect(result.stdout).toMatch(/^::warning::清理 incoming 失败/m);
+      expect(result.stderr).toContain('清理 incoming 失败');
+      for (const file of [current, `${current}.sha256`, preview.envFile]) expect(existsSync(file)).toBe(true);
+    } finally {
+      chmodSync(incoming, 0o700);
+    }
   });
 });
 

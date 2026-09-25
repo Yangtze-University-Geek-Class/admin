@@ -171,12 +171,13 @@ http_ok() {
 
 health_check() {
   # 返回 0 表示通过。$1=用于日志的标签
+  # 先探测、再看是否超时：SECONDS 按整秒跳变，先判断超时的话，跳变正好落在算 deadline 之后时一次都不探测就判失败。
   local label="$1" server_url="$2" web_url="$3" deadline=$((SECONDS + HEALTH_TIMEOUT))
   local body status
   body=$(mktemp)
   # shellcheck disable=SC2064
   trap "rm -f '$body'" RETURN
-  while [ "$SECONDS" -lt "$deadline" ]; do
+  while :; do
     status=$(http_ok "$server_url" "$body")
     if [ "$status" = "200" ] && grep -q '"ok":true' "$body" 2>/dev/null; then
       # 再从 web 入口验一次：/healthz 会穿过 web → server，能暴露反代与依赖注入问题
@@ -189,9 +190,9 @@ health_check() {
     else
       printf '等待 server 健康（%s）：%s 返回 %s\n' "$label" "$server_url" "$status"
     fi
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep "$HEALTH_INTERVAL"
   done
-  return 1
 }
 
 set_env_image_tag() {
@@ -257,24 +258,26 @@ prune_tags() {
 }
 
 clean_incoming() {
-  # 只在部署成功后调用：删掉 --incoming-dir 里本环境的镜像归档（含 .sha256）与 .env.<environment>。
-  # 同一环境同一时刻只有一个部署任务，这时目录里本环境的归档只可能是本次或更早留下的。
+  # 只在部署成功后调用：删掉 --incoming-dir 里本环境的镜像归档（含 .sha256）与 .env.<environment>，本次和更早的都删。
+  # 部署锁只包住本脚本，上传在锁外：deploy-manual.mjs 不能与同环境的 CI 部署同时跑（见 docs/ops/DEPLOY.md），
+  # 否则这里会删掉排队那次已上传的文件，那次部署会失败关闭。
   # 回滚不需要它们：自动回滚与 rollback-stack.sh 只用本机已装载的镜像，运行中的 env 在 <STACK_ROOT>/.env.<environment>。
-  # 另一环境的文件、别的文件名、子目录、incoming 之外的路径都不碰；incoming 就是栈根时，已安装的 env 也不删。
-  local dir stack_env path name removed=0 failed=0
+  # 另一环境的文件、别的文件名、子目录、incoming 之外的路径都不碰；与已安装 env 是同一个文件的（incoming 就是栈根、
+  # 符号链接或硬链接）也不删。
+  local dir path name removed=0 failed=0
   local archive_re="^yzgc-images-${ENVIRONMENT}-[0-9a-f]{12}\.(tar|tar\.gz|tgz)(\.sha256)?$"
   if [ -z "$INCOMING_DIR" ]; then
     printf '未指定 --incoming-dir，不清理归档与 env 文件\n'
     return 0
   fi
   dir=$(cd -- "$INCOMING_DIR" && pwd -P) || return 1
-  stack_env="$(cd -- "$STACK_ROOT" && pwd -P)/.env.$ENVIRONMENT" || return 1
   shopt -s nullglob
   for path in "$dir/yzgc-images-$ENVIRONMENT-"* "$dir/.env.$ENVIRONMENT"; do
-    name=$(basename -- "$path")
+    # 不用 basename 的命令替换：它会去掉文件名末尾的换行，让不合规的名字也对上正则。
+    name=${path##*/}
     [ -f "$path" ] || continue
     [[ "$name" =~ $archive_re || "$name" = ".env.$ENVIRONMENT" ]] || continue
-    [ "$path" != "$stack_env" ] || continue
+    [ "$path" -ef "$STACK_ENV_FILE" ] && continue
     if rm -f -- "$path"; then
       printf '已清理 incoming：%s\n' "$name"
       removed=$((removed + 1))
@@ -435,8 +438,12 @@ if compose_up; then
   if health_check "$IMAGE_TAG" "$SERVER_HEALTH_URL" "$WEB_HEALTH_URL"; then
     write_history OK "$IMAGE_TAG" "compose up 成功且健康检查通过"
     prune_tags
-    # 清理失败不改变部署结果（新版本已上线、历史已记 OK），但要在 stderr 报出来，由人删除残留。
-    clean_incoming || printf '部署已成功，但 incoming 没有清理干净（见上文），请人工删除残留的归档与 env 文件\n' >&2
+    # 清理失败不改变部署结果（新版本已上线、历史已记 OK），但要报出来，由人删除残留（可能含带密钥的 env）。
+    # stdout 的 ::warning:: 经 ssh 原样回到 runner，Actions 会把它显示成这一步的警告，job 是绿的也看得见。
+    if ! clean_incoming; then
+      printf '部署已成功，但 incoming 没有清理干净（见上文），请人工删除残留的归档与 env 文件\n' >&2
+      printf '::warning::清理 incoming 失败：%s 里还留着本环境的归档或 env 文件，部署本身已成功，请人工删除\n' "$INCOMING_DIR"
+    fi
     printf '部署成功：%s %s\n' "$ENVIRONMENT" "$IMAGE_TAG"
     exit 0
   fi
