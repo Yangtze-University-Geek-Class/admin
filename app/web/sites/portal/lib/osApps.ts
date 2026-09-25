@@ -31,7 +31,7 @@ export const OS_APPS: readonly OsApp[] = [
   { id: "forum", name: "论坛", icon: "discuss-line", tint: "#5b5fd6", key: "2", open: { kind: "scene", path: "/forum-3d" }, blurb: "班级公告，课程、竞赛和求职讨论" },
   { id: "github", name: "GitHub 组织", icon: "github-line", tint: "#1b2140", key: "3", open: { kind: "scene", path: "/github" }, blurb: "极客班的公开仓库" },
   { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "极客班是做什么的" },
-  { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "提督、舰长、各部门的队长和舰员" },
+  { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "有哪些部门，谁负责什么" },
   { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
   { id: "wallpaper", name: "壁纸", icon: "image-line", tint: "#0e9f8f", open: { kind: "panel" }, blurb: "换一张桌面壁纸" },
   { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },
@@ -122,7 +122,7 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
     case "clear":
       return { lines: [], clear: true };
     case "whoami":
-      return reply([{ kind: "out", text: "乘客（官网不需要登录）" }]);
+      return reply([{ kind: "out", text: "访客（官网不需要登录）" }]);
     case "repos":
       return reply(
         repos.length
