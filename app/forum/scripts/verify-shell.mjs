@@ -11,6 +11,10 @@ const BASE = process.env.TUFF_FORUM_URL ?? 'http://localhost:3456'
 // The desktop column. The mobile drawer keeps its own copy mounted (inert)
 // while closed, so a bare `.tx-bui-sidebar-nav` would match both.
 const SIDEBAR = '.tx-row .tx-bui-sidebar-nav'
+// The 极客班 logo in front of the header's site name (decorative, alt="").
+const LOGO = 'header a img[src$="/logo.png"]'
+// TxDropdownMenu keeps its panel mounted after closing and only hides it, so "open" means visible.
+const MENU_OPEN = `(() => { const panel = document.querySelector('.tx-dropdown__panel'); return !!panel && getComputedStyle(panel).visibility === 'visible' })()`
 
 const steps = []
 function record(step, detail) {
@@ -47,28 +51,34 @@ try {
   await evaluate(`localStorage.removeItem('tuff-forum:color-mode'); localStorage.removeItem('tuff-forum:sidebar'); localStorage.removeItem('tuff-forum:session:v1'); localStorage.removeItem('tuff-forum:state:v1')`)
   await reload()
   await waitFor(has(SIDEBAR))
+  await waitFor(`${q(LOGO)}?.complete && ${q(LOGO)}.naturalWidth > 0`)
   await sleep(300)
 
   const header = await evaluate(`({
-    siteName: document.body.innerText.includes('Tuff Forum'),
+    siteName: document.querySelector('header')?.innerText.includes('Tuff Forum'),
     notification: ${has('header .i-carbon-notification')},
     themeIcon: ${has('header .i-carbon-moon')} || ${has('header .i-carbon-sun')},
     menu: ${has('header .i-carbon-menu')},
     search: ${has('header .tx-search-input__icon')},
-    logo: ${has('header .tx-tuff-logo-stroke')},
+    // Decorative logo inside the home link whose accessible name is the visible site name.
+    logo: ${q(LOGO)}?.getAttribute('alt') === '' && ${q(LOGO)}.closest('a')?.textContent.trim() === 'Tuff Forum',
     groups: [...document.querySelectorAll('.tx-bui-sidebar-nav__group-label')].map(e => e.textContent.trim()),
     items: ${count('.tx-bui-sidebar-nav__row')},
     dots: ${count('.tx-bui-sidebar-nav__icon .tx-badge--dot')},
     badge: document.querySelector('.tx-bui-sidebar-nav__badge')?.textContent.trim() ?? null,
+    // Signed in, yet the sidebar holds no site card and no account card: the filter is its first row.
+    sidebarFirst: ${q(SIDEBAR)}?.firstElementChild?.querySelector('input')?.placeholder ?? null,
+    sidebarCards: ${count(`${SIDEBAR} .tx-card-item, ${SIDEBAR} .tx-bui-sidebar-nav__workspace`)},
     dark: document.documentElement.classList.contains('dark'),
   })`)
   assert(header.siteName && header.notification && header.themeIcon && header.menu && header.search && header.logo, `header markers ${JSON.stringify(header)}`)
+  assert(header.sidebarFirst === '筛选侧栏' && header.sidebarCards === 0, `sidebar top/footer ${JSON.stringify(header)}`)
   assert(header.groups.join(',') === '社区,类别,标签,我的', `sidebar groups ${header.groups}`)
   assert(header.items === 4 + 9 + 9 + 2, `sidebar item count ${header.items}`)
   assert(header.dots === 8, `category dots ${header.dots}`)
   assert(!header.dark, 'starts light under an emulated light OS scheme')
   assertClean('/')
-  record('desktop / renders shell', { note: `${header.items} nav rows, groups ${header.groups.join('/')}, 8 category dots, unread badge ${header.badge}` })
+  record('desktop / renders shell', { note: `logo image loaded before the site name, ${header.items} nav rows, groups ${header.groups.join('/')}, 8 category dots, unread badge ${header.badge}; sidebar starts at 筛选侧栏 with no card rows` })
   await screenshot('reports/shell-light-desktop.png')
 
   // ------------------------------------------------------------ icons resolve
@@ -118,15 +128,20 @@ try {
   assert(closedDrawer && !closedDrawer.visible && closedDrawer.inert && closedDrawer.hidden === 'true', `closed drawer ${JSON.stringify(closedDrawer)}`)
   assert(await evaluate(clickByLabel('切换侧栏')), 'mobile toggle')
   await waitFor(has('.tx-drawer--visible .tx-bui-sidebar-nav'))
-  const drawer = await evaluate(`({ left: ${has('.tx-drawer--left.tx-drawer--visible')}, title: document.querySelector('.tx-drawer__title')?.textContent.trim() })`)
-  assert(drawer.left && drawer.title === '导航', `drawer ${JSON.stringify(drawer)}`)
+  const drawer = await evaluate(`({
+    left: ${has('.tx-drawer--left.tx-drawer--visible')},
+    title: document.querySelector('.tx-drawer__title')?.textContent.trim(),
+    first: document.querySelector('.tx-drawer--visible .tx-bui-sidebar-nav input')?.placeholder ?? null,
+    cards: ${count('.tx-drawer--visible .tx-bui-sidebar-nav .tx-card-item')},
+  })`)
+  assert(drawer.left && drawer.title === '导航' && drawer.first === '筛选侧栏' && drawer.cards === 0, `drawer ${JSON.stringify(drawer)}`)
   await sleep(500)
   await screenshot('reports/shell-mobile-drawer.png')
   // Picking an item closes the drawer.
   assert(await evaluate(clickByText('.tx-drawer--visible .tx-bui-sidebar-nav__row', '关于')), 'drawer item 关于')
   await waitFor(`!${has('.tx-drawer--visible')} && location.pathname === '/about'`)
   assertClean('mobile drawer')
-  record('mobile drawer hosts the sidebar', { note: 'no inline column; closed drawer is inert + aria-hidden; left drawer titled 导航 opens with the nav, closes on navigate to /about' })
+  record('mobile drawer hosts the sidebar', { note: 'no inline column; closed drawer is inert + aria-hidden; left drawer titled 导航 opens with the nav starting at 筛选侧栏 and no card rows, closes on navigate to /about' })
 
   // ------------------------------------------------------------ session
   await emulate({ width: 1280, height: 800 })
@@ -135,7 +150,8 @@ try {
   assert(await evaluate(clickByLabel('用户菜单')), 'user menu trigger')
   await waitFor(has('.tx-dropdown__panel'))
   const menuItems = await evaluate(`[...document.querySelectorAll('.tx-dropdown__panel .tx-dropdown-item')].map(e => e.textContent.trim())`)
-  assert(menuItems.join(',') === '我的主页,我的帖子,书签,偏好设置,切换用户,退出登录', `menu items ${menuItems}`)
+  // The first, disabled row names who is signed in; the sidebar no longer carries an account card.
+  assert(menuItems.join(',') === '@talex · 管理员,我的主页,我的帖子,书签,偏好设置,切换用户,退出登录', `menu items ${menuItems}`)
   assert(await evaluate(clickByText('.tx-dropdown__panel .tx-dropdown-item', '退出登录')), 'logout item')
   await waitFor(`[...document.querySelectorAll('header button')].some(b => b.textContent.trim() === '登录')`)
   // Persistence is debounced (150 ms); wait for the write rather than racing it.
@@ -144,10 +160,12 @@ try {
     avatar: ${has('header .tx-avatar')},
     groups: [...document.querySelectorAll('.tx-bui-sidebar-nav__group-label')].map(e => e.textContent.trim()),
     session: localStorage.getItem('tuff-forum:session:v1'),
-    footerLogin: [...document.querySelectorAll('.tx-bui-sidebar-nav button')].some(b => b.textContent.trim() === '登录'),
+    // The only sign-in entry is the header's; the sidebar has no login button and no card.
+    sidebarLogin: [...document.querySelectorAll('.tx-bui-sidebar-nav button')].some(b => b.textContent.trim() === '登录'),
+    sidebarCards: ${count('.tx-bui-sidebar-nav .tx-card-item')},
   })`)
   await sleep(200)
-  assert(!guest.avatar && guest.groups.join(',') === '社区,类别,标签' && guest.footerLogin, `guest state ${JSON.stringify(guest)}`)
+  assert(!guest.avatar && guest.groups.join(',') === '社区,类别,标签' && !guest.sidebarLogin && guest.sidebarCards === 0, `guest state ${JSON.stringify(guest)}`)
   assert(guest.session === '{"currentUserId":null}', `session storage ${guest.session}`)
   record('logout → guest shell', { note: `header shows 登录, sidebar groups ${guest.groups.join('/')}, session ${guest.session}` })
 
@@ -164,14 +182,19 @@ try {
   await waitFor(`localStorage.getItem('tuff-forum:session:v1') === '{"currentUserId":"u2"}'`)
   const loggedIn = await evaluate(`({
     session: localStorage.getItem('tuff-forum:session:v1'),
-    footer: document.querySelector('.tx-bui-sidebar-nav .tx-card-item__subtitle')?.textContent.trim(),
     groups: [...document.querySelectorAll('.tx-bui-sidebar-nav__group-label')].map(e => e.textContent.trim()),
     toast: document.body.innerText.includes('已切换为 Mika'),
   })`)
+  // Who is signed in now reads from the header avatar menu's first row.
+  assert(await evaluate(clickByLabel('用户菜单')), 'user menu trigger after switch')
+  await waitFor(MENU_OPEN)
+  loggedIn.footer = await evaluate(`document.querySelector('.tx-dropdown__panel .tx-dropdown-item')?.textContent.trim()`)
+  await key('Escape', { code: 'Escape', keyCode: 27 })
+  await waitFor(`!${MENU_OPEN}`)
   assert(loggedIn.session === '{"currentUserId":"u2"}', `session ${loggedIn.session}`)
   assert(loggedIn.footer === '@mika · 版主' && loggedIn.groups.length === 4 && loggedIn.toast, `logged in ${JSON.stringify(loggedIn)}`)
   assertClean('session switch')
-  record('login modal → Mika', { note: `12 users listed (badges ${modal.badges.join('/')}), session ${loggedIn.session}, footer ${loggedIn.footer}, toast shown` })
+  record('login modal → Mika', { note: `12 users listed (badges ${modal.badges.join('/')}), session ${loggedIn.session}, header menu ${loggedIn.footer}, toast shown` })
 
   // ------------------------------------------------------------ command palette
   await key('k', { modifiers: 4 })
@@ -188,9 +211,9 @@ try {
   await open(`${BASE}/about`)
   await waitFor(has('.tx-stat-card'))
   const about = await evaluate(`({ title: document.title, stats: ${count('.tx-stat-card')}, staff: ${count('.tx-card-item')}, sidebar: ${has(SIDEBAR)} })`)
-  assert(about.title === '关于 · Tuff Forum' && about.stats === 3 && about.staff >= 3 && about.sidebar, `about ${JSON.stringify(about)}`)
+  assert(about.title === '关于 · Tuff Forum' && about.stats === 3 && about.staff >= 2 && about.sidebar, `about ${JSON.stringify(about)}`)
   assertClean('/about')
-  record('/about', { note: `title "${about.title}", 3 stat cards, ${about.staff} card items (2 staff + sidebar footer)` })
+  record('/about', { note: `title "${about.title}", 3 stat cards, ${about.staff} staff card items` })
 
   await open(`${BASE}/this-does-not-exist`)
   await waitFor(has('.tx-empty-state'))
@@ -199,7 +222,7 @@ try {
     heading: document.querySelector('.tx-empty-state')?.textContent.replace(/\\s+/g, ' ').trim(),
     button: [...document.querySelectorAll('.tx-empty-state button')].map(b => b.textContent.trim()),
     sidebar: ${has(SIDEBAR)},
-    header: ${has('header .tx-tuff-logo-stroke')},
+    header: ${has(LOGO)},
   })`)
   assert(errorPage.heading.includes('哎呀，这个页面不存在') && errorPage.button.includes('返回首页') && errorPage.sidebar && errorPage.header, `error page ${JSON.stringify(errorPage)}`)
   // `pages/[...slug].vue` turns an unmatched URL into a normal page-level 404,
