@@ -3,24 +3,25 @@
 
 export type Capability = string;
 export type Tone = "amber" | "cobalt" | "violet" | "jade" | "sky" | "coral" | "rose" | "slate";
-export type TitleId = "captain" | "head" | "member" | "alumni" | "guest";
+/** `admin` 是 GitHub 组织的所有者，自动获得、不能指派；`guest` 是没有任何称号。名字等显示信息见 catalogue。 */
+export type TitleId = "admin" | "captain" | "head" | "member" | "alumni" | "guest";
+export type GithubRole = "admin" | "member" | null;
 export type BlockReason = "github_admin_required" | "github_membership_required";
 
 export type DepartmentView = { id: string; name: string; tag: string; icon: string; tone: Tone };
 export type TitleView = {
   id: TitleId; label: string; tag: string; icon: string; tone: Tone;
   department: DepartmentView | null;
-  source: "assignment" | "bootstrap" | "github" | "none";
+  source: "assignment" | "github" | "none";
   assignment_id: number | null;
 };
 
 export type ConsoleMe = {
   login: string; avatar_url: string | null; org: string;
-  github_role: "admin" | "member" | null;
+  github_role: GithubRole;
   title: TitleView; titles: TitleView[];
   capabilities: Capability[];
   blocked: { capability: Capability; reason: BlockReason }[];
-  bootstrap: boolean;
   head_of: string[];
 };
 
@@ -44,12 +45,21 @@ export type Department = DepartmentView & {
   sort_order: number; archived: boolean; heads: string[]; crew_count: number;
 };
 
-export type AssignableRole = Exclude<TitleId, "guest">;
+export type AssignableRole = Exclude<TitleId, "admin" | "guest">;
 export type Assignment = {
   id: number; github_login: string; github_user_id: number | null;
   role: AssignableRole; department_id: string; note: string | null; granted_by: string; created_at: number;
 };
-export type AssignmentsResponse = { assignments: Assignment[]; captain: { github_login: string } | null; bootstrap_active: boolean };
+export type AssignmentsResponse = { assignments: Assignment[]; captain: { github_login: string } | null };
+
+/** GET /api/console/people：GitHub 组织里的每个人，加上有称号但已经不在组织里的人（github_role 为 null）。 */
+export type Person = { login: string; user_id: number | null; avatar_url: string | null; github_role: GithubRole; titles: TitleView[] };
+export type PeopleResponse = { people: Person[] };
+
+/** 称号在服务端存的样子；PATCH /api/console/titles/:title_id 只提交改动的字段，返回改后的整条。 */
+export type TitleConfig = { id: TitleId; label: string; tag: string; icon: string; tone: Tone; description: string; capabilities: Capability[] };
+export type TitlePatch = Partial<Omit<TitleConfig, "id">>;
+export type TitlePatchResponse = { title: TitleConfig };
 
 export type ApplicationStatus = "received" | "reviewing" | "interview" | "accepted" | "rejected";
 export type ApplicationItem = {

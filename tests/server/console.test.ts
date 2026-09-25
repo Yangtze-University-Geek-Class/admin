@@ -20,6 +20,12 @@ function github(roles: Record<string, Role>, users: Record<string, number> = {},
         if (!role) throw Object.assign(new Error('stub not found'), { status: 404 });
         return { data: { state: 'active', role } };
       }
+      if (route === 'GET /orgs/{org}/members') {
+        if (params.org !== CONSOLE_ORG) throw Object.assign(new Error('stub not found'), { status: 404 });
+        const data = Object.entries(roles).filter(([, role]) => role === params.role)
+          .map(([login]) => ({ login, id: users[login] ?? 0, avatar_url: `https://avatars.example.test/${login}` }));
+        return { data };
+      }
       if (route === 'GET /users/{username}') {
         const id = users[params.username.toLowerCase()];
         if (!id) throw Object.assign(new Error('stub not found'), { status: 404 });
@@ -61,26 +67,27 @@ describe('identity and capabilities', () => {
     }
   });
 
-  it('makes a GitHub org admin the bootstrap captain with every capability while no captain is assigned', async () => {
+  it('makes a GitHub org owner the 提督 with every capability', async () => {
     const calls: string[] = [];
     const { app, as } = await setup({ alice: 'admin' }, calls);
     const response = await app.inject({ url: '/api/console/me', headers: as('alice') });
     expect(response.statusCode).toBe(200);
     const me = response.json();
-    expect(me).toMatchObject({ login: 'alice', org: CONSOLE_ORG, github_role: 'admin', bootstrap: true, blocked: [] });
-    expect(me.title).toMatchObject({ id: 'captain', label: '班长', tag: 'CAPTAIN', tone: 'amber', source: 'bootstrap', assignment_id: null });
+    expect(me).toMatchObject({ login: 'alice', org: CONSOLE_ORG, github_role: 'admin', blocked: [] });
+    expect(me).not.toHaveProperty('bootstrap');
+    expect(me.title).toMatchObject({ id: 'admin', label: '提督', tag: 'ADMIRAL', tone: 'violet', source: 'github', assignment_id: null });
     expect(me.capabilities).toEqual(CAPABILITY_IDS);
     expect(calls.every(call => call.includes(CONSOLE_ORG))).toBe(true);
   });
 
-  it('downgrades other org admins to members once a captain is explicitly assigned', async () => {
-    const { app, as, assign } = await setup({ alice: 'admin', bob: 'admin' });
+  it('keeps org owners as 提督 above the explicitly appointed 舰长', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'admin', carol: 'member' });
     assign('carol', 'captain');
-    const me = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
-    expect(me.bootstrap).toBe(false);
-    expect(me.title).toMatchObject({ id: 'member', label: '极客班成员', source: 'github' });
-    // GitHub admin 上限允许更多 github.*，但称号只给了查看。
-    expect(me.capabilities).toEqual(['console.access', 'github.org.read']);
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.title).toMatchObject({ id: 'admin', label: '提督' });
+    expect(bob.capabilities).toEqual(CAPABILITY_IDS);
+    const carol = (await app.inject({ url: '/api/console/me', headers: as('carol') })).json();
+    expect(carol.title).toMatchObject({ id: 'captain', label: '舰长', source: 'assignment' });
   });
 
   it('gives a plain org member only console access and org read', async () => {
@@ -93,8 +100,8 @@ describe('identity and capabilities', () => {
   it('treats a non-member without titles as a guest with no capabilities', async () => {
     const { app, as } = await setup();
     const me = (await app.inject({ url: '/api/console/me', headers: as('dave') })).json();
-    expect(me).toMatchObject({ github_role: null, capabilities: [], blocked: [], bootstrap: false });
-    expect(me.title).toMatchObject({ id: 'guest', label: '访客', source: 'none' });
+    expect(me).toMatchObject({ github_role: null, capabilities: [], blocked: [] });
+    expect(me.title).toMatchObject({ id: 'guest', label: '乘客', source: 'none' });
     const denied = await app.inject({ url: '/api/console/catalogue', headers: as('dave') });
     expect(denied.statusCode).toBe(403);
     expect(denied.json()).toMatchObject({ error: 'missing_capability', capability: 'console.access' });
@@ -104,7 +111,7 @@ describe('identity and capabilities', () => {
     const { app, as, assign } = await setup({ erin: 'member' });
     assign('erin', 'head', 'recruitment');
     const me = (await app.inject({ url: '/api/console/me', headers: as('erin') })).json();
-    expect(me.title).toMatchObject({ id: 'head', label: '招新部 · 负责人', tone: 'coral', icon: 'user-follow', source: 'assignment' });
+    expect(me.title).toMatchObject({ id: 'head', label: '招新部 · 队长', tone: 'coral', icon: 'user-follow', source: 'assignment' });
     expect(me.title.department).toMatchObject({ id: 'recruitment', name: '招新部' });
     expect(me.capabilities).toEqual(expect.arrayContaining(['applications.read', 'applications.review', 'applications.export', 'feedback.read', 'roles.department.manage']));
     expect(me.capabilities).not.toContain('github.invites.manage');
@@ -185,10 +192,9 @@ describe('assignments', () => {
     const post = (headers: Record<string, string>, login: string) => app.inject({ method: 'POST', url: '/api/console/assignments', headers, payload: { github_login: login, role: 'captain' } });
     expect((await post(as('bob'), 'bob')).json().error).toBe('missing_capability');
 
+    // 提督（组织 owner）指定舰长；有了舰长以后，提督照样可以换人。
     expect((await post(as('alice'), 'carol')).statusCode).toBe(201);
-    expect((await app.inject({ url: '/api/console/me', headers: as('alice') })).json().bootstrap).toBe(false);
-    // 原临时代任的组织管理员已不是班长，不能再指定班长。
-    expect((await post(as('alice'), 'alice')).statusCode).toBe(403);
+    expect((await app.inject({ url: '/api/console/me', headers: as('alice') })).json().title.id).toBe('admin');
 
     const transfer = await post(as('carol'), 'dave');
     expect(transfer.statusCode).toBe(201);
@@ -199,17 +205,19 @@ describe('assignments', () => {
     expect(() => db.prepare("INSERT INTO role_assignments(github_login, role, department_id, granted_by, created_at) VALUES('erin', 'captain', '', 'x', 0)").run()).toThrow(/UNIQUE/);
   });
 
-  it('lets only the captain themself remove the captain row, which restores bootstrap', async () => {
-    const { app, as, assign } = await setup({ alice: 'admin', carol: 'member' });
+  it('lets the 提督 or the 舰长 themself remove the captain row, and nobody else', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'member', carol: 'member' });
     const captain = assign('carol', 'captain')!;
-    const byAdmin = await app.inject({ method: 'DELETE', url: `/api/console/assignments/${captain.id}`, headers: as('alice') });
-    expect(byAdmin.statusCode).toBe(403);
-    assign('alice', 'head', 'tech');
-    // 有 roles.department.manage 但不是班长：captain 行必须由本人移交。
-    expect((await app.inject({ method: 'DELETE', url: `/api/console/assignments/${captain.id}`, headers: as('alice') })).json().error).toBe('captain_transfer_required');
+    assign('bob', 'head', 'tech');
+    // 队长有 roles.department.manage，但撤不了舰长。
+    const byHead = await app.inject({ method: 'DELETE', url: `/api/console/assignments/${captain.id}`, headers: as('bob') });
+    expect(byHead.json().error).toBe('captain_transfer_required');
     const bySelf = await app.inject({ method: 'DELETE', url: `/api/console/assignments/${captain.id}`, headers: as('carol') });
     expect(bySelf.statusCode).toBe(200);
-    expect((await app.inject({ url: '/api/console/me', headers: as('alice') })).json().bootstrap).toBe(true);
+    const again = assign('carol', 'captain')!;
+    const byAdmiral = await app.inject({ method: 'DELETE', url: `/api/console/assignments/${again.id}`, headers: as('alice') });
+    expect(byAdmiral.statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/console/me', headers: as('carol') })).json().title.id).toBe('member');
   });
 
   it('confines a department head to appointing and removing crew of their own department', async () => {
@@ -396,9 +404,162 @@ describe('summary, feedback and audit', () => {
     const { app, as } = await setup({ bob: 'member' });
     const catalogue = (await app.inject({ url: '/api/console/catalogue', headers: as('bob') })).json();
     expect(catalogue.captain_only).toEqual(['roles.manage']);
-    expect(catalogue.titles.find((title: { id: string }) => title.id === 'alumni')).toMatchObject({ label: '领航员', tag: 'NAVIGATOR', icon: 'compass', tone: 'violet' });
+    expect(catalogue.titles.find((title: { id: string }) => title.id === 'alumni')).toMatchObject({ label: '领航员', tag: 'NAVIGATOR', icon: 'compass', tone: 'jade' });
+    expect(catalogue.titles.find((title: { id: string }) => title.id === 'admin')).toMatchObject({ label: '提督', tag: 'ADMIRAL', rank: 0 });
     expect(catalogue.capabilities).toHaveLength(CAPABILITY_IDS.length);
     expect(catalogue.department_icons).not.toContain('crown');
+  });
+});
+
+describe('titles are data the 提督 can edit', () => {
+  it('renames a title and changes its permissions without touching code', async () => {
+    const { app, as, assign, audits } = await setup({ alice: 'admin', bob: 'member' });
+    assign('bob', 'alumni');
+    const patch = (headers: Record<string, string>, id: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'PATCH', url: `/api/console/titles/${id}`, headers, payload });
+    const renamed = await patch(as('alice'), 'alumni', { label: '老船长', capabilities: ['console.access', 'github.org.read', 'feedback.read', 'audit.read'] });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().title).toMatchObject({ id: 'alumni', label: '老船长' });
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.title).toMatchObject({ id: 'alumni', label: '老船长' });
+    expect(bob.capabilities).toContain('audit.read');
+    const catalogue = (await app.inject({ url: '/api/console/catalogue', headers: as('bob') })).json();
+    expect(catalogue.titles.find((title: { id: string }) => title.id === 'alumni').label).toBe('老船长');
+    expect(catalogue.role_base.alumni).toContain('audit.read');
+    const logged = audits().find(row => row.action === 'title.update')!;
+    expect(logged).toMatchObject({ org: CONSOLE_ORG, actor: 'alice', target: 'alumni' });
+    expect(JSON.parse(logged.details!)).toEqual({ changed: ['label', 'capabilities'] });
+    // 公开的组织架构跟着变，不需要登录。
+    const org = (await app.inject('/api/public/org')).json();
+    expect(org.titles.find((title: { id: string }) => title.id === 'alumni')).toMatchObject({ label: '老船长', rank: 4 });
+    expect(org.titles[0]).toMatchObject({ id: 'admin', label: '提督' });
+    expect(org.titles[0]).not.toHaveProperty('capabilities');
+    expect(org.tones.jade).toBe('#18694A');
+    expect(org.departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
+  });
+
+  it('keeps the 提督 at every capability, the 乘客 at none, and 管理称号 in the 舰长 bundle only', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', carol: 'member' });
+    assign('carol', 'captain');
+    const patch = (id: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'PATCH', url: `/api/console/titles/${id}`, headers: as('alice'), payload });
+    expect((await patch('admin', { capabilities: ['console.access'] })).json().error).toBe('title_capabilities_fixed');
+    expect((await patch('guest', { capabilities: ['console.access'] })).json().error).toBe('title_capabilities_fixed');
+    expect((await patch('head', { capabilities: ['roles.manage'] })).json().error).toBe('captain_only_capability');
+    // 提督的名字可以改，权限不会变少。
+    expect((await patch('admin', { label: '总督' })).statusCode).toBe(200);
+    const me = (await app.inject({ url: '/api/console/me', headers: as('alice') })).json();
+    expect(me.title.label).toBe('总督');
+    expect(me.capabilities).toEqual(CAPABILITY_IDS);
+    // 舰长的权限由提督决定：拿掉「管理称号与部门」后，舰长就不能再改称号。
+    expect((await patch('captain', { capabilities: ['console.access', 'github.org.read', 'feedback.read'] })).statusCode).toBe(200);
+    const carol = (await app.inject({ url: '/api/console/me', headers: as('carol') })).json();
+    expect(carol.title.id).toBe('captain');
+    expect(carol.capabilities).not.toContain('roles.manage');
+    const byCaptain = await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('carol'), payload: { label: '水手' } });
+    expect(byCaptain.statusCode).toBe(403);
+  });
+
+  it('lets only the 提督 edit the top two titles, and words errors with the current names', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', carol: 'member' });
+    assign('carol', 'captain');
+    const patch = (who: string, id: string, payload: Record<string, unknown>) =>
+      app.inject({ method: 'PATCH', url: `/api/console/titles/${id}`, headers: as(who), payload });
+    // 舰长持有 roles.manage，能改别的称号，但不能改自己这一级和提督那一级（否则能给自己加权限）。
+    for (const id of ['captain', 'admin']) {
+      const response = await patch('carol', id, { description: '自己改自己' });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: 'admiral_required', message: '只有提督能修改「提督」和「舰长」这两个称号' });
+    }
+    expect((await patch('carol', 'member', { label: '水手' })).statusCode).toBe(200);
+    // 改名后，提示里用新名字。
+    expect((await patch('alice', 'captain', { label: '班长' })).statusCode).toBe(200);
+    expect((await patch('carol', 'captain', { label: '大班长' })).json().message).toBe('只有提督能修改「提督」和「班长」这两个称号');
+    expect((await patch('alice', 'head', { capabilities: ['roles.manage'] })).json().message).toBe('「管理称号与部门」只能放进班长的权限');
+    const noDepartment = await app.inject({ method: 'POST', url: '/api/console/assignments', headers: as('alice'), payload: { github_login: 'bob', role: 'head' } });
+    expect(noDepartment.json()).toMatchObject({ error: 'department_required', message: '队长必须指定部门' });
+    // 只有空白的名字不接受。
+    expect((await patch('alice', 'member', { label: '   ' })).statusCode).toBe(400);
+  });
+
+  it('refuses title edits without roles.manage and rejects unknown titles or fields', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'member' });
+    assign('bob', 'head', 'tech');
+    const byHead = await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('bob'), payload: { label: '水手' } });
+    expect(byHead.statusCode).toBe(403);
+    expect(byHead.json()).toMatchObject({ error: 'missing_capability', capability: 'roles.manage' });
+    expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/pirate', headers: as('alice'), payload: { label: '海盗' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { rank: 0 } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '这个名字实在是太长了不行' } })).statusCode).toBe(400);
+  });
+
+  it('lists every org member with the title they would see, plus title holders who left the org', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'member', carol: 'member', dave: 'member' });
+    assign('bob', 'head', 'tech');
+    assign('carol', 'captain');
+    assign('gina', 'alumni'); // 已不在组织里
+    await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '水手' } });
+    const response = await app.inject({ url: '/api/console/people', headers: as('alice') });
+    expect(response.statusCode).toBe(200);
+    const people = response.json().people as { login: string; github_role: string | null; titles: { id: string; label: string }[] }[];
+    expect(people.map(p => [p.login, p.github_role, p.titles[0].id, p.titles[0].label])).toEqual([
+      ['alice', 'admin', 'admin', '提督'],
+      ['carol', 'member', 'captain', '舰长'],
+      ['bob', 'member', 'head', '技术部 · 队长'],
+      ['gina', null, 'alumni', '领航员'],
+      ['dave', 'member', 'member', '水手'],
+    ]);
+    // 队长能看名单（任免本部门舰员要挑人）；只有组织成员身份的舰员不能。
+    expect((await app.inject({ url: '/api/console/people', headers: as('bob') })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/console/people', headers: as('dave') })).statusCode).toBe(403);
+  });
+
+  it('deletes a department with its heads and crew, audits who lost a title, and does not bring it back on restart', async () => {
+    const { app, as, assign, audits } = await setup({ alice: 'admin', bob: 'member', carol: 'member', dave: 'member' });
+    assign('bob', 'head', 'tech');
+    assign('carol', 'member', 'tech');
+    assign('dave', 'member', 'community');
+    const byHead = await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('bob') });
+    expect(byHead.statusCode).toBe(403);
+    const response = await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('alice') });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, removed: 2 });
+    expect((await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('alice') })).statusCode).toBe(404);
+    const departments = (await app.inject({ url: '/api/console/departments', headers: as('alice') })).json().departments as { id: string }[];
+    expect(departments.map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    // 队长回到组织成员的默认称号；别的部门不受影响。
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.title.id).toBe('member');
+    expect(bob.head_of).toEqual([]);
+    expect(app.services.roles.listAssignments().map(row => [row.github_login, row.department_id])).toEqual([['dave', 'community']]);
+    const logged = audits().find(row => row.action === 'department.delete')!;
+    expect(logged).toMatchObject({ org: CONSOLE_ORG, actor: 'alice', target: 'tech' });
+    expect(JSON.parse(logged.details!)).toEqual({ name: '技术部', removed: [{ github_login: 'bob', role: 'head' }, { github_login: 'carol', role: 'member' }] });
+    expect((await app.inject('/api/public/org')).json().departments.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    // 重启（重新建 role store）不会把删掉的默认部门补回来。
+    const { createRoleStore } = await import('../../app/server/src/lib/role-store');
+    expect(createRoleStore(app.services.storage.db).listDepartments().map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+  });
+
+  it('trims names on save and never reads 管理称号与部门 out of a non-captain row, even if the database has it', async () => {
+    const { app, as, assign, db } = await setup({ alice: 'admin', bob: 'member' });
+    assign('bob', 'head', 'tech');
+    await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: ' 水手 ' } });
+    expect(app.services.roles.titleConfigs().member.label).toBe('水手');
+    // 绕过接口直接写库：读出时仍然剔除，队长拿不到 roles.manage。
+    db.prepare("UPDATE titles SET capabilities = ? WHERE id = 'head'").run(JSON.stringify(['console.access', 'roles.manage']));
+    const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(bob.capabilities).not.toContain('roles.manage');
+    const catalogue = (await app.inject({ url: '/api/console/catalogue', headers: as('alice') })).json();
+    expect(catalogue.role_base.head).not.toContain('roles.manage');
+  });
+
+  it('keeps an edited title across a restart because defaults only fill empty rows', async () => {
+    const { app, as } = await setup({ alice: 'admin' });
+    await app.inject({ method: 'PATCH', url: '/api/console/titles/member', headers: as('alice'), payload: { label: '水手' } });
+    // 重新建一次 role store（等于重启时的播种）不会把改过的名字盖回默认值。
+    const { createRoleStore } = await import('../../app/server/src/lib/role-store');
+    expect(createRoleStore(app.services.storage.db).titleConfigs().member.label).toBe('水手');
   });
 });
 

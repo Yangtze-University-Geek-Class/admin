@@ -4,11 +4,12 @@ import { TxErrorState } from "@talex-touch/tuffex/error-state";
 import { TxPermissionState } from "@talex-touch/tuffex/permission-state";
 import { describeError, errorTrace } from "../lib/errors";
 import { useSession } from "../lib/session";
+import { assignerText } from "../lib/titles";
 
 /** 读取失败：说清楚出了什么事、下一步做什么；缺能力时改用权限不足状态。`retry` 给了才显示「重试」。 */
 const props = withDefaults(defineProps<{ error: unknown; retry?: () => unknown; size?: "small" | "medium" | "large" }>(), { retry: undefined, size: "medium" });
-const { capabilityLabel } = useSession();
-const view = computed(() => describeError(props.error, capabilityLabel));
+const { catalogue, capabilityLabel } = useSession();
+const view = computed(() => describeError(props.error, capabilityLabel, assignerText(catalogue.value)));
 const trace = computed(() => errorTrace(view.value));
 </script>
 

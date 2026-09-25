@@ -1,6 +1,6 @@
 // 开发预览：`/api/admin/:org/*` 的只读样板数据（全部虚构）。形状与 app/server/src/routes/admin/*.ts 的返回一致。
 import { ApiError } from "../lib/http";
-import { MOCK_ORG, mockPersona } from "./console";
+import { MOCK_MEMBERS, MOCK_ORG, mockPersona } from "./console";
 
 const now = Date.now();
 const MIN = 60_000;
@@ -29,11 +29,7 @@ const repos = [
   { name: "old-forum", description: "旧论坛，已停用", visibility: "private", archived: true, default_branch: "master", size_kb: 5230, language: "JavaScript", stargazers_count: 3, forks_count: 0, open_issues_count: 0, pushed_at: iso(200 * DAY), topics: [] },
 ].map(repo => ({ ...repo, full_name: `${MOCK_ORG}/${repo.name}`, html_url: `https://github.com/${MOCK_ORG}/${repo.name}`, updated_at: repo.pushed_at }));
 
-const members = [
-  { login: "chen-hang", role: "admin" }, { login: "wang-zhe", role: "admin" }, { login: "li-xiaoman", role: "member" },
-  { login: "sun-qiao", role: "member" }, { login: "zhao-yi", role: "member" }, { login: "he-miao", role: "member" },
-  { login: "liu-xing", role: "member" }, { login: "gao-yuan", role: "member" },
-].map((m, index) => ({ ...m, id: 1001 + index, avatar_url: null, html_url: `https://github.com/${m.login}`, state: "active" }));
+const members = MOCK_MEMBERS.map(m => ({ ...m, avatar_url: null, html_url: `https://github.com/${m.login}`, state: "active" }));
 
 const teams = [
   { name: "AI Native", slug: "ai-native", description: "Agent、MCP 与 AI Coding", privacy: "closed", member_count: 18, repo_count: 6 },
@@ -105,7 +101,7 @@ export function routeGithub(url: URL): unknown {
     adminOnly();
     return {
       pending: [
-        { id: 1, login: "new-builder", email: null, role: "direct_member", inviter: { login: "chen-hang" }, created_at: iso(1 * HOUR) },
+        { id: 1, login: "new-builder", email: null, role: "direct_member", inviter: { login: "xu-yan" }, created_at: iso(1 * HOUR) },
         { id: 2, login: null, email: "freshman@example.test", role: "direct_member", inviter: { login: "li-xiaoman" }, created_at: iso(1 * DAY) },
       ],
       history: [
@@ -118,7 +114,7 @@ export function routeGithub(url: URL): unknown {
     adminOnly();
     return {
       links: [
-        { token: "dev-preview-link", org: MOCK_ORG, created_by: "chen-hang", note: "新生群", max_uses: 30, current_uses: 7, expires_at: now + 2 * DAY, team_slug: "ai-native", disabled: 0, created_at: now - 1 * DAY },
+        { token: "dev-preview-link", org: MOCK_ORG, created_by: "xu-yan", note: "新生群", max_uses: 30, current_uses: 7, expires_at: now + 2 * DAY, team_slug: "ai-native", disabled: 0, created_at: now - 1 * DAY },
         { token: "dev-preview-expired", org: MOCK_ORG, created_by: "li-xiaoman", note: "去年的招新群", max_uses: 50, current_uses: 50, expires_at: now - 30 * DAY, team_slug: null, disabled: 0, created_at: now - 60 * DAY },
       ],
     };

@@ -19,7 +19,6 @@ export default async function consoleMeRoutes(app: FastifyInstance) {
       title: access.titles[0], titles: access.titles,
       capabilities: orderedCapabilities(access.capabilities),
       blocked: access.blocked,
-      bootstrap: access.bootstrap,
       head_of: access.headOf,
     };
   });

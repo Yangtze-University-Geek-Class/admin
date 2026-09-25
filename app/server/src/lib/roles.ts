@@ -22,26 +22,33 @@ export const TONE_IDS = Object.keys(TONES) as Tone[];
 /** 部门可选的 Carbon 图标（不带 `i-carbon-` 前缀）。只在论坛渲染，核心 web 不装图标库。 */
 export const DEPARTMENT_ICONS = [
   "star-filled", "badge", "code", "compass", "user", "user-follow", "terminal", "forum", "application",
-  "bullhorn", "education", "idea", "trophy", "user-favorite", "chart-network", "logo-github", "book",
+  "bullhorn", "education", "idea", "trophy", "user-favorite", "chart-network", "logo-github", "book", "user-admin",
 ] as const;
 export type DepartmentIcon = (typeof DEPARTMENT_ICONS)[number];
 
-export type TitleId = "captain" | "head" | "member" | "alumni" | "guest";
-export type AssignableRole = Exclude<TitleId, "guest">;
+/** `admin`（提督）不能指派：GitHub 组织的 owner 自动获得；`guest`（乘客）是没有任何称号。 */
+export type TitleId = "admin" | "captain" | "head" | "member" | "alumni" | "guest";
+export type AssignableRole = Exclude<TitleId, "admin" | "guest">;
 export const ASSIGNABLE_ROLES: AssignableRole[] = ["captain", "head", "member", "alumni"];
 
 export type TitleDefinition = { id: TitleId; label: string; tag: string; icon: string; tone: Tone; rank: number; description: string };
 
-/** 称号。一个人可以有多个；主称号取 rank 最小者。`head` 与带部门的 `member` 的显示名由部门决定。 */
+/**
+ * 称号的**默认值**：第一次启动写进 `titles` 表（INSERT OR IGNORE），之后名字、标签、图标、色调、说明和权限包
+ * 都以数据库为准，由提督（和持有 roles.manage 的舰长）在控制台改，不改代码。代码里固定的只有层级：
+ * id 与 rank（提督 > 舰长 > 队长 > 带部门的舰员 > 领航员 > 舰员 > 乘客），因为「提督 = GitHub 组织 owner」
+ * 「舰长只有一个」「队长属于部门」这些规则靠它执行。一个人可以有多个称号；主称号取 rank 最小者。
+ */
 export const TITLES: Record<TitleId, TitleDefinition> = {
-  captain: { id: "captain", label: "班长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 0, description: "极客班总负责人，拥有全部能力" },
-  head: { id: "head", label: "部门负责人", tag: "HEAD", icon: "badge", tone: "cobalt", rank: 1, description: "负责一个部门的日常事务" },
-  member: { id: "member", label: "极客班成员", tag: "MEMBER", icon: "code", tone: "sky", rank: 4, description: "在读成员；GitHub 组织的 active 成员自动获得" },
-  alumni: { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "violet", rank: 3, description: "已毕业的学长学姐" },
-  guest: { id: "guest", label: "访客", tag: "GUEST", icon: "user", tone: "slate", rank: 9, description: "未登录，或已登录但没有任何称号" },
+  admin: { id: "admin", label: "提督", tag: "ADMIRAL", icon: "user-admin", tone: "violet", rank: 0, description: "GitHub 组织的所有者，拥有全部权限，任命舰长" },
+  captain: { id: "captain", label: "舰长", tag: "CAPTAIN", icon: "star-filled", tone: "amber", rank: 1, description: "带领全班，权限仅次于提督" },
+  head: { id: "head", label: "队长", tag: "LEADER", icon: "badge", tone: "cobalt", rank: 2, description: "负责一个部门的日常事务" },
+  member: { id: "member", label: "舰员", tag: "CREW", icon: "code", tone: "sky", rank: 5, description: "在读成员；加入 GitHub 组织后自动获得" },
+  alumni: { id: "alumni", label: "领航员", tag: "NAVIGATOR", icon: "compass", tone: "jade", rank: 4, description: "已毕业的学长学姐" },
+  guest: { id: "guest", label: "乘客", tag: "PASSENGER", icon: "user", tone: "slate", rank: 9, description: "没登录的人，只能看帖子" },
 };
-/** 部门干事（`member` + 部门）：rank 2，中性色，徽章用 plain 变体。 */
-export const CREW_TITLE = { tag: "CREW", tone: "slate" as Tone, rank: 2 };
+/** 部门舰员（`member` + 部门）：rank 3，中性色，徽章用 plain 变体；名字取舰员称号的名字。 */
+export const CREW_TITLE = { tag: "CREW", tone: "slate" as Tone, rank: 3 };
 
 export type CapabilityDomain = "console" | "github" | "forum" | "applications" | "feedback" | "audit" | "roles";
 export const DOMAINS: { id: CapabilityDomain; label: string }[] = [
@@ -74,8 +81,8 @@ export const CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；仅班长，不可放进部门权限包" },
-  { id: "roles.department.manage", domain: "roles", label: "任免本部门干事", description: "任免本部门干事（只限自己负责的部门）" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；只能给最高的两级称号，不能放进部门权限包" },
+  { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
 ] as const satisfies readonly { id: string; domain: CapabilityDomain; label: string; description: string }[];
 export type Capability = (typeof CAPABILITIES)[number]["id"];
 export const CAPABILITY_IDS: Capability[] = CAPABILITIES.map(item => item.id);
@@ -83,7 +90,7 @@ const CAPABILITY_SET = new Set<string>(CAPABILITY_IDS);
 export const isCapability = (value: unknown): value is Capability => typeof value === "string" && CAPABILITY_SET.has(value);
 export const capabilityLabel = (id: Capability) => CAPABILITIES.find(item => item.id === id)?.label ?? id;
 
-/** 只有班长能持有，不能放进任何部门权限包。 */
+/** 只有提督和舰长能持有，不能放进任何部门权限包。 */
 export const CAPTAIN_ONLY: Capability[] = ["roles.manage"];
 /** 可以下放到部门权限包的能力。 */
 export const DELEGATABLE: Capability[] = CAPABILITY_IDS.filter(id => !CAPTAIN_ONLY.includes(id));
@@ -103,14 +110,35 @@ export const IMPLIES: Partial<Record<Capability, Capability[]>> = {
   "roles.manage": ["roles.department.manage"],
 };
 
-/** 称号的基础能力；`head`/带部门的 `member` 另加部门权限包，`captain` 按清单动态取全部。 */
+/** 称号权限包的默认值（写进 `titles` 表后以数据库为准）；`head`/带部门的 `member` 另加部门权限包，`admin` 永远是全部。 */
 export const ROLE_BASE: Record<TitleId, Capability[]> = {
+  admin: [...CAPABILITY_IDS],
   captain: [...CAPABILITY_IDS],
   head: ["console.access", "github.org.read", "feedback.read", "roles.department.manage"],
   member: ["console.access", "github.org.read"],
   alumni: ["console.access", "github.org.read", "feedback.read"],
   guest: [],
 };
+
+export const TITLE_IDS = Object.keys(TITLES) as TitleId[];
+export const TITLE_TAG_PATTERN = "^[A-Z][A-Z0-9-]{1,15}$";
+/** 称号在数据库里的样子（见 `titles` 表）。 */
+export type TitleConfig = { id: TitleId; label: string; tag: string; icon: string; tone: Tone; description: string; capabilities: Capability[] };
+export type TitleConfigs = Record<TitleId, TitleConfig>;
+export const DEFAULT_TITLE_CONFIGS: TitleConfigs = Object.fromEntries(TITLE_IDS.map(id => {
+  const { label, tag, icon, tone, description } = TITLES[id];
+  return [id, { id, label, tag, icon, tone, description, capabilities: [...ROLE_BASE[id]] }];
+})) as TitleConfigs;
+
+/**
+ * 称号权限包的规则：提督永远拥有全部能力（他是最后能把权限改回来的人，不能被收权）；乘客是没登录的人，没有权限包；
+ * `roles.manage` 除了提督只能放进舰长的权限包。返回错误码，合法时返回 null。
+ */
+export function titleBundleError(id: TitleId, bundle: readonly Capability[]): "title_capabilities_fixed" | "captain_only_capability" | null {
+  if (id === "admin" || id === "guest") return "title_capabilities_fixed";
+  if (id !== "captain" && bundle.some(capability => CAPTAIN_ONLY.includes(capability))) return "captain_only_capability";
+  return null;
+}
 
 export const APPLICATION_STATUSES = [
   { id: "received", label: "已收到" },
@@ -129,7 +157,7 @@ export type Department = {
 export const DEPARTMENT_ID_PATTERN = "^[a-z][a-z0-9-]{1,31}$";
 export const DEPARTMENT_TAG_PATTERN = "^[A-Z][A-Z0-9-]{1,15}$";
 
-/** 默认部门：启动时 INSERT OR IGNORE，班长改过的部门不会被覆盖。 */
+/** 默认部门：启动时 INSERT OR IGNORE，控制台里改过的部门不会被覆盖。 */
 export const DEFAULT_DEPARTMENTS: Omit<Department, "archived">[] = [
   {
     id: "recruitment", name: "招新部", tag: "RECRUIT", icon: "user-follow", tone: "coral", sort_order: 10,
@@ -165,7 +193,7 @@ export type DepartmentView = { id: string; name: string; tag: string; icon: stri
 export type TitleView = {
   id: TitleId; label: string; tag: string; icon: string; tone: Tone;
   department: DepartmentView | null;
-  source: "assignment" | "bootstrap" | "github" | "none";
+  source: "assignment" | "github" | "none";
   assignment_id: number | null;
 };
 export type OrgRole = "admin" | "member" | null;
@@ -176,12 +204,11 @@ export type Access = {
   titles: TitleView[];
   capabilities: Set<Capability>;
   blocked: { capability: Capability; reason: BlockReason }[];
-  bootstrap: boolean;
   /** 该用户担任负责人的部门 id（仅未归档部门）。 */
   headOf: string[];
 };
 
-/** 权限包去重、按清单排序，并剔除仅班长能力与未知项。 */
+/** 权限包去重、按清单排序，并剔除仅舰长能力与未知项。 */
 export function normalizeBundle(values: readonly string[]): Capability[] {
   const wanted = new Set(values);
   return DELEGATABLE.filter(id => wanted.has(id));
@@ -201,18 +228,18 @@ export function closure(values: Iterable<Capability>): Set<Capability> {
 const departmentView = (department: Department): DepartmentView =>
   ({ id: department.id, name: department.name, tag: department.tag, icon: department.icon, tone: department.tone });
 
-export function titleView(role: TitleId, department: Department | null, source: TitleView["source"], assignmentId: number | null): TitleView {
-  const base = TITLES[role];
+export function titleView(role: TitleId, department: Department | null, source: TitleView["source"], assignmentId: number | null, configs: TitleConfigs = DEFAULT_TITLE_CONFIGS): TitleView {
+  const base = configs[role];
   if (role === "head") {
     return {
-      id: "head", label: department ? `${department.name} · 负责人` : base.label, tag: base.tag,
+      id: "head", label: department ? `${department.name} · ${base.label}` : base.label, tag: base.tag,
       icon: department?.icon ?? base.icon, tone: department?.tone ?? base.tone,
       department: department ? departmentView(department) : null, source, assignment_id: assignmentId,
     };
   }
   if (role === "member" && department) {
     return {
-      id: "member", label: `${department.name} · 干事`, tag: CREW_TITLE.tag, icon: department.icon, tone: CREW_TITLE.tone,
+      id: "member", label: `${department.name} · ${base.label}`, tag: base.tag, icon: department.icon, tone: CREW_TITLE.tone,
       department: departmentView(department), source, assignment_id: assignmentId,
     };
   }
@@ -237,48 +264,48 @@ export type ComputeAccessInput = {
   orgRole: OrgRole;
   assignments: AssignmentRow[];
   departments: Department[];
-  captainExists: boolean;
+  /** 数据库里的称号设置；不传时用默认值（只给测试和纯函数调用用）。 */
+  titles?: TitleConfigs;
 };
 
 /** 纯函数：由 GitHub 组织角色、显式指派与部门配置算出称号和能力。 */
-export function computeAccess({ login, orgRole, assignments, departments, captainExists }: ComputeAccessInput): Access {
+export function computeAccess({ login, orgRole, assignments, departments, titles: configs = DEFAULT_TITLE_CONFIGS }: ComputeAccessInput): Access {
   const byId = new Map(departments.filter(item => !item.archived).map(item => [item.id, item]));
   const titles: TitleView[] = [];
   const granted: Capability[] = [];
   const headOf: string[] = [];
-  let bootstrap = false;
 
   for (const row of assignments) {
     if (row.role === "captain") {
-      titles.push(titleView("captain", null, "assignment", row.id));
-      granted.push(...ROLE_BASE.captain);
+      titles.push(titleView("captain", null, "assignment", row.id, configs));
+      granted.push(...configs.captain.capabilities);
     } else if (row.role === "head") {
       const department = byId.get(row.department_id);
       if (!department) continue; // 部门已归档或不存在：不再授予称号与能力
-      titles.push(titleView("head", department, "assignment", row.id));
-      granted.push(...ROLE_BASE.head, ...department.head_capabilities);
+      titles.push(titleView("head", department, "assignment", row.id, configs));
+      granted.push(...configs.head.capabilities, ...department.head_capabilities);
       headOf.push(department.id);
     } else if (row.role === "member") {
       const department = row.department_id ? byId.get(row.department_id) : null;
       if (row.department_id && !department) continue;
-      titles.push(titleView("member", department ?? null, "assignment", row.id));
-      granted.push(...ROLE_BASE.member, ...(department?.member_capabilities ?? []));
+      titles.push(titleView("member", department ?? null, "assignment", row.id, configs));
+      granted.push(...configs.member.capabilities, ...(department?.member_capabilities ?? []));
     } else if (row.role === "alumni") {
-      titles.push(titleView("alumni", null, "assignment", row.id));
-      granted.push(...ROLE_BASE.alumni);
+      titles.push(titleView("alumni", null, "assignment", row.id, configs));
+      granted.push(...configs.alumni.capabilities);
     }
   }
 
-  if (!captainExists && orgRole === "admin") {
-    bootstrap = true;
-    titles.push(titleView("captain", null, "bootstrap", null));
-    granted.push(...ROLE_BASE.captain);
+  // 提督：GitHub 组织的 owner 自动获得，拥有全部能力；有没有指定舰长都一样（舰长由提督任命）。
+  if (orgRole === "admin") {
+    titles.push(titleView("admin", null, "github", null, configs));
+    granted.push(...CAPABILITY_IDS); // 提督永远是全部，不读数据库
   }
   const hasAlumni = assignments.some(row => row.role === "alumni");
   const hasPlainMember = titles.some(title => title.id === "member" && !title.department);
-  if (orgRole !== null && !hasAlumni && !hasPlainMember) {
-    titles.push(titleView("member", null, "github", null));
-    granted.push(...ROLE_BASE.member);
+  if (orgRole === "member" && !hasAlumni && !hasPlainMember) {
+    titles.push(titleView("member", null, "github", null, configs));
+    granted.push(...configs.member.capabilities);
   }
 
   const implied = closure(granted);
@@ -294,8 +321,8 @@ export function computeAccess({ login, orgRole, assignments, departments, captai
   else capabilities.clear();
 
   titles.sort((a, b) => titleRank(a) - titleRank(b));
-  if (titles.length === 0) titles.push(titleView("guest", null, "none", null));
-  return { login, githubRole: orgRole, titles, capabilities, blocked, bootstrap, headOf: [...new Set(headOf)] };
+  if (titles.length === 0) titles.push(titleView("guest", null, "none", null, configs));
+  return { login, githubRole: orgRole, titles, capabilities, blocked, headOf: [...new Set(headOf)] };
 }
 
 export const orderedCapabilities = (set: ReadonlySet<Capability>): Capability[] => CAPABILITY_IDS.filter(id => set.has(id));
