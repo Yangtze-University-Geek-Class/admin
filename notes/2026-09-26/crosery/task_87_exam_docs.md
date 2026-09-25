@@ -42,3 +42,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：独立审查复核 33abefa..HEAD：确认遮挡到位、HTML 图与密码检测规则健全、尾斜杠重定向生效、逐篇复核记录完整，CI 全绿
 - 结果：结论：通过，准予合并
+
+## 01:49:21 +08:00 · 收尾 · #87 · PR #89 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 87：删 worktree .claude/worktrees/task-87 与本地分支 task/87/exam_docs
+- 结果：PR 已合并

@@ -4,6 +4,8 @@
 # 「Use workflow from」选这个 tag，并在 tag 输入框里再填同一个 tag。push stage / main 不再部署。
 # plan job 硬断言触发 ref 就是 refs/tags/<rc tag>，其它 ref（分支、正式 tag、格式不对的 tag）一律拒绝。
 # 开关：仓库级 vars.DEPLOY_PREVIEW_ENABLED 必须显式等于 enabled，未设置 = 不部署。
+# 运行位置：runs-on 读仓库变量 DEPLOY_RUNNER，没设时用 ubuntu-latest；与 CI 的 CI_RUNNER 分开。
+# 部署 job 会拿到部署私钥，DEPLOY_RUNNER 不要指向 CI 用的常驻自托管 runner（docs/ops/CICD.md「自托管 runner」）。
 #
 # 边界：
 #   * 本工作流不创建、不移动、不删除 tag；tag 由所有者授权后手工打（见 docs/conventions/RELEASES.md）。
@@ -40,7 +42,7 @@ jobs:
   # 规划：硬断言触发来源是 rc tag → 解析发布身份（镜像 tag、栈目录、入口、产物名）。
   plan:
     name: plan (rc tag → preview 身份)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.source.outputs.tag }}
@@ -133,7 +135,7 @@ jobs:
   build:
     name: build (镜像归档)
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     steps:
       - name: 检出 plan 核对过的提交
@@ -220,7 +222,7 @@ jobs:
     needs: [plan, build]
     # 未设置或不是 enabled 一律不部署；哨兵值在第一个 step 里再硬校验一次。
     if: vars.DEPLOY_PREVIEW_ENABLED == 'enabled'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     environment:
       name: preview
