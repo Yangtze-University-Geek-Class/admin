@@ -6,11 +6,11 @@
 
 ## 最新接入状态：本机只读显示，未导入可写库
 
-2026-09-13 后续检查已用 `prepare.py` 将当前 forum.sqlite 转换成独立的只读展示投影，位于 `.tools/forum-runtime/geek-20260913/`。结果为 183 个公开资料记录、69 个有效主题、35 条有效回复、21 个分类，其中 67 个历史归档主题；18 个已删主题和31条已删回复不复活。账号私有字段、密码、旧会话、邮件/IP、私有消息和用户组权限不进入展示投影。原始备份保持不变。
+现在用的只读展示投影是 `.tools/forum-runtime/geek-20260926/`，由 2026-09-26 的增量采集经 `prepare.py` 转换而来（见下文「2026-09-26 增量采集」）：185 个公开资料记录、70 个有效主题、35 条有效回复、21 个分类，其中 67 个历史归档主题；19 个已删主题和 31 条已删回复不复活。第一份投影是 2026-09-13 的 `geek-20260913`（183 个公开资料记录、69 个有效主题，18 个已删主题，其余同上），仍然保留。账号私有字段、密码、旧会话、邮件/IP、私有消息和用户组权限不进入展示投影。原始备份保持不变。
 
-附件规范化处理了 160 份有效输入，11 份不符合允许格式的现站上传不用于展示；去重后129份资产，其中可见正文/头像引用85份，缺失引用0。图像真实解码后重新编码为 WebP，原始文件不删除。
+附件规范化处理了 160 份有效输入，11 份不符合允许格式的现站上传不用于展示；去重后129份资产，其中可见正文/头像引用85份，缺失引用0。两份投影的 `asset-index.json` 逐字节相同。图像真实解码后重新编码为 WebP，原始文件不删除。
 
-**2026-09-13 起，根 `pnpm forum:start` 自动发现该投影并以只读快照模式启动：dev 专用 `/api/local-forum/state` 与 `/api/local-forum/assets/<hash>` 只读提供投影，页面整体替换为极客班内容、会话固定为游客、论坛状态不写 localStorage；浏览器已验证首页、话题、附件图片、关于页、成员页和刷新深链接。** 这不是迁移完成：没有可写数据库或跨设备存储；2026-09-25 起快照模式的顶栏接了全站 GitHub 登录，但它只识别身份，旧论坛账号没有和 GitHub 登录关联，论坛也不据此开放任何写操作；投影仍在 `.tools` 私有目录，不进 Git 或构建产物。运行方式见 [TUFF-FORUM](TUFF-FORUM.md)，边界见 [forum 服务合同](../services/forum/README.md)。此前一次创建接口文件的尝试曾被工具拦截，本次按项目规范重新实现，没有绕过安全限制。
+**2026-09-13 起，根 `pnpm forum:start` 自动发现投影（有多份时取名字最大的）并以只读快照模式启动：dev 专用 `/api/local-forum/state` 与 `/api/local-forum/assets/<hash>` 只读提供投影，页面整体替换为极客班内容、会话固定为游客、论坛状态不写 localStorage；浏览器已验证首页、话题、附件图片、关于页、成员页和刷新深链接。** 这不是迁移完成：没有可写数据库或跨设备存储；2026-09-25 起快照模式的顶栏接了全站 GitHub 登录，但它只识别身份，旧论坛账号没有和 GitHub 登录关联，论坛也不据此开放任何写操作；投影仍在 `.tools` 私有目录，不进 Git 或构建产物。运行方式见 [TUFF-FORUM](TUFF-FORUM.md)，边界见 [forum 服务合同](../services/forum/README.md)。此前一次创建接口文件的尝试曾被工具拦截，本次按项目规范重新实现，没有绕过安全限制。
 
 ## 已完成的范围
 
@@ -127,7 +127,7 @@ python3 scripts/forum-migration/prepare.py --snapshot .tools/forum-migration/202
 3. 改 `app/forum/content/published/manifest.json`：`source` 换成新投影的目录名，要公开的编号加进 `topics`（类别、标签、置顶），需要的图片规则和 `redactions` 一起写；替换规则里不写被去掉的原文。图床不给外站引用的外链图（gitee raw 就是这样）不需要编辑也写一条带原图 `sha256` 的规则，导出成站内图片。新帖原来的分类在 `curation.json` 的 `categoryOmissions` 里（`c16`–`c20`）时，在 `curation.json` 的 `topics` 里给它同样的类别和标签，本机快照模式才能加载新投影。
 4. 运行 `node scripts/forum-migration/export-published.mjs .tools/forum-runtime/geek-<日期> --fetch`（新投影里还没有外链原图时会下载一次，并按清单里的 SHA-256 核对）。已公开话题的 `content` 应该不变，跟着快照变的只有 `views` 和顶层的 `source`、`capturedAt`；正文变了要在 PR 里说明是原帖被编辑了。不加 `--fetch` 再跑一次，确认输出逐字节相同。
 5. 更新 `app/forum/tests/site-state.test.ts`、`app/forum/Dockerfile` 的断言和 [forum 合同](../services/forum/README.md)「公开的旧帖」，跑 `pnpm forum:check`、按镜像方式的 `forum.mjs generate` 和根 `pnpm check`，走 PR 进 `stage`，再按 [RELEASES](../conventions/RELEASES.md) 发版。
-6. 论坛后端（#57）按约定在启动时把 `topics.json` 里的话题按编号「没有才插入」：已经导入的话题不会重复，也不会被覆盖，线上的回复、置顶和浏览数以数据库为准。所以补新帖只会带进新的编号，`topics.json` 里旧话题的浏览数变化不会回写到线上。
+6. 按 #57（PR #116）的约定，合并后生效：论坛后端在启动时把 `topics.json` 里的话题按编号「没有才插入」：已经导入的话题不会重复，也不会被覆盖，线上的回复、置顶和浏览数以数据库为准。所以补新帖只会带进新的编号，`topics.json` 里旧话题的浏览数变化不会回写到线上。
 
 ## 敏感性和禁止操作
 
