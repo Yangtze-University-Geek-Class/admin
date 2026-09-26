@@ -35,6 +35,7 @@ const ACTIVITY_LABELS: Record<ActivityKind, string> = {
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
+const actions = useForumActions()
 const { user: viewer, can } = useCurrentUser()
 const { loginOpen } = useShell()
 const { fromNow, formatDate } = useRelativeTime()
@@ -62,6 +63,8 @@ const isSelf = computed(() => !!profile.value && viewer.value?.id === profile.va
 const stats = computed(() => (profile.value ? forum.statsOfUser(profile.value.id) : undefined))
 const following = computed(() => !!profile.value && !!viewer.value && forum.isFollowing(viewer.value.id, profile.value.id))
 const canFollow = computed(() => !!profile.value && can('follow', { targetUser: profile.value }))
+/** A guest of 极客班论坛 is a nickname on one reply: nobody to follow, no profile to edit. */
+const isGuest = computed(() => profile.value?.kind === 'guest')
 
 const statCards = computed(() => {
   const value = stats.value
@@ -163,7 +166,7 @@ function toggleFollow() {
   }
   if (!canFollow.value)
     return
-  forum.toggleFollow(viewer.value.id, target.id)
+  void actions.toggleFollow(viewer.value.id, target.id)
 }
 
 function openWebsite(href: string) {
@@ -187,6 +190,7 @@ function openWebsite(href: string) {
               admins and moderators, the forum role as well.
             -->
             <TitleBadge v-if="profile.title" :title="profile.title" size="md" />
+            <span v-if="isGuest" class="text-sm text-$tx-text-color-secondary">游客</span>
             <TxStatusBadge
               v-if="profile.role !== 'member'"
               :text="roleLabel(profile.role)"
@@ -203,7 +207,8 @@ function openWebsite(href: string) {
 
         <template #description>
           <TxStack :gap="6">
-            <span v-if="profile.bio" class="whitespace-normal">{{ profile.bio }}</span>
+            <!-- 个人签名：本人在资料页里写，可以换行 -->
+            <span v-if="profile.bio" class="whitespace-pre-line break-words">{{ profile.bio }}</span>
             <TxFlex align="center" :gap="12" wrap="wrap">
               <span v-if="profile.location" class="inline-flex items-center gap-1">
                 <i class="i-carbon-location" aria-hidden="true" />
@@ -224,7 +229,7 @@ function openWebsite(href: string) {
         <template #right>
           <TxFlex :gap="8" wrap="wrap">
             <TxButton
-              v-if="!isSelf"
+              v-if="!isSelf && !isGuest"
               :variant="following ? 'secondary' : 'primary'"
               :icon="following ? 'i-carbon-checkmark' : 'i-carbon-user-follow'"
               @click="toggleFollow"
@@ -393,7 +398,7 @@ function openWebsite(href: string) {
           <TxEmptyState
             variant="guide"
             title="在偏好设置里修改资料"
-            description="显示名、简介、头像、通知和界面主题都在那一页。"
+            description="昵称、个人签名、头像、通知和界面主题都在那一页。"
             :primary-action="{ label: '打开偏好设置', variant: 'primary', icon: 'i-carbon-settings' }"
             @primary="openPreferences"
           />

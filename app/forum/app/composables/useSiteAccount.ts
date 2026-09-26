@@ -13,6 +13,11 @@ import { signinOutcomes } from '../../shared/signin-outcomes'
 export interface SiteAccount {
   login: string
   avatarUrl: string | null
+  /**
+   * `/auth/me` 的 `console_link`：登录者在控制台里能管点什么（提督、舰长、队长、带部门权限包的舰员）。
+   * 头像菜单只在它为 true 时放「控制台」；字段缺失当作 false。控制台自己的准入不变。
+   */
+  consoleLink: boolean
 }
 
 /** 顶栏调用本组合函数；同一页面只发一次 /auth/me。 */
@@ -36,9 +41,11 @@ export function useSiteAccount() {
     try {
       const response = await fetch('/auth/me', { credentials: 'same-origin', headers: { accept: 'application/json' } })
       const body = response.ok && response.headers.get('content-type')?.includes('application/json')
-        ? await response.json() as { signed_in?: boolean, login?: string, avatar_url?: string | null }
+        ? await response.json() as { signed_in?: boolean, login?: string, avatar_url?: string | null, console_link?: boolean }
         : null
-      account.value = body?.signed_in && body.login ? { login: body.login, avatarUrl: body.avatar_url ?? null } : null
+      account.value = body?.signed_in && body.login
+        ? { login: body.login, avatarUrl: body.avatar_url ?? null, consoleLink: body.console_link === true }
+        : null
     }
     catch {
       account.value = null
@@ -64,6 +71,7 @@ export function useSiteAccount() {
   /**
    * 在任一处退出，官网、论坛、控制台一起变成未登录（同一个 `sid`）。
    * 只有服务端确认清掉了会话才显示已退出；没成功就保持原样并说明，不让界面和实际状态对不上。
+   * 极客班论坛同时回到游客身份，并重新读一次论坛（书签、通知只属于登录的人）。
    */
   async function signOut(): Promise<void> {
     const ok = await fetch('/auth/signout', { method: 'POST', credentials: 'same-origin' })
@@ -71,6 +79,10 @@ export function useSiteAccount() {
       .catch(() => false)
     if (ok) {
       account.value = null
+      if (useContentSource().serverMode) {
+        useSessionStore().currentUserId = null
+        void useForumServerStore().load()
+      }
       return
     }
     toast({ title: '没有退出成功', description: '请刷新页面后再试一次。', variant: 'warning' })

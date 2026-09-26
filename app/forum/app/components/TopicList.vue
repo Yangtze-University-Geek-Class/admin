@@ -50,7 +50,7 @@ onMounted(() => {
 
 const showSkeleton = useDeferredLoading(firstPaint, { delay: 0, minDuration: 400 })
 
-/** A forum without any topic (极客班论坛 before posting opens) is not a filter miss. */
+/** A forum without any topic (a fresh 极客班论坛) is not a filter miss. */
 const forumEmpty = computed(() => forum.state.topics.length === 0)
 
 const pageCount = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
@@ -102,7 +102,7 @@ const excerpts = computed(() => new Map(
       v-else-if="!topics.length && forumEmpty"
       variant="no-data"
       title="还没有话题"
-      description="发帖和回复还没开放。"
+      description="极客班成员登录后可以发第一个话题。"
     />
 
     <TxEmptyState

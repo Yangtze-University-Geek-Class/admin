@@ -10,15 +10,24 @@ const GROUPS: SidebarNavGroup[] = [
   { key: 'mine', label: '我的' },
 ]
 
+/** Not a route: the one row that leaves the forum, for the portal. */
+const PORTAL_ITEM = 'portal:'
+
 /**
  * The sidebar model. Item values are route paths, so the active item is the
  * one whose value equals `route.path` exactly and selecting one is a push.
+ *
+ * Under the site-wide login a signed-in member finds 返回宣传主页 in the avatar
+ * menu; someone not signed in has no such menu, so 社区 carries it for them.
  */
 export function useForumNav() {
   const forum = useForumStore()
   const session = useSessionStore()
   const route = useRoute()
   const router = useRouter()
+  const { siteLogin } = useContentSource()
+  const { account, loaded } = useSiteAccount()
+  const { portalHref, leave } = useSiteLinks()
 
   /** Category items pair their icon with Discourse's colour dot (see ForumSidebar). */
   const dotColors = computed(() => new Map(
@@ -36,6 +45,8 @@ export function useForumNav() {
       { value: '/users', label: '用户', group: 'community', icon: 'i-carbon-user-multiple' },
       { value: '/about', label: '关于', group: 'community', icon: 'i-carbon-information' },
     )
+    if (siteLogin && loaded.value && !account.value)
+      list.push({ value: PORTAL_ITEM, label: '返回宣传主页', group: 'community', icon: 'i-carbon-home' })
 
     for (const category of forum.state.categories)
       list.push({ value: `/c/${category.slug}`, label: category.name, group: 'categories', icon: category.icon })
@@ -62,7 +73,10 @@ export function useForumNav() {
   )
 
   function select(item: SidebarNavItem): void {
-    void router.push(String(item.value))
+    if (item.value === PORTAL_ITEM)
+      leave(portalHref.value)
+    else
+      void router.push(String(item.value))
   }
 
   return { groups: GROUPS, items, active, dotColors, select }

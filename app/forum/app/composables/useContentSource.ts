@@ -1,3 +1,4 @@
+import type { ForumMode } from '~/data/access'
 import type { ContentSource } from '../../shared/content-source'
 import type { SnapshotSummary } from '../../shared/local-snapshot'
 import { parseSnapshotDocument } from '../../shared/local-snapshot'
@@ -16,8 +17,10 @@ export interface SnapshotInfo {
  * Which data the pages are showing and, for the 极客班 snapshot, whether it
  * has arrived. `load()` replaces the whole store and forces the guest
  * session; it never merges with the demo seed and never falls back to it.
- * `isSite` is 极客班论坛 itself (the deployed images): its own categories and
- * tags, no topics yet, nothing to wait for.
+ * `isSite` is 极客班论坛 itself (the deployed images): its data comes from
+ * the forum server (`serverMode`). `LocalSnapshotGate` holds the pages until
+ * the server answered or failed; after a failure they show the published
+ * posts the build shipped, read-only.
  */
 export function useContentSource() {
   const config = useRuntimeConfig()
@@ -30,9 +33,21 @@ export function useContentSource() {
    * 本机不保存示例会话。只有 scripts/forum.mjs 的示例预览与上游验收是 false。
    */
   const siteLogin = config.public.loginMode !== 'demo'
+  /**
+   * 谁能写（`app/data/access.ts`）：示例登录写本机的 store；极客班论坛读写论坛后端（`/api/forum`）；
+   * 快照和统一登录下的示例种子只能看。
+   */
+  const mode: ForumMode = !siteLogin ? 'demo' : isSite ? 'server' : 'read-only'
+  const serverMode = mode === 'server'
 
   const snapshot = useState<SnapshotInfo>('geek:snapshot', () => ({ status: 'idle', capturedAt: '', summary: null, error: '' }))
-  const ready = computed(() => !isSnapshot || snapshot.value.status === 'ready')
+  const ready = computed(() => {
+    if (isSnapshot)
+      return snapshot.value.status === 'ready'
+    if (serverMode)
+      return ['ready', 'error'].includes(useForumServerStore().status)
+    return true
+  })
 
   async function load(): Promise<void> {
     const forum = useForumStore()
@@ -50,7 +65,7 @@ export function useContentSource() {
     }
   }
 
-  return { source, siteName, isSnapshot, isSite, siteLogin, snapshot, ready, load }
+  return { source, siteName, isSnapshot, isSite, siteLogin, mode, serverMode, snapshot, ready, load }
 }
 
 function describeError(error: unknown): string {

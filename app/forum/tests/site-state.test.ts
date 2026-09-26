@@ -127,7 +127,7 @@ describe('siteForumState', () => {
   })
 
   it('gives an llms.txt and Markdown twins that name 极客班论坛 and its published documents', () => {
-    const site = { siteName: '极客班论坛', origin: 'https://prev.example.test', basePath: '/forum/', notice: '发帖和回复还没开放。' }
+    const site = { siteName: '极客班论坛', origin: 'https://prev.example.test', basePath: '/forum/', notice: '这份索引只列构建时公开的旧帖。' }
     const text = forumLlmsTxt(state, site)
     expect(text.split('\n')[0]).toBe('# 极客班论坛')
     expect(text).toContain('极客班25级机试考核文档')
