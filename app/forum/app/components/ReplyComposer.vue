@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
-import { MEMBER_CONTENT_MAX } from '../../shared/forum-api'
+import { MEMBER_CONTENT_MAX, NAME_CHARS_HINT } from '../../shared/forum-api'
 import { fromEditor, quoteDraft } from '../../shared/post-markdown'
 
 /**
@@ -146,7 +146,7 @@ async function submit() {
           class="w-64"
         />
         <span class="text-sm text-$tx-text-color-secondary">
-          没登录，以游客身份回复，昵称最多 {{ nameMax }} 个字，正文最多 {{ server.guestPolicy.contentMax }} 字。
+          没登录，以游客身份回复。昵称最多 {{ nameMax }} 个字，{{ NAME_CHARS_HINT }}；正文最多 {{ server.guestPolicy.contentMax }} 字。
         </span>
       </TxFlex>
 
