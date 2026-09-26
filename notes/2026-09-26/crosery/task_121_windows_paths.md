@@ -20,3 +20,10 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：git commit 5d35389 fix(tooling): docs-index 与 check-boundaries 的路径在 Windows 上也统一用 /
 - 结果：pnpm check 通过；全量 vitest Windows 上 24 failed（stage 基线 25），少掉的是 boundaries，其余与基线同一批文件（portal-os/org/wallpapers、task-worktree、deploy-*、deployment-environment）
+
+## 17:12:23 +08:00 · PR · #121 · 开 PR #123 到 stage
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：git push -u origin task/121/windows_paths（本地 check-branch-invariants --push 通过）；gh pr create #123，正文按 PULL-REQUESTS 九段
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/123；等待 Crosery 审查
+- 下一步：收到审查结论后补「审查」记录
