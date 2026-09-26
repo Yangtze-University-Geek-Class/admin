@@ -56,3 +56,10 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称拦看不见的字符，被移出组织的会话按游客处理，并按审查建议加固（forum-rules 的 hasHiddenNameChars、nameKey、ipSubject、FORUM_REQUEST_LIMITS、guestPostSite、mentionNotifyMax、4096×4096；forum-store 的 guestNameTaken 归一比较、displayNameTaken、只给本人真实 notifyPrefs、提及上限；viewer 的 githubRole 为 null 按游客；posts 按 /64 与全站熔断；topics 的 state 120/分钟、浏览 60/分钟；people 的头像在 onRequest 核对登录与计数；forum.test 新增 16 条用例并修掉 PoW 用例约 1/256 的偶发失败；API、SECURITY、数据模型、server 合同、TESTING 同步）
 - 结果：提交前 vitest run tests/server 8 个文件 157 条全部通过；server tsc 通过；check-docs 与 docs-index --check 通过
+
+## 17:00:57 +08:00 · 返工 · #57 · 第一轮审查的 3 条应修与 6 条建议已修完，变异核对全部被测试抓到
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：560c762 fix(deploy)：TRUST_PROXY 接受层数，两环境改为 2，校验器要求等于 PROXY_HOPS；70b1045 fix(server)：昵称拦 \p{Cf} 等看不见的字符并按 nameKey（NFKC、去隐形字符与附加符号、不分大小写）判重名，成员昵称不能等于官方名字或别人的用户名（新 400 display_name_taken）；组织角色为 null 的会话按游客；别人的 notifyPrefs 给初始值；state 120/分钟、浏览 60/分钟按 IP；IPv6 按 /64；全站游客回复 200/小时（新 429 guest_replies_paused）；头像 onRequest 核对登录与计数、每次上传都计、像素上限 4096×4096；一帖 @提及最多通知 10 人；修掉 PoW 用例约 1/256 的偶发失败。变异核对：层数当成 true、模板改回 true、昵称只拦 C0、判重名不归一、去掉 githubRole 判断，以及 6 条建议各去掉一处，每次都有对应用例失败，恢复后全绿
+- 结果：vitest run tests/server 8 个文件 157 条通过；server tsc 通过；check-boundaries 通过；pnpm check 退出 0；pnpm test 退出 0（44 个文件 529 条）；pnpm verify 的 check、test、build 通过，forum:check 在本 worktree 找不到 .tools/pnpm11 退出 1，设 FORUM_PNPM 为主工作区的 pnpm.cjs 后 forum:check（15 个文件 240 条）与 forum:generate 退出 0；未验证：真实 nginx 链路下 server 看到的 X-Forwarded-For、预发布与正式环境、论坛前端对新错误码的处理
+- 下一步：主 agent 复核后推送并请第二轮审查
