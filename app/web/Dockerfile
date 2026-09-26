@@ -206,12 +206,16 @@ server {
 
     # 带内容哈希的构建产物：内容不变则文件名不变，可以长缓存。
     # /assets/ 是官网（app/web），/console-assets/ 是控制台（app/console）。
-    location /assets/ {
+    # ^~：前缀命中后不再看下面的图片正则。不写的话 nginx 先挑出最长的前缀，再按顺序试正则，正则命中就用正则，
+    # 这两个目录里的字体、壁纸、图片会只缓存 7 天（#146 审查在预发布实测 .woff2 是 max-age=604800）。
+    # 两个目录里只有构建产出的带哈希文件：public/ 里没有同名目录，tests/tooling/static-cdn.test.ts 核对，
+    # 部署时 scripts/static-cdn.mjs 也逐个核对文件名。不在这两个 location 里写 add_header，响应头与其它路径一样。
+    location ^~ /assets/ {
         expires 1y;
         try_files $uri =404;
         access_log off;
     }
-    location /console-assets/ {
+    location ^~ /console-assets/ {
         expires 1y;
         try_files $uri =404;
         access_log off;

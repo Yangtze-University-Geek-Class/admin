@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；线上镜像是极客班论坛：帖子、回复、资料存在核心服务（同域 `/api/forum/*`，#57），游客能看帖和用昵称回复，成员用全站 GitHub 登录后发帖、点赞、收藏、关注、改资料；本机可显示极客班论坛快照；上游验收与本机示例预览仍是浏览器里的示例数据。
 
-状态：`current` · 更新：2026-09-26 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-09-27 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -19,7 +19,7 @@
 | `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层；镜像的分类和标签也取自 `curation.json` |
 | `app/forum/scripts/` | 上游样式 guard、路由 smoke、CDP 四套验证脚本；`csp-header.mjs`（本项目新增）在镜像构建时把产物里内联脚本的 sha256 加进站点 CSP，写成容器 nginx 的 `add_header` |
 | `app/forum/UPSTREAM.json` `ADOPTION.json` `LICENSE` | 上游文件摘要、本项目集成差异清单、MIT 声明（必须保留） |
-| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内断言 `llms.txt` 写的是极客班论坛、公开旧帖有 `t/<id>.md` 而不公开的没有（逐条见下文「公开的旧帖」的断言）、产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 的页面路由是 `try_files $uri $uri/index.html /200.html`：预渲染过的路由（`users/`、`about/` …）带不带结尾斜杠都直接返回目录里的 `index.html`，不再 301 补斜杠（那条跳转没有 `/forum` 前缀，还带 `:3000`，#140），其余路径和没有 `index.html` 的目录回落 `200.html`；server 块 `absolute_redirect off` 兜底，万一再发跳转也只发相对地址，由 web 容器补回前缀；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`）；gzip 级别 6，与 web 容器一致（#146）；构建参数 `STATIC_CDN_BASE` 见下文「静态资源 CDN 开关」，构建内断言入口地址与开关一致 |
+| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内断言 `llms.txt` 写的是极客班论坛、公开旧帖有 `t/<id>.md` 而不公开的没有（逐条见下文「公开的旧帖」的断言）、产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 的页面路由是 `try_files $uri $uri/index.html /200.html`：预渲染过的路由（`users/`、`about/` …）带不带结尾斜杠都直接返回目录里的 `index.html`，不再 301 补斜杠（那条跳转没有 `/forum` 前缀，还带 `:3000`，#140），其余路径和没有 `index.html` 的目录回落 `200.html`；server 块 `absolute_redirect off` 兜底，万一再发跳转也只发相对地址，由 web 容器补回前缀；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`）；`/_nuxt/` 用 `location ^~` 整个目录缓存一年（字体、图片也是，不被「图片、字体 7 天」的正则截走），其中唯一不带哈希的 `_nuxt/builds/latest.json` 精确匹配、不缓存（#146，`tests/tooling/hashed-asset-cache.test.ts`）；gzip 级别 6，与 web 容器一致（#146）；构建参数 `STATIC_CDN_BASE` 见下文「静态资源 CDN 开关」，构建内断言入口地址与开关一致 |
 
 ## 静态资源 CDN 开关（#146）
 

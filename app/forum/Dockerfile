@@ -184,11 +184,18 @@ server {
         try_files $uri =404;
     }
 
-    # 带内容哈希的产物：长缓存。
-    location /_nuxt/ {
+    # 带内容哈希的产物：长缓存。^~：前缀命中后不再看下面的图片正则，否则 _nuxt/ 里的字体、图片只缓存 7 天（#146）。
+    # 这里不写 add_header，http 层的 CSP 照样继承。
+    location ^~ /_nuxt/ {
         expires 1y;
         try_files $uri =404;
         access_log off;
+    }
+    # _nuxt/ 里唯一不带哈希的文件：Nuxt 的新版本检查读它，文件名固定、每次构建内容都变，不缓存
+    # （Nuxt 请求时带 ?<时间戳>，本来就不会命中缓存；开关打开时不读它，也不上传 CDN）。精确匹配优先于 ^~。
+    location = /_nuxt/builds/latest.json {
+        expires -1;
+        try_files $uri =404;
     }
     location ~* \.(?:png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf)$ {
         expires 7d;

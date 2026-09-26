@@ -168,7 +168,8 @@ describe('collect: which files of a build get uploaded', () => {
   });
 
   it('checks the real public folders by default, and none of them feeds a hashed output folder', () => {
-    // 默认对照本仓库的 public 目录：它们都不往带哈希的产物目录里放文件。
+    // 默认对照本仓库的 public 目录：它们都不往带哈希的产物目录里放文件。web 与论坛容器的 nginx 因此能对整个目录
+    // 发一年缓存（^~ /assets/、/console-assets/、/_nuxt/，见 hashed-asset-cache.test.ts）。
     expect(PUBLIC_DIRS).toEqual({ web: ['app/web/public', 'app/console/public'], forum: ['app/forum/public'] });
     for (const dir of ['app/web/public', 'app/forum/public']) expect(existsSync(join(repoRoot, dir)), dir).toBe(true);
     for (const area of AREAS) {
