@@ -84,14 +84,16 @@ export const hasControlCharsMultiline = (value: string) => /[\u0000-\u0008\u000b
 
 /**
  * 昵称（游客昵称、成员的 displayName）只收允许清单里的字符。先做 NFKC（全角字母和数字变成半角），之后每个字符都得是：
- * - 汉字、平假名、片假名、韩文里的字（\p{L}；韩文不含显示成空白的填充字 U+115F、U+1160、U+3164、U+FFA0）；
+ * - 汉字、平假名、片假名里的字（\p{L}）；
+ * - 韩文只收合成好的音节 U+AC00–U+D7A3。单独的字母（U+1100–U+11FF、U+A960–U+A97F、U+D7B0–U+D7FF，
+ *   包括显示成空白的填充字）不收；兼容字母、半角字母在 NFKC 之后也变成单独的字母，同样不收，按顺序写的字母 NFKC 会合成音节；
  * - 拉丁字母里常用的几段：基本拉丁、拉丁-1、拉丁扩展 A、拼音声调字母 U+01CD–U+01DC、越南文等用的 U+1E00–U+1EFF。
  *   IPA、小型大写（ʙ）、搭嘴音（ǀ 像 l）这些也属于拉丁文字，但都是形近字母，不收；
  * - ASCII 数字，长音符 ー，以及空格和 - _ . · ・ ' 这几个符号。空格不能在首尾、不能连着用，至少要有一个字或数字。
  * 之前用屏蔽清单拦看不见的字符和别的文字的形近字母，拦一种漏一种（未分配的可忽略字符、亚美尼亚、切罗基字母……），
  * 所以改成只收这些。表情、其它文字（西里尔、希腊等）都不收；NFKC 之后 µ 是希腊字母 μ，也不收。
  */
-const NAME_PATTERN = /^(?:[A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F\u01CD-\u01DC\u1E00-\u1EFF \-_.\u00B7\u30FB'\u30FC]|(?=\p{L})(?![\u115F\u1160\u3164\uFFA0])[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])+$/u;
+const NAME_PATTERN = /^(?:[A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F\u01CD-\u01DC\u1E00-\u1EFF\uAC00-\uD7A3 \-_.\u00B7\u30FB'\u30FC]|(?=\p{L})[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])+$/u;
 const NAME_SEPARATORS = /^[ \-_.\u00B7\u30FB'\u30FC]+$/u;
 export const NAME_RULE_MESSAGE = "昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ ' 这几个符号，空格不能连着用";
 

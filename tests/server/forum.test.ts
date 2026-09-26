@@ -77,7 +77,8 @@ const guestReply = (topicId: string, content: string, name = '路过的同学', 
  * 昵称允许清单（lib/forum-rules.ts 的 isAllowedName）要拒绝的名字：前几轮审查找到的每一个探针都在这里。
  * 零宽与格式字符、双向覆盖（显示成「极客班」）、BOM、韩文填充字、C1 控制字符、行分隔符、软连字符、盲文空格、乐谱空符头、
  * 高棉文不发音元音、单独的附加符号、未分配的可忽略字符（U+2065、U+FFF0、U+E0080）、私用区、西里尔、希腊、亚美尼亚、
- * 傈僳、切罗基的形近字母、NFKC 之后是希腊字母的 µ、小型大写与搭嘴音这类形近拉丁字母、表情、连着的空格、只有符号。
+ * 傈僳、切罗基的形近字母、NFKC 之后是希腊字母的 µ、小型大写与搭嘴音这类形近拉丁字母、表情、连着的空格、只有符号，
+ * 还有单独的韩文字母（「极客班」后面跟一个元音字母 U+1161 看不出来；兼容字母ㄱ在 NFKC 之后也是单独的字母）。
  */
 const REFUSED_NAMES = [
   '极客班\u200B', 'geekclass\u2060', '\u202E班客极', '极\u200D客班', 'bo\uFEFFb', '\u3164', 'bob\u0085', '极客\u2028班', '极客班\u00AD',
@@ -85,9 +86,10 @@ const REFUSED_NAMES = [
   'bob\u2065', 'bob\uFFF0', 'bob\u{E0080}', 'bob\uE000',
   'b\u043Eb', 'geekcl\u0430ss', '\u041A\u043E\u0432\u0430\u043B\u0451\u0432', 'b\u03BFb', '\u{1D41B}\u03BFb', '\u0391\u03BB\u03AD\u03BE\u03B7\u03C2',
   'b\u0585b', '\uA4D0ob', '\u13A0ave', '5\u00B5m', '\u0299ob', 'geekc\u01C0ass', '小博\u{1F389}', '张  三', '---', '·',
+  '极客班\u1161', '\u1100', 'bob\uA960', 'bob\uD7B0', '\u3131\u3131',
 ];
 /** 允许清单要收的名字：汉字、拉丁字母（含拼音声调、越南文）、假名、韩文、数字和几个分隔符。 */
-const ALLOWED_NAMES = ['张 三', 'Zhang San', '小博bob', '田中さん', '김민수', "O'Neil", 'ab-cd_e.f', 'Lǚ Xiǎomíng', 'Nguyễn Văn An', '阿·凡提', '中村・花子', 'ラーメン'];
+const ALLOWED_NAMES = ['张 三', 'Zhang San', '小博bob', '田中さん', '김민수', '\u1100\u1161\u11A8', "O'Neil", 'ab-cd_e.f', 'Lǚ Xiǎomíng', 'Nguyễn Văn An', '阿·凡提', '中村・花子', 'ラーメン'];
 const NAME_RULE = "昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ ' 这几个符号，空格不能连着用";
 
 async function newTopic(s: Setup, who = 'bob', patch: Record<string, unknown> = {}) {
