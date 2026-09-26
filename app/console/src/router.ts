@@ -4,7 +4,7 @@ import { FORUM_CAPABILITIES, ROLE_CAPABILITIES } from "./lib/nav";
 /**
  * 路由。控制台拥有 /console/**、/signin；旧的 /admin 与 /admin/:org/** 不再保留多组织页面，
  * 一律跳到 /console（组织固定为 CONSOLE_ORG，服务端 /api/admin/:org/* 接口不变）。
- * `meta.anyOf` 是页面所需能力（任一即可），由 pages/Gated.vue 显示「没有权限」。
+ * `meta.anyOf` 是页面所需能力（任一即可），components/ConsoleShell.vue 把它交给 components/CapabilityGate.vue 显示「没有权限」。
  */
 const gated = (anyOf: string[], load: () => Promise<unknown>) => ({ component: load, meta: { anyOf } });
 

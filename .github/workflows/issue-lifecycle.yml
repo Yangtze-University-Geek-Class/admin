@@ -6,10 +6,13 @@
 #   2. close-on-merge：PR 合并进 stage 后关闭对应 issue，并在 issue 与 PR 上各留一条追踪记录。
 #      GitHub 只在合进默认分支 main 时才按 Closes #n 自动关闭，所以这里自己关。
 #      删 task 分支由 branch-hygiene.yml 负责，这里不重复。
-#   3. weekly-sweep：每周列出「PR 已合并但 issue 还开着」「issue 开着但 task 分支已经没有了、也没有 open PR」，只告警。
+#   3. sweep：每天巡检（scripts/issue-sweep.mjs，docs/conventions/TRACKING.md §1「做完当场关」）：
+#      关联的 PR 已合并进 stage、issue 还开着的自动关闭并留「关闭」记录；其余 14 天没动静的留「超期」记录；
+#      14 天内关闭、既没有合并的 PR 也没有「关闭」记录的留「缺记录」，不重开。
+#      定时任务只跑默认分支 main 上的这个文件；手工运行可以勾「只读」，只把结果写进运行摘要。
 #
 # 权限：各 job 单独声明；不读任何 secrets，只用 GITHUB_TOKEN。不使用 pull_request_target：
-# 契约检查只读 PR 正文与 issue 状态（事件里自带），不检出也不执行 PR 的代码。
+# 契约检查只读 PR 正文与 issue 状态（事件里自带），不检出也不执行 PR 的代码；巡检只检出两个脚本。
 
 name: Issue lifecycle
 
@@ -18,15 +21,20 @@ on:
     branches: [stage]
     types: [opened, edited, synchronize, reopened, ready_for_review, closed]
   schedule:
-    # 每周一 03:37 UTC（错开 branch-hygiene 的 03:17）
-    - cron: '37 3 * * 1'
+    # 每天 03:37 UTC（北京 11:37，错开 branch-hygiene 周一的 03:17）
+    - cron: '37 3 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 只读：列出巡检要做的事，不关 issue、不留言
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: issue-lifecycle-${{ github.event.pull_request.number || 'weekly' }}
+  group: issue-lifecycle-${{ github.event.pull_request.number || 'sweep' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
 
 jobs:
@@ -124,52 +132,32 @@ jobs:
           fi
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$pr_note"
 
-  weekly-sweep:
-    name: 巡检未关闭的 issue（只告警）
+  sweep:
+    name: 巡检 issue（补关已合并的，给超期与缺记录的留追踪记录）
     if: github.event_name != 'pull_request'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read
-      issues: read
+      issues: write
       pull-requests: read
     steps:
-      - name: 列出 PR 已合并但 issue 还开着、以及分支已消失的 issue
+      - name: 检出巡检脚本
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/issue-sweep.mjs
+            scripts/pr-contract.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: 补关、留「超期」「缺记录」
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -eu
-          merged="${RUNNER_TEMP}/merged.tsv"
-          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base stage --limit 200 \
-            --json number,headRefName --jq '.[] | select(.headRefName | startswith("task/")) | "\(.headRefName)\t\(.number)"' > "$merged"
-          branches="${RUNNER_TEMP}/branches.txt"
-          gh api "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --paginate --jq '.[].name' > "$branches"
-          open_prs="${RUNNER_TEMP}/open.txt"
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json headRefName --jq '.[].headRefName' > "$open_prs"
-          report="${RUNNER_TEMP}/report.md"
-          : > "$report"
-          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json number,title --jq '.[] | "\(.number)\t\(.title)"' |
-          while IFS="$(printf '\t')" read -r number title; do
-            pr="$(awk -F'\t' -v n="$number" '$1 ~ "^task/" n "/" {print $2; exit}' "$merged")"
-            if [ -n "$pr" ]; then
-              echo "::warning::issue #${number} 的 PR #${pr} 已合并但 issue 还开着：${title}"
-              echo "| #${number} | PR #${pr} 已合并，issue 未关 | ${title} |" >> "$report"
-              continue
-            fi
-            if grep -qE "^task/${number}/" "$branches" || grep -qE "^task/${number}/" "$open_prs"; then continue; fi
-            echo "| #${number} | 没有 task 分支、也没有 open PR（还没开工，或已放弃但没关） | ${title} |" >> "$report"
-          done
-          {
-            echo "## 开着的 issue 巡检"
-            echo ""
-            if [ -s "$report" ]; then
-              echo "| issue | 情况 | 标题 |"
-              echo "|---|---|---|"
-              cat "$report"
-              echo ""
-              echo "处理方式见 docs/conventions/TRACKING.md §1：已完成的补「关闭」记录后关掉；放弃的写明原因再关；还没开工的保持开着。"
-            else
-              echo "没有需要处理的 issue。"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          args=(--repo "$GITHUB_REPOSITORY")
+          if [ "${DRY_RUN:-false}" != "true" ]; then args+=(--apply); fi
+          node scripts/issue-sweep.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"

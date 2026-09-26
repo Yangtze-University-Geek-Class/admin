@@ -2,7 +2,7 @@
 
 > issue 是一件事的主档：开发前先开 issue，写清现象、复现、环境与验收条件；之后每一步进展都以追踪记录留在评论里，PR 合并即关闭。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-26
 
 ## §1 开发前先开 issue
 
@@ -19,7 +19,7 @@
 | issue → PR | issue 正文「实施」段 | 回填分支名、PR 链接、合并提交 |
 | 进展 | issue 评论 | 按 [TRACKING](TRACKING.md) §3 的格式，每个阶段一条 |
 
-**PR 合并进 `stage` 即关闭 issue**：`issue-lifecycle` 工作流自动关闭并在两边留「关闭」记录，`branch-hygiene` 删除 task 分支。GitHub 自带的 `Closes #n` 只在合进 `main` 时生效，不能依赖它。工作流失败时，合并的人当场手工关闭并补记录。已合并的分支不再提交；后续问题开新 issue。
+**PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理**（所有者 2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）。`issue-lifecycle` 工作流自动关闭并在两边留「关闭」记录，`branch-hygiene` 删除远端 task 分支，本机 worktree 由开发者 `node scripts/task.mjs finish <issue>` 删。GitHub 自带的 `Closes #n` 只在合进 `main` 时生效，不能依赖它。自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137），合并的人当场手工关闭，并按 [TRACKING](TRACKING.md) §3 的格式留「关闭」记录。已合并的分支不再提交；后续问题开新 issue。
 
 ## §2 正文内容
 
@@ -62,6 +62,6 @@
 
 ## §4 关闭与安全
 
-关闭前 issue 上必须能查到对应 PR 与验证结果（自动「关闭」记录已包含）；不能仅因代码存在或构建成功关闭功能缺陷。放弃、重复、被取代的 issue 先发一条「关闭」记录写明原因再关。
+关闭前 issue 上必须能查到对应 PR 与验证结果（自动「关闭」记录已包含）；不能仅因代码存在或构建成功关闭功能缺陷。放弃、重复、被取代的 issue 先发一条「关闭」记录写明原因再关。做完了就当场关，只剩外部等待的关掉原 issue、剩下的一步开新 issue 写明负责人；每天的巡检会补关 PR 已合并还开着的，给超期和关了没记录的留言（[TRACKING](TRACKING.md) §1）。
 
 安全问题私下报告，不贴 Token、真实会话、完整请求头或生产数据库。
