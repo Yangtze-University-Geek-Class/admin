@@ -107,3 +107,10 @@
 - 做了什么：cd29cfb 应修：昵称拦 U+2800、U+1D159、U+17B4、U+17B5，nameKey 为空的名字拒绝；02be81c 拉丁字母混写西里尔、希腊字母的昵称拒绝；7077bcd 昵称也和 role_assignments 里的登录名比较（没有称号又没打开过论坛的成员与组织 owner 仍是缺口，本地没有来源）；d064c22 HEAD /api/forum/state 回 405，不再另占额度、不再算 state；0d748eb .env.example 的 TRUST_PROXY 说明。提交粒度一条按要求从这一轮起一个目的一个提交。变异核对：去掉 U+2800 与 U+1D159、去掉空 nameKey 判断、去掉混写判断、去掉 orgLogins 比较、去掉 HEAD 处理，每次都有对应用例失败，恢复后工作区干净
 - 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 381 条）；server tsc 退出 0；pnpm check 退出 0；未验证：预发布环境、论坛前端对新 message 的显示；没有推送
 - 下一步：主 agent 复核后推送并请第三轮审查；没有称号的成员与组织 owner 的冒名缺口另开 issue
+
+## 17:42:44 +08:00 · 审查 · #57 · 第三轮审查：有条件通过（1 应修、2 建议）
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：收到 PR #116 第三轮审查（17:40，审查的提交 76c39e1）：应修 1 条，昵称的屏蔽清单还在漏（U+2065、U+FFF0–U+FFF8、U+E0080 等未分配的默认可忽略字符能当零宽用；亚美尼亚、傈僳、切罗基字母的形近名能通过；5µm 被误判成希腊字母），决定改成允许清单：只收汉字、拉丁字母、平假名、片假名、韩文、ASCII 数字和空格 - _ . · ・ '，先做 NFKC；建议 2 条：orgLogins 再并上 audit_logs 里 auth.signin 的登录者与当前会话的登录名、SECURITY 与数据模型写清剩下的缺口只有从没登录过的组织成员
+- 结果：结论：有条件通过；条件是改成允许清单并保留前几轮全部探针（都要 400），建议一并处理
+- 下一步：子代理在 task-57 worktree 按目的分提交修复
