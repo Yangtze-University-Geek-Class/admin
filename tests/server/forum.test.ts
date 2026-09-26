@@ -10,6 +10,7 @@ import { REPO_ROOT } from '../../app/server/src/config';
 import { loadForumContent } from '../../app/server/src/lib/forum-content';
 import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
+import { parseWriteResult } from '../../app/forum/shared/forum-api';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { FORUM_FIXTURE_DIR, testApp, testConfig } from './helpers';
 
@@ -809,6 +810,51 @@ describe('write responses (#145)', () => {
     expect(forum.changes(null, { posts: [reply.postId, 'p99999'], topics: ['t404'], users: ['m999'], tags: ['tag-404'] })).toEqual({
       posts: [expect.objectContaining({ id: reply.postId, content: '', deleted: true })],
     });
+  });
+});
+
+describe('write responses read by the forum client (#145)', () => {
+  // 论坛前端只收 parseWriteResult 认得的形状，认不得的字段直接丢掉；这里把真实回答原样喂给它，
+  // 服务端改了字段名（比如 removed.bookmarks 写成 removed.bookmark）而前端没跟上时，这条会失败。
+  it('reads every kind of write answer exactly as the server sent it', async () => {
+    const s = await setup();
+    await s.state('bob');
+    await s.state('carol');
+    const answers: { name: string; body: any }[] = [];
+    const run = async (name: string, method: 'POST' | 'PATCH' | 'DELETE', url: string, who?: string, payload?: object) => {
+      const response = await s.call(method, url, who, payload);
+      expect(response.statusCode, name).toBeLessThan(300);
+      answers.push({ name, body: response.json() });
+      return response.json();
+    };
+    const { topicId, postId } = await run('topic', 'POST', '/api/forum/topics', 'bob', { title: '新话题', categoryId: 'c-ai', tags: ['tag-agents', '新标签'], content: '正文' });
+    const reply = await run('reply', 'POST', '/api/forum/posts', 'carol', { topicId, content: '回复 @bob', replyToPostId: postId });
+    await run('guest reply', 'POST', '/api/forum/posts', undefined, guestReply(topicId, '游客回复'));
+    await run('like', 'POST', `/api/forum/posts/${postId}/like`, 'carol');
+    await run('bookmark', 'POST', `/api/forum/posts/${postId}/bookmark`, 'carol');
+    await run('remove the bookmark', 'POST', `/api/forum/posts/${postId}/bookmark`, 'carol');
+    await run('follow', 'POST', '/api/forum/users/m102/follow', 'carol');
+    await run('unfollow', 'POST', '/api/forum/users/m102/follow', 'carol');
+    await run('edit', 'PATCH', `/api/forum/posts/${reply.postId}`, 'carol', { content: '改过的回复' });
+    await run('delete', 'DELETE', `/api/forum/posts/${reply.postId}`, 'carol');
+    await run('pin', 'POST', `/api/forum/topics/${topicId}/pin`, 'carol', { pinned: true });
+    await run('close', 'POST', `/api/forum/topics/${topicId}/close`, 'carol', { closed: true });
+    const [notification] = (await s.state('bob')).notifications;
+    await run('mark one read', 'POST', `/api/forum/notifications/${notification.id}/read`, 'bob');
+    await run('mark all read', 'POST', '/api/forum/notifications/read-all', 'bob');
+    await run('profile', 'PATCH', '/api/forum/me/profile', 'carol', { bio: '在学 Go', notifyPrefs: { like: false } });
+
+    for (const { name, body } of answers) {
+      const parsed = parseWriteResult(body);
+      expect({ changes: parsed.changes, viewer: parsed.viewer, guestPolicy: parsed.guestPolicy }, name)
+        .toEqual({ changes: body.changes, viewer: body.viewer, guestPolicy: body.guestPolicy });
+      // 成员的每个回答都带着自己的用户记录，前端的测试夹具照这个写（app/forum/tests/fixtures/server-state.ts 的 writeBody）。
+      if (body.viewer.userId !== null) expect(body.changes.users.map((user: { id: string }) => user.id), name).toContain(body.viewer.userId);
+    }
+    // 上面这些写入把每一类记录和两种 removed 都走到了。
+    expect([...new Set(answers.flatMap(({ body }) => Object.keys(body.changes)))].sort())
+      .toEqual(['bookmarks', 'follows', 'notifications', 'posts', 'removed', 'tags', 'topics', 'users']);
+    expect([...new Set(answers.flatMap(({ body }) => Object.keys(body.changes.removed ?? {})))].sort()).toEqual(['bookmarks', 'follows']);
   });
 });
 
