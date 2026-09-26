@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：README 中英文：第一句改成「按同一份 compose 与环境契约部署」；「线上只有」改成「预发布线上只有」；补「正式域名现在跑的还是旧部署……第一个 vX.Y.Z 正式发布后才换成这套栈」；「没有」一行加正式域名上的新栈
 - 结果：自己复核：正式 /auth/github 的 redirect_uri 是 https://github.yangtzeu.work/auth/callback，/forum/ 返回 text/html（nginx/1.18.0），git tag 没有非 rc 的 vX.Y.Z；pnpm check:docs 通过
+
+## 12:32:19 +08:00 · 审查 · #101 · 第二轮独立审查：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 9996b80（范围 a961477..9996b80），重新请求线上核对正式回调
+- 结果：通过（前提是必需 CI 通过）：应修已修好、中英文一致；正式 /auth/github 回调仍是 github.yangtzeu.work，与新写法一致；note check、pnpm check:docs 通过
