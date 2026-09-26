@@ -90,6 +90,18 @@ describe("issue 巡检：要做什么", () => {
     expect(numbers(planSweep({ open, closed, merged, openPrs, now: new Date(NOW.getTime() + 2 * 3_600_000) }))).toEqual([1, 2, 16, 17]);
   });
 
+  it("两次合并夹着一次重开：按最近一次合并算，重开早于它就补关，和 PR 列表的顺序无关", () => {
+    const issue = { number: 20, title: "修了一次又重开", updatedAt: daysAgo(1), stateReason: "REOPENED", reopenedAt: daysAgo(5), comments: [] };
+    const first = { number: 140, title: "第一次修", headRefName: "task/20/first", baseRefName: "stage", body: "Closes #20", mergedAt: daysAgo(10), mergeCommit: { oid: "6".repeat(40) } };
+    const second = { number: 141, title: "重开后再修", headRefName: "someone/fix20", baseRefName: "stage", body: "Closes #20", mergedAt: daysAgo(2), mergeCommit: { oid: "7".repeat(40) } };
+    for (const order of [[first, second], [second, first]]) {
+      const actions = planSweep({ open: [issue], closed: [], merged: order, now: NOW });
+      expect(actions.map((action: { type: string, pr?: { number: number } }) => `${action.type} ${action.pr?.number}`)).toEqual(["close 141"]);
+    }
+    // 只有重开之前的那次合并：不补关（一天前刚动过，也还没超期）
+    expect(planSweep({ open: [issue], closed: [], merged: [first], now: NOW })).toEqual([]);
+  });
+
   it("没补关的超期 issue，「超期」记录写明已合并的 PR 和没补关的原因", () => {
     const body = (number: number) => plan().find((action: { issue: { number: number } }) => action.issue.number === number).body;
     expect(body(14)).toContain(`关联的 PR #21 在 ${beijing(daysAgo(40))} 合并进 stage，之后这个 issue 在 ${beijing(daysAgo(30))} 又被重开，巡检不再补关`);
@@ -166,8 +178,16 @@ describe("issue 巡检：命令行（假 gh）", () => {
       'const state = args[args.indexOf("--state") + 1];',
       'if (args[0] === "pr" && args[1] === "list") { console.log(JSON.stringify(state === "open" ? fixtures.openPrs ?? [] : fixtures.merged)); process.exit(0); }',
       'if (args[0] === "issue" && args[1] === "list") { console.log(JSON.stringify(state === "open" ? fixtures.open : fixtures.closed)); process.exit(0); }',
-      // gh api graphql …-F number=<n>：回这个 issue 最后一次重开的时间（夹具 reopenedAt，没有就空）
-      'if (args[0] === "api" && args[1] === "graphql") { const n = args.find((arg) => arg.startsWith("number=")).slice(7); console.log(fixtures.reopenedAt?.[n] ?? ""); process.exit(0); }',
+      // gh api graphql …-F number=<n>：回这个 issue 最后一次重开的时间（夹具 reopenedAt，没有就空，"FAIL" 就像 GitHub 出错那样失败）。
+      // 查询必须是时间线上最后一次重开（REOPENED_EVENT、last: 1），不是就失败；每次查询记进 graphql.log
+      'if (args[0] === "api" && args[1] === "graphql") {',
+      '  const query = args.find((arg) => arg.startsWith("query=")) ?? "";',
+      `  appendFileSync(${JSON.stringify(join(dir, "graphql.log"))}, JSON.stringify(query) + "\\n");`,
+      '  if (!query.includes("REOPENED_EVENT") || !query.includes("last: 1")) { console.error("假 gh：查询不是时间线上最后一次重开"); process.exit(2); }',
+      '  const at = fixtures.reopenedAt?.[args.find((arg) => arg.startsWith("number=")).slice(7)] ?? "";',
+      '  if (at === "FAIL") { console.error("HTTP 502"); process.exit(1); }',
+      '  console.log(at); process.exit(0);',
+      '}',
       // gh api --paginate repos/<repo>/issues/<n>/comments --jq '… | @json'：每行一条评论
       'if (args[0] === "api") { const n = /issues\\/(\\d+)\\/comments/.exec(args.join(" "))[1]; for (const c of fixtures.comments?.[n] ?? []) console.log(JSON.stringify(c)); process.exit(0); }',
       `appendFileSync(${JSON.stringify(join(dir, "calls.log"))}, JSON.stringify(args) + "\\n");`,
@@ -252,5 +272,28 @@ describe("issue 巡检：命令行（假 gh）", () => {
     expect(sweep(fakeGh({ ...fixtures, reopenedAt: { 5: hoursAgo(5) } }), ["--repo", "org/repo"]).stdout).toContain("| #5 | 将补关 |");
     expect(sweep(fakeGh({ ...fixtures, reopenedAt: { 5: hoursAgo(2) } }), ["--repo", "org/repo"]).stdout).toContain("没有要处理的 issue。");
     expect(sweep(fakeGh(fixtures), ["--repo", "org/repo"]).stdout).toContain("没有要处理的 issue。");
+    // 假 gh 只认时间线上最后一次重开的查询：每个 REOPENED 的 issue 查一次，查询都带 REOPENED_EVENT 和 last: 1
+    const dir = fakeGh({ ...fixtures, reopenedAt: { 5: hoursAgo(5) } });
+    sweep(dir, ["--repo", "org/repo"]);
+    const queries = readFileSync(join(dir, "graphql.log"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain("timelineItems(itemTypes: [REOPENED_EVENT], last: 1)");
+  });
+
+  it("GraphQL 查询失败：当作合并后重开，不补关；超期记录写明查不到重开时间", () => {
+    const daysBack = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    const dir = fakeGh({
+      open: [{ number: 5, title: "重开过", updatedAt: daysBack(20), stateReason: "REOPENED", comments: [] }],
+      closed: [],
+      merged: [{ number: 150, title: "PR", headRefName: "task/5/x", baseRefName: "stage", body: "Closes #5", mergedAt: daysBack(30), mergeCommit: { oid: "a".repeat(40) } }],
+      reopenedAt: { 5: "FAIL" },
+    });
+    const result = sweep(dir, ["--apply", "--repo", "org/repo"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("| #5 | 已留「超期」 |");
+    const log = calls(dir);
+    expect(log.map((args: string[]) => args.slice(0, 3).join(" "))).toEqual(["issue comment 5"]);
+    expect(log[0][log[0].indexOf("--body") + 1]).toContain("关联的 PR #150 在");
+    expect(log[0][log[0].indexOf("--body") + 1]).toContain("这个 issue 被重开过（查不到重开时间，按合并后重开处理），巡检不再补关");
   });
 });
