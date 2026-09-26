@@ -1,8 +1,9 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WALLPAPER, WALLPAPERS, canPrefetchWallpapers, resolveWallpaper, revealClipFrom, wallpaperPrefetchList } from "../../app/web/sites/portal/lib/wallpapers";
 
 const PUBLIC = new URL("../../app/web/public", import.meta.url).pathname;
+const STYLES = new URL("../../app/web/sites/portal/styles", import.meta.url).pathname;
 
 describe("桌面壁纸", () => {
   it("每张壁纸的图都在，体积有上限（开机画面要等它解码完）", () => {
@@ -42,6 +43,21 @@ describe("换壁纸的动效与预取", () => {
   it("预取先全部缩略图，再当前这张以外的大图；不重复预取当前大图", () => {
     expect(wallpaperPrefetchList("yugc")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/geek.webp"]);
     expect(wallpaperPrefetchList("geek")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/yugc.webp"]);
+  });
+
+  it("减少动态效果时全站把动画压成 .01ms，换壁纸的淡入和清晰过来保留原时长（不然旧层卸掉前根本看不到淡入）", () => {
+    const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+    // 被豁免的那条全局规则：一个类 + 通配符
+    expect(strip(readFileSync(`${STYLES}/portal.css`, "utf8"))).toMatch(/\.pt-root \*[^{]*\{[^}]*animation-duration: \.01ms !important;[^}]*transition-duration: \.01ms !important;/);
+    const reduced = strip(readFileSync(`${STYLES}/os.css`, "utf8"))
+      .split("@media (prefers-reduced-motion: reduce)")
+      .slice(1)
+      .map((part) => part.slice(0, part.indexOf("\n}")))
+      .filter((part) => part.includes(".pt-wall"));
+    expect(reduced).toHaveLength(1);
+    // 两个类，比 .pt-root * 更具体：两边都是 !important 时不看样式表的先后
+    expect(reduced[0]).toContain('.pt-wall[data-enter="fade"] { animation-duration: var(--wall-enter) !important; }');
+    expect(reduced[0]).toContain(".pt-wall > .pt-wall-full { transition-duration: var(--wall-sharpen) !important; }");
   });
 
   it("开了省流量或网络是 2G 时不预取；没有网络信息时照常预取", () => {

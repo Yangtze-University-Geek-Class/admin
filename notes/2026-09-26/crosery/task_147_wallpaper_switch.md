@@ -25,3 +25,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：lib/wallpapers.ts 加 prefetchWallpapersWhenIdle：requestIdleCallback（最多等 4 秒，Safari 退到 1.5 秒计时）后按顺序低优先级下载，先全部缩略图再当前以外的大图，可取消；navigator.connection 的 saveData 或 2g/slow-2g 时不排任务。loadWallpaperImage 加 fetchPriority 参数，与换壁纸共用同一份下载。YugcOs 在桌面 active 时启动、退回书桌时取消。补测试：顺序与优先级、预取中途换过去不重下、取消、省流量/2G 不预取、Safari 退路；portal.md 加「空闲预取」。
 - 结果：vitest 两个壁纸测试文件 17 条通过；tsc -p app/web 通过；变异检查：省流量也预取、2G 也预取、不等空闲立刻预取、下载不去重 4 个变异都被测试拦下
+
+## 23:26:50 +08:00 · 提交 · #147 · 换壁纸按动画真正播完才卸旧层，减少动态效果时保留淡入
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：ego 限速验收发现：旧层按固定 640ms/360ms 计时卸，动画在限帧的浏览器里晚开始时新层还没盖住就卸了（减少动态效果时 602ms 新层 opacity 还是 0，旧壁纸已没了）；另外 styles/portal.css 在减少动态效果时把 .pt-root * 的动画和过渡压成 .01ms，淡入根本看不到。Wallpaper.tsx 改成这一层自己的 animationend（target === currentTarget）才卸下面的层，大图淡入的 transitionend 才卸模糊缩略图，删掉两个计时 effect；os.css 在减少动态效果时用两个类的选择器保留整层淡入与清晰过来的时长。测试改成发 animationEnd/transitionEnd，并把时钟拨 5 秒确认不按计时卸；portal-wallpapers.test.ts 核对 CSS 豁免；portal.md「壁纸」同步。
+- 结果：vitest 两个壁纸文件 18 条通过；pnpm check 通过；pnpm test 52 个文件 700 条通过；变异检查 16 个（新增按计时卸旧层、冒上来的事件也算、按计时卸缩略图、大图一到就撤缩略图、淡入被压成 .01ms、豁免选择器不够具体）全部被拦下

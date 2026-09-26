@@ -58,6 +58,12 @@
 .pt-wall[data-enter="fade"] { animation: pt-wall-fade var(--wall-enter) cubic-bezier(.4, 0, .2, 1) backwards; }
 @keyframes pt-wall-reveal { from { clip-path: var(--wall-from); } to { clip-path: inset(0 round 0); } }
 @keyframes pt-wall-fade { from { opacity: 0; } }
+/* 减少动态效果时全站把动画和过渡压成 .01ms（styles/portal.css 的 .pt-root *）；换壁纸的整层淡入和清晰过来只改透明度、不位移，保留原时长。
+   两边都是 !important，这里的选择器更具体（两个类），不看样式表的先后 */
+@media (prefers-reduced-motion: reduce) {
+  .pt-wall[data-enter="fade"] { animation-duration: var(--wall-enter) !important; }
+  .pt-wall > .pt-wall-full { transition-duration: var(--wall-sharpen) !important; }
+}
 @media (max-aspect-ratio: 9/10) {
   .pt-wall-thumb, .pt-wall-full { background-position: 78% center; }
 }

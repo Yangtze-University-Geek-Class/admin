@@ -1,8 +1,9 @@
 // 桌面壁纸：一张壁纸一层，换壁纸时新的一层压在上面（#147）。
 // 点下去立刻有反应：新层先用底色 + 放大模糊的缩略图（选择面板里已经加载好）顶上，从点的那张缩略图的位置展开到整个桌面；
 // 大图下载解码好后在这一层里淡入，模糊的画面清晰过来。开了「减少动态效果」时不展开，整层直接淡入。
-// 新层展开完才卸掉它下面的层，全程没有空白帧。连点几次时每一层只管自己的计时和解码，桌面最后停在最后点的那张。
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+// 新层的动画真正播完（animationend）才卸掉它下面的层，全程没有空白帧；不按固定计时卸，主线程卡一下或标签页在后台时
+// 动画会晚开始，按计时卸会露出空桌面。连点几次时每一层只管自己的动画和解码，桌面最后停在最后点的那张。
+import { useCallback, useEffect, useRef, useState, type AnimationEvent, type CSSProperties } from "react";
 import { isWallpaperDecoded, loadWallpaperImage, revealClipFrom, type Box, type Wallpaper } from "../../lib/wallpapers";
 import { useReducedMotion } from "../../lib/useReducedMotion";
 
@@ -55,7 +56,7 @@ export default function WallpaperLayer({ wallpaper, from }: Props) {
     });
   }, [wallpaper]);
 
-  // 某一层展开（淡入）完了，它就整片盖住了下面：卸掉它下面的层。上面还有更新的层时不动它们。
+  // 某一层展开（淡入）播完了，它就整片盖住了下面：卸掉它下面的层。上面还有更新的层时不动它们。
   const onEntered = useCallback((key: number) => {
     setLayers((current) => {
       const index = current.findIndex((layer) => layer.key === key);
@@ -90,18 +91,10 @@ function WallpaperFace({ layer, onEntered }: { layer: Layer; onEntered: (key: nu
     };
   }, [sharp, wallpaper.image]);
 
-  // 清晰过来以后卸掉模糊的缩略图：它在大图下面已经看不见，留着只占合成开销
-  useEffect(() => {
-    if (!sharp || !blurred) return;
-    const timer = window.setTimeout(() => setBlurred(false), WALLPAPER_SHARPEN_MS + 50);
-    return () => window.clearTimeout(timer);
-  }, [sharp, blurred]);
-
-  useEffect(() => {
-    if (enter === "none") return;
-    const timer = window.setTimeout(() => onEntered(key), (enter === "reveal" ? WALLPAPER_REVEAL_MS : WALLPAPER_FADE_MS) + 50);
-    return () => window.clearTimeout(timer);
-  }, [enter, key, onEntered]);
+  // 这一层的展开（淡入）动画播完：只认这一层自己的动画，不认里面元素冒上来的
+  const entered = (event: AnimationEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) onEntered(key);
+  };
 
   const style = {
     backgroundColor: wallpaper.tint,
@@ -111,9 +104,14 @@ function WallpaperFace({ layer, onEntered }: { layer: Layer; onEntered: (key: nu
   } as CSSProperties;
 
   return (
-    <div className="pt-wall" data-wallpaper={wallpaper.id} data-enter={enter} style={style}>
+    <div className="pt-wall" data-wallpaper={wallpaper.id} data-enter={enter} style={style} onAnimationEnd={enter === "none" ? undefined : entered}>
       {blurred && <div className="pt-wall-thumb" style={{ backgroundImage: `url("${wallpaper.thumb}")` }} />}
-      <div className={sharp ? "pt-wall-full is-sharp" : "pt-wall-full"} style={sharp ? { backgroundImage: `url("${wallpaper.image}")` } : undefined} />
+      <div
+        className={sharp ? "pt-wall-full is-sharp" : "pt-wall-full"}
+        style={sharp ? { backgroundImage: `url("${wallpaper.image}")` } : undefined}
+        // 大图淡入播完才卸掉下面模糊的缩略图（它已经看不见，留着只占合成开销）；按计时卸，淡入晚开始时会露出底色
+        onTransitionEnd={sharp ? () => setBlurred(false) : undefined}
+      />
     </div>
   );
 }

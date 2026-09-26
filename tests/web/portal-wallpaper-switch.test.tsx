@@ -2,7 +2,9 @@
 // 换壁纸（#147）：点下去立刻换上占位（底色 + 模糊缩略图）并开始展开，大图解码好后才换上；连点停在最后一张、不闪回；
 // 减少动态效果只淡入；桌面空闲后预取其余壁纸，省流量 / 2G 时不预取。
 // 图片下载解码用假的 Image 控制：每个地址的 decode() 由用例决定什么时候成功或失败。
-import { act, cleanup, render } from "@testing-library/react";
+// 旧层和模糊缩略图按动画真正播完卸（animationend / transitionend），jsdom 不跑 CSS 动画：用例自己发这两个事件，
+// 再把假时钟往后拨很久，确认不是按计时卸的。
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as WallpaperModule from "../../app/web/sites/portal/components/os/Wallpaper";
 import type * as WallpaperLib from "../../app/web/sites/portal/lib/wallpapers";
@@ -72,17 +74,28 @@ const byId = (id: string) => lib.WALLPAPERS.find((wallpaper) => wallpaper.id ===
 /** 点的缩略图在屏幕上的位置 */
 const THUMB = { left: 460, top: 390, width: 160, height: 90 };
 
+function walls(container: HTMLElement) {
+  return [...container.querySelectorAll<HTMLElement>(".pt-wall")];
+}
 function layers(container: HTMLElement) {
-  return [...container.querySelectorAll<HTMLElement>(".pt-wall")].map((wall) => ({
+  return walls(container).map((wall) => ({
     id: wall.dataset.wallpaper,
     enter: wall.dataset.enter,
     from: wall.style.getPropertyValue("--wall-from"),
+    duration: wall.style.getPropertyValue("--wall-enter"),
     tint: wall.style.backgroundColor,
     thumb: wall.querySelector<HTMLElement>(".pt-wall-thumb")?.style.backgroundImage ?? null,
     full: wall.querySelector<HTMLElement>(".pt-wall-full.is-sharp")?.style.backgroundImage ?? null,
   }));
 }
 const top = (container: HTMLElement) => layers(container).at(-1)!;
+const ids = (container: HTMLElement) => layers(container).map((layer) => layer.id);
+/** 这一层的展开（淡入）动画播完 */
+const entered = (wall: HTMLElement) => fireEvent.animationEnd(wall);
+/** 这一层的大图淡入播完 */
+const sharpened = (wall: HTMLElement) => fireEvent.transitionEnd(wall.querySelector(".pt-wall-full")!);
+/** 很久：比任何一段动效都长得多，按计时卸的话早就卸了 */
+const LONG = 5000;
 
 describe("换壁纸", () => {
   it("点下去立刻换上占位：底色 + 模糊缩略图，从缩略图展开；大图解码好之前不出现大图，解码好后换上", async () => {
@@ -93,25 +106,36 @@ describe("换壁纸", () => {
 
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
     // 同一次渲染里新层就在最上面：不等下载
-    expect(layers(view.container).map((layer) => layer.id)).toEqual(["yugc", "geek"]);
-    expect(top(view.container)).toMatchObject({ enter: "reveal", thumb: `url("${geek.thumb}")`, full: null });
+    expect(ids(view.container)).toEqual(["yugc", "geek"]);
+    expect(top(view.container)).toMatchObject({ enter: "reveal", duration: `${REVEAL}ms`, thumb: `url("${geek.thumb}")`, full: null });
     expect(top(view.container).from).toMatch(/^inset\(.+ round 9px\)$/);
     expect(top(view.container).tint).not.toBe("");
+    expect(walls(view.container)[1].style.getPropertyValue("--wall-sharpen")).toBe(`${SHARPEN}ms`);
     expect(view.container.innerHTML).not.toContain(geek.image);
     expect(images.created.map((image) => image.src)).toContain(geek.image);
 
+    // 展开还没播完（主线程卡住、标签页在后台时会晚开始）：时间再久也不卸旧壁纸，不露空桌面
+    await wait(LONG);
+    expect(ids(view.container)).toEqual(["yugc", "geek"]);
+    // 里面元素冒上来的动画事件不算这一层播完
+    fireEvent.animationEnd(walls(view.container)[1].querySelector(".pt-wall-thumb")!);
+    expect(ids(view.container)).toEqual(["yugc", "geek"]);
+
     // 展开完：旧壁纸卸掉，占位还在（大图没到）；桌面上始终有一层整片盖着
-    await wait(REVEAL + 60);
+    entered(walls(view.container)[1]);
     expect(layers(view.container)).toEqual([expect.objectContaining({ id: "geek", thumb: `url("${geek.thumb}")`, full: null })]);
 
     await finish(geek.image);
     expect(top(view.container).full).toBe(`url("${geek.image}")`);
+    // 大图淡入播完之前模糊的缩略图一直垫在下面
+    await wait(LONG);
+    expect(top(view.container).thumb).toBe(`url("${geek.thumb}")`);
     // 清晰过来以后卸掉模糊的缩略图
-    await wait(SHARPEN + 60);
+    sharpened(walls(view.container)[0]);
     expect(layers(view.container)).toEqual([expect.objectContaining({ id: "geek", thumb: null, full: `url("${geek.image}")` })]);
   });
 
-  it("连点几次：停在最后点的那张，先点的那几层晚到的计时和解码都不会把它换掉", async () => {
+  it("连点几次：停在最后点的那张，先点的那几层晚到的动画结束和解码都不会把它换掉", async () => {
     const yugc = byId("yugc");
     const geek = byId("geek");
     const view = render(<WallpaperLayer wallpaper={yugc} />);
@@ -123,33 +147,38 @@ describe("换壁纸", () => {
       await wait(90);
     }
     // 还没有哪一层展开完：一层都没卸（卸早了，没盖住的地方会露出桌面底色）
-    expect(layers(view.container).map((layer) => layer.id)).toEqual(["yugc", "geek", "yugc", "geek", "yugc"]);
-    // 先点的 geek 的大图后到、它的计时先到：每一步最上面都还是最后点的 yugc
+    expect(ids(view.container)).toEqual(["yugc", "geek", "yugc", "geek", "yugc"]);
+    // 先点的 geek 的大图后到、先点的几层先展开完：每一步最上面都还是最后点的 yugc，只卸下面的
     await finish(geek.image);
     expect(top(view.container).id).toBe("yugc");
-    for (let elapsed = 0; elapsed < REVEAL + 200; elapsed += 40) {
-      await wait(40);
-      expect(top(view.container).id).toBe("yugc");
+    const [, ...clicked] = walls(view.container);
+    for (const [index, wall] of clicked.slice(0, -1).entries()) {
+      entered(wall);
+      expect(ids(view.container)).toEqual(["yugc", "geek", "yugc", "geek", "yugc"].slice(index + 1));
     }
+    entered(clicked.at(-1)!);
     await finish(yugc.image);
     expect(layers(view.container)).toEqual([expect.objectContaining({ id: "yugc", full: `url("${yugc.image}")` })]);
   });
 
-  it("中间那层先展开完只卸它下面的层，上面还在展开的新层不动", async () => {
+  it("中间那层先展开完只卸它下面的层，上面还在展开的新层不动；已经卸掉的层晚到的事件不起作用", async () => {
     const yugc = byId("yugc");
     const geek = byId("geek");
     const view = render(<WallpaperLayer wallpaper={yugc} />);
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
-    await wait(REVEAL - 200);
     view.rerender(<WallpaperLayer wallpaper={yugc} from={THUMB} />);
-    await wait(260);
+    const [boot, middle, last] = walls(view.container);
+    entered(middle);
     // geek 展开完了：开机那层卸掉；最后点的 yugc 还在展开
     expect(layers(view.container).map((layer) => [layer.id, layer.enter])).toEqual([
       ["geek", "reveal"],
       ["yugc", "reveal"],
     ]);
-    await wait(REVEAL);
-    expect(layers(view.container).map((layer) => layer.id)).toEqual(["yugc"]);
+    expect(boot.isConnected).toBe(false);
+    entered(last);
+    expect(ids(view.container)).toEqual(["yugc"]);
+    entered(middle);
+    expect(ids(view.container)).toEqual(["yugc"]);
   });
 
   it("换回已经下好的壁纸（开机那张、换过的）：直接给大图，不顶缩略图", async () => {
@@ -159,7 +188,8 @@ describe("换壁纸", () => {
     await finish(yugc.image);
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
     await finish(geek.image);
-    await wait(REVEAL + SHARPEN + 100);
+    entered(walls(view.container)[1]);
+    sharpened(walls(view.container)[0]);
     view.rerender(<WallpaperLayer wallpaper={yugc} from={THUMB} />);
     expect(top(view.container)).toMatchObject({ id: "yugc", enter: "reveal", thumb: null, full: `url("${yugc.image}")` });
     // 开机那张只下载一次：换回来用的是缓存
@@ -172,23 +202,26 @@ describe("换壁纸", () => {
     const view = render(<WallpaperLayer wallpaper={yugc} />);
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
     await fail(geek.image);
-    await wait(REVEAL + SHARPEN + 100);
+    entered(walls(view.container)[1]);
+    await wait(LONG);
     expect(layers(view.container)).toEqual([expect.objectContaining({ id: "geek", thumb: `url("${geek.thumb}")`, full: null })]);
     view.rerender(<WallpaperLayer wallpaper={yugc} from={THUMB} />);
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
     expect(images.created.filter((image) => image.src === geek.image)).toHaveLength(2);
   });
 
-  it("减少动态效果：不展开，整层淡入，淡入完就卸掉旧壁纸", async () => {
+  it("减少动态效果：不展开，整层淡入，淡入播完才卸掉旧壁纸", async () => {
     reducedMotion = true;
     const yugc = byId("yugc");
     const geek = byId("geek");
     const view = render(<WallpaperLayer wallpaper={yugc} />);
     view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
-    expect(top(view.container)).toMatchObject({ id: "geek", enter: "fade", from: "", thumb: `url("${geek.thumb}")` });
+    expect(top(view.container)).toMatchObject({ id: "geek", enter: "fade", from: "", duration: `${FADE}ms`, thumb: `url("${geek.thumb}")` });
     expect(FADE).toBeLessThan(REVEAL);
-    await wait(FADE + 60);
-    expect(layers(view.container).map((layer) => layer.id)).toEqual(["geek"]);
+    await wait(LONG);
+    expect(ids(view.container)).toEqual(["yugc", "geek"]);
+    entered(walls(view.container)[1]);
+    expect(ids(view.container)).toEqual(["geek"]);
   });
 });
 
