@@ -69,17 +69,20 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
  # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
- # nitro.prerender.routes）；不公开的 t5、t15 没有文件。
+ # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的新帖 t89（#108）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \
  && grep -q '极客班论坛' .output/public/llms.txt \
  && grep -q '极客班25级机试考核文档' .output/public/llms.txt \
  && test -s .output/public/t/t73.md \
  && test -s .output/public/t/t9.md \
+ && test -s .output/public/t/t89.md \
  && ! test -e .output/public/t/t5.md \
  && ! test -e .output/public/t/t15.md \
  && test -n "$(find .output/public/published -name '*.webp' -print -quit)" \
  # 产物的文本文件里不能有邮箱地址（t73 原文里的共享账户已在导出时去掉），与 vitest 里的检查同一条规则；-I 跳过图片和字体，免得二进制字节碰巧像邮箱。
  && ! grep -rqEI '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.]+' .output/public \
+ # 也不能有写出来的 API 密钥（t89 原文里的公益密钥已在导出时去掉）；前面不接字母数字和连字符，免得样式类名 task-list-… 被当成密钥。
+ && ! grep -rqEI '(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}' .output/public \
  # 产物里不能有上游示例内容（示例帖子标题、示例分类）。
  && ! grep -rq 'Tuff 2.5' .output/public \
  && ! grep -rq 'CoreBox' .output/public

@@ -29,21 +29,26 @@ describe('siteForumState', () => {
     expect(state.tags).toEqual(curation.tags.map(({ id, slug, name, color }) => ({ id, slug, name, color })))
   })
 
-  it('publishes the 14 exam and starter documents under the 极客班 account, one opening post each', () => {
-    expect(state.topics.map(topic => topic.id)).toEqual(['t73', 't72', 't71', 't9', 't35', 't6', 't7', 't8', 't10', 't11', 't12', 't13', 't16', 't25'])
+  it('publishes the exam documents (#87) and the newer forum posts (#108) under the 极客班 account, one opening post each', () => {
+    const exam = ['t73', 't72', 't71', 't9', 't35', 't6', 't7', 't8', 't10', 't11', 't12', 't13', 't16', 't25']
+    expect(state.topics.map(topic => topic.id)).toEqual([...exam, 't89'])
     expect(publishedTopicIds()).toEqual(state.topics.map(topic => topic.id))
     expect(state.users.map(user => [user.id, user.username, user.displayName])).toEqual([['u-geekclass', 'geekclass', '极客班']])
     for (const topic of state.topics) {
       expect(topic.authorId).toBe('u-geekclass')
-      expect(topic.categoryId).toBe('c-exam')
+      expect(topic.categoryId).toBe(exam.includes(topic.id) ? 'c-exam' : 'c-ai')
       expect(topic.closed).toBe(false)
       expect(state.posts.filter(post => post.topicId === topic.id)).toHaveLength(1)
+      // The backend (#57) seeds these by id; its own topics start at t1001.
+      expect(Number(topic.id.slice(1))).toBeLessThan(1000)
     }
     expect(state.topics.filter(topic => topic.pinned).map(topic => topic.id)).toEqual(['t73', 't9'])
     const tagged = (tag: string) => state.topics.filter(topic => topic.tagIds.includes(tag)).map(topic => topic.id)
     expect(tagged('tag-grade25')).toEqual(['t73', 't72', 't71'])
     expect(tagged('tag-grade24')).toEqual(['t9', 't35'])
     expect(tagged('tag-starter')).toEqual(['t6', 't7', 't8', 't10', 't11', 't12', 't13', 't16', 't25'])
+    expect(tagged('tag-agents')).toEqual(['t89'])
+    expect(tagged('tag-coding')).toEqual(['t89'])
     // No replies, notifications, bookmarks or follows until the forum has a backend.
     expect(state.posts).toHaveLength(state.topics.length)
     expect(state.notifications).toEqual([])
@@ -51,7 +56,7 @@ describe('siteForumState', () => {
     expect(state.follows).toEqual([])
     // Ids and references hold together the way the pages expect.
     expect(() => parseSnapshotState(JSON.parse(JSON.stringify(state)))).not.toThrow()
-    expect(state.counters).toEqual({ topic: 73, post: 14, notification: 0, tag: curation.tags.length })
+    expect(state.counters).toEqual({ topic: 89, post: 15, notification: 0, tag: curation.tags.length })
   })
 
   it('keeps withheld topics, logins and e-mail addresses out of the published text', () => {
@@ -62,12 +67,15 @@ describe('siteForumState', () => {
     }
     expect(text).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/)
     expect(text).not.toMatch(/(?:账户|账号)\s*\**\s*[:：]/)
+    expect(text).not.toMatch(/\bsk-[\w-]{20,}/)
     expect(text).not.toContain('/api/local-forum/')
     expect(text).not.toContain('yangtzeu.work/forum/archive')
     expect(text).toContain('共享账户找班长要')
     // Review of #87: sharer-tracking parameters, the proxy heading and the screenshots with names are gone.
     expect(text).not.toMatch(/vd_source|sharer_shareinfo|代理配置/)
     expect(text).toContain('这张截图没有公开')
+    // Review of #108: the third-party API key in t89 is not published.
+    expect(text).toContain('（公益密钥没有公开）')
   })
 
   it('links only to published topics and to images that ship with the forum', () => {
@@ -132,6 +140,7 @@ describe('siteForumState', () => {
     expect(text.split('\n')[0]).toBe('# 极客班论坛')
     expect(text).toContain('极客班25级机试考核文档')
     expect(text).toContain('https://prev.example.test/forum/t/t73.md')
+    expect(text).toContain('- [国内 Agent 工具安装指南](https://prev.example.test/forum/t/t89.md)')
     const twin = topicMarkdown(state, 't73', site)
     expect(twin).toContain('极客班')
     expect(twin).toContain('](./t9)')

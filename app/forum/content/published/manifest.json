@@ -1,7 +1,7 @@
 {
-  "$comment": "从旧论坛快照公开到极客班论坛的话题（#87）。改这里后运行 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<source> 重新生成 topics.json 和 public/published/ 下的图片。withheld 是不公开的话题：指向它们的链接变成「这篇没有公开」。images 按旧正文里写的图片地址处理：drop 换成一句括号说明，cover 用灰块盖住矩形（原图像素 [左, 上, 宽, 高]），crop 裁掉四边；要编辑的外链图写原图 sha256，第一次导出加 --fetch 下载到快照的 external/ 下。redactions 按话题替换正文，count 是应命中的次数，对不上导出就停；替换规则里不能写被去掉的原文。",
+  "$comment": "从旧论坛快照公开到极客班论坛的话题（#87、#108）。改这里后运行 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<source> 重新生成 topics.json 和 public/published/ 下的图片。withheld 是不公开的话题：指向它们的链接变成「这篇没有公开」。images 按旧正文里写的图片地址处理：drop 换成一句括号说明，cover 用灰块盖住矩形（原图像素 [左, 上, 宽, 高]），crop 裁掉四边；要编辑的外链图写原图 sha256，第一次导出加 --fetch 下载到快照的 external/ 下。redactions 按话题替换正文，count 是应命中的次数，对不上导出就停；替换规则里不能写被去掉的原文。",
   "schemaVersion": 1,
-  "source": "geek-20260913",
+  "source": "geek-20260926",
   "author": {
     "id": "u-geekclass",
     "username": "geekclass",
@@ -24,7 +24,8 @@
     { "id": "t12", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
     { "id": "t13", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
     { "id": "t16", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
-    { "id": "t25", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false }
+    { "id": "t25", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t89", "categoryId": "c-ai", "tagIds": ["tag-agents", "tag-coding"], "pinned": false }
   ],
   "withheld": ["t5", "t15"],
   "images": [
@@ -116,6 +117,18 @@
       "topic": "t10",
       "pattern": "Typora的下载地址：https://\\S*lanzou\\S* 密码:\\w+",
       "replacement": "Typora的下载地址：https://typora.io/ （官网）",
+      "count": 1
+    },
+    {
+      "topic": "t89",
+      "pattern": "\\*\\*API Key\\*\\*：\\n\\n```text\\nsk-[\\w-]+\\n```",
+      "replacement": "**API Key**：（公益密钥没有公开）",
+      "count": 1
+    },
+    {
+      "topic": "t89",
+      "pattern": "\\n\\n\\[返回导航\\]\\($",
+      "replacement": "",
       "count": 1
     }
   ]
