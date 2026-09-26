@@ -47,7 +47,7 @@
 `geek_main` 是极客班的统一仓库：`app/` 下四个服务，`docs/` 下全部规范，`deploy/` 下两套一模一样的 Docker 栈（正式、预发布）。包名沿用 `yzgc-admin`、`@yzgc/web`、`@yzgc/server`，不为改名而改名。
 
 > [!IMPORTANT]
-> **当前论坛前端不包含真实后端或认证。** 预发布与正式镜像是极客班论坛，只有自己的分类和标签，还没有帖子；本机发现私有快照目录时只读显示极客班论坛归档（不可写）；否则为上游示例，示例身份不是 GitHub 登录，内容只保存于当前浏览器。公开宣传页 → 登录后内部 Hub → 论坛/组织管理/扩展服务是目标结构；统一内部认证、服务接入和 3D Hub 尚未落地，不能把这次原仓接入称为完整生产社区。
+> **预发布与正式按同一份 compose 与环境契约部署，是两套一模一样、互相隔离的完整服务。** 每套都有 web、server（Fastify + 自己的 SQLite）、forum 三个容器，各用各的域名、密钥和 GitHub OAuth 应用。官网、论坛、控制台共用同一个 GitHub 登录（一个 `sid` cookie，只有极客班 GitHub 组织的成员能登录成功）。部署的镜像都是生产构建，不含样板数据；样板数据只在本机开发态使用。**论坛还不能发帖和回复**：帖子还没有服务端存储，预发布线上只有极客班自己的分类、标签和放出来的旧帖。登录后的 3D Hub 也还没做。**正式域名现在跑的还是旧部署**（没有论坛，登录回调还是旧的 `github.yangtzeu.work`），第一个 `vX.Y.Z` 正式发布后才换成这套栈。
 
 ---
 
@@ -62,8 +62,8 @@
 
 | 状态 | 内容 |
 |---|---|
-| 已有 | 官网、控制台、后端接口、论坛静态站；两套 Docker 栈的镜像、compose、宿主 nginx 配置；分支守卫、PR 正文检查、tag 发版流水线 |
-| 没有 | 论坛真实后端与登录；统一内部认证；登录后的 3D Hub；预发布与正式的部署开关默认关闭 |
+| 已有 | 官网、控制台、后端接口；官网、论坛、控制台共用的 GitHub 登录；两套完整隔离的 Docker 栈（各自的 SQLite、密钥、域名），打 rc tag 自动部署预发布；分支守卫、PR 正文检查、tag 发版流水线（CI 与部署跑在自托管 runner 上） |
+| 没有 | 论坛发帖、回复的服务端存储；登录后的 3D Hub；正式环境的自动部署（正式发布由维护者在所有者验收后部署）；正式域名上的新栈（要等第一个 `vX.Y.Z` 正式发布） |
 
 ---
 
@@ -91,8 +91,8 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev:web        # 官网，只读 mock 数据，不需要 OAuth 或数据库
-pnpm dev:console    # 控制台，默认样板数据
+pnpm dev:web        # 官网，本机开发态默认用样板数据，不需要 OAuth 或数据库
+pnpm dev:console    # 控制台，默认连本机后端（真实 GitHub 登录）；地址加 ?__data=mock 用样板数据
 pnpm forum:install && pnpm forum:start   # 论坛
 ```
 
@@ -173,7 +173,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 
 - 镜像按环境分仓库：`yzgc-production/{server,web,forum}:<sha12>` 与 `yzgc-preview/{server,web,forum}:<sha12>`；回滚就是切回更早发布 tag 的镜像。
 - 环境变量只在 `deploy/env/.env.<环境>`；密钥留空，真实值只在目标机，由 CI/CD 的环境级 secrets 填。
-- 部署开关 `DEPLOY_PREVIEW_ENABLED`、`DEPLOY_PRODUCTION_ENABLED` 默认关闭；不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
+- 部署开关：`DEPLOY_PREVIEW_ENABLED` 已打开，打 rc tag 就部署预发布；`DEPLOY_PRODUCTION_ENABLED` 关闭（GitHub 免费版的私有仓库配不了正式环境审批），正式发布由维护者在所有者验收后用 `scripts/deploy-manual.mjs` 部署同一 tag 的 CI 产物。不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
 
 操作步骤：[DEPLOY](docs/ops/DEPLOY.md) · [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md) · [CICD](docs/ops/CICD.md)。
 
