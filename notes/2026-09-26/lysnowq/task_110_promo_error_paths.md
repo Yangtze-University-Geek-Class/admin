@@ -52,3 +52,15 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：promo.css 的键帽、焦点环和两处隐藏按键提示都挂到 .pt-promo 下（多一层类名，不依赖加载顺序）；PromoPlayer hls 分包失败时先看 cancelled；lazy 测试补 net.retried 断言、新增卸载后 hls 分包失败不调 onClose；portal.md 与 web README 更新日期改 2026-09-26；链路文件挪到 lysnowq 并补子代理记录
 - 结果：三份 promo 测试 35 passed；去掉 cancelled 判断时新用例失败；app/web tsc 0、check-boundaries、check-docs 通过；生产构建 + localhost 预览实测：桌面键帽 display block、白字半透明底、无边框，焦点环 2px 白；触屏（hover:none）键帽 display none，焦点环 2px 白
+
+## 17:59:40 +08:00 · 审查 · #110 · Crosery 第二轮：有条件通过
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：收到 PR #120 第二轮审查（2026-09-26 17:42，审 fe52e0b）：层叠回退已修；应修 2 条（正文附三张生产构建截图、正文按返工更新），建议 2 条（聚焦时胶囊被 .pt-root :focus-visible 的 4px 圆角压成矩形；起播外层 catch 的 cancelled 判断没测试）
+- 结果：结论：有条件通过；条件是截图进正文、正文更新、CI 全绿
+
+## 17:59:41 +08:00 · 返工 · #110 · 焦点保持胶囊圆角，补卸载后能力探测失败的测试，截三张生产构建图
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：promo.css 播放层焦点规则加 border-radius:999px；portal-promo-player 新增卸载后 detectCapabilities 才 reject 不调 onClose；生产构建 + localhost 预览截图：1440×900 Esc 键帽、390×844 触屏无键帽、1440×900 Tab 焦点环
+- 结果：去掉外层 catch 的 cancelled 判断时新用例失败；三份宣传片测试 36 passed，app/web tsc 0；计算样式：桌面键帽 display block 半透明白底，触屏（hover:none）display none，焦点 solid 白 2px、border-radius 999px

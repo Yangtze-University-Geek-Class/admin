@@ -159,6 +159,19 @@ it("起播时意外抛错（能力探测失败）：按加载失败结束一次"
   expect(onSeen).not.toHaveBeenCalled();
 });
 
+it("播放层卸载以后能力探测才出错：不再结束一次（不调 onClose）", async () => {
+  let crash!: (error: Error) => void;
+  // 项目 lib 是 ES2022，没有 Promise.withResolvers
+  vi.mocked(detectCapabilities).mockReturnValueOnce(new Promise<Capabilities>((_, reject) => (crash = reject)));
+  const onClose = vi.fn();
+  const view = render(<PromoPlayer mode="gate" onClose={onClose} />);
+  view.unmount();
+  await act(async () => {
+    crash(new Error("probe crashed"));
+  });
+  expect(onClose).not.toHaveBeenCalled();
+});
+
 it("两种播放方式都没有：直接结束，算看过（以后也播不了）", async () => {
   caps.current = { mse: false, mseAv1Smooth: false, native: false, nativeAv1: false, touch: false };
   const onClose = vi.fn();
