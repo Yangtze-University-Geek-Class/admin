@@ -110,9 +110,13 @@ describe('siteForumState', () => {
 
   it('leaves the curated snapshot topics and posts out', () => {
     const text = JSON.stringify(state)
+    const published = new Set(publishedTopicIds())
     for (const [id, topic] of Object.entries(curation.topics)) {
-      expect(text).not.toContain(`"${id}"`)
-      expect(text).not.toContain(topic.title)
+      // A published topic (t89) is curated only to place it in snapshot mode; its title comes from topics.json.
+      if (!published.has(id))
+        expect(text).not.toContain(`"${id}"`)
+      if ('title' in topic)
+        expect(text).not.toContain(topic.title)
     }
     for (const id of Object.keys(curation.posts))
       expect(text).not.toContain(id)

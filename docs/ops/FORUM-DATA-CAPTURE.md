@@ -112,7 +112,7 @@ python3 scripts/forum-migration/prepare.py --snapshot .tools/forum-migration/202
 
 `verify.py` 的结果：334 个文件的大小和哈希都对得上，三个库恢复到内存后 integrity_check 都是 ok，表条数与采集 manifest 一致，两份历史附件逐路径一致，备份被 Git 忽略。和 09-13 比，只有 `forum.sqlite` 变了：主题 87 → 89、用户 183 → 185（另有会话 48 → 53，属于私有记录，不进投影）；附件和两份 mbbs 库逐文件哈希不变。
 
-投影 `.tools/forum-runtime/geek-20260926/`：185 个公开资料记录、70 个有效主题、35 条有效回复、21 个分类，其中 67 个历史归档主题；排除已删主题 19 个、已删回复 31 条，引用附件 85 份，缺失 0。`asset-index.json` 与 `geek-20260913` 的逐字节相同。`pnpm forum:start` 自动选名字最大的投影，所以本机快照模式现在读的是它。
+投影 `.tools/forum-runtime/geek-20260926/`：185 个公开资料记录、70 个有效主题、35 条有效回复、21 个分类，其中 67 个历史归档主题；排除已删主题 19 个、已删回复 31 条，引用附件 85 份，缺失 0。`asset-index.json` 与 `geek-20260913` 的逐字节相同。`pnpm forum:start` 自动选名字最大的投影，所以本机快照模式现在读的是它。`t89` 原来的分类「AI Coding」（`c18`）在 `curation.json` 的 `categoryOmissions` 里，所以 `curation.json` 的 `topics` 里也给了它「人工智能」和同样的标签，否则快照加载会报「无法移除分类 c18」；这条归类引用的 `t89` 只在 `geek-20260926` 及以后的投影里有，再指定 `geek-20260913` 会因为找不到 `t89` 加载失败。
 
 09-13 之后新建的主题只有两个：`t89`「国内 Agent 工具安装指南」（2026-09-25 16:46Z，原「AI Coding」分类）去掉公益 API 密钥后公开；`t88` 是同一篇较长的早先版本，发帖人已删，不复活。已公开的 14 篇在 09-13 之后没有被编辑，只有浏览数变了。
 
@@ -122,7 +122,7 @@ python3 scripts/forum-migration/prepare.py --snapshot .tools/forum-migration/202
 
 1. 在这次任务的 task worktree 里，照上一节的命令重新采集到一个新目录 `.tools/forum-migration/<日期>-<说明>`，`verify.py` 核对，再用 `prepare.py` 出新投影 `.tools/forum-runtime/geek-<日期>`。目录名不能和已有的重复，采集工具不覆盖旧目录。
 2. 和上一份投影对比，列出上次采集之后新建的主题，以及已公开话题的正文有没有变（比较 `content.json` 里首帖的 `content`）。逐篇读正文，看有没有邮箱、手机号、学号、账号密码、API 密钥、私人网盘或分享链接、别人的个人信息，决定公开还是写进 `withheld`，每篇在 PR 里写一句理由。
-3. 改 `app/forum/content/published/manifest.json`：`source` 换成新投影的目录名，要公开的编号加进 `topics`（类别、标签、置顶），需要的图片规则和 `redactions` 一起写；替换规则里不写被去掉的原文。
+3. 改 `app/forum/content/published/manifest.json`：`source` 换成新投影的目录名，要公开的编号加进 `topics`（类别、标签、置顶），需要的图片规则和 `redactions` 一起写；替换规则里不写被去掉的原文。新帖原来的分类在 `curation.json` 的 `categoryOmissions` 里（`c16`–`c20`）时，在 `curation.json` 的 `topics` 里给它同样的类别和标签，本机快照模式才能加载新投影。
 4. 运行 `node scripts/forum-migration/export-published.mjs .tools/forum-runtime/geek-<日期> --fetch`（新投影里还没有外链原图时会下载一次，并按清单里的 SHA-256 核对）。已公开话题的 `content` 应该不变，跟着快照变的只有 `views` 和顶层的 `source`、`capturedAt`；正文变了要在 PR 里说明是原帖被编辑了。不加 `--fetch` 再跑一次，确认输出逐字节相同。
 5. 更新 `app/forum/tests/site-state.test.ts`、`app/forum/Dockerfile` 的断言和 [forum 合同](../services/forum/README.md)「公开的旧帖」，跑 `pnpm forum:check`、按镜像方式的 `forum.mjs generate` 和根 `pnpm check`，走 PR 进 `stage`，再按 [RELEASES](../conventions/RELEASES.md) 发版。
 6. 论坛后端（#57）按约定在启动时把 `topics.json` 里的话题按编号「没有才插入」：已经导入的话题不会重复，也不会被覆盖，线上的回复、置顶和浏览数以数据库为准。所以补新帖只会带进新的编号，`topics.json` 里旧话题的浏览数变化不会回写到线上。
