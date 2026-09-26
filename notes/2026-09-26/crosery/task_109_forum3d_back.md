@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 6ceb093（范围 2812251..6ceb093），逐项对照 createForumScene 的状态，做了 4 个变异
 - 结果：1 条应修（缺「PR」执行记录）、2 条建议（单测没覆盖 reset 本身；reset 没刷新 lastInput，自转 1.5 秒就停）；条件：补记录、必需 CI 全绿
+
+## 15:45:01 +08:00 · 返工 · #109 · 按第一轮审查补 e2e 与环境动画
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：reset() 末尾改为 stage.poke()（自转和浮动像进场一样再动一会儿）；tests/e2e 新增一例：论坛地址回 204 让导航取消、页面停在转场最后一帧，派发 pageshow persisted 后断言遮罩回 0、__yugcStage 的 basePos 与 baseOffset 回到进场取景、再点另一个版块会重新推近；补「PR」「审查」记录
+- 结果：新 e2e 通过；去掉 reset 里的 opening = null 或 stage.resize() 各自失败；playwright 全部 15 passed；vitest tests/web 99 passed；tsc 通过；提交 10417f1
