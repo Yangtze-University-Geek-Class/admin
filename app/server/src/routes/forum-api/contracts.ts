@@ -1,11 +1,31 @@
 import { object, text, type RouteContracts } from "../../lib/http-contracts.js";
 import { FORUM_LIMITS } from "../../lib/forum-rules.js";
+import type { forumChanges } from "./viewer.js";
 
 /**
  * `/api/forum/*` 的输入协议源（#57）。所有 body 都拒绝未知字段。编号是字符串（t73、p10001、body-73、m123、g4、n9），
  * 路径参数不叫 `:id`，因为公共校验会把 `:id` 强制成数字。长度按 UTF-16 计（与浏览器里 `String.length` 一致），
  * 去掉首尾空白后的判断在路由里做。
  */
+/**
+ * 输出协议（#145）。GET /api/forum/state 回 `{ state }`：整份 ForumState，加 `viewer`、`guestPolicy`。
+ * 写接口不再回整份状态，一律回 {@link ForumWriteResponse}：`changes` 里只有这次写入改动的记录（lib/forum-store.ts 的
+ * ForumChanges，每条与 /state 里同一条完全一样，可见性也一样），前端 app/forum/shared/forum-api.ts 的 `parseWriteResult`
+ * 按同一形状解析，按 id 并进手里的状态。POST /topics 另带 `topicId`、`postId`，POST /posts 另带 `postId`（这两个是 201，其余 200）。
+ *
+ * - POST /topics：新话题、首帖、话题用到的标签
+ * - POST /posts：新帖子和它所在的话题（最后活动时间变了）；游客回复另带这次新建的游客用户
+ * - PATCH、DELETE /posts/:post_id，POST /posts/:post_id/like：这条帖子
+ * - POST /posts/:post_id/bookmark：自己对这条帖子的书签，取消了就在 `removed.bookmarks`
+ * - POST /users/:forum_user_id/follow：这条关注，取消了就在 `removed.follows`
+ * - POST /topics/:topic_id/pin、/close：这个话题
+ * - POST /notifications/:notification_id/read：这条通知；/notifications/read-all：这次从未读变成已读的通知
+ * - PATCH /me/profile、PUT 和 DELETE /me/avatar：只有下面这条
+ *
+ * 成员的回答总带自己的用户记录：每次请求都会刷新角色、称号和 GitHub 头像。别人收到的通知不在回答里。
+ */
+export type ForumWriteResponse = ReturnType<typeof forumChanges> & { topicId?: string; postId?: string };
+
 export const TOPIC_ID_PATTERN = "^t[1-9][0-9]{0,8}$";
 export const POST_ID_PATTERN = "^(?:p[1-9][0-9]{0,9}|body-[1-9][0-9]{0,8})$";
 export const USER_ID_PATTERN = "^(?:m[1-9][0-9]{0,14}|g[1-9][0-9]{0,9}|u-[a-z0-9-]{1,32})$";

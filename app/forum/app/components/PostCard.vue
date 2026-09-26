@@ -2,6 +2,7 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { likeControl } from '~/data/likes'
+import { isPending } from '~/stores/forum-server'
 
 /**
  * One post in Discourse's stream: avatar on the left, and on the right the
@@ -11,6 +12,10 @@ import { likeControl } from '~/data/likes'
  * Every write control asks `can()` first. A control a guest can still see —
  * the like button — routes to the login modal instead of failing silently.
  * The like button spells itself out (「赞 3」, data/likes.ts, #143).
+ *
+ * A reply still being sent (a `pending:` id, #145) has nothing on the server
+ * to like, link, edit or answer yet: the card says 发送中 instead of its
+ * controls, and the server's post replaces it when the answer is in.
  */
 const props = defineProps<{
   post: Post
@@ -39,15 +44,16 @@ const author = computed(() => forum.userById(props.post.authorId))
 const replyTarget = computed(() => (props.post.replyToPostId ? forum.postById(props.post.replyToPostId) : undefined))
 const replyTargetUser = computed(() => (replyTarget.value ? forum.userById(replyTarget.value.authorId) : undefined))
 
+const sending = computed(() => isPending(props.post.id))
 const likeState = computed(() => likeControl(props.post, user.value, can('like')))
 const bookmarked = computed(() => !!user.value && forum.isBookmarked(user.value.id, props.post.id))
 
-const canEdit = computed(() => !props.post.deleted && can('editPost', { post: props.post, topic: props.topic }))
+const canEdit = computed(() => !props.post.deleted && !sending.value && can('editPost', { post: props.post, topic: props.topic }))
 // The store refuses to delete the post that carries the topic, so that one is
 // never offered rather than failing when picked.
 const canDelete = computed(() => canEdit.value && !forum.isFirstPost(props.post.id))
 // A guest (极客班论坛, not signed in) may answer a post too, under a nickname.
-const canReply = computed(() => !props.post.deleted && (can('reply', { topic: props.topic }) || guestCanReply(props.topic)))
+const canReply = computed(() => !props.post.deleted && !sending.value && (can('reply', { topic: props.topic }) || guestCanReply(props.topic)))
 
 /** Absolute and under the app base, so the copied link survives being pasted anywhere. */
 const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, hash: `#post-${props.post.id}` }))
@@ -65,15 +71,18 @@ function like() {
   void actions.toggleLike(props.post.id, current.id)
 }
 
-async function bookmark() {
+// Bookmarks, edits and deletions show before the call returns (#145); a
+// refusal puts the post back as it was, with the server store's toast.
+function bookmark() {
   const current = user.value
   if (!current || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const added = await actions.toggleBookmark(current.id, props.post.id)
-  if (added !== null)
-    toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
+  const before = bookmarked.value
+  void actions.toggleBookmark(current.id, props.post.id)
+  if (bookmarked.value !== before)
+    toast({ title: bookmarked.value ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
 // Someone else's post can be in the editor (a moderator's edit); PostEditor's preview renders it through ForumMarkdown, raw HTML shown as text.
@@ -82,27 +91,42 @@ function startEdit() {
   editing.value = true
 }
 
-const saving = ref(false)
+/**
+ * Numbers the saves: a save while an earlier one is still out joins its
+ * request (stores/forum-server.ts), and both get the same answer. Only the
+ * latest one acts on it, so 帖子已更新 says so once and a refusal reopens the
+ * editor on the text saved last, not on an older one.
+ */
+let saves = 0
 
+/** The editor closes on the new text; 帖子已更新 waits for the server, and a refusal reopens the editor on this draft. */
 async function saveEdit() {
-  if (!draft.value.trim() || saving.value)
+  if (!draft.value.trim())
     return
-  saving.value = true
-  try {
-    if (!await actions.editPost(props.post.id, draft.value))
-      return
-    editing.value = false
-    toast({ title: '帖子已更新', variant: 'success' })
+  const text = draft.value
+  saves += 1
+  const round = saves
+  const saved = actions.editPost(props.post.id, draft.value)
+  editing.value = false
+  const done = await saved
+  if (round !== saves)
+    return
+  if (!done) {
+    if (!editing.value) {
+      draft.value = text
+      editing.value = true
+    }
+    return
   }
-  finally {
-    saving.value = false
-  }
+  toast({ title: '帖子已更新', variant: 'success' })
 }
 
-async function remove() {
-  if (!canDelete.value || !await actions.deletePost(props.post.id))
+function remove() {
+  if (!canDelete.value)
     return
-  toast({ title: '帖子已删除' })
+  void actions.deletePost(props.post.id)
+  if (props.post.deleted)
+    toast({ title: '帖子已删除' })
 }
 </script>
 
@@ -116,6 +140,7 @@ async function remove() {
     :id="`post-${post.id}`"
     class="scroll-mt-24 rounded-xl transition-shadow"
     :class="flash ? 'ring-2 ring-$tx-color-primary' : ''"
+    :aria-busy="sending ? 'true' : undefined"
   >
     <TxCard variant="plain" :padding="16">
       <TxFlex :gap="14" align="start">
@@ -170,7 +195,7 @@ async function remove() {
               <TxButton variant="secondary" size="sm" @click="editing = false">
                 取消
               </TxButton>
-              <TxButton variant="primary" size="sm" :loading="saving" :disabled="!draft.trim()" @click="saveEdit">
+              <TxButton variant="primary" size="sm" :disabled="!draft.trim()" @click="saveEdit">
                 保存
               </TxButton>
             </TxFlex>
@@ -184,7 +209,7 @@ async function remove() {
               on a phone, and a margin-based split pushes the right-hand group
               off the card instead of dropping it onto its own line.
             -->
-            <TxFlex align="center" :gap="8" justify="space-between" wrap="wrap">
+            <TxFlex v-if="!sending" align="center" :gap="8" justify="space-between" wrap="wrap">
               <TxFlex align="center" :gap="4" wrap="wrap">
                 <!-- No aria-label: the visible 「赞 3」 is the name, so a screen reader hears the count too. -->
                 <TxButton
@@ -242,6 +267,7 @@ async function remove() {
                 </TxButton>
               </TxFlex>
             </TxFlex>
+            <span v-else class="text-sm text-$tx-text-color-secondary">发送中</span>
           </template>
         </TxFlex>
       </TxFlex>

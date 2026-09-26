@@ -8,7 +8,7 @@ import { can } from '~/data/permissions'
 import { useForumStore } from '~/stores/forum'
 import { useForumServerStore } from '~/stores/forum-server'
 import { useSessionStore } from '~/stores/session'
-import { MEMBER_VIEWER, serverBody, serverState } from './fixtures/server-state'
+import { MEMBER_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
 
 /**
  * The like control under every post (#143): 「赞」 and the count, highlighted
@@ -112,7 +112,7 @@ describe('a like against the forum server', () => {
   it('posts one request and the button reads the server\'s answer without a reload', async () => {
     const liked = serverState(MEMBER_VIEWER)
     liked.posts[1]!.likeUserIds = ['m1001']
-    const { calls, forum, session, actions } = await serverPage(json(serverBody(MEMBER_VIEWER)), json({ state: liked }))
+    const { calls, forum, session, actions } = await serverPage(json(serverBody(MEMBER_VIEWER)), json(writeBody({ posts: [liked.posts[1]] }, MEMBER_VIEWER)))
     const before = likeControl(forum.postById('p10001')!, session.currentUser, true)
     expect([before.label, before.liked]).toEqual(['赞', false])
 
@@ -125,7 +125,7 @@ describe('a like against the forum server', () => {
   it('likes the topic\'s first post the same way', async () => {
     const unliked = serverState(MEMBER_VIEWER)
     unliked.posts[0]!.likeUserIds = []
-    const { calls, forum, session, actions } = await serverPage(json(serverBody(MEMBER_VIEWER)), json({ state: unliked }))
+    const { calls, forum, session, actions } = await serverPage(json(serverBody(MEMBER_VIEWER)), json(writeBody({ posts: [unliked.posts[0]] }, MEMBER_VIEWER)))
     expect(forum.isFirstPost('body-73')).toBe(true)
     expect(likeControl(forum.postById('body-73')!, session.currentUser, true)).toMatchObject({ label: '赞 1', liked: true })
     expect(await actions.toggleLike('body-73', 'm1001')).toBe(false)

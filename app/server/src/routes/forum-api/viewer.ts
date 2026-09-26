@@ -3,7 +3,7 @@ import { loadSession } from "../../middleware/require-auth.js";
 import { resolveAccess } from "../../middleware/require-capability.js";
 import { orderedCapabilities, type Capability } from "../../lib/roles.js";
 import { FORUM_LIMITS, ForumError } from "../../lib/forum-rules.js";
-import type { ForumTitle } from "../../lib/forum-store.js";
+import type { ChangeKeys, ForumTitle } from "../../lib/forum-store.js";
 
 /**
  * 论坛里「谁在看」：带有效 `sid`、并且现在仍是 `CONSOLE_ORG` active 成员的是成员，其余一律是游客。成员的论坛能力与
@@ -58,11 +58,10 @@ export const rateLimited = () => new ForumError(429, "rate_limited", "操作太�
 /** 全站的游客回复总量到了上限（FORUM_RATE_LIMITS.guestPostSite）：所有游客暂时不能回复，成员照常。 */
 export const guestRepliesPaused = () => new ForumError(429, "guest_replies_paused", "游客回复暂时太多，请过一会儿再试，或者登录后回复");
 
-/** 接口统一返回的 state：整份论坛数据 + 看的人 + 游客发帖的规则。 */
-export function forumState(req: FastifyRequest, viewer: ForumViewer) {
-  const { forum, config, publicSubmission, turnstile } = req.server.services;
+/** 看的人（前端据此判断按钮显隐）与游客发帖的规则：GET /state 与每个写接口都带。 */
+function viewerAndPolicy(req: FastifyRequest, viewer: ForumViewer) {
+  const { config, publicSubmission, turnstile } = req.server.services;
   return {
-    ...forum.state(viewer.userId),
     viewer: { userId: viewer.userId, kind: viewer.kind, capabilities: viewer.capabilities },
     guestPolicy: {
       powDifficulty: publicSubmission.powDifficulty(),
@@ -71,4 +70,18 @@ export function forumState(req: FastifyRequest, viewer: ForumViewer) {
       contentMax: FORUM_LIMITS.guestContentMax,
     },
   };
+}
+
+/** GET /state 返回的 state：整份论坛数据 + 看的人 + 游客发帖的规则。 */
+export function forumState(req: FastifyRequest, viewer: ForumViewer) {
+  return { ...req.server.services.forum.state(viewer.userId), ...viewerAndPolicy(req, viewer) };
+}
+
+/**
+ * 写接口的回答（#145）：只有这次写入改动的记录（`changes`，见 forum-store 的 ForumChanges），加上看的人与游客规则。
+ * 成员每次请求都会刷新自己的角色、称号、头像（ensureMember），所以成员本人的用户记录总是带上。
+ */
+export function forumChanges(req: FastifyRequest, viewer: ForumViewer, keys: ChangeKeys) {
+  const users = viewer.userId === null ? keys.users : [viewer.userId, ...(keys.users ?? [])];
+  return { changes: req.server.services.forum.changes(viewer.userId, { ...keys, ...(users ? { users } : {}) }), ...viewerAndPolicy(req, viewer) };
 }

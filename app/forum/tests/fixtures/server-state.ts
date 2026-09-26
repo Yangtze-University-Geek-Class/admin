@@ -50,3 +50,17 @@ export function serverBody(viewer: FixtureViewer = GUEST_VIEWER) {
 
 export const MEMBER_VIEWER: FixtureViewer = { userId: 'm1001', kind: 'member', capabilities: [] }
 export const MODERATOR_VIEWER: FixtureViewer = { userId: 'm1001', kind: 'member', capabilities: ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate'] }
+
+/**
+ * A write's answer in the shape the contract fixes (#145): only the changed
+ * records, plus the same `viewer` and `guestPolicy` as `/state`. Like the
+ * server's, a member's answer always carries the member's own user record
+ * (first, unless `changes.users` has it already); tests/server/forum.test.ts
+ * checks that on the real answers.
+ */
+export function writeBody(changes: Record<string, unknown>, viewer: FixtureViewer = GUEST_VIEWER, extra: Record<string, unknown> = {}) {
+  const state = serverState(viewer)
+  const users = (changes.users ?? []) as Array<Record<string, unknown>>
+  const own = viewer.userId === null || users.some(user => user.id === viewer.userId) ? [] : state.users.filter(user => user.id === viewer.userId)
+  return { changes: own.length ? { ...changes, users: [...own, ...users] } : changes, viewer, guestPolicy: state.guestPolicy, ...extra }
+}

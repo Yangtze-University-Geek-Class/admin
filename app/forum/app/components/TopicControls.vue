@@ -50,16 +50,16 @@ const blocked = computed(() => {
   }
 })
 
-async function bookmark() {
+// The bookmark shows before the call returns (#145); a refusal takes it back with the server store's toast.
+function bookmark() {
   const current = user.value
   const post = firstPost.value
   if (!current || !post || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const added = await actions.toggleBookmark(current.id, post.id)
-  if (added !== null)
-    toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
+  void actions.toggleBookmark(current.id, post.id)
+  toast({ title: forum.isBookmarked(current.id, post.id) ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 </script>
 
