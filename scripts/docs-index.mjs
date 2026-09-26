@@ -11,7 +11,7 @@
 // 不作为普通文档列出；只有 README.md 的目录同样成组出现，用它的引用块当说明，
 // 这样「一个目录一份契约」的文档（如 docs/services/<service>/）不会被跳过。
 
-import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -179,7 +179,8 @@ function readDocs() {
   return walk(DOCS).map((file) => ({ rel: docRel(DOCS, file), text: readFileSync(file, "utf8") }));
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+// 取 realpath：经符号链接的路径运行（macOS 的 /tmp、链接出来的检出目录）时 argv 与 import.meta.url 不同，不然脚本什么都不做就退出 0
+if (process.argv[1] && pathToFileURL(realpathSync(resolve(process.argv[1]))).href === import.meta.url) {
   const generated = buildIndex(readDocs());
   if (process.argv.includes("--check")) {
     const current = existsSync(INDEX) ? readFileSync(INDEX, "utf8") : "";

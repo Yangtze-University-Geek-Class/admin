@@ -27,3 +27,15 @@
 - 做了什么：git push -u origin task/121/windows_paths（本地 check-branch-invariants --push 通过）；gh pr create #123，正文按 PULL-REQUESTS 九段
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/123；等待 Crosery 审查
 - 下一步：收到审查结论后补「审查」记录
+
+## 17:52:51 +08:00 · 审查 · #121 · Crosery 第一轮：有条件通过
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：收到 PR #123 审查（Crosery 的审查代理，2026-09-26 17:34，审 f301abf）：应修 1 条（docs-index 入口判断没取 realpath，经符号链接的绝对路径运行 --check 静默退出 0），建议 2 条（PR 正文自查过时；#118 合并后 Windows 复跑的跟进）
+- 结果：结论：有条件通过；条件是改 realpath 或另开 issue、CI 全绿、补审查记录
+
+## 17:52:51 +08:00 · 返工 · #121 · 入口判断改用 realpath（docs-index 与 check-boundaries）
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：docs-index.mjs 与 check-boundaries.mjs 的直接运行判断按仓库已有写法改为 pathToFileURL(realpathSync(resolve(argv[1])))；PR 正文按返工更新
+- 结果：Windows 目录联接下两脚本都有输出、退出 0；两份测试 11 passed；Windows 联接不能复现原问题（旧版经联接也有输出），POSIX 符号链接的复现以审查人实测为准
