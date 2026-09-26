@@ -12,7 +12,7 @@ import YugcOs from "../components/os/YugcOs";
 import { STACKED_QUERY } from "../lib/cameraMath";
 import { deskView, nextDeskState, type DeskEvent, type DeskState } from "../lib/deskMachine";
 import { wantsDesktop } from "../lib/links";
-import { readWallpaperChoice } from "../lib/wallpapers";
+import { loadWallpaperImage, readWallpaperChoice } from "../lib/wallpapers";
 import { LOADER_STEPS, type LoaderStep } from "../lib/loaderProgress";
 import { useInert, useReducedMotion } from "../lib/useReducedMotion";
 import type { DeskHandle } from "../three/desk";
@@ -25,16 +25,11 @@ let wallpaperReady: Promise<void> | null = null;
 let wallpaperDecoded = false;
 function preloadWallpaper(): Promise<void> {
   if (!wallpaperReady) {
-    const image = new Image();
-    image.decoding = "async";
-    image.src = readWallpaperChoice().image;
+    // 和桌面换壁纸共用同一份下载：桌面露出来时这张已经解码好，不再下一次。
     // 解码失败（离线、被拦）也放行：桌面有底色，不能让开机画面卡住
-    wallpaperReady = image
-      .decode()
-      .catch(() => undefined)
-      .then(() => {
-        wallpaperDecoded = true;
-      });
+    wallpaperReady = loadWallpaperImage(readWallpaperChoice().image).then(() => {
+      wallpaperDecoded = true;
+    });
   }
   return wallpaperReady;
 }

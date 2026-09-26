@@ -43,18 +43,30 @@
   background: #eef1fb;
 }
 
-/* 壁纸：两层叠放，新层在上面淡入（components/os/Wallpaper.tsx，时长 WALLPAPER_FADE_MS）。
-   静态图先铺满，循环视频解码出第一帧后再淡入到图上；竖屏裁切保留人物所在的右侧。 */
+/* 壁纸：一张壁纸一层，换壁纸时新层压在上面（components/os/Wallpaper.tsx，时长由那里的常量经 --wall-* 传进来）。
+   新层 = 底色 + 放大模糊的缩略图（大图还没到时的占位）+ 大图（解码好后淡入，画面清晰过来）；
+   新层从点的缩略图位置以圆角矩形展开到整个桌面；减少动态效果时脚本选 data-enter="fade"，整层淡入。竖屏裁切保留人物所在的右侧。 */
 .pt-walls { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.pt-wall {
-  position: absolute; inset: 0; opacity: 0; background: center / cover no-repeat;
-  transition: opacity .7s cubic-bezier(.4, 0, .2, 1); will-change: opacity;
+.pt-wall { position: absolute; inset: 0; overflow: hidden; }
+.pt-wall-thumb, .pt-wall-full { position: absolute; inset: 0; background: center / cover no-repeat; }
+/* 缩略图只有 320×180：模糊掉像素块，放大一点让模糊发虚的边出画 */
+.pt-wall-thumb { filter: blur(14px) saturate(1.08); transform: scale(1.08); }
+.pt-wall-full { opacity: 0; transition: opacity var(--wall-sharpen) cubic-bezier(.4, 0, .2, 1); }
+.pt-wall-full.is-sharp { opacity: 1; }
+/* 只在进场时加 clip-path / 透明度，结束后回到不裁切的常态（backwards），不留一层常驻的裁切 */
+.pt-wall[data-enter="reveal"] { animation: pt-wall-reveal var(--wall-enter) cubic-bezier(.22, 1, .36, 1) backwards; }
+.pt-wall[data-enter="fade"] { animation: pt-wall-fade var(--wall-enter) cubic-bezier(.4, 0, .2, 1) backwards; }
+@keyframes pt-wall-reveal { from { clip-path: var(--wall-from); } to { clip-path: inset(0 round 0); } }
+@keyframes pt-wall-fade { from { opacity: 0; } }
+/* 减少动态效果时全站把动画和过渡压成 .01ms（styles/portal.css 的 .pt-root *）；换壁纸的整层淡入和清晰过来只改透明度、不位移，保留原时长。
+   两边都是 !important，这里的选择器更具体（两个类），不看样式表的先后 */
+@media (prefers-reduced-motion: reduce) {
+  .pt-wall[data-enter="fade"] { animation-duration: var(--wall-enter) !important; }
+  .pt-wall > .pt-wall-full { transition-duration: var(--wall-sharpen) !important; }
 }
-.pt-wall.is-shown { opacity: 1; }
 @media (max-aspect-ratio: 9/10) {
-  .pt-wall { background-position: 78% center; }
+  .pt-wall-thumb, .pt-wall-full { background-position: 78% center; }
 }
-@media (prefers-reduced-motion: reduce) { .pt-wall { transition-duration: .01s; } }
 
 /* 更换壁纸：缩略图单选 */
 .pt-picker { position: absolute; inset: 0; z-index: 46; display: grid; place-items: center; background: rgb(236 237 243 / 55%); }

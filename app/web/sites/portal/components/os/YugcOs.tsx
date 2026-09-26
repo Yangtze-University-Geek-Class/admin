@@ -10,7 +10,7 @@ import { appById, appByKey, filterCommands, launcherCommands, moveSelection, vis
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
-import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Wallpaper } from "../../lib/wallpapers";
+import { WALLPAPERS, prefetchWallpapersWhenIdle, readWallpaperChoice, saveWallpaperChoice, type Box, type Wallpaper } from "../../lib/wallpapers";
 import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
 import { LazyPromoPlayer } from "../PromoLazy";
@@ -49,6 +49,8 @@ export default function YugcOs({ active, onBack }: Props) {
     }
   });
   const [wallpaper, setWallpaper] = useState<Wallpaper>(() => readWallpaperChoice());
+  // 新壁纸从点的那张缩略图展开（#147）
+  const [wallpaperFrom, setWallpaperFrom] = useState<Box | null>(null);
   const [picker, setPicker] = useState(false);
   const [promo, setPromo] = useState(false);
   const pickerBox = useRef<HTMLDivElement>(null);
@@ -56,10 +58,16 @@ export default function YugcOs({ active, onBack }: Props) {
   useEffect(() => {
     if (picker) pickerBox.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
   }, [picker]);
-  const chooseWallpaper = (next: Wallpaper) => {
+  const chooseWallpaper = (next: Wallpaper, button: HTMLElement) => {
+    const { left, top, width, height } = (button.querySelector("img") ?? button).getBoundingClientRect();
+    setWallpaperFrom({ left, top, width, height });
     setWallpaper(next);
     saveWallpaperChoice(next.id);
   };
+  // 桌面空闲后预取其余壁纸，之后换壁纸不用等下载；开了省流量或 2G 时不预取（lib/wallpapers.ts）
+  const wallpaperId = useRef(wallpaper.id);
+  wallpaperId.current = wallpaper.id;
+  useEffect(() => (active ? prefetchWallpapersWhenIdle(wallpaperId.current) : undefined), [active]);
   const toggleNote = (show: boolean) => {
     setNote(show);
     try {
@@ -324,7 +332,7 @@ export default function YugcOs({ active, onBack }: Props) {
         )}
 
         <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
-          <WallpaperLayer wallpaper={wallpaper} />
+          <WallpaperLayer wallpaper={wallpaper} from={wallpaperFrom} />
           <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
           <DesktopIcons apps={apps} selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
           {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
@@ -390,7 +398,7 @@ export default function YugcOs({ active, onBack }: Props) {
                       role="radio"
                       aria-checked={wallpaper.id === item.id}
                       className={wallpaper.id === item.id ? "is-on" : undefined}
-                      onClick={() => chooseWallpaper(item)}
+                      onClick={(event) => chooseWallpaper(item, event.currentTarget)}
                     >
                       <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
                       <span>{item.name}</span>

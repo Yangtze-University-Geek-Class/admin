@@ -38,7 +38,7 @@
 | `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
-| `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；壁纸图层与换壁纸面板在 `Wallpaper.tsx`，壁纸清单在 `lib/wallpapers.ts`，文件在 `public/portal/wallpapers/`（每张一张 1920×1080 静态图和一张缩略图） |
+| `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；换壁纸面板在 `YugcOs.tsx`，壁纸图层与换壁纸动效在 `Wallpaper.tsx`；壁纸清单、下载解码与空闲预取在 `lib/wallpapers.ts`（图片地址只写在这里），文件在 `public/portal/wallpapers/`（每张一张 1920×1080 静态图和一张缩略图），见下文「壁纸」 |
 | `components/Loader.tsx`、`Emblem.tsx`、`SceneBar.tsx`、`PageShell.tsx` | 加载动画、校徽几何、场景页顶栏、普通页外壳 |
 | `components/ChoiceChips.tsx` | 少量选项的单选胶囊（原生 radio，方向键切换）；官网表单不用原生下拉框 |
 | `styles/*.css` | 视觉令牌与组件样式（`.pt-root` 作用域），规范见 [DESIGN](../../design/DESIGN.md)「官网视觉语言」 |
@@ -68,6 +68,18 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 ## 加入我们（投递）
 
 `POST /api/portal/apply` 匿名可提交，准入与邀请落地共用（蜜罐 + PoW + 可选 Turnstile），落库 `applications` 表并写审计；接口细节见 [API](../../architecture/API.md)。前端 PoW 指纹与后端逐字一致：`apply:<姓名>:<邮箱>`（均为 trim 后取值），`pow` 只发 `{ timestamp, nonce }`（`powProof`）。提交成功后才开始折信、封口、投递动画，回执显示服务端返回的编号、时间和原文消息；失败时信纸留在原位并显示错误，不做假成功。
+
+## 壁纸
+
+所有者 2026-09-26：「切换壁纸的时候不会马上切换，会卡很久，切换壁纸的时候有个对应的动效」（#147）。原来点下去要等 1920×1080 的大图下载、解码完才换，弱网时要等好几秒，这期间桌面没有任何变化。
+
+- **清单与地址**：`lib/wallpapers.ts` 是壁纸图片地址唯一出现的地方，换 CDN（#146）时只改这里。每张壁纸有大图（webp，123KB、238KB）、选择面板用的缩略图（320×180，8KB、13KB）和主色 `tint`。
+- **点下去**：`components/os/Wallpaper.tsx` 马上压上新的一层：底色加放大、模糊的缩略图（选择面板里已经加载好，不用等网络）。这一层从点的那张缩略图的位置展开到整个桌面：起点是缩略图在壁纸层里的矩形（`revealClipFrom` 算成 `clip-path: inset(… round 9px)`，和缩略图圆角一样），终点是整个桌面，640ms，缓出曲线 `cubic-bezier(.22, 1, .36, 1)`。大图下载、解码好（`loadWallpaperImage`，`image.decode()`）以后在这一层里淡入 480ms，模糊的画面清晰过来；淡入播完（`transitionend`）再卸掉下面的缩略图。已经解码过的大图（开机那张、换过的、预取过的）直接给大图，不先顶缩略图。
+- **减少动态效果**：开了系统的「减少动态效果」时不展开，整层淡入 360ms；拿不到缩略图位置时也走淡入。全站这时把动画和过渡压成 .01ms（`styles/portal.css` 的 `.pt-root *`），整层淡入和清晰过来只改透明度、不位移，`styles/os.css` 用两个类的选择器保留原时长，不看样式表的先后。
+- **旧层什么时候卸**：某一层的展开（淡入）动画真正播完（这一层自己的 `animationend`，里面元素冒上来的不算）就整片盖住了它下面的层，这时只卸它下面的层，它上面还在展开的新层不动。不按固定计时卸：主线程卡住、标签页在后台或浏览器限帧时动画会晚开始，按计时卸会在新层盖住之前卸掉旧层、露出空桌面（限速验收时实测到过）。连点几次时每一层只管自己的动画和解码，桌面最后停在最后点的那张，不会闪回先点的；全程没有空白帧，桌面不滚动。
+- **大图下载失败**（离线、被拦）：停在底色加模糊缩略图，不闪回旧壁纸。失败不记住，下次换过去重新下载。
+- **空闲预取**：桌面出现后等浏览器空闲（`requestIdleCallback`，最多等 4 秒；Safari 没有它，等 1.5 秒），按顺序一张一张、低优先级（`fetchPriority = "low"`）下载：先全部缩略图，再当前这张以外的大图。和换壁纸、开机画面共用同一份下载，同一地址只下一次，预取到一半时点了就接着等这一次。开了省流量（`navigator.connection.saveData`）或网络是 2G、slow-2g 时不预取；退回书桌时停下还没开始的那几张。
+- **单测**：`tests/web/portal-wallpapers.test.ts`（清单、展开起点、预取顺序与条件），`tests/web/portal-wallpaper-switch.test.tsx`（jsdom：占位立刻出现、解码后换上大图、旧层和缩略图等动画事件才卸（时间再久也不卸）、连点停在最后一张且不提前卸层、减少动态效果走淡入、下载失败停在占位、开机那张只下一次；预取的顺序、取消、去重与省流量不预取）；`portal-wallpapers.test.ts` 还核对减少动态效果时淡入的时长豁免。
 
 ## 宣传片
 
