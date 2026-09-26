@@ -484,6 +484,20 @@ describe('replies', () => {
     expect((await rename('\u337F'.repeat(8))).json()).toMatchObject({ error: 'invalid_display_name', message: '昵称要 1 到 30 个字' });
   });
 
+  it('answers whether a guest name is taken only after the rate limit and proof of work, and counts every such answer', async () => {
+    const s = await setup();
+    const send = (body: Record<string, unknown>) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: body, remoteAddress: '203.0.113.90' });
+    // 没有有效 PoW 的请求问不出昵称有没有被占。
+    expect((await send(guestReply('t9', '探测', '极客班', { pow: undefined }))).json().error).toBe('pow_invalid');
+    // 被占的回答也占每个 IP 每分钟 5 次的额度：第 6 次先被限流，看不到昵称的结果。
+    const errors: string[] = [];
+    for (let i = 0; i < 6; i += 1) errors.push((await send(guestReply('t9', '探测', i % 2 ? 'Dave' : '极客班'))).json().error);
+    expect(errors).toEqual([...Array(5).fill('guest_name_taken'), 'rate_limited']);
+    expect((await send(guestReply('t9', '正常回复'))).json().error).toBe('rate_limited');
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_rate_events WHERE bucket = 'guestPost' AND subject = '203.0.113.90'").get()).toEqual({ n: 5 });
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_rate_events WHERE bucket = 'guestPostSite'").get()).toEqual({ n: 0 });
+  });
+
   it('treats lookalike letters as the same when comparing names', async () => {
     const s = await setup();
     await s.state('alice');
@@ -505,7 +519,8 @@ describe('replies', () => {
     s.app.services.roles.insertAssignment({ github_login: 'zed', github_user_id: null, role: 'member', department_id: 'tech', note: null, granted_by: 'fixture' });
     s.app.services.storage.audit(null, 'owner1', 'auth.signin', 'owner1');
     s.app.services.auth.createSession('grace', 107, null, 'token-grace');
-    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.63' });
+    let ip = 63;
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: `198.51.100.${ip++}` });
     for (const name of ['Dave', '\uFF25\uFF32\uFF29\uFF2E', 'zed', 'OWNER1', 'Grace']) {
       expect((await send(name)).json().error, name).toBe('guest_name_taken');
     }

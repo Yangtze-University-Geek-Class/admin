@@ -54,7 +54,6 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     const name = normalizeName(req.body.guest?.name ?? "");
     if (!name || name.length > FORUM_LIMITS.guestNameMax) throw new ForumError(400, "invalid_guest_name", `游客要填 1 到 ${FORUM_LIMITS.guestNameMax} 个字的昵称`);
     if (!isAllowedName(name)) throw new ForumError(400, "invalid_guest_name", NAME_RULE_MESSAGE);
-    if (forum.guestNameTaken(name)) throw new ForumError(400, "guest_name_taken", "这个昵称是成员在用的，换一个吧");
     const subject = ipSubject(req.ip);
     const withinLimits = () => {
       if (!forum.rateAllowed("guestPost", subject)) throw rateLimited();
@@ -63,6 +62,12 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     withinLimits();
     // PoW 的摘要输入是原样的正文（不去首尾空白），与前端计算时用的字符串一致。
     if (!publicSubmission.checkPow(`${topicId}:${content}`, req.body.pow).ok) throw new ForumError(400, "pow_invalid", "防滥用校验失败，请刷新页面重试");
+    // 昵称被占的回答会透露某个登录名登录过或有称号，所以放在限流和 PoW 之后，被占也记一次回复额度：
+    // 匿名探测和回复共用每个 IP 每分钟 5 次、每天 30 次。
+    if (forum.guestNameTaken(name)) {
+      forum.rateRecord("guestPost", subject);
+      throw new ForumError(400, "guest_name_taken", "这个昵称是成员在用的，换一个吧");
+    }
     if (!(await turnstile.verifyTurnstile(req.body.turnstileToken, req.ip))) throw new ForumError(400, "turnstile_failed", "人机验证失败，请刷新重试");
     // 等人机验证的时候可能有同一 IP 或别的游客的并发请求写进来：写入前再查一次，查、写、记之间没有 await。
     withinLimits();
