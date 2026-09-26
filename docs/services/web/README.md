@@ -2,7 +2,7 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-09-25 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-09-26 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
@@ -37,6 +37,8 @@ pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456，见 ../../ops/LOCAL
 ```
 
 本机地址：官网 `http://127.0.0.1:5173/sites/portal/`；控制台 `http://127.0.0.1:5186/console`（`pnpm dev:console`）。5173 上的 `/console`、`/admin`、`/signin` 与旧的 `/sites/admin/*` 在开发态 302 到 5186；`/forum/<路径>` 302 到 `http://127.0.0.1:3456/<路径>`（去掉 `/forum` 前缀，查询参数保留，登录后回到论坛原页面靠它）。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
+
+镜像的构建阶段 `node:22-bookworm-slim` 与运行阶段 `nginx:1.31-alpine` 在 `app/web/Dockerfile` 里按 digest 固定（`<tag>@sha256:<digest>`，#97）；换基础镜像的步骤见 [DEPLOY](../../ops/DEPLOY.md)「基础镜像按 digest 固定」。
 
 ## 验证命令
 

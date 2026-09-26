@@ -2,7 +2,7 @@
 
 > 核心 portal/admin 的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-09-25 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-09-26 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -50,6 +50,8 @@ docker compose --env-file deploy/env/.env.production -f deploy/compose/productio
 ```
 
 容器内监听 3000，仅经 `web` 容器反代暴露；宿主端口只用于调试。环境变量契约见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
+
+镜像的构建与运行两个阶段都基于 `node:22-bookworm-slim`，`app/server/Dockerfile` 的 `FROM` 按 digest 固定（`<tag>@sha256:<digest>`，#97），自托管 runner 经加速源拉取时 Docker 会核对内容；换基础镜像的步骤见 [DEPLOY](../../ops/DEPLOY.md)「基础镜像按 digest 固定」。
 
 ## 验证命令
 
