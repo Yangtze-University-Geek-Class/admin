@@ -21,3 +21,9 @@
 - 做了什么：子代理 Fix110Promo 三轮 + 主 agent 收尾：PromoPlayer play() 非 NotAllowedError 分流、起播 IIFE 兜底；PromoLazy 失败后换新 lazy；lib/promo.ts retryableImport 用原地址加 3 个 ?retry=n 字面量地址（所有者选定，部署包多约 1.1MB）；promo.css 改由 PromoLazy 跟主包引入；重写 portal-promo.test.ts 与 portal-promo-lazy.test.tsx；portal.md 出错时一条
 - 结果：修复前 6 failed（HEAD 代码换回后）；修复后三份 promo 测试 34 passed；app/web tsc 0；check-boundaries/check-docs/check-notes 通过；vite 生产构建 + localhost 预览真实 Chrome：拦截原地址后 X 原 → X retry1 → ✓ retry2，播放 6.3s、样式在，hls 同样；全量 vitest 25 failed/438 passed，失败集合与 stage 基线相同
 - 下一步：所有者授权后提交、推送、开 PR
+
+## 16:41:59 +08:00 · 提交 · #110 · 提交修复 899d0a8
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：git commit 899d0a8 fix(portal): 宣传片分包或起播出错后下次还能打开，不再停在「正在加载」（所有者授权提交、推送、开 PR）
+- 结果：提交含 PromoLazy/PromoPlayer/lib/promo.ts、三份测试、portal.md 与本链路；三份 promo 测试 34 passed，全量失败集合与 stage 基线相同
