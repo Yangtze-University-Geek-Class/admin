@@ -2,7 +2,7 @@
 import type { FileUploaderFile } from '@talex-touch/tuffex/file-uploader'
 import { toast } from '@talex-touch/tuffex/utils'
 import { AVATAR_PALETTE } from '~/data/seed-content'
-import { AVATAR_TYPES, avatarFileProblem, PROFILE_LIMITS, websiteProblem } from '../../../../shared/forum-api'
+import { AVATAR_TYPES, avatarFileProblem, changedDisplayName, PROFILE_LIMITS, websiteProblem } from '../../../../shared/forum-api'
 
 // Discourse's /u/<name>/preferences: a left-hand sub-navigation over the form.
 // Only your own; somebody else's redirects back to their profile.
@@ -176,7 +176,7 @@ async function save() {
   saving.value = true
   try {
     const saved = await actions.updateProfile(current.id, {
-      displayName: draft.displayName.trim() || current.displayName,
+      ...changedDisplayName(draft.displayName, current.displayName),
       bio: draft.bio.trim(),
       location: draft.location.trim(),
       website: draft.website.trim(),

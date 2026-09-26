@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { avatarFileProblem, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
+import { avatarFileProblem, changedDisplayName, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
 import { serverBody, serverState } from './fixtures/server-state'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -165,6 +165,13 @@ describe('client-side checks', () => {
     expect(websiteProblem('javascript:alert(1)')).toContain('https://')
     expect(websiteProblem('example.com')).not.toBeNull()
     expect(websiteProblem(`https://example.com/${'a'.repeat(200)}`)).toContain('200')
+  })
+
+  it('sends the nickname only when it changed', () => {
+    expect(changedDisplayName('阿达', '阿达')).toEqual({})
+    expect(changedDisplayName('  阿达 ', '阿达')).toEqual({})
+    expect(changedDisplayName('', '阿达')).toEqual({})
+    expect(changedDisplayName('Ada', '阿达')).toEqual({ displayName: 'Ada' })
   })
 
   it('links a profile website only when it is https://', () => {

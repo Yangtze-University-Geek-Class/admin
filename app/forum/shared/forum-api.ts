@@ -322,6 +322,15 @@ export function avatarFileProblem(file: { size: number, type: string }): string 
   return null
 }
 
+/**
+ * 保存资料时昵称那一项：没改（或清空了，等于不改）就不发。服务端对发来的昵称要重新校验和查重，
+ * 规则收紧以后，原样发回一个旧昵称可能被拒，连带签名、网站这些改动一起存不上。
+ */
+export function changedDisplayName(draft: string, current: string): Pick<ProfileBody, 'displayName'> {
+  const next = draft.trim() || current
+  return next === current ? {} : { displayName: next }
+}
+
 /** 个人网站只收 https:// 开头的地址（服务端同样的限制）；空串表示不填。 */
 export function websiteProblem(value: string): string | null {
   if (!value)
