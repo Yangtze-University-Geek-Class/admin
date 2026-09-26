@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 合同
 
@@ -37,7 +37,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /auth/github` | 匿名 | 无 | 302 到 GitHub 授权页，写入签名的 `oauth_state` cookie | — |
 | `GET /auth/callback` | `oauth_state` cookie | 无 | 一律 302 回允许列表内的 `return_to`（不合规时 `<PUBLIC_ORIGIN>/console`）。登录者在 `CONSOLE_ORG` 是 `active` 成员：签发 `sid`，审计 `auth.signin`。其余情况不签发 `sid`，在回跳地址上加 `signin` 参数：`not_member`（成员查询 404）、`invite_pending`（成员状态 `pending`），这两种审计 `auth.signin_denied` 并尽力撤销这次授权（`DELETE /applications/{client_id}/grant`）；`cancelled`（GitHub 回传 `error=access_denied`）；`failed`（GitHub 回传其它 `error`，或换 token、取 `/user`、查成员身份出错，含 403 与超时） | 400 `missing_params`（缺 `state`，或 `code` 与 `error` 都没有）/ `invalid_state`（state 签名、有效期或 cookie 不符，GitHub 回传 `error` 时也先做这项检查）；410 `legacy_forum_retired`（`state` 以 `forum-` 开头）。这些情况返回 JSON，不跳转。规则见 [SECURITY](SECURITY.md)「登录门槛」 |
 | `POST /auth/signout` | 可选 `sid` | 无 | 200 `{ ok: true }`，清除 `sid` 与旧 `forum_sid` cookie | — |
-| `GET /auth/me` | 可选 `sid` | 无 | 200 `{ signed_in: false }` 或 `{ signed_in: true, login, user_id, avatar_url }` | — |
+| `GET /auth/me` | 可选 `sid` | 无 | 200 `{ signed_in: false }` 或 `{ signed_in: true, login, user_id, avatar_url, console_link }`。`console_link` 是布尔值：登录者持有 `console.access`、`github.org.read`、`feedback.read` 之外的任意能力时为 true（提督、舰长、队长、带部门权限包的舰员），普通舰员与领航员为 false；官网与论坛只在它为 true 时显示「控制台」入口，控制台准入不变。按 `computeAccess` 计算（GitHub 角色缓存 60 秒），GitHub 查询失败时为 false，不让本接口失败 | — |
 | `GET /api/me/orgs` | `sid` | 无 | 200 `{ orgs, allowed_orgs }`，按 `ALLOWED_ORGS` 过滤，缓存 120 秒 | 401 `not_signed_in` / `session_expired` |
 | `/api/admin/:org/*` | `sid` + `ALLOWED_ORGS` + GitHub 组织角色 | 无 | 按路由 | 401 `not_signed_in` / `session_expired`；403 `org_not_whitelisted` / `not_a_member_of_org` / `requires_org_admin` |
 | `GET /api/console/me` | `sid` | 无 | 200 `ConsoleMe`（见「极客班控制台」） | 401 `not_signed_in` / `session_expired` |
