@@ -63,3 +63,10 @@
 - 做了什么：560c762 fix(deploy)：TRUST_PROXY 接受层数，两环境改为 2，校验器要求等于 PROXY_HOPS；70b1045 fix(server)：昵称拦 \p{Cf} 等看不见的字符并按 nameKey（NFKC、去隐形字符与附加符号、不分大小写）判重名，成员昵称不能等于官方名字或别人的用户名（新 400 display_name_taken）；组织角色为 null 的会话按游客；别人的 notifyPrefs 给初始值；state 120/分钟、浏览 60/分钟按 IP；IPv6 按 /64；全站游客回复 200/小时（新 429 guest_replies_paused）；头像 onRequest 核对登录与计数、每次上传都计、像素上限 4096×4096；一帖 @提及最多通知 10 人；修掉 PoW 用例约 1/256 的偶发失败。变异核对：层数当成 true、模板改回 true、昵称只拦 C0、判重名不归一、去掉 githubRole 判断，以及 6 条建议各去掉一处，每次都有对应用例失败，恢复后全绿
 - 结果：vitest run tests/server 8 个文件 157 条通过；server tsc 通过；check-boundaries 通过；pnpm check 退出 0；pnpm test 退出 0（44 个文件 529 条）；pnpm verify 的 check、test、build 通过，forum:check 在本 worktree 找不到 .tools/pnpm11 退出 1，设 FORUM_PNPM 为主工作区的 pnpm.cjs 后 forum:check（15 个文件 240 条）与 forum:generate 退出 0；未验证：真实 nginx 链路下 server 看到的 X-Forwarded-For、预发布与正式环境、论坛前端对新错误码的处理
 - 下一步：主 agent 复核后推送并请第二轮审查
+
+## 17:18:19 +08:00 · 审查 · #57 · 第二轮审查：有条件通过（1 应修、5 建议）
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：收到 PR #116 第二轮审查（17:16，审查的提交 046fb85）：应修 1 条，看起来是空白但不在 \p{Cf} 里的字符还能通过（盲文空格 U+2800、U+1D159、单独的组合符号 U+17B4/U+17B5 使 nameKey 为空）；建议 5 条：拉丁字母混用西里尔或希腊字母的形近昵称、游客昵称只和论坛里已有的用户比较（没打开过论坛的组织成员可被冒用）、state 的自动 HEAD 路由另占一份限流额度且照样算整份 state、.env.example 的 TRUST_PROXY 注释过时、以后一个提交一个目的
+- 结果：结论：有条件通过；条件是应修修完并带测试，建议除提交粒度外一并处理
+- 下一步：子代理在 task-57 worktree 按目的分提交修复
