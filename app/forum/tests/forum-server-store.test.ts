@@ -195,9 +195,27 @@ describe('writes against the server', () => {
   })
 
   it('returns null for a failed toggle so the page keeps its button as it was', async () => {
-    const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'signin_required', message: '请先登录' }, 401))
+    const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'post_not_found', message: '帖子不存在' }, 404))
+    expect(await server.toggleBookmark('body-73')).toBeNull()
+    expect(toastStore.items[0]?.description).toBe('帖子不存在')
+  })
+
+  it('reads the state once more when a write finds the sign-in gone', async () => {
+    const { calls, session, server } = await signedIn(MEMBER_VIEWER, json({ error: 'signin_required', message: '请先登录' }, 401), json(serverBody()))
     expect(await server.toggleBookmark('body-73')).toBeNull()
     expect(toastStore.items[0]?.description).toBe('请先登录')
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    expect(calls[2]).toMatchObject({ url: '/api/forum/state', method: 'GET' })
+    await vi.waitFor(() => expect(session.currentUserId).toBeNull())
+    expect(server.viewer?.kind).toBe('guest')
+    expect(server.status).toBe('ready')
+  })
+
+  it('does not read the state again for a refusal that is not about signing in', async () => {
+    const { calls, server } = await signedIn(MEMBER_VIEWER, json({ error: 'forbidden', message: '你没有做这件事的权限。' }, 403))
+    expect(await server.setPinned('t73', true)).toBe(false)
+    await Promise.resolve()
+    expect(calls).toHaveLength(2)
   })
 
   it('reads moderation rights from the viewer\'s capabilities only', async () => {

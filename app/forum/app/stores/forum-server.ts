@@ -20,7 +20,9 @@ import { useSessionStore } from './session'
  *   every refused retry), and the store asks again later with a growing wait
  *   (`busy` until then if nothing had loaded yet).
  * - Each write calls one endpoint and replaces the whole state from its
- *   answer. A failure changes nothing locally and says why in a toast.
+ *   answer. A failure changes nothing locally and says why in a toast. A 401
+ *   means the sign-in is gone (expired, signed out elsewhere): the state is
+ *   read once more so the page shows what a guest can do.
  *
  * The demo (`loginMode=demo`) never touches this store; `useForumActions`
  * picks between the two.
@@ -127,6 +129,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
         description: error instanceof ForumApiError ? error.message : '请稍后再试。',
         variant: 'warning',
       })
+      if (error instanceof ForumApiError && error.status === 401)
+        void load()
       return null
     }
   }
