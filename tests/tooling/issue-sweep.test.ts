@@ -93,8 +93,8 @@ describe("issue 巡检：要做什么", () => {
   it("没补关的超期 issue，「超期」记录写明已合并的 PR 和没补关的原因", () => {
     const body = (number: number) => plan().find((action: { issue: { number: number } }) => action.issue.number === number).body;
     expect(body(14)).toContain(`关联的 PR #21 在 ${beijing(daysAgo(40))} 合并进 stage，之后这个 issue 在 ${beijing(daysAgo(30))} 又被重开，巡检不再补关`);
-    expect(body(19)).toContain("关联的 PR #119 在");
-    expect(body(19)).toContain("之后这个 issue 又被重开，巡检不再补关");
+    expect(body(19)).toContain(`关联的 PR #119 在 ${beijing(daysAgo(30))} 合并进 stage，这个 issue 被重开过（查不到重开时间，按合并后重开处理），巡检不再补关`);
+    expect(body(3)).toContain(`关联的 PR #104 在 ${beijing(daysAgo(20))} 合并进 stage，之后留过「关闭」记录，这个 issue 又被重开，巡检不再补关`);
     expect(body(18)).toContain("关联的 PR #118 已合并进 stage，但还有开着的 PR #130 关联它，巡检不补关");
     expect(body(4)).toContain("还开着，stage 上没有关联它的已合并 PR；");
   });

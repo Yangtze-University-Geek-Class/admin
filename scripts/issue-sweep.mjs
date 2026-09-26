@@ -71,12 +71,30 @@ export function closeNote(pr) {
 }
 
 /**
- * 超期的 issue 和 PR 的关系，写进「超期」记录的现状：
- * pr 是关联的已合并 PR（没有就是 null），reopenedAt 是合并后重开的时间（null 表示没重开或查不到），openPrNumbers 是关联它的开着的 PR。
+ * 最近一次合并之后，这个 issue 算不算被重开过，凭什么算：
+ * "timeline" 时间线上最后一次重开晚于合并；"record" 合并之后留过「关闭」记录、现在又开着；
+ * "unknown" 标着 REOPENED 但查不到重开时间，宁可不关，当作合并后重开；null 没有重开过（或者没有已合并的 PR）。
  */
-export function situation({ pr = null, reopened = false, reopenedAt = null, openPrNumbers = [] }) {
+export function reopenedAfterMerge(issue, pr, records = trackRecords(issue.comments)) {
+  if (!pr) return null;
+  const merged = Date.parse(pr.mergedAt);
+  if (issue.stateReason === "REOPENED" && issue.reopenedAt && Date.parse(issue.reopenedAt) > merged) return "timeline";
+  if (records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= merged)) return "record";
+  if (issue.stateReason === "REOPENED" && !issue.reopenedAt) return "unknown";
+  return null;
+}
+
+/**
+ * 超期的 issue 和 PR 的关系，写进「超期」记录的现状：
+ * pr 是关联的已合并 PR（没有就是 null），reopened 是 reopenedAfterMerge 的结果，reopenedAt 是时间线上的重开时间，
+ * openPrNumbers 是关联它的开着的 PR。
+ */
+export function situation({ pr = null, reopened = null, reopenedAt = null, openPrNumbers = [] }) {
   const open = openPrNumbers.map((number) => `#${number}`).join("、");
-  if (pr && reopened) return `关联的 PR #${pr.number} 在 ${beijing(pr.mergedAt)} 合并进 stage，之后这个 issue ${reopenedAt ? `在 ${beijing(reopenedAt)} ` : ""}又被重开，巡检不再补关`;
+  const merged = pr ? `关联的 PR #${pr.number} 在 ${beijing(pr.mergedAt)} 合并进 stage` : "";
+  if (pr && reopened === "timeline") return `${merged}，之后这个 issue 在 ${beijing(reopenedAt)} 又被重开，巡检不再补关`;
+  if (pr && reopened === "record") return `${merged}，之后留过「关闭」记录，这个 issue 又被重开，巡检不再补关`;
+  if (pr && reopened === "unknown") return `${merged}，这个 issue 被重开过（查不到重开时间，按合并后重开处理），巡检不再补关`;
   if (pr && open) return `关联的 PR #${pr.number} 已合并进 stage，但还有开着的 PR ${open} 关联它，巡检不补关`;
   if (open) return `关联的 PR ${open} 还开着，stage 上没有关联它的已合并 PR`;
   return "stage 上没有关联它的已合并 PR";
@@ -134,17 +152,16 @@ export function planSweep({ open, closed, merged, openPrs = [], now = new Date()
     const pr = mergedFor.get(issue.number);
     if (pr && now.getTime() - Date.parse(pr.mergedAt) < MERGE_GRACE_MS) continue;
     // 最近一次合并之后重开过：重开时间查不到时当作合并后重开，宁可不关
-    const reopenedAfterMerge = Boolean(pr) && ((issue.stateReason === "REOPENED" && (!issue.reopenedAt || Date.parse(issue.reopenedAt) > Date.parse(pr.mergedAt)))
-      || records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= Date.parse(pr.mergedAt)));
+    const reopened = reopenedAfterMerge(issue, pr, records);
     const openPrNumbers = openPrsFor.get(issue.number) ?? [];
-    if (pr && !reopenedAfterMerge && !openPrNumbers.length) {
+    if (pr && !reopened && !openPrNumbers.length) {
       actions.push({ type: "close", issue, pr, body: closeNote(pr), reason: `PR #${pr.number} 已合并进 stage，issue 还开着` });
       continue;
     }
     const days = Math.floor((now.getTime() - Date.parse(issue.updatedAt)) / DAY_MS);
     if (days >= idleDays) {
       const stage = records.at(-1)?.stage ?? "triage";
-      const context = situation({ pr, reopened: reopenedAfterMerge, reopenedAt: reopenedAfterMerge ? issue.reopenedAt ?? null : null, openPrNumbers });
+      const context = situation({ pr, reopened, reopenedAt: issue.reopenedAt ?? null, openPrNumbers });
       actions.push({ type: "overdue", issue, body: overdueNote({ updatedAt: issue.updatedAt, idleDays, stage, days, context }), reason: `${days} 天没有动静` });
     }
   }
