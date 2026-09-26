@@ -39,7 +39,8 @@ describe('siteForumState', () => {
       expect(topic.categoryId).toBe(exam.includes(topic.id) ? 'c-exam' : 'c-ai')
       expect(topic.closed).toBe(false)
       expect(state.posts.filter(post => post.topicId === topic.id)).toHaveLength(1)
-      // The backend (#57) seeds these by id; its own topics start at t1001.
+      // By the convention of #57 (PR #116, in effect once merged) the backend seeds these by id
+      // and numbers its own topics from t1001.
       expect(Number(topic.id.slice(1))).toBeLessThan(1000)
     }
     expect(state.topics.filter(topic => topic.pinned).map(topic => topic.id)).toEqual(['t73', 't9'])
@@ -70,15 +71,18 @@ describe('siteForumState', () => {
     }
     expect(text).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/)
     expect(text).not.toMatch(/(?:账户|账号)\s*\**\s*[:：]/)
-    expect(text).not.toMatch(/\bsk-[\w-]{20,}/)
+    // Keys are looked for in the raw strings: in the JSON text a key on its own line follows a
+    // literal `\n`, and `\b` sees no boundary between that `n` and `sk-`. Same rule as the image build.
+    const bodies = published.topics.map(topic => `${topic.title}\n${topic.content}`).join('\n')
+    expect(bodies).not.toMatch(/(?:^|[^\w-])sk-[\w-]{20,}/m)
     expect(text).not.toContain('/api/local-forum/')
     expect(text).not.toContain('yangtzeu.work/forum/archive')
     expect(text).toContain('共享账户找班长要')
     // Review of #87: sharer-tracking parameters, the proxy heading and the screenshots with names are gone.
     expect(text).not.toMatch(/vd_source|sharer_shareinfo|代理配置/)
     expect(text).toContain('这张截图没有公开')
-    // Review of #108: the third-party API key in t89 is not published.
-    expect(text).toContain('（公益密钥没有公开）')
+    // Review of #108: the third-party API key in t89 is not published, and the text says whom to ask.
+    expect(text).toContain('（公益密钥没有公开，需要的话在帖子下面问，或者找极客班管理员）')
   })
 
   it('ships the images of t84 instead of linking the image host that refuses other sites (#108)', () => {

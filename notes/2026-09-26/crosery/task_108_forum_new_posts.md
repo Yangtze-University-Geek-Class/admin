@@ -65,3 +65,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：推送 task/108/forum_new_posts（75c0f6b）；本机静态服务 5193 挂 site 构建产物，ego-browser 看「人工智能」类别、t84 讲义图、t89 密钥替换，截图经 GitHub 评论框上传（未提交评论），浏览器空间用完即释放，静态服务按进程停掉
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/117；类别 3 个话题，t84 的 8 张图 naturalWidth>0，t89 显示「公益密钥没有公开」
+
+## 16:50:00 +08:00 · 审查 · #108 · PR #117 第 1 轮审查：有条件通过（1 应修、5 建议）
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：收到主 agent 转达的 PR #117 第 1 轮独立审查结论，审查对象 b56ccbc
+- 结果：有条件通过。应修 1 条：site-state.test.ts 的 API 密钥检查跑在 JSON.stringify 之后，单独成行的密钥前面是字面的 \n，/\bsk-…/ 漏检（审查人已复现）。建议 5 条：FORUM-DATA-CAPTURE「最新接入状态」还是 09-13 的数字；三处把 #57 的「没有才插入」和 t1001 写成现状；t89 的密钥替换文字没说怎么拿到密钥；AdoptionNotice.vue 与 forum-markdown.ts 的提示文案（归 #107，本 PR 不改）
+- 下一步：按前四条返工，提示文案交给 #107
+
+## 16:52:19 +08:00 · 返工 · #108 · 第 1 轮审查返工：密钥检查改查原文，t89 密钥说明补上去哪问，文档改成现状
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：site-state 测试的 sk- 检查改为在标题和正文原文上按 (?:^|[^\w-])sk-[\w-]{20,}/m 查（与镜像断言同一规则）；t89 替换文字改为「（公益密钥没有公开，需要的话在帖子下面问，或者找极客班管理员）」并重新导出两次；FORUM-DATA-CAPTURE「最新接入状态」换成 geek-20260926 的数字（185/70/35/21/67，已删 19/31，从投影 summary 核对）；数据保全第 6 步、forum 合同断言说明、测试注释把 #57 的「没有才插入」和 t1001 写成「按 #57（PR #116）的约定，合并后生效」；forum 合同「镜像」一条去掉过时的「帖子只有招新与机试」；提示文案不改（归 #107）
+- 结果：变异检查：临时在 t78 正文末尾加一行假密钥，新断言失败，旧的 JSON 文本检查不命中，topics.json 恢复后哈希与改前相同；两次导出 topics.json 与图片目录哈希相同（4ebea35c…），只有 t89 这一句变了；forum.mjs check 241 项通过；site 模式 generate 通过，本机产物上重放 Dockerfile 断言全部通过

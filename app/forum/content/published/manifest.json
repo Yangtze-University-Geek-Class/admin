@@ -132,7 +132,7 @@
     {
       "topic": "t89",
       "pattern": "\\*\\*API Key\\*\\*：\\n\\n```text\\nsk-[\\w-]+\\n```",
-      "replacement": "**API Key**：（公益密钥没有公开）",
+      "replacement": "**API Key**：（公益密钥没有公开，需要的话在帖子下面问，或者找极客班管理员）",
       "count": 1
     },
     {
