@@ -45,3 +45,10 @@
 - 做了什么：gh pr create --base stage，九段正文，Closes #142；ego TaskSpace 214 在 PR #150 的评论框上传桌面、手机两张截图，拿到 user-attachments 链接后清空评论框（没有发评论，刷新后草稿为空），写进正文「验收证据」；TaskSpace 已 finish({keep:[]})，本机静态服务按 PID 停掉
 - 结果：PR #150：https://github.com/Yangtze-University-Geek-Class/admin/pull/150；截图 assets/65544679-8de5-411e-9f3f-1af5545c59a6（1440×900）、assets/fecd2c3e-ea69-45cb-af16-14d9fac28fcc（390×844）
 - 下一步：等 CI；独立审查给出结论后补「审查」记录
+
+## 23:10:20 +08:00 · 审查 · #142 · PR #150 独立审查：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：主 agent（不是作者）审 14d2966（范围 origin/stage..14d2966）：逐行读 PromoPlayer.tsx、promo.css、promo.ts、icons.ts 的 diff；核对 gate 被拒走 blocked 并记看过、AbortError 走 failed 不记看过、replay 被拒停在封面点画面续播、ended 前那次 pause 不闪提示、Esc 与跳过都经 finish 且 closed 防重入、Tab 锁在跳过上；useReducedMotion 首帧同步读 matchMedia，autoplayOff 取挂载时的值成立；删掉的 clock、PROMO.seconds、pause-fill/play-fill/volume-*-line 全仓 grep 无残留引用；指针隐藏仍由 .pt-root.pt-promo.is-idle 负责，没被误删；CI core、forum、docker、env-contract、actionlint 全绿
+- 结果：结论：通过。两条建议不挡合并：浏览器只许静音自动播时画面上没有任何打开声音的提示（作者已列为待所有者决定）；e2e 新加的一条断言 CI 不跑，等预发布 ego 验收补证据
+- 下一步：推送后等 branch-guard、verify 重跑变绿，合并，随 rc.10 上预发布
