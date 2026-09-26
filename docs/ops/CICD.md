@@ -115,16 +115,20 @@
 所有者按顺序做（任一步没做，部署照常同源构建）：
 
 1. 把入库的 `deploy/nginx/preview.conf`、`production.conf` 装到宿主机（[DEPLOY](DEPLOY.md)「静态资源 CDN」），公网确认 CSP 的 `script-src`、`style-src`、`font-src` 带 `https://cdn.crosery.com/yzgc/static/site/`。
-2. 在仓库 Settings → Environments 新建 `static-cdn`，Deployment branches and tags 选 Selected，只加 tag 规则 `v*`（与发布 tag 一致；两个 job 都写了 `deployment: false`，不产生部署记录）。不要在仓库级建同名 secret（环境级缺失时会回落到仓库级）。
-3. 在自己的机器上签 token 并直接写进这个 Environment，token 不经过终端、文件或剪贴板：
+2. **合并本改动（#146）之后、打下一个 rc tag 之前**，在仓库 Settings → Environments 新建 `static-cdn`，Deployment branches and tags 选 Selected branches and tags，只加 tag 规则 `v*`（与发布 tag 一致）。顺序不能反：`cdn-plan`、`cdn-upload` 引用这个 Environment，GitHub 运行引用了不存在的 Environment 的工作流时会自动建一个同名的，自动建的没有任何保护规则（官方文档「Managing environments for deployment」）。它已经被某次 tag 运行自动建出来时，先打开它补上这条规则，再做第 5 步。不要在仓库级建同名 secret（环境级缺失时会回落到仓库级）。2026-09-27 只读核对（`gh api repos/Yangtze-University-Geek-Class/admin/environments`）：仓库里只有 `preview`，还没有 `static-cdn`。
+3. **在放 token 之前实测 tag 规则管不管 `deployment: false` 的 job**。两个 job 都写了 `deployment: false`（不产生部署记录）；官方文档（「Deploying with GitHub Actions」）只写了这种 job 照样受 wait timer 与 required reviewers 约束、自定义保护规则会让 job 直接失败，没写 deployment branches and tags 规则，所以第一次要自己看：
+   - 第 2 步之后的第一个 rc tag：`cdn-plan`、`cdn-upload` 照常运行（tag 匹配 `v*`），`cdn-plan` 的日志写没有配置 token、这次同源构建；
+   - 在自己的个人分支（`dev/<GitHub 用户名>`）上临时加一个工作流，只有一个 `environment: { name: static-cdn, deployment: false }`、`run: echo ok` 的 job，推上去。这个 job 应当被环境规则拒绝（job 页写这个分支不允许使用 `static-cdn`）。拒绝了再做第 5 步；照常跑完说明这条规则管不到 `deployment: false` 的 job，不要放 token，先把两个 job 的 `deployment: false` 去掉（让它们按部署走环境规则）再测一次。测完删掉这个临时工作流。
+4. 建议再加一条 tag ruleset，限制谁能建 `v*` tag：Settings → Rules → Rulesets → New tag ruleset，目标 `v*`，勾 Restrict creations（再勾 Restrict updates、Restrict deletions，对应 [RELEASES](../conventions/RELEASES.md)「tag 不可变」），bypass 只留所有者。原因：`static-cdn` 的规则只看 tag 名，tag 触发的又是 tag 所在提交里的工作流文件，任何有写权限的人在自己的分支上改了工作流再推一个 `v*` tag，就能绕过 `plan` 的核对让这两个 job 拿到 token（`preview` 的 `v*.*.*-rc.*` 规则同理）。仓库公开以后 rulesets 可以配：2026-09-27 只读核对 `gh api repos/Yangtze-University-Geek-Class/admin/rulesets` 返回 `[]`（公开前是 403，见下文「平台能力实测」），也就是现在一条都没有。
+5. 在自己的机器上签 token 并直接写进这个 Environment，token 不经过终端、文件或剪贴板：
 
    ```bash
    node scripts/static-cdn.mjs mint-token --env-file ~/.claude/secrets/.env.cloud \
      | gh secret set STATIC_CDN_UPLOAD_TOKEN --env static-cdn --repo Yangtze-University-Geek-Class/admin
    ```
 
-   `--env-file` 里要有 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`（也可以直接放进进程环境、不给 `--env-file`）；`--days` 改有效期。stdout 是终端时脚本拒绝输出，stderr 只打策略与到期时间。
-4. 下一次打 rc tag：`cdn-plan` 的日志写「CSP 已放行 … 这次带哈希的静态文件从 CDN 加载」，`cdn-upload` 列出上传与核对的文件数。`cdn-plan` 提示快到期时重复第 3 步。
+   `--env-file` 里要有 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`（也可以直接放进进程环境、不给 `--env-file`）；`--days` 改有效期（1–366 天，默认 180）。stdout 是终端时脚本拒绝输出，stderr 只打策略与到期时间。
+6. 下一次打 rc tag：`cdn-plan` 的日志写「CSP 已放行 … 这次带哈希的静态文件从 CDN 加载」，`cdn-upload` 列出上传与核对的文件数。`cdn-plan` 提示快到期时重复第 5 步；剩不到 90 分钟时 `cdn-plan` 直接失败。
 
 要关掉：删掉 `static-cdn` 里的 `STATIC_CDN_UPLOAD_TOKEN`，下一次部署就回到同源。
 
@@ -196,7 +200,7 @@
 
 | 下载 | 在哪 | 不设变量（官方） | 家里 runner | 校验 |
 |---|---|---|---|---|
-| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 读 `.nvmrc` 的 setup-node：ci 的 core、env-contract、docker-cdn，两条部署工作流的 plan、build、deploy（ci 的 forum job 装 Node 26、不读 `.nvmrc`，不在此列，这里不预置） | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
+| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 读 `.nvmrc` 的 setup-node：ci 的 core、env-contract、docker-cdn，两条部署工作流的 plan、cdn-plan、build、cdn-upload、deploy（ci 的 forum job 装 Node 26、不读 `.nvmrc`，不在此列，这里不预置） | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
 | npm 包 | runner 上的 `pnpm install`、三个 Dockerfile 的构建阶段 | `registry.npmjs.org` | `NPM_REGISTRY` | 锁文件里每个包的 integrity |
 | pnpm 9.15.9（corepack） | server、web 镜像的构建阶段 | 同上 | `NPM_REGISTRY`（`COREPACK_NPM_REGISTRY`） | corepack 用自带的 npm 公钥核对 npm 的发布签名 |
 | pnpm 11.24.0（`npm pack`） | forum 镜像的构建阶段、ci 的 forum job | 同上 | `NPM_REGISTRY` | 写死的官方 sha512（Dockerfile 与 ci.yml 的 `FORUM_PNPM_INTEGRITY`） |
@@ -257,5 +261,6 @@
 核对日期：2026-09-13。平台行为依据（不代表远程设置已完成）：
 
 - https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax — 事件/ref 过滤、权限与并发。
-- https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments — 环境保护、秘密放行、自动创建环境及私有仓库计划限制。
+- https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments — 环境保护、秘密放行、自动创建环境及私有仓库计划限制（2026-09-27 复核：引用不存在的 Environment 会自动创建，新建的没有保护规则和 secrets）。
+- https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments — job 的 `environment.deployment: false`（2026-09-27 核对：wait timer 与 required reviewers 照样生效，自定义保护规则会让 job 失败；没写 deployment branches and tags 规则，见「静态资源 CDN」第 3 步）。
 - https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets — 分支保护。
