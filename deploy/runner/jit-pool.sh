@@ -18,7 +18,7 @@ log() { echo "jit-pool: $*"; }
 
 # 令牌只从文件进请求头（curl -H @文件），不进任何命令行
 api() {
-  curl -fsS --max-time 30 --retry 3 --retry-all-errors -H @"$HEADER" \
+  curl -fsS --max-time 30 --retry 3 --retry-all-errors -H @"${API_HEADER:-$HEADER}" \
     -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "$@"
 }
 
@@ -89,15 +89,16 @@ run() {
   [ -r "$HEADER" ] || { log "缺令牌文件 $HEADER，先跑 sh jit-pool.sh token"; exit 1; }
   last_maintain=0
   while :; do
-    n=$(containers | awk 'END { print NR }')
-    if [ "$n" -lt "$POOL" ]; then
-      spawn || { log "补位失败，60 秒后再试"; sleep 60; }
-      continue
-    fi
+    # 维护放在补位前面：补位一直失败时也照样回收空闲太久的 runner
     now=$(date +%s)
     if [ $((now - last_maintain)) -ge 600 ]; then
       maintain || log "读 runner 列表失败，10 分钟后再试"
       last_maintain=$now
+    fi
+    n=$(containers | awk 'END { print NR }')
+    if [ "$n" -lt "$POOL" ]; then
+      spawn || { log "补位失败，60 秒后再试"; sleep 60; }
+      continue
     fi
     sleep 5
   done
@@ -109,8 +110,16 @@ save_token() {
   [ -n "$token" ] || { echo "stdin 里没有令牌" >&2; exit 1; }
   umask 077
   printf 'Authorization: Bearer %s\n' "$token" > "$HEADER.tmp"
+  # 先用新令牌读一次 runner 组，读得到才替换：轮换时新令牌不对，旧令牌照常能用
+  API_HEADER=$HEADER.tmp
+  if ! api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID" \
+    | jq -er '"令牌可用：runner 组 \(.name)，可见范围 \(.visibility)，公开仓库 \(.allows_public_repositories)"'; then
+    rm -f "$HEADER.tmp"
+    echo "新令牌读不到 runner 组 $GROUP_ID，没有替换" >&2
+    exit 1
+  fi
+  API_HEADER=
   mv "$HEADER.tmp" "$HEADER"
-  api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID" | jq -er '"令牌可用：runner 组 \(.name)，可见范围 \(.visibility)，公开仓库 \(.allows_public_repositories)"'
 }
 
 install_service() {

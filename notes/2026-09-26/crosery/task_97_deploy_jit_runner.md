@@ -43,3 +43,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：jit-pool.sh：cleanup 改 maintain（删停机实例、注销离线 runner 只在成功时记、空闲超过 5 小时先注销再删容器），只数 RUNNING，launch 失败删实例，save_token 用 jq -e；container-setup.sh RuntimeMaxSec 改 8h 兜底并写明 JIT 凭据 job 读得到；host-setup.sh profile 网卡加 security.port_isolation、security.ipv4_filtering；CICD.md 按实际改写；宿主机重跑 host-setup.sh，重做镜像
 - 结果：shellcheck、sh -n 通过；假 incus/api 的 harness 覆盖 6 种情况全部符合预期；宿主机两台部署容器 veth 为 isolated on，互 ping 不通，访问 api.github.com 200
+
+## 10:11:17 +08:00 · 审查 · #97 · 第二轮独立审查：通过，2 条建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 f39bd11（范围 690e61e..f39bd11），自建 harness 替换 incus/api/date 复核 maintain 与补位
+- 结果：通过：第一轮 2 条应修、2 条建议均已解决；新建议 2 条（补位一直失败时 continue 跳过 maintain；save_token 先 mv 后校验，新令牌无效会顶掉旧令牌）；CI push 36210139696、PR 36210141726、issue-lifecycle 36210164379 success
+
+## 10:11:17 +08:00 · 返工 · #97 · 按第二轮建议改：维护先于补位，令牌校验通过才替换
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：jit-pool.sh：run 循环先做 maintain 再补位；save_token 写临时文件、用它读一次 runner 组，通过才 mv，失败删临时文件并退出 1（api 可用 API_HEADER 指定请求头文件）；宿主机镜像已用 8h unit 重做（b8502be），两台空闲 runner 先注销再删容器、换成新镜像
+- 结果：shellcheck、sh -n 通过；save_token harness：无效新令牌退出 1 且旧令牌保留、有效新令牌替换；两台新 runner 基于 b8502be，RuntimeMaxUSec=8h，补位 9 到 31 秒上线
