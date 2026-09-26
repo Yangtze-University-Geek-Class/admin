@@ -19,7 +19,7 @@
 - **issue 是这件事的主档**：现象、复现、验收条件写在正文；之后的每一步进展写成评论，**不改写已发出的评论**（改正文只补「实施」段与链接）。
 - **PR 是这次改动的证据档**：解决链路、验收证据、人工验收步骤写在正文（[PULL-REQUESTS](PULL-REQUESTS.md)）；审查与返工写成评论。
 - 做完当场关，开着的 issue 只留还有人在做的事：
-  - 合并后必须关（所有者 2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理。`issue-lifecycle` 工作流删除远端 task 分支、关闭 issue，并在 issue 和 PR 上各留一条「关闭」记录；本机 worktree 由开发者 `task.mjs finish` 删。GitHub 只在合进默认分支 `main` 时才按 `Closes #n` 自动关闭，所以不能依赖它；自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工关闭，并照 §3 的格式留言。合并的人按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
+  - 合并后必须关（所有者 2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理。`issue-lifecycle` 工作流关闭 issue，并在 issue 和 PR 上各留一条「关闭」记录，`branch-hygiene` 工作流删除远端 task 分支；本机 worktree 由开发者 `task.mjs finish` 删。GitHub 只在合进默认分支 `main` 时才按 `Closes #n` 自动关闭，所以不能依赖它；自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工关闭，并照 §3 的格式留言。合并的人按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
   - 不走 PR 做完的（运维操作、决定不做、重复、被别的改动顺带解决）：做完的人当场写「关闭」记录，写明做了什么、在哪验证、或者为什么不做、被哪个 #n 取代，再关闭；不静默关闭。
   - 只剩外部等待的（等第三方处理、等别人给凭据）：关掉原 issue，把剩下的那一步开成新 issue，写明负责人和在等什么，两边 `Refs` 互相引用。例：#70 在我们这边能做的都做完后，只剩请 GitHub Support 清理 PR 旧引用里的提交，于是关掉 #70，剩下的一步开成 #114。
 - **一件事做不完**：在原 issue 留「阻塞」或「拆分」记录，拆出的新 issue 用 `Refs #<原 issue>` 互相引用；不在已合并的分支上继续提交。
