@@ -41,11 +41,12 @@
 **先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
 - **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）。开工用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 建分支和独立 worktree，所有开发都在 worktree 里做，不在主工作区切分支；合并后 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（[BRANCHING](docs/conventions/BRANCHING.md)「task worktree」）；本机有 PR 已合并或 issue 已关、还没 finish 的 worktree 时，`pre-push` 拒绝任何推送（钩子每台克隆用 `pnpm hooks:enable` 启用一次）。开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
+- issue 做完当场关：合并即关（工作流自动）；不走 PR 做完的（运维操作、决定不做、被别的改动顺带解决）由做完的人当场写「关闭」记录再关；只剩外部等待的关掉原 issue，剩下的一步开成新 issue 写明负责人（例：#70 → #114）。每天的巡检补关 PR 已合并还开着的 issue，给 14 天没动静的留「超期」、给关了却没有 PR 也没有记录的留「缺记录」。每个生命周期在哪里强制见 [TRACKING](docs/conventions/TRACKING.md) §1。
 - 每个阶段的进展以 [TRACKING](docs/conventions/TRACKING.md) §3 的「追踪记录」格式写成 issue / PR 评论；恢复上下文先读 issue 正文和最后几条追踪记录，不凭记忆续做。
 - **执行记录前后必须写**（[NOTES](docs/conventions/NOTES.md)）：每一步按北京时间记进 `notes/<日期>/<GitHub 用户名>/<链路>.md`，入口是 `notes/INDEX.md`。开发前由 `task.mjs start` 记「开工」（要带 `GEEK_NOTES_USER` 与 `GEEK_NOTES_BY` 身份），开发中每次提交、开 PR、审查、返工都记，合并、发布、验收照记，`task.mjs finish` 记「收尾」。task PR 的链路缺「开工」「提交」「PR」「审查」时 CI 不通过，不能合并。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
 - 进入 `main` 和打正式 tag 前，必须有所有者在预发布环境对同一提交的真实验收记录；自动化 PASS 只是机器验证，不能代替人工验证。
-- **文档跟着模块改**：`app/<服务>`、`deploy/`、`.github/workflows/` 改了，对应文档在同一个提交或之后的提交里跟着改，服务文档头的「更新：」不早于模块最后改动的日期；对照表只在 [docs/README](docs/README.md)「文档跟着模块改」，`pnpm check` 与 CI 强制。只改日期、不改内容是假同步。
+- 文档跟着模块改：`app/<服务>`、`deploy/`、`.github/workflows/` 改了，对应文档在同一个提交或之后的提交里跟着改，服务文档头的「更新：」不早于模块最后改动的日期；对照表只在 [docs/README](docs/README.md)「文档跟着模块改」，`pnpm check` 与 CI 强制。只改日期、不改内容是假同步。
 - 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、打 tag、部署分别需要对应授权。发版流程、tag 规则与回滚见 [RELEASES](docs/conventions/RELEASES.md)。
 
 ## 3. 部署硬门禁

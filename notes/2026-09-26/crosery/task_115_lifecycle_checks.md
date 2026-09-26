@@ -51,3 +51,15 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：feat(tooling): pre-push 拦下已合并没 finish 的 task worktree；vitest task-worktree、notes；pnpm check:docs；node scripts/check-doc-sync.mjs
 - 结果：27 passed；check:docs 退出 0；文档同步通过：6 组模块与文档
+
+## 16:26:18 +08:00 · 开发 · #115 · 每天巡检 issue：补关已合并的，给超期与缺记录的留追踪记录
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：新增 scripts/issue-sweep.mjs（纯函数 planSweep，复用 pr-contract.mjs 的 closingIssues 与 issueFromBranch）；issue-lifecycle.yml 的 weekly-sweep 换成每天的 sweep（issues: write，只检出两个脚本，手工运行可只读）；TRACKING §1 写做完当场关的三种情况与「各个生命周期在哪里强制」表，类型表加 overdue、unrecorded；AGENTS、ISSUES、CICD、TESTING 同步；五个变异（重开的也关、合进 main 的 PR 也算、缺记录重复留、只读也写、超期边界差一天）各让用例失败
+- 结果：vitest tests/tooling/issue-sweep.test.ts 10 passed；node scripts/issue-sweep.mjs --repo Yangtze-University-Geek-Class/admin（只读）：没有要处理的 issue（#112 在 16:00 已有作者补的「关闭」记录）；actionlint 退出 0
+
+## 16:26:18 +08:00 · 提交 · #115 · issue 巡检从只告警改成补关与留记录
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：feat(tooling): 每天巡检 issue，补关已合并的并给超期与缺记录的留言；vitest tests/tooling；pnpm check:docs；node scripts/check-doc-sync.mjs；actionlint
+- 结果：tests/tooling 全部通过；check:docs 与文档同步通过；actionlint 退出 0

@@ -32,6 +32,8 @@
 
 `tests/tooling/task-worktree.test.ts` 在临时 Git 仓库里建 worktree、把 `gh` 换成假的，覆盖推送前的 worktree 检查：PR 已合并或 issue 已放弃、没 finish 的 worktree 让 `task.mjs list --check` 与 `.githooks/pre-push` 失败，清理后放行，查不到 GitHub 只警告。
 
+`tests/tooling/issue-sweep.test.ts` 用虚构的 issue 与 PR 覆盖每天的 issue 巡检（[TRACKING](TRACKING.md) §1）：PR 已合并还开着的补关（head 是 task 分支或正文有关闭关键字，合进 `main` 的和只写 `Refs` 的不算，合并后被重开的不再关），14 天没动静的留「超期」，关了却没有合并 PR 也没有「关闭」记录的留「缺记录」且只留一次，记录格式与 TRACKING 的类型表一致；命令行换成假 `gh`，核对不带 `--apply` 不写、带了才关闭和留言、一个失败不影响其它但以 1 退出。
+
 `tests/tooling/doc-sync.test.ts` 在临时 Git 仓库里覆盖文档同步（规则见 [docs/README](../README.md)「文档跟着模块改」）：模块比文档新就失败并写出那一对和那个提交，文档随后更新即通过，同一提交两边都改通过；头部「更新：」按北京日期比较；工作区里没提交的改动算作现在；合并提交不算改动；浅克隆直接报错；PR 的 diff 只动模块不动文档失败。
 
 `tests/tooling/release-policy.test.ts` 在临时 Git 仓库里覆盖 tag 模型：tag 正则与 RELEASES.md 逐字一致；`vX.Y.Z-rc.N` → preview、`vX.Y.Z` → production；拒绝分支名、`latest`、短 SHA 与格式错误的 tag；拒绝不在 `stage` 上的 rc、不在 `main` 上的正式 tag、同一提交没有同版本 rc 的正式 tag、版本与该提交 `package.json` 不符、已正式发布的版本再打 rc、本地 tag 指向别的提交；拒绝已退役的 `--branch`/版本/批准开关；以及「规划只读」（不写文件、不改 refs、不动工作区）。论坛的 `app/forum/tests/deployment.test.ts` 覆盖展示值：预发布只接受 `X.Y.Z-rc.N@<sha12>`，正式只接受 `X.Y.Z`。`scripts/release-bundle.mjs` 与 `tests/tooling/release-bundle.test.ts` 已随发布包模型一起删除。任何规划输出都**不授予**部署批准（`deploymentAuthorized: false`），自动测试也不替代人工试用。
