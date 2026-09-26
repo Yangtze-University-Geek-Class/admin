@@ -63,6 +63,10 @@
       "title": "Vibe Coding 知识点整理：从大模型到 Coding Agent（大模型基础 · Agent 原理 · 工具选型 · 实战工作流）",
       "categoryId": "c-ai",
       "tagIds": ["tag-coding", "tag-notes"]
+    },
+    "t89": {
+      "categoryId": "c-ai",
+      "tagIds": ["tag-agents", "tag-coding"]
     }
   },
   "posts": {

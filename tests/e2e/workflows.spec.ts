@@ -207,3 +207,35 @@ test("mobile console keeps navigation in a drawer and has no page-level horizont
   await expect(page).toHaveURL(/\/console\/applications/);
   await expect(page.getByRole("heading", { name: "投递管理", level: 1 })).toBeVisible();
 });
+
+test("forum 3D page resets its scene when restored from the back/forward cache (#109)", async ({ page }) => {
+  // 论坛（开发态 3456）回 204：导航被取消，页面停在转场最后一帧——和从论坛后退、浏览器从往返缓存恢复时看到的一样
+  await page.route("http://127.0.0.1:3456/**", route => route.fulfill({ status: 204 }));
+  await page.goto("/sites/portal/forum-3d");
+  const board = page.locator(".pt-boards a").first();
+  // 场景建好后悬停才会高亮（is-hot 由场景回调设置），以此确认点击会走转场而不是直接跳转
+  await expect(async () => {
+    await page.mouse.move(0, 0);
+    await board.hover();
+    await expect(board).toHaveClass(/is-hot/, { timeout: 500 });
+  }).toPass({ timeout: 30_000 });
+  const pose = () =>
+    page.evaluate(() => {
+      const stage = (window as unknown as { __yugcStage?: { basePos: { x: number; y: number; z: number }; baseOffset: { x: number; y: number } } }).__yugcStage!;
+      return { x: stage.basePos.x, y: stage.basePos.y, z: stage.basePos.z, ox: stage.baseOffset.x, oy: stage.baseOffset.y };
+    });
+  const wipeOpacity = () => page.locator(".pt-wipe").evaluate(el => Number(getComputedStyle(el).opacity));
+  const start = await pose();
+  await board.click();
+  await expect.poll(wipeOpacity, { timeout: 15_000 }).toBeGreaterThan(0.95);
+  const pushed = await pose();
+  expect(Math.hypot(pushed.x - start.x, pushed.y - start.y, pushed.z - start.z)).toBeGreaterThan(1);
+
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect(page.locator(".pt-wipe")).toHaveCSS("opacity", "0");
+  const back = await pose();
+  for (const key of ["x", "y", "z", "ox", "oy"] as const) expect(back[key]).toBeCloseTo(start[key], 5);
+  // 复位后场景又能响应：再点一个版块会重新推近
+  await page.locator(".pt-boards a").nth(1).click();
+  await expect.poll(wipeOpacity, { timeout: 15_000 }).toBeGreaterThan(0.95);
+});

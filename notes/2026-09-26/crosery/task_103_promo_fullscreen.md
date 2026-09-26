@@ -43,3 +43,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 b95e3f2（范围 b50105f..b95e3f2），重做 5 个变异（每次 git checkout 还原）
 - 结果：第一轮 3 条应修、2 条建议都已修好，无新发现；5 个变异各有测试失败；vitest 24 passed、tsc 0、note check 通过；条件：CI 与 pr-contract 全绿
+
+## 14:58:41 +08:00 · 合并 · #103 · 合并 #105（宣传片控件叠进画面、手机竖屏横过来、弱网低档起播）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：第二轮审查有条件通过；ee53d4f 的 PR CI 36223431114 与 push CI 36223427478 全部 success，pr-contract 06:56 success 后，gh pr merge 105 --merge --match-head-commit ee53d4f；停掉本地验证用的 vite（PID 86650，按 PID）
+- 结果：合并提交 2812251，06:57:08Z 进 stage；#103 由 issue-lifecycle 关闭
+- 下一步：#104 合并后一起打 v0.1.0-rc.8 发预发布，核对宣传片
+
+## 14:58:45 +08:00 · 收尾 · #103 · PR #105 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 103：删 worktree .claude/worktrees/task-103 与本地分支 task/103/promo_fullscreen
+- 结果：PR 已合并

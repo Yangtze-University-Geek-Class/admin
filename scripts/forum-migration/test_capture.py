@@ -4,12 +4,13 @@ import io
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
 import tarfile
 import tempfile
 import unittest
 
-from capture import extract_verified
-from verify import digest, verify_snapshot
+from capture import extract_verified, ssh_argv
+from verify import digest, main_checkout, verify_snapshot
 
 
 class CaptureTests(unittest.TestCase):
@@ -96,6 +97,31 @@ class CaptureTests(unittest.TestCase):
         (self.root / 'source/unexpected.txt').write_text('fictional extra file')
         with self.assertRaisesRegex(ValueError, 'Unexpected file'):
             verify_snapshot(self.root)
+
+    def test_ssh_call_is_strict_and_binds_only_a_named_interface(self):
+        plain = ssh_argv('root@203.0.113.9', 2200, 'true')
+        self.assertEqual(plain[:2], ['/usr/bin/ssh', '-T'])
+        self.assertIn('StrictHostKeyChecking=yes', plain)
+        self.assertEqual(plain[-3:], ['2200', 'root@203.0.113.9', 'true'])
+        self.assertFalse(any(item.startswith('BindInterface') for item in plain))
+        bound = ssh_argv('root@203.0.113.9', 2200, 'true', 'en0')
+        self.assertEqual(bound[bound.index('BindInterface=en0') - 1], '-o')
+        self.assertLess(bound.index('BindInterface=en0'), bound.index('root@203.0.113.9'))
+        for bad in ['en0 -oProxyCommand=x', '-en0', 'EN0', '']:
+            with self.assertRaisesRegex(ValueError, 'interface'):
+                ssh_argv('root@203.0.113.9', 2200, 'true', bad)
+        with self.assertRaisesRegex(ValueError, 'SSH target'):
+            ssh_argv('-oProxyCommand=x', 2200, 'true')
+
+    def test_private_data_belongs_to_the_main_checkout_of_a_worktree(self):
+        repo = self.root / 'repo'
+        run = lambda *args, cwd=repo: subprocess.run(['git', *args], cwd=cwd, check=True, capture_output=True)
+        repo.mkdir()
+        run('init', '-q')
+        run('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'fixture')
+        run('worktree', 'add', '-q', str(self.root / 'task'))
+        self.assertEqual(main_checkout(repo).resolve(), repo.resolve())
+        self.assertEqual(main_checkout(self.root / 'task').resolve(), repo.resolve())
 
 
 if __name__ == '__main__':

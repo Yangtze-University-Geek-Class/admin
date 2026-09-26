@@ -10,11 +10,11 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tarfile
-
-ROOT = Path(__file__).resolve().parents[2]
+from verify import main_checkout
 REMOTE = r'''
 import hashlib, io, json, os, pathlib, sqlite3, sys, tarfile, tempfile, time
 spec = json.loads(sys.stdin.readline())
@@ -101,36 +101,54 @@ def extract_verified(archive_path: Path, destination: Path):
     return manifest
 
 
+def ssh_argv(host, port, command, bind_interface=None):
+    """One OpenSSH call: batch mode, strict host keys, no forwarding.
+
+    `bind_interface` (`en0`) sends the connection out of that interface, for a Mac
+    whose local proxy TUN route takes the host but cannot carry SSH to it.
+    """
+    if host.startswith('-') or any(c.isspace() for c in host) or not 1 <= port <= 65535:
+        raise ValueError('Invalid SSH target')
+    if bind_interface is not None and not re.fullmatch(r'[a-z][a-z0-9]{0,14}', bind_interface):
+        raise ValueError('Invalid network interface')
+    options = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=12', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes']
+    if bind_interface:
+        options += ['-o', 'BindInterface=' + bind_interface]
+    return ['/usr/bin/ssh', '-T', *options, '-p', str(port), host, command]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', required=True, help='One authorized OpenSSH destination')
     parser.add_argument('--port', type=int, required=True)
-    parser.add_argument('--destination', required=True, help='New directory under .tools/forum-migration/')
+    parser.add_argument('--destination', required=True, help='New directory under .tools/forum-migration/ of the main checkout')
     parser.add_argument('--source-root', default='/opt/yzgc-admin/data')
     parser.add_argument('--legacy-root', default='/root/geek-mbbs')
+    parser.add_argument('--bind-interface', help='Network interface for SSH (en0), when a local proxy TUN cannot carry it')
+    parser.add_argument('--timeout', type=int, default=240, help='Seconds for the whole transfer; about 60 MB go over the link')
     args = parser.parse_args()
-    if args.host.startswith('-') or any(c.isspace() for c in args.host) or not 1 <= args.port <= 65535:
-        raise ValueError('Invalid SSH target')
-    destination = Path(args.destination).resolve()
-    private_root = ROOT / '.tools' / 'forum-migration'
+    main_root = main_checkout()
+    destination = (main_root / args.destination).resolve()
+    private_root = main_root / '.tools' / 'forum-migration'
     if private_root not in destination.parents or destination.exists():
         raise ValueError('Destination must be a fresh private migration directory')
+    if not 30 <= args.timeout <= 7200:
+        raise ValueError('Timeout must be 30-7200 seconds')
     spec = {
         'databases': {'forum': args.source_root + '/forum.db', 'mbbs-snapshot': args.source_root + '/bbs-snapshot.db', 'mbbs-original': args.legacy_root + '/bbs.db'},
         'attachments': {'legacy': args.source_root + '/legacy-resources', 'uploads': args.source_root + '/forum-uploads', 'mbbs-original': args.legacy_root + '/resources'},
     }
     # JSON is data on stdin; the remote Python body is our fixed program, not source data.
-    command = 'python3 -c ' + shlex.quote(REMOTE)
-    argv = ['/usr/bin/ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=12', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes', '-p', str(args.port), args.host, command]
+    argv = ssh_argv(args.host, args.port, 'python3 -c ' + shlex.quote(REMOTE), args.bind_interface)
     os.umask(0o077)
     destination.mkdir(parents=True, mode=0o700)
     archive_path = destination / 'transfer.tar.gz'
     with archive_path.open('xb') as output:
-        result = subprocess.run(argv, input=(json.dumps(spec) + '\n').encode(), stdout=output, stderr=subprocess.PIPE, timeout=240)
+        result = subprocess.run(argv, input=(json.dumps(spec) + '\n').encode(), stdout=output, stderr=subprocess.PIPE, timeout=args.timeout)
     if result.returncode:
         raise RuntimeError('SSH capture failed; incomplete private output retained, no import attempted')
     manifest = extract_verified(archive_path, destination / 'source')
-    print(json.dumps({'destination': str(destination.relative_to(ROOT)), 'captured_at': manifest['captured_at'], 'databases': manifest['databases'], 'verified_files': len(manifest['files']), 'bytes': sum(item['bytes'] for item in manifest['files']), 'archive_sha256': hashlib.sha256(archive_path.read_bytes()).hexdigest()}, ensure_ascii=False))
+    print(json.dumps({'destination': str(destination.relative_to(main_root)), 'captured_at': manifest['captured_at'], 'databases': manifest['databases'], 'verified_files': len(manifest['files']), 'bytes': sum(item['bytes'] for item in manifest['files']), 'archive_sha256': hashlib.sha256(archive_path.read_bytes()).hexdigest()}, ensure_ascii=False))
 
 
 if __name__ == '__main__':
