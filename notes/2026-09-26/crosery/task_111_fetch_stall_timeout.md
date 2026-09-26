@@ -28,3 +28,9 @@
 - 做了什么：pnpm check 各步（docs-index 除外）、pnpm test 全量、pnpm build；并在未改动的 stage 主工作区跑同一全量对比失败集合
 - 结果：check-docs/check-notes/check-secrets/typecheck 通过；pnpm build 通过；vitest 本分支 25 failed / 431 passed，stage 基线 25 failed / 428 passed，失败集合逐条相同（Windows 路径分隔符与 bash 部署脚本用例、docs-index 在 Windows 生成反斜杠路径），与本改动无关；forum:check/generate 需 Node>=26，本机未装，未验证
 - 下一步：开 PR 前请所有者授权提交与推送；CI（Linux）上跑完整 verify
+
+## 16:42:00 +08:00 · 提交 · #111 · 提交修复 db13574
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：git commit db13574 fix(deploy): fetch-artifact 一段卡住不报错时按空闲超时断开重试（所有者授权提交、推送、开 PR）
+- 结果：提交含 scripts/fetch-artifact.mjs、测试、CICD.md 一行与本链路；fetch-artifact 测试 11 passed，全量失败集合与 stage 基线相同
