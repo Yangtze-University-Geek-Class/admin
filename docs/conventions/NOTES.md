@@ -99,9 +99,12 @@ node scripts/task.mjs finish 91                      # 写「收尾」
 - 身份也可以用 `--user` / `--by` 传；两者都没有时拒绝写入。
 - **记录落在哪**：当前 worktree 正在这条链路的 task 分支上时，直接写进这个 worktree 的 `notes/`，并重新生成 `notes/INDEX.md`，随下一次提交入库。别的情况（在 release worktree 里打 tag、在主工作区、给别的链路补记、`task.mjs finish` 写收尾）先暂存到主工作区的 `.claude/notes-pending/`（已在 `.gitignore`），下一个 `task.mjs start` 会把它并进新的 task worktree，也可以在任意 task worktree 里手动 `node scripts/note.mjs flush`。暂存的记录要随最近的一个 PR 入库，不能一直留在本机。
 - 提交：记录和代码放在同一个提交里；开 PR、拿到审查结论后单独补的记录用 `docs(notes): <一句话>`。
+- 新 task 即使还没有提交，也直接写进它的 worktree。合并状态以 `origin/stage` 中是否已有该 task 的执行链路文件判定（普通合并、squash 合并一致），不能只看 HEAD 的祖先关系；「合并 / 发布 / 验收 / 收尾」始终先暂存。
 - `node scripts/note.mjs index` 重新生成 `notes/INDEX.md`；`node scripts/note.mjs index --summary` 输出全部链路的一览表（负责人、链路、issue、执行者、条数、开工时间、最后一条）。
 
 ## §6 门禁
+
+审查时 `check --pr --head` 必须给出 `task/<issue>/<slug>`；detached HEAD 下传 `HEAD`、提交 SHA 或未指定任务分支会报错，不能当作链路完整。显式 `--head stage` 保留 stage 进入 main 时不要求 task 链路的语义。
 
 | 在哪 | 查什么 |
 |---|---|

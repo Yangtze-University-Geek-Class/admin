@@ -296,11 +296,11 @@ function git(root, args) {
  * task/<issue>/<slug> 进 stage 的 PR：这个分支的链路里必须有引用 #<issue> 的开工、提交、PR、审查，
  * 并且这次改动新增了引用 #<issue> 的记录。forReview 为 true 时允许暂缺「审查」记录。
  * 此外，严格检查 notes/ 下已有记录不能被修改或删除（除 INDEX.md 外）。
- * 不是 task 分支时不要求。返回问题列表。
+ * stage 进 main 时不要求；其它无法识别的 head 必须报错，避免 detached HEAD 空过。返回问题列表。
  */
 export function checkPullRequest(root, { base, head, forReview = false }) {
   const task = TASK_RE.exec(head ?? "");
-  if (!task) return [];
+  if (!task) return head === "stage" ? [] : ["无法识别任务分支：请用 --head task/<issue>/<slug> 指明被审查的分支，不能用 HEAD、提交 SHA 或空值代替。"];
   const issue = task[1];
   const slug = branchSlug(head);
   const mine = [...collectChains(root).values()].filter(chain => chain.slug === slug);
@@ -473,11 +473,14 @@ export function record(repo, options) {
 
   let targetRepo = null;
   const directWorktree = worktreeForBranch(repo, chain);
-  if (directWorktree && !isPostStage) {
+  if (TASK_RE.test(chain) && directWorktree && !isPostStage) {
     let alreadyMerged = false;
     try {
-      git(directWorktree, ["merge-base", "--is-ancestor", "HEAD", "origin/stage"]);
-      alreadyMerged = true;
+      // 新 task 的 HEAD 本来就在 stage 上；squash 合并后原 HEAD 又不在 stage 上。
+      // 合规 task 必带执行链路，以链路是否已进入 stage 判断，两种合并方式一致。
+      const suffix = `/${branchSlug(chain)}.md`;
+      alreadyMerged = git(directWorktree, ["ls-tree", "-r", "--name-only", "origin/stage", "--", "notes/"])
+        .split("\n").some(path => path.endsWith(suffix));
     } catch {}
     if (!alreadyMerged) {
       targetRepo = directWorktree;
