@@ -49,3 +49,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：fix(forum): 请求太频繁不当作连不上，登录了却被当作游客时说明原因，提示条写现状；node scripts/forum.mjs check
 - 结果：forum check 通过（350 个测试）
+
+## 17:27:32 +08:00 · 提交 · #107 · 文档同步 429、被移出组织的账号与提示条文案（docs 修正提交）
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：docs(docs): forum 服务合同与 USAGE 同步；pnpm check
+- 结果：见下一步的 pnpm check 输出
