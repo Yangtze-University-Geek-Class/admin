@@ -29,3 +29,10 @@
 - 做了什么：gh pr edit 154 --body-file：风险与回滚一段改成三份 CDP 脚本（smoke-routes、verify-topic-page、verify-user-pages）未验证，CI 的 forum 任务只跑 install、check、generate，不跑 forum:verify；未验证里补上游客抽屉 580/660px 加了模式行后没重新量、42rem 断点上下的排版、手机键盘、返工的两个提交没在浏览器里看；验证一段补返工两个提交的测试结果，变更范围里 post-editor-flows 的条数改成 11；改前 node scripts/pr-contract.mjs check 通过
 - 结果：PR 正文已更新，取回后与本地文件一致（只差末尾空行）；没有跑 forum:verify，没碰 3456 端口
 - 下一步：独立审查人复核后记审查
+
+## 00:48:29 +08:00 · 审查 · #144 · 独立审查 PR #154：返工后通过，可以合并
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：逐项读 origin/stage...d016837（初审 b6f41a7 的 19 个文件加返工 c7d2ef4、ed85fa4）；初审两条应修：回复抽屉第二次打开停在「预览」（临时挂载测试复现：reopen 后 checked=预览、textarea 不显示），PR 正文说 CI 会跑 forum 验收不属实（ci.yml forum 任务只跑 install/check/generate）；复核返工：ReplyComposer 每次 visible 变 true 时 editorKey 加一，PostEditor 重新挂载回到「编辑」，草稿在 content 里保留；PostCard 编辑框本来在 v-else-if=editing 下每次重新挂载；PR 正文已改成三份 CDP 脚本未验证并补齐未验证项
+- 结果：预览与帖子页同用 ForumMarkdown（renderableMarkdown 加 TxMarkdownView 的 DOMPurify），编辑模式不渲染、无 v-html；TxRadioGroup 有 radiogroup 语义、方向键与 roving tabindex；新增内容无 emoji、只用 Tuffex；变异：去 aria-label、分栏藏文本框、跳过 renderableMarkdown、预览直用 TxMarkdownView、去掉 :key、PostCard v-model 改成 :model-value 都有测试失败；forum check 26 files / 448 tests passed；CI 在 d016837 上 core、forum、docker、env-contract、actionlint、pr-contract 通过，branch-guard 只缺本条审查记录。未验证：浏览器里 42rem 断点排版、会员 460px 与游客 580/660px 抽屉、手机键盘、三份 CDP 脚本、预发布环境，等 rc.10 部署后在 ego 里验收
+- 下一步：推送本条记录，CI 通过后合并 PR #154，确认 #144 关闭、分支和工作区清掉；#134 由负责人合并后手动关闭
