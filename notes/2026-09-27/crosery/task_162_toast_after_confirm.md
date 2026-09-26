@@ -42,3 +42,9 @@
 - 做了什么：按 code-review 技能与 CODE-REVIEW 逐项核对。第一轮 04:05 审 origin/stage...1bbb773：nextTick 时机与共用 allocator 用真 TxDrawer 临时测试核实，awaited 结果在服务端与示例模式都对；应修 2 条（提示在右下角压住回复框的取消、回复；#145 收尾记录的复查时间晚于提交）。第二轮 04:12 审 1bbb773..4729e69：两条应修已修，/tmp 副本里 3 个变异都被测试抓到，CI 36268466121 八个 job 全过
 - 结果：结论：通过（第二轮）。建议：矮屏手机上顶部提示暂时压住高回复框的标题栏（记为已知取舍）；ADOPTION.json 里 app.vue 那条删掉「nor hides under it」；书签页、置顶、关闭以后补组件测试
 - 下一步：作者补记录、改措辞后推送，CI 全绿后合并
+
+## 04:19:25 +08:00 · 收尾 · #162 · PR #163 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 162：删 worktree .claude/worktrees/task-162 与本地分支 task/162/toast_after_confirm
+- 结果：PR 已合并
