@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 维护者机器部署（GitHub 免费版的退路）。
 //
-// 免费版的私有仓库可以建环境、存环境级 secrets，但配不了审批，deploy-production 的部署 job 因此按设计失败关闭
+// production 环境和它的审批人还没配置（仓库原先私有时配不了，2026-09-26 公开后可以配），deploy-production 的部署 job 因此按设计失败关闭
 // （见 docs/ops/CICD.md）。本脚本在维护者机器上执行与 CI deploy job 相同的步骤，而且一切部署物料都取自发布 tag
 // 指向的提交，不取当前工作区：
 //   git archive <提交> 取出 deploy/、scripts/、package.json → 用这份里的 release-policy 规划、环境契约 --check

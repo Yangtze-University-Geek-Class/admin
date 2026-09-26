@@ -18,7 +18,7 @@
 # push 只写了 branches、没写 tags：推送 tag 不会触发 CI（GitHub 对未声明的 ref 类型不运行）。
 #
 # 运行位置：每个 job 的 runs-on 读仓库变量 CI_RUNNER（自托管 runner 的标签 yzgc-arch），
-# 没设这个变量时回到 ubuntu-latest。私有仓库的托管 runner 额度用完后靠它继续跑；
+# 没设这个变量时回到 ubuntu-latest。仓库 2026-09-26 起公开，托管 runner 不计分钟，现在没设；托管 runner 出问题时设回 yzgc-arch；
 # runner 在哪、怎么隔离、怎么切回，见 docs/ops/CICD.md「自托管 runner」。
 #
 # 下载源（#104）：仓库变量 NPM_REGISTRY、DEBIAN_MIRROR、BETTER_SQLITE3_BINARY_HOST 给家里的 runner 换国内镜像，
@@ -40,10 +40,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # 只对 pull_request 取消旧运行（PR 会频繁 force-push）。
-  # push 到长期分支的运行必须跑完，否则主线提交会缺少验证证据。
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # push 与 pull_request 的 ref 本来就不同（refs/heads/… 与 refs/pull/N/merge），加上事件名只是让同一分支上
+  # 手动触发（workflow_dispatch）与 push 不互相取消。
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # pull_request 与推到 task/**、dev/** 的旧运行在新推送到来时取消（#124：旧提交的运行跑完才让路，runner 一直排队）。
+  # push 到长期分支（main、stage）的运行不取消正在跑的；但同一组里已经有一个在排队时，GitHub 会取消排队中的
+  # 那一次（默认 queue: single），连续合并时中间的提交可能没有 verify，见 docs/ops/CICD.md。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/task/') || startsWith(github.ref, 'refs/heads/dev/') }}
 
 env:
   # 显式声明 CI，供 core 及其余 job 的脚本使用（部分工具据此关闭交互与进度动画）。
