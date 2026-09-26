@@ -29,3 +29,9 @@
 - 做了什么：初审 ab01348（diff 对 origin/stage）给修改后合并：同源字体和壁纸实际缓存 7 天（nginx 正则 location 优先于普通前缀，预发布 curl 实测 woff2 为 max-age=604800）；开关打开的 Docker 构建与上传清单从没跑过；另有 token 到期上限、decide 余量、哈希文件名判断、CICD 所有者步骤顺序与 .nvmrc 清单 5 条建议。复查返工 965f088、215bd50、1c777eb、2435a60、a36f7eb、9699575：本机 nginx 1.31.6 用真实产物三层同进程复现，ab01348 与 HEAD 的 nginx -t 都通过，前后只有 5 行 Cache-Control 不同（woff2、woff、webp、console favicon 从 604800 变 31536000，latest.json 变 no-cache），18 个路径的安全头与 CSP 逐一相同；docker-cdn 在 CI 用 STATIC_CDN_BASE 构建 web 和 forum 并跑 plan，不带 secrets 和 environment；token 到期超过 366 天拒绝、decide 余量 90 分钟、产物文件名按构建形状加 public 来源核对
 - 结果：复查自做 6 个变异（去 366 天上限、余量改回 10 分钟、public 对照失效、论坛正则放宽、官网正则去哈希、^~ 改回普通前缀）都被测试抓到；相关 6 个测试文件 160 条通过；开关关闭的真实产物 plan 243 个文件全过，开关打开的 244 个由 CI docker-cdn 跑过；push 运行 36258365171 全绿（含 docker-cdn 1m15s），PR 运行只缺本条审查记录。剩余 3 条建议：CICD.md 关于官方文档的一句说法不准、将来插件写入形状像哈希的名字两道检查挡不住、215bd50 单独检出时 forum-csp 测试失败（a36f7eb 修正）。未验证：cdn-plan、cdn-upload 在 GitHub 上真实运行，static-cdn 环境 v* 规则对 deployment:false 的 job 是否生效，预发布与正式环境的缓存头，手机与浏览器验收
 - 下一步：推送本条记录，CI 通过后经 SSH 以合并提交并入 stage（PR 改了工作流，gh 令牌没有 workflow 权限），确认 #146 关闭、分支和工作区清掉；所有者按 docs/ops/CICD.md 的步骤配置 static-cdn 后，下一个 rc 才真正走 CDN
+
+## 01:42:40 +08:00 · 收尾 · #146 · PR #155 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 146：删 worktree .claude/worktrees/task-146 与本地分支 task/146/static_cdn
+- 结果：PR 已合并
