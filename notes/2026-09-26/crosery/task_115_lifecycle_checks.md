@@ -63,3 +63,10 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：feat(tooling): 每天巡检 issue，补关已合并的并给超期与缺记录的留言；vitest tests/tooling；pnpm check:docs；node scripts/check-doc-sync.mjs；actionlint
 - 结果：tests/tooling 全部通过；check:docs 与文档同步通过；actionlint 退出 0
+
+## 16:32:02 +08:00 · 开发 · #115 · 四个提交之后跑完整的 pnpm verify
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：FORUM_PNPM 指向主工作区 .tools/pnpm11、FORUM_NODE=/opt/homebrew/bin/node（v26.8.2），pnpm forum:install 后 pnpm verify；actionlint .github/workflows/*.yml
+- 结果：pnpm verify 退出 0：文档同步通过：6 组模块与文档；执行记录通过：11 条链路；核心 Test Files 45 passed、Tests 513 passed；build 通过；论坛 Test Files 15 passed、Tests 240 passed；forum:generate 生成 .output/public；actionlint 退出 0。未验证：工作流在 GitHub 上的真实运行、sweep 对真实仓库的 --apply、pre-push 在别人机器上的表现
+- 下一步：交主 agent 集成：推送、开 PR、审查
