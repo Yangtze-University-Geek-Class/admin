@@ -1,7 +1,8 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { isUnsafeDestination, renderableMarkdown, WORD_JOINER } from '../shared/post-markdown'
+import { postExcerpt } from '~/utils/excerpt'
+import { fromEditor, isUnsafeDestination, renderableMarkdown, replyQuote, toEditor, WORD_JOINER } from '../shared/post-markdown'
 
 // TxMarkdownView renders with `new Marked({ gfm: true, breaks: true })`. The
 // forum does not depend on marked itself, so resolve the very copy tuffex
@@ -164,5 +165,39 @@ describe('links and images only go to http(s), mailto or the site itself', () =>
     expect(isUnsafeDestination('/forum/t/t73')).toBe(false)
     expect(isUnsafeDestination('t73')).toBe(false)
     expect(isUnsafeDestination('')).toBe(false)
+  })
+})
+
+/**
+ * TxMarkdownEditor renders its value with marked (gfm, breaks) and DOMPurify's default profile into a
+ * WYSIWYG layer and a preview layer that stay in the DOM behind v-show, even in source mode. That profile
+ * keeps <style>, <form>, <input> and style attributes, so a guest's `<style>body{display:none}</style>`
+ * quoted into a reply would hide the whole page. DOMPurify only ever removes, so a tag that is not in
+ * marked's output is not in the editor's DOM either.
+ */
+describe('someone else\'s text put into the editor', () => {
+  /** ReplyComposer's QUOTE_LENGTH. */
+  const QUOTE_LENGTH = 80
+
+  it('is what the raw text would put on the page (the case this guards)', () => {
+    expect(marked.parse(`> ${postExcerpt('<style>body{display:none}</style>', QUOTE_LENGTH)}\n\n`)).toMatch(/<style>/)
+  })
+
+  it.each(ATTACKS)('quoting %j puts no tag, handler or style into the editor', (source) => {
+    const out = marked.parse(replyQuote(postExcerpt(source, QUOTE_LENGTH)))
+    expect(out).not.toMatch(FORBIDDEN_TAG)
+    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
+  })
+
+  it.each(ATTACKS)('editing %j puts no tag, handler or style into the editor', (source) => {
+    const out = marked.parse(toEditor(source))
+    expect(out).not.toMatch(FORBIDDEN_TAG)
+    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
+  })
+
+  it('saves exactly what the author left, without the inserted word joiners', () => {
+    for (const source of [...ATTACKS, '#include <stdio.h>', 'a < b', '<https://example.com>'])
+      expect(fromEditor(toEditor(source))).toBe(source)
+    expect(fromEditor(`${replyQuote('<b>x</b>')}我的回复`)).toBe('> <b>x</b>\n\n我的回复')
   })
 })

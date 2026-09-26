@@ -2,6 +2,7 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { MEMBER_CONTENT_MAX } from '../../shared/forum-api'
+import { fromEditor, replyQuote } from '../../shared/post-markdown'
 
 /**
  * Discourse's composer: a panel that slides up from the bottom of the topic
@@ -15,6 +16,10 @@ import { MEMBER_CONTENT_MAX } from '../../shared/forum-api'
  * the server store computes the proof of work right before sending. When the
  * server has Turnstile configured, the guest also passes that check; its token
  * is single-use, so every send renders a fresh widget.
+ *
+ * The prefilled quote is someone else's text, so it goes into the editor
+ * through `replyQuote` (raw HTML shown as text); what is sent is `fromEditor`
+ * of the draft.
  */
 const props = defineProps<{
   visible: boolean
@@ -37,20 +42,22 @@ const { serverMode } = useContentSource()
 const { user, can, guestCanReply } = useCurrentUser()
 
 const content = ref('')
+/** The draft as it will be sent. */
+const text = computed(() => fromEditor(content.value).trim())
 const guestName = ref('')
 const submitting = ref(false)
 
 const asGuest = computed(() => !user.value && guestCanReply(props.topic))
 const contentMax = computed(() => (asGuest.value ? server.guestPolicy.contentMax : serverMode ? MEMBER_CONTENT_MAX : Number.POSITIVE_INFINITY))
 const nameMax = computed(() => server.guestPolicy.nameMax)
-const tooLong = computed(() => content.value.trim().length > contentMax.value)
+const tooLong = computed(() => text.value.length > contentMax.value)
 const nameMissing = computed(() => asGuest.value && !guestName.value.trim())
 const nameTooLong = computed(() => asGuest.value && guestName.value.trim().length > nameMax.value)
 const turnstileSiteKey = computed(() => (asGuest.value ? server.guestPolicy.turnstileSiteKey : null))
 const turnstileToken = ref('')
 const turnstileRound = ref(0)
 const turnstileMissing = computed(() => !!turnstileSiteKey.value && !turnstileToken.value)
-const canSend = computed(() => !!content.value.trim() && !tooLong.value && !nameMissing.value && !nameTooLong.value && !turnstileMissing.value)
+const canSend = computed(() => !!text.value && !tooLong.value && !nameMissing.value && !nameTooLong.value && !turnstileMissing.value)
 
 const replyToUser = computed(() => (props.replyTo ? forum.userById(props.replyTo.authorId) : undefined))
 const replyToFloor = computed(() => {
@@ -70,7 +77,7 @@ watch(() => props.visible, (visible) => {
     return
   submitting.value = false
   if (!content.value.trim())
-    content.value = props.replyTo ? `> ${postExcerpt(props.replyTo.content, QUOTE_LENGTH)}\n\n` : ''
+    content.value = props.replyTo ? replyQuote(postExcerpt(props.replyTo.content, QUOTE_LENGTH)) : ''
 })
 
 function close() {
@@ -79,7 +86,7 @@ function close() {
 
 async function submit() {
   const current = user.value
-  const text = content.value.trim()
+  const body = text.value
   if (!canSend.value || submitting.value)
     return
   const replyToPostId = props.replyTo?.id
@@ -87,7 +94,7 @@ async function submit() {
   try {
     let postId: string | null = null
     if (current && can('reply', { topic: props.topic }))
-      postId = await actions.createPost({ topicId: props.topic.id, authorId: current.id, content: text, ...(replyToPostId ? { replyToPostId } : {}) })
+      postId = await actions.createPost({ topicId: props.topic.id, authorId: current.id, content: body, ...(replyToPostId ? { replyToPostId } : {}) })
     else if (asGuest.value) {
       const token = turnstileToken.value
       // Spent either way: the server accepts a token once.
@@ -95,7 +102,7 @@ async function submit() {
         turnstileRound.value += 1
       postId = await actions.replyAsGuest({
         topicId: props.topic.id,
-        content: text,
+        content: body,
         name: guestName.value.trim(),
         ...(replyToPostId ? { replyToPostId } : {}),
         ...(token ? { turnstileToken: token } : {}),

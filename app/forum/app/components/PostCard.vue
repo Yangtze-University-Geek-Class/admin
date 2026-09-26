@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
+import { fromEditor, toEditor } from '../../shared/post-markdown'
 
 /**
  * One post in Discourse's stream: avatar on the left, and on the right the
@@ -73,8 +74,9 @@ async function bookmark() {
     toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
+// Someone else's post can be in the editor (a moderator's edit): it goes in through `toEditor`, raw HTML shown as text.
 function startEdit() {
-  draft.value = props.post.content
+  draft.value = toEditor(props.post.content)
   editing.value = true
 }
 
@@ -85,7 +87,7 @@ async function saveEdit() {
     return
   saving.value = true
   try {
-    if (!await actions.editPost(props.post.id, draft.value))
+    if (!await actions.editPost(props.post.id, fromEditor(draft.value)))
       return
     editing.value = false
     toast({ title: '帖子已更新', variant: 'success' })

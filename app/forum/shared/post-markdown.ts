@@ -12,6 +12,7 @@
  *    等其它协议（包括写成实体、夹着控制字符的）前面加 `#`，变成页内锚点。引用式定义 `[x]: …` 同样处理。
  *
  * TxMarkdownView 默认还会用 DOMPurify 清理一遍，这里是第一道；任何一道的默认值变了，另一道仍然挡着。
+ * 编辑器里的别人的文字见下面的 `toEditor`。
  */
 
 export const WORD_JOINER = '\u2060'
@@ -36,6 +37,26 @@ export function renderableMarkdown(source: string): string {
     .replace(INLINE_DESTINATION, neutralize)
     .replace(DEFINITION_DESTINATION, neutralize)
   return escapeHtmlStarts(withSafeLinks)
+}
+
+/**
+ * 放进 TxMarkdownEditor 的别人的文字：回复时的引用、版主编辑别人的帖子。编辑器每收到一次 modelValue，
+ * 都用 marked + DOMPurify 的默认配置渲染到所见即所得层和预览层；这两层只是被 v-show 藏起来，一直在 DOM 里。
+ * DOMPurify 默认放行 `<style>`、`<form>`、`<input>` 和 style 属性，一段 `<style>body{display:none}</style>`
+ * 就能把整页藏掉。所以这里只做上面的第 1 步，链接地址原样留给作者改；存回去之前用 `fromEditor` 去掉插进去的字符。
+ */
+export function toEditor(source: string): string {
+  return escapeHtmlStarts(source)
+}
+
+/** 编辑器里的文字存回去之前去掉 `toEditor` 插的 WORD JOINER；存下来的正文显示时照常再过 `renderableMarkdown`。 */
+export function fromEditor(text: string): string {
+  return text.replaceAll(WORD_JOINER, '')
+}
+
+/** 回复框里预填的引用：被回复那一帖的一行摘要。摘要来自别人写的正文，同样先过 `toEditor`。 */
+export function replyQuote(excerpt: string): string {
+  return `> ${toEditor(excerpt)}\n\n`
 }
 
 function neutralize(match: string, lead: string, destination: string): string {
