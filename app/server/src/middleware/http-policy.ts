@@ -32,7 +32,8 @@ export function registerHttpPolicy(app: FastifyInstance) {
   });
   app.setErrorHandler((cause, req, reply) => {
     const error = cause as { statusCode?: number; status?: number; code?: string; message: string; validation?: unknown };
-    // 带会话的请求调 GitHub 用的都是这个会话自己的令牌（邀请链接用发起人的令牌，join.ts 自己接住错误，不会走到这里）。
+    // 带会话的请求调 GitHub 用的都是这个会话自己的令牌。邀请链接用发起人的令牌，但 join.ts 不加载会话（req.session 为空）、
+    // 也自己接住上游错误，不会走到这里；以后有路由在加载会话之后用别人的令牌调 GitHub，要自己接住它的 401。
     // GitHub 拒绝了它，这个会话就没用了：结束会话，和会话到期一样回 401 session_expired，页面按未登录处理（#164）。
     if (req.session && isRejectedToken(cause)) {
       endRejectedSession(req, reply, req.session);

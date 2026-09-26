@@ -14,6 +14,7 @@
 - 不是成员（GitHub 返回 404）或邀请还没接受（`pending`）：不建会话、不写 `sid`、不保存 token；审计 `auth.signin_denied`（`actor` 与 `target` 是 GitHub 登录名，`details` 为 `{ org, reason }`，`reason` 取 `not_member` 或 `pending`）；尽力撤销这个用户对本应用的授权（`DELETE /applications/{client_id}/grant`，用应用自己的 client_id 与 secret 做 Basic 认证），撤销失败只记警告日志；302 回到 `return_to` 并带 `?signin=not_member` 或 `?signin=invite_pending`。这条审计的 `org` 列为空，和登录、登出一样不经任何审计接口返回，只能在数据库里查。
 - 换 token、取 `/user` 或成员查询出错（包括组织限制 OAuth App 访问时 GitHub 返回的 403）：一律 `?signin=failed`，**不**当成「不是成员」；服务端只记一条带 `code`、`status`、request id 的错误日志，不含 token 和上游响应。
 - 用户在 GitHub 授权页取消（`error=access_denied`）回 `?signin=cancelled`，GitHub 回传其它 `error` 回 `?signin=failed`。
+- 登录之后，会话里存的令牌被 GitHub 以 401 拒绝（用户撤销了授权，或同一用户的令牌超过 10 个、最久没用的被收回）：这个会话结束，服务端删掉它、清 `sid`，回 401 `session_expired`，审计 `auth.session_rejected`；`/auth/me` 回 `{ signed_in: false, session_expired: true }`。人重新登录后拿新令牌（#164，细节见下文「失败语义」与 [API](API.md) 的上游错误映射）。
 
 以上回跳都先要求 state 有效，目标是校验过的 `return_to`（只接受 `PUBLIC_ORIGIN`，否则回 `<PUBLIC_ORIGIN>/console`）。缺 `state`、既无 `code` 也无 `error`、state 签名或 cookie 不符，仍就地返回 400 JSON，不跳转；以 `forum-` 开头的旧论坛 state 返回 410。换 token、取 `/user`、撤销授权的请求 15 秒超时；Octokit 当前版本不读 `request.timeout`，所以默认的 Octokit 给它用的 `fetch` 套了 15 秒的 `AbortSignal.timeout`（`lib/github.ts` 的 `withTimeout`），成员查询和控制台的所有 GitHub 调用同样 15 秒超时。GitHub 连不上时登录尽快以 `failed` 回到原页面。不是成员的人拿不到会话：官网公开页面和论坛帖子不登录照样能看，控制台对他们只有登录页。
 
