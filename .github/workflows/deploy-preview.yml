@@ -138,6 +138,15 @@ jobs:
     needs: plan
     runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
+    env:
+      # 下载源（#104）：仓库变量没设时回到官方源，与 ci.yml 的写法相同（docs/ops/CICD.md「构建下载源」）。
+      # 大写三项以 build arg 传给 Dockerfile 的构建阶段，不进运行镜像。
+      NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      DEBIAN_MIRROR: ${{ vars.DEBIAN_MIRROR || '' }}
+      BETTER_SQLITE3_BINARY_HOST: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
+      # runner 上的 pnpm/action-setup（npm ci）与 pnpm 9 install 读这两项；不设 pnpm_config_registry 的原因见 ci.yml core job。
+      npm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      npm_config_better_sqlite3_binary_host: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
     steps:
       - name: 检出 plan 核对过的提交
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,6 +154,19 @@ jobs:
           # 用 plan 输出的完整 SHA，而不是再按 tag 名解析一次：tag 在两次检出之间被改动也构建不到别的代码。
           ref: ${{ needs.plan.outputs.commit }}
           persist-credentials: false
+
+      # prebuild-install 不核对 better-sqlite3 预编译包的哈希，传输途中不被换包只能靠 https（#104）。
+      # 在任何下载之前按与 app/server/Dockerfile 构建阶段相同的 case 核对地址：空 = GitHub releases；
+      # tests/tooling/build-mirrors.test.ts 核对三处 job 与 Dockerfile 一致，并实跑这一步。
+      - name: 核对 better-sqlite3 预编译包地址
+        shell: bash
+        run: |
+          BETTER_SQLITE3_BINARY_HOST=$npm_config_better_sqlite3_binary_host
+          if [ -n "$BETTER_SQLITE3_BINARY_HOST" ]; then
+            case "$BETTER_SQLITE3_BINARY_HOST" in https://*[!/]) ;; *) echo "BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac
+            case "$BETTER_SQLITE3_BINARY_HOST" in *[!0-9A-Za-z.:/_-]*) echo "BETTER_SQLITE3_BINARY_HOST 含有不允许的字符：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac
+          fi
+          echo "better-sqlite3 预编译包：${BETTER_SQLITE3_BINARY_HOST:-GitHub releases}"
 
       - name: 安装 pnpm（读取根 packageManager）
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -181,11 +203,17 @@ jobs:
         run: |
           set -eu
           for service in server web forum; do
+            # 只有 server 的构建阶段用 apt 与 better-sqlite3 的预编译包；web、forum 只换 npm 源。
+            case "$service" in
+              server) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY" --build-arg DEBIAN_MIRROR="$DEBIAN_MIRROR" --build-arg BETTER_SQLITE3_BINARY_HOST="$BETTER_SQLITE3_BINARY_HOST") ;;
+              *) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY") ;;
+            esac
             docker build \
               --file "app/${service}/Dockerfile" \
               --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=preview \
               --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
               --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+              "${mirror_args[@]}" \
               --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
           done
           docker image list --format '{{.Repository}}:{{.Tag}}' | grep "^${IMAGE_REPOSITORY}/"
