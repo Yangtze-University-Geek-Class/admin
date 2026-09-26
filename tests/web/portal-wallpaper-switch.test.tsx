@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // 换壁纸（#147）：点下去立刻换上占位（底色 + 模糊缩略图）并开始展开，大图解码好后才换上；连点停在最后一张、不闪回；
-// 减少动态效果只淡入。
+// 减少动态效果只淡入；桌面空闲后预取其余壁纸，省流量 / 2G 时不预取。
 // 图片下载解码用假的 Image 控制：每个地址的 decode() 由用例决定什么时候成功或失败。
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,15 +9,16 @@ import type * as WallpaperLib from "../../app/web/sites/portal/lib/wallpapers";
 
 type Deferred = { resolve: () => void; reject: () => void };
 
-/** 每个地址的 decode() 挂起，由用例 finish(url) / fail(url) 决定结果；created 记下创建顺序 */
-const images = { pending: new Map<string, Deferred>(), created: [] as Array<{ src: string }> };
+/** 每个地址的 decode() 挂起，由用例 finish(url) / fail(url) 决定结果；created 记下创建顺序与优先级 */
+const images = { pending: new Map<string, Deferred>(), created: [] as Array<{ src: string; fetchPriority: string }> };
 
 class FakeImage {
   decoding = "auto";
+  fetchPriority = "auto";
   private url = "";
   set src(value: string) {
     this.url = value;
-    images.created.push({ src: value });
+    images.created.push({ src: value, fetchPriority: this.fetchPriority });
   }
   get src() {
     return this.url;
@@ -64,6 +65,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(navigator, "connection");
 });
 
 const byId = (id: string) => lib.WALLPAPERS.find((wallpaper) => wallpaper.id === id)!;
@@ -187,5 +189,71 @@ describe("换壁纸", () => {
     expect(FADE).toBeLessThan(REVEAL);
     await wait(FADE + 60);
     expect(layers(view.container).map((layer) => layer.id)).toEqual(["geek"]);
+  });
+});
+
+describe("空闲预取", () => {
+  function idleQueue() {
+    const queue: Array<() => void> = [];
+    vi.stubGlobal("requestIdleCallback", (run: () => void) => queue.push(run));
+    vi.stubGlobal("cancelIdleCallback", () => undefined);
+    return queue;
+  }
+
+  it("桌面空闲时才开始，按顺序一张一张低优先级下载：先缩略图，再当前以外的大图", async () => {
+    const queue = idleQueue();
+    lib.prefetchWallpapersWhenIdle("yugc");
+    expect(images.created).toEqual([]);
+    queue.shift()!();
+    const expected = lib.wallpaperPrefetchList("yugc");
+    for (const url of expected) {
+      expect(images.created.at(-1)).toEqual({ src: url, fetchPriority: "low" });
+      await finish(url);
+    }
+    expect(images.created.map((image) => image.src)).toEqual(expected);
+    expect(lib.isWallpaperDecoded(byId("geek").image)).toBe(true);
+  });
+
+  it("预取到一半时换过去：接着等这一次下载，不重新下；下完就清晰过来", async () => {
+    const queue = idleQueue();
+    const geek = byId("geek");
+    const view = render(<WallpaperLayer wallpaper={byId("yugc")} />);
+    lib.prefetchWallpapersWhenIdle("yugc");
+    queue.shift()!();
+    for (const url of [byId("yugc").thumb, geek.thumb]) await finish(url);
+    expect(images.created.at(-1)).toEqual({ src: geek.image, fetchPriority: "low" });
+    view.rerender(<WallpaperLayer wallpaper={geek} from={THUMB} />);
+    expect(top(view.container)).toMatchObject({ id: "geek", full: null });
+    await finish(geek.image);
+    expect(top(view.container).full).toBe(`url("${geek.image}")`);
+    expect(images.created.filter((image) => image.src === geek.image)).toHaveLength(1);
+  });
+
+  it("预取到一半就取消（退回书桌）：后面的不再下载", async () => {
+    const queue = idleQueue();
+    const cancel = lib.prefetchWallpapersWhenIdle("yugc");
+    queue.shift()!();
+    cancel();
+    await finish(images.created[0].src);
+    expect(images.created).toHaveLength(1);
+  });
+
+  it("开了省流量或网络是 2G：不排空闲任务，一张都不下", () => {
+    for (const connection of [{ saveData: true }, { effectiveType: "2g" }, { effectiveType: "slow-2g" }]) {
+      const queue = idleQueue();
+      Object.defineProperty(navigator, "connection", { value: connection, configurable: true });
+      lib.prefetchWallpapersWhenIdle("yugc");
+      expect(queue).toHaveLength(0);
+      vi.advanceTimersByTime(10_000);
+    }
+    expect(images.created).toEqual([]);
+  });
+
+  it("没有 requestIdleCallback（Safari）：等一会儿再开始", () => {
+    vi.stubGlobal("requestIdleCallback", undefined);
+    lib.prefetchWallpapersWhenIdle("geek");
+    expect(images.created).toEqual([]);
+    vi.advanceTimersByTime(1600);
+    expect(images.created.map((image) => image.src)).toEqual([byId("yugc").thumb]);
   });
 });

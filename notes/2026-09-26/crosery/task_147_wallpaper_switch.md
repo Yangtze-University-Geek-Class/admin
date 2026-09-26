@@ -19,3 +19,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Wallpaper.tsx 改成一张壁纸一层：点下去马上压上新层（底色 + 放大模糊的缩略图），用 clip-path 从点的缩略图位置展开到整个桌面 640ms，大图解码好后淡入 480ms；减少动态效果只淡入 360ms；某层展开完只卸它下面的层。lib/wallpapers.ts 加 revealClipFrom 与共用的 loadWallpaperImage（同一地址只下一次，失败不记住），Home.tsx 开机画面改用它。补 tests/web/portal-wallpaper-switch.test.tsx 7 条（jsdom，假 Image 控制解码）；portal.md 加「壁纸」一节并改模块地图，DESIGN.md 改换壁纸描述。
 - 结果：vitest 两个壁纸测试文件 10 条通过；tsc -p app/web 通过；变异检查：大图立刻给、不顶缩略图、展开完只留自己、压新层只留上一层、忽略减少动态效果、大图解码后不换上 6 个变异都被测试拦下
+
+## 22:58:24 +08:00 · 提交 · #147 · 桌面空闲时预取其余壁纸，省流量与 2G 时不预取
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：lib/wallpapers.ts 加 prefetchWallpapersWhenIdle：requestIdleCallback（最多等 4 秒，Safari 退到 1.5 秒计时）后按顺序低优先级下载，先全部缩略图再当前以外的大图，可取消；navigator.connection 的 saveData 或 2g/slow-2g 时不排任务。loadWallpaperImage 加 fetchPriority 参数，与换壁纸共用同一份下载。YugcOs 在桌面 active 时启动、退回书桌时取消。补测试：顺序与优先级、预取中途换过去不重下、取消、省流量/2G 不预取、Safari 退路；portal.md 加「空闲预取」。
+- 结果：vitest 两个壁纸测试文件 17 条通过；tsc -p app/web 通过；变异检查：省流量也预取、2G 也预取、不等空闲立刻预取、下载不去重 4 个变异都被测试拦下

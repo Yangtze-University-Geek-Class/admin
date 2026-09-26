@@ -10,7 +10,7 @@ import { appById, appByKey, filterCommands, launcherCommands, moveSelection, vis
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
-import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Box, type Wallpaper } from "../../lib/wallpapers";
+import { WALLPAPERS, prefetchWallpapersWhenIdle, readWallpaperChoice, saveWallpaperChoice, type Box, type Wallpaper } from "../../lib/wallpapers";
 import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
 import { LazyPromoPlayer } from "../PromoLazy";
@@ -64,6 +64,10 @@ export default function YugcOs({ active, onBack }: Props) {
     setWallpaper(next);
     saveWallpaperChoice(next.id);
   };
+  // 桌面空闲后预取其余壁纸，之后换壁纸不用等下载；开了省流量或 2G 时不预取（lib/wallpapers.ts）
+  const wallpaperId = useRef(wallpaper.id);
+  wallpaperId.current = wallpaper.id;
+  useEffect(() => (active ? prefetchWallpapersWhenIdle(wallpaperId.current) : undefined), [active]);
   const toggleNote = (show: boolean) => {
     setNote(show);
     try {

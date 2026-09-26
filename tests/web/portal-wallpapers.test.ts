@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WALLPAPER, WALLPAPERS, resolveWallpaper, revealClipFrom } from "../../app/web/sites/portal/lib/wallpapers";
+import { DEFAULT_WALLPAPER, WALLPAPERS, canPrefetchWallpapers, resolveWallpaper, revealClipFrom, wallpaperPrefetchList } from "../../app/web/sites/portal/lib/wallpapers";
 
 const PUBLIC = new URL("../../app/web/public", import.meta.url).pathname;
 
@@ -30,7 +30,7 @@ describe("桌面壁纸", () => {
   });
 });
 
-describe("换壁纸的动效", () => {
+describe("换壁纸的动效与预取", () => {
   it("展开的起点是缩略图在壁纸层里的位置（上右下左内缩 + 缩略图圆角）", () => {
     const layer = { left: 0, top: 34, width: 1440, height: 866 };
     const thumb = { left: 460.4, top: 390, width: 160, height: 90 };
@@ -39,4 +39,17 @@ describe("换壁纸的动效", () => {
     expect(revealClipFrom({ left: 10, top: 20, width: 100, height: 50 }, layer)).toBe("inset(-14px 1330px 830px 10px round 9px)");
   });
 
+  it("预取先全部缩略图，再当前这张以外的大图；不重复预取当前大图", () => {
+    expect(wallpaperPrefetchList("yugc")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/geek.webp"]);
+    expect(wallpaperPrefetchList("geek")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/yugc.webp"]);
+  });
+
+  it("开了省流量或网络是 2G 时不预取；没有网络信息时照常预取", () => {
+    expect(canPrefetchWallpapers(undefined)).toBe(true);
+    expect(canPrefetchWallpapers({ effectiveType: "4g" })).toBe(true);
+    expect(canPrefetchWallpapers({ effectiveType: "3g", saveData: false })).toBe(true);
+    expect(canPrefetchWallpapers({ saveData: true, effectiveType: "4g" })).toBe(false);
+    expect(canPrefetchWallpapers({ effectiveType: "2g" })).toBe(false);
+    expect(canPrefetchWallpapers({ effectiveType: "slow-2g" })).toBe(false);
+  });
 });

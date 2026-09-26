@@ -1,4 +1,4 @@
-// YUGC OS 的壁纸：清单、选择与下载解码（tests/web/portal-wallpapers.test.ts 覆盖）。
+// YUGC OS 的壁纸：清单、选择、下载解码与空闲预取（tests/web/portal-wallpapers.test.ts 覆盖）。
 // 两张静态图，由 crosery-ct（mox_image_generate）按所有者给的海报风格生成。
 // 图片地址只写在这份清单里：换 CDN（#146）时只改这里。
 
@@ -63,7 +63,7 @@ export function revealClipFrom(thumb: Box, layer: Box): string {
 }
 
 // ── 下载与解码 ──
-// 开机画面和换壁纸共用同一份：同一地址只下载一次。
+// 换壁纸和空闲预取共用同一份：同一地址只下载一次，预取到一半时用户点了，就接着等这一次。
 
 const loading = new Map<string, Promise<boolean>>();
 const decoded = new Set<string>();
@@ -74,11 +74,12 @@ export function isWallpaperDecoded(url: string): boolean {
 }
 
 /** 下载并解码一张图，成功为 true。失败（离线、被拦）不记住，下次换过去再试 */
-export function loadWallpaperImage(url: string): Promise<boolean> {
+export function loadWallpaperImage(url: string, priority: "auto" | "low" = "auto"): Promise<boolean> {
   const pending = loading.get(url);
   if (pending) return pending;
   const image = new Image();
   image.decoding = "async";
+  image.fetchPriority = priority;
   image.src = url;
   const result = image.decode().then(
     () => {
@@ -92,4 +93,49 @@ export function loadWallpaperImage(url: string): Promise<boolean> {
   );
   loading.set(url, result);
   return result;
+}
+
+// ── 空闲预取 ──
+
+/** Network Information API 的两个字段（只有 Chromium 系有；没有时当作可以预取） */
+export type ConnectionHint = { saveData?: boolean; effectiveType?: string } | undefined;
+
+/** 开了省流量、网络是 2G 时不预取：少下几百 KB 比第二次换壁纸快一点重要 */
+export function canPrefetchWallpapers(connection: ConnectionHint): boolean {
+  if (connection?.saveData) return false;
+  return connection?.effectiveType !== "2g" && connection?.effectiveType !== "slow-2g";
+}
+
+/** 预取顺序：先全部缩略图（很小，选择面板一打开就有图），再当前这张以外的大图 */
+export function wallpaperPrefetchList(currentId: string): string[] {
+  return [...WALLPAPERS.map((wallpaper) => wallpaper.thumb), ...WALLPAPERS.filter((wallpaper) => wallpaper.id !== currentId).map((wallpaper) => wallpaper.image)];
+}
+
+/**
+ * 桌面空闲后按顺序一张一张预取（低优先级，不和正在用的请求抢带宽），之后换壁纸不用等下载。
+ * 返回取消函数：桌面卸载或退回书桌时停下还没开始的那几张。
+ */
+export function prefetchWallpapersWhenIdle(currentId: string): () => void {
+  const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
+  if (!canPrefetchWallpapers(connection)) return () => undefined;
+  let cancelled = false;
+  const run = async () => {
+    for (const url of wallpaperPrefetchList(currentId)) {
+      if (cancelled) return;
+      await loadWallpaperImage(url, "low");
+    }
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(() => void run(), { timeout: 4000 });
+    return () => {
+      cancelled = true;
+      window.cancelIdleCallback(handle);
+    };
+  }
+  // Safari 没有 requestIdleCallback：桌面出现后等一会儿再开始
+  const timer = window.setTimeout(() => void run(), 1500);
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timer);
+  };
 }
