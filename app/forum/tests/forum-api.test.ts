@@ -53,6 +53,7 @@ describe('parseWriteResult', () => {
     expect(result.viewer).toEqual(MEMBER_VIEWER)
     expect(result.guestPolicy).toEqual({ powDifficulty: 2, turnstileSiteKey: null, nameMax: 20, contentMax: 2000 })
     expect(result.changes).toEqual({
+      users: [state.users[1]],
       posts: [state.posts[1]],
       bookmarks: [{ userId: 'm1001', postId: 'p10001', createdAt: 40 }],
       removed: { follows: [{ followerId: 'm1001', followeeId: 'u-geekclass' }] },

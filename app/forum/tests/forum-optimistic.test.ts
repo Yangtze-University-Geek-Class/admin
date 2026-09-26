@@ -277,6 +277,7 @@ describe.each(CASES)('$name against the server', (item) => {
     expect(await settled).toBe(item.returns)
     expect(item.read(s)).toEqual(item.after)
     expect(s.forum.state.posts.some(record => isPending(record.id))).toBe(false)
+    expect(s.forum.state.users.some(record => isPending(record.id))).toBe(false)
     expect(toastStore.items).toEqual([])
   })
 
