@@ -2,6 +2,7 @@
 import type { FormRules, TxFormInstance } from '@talex-touch/tuffex/form'
 import type { TxSelectModelValue, TxSelectOption } from '@talex-touch/tuffex/select'
 import { toast } from '@talex-touch/tuffex/utils'
+import { UNAVAILABLE_COPY } from '~/data/access'
 import { MEMBER_CONTENT_MAX, TOPIC_TAG_MAX, TOPIC_TITLE_MAX } from '../../shared/forum-api'
 
 // Discourse composes a new topic in the same bottom panel as a reply; here it
@@ -29,7 +30,9 @@ const blocked = computed(() => {
     case 'sign-in':
       return { title: '登录后才能发帖', description: '只有极客班成员能用 GitHub 登录。不登录也能看帖，也能在话题里回复。', action: '用 GitHub 登录' }
     case 'offline':
-      return { title: '论坛服务暂时连不上', description: '现在只能看帖子，稍后刷新页面再试。', action: '' }
+    case 'busy':
+    case 'not-member':
+      return { ...UNAVAILABLE_COPY[access.value.loginPrompt], action: '' }
     default:
       return { title: '发帖还没开放', description: '发帖正在接入。', action: '' }
   }

@@ -37,3 +37,15 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：docs(docs): forum 服务合同新增「服务端模式」一节（加载、写入、游客、成员、版务、账号资料、正文安全、单测），改写全站登录与头像菜单、已知限制；TUFF-FORUM、LOCAL-PREVIEW、USAGE、STACK 同步；pnpm docs:index；pnpm check。另：停掉了上一个代理在本 worktree 里留下的示例模式 dev 服务器（3466，PID 55490/55552，父进程已是 1），以及本次自己起的 3157 核心服务、3158 临时代理（均按 PID）；3456、3000 没碰
 - 结果：pnpm check 通过（含 check:docs、check:notes、check:secrets、typecheck）
+
+## 17:27:04 +08:00 · 开发 · #107 · 按 #116 服务端返工与所有者新规则补前端：429 不算连不上、被移出组织的账号、提示条文案、正文安全用例
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：load() 遇 429 保留当前内容、提示「请求太频繁，稍后再试」、10/20/40 秒后每分钟重读，首次就被拒时状态 busy（显示构建时的公开旧帖、写操作关闭）；浏览数 429 同一条提示；/auth/me 已登录但服务端按游客回答时提示「这个账号现在不能在论坛里发帖」，不再给登录按钮；提示条、关于页与 llms.txt 共用 shared/site-notice.ts，不再写具体放出了哪几类帖子；正文安全补 a/img 的 javascript、vbscript、data、on* 与 title 注入用例。浏览器验证只用 ego-browser（一个 TaskSpace 161，做完即 finish），服务端是 task/57/forum_backend 的 046fb85（3157，新临时库），论坛 site 构建经 /tmp 临时代理（3158）
+- 结果：forum check 通过（21 个文件 350 个测试）；ego-browser：游客回复带 <img onerror> 与 javascript: 链接，刷新后仍在，帖子里没有 on* 属性，链接是 #javascript:alert(1)；首次读 429 时提示条写请求太频繁、公开旧帖照常显示、8 秒后自动恢复；被移出组织的模拟账号在 /new 看到说明、没有登录按钮；头像上传被服务端在读请求体前 401 拒绝，浏览器收到并提示「登录后才能操作」。上游 verify（CDP，用 Playwright 带的 Chromium）按所有者新规则没有重跑；成员真实写操作未验证
+
+## 17:27:04 +08:00 · 提交 · #107 · 429、被移出组织的账号、提示条文案（forum 修正提交）
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：fix(forum): 请求太频繁不当作连不上，登录了却被当作游客时说明原因，提示条写现状；node scripts/forum.mjs check
+- 结果：forum check 通过（350 个测试）

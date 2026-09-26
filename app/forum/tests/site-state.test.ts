@@ -9,6 +9,7 @@ import published from '../content/published/topics.json'
 import { forumLlmsTxt, topicMarkdown } from '../shared/forum-markdown'
 import { parseSnapshotState } from '../shared/local-snapshot'
 import { publishedTopicIds } from '../shared/published'
+import { SITE_NOTICE, siteMarkdownNotice } from '../shared/site-notice'
 import { siteForumState } from '../shared/site-state'
 
 // 极客班论坛 as the images build it: the curated categories and tags of
@@ -127,7 +128,7 @@ describe('siteForumState', () => {
   })
 
   it('gives an llms.txt and Markdown twins that name 极客班论坛 and its published documents', () => {
-    const site = { siteName: '极客班论坛', origin: 'https://prev.example.test', basePath: '/forum/', notice: '这份索引只列构建时公开的旧帖。' }
+    const site = { siteName: '极客班论坛', origin: 'https://prev.example.test', basePath: '/forum/', notice: siteMarkdownNotice() }
     const text = forumLlmsTxt(state, site)
     expect(text.split('\n')[0]).toBe('# 极客班论坛')
     expect(text).toContain('极客班25级机试考核文档')
@@ -136,5 +137,14 @@ describe('siteForumState', () => {
     expect(twin).toContain('极客班')
     expect(twin).toContain('](./t9)')
     expect(topicMarkdown(state, 't5', site)).toBeNull()
+  })
+
+  it('says the same current state in llms.txt as the banner, without naming which posts are out', () => {
+    const text = forumLlmsTxt(state, { siteName: '极客班论坛', origin: '', basePath: '/forum/', notice: siteMarkdownNotice() })
+    expect(text).toContain(SITE_NOTICE.published)
+    expect(text).toContain(SITE_NOTICE.guests)
+    for (const sentence of Object.values(SITE_NOTICE)) {
+      expect(sentence).not.toMatch(/招新|入门资料|其余|还没开放/)
+    }
   })
 })

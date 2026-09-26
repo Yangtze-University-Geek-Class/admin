@@ -15,13 +15,25 @@ import { useSessionStore } from './session'
  * - `load()` runs once after mount (plugins/site-state.client.ts). Success
  *   replaces the forum store and signs the session in as `viewer.userId`
  *   (null for a guest). Failure leaves the published posts the build shipped,
- *   and `status: 'error'` switches every write off.
+ *   and `status: 'error'` switches every write off. A 429 is not an outage:
+ *   what the page shows stays, a toast says 请求太频繁, and the store asks
+ *   again later (`busy` until then if nothing had loaded yet).
  * - Each write calls one endpoint and replaces the whole state from its
  *   answer. A failure changes nothing locally and says why in a toast.
  *
  * The demo (`loginMode=demo`) never touches this store; `useForumActions`
  * picks between the two.
  */
+/** One toast for every 429 on a read, so a burst of them shows once. */
+const RATE_LIMITED_TOAST = { id: 'forum-rate-limited', title: '请求太频繁，稍后再试', variant: 'warning' } as const
+
+/** Waits before asking for the state again after a 429: 10 s, 20 s, 40 s, then every minute. */
+export function stateRetryDelay(attempt: number): number {
+  return Math.min(60_000, 10_000 * 2 ** attempt)
+}
+
+const isRateLimited = (error: unknown): boolean => error instanceof ForumApiError && error.status === 429
+
 export interface ReplyAsGuestInput extends CreatePostBody {
   name: string
   /** The Turnstile answer, when `guestPolicy.turnstileSiteKey` asks for one. */
@@ -40,6 +52,17 @@ export const useForumServerStore = defineStore('forum-server', () => {
   const granted = computed<ReadonlySet<string>>(() => new Set(viewer.value?.capabilities ?? []))
 
   let loading: Promise<boolean> | null = null
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let retryAttempt = 0
+
+  function retryLater(): void {
+    clearTimeout(retryTimer)
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined
+      void load()
+    }, stateRetryDelay(retryAttempt))
+    retryAttempt += 1
+  }
 
   function apply(snapshot: ServerSnapshot): void {
     forum.replaceState(snapshot.state)
@@ -51,12 +74,24 @@ export const useForumServerStore = defineStore('forum-server', () => {
 
   function load(): Promise<boolean> {
     loading ??= (async () => {
-      status.value = 'loading'
+      // Only the first read holds the pages back; a page that already shows something keeps showing it
+      // while the state is re-read (after signing out, after a 429).
+      if (status.value === 'idle')
+        status.value = 'loading'
       try {
         apply(await api.state())
+        clearTimeout(retryTimer)
+        retryAttempt = 0
         return true
       }
-      catch {
+      catch (error) {
+        if (isRateLimited(error)) {
+          if (status.value !== 'ready')
+            status.value = 'busy'
+          toast(RATE_LIMITED_TOAST)
+          retryLater()
+          return false
+        }
         viewer.value = null
         session.currentUserId = null
         status.value = 'error'
@@ -138,8 +173,11 @@ export const useForumServerStore = defineStore('forum-server', () => {
     toggleFollow: (userId: string) => toggle('关注没有改成', () => api.toggleFollow(userId), followerId => forum.isFollowing(followerId, userId)),
     setPinned: (topicId: string, pinned: boolean) => write(pinned ? '没有置顶' : '没有取消置顶', () => api.setPinned(topicId, pinned)),
     setClosed: (topicId: string, closed: boolean) => write(closed ? '话题没有关闭' : '话题没有重新开放', () => api.setClosed(topicId, closed)),
-    /** Views are a statistic: a failed count is not worth a toast. */
-    recordView: (topicId: string): Promise<void> => api.recordView(topicId).catch(() => {}),
+    /** Views are a statistic: a failed count is not worth a toast, except the shared 请求太频繁 one. */
+    recordView: (topicId: string): Promise<void> => api.recordView(topicId).catch((error: unknown) => {
+      if (isRateLimited(error))
+        toast(RATE_LIMITED_TOAST)
+    }),
     markRead: (notificationId: string) => write('没有标为已读', () => api.markRead(notificationId)),
     markAllRead: () => write('没有标为已读', () => api.markAllRead()),
     updateProfile: (body: ProfileBody) => write('资料没有保存', () => api.updateProfile(body)),

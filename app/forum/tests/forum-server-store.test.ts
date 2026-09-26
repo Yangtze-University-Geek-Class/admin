@@ -2,7 +2,7 @@ import { clearToasts, toastStore } from '@talex-touch/tuffex/utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useForumStore } from '~/stores/forum'
-import { useForumServerStore } from '~/stores/forum-server'
+import { stateRetryDelay, useForumServerStore } from '~/stores/forum-server'
 import { useSessionStore } from '~/stores/session'
 import { checkPow, replyPowBody } from '../shared/pow'
 import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState } from './fixtures/server-state'
@@ -64,6 +64,46 @@ describe('loading the forum from the server', () => {
     expect(server.status).toBe('error')
     expect(forum.state).toBe(before)
     expect(session.currentUserId).toBeNull()
+  })
+
+  it('treats a 429 as busy, not down: keeps the page, says so once, and asks again later', async () => {
+    vi.useFakeTimers()
+    try {
+      const calls = fakeServer(json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429), json(serverBody()))
+      const { forum, server } = setup()
+      const before = forum.state
+      expect(await server.load()).toBe(false)
+      expect(server.status).toBe('busy')
+      expect(forum.state).toBe(before)
+      expect(toastStore.items.map(item => item.title)).toEqual(['请求太频繁，稍后再试'])
+      await vi.advanceTimersByTimeAsync(stateRetryDelay(0))
+      expect(calls).toHaveLength(2)
+      expect(server.status).toBe('ready')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an answered forum as it is when a later read is refused with 429', async () => {
+    vi.useFakeTimers()
+    try {
+      fakeServer(json(serverBody(MEMBER_VIEWER)), json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429))
+      const { forum, session, server } = setup()
+      await server.load()
+      const before = forum.state
+      expect(await server.load()).toBe(false)
+      expect(server.status).toBe('ready')
+      expect(forum.state).toBe(before)
+      expect(session.currentUserId).toBe('m1001')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off between retries and settles at one a minute', () => {
+    expect([0, 1, 2, 3, 9].map(stateRetryDelay)).toEqual([10_000, 20_000, 40_000, 60_000, 60_000])
   })
 
   it('shares one request between callers that load at the same time', async () => {
@@ -142,6 +182,18 @@ describe('writes against the server', () => {
     expect(session.currentUser?.avatarUrl).toBe('https://avatars.example.invalid/u/1001')
   })
 
+  it('shows the server\'s own words for a refused profile change and a paused guest reply', async () => {
+    const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名，换一个吧', request_id: 'r2' }, 400))
+    expect(await server.updateProfile({ displayName: '极客班' })).toBe(false)
+    expect(toastStore.items.map(item => [item.title, item.description])).toEqual([['资料没有保存', '这个昵称是官方账号或别人的用户名，换一个吧']])
+  })
+
+  it('says 请求太频繁 when counting a view is refused with 429', async () => {
+    const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429))
+    await server.recordView('t73')
+    expect(toastStore.items.map(item => item.title)).toEqual(['请求太频繁，稍后再试'])
+  })
+
   it('counts a view without a toast, even when the count fails', async () => {
     const { calls, server } = await signedIn(MEMBER_VIEWER, json({ error: 'x', message: 'y' }, 500))
     await server.recordView('t73')
@@ -171,6 +223,17 @@ describe('a guest reply', () => {
     const sent = calls[1]!.body as Record<string, unknown>
     expect(Object.keys(sent).sort()).toEqual(['content', 'guest', 'pow', 'topicId', 'turnstileToken', 'website'])
     expect(sent.turnstileToken).toBe('cf-token')
+  })
+
+  it('shows the server message when guest replies are paused site-wide', async () => {
+    fakeServer(json(serverBody()), json({ error: 'guest_replies_paused', message: '游客回复暂时太多，请过一会儿再试，或者登录后回复' }, 429))
+    const { forum, server } = setup()
+    await server.load()
+    const before = forum.state
+    expect(await server.replyAsGuest({ topicId: 't73', content: '谢谢', name: '路过的同学' })).toBeNull()
+    expect(forum.state).toBe(before)
+    expect(server.status).toBe('ready')
+    expect(toastStore.items.map(item => [item.title, item.description])).toEqual([['回复没有发出去', '游客回复暂时太多，请过一会儿再试，或者登录后回复']])
   })
 
   it('says why when the server refuses the nickname, and keeps the page as it was', async () => {

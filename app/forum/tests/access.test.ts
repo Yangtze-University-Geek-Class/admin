@@ -1,6 +1,6 @@
 import type { Topic, User } from '~/data/types'
 import { describe, expect, it } from 'vitest'
-import { forumAccess, guestMayReply } from '~/data/access'
+import { forumAccess, guestMayReply, UNAVAILABLE_COPY } from '~/data/access'
 import { accountMenu } from '~/data/account-menu'
 import { can } from '~/data/permissions'
 
@@ -37,6 +37,20 @@ describe('who may write, per mode', () => {
   it('server, unreachable: nobody writes, the prompt says the service is down', () => {
     expect(forumAccess('server', 'error', null)).toEqual({ writable: false, offline: true, guestReply: false, loginPrompt: 'offline' })
     expect(forumAccess('server', 'loading', null).writable).toBe(false)
+  })
+
+  it('server, too many requests (429): nothing is written, but it is not called an outage', () => {
+    expect(forumAccess('server', 'busy', null)).toEqual({ writable: false, offline: false, guestReply: false, loginPrompt: 'busy' })
+    expect(forumAccess('server', 'busy', user(), true).writable).toBe(false)
+    expect(UNAVAILABLE_COPY.busy.title).toBe('请求太频繁，稍后再试')
+    expect(UNAVAILABLE_COPY.busy.title).not.toContain('连不上')
+  })
+
+  it('signed in site-wide but served as a guest (left the organization): no sign-in loop, still a guest reply', () => {
+    const access = forumAccess('server', 'ready', null, true)
+    expect(access).toEqual({ writable: true, offline: false, guestReply: true, loginPrompt: 'not-member' })
+    expect(forumAccess('server', 'ready', null, false).loginPrompt).toBe('sign-in')
+    expect(forumAccess('server', 'ready', user(), true).loginPrompt).toBe('sign-in')
   })
 
   it('demo and read-only modes keep their own behaviour', () => {

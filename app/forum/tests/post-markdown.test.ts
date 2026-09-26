@@ -20,6 +20,15 @@ function html(source: string): string {
   return marked.parse(renderableMarkdown(source))
 }
 
+/**
+ * The rendered HTML with every quoted attribute value blanked (marked always
+ * double-quotes them), so text inside a value such as a title or an alt,
+ * `title="t&quot; onmouseover=…"`, never reads as an attribute of its own.
+ */
+function outsideValues(out: string): string {
+  return out.replace(/="[^"]*"/g, '=""')
+}
+
 /** Tags a post can never produce once rendered, whatever it contains. */
 const FORBIDDEN_TAG = /<(?:script|style|iframe|object|embed|form|input|button|textarea|svg|math|link|meta|base|div|span|details|table)\b/i
 
@@ -41,6 +50,14 @@ const ATTACKS = [
   '</p><script>alert(1)</script>',
   '<?php echo 1 ?>',
   '<![CDATA[<script>alert(1)</script>]]>',
+  '<a href="javascript:alert(1)">点我</a>',
+  '<img src="javascript:alert(1)">',
+  '<IMG SRC=vbscript:msgbox(1)>',
+  '<img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" onerror=alert(1)>',
+  '<img src="https://s2.loli.net/a.png" onerror="alert(1)" onload=alert(2)>',
+  '<body onload=alert(1)>',
+  '<video><source onerror="alert(1)"></video>',
+  '[x](https://example.invalid "t\\" onmouseover=\\"alert(1)")',
 ]
 
 describe('raw HTML in a post is shown as text', () => {
@@ -48,8 +65,8 @@ describe('raw HTML in a post is shown as text', () => {
     const out = html(source)
     expect(out).not.toMatch(FORBIDDEN_TAG)
     // Handler text may survive as visible text (&lt;span onclick=…); never inside a real tag.
-    expect(out).not.toMatch(/<[a-z][^>]*\son\w+=/i)
-    expect(out).not.toMatch(/<[a-z][^>]*\sstyle=/i)
+    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\son\w+=/i)
+    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\sstyle=/i)
   })
 
   it('keeps the text readable: only an invisible word joiner follows the <', () => {
@@ -100,6 +117,11 @@ describe('links and images only go to http(s), mailto or the site itself', () =>
     '[点我][x]\n\n[x]: javascript:alert(1)',
     '[点我][x]\n\n[x]:\n  javascript:alert(1)',
     '> [点我][x]\n>\n> [x]: data:text/html,x',
+    '![图](javascript:alert(1))',
+    '![图](vbscript:msgbox(1))',
+    '![图]( data:text/html,x)',
+    '<img src="javascript:alert(1)" alt="x">',
+    '<img src=" data:image/png;base64,AAAA">',
   ]
 
   it.each(BLOCKED)('%j renders no dangerous href or src', (source) => {
@@ -119,6 +141,19 @@ describe('links and images only go to http(s), mailto or the site itself', () =>
     expect(html('[下一篇](./t72)')).toContain('href="./t72"')
     expect(html('[楼上](#post-p10001)')).toContain('href="#post-p10001"')
     expect(html('![截图](../published/abc.webp)')).toContain('src="../published/abc.webp"')
+  })
+
+  it('keeps a title that pretends to open an attribute inside the title', () => {
+    expect(html('[x](https://example.invalid "t\\" onmouseover=\\"alert(1)")')).toContain('title="t&quot; onmouseover=&quot;alert(1)"')
+  })
+
+  it('never lets a guest post produce an event handler or a script address, whatever the input', () => {
+    for (const source of [...ATTACKS, ...BLOCKED]) {
+      const out = html(source)
+      expect(outsideValues(out), source).not.toMatch(/<[a-z][^>]*\son\w+\s*=/i)
+      expect(out, source).not.toMatch(/<(?:script|iframe|object|embed|svg|form)\b/i)
+      expect(out, source).not.toMatch(/(?:href|src)\s*=\s*"\s*(?:javascript|data|vbscript):/i)
+    }
   })
 
   it('classifies destinations the way a browser reads them', () => {

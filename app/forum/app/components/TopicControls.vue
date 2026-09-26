@@ -2,6 +2,7 @@
 import type { TxSelectOption } from '@talex-touch/tuffex/select'
 import type { Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
+import { UNAVAILABLE_COPY } from '~/data/access'
 
 /**
  * Discourse's bar under the last post: bookmark the topic, share it, pick a
@@ -42,7 +43,8 @@ const blocked = computed(() => {
     case 'pick-identity':
       return { title: '登录后参与讨论', description: '选择一个身份即可回复、点赞和收藏。', login: true }
     case 'offline':
-      return { title: '论坛服务暂时连不上', description: '现在只能看帖子，稍后刷新页面再试。', login: false }
+    case 'busy':
+      return { ...UNAVAILABLE_COPY[access.value.loginPrompt], login: false }
     default:
       return { title: '回复还没开放', description: '回复、点赞和收藏正在接入。', login: false }
   }

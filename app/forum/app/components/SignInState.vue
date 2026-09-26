@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UNAVAILABLE_COPY } from '~/data/access'
+
 // What /bookmarks, /notifications and /u/<name>/preferences show to someone
 // without a forum user. The demo asks to pick an identity (upstream copy, as
 // before); 极客班论坛 offers the site-wide GitHub sign-in, or says the service
@@ -23,7 +25,9 @@ const state = computed(() => {
     case 'sign-in':
       return { title: copy.signIn, description: '只有极客班成员能用 GitHub 登录。', action: { label: '用 GitHub 登录', variant: 'primary' as const, icon: 'i-carbon-logo-github' } }
     case 'offline':
-      return { title: '论坛服务暂时连不上', description: '现在只能看帖子，稍后刷新页面再试。', action: undefined }
+    case 'busy':
+    case 'not-member':
+      return { ...UNAVAILABLE_COPY[access.value.loginPrompt], action: undefined }
     default:
       return { title: copy.notOpen, description: copy.notOpenHint, action: undefined }
   }

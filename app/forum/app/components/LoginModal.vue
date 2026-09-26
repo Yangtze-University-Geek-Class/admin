@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { toast } from '@talex-touch/tuffex/utils'
+import { UNAVAILABLE_COPY } from '~/data/access'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
@@ -27,8 +28,8 @@ if (siteLogin) {
         action: { label: '登录', onClick: signIn },
       })
     }
-    else if (access.value.loginPrompt === 'offline') {
-      toast({ id: 'forum-offline', title: '论坛服务暂时连不上', description: '现在只能看帖子，稍后刷新页面再试。', variant: 'warning' })
+    else if (access.value.loginPrompt === 'offline' || access.value.loginPrompt === 'busy' || access.value.loginPrompt === 'not-member') {
+      toast({ id: `forum-${access.value.loginPrompt}`, ...UNAVAILABLE_COPY[access.value.loginPrompt], variant: 'warning' })
     }
     else {
       toast({ id: 'forum-read-only', title: '现在还不能操作', description: '发帖、回复、点赞和收藏正在接入，现在可以浏览。' })

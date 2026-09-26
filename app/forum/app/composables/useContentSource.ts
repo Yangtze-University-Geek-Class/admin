@@ -45,7 +45,7 @@ export function useContentSource() {
     if (isSnapshot)
       return snapshot.value.status === 'ready'
     if (serverMode)
-      return ['ready', 'error'].includes(useForumServerStore().status)
+      return ['ready', 'busy', 'error'].includes(useForumServerStore().status)
     return true
   })
 

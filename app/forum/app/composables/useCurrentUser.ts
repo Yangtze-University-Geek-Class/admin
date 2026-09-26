@@ -21,7 +21,8 @@ export function useCurrentUser() {
   const isLoggedIn = computed(() => session.isLoggedIn)
   const granted = computed(() => (serverMode ? server.granted : undefined))
   const isStaff = computed(() => isStaffUser(session.currentUser, granted.value))
-  const access = computed(() => forumAccess(mode, server.status, session.currentUser))
+  const { account, loaded } = useSiteAccount()
+  const access = computed(() => forumAccess(mode, server.status, session.currentUser, loaded.value && !!account.value))
 
   function allowed(action: ForumAction, ctx?: PermissionContext): boolean {
     return access.value.writable && can(session.currentUser, action, ctx, granted.value)

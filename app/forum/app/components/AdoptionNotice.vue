@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { UNAVAILABLE_COPY } from '~/data/access'
+import { SITE_NOTICE } from '../../shared/site-notice'
+
 const deployment = useDeploymentInfo()
 const { isSnapshot, isSite, siteLogin } = useContentSource()
 const { access } = useCurrentUser()
@@ -27,11 +30,12 @@ const { portalHref } = useSiteLinks()
             size="sm"
             class="shrink-0 whitespace-nowrap"
           />
-          <span v-if="isSite && access.offline" class="text-$tx-text-color-secondary leading-normal">
-            论坛服务暂时连不上，现在只能看帖子。
+          <!-- 极客班论坛：连不上或请求太频繁时整句换成原因；平时是现状，没登录的人再多一句能做什么（与 llms.txt 同一份文字，shared/site-notice.ts） -->
+          <span v-if="isSite && (access.loginPrompt === 'offline' || access.loginPrompt === 'busy')" class="text-$tx-text-color-secondary leading-normal">
+            {{ UNAVAILABLE_COPY[access.loginPrompt].title }}，{{ UNAVAILABLE_COPY[access.loginPrompt].description }}
           </span>
           <span v-else-if="isSite" class="text-$tx-text-color-secondary leading-normal">
-            旧论坛先放出了招新机试文档和入门资料，其余旧帖暂时不显示。<template v-if="loaded && !account">不登录也能看帖和回复；发新话题、点赞和收藏要先在右上角用 GitHub 登录，只有极客班成员能登录。</template>
+            {{ SITE_NOTICE.published }}<template v-if="loaded && !account">{{ SITE_NOTICE.guests }}</template>
           </span>
           <span v-else-if="siteLogin" class="text-$tx-text-color-secondary leading-normal">
             {{ isSnapshot ? '发帖和回复正在接入，现在可以浏览。' : '当前是示例帖子，极客班的帖子还没接入。' }}极客班成员可以在右上角用 GitHub 登录，官网、论坛、控制台共用这一次登录；不登录也能看帖子。
