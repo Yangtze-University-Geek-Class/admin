@@ -46,19 +46,24 @@ async function apiJson(fetchImpl, token, path) {
   return response.json();
 }
 
-/** 找本次运行里名字对上、没过期的 artifact。 */
+/**
+ * 找本次运行里名字对上、没过期的 artifact。同名多个时（重跑全部 job）取 id 最大的，也就是最新的，
+ * 与 actions/download-artifact 一致。
+ */
 export async function findArtifact(fetchImpl, token, { repo, run, name }) {
   const body = await apiJson(fetchImpl, token, `/repos/${repo}/actions/runs/${run}/artifacts?name=${encodeURIComponent(name)}&per_page=100`);
   const hits = (body.artifacts ?? []).filter(artifact => artifact.name === name && !artifact.expired);
-  if (hits.length !== 1) throw new Error(`运行 ${run} 里名为 ${name} 的 artifact 有 ${hits.length} 个，应为 1 个`);
-  return { id: hits[0].id, size: hits[0].size_in_bytes };
+  if (!hits.length) throw new Error(`运行 ${run} 里没有名为 ${name} 的 artifact`);
+  const newest = hits.reduce((a, b) => (b.id > a.id ? b : a));
+  return { id: newest.id, size: newest.size_in_bytes, count: hits.length };
 }
 
 /** 取 zip 的临时下载地址（GitHub 返回 302，地址约 1 分钟过期）。 */
-export async function downloadUrl(fetchImpl, token, { repo }, id) {
+export async function downloadUrl(fetchImpl, token, { repo }, id, signal) {
   const response = await fetchImpl(`${API}/repos/${repo}/actions/artifacts/${id}/zip`, {
     headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
     redirect: 'manual',
+    signal,
   });
   const location = response.headers.get('location');
   if (response.status !== 302 || !location) throw new Error(`取 artifact ${id} 的下载地址失败：${response.status}`);
@@ -67,14 +72,15 @@ export async function downloadUrl(fetchImpl, token, { repo }, id) {
 
 /**
  * 下载一段，写到文件的对应偏移。失败（网络错误、非 206、长度不对）重新取地址再试，最多 attempts 次。
- * 下载地址是存储的签名 URL，不带 GitHub 令牌。
+ * 下载地址是存储的签名 URL，不带 GitHub 令牌。别的段已经失败（signal 已取消）就不再重试。
  */
-export async function fetchRange({ fetchImpl, token, options, id, fd, write, start, end, attempts = 5, pause = ms => new Promise(r => setTimeout(r, ms)) }) {
+export async function fetchRange({ fetchImpl, token, options, id, fd, write, start, end, signal, attempts = 5, pause = ms => new Promise(r => setTimeout(r, ms)) }) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (signal?.aborted) throw new Error('已取消：别的段失败了');
     try {
-      const url = await downloadUrl(fetchImpl, token, options, id);
-      const response = await fetchImpl(url, { headers: { range: `bytes=${start}-${end}` } });
+      const url = await downloadUrl(fetchImpl, token, options, id, signal);
+      const response = await fetchImpl(url, { headers: { range: `bytes=${start}-${end}` }, signal });
       if (response.status !== 206) throw new Error(`第 ${start}-${end} 段返回 ${response.status}，不是 206`);
       const bytes = Buffer.from(await response.arrayBuffer());
       if (bytes.length !== end - start + 1) throw new Error(`第 ${start}-${end} 段收到 ${bytes.length} 字节`);
@@ -82,6 +88,7 @@ export async function fetchRange({ fetchImpl, token, options, id, fd, write, sta
       return bytes.length;
     } catch (error) {
       lastError = error;
+      if (signal?.aborted) throw new Error('已取消：别的段失败了');
       if (attempt < attempts) await pause(2000 * attempt);
     }
   }
@@ -103,7 +110,8 @@ export function defaultDeps() {
 
 export async function fetchArtifact(options, token, deps = defaultDeps()) {
   if (!token) throw new Error('缺 GH_TOKEN（或 GITHUB_TOKEN）');
-  const { id, size } = await findArtifact(deps.fetchImpl, token, options);
+  const { id, size, count } = await findArtifact(deps.fetchImpl, token, options);
+  if (count > 1) deps.log(`本次运行里有 ${count} 个同名 artifact，取最新的 ${id}`);
   const pieces = ranges(size, options.parts);
   deps.log(`artifact ${options.name}（${id}）${size} 字节，分 ${pieces.length} 段并发下载`);
   deps.mkdir(options.dir);
@@ -111,13 +119,16 @@ export async function fetchArtifact(options, token, deps = defaultDeps()) {
   const started = Date.now();
   try {
     const fd = deps.open(zip);
-    let total = 0;
-    try {
-      const got = await Promise.all(pieces.map(([start, end]) => fetchRange({ fetchImpl: deps.fetchImpl, token, options, id, fd, write: deps.write, start, end, pause: deps.pause })));
-      total = got.reduce((sum, n) => sum + n, 0);
-    } finally {
-      deps.close(fd);
-    }
+    // 一段失败就取消其余段，并等所有段都停下再关文件：不会有写入落在关闭之后
+    const controller = new AbortController();
+    const results = await Promise.allSettled(pieces.map(([start, end]) =>
+      fetchRange({ fetchImpl: deps.fetchImpl, token, options, id, fd, write: deps.write, start, end, signal: controller.signal, pause: deps.pause })
+        .catch(error => { controller.abort(); throw error; })));
+    deps.close(fd);
+    const failure = results.find(result => result.status === 'rejected' && !/^已取消/.test(result.reason.message))
+      ?? results.find(result => result.status === 'rejected');
+    if (failure) throw failure.reason;
+    const total = results.reduce((sum, result) => sum + result.value, 0);
     if (total !== size) throw new Error(`共收到 ${total} 字节，artifact 是 ${size} 字节`);
     const seconds = Math.max(0.001, (Date.now() - started) / 1000);
     deps.log(`下载完成：${(size / 1048576).toFixed(1)}MB，${seconds.toFixed(1)} 秒`);
