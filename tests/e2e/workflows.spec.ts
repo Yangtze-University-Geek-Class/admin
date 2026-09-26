@@ -19,15 +19,31 @@ async function openConsole(page: Page, path: string, persona = "captain") {
   await page.goto(url.toString());
 }
 
-test("public docs have usable labels/language switching and a console link", async ({ page }) => {
+test("public docs have usable labels/language switching; no 控制台 link for a visitor", async ({ page }) => {
+  const me = page.waitForResponse(response => new URL(response.url()).pathname === "/auth/me");
   await page.goto("/sites/portal/docs");
+  await me;
   await expect(page.getByRole("link", { name: "使用指南", exact: true })).toBeVisible();
   // 开发态右上角固定的「DEV CONTROL」浮层盖住了这个按钮（官网既有问题，与控制台无关），用键盘触发同一个按钮。
   const english = page.getByRole("button", { name: "English", exact: true });
   await english.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/docs\/usage-en/);
-  await expect(page.getByRole("link", { name: "控制台", exact: true })).toHaveAttribute("href", "/sites/admin/console");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "论坛", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "控制台", exact: true })).toHaveCount(0);
+});
+
+test("the page footer links 控制台 only when /auth/me says console_link", async ({ page }) => {
+  for (const consoleLink of [false, true]) {
+    await page.route("**/auth/me", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signed_in: true, login: "ada", user_id: 1, avatar_url: null, console_link: consoleLink }) }));
+    const me = page.waitForResponse(response => new URL(response.url()).pathname === "/auth/me");
+    await page.goto("/sites/portal/docs");
+    await me;
+    const link = page.getByRole("contentinfo").getByRole("link", { name: "控制台", exact: true });
+    if (consoleLink) await expect(link).toHaveAttribute("href", "/sites/admin/console");
+    else await expect(link).toHaveCount(0);
+    await page.unroute("**/auth/me");
+  }
 });
 
 test("portal forum entry targets the adopted Nuxt module, not the retired React page", async ({ page }) => {

@@ -25,3 +25,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：feat(forum): 极客班论坛接上核心服务的论坛接口；node scripts/forum.mjs check；GEEK_FORUM_SOURCE=site GEEK_FORUM_BASE_PATH=/forum/ node scripts/forum.mjs generate；上游 verify（3456 被别的会话的快照预览占用，forum.mjs verify 会拒绝，改在同一工作区的示例模式 dev 服务器 3466 上跑 app/forum 的 pnpm verify）
 - 结果：forum check 通过（21 个文件 326 个测试）；site generate 通过（27 条路由）；verify 7 步全过（smoke 64/64）
+
+## 17:04:21 +08:00 · 提交 · #107 · 官网的控制台入口只给 console_link 为 true 的人（portal 提交）
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：feat(portal): 桌面图标、Dock、前往菜单、启动器、终端 ls/open、头像菜单和页脚的控制台按 /auth/me 的 console_link 显示（lib/osApps.ts visibleApps）；pnpm test；PLAYWRIGHT_BROWSERS_PATH=… pnpm exec playwright test tests/e2e/
+- 结果：pnpm test 43 个文件 488 个测试通过（中途 portal-org 的「源码不写称号名字」拦下注释里的称号名，已改注释）；e2e 15 个用例全过，含新增的「页脚按 console_link 出现控制台」
