@@ -5,7 +5,6 @@ import {
   PROMO_BASE,
   PROMO_COOKIE,
   choosePlayback,
-  clock,
   firstSegment,
   hasSeenPromo,
   promoCookie,
@@ -59,14 +58,6 @@ describe("宣传片：挑播放方式", () => {
     for (const url of [PROMO.masters.av1, PROMO.masters.h264, PROMO.poster]) expect(url.startsWith(PROMO_BASE)).toBe(true);
     expect(PROMO.masters.av1).toMatch(/master-av1\.m3u8$/);
     expect(PROMO.masters.h264).toMatch(/master-h264\.m3u8$/);
-  });
-
-  it("进度文案", () => {
-    expect(clock(0)).toBe("0:00");
-    expect(clock(65.9)).toBe("1:05");
-    expect(clock(PROMO.seconds)).toBe("1:45");
-    expect(clock(Number.NaN)).toBe("0:00");
-    expect(clock(-3)).toBe("0:00");
   });
 });
 

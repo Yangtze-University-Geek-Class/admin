@@ -20,3 +20,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：feat(portal): PromoPlayer 删底部控件条、打开声音、播放宣传片按钮与空格/M 快捷键，点画面只开声音或接着播、从不暂停；gate 静音也被拒或减少动态效果时以 blocked 结束，replay 被拒停在封面提示点画面播放；promo.css 删 .pt-promo-bar/-track/-time/-icon/-play/-unmute，保留跳过的 Esc 键帽与焦点环；组件测试改写（20 条），e2e 加只有一个按钮的断言；portal.md 与 DESIGN.md 宣传片段同步
 - 结果：pnpm vitest run 4 个宣传片与桌面测试文件 55 passed；pnpm check 退出 0；pnpm test 51 文件 689 passed；12 个变异（点画面暂停、gate 被拒停封面、不看减少动态效果、加回控件按钮、Esc 失效、blocked 不记看过、点画面不开声音、replay 被拒直接关、播完的 pause 算停下、Tab 不留在跳过、空格加回暂停、被拒不静音重试）全部让用例失败；e2e 未运行（本机 Playwright 会卡住，CI 也不跑）
+
+## 22:31:26 +08:00 · 提交 · #142 · 删掉进度条留下的 clock、PROMO.seconds 和四个图标
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：refactor(portal): lib/promo.ts 删 clock 与 PROMO.seconds（只给进度文案用），lib/icons.ts 删 play-fill、pause-fill、volume-up-line、volume-mute-line（icons.ts 只收官网用到的），tests/web/portal-promo.test.ts 删进度文案用例；rg 核对官网与测试里已没有引用
+- 结果：文档核对：docs/services/web/ 不用改——删的是没人用的导出和图标，portal.md 里没写过它们；pnpm check 与 pnpm test 在提交后重跑，结果见下一条
