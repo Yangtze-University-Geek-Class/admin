@@ -147,3 +147,10 @@
 - 做了什么：c5c8886 把 stage（5c1717b，含 #106、#113、#117）合进来，无冲突；3f8d927 删掉 forum README 里「服务端接口已实现、论坛页面还没接上（#107）」一行，使该文件与 stage 相同，#126 合入时不冲突。子代理原先把删行 amend 进了合并提交，主 agent 改成纯合并 + 单独的 docs 提交
 - 结果：vitest run tests/server tests/tooling 24 个文件 418 条通过；pnpm check 退出 0
 - 下一步：推送；第四轮审查看 76c39e1..HEAD
+
+## 19:53:52 +08:00 · 返工 · #57 · 第四轮审查的应修与 4 条建议已修完：昵称存 NFKC 写法、比较去空白和形近字、韩文只收音节、被占检查放到限流和 PoW 之后
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：第四轮审查（审查的提交 08827be）有条件通过，按目的分提交修复。f34e6d9 应修：游客昵称和成员 displayName 先 NFKC 再去首尾空白，校验、存、算长度都用这个写法（不换行空格、U+2002、全角空格不再原样存下来）；nameKey 去掉所有空白和 - _ . · ・ '；昵称没改的比较两边都先这样处理；SECURITY 第 20 行、API、数据模型同步。5081db3 建议 1：nameKey 折叠形近字（ı ĸ，片假名カニロエハタトー和汉字力二口工八夕卜一，平假名へ和片假名ヘ）。ec260d4 建议 2：韩文只收 U+AC00–U+D7A3 的音节，单独的字母不收。df38fc6 建议 3：guest_name_taken 放到限流和 PoW 之后，被占也记一次这个 IP 的 guestPost，SECURITY 写明这个查询面。f0c01ae 建议 3：审计表加部分索引 idx_audit_signin_actor，旧库迁移测试核对索引和查询计划。da5b97a 建议 4：补极客班加 U+2E80 / U+302E、只在 auth.signin_denied 里的登录名、存的是「 bob 」时提交 bob 不写回三条测试。变异核对 13 次（游客存原文、nameKey 只合并空白、成员存原文、NFKC 后不查长度、不折形近字、去掉カ一项、韩文放回整个 Script=Hangul、被占不计数、被占检查放回限流之前、不建索引、去掉 (?=\p{L})、signin_denied 也算登录、没改的比较用原文），每次都有对应用例失败，恢复后工作区干净
+- 结果：vitest run tests/server tests/tooling 退出 0（24 个文件 421 条）；pnpm check 退出 0；check:docs 退出 0；没有推送。新加的行为：NFKC 之后超过长度上限的昵称（如 ㍿ 展开成四个字）按 invalid_guest_name / invalid_display_name 拒绝；兼容韩文字母（ㄱ）现在也拒绝。未验证：预发布环境、论坛页面显示新的错误信息
+- 下一步：主 agent 复核后推送并请第五轮审查
