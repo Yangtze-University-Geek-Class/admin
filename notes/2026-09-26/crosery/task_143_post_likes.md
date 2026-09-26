@@ -50,3 +50,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：gh pr create 到 stage（#151，九段正文，Closes #143）；本机核心服务（临时库 /tmp/geek143/data.db，假 GitHub 组织查询，PID 结束后已停）加按镜像方式构建的极客班论坛产物，ego-browser 一个 TaskSpace（215）：成员 ada 在 geek143.localhost:31430、游客在 geek143-guest.localhost:31430 看 t73；截图经 PR 评论框上传拿到 7 个 user-attachments 地址，评论框清空、没有提交评论，TaskSpace 已 finish；gh pr edit 把地址写进「验收证据」
 - 结果：成员点首帖「赞 2」177 ms 后变红色实心「赞 3」、aria-pressed=true、没有刷新页面；刷新后仍是「赞 3」；给回复点赞变「赞 1」、刷新仍在、再点回到「赞」；重新读 /api/forum/state 与 forum_likes 表都有 m1001。游客看到「赞 3」不变红，点了弹「登录后才能继续」带「登录」按钮，赞数不变。390×844 模拟手机操作栏一行放得下、没有横向溢出。注意：第一次把测试会话的 sid 设在 127.0.0.1 上，cookie 不分端口，被本机别的会话的 sid 覆盖（也可能先覆盖了它的），之后改用只属于本次的 geek143.localhost，没有删过任何 cookie
+
+## 23:37:50 +08:00 · 审查 · #143 · 独立审查 PR #151：通过，可以合并
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：逐项读 origin/stage...f869d28 的 12 个文件：likes.ts 纯函数（「赞」「赞 N」、liked、图标、tone、click）、PostCard 接线、LoginModal 改用 access.ts 的 loginPromptToast、smoke-routes 与 verify-topic-page 改按文字找赞按钮、likes.test.ts、access.test.ts、tests/server/forum.test.ts 的写库回归。核对 Tuffex 0.6.0 的 TxButton：设了 variant 时 type 仍输出 tone-<type> 类，dist 里有 .variant-flat.tone-danger（红字、红边框），所以赞过变红能生效。PR 头 f869d28 的 forum、core、docker、env-contract、actionlint、pr-contract 都通过；branch-guard 与 verify 失败的一次是缺审查记录
+- 结果：通过。行为和文案符合 #143；去掉 aria-label 后读屏读到「赞 3」；写入路径没有动，留给 #145。风险：likes.test.ts 用正则核对 PostCard 的 like() 源码，#145 改 like() 时要一起改这条测试，合并顺序是先 #151 后 #145。未验证：预发布环境上的真实点击，等下一个 rc 部署后在 ego 里验收
+- 下一步：合并 #151，确认 #143 关闭、远程分支和本地工作区清掉；告诉 #145 基于新的 stage 变基
