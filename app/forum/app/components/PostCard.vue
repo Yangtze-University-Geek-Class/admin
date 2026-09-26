@@ -90,7 +90,7 @@ async function saveEdit() {
   if (!draft.value.trim())
     return
   const text = draft.value
-  const saved = actions.editPost(props.post.id, fromEditor(draft.value))
+  const saved = actions.editPost(props.post.id, draft.value)
   editing.value = false
   if (!await saved) {
     if (!editing.value) {
