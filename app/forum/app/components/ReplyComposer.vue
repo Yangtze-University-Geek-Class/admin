@@ -20,6 +20,12 @@ import { quoteDraft } from '../../shared/post-markdown'
  * The prefilled quote (`quoteDraft`) goes into PostEditor as written: its
  * preview renders through ForumMarkdown, so raw HTML in someone else's post
  * shows as text there, as it does on the page.
+ *
+ * Against the forum server the drawer closes as soon as a reply is sent
+ * (#145). A reply the server refuses comes back into the drawer with the post
+ * it answered, in front of whatever the drawer holds by then, so nothing
+ * typed is lost: not when another reply was started meanwhile, not when two
+ * were refused, not when the page was left before the refusal arrived.
  */
 const props = defineProps<{
   visible: boolean
@@ -30,6 +36,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [visible: boolean]
+  /** A refused reply goes back to the post it answered (`undefined`: the topic). */
+  'update:replyTo': [post: Post | undefined]
   'submitted': [postId: string]
 }>()
 
@@ -89,18 +97,39 @@ function close() {
 }
 
 /**
+ * Puts this topic's refused replies back (stores/forum-server.ts keeps them):
+ * each one in front of what the drawer holds, a blank line between, and the
+ * drawer answers the post the last of them answered.
+ */
+function takeBackRefused() {
+  const refused = server.takeRefusedReplies(props.topic.id)
+  const last = refused.at(-1)
+  if (!last)
+    return
+  let draft = content.value.trim() ? content.value : ''
+  for (const reply of refused)
+    draft = draft ? `${reply.content}\n\n${draft}` : reply.content
+  content.value = draft
+  emit('update:replyTo', last.replyToPostId ? forum.postById(last.replyToPostId) : undefined)
+  emit('update:visible', true)
+}
+
+onMounted(takeBackRefused)
+watch(() => server.refusedReplies.length, takeBackRefused)
+
+/**
  * The reply is on the page as soon as this is called (against the server under
  * a `pending:` id, see stores/forum-server.ts), so the panel closes at once and
  * the page is told where it is. 回复已发布 waits for the server; if it refuses,
- * its toast says why and the panel opens again with the text, so nothing typed
- * is lost.
+ * its toast says why and the text goes to the server store with its target,
+ * from where `takeBackRefused` puts it back.
  */
 async function submit() {
   const current = user.value
   const body = text.value
   if (!canSend.value || submitting.value)
     return
-  const draft = content.value
+  const topicId = props.topic.id
   const replyToPostId = props.replyTo?.id
   let shownId: string | null = null
   const shown = (postId: string) => {
@@ -132,9 +161,7 @@ async function submit() {
   try {
     const postId = await sending
     if (!postId) {
-      if (!content.value.trim())
-        content.value = draft
-      emit('update:visible', true)
+      server.keepRefusedReply({ topicId, content: body, ...(replyToPostId ? { replyToPostId } : {}) })
       return
     }
     toast({ title: '回复已发布', variant: 'success' })

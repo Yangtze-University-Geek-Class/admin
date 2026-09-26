@@ -87,7 +87,7 @@ describe('the reply drawer', () => {
       },
       globals: {
         useForumStore: () => ({ userById: () => member, postsOfTopic: () => [hostilePost, plainPost] }),
-        useForumServerStore: () => ({ guestPolicy: { contentMax: 2000, nameMax: 20, turnstileSiteKey: null } }),
+        useForumServerStore: () => ({ guestPolicy: { contentMax: 2000, nameMax: 20, turnstileSiteKey: null }, refusedReplies: [], takeRefusedReplies: () => [] }),
         useForumActions: () => ({ createPost }),
         useContentSource: () => ({ serverMode: true }),
         useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),

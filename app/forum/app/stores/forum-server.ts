@@ -68,6 +68,9 @@ export interface ReplyAsGuestInput extends CreatePostBody {
 /** Called with the id a reply is shown under the moment it is on the page (a `pending:` one against the server). */
 export type ReplyShown = (postId: string) => void
 
+/** A reply that did not get onto the server: its text and the post it answered (none for the topic itself). */
+export type RefusedReply = CreatePostBody
+
 /** How one lane reads, shows and sends its value (a post's like, a topic's pin, the viewer's profile …). */
 interface LaneSpec<V> {
   /** What the page shows now. */
@@ -148,6 +151,24 @@ export const useForumServerStore = defineStore('forum-server', () => {
    */
   const serverPosts = new Map<string, Pick<Post, 'content' | 'editedAt' | 'deleted'>>()
   const serverReads = new Map<string, boolean>()
+  /**
+   * Replies the server did not take (#145), kept here rather than in the
+   * composer so that leaving the topic page before the refusal arrives loses
+   * nothing: the topic's composer takes them back when it is next on screen.
+   */
+  const refusedReplies = ref<RefusedReply[]>([])
+
+  function keepRefusedReply(reply: RefusedReply): void {
+    refusedReplies.value.push({ ...reply })
+  }
+
+  /** Hands over (and forgets) this topic's refused replies, oldest first. */
+  function takeRefusedReplies(topicId: string): RefusedReply[] {
+    const taken = refusedReplies.value.filter(reply => reply.topicId === topicId)
+    if (taken.length)
+      refusedReplies.value = refusedReplies.value.filter(reply => reply.topicId !== topicId)
+    return taken
+  }
 
   function remember(records: Pick<ForumChanges, 'posts' | 'notifications'>): void {
     for (const post of records.posts ?? [])
@@ -666,6 +687,9 @@ export const useForumServerStore = defineStore('forum-server', () => {
     viewer,
     guestPolicy,
     granted,
+    refusedReplies,
+    keepRefusedReply,
+    takeRefusedReplies,
     load,
     createTopic,
     createPost,

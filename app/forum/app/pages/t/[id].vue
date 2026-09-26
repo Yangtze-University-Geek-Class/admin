@@ -116,8 +116,8 @@ function openComposer(post?: Post) {
 }
 
 // Called twice against the server: once for the reply shown while it is sent,
-// once for the post the server made of it. `replyTo` stays, so a refused reply
-// reopens the composer on the same target.
+// once for the post the server made of it. A refused reply reopens the
+// composer and sets `replyTo` back to the post it answered (#145).
 async function onSubmitted(postId: string) {
   await nextTick()
   focusPost(postId)
@@ -226,8 +226,8 @@ onBeforeUnmount(() => clearTimeout(flashTimer))
 
     <ReplyComposer
       v-model:visible="composerOpen"
+      v-model:reply-to="replyTo"
       :topic="topic"
-      :reply-to="replyTo"
       @submitted="onSubmitted"
     />
   </TxStack>
