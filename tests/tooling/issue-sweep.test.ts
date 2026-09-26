@@ -19,9 +19,12 @@ const merged = [
   { number: 21, title: "旧 PR", headRefName: "task/14/old", baseRefName: "stage", body: "Closes #14", mergedAt: daysAgo(40), mergeCommit: { oid: "f".repeat(40) } },
   { number: 115, title: "第一轮", headRefName: "task/15/part", baseRefName: "stage", body: "Closes #15", mergedAt: daysAgo(2), mergeCommit: { oid: "1".repeat(40) } },
   { number: 116, title: "刚合并", headRefName: "task/16/fresh", baseRefName: "stage", body: "Closes #16", mergedAt: daysAgo(0.5 / 24), mergeCommit: { oid: "2".repeat(40) } },
+  { number: 120, title: "重开后别人修好", headRefName: "someone/patch17", baseRefName: "stage", body: "Closes #17", mergedAt: daysAgo(2), mergeCommit: { oid: "3".repeat(40) } },
+  { number: 118, title: "#18 的第一段", headRefName: "task/18/first", baseRefName: "stage", body: "Closes #18", mergedAt: daysAgo(25), mergeCommit: { oid: "4".repeat(40) } },
+  { number: 119, title: "#19 的 PR", headRefName: "task/19/x", baseRefName: "stage", body: "Closes #19", mergedAt: daysAgo(30), mergeCommit: { oid: "5".repeat(40) } },
 ];
 
-const openPrs = [{ number: 117, headRefName: "task/15/more", body: "Closes #15" }];
+const openPrs = [{ number: 117, headRefName: "task/15/more", body: "Closes #15" }, { number: 130, headRefName: "task/18/second", body: "Closes #18" }];
 
 const open = [
   { number: 1, title: "合并了还开着", updatedAt: daysAgo(2), comments: [track("progress", "dev", daysAgo(5))] },
@@ -32,9 +35,14 @@ const open = [
   { number: 6, title: "只被合进 main 的 PR 提到", updatedAt: daysAgo(1), comments: [] },
   { number: 12, title: "只被 Refs", updatedAt: daysAgo(14), comments: [] },
   // 早年用普通文字关的（没有 yzgc:track 记录头），后来又被重开：不能按旧 PR 再关
-  { number: 14, title: "旧格式关闭后重开", updatedAt: daysAgo(20), stateReason: "REOPENED", comments: [{ body: "已由 PR #21 合并进 stage，关闭。", createdAt: daysAgo(40) }] },
+  { number: 14, title: "旧格式关闭后重开", updatedAt: daysAgo(20), stateReason: "REOPENED", reopenedAt: daysAgo(30), comments: [{ body: "已由 PR #21 合并进 stage，关闭。", createdAt: daysAgo(40) }] },
   { number: 15, title: "还有开着的 PR", updatedAt: daysAgo(2), comments: [] },
   { number: 16, title: "PR 刚合并", updatedAt: daysAgo(20), comments: [] },
+  // issue 开着时 stateReason 一直是 REOPENED：重开在最近一次合并之前，合并之后没人再重开，就该补关
+  { number: 17, title: "重开后又被修好", updatedAt: daysAgo(2), stateReason: "REOPENED", reopenedAt: daysAgo(10), comments: [] },
+  { number: 18, title: "合并了一段，还有 PR 开着", updatedAt: daysAgo(20), comments: [] },
+  // 查不到重开时间：当作合并后重开，不补关
+  { number: 19, title: "查不到重开时间", updatedAt: daysAgo(20), stateReason: "REOPENED", reopenedAt: null, comments: [] },
 ];
 
 const closed = [
@@ -58,7 +66,7 @@ describe("issue 巡检：要做什么", () => {
 
   it("三件事各就各位：补关、超期、缺记录，其余不动", () => {
     expect(plan().map((action: { type: string, issue: { number: number } }) => `${action.type} #${action.issue.number}`)).toEqual([
-      "close #1", "close #2", "overdue #3", "overdue #4", "overdue #12", "overdue #14", "unrecorded #7", "unrecorded #13",
+      "close #1", "close #2", "overdue #3", "overdue #4", "overdue #12", "overdue #14", "close #17", "overdue #18", "overdue #19", "unrecorded #7", "unrecorded #13",
     ]);
   });
 
@@ -74,12 +82,21 @@ describe("issue 巡检：要做什么", () => {
 
   it("不补关：GitHub 标着 REOPENED 的（旧格式的文字关闭评论认不出来）、还有开着的 PR 关联的、PR 合并不到一小时的", () => {
     const numbers = (actions: Array<{ type: string, issue: { number: number } }>) => actions.filter((action) => action.type === "close").map((action) => action.issue.number);
-    expect(numbers(plan())).toEqual([1, 2]);
+    expect(numbers(plan())).toEqual([1, 2, 17]);
     // 去掉 REOPENED 就会被旧 PR 再关一次：这正是要防的
-    const notReopened = open.map((issue) => (issue.number === 14 ? { ...issue, stateReason: undefined } : issue));
-    expect(numbers(planSweep({ open: notReopened, closed, merged, openPrs, now: NOW }))).toEqual([1, 2, 14]);
-    expect(numbers(planSweep({ open, closed, merged, now: NOW }))).toEqual([1, 2, 15]);
-    expect(numbers(planSweep({ open, closed, merged, openPrs, now: new Date(NOW.getTime() + 2 * 3_600_000) }))).toEqual([1, 2, 16]);
+    const notReopened = open.map((issue) => (issue.number === 14 ? { ...issue, stateReason: undefined, reopenedAt: undefined } : issue));
+    expect(numbers(planSweep({ open: notReopened, closed, merged, openPrs, now: NOW }))).toEqual([1, 2, 14, 17]);
+    expect(numbers(planSweep({ open, closed, merged, now: NOW }))).toEqual([1, 2, 15, 17, 18]);
+    expect(numbers(planSweep({ open, closed, merged, openPrs, now: new Date(NOW.getTime() + 2 * 3_600_000) }))).toEqual([1, 2, 16, 17]);
+  });
+
+  it("没补关的超期 issue，「超期」记录写明已合并的 PR 和没补关的原因", () => {
+    const body = (number: number) => plan().find((action: { issue: { number: number } }) => action.issue.number === number).body;
+    expect(body(14)).toContain(`关联的 PR #21 在 ${beijing(daysAgo(40))} 合并进 stage，之后这个 issue 在 ${beijing(daysAgo(30))} 又被重开，巡检不再补关`);
+    expect(body(19)).toContain("关联的 PR #119 在");
+    expect(body(19)).toContain("之后这个 issue 又被重开，巡检不再补关");
+    expect(body(18)).toContain("关联的 PR #118 已合并进 stage，但还有开着的 PR #130 关联它，巡检不补关");
+    expect(body(4)).toContain("还开着，stage 上没有关联它的已合并 PR；");
   });
 
   it("合并后关过又被重开的不再去关，按超期算；超期记录沿用最后一条记录的阶段", () => {
@@ -104,7 +121,7 @@ describe("issue 巡检：要做什么", () => {
   });
 
   it("阈值可调：idle-days 设成 30 时两周没动静的不算超期", () => {
-    expect(planSweep({ open, closed: [], merged, openPrs, now: NOW, idleDays: 30 }).map((action: { type: string }) => action.type)).toEqual(["close", "close"]);
+    expect(planSweep({ open, closed: [], merged, openPrs, now: NOW, idleDays: 30 }).map((action: { type: string }) => action.type)).toEqual(["close", "close", "close"]);
   });
 
   it("记录格式与 TRACKING.md §3 一致，新增的两种类型写进了 TRACKING 的类型表", () => {
@@ -137,7 +154,7 @@ describe("issue 巡检：命令行（假 gh）", () => {
   });
 
   /** 假 gh：list 类查询回夹具，其它调用追加到日志里 */
-  function fakeGh(fixtures: { open: object[], closed: object[], merged: object[], openPrs?: object[], comments?: Record<string, object[]> }, { failOn }: { failOn?: string } = {}) {
+  function fakeGh(fixtures: { open: object[], closed: object[], merged: object[], openPrs?: object[], comments?: Record<string, object[]>, reopenedAt?: Record<string, string> }, { failOn }: { failOn?: string } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "geek-issue-sweep-"));
     dirs.push(dir);
     writeFileSync(join(dir, "fixtures.json"), JSON.stringify(fixtures));
@@ -149,6 +166,8 @@ describe("issue 巡检：命令行（假 gh）", () => {
       'const state = args[args.indexOf("--state") + 1];',
       'if (args[0] === "pr" && args[1] === "list") { console.log(JSON.stringify(state === "open" ? fixtures.openPrs ?? [] : fixtures.merged)); process.exit(0); }',
       'if (args[0] === "issue" && args[1] === "list") { console.log(JSON.stringify(state === "open" ? fixtures.open : fixtures.closed)); process.exit(0); }',
+      // gh api graphql …-F number=<n>：回这个 issue 最后一次重开的时间（夹具 reopenedAt，没有就空）
+      'if (args[0] === "api" && args[1] === "graphql") { const n = args.find((arg) => arg.startsWith("number=")).slice(7); console.log(fixtures.reopenedAt?.[n] ?? ""); process.exit(0); }',
       // gh api --paginate repos/<repo>/issues/<n>/comments --jq '… | @json'：每行一条评论
       'if (args[0] === "api") { const n = /issues\\/(\\d+)\\/comments/.exec(args.join(" "))[1]; for (const c of fixtures.comments?.[n] ?? []) console.log(JSON.stringify(c)); process.exit(0); }',
       `appendFileSync(${JSON.stringify(join(dir, "calls.log"))}, JSON.stringify(args) + "\\n");`,
@@ -221,5 +240,17 @@ describe("issue 巡检：命令行（假 gh）", () => {
     expect(result.stdout).toContain("没有要处理的 issue。");
     const truncated = fakeGh({ ...fixtures, comments: { 7: hundred } });
     expect(sweep(truncated, ["--repo", "org/repo"]).stdout).toContain("| #7 | 将留「缺记录」 |");
+  });
+
+  it("stateReason 是 REOPENED 的 issue 去时间线查重开时间：重开在合并之前就补关，之后就不关", () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+    const fixtures = {
+      open: [{ number: 5, title: "重开过", updatedAt: hoursAgo(1), stateReason: "REOPENED", comments: [] }],
+      closed: [],
+      merged: [{ number: 150, title: "PR", headRefName: "someone/patch", baseRefName: "stage", body: "Closes #5", mergedAt: hoursAgo(3), mergeCommit: { oid: "a".repeat(40) } }],
+    };
+    expect(sweep(fakeGh({ ...fixtures, reopenedAt: { 5: hoursAgo(5) } }), ["--repo", "org/repo"]).stdout).toContain("| #5 | 将补关 |");
+    expect(sweep(fakeGh({ ...fixtures, reopenedAt: { 5: hoursAgo(2) } }), ["--repo", "org/repo"]).stdout).toContain("没有要处理的 issue。");
+    expect(sweep(fakeGh(fixtures), ["--repo", "org/repo"]).stdout).toContain("没有要处理的 issue。");
   });
 });

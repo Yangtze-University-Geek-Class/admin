@@ -8,8 +8,10 @@
 // 三件事，结果以 Markdown 表格打到标准输出（工作流写进运行摘要）：
 //   1. 关闭：开着的 issue，关联的 PR 已经合并进 stage（PR 的 head 是 task/<issue>/…，或正文写了 Closes #<issue>）。
 //      close-on-merge 本该在合并时关掉它；没关上（工作流失败、PR 不是 task 分支）就在这里补关，留「关闭」记录。
-//      这些情况不补关，按下一条算：有人重开过（GitHub 的 stateReason 是 REOPENED，或者合并之后已经有过「关闭」记录，
-//      旧的 issue 当初是用普通文字关的，只能靠前者认出来）；还有开着的 PR 关联同一个 issue。
+//      这些情况不补关，按下一条算：最近一次合并之后有人重开过（重开时间取 GitHub 时间线上最后一次 REOPENED_EVENT；
+//      stateReason 在 issue 开着时一直是 REOPENED，只能说明重开过，不能说明是在合并前还是合并后；查不到重开时间就当作
+//      合并后重开。合并之后已经有过「关闭」记录也算，旧的 issue 当初是用普通文字关的，只能靠前者认出来）；
+//      还有开着的 PR 关联同一个 issue。这样的 issue 超期时，「超期」记录写明已合并的 PR 和它为什么没被补关。
 //      合并不到一小时的 PR 先不管，那是 close-on-merge 的事，免得两边各留一条。
 //   2. 超期：其余开着的 issue，idle-days 天没有任何动静（GitHub 的 updatedAt）：留一条「超期」记录，写明三种处理办法。
 //      留言本身会刷新 updatedAt，所以同一个 issue 最多每 idle-days 天一条。
@@ -68,12 +70,24 @@ export function closeNote(pr) {
   ].join("\n");
 }
 
-export function overdueNote({ updatedAt, idleDays, stage, days }) {
+/**
+ * 超期的 issue 和 PR 的关系，写进「超期」记录的现状：
+ * pr 是关联的已合并 PR（没有就是 null），reopenedAt 是合并后重开的时间（null 表示没重开或查不到），openPrNumbers 是关联它的开着的 PR。
+ */
+export function situation({ pr = null, reopened = false, reopenedAt = null, openPrNumbers = [] }) {
+  const open = openPrNumbers.map((number) => `#${number}`).join("、");
+  if (pr && reopened) return `关联的 PR #${pr.number} 在 ${beijing(pr.mergedAt)} 合并进 stage，之后这个 issue ${reopenedAt ? `在 ${beijing(reopenedAt)} ` : ""}又被重开，巡检不再补关`;
+  if (pr && open) return `关联的 PR #${pr.number} 已合并进 stage，但还有开着的 PR ${open} 关联它，巡检不补关`;
+  if (open) return `关联的 PR ${open} 还开着，stage 上没有关联它的已合并 PR`;
+  return "stage 上没有关联它的已合并 PR";
+}
+
+export function overdueNote({ updatedAt, idleDays, stage, days, context = situation({}) }) {
   return [
     `<!-- yzgc:track v1 kind=overdue stage=${stage} -->`,
     `**超期**｜${idleDays} 天没有动静，请负责人决定关掉、拆出外部等待，还是接着做`,
     "",
-    `**现状**：还开着，stage 上没有关联它的已合并 PR；最后一次更新在 ${beijing(updatedAt)}（北京时间），已经 ${days} 天。`,
+    `**现状**：还开着，${context}；最后一次更新在 ${beijing(updatedAt)}（北京时间），已经 ${days} 天。`,
     "**下一步**：按 docs/conventions/TRACKING.md §1 三选一：做完了（运维操作、决定不做、被别的改动顺带解决）就写一条「关闭」记录并关掉；只剩外部等待就关掉这个 issue，把剩下的一步开成新 issue、写明负责人；还要接着做就留一条「进展」，写清卡在哪、谁在做。",
   ].join("\n");
 }
@@ -92,7 +106,8 @@ export function unrecordedNote({ closedAt, stateReason }) {
 /**
  * 算出巡检要做的事。
  * @param {{
- *   open: Array<{ number: number, title: string, updatedAt: string, stateReason?: string, comments?: Array<{ body: string, createdAt: string }> }>,
+ *   open: Array<{ number: number, title: string, updatedAt: string, stateReason?: string, reopenedAt?: string | null, comments?: Array<{ body: string, createdAt: string }> }>,
+ *     reopenedAt：时间线上最后一次重开的时间，stateReason 是 REOPENED 时由 load 查好；查不到是 null
  *   closed: Array<{ number: number, title: string, closedAt: string, stateReason?: string, comments?: Array<{ body: string, createdAt: string }> }>,
  *   merged: Array<{ number: number, title?: string, headRefName: string, baseRefName?: string, body?: string, mergedAt: string, mergeCommit?: { oid: string } }>,
  *   openPrs?: Array<{ number: number, headRefName: string, body?: string }>,
@@ -110,23 +125,27 @@ export function planSweep({ open, closed, merged, openPrs = [], now = new Date()
     }
   }
 
-  const inFlight = new Set(openPrs.flatMap((pr) => linkedIssues(pr)));
+  const openPrsFor = new Map();
+  for (const pr of openPrs) for (const issue of linkedIssues(pr)) openPrsFor.set(issue, [...(openPrsFor.get(issue) ?? []), pr.number]);
 
   const actions = [];
   for (const issue of [...open].sort((a, b) => a.number - b.number)) {
     const records = trackRecords(issue.comments);
     const pr = mergedFor.get(issue.number);
     if (pr && now.getTime() - Date.parse(pr.mergedAt) < MERGE_GRACE_MS) continue;
-    const reopened = issue.stateReason === "REOPENED"
-      || (pr && records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= Date.parse(pr.mergedAt)));
-    if (pr && !reopened && !inFlight.has(issue.number)) {
+    // 最近一次合并之后重开过：重开时间查不到时当作合并后重开，宁可不关
+    const reopenedAfterMerge = Boolean(pr) && ((issue.stateReason === "REOPENED" && (!issue.reopenedAt || Date.parse(issue.reopenedAt) > Date.parse(pr.mergedAt)))
+      || records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= Date.parse(pr.mergedAt)));
+    const openPrNumbers = openPrsFor.get(issue.number) ?? [];
+    if (pr && !reopenedAfterMerge && !openPrNumbers.length) {
       actions.push({ type: "close", issue, pr, body: closeNote(pr), reason: `PR #${pr.number} 已合并进 stage，issue 还开着` });
       continue;
     }
     const days = Math.floor((now.getTime() - Date.parse(issue.updatedAt)) / DAY_MS);
     if (days >= idleDays) {
       const stage = records.at(-1)?.stage ?? "triage";
-      actions.push({ type: "overdue", issue, body: overdueNote({ updatedAt: issue.updatedAt, idleDays, stage, days }), reason: `${days} 天没有动静` });
+      const context = situation({ pr, reopened: reopenedAfterMerge, reopenedAt: reopenedAfterMerge ? issue.reopenedAt ?? null : null, openPrNumbers });
+      actions.push({ type: "overdue", issue, body: overdueNote({ updatedAt: issue.updatedAt, idleDays, stage, days, context }), reason: `${days} 天没有动静` });
     }
   }
 
@@ -178,13 +197,30 @@ function allComments(issue, repo) {
   return { ...issue, comments: lines.map((line) => JSON.parse(line)) };
 }
 
+const REOPENED_QUERY = "query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { timelineItems(itemTypes: [REOPENED_EVENT], last: 1) { nodes { ... on ReopenedEvent { createdAt } } } } } }";
+
+/** stateReason 是 REOPENED 的 issue，查时间线上最后一次重开的时间；查不到是 null（planSweep 当作合并后重开，不补关） */
+function withReopenedAt(issue, nameWithOwner) {
+  if (issue.stateReason !== "REOPENED") return issue;
+  const [owner, name] = nameWithOwner.split("/");
+  try {
+    const at = gh(["api", "graphql", "-f", `query=${REOPENED_QUERY}`, "-F", `owner=${owner}`, "-F", `name=${name}`, "-F", `number=${issue.number}`,
+      "--jq", ".data.repository.issue.timelineItems.nodes[0].createdAt // \"\""]).trim();
+    return { ...issue, reopenedAt: at || null };
+  } catch {
+    return { ...issue, reopenedAt: null };
+  }
+}
+
 function load({ repo, now, closedDays }) {
   const scope = repo ? ["--repo", repo] : [];
   const since = new Date(now.getTime() - closedDays * DAY_MS).toISOString().slice(0, 10);
   const list = (args) => JSON.parse(gh([...args, ...scope]));
   const withComments = (issues) => issues.map((issue) => allComments(issue, repo));
+  const nameWithOwner = repo ?? gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
   return {
-    open: withComments(list(["issue", "list", "--state", "open", "--limit", "500", "--json", "number,title,updatedAt,stateReason,comments"])),
+    open: withComments(list(["issue", "list", "--state", "open", "--limit", "500", "--json", "number,title,updatedAt,stateReason,comments"]))
+      .map((issue) => withReopenedAt(issue, nameWithOwner)),
     closed: withComments(list(["issue", "list", "--state", "closed", "--limit", "500", "--search", `closed:>=${since}`, "--json", "number,title,closedAt,stateReason,comments"])),
     merged: list(["pr", "list", "--state", "merged", "--base", "stage", "--limit", "500", "--json", "number,title,headRefName,baseRefName,body,mergedAt,mergeCommit"]),
     openPrs: list(["pr", "list", "--state", "open", "--limit", "500", "--json", "number,headRefName,body"]),

@@ -157,3 +157,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：docs(docs): TRACKING 生命周期表改成「同一个 PR 里」，code-review 技能第 7 项加 check-doc-sync --base origin/stage --head 与文档核对的核对；pnpm check:docs
 - 结果：check:docs 退出 0
+
+## 19:28:45 +08:00 · 提交 · #115 · 巡检按时间线上的重开时间判断，超期记录写明没补关的原因
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): 巡检只在最近一次合并之后重开过时不补关，超期记录写明已合并的 PR 与原因；vitest tests/tooling/issue-sweep.test.ts；对真实仓库只读试 GraphQL 查询（#16、#70 返回空，没有重开过）
+- 结果：14 passed；真实仓库里现在没有 stateReason 是 REOPENED 的 issue，只读巡检：没有要处理的 issue
