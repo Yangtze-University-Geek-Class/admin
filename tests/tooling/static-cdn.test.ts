@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { siteCsp } from '../../app/forum/scripts/csp-header.mjs';
 import { STATIC_CDN_BASE, STATIC_CDN_BUCKET, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from '../../scripts/static-cdn-base.mjs';
 import {
-  MAX_FILE_BYTES, UPLOAD_HOST, assertKey, collect, cspAllows, decide, main, mimeFor, originPathOf, parseArgs, qetag,
+  AREAS, DECIDE_MIN_REMAINING_SECONDS, MAX_FILE_BYTES, MAX_TOKEN_SECONDS, PUBLIC_DIRS, UPLOAD_HOST, UPLOAD_MIN_REMAINING_SECONDS,
+  assertKey, collect, cspAllows, decide, main, mimeFor, originPathOf, parseArgs, qetag,
   readUploadPolicy, signUploadToken, uploadAll, uploadOne, uploadPolicy,
 } from '../../scripts/static-cdn.mjs';
 
@@ -81,6 +82,8 @@ describe('collect: which files of a build get uploaded', () => {
     writeFileSync(join(dir, path), body);
   };
   const roots = () => ({ web: join(dir, 'web'), forum: join(dir, 'forum') });
+  // 假的源码 public 目录（官网、控制台、论坛），不读仓库里的真实目录。
+  const publicDirs = () => ({ web: [join(dir, 'src/web-public'), join(dir, 'src/console-public')], forum: [join(dir, 'src/forum-public')] });
   const fixture = () => {
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
@@ -98,13 +101,16 @@ describe('collect: which files of a build get uploaded', () => {
     put('forum/_nuxt/logo.aFxUkDTw.png');
     put('forum/_nuxt/builds/latest.json', '{"id":"x"}');
     put('forum/_nuxt/builds/meta/7bc7befa-4c9a-46aa-ad06-8073788e081b.json', '{}');
+    // public 目录里有文件，但不在产物目录里：不影响上传。
+    put('src/web-public/logo.png');
+    put('src/forum-public/logo.png');
   };
   beforeAll(() => { dir = mkdtempSync(join(tmpdir(), 'static-cdn-')); });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it('takes only the hashed files of assets/, console-assets/ and forum _nuxt/ (plus the per-build meta), never latest.json', () => {
     fixture();
-    const entries = collect(roots());
+    const entries = collect(roots(), { publicDirs: publicDirs() });
     expect(entries.map(entry => entry.key)).toEqual([
       'yzgc/static/site/assets/MapleMono-Regular-CzQ1iDN2.woff2',
       'yzgc/static/site/assets/portal-Br-Bop_b.js',
@@ -120,8 +126,35 @@ describe('collect: which files of a build get uploaded', () => {
     expect(js.size).toBe('forum/_nuxt/Bh2i2wUT.js'.length);
   });
 
+  it('accepts every name shape the current builds produce', () => {
+    fixture();
+    // 取自本机 web、console、forum 的真实产物（2026-09-27），包括哈希里带 - 和 _、全是小写加数字、名字里带点的。
+    const web = [
+      'assets/vendor-mo-yqQQ4.js', 'assets/nunito-cyrillic-700-normal-DfHRUDv-.woff', 'assets/quicksand-latin-500-normal-_DbwbYKP.woff2',
+      'assets/nunito-latin-ext-400-normal-i-8OOpdj.woff2', 'assets/hls.light-BIr5LmOV.js', 'assets/yugc-thumb-DVfikhFu.webp', 'assets/stage-5kTqngLo.js',
+      'console-assets/TitleBadge.vue_vue_type_script_setup_true_lang-D2RTj2fV.js', 'console-assets/purify.es-BPuvlvQ_.js',
+      'console-assets/index-q_LTQ-vz.js', 'console-assets/favicon-32-BpVePzBA.png', 'console-assets/Forum-DUck-jVy.js',
+    ];
+    const forum = ['_nuxt/sok5vuyt.js', '_nuxt/BK-uBHV1.js', '_nuxt/rUyK_OGP.js', '_nuxt/82CXSzep.js', '_nuxt/entry.CWRjoBJd.css', '_nuxt/logo.Dx3Kp_9a.png'];
+    for (const path of web) put(`web/${path}`);
+    for (const path of forum) put(`forum/${path}`);
+    const keys = collect(roots(), { publicDirs: publicDirs() }).map(entry => entry.key);
+    for (const path of web) expect(keys).toContain(`${STATIC_CDN_PREFIX}${path}`);
+    for (const path of forum) expect(keys).toContain(`${STATIC_CDN_PREFIX}forum/${path}`);
+  });
+
   it.each([
     ['an unhashed file', () => put('web/assets/readme.js'), /文件名不带内容哈希/],
+    ['a Vite folder file without the -<hash> part', () => put('web/assets/manifest.json'), /web:assets\/manifest\.json（文件名不带内容哈希/],
+    ['a Nuxt-shaped name in the Vite folders', () => put('web/console-assets/12345678.js'), /文件名不带内容哈希/],
+    ['a subfolder in the Vite folders', () => put('web/assets/fonts/a-12345678.woff2'), /文件名不带内容哈希/],
+    ['a forum file without a hash', () => put('forum/_nuxt/manifest.json'), /forum:_nuxt\/manifest\.json（文件名不带内容哈希/],
+    ['a Vite-shaped name in the forum folder', () => put('forum/_nuxt/my-template.js'), /文件名不带内容哈希/],
+    ['a bare 8-character forum name that is not a script', () => put('forum/_nuxt/12345678.css'), /文件名不带内容哈希/],
+    // 形状和带哈希的产物一样，但它是 public/ 里的文件原样复制进来的：只有对照 public 目录才分得出来。
+    ['a public/assets file that looks hashed', () => { put('src/web-public/assets/my-template.js'); put('web/assets/my-template.js'); }, /web:assets\/my-template\.js（是 .*src\/web-public\/assets\/my-template\.js 原样复制进来的/],
+    ['a public/_nuxt file that looks hashed', () => { put('src/forum-public/_nuxt/abcdefgh.js'); put('forum/_nuxt/abcdefgh.js'); }, /原样复制进来的/],
+    ['a console public file, if the console ever turns its publicDir on', () => { put('src/console-public/console-assets/app-abcdefgh.js'); put('web/console-assets/app-abcdefgh.js'); }, /原样复制进来的/],
     ['a hidden file', () => put('web/console-assets/.DS_Store'), /隐藏文件/],
     ['a build meta file that is not a build id', () => put('forum/_nuxt/builds/meta/latest.json'), /文件名不带内容哈希/],
     ['an unknown file type', () => put('web/assets/page-12345678.html'), /不认识的文件类型/],
@@ -131,7 +164,18 @@ describe('collect: which files of a build get uploaded', () => {
   ])('fails the whole upload on %s instead of skipping it', (_name, change, error) => {
     fixture();
     change();
-    expect(() => collect(roots())).toThrow(error);
+    expect(() => collect(roots(), { publicDirs: publicDirs() })).toThrow(error);
+  });
+
+  it('checks the real public folders by default, and none of them feeds a hashed output folder', () => {
+    // 默认对照本仓库的 public 目录：它们都不往带哈希的产物目录里放文件。
+    expect(PUBLIC_DIRS).toEqual({ web: ['app/web/public', 'app/console/public'], forum: ['app/forum/public'] });
+    for (const dir of ['app/web/public', 'app/forum/public']) expect(existsSync(join(repoRoot, dir)), dir).toBe(true);
+    for (const area of AREAS) {
+      for (const dir of PUBLIC_DIRS[area.site as 'web' | 'forum']) expect(existsSync(join(repoRoot, dir, area.dir)), `${dir}/${area.dir}`).toBe(false);
+    }
+    fixture();
+    expect(collect(roots()).length).toBe(7);
   });
 });
 
@@ -160,6 +204,10 @@ describe('upload token: prefix-scoped, insert-only, expiring', () => {
     ['insertOnly missing', { insertOnly: undefined }, /insertOnly/],
     ['expired', { deadline: NOW / 1000 - 1 }, /过期/],
     ['expiring within 10 minutes', { deadline: NOW / 1000 + 300 }, /过期/],
+    // 构建最长 60 分钟 + 上传最长 20 分钟：决定开关时剩不到 90 分钟就不开。
+    ['expiring within 90 minutes', { deadline: NOW / 1000 + 90 * 60 }, /已过期或 90 分钟内过期/],
+    ['a deadline one second past 366 days', { deadline: NOW / 1000 + 366 * DAY + 1 }, /到期时间太远.*最多 366 天/],
+    ['a 50-year deadline', { deadline: NOW / 1000 + 50 * 365 * DAY }, /到期时间太远/],
     ['no deadline', { deadline: undefined }, /deadline/],
     ['a callback', { callbackUrl: 'https://example.com/cb' }, /多出字段 callbackUrl/],
     ['persistent processing', { persistentOps: 'avthumb/mp4' }, /多出字段 persistentOps/],
@@ -174,6 +222,20 @@ describe('upload token: prefix-scoped, insert-only, expiring', () => {
     expect(message).not.toContain(token);
     expect(message).not.toContain(FAKE_KEYS.accessKey);
     expect(message).not.toContain(token.split(':')[1]);
+  });
+
+  it('accepts deadlines from just over 90 minutes up to exactly 366 days away', () => {
+    expect(DECIDE_MIN_REMAINING_SECONDS).toBe(90 * 60);
+    expect(UPLOAD_MIN_REMAINING_SECONDS).toBe(20 * 60);
+    expect(MAX_TOKEN_SECONDS).toBe(366 * DAY);
+    for (const seconds of [90 * 60 + 1, DAY, 366 * DAY]) {
+      expect(readUploadPolicy(tokenFor({ ...base(), deadline: NOW / 1000 + seconds }), NOW).deadline, String(seconds)).toBe(NOW / 1000 + seconds);
+    }
+    // 上传时只要求剩 20 分钟：决定开关时剩 90 分钟以上，构建 60 分钟以内，上传开始时一定还有 30 分钟。
+    const thirtyMinutes = tokenFor({ ...base(), deadline: NOW / 1000 + 30 * 60 });
+    expect(() => readUploadPolicy(thirtyMinutes, NOW)).toThrow(/90 分钟内过期/);
+    expect(readUploadPolicy(thirtyMinutes, NOW, UPLOAD_MIN_REMAINING_SECONDS).deadline).toBe(NOW / 1000 + 30 * 60);
+    expect(() => readUploadPolicy(tokenFor({ ...base(), deadline: NOW / 1000 + 20 * 60 }), NOW, UPLOAD_MIN_REMAINING_SECONDS)).toThrow(/20 分钟内过期/);
   });
 
   it.each(['', 'abc', 'a:b', 'a:b:c:d', 'a:b:!!!', `a:b:${Buffer.from('not json').toString('base64url')}`, `a:b:${Buffer.from('[1]').toString('base64url')}`])('rejects the malformed token %j', token => {
@@ -356,6 +418,16 @@ describe('upload and verification', () => {
     expect(qiniu.calls).toEqual([]);
   });
 
+  it('starts an upload with 30 minutes left on the token, but not with 20 or less (checked before sending anything)', async () => {
+    const qiniu = fakeQiniu();
+    const now = Date.now();
+    const short = tokenFor(uploadPolicy({ now, seconds: 20 * 60 }));
+    await expect(uploadAll(entries(), { token: short, referer: REFERER, fetch: qiniu.fetch, log: quiet, backoff: 0, now })).rejects.toThrow(/20 分钟内过期/);
+    expect(qiniu.calls).toEqual([]);
+    const enough = tokenFor(uploadPolicy({ now, seconds: 30 * 60 }));
+    await expect(uploadAll(entries(), { token: enough, referer: REFERER, fetch: qiniu.fetch, log: quiet, backoff: 0, now })).resolves.toMatchObject({ total: 5 });
+  });
+
   it('refuses a token with the wrong policy before sending anything', async () => {
     const qiniu = fakeQiniu();
     const wide = tokenFor({ ...uploadPolicy({ now: Date.now(), seconds: DAY }), scope: 'crosery' });
@@ -413,6 +485,14 @@ describe('decide: the switch in the deploy workflow', () => {
     const soon = await decide({ token: validToken(10 * DAY), origin: 'https://prev.yangtzeu.work', now: NOW, fetch: site(preview).fetch });
     expect(soon.base).toBe(STATIC_CDN_BASE);
     expect(soon.warnings.join('\n')).toMatch(/到期/);
+  });
+
+  it('fails before the build when the token would expire during build and upload (under 90 minutes left)', async () => {
+    const origin = site(preview);
+    await expect(decide({ token: validToken(3600), origin: 'https://prev.yangtzeu.work', now: NOW, fetch: origin.fetch })).rejects.toThrow(/90 分钟内过期/);
+    await expect(decide({ token: tokenFor({ ...uploadPolicy({ now: NOW, seconds: DAY }), deadline: NOW / 1000 + 400 * DAY }), origin: 'https://prev.yangtzeu.work', now: NOW, fetch: origin.fetch })).rejects.toThrow(/到期时间太远/);
+    expect(origin.calls).toEqual([]);
+    expect((await decide({ token: validToken(91 * 60), origin: 'https://prev.yangtzeu.work', now: NOW, fetch: origin.fetch })).base).toBe(STATIC_CDN_BASE);
   });
 
   it('accepts only an https origin without a path', async () => {

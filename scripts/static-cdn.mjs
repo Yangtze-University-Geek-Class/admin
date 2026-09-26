@@ -24,9 +24,9 @@
 // 本机证明用的 --owner-env-file 在进程里用 AK/SK 现签一个 1 小时的同策略 token，CI 里拒绝使用。
 // 本脚本只调用七牛的表单上传接口，没有任何删除、覆盖、改元信息的调用；token 的策略本身也不允许覆盖。
 import { createHash, createHmac } from 'node:crypto';
-import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STATIC_CDN_BASE, STATIC_CDN_BUCKET, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from './static-cdn-base.mjs';
 
 /** 华南（z2）存储区的表单上传地址，与 bucket crosery 所在区域一致。 */
@@ -35,6 +35,15 @@ export const UPLOAD_HOST = 'https://up-z2.qiniup.com';
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 /** decide 在 token 剩余有效期不足这么久时告警，提醒所有者重签。 */
 export const RENEW_WARNING_SECONDS = 30 * 24 * 3600;
+/** token 最长有效期（366 天）：mint-token 签不出更长的；到期时间比现在晚这么久以上的 token 一律拒绝。 */
+export const MAX_TOKEN_SECONDS = 366 * 24 * 3600;
+/**
+ * decide 要求 token 至少还剩这么久：它之后 build job 最长 60 分钟、cdn-upload 最长 20 分钟（两条部署工作流的
+ * timeout-minutes），再留 10 分钟给 job 之间的排队。剩得更少就在构建前失败，不带着上传时会过期的 token 去构建。
+ */
+export const DECIDE_MIN_REMAINING_SECONDS = 90 * 60;
+/** upload 开始时 token 至少还剩这么久：cdn-upload job 最长 20 分钟。 */
+export const UPLOAD_MIN_REMAINING_SECONDS = 20 * 60;
 const TOKEN_ENV = 'STATIC_CDN_UPLOAD_TOKEN';
 const USAGE = 'node scripts/static-cdn.mjs decide --origin <https://…> | plan --web <目录> --forum <目录> | upload --web <目录> --forum <目录> --referer <https://…/> | mint-token [--env-file <路径>] [--days 180]';
 
@@ -66,12 +75,31 @@ export function assertKey(key) {
   return key;
 }
 
-/** 构建产物的文件名里带 8 位内容哈希：Vite 是 name-HASH.ext，Nuxt 是 HASH.js 或 name.HASH.ext。 */
-const HASHED_NAME = /(?:^|[.-])[A-Za-z0-9_-]{8}\.[a-z0-9]+$/;
-/** Nuxt 每次构建一个的清单：文件名是构建 id（随机 UUID），每次构建都是新键，只增不改没有冲突。 */
-const NUXT_BUILD_META = /^builds\/meta\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/;
+/**
+ * 产物目录里（相对 assets/、console-assets/、_nuxt/）的文件名，必须是构建配置实际产出的形状，8 位哈希是 Rolldown/Rollup
+ * 的 base64url 字符。只认这几种，别的名字（manifest.json、readme.js、子目录……）都拒绝：
+ *   - Vite（官网、控制台，平铺）：<name>-<hash>.<ext>，例 portal-pdTh_Fhq.js、nunito-latin-400-normal-r8SDr6Up.woff2；
+ *   - Nuxt（论坛，@nuxt/vite-builder 的 [hash].js 与 <name>.[hash].[ext]）：<hash>.js，或 <name>.<hash>.<ext>（entry.<hash>.css、logo.<hash>.png）；
+ *   - Nuxt 每次构建一个的清单 builds/meta/<构建 id>.json：构建 id 是随机 UUID，每次构建都是新键，只增不改没有冲突。
+ * 名字的形状只能挡住形状不对的文件：my-template.js 与 name-<8 位哈希>.js 形状相同，而真实的哈希也可能全是小写字母
+ * （论坛现在的产物里就有 sok5vuyt.js），按「像不像随机串」去猜会随机挡下正常的构建。所以另有一道：产物目录里的
+ * 文件如果在源码的 public 目录里有同名同路径的文件（PUBLIC_DIRS），就是构建时原样复制过去的、不带哈希，一律拒绝。
+ */
+const HASH = '[A-Za-z0-9_-]{8}';
+const NAME = '[A-Za-z0-9_.-]+';
+const HASHED_NAMES = {
+  web: new RegExp(`^${NAME}-${HASH}\\.[a-z0-9]+$`),
+  forum: new RegExp(`^(?:${HASH}\\.js|${NAME}\\.${HASH}\\.[a-z0-9]+|builds\\/meta\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json)$`),
+};
 /** Nuxt 的「最新构建」指针：文件名固定、内容每次都变，不能上传（论坛在开关打开时也不再读它）。 */
 const NUXT_LATEST = 'builds/latest.json';
+/**
+ * 构建时原样复制进站点根的源码目录（相对仓库根）：官网 Vite 的 publicDir、论坛 Nuxt 的 public/；控制台现在是
+ * publicDir: false，它的默认目录也列上，免得以后打开时漏掉。这里的 assets/、console-assets/、_nuxt/ 下的文件会
+ * 不带哈希地出现在产物目录里。
+ */
+export const PUBLIC_DIRS = { web: ['app/web/public', 'app/console/public'], forum: ['app/forum/public'] };
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const MIME = {
   js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json',
@@ -119,11 +147,14 @@ function walk(root, dir, out) {
 
 /**
  * 从两个站点根里挑出要上传的文件。三个产物目录必须都在；目录里除 Nuxt 的 latest.json 外，
- * 每个文件都必须带哈希（或是 builds/meta/<构建 id>.json），否则整个上传失败，不悄悄跳过。
+ * 每个文件都必须是构建产出的带哈希文件（HASHED_NAMES），而且不能是从 public 目录原样复制过去的，
+ * 否则整个上传失败，不悄悄跳过。
  * @param {{ web: string, forum: string }} roots
+ * @param {{ publicDirs?: Record<'web' | 'forum', string[]> }} [options] public 目录的绝对路径（测试用），默认是本仓库的 PUBLIC_DIRS
  * @returns {{ file: string, key: string, size: number, mime: string }[]}
  */
-export function collect(roots) {
+export function collect(roots, { publicDirs } = {}) {
+  const sources = publicDirs ?? Object.fromEntries(Object.entries(PUBLIC_DIRS).map(([site, dirs]) => [site, dirs.map(dir => join(REPO_ROOT, dir))]));
   const entries = [];
   const problems = [];
   for (const area of AREAS) {
@@ -139,8 +170,9 @@ export function collect(roots) {
       if (area.site === 'forum' && inner === NUXT_LATEST) continue;
       const name = basename(inner);
       if (name.startsWith('.')) { problems.push(`${area.site}:${rel}（隐藏文件）`); continue; }
-      const hashed = area.site === 'forum' && inner.startsWith('builds/') ? NUXT_BUILD_META.test(inner) : HASHED_NAME.test(name);
-      if (!hashed) { problems.push(`${area.site}:${rel}（文件名不带内容哈希）`); continue; }
+      if (!HASHED_NAMES[area.site].test(inner)) { problems.push(`${area.site}:${rel}（文件名不带内容哈希）`); continue; }
+      const copied = (sources[area.site] ?? []).find(dir => existsSync(join(dir, rel)));
+      if (copied) { problems.push(`${area.site}:${rel}（是 ${join(copied, rel)} 原样复制进来的，不带内容哈希）`); continue; }
       if (size > MAX_FILE_BYTES) { problems.push(`${area.site}:${rel}（${size} 字节，超过 ${MAX_FILE_BYTES}）`); continue; }
       const key = assertKey(`${STATIC_CDN_PREFIX}${area.mount}${inner}`);
       entries.push({ file: join(root, rel), key, size, mime: mimeFor(name) });
@@ -166,7 +198,7 @@ const POLICY_FIELDS = new Set(['scope', 'isPrefixalScope', 'insertOnly', 'deadli
 
 /** 上传 token 的策略：只能写 crosery:yzgc/static/site/ 前缀（isPrefixalScope），只增不改（insertOnly），到期作废。 */
 export function uploadPolicy({ now = Date.now(), seconds }) {
-  if (!Number.isInteger(seconds) || seconds < 60 || seconds > 366 * 24 * 3600) throw new Error('token 有效期要在 1 分钟到 366 天之间');
+  if (!Number.isInteger(seconds) || seconds < 60 || seconds > MAX_TOKEN_SECONDS) throw new Error('token 有效期要在 1 分钟到 366 天之间');
   return {
     scope: `${STATIC_CDN_BUCKET}:${STATIC_CDN_PREFIX}`,
     isPrefixalScope: 1,
@@ -186,9 +218,12 @@ export function signUploadToken(policy, { accessKey, secretKey }) {
 
 /**
  * 读出 token 里的策略并核对：只要本脚本签出来的那种 token，别的一律拒绝（失败关闭）。
- * 报错只说哪个字段不对，不回显 token。
+ * 到期时间要在 now + minRemainingSeconds 之后、now + 366 天之内。报错只说哪个字段不对，不回显 token。
+ * @param {string} token
+ * @param {number} [now]
+ * @param {number} [minRemainingSeconds] decide 用默认的 90 分钟，upload 用 20 分钟
  */
-export function readUploadPolicy(token, now = Date.now()) {
+export function readUploadPolicy(token, now = Date.now(), minRemainingSeconds = DECIDE_MIN_REMAINING_SECONDS) {
   const parts = String(token ?? '').trim().split(':');
   if (parts.length !== 3 || parts.some(part => !/^[A-Za-z0-9_=-]+$/.test(part))) throw new Error(`${TOKEN_ENV} 不是七牛上传 token 的格式（AK:签名:策略）`);
   let policy;
@@ -201,7 +236,8 @@ export function readUploadPolicy(token, now = Date.now()) {
   if (policy.isPrefixalScope !== 1) problems.push('isPrefixalScope 必须是 1');
   if (policy.insertOnly !== 1) problems.push('insertOnly 必须是 1');
   if (!Number.isInteger(policy.deadline)) problems.push('缺 deadline');
-  else if (policy.deadline * 1000 <= now + 10 * 60 * 1000) problems.push(`已过期或 10 分钟内过期（deadline ${new Date(policy.deadline * 1000).toISOString()}）`);
+  else if (policy.deadline * 1000 <= now + minRemainingSeconds * 1000) problems.push(`已过期或 ${minRemainingSeconds / 60} 分钟内过期（deadline ${new Date(policy.deadline * 1000).toISOString()}）`);
+  else if (policy.deadline * 1000 > now + MAX_TOKEN_SECONDS * 1000) problems.push(`到期时间太远（deadline ${new Date(policy.deadline * 1000).toISOString()}），有效期最多 ${MAX_TOKEN_SECONDS / 86400} 天`);
   if (policy.fsizeLimit !== undefined && (!Number.isInteger(policy.fsizeLimit) || policy.fsizeLimit <= 0 || policy.fsizeLimit > MAX_FILE_BYTES)) problems.push(`fsizeLimit 必须是不超过 ${MAX_FILE_BYTES} 的正整数`);
   if (problems.length) throw new Error(`${TOKEN_ENV} 的策略不对：${problems.join('；')}。按 docs/ops/CICD.md「静态资源 CDN」重签`);
   return policy;
@@ -365,8 +401,8 @@ async function pool(items, size, task) {
  * 上传并核对全部文件。返回汇总；任何上传错误直接抛出，核对不通过也抛出（列出每个问题）。
  * @param {{ file: string, key: string, size: number, mime: string, etag?: string }[]} entries
  */
-export async function uploadAll(entries, { token, referer, fetch = globalThis.fetch, concurrency = 8, log = console.error, backoff }) {
-  readUploadPolicy(token);
+export async function uploadAll(entries, { token, referer, fetch = globalThis.fetch, concurrency = 8, log = console.error, backoff, now = Date.now() }) {
+  readUploadPolicy(token, now, UPLOAD_MIN_REMAINING_SECONDS);
   assertHttpsOrigin(referer, '--referer');
   for (const entry of entries) {
     assertKey(entry.key);
@@ -440,7 +476,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
     if (!String(token ?? '').trim()) throw new Error(`没有 ${TOKEN_ENV}：不能上传（工作流在没有凭据时根本不会走到这一步）`);
     const entries = collect({ web: options.web, forum: options.forum });
     log(`准备上传 ${entries.length} 个文件到 ${STATIC_CDN_BASE}`);
-    return uploadAll(entries, { token, referer: options.referer, fetch, log });
+    return uploadAll(entries, { token, referer: options.referer, fetch, log, now });
   }
   // mint-token
   if (stdout.isTTY) throw new Error('token 只写进管道（例如 | gh secret set STATIC_CDN_UPLOAD_TOKEN --env static-cdn），不往终端打印');
