@@ -40,3 +40,10 @@
 - 做了什么：371942e fix(deploy)：container-setup.sh 的 fetch_node 改为下载到本次 mktemp -d 目录、核对状态记在变量、清单缺行先失败、退出删目录；server Dockerfile 的 BETTER_SQLITE3_BINARY_HOST 设了就必须 https://、无结尾 /、字符白名单。146a014 test(deploy)：实跑论坛 pnpm 11 的 sha512 核对（Dockerfile 那条 RUN 与 ci forum job 那一步）和 web、forum 的 NPM_REGISTRY 校验。b4f8b90 docs(deploy)：CICD 下载源表的 Node 行只列读 .nvmrc 的 job，切换/掉线写明全部回托管 runner 时一起删三个下载源变量。另核对 rc.7 运行 36216674208 的 build job 日志，供主 agent 改 PR 正文
 - 结果：build-mirrors 29 项通过（原 15 项）。变异后失败再用 git checkout 复原：删论坛 Dockerfile 的 process.exit(1) 1 项失败，删 ci forum 那一步的 process.exit(1) 1 项失败，sha256sum -c 后加 || : 2 项失败，删 fetch_node 的 exit 1 2 项失败，删 BETTER_SQLITE3_BINARY_HOST 的 https 校验 2 项失败。pnpm test 44 个文件 513 项通过；pnpm check 退出码 0；shellcheck、hadolint、actionlint 无输出。rc.7 日志：apt 索引 9383 kB（153 kB/s），包 74.9 MB（136 kB/s），#7 DONE 668.8s；setup-node 2:50、5:13、13:46 是 Deploy Preview 的 plan、build、deploy 三个 job
 - 下一步：主 agent 改 PR 正文数字并推送；runner 侧 npm_config_better_sqlite3_binary_host 仍无校验，待主 agent 决定是否本 PR 处理
+
+## 15:39:10 +08:00 · 返工 · #104 · runner 上装依赖前也核对 better-sqlite3 预编译包地址
+
+- 执行者：agent-claude-geek-main-subagent-104（Claude Code 子代理）
+- 做了什么：主 agent 批准后补修与应修 3 同类的缺口：16a282d fix(deploy)，ci 的 core job 与两条部署工作流的 build job 在检出之后第一步「核对 better-sqlite3 预编译包地址」，用与 server Dockerfile 相同的 case 核对 npm_config_better_sqlite3_binary_host（空值放行，非空要 https://、无结尾 /、字符白名单）；build-mirrors 测试核对三处与 Dockerfile 逐字相同、排在检出后第一步，并按 bash -eo pipefail 实跑；CICD.md 格式一条同步。变异测试中途一次 git checkout 把还没提交的 ci.yml、deploy-production.yml 改动还原掉了，按同一脚本重新插入、先提交再重做变异
+- 结果：build-mirrors 36 项通过；变异（提交后做，git checkout 复原）：去掉 ci core 那一步的 https case 3 项失败，删掉 production build 的这一步 1 项失败，把 preview build 的这一步挪到 pnpm install 之后 1 项失败。pnpm test 44 个文件 520 项通过；pnpm check 退出码 0；actionlint、shellcheck、hadolint 无输出
+- 下一步：主 agent 推送并更新 PR 正文
