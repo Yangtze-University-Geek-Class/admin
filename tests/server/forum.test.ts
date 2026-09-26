@@ -73,6 +73,23 @@ type Setup = Awaited<ReturnType<typeof setup>>;
 const guestReply = (topicId: string, content: string, name = '路过的同学', extra: Record<string, unknown> = {}) =>
   ({ topicId, content, guest: { name }, pow: { timestamp: Date.now(), nonce: 'x' }, website: '', ...extra });
 
+/**
+ * 昵称允许清单（lib/forum-rules.ts 的 isAllowedName）要拒绝的名字：前几轮审查找到的每一个探针都在这里。
+ * 零宽与格式字符、双向覆盖（显示成「极客班」）、BOM、韩文填充字、C1 控制字符、行分隔符、软连字符、盲文空格、乐谱空符头、
+ * 高棉文不发音元音、单独的附加符号、未分配的可忽略字符（U+2065、U+FFF0、U+E0080）、私用区、西里尔、希腊、亚美尼亚、
+ * 傈僳、切罗基的形近字母、NFKC 之后是希腊字母的 µ、小型大写与搭嘴音这类形近拉丁字母、表情、连着的空格、只有符号。
+ */
+const REFUSED_NAMES = [
+  '极客班\u200B', 'geekclass\u2060', '\u202E班客极', '极\u200D客班', 'bo\uFEFFb', '\u3164', 'bob\u0085', '极客\u2028班', '极客班\u00AD',
+  '极客班\u2800', '\u2800', '\u{1D159}', 'bob\u{1D159}', '\u17B4', '\u17B5', '\u0332', 'bob\u0332', '\u20DD\u0301',
+  'bob\u2065', 'bob\uFFF0', 'bob\u{E0080}', 'bob\uE000',
+  'b\u043Eb', 'geekcl\u0430ss', '\u041A\u043E\u0432\u0430\u043B\u0451\u0432', 'b\u03BFb', '\u{1D41B}\u03BFb', '\u0391\u03BB\u03AD\u03BE\u03B7\u03C2',
+  'b\u0585b', '\uA4D0ob', '\u13A0ave', '5\u00B5m', '\u0299ob', 'geekc\u01C0ass', '小博\u{1F389}', '张  三', '---', '·',
+];
+/** 允许清单要收的名字：汉字、拉丁字母（含拼音声调、越南文）、假名、韩文、数字和几个分隔符。 */
+const ALLOWED_NAMES = ['张 三', 'Zhang San', '小博bob', '田中さん', '김민수', "O'Neil", 'ab-cd_e.f', 'Lǚ Xiǎomíng', 'Nguyễn Văn An', '阿·凡提', '中村・花子', 'ラーメン'];
+const NAME_RULE = "昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ ' 这几个符号，空格不能连着用";
+
 async function newTopic(s: Setup, who = 'bob', patch: Record<string, unknown> = {}) {
   const response = await s.call('POST', '/api/forum/topics', who, { title: '新话题', categoryId: 'c-ai', tags: [], content: '正文', ...patch });
   expect(response.statusCode).toBe(201);
@@ -181,7 +198,7 @@ describe('state', () => {
     for (let i = 0; i < 120; i += 1) expect((await get('198.51.100.40')).statusCode).toBe(200);
     const limited = await get('198.51.100.40');
     expect(limited.statusCode).toBe(429);
-    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁，请稍后再试' });
+    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁\uFF0C请稍后再试' });
     expect(limited.headers['cache-control']).toBe('no-store');
     expect((await get('198.51.100.41')).statusCode).toBe(200);
   });
@@ -226,14 +243,14 @@ describe('topics', () => {
     const post = (patch: Record<string, unknown>) => s.call('POST', '/api/forum/topics', 'bob', { title: '标题', categoryId: 'c-ai', content: '正文', ...patch });
     const long = await post({ title: 'x'.repeat(121) });
     expect(long.statusCode).toBe(400);
-    expect(long.json()).toMatchObject({ error: 'validation_error', message: '标题太长了，最多 120 个字' });
+    expect(long.json()).toMatchObject({ error: 'validation_error', message: '标题太长了\uFF0C最多 120 个字' });
     expect((await post({ title: '   ' })).json().error).toBe('invalid_title');
     expect((await post({ categoryId: 'c-missing' })).json()).toMatchObject({ error: 'unknown_category', message: '没有这个分类' });
     expect((await post({ tags: ['a', 'b', 'c', 'd', 'e', 'f'] })).json().message).toBe('标签最多 5 个');
     expect((await post({ tags: ['这个标签名字写得实在是太长了超过二十个字了吧'] })).json().error).toBe('invalid_tag');
-    expect((await post({ content: 'x'.repeat(20001) })).json().message).toBe('正文太长了，最多 20000 个字');
+    expect((await post({ content: 'x'.repeat(20001) })).json().message).toBe('正文太长了\uFF0C最多 20000 个字');
     expect((await post({ content: ' \n ' })).json().error).toBe('empty_content');
-    expect((await post({ extra: 1 })).json().message).toBe('不认识的字段：extra');
+    expect((await post({ extra: 1 })).json().message).toBe('不认识的字段\uFF1Aextra');
     expect((await post({ title: undefined })).json().message).toBe('缺少标题');
   });
 
@@ -242,7 +259,7 @@ describe('topics', () => {
     for (let i = 0; i < 10; i += 1) await newTopic(s);
     const response = await s.call('POST', '/api/forum/topics', 'bob', { title: '第 11 个', categoryId: 'c-ai', content: '正文' });
     expect(response.statusCode).toBe(429);
-    expect(response.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁，请稍后再试' });
+    expect(response.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁\uFF0C请稍后再试' });
     await newTopic(s, 'carol');
   });
 
@@ -292,7 +309,7 @@ describe('topics', () => {
     for (let i = 0; i < 60; i += 1) expect((await view('198.51.100.50', i % 2 ? 't9' : 't73')).statusCode).toBe(204);
     const limited = await view('198.51.100.50');
     expect(limited.statusCode).toBe(429);
-    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁，请稍后再试' });
+    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁\uFF0C请稍后再试' });
     expect((await view('198.51.100.51')).statusCode).toBe(204);
   });
 });
@@ -323,7 +340,7 @@ describe('replies', () => {
     const s = await setup();
     await s.state('carol'); await s.state('dave');
     await s.call('PATCH', '/api/forum/me/profile', 'dave', { notifyPrefs: { reply: false } });
-    const { topicId } = await newTopic(s, 'dave', { content: '@carol 看一下，`@bob` 不算，@geekclass 也不算' });
+    const { topicId } = await newTopic(s, 'dave', { content: '@carol 看一下\uFF0C`@bob` 不算\uFF0C@geekclass 也不算' });
     expect((await s.state('carol')).notifications.map((n: { type: string }) => n.type)).toEqual(['mention']);
     await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '收到 @dave' });
     // dave 关了回复通知：回复不通知；@ 提及没有开关，照常通知。
@@ -402,7 +419,7 @@ describe('replies', () => {
     expect((await send('203.0.113.70')).statusCode).toBe(201);
     const paused = await send('203.0.113.71');
     expect(paused.statusCode).toBe(429);
-    expect(paused.json()).toMatchObject({ error: 'guest_replies_paused', message: '游客回复暂时太多，请过一会儿再试，或者登录后回复' });
+    expect(paused.json()).toMatchObject({ error: 'guest_replies_paused', message: '游客回复暂时太多\uFF0C请过一会儿再试\uFF0C或者登录后回复' });
     expect((await send('2001:db8:9::1')).json().error).toBe('guest_replies_paused');
     expect((await s.call('POST', '/api/forum/posts', 'bob', { topicId: 't9', content: '成员照常回复' })).statusCode).toBe(201);
     // 一小时之后恢复。
@@ -410,50 +427,29 @@ describe('replies', () => {
     expect((await send('203.0.113.71')).statusCode).toBe(201);
   });
 
-  it('refuses guest names that hide characters, or differ from a member or the official account only in width, case or marks', async () => {
+  it('takes only allowlisted characters in guest names, and every probe from earlier rounds is refused', async () => {
+    const s = await setup();
+    let ip = 100;
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: `203.0.113.${ip++}` });
+    for (const name of REFUSED_NAMES) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: NAME_RULE });
+    }
+    for (const name of ALLOWED_NAMES) expect((await send(name)).statusCode, JSON.stringify(name)).toBe(201);
+    expect((await send('  ')).json()).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称' });
+  });
+
+  it('refuses guest names that differ from a member or the official account only in width, case or accents', async () => {
     const s = await setup();
     await s.state('bob');
     const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.60' });
-    // 零宽空格、字连接符、从右到左覆盖（显示成「极客班」）、零宽连接符、BOM（放在中间，首尾的会被 trim 掉）、韩文填充字、
-    // C1 控制字符、行分隔符、软连字符。
-    for (const name of ['极客班\u200B', 'geekclass\u2060', '\u202E班客极', '极\u200D客班', 'bo\uFEFFb', '\u3164', 'bob\u0085', '极客\u2028班', '极客班\u00AD']) {
-      const response = await send(name);
-      expect(response.statusCode, JSON.stringify(name)).toBe(400);
-      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称，不能含看不见的字符' });
-    }
-    // 全角字母、大小写、附加符号（组合下划线）都不算不同的名字。
-    for (const name of ['ＧＥＥＫＣＬＡＳＳ', 'Ｂｏｂ', 'bob\u0332', '极客班']) {
+    for (const name of ['\uFF27\uFF25\uFF25\uFF2B\uFF23\uFF2C\uFF21\uFF33\uFF33', '\uFF22\uFF4F\uFF42', 'B\u00F3b', '极客班']) {
       const response = await send(name);
       expect(response.statusCode, JSON.stringify(name)).toBe(400);
       expect(response.json().error, JSON.stringify(name)).toBe('guest_name_taken');
     }
     expect((await send('极客班的同学')).statusCode).toBe(201);
-  });
-
-  it('refuses guest names that only look blank: braille and musical blanks, Khmer silent vowels, lone combining marks', async () => {
-    const s = await setup();
-    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.61' });
-    // 盲文空格、乐谱空符头、高棉文不发音元音都不在 \p{Cf} 里；只有附加符号的名字 nameKey 为空，列表外的也拦住。
-    for (const name of ['极客班\u2800', '\u2800', '\u{1D159}', 'bob\u{1D159}', '\u17B4', '\u17B5', '\u0332', '\u20DD\u0301']) {
-      const response = await send(name);
-      expect(response.statusCode, JSON.stringify(name)).toBe(400);
-      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称，不能含看不见的字符' });
-    }
-    expect((await send('路过的同学')).statusCode).toBe(201);
-  });
-
-  it('refuses guest names that mix Latin with Cyrillic or Greek letters, and still takes each script on its own', async () => {
-    const s = await setup();
-    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.62' });
-    // bоb 的 о 是西里尔字母，geekclаss 的 а 是西里尔字母，bοb 的 ο 是希腊字母；𝐛οb 的 𝐛 是数学粗体（NFKC 后是拉丁字母）。
-    for (const name of ['b\u043Eb', 'geekcl\u0430ss', 'b\u03BFb', '\u{1D41B}\u03BFb', '\u0412asya']) {
-      const response = await send(name);
-      expect(response.statusCode, JSON.stringify(name)).toBe(400);
-      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '昵称不能把拉丁字母和西里尔字母、希腊字母混着写' });
-    }
-    for (const name of ['\u041A\u043E\u0432\u0430\u043B\u0451\u0432', '\u0391\u03BB\u03AD\u03BE\u03B7\u03C2', '小博bob']) {
-      expect((await send(name)).statusCode, JSON.stringify(name)).toBe(201);
-    }
   });
 
   it('keeps guests and members from taking the login of someone with a title who never opened the forum', async () => {
@@ -512,7 +508,7 @@ describe('replies', () => {
     await s.call('POST', '/api/forum/topics/t9/close', 'carol', { closed: true });
     const member = await s.call('POST', '/api/forum/posts', 'bob', { topicId: 't9', content: '还能回吗' });
     expect(member.statusCode).toBe(403);
-    expect(member.json()).toMatchObject({ error: 'forbidden', message: '话题已关闭，不能回复' });
+    expect(member.json()).toMatchObject({ error: 'forbidden', message: '话题已关闭\uFF0C不能回复' });
     expect((await s.call('POST', '/api/forum/posts', undefined, guestReply('t9', '游客呢'))).statusCode).toBe(403);
     expect((await s.call('POST', '/api/forum/posts', 'dave', { topicId: 't9', content: '队长呢' })).statusCode).toBe(403);
     expect((await s.call('POST', '/api/forum/posts', 'carol', { topicId: 't9', content: '版务说明' })).statusCode).toBe(201);
@@ -545,7 +541,7 @@ describe('editing and deleting', () => {
     expect((await s.call('PATCH', `/api/forum/posts/${reply}`, 'bob', { content: '  ' })).json().error).toBe('empty_content');
 
     // 社区部舰员改、删游客的帖子：写审计，不记正文。
-    expect((await s.call('PATCH', `/api/forum/posts/${guest}`, 'carol', { content: '（已由版务整理）' })).statusCode).toBe(200);
+    expect((await s.call('PATCH', `/api/forum/posts/${guest}`, 'carol', { content: '\uFF08已由版务整理\uFF09' })).statusCode).toBe(200);
     const removed = await s.call('DELETE', `/api/forum/posts/${guest}`, 'carol');
     expect(removed.json().state.posts.find((p: { id: string }) => p.id === guest)).toMatchObject({ deleted: true, content: '' });
     expect(s.audits()).toEqual([
@@ -645,9 +641,9 @@ describe('profile', () => {
       displayName: '博', bio: '第一行\n第二行', location: '武汉', website: 'https://bob.example.test/', notifyPrefs: { reply: true, like: false, follow: true },
     });
     expect((await patch({ website: '' })).json().state.users.find((u: { id: string }) => u.id === 'm102').website).toBe('');
-    expect((await patch({ displayName: 'x'.repeat(31) })).json().message).toBe('昵称太长了，最多 30 个字');
+    expect((await patch({ displayName: 'x'.repeat(31) })).json().message).toBe('昵称太长了\uFF0C最多 30 个字');
     expect((await patch({ displayName: '   ' })).json().error).toBe('invalid_display_name');
-    expect((await patch({ bio: 'x'.repeat(201) })).json().message).toBe('个人签名太长了，最多 200 个字');
+    expect((await patch({ bio: 'x'.repeat(201) })).json().message).toBe('个人签名太长了\uFF0C最多 200 个字');
     expect((await patch({ bio: 'a\u0007b' })).json().error).toBe('invalid_bio');
     expect((await patch({ location: 'x'.repeat(61) })).statusCode).toBe(400);
     for (const website of ['http://bob.example.test', 'javascript:alert(1)', 'https://user:pass@bob.example.test', 'bob.example.test']) {
@@ -658,25 +654,20 @@ describe('profile', () => {
     expect((await patch({ displayName: 'x' }, null)).statusCode).toBe(401);
   });
 
-  it('keeps hidden characters out of member nicknames and stops members taking the official name or someone else’s username', async () => {
+  it('takes only allowlisted characters in member nicknames and stops members taking the official name or someone else’s username', async () => {
     const s = await setup();
     await s.state('carol');
     const rename = (displayName: string, who = 'bob') => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
-    for (const name of ['极客班\u200B', 'geekclass\u2060', '\u202E班客极', 'carol\u00AD', 'bob\u0085']) {
+    for (const name of REFUSED_NAMES) {
       const response = await rename(name);
       expect(response.statusCode, JSON.stringify(name)).toBe(400);
-      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name', message: '昵称要 1 到 30 个字，不能含控制字符或看不见的字符' });
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name', message: NAME_RULE });
     }
-    for (const name of ['极客班', 'ＧｅｅｋＣｌａｓｓ', 'Carol', 'carol\u0332']) {
+    for (const name of ALLOWED_NAMES) expect((await rename(name)).statusCode, JSON.stringify(name)).toBe(200);
+    for (const name of ['极客班', '\uFF27\uFF45\uFF45\uFF4B\uFF23\uFF4C\uFF41\uFF53\uFF53', 'Carol', 'C\u00E1rol']) {
       const response = await rename(name);
       expect(response.statusCode, JSON.stringify(name)).toBe(400);
-      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名，换一个吧' });
-    }
-    for (const name of ['极客班\u2800', '\u2800', '\u{1D159}', '\u17B4', '\u0332']) {
-      expect((await rename(name)).json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name' });
-    }
-    for (const name of ['b\u043Eb', 'geekcl\u0430ss', 'b\u03BFb']) {
-      expect((await rename(name)).json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name', message: '昵称不能把拉丁字母和西里尔字母、希腊字母混着写' });
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名\uFF0C换一个吧' });
     }
     // 自己的用户名换个大小写可以；和别的成员昵称相同也可以。
     expect((await rename('BOB')).statusCode).toBe(200);
@@ -774,7 +765,7 @@ describe('avatars', () => {
     const s = await setup();
     const upload = async (payload: Buffer) => (await s.app.inject({ method: 'PUT', url: '/api/forum/me/avatar', payload, headers: { ...s.as('bob'), 'content-type': 'image/png' } })).json();
     // 5000×4000 = 2000 万像素：比 4096×4096 大，比以前的 3600 万小。
-    expect(await upload(pixelBombPng(5000, 4000))).toMatchObject({ error: 'image_too_large', message: '图片尺寸太大，请换一张小一点的图' });
+    expect(await upload(pixelBombPng(5000, 4000))).toMatchObject({ error: 'image_too_large', message: '图片尺寸太大\uFF0C请换一张小一点的图' });
     expect(await upload(pixelBombPng(4097, 4096))).toMatchObject({ error: 'image_too_large' });
   });
 });
@@ -886,11 +877,12 @@ describe('rules', () => {
     ]);
   });
 
-  it('compares names after NFKC, without hidden characters, marks or case', () => {
-    expect(nameKey('ＧｅｅｋＣｌａｓｓ')).toBe('geekclass');
-    expect(nameKey('极客\u200B班\u2060')).toBe('极客班');
-    expect(nameKey('  Bob\u0332  ')).toBe('bob');
+  it('compares names after NFKC, without case or accents', () => {
+    expect(nameKey('\uFF27\uFF45\uFF45\uFF4B\uFF23\uFF4C\uFF41\uFF53\uFF53')).toBe('geekclass');
+    expect(nameKey('  B\u00F3b  ')).toBe('bob');
+    expect(nameKey('L\u01DA  Xi\u01CEom\u00EDng')).toBe('lu xiaoming');
+    expect(nameKey('がくせい')).toBe('かくせい');
+    expect(nameKey('김민수')).toBe('김민수');
     expect(nameKey('极客\u3000 班')).toBe('极客 班');
-    expect(nameKey('José')).toBe('josé');
   });
 });

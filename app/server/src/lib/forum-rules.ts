@@ -77,45 +77,37 @@ export function tagSlug(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").replace(/^-|-$/g, "");
 }
 
-/** 单行文本（标题、标签名、所在地）：不许控制字符。昵称另有更严的 nameProblem。 */
+/** 单行文本（标题、标签名、所在地）：不许控制字符。昵称另有允许清单 isAllowedName。 */
 export const hasControlChars = (value: string) => /[\u0000-\u001f\u007f]/.test(value);
 /** 多行文本（签名）：允许换行与制表符，其余控制字符不许。 */
 export const hasControlCharsMultiline = (value: string) => /[\u0000-\u0008\u000b-\u001f\u007f]/.test(value);
 
 /**
- * 昵称里不许有的字符：控制字符（C0、C1）、格式字符 \p{Cf}（零宽 U+200B–U+200F、双向控制 U+202A–U+202E、
- * U+2060–U+2064、BOM U+FEFF、软连字符等）、行与段分隔符，以及几个不在 \p{Cf} 里、却显示成空白的字符：
- * U+034F、韩文填充字（U+115F、U+1160、U+3164、U+FFA0）、盲文空格 U+2800、乐谱空符头 U+1D159、
- * 高棉文不发音元音 U+17B4、U+17B5。这些字符看不见，却能让「极客班」+ 零宽空格、反向排列的「班客极」
- * 通过「和成员重名」的检查。\p{Cf} 已经包含列出的几段，逐段写出来是为了一眼看清拦了什么。
- * 零宽连接符也在里面，所以昵称里不能用组合表情。
+ * 昵称（游客昵称、成员的 displayName）只收允许清单里的字符。先做 NFKC（全角字母和数字变成半角），之后每个字符都得是：
+ * - 汉字、平假名、片假名、韩文里的字（\p{L}；韩文不含显示成空白的填充字 U+115F、U+1160、U+3164、U+FFA0）；
+ * - 拉丁字母里常用的几段：基本拉丁、拉丁-1、拉丁扩展 A、拼音声调字母 U+01CD–U+01DC、越南文等用的 U+1E00–U+1EFF。
+ *   IPA、小型大写（ʙ）、搭嘴音（ǀ 像 l）这些也属于拉丁文字，但都是形近字母，不收；
+ * - ASCII 数字，长音符 ー，以及空格和 - _ . · ・ ' 这几个符号。空格不能在首尾、不能连着用，至少要有一个字或数字。
+ * 之前用屏蔽清单拦看不见的字符和别的文字的形近字母，拦一种漏一种（未分配的可忽略字符、亚美尼亚、切罗基字母……），
+ * 所以改成只收这些。表情、其它文字（西里尔、希腊等）都不收；NFKC 之后 µ 是希腊字母 μ，也不收。
  */
-const HIDDEN_NAME_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u034F\u115F\u1160\u3164\uFFA0\u2800\u17B4\u17B5\u{1D159}]/u;
-const HIDDEN_NAME_CHARS = new RegExp(HIDDEN_NAME_CHAR.source, "gu");
-const hasHiddenNameChars = (value: string) => HIDDEN_NAME_CHAR.test(value);
+const NAME_PATTERN = /^(?:[A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F\u01CD-\u01DC\u1E00-\u1EFF \-_.\u00B7\u30FB'\u30FC]|(?=\p{L})(?![\u115F\u1160\u3164\uFFA0])[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])+$/u;
+const NAME_SEPARATORS = /^[ \-_.\u00B7\u30FB'\u30FC]+$/u;
+export const NAME_RULE_MESSAGE = "昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ ' 这几个符号，空格不能连着用";
+
+export function isAllowedName(value: string): boolean {
+  const name = value.normalize("NFKC");
+  return NAME_PATTERN.test(name) && !NAME_SEPARATORS.test(name) && !/^ | $| {2}/.test(name);
+}
 
 /**
- * 判断两个名字算不算同一个：NFKC 归一（全角字母、兼容字形变成普通写法），去掉看不见的字符和附加符号，
- * 不分大小写，连续空白算一个。只用来比较，存的仍是用户填的原文。
+ * 判断两个名字算不算同一个：NFKC（全角、兼容字形变成普通写法）、不分大小写、去掉附加符号（é 和 e、が 和 か 算同一个），
+ * 连续空白算一个。只用来比较，存的仍是用户填的原文。
  */
 export function nameKey(value: string): string {
-  return value.normalize("NFKC").replace(HIDDEN_NAME_CHARS, "").replace(/[\p{Mn}\p{Me}]/gu, "")
-    .toLowerCase().normalize("NFKC").replace(/\s+/gu, " ").trim();
+  return value.normalize("NFKC").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC")
+    .replace(/\s+/gu, " ").trim();
 }
-
-/**
- * 昵称的字符问题，没问题返回 null。空白名字：nameKey 为空，说明整个名字只有看不见的字符或单独的附加符号，
- * 列表里没写到的空白字符也拦得住。混写：拉丁字母和西里尔、希腊字母写在一起（「bоb」里的 о 是西里尔字母），
- * 看起来和纯拉丁的用户名一样，一律不收；只用其中一种文字、或和汉字混写都可以。按 NFKC 之后的写法判断，
- * 全角和数学字母也算拉丁字母。
- */
-export function nameProblem(value: string): "hidden" | "mixed_script" | null {
-  if (hasHiddenNameChars(value) || nameKey(value) === "") return "hidden";
-  const normalized = value.normalize("NFKC");
-  if (/\p{Script=Latin}/u.test(normalized) && /[\p{Script=Cyrillic}\p{Script=Greek}]/u.test(normalized)) return "mixed_script";
-  return null;
-}
-export const MIXED_SCRIPT_MESSAGE = "昵称不能把拉丁字母和西里尔字母、希腊字母混着写";
 
 /**
  * 按 IP 计数（游客限流、浏览去重、读接口限流）用的主体：IPv4 原样；IPv6 取 /64 前缀（家庭宽带和云主机通常拿到整段 /64，

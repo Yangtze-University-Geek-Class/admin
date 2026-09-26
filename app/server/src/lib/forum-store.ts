@@ -288,7 +288,7 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
 
     /**
      * 游客昵称不能冒用成员或官方账号的昵称、用户名，也不能是 orgLogins 里的登录名（有称号但还没打开过论坛的人）。
-     * 按 nameKey 比较：全角、大小写、看不见的字符都不算区别。
+     * 按 nameKey 比较：全角、大小写、附加符号都不算区别。
      */
     guestNameTaken(name: string): boolean {
       const key = nameKey(name);

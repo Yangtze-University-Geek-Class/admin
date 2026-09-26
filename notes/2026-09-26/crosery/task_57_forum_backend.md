@@ -114,3 +114,9 @@
 - 做了什么：收到 PR #116 第三轮审查（17:40，审查的提交 76c39e1）：应修 1 条，昵称的屏蔽清单还在漏（U+2065、U+FFF0–U+FFF8、U+E0080 等未分配的默认可忽略字符能当零宽用；亚美尼亚、傈僳、切罗基字母的形近名能通过；5µm 被误判成希腊字母），决定改成允许清单：只收汉字、拉丁字母、平假名、片假名、韩文、ASCII 数字和空格 - _ . · ・ '，先做 NFKC；建议 2 条：orgLogins 再并上 audit_logs 里 auth.signin 的登录者与当前会话的登录名、SECURITY 与数据模型写清剩下的缺口只有从没登录过的组织成员
 - 结果：结论：有条件通过；条件是改成允许清单并保留前几轮全部探针（都要 400），建议一并处理
 - 下一步：子代理在 task-57 worktree 按目的分提交修复
+
+## 17:51:15 +08:00 · 提交 · #57 · 第三轮应修：昵称改成允许清单
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称改用允许清单（forum-rules 的 isAllowedName 与 NAME_RULE_MESSAGE 取代 HIDDEN_NAME_CHAR、nameProblem 与混写规则；nameKey 改为 NFKC、不分大小写、去附加符号；游客与成员昵称共用；forum.test 用 REFUSED_NAMES 覆盖前几轮全部探针和第三轮新探针、ALLOWED_NAMES 覆盖允许的写法；API、SECURITY、SECURITY.en、数据模型、TESTING 同步）
+- 结果：提交前 vitest tests/server 8 个文件 161 条通过，server tsc 通过，check-docs 与 docs-index --check 通过
