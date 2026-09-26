@@ -21,3 +21,10 @@
 - 做了什么：合并 origin/stage（adace23，#118 等）为 ea0aa2c，docs/services/forum/README.md 两处冲突保留两边；推送 task/140/forum_redirects；gh pr create --base stage，正文按九段模板写，Closes #140，验收证据写无界面变化加 curl 层面的修复前后表和测试输出
 - 结果：PR https://github.com/Yangtze-University-Geek-Class/admin/pull/141；本地 node scripts/pr-contract.mjs check 通过（9 个段落齐全）；合并 stage 后 pnpm check 退出 0（check:doc-sync：6 组模块与文档按 PR 核对通过），pnpm test 51 files / 685 passed；审查结论为作者自查、有条件通过，等独立审查
 - 下一步：等 CI；独立审查给出结论后补「审查」记录
+
+## 22:04:11 +08:00 · 审查 · #140 · PR #141 第一轮独立审查：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude（独立审查代理）22:03 审 e89a901（范围 adace23..e89a901）：nginx 语义对照实跑，本机三层 nginx 用真实论坛产物跑，修复后 /forum 308 到相对 /forum/，/forum/users、/forum/about 带不带斜杠都 200 且同一份页面与 CSP，缺失资源仍 404，md 与 llms.txt 类型不变；旧配置复现 issue；四处修复各自去掉都有用例失败，另两个只能实跑发现的变异也被抓到；文档、doc-sync、docs-index、3558e4f 的暂存记录、ea0aa2c 的冲突解法都核对过
+- 结果：结论：通过；两条建议（proxy_redirect 对已带前缀的 Location 会重复加前缀但现在没有来源、/forum 的 308 丢查询串，改动前就如此）不挡合并
+- 下一步：推送，CI 全绿后合并，打 rc.9
