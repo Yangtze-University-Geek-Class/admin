@@ -170,3 +170,10 @@
 - 做了什么：a42d243 去掉四份服务 README 与 CICD 的「最近核对」，按 PR 核对时模块改了而说明没改，可以在本 task 执行记录里写「文档核对：<文档路径> 不用改——<理由>」，只改「更新：」日期不算改了说明，按时间核对时第一父链上带来文档核对的提交也算文档改动，branch-guard 传 --head；0fc5e7c stage 本来过期的「更新：」写明不是这条分支造成的；6ca23f3 补两个抓变异的用例（已跟踪文件没提交的改动、合并提交的作者时间）；205ac7d TRACKING 表改成同一个 PR 里，code-review 技能第 7 项加 check-doc-sync --base origin/stage --head；22257f1 巡检按时间线上最后一次重开时间判断，超期记录写明已合并的 PR 与没补关的原因；风险段的 #106 由主 agent 处理
 - 结果：tests/tooling 17 个文件 267 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync --base origin/stage（带不带 --head）通过；docs-index --check 通过；变异检查 15 个（文档核对 7、来源说明 2、审查说的两个漏网变异 2、巡检重开 4）全部让用例失败。已知：第一轮的 99dd567 提交说明与执行记录里各有一处英文关闭关键字加 issue 号的写法，已推送、只能追加不能改，#16 早已关闭
 - 下一步：推送后请审查人按新 head 复查；关掉 squash 与 rebase 仍要所有者操作
+
+## 20:20:55 +08:00 · 提交 · #115 · 合并 stage（#106、#113、#116、#117、#126），解开 server 与 forum 两份 README 的冲突
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：b6674ed 用 git merge --no-ff 合并 origin/stage 3710dd2，合并提交里只有冲突的解法：docs/services/server/README.md 源码地图 app.ts、services.ts、config.ts 三行取 stage 的，portal/index.ts 保留本分支 #112 补的 org 路由，「运行时装」取 stage 的（已含 titles、console_seeds 和 forum_* 表）；docs/services/forum/README.md「断言」取 stage 的 17 篇写法，补回本分支的「published/ 里至少有一张 webp 图片」和「grep -I 跳过图片和字体」（stage 的 app/forum/Dockerfile 这两条断言都还在）；ci.yml 自动合并（core 的 env 与 fetch-depth: 0 都在）。之后按 stage 第一父链逐组核对模块与文档的最后改动时间，并跑 tests/tooling、pnpm check、actionlint、check-doc-sync --base origin/stage --head task/115/lifecycle_checks、note.mjs check --pr --for-review
+- 结果：stage 3710dd2 上 6 组模块与文档的最后一次第一父链改动都是同一个合并提交，#116、#126 没有让顺序检查报错；合并后按第一父链的时间核对也没有问题。tests/tooling 18 个文件 305 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync 两种用法都通过（6 组，按 PR 对 origin/stage）；执行记录链路完整
+- 下一步：推送 task/115/lifecycle_checks，请审查人按新 head 做第三轮
