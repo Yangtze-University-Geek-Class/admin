@@ -19,7 +19,7 @@
 | issue → PR | issue 正文「实施」段 | 回填分支名、PR 链接、合并提交 |
 | 进展 | issue 评论 | 按 [TRACKING](TRACKING.md) §3 的格式，每个阶段一条 |
 
-**PR 合并进 `stage` 即关闭 issue**：`issue-lifecycle` 工作流自动关闭并在两边留「关闭」记录，`branch-hygiene` 删除 task 分支。GitHub 自带的 `Closes #n` 只在合进 `main` 时生效，不能依赖它。工作流失败时，合并的人当场手工关闭并补记录。已合并的分支不再提交；后续问题开新 issue。
+**PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理**（所有者 2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）。`issue-lifecycle` 工作流自动关闭并在两边留「关闭」记录，`branch-hygiene` 删除远端 task 分支，本机 worktree 由开发者 `node scripts/task.mjs finish <issue>` 删。GitHub 自带的 `Closes #n` 只在合进 `main` 时生效，不能依赖它。自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137），合并的人当场手工关闭，并按 [TRACKING](TRACKING.md) §3 的格式留「关闭」记录。已合并的分支不再提交；后续问题开新 issue。
 
 ## §2 正文内容
 

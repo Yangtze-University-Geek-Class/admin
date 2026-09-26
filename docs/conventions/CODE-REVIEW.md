@@ -30,6 +30,7 @@
 9. **旧模型残留**：diff 中不得把 `next` 分支、`feat/|fix/|docs/` 命名、`release-*`/`prev-*` tag、「push `stage`/`main` 即部署」、systemd、`/opt/yzgc-admin`、宿主 3000 端口当成现行模型（历史章节内须显式标注历史）。发布 tag 只能是 `vX.Y.Z-rc.N` / `vX.Y.Z`（见 [RELEASES](RELEASES.md)）。
 10. **危险操作**：数据库结构变更是否有兼容与恢复路径；是否有删除数据、覆盖配置、顺带升级无关依赖、修改生产凭据的动作；是否存在「以测试通过代替人工验收」的表述。
 11. **执行记录**：本 task 的 `notes/` 链路（[NOTES](NOTES.md)）从「开工」起连续，已记录到「PR」；对照提交、PR 和 CI 核对记录内容属实，时间、SHA、结果对得上，已有记录未被删除或改写。审查进行中允许暂缺「审查」记录（此时 CI `branch-guard` 缺少审查记录是预期的，不作为审查的阻塞项）；审查结论给出后，由作者在合并前补记「审查」记录（`docs(notes): …`），届时 CI 的执行记录检查校验「审查」补齐后方可合并。
+12. **合并后清理**（合并的人在合并后当场核对；所有者 2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR `Closes` 的 issue 已关闭（`gh issue view <issue> --json state` 是 `CLOSED`），远端 task 分支已删；只读运行 `node scripts/issue-sweep.mjs`，报告里没有「将补关」（它先不管合并不到一小时的 PR，刚合并时以上一条为准）；开发者本机 `node scripts/task.mjs list --check` 通过。没关上的当场手工关，并按 [TRACKING](TRACKING.md) §3 留「关闭」记录，不留到每天的巡检。
 
 ## 产出格式
 
