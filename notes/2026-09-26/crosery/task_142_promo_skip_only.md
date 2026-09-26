@@ -26,3 +26,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：refactor(portal): lib/promo.ts 删 clock 与 PROMO.seconds（只给进度文案用），lib/icons.ts 删 play-fill、pause-fill、volume-up-line、volume-mute-line（icons.ts 只收官网用到的），tests/web/portal-promo.test.ts 删进度文案用例；rg 核对官网与测试里已没有引用
 - 结果：文档核对：docs/services/web/ 不用改——删的是没人用的导出和图标，portal.md 里没写过它们；pnpm check 与 pnpm test 在提交后重跑，结果见下一条
+
+## 22:41:50 +08:00 · 开发 · #142 · 生产构建在 localhost 上用 ego-browser 实看播放层
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：pnpm --filter @yzgc/web build（f125abd 的源码），/tmp/serve-142.mjs 只绑 127.0.0.1:4318、非文件路径回落 portal 入口；ego TaskSpace 214 只删 yugc_promo_seen 一个 cookie 后打开 http://localhost:4318/join-us
+- 结果：桌面 1440×900：hls.js AV1，静音自动播（没有用户手势），画面上按钮只有「跳过Esc」，没有底部条和打开声音，焦点在跳过上；鼠标点画面后 paused=false、muted=false；Esc 关闭并写入看过。减少动态效果：播放层没画出来、没有 video，直接进信纸，写入看过。手机 390×844 触屏：画面框 matrix(0,1,-1,0) 铺满，H.264 与 640 宽封面，只有「跳过」，键帽不显示；手指点画面不暂停并打开声音；点跳过关闭。PromoPlayer 分包 4.59kB（原约 6KB），portal.md 改为约 5KB。截图 /tmp/promo-142-desktop.png、/tmp/promo-142-mobile.png，稍后传到 PR
