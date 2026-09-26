@@ -33,3 +33,10 @@
 - 做了什么：所有者 20:29 指示由 crosery 这边接手 LYsnowQ 的 PR #135；按 CODE-REVIEW 逐项审 93e1a032aef56773307814cd438ae941c0f7a6ef（范围 5c1717b..93e1a03）；vitest tests/console、pnpm check、note.mjs check --pr --for-review、6 处变异、safeReturnTo 15 个跳转输入、git merge-tree --write-tree origin/stage HEAD
 - 结果：结论有条件通过，评论 https://github.com/Yangtze-University-Geek-Class/admin/pull/135#issuecomment-5846345410。tests/console 59 passed；pnpm check 退出 0；note check 通过；变异 4/6 被抓住，删掉 session.ts:64 重复保护与 :66 清 catalogue 两处漏过；跳转输入全部落在本站或回退 /console；与 stage 6254304 合并无冲突。应修：补并发 401 与重试/重新登录的用例；docs/services/console/README.md:67 写 401 例外
 - 下一步：在本分支按审查意见返工
+
+## 20:44:41 +08:00 · 返工 · #133 · 按第一轮审查补并发 401 与按钮选择的用例，合同写明 401 例外
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 20:29 指示由 crosery 这边接手；af4bbff test(admin) 补几个请求先后 401 只处理一次；856a1d0 refactor(admin) 把 ErrorPanel 选「重新登录」还是「重试」挪进 lib/errors.ts 的 errorAction 并补用例；7908fed docs(admin) 控制台合同写明写请求 401 不保留已填内容、GitHub 上游 401 也算退出
+- 结果：pnpm test 530 passed（46 files），tests/console 62 passed；原先漏过的两处变异（删 session.ts 重复保护、不清 catalogue）和新加的三处 errorAction 变异都让用例失败；pnpm --filter @yzgc/console typecheck 退出 0，build 通过；pnpm check:docs 退出 0
+- 下一步：跑 pnpm check 与 note check 后推送，更新 PR 正文审查结论，等 CI
