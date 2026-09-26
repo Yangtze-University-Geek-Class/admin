@@ -56,6 +56,13 @@ const VIEWPORTS = [
  */
 const PAGE_ONLY = `const pageOnly = list => list.filter(el => !el.closest('.tx-bui-sidebar-nav') && !el.closest('.tuff-select__panel') && !el.closest('.tx-modal__overlay') && !el.closest('.tx-drawer'))`
 
+/**
+ * The like button in a post names itself by its text, 「赞」 or 「赞 N」 (#143),
+ * not by an aria-label over a bare count. Browser-side source for `scope`.
+ */
+const LIKE_BUTTON_IN = scope => `[...(${scope}?.querySelectorAll('button') ?? [])].find(b => /^赞(?: \\d+)?$/.test(b.textContent.replace(/\\s+/g, ' ').trim()))`
+const HAS_LIKE = `!!${LIKE_BUTTON_IN('document')}`
+
 const results = []
 const failures = []
 /** Results of the post-walk theme and reset checks; `null` when a filtered run skipped them. */
@@ -427,7 +434,7 @@ async function checkResetLifecycle() {
   await emulate({ width: 1280, height: 800 })
   await setMode('auth')
   await open(`${BASE}/t/t1`)
-  await waitFor(`!!document.querySelector('button[aria-label="赞"]')`, { timeoutMs: 20_000 })
+  await waitFor(HAS_LIKE, { timeoutMs: 20_000 })
 
   const before = await evaluate(readState)
   const likedPost = 'p2'
@@ -435,7 +442,7 @@ async function checkResetLifecycle() {
 
   const clicked = await evaluate(`(() => {
     const post = document.querySelector('#post-${likedPost}') ?? document.querySelectorAll('[id^="post-p"]')[1]
-    const button = post?.querySelector('button[aria-label="赞"]')
+    const button = ${LIKE_BUTTON_IN('post')}
     if (!button) return false
     button.click()
     return true
@@ -455,7 +462,7 @@ async function checkResetLifecycle() {
 
   // Survives a reload, which is what makes the reset meaningful.
   await open(`${BASE}/t/t1`)
-  await waitFor(`!!document.querySelector('button[aria-label="赞"]')`, { timeoutMs: 20_000 })
+  await waitFor(HAS_LIKE, { timeoutMs: 20_000 })
   const reloaded = await evaluate(readState)
   if ((reloaded.posts.find(post => post.id === likedPost)?.likeUserIds.length ?? 0) !== likesAfter)
     fail(context, 'reset', 'the like did not survive a reload')
@@ -532,7 +539,7 @@ async function checkResetLifecycle() {
 
   // And it stays reset.
   await open(`${BASE}/t/t1`)
-  await waitFor(`!!document.querySelector('button[aria-label="赞"]')`, { timeoutMs: 20_000 })
+  await waitFor(HAS_LIKE, { timeoutMs: 20_000 })
   const persisted = await evaluate(readState)
   if ((persisted.posts.find(post => post.id === likedPost)?.likeUserIds.length ?? 0) !== likesBefore)
     fail(context, 'reset', 'the like came back after a reload')

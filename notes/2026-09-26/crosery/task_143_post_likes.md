@@ -20,3 +20,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：refactor(forum): 登录提示的文案抽成 loginPromptToast：LoginModal 里按 loginPrompt 挑 toast 的三段分支搬到 data/access.ts 的纯函数，模态框只补「登录」按钮，文字与 id、时长、色调不变；access.test.ts 加两条；ADOPTION.json 的 LoginModal 说明补一句。node scripts/forum.mjs test tests/access.test.ts
 - 结果：access.test.ts 16 个测试通过；把 sign-in 的 signIn 改成 false 后测试失败（反向验证）
+
+## 22:38:04 +08:00 · 提交 · #143 · 每条帖子的点赞写出「赞」和赞数，赞过的变红
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：feat(forum): 帖子的点赞写出「赞」和赞数，赞过的高亮：新增 data/likes.ts 的 likeControl；PostCard 的赞按钮改成带边框的 TxButton，文字「赞 N」/「赞」，不再有 aria-label，赞过时实心心形 + danger 色调 + aria-pressed，请求没回来前再点不发第二次；tests/likes.test.ts；上游 verify-topic-page.mjs、smoke-routes.mjs 按文字找按钮，记进 ADOPTION.json；docs/services/forum/README.md 补「点赞」一条与单测清单。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
+- 结果：forum check 通过（typecheck、typecheck:tests、eslint、check-styles 115 个文件、24 个文件 472 个测试）；pnpm check 通过（文档同步按 PR 对 origin/stage 通过）。反向验证 10 个变异全部被测试拦下：文字退回纯数字、不变红、心形不填实、游客也显示按下、忽略能不能写、加回 aria-label、去掉请求中的防重、服务端模式走本地 store、store 不采用服务端的返回。上游 CDP 验收脚本按所有者规则没有在本机跑，脚本片段用 jsdom 夹具核对过能找到按钮、读出数字和 aria-pressed

@@ -80,8 +80,20 @@ const CLICK_COMPOSER_SUBMIT = `(() => {
   return true
 })()`
 
+/**
+ * The like button inside a post: it names itself by its text, 「赞」 or 「赞 N」
+ * (#143), instead of an aria-label over a bare count. Browser-side source,
+ * spliced into the snippets below.
+ */
+const FIND_LIKE = `const likeButton = post => [...(post?.querySelectorAll('button') ?? [])].find(b => /^赞(?: \\d+)?$/.test(b.textContent.replace(/\\s+/g, ' ').trim()))`
+/** Clicks the like button of the post at `index` in the stream. */
+const clickLike = index => `(() => { ${FIND_LIKE}; likeButton(document.querySelectorAll('[id^="post-p"]')[${index}]).click(); return true })()`
+/** 「赞 3」 → 3, 「赞」 → 0. */
+const likeCount = label => Number(String(label ?? '').replace(/^赞\s*/, '') || 0)
+
 /** Everything the post stream shows, in one round trip. */
 const STREAM = `(() => {
+  ${FIND_LIKE}
   const posts = [...document.querySelectorAll('[id^="post-p"]')]
   const text = el => el ? el.textContent.replace(/\\s+/g, ' ').trim() : null
   return {
@@ -91,8 +103,9 @@ const STREAM = `(() => {
     crumbs: [...document.querySelectorAll('.tx-breadcrumb__link')].map(text),
     ids: posts.map(p => p.id.replace('post-', '')),
     floors: posts.map(p => [...p.querySelectorAll('span')].map(s => s.textContent.trim()).find(t => /^#\\d+$/.test(t)) ?? null),
-    likes: posts.map(p => text(p.querySelector('button[aria-label="赞"]'))),
-    likeIcons: posts.map(p => p.querySelector('button[aria-label="赞"] i')?.className ?? null),
+    likes: posts.map(p => text(likeButton(p))),
+    likeIcons: posts.map(p => likeButton(p)?.querySelector('i')?.className ?? null),
+    likePressed: posts.map(p => likeButton(p)?.getAttribute('aria-pressed') ?? null),
     bodies: posts.map(p => p.querySelector('.tx-markdown-view')?.innerHTML ?? null),
     alerts: posts.map(p => text(p.querySelector('.tx-alert'))),
     editable: posts.map(p => !!p.querySelector('button i.i-carbon-edit')),
@@ -212,25 +225,27 @@ try {
   // ------------------------------------------------------------------ 2 like
   const likeBefore = stream.likes[1]
   const storedLikesBefore = storedPosts[1].likeUserIds.length
-  await evaluate(`document.querySelectorAll('[id^="post-p"]')[1].querySelector('button[aria-label="赞"]').click()`)
+  await evaluate(clickLike(1))
   await sleep(PERSIST_MS)
   const liked = await evaluate(STREAM)
   const likedState = await evaluate(READ_STATE)
   const likedStored = likedState.posts.find(post => post.id === stream.ids[1]).likeUserIds.length
-  assert(Number(liked.likes[1] || 0) === Number(likeBefore || 0) + 1, `like count ${likeBefore} → ${liked.likes[1]}`)
+  assert(likeCount(liked.likes[1]) === likeCount(likeBefore) + 1 && liked.likes[1] === `赞 ${likeCount(liked.likes[1])}`, `like count ${likeBefore} → ${liked.likes[1]}`)
   assert(liked.likeIcons[1].includes('i-carbon-favorite-filled'), `like icon stayed ${liked.likeIcons[1]}`)
+  assert(liked.likePressed[1] === 'true', `like button aria-pressed ${liked.likePressed[1]}`)
   assert(likedStored === storedLikesBefore + 1, `localStorage likeUserIds ${storedLikesBefore} → ${likedStored}`)
 
-  await evaluate(`document.querySelectorAll('[id^="post-p"]')[1].querySelector('button[aria-label="赞"]').click()`)
+  await evaluate(clickLike(1))
   await sleep(PERSIST_MS)
   const unliked = await evaluate(STREAM)
   const unlikedStored = (await evaluate(READ_STATE)).posts.find(post => post.id === stream.ids[1]).likeUserIds.length
   assert(unliked.likes[1] === likeBefore, `like count did not return: ${unliked.likes[1]}`)
   assert(unliked.likeIcons[1].includes('i-carbon-favorite') && !unliked.likeIcons[1].includes('filled'), `like icon stayed ${unliked.likeIcons[1]}`)
+  assert(unliked.likePressed[1] === 'false', `like button aria-pressed ${unliked.likePressed[1]}`)
   assert(unlikedStored === storedLikesBefore, `localStorage likeUserIds did not return: ${unlikedStored}`)
   assertClean('like toggle')
   record('liking a post persists and toggles back', {
-    note: `#2 ${likeBefore || 0} → ${liked.likes[1]} (icon -filled, localStorage ${storedLikesBefore} → ${likedStored}), second click back to ${unliked.likes[1]} / ${unlikedStored}`,
+    note: `#2 「${likeBefore}」 → 「${liked.likes[1]}」 (icon -filled, aria-pressed, localStorage ${storedLikesBefore} → ${likedStored}), second click back to 「${unliked.likes[1]}」 / ${unlikedStored}`,
   })
 
   // ----------------------------------------------------------------- 3 reply
@@ -439,7 +454,7 @@ try {
   const guest = await evaluate(STREAM)
   assert(guest.emptyState === '登录后参与讨论', `control bar empty state is ${JSON.stringify(guest.emptyState)}`)
   assert(!guest.topicReply, 'a guest still sees the topic reply button')
-  await evaluate(`document.querySelectorAll('[id^="post-p"]')[1].querySelector('button[aria-label="赞"]').click()`)
+  await evaluate(clickLike(1))
   // TxModal's root is `.tx-modal__overlay`; `.tx-modal` is only its transition name.
   await waitFor(has('.tx-modal__overlay'))
   const afterGuestLike = await evaluate(STREAM)
