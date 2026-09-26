@@ -61,3 +61,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：PromoUnavailable 用 ref 保证 onClose("failed") 只调一次、effect 不返回值；组件测试补「父组件重渲染换了新的 onClose 也只调一次」
 - 结果：tsc 通过；promo 相关 vitest 17 passed
+
+## 09:05:01 +08:00 · 审查 · #77 · 第三轮独立审查：通过；所有者批准新增 hls.js 并合并
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 dd6d64b（范围 243d249..dd6d64b），核对 PromoLazy 只结束一次与重渲染测试；所有者 2026-09-26 在对话里选「同意，合并 #95」，批准新增生产依赖 hls.js 1.7.3
+- 结果：通过：第二轮建议已解决，新建议 1 条（分包失败被 lazy 缓存，本次访问再点会立即关闭，不影响合并）；promo vitest 17 passed，pnpm check 退出码 0；CI push 36187592002、PR 36187597972、issue-lifecycle 36187600370 success
+- 下一步：推送本记录，CI 绿后合并 #95
