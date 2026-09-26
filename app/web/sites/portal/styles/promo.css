@@ -1,38 +1,57 @@
-/* 宣传片播放层（components/PromoPlayer.tsx）：全屏盖住页面，片子按比例放在墨色底上；控件是白色半透明胶囊。
-   只用官网令牌；触控目标 ≥44px；减少动态效果时不转加载圈。
+/* 宣传片播放层（components/PromoPlayer.tsx）：画面按 16:9 放进屏幕，控件叠在画面里，像游戏过场一样没有上下两条带。
+   画面外的空白是画面本身缩成 32×18 再放大模糊的颜色（.pt-promo-ambient）；手机竖着拿时整个画面转 90 度横过来铺满。
+   只用官网令牌；触控目标 ≥44px；减少动态效果时不做淡入淡出、不转加载圈。
    播放层挂在变 inert 的页面外面，自己带 .pt-root 拿到令牌；两个类连写，压过 .pt-root 的 position 与底色。 */
 .pt-root.pt-promo {
-  position: fixed; inset: 0; z-index: 70; min-height: 0;
-  display: grid; place-items: center;
-  background: var(--pt-ink); color: #fff;
+  position: fixed; inset: 0; z-index: 70; min-height: 0; overflow: hidden;
+  background: #04060d; color: #fff;
   font-family: var(--pt-sans);
   animation: pt-promo-in .25s var(--pt-ease);
 }
 .pt-root.pt-promo:focus { outline: none; }
+.pt-root.pt-promo.is-idle { cursor: none; }
 @keyframes pt-promo-in { from { opacity: 0; } }
-.pt-promo-video { width: 100%; height: 100%; object-fit: contain; background: var(--pt-ink); cursor: pointer; }
 
-.pt-promo-top {
-  position: absolute; top: 0; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(14px, 3vw, 28px) 14px;
-  background: linear-gradient(rgb(27 33 64 / 55%), transparent);
+/* 背景：比屏幕大一圈再模糊，边缘不露出硬边 */
+.pt-promo-ambient {
+  position: absolute; inset: -12%; width: 124%; height: 124%;
+  filter: blur(48px) saturate(1.35) brightness(.72);
+  pointer-events: none;
 }
-.pt-promo-title { font-size: 14px; letter-spacing: .02em; opacity: .85; }
 
+/* 画面框：尺寸容器，舞台按它算 16:9 的最大尺寸 */
+.pt-promo-frame {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  container-type: size;
+}
+.pt-promo-stage {
+  position: relative; overflow: hidden;
+  width: 100%; max-height: 100%; aspect-ratio: 16 / 9;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 30px 80px rgb(0 0 0 / 45%);
+}
+@supports (width: 1cqw) {
+  .pt-promo-stage { width: min(100cqw, 100cqh * 16 / 9); max-height: none; }
+}
+.pt-promo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; cursor: pointer; }
+
+/* 叠在画面上的控件：半透明、带一点模糊，压在任何画面上都看得清 */
 .pt-promo-chip, .pt-promo-icon, .pt-promo-play {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  min-height: 44px; border: 1px solid rgb(255 255 255 / 28%); border-radius: 999px;
-  background: rgb(255 255 255 / 14%); color: #fff; font: inherit; font-size: 14px;
-  cursor: pointer; transition: background .15s, border-color .15s;
+  min-height: 44px; border: 1px solid rgb(255 255 255 / 26%); border-radius: 999px;
+  background: rgb(8 12 28 / 42%); color: #fff; font: inherit; font-size: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  cursor: pointer; transition: background .15s, border-color .15s, opacity .3s;
 }
-.pt-promo-chip { padding: 0 16px; }
+.pt-promo-chip { position: absolute; top: 12px; padding: 0 16px; }
+.pt-promo-close { right: 12px; }
+.pt-promo-unmute { left: 12px; background: var(--pt-cobalt); border-color: transparent; }
+.pt-promo-unmute:hover { background: var(--pt-cobalt-deep); }
 .pt-promo-chip kbd { padding: 1px 6px; border-radius: 6px; background: rgb(255 255 255 / 16%); font: 11px var(--pt-mono); color: rgb(255 255 255 / 85%); }
 .pt-promo-icon { width: 44px; padding: 0; }
-.pt-promo-chip:hover, .pt-promo-icon:hover, .pt-promo-play:hover { background: rgb(255 255 255 / 24%); border-color: rgb(255 255 255 / 45%); }
+.pt-promo-chip:hover, .pt-promo-icon:hover, .pt-promo-play:hover { background: rgb(8 12 28 / 62%); border-color: rgb(255 255 255 / 45%); }
 .pt-promo-chip:focus-visible, .pt-promo-icon:focus-visible, .pt-promo-play:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.pt-promo-chip.is-sound { background: var(--pt-cobalt); border-color: transparent; }
-.pt-promo-chip.is-sound:hover { background: var(--pt-cobalt-deep); }
 
 .pt-promo-play {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -44,25 +63,47 @@
 .pt-promo-status {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   display: inline-flex; align-items: center; gap: 8px; margin: 0;
-  padding: 10px 16px; border-radius: 999px; background: rgb(27 33 64 / 70%); font-size: 14px;
+  padding: 10px 16px; border-radius: 999px; background: rgb(8 12 28 / 55%); font-size: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   pointer-events: none; /* 只是提示，点击要落到下面的视频上 */
 }
 .pt-spin { animation: pt-promo-spin 1s linear infinite; }
 @keyframes pt-promo-spin { to { transform: rotate(1turn); } }
 
+/* 底部控件：画面内底边一层渐变，不是单独的一条带 */
 .pt-promo-bar {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; gap: 12px;
-  padding: 14px clamp(14px, 3vw, 28px) calc(16px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(transparent, rgb(27 33 64 / 60%));
+  padding: 36px 14px 12px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 50%));
+  transition: opacity .3s;
 }
-.pt-promo-track { flex: 1; min-width: 40px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 25%); overflow: hidden; }
+.pt-promo-track { flex: 1; min-width: 40px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 28%); overflow: hidden; }
 .pt-promo-track i { display: block; height: 100%; background: #fff; }
-.pt-promo-time { font: 13px var(--pt-mono); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; }
+.pt-promo-time { font: 13px var(--pt-mono); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; text-shadow: 0 1px 2px rgb(0 0 0 / 50%); }
 
-@media (max-width: 760px) {
-  .pt-promo-title { display: none; }
-  .pt-promo-top { justify-content: flex-end; }
+/* 播放中一会儿不动：底部控件淡出、指针隐藏；「跳过」「打开声音」一直在。键盘焦点在底部控件里时不淡出（焦点框要看得见） */
+.pt-promo.is-idle .pt-promo-bar:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
+.pt-promo.is-idle .pt-promo-video { cursor: none; }
+
+/* 手机竖着拿：画面框转 90 度，横过来铺满屏幕（控件跟着转）；横过手机后媒体查询不再命中，就是正常横屏。
+   平板（竖放宽度 ≥ 600px）不转：竖着的平板上 16:9 的片子本来就够大 */
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 600px) {
+  .pt-promo-frame {
+    inset: auto; top: 50%; left: 50%;
+    width: 100vh; height: 100vw;
+    width: 100dvh; height: 100dvw;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .pt-promo-stage { box-shadow: none; }
+}
+
+/* 小画面（手机横屏、窄窗口）：控件收紧 */
+@media (max-width: 760px), (max-height: 480px) {
+  .pt-promo-chip { top: 8px; padding: 0 12px; }
+  .pt-promo-close { right: 8px; }
+  .pt-promo-unmute { left: 8px; }
+  .pt-promo-bar { padding: 28px 8px 6px; gap: 8px; }
   .pt-promo-chip kbd { display: none; }
 }
 /* 触屏不显示按键提示（portal.md「界面规则」） */
@@ -72,4 +113,5 @@
 @media (prefers-reduced-motion: reduce) {
   .pt-root.pt-promo { animation: none; }
   .pt-spin { animation: none; }
+  .pt-promo-chip, .pt-promo-icon, .pt-promo-play, .pt-promo-bar { transition: none; }
 }

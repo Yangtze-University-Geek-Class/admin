@@ -1,12 +1,15 @@
-// 宣传片播放层（#77）：全屏盖在页面上，任何时候都能跳过或关闭。
+// 宣传片播放层（#77、#103）：全屏盖在页面上，任何时候都能跳过或关闭。
 // gate：第一次点「加入我们」时由 JoinUs 挂出来，播完、跳过都会进信纸；replay：桌面「宣传片」应用重看，关掉回桌面。
-// 播放按 lib/promo.ts 的规则挑 hls.js 或原生 HLS、AV1 或 H.264；hls.js 按需加载，不进首屏包。
+// 画面按 16:9 放进屏幕，控件叠在画面里（像游戏过场）：「跳过 / 关闭」一直在右上角，静音时「打开声音」一直在左上角，
+// 其余控件播放时几秒不动就淡出，动一下鼠标、点一下屏幕或按键就回来；画面外的空白由画面本身的低清模糊色填满。
+// 手机竖着拿时整个画面转 90 度横过来铺满（promo.css），横过手机就是正常横屏。
+// 播放按 lib/promo.ts 的规则挑 hls.js 或原生 HLS、AV1 或 H.264，从估计带宽撑得住的一档起播；hls.js 按需加载，不进首屏包。
 // 能带声音自动播就带声音；浏览器不让就静音播并亮出「打开声音」；静音也不让播（或者用户要求减少动态效果）就停在封面等点播放。
 // 浏览器两种方式都不支持（unsupported）或加载失败（failed）时直接结束（gate 进信纸），宣传片不挡报名；
 // unsupported 以后也播不了，算作看过；failed 可能只是网络问题，不记，下次再试。
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type Hls from "hls.js/light";
-import { PROMO, choosePlayback, clock, detectCapabilities, type Playback } from "../lib/promo";
+import { PROMO, browserEstimate, choosePlayback, clock, detectCapabilities, startLevelIndex, type Playback } from "../lib/promo";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import Icon from "./Icon";
 import "../styles/promo.css";
@@ -20,21 +23,33 @@ type Props = {
   onClose: (reason: PromoEnd) => void;
 };
 
-/** 过了这么久还没出第一帧，就提示可以先跳过 */
+/** 过了这么久还没出画面（或卡住没恢复），就提示可以先跳过 */
 const SLOW_MS = 6000;
+/** 播放中这么久没有操作，除「跳过」「打开声音」外的控件淡出 */
+const IDLE_MS = 2500;
+/** 背景模糊色多久取一次画面：只画 32×18 的小图，开销可以忽略 */
+const AMBIENT_MS = 500;
 
 export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
   const reducedMotion = useReducedMotion();
   const video = useRef<HTMLVideoElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  const ambient = useRef<HTMLCanvasElement>(null);
   const hls = useRef<Hls | null>(null);
   const seen = useRef(false);
   const closed = useRef(false);
+  const idleTimer = useRef<number | undefined>(undefined);
+  const touch = useRef(false);
   const [playback, setPlayback] = useState<Playback | null>(null);
-  const [state, setState] = useState<"loading" | "playing" | "paused" | "waiting-click">("loading");
+  const [state, setState] = useState<"loading" | "playing" | "paused" | "buffering" | "waiting-click">("loading");
   const [muted, setMuted] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [idle, setIdle] = useState(false);
   const [time, setTime] = useState(0);
+  const [poster] = useState(() => (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? PROMO.posterSmall : PROMO.poster));
+  const hidden = idle && state === "playing";
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
 
   const markSeen = useCallback(() => {
     if (seen.current) return;
@@ -53,6 +68,17 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     [markSeen, onClose],
   );
 
+  /** 控件回来，并重新计时淡出 */
+  const wake = useCallback(() => {
+    setIdle(false);
+    window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => setIdle(true), IDLE_MS);
+  }, []);
+  useEffect(() => {
+    wake();
+    return () => window.clearTimeout(idleTimer.current);
+  }, [wake]);
+
   // 挑播放方式并挂上片源
   useEffect(() => {
     const element = video.current;
@@ -62,7 +88,8 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     const hlsModule = import("hls.js/light");
     hlsModule.catch(() => undefined);
     (async () => {
-      const choice = choosePlayback(await detectCapabilities(element));
+      const caps = await detectCapabilities(element);
+      const choice = choosePlayback(caps);
       if (cancelled) return;
       if (!choice) return finish("unsupported");
       setPlayback(choice);
@@ -76,11 +103,24 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
           return finish("failed");
         }
         if (cancelled) return;
+        const estimate = browserEstimate(caps.touch);
         // 不开 worker：fMP4 不需要转封装，也省得给 CSP 加 worker-src blob:
-        // 从码率最低的一档起播（与桌面上预取的是同一档），第一段下完再按实测带宽往上切
-        const player = new HlsJs({ enableWorker: false, capLevelToPlayerSize: true, maxBufferLength: 20, startLevel: 0 });
+        // 起播档由 startLevelIndex 定（与桌面上预取的是同一档），之后按实测带宽切换；缓冲放到 30 秒，弱网少卡
+        const player = new HlsJs({
+          enableWorker: false,
+          autoStartLoad: false,
+          capLevelToPlayerSize: true,
+          maxDevicePixelRatio: 2,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          abrEwmaDefaultEstimate: Math.max(estimate, 200_000),
+        });
         hls.current = player;
         let recovered = false;
+        player.on(HlsJs.Events.MANIFEST_PARSED, () => {
+          player.startLevel = startLevelIndex(player.levels.map((level) => level.bitrate), estimate);
+          player.startLoad(-1);
+        });
         player.on(HlsJs.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
           if (data.type === HlsJs.ErrorTypes.MEDIA_ERROR && !recovered) {
@@ -121,8 +161,27 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载时挑一次片源
   }, []);
 
+  // 画面外的空白：把当前画面缩成 32×18 画到背景画布上，CSS 再放大模糊。出画面之前先用封面。
+  // 跨域的原生 HLS 会让画布「受污染」，但这里只显示、从不读像素，不受影响。
   useEffect(() => {
-    if (state !== "loading") return;
+    const canvas = ambient.current;
+    const element = video.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !element || !context) return;
+    const draw = (source: CanvasImageSource) => context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const image = new Image();
+    image.onload = () => {
+      if (element.readyState < 2) draw(image);
+    };
+    image.src = poster;
+    const timer = window.setInterval(() => {
+      if (element.readyState >= 2 && !element.paused) draw(element);
+    }, AMBIENT_MS);
+    return () => window.clearInterval(timer);
+  }, [poster]);
+
+  useEffect(() => {
+    if (state !== "loading" && state !== "buffering") return;
     const timer = window.setTimeout(() => setSlow(true), SLOW_MS);
     return () => window.clearTimeout(timer);
   }, [state]);
@@ -145,7 +204,22 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     setMuted(element.muted);
   };
 
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    touch.current = event.pointerType === "touch";
+    if (!touch.current) wake();
+  };
+  // 点画面：鼠标点是暂停 / 继续；手指点是显示 / 收起控件（暂停用控件里的按钮），和手机上的视频播放器一样
+  const onVideoClick = () => {
+    if (!touch.current) return togglePlay();
+    if (hiddenRef.current) wake();
+    else {
+      window.clearTimeout(idleTimer.current);
+      setIdle(true);
+    }
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    wake();
     if (event.key === "Escape") {
       event.stopPropagation();
       finish("skipped");
@@ -167,69 +241,90 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
 
   const duration = video.current?.duration && Number.isFinite(video.current.duration) ? video.current.duration : PROMO.seconds;
   const closeLabel = mode === "gate" ? "跳过" : "关闭";
+  const waiting = state === "loading" || state === "buffering";
   return (
     // tabIndex -1：点视频或空白处时焦点落在播放层上而不是 body，Esc、空格、M 照样能用
-    <div ref={dialog} className="pt-root pt-promo" role="dialog" aria-modal="true" aria-label="极客班宣传片" tabIndex={-1} onKeyDown={onKeyDown} data-codec={playback?.codec} data-engine={playback?.engine}>
-      <video
-        ref={video}
-        className="pt-promo-video"
-        poster={PROMO.poster}
-        playsInline
-        preload="auto"
-        onPlaying={() => {
-          setState("playing");
-          setSlow(false);
-          markSeen();
-        }}
-        onPause={() => setState((current) => (current === "playing" ? "paused" : current))}
-        onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)}
-        onEnded={() => finish("ended")}
-        onError={() => playback?.engine === "native" && finish("failed")}
-        onClick={togglePlay}
-      />
+    <div
+      ref={dialog}
+      className={`pt-root pt-promo${hidden ? " is-idle" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="极客班宣传片"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onPointerMove={(event) => event.pointerType === "mouse" && wake()}
+      // 焦点移到某个按钮上（键盘 Tab）才叫醒控件；点画面时焦点落在播放层自己身上，交给 onVideoClick 处理，
+      // 否则手指第一次点画面会先被这里叫醒、紧接着又被 click 收起
+      onFocus={(event) => event.target !== event.currentTarget && wake()}
+      data-codec={playback?.codec}
+      data-engine={playback?.engine}
+    >
+      <canvas ref={ambient} className="pt-promo-ambient" width={32} height={18} aria-hidden="true" />
+      <div className="pt-promo-frame">
+        <div className="pt-promo-stage">
+          <video
+            ref={video}
+            className="pt-promo-video"
+            poster={poster}
+            playsInline
+            preload="auto"
+            onPlaying={() => {
+              setState("playing");
+              setSlow(false);
+              markSeen();
+            }}
+            onWaiting={() => setState((current) => (current === "playing" ? "buffering" : current))}
+            onPause={() => setState((current) => (current === "playing" || current === "buffering" ? "paused" : current))}
+            onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)}
+            onEnded={() => finish("ended")}
+            onError={() => playback?.engine === "native" && finish("failed")}
+            onClick={onVideoClick}
+          />
 
-      <div className="pt-promo-top">
-        <span className="pt-promo-title">极客班宣传片</span>
-        <button type="button" className="pt-promo-chip" data-promo-close onClick={() => finish("skipped")}>
-          <Icon name={mode === "gate" ? "skip-forward-line" : "close-line"} size={16} />
-          {closeLabel}
-          <kbd>Esc</kbd>
-        </button>
-      </div>
+          <button type="button" className="pt-promo-chip pt-promo-close" data-promo-close onClick={() => finish("skipped")}>
+            <Icon name={mode === "gate" ? "skip-forward-line" : "close-line"} size={16} />
+            {closeLabel}
+            <kbd>Esc</kbd>
+          </button>
+          {muted && (
+            <button type="button" className="pt-promo-chip pt-promo-unmute" onClick={toggleMute}>
+              <Icon name="volume-mute-line" size={16} />
+              打开声音
+            </button>
+          )}
 
-      {state === "loading" && (
-        <p className="pt-promo-status" role="status">
-          <Icon name="loader-4-line" size={18} className="pt-spin" />
-          {slow ? `网络有点慢，可以先点「${closeLabel}」` : "正在加载…"}
-        </p>
-      )}
-      {state === "waiting-click" && (
-        <button type="button" className="pt-promo-play" onClick={togglePlay}>
-          <Icon name="play-fill" size={28} />
-          播放宣传片
-        </button>
-      )}
+          {waiting && (
+            <p className="pt-promo-status" role="status">
+              <Icon name="loader-4-line" size={18} className="pt-spin" />
+              {slow ? `网络有点慢，可以先点「${closeLabel}」` : state === "buffering" ? "正在缓冲…" : "正在加载…"}
+            </p>
+          )}
+          {state === "waiting-click" && (
+            <button type="button" className="pt-promo-play" onClick={togglePlay}>
+              <Icon name="play-fill" size={28} />
+              播放宣传片
+            </button>
+          )}
 
-      <div className="pt-promo-bar">
-        <button type="button" className="pt-promo-icon" aria-label={state === "playing" ? "暂停" : "播放"} onClick={togglePlay}>
-          <Icon name={state === "playing" ? "pause-fill" : "play-fill"} size={18} />
-        </button>
-        <div className="pt-promo-track" aria-hidden="true">
-          <i style={{ width: `${Math.min(100, (time / duration) * 100)}%` }} />
+          <div className="pt-promo-bar">
+            <button type="button" className="pt-promo-icon" aria-label={state === "playing" || state === "buffering" ? "暂停" : "播放"} onClick={togglePlay}>
+              <Icon name={state === "playing" || state === "buffering" ? "pause-fill" : "play-fill"} size={18} />
+            </button>
+            <div className="pt-promo-track" aria-hidden="true">
+              <i style={{ width: `${Math.min(100, (time / duration) * 100)}%` }} />
+            </div>
+            <span className="pt-promo-time">
+              {clock(time)} / {clock(duration)}
+            </span>
+            {/* 静音时由左上角一直显示的「打开声音」负责，这里只放「静音」 */}
+            {!muted && (
+              <button type="button" className="pt-promo-icon" aria-label="静音" onClick={toggleMute}>
+                <Icon name="volume-up-line" size={18} />
+              </button>
+            )}
+          </div>
         </div>
-        <span className="pt-promo-time">
-          {clock(time)} / {clock(duration)}
-        </span>
-        {muted ? (
-          <button type="button" className="pt-promo-chip is-sound" onClick={toggleMute}>
-            <Icon name="volume-mute-line" size={16} />
-            打开声音
-          </button>
-        ) : (
-          <button type="button" className="pt-promo-icon" aria-label="静音" onClick={toggleMute}>
-            <Icon name="volume-up-line" size={18} />
-          </button>
-        )}
       </div>
     </div>
   );

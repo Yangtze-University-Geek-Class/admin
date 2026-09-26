@@ -89,6 +89,28 @@ test("clicking the video keeps keyboard control: Esc still skips the promo", asy
   await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });
 });
 
+test.describe("promo on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test("held upright, the promo turns sideways to fill the screen and 跳过 still works", async ({ page }) => {
+    await page.goto("/sites/portal/docs");
+    const canPlay = await page.evaluate(() => typeof MediaSource !== "undefined" && MediaSource.isTypeSupported('video/mp4; codecs="avc1.640029, mp4a.40.2"'));
+    test.skip(!canPlay, "这个 Chromium 没有 H.264/AAC：播放层走「播不了就放行」");
+    await page.route(PROMO_CDN, () => {});
+    await page.goto("/sites/portal/join-us");
+    const promo = page.getByRole("dialog", { name: "极客班宣传片" });
+    await expect(promo).toBeVisible();
+    const frame = await page.locator(".pt-promo-frame").evaluate((element) => ({ transform: getComputedStyle(element).transform, box: element.getBoundingClientRect().toJSON() }));
+    // rotate(90deg) 的矩阵是 matrix(0, 1, -1, 0, …)；转过来以后画面框占满竖着的屏幕
+    expect(frame.transform).toMatch(/^matrix\(0, 1, -1, 0,/);
+    expect(Math.round(frame.box.width)).toBe(390);
+    expect(Math.round(frame.box.height)).toBe(844);
+    expect(await page.locator(".pt-promo").getAttribute("data-codec")).toBe("h264");
+    await page.getByRole("button", { name: /跳过/ }).tap();
+    await expect(promo).toHaveCount(0);
+  });
+});
+
 test("console navigation follows the persona's capabilities", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "控制台导航" });
   await openConsole(page, "/console", "captain");
