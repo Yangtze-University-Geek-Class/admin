@@ -2,7 +2,7 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { MEMBER_CONTENT_MAX } from '../../shared/forum-api'
-import { fromEditor, replyQuote } from '../../shared/post-markdown'
+import { fromEditor, quoteDraft } from '../../shared/post-markdown'
 
 /**
  * Discourse's composer: a panel that slides up from the bottom of the topic
@@ -18,7 +18,7 @@ import { fromEditor, replyQuote } from '../../shared/post-markdown'
  * is single-use, so every send renders a fresh widget.
  *
  * The prefilled quote is someone else's text, so it goes into the editor
- * through `replyQuote` (raw HTML shown as text); what is sent is `fromEditor`
+ * through `quoteDraft` (raw HTML shown as text); what is sent is `fromEditor`
  * of the draft.
  */
 const props = defineProps<{
@@ -32,8 +32,6 @@ const emit = defineEmits<{
   'update:visible': [visible: boolean]
   'submitted': [postId: string]
 }>()
-
-const QUOTE_LENGTH = 80
 
 const forum = useForumStore()
 const server = useForumServerStore()
@@ -77,7 +75,7 @@ watch(() => props.visible, (visible) => {
     return
   submitting.value = false
   if (!content.value.trim())
-    content.value = props.replyTo ? replyQuote(postExcerpt(props.replyTo.content, QUOTE_LENGTH)) : ''
+    content.value = props.replyTo ? quoteDraft(props.replyTo) : ''
 })
 
 function close() {

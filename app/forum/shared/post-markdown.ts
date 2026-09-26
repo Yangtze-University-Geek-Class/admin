@@ -15,6 +15,8 @@
  * 编辑器里的别人的文字见下面的 `toEditor`。
  */
 
+import { postExcerpt } from '../app/utils/excerpt'
+
 export const WORD_JOINER = '\u2060'
 
 const SAFE_SCHEMES = new Set(['http', 'https', 'mailto'])
@@ -68,6 +70,19 @@ export function fromEditor(text: string): string {
 /** 回复框里预填的引用：被回复那一帖的一行摘要。摘要来自别人写的正文，同样先过 `toEditor`。 */
 export function replyQuote(excerpt: string): string {
   return `> ${toEditor(excerpt)}\n\n`
+}
+
+/** 回复框引用的摘要最多这么长。 */
+export const QUOTE_LENGTH = 80
+
+/** 回复某一帖时回复框里预填的内容（ReplyComposer.vue）。 */
+export function quoteDraft(post: { content: string }): string {
+  return replyQuote(postExcerpt(post.content, QUOTE_LENGTH))
+}
+
+/** 点「编辑」时编辑器里的初始内容（PostCard.vue）；可能是别人的帖子（版主编辑）。 */
+export function editDraft(post: { content: string }): string {
+  return toEditor(post.content)
 }
 
 function neutralize(match: string, lead: string, destination: string): string {

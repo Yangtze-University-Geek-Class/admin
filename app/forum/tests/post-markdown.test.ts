@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { postExcerpt } from '~/utils/excerpt'
-import { fromEditor, isUnsafeDestination, renderableMarkdown, replyQuote, toEditor, WORD_JOINER } from '../shared/post-markdown'
+import { editDraft, fromEditor, isUnsafeDestination, QUOTE_LENGTH, quoteDraft, renderableMarkdown, replyQuote, toEditor, WORD_JOINER } from '../shared/post-markdown'
 
 // TxMarkdownView renders with `new Marked({ gfm: true, breaks: true })`. The
 // forum does not depend on marked itself, so resolve the very copy tuffex
@@ -198,21 +198,18 @@ function wysiwygRoundTrip(value: string): string {
 }
 
 describe('someone else\'s text put into the editor', () => {
-  /** ReplyComposer's QUOTE_LENGTH. */
-  const QUOTE_LENGTH = 80
-
   it('is what the raw text would put on the page (the case this guards)', () => {
     expect(marked.parse(`> ${postExcerpt('<style>body{display:none}</style>', QUOTE_LENGTH)}\n\n`)).toMatch(/<style>/)
   })
 
   it.each(ATTACKS)('quoting %j puts no tag, handler or style into the editor', (source) => {
-    const out = marked.parse(replyQuote(postExcerpt(source, QUOTE_LENGTH)))
+    const out = marked.parse(quoteDraft({ content: source }))
     expect(out).not.toMatch(FORBIDDEN_TAG)
     expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
   })
 
   it.each(ATTACKS)('editing %j puts no tag, handler or style into the editor', (source) => {
-    const out = marked.parse(toEditor(source))
+    const out = marked.parse(editDraft({ content: source }))
     expect(out).not.toMatch(FORBIDDEN_TAG)
     expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
   })
@@ -222,7 +219,7 @@ describe('someone else\'s text put into the editor', () => {
   })
 
   it.each([...ATTACKS, ...ENTITY_ATTACKS])('%j stays text after a trip through the WYSIWYG layer, edited or quoted', (source) => {
-    for (const value of [toEditor(source), replyQuote(postExcerpt(source, QUOTE_LENGTH))]) {
+    for (const value of [editDraft({ content: source }), quoteDraft({ content: source })]) {
       const out = marked.parse(wysiwygRoundTrip(value))
       expect(out).not.toMatch(FORBIDDEN_TAG)
       expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
