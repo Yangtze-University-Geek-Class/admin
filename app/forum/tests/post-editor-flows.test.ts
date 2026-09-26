@@ -3,6 +3,7 @@ import type { Post, Topic, User } from '~/data/types'
 import type { TestNode } from './support/sfc'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, reactive, ref } from 'vue'
+import * as likes from '~/data/likes'
 import * as forumApi from '../shared/forum-api'
 import * as postMarkdown from '../shared/post-markdown'
 import { find, findAll, isShown, loadComponent, mount, textOf } from './support/sfc'
@@ -10,9 +11,9 @@ import { loadMarked, TUFFEX_STUBS } from './support/tuffex-stubs'
 
 /**
  * The pages that use PostEditor, mounted with their stores stubbed: the reply
- * drawer (quotes included) and the new-topic form. What they send is the text
- * in the textarea, whatever mode the editor was left in, and the length checks
- * still hold.
+ * drawer (quotes included), the new-topic form and a post's edit form. What
+ * they send is the text in the textarea, whatever mode the editor was left in,
+ * and the length checks still hold.
  */
 const { MEMBER_CONTENT_MAX } = forumApi
 const { quoteDraft } = postMarkdown
@@ -258,5 +259,57 @@ describe('the new-topic form', () => {
     await editor.choose('预览')
     await click(button(root, '创建话题'))
     expect(createTopic).not.toHaveBeenCalled()
+  })
+})
+
+describe('the edit form on a post', () => {
+  const post: Post = { id: 'p4', topicId: 't1', authorId: 'u1', content: '原来的正文', createdAt: 0, likeUserIds: [] }
+
+  function mountCard() {
+    const editPost = vi.fn(async (_postId: string, _content: string) => true)
+    const PostCard = loadComponent('components/PostCard.vue', {
+      imports: {
+        '@talex-touch/tuffex/utils': { toast: vi.fn() },
+        '~/data/likes': likes,
+      },
+      globals: {
+        useForumStore: () => ({ userById: () => member, postById: () => undefined, isBookmarked: () => false, isFirstPost: () => false }),
+        useForumActions: () => ({ editPost }),
+        useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
+        useShell: () => ({ loginOpen: ref(false) }),
+        useRelativeTime: () => ({ fromNow: () => '刚刚', formatAbsolute: () => '' }),
+        useAppLink: () => ({ href: (path: string) => path, absoluteUrl: () => 'https://forum.example/t/t1#post-p4' }),
+      },
+    })
+    const stub = defineComponent({ setup: () => () => h('div') })
+    const { root } = mount(PostCard, { post, topic, floor: 2 }, { ...components, UserAvatar: stub, TitleBadge: stub })
+    return { root, editPost, editor: editorOf(root) }
+  }
+
+  it('saves the text changed in the editor, whatever the mode', async () => {
+    const { root, editPost, editor } = mountCard()
+    await click(button(root, '编辑'))
+    expect(editor.mode()).toBe('编辑')
+    expect(editor.textarea().props.value).toBe('原来的正文')
+    await editor.type('改过的正文')
+    await editor.choose('预览')
+    expect(editor.previewHtml()).toContain('改过的正文')
+    await click(button(root, '保存'))
+    expect(editPost).toHaveBeenCalledOnce()
+    expect(editPost.mock.calls[0]).toEqual(['p4', '改过的正文'])
+    expect(find(root, node => 'data-post-editor' in node.props)).toBeUndefined()
+  })
+
+  it('starts every edit in 编辑 with the post as written', async () => {
+    const { root, editPost, editor } = mountCard()
+    await click(button(root, '编辑'))
+    await editor.type('不要了')
+    await editor.choose('分栏')
+    await click(button(root, '取消'))
+    await click(button(root, '编辑'))
+    expect(editor.mode()).toBe('编辑')
+    expect(isShown(editor.textarea())).toBe(true)
+    expect(editor.textarea().props.value).toBe('原来的正文')
+    expect(editPost).not.toHaveBeenCalled()
   })
 })

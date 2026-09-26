@@ -143,4 +143,13 @@ export const TUFFEX_STUBS: Record<string, Component> = {
   TxFormItem: container(),
   TxEmptyState: container(),
   TxDrawer: container('section'),
+  // The rest of a post card around its edit form; the tests read and press none of them.
+  TxTooltip: container(),
+  TxAlert: container(),
+  TxCellLink: container(),
+  TxStatusBadge: container(),
+  TxCopyButton: container(),
+  TxIconButton: container(),
+  TxDropdownMenu: container(),
+  TxDropdownItem: container(),
 }
