@@ -7,3 +7,15 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：node scripts/task.mjs start 133 console_signed_out：建分支与 worktree .claude\worktrees\task-133，在 issue 上留开工记录
 - 结果：worktree 已建好，issue 上已留开工记录
+
+## 20:25:54 +08:00 · 开发 · #133 · 请求层统一处理 401，ErrorPanel 登录失效改为重新登录
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：先写 tests/console/signed-out.test.ts（任意接口 401 清身份并交给 meError；写请求同理；403/500/网络错误不算退出；/auth/signout 自身的 401 不重复处理），再改 lib/http.ts 加 onSignedOut 钩子、lib/session.ts 注册处理、components/ErrorPanel.vue 在 signed_out 时给「重新登录」；docs/services/console/README.md 状态一节与验证一节补上
+- 结果：修复前 2 failed / 2 passed；修复后 tests/console 59 passed；vue-tsc 0；check-boundaries 通过；console build 通过；e2e 控制台 5 条 passed；真实 Chrome：会话中途 401 后保存与切换筛选都跳到 /signin?return_to=<原页面>，登录按钮带 return_to 回原页面
+
+## 20:26:09 +08:00 · 提交 · #133 · 提交修复 58d05e2
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：git commit 58d05e2 fix(admin): 控制台用到一半登录失效时带人重新登录（所有者授权可提交并开 PR）
+- 结果：tests/console 59 passed；vue-tsc、boundaries、console build、e2e 控制台 5 条通过
