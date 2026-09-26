@@ -87,6 +87,8 @@ const REFUSED_NAMES = [
   'b\u043Eb', 'geekcl\u0430ss', '\u041A\u043E\u0432\u0430\u043B\u0451\u0432', 'b\u03BFb', '\u{1D41B}\u03BFb', '\u0391\u03BB\u03AD\u03BE\u03B7\u03C2',
   'b\u0585b', '\uA4D0ob', '\u13A0ave', '5\u00B5m', '\u0299ob', 'geekc\u01C0ass', '小博\u{1F389}', '张  三', '---', '·',
   '极客班\u1161', '\u1100', 'bob\uA960', 'bob\uD7B0', '\u3131\u3131',
+  // 属于允许的文字、但不是字母的字符：韩文声调符号 U+302E，汉字部首 U+2E80（Script=Han，类别 So）。
+  '极客班\u302E', '极客班\u2E80',
 ];
 /** 允许清单要收的名字：汉字、拉丁字母（含拼音声调、越南文）、假名、韩文、数字和几个分隔符。 */
 const ALLOWED_NAMES = ['张 三', 'Zhang San', '小博bob', '田中さん', '김민수', '\u1100\u1161\u11A8', "O'Neil", 'ab-cd_e.f', 'Lǚ Xiǎomíng', 'Nguyễn Văn An', '阿·凡提', '中村・花子', 'ラーメン'];
@@ -519,12 +521,15 @@ describe('replies', () => {
     s.app.services.roles.insertAssignment({ github_login: 'zed', github_user_id: null, role: 'member', department_id: 'tech', note: null, granted_by: 'fixture' });
     s.app.services.storage.audit(null, 'owner1', 'auth.signin', 'owner1');
     s.app.services.auth.createSession('grace', 107, null, 'token-grace');
+    // mallory 登录被拒过（auth.signin_denied）：不是登录过的人，名字照常能用。
+    s.app.services.storage.audit(null, 'mallory', 'auth.signin_denied', 'mallory', { org: CONSOLE_ORG, reason: 'not_member' });
     let ip = 63;
     const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: `198.51.100.${ip++}` });
     for (const name of ['Dave', '\uFF25\uFF32\uFF29\uFF2E', 'zed', 'OWNER1', 'Grace']) {
       expect((await send(name)).json().error, name).toBe('guest_name_taken');
     }
     expect((await send('frank')).statusCode).toBe(201);
+    expect((await send('mallory')).statusCode).toBe(201);
     expect((await s.state()).users.map((u: { id: string }) => u.id)).not.toContain('m104');
 
     const rename = (displayName: string, who: string) => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
@@ -760,6 +765,10 @@ describe('profile', () => {
     expect(refused.json()).toMatchObject({ error: 'invalid_display_name', message: NAME_RULE });
     expect((await patch({ displayName: 'Carol', bio: '不该写进去' })).json().error).toBe('display_name_taken');
     expect((await s.state('bob')).users.find((u: { id: string }) => u.id === 'm102')).toMatchObject({ displayName: '极客班', bio: '签名 极客班' });
+    // 存的是带首尾空格的「 bob 」：提交「bob」算没改，昵称不写回。
+    s.db.prepare("UPDATE forum_users SET display_name = ' bob ' WHERE id = 'm102'").run();
+    expect((await patch({ displayName: 'bob', bio: '又改了签名' })).statusCode).toBe(200);
+    expect(s.db.prepare("SELECT display_name, bio FROM forum_users WHERE id = 'm102'").get()).toEqual({ display_name: ' bob ', bio: '又改了签名' });
   });
 });
 
