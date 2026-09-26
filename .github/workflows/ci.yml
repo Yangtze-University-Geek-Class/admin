@@ -35,10 +35,12 @@ permissions:
   contents: read
 
 concurrency:
-  # push 与 pull_request 分开成组：同一次推送的两次运行都要跑，只取消同一类的旧运行。
+  # push 与 pull_request 的 ref 本来就不同（refs/heads/… 与 refs/pull/N/merge），加上事件名只是让同一分支上
+  # 手动触发（workflow_dispatch）与 push 不互相取消。
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   # pull_request 与推到 task/**、dev/** 的旧运行在新推送到来时取消（#124：旧提交的运行跑完才让路，runner 一直排队）。
-  # push 到长期分支（main、stage）的运行必须跑完，否则主线提交会缺少验证证据。
+  # push 到长期分支（main、stage）的运行不取消正在跑的；但同一组里已经有一个在排队时，GitHub 会取消排队中的
+  # 那一次（默认 queue: single），连续合并时中间的提交可能没有 verify，见 docs/ops/CICD.md。
   cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/task/') || startsWith(github.ref, 'refs/heads/dev/') }}
 
 env:

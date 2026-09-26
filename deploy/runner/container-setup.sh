@@ -118,7 +118,9 @@ EOF
 systemctl daemon-reload
 systemctl enable --now runner-docker-prune.timer
 
-# 实例数（#124）：宿主机 16 核、30G，两个人同时开 PR 时两个实例排队一个多小时；与 register.sh 的 RUNNER_INSTANCES 一致
+# 实例数（#124）：容器限额 8 线程、16GiB，两个人同时开 PR 时两个实例排队一个多小时；与 register.sh 的 RUNNER_INSTANCES 一致，1–9
+# 实例数 1–9：job-started.sh 按 r[0-9] 认工作目录，r10 起不再清理
+case "${RUNNER_INSTANCES:-4}" in [1-9]) ;; *) echo "RUNNER_INSTANCES 要是 1 到 9：${RUNNER_INSTANCES}" >&2; exit 2 ;; esac
 for n in $(seq 1 "${RUNNER_INSTANCES:-4}"); do
   d=/home/runner/r$n
   [ -x "$d/config.sh" ] || { mkdir -p "$d"; tar -xzf "$tarball" -C "$d"; }
