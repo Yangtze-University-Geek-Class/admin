@@ -157,7 +157,7 @@
 | 项 | 取值 |
 |---|---|
 | 容器 | 同一台 crosery-arch；每个 job 一个非特权 incus 系统容器 `ydeploy-<时间>-<随机>`（Ubuntu 24.04，容器里有自己的 Docker），限 6 线程、8G 内存；是 incus 的 ephemeral 实例，关机即删除 |
-| 注册 | 组织级 JIT runner：runner 组 `yzgc-deploy`（id 3，只放行 `admin` 仓库；`admin` 公开后于 2026-09-26 打开「允许公开仓库」），标签 `yzgc-deploy`。每台只接一个 job，job 结束后 GitHub 自动注销它 |
+| 注册 | 组织级 JIT runner：runner 组 `yzgc-deploy`（id 3，只放行 `admin` 仓库；`admin` 公开后于 2026-09-26 打开「允许公开仓库」。改这个设置之前注册的 JIT runner 不接公开仓库的 job：v0.1.0-rc.8 的 plan job 排了 10 分钟没人领，旧 runner 到 8 小时上限被回收时这个 job 跟着被取消，池子补上新 runner 后重跑才领走。改组设置后要等旧 runner 换完，或者在宿主机上重启 `yzgc-jit-pool` 立即换），标签 `yzgc-deploy`。每台只接一个 job，job 结束后 GitHub 自动注销它 |
 | 补位 | 宿主机 systemd 服务 `yzgc-jit-pool`（`deploy/runner/jit-pool.sh`）始终保持 2 个在跑的容器：一个 job 跑完容器关机，几秒后补一个新的，新容器从镜像 `yzgc-deploy` 起，十几秒就能接活。每 10 分钟维护一次：删掉启动失败留下的停机实例；注销容器已经没了的离线 runner；空闲超过 5 小时的 runner 先在 GitHub 上注销（忙时 GitHub 拒绝）再删容器。容器里的服务另有 8 小时上限兜底，接到 job 的 runner（build 最长 60 分钟）不会在 job 中途被杀 |
 | 凭据 | 一个 fine-grained 令牌，只有组织权限「Self-hosted runners: Read and write」，存在宿主机 `/etc/yzgc-runner/github.header`（root 0600），只用来生成 JIT 配置、删离线 runner，不进仓库、镜像、日志和容器。容器里只有自己这一次的 JIT 配置：读进环境变量后删掉文件，runner 不把它传给 job；但 runner 会把解出的凭据写进 `actions-runner/.credentials*`，job 与 runner 同一个用户，读得到。那只是这台 runner 自己的凭据，随 job 结束注销 |
 | 网络 | 单独的网桥 `incusdeploy`（10.78.0.0/24），和常驻 CI 容器不在同一个二层网段（incus 的 ACL 管不到同一网桥上容器之间的流量）；网卡开 `security.port_isolation`（部署容器之间互相不通，只能到网关）与 `security.ipv4_filtering`（不能冒用别的 IP、MAC）；出站 ACL 与 CI 相同 |
