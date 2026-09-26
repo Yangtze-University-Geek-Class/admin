@@ -133,3 +133,10 @@
 - 做了什么：c12f417 昵称改用允许清单（isAllowedName，先 NFKC，只收汉字、假名、韩文、常用拉丁字母、ASCII 数字、ー 与空格 - _ . · ・ '），拉丁字母比审查定的更窄，不收 IPA、小型大写、搭嘴音；删掉屏蔽清单、nameProblem 与混写规则；nameKey 改为 NFKC、不分大小写、去附加符号；8aa6d1e orgLogins 并上审计里 auth.signin 的登录名与当前会话，SECURITY 把剩下的缺口写成段末单独一句。变异核对：清单放宽成任意字母与格式字符、不查只有符号与连着的空格、成员昵称不走清单、拉丁字母放宽到整个 Script=Latin、orgLogins 去掉登录过的人，每次都有对应用例失败，恢复后工作区干净。论坛前端（task-107）只查昵称是否为空和长度，没有字符检查，服务端的 message 经 ForumApiError 显示
 - 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 380 条）；server tsc 退出 0；pnpm check 退出 0；未验证：预发布环境、前端显示新 message；没有推送
 - 下一步：主 agent 复核后推送并请第四轮审查
+
+## 19:25:20 +08:00 · 返工 · #57 · 第三轮复核的两处跟进：没改的昵称不再检查、本机预览说明更正 /api/forum/*
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：主 agent 复核第三轮返工后提出两处跟进（拉丁字母范围保持更窄的写法）。cb00438 fix(server)：PATCH /api/forum/me/profile 里 displayName 去首尾空白后和库里现存的相同就当没改，不查允许清单和冒名、也不写；资料页每次保存都带昵称，早先存下的不合规或和官方同名的昵称不再挡住改签名、网站；换成别的昵称仍走全部检查，被拒时别的字段也不写；API.md 同步。c3dfd9f docs(ops)：LOCAL-PREVIEW 第 16 行改为 /api/forum/* 是新论坛接口，只有新接口没注册的旧路径、/auth/forum/*、/forum/u/* 返回 410，只动第 5 行日期和第 16 行，和 #126 分支（改第 13 行）用 git merge-file 模拟合并无冲突。变异核对：去掉跳过、一律跳过、比较时不去首尾空白，三次都有对应用例失败，恢复后工作区干净
+- 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 381 条）；server tsc 退出 0；pnpm check 退出 0；check:docs 退出 0；未验证：预发布环境、资料页真实保存；没有推送。另发现：成员默认昵称是 GitHub 登录名，最长 39 个字，超过 30 个字的人在资料页保存时会被 displayName 的长度校验挡住（前端 profileProblem 和服务端 schema 都查），这次没改
+- 下一步：主 agent 复核后推送并请第四轮审查
