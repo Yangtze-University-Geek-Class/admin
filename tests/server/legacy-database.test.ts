@@ -213,7 +213,10 @@ describe('booting on the existing production data.db (legacy schema, no applicat
       expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
     }
     const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map(row => row.name);
-    expect(indexes).toEqual(expect.arrayContaining(['idx_applications_status_created', 'idx_application_reviews_app', 'uq_role_assignments_captain', 'idx_role_assignments_login']));
+    expect(indexes).toEqual(expect.arrayContaining(['idx_applications_status_created', 'idx_application_reviews_app', 'uq_role_assignments_captain', 'idx_role_assignments_login', 'idx_audit_signin_actor']));
+    // 登录过的人的查询（auth.signedInLogins）只读部分索引，不扫整张审计表。
+    const plan = db.prepare("EXPLAIN QUERY PLAN SELECT actor AS login FROM audit_logs WHERE action = 'auth.signin' UNION SELECT login FROM sessions").all() as { detail: string }[];
+    expect(plan.map(row => row.detail)).toEqual(expect.arrayContaining([expect.stringContaining('USING COVERING INDEX idx_audit_signin_actor')]));
     expect(db.prepare('SELECT id FROM departments ORDER BY sort_order').all()).toEqual(DEFAULT_DEPARTMENTS.map(({ id }) => ({ id })));
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
 

@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at DESC);
+-- 登录过的人（auth.signedInLogins）：论坛每次核对游客昵称、成员改昵称都要查，审计越积越多也只读登录那几行。
+CREATE INDEX IF NOT EXISTS idx_audit_signin_actor ON audit_logs(actor) WHERE action = 'auth.signin';
 `);
 
 
