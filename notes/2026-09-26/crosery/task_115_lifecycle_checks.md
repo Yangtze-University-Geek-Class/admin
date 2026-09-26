@@ -191,3 +191,17 @@
 - 做了什么：a014794 AGENTS §2 写明 PR 合并进 stage 后它 Closes 的 issue 必须关闭、task 分支与 worktree 必须清理，自动化没关上的（例如 fork PR 没有写权限，#137）由合并的人当场手工关并留「关闭」记录，§5 黑名单加「合并后关联 issue 仍开着」，ISSUES、TRACKING、PULL-REQUESTS 同样写成必须并引所有者 2026-09-26 的原话，CODE-REVIEW 第 12 项与审查技能第 15 项加合并后可执行的核对（gh issue view 是 CLOSED、ls-remote 没有 task 分支、只读 issue-sweep 没有「将补关」、task.mjs list --check 通过）；e280185 文档核对的理由先去掉 U+200B–U+200D、U+2060、U+FEFF，照抄「<理由>」或没有汉字字母数字的不算；8a5f95c docChange 的 diff 加 -w --ignore-blank-lines；11e0f83 查不到重开时间时超期记录写「被重开过（查不到重开时间，按合并后重开处理），巡检不再补关」，合并后留过「关闭」记录的写明是这个原因；70c581b 巡检用例：假 gh 只认带 REOPENED_EVENT 与 last: 1 的查询、GraphQL 失败不补关、两次合并夹着重开按最近一次合并算；202d81e TESTING 跟上。变异检查：理由校验 4 个、空白 2 个、超期措辞 3 个、巡检查询与合并顺序 5 个
 - 结果：变异 14 个全部让用例失败；tests/tooling 18 个文件 310 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync --base origin/stage --head task/115/lifecycle_checks 通过；对真实仓库只读巡检：没有要处理的 issue
 - 下一步：推送后请审查人按新 head 复查；关掉 squash 与 rebase 仍要所有者操作
+
+## 21:31:31 +08:00 · 审查 · #115 · PR #118 第四轮审查：有条件通过，1 条应修、4 条建议
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：按主 agent 转来的第四轮审查结论（审 510283f）逐条核对。应修：AGENTS §2 新写的一句和 TRACKING §1 原有的一句都说 issue-lifecycle 删远端 task 分支，实际是 branch-hygiene（issue-lifecycle.yml 第 8 行也这么写）；建议：判断文档有没有改说明时，归一化还要去掉所有空白、丢掉空行（日期行同一行加空格、紧挨日期行的空行在 --unified=0 下同一块，仍算改了说明）；理由里去掉「<理由>」再看有没有字母数字；合并后清理先等这次合并的 issue-lifecycle 与 branch-hygiene 跑完，工作流失败才手工关，免得两条「关闭」；CONTRIBUTING 与 BRANCHING 给 fork PR 手工关指到 ISSUES §1 与 CODE-REVIEW 第 12 项（#137）
+- 结果：结论：有条件通过；应修与 4 条建议都做
+- 下一步：逐条返工，完成后记「返工」
+
+## 21:36:36 +08:00 · 返工 · #115 · 按 PR #118 第四轮审查返工：删分支的工作流写对，4 条建议都做
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：d281786 AGENTS §2 与 TRACKING §1 改成 issue-lifecycle 关 issue、branch-hygiene 删远端 task 分支；98b0496 docChange 归一化时逐行去掉全部空白、丢掉空行，日期行加空格与紧挨日期行的空行都不算改了说明，补两个用例；ae06639 realReason 先去掉所有「<理由>」再要求有汉字字母数字，「<理由>。」「<理由>」」不算，补用例；b7d941e CODE-REVIEW 第 12 项与审查技能第 15 项先用 gh run list --workflow issue-lifecycle.yml / branch-hygiene.yml --branch <task 分支> --limit 1 等这次合并的运行结束，只有工作流失败才手工关（对真实仓库只读核对：task/107/forum_client 两个工作流都是 success，fork 来的 task/83/csp_script_attributes 的 issue-lifecycle 是 failure，正是 #137）；ce6d18e CONTRIBUTING 与 BRANCHING 各加一句 fork PR 要按 ISSUES §1 与 CODE-REVIEW 第 12 项手工关。变异检查：去空白、丢空行、不去「<理由>」、只去第一个「<理由>」
+- 结果：变异 4 个全部让用例失败；tests/tooling 18 个文件 311 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync --base origin/stage --head task/115/lifecycle_checks 通过；stage 09a4388 与本分支没有冲突，没有合并
+- 下一步：推送后请审查人按新 head 复查；关掉 squash 与 rebase 仍要所有者操作
