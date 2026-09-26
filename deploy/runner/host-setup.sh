@@ -73,6 +73,8 @@ for br in incusbr0 incusdeploy; do
 done
 
 # 一次性部署 runner 的 profile：jit-pool.sh 用它起容器，jit-image.sh 用它做镜像。
+# 同一座网桥上的部署容器之间 ACL 管不到：port_isolation 让它们互相不通（只能到网关），
+# ipv4_filtering（连带 MAC 过滤）不让容器冒用别的 IP 或 MAC，防 ARP、DHCP 仿冒。
 incus profile show yzgc-deploy >/dev/null 2>&1 || incus profile create yzgc-deploy
 incus profile edit yzgc-deploy <<'EOF'
 description: yzgc one-shot deploy runner (#97), one container per job
@@ -86,6 +88,8 @@ devices:
   eth0:
     name: eth0
     network: incusdeploy
+    security.ipv4_filtering: "true"
+    security.port_isolation: "true"
     type: nic
   root:
     path: /

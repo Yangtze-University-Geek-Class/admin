@@ -3,8 +3,8 @@
 #   sh jit-pool.sh token     从 stdin 读 GitHub 令牌（fine-grained，只有组织权限 Self-hosted runners: Read and write），
 #                            写成 /etc/yzgc-runner/github.header（root 0600），再用它读一次 runner 组核对令牌可用
 #   sh jit-pool.sh install   装到 /usr/local/sbin/yzgc-jit-pool，启用并重启 systemd 服务 yzgc-jit-pool
-#   yzgc-jit-pool run        服务本体：保持 POOL 个容器，每个里面一台只接一个 job 的 JIT runner；
-#                            job 跑完容器关机，incus 删掉（ephemeral），这里再补一个新的
+#   yzgc-jit-pool run        服务本体：保持 POOL 个在跑的容器，每个里面一台只接一个 job 的 JIT runner；
+#                            job 跑完容器关机，incus 删掉（ephemeral），这里再补一个新的；每 10 分钟做一次 maintain
 # 容器从 jit-image.sh 做的镜像 yzgc-deploy 起，用 host-setup.sh 建的 profile yzgc-deploy。
 set -eu
 ORG=Yangtze-University-Geek-Class
@@ -22,12 +22,17 @@ api() {
     -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "$@"
 }
 
-containers() { incus list --format csv --columns n | awk '/^ydeploy-/'; }
+# 只数在跑的：启动失败留下的停机实例不占池位，由 maintain 删掉
+containers() { incus list --format csv --columns ns | awk -F, '$1 ~ /^ydeploy-/ && $2 == "RUNNING" { print $1 }'; }
 
 # 在 `spawn || …` 里调用时 set -e 不生效，每一步自己判失败
 spawn() {
   name=ydeploy-$(date +%m%d%H%M%S)-$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n')
-  incus launch yzgc-deploy "$name" --ephemeral --profile yzgc-deploy --quiet || return 1
+  if ! incus launch yzgc-deploy "$name" --ephemeral --profile yzgc-deploy --quiet; then
+    # 启动失败时 incus 不会删掉已经建好的实例
+    if incus info "$name" >/dev/null 2>&1; then incus delete -f "$name"; fi
+    return 1
+  fi
   i=0
   until incus exec "$name" -- systemctl is-active --quiet docker.service 2>/dev/null; do
     i=$((i + 1))
@@ -46,21 +51,43 @@ spawn() {
   log "$name 已起，等 job"
 }
 
-# 容器没了、GitHub 上还挂着的 runner（宿主机重启、容器被强删）：按名字删掉
-cleanup() {
+# 每 10 分钟一次。在 `maintain || …` 里调用，set -e 不生效，失败的那一项记日志、下次再试。
+#   1. 启动失败留下的停机实例：删掉（ephemeral 实例正常关机时 incus 自己会删）
+#   2. 容器没了、GitHub 上还挂着的 runner（宿主机重启、容器被强删）：按名字注销
+#   3. 空闲超过 5 小时的 runner：先在 GitHub 上注销（runner 忙时 GitHub 拒绝），成功了再删容器、由补位换新的。
+#      这样容器里服务的 8 小时上限只是兜底，接到 job 的 runner 不会在 job 中途被杀
+maintain() {
+  incus list --format csv --columns ns | awk -F, '$1 ~ /^ydeploy-/ && $2 != "RUNNING" { print $1 }' \
+    | while read -r name; do
+        if incus delete -f "$name"; then log "删掉没在跑的 $name"; fi
+      done
+  runners=$(api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID/runners?per_page=100") || return 1
   live=$(containers)
-  api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID/runners?per_page=100" \
+  printf '%s' "$runners" \
     | jq -r '.runners[] | select(.name | startswith("ydeploy-")) | select(.status == "offline") | "\(.id) \(.name)"' \
     | while read -r id name; do
         printf '%s\n' "$live" | grep -qx "$name" && continue
-        api -X DELETE "$API/orgs/$ORG/actions/runners/$id" >/dev/null
-        log "删掉离线的 $name"
+        if api -X DELETE "$API/orgs/$ORG/actions/runners/$id" >/dev/null; then log "注销离线的 $name"; else log "注销离线的 $name 失败"; fi
+      done
+  now=$(date +%s)
+  incus list --format json | jq -r '.[] | select(.name | startswith("ydeploy-")) | "\(.name) \(.created_at)"' \
+    | while read -r name created; do
+        [ $((now - $(date -d "$created" +%s))) -ge 18000 ] || continue
+        runner=$(printf '%s' "$runners" | jq -r --arg n "$name" '.runners[] | select(.name == $n) | "\(.id) \(.busy)"')
+        case "$runner" in
+          "") if incus delete -f "$name"; then log "删掉没注册上的 $name"; fi ;;
+          *" false")
+            if api -X DELETE "$API/orgs/$ORG/actions/runners/${runner%% *}" >/dev/null && incus delete -f "$name"; then
+              log "回收空闲超过 5 小时的 $name"
+            fi ;;
+          *) ;; # 正在跑 job，等它自己结束
+        esac
       done
 }
 
 run() {
   [ -r "$HEADER" ] || { log "缺令牌文件 $HEADER，先跑 sh jit-pool.sh token"; exit 1; }
-  last_cleanup=0
+  last_maintain=0
   while :; do
     n=$(containers | awk 'END { print NR }')
     if [ "$n" -lt "$POOL" ]; then
@@ -68,9 +95,9 @@ run() {
       continue
     fi
     now=$(date +%s)
-    if [ $((now - last_cleanup)) -ge 600 ]; then
-      cleanup || log "清理离线 runner 失败，10 分钟后再试"
-      last_cleanup=$now
+    if [ $((now - last_maintain)) -ge 600 ]; then
+      maintain || log "读 runner 列表失败，10 分钟后再试"
+      last_maintain=$now
     fi
     sleep 5
   done
@@ -83,7 +110,7 @@ save_token() {
   umask 077
   printf 'Authorization: Bearer %s\n' "$token" > "$HEADER.tmp"
   mv "$HEADER.tmp" "$HEADER"
-  api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID" | jq -r '"令牌可用：runner 组 \(.name)，可见范围 \(.visibility)，公开仓库 \(.allows_public_repositories)"'
+  api "$API/orgs/$ORG/actions/runner-groups/$GROUP_ID" | jq -er '"令牌可用：runner 组 \(.name)，可见范围 \(.visibility)，公开仓库 \(.allows_public_repositories)"'
 }
 
 install_service() {

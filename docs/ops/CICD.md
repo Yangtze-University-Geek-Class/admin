@@ -143,8 +143,8 @@
 - 隔离到哪一层：job 在非特权容器里以 `runner` 用户运行，但 `runner` 在容器的 docker 组里，等于**容器内 root**。容器里没有宿主机的家目录、SSH 材料、凭据和数据库，除 runner 自己的注册凭据外不放任何密钥；出站拒绝上表的私网段。宿主机隔离靠 Linux 内核的命名空间，容器与宿主机共用内核，内核漏洞可以逃逸到维护者的个人机器。
 - 剩余风险一：**runner 是常驻的，不是一次性的**。拿到容器内 root 的人可以改掉 `job-started.sh`、`/usr/local/bin/node`、runner 本体或构建缓存，影响之后任何分支（包括 `stage`）上的 CI 结果，`verify (required check)` 的绿色因此只证明「这台 runner 上跑过」。发现可疑时重建容器（`incus delete -f yzgc-runner` 后按上文重建，并在仓库设置里移除两个旧 runner）。改成每个 job 一个全新容器前，这条风险一直在。
 - 剩余风险二：ACL 挡的是私网段，挡不住经家里公网 IP 绕回路由器端口转发的连接。
-- 所以部署 job 不放到常驻 runner 上，而是放到下文的一次性 runner：每个部署 job 的容器是新起的，前一个 job（包括别人分支上的 job）改不到它。
-- 一次性 runner 的剩余风险：runner 组免费版只能限制仓库，不能限制工作流（按工作流限制时 GitHub 要求写具体 ref，`@refs/tags/*` 与 `@*` 都被拒绝，2026-09-26 实测），能推分支的人也能把 job 发到 `yzgc-deploy` 上。这样的 job 拿到的同样是跑完即删的新容器，影响不到之后的部署，最多占住一台让部署多排一会儿队。部署私钥经 `preview` 环境的 secrets 进入 job，任何分支上声明了 `environment: preview` 的工作流都能拿到，这与 runner 在哪无关。容器与宿主机共用内核、公网 IP 绕回这两条与常驻 runner 相同；拿到宿主机 root 的人能用令牌注册假 runner 抢部署 job。
+- 所以部署 job 不放到常驻 runner 上，而是放到下文的一次性 runner：每个部署 job 的容器是新起的，前一个 job（包括别人分支上的 job）改不到它的文件系统；池里同时在跑的容器之间开了 port isolation 与 IP / MAC 过滤，互相连不上，也不能仿冒对方的地址。
+- 一次性 runner 的剩余风险：runner 组免费版只能限制仓库，不能限制工作流（按工作流限制时 GitHub 要求写具体 ref，`@refs/tags/*` 与 `@*` 都被拒绝，2026-09-26 实测），能推分支的人也能把 job 发到 `yzgc-deploy` 上。这样的 job 拿到的同样是跑完即删的新容器，改不到之后部署 job 的容器；但它可以一直占着 runner（比如一个 matrix 占满两台，再接着占住新补上的），部署就一直排队，这时找到并取消那个运行。部署私钥经 `preview` 环境的 secrets 进入 job，任何分支上声明了 `environment: preview` 的工作流都能拿到，这与 runner 在哪无关。容器与宿主机共用内核、公网 IP 绕回这两条与常驻 runner 相同；拿到宿主机 root 的人能用令牌注册假 runner 抢部署 job。
 - 镜像加速源是第三方服务：CI 与部署都经它拉基础镜像，三个 Dockerfile 的基础镜像按 digest 固定（[DEPLOY](DEPLOY.md)「基础镜像按 digest 固定」），拉取时 Docker 按 digest 校验，加速源换不了内容；npm 包按锁文件里的 integrity 校验。runner 自动更新保持开启（版本落后太多时 GitHub 不再派发 job）。
 
 ### 部署用的一次性 runner
@@ -155,9 +155,9 @@
 |---|---|
 | 容器 | 同一台 crosery-arch；每个 job 一个非特权 incus 系统容器 `ydeploy-<时间>-<随机>`（Ubuntu 24.04，容器里有自己的 Docker），限 6 线程、8G 内存；是 incus 的 ephemeral 实例，关机即删除 |
 | 注册 | 组织级 JIT runner：runner 组 `yzgc-deploy`（id 3，只放行 `admin` 仓库、不放行公开仓库），标签 `yzgc-deploy`。每台只接一个 job，job 结束后 GitHub 自动注销它 |
-| 补位 | 宿主机 systemd 服务 `yzgc-jit-pool`（`deploy/runner/jit-pool.sh`）始终保持 2 个容器：一个 job 跑完容器关机，几秒后补一个新的，新容器从镜像 `yzgc-deploy` 起，十几秒就能接活。容器没了、GitHub 上还挂着的离线 runner 每 10 分钟清一次 |
-| 凭据 | 一个 fine-grained 令牌，只有组织权限「Self-hosted runners: Read and write」，存在宿主机 `/etc/yzgc-runner/github.header`（root 0600），只用来生成 JIT 配置、删离线 runner，不进仓库、镜像、日志和容器。容器里只有自己这一次的 JIT 配置，runner 读完就删 |
-| 网络 | 单独的网桥 `incusdeploy`（10.78.0.0/24），和常驻 CI 容器不在同一个二层网段（incus 的 ACL 管不到同一网桥上容器之间的流量）；出站 ACL 与 CI 相同 |
+| 补位 | 宿主机 systemd 服务 `yzgc-jit-pool`（`deploy/runner/jit-pool.sh`）始终保持 2 个在跑的容器：一个 job 跑完容器关机，几秒后补一个新的，新容器从镜像 `yzgc-deploy` 起，十几秒就能接活。每 10 分钟维护一次：删掉启动失败留下的停机实例；注销容器已经没了的离线 runner；空闲超过 5 小时的 runner 先在 GitHub 上注销（忙时 GitHub 拒绝）再删容器。容器里的服务另有 8 小时上限兜底，接到 job 的 runner（build 最长 60 分钟）不会在 job 中途被杀 |
+| 凭据 | 一个 fine-grained 令牌，只有组织权限「Self-hosted runners: Read and write」，存在宿主机 `/etc/yzgc-runner/github.header`（root 0600），只用来生成 JIT 配置、删离线 runner，不进仓库、镜像、日志和容器。容器里只有自己这一次的 JIT 配置：读进环境变量后删掉文件，runner 不把它传给 job；但 runner 会把解出的凭据写进 `actions-runner/.credentials*`，job 与 runner 同一个用户，读得到。那只是这台 runner 自己的凭据，随 job 结束注销 |
+| 网络 | 单独的网桥 `incusdeploy`（10.78.0.0/24），和常驻 CI 容器不在同一个二层网段（incus 的 ACL 管不到同一网桥上容器之间的流量）；网卡开 `security.port_isolation`（部署容器之间互相不通，只能到网关）与 `security.ipv4_filtering`（不能冒用别的 IP、MAC）；出站 ACL 与 CI 相同 |
 | 镜像 | `jit-image.sh` 做：`container-setup.sh jit`（与 CI 容器同样的工具、Docker、Node 与 runner），再预拉三个 Dockerfile 的基础镜像（按 digest），清掉 machine-id 后发布为 `yzgc-deploy` |
 
 **重建**：宿主机 root 在 `deploy/runner/` 里依次运行 `host-setup.sh`（也建 `incusdeploy` 网桥与 profile `yzgc-deploy`）→ `sh jit-image.sh $(grep -ho '^FROM [^ ]*@sha256:[0-9a-f]*' ../../app/*/Dockerfile | cut -d' ' -f2 | sort -u)` → 把令牌从 stdin 喂给 `sh jit-pool.sh token`（不进命令行）→ `sh jit-pool.sh install`。基础镜像的 digest 或 runner 版本变了就重做一次镜像，已经在跑的容器不受影响。

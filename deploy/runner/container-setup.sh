@@ -60,7 +60,9 @@ if [ "$MODE" = jit ]; then
   [ -x "$d/run.sh" ] || { mkdir -p "$d"; tar -xzf "$tarball" -C "$d"; }
   rm -f "$tarball"
   # JIT 配置由宿主机的 jit-pool.sh 写进 /home/runner/.jit（0600）。读进环境变量后马上删文件；
-  # runner 从 ACTIONS_RUNNER_INPUT_JITCONFIG 读到以后也会把它从自己的环境里清掉，不传给 job。
+  # runner 从 ACTIONS_RUNNER_INPUT_JITCONFIG 读到以后会把它从自己的环境里清掉，不传给 job。
+  # 但 run.sh 父进程的环境里还有它，runner 也会把解出的凭据写进 actions-runner/.credentials*，
+  # job 与 runner 同一个用户，读得到：这只是本 runner 自己的凭据，随 job 结束注销。
   cat > /usr/local/bin/yzgc-jit-run <<'EOF'
 #!/bin/sh
 set -eu
@@ -72,6 +74,8 @@ exec ./run.sh
 EOF
   chmod 0755 /usr/local/bin/yzgc-jit-run
   # 跑完一个 job（或者 runner 没起来）就关机；容器是 incus 的 ephemeral 实例，关机即删除。
+  # RuntimeMaxSec 只是兜底：空闲超过 5 小时的 runner 由 jit-pool.sh 先注销再删容器，
+  # 最晚接到的 job（build 最长 60 分钟）在 8 小时内也能跑完，不会被中途杀掉。
   cat > /etc/systemd/system/yzgc-jit-runner.service <<'EOF'
 [Unit]
 Description=GitHub Actions JIT runner: one job, then power off (yzgc deploy, #97)
@@ -84,7 +88,7 @@ User=runner
 Environment=HOME=/home/runner
 ExecStart=/usr/local/bin/yzgc-jit-run
 ExecStopPost=+/usr/bin/systemctl poweroff --no-block
-RuntimeMaxSec=6h
+RuntimeMaxSec=8h
 EOF
   systemctl daemon-reload
   chown -R runner:runner /home/runner
