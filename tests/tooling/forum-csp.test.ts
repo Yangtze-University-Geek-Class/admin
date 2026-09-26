@@ -74,7 +74,8 @@ describe('forum CSP script', () => {
 
   it('reads the site policy from each host template and keeps both templates on the same policy', () => {
     const preview = siteCsp(hostConf('preview'));
-    expect(preview).toMatch(/^default-src 'self'; script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
+    // 第二个来源是静态资源 CDN 的前缀（#146），与 scripts/static-cdn-base.mjs 的一致性在 static-cdn.test.ts 里核对。
+    expect(preview).toMatch(/^default-src 'self'; script-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/cdn\.crosery\.com\/yzgc\/static\/site\/;/);
     expect(preview).toContain("object-src 'none'");
     expect(preview).toContain("frame-ancestors 'none'");
     expect(siteCsp(hostConf('production'))).toBe(preview);
