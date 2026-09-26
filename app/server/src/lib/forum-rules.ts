@@ -105,12 +105,17 @@ export function nameKey(value: string): string {
 
 /**
  * 昵称的字符问题，没问题返回 null。空白名字：nameKey 为空，说明整个名字只有看不见的字符或单独的附加符号，
- * 列表里没写到的空白字符也拦得住。
+ * 列表里没写到的空白字符也拦得住。混写：拉丁字母和西里尔、希腊字母写在一起（「bоb」里的 о 是西里尔字母），
+ * 看起来和纯拉丁的用户名一样，一律不收；只用其中一种文字、或和汉字混写都可以。按 NFKC 之后的写法判断，
+ * 全角和数学字母也算拉丁字母。
  */
-export function nameProblem(value: string): "hidden" | null {
+export function nameProblem(value: string): "hidden" | "mixed_script" | null {
   if (hasHiddenNameChars(value) || nameKey(value) === "") return "hidden";
+  const normalized = value.normalize("NFKC");
+  if (/\p{Script=Latin}/u.test(normalized) && /[\p{Script=Cyrillic}\p{Script=Greek}]/u.test(normalized)) return "mixed_script";
   return null;
 }
+export const MIXED_SCRIPT_MESSAGE = "昵称不能把拉丁字母和西里尔字母、希腊字母混着写";
 
 /**
  * 按 IP 计数（游客限流、浏览去重、读接口限流）用的主体：IPv4 原样；IPv6 取 /64 前缀（家庭宽带和云主机通常拿到整段 /64，

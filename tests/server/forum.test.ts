@@ -430,6 +430,20 @@ describe('replies', () => {
     expect((await send('路过的同学')).statusCode).toBe(201);
   });
 
+  it('refuses guest names that mix Latin with Cyrillic or Greek letters, and still takes each script on its own', async () => {
+    const s = await setup();
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.62' });
+    // bоb 的 о 是西里尔字母，geekclаss 的 а 是西里尔字母，bοb 的 ο 是希腊字母；𝐛οb 的 𝐛 是数学粗体（NFKC 后是拉丁字母）。
+    for (const name of ['b\u043Eb', 'geekcl\u0430ss', 'b\u03BFb', '\u{1D41B}\u03BFb', '\u0412asya']) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '昵称不能把拉丁字母和西里尔字母、希腊字母混着写' });
+    }
+    for (const name of ['\u041A\u043E\u0432\u0430\u043B\u0451\u0432', '\u0391\u03BB\u03AD\u03BE\u03B7\u03C2', '小博bob']) {
+      expect((await send(name)).statusCode, JSON.stringify(name)).toBe(201);
+    }
+  });
+
   it('notifies at most 10 people mentioned in one post, in the order they appear', async () => {
     const s = await setup();
     const handles = Array.from({ length: 12 }, (_, i) => `member${String(i + 1).padStart(2, '0')}`);
@@ -632,6 +646,9 @@ describe('profile', () => {
     }
     for (const name of ['极客班\u2800', '\u2800', '\u{1D159}', '\u17B4', '\u0332']) {
       expect((await rename(name)).json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name' });
+    }
+    for (const name of ['b\u043Eb', 'geekcl\u0430ss', 'b\u03BFb']) {
+      expect((await rename(name)).json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name', message: '昵称不能把拉丁字母和西里尔字母、希腊字母混着写' });
     }
     // 自己的用户名换个大小写可以；和别的成员昵称相同也可以。
     expect((await rename('BOB')).statusCode).toBe(200);

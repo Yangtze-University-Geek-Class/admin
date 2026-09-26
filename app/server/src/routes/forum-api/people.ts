@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
-import { FORUM_LIMITS, ForumError, hasControlChars, hasControlCharsMultiline, isAllowedWebsite, nameProblem } from "../../lib/forum-rules.js";
+import { FORUM_LIMITS, ForumError, MIXED_SCRIPT_MESSAGE, hasControlChars, hasControlCharsMultiline, isAllowedWebsite, nameProblem } from "../../lib/forum-rules.js";
 import type { ProfilePatch } from "../../lib/forum-store.js";
 import { forumState, notFound, rateLimited, requireMember } from "./viewer.js";
 
@@ -35,7 +35,9 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
     const patch: ProfilePatch = { ...req.body };
     if (patch.displayName !== undefined) {
       patch.displayName = patch.displayName.trim();
-      if (!patch.displayName || nameProblem(patch.displayName)) {
+      const problem = patch.displayName ? nameProblem(patch.displayName) : "hidden";
+      if (problem === "mixed_script") throw new ForumError(400, "invalid_display_name", MIXED_SCRIPT_MESSAGE);
+      if (problem) {
         throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字，不能含控制字符或看不见的字符`);
       }
       if (forum.displayNameTaken(patch.displayName, viewer.userId)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");

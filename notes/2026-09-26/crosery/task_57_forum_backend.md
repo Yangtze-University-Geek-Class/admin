@@ -76,3 +76,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称拦住盲文空格等看起来是空白的字符（forum-rules 的 HIDDEN_NAME_CHAR 加 U+2800、U+1D159、U+17B4、U+17B5，新增 nameProblem：nameKey 为空的名字拒绝；游客与成员昵称都走它；forum.test 两处新用例；API、SECURITY 同步）
 - 结果：提交前 vitest tests/server/forum.test.ts 42 条通过，server tsc 通过
+
+## 17:25:07 +08:00 · 提交 · #57 · 第二轮建议：昵称不许拉丁字母混写西里尔、希腊字母
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称不许拉丁字母和西里尔、希腊字母混写（nameProblem 加 mixed_script，按 NFKC 后判断；游客与成员昵称都拒，错误码不变、message 为「昵称不能把拉丁字母和西里尔字母、希腊字母混着写」；forum.test 两处用例；API、SECURITY 同步）
+- 结果：提交前 vitest tests/server/forum.test.ts 43 条通过，server tsc 通过
