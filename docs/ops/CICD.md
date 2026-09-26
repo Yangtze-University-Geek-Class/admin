@@ -159,7 +159,7 @@
 | 凭据 | 一个 fine-grained 令牌，只有组织权限「Self-hosted runners: Read and write」，存在宿主机 `/etc/yzgc-runner/github.header`（root 0600），只用来生成 JIT 配置、删离线 runner，不进仓库、镜像、日志和容器。容器里只有自己这一次的 JIT 配置：读进环境变量后删掉文件，runner 不把它传给 job；但 runner 会把解出的凭据写进 `actions-runner/.credentials*`，job 与 runner 同一个用户，读得到。那只是这台 runner 自己的凭据，随 job 结束注销 |
 | 网络 | 单独的网桥 `incusdeploy`（10.78.0.0/24），和常驻 CI 容器不在同一个二层网段（incus 的 ACL 管不到同一网桥上容器之间的流量）；网卡开 `security.port_isolation`（部署容器之间互相不通，只能到网关）与 `security.ipv4_filtering`（不能冒用别的 IP、MAC）；出站 ACL 与 CI 相同 |
 | 镜像 | `jit-image.sh` 做：`container-setup.sh jit`（与 CI 容器同样的工具、Docker、Node 与 runner），再预拉三个 Dockerfile 的基础镜像（按 digest），清掉 machine-id 后发布为 `yzgc-deploy` |
-| 下载镜像归档 | deploy job 不用 `actions/download-artifact`，改用 `scripts/fetch-artifact.mjs`（#99）：家里单连接从 GitHub 的存储下载只有 40–220KB/s，163MB 要 15–60 分钟（`v0.1.0-rc.6` 实测）；同一地址并发 16 段 Range 请求约 6.6MB/s。下载地址约 1 分钟过期，每段重试时重新取；只核对总字节数与 zip 的 CRC，归档内容仍由目标机 `sha256sum -c` 核对。job 权限因此多一个 `actions: read` |
+| 下载镜像归档 | deploy job 不用 `actions/download-artifact`，改用 `scripts/fetch-artifact.mjs`（#99）：家里单连接从 GitHub 的存储下载只有 40–220KB/s，163MB 要 15–60 分钟（`v0.1.0-rc.6` 实测）；同一地址并发 16 段 Range 请求约 6.6MB/s。下载地址约 1 分钟过期，每段重试时重新取；一段连续 60 秒没收到数据（等响应头或下一块数据；连接卡住不报错，#111）也算失败，断开后重新取地址重试，可用 `--idle-seconds`（1–600）调整，只限空闲时长、不限一段的总时长；只核对总字节数与 zip 的 CRC，归档内容仍由目标机 `sha256sum -c` 核对。job 权限因此多一个 `actions: read` |
 
 **重建**：宿主机 root 在 `deploy/runner/` 里依次运行 `host-setup.sh`（也建 `incusdeploy` 网桥与 profile `yzgc-deploy`）→ `sh jit-image.sh $(grep -ho '^FROM [^ ]*@sha256:[0-9a-f]*' ../../app/*/Dockerfile | cut -d' ' -f2 | sort -u)` → 把令牌从 stdin 喂给 `sh jit-pool.sh token`（不进命令行）→ `sh jit-pool.sh install`。基础镜像的 digest 或 runner 版本变了就重做一次镜像，已经在跑的容器不受影响。
 
