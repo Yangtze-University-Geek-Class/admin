@@ -126,3 +126,10 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称也不能冒用登录过、但没打开过论坛的组织成员（lib/auth 新增 signedInLogins：audit_logs 里 auth.signin 的 actor 并上 sessions.login；services.ts 的 orgLogins 加上它；forum.test 加 owner1 与 grace 两种探针；SECURITY 把剩下的缺口写成段末单独一句，并写明成员昵称也不能是这些人里别人的登录名；API、数据模型同步）
 - 结果：提交前 vitest tests/server 8 个文件 160 条通过，server tsc 通过，check-docs 通过
+
+## 17:54:21 +08:00 · 返工 · #57 · 第三轮审查的应修与 2 条建议已修完：昵称改成允许清单、冒名检查加上登录过的人
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：c12f417 昵称改用允许清单（isAllowedName，先 NFKC，只收汉字、假名、韩文、常用拉丁字母、ASCII 数字、ー 与空格 - _ . · ・ '），拉丁字母比审查定的更窄，不收 IPA、小型大写、搭嘴音；删掉屏蔽清单、nameProblem 与混写规则；nameKey 改为 NFKC、不分大小写、去附加符号；8aa6d1e orgLogins 并上审计里 auth.signin 的登录名与当前会话，SECURITY 把剩下的缺口写成段末单独一句。变异核对：清单放宽成任意字母与格式字符、不查只有符号与连着的空格、成员昵称不走清单、拉丁字母放宽到整个 Script=Latin、orgLogins 去掉登录过的人，每次都有对应用例失败，恢复后工作区干净。论坛前端（task-107）只查昵称是否为空和长度，没有字符检查，服务端的 message 经 ForumApiError 显示
+- 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 380 条）；server tsc 退出 0；pnpm check 退出 0；未验证：预发布环境、前端显示新 message；没有推送
+- 下一步：主 agent 复核后推送并请第四轮审查
