@@ -20,6 +20,11 @@
 # 运行位置：每个 job 的 runs-on 读仓库变量 CI_RUNNER（自托管 runner 的标签 yzgc-arch），
 # 没设这个变量时回到 ubuntu-latest。私有仓库的托管 runner 额度用完后靠它继续跑；
 # runner 在哪、怎么隔离、怎么切回，见 docs/ops/CICD.md「自托管 runner」。
+#
+# 下载源（#104）：仓库变量 NPM_REGISTRY、DEBIAN_MIRROR、BETTER_SQLITE3_BINARY_HOST 给家里的 runner 换国内镜像，
+# 没设时一律回到官方源。装依赖的 job 用 npm_config_registry（npm、pnpm 9）/ pnpm_config_registry（pnpm 11）/
+# npm_config_better_sqlite3_binary_host（prebuild-install），docker job 以同名 build arg 传给 Dockerfile。
+# 锁文件 integrity、corepack 签名、apt 签名照常核对；各项的信任依据见 docs/ops/CICD.md「构建下载源」。
 
 name: CI
 
@@ -84,6 +89,12 @@ jobs:
     name: core (Node 22 / pnpm 9)
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
+    env:
+      # pnpm/action-setup 用 npm ci 装引导版 pnpm（按它自带的锁文件核对 integrity），pnpm 9 装依赖（按本仓锁文件核对）。
+      # 故意不设 pnpm_config_registry：引导版 pnpm 11 再用 self-update 换成 9.15.9，这一步没有锁文件，
+      # 只能信源给的 integrity，所以留在官方源。
+      npm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      npm_config_better_sqlite3_binary_host: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,6 +139,14 @@ jobs:
       NUXT_TELEMETRY_DISABLED: '1'
       # 上游锁定版本；同时用于 npm pack 的包名和安装后的断言。
       FORUM_PNPM_VERSION: '11.24.0'
+      # pnpm-11.24.0.tgz 的 sha512，取自官方源（npm view pnpm@11.24.0 dist.integrity --registry https://registry.npmjs.org）。
+      # npm pack 只拿同一个源给的 integrity 核对，源换成镜像后要靠这个写死的值；与 app/forum/Dockerfile 相同，
+      # tests/tooling/build-mirrors.test.ts 核对两处一致。
+      FORUM_PNPM_INTEGRITY: 'sha512-vSfjRel23LC+C3oSKCF7BJqBfiGx81XJDb59xGZxiVqLwebQbCRVRQXqk+oLRfSJon7Bv7yN5qlln8oPFvoAAA=='
+      # npm pack 读 npm_config_registry；论坛的 pnpm 11 只认 pnpm_config_registry（scripts/forum.mjs 原样转给它），
+      # 装依赖时按 app/forum/pnpm-lock.yaml 的 integrity 核对。
+      npm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      pnpm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -148,10 +167,12 @@ jobs:
         run: |
           set -u
           tmp="$(mktemp -d)"
-          # npm pack 从 registry 下载并按 integrity 校验 tarball；
+          # npm pack 从 registry 下载并按 integrity 校验 tarball，源可能是镜像，再按写死的 FORUM_PNPM_INTEGRITY 核对一次；
           # 解包后得到 .tools/pnpm11/package/bin/pnpm.cjs，与本机开发布局一致，
           # 这样 scripts/forum.mjs 的默认 FORUM_PNPM 路径无需改动。
           npm pack "pnpm@${FORUM_PNPM_VERSION}" --pack-destination "$tmp"
+          node -e 'const [file, want] = process.argv.slice(1); const got = "sha512-" + require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(file)).digest("base64"); if (got !== want) { console.error(file + " 的 sha512 不符：期望 " + want + "，实际 " + got); process.exit(1); } console.log(file + " 的 sha512 核对通过");' \
+            "${tmp}/pnpm-${FORUM_PNPM_VERSION}.tgz" "$FORUM_PNPM_INTEGRITY"
           rm -rf .tools/pnpm11
           mkdir -p .tools/pnpm11
           tar -xzf "${tmp}/pnpm-${FORUM_PNPM_VERSION}.tgz" -C .tools/pnpm11
@@ -216,6 +237,9 @@ jobs:
     name: env-contract (.env ↔ environments.json ↔ compose)
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
+    env:
+      # 只给 pnpm/action-setup 的 npm ci 换源（按它自带的锁文件核对）；pnpm_config_registry 不设的原因见 core job。
+      npm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -249,6 +273,11 @@ jobs:
     name: docker (三条 Dockerfile 构建验证)
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
+    env:
+      # 以 build arg 传给 Dockerfile 的构建阶段（不进运行镜像）；没设仓库变量时就是 Dockerfile 里的官方默认值。
+      NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      DEBIAN_MIRROR: ${{ vars.DEBIAN_MIRROR || '' }}
+      BETTER_SQLITE3_BINARY_HOST: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -295,6 +324,9 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --build-arg NPM_REGISTRY="$NPM_REGISTRY" \
+            --build-arg DEBIAN_MIRROR="$DEBIAN_MIRROR" \
+            --build-arg BETTER_SQLITE3_BINARY_HOST="$BETTER_SQLITE3_BINARY_HOST" \
             --tag "yzgc-production/server:$IMAGE_TAG" .
 
       - name: 构建 web 镜像
@@ -306,6 +338,7 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --build-arg NPM_REGISTRY="$NPM_REGISTRY" \
             --tag "yzgc-production/web:$IMAGE_TAG" .
 
       - name: 构建 forum 镜像
@@ -317,6 +350,7 @@ jobs:
             --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
             --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
             --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+            --build-arg NPM_REGISTRY="$NPM_REGISTRY" \
             --tag "yzgc-production/forum:$IMAGE_TAG" .
 
       - name: 断言三个镜像都有健康检查与非 root 运行身份

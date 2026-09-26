@@ -16,20 +16,54 @@
 # ── 构建阶段：装依赖 → 编译 TS → 裁掉 devDependencies ──
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
+# 下载源（#104）：维护者家里的自托管 runner 连 registry.npmjs.org、deb.debian.org、GitHub releases
+# 只有几十到两百 KB/s，工作流从仓库变量传国内镜像；不传就是下面的官方默认值，本机和托管 runner 照旧。
+# 三个参数只在构建阶段声明；运行阶段是新的 FROM，不继承这里的 ARG，也不继承下面的 ENV。
+# 换源不关任何校验（docs/ops/CICD.md「构建下载源」）：
+#   NPM_REGISTRY               pnpm 按锁文件里的 integrity 核对每个包；corepack 用自带的 npm 公钥核对
+#                              pnpm 的发布签名，镜像源转发的是官方签名，伪造不了。https://，不带结尾的 /。
+#   DEBIAN_MIRROR              空 = deb.debian.org。apt 照样按 debian-archive-keyring 核对 InRelease 签名。
+#                              只能写 http://：slim 镜像在装 ca-certificates 之前，apt 走不了 https。
+#   BETTER_SQLITE3_BINARY_HOST 空 = GitHub releases。prebuild-install 下载预编译包本来就不核对哈希
+#                              （官方源也一样），换源只是换了信任的对象。
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG DEBIAN_MIRROR=
+ARG BETTER_SQLITE3_BINARY_HOST=
+
+# pnpm 9 与 npm 读 npm_config_registry，corepack 读 COREPACK_NPM_REGISTRY；
+# prebuild-install（7.1.3 的 util.js getHostMirrorUrl）读 npm_config_<包名>_binary_host，空值等于没设。
 ENV CI=1 \
     PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH
+    PATH=/pnpm:$PATH \
+    npm_config_registry=${NPM_REGISTRY} \
+    COREPACK_NPM_REGISTRY=${NPM_REGISTRY} \
+    npm_config_better_sqlite3_binary_host=${BETTER_SQLITE3_BINARY_HOST}
 
 # better-sqlite3 / sharp 是原生模块：优先用上游预编译产物，python3 + make + g++
 # 是预编译包不可用时的回退编译链（Node 22 官方镜像不含它们）。
 # Debian 会淘汰旧的 point release，钉死 apt 版本号会让构建随时失败。
+# DEBIAN_MIRROR 先按字符白名单校验再写进 sed（分隔符是 #）；改写后文件里不许再有 deb.debian.org，
+# 基础镜像哪天换了源的写法就直接失败，而不是悄悄回到官方源。
 # hadolint ignore=DL3008
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates python3 make g++ \
- && rm -rf /var/lib/apt/lists/* \
- && corepack enable \
- && corepack prepare pnpm@9.15.9 --activate \
- && pnpm --version
+RUN set -eu; \
+    case "$NPM_REGISTRY" in https://*[!/]) ;; *) echo "NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址：${NPM_REGISTRY}" >&2; exit 1 ;; esac; \
+    if [ -n "$DEBIAN_MIRROR" ]; then \
+      case "$DEBIAN_MIRROR" in http://*[!/]) ;; *) echo "DEBIAN_MIRROR 必须是不带结尾 / 的 http:// 地址：${DEBIAN_MIRROR}" >&2; exit 1 ;; esac; \
+      case "$DEBIAN_MIRROR" in *[!0-9A-Za-z.:/_-]*) echo "DEBIAN_MIRROR 含有不允许的字符：${DEBIAN_MIRROR}" >&2; exit 1 ;; esac; \
+      sources=/etc/apt/sources.list.d/debian.sources; \
+      test -f "$sources"; \
+      sed "s#http://deb.debian.org/debian#${DEBIAN_MIRROR}#g" "$sources" > "$sources.new"; \
+      mv "$sources.new" "$sources"; \
+      if grep -q 'deb\.debian\.org' "$sources"; then echo "改写后 ${sources} 里仍有 deb.debian.org" >&2; exit 1; fi; \
+      grep -qxF "URIs: ${DEBIAN_MIRROR}" "$sources"; \
+      grep '^URIs:' "$sources"; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates python3 make g++; \
+    rm -rf /var/lib/apt/lists/*; \
+    corepack enable; \
+    corepack prepare pnpm@9.15.9 --activate; \
+    pnpm --version
 
 WORKDIR /repo
 

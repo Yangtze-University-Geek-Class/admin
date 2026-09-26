@@ -17,9 +17,26 @@
 # ── 构建阶段：独立工具链安装 → Nuxt 静态生成 ──────────────────
 FROM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS builder
 
+# npm 源（#104）：工作流从仓库变量传国内镜像，不传就是官方源。只在构建阶段声明，运行阶段（nginx）
+# 既不继承 ARG 也不继承下面的 ENV。npm 读 npm_config_registry；pnpm 11 不再读 npm_config_*，
+# 只认 pnpm_config_registry，两个都要设。
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_REGISTRY} \
+    pnpm_config_registry=${NPM_REGISTRY}
+
 # Node 26 不再随发行版提供 corepack，直接用 npm 装上游要求的 pnpm 11.24.0。
-RUN npm install --global pnpm@11.24.0 \
- && pnpm --version
+# npm 只拿「同一个源」给的 integrity 核对 tarball，源换成镜像以后，镜像说什么就是什么；
+# 所以先 npm pack 下来，按写死的 sha512 核对，再从本地文件安装。这个值取自官方源
+# （npm view pnpm@11.24.0 dist.integrity --registry https://registry.npmjs.org），与 ci.yml forum job 的
+# FORUM_PNPM_INTEGRITY 相同，tests/tooling/build-mirrors.test.ts 核对两处一致。pnpm 包没有依赖，装的时候不再联网。
+RUN set -eu; \
+    case "$NPM_REGISTRY" in https://*[!/]) ;; *) echo "NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址：${NPM_REGISTRY}" >&2; exit 1 ;; esac; \
+    npm pack pnpm@11.24.0 --pack-destination /tmp; \
+    node -e 'const [file, want] = process.argv.slice(1); const got = "sha512-" + require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(file)).digest("base64"); if (got !== want) { console.error(file + " 的 sha512 不符：期望 " + want + "，实际 " + got); process.exit(1); } console.log(file + " 的 sha512 核对通过");' \
+      /tmp/pnpm-11.24.0.tgz 'sha512-vSfjRel23LC+C3oSKCF7BJqBfiGx81XJDb59xGZxiVqLwebQbCRVRQXqk+oLRfSJon7Bv7yN5qlln8oPFvoAAA=='; \
+    npm install --global /tmp/pnpm-11.24.0.tgz; \
+    rm -f /tmp/pnpm-11.24.0.tgz; \
+    pnpm --version
 
 WORKDIR /repo/app/forum
 

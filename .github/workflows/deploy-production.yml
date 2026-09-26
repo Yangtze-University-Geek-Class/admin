@@ -234,6 +234,15 @@ jobs:
     needs: [plan, evidence]
     runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
+    env:
+      # 下载源（#104）：仓库变量没设时回到官方源，与 ci.yml 的写法相同（docs/ops/CICD.md「构建下载源」）。
+      # 大写三项以 build arg 传给 Dockerfile 的构建阶段，不进运行镜像。
+      NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      DEBIAN_MIRROR: ${{ vars.DEBIAN_MIRROR || '' }}
+      BETTER_SQLITE3_BINARY_HOST: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
+      # runner 上的 pnpm/action-setup（npm ci）与 pnpm 9 install 读这两项；不设 pnpm_config_registry 的原因见 ci.yml core job。
+      npm_config_registry: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      npm_config_better_sqlite3_binary_host: ${{ vars.BETTER_SQLITE3_BINARY_HOST || '' }}
     steps:
       - name: 检出 plan 核对过的提交
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -275,11 +284,17 @@ jobs:
         run: |
           set -eu
           for service in server web forum; do
+            # 只有 server 的构建阶段用 apt 与 better-sqlite3 的预编译包；web、forum 只换 npm 源。
+            case "$service" in
+              server) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY" --build-arg DEBIAN_MIRROR="$DEBIAN_MIRROR" --build-arg BETTER_SQLITE3_BINARY_HOST="$BETTER_SQLITE3_BINARY_HOST") ;;
+              *) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY") ;;
+            esac
             docker build \
               --file "app/${service}/Dockerfile" \
               --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
               --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
               --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+              "${mirror_args[@]}" \
               --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
           done
           docker image list --format '{{.Repository}}:{{.Tag}}' | grep "^${IMAGE_REPOSITORY}/"

@@ -35,15 +35,43 @@ systemctl enable docker >/dev/null 2>&1
 systemctl restart docker
 
 # 系统级 Node 22 LTS：对齐 ubuntu-latest 预装的 node（branch-guard、docker、pr-contract 不经 setup-node 直接调）。
-if ! node --version 2>/dev/null | grep -q '^v22\.'; then
+# 同一个官方包（按 SHASUMS256 校验）还要解进 runner 的工具缓存，见下面的 seed_node_tool_cache。
+if node --version 2>/dev/null | grep -q '^v22\.'; then
+  node_version=$(node --version)
+else
   node_version=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | startswith("v22.")) | select(.lts != false)][0].version')
-  node_tarball=node-${node_version}-linux-x64.tar.xz
-  curl -fsSL -o "/tmp/${node_tarball}" "https://nodejs.org/dist/${node_version}/${node_tarball}"
-  curl -fsSL -o /tmp/SHASUMS256.txt "https://nodejs.org/dist/${node_version}/SHASUMS256.txt"
-  (cd /tmp && grep " ${node_tarball}\$" SHASUMS256.txt | sha256sum -c -)
-  tar -xJf "/tmp/${node_tarball}" -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE
-  rm -f "/tmp/${node_tarball}" /tmp/SHASUMS256.txt
 fi
+node_tarball=/tmp/node-${node_version}-linux-x64.tar.xz
+fetch_node() {
+  [ -f "$node_tarball" ] && return 0
+  curl -fsSL -o "$node_tarball" "https://nodejs.org/dist/${node_version}/node-${node_version}-linux-x64.tar.xz"
+  curl -fsSL -o /tmp/SHASUMS256.txt "https://nodejs.org/dist/${node_version}/SHASUMS256.txt"
+  (cd /tmp && grep " node-${node_version}-linux-x64.tar.xz\$" SHASUMS256.txt | sha256sum -c -) || { rm -f "$node_tarball"; exit 1; }
+  rm -f /tmp/SHASUMS256.txt
+}
+if ! node --version 2>/dev/null | grep -q '^v22\.'; then
+  fetch_node
+  tar -xJf "$node_tarball" -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE
+fi
+
+# actions/setup-node 按 .nvmrc 的「22」先查 runner 的工具缓存，命中就不下载；没命中才从
+# github.com/actions/node-versions 下 Node 包，家里要 13 分钟（v0.1.0-rc.7 的部署 job 实测，#104）。
+# 布局是 @actions/tool-cache 的 find / cacheDir：$RUNNER_TOOL_CACHE/node/<版本>/x64 目录 + 同级的 x64.complete 标记，
+# RUNNER_TOOL_CACHE 是 <runner 目录>/_work/_tool。job-started.sh 只清 _work/<仓库>/<仓库>，工具缓存留得住。
+# 这里的 Node 版本等于上面系统级的版本；重做容器（或 jit 镜像）时才会换成更新的 22.x。
+seed_node_tool_cache() {
+  for cache in "$@"; do
+    dir=$cache/node/${node_version#v}/x64
+    if [ -f "$dir.complete" ]; then continue; fi
+    fetch_node
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    tar -xJf "$node_tarball" -C "$dir" --strip-components=1
+    : > "$dir.complete"
+    echo "工具缓存：$dir"
+  done
+  rm -f "$node_tarball"
+}
 
 id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
 usermod -aG docker runner
@@ -91,6 +119,7 @@ ExecStopPost=+/usr/bin/systemctl poweroff --no-block
 RuntimeMaxSec=8h
 EOF
   systemctl daemon-reload
+  seed_node_tool_cache "$d/_work/_tool"
   chown -R runner:runner /home/runner
   apt-get clean
   docker version --format 'docker {{.Server.Version}}'
@@ -124,6 +153,7 @@ for n in 1 2; do
 done
 # job-started.sh 与本脚本放在同一目录推进容器（incus file push），装到 runner 的 HOME 外面、两个实例共用。
 install -o runner -g runner -m 0755 "$(dirname "$0")/job-started.sh" /home/runner/job-started.sh
+seed_node_tool_cache /home/runner/r1/_work/_tool /home/runner/r2/_work/_tool
 chown -R runner:runner /home/runner
 docker version --format 'docker {{.Server.Version}}'
 docker info --format 'storage={{.Driver}} mirrors={{.RegistryConfig.Mirrors}}'
