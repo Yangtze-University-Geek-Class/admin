@@ -97,7 +97,7 @@ const NAME_RULE = "昵称只能用汉字、字母、假名、韩文、数字、�
 async function newTopic(s: Setup, who = 'bob', patch: Record<string, unknown> = {}) {
   const response = await s.call('POST', '/api/forum/topics', who, { title: '新话题', categoryId: 'c-ai', tags: [], content: '正文', ...patch });
   expect(response.statusCode).toBe(201);
-  return response.json() as { topicId: string; postId: string; state: any };
+  return response.json() as { topicId: string; postId: string; changes: any };
 }
 
 describe('state', () => {
@@ -180,7 +180,7 @@ describe('state', () => {
     expect((await s.call('POST', '/api/forum/posts', 'carol', { topicId: 't9', content: '按成员回复' })).json().error).toBe('invalid_guest_name');
     const asGuest = await s.call('POST', '/api/forum/posts', 'carol', guestReply('t9', '按游客回复'));
     expect(asGuest.statusCode).toBe(201);
-    expect(asGuest.json().state.posts.find((p: { id: string }) => p.id === asGuest.json().postId).authorId).toBe('g1');
+    expect(asGuest.json().changes.posts.find((p: { id: string }) => p.id === asGuest.json().postId).authorId).toBe('g1');
     expect(s.audits()).toEqual([]);
   });
 
@@ -227,19 +227,21 @@ describe('topics', () => {
     expect(guest.statusCode).toBe(401);
     expect(guest.json()).toMatchObject({ error: 'signin_required', message: '登录后才能操作' });
 
-    const { topicId, postId, state } = await newTopic(s, 'bob', { title: '  第一个新话题  ', tags: ['tag-agents', 'Rust', '机试心得', 'rust ', 'tag-agents'] });
+    const { topicId, postId, changes } = await newTopic(s, 'bob', { title: '  第一个新话题  ', tags: ['tag-agents', 'Rust', '机试心得', 'rust ', 'tag-agents'] });
     expect([topicId, postId]).toEqual(['t1001', 'p10001']);
-    const topic = state.topics.find((t: { id: string }) => t.id === 't1001');
+    const topic = changes.topics.find((t: { id: string }) => t.id === 't1001');
     expect(topic).toMatchObject({ slug: 'topic-1001', title: '第一个新话题', categoryId: 'c-ai', authorId: 'm102', views: 0, pinned: false, closed: false, tagIds: ['tag-agents', 'tag-1', 'tag-2'] });
-    expect(state.tags.slice(2)).toEqual([
+    // 回答里带上话题用到的标签（新建的两个排在精选的后面）。
+    expect(changes.tags.map((t: { id: string }) => t.id)).toEqual(['tag-agents', 'tag-1', 'tag-2']);
+    expect(changes.tags.slice(1)).toEqual([
       { id: 'tag-1', slug: 'rust', name: 'Rust', color: '#e5484d' },
       { id: 'tag-2', slug: 'tag-2', name: '机试心得', color: '#f76b15' },
     ]);
-    expect(state.posts.find((p: { id: string }) => p.id === 'p10001')).toMatchObject({ topicId: 't1001', authorId: 'm102', content: '正文', likeUserIds: [] });
+    expect(changes.posts.find((p: { id: string }) => p.id === 'p10001')).toMatchObject({ topicId: 't1001', authorId: 'm102', content: '正文', likeUserIds: [] });
     // 同名标签（中文按名字、英文按 slug）不会重复建。
     const again = await newTopic(s, 'bob', { tags: ['机试心得', 'RUST'] });
-    expect(again.state.topics.find((t: { id: string }) => t.id === again.topicId).tagIds).toEqual(['tag-2', 'tag-1']);
-    expect(again.state.counters).toMatchObject({ topic: 1002, post: 10002, tag: 2 });
+    expect(again.changes.topics.find((t: { id: string }) => t.id === again.topicId).tagIds).toEqual(['tag-2', 'tag-1']);
+    expect((await s.state()).counters).toMatchObject({ topic: 1002, post: 10002, tag: 2 });
   });
 
   it('validates topics with Chinese messages', async () => {
@@ -276,9 +278,9 @@ describe('topics', () => {
     // 项目部队长能置顶、不能关闭；社区部舰员两样都能。
     const pinned = await s.call('POST', '/api/forum/topics/t9/pin', 'dave', { pinned: true });
     expect(pinned.statusCode).toBe(200);
-    expect(pinned.json().state.topics.find((t: { id: string }) => t.id === 't9').pinned).toBe(true);
+    expect(pinned.json().changes.topics.find((t: { id: string }) => t.id === 't9').pinned).toBe(true);
     expect((await s.call('POST', '/api/forum/topics/t9/close', 'dave', { closed: true })).statusCode).toBe(403);
-    expect((await s.call('POST', '/api/forum/topics/t9/close', 'carol', { closed: true })).json().state.topics.find((t: { id: string }) => t.id === 't9').closed).toBe(true);
+    expect((await s.call('POST', '/api/forum/topics/t9/close', 'carol', { closed: true })).json().changes.topics.find((t: { id: string }) => t.id === 't9').closed).toBe(true);
     expect((await s.call('POST', '/api/forum/topics/t404/close', 'carol', { closed: true })).statusCode).toBe(404);
     expect((await s.call('POST', '/api/forum/topics/t9/close', 'carol', { closed: 'yes' })).statusCode).toBe(400);
     expect(s.audits()).toEqual([
@@ -369,11 +371,11 @@ describe('replies', () => {
 
     const ok = await send(guestReply(topicId, '游客的回复 @bob'));
     expect(ok.statusCode).toBe(201);
-    const { state, postId } = ok.json();
-    expect(state.viewer).toEqual({ userId: null, kind: 'guest', capabilities: [] });
-    const post = state.posts.find((p: { id: string }) => p.id === postId);
+    const { changes, viewer, postId } = ok.json();
+    expect(viewer).toEqual({ userId: null, kind: 'guest', capabilities: [] });
+    const post = changes.posts.find((p: { id: string }) => p.id === postId);
     expect(post.authorId).toBe('g1');
-    expect(state.users.find((u: { id: string }) => u.id === 'g1')).toEqual({
+    expect(changes.users.find((u: { id: string }) => u.id === 'g1')).toEqual({
       id: 'g1', username: 'guest-1', displayName: '路过的同学', bio: '', location: '', website: '', avatarColor: '#e5484d',
       joinedAt: expect.any(Number), role: 'member', notifyPrefs: { reply: false, like: false, follow: false }, kind: 'guest',
     });
@@ -384,7 +386,7 @@ describe('replies', () => {
     expect((await s.call('DELETE', `/api/forum/posts/${postId}`)).statusCode).toBe(401);
     expect((await s.call('POST', '/api/forum/posts/p10001/like')).statusCode).toBe(401);
     // 每条游客回复是一个新的游客用户。
-    expect((await send(guestReply(topicId, '第二条'))).json().state.users.map((u: { id: string }) => u.id)).toContain('g2');
+    expect((await send(guestReply(topicId, '第二条'))).json().changes.users.map((u: { id: string }) => u.id)).toEqual(['g2']);
   });
 
   it('limits guest replies to 5 a minute and 30 a day per IP', async () => {
@@ -477,7 +479,7 @@ describe('replies', () => {
     // 存的是 NFKC 之后、去掉首尾空白的写法。
     const guest = await send('\uFF37\uFF41\uFF4E\uFF47\u3000\uFF38\uFF49\uFF41\uFF4F\u3000');
     expect(guest.statusCode).toBe(201);
-    const guestId = guest.json().state.posts.find((p: { id: string }) => p.id === guest.json().postId).authorId;
+    const guestId = guest.json().changes.posts.find((p: { id: string }) => p.id === guest.json().postId).authorId;
     expect((await rename('\u3000张\u00A0三')).statusCode).toBe(200);
     expect(s.db.prepare('SELECT id, display_name FROM forum_users WHERE id IN (?, ?) ORDER BY id').all(guestId, 'm102'))
       .toEqual([{ id: guestId, display_name: 'Wang Xiao' }, { id: 'm102', display_name: '张 三' }]);
@@ -593,7 +595,7 @@ describe('replies', () => {
     expect(wrong.json().error).toBe('pow_invalid');
     const right = await app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', content, undefined, { pow: solve(`t9:${content}`) }) });
     expect(right.statusCode).toBe(201);
-    expect(right.json().state.posts.find((p: { id: string }) => p.id === right.json().postId).content).toBe(content);
+    expect(right.json().changes.posts.find((p: { id: string }) => p.id === right.json().postId).content).toBe(content);
   });
 
   it('lets only moderators reply in a closed topic', async () => {
@@ -626,7 +628,7 @@ describe('editing and deleting', () => {
 
     const edited = await s.call('PATCH', `/api/forum/posts/${reply}`, 'bob', { content: '第二版' });
     expect(edited.statusCode).toBe(200);
-    expect(edited.json().state.posts.find((p: { id: string }) => p.id === reply)).toMatchObject({ content: '第二版', editedAt: expect.any(Number) });
+    expect(edited.json().changes.posts.find((p: { id: string }) => p.id === reply)).toMatchObject({ content: '第二版', editedAt: expect.any(Number) });
     const other = await s.call('PATCH', `/api/forum/posts/${reply}`, 'dave', { content: '改别人的' });
     expect(other.statusCode).toBe(403);
     expect(other.json()).toMatchObject({ error: 'forbidden', message: '只能编辑自己的帖子' });
@@ -636,7 +638,7 @@ describe('editing and deleting', () => {
     // 社区部舰员改、删游客的帖子：写审计，不记正文。
     expect((await s.call('PATCH', `/api/forum/posts/${guest}`, 'carol', { content: '\uFF08已由版务整理\uFF09' })).statusCode).toBe(200);
     const removed = await s.call('DELETE', `/api/forum/posts/${guest}`, 'carol');
-    expect(removed.json().state.posts.find((p: { id: string }) => p.id === guest)).toMatchObject({ deleted: true, content: '' });
+    expect(removed.json().changes.posts.find((p: { id: string }) => p.id === guest)).toMatchObject({ deleted: true, content: '' });
     expect(s.audits()).toEqual([
       { org: CONSOLE_ORG, actor: 'carol', action: 'forum.post.edit', target: guest, details: JSON.stringify({ topic_id: topicId, author_id: 'g1' }) },
       { org: CONSOLE_ORG, actor: 'carol', action: 'forum.post.delete', target: guest, details: JSON.stringify({ topic_id: topicId, author_id: 'g1' }) },
@@ -644,7 +646,7 @@ describe('editing and deleting', () => {
 
     // 自己删自己的不审计；再删一次原样返回；删掉的不能再改、不能点赞。
     const own = await s.call('DELETE', `/api/forum/posts/${reply}`, 'bob');
-    expect(own.json().state.posts.find((p: { id: string }) => p.id === reply)).toMatchObject({ deleted: true, content: '' });
+    expect(own.json().changes.posts.find((p: { id: string }) => p.id === reply)).toMatchObject({ deleted: true, content: '' });
     expect((await s.call('DELETE', `/api/forum/posts/${reply}`, 'bob')).statusCode).toBe(200);
     expect((await s.call('PATCH', `/api/forum/posts/${reply}`, 'bob', { content: '复活' })).json()).toMatchObject({ error: 'post_deleted' });
     expect((await s.call('POST', `/api/forum/posts/${reply}/like`, 'carol')).statusCode).toBe(409);
@@ -666,8 +668,8 @@ describe('likes, bookmarks, follows and notifications', () => {
     await s.state('bob');
     const { postId } = await newTopic(s, 'bob');
     const like = () => s.call('POST', `/api/forum/posts/${postId}/like`, 'carol');
-    expect((await like()).json().state.posts.find((p: { id: string }) => p.id === postId).likeUserIds).toEqual(['m103']);
-    expect((await like()).json().state.posts.find((p: { id: string }) => p.id === postId).likeUserIds).toEqual([]);
+    expect((await like()).json().changes.posts.find((p: { id: string }) => p.id === postId).likeUserIds).toEqual(['m103']);
+    expect((await like()).json().changes.posts.find((p: { id: string }) => p.id === postId).likeUserIds).toEqual([]);
     await like();
     await s.call('POST', `/api/forum/posts/${postId}/like`, 'bob');
     expect((await s.state('bob')).notifications.map((n: { type: string; actorId: string }) => `${n.type}:${n.actorId}`)).toEqual(['like:m103']);
@@ -702,7 +704,7 @@ describe('likes, bookmarks, follows and notifications', () => {
     const { topicId, postId } = await newTopic(s, 'bob');
     await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '回复' });
     const saved = await s.call('POST', `/api/forum/posts/${postId}/bookmark`, 'carol');
-    expect(saved.json().state.bookmarks).toEqual([{ userId: 'm103', postId, createdAt: expect.any(Number) }]);
+    expect(saved.json().changes.bookmarks).toEqual([{ userId: 'm103', postId, createdAt: expect.any(Number) }]);
     await s.call('POST', '/api/forum/posts/body-9/bookmark', 'bob');
 
     const bob = await s.state('bob');
@@ -717,22 +719,24 @@ describe('likes, bookmarks, follows and notifications', () => {
     // 只能标自己的通知已读；别人的当作不存在。
     const [notification] = bob.notifications;
     expect((await s.call('POST', `/api/forum/notifications/${notification.id}/read`, 'carol')).statusCode).toBe(404);
-    expect((await s.call('POST', `/api/forum/notifications/${notification.id}/read`, 'bob')).json().state.notifications[0].read).toBe(true);
+    expect((await s.call('POST', `/api/forum/notifications/${notification.id}/read`, 'bob')).json().changes.notifications).toEqual([{ ...notification, read: true }]);
     expect((await s.call('POST', '/api/forum/notifications/n999/read', 'bob')).statusCode).toBe(404);
     await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol');
     const all = await s.call('POST', '/api/forum/notifications/read-all', 'bob');
-    expect(all.json().state.notifications.every((n: { read: boolean }) => n.read)).toBe(true);
+    // 全部已读只回这次从未读变成已读的那条点赞通知，刚才单独标过的回复通知不在里面。
+    expect(all.json().changes.notifications.map((n: { type: string; recipientId: string; read: boolean }) => `${n.type}:${n.recipientId}:${n.read}`)).toEqual(['like:m102:true']);
     expect((await s.call('POST', '/api/forum/notifications/read-all')).statusCode).toBe(401);
     // 取消收藏。
-    expect((await s.call('POST', `/api/forum/posts/${postId}/bookmark`, 'carol')).json().state.bookmarks).toEqual([]);
+    const unsaved = (await s.call('POST', `/api/forum/posts/${postId}/bookmark`, 'carol')).json().changes;
+    expect(unsaved).toEqual({ users: [expect.objectContaining({ id: 'm103' })], removed: { bookmarks: [{ userId: 'm103', postId }] } });
   });
 
   it('toggles follows, refuses self-follows and notifies once', async () => {
     const s = await setup();
     await s.state('bob');
     const follow = (target: string, who = 'carol') => s.call('POST', `/api/forum/users/${target}/follow`, who);
-    expect((await follow('m102')).json().state.follows).toEqual([{ followerId: 'm103', followeeId: 'm102', createdAt: expect.any(Number) }]);
-    expect((await follow('m102')).json().state.follows).toEqual([]);
+    expect((await follow('m102')).json().changes.follows).toEqual([{ followerId: 'm103', followeeId: 'm102', createdAt: expect.any(Number) }]);
+    expect((await follow('m102')).json().changes).toMatchObject({ removed: { follows: [{ followerId: 'm103', followeeId: 'm102' }] } });
     await follow('m102');
     expect((await s.state('bob')).notifications.map((n: { type: string }) => n.type)).toEqual(['follow']);
     const self = await follow('m103');
@@ -746,16 +750,78 @@ describe('likes, bookmarks, follows and notifications', () => {
   });
 });
 
+describe('write responses (#145)', () => {
+  const byId = (list: { id: string }[], id: string) => list.find(item => item.id === id);
+
+  it('answers each write with only the records it changed, each identical to the one in /state', async () => {
+    const s = await setup();
+    await s.state('carol');
+    const { topicId, postId, changes: created } = await newTopic(s, 'bob', { tags: ['tag-agents', '新标签'] });
+    const full = await s.state('bob');
+    expect(Object.keys(created).sort()).toEqual(['posts', 'tags', 'topics', 'users']);
+    expect(created.topics).toEqual([byId(full.topics, topicId)]);
+    expect(created.posts).toEqual([byId(full.posts, postId)]);
+    expect(created.tags).toEqual(full.tags.filter((t: { id: string }) => ['tag-agents', 'tag-1'].includes(t.id)));
+    expect(created.users).toEqual([byId(full.users, 'm102')]);
+
+    const reply = await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '回复 @bob' });
+    expect(reply.statusCode).toBe(201);
+    const { changes, viewer, guestPolicy, postId: replyId } = reply.json();
+    const carol = await s.state('carol');
+    expect(changes).toEqual({ users: [byId(carol.users, 'm103')], topics: [byId(carol.topics, topicId)], posts: [byId(carol.posts, replyId)] });
+    expect([viewer, guestPolicy]).toEqual([carol.viewer, carol.guestPolicy]);
+    // 话题的最后活动时间跟着回复走：并进前端的那条话题已经是新的。
+    expect(changes.topics[0].lastActivityAt).toBe(changes.posts[0].createdAt);
+
+    const liked = (await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol')).json();
+    expect(liked.changes).toEqual({ users: [byId(carol.users, 'm103')], posts: [{ ...byId(carol.posts, postId), likeUserIds: ['m103'] }] });
+    expect(JSON.stringify(liked).length).toBeLessThan(1500);
+  });
+
+  it('never carries anything the viewer could not read from /state', async () => {
+    const s = await setup();
+    await s.state('bob');
+    await s.call('PATCH', '/api/forum/me/profile', 'carol', { notifyPrefs: { like: false } });
+    const { topicId, postId } = await newTopic(s, 'bob');
+    await s.call('POST', `/api/forum/posts/${postId}/bookmark`, 'bob');
+
+    // carol 的回复给 bob 发了通知，她的回答里没有；她自己的用户记录带着她真实的通知设置。
+    const reply = (await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '回复' })).json();
+    expect(reply.changes.notifications).toBeUndefined();
+    expect(reply.changes.users).toEqual([expect.objectContaining({ id: 'm103', notifyPrefs: { reply: true, like: false, follow: true } })]);
+    // 游客的回答：没有通知、没有书签，只有这次的游客用户。
+    const guest = (await s.call('POST', '/api/forum/posts', undefined, guestReply(topicId, '游客回复'))).json();
+    expect(Object.keys(guest.changes).sort()).toEqual(['posts', 'topics', 'users']);
+    expect(guest.changes.users.map((u: { id: string; kind: string }) => `${u.id}:${u.kind}`)).toEqual(['g1:guest']);
+
+    // 拼回答的那一层自己也挡：别人的通知、别人的书签、别人的通知设置都拿不到。
+    const bobNotification = (await s.state('bob')).notifications[0].id;
+    const forum = s.app.services.forum;
+    expect(forum.changes('m103', { notifications: [bobNotification], bookmarks: [postId] })).toEqual({ removed: { bookmarks: [{ userId: 'm103', postId }] } });
+    expect(forum.changes(null, { notifications: [bobNotification], bookmarks: [postId] })).toEqual({});
+    expect(forum.changes('m102', { notifications: [bobNotification], bookmarks: [postId] })).toMatchObject({
+      notifications: [{ id: bobNotification, recipientId: 'm102' }], bookmarks: [{ userId: 'm102', postId }],
+    });
+    expect(forum.changes('m102', { users: ['m103'] }).users![0].notifyPrefs).toEqual({ reply: true, like: true, follow: true });
+    expect(forum.changes('m103', { users: ['m103'] }).users![0].notifyPrefs).toEqual({ reply: true, like: false, follow: true });
+    // 删掉的帖子和 /state 一样没有正文；不存在的 id 直接跳过。
+    await s.call('DELETE', `/api/forum/posts/${reply.postId}`, 'carol');
+    expect(forum.changes(null, { posts: [reply.postId, 'p99999'], topics: ['t404'], users: ['m999'], tags: ['tag-404'] })).toEqual({
+      posts: [expect.objectContaining({ id: reply.postId, content: '', deleted: true })],
+    });
+  });
+});
+
 describe('profile', () => {
   it('edits nickname, signature, location, website and notification settings within limits', async () => {
     const s = await setup();
     const patch = (body: object, who: string | null = 'bob') => s.call('PATCH', '/api/forum/me/profile', who ?? undefined, body);
     const ok = await patch({ displayName: '  博  ', bio: '第一行\n第二行', location: '武汉', website: 'https://bob.example.test/', notifyPrefs: { like: false } });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json().state.users.find((u: { id: string }) => u.id === 'm102')).toMatchObject({
+    expect(ok.json().changes.users.find((u: { id: string }) => u.id === 'm102')).toMatchObject({
       displayName: '博', bio: '第一行\n第二行', location: '武汉', website: 'https://bob.example.test/', notifyPrefs: { reply: true, like: false, follow: true },
     });
-    expect((await patch({ website: '' })).json().state.users.find((u: { id: string }) => u.id === 'm102').website).toBe('');
+    expect((await patch({ website: '' })).json().changes.users.find((u: { id: string }) => u.id === 'm102').website).toBe('');
     expect((await patch({ displayName: 'x'.repeat(31) })).json().message).toBe('昵称太长了\uFF0C最多 30 个字');
     expect((await patch({ displayName: '   ' })).json().error).toBe('invalid_display_name');
     expect((await patch({ bio: 'x'.repeat(201) })).json().message).toBe('个人签名太长了\uFF0C最多 200 个字');
@@ -787,7 +853,8 @@ describe('profile', () => {
     // 自己的用户名换个大小写可以；和别的成员昵称相同也可以。
     expect((await rename('BOB')).statusCode).toBe(200);
     expect((await rename('小博', 'carol')).statusCode).toBe(200);
-    expect((await rename('小博')).json().state.users.filter((u: { displayName: string }) => u.displayName === '小博')).toHaveLength(2);
+    expect((await rename('小博')).json().changes.users).toEqual([expect.objectContaining({ id: 'm102', displayName: '小博' })]);
+    expect((await s.state()).users.filter((u: { displayName: string }) => u.displayName === '小博')).toHaveLength(2);
   });
 
   it('keeps a stored nickname that breaks the current rules when other fields change, but still checks a new one', async () => {
@@ -795,7 +862,7 @@ describe('profile', () => {
     await s.state('carol');
     await s.state('bob');
     const patch = (body: object) => s.call('PATCH', '/api/forum/me/profile', 'bob', body);
-    const bob = (response: { json(): { state: { users: { id: string }[] } } }) => response.json().state.users.find(u => u.id === 'm102');
+    const bob = (response: { json(): { changes: { users: { id: string }[] } } }) => response.json().changes.users.find(u => u.id === 'm102');
     // 早先存下的昵称：带看不见的字符，或者和官方账号同名。
     for (const legacy of ['b\u200Bob', '极客班']) {
       s.db.prepare("UPDATE forum_users SET display_name = ? WHERE id = 'm102'").run(legacy);
@@ -844,7 +911,7 @@ describe('avatars', () => {
 
     const response = await upload(await samplePng());
     expect(response.statusCode).toBe(200);
-    const avatarUrl: string = response.json().state.users.find((u: { id: string }) => u.id === 'm102').avatarUrl;
+    const avatarUrl: string = response.json().changes.users.find((u: { id: string }) => u.id === 'm102').avatarUrl;
     expect(avatarUrl).toMatch(/^\/api\/forum\/avatars\/[0-9a-f]{64}\.webp$/);
     const served = await s.app.inject(avatarUrl);
     expect(served.statusCode).toBe(200);
@@ -871,7 +938,7 @@ describe('avatars', () => {
     expect((await upload(await samplePng(), 'image/png', null)).statusCode).toBe(401);
 
     const removed = await s.call('DELETE', '/api/forum/me/avatar', 'bob');
-    expect(removed.json().state.users.find((u: { id: string }) => u.id === 'm102').avatarUrl).toBe('https://avatars.example.test/bob');
+    expect(removed.json().changes.users.find((u: { id: string }) => u.id === 'm102').avatarUrl).toBe('https://avatars.example.test/bob');
     const gone = await s.app.inject(avatarUrl);
     expect(gone.statusCode).toBe(404);
     expect(gone.headers['cache-control']).toBe('no-store');

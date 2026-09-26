@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-09-26 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-09-27 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -19,9 +19,9 @@
 | `app/server/src/routes/console/index.ts` | 极客班控制台路由注册入口（`/api/console/*`：me、catalogue、summary、departments、titles、assignments、people、applications、feedback、audit） |
 | `app/server/src/routes/console/contracts.ts` | 控制台请求 Schema（拒绝未知字段；投递参数按 UUID 校验） |
 | `app/server/src/routes/forum-api/index.ts` | 论坛接口注册入口（`/api/forum/*`，#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）：`topics.ts`（state、发帖、置顶、关闭、浏览数）、`posts.ts`（回复、编辑、删除、点赞、收藏）、`people.ts`（关注、通知、账号资料、头像）、`viewer.ts`（成员 / 游客身份与 `forum.*` 能力） |
-| `app/server/src/routes/forum-api/contracts.ts` | 论坛请求 Schema（拒绝未知字段；编号按字符串格式校验）与中文校验提示 |
+| `app/server/src/routes/forum-api/contracts.ts` | 论坛请求 Schema（拒绝未知字段；编号按字符串格式校验）与中文校验提示；写接口回答的形状 `ForumWriteResponse`（`{ changes, viewer, guestPolicy }`，#145） |
 | `app/server/src/middleware/` | `require-auth`（另有 `loadSession`：有有效 `sid` 就挂上会话、没有不回复，给游客也能用的论坛接口）、`require-org-role`、`require-capability`（控制台与论坛按能力授权）、`oauth-state`、`http-policy`、`pow`、`turnstile` |
-| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
+| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`，以及写接口回答里按编号取出的改动记录 `changes()`，#145）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
 | `app/server/Dockerfile` | Node 22 多阶段构建，非 root 运行，`/data` 卷，健康检查 `/healthz`；运行阶段另复制论坛的两份公开内容文件 `app/forum/content/curation.json` 与 `published/topics.json` |
 | `app/server/scripts/` | 已退役的占位文件（`test-invite-*.ts`）：运行只打印「改用 `pnpm test`」并以退出码 1 结束，没有可用的手工流程 |
 
@@ -73,5 +73,5 @@ node scripts/check-boundaries.mjs                         # 依赖方向与跨�
 - 没有迁移到 Postgres；`DB_PATH` 仍为 SQLite 文件（见 [ARCHITECTURE](../../architecture/ARCHITECTURE.md)）。
 - 邀请的 GitHub 结果未知时保留待核对状态，需要人工核对后由授权维护修正，不会自动重发。
 - `app/server/package.json` 仍声明旧上传与旧论坛遗留依赖：`@fastify/multipart`、`multer`、`marked`、`dompurify`、`isomorphic-dompurify` 在 `src` 中零引用，`bcryptjs` 只被无人导入的 `lib/password-policy.ts` 引用。`sharp` 已在用：论坛头像上传（`lib/forum-avatar.ts`，#57）。唯一的上传接口是 `PUT /api/forum/me/avatar`，请求体就是图片本身，没有注册 multipart 插件。删除其余遗留依赖和死代码要另开 issue 并更新锁文件。
-- 论坛的 `state` 每次请求全量下发（全部用户、话题、帖子、关注），没有分页；GitHub 角色查询失败时成员的论坛请求失败（与控制台一致），不降级成游客视图。
+- 论坛的 `GET /api/forum/state` 每次全量下发（全部用户、话题、帖子正文、关注），没有分页，帖子正文占了它的大头；写接口从 #145 起只回这次改动的记录（`changes`，见 [API](../../architecture/API.md)「论坛」），首屏去掉帖子正文由 #156 跟进。GitHub 角色查询失败时成员的论坛请求失败（与控制台一致），不降级成游客视图。
 - `app/server/scripts/` 只剩已退役的占位文件，运行即失败退出，不是任何流程的入口；邀请流程的回归由 `pnpm test` 覆盖。

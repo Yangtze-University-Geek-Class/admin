@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-09-26 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -32,7 +32,7 @@
 
 ### 论坛（`forum_*`，#57）
 
-论坛的编号都是字符串，与论坛前端的 `ForumState` 一致：话题 `t<n>`（旧帖沿用旧编号、都小于 1000，新话题从 `t1001` 起）、帖子 `p<n>`（从 `p10001` 起；旧帖首帖是 `body-<n>`）、成员 `m<GitHub user_id>`、游客 `g<n>`、官方账号 `u-geekclass`、通知 `n<n>`、用户建的标签 `tag-<n>`。新编号只从 `forum_counters` 取。分类和精选标签不入库，来自 `app/forum/content/curation.json`。写入方都是 `lib/forum-store.ts`（由 `routes/forum-api/*` 调用），读取方是它的 `state()`（整份论坛状态）与各路由的存在性检查，下表只写表特有的部分。
+论坛的编号都是字符串，与论坛前端的 `ForumState` 一致：话题 `t<n>`（旧帖沿用旧编号、都小于 1000，新话题从 `t1001` 起）、帖子 `p<n>`（从 `p10001` 起；旧帖首帖是 `body-<n>`）、成员 `m<GitHub user_id>`、游客 `g<n>`、官方账号 `u-geekclass`、通知 `n<n>`、用户建的标签 `tag-<n>`。新编号只从 `forum_counters` 取。分类和精选标签不入库，来自 `app/forum/content/curation.json`。写入方都是 `lib/forum-store.ts`（由 `routes/forum-api/*` 调用），读取方是它的 `state()`（整份论坛状态）、`changes()`（写接口回答里这次改动的记录，按编号取，可见性与 `state()` 相同，#145）与各路由的存在性检查，下表只写表特有的部分。
 
 | 表 | 用途 | 写入时机 | 读取与下发 | 个人信息与备注 |
 |---|---|---|---|---|
