@@ -9,7 +9,6 @@
 | 路径 | 职责 |
 |---|---|
 | `app/web/sites/portal/` | 公开站点：`App.tsx` 路由（`/`、`/join-us`、`/forum-3d`、`/github`、`/docs`、`/feedback`、`/join/:token`）、`pages/`、`three/`（按需加载的 three.js 场景：书桌、信封、论坛气泡、GitHub 天际线）、`components/`（YUGC OS 桌面、加载动画、页面外壳）、`lib/`（状态机、进度、相机数学、链接、快照、图标、全站登录状态 `account.ts`）、`styles/`（浅色书桌 × YUGC OS 视觉令牌）、`index.html` 入口；不自建登录态，菜单栏显示全站 GitHub 登录的账号或登录入口（见 [portal](portal.md)「登录入口」） |
-
 | `app/web/shared/lib/` | 网络（`api`、`http`、`runtime`）、URL/站点（`site`）、Markdown（`markdown`）、挂载（`mount`）、PoW、主题、只读 mock |
 | `app/web/shared/ui/` | 官网复用的交互原语：Modal、ConfirmDialog、Select、ImageLightbox、TurnstileWidget、Mascot 等 |
 | `app/web/shared/styles/` | 基础样式与令牌（`base.css`、`mascot.css`、`rounded.css`） |

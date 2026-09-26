@@ -70,3 +70,15 @@
 - 做了什么：FORUM_PNPM 指向主工作区 .tools/pnpm11、FORUM_NODE=/opt/homebrew/bin/node（v26.8.2），pnpm forum:install 后 pnpm verify；actionlint .github/workflows/*.yml
 - 结果：pnpm verify 退出 0：文档同步通过：6 组模块与文档；执行记录通过：11 条链路；核心 Test Files 45 passed、Tests 513 passed；build 通过；论坛 Test Files 15 passed、Tests 240 passed；forum:generate 生成 .output/public；actionlint 退出 0。未验证：工作流在 GitHub 上的真实运行、sweep 对真实仓库的 --apply、pre-push 在别人机器上的表现
 - 下一步：交主 agent 集成：推送、开 PR、审查
+
+## 16:36:13 +08:00 · 开发 · #115 #112 · 按 #112 修正服务文档与代码对不上的六处
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：主 agent 转达：#112 作者 16:00 的「关闭」记录把六处交给 #115，主 agent 确认接手。逐条对照代码：db.ts:116、121 建 console_seeds、titles 表；routes/console/index.ts 注册 titles、people；routes/portal/index.ts 注册 org.ts（GET /api/public/org）；app/forum/Dockerfile 断言 t/t73.md、t/t9.md 存在；router.ts 的 meta.anyOf 由 components/ConsoleShell.vue 交给 components/CapabilityGate.vue，pages/Gated.vue 不存在；web 源码地图第 12 行空行把表格截断。只改这几行，另外改 router.ts 注释后按文档同步规则补了 console 文档 src/router.ts 一行（ConsoleShell 把 meta.anyOf 交给 CapabilityGate，没写的页面按 console.access）与更新日期
+- 结果：六处都与代码对上；node scripts/docs-index.mjs --check：docs/INDEX.md 是最新的；pnpm check 退出 0（文档同步通过：6 组模块与文档）。另见未改：app/forum/nuxt.config.ts:50 的注释仍说极客班论坛只有 llms.txt，不在 #112 六处里
+
+## 16:36:13 +08:00 · 提交 · #115 #112 · #112 的六处单独一个提交
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：docs(docs): 按 #112 修正服务文档与代码对不上的六处；node scripts/docs-index.mjs --check；pnpm check
+- 结果：两项都通过
