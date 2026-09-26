@@ -44,3 +44,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：协调方转来：所有者报点赞和书签点了会卡住，#145 负责把论坛所有写入改成乐观更新（在 store / useForumActions 里先改本地、后台发请求、失败回滚）。本 PR 只管「赞 N」的显示和 PostCard 的接线，不动写入路径：PostCard 的 like() 去掉 liking 防重和 await，恢复成 void actions.toggleLike(...)（和 stage 上一样，只把判断换成 likeState.click），ADOPTION.json 与 README 去掉「请求没回来前不发第二次」的说法；likes.test.ts 的源码核对跟着改。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
 - 结果：forum check 通过（24 个文件 473 个测试）；pnpm check 通过；把提示判断改回只看有没有用户后 likes 测试失败。服务端模式下的点赞仍经 useForumActions().toggleLike → stores/forum-server.ts，#145 在那一层改乐观更新即可，likeControl 只读 post.likeUserIds，本地先改的赞数会直接显示
+
+## 23:11:51 +08:00 · PR · #143 · 开 PR #151，补上 ego-browser 截图
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create 到 stage（#151，九段正文，Closes #143）；本机核心服务（临时库 /tmp/geek143/data.db，假 GitHub 组织查询，PID 结束后已停）加按镜像方式构建的极客班论坛产物，ego-browser 一个 TaskSpace（215）：成员 ada 在 geek143.localhost:31430、游客在 geek143-guest.localhost:31430 看 t73；截图经 PR 评论框上传拿到 7 个 user-attachments 地址，评论框清空、没有提交评论，TaskSpace 已 finish；gh pr edit 把地址写进「验收证据」
+- 结果：成员点首帖「赞 2」177 ms 后变红色实心「赞 3」、aria-pressed=true、没有刷新页面；刷新后仍是「赞 3」；给回复点赞变「赞 1」、刷新仍在、再点回到「赞」；重新读 /api/forum/state 与 forum_likes 表都有 m1001。游客看到「赞 3」不变红，点了弹「登录后才能继续」带「登录」按钮，赞数不变。390×844 模拟手机操作栏一行放得下、没有横向溢出。注意：第一次把测试会话的 sid 设在 127.0.0.1 上，cookie 不分端口，被本机别的会话的 sid 覆盖（也可能先覆盖了它的），之后改用只属于本次的 geek143.localhost，没有删过任何 cookie
