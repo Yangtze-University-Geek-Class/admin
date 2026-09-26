@@ -37,3 +37,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：两个脚本开头校验 RUNNER_INSTANCES 为 1–9；register.sh 新注册后置 changed=1；示例改成 incus exec --env；CICD.md 写明手工解包前按 RUNNER_SHA256 核对、被取消运行的 verify、排队中的主线运行会被取消（打 rc 前确认 verify）、容器限额 8 线程 16GiB、「全部 crosery-arch-*」；ci.yml 注释改成实际效果；PR 正文补回滚步骤
 - 结果：shellcheck、actionlint 通过；0、x、10 被拒、4 放行；pnpm check 0；提交 8f9876c
+
+## 19:24:16 +08:00 · 提交 · #124 · 仓库公开后更新 CICD 文档
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 17:49 决定公开 admin；公开前 gitleaks 扫全部历史，公开后设 fork PR 批准、删 CI_RUNNER、runner 组 yzgc-deploy 放行公开仓库、preview 环境只放行 rc tag；把这些写进 docs/ops/CICD.md
+- 结果：提交 0ec8d72；pnpm check 退出 0
+- 下一步：推送，PR #125 第二轮审查
