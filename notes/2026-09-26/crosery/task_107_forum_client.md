@@ -116,3 +116,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理，代记独立审查代理的结论）
 - 做了什么：Claude 独立审查代理审 92a9f6c（含第一轮返工 dcc8718..f57652e、合并 stage 的 d2d90e3 与昵称返工 6613a9e），jsdom 跑 34 个载荷过编辑器，另做调用点变异测试
 - 结果：有条件通过，条件是补上两轮审查记录（PR 上 branch-guard 与 verify 报「链路里还没有引用 #107 的「审查」记录」）。建议 4 条：toEditor 只转义 <，实体写的 HTML 经所见即所得来回一趟会变回真标签（编辑漏 1 个、引用漏 3 个）；fromEditor 把作者自己写的 U+2060 也删了；修复只在辅助函数层有测试，组件调用点 10 个变异里 8 个存活，要抽 editDraft/quoteDraft 并测；游客昵称旁也写可用字符，README「含看不见的字符」改成「昵称里有服务端不收的字符」
+
+## 20:04:58 +08:00 · 返工 · #107 · 按第二轮审查改：实体转义、只去掉自己插的 U+2060、调用点测试、游客昵称提示
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：补记两轮审查（9f905d8）；fromEditor 只去掉 toEditor 插的 U+2060（a264ff5）；toEditor 在开始字符实体的 & 后也插 U+2060，按 serializeMarkdown 的写法模拟所见即所得来回一趟测试（88ecaa3）；编辑与引用初始内容抽成 editDraft/quoteDraft，新增 tests/editor-call-sites.test.ts 读组件源码核对 8 个调用点（aabec25）；游客回复框昵称旁写 NAME_CHARS_HINT（8908ef7）；README 改成「昵称里有服务端不收的字符」（b951546）。node scripts/forum.mjs check；pnpm check；note.mjs check --pr --for-review；site generate 后用 task/57 的 dist（旧构建）在 3157、/tmp 临时代理在 3158，ego-browser 空间 190、191 看游客回复框，用完即 finish，3157、3158 按 PID 停掉
+- 结果：forum check 通过（23 个文件 461 个测试），pnpm check 通过，note.mjs check --pr --for-review 通过（本 task 的链路完整）。反向验证：去掉实体转义后 5 条实体载荷测试失败；审查列的 8 个调用点逐个改回旧写法，调用点测试都失败。游客回复框（1473×983）里昵称输入框、一行的字符提示、编辑器和按钮都在可见范围内（截图 /tmp/geek107/review2-guest-drawer.png）。空间 190 截图时抽屉还在滑入，191 等抽屉停稳后重看
