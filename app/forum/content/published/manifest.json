@@ -1,5 +1,5 @@
 {
-  "$comment": "从旧论坛快照公开到极客班论坛的话题（#87、#108）。改这里后运行 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<source> 重新生成 topics.json 和 public/published/ 下的图片。withheld 是不公开的话题：指向它们的链接变成「这篇没有公开」。images 按旧正文里写的图片地址处理：drop 换成一句括号说明，cover 用灰块盖住矩形（原图像素 [左, 上, 宽, 高]），crop 裁掉四边；要编辑的外链图写原图 sha256，第一次导出加 --fetch 下载到快照的 external/ 下。redactions 按话题替换正文，count 是应命中的次数，对不上导出就停；替换规则里不能写被去掉的原文。",
+  "$comment": "从旧论坛快照公开到极客班论坛的话题（#87、#108）。改这里后运行 node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<source> 重新生成 topics.json 和 public/published/ 下的图片。withheld 是不公开的话题：指向它们的链接变成「这篇没有公开」。images 按旧正文里写的图片地址处理：drop 换成一句括号说明，cover 用灰块盖住矩形（原图像素 [左, 上, 宽, 高]），crop 裁掉四边；要编辑的外链图写原图 sha256，第一次导出加 --fetch 下载到快照的 external/ 下；图床按 Referer 拦外站引用的外链图（gitee raw）不用编辑也写 sha256，导出成站内图片。redactions 按话题替换正文，count 是应命中的次数，对不上导出就停；替换规则里不能写被去掉的原文。",
   "schemaVersion": 1,
   "source": "geek-20260926",
   "author": {
@@ -25,6 +25,8 @@
     { "id": "t13", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
     { "id": "t16", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
     { "id": "t25", "categoryId": "c-exam", "tagIds": ["tag-starter"], "pinned": false },
+    { "id": "t78", "categoryId": "c-ai", "tagIds": ["tag-workflow", "tag-talk"], "pinned": false },
+    { "id": "t84", "categoryId": "c-ai", "tagIds": ["tag-coding", "tag-notes"], "pinned": false },
     { "id": "t89", "categoryId": "c-ai", "tagIds": ["tag-agents", "tag-coding"], "pinned": false }
   ],
   "withheld": ["t5", "t15"],
@@ -50,7 +52,15 @@
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251927124.png", "drop": "这张截图没有公开" },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251929847.png", "drop": "这张截图没有公开" },
     { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251930617.png", "drop": "这张截图没有公开" },
-    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251930898.png", "drop": "这张截图没有公开" }
+    { "source": "https://luoxi2334.oss-cn-shanghai.aliyuncs.com/luoxi-picture/202409251930898.png", "drop": "这张截图没有公开" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082237704.png", "sha256": "aef90a7a8cab125b9398d135efbd338f6fc21c5bbffad4f5fab42ec90da7bdda" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082315546.png", "sha256": "681b52ccd4cb434e155d97753e89fd3d5c38fe4eec1bf1b5c7ffcb8f91617993" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082344134.png", "sha256": "90ad172e6f67f59ae63e59dd5c14ca4b52290269bfee69b7a3d6d2125c7b61f8" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082359667.png", "sha256": "84de03f2e5cec72cd0e494faf0b54591f22715b1e4afe1140913b40d3496ef54" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082419801.png", "sha256": "270ba83461b07acae849ca1c8a3a432922dd600651e2d04173b2f5466e818170" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082436622.png", "sha256": "54fef535c9db16fb8ee7ae11baec5b8447276ff8568e54a690420b7f640905a2" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082453024.png", "sha256": "149a456ddd63d843583fcd46fe2c4cbed99aa523e7f407989c0be570c4373d85" },
+    { "source": "https://gitee.com/defensive-leader/picgo-bed/raw/master/20260909082514923.png", "sha256": "9514efa4badca656b49eaa535de0ce050b6bf038ade5faa50f30ed2838020df6" }
   ],
   "redactions": [
     {
@@ -129,6 +139,12 @@
       "topic": "t89",
       "pattern": "\\n\\n\\[返回导航\\]\\($",
       "replacement": "",
+      "count": 1
+    },
+    {
+      "topic": "t84",
+      "pattern": "\\?p=%2F讲义%2F1 MAP%2Bvibe coding\\.pdf\\)",
+      "replacement": "?p=%2F讲义%2F1%20MAP%2Bvibe%20coding.pdf)",
       "count": 1
     }
   ]

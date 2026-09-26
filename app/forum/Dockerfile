@@ -69,12 +69,14 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
  # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
- # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的新帖 t89（#108）；不公开的 t5、t15 没有文件。
+ # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的现论坛帖子 t78、t84、t89（#108）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \
  && grep -q '极客班论坛' .output/public/llms.txt \
  && grep -q '极客班25级机试考核文档' .output/public/llms.txt \
  && test -s .output/public/t/t73.md \
  && test -s .output/public/t/t9.md \
+ && test -s .output/public/t/t78.md \
+ && test -s .output/public/t/t84.md \
  && test -s .output/public/t/t89.md \
  && ! test -e .output/public/t/t5.md \
  && ! test -e .output/public/t/t15.md \

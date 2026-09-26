@@ -33,3 +33,16 @@
 - 做了什么：提交 d839390 feat(forum): 极客班论坛补上正式环境 09-13 之后的新帖 t89（含并入的 stage 暂存记录）
 - 结果：forum.mjs check：Vitest 240 项通过；site 模式 generate 通过，有 t/t89.md、无 t5/t15；本机产物上重放 Dockerfile 断言通过；根 pnpm check 通过
 - 下一步：等主 agent 决定 t78、t84 是否一起公开；不推送、不开 PR
+
+## 16:09:15 +08:00 · 方案 · #108 · t78、t84 一起公开：用快照原文加替换规则，t84 的 gitee 外链图本地化
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：按主 agent 决定把 t78、t84 加进 published/manifest.json（人工智能，作者极客班），用 geek-20260926 快照原文，只加必要的替换；逐篇查邮箱、账户、密码、API 密钥、网盘链接和图片；curl 带 Referer https://prev.yangtzeu.work/ 取 t84 的 8 张 gitee 图床图片
+- 结果：t78 没有链接、图片、密钥；t84 有一个清华云盘公开分享链接（无密码，讲义出处，保留，链接地址里有空格导致 marked 渲染不成链接，用替换规则把空格编码成 %20）和 8 张 gitee 外链图；gitee 对带外站 Referer 的请求 302 到 favicon，线上会显示不出来，所以在清单里给这 8 张写 sha256 规则、导出成站内 WebP；图片是讲义示意图，已逐张看过，没有个人信息
+- 下一步：改清单、重新导出、更新测试与文档
+
+## 16:17:55 +08:00 · 开发 · #108 · 公开 t78、t84，重新导出，测试与文档同步
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：manifest 加 t78（人工智能，AI工作流、分享会）、t84（人工智能，AICoding、知识整理），8 条 gitee 图的 sha256 规则、t84 链接空格编码的替换规则；export-published.mjs geek-20260926 --fetch 一次、离线再跑一次；site-state 测试、Dockerfile 断言、forum 合同与数据保全文档；另把上一轮留下未提交的 t89 快照归类单独提交为 ab0224e
+- 结果：两次导出 topics.json 与图片目录哈希相同（96293de1…）；t78 正文与快照逐字节相同，t84 只改了链接地址的空格和 8 个图片地址；已公开 15 篇无变化；新增 8 张 WebP；forum.mjs check 241 项通过；site 模式 generate 通过，t78/t84/t89.md 存在、t5/t15.md 不存在，本机产物上重放 Dockerfile 断言通过；根 pnpm check 通过；临时测试加载 geek-20260926 + curation，t78/t84/t89 都在 c-ai（测试文件未入库）

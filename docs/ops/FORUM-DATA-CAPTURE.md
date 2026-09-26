@@ -116,13 +116,15 @@ python3 scripts/forum-migration/prepare.py --snapshot .tools/forum-migration/202
 
 09-13 之后新建的主题只有两个：`t89`「国内 Agent 工具安装指南」（2026-09-25 16:46Z，原「AI Coding」分类）去掉公益 API 密钥后公开；`t88` 是同一篇较长的早先版本，发帖人已删，不复活。已公开的 14 篇在 09-13 之后没有被编辑，只有浏览数变了。
 
+同一次还公开了 09-13 的快照里就有、同样写在现论坛上的两篇：`t78`「LLM-WIKI搭建经验谈--来自2026/6/14晚i3egnner分享会」（2026-06-14 14:34Z，原「应用与产品」分类 `c20`）和 `t84`「Vibecoding知识点整理，从大模型到Coding Agent；包含大模型基础、Agent原理、工具区分等内容」（2026-09-09 00:25Z，原「AI Coding」分类 `c18`）。两篇都用原文：没有邮箱、账户、密码和密钥；`t78` 里提到的分享人只写了网名，保留；`t84` 引用的讲义是清华云盘上不设密码的公开分享，保留链接，只把地址里的空格编成 `%20`（原文的空格让 Markdown 认不出这个链接）。`t84` 的 8 张讲义截图放在 gitee 图床，带着别的网站的 Referer 去取会被转到 gitee 的图标，线上显示不出来，所以在清单里写了原图 `sha256`，第一次导出加 `--fetch` 下载后转成站内 WebP；截图只有讲义上的示意图，没有个人信息。`curation.json` 里给本机快照模式改写的标题和正文（`content/posts/body-78.md`、`body-84.md`）不进镜像。
+
 ## 以后再补新帖
 
 旧论坛下线前每补一次，都按下面做一遍：
 
 1. 在这次任务的 task worktree 里，照上一节的命令重新采集到一个新目录 `.tools/forum-migration/<日期>-<说明>`，`verify.py` 核对，再用 `prepare.py` 出新投影 `.tools/forum-runtime/geek-<日期>`。目录名不能和已有的重复，采集工具不覆盖旧目录。
-2. 和上一份投影对比，列出上次采集之后新建的主题，以及已公开话题的正文有没有变（比较 `content.json` 里首帖的 `content`）。逐篇读正文，看有没有邮箱、手机号、学号、账号密码、API 密钥、私人网盘或分享链接、别人的个人信息，决定公开还是写进 `withheld`，每篇在 PR 里写一句理由。
-3. 改 `app/forum/content/published/manifest.json`：`source` 换成新投影的目录名，要公开的编号加进 `topics`（类别、标签、置顶），需要的图片规则和 `redactions` 一起写；替换规则里不写被去掉的原文。新帖原来的分类在 `curation.json` 的 `categoryOmissions` 里（`c16`–`c20`）时，在 `curation.json` 的 `topics` 里给它同样的类别和标签，本机快照模式才能加载新投影。
+2. 和上一份投影对比，列出上次采集之后新建的主题，以及已公开话题的正文有没有变（比较 `content.json` 里首帖的 `content`）。逐篇读正文，看有没有邮箱、手机号、学号、账号密码、API 密钥、私人网盘或分享链接、别人的个人信息，决定公开还是写进 `withheld`，每篇在 PR 里写一句理由。外链图片带上 `Referer: https://prev.yangtzeu.work/` 取一次，看图床给不给外站引用。
+3. 改 `app/forum/content/published/manifest.json`：`source` 换成新投影的目录名，要公开的编号加进 `topics`（类别、标签、置顶），需要的图片规则和 `redactions` 一起写；替换规则里不写被去掉的原文。图床不给外站引用的外链图（gitee raw 就是这样）不需要编辑也写一条带原图 `sha256` 的规则，导出成站内图片。新帖原来的分类在 `curation.json` 的 `categoryOmissions` 里（`c16`–`c20`）时，在 `curation.json` 的 `topics` 里给它同样的类别和标签，本机快照模式才能加载新投影。
 4. 运行 `node scripts/forum-migration/export-published.mjs .tools/forum-runtime/geek-<日期> --fetch`（新投影里还没有外链原图时会下载一次，并按清单里的 SHA-256 核对）。已公开话题的 `content` 应该不变，跟着快照变的只有 `views` 和顶层的 `source`、`capturedAt`；正文变了要在 PR 里说明是原帖被编辑了。不加 `--fetch` 再跑一次，确认输出逐字节相同。
 5. 更新 `app/forum/tests/site-state.test.ts`、`app/forum/Dockerfile` 的断言和 [forum 合同](../services/forum/README.md)「公开的旧帖」，跑 `pnpm forum:check`、按镜像方式的 `forum.mjs generate` 和根 `pnpm check`，走 PR 进 `stage`，再按 [RELEASES](../conventions/RELEASES.md) 发版。
 6. 论坛后端（#57）按约定在启动时把 `topics.json` 里的话题按编号「没有才插入」：已经导入的话题不会重复，也不会被覆盖，线上的回复、置顶和浏览数以数据库为准。所以补新帖只会带进新的编号，`topics.json` 里旧话题的浏览数变化不会回写到线上。
