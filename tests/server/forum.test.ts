@@ -674,6 +674,28 @@ describe('likes, bookmarks, follows and notifications', () => {
     expect((await s.call('POST', '/api/forum/posts/p99999/like', 'bob')).statusCode).toBe(404);
   });
 
+  it('stores a like: a fresh read shows it to everyone, on a new topic and on an imported first post (#143)', async () => {
+    const s = await setup();
+    await s.state('bob');
+    const { postId } = await newTopic(s, 'bob');
+    const likesOf = (state: { posts: { id: string; likeUserIds: string[] }[] }, id: string) => state.posts.find(p => p.id === id)?.likeUserIds;
+    // 话题的第一帖（新话题的 postId、公开旧帖 t9 的 body-9）都能赞；赞过的在之后任何人重新读的状态里都在，不只在这次的返回里。
+    expect((await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol')).statusCode).toBe(200);
+    expect((await s.call('POST', '/api/forum/posts/body-9/like', 'carol')).statusCode).toBe(200);
+    for (const viewer of ['carol', 'bob', undefined]) {
+      const state = await s.state(viewer);
+      expect(likesOf(state, postId)).toEqual(['m103']);
+      expect(likesOf(state, 'body-9')).toEqual(['m103']);
+    }
+    expect(s.db.prepare('SELECT post_id, user_id FROM forum_likes ORDER BY post_id').all()).toEqual([
+      { post_id: 'body-9', user_id: 'm103' }, { post_id: postId, user_id: 'm103' },
+    ]);
+    // 取消也写进库：重新读就没有了。
+    await s.call('POST', '/api/forum/posts/body-9/like', 'carol');
+    expect(likesOf(await s.state(), 'body-9')).toEqual([]);
+    expect(likesOf(await s.state(), postId)).toEqual(['m103']);
+  });
+
   it('keeps bookmarks and notifications private to their owner', async () => {
     const s = await setup();
     await s.state('bob');

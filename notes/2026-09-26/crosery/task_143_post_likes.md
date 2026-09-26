@@ -26,3 +26,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：feat(forum): 帖子的点赞写出「赞」和赞数，赞过的高亮：新增 data/likes.ts 的 likeControl；PostCard 的赞按钮改成带边框的 TxButton，文字「赞 N」/「赞」，不再有 aria-label，赞过时实心心形 + danger 色调 + aria-pressed，请求没回来前再点不发第二次；tests/likes.test.ts；上游 verify-topic-page.mjs、smoke-routes.mjs 按文字找按钮，记进 ADOPTION.json；docs/services/forum/README.md 补「点赞」一条与单测清单。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
 - 结果：forum check 通过（typecheck、typecheck:tests、eslint、check-styles 115 个文件、24 个文件 472 个测试）；pnpm check 通过（文档同步按 PR 对 origin/stage 通过）。反向验证 10 个变异全部被测试拦下：文字退回纯数字、不变红、心形不填实、游客也显示按下、忽略能不能写、加回 aria-label、去掉请求中的防重、服务端模式走本地 store、store 不采用服务端的返回。上游 CDP 验收脚本按所有者规则没有在本机跑，脚本片段用 jsdom 夹具核对过能找到按钮、读出数字和 aria-pressed
+
+## 22:38:27 +08:00 · 提交 · #143 · 服务端点赞写库的回归测试
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：test(server): 点赞写进库，重新读取时谁都看得到：tests/server/forum.test.ts 新增一条，新话题第一帖与公开旧帖 t9 的第一帖 body-9 各赞一次，carol、bob、游客分别重新 GET /api/forum/state 都看到 m103，forum_likes 表里正好两行，取消后重新读就没有。app/server 源码没动。pnpm vitest run tests/server/forum.test.ts；另更正上一条「提交」记录：反向验证是 9 个变异（loginPromptToast 的那个属于第一个提交），forum check 当时是 472 个测试，测试挪到 access.test.ts 之后要以最终重跑为准
+- 结果：tests/server/forum.test.ts 50 个测试通过。反向验证 3 个变异都被新测试拦下：路由只改返回值不写库（expected [] to deeply equal ['m103']）、取消不删行（expected ['m103'] to deeply equal []）、第一帖拒绝点赞（expected 400 to be 200）。文档核对：docs/services/server/ 不用改——只在 tests/server/forum.test.ts 加了点赞写库的回归测试，app/server 的接口、表和行为都没变
