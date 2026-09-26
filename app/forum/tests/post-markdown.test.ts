@@ -175,6 +175,28 @@ describe('links and images only go to http(s), mailto or the site itself', () =>
  * quoted into a reply would hide the whole page. DOMPurify only ever removes, so a tag that is not in
  * marked's output is not in the editor's DOM either.
  */
+/** HTML written with character entities: shown as text in a post, but the editor's WYSIWYG layer decodes them. */
+const ENTITY_ATTACKS = [
+  '&lt;style&gt;body{display:none}&lt;/style&gt;',
+  '&#60;form action="https://evil.example"&#62;&#60;input type=password&#62;&#60;/form&#62;',
+  '&#x3c;style&#x3e;*{color:red}&#x3C;/style&#x3E;',
+  '&LT;img src=x onerror=alert(1)&GT;',
+  '> 引用 &lt;style&gt;body{display:none}&lt;/style&gt;',
+]
+
+/**
+ * What the editor writes back after its WYSIWYG layer: tuffex's `serializeMarkdown` takes each text node's
+ * `textContent`, entities already decoded, and writes it as-is (it only escapes Markdown punctuation, never
+ * `<` or `&`). Enough of that here to see a tag come back: drop the tags, decode the entities.
+ */
+function wysiwygRoundTrip(value: string): string {
+  return marked.parse(value)
+    .replace(/<[^>]*>/g, '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&(lt|gt|quot|#39|amp);/gi, (_, name: string) => ({ lt: '<', gt: '>', quot: '"', '#39': '\'', amp: '&' })[name.toLowerCase()] ?? '')
+}
+
 describe('someone else\'s text put into the editor', () => {
   /** ReplyComposer's QUOTE_LENGTH. */
   const QUOTE_LENGTH = 80
@@ -195,8 +217,20 @@ describe('someone else\'s text put into the editor', () => {
     expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
   })
 
+  it('is what the entities would turn into after a trip through the WYSIWYG layer (the case this guards)', () => {
+    expect(marked.parse(wysiwygRoundTrip(ENTITY_ATTACKS[0] as string))).toMatch(/<style>/)
+  })
+
+  it.each([...ATTACKS, ...ENTITY_ATTACKS])('%j stays text after a trip through the WYSIWYG layer, edited or quoted', (source) => {
+    for (const value of [toEditor(source), replyQuote(postExcerpt(source, QUOTE_LENGTH))]) {
+      const out = marked.parse(wysiwygRoundTrip(value))
+      expect(out).not.toMatch(FORBIDDEN_TAG)
+      expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
+    }
+  })
+
   it('saves exactly what the author left, without the inserted word joiners', () => {
-    for (const source of [...ATTACKS, '#include <stdio.h>', 'a < b', '<https://example.com>'])
+    for (const source of [...ATTACKS, ...ENTITY_ATTACKS, '#include <stdio.h>', 'a < b', '<https://example.com>', 'AT&T &amp; R&D'])
       expect(fromEditor(toEditor(source))).toBe(source)
     expect(fromEditor(`${replyQuote('<b>x</b>')}我的回复`)).toBe('> <b>x</b>\n\n我的回复')
   })
