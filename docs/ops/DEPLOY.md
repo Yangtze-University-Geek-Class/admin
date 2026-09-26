@@ -180,6 +180,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 - **回滚**：`rollback-stack.sh` 切回的旧镜像如果是开关打开时构建的，它引用的 CDN 对象仍在（上传只增不改，没有任何流程删除它们）。不要手工删 `yzgc/static/site/` 下的对象。
 - **CDN 的防盗链与 CORS（2026-09-26 用 curl 实测，不需要改 CDN 配置）**：`Referer: https://prev.yangtzeu.work/` 与 `https://yangtzeu.work/` 返回 200；别的站点（如 `https://evil.example/`）返回 403；不带 Referer 返回 200。`.js` 是 `text/javascript`，`.css` 是 `text/css`，`.woff2` 是 `font/woff2`，都带 `Access-Control-Allow-Origin: *`、`Cache-Control: public, max-age=31536000`、`Vary: Origin, Accept-Encoding`。CDN 对文本做 gzip（论坛入口 CSS 626,718 → 95,554 字节），不支持 brotli。站点的 `Referrer-Policy: strict-origin-when-cross-origin` 让浏览器发出 `https://<域名>/`，正好命中白名单。
 - **本机验证**：`http://127.0.0.1:<端口>/` 不在防盗链白名单里（实测 403）。本机用开关打开的构建做预览时，让本机服务器发 `Referrer-Policy: no-referrer`（不带 Referer 是放行的），或只看 HTML 里的地址，不要去改 CDN 的白名单。
+- **源站压缩**：web 与 forum 容器的 nginx 都对文本做 gzip，级别都是 6。forum 容器原来用 nginx 默认的 1，论坛入口 CSS（626,718 字节）经源站传 128,152 字节，改成 6 后本机 nginx 1.31.6 实测 95,932 字节（web 容器反代论坛时不会再压一次，所以只能在 forum 容器改）。预压缩（`gzip_static`，`-9`）比 6 级只再少 0.2%–1.2%，`nginx:1.31-alpine` 没有 brotli 模块，所以没有做。
 
 ## 发布和回滚验收
 

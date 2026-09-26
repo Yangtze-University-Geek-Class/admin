@@ -155,7 +155,9 @@ server {
     # 只发相对地址，由 web 容器的 proxy_redirect 补回 /forum 前缀，不会拼出 http://<Host>:3000/…。
     absolute_redirect off;
 
+    # 压缩级别与 web 容器一致（#146）：nginx 默认是 1，论坛入口 CSS 626,718 字节经源站传 128,152 字节；6 级本机 nginx 实测 95,932。
     gzip on;
+    gzip_comp_level 6;
     gzip_types text/plain text/markdown text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
     gzip_min_length 1024;
 

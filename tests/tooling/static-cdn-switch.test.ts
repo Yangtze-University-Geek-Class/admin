@@ -92,4 +92,10 @@ describe('images', () => {
     expect(forum).toContain('    STATIC_CDN_BASE="$STATIC_CDN_BASE" \\\n    pnpm exec nuxt generate \\\n');
     expect(forum).toContain('grep -q "\\"#entry\\":\\"${entry:-/forum/_nuxt/}" .output/public/index.html');
   });
+
+  it('compress text at the same gzip level in the web and forum containers (the web proxy does not re-compress forum responses)', () => {
+    const level = (dockerfile: string) => [...dockerfile.matchAll(/^\s*gzip_comp_level (\d+);/gm)].map(match => match[1]);
+    expect(level(read('app/web/Dockerfile'))).toEqual(['6']);
+    expect(level(read('app/forum/Dockerfile'))).toEqual(['6']);
+  });
 });
