@@ -107,7 +107,9 @@
     "shared/turnstile.ts",
     "app/components/TurnstileBox.vue",
     "tests/turnstile.test.ts",
-    "shared/site-notice.ts"
+    "shared/site-notice.ts",
+    "shared/site-account.ts",
+    "tests/site-account.test.ts"
   ],
   "realAuthentication": true,
   "serverPersistence": true,
