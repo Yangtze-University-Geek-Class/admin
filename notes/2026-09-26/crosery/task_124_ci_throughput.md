@@ -44,3 +44,17 @@
 - 做了什么：所有者 17:49 决定公开 admin；公开前 gitleaks 扫全部历史，公开后设 fork PR 批准、删 CI_RUNNER、runner 组 yzgc-deploy 放行公开仓库、preview 环境只放行 rc tag；把这些写进 docs/ops/CICD.md
 - 结果：提交 0ec8d72；pnpm check 退出 0
 - 下一步：推送，PR #125 第二轮审查
+
+## 20:28:48 +08:00 · 审查 · #124 · PR #125 第二轮审查：有条件通过（2 应修、6 建议）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：独立审查代理 20:22 审 b38420a（范围 12406ed..b38420a）：应修 README.md:31 徽标还写「私有仓库」、PR 正文没写 0ec8d72 与仓库外的设置改动；建议 CICD.md:139/141/111/22 的旧说法、README:176 等四处「私有仓库」理由、container-setup.sh 的 RUNNER_INSTANCES 校验太晚
+- 结果：结论：有条件通过；只读核对了可见性、变量、fork 批准、runner 组、preview 放行规则，与文档一致
+- 下一步：主 agent 返工
+
+## 20:28:48 +08:00 · 返工 · #124 · 第二轮返工：去掉「私有仓库」现状说法，RUNNER_INSTANCES 提前校验
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：2588424 README 徽标改公开仓库、README:176 与 RELEASES:50 与 deploy-manual.mjs 与 ci.yml 注释改成 production 环境与审批人还没配置、CICD 四处旧说法改正；0109ac0 container-setup.sh 在 MODE 校验后立即检查 RUNNER_INSTANCES（只在 ci 模式），值不对时不再先重启 dockerd；PR 正文补 0ec8d72 与仓库外的设置改动
+- 结果：shellcheck 与 sh -n 通过；RUNNER_INSTANCES=12/x 与未知 MODE 都在动任何东西前退出 2；tests/tooling 219 条、pnpm check 通过
+- 下一步：推送，主 agent 核对条件后合并
