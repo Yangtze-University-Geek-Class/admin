@@ -91,3 +91,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 bf2e62d（范围 b56ccbc..bf2e62d），在 t78 末尾加假密钥做变异，离线重导出一次
 - 结果：应修已修好、无新应修；3 条建议：t89 替换文字前半句「在帖子下面问」要等 #116 合并才做得到、PR 正文还引用旧文字和返工前的截图、第一轮「审查」记录写建议 5 条只列了 4 条（漏的是 t84 讲义截图改为站内托管、要所有者确认）；新检查 11 条里 1 条失败后恢复，topics.json 只有 t89 一句变化、图片 tree 哈希不变
+
+## 19:28:21 +08:00 · 合并 · #108 · PR #117 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：两轮审查有条件通过，条件已满足（第二轮审查记录已补；合并 stage 后 head 552a2e3 必需 CI 在托管 runner 上全绿，note check 链路完整）；以 merge commit 合入 stage
+- 结果：合并提交 5c1717b，PR #117 已合并
+- 下一步：和 #116、#126 一起打 rc.8 上预发布，预发布上核对新帖可见；task.mjs finish
+
+## 19:28:24 +08:00 · 收尾 · #108 · PR #117 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 108：删 worktree .claude/worktrees/task-108 与本地分支 task/108/forum_new_posts
+- 结果：PR 已合并

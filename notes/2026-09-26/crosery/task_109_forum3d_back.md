@@ -49,3 +49,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：所有者 16:02 要求 e2e 都在 ego 里跑并及时释放（本机 Playwright 整套跑时被杀、会话重启），所以没有在 spec 里加竖屏变体。本机 vite 5192 + ego-browser 390×844（mobile，DPR 2）：点「班级公告」到 3456 的 /c/announcements，Page.navigateToHistoryEntry 后退；TaskSpace 147 用完即 finish，vite 按 PID 停掉
 - 结果：竖屏进场 basePos (1.7, 6.1016, 14.8048)、baseOffset (0, 0.1032)，后退后逐项相同，遮罩 0，画面回到气泡环（截图已存本机）；e2e 用例保持只测横屏，PR 正文写明
+
+## 19:17:31 +08:00 · 合并 · #109 · PR #113 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：审查有条件通过，条件已满足（最终 head bf74473 必需 CI 全绿，审查记录已补，note check 链路完整）；以 merge commit 合入 stage
+- 结果：合并提交 321c6cd，PR #113 已合并
+- 下一步：随下一个 rc 进预发布，在预发布上复查 /forum-3d 进论坛再返回；task.mjs finish
+
+## 19:18:02 +08:00 · 收尾 · #109 · PR #113 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 109：删 worktree .claude/worktrees/task-109 与本地分支 task/109/forum3d_back
+- 结果：PR 已合并

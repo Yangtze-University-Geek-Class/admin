@@ -122,3 +122,16 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：补记两轮审查（9f905d8）；fromEditor 只去掉 toEditor 插的 U+2060（a264ff5）；toEditor 在开始字符实体的 & 后也插 U+2060，按 serializeMarkdown 的写法模拟所见即所得来回一趟测试（88ecaa3）；编辑与引用初始内容抽成 editDraft/quoteDraft，新增 tests/editor-call-sites.test.ts 读组件源码核对 8 个调用点（aabec25）；游客回复框昵称旁写 NAME_CHARS_HINT（8908ef7）；README 改成「昵称里有服务端不收的字符」（b951546）。node scripts/forum.mjs check；pnpm check；note.mjs check --pr --for-review；site generate 后用 task/57 的 dist（旧构建）在 3157、/tmp 临时代理在 3158，ego-browser 空间 190、191 看游客回复框，用完即 finish，3157、3158 按 PID 停掉
 - 结果：forum check 通过（23 个文件 461 个测试），pnpm check 通过，note.mjs check --pr --for-review 通过（本 task 的链路完整）。反向验证：去掉实体转义后 5 条实体载荷测试失败；审查列的 8 个调用点逐个改回旧写法，调用点测试都失败。游客回复框（1473×983）里昵称输入框、一行的字符提示、编辑器和按钮都在可见范围内（截图 /tmp/geek107/review2-guest-drawer.png）。空间 190 截图时抽屉还在滑入，191 等抽屉停稳后重看
+
+## 20:16:39 +08:00 · 合并 · #107 · PR #126 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：三轮独立审查：第三轮有条件通过，唯一条件 #116 先合入已满足（22196ad）；所见即所得往返的建议另开 #134（P1）；最终 head 239680b 必需 CI 15 项全绿、与新 stage 无冲突、note check 链路完整；以 merge commit 合入
+- 结果：合并提交 3710dd2，PR #126 已合并
+- 下一步：打 v0.1.0-rc.8 上预发布，ego 做游客路径验收，成员写操作请所有者真实登录试用；task.mjs finish
+
+## 20:17:01 +08:00 · 收尾 · #107 · PR #126 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 107：删 worktree .claude/worktrees/task-107 与本地分支 task/107/forum_client
+- 结果：PR 已合并
