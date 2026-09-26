@@ -59,3 +59,9 @@
 - 做了什么：提交 5bb8fab feat(forum): 极客班论坛公开现论坛上的 AI 帖子 t78、t84
 - 结果：forum.mjs check 241 项通过；site 模式 generate 与 Dockerfile 断言重放通过；根 pnpm check 通过；未推送、未开 PR
 - 下一步：主 agent 决定推送与开 PR；预发布上的显示未验证
+
+## 16:24:49 +08:00 · PR · #108 · 开 PR #117
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：推送 task/108/forum_new_posts（75c0f6b）；本机静态服务 5193 挂 site 构建产物，ego-browser 看「人工智能」类别、t84 讲义图、t89 密钥替换，截图经 GitHub 评论框上传（未提交评论），浏览器空间用完即释放，静态服务按进程停掉
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/117；类别 3 个话题，t84 的 8 张图 naturalWidth>0，t89 显示「公益密钥没有公开」
