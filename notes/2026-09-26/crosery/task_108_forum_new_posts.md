@@ -26,3 +26,10 @@
 - 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
 - 做了什么：提交 31047ec feat(tooling): 论坛迁移工具在 task worktree 里也用主工作区的私有目录
 - 结果：python3 -m unittest test_capture test_prepare 13 项通过；vitest tests/tooling 220 项通过；根 pnpm check 通过
+
+## 15:51:42 +08:00 · 提交 · #108 · 公开 t89，数据保全文档补这次采集与以后补新帖的步骤
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：提交 d839390 feat(forum): 极客班论坛补上正式环境 09-13 之后的新帖 t89（含并入的 stage 暂存记录）
+- 结果：forum.mjs check：Vitest 240 项通过；site 模式 generate 通过，有 t/t89.md、无 t5/t15；本机产物上重放 Dockerfile 断言通过；根 pnpm check 通过
+- 下一步：等主 agent 决定 t78、t84 是否一起公开；不推送、不开 PR
