@@ -20,3 +20,16 @@
 - 做了什么：7d1d9e2 build(deploy): 构建走可配置的国内源，runner 预装 Node 22 到工具缓存；pnpm verify；actionlint；pnpm check:docs、check:notes、check:secrets
 - 结果：pnpm verify 退出码 0（核心 Test Files 44、Tests 492 passed，论坛 Tests 240 passed，forum:generate 成功）；actionlint 无输出；新测试 tests/tooling/build-mirrors.test.ts 15 项通过。首条记录遇到 #96（分支没有自己的提交时暂存到 notes-pending），提交后 note.mjs flush 并入，与本条一起在下一个 docs(notes) 提交入库
 - 下一步：主 agent 审查后推送、开 PR；维护者设仓库变量 NPM_REGISTRY、DEBIAN_MIRROR、BETTER_SQLITE3_BINARY_HOST，并重跑 container-setup.sh ci 与 jit-image.sh
+
+## 15:18:10 +08:00 · PR · #104 · 补记：PR #106 于 15:02 开出
+
+- 执行者：agent-claude-geek-main-subagent-104（Claude Code 子代理）
+- 做了什么：补记 agent-claude-geek-main-08 在 2026-09-26 15:02:16 +08:00 开的 PR #106（https://github.com/Yangtze-University-Geek-Class/admin/pull/106），task/104/build_mirrors → stage，head 2f491ab；开 PR 时链路里漏了这一条，note.mjs check --pr --for-review 报缺「PR」记录
+- 结果：gh pr view 106：createdAt 2026-09-26T07:02:16Z，headRefOid 2f491ab1f06884bf79a5b8a48f7cc3204bb521c3，base stage
+
+## 15:18:10 +08:00 · 审查 · #104 · 第一轮独立审查：有条件通过（3 应修、4 建议）
+
+- 执行者：agent-claude-geek-main-subagent-104（Claude Code 子代理）
+- 做了什么：Claude 独立审查代理于 15:12 审查 head 2f491ab，结论经主 agent 转给本子代理返工
+- 结果：有条件通过。应修 3 条：container-setup.sh 的 fetch_node 见到 /tmp 里已有的包就跳过 SHASUMS256 核对；链路缺「PR」记录；server Dockerfile 的 BETTER_SQLITE3_BINARY_HOST 没有格式校验，http:// 会明文下载不核对的原生包。建议 4 条：build-mirrors.test.ts 只比字符串，删掉论坛 sha512 核对的 process.exit(1) 或把 sha256sum 失败吞掉都测不出来；CICD.md 的「所有用 setup-node 的 job」没排除论坛 job；切换/掉线处没写要一起删三个换源变量；PR 正文的 rc.7 数字要改
+- 下一步：子代理按审查意见返工，主 agent 改 PR 正文并推送
