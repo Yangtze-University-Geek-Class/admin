@@ -56,24 +56,14 @@ const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, has
 const editing = ref(false)
 const draft = ref('')
 
-/** A like in flight: the server toggles, so a quick second click would take the first one back. */
-const liking = ref(false)
-
-async function like() {
+// The write path (how fast the button answers, what a quick second click does) is useForumActions' business (#145).
+function like() {
   const current = user.value
   if (!current || likeState.value.click === 'prompt') {
     loginOpen.value = true
     return
   }
-  if (liking.value)
-    return
-  liking.value = true
-  try {
-    await actions.toggleLike(props.post.id, current.id)
-  }
-  finally {
-    liking.value = false
-  }
+  void actions.toggleLike(props.post.id, current.id)
 }
 
 async function bookmark() {

@@ -70,12 +70,11 @@ describe('PostCard and LoginModal use these', () => {
     expect(card).toMatch(/const likeState = computed\(\(\) => likeControl\(props\.post, user\.value, can\('like'\)\)\)/)
   })
 
-  it('a prompt opens loginOpen, a toggle goes through useForumActions one request at a time', () => {
+  it('a prompt opens loginOpen, a toggle goes through useForumActions', () => {
     const card = source('components/PostCard.vue')
-    const like = card.match(/async function like\(\) \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const like = card.match(/function like\(\) \{[\s\S]*?\n\}/)?.[0] ?? ''
     expect(like).toMatch(/likeState\.value\.click === 'prompt'\) \{\s+loginOpen\.value = true\s+return/)
-    expect(like).toMatch(/if \(liking\.value\)\s+return/)
-    expect(like).toMatch(/await actions\.toggleLike\(props\.post\.id, current\.id\)/)
+    expect(like).toMatch(/actions\.toggleLike\(props\.post\.id, current\.id\)/)
   })
 
   it('LoginModal answers loginOpen with loginPromptToast and the site sign-in', () => {

@@ -38,3 +38,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：fix(forum): 赞按钮用 flat 样式，没赞时不再发灰：ego-browser 里看到 secondary 的赞按钮文字 #909399、边框 #e4e7ed，比旁边的「链接」（#606266、#dcdfe6）还浅；改成 TxButton variant=flat（常规文字色与边框），赞过时 type=danger（文字和边框 #f56c6c）。likeControl 的 variant 字段换成 tone；likes.test.ts、ADOPTION.json、README 跟着改。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
 - 结果：forum check 通过（24 个文件 473 个测试）；pnpm check 通过。反向验证：tone 恒为空、恒为 danger、模板改回 secondary，各有测试失败。ego-browser（TaskSpace 215）里未赞是 variant-flat、rgb(96,98,102)，赞过是 variant-flat tone-danger、rgb(245,108,108)
+
+## 23:00:24 +08:00 · 返工 · #143 · 赞按钮不在组件里拦第二次点击，写入交给 #145
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：协调方转来：所有者报点赞和书签点了会卡住，#145 负责把论坛所有写入改成乐观更新（在 store / useForumActions 里先改本地、后台发请求、失败回滚）。本 PR 只管「赞 N」的显示和 PostCard 的接线，不动写入路径：PostCard 的 like() 去掉 liking 防重和 await，恢复成 void actions.toggleLike(...)（和 stage 上一样，只把判断换成 likeState.click），ADOPTION.json 与 README 去掉「请求没回来前不发第二次」的说法；likes.test.ts 的源码核对跟着改。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
+- 结果：forum check 通过（24 个文件 473 个测试）；pnpm check 通过；把提示判断改回只看有没有用户后 likes 测试失败。服务端模式下的点赞仍经 useForumActions().toggleLike → stores/forum-server.ts，#145 在那一层改乐观更新即可，likeControl 只读 post.likeUserIds，本地先改的赞数会直接显示
