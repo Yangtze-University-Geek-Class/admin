@@ -28,10 +28,10 @@ describe('what the like button says', () => {
   })
 
   it('is pressed, filled and red only for a viewer among the likers', () => {
-    expect(likeControl({ likeUserIds: ['u1', 'm1001'] }, ADA, true)).toMatchObject({ liked: true, icon: 'i-carbon-favorite-filled', variant: 'danger' })
-    expect(likeControl({ likeUserIds: ['u1'] }, ADA, true)).toMatchObject({ liked: false, icon: 'i-carbon-favorite', variant: 'secondary' })
+    expect(likeControl({ likeUserIds: ['u1', 'm1001'] }, ADA, true)).toMatchObject({ liked: true, icon: 'i-carbon-favorite-filled', tone: 'danger' })
+    expect(likeControl({ likeUserIds: ['u1'] }, ADA, true)).toMatchObject({ liked: false, icon: 'i-carbon-favorite', tone: undefined })
     // A guest sees the same count, never a pressed button.
-    expect(likeControl({ likeUserIds: ['m1001'] }, null, false)).toMatchObject({ label: '赞 1', liked: false, variant: 'secondary' })
+    expect(likeControl({ likeUserIds: ['m1001'] }, null, false)).toMatchObject({ label: '赞 1', liked: false, tone: undefined })
   })
 
   it('toggles for a member who may write and prompts everyone else', () => {
@@ -60,7 +60,7 @@ function source(path: string): string {
 describe('PostCard and LoginModal use these', () => {
   it('the like button shows likeControl and names itself by its text', () => {
     const card = source('components/PostCard.vue')
-    const button = card.match(/<TxButton\s+:variant="likeState\.variant"[\s\S]*?<\/TxButton>/)?.[0] ?? ''
+    const button = card.match(/<TxButton\s+variant="flat"\s+:type="likeState\.tone"[\s\S]*?<\/TxButton>/)?.[0] ?? ''
     expect(button).toMatch(/:icon="likeState\.icon"/)
     expect(button).toMatch(/:aria-pressed="likeState\.liked"/)
     expect(button).toMatch(/@click="like"/)
@@ -120,7 +120,7 @@ describe('a like against the forum server', () => {
     expect(await actions.toggleLike('p10001', 'm1001')).toBe(true)
     expect(calls).toEqual([{ url: '/api/forum/state', method: 'GET' }, { url: '/api/forum/posts/p10001/like', method: 'POST' }])
     const after = likeControl(forum.postById('p10001')!, session.currentUser, true)
-    expect(after).toMatchObject({ label: '赞 1', liked: true, icon: 'i-carbon-favorite-filled', variant: 'danger' })
+    expect(after).toMatchObject({ label: '赞 1', liked: true, icon: 'i-carbon-favorite-filled', tone: 'danger' })
   })
 
   it('likes the topic\'s first post the same way', async () => {
@@ -131,7 +131,7 @@ describe('a like against the forum server', () => {
     expect(likeControl(forum.postById('body-73')!, session.currentUser, true)).toMatchObject({ label: '赞 1', liked: true })
     expect(await actions.toggleLike('body-73', 'm1001')).toBe(false)
     expect(calls[1]).toEqual({ url: '/api/forum/posts/body-73/like', method: 'POST' })
-    expect(likeControl(forum.postById('body-73')!, session.currentUser, true)).toMatchObject({ label: '赞', liked: false, variant: 'secondary' })
+    expect(likeControl(forum.postById('body-73')!, session.currentUser, true)).toMatchObject({ label: '赞', liked: false, tone: undefined })
   })
 
   it('keeps the button as it was when the server refuses', async () => {

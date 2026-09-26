@@ -200,7 +200,8 @@ async function remove() {
               <TxFlex align="center" :gap="4" wrap="wrap">
                 <!-- No aria-label: the visible 「赞 3」 is the name, so a screen reader hears the count too. -->
                 <TxButton
-                  :variant="likeState.variant"
+                  variant="flat"
+                  :type="likeState.tone"
                   size="sm"
                   :icon="likeState.icon"
                   :aria-pressed="likeState.liked"

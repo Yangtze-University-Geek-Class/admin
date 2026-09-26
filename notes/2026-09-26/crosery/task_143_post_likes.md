@@ -32,3 +32,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：test(server): 点赞写进库，重新读取时谁都看得到：tests/server/forum.test.ts 新增一条，新话题第一帖与公开旧帖 t9 的第一帖 body-9 各赞一次，carol、bob、游客分别重新 GET /api/forum/state 都看到 m103，forum_likes 表里正好两行，取消后重新读就没有。app/server 源码没动。pnpm vitest run tests/server/forum.test.ts；另更正上一条「提交」记录：反向验证是 9 个变异（loginPromptToast 的那个属于第一个提交），forum check 当时是 472 个测试，测试挪到 access.test.ts 之后要以最终重跑为准
 - 结果：tests/server/forum.test.ts 50 个测试通过。反向验证 3 个变异都被新测试拦下：路由只改返回值不写库（expected [] to deeply equal ['m103']）、取消不删行（expected ['m103'] to deeply equal []）、第一帖拒绝点赞（expected 400 to be 200）。文档核对：docs/services/server/ 不用改——只在 tests/server/forum.test.ts 加了点赞写库的回归测试，app/server 的接口、表和行为都没变
+
+## 22:57:27 +08:00 · 提交 · #143 · 赞按钮改用 flat 样式，没赞时和「链接」一样清楚
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：fix(forum): 赞按钮用 flat 样式，没赞时不再发灰：ego-browser 里看到 secondary 的赞按钮文字 #909399、边框 #e4e7ed，比旁边的「链接」（#606266、#dcdfe6）还浅；改成 TxButton variant=flat（常规文字色与边框），赞过时 type=danger（文字和边框 #f56c6c）。likeControl 的 variant 字段换成 tone；likes.test.ts、ADOPTION.json、README 跟着改。FORUM_PNPM=… node scripts/forum.mjs check；pnpm check
+- 结果：forum check 通过（24 个文件 473 个测试）；pnpm check 通过。反向验证：tone 恒为空、恒为 danger、模板改回 secondary，各有测试失败。ego-browser（TaskSpace 215）里未赞是 variant-flat、rgb(96,98,102)，赞过是 variant-flat tone-danger、rgb(245,108,108)
