@@ -382,6 +382,48 @@ describe('one request at a time per thing', () => {
   })
 })
 
+describe('two things on one record, both refused', () => {
+  /** A second unread notification, so 全部已读 changes more than the one read mark. */
+  function twoUnread(state: State): State {
+    state.notifications = [...state.notifications, { ...state.notifications[0]!, id: 'n2', createdAt: 26 }]
+    return state
+  }
+
+  // Each failure puts back only its own fields as the server has them, whichever is refused first.
+  it.each([['the edit', [0, 1]], ['the deletion', [1, 0]]] as const)('an edit and then a deletion of one post: the server\'s text comes back, not deleted, when %s is refused first', async (_first, order) => {
+    const answers = [held(), held()]
+    const { calls, ...s } = await loaded(MEMBER_VIEWER, undefined, answers[0]!.answer, answers[1]!.answer)
+    const editing = s.server.editPost('p10001', '没保存的新文字')
+    const deleting = s.server.deletePost('p10001')
+    expect(s.forum.postById('p10001')).toMatchObject({ deleted: true, content: '' })
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    for (const index of order) {
+      answers[index]!.release(json(REFUSAL, 500))
+      await (index === 0 ? editing : deleting)
+    }
+    expect(await Promise.all([editing, deleting])).toEqual([false, false])
+    const shown = s.forum.postById('p10001')!
+    expect([shown.content, shown.deleted ?? false, shown.editedAt]).toEqual(['都可以吗？', false, undefined])
+  })
+
+  it.each([['the read mark', [0, 1]], ['全部已读', [1, 0]]] as const)('one read mark and then 全部已读: both notifications are unread again when %s is refused first', async (_first, order) => {
+    const answers = [held(), held()]
+    const { calls, ...s } = await loaded(MEMBER_VIEWER, twoUnread, answers[0]!.answer, answers[1]!.answer)
+    expect(s.forum.unreadCount('m1001')).toBe(2)
+    const marking = s.server.markRead('n1')
+    const markingAll = s.server.markAllRead()
+    expect(s.forum.unreadCount('m1001')).toBe(0)
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    for (const index of order) {
+      answers[index]!.release(json(REFUSAL, 500))
+      await (index === 0 ? marking : markingAll)
+    }
+    expect(await Promise.all([marking, markingAll])).toEqual([false, false])
+    expect(s.forum.state.notifications.map(item => [item.id, item.read])).toEqual([['n1', false], ['n2', false]])
+    expect(s.forum.unreadCount('m1001')).toBe(2)
+  })
+})
+
 describe('merging an answer', () => {
   it('keeps the state and every record the answer did not change, so nothing else redraws', async () => {
     const { forum, server } = await loaded(MEMBER_VIEWER, undefined, json(writeBody({ users: [base.users[1]], posts: [{ ...post('p10001'), likeUserIds: ['m1001'] }] }, MEMBER_VIEWER)))

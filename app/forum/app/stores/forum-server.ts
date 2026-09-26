@@ -1,5 +1,5 @@
 import type { ServerStatus } from '~/data/access'
-import type { Bookmark, Follow, NotifyPrefs, Post, User } from '~/data/types'
+import type { Bookmark, Follow, ForumChanges, Notification, NotifyPrefs, Post, User } from '~/data/types'
 import type { CreatePostBody, CreateTopicBody, ForumViewer, GuestPolicy, ProfileBody, ServerSnapshot, WriteResult } from '../../shared/forum-api'
 import { toast } from '@talex-touch/tuffex/utils'
 import { defineStore } from 'pinia'
@@ -33,7 +33,9 @@ import { useSessionStore } from './session'
  * - New topics and avatars wait for the server: a topic needs the server's id
  *   for its address, an avatar the server's stored picture.
  * - A failure puts back what the server last confirmed and says why in a
- *   toast. A 401 means the sign-in is gone (expired, signed out elsewhere):
+ *   toast: the lane's own fields only, read from the server's answers rather
+ *   than the page, and the other lanes still out show their wish again on
+ *   top. A 401 means the sign-in is gone (expired, signed out elsewhere):
  *   the state is read once more so the page shows what a guest can do.
  *
  * The demo (`loginMode=demo`) never touches this store; `useForumActions`
@@ -74,6 +76,14 @@ interface LaneSpec<V> {
   write: (value: V) => void
   /** Asks the server for `wish`; `confirmed` is what the server last said. */
   send: (wish: V, confirmed: V) => Promise<WriteResult>
+  /**
+   * What the server last said, from its answers instead of the page. Needed
+   * where another lane changes the same record (an edit and a deletion of one
+   * post, one read mark and 全部已读): the page may show that lane's wish, and
+   * a failure must not put it back as if the server had it. Without it the
+   * page is read, which is right while no other lane touches these fields.
+   */
+  confirmed?: () => V
   same: (a: V, b: V) => boolean
   /** The toast title when the server refuses `wish`. */
   failure: (wish: V) => string
@@ -131,6 +141,20 @@ export const useForumServerStore = defineStore('forum-server', () => {
   /** One per thing being changed (`like:p12`, `pin:t3` …), while its request is out. */
   const lanes = new Map<string, Lane>()
   let pendingCount = 0
+  /**
+   * The fields two lanes share, as the server last sent them (`/state` and
+   * every write's answer): a post's text and deletion, a notification's read
+   * mark. Not reactive; only a failing lane reads it.
+   */
+  const serverPosts = new Map<string, Pick<Post, 'content' | 'editedAt' | 'deleted'>>()
+  const serverReads = new Map<string, boolean>()
+
+  function remember(records: Pick<ForumChanges, 'posts' | 'notifications'>): void {
+    for (const post of records.posts ?? [])
+      serverPosts.set(post.id, { content: post.content, ...(post.editedAt === undefined ? {} : { editedAt: post.editedAt }), ...(post.deleted ? { deleted: true } : {}) })
+    for (const notification of records.notifications ?? [])
+      serverReads.set(notification.id, notification.read)
+  }
 
   function sayRateLimited(): void {
     if (saidRateLimited)
@@ -149,6 +173,9 @@ export const useForumServerStore = defineStore('forum-server', () => {
   }
 
   function apply(snapshot: ServerSnapshot): void {
+    serverPosts.clear()
+    serverReads.clear()
+    remember(snapshot.state)
     forum.replaceState(snapshot.state)
     viewer.value = snapshot.viewer
     guestPolicy.value = snapshot.guestPolicy
@@ -198,6 +225,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
    * record.
    */
   function merge(result: WriteResult, from?: Lane): void {
+    remember(result.changes)
     forum.applyChanges(result.changes)
     if (!sameGuestPolicy(guestPolicy.value, result.guestPolicy))
       guestPolicy.value = result.guestPolicy
@@ -241,7 +269,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
    * since it was sent and still differs from what the server now has. So two
    * quick clicks on 赞 send one request and a second one to take it back,
    * never two at the same time. Resolves with the value the server confirmed,
-   * or `null` after a failure, which puts that value back on the page.
+   * or `null` after a failure, which puts that value back on the page (and
+   * then the wishes of the other lanes still out, which may share the record).
    */
   function steer<V>(key: string, wish: V, spec: LaneSpec<V>): Promise<Settled<V> | null> {
     const running = lanes.get(key)
@@ -250,7 +279,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
       spec.write(wish)
       return running.done as Promise<Settled<V> | null>
     }
-    let confirmed = spec.read()
+    const serverSays = spec.confirmed ?? spec.read
+    let confirmed = serverSays()
     if (spec.same(wish, confirmed))
       return Promise.resolve({ value: confirmed })
     const lane: Lane = {
@@ -268,7 +298,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
         for (;;) {
           const sent = lane.wish as V
           merge(await spec.send(sent, confirmed), lane)
-          confirmed = spec.read()
+          confirmed = serverSays()
           const latest = lane.wish as V
           if (spec.same(latest, sent) || spec.same(latest, confirmed))
             return { value: confirmed }
@@ -276,7 +306,14 @@ export const useForumServerStore = defineStore('forum-server', () => {
         }
       }
       catch (error) {
+        // Another lane's answer may have moved the server on since this one last looked.
+        if (spec.confirmed)
+          confirmed = spec.confirmed()
         spec.write(confirmed)
+        for (const other of lanes.values()) {
+          if (other !== lane)
+            other.reassert()
+        }
         fail(spec.failure(lane.wish as V), error)
         return null
       }
@@ -457,17 +494,17 @@ export const useForumServerStore = defineStore('forum-server', () => {
     if (!post || post.deleted)
       return plainly('修改没有保存', () => api.editPost(postId, content), () => true).then(done => done !== null)
     interface Text { content: string, editedAt?: number }
+    const text = (current: Pick<Post, 'content' | 'editedAt'> | undefined): Text => ({ content: current?.content ?? '', ...(current?.editedAt === undefined ? {} : { editedAt: current.editedAt }) })
     return steer<Text>(`edit:${postId}`, { content, editedAt: Date.now() }, {
-      read: () => {
-        const current = forum.postById(postId)
-        return { content: current?.content ?? '', ...(current?.editedAt === undefined ? {} : { editedAt: current.editedAt }) }
-      },
+      read: () => text(forum.postById(postId)),
+      confirmed: () => text(serverPosts.get(postId) ?? forum.postById(postId)),
       write: (text) => {
         const current = forum.postById(postId)
-        // A deletion that landed meanwhile wins: a removed post shows no text.
-        if (!current || current.deleted)
+        if (!current)
           return
-        current.content = text.content
+        // A deletion shown meanwhile keeps the text: a removed post shows none.
+        if (!current.deleted)
+          current.content = text.content
         if (text.editedAt === undefined)
           delete current.editedAt
         else
@@ -485,11 +522,11 @@ export const useForumServerStore = defineStore('forum-server', () => {
     if (!forum.postById(postId))
       return plainly('帖子没有删掉', () => api.deletePost(postId), () => true).then(done => done !== null)
     interface Removal { deleted: boolean, content: string }
+    const removal = (current: Pick<Post, 'content' | 'deleted'> | undefined): Removal => ({ deleted: !!current?.deleted, content: current?.content ?? '' })
     return steer<Removal>(`delete:${postId}`, { deleted: true, content: '' }, {
-      read: () => {
-        const current = forum.postById(postId)
-        return { deleted: !!current?.deleted, content: current?.content ?? '' }
-      },
+      read: () => removal(forum.postById(postId)),
+      // The text too: an edit of the same post may be on the page.
+      confirmed: () => removal(serverPosts.get(postId) ?? forum.postById(postId)),
       write: (value) => {
         const current = forum.postById(postId)
         if (!current)
@@ -528,6 +565,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
       return plainly('没有标为已读', () => api.markRead(notificationId), () => true).then(done => done !== null)
     return steer(`read:${notificationId}`, true, {
       read: () => find()?.read ?? false,
+      confirmed: () => serverReads.get(notificationId) ?? find()?.read ?? false,
       write: (read) => {
         const notification = find()
         if (notification)
@@ -539,14 +577,19 @@ export const useForumServerStore = defineStore('forum-server', () => {
     }).then(result => result !== null)
   }
 
-  /** The value is the viewer's unread ids, so a failure makes exactly those unread again. */
+  /**
+   * The value is the viewer's unread ids, so a failure makes exactly the ones
+   * the server has unread again; a read mark still out on one of them shows
+   * again on top.
+   */
   function markAllRead(): Promise<boolean> {
     const userId = viewer.value?.userId
     if (!userId)
       return plainly('没有标为已读', () => api.markAllRead(), () => true).then(done => done !== null)
-    const unread = (): string[] => forum.notificationsOf(userId).filter(item => !item.read).map(item => item.id)
+    const unread = (read: (item: Notification) => boolean): string[] => forum.notificationsOf(userId).filter(item => !read(item)).map(item => item.id)
     return steer<string[]>('read-all', [], {
-      read: unread,
+      read: () => unread(item => item.read),
+      confirmed: () => unread(item => serverReads.get(item.id) ?? item.read),
       write: (ids) => {
         for (const notification of forum.state.notifications) {
           const read = notification.recipientId === userId && !ids.includes(notification.id)
