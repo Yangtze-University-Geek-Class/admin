@@ -46,9 +46,9 @@ afterEach(async () => {
  * alice 是组织 owner（提督）；bob、carol、dave、erin 是普通成员，其中 carol 是社区部舰员（能管帖子、置顶、关闭），
  * dave 是项目部队长（只能置顶），erin 是领航员；frank 不在组织里。
  */
-async function setup(options: { failing?: { failing: boolean } } = {}) {
+async function setup(options: { failing?: { failing: boolean }; env?: Record<string, string> } = {}) {
   const roles: Record<string, Role> = { alice: 'admin', bob: 'member', carol: 'member', dave: 'member', erin: 'member' };
-  const context = await testApp({ octokitFactory: github(roles, options.failing) });
+  const context = await testApp({ octokitFactory: github(roles, options.failing) }, false, options.env);
   contexts.push(context);
   const { app } = context;
   const sids = new Map<string, string>();
@@ -599,5 +599,48 @@ describe('seeding', () => {
     expect(content.topics.length).toBeGreaterThan(0);
     expect(content.topics.every(topic => Number(topic.id.slice(1)) < 1000)).toBe(true);
     expect(content.author.id).toBe('u-geekclass');
+  });
+});
+
+describe('client address behind the two deployment proxies', () => {
+  // 部署链路：客户端 → 宿主 nginx → web 容器 nginx（172.18.0.3）→ server。两层 nginx 各往 X-Forwarded-For 末尾追加一段
+  // （宿主 nginx 追加客户端地址，web 容器追加它看到的宿主一侧 172.18.0.1）；客户端自己带的 X-Forwarded-For 排在最左边。
+  const through = (spoofed: string, client: string, extra: Record<string, string> = {}) => ({
+    remoteAddress: '172.18.0.3', headers: { ...extra, 'x-forwarded-for': `${spoofed}, ${client}, 172.18.0.1` },
+  });
+  const guestThrough = (s: Setup, spoofed: string, client = '198.51.100.7') =>
+    s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '回复'), ...through(spoofed, client) });
+
+  it('with TRUST_PROXY=2 counts guest replies and audits by the address the host nginx saw, however the client rotates its own header', async () => {
+    const s = await setup({ env: { TRUST_PROXY: '2' } });
+    const statuses: number[] = [];
+    for (let i = 1; i <= 6; i += 1) statuses.push((await guestThrough(s, `10.0.0.${i}`)).statusCode);
+    expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+    expect((await guestThrough(s, '10.0.0.99', '198.51.100.8')).statusCode).toBe(201);
+    expect(s.db.prepare("SELECT DISTINCT subject FROM forum_rate_events WHERE bucket = 'guestPost' ORDER BY subject").all())
+      .toEqual([{ subject: '198.51.100.7' }, { subject: '198.51.100.8' }]);
+
+    const pinned = await s.app.inject({ method: 'POST', url: '/api/forum/topics/t9/pin', payload: { pinned: true }, ...through('10.9.9.9', '198.51.100.9', s.as('alice')) });
+    expect(pinned.statusCode).toBe(200);
+    expect(s.db.prepare("SELECT ip FROM audit_logs WHERE action = 'forum.topic.pin'").all()).toEqual([{ ip: '198.51.100.9' }]);
+  });
+
+  it('with TRUST_PROXY=true the rotated header got through every time (the bug the hop count fixes)', async () => {
+    const s = await setup({ env: { TRUST_PROXY: 'true' } });
+    for (let i = 1; i <= 6; i += 1) expect((await guestThrough(s, `10.0.0.${i}`)).statusCode).toBe(201);
+  });
+
+  it('keeps local development on loopback trust when TRUST_PROXY is unset', async () => {
+    const s = await setup();
+    // 不经回环代理直连时，客户端带的 X-Forwarded-For 不算数。
+    const direct = (spoofed: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '回复'), remoteAddress: '203.0.113.20', headers: { 'x-forwarded-for': spoofed } });
+    const statuses: number[] = [];
+    for (let i = 1; i <= 6; i += 1) statuses.push((await direct(`10.0.0.${i}`)).statusCode);
+    expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+    // 本机开发代理（回环）转发时照旧取它追加的地址。
+    const proxied = await s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '回复'), remoteAddress: '127.0.0.1', headers: { 'x-forwarded-for': '198.51.100.30' } });
+    expect(proxied.statusCode).toBe(201);
+    expect(s.db.prepare("SELECT DISTINCT subject FROM forum_rate_events WHERE bucket = 'guestPost' ORDER BY subject").all())
+      .toEqual([{ subject: '198.51.100.30' }, { subject: '203.0.113.20' }]);
   });
 });

@@ -130,6 +130,24 @@ it('caps the endpoint at five submissions per minute for one client', async () =
   expect(count('applications')).toEqual({ n: 5 });
 });
 
+it('keeps the cap and records the real address when a client behind the two deployment proxies rotates its own X-Forwarded-For', async () => {
+  // 部署链路：客户端 → 宿主 nginx → web 容器 nginx（172.18.0.3）→ server；两层 nginx 各在末尾追加一段，
+  // 客户端自己带的 X-Forwarded-For 在最左边。TRUST_PROXY=2 只信任这两层。
+  const context = await testApp({}, false, { TRUST_PROXY: '2' });
+  contexts.push(context);
+  const { db } = context.app.services.storage;
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    statuses.push((await context.app.inject({
+      method: 'POST', url: '/api/portal/apply', remoteAddress: '172.18.0.3',
+      headers: { 'x-forwarded-for': `10.0.0.${i}, 198.51.100.7, 172.18.0.1` },
+      payload: { pow: { timestamp: Date.now(), nonce: 'test' }, ...VALID, email: `candidate${i}@example.test` },
+    })).statusCode);
+  }
+  expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+  expect(db.prepare('SELECT DISTINCT source_ip FROM applications').all()).toEqual([{ source_ip: '198.51.100.7' }]);
+});
+
 /** 与 app/web/shared/lib/pow.ts 相同的求解公式：sha256(`${timestamp}:${bodyForHash}:${nonce}`) 前缀零。 */
 function solvePow(bodyForHash: string, difficulty: number) {
   const timestamp = Date.now();

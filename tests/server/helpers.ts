@@ -11,8 +11,8 @@ export function testConfig(env: Record<string, string | undefined>) {
   return { ...createConfig(env), forumContentDir: FORUM_FIXTURE_DIR };
 }
 
-/** Core-only fixture. A missing/deprecated FORUM_DB_PATH must never be opened. */
-export async function testApp(overrides: ServiceOverrides = {}, production = false) {
+/** Core-only fixture. A missing/deprecated FORUM_DB_PATH must never be opened. `env` 覆盖个别环境变量（例如 TRUST_PROXY）。 */
+export async function testApp(overrides: ServiceOverrides = {}, production = false, env: Record<string, string> = {}) {
   const config = testConfig({
     NODE_ENV: production ? 'production' : 'test',
     PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
@@ -20,6 +20,7 @@ export async function testApp(overrides: ServiceOverrides = {}, production = fal
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
+    ...env,
   });
   const deny = () => { throw new Error('Unexpected external network request in isolated core test'); };
   const app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: deny as unknown as ServiceOverrides['httpRequest'], octokitFactory: deny, ...overrides } });

@@ -33,7 +33,7 @@
 | `PORT` | 可见 | `3000`（容器内监听） | `3000` |
 | `FORUM_PORT` 改值注意 | — | 必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 及 web 容器 `proxy_pass http://forum:3000/` 三处同时改 | 同左 |
 | `HOST` | 可见 | `0.0.0.0`（容器内必须绑定全网卡，否则 web 容器连不上） | `0.0.0.0` |
-| `TRUST_PROXY` | 可见 | `true`（反代来自 compose 网络而非回环） | `true` |
+| `TRUST_PROXY` | 可见 | `2`：反代层数（客户端 → 宿主 nginx → web 容器 nginx → server），只信任这两层追加的 `X-Forwarded-For`。**不能写 `true`**：会把客户端自己填的最左边一段当成客户端 IP，所有按 IP 的限流（投递、邀请、反馈、论坛）和审计 IP 都能伪造。`pnpm check:environments` 要求等于 `scripts/deployment-environment.mjs` 的 `PROXY_HOPS`，测试核对它与两份 nginx 配置一致 | `2` |
 | `PUBLIC_ORIGIN` | 可见 | `https://yangtzeu.work`（必须逐字等于 `deploy/environments.json` 的 origin） | `https://prev.yangtzeu.work`（同左） |
 | `NODE_ENV` | 可见 | `production` | `production` |
 | `DB_PATH` | 可见 | `/data/data.db`（命名卷内） | `/data/data.db` |

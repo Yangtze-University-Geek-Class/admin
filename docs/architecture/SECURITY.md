@@ -19,6 +19,8 @@
 
 公开邀请/反馈/加入我们投递有限流、蜜罐、PoW 和可选 Turnstile。论坛的游客回复（`POST /api/forum/posts` 不带 `sid`）是另一个匿名写入口，同样要蜜罐、PoW（摘要输入 `${topicId}:${content}`）与可选 Turnstile，正文 ≤2000 字、昵称 1–20 字且不能与成员或官方账号的昵称、用户名相同，每个 IP 5 次/分钟、30 次/天（记在 `forum_rate_events`，重启不清零）；游客不能发帖、编辑、删除或做其它写操作，每条游客回复是一个单独的游客用户，不能冒用成员身份。游客的来源 IP 只存在限流记录（最多一天）和浏览去重（最多一小时）里，不随帖子下发。反馈摘要与管理员回复经 `GET /api/feedback/public` 匿名可读：只要给出组织名即可读取该组织非 `spam` 反馈的前 280 字、状态、回复和票数，不校验 `ALLOWED_ORGS`，`limit` 也没有下界校验（见 [API](API.md) 端点清单）；反馈正文因此按公开内容对待，用户指南已提示勿提交敏感信息。「加入我们」投递没有任何读取接口。邀请先预留额度、再请求上游，明确失败补偿、未知结果保留待核对，不把超时解释为未发送。写请求核对 Origin 与 Fetch Metadata，返回错误不打印 token 或完整上游响应。鉴权 API 禁止缓存。公开文档使用允许列表，不公开内部运维、安全、规范和审查内容。
 
+**客户端 IP 从哪来**：上面所有按 IP 的限流（邀请、反馈、投递、论坛），以及审计和投递里记的来源 IP，都取 Fastify 的 `req.ip`。部署链路是客户端 → 宿主 nginx → web 容器 nginx → server，两层 nginx 各往 `X-Forwarded-For` 末尾追加一段，所以两个环境都是 `TRUST_PROXY=2`：只信任这两层，客户端自己带的最左边几段不算。2026-09-26 之前两个环境写的是 `true`，信任整条链，`req.ip` 取的是客户端能随便填的最左边一段，换着填就能绕过所有按 IP 的限流，写进审计和投递的 IP 也能伪造（#116 审查发现，轮换 `X-Forwarded-For` 8 次 8 次成功）。改了反代拓扑要同时改两份 env 模板和 `scripts/deployment-environment.mjs` 的 `PROXY_HOPS`，`pnpm check:environments` 与 `tests/tooling/deployment-environment.test.ts` 核对层数与两份 nginx 配置一致。本机开发不设 `TRUST_PROXY`，只信任回环上的代理。
+
 ## 极客班控制台：称号与能力
 
 控制台 `/api/console/*` 在「GitHub 组织角色」之外，加了一层**称号 → 能力**授权。称号和部门都是数据，由提督（以及权限包里有 `roles.manage` 的舰长）在控制台维护，不改代码；代码里固定的只有称号 id 与层级、能力清单、色调调色板和图标清单。规则与默认值在 `app/server/src/lib/roles.ts`，持久化在 `lib/role-store.ts`，判定在 `middleware/require-capability.ts`，端点与错误码见 [API](API.md)。

@@ -39,12 +39,21 @@ export function createConfig(env: Record<string, string | undefined>) {
   // 容器里必须监听 0.0.0.0，本机开发仍默认回环；见 deploy/env/.env.<环境> 的 HOST。
   const listenHost = (env.HOST || "127.0.0.1").trim();
   if (!/^[a-z0-9.-]+$/i.test(listenHost)) throw new Error("HOST must be an address without a port");
-  // 反向代理在 compose 网络里不是回环地址，故用显式开关决定是否信任 X-Forwarded-*。
+  // 反向代理在 compose 网络里不是回环地址，要显式说明信任几层。部署写层数（宿主 nginx → web 容器 nginx → server，
+  // 两层，见 deploy/env/.env.<环境>）：只取 X-Forwarded-For 从右数第 2 个地址当客户端，客户端自己填的最左边几段不算数。
+  // 写 true 会一路信任到最左边，那一段是客户端随便填的，按 IP 的限流、审计 IP 都能被伪造。
   const trustProxy = (() => {
     const raw = (env.TRUST_PROXY ?? "").trim();
-    if (raw === "" ) return "loopback" as const;
-    if (["1", "true", "yes"].includes(raw.toLowerCase())) return true;
-    if (["0", "false", "no"].includes(raw.toLowerCase())) return false;
+    const lower = raw.toLowerCase();
+    if (raw === "") return "loopback" as const;
+    if (/^\d+$/.test(raw)) {
+      const hops = Number(raw);
+      if (hops > 10) throw new Error("TRUST_PROXY hop count must be at most 10");
+      return hops === 0 ? false : hops;
+    }
+    if (["true", "yes"].includes(lower)) return true;
+    if (["false", "no"].includes(lower)) return false;
+    if (/^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(raw)) throw new Error("TRUST_PROXY must be true, false, a hop count (0–10) or a list of proxy addresses");
     return raw;
   })();
   const allowedOrgs = (env.ALLOWED_ORGS ?? "").split(",").map(value => value.trim().toLowerCase()).filter(Boolean);

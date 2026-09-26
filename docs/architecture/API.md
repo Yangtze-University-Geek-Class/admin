@@ -20,7 +20,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 ## 端点清单
 
-来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。
+来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。按 IP 的限流、审计与投递里记的来源 IP 都取 Fastify 的 `req.ip`：部署环境 `TRUST_PROXY=2`，只信任宿主 nginx 与 web 容器 nginx 各自追加的那段 `X-Forwarded-For`，客户端自己带的最左边几段不算（见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [SECURITY](SECURITY.md)）。
 
 | 方法与路径 | 鉴权 | 限流 | 成功 | 主要错误与说明 |
 |---|---|---|---|---|

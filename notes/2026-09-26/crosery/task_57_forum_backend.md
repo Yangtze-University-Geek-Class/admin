@@ -44,3 +44,9 @@
 - 做了什么：收到 PR #116 第一轮独立审查（16:22，审查的提交 8723671）：应修 1 客户端 IP 可伪造（TRUST_PROXY=true 信任 X-Forwarded-For 最左边，轮换 XFF 8/8 次 201）；应修 2 游客昵称可用零宽、双向控制字符冒用「极客班」「geekclass」；应修 3 被移出组织的人凭 sid 仍按成员发帖（viewer.ts 不看 githubRole）；建议 6 条：别人的 notifyPrefs 下发给所有人、state 与浏览接口无限流、IPv6 按 /64 计游客限流并加全站游客回复熔断、头像在鉴权前读完请求体且像素上限偏大、@提及通知每帖不设上限、API.md 同步
 - 结果：结论：有条件通过；条件是 3 条应修全部修完并带测试，建议 6 条一并处理
 - 下一步：子代理在 task-57 worktree 逐条修复，每条带测试与变异核对
+
+## 16:54:10 +08:00 · 提交 · #57 · 应修 1：两个环境按两层反代取客户端 IP
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(deploy): 两个环境按两层反代取客户端 IP，不再信任整条 X-Forwarded-For（config.ts 的 TRUST_PROXY 接受层数 0–10；两份 env 模板 TRUST_PROXY=2；deployment-environment.mjs 要求等于 PROXY_HOPS=2；configuration、applications、forum、deployment-environment 四处测试；ENVIRONMENTS、DEPLOY、SECURITY、API、TESTING 同步）
+- 结果：提交前 vitest tests/server 与 tests/tooling/deployment-environment.test.ts 全部通过（9 个文件 183 条）；node scripts/deployment-environment.mjs --check 通过；server tsc 通过
