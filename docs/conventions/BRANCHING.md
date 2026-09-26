@@ -2,7 +2,7 @@
 
 > 只有 `main`（正式）与 `stage`（预发布）两条长期分支；task 分支合并后必须立即删除，任何操作前先确认当前分支。
 
-状态：`current` · 更新：2026-09-24 · 依据：项目所有者明确指令（2026-09-23 分支模型；2026-09-24 改为打 tag 发版）。
+状态：`current` · 更新：2026-09-26 · 依据：项目所有者明确指令（2026-09-23 分支模型；2026-09-24 改为打 tag 发版；2026-09-26 worktree 做完即清，推送前检查）。
 
 ## 第负一步：先确认分支
 
@@ -81,12 +81,14 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 - **不碰主工作区**：主工作区（以及别的 task 的 worktree）上可能有别人的未提交改动、正在跑的预览或论坛进程；在自己的 worktree 里做，互不影响，也不用切分支、stash。
 - **一个 issue 只有一个 worktree**：`start` 发现已有同号 worktree 会拒绝，直接进去继续做。不要在同一个 worktree 里做第二件事。
 - **结束**：PR 合并进 `stage` 后，`branch-hygiene` 删远端分支，`issue-lifecycle` 关 issue；本机运行 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（在主工作区运行，不要在要删的 worktree 里运行）。`node scripts/task.mjs list` 列出每个 worktree 的 issue / PR 状态；`prune` 一次清掉所有可清理的。
+- **忘了 finish 就推不上去**：`.githooks/pre-push` 在分支规则之后运行 `node scripts/task.mjs list --check`，本机只要有 PR 已合并、或 issue 已关闭（放弃）却还没 finish 的 worktree，任何推送都被拒绝，并列出是哪几个和清理命令；worktree 里还有未提交改动的也算，先弄清改动是谁的、还要不要，不替别人丢弃。这一项要用 `gh` 查 GitHub，gh 没装、没登录、离线或超时只警告、不拦。钩子每台克隆启用一次：`pnpm hooks:enable`（`git config core.hooksPath .githooks`）；`git push --no-verify` 能跳过本地钩子，但跳过不等于收尾，worktree 照样要 finish。
 - **什么时候不删**：worktree 有未提交改动、PR 还开着、或 issue 还开着且 PR 没合并时，脚本只报告原因不删除；放弃的 issue 先按 TRACKING 留「关闭」记录再关，之后就能清理。
 - `.claude/worktrees/` 已被 `.gitignore` 忽略；每个 worktree 需要自己 `pnpm install --frozen-lockfile`（pnpm 的全局仓库会复用已下载的包）。
 
 ## 日常流程
 
 ```bash
+pnpm hooks:enable                              # 0. 每台克隆一次：启用 pre-push（分支规则、发布 tag、该清理的 worktree）
 git branch --show-current                      # 1. 确认当前在哪
 # 2. 按 ISSUES.md 开 issue，记下编号
 node scripts/task.mjs start <issue> <slug>     # 3. 从最新 origin/stage 建 task/<issue>/<slug> 与 .claude/worktrees/task-<issue>

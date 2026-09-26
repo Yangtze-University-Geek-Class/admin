@@ -39,3 +39,15 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：feat(tooling): 文档跟着模块改的检查进 pnpm check 与 CI；pnpm check
 - 结果：pnpm check 退出 0（含 check:doc-sync：文档同步通过：6 组模块与文档）；actionlint 退出 0
+
+## 16:19:12 +08:00 · 开发 · #115 · 推送前拦下该清理的 task worktree
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：task.mjs list --check（上一个子代理写的）改成查不到 PR 就不下结论；pre-push 在分支规则之后跑 list --check；start 发现没启用钩子时提醒 pnpm hooks:enable；task-worktree.test.ts 在临时仓库建两个 worktree、换假 gh，覆盖 list --check 与 pre-push；四个变异（check 不设退出码、离线当成已知、钩子跳过 worktree 检查、有改动的该清 worktree 放行）各让用例失败；BRANCHING、AGENTS、TESTING 写明
+- 结果：vitest tests/tooling/task-worktree.test.ts 7 passed，四个变异各有用例失败；本机 node scripts/task.mjs list --check：task worktree 生命周期通过：7 个还在做（3.3 秒）；shellcheck .githooks/pre-push 无输出
+
+## 16:19:13 +08:00 · 提交 · #115 · pre-push 拦下该清理的 task worktree
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：feat(tooling): pre-push 拦下已合并没 finish 的 task worktree；vitest task-worktree、notes；pnpm check:docs；node scripts/check-doc-sync.mjs
+- 结果：27 passed；check:docs 退出 0；文档同步通过：6 组模块与文档
