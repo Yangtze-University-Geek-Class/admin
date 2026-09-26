@@ -27,3 +27,10 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：git commit 899d0a8 fix(portal): 宣传片分包或起播出错后下次还能打开，不再停在「正在加载」（所有者授权提交、推送、开 PR）
 - 结果：提交含 PromoLazy/PromoPlayer/lib/promo.ts、三份测试、portal.md 与本链路；三份 promo 测试 34 passed，全量失败集合与 stage 基线相同
+
+## 16:44:22 +08:00 · PR · #110 · 开 PR #120 到 stage
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：git push -u origin task/110/promo_error_paths（本地 check-branch-invariants --push 通过）；gh pr create #120，正文按 PULL-REQUESTS 九段
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/120；等待 Crosery 审查
+- 下一步：收到审查结论后补「审查」记录
