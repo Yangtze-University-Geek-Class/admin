@@ -216,16 +216,16 @@ async function setInput(selector, index, value) {
   await sleep(250)
 }
 
-/** Types into a markdown editor's source textarea, at the end of what is there. */
+/** Types into PostEditor's textarea, at the end of what is there. */
 async function typeInEditor(scope, text) {
   const focused = await evaluate(`(() => {
-    const el = document.querySelector(${JSON.stringify(`${scope} .tx-markdown-editor__source`)})
+    const el = document.querySelector(${JSON.stringify(`${scope} [data-post-editor] .tx-textarea__field`)})
     if (!el) return false
     el.focus()
     el.setSelectionRange(el.value.length, el.value.length)
     return true
   })()`)
-  assert(focused, `no markdown source textarea inside ${scope}`)
+  assert(focused, `no PostEditor textarea inside ${scope}`)
   await chrome.type(text)
   await sleep(200)
 }

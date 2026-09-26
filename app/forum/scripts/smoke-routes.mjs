@@ -22,9 +22,10 @@ import { launchChrome, sleep, waitForHttp } from './lib/cdp.mjs'
  * The icon sweep needs a positive control, or a page with no icons would pass
  * it vacuously: every visit must find at least one icon element, and the run
  * as a whole must have seen the tuffex-internal classes that this project
- * never writes itself (`i-carbon-chevron-*` from TxPagination, the `i-ri-*`
- * namespace from the markdown editor's toolbar). Those can only be painted if
- * the node_modules scan behind `uno.config.ts`'s safelist did its job.
+ * never writes itself (`i-carbon-chevron-*` from TxPagination), which can only
+ * be painted if the node_modules scan behind `uno.config.ts`'s safelist did
+ * its job, and the `i-ri-*` namespace (PostEditor's mode switch on /new),
+ * which proves the second icon collection reaches UnoCSS.
  *
  * Every failure is collected rather than thrown, so one broken route does not
  * hide the state of the other thirteen. `reports/smoke.json` carries the whole
@@ -162,7 +163,7 @@ function buildRoutes(state) {
       url: '/new',
       title: '新话题',
       // A guest may not post: the form is replaced by a permission empty state.
-      markers: { auth: [['.tx-form', 1], ['.tx-markdown-editor', 1]], guest: [['.tx-empty-state', 1]] },
+      markers: { auth: [['.tx-form', 1], ['[data-post-editor] .tx-textarea__field', 1], ['[data-post-editor] [role="radio"]', 3]], guest: [['.tx-empty-state', 1]] },
     },
     { id: 'user', url: `/u/${me.username}`, title: me.displayName, markers: both([['.tx-stat-card', 6]]) },
     {
@@ -602,9 +603,10 @@ try {
     console.log('')
   }
 
-  // Run-level positive control for the icon sweep. These classes exist only in
+  // Run-level positive control for the icon sweep. The chevrons exist only in
   // tuffex's own compiled templates — `app/` never writes one — so painting
-  // them proves the safelist built from node_modules reached UnoCSS.
+  // them proves the safelist built from node_modules reached UnoCSS. The
+  // i-ri-* classes come from PostEditor's mode switch on /new.
   const iconClasses = [...seenIconClasses].sort()
   const riClasses = iconClasses.filter(token => token.startsWith('i-ri-'))
   const runContext = { mode: 'run', viewport: 'all', url: '(icon namespace)' }
@@ -617,7 +619,7 @@ try {
         fail(runContext, 'icons', `${required} never appeared; tuffex's own icons are not reaching the page`)
     }
     if (riClasses.length < MIN_RI_CLASSES)
-      fail(runContext, 'icons', `only ${riClasses.length} distinct i-ri-* class(es); the markdown editor's toolbar is the only source of that namespace`)
+      fail(runContext, 'icons', `only ${riClasses.length} distinct i-ri-* class(es); PostEditor's mode switch on /new is the only source of that namespace`)
     if (iconClasses.length < MIN_DISTINCT_ICONS)
       fail(runContext, 'icons', `only ${iconClasses.length} distinct icon classes over the whole run, expected >= ${MIN_DISTINCT_ICONS}`)
   }
