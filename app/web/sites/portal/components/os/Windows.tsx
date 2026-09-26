@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { links } from "../../lib/links";
-import { agoLabel, OS_APPS, runTerminal, type AppId, type TerminalLine } from "../../lib/osApps";
+import { agoLabel, runTerminal, type AppId, type OsApp, type TerminalLine } from "../../lib/osApps";
 import { orgChartModel, orgSummary, useOrg, type OrgBadge } from "../../lib/org";
 import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
 import Icon from "../Icon";
@@ -33,9 +33,11 @@ type Props = {
   onZoom: () => void;
   onMove: (x: number, y: number) => void;
   onOpen: OpenApp;
+  /** 这个人能打开的应用（visibleApps），终端的 ls / open 只认这些。 */
+  apps: readonly OsApp[];
 };
 
-export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen }: Props) {
+export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen, apps }: Props) {
   const meta = META[win.id];
   const ref = useRef<HTMLElement>(null);
   const width = Math.min(meta.width, window.innerWidth - 24);
@@ -95,7 +97,7 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
         {win.id === "about" && <About onOpen={onOpen} />}
         {win.id === "org" && <OrgChart />}
         {win.id === "forum-feed" && <ForumFeed onOpen={onOpen} />}
-        {win.id === "terminal" && <Terminal onOpen={onOpen} />}
+        {win.id === "terminal" && <Terminal onOpen={onOpen} apps={apps} />}
       </div>
     </section>
   );
@@ -268,7 +270,7 @@ function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
   );
 }
 
-function Terminal({ onOpen }: { onOpen: OpenApp }) {
+function Terminal({ onOpen, apps }: { onOpen: OpenApp; apps: readonly OsApp[] }) {
   const repos = useRepoSnapshot();
   const [lines, setLines] = useState<TerminalLine[]>([{ kind: "dim", text: "输入 help 查看命令" }]);
   const [value, setValue] = useState("");
@@ -280,7 +282,7 @@ function Terminal({ onOpen }: { onOpen: OpenApp }) {
     out.current?.scrollTo({ top: out.current.scrollHeight });
   }, [lines]);
   const run = (command: string) => {
-    const result = runTerminal(command, repos.status === "ready" ? repos.data.repos : []);
+    const result = runTerminal(command, repos.status === "ready" ? repos.data.repos : [], apps);
     setLines((current) => (result.clear ? [] : [...current, ...result.lines]));
     if (result.open) {
       const id = result.open;
@@ -340,7 +342,7 @@ function Terminal({ onOpen }: { onOpen: OpenApp }) {
           }}
         />
       </label>
-      <p className="pt-sr">可用命令：{OS_APPS.map((app) => app.id).join("、")}</p>
+      <p className="pt-sr">可用命令：{apps.map((app) => app.id).join("、")}</p>
     </div>
   );
 }

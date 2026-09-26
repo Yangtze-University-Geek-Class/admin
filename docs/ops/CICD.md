@@ -2,7 +2,7 @@
 
 > 六工作流（ci / deploy-preview / deploy-production / branch-hygiene / issue-lifecycle / cert-watch）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-09-26 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版、仓库私有，GitHub 文档写明免费版只能给**公开**仓库配置环境，所以 `production` 的审批无法配置，正式部署 job 按设计失败关闭，正式环境走下文「维护者机器部署」。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
+状态：`accepted` · 更新：2026-09-26 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版；仓库原本私有，2026-09-26 17:49 所有者因 CI 排队决定公开（见下文「平台能力实测」的更新）。公开之后 `production` 的 required reviewers 才能配置，**目前还没配**，所以正式部署 job 仍按设计失败关闭，正式环境仍走下文「维护者机器部署」。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -22,6 +22,7 @@
 - 一次只推一个发布 tag：GitHub 在一次推送超过三个 tag 时不产生 push 事件，工作流不会运行。
 - **打 tag 之前先等这个提交上 `ci.yml` 的 `verify (required check)` 跑完并通过。** 部署记录用 `required_contexts` 只要求这一项检查，它还在跑或没通过时，创建部署记录返回 409，部署 job 在这一步失败（`scripts/deploy-manual.mjs` 同样）。刚合并进 `stage` 的提交要等 push `stage` 触发的那次 CI 结束再打 rc tag。
 - tag 推送触发的是**该 tag 所在提交里**的工作流文件；手工运行也按所选 tag 的工作流文件执行，但入口要求工作流文件已经存在于默认分支（`main`）。
+- `ci.yml` 的旧运行（#124）：同一 PR 或同一个 `task/**`、`dev/**` 分支推了新提交，旧提交还没跑完的运行自动取消，runner 让给新提交。被取消的运行因为 `verify` 是 `if: always()`（跳过会被当成通过，不能去掉），还会排一个 `verify` job，最后以 failure 或 cancelled 结束（常驻 runner 占满时它会先显示排队中）。push `main`、`stage` 的运行不取消正在跑的；但同一组里已经有一个在排队时，GitHub 会取消排队中的那一次（默认 `queue: single`），连续合并三次以上时中间的提交可能没有 `verify`：打 rc tag 前先确认这个提交上的 `verify (required check)`，没有就重跑那次运行。
 - `dev/**` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev/**` 不得作为进入 `stage` 的凭据；旧的 `dev-*` 名字不再触发 `ci.yml`（见 [BRANCHING](../conventions/BRANCHING.md) 命名规则）。
 - `branch-hygiene.yml` 是「合并后立即删除 task 分支」的执行者；它不创建 tag、不动 `main`/`stage`、不改 PR 状态，也不接触任何 secrets。巡检发现残留分支只告警，删除留给人工决定。
 
@@ -101,11 +102,13 @@
 - `GET /repos/{owner}/{repo}/rulesets` 与 `GET /repos/{owner}/{repo}/branches/main/protection` 均返回 `403`（`Upgrade to GitHub Pro or make this repository public…`）：`main` 与 tag 的 refs 保护在当前计划下配置不了。
 - `GET /repos/{owner}/{repo}/environments` 的 `total_count` 实测为 `0`：`preview`、`production` 两个 Environment 都尚未创建。
 
-结论：在**计划升级**或**改用受控外部审批**之前，`production` 的人工门禁无法启用；此时 `DEPLOY_PRODUCTION_ENABLED` 必须保持关闭，正式发布由人手工执行已验证产物。不得以此为由取消人工验收、伪造审批记录，也不得为了解锁功能把私有仓库公开。以上为 2026-09-13 的实测快照，启用前必须重新核对。
+结论：在**计划升级**或**改用受控外部审批**之前，`production` 的人工门禁无法启用；此时 `DEPLOY_PRODUCTION_ENABLED` 必须保持关闭，正式发布由人手工执行已验证产物。不得以此为由取消人工验收、伪造审批记录。以上为 2026-09-13 的实测快照，启用前必须重新核对。
+
+**更新（2026-09-26 17:49，所有者决定公开仓库）**：`admin` 现在是公开仓库。公开前用 gitleaks 扫过全部分支与 tag 的历史（485 个提交，2 处命中都是测试里的假值），邮箱、手机号、公网 IP 只有测试数据。公开后同时做了：外部贡献者（非协作者）的 fork PR 触发的工作流要维护者批准才跑（`approval_policy=all_external_contributors`）；开启私密漏洞报告；删掉仓库变量 `CI_RUNNER`，CI 回到 `ubuntu-latest`（公开仓库托管 runner 不计分钟，免费版最多 20 个 job 同时跑）；runner 组 `yzgc-deploy` 放行公开仓库（组里仍只选了 `admin`），否则 rc 部署一直排队；`preview` Environment 只放行 `v*.*.*-rc.*` 形状的 tag，其它分支、tag 与 PR 上声明 `environment: preview` 的 job 拿不到它的 secrets。rulesets、分支保护与 `production` 的 required reviewers 现在可以配，但**都还没配**，要所有者定规则。
 
 ## 维护者机器部署（免费版的退路）
 
-免费版的私有仓库可以建环境、存环境级 secrets（运行时能否注入还没实测），但配不了审批。`deploy-production` 的部署 job 有两种结局：开关 `DEPLOY_PRODUCTION_ENABLED` 关闭时**跳过**；打开时在「production 环境保护」核对处**失败关闭**。这是正确行为，不得放宽。两种情况下 build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。正式环境（以及 `preview` 的部署 job 拿不到 secrets 时的预发布）改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
+`production` 环境和它的审批人还没配置（仓库原先私有时免费版配不了；2026-09-26 公开后可以配，审批人由所有者定）。`deploy-production` 的部署 job 有两种结局：开关 `DEPLOY_PRODUCTION_ENABLED` 关闭时**跳过**；打开时在「production 环境保护」核对处**失败关闭**。这是正确行为，不得放宽。两种情况下 build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。正式环境（以及 `preview` 的部署 job 拿不到 secrets 时的预发布）改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
 
 1. 进程环境里的 `DEPLOY_TARGET_ENVIRONMENT` 必须等于 `--environment`（对应 CI 的环境哨兵，防止导出的是另一个环境的密钥）；仓库取自 `origin` 远端。
 2. `git archive <提交> deploy scripts package.json` 解到临时目录（不是 Git 仓库，所以 `--check` 会打两条「无法通过 git check-ignore 判定」的警告，这是预期的：物料来自 `git archive`，必然是入库文件），用**这一份**的 `release-policy` 规划（与工作流同一个 `--branch-ref`、`--require-tag`，`--root` 指向这份物料）并跑环境契约 `--check`；rc tag 只能进 `preview`，正式 tag 只能进 `production`。`DEPLOY_SSH_HOST/PORT/USER` 必须与这份物料里该环境模板的 `DEPLOY_HOST/PORT/USER` 一致。
@@ -118,30 +121,30 @@
 
 ## 自托管 runner
 
-组织是免费版、仓库私有：托管 runner 每月 2000 分钟，支出上限 $0。额度用完后所有 job 都报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`（2026-09-25 实测），`verify (required check)` 出不来，也就打不了 rc tag。自托管 runner 不计分钟数，所以 CI 改到维护者家里的机器上跑（#93；所有者 2026-09-26 决定仓库保持私有），部署 job 也在同一台机器上跑，但每个 job 一个全新容器（#97，见下文「部署用的一次性 runner」）。
+组织是免费版，仓库当时私有：托管 runner 每月 2000 分钟，支出上限 $0。额度用完后所有 job 都报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`（2026-09-25 实测），`verify (required check)` 出不来，也就打不了 rc tag。自托管 runner 不计分钟数，所以 CI 改到维护者家里的机器上跑（#93），部署 job 也在同一台机器上跑，但每个 job 一个全新容器（#97，见下文「部署用的一次性 runner」）。2026-09-26 仓库公开后，CI 改回托管 runner（`CI_RUNNER` 已删），下面的常驻 runner 保留注册、闲置，作为托管 runner 出问题时的退路；部署仍在一次性 runner 上。
 
 | 项 | 取值 |
 |---|---|
 | 宿主机 | crosery-arch（Arch Linux，Ryzen 7 8845H 16 线程 / 30G 内存），维护者家里 |
 | 隔离 | 非特权 incus 系统容器 `yzgc-runner`（Ubuntu 24.04，`security.nesting=true`，容器里有自己的 Docker），限 8 线程、16G 内存；存储池是 80G 的 btrfs 镜像文件，放在单独的子卷 `/var/lib/incus`，不进宿主机的 snapper 快照 |
-| 注册 | 只注册到本仓库；两个实例 `crosery-arch-1`、`crosery-arch-2`，一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
+| 注册 | 只注册到本仓库；四个实例 `crosery-arch-1`…`crosery-arch-4`（`RUNNER_INSTANCES`，默认 4、只能 1–9，`job-started.sh` 按 `r[0-9]` 认工作目录；#124：两个人同时开 PR 时两个实例排队一个多小时，四个实例共用容器限额 8 线程、16GiB），一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
 | 与托管 runner 对齐 | 托管 runner 每个 job 一台新机器，这里用两条规则补齐：每个实例一个 HOME（`/home/runner/r<N>/home`，`~/setup-pnpm`、pnpm 的 SQLite 索引、npm 缓存不在并发 job 之间共用，共用时 pnpm 报 `disk I/O error`）；每个 job 开始前由 `ACTIONS_RUNNER_HOOK_JOB_STARTED` 清空工作目录（上一个 job 的 sparse-checkout 会让下一个 job 缺文件，#93 第一轮 CI 实测） |
 | 出站 | incus 网络 ACL `runner-egress` 拒绝容器访问 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`、`198.18.0.0/15`（家里局域网、tailscale、netbird、宿主机与它的 Docker 网桥、代理的 fake-ip 段），其余放行 |
 | 预装 | 对齐 ubuntu-latest 里工作流直接用到的工具：Node 22 LTS（`branch-guard`、`docker`、`pr-contract` 不经 setup-node 直接调 `node`，官方包按 SHASUMS256 校验；同一个包还解进 runner 的工具缓存，setup-node 直接命中，见下文「构建下载源」）、git、gh、jq、shellcheck、openssl、Docker + buildx + compose。新工作流用到别的预装工具时，先在容器里装上再切过来 |
 | 镜像源 | 家里连不上 Docker Hub，容器内 Docker 走 `docker.m.daocloud.io`、`docker.1ms.run` 镜像加速；容器自己的 Ubuntu apt 走中科大。npm 包、pnpm、Debian 包、better-sqlite3 预编译包由仓库变量换源，见下文「构建下载源」 |
 | 清理 | 容器内定时器每天清掉 72 小时前的镜像与构建缓存 |
 
-**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册两个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker、重跑 `register.sh` 会重启两个 runner 服务，正在跑的 job 会失败，挑没有 job 的时候跑。
+**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册 `RUNNER_INSTANCES` 个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker，正在跑的 job 会失败，挑没有 job 的时候跑；`register.sh` 只重启 `.env` 改过或新注册的实例，已注册、在跑的实例不动。加实例时：新实例的目录用缓存的 runner 包解出来，解包前先按 `container-setup.sh` 里写死的 `RUNNER_SHA256` 核对（`echo "<RUNNER_SHA256>  <包>" | sha256sum -c -`；包在 `/home/runner` 下、属 runner，job 能改到它），再 `incus exec --env RUNNER_INSTANCES=6 yzgc-runner -- sh /root/register.sh`（`incus exec` 不继承调用方的环境变量）。
 
-**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。下文「构建下载源」的三个仓库变量 `NPM_REGISTRY`、`DEBIAN_MIRROR`、`BETTER_SQLITE3_BINARY_HOST` 是仓库级的，不看 job 跑在哪台 runner 上：`CI_RUNNER`、`DEPLOY_RUNNER` 都删掉、全部回到托管 runner 时，把这三个也一起删掉，否则托管 runner 也会绕到国内镜像下载（不设它们就是官方源）。
+**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。`CI_RUNNER` 现在已删（仓库公开，托管 runner 不计分钟），CI 跑在 `ubuntu-latest` 上；托管 runner 出问题时设回 `CI_RUNNER=yzgc-arch`。下文「构建下载源」的三个仓库变量 `NPM_REGISTRY`、`DEBIAN_MIRROR`、`BETTER_SQLITE3_BINARY_HOST` 是仓库级的，不看 job 跑在哪台 runner 上：`CI_RUNNER`、`DEPLOY_RUNNER` 都删掉、全部回到托管 runner 时，把这三个也一起删掉，否则托管 runner 也会绕到国内镜像下载（不设它们就是官方源）。2026-09-26 删 `CI_RUNNER` 时这三个本来就没设。
 
-**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`、`DEPLOY_RUNNER`；两个都删时，同上把三个下载源变量一起删掉，机器回来、切回自托管时再设上（取值见「构建下载源」）。
+**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `DEPLOY_RUNNER`（CI 已在托管 runner 上，不受影响）；这时如果设了三个下载源变量，同上一起删掉，机器回来、切回自托管时再设上（取值见「构建下载源」）。
 
 **安全边界**（下文「自托管运行器不得接在有生产凭据或真实数据的机器上执行不可信 PR」在这里靠下面几条成立，不是无条件满足）：
 
-- 谁能让代码跑到这里：私有仓库、没有 fork PR，只有能向本仓库推分支的协作者。他们推任意分支（包括在分支里新增一个写 `runs-on: yzgc-arch` 的工作流），代码就会在这台 runner 上执行。
+- 谁能让代码跑到这里：能向本仓库推分支的协作者；仓库公开后还有外部贡献者的 fork PR，但它们的工作流要维护者批准才会运行，批准前先看 PR 有没有改 `.github/workflows/`。他们推任意分支（包括在分支里新增一个写 `runs-on: yzgc-arch` 的工作流），代码就会在这台 runner 上执行。
 - 隔离到哪一层：job 在非特权容器里以 `runner` 用户运行，但 `runner` 在容器的 docker 组里，等于**容器内 root**。容器里没有宿主机的家目录、SSH 材料、凭据和数据库，除 runner 自己的注册凭据外不放任何密钥；出站拒绝上表的私网段。宿主机隔离靠 Linux 内核的命名空间，容器与宿主机共用内核，内核漏洞可以逃逸到维护者的个人机器。
-- 剩余风险一：**runner 是常驻的，不是一次性的**。拿到容器内 root 的人可以改掉 `job-started.sh`、`/usr/local/bin/node`、runner 本体或构建缓存，影响之后任何分支（包括 `stage`）上的 CI 结果，`verify (required check)` 的绿色因此只证明「这台 runner 上跑过」。发现可疑时重建容器（`incus delete -f yzgc-runner` 后按上文重建，并在仓库设置里移除两个旧 runner）。改成每个 job 一个全新容器前，这条风险一直在。
+- 剩余风险一：**runner 是常驻的，不是一次性的**。拿到容器内 root 的人可以改掉 `job-started.sh`、`/usr/local/bin/node`、runner 本体或构建缓存，影响之后任何分支（包括 `stage`）上的 CI 结果，`verify (required check)` 的绿色因此只证明「这台 runner 上跑过」。发现可疑时重建容器（`incus delete -f yzgc-runner` 后按上文重建，并在仓库设置里移除全部 `crosery-arch-*`）。改成每个 job 一个全新容器前，这条风险一直在。
 - 剩余风险二：ACL 挡的是私网段，挡不住经家里公网 IP 绕回路由器端口转发的连接。
 - 所以部署 job 不放到常驻 runner 上，而是放到下文的一次性 runner：每个部署 job 的容器是新起的，前一个 job（包括别人分支上的 job）改不到它的文件系统；池里同时在跑的容器之间开了 port isolation 与 IP / MAC 过滤，互相连不上，也不能仿冒对方的地址。
 - 一次性 runner 的剩余风险：runner 组免费版只能限制仓库，不能限制工作流（按工作流限制时 GitHub 要求写具体 ref，`@refs/tags/*` 与 `@*` 都被拒绝，2026-09-26 实测），能推分支的人也能把 job 发到 `yzgc-deploy` 上。这样的 job 拿到的同样是跑完即删的新容器，改不到之后部署 job 的容器；但它可以一直占着 runner（比如一个 matrix 占满两台，再接着占住新补上的），部署就一直排队，这时找到并取消那个运行。部署私钥经 `preview` 环境的 secrets 进入 job，任何分支上声明了 `environment: preview` 的工作流都能拿到，这与 runner 在哪无关。容器与宿主机共用内核、公网 IP 绕回这两条与常驻 runner 相同；拿到宿主机 root 的人能用令牌注册假 runner 抢部署 job。
@@ -186,12 +189,12 @@
 | 项 | 取值 |
 |---|---|
 | 容器 | 同一台 crosery-arch；每个 job 一个非特权 incus 系统容器 `ydeploy-<时间>-<随机>`（Ubuntu 24.04，容器里有自己的 Docker），限 6 线程、8G 内存；是 incus 的 ephemeral 实例，关机即删除 |
-| 注册 | 组织级 JIT runner：runner 组 `yzgc-deploy`（id 3，只放行 `admin` 仓库、不放行公开仓库），标签 `yzgc-deploy`。每台只接一个 job，job 结束后 GitHub 自动注销它 |
+| 注册 | 组织级 JIT runner：runner 组 `yzgc-deploy`（id 3，只放行 `admin` 仓库；`admin` 公开后于 2026-09-26 打开「允许公开仓库」。改这个设置之前注册的 JIT runner 不接公开仓库的 job：v0.1.0-rc.8 的 plan job 排了 10 分钟没人领，旧 runner 到 8 小时上限被回收时这个 job 跟着被取消，池子补上新 runner 后重跑才领走。改组设置后要等旧 runner 换完，或者在宿主机上重启 `yzgc-jit-pool` 立即换），标签 `yzgc-deploy`。每台只接一个 job，job 结束后 GitHub 自动注销它 |
 | 补位 | 宿主机 systemd 服务 `yzgc-jit-pool`（`deploy/runner/jit-pool.sh`）始终保持 2 个在跑的容器：一个 job 跑完容器关机，几秒后补一个新的，新容器从镜像 `yzgc-deploy` 起，十几秒就能接活。每 10 分钟维护一次：删掉启动失败留下的停机实例；注销容器已经没了的离线 runner；空闲超过 5 小时的 runner 先在 GitHub 上注销（忙时 GitHub 拒绝）再删容器。容器里的服务另有 8 小时上限兜底，接到 job 的 runner（build 最长 60 分钟）不会在 job 中途被杀 |
 | 凭据 | 一个 fine-grained 令牌，只有组织权限「Self-hosted runners: Read and write」，存在宿主机 `/etc/yzgc-runner/github.header`（root 0600），只用来生成 JIT 配置、删离线 runner，不进仓库、镜像、日志和容器。容器里只有自己这一次的 JIT 配置：读进环境变量后删掉文件，runner 不把它传给 job；但 runner 会把解出的凭据写进 `actions-runner/.credentials*`，job 与 runner 同一个用户，读得到。那只是这台 runner 自己的凭据，随 job 结束注销 |
 | 网络 | 单独的网桥 `incusdeploy`（10.78.0.0/24），和常驻 CI 容器不在同一个二层网段（incus 的 ACL 管不到同一网桥上容器之间的流量）；网卡开 `security.port_isolation`（部署容器之间互相不通，只能到网关）与 `security.ipv4_filtering`（不能冒用别的 IP、MAC）；出站 ACL 与 CI 相同 |
 | 镜像 | `jit-image.sh` 做：`container-setup.sh jit`（与 CI 容器同样的工具、Docker、Node 与 runner，Node 22 同时解进 `/home/runner/actions-runner/_work/_tool`，见上文「构建下载源」），再预拉三个 Dockerfile 的基础镜像（按 digest），清掉 machine-id 后发布为 `yzgc-deploy` |
-| 下载镜像归档 | deploy job 不用 `actions/download-artifact`，改用 `scripts/fetch-artifact.mjs`（#99）：家里单连接从 GitHub 的存储下载只有 40–220KB/s，163MB 要 15–60 分钟（`v0.1.0-rc.6` 实测）；同一地址并发 16 段 Range 请求约 6.6MB/s。下载地址约 1 分钟过期，每段重试时重新取；只核对总字节数与 zip 的 CRC，归档内容仍由目标机 `sha256sum -c` 核对。job 权限因此多一个 `actions: read` |
+| 下载镜像归档 | deploy job 不用 `actions/download-artifact`，改用 `scripts/fetch-artifact.mjs`（#99）：家里单连接从 GitHub 的存储下载只有 40–220KB/s，163MB 要 15–60 分钟（`v0.1.0-rc.6` 实测）；同一地址并发 16 段 Range 请求约 6.6MB/s。下载地址约 1 分钟过期，每段重试时重新取；一段连续 60 秒没收到数据（等响应头或下一块数据；连接卡住不报错，#111）也算失败，断开后重新取地址重试，可用 `--idle-seconds`（1–600）调整，只限空闲时长、不限一段的总时长；查 artifact 列表的 API 请求也限这么久，超时直接失败；只核对总字节数与 zip 的 CRC，归档内容仍由目标机 `sha256sum -c` 核对。job 权限因此多一个 `actions: read` |
 
 **重建**：宿主机 root 在 `deploy/runner/` 里依次运行 `host-setup.sh`（也建 `incusdeploy` 网桥与 profile `yzgc-deploy`）→ `sh jit-image.sh $(grep -ho '^FROM [^ ]*@sha256:[0-9a-f]*' ../../app/*/Dockerfile | cut -d' ' -f2 | sort -u)` → 把令牌从 stdin 喂给 `sh jit-pool.sh token`（不进命令行）→ `sh jit-pool.sh install`。基础镜像的 digest 或 runner 版本变了就重做一次镜像，已经在跑的容器不受影响。
 

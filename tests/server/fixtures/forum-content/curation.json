@@ -1,0 +1,13 @@
+{
+  "$comment": "测试夹具：形状同 app/forum/content/curation.json，内容是虚构的。服务端只读 categories、categoryOrder、tags。",
+  "schemaVersion": 1,
+  "categories": [
+    { "id": "c-exam", "slug": "exam", "name": "夹具分类甲", "description": "测试用分类", "color": "#0f766e", "icon": "i-ri-file-list-3-line" },
+    { "id": "c-ai", "slug": "ai", "name": "夹具分类乙", "description": "测试用分类", "color": "#6366f1", "icon": "i-ri-brain-line" }
+  ],
+  "categoryOrder": ["c-ai", "c-old-snapshot", "c-exam"],
+  "tags": [
+    { "id": "tag-grade25", "slug": "grade-25", "name": "夹具标签", "color": "#0f766e" },
+    { "id": "tag-agents", "slug": "agents", "name": "Agent", "color": "#8b5cf6" }
+  ]
+}

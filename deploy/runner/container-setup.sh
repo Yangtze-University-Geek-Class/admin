@@ -1,11 +1,16 @@
 #!/bin/sh
 # runner 容器内：装 Docker 与工作流用到的工具，建 runner 用户，下载并校验 actions runner。两种用法：
-#   sh container-setup.sh ci   常驻 CI 容器 yzgc-runner（#93）：两个实例 r1/r2、清工作目录的钩子、每天清镜像。
+#   sh container-setup.sh ci   常驻 CI 容器 yzgc-runner（#93）：RUNNER_INSTANCES 个实例 r1…rN（默认 4，#124）、清工作目录的钩子、每天清镜像。
 #                              可重复执行，但会重启容器里的 docker，正在构建镜像的 job 会失败；在没有 job 时跑。
 #   sh container-setup.sh jit  一次性部署 runner 的镜像（#97，由 jit-image.sh 调用）：一份 runner、接一个 job 就关机的服务。
 set -eu
 MODE=${1:-ci}
 case "$MODE" in ci|jit) ;; *) echo "用法：sh container-setup.sh ci|jit" >&2; exit 2 ;; esac
+# 实例数 1–9（#124）：job-started.sh 按 r[0-9] 认工作目录，r10 起不再清理。放在最前面检查：
+# 后面会重启容器里的 docker，值不对时要在打断正在跑的 job 之前就退出。
+if [ "$MODE" = ci ]; then
+  case "${RUNNER_INSTANCES:-4}" in [1-9]) ;; *) echo "RUNNER_INSTANCES 要是 1 到 9：${RUNNER_INSTANCES}" >&2; exit 2 ;; esac
+fi
 export DEBIAN_FRONTEND=noninteractive
 RUNNER_VERSION=2.337.0
 RUNNER_SHA256=70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613
@@ -156,11 +161,12 @@ EOF
 systemctl daemon-reload
 systemctl enable --now runner-docker-prune.timer
 
-for n in 1 2; do
+# 实例数（#124）：容器限额 8 线程、16GiB，两个人同时开 PR 时两个实例排队一个多小时；与 register.sh 的 RUNNER_INSTANCES 一致，1–9
+for n in $(seq 1 "${RUNNER_INSTANCES:-4}"); do
   d=/home/runner/r$n
   [ -x "$d/config.sh" ] || { mkdir -p "$d"; tar -xzf "$tarball" -C "$d"; }
 done
-# job-started.sh 与本脚本放在同一目录推进容器（incus file push），装到 runner 的 HOME 外面、两个实例共用。
+# job-started.sh 与本脚本放在同一目录推进容器（incus file push），装到 runner 的 HOME 外面、各实例共用。
 install -o runner -g runner -m 0755 "$(dirname "$0")/job-started.sh" /home/runner/job-started.sh
 seed_node_tool_cache /home/runner/r1/_work/_tool /home/runner/r2/_work/_tool
 chown -R runner:runner /home/runner

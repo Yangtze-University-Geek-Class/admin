@@ -21,6 +21,7 @@ const ICONS: Record<NotificationType, string> = {
 }
 
 const forum = useForumStore()
+const actions = useForumActions()
 const router = useRouter()
 const { fromNow } = useRelativeTime()
 const { siteName } = useContentSource()
@@ -79,12 +80,14 @@ function target(notification: Notification): string {
 }
 
 function open(notification: Notification) {
-  forum.markRead(notification.id)
-  void router.push(target(notification))
+  const to = target(notification)
+  if (!notification.read)
+    void actions.markRead(notification.id)
+  void router.push(to)
 }
 
 function markAll() {
-  forum.markAllRead(props.userId)
+  void actions.markAllRead(props.userId)
 }
 </script>
 

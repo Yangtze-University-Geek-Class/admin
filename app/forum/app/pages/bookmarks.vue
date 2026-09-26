@@ -9,10 +9,9 @@ useHead({ title: '书签' })
 const EXCERPT_LENGTH = 60
 
 const forum = useForumStore()
+const actions = useForumActions()
 const router = useRouter()
 const { user, isLoggedIn } = useCurrentUser()
-const { loginOpen } = useShell()
-const { siteLogin } = useContentSource()
 const { fromNow } = useRelativeTime()
 
 const entries = computed(() => (user.value ? forum.bookmarksOf(user.value.id) : []))
@@ -21,10 +20,9 @@ function open(entry: BookmarkEntry) {
   void router.push(`/t/${entry.topic.id}`)
 }
 
-function remove(entry: BookmarkEntry) {
-  if (!user.value)
+async function remove(entry: BookmarkEntry) {
+  if (!user.value || await actions.toggleBookmark(user.value.id, entry.post.id) === null)
     return
-  forum.toggleBookmark(user.value.id, entry.post.id)
   toast({ title: '已移出书签', variant: 'success' })
 }
 
@@ -41,14 +39,7 @@ function authorOf(entry: BookmarkEntry): string {
       </h1>
     </template>
 
-    <TxEmptyState
-      v-if="!isLoggedIn"
-      variant="permission"
-      :title="siteLogin ? '书签还没开放' : '登录后才能查看书签'"
-      :description="siteLogin ? '书签正在接入。' : '书签属于某个身份，先选一个再回来。'"
-      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
-      @primary="loginOpen = true"
-    />
+    <SignInState v-if="!isLoggedIn" page="bookmarks" />
 
     <TxStack v-else-if="entries.length" :gap="0">
       <template v-for="(entry, index) in entries" :key="entry.post.id">

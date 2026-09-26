@@ -56,6 +56,15 @@ function destroySession(id: string) {
   db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
 }
 
+/**
+ * 登录过的人：审计里每条 auth.signin 的登录名（只有 CONSOLE_ORG 的 active 成员能登录，所以都是组织成员，
+ * 包括组织 owner），加上当前会话。论坛用它挡游客冒名；从没登录过的组织成员不在这里。
+ */
+function signedInLogins(): string[] {
+  return (db.prepare("SELECT actor AS login FROM audit_logs WHERE action = 'auth.signin' UNION SELECT login FROM sessions").all() as { login: string }[])
+    .map(row => row.login);
+}
+
 function buildAuthorizeUrl(state: string): string {
   const u = new URL("https://github.com/login/oauth/authorize");
   u.searchParams.set("client_id", config.oauth.clientId);
@@ -120,5 +129,5 @@ async function revokeGrant(accessToken: string): Promise<void> {
   if (res.statusCode !== 204) throw Object.assign(new Error("grant revoke failed"), { code: "github_revoke_failed", status: res.statusCode });
 }
 
-return { createSession, getSession, destroySession, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant };
+return { createSession, getSession, destroySession, signedInLogins, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant };
 }

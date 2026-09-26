@@ -3,11 +3,10 @@ import type { ServiceOverrides } from '../../app/server/src/services';
 import { safeReturnTo } from '../../app/server/src/lib/safe-return';
 import { withTimeout } from '../../app/server/src/lib/github';
 import { ADMIN_SPA_ENTRY, ADMIN_SPA_PATHS, PORTAL_SPA_ENTRY, buildApp, resolveSiteEntry } from '../../app/server/src/app';
-import { createConfig } from '../../app/server/src/config';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { testApp } from './helpers';
+import { testApp, testConfig } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 async function setup(overrides?: ServiceOverrides, production = false) { const c = await testApp(overrides, production); contexts.push(c); return c; }
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
@@ -27,7 +26,12 @@ it.each(['/api/forum/me', '/api/forum/threads', '/auth/forum/github', '/forum/u/
 });
 it('rejects old forum writes and does not redirect an old topic ID to an unrelated new topic', async () => {
   const { app } = await setup();
-  expect((await app.inject({ method: 'POST', url: '/api/forum/posts', payload: { content: 'retired' } })).statusCode).toBe(410);
+  // 旧论坛的写接口仍是 410；/api/forum/posts 现在是新论坛接口（#57），不再是退役路径。
+  for (const url of ['/api/forum/threads', '/api/forum/threads/1/posts', '/api/forum/upload']) {
+    const response = await app.inject({ method: 'POST', url, payload: { content: 'retired' } });
+    expect(response.statusCode).toBe(410); expect(response.json().error).toBe('legacy_forum_retired');
+  }
+  expect((await app.inject({ method: 'POST', url: '/api/forum/posts', payload: { content: 'retired' } })).json().error).toBe('validation_error');
   const redirect = await app.inject('/forum/t/73');
   expect(redirect.statusCode).toBe(302); expect(redirect.headers.location).toBe('http://127.0.0.1:3456/');
 });
@@ -215,7 +219,7 @@ it('serves the console or portal index for deep links on the same host', async (
       mkdirSync(join(root, 'sites', site), { recursive: true });
       writeFileSync(join(root, 'sites', site, 'index.html'), `<main data-entry="${site}"></main>`);
     }
-    const config = createConfig({
+    const config = testConfig({
       NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', FORUM_DB_PATH: ':memory:',
       SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
       OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
@@ -246,6 +250,20 @@ it('lists admin feedback without the submitter IP, user agent or numeric account
 it('rejects invalid feedback data before persistence', async () => {
   const { app } = await setup();
   expect((await app.inject({ method: 'POST', url: '/api/feedback', payload: { org: 'demo', content: {} } })).statusCode).toBe(400);
+});
+it('bounds the public feedback limit: only 1–9999 is accepted, then capped at 100', async () => {
+  const { app } = await setup();
+  const insert = app.services.storage.db.prepare("INSERT INTO feedback(org, content, status, created_at, updated_at) VALUES('demo', ?, 'open', ?, ?)");
+  for (let i = 0; i < 120; i++) insert.run(`意见 ${i}`, i, i);
+  const count = async (query: string) => {
+    const response = await app.inject({ url: `/api/feedback/public?org=demo${query}` });
+    return response.statusCode === 200 ? response.json().items.length : `${response.statusCode} ${response.json().error}`;
+  };
+  expect(await count('')).toBe(20);
+  expect(await count('&limit=5')).toBe(5);
+  expect(await count('&limit=9999')).toBe(100);
+  // 负数、0、小数、非数字、超过 9999 都在公共 querystring 校验里 400 validation_error，不会取消行数上限，也不会 500（#130）
+  for (const bad of ['-1', '0', '1.5', 'abc', '10000']) expect(await count(`&limit=${bad}`)).toBe('400 validation_error');
 });
 it('serves the portal and the console from two separate build outputs', async () => {
   const root = mkdtempSync(join(tmpdir(), 'geek-static-'));

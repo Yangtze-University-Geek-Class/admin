@@ -2,7 +2,7 @@
 
 > 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 范围与路由
 
@@ -59,9 +59,11 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 官网不自建登录态，只显示核心服务的全站 GitHub 登录（官网、论坛、控制台共用同一个 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」）。`components/os/YugcOs.tsx` 在菜单栏时钟左边放这个入口，`lib/account.ts` 读完 `/auth/me` 之前不显示：
 
 - 未登录：「用 GitHub 登录」链接（GitHub 图标 + 文字，钴蓝底），指向 `/auth/github?return_to=<当前 origin>/forum/`，登录后进论坛首页。本机开发时 5173 把 `/auth` 代理给 127.0.0.1:3000，回到的 `/forum/` 再 302 到 3456（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。
-- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
+- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单，「控制台」只在 `/auth/me` 的 `console_link` 为 true 时出现；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
 
-官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子只有公开的招新机试文档和入门资料），登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
+**控制台入口只给管理者**：`/auth/me` 的 `console_link`（持有 `console.access`、`github.org.read`、`feedback.read` 之外任一能力的人：提督、舰长、队长、带部门权限包的舰员）为 true 时，桌面图标、Dock、「前往」菜单、启动器（⌘K）、终端的 `ls` / `open console`、头像菜单和普通页面页脚才出现「控制台」；没登录、普通舰员和领航员都看不到。`lib/osApps.ts` 的 `visibleApps(consoleLink)` 是桌面这几处唯一的过滤，`components/PageShell.tsx` 的页脚同样按它显示。这只决定入口显不显示，控制台自己的准入不变（直接打开 `/console` 仍按能力判定）。单测 `tests/web/portal-os.test.ts`，浏览器用例 `tests/e2e/workflows.spec.ts`（页脚按 `console_link` 出现）。
+
+官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子与回复存在核心服务，见 [forum 合同](../forum/README.md)「服务端模式」），登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
 
 ## 加入我们（投递）
 
@@ -75,11 +77,12 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - **桌面重看**：`lib/osApps.ts` 的「宣传片」应用（`{ kind: "panel", panel: "promo" }`）在桌面上打开同一个播放层，不读也不写 cookie。
 - **片源**：七牛 CDN `https://cdn.crosery.com/yzgc/static/promo/v5-tone-e1419fc9331a/`，地址只在 `lib/promo.ts` 的 `PROMO_BASE`。AV1 10-bit 三档（480p、720p、1080p）与 H.264 五档（240p、360p、480p、720p、1080p）各一份 master（`master-av1.m3u8`、`master-h264.m3u8`），fMP4 分片 4 秒一段、所有档位关键帧对齐；240p、360p 音频 64k（平均约 240、450kbps，峰值约 340、640kbps），给弱网手机（#103）。封面有两张：`poster.jpg`（1920 宽，171KB）给桌面，`poster-640.jpg`（58KB）给触屏，弱网时大封面会和第一个分片抢带宽。master 里的码率由片子目录的 `scripts/write-masters.py` 按实际分片算（BANDWIDTH 是单段峰值），编码串从各档 `init.mp4` 读。画质参数沿用所有者片子目录 `qa/verification.md` 交付的 web264-28 与 av1-46；分片包由片子目录里的 `scripts/package-hls.sh` 生成、`scripts/qiniu-promo.mjs` 上传（insertOnly，只写 `yzgc/static/promo/` 下），不进 Git。路径带内容哈希，CDN 缓存一年；换片子就换目录并改 `PROMO_BASE`。
 - **挑播放方式**（`choosePlayback`）：有 MediaSource（含 iOS 17.1+ 的 ManagedMediaSource）就用 hls.js，没有时退到原生 HLS（老 iOS、微信）；两条路都没有就不播、直接进信纸。触屏设备（`pointer: coarse`）一律 H.264（它的梯子最低到 240p）；桌面 AV1 只在 `mediaCapabilities` 说 1080p 流畅**且硬解**（`powerEfficient`）时用，原生 HLS 要 `canPlayType` 对 AV1 是 `probably`，否则 H.264。
-- **起播档**（`startEstimate`、`startLevelIndex`）：带宽估计有 Network Information 的下行估计就用它，开了省流量按 0，都没有按设备猜（触屏 1Mbps、桌面 4Mbps）；估计会过时、偏高（DevTools 限速时 Chrome 仍报 10Mbps），所以封顶触屏 1.5Mbps、桌面 4Mbps。起播选峰值码率不超过估计 × 0.7 的最高一档，一档都不够就用最低的：没有网络信息的手机从 360p 起、桌面从 720p 起。hls.js `autoStartLoad: false`，解析完档位按同一个函数设 `startLevel` 再开始加载，之后按实测带宽切换；缓冲 30 秒（最多 60 秒），`capLevelToPlayerSize` 且像素比最多按 2 算。不开 worker（fMP4 不需要转封装，也不用给 CSP 加 `worker-src`）。用的是 hls.js 精简版（`hls.js/light`，片源没有字幕、多音轨、DRM），独立分包 gzip 约 118KB，只在要播时加载；播放层分包加载失败时按「加载失败」直接结束（`components/PromoLazy.tsx`），不让官网跟着卸载。点视频或空白处后焦点留在播放层上，Esc、空格（播放 / 暂停）、M（静音）照样能用；触屏不显示按键提示。
+- **起播档**（`startEstimate`、`startLevelIndex`）：带宽估计有 Network Information 的下行估计就用它，开了省流量按 0，都没有按设备猜（触屏 1Mbps、桌面 4Mbps）；估计会过时、偏高（DevTools 限速时 Chrome 仍报 10Mbps），所以封顶触屏 1.5Mbps、桌面 4Mbps。起播选峰值码率不超过估计 × 0.7 的最高一档，一档都不够就用最低的：没有网络信息的手机从 360p 起、桌面从 720p 起。hls.js `autoStartLoad: false`，解析完档位按同一个函数设 `startLevel` 再开始加载，之后按实测带宽切换；缓冲 30 秒（最多 60 秒），`capLevelToPlayerSize` 且像素比最多按 2 算。不开 worker（fMP4 不需要转封装，也不用给 CSP 加 `worker-src`）。用的是 hls.js 精简版（`hls.js/light`，片源没有字幕、多音轨、DRM），独立分包 gzip 约 118KB，只在要播时加载。点视频或空白处后焦点留在播放层上，Esc、空格（播放 / 暂停）、M（静音）照样能用；触屏不显示按键提示。
 - **画面与控件**（#103，所有者 2026-09-26：「这些大额头和下巴丑死了，这些按钮可以融进宣传片里面，跟游戏一样」）：画面按 16:9 放进屏幕（`.pt-promo-stage` 用容器查询单位算最大尺寸），控件都叠在画面里：右上「跳过 Esc」（replay 叫「关闭」）一直在；静音时左上钴蓝「打开声音」一直在；底部一层渐变上是播放 / 暂停、细进度条、等宽时间、静音。播放中 2.5 秒没有操作，底部控件淡出、鼠标指针隐藏；动鼠标、按键、用 Tab 把焦点移到按钮上就回来，焦点在底部控件里时不淡出；暂停、加载、缓冲时不淡出。鼠标点画面是暂停 / 继续；手指点画面是显示 / 收起控件（和手机上的视频播放器一样）。画面外的空白不是深色条：每 0.5 秒把当前画面缩成 32×18 画到背景画布，CSS 放大模糊（出画面前先画封面）。
 - **手机竖着拿**（所有者：「能不能默认横屏播放」）：`(orientation: portrait) and (pointer: coarse) and (max-width: 600px)` 时画面框转 90 度（平板竖放不转）（宽 100dvh、高 100dvw），片子横过来铺满屏幕，控件跟着转；横过手机后媒体查询不再命中，就是正常横屏。
 - **缓冲**：播放中卡住（`waiting`）显示「正在缓冲…」，6 秒没恢复提示可以先跳过。
 - **声音与减少动态效果**：先带声音自动播；浏览器不让就静音播并显示「打开声音」；静音也不让、或开了减少动态效果，就停在封面等人点「播放宣传片」。减少动态效果时控件不做淡入淡出。
+- **出错时**（#110）：播放层分包加载失败（断网、发版后旧页面找不到新文件名）按「加载失败」直接结束（`components/PromoLazy.tsx`），不让官网跟着卸载；失败只影响这一次打开，下次打开重新加载分包，网络恢复后照常能播。浏览器会记住加载失败的模块地址（Chrome、Firefox 按 HTML 规范如此，桌面预取时断网失败也算），同一地址再 import 不发请求直接失败，所以播放层和 hls.js 分包各写死原地址加 3 个 `?retry=n` 地址（`lib/promo.ts` 的 `retryableImport`）：生产构建把每个打成文件名不同的分包（`PromoPlayer` 约 6KB、`hls.light` 约 372KB 各多 3 份，只在重来时下载），原地址失败时马上换下一个试一次，之后每次重来换一个，用完停在最后一个，要刷新页面才会再从头来；换地址只以生产构建为准。边界检查不许非字面量 import、CSP 不许 eval，所以只能是有限个写死的地址。播放层样式 `styles/promo.css` 跟官网主包由 `PromoLazy.tsx` 引入，不跟播放层分包：Vite 的分包预加载把失败过的样式表记为已加载、不再重试。`play()` 被拒时，`NotSupportedError`（片源放不了）按加载失败结束，其他原因（如 `AbortError`）停在封面等点「播放宣传片」；起播过程中意外抛错按加载失败结束一次。
 - **起播预取**：桌面出现、这个浏览器还没看过宣传片、没开省流量时，先 preconnect CDN，空闲时预取「加入我们」页、播放器、hls.js 分包，以及起播那一档（与播放器同一个 `startLevelIndex`）的 master、播放列表、初始化段与第一个分片。点「加入我们」后这些都从缓存来。
 - **CDN 预取**：CDN 边缘节点第一次被请求时回源（2026-09-26 实测五档 135 个分片几乎全是 `x-qnm-cache: Miss`，TTFB 0.33–0.48s；第二次请求变 `Hit`）。换片子上传后，用片子目录的 `node scripts/qiniu-promo.mjs prefetch` 让七牛预取两个 master、每档播放列表、初始化段与前 3 个分片和封面（44 个地址，七牛每天限额 100）。实测预取任务成功后边缘节点第一次请求仍是 `Miss`（七牛预取的是上层缓存），TTFB 降到 0.25–0.33s，改善有限；弱网能播主要靠低档位与缓冲。
 - **CSP 与防盗链**：宿主 nginx 的站点策略 `media-src` 与 `connect-src` 放行 `https://cdn.crosery.com`（见 [DEPLOY](../../ops/DEPLOY.md)）；CDN 按 Referer 只放行本站域名、`localhost` 与空 Referer，**本机开发要用 `http://localhost:5173` 打开**，用 `127.0.0.1` 时 CDN 返回 403，播放层按「加载失败」直接放行到信纸。

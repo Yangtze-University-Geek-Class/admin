@@ -7,6 +7,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { JSDOM } from 'jsdom';
 import { buildForumCsp, inlineScriptHashes, siteCsp, withScriptHashes } from '../../app/forum/scripts/csp-header.mjs';
 import { ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY } from '../../app/server/src/app';
 
@@ -47,8 +48,28 @@ describe('forum CSP script', () => {
   it('fails instead of guessing when it cannot read every script exactly', () => {
     expect(() => inlineScriptHashes('<script>a()</script><script>b()')).toThrow(/2 个 <script> 开始标签，只认出 1 段/);
     expect(() => inlineScriptHashes('<script>a()\r\nb()</script>')).toThrow(/CR/);
-    expect(() => inlineScriptHashes('<script data-x="a>b">a()</script>')).toThrow(/认不准/);
+    expect(() => inlineScriptHashes('<script data-x="a>b>a()</script>')).toThrow(/只认出 0 段/);
     expect(inlineScriptHashes('<script/>a()</script>')).toEqual([sha('a()')]);
+  });
+
+  it.each([
+    `<script a='"' b="x>y">run()</script>`,
+    `<script data-x="it's">run()</script>`,
+    '<script data-x="a>b">run()</script>',
+    '<script/src="x.js"></script>',
+    '<script/type="application/json">{}</script>',
+  ])('matches the HTML parser for quoted and slash-separated attributes: %s', (html) => {
+    // jsdom 使用 parse5；只解析虚构 HTML，不执行脚本或加载外部资源。
+    const dom = new JSDOM(html);
+    try {
+      const scripts = [...dom.window.document.querySelectorAll('script')];
+      const expected = scripts
+        .filter(script => !script.hasAttribute('src') && !['application/json', 'application/ld+json'].includes(script.type.toLowerCase()))
+        .map(script => sha(script.textContent ?? ''));
+      expect(inlineScriptHashes(html)).toEqual(expected);
+    } finally {
+      dom.window.close();
+    }
   });
 
   it('reads the site policy from each host template and keeps both templates on the same policy', () => {
@@ -267,5 +288,6 @@ describe.skipIf(!nginxBinary)('forum CSP through host → web → forum (live ng
   it('never drops the site policy outside the forum, even when an upstream sends its own', async () => {
     // 两份同时下发，浏览器取交集，只会比站点策略更严。
     expect(await cspOf('/api/anything')).toBe(`${UPSTREAM_CSP}, ${siteCsp(hostConf('preview'))}`);
+    expect(await rawCspOf('/forum/../api/anything')).toBe(`${UPSTREAM_CSP}, ${siteCsp(hostConf('preview'))}`);
   });
 });

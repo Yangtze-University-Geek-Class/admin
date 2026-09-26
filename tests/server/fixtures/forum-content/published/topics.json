@@ -1,0 +1,17 @@
+{
+  "$comment": "测试夹具：形状同 app/forum/content/published/topics.json（schemaVersion 1），内容是虚构的。",
+  "schemaVersion": 1,
+  "source": "fixture",
+  "capturedAt": "2026-09-01T00:00:00Z",
+  "author": { "id": "u-geekclass", "username": "geekclass", "displayName": "极客班", "bio": "夹具官方账号", "avatarColor": "#2f6fed", "role": "admin" },
+  "topics": [
+    {
+      "id": "t73", "slug": "topic-73", "title": "夹具旧帖一", "categoryId": "c-exam", "tagIds": ["tag-grade25"], "pinned": true,
+      "createdAt": 1700000000000, "lastActivityAt": 1700000000000, "views": 12, "content": "# 夹具旧帖一\n\n见 [夹具旧帖二](./t9)。"
+    },
+    {
+      "id": "t9", "slug": "topic-9", "title": "夹具旧帖二", "categoryId": "c-exam", "tagIds": [], "pinned": false,
+      "createdAt": 1690000000000, "lastActivityAt": 1690000000000, "views": 3, "content": "夹具旧帖二的正文。"
+    }
+  ]
+}

@@ -110,6 +110,27 @@ export function clock(seconds: number): string {
 }
 
 /**
+ * 分包加载失败后还能重来的 import（#110）。浏览器按 HTML 规范记住加载失败的模块地址（Chrome、Firefox 如此），
+ * 同一个地址再 import 不发请求、直接失败（桌面预取时断网失败也会记下），只有换个地址才会重新下载。
+ * loads 第一个是原来的 import（Vite 靠它分包、预取），后面是同一模块带 ?retry=n 的写死地址：Vite 把每个都打成文件名不同的分包。
+ * 每次调用用当前这个地址；失败了下次换下一个，用完了就一直用最后一个（刷新页面后浏览器才忘掉失败）。
+ * 原地址失败时马上换下一个再试一次：它可能早在预取时就失败了，现在网络已经好了。
+ * 边界检查不许非字面量 import、CSP 不许 eval，所以只能是有限个写死的地址。
+ */
+export function retryableImport<T>(loads: readonly [() => Promise<T>, ...(() => Promise<T>)[]]): () => Promise<T> {
+  let index = 0;
+  const attempt = async () => {
+    try {
+      return await loads[index]();
+    } catch (error) {
+      if (index < loads.length - 1) index += 1;
+      throw error;
+    }
+  };
+  return () => (index === 0 ? attempt().catch(() => attempt()) : attempt());
+}
+
+/**
  * 预热：先和 CDN 握手（preconnect，按 hls.js 的跨域请求带 crossorigin），并让调用方预取播放器分包。
  * 桌面出现、而这个浏览器还没看过宣传片时调用：接下来多半会点「加入我们」，省掉 DNS 与 TLS 的几次往返。
  */
