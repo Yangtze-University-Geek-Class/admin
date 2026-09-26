@@ -126,3 +126,9 @@
 - 做了什么：初审 39e528e（25 条问题都经反证核实，汇总成 7 项应修和 11 条建议，PR 评论 issuecomment-5848366660，结论修改后合并）；复查 39e528e..583e9e4：合并提交 e316c45 只放冲突块（merge-tree 对照，冲突只在 ADOPTION.json 与 PostCard.vue），b49baf2 修 fromEditor；7 项应修逐条读代码路径并重做三条不改就失败的检查（被拒回复草稿、按件退回、发送中卡片）；ADOPTION.json、README、ADR-0004、执行记录与 PR 标题正文核对属实；复查留下 4 条建议，其中 3 条已在上一条返工里处理，另一条（返工代码提交没带执行记录）只作以后的提醒
 - 结果：583e9e4 上 pnpm verify exit 0（根 52 files / 708 tests，论坛 29 files / 515 tests，Prerendered 61 routes）；push 运行全绿，PR 运行只缺本条审查记录；赞、书签、关注仍是切换接口和写请求没有超时另开 #158，记录版本合并与逐字段校验另开 #159。未验证：浏览器里的「发送中」与被拒回复重开、#154 的三份 CDP 脚本、预发布、真实 Turnstile 与 429，放到 rc 验收
 - 下一步：推送，CI 全绿后合并 PR #157，确认 #145 关闭、分支和工作区清掉，然后打 rc 部署到预发布逐项验收论坛交互
+
+## 02:55:45 +08:00 · 收尾 · #145 · PR #157 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 145：删 worktree .claude/worktrees/task-145 与本地分支 task/145/forum_write_delta
+- 结果：PR #157 已合并（7473a2d），issue 已关闭。脚本当时没查到 PR，自动写成了「issue 已关闭，没有 PR（放弃）」；03:50 用 `gh pr list --head task/145/forum_write_delta --state all` 复查是 MERGED，按实际改正

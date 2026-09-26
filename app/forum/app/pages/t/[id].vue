@@ -124,21 +124,22 @@ async function onSubmitted(postId: string) {
 }
 
 // The topic changes before the call returns (#145); a refusal puts it back
-// with its own toast.
-function togglePinned() {
+// with its own toast. The success toast waits for the server (#162) and
+// names what it settled on, which after quick clicks may be where it began.
+async function togglePinned() {
   const current = topic.value
   if (!current || !can('pinTopic', { topic: current }))
     return
-  void actions.setPinned(current.id, !current.pinned)
-  toast({ title: current.pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
+  if (await actions.setPinned(current.id, !current.pinned))
+    toast({ id: `forum-pinned:${current.id}`, title: (forum.topicById(current.id) ?? current).pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
 }
 
-function toggleClosed() {
+async function toggleClosed() {
   const current = topic.value
   if (!current || !can('closeTopic', { topic: current }))
     return
-  void actions.setClosed(current.id, !current.closed)
-  toast({ title: current.closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
+  if (await actions.setClosed(current.id, !current.closed))
+    toast({ id: `forum-closed:${current.id}`, title: (forum.topicById(current.id) ?? current).closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
 }
 
 // One view per topic per browser session, so re-reading a thread in the same
