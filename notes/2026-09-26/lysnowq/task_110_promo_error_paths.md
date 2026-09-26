@@ -64,3 +64,10 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：promo.css 播放层焦点规则加 border-radius:999px；portal-promo-player 新增卸载后 detectCapabilities 才 reject 不调 onClose；生产构建 + localhost 预览截图：1440×900 Esc 键帽、390×844 触屏无键帽、1440×900 Tab 焦点环
 - 结果：去掉外层 catch 的 cancelled 判断时新用例失败；三份宣传片测试 36 passed，app/web tsc 0；计算样式：桌面键帽 display block 半透明白底，触屏（hover:none）display none，焦点 solid 白 2px、border-radius 999px
+
+## 20:33:21 +08:00 · 审查 · #110 · PR #120 第三轮独立审查与验收截图：通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 20:29 指示由 crosery 这边接手后续改动与合并。第三轮：Claude（crosery 这边的独立审查代理）20:21 审 939243a（范围 fe52e0b..939243a），两条建议已处理、变异被抓到、CI 全过，唯一条件是三张截图；所有者 20:22 把截图交给 crosery 这边，20:30 在 ego 里对 939243a 的生产构建补拍桌面键帽、触屏无键帽、Tab 焦点环三张，贴到 PR 评论 5846282505 并放进正文「验收证据」，看图复核三点都成立
+- 结果：结论：通过；未验证真机、Firefox、Safari
+- 下一步：crosery 这边核对 CI 后合并
