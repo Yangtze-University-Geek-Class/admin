@@ -2,7 +2,7 @@
 
 > PR 是一次改动的证据档：写清解决链路、验证结果、可以直接照着做的人工验收步骤和截图录屏；审查与返工写成评论，合并后 issue 自动关闭。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-26
 
 ## 目标分支
 
@@ -29,7 +29,7 @@ MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，�
 ## 评论与生命周期
 
 - 审查意见、返工、人工验收结果写成评论，格式统一用 [TRACKING](TRACKING.md) §3 的追踪记录（`review` / `rework` / `accept`），不改写已发出的评论。
-- 合并进 `stage` 后：`branch-hygiene` 删除 task 分支，`issue-lifecycle` 关闭 issue 并在 issue 与 PR 上各留一条「关闭」记录。工作流失败时合并的人当场手工补齐。
+- 合并进 `stage` 后：它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理（[ISSUES](ISSUES.md) §1）。`branch-hygiene` 删除 task 分支，`issue-lifecycle` 关闭 issue 并在 issue 与 PR 上各留一条「关闭」记录。自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工补齐，按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
 - 已合并的 PR 不再追加提交；验收发现的新问题开新 issue，`Refs #<原 issue>`。
 
 ## 审查要求

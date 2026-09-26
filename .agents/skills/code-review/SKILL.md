@@ -62,7 +62,7 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 4. **`.env` 只允许非密值**：`deploy/env/.env.production`、`deploy/env/.env.preview` 里只许出现地址、端口、域名、路径、开关；密钥字段必须留空。字段增删要同步 `docs/ops/ENVIRONMENTS.md` 与 `deploy/environments.json`。
 5. **Dockerfile 与 compose**：`dockerfile:` 是否仍指向 `app/<service>/Dockerfile`、构建上下文是否仍是仓库根、镜像 tag 语义（`<sha12>`）是否被改、镜像仓库是否仍按环境分开（`yzgc-preview/*` 与 `yzgc-production/*`）、健康检查是否还在、命名卷有没有被换成宿主目录。
 6. **端口与卷隔离**：宿主回环 production `127.0.0.1:18100`(web)/`18101`(server 调试)、preview `18200`/`18201`，不得与宿主已占用端口（443/2568/3000/8080/8787）冲突；容器内 web 8080、server/forum 3000；两栈命名卷不得共享，也不得把命名卷换成宿主目录。
-7. **测试与文档同步**：看真实验证证据（命令 + 输出），不是「本地通过」四个字；改动的 API、环境变量、命令、路径是否同步到 `docs/services/**`、`docs/architecture/API.md`、`docs/ops/ENVIRONMENTS.md`、根 `README.md`；`node scripts/docs-index.mjs --check` 与 `node scripts/check-docs.mjs` 是否通过。
+7. **测试与文档同步**：看真实验证证据（命令 + 输出），不是「本地通过」四个字；改动的 API、环境变量、命令、路径是否同步到 `docs/services/**`、`docs/architecture/API.md`、`docs/ops/ENVIRONMENTS.md`、根 `README.md`；`node scripts/docs-index.mjs --check` 与 `node scripts/check-docs.mjs` 是否通过。文档跟着模块改：`node scripts/check-doc-sync.mjs --base origin/stage --head <task 分支>` 是否通过；PR 里的文档改动是否真的对应模块的改动（只改「更新：」日期的不算），执行记录里的 `文档核对：<文档路径> 不用改——<理由>` 对照 diff 是否属实（规则在 `docs/README.md`「文档跟着模块改」）。
 8. **边界规则**：`pnpm check:boundaries`；`app/` 与 `docs/` 严格对齐（新增服务必须同时有 `docs/services/<svc>/README.md`）；站点互导、shared → 站点、路由模块互导、`lib` 反向依赖 `middleware`、论坛导入核心 React/Fastify 实现都是禁止方向。
 9. **提交信息规范**：按 `docs/conventions/COMMITS.md` 的 `<type>(<scope>): <中文简述>` 检查 `git log`；一次提交一个可独立回滚的目的，不出现 `update`/`WIP`。
 10. **旧模型残留**：在 diff 里扫 `next`、`feat/`/`fix/` 分支名、`release-*`/`prev-*` tag、「push `stage`/`main` 即部署」、systemd、`/opt/yzgc-admin`、宿主 3000 端口是否被当成现行模型（历史章节内须显式标注历史）。发布 tag 只能是 `vX.Y.Z-rc.N` / `vX.Y.Z`，部署只由它们触发（`docs/conventions/RELEASES.md`）。
@@ -70,6 +70,7 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 12. **绕过 CI**：diff 里出现 `|| true`、`continue-on-error`、`[skip ci]`、删断言、改校验器、放宽既有校验收绿色即阻塞。
 13. **危险操作**：数据库/数据目录变更是否有兼容与恢复路径，是否有删除数据、覆盖配置、顺带升级无关依赖、修改生产凭据，或「以测试通过代替人工验收」的表述。
 14. **执行记录**：`node scripts/note.mjs check --pr --for-review --base origin/stage --head <task 分支>` 必须通过；再打开 `notes/<日期>/<用户名>/<链路>.md` 对照 `git log`、PR 和 CI 运行号，核对记录的 SHA、命令输出、时间与实际一致，没有补写没发生过的事（`docs/conventions/NOTES.md`）。审查中允许暂缺「审查」记录，审查给出结论后由作者补记，CI 恢复全绿后方可合并。
+15. **合并后清理**（合并之后由合并的人当场跑，所有者 2026-09-26 定的强制规范）：先等这次合并触发的工作流跑完，`gh run list --workflow issue-lifecycle.yml --branch <task 分支> --limit 1` 与 `gh run list --workflow branch-hygiene.yml --branch <task 分支> --limit 1` 都是 `completed`；再查 `gh issue view <issue> --json state` 必须是 `CLOSED`；`git ls-remote --heads origin 'task/<issue>/*'` 必须没有输出；只读运行 `node scripts/issue-sweep.mjs`，报告里不能有「将补关」（合并不到一小时的 PR 它先不管，刚合并时以 `gh issue view` 为准）；开发者本机 `node scripts/task.mjs list --check` 必须通过。只有工作流失败、issue 还开着时（例如 fork PR 合并时工作流没有写权限，#137）才当场手工关，工作流还在跑时不手工关，免得留两条「关闭」；手工关的按 `docs/conventions/TRACKING.md` §3 留「关闭」记录（`docs/conventions/CODE-REVIEW.md` 第 12 项）。
 
 ## 输出格式
 

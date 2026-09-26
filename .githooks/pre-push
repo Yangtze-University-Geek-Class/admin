@@ -14,14 +14,18 @@
 #        X.Y.Z 必须等于该提交 package.json 的 version；格式不对的 v 开头 tag 一律拒绝
 #        删除或移动（force）发布 tag 一律拒绝；其它 tag 只告警，不参与发版
 #   本钩子只做推送前的本地拦截，不会替你创建 tag，也不代表发版已获授权。
+#   *  task worktree 生命周期（docs/conventions/BRANCHING.md「task worktree」）：
+#        本机有 PR 已合并、或 issue 已关闭（放弃）却还没 node scripts/task.mjs finish 的 worktree → 拒绝，
+#        提示清理命令。这一项用 gh 只读查询 GitHub；gh 没装、没登录、离线或超时只警告，不拦。
 #
 # 启用方式（每台克隆各做一次，写入本仓库的 .git/config，不影响其它仓库）：
 #   git config core.hooksPath .githooks
 # 停用：git config --unset core.hooksPath
 # 临时跳过单次检查：git push --no-verify（CI 仍会独立重判，跳过本地钩子省不掉远端门禁）
 #
-# 本钩子只读本地 Git 证据，不 fetch、不改 refs、不联网。git 自己会把
-# 「<local ref> <local sha> <remote ref> <remote sha>」逐行写到本脚本的 stdin。
+# 分支与 tag 规则只读本地 Git 证据，不 fetch、不改 refs；worktree 检查只用 gh 读 issue 与 PR 的状态，
+# 不改 GitHub 上的任何东西。git 自己会把「<local ref> <local sha> <remote ref> <remote sha>」
+# 逐行写到本脚本的 stdin。
 
 set -eu
 
@@ -40,12 +44,20 @@ if ! command -v "$node_bin" >/dev/null 2>&1; then
 fi
 
 # 不吞掉 stdin：把它原样交给校验脚本，由脚本逐行解析。
-if "$node_bin" "$script" --push --repo "$repo_root"; then
-  exit 0
+if ! "$node_bin" "$script" --push --repo "$repo_root"; then
+  echo "" >&2
+  echo "pre-push: 分支或发布 tag 规则未通过，推送已被本地钩子拒绝。" >&2
+  echo "  启用/停用方式：git config core.hooksPath .githooks / git config --unset core.hooksPath" >&2
+  echo "  提交前请先读 docs/conventions/BRANCHING.md 的分支模型与 docs/conventions/RELEASES.md 的发布 tag 规则。" >&2
+  exit 1
 fi
 
-echo "" >&2
-echo "pre-push: 分支或发布 tag 规则未通过，推送已被本地钩子拒绝。" >&2
-echo "  启用/停用方式：git config core.hooksPath .githooks / git config --unset core.hooksPath" >&2
-echo "  提交前请先读 docs/conventions/BRANCHING.md 的分支模型与 docs/conventions/RELEASES.md 的发布 tag 规则。" >&2
-exit 1
+# task worktree：该清理的没清理就不许推（stdin 已经被上一步读完，这里不再需要）。
+task_script="$repo_root/scripts/task.mjs"
+if [ -f "$task_script" ] && ! "$node_bin" "$task_script" list --check </dev/null; then
+  echo "" >&2
+  echo "pre-push: 本机有该清理的 task worktree，推送已被本地钩子拒绝；按上面的命令清理后再推。" >&2
+  echo "  规则见 docs/conventions/BRANCHING.md「task worktree」与 docs/conventions/TRACKING.md §1。" >&2
+  exit 1
+fi
+exit 0

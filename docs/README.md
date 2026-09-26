@@ -20,7 +20,35 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | `docs/`（本文档树） | [INDEX](INDEX.md)（生成物） | [DOCUMENTATION](conventions/DOCUMENTATION.md) |
 | `scripts/`、`tests/` | [TESTING](conventions/TESTING.md) · [ops/CICD](ops/CICD.md) | [CONTRIBUTING](conventions/CONTRIBUTING.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md) |
 
-**硬规则**：新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md`，两处缺一视为未完成；模块细节放同目录子文档（见 [MODULAR-DEVELOPMENT](conventions/MODULAR-DEVELOPMENT.md) 与 [DOCUMENTATION](conventions/DOCUMENTATION.md)）。`docs/modules/` 已删除，不再重建。
+**硬规则**：新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md` + 下一节对照表里加一行，缺一视为未完成；模块细节放同目录子文档（见 [MODULAR-DEVELOPMENT](conventions/MODULAR-DEVELOPMENT.md) 与 [DOCUMENTATION](conventions/DOCUMENTATION.md)）。`docs/modules/` 已删除，不再重建。
+
+## 文档跟着模块改
+
+模块改了，对应的文档要在同一个 PR 里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并：
+
+| 模块路径 | 文档路径 | 头部「更新：」 |
+|---|---|---|
+| `app/server/` | `docs/services/server/` | `docs/services/server/README.md` |
+| `app/web/` | `docs/services/web/` | `docs/services/web/README.md` |
+| `app/console/` | `docs/services/console/` | `docs/services/console/README.md` |
+| `app/forum/` | `docs/services/forum/` | `docs/services/forum/README.md` |
+| `deploy/` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` |
+| `.github/workflows/` | `docs/ops/CICD.md` | `docs/ops/CICD.md` |
+
+检查分两种，按所在分支自动选：
+
+1. 在 `task/*` 分支上按 PR 核对（本机的 `pnpm check` 对 `origin/stage`，没有就对本地 `stage`；CI 的 `branch-guard` 用 `--base origin/stage --head <task 分支>`）：从 merge-base 到现在，动了模块路径，就要改对应文档路径里的说明，或者在这个 task 的执行记录里写文档核对（见下文）。已提交、没提交、没跟踪的新文件都算；文档只改了「更新：」日期、空白或空行不算改了说明（比较时忽略所有空白和空行，日期那一行顺手加的空格也不算）。PR 里先改文档、后面返工代码不要紧，只看整个 PR。另外在 merge-base 上按第 2 条核对一次，`stage` 本来就不同步的照样报出来，并写明不是这条分支造成的；这条分支改了那份文档的说明或写了文档核对，就算在顺手修，不再报。找不到 `origin/stage` 和 `stage` 时退回第 2 条并提示先 `git fetch origin stage`。
+2. 在其它分支上（`stage`、`main`、`dev/*`、CI 给 PR 做的合并提交）按第一父链的时间核对：模块路径在第一父链上最后一次改动（`git log -1 --first-parent --format=%ct -- <路径>`）不能比文档路径新。PR 以 merge commit 进 `stage`，合并提交同时带来模块和文档（或文档核对），两边时间相同就通过。工作区里还没提交的改动（含没跟踪的新文件）算作「现在」。这条依赖「PR 只用 merge commit 进 `stage`」（[BRANCHING](conventions/BRANCHING.md)）：rebase 合并会把 PR 的提交逐个接到第一父链上，模块提交排在文档提交后面就不通过。
+
+两种都要满足：
+
+3. 第三列文档开头的「更新：」日期不能早于模块最后一次改动（不算合并提交）的作者时间的北京日期；一行写了几份文档时，看其中最新的那个日期。用作者时间，是为了零点前写好、零点后才合进 `stage` 的提交不被判成过期。工作区里有没提交的模块改动时按今天算。写了文档核对也要满足这一条。「更新：」只是时间戳：几个 PR 同一天改成同一个日期，合并时不冲突；不同日期改了同一行，解冲突时留较晚的日期。
+4. 要有完整历史：浅克隆直接报错，不会当作通过。CI 的检出写 `fetch-depth: 0`；本机遇到时运行 `git fetch --unshallow`。
+5. `app/` 下每个服务目录（Git 跟踪的或没被忽略的新目录）都要在表里，表里写的路径都要存在。不设排除项：`app/` 里的测试、脚本、Dockerfile、锁文件改了，也要回头看服务文档里对应的源码地图、验证命令、镜像说明还对不对。
+
+不通过时，报错会写出是哪一对、是哪个提交或哪些文件。先 `git show <提交>` 看改了什么，把文档里对应的说明改对，再把「更新：」改成当天。
+
+模块改了、文档里写的事实却一个都没变（只改测试、重构、审查后的返工），就在这个 task 自己的执行记录（`notes/<日期>/<用户名>/task_<issue>_<slug>.md`，[NOTES](conventions/NOTES.md)）里写一行文档核对，格式是 `文档核对：<文档路径> 不用改——<理由>`，文档路径照抄上表第二列（例 `文档核对：docs/services/server/ 不用改——只加了 roles.ts 的回归测试，接口和表都没变`），可以写在 `node scripts/note.mjs add` 的「做了什么」或「结果」里。照抄模板里的 `<理由>`（后面带个句号也一样）、理由只有标点或看不见的零宽字符的，检查不算。执行记录文件只有这个 PR 会改，不像共享的文档行那样让并行的 PR 互相冲突。文档核对是真实的核对记录，审查人对照 diff 看理由属不属实。只改「更新：」日期、既不改说明也不写文档核对，检查不通过；理由写得不实，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下。实现在 `scripts/check-doc-sync.mjs`，测试在 `tests/tooling/doc-sync.test.ts`。
 
 ## 阅读地图
 
