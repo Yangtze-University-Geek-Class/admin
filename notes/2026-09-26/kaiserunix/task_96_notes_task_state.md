@@ -56,3 +56,17 @@
 - 做了什么：隔离 Linux 副本继承现有代理完成 frozen 依赖安装；Node22/pnpm9 从根执行未经修改的 pnpm verify，由根入口调用 Node26/pnpm11；核对 2015 个跟踪路径（两处技能目录链接单列）
 - 结果：pnpm verify 退出 0；核心 43 files/493 tests passed，论坛 15 files/240 tests passed，检查及所有构建通过；与工作区跟踪文本归一行尾后零差异；原始日志保存 full-verify-01
 - 下一步：按用户要求将本补丁提交到 task 分支、推送并开 PR 运行 CI
+
+## 19:58:47 +08:00 · 提交 · #96 · 提交最小修复及回归
+
+- 执行者：agent-codex-admin-8396
+- 做了什么：提交已审阅的实现、回归、契约和实际执行记录
+- 结果：git commit 成功，SHA=39d6e11e2f494051f333314deccc0b2a98201f0c；提交前 Linux 完整 pnpm verify 通过
+- 下一步：推送本任务分支并建立 PR 到 stage 运行 CI
+
+## 20:03:53 +08:00 · 推送 · #96 · 上游推送被拒，获准改走个人 fork
+
+- 执行者：agent-codex-admin-8396
+- 做了什么：尝试向 origin 推送任务分支；回读仓库权限；用户明确允许 fork 后创建 Kaiserunix/admin 并核对 parent
+- 结果：origin 推送 403，Kaiserunix 对上游 push=false；fork 已创建，parent=Yangtze-University-Geek-Class/admin，viewerPermission=ADMIN；未修改上游 refs
+- 下一步：推送 fork 并向上游 stage 开 PR
