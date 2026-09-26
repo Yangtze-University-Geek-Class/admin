@@ -26,3 +26,10 @@
 - 做了什么：本机限速 300 ms RTT、60 KB/s 用 ego-browser 量改后：点击到页面变化 0–103 ms（发话题仍等服务端 356 ms），写入回答 0.7–1.0KB（点赞带回整条帖子 14KB）；截了桌面与手机的回复截图；开 #156 跟进首屏正文；开 PR #157 到 stage
 - 结果：github.com 从本机连不上（curl 与浏览器都超时），截图还没传上去，pr-contract 的验收证据一项暂时不过；其余本地检查通过
 - 下一步：网络恢复后在 GitHub 编辑框上传 4 张截图补进 PR，等独立审查
+
+## 00:39:26 +08:00 · PR · #145 · PR #157 补上回复截图
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：github.com 恢复后在 ego-browser 里借 PR 的评论框上传 4 张截图（桌面 1280×800、手机 390×844 各两张：回复发出后编号仍是 pending:1 时与服务端确认后），取到 user-attachments 链接后清空评论框，没有发评论；链接写进 PR 的验收证据；TaskSpace 已 finish
+- 结果：pr-contract 本地检查通过；CI 的 core、forum、docker、env-contract、lint-workflows 通过，branch-guard 只差「审查」记录
+- 下一步：等独立审查
