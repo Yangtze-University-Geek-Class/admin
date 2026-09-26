@@ -198,7 +198,7 @@ function waiversSince(root, mergeBase, branch) {
 
 /**
  * 从 merge-base 到工作区，文档路径是怎么改的："none" 没改；"date" 只改了「更新：」日期（或者只动了空白与空行）；"content" 改了说明。
- * 只改日期不算同步：说明没变时要写文档核对。比较时忽略空白与空行（-w --ignore-blank-lines），行尾加个空格不算改了说明。
+ * 只改日期不算同步：说明没变时要写文档核对。比较时忽略空白与空行（-w --ignore-blank-lines，逐行再去掉空白、丢掉空行），行尾加个空格不算改了说明。
  */
 function docChange(root, mergeBase, pair) {
   const files = touchedSince(root, mergeBase, pair.docs);
@@ -206,7 +206,8 @@ function docChange(root, mergeBase, pair) {
   const untracked = git(root, ["ls-files", "--others", "--exclude-standard", "--", ...pair.docs]).trim();
   if (untracked) return "content";
   const diff = git(root, ["diff", "--unified=0", "--no-color", "-w", "--ignore-blank-lines", mergeBase, "--", ...pair.docs]).split("\n");
-  const normalize = (lines) => lines.map((line) => line.slice(1).replace(/更新：\d{4}-\d{2}-\d{2}/g, "更新：")).sort();
+  // -w 只让 git 不把纯空白的改动算成一行变了；日期那一行顺手加的空格、紧挨日期行的空行会和日期落在同一块里，这里再去掉
+  const normalize = (lines) => lines.map((line) => line.slice(1).replace(/更新：\d{4}-\d{2}-\d{2}/g, "更新：").replace(/\s+/g, "")).filter(Boolean).sort();
   const removed = normalize(diff.filter((line) => line.startsWith("-") && !line.startsWith("---")));
   const added = normalize(diff.filter((line) => line.startsWith("+") && !line.startsWith("+++")));
   return removed.length === added.length && removed.every((line, i) => line === added[i]) ? "date" : "content";

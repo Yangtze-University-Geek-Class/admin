@@ -37,7 +37,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 
 检查分两种，按所在分支自动选：
 
-1. 在 `task/*` 分支上按 PR 核对（本机的 `pnpm check` 对 `origin/stage`，没有就对本地 `stage`；CI 的 `branch-guard` 用 `--base origin/stage --head <task 分支>`）：从 merge-base 到现在，动了模块路径，就要改对应文档路径里的说明，或者在这个 task 的执行记录里写文档核对（见下文）。已提交、没提交、没跟踪的新文件都算；文档只改了「更新：」日期、空白或空行不算改了说明（比较时用 `git diff -w --ignore-blank-lines`）。PR 里先改文档、后面返工代码不要紧，只看整个 PR。另外在 merge-base 上按第 2 条核对一次，`stage` 本来就不同步的照样报出来，并写明不是这条分支造成的；这条分支改了那份文档的说明或写了文档核对，就算在顺手修，不再报。找不到 `origin/stage` 和 `stage` 时退回第 2 条并提示先 `git fetch origin stage`。
+1. 在 `task/*` 分支上按 PR 核对（本机的 `pnpm check` 对 `origin/stage`，没有就对本地 `stage`；CI 的 `branch-guard` 用 `--base origin/stage --head <task 分支>`）：从 merge-base 到现在，动了模块路径，就要改对应文档路径里的说明，或者在这个 task 的执行记录里写文档核对（见下文）。已提交、没提交、没跟踪的新文件都算；文档只改了「更新：」日期、空白或空行不算改了说明（比较时忽略所有空白和空行，日期那一行顺手加的空格也不算）。PR 里先改文档、后面返工代码不要紧，只看整个 PR。另外在 merge-base 上按第 2 条核对一次，`stage` 本来就不同步的照样报出来，并写明不是这条分支造成的；这条分支改了那份文档的说明或写了文档核对，就算在顺手修，不再报。找不到 `origin/stage` 和 `stage` 时退回第 2 条并提示先 `git fetch origin stage`。
 2. 在其它分支上（`stage`、`main`、`dev/*`、CI 给 PR 做的合并提交）按第一父链的时间核对：模块路径在第一父链上最后一次改动（`git log -1 --first-parent --format=%ct -- <路径>`）不能比文档路径新。PR 以 merge commit 进 `stage`，合并提交同时带来模块和文档（或文档核对），两边时间相同就通过。工作区里还没提交的改动（含没跟踪的新文件）算作「现在」。这条依赖「PR 只用 merge commit 进 `stage`」（[BRANCHING](conventions/BRANCHING.md)）：rebase 合并会把 PR 的提交逐个接到第一父链上，模块提交排在文档提交后面就不通过。
 
 两种都要满足：

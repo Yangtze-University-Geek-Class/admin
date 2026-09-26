@@ -354,6 +354,18 @@ describe("文档核对：模块改了、文档里的事实没变", () => {
     expect(problems(root)).toEqual([]);
   });
 
+  it("按 PR：日期那一行顺手加了空格、紧挨日期行多了空行（--unified=0 下和日期同一块），也不算改了说明", () => {
+    for (const [branch, text] of [
+      ["task/9/date_space", doc("2026-09-26").replace("更新：2026-09-26", "更新：2026-09-26 ")],
+      ["task/9/date_blank", doc("2026-09-26").replace("更新：2026-09-26\n", "更新：2026-09-26\n\n")],
+    ]) {
+      const root = repo();
+      git(root, ["checkout", "-q", "-b", branch]);
+      commit(root, "2026-09-26T09:00:00+08:00", "refactor(svc): 重构，文档只改日期", { "app/svc/index.ts": "export const a = 1; // 重构\n", "docs/services/svc/README.md": text });
+      expect(problems(root)).toEqual([expect.stringContaining("这次的改动动了模块，文档只改了「更新：」日期或空白")]);
+    }
+  });
+
   it("写了文档核对，「更新：」也要跟上模块的日期", () => {
     const root = repo();
     git(root, ["checkout", "-q", "-b", "task/9/stale"]);
