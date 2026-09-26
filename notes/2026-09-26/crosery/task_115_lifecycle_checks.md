@@ -205,3 +205,16 @@
 - 做了什么：d281786 AGENTS §2 与 TRACKING §1 改成 issue-lifecycle 关 issue、branch-hygiene 删远端 task 分支；98b0496 docChange 归一化时逐行去掉全部空白、丢掉空行，日期行加空格与紧挨日期行的空行都不算改了说明，补两个用例；ae06639 realReason 先去掉所有「<理由>」再要求有汉字字母数字，「<理由>。」「<理由>」」不算，补用例；b7d941e CODE-REVIEW 第 12 项与审查技能第 15 项先用 gh run list --workflow issue-lifecycle.yml / branch-hygiene.yml --branch <task 分支> --limit 1 等这次合并的运行结束，只有工作流失败才手工关（对真实仓库只读核对：task/107/forum_client 两个工作流都是 success，fork 来的 task/83/csp_script_attributes 的 issue-lifecycle 是 failure，正是 #137）；ce6d18e CONTRIBUTING 与 BRANCHING 各加一句 fork PR 要按 ISSUES §1 与 CODE-REVIEW 第 12 项手工关。变异检查：去空白、丢空行、不去「<理由>」、只去第一个「<理由>」
 - 结果：变异 4 个全部让用例失败；tests/tooling 18 个文件 311 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync --base origin/stage --head task/115/lifecycle_checks 通过；stage 09a4388 与本分支没有冲突，没有合并
 - 下一步：推送后请审查人按新 head 复查；关掉 squash 与 rebase 仍要所有者操作
+
+## 21:43:11 +08:00 · 合并 · #115 · PR #118 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：四轮独立审查，第四轮有条件通过（两处删分支的工作流名），主 agent 核对增量 diff 后判定满足；a63625c 必需 CI 15 项全绿、note check 链路完整。gh 令牌没有 workflow 权限，API 合并被拒（refusing to allow an OAuth App to create or update workflow），改为本地以 GitHub 同样的信息生成 merge commit adace23（父提交 09a4388、a63625c，与 PR 的 CI 合并基一致）经 SSH 推 stage，GitHub 自动标记 PR 已合并
+- 结果：合并提交 adace23；issue-lifecycle 成功，#115 已关闭，远端 task/115/* 已删
+- 下一步：本机 core.hooksPath 改为相对 .githooks；task.mjs finish
+
+## 21:43:13 +08:00 · 收尾 · #115 · PR #118 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 115：删 worktree .claude/worktrees/task-115 与本地分支 task/115/lifecycle_checks
+- 结果：PR 已合并

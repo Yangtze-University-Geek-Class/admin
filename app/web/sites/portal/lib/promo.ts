@@ -13,7 +13,6 @@ export const PROMO = {
   /** 用 1080p 档的编码串判断能不能解 AV1（720p 档的等级更低，能解 1080p 就能解 720p） */
   av1Codec: 'video/mp4; codecs="av01.0.08M.10, mp4a.40.2"',
   h264Codec: 'video/mp4; codecs="avc1.640029, mp4a.40.2"',
-  seconds: 105,
 } as const;
 
 /** 首次点「加入我们」自动播过一次之后写这个 cookie：host-only（不写 Domain）、只有一个 1，不带任何个人信息。 */
@@ -101,12 +100,6 @@ export function startEstimate(env: { downlinkMbps?: number; saveData?: boolean; 
 export function browserEstimate(touch: boolean): number {
   const connection = (navigator as Navigator & { connection?: { downlink?: number; saveData?: boolean } }).connection;
   return startEstimate({ downlinkMbps: connection?.downlink, saveData: connection?.saveData, touch });
-}
-
-/** 进度文案：1:05 / 1:45 */
-export function clock(seconds: number): string {
-  const s = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /**

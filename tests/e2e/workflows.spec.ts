@@ -81,6 +81,8 @@ test("the promo can be skipped on the first visit and does not autoplay again", 
   const promo = page.getByRole("dialog", { name: "极客班宣传片" });
   await expect(promo).toBeVisible();
   await expect(page.getByRole("button", { name: /跳过/ })).toBeFocused();
+  // 画面上只有「跳过」一个按钮：没有播放 / 暂停、进度、音量、「打开声音」（#142）
+  await expect(promo.getByRole("button")).toHaveCount(1);
   await page.getByRole("button", { name: /跳过/ }).click();
   await expect(promo).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "致 长江大学极客班：" })).toBeVisible({ timeout: 15_000 });

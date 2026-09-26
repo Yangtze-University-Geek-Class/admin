@@ -28,3 +28,16 @@
 - 做了什么：Claude（独立审查代理）22:03 审 e89a901（范围 adace23..e89a901）：nginx 语义对照实跑，本机三层 nginx 用真实论坛产物跑，修复后 /forum 308 到相对 /forum/，/forum/users、/forum/about 带不带斜杠都 200 且同一份页面与 CSP，缺失资源仍 404，md 与 llms.txt 类型不变；旧配置复现 issue；四处修复各自去掉都有用例失败，另两个只能实跑发现的变异也被抓到；文档、doc-sync、docs-index、3558e4f 的暂存记录、ea0aa2c 的冲突解法都核对过
 - 结果：结论：通过；两条建议（proxy_redirect 对已带前缀的 Location 会重复加前缀但现在没有来源、/forum 的 308 丢查询串，改动前就如此）不挡合并
 - 下一步：推送，CI 全绿后合并，打 rc.9
+
+## 22:08:18 +08:00 · 合并 · #140 · PR #141 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：第一轮独立审查通过（22:03，e89a901），补审查记录 e8b41f8 后两组 CI 全绿（含三个镜像构建）；以 merge commit 合入
+- 结果：合并提交 c8e7648，PR #141 已合并
+- 下一步：stage CI 通过后打 v0.1.0-rc.9 上预发布，curl 与 ego 复查 /forum、/forum/users 直接打开与刷新
+
+## 22:08:28 +08:00 · 收尾 · #140 · PR #141 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 140：删 worktree .claude/worktrees/task-140 与本地分支 task/140/forum_redirects
+- 结果：PR 已合并

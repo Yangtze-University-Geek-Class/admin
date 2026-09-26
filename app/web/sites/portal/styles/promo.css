@@ -1,6 +1,6 @@
-/* 宣传片播放层（components/PromoPlayer.tsx）：画面按 16:9 放进屏幕，控件叠在画面里，像游戏过场一样没有上下两条带。
-   画面外的空白是画面本身缩成 32×18 再放大模糊的颜色（.pt-promo-ambient）；手机竖着拿时整个画面转 90 度横过来铺满。
-   只用官网令牌；触控目标 ≥44px；减少动态效果时不做淡入淡出、不转加载圈。
+/* 宣传片播放层（components/PromoPlayer.tsx）：画面按 16:9 放进屏幕，没有上下两条带；画面上只有右上角的「跳过 / 关闭」（#142），
+   加载、缓冲、停下时中间一条不挡点击的提示。画面外的空白是画面本身缩成 32×18 再放大模糊的颜色（.pt-promo-ambient）；
+   手机竖着拿时整个画面转 90 度横过来铺满。只用官网令牌；触控目标 ≥44px；减少动态效果时不做淡入、不转加载圈。
    播放层挂在变 inert 的页面外面，自己带 .pt-root 拿到令牌；两个类连写，压过 .pt-root 的 position 与底色。 */
 .pt-root.pt-promo {
   position: fixed; inset: 0; z-index: 70; min-height: 0; overflow: hidden;
@@ -33,35 +33,25 @@
 @supports (width: 1cqw) {
   .pt-promo-stage { width: min(100cqw, 100cqh * 16 / 9); max-height: none; }
 }
-.pt-promo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; cursor: pointer; }
+.pt-promo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 
-/* 叠在画面上的控件：半透明、带一点模糊，压在任何画面上都看得清 */
-.pt-promo-chip, .pt-promo-icon, .pt-promo-play {
+/* 叠在画面右上角的「跳过 / 关闭」：半透明、带一点模糊，压在任何画面上都看得清 */
+.pt-promo-chip {
+  position: absolute; top: 12px;
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  min-height: 44px; border: 1px solid rgb(255 255 255 / 26%); border-radius: 999px;
+  min-height: 44px; padding: 0 16px; border: 1px solid rgb(255 255 255 / 26%); border-radius: 999px;
   background: rgb(8 12 28 / 42%); color: #fff; font: inherit; font-size: 14px;
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
-  cursor: pointer; transition: background .15s, border-color .15s, opacity .3s;
+  cursor: pointer; transition: background .15s, border-color .15s;
 }
-.pt-promo-chip { position: absolute; top: 12px; padding: 0 16px; }
 .pt-promo-close { right: 12px; }
-.pt-promo-unmute { left: 12px; background: var(--pt-cobalt); border-color: transparent; }
-.pt-promo-unmute:hover { background: var(--pt-cobalt-deep); }
 /* 下面几条都挂在 .pt-promo 下：promo.css 跟官网主包加载（#110），排在 portal.css 前面，
    同优先级的 .pt-root kbd、.pt-root :focus-visible 会盖掉它们；多一层类名，不看加载顺序也稳赢 */
 .pt-promo .pt-promo-chip kbd { display: inline; padding: 1px 6px; border: 0; border-radius: 6px; background: rgb(255 255 255 / 16%); font: 11px var(--pt-mono); color: rgb(255 255 255 / 85%); }
-.pt-promo-icon { width: 44px; padding: 0; }
-.pt-promo-chip:hover, .pt-promo-icon:hover, .pt-promo-play:hover { background: rgb(8 12 28 / 62%); border-color: rgb(255 255 255 / 45%); }
+.pt-promo-chip:hover { background: rgb(8 12 28 / 62%); border-color: rgb(255 255 255 / 45%); }
 /* border-radius 也要写：.pt-root :focus-visible 带的 4px 圆角优先级更高，会把胶囊按钮聚焦时压成圆角矩形 */
-.pt-promo .pt-promo-chip:focus-visible, .pt-promo .pt-promo-icon:focus-visible, .pt-promo .pt-promo-play:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 999px; }
-
-.pt-promo-play {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  min-height: 56px; padding: 0 26px; font-size: 16px;
-  background: var(--pt-cobalt); border-color: transparent; box-shadow: var(--pt-shadow-float);
-}
-.pt-promo-play:hover { background: var(--pt-cobalt-deep); }
+.pt-promo .pt-promo-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 999px; }
 
 .pt-promo-status {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -73,23 +63,7 @@
 .pt-spin { animation: pt-promo-spin 1s linear infinite; }
 @keyframes pt-promo-spin { to { transform: rotate(1turn); } }
 
-/* 底部控件：画面内底边一层渐变，不是单独的一条带 */
-.pt-promo-bar {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 36px 14px 12px;
-  background: linear-gradient(transparent, rgb(0 0 0 / 50%));
-  transition: opacity .3s;
-}
-.pt-promo-track { flex: 1; min-width: 40px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 28%); overflow: hidden; }
-.pt-promo-track i { display: block; height: 100%; background: #fff; }
-.pt-promo-time { font: 13px var(--pt-mono); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; text-shadow: 0 1px 2px rgb(0 0 0 / 50%); }
-
-/* 播放中一会儿不动：底部控件淡出、指针隐藏；「跳过」「打开声音」一直在。键盘焦点在底部控件里时不淡出（焦点框要看得见） */
-.pt-promo.is-idle .pt-promo-bar:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
-.pt-promo.is-idle .pt-promo-video { cursor: none; }
-
-/* 手机竖着拿：画面框转 90 度，横过来铺满屏幕（控件跟着转）；横过手机后媒体查询不再命中，就是正常横屏。
+/* 手机竖着拿：画面框转 90 度，横过来铺满屏幕（「跳过」跟着转）；横过手机后媒体查询不再命中，就是正常横屏。
    平板（竖放宽度 ≥ 600px）不转：竖着的平板上 16:9 的片子本来就够大 */
 @media (orientation: portrait) and (pointer: coarse) and (max-width: 600px) {
   .pt-promo-frame {
@@ -101,12 +75,10 @@
   .pt-promo-stage { box-shadow: none; }
 }
 
-/* 小画面（手机横屏、窄窗口）：控件收紧 */
+/* 小画面（手机横屏、窄窗口）：「跳过」收紧 */
 @media (max-width: 760px), (max-height: 480px) {
   .pt-promo-chip { top: 8px; padding: 0 12px; }
   .pt-promo-close { right: 8px; }
-  .pt-promo-unmute { left: 8px; }
-  .pt-promo-bar { padding: 28px 8px 6px; gap: 8px; }
   .pt-promo .pt-promo-chip kbd { display: none; }
 }
 /* 触屏不显示按键提示（portal.md「界面规则」） */
@@ -116,5 +88,5 @@
 @media (prefers-reduced-motion: reduce) {
   .pt-root.pt-promo { animation: none; }
   .pt-spin { animation: none; }
-  .pt-promo-chip, .pt-promo-icon, .pt-promo-play, .pt-promo-bar { transition: none; }
+  .pt-promo-chip { transition: none; }
 }
