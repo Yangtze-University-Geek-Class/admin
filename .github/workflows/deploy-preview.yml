@@ -230,6 +230,8 @@ jobs:
       url: ${{ needs.plan.outputs.origin }}
     permissions:
       contents: read
+      # 读本次运行的镜像归档（scripts/fetch-artifact.mjs 经 REST API 下载）。
+      actions: read
       # 写部署记录（GitHub Deployments API）：正式环境据此判断同一 commit 是否已在预发布验证过。
       deployments: write
     env:
@@ -270,11 +272,17 @@ jobs:
           node-version-file: .nvmrc
           package-manager-cache: false
 
-      - name: 下载镜像归档
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: yzgc-images-preview-${{ needs.plan.outputs.image_tag }}
-          path: ${{ runner.temp }}/bundle
+      - name: 下载镜像归档（并发分段）
+        shell: bash
+        # 不用 actions/download-artifact：它单连接下载，自托管 runner 在家里从 GitHub 的存储下载只有几十 KB/s，
+        # 163MB 要一小时；并发 16 段约 6.6MB/s（#99）。归档内容仍由目标机的 sha256sum -c 核对。
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: yzgc-images-preview-${{ needs.plan.outputs.image_tag }}
+        run: |
+          set -eu
+          node scripts/fetch-artifact.mjs --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" \
+            --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/bundle"
 
       - name: 渲染运行时 env 文件（模板 + 环境级 secrets + IMAGE_TAG）
         shell: bash

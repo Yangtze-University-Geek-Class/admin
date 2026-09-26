@@ -61,3 +61,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 da79ce2（范围 f39bd11..da79ce2），复核维护先于补位、令牌校验通过才替换
 - 结果：通过：无新条目；save_token harness 复跑一致；shellcheck、dash -n、note.mjs check --pr --for-review 通过
+
+## 10:33:35 +08:00 · 合并 · #97 · PR #98 合并进 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：三轮独立审查（有条件通过 → 通过 → 通过）后 gh pr merge 98 --merge --match-head-commit 37a8f71
+- 结果：合并提交 63fa3e5c2733；合并前 CI push 36211369376、PR 36211372346、issue-lifecycle 36211373990 success
+- 下一步：等 stage 的 CI 通过后打 v0.1.0-rc.6，在 ydeploy-* 上实跑部署
+
+## 10:33:47 +08:00 · 收尾 · #97 · PR #98 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 97：删 worktree .claude/worktrees/task-97 与本地分支 task/97/deploy_jit_runner
+- 结果：PR 已合并
