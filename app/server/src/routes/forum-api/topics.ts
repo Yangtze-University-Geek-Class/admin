@@ -17,7 +17,10 @@ export default async function forumTopicRoutes(app: FastifyInstance) {
   const { forum, config } = app.services;
   const { audit } = app.services.storage;
 
-  app.get("/api/forum/state", perIp(FORUM_REQUEST_LIMITS.state), async req => ({ state: forumState(req, await forumViewer(req)) }));
+  // 不要 Fastify 自动加的 HEAD：它会另占一份 120 次的额度，而且照样算整份 state。HEAD 明确回 405，
+  // 不落到旧论坛的 410 通配路由上。
+  app.get("/api/forum/state", { ...perIp(FORUM_REQUEST_LIMITS.state), exposeHeadRoute: false }, async req => ({ state: forumState(req, await forumViewer(req)) }));
+  app.head("/api/forum/state", async (_req, reply) => reply.code(405).header("Allow", "GET").send());
 
   /** 只有成员能发帖；游客只能回复。 */
   app.post<{ Body: { title: string; categoryId: string; tags?: string[]; content: string } }>("/api/forum/topics", async (req, reply) => {

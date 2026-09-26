@@ -88,3 +88,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称也不能冒用有称号但没打开过论坛的人（createForumStore 加 orgLogins 选项，services.ts 从 role_assignments 取登录名；guestNameTaken 与 displayNameTaken 都比较，成员自己的登录名除外；forum.test 新用例；API、SECURITY、数据模型同步，SECURITY 写明没有称号又没打开过论坛的成员与组织 owner 仍是缺口）
 - 结果：提交前 vitest tests/server 8 个文件 160 条通过，server tsc 通过
+
+## 17:28:30 +08:00 · 提交 · #57 · 第二轮建议：state 的 HEAD 不再另占额度、不再算整份 state
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): HEAD /api/forum/state 回 405，不再另占限流额度（topics.ts 的 state 路由 exposeHeadRoute: false，另注册 HEAD 回 405 Allow: GET，不落到旧论坛的 410 通配路由；forum.test 新用例；API 同步）
+- 结果：提交前 vitest tests/server/forum.test.ts 45 条通过，server tsc 通过；改之前实测 HEAD 200、x-ratelimit-remaining 从 119 往下走，与 GET 各算各的

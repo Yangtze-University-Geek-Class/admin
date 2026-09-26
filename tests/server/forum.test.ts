@@ -185,6 +185,18 @@ describe('state', () => {
     expect(limited.headers['cache-control']).toBe('no-store');
     expect((await get('198.51.100.41')).statusCode).toBe(200);
   });
+
+  it('answers HEAD /api/forum/state with 405 without building the state or spending its own budget', async () => {
+    const s = await setup();
+    for (let i = 0; i < 3; i += 1) {
+      const head = await s.app.inject({ method: 'HEAD', url: '/api/forum/state', remoteAddress: '198.51.100.42', headers: s.as('bob') });
+      expect(head.statusCode).toBe(405);
+      expect(head.headers.allow).toBe('GET');
+    }
+    // 没有建论坛用户，也没有另一份 120 次的额度：GET 的计数从头开始。
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_users WHERE id = 'm102'").get()).toEqual({ n: 0 });
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/state', remoteAddress: '198.51.100.42' })).headers['x-ratelimit-remaining']).toBe('119');
+  });
 });
 
 describe('topics', () => {
