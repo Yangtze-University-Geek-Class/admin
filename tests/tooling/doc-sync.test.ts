@@ -326,6 +326,9 @@ describe("文档核对：模块改了、文档里的事实没变", () => {
     expect(reasons(`文档核对：docs/services/svc/ 不用改——${zw}<理由>${zw}`)).toEqual([]);
     expect(reasons("文档核对：docs/services/svc/ 不用改——。，——……")).toEqual([]);
     expect(reasons("文档核对：docs/services/svc/ 不用改——<>")).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——<理由>」")).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——<理由>。")).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——<理由><理由>")).toEqual([]);
     expect(reasons(`文档核对：docs/services/svc/ 不用改——只加${zw}了测试`)).toEqual(["只加了测试"]);
     expect(reasons("文档核对：docs/services/svc/ 不用改——tests only")).toEqual(["tests only"]);
     expect(reasons("文档核对：docs/services/svc/ 不用改——#115")).toEqual(["#115"]);

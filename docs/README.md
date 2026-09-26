@@ -48,7 +48,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 
 不通过时，报错会写出是哪一对、是哪个提交或哪些文件。先 `git show <提交>` 看改了什么，把文档里对应的说明改对，再把「更新：」改成当天。
 
-模块改了、文档里写的事实却一个都没变（只改测试、重构、审查后的返工），就在这个 task 自己的执行记录（`notes/<日期>/<用户名>/task_<issue>_<slug>.md`，[NOTES](conventions/NOTES.md)）里写一行文档核对，格式是 `文档核对：<文档路径> 不用改——<理由>`，文档路径照抄上表第二列（例 `文档核对：docs/services/server/ 不用改——只加了 roles.ts 的回归测试，接口和表都没变`），可以写在 `node scripts/note.mjs add` 的「做了什么」或「结果」里。照抄模板里的 `<理由>`、理由只有标点或看不见的零宽字符的，检查不算。执行记录文件只有这个 PR 会改，不像共享的文档行那样让并行的 PR 互相冲突。文档核对是真实的核对记录，审查人对照 diff 看理由属不属实。只改「更新：」日期、既不改说明也不写文档核对，检查不通过；理由写得不实，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下。实现在 `scripts/check-doc-sync.mjs`，测试在 `tests/tooling/doc-sync.test.ts`。
+模块改了、文档里写的事实却一个都没变（只改测试、重构、审查后的返工），就在这个 task 自己的执行记录（`notes/<日期>/<用户名>/task_<issue>_<slug>.md`，[NOTES](conventions/NOTES.md)）里写一行文档核对，格式是 `文档核对：<文档路径> 不用改——<理由>`，文档路径照抄上表第二列（例 `文档核对：docs/services/server/ 不用改——只加了 roles.ts 的回归测试，接口和表都没变`），可以写在 `node scripts/note.mjs add` 的「做了什么」或「结果」里。照抄模板里的 `<理由>`（后面带个句号也一样）、理由只有标点或看不见的零宽字符的，检查不算。执行记录文件只有这个 PR 会改，不像共享的文档行那样让并行的 PR 互相冲突。文档核对是真实的核对记录，审查人对照 diff 看理由属不属实。只改「更新：」日期、既不改说明也不写文档核对，检查不通过；理由写得不实，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下。实现在 `scripts/check-doc-sync.mjs`，测试在 `tests/tooling/doc-sync.test.ts`。
 
 ## 阅读地图
 
