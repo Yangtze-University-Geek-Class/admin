@@ -5,11 +5,16 @@
 //
 //   node scripts/forum-migration/export-published.mjs .tools/forum-runtime/<snapshot> [--fetch]
 //
+// The snapshot is private and lives in the main checkout's .tools; a relative path is resolved
+// against the main checkout, so the same command works from a task worktree. The outputs are
+// written to the checkout this script belongs to.
+//
 // Offline by default. External images that the manifest edits (covers a bookmark bar, crops a
 // window) are read from <snapshot>/external/<sha256>; `--fetch` downloads the missing ones once
 // and checks them against the SHA-256 in the manifest. Running it again on the same snapshot
 // writes the same bytes. The review record (what was rewritten, per topic) goes to stdout,
 // never into the repository.
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -18,9 +23,10 @@ import { fileURLToPath } from 'node:url'
 import { applyRedactions, publishedProblems, rewriteLinks } from './published-transform.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const snapshotDir = resolve(process.argv[2] ?? '')
+const mainRoot = dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' }).trim())
+const snapshotDir = resolve(mainRoot, process.argv[2] ?? '')
 const fetchMissing = process.argv.includes('--fetch')
-if (!snapshotDir.startsWith(`${root}/.tools/forum-runtime/`))
+if (!snapshotDir.startsWith(`${mainRoot}/.tools/forum-runtime/`))
   throw new Error('快照目录必须在 .tools/forum-runtime/ 下（私有，不入库）')
 const manifestPath = resolve(root, 'app/forum/content/published/manifest.json')
 const outputPath = resolve(root, 'app/forum/content/published/topics.json')

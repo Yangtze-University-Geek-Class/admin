@@ -5,9 +5,12 @@ import { readFileSync, writeFileSync, mkdirSync, lstatSync, realpathSync } from 
 import { resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// Private data lives in the main checkout's .tools, also when this runs from a task worktree.
+const privateRoot = dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' }).trim()) + '/.tools';
 const jobPath = resolve(process.argv[2] ?? '');
-if (!jobPath.startsWith(root + '/.tools/forum-runtime/')) throw new Error('Private runtime job required');
+if (!jobPath.startsWith(privateRoot + '/forum-runtime/')) throw new Error('Private runtime job required');
 const job = JSON.parse(readFileSync(jobPath, 'utf8'));
 const output = resolve(dirname(jobPath), 'assets');
 mkdirSync(output, { recursive: true, mode: 0o700 });
@@ -16,7 +19,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const result = { assets: {}, aliases: {}, rejected: [] };
 for (const item of job.files) {
   const source = resolve(item.source);
-  if (!source.startsWith(root + '/.tools/forum-migration/') || lstatSync(source).isSymbolicLink() || realpathSync(source) !== source) throw new Error('Unsafe source asset');
+  if (!source.startsWith(privateRoot + '/forum-migration/') || lstatSync(source).isSymbolicLink() || realpathSync(source) !== source) throw new Error('Unsafe source asset');
   const bytes = readFileSync(source);
   if (hash(bytes) !== item.sha256 || bytes.length > 64 * 1024 * 1024) throw new Error('Asset changed or exceeds size limit');
   let payload, mime, extension, disposition = 'inline';
