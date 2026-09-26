@@ -2,7 +2,7 @@
 import type { FileUploaderFile } from '@talex-touch/tuffex/file-uploader'
 import { toast } from '@talex-touch/tuffex/utils'
 import { AVATAR_PALETTE } from '~/data/seed-content'
-import { AVATAR_TYPES, avatarFileProblem, changedDisplayName, PROFILE_LIMITS, websiteProblem } from '../../../../shared/forum-api'
+import { AVATAR_TYPES, avatarFileProblem, NAME_CHARS_HINT, PROFILE_LIMITS, profileBody, profileProblem } from '../../../../shared/forum-api'
 
 // Discourse's /u/<name>/preferences: a left-hand sub-navigation over the form.
 // Only your own; somebody else's redirects back to their profile.
@@ -150,25 +150,14 @@ function revert() {
   draft.notifyPrefs = { ...current.notifyPrefs }
 }
 
-/** The server's limits, checked before sending so the answer is not a bare 400. */
-function profileProblem(): string | null {
-  const displayName = draft.displayName.trim()
-  if (displayName.length > PROFILE_LIMITS.displayName)
-    return `昵称最多 ${PROFILE_LIMITS.displayName} 个字。`
-  if (draft.bio.trim().length > PROFILE_LIMITS.bio)
-    return `个人签名最多 ${PROFILE_LIMITS.bio} 个字。`
-  if (draft.location.trim().length > PROFILE_LIMITS.location)
-    return `所在地最多 ${PROFILE_LIMITS.location} 个字。`
-  return websiteProblem(draft.website.trim())
-}
-
 const saving = ref(false)
 
 async function save() {
   const current = profile.value
   if (!current || !isSelf.value || saving.value)
     return
-  const problem = serverMode ? profileProblem() : null
+  // The server's limits, checked before sending; the nickname only when it changed (shared/forum-api.ts).
+  const problem = serverMode ? profileProblem(draft, current.displayName) : null
   if (problem) {
     toast({ title: '资料没有保存', description: problem, variant: 'warning' })
     return
@@ -176,10 +165,7 @@ async function save() {
   saving.value = true
   try {
     const saved = await actions.updateProfile(current.id, {
-      ...changedDisplayName(draft.displayName, current.displayName),
-      bio: draft.bio.trim(),
-      location: draft.location.trim(),
-      website: draft.website.trim(),
+      ...profileBody(draft, current.displayName),
       avatarColor: draft.avatarColor,
       notifyPrefs: { ...draft.notifyPrefs },
     })
@@ -230,7 +216,7 @@ function setTheme(value: string | number) {
             <TxBlockInput
               v-model="draft.displayName"
               title="昵称"
-              :description="serverMode ? `列表和帖子里显示的名字，最多 ${PROFILE_LIMITS.displayName} 个字；登录名 @${profile.username} 不变` : '列表和帖子里显示的名字'"
+              :description="serverMode ? `列表和帖子里显示的名字，最多 ${PROFILE_LIMITS.displayName} 个字，${NAME_CHARS_HINT}；登录名 @${profile.username} 不变` : '列表和帖子里显示的名字'"
               placeholder="你的昵称"
               clearable
             />

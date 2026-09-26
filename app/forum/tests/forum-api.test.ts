@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { avatarFileProblem, changedDisplayName, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
+import { avatarFileProblem, changedDisplayName, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, NAME_CHARS_HINT, parseServerSnapshot, PROFILE_LIMITS, profileBody, profileProblem, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
 import { serverBody, serverState } from './fixtures/server-state'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -172,6 +172,28 @@ describe('client-side checks', () => {
     expect(changedDisplayName('  阿达 ', '阿达')).toEqual({})
     expect(changedDisplayName('', '阿达')).toEqual({})
     expect(changedDisplayName('Ada', '阿达')).toEqual({ displayName: 'Ada' })
+  })
+
+  it('lets a member whose GitHub login is longer than 30 save a signature without touching the nickname', () => {
+    const login = 'yangtze-university-geek-class-12345'
+    expect(login.length).toBe(35)
+    expect(login.length).toBeGreaterThan(PROFILE_LIMITS.displayName)
+    const draft = { displayName: login, bio: '计科 2025 级，在学 Go。', location: '', website: '' }
+    expect(profileProblem(draft, login)).toBeNull()
+    const body = profileBody(draft, login)
+    expect(body).not.toHaveProperty('displayName')
+    expect(body).toEqual({ bio: '计科 2025 级，在学 Go。', location: '', website: '' })
+  })
+
+  it('checks the nickname length once it is changed', () => {
+    const login = 'yangtze-university-geek-class-12345'
+    expect(profileProblem({ displayName: `${login}6`, bio: '', location: '', website: '' }, login)).toBe(`昵称最多 ${PROFILE_LIMITS.displayName} 个字。`)
+    expect(profileProblem({ displayName: '阿达', bio: '', location: '', website: '' }, login)).toBeNull()
+    expect(profileBody({ displayName: ' 阿达 ', bio: '', location: '', website: '' }, login)).toMatchObject({ displayName: '阿达' })
+  })
+
+  it('names the allowed characters the way the server rule does', () => {
+    expect(NAME_CHARS_HINT).toBe('可以用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ \' 这几个符号，空格不能连着用')
   })
 
   it('links a profile website only when it is https://', () => {

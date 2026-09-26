@@ -245,6 +245,13 @@ describe('writes against the server', () => {
     expect(session.currentUser?.avatarUrl).toBe('https://avatars.example.invalid/u/1001')
   })
 
+  it('shows the server\'s rule when a nickname has characters it does not take', async () => {
+    const rule = '昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ \' 这几个符号，空格不能连着用'
+    const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'invalid_display_name', message: rule, request_id: 'r3' }, 400))
+    expect(await server.updateProfile({ displayName: 'Ada★' })).toBe(false)
+    expect(toastStore.items.map(item => [item.title, item.description])).toEqual([['资料没有保存', rule]])
+  })
+
   it('shows the server\'s own words for a refused profile change and a paused guest reply', async () => {
     const { server } = await signedIn(MEMBER_VIEWER, json({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名，换一个吧', request_id: 'r2' }, 400))
     expect(await server.updateProfile({ displayName: '极客班' })).toBe(false)

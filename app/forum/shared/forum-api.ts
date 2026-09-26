@@ -323,12 +323,51 @@ export function avatarFileProblem(file: { size: number, type: string }): string 
 }
 
 /**
- * 保存资料时昵称那一项：没改（或清空了，等于不改）就不发。服务端对发来的昵称要重新校验和查重，
- * 规则收紧以后，原样发回一个旧昵称可能被拒，连带签名、网站这些改动一起存不上。
+ * 昵称能用哪些字符，写在资料页昵称下面。与核心服务 `forum-rules.ts` 的 `NAME_RULE_MESSAGE` 是同一条规则；
+ * 浏览器里只提示不检查，合不合规由服务端判断，被拒时 toast 显示服务端的原话。
+ */
+export const NAME_CHARS_HINT = '可以用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ \' 这几个符号，空格不能连着用'
+
+/** 资料页上保存时发出去的几项（通知开关另外带）。 */
+export interface ProfileDraft {
+  displayName: string
+  bio: string
+  location: string
+  website: string
+}
+
+/**
+ * 保存资料时昵称那一项：没改（或清空了，等于不改）就不发。新成员的默认昵称是 GitHub 登录名，最长 39 个字，
+ * 超过改昵称的上限 30；服务端对发来的昵称也要重新校验和查重。原样发回去会被拒，连带签名、网站这些改动一起存不上。
  */
 export function changedDisplayName(draft: string, current: string): Pick<ProfileBody, 'displayName'> {
-  const next = draft.trim() || current
-  return next === current ? {} : { displayName: next }
+  const next = draft.trim()
+  return !next || next === current.trim() ? {} : { displayName: next }
+}
+
+/** 保存资料的请求体：昵称只在改了时带上，其余几项去掉首尾空白。 */
+export function profileBody(draft: ProfileDraft, currentDisplayName: string): ProfileBody {
+  return {
+    ...changedDisplayName(draft.displayName, currentDisplayName),
+    bio: draft.bio.trim(),
+    location: draft.location.trim(),
+    website: draft.website.trim(),
+  }
+}
+
+/**
+ * 发出去之前浏览器就能说出的问题（服务端的长度上限、网站格式），没有是 `null`。昵称同样只在改了时查，
+ * 登录名超过 30 个字的成员不改昵称也能保存别的。
+ */
+export function profileProblem(draft: ProfileDraft, currentDisplayName: string): string | null {
+  const { displayName } = changedDisplayName(draft.displayName, currentDisplayName)
+  if (displayName !== undefined && displayName.length > PROFILE_LIMITS.displayName)
+    return `昵称最多 ${PROFILE_LIMITS.displayName} 个字。`
+  if (draft.bio.trim().length > PROFILE_LIMITS.bio)
+    return `个人签名最多 ${PROFILE_LIMITS.bio} 个字。`
+  if (draft.location.trim().length > PROFILE_LIMITS.location)
+    return `所在地最多 ${PROFILE_LIMITS.location} 个字。`
+  return websiteProblem(draft.website.trim())
 }
 
 /** 个人网站只收 https:// 开头的地址（服务端同样的限制）；空串表示不填。 */
