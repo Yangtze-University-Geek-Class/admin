@@ -252,7 +252,17 @@ function orderProblem(root, pair, { rev = "HEAD", now }) {
   };
 }
 
-function headerProblems(root, pair, now) {
+function isAncestor(root, sha, of) {
+  try {
+    git(root, ["merge-base", "--is-ancestor", sha, of]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 头部「更新：」；按 PR 核对时给 { base, mergeBase }，过期的日期来自 stage 上的提交就写明不是这条分支造成的 */
+function headerProblems(root, pair, now, { base, mergeBase } = {}) {
   const problems = [];
   const moduleDirty = uncommitted(root, pair.modules);
   const authored = moduleDirty.length ? null : lastAuthored(root, pair.modules);
@@ -266,7 +276,10 @@ function headerProblems(root, pair, now) {
   if (newest && newest < moduleDate) {
     const which = pair.headers.length > 1 ? `${pair.headers.join("、")} 里最新的「更新：${newest}」` : `${pair.headers[0]} 头部的「更新：${newest}」`;
     const source = moduleDirty.length ? "工作区里还没提交的改动" : `${short(authored.sha)} 的作者时间`;
-    problems.push(`${which}早于 ${pair.modules.join("、")} 最后一次改动的北京日期 ${moduleDate}（${source}）：核对文档内容后把「更新：」改成 ${moduleDate}。`);
+    const fromBase = !moduleDirty.length && mergeBase && isAncestor(root, authored.sha, mergeBase);
+    problems.push(fromBase
+      ? `${base} 上本来就过期（不是这条分支造成的）：${which}早于 ${pair.modules.join("、")} 最后一次改动的北京日期 ${moduleDate}（${source}）：在 stage 上补，或者在这条分支上顺手核对文档、把「更新：」改成 ${moduleDate}。`
+      : `${which}早于 ${pair.modules.join("、")} 最后一次改动的北京日期 ${moduleDate}（${source}）：核对文档内容后把「更新：」改成 ${moduleDate}。`);
   }
   return problems;
 }
@@ -310,8 +323,8 @@ export function checkDocSync(root, { base, branch, now = new Date() } = {}) {
   const resolved = resolveBase(root, { base, branch });
   if (resolved.note) notes.push(resolved.note);
 
+  const mergeBase = resolved.base ? git(root, ["merge-base", resolved.base, "HEAD"]).trim() : null;
   if (resolved.base) {
-    const mergeBase = git(root, ["merge-base", resolved.base, "HEAD"]).trim();
     const taskBranch = branch ?? currentBranch(root);
     const waivers = waiversSince(root, mergeBase, taskBranch);
     for (const pair of pairs) {
@@ -341,7 +354,7 @@ export function checkDocSync(root, { base, branch, now = new Date() } = {}) {
     }
   }
 
-  for (const pair of pairs) problems.push(...headerProblems(root, pair, now));
+  for (const pair of pairs) problems.push(...headerProblems(root, pair, now, { base: resolved.base, mergeBase }));
   return { pairs, problems, notes, base: resolved.base };
 }
 

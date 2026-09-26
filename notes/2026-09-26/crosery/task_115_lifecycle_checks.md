@@ -139,3 +139,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): 文档事实没变时改在 task 执行记录里写文档核对，去掉「最近核对」行；vitest tests/tooling；pnpm check；actionlint
 - 结果：tests/tooling 263 passed；pnpm check 退出 0；actionlint 退出 0
+
+## 19:23:58 +08:00 · 提交 · #115 · stage 本来过期的「更新：」写明不是这条分支造成的
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): 按 PR 核对时 stage 带来的过期「更新：」写明来源；vitest tests/tooling/doc-sync.test.ts；两个变异（不写来源、全都写成来自 stage）
+- 结果：26 passed；两个变异各让用例失败

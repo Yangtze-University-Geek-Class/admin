@@ -216,7 +216,7 @@ describe("task 分支按 PR 核对", () => {
     const found = problems(root);
     expect(found[0]).toContain("这次的改动动了模块、没动文档：app/svc/ ↔ docs/services/svc/");
     expect(found[0]).toContain("改了 app/svc/index.ts");
-    expect(found.slice(1)).toEqual([expect.stringContaining("「更新：2026-09-25」早于")]);
+    expect(found.slice(1)).toEqual([expect.stringMatching(/^docs\/services\/svc\/README\.md 头部的「更新：2026-09-25」早于/)]);
 
     // 把 stage 合进来也一样：这条分支自己没动文档
     mergeInto(root, "stage", "2026-09-26T11:00:00+08:00", "Merge stage");
@@ -247,6 +247,7 @@ describe("task 分支按 PR 核对", () => {
     const found = problems(root);
     expect(found.some((text) => text.startsWith("stage 上本来就不同步（不是这条分支造成的）：app/svc/ ↔ docs/services/svc/"))).toBe(true);
     expect(found.join("\n")).toContain("fix(svc): stage 上只改了模块");
+    expect(found).toContainEqual(expect.stringMatching(/^stage 上本来就过期（不是这条分支造成的）：docs\/services\/svc\/README\.md 头部的「更新：2026-09-25」/));
 
     commit(root, "2026-09-26T09:30:00+08:00", "docs(svc): 顺手补上 stage 落下的说明", { "docs/services/svc/README.md": doc("2026-09-26", "多了 more.ts") });
     expect(problems(root)).toEqual([]);
