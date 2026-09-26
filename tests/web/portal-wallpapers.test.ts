@@ -1,6 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WALLPAPER, WALLPAPERS, resolveWallpaper } from "../../app/web/sites/portal/lib/wallpapers";
+import { DEFAULT_WALLPAPER, WALLPAPERS, resolveWallpaper, revealClipFrom } from "../../app/web/sites/portal/lib/wallpapers";
 
 const PUBLIC = new URL("../../app/web/public", import.meta.url).pathname;
 
@@ -12,6 +12,8 @@ describe("桌面壁纸", () => {
         expect(existsSync(path), file).toBe(true);
         expect(statSync(path).size, file).toBeLessThan(300e3);
       }
+      // 缩略图是换壁纸时先顶上的占位，要小到打开面板就已经下好
+      expect(statSync(`${PUBLIC}${wallpaper.thumb}`).size, wallpaper.thumb).toBeLessThan(20e3);
     }
     expect(new Set(WALLPAPERS.map((wallpaper) => wallpaper.id)).size).toBe(WALLPAPERS.length);
   });
@@ -26,4 +28,15 @@ describe("桌面壁纸", () => {
     expect(resolveWallpaper("deleted-one").id).toBe(DEFAULT_WALLPAPER);
     expect(resolveWallpaper(null).id).toBe(DEFAULT_WALLPAPER);
   });
+});
+
+describe("换壁纸的动效", () => {
+  it("展开的起点是缩略图在壁纸层里的位置（上右下左内缩 + 缩略图圆角）", () => {
+    const layer = { left: 0, top: 34, width: 1440, height: 866 };
+    const thumb = { left: 460.4, top: 390, width: 160, height: 90 };
+    expect(revealClipFrom(thumb, layer)).toBe("inset(356px 820px 420px 460px round 9px)");
+    // 缩略图不在壁纸层里（例如压在菜单栏上）时内缩是负数，照样从它展开
+    expect(revealClipFrom({ left: 10, top: 20, width: 100, height: 50 }, layer)).toBe("inset(-14px 1330px 830px 10px round 9px)");
+  });
+
 });
