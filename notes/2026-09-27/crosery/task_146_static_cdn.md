@@ -15,3 +15,10 @@
 - 做了什么：推送 task/146/static_cdn（7ad6cb0），node scripts/pr-contract.mjs check 通过后 gh pr create --base stage 开 #155，正文写 Closes #146、Refs #153、#85、#147；验收证据放 7 张 ego 截图（GitHub 附件）、curl 与 performance 两张表、CDN 防盗链与 CORS 实测；未验证逐条列出：部署工作流没真跑过、宿主模板没装、预发布与正式没开开关看过、移动后的壁纸没从 CDN 加载过、手机没测
 - 结果：PR 已开，作者自查结论：有条件通过（等独立审查与 CI）。没有设置任何 GitHub secret、variable 或 Environment，没有合并
 - 下一步：等 CI；branch-guard 在独立审查之前失败是预期的；独立审查给出结论后补「审查」记录
+
+## 01:14:05 +08:00 · 返工 · #146 · 按独立审查「修改后合并」的 7 条返工：产物目录 ^~ 长缓存、CI 跑开关打开的构建、token 到期区间、文件名规则、所有者步骤
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：审的是 ab01348。965f088 fix(tooling)：token 到期时间超过 366 天拒绝，decide 要求剩 90 分钟（build 60 + cdn-upload 20 + 排队 10），upload 要求剩 20 分钟；产物文件名按构建形状核对（Vite <name>-<8 位哈希>.<ext>，Nuxt <8 位哈希>.js、<name>.<8 位哈希>.<ext>、builds/meta/<uuid>.json），并对照源码 public/ 目录拒绝原样复制的文件（只看名字挡不住 my-template.js，论坛现有 sok5vuyt.js 这种全小写哈希）。215bd50 fix(deploy)：web /assets/、/console-assets/ 与论坛 /_nuxt/ 改 location ^~，论坛 _nuxt/builds/latest.json 精确匹配 expires -1，新增 tests/tooling/hashed-asset-cache.test.ts（宿主 preview.conf + web + 论坛三层实跑）；a36f7eb 同步 forum-csp.test.ts 的 location 清单。1c777eb ci(deploy)：ci.yml 新增 docker-cdn，带 STATIC_CDN_BASE 构建 web、forum，再跑与部署工作流逐字相同的 docker cp + static-cdn.mjs plan，不上传、不用 token，verify 依赖它。2435a60 docs(deploy)：CICD 所有者步骤改成合并后第一个 rc 之前建带 v* 规则的 Environment、放 token 前实测规则管不管 deployment: false、建议 v* tag ruleset，.nvmrc 清单补 cdn-plan、cdn-upload。只读核对：gh api environments 只有 preview，rulesets 返回 []
+- 结果：pnpm verify（Node 22、FORUM_PNPM）exit 0：根 56 个文件 815 条、论坛 24 个文件 473 条、官网与控制台构建、论坛 generate；第一次跑时 forum-csp 1 条失败（location 清单没跟上），a36f7eb 修后重跑通过。变异：旧正则 7 条失败、去 public 对照 3、余量回 10 分钟 3、去 366 天上限 3、上传也要 90 分钟 1、三个 ^~ 改回普通前缀 4（实测 max-age=604800）、删 docker-cdn 一行 docker cp 1、verify 不依赖 docker-cdn 1。本机 nginx 1.31.6 三层前后对比：6 个字体图片响应 604800 → 31536000，latest.json 31536000 → no-cache，安全头逐字相同。actionlint 1.7.12（shellcheck 0.11.0）exit 0。本机开关打开构建官网、控制台与论坛（site、/forum/），两个 Dockerfile 的入口断言照抄运行通过，plan 244 个文件；开关关闭 243 个也通过。镜像构建本机做不了（没有 Docker 基础镜像），等 CI 的 docker-cdn
+- 下一步：改 PR 正文受影响的段落，推送 task 分支，等新 head 的 CI
