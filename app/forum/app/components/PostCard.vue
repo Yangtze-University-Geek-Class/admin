@@ -72,17 +72,18 @@ function like() {
 }
 
 // Bookmarks, edits and deletions show before the call returns (#145); a
-// refusal puts the post back as it was, with the server store's toast.
-function bookmark() {
+// refusal puts the post back as it was, with the server store's toast. The
+// success toast waits for the server (#162), and quick clicks share one: it
+// names what the server settled on.
+async function bookmark() {
   const current = user.value
   if (!current || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const before = bookmarked.value
-  void actions.toggleBookmark(current.id, props.post.id)
-  if (bookmarked.value !== before)
-    toast({ title: bookmarked.value ? '已加入书签' : '已移出书签', variant: 'success' })
+  const settled = await actions.toggleBookmark(current.id, props.post.id)
+  if (settled !== null)
+    toast({ id: `forum-bookmark:${props.post.id}`, title: settled ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
 // Someone else's post can be in the editor (a moderator's edit); PostEditor's preview renders it through ForumMarkdown, raw HTML shown as text.
@@ -121,12 +122,11 @@ async function saveEdit() {
   toast({ title: '帖子已更新', variant: 'success' })
 }
 
-function remove() {
+async function remove() {
   if (!canDelete.value)
     return
-  void actions.deletePost(props.post.id)
-  if (props.post.deleted)
-    toast({ title: '帖子已删除' })
+  if (await actions.deletePost(props.post.id))
+    toast({ id: `forum-delete:${props.post.id}`, title: '帖子已删除' })
 }
 </script>
 

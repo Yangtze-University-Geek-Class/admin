@@ -3,7 +3,7 @@ import type { Post, Topic, User } from '~/data/types'
 import type { TestNode } from './support/sfc'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, reactive, ref } from 'vue'
+import { defineComponent, h, nextTick, reactive, ref, watch } from 'vue'
 import * as likes from '~/data/likes'
 import * as forumServer from '~/stores/forum-server'
 import * as forumApi from '../shared/forum-api'
@@ -192,6 +192,107 @@ describe('the edit form on a post, against the server', () => {
   })
 })
 
+describe('the success toasts on a post, against the server (#162)', () => {
+  /**
+   * The page changes at the click, as the server store does it; the answer
+   * (what the server settled on, or `null` after the store's own refusal
+   * toast) puts the page where the server is.
+   */
+  function mountWritable() {
+    const post = reactive<Post>({ id: 'p6', topicId: 't1', authorId: 'u1', content: '一条回复', createdAt: 0, likeUserIds: [] })
+    const marked = ref(false)
+    const writes = heldWrites<boolean | null>()
+    const toast = vi.fn()
+    const toggleBookmark = (...args: unknown[]) => {
+      const before = marked.value
+      marked.value = !before
+      return writes.write(...args).then((settled) => {
+        marked.value = settled ?? before
+        return settled
+      })
+    }
+    const deletePost = (...args: unknown[]) => {
+      post.deleted = true
+      return writes.write(...args).then((done) => {
+        post.deleted = !!done
+        return done
+      })
+    }
+    const PostCard = loadComponent('components/PostCard.vue', {
+      imports: {
+        '@talex-touch/tuffex/utils': { toast },
+        '~/data/likes': likes,
+        '~/stores/forum-server': forumServer,
+      },
+      globals: {
+        useForumStore: () => ({ userById: () => member, postById: () => undefined, isBookmarked: () => marked.value, isFirstPost: () => false }),
+        useForumActions: () => ({ toggleBookmark, deletePost }),
+        useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
+        useShell: () => ({ loginOpen: ref(false) }),
+        useRelativeTime: () => ({ fromNow: () => '刚刚', formatAbsolute: () => '' }),
+        useAppLink: () => ({ href: (path: string) => path, absoluteUrl: () => 'https://forum.example/t/t1#post-p6' }),
+      },
+    })
+    const { root } = mount(PostCard, { post, topic, floor: 2 }, components)
+    return {
+      toast,
+      bookmark: () => click(find(root, node => node.props.label === '书签')!),
+      remove: async () => {
+        (find(root, node => typeof node.props.onSelect === 'function' && textOf(node) === '删除')!.props.onSelect as () => void)()
+        await settle()
+      },
+      /** The store resolves with what the server settled on, or `null` after its own refusal toast. */
+      answer: async (index: number, value: boolean | null) => {
+        writes.calls[index]!.answer(value)
+        await settle()
+      },
+    }
+  }
+
+  it('says 已加入书签 once the server took the bookmark, not before', async () => {
+    const card = mountWritable()
+    await card.bookmark()
+    expect(card.toast).not.toHaveBeenCalled()
+    await card.answer(0, true)
+    expect(card.toast.mock.calls).toEqual([[{ id: 'forum-bookmark:p6', title: '已加入书签', variant: 'success' }]])
+  })
+
+  it('names what the server settled on after two quick clicks, under one id', async () => {
+    const card = mountWritable()
+    await card.bookmark()
+    await card.bookmark()
+    // The store answers both clicks with the lane's one result: the bookmark taken back.
+    await card.answer(0, false)
+    await card.answer(1, false)
+    expect(card.toast.mock.calls.map(([options]) => options)).toEqual([
+      { id: 'forum-bookmark:p6', title: '已移出书签', variant: 'success' },
+      { id: 'forum-bookmark:p6', title: '已移出书签', variant: 'success' },
+    ])
+  })
+
+  it('leaves the refusal to the store\'s toast when the bookmark is refused', async () => {
+    const card = mountWritable()
+    await card.bookmark()
+    await card.answer(0, null)
+    expect(card.toast).not.toHaveBeenCalled()
+  })
+
+  it('says 帖子已删除 once the server removed the post, not before', async () => {
+    const card = mountWritable()
+    await card.remove()
+    expect(card.toast).not.toHaveBeenCalled()
+    await card.answer(0, true)
+    expect(card.toast.mock.calls).toEqual([[{ id: 'forum-delete:p6', title: '帖子已删除' }]])
+  })
+
+  it('leaves the refusal to the store\'s toast when the deletion is refused', async () => {
+    const card = mountWritable()
+    await card.remove()
+    await card.answer(0, false)
+    expect(card.toast).not.toHaveBeenCalled()
+  })
+})
+
 describe('the reply drawer after the server refused a reply', () => {
   const first: Post = { id: 'p2', topicId: 't1', authorId: 'u1', content: '甲的帖子', createdAt: 0, likeUserIds: [] }
   const second: Post = { id: 'p3', topicId: 't1', authorId: 'u1', content: '乙的帖子', createdAt: 0, likeUserIds: [] }
@@ -201,9 +302,25 @@ describe('the reply drawer after the server refused a reply', () => {
 
   function mountComposer() {
     const sends = heldWrites<string | null>()
+    // Tuffex hands out z-indexes from one counter (#162): a toast takes one
+    // when it shows, the drawer the next one when it opens.
+    let lastZIndex = 2000
+    const nextZIndex = () => ++lastZIndex
+    const toastStore = reactive({ zIndex: lastZIndex })
+    const layers = { drawer: 0 }
+    const TxDrawer = defineComponent({
+      props: { visible: Boolean },
+      setup(props, { slots }) {
+        watch(() => props.visible, (open) => {
+          if (open)
+            layers.drawer = nextZIndex()
+        })
+        return () => h('section', null, Object.values(slots).flatMap(slot => (typeof slot === 'function' ? slot() : [])))
+      },
+    })
     const ReplyComposer = loadComponent('components/ReplyComposer.vue', {
       imports: {
-        '@talex-touch/tuffex/utils': { toast: vi.fn() },
+        '@talex-touch/tuffex/utils': { toast: vi.fn(), toastStore, nextZIndex },
         '../../shared/forum-api': forumApi,
         '../../shared/post-markdown': postMarkdown,
       },
@@ -230,11 +347,19 @@ describe('the reply drawer after the server refused a reply', () => {
         },
       }),
     })
-    const { root, unmount } = mount(Parent, {}, components)
+    const { root, unmount } = mount(Parent, {}, { ...components, TxDrawer })
     const box = () => String(find(root, node => node.tag === 'textarea')!.props.value)
     return {
       state,
       unmount,
+      layers: {
+        drawer: () => layers.drawer,
+        toasts: () => toastStore.zIndex,
+        /** What the server store's refusal toast does before it answers the drawer. */
+        toast: () => {
+          toastStore.zIndex = nextZIndex()
+        },
+      },
       box,
       /** What each send asked for, in order. */
       sent: () => sends.calls.map(call => call.args[0] as Sent),
@@ -273,6 +398,17 @@ describe('the reply drawer after the server refused a reply', () => {
       { topicId: 't1', authorId: 'u1', content: draft, replyToPostId: 'p2' },
       { topicId: 't1', authorId: 'u1', content: draft, replyToPostId: 'p2' },
     ])
+  })
+
+  it('keeps the toast that says why above the drawer it opens again (#162)', async () => {
+    const composer = mountComposer()
+    await composer.open(first)
+    await composer.type(`${quoteDraft(first)}我的回复`)
+    await composer.send()
+    composer.layers.toast()
+    await composer.refuse(0)
+    expect(composer.state.visible).toBe(true)
+    expect(composer.layers.toasts()).toBeGreaterThan(composer.layers.drawer())
   })
 
   it('keeps both texts when another reply, quote and all, was started while the first was out', async () => {

@@ -51,15 +51,17 @@ const blocked = computed(() => {
 })
 
 // The bookmark shows before the call returns (#145); a refusal takes it back with the server store's toast.
-function bookmark() {
+// The success toast waits for the server (#162); it shares its id with the one on the first post's card.
+async function bookmark() {
   const current = user.value
   const post = firstPost.value
   if (!current || !post || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  void actions.toggleBookmark(current.id, post.id)
-  toast({ title: forum.isBookmarked(current.id, post.id) ? '已加入书签' : '已移出书签', variant: 'success' })
+  const settled = await actions.toggleBookmark(current.id, post.id)
+  if (settled !== null)
+    toast({ id: `forum-bookmark:${post.id}`, title: settled ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 </script>
 

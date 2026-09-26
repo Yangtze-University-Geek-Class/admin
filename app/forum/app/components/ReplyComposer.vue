@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
-import { toast } from '@talex-touch/tuffex/utils'
+import { nextZIndex, toast, toastStore } from '@talex-touch/tuffex/utils'
 import { MEMBER_CONTENT_MAX, NAME_CHARS_HINT } from '../../shared/forum-api'
 import { quoteDraft } from '../../shared/post-markdown'
 
@@ -100,6 +100,10 @@ function close() {
  * Puts this topic's refused replies back (stores/forum-server.ts keeps them):
  * each one in front of what the drawer holds, a blank line between, and the
  * drawer answers the post the last of them answered.
+ *
+ * The toast saying why came first and took a z-index; the drawer takes the
+ * next one as it opens and would cover it (#162). Once the drawer has opened,
+ * the toasts take another one and are on top again.
  */
 function takeBackRefused() {
   const refused = server.takeRefusedReplies(props.topic.id)
@@ -112,6 +116,9 @@ function takeBackRefused() {
   content.value = draft
   emit('update:replyTo', last.replyToPostId ? forum.postById(last.replyToPostId) : undefined)
   emit('update:visible', true)
+  void nextTick(() => {
+    toastStore.zIndex = nextZIndex()
+  })
 }
 
 onMounted(takeBackRefused)
