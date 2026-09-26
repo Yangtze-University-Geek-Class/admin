@@ -2,7 +2,7 @@
 
 > 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 地址
 
@@ -13,7 +13,7 @@
 | 新论坛 | http://127.0.0.1:3456/ | 发现 `.tools/forum-runtime/<快照>/` 时显示极客班论坛内容（快照模式），否则为原仓浏览器 localStorage 演示；`GEEK_FORUM_SOURCE=demo` 强制示例，`GEEK_FORUM_SOURCE=site` 显示和镜像一样的极客班论坛（见 [TUFF-FORUM](TUFF-FORUM.md)）。Nuxt 开发服务器把 `/auth` 转给 3000（`app/forum/nuxt.config.ts` 的 `nitro.devProxy`），所以论坛能读 `/auth/me` |
 | 核心 API | http://127.0.0.1:3000/healthz | 隔离模式为内存库；GitHub 登录模式为 `.tools/local-preview/core.db` |
 
-5173 上的 `/forum/<路径>?<参数>` 302 到 `http://127.0.0.1:3456/<路径>?<参数>`（去掉 `/forum` 前缀、保留参数，`app/web/vite.config.ts`），登录后回到论坛原页面靠的就是这一条；旧 `/sites/forum/*` 转到论坛首页。核心 `/api/forum/*` 返回 410，不再支持旧本地注册、上传、发帖。生产新论坛缺少真实服务时不自动开放演示。
+5173 上的 `/forum/<路径>?<参数>` 302 到 `http://127.0.0.1:3456/<路径>?<参数>`（去掉 `/forum` 前缀、保留参数，`app/web/vite.config.ts`），登录后回到论坛原页面靠的就是这一条；旧 `/sites/forum/*` 转到论坛首页。核心 `/api/forum/*` 是新论坛的接口（见 [API](../architecture/API.md)「论坛」）；这下面新接口没有注册的旧路径、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`，旧的本地注册、上传、发帖不再支持。生产新论坛缺少真实服务时不自动开放演示。
 
 ## 管理进程
 
