@@ -62,9 +62,12 @@ export default function Forum3D() {
         /* 没有 WebGL：左侧列表照常可用 */
       }
     })();
-    // 从论坛按浏览器后退回来（bfcache）时，遮罩要撤掉
+    // 从论坛按浏览器后退回来时，浏览器可能整页从往返缓存（bfcache）恢复，转场停在最后一帧：
+    // 镜头推近、气泡放大、遮罩盖满，场景也不再响应拖动和点击。整个场景复位，没有场景时只撤遮罩
     const onShow = (event: PageTransitionEvent) => {
-      if (event.persisted) wipe.current?.style.setProperty("opacity", "0");
+      if (!event.persisted) return;
+      wipe.current?.style.setProperty("opacity", "0");
+      scene.current?.reset();
     };
     window.addEventListener("pageshow", onShow);
     return () => {

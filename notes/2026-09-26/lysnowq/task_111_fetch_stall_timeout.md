@@ -65,3 +65,9 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：收到 PR #119 第二轮审查（2026-09-26 17:42，审 760ea9f）：应修 PR 正文四段按返工更新；建议说明 17:17:23 那条 agent-omp-rework119 记录。说明：那条是主 agent 根据子代理 Rework119 的交付结果代写的补记，时间是补记时刻，内容与子代理报告一致；正文已按返工更新
 - 结果：结论：有条件通过，剩 CI 全绿；PR 正文已更新变更范围、验证命令与结果、人工验收步骤、审查结论
+
+## 19:46:04 +08:00 · 返工 · #111 · 合并 stage 5c1717b，解决 CICD.md 冲突
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：stage 合入 #106、#113、#117 后与本分支在 docs/ops/CICD.md 的 JIT runner 表冲突：镜像行取 stage（#106 加的 Node 工具缓存说明），下载镜像归档行取本分支（#111 的空闲超时说明）
+- 结果：冲突标记清零；fetch-artifact 测试 14 passed；check-docs、note check 通过；docs-index --check 在 Windows 上失败是 #121 的已知问题，本分支不含该修复，以 CI 为准

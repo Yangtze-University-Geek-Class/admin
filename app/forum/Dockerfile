@@ -17,9 +17,26 @@
 # ── 构建阶段：独立工具链安装 → Nuxt 静态生成 ──────────────────
 FROM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS builder
 
+# npm 源（#104）：工作流从仓库变量传国内镜像，不传就是官方源。只在构建阶段声明，运行阶段（nginx）
+# 既不继承 ARG 也不继承下面的 ENV。npm 读 npm_config_registry；pnpm 11 不再读 npm_config_*，
+# 只认 pnpm_config_registry，两个都要设。
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_REGISTRY} \
+    pnpm_config_registry=${NPM_REGISTRY}
+
 # Node 26 不再随发行版提供 corepack，直接用 npm 装上游要求的 pnpm 11.24.0。
-RUN npm install --global pnpm@11.24.0 \
- && pnpm --version
+# npm 只拿「同一个源」给的 integrity 核对 tarball，源换成镜像以后，镜像说什么就是什么；
+# 所以先 npm pack 下来，按写死的 sha512 核对，再从本地文件安装。这个值取自官方源
+# （npm view pnpm@11.24.0 dist.integrity --registry https://registry.npmjs.org），与 ci.yml forum job 的
+# FORUM_PNPM_INTEGRITY 相同，tests/tooling/build-mirrors.test.ts 核对两处一致。pnpm 包没有依赖，装的时候不再联网。
+RUN set -eu; \
+    case "$NPM_REGISTRY" in https://*[!/]) ;; *) echo "NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址：${NPM_REGISTRY}" >&2; exit 1 ;; esac; \
+    npm pack pnpm@11.24.0 --pack-destination /tmp; \
+    node -e 'const [file, want] = process.argv.slice(1); const got = "sha512-" + require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(file)).digest("base64"); if (got !== want) { console.error(file + " 的 sha512 不符：期望 " + want + "，实际 " + got); process.exit(1); } console.log(file + " 的 sha512 核对通过");' \
+      /tmp/pnpm-11.24.0.tgz 'sha512-vSfjRel23LC+C3oSKCF7BJqBfiGx81XJDb59xGZxiVqLwebQbCRVRQXqk+oLRfSJon7Bv7yN5qlln8oPFvoAAA=='; \
+    npm install --global /tmp/pnpm-11.24.0.tgz; \
+    rm -f /tmp/pnpm-11.24.0.tgz; \
+    pnpm --version
 
 WORKDIR /repo/app/forum
 
@@ -69,17 +86,22 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
  # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
- # nitro.prerender.routes）；不公开的 t5、t15 没有文件。
+ # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的现论坛帖子 t78、t84、t89（#108）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \
  && grep -q '极客班论坛' .output/public/llms.txt \
  && grep -q '极客班25级机试考核文档' .output/public/llms.txt \
  && test -s .output/public/t/t73.md \
  && test -s .output/public/t/t9.md \
+ && test -s .output/public/t/t78.md \
+ && test -s .output/public/t/t84.md \
+ && test -s .output/public/t/t89.md \
  && ! test -e .output/public/t/t5.md \
  && ! test -e .output/public/t/t15.md \
  && test -n "$(find .output/public/published -name '*.webp' -print -quit)" \
  # 产物的文本文件里不能有邮箱地址（t73 原文里的共享账户已在导出时去掉），与 vitest 里的检查同一条规则；-I 跳过图片和字体，免得二进制字节碰巧像邮箱。
  && ! grep -rqEI '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.]+' .output/public \
+ # 也不能有写出来的 API 密钥（t89 原文里的公益密钥已在导出时去掉）；前面不接字母数字和连字符，免得样式类名 task-list-… 被当成密钥。
+ && ! grep -rqEI '(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}' .output/public \
  # 产物里不能有上游示例内容（示例帖子标题、示例分类）。
  && ! grep -rq 'Tuff 2.5' .output/public \
  && ! grep -rq 'CoreBox' .output/public
