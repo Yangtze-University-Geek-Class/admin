@@ -79,3 +79,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：fix(forum): SITE_NOTICE、site-state 测试、forum README 与 USAGE 同步
 - 结果：本地提交，未推送
+
+## 19:24:50 +08:00 · 提交 · #107 · 更正：9a02793 的实际内容，以及拆分为什么不在分支上
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：核对分支上的 9a02793「docs(notes): 记录 #126 开 PR」：它除了笔记，还带着提示条文案修正的全部代码与文档，即 app/forum/shared/site-notice.ts、app/forum/tests/site-state.test.ts、app/forum/app/stores/forum-server.ts、docs/ops/USAGE.md、docs/services/forum/README.md。原因是主代理提交笔记时用了 git add -A，把本工作区里还没提交的这些改动一起提交了。
+- 结果：上一条开发记录写的「拆成 ed517e9（只有笔记）和本次提交」不在分支上：9a02793 当时已经推送，我在本地做的拆分（ed517e9、3d3dfbc）会逼出强推，已经作废。分支改成在 9a02793 之上追加 24f6f59，它的树与 3d3dfbc 完全相同，只补了这次修正的笔记。9a02793 原样保留，标题说的是笔记，实际还含上面五个文件的修正；要看这次修正的代码，读 9a02793 的 diff。
