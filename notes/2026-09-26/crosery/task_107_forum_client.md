@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：feat(portal): 桌面图标、Dock、前往菜单、启动器、终端 ls/open、头像菜单和页脚的控制台按 /auth/me 的 console_link 显示（lib/osApps.ts visibleApps）；pnpm test；PLAYWRIGHT_BROWSERS_PATH=… pnpm exec playwright test tests/e2e/
 - 结果：pnpm test 43 个文件 488 个测试通过（中途 portal-org 的「源码不写称号名字」拦下注释里的称号名，已改注释）；e2e 15 个用例全过，含新增的「页脚按 console_link 出现控制台」
+
+## 17:04:43 +08:00 · 提交 · #107 · 论坛相关文档改成接上后端后的现状（docs 提交）
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：docs(docs): forum 服务合同新增「服务端模式」一节（加载、写入、游客、成员、版务、账号资料、正文安全、单测），改写全站登录与头像菜单、已知限制；TUFF-FORUM、LOCAL-PREVIEW、USAGE、STACK 同步；pnpm docs:index；pnpm check。另：停掉了上一个代理在本 worktree 里留下的示例模式 dev 服务器（3466，PID 55490/55552，父进程已是 1），以及本次自己起的 3157 核心服务、3158 临时代理（均按 PID）；3456、3000 没碰
+- 结果：pnpm check 通过（含 check:docs、check:notes、check:secrets、typecheck）
