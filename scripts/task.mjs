@@ -114,12 +114,16 @@ const execFileAsync = promisify(execFile);
 /** 每个 gh 调用最多等这么久：离线时 pre-push 不能一直挂着 */
 const GH_TIMEOUT_MS = 20_000;
 
-/** 调 gh，失败（离线、没登录、超时）返回 null；几个 worktree 的查询并发跑。 */
-async function gh(args) {
+/**
+ * 调 gh，失败（离线、没登录、超时）返回 null；几个 worktree 的查询并发跑。
+ * 并发时偶尔有一次接口出错，非超时、非没装 gh 的失败再试一次，免得该拦的推送被当成「查不到」放过去。
+ */
+async function gh(args, attempt = 1) {
   try {
     const { stdout } = await execFileAsync("gh", args, { encoding: "utf8", timeout: GH_TIMEOUT_MS });
     return stdout.trim();
-  } catch {
+  } catch (error) {
+    if (attempt < 2 && !error?.killed && error?.code !== "ENOENT") return gh(args, attempt + 1);
     return null;
   }
 }
@@ -242,6 +246,11 @@ async function list(flags = {}) {
   }
 }
 
+/** 主工作区停在一条已经结束的 task 分支上：task.mjs finish 不删主工作区，要切回自己的分支 */
+export function mainCheckoutHint(root, branch) {
+  return `主工作区停在 ${branch} 上，finish 只删 .claude/worktrees 下的 worktree，这里要自己切走：git -C ${root} switch dev/<你的 GitHub 用户名>（或 stage），确认没有要留的改动后 git -C ${root} branch -D ${branch}`;
+}
+
 /** list --check：该清而没清的 worktree 让推送失败（退出码 1），查不到状态的只警告。 */
 function check(root, rows) {
   const stale = rows.filter((row) => row.lifecycle.status === "stale");
@@ -257,11 +266,13 @@ function check(root, rows) {
   for (const row of stale) {
     const pr = row.pr.number ? `PR #${row.pr.number} ${row.pr.state}` : "没有 PR";
     console.error(`  #${row.issue} ${row.branch}（${pr}，issue ${row.issueState}）：${row.lifecycle.reason}`);
-    console.error(`    ${relative(root, row.path)}`);
+    console.error(`    ${row.path === root ? mainCheckoutHint(root, row.branch) : relative(root, row.path)}`);
   }
-  console.error("清理（在主工作区运行，带上执行记录的身份）：");
-  console.error(`  cd ${root} && GEEK_NOTES_USER=<GitHub 用户名> GEEK_NOTES_BY=<执行者> node scripts/task.mjs finish <issue>`);
-  console.error("  一次清掉所有能清的：node scripts/task.mjs prune（有未提交改动的不会删，要先处理）");
+  if (stale.some((row) => row.path !== root)) {
+    console.error("清理（在主工作区运行，带上执行记录的身份）：");
+    console.error(`  cd ${root} && GEEK_NOTES_USER=<GitHub 用户名> GEEK_NOTES_BY=<执行者> node scripts/task.mjs finish <issue>`);
+    console.error("  一次清掉所有能清的：node scripts/task.mjs prune（有未提交改动的不会删，要先处理）");
+  }
   process.exitCode = 1;
 }
 
@@ -269,6 +280,10 @@ async function finishOne(root, wt, identity) {
   const row = await inspect(wt);
   if (!row.decision.ok) {
     console.log(`保留 #${row.issue}（${row.branch}）：${row.decision.reason}`);
+    return false;
+  }
+  if (row.path === root) {
+    console.log(`没有清理 #${row.issue}：${mainCheckoutHint(root, row.branch)}`);
     return false;
   }
   if (resolve(process.cwd()).startsWith(resolve(row.path))) throw new Error(`当前目录在要删的 worktree 里（${row.path}）：先 cd 到主工作区再运行。`);

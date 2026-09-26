@@ -107,3 +107,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): 巡检不补关重开过、还有开着的 PR、刚合并的 issue，评论翻页取全；vitest tests/tooling/issue-sweep.test.ts；用 #16 与 PR #21 的真实数据（只读）喂 planSweep
 - 结果：12 passed；#16 标 REOPENED 时不补关，去掉 stateReason 时复现审查说的 close #16 via PR #21；对真实仓库只读巡检：没有要处理的 issue
+
+## 17:15:04 +08:00 · 提交 · #115 · list --check 重试偶发失败、主工作区停在 task 分支时提示切回
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): task.mjs 的 gh 偶发失败重试一次，主工作区停在已结束的 task 分支上时提示切回；vitest tests/tooling/task-worktree.test.ts
+- 结果：9 passed（新增偶发失败重试、主工作区停在已合并 task 分支两个用例）

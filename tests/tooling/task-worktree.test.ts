@@ -69,6 +69,8 @@ describe("推送前检查：该清理的 worktree（list --check 与 pre-push）
     "// 假 gh：issue view <n> 回 FAKE_GH_ISSUE_<n>（默认 OPEN）；pr list --head task/<n>/… 回 FAKE_GH_PR_<n>（「状态 编号」，没设就是没有 PR）",
     "const args = process.argv.slice(2);",
     "if (process.env.FAKE_GH_OFFLINE) process.exit(1);",
+    "// FAKE_GH_FLAKY=<目录>：同一个查询第一次失败、第二次才成功（并发时偶发的接口错误）",
+    'if (process.env.FAKE_GH_FLAKY) { const fs = require("node:fs"); const mark = `${process.env.FAKE_GH_FLAKY}/${args.join("_").replace(/[^A-Za-z0-9]/g, "_")}`; if (!fs.existsSync(mark)) { fs.writeFileSync(mark, ""); process.exit(1); } }',
     'if (args[0] === "issue" && args[1] === "view") console.log(process.env[`FAKE_GH_ISSUE_${args[2]}`] ?? "OPEN");',
     'else if (args[0] === "pr" && args[1] === "list") console.log(process.env[`FAKE_GH_PR_${args[args.indexOf("--head") + 1].split("/")[1]}`] ?? " ");',
     "else process.exit(1);",
@@ -149,6 +151,25 @@ describe("推送前检查：该清理的 worktree（list --check 与 pre-push）
     expect(offline.status).toBe(0);
     expect(offline.stderr).toContain("查不到 PR 的状态");
     expect(offline.stdout).toContain("2 个查不到状态（只警告）");
+  });
+
+  it("gh 偶发失败一次会重试：该拦的照样拦，不被当成查不到", () => {
+    const { root, bin } = fixture();
+    const flaky = join(root, ".claude/flaky");
+    mkdirSync(flaky);
+    const result = listCheck(root, bin, { ...MERGED, FAKE_GH_FLAKY: flaky });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("#7 task/7/done");
+    expect(result.stderr).not.toContain("查不到");
+  });
+
+  it("主工作区停在已合并的 task 分支上：提示切回自己的分支，不提示 finish", () => {
+    const { root, bin } = fixture();
+    git(root, ["checkout", "-q", "-b", "task/9/main_here"]);
+    const result = listCheck(root, bin, { ...WORKING, FAKE_GH_PR_9: "MERGED 20" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`主工作区停在 task/9/main_here 上，finish 只删 .claude/worktrees 下的 worktree，这里要自己切走：git -C ${root} switch dev/<你的 GitHub 用户名>（或 stage）`);
+    expect(result.stderr).not.toContain("task.mjs finish <issue>");
   });
 
   it("pre-push：本机有已合并没 finish 的 worktree 就拒绝推送；清理干净后放行", () => {

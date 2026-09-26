@@ -30,7 +30,7 @@
 
 分支不变量由 `scripts/check-branch-invariants.mjs` 检查（`tests/tooling/branch-invariants.test.ts` 用临时 Git 仓库覆盖不变量、命名规则与 pre-push 的发布 tag 规则：格式错误、rc 不在 stage、正式 tag 不在 main、同提交缺 rc 只告警、版本号不符、删除或移动发布 tag、附注 tag、非发布 tag 只告警）：`--require-remote-refs` 在 CI 上核对真实远端 refs，`--push` 供本地 pre-push 使用；本地也可以用同一命令自查（见 [BRANCHING](BRANCHING.md)）。这类检查只读 Git 证据，不 fetch、不改 refs。
 
-`tests/tooling/task-worktree.test.ts` 在临时 Git 仓库里建 worktree、把 `gh` 换成假的，覆盖推送前的 worktree 检查：PR 已合并或 issue 已放弃、没 finish 的 worktree 让 `task.mjs list --check` 与 `.githooks/pre-push` 失败，清理后放行，查不到 GitHub 只警告。
+`tests/tooling/task-worktree.test.ts` 在临时 Git 仓库里建 worktree、把 `gh` 换成假的，覆盖推送前的 worktree 检查：PR 已合并或 issue 已放弃、没 finish 的 worktree 让 `task.mjs list --check` 与 `.githooks/pre-push` 失败，清理后放行，查不到 GitHub 只警告，gh 偶发失败一次会重试，主工作区停在已合并的 task 分支上时提示切回而不是 finish。
 
 `tests/tooling/issue-sweep.test.ts` 用虚构的 issue 与 PR 覆盖每天的 issue 巡检（[TRACKING](TRACKING.md) §1）：PR 已合并还开着的补关（head 是 task 分支或正文有关闭关键字，合进 `main` 的和只写 `Refs` 的不算；GitHub 标着 REOPENED 的、合并后有过「关闭」记录又开着的、还有开着的 PR 关联的、PR 合并不到一小时的都不关），14 天没动静的留「超期」，关了却没有合并 PR 也没有「关闭」记录的留「缺记录」且只留一次，记录格式与 TRACKING 的类型表一致；命令行换成假 `gh`，核对不带 `--apply` 不写、带了才关闭和留言、一个失败不影响其它但以 1 退出，评论到 100 条时翻页取全。
 
