@@ -1,6 +1,6 @@
 import type { Topic, User } from '~/data/types'
 import { describe, expect, it } from 'vitest'
-import { forumAccess, guestMayReply, UNAVAILABLE_COPY } from '~/data/access'
+import { forumAccess, guestMayReply, loginPromptToast, UNAVAILABLE_COPY } from '~/data/access'
 import { accountMenu } from '~/data/account-menu'
 import { can } from '~/data/permissions'
 
@@ -63,6 +63,25 @@ describe('who may write, per mode', () => {
     expect(can(guest, 'reply', { topic: OPEN })).toBe(false)
     expect(can(guest, 'editPost', { post: { id: 'p1', topicId: 't73', authorId: 'g1', content: 'x', createdAt: 0, likeUserIds: [] } })).toBe(false)
     expect(can(guest, 'editProfile', { targetUser: guest })).toBe(false)
+  })
+})
+
+describe('what a login-required control says to someone who cannot write', () => {
+  it('asks a guest of 极客班论坛 to sign in and offers the 登录 action', () => {
+    expect(loginPromptToast(forumAccess('server', 'ready', null).loginPrompt)).toEqual({
+      id: 'forum-sign-in',
+      title: '登录后才能继续',
+      description: '发新话题、点赞、收藏和关注要先用 GitHub 登录，只有极客班成员能登录。不登录也能看帖和回复。',
+      duration: 6000,
+      signIn: true,
+    })
+  })
+
+  it('says why instead when signing in would not help', () => {
+    expect(loginPromptToast(forumAccess('server', 'error', null).loginPrompt)).toMatchObject({ title: '论坛服务暂时连不上', variant: 'warning', signIn: false })
+    expect(loginPromptToast(forumAccess('server', 'busy', null).loginPrompt)).toMatchObject({ title: '请求太频繁，稍后再试', signIn: false })
+    expect(loginPromptToast(forumAccess('server', 'ready', null, true).loginPrompt)).toMatchObject({ title: '这个账号现在不能在论坛里发帖', signIn: false })
+    expect(loginPromptToast(forumAccess('read-only', 'idle', null).loginPrompt)).toMatchObject({ title: '现在还不能操作', signIn: false })
   })
 })
 

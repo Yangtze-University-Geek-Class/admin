@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
+import { likeControl } from '~/data/likes'
 import { editDraft, fromEditor } from '../../shared/post-markdown'
 
 /**
@@ -10,6 +11,7 @@ import { editDraft, fromEditor } from '../../shared/post-markdown'
  *
  * Every write control asks `can()` first. A control a guest can still see —
  * the like button — routes to the login modal instead of failing silently.
+ * The like button spells itself out (「赞 3」, data/likes.ts, #143).
  */
 const props = defineProps<{
   post: Post
@@ -38,7 +40,7 @@ const author = computed(() => forum.userById(props.post.authorId))
 const replyTarget = computed(() => (props.post.replyToPostId ? forum.postById(props.post.replyToPostId) : undefined))
 const replyTargetUser = computed(() => (replyTarget.value ? forum.userById(replyTarget.value.authorId) : undefined))
 
-const liked = computed(() => !!user.value && props.post.likeUserIds.includes(user.value.id))
+const likeState = computed(() => likeControl(props.post, user.value, can('like')))
 const bookmarked = computed(() => !!user.value && forum.isBookmarked(user.value.id, props.post.id))
 
 const canEdit = computed(() => !props.post.deleted && can('editPost', { post: props.post, topic: props.topic }))
@@ -54,9 +56,10 @@ const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, has
 const editing = ref(false)
 const draft = ref('')
 
+// The write path (how fast the button answers, what a quick second click does) is useForumActions' business (#145).
 function like() {
   const current = user.value
-  if (!current || !can('like')) {
+  if (!current || likeState.value.click === 'prompt') {
     loginOpen.value = true
     return
   }
@@ -185,15 +188,16 @@ async function remove() {
             -->
             <TxFlex align="center" :gap="8" justify="space-between" wrap="wrap">
               <TxFlex align="center" :gap="4" wrap="wrap">
+                <!-- No aria-label: the visible 「赞 3」 is the name, so a screen reader hears the count too. -->
                 <TxButton
-                  variant="bare"
+                  variant="flat"
+                  :type="likeState.tone"
                   size="sm"
-                  :icon="liked ? 'i-carbon-favorite-filled' : 'i-carbon-favorite'"
-                  :aria-pressed="liked"
-                  aria-label="赞"
+                  :icon="likeState.icon"
+                  :aria-pressed="likeState.liked"
                   @click="like"
                 >
-                  {{ post.likeUserIds.length || '' }}
+                  {{ likeState.label }}
                 </TxButton>
                 <TxCopyButton
                   :text="permalink"
