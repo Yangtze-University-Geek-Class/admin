@@ -94,3 +94,21 @@
 - 做了什么：gh pr edit 157 --title 'perf(forum)!: 论坛写接口只回改动，写入先显示再发请求'（288c5b8 带 BREAKING CHANGE，合并提交用 PR 标题）；正文 9 段保留，更新：关联加 Refs #154；变更范围加返工项、合并 stage 的两个提交、ADR-0004 与 TESTING；解决链路加第 5 步返工与测速口径；验证改成 95ba1d4 上的数字、每条新测试不带修改时的结果、服务端变异 Node 22 重跑、C12/C13；验收证据写明返工后的样子没有新截图；人工验收加第 0 步先刷新、第 3 步发送中、第 4 步断网被拒回复重开、第 8 步 A/B 同话题；审查结论写独立审查与返工对照；风险写 rc 升级旧页面约 1 小时加一次跳转、写入不带回别人的新动态、被拒回复只存在当前标签页
 - 结果：node scripts/pr-contract.mjs check --branch task/145/forum_write_delta --body-file（取回的远端正文）：PR 正文契约通过，9 个段落齐全，有验收证据
 - 下一步：推送后等 CI；branch-guard 预计只差「审查」记录，等审查人复核返工后补
+
+## 02:25:14 +08:00 · 推送 · #145 · 推送返工到 task/145/forum_write_delta（6678673）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：GIT_CONFIG insteadOf 走 ssh.github.com:443，git push origin task/145/forum_write_delta：39e528e..6678673，pre-push 分支与发布 tag 规则通过
+- 结果：PR #157 变成 MERGEABLE；CI：forum、docker、docker-cdn、env-contract、lint-workflows、pr-contract 通过；core 两次都失败（TSConfckParseError：tests/server/forum.test.ts 导入论坛 shared/forum-api.ts 时要读 app/forum/.nuxt/tsconfig.app.json，core job 里没有）；branch-guard 只差「审查」记录
+
+## 02:25:14 +08:00 · 返工 · #145 · 根测试从副本导入 parseWriteResult，修 CI 的 core
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：069c8e5：tests/server/forum.test.ts 把论坛的 shared/forum-api.ts 和 app/data/types.ts 按原目录结构复制到被忽略的 .tools/forum-api-*/ 再导入，用完删掉；本机把 app/forum/.nuxt 挪开复现 CI 的失败
+- 结果：挪开 .nuxt 时改前 Test Files 1 failed（TSConfckParseError … ENOENT），改后挪开与不挪开都是 53 passed，removed.bookmarks 改名变异下仍失败；069c8e5 上 pnpm verify 退出码 0：根 52 个文件 708 条、论坛 29 个文件 515 条、forum:generate 61 个路由
+
+## 02:25:14 +08:00 · PR · #145 · PR #157 正文跟上 069c8e5
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr edit 157 --body-file：验证改成 069c8e5 上的结果，写明第一次推送 core 失败的原因和修法，返工范围改成 39e528e..069c8e5
+- 结果：取回的远端正文 node scripts/pr-contract.mjs check 通过，9 个段落齐全，有验收证据
