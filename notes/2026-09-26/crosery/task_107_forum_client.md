@@ -55,3 +55,9 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：docs(docs): forum 服务合同与 USAGE 同步；pnpm check
 - 结果：见下一步的 pnpm check 输出
+
+## 17:28:05 +08:00 · 开发 · #107 · 补记 d413b1e 之后的根检查结果
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：在 d413b1e 上跑 pnpm check；停掉本轮起的 3157 核心服务与 3158 临时代理（按 PID）
+- 结果：pnpm check 通过（docs/INDEX.md 最新，执行记录 11 条链路通过，密钥门禁与 typecheck 通过）；3157、3158 已无监听
