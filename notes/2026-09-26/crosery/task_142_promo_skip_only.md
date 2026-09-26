@@ -32,3 +32,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：pnpm --filter @yzgc/web build（f125abd 的源码），/tmp/serve-142.mjs 只绑 127.0.0.1:4318、非文件路径回落 portal 入口；ego TaskSpace 214 只删 yugc_promo_seen 一个 cookie 后打开 http://localhost:4318/join-us
 - 结果：桌面 1440×900：hls.js AV1，静音自动播（没有用户手势），画面上按钮只有「跳过Esc」，没有底部条和打开声音，焦点在跳过上；鼠标点画面后 paused=false、muted=false；Esc 关闭并写入看过。减少动态效果：播放层没画出来、没有 video，直接进信纸，写入看过。手机 390×844 触屏：画面框 matrix(0,1,-1,0) 铺满，H.264 与 640 宽封面，只有「跳过」，键帽不显示；手指点画面不暂停并打开声音；点跳过关闭。PromoPlayer 分包 4.59kB（原约 6KB），portal.md 改为约 5KB。截图 /tmp/promo-142-desktop.png、/tmp/promo-142-mobile.png，稍后传到 PR
+
+## 22:46:51 +08:00 · 提交 · #142 · 补记两个提交
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：31c9b42 docs(notes): 记 #142 开工与方案，并入 #115 #140 暂存的合并与收尾；40cab77 docs(docs): portal.md 的宣传片播放层分包大小改为实测约 5KB（上一条开发记录随它提交）
+- 结果：40cab77 上 pnpm check 退出 0（文档同步 6 组、执行记录 27 条链路）；pnpm test 51 文件 689 passed；推送 task/142/promo_skip_only 时 pre-push 分支规则与 worktree 生命周期检查通过
+
+## 22:46:51 +08:00 · PR · #142 · 开 PR #150 到 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create --base stage，九段正文，Closes #142；ego TaskSpace 214 在 PR #150 的评论框上传桌面、手机两张截图，拿到 user-attachments 链接后清空评论框（没有发评论，刷新后草稿为空），写进正文「验收证据」；TaskSpace 已 finish({keep:[]})，本机静态服务按 PID 停掉
+- 结果：PR #150：https://github.com/Yangtze-University-Geek-Class/admin/pull/150；截图 assets/65544679-8de5-411e-9f3f-1af5545c59a6（1440×900）、assets/fecd2c3e-ea69-45cb-af16-14d9fac28fcc（390×844）
+- 下一步：等 CI；独立审查给出结论后补「审查」记录
