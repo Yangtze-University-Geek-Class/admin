@@ -280,6 +280,64 @@ describe('workflows pass the mirrors from repository variables', () => {
   });
 });
 
+describe('runner-side installs check the better-sqlite3 binary host before downloading anything', () => {
+  // prebuild-install 不核对预编译包的哈希；runner 上的 pnpm install 与镜像构建阶段一样，地址只能是 https://。
+  const jobs = { 'ci core': job(ci, 'core'), 'preview build': job(deploys.preview, 'build'), 'production build': job(deploys.production, 'build') };
+  const STEP = /\n {6}- name: 核对 better-sqlite3 预编译包地址\n {8}shell: bash\n {8}run: \|\n((?: {10}.*\n)+)/;
+  const stepScript = (text: string) => {
+    const match = STEP.exec(text);
+    if (!match) throw new Error('找不到「核对 better-sqlite3 预编译包地址」这一步');
+    return match[1].replace(/^ {10}/gm, '');
+  };
+  /** 一段 shell 里核对 BETTER_SQLITE3_BINARY_HOST 的 case 行，去掉缩进与 Dockerfile 的 `; \` 续行。 */
+  const caseLines = (text: string) =>
+    [...text.matchAll(/^\s*(case "\$BETTER_SQLITE3_BINARY_HOST" in .*? esac)(?:; \\)?$/gm)].map(match => match[1]);
+
+  it('runs the same case as the server Dockerfile, right after checkout, in every job that installs with it set', () => {
+    const dockerfileCases = caseLines(builderRun('server'));
+    expect(dockerfileCases).toHaveLength(2);
+    const scripts = Object.entries(jobs).map(([name, text]) => {
+      expect(text, name).toContain(`      npm_config_better_sqlite3_binary_host: ${VAR_EXPR.BETTER_SQLITE3_BINARY_HOST}\n`);
+      const script = stepScript(text);
+      expect(caseLines(script), name).toEqual(dockerfileCases);
+      // 检出之后的第一步：比 pnpm/action-setup、setup-node 和 pnpm install 都早。
+      const steps = [...text.matchAll(/\n {6}- name: (.*)/g)].map(match => match[1]);
+      expect(steps.slice(0, 2), name).toEqual([expect.stringMatching(/^检出/), '核对 better-sqlite3 预编译包地址']);
+      expect(steps.indexOf('依赖安装（锁文件不可变）'), name).toBeGreaterThan(1);
+      return script;
+    });
+    expect(new Set(scripts).size).toBe(1);
+    // 设了 npm_config_better_sqlite3_binary_host 的只有这三个 job。
+    const everyJob = [ci, ...Object.values(deploys)].join('\n');
+    expect(everyJob.split('npm_config_better_sqlite3_binary_host: ').length - 1).toBe(3);
+  });
+
+  /** 按 `shell: bash` 的实际调用方式（-eo pipefail）实跑 ci core job 的那一步。 */
+  const runStep = (host: string) =>
+    sandbox().run(stepScript(jobs['ci core']), { npm_config_better_sqlite3_binary_host: host }, ['/bin/bash', '--noprofile', '--norc', '-eo', 'pipefail']);
+
+  it.each([
+    ['', 'better-sqlite3 预编译包：GitHub releases'],
+    ['https://registry.npmmirror.com/-/binary/better-sqlite3', 'better-sqlite3 预编译包：https://registry.npmmirror.com/-/binary/better-sqlite3'],
+  ])('accepts %j', (host, output) => {
+    const run = runStep(host);
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.stdout).toBe(`${output}\n`);
+  });
+
+  it.each([
+    ['http://registry.npmmirror.com/-/binary/better-sqlite3', 'BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址'],
+    ['https://registry.npmmirror.com/-/binary/better-sqlite3/', 'BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址'],
+    ['https://github.com@evil.example/better-sqlite3', 'BETTER_SQLITE3_BINARY_HOST 含有不允许的字符'],
+    ['https://evil.example/x?y=1', 'BETTER_SQLITE3_BINARY_HOST 含有不允许的字符'],
+  ])('rejects %s', (host, message) => {
+    const run = runStep(host);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(message);
+    expect(run.stdout).toBe('');
+  });
+});
+
 describe('runner containers pre-seed Node 22 into the actions tool cache', () => {
   const setup = read('deploy/runner/container-setup.sh');
 

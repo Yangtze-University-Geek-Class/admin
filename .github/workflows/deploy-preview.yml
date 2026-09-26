@@ -155,6 +155,19 @@ jobs:
           ref: ${{ needs.plan.outputs.commit }}
           persist-credentials: false
 
+      # prebuild-install 不核对 better-sqlite3 预编译包的哈希，传输途中不被换包只能靠 https（#104）。
+      # 在任何下载之前按与 app/server/Dockerfile 构建阶段相同的 case 核对地址：空 = GitHub releases；
+      # tests/tooling/build-mirrors.test.ts 核对三处 job 与 Dockerfile 一致，并实跑这一步。
+      - name: 核对 better-sqlite3 预编译包地址
+        shell: bash
+        run: |
+          BETTER_SQLITE3_BINARY_HOST=$npm_config_better_sqlite3_binary_host
+          if [ -n "$BETTER_SQLITE3_BINARY_HOST" ]; then
+            case "$BETTER_SQLITE3_BINARY_HOST" in https://*[!/]) ;; *) echo "BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac
+            case "$BETTER_SQLITE3_BINARY_HOST" in *[!0-9A-Za-z.:/_-]*) echo "BETTER_SQLITE3_BINARY_HOST 含有不允许的字符：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac
+          fi
+          echo "better-sqlite3 预编译包：${BETTER_SQLITE3_BINARY_HOST:-GitHub releases}"
+
       - name: 安装 pnpm（读取根 packageManager）
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
