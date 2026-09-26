@@ -79,7 +79,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 本机预览与论坛运行 | [LOCAL-PREVIEW](ops/LOCAL-PREVIEW.md)、[TUFF-FORUM](ops/TUFF-FORUM.md) |
 | 极客班论坛原始数据拉取与本地备份 | [FORUM-DATA-CAPTURE](ops/FORUM-DATA-CAPTURE.md) |
 | 用户指南，可公开 | [USAGE](ops/USAGE.md) |
-| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md) |
+| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md)、[ADR-0004](decisions/0004-forum-backend-in-core-server.md) |
 | 交付证据与历史整改记录 | [reviews](reviews/README.md)；历史材料见 [history](history/README.md)、[plan](plan/README.md)、[handovers](handovers/README.md) |
 
 ## 文档类别与优先级

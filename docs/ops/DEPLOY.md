@@ -2,7 +2,7 @@
 
 > 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 发布前置
 
@@ -52,7 +52,7 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 
 两栈**完全隔离**：独立目录、独立 compose 项目、独立端口、独立数据卷、独立密钥、独立域名、独立锁。不得共用数据库、上传目录、会话密钥或父域 Cookie；Cookie 使用 host-only，禁止 `.yangtzeu.work`。宿主 3000/443/2568/8787/8080 已被现有服务占用，新栈只绑回环的 18100/18101 与 18200/18201；forum 容器不发布任何宿主端口。
 
-镜像名按环境分仓库：正式 `yzgc-production/{server,web,forum}:<tag>`，预发布 `yzgc-preview/{server,web,forum}:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。两套栈共用同一个 Docker 守护进程，同一提交的正式与预发布镜像构建参数不同（`release.json`、版本串），共用镜像名会在 `docker load` 时互相覆盖；仓库名在 compose 文件里是字面量，不从 env 文件读取，`scripts/deployment-environment.mjs --check` 会拒绝两套 compose 在同一 SHA 上解析出相同镜像引用。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z-rc.N@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。
+镜像名按环境分仓库：正式 `yzgc-production/{server,web,forum}:<tag>`，预发布 `yzgc-preview/{server,web,forum}:<tag>`，tag = 本次 commit 的 `<sha12>`，部署时写入目标机环境文件的 `IMAGE_TAG`。两套栈共用同一个 Docker 守护进程，同一提交的正式与预发布镜像构建参数不同（`release.json`、版本串），共用镜像名会在 `docker load` 时互相覆盖；仓库名在 compose 文件里是字面量，不从 env 文件读取，`scripts/deployment-environment.mjs --check` 会拒绝两套 compose 在同一 SHA 上解析出相同镜像引用。构建上下文是仓库根，`dockerfile: app/<service>/Dockerfile`；每个服务有 `app/<service>/.dockerignore`，另有根 `.dockerignore` 控制上下文（Docker 读的是构建上下文根下的那一份，因此根文件才是实际生效的排除规则）。三个镜像共享同一组 build args：`GEEK_DEPLOYMENT_ENVIRONMENT`（必填，`production`/`preview`）、`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`；论坛会校验组合（预发布要 `X.Y.Z-rc.N@<sha12>`、正式要 `X.Y.Z`、commit 必须 40 位十六进制），不合格直接构建失败。另有只在构建阶段生效的下载源参数：`NPM_REGISTRY`（三个镜像）、`DEBIAN_MIRROR` 与 `BETTER_SQLITE3_BINARY_HOST`（只有 server），不传就是官方源，不进运行镜像；取值、校验与信任依据见 [CICD](CICD.md#构建下载源104)。
 
 ## 部署流程
 
@@ -95,6 +95,7 @@ bash deploy-stack.sh --environment production \
 - **历史记录**：追加写 `<栈根>/deploy-history.log`，制表符分列 `<UTC ISO8601> <环境> <生效版本> <结果> <说明>`。第 3 列是**该次动作后真正在跑的 tag**：`OK` / `MANUAL_ROLLBACK` 行 = 部署后生效的 tag；`FAILED` 行 = 尝试部署但没起来的 tag；`ROLLED_BACK` 行 = 回滚后真正生效的旧 tag（说明里写明目标版本未上线）。镜像保留策略与 `rollback-stack.sh --to previous` 都按这一列判断。结果取值：`OK` / `FAILED` / `ROLLED_BACK` / `ROLLBACK_FAILED` / `ROLLBACK_SKIPPED`（部署）与 `MANUAL_ROLLBACK` / `MANUAL_ROLLBACK_FAILED`（回滚）。
 - **镜像构成**：`node:22-bookworm-slim`（server 构建与运行）、`node:22-bookworm-slim` + `nginx:1.31-alpine`（web 构建 + 运行）、`node:26-bookworm-slim` + `nginx:1.31-alpine`（forum 构建 + 运行）。基础镜像大版本变更必须单独验证（1.27 系列已下线，不要再回退到旧 tag）。
 - **基础镜像按 digest 固定**（#97）：三个 Dockerfile 的 `FROM` 写成 `<tag>@sha256:<digest>`。家里的自托管 runner 连不上 Docker Hub，只能经第三方加速源拉取；按 digest 拉取时 Docker 会校验内容，加速源给不了别的镜像。更新基础镜像走普通 task PR：在 Docker Hub 上查到新 digest（`hub.docker.com/v2/repositories/library/<名字>/tags/<tag>` 的 `digest`，是多架构索引的 digest），再和两个加速源返回的 `Docker-Content-Digest` 对一遍，三处一致才改；改完重做一次性部署 runner 的镜像（[CICD](CICD.md#自托管-runner)）。
+- **构建阶段的下载源**（#104）：家里的自托管 runner 经仓库变量把 npm、Debian、better-sqlite3 预编译包换成国内镜像，工作流以同名 build arg 传进来；锁文件 integrity、corepack 签名、apt 签名照常核对，论坛的 pnpm 11.24.0 按写死的官方 sha512 核对。运行阶段是新的 `FROM`，不继承这些 ARG 与 ENV；server 运行镜像里唯一的痕迹是 pnpm 写在 `node_modules/.modules.yaml` 的 `registries`（安装元数据，运行时不读）。细节见 [CICD](CICD.md#构建下载源104)。
 - **`FORUM_PORT` 三处一致**：compose 用 `expose: ["${FORUM_PORT}"]` 声明容器内端口，必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 以及 web 容器 `proxy_pass http://forum:3000/` 三处同时一致；改值要一起改镜像与 web 的 nginx 配置。
 - **镜像保留**：部署成功后只清理本环境仓库 `yzgc-<environment>/*` 的其它 tag，保留本栈历史中最新 5 个不同 tag + 当前 + 上一个；另一环境的仓库不在清理范围内；正在使用的镜像不会被强制删除。旧模型遗留的 `yzgc/*` 镜像两个脚本都不再使用也不清理，确认两套栈都已切到新仓库后由维护者手工删除。
 - **自动回滚前先确认镜像在**：部署失败（compose up 或健康门）时，若本机没有本环境上一个版本的三个镜像，记 `ROLLBACK_SKIPPED` 并停下，不会用另一环境的同名 SHA 顶替；没有上一个版本（首次部署）同样记 `ROLLBACK_SKIPPED`。
@@ -135,7 +136,7 @@ bash deploy-stack.sh --environment production \
 
 环境变量**只**经 `.env` 文件：`deploy/env/.env.production` 与 `deploy/env/.env.preview` 提交入库，非密值（地址、端口、域名、路径、开关）预填真实值，密钥字段留空由 CI/CD 注入。完整字段契约、可见性规则与 GitHub 环境 secrets/vars 清单见 [ENVIRONMENTS](ENVIRONMENTS.md)；本机开发模板见 [ENVIRONMENT](ENVIRONMENT.md)。
 
-关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`（环境唯一的对外地址，逐字等于 `deploy/environments.json` 的 origin）、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代来自 compose 网络，必须为 `true`）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
+关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`（环境唯一的对外地址，逐字等于 `deploy/environments.json` 的 origin）、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代层数，必须为 `2`：宿主 nginx 与 web 容器 nginx 两层；写 `true` 会让客户端伪造 IP，见 [ENVIRONMENTS](ENVIRONMENTS.md)）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
 
 禁止把真实密钥写入仓库、镜像、日志或发布记录；`.env` 由目标机最小权限保存，不打印、不提交。
 

@@ -29,8 +29,14 @@ it("rejects invalid runtime credentials, production HTTP and unbounded PoW", () 
 it("stays on loopback unless a container deployment asks for another interface", () => {
   const local = createConfig(env());
   expect([local.host, local.trustProxy]).toEqual(["127.0.0.1", "loopback"]);
-  const container = createConfig({ ...env(), HOST: "0.0.0.0", TRUST_PROXY: "true" });
-  expect([container.host, container.trustProxy]).toEqual(["0.0.0.0", true]);
+  // 部署的两层反代（宿主 nginx、web 容器 nginx）写成层数 2，见 deploy/env/.env.<环境>。
+  const container = createConfig({ ...env(), HOST: "0.0.0.0", TRUST_PROXY: "2" });
+  expect([container.host, container.trustProxy]).toEqual(["0.0.0.0", 2]);
+  expect(createConfig({ ...env(), TRUST_PROXY: "1" }).trustProxy).toBe(1);
+  expect(createConfig({ ...env(), TRUST_PROXY: "true" }).trustProxy).toBe(true);
   expect(createConfig({ ...env(), TRUST_PROXY: "false" }).trustProxy).toBe(false);
+  expect(createConfig({ ...env(), TRUST_PROXY: "0" }).trustProxy).toBe(false);
+  expect(createConfig({ ...env(), TRUST_PROXY: "10.0.0.0/8, 127.0.0.1" }).trustProxy).toBe("10.0.0.0/8, 127.0.0.1");
+  for (const value of ["-1", "1.5", "11", "+2"]) expect(() => createConfig({ ...env(), TRUST_PROXY: value })).toThrow("TRUST_PROXY");
   expect(() => createConfig({ ...env(), HOST: "127.0.0.1:3000" })).toThrow("without a port");
 });

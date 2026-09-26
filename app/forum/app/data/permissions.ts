@@ -28,16 +28,26 @@ export interface PermissionContext {
 }
 
 /**
- * Whether the user holds a forum capability of the 极客班 catalogue. An admin
- * or moderator by forum role holds all of them, as before; anyone else holds
- * what their title carries (`titleForumCapabilities`, the local default packs:
- * the server publishes no permission packs to the forum). The server has no
- * forum endpoint yet (issue #57), so this is the demo's reading of the future
- * contract, not an authorization boundary.
+ * The capabilities the forum server computed for the signed-in viewer
+ * (`state.viewer.capabilities`). When the pages run against the server they
+ * pass it, and it is the only answer: a title or role on the user object no
+ * longer grants anything by itself. The demo and the snapshot pass nothing.
  */
-export function hasForumCapability(user: User | null | undefined, capability: ForumCapability): boolean {
+export type GrantedCapabilities = ReadonlySet<string>
+
+/**
+ * Whether the user holds a forum capability of the 极客班 catalogue. Against
+ * the forum server, exactly what the server granted the viewer. Otherwise, an
+ * admin or moderator by forum role holds all of them, as before; anyone else
+ * holds what their title carries (`titleForumCapabilities`, the local default
+ * packs). That fallback is the demo's reading of the contract, not an
+ * authorization boundary; the server re-checks every write.
+ */
+export function hasForumCapability(user: User | null | undefined, capability: ForumCapability, granted?: GrantedCapabilities): boolean {
   if (!user)
     return false
+  if (granted)
+    return granted.has(capability)
   if (user.role === 'admin' || user.role === 'moderator')
     return true
   return titleForumCapabilities(user.title).has(capability)
@@ -48,12 +58,17 @@ export function hasForumCapability(user: User | null | undefined, capability: Fo
  * an admin or moderator by role, the 提督 or the 舰长, or a head or crew
  * member whose department pack includes `forum.post.moderate`.
  */
-export function isStaff(user: User | null | undefined): boolean {
-  return hasForumCapability(user, 'forum.post.moderate')
+export function isStaff(user: User | null | undefined, granted?: GrantedCapabilities): boolean {
+  return hasForumCapability(user, 'forum.post.moderate', granted)
 }
 
-export function can(user: User | null | undefined, action: ForumAction, ctx: PermissionContext = {}): boolean {
-  if (!user)
+/**
+ * `granted` is the server's answer for `user` (see `GrantedCapabilities`);
+ * leave it out in the demo. A guest account (`kind: 'guest'`) never signs in,
+ * so it can do nothing here: guest replies go through their own path.
+ */
+export function can(user: User | null | undefined, action: ForumAction, ctx: PermissionContext = {}, granted?: GrantedCapabilities): boolean {
+  if (!user || user.kind === 'guest')
     return false
 
   switch (action) {
@@ -67,17 +82,17 @@ export function can(user: User | null | undefined, action: ForumAction, ctx: Per
     // forum.post.moderate covers others' posts and closed topics,
     // forum.topic.pin covers pinTopic, forum.topic.close covers closeTopic.
     case 'reply':
-      return !ctx.topic?.closed || isStaff(user)
+      return !ctx.topic?.closed || isStaff(user, granted)
 
     case 'editPost':
     case 'deletePost':
-      return ctx.post !== undefined && (ctx.post.authorId === user.id || isStaff(user))
+      return ctx.post !== undefined && (ctx.post.authorId === user.id || isStaff(user, granted))
 
     case 'pinTopic':
-      return hasForumCapability(user, 'forum.topic.pin')
+      return hasForumCapability(user, 'forum.topic.pin', granted)
 
     case 'closeTopic':
-      return hasForumCapability(user, 'forum.topic.close')
+      return hasForumCapability(user, 'forum.topic.close', granted)
 
     case 'editProfile':
       return ctx.targetUser !== undefined && ctx.targetUser.id === user.id

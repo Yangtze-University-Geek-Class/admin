@@ -2,7 +2,7 @@
 
 > 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 范围与路由
 
@@ -13,7 +13,7 @@
 | `/` | `pages/Home.tsx` | 加载动画 → 3D 书桌 → 点电脑开机 → YUGC OS 桌面（极客娘壁纸 + 应用图标 + 「新来的看这里」便签 + 窗口 + 带名字的 Dock + ⌘K 启动器） |
 | `/join-us` | `pages/JoinUs.tsx` | 加入我们：信封场景，DOM 信纸就是表单，真实提交 `POST /api/portal/apply` |
 | `/apply` | — | 旧地址，`<Navigate replace>` 到 `/join-us`，已发出的链接不失效 |
-| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标 |
+| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109） |
 | `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表 |
 | `/docs`、`/docs/:id` | `pages/Docs.tsx` | 公开产品介绍与用户指南（白名单由 `/api/docs` 决定） |
 | `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；未指定组织时默认本组织 |
@@ -59,9 +59,11 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 官网不自建登录态，只显示核心服务的全站 GitHub 登录（官网、论坛、控制台共用同一个 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」）。`components/os/YugcOs.tsx` 在菜单栏时钟左边放这个入口，`lib/account.ts` 读完 `/auth/me` 之前不显示：
 
 - 未登录：「用 GitHub 登录」链接（GitHub 图标 + 文字，钴蓝底），指向 `/auth/github?return_to=<当前 origin>/forum/`，登录后进论坛首页。本机开发时 5173 把 `/auth` 代理给 127.0.0.1:3000，回到的 `/forum/` 再 302 到 3456（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。
-- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
+- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单，「控制台」只在 `/auth/me` 的 `console_link` 为 true 时出现；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
 
-官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子只有公开的招新机试文档和入门资料），登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
+**控制台入口只给管理者**：`/auth/me` 的 `console_link`（持有 `console.access`、`github.org.read`、`feedback.read` 之外任一能力的人：提督、舰长、队长、带部门权限包的舰员）为 true 时，桌面图标、Dock、「前往」菜单、启动器（⌘K）、终端的 `ls` / `open console`、头像菜单和普通页面页脚才出现「控制台」；没登录、普通舰员和领航员都看不到。`lib/osApps.ts` 的 `visibleApps(consoleLink)` 是桌面这几处唯一的过滤，`components/PageShell.tsx` 的页脚同样按它显示。这只决定入口显不显示，控制台自己的准入不变（直接打开 `/console` 仍按能力判定）。单测 `tests/web/portal-os.test.ts`，浏览器用例 `tests/e2e/workflows.spec.ts`（页脚按 `console_link` 出现）。
+
+官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子与回复存在核心服务，见 [forum 合同](../forum/README.md)「服务端模式」），登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
 
 ## 加入我们（投递）
 
