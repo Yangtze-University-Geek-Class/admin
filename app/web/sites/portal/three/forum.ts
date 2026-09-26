@@ -31,6 +31,9 @@ export type ForumHandle = {
   focusBoard(index: number): void;
   open(index: number): void;
   goHome(): void;
+  /** 回到进场时的样子：撤掉转场（推近的镜头、放大的气泡、遮罩）、悬停与提示，按当前窗口重新取景。
+   *  从论坛按后退回来时浏览器可能整页从往返缓存恢复，转场停在最后一帧，页面调用它复位 */
+  reset(): void;
   dispose(): void;
 };
 
@@ -219,6 +222,23 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
     opening = { index, elapsed: 0, fromPos: stage.basePos.clone(), fromTarget: stage.baseTarget.clone(), fromOffset: { ...stage.baseOffset }, done: false };
     stage.invalidate();
   };
+  const reset = () => {
+    opening = null;
+    lastWipe = 0;
+    flyOffset.x = 0;
+    flyOffset.y = 0;
+    dragging = false;
+    targetSpin = null;
+    spinVel = reducedMotion ? 0 : SPIN;
+    coinHot = 0;
+    canvas.style.cursor = "grab";
+    setHot(-1);
+    options.onTip("", 0, 0);
+    options.onWipe(0);
+    // resize 会调 onLayout，opening 已清空，镜头回到按窗口算出的取景；poke 让自转和浮动像刚进场一样再动一会儿
+    stage.resize();
+    stage.poke();
+  };
 
   const onDown = (event: PointerEvent) => {
     dragging = true;
@@ -366,6 +386,7 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
     focusBoard,
     open: startOpening,
     goHome: () => startOpening(-1),
+    reset,
     dispose() {
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointerup", onUp);
