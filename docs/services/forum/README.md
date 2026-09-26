@@ -135,6 +135,8 @@ pnpm forum:stop
 
 ## 验证命令
 
+`csp-header.mjs` 按成对引号读取 script 属性，属性值中的 `>` 或另一种引号不截断标签；`/` 分隔后的 `src`、`type` 也按属性处理。缺失闭合标签或引号、脚本正文含 CR 时仍让构建失败。根 `tests/tooling/forum-csp.test.ts` 用 jsdom（parse5）对照这些属性的解析，并在有 nginx 时原样请求 `/forum/../api/anything`，确认宿主站点 CSP 与上游 CSP 同时保留。
+
 ```bash
 pnpm forum:check     # Nuxt 类型、测试类型、ESLint、样式 guard、Vitest
 pnpm forum:generate  # 静态构建（默认示例种子），产物含每个种子话题的 t/<id>.md 与 llms.txt
