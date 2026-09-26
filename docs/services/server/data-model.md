@@ -37,7 +37,7 @@
 | 表 | 用途 | 写入时机 | 读取与下发 | 个人信息与备注 |
 |---|---|---|---|---|
 | `forum_counters` | 五个计数器 `topic`、`post`、`notification`、`tag`、`guest` | 启动播种时 `INSERT OR IGNORE` 起点（1000、10000、0、0、0）；每次取新编号加一 | `state.counters`（不含 `guest`） | 无 |
-| `forum_users` | 论坛用户：成员、游客、官方账号 | 成员第一次带 `sid` 请求时建，之后每次请求刷新 `role`、`title`、`github_avatar_url`、GitHub 改名后的 `username`；账号资料接口改 `display_name`、`bio`、`location`、`website`、`notify_*`；头像接口改 `avatar_hash`；每条游客回复建一个游客；播种建官方账号 | `state.users`（全部下发，不含 `github_user_id`、`updated_at`） | `github_user_id`（`UNIQUE`）、`username`（GitHub 登录名，`UNIQUE COLLATE NOCASE`）、`display_name`、`bio`、`location`、`website`、`github_avatar_url` 都是个人信息，除 `github_user_id` 外公开展示。游客的昵称由游客自己填，不能与成员或官方账号的昵称、用户名相同 |
+| `forum_users` | 论坛用户：成员、游客、官方账号 | 成员第一次带 `sid` 请求时建，之后每次请求刷新 `role`、`title`、`github_avatar_url`、GitHub 改名后的 `username`；账号资料接口改 `display_name`、`bio`、`location`、`website`、`notify_*`；头像接口改 `avatar_hash`；每条游客回复建一个游客；播种建官方账号 | `state.users`（全部下发，不含 `github_user_id`、`updated_at`；`notify_*` 只给本人真实值，别人的给初始值） | `github_user_id`（`UNIQUE`）、`username`（GitHub 登录名，`UNIQUE COLLATE NOCASE`）、`display_name`、`bio`、`location`、`website`、`github_avatar_url` 都是个人信息，除 `github_user_id` 外公开展示。游客的昵称由游客自己填，不能含看不见的字符，归一后（NFKC、去掉看不见的字符与附加符号、不分大小写）不能与成员或官方账号的昵称、用户名相同；成员的 `display_name` 同样不能含这些字符，也不能等于官方账号的名字或别人的用户名 |
 | `forum_topics` | 话题 | 播种（没有才插入）；成员发帖；回复刷新 `last_activity_at`；浏览数；置顶、关闭 | `state.topics` | `tag_ids` 是 JSON 数组；`category_id` 只能是 curation.json 里的分类 |
 | `forum_posts` | 帖子（话题首帖和回复） | 播种首帖；发帖、回复；编辑写 `edited_at`；软删除把 `deleted` 置 1 并清空 `content` | `state.posts` | `content` 是用户写的 Markdown，原样存储，渲染时由前端净化 |
 | `forum_likes` | 点赞 | 点赞切换 | `state.posts[].likeUserIds` | 无 |
@@ -46,8 +46,8 @@
 | `forum_notifications` | 通知：回复、@提及、点赞、关注 | 回复、发帖、点赞、关注时按规则写（只写给成员，不给自己）；标记已读 | `state.notifications`，只下发收件人自己的 | 无 |
 | `forum_tags` | 用户发帖时新建的标签 | 发帖时按名字找不到已有标签才建 | `state.tags`（接在精选标签后） | `created_by` 是论坛用户 id |
 | `forum_avatars` | 上传的头像（256×256 WebP 的 BLOB），按内容 sha256 寻址 | 上传头像；换掉或删掉后没人引用的旧图同一事务删除 | `GET /api/forum/avatars/<hash>.webp` | 头像是用户上传的图片，公开可读；重新编码后不含原图元数据 |
-| `forum_topic_views` | 浏览数去重：同一 IP 同一话题一小时一次 | 浏览接口；每次写入前删掉一小时以前的行 | 只在浏览接口里查 | `ip` 是来源 IP，最多保留一小时 |
-| `forum_rate_events` | 限流记录：游客回复（按 IP）、成员发帖与回复、头像上传（按论坛用户 id） | 动作成功后写一行；每次写入前删掉一天以前的行 | 只在限流判断里查 | 游客回复的 `subject` 是来源 IP，最多保留一天 |
+| `forum_topic_views` | 浏览数去重：同一 IP 同一话题一小时一次 | 浏览接口；每次写入前删掉一小时以前的行 | 只在浏览接口里查 | `ip` 是来源 IP（IPv6 存 /64 前缀），最多保留一小时 |
+| `forum_rate_events` | 限流记录：游客回复（`guestPost` 按 IP，IPv6 按 /64；`guestPostSite` 是全站游客回复总量，`subject` 固定为 `site`）、成员发帖与回复（按论坛用户 id）、头像上传（按论坛用户 id） | 游客回复、发帖、回复在动作成功后写一行，头像在读请求体之前就写（每次上传都算）；每次写入前删掉一天以前的行 | 只在限流判断里查 | 游客回复的 `subject` 是来源 IP 或 /64 前缀，最多保留一天 |
 
 ## 未使用的表、列和索引
 

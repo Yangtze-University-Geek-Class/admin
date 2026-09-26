@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import type { ForumContent, ForumTag } from "./forum-content.js";
 import {
-  COUNTER_START, FORUM_LIMITS, FORUM_RATE_LIMITS, ForumError, VIEW_WINDOW_MS, extractMentions, paletteColor, tagSlug,
+  COUNTER_START, FORUM_LIMITS, FORUM_RATE_LIMITS, ForumError, VIEW_WINDOW_MS, extractMentions, nameKey, paletteColor, tagSlug,
   type CounterName, type RateBucket,
 } from "./forum-rules.js";
 
@@ -60,13 +60,24 @@ type TagRow = { id: string; slug: string; name: string; color: string };
 
 export const avatarPath = (hash: string) => `/api/forum/avatars/${hash}.webp`;
 
-function toUser(row: UserRow): ForumUser {
+/**
+ * 通知设置只下发给本人：别人的一律给这一类用户的初始值（成员全开，与新成员相同；游客与官方账号不收通知，全关），
+ * 字段照常存在，看不出谁关了哪种通知。
+ */
+const DEFAULT_NOTIFY_PREFS: Record<ForumUserKind, NotifyPrefs> = {
+  member: { reply: true, like: true, follow: true },
+  guest: { reply: false, like: false, follow: false },
+  official: { reply: false, like: false, follow: false },
+};
+
+function toUser(row: UserRow, ownPrefs = true): ForumUser {
   const avatarUrl = row.avatar_hash ? avatarPath(row.avatar_hash) : row.kind === "member" && row.github_avatar_url ? row.github_avatar_url : undefined;
   const title = row.title ? JSON.parse(row.title) as ForumTitle : undefined;
   return {
     id: row.id, username: row.username, displayName: row.display_name, bio: row.bio, location: row.location, website: row.website,
     avatarColor: row.avatar_color, ...(avatarUrl ? { avatarUrl } : {}), joinedAt: row.joined_at, role: row.role,
-    ...(title ? { title } : {}), notifyPrefs: { reply: row.notify_reply === 1, like: row.notify_like === 1, follow: row.notify_follow === 1 },
+    ...(title ? { title } : {}),
+    notifyPrefs: ownPrefs ? { reply: row.notify_reply === 1, like: row.notify_like === 1, follow: row.notify_follow === 1 } : { ...DEFAULT_NOTIFY_PREFS[row.kind] },
     kind: row.kind,
   };
 }
@@ -120,13 +131,16 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
       `SELECT 1 FROM forum_notifications WHERE recipient_id = ? AND type = ?${actorId === null ? "" : " AND actor_id = ?"}${postId === null ? "" : " AND post_id = ?"} LIMIT 1`,
     ).get(recipientId, type, ...(actorId === null ? [] : [actorId]), ...(postId === null ? [] : [postId])) !== undefined;
 
-  /** 帖子里的 @用户名：每人一次，不给自己，已经因为回复收到通知的不重复。 */
+  /** 帖子里的 @用户名：每人一次，不给自己，已经因为回复收到通知的不重复；一帖最多通知 mentionNotifyMax 人，按出现顺序。 */
   function notifyMentions(postId: string, text: string, authorId: string, topicId: string, at: number) {
+    let sent = 0;
     for (const handle of extractMentions(text)) {
+      if (sent >= FORUM_LIMITS.mentionNotifyMax) break;
       const mentioned = selectUserByName.get(handle) as UserRow | undefined;
       if (!mentioned || mentioned.id === authorId || mentioned.kind !== "member") continue;
       if (hasNotification(mentioned.id, "reply", null, postId) || hasNotification(mentioned.id, "mention", null, postId)) continue;
       notify(mentioned.id, "mention", authorId, at, topicId, postId);
+      sent += 1;
     }
   }
 
@@ -263,9 +277,21 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
       return id;
     },
 
-    /** 游客昵称不能冒用成员或官方账号的昵称、用户名。 */
+    /** 游客昵称不能冒用成员或官方账号的昵称、用户名。按 nameKey 比较：全角、大小写、看不见的字符都不算区别。 */
     guestNameTaken(name: string): boolean {
-      return db.prepare("SELECT 1 FROM forum_users WHERE kind <> 'guest' AND (display_name = ? COLLATE NOCASE OR username = ? COLLATE NOCASE) LIMIT 1").get(name, name) !== undefined;
+      const key = nameKey(name);
+      return (db.prepare("SELECT display_name, username FROM forum_users WHERE kind <> 'guest'").all() as Pick<UserRow, "display_name" | "username">[])
+        .some(row => nameKey(row.display_name) === key || nameKey(row.username) === key);
+    },
+
+    /**
+     * 成员的昵称不能冒用官方账号（昵称或用户名），也不能是别人的用户名（@ 提及认的是用户名）；和别的成员昵称相同可以。
+     * 比较方式同 guestNameTaken。
+     */
+    displayNameTaken(name: string, userId: string): boolean {
+      const key = nameKey(name);
+      return (db.prepare("SELECT kind, display_name, username FROM forum_users WHERE id <> ? AND kind <> 'guest'").all(userId) as Pick<UserRow, "kind" | "display_name" | "username">[])
+        .some(row => nameKey(row.username) === key || (row.kind === "official" && nameKey(row.display_name) === key));
     },
 
     createTopic(input: { authorId: string; title: string; categoryId: string; tags: string[]; content: string }, now = Date.now()): { topicId: string; postId: string } {
@@ -337,7 +363,7 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
     setPinned: (topicId: string, pinned: boolean) => { db.prepare("UPDATE forum_topics SET pinned = ? WHERE id = ?").run(pinned ? 1 : 0, topicId); },
     setClosed: (topicId: string, closed: boolean) => { db.prepare("UPDATE forum_topics SET closed = ? WHERE id = ?").run(closed ? 1 : 0, topicId); },
 
-    /** 浏览数：同一 IP 同一话题一小时只算一次。过期的去重记录顺手删掉，IP 最多留一小时。 */
+    /** 浏览数：同一 IP（IPv6 按 /64，由路由换算好传进来）同一话题一小时只算一次。过期的去重记录顺手删掉，IP 最多留一小时。 */
     recordView(topicId: string, ip: string, now = Date.now()): boolean {
       return db.transaction(() => {
         db.prepare("DELETE FROM forum_topic_views WHERE viewed_at <= ?").run(now - VIEW_WINDOW_MS);
@@ -397,7 +423,7 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
     },
 
     /**
-     * 整份论坛状态。通知与书签只含 `viewerId` 自己的（游客两者都是空数组）；关注全部下发。
+     * 整份论坛状态。通知与书签只含 `viewerId` 自己的（游客两者都是空数组），通知设置只有本人的是真实值；关注全部下发。
      * 分类与精选标签来自 curation.json，后面接用户新建的标签。
      */
     state(viewerId: string | null): ForumStateBody {
@@ -411,7 +437,7 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
         version: 1,
         seededAt: 0,
         counters: { topic: counters.topic ?? 0, post: counters.post ?? 0, notification: counters.notification ?? 0, tag: counters.tag ?? 0 },
-        users: (db.prepare("SELECT * FROM forum_users ORDER BY joined_at, rowid").all() as UserRow[]).map(toUser),
+        users: (db.prepare("SELECT * FROM forum_users ORDER BY joined_at, rowid").all() as UserRow[]).map(row => toUser(row, row.id === viewerId)),
         categories: content.categories,
         tags: [...content.tags, ...(db.prepare("SELECT id, slug, name, color FROM forum_tags ORDER BY created_at, rowid").all() as TagRow[])],
         topics: (db.prepare("SELECT * FROM forum_topics ORDER BY created_at, rowid").all() as TopicRow[]).map(toTopic),

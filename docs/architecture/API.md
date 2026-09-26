@@ -83,17 +83,19 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 `/api/forum/*` 是论坛前端（`app/forum`）的数据接口（#57，[ADR-0004](../decisions/0004-forum-backend-in-core-server.md)），路由在 `app/server/src/routes/forum-api/`，输入协议在其 `contracts.ts`（body 一律拒绝未知字段），存储见 [数据模型](../services/server/data-model.md)「论坛」。请求与响应都是 JSON（头像上传除外）；写请求走同一个 Origin 校验。
 
-- **身份**：带有效 `sid` 的是成员，论坛用户 id 是 `m<GitHub user_id>`，第一次请求时建，之后每次请求刷新 `role`（GitHub 组织 owner 为 `admin`，其余 `member`）与 `title`（`computeAccess` 排序最高的称号，形如 `{ id, department? }`）；昵称、签名、上传的头像由本人改，刷新不覆盖。没有 `sid`、`sid` 失效的是游客。
+- **身份**：带有效 `sid` 的是成员，论坛用户 id 是 `m<GitHub user_id>`，第一次请求时建，之后每次请求刷新 `role`（GitHub 组织 owner 为 `admin`，其余 `member`）与 `title`（`computeAccess` 排序最高的称号，形如 `{ id, department? }`）；昵称、签名、上传的头像由本人改，刷新不覆盖。没有 `sid`、`sid` 失效的是游客。带有效 `sid`、但 GitHub 组织角色查到已不是 `CONSOLE_ORG` 成员的（登录后被移出组织）也按游客处理：不建、不刷新论坛用户，显式称号给的 `forum.*` 也不算；组织角色缓存 60 秒，移出后最长 60 秒生效。
 - **授权**：成员的论坛能力 = `computeAccess` 算出的 `forum.*`（与 `/api/console/me` 同一条路径，控制台改的权限包下一次请求就生效）。`forum.topic.pin` 置顶，`forum.topic.close` 关闭，`forum.post.moderate` 编辑或删除他人帖子、在已关闭话题里回复。GitHub 角色查询出错时成员的请求失败（上游 4xx → `upstream_rejected`，5xx → `internal_error`），不降级成游客。
-- **返回的 `state`**：与 `app/forum/app/data/types.ts` 的 `ForumState`（`version: 1`，`seededAt: 0`）同形，另加 `viewer: { userId, kind: "guest" | "member", capabilities }`（只含 `forum.*`）与 `guestPolicy: { powDifficulty, turnstileSiteKey, nameMax: 20, contentMax: 2000 }`。`users[]` 每项另有 `kind: "member" | "guest" | "official"`；成员总有 `avatarUrl`（上传过是 `/api/forum/avatars/<hash>.webp`，否则是 GitHub 头像），游客与官方账号没有。`notifications`、`bookmarks` 只含看的人自己的，游客两者都是空数组；`follows` 全部下发。分类、精选标签来自 `app/forum/content/curation.json`（按 `categoryOrder` 排），后面接用户建的标签。删除是软删除：`deleted: true`、`content: ""`。
+- **返回的 `state`**：与 `app/forum/app/data/types.ts` 的 `ForumState`（`version: 1`，`seededAt: 0`）同形，另加 `viewer: { userId, kind: "guest" | "member", capabilities }`（只含 `forum.*`）与 `guestPolicy: { powDifficulty, turnstileSiteKey, nameMax: 20, contentMax: 2000 }`。`users[]` 每项另有 `kind: "member" | "guest" | "official"`；`notifyPrefs` 只有看的人自己的是真实值，别人的一律是这一类用户的初始值（成员全开，游客与官方账号全关），字段照常存在；成员总有 `avatarUrl`（上传过是 `/api/forum/avatars/<hash>.webp`，否则是 GitHub 头像），游客与官方账号没有。`notifications`、`bookmarks` 只含看的人自己的，游客两者都是空数组；`follows` 全部下发。分类、精选标签来自 `app/forum/content/curation.json`（按 `categoryOrder` 排），后面接用户建的标签。删除是软删除：`deleted: true`、`content: ""`。
 - **编号**：旧帖 `t<n>`（<1000）与首帖 `body-<n>`，新话题从 `t1001`、新帖子从 `p10001` 起，游客 `g<n>`（用户名 `guest-<n>`），通知 `n<n>`，新标签 `tag-<n>`；都由数据库计数器得出。
+- **按 IP 计数**：游客回复限流、浏览去重、`state` 与浏览接口的限流按 `req.ip` 计；IPv6 按 /64 前缀计（`lib/forum-rules.ts` 的 `ipSubject`），IPv4 映射的 IPv6 按 IPv4 计。
+- **昵称**：游客昵称与成员的 `displayName` 不能含控制字符（C0、C1）、格式字符 `\p{Cf}`（零宽字符 U+200B–U+200F、双向控制 U+202A–U+202E、U+2060–U+2064、BOM 等）、行与段分隔符和几个显示成空白的填充字。判断重名时两边都按 `nameKey` 归一：NFKC、去掉这些字符与附加符号、不分大小写。
 - **错误体**：`{ error, message, request_id }`，`message` 是中文，可以直接给用户看。Schema 校验失败是 400 `validation_error`（提示写明哪个字段），路径里的编号格式不对也是 400。
 
 | 方法与路径 | 谁能用 | 限流 | 成功 | 主要错误 |
 |---|---|---|---|---|
-| `GET /api/forum/state` | 所有人 | 无 | 200 `{ state }` | GitHub 出错见上 |
+| `GET /api/forum/state` | 所有人 | 每个 IP 120 次/分钟（进程内计数，重启清零） | 200 `{ state }` | 429 `rate_limited`；GitHub 出错见上 |
 | `POST /api/forum/topics` | 成员 | 每人 10 次/分钟 | 201 `{ state, topicId, postId }`；body `{ title(1–120，去首尾空白后非空), categoryId, tags?: string[](≤5，每项是已有标签 id 或 ≤20 字的名字), content(1–20000) }`。名字按 slug（英文）或名字（中文，不分大小写）找已有标签，找不到才新建 | 401 `signin_required`；400 `validation_error` / `invalid_title` / `unknown_category` / `invalid_tag` / `empty_content`；429 `rate_limited` |
-| `POST /api/forum/posts` | 成员、游客 | 成员每人 30 次/分钟；游客每个 IP 5 次/分钟、30 次/天 | 201 `{ state, postId }`；body `{ topicId, content, replyToPostId? }`，游客另带 `guest: { name(1–20) }`、`pow: { timestamp, nonce }`、蜜罐 `website`（必须为空）、`turnstileToken`（`guestPolicy.turnstileSiteKey` 非空时必填）。PoW 摘要输入是 `${topicId}:${content}`（正文原样，不去空白），难度同 `pow_difficulty`；游客正文 ≤2000、成员 ≤20000。话题已关闭时只有持 `forum.post.moderate` 的人能回 | 404 `not_found`；403 `forbidden`（话题已关闭）；400 `validation_error` / `invalid_reply_target`（被回复的帖子不在这个话题）/ `empty_content` / `request_rejected`（蜜罐）/ `content_too_long` / `invalid_guest_name` / `guest_name_taken`（与成员或官方账号的昵称、用户名相同）/ `pow_invalid` / `turnstile_failed`；429 `rate_limited` |
+| `POST /api/forum/posts` | 成员、游客 | 成员每人 30 次/分钟；游客每个 IP 5 次/分钟、30 次/天，全站游客合计 200 次/小时 | 201 `{ state, postId }`；body `{ topicId, content, replyToPostId? }`，游客另带 `guest: { name(1–20) }`、`pow: { timestamp, nonce }`、蜜罐 `website`（必须为空）、`turnstileToken`（`guestPolicy.turnstileSiteKey` 非空时必填）。PoW 摘要输入是 `${topicId}:${content}`（正文原样，不去空白），难度同 `pow_difficulty`；游客正文 ≤2000、成员 ≤20000。话题已关闭时只有持 `forum.post.moderate` 的人能回 | 404 `not_found`；403 `forbidden`（话题已关闭）；400 `validation_error` / `invalid_reply_target`（被回复的帖子不在这个话题）/ `empty_content` / `request_rejected`（蜜罐）/ `content_too_long` / `invalid_guest_name`（空、超长或含看不见的字符）/ `guest_name_taken`（按 `nameKey` 与成员或官方账号的昵称、用户名相同）/ `pow_invalid` / `turnstile_failed`；429 `rate_limited`（这个 IP 超了）/ `guest_replies_paused`（全站游客回复超了，所有游客暂停，成员照常） |
 | `PATCH /api/forum/posts/:id` | 作者（成员）或 `forum.post.moderate` | 无 | 200 `{ state }`；body `{ content }`，写 `editedAt`；改他人帖子审计 `forum.post.edit`（details `{ topic_id, author_id }`） | 401；403 `forbidden`；404；409 `post_deleted`；400 `empty_content` |
 | `DELETE /api/forum/posts/:id` | 作者（成员）或 `forum.post.moderate` | 无 | 200 `{ state }`，软删除；已删的再删直接返回；删他人帖子审计 `forum.post.delete` | 401；403；404；400 `first_post`（话题的第一帖不能删） |
 | `POST /api/forum/posts/:id/like` | 成员 | 无 | 200 `{ state }`，切换 | 401；404；409 `post_deleted` |
@@ -101,17 +103,17 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `POST /api/forum/users/:id/follow` | 成员 | 无 | 200 `{ state }`，切换 | 401；404；400 `cannot_follow_self` |
 | `POST /api/forum/topics/:id/pin` | `forum.topic.pin` | 无 | 200 `{ state }`；body `{ pinned: boolean }`；审计 `forum.topic.pin`（details `{ pinned }`） | 401；403 `forbidden`；404 |
 | `POST /api/forum/topics/:id/close` | `forum.topic.close` | 无 | 200 `{ state }`；body `{ closed: boolean }`；审计 `forum.topic.close`（details `{ closed }`） | 401；403；404 |
-| `POST /api/forum/topics/:id/view` | 所有人 | 同一 IP 同一话题 1 小时只算一次 | 204 | 404 |
+| `POST /api/forum/topics/:id/view` | 所有人 | 每个 IP 60 次/分钟（进程内计数）；同一 IP 同一话题 1 小时只算一次浏览 | 204 | 404；429 `rate_limited` |
 | `POST /api/forum/notifications/:id/read` | 成员 | 无 | 200 `{ state }` | 401；404（不存在或不是自己的） |
 | `POST /api/forum/notifications/read-all` | 成员 | 无 | 200 `{ state }` | 401 |
-| `PATCH /api/forum/me/profile` | 成员 | 无 | 200 `{ state }`；body 至少一项：`displayName`（1–30，去首尾空白后非空）、`bio`（个人签名 ≤200，可换行）、`location`（≤60）、`website`（空串清空，否则 `https://`、≤200、不带账号密码）、`notifyPrefs: { reply?, like?, follow? }` | 401；400 `validation_error` / `invalid_display_name` / `invalid_bio` / `invalid_location` / `invalid_website` |
-| `PUT /api/forum/me/avatar` | 成员 | 每人 10 次/小时 | 200 `{ state }`；请求体是图片本身，`Content-Type` 为 `image/png`、`image/jpeg` 或 `image/webp`，≤2MB。sharp 解码（像素上限 3600 万，动图只取第一帧），按 EXIF 摆正，居中裁成正方形，缩到 256×256 WebP，按内容 sha256 存库；换头像后没人用的旧图删除 | 401；415 `unsupported_media_type`；413 `avatar_too_large`；400 `invalid_image` / `image_too_large`；429 |
+| `PATCH /api/forum/me/profile` | 成员 | 无 | 200 `{ state }`；body 至少一项：`displayName`（1–30，去首尾空白后非空，不能含看不见的字符；按 `nameKey` 不能等于官方账号的昵称或用户名、别人的用户名，和别的成员昵称相同可以）、`bio`（个人签名 ≤200，可换行）、`location`（≤60）、`website`（空串清空，否则 `https://`、≤200、不带账号密码）、`notifyPrefs: { reply?, like?, follow? }` | 401；400 `validation_error` / `invalid_display_name` / `display_name_taken` / `invalid_bio` / `invalid_location` / `invalid_website` |
+| `PUT /api/forum/me/avatar` | 成员 | 每人 10 次/小时，每次上传都计数（解码失败也算） | 200 `{ state }`；登录与次数在读请求体之前（onRequest）核对，游客和超了次数的请求体不会被读进内存。请求体是图片本身，`Content-Type` 为 `image/png`、`image/jpeg` 或 `image/webp`，≤2MB。sharp 解码（像素上限 4096×4096，超了在解码前拒绝；动图只取第一帧），按 EXIF 摆正，居中裁成正方形，缩到 256×256 WebP，按内容 sha256 存库；换头像后没人用的旧图删除 | 401；415 `unsupported_media_type`；413 `avatar_too_large`；400 `invalid_image` / `image_too_large`；429 |
 | `DELETE /api/forum/me/avatar` | 成员 | 无 | 200 `{ state }`，回到 GitHub 头像 | 401 |
 | `GET /api/forum/avatars/<hash>.webp` | 所有人 | 无 | 200 `image/webp`，`Cache-Control: public, max-age=31536000, immutable`，`Content-Security-Policy: default-src 'none'` | 400（不是 64 位小写十六进制 + `.webp`）；404（`no-store`） |
 
 路径里的 `:id` 在代码里分别叫 `:topic_id`、`:post_id`、`:forum_user_id`、`:notification_id`（公共校验会把名为 `:id` 的参数强制成数字），格式分别是 `t<n>`、`p<n>` / `body-<n>`、`m<n>` / `g<n>` / `u-<名字>`、`n<n>`。不带请求体的写接口（点赞、收藏、关注、浏览、已读）不要发 `Content-Type: application/json` 的空 body，Fastify 会按空 JSON 拒绝（400）。
 
-通知规则与论坛前端 store 一致：回复通知话题作者与被回复的人，@提及（代码块里的不算）、点赞（每人每帖一次）、关注（每人一次）各一种；只发给成员，不给自己；回复通知与点赞、关注通知看收件人的 `notifyPrefs`，@提及没有开关。游客回复也会通知话题作者，`actorId` 是游客用户。
+通知规则与论坛前端 store 一致：回复通知话题作者与被回复的人，@提及（代码块里的不算）、点赞（每人每帖一次）、关注（每人一次）各一种；只发给成员，不给自己；回复通知与点赞、关注通知看收件人的 `notifyPrefs`，@提及没有开关，一条帖子最多通知 10 个被 @ 的人（按出现顺序，再多的不通知）。游客回复也会通知话题作者，`actorId` 是游客用户。
 
 回归测试见 `tests/server/forum.test.ts`（真实路由、内存库、夹具内容 `tests/server/fixtures/forum-content/`）。
 

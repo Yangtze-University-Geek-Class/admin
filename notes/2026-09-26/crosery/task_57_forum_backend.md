@@ -50,3 +50,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(deploy): 两个环境按两层反代取客户端 IP，不再信任整条 X-Forwarded-For（config.ts 的 TRUST_PROXY 接受层数 0–10；两份 env 模板 TRUST_PROXY=2；deployment-environment.mjs 要求等于 PROXY_HOPS=2；configuration、applications、forum、deployment-environment 四处测试；ENVIRONMENTS、DEPLOY、SECURITY、API、TESTING 同步）
 - 结果：提交前 vitest tests/server 与 tests/tooling/deployment-environment.test.ts 全部通过（9 个文件 183 条）；node scripts/deployment-environment.mjs --check 通过；server tsc 通过
+
+## 16:55:51 +08:00 · 提交 · #57 · 应修 2、3 与 6 条建议：论坛接口加固
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称拦看不见的字符，被移出组织的会话按游客处理，并按审查建议加固（forum-rules 的 hasHiddenNameChars、nameKey、ipSubject、FORUM_REQUEST_LIMITS、guestPostSite、mentionNotifyMax、4096×4096；forum-store 的 guestNameTaken 归一比较、displayNameTaken、只给本人真实 notifyPrefs、提及上限；viewer 的 githubRole 为 null 按游客；posts 按 /64 与全站熔断；topics 的 state 120/分钟、浏览 60/分钟；people 的头像在 onRequest 核对登录与计数；forum.test 新增 16 条用例并修掉 PoW 用例约 1/256 的偶发失败；API、SECURITY、数据模型、server 合同、TESTING 同步）
+- 结果：提交前 vitest run tests/server 8 个文件 157 条全部通过；server tsc 通过；check-docs 与 docs-index --check 通过

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { FORUM_LIMITS, ForumError, hasControlChars } from "../../lib/forum-rules.js";
-import { can, forbidden, forumState, forumViewer, notFound, rateLimited, requireMember, type MemberViewer } from "./viewer.js";
+import { FORUM_LIMITS, ForumError, GUEST_POST_SITE_SUBJECT, hasHiddenNameChars, ipSubject } from "../../lib/forum-rules.js";
+import { can, forbidden, forumState, forumViewer, guestRepliesPaused, notFound, rateLimited, requireMember, type MemberViewer } from "./viewer.js";
 
 type PostParams = { post_id: string };
 type ReplyBody = {
@@ -30,8 +30,8 @@ export default async function forumPostRoutes(app: FastifyInstance) {
   }
 
   /**
-   * 回复。成员直接发；游客（没有有效 sid）另带昵称、PoW 与空的蜜罐字段，正文上限 2000 字，
-   * 每个 IP 每分钟 5 次、每天 30 次。话题已关闭时只有持 forum.post.moderate 的人能回。
+   * 回复。成员直接发；游客（没有有效 sid，或已不是组织成员）另带昵称、PoW 与空的蜜罐字段，正文上限 2000 字，
+   * 每个 IP（IPv6 按 /64）每分钟 5 次、每天 30 次，全站游客回复每小时 200 次。话题已关闭时只有持 forum.post.moderate 的人能回。
    */
   app.post<{ Body: ReplyBody }>("/api/forum/posts", async (req, reply) => {
     const viewer = await forumViewer(req);
@@ -52,16 +52,24 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     if (!publicSubmission.checkHoneypot(req.body)) throw new ForumError(400, "request_rejected", "请求被拒绝");
     if (content.length > FORUM_LIMITS.guestContentMax) throw new ForumError(400, "content_too_long", `游客回复最多 ${FORUM_LIMITS.guestContentMax} 个字，登录后可以写更长`);
     const name = req.body.guest?.name.trim() ?? "";
-    if (!name || name.length > FORUM_LIMITS.guestNameMax || hasControlChars(name)) throw new ForumError(400, "invalid_guest_name", `游客要填 1 到 ${FORUM_LIMITS.guestNameMax} 个字的昵称`);
+    if (!name || name.length > FORUM_LIMITS.guestNameMax || hasHiddenNameChars(name)) {
+      throw new ForumError(400, "invalid_guest_name", `游客要填 1 到 ${FORUM_LIMITS.guestNameMax} 个字的昵称，不能含看不见的字符`);
+    }
     if (forum.guestNameTaken(name)) throw new ForumError(400, "guest_name_taken", "这个昵称是成员在用的，换一个吧");
-    if (!forum.rateAllowed("guestPost", req.ip)) throw rateLimited();
+    const subject = ipSubject(req.ip);
+    const withinLimits = () => {
+      if (!forum.rateAllowed("guestPost", subject)) throw rateLimited();
+      if (!forum.rateAllowed("guestPostSite", GUEST_POST_SITE_SUBJECT)) throw guestRepliesPaused();
+    };
+    withinLimits();
     // PoW 的摘要输入是原样的正文（不去首尾空白），与前端计算时用的字符串一致。
     if (!publicSubmission.checkPow(`${topicId}:${content}`, req.body.pow).ok) throw new ForumError(400, "pow_invalid", "防滥用校验失败，请刷新页面重试");
     if (!(await turnstile.verifyTurnstile(req.body.turnstileToken, req.ip))) throw new ForumError(400, "turnstile_failed", "人机验证失败，请刷新重试");
-    // 等人机验证的时候可能有同一 IP 的并发请求写进来：写入前再查一次，查、写、记之间没有 await。
-    if (!forum.rateAllowed("guestPost", req.ip)) throw rateLimited();
+    // 等人机验证的时候可能有同一 IP 或别的游客的并发请求写进来：写入前再查一次，查、写、记之间没有 await。
+    withinLimits();
     const { postId } = forum.createGuestPost(name, { topicId, content, replyToPostId });
-    forum.rateRecord("guestPost", req.ip);
+    forum.rateRecord("guestPost", subject);
+    forum.rateRecord("guestPostSite", GUEST_POST_SITE_SUBJECT);
     return reply.code(201).send({ state: forumState(req, viewer), postId });
   });
 

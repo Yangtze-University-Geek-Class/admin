@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
 import { REPO_ROOT } from '../../app/server/src/config';
 import { loadForumContent } from '../../app/server/src/lib/forum-content';
+import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { FORUM_FIXTURE_DIR, testApp, testConfig } from './helpers';
@@ -65,7 +66,7 @@ async function setup(options: { failing?: { failing: boolean }; env?: Record<str
     app.inject({ method, url, ...(payload === undefined ? {} : { payload }), headers: who ? as(who) : {} });
   const state = async (who?: string) => (await call('GET', '/api/forum/state', who)).json().state;
   const audits = () => app.services.storage.db.prepare("SELECT org, actor, action, target, details FROM audit_logs WHERE action LIKE 'forum.%' ORDER BY id").all() as { org: string; actor: string; action: string; target: string; details: string | null }[];
-  return { app, as, call, state, audits, db: app.services.storage.db };
+  return { app, as, call, state, audits, roles, db: app.services.storage.db };
 }
 type Setup = Awaited<ReturnType<typeof setup>>;
 
@@ -135,6 +136,54 @@ describe('state', () => {
     expect(response.statusCode).toBe(502);
     expect(response.json().error).toBe('internal_error');
     expect((await s.call('GET', '/api/forum/state')).statusCode).toBe(200);
+  });
+
+  it('treats a signed-in user who is no longer in the organization as a guest, whatever titles they hold', async () => {
+    const s = await setup();
+    // frank 有会话但不在组织里：看到的是游客，不建论坛用户。
+    const frank = await s.state('frank');
+    expect(frank.viewer).toEqual({ userId: null, kind: 'guest', capabilities: [] });
+    expect(frank.users.map((u: { id: string }) => u.id)).not.toContain('m106');
+
+    // carol 是社区部舰员（能置顶、关闭、管帖子），之后被移出组织；组织角色缓存 60 秒过期后就只是游客。
+    expect((await s.state('carol')).viewer.capabilities).toEqual(['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate']);
+    delete s.roles.carol;
+    s.app.services.cache.invalidate('console:orgrole:');
+    const carol = await s.state('carol');
+    expect(carol.viewer).toEqual({ userId: null, kind: 'guest', capabilities: [] });
+    expect([carol.notifications, carol.bookmarks]).toEqual([[], []]);
+    expect((await s.call('POST', '/api/forum/topics/t9/pin', 'carol', { pinned: true })).json().error).toBe('signin_required');
+    expect((await s.call('POST', '/api/forum/topics', 'carol', { title: '还能发吗', categoryId: 'c-ai', content: '正文' })).statusCode).toBe(401);
+    expect((await s.call('PATCH', '/api/forum/me/profile', 'carol', { displayName: '还能改吗' })).statusCode).toBe(401);
+    // 回复只能走游客那条路：要游客昵称和 PoW，发出去的是一个游客用户。
+    expect((await s.call('POST', '/api/forum/posts', 'carol', { topicId: 't9', content: '按成员回复' })).json().error).toBe('invalid_guest_name');
+    const asGuest = await s.call('POST', '/api/forum/posts', 'carol', guestReply('t9', '按游客回复'));
+    expect(asGuest.statusCode).toBe(201);
+    expect(asGuest.json().state.posts.find((p: { id: string }) => p.id === asGuest.json().postId).authorId).toBe('g1');
+    expect(s.audits()).toEqual([]);
+  });
+
+  it('sends real notification settings only to their owner', async () => {
+    const s = await setup();
+    await s.state('bob');
+    expect((await s.call('PATCH', '/api/forum/me/profile', 'carol', { notifyPrefs: { like: false, follow: false } })).statusCode).toBe(200);
+    const carolIn = (state: { users: { id: string; notifyPrefs: unknown }[] }) => state.users.find(u => u.id === 'm103')!.notifyPrefs;
+    expect(carolIn(await s.state('carol'))).toEqual({ reply: true, like: false, follow: false });
+    // 别人（成员、游客）看到的是成员的初始值，字段还在；官方账号本来就全关。
+    expect(carolIn(await s.state('bob'))).toEqual({ reply: true, like: true, follow: true });
+    expect(carolIn(await s.state())).toEqual({ reply: true, like: true, follow: true });
+    expect((await s.state('bob')).users.find((u: { id: string }) => u.id === 'u-geekclass').notifyPrefs).toEqual({ reply: false, like: false, follow: false });
+  });
+
+  it('limits /api/forum/state to 120 requests a minute per IP', async () => {
+    const s = await setup();
+    const get = (remoteAddress: string) => s.app.inject({ method: 'GET', url: '/api/forum/state', remoteAddress });
+    for (let i = 0; i < 120; i += 1) expect((await get('198.51.100.40')).statusCode).toBe(200);
+    const limited = await get('198.51.100.40');
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁，请稍后再试' });
+    expect(limited.headers['cache-control']).toBe('no-store');
+    expect((await get('198.51.100.41')).statusCode).toBe(200);
   });
 });
 
@@ -217,6 +266,22 @@ describe('topics', () => {
     s.db.prepare('UPDATE forum_topic_views SET viewed_at = viewed_at - 3600001').run();
     await view('198.51.100.1');
     expect((await s.state()).topics.find((t: { id: string }) => t.id === 't9').views).toBe(6);
+  });
+
+  it('counts an IPv6 /64 as one viewer and limits view pings to 60 a minute per IP', async () => {
+    const s = await setup();
+    const view = (remoteAddress: string, topic = 't9') => s.app.inject({ method: 'POST', url: `/api/forum/topics/${topic}/view`, remoteAddress });
+    await view('2001:db8:1:2::1');
+    await view('2001:db8:1:2:ffff::9');
+    await view('2001:db8:1:3::1');
+    expect((await s.state()).topics.find((t: { id: string }) => t.id === 't9').views).toBe(5);
+    expect(s.db.prepare('SELECT ip FROM forum_topic_views ORDER BY ip').all()).toEqual([{ ip: '2001:db8:1:2::/64' }, { ip: '2001:db8:1:3::/64' }]);
+
+    for (let i = 0; i < 60; i += 1) expect((await view('198.51.100.50', i % 2 ? 't9' : 't73')).statusCode).toBe(204);
+    const limited = await view('198.51.100.50');
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: 'rate_limited', message: '操作太频繁，请稍后再试' });
+    expect((await view('198.51.100.51')).statusCode).toBe(204);
   });
 });
 
@@ -303,6 +368,65 @@ describe('replies', () => {
     expect((await send('203.0.113.9')).statusCode).toBe(429);
   });
 
+  it('counts guest replies from one IPv6 /64 together', async () => {
+    const s = await setup();
+    const send = (remoteAddress: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '回复'), remoteAddress });
+    const statuses: number[] = [];
+    for (let i = 1; i <= 6; i += 1) statuses.push((await send(`2001:db8:1:2::${i.toString(16)}`)).statusCode);
+    expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+    expect((await send('2001:db8:1:2:abcd:ef01:2345:6789')).statusCode).toBe(429);
+    expect((await send('2001:db8:1:3::1')).statusCode).toBe(201);
+    // IPv4 映射成 IPv6 的地址按 IPv4 计。
+    for (let i = 0; i < 5; i += 1) s.app.services.forum.rateRecord('guestPost', '203.0.113.30');
+    expect((await send('::ffff:203.0.113.30')).statusCode).toBe(429);
+  });
+
+  it('pauses all guest replies after 200 an hour across the site, and leaves members alone', async () => {
+    const s = await setup();
+    const send = (remoteAddress: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '回复'), remoteAddress });
+    const earlier = Date.now() - 2 * 60_000;
+    for (let i = 0; i < 199; i += 1) s.app.services.forum.rateRecord('guestPostSite', 'site', earlier);
+    // 第 200 条照常发出并记进全站计数；之后换任何 IP 都暂停。
+    expect((await send('203.0.113.70')).statusCode).toBe(201);
+    const paused = await send('203.0.113.71');
+    expect(paused.statusCode).toBe(429);
+    expect(paused.json()).toMatchObject({ error: 'guest_replies_paused', message: '游客回复暂时太多，请过一会儿再试，或者登录后回复' });
+    expect((await send('2001:db8:9::1')).json().error).toBe('guest_replies_paused');
+    expect((await s.call('POST', '/api/forum/posts', 'bob', { topicId: 't9', content: '成员照常回复' })).statusCode).toBe(201);
+    // 一小时之后恢复。
+    s.db.prepare("UPDATE forum_rate_events SET created_at = created_at - 3600001 WHERE bucket = 'guestPostSite'").run();
+    expect((await send('203.0.113.71')).statusCode).toBe(201);
+  });
+
+  it('refuses guest names that hide characters, or differ from a member or the official account only in width, case or marks', async () => {
+    const s = await setup();
+    await s.state('bob');
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.60' });
+    // 零宽空格、字连接符、从右到左覆盖（显示成「极客班」）、零宽连接符、BOM（放在中间，首尾的会被 trim 掉）、韩文填充字、
+    // C1 控制字符、行分隔符、软连字符。
+    for (const name of ['极客班\u200B', 'geekclass\u2060', '\u202E班客极', '极\u200D客班', 'bo\uFEFFb', '\u3164', 'bob\u0085', '极客\u2028班', '极客班\u00AD']) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称，不能含看不见的字符' });
+    }
+    // 全角字母、大小写、附加符号（组合下划线）都不算不同的名字。
+    for (const name of ['ＧＥＥＫＣＬＡＳＳ', 'Ｂｏｂ', 'bob\u0332', '极客班']) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json().error, JSON.stringify(name)).toBe('guest_name_taken');
+    }
+    expect((await send('极客班的同学')).statusCode).toBe(201);
+  });
+
+  it('notifies at most 10 people mentioned in one post, in the order they appear', async () => {
+    const s = await setup();
+    const handles = Array.from({ length: 12 }, (_, i) => `member${String(i + 1).padStart(2, '0')}`);
+    handles.forEach((login, i) => s.app.services.forum.ensureMember({ githubUserId: 500 + i, login, avatarUrl: null, role: 'member', title: null }));
+    const { postId } = await newTopic(s, 'bob', { content: handles.map(handle => `@${handle}`).join(' ') });
+    const mentioned = s.db.prepare("SELECT recipient_id FROM forum_notifications WHERE type = 'mention' AND post_id = ? ORDER BY rowid").all(postId) as { recipient_id: string }[];
+    expect(mentioned.map(row => row.recipient_id)).toEqual(Array.from({ length: 10 }, (_, i) => `m${500 + i}`));
+  });
+
   it('checks the guest proof of work over `${topicId}:${content}` at the real difficulty', async () => {
     const config = testConfig({
       NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
@@ -312,15 +436,17 @@ describe('replies', () => {
     const deny = (() => { throw new Error('Unexpected external network request in forum PoW test'); }) as unknown as ServiceOverrides['httpRequest'];
     const app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: deny, octokitFactory: deny as unknown as ServiceOverrides['octokitFactory'] } });
     contexts.push(app);
-    const solve = (bodyForHash: string) => {
+    // `avoid`：错的解不能碰巧也是对的解（难度 2 时约 1/256 的概率），否则用例会偶发失败。
+    const solve = (bodyForHash: string, avoid?: string) => {
       const timestamp = Date.now();
+      const solves = (body: string, n: number) => createHash('sha256').update(`${timestamp}:${body}:${n}`).digest('hex').startsWith('00');
       for (let n = 0; ; n += 1) {
-        if (createHash('sha256').update(`${timestamp}:${bodyForHash}:${n}`).digest('hex').startsWith('00')) return { timestamp, nonce: String(n) };
+        if (solves(bodyForHash, n) && !(avoid && solves(avoid, n))) return { timestamp, nonce: String(n) };
       }
     };
     expect((await app.inject('/api/forum/state')).json().state.guestPolicy.powDifficulty).toBe(2);
     const content = '  前后有空白的回复  ';
-    const wrong = await app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', content, undefined, { pow: solve(`t73:${content}`) }) });
+    const wrong = await app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', content, undefined, { pow: solve(`t73:${content}`, `t9:${content}`) }) });
     expect(wrong.json().error).toBe('pow_invalid');
     const right = await app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', content, undefined, { pow: solve(`t9:${content}`) }) });
     expect(right.statusCode).toBe(201);
@@ -477,6 +603,26 @@ describe('profile', () => {
     expect((await patch({ role: 'admin' })).json().error).toBe('validation_error');
     expect((await patch({ displayName: 'x' }, null)).statusCode).toBe(401);
   });
+
+  it('keeps hidden characters out of member nicknames and stops members taking the official name or someone else’s username', async () => {
+    const s = await setup();
+    await s.state('carol');
+    const rename = (displayName: string, who = 'bob') => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
+    for (const name of ['极客班\u200B', 'geekclass\u2060', '\u202E班客极', 'carol\u00AD', 'bob\u0085']) {
+      const response = await rename(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name', message: '昵称要 1 到 30 个字，不能含控制字符或看不见的字符' });
+    }
+    for (const name of ['极客班', 'ＧｅｅｋＣｌａｓｓ', 'Carol', 'carol\u0332']) {
+      const response = await rename(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名，换一个吧' });
+    }
+    // 自己的用户名换个大小写可以；和别的成员昵称相同也可以。
+    expect((await rename('BOB')).statusCode).toBe(200);
+    expect((await rename('小博', 'carol')).statusCode).toBe(200);
+    expect((await rename('小博')).json().state.users.filter((u: { displayName: string }) => u.displayName === '小博')).toHaveLength(2);
+  });
 });
 
 /** 一张真实的 PNG：400×300，左红右蓝。 */
@@ -484,8 +630,8 @@ const samplePng = () => sharp({ create: { width: 400, height: 300, channels: 3, 
   .composite([{ input: { create: { width: 200, height: 300, channels: 3, background: '#3050d0' } }, left: 200, top: 0 }])
   .png().toBuffer();
 
-/** 只有文件头的 PNG：声明 20000×20000 的画布，数据块只有一行，用来验证像素上限在解码前就拦住。 */
-function pixelBombPng() {
+/** 只有文件头的 PNG：声明一张很大的画布（默认 20000×20000），数据块只有一行，用来验证像素上限在解码前就拦住。 */
+function pixelBombPng(width = 20000, height = 20000) {
   const chunk = (type: string, data: Buffer) => {
     const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
     const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
@@ -493,7 +639,7 @@ function pixelBombPng() {
     return Buffer.concat([length, body, crc]);
   };
   const header = Buffer.alloc(13);
-  header.writeUInt32BE(20000, 0); header.writeUInt32BE(20000, 4);
+  header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4);
   header[8] = 8; header[9] = 0; header[10] = 0; header[11] = 0; header[12] = 0;
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(Buffer.alloc(20001))), chunk('IEND', Buffer.alloc(0))]);
 }
@@ -546,6 +692,30 @@ describe('avatars', () => {
     for (let i = 0; i < 10; i += 1) s.app.services.forum.rateRecord('avatar', 'm102');
     const response = await s.app.inject({ method: 'PUT', url: '/api/forum/me/avatar', payload: await samplePng(), headers: { ...s.as('bob'), 'content-type': 'image/png' } });
     expect(response.statusCode).toBe(429);
+  });
+
+  it('checks the session and the hourly count before reading the body, and counts uploads that fail to decode', async () => {
+    const s = await setup();
+    const upload = (payload: Buffer, who: string | null = 'bob') =>
+      s.app.inject({ method: 'PUT', url: '/api/forum/me/avatar', payload, headers: { ...(who ? s.as(who) : {}), 'content-type': 'image/png' } });
+    const oversized = Buffer.alloc(2 * 1024 * 1024 + 1);
+    // 游客连超大的请求体都不会被读：先回 401，而不是读完再回 413。
+    expect((await upload(oversized, null)).json().error).toBe('signin_required');
+
+    // 解不出来的图也占额度：10 次坏图之后，好图也要等。
+    for (let i = 0; i < 10; i += 1) expect((await upload(Buffer.from(`not an image ${i}`))).json().error).toBe('invalid_image');
+    expect((await upload(await samplePng())).statusCode).toBe(429);
+    // 超了次数就不再读请求体。
+    expect((await upload(oversized)).statusCode).toBe(429);
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_rate_events WHERE bucket = 'avatar' AND subject = 'm102'").get()).toEqual({ n: 10 });
+  });
+
+  it('refuses images over 4096×4096 pixels before decoding them', async () => {
+    const s = await setup();
+    const upload = async (payload: Buffer) => (await s.app.inject({ method: 'PUT', url: '/api/forum/me/avatar', payload, headers: { ...s.as('bob'), 'content-type': 'image/png' } })).json();
+    // 5000×4000 = 2000 万像素：比 4096×4096 大，比以前的 3600 万小。
+    expect(await upload(pixelBombPng(5000, 4000))).toMatchObject({ error: 'image_too_large', message: '图片尺寸太大，请换一张小一点的图' });
+    expect(await upload(pixelBombPng(4097, 4096))).toMatchObject({ error: 'image_too_large' });
   });
 });
 
@@ -642,5 +812,25 @@ describe('client address behind the two deployment proxies', () => {
     expect(proxied.statusCode).toBe(201);
     expect(s.db.prepare("SELECT DISTINCT subject FROM forum_rate_events WHERE bucket = 'guestPost' ORDER BY subject").all())
       .toEqual([{ subject: '198.51.100.30' }, { subject: '203.0.113.20' }]);
+  });
+});
+
+describe('rules', () => {
+  it('keys IPv6 addresses by their /64 and IPv4-mapped addresses as IPv4', () => {
+    expect([
+      '203.0.113.5', '::ffff:203.0.113.5', '2001:db8:1:2:3:4:5:6', '2001:0DB8:0001:0002::', '2001:db8::1',
+      'fe80::1%eth0', '::1', '64:ff9b::192.0.2.1', 'not-an-ip',
+    ].map(ipSubject)).toEqual([
+      '203.0.113.5', '203.0.113.5', '2001:db8:1:2::/64', '2001:db8:1:2::/64', '2001:db8:0:0::/64',
+      'fe80:0:0:0::/64', '0:0:0:0::/64', '64:ff9b:0:0::/64', 'not-an-ip',
+    ]);
+  });
+
+  it('compares names after NFKC, without hidden characters, marks or case', () => {
+    expect(nameKey('ＧｅｅｋＣｌａｓｓ')).toBe('geekclass');
+    expect(nameKey('极客\u200B班\u2060')).toBe('极客班');
+    expect(nameKey('  Bob\u0332  ')).toBe('bob');
+    expect(nameKey('极客\u3000 班')).toBe('极客 班');
+    expect(nameKey('José')).toBe('josé');
   });
 });

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
-import { FORUM_LIMITS, ForumError, hasControlChars, hasControlCharsMultiline, isAllowedWebsite } from "../../lib/forum-rules.js";
+import { FORUM_LIMITS, ForumError, hasControlChars, hasControlCharsMultiline, hasHiddenNameChars, isAllowedWebsite } from "../../lib/forum-rules.js";
 import type { ProfilePatch } from "../../lib/forum-store.js";
 import { forumState, notFound, rateLimited, requireMember } from "./viewer.js";
 
@@ -35,7 +35,10 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
     const patch: ProfilePatch = { ...req.body };
     if (patch.displayName !== undefined) {
       patch.displayName = patch.displayName.trim();
-      if (!patch.displayName || hasControlChars(patch.displayName)) throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字，不能含控制字符`);
+      if (!patch.displayName || hasHiddenNameChars(patch.displayName)) {
+        throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字，不能含控制字符或看不见的字符`);
+      }
+      if (forum.displayNameTaken(patch.displayName, viewer.userId)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");
     }
     if (patch.bio !== undefined && hasControlCharsMultiline(patch.bio)) throw new ForumError(400, "invalid_bio", "个人签名里有不能显示的字符");
     if (patch.location !== undefined) {
@@ -53,6 +56,8 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
   /**
    * 头像：请求体就是图片本身（PNG / JPEG / WebP，≤2MB），不走 JSON。只在这个子作用域里接收任意类型的原始请求体，
    * 其它论坛接口仍只收 JSON。
+   * 上传在读请求体之前（onRequest）就核对登录并计一次数：游客的请求体不会被读进内存，超了次数也不再读；
+   * 每次上传不管后面解码成不成功都占一次额度，拿坏图反复试解码也只有每小时 10 次。
    */
   await app.register(async avatarApp => {
     avatarApp.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: FORUM_LIMITS.avatarBytesMax }, (_req, body, done) => done(null, body));
@@ -61,18 +66,21 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
       throw error;
     };
 
-    avatarApp.put("/api/forum/me/avatar", { errorHandler: tooLarge }, async req => {
+    const countUpload = async (req: FastifyRequest) => {
+      const viewer = await requireMember(req);
+      // 查和记之间没有 await：同一个人的并发上传不会一起挤过上限。
+      if (!forum.rateAllowed("avatar", viewer.userId)) throw rateLimited();
+      forum.rateRecord("avatar", viewer.userId);
+    };
+
+    avatarApp.put("/api/forum/me/avatar", { onRequest: countUpload, errorHandler: tooLarge }, async req => {
       const viewer = await requireMember(req);
       const type = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
       if (!(AVATAR_TYPES as readonly string[]).includes(type) || !Buffer.isBuffer(req.body)) {
         throw new ForumError(415, "unsupported_media_type", "头像只支持 PNG、JPEG、WebP 图片");
       }
-      if (!forum.rateAllowed("avatar", viewer.userId)) throw rateLimited();
       const { hash, data } = await processAvatar(req.body);
-      // 解码期间同一个人的并发上传可能已经写进来：写入前再查一次，查、写、记之间没有 await。
-      if (!forum.rateAllowed("avatar", viewer.userId)) throw rateLimited();
       forum.setAvatar(viewer.userId, hash, data);
-      forum.rateRecord("avatar", viewer.userId);
       return { state: forumState(req, viewer) };
     });
 

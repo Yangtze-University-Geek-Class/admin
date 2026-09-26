@@ -1,15 +1,23 @@
-import type { FastifyInstance } from "fastify";
-import { ForumError, hasControlChars } from "../../lib/forum-rules.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { FORUM_REQUEST_LIMITS, ForumError, hasControlChars, ipSubject } from "../../lib/forum-rules.js";
 import { can, forbidden, forumState, forumViewer, notFound, rateLimited, requireMember } from "./viewer.js";
 
 type TopicParams = { topic_id: string };
+
+/**
+ * 不登录也能调的读接口按 IP 限流（IPv6 按 /64）：@fastify/rate-limit 在 onRequest 计数，超了和论坛其它接口一样回
+ * 429 `rate_limited`。计数在进程内存里，重启清零。
+ */
+const perIp = (limit: { max: number; timeWindow: number }) => ({
+  config: { rateLimit: { ...limit, keyGenerator: (req: FastifyRequest) => ipSubject(req.ip), errorResponseBuilder: () => rateLimited() } },
+});
 
 /** 看帖、发帖、话题浏览数与版务（置顶、关闭）。 */
 export default async function forumTopicRoutes(app: FastifyInstance) {
   const { forum, config } = app.services;
   const { audit } = app.services.storage;
 
-  app.get("/api/forum/state", async req => ({ state: forumState(req, await forumViewer(req)) }));
+  app.get("/api/forum/state", perIp(FORUM_REQUEST_LIMITS.state), async req => ({ state: forumState(req, await forumViewer(req)) }));
 
   /** 只有成员能发帖；游客只能回复。 */
   app.post<{ Body: { title: string; categoryId: string; tags?: string[]; content: string } }>("/api/forum/topics", async (req, reply) => {
@@ -43,10 +51,10 @@ export default async function forumTopicRoutes(app: FastifyInstance) {
     });
   }
 
-  /** 浏览数 +1：所有人都能调，同一 IP 同一话题一小时只算一次。 */
-  app.post<{ Params: TopicParams }>("/api/forum/topics/:topic_id/view", async (req, reply) => {
+  /** 浏览数 +1：所有人都能调，同一 IP（IPv6 按 /64）同一话题一小时只算一次。 */
+  app.post<{ Params: TopicParams }>("/api/forum/topics/:topic_id/view", perIp(FORUM_REQUEST_LIMITS.view), async (req, reply) => {
     if (!forum.topic(req.params.topic_id)) throw notFound("话题不存在");
-    forum.recordView(req.params.topic_id, req.ip);
+    forum.recordView(req.params.topic_id, ipSubject(req.ip));
     return reply.code(204).send();
   });
 }
