@@ -39,3 +39,9 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：docs-index.mjs 与 check-boundaries.mjs 的直接运行判断按仓库已有写法改为 pathToFileURL(realpathSync(resolve(argv[1])))；PR 正文按返工更新
 - 结果：Windows 目录联接下两脚本都有输出、退出 0；两份测试 11 passed；Windows 联接不能复现原问题（旧版经联接也有输出），POSIX 符号链接的复现以审查人实测为准
+
+## 20:30:30 +08:00 · 收尾 · #121 · PR #123 已合并，清理 worktree
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 121：删 worktree .claude\worktrees\task-121 与本地分支 task/121/windows_paths
+- 结果：PR 已合并
