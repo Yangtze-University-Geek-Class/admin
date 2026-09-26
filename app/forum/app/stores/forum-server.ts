@@ -333,11 +333,15 @@ export const useForumServerStore = defineStore('forum-server', () => {
     })
   }
 
-  /** A reply still under its `pending:` id has nothing on the server to like, edit or answer yet. */
+  /**
+   * A reply still under its `pending:` id has nothing on the server to like,
+   * edit or answer yet. PostCard shows no such control on it; this is the
+   * store's own guard for any other caller.
+   */
   function stillSending(id: string | undefined): boolean {
     if (!id || !isPending(id))
       return false
-    toast({ id: 'forum-still-sending', title: '这条回复还没发出去', description: '发出去之后才能对它操作。', variant: 'warning' })
+    toast({ id: 'forum-still-sending', title: '这条回复还在发送', description: '发好以后才能赞、编辑或回复它。', variant: 'warning' })
     return true
   }
 

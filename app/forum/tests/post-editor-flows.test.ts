@@ -4,6 +4,7 @@ import type { TestNode } from './support/sfc'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, reactive, ref } from 'vue'
 import * as likes from '~/data/likes'
+import * as forumServer from '~/stores/forum-server'
 import * as forumApi from '../shared/forum-api'
 import * as postMarkdown from '../shared/post-markdown'
 import { find, findAll, isShown, loadComponent, mount, textOf } from './support/sfc'
@@ -271,6 +272,7 @@ describe('the edit form on a post', () => {
       imports: {
         '@talex-touch/tuffex/utils': { toast: vi.fn() },
         '~/data/likes': likes,
+        '~/stores/forum-server': forumServer,
       },
       globals: {
         useForumStore: () => ({ userById: () => member, postById: () => undefined, isBookmarked: () => false, isFirstPost: () => false }),

@@ -495,7 +495,7 @@ describe('a reply while it is sent', () => {
     expect(await server.createPost({ topicId: 't73', content: '回它', replyToPostId: pending })).toBeNull()
     expect(calls).toHaveLength(2)
     expect(forum.postById(pending)?.likeUserIds).toEqual([])
-    expect(toastStore.items.map(toast => toast.title)).toContain('这条回复还没发出去')
+    expect(toastStore.items.map(toast => toast.title)).toContain('这条回复还在发送')
   })
 })
 

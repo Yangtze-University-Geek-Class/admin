@@ -2,6 +2,7 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { likeControl } from '~/data/likes'
+import { isPending } from '~/stores/forum-server'
 
 /**
  * One post in Discourse's stream: avatar on the left, and on the right the
@@ -11,6 +12,10 @@ import { likeControl } from '~/data/likes'
  * Every write control asks `can()` first. A control a guest can still see —
  * the like button — routes to the login modal instead of failing silently.
  * The like button spells itself out (「赞 3」, data/likes.ts, #143).
+ *
+ * A reply still being sent (a `pending:` id, #145) has nothing on the server
+ * to like, link, edit or answer yet: the card says 发送中 instead of its
+ * controls, and the server's post replaces it when the answer is in.
  */
 const props = defineProps<{
   post: Post
@@ -39,15 +44,16 @@ const author = computed(() => forum.userById(props.post.authorId))
 const replyTarget = computed(() => (props.post.replyToPostId ? forum.postById(props.post.replyToPostId) : undefined))
 const replyTargetUser = computed(() => (replyTarget.value ? forum.userById(replyTarget.value.authorId) : undefined))
 
+const sending = computed(() => isPending(props.post.id))
 const likeState = computed(() => likeControl(props.post, user.value, can('like')))
 const bookmarked = computed(() => !!user.value && forum.isBookmarked(user.value.id, props.post.id))
 
-const canEdit = computed(() => !props.post.deleted && can('editPost', { post: props.post, topic: props.topic }))
+const canEdit = computed(() => !props.post.deleted && !sending.value && can('editPost', { post: props.post, topic: props.topic }))
 // The store refuses to delete the post that carries the topic, so that one is
 // never offered rather than failing when picked.
 const canDelete = computed(() => canEdit.value && !forum.isFirstPost(props.post.id))
 // A guest (极客班论坛, not signed in) may answer a post too, under a nickname.
-const canReply = computed(() => !props.post.deleted && (can('reply', { topic: props.topic }) || guestCanReply(props.topic)))
+const canReply = computed(() => !props.post.deleted && !sending.value && (can('reply', { topic: props.topic }) || guestCanReply(props.topic)))
 
 /** Absolute and under the app base, so the copied link survives being pasted anywhere. */
 const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, hash: `#post-${props.post.id}` }))
@@ -121,6 +127,7 @@ function remove() {
     :id="`post-${post.id}`"
     class="scroll-mt-24 rounded-xl transition-shadow"
     :class="flash ? 'ring-2 ring-$tx-color-primary' : ''"
+    :aria-busy="sending ? 'true' : undefined"
   >
     <TxCard variant="plain" :padding="16">
       <TxFlex :gap="14" align="start">
@@ -189,7 +196,7 @@ function remove() {
               on a phone, and a margin-based split pushes the right-hand group
               off the card instead of dropping it onto its own line.
             -->
-            <TxFlex align="center" :gap="8" justify="space-between" wrap="wrap">
+            <TxFlex v-if="!sending" align="center" :gap="8" justify="space-between" wrap="wrap">
               <TxFlex align="center" :gap="4" wrap="wrap">
                 <!-- No aria-label: the visible 「赞 3」 is the name, so a screen reader hears the count too. -->
                 <TxButton
@@ -247,6 +254,7 @@ function remove() {
                 </TxButton>
               </TxFlex>
             </TxFlex>
+            <span v-else class="text-sm text-$tx-text-color-secondary">发送中</span>
           </template>
         </TxFlex>
       </TxFlex>
