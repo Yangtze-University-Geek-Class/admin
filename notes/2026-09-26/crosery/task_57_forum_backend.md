@@ -140,3 +140,10 @@
 - 做了什么：主 agent 复核第三轮返工后提出两处跟进（拉丁字母范围保持更窄的写法）。cb00438 fix(server)：PATCH /api/forum/me/profile 里 displayName 去首尾空白后和库里现存的相同就当没改，不查允许清单和冒名、也不写；资料页每次保存都带昵称，早先存下的不合规或和官方同名的昵称不再挡住改签名、网站；换成别的昵称仍走全部检查，被拒时别的字段也不写；API.md 同步。c3dfd9f docs(ops)：LOCAL-PREVIEW 第 16 行改为 /api/forum/* 是新论坛接口，只有新接口没注册的旧路径、/auth/forum/*、/forum/u/* 返回 410，只动第 5 行日期和第 16 行，和 #126 分支（改第 13 行）用 git merge-file 模拟合并无冲突。变异核对：去掉跳过、一律跳过、比较时不去首尾空白，三次都有对应用例失败，恢复后工作区干净
 - 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 381 条）；server tsc 退出 0；pnpm check 退出 0；check:docs 退出 0；未验证：预发布环境、资料页真实保存；没有推送。另发现：成员默认昵称是 GitHub 登录名，最长 39 个字，超过 30 个字的人在资料页保存时会被 displayName 的长度校验挡住（前端 profileProblem 和服务端 schema 都查），这次没改
 - 下一步：主 agent 复核后推送并请第四轮审查
+
+## 19:32:43 +08:00 · 提交 · #57 · 合并 stage，论坛 README 去掉过渡说明
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：c5c8886 把 stage（5c1717b，含 #106、#113、#117）合进来，无冲突；3f8d927 删掉 forum README 里「服务端接口已实现、论坛页面还没接上（#107）」一行，使该文件与 stage 相同，#126 合入时不冲突。子代理原先把删行 amend 进了合并提交，主 agent 改成纯合并 + 单独的 docs 提交
+- 结果：vitest run tests/server tests/tooling 24 个文件 418 条通过；pnpm check 退出 0
+- 下一步：推送；第四轮审查看 76c39e1..HEAD
