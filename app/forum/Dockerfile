@@ -15,7 +15,7 @@
 # web 容器在转发时剥掉 /forum 前缀，因此本容器的站点根就是 .output/public。
 
 # ── 构建阶段：独立工具链安装 → Nuxt 静态生成 ──────────────────
-FROM node:26-bookworm-slim AS builder
+FROM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS builder
 
 # Node 26 不再随发行版提供 corepack，直接用 npm 装上游要求的 pnpm 11.24.0。
 RUN npm install --global pnpm@11.24.0 \
@@ -185,7 +185,7 @@ RUN node scripts/csp-header.mjs --html .output/public --site-conf /repo/deploy/n
 # ── 运行阶段：nginx 1.31（alpine），以 nginx 用户（uid 101）运行 ──
 # 版本说明：任务书建议的 1.27 已从 Docker Hub 下线（官方只维护 1.30/1.31 两条线），
 # 1.31 也是本地实测配置所用的版本（nginx 1.31.6）。
-FROM nginx:1.31-alpine AS runtime
+FROM nginx:1.31-alpine@sha256:1ed1b0e1d7652937d6cbdaf4018c7b6fc009a7dd6c3047351e2eddda745de43f AS runtime
 
 # 运行阶段也保留发布身份：只为 `docker inspect` 能追溯「这个镜像对应哪次构建」，
 # 静态产物与进程都不读它们（运行时的事实来源仍是 env 文件）。

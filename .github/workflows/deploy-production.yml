@@ -8,7 +8,8 @@
 #   2. 该提交在 preview 环境有**成功**的部署记录，且记录来自这些 rc tag 之一；
 #   3. https://prev.yangtzeu.work/release.json 当前就是这个提交与这个 rc 版本。
 # 开关：仓库级 vars.DEPLOY_PRODUCTION_ENABLED 必须显式等于 enabled，未设置 = 不部署。
-# 运行位置：runs-on 读仓库变量 DEPLOY_RUNNER，没设时用 ubuntu-latest（见 docs/ops/CICD.md「自托管 runner」）。
+# 运行位置：runs-on 读仓库变量 DEPLOY_RUNNER，没设时用 ubuntu-latest；设为 yzgc-deploy 时每个 job 一个全新容器，
+# 不要指向 CI 用的常驻 runner yzgc-arch（见 docs/ops/CICD.md「自托管 runner」）。
 #
 # 边界：
 #   * 本工作流不创建、不移动、不删除 tag；正式 tag 由所有者在预发布验收并授权后手工打。

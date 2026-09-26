@@ -68,3 +68,16 @@
 - 做了什么：Claude 独立审查代理审 dd6d64b（范围 243d249..dd6d64b），核对 PromoLazy 只结束一次与重渲染测试；所有者 2026-09-26 在对话里选「同意，合并 #95」，批准新增生产依赖 hls.js 1.7.3
 - 结果：通过：第二轮建议已解决，新建议 1 条（分包失败被 lazy 缓存，本次访问再点会立即关闭，不影响合并）；promo vitest 17 passed，pnpm check 退出码 0；CI push 36187592002、PR 36187597972、issue-lifecycle 36187600370 success
 - 下一步：推送本记录，CI 绿后合并 #95
+
+## 09:25:45 +08:00 · 合并 · #77 · PR #95 合并进 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 2026-09-26 批准（同意新增 hls.js 并合并）；gh pr merge 95 --merge --match-head-commit 02508a3
+- 结果：合并提交 4e3e01cf8474；合并前 CI push 36207207810、PR 36207211316、pr-contract 36207241071 全部 success
+- 下一步：随 #97 的部署 runner 一起发 v0.1.0-rc.6，装预发布宿主 nginx 新模板
+
+## 09:26:06 +08:00 · 收尾 · #77 · PR #95 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 77：删 worktree .claude/worktrees/task-77 与本地分支 task/77/promo_film
+- 结果：PR 已合并

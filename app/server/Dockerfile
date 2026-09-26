@@ -14,7 +14,7 @@
 # 因此落在 /data 卷上，不依赖 REPO_ROOT 的内部目录。
 
 # ── 构建阶段：装依赖 → 编译 TS → 裁掉 devDependencies ──
-FROM node:22-bookworm-slim AS builder
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
 ENV CI=1 \
     PNPM_HOME=/pnpm \
@@ -56,7 +56,7 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
  && pnpm install --frozen-lockfile --prod --filter @yzgc/server... --filter yzgc-admin
 
 # ── 运行阶段：Node 22、非 root、保持仓库布局 ──────────────────
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
 
 ENV NODE_ENV=production
 
