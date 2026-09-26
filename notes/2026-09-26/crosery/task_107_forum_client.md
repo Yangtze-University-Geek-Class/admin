@@ -91,3 +91,10 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：应修 1：回复框的引用（replyQuote）和版主编辑别人的帖子（PostCard 编辑）先经 shared/post-markdown.ts 的 toEditor 在 < 后插 U+2060，保存前 fromEditor 去掉，README「正文安全」补这条路径（dcc8718）；应修 2：不带请求体的写接口逐个断言没有 Content-Type、请求体为空（910e989）；应修 3：更正 9a02793 的实际内容（5ff3d93）。建议全做：parseMe 抽到 shared/site-account.ts 并测 console_link（8539503）；连续 429 只提示一次、等待逐次变长（7b1d1cc）；读状态 10 秒超时算连不上（7ef29fe）；写操作回 401 重读一次状态（dd74205）；titles.ts 遗留只限示例与快照（ce55a93）；个人主页网站只有 https:// 才做成链接（7e29e06）；昵称没改就不发（4e5623a）。验证：node scripts/forum.mjs check；pnpm check；site generate 后用 task/57 的 dist（旧构建）在 3157、/tmp 临时代理在 3158，ego-browser 一个空间（180）走游客引用和版主编辑，用完即 finish；3157、3158 按 PID 停掉
 - 结果：forum check 通过（typecheck、typecheck:tests、eslint、check-styles，22 个文件 420 个测试）；pnpm check 通过；每条新测试都做过反向验证（去掉修复后测试失败）。浏览器里游客帖子含 <style>body{display:none}</style><form><input type=password>：点「回复」后引用和版主「编辑」时页面照常显示，编辑器 DOM 里 style、form、密码框都是 0 个，文字原样显示（截图 /tmp/geek107/review1-quote.png、review1-edit.png）。未验证：带引用的回复真正发出后存下的正文没有 U+2060（只有单测）；401 后顶栏登录状态要刷新页面才跟上（已写进 README）
+
+## 19:39:27 +08:00 · 提交 · #107 · 合并 stage（#106、#113、#117）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：d2d90e3 把 stage 5c1717b 合进来；冲突两处：forum README 开头与「已知限制」保留 #126 的服务端模式现状，并补上 #117 的 17 篇公开旧帖；docs/INDEX.md 用 docs-index 重新生成
+- 结果：forum.mjs check 22 个文件 421 条通过、样式检查 clean；pnpm check 退出 0
+- 下一步：推送，第二轮审查看 24f6f59..HEAD
