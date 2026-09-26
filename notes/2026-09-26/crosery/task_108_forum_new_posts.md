@@ -46,3 +46,16 @@
 - 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
 - 做了什么：manifest 加 t78（人工智能，AI工作流、分享会）、t84（人工智能，AICoding、知识整理），8 条 gitee 图的 sha256 规则、t84 链接空格编码的替换规则；export-published.mjs geek-20260926 --fetch 一次、离线再跑一次；site-state 测试、Dockerfile 断言、forum 合同与数据保全文档；另把上一轮留下未提交的 t89 快照归类单独提交为 ab0224e
 - 结果：两次导出 topics.json 与图片目录哈希相同（96293de1…）；t78 正文与快照逐字节相同，t84 只改了链接地址的空格和 8 个图片地址；已公开 15 篇无变化；新增 8 张 WebP；forum.mjs check 241 项通过；site 模式 generate 通过，t78/t84/t89.md 存在、t5/t15.md 不存在，本机产物上重放 Dockerfile 断言通过；根 pnpm check 通过；临时测试加载 geek-20260926 + curation，t78/t84/t89 都在 c-ai（测试文件未入库）
+
+## 16:18:32 +08:00 · 提交 · #108 · 本机快照模式给 t89 归类
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：提交 ab0224e fix(forum): 本机快照模式给 t89 归类，新投影 geek-20260926 才能加载（上一轮留下的未提交改动，内容未改，单独成一个提交）
+- 结果：临时测试加载 geek-20260926 + curation 通过；forum 测试在下一个提交的完整改动上跑过，这个中间状态没有单独跑
+
+## 16:18:32 +08:00 · 提交 · #108 · 公开 t78、t84
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：提交 5bb8fab feat(forum): 极客班论坛公开现论坛上的 AI 帖子 t78、t84
+- 结果：forum.mjs check 241 项通过；site 模式 generate 与 Dockerfile 断言重放通过；根 pnpm check 通过；未推送、未开 PR
+- 下一步：主 agent 决定推送与开 PR；预发布上的显示未验证
