@@ -114,7 +114,11 @@
     "tests/site-account.test.ts",
     "tests/editor-call-sites.test.ts",
     "app/data/likes.ts",
-    "tests/likes.test.ts"
+    "tests/likes.test.ts",
+    "app/components/PostEditor.vue",
+    "tests/post-editor.test.ts",
+    "tests/support/sfc.ts",
+    "tests/support/tuffex-stubs.ts"
   ],
   "realAuthentication": true,
   "serverPersistence": true,
