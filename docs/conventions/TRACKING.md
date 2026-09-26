@@ -35,7 +35,7 @@
 | task 分支（远端） | 合并后立即删除 | `branch-hygiene` 合并后自动删；每周巡检 14 天没提交、没有 open PR 的残留分支，只告警 | 删分支不可逆，残留的由人确认后删 |
 | task worktree（本机） | 合并或放弃后 `task.mjs finish` | `.githooks/pre-push` 运行 `node scripts/task.mjs list --check`：有该清没清的 worktree 就拒绝推送（[BRANCHING](BRANCHING.md)「task worktree」） | 钩子要每台克隆 `pnpm hooks:enable` 启用一次；gh 查不到只警告 |
 | 执行记录（`notes/`） | 开工起连续记到收尾；PR 带开工、提交、PR、审查 | `pnpm check` 的 `check:notes`；CI `branch-guard` 的执行记录检查（[NOTES](NOTES.md) §6） | 收尾写在合并之后，先暂存到主工作区，随下一个 PR 入库，没有检查拦「一直不入库」 |
-| 文档跟着模块改 | 模块改了，对应文档同一个提交或之后跟着改 | `pnpm check` 的 `check:doc-sync`、CI `core` 与 `branch-guard`（[docs/README](../README.md)「文档跟着模块改」） | 检查只看文档动没动，写得对不对靠审查（[CODE-REVIEW](CODE-REVIEW.md) 第 6 项） |
+| 文档跟着模块改 | 模块改了，对应文档在同一个 PR 里跟着改；文档里的事实没变时，在本 task 的执行记录里写文档核对 | `pnpm check` 的 `check:doc-sync`、CI `core` 与 `branch-guard`（[docs/README](../README.md)「文档跟着模块改」） | 检查只看文档动没动，写得对不对靠审查（[CODE-REVIEW](CODE-REVIEW.md) 第 6 项） |
 
 ## §2 互相引用
 

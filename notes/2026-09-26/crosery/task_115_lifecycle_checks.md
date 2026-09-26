@@ -151,3 +151,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：test(tooling): 已跟踪文件没提交的改动、合并提交的作者时间两个用例；vitest tests/tooling/doc-sync.test.ts；把审查说的两个变异（diff 改成 mergeBase HEAD、lastAuthored 去掉 --no-merges）各跑一次
 - 结果：28 passed；两个变异现在各让一个用例失败
+
+## 19:25:39 +08:00 · 提交 · #115 · TRACKING 与审查技能跟上新的文档同步规则
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：docs(docs): TRACKING 生命周期表改成「同一个 PR 里」，code-review 技能第 7 项加 check-doc-sync --base origin/stage --head 与文档核对的核对；pnpm check:docs
+- 结果：check:docs 退出 0
