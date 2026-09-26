@@ -352,7 +352,7 @@ describe('runner containers pre-seed Node 22 into the actions tool cache', () =>
       expect(setup.indexOf('chown -R runner:runner /home/runner', at)).toBeGreaterThan(at);
     }
     // 与 /usr/local 同一个按 SHASUMS256 校验过的官方包（下面实跑核对）；setup-node 读的 .nvmrc 是 22。
-    expect(setup).toMatch(/\nif ! node --version[^\n]*\n {2}fetch_node\n {2}tar -xJf "\$node_tarball" -C \/usr\/local /);
+    expect(setup).toMatch(/\nif ! node --version[^\n]*\n {2}fetch_node\n(?: {2}#[^\n]*\n)* {2}tar -xJf "\$node_tarball" -C \/usr\/local --strip-components=1 --no-same-owner /);
     expect(read('.nvmrc').trim()).toBe('22');
   });
 

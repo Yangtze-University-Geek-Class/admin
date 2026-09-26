@@ -47,3 +47,9 @@
 - 做了什么：主 agent 批准后补修与应修 3 同类的缺口：16a282d fix(deploy)，ci 的 core job 与两条部署工作流的 build job 在检出之后第一步「核对 better-sqlite3 预编译包地址」，用与 server Dockerfile 相同的 case 核对 npm_config_better_sqlite3_binary_host（空值放行，非空要 https://、无结尾 /、字符白名单）；build-mirrors 测试核对三处与 Dockerfile 逐字相同、排在检出后第一步，并按 bash -eo pipefail 实跑；CICD.md 格式一条同步。变异测试中途一次 git checkout 把还没提交的 ci.yml、deploy-production.yml 改动还原掉了，按同一脚本重新插入、先提交再重做变异
 - 结果：build-mirrors 36 项通过；变异（提交后做，git checkout 复原）：去掉 ci core 那一步的 https case 3 项失败，删掉 production build 的这一步 1 项失败，把 preview build 的这一步挪到 pnpm install 之后 1 项失败。pnpm test 44 个文件 520 项通过；pnpm check 退出码 0；actionlint、shellcheck、hadolint 无输出
 - 下一步：主 agent 推送并更新 PR 正文
+
+## 16:09:30 +08:00 · 审查 · #104 · 第二轮独立审查：有条件通过（条件是 CI 通过）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 985777e（范围 2f491ab..985777e），把测试默认 shell 换成 dash 跑一遍，4 个变异
+- 结果：第一轮三条应修、四条建议都修到了，无新应修；两条建议：/usr/local 解 Node 包时保留了官方包的 uid 1001（容器里多半是 runner）、PR 正文验证段还是旧数字；dash 下 36 passed，CI push 运行 36227992897 的 core 在 crosery-arch-1 上新核对步骤 success；条件：必需 CI 全绿

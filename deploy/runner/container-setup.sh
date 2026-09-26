@@ -60,7 +60,8 @@ fetch_node() {
 }
 if ! node --version 2>/dev/null | grep -q '^v22\.'; then
   fetch_node
-  tar -xJf "$node_tarball" -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE
+  # 官方包里的属主是 uid 1001；root 解包默认保留属主，容器里 1001 多半就是 runner，/usr/local 会变成 runner 的
+  tar -xJf "$node_tarball" -C /usr/local --strip-components=1 --no-same-owner --exclude CHANGELOG.md --exclude README.md --exclude LICENSE
 fi
 
 # actions/setup-node 按 .nvmrc 的「22」先查 runner 的工具缓存，命中就不下载；没命中才从
