@@ -169,16 +169,16 @@ async function loginAs(userId, path) {
   await sleep(300)
 }
 
-/** Types into a markdown editor's source textarea, at the end of what is there. */
+/** Types into PostEditor's textarea, at the end of what is there. */
 async function typeInEditor(scope, text) {
   const focused = await evaluate(`(() => {
-    const el = document.querySelector(${JSON.stringify(`${scope} .tx-markdown-editor__source`)})
+    const el = document.querySelector(${JSON.stringify(`${scope} [data-post-editor] .tx-textarea__field`)})
     if (!el) return false
     el.focus()
     el.setSelectionRange(el.value.length, el.value.length)
     return true
   })()`)
-  assert(focused, `no markdown source textarea inside ${scope}`)
+  assert(focused, `no PostEditor textarea inside ${scope}`)
   await chrome.type(text)
   await sleep(150)
 }
@@ -291,7 +291,7 @@ try {
     return true
   })()`), `post #${targetIndex + 1} has no reply button`)
   await waitFor(has('.tx-drawer--visible'))
-  const prefill = await evaluate(`${q('.tx-drawer .tx-markdown-editor__source')}.value`)
+  const prefill = await evaluate(`${q('.tx-drawer [data-post-editor] .tx-textarea__field')}.value`)
   assert(prefill.startsWith('> '), `composer did not prefill a quote: ${JSON.stringify(prefill.slice(0, 40))}`)
   const quoteHeader = await evaluate(`${q('.tx-drawer__header')}.textContent.replace(/\\s+/g, ' ').trim()`)
   assert(/回复 @\S+ 的 #\d+/.test(quoteHeader), `composer header "${quoteHeader}" does not name the target post`)
@@ -349,8 +349,8 @@ try {
     el.click()
     return true
   })()`), 'edit button did not open the editor')
-  await waitFor(`!!document.querySelectorAll('[id^="post-p"]')[${ownIndex}].querySelector('.tx-markdown-editor__source')`)
-  const editorValue = await evaluate(`document.querySelectorAll('[id^="post-p"]')[${ownIndex}].querySelector('.tx-markdown-editor__source').value`)
+  await waitFor(`!!document.querySelectorAll('[id^="post-p"]')[${ownIndex}].querySelector('[data-post-editor] .tx-textarea__field')`)
+  const editorValue = await evaluate(`document.querySelectorAll('[id^="post-p"]')[${ownIndex}].querySelector('[data-post-editor] .tx-textarea__field').value`)
   assert(editorValue.includes('我来试试这个编辑功能'), `the editor opened with "${editorValue}"`)
 
   await typeInEditor(`[id="${`post-${own.ids[ownIndex]}`}"]`, '（已补充）')
@@ -583,7 +583,7 @@ try {
     if (!submit) return { missing: true }
     const rect = submit.getBoundingClientRect()
     const hit = document.elementFromPoint(Math.round(rect.left + rect.width / 2), Math.round(rect.top + rect.height / 2))
-    const editor = ${q('.tx-drawer .tx-markdown-editor__source')}
+    const editor = ${q('.tx-drawer [data-post-editor] .tx-textarea__field')}
     return {
       disabled: submit.disabled,
       inViewport: rect.width > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight,

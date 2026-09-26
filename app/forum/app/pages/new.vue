@@ -194,12 +194,11 @@ async function submit() {
       </TxFlex>
 
       <TxFormItem label="正文" prop="content" class="!items-stretch">
-        <TxMarkdownEditor
+        <PostEditor
           v-model="model.content"
-          default-mode="source"
           :min-height="320"
           placeholder="在这里输入内容…"
-          aria-label="话题正文"
+          label="话题正文"
         />
       </TxFormItem>
 

@@ -1,20 +1,13 @@
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { postExcerpt } from '~/utils/excerpt'
-import { editDraft, fromEditor, isUnsafeDestination, QUOTE_LENGTH, quoteDraft, renderableMarkdown, replyQuote, toEditor, WORD_JOINER } from '../shared/post-markdown'
+import { isUnsafeDestination, QUOTE_LENGTH, quoteDraft, renderableMarkdown, replyQuote, WORD_JOINER } from '../shared/post-markdown'
+import { loadMarked } from './support/tuffex-stubs'
 
-// TxMarkdownView renders with `new Marked({ gfm: true, breaks: true })`. The
-// forum does not depend on marked itself, so resolve the very copy tuffex
-// ships and run the text through the same parser the page uses.
-interface MarkedLike { parse: (source: string) => string }
-let marked: MarkedLike
+// Run the text through the parser TxMarkdownView uses (see loadMarked).
+let marked: Awaited<ReturnType<typeof loadMarked>>
 
 beforeAll(async () => {
-  const fromForum = createRequire(import.meta.url)
-  const fromTuffex = createRequire(fromForum.resolve('@talex-touch/tuffex/package.json'))
-  const module = await import(pathToFileURL(fromTuffex.resolve('marked')).href) as { Marked: new (options: object) => MarkedLike }
-  marked = new module.Marked({ gfm: true, breaks: true })
+  marked = await loadMarked()
 })
 
 function html(source: string): string {
@@ -169,13 +162,11 @@ describe('links and images only go to http(s), mailto or the site itself', () =>
 })
 
 /**
- * TxMarkdownEditor renders its value with marked (gfm, breaks) and DOMPurify's default profile into a
- * WYSIWYG layer and a preview layer that stay in the DOM behind v-show, even in source mode. That profile
- * keeps <style>, <form>, <input> and style attributes, so a guest's `<style>body{display:none}</style>`
- * quoted into a reply would hide the whole page. DOMPurify only ever removes, so a tag that is not in
- * marked's output is not in the editor's DOM either.
+ * Someone else's text reaches the editor as a quote (ReplyComposer) or a moderator's edit (PostCard). The
+ * editor is a plain textarea and its preview is ForumMarkdown (tests/post-editor.test.ts), so the draft goes
+ * in as written and is only ever rendered through `renderableMarkdown`, like the post it came from (#126, #134).
  */
-/** HTML written with character entities: shown as text in a post, but the editor's WYSIWYG layer decodes them. */
+/** HTML written with character entities: text in a post, and nothing in the editor decodes them any more. */
 const ENTITY_ATTACKS = [
   '&lt;style&gt;body{display:none}&lt;/style&gt;',
   '&#60;form action="https://evil.example"&#62;&#60;input type=password&#62;&#60;/form&#62;',
@@ -184,57 +175,22 @@ const ENTITY_ATTACKS = [
   '> 引用 &lt;style&gt;body{display:none}&lt;/style&gt;',
 ]
 
-/**
- * What the editor writes back after its WYSIWYG layer: tuffex's `serializeMarkdown` takes each text node's
- * `textContent`, entities already decoded, and writes it as-is (it only escapes Markdown punctuation, never
- * `<` or `&`). Enough of that here to see a tag come back: drop the tags, decode the entities.
- */
-function wysiwygRoundTrip(value: string): string {
-  return marked.parse(value)
-    .replace(/<[^>]*>/g, '')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
-    .replace(/&(lt|gt|quot|#39|amp);/gi, (_, name: string) => ({ lt: '<', gt: '>', quot: '"', '#39': '\'', amp: '&' })[name.toLowerCase()] ?? '')
-}
-
-describe('someone else\'s text put into the editor', () => {
-  it('is what the raw text would put on the page (the case this guards)', () => {
-    expect(marked.parse(`> ${postExcerpt('<style>body{display:none}</style>', QUOTE_LENGTH)}\n\n`)).toMatch(/<style>/)
+describe('someone else\'s text in a draft', () => {
+  it('quotes a one-line excerpt as written', () => {
+    expect(replyQuote('<b>x</b> & y')).toBe('> <b>x</b> & y\n\n')
+    const content = '第一段 <style>body{display:none}</style>\n\n**第二段** &lt;b&gt;'
+    expect(quoteDraft({ content })).toBe(`> ${postExcerpt(content, QUOTE_LENGTH)}\n\n`)
   })
 
-  it.each(ATTACKS)('quoting %j puts no tag, handler or style into the editor', (source) => {
-    const out = marked.parse(quoteDraft({ content: source }))
-    expect(out).not.toMatch(FORBIDDEN_TAG)
-    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
+  it('would put the tag on the page if the draft were rendered raw (the case this guards)', () => {
+    expect(marked.parse(quoteDraft({ content: '<style>body{display:none}</style>' }))).toMatch(/<style>/)
   })
 
-  it.each(ATTACKS)('editing %j puts no tag, handler or style into the editor', (source) => {
-    const out = marked.parse(editDraft({ content: source }))
-    expect(out).not.toMatch(FORBIDDEN_TAG)
-    expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
-  })
-
-  it('is what the entities would turn into after a trip through the WYSIWYG layer (the case this guards)', () => {
-    expect(marked.parse(wysiwygRoundTrip(ENTITY_ATTACKS[0] as string))).toMatch(/<style>/)
-  })
-
-  it.each([...ATTACKS, ...ENTITY_ATTACKS])('%j stays text after a trip through the WYSIWYG layer, edited or quoted', (source) => {
-    for (const value of [editDraft({ content: source }), quoteDraft({ content: source })]) {
-      const out = marked.parse(wysiwygRoundTrip(value))
+  it.each([...ATTACKS, ...ENTITY_ATTACKS])('%j renders no tag, handler or style, quoted or edited', (source) => {
+    for (const draft of [quoteDraft({ content: source }), source]) {
+      const out = html(draft)
       expect(out).not.toMatch(FORBIDDEN_TAG)
       expect(outsideValues(out)).not.toMatch(/<[a-z][^>]*\s(?:on\w+|style)=/i)
     }
-  })
-
-  it('saves exactly what the author left, without the inserted word joiners', () => {
-    for (const source of [...ATTACKS, ...ENTITY_ATTACKS, '#include <stdio.h>', 'a < b', '<https://example.com>', 'AT&T &amp; R&D'])
-      expect(fromEditor(toEditor(source))).toBe(source)
-    expect(fromEditor(`${replyQuote('<b>x</b>')}我的回复`)).toBe('> <b>x</b>\n\n我的回复')
-  })
-
-  it('keeps a word joiner the author wrote', () => {
-    const source = `词${WORD_JOINER}语 <b>x</b>`
-    expect(fromEditor(toEditor(source))).toBe(source)
-    expect(fromEditor(`${toEditor(source)}，改了一句`)).toBe(`${source}，改了一句`)
   })
 })
