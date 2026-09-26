@@ -4,6 +4,8 @@
 
 状态：`accepted` · 更新：2026-09-26 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版、仓库私有，GitHub 文档写明免费版只能给**公开**仓库配置环境，所以 `production` 的审批无法配置，正式部署 job 按设计失败关闭，正式环境走下文「维护者机器部署」。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
 
+最近核对：#115 2026-09-26 — `ci.yml` 加了文档同步检查、core 检出完整历史，`issue-lifecycle.yml` 的巡检改成每天补关与留言，都已写进下面的表和说明；`deploy/` 这次没有改动。
+
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
 ## 触发与职责
@@ -27,7 +29,7 @@
 
 - `ci.yml` 顶层权限仅 `contents: read`，不挂载任何 secrets，不产出可部署产物。
 - `branch-guard` 运行 `node scripts/check-branch-invariants.mjs`（`--require-remote-refs`）：核对两条不变量（`stage ≥ main`、`main` 不领先 `stage`）与分支命名卫生，并检查写入 `main` 的提交来源。不变量定义见 [BRANCHING](../conventions/BRANCHING.md)。同一脚本的 `--push` 模式还在本地 pre-push 里核对发布 tag（格式、所在分支、版本号、不可删除和移动）；`ci.yml` 不由 tag 触发，tag 的服务端核对在两条部署工作流的 plan job 里。
-- **文档跟着模块改**（对照表与规则见 [docs/README](../README.md)「文档跟着模块改」，`scripts/check-doc-sync.mjs`）：`core` 的 `pnpm check` 里有 `check:doc-sync`，按提交时间比较每一对模块与文档，检出写 `fetch-depth: 0`，浅克隆直接失败；`branch-guard` 在 task 分支进 `stage` 的 PR 上再跑 `--base origin/stage`，这次的 diff 动了模块就必须也动对应文档。改 `.github/workflows/` 就要同时改本文档；改 `deploy/` 就要改 [DEPLOY](DEPLOY.md)、[ENVIRONMENTS](ENVIRONMENTS.md) 或本文档里对应的说明（三份里至少动一份，改哪份看改了什么）。
+- **文档跟着模块改**（对照表与规则见 [docs/README](../README.md)「文档跟着模块改」，`scripts/check-doc-sync.mjs`）：`core` 的 `pnpm check` 里有 `check:doc-sync`：PR 运行时检出的是 GitHub 做的合并提交，push `stage`/`main`/`dev/**` 时是分支本身，都按第一父链的时间比较每一对模块与文档；push `task/**` 时按 PR 对 `origin/stage` 核对。检出写 `fetch-depth: 0`，浅克隆直接失败。`branch-guard` 在 task 分支进 `stage` 的 PR 上再跑 `--base origin/stage`：merge-base 以来动了模块就必须也动对应文档。第一父链的比较依赖 PR 只用 merge commit 进 `stage`（[BRANCHING](../conventions/BRANCHING.md)）。改 `.github/workflows/` 就要同时改本文档；改 `deploy/` 就要改 [DEPLOY](DEPLOY.md)、[ENVIRONMENTS](ENVIRONMENTS.md) 或本文档里对应的说明（三份里至少动一份，改哪份看改了什么）。
 - `env-contract` 校验两份 `.env` 的字段契约（非密值必填、契约外字段拒绝、密钥必空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性，并用 `pnpm check:site-config` 确认前端 `app.config.json` 不含任何域名（每个环境一个 origin，管理端按路径区分）。
 - 部署工作流用 **build args** 把发布身份注入镜像：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`，预发布 `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 SHA），不写进 `.env`；展示规则见 [RELEASES](../conventions/RELEASES.md)。
 - plan job 检出发布 tag（`fetch-depth: 0`，带全部分支与 tag），核对检出的 HEAD 就是 tag 指向的提交；build 与 deploy job 按 plan 输出的完整 SHA 检出，不再按 tag 名重新解析。

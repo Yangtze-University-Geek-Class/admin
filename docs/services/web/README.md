@@ -4,6 +4,8 @@
 
 状态：`current` · 更新：2026-09-26 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
+最近核对：#115 2026-09-26 — d3f3df7 把 Dockerfile 的基础镜像按 digest 固定，已补进本文；b95e3f2 改的是宣传片，写在 [portal](portal.md)；#112 指出源码地图被空行截断，已删；其余说明不受影响。
+
 ## 源码地图
 
 | 路径 | 职责 |

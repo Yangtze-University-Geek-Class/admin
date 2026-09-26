@@ -73,8 +73,8 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: node scripts/note.mjs check --pr --base "origin/${BASE_REF}" --head "${HEAD_REF}"
 
-      # 文档跟着模块改（docs/README.md「文档跟着模块改」）：这次 PR 动了模块路径，就必须也动对应的文档路径。
-      # 按提交时间的整体比较也在 core 的 pnpm check 里；这一步另看本 PR 的改动，补上「别人后来改过同一份文档」的空子。
+      # 文档跟着模块改（docs/README.md「文档跟着模块改」）：按 PR 核对，merge-base 以来动了模块路径就必须也动对应的文档路径，
+      # 并在 merge-base 上按第一父链的时间核对一次。core 的 pnpm check 在 PR 的合并提交上按第一父链的时间核对，两处互为兜底。
       # 前面的执行记录检查没过也照样跑，一次把要补的都列出来。
       - name: 文档跟着模块改（本 PR 的改动）
         if: ${{ !cancelled() && github.event_name == 'pull_request' && startsWith(github.head_ref, 'task/') }}

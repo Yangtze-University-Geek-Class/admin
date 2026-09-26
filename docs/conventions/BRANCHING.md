@@ -26,7 +26,7 @@
 | `task/<issue>/<slug>` | 从 `stage` 拉出 → MR 回 `stage`，正文写 `Closes #<issue>` | **极短**：MR 合并后必须立即删除，禁止残留死分支。`branch-hygiene.yml` 会在 PR 合并后自动删除，也可以手工 `git push origin --delete` |
 | `dev/<github-username>` | 个人自由开发区，内容随意 | 个人自行维护；**不得作为任何提交进入 `stage` 的凭据**，也不部署（只在 `ci.yml` 里跑机器验证） |
 
-- 一次任务一条 task 分支；一个 task 分支只对应一个 issue，并且**在自己的 git worktree 里开发**（见下节）。合并方式默认 squash 或普通 merge，由维护者决定，但分支本身必须在合并后删除。
+- 一次任务一条 task 分支；一个 task 分支只对应一个 issue，并且**在自己的 git worktree 里开发**（见下节）。进 `stage` 只用 merge commit（GitHub 的「Create a merge commit」，命令行 `gh pr merge <PR> --merge`），分支本身必须在合并后删除。原因：文档同步检查在 `stage` 上按第一父链的时间比较模块与文档（[docs/README](../README.md)「文档跟着模块改」），一个 PR 只进来一个合并提交，模块和文档同时到；rebase 合并会把 PR 的提交逐个接到第一父链上，模块提交排在文档提交后面就不通过；squash 会把审查和执行记录里引用的提交 SHA 从 `stage` 的历史里抹掉。仓库设置里关掉 squash 与 rebase 要所有者操作，关掉之前靠合并的人照这条做。
 - `dev/<github-username>` 是个人实验区：可以自由提交、可以 force-push 自己的分支，但把内容送上 `stage` 的唯一合法路径是「从 `stage` 拉一条干净的 `task/<issue>/<slug>`，重新提交或 cherry-pick 经过审查的改动」。`dev/**` 的提交历史、分支名和 CI 绿标都不是审查凭据。
 - 禁止把 `dev/**`、`task/**` 直接合并进 `main`。
 

@@ -88,3 +88,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：推送 task/115/lifecycle_checks（8f1f236，含 #112 转来的六处文档修正）后 gh pr create
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/118；派独立审查
+
+## 17:00:59 +08:00 · 审查 · #115 · PR #118 第一轮审查：有条件通过，3 条应修、6 条建议
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：读 PR #118 正文「审查结论」：独立审查代理 2026-09-26 16:57 审 a3bc698（2812251..a3bc698）；应修：issue-sweep 把旧格式关闭后重开的 issue 再关掉（#16 真实数据复现）；squash/rebase 合并跨北京零点让 stage 上「更新：」过期；app/ 只动测试或返工时没有合法的文档改动；建议：gh 非超时失败重试一次、主工作区停在已合并 task 分支时提示切回、补关前查开着的 PR 且只处理合并超过 1 小时的并翻页取评论、服务列表用 git ls-files、补两个变异用例、nuxt.config.ts 注释（#107 在改，不做）
+- 结果：结论：有条件通过；主 agent 定了返工方案：排序按 first-parent 历史、task 分支用 PR 级规则加 merge-base 上的排序、「更新：」按作者时间、服务 README 加「最近核对」一行、写明进 stage 只用 merge commit
+- 下一步：按主 agent 的方案返工，完成后记「返工」
+
+## 17:09:15 +08:00 · 提交 · #115 · 文档同步改成按第一父链与按 PR 核对
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): 文档同步按第一父链与按 PR 核对，「更新：」按作者时间比；vitest tests/tooling/doc-sync.test.ts；pnpm check；actionlint
+- 结果：21 passed；pnpm check 退出 0（文档同步通过：6 组模块与文档，按 PR 核对（对 origin/stage））；actionlint 退出 0

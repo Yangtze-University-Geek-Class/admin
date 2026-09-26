@@ -24,7 +24,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 
 ## 文档跟着模块改
 
-模块改了，对应的文档要在同一个提交或之后的提交里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并：
+模块改了，对应的文档要在同一个 PR 里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并：
 
 | 模块路径 | 文档路径 | 头部「更新：」 |
 |---|---|---|
@@ -35,15 +35,20 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | `deploy/` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` |
 | `.github/workflows/` | `docs/ops/CICD.md` | `docs/ops/CICD.md` |
 
-检查的规则：
+检查分两种，按所在分支自动选：
 
-1. 按 Git 的提交时间比：模块路径最后一次提交（`git log -1 --no-merges --format=%ct -- <模块路径>`）不能比文档路径最后一次提交新。合并提交不算改动，报错里写的是真正改了模块的那个提交。工作区里还没提交的改动算作「现在」，所以改了模块、没动文档时，本机的 `pnpm check` 就不通过。
-2. 第三列文档开头的「更新：」日期不能早于模块最后一次改动的北京日期；一行写了几份文档时，看其中最新的那个日期。
-3. task 分支进 `stage` 的 PR 还要看这次的改动本身：`origin/stage...HEAD` 动了模块路径，就必须也动对应的文档路径（CI `branch-guard`）。这一条补上第 1 条的空子：别人后来改过同一份文档，时间比较会通过，但你这次的改动仍然要带上文档。
+1. 在 `task/*` 分支上按 PR 核对（本机的 `pnpm check` 对 `origin/stage`，没有就对本地 `stage`；CI 的 `branch-guard` 用 `--base origin/stage`）：从 merge-base 到现在，动了模块路径就必须也动对应的文档路径。已提交、没提交、没跟踪的新文件都算。PR 里先改文档、后面返工代码不要紧，只看整个 PR 带没带上文档。另外在 merge-base 上按第 2 条核对一次，`stage` 本来就不同步的照样报出来，并写明不是这条分支造成的；这条分支动了那份文档，就算在顺手修，不再报。找不到 `origin/stage` 和 `stage` 时退回第 2 条并提示先 `git fetch origin stage`。
+2. 在其它分支上（`stage`、`main`、`dev/*`、CI 给 PR 做的合并提交）按第一父链的时间核对：模块路径在第一父链上最后一次改动（`git log -1 --first-parent --format=%ct -- <路径>`）不能比文档路径新。PR 以 merge commit 进 `stage`，合并提交同时带来模块和文档，两边时间相同就通过。工作区里还没提交的改动（含没跟踪的新文件）算作「现在」。这条依赖「PR 只用 merge commit 进 `stage`」（[BRANCHING](conventions/BRANCHING.md)）：rebase 合并会把 PR 的提交逐个接到第一父链上，模块提交排在文档提交后面就不通过。
+
+两种都要满足：
+
+3. 第三列文档开头的「更新：」日期不能早于模块最后一次改动（不算合并提交）的作者时间的北京日期；一行写了几份文档时，看其中最新的那个日期。用作者时间，是为了零点前写好、零点后才合进 `stage` 的提交不被判成过期。工作区里有没提交的模块改动时按今天算。
 4. 要有完整历史：浅克隆直接报错，不会当作通过。CI 的检出写 `fetch-depth: 0`；本机遇到时运行 `git fetch --unshallow`。
-5. `app/` 下每个服务目录都要在表里，表里写的路径都要存在。不设排除项：`app/` 里的测试、脚本、Dockerfile、锁文件改了，也要回头看服务文档里对应的源码地图、验证命令、镜像说明还对不对。
+5. `app/` 下每个服务目录（Git 跟踪的或没被忽略的新目录）都要在表里，表里写的路径都要存在。不设排除项：`app/` 里的测试、脚本、Dockerfile、锁文件改了，也要回头看服务文档里对应的源码地图、验证命令、镜像说明还对不对。
 
-不通过时，报错会写出是哪一对、是哪个提交让模块变新。先 `git show <提交>` 看改了什么，把文档里对应的说明改对，再把「更新：」改成当天。只改日期、不改内容也能让检查通过，但这是假同步，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下；检查只能看出文档动没动，写得对不对由审查人核对。合并与 rebase 的处理见脚本开头的注释，测试在 `tests/tooling/doc-sync.test.ts`。
+不通过时，报错会写出是哪一对、是哪个提交或哪些文件。先 `git show <提交>` 看改了什么，把文档里对应的说明改对，再把「更新：」改成当天。
+
+模块改了、文档里写的事实却一个都没变（只改测试、重构、审查后的返工），就更新服务文档里的「最近核对」一行，格式是 `最近核对：<短 SHA 或 #issue> <日期> — <改了什么>；<为什么其余说明不用改>`。四份服务 README 和 [CICD](ops/CICD.md)（给 `deploy/`、`.github/workflows/` 用）各有一行，放在状态行下面，每次只保留最新的一条。这一行是真实的核对记录，审查人对照 diff 看它写得对不对。只改「更新：」日期、不改说明也不写这一行，是假同步，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下；检查只能看出文档动没动，写得对不对由审查人核对。实现在 `scripts/check-doc-sync.mjs`，测试在 `tests/tooling/doc-sync.test.ts`。
 
 ## 阅读地图
 
