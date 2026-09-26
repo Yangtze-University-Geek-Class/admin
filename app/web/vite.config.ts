@@ -3,8 +3,17 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { staticCdnBase } from "../../scripts/static-cdn-base.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
+
+/**
+ * 静态资源 CDN 开关（#146，scripts/static-cdn-base.mjs）：STATIC_CDN_BASE 为空时与以前一样同源；
+ * 非空时只有带内容哈希的构建产物（assets/ 下的 JS、CSS、图片）改从 CDN 加载。
+ * base 保持 "/"，入口 HTML、路由与 public/ 里不带哈希的文件（看板娘、favicon）仍走源站；
+ * 壁纸由 sites/portal/lib/wallpapers.ts import，构建时带哈希，跟着开关走。
+ */
+const cdnBase = staticCdnBase();
 
 const SITE_NAMES = ["portal"] as const;
 
@@ -75,6 +84,9 @@ export default defineConfig({
       "/healthz": "http://127.0.0.1:3000",
     },
   },
+  experimental: cdnBase
+    ? { renderBuiltUrl: (filename, { type }) => (type === "asset" ? `${cdnBase}${filename}` : undefined) }
+    : undefined,
   build: {
     outDir: "dist",
     sourcemap: false,

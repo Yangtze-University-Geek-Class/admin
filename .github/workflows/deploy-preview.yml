@@ -10,7 +10,8 @@
 #
 # 边界：
 #   * 本工作流不创建、不移动、不删除 tag；tag 由所有者授权后手工打（见 docs/conventions/RELEASES.md）。
-#   * 只有 build 与 deploy 两个阶段；构建期不接触任何环境级密钥。
+#   * 构建（build job）不接触任何环境级密钥。静态资源 CDN（#146）的上传 token 只在 cdn-plan、cdn-upload
+#     两个 job 里出现（GitHub Environment `static-cdn`），这两个 job 不安装依赖；没有 token 时同源构建、不上传。
 #   * 部署用环境级 secrets（GitHub Environment `preview`），与 PR 构建、正式环境完全隔离。
 #   * 镜像 tag 只用提交 SHA 前 12 位，禁止 latest；展示版本是 X.Y.Z-rc.N@<sha12>。
 #   * 部署记录走 GitHub Deployments API（payload 带 rc tag），正式环境用它做「先预发布后正式」的证据。
@@ -132,10 +133,51 @@ jobs:
         shell: bash
         run: node scripts/deployment-environment.mjs --check
 
+  # 静态资源 CDN 开关（#146）：有上传 token、且 preview 线上的 CSP 已放行 CDN 时，build 用 CDN 地址构建；
+  # 否则同源构建（与原来一样）。上传 token 只在这个 job 与 cdn-upload 里出现：两个 job 都不安装依赖，
+  # 只跑仓库里零依赖的 scripts/static-cdn.mjs（docs/ops/CICD.md「静态资源 CDN」）。
+  cdn-plan:
+    name: cdn-plan (静态资源 CDN 开关)
+    needs: plan
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    # token 存在 GitHub Environment `static-cdn`（部署 tag 规则只放行 v*）；deployment: false 不产生部署记录。
+    environment:
+      name: static-cdn
+      deployment: false
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.decide.outputs.base }}
+    steps:
+      - name: 检出 plan 核对过的提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 决定这次是否用 CDN（没有 token 或 CSP 未放行 = 同源）
+        id: decide
+        shell: bash
+        # stdout 只有一行 base=<地址或空>。token 的策略不对（前缀、只增不改、到期）直接失败，不带着错的凭据继续；
+        # 脚本不打印 token，只打印策略字段与到期时间。
+        env:
+          STATIC_CDN_UPLOAD_TOKEN: ${{ secrets.STATIC_CDN_UPLOAD_TOKEN }}
+          ORIGIN: ${{ needs.plan.outputs.origin }}
+        run: |
+          set -eu
+          node scripts/static-cdn.mjs decide --origin "$ORIGIN" >> "$GITHUB_OUTPUT"
+
   # 构建：三条镜像 → 单个归档 + 校验和（不推送 registry，目标机 docker load）。
   build:
     name: build (镜像归档)
-    needs: plan
+    needs: [plan, cdn-plan]
     runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     env:
@@ -200,6 +242,7 @@ jobs:
           IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
           GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
           GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
+          STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}
         run: |
           set -eu
           for service in server web forum; do
@@ -208,15 +251,50 @@ jobs:
               server) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY" --build-arg DEBIAN_MIRROR="$DEBIAN_MIRROR" --build-arg BETTER_SQLITE3_BINARY_HOST="$BETTER_SQLITE3_BINARY_HOST") ;;
               *) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY") ;;
             esac
+            # 静态资源 CDN 开关（#146）只影响 web、forum 的前端产物；空 = 同源。server 的 Dockerfile 没有这个参数。
+            case "$service" in
+              server) cdn_args=() ;;
+              *) cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE") ;;
+            esac
             docker build \
               --file "app/${service}/Dockerfile" \
               --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=preview \
               --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
               --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
               "${mirror_args[@]}" \
+              "${cdn_args[@]}" \
               --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
           done
           docker image list --format '{{.Repository}}:{{.Tag}}' | grep "^${IMAGE_REPOSITORY}/"
+
+      - name: 取出要上传 CDN 的带哈希文件（开关打开时）
+        if: needs.cdn-plan.outputs.base != ''
+        shell: bash
+        # 从刚构建的 web、forum 镜像里原样拷出三个产物目录，再按 scripts/static-cdn.mjs 的规则挑文件（不联网）：
+        # 有不带内容哈希的文件就在这里失败。上传在 cdn-upload job 里做，本 job 不接触上传 token。
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
+          IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
+        run: |
+          set -eu
+          out="${RUNNER_TEMP}/static-cdn"
+          mkdir -p "${out}/web" "${out}/forum"
+          web="$(docker create "${IMAGE_REPOSITORY}/web:${IMAGE_TAG}")"
+          forum="$(docker create "${IMAGE_REPOSITORY}/forum:${IMAGE_TAG}")"
+          docker cp "${web}:/usr/share/nginx/html/assets" "${out}/web/assets"
+          docker cp "${web}:/usr/share/nginx/html/console-assets" "${out}/web/console-assets"
+          docker cp "${forum}:/usr/share/nginx/html/_nuxt" "${out}/forum/_nuxt"
+          docker rm "$web" "$forum" > /dev/null
+          node scripts/static-cdn.mjs plan --web "${out}/web" --forum "${out}/forum"
+
+      - name: 上传带哈希的静态文件（交给 cdn-upload，保留 7 天）
+        if: needs.cdn-plan.outputs.base != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: yzgc-static-preview-${{ needs.plan.outputs.image_tag }}
+          path: ${{ runner.temp }}/static-cdn/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: 打包镜像归档与校验和
         shell: bash
@@ -245,10 +323,74 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # 部署：只有显式打开仓库级开关才跑。环境级 secrets 只在本 job 出现。
+  # 上传并核对（#146）：开关关闭时只打印一行，job 照常成功，deploy 不受影响；开关打开时任何一个文件
+  # 上传或经 CDN 核对失败，deploy 都不会开始——HTML 不会先于它引用的文件上线。只增不改，不删除任何对象。
+  cdn-upload:
+    name: cdn-upload (上传并核对 CDN 静态文件)
+    needs: [plan, cdn-plan, build]
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    environment:
+      name: static-cdn
+      deployment: false
+    permissions:
+      contents: read
+      # 读本次运行的静态文件 artifact（scripts/fetch-artifact.mjs 经 REST API 下载）。
+      actions: read
+    env:
+      STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}
+    steps:
+      - name: 开关状态
+        shell: bash
+        run: |
+          set -eu
+          if [ -z "$STATIC_CDN_BASE" ]; then
+            echo "静态资源 CDN 开关关闭：这次同源构建，不上传。"
+          else
+            echo "静态资源 CDN 开关打开：${STATIC_CDN_BASE}"
+          fi
+
+      - name: 检出 plan 核对过的提交
+        if: needs.cdn-plan.outputs.base != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        if: needs.cdn-plan.outputs.base != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 下载带哈希的静态文件
+        if: needs.cdn-plan.outputs.base != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: yzgc-static-preview-${{ needs.plan.outputs.image_tag }}
+        run: |
+          set -eu
+          node scripts/fetch-artifact.mjs --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" \
+            --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/static-cdn"
+
+      - name: 上传（只增不改）并经 CDN 带 Referer 逐个核对
+        if: needs.cdn-plan.outputs.base != ''
+        shell: bash
+        # 核对每个文件：HTTP 200、ETag 等于本地七牛 qetag、长度、Content-Type、JS/CSS/字体的 CORS 头。
+        env:
+          STATIC_CDN_UPLOAD_TOKEN: ${{ secrets.STATIC_CDN_UPLOAD_TOKEN }}
+          ORIGIN: ${{ needs.plan.outputs.origin }}
+        run: |
+          set -eu
+          node scripts/static-cdn.mjs upload --web "$RUNNER_TEMP/static-cdn/web" --forum "$RUNNER_TEMP/static-cdn/forum" \
+            --referer "${ORIGIN}/"
+
+  # 部署：只有显式打开仓库级开关才跑。部署用的环境级 secrets 只在本 job 出现。
   deploy:
     name: deploy (preview stack)
-    needs: [plan, build]
+    needs: [plan, build, cdn-upload]
     # 未设置或不是 enabled 一律不部署；哨兵值在第一个 step 里再硬校验一次。
     if: vars.DEPLOY_PREVIEW_ENABLED == 'enabled'
     runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}

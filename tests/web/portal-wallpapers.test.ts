@@ -2,21 +2,32 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WALLPAPER, WALLPAPERS, canPrefetchWallpapers, resolveWallpaper, revealClipFrom, wallpaperPrefetchList } from "../../app/web/sites/portal/lib/wallpapers";
 
-const PUBLIC = new URL("../../app/web/public", import.meta.url).pathname;
+const REPO = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
+const PUBLIC = `${REPO}/app/web/public`;
+const ASSETS = "/app/web/sites/portal/assets/wallpapers/";
 const STYLES = new URL("../../app/web/sites/portal/styles", import.meta.url).pathname;
 
 describe("桌面壁纸", () => {
   it("每张壁纸的图都在，体积有上限（开机画面要等它解码完）", () => {
     for (const wallpaper of WALLPAPERS) {
       for (const file of [wallpaper.image, wallpaper.thumb]) {
-        const path = `${PUBLIC}${file}`;
+        // 测试里 import 的值是源文件相对仓库根的路径
+        const path = `${REPO}${file}`;
         expect(existsSync(path), file).toBe(true);
         expect(statSync(path).size, file).toBeLessThan(300e3);
       }
       // 缩略图是换壁纸时先顶上的占位，要小到打开面板就已经下好
-      expect(statSync(`${PUBLIC}${wallpaper.thumb}`).size, wallpaper.thumb).toBeLessThan(20e3);
+      expect(statSync(`${REPO}${wallpaper.thumb}`).size, wallpaper.thumb).toBeLessThan(20e3);
     }
     expect(new Set(WALLPAPERS.map((wallpaper) => wallpaper.id)).size).toBe(WALLPAPERS.length);
+  });
+
+  it("图片由清单 import，不放 public/：构建时带内容哈希，跟静态资源 CDN 开关走（#146）", () => {
+    for (const wallpaper of WALLPAPERS) {
+      expect(wallpaper.image.startsWith(ASSETS), wallpaper.image).toBe(true);
+      expect(wallpaper.thumb.startsWith(ASSETS), wallpaper.thumb).toBe(true);
+    }
+    expect(existsSync(`${PUBLIC}/portal/wallpapers`)).toBe(false);
   });
 
   it("两张静态壁纸，名字是极客娘 1、极客娘 2，默认用第一张", () => {
@@ -41,8 +52,9 @@ describe("换壁纸的动效与预取", () => {
   });
 
   it("预取先全部缩略图，再当前这张以外的大图；不重复预取当前大图", () => {
-    expect(wallpaperPrefetchList("yugc")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/geek.webp"]);
-    expect(wallpaperPrefetchList("geek")).toEqual(["/portal/wallpapers/yugc-thumb.webp", "/portal/wallpapers/geek-thumb.webp", "/portal/wallpapers/yugc.webp"]);
+    const [yugc, geek] = WALLPAPERS;
+    expect(wallpaperPrefetchList("yugc")).toEqual([yugc.thumb, geek.thumb, geek.image]);
+    expect(wallpaperPrefetchList("geek")).toEqual([yugc.thumb, geek.thumb, yugc.image]);
   });
 
   it("减少动态效果时全站把动画压成 .01ms，换壁纸的淡入和清晰过来保留原时长（不然旧层卸掉前根本看不到淡入）", () => {
