@@ -2,7 +2,7 @@
 
 > 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，所有者在预发布验收通过后，在同一提交上打 `vX.Y.Z` 发正式。tag 不可移动、不可删除，版本号不自动提升。
 
-状态：`current` · 更新：2026-09-25 · 依据：项目所有者 2026-09-24 指令：「后续所有相关的 都是走发版的逻辑，通过打 tag 去发版。目前所有的发版流程是：先发预发布版，预发布版测试没啥问题的时候，再发正式版。」写法由所有者选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
+状态：`current` · 更新：2026-09-26 · 依据：项目所有者 2026-09-24 指令：「后续所有相关的 都是走发版的逻辑，通过打 tag 去发版。目前所有的发版流程是：先发预发布版，预发布版测试没啥问题的时候，再发正式版。」写法由所有者选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
 
 ## 发布模型：tag 驱动
 
@@ -47,7 +47,7 @@
    git push origin v0.2.0
    ```
 
-8. `deploy-production.yml` 先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈。GitHub 免费版的私有仓库配不了环境审批，部署 job 按设计失败关闭；这时由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。
+8. `deploy-production.yml` 先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈。`production` 环境和它的审批人还没配置（仓库 2026-09-26 起公开，已经可以配，审批人由所有者定），部署 job 按设计失败关闭；这时由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。
 
 ## 授权门禁
 

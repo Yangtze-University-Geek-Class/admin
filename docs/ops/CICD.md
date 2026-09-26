@@ -22,7 +22,7 @@
 - 一次只推一个发布 tag：GitHub 在一次推送超过三个 tag 时不产生 push 事件，工作流不会运行。
 - **打 tag 之前先等这个提交上 `ci.yml` 的 `verify (required check)` 跑完并通过。** 部署记录用 `required_contexts` 只要求这一项检查，它还在跑或没通过时，创建部署记录返回 409，部署 job 在这一步失败（`scripts/deploy-manual.mjs` 同样）。刚合并进 `stage` 的提交要等 push `stage` 触发的那次 CI 结束再打 rc tag。
 - tag 推送触发的是**该 tag 所在提交里**的工作流文件；手工运行也按所选 tag 的工作流文件执行，但入口要求工作流文件已经存在于默认分支（`main`）。
-- `ci.yml` 的旧运行（#124）：同一 PR 或同一个 `task/**`、`dev/**` 分支推了新提交，旧提交还没跑完的运行自动取消，runner 让给新提交。被取消的运行因为 `verify` 是 `if: always()`（跳过会被当成通过，不能去掉），还会排一个 `verify` job 等 runner，最后以 failure 结束，之前一直显示排队中。push `main`、`stage` 的运行不取消正在跑的；但同一组里已经有一个在排队时，GitHub 会取消排队中的那一次（默认 `queue: single`），连续合并三次以上时中间的提交可能没有 `verify`：打 rc tag 前先确认这个提交上的 `verify (required check)`，没有就重跑那次运行。
+- `ci.yml` 的旧运行（#124）：同一 PR 或同一个 `task/**`、`dev/**` 分支推了新提交，旧提交还没跑完的运行自动取消，runner 让给新提交。被取消的运行因为 `verify` 是 `if: always()`（跳过会被当成通过，不能去掉），还会排一个 `verify` job，最后以 failure 或 cancelled 结束（常驻 runner 占满时它会先显示排队中）。push `main`、`stage` 的运行不取消正在跑的；但同一组里已经有一个在排队时，GitHub 会取消排队中的那一次（默认 `queue: single`），连续合并三次以上时中间的提交可能没有 `verify`：打 rc tag 前先确认这个提交上的 `verify (required check)`，没有就重跑那次运行。
 - `dev/**` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev/**` 不得作为进入 `stage` 的凭据；旧的 `dev-*` 名字不再触发 `ci.yml`（见 [BRANCHING](../conventions/BRANCHING.md) 命名规则）。
 - `branch-hygiene.yml` 是「合并后立即删除 task 分支」的执行者；它不创建 tag、不动 `main`/`stage`、不改 PR 状态，也不接触任何 secrets。巡检发现残留分支只告警，删除留给人工决定。
 
@@ -108,7 +108,7 @@
 
 ## 维护者机器部署（免费版的退路）
 
-免费版的私有仓库可以建环境、存环境级 secrets（运行时能否注入还没实测），但配不了审批。`deploy-production` 的部署 job 有两种结局：开关 `DEPLOY_PRODUCTION_ENABLED` 关闭时**跳过**；打开时在「production 环境保护」核对处**失败关闭**。这是正确行为，不得放宽。两种情况下 build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。正式环境（以及 `preview` 的部署 job 拿不到 secrets 时的预发布）改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
+`production` 环境和它的审批人还没配置（仓库原先私有时免费版配不了；2026-09-26 公开后可以配，审批人由所有者定）。`deploy-production` 的部署 job 有两种结局：开关 `DEPLOY_PRODUCTION_ENABLED` 关闭时**跳过**；打开时在「production 环境保护」核对处**失败关闭**。这是正确行为，不得放宽。两种情况下 build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。正式环境（以及 `preview` 的部署 job 拿不到 secrets 时的预发布）改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
 
 1. 进程环境里的 `DEPLOY_TARGET_ENVIRONMENT` 必须等于 `--environment`（对应 CI 的环境哨兵，防止导出的是另一个环境的密钥）；仓库取自 `origin` 远端。
 2. `git archive <提交> deploy scripts package.json` 解到临时目录（不是 Git 仓库，所以 `--check` 会打两条「无法通过 git check-ignore 判定」的警告，这是预期的：物料来自 `git archive`，必然是入库文件），用**这一份**的 `release-policy` 规划（与工作流同一个 `--branch-ref`、`--require-tag`，`--root` 指向这份物料）并跑环境契约 `--check`；rc tag 只能进 `preview`，正式 tag 只能进 `production`。`DEPLOY_SSH_HOST/PORT/USER` 必须与这份物料里该环境模板的 `DEPLOY_HOST/PORT/USER` 一致。
@@ -136,9 +136,9 @@
 
 **重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册 `RUNNER_INSTANCES` 个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker，正在跑的 job 会失败，挑没有 job 的时候跑；`register.sh` 只重启 `.env` 改过或新注册的实例，已注册、在跑的实例不动。加实例时：新实例的目录用缓存的 runner 包解出来，解包前先按 `container-setup.sh` 里写死的 `RUNNER_SHA256` 核对（`echo "<RUNNER_SHA256>  <包>" | sha256sum -c -`；包在 `/home/runner` 下、属 runner，job 能改到它），再 `incus exec --env RUNNER_INSTANCES=6 yzgc-runner -- sh /root/register.sh`（`incus exec` 不继承调用方的环境变量）。
 
-**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。
+**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。`CI_RUNNER` 现在已删（仓库公开，托管 runner 不计分钟），CI 跑在 `ubuntu-latest` 上；托管 runner 出问题时设回 `CI_RUNNER=yzgc-arch`。
 
-**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`、`DEPLOY_RUNNER`。
+**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `DEPLOY_RUNNER`（CI 已在托管 runner 上，不受影响）。
 
 **安全边界**（下文「自托管运行器不得接在有生产凭据或真实数据的机器上执行不可信 PR」在这里靠下面几条成立，不是无条件满足）：
 
