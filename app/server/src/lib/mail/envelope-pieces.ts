@@ -8,13 +8,13 @@
  */
 export const ENVELOPE_PIECES = {
   /** 极客娘在信纸后面挥手，旁边一只拆开的航空信封；底边就是信纸的上沿，透明底 */
-  header: { file: "header-69cc8949.png", width: 600, height: 220 },
-  /** 带齿孔的邮票（校徽 + 极客班）和 YUGC 邮戳，透明底 */
-  stamp: { file: "stamp-a390fe56.png", width: 150, height: 100 },
-  /** 落款旁的钴蓝火漆，透明底 */
-  seal: { file: "seal-dcc7a78b.png", width: 72, height: 72 },
-  /** 信纸下沿的航空条纹，条纹之间透明，下面两个角是圆的 */
-  airmail: { file: "airmail-62b665eb.png", width: 600, height: 12 },
+  header: { file: "header-653d0976.png", width: 600, height: 220 },
+  /** 带齿孔的邮票（校徽 + 极客班）和 YUGC 邮戳，邮戳用比钴蓝浅的蓝，深色模式下也看得清；透明底 */
+  stamp: { file: "stamp-5c638b76.png", width: 150, height: 100 },
+  /** 落款旁的钴蓝火漆，边上一圈浅色描边，深色模式下能看出轮廓；透明底 */
+  seal: { file: "seal-e9c4d486.png", width: 72, height: 72 },
+  /** 信纸下沿的航空条纹，条纹之间透明，下面两个角是 4px 圆角（和信纸一样） */
+  airmail: { file: "airmail-4f4c24ba.png", width: 600, height: 12 },
 } as const;
 
 export type EnvelopePiece = keyof typeof ENVELOPE_PIECES;

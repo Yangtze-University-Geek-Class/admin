@@ -12,7 +12,7 @@ stripes, cobalt hexagon liner, cobalt wax seal) and styles/scenes.css (letter pa
 
 Every piece is exported at 2x of its display size, quantised with pngquant, recompressed
 with oxipng and named <name>-<first 8 hex of sha256>.png. MANIFEST.txt and manifest.json
-list the files.
+list the files of this run; files from earlier runs in the output directory are left alone.
 """
 
 import base64
@@ -20,7 +20,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -36,6 +35,8 @@ IVORY = "#fbf8f1"
 LINER = "#2c3cb2"
 COBALT = "#3346c8"
 COBALT_SOFT = "#e6e9fb"
+# postmark ink: lighter than COBALT so the rings still read on the dark-mode paper (#1c2140)
+POSTMARK = "#5a6ee6"
 # airmail stripes from join.ts, flattened over the ivory paper (0.86 cobalt, 0.9 amber)
 STRIPE_COBALT = "#4f5fce"
 STRIPE_AMBER = "#eea235"
@@ -130,10 +131,9 @@ def envelope_svg() -> str:
     <stop offset="0" stop-color="#16206e" stop-opacity="0.55"/>
     <stop offset="1" stop-color="#16206e" stop-opacity="0"/>
   </radialGradient>
-  <linearGradient id="vshade" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#5a4628" stop-opacity="0"/>
-    <stop offset="1" stop-color="#5a4628" stop-opacity="0.10"/>
-  </linearGradient>
+  <filter id="soft" x="-10%" y="-40%" width="120%" height="180%">
+    <feGaussianBlur stdDeviation="7"/>
+  </filter>
   <filter id="drop" x="-20%" y="-20%" width="140%" height="160%">
     <feGaussianBlur in="SourceAlpha" stdDeviation="9"/>
     <feOffset dx="0" dy="10" result="b"/>
@@ -154,7 +154,7 @@ def envelope_svg() -> str:
       <path d="M0,{h} L{w / 2},{apex + 18} L{w},{h}" fill="none" stroke="#5a4628" stroke-opacity="0.13" stroke-width="2.4"/>
       <path d="M0,{h} L{w / 2},{apex + 18} L{w},{h} Z" fill="#ffffff" fill-opacity="0.28"/>
       <path d="{frame}" fill="url(#air)" fill-rule="evenodd"/>
-      <rect x="0" y="0" width="{w}" height="{apex + 10}" fill="url(#vshade)"/>
+      <path d="M0,0 L{w / 2},{apex} L{w},0" fill="none" stroke="#5a4628" stroke-opacity="0.14" stroke-width="22" filter="url(#soft)"/>
     </g>
     <path d="M0,0 L{w / 2},{apex} L{w},0" fill="none" stroke="#5a4628" stroke-opacity="0.18" stroke-width="2"/>
   </g>
@@ -274,11 +274,11 @@ def stamp_svg() -> str:
   <image href="{data_uri(LOGO)}" x="-37" y="-53" width="74" height="74" clip-path="url(#emblem)"/>
   <text x="0" y="52" text-anchor="middle" font-family="PingFang SC" font-weight="700" font-size="21" fill="{COBALT}">极客班</text>
 </g>
-<g transform="translate(150,118) rotate(-11)" stroke="{COBALT}" stroke-opacity="0.5" stroke-width="3.2" stroke-linecap="round">
+<g transform="translate(150,118) rotate(-11)" stroke="{POSTMARK}" stroke-opacity="0.72" stroke-width="3.2" stroke-linecap="round">
   <circle cx="0" cy="0" r="42" fill="none"/>
   <circle cx="0" cy="0" r="32" fill="none"/>
   {"".join(waves)}
-  <text x="0" y="7" text-anchor="middle" font-family="PingFang SC" font-weight="700" font-size="18" fill="{COBALT}" fill-opacity="0.6" stroke="none">YUGC</text>
+  <text x="0" y="7" text-anchor="middle" font-family="PingFang SC" font-weight="700" font-size="18" fill="{POSTMARK}" fill-opacity="0.8" stroke="none">YUGC</text>
 </g>
 </svg>"""
 
@@ -312,6 +312,7 @@ def seal_svg() -> str:
 </defs>
 <g filter="url(#drop)">
   <path d="{blob}" fill="url(#wax)"/>
+  <path d="{blob}" fill="none" stroke="#dfe4ff" stroke-opacity="0.6" stroke-width="2.6" stroke-linejoin="round"/>
   <circle cx="{c}" cy="{c}" r="37" fill="none" stroke="#0a1046" stroke-opacity="0.45" stroke-width="3.2"/>
   <circle cx="{c}" cy="{c}" r="40" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.6"/>
   <image href="{data_uri(LOGO)}" x="{c - 29}" y="{c - 29}" width="58" height="58" clip-path="url(#emblem)" opacity="0.55" style="mix-blend-mode:multiply"/>
@@ -325,7 +326,7 @@ BAND_W, BAND_H = 1200, 24
 
 
 def band_svg() -> str:
-    r = 20
+    r = 8  # 4px at 1x, the radius of the letter paper
     shape = f"M0,0 H{BAND_W} V{BAND_H - r} Q{BAND_W},{BAND_H} {BAND_W - r},{BAND_H} H{r} Q0,{BAND_H} 0,{BAND_H - r} Z"
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{BAND_W}" height="{BAND_H}" viewBox="0 0 {BAND_W} {BAND_H}">
 <defs>{airmail_pattern("air", 14, 24)}<clipPath id="c"><path d="{shape}"/></clipPath></defs>
@@ -373,14 +374,11 @@ def export(
 
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
-    # only clear what an earlier run of this script wrote
-    ours = re.compile(r"^(header|stamp|seal|airmail)-[0-9a-f]{8}\.png$")
-    for old in os.listdir(OUT):
-        if ours.match(old) or old in ("MANIFEST.txt", "manifest.json"):
-            os.remove(os.path.join(OUT, old))
+    # Pieces from earlier runs stay: their names carry their own hash, and mail that was
+    # already sent keeps pointing at them. MANIFEST.txt / manifest.json list only this run.
     pieces = [
         export(
-            build_header(), "header", (HEADER_W // 2, HEADER_H // 2), ("128", "--nofs")
+            build_header(), "header", (HEADER_W // 2, HEADER_H // 2), ("192", "--nofs")
         ),
         export(render_svg(stamp_svg(), "stamp"), "stamp", (STAMP_W // 2, STAMP_H // 2)),
         export(render_svg(seal_svg(), "seal"), "seal", (SEAL // 2, SEAL // 2)),

@@ -22,7 +22,7 @@
 | `app/server/src/routes/forum-api/contracts.ts` | 论坛请求 Schema（拒绝未知字段；编号按字符串格式校验）与中文校验提示 |
 | `app/server/src/middleware/` | `require-auth`（另有 `loadSession`：有有效 `sid` 就挂上会话、没有不回复，给游客也能用的论坛接口）、`require-org-role`、`require-capability`（控制台与论坛按能力授权）、`oauth-state`、`http-policy`、`pow`、`turnstile` |
 | `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
-| `app/server/src/lib/mail/` | 站内邮件的信封模板（#148）：`envelope`（`renderEnvelope` 纯函数，输出主题、HTML、纯文本；转义与链接白名单在这里）、`envelope-pieces`（CDN 上的图片部件清单）、`recruitment`（投递成功、待面试、已录取、未通过四封信的内容）。还没有发信：发信商适配器、队列、发送记录与触发点见 [mail](mail.md) |
+| `app/server/src/lib/mail/` | 站内邮件的信封模板（#148）：`envelope`（`renderEnvelope` 纯函数，输出主题、HTML、纯文本和回信地址；转义、链接白名单与回信地址校验在这里）、`envelope-pieces`（CDN 上的图片部件清单）、`recruitment`（投递成功、待面试、已录取、未通过四封信的内容）。还没有发信：发信商适配器、队列、发送记录与触发点见 [mail](mail.md) |
 | `app/server/Dockerfile` | Node 22 多阶段构建，非 root 运行，`/data` 卷，健康检查 `/healthz`；运行阶段另复制论坛的两份公开内容文件 `app/forum/content/curation.json` 与 `published/topics.json` |
 | `app/server/scripts/` | 已退役的占位文件（`test-invite-*.ts`）：运行只打印「改用 `pnpm test`」并以退出码 1 结束，没有可用的手工流程 |
 

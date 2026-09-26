@@ -20,3 +20,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：feat(server): 新增站内邮件信封模板与招新四封信（Refs #148）；跑过 pnpm check、pnpm test、pnpm build
 - 结果：本地提交，未推送；检查结果见上一条
+
+## 03:01:25 +08:00 · 开发 · #148 · 按复核意见改信封模板：长名断行、未通过信文案、回信地址、图片部件第二版
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：envelope.ts：抬头、小字、正文、事实栏的值、列表、页脚加 word-break:break-word;overflow-wrap:anywhere；邮票格改成 29% 宽、图片 width:100%;max-width:150px；按钮格子加 mso-padding-alt；oneLine 把 U+2028/U+2029 换成空格；assetBase 默认只收 https，file:// 要 allowFileAssets；新增 replyTo（渲染结果带出，给发信模块写 Reply-To），正文请人回复却没有 replyTo 时抛 missing_reply_to；信纸圆角统一 4px。recruitment.ts：未通过信改成「这一轮没能请你加入极客班」「论坛不登录也能看帖，也可以用昵称回复」，原因由调用方传 reason；待面试的时间地点必填、replyTo 必填、摘要按有无面试说明拼；投递成功与已录取只有给了 replyTo 才写直接回复，否则指向官网意见箱。build.py：信封前袋的硬边换成沿开口的柔和阴影，邮戳换浅一点的蓝，火漆加浅色描边，航空条纹下角 4px，顶图 192 色，输出目录里的旧文件不再删除。新部件 header-653d0976.png 70922、stamp-5c638b76.png 9603、seal-e9c4d486.png 5983、airmail-4f4c24ba.png 781 字节，在 /tmp/mail-envelope/assets；docs/services/server/mail.md 与 README 源码地图同步
+- 结果：vitest tests/server/mail-envelope.test.ts 18 passed；变异检查 10 项（抬头去掉断行、关掉回信检查、U+2028 不处理、默认放行 file://、旧的未通过文案、固定 150px 邮票格、去掉 mso-padding-alt、面试地点可空、总写直接回复）各有测试失败；build.py 连跑两次文件名相同。ego TaskSpace 239 里按 375px（2 倍屏）看四封信、40 个字符英文名、去掉 <style> 的版本共 12 个页面，scrollWidth 都等于 375，长名断成 3 行，去掉 <style> 时抬头一行、邮票 77px；640px 深色模式下邮戳和火漆轮廓看得清；截图 /tmp/mail-envelope/desktop.png、mobile.png、dark.png；TaskSpace 已 finish。未验证：真实邮件客户端、CDN 上传、实际发信
+
+## 03:03:06 +08:00 · 提交 · #148 · 提交按复核意见改的信封模板
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：fix(server): 按复核意见修信封模板的断行、文案与回信地址（Refs #148）；跑过 pnpm check、pnpm test、pnpm build（Node 22.23.2）。更正上一条：变异检查是 9 项，括号里列的就是全部，不是 10 项
+- 结果：pnpm check 退出码 0（文档同步按 PR 对 origin/stage 通过，执行记录 31 条链路通过）；pnpm test 53 files、723 tests passed（mail-envelope 18）；pnpm build 退出码 0；本地提交，未推送
+- 下一步：主会话把 /tmp/mail-envelope/assets 里的 4 个新部件上传到 cdn.crosery.com/yzgc/mail/v1/，再用 send-received.html 发样例；样例没有 replyTo，信里指向意见箱
