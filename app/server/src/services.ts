@@ -25,7 +25,10 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
   const forum = (() => {
     try {
-      const store = createForumStore(storage.db, loadForumContent(config.forumContentDir));
+      // 有称号但没打开过论坛的成员也不能被游客冒名：登录名从控制台的称号指派里取。
+      const store = createForumStore(storage.db, loadForumContent(config.forumContentDir), {
+        orgLogins: () => roles.listAssignments().map(row => row.github_login),
+      });
       store.seed();
       return store;
     } catch (error) {

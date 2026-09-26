@@ -82,3 +82,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称不许拉丁字母和西里尔、希腊字母混写（nameProblem 加 mixed_script，按 NFKC 后判断；游客与成员昵称都拒，错误码不变、message 为「昵称不能把拉丁字母和西里尔字母、希腊字母混着写」；forum.test 两处用例；API、SECURITY 同步）
 - 结果：提交前 vitest tests/server/forum.test.ts 43 条通过，server tsc 通过
+
+## 17:27:06 +08:00 · 提交 · #57 · 第二轮建议：昵称也不能冒用有称号但没打开过论坛的人
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称也不能冒用有称号但没打开过论坛的人（createForumStore 加 orgLogins 选项，services.ts 从 role_assignments 取登录名；guestNameTaken 与 displayNameTaken 都比较，成员自己的登录名除外；forum.test 新用例；API、SECURITY、数据模型同步，SECURITY 写明没有称号又没打开过论坛的成员与组织 owner 仍是缺口）
+- 结果：提交前 vitest tests/server 8 个文件 160 条通过，server tsc 通过

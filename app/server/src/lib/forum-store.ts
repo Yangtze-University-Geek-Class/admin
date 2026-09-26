@@ -90,7 +90,16 @@ function toTopic(row: TopicRow): ForumTopic {
   };
 }
 
-export function createForumStore(db: Database.Database, content: ForumContent) {
+export type ForumStoreOptions = {
+  /**
+   * 论坛之外已经知道的组织成员登录名（现在是控制台里有显式称号的人，role_assignments）。没打开过论坛的人还没有
+   * 论坛用户，靠它挡住游客冒名；没有称号、也没打开过论坛的成员（包括组织 owner）不在这里。
+   */
+  orgLogins?: () => string[];
+};
+
+export function createForumStore(db: Database.Database, content: ForumContent, options: ForumStoreOptions = {}) {
+  const orgLogins = options.orgLogins ?? (() => []);
   const categoryIds = new Set(content.categories.map(item => item.id));
   const curatedTags = new Map(content.tags.map(tag => [tag.id, tag]));
 
@@ -277,21 +286,27 @@ export function createForumStore(db: Database.Database, content: ForumContent) {
       return id;
     },
 
-    /** 游客昵称不能冒用成员或官方账号的昵称、用户名。按 nameKey 比较：全角、大小写、看不见的字符都不算区别。 */
+    /**
+     * 游客昵称不能冒用成员或官方账号的昵称、用户名，也不能是 orgLogins 里的登录名（有称号但还没打开过论坛的人）。
+     * 按 nameKey 比较：全角、大小写、看不见的字符都不算区别。
+     */
     guestNameTaken(name: string): boolean {
       const key = nameKey(name);
       return (db.prepare("SELECT display_name, username FROM forum_users WHERE kind <> 'guest'").all() as Pick<UserRow, "display_name" | "username">[])
-        .some(row => nameKey(row.display_name) === key || nameKey(row.username) === key);
+        .some(row => nameKey(row.display_name) === key || nameKey(row.username) === key)
+        || orgLogins().some(login => nameKey(login) === key);
     },
 
     /**
-     * 成员的昵称不能冒用官方账号（昵称或用户名），也不能是别人的用户名（@ 提及认的是用户名）；和别的成员昵称相同可以。
-     * 比较方式同 guestNameTaken。
+     * 成员的昵称不能冒用官方账号（昵称或用户名），也不能是别人的用户名（@ 提及认的是用户名）或 orgLogins 里别人的登录名；
+     * 自己的登录名可以，和别的成员昵称相同也可以。比较方式同 guestNameTaken。
      */
-    displayNameTaken(name: string, userId: string): boolean {
+    displayNameTaken(name: string, self: { userId: string; login: string }): boolean {
       const key = nameKey(name);
-      return (db.prepare("SELECT kind, display_name, username FROM forum_users WHERE id <> ? AND kind <> 'guest'").all(userId) as Pick<UserRow, "kind" | "display_name" | "username">[])
-        .some(row => nameKey(row.username) === key || (row.kind === "official" && nameKey(row.display_name) === key));
+      const ownLogin = nameKey(self.login);
+      return (db.prepare("SELECT kind, display_name, username FROM forum_users WHERE id <> ? AND kind <> 'guest'").all(self.userId) as Pick<UserRow, "kind" | "display_name" | "username">[])
+        .some(row => nameKey(row.username) === key || (row.kind === "official" && nameKey(row.display_name) === key))
+        || orgLogins().some(login => nameKey(login) === key && nameKey(login) !== ownLogin);
     },
 
     createTopic(input: { authorId: string; title: string; categoryId: string; tags: string[]; content: string }, now = Date.now()): { topicId: string; postId: string } {

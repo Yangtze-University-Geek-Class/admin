@@ -444,6 +444,22 @@ describe('replies', () => {
     }
   });
 
+  it('keeps guests and members from taking the login of someone with a title who never opened the forum', async () => {
+    const s = await setup();
+    // dave（队长）、erin（领航员）、zed（后来指派的舰员）都没打开过论坛，只在控制台的称号指派里；frank 没有称号。
+    s.app.services.roles.insertAssignment({ github_login: 'zed', github_user_id: null, role: 'member', department_id: 'tech', note: null, granted_by: 'fixture' });
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.63' });
+    for (const name of ['Dave', '\uFF25\uFF32\uFF29\uFF2E', 'zed']) {
+      expect((await send(name)).json().error, name).toBe('guest_name_taken');
+    }
+    expect((await send('frank')).statusCode).toBe(201);
+    expect((await s.state()).users.map((u: { id: string }) => u.id)).not.toContain('m104');
+
+    const rename = (displayName: string, who: string) => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
+    expect((await rename('erin', 'bob')).json().error).toBe('display_name_taken');
+    expect((await rename('DAVE', 'dave')).statusCode).toBe(200);
+  });
+
   it('notifies at most 10 people mentioned in one post, in the order they appear', async () => {
     const s = await setup();
     const handles = Array.from({ length: 12 }, (_, i) => `member${String(i + 1).padStart(2, '0')}`);

@@ -40,7 +40,7 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
       if (problem) {
         throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字，不能含控制字符或看不见的字符`);
       }
-      if (forum.displayNameTaken(patch.displayName, viewer.userId)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");
+      if (forum.displayNameTaken(patch.displayName, viewer)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");
     }
     if (patch.bio !== undefined && hasControlCharsMultiline(patch.bio)) throw new ForumError(400, "invalid_bio", "个人签名里有不能显示的字符");
     if (patch.location !== undefined) {
