@@ -4,8 +4,6 @@
 
 状态：`current` · 更新：2026-09-26 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
-最近核对：#115 2026-09-26 — d3f3df7 把 Dockerfile 的基础镜像按 digest 固定，#112 指出表清单与 console、portal 路由清单漏项，都已补进本文；其余说明不涉及这些改动，不用改。
-
 ## 源码地图
 
 | 路径 | 职责 |

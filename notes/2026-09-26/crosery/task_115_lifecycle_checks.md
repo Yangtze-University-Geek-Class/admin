@@ -126,3 +126,16 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：上一条写的「变异检查 17 个……全部让用例失败」不准：真正的变异是 16 个（文档同步 9、巡检 4、task.mjs 3），都让用例失败；另有 1 次是我把「比 merge-base」的变异只改了模块那一侧，没改文档那一侧，所以没抓到，改成整个换掉 merge-base 后抓到，它就是文档同步 9 个里的那一个
 - 结果：16 个变异全部被用例抓到；那次改错位置的尝试不算数
+
+## 19:17:11 +08:00 · 审查 · #115 · PR #118 第二轮审查：有条件通过，1 条应修、5 条建议
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：读 PR #118 正文「审查结论」第二轮：独立审查代理 2026-09-26 17:47 审 bfff5bb（a3bc698..bfff5bb）；应修：服务 README 与 CICD 里的「最近核对」每个 PR 都改同一行，并行 PR 必然冲突（隔离克隆里 #120、#126 只因这一行冲突）；建议：巡检的 REOPENED 在 issue 开着时一直不变、超期记录写错原因，doc-sync 两个变异没抓到（未提交的已跟踪模块改动、lastAuthored 去掉 --no-merges），stage 落后的「更新：」没写明不是这条分支造成的，TRACKING 还写「同一个提交或之后」、code-review 技能第 7 项缺 check-doc-sync，风险段缺 #106（主 agent 处理）
+- 结果：结论：有条件通过；主 agent 定了处置：去掉「最近核对」，「更新：」保留为时间戳，文档事实没变的理由写进本 task 自己的执行记录「文档核对：<文档路径> 不用改——<理由>」，不用 CHECKS.md 加 merge=union
+- 下一步：按处置返工，完成后记「返工」
+
+## 19:21:38 +08:00 · 提交 · #115 · 「最近核对」换成执行记录里的文档核对
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): 文档事实没变时改在 task 执行记录里写文档核对，去掉「最近核对」行；vitest tests/tooling；pnpm check；actionlint
+- 结果：tests/tooling 263 passed；pnpm check 退出 0；actionlint 退出 0

@@ -4,8 +4,6 @@
 
 状态：`current` · 更新：2026-09-26 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
-最近核对：#115 2026-09-26 — #112 指出 `src/router.ts` 注释写的能力门文件不存在，注释已改，源码地图写明 `ConsoleShell` → `CapabilityGate`；页面与接口没变，其余说明不用改。
-
 ## 为什么是独立的包
 
 所有者 2026-09-24 要求控制台「统一套用组件库」，用论坛同款 Tuffex（issue #13）。Tuffex 只有 Vue 3 版本，[Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)禁止在 React 里套 Vue 组件或做同名 React 仿制品，所以控制台从 `app/web`（React）里拆出来，单独成 `@yzgc/console` 包。它和 `app/web`、`app/server` 在同一个根 pnpm 工作区（Node 22 / pnpm 9.15.9），不另起工具链；论坛那套 Node 26 / pnpm 11 与它无关。

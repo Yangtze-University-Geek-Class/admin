@@ -46,7 +46,7 @@
 - **执行记录前后必须写**（[NOTES](docs/conventions/NOTES.md)）：每一步按北京时间记进 `notes/<日期>/<GitHub 用户名>/<链路>.md`，入口是 `notes/INDEX.md`。开发前由 `task.mjs start` 记「开工」（要带 `GEEK_NOTES_USER` 与 `GEEK_NOTES_BY` 身份），开发中每次提交、开 PR、审查、返工都记，合并、发布、验收照记，`task.mjs finish` 记「收尾」。task PR 的链路缺「开工」「提交」「PR」「审查」时 CI 不通过，不能合并。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
 - 进入 `main` 和打正式 tag 前，必须有所有者在预发布环境对同一提交的真实验收记录；自动化 PASS 只是机器验证，不能代替人工验证。
-- 文档跟着模块改：`app/<服务>`、`deploy/`、`.github/workflows/` 改了，对应文档在同一个 PR 里跟着改，服务文档头的「更新：」不早于模块最后改动的日期；文档里的事实确实没变时，更新服务文档的「最近核对」一行。对照表与规则只在 [docs/README](docs/README.md)「文档跟着模块改」，`pnpm check` 与 CI 强制。只改日期、不改内容是假同步。PR 只用 merge commit 进 `stage`（[BRANCHING](docs/conventions/BRANCHING.md)）。
+- 文档跟着模块改：`app/<服务>`、`deploy/`、`.github/workflows/` 改了，对应文档在同一个 PR 里跟着改，服务文档头的「更新：」不早于模块最后改动的日期；文档里的事实确实没变时，在这个 task 的执行记录里写「文档核对：<文档路径> 不用改——<理由>」。对照表与规则只在 [docs/README](docs/README.md)「文档跟着模块改」，`pnpm check` 与 CI 强制。只改日期、不改内容是假同步。PR 只用 merge commit 进 `stage`（[BRANCHING](docs/conventions/BRANCHING.md)）。
 - 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、打 tag、部署分别需要对应授权。发版流程、tag 规则与回滚见 [RELEASES](docs/conventions/RELEASES.md)。
 
 ## 3. 部署硬门禁

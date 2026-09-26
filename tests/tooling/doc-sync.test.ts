@@ -263,6 +263,80 @@ describe("task 分支按 PR 核对", () => {
   });
 });
 
+describe("文档核对：模块改了、文档里的事实没变", () => {
+  const notesOf = (branch: string) => `notes/2026-09-26/someone/${branch.replaceAll("/", "_")}.md`;
+  const waiver = (line: string) => `# 记录\n\n## 10:00:00 +08:00 · 开发 · #9 · 只改测试\n\n- 做了什么：${line}\n`;
+
+  it("按 PR：这个 task 的执行记录里写了文档核对就通过，「更新：」已经是当天的就不用改文档", () => {
+    const root = repo();
+    commit(root, "2026-09-26T08:00:00+08:00", "docs(svc): 当天早些时候改过", { "docs/services/svc/README.md": doc("2026-09-26", "早上的说明") });
+    git(root, ["checkout", "-q", "-b", "task/9/tests_only"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "test(svc): 只加测试", { "app/svc/index.test.ts": "// test\n" });
+    expect(problems(root)[0]).toContain("这次的改动动了模块、没动文档");
+    commit(root, "2026-09-26T09:05:00+08:00", "docs(notes): 文档核对", {
+      [notesOf("task/9/tests_only")]: waiver("文档核对：docs/services/svc/ 不用改——只加了测试，接口没变"),
+    });
+    expect(problems(root)).toEqual([]);
+  });
+
+  it("按 PR：别的 task 的执行记录、路径不对、没写理由的文档核对都不算", () => {
+    const root = repo();
+    commit(root, "2026-09-26T08:00:00+08:00", "docs(svc): 当天改过", { "docs/services/svc/README.md": doc("2026-09-26", "早上的说明") });
+    git(root, ["checkout", "-q", "-b", "task/9/tests_only"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "test(svc): 只加测试", {
+      "app/svc/index.test.ts": "// test\n",
+      [notesOf("task/8/other")]: waiver("文档核对：docs/services/svc/ 不用改——别人的记录"),
+      [notesOf("task/9/tests_only")]: waiver("文档核对：docs/services/other/ 不用改——路径不对；文档核对：docs/services/svc/ 不用改——"),
+    });
+    expect(problems(root)[0]).toContain("这次的改动动了模块、没动文档");
+    // 不知道是哪个 task 时（CI 检出合并提交又没给 --head），notes/ 下这次新加的都算
+    expect(checkDocSync(root, { now: NOW, base: "stage", branch: "" }).problems).toEqual([]);
+  });
+
+  it("按 PR：文档只改了「更新：」日期不算改了说明；写了文档核对就通过", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/date_only"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "refactor(svc): 重构，只改日期", {
+      "app/svc/index.ts": "export const a = 1; // 重构\n",
+      "docs/services/svc/README.md": doc("2026-09-26"),
+    });
+    expect(problems(root)).toEqual([expect.stringContaining("这次的改动动了模块，文档只改了「更新：」日期")]);
+    commit(root, "2026-09-26T09:05:00+08:00", "docs(notes): 文档核对", {
+      [notesOf("task/9/date_only")]: waiver("文档核对：docs/services/svc/ 不用改——只是重构，行为没变"),
+    });
+    expect(problems(root)).toEqual([]);
+  });
+
+  it("写了文档核对，「更新：」也要跟上模块的日期", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/stale"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "test(svc): 只加测试", {
+      "app/svc/index.test.ts": "// test\n",
+      [notesOf("task/9/stale")]: waiver("文档核对：docs/services/svc/ 不用改——只加了测试"),
+    });
+    expect(problems(root)).toEqual([expect.stringContaining("头部的「更新：2026-09-25」早于 app/svc/ 最后一次改动的北京日期 2026-09-26")]);
+  });
+
+  it("按时间：stage 上合并提交带来模块和文档核对，算同步；文档核对早于模块的改动不算", () => {
+    const root = repo();
+    commit(root, "2026-09-26T08:00:00+08:00", "docs(svc): 当天改过", { "docs/services/svc/README.md": doc("2026-09-26", "早上的说明") });
+    git(root, ["checkout", "-q", "-b", "task/9/tests_only"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "test(svc): 只加测试", {
+      "app/svc/index.test.ts": "// test\n",
+      [notesOf("task/9/tests_only")]: waiver("文档核对：docs/services/svc/ 不用改——只加了测试"),
+    });
+    git(root, ["checkout", "-q", "stage"]);
+    mergeInto(root, "task/9/tests_only", "2026-09-26T10:00:00+08:00");
+    expect(problems(root)).toEqual([]);
+
+    commit(root, "2026-09-26T11:00:00+08:00", "fix(svc): 直接在 stage 上改模块", { "app/svc/index.ts": "export const a = 5;\n" });
+    expect(problems(root)[0]).toContain("fix(svc): 直接在 stage 上改模块");
+    // 工作区里新写的文档核对算作现在
+    writeFileSync(join(root, notesOf("stage")), waiver("文档核对：docs/services/svc/ 不用改——常量换了值，文档没写这个值"));
+    expect(problems(root)).toEqual([]);
+  });
+});
+
 describe("stage 上按第一父链的时间核对", () => {
   it("PR 以 merge commit 进 stage：合并提交同时带来模块和文档，里面返工提交的先后不影响", () => {
     const root = repo();

@@ -81,7 +81,9 @@ jobs:
         shell: bash
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: node scripts/check-doc-sync.mjs --base "origin/${BASE_REF}"
+          HEAD_REF: ${{ github.head_ref }}
+        # --head 给出 task 分支名：检出的是合并提交，没有分支名，要靠它找到这个 task 自己的执行记录（文档核对）。
+        run: node scripts/check-doc-sync.mjs --base "origin/${BASE_REF}" --head "${HEAD_REF}"
 
       # 全部链路的一览表贴进运行摘要：stage、main 上随时能看到每个人的链路（入口 notes/INDEX.md）。
       - name: 执行记录一览（运行摘要）
