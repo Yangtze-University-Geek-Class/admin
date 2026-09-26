@@ -6,6 +6,11 @@
 set -eu
 MODE=${1:-ci}
 case "$MODE" in ci|jit) ;; *) echo "用法：sh container-setup.sh ci|jit" >&2; exit 2 ;; esac
+# 实例数 1–9（#124）：job-started.sh 按 r[0-9] 认工作目录，r10 起不再清理。放在最前面检查：
+# 后面会重启容器里的 docker，值不对时要在打断正在跑的 job 之前就退出。
+if [ "$MODE" = ci ]; then
+  case "${RUNNER_INSTANCES:-4}" in [1-9]) ;; *) echo "RUNNER_INSTANCES 要是 1 到 9：${RUNNER_INSTANCES}" >&2; exit 2 ;; esac
+fi
 export DEBIAN_FRONTEND=noninteractive
 RUNNER_VERSION=2.337.0
 RUNNER_SHA256=70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613
@@ -119,8 +124,6 @@ systemctl daemon-reload
 systemctl enable --now runner-docker-prune.timer
 
 # 实例数（#124）：容器限额 8 线程、16GiB，两个人同时开 PR 时两个实例排队一个多小时；与 register.sh 的 RUNNER_INSTANCES 一致，1–9
-# 实例数 1–9：job-started.sh 按 r[0-9] 认工作目录，r10 起不再清理
-case "${RUNNER_INSTANCES:-4}" in [1-9]) ;; *) echo "RUNNER_INSTANCES 要是 1 到 9：${RUNNER_INSTANCES}" >&2; exit 2 ;; esac
 for n in $(seq 1 "${RUNNER_INSTANCES:-4}"); do
   d=/home/runner/r$n
   [ -x "$d/config.sh" ] || { mkdir -p "$d"; tar -xzf "$tarball" -C "$d"; }
