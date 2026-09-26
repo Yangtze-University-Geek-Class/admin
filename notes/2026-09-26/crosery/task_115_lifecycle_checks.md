@@ -113,3 +113,16 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): task.mjs 的 gh 偶发失败重试一次，主工作区停在已结束的 task 分支上时提示切回；vitest tests/tooling/task-worktree.test.ts
 - 结果：9 passed（新增偶发失败重试、主工作区停在已合并 task 分支两个用例）
+
+## 17:16:13 +08:00 · 返工 · #115 · 按 PR #118 第一轮审查返工：3 条应修与 5 条建议
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：55c816b 文档同步改成非 task 分支按第一父链时间、task 分支按 PR（merge-base 以来动模块就要动文档，另在 merge-base 上按时间核对并写明是 stage 的问题），「更新：」按作者时间的北京日期，服务列表用 git ls-files，四份服务 README 与 CICD 加「最近核对」一行，BRANCHING、CONTRIBUTING、AGENTS 写明只用 merge commit 进 stage；99dd567 巡检带 stateReason，REOPENED、还有开着的 PR、合并不到一小时的不补关，评论到 100 条翻页取全；50427d9 list --check 的 gh 偶发失败重试一次，主工作区停在已结束的 task 分支上提示切回；nuxt.config.ts 注释按主 agent 的决定不改（#107 在改这个文件）；关 squash 与 rebase 要所有者在仓库设置里操作，没动设置
+- 结果：三个测试文件 42 passed，tests/tooling 258 passed；变异检查 17 个（文档同步 9 个含 merge-base 换成 stage 现状、巡检 4 个、task.mjs 3 个、另 1 个第一次改错位置没抓到，改对后抓到）全部让用例失败；pnpm check 退出 0；actionlint 退出 0；check-doc-sync --base origin/stage 通过；#16 与 PR #21 真实数据：标 REOPENED 不补关
+- 下一步：推送后请审查人按新 head 复查
+
+## 17:16:30 +08:00 · 开发 · #115 · 更正上一条返工记录里的变异检查数
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：上一条写的「变异检查 17 个……全部让用例失败」不准：真正的变异是 16 个（文档同步 9、巡检 4、task.mjs 3），都让用例失败；另有 1 次是我把「比 merge-base」的变异只改了模块那一侧，没改文档那一侧，所以没抓到，改成整个换掉 merge-base 后抓到，它就是文档同步 9 个里的那一个
+- 结果：16 个变异全部被用例抓到；那次改错位置的尝试不算数
