@@ -12,6 +12,9 @@ import { FORUM_STATE_VERSION } from '../app/data/types'
 
 export const FORUM_API_BASE = '/api/forum'
 
+/** 读整份状态最多等这么久；超时和连不上一样处理（页面写「论坛服务暂时连不上」，只能看帖）。 */
+export const STATE_TIMEOUT_MS = 10_000
+
 export interface ForumViewer {
   /** 登录成员的论坛用户 id；游客为 null。 */
   userId: string | null
@@ -107,8 +110,19 @@ export interface ProfileBody {
   notifyPrefs?: NotifyPrefs
 }
 
+interface RequestOptions {
+  contentType?: string
+  /** 到点就放弃；放弃算作 `timeout`，状态码 0，和连不上一样。 */
+  signal?: AbortSignal
+}
+
+/** 老浏览器没有 `AbortSignal.timeout` 时不限时，行为和以前一样。 */
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(ms) : undefined
+}
+
 export function createForumApi(fetchImpl: FetchLike) {
-  async function request(method: string, path: string, body?: unknown, contentType?: string): Promise<unknown> {
+  async function request(method: string, path: string, body?: unknown, { contentType, signal }: RequestOptions = {}): Promise<unknown> {
     const headers: Record<string, string> = { accept: 'application/json' }
     let payload: BodyInit | undefined
     if (body instanceof Blob) {
@@ -121,9 +135,11 @@ export function createForumApi(fetchImpl: FetchLike) {
     }
     let response: Response
     try {
-      response = await fetchImpl(`${FORUM_API_BASE}${path}`, { method, credentials: 'same-origin', headers, body: payload })
+      response = await fetchImpl(`${FORUM_API_BASE}${path}`, { method, credentials: 'same-origin', headers, body: payload, ...(signal ? { signal } : {}) })
     }
     catch {
+      if (signal?.aborted)
+        throw new ForumApiError(0, 'timeout', '论坛服务太久没有回答，请稍后再试。')
       throw new ForumApiError(0, 'network_error', fallbackMessage(0))
     }
     const json = response.headers.get('content-type')?.includes('application/json')
@@ -142,13 +158,13 @@ export function createForumApi(fetchImpl: FetchLike) {
     return json
   }
 
-  const snapshot = async (method: string, path: string, body?: unknown): Promise<ServerSnapshot> =>
-    parseServerSnapshot(await request(method, path, body))
+  const snapshot = async (method: string, path: string, body?: unknown, options?: RequestOptions): Promise<ServerSnapshot> =>
+    parseServerSnapshot(await request(method, path, body, options))
 
   const id = (value: string): string => encodeURIComponent(value)
 
   return {
-    state: () => snapshot('GET', '/state'),
+    state: () => snapshot('GET', '/state', undefined, { signal: timeoutSignal(STATE_TIMEOUT_MS) }),
     async createTopic(body: CreateTopicBody): Promise<ServerSnapshot & { topicId: string }> {
       const json = await request('POST', '/topics', body)
       return { ...parseServerSnapshot(json), topicId: stringField(json, 'topicId') }
@@ -171,7 +187,7 @@ export function createForumApi(fetchImpl: FetchLike) {
     markAllRead: () => snapshot('POST', '/notifications/read-all'),
     updateProfile: (body: ProfileBody) => snapshot('PATCH', '/me/profile', body),
     async uploadAvatar(file: Blob): Promise<ServerSnapshot> {
-      return parseServerSnapshot(await request('PUT', '/me/avatar', file, file.type))
+      return parseServerSnapshot(await request('PUT', '/me/avatar', file, { contentType: file.type }))
     },
     resetAvatar: () => snapshot('DELETE', '/me/avatar'),
   }

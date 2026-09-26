@@ -66,6 +66,27 @@ describe('loading the forum from the server', () => {
     expect(session.currentUserId).toBeNull()
   })
 
+  it('counts a state that takes too long as down', async () => {
+    const clock = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(clock.signal)
+    try {
+      vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+      })))
+      const { forum, server } = setup()
+      const before = forum.state
+      const loading = server.load()
+      clock.abort(new DOMException('The operation timed out.', 'TimeoutError'))
+      expect(await loading).toBe(false)
+      expect(server.status).toBe('error')
+      expect(forum.state).toBe(before)
+      expect(toastStore.items).toEqual([])
+    }
+    finally {
+      timeout.mockRestore()
+    }
+  })
+
   it('treats a 429 as busy, not down: keeps the page, says so once, and asks again later', async () => {
     vi.useFakeTimers()
     try {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { avatarFileProblem, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, parseServerSnapshot, websiteProblem } from '../shared/forum-api'
+import { avatarFileProblem, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
 import { serverBody, serverState } from './fixtures/server-state'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -46,6 +46,31 @@ describe('createForumApi', () => {
     const fetch = vi.fn(async () => jsonResponse(serverBody()))
     await createForumApi(fetch).state()
     expect(fetch).toHaveBeenCalledWith('/api/forum/state', expect.objectContaining({ method: 'GET', credentials: 'same-origin' }))
+  })
+
+  it('gives up on the state after 10 seconds and calls that a timeout', async () => {
+    const clock = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(clock.signal)
+    try {
+      const fetch = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+      }))
+      const reading = createForumApi(fetch).state()
+      expect(timeout).toHaveBeenCalledWith(STATE_TIMEOUT_MS)
+      expect(STATE_TIMEOUT_MS).toBe(10_000)
+      expect(fetch.mock.calls[0]![1]?.signal).toBe(clock.signal)
+      clock.abort(new DOMException('The operation timed out.', 'TimeoutError'))
+      await expect(reading).rejects.toMatchObject({ status: 0, code: 'timeout' })
+    }
+    finally {
+      timeout.mockRestore()
+    }
+  })
+
+  it('puts no time limit on a write', async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(serverBody()))
+    await createForumApi(fetch).toggleLike('p1')
+    expect(fetch.mock.calls[0]![1]).not.toHaveProperty('signal')
   })
 
   it('sends a guest reply with the name, the proof and an empty honeypot', async () => {
