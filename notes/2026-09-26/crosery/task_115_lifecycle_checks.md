@@ -145,3 +145,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): 按 PR 核对时 stage 带来的过期「更新：」写明来源；vitest tests/tooling/doc-sync.test.ts；两个变异（不写来源、全都写成来自 stage）
 - 结果：26 passed；两个变异各让用例失败
+
+## 19:25:09 +08:00 · 提交 · #115 · 补两个抓变异的文档同步用例
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：test(tooling): 已跟踪文件没提交的改动、合并提交的作者时间两个用例；vitest tests/tooling/doc-sync.test.ts；把审查说的两个变异（diff 改成 mergeBase HEAD、lastAuthored 去掉 --no-merges）各跑一次
+- 结果：28 passed；两个变异现在各让一个用例失败

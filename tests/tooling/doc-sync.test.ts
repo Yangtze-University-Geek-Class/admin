@@ -236,6 +236,15 @@ describe("task 分支按 PR 核对", () => {
     expect(problems(root)).toEqual([]);
   });
 
+  it("已跟踪文件还没提交的改动也算这次的改动（比的是 merge-base 和工作区，不是 merge-base 和 HEAD）", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/dirty"]);
+    writeFileSync(join(root, "app/svc/index.ts"), "export const a = 9;\n");
+    const found = problems(root);
+    expect(found[0]).toContain("这次的改动动了模块、没动文档：app/svc/ ↔ docs/services/svc/");
+    expect(found[0]).toContain("改了 app/svc/index.ts");
+  });
+
   it("stage 本来就不同步：报出来并写明不是这条分支造成的；这条分支动了那份文档就算在修", () => {
     const root = repo();
     commit(root, "2026-09-26T08:00:00+08:00", "fix(svc): stage 上只改了模块", { "app/svc/more.ts": "export const c = 1;\n" });
@@ -369,6 +378,22 @@ describe("stage 上按第一父链的时间核对", () => {
     });
     git(root, ["checkout", "-q", "stage"]);
     mergeInto(root, "task/9/late", "2026-09-27T00:20:00+08:00");
+    expect(problems(root)).toEqual([]);
+  });
+
+  it("「更新：」不看合并提交的作者时间：两边都改了模块、00:20 才合并，「更新：2026-09-26」不算过期", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/late_both"]);
+    commitAt(root, "2026-09-26T23:50:00+08:00", "2026-09-26T23:55:00+08:00", "fix(svc): 零点前在 task 上改", {
+      "app/svc/index.ts": "export const a = 2;\n",
+      "docs/services/svc/README.md": doc("2026-09-26", "a 改成 2"),
+    });
+    git(root, ["checkout", "-q", "stage"]);
+    commit(root, "2026-09-26T20:00:00+08:00", "feat(svc): stage 上也改了模块", {
+      "app/svc/more.ts": "export const c = 1;\n",
+      "docs/services/svc/more.md": "# more\n",
+    });
+    mergeInto(root, "task/9/late_both", "2026-09-27T00:20:00+08:00");
     expect(problems(root)).toEqual([]);
   });
 
