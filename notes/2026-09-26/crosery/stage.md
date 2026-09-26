@@ -21,6 +21,18 @@
 - 做了什么：rc.6 运行 36212370824 的 deploy job 单连接下载镜像归档 40 分钟只下到约 110MB，触发 45 分钟超时被取消，未连目标机；#100 合并后 stage e14fa01 的 CI 36216238998 通过，git tag -a v0.1.0-rc.7 e14fa01 并推送
 - 结果：tag 对象 d36a4b6，指向 e14fa0133700；pre-push 发布 tag 规则通过；预发布仍是 rc.5，等 rc.7 部署
 
+## 13:02:01 +08:00 · 发布 · #99 · v0.1.0-rc.7 部署到预发布成功
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Deploy Preview 运行 36216674208：plan 3 分 11 秒（ydeploy-0926105835-bab0）、build 26 分 58 秒（ydeploy-0926114406-fb0d）、deploy 26 分 3 秒（ydeploy-0926120631-dcdf）；deploy 里 setup-node 下载 Node 13 分 46 秒、并发分段下载镜像归档 6 分 16 秒、分发到目标机 5 分 2 秒、远端部署与健康检查 33 秒
+- 结果：https://prev.yangtzeu.work/release.json 为 0.1.0-rc.7@e14fa0133700（commit e14fa01）；healthz ok；/auth/me 返回 signed_in false；/auth/github 302 到 GitHub，回调 prev.yangtzeu.work/auth/callback；CSP 含 cdn.crosery.com；/forum/ 200
+
+## 13:02:01 +08:00 · 验收 · #77 · 预发布 rc.7 上宣传片机器验收（真实浏览器）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：ego-browser 打开 https://prev.yangtzeu.work/join-us（该站点原本没有 yugc_promo_seen）：播放层出现，引擎 hls.js、编码 AV1，10 秒后播到 22.8 秒、画面 1920 宽、静音自动播放并显示「打开声音」；CDN 分片 120–575ms；点「跳过」后信纸出现，写入 yugc_promo_seen=1（host-only、Secure、SameSite=Lax）；刷新后不再播放
+- 结果：机器验收通过；未验证：Safari、iOS、微信的实际编码，桌面「宣传片」重看，有声自动播放（需要用户手势），所有者人工试用
+
 ## 15:47:41 +08:00 · 验收 · #57 · 预发布投递链路实测：提交成功
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
