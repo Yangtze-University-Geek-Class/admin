@@ -25,3 +25,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：gh pr create（#105），九段正文；6 张截图经 PR 评论框上传拿到 user-attachments 链接（未发评论，输入框已清空）后写进「验收证据」
 - 结果：PR #105 已开；验收证据 6 张（桌面改前 / 改后淡出 / 改后控件、手机竖屏改前 / 改后、手机横屏改后）
+
+## 14:14:23 +08:00 · 审查 · #103 · 第一轮独立审查：有条件通过，3 条应修
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 b50105f，按 CODE-REVIEW 逐项，读 hls.js 1.7.3 源码核对起播档，在 jsdom 里按 pointerdown→focus→click 复现，做了 3 个变异
+- 结果：有条件通过：应修 3 条（控件淡出后手指第一次点画面被焦点先叫醒再被 click 收起；键盘焦点在底部控件时整条栏淡出、焦点框看不见；video 的 cursor:pointer 盖过 cursor:none）；建议 2 条（平板竖放也会旋转；测试抓不住 wake 不重计时、hidden 不看状态、先 startLoad 后设 startLevel）
+
+## 14:14:24 +08:00 · 返工 · #103 · 按第一轮审查改：焦点叫醒、焦点在栏里不淡出、隐藏指针、平板不转、测试补强
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：onFocus 只在焦点落到按钮上（target 不是播放层）时叫醒；.is-idle .pt-promo-bar:not(:has(:focus-visible)) 才淡出；.is-idle .pt-promo-video cursor none；旋转加 max-width:600px；测试：假 hls 记下 startLoad 时的 startLevel、淡出后再叫醒会再淡出、暂停不淡出、按 pointerdown→焦点移到播放层→click 的真实顺序测手指点画面；portal.md 同步
+- 结果：组件测试 11 passed；四个变异（onFocus 无条件叫醒、wake 不重新计时、hidden 不看状态、先 startLoad）各有测试失败；tsc、check:docs 通过；pnpm test:e2e 14 passed；ego-browser：Tab 到「暂停」后 3.2 秒 is-idle=true 但底部栏 opacity 1、视频 cursor none

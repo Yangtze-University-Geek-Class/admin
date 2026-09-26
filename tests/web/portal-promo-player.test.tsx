@@ -17,6 +17,8 @@ const fakeHls = vi.hoisted(() => {
     levels = [3660452, 343186, 1227252, 641540, 2151112].map((bitrate) => ({ bitrate }));
     startLevel = -1;
     started: number | null = null;
+    /** startLoad 被调用那一刻的 startLevel：起播档必须在开始加载之前设好 */
+    levelAtStart: number | null = null;
     source = "";
     constructor(public config: Record<string, unknown>) {
       FakeHls.last = this;
@@ -30,6 +32,7 @@ const fakeHls = vi.hoisted(() => {
     attachMedia() {}
     startLoad(position: number) {
       this.started = position;
+      this.levelAtStart = this.startLevel;
     }
     recoverMediaError() {}
     destroy() {}
@@ -159,6 +162,7 @@ it("hls.js：先解析档位再按估计带宽定起播档，缓冲 30 秒，不
   act(() => player.handlers.get("manifestParsed")!());
   expect(player.startLevel).toBe(3);
   expect(player.started).toBe(-1);
+  expect(player.levelAtStart).toBe(3);
 });
 
 it("播放中几秒不动，底部控件淡出；「跳过」一直在；动一下鼠标就回来", async () => {
@@ -173,25 +177,52 @@ it("播放中几秒不动，底部控件淡出；「跳过」一直在；动一�
     expect(screen.getByRole("button", { name: /跳过/ })).toBeTruthy();
     pointer(dialog, "pointermove", "mouse");
     expect(dialog.classList.contains("is-idle")).toBe(false);
+    // 叫醒后重新计时，再不动又会淡出
+    act(() => vi.advanceTimersByTime(2600));
+    expect(dialog.classList.contains("is-idle")).toBe(true);
+    // 暂停时不淡出
+    pointer(dialog, "pointermove", "mouse");
+    fireEvent.pause(video());
+    act(() => vi.advanceTimersByTime(5000));
+    expect(dialog.classList.contains("is-idle")).toBe(false);
   } finally {
     vi.useRealTimers();
   }
 });
 
+/** 手指点画面在浏览器里的真实顺序：pointerdown → 焦点落到播放层（tabIndex -1）→ click */
+function tap(dialog: HTMLElement) {
+  pointer(video(), "pointerdown", "touch");
+  act(() => dialog.focus());
+  fireEvent.click(video());
+}
+
 it("手指点画面只显示 / 收起控件，不暂停；鼠标点画面是暂停", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
-  render(<PromoPlayer mode="gate" onClose={vi.fn()} />);
-  const dialog = screen.getByRole("dialog");
-  await waitFor(() => expect(video().getAttribute("src")).toBeTruthy());
-  fireEvent.playing(video());
-  Object.defineProperty(video(), "paused", { configurable: true, get: () => false });
-  pointer(video(), "pointerdown", "touch");
-  fireEvent.click(video());
-  expect(dialog.classList.contains("is-idle")).toBe(true);
-  expect(pause).not.toHaveBeenCalled();
-  pointer(video(), "pointerdown", "touch");
-  fireEvent.click(video());
-  expect(dialog.classList.contains("is-idle")).toBe(false);
+  try {
+    render(<PromoPlayer mode="gate" onClose={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(video().getAttribute("src")).toBeTruthy());
+    fireEvent.playing(video());
+    Object.defineProperty(video(), "paused", { configurable: true, get: () => false });
+    // 刚打开时焦点在「跳过」上；控件淡出以后第一次点画面，焦点才从「跳过」移到播放层：
+    // 控件要出来，不能被焦点先叫醒、再被 click 收起
+    expect(document.activeElement?.textContent).toContain("跳过");
+    act(() => vi.advanceTimersByTime(2600));
+    expect(dialog.classList.contains("is-idle")).toBe(true);
+    tap(dialog);
+    expect(dialog.classList.contains("is-idle")).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
+    // 控件在时再点一下：收起；再点：出来
+    tap(dialog);
+    expect(dialog.classList.contains("is-idle")).toBe(true);
+    tap(dialog);
+    expect(dialog.classList.contains("is-idle")).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
   pointer(video(), "pointerdown", "mouse");
   fireEvent.click(video());
   expect(pause).toHaveBeenCalledTimes(1);

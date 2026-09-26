@@ -254,7 +254,9 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={(event) => event.pointerType === "mouse" && wake()}
-      onFocus={wake}
+      // 焦点移到某个按钮上（键盘 Tab）才叫醒控件；点画面时焦点落在播放层自己身上，交给 onVideoClick 处理，
+      // 否则手指第一次点画面会先被这里叫醒、紧接着又被 click 收起
+      onFocus={(event) => event.target !== event.currentTarget && wake()}
       data-codec={playback?.codec}
       data-engine={playback?.engine}
     >

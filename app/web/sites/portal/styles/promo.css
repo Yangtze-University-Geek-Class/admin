@@ -82,11 +82,13 @@
 .pt-promo-track i { display: block; height: 100%; background: #fff; }
 .pt-promo-time { font: 13px var(--pt-mono); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; text-shadow: 0 1px 2px rgb(0 0 0 / 50%); }
 
-/* 播放中一会儿不动：底部控件淡出；「跳过」「打开声音」一直在 */
-.pt-promo.is-idle .pt-promo-bar { opacity: 0; pointer-events: none; }
+/* 播放中一会儿不动：底部控件淡出、指针隐藏；「跳过」「打开声音」一直在。键盘焦点在底部控件里时不淡出（焦点框要看得见） */
+.pt-promo.is-idle .pt-promo-bar:not(:has(:focus-visible)) { opacity: 0; pointer-events: none; }
+.pt-promo.is-idle .pt-promo-video { cursor: none; }
 
-/* 手机、平板竖着拿：画面框转 90 度，横过来铺满屏幕（控件跟着转）；横过设备后媒体查询不再命中，就是正常横屏 */
-@media (orientation: portrait) and (pointer: coarse) {
+/* 手机竖着拿：画面框转 90 度，横过来铺满屏幕（控件跟着转）；横过手机后媒体查询不再命中，就是正常横屏。
+   平板（竖放宽度 ≥ 600px）不转：竖着的平板上 16:9 的片子本来就够大 */
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 600px) {
   .pt-promo-frame {
     inset: auto; top: 50%; left: 50%;
     width: 100vh; height: 100vw;
