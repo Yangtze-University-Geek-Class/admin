@@ -94,3 +94,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): HEAD /api/forum/state 回 405，不再另占限流额度（topics.ts 的 state 路由 exposeHeadRoute: false，另注册 HEAD 回 405 Allow: GET，不落到旧论坛的 410 通配路由；forum.test 新用例；API 同步）
 - 结果：提交前 vitest tests/server/forum.test.ts 45 条通过，server tsc 通过；改之前实测 HEAD 200、x-ratelimit-remaining 从 119 往下走，与 GET 各算各的
+
+## 17:29:06 +08:00 · 提交 · #57 · 第二轮建议：.env.example 的 TRUST_PROXY 说明改成层数
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：docs(server): .env.example 的 TRUST_PROXY 说明改成本机不设、部署写层数（去掉过时的 loopback/true/false/CIDR 说明与示例行）
+- 结果：node scripts/check-secrets.mjs 通过
