@@ -97,3 +97,16 @@
 - 做了什么：Codex 逐项复查 64b89b464167c9fc77277f13b03d6e07ad314537 的完整 diff、提交说明、分支不变量、新增字符串、契约与回归证据
 - 结果：未发现代码未决项；本地完整 verify 与远端核心、论坛、镜像构建通过；当前合并结论仍阻塞，唯一失败是 PR 创建记录尚未进入提交
 - 下一步：将实际 PR 和审查记录提交后等待 required check
+
+## 20:13:49 +08:00 · 推送 · #83 · PR 记录提交已推送且 CI 全部通过
+
+- 执行者：agent-codex-admin-8396
+- 做了什么：提交并推送 notes-only e3bc36f3b9cd27c80ee98e02893e7a113ba78dad；回读 PR #131 的全部 checks 与原始日志
+- 结果：CI run 36241110799：branch-guard、core、forum、env-contract、docker、actionlint、verify 以及 pr-contract 共 8 项成功；合并后清理和定时巡检按事件跳过
+
+## 20:13:50 +08:00 · 审查 · #83 · 完成 CI 后复核，审查通过
+
+- 执行者：agent-codex-admin-8396
+- 做了什么：Codex 复核 e3bc36f3b9cd27c80ee98e02893e7a113ba78dad 的产品差异、追加记录及 CI 原始输出；核对本地完整 pnpm verify 证据
+- 结果：结论：通过。https://github.com/Yangtze-University-Geek-Class/admin/actions/runs/36241110799；三条 Docker 镜像构建成功；未运行浏览器 e2e，未做发布环境人工验收
+- 下一步：仅提交本次真实执行记录；对最后 notes-only 提交继续跑 CI，并在 PR 正文给出最终 SHA 结论
