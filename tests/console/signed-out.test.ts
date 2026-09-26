@@ -1,6 +1,7 @@
 // 控制台用到一半登录失效（#133）：任何接口拿到 401 都要当成「已退出」，清掉本地身份，
 // 让 ConsoleRoot 按首次加载那条路跳 /signin?return_to=；403、5xx、网络错误不算退出。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describeError, errorAction } from "../../app/console/src/lib/errors";
 import { ApiError, api } from "../../app/console/src/lib/http";
 import { clearSession, loadMe, useSession } from "../../app/console/src/lib/session";
 
@@ -83,5 +84,22 @@ describe("接口拿到 401 时登录态失效", () => {
     await loadMe();
     await expect(api("/auth/signout", { method: "POST" })).rejects.toMatchObject({ status: 401 });
     expect(useSession().meError.value).toBeNull();
+  });
+});
+
+describe("错误卡片的主按钮", () => {
+  const view = (error: unknown) => describeError(error);
+
+  it("登录已失效给「重新登录」，给了重试也不给「重试」（重试只会再拿到 401）", () => {
+    const signedOut = new ApiError(401, "session_expired", "x");
+    expect(errorAction(view(signedOut), true)).toEqual({ kind: "signin", label: "重新登录", variant: "primary" });
+    expect(errorAction(view(signedOut), false)?.kind).toBe("signin");
+  });
+
+  it("5xx 和网络错误照旧给「重试」，没传重试就不给按钮", () => {
+    for (const error of [new ApiError(500, "internal_error", "x"), new ApiError(502, "request_failed", "x"), new TypeError("Failed to fetch")]) {
+      expect(errorAction(view(error), true)).toEqual({ kind: "retry", label: "重试", variant: "secondary" });
+      expect(errorAction(view(error), false)).toBeNull();
+    }
   });
 });

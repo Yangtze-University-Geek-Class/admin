@@ -54,6 +54,16 @@ export function describeError(error: unknown, labelOf: (capability: string) => s
   return { ...base, kind: "server", title: "服务器出错了", detail: "请稍后重试；如果一直失败，请把下面的编号发给维护者。" };
 }
 
+/**
+ * 错误卡片的主按钮。登录已失效时重试只会再拿到 401，给「重新登录」（登录后回到当前页）；
+ * 其余错误（含 5xx 和网络错误）调用方给了重试才给「重试」（#133）。
+ */
+export type ErrorAction = { kind: "signin" | "retry"; label: string; variant: "primary" | "secondary" };
+export function errorAction(view: Pick<ErrorView, "kind">, canRetry: boolean): ErrorAction | null {
+  if (view.kind === "signed_out") return { kind: "signin", label: "重新登录", variant: "primary" };
+  return canRetry ? { kind: "retry", label: "重试", variant: "secondary" } : null;
+}
+
 /** 一行技术信息：HTTP 状态、机器码、请求编号（用等宽字体显示）。 */
 export function errorTrace(view: ErrorView): string {
   const parts = [view.status ? `HTTP ${view.status}` : null, view.code, view.capability, view.requestId ? `request ${view.requestId}` : null];
