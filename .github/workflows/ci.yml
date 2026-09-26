@@ -7,6 +7,7 @@
 #     发版只由发布 tag 触发（vX.Y.Z-rc.N → deploy-preview.yml，vX.Y.Z → deploy-production.yml）。
 #   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
 #   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
+#     docker-cdn 按静态资源 CDN 开关打开构建（#146），只列上传清单，不上传，也不需要上传 token。
 #   * 不使用 continue-on-error 掩盖失败。
 #
 # 分支模型：长期分支只有 main（正式）与 stage（预发布）；task/<issue>/<slug> 从 stage 拉出、
@@ -399,6 +400,81 @@ jobs:
             echo "${image} 构建成功：healthcheck=有，user=${user}"
           done
 
+  # 静态资源 CDN 开关打开时的构建（#146）。部署工作流要等所有者在 Environment `static-cdn` 配好上传 token、
+  # 线上 CSP 放行 CDN 以后才会走这条路；这里每次都先跑一遍：web、forum 两个镜像带 STATIC_CDN_BASE 构建
+  # （Dockerfile 在镜像里断言入口页引用 CDN 地址），再做部署工作流 build job 里同一步的取文件与
+  # `static-cdn.mjs plan`（离线挑文件，有不带哈希的文件就失败）。只构建、不上传、不推送，不接触任何 secret：
+  # 开关的值是公开常量，不是凭据。
+  docker-cdn:
+    name: docker-cdn (CDN 开关打开的构建与上传清单)
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    env:
+      # 与 docker job 相同，以 build arg 传给 Dockerfile 的构建阶段。
+      NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
+      # 只能是 scripts/static-cdn-base.mjs 里的 STATIC_CDN_BASE（下面第一步核对），与部署工作流 cdn-plan 打开时的输出相同。
+      STATIC_CDN_BASE: https://cdn.crosery.com/yzgc/static/site/
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          # 本 job 不在 runner 上装依赖，只跑仓库自带的零依赖脚本。
+          package-manager-cache: false
+
+      - name: 核对开关值并解析提交态的发布身份
+        shell: bash
+        run: |
+          set -eu
+          node --input-type=module -e '
+            const { STATIC_CDN_BASE, staticCdnBase } = await import("./scripts/static-cdn-base.mjs");
+            if (!staticCdnBase(process.env) || staticCdnBase(process.env) !== STATIC_CDN_BASE) throw new Error("STATIC_CDN_BASE 必须等于 " + STATIC_CDN_BASE);
+            console.log("静态资源 CDN 开关：" + STATIC_CDN_BASE);
+          '
+          version="$(node -p "require('./package.json').version")"
+          {
+            echo "GEEK_RELEASE_VERSION=${version}"
+            echo "GEEK_RELEASE_COMMIT=${GITHUB_SHA}"
+            echo "IMAGE_TAG=${GITHUB_SHA:0:12}"
+            echo "IMAGE_REPOSITORY=yzgc-production"
+          } >> "$GITHUB_ENV"
+
+      - name: 按开关打开构建 web、forum 镜像
+        shell: bash
+        run: |
+          set -eu
+          for service in web forum; do
+            docker build \
+              --file "app/${service}/Dockerfile" \
+              --build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \
+              --build-arg GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
+              --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+              --build-arg NPM_REGISTRY="$NPM_REGISTRY" \
+              --build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" \
+              --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
+          done
+
+      - name: 取出要上传 CDN 的带哈希文件（开关打开时）
+        shell: bash
+        # 与两条部署工作流 build job 里的同名一步逐字相同（tests/tooling/static-cdn-workflows.test.ts 核对），
+        # IMAGE_TAG、IMAGE_REPOSITORY 来自上面写进 $GITHUB_ENV 的值。这里到 plan 为止，不上传。
+        run: |
+          set -eu
+          out="${RUNNER_TEMP}/static-cdn"
+          mkdir -p "${out}/web" "${out}/forum"
+          web="$(docker create "${IMAGE_REPOSITORY}/web:${IMAGE_TAG}")"
+          forum="$(docker create "${IMAGE_REPOSITORY}/forum:${IMAGE_TAG}")"
+          docker cp "${web}:/usr/share/nginx/html/assets" "${out}/web/assets"
+          docker cp "${web}:/usr/share/nginx/html/console-assets" "${out}/web/console-assets"
+          docker cp "${forum}:/usr/share/nginx/html/_nuxt" "${out}/forum/_nuxt"
+          docker rm "$web" "$forum" > /dev/null
+          node scripts/static-cdn.mjs plan --web "${out}/web" --forum "${out}/forum"
+
   # 汇总 job：给 branch protection 用的单一 required check 名称。
   # if: always() 是必须的——若上游 job 被跳过或取消，required check 不能因“没跑”而算通过。
   # 必须把 lint-workflows 也纳入 needs 与汇总条件：否则工作流自身的静态错误虽然让
@@ -406,7 +482,7 @@ jobs:
   # 它只汇总机器结果，不代表人工验收，也不授权任何部署。
   verify:
     name: verify (required check)
-    needs: [branch-guard, core, forum, env-contract, docker, lint-workflows]
+    needs: [branch-guard, core, forum, env-contract, docker, docker-cdn, lint-workflows]
     if: always()
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
@@ -419,13 +495,15 @@ jobs:
           FORUM_RESULT: ${{ needs.forum.result }}
           ENV_CONTRACT_RESULT: ${{ needs.env-contract.result }}
           DOCKER_RESULT: ${{ needs.docker.result }}
+          DOCKER_CDN_RESULT: ${{ needs.docker-cdn.result }}
           LINT_WORKFLOWS_RESULT: ${{ needs.lint-workflows.result }}
         run: |
           set -u
-          echo "branch-guard=${BRANCH_GUARD_RESULT} core=${CORE_RESULT} forum=${FORUM_RESULT} env-contract=${ENV_CONTRACT_RESULT} docker=${DOCKER_RESULT} lint-workflows=${LINT_WORKFLOWS_RESULT}"
+          echo "branch-guard=${BRANCH_GUARD_RESULT} core=${CORE_RESULT} forum=${FORUM_RESULT} env-contract=${ENV_CONTRACT_RESULT} docker=${DOCKER_RESULT} docker-cdn=${DOCKER_CDN_RESULT} lint-workflows=${LINT_WORKFLOWS_RESULT}"
           if [ "$BRANCH_GUARD_RESULT" != "success" ] || [ "$CORE_RESULT" != "success" ] \
              || [ "$FORUM_RESULT" != "success" ] || [ "$ENV_CONTRACT_RESULT" != "success" ] \
-             || [ "$DOCKER_RESULT" != "success" ] || [ "$LINT_WORKFLOWS_RESULT" != "success" ]; then
+             || [ "$DOCKER_RESULT" != "success" ] || [ "$DOCKER_CDN_RESULT" != "success" ] \
+             || [ "$LINT_WORKFLOWS_RESULT" != "success" ]; then
             echo "机器验证未通过：failure / cancelled / skipped 一律视为失败。" >&2
             exit 1
           fi

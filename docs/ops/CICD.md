@@ -10,7 +10,7 @@
 
 | 工作流 | 触发 | 行为 |
 |---|---|---|
-| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev/**`（不含 tag）；`workflow_dispatch` | `branch-guard`（分支不变量；task 分支的 PR 另查执行记录与本 PR 的文档同步）→ `core`（Node 22：check/test/build，检出完整历史）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性，前端站点配置不含域名）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）→ `verify` 汇总 |
+| `ci.yml` | PR → `main`/`stage`；push `main`/`stage`/`task/**`/`dev/**`（不含 tag）；`workflow_dispatch` | `branch-guard`（分支不变量；task 分支的 PR 另查执行记录与本 PR 的文档同步）→ `core`（Node 22：check/test/build，检出完整历史）∥ `forum`（Node ≥26：check/generate）∥ `env-contract`（`.env` 与 `environments.json`、compose 一致性，前端站点配置不含域名）∥ `docker`（`deploy/compose/{production,preview}.yml` 解析 + 三条镜像构建验证）∥ `docker-cdn`（静态资源 CDN 开关打开时的 web、forum 镜像构建，再像部署工作流一样取出产物、`static-cdn.mjs plan` 列上传清单，不上传，见下文「静态资源 CDN」）→ `verify` 汇总 |
 | `deploy-preview.yml` | push tag `v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+`；`workflow_dispatch`（必填 `tag`，并从同名 tag 运行） | 断言 ref 是 `refs/tags/vX.Y.Z-rc.N` → `release-policy` 规划（提交在 `origin/stage` 上、版本等于 `package.json`）→ `cdn-plan` 决定静态资源 CDN 开关 → 构建镜像 → `cdn-upload` 上传并核对带哈希的静态文件（开关关闭时只报告状态，见下文「静态资源 CDN」）→ 渲染 `.env.preview` → SSH 分发镜像与环境文件 → `deploy-stack.sh` → 健康检查 → 记录 deployment（payload 带 rc tag）。开关 `vars.DEPLOY_PREVIEW_ENABLED`；同一时刻只跑一个，不取消正在跑的运行 |
 | `deploy-production.yml` | push tag `v[0-9]+.[0-9]+.[0-9]+`；`workflow_dispatch`（必填 `tag`，并从同名 tag 运行） | 断言 ref 是 `refs/tags/vX.Y.Z`（rc tag 被拒绝）→ `release-policy` 规划（提交在 `origin/main` 上、同一提交有 `vX.Y.Z-rc.N`）→ 证据检查（见下文）→ `cdn-plan` → 构建镜像 → `cdn-upload` → 分发 `.env.production` → 部署 → 记录 deployment。开关 `vars.DEPLOY_PRODUCTION_ENABLED`，`environment: production`，不取消正在跑的运行 |
 | `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev/**` 或长期分支）；每周巡检远端 `task/**`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
@@ -32,7 +32,7 @@
 - `env-contract` 校验两份 `.env` 的字段契约（非密值必填、契约外字段拒绝、密钥必空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性，并用 `pnpm check:site-config` 确认前端 `app.config.json` 不含任何域名（每个环境一个 origin，管理端按路径区分）。
 - 部署工作流用 **build args** 把发布身份注入镜像：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`，预发布 `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 SHA），不写进 `.env`；展示规则见 [RELEASES](../conventions/RELEASES.md)。
 - plan job 检出发布 tag（`fetch-depth: 0`，带全部分支与 tag），核对检出的 HEAD 就是 tag 指向的提交；build 与 deploy job 按 plan 输出的完整 SHA 检出，不再按 tag 名重新解析。
-- **镜像名按环境分开**：`deploy-preview.yml` 构建并打包 `yzgc-preview/{server,web,forum}:<sha12>`，`deploy-production.yml` 构建并打包 `yzgc-production/{server,web,forum}:<sha12>`（仓库名来自 plan 输出的 `imageRepository`，归档名 `yzgc-images-<environment>-<sha12>.tar.gz`）。目标机的 `deploy-stack.sh` 在 `docker load` 之前读归档清单，出现别的仓库或别的 tag 就拒绝。`ci.yml` 的 `docker` job 按正式身份构建 `yzgc-production/*`，并用同一个 `IMAGE_TAG` 解析两套 compose，两边出现相同镜像引用即失败。
+- **镜像名按环境分开**：`deploy-preview.yml` 构建并打包 `yzgc-preview/{server,web,forum}:<sha12>`，`deploy-production.yml` 构建并打包 `yzgc-production/{server,web,forum}:<sha12>`（仓库名来自 plan 输出的 `imageRepository`，归档名 `yzgc-images-<environment>-<sha12>.tar.gz`）。目标机的 `deploy-stack.sh` 在 `docker load` 之前读归档清单，出现别的仓库或别的 tag 就拒绝。`ci.yml` 的 `docker` job 按正式身份构建 `yzgc-production/*`，并用同一个 `IMAGE_TAG` 解析两套 compose，两边出现相同镜像引用即失败；`docker-cdn` 在另一个 runner 上按同样的身份、打开静态资源 CDN 开关再构建 web、forum 两个镜像。
 - `verify` 是单一 required check 输出，供分支保护引用；任一上游 job 失败即汇总为失败。不得用 `continue-on-error` 掩盖失败。
 - **部署开关默认关闭**：`DEPLOY_PREVIEW_ENABLED`、`DEPLOY_PRODUCTION_ENABLED` 不设置即不部署；不设置时 `ci`/构建仍照常运行并产出镜像校验结果。取值必须逐字为 `enabled`。
 
@@ -108,6 +108,7 @@
 - 论坛的 `_nuxt/builds/latest.json`（文件名固定、每次内容都变）不上传；开关打开时 Nuxt 的新版本检查（`experimental.checkOutdatedBuildInterval`）关掉，`builds/meta/<构建 id>.json` 每次构建是新键，照常上传。
 - **CDN 上的旧文件不删**：回滚到开关打开时构建的旧镜像，页面引用的仍是那时上传的对象。要清理只能由所有者按前缀手工处理，并且确认两个环境的历史镜像都不再引用。
 - `scripts/deploy-manual.mjs` 找镜像归档时同样要求这次运行的 `cdn-upload` 成功（没有这个 job 的旧运行只看 build）。
+- **开关打开的构建每次 CI 都跑**：部署工作流要等下面的所有者步骤做完才会走开关打开的路，在那之前这条路没有机会在 GitHub 上运行。`ci.yml` 的 `docker-cdn` job 用 `STATIC_CDN_BASE=https://cdn.crosery.com/yzgc/static/site/`（先用 `scripts/static-cdn-base.mjs` 核对这个值）构建 web、forum 两个镜像，Dockerfile 在镜像里断言入口页引用 CDN 地址；再跑部署工作流 `build` job 里同一步「取出要上传 CDN 的带哈希文件」（逐字相同，`tests/tooling/static-cdn-workflows.test.ts` 核对）：`docker cp` 出三个产物目录，`static-cdn.mjs plan` 离线挑文件。它不上传、不需要 token、不挂 Environment，失败会让 `verify` 失败。
 
 **凭据：`STATIC_CDN_UPLOAD_TOKEN`，放在 GitHub Environment `static-cdn` 里**。它是用七牛账号 AK/SK 签出来的上传凭证，不是 AK/SK 本身：策略是 `scope=crosery:yzgc/static/site/`、`isPrefixalScope=1`（只能写这个前缀下的键）、`insertOnly=1`（不能覆盖已有对象）、`fsizeLimit=10 MiB`、带 `deadline`（默认 180 天，最多 366 天），不带回调与持久化处理。泄露后别人只能在到期前往这个前缀下新增对象，不能改、删已有文件，也碰不到桶里别的前缀；七牛的上传凭证签出后不能单独吊销，要作废只能在七牛控制台轮换这对 AK/SK。仓库是公开的，所以不要把账号 AK/SK 放进 GitHub。
 
@@ -195,7 +196,7 @@
 
 | 下载 | 在哪 | 不设变量（官方） | 家里 runner | 校验 |
 |---|---|---|---|---|
-| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 读 `.nvmrc` 的 setup-node：ci 的 core、env-contract，两条部署工作流的 plan、build、deploy（ci 的 forum job 装 Node 26、不读 `.nvmrc`，不在此列，这里不预置） | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
+| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 读 `.nvmrc` 的 setup-node：ci 的 core、env-contract、docker-cdn，两条部署工作流的 plan、build、deploy（ci 的 forum job 装 Node 26、不读 `.nvmrc`，不在此列，这里不预置） | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
 | npm 包 | runner 上的 `pnpm install`、三个 Dockerfile 的构建阶段 | `registry.npmjs.org` | `NPM_REGISTRY` | 锁文件里每个包的 integrity |
 | pnpm 9.15.9（corepack） | server、web 镜像的构建阶段 | 同上 | `NPM_REGISTRY`（`COREPACK_NPM_REGISTRY`） | corepack 用自带的 npm 公钥核对 npm 的发布签名 |
 | pnpm 11.24.0（`npm pack`） | forum 镜像的构建阶段、ci 的 forum job | 同上 | `NPM_REGISTRY` | 写死的官方 sha512（Dockerfile 与 ci.yml 的 `FORUM_PNPM_INTEGRITY`） |

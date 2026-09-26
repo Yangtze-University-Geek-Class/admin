@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
 
 // 静态资源 CDN（#146）在两条部署工作流里的接线：上传 token 只进 cdn-plan、cdn-upload 两个不装依赖的 job，
 // build job 按开关构建并挑文件，deploy 等 cdn-upload 成功。
@@ -16,6 +17,19 @@ function job(workflow: string, id: string) {
   const next = rest.slice(1).search(/\n {2}[a-z][\w-]*:\n/);
   return next < 0 ? rest : rest.slice(0, next + 2);
 }
+
+/** 截出 job 里某一步的 `run: |` 脚本（去掉缩进前的原文）。 */
+function stepRun(block: string, name: string) {
+  const start = block.indexOf(`\n      - name: ${name}\n`);
+  if (start < 0) throw new Error(`找不到这一步：${name}`);
+  const rest = block.slice(start + 1);
+  const next = rest.slice(1).search(/\n {6}- name: /);
+  const step = next < 0 ? rest : rest.slice(0, next + 2);
+  const run = /\n {8}run: \|\n((?: {10}.*\n)+)/.exec(step);
+  if (!run) throw new Error(`这一步没有 run 脚本：${name}`);
+  return run[1];
+}
+const EXTRACT = '取出要上传 CDN 的带哈希文件（开关打开时）';
 
 describe('deploy workflows', () => {
   const workflows = { preview: read('.github/workflows/deploy-preview.yml'), production: read('.github/workflows/deploy-production.yml') };
@@ -33,7 +47,9 @@ describe('deploy workflows', () => {
       }
       expect(job(text, 'build'), name).not.toMatch(/secrets\.|environment:/);
     }
-    expect(read('.github/workflows/ci.yml')).not.toMatch(/STATIC_CDN/);
+    // CI 按开关打开构建（docker-cdn），但不上传：没有 token、没有 secrets、不挂 Environment。
+    const ci = read('.github/workflows/ci.yml');
+    expect(ci).not.toMatch(/STATIC_CDN_UPLOAD_TOKEN|secrets\.|environment:|static-cdn\.mjs (?:upload|decide|mint-token)/);
   });
 
   it('build with the decided base, upload, and only then deploy; with the switch off every upload step is skipped', () => {
@@ -55,5 +71,34 @@ describe('deploy workflows', () => {
       expect(upload, name).toContain('--referer "${ORIGIN}/"');
       expect(job(text, 'deploy'), name).toContain('    needs: [plan, build, cdn-upload]\n');
     }
+  });
+});
+
+describe('ci: the switch-on build path runs on every push, without uploading', () => {
+  const ci = read('.github/workflows/ci.yml');
+  const cdn = job(ci, 'docker-cdn');
+
+  it('builds web and forum with the one allowed STATIC_CDN_BASE, and server not at all', () => {
+    expect(cdn).toContain(`      STATIC_CDN_BASE: ${STATIC_CDN_BASE}\n`);
+    // 第一步先用 scripts/static-cdn-base.mjs 核对这个值，不另写一份规则。
+    expect(stepRun(cdn, '核对开关值并解析提交态的发布身份')).toContain('await import("./scripts/static-cdn-base.mjs")');
+    const build = stepRun(cdn, '按开关打开构建 web、forum 镜像');
+    expect(build).toContain('for service in web forum; do\n');
+    expect(build).toContain('--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" \\\n');
+    expect(build).toContain('--build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \\\n');
+    expect(cdn).not.toMatch(/server/);
+  });
+
+  it('extracts and plans exactly like the build job of both deploy workflows, and the summary job requires it', () => {
+    const script = stepRun(cdn, EXTRACT);
+    expect(script).toContain('node scripts/static-cdn.mjs plan --web "${out}/web" --forum "${out}/forum"\n');
+    for (const name of ['deploy-preview', 'deploy-production']) {
+      expect(stepRun(job(read(`.github/workflows/${name}.yml`), 'build'), EXTRACT), name).toBe(script);
+    }
+    const verify = job(ci, 'verify');
+    expect(verify).toMatch(/\n {4}needs: \[[^\]]*\bdocker-cdn\b[^\]]*\]\n/);
+    expect(verify).toContain('          DOCKER_CDN_RESULT: ${{ needs.docker-cdn.result }}\n');
+    expect(verify).toContain('[ "$DOCKER_CDN_RESULT" != "success" ]');
+    expect(cdn).not.toMatch(/continue-on-error|\|\| true/);
   });
 });
