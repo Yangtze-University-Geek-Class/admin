@@ -32,3 +32,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：ego-browser 打开 https://prev.yangtzeu.work/join-us（该站点原本没有 yugc_promo_seen）：播放层出现，引擎 hls.js、编码 AV1，10 秒后播到 22.8 秒、画面 1920 宽、静音自动播放并显示「打开声音」；CDN 分片 120–575ms；点「跳过」后信纸出现，写入 yugc_promo_seen=1（host-only、Secure、SameSite=Lax）；刷新后不再播放
 - 结果：机器验收通过；未验证：Safari、iOS、微信的实际编码，桌面「宣传片」重看，有声自动播放（需要用户手势），所有者人工试用
+
+## 15:47:41 +08:00 · 验收 · #57 · 预发布投递链路实测：提交成功
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 14:58 把「投递没问题」列为上线标准。本机系统代理（127.0.0.1:7890）对 prev.yangtzeu.work 的 TLS 握手被断开，改用 Playwright Chromium 加 --no-proxy-server 打开 https://prev.yangtzeu.work/join-us，填一封写明是测试的投递（姓名「投递验证」、邮箱 apply-check@example.com）并寄出
+- 结果：POST /api/portal/apply 201，编号 9a469f90-cf76-4ef1-9223-d528b45b224c，页面显示「信收到了 / 投递成功，我们会在 3 个工作日内联系你。」；预发布库里多了这一条测试投递，控制台里可以忽略或删除

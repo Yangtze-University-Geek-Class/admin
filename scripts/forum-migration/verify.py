@@ -18,6 +18,17 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def main_checkout(root=ROOT):
+    """The main checkout, also when the tools run from a task worktree.
+
+    Captures and projections live in its .tools: `task.mjs finish` deletes a task
+    worktree with everything in it, and a capture is the only copy. Relative CLI
+    paths (`.tools/forum-migration/<name>`) are resolved against it.
+    """
+    common = subprocess.check_output(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=root, text=True).strip()
+    return Path(common).parent
+
+
 def digest(path):
     result = hashlib.sha256()
     with path.open('rb') as stream:
@@ -119,13 +130,14 @@ def main():
     parser.add_argument('--snapshot', required=True)
     parser.add_argument('--archive-sha256', help='Optional capture receipt digest, from outside the archive')
     args = parser.parse_args()
-    base = Path(args.snapshot).resolve()
-    if ROOT / '.tools' / 'forum-migration' not in base.parents:
+    main_root = main_checkout()
+    base = (main_root / args.snapshot).resolve()
+    if main_root / '.tools' / 'forum-migration' not in base.parents:
         raise ValueError('CLI only accepts this project private capture directory')
-    relative = str(base.relative_to(ROOT))
-    if subprocess.run(['git', 'check-ignore', '-q', relative + '/source/forum.sqlite'], cwd=ROOT).returncode:
+    relative = str(base.relative_to(main_root))
+    if subprocess.run(['git', 'check-ignore', '-q', relative + '/source/forum.sqlite'], cwd=main_root).returncode:
         raise ValueError('Private backup must be ignored by Git')
-    if subprocess.check_output(['git', 'ls-files', '--', relative], cwd=ROOT, text=True).strip():
+    if subprocess.check_output(['git', 'ls-files', '--', relative], cwd=main_root, text=True).strip():
         raise ValueError('Private backup is tracked by Git')
     result = verify_snapshot(base)
     if args.archive_sha256 and result['archive_sha256'] != args.archive_sha256:
