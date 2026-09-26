@@ -2,7 +2,7 @@
 
 > 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
 
-状态：`current` · 更新：2026-09-24 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+状态：`current` · 更新：2026-09-26 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
 
 ## 可见性规则
 
@@ -33,11 +33,11 @@
 | `PORT` | 可见 | `3000`（容器内监听） | `3000` |
 | `FORUM_PORT` 改值注意 | — | 必须与 forum 镜像内 nginx 的 `listen`/`EXPOSE` 及 web 容器 `proxy_pass http://forum:3000/` 三处同时改 | 同左 |
 | `HOST` | 可见 | `0.0.0.0`（容器内必须绑定全网卡，否则 web 容器连不上） | `0.0.0.0` |
-| `TRUST_PROXY` | 可见 | `true`（反代来自 compose 网络而非回环） | `true` |
+| `TRUST_PROXY` | 可见 | `2`：反代层数（客户端 → 宿主 nginx → web 容器 nginx → server），只信任这两层追加的 `X-Forwarded-For`。**不能写 `true`**：会把客户端自己填的最左边一段当成客户端 IP，所有按 IP 的限流（投递、邀请、反馈、论坛）和审计 IP 都能伪造。`pnpm check:environments` 要求等于 `scripts/deployment-environment.mjs` 的 `PROXY_HOPS`，测试核对它与两份 nginx 配置一致 | `2` |
 | `PUBLIC_ORIGIN` | 可见 | `https://yangtzeu.work`（必须逐字等于 `deploy/environments.json` 的 origin） | `https://prev.yangtzeu.work`（同左） |
 | `NODE_ENV` | 可见 | `production` | `production` |
 | `DB_PATH` | 可见 | `/data/data.db`（命名卷内） | `/data/data.db` |
-| `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，当前无活动论坛后端） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
+| `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，服务不打开旧 `forum.db`、不写上传目录；论坛数据在 `DB_PATH` 的 `forum_*` 表，头像也存在库里，#57） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
 | `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |

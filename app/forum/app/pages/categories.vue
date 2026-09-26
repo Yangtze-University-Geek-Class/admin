@@ -77,7 +77,7 @@ function go(path: string) {
             最新
           </h2>
         </template>
-        <TxEmptyState v-if="!latest.length" variant="no-data" title="还没有话题" description="发帖和回复还没开放。" size="small" />
+        <TxEmptyState v-if="!latest.length" variant="no-data" title="还没有话题" description="极客班成员登录后可以发第一个话题。" size="small" />
         <TxStack v-else :gap="0">
           <TxCardItem
             v-for="topic in latest"

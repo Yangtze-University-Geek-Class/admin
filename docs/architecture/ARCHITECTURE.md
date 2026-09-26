@@ -2,7 +2,7 @@
 
 > 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 当前拓扑
 
@@ -46,9 +46,9 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 `buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 只拥有 data.db、缓存和外部客户端。**数据层现状是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）；表 `sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`audit_logs`、`app_state` 保留，其中 `app_state` 当前无读写（预留）；各表用途、读写方与未使用对象见 [server 数据模型](../services/server/data-model.md)。**迁移到 Postgres 尚未进行**，本文件不把它写成已完成；任何迁移都需要独立方案、授权与恢复演练。
 
-核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。全站只有这一个登录：官网、论坛、控制台共用同一个 host-only `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，登录没成功时带 `?signin=<原因>` 回到发起登录的页面（见 [SECURITY](SECURITY.md)「登录门槛」）。官网菜单栏和论坛只经同域 `/auth/me` 读身份；论坛没有自己的登录，也还没有据此授权的后端。
+核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。全站只有这一个登录：官网、论坛、控制台共用同一个 host-only `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，登录没成功时带 `?signin=<原因>` 回到发起登录的页面（见 [SECURITY](SECURITY.md)「登录门槛」）。官网菜单栏和论坛只经同域 `/auth/me` 读身份；论坛没有自己的登录。论坛的数据与授权在核心服务的 `/api/forum/*`（#57，[ADR-0004](../decisions/0004-forum-backend-in-core-server.md)）：存在同一个 data.db 的 `forum_*` 表，成员只认 `sid`，论坛能力与控制台同一条 `computeAccess` 路径，游客能看帖和回复。
 
-原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。跨设备的新论坛存储和旧数据导入必须另立方案。
+原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。新论坛的跨设备存储已在核心服务（上段）；旧数据导入仍须另立方案，只有公开的旧帖（`app/forum/content/published/topics.json`）在启动时按编号「没有才插入」。
 
 ## 上游论坛的真实边界
 
@@ -62,7 +62,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 ## 验证和发布
 
-核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。旧 `/api/forum/*` 返回 410；生产未接入新服务时 `/forum` 返回 503。真实认证、服务器权限、跨设备存储、内容安全和部署回滚未验证前，不开放新论坛为生产内部服务。
+核心邀请仍原子预留额度、按结果补偿，不能因为论坛更换退化其正确性。核心接口和论坛演示分别测试；原论坛历史 48 项通过不算新架构验收。`/api/forum` 下新接口没有注册的旧路径返回 410；直连 server 的 `/forum` 在生产返回 503（论坛页面由 forum 容器提供）。论坛的服务端身份、权限与存储已实现并有路由测试（`tests/server/forum.test.ts`），但前端接入（#107）、内容安全和在预发布环境的真实验证未完成前，不能写成论坛已上线。
 
 发版只靠打 tag（`stage` 提交上的 `vX.Y.Z-rc.N` 发预发布，`main` 同一提交上的 `vX.Y.Z` 发正式），推送分支不部署，见 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)。
 

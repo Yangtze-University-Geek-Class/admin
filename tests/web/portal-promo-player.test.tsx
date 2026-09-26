@@ -47,7 +47,7 @@ vi.mock("../../app/web/sites/portal/lib/promo", async (original) => ({
 }));
 
 import PromoPlayer from "../../app/web/sites/portal/components/PromoPlayer";
-import { PROMO } from "../../app/web/sites/portal/lib/promo";
+import { PROMO, detectCapabilities } from "../../app/web/sites/portal/lib/promo";
 
 let play: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -128,6 +128,48 @@ it("静音也不让播：停在封面，等点「播放宣传片」", async () =
   play.mockRejectedValue(new DOMException("blocked", "NotAllowedError"));
   render(<PromoPlayer mode="gate" onClose={vi.fn()} />);
   expect(await screen.findByRole("button", { name: /播放宣传片/ })).toBeTruthy();
+});
+
+it("play() 被打断（AbortError 等）：停在封面等点「播放宣传片」，不一直转圈", async () => {
+  play.mockRejectedValueOnce(new DOMException("interrupted", "AbortError"));
+  const onClose = vi.fn();
+  render(<PromoPlayer mode="gate" onClose={onClose} />);
+  expect(await screen.findByRole("button", { name: /播放宣传片/ })).toBeTruthy();
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it("片源放不了（play() 报 NotSupportedError）：按加载失败结束一次，不记看过", async () => {
+  play.mockRejectedValue(new DOMException("no source", "NotSupportedError"));
+  const onClose = vi.fn();
+  const onSeen = vi.fn();
+  render(<PromoPlayer mode="gate" onSeen={onSeen} onClose={onClose} />);
+  await waitFor(() => expect(onClose).toHaveBeenCalledWith("failed"));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(onSeen).not.toHaveBeenCalled();
+});
+
+it("起播时意外抛错（能力探测失败）：按加载失败结束一次", async () => {
+  vi.mocked(detectCapabilities).mockRejectedValueOnce(new Error("probe crashed"));
+  const onClose = vi.fn();
+  const onSeen = vi.fn();
+  render(<PromoPlayer mode="gate" onSeen={onSeen} onClose={onClose} />);
+  await waitFor(() => expect(onClose).toHaveBeenCalledWith("failed"));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(onSeen).not.toHaveBeenCalled();
+});
+
+it("播放层卸载以后能力探测才出错：不再结束一次（不调 onClose）", async () => {
+  let crash!: (error: Error) => void;
+  // 项目 lib 是 ES2022，没有 Promise.withResolvers
+  vi.mocked(detectCapabilities).mockReturnValueOnce(new Promise<Capabilities>((_, reject) => (crash = reject)));
+  const onClose = vi.fn();
+  const view = render(<PromoPlayer mode="gate" onClose={onClose} />);
+  view.unmount();
+  await act(async () => {
+    crash(new Error("probe crashed"));
+  });
+  expect(onClose).not.toHaveBeenCalled();
 });
 
 it("两种播放方式都没有：直接结束，算看过（以后也播不了）", async () => {

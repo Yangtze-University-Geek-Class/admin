@@ -8,6 +8,7 @@ import {
   ENVIRONMENTS,
   IMAGE_SERVICES,
   OPTIONAL_SECRET_PAIR,
+  PROXY_HOPS,
   SECRET_FIELDS,
   composeImageReferences,
   deploymentTarget,
@@ -155,6 +156,28 @@ describe('committed env templates are the single source of deploy facts', () => 
       const report = edit(name, from, to);
       expect(report.ok, `${name}: ${to}`).toBe(false);
       expect(report.problems.join('\n')).toMatch(message);
+    }
+  });
+
+  it('trusts exactly the two nginx hops in front of the server, never the whole X-Forwarded-For chain', () => {
+    // 层数来自真实配置：宿主 nginx 与 web 容器 nginx 各往 X-Forwarded-For 末尾追加一段，server 前面恰好两层。
+    const appends = (text: string) => text.match(/proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;/g)?.length ?? 0;
+    const webProxyHeaders = readFileSync(join(repoRoot, 'app/web/Dockerfile'), 'utf8').match(/<<'NGINX_HEADERS'[^\n]*\n([\s\S]*?)\nNGINX_HEADERS/)?.[1] ?? '';
+    expect(readFileSync(join(repoRoot, 'app/web/Dockerfile'), 'utf8')).toMatch(/location \/api\/ \{\n\s*proxy_pass http:\/\/server:3000;\n\s*include \/etc\/nginx\/conf\.d\/90-proxy-headers\.conf;/);
+    expect(appends(webProxyHeaders)).toBe(1);
+    for (const name of ENVIRONMENTS) {
+      expect(appends(readFileSync(join(repoRoot, `deploy/nginx/${name}.conf`), 'utf8')), name).toBe(1);
+      expect(readEnvironment(repoRoot, name).values.get('TRUST_PROXY')).toBe(String(PROXY_HOPS));
+    }
+    expect(PROXY_HOPS).toBe(2);
+
+    for (const [name, value] of [['production', 'true'], ['preview', 'true'], ['production', '1'], ['preview', '3']]) {
+      const root = fixtureRoot();
+      const path = join(root, `deploy/env/.env.${name}`);
+      writeFileSync(path, readFileSync(path, 'utf8').replace('\nTRUST_PROXY=2\n', `\nTRUST_PROXY=${value}\n`));
+      const report = validateEnvironmentFiles({ root, checkCompose: false });
+      expect(report.ok, `${name}: TRUST_PROXY=${value}`).toBe(false);
+      expect(report.problems.join('\n')).toMatch(/TRUST_PROXY 必须是反代层数 2/);
     }
   });
 });

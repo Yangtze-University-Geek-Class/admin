@@ -28,7 +28,7 @@
   <a href="AGENTS.md"><b>AGENTS 入口</b></a>
 </p>
 
-<sub>React + three.js · Vue + Tuffex · Nuxt · Fastify + SQLite · Docker · 私有仓库</sub>
+<sub>React + three.js · Vue + Tuffex · Nuxt · Fastify + SQLite · Docker · 公开仓库</sub>
 
 </div>
 
@@ -173,7 +173,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 
 - 镜像按环境分仓库：`yzgc-production/{server,web,forum}:<sha12>` 与 `yzgc-preview/{server,web,forum}:<sha12>`；回滚就是切回更早发布 tag 的镜像。
 - 环境变量只在 `deploy/env/.env.<环境>`；密钥留空，真实值只在目标机，由 CI/CD 的环境级 secrets 填。
-- 部署开关：`DEPLOY_PREVIEW_ENABLED` 已打开，打 rc tag 就部署预发布；`DEPLOY_PRODUCTION_ENABLED` 关闭（GitHub 免费版的私有仓库配不了正式环境审批），正式发布由维护者在所有者验收后用 `scripts/deploy-manual.mjs` 部署同一 tag 的 CI 产物。不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
+- 部署开关：`DEPLOY_PREVIEW_ENABLED` 已打开，打 rc tag 就部署预发布；`DEPLOY_PRODUCTION_ENABLED` 关闭（`production` 环境和它的审批人还没配置），正式发布由维护者在所有者验收后用 `scripts/deploy-manual.mjs` 部署同一 tag 的 CI 产物。不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
 
 操作步骤：[DEPLOY](docs/ops/DEPLOY.md) · [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md) · [CICD](docs/ops/CICD.md)。
 

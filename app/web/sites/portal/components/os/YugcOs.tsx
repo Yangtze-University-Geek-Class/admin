@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
 import { links } from "../../lib/links";
-import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
+import { appById, appByKey, filterCommands, launcherCommands, moveSelection, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
@@ -29,6 +29,9 @@ const NOTE_KEY = "yugc:start-note";
 export default function YugcOs({ active, onBack }: Props) {
   const navigate = useNavigate();
   const { account, loaded, signOut } = useAccount();
+  // 控制台只给 console_link 为 true 的人：其他人的桌面、Dock、菜单、启动器、终端里都没有它。
+  const consoleLink = account?.consoleLink === true;
+  const apps = useMemo(() => visibleApps(consoleLink), [consoleLink]);
   const [now, setNow] = useState(() => new Date());
   const [wins, setWins] = useState<WindowState[]>([]);
   const [menu, setMenu] = useState<{ name: MenuName; left: number } | null>(null);
@@ -143,7 +146,7 @@ export default function YugcOs({ active, onBack }: Props) {
     [launchScene, navigate, openWindow],
   );
 
-  const commands = useMemo(() => launcherCommands(), []);
+  const commands = useMemo(() => launcherCommands(apps), [apps]);
   const shown = useMemo(() => filterCommands(commands, query), [commands, query]);
   const runCommand = (id: string) => {
     setLauncher(false);
@@ -230,7 +233,7 @@ export default function YugcOs({ active, onBack }: Props) {
 
   const MENUS: Record<MenuName, Array<{ label: string; run: () => void; key?: string } | null>> = {
     system: [{ label: "关于极客班", run: () => open("about") }, { label: "组织架构", run: () => open("org") }, null, { label: "回到书桌", run: onBack, key: "Esc" }],
-    go: OS_APPS.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key })),
+    go: apps.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key })),
     window: [
       { label: "更换壁纸…", run: () => setPicker(true) },
       { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
@@ -242,9 +245,10 @@ export default function YugcOs({ active, onBack }: Props) {
       { label: "文档", run: () => navigate("/docs") },
       { label: "搜索应用和命令", run: () => setLauncher(true), key: "⌘K" },
     ],
+    // 控制台只给在里面能管点什么的人（/auth/me 的 console_link），普通成员的菜单里没有这一项。
     account: [
       { label: "论坛", run: () => window.location.assign(links.forumHome()) },
-      { label: "控制台", run: () => window.location.assign(links.console()) },
+      ...(consoleLink ? [{ label: "控制台", run: () => window.location.assign(links.console()) }] : []),
       null,
       { label: "退出", run: () => void signOut() },
     ],
@@ -279,7 +283,7 @@ export default function YugcOs({ active, onBack }: Props) {
           <span className="pt-mb-stat" aria-hidden="true">
             <Icon name="wifi-line" size={15} />
           </span>
-          {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台 / 退出） */}
+          {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台（仅 console_link）/ 退出） */}
           {account ? (
             <button type="button" className="pt-mb-account" data-menu aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
               {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={15} />}
@@ -322,7 +326,7 @@ export default function YugcOs({ active, onBack }: Props) {
         <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
           <WallpaperLayer wallpaper={wallpaper} />
           <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
-          <DesktopIcons selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
+          <DesktopIcons apps={apps} selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
           {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
 
           <div className="pt-windows">
@@ -337,6 +341,7 @@ export default function YugcOs({ active, onBack }: Props) {
                 onZoom={() => patchWindow(win.id, { zoomed: !win.zoomed })}
                 onMove={(x, y) => patchWindow(win.id, { x, y })}
                 onOpen={open}
+                apps={apps}
               />
             ))}
           </div>
@@ -350,7 +355,7 @@ export default function YugcOs({ active, onBack }: Props) {
             </span>
           </button>
           <span className="pt-dk-sep" aria-hidden="true" />
-          {OS_APPS.map((app) => (
+          {apps.map((app) => (
             <button
               key={app.id}
               type="button"

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
 import { ORG_ICONS } from "../../app/web/sites/portal/lib/org";
-import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, moveSelection, runTerminal } from "../../app/web/sites/portal/lib/osApps";
+import { parseMe } from "../../app/web/sites/portal/lib/account";
+import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, moveSelection, runTerminal, visibleApps } from "../../app/web/sites/portal/lib/osApps";
 
 const PORTAL = new URL("../../app/web/sites/portal/", import.meta.url).pathname;
 
@@ -14,6 +15,39 @@ function sources(dir: string): string[] {
     return /\.(tsx?|css)$/.test(name) ? [path] : [];
   });
 }
+
+describe("控制台入口只给 console_link 为 true 的人", () => {
+  it("/auth/me 的 console_link 原样读出，缺失或不是 true 都当作 false", () => {
+    expect(parseMe({ signed_in: true, login: "ada", avatar_url: null, console_link: true })).toEqual({ login: "ada", avatarUrl: null, consoleLink: true });
+    expect(parseMe({ signed_in: true, login: "ada", avatar_url: null })?.consoleLink).toBe(false);
+    expect(parseMe({ signed_in: true, login: "ada", console_link: "true" })?.consoleLink).toBe(false);
+    expect(parseMe({ signed_in: false })).toBeNull();
+  });
+
+  it("没有 console_link：桌面、Dock、启动器、终端里都没有控制台，其余应用照旧", () => {
+    const apps = visibleApps(false);
+    expect(apps.map((app) => app.id)).toEqual(OS_APPS.map((app) => app.id).filter((id) => id !== "console"));
+    expect(launcherCommands(apps).map((command) => command.id)).not.toContain("app:console");
+    expect(runTerminal("ls", [], apps).lines.map((line) => line.key)).not.toContain("console");
+    expect(runTerminal("open console", [], apps)).toMatchObject({ open: undefined });
+    expect(runTerminal("open console", [], apps).lines.at(-1)?.kind).toBe("err");
+  });
+
+  it("有 console_link：控制台和其它应用一起出现，能从终端打开", () => {
+    const apps = visibleApps(true);
+    expect(apps).toEqual(OS_APPS);
+    expect(launcherCommands(apps).map((command) => command.id)).toContain("app:console");
+    expect(runTerminal("open console", [], apps).open).toBe("console");
+  });
+
+  it("页脚与头像菜单里的控制台链接都看 consoleLink", () => {
+    const shell = readFileSync(`${PORTAL}components/PageShell.tsx`, "utf8");
+    const os = readFileSync(`${PORTAL}components/os/YugcOs.tsx`, "utf8");
+    expect(shell).toMatch(/consoleLink && <a href=\{links\.console\(\)\}>控制台<\/a>/);
+    expect(os).toMatch(/\.\.\.\(consoleLink \? \[\{ label: "控制台"/);
+    expect(os).not.toMatch(/OS_APPS\.map/);
+  });
+});
 
 describe("YUGC OS 应用与启动器", () => {
   it("三个主入口有 1/2/3 快捷键，加入我们是唯一的主操作", () => {

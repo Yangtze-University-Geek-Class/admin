@@ -2,6 +2,10 @@ import { safeReturnTo } from "../../lib/safe-return.js";
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { readOAuthState, setOAuthState } from "../../middleware/oauth-state.js";
+import type { Capability } from "../../lib/roles.js";
+
+/** 普通舰员、领航员默认就有的能力：只有这些时不在头像菜单里显示「控制台」。 */
+const CONSOLE_LINK_IGNORED: ReadonlySet<Capability> = new Set<Capability>(["console.access", "github.org.read", "feedback.read"]);
 
 /** 登录没成功的原因，写进回跳地址的 `signin` 参数，由回到的页面（论坛、控制台登录页）给出说明。 */
 export type SigninOutcome = "not_member" | "invite_pending" | "cancelled" | "failed";
@@ -85,11 +89,22 @@ export default async function authRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /**
+   * `console_link`：官网与论坛的头像菜单是否显示「控制台」。持有 console.access、github.org.read、feedback.read
+   * 之外的任意能力才算管理者（提督、舰长、队长、带部门权限包的舰员）；普通舰员和领航员为 false。
+   * 这只决定显不显示入口，控制台的准入仍按能力判定。GitHub 角色查询失败时按 false 处理，不让 /auth/me 失败。
+   */
   app.get("/auth/me", async (req) => {
     const sid = req.cookies?.sid;
     if (!sid) return { signed_in: false };
     const s = getSession(sid);
     if (!s) return { signed_in: false };
-    return { signed_in: true, login: s.login, user_id: s.user_id, avatar_url: s.avatar_url };
+    const consoleLink = await app.services.access.resolve({ login: s.login, userId: s.user_id, accessToken: s.accessToken })
+      .then(access => [...access.capabilities].some(capability => !CONSOLE_LINK_IGNORED.has(capability)))
+      .catch((cause: { code?: string; status?: number }) => {
+        req.log.warn({ code: cause?.code, status: cause?.status, requestId: req.id }, "console link access check failed");
+        return false;
+      });
+    return { signed_in: true, login: s.login, user_id: s.user_id, avatar_url: s.avatar_url, console_link: consoleLink };
   });
 }

@@ -2,20 +2,23 @@
 import type { TxSelectOption } from '@talex-touch/tuffex/select'
 import type { Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
+import { UNAVAILABLE_COPY } from '~/data/access'
 
 /**
  * Discourse's bar under the last post: bookmark the topic, share it, pick a
  * notification level, reply. A closed topic replaces the reply button with the
- * reason it is gone; a guest gets the login prompt instead of the whole bar.
+ * reason it is gone; a guest gets the login prompt instead of the whole bar —
+ * except in 极客班论坛, where a guest replies under a nickname: they get the
+ * bar with 回复, and 书签 asks them to sign in.
  */
 const props = defineProps<{ topic: Topic }>()
 
 const emit = defineEmits<{ reply: [] }>()
 
 const forum = useForumStore()
-const { user, isLoggedIn, can } = useCurrentUser()
+const actions = useForumActions()
+const { user, isLoggedIn, access, can, guestCanReply } = useCurrentUser()
 const { loginOpen } = useShell()
-const { siteLogin } = useContentSource()
 const { absoluteUrl } = useAppLink()
 
 // Notification level is page-local mock state: there is no subscription model
@@ -31,31 +34,45 @@ const notificationLevel = ref('tracking')
 const firstPost = computed(() => forum.firstPostOf(props.topic.id))
 const bookmarked = computed(() =>
   !!user.value && !!firstPost.value && forum.isBookmarked(user.value.id, firstPost.value.id))
-const canReply = computed(() => can('reply', { topic: props.topic }))
+const canReply = computed(() => can('reply', { topic: props.topic }) || guestCanReply(props.topic))
 const shareLink = computed(() => absoluteUrl(`/t/${props.topic.id}`))
 
-function bookmark() {
+/** Why there is no bar at all: the demo wants an identity, the rest cannot write. */
+const blocked = computed(() => {
+  switch (access.value.loginPrompt) {
+    case 'pick-identity':
+      return { title: '登录后参与讨论', description: '选择一个身份即可回复、点赞和收藏。', login: true }
+    case 'offline':
+    case 'busy':
+      return { ...UNAVAILABLE_COPY[access.value.loginPrompt], login: false }
+    default:
+      return { title: '回复还没开放', description: '回复、点赞和收藏正在接入。', login: false }
+  }
+})
+
+async function bookmark() {
   const current = user.value
   const post = firstPost.value
   if (!current || !post || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const added = forum.toggleBookmark(current.id, post.id)
-  toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
+  const added = await actions.toggleBookmark(current.id, post.id)
+  if (added !== null)
+    toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 </script>
 
 <template>
   <TxCard variant="plain">
     <TxEmptyState
-      v-if="!isLoggedIn"
+      v-if="!isLoggedIn && !access.guestReply"
       variant="permission"
       size="small"
       layout="horizontal"
-      :title="siteLogin ? '回复还没开放' : '登录后参与讨论'"
-      :description="siteLogin ? '回复、点赞和收藏正在接入。' : '选择一个身份即可回复、点赞和收藏。'"
-      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
+      :title="blocked.title"
+      :description="blocked.description"
+      :primary-action="blocked.login ? { label: '登录', variant: 'primary' } : undefined"
       @primary="loginOpen = true"
     />
 
@@ -69,6 +86,7 @@ function bookmark() {
         />
         <TxCopyButton :text="shareLink" copy-label="分享" copied-label="链接已复制" />
         <TxSelect
+          v-if="isLoggedIn"
           v-model="notificationLevel"
           :options="NOTIFICATION_LEVELS"
           placeholder="通知级别"

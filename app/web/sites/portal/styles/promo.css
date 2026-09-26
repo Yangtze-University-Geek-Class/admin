@@ -48,10 +48,13 @@
 .pt-promo-close { right: 12px; }
 .pt-promo-unmute { left: 12px; background: var(--pt-cobalt); border-color: transparent; }
 .pt-promo-unmute:hover { background: var(--pt-cobalt-deep); }
-.pt-promo-chip kbd { padding: 1px 6px; border-radius: 6px; background: rgb(255 255 255 / 16%); font: 11px var(--pt-mono); color: rgb(255 255 255 / 85%); }
+/* 下面几条都挂在 .pt-promo 下：promo.css 跟官网主包加载（#110），排在 portal.css 前面，
+   同优先级的 .pt-root kbd、.pt-root :focus-visible 会盖掉它们；多一层类名，不看加载顺序也稳赢 */
+.pt-promo .pt-promo-chip kbd { display: inline; padding: 1px 6px; border: 0; border-radius: 6px; background: rgb(255 255 255 / 16%); font: 11px var(--pt-mono); color: rgb(255 255 255 / 85%); }
 .pt-promo-icon { width: 44px; padding: 0; }
 .pt-promo-chip:hover, .pt-promo-icon:hover, .pt-promo-play:hover { background: rgb(8 12 28 / 62%); border-color: rgb(255 255 255 / 45%); }
-.pt-promo-chip:focus-visible, .pt-promo-icon:focus-visible, .pt-promo-play:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* border-radius 也要写：.pt-root :focus-visible 带的 4px 圆角优先级更高，会把胶囊按钮聚焦时压成圆角矩形 */
+.pt-promo .pt-promo-chip:focus-visible, .pt-promo .pt-promo-icon:focus-visible, .pt-promo .pt-promo-play:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 999px; }
 
 .pt-promo-play {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -104,11 +107,11 @@
   .pt-promo-close { right: 8px; }
   .pt-promo-unmute { left: 8px; }
   .pt-promo-bar { padding: 28px 8px 6px; gap: 8px; }
-  .pt-promo-chip kbd { display: none; }
+  .pt-promo .pt-promo-chip kbd { display: none; }
 }
 /* 触屏不显示按键提示（portal.md「界面规则」） */
 @media (hover: none) {
-  .pt-promo-chip kbd { display: none; }
+  .pt-promo .pt-promo-chip kbd { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pt-root.pt-promo { animation: none; }

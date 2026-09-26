@@ -2,7 +2,7 @@
 
 > 记录已采用框架及版本来源，未来升级另立提议。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-26
 
 ## 核心包：app/web + app/server + app/console
 
@@ -19,7 +19,8 @@
 | 持久化 | SQLite WAL / better-sqlite3（命名卷中的文件；**未迁移 Postgres**） | better-sqlite3 11 |
 | GitHub/网络 | Octokit / OAuth / undici | 锁文件版本 |
 | 内容 | marked / DOMPurify / highlight.js | 锁文件版本 |
-| 遗留依赖 | `app/server` manifest 仍声明 `@fastify/multipart`、`multer`、`sharp`、`marked`、`dompurify`、`isomorphic-dompurify`、`bcryptjs`，server 源码不使用（`bcryptjs` 只被死代码 `password-policy.ts` 引用）；旧论坛上传接口已退役，不代表任何现役能力，清单见 [server 合同](../services/server/README.md) | 锁文件版本 |
+| 图片处理 | `sharp`（`app/server`）：论坛头像上传解码、裁切并重新编码成 WebP（#57） | 锁文件版本 |
+| 遗留依赖 | `app/server` manifest 仍声明 `@fastify/multipart`、`multer`、`marked`、`dompurify`、`isomorphic-dompurify`、`bcryptjs`，server 源码不使用（`bcryptjs` 只被死代码 `password-policy.ts` 引用）；旧论坛上传接口已退役，不代表任何现役能力，清单见 [server 合同](../services/server/README.md) | 锁文件版本 |
 | 测试 | Vitest / Testing Library / jsdom / Playwright | Vitest 3 |
 | 交付 | Docker 镜像 + Docker Compose（两套栈：`/opt/yzgc/production`、`/opt/yzgc/preview`）+ 宿主 nginx TLS 终止；基础镜像 `node:22-bookworm-slim`（server；web 构建）、`node:26-bookworm-slim`（forum 构建）、`nginx:1.31-alpine`（web/forum 运行） | Node 22 / nginx 1.31 / compose v2 |
 
@@ -37,7 +38,7 @@
 | 组件与样式 | @talex-touch/tuffex 0.6.0、UnoCSS 66.10.2 |
 | 内部构建 | Vite 8.2.2、Nitro 2.13.4，Nuxt SPA 模式 ssr:false |
 | 测试 | Vitest 3.2.7、原仓 CDP Chromium 验收 |
-| 数据与认证 | 部署镜像（site 模式）：极客班论坛自己的分类和标签，以及公开的旧帖（`content/published`）在构建时写入，没有回复和其他用户，浏览器里不存论坛内容和会话（主题与侧栏偏好仍存在本机）；示例模式：浏览器 localStorage 和示例身份；本机快照模式：dev 专用 Nitro 只读路由提供的极客班投影；论坛本身都没有后端和认证，顶栏登录入口走全站 GitHub 登录（示例预览和上游验收除外） |
+| 数据与认证 | 部署镜像（site 模式）：分类、标签和公开的旧帖（`content/published`）在构建时写入，打开后从核心服务的 `/api/forum/*` 读写帖子、回复与资料（存储与授权在核心，身份是全站 GitHub 登录的 `sid`），浏览器里不存论坛内容和会话（主题与侧栏偏好仍存在本机）；示例模式：浏览器 localStorage 和示例身份；本机快照模式：dev 专用 Nitro 只读路由提供的极客班投影，只能看 |
 
 来源为 `app/forum` 的 manifest、独立锁文件、已安装包及 Nuxt 启动输出，不声称 npm latest。工具链通过根 forum:* 编排，两套 node_modules 不混用，MIT 许可保留。详见 [论坛服务合同](../services/forum/README.md)。
 

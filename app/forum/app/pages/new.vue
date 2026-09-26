@@ -2,6 +2,8 @@
 import type { FormRules, TxFormInstance } from '@talex-touch/tuffex/form'
 import type { TxSelectModelValue, TxSelectOption } from '@talex-touch/tuffex/select'
 import { toast } from '@talex-touch/tuffex/utils'
+import { UNAVAILABLE_COPY } from '~/data/access'
+import { MEMBER_CONTENT_MAX, TOPIC_TAG_MAX, TOPIC_TITLE_MAX } from '../../shared/forum-api'
 
 // Discourse composes a new topic in the same bottom panel as a reply; here it
 // is a page of its own so the form can be deep-linked (and pre-filled from a
@@ -14,9 +16,34 @@ const MIN_CONTENT = 10
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
-const { user, isLoggedIn, can } = useCurrentUser()
+const actions = useForumActions()
+const { user, isLoggedIn, access, can } = useCurrentUser()
 const { loginOpen } = useShell()
-const { siteLogin } = useContentSource()
+const { serverMode } = useContentSource()
+const { signIn } = useSiteLinks()
+
+/** Who may not post, and what they can do about it: pick an identity (demo), sign in (极客班论坛), or nothing. */
+const blocked = computed(() => {
+  switch (access.value.loginPrompt) {
+    case 'pick-identity':
+      return { title: '登录后才能发布话题', description: '选择一个身份即可发起新话题。', action: '登录' }
+    case 'sign-in':
+      return { title: '登录后才能发帖', description: '只有极客班成员能用 GitHub 登录。不登录也能看帖，也能在话题里回复。', action: '用 GitHub 登录' }
+    case 'offline':
+    case 'busy':
+    case 'not-member':
+      return { ...UNAVAILABLE_COPY[access.value.loginPrompt], action: '' }
+    default:
+      return { title: '发帖还没开放', description: '发帖正在接入。', action: '' }
+  }
+})
+
+function onBlockedAction() {
+  if (access.value.loginPrompt === 'sign-in')
+    signIn()
+  else
+    loginOpen.value = true
+}
 
 const formRef = ref<TxFormInstance | null>(null)
 const submitting = ref(false)
@@ -31,15 +58,20 @@ const model = reactive({
   content: '',
 })
 
+// The server's limits (title ≤120, ≤5 tags, body ≤20000) only apply against
+// it; the demo keeps the upstream rules.
 const rules: FormRules = {
   title: [
     { required: true, message: '请先写个标题' },
     { validator: value => String(value ?? '').trim().length >= MIN_TITLE, message: `标题至少 ${MIN_TITLE} 个字` },
+    ...(serverMode ? [{ validator: (value: unknown) => String(value ?? '').trim().length <= TOPIC_TITLE_MAX, message: `标题最多 ${TOPIC_TITLE_MAX} 个字` }] : []),
   ],
   categoryId: [{ required: true, message: '请选择一个类别' }],
+  ...(serverMode ? { tagIds: [{ validator: (value: unknown) => !Array.isArray(value) || value.length <= TOPIC_TAG_MAX, message: `标签最多 ${TOPIC_TAG_MAX} 个` }] } : {}),
   content: [
     { required: true, message: '请写点正文' },
     { validator: value => String(value ?? '').trim().length >= MIN_CONTENT, message: `正文至少 ${MIN_CONTENT} 个字` },
+    ...(serverMode ? [{ validator: (value: unknown) => String(value ?? '').trim().length <= MEMBER_CONTENT_MAX, message: `正文最多 ${MEMBER_CONTENT_MAX} 字` }] : []),
   ],
 }
 
@@ -87,15 +119,17 @@ async function submit() {
     if (!await formRef.value.validate())
       return
 
-    const topic = forum.createTopic({
+    const topicId = await actions.createTopic({
       title: model.title.trim(),
       categoryId: model.categoryId,
       tagIds: [...model.tagIds],
       content: model.content.trim(),
       authorId: current.id,
     })
+    if (!topicId)
+      return
     toast({ title: '话题已发布', variant: 'success' })
-    await router.push(`/t/${topic.id}`)
+    await router.push(`/t/${topicId}`)
   }
   finally {
     submitting.value = false
@@ -108,10 +142,10 @@ async function submit() {
     <TxEmptyState
       v-if="!isLoggedIn"
       variant="permission"
-      :title="siteLogin ? '发帖还没开放' : '登录后才能发布话题'"
-      :description="siteLogin ? '发帖正在接入。' : '选择一个身份即可发起新话题。'"
-      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
-      @primary="loginOpen = true"
+      :title="blocked.title"
+      :description="blocked.description"
+      :primary-action="blocked.action ? { label: blocked.action, variant: 'primary', icon: access.loginPrompt === 'sign-in' ? 'i-carbon-logo-github' : undefined } : undefined"
+      @primary="onBlockedAction"
     />
 
     <TxForm

@@ -1,6 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OS_APPS } from "../../app/web/sites/portal/lib/osApps";
-import { PROMO, PROMO_BASE, PROMO_COOKIE, choosePlayback, clock, firstSegment, hasSeenPromo, promoCookie, startEstimate, startLevelIndex, startVariant } from "../../app/web/sites/portal/lib/promo";
+import {
+  PROMO,
+  PROMO_BASE,
+  PROMO_COOKIE,
+  choosePlayback,
+  clock,
+  firstSegment,
+  hasSeenPromo,
+  promoCookie,
+  retryableImport,
+  startEstimate,
+  startLevelIndex,
+  startVariant,
+} from "../../app/web/sites/portal/lib/promo";
 
 describe("宣传片：只自动播一次的 cookie", () => {
   it("只认 yugc_promo_seen=1 这一个完整的键值", () => {
@@ -66,6 +79,58 @@ describe("宣传片：桌面应用", () => {
     expect(OS_APPS.find((app) => app.id === "wallpaper")?.open).toEqual({ kind: "panel", panel: "wallpaper" });
     // 三个主入口仍排在最前
     expect(OS_APPS.slice(0, 4).map((app) => app.id)).toEqual(["join", "forum", "github", "promo"]);
+  });
+});
+
+describe("宣传片：分包加载失败后重来（#110）", () => {
+  /** 像浏览器一样：每个地址失败过一次就一直失败（HTML 规范记住失败的模块地址），没失败过的按当时网络决定 */
+  function addresses(count: number) {
+    const net = { online: false };
+    const poisoned = new Set<number>();
+    const calls: number[] = [];
+    const loads = Array.from({ length: count }, (_, i) => async () => {
+      calls.push(i);
+      if (poisoned.has(i) || !net.online) {
+        poisoned.add(i);
+        throw new TypeError(`Failed to fetch dynamically imported module: chunk-${i}.js`);
+      }
+      return `module-${i}`;
+    }) as unknown as [() => Promise<string>, ...(() => Promise<string>)[]];
+    return { net, calls, loads };
+  }
+
+  it("原地址失败时马上换下一个再试一次；之后每次重来都换一个新地址，网络恢复就用那个", async () => {
+    const { net, calls, loads } = addresses(4);
+    const get = retryableImport(loads);
+    await expect(get()).rejects.toThrow("chunk-1.js");
+    expect(calls).toEqual([0, 1]);
+    net.online = true;
+    await expect(get()).resolves.toBe("module-2");
+    expect(calls).toEqual([0, 1, 2]);
+  });
+
+  it("原地址早在预取时就失败了、现在网络已好：第一次调用就换到下一个地址拿到模块", async () => {
+    const { net, calls, loads } = addresses(4);
+    await expect(loads[0]()).rejects.toThrow();
+    net.online = true;
+    await expect(retryableImport(loads)()).resolves.toBe("module-1");
+    expect(calls).toEqual([0, 0, 1]);
+  });
+
+  it("原地址一次成功就一直用它，不去碰重试地址", async () => {
+    const { net, calls, loads } = addresses(4);
+    net.online = true;
+    const get = retryableImport(loads);
+    await expect(get()).resolves.toBe("module-0");
+    await expect(get()).resolves.toBe("module-0");
+    expect(calls).toEqual([0, 0]);
+  });
+
+  it("地址用完了就停在最后一个：还断着网时一直失败，不越界", async () => {
+    const { calls, loads } = addresses(4);
+    const get = retryableImport(loads);
+    for (let i = 0; i < 5; i += 1) await expect(get()).rejects.toThrow();
+    expect(calls).toEqual([0, 1, 2, 3, 3, 3]);
   });
 });
 
