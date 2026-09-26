@@ -78,3 +78,10 @@
 - 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
 - 做了什么：site-state 测试的 sk- 检查改为在标题和正文原文上按 (?:^|[^\w-])sk-[\w-]{20,}/m 查（与镜像断言同一规则）；t89 替换文字改为「（公益密钥没有公开，需要的话在帖子下面问，或者找极客班管理员）」并重新导出两次；FORUM-DATA-CAPTURE「最新接入状态」换成 geek-20260926 的数字（185/70/35/21/67，已删 19/31，从投影 summary 核对）；数据保全第 6 步、forum 合同断言说明、测试注释把 #57 的「没有才插入」和 t1001 写成「按 #57（PR #116）的约定，合并后生效」；forum 合同「镜像」一条去掉过时的「帖子只有招新与机试」；提示文案不改（归 #107）
 - 结果：变异检查：临时在 t78 正文末尾加一行假密钥，新断言失败，旧的 JSON 文本检查不命中，topics.json 恢复后哈希与改前相同；两次导出 topics.json 与图片目录哈希相同（4ebea35c…），只有 t89 这一句变了；forum.mjs check 241 项通过；site 模式 generate 通过，本机产物上重放 Dockerfile 断言全部通过
+
+## 16:53:03 +08:00 · 提交 · #108 · 第 1 轮审查返工的两个提交
+
+- 执行者：agent-claude-geek-main-subagent-108（Claude Code 子代理）
+- 做了什么：提交 9292378 fix(forum): 公开旧帖的密钥检查改查原文，t89 写明公益密钥去哪问；1ee63ec docs(docs): 数据保全与 forum 合同改成 09-26 的现状
+- 结果：forum.mjs check 241 项通过；site 模式 generate 与 Dockerfile 断言重放通过；根 pnpm check 通过；未推送
+- 下一步：主 agent 推送并请第 2 轮审查
