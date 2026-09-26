@@ -19,15 +19,31 @@ async function openConsole(page: Page, path: string, persona = "captain") {
   await page.goto(url.toString());
 }
 
-test("public docs have usable labels/language switching and a console link", async ({ page }) => {
+test("public docs have usable labels/language switching; no 控制台 link for a visitor", async ({ page }) => {
+  const me = page.waitForResponse(response => new URL(response.url()).pathname === "/auth/me");
   await page.goto("/sites/portal/docs");
+  await me;
   await expect(page.getByRole("link", { name: "使用指南", exact: true })).toBeVisible();
   // 开发态右上角固定的「DEV CONTROL」浮层盖住了这个按钮（官网既有问题，与控制台无关），用键盘触发同一个按钮。
   const english = page.getByRole("button", { name: "English", exact: true });
   await english.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/docs\/usage-en/);
-  await expect(page.getByRole("link", { name: "控制台", exact: true })).toHaveAttribute("href", "/sites/admin/console");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "论坛", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "控制台", exact: true })).toHaveCount(0);
+});
+
+test("the page footer links 控制台 only when /auth/me says console_link", async ({ page }) => {
+  for (const consoleLink of [false, true]) {
+    await page.route("**/auth/me", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signed_in: true, login: "ada", user_id: 1, avatar_url: null, console_link: consoleLink }) }));
+    const me = page.waitForResponse(response => new URL(response.url()).pathname === "/auth/me");
+    await page.goto("/sites/portal/docs");
+    await me;
+    const link = page.getByRole("contentinfo").getByRole("link", { name: "控制台", exact: true });
+    if (consoleLink) await expect(link).toHaveAttribute("href", "/sites/admin/console");
+    else await expect(link).toHaveCount(0);
+    await page.unroute("**/auth/me");
+  }
 });
 
 test("portal forum entry targets the adopted Nuxt module, not the retired React page", async ({ page }) => {
@@ -190,4 +206,36 @@ test("mobile console keeps navigation in a drawer and has no page-level horizont
   await nav.getByRole("button", { name: "投递管理" }).click();
   await expect(page).toHaveURL(/\/console\/applications/);
   await expect(page.getByRole("heading", { name: "投递管理", level: 1 })).toBeVisible();
+});
+
+test("forum 3D page resets its scene when restored from the back/forward cache (#109)", async ({ page }) => {
+  // 论坛（开发态 3456）回 204：导航被取消，页面停在转场最后一帧——和从论坛后退、浏览器从往返缓存恢复时看到的一样
+  await page.route("http://127.0.0.1:3456/**", route => route.fulfill({ status: 204 }));
+  await page.goto("/sites/portal/forum-3d");
+  const board = page.locator(".pt-boards a").first();
+  // 场景建好后悬停才会高亮（is-hot 由场景回调设置），以此确认点击会走转场而不是直接跳转
+  await expect(async () => {
+    await page.mouse.move(0, 0);
+    await board.hover();
+    await expect(board).toHaveClass(/is-hot/, { timeout: 500 });
+  }).toPass({ timeout: 30_000 });
+  const pose = () =>
+    page.evaluate(() => {
+      const stage = (window as unknown as { __yugcStage?: { basePos: { x: number; y: number; z: number }; baseOffset: { x: number; y: number } } }).__yugcStage!;
+      return { x: stage.basePos.x, y: stage.basePos.y, z: stage.basePos.z, ox: stage.baseOffset.x, oy: stage.baseOffset.y };
+    });
+  const wipeOpacity = () => page.locator(".pt-wipe").evaluate(el => Number(getComputedStyle(el).opacity));
+  const start = await pose();
+  await board.click();
+  await expect.poll(wipeOpacity, { timeout: 15_000 }).toBeGreaterThan(0.95);
+  const pushed = await pose();
+  expect(Math.hypot(pushed.x - start.x, pushed.y - start.y, pushed.z - start.z)).toBeGreaterThan(1);
+
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect(page.locator(".pt-wipe")).toHaveCSS("opacity", "0");
+  const back = await pose();
+  for (const key of ["x", "y", "z", "ox", "oy"] as const) expect(back[key]).toBeCloseTo(start[key], 5);
+  // 复位后场景又能响应：再点一个版块会重新推近
+  await page.locator(".pt-boards a").nth(1).click();
+  await expect.poll(wipeOpacity, { timeout: 15_000 }).toBeGreaterThan(0.95);
 });

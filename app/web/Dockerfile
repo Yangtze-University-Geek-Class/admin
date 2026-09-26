@@ -27,13 +27,23 @@
 # ── 构建阶段：装依赖 → Vite 构建 → 生成 release.json 与 nginx 配置 ──
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
+# npm 源（#104）：工作流从仓库变量传国内镜像，不传就是官方源。只在构建阶段声明，运行阶段（nginx）
+# 既不继承 ARG 也不继承下面的 ENV。换源不关校验：pnpm 按锁文件的 integrity 核对每个包，corepack 用自带的
+# npm 公钥核对 pnpm 的发布签名（与 app/server/Dockerfile 相同，见 docs/ops/CICD.md「构建下载源」）。
+ARG NPM_REGISTRY=https://registry.npmjs.org
+
+# pnpm 9 与 npm 读 npm_config_registry，corepack 读 COREPACK_NPM_REGISTRY。
 ENV CI=1 \
     PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH
+    PATH=/pnpm:$PATH \
+    npm_config_registry=${NPM_REGISTRY} \
+    COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
 
-RUN corepack enable \
- && corepack prepare pnpm@9.15.9 --activate \
- && pnpm --version
+RUN set -eu; \
+    case "$NPM_REGISTRY" in https://*[!/]) ;; *) echo "NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址：${NPM_REGISTRY}" >&2; exit 1 ;; esac; \
+    corepack enable; \
+    corepack prepare pnpm@9.15.9 --activate; \
+    pnpm --version
 
 WORKDIR /repo
 

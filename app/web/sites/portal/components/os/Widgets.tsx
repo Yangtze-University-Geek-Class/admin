@@ -1,6 +1,6 @@
 // YUGC OS 桌面上的东西：左上角一列应用图标（加入我们、论坛、GitHub 组织在最前面），
 // 图标右边、壁纸天空里一张「新来的看这里」便签，按顺序说清怎么加入。壁纸是极客娘，桌面上不再铺组件卡片。
-import { OS_APPS, type AppId, type OsApp } from "../../lib/osApps";
+import type { AppId, OsApp } from "../../lib/osApps";
 import Icon from "../Icon";
 
 type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
@@ -9,11 +9,11 @@ type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
  * 桌面图标：单击选中、双击或回车打开（和电脑桌面一样）。触屏上单击就打开。
  * 三个主入口排在最前；它们是做什么的，由右边的「新来的看这里」便签和 Dock 上的名字说明。
  */
-export function DesktopIcons({ selected, onSelect, onOpen }: { selected: AppId | null; onSelect: (id: AppId | null) => void; onOpen: OpenApp }) {
+export function DesktopIcons({ apps, selected, onSelect, onOpen }: { apps: readonly OsApp[]; selected: AppId | null; onSelect: (id: AppId | null) => void; onOpen: OpenApp }) {
   const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
   return (
     <ul className="pt-icons" aria-label="桌面上的应用">
-      {OS_APPS.map((app) => (
+      {apps.map((app) => (
         <li key={app.id} className={app.key ? "is-main" : undefined}>
           <button
             type="button"

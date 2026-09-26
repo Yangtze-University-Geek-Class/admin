@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Wraps the page area: in demo mode it is transparent; in snapshot mode it
 // holds the pages back until the archive is loaded and surfaces a failure
-// instead of letting the seed leak through.
+// instead of letting the seed leak through. Against the forum server it holds
+// them until the server answered or failed (a topic started yesterday is not
+// in the build, and its page must not 404 while the state is on its way).
 const { snapshot, ready, load } = useContentSource()
 </script>
 

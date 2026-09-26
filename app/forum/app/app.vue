@@ -2,6 +2,7 @@
 import type { CommandPaletteItem } from '@talex-touch/tuffex/command-palette'
 
 const { isSite, siteLogin, siteName } = useContentSource()
+const { can } = useCurrentUser()
 
 // Body styling goes through utility classes: the project ships no custom CSS,
 // and tuffex's stylesheet deliberately leaves `body` alone.
@@ -32,8 +33,8 @@ const router = useRouter()
 const { paletteOpen } = useShell()
 
 const commands = computed<CommandPaletteItem[]>(() => [
-  // The read-only snapshot has no composer.
-  ...PAGE_COMMANDS.filter(command => !siteLogin || command.id !== '/new'),
+  // The read-only snapshot has no composer; in 极客班论坛 only a signed-in member has one.
+  ...PAGE_COMMANDS.filter(command => !siteLogin || command.id !== '/new' || can('createTopic')),
   ...forum.sortedTopics({ mode: 'latest' }).slice(0, RECENT_TOPIC_COUNT).map(topic => ({
     id: `/t/${topic.id}`,
     title: topic.title,

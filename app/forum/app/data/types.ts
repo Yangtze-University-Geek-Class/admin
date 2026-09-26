@@ -13,6 +13,14 @@ export const FORUM_STATE_VERSION = 1
 
 export type UserRole = 'admin' | 'moderator' | 'member'
 
+/**
+ * Who the account belongs to, set by the forum server (`/api/forum/state`):
+ * a signed-in 极客班 member, a guest who replied under a nickname (no login,
+ * no editable profile), or the 极客班 account that owns the published old
+ * posts. The demo seed and the snapshot leave it out: everyone is a member.
+ */
+export type UserKind = 'member' | 'guest' | 'official'
+
 export interface NotifyPrefs {
   reply: boolean
   like: boolean
@@ -30,10 +38,12 @@ export interface User {
   /** Hex colour behind the initials avatar. */
   avatarColor: string
   /**
-   * Optional picture served by the local snapshot's asset route; the seed
-   * never sets it and initials remain the fallback.
+   * Optional picture: the uploaded avatar or the GitHub one from the forum
+   * server, or the local snapshot's asset route. The seed never sets it and
+   * initials remain the fallback.
    */
   avatarUrl?: string
+  kind?: UserKind
   joinedAt: number
   role: UserRole
   /**

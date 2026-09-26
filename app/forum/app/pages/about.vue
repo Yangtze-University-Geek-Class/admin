@@ -2,6 +2,7 @@
 import dayjs from 'dayjs'
 import { isStaff } from '~/data/permissions'
 import { siteNameInText } from '../../shared/content-source'
+import { SITE_NOTICE } from '../../shared/site-notice'
 
 useHead({ title: '关于' })
 
@@ -39,13 +40,13 @@ function open(username: string) {
           {{ heading }}
         </h1>
       </template>
-      <!-- 极客班论坛（部署的镜像）：只有公开的旧帖，没有成员资料，所以下面的数字和管理团队不显示 -->
+      <!-- 极客班论坛（部署的镜像）：一段简介和出处，下面的数字和管理团队不显示 -->
       <TxStack v-if="isSite" :gap="12" class="leading-relaxed">
         <p>
-          长江大学极客班的论坛。旧论坛的招新机试文档和入门资料已经放在「招新与机试」类别里；发帖、回复和其余旧帖正在接入。
+          长江大学极客班的论坛。{{ SITE_NOTICE.published }}{{ SITE_NOTICE.guests }}
         </p>
         <p class="text-$tx-text-color-secondary">
-          登录用 GitHub 账号，官网、论坛、控制台共用同一次登录。
+          官网、论坛、控制台共用同一次 GitHub 登录。
         </p>
         <p class="text-sm text-$tx-text-color-secondary">
           论坛基于开源项目 Tuff Forum（<a href="https://github.com/talex-touch/tuff-forum" class="text-$tx-color-primary underline" target="_blank" rel="noopener noreferrer">talex-touch/tuff-forum</a>，MIT 许可）搭建。

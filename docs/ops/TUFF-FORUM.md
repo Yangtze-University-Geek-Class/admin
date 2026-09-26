@@ -2,7 +2,7 @@
 
 > 独立启动直接引入的 Nuxt/TuffEx 原仓；本机有私有快照时显示极客班论坛内容，登录只走全站 GitHub 登录，不将其冒充生产论坛。
 
-状态：`current` · 更新：2026-09-25
+状态：`current` · 更新：2026-09-26
 
 ## 代码和环境
 
@@ -34,11 +34,11 @@ CDP 浏览器套件可通过 `TUFF_FORUM_CHROME` 指定 Chrome/Chromium 原生�
 
 ## 数据和认证限制
 
-快照模式（`mode: local-snapshot`）下页面显示极客班论坛内容，界面不再出现「只读快照」字样。登录方式与内容来源分开：除了 `forum.mjs` 的上游验收（`verify`）和示例种子上的本机预览（`start`/`dev` 没有快照目录），论坛一律走统一登录（`GEEK_FORUM_LOGIN=demo` 只由 `forum.mjs` 设置），镜像（极客班论坛）也是。统一登录下论坛**没有自己的登录**：登录是核心服务的全站 GitHub 登录，官网、论坛、控制台共用同一个 `sid` cookie。顶栏右上角是唯一的入口，读到 `/auth/me` 之前不显示；未登录是一个「用 GitHub 登录」按钮，指向 `/auth/github?return_to=<当前论坛页面>`，登录后回到这一页；已登录显示 GitHub 头像，菜单里是 `@<登录名>`、「控制台」（同域 `/console`，本机开发是 5173 上的 `/console`）、「退出」（`POST /auth/signout`，全站一起退出；服务端确认后才显示已退出）。窄屏按钮只写「登录」。账号只在顶栏右上角的头像菜单；侧栏没有站点卡片和账号卡片，第一行是「筛选侧栏」；极客班校徽在顶栏左上角站名前（#62）。只有极客班 GitHub 组织（`CONSOLE_ORG`）的成员能登录成功；游客不登录照样浏览全部帖子。登录没成功时核心服务带 `?signin=not_member|invite_pending|cancelled|failed` 回到原页面，论坛弹一次 Tuffex toast 说明原因并把这个参数从地址里去掉。本机开发时论坛单独跑在 3456，`nitro.devProxy` 把 `/auth` 转给 127.0.0.1:3000 并把 `Origin` 换成 5173（否则退出会被核心的来源校验 403），登录入口指向 5173（见 [LOCAL-PREVIEW](LOCAL-PREVIEW.md)）。
+快照模式（`mode: local-snapshot`）下页面显示极客班论坛内容，界面不再出现「只读快照」字样。登录方式与内容来源分开：除了 `forum.mjs` 的上游验收（`verify`）和示例种子上的本机预览（`start`/`dev` 没有快照目录），论坛一律走统一登录（`GEEK_FORUM_LOGIN=demo` 只由 `forum.mjs` 设置），镜像（极客班论坛）也是。统一登录下论坛**没有自己的登录**：登录是核心服务的全站 GitHub 登录，官网、论坛、控制台共用同一个 `sid` cookie。顶栏右上角是唯一的入口，读到 `/auth/me` 之前不显示；未登录是一个「用 GitHub 登录」按钮，指向 `/auth/github?return_to=<当前论坛页面>`，登录后回到这一页；已登录显示头像，菜单里是昵称与 `@<登录名>`、「我的主页」「账号资料」「我的书签」「通知」、「控制台」（只给 `/auth/me` 的 `console_link` 为 true 的人；同域 `/console`，本机开发是 5173 上的 `/console`）、「返回宣传主页」「查看环境与版本」和「退出」（`POST /auth/signout`，全站一起退出；服务端确认后才显示已退出），每一项都有图标。窄屏按钮只写「登录」。账号只在顶栏右上角的头像菜单；侧栏没有站点卡片和账号卡片，第一行是「筛选侧栏」；极客班校徽在顶栏左上角站名前（#62）。只有极客班 GitHub 组织（`CONSOLE_ORG`）的成员能登录成功；游客不登录照样浏览全部帖子。登录没成功时核心服务带 `?signin=not_member|invite_pending|cancelled|failed` 回到原页面，论坛弹一次 Tuffex toast 说明原因并把这个参数从地址里去掉。本机开发时论坛单独跑在 3456，`nitro.devProxy` 把 `/auth`、`/api/public/org`、`/api/forum` 转给 127.0.0.1:3000 并把 `Origin` 换成 5173（否则退出、回复会被核心的来源校验 403），登录入口指向 5173（见 [LOCAL-PREVIEW](LOCAL-PREVIEW.md)）。
 
-登录只用于识别身份：GitHub 账号**没有**对应到论坛成员，论坛 store 里的会话仍固定为游客。发帖、回复、点赞、书签、通知和资料修改都没有后端；`/new`、`/bookmarks`、`/notifications`、偏好设置页对游客显示「……还没开放」「……正在接入」，不给登录按钮，话题页最后一帖下方对游客显示「回复还没开放」。每一帖上的「赞」「书签」和个人页的「关注」按钮仍然显示，点了弹 toast「现在还不能操作」，说明发帖、回复、点赞和收藏正在接入。论坛状态与会话不写 localStorage（侧栏、主题等 UI 偏好仍存浏览器），附件经 `/api/local-forum/assets/<hash>` 只读提供并支持单段 Range，加载失败显示错误而不回退示例。
+快照模式只能看：GitHub 账号不对应快照里的论坛成员，会话固定为游客；`/new`、`/bookmarks`、`/notifications`、偏好设置页显示「……还没开放」，话题页最后一帖下方显示「回复还没开放」，「赞」「书签」「关注」弹 toast「现在还不能操作」。论坛状态与会话不写 localStorage（侧栏、主题等 UI 偏好仍存浏览器），附件经 `/api/local-forum/assets/<hash>` 只读提供并支持单段 Range，加载失败显示错误而不回退示例。
 
-极客班论坛（`mode: site`，预发布与正式镜像用 `GEEK_FORUM_SOURCE=site` 构建）：站名「极客班论坛」，分类和标签来自 `app/forum/content/curation.json`，帖子只有 `app/forum/content/published` 里公开的旧帖（只有首帖，作者是「极客班」），没有回复、其他用户、通知，也没有上游示例内容；页面、`/llms.txt` 与每篇公开旧帖的 `t/<id>.md` 都按这份状态生成，浏览器里不读也不写论坛状态和会话。
+极客班论坛（`mode: site`，预发布与正式镜像用 `GEEK_FORUM_SOURCE=site` 构建）：站名「极客班论坛」，分类和标签来自 `app/forum/content/curation.json`，构建时带上 `app/forum/content/published` 里公开的旧帖（只有首帖，作者是「极客班」），没有上游示例内容；`/llms.txt` 与每篇公开旧帖的 `t/<id>.md` 按这份状态生成。页面打开后向核心服务要整份论坛（`GET /api/forum/state`）：游客能看帖、用昵称回复（浏览器里算工作量证明），成员能发帖、回复、编辑删除自己的帖子、点赞、收藏、关注、看通知、改资料和头像，版务按服务端下发的能力；核心服务连不上时只显示构建时的公开旧帖，写操作关闭。浏览器里不存论坛状态和会话。细节见 [forum 服务合同](../services/forum/README.md)「服务端模式」。本机想看极客班论坛接上后端的样子：先按 [LOCAL-PREVIEW](LOCAL-PREVIEW.md) 在 3000 起核心服务，再 `GEEK_FORUM_SOURCE=site pnpm forum:start`。
 
 示例种子（`mode: browser-demo`，`forum:generate` 默认用它）只决定内容。只有 `forum.mjs verify` 与没有快照目录的 `start`/`dev` 设 `GEEK_FORUM_LOGIN=demo`，保留上游模拟身份选择及 localStorage，顶栏是示例的「登录」；默认的 `forum:generate` 是统一登录，不恢复浏览器里存过的示例会话，内容仍是上游示例帖子。发帖/回复/收藏等交互只改变本浏览器演示数据；换浏览器不会共享，清理浏览器存储或使用上游重置功能会丢失示例修改。停止 Nuxt 进程不会主动清空浏览器存储。请勿输入真实凭据、患者/学生资料或需要保留的数据。
 
@@ -50,4 +50,4 @@ CDP 浏览器套件可通过 `TUFF_FORUM_CHROME` 指定 Chrome/Chromium 原生�
 
 ## 发布准入
 
-当前只能用作本地原仓体验，不是可上线的内部社区。全站 GitHub 登录已经有了，但论坛还没有据它授权的服务端、真实存储和旧账号迁移策略，这些做完才对接统一 Hub；用前端路由重定向或任意用户选择器保护内部数据无效。上游 Cloudflare 草案不构成自动部署/购买授权。生成静态产物通过仅证明构建可用。
+极客班论坛的存储与授权在核心服务（#57），前端按服务端的回答显示和提示，授权只在服务端；用前端路由重定向或任意用户选择器保护内部数据无效。旧论坛账号的迁移与认领（#58）还没做。上游 Cloudflare 草案不构成自动部署/购买授权。生成静态产物通过仅证明构建可用。
