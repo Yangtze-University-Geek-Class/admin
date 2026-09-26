@@ -163,3 +163,10 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): 巡检只在最近一次合并之后重开过时不补关，超期记录写明已合并的 PR 与原因；vitest tests/tooling/issue-sweep.test.ts；对真实仓库只读试 GraphQL 查询（#16、#70 返回空，没有重开过）
 - 结果：14 passed；真实仓库里现在没有 stateReason 是 REOPENED 的 issue，只读巡检：没有要处理的 issue
+
+## 19:30:02 +08:00 · 返工 · #115 · 按 PR #118 第二轮审查返工：去掉「最近核对」，改用执行记录里的文档核对
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：a42d243 去掉四份服务 README 与 CICD 的「最近核对」，按 PR 核对时模块改了而说明没改，可以在本 task 执行记录里写「文档核对：<文档路径> 不用改——<理由>」，只改「更新：」日期不算改了说明，按时间核对时第一父链上带来文档核对的提交也算文档改动，branch-guard 传 --head；0fc5e7c stage 本来过期的「更新：」写明不是这条分支造成的；6ca23f3 补两个抓变异的用例（已跟踪文件没提交的改动、合并提交的作者时间）；205ac7d TRACKING 表改成同一个 PR 里，code-review 技能第 7 项加 check-doc-sync --base origin/stage --head；22257f1 巡检按时间线上最后一次重开时间判断，超期记录写明已合并的 PR 与没补关的原因；风险段的 #106 由主 agent 处理
+- 结果：tests/tooling 17 个文件 267 passed；pnpm check 退出 0（Node v22.23.2）；actionlint 退出 0；check-doc-sync --base origin/stage（带不带 --head）通过；docs-index --check 通过；变异检查 15 个（文档核对 7、来源说明 2、审查说的两个漏网变异 2、巡检重开 4）全部让用例失败。已知：第一轮的 99dd567 提交说明与执行记录里各有一处英文关闭关键字加 issue 号的写法，已推送、只能追加不能改，#16 早已关闭
+- 下一步：推送后请审查人按新 head 复查；关掉 squash 与 rebase 仍要所有者操作
