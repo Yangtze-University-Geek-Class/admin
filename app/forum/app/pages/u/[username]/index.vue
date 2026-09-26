@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FilterChipItem } from '@talex-touch/tuffex/filter-chips'
 import type { ActivityEvent, ActivityKind } from '~/stores/forum'
+import { linkableWebsite } from '../../../../shared/forum-api'
 
 // Discourse's /u/<name>: the profile banner, the stat strip and the
 // 摘要 / 活动 / 通知 / 偏好设置 tabs. The last two only exist for yourself.
@@ -65,6 +66,8 @@ const following = computed(() => !!profile.value && !!viewer.value && forum.isFo
 const canFollow = computed(() => !!profile.value && can('follow', { targetUser: profile.value }))
 /** A guest of 极客班论坛 is a nickname on one reply: nobody to follow, no profile to edit. */
 const isGuest = computed(() => profile.value?.kind === 'guest')
+// Only an https:// address becomes a link (shared/forum-api.ts#linkableWebsite).
+const website = computed(() => linkableWebsite(profile.value?.website))
 
 const statCards = computed(() => {
   const value = stats.value
@@ -170,7 +173,8 @@ function toggleFollow() {
 }
 
 function openWebsite(href: string) {
-  window.open(href, '_blank', 'noopener')
+  if (linkableWebsite(href))
+    window.open(href, '_blank', 'noopener')
 }
 </script>
 
@@ -216,9 +220,9 @@ function openWebsite(href: string) {
               </span>
               <!-- TxCellLink never navigates by itself; `external` marks it and we open it. -->
               <TxCellLink
-                v-if="profile.website"
-                :href="profile.website"
-                :label="profile.website"
+                v-if="website"
+                :href="website"
+                :label="website"
                 external
                 @open="openWebsite($event.href)"
               />

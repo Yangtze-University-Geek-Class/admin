@@ -338,3 +338,11 @@ export function websiteProblem(value: string): string | null {
   }
   return null
 }
+
+/**
+ * 个人主页上能做成链接的网站：过得了 `websiteProblem` 的才算，否则 `null`（页面上不显示）。
+ * 快照、示例或旧的服务端可能给出 `javascript:`、`http:` 之类的地址，不能直接放进 href 或 window.open。
+ */
+export function linkableWebsite(value: string | undefined): string | null {
+  return value && !websiteProblem(value) ? value : null
+}

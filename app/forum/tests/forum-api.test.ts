@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { avatarFileProblem, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
+import { avatarFileProblem, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, parseServerSnapshot, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
 import { serverBody, serverState } from './fixtures/server-state'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -165,5 +165,11 @@ describe('client-side checks', () => {
     expect(websiteProblem('javascript:alert(1)')).toContain('https://')
     expect(websiteProblem('example.com')).not.toBeNull()
     expect(websiteProblem(`https://example.com/${'a'.repeat(200)}`)).toContain('200')
+  })
+
+  it('links a profile website only when it is https://', () => {
+    expect(linkableWebsite('https://github.com/ada')).toBe('https://github.com/ada')
+    for (const value of [undefined, '', 'javascript:alert(1)', ' javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,<script>alert(1)</script>', 'http://example.com', 'example.com', '//evil.example'])
+      expect(linkableWebsite(value)).toBeNull()
   })
 })
