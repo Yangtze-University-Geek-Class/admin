@@ -104,3 +104,15 @@
 - 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
 - 做了什么：profileProblem 与 profileBody 挪到 shared/forum-api.ts，昵称只在改了时查长度、时发送；昵称提示加上 NAME_CHARS_HINT（与 #116 的 NAME_RULE_MESSAGE 同一句规则）；单测覆盖 35 个字的登录名不改昵称只改签名、请求体里没有 displayName 也没有校验错误，以及 400 invalid_display_name 时 toast 显示服务端原话；node scripts/forum.mjs check；pnpm check
 - 结果：forum check 通过（22 个文件 425 个测试），pnpm check 通过；把「只在改了时查」去掉后新测试失败。浏览器里没有再看（资料页需要真实成员登录，mock 只能看不能存）
+
+## 19:55:13 +08:00 · 审查 · #107 · 第一轮独立审查（17:51，审 9a02793）：有条件通过，4 条应修
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理，代记独立审查代理的结论）
+- 做了什么：主代理派的 Claude 独立审查代理审 PR #126 的 9a02793（范围 stage..9a02793），按 CODE-REVIEW 与 code-review 技能逐项核对，另用 jsdom 复现编辑器渲染；本条补记于第二轮之后，时间以标题为准
+- 结果：有条件通过。应修 4 条：ReplyComposer 的引用和版主编辑把别人的原文直接交给 TxMarkdownEditor，编辑器按 DOMPurify 默认配置渲染到留在 DOM 里的层，游客的 <style>body{display:none}</style> 能藏掉整页；不带请求体的写接口不发 Content-Type 没有测试；9a02793 标题写笔记，实际还改了 site-notice、测试、forum-server、USAGE 和 README；docs/ops/LOCAL-PREVIEW.md:16 的说法要改（归 #116，本分支不动）。建议 7 条：parseMe 抽成纯函数并测 console_link、429 提示只弹一次并测退避、/state 加 10 秒超时、写操作 401 后重读状态、README titles.ts 遗留限于示例与快照、个人主页网站过 websiteProblem、资料页昵称没改就不发
+
+## 19:55:13 +08:00 · 审查 · #107 · 第二轮独立审查（19:52，审 92a9f6c）：有条件通过，无应修，4 条建议
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理，代记独立审查代理的结论）
+- 做了什么：Claude 独立审查代理审 92a9f6c（含第一轮返工 dcc8718..f57652e、合并 stage 的 d2d90e3 与昵称返工 6613a9e），jsdom 跑 34 个载荷过编辑器，另做调用点变异测试
+- 结果：有条件通过，条件是补上两轮审查记录（PR 上 branch-guard 与 verify 报「链路里还没有引用 #107 的「审查」记录」）。建议 4 条：toEditor 只转义 <，实体写的 HTML 经所见即所得来回一趟会变回真标签（编辑漏 1 个、引用漏 3 个）；fromEditor 把作者自己写的 U+2060 也删了；修复只在辅助函数层有测试，组件调用点 10 个变异里 8 个存活，要抽 editDraft/quoteDraft 并测；游客昵称旁也写可用字符，README「含看不见的字符」改成「昵称里有服务端不收的字符」
