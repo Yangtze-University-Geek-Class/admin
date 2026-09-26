@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-09-25 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-09-26 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -16,7 +16,7 @@
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`） |
 | `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框和称号列表 `TitleList`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`）、能力门 `CapabilityGate`、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
-| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`statuses`、`format`、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
+| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`statuses`、`format`、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/mock/` | 开发预览样板数据（全部虚构），只在 DEV 且数据源为 mock 时动态导入，生产构建不含 |
 | `src/styles/theme.css`、`layout.css` | 主题令牌覆盖与页面版式（见「设计令牌」） |
 | `scripts/tuffex-icon-classes.mjs` | 扫描已安装 Tuffex 的 dist，给 UnoCSS 列出组件自带的 `i-carbon-*` 图标类（做法同论坛） |
@@ -53,7 +53,7 @@
 
 ## 状态
 
-每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。登录没成功时核心服务把人送回原来的控制台地址并带 `?signin=<原因>`；`ConsoleRoot.vue` 把 `signin` 从 `return_to` 里拿掉、单独传给 `/signin`，再次登录成功后不会带着旧原因回去。已登录但没有任何能力显示乘客说明。
+每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。用到一半登录失效（#133，会话到期、别处退出）时同样处理：`lib/http.ts` 的 `api()` 拿到任何 401（`/auth/signout` 除外）就调 `lib/session.ts` 注册的处理，清掉本地身份、把这个 401 记成 `meError`，`ConsoleRoot.vue` 于是带着当前地址跳 `/signin`；读写哪一种都一样，不再停在只有「重试」的「登录已失效」上。万一某处仍显示「登录已失效」，`ErrorPanel` 给的是「重新登录」（登录后回到当前页），不是「重试」。403、5xx 和网络错误不算退出。GitHub 上游返回的 401（`upstream_rejected`，服务端提示「GitHub 授权已失效，请重新登录」，见 [API](../../architecture/API.md) 的上游错误映射）也按退出处理，重新登录会换一个新的 GitHub 授权。登录没成功时核心服务把人送回原来的控制台地址并带 `?signin=<原因>`；`ConsoleRoot.vue` 把 `signin` 从 `return_to` 里拿掉、单独传给 `/signin`，再次登录成功后不会带着旧原因回去。已登录但没有任何能力显示乘客说明。
 
 登录页（`SignIn.vue`）写「只对极客班 GitHub 组织的成员开放。能看到哪些页面、做哪些操作，取决于你的称号。」，按 `signin` 参数在按钮上方显示一条不可关闭的 TxAlert，未知取值不显示：
 
@@ -64,7 +64,7 @@
 | `cancelled` | info | 已取消登录 | — |
 | `failed` | warning | 登录没有完成 | 请稍后再试一次。 |
 
-`?signed_out=1` 另显示「你已退出登录」。写操作失败用 TxAlert 内联提示，保留已填内容；危险操作一律先确认（初始焦点在「取消」）。
+`?signed_out=1` 另显示「你已退出登录」。写操作失败用 TxAlert 内联提示，保留已填内容；401 例外，会直接跳去登录，没保存的内容不保留；危险操作一律先确认（初始焦点在「取消」）。
 
 ## 构建与托管
 
@@ -98,7 +98,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、与服务端清单同步
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、与服务端清单同步
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

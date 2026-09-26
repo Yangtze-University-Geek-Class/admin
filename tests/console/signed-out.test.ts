@@ -1,0 +1,105 @@
+// 控制台用到一半登录失效（#133）：任何接口拿到 401 都要当成「已退出」，清掉本地身份，
+// 让 ConsoleRoot 按首次加载那条路跳 /signin?return_to=；403、5xx、网络错误不算退出。
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describeError, errorAction } from "../../app/console/src/lib/errors";
+import { ApiError, api } from "../../app/console/src/lib/http";
+import { clearSession, loadMe, useSession } from "../../app/console/src/lib/session";
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const ME = { login: "xu", avatar_url: null, org: "Org", titles: [], title: "admin", capabilities: ["feedback.read"], blocked: [], github_role: "admin" };
+
+/** 先让 /api/console/me 登录成功，之后的请求按 `next` 返回 */
+function server(next: () => Response) {
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => (String(path).endsWith("/api/console/me") ? json(200, ME) : next())));
+}
+
+beforeEach(() => clearSession());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearSession();
+});
+
+describe("接口拿到 401 时登录态失效", () => {
+  it("清掉当前身份，把 401 交给 meError：ConsoleRoot 据此跳 /signin", async () => {
+    server(() => json(401, { error: "not_signed_in", message: "请先登录" }));
+    await loadMe();
+    const { me, meError } = useSession();
+    expect(me.value?.login).toBe("xu");
+
+    await expect(api("/api/console/feedback")).rejects.toMatchObject({ status: 401 });
+    expect(me.value).toBeNull();
+    expect(meError.value).toBeInstanceOf(ApiError);
+    expect((meError.value as ApiError).status).toBe(401);
+  });
+
+  it("几个请求先后拿到 401 只处理最先到的那个：身份与称号清单一起清掉，后到的 401 不再改动 meError", async () => {
+    // 身份带 console.access，loadMe 会顺带读 catalogue；其余请求挂起，由测试决定谁的 401 先到。
+    const waiting: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((path: string) => {
+      if (String(path).endsWith("/api/console/me")) return Promise.resolve(json(200, { ...ME, capabilities: ["console.access", "feedback.read"] }));
+      if (String(path).endsWith("/api/console/catalogue")) return Promise.resolve(json(200, { titles: [], capabilities: [] }));
+      return new Promise<Response>(resolve => waiting.push(resolve));
+    }));
+    await loadMe();
+    const { me, meError, catalogue } = useSession();
+    expect(catalogue.value).not.toBeNull();
+
+    const calls = [api("/api/console/feedback"), api("/api/console/summary"), api("/api/console/feedback/1", { method: "PATCH", body: "{}" })];
+    expect(waiting).toHaveLength(3);
+    const settled = calls.map(call => call.then(() => null, (error: unknown) => error));
+    for (const index of [1, 0, 2]) {
+      waiting[index](json(401, { error: "session_expired" }));
+      await settled[index];
+    }
+    const errors = await Promise.all(settled);
+    expect(errors.every(error => error instanceof ApiError && error.status === 401)).toBe(true);
+    expect(meError.value).toBe(errors[1]);
+    expect(me.value).toBeNull();
+    expect(catalogue.value).toBeNull();
+  });
+
+  it("写请求拿到 401 同样算退出", async () => {
+    server(() => json(401, { error: "not_signed_in" }));
+    await loadMe();
+    await expect(api("/api/console/feedback/1", { method: "PATCH", body: "{}" })).rejects.toMatchObject({ status: 401 });
+    expect(useSession().me.value).toBeNull();
+  });
+
+  it("403、500 与网络错误不算退出：身份保留，页面照常显示错误和重试", async () => {
+    for (const make of [() => json(403, { error: "missing_capability" }), () => json(500, { error: "internal_error" })]) {
+      server(make);
+      await loadMe(true);
+      await expect(api("/api/console/feedback")).rejects.toBeInstanceOf(ApiError);
+      expect(useSession().me.value?.login).toBe("xu");
+      expect(useSession().meError.value).toBeNull();
+    }
+    server(() => { throw new TypeError("Failed to fetch"); });
+    await loadMe(true);
+    await expect(api("/api/console/feedback")).rejects.toBeInstanceOf(TypeError);
+    expect(useSession().me.value?.login).toBe("xu");
+  });
+
+  it("退出登录的请求本身拿到 401 不重复处理（退出流程自己会清身份并跳转）", async () => {
+    server(() => json(401, { error: "not_signed_in" }));
+    await loadMe();
+    await expect(api("/auth/signout", { method: "POST" })).rejects.toMatchObject({ status: 401 });
+    expect(useSession().meError.value).toBeNull();
+  });
+});
+
+describe("错误卡片的主按钮", () => {
+  const view = (error: unknown) => describeError(error);
+
+  it("登录已失效给「重新登录」，给了重试也不给「重试」（重试只会再拿到 401）", () => {
+    const signedOut = new ApiError(401, "session_expired", "x");
+    expect(errorAction(view(signedOut), true)).toEqual({ kind: "signin", label: "重新登录", variant: "primary" });
+    expect(errorAction(view(signedOut), false)?.kind).toBe("signin");
+  });
+
+  it("5xx 和网络错误照旧给「重试」，没传重试就不给按钮", () => {
+    for (const error of [new ApiError(500, "internal_error", "x"), new ApiError(502, "request_failed", "x"), new TypeError("Failed to fetch")]) {
+      expect(errorAction(view(error), true)).toEqual({ kind: "retry", label: "重试", variant: "secondary" });
+      expect(errorAction(view(error), false)).toBeNull();
+    }
+  });
+});

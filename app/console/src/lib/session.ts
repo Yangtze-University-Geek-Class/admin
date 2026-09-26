@@ -1,6 +1,6 @@
 // 当前登录者与能力清单。`can` 只决定显示什么；真正的授权在服务端。
 import { computed, reactive } from "vue";
-import { api } from "./http";
+import { ApiError, api, onSignedOut } from "./http";
 import type { BlockReason, Capability, Catalogue, ConsoleMe } from "./types";
 
 const state = reactive({
@@ -55,6 +55,19 @@ export function clearSession() {
   state.catalogue = null;
   state.catalogueFailed = false;
 }
+
+/**
+ * 任何接口返回 401 都算登录已失效（#133）：清掉身份，把这个 401 当作身份读取失败交给 meError。
+ * ConsoleRoot 监听的就是 meError 的 401，会带着当前地址跳 /signin，登录后回到原页面。
+ */
+function signedOut(error: ApiError) {
+  if (state.meError instanceof ApiError && state.meError.status === 401) return;
+  state.me = null;
+  state.catalogue = null;
+  state.catalogueFailed = false;
+  state.meError = error;
+}
+onSignedOut(signedOut);
 
 export function useSession() {
   const me = computed(() => state.me);
