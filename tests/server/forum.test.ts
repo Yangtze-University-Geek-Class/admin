@@ -500,6 +500,23 @@ describe('replies', () => {
     expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_rate_events WHERE bucket = 'guestPostSite'").get()).toEqual({ n: 0 });
   });
 
+  it('counts every guest attempt that passes proof of work once, so a failed human check does not tell taken and free names apart', async () => {
+    const s = await setup();
+    const { turnstile } = s.app.services;
+    turnstile.verifyTurnstile = async () => false;
+    const send = (name: string, remoteAddress = '203.0.113.95') => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '探测', name), remoteAddress });
+    const errors: string[] = [];
+    for (let i = 0; i < 6; i += 1) errors.push((await send(i % 2 ? '极客班' : `路人${i}`)).json().error);
+    expect(errors).toEqual(['turnstile_failed', 'guest_name_taken', 'turnstile_failed', 'guest_name_taken', 'turnstile_failed', 'rate_limited']);
+    const count = (bucket: string, subject: string) => s.db.prepare('SELECT COUNT(*) AS n FROM forum_rate_events WHERE bucket = ? AND subject = ?').get(bucket, subject);
+    expect(count('guestPost', '203.0.113.95')).toEqual({ n: 5 });
+    // 发出去的回复只记一次这个 IP；全站计数只记真正发出的回复。
+    turnstile.verifyTurnstile = async () => true;
+    expect((await send('路人', '203.0.113.96')).statusCode).toBe(201);
+    expect(count('guestPost', '203.0.113.96')).toEqual({ n: 1 });
+    expect(count('guestPostSite', 'site')).toEqual({ n: 1 });
+  });
+
   it('treats lookalike letters as the same when comparing names', async () => {
     const s = await setup();
     await s.state('alice');
