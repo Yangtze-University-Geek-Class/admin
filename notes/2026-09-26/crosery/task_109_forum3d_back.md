@@ -37,3 +37,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：reset() 末尾改为 stage.poke()（自转和浮动像进场一样再动一会儿）；tests/e2e 新增一例：论坛地址回 204 让导航取消、页面停在转场最后一帧，派发 pageshow persisted 后断言遮罩回 0、__yugcStage 的 basePos 与 baseOffset 回到进场取景、再点另一个版块会重新推近；补「PR」「审查」记录
 - 结果：新 e2e 通过；去掉 reset 里的 opening = null 或 stage.resize() 各自失败；playwright 全部 15 passed；vitest tests/web 99 passed；tsc 通过；提交 10417f1
+
+## 16:06:37 +08:00 · 审查 · #109 · 第二轮独立审查：有条件通过（条件是 CI 通过）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 13ec93e（范围 6ceb093..13ec93e），back/forward 用例连跑 3 次，删 reset 里的 opening = null 做变异
+- 结果：第一轮三条都已处理，无应修；两条建议：e2e 整例默认 30 秒不够内部等待（建议 test.setTimeout）、1280×720 横屏下 baseOffset 恒为 0 竖屏取景没覆盖；条件：必需 CI 在最终 head 全绿、补审查记录
+
+## 16:06:37 +08:00 · 开发 · #109 · 在 ego 里补验竖屏后退复位，不改 e2e
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 16:02 要求 e2e 都在 ego 里跑并及时释放（本机 Playwright 整套跑时被杀、会话重启），所以没有在 spec 里加竖屏变体。本机 vite 5192 + ego-browser 390×844（mobile，DPR 2）：点「班级公告」到 3456 的 /c/announcements，Page.navigateToHistoryEntry 后退；TaskSpace 147 用完即 finish，vite 按 PID 停掉
+- 结果：竖屏进场 basePos (1.7, 6.1016, 14.8048)、baseOffset (0, 0.1032)，后退后逐项相同，遮罩 0，画面回到气泡环（截图已存本机）；e2e 用例保持只测横屏，PR 正文写明
