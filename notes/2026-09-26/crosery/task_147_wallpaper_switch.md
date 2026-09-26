@@ -37,3 +37,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：ego（TaskSpace 218）在本机生产构建 localhost:5192 上限速约 200kbps、页面级禁用缓存，逐帧录下桌面 1440×900 与手机 390×844 的换壁纸过程，拼成两张逐帧图，经 issue #147 评论框上传拿到 user-attachments 地址后清空评论框、没有发出；模拟减少动态效果核对淡入 0.36s、旧层在 animationend 之后才卸。用完 finish({keep:[]})，按 PID 停掉 5192/5193/5194 三个静态服务。推送分支，gh pr create --base stage 开 PR #152（Closes #147），pr-contract check 通过。
 - 结果：桌面：32ms 新层出现，695ms animationend，697ms 卸旧层，10023ms 大图清晰；手机：135ms 新层，833ms animationend，880ms 卸旧层，10138ms 大图清晰；减少动态效果：440ms animationend，451ms 卸旧层。PR #152 已开，等 CI 与独立审查，不合并
+
+## 23:43:39 +08:00 · 审查 · #147 · 独立审查 PR #152：通过，可以合并
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：逐项读 origin/stage...0ee0bd0：Wallpaper.tsx 改成一张壁纸一层、新层按自己的 animationend 卸下面的层（只认 target === currentTarget）、大图 transitionend 后卸模糊缩略图；lib/wallpapers.ts 的 revealClipFrom、共用下载 loadWallpaperImage（同一地址只下一次，失败不记住）、空闲预取与省流量/2G 判断；YugcOs 传点的缩略图位置；Home.tsx 开机预载改走共用下载；os.css 的 reveal/fade 动画与减少动态效果下的时长豁免；两份单测与 portal.md「壁纸」一节
+- 结果：通过。点下去同一次渲染就有新层，连点停在最后一张，减少动态效果走淡入，下载失败停在占位不闪回，符合 #147。剩余风险：一层的动画被取消（animationcancel，如中途被隐藏）时下面的旧层会留着，下一次换壁纸会一起卸掉，只多占一层合成；PR 里记的大图在首帧前解码完时模糊缩略图留在下面，同样只是多一层；全屏 blur(14px) 在低端手机上展开时的帧率没测。#146 换 CDN 会改 lib/wallpapers.ts 里的地址，合并顺序先 #152 后 #146。未验证：真实前台浏览器的帧率、Safari/iOS/微信、真机、预发布环境，等下一个 rc 在 ego 里验收
+- 下一步：CI 通过后合并，确认 #147 关闭、远程分支和本地工作区清掉；告诉 #146 基于新的 stage 变基
