@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：ego 限速验收发现：旧层按固定 640ms/360ms 计时卸，动画在限帧的浏览器里晚开始时新层还没盖住就卸了（减少动态效果时 602ms 新层 opacity 还是 0，旧壁纸已没了）；另外 styles/portal.css 在减少动态效果时把 .pt-root * 的动画和过渡压成 .01ms，淡入根本看不到。Wallpaper.tsx 改成这一层自己的 animationend（target === currentTarget）才卸下面的层，大图淡入的 transitionend 才卸模糊缩略图，删掉两个计时 effect；os.css 在减少动态效果时用两个类的选择器保留整层淡入与清晰过来的时长。测试改成发 animationEnd/transitionEnd，并把时钟拨 5 秒确认不按计时卸；portal-wallpapers.test.ts 核对 CSS 豁免；portal.md「壁纸」同步。
 - 结果：vitest 两个壁纸文件 18 条通过；pnpm check 通过；pnpm test 52 个文件 700 条通过；变异检查 16 个（新增按计时卸旧层、冒上来的事件也算、按计时卸缩略图、大图一到就撤缩略图、淡入被压成 .01ms、豁免选择器不够具体）全部被拦下
+
+## 23:37:16 +08:00 · PR · #147 · 推送 task/147/wallpaper_switch 并开 PR #152 到 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：ego（TaskSpace 218）在本机生产构建 localhost:5192 上限速约 200kbps、页面级禁用缓存，逐帧录下桌面 1440×900 与手机 390×844 的换壁纸过程，拼成两张逐帧图，经 issue #147 评论框上传拿到 user-attachments 地址后清空评论框、没有发出；模拟减少动态效果核对淡入 0.36s、旧层在 animationend 之后才卸。用完 finish({keep:[]})，按 PID 停掉 5192/5193/5194 三个静态服务。推送分支，gh pr create --base stage 开 PR #152（Closes #147），pr-contract check 通过。
+- 结果：桌面：32ms 新层出现，695ms animationend，697ms 卸旧层，10023ms 大图清晰；手机：135ms 新层，833ms animationend，880ms 卸旧层，10138ms 大图清晰；减少动态效果：440ms animationend，451ms 卸旧层。PR #152 已开，等 CI 与独立审查，不合并
