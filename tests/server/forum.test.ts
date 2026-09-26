@@ -452,6 +452,36 @@ describe('replies', () => {
     expect((await send('极客班的同学')).statusCode).toBe(201);
   });
 
+  it('stores names in their NFKC form, and ignores spaces and separators when comparing them', async () => {
+    const s = await setup();
+    await s.state('carol');
+    let ip = 150;
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: `203.0.113.${ip++}` });
+    const rename = (displayName: string, who = 'bob') => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
+    // 不换行空格、半角空格 U+2002、全角空格在 NFKC 之后都是普通空格：比较时不算区别，存下来也不会显示得像「极客班」。
+    for (const name of ['极\u00A0客班', '极\u2002客班', '极\u3000客班', '极客班.', '极-客班']) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json().error, JSON.stringify(name)).toBe('guest_name_taken');
+    }
+    for (const name of ['极\u00A0客班', 'Car\u00A0ol', 'c.a.r.o.l']) {
+      expect((await rename(name)).json().error, JSON.stringify(name)).toBe('display_name_taken');
+    }
+    expect((await rename('阿\u00B7凡提', 'carol')).statusCode).toBe(200);
+    expect((await send('阿\u30FB凡提')).json().error).toBe('guest_name_taken');
+
+    // 存的是 NFKC 之后、去掉首尾空白的写法。
+    const guest = await send('\uFF37\uFF41\uFF4E\uFF47\u3000\uFF38\uFF49\uFF41\uFF4F\u3000');
+    expect(guest.statusCode).toBe(201);
+    const guestId = guest.json().state.posts.find((p: { id: string }) => p.id === guest.json().postId).authorId;
+    expect((await rename('\u3000张\u00A0三')).statusCode).toBe(200);
+    expect(s.db.prepare('SELECT id, display_name FROM forum_users WHERE id IN (?, ?) ORDER BY id').all(guestId, 'm102'))
+      .toEqual([{ id: guestId, display_name: 'Wang Xiao' }, { id: 'm102', display_name: '张 三' }]);
+    // 长度按存下来的写法算：㍿ 在 NFKC 之后是「株式会社」四个字。
+    expect((await send('\u337F'.repeat(6))).json()).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称' });
+    expect((await rename('\u337F'.repeat(8))).json()).toMatchObject({ error: 'invalid_display_name', message: '昵称要 1 到 30 个字' });
+  });
+
   it('keeps guests and members from taking the login of an org member who never opened the forum', async () => {
     const s = await setup();
     // dave（队长）、erin（领航员）、zed（后来指派的舰员）只在控制台的称号指派里；owner1 登录过（审计里有 auth.signin），
@@ -906,9 +936,11 @@ describe('rules', () => {
   it('compares names after NFKC, without case or accents', () => {
     expect(nameKey('\uFF27\uFF45\uFF45\uFF4B\uFF23\uFF4C\uFF41\uFF53\uFF53')).toBe('geekclass');
     expect(nameKey('  B\u00F3b  ')).toBe('bob');
-    expect(nameKey('L\u01DA  Xi\u01CEom\u00EDng')).toBe('lu xiaoming');
+    expect(nameKey('L\u01DA  Xi\u01CEom\u00EDng')).toBe('luxiaoming');
     expect(nameKey('がくせい')).toBe('かくせい');
     expect(nameKey('김민수')).toBe('김민수');
-    expect(nameKey('极客\u3000 班')).toBe('极客 班');
+    // 空白和 - _ . · ・ ' 都不算区别。
+    expect(nameKey('极客\u3000 班')).toBe('极客班');
+    expect(['极\u00A0客班', '极客班.', "极-客_班'", '阿\u30FB凡提', '阿\u00B7凡提'].map(nameKey)).toEqual(['极客班', '极客班', '极客班', '阿凡提', '阿凡提']);
   });
 });

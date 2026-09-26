@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { FORUM_LIMITS, ForumError, GUEST_POST_SITE_SUBJECT, NAME_RULE_MESSAGE, ipSubject, isAllowedName } from "../../lib/forum-rules.js";
+import { FORUM_LIMITS, ForumError, GUEST_POST_SITE_SUBJECT, NAME_RULE_MESSAGE, ipSubject, isAllowedName, normalizeName } from "../../lib/forum-rules.js";
 import { can, forbidden, forumState, forumViewer, guestRepliesPaused, notFound, rateLimited, requireMember, type MemberViewer } from "./viewer.js";
 
 type PostParams = { post_id: string };
@@ -51,7 +51,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
 
     if (!publicSubmission.checkHoneypot(req.body)) throw new ForumError(400, "request_rejected", "请求被拒绝");
     if (content.length > FORUM_LIMITS.guestContentMax) throw new ForumError(400, "content_too_long", `游客回复最多 ${FORUM_LIMITS.guestContentMax} 个字，登录后可以写更长`);
-    const name = req.body.guest?.name.trim() ?? "";
+    const name = normalizeName(req.body.guest?.name ?? "");
     if (!name || name.length > FORUM_LIMITS.guestNameMax) throw new ForumError(400, "invalid_guest_name", `游客要填 1 到 ${FORUM_LIMITS.guestNameMax} 个字的昵称`);
     if (!isAllowedName(name)) throw new ForumError(400, "invalid_guest_name", NAME_RULE_MESSAGE);
     if (forum.guestNameTaken(name)) throw new ForumError(400, "guest_name_taken", "这个昵称是成员在用的，换一个吧");

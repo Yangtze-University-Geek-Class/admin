@@ -95,6 +95,14 @@ const NAME_PATTERN = /^(?:[A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F\u01C
 const NAME_SEPARATORS = /^[ \-_.\u00B7\u30FB'\u30FC]+$/u;
 export const NAME_RULE_MESSAGE = "昵称只能用汉字、字母、假名、韩文、数字、空格和 - _ . · ・ ' 这几个符号，空格不能连着用";
 
+/**
+ * 存进库里的昵称：NFKC 之后去掉首尾空白。校验和存的是同一个字符串；不这样的话，不换行空格、全角空格这类
+ * NFKC 之后才变成普通空格的字符会原样存下来，显示得像没有空格。
+ */
+export function normalizeName(value: string): string {
+  return value.normalize("NFKC").trim();
+}
+
 export function isAllowedName(value: string): boolean {
   const name = value.normalize("NFKC");
   return NAME_PATTERN.test(name) && !NAME_SEPARATORS.test(name) && !/^ | $| {2}/.test(name);
@@ -102,11 +110,11 @@ export function isAllowedName(value: string): boolean {
 
 /**
  * 判断两个名字算不算同一个：NFKC（全角、兼容字形变成普通写法）、不分大小写、去掉附加符号（é 和 e、が 和 か 算同一个），
- * 连续空白算一个。只用来比较，存的仍是用户填的原文。
+ * 再去掉所有空白和 - _ . · ・ '（「极 客班」「极客班.」和「极客班」、「阿・凡提」和「阿·凡提」算同一个）。只用来比较。
  */
 export function nameKey(value: string): string {
   return value.normalize("NFKC").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC")
-    .replace(/\s+/gu, " ").trim();
+    .replace(/[\s\-_.\u00B7\u30FB']/gu, "");
 }
 
 /**

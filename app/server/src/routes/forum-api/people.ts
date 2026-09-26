@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
-import { FORUM_LIMITS, ForumError, NAME_RULE_MESSAGE, hasControlChars, hasControlCharsMultiline, isAllowedName, isAllowedWebsite } from "../../lib/forum-rules.js";
+import { FORUM_LIMITS, ForumError, NAME_RULE_MESSAGE, hasControlChars, hasControlCharsMultiline, isAllowedName, isAllowedWebsite, normalizeName } from "../../lib/forum-rules.js";
 import type { ProfilePatch } from "../../lib/forum-store.js";
 import { forumState, notFound, rateLimited, requireMember } from "./viewer.js";
 
@@ -34,12 +34,14 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
     const viewer = await requireMember(req);
     const patch: ProfilePatch = { ...req.body };
     if (patch.displayName !== undefined) {
-      patch.displayName = patch.displayName.trim();
+      // 存的是校验过的写法：NFKC 之后去掉首尾空白。
+      patch.displayName = normalizeName(patch.displayName);
       // 昵称没改就不查也不写：早先存下、不合现在规则的昵称不该挡住改签名、网站这些别的字段。
-      if (patch.displayName === forum.user(viewer.userId)?.displayName.trim()) delete patch.displayName;
+      const current = forum.user(viewer.userId)?.displayName;
+      if (current !== undefined && patch.displayName === normalizeName(current)) delete patch.displayName;
     }
     if (patch.displayName !== undefined) {
-      if (!patch.displayName) throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字`);
+      if (!patch.displayName || patch.displayName.length > FORUM_LIMITS.displayNameMax) throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字`);
       if (!isAllowedName(patch.displayName)) throw new ForumError(400, "invalid_display_name", NAME_RULE_MESSAGE);
       if (forum.displayNameTaken(patch.displayName, viewer)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");
     }
