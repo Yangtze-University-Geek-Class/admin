@@ -1,6 +1,6 @@
-# task/121/windows_paths · crosery · 2026-09-26
+# task/121/windows_paths · lysnowq · 2026-09-26
 
-负责人：crosery
+负责人：lysnowq
 
 ## 17:02:59 +08:00 · 开工 · #121 · 从 origin/stage 28122511456d 建 task/121/windows_paths
 
