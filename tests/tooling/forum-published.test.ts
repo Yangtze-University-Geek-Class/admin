@@ -111,6 +111,12 @@ describe("publishedProblems", () => {
     expect(publishedProblems("下载地址：https://pan.example.com/x 密码:abcd")).toEqual(["有写出来的密码或提取码"]);
     expect(publishedProblems("```markdown\n![描述](图片的链接)\n```\n写成 `![描述](图片的链接)`\n<img src=\"https://s.example.com/a.png\">")).toEqual([]);
   });
+
+  it("API 密钥和令牌写在代码块里也报出来（复制就能用）；环境变量占位和短字符串不算", () => {
+    expect(publishedProblems("**API Key**：\n\n```text\nsk-Fict1onalKeyForTests0000000000\n```")).toEqual(["有写出来的 API 密钥或令牌"]);
+    expect(publishedProblems("令牌 ghp_" + "a".repeat(36))).toEqual(["有写出来的 API 密钥或令牌"]);
+    expect(publishedProblems("```json\n\"apiKey\": \"${DAFEIYU_API_KEY}\"\n```\n填 `MODEL_ID_FROM_LIST`，别填 sk-short")).toEqual([]);
+  });
 });
 
 describe("cleanUrl", () => {

@@ -42,7 +42,9 @@ const columns: DataTableColumn<DirectoryRow>[] = [
 
 const rows = computed<DirectoryRow[]>(() => {
   const needle = query.value.trim().toLowerCase()
+  // A guest of 极客班论坛 is one nickname on one reply, not a member of the directory.
   return forum.state.users
+    .filter(user => user.kind !== 'guest')
     .filter(user => !needle || user.username.toLowerCase().includes(needle) || user.displayName.toLowerCase().includes(needle))
     .map((user) => {
       const stats = forum.statsOfUser(user.id)
@@ -117,7 +119,7 @@ function open(user: User) {
       v-else-if="!forum.state.users.length"
       variant="no-data"
       title="还没有用户"
-      description="成员列表还没接入。"
+      description="成员登录过论坛后会出现在这里。"
     />
 
     <TxEmptyState

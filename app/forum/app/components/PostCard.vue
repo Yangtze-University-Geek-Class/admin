@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
+import { editDraft, fromEditor } from '../../shared/post-markdown'
 
 /**
  * One post in Discourse's stream: avatar on the left, and on the right the
@@ -27,7 +28,8 @@ const emit = defineEmits<{
 }>()
 
 const forum = useForumStore()
-const { user, can } = useCurrentUser()
+const actions = useForumActions()
+const { user, can, guestCanReply } = useCurrentUser()
 const { loginOpen } = useShell()
 const { fromNow, formatAbsolute } = useRelativeTime()
 const { href, absoluteUrl } = useAppLink()
@@ -43,7 +45,8 @@ const canEdit = computed(() => !props.post.deleted && can('editPost', { post: pr
 // The store refuses to delete the post that carries the topic, so that one is
 // never offered rather than failing when picked.
 const canDelete = computed(() => canEdit.value && !forum.isFirstPost(props.post.id))
-const canReply = computed(() => !props.post.deleted && can('reply', { topic: props.topic }))
+// A guest (极客班论坛, not signed in) may answer a post too, under a nickname.
+const canReply = computed(() => !props.post.deleted && (can('reply', { topic: props.topic }) || guestCanReply(props.topic)))
 
 /** Absolute and under the app base, so the copied link survives being pasted anywhere. */
 const permalink = computed(() => absoluteUrl({ path: `/t/${props.topic.id}`, hash: `#post-${props.post.id}` }))
@@ -57,33 +60,45 @@ function like() {
     loginOpen.value = true
     return
   }
-  forum.toggleLike(props.post.id, current.id)
+  void actions.toggleLike(props.post.id, current.id)
 }
 
-function bookmark() {
+async function bookmark() {
   const current = user.value
   if (!current || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const added = forum.toggleBookmark(current.id, props.post.id)
-  toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
+  const added = await actions.toggleBookmark(current.id, props.post.id)
+  if (added !== null)
+    toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
+// Someone else's post can be in the editor (a moderator's edit): it goes in through `editDraft`, raw HTML shown as text.
 function startEdit() {
-  draft.value = props.post.content
+  draft.value = editDraft(props.post)
   editing.value = true
 }
 
-function saveEdit() {
-  if (!draft.value.trim() || !forum.editPost(props.post.id, draft.value))
+const saving = ref(false)
+
+async function saveEdit() {
+  if (!draft.value.trim() || saving.value)
     return
-  editing.value = false
-  toast({ title: '帖子已更新', variant: 'success' })
+  saving.value = true
+  try {
+    if (!await actions.editPost(props.post.id, fromEditor(draft.value)))
+      return
+    editing.value = false
+    toast({ title: '帖子已更新', variant: 'success' })
+  }
+  finally {
+    saving.value = false
+  }
 }
 
-function remove() {
-  if (!canDelete.value || !forum.deletePost(props.post.id))
+async function remove() {
+  if (!canDelete.value || !await actions.deletePost(props.post.id))
     return
   toast({ title: '帖子已删除' })
 }
@@ -114,6 +129,8 @@ function remove() {
             />
             <!-- The 极客班 title when there is one; the forum role badge otherwise. -->
             <TitleBadge v-if="author?.title" :title="author.title" />
+            <!-- 极客班论坛：没登录、用昵称回复的人；只写一个词说明身份，不做成徽章 -->
+            <span v-else-if="author?.kind === 'guest'" class="text-xs text-$tx-text-color-secondary">游客</span>
             <TxStatusBadge
               v-else-if="author && author.role !== 'member'"
               :text="roleLabel(author.role)"
@@ -152,16 +169,14 @@ function remove() {
               <TxButton variant="secondary" size="sm" @click="editing = false">
                 取消
               </TxButton>
-              <TxButton variant="primary" size="sm" :disabled="!draft.trim()" @click="saveEdit">
+              <TxButton variant="primary" size="sm" :loading="saving" :disabled="!draft.trim()" @click="saveEdit">
                 保存
               </TxButton>
             </TxFlex>
           </template>
 
           <template v-else>
-            <div class="overflow-x-auto max-w-full">
-              <TxMarkdownView :content="post.content" />
-            </div>
+            <ForumMarkdown :content="post.content" />
 
             <!--
               Two groups rather than one row split by `ml-auto`: this row wraps

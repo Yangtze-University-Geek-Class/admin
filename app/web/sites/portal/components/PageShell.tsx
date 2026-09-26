@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { appConfig } from "@shared/config";
+import { useAccount } from "../lib/account";
 import { RESUME_DESKTOP, links } from "../lib/links";
 import Icon from "./Icon";
 import "../styles/portal.css";
@@ -10,6 +11,9 @@ import "../styles/pages.css";
 
 export default function PageShell({ path, children }: { path: string; children: ReactNode }) {
   const { brand } = appConfig.portal;
+  // 控制台只给在里面能管点什么的人（/auth/me 的 console_link）；其他人的页脚里没有它。
+  const { account } = useAccount();
+  const consoleLink = account?.consoleLink === true;
   return (
     <div className="pt-root pt-page">
       <header className="pt-pagebar">
@@ -41,7 +45,7 @@ export default function PageShell({ path, children }: { path: string; children: 
           <Link to="/join-us">加入我们</Link>
           <a href={links.forumHome()}>论坛</a>
           <Link to="/docs">文档</Link>
-          <a href={links.console()}>控制台</a>
+          {consoleLink && <a href={links.console()}>控制台</a>}
           <a href={links.githubOrg()} target="_blank" rel="noreferrer">
             GitHub 组织
           </a>

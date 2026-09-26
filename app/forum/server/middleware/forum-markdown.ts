@@ -3,6 +3,7 @@ import type { ForumState } from '../../app/data/types'
 import type { MarkdownSite } from '../../shared/forum-markdown'
 import { createSeed } from '../../app/data/seed'
 import { forumLlmsTxt, topicMarkdown } from '../../shared/forum-markdown'
+import { siteMarkdownNotice } from '../../shared/site-notice'
 import { siteForumState } from '../../shared/site-state'
 import { loadLocalSnapshot, snapshotConfigured, snapshotHttpError } from '../utils/local-snapshot'
 
@@ -53,7 +54,7 @@ export default defineEventHandler(async (event) => {
 
 async function markdownSource(): Promise<{ state: ForumState, notice: string }> {
   if (useRuntimeConfig().public.contentSource === 'site')
-    return { state: siteForumState(), notice: '发帖和回复还没开放；旧论坛先放出了招新机试文档和入门资料，其余帖子暂时不显示。' }
+    return { state: siteForumState(), notice: siteMarkdownNotice() }
   if (import.meta.dev && snapshotConfigured()) {
     try {
       const { document } = await loadLocalSnapshot()

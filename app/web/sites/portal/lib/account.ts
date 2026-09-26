@@ -3,7 +3,11 @@
 // 同域读 /auth/me 就知道是谁；本机开发时 5173 把 /auth 代理给核心后端，127.0.0.1 上各端口共用这个 cookie。
 import { useCallback, useEffect, useState } from "react";
 
-export type Account = { login: string; avatarUrl: string | null };
+/**
+ * consoleLink 是 /auth/me 的 console_link：登录者在控制台里能管点什么（持有 console.access、github.org.read、feedback.read
+ * 之外的能力）。头像菜单只在它为 true 时放「控制台」；字段缺失当作 false。控制台自己的准入不变。
+ */
+export type Account = { login: string; avatarUrl: string | null; consoleLink: boolean };
 
 /** 登录后回到的地址：默认论坛首页（同域的 /forum/，本机开发时 5173 再转到论坛的 dev server） */
 export function signInHref(returnTo = `${window.location.origin}/forum/`): string {
@@ -11,9 +15,9 @@ export function signInHref(returnTo = `${window.location.origin}/forum/`): strin
 }
 
 export function parseMe(body: unknown): Account | null {
-  const me = body as { signed_in?: boolean; login?: unknown; avatar_url?: unknown } | null;
+  const me = body as { signed_in?: boolean; login?: unknown; avatar_url?: unknown; console_link?: unknown } | null;
   if (!me?.signed_in || typeof me.login !== "string" || !me.login) return null;
-  return { login: me.login, avatarUrl: typeof me.avatar_url === "string" ? me.avatar_url : null };
+  return { login: me.login, avatarUrl: typeof me.avatar_url === "string" ? me.avatar_url : null, consoleLink: me.console_link === true };
 }
 
 export function useAccount() {

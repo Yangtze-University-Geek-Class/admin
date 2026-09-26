@@ -1,6 +1,7 @@
 import portalRoutes from "./routes/portal/index.js";
 import adminRoutes from "./routes/admin/index.js";
 import consoleRoutes from "./routes/console/index.js";
+import forumRoutes from "./routes/forum-api/index.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -52,16 +53,19 @@ export async function buildApp(options: BuildAppOptions) {
   await app.register(portalRoutes);
   await app.register(adminRoutes);
   await app.register(consoleRoutes);
-  // Old forum APIs are retired, not silently mapped to a browser-only mock.
+  await app.register(forumRoutes);
+  // 旧论坛接口已退役，不映射成新接口：新论坛接口（routes/forum-api）注册的具体路径优先匹配，
+  // /api/forum 下其余的旧路径，以及 /auth/forum/*、/forum/u/*，一律 410。
   const retired = async (_req: unknown, reply: import("fastify").FastifyReply) => reply.code(410).send({
-    error: "legacy_forum_retired", message: "旧论坛接口已停用。新论坛采用 Tuff Forum，当前上游仅提供浏览器演示，不提供真实后端。",
+    error: "legacy_forum_retired", message: "旧论坛接口已停用。新论坛的接口见 /api/forum/state。",
   });
   for (const url of ["/api/forum", "/api/forum/*", "/auth/forum/*", "/forum/u/*"]) {
     app.route({ method: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], url, handler: retired });
   }
+  // 论坛页面由 forum 容器提供（web 容器按 /forum/ 反代）；只有直连核心服务才会走到这里。
   for (const url of ["/forum", "/forum/*"]) {
     app.get(url, async (_req, reply) => {
-      if (config.production) return reply.code(503).send({ error: "forum_service_not_ready", message: "新论坛的真实认证和持久化尚未接入，未对外开放。" });
+      if (config.production) return reply.code(503).send({ error: "forum_service_not_ready", message: "论坛页面由 forum 容器提供，核心服务不托管论坛页面。" });
       return reply.redirect("http://127.0.0.1:3456/");
     });
   }

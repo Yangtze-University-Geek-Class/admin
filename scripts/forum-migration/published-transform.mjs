@@ -185,8 +185,9 @@ export function applyRedactions(markdown, redactions, topicId) {
 
 /**
  * Leftovers that must never reach the published files: old asset routes and
- * paths, links back into the old archive, e-mail addresses and anything that
- * looks like a login written out in the text. Returns the problems found.
+ * paths, links back into the old archive, e-mail addresses, API keys and
+ * anything that looks like a login written out in the text, code blocks
+ * included. Returns the problems found.
  */
 export function publishedProblems(markdown) {
   const problems = []
@@ -209,5 +210,7 @@ export function publishedProblems(markdown) {
     problems.push('有写出来的账户')
   if (/(?:密码|提取码)\s*\**\s*[:：]\s*\w/.test(markdown))
     problems.push('有写出来的密码或提取码')
+  if (/\b(?:sk-[\w-]{20,}|gh[pousr]_\w{30,}|github_pat_\w{50,})/.test(markdown))
+    problems.push('有写出来的 API 密钥或令牌')
   return problems
 }

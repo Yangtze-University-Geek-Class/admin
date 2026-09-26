@@ -5,16 +5,25 @@ const REPO = 'Yangtze-University-Geek-Class/admin';
 const NAME = 'yzgc-images-preview-a1b2c3d4e5f6';
 const options = { repo: REPO, run: '42', name: NAME, dir: '/tmp/bundle', parts: 4 };
 
-/** 假的 GitHub API 与存储：artifact 内容是 payload，下载地址每取一次换一个；failFirst 里的段第一次返回 500。 */
-function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts, slowOthersMs = 0, ignoreAbort = false }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[]; slowOthersMs?: number; ignoreAbort?: boolean } = {}) {
+/**
+ * 假的 GitHub API 与存储：artifact 内容是 payload，下载地址每取一次换一个；failFirst 里的段第一次返回 500。
+ * stallFirst/stallAlways 里的段返回 206 头之后一个字节都不给（TCP 卡住），hangFirst 里的段第一次连响应头都不回；
+ * trickleMs 让其余段每隔这么久才给一个字节；listHangs 让 artifact 列表接口连响应头都不回。取消时都像真的 fetch 一样以 AbortError 结束。
+ * blobSignals 记下每次存储请求带的取消信号。
+ */
+function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts, slowOthersMs = 0, ignoreAbort = false, stallFirst = new Set<string>(), stallAlways = new Set<string>(), hangFirst = new Set<string>(), trickleMs = 0, listHangs = false }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[]; slowOthersMs?: number; ignoreAbort?: boolean; stallFirst?: Set<string>; stallAlways?: Set<string>; hangFirst?: Set<string>; trickleMs?: number; listHangs?: boolean } = {}) {
   const calls: string[] = [];
   let issued = 0;
   const failed = new Set<string>();
+  const stalled = new Set<string>();
+  const hung = new Set<string>();
+  const blobSignals: { range: string; signal?: AbortSignal }[] = [];
   const fetchImpl = async (url: string, init: { headers?: Record<string, string>; redirect?: string; signal?: AbortSignal } = {}) => {
     if (init.signal?.aborted) throw new DOMException('aborted', 'AbortError');
     calls.push(url);
     if (url.includes('/actions/runs/42/artifacts')) {
       expect(init.headers?.authorization).toBe('Bearer t0ken');
+      if (listHangs) return new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
       return Response.json({ artifacts: artifacts ?? [{ id: 7, name: NAME, size_in_bytes: size, expired: false }, { id: 8, name: 'other', size_in_bytes: 1, expired: false }] });
     }
     if (/\/actions\/artifacts\/(7|9)\/zip$/.test(url)) {
@@ -26,7 +35,17 @@ function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail
       expect(init.headers?.authorization).toBeUndefined();
       const range = init.headers?.range ?? '';
       const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range) ?? [];
+      blobSignals.push({ range, signal: init.signal });
       if (alwaysFail.has(range)) return new Response('boom', { status: 500 });
+      if (hangFirst.has(range) && !hung.has(range)) {
+        hung.add(range);
+        return new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
+      }
+      if (stallAlways.has(range) || (stallFirst.has(range) && !stalled.has(range))) {
+        stalled.add(range);
+        return new Response(body(new Uint8Array(0), Infinity, init.signal), { status: 206 });
+      }
+      if (trickleMs) return new Response(body(new Uint8Array(payload.subarray(Number(start), Number(end) + 1)), trickleMs, init.signal), { status: 206 });
       if (slowOthersMs) {
         // 其余段还在传输中：等一会儿，期间被取消就像真的 fetch 一样抛 AbortError
         await new Promise(resolve => setTimeout(resolve, slowOthersMs));
@@ -40,7 +59,33 @@ function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail
     }
     throw new Error(`unexpected ${url}`);
   };
-  return { fetchImpl, calls, issued: () => issued };
+  return { fetchImpl, calls, issued: () => issued, blobSignals };
+}
+
+/**
+ * 每 everyMs 给一个字节的响应体（everyMs 为 Infinity 时永远不给）；signal 取消时以 AbortError 出错。
+ * 这里用真实的短计时器：被测的是「多久没收到数据」，流、fetch 与计时器要按真实顺序交错。
+ */
+function body(bytes: Uint8Array, everyMs: number, signal?: AbortSignal) {
+  let offset = 0;
+  let stop = () => {};
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      signal?.addEventListener('abort', () => { stop(); controller.error(new DOMException('aborted', 'AbortError')); }, { once: true });
+    },
+    pull(controller) {
+      if (everyMs === Infinity) return new Promise<void>(() => {});
+      return new Promise<void>(resolve => {
+        const timer = setTimeout(() => {
+          controller.enqueue(bytes.subarray(offset, offset + 1));
+          offset += 1;
+          if (offset >= bytes.length) controller.close();
+          resolve();
+        }, everyMs);
+        stop = () => { clearTimeout(timer); resolve(); };
+      });
+    },
+  });
 }
 
 function deps(fetchImpl: unknown) {
@@ -94,6 +139,36 @@ describe('fetch-artifact', () => {
     expect(gh.issued()).toBe(5);
   });
 
+  it('leaves no idle timer behind once the download is done, so the process can exit right away', async () => {
+    const payload = Buffer.from('0123456789abcdefghij');
+    const gh = fakeGitHub(payload);
+    const { deps: d } = deps(gh.fetchImpl);
+    const timers = () => process.getActiveResourcesInfo().filter(kind => kind === 'Timeout').length;
+    const before = timers();
+    // idleMs 取得很大：留下的计时器在断言时一定还没到期
+    await fetchArtifact({ ...options, idleMs: 60_000 }, 't0ken', d);
+    expect(timers()).toBe(before);
+  });
+
+  it('drops the connection of an attempt that came back without 206 instead of leaving its body open', async () => {
+    const payload = Buffer.from('0123456789abcdefghij');
+    const gh = fakeGitHub(payload, { failFirst: new Set(['bytes=5-9']) });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    await fetchArtifact(options, 't0ken', d);
+    expect(file.bytes.equals(payload)).toBe(true);
+    const rejected = gh.blobSignals.find(call => call.range === 'bytes=5-9');
+    expect(rejected?.signal?.aborted).toBe(true);
+  });
+
+  it('gives up, naming the API path, when the artifact list request never answers', async () => {
+    const gh = fakeGitHub(Buffer.from('0123456789'), { listHangs: true });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    const started = Date.now();
+    await expect(fetchArtifact({ ...options, idleMs: 50 }, 't0ken', d)).rejects.toThrow(/\/actions\/runs\/42\/artifacts.*没响应/);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(file.unzipped).toBe(false);
+  }, 3000);
+
   it('fails without unzipping when a range comes back shorter than requested (the blob is smaller than the API says)', async () => {
     const gh = fakeGitHub(Buffer.from('0123456789'), { size: 12 });
     const { file, deps: d } = deps(gh.fetchImpl);
@@ -124,6 +199,41 @@ describe('fetch-artifact', () => {
     expect(file).toMatchObject({ closed: true, removed: true, unzipped: false, writesAfterClose: 0 });
   });
 
+  it('drops a range whose body stalls or whose headers never come, and retries it with a fresh download URL', async () => {
+    const payload = Buffer.from('0123456789abcdefghij');
+    const gh = fakeGitHub(payload, { stallFirst: new Set(['bytes=5-9']), hangFirst: new Set(['bytes=15-19']) });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    await fetchArtifact({ ...options, idleMs: 50 }, 't0ken', d);
+    expect(file.bytes.equals(payload)).toBe(true);
+    expect(file).toMatchObject({ closed: true, unzipped: true, removed: true });
+    // 4 段各取一次地址，卡住的两段各再取一次
+    expect(gh.issued()).toBe(6);
+  }, 3000);
+
+  it('gives up on a range that stalls on every attempt, naming it, and cancels the others instead of waiting for the job timeout', async () => {
+    const payload = Buffer.alloc(4000, 7);
+    // 其余三段每 20ms 才一个字节，要 20 秒传完：只有被取消才能在测试时限内结束
+    const gh = fakeGitHub(payload, { stallAlways: new Set(['bytes=0-999']), trickleMs: 20 });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    const started = Date.now();
+    await expect(fetchArtifact({ ...options, idleMs: 50 }, 't0ken', d)).rejects.toThrow(/0-999.*5 次.*没收到数据/);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(file.bytes.length).toBe(0);
+    expect(file).toMatchObject({ closed: true, unzipped: false, removed: true, writesAfterClose: 0 });
+  }, 3000);
+
+  it('keeps a slow but steady range: the timeout is for silence, not for the whole range', async () => {
+    // 每段 8 字节、每 25ms 一个字节：每段约 200ms，远超 idleMs 的 3 倍，但从没有 50ms 收不到数据
+    const payload = Buffer.from('0123456789abcdefghijklmnopqrstuv');
+    const gh = fakeGitHub(payload, { trickleMs: 25 });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    const started = Date.now();
+    await fetchArtifact({ ...options, idleMs: 50 }, 't0ken', d);
+    expect(Date.now() - started).toBeGreaterThan(150);
+    expect(file.bytes.equals(payload)).toBe(true);
+    expect(gh.issued()).toBe(4);
+  }, 3000);
+
   it('takes the newest artifact when a rerun left several with the same name, and fails when there is none', async () => {
     const payload = Buffer.from('0123456789');
     const twins = [{ id: 7, name: NAME, size_in_bytes: 10, expired: false }, { id: 9, name: NAME, size_in_bytes: 10, expired: false }, { id: 11, name: NAME, size_in_bytes: 10, expired: true }];
@@ -144,5 +254,8 @@ describe('fetch-artifact', () => {
     expect(() => parseArgs(['--repo', REPO, '--run', 'x', '--name', NAME, '--dir', '/tmp/b'])).toThrow(/运行 ID/);
     expect(() => parseArgs(['--repo', REPO, '--run', '42', '--name', NAME])).toThrow(/--dir/);
     expect(() => parseArgs(['--token', 'x'])).toThrow(/不认识/);
+    const base = ['--repo', REPO, '--run', '42', '--name', NAME, '--dir', '/tmp/b'];
+    expect(parseArgs([...base, '--idle-seconds', '90'])).toMatchObject({ idleMs: 90_000 });
+    for (const bad of ['0', '-5', '1.5', 'x', '601']) expect(() => parseArgs([...base, '--idle-seconds', bad])).toThrow(/--idle-seconds/);
   });
 });

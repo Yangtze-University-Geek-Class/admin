@@ -18,7 +18,8 @@ const BREADCRUMB_TITLE_LENGTH = 24
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
-const { can } = useCurrentUser()
+const actions = useForumActions()
+const { can, guestCanReply } = useCurrentUser()
 const { isDesktop } = useShell()
 
 const topicId = String(route.params.id)
@@ -108,32 +109,32 @@ function focusPost(postId: string) {
 }
 
 function openComposer(post?: Post) {
-  if (!topic.value || !can('reply', { topic: topic.value }))
+  if (!topic.value || !(can('reply', { topic: topic.value }) || guestCanReply(topic.value)))
     return
   replyTo.value = post
   composerOpen.value = true
 }
 
-async function onSubmitted(post: Post) {
+async function onSubmitted(postId: string) {
   await nextTick()
   replyTo.value = undefined
-  focusPost(post.id)
+  focusPost(postId)
 }
 
-function togglePinned() {
+// Read `pinned`/`closed` back from the store after the write: against the
+// server the whole state is replaced, and the old object no longer changes.
+async function togglePinned() {
   const current = topic.value
-  if (!current || !can('pinTopic', { topic: current }))
+  if (!current || !can('pinTopic', { topic: current }) || !await actions.setPinned(current.id, !current.pinned))
     return
-  forum.setPinned(current.id, !current.pinned)
-  toast({ title: current.pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
+  toast({ title: forum.topicById(topicId)?.pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
 }
 
-function toggleClosed() {
+async function toggleClosed() {
   const current = topic.value
-  if (!current || !can('closeTopic', { topic: current }))
+  if (!current || !can('closeTopic', { topic: current }) || !await actions.setClosed(current.id, !current.closed))
     return
-  forum.setClosed(current.id, !current.closed)
-  toast({ title: current.closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
+  toast({ title: forum.topicById(topicId)?.closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
 }
 
 // One view per topic per browser session, so re-reading a thread in the same
@@ -151,7 +152,7 @@ onMounted(() => {
   catch {
     // Storage disabled: count the view anyway rather than losing it.
   }
-  forum.incrementViews(current.id)
+  actions.recordView(current.id)
 })
 
 onBeforeUnmount(() => clearTimeout(flashTimer))

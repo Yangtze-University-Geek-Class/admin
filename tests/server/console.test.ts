@@ -153,6 +153,33 @@ describe('identity and capabilities', () => {
   });
 });
 
+describe('/auth/me console_link', () => {
+  it('shows the console link to managers only: 提督, 队长, crew with a department bundle', async () => {
+    const { app, as, assign } = await setup({ alice: 'admin', bob: 'member', carol: 'member', dave: 'member', erin: 'member' });
+    assign('carol', 'member', 'community');
+    assign('dave', 'head', 'projects');
+    assign('erin', 'alumni');
+    const me = async (login: string) => (await app.inject({ url: '/auth/me', headers: as(login) })).json();
+    expect(await me('alice')).toMatchObject({ signed_in: true, login: 'alice', user_id: 101, console_link: true });
+    expect((await me('carol')).console_link).toBe(true);
+    expect((await me('dave')).console_link).toBe(true);
+    // 普通舰员（console.access + github.org.read）、领航员（再加 feedback.read）、不在组织里的人都不显示。
+    expect((await me('bob')).console_link).toBe(false);
+    expect((await me('erin')).console_link).toBe(false);
+    expect((await me('frank')).console_link).toBe(false);
+    expect((await app.inject('/auth/me')).json()).toEqual({ signed_in: false });
+  });
+
+  it('stays signed in without the link when GitHub cannot be reached', async () => {
+    const failing = (() => ({ request: async () => { throw Object.assign(new Error('upstream down'), { status: 502 }); } })) as unknown as ServiceOverrides['octokitFactory'];
+    const broken = await testApp({ octokitFactory: failing }); contexts.push(broken);
+    const sid = broken.app.services.auth.createSession('alice', 101, null, 'token');
+    const response = await broken.app.inject({ url: '/auth/me', headers: { cookie: `sid=${sid}` } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ signed_in: true, login: 'alice', console_link: false });
+  });
+});
+
 describe('assignments', () => {
   it('rejects unknown fields and malformed bodies before persistence', async () => {
     const { app, as } = await setup({ alice: 'admin' });
