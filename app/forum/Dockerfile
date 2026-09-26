@@ -62,10 +62,15 @@ COPY app/forum/scripts/csp-header.mjs ./scripts/csp-header.mjs
 COPY deploy/nginx/production.conf /repo/deploy/nginx/production.conf
 # nuxt.config.ts 直接 import 环境身份契约（../../deploy/environments.json）。
 COPY deploy/environments.json /repo/deploy/environments.json
+# nuxt.config.ts 也 import 静态资源 CDN 开关的解析（../../scripts/static-cdn-base.mjs，#146）。
+COPY scripts/static-cdn-base.mjs /repo/scripts/static-cdn-base.mjs
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
+# 静态资源 CDN 开关（#146）：空 = 同源（默认）；非空只能是 scripts/static-cdn-base.mjs 里的地址，
+# nuxt.config.ts 据此设 app.cdnURL=<地址>forum/。只在构建阶段声明，运行阶段不继承。
+ARG STATIC_CDN_BASE=""
 
 # GEEK_FORUM_SOURCE=site：镜像是极客班论坛自己——站名「极客班论坛」、app/forum/content/curation.json
 # 里的分类和标签，加上 content/published 里公开的旧帖（去掉凭据后导出，只有首帖，作者是「极客班」）；
@@ -81,10 +86,15 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
     GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+    STATIC_CDN_BASE="$STATIC_CDN_BASE" \
     pnpm exec nuxt generate \
- # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。
- && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
+ # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。入口在开关打开时是 CDN 上的 <地址>forum/_nuxt/，
+ # 关掉时是站内的 /forum/_nuxt/。
+ && entry="${STATIC_CDN_BASE:+${STATIC_CDN_BASE}forum/_nuxt/}" \
+ && grep -q "\"#entry\":\"${entry:-/forum/_nuxt/}" .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
+ # 开关打开时，头部 logo（代码里写的 public 文件）要变成 _nuxt/ 下带哈希的文件，才会随产物一起上传 CDN。
+ && { test -z "$STATIC_CDN_BASE" || test -n "$(find .output/public/_nuxt -name 'logo.*.png' -print -quit)"; } \
  # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
  # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的现论坛帖子 t78、t84、t89（#108）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \

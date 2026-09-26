@@ -77,12 +77,18 @@ COPY app/console/package.json app/console/index.html app/console/tsconfig.json a
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
+# 静态资源 CDN 开关（#146）：空 = 同源（默认）；非空只能是 scripts/static-cdn-base.mjs 里的地址，
+# 两个 Vite 配置读它，值不对直接构建失败。只在构建阶段声明，运行阶段不继承。
+ARG STATIC_CDN_BASE=""
 
 # 前端产物与环境无关（app.config.json 不含域名），环境名只进下面的 release.json。
+# 入口页的脚本地址必须与开关一致：打开时指向 CDN 上的 assets/、console-assets/，关掉时是站内的 /assets/、/console-assets/。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
- && pnpm --filter @yzgc/web build \
- && pnpm --filter @yzgc/console build \
- && test -f app/console/dist/sites/console/index.html
+ && STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/web build \
+ && STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/console build \
+ && test -f app/console/dist/sites/console/index.html \
+ && grep -q "src=\"${STATIC_CDN_BASE:-/}assets/" app/web/dist/sites/portal/index.html \
+ && grep -q "src=\"${STATIC_CDN_BASE:-/}console-assets/" app/console/dist/sites/console/index.html
 
 # 发布身份元数据：静态文件，宿主 nginx 原样透传 /release.json。
 # 取值只来自构建参数；先按字符白名单校验再拼 JSON，避免构建参数破坏 JSON 结构。

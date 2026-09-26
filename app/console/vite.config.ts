@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import UnoCSS from "unocss/vite";
+import { staticCdnBase } from "../../scripts/static-cdn-base.mjs";
 
 /**
  * 产物布局与 app/web 的约定一致：入口页在 `sites/console/index.html`，带哈希的 JS/CSS 在
@@ -22,8 +23,17 @@ function emitEntryUnderSites(): Plugin {
   };
 }
 
+/**
+ * 静态资源 CDN 开关（#146，scripts/static-cdn-base.mjs）：STATIC_CDN_BASE 为空时同源；
+ * 非空时 console-assets/ 下带哈希的文件改从 CDN 加载，入口 HTML 与路由仍走源站（base 不变）。
+ */
+const cdnBase = staticCdnBase();
+
 export default defineConfig({
   base: "/",
+  experimental: cdnBase
+    ? { renderBuiltUrl: (filename, { type }) => (type === "asset" ? `${cdnBase}${filename}` : undefined) }
+    : undefined,
   // 公共静态文件（favicon、logo）只由官网镜像提供；控制台自己的图片经 import 进 console-assets。
   publicDir: false,
   plugins: [
