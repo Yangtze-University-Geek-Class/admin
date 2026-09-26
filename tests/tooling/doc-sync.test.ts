@@ -342,6 +342,18 @@ describe("文档核对：模块改了、文档里的事实没变", () => {
     expect(problems(root)).toEqual([expect.stringContaining("这次的改动动了模块、没动文档")]);
   });
 
+  it("按 PR：文档只改了空白和空行，跟只改日期一样不算改了说明", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/spaces"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "refactor(svc): 重构，文档只加空格", {
+      "app/svc/index.ts": "export const a = 1; // 重构\n",
+      "docs/services/svc/README.md": doc("2026-09-26", "说明  \n\n\n").replace("> 摘要", "> 摘要 "),
+    });
+    expect(problems(root)).toEqual([expect.stringContaining("这次的改动动了模块，文档只改了「更新：」日期或空白")]);
+    commit(root, "2026-09-26T09:05:00+08:00", "docs(svc): 真的改说明", { "docs/services/svc/README.md": doc("2026-09-26", "说明：a 的注释写明是重构") });
+    expect(problems(root)).toEqual([]);
+  });
+
   it("写了文档核对，「更新：」也要跟上模块的日期", () => {
     const root = repo();
     git(root, ["checkout", "-q", "-b", "task/9/stale"]);

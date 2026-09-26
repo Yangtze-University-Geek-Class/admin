@@ -197,15 +197,15 @@ function waiversSince(root, mergeBase, branch) {
 }
 
 /**
- * 从 merge-base 到工作区，文档路径是怎么改的："none" 没改；"date" 只改了「更新：」日期；"content" 改了说明。
- * 只改日期不算同步：说明没变时要写文档核对。
+ * 从 merge-base 到工作区，文档路径是怎么改的："none" 没改；"date" 只改了「更新：」日期（或者只动了空白与空行）；"content" 改了说明。
+ * 只改日期不算同步：说明没变时要写文档核对。比较时忽略空白与空行（-w --ignore-blank-lines），行尾加个空格不算改了说明。
  */
 function docChange(root, mergeBase, pair) {
   const files = touchedSince(root, mergeBase, pair.docs);
   if (!files.length) return "none";
   const untracked = git(root, ["ls-files", "--others", "--exclude-standard", "--", ...pair.docs]).trim();
   if (untracked) return "content";
-  const diff = git(root, ["diff", "--unified=0", "--no-color", mergeBase, "--", ...pair.docs]).split("\n");
+  const diff = git(root, ["diff", "--unified=0", "--no-color", "-w", "--ignore-blank-lines", mergeBase, "--", ...pair.docs]).split("\n");
   const normalize = (lines) => lines.map((line) => line.slice(1).replace(/更新：\d{4}-\d{2}-\d{2}/g, "更新：")).sort();
   const removed = normalize(diff.filter((line) => line.startsWith("-") && !line.startsWith("---")));
   const added = normalize(diff.filter((line) => line.startsWith("+") && !line.startsWith("+++")));
@@ -341,7 +341,7 @@ export function checkDocSync(root, { base, branch, now = new Date() } = {}) {
       const covered = change === "content" || waives(waivers, pair);
       if (moduleFiles.length && !covered) {
         problems.push([
-          change === "date" ? `这次的改动动了模块，文档只改了「更新：」日期：${pairLabel(pair)}` : `这次的改动动了模块、没动文档：${pairLabel(pair)}`,
+          change === "date" ? `这次的改动动了模块，文档只改了「更新：」日期或空白：${pairLabel(pair)}` : `这次的改动动了模块、没动文档：${pairLabel(pair)}`,
           `  从 ${resolved.base} 分出来之后（merge-base ${short(mergeBase)}）改了 ${listFiles(moduleFiles)}，${pair.docs.join("、")} 里的说明没有改动。`,
           `  怎么办：把对应的说明改对；文档里的事实确实不用改时，在这个 task 的执行记录里写一行「文档核对：${pair.docs[0]} 不用改——<理由>」（见 ${MAP_FILE}）。`,
         ].join("\n"));
