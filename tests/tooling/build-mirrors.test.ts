@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 // 构建下载源（#104）：家里的自托管 runner 经仓库变量换国内镜像，没设变量时必须回到官方源；
 // 镜像参数只在 Dockerfile 的构建阶段出现，不进运行镜像。这里核对三个 Dockerfile、三条工作流与 runner
-// 准备脚本的接线，并在临时目录里实跑其中负责拦下坏输入的 shell：server 构建阶段换源、核对的那条 RUN，
-// container-setup.sh 下载并核对 Node 的函数（apt、corepack、curl 等换成假命令）。
+// 准备脚本的接线，并在临时目录里实跑其中负责拦下坏输入的 shell：三个 Dockerfile 构建阶段换源、核对的那条 RUN，
+// ci forum job 装 pnpm 11 的那一步，container-setup.sh 下载并核对 Node 的函数（apt、corepack、npm、curl 等换成假命令）。
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 const readOr = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return ''; } };
@@ -20,7 +20,7 @@ afterEach(() => {
 
 /**
  * 临时目录里的 shell 沙箱：fakes 里的命令换成先记一行日志、再执行给定 shell 的假命令；
- * PATH 里另外只有系统目录（macOS 的 sha256sum 在 /sbin）与跑测试的这个 node。
+ * PATH 里另外只有系统目录（macOS 的 sha256sum 在 /sbin）与跑测试的这个 node（论坛的 sha512 核对要用真的 node）。
  */
 function sandbox(fakes: Record<string, string> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'build-mirrors-'));
@@ -142,6 +142,92 @@ describe('Dockerfile mirror arguments', () => {
     const forumJob = job(ci, 'forum');
     expect(forumJob.indexOf('"$FORUM_PNPM_INTEGRITY"')).toBeGreaterThan(forumJob.indexOf('npm pack "pnpm@'));
     expect(forumJob.indexOf('"$FORUM_PNPM_INTEGRITY"')).toBeLessThan(forumJob.indexOf('tar -xzf'));
+  });
+
+  it.each(['web', 'forum'] as const)('%s rejects a plain-http or slash-terminated npm registry before downloading anything', service => {
+    for (const registry of ['http://registry.npmjs.org', 'https://registry.npmjs.org/']) {
+      const run = sandbox({ corepack: '', npm: '', pnpm: '' }).run(builderRun(service), { NPM_REGISTRY: registry });
+      expect(run.status, registry).toBe(1);
+      expect(run.stderr).toContain('NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址');
+      expect(run.calls).toBe('');
+    }
+    if (service === 'web') {
+      const run = sandbox({ corepack: '', pnpm: '' }).run(builderRun('web'), { NPM_REGISTRY: OFFICIAL_NPM });
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.calls).toBe('corepack enable\ncorepack prepare pnpm@9.15.9 --activate\npnpm --version\n');
+    }
+  });
+});
+
+describe('the forum pnpm 11 tarball is installed only after the pinned sha512 matches', () => {
+  const pinned = /FORUM_PNPM_INTEGRITY: '([^']+)'/.exec(job(ci, 'forum'))![1];
+  const version = /FORUM_PNPM_VERSION: '([^']+)'/.exec(job(ci, 'forum'))![1];
+
+  /** 沙箱里放一个假的 pnpm 包（package/bin/pnpm.cjs 的 .tgz）；假 npm pack 把它复制成 <目标目录>/pnpm-<版本>.tgz。 */
+  function withFakePackage() {
+    const box = sandbox({ npm: 'if [ "$1" = pack ]; then cp "$FIXTURE" "$4/$(echo "$2" | tr @ -).tgz"; fi', pnpm: '' });
+    const src = join(box.root, 'src');
+    mkdirSync(join(src, 'package', 'bin'), { recursive: true });
+    writeFileSync(join(src, 'package', 'bin', 'pnpm.cjs'), `console.log('${version}');\n`);
+    const fixture = join(box.root, 'fixture.tgz');
+    expect(spawnSync('tar', ['-czf', fixture, '-C', src, 'package']).status).toBe(0);
+    const integrity = `sha512-${createHash('sha512').update(readFileSync(fixture)).digest('base64')}`;
+    expect(integrity).not.toBe(pinned);
+    return { box, fixture, integrity };
+  }
+
+  /** 实跑 forum Dockerfile 构建阶段那条 RUN，/tmp 换进沙箱；matching 时把写死的 sha512 换成假包的，模拟「对得上」。 */
+  function dockerStage(matching: boolean) {
+    const { box, fixture, integrity } = withFakePackage();
+    const tmp = join(box.root, 'tmp');
+    mkdirSync(tmp);
+    let script = builderRun('forum').replaceAll(' /tmp', ` ${tmp}`);
+    if (matching) script = script.replaceAll(pinned, integrity);
+    return { ...box.run(script, { NPM_REGISTRY: OFFICIAL_NPM, FIXTURE: fixture }), tmp };
+  }
+
+  /** 实跑 ci forum job「安装 pnpm 11.24.0 到 .tools/pnpm11」那一步，按 `shell: bash` 的实际调用方式（-eo pipefail）。 */
+  function ciStep(matching: boolean) {
+    const { box, fixture, integrity } = withFakePackage();
+    const step = /- name: 安装 pnpm 11\.24\.0 到 \.tools\/pnpm11\n\s+shell: bash\n\s+run: \|\n([\s\S]*?)\n\n/.exec(job(ci, 'forum'));
+    if (!step) throw new Error('ci forum job 里找不到安装 pnpm 11 的那一步');
+    const tmp = join(box.root, 'tmp');
+    mkdirSync(tmp);
+    const env = { FORUM_PNPM_VERSION: version, FORUM_PNPM_INTEGRITY: matching ? integrity : pinned, FIXTURE: fixture, TMPDIR: tmp };
+    return { ...box.run(step[1].replace(/^ {10}/gm, ''), env, ['/bin/bash', '--noprofile', '--norc', '-eo', 'pipefail']), root: box.root };
+  }
+
+  it('Dockerfile: a tarball that does not match stops the build before npm install', () => {
+    const run = dockerStage(false);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(`pnpm-${version}.tgz 的 sha512 不符：期望 ${pinned}`);
+    expect(run.calls).toBe(`npm pack pnpm@${version} --pack-destination ${run.tmp}\n`);
+  });
+
+  it('Dockerfile: a matching tarball is installed from the local file, then removed', () => {
+    const run = dockerStage(true);
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.stdout).toContain('sha512 核对通过');
+    expect(run.calls).toBe([
+      `npm pack pnpm@${version} --pack-destination ${run.tmp}`,
+      `npm install --global ${run.tmp}/pnpm-${version}.tgz`,
+      'pnpm --version',
+      '',
+    ].join('\n'));
+    expect(readdirSync(run.tmp)).toEqual([]);
+  });
+
+  it('ci forum job: a tarball that does not match fails the step before anything is unpacked', () => {
+    const run = ciStep(false);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain(`pnpm-${version}.tgz 的 sha512 不符`);
+    expect(existsSync(join(run.root, '.tools'))).toBe(false);
+  });
+
+  it('ci forum job: a matching tarball is unpacked to .tools/pnpm11', () => {
+    const run = ciStep(true);
+    expect(run.status, run.stderr).toBe(0);
+    expect(readFileSync(join(run.root, '.tools', 'pnpm11', 'package', 'bin', 'pnpm.cjs'), 'utf8')).toBe(`console.log('${version}');\n`);
   });
 });
 
