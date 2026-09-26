@@ -430,6 +430,11 @@ describe('two things on one record, both refused', () => {
     for (const index of order) {
       answers[index]!.release(json(REFUSAL, 500))
       await (index === 0 ? editing : deleting)
+      // The deletion is refused while the edit is still out: the edit shows again right away.
+      if (index === 1 && order[1] === 0) {
+        const between = s.forum.postById('p10001')!
+        expect([between.content, between.deleted ?? false]).toEqual(['没保存的新文字', false])
+      }
     }
     expect(await Promise.all([editing, deleting])).toEqual([false, false])
     const shown = s.forum.postById('p10001')!
