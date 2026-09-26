@@ -300,13 +300,16 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     /**
      * 成员的昵称不能冒用官方账号（昵称或用户名），也不能是别人的用户名（@ 提及认的是用户名）或 orgLogins 里别人的登录名；
      * 自己的登录名可以，和别的成员昵称相同也可以。比较方式同 guestNameTaken。
+     * 豁免的只是自己的登录名本身（不分大小写），不按 nameKey：nameKey 去掉了 -，按它豁免的话 da-ve 就能用 dave。
+     * 反过来，自己的登录名本身总能用（新成员的昵称默认就是它），哪怕按 nameKey 和别人的登录名撞上。
      */
     displayNameTaken(name: string, self: { userId: string; login: string }): boolean {
+      const ownLogin = self.login.toLowerCase();
+      if (name.toLowerCase() === ownLogin) return false;
       const key = nameKey(name);
-      const ownLogin = nameKey(self.login);
       return (db.prepare("SELECT kind, display_name, username FROM forum_users WHERE id <> ? AND kind <> 'guest'").all(self.userId) as Pick<UserRow, "kind" | "display_name" | "username">[])
         .some(row => nameKey(row.username) === key || (row.kind === "official" && nameKey(row.display_name) === key))
-        || orgLogins().some(login => nameKey(login) === key && nameKey(login) !== ownLogin);
+        || orgLogins().some(login => login.toLowerCase() !== ownLogin && nameKey(login) === key);
     },
 
     createTopic(input: { authorId: string; title: string; categoryId: string; tags: string[]; content: string }, now = Date.now()): { topicId: string; postId: string } {

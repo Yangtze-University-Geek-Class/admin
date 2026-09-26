@@ -19,7 +19,7 @@ const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp')
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const FORUM_CAPS = ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate', 'forum.category.manage', 'forum.badge.assign'];
 type Role = 'admin' | 'member';
-const USERS: Record<string, number> = { alice: 101, bob: 102, carol: 103, dave: 104, erin: 105, frank: 106 };
+const USERS: Record<string, number> = { alice: 101, bob: 102, carol: 103, dave: 104, erin: 105, frank: 106, 'da-ve': 108 };
 
 /** 模拟 GitHub：只回答组织角色查询；failing=true 时一律 502，用来验证 GitHub 出错的路径。 */
 function github(roles: Record<string, Role>, state = { failing: false }) {
@@ -45,10 +45,10 @@ afterEach(async () => {
 
 /**
  * alice 是组织 owner（提督）；bob、carol、dave、erin 是普通成员，其中 carol 是社区部舰员（能管帖子、置顶、关闭），
- * dave 是项目部队长（只能置顶），erin 是领航员；frank 不在组织里。
+ * dave 是项目部队长（只能置顶），erin 是领航员；da-ve 是另一个普通成员，登录名去掉 - 和 dave 一样；frank 不在组织里。
  */
 async function setup(options: { failing?: { failing: boolean }; env?: Record<string, string> } = {}) {
-  const roles: Record<string, Role> = { alice: 'admin', bob: 'member', carol: 'member', dave: 'member', erin: 'member' };
+  const roles: Record<string, Role> = { alice: 'admin', bob: 'member', carol: 'member', dave: 'member', erin: 'member', 'da-ve': 'member' };
   const context = await testApp({ octokitFactory: github(roles, options.failing) }, false, options.env);
   contexts.push(context);
   const { app } = context;
@@ -535,6 +535,12 @@ describe('replies', () => {
     const rename = (displayName: string, who: string) => s.call('PATCH', '/api/forum/me/profile', who, { displayName });
     expect((await rename('erin', 'bob')).json().error).toBe('display_name_taken');
     expect((await rename('owner1', 'bob')).json().error).toBe('display_name_taken');
+    // 自己的登录名只按原样（不分大小写）豁免：da-ve 不能用有称号的 dave 的登录名，改回 Da-Ve、da-ve 可以。
+    expect((await rename('dave', 'da-ve')).json().error).toBe('display_name_taken');
+    expect((await rename('Da-Ve', 'da-ve')).statusCode).toBe(200);
+    expect((await rename('da-ve', 'da-ve')).statusCode).toBe(200);
+    // 只和自己的登录名撞上的写法也可以：bob 用 B.o.b。
+    expect((await rename('B.o.b', 'bob')).statusCode).toBe(200);
     expect((await rename('DAVE', 'dave')).statusCode).toBe(200);
   });
 
