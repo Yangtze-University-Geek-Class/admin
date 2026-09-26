@@ -174,6 +174,130 @@ CREATE TABLE IF NOT EXISTS application_reviews (
 CREATE INDEX IF NOT EXISTS idx_application_reviews_app ON application_reviews(application_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_applications_status_created ON applications(status, created_at DESC);
 `);
+
+// 论坛（#57，ADR-0004）：/api/forum/* 的全部数据。只新增 forum_* 表和索引，不改已有表。
+// 编号是字符串（t73、body-73、p10001、m<GitHub id>、g<n>、n<n>、tag-<n>），与论坛前端的 ForumState 一致；
+// 新编号从 forum_counters 取，不用时间或随机数。
+db.exec(`
+CREATE TABLE IF NOT EXISTS forum_counters (
+  name TEXT PRIMARY KEY CHECK (name IN ('topic','post','notification','tag','guest')),
+  value INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_avatars (
+  hash TEXT PRIMARY KEY,
+  data BLOB NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_users (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('member','guest','official')),
+  github_user_id INTEGER UNIQUE,
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  display_name TEXT NOT NULL,
+  bio TEXT NOT NULL DEFAULT '',
+  location TEXT NOT NULL DEFAULT '',
+  website TEXT NOT NULL DEFAULT '',
+  avatar_color TEXT NOT NULL,
+  github_avatar_url TEXT,
+  avatar_hash TEXT REFERENCES forum_avatars(hash),
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin','moderator','member')),
+  title TEXT,
+  notify_reply INTEGER NOT NULL DEFAULT 1,
+  notify_like INTEGER NOT NULL DEFAULT 1,
+  notify_follow INTEGER NOT NULL DEFAULT 1,
+  joined_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_tags (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES forum_users(id),
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_topics (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL,
+  title TEXT NOT NULL,
+  category_id TEXT NOT NULL,
+  tag_ids TEXT NOT NULL DEFAULT '[]',
+  author_id TEXT NOT NULL REFERENCES forum_users(id),
+  created_at INTEGER NOT NULL,
+  last_activity_at INTEGER NOT NULL,
+  views INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  closed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_author ON forum_topics(author_id, created_at);
+
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id TEXT PRIMARY KEY,
+  topic_id TEXT NOT NULL REFERENCES forum_topics(id),
+  author_id TEXT NOT NULL REFERENCES forum_users(id),
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  edited_at INTEGER,
+  reply_to_post_id TEXT,
+  deleted INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_topic ON forum_posts(topic_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_author ON forum_posts(author_id, created_at);
+
+CREATE TABLE IF NOT EXISTS forum_likes (
+  post_id TEXT NOT NULL REFERENCES forum_posts(id),
+  user_id TEXT NOT NULL REFERENCES forum_users(id),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS forum_bookmarks (
+  user_id TEXT NOT NULL REFERENCES forum_users(id),
+  post_id TEXT NOT NULL REFERENCES forum_posts(id),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, post_id)
+);
+
+CREATE TABLE IF NOT EXISTS forum_follows (
+  follower_id TEXT NOT NULL REFERENCES forum_users(id),
+  followee_id TEXT NOT NULL REFERENCES forum_users(id),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (follower_id, followee_id),
+  CHECK (follower_id <> followee_id)
+);
+
+CREATE TABLE IF NOT EXISTS forum_notifications (
+  id TEXT PRIMARY KEY,
+  recipient_id TEXT NOT NULL REFERENCES forum_users(id),
+  type TEXT NOT NULL CHECK (type IN ('reply','like','follow','mention','system')),
+  actor_id TEXT NOT NULL REFERENCES forum_users(id),
+  topic_id TEXT,
+  post_id TEXT,
+  created_at INTEGER NOT NULL,
+  read INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_forum_notifications_recipient ON forum_notifications(recipient_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS forum_topic_views (
+  topic_id TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  viewed_at INTEGER NOT NULL,
+  PRIMARY KEY (topic_id, ip)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_topic_views_at ON forum_topic_views(viewed_at);
+
+CREATE TABLE IF NOT EXISTS forum_rate_events (
+  bucket TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_forum_rate_events_subject ON forum_rate_events(bucket, subject, created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_rate_events_at ON forum_rate_events(created_at);
+`);
 function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
   db.prepare(
     "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)"

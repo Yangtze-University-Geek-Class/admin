@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
-import { createConfig } from '../../app/server/src/config';
+import { testConfig } from './helpers';
 import { createCrypto } from '../../app/server/src/lib/crypto';
 import { CAPABILITY_IDS, DEFAULT_DEPARTMENTS } from '../../app/server/src/lib/roles';
 import type { ServiceOverrides } from '../../app/server/src/services';
@@ -106,6 +106,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_org_created ON audit_logs(org, created_at D
 
 const LEGACY_TABLES = ['app_state', 'audit_logs', 'feedback', 'invitations', 'invite_links', 'sessions', 'sqlite_sequence'];
 const CONSOLE_TABLES = ['applications', 'application_reviews', 'console_seeds', 'departments', 'invite_attempts', 'role_assignments', 'titles'];
+/** 论坛（#57）新增的表：同样只新增、不改旧表。 */
+const FORUM_TABLES = [
+  'forum_avatars', 'forum_bookmarks', 'forum_counters', 'forum_follows', 'forum_likes', 'forum_notifications',
+  'forum_posts', 'forum_rate_events', 'forum_tags', 'forum_topic_views', 'forum_topics', 'forum_users',
+];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
@@ -175,7 +180,7 @@ const octokitFactory = (() => ({
 })) as unknown as ServiceOverrides['octokitFactory'];
 
 async function boot(dbPath: string) {
-  const config = createConfig({
+  const config = testConfig({
     NODE_ENV: 'test',
     PUBLIC_ORIGIN: 'https://example.test', DB_PATH: dbPath,
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
@@ -203,7 +208,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
 
     // 新表全部建好；旧表一行不少、一列不变。
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
-    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES])].sort());
+    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES])].sort());
     for (const [table, rows] of Object.entries(before.rows)) {
       expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
     }
@@ -211,6 +216,12 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(indexes).toEqual(expect.arrayContaining(['idx_applications_status_created', 'idx_application_reviews_app', 'uq_role_assignments_captain', 'idx_role_assignments_login']));
     expect(db.prepare('SELECT id FROM departments ORDER BY sort_order').all()).toEqual(DEFAULT_DEPARTMENTS.map(({ id }) => ({ id })));
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
+
+    // 论坛表在旧库上建好并已播种；旧会话的成员能读到自己的论坛身份。
+    const forum = await app.inject({ url: '/api/forum/state', headers: as('legacy-session-alice') });
+    expect(forum.statusCode).toBe(200);
+    expect(forum.json().state.topics.map((topic: { id: string }) => topic.id)).toEqual(['t9', 't73']);
+    expect(forum.json().state.viewer).toMatchObject({ kind: 'member', capabilities: CAPABILITY_IDS.filter(id => id.startsWith('forum.')) });
 
     // 旧会话仍然有效；GitHub 组织 owner 是提督，拥有全部能力。
     const me = await app.inject({ url: '/api/console/me', headers: as('legacy-session-alice') });

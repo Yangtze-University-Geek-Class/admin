@@ -2,7 +2,7 @@
 
 > 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
 
-状态：`current` · 更新：2026-09-24 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+状态：`current` · 更新：2026-09-26 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
 
 ## 可见性规则
 
@@ -37,7 +37,7 @@
 | `PUBLIC_ORIGIN` | 可见 | `https://yangtzeu.work`（必须逐字等于 `deploy/environments.json` 的 origin） | `https://prev.yangtzeu.work`（同左） |
 | `NODE_ENV` | 可见 | `production` | `production` |
 | `DB_PATH` | 可见 | `/data/data.db`（命名卷内） | `/data/data.db` |
-| `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，当前无活动论坛后端） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
+| `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，服务不打开旧 `forum.db`、不写上传目录；论坛数据在 `DB_PATH` 的 `forum_*` 表，头像也存在库里，#57） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
 | `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |

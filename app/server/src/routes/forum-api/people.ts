@@ -1,0 +1,96 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
+import { FORUM_LIMITS, ForumError, hasControlChars, hasControlCharsMultiline, isAllowedWebsite } from "../../lib/forum-rules.js";
+import type { ProfilePatch } from "../../lib/forum-store.js";
+import { forumState, notFound, rateLimited, requireMember } from "./viewer.js";
+
+/** 关注、通知、账号资料与头像。 */
+export default async function forumPeopleRoutes(app: FastifyInstance) {
+  const { forum } = app.services;
+
+  app.post<{ Params: { forum_user_id: string } }>("/api/forum/users/:forum_user_id/follow", async req => {
+    const viewer = await requireMember(req);
+    const target = forum.user(req.params.forum_user_id);
+    if (!target) throw notFound("用户不存在");
+    if (target.id === viewer.userId) throw new ForumError(400, "cannot_follow_self", "不能关注自己");
+    forum.toggleFollow(viewer.userId, target.id);
+    return { state: forumState(req, viewer) };
+  });
+
+  app.post<{ Params: { notification_id: string } }>("/api/forum/notifications/:notification_id/read", async req => {
+    const viewer = await requireMember(req);
+    if (!forum.markRead(req.params.notification_id, viewer.userId)) throw notFound("通知不存在");
+    return { state: forumState(req, viewer) };
+  });
+
+  app.post("/api/forum/notifications/read-all", async req => {
+    const viewer = await requireMember(req);
+    forum.markAllRead(viewer.userId);
+    return { state: forumState(req, viewer) };
+  });
+
+  /** 昵称、个人签名、所在地、个人网站（只收 https）、通知设置；只改传了的字段。 */
+  app.patch<{ Body: ProfilePatch }>("/api/forum/me/profile", async req => {
+    const viewer = await requireMember(req);
+    const patch: ProfilePatch = { ...req.body };
+    if (patch.displayName !== undefined) {
+      patch.displayName = patch.displayName.trim();
+      if (!patch.displayName || hasControlChars(patch.displayName)) throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字，不能含控制字符`);
+    }
+    if (patch.bio !== undefined && hasControlCharsMultiline(patch.bio)) throw new ForumError(400, "invalid_bio", "个人签名里有不能显示的字符");
+    if (patch.location !== undefined) {
+      patch.location = patch.location.trim();
+      if (hasControlChars(patch.location)) throw new ForumError(400, "invalid_location", "所在地里有不能显示的字符");
+    }
+    if (patch.website !== undefined) {
+      patch.website = patch.website.trim();
+      if (!isAllowedWebsite(patch.website)) throw new ForumError(400, "invalid_website", "个人网站要以 https:// 开头");
+    }
+    forum.updateProfile(viewer.userId, patch);
+    return { state: forumState(req, viewer) };
+  });
+
+  /**
+   * 头像：请求体就是图片本身（PNG / JPEG / WebP，≤2MB），不走 JSON。只在这个子作用域里接收任意类型的原始请求体，
+   * 其它论坛接口仍只收 JSON。
+   */
+  await app.register(async avatarApp => {
+    avatarApp.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: FORUM_LIMITS.avatarBytesMax }, (_req, body, done) => done(null, body));
+    const tooLarge = (error: { code?: string }, _req: FastifyRequest, reply: FastifyReply) => {
+      if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") return reply.code(413).send({ error: "avatar_too_large", message: "头像不能超过 2MB" });
+      throw error;
+    };
+
+    avatarApp.put("/api/forum/me/avatar", { errorHandler: tooLarge }, async req => {
+      const viewer = await requireMember(req);
+      const type = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+      if (!(AVATAR_TYPES as readonly string[]).includes(type) || !Buffer.isBuffer(req.body)) {
+        throw new ForumError(415, "unsupported_media_type", "头像只支持 PNG、JPEG、WebP 图片");
+      }
+      if (!forum.rateAllowed("avatar", viewer.userId)) throw rateLimited();
+      const { hash, data } = await processAvatar(req.body);
+      // 解码期间同一个人的并发上传可能已经写进来：写入前再查一次，查、写、记之间没有 await。
+      if (!forum.rateAllowed("avatar", viewer.userId)) throw rateLimited();
+      forum.setAvatar(viewer.userId, hash, data);
+      forum.rateRecord("avatar", viewer.userId);
+      return { state: forumState(req, viewer) };
+    });
+
+    avatarApp.delete("/api/forum/me/avatar", async req => {
+      const viewer = await requireMember(req);
+      forum.clearAvatar(viewer.userId);
+      return { state: forumState(req, viewer) };
+    });
+  });
+
+  /** 按内容哈希取头像：内容永不改变，所以长期缓存（http-policy 只对这个前缀的 200 不改写 Cache-Control）。 */
+  app.get<{ Params: { file: string } }>("/api/forum/avatars/:file", async (req, reply) => {
+    const data = forum.avatar(req.params.file.slice(0, -".webp".length));
+    if (!data) throw notFound("头像不存在");
+    return reply
+      .header("Content-Type", "image/webp")
+      .header("Cache-Control", "public, max-age=31536000, immutable")
+      .header("Content-Security-Policy", "default-src 'none'")
+      .send(data);
+  });
+}

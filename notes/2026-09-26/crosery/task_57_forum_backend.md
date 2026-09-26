@@ -25,3 +25,9 @@
 - 执行者：agent-claude-geek-main-subagent-57（Claude Code 子代理）
 - 做了什么：feat(auth): /auth/me 返回 console_link，只给管理者显示控制台入口（routes/admin/auth.ts、tests/server/console.test.ts 两条用例、API.md 的 /auth/me 一行）
 - 结果：npx vitest run tests/server 通过；整体 pnpm verify 退出 0（见上一条开发记录）
+
+## 15:54:44 +08:00 · 提交 · #57 · 论坛后端 /api/forum 提交
+
+- 执行者：agent-claude-geek-main-subagent-57（Claude Code 子代理）
+- 做了什么：feat(server): 论坛后端 /api/forum，数据存 data.db 的 forum_* 表（lib/forum-*、routes/forum-api、db.ts、services、Dockerfile、http-policy、测试与夹具、ADR-0004 与相关文档）；上一条提交 e88a658 在临时 worktree 单独跑过 vitest tests/server（115 passed）与 server tsc
+- 结果：pnpm verify 退出 0（根 Tests 511 passed，论坛 Tests 240 passed）；未验证：真实镜像构建与预发布环境

@@ -1,10 +1,19 @@
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../../app/server/src/app';
 import { createConfig } from '../../app/server/src/config';
 import type { ServiceOverrides } from '../../app/server/src/services';
 
+/** 论坛内容夹具（分类、标签、两篇旧帖），代替 app/forum/content 的真实文件。 */
+export const FORUM_FIXTURE_DIR = fileURLToPath(new URL('./fixtures/forum-content', import.meta.url));
+
+/** createConfig 之后把论坛内容目录换成夹具：测试不读真实的论坛内容。 */
+export function testConfig(env: Record<string, string | undefined>) {
+  return { ...createConfig(env), forumContentDir: FORUM_FIXTURE_DIR };
+}
+
 /** Core-only fixture. A missing/deprecated FORUM_DB_PATH must never be opened. */
 export async function testApp(overrides: ServiceOverrides = {}, production = false) {
-  const config = createConfig({
+  const config = testConfig({
     NODE_ENV: production ? 'production' : 'test',
     PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',

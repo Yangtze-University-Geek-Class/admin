@@ -41,7 +41,7 @@
 
 ## services/server/
 
-核心 portal/admin 的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
+核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
 | 文档 | 说明 | EN |
 |---|---|---|
@@ -126,6 +126,7 @@
 | [`0001-modular-monolith.md`](./decisions/0001-modular-monolith.md) | 保留一个部署单元，通过模块合同、应用工厂和自动检查降低耦合。 | — |
 | [`0002-tuffex-ui-foundation.md`](./decisions/0002-tuffex-ui-foundation.md) | 记录用户指定的组件体系，并提供有固定版本、可离线检索的开发文档。 | — |
 | [`0003-adopt-tuff-forum.md`](./decisions/0003-adopt-tuff-forum.md) | 用户明确选择使用原仓代码，而不是模仿 UI 或重写一套 React 论坛。 | — |
+| [`0004-forum-backend-in-core-server.md`](./decisions/0004-forum-backend-in-core-server.md) | Tuff Forum 前端（ADR-0003）没有后端；论坛的帖子、账号资料和社区功能由核心服务 `app/server` 提供，存在同一个 `data.db` 里。 | — |
 
 ## handovers/
 
@@ -166,4 +167,4 @@
 
 ---
 
-共 55 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 56 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

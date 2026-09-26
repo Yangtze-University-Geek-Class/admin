@@ -9,6 +9,8 @@ import { createCache } from "./lib/cache.js";
 import { createRoleStore } from "./lib/role-store.js";
 import { createAccess } from "./lib/access.js";
 import { createFeedbackStore } from "./lib/feedback-store.js";
+import { loadForumContent } from "./lib/forum-content.js";
+import { createForumStore } from "./lib/forum-store.js";
 import { createPublicSubmission } from "./middleware/pow.js";
 import { createTurnstile } from "./middleware/turnstile.js";
 
@@ -20,12 +22,24 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const github = createGithub(overrides.octokitFactory);
   const cache = createCache();
   const roles = createRoleStore(storage.db);
+  // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
+  const forum = (() => {
+    try {
+      const store = createForumStore(storage.db, loadForumContent(config.forumContentDir));
+      store.seed();
+      return store;
+    } catch (error) {
+      storage.db.close();
+      throw error;
+    }
+  })();
   return {
     config, storage, crypto,
     auth: createAuth(storage.db, crypto, config, overrides.httpRequest),
     github, cache, roles,
     access: createAccess({ consoleOrg: config.consoleOrg, getOrgRole: github.getOrgRole, cached: cache.cached, roles }),
     feedback: createFeedbackStore(storage.db),
+    forum,
     publicSubmission: createPublicSubmission(config.powDifficulty),
     turnstile: createTurnstile(config, overrides.httpRequest),
     close() { storage.db.close(); },

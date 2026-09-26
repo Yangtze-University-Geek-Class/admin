@@ -2,7 +2,7 @@
 
 > 记录已采用框架及版本来源，未来升级另立提议。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-26
 
 ## 核心包：app/web + app/server + app/console
 
@@ -19,7 +19,8 @@
 | 持久化 | SQLite WAL / better-sqlite3（命名卷中的文件；**未迁移 Postgres**） | better-sqlite3 11 |
 | GitHub/网络 | Octokit / OAuth / undici | 锁文件版本 |
 | 内容 | marked / DOMPurify / highlight.js | 锁文件版本 |
-| 遗留依赖 | `app/server` manifest 仍声明 `@fastify/multipart`、`multer`、`sharp`、`marked`、`dompurify`、`isomorphic-dompurify`、`bcryptjs`，server 源码不使用（`bcryptjs` 只被死代码 `password-policy.ts` 引用）；旧论坛上传接口已退役，不代表任何现役能力，清单见 [server 合同](../services/server/README.md) | 锁文件版本 |
+| 图片处理 | `sharp`（`app/server`）：论坛头像上传解码、裁切并重新编码成 WebP（#57） | 锁文件版本 |
+| 遗留依赖 | `app/server` manifest 仍声明 `@fastify/multipart`、`multer`、`marked`、`dompurify`、`isomorphic-dompurify`、`bcryptjs`，server 源码不使用（`bcryptjs` 只被死代码 `password-policy.ts` 引用）；旧论坛上传接口已退役，不代表任何现役能力，清单见 [server 合同](../services/server/README.md) | 锁文件版本 |
 | 测试 | Vitest / Testing Library / jsdom / Playwright | Vitest 3 |
 | 交付 | Docker 镜像 + Docker Compose（两套栈：`/opt/yzgc/production`、`/opt/yzgc/preview`）+ 宿主 nginx TLS 终止；基础镜像 `node:22-bookworm-slim`（server；web 构建）、`node:26-bookworm-slim`（forum 构建）、`nginx:1.31-alpine`（web/forum 运行） | Node 22 / nginx 1.31 / compose v2 |
 

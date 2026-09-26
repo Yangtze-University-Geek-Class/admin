@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
-import { createConfig } from '../../app/server/src/config';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp } from './helpers';
+import { testApp, testConfig } from './helpers';
 
 /** 本文件只用到 testApp 返回值的关闭能力，就地命名，避免耦合 fastify 的实现签名。 */
 type TestContext = { close: () => Promise<void> };
@@ -147,7 +146,7 @@ function solvePow(bodyForHash: string, difficulty: number) {
  * 其余隔离约束与 tests/server/helpers.ts 一致（内存库、外部请求一律拒绝）。
  */
 async function productionDifficultyApp() {
-  const config = createConfig({
+  const config = testConfig({
     NODE_ENV: 'test',
     PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
