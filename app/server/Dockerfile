@@ -25,7 +25,8 @@ FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddf
 #   DEBIAN_MIRROR              空 = deb.debian.org。apt 照样按 debian-archive-keyring 核对 InRelease 签名。
 #                              只能写 http://：slim 镜像在装 ca-certificates 之前，apt 走不了 https。
 #   BETTER_SQLITE3_BINARY_HOST 空 = GitHub releases。prebuild-install 下载预编译包本来就不核对哈希
-#                              （官方源也一样），换源只是换了信任的对象。
+#                              （官方源也一样），换源只是换了信任的对象；能挡住传输途中被换包的只有 TLS，
+#                              所以只能写 https://，不带结尾的 /。
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG DEBIAN_MIRROR=
 ARG BETTER_SQLITE3_BINARY_HOST=
@@ -42,11 +43,16 @@ ENV CI=1 \
 # better-sqlite3 / sharp 是原生模块：优先用上游预编译产物，python3 + make + g++
 # 是预编译包不可用时的回退编译链（Node 22 官方镜像不含它们）。
 # Debian 会淘汰旧的 point release，钉死 apt 版本号会让构建随时失败。
+# BETTER_SQLITE3_BINARY_HOST 在这里就校验：后面 pnpm install 才用到它，格式不对要在下载之前失败。
 # DEBIAN_MIRROR 先按字符白名单校验再写进 sed（分隔符是 #）；改写后文件里不许再有 deb.debian.org，
 # 基础镜像哪天换了源的写法就直接失败，而不是悄悄回到官方源。
 # hadolint ignore=DL3008
 RUN set -eu; \
     case "$NPM_REGISTRY" in https://*[!/]) ;; *) echo "NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址：${NPM_REGISTRY}" >&2; exit 1 ;; esac; \
+    if [ -n "$BETTER_SQLITE3_BINARY_HOST" ]; then \
+      case "$BETTER_SQLITE3_BINARY_HOST" in https://*[!/]) ;; *) echo "BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac; \
+      case "$BETTER_SQLITE3_BINARY_HOST" in *[!0-9A-Za-z.:/_-]*) echo "BETTER_SQLITE3_BINARY_HOST 含有不允许的字符：${BETTER_SQLITE3_BINARY_HOST}" >&2; exit 1 ;; esac; \
+    fi; \
     if [ -n "$DEBIAN_MIRROR" ]; then \
       case "$DEBIAN_MIRROR" in http://*[!/]) ;; *) echo "DEBIAN_MIRROR 必须是不带结尾 / 的 http:// 地址：${DEBIAN_MIRROR}" >&2; exit 1 ;; esac; \
       case "$DEBIAN_MIRROR" in *[!0-9A-Za-z.:/_-]*) echo "DEBIAN_MIRROR 含有不允许的字符：${DEBIAN_MIRROR}" >&2; exit 1 ;; esac; \

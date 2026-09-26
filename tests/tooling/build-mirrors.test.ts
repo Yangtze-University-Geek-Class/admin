@@ -1,19 +1,47 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // 构建下载源（#104）：家里的自托管 runner 经仓库变量换国内镜像，没设变量时必须回到官方源；
 // 镜像参数只在 Dockerfile 的构建阶段出现，不进运行镜像。这里核对三个 Dockerfile、三条工作流与 runner
-// 准备脚本的接线，并在临时目录里实跑 server 构建阶段改写 Debian 源的那段 shell（apt、corepack、pnpm 换成假命令）。
+// 准备脚本的接线，并在临时目录里实跑其中负责拦下坏输入的 shell：server 构建阶段换源、核对的那条 RUN，
+// container-setup.sh 下载并核对 Node 的函数（apt、corepack、curl 等换成假命令）。
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
+const readOr = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return ''; } };
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+/**
+ * 临时目录里的 shell 沙箱：fakes 里的命令换成先记一行日志、再执行给定 shell 的假命令；
+ * PATH 里另外只有系统目录（macOS 的 sha256sum 在 /sbin）与跑测试的这个 node。
+ */
+function sandbox(fakes: Record<string, string> = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'build-mirrors-'));
+  roots.push(root);
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  const log = join(root, 'calls.log');
+  for (const [name, body] of Object.entries(fakes)) {
+    writeFileSync(join(bin, name), `#!/bin/sh\necho "${name} $*" >> "${log}"\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  }
+  const PATH = [bin, '/usr/bin', '/bin', '/usr/sbin', '/sbin', dirname(process.execPath)].join(':');
+  return {
+    root,
+    /** 在 root 里用 shell（默认 /bin/sh）跑 script，返回退出码、输出与假命令的调用日志。 */
+    run(script: string, env: Record<string, string> = {}, shell = ['/bin/sh']) {
+      const result = spawnSync(shell[0], [...shell.slice(1), '-c', script], { cwd: root, encoding: 'utf8', env: { PATH, ...env } });
+      return { ...result, calls: readOr(log) };
+    },
+  };
+}
 
 const OFFICIAL_NPM = 'https://registry.npmjs.org';
 const VAR_EXPR = {
@@ -52,6 +80,13 @@ const dockerfiles = {
 };
 const ci = read('.github/workflows/ci.yml');
 const deploys = { preview: read('.github/workflows/deploy-preview.yml'), production: read('.github/workflows/deploy-production.yml') };
+
+/** 某个 Dockerfile 构建阶段里换源、核对的那条 RUN（`RUN set -eu; \` 起，到 `pnpm --version` 止）。 */
+function builderRun(service: keyof typeof dockerfiles) {
+  const match = /\nRUN (set -eu; \\\n[\s\S]*?pnpm --version)\n/.exec(stages(dockerfiles[service]).byName.builder);
+  if (!match) throw new Error(`${service} Dockerfile 里找不到换源的 RUN`);
+  return match[1];
+}
 
 describe('Dockerfile mirror arguments', () => {
   it('declare the mirror arguments in the build stage only, with official defaults', () => {
@@ -172,9 +207,86 @@ describe('runner containers pre-seed Node 22 into the actions tool cache', () =>
       const at = setup.indexOf(call);
       expect(setup.indexOf('chown -R runner:runner /home/runner', at)).toBeGreaterThan(at);
     }
-    // 与 /usr/local 同一个按 SHASUMS256 校验过的官方包；setup-node 读的 .nvmrc 是 22。
-    expect(setup).toContain('sha256sum -c -');
+    // 与 /usr/local 同一个按 SHASUMS256 校验过的官方包（下面实跑核对）；setup-node 读的 .nvmrc 是 22。
+    expect(setup).toMatch(/\nif ! node --version[^\n]*\n {2}fetch_node\n {2}tar -xJf "\$node_tarball" -C \/usr\/local /);
     expect(read('.nvmrc').trim()).toBe('22');
+  });
+
+  type Tarball = { name: string; sha256: string };
+  const NODE_VERSION = 'v22.99.0';
+
+  /**
+   * 抽出 fetch_node（连同 mktemp 建的下载目录与 EXIT 清理）和 seed_node_tool_cache，curl 换成从夹具复制的假命令，
+   * 给两个缓存目录播种。夹具是真的 .tar.xz，顶层目录与官方包相同；shasums 决定假 SHASUMS256.txt 的内容。
+   * mktemp 也换成假的，把目录建在沙箱的 tmp 里：macOS 的 mktemp -d 不看 TMPDIR，测试就看不到目录有没有删掉。
+   */
+  function seed(shasums: (tarball: Tarball) => string) {
+    const box = sandbox({
+      mktemp: 'd="$TMPDIR/mktemp.$$"; mkdir -m 0700 "$d"; echo "$d"',
+      curl: [
+        'out=; url=',
+        'while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift 2 ;; -*) shift ;; *) url=$1; shift ;; esac; done',
+        'case "$url" in */SHASUMS256.txt) cp "$FIXTURES/SHASUMS256.txt" "$out" ;; *) cp "$FIXTURES/node.tar.xz" "$out" ;; esac',
+      ].join('\n'),
+    });
+    const fixtures = join(box.root, 'fixtures');
+    const top = `node-${NODE_VERSION}-linux-x64`;
+    mkdirSync(join(fixtures, top, 'bin'), { recursive: true });
+    writeFileSync(join(fixtures, top, 'bin', 'node'), 'fake node\n');
+    expect(spawnSync('tar', ['-cJf', join(fixtures, 'node.tar.xz'), '-C', fixtures, top]).status).toBe(0);
+    const sha256 = createHash('sha256').update(readFileSync(join(fixtures, 'node.tar.xz'))).digest('hex');
+    writeFileSync(join(fixtures, 'SHASUMS256.txt'), shasums({ name: `${top}.tar.xz`, sha256 }));
+    const block = (re: RegExp) => {
+      const match = re.exec(setup);
+      if (!match) throw new Error(`container-setup.sh 里找不到 ${re}`);
+      return match[0];
+    };
+    const script = [
+      'set -eu',
+      `node_version=${NODE_VERSION}`,
+      block(/^node_dir=\$\(mktemp -d\)\n[\s\S]*?\n}\n/m),
+      block(/^seed_node_tool_cache\(\) \{\n[\s\S]*?\n}\n/m),
+      'seed_node_tool_cache "$CACHE/r1" "$CACHE/r2"',
+    ].join('\n');
+    const tmp = join(box.root, 'tmp');
+    mkdirSync(tmp);
+    const cache = join(box.root, 'cache');
+    return {
+      ...box.run(script, { TMPDIR: tmp, CACHE: cache, FIXTURES: fixtures }),
+      tmp,
+      x64: (runner: string) => join(cache, runner, 'node', NODE_VERSION.slice(1), 'x64'),
+    };
+  }
+
+  it('verifies the official tarball once per run and unpacks it into every cache', () => {
+    const run = seed(({ name, sha256 }) => `${'1'.repeat(64)}  node-${NODE_VERSION}-darwin-arm64.tar.gz\n${sha256}  ${name}\n`);
+    expect(run.status, run.stderr).toBe(0);
+    for (const runner of ['r1', 'r2']) {
+      expect(readFileSync(join(run.x64(runner), 'bin', 'node'), 'utf8')).toBe('fake node\n');
+      expect(existsSync(`${run.x64(runner)}.complete`)).toBe(true);
+    }
+    // 两个缓存只下载、核对一次；下载目录是这次 mktemp 新建的，退出时连同包一起删掉。
+    const [mktemp, tarball, shasumsFile, ...rest] = run.calls.trim().split('\n');
+    expect(rest).toEqual([]);
+    expect(mktemp).toBe('mktemp -d');
+    expect(tarball).toMatch(/^curl -fsSL -o (\S+)\/mktemp\.\d+\/node-v22\.99\.0-linux-x64\.tar\.xz https:\/\/nodejs\.org\/dist\/v22\.99\.0\/node-v22\.99\.0-linux-x64\.tar\.xz$/);
+    expect(tarball.startsWith(`curl -fsSL -o ${run.tmp}/`)).toBe(true);
+    expect(shasumsFile.endsWith(` https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt`)).toBe(true);
+    expect(readdirSync(run.tmp)).toEqual([]);
+  });
+
+  it.each<[string, (tarball: Tarball) => string]>([
+    ['the checksum does not match', ({ name }) => `${'0'.repeat(64)}  ${name}\n`],
+    ['SHASUMS256.txt has no line for this tarball', ({ sha256 }) => `${sha256}  node-${NODE_VERSION}-linux-arm64.tar.xz\n`],
+  ])('stops before unpacking anything when %s', (_label, shasums) => {
+    const run = seed(shasums);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain(`node-${NODE_VERSION}-linux-x64.tar.xz 与 nodejs.org 的 SHASUMS256 对不上`);
+    for (const runner of ['r1', 'r2']) {
+      expect(existsSync(run.x64(runner))).toBe(false);
+      expect(existsSync(`${run.x64(runner)}.complete`)).toBe(false);
+    }
+    expect(readdirSync(run.tmp)).toEqual([]);
   });
 });
 
@@ -187,32 +299,28 @@ describe('server build stage rewrites the Debian sources only when asked', () =>
     'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg', '',
   ].join('\n');
 
-  /** 抽出 server 构建阶段那条 RUN，把系统路径换进临时目录，apt-get / corepack / pnpm 换成只记日志的假命令。 */
+  /** 实跑 server 构建阶段那条 RUN：系统路径换进临时目录，apt-get / corepack / pnpm 换成只记日志的假命令。 */
   function runStage(env: Record<string, string>, initial = SOURCES) {
-    const root = mkdtempSync(join(tmpdir(), 'build-mirrors-'));
-    roots.push(root);
-    const builder = stages(dockerfiles.server).byName.builder;
-    const match = /\nRUN (set -eu; \\\n[\s\S]*?pnpm --version)\n/.exec(builder);
-    if (!match) throw new Error('server Dockerfile 里找不到换源的 RUN');
-    const sources = join(root, 'debian.sources');
+    const box = sandbox({ 'apt-get': '', corepack: '', pnpm: '' });
+    const sources = join(box.root, 'debian.sources');
     writeFileSync(sources, initial);
-    const script = match[1]
+    const script = builderRun('server')
       .replaceAll('/etc/apt/sources.list.d/debian.sources', sources)
-      .replaceAll('/var/lib/apt/lists/*', `${join(root, 'lists')}/*`);
+      .replaceAll('/var/lib/apt/lists/*', `${join(box.root, 'lists')}/*`);
     expect(script).not.toMatch(/\/etc\/apt|\/var\/lib\/apt/);
-    const bin = join(root, 'bin');
-    mkdirSync(bin);
-    for (const name of ['apt-get', 'corepack', 'pnpm']) {
-      writeFileSync(join(bin, name), `#!/bin/sh\necho "${name} $*" >> "${join(root, 'calls.log')}"\n`);
-      chmodSync(join(bin, name), 0o755);
-    }
-    const result = spawnSync('/bin/sh', ['-c', script], {
-      encoding: 'utf8',
-      env: { PATH: `${bin}:/usr/bin:/bin`, NPM_REGISTRY: OFFICIAL_NPM, DEBIAN_MIRROR: '', ...env },
-    });
-    const read = (file: string) => { try { return readFileSync(join(root, file), 'utf8'); } catch { return ''; } };
-    return { ...result, sources: read('debian.sources'), calls: read('calls.log') };
+    const run = box.run(script, { NPM_REGISTRY: OFFICIAL_NPM, DEBIAN_MIRROR: '', BETTER_SQLITE3_BINARY_HOST: '', ...env });
+    return { ...run, sources: readOr(sources) };
   }
+
+  it('accepts the values docs/ops/CICD.md tells the maintainer to set', () => {
+    const documented = Object.fromEntries(
+      [...read('docs/ops/CICD.md').matchAll(/^\| `(NPM_REGISTRY|DEBIAN_MIRROR|BETTER_SQLITE3_BINARY_HOST)` \| `([^`]+)` \|/gm)].map(match => [match[1], match[2]]),
+    );
+    expect(Object.keys(documented).sort()).toEqual([...MIRROR_ARGS].sort());
+    const run = runStage(documented);
+    expect(run.status, run.stderr).toBe(0);
+    expect(run.sources).toBe(SOURCES.replaceAll('http://deb.debian.org/debian', documented.DEBIAN_MIRROR));
+  });
 
   it('keeps deb.debian.org when DEBIAN_MIRROR is empty', () => {
     const run = runStage({});
@@ -238,6 +346,11 @@ describe('server build stage rewrites the Debian sources only when asked', () =>
     ['characters that would break the sed expression', { DEBIAN_MIRROR: 'http://evil#x' }, 'DEBIAN_MIRROR 含有不允许的字符'],
     ['a plain-http npm registry', { NPM_REGISTRY: 'http://registry.npmjs.org' }, 'NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址'],
     ['an npm registry with a trailing slash', { NPM_REGISTRY: 'https://registry.npmjs.org/' }, 'NPM_REGISTRY 必须是不带结尾 / 的 https:// 地址'],
+    // prebuild-install 不核对预编译包的哈希，明文 http 等于让路上任何人换掉原生模块。
+    ['a plain-http better-sqlite3 binary host', { BETTER_SQLITE3_BINARY_HOST: 'http://registry.npmmirror.com/-/binary/better-sqlite3' }, 'BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址'],
+    ['a better-sqlite3 binary host with a trailing slash', { BETTER_SQLITE3_BINARY_HOST: 'https://registry.npmmirror.com/-/binary/better-sqlite3/' }, 'BETTER_SQLITE3_BINARY_HOST 必须是不带结尾 / 的 https:// 地址'],
+    ['a better-sqlite3 binary host with a user part', { BETTER_SQLITE3_BINARY_HOST: 'https://github.com@evil.example/better-sqlite3' }, 'BETTER_SQLITE3_BINARY_HOST 含有不允许的字符'],
+    ['a better-sqlite3 binary host with a query', { BETTER_SQLITE3_BINARY_HOST: 'https://evil.example/x?y=1' }, 'BETTER_SQLITE3_BINARY_HOST 含有不允许的字符'],
   ])('rejects %s before touching apt', (_label, env, message) => {
     const run = runStage(env);
     expect(run.status).toBe(1);

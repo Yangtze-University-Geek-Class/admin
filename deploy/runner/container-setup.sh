@@ -41,13 +41,22 @@ if node --version 2>/dev/null | grep -q '^v22\.'; then
 else
   node_version=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | startswith("v22.")) | select(.lts != false)][0].version')
 fi
-node_tarball=/tmp/node-${node_version}-linux-x64.tar.xz
+# 下载目录由这一次运行用 mktemp 新建（0700），退出时删掉；「核对过」记在变量里，不看文件在不在：
+# /tmp 对 job 可写，上次失败留下的包、或者 job 放进去的同名文件，都不能不经核对就解进 /usr/local 和工具缓存。
+node_dir=$(mktemp -d)
+trap 'rm -rf "$node_dir"' EXIT
+node_tarball=$node_dir/node-${node_version}-linux-x64.tar.xz
+node_verified=
 fetch_node() {
-  [ -f "$node_tarball" ] && return 0
-  curl -fsSL -o "$node_tarball" "https://nodejs.org/dist/${node_version}/node-${node_version}-linux-x64.tar.xz"
-  curl -fsSL -o /tmp/SHASUMS256.txt "https://nodejs.org/dist/${node_version}/SHASUMS256.txt"
-  (cd /tmp && grep " node-${node_version}-linux-x64.tar.xz\$" SHASUMS256.txt | sha256sum -c -) || { rm -f "$node_tarball"; exit 1; }
-  rm -f /tmp/SHASUMS256.txt
+  if [ -n "$node_verified" ]; then return 0; fi
+  curl -fsSL -o "$node_tarball" "https://nodejs.org/dist/${node_version}/${node_tarball##*/}"
+  curl -fsSL -o "$node_dir/SHASUMS256.txt" "https://nodejs.org/dist/${node_version}/SHASUMS256.txt"
+  # 先挑出这个包的那一行再核对：清单里没有这一行时 grep 就失败，不把空输入交给 sha256sum。
+  if ! (cd "$node_dir" && grep " ${node_tarball##*/}\$" SHASUMS256.txt > tarball.sha256 && sha256sum -c tarball.sha256); then
+    echo "${node_tarball##*/} 与 nodejs.org 的 SHASUMS256 对不上" >&2
+    exit 1
+  fi
+  node_verified=1
 }
 if ! node --version 2>/dev/null | grep -q '^v22\.'; then
   fetch_node
@@ -70,7 +79,6 @@ seed_node_tool_cache() {
     : > "$dir.complete"
     echo "工具缓存：$dir"
   done
-  rm -f "$node_tarball"
 }
 
 id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
