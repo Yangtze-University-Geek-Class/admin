@@ -98,3 +98,9 @@
 - 做了什么：d2d90e3 把 stage 5c1717b 合进来；冲突两处：forum README 开头与「已知限制」保留 #126 的服务端模式现状，并补上 #117 的 17 篇公开旧帖；docs/INDEX.md 用 docs-index 重新生成
 - 结果：forum.mjs check 22 个文件 421 条通过、样式检查 clean；pnpm check 退出 0
 - 下一步：推送，第二轮审查看 24f6f59..HEAD
+
+## 19:41:22 +08:00 · 返工 · #107 · 账号资料的昵称只在改了时检查
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：profileProblem 与 profileBody 挪到 shared/forum-api.ts，昵称只在改了时查长度、时发送；昵称提示加上 NAME_CHARS_HINT（与 #116 的 NAME_RULE_MESSAGE 同一句规则）；单测覆盖 35 个字的登录名不改昵称只改签名、请求体里没有 displayName 也没有校验错误，以及 400 invalid_display_name 时 toast 显示服务端原话；node scripts/forum.mjs check；pnpm check
+- 结果：forum check 通过（22 个文件 425 个测试），pnpm check 通过；把「只在改了时查」去掉后新测试失败。浏览器里没有再看（资料页需要真实成员登录，mock 只能看不能存）
