@@ -2,7 +2,7 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-09-26 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-09-27 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
@@ -24,7 +24,7 @@
 - **域名**：每个环境只有一个域名——正式 `yangtzeu.work`、预发布 `prev.yangtzeu.work`。portal、控制台、论坛同域，按路径区分：控制台是 `/console/…`（登录页 `/signin`，旧的 `/admin/…` 跳到 `/console`），论坛是 `/forum/…`，其余路径是 portal。旧的管理端独立子域与论坛子域都已退役（见 [DEPLOY](../../ops/DEPLOY.md) 历史章节）。
 - **HTTP 边界**：前端只通过 `shared/lib/api` 访问 `/api/*`；跨端链接使用 `externalUrl`，同端使用 Router。生产态跨端链接是同源路径（`/forum/…`、`/console`），不拼域名；开发态仍走 `/sites/<端>/…`，论坛指向本机 3456。
 - **配置**：构建期只读公开配置（`app.config.json`），不加载私有 `.env`，也不含任何域名，同一份产物在两个环境通用；`scripts/check-site-config.mjs`（`pnpm check:site-config`）校验站点不带 host、论坛 basePath 非空且不与其他站点重叠、production 数据源固定为 live。
-- **静态资源 CDN 开关**（#146）：构建参数 `STATIC_CDN_BASE` 为空时与原来一样同源；等于 `https://cdn.crosery.com/yzgc/static/site/` 时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把带哈希的构建资源（`assets/` 下的 JS、CSS、字体、图片）改写到 CDN，`base` 仍是 `/`，入口 HTML、路由和 `public/` 里不带哈希的文件（壁纸、看板娘、favicon）仍走源站。别的非空值让构建失败。规则只在 `scripts/static-cdn-base.mjs`；`app/web/Dockerfile` 把同一个参数传给官网与控制台两次构建，并断言两个入口页引用的是对应地址。开关由部署工作流决定，上传与核对见 [CICD](../../ops/CICD.md)「静态资源 CDN」。两个环境用同一个 CDN 前缀，产物仍不含环境域名。
+- **静态资源 CDN 开关**（#146）：构建参数 `STATIC_CDN_BASE` 为空时与原来一样同源；等于 `https://cdn.crosery.com/yzgc/static/site/` 时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把带哈希的构建资源（`assets/` 下的 JS、CSS、字体、图片）改写到 CDN，`base` 仍是 `/`，入口 HTML、路由和 `public/` 里不带哈希的文件（看板娘、favicon）仍走源站；桌面壁纸由 `sites/portal/lib/wallpapers.ts` import（文件在 `sites/portal/assets/wallpapers/`），构建时带哈希，跟着开关走。别的非空值让构建失败。规则只在 `scripts/static-cdn-base.mjs`；`app/web/Dockerfile` 把同一个参数传给官网与控制台两次构建，并断言两个入口页引用的是对应地址。开关由部署工作流决定，上传与核对见 [CICD](../../ops/CICD.md)「静态资源 CDN」。两个环境用同一个 CDN 前缀，产物仍不含环境域名。
 - **UI 选型**：官网是既有 React 实现，后续新增/迁移界面按 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)；控制台已迁到 Vue + Tuffex（`app/console`）。不引入平行基础 UI 体系。
 
 ## 运行

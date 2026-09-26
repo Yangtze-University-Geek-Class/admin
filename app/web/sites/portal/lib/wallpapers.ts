@@ -1,6 +1,13 @@
 // YUGC OS 的壁纸：清单、选择、下载解码与空闲预取（tests/web/portal-wallpapers.test.ts 覆盖）。
 // 两张静态图，由 crosery-ct（mox_image_generate）按所有者给的海报风格生成。
-// 图片地址只写在这份清单里：换 CDN（#146）时只改这里。
+// 图片地址只写在这份清单里。图片放在 sites/portal/assets/wallpapers/，由这里 import：
+// 构建时文件名带上内容哈希，与 JS、CSS 一样跟着静态资源 CDN 开关（#146，scripts/static-cdn-base.mjs）走，
+// 开关为空时是站内的 /assets/…，打开时是 CDN 上的同一个文件。
+
+import geekImage from "../assets/wallpapers/geek.webp";
+import geekThumb from "../assets/wallpapers/geek-thumb.webp";
+import yugcImage from "../assets/wallpapers/yugc.webp";
+import yugcThumb from "../assets/wallpapers/yugc-thumb.webp";
 
 export type Wallpaper = {
   id: string;
@@ -14,8 +21,8 @@ export type Wallpaper = {
 };
 
 export const WALLPAPERS: readonly Wallpaper[] = [
-  { id: "yugc", name: "极客娘 1", image: "/portal/wallpapers/yugc.webp", thumb: "/portal/wallpapers/yugc-thumb.webp", tint: "#b9d6f7" },
-  { id: "geek", name: "极客娘 2", image: "/portal/wallpapers/geek.webp", thumb: "/portal/wallpapers/geek-thumb.webp", tint: "#a9cdf5" },
+  { id: "yugc", name: "极客娘 1", image: yugcImage, thumb: yugcThumb, tint: "#b9d6f7" },
+  { id: "geek", name: "极客娘 2", image: geekImage, thumb: geekThumb, tint: "#a9cdf5" },
 ];
 
 export const DEFAULT_WALLPAPER = WALLPAPERS[0].id;
