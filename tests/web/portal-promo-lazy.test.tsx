@@ -94,6 +94,8 @@ describe("播放层分包", () => {
     view.rerender(open(onClose));
     await act(async () => {});
     expect(onClose).toHaveBeenCalledTimes(1);
+    // 打开期间父组件重渲染还是同一个播放层：不会换成新的再加载一遍、多用掉一个重试地址
+    expect(net.retried).toEqual([1]);
   });
 
   it("失败只算这一次：还断着网时再打开同样按失败结束一次；网络恢复后再打开，换地址重新加载并正常播放", async () => {
@@ -173,5 +175,32 @@ describe("hls.js 分包", () => {
     await waitFor(() => expect(FakeHls.created).toBe(1));
     expect(second).not.toHaveBeenCalled();
     expect(net.retried.at(-1)).toBe(2);
+  });
+
+  it("播放层卸载以后 hls.js 分包才失败：不再结束一次（不调 onClose）", async () => {
+    let fail!: () => void;
+    // 项目 lib 是 ES2022，没有 Promise.withResolvers
+    const gate = new Promise<void>((resolve) => (fail = resolve));
+    vi.doMock(HLS, async () => {
+      await gate;
+      throw new Error("chunk load failed");
+    });
+    vi.resetModules();
+    browserImports(() => {
+      throw new Error("still offline");
+    }, {
+      detectCapabilities: async () => ({ mse: true, mseAv1Smooth: false, native: false, nativeAv1: false, touch: false }),
+    });
+    // 要在换过 hls.js 分包的桩之后重新加载播放层，所以只能动态加载
+    const { default: Player } = await import("../../app/web/sites/portal/components/PromoPlayer");
+    const onClose = vi.fn();
+    const view = render(<Player mode="gate" onClose={onClose} />);
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {
+      fail();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

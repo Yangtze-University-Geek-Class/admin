@@ -1,6 +1,6 @@
-# task/110/promo_error_paths · crosery · 2026-09-26
+# task/110/promo_error_paths · lysnowq · 2026-09-26
 
-负责人：crosery
+负责人：lysnowq
 
 ## 15:23:00 +08:00 · 开工 · #110 · 从 origin/stage 28122511456d 建 task/110/promo_error_paths
 
@@ -34,3 +34,21 @@
 - 做了什么：git push -u origin task/110/promo_error_paths（本地 check-branch-invariants --push 通过）；gh pr create #120，正文按 PULL-REQUESTS 九段
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/120；等待 Crosery 审查
 - 下一步：收到审查结论后补「审查」记录
+
+## 17:21:46 +08:00 · 开发 · #110 · 子代理 Fix110Promo 三轮（补记，本规范要求子代理自己记）
+
+- 执行者：agent-omp-fix110promo（omp 子代理，claude-opus-5-5）
+- 做了什么：第一轮：写 5 条失败用例，改 PromoPlayer play() 分流与起播兜底、PromoLazy 失败后换新 lazy；第二轮：按主 agent 实测（浏览器记住失败模块地址）改为按错误里的地址 ?retry=n 重来，promo.css 改跟主包；第三轮：边界检查不许非字面量 import，改为写死原地址加 3 个 ?retry=n，重新构建到 .tools/scratch/web110-dist；按主 agent 指示停在测试重写前
+- 结果：第一轮 5 条用例修复前失败、修复后 29 passed；第二轮 Chrome 复验通过但 check-boundaries 报 nonliteral import；第三轮 tsc 0、构建出 4 份 PromoPlayer 与 4 份 hls.light；测试与文档由主 agent 收尾；本条为补记，时间是补记时刻
+
+## 17:21:46 +08:00 · 审查 · #110 · Crosery 第一轮：有条件通过
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：收到 PR #120 审查（Crosery 的审查代理，2026-09-26 17:03，审 1569278）：应修 2 条（promo.css 进主包后排在 portal.css 前，Esc 键帽样式、触屏隐藏按键提示、焦点环三处回退；执行记录负责人与子代理记录），建议 3 条（useState 记忆无测试、卸载后 hls 分包失败仍调 onClose、文档更新日期）
+- 结果：结论：有条件通过；条件是修层叠回退并附生产构建截图复审、处理执行记录身份、CI 全绿
+
+## 17:21:47 +08:00 · 返工 · #110 · 修 promo.css 层叠回退，补两条测试，负责人改为 lysnowq
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：promo.css 的键帽、焦点环和两处隐藏按键提示都挂到 .pt-promo 下（多一层类名，不依赖加载顺序）；PromoPlayer hls 分包失败时先看 cancelled；lazy 测试补 net.retried 断言、新增卸载后 hls 分包失败不调 onClose；portal.md 与 web README 更新日期改 2026-09-26；链路文件挪到 lysnowq 并补子代理记录
+- 结果：三份 promo 测试 35 passed；去掉 cancelled 判断时新用例失败；app/web tsc 0、check-boundaries、check-docs 通过；生产构建 + localhost 预览实测：桌面键帽 display block、白字半透明底、无边框，焦点环 2px 白；触屏（hover:none）键帽 display none，焦点环 2px 白

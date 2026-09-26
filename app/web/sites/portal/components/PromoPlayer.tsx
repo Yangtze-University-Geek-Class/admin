@@ -111,7 +111,9 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
         try {
           HlsJs = (await hlsModule).default;
         } catch {
-          return finish("failed");
+          // 卸载后分包才失败：播放层已经不在了，不再结束一次
+          if (!cancelled) finish("failed");
+          return;
         }
         if (cancelled) return;
         const estimate = browserEstimate(caps.touch);
