@@ -53,3 +53,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 985777e（范围 2f491ab..985777e），把测试默认 shell 换成 dash 跑一遍，4 个变异
 - 结果：第一轮三条应修、四条建议都修到了，无新应修；两条建议：/usr/local 解 Node 包时保留了官方包的 uid 1001（容器里多半是 runner）、PR 正文验证段还是旧数字；dash 下 36 passed，CI push 运行 36227992897 的 core 在 crosery-arch-1 上新核对步骤 success；条件：必需 CI 全绿
+
+## 16:09:30 +08:00 · 返工 · #104 · 按第二轮建议解包不保留属主，正文数字更新
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：container-setup.sh 解到 /usr/local 的那条 tar 加 --no-same-owner（工具缓存那条随后整体 chown 给 runner，不用改）；build-mirrors 测试的断言带上它；PR 正文验证段改成 36 项与 CI 为准
+- 结果：build-mirrors 36 passed，去掉 --no-same-owner 1 项失败；shellcheck 通过；提交 1b586cd
