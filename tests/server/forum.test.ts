@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
@@ -10,7 +11,6 @@ import { REPO_ROOT } from '../../app/server/src/config';
 import { loadForumContent } from '../../app/server/src/lib/forum-content';
 import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
-import { parseWriteResult } from '../../app/forum/shared/forum-api';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { FORUM_FIXTURE_DIR, testApp, testConfig } from './helpers';
 
@@ -813,10 +813,29 @@ describe('write responses (#145)', () => {
   });
 });
 
+/**
+ * 论坛前端的 `parseWriteResult`，从副本导入：在原处导入时 vite 会读 app/forum/tsconfig.json，它引用的
+ * .nuxt/ 只有装过论坛依赖才有，CI 的 core job 没有。副本只有它和它导入的 app/data/types.ts，目录结构
+ * 不变，代码就是论坛里的那份；放在仓库里被忽略的 .tools/ 下，因为 vite 只加载项目目录里的文件，
+ * 而那里往上没有 tsconfig.json。
+ */
+async function forumWriteParser(): Promise<typeof import('../../app/forum/shared/forum-api').parseWriteResult> {
+  mkdirSync(join(REPO_ROOT, '.tools'), { recursive: true });
+  const dir = mkdtempSync(join(REPO_ROOT, '.tools', 'forum-api-'));
+  dirs.push(dir);
+  for (const file of ['shared/forum-api.ts', 'app/data/types.ts']) {
+    mkdirSync(dirname(join(dir, file)), { recursive: true });
+    cpSync(join(REPO_ROOT, 'app/forum', file), join(dir, file));
+  }
+  const module = await import(pathToFileURL(join(dir, 'shared/forum-api.ts')).href) as typeof import('../../app/forum/shared/forum-api');
+  return module.parseWriteResult;
+}
+
 describe('write responses read by the forum client (#145)', () => {
   // 论坛前端只收 parseWriteResult 认得的形状，认不得的字段直接丢掉；这里把真实回答原样喂给它，
   // 服务端改了字段名（比如 removed.bookmarks 写成 removed.bookmark）而前端没跟上时，这条会失败。
   it('reads every kind of write answer exactly as the server sent it', async () => {
+    const parseWriteResult = await forumWriteParser();
     const s = await setup();
     await s.state('bob');
     await s.state('carol');
