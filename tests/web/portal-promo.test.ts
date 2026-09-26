@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OS_APPS } from "../../app/web/sites/portal/lib/osApps";
-import { PROMO, PROMO_BASE, PROMO_COOKIE, choosePlayback, clock, firstSegment, hasSeenPromo, promoCookie, startVariant } from "../../app/web/sites/portal/lib/promo";
+import { PROMO, PROMO_BASE, PROMO_COOKIE, choosePlayback, clock, firstSegment, hasSeenPromo, promoCookie, startEstimate, startLevelIndex, startVariant } from "../../app/web/sites/portal/lib/promo";
 
 describe("宣传片：只自动播一次的 cookie", () => {
   it("只认 yugc_promo_seen=1 这一个完整的键值", () => {
@@ -21,13 +21,18 @@ describe("宣传片：只自动播一次的 cookie", () => {
 });
 
 describe("宣传片：挑播放方式", () => {
-  const none = { mse: false, mseAv1Smooth: false, native: false, nativeAv1: false };
+  const none = { mse: false, mseAv1Smooth: false, native: false, nativeAv1: false, touch: false };
 
   it("有 MediaSource 就用 hls.js；AV1 只在流畅时用，否则 H.264", () => {
     expect(choosePlayback({ ...none, mse: true, mseAv1Smooth: true })).toEqual({ engine: "hls.js", codec: "av1", src: PROMO.masters.av1 });
     expect(choosePlayback({ ...none, mse: true })).toEqual({ engine: "hls.js", codec: "h264", src: PROMO.masters.h264 });
     // 同时能原生播也先走 hls.js
-    expect(choosePlayback({ mse: true, mseAv1Smooth: false, native: true, nativeAv1: true })?.engine).toBe("hls.js");
+    expect(choosePlayback({ ...none, mse: true, native: true, nativeAv1: true })?.engine).toBe("hls.js");
+  });
+
+  it("手机、平板（触屏）一律 H.264：它的梯子最低到 240p，弱网也能播", () => {
+    expect(choosePlayback({ ...none, mse: true, mseAv1Smooth: true, touch: true })?.codec).toBe("h264");
+    expect(choosePlayback({ ...none, native: true, nativeAv1: true, touch: true })?.codec).toBe("h264");
   });
 
   it("没有 MediaSource 时退到原生 HLS（老 iOS、微信）；两条路都没有就不播", () => {
@@ -64,21 +69,48 @@ describe("宣传片：桌面应用", () => {
   });
 });
 
-describe("宣传片：起播那一段的预取地址", () => {
+describe("宣传片：起播档与预取地址", () => {
+  // 与 CDN 上的 master-h264.m3u8 同样的档位与峰值码率（顺序打乱，确认不依赖顺序）
   const master = [
     "#EXTM3U",
     "#EXT-X-VERSION:7",
-    '#EXT-X-STREAM-INF:BANDWIDTH=2151112,AVERAGE-BANDWIDTH=1376527,CODECS="avc1.64001f,mp4a.40.2",RESOLUTION=1280x720',
+    '#EXT-X-STREAM-INF:BANDWIDTH=2151112,AVERAGE-BANDWIDTH=1376404,CODECS="avc1.64001f,mp4a.40.2",RESOLUTION=1280x720',
     "h264_720/index.m3u8",
-    '#EXT-X-STREAM-INF:BANDWIDTH=1227252,AVERAGE-BANDWIDTH=844947,CODECS="avc1.64001e,mp4a.40.2",RESOLUTION=854x480',
+    '#EXT-X-STREAM-INF:BANDWIDTH=343186,AVERAGE-BANDWIDTH=238238,CODECS="avc1.64001e,mp4a.40.2",RESOLUTION=426x240',
+    "h264_240/index.m3u8",
+    '#EXT-X-STREAM-INF:BANDWIDTH=1227252,AVERAGE-BANDWIDTH=844822,CODECS="avc1.64001e,mp4a.40.2",RESOLUTION=854x480',
     "h264_480/index.m3u8",
+    '#EXT-X-STREAM-INF:BANDWIDTH=641540,AVERAGE-BANDWIDTH=450900,CODECS="avc1.64001e,mp4a.40.2",RESOLUTION=640x360',
+    "h264_360/index.m3u8",
     '#EXT-X-STREAM-INF:BANDWIDTH=3660452,CODECS="avc1.640029,mp4a.40.2",RESOLUTION=1920x1080',
     "h264_1080/index.m3u8",
   ].join("\n");
 
-  it("挑码率最低的一档（播放器 startLevel 0 起播的就是它），地址相对 master 解析", () => {
-    expect(startVariant(master, PROMO.masters.h264)).toBe(`${PROMO_BASE}h264_480/index.m3u8`);
-    expect(startVariant("#EXTM3U\n", PROMO.masters.h264)).toBeNull();
+  it("起播档：峰值码率不超过估计带宽 × 0.7 的最高一档，一档都不够就用最低的", () => {
+    const peaks = [2151112, 343186, 1227252, 641540, 3660452];
+    expect(startLevelIndex(peaks, 1_000_000)).toBe(3); // 700k 以内最高是 360p（642k）
+    expect(startLevelIndex(peaks, 4_000_000)).toBe(0); // 2.8M 以内最高是 720p
+    expect(startLevelIndex(peaks, 100_000)).toBe(1); // 连 240p 都不够：用最低的 240p
+    expect(startLevelIndex(peaks, 0)).toBe(1);
+    expect(startLevelIndex(peaks, 100_000_000)).toBe(4);
+  });
+
+  it("带宽估计：有下行估计用它（手机封顶 1.5Mbps、桌面 4Mbps），省流量按最低，没有就按设备猜", () => {
+    expect(startEstimate({ downlinkMbps: 1.2, touch: true })).toBe(1_200_000);
+    expect(startEstimate({ downlinkMbps: 10, touch: true })).toBe(1_500_000);
+    expect(startEstimate({ downlinkMbps: 10, touch: false })).toBe(4_000_000);
+    expect(startEstimate({ downlinkMbps: 0.3, touch: false })).toBe(300_000);
+    expect(startEstimate({ downlinkMbps: 10, saveData: true, touch: false })).toBe(0);
+    expect(startEstimate({ touch: true })).toBe(1_000_000);
+    expect(startEstimate({ touch: false })).toBe(4_000_000);
+    expect(startEstimate({ downlinkMbps: 0, touch: true })).toBe(1_000_000);
+  });
+
+  it("预取的是播放器起播的同一档，地址相对 master 解析", () => {
+    expect(startVariant(master, PROMO.masters.h264, 1_000_000)).toBe(`${PROMO_BASE}h264_360/index.m3u8`);
+    expect(startVariant(master, PROMO.masters.h264, 4_000_000)).toBe(`${PROMO_BASE}h264_720/index.m3u8`);
+    expect(startVariant(master, PROMO.masters.h264, 0)).toBe(`${PROMO_BASE}h264_240/index.m3u8`);
+    expect(startVariant("#EXTM3U\n", PROMO.masters.h264, 1_000_000)).toBeNull();
   });
 
   it("取初始化段与第一个分片", () => {

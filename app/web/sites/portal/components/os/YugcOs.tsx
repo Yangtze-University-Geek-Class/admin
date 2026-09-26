@@ -7,7 +7,7 @@ import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
 import { links } from "../../lib/links";
 import { OS_APPS, appById, appByKey, filterCommands, launcherCommands, moveSelection, type AppId, type OsApp } from "../../lib/osApps";
-import { choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
+import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
 import { WALLPAPERS, readWallpaperChoice, saveWallpaperChoice, type Wallpaper } from "../../lib/wallpapers";
@@ -210,7 +210,7 @@ export default function YugcOs({ active, onBack }: Props) {
         .then(() => detectCapabilities(document.createElement("video")))
         .then((caps) => {
           const choice = choosePlayback(caps);
-          if (choice && !cancelled) return prefetchPromoStart(choice.codec);
+          if (choice && !cancelled) return prefetchPromoStart(choice.codec, browserEstimate(caps.touch));
         })
         .catch(() => undefined);
     });
