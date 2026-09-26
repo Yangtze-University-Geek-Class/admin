@@ -2,17 +2,17 @@
 // gate：第一次点「加入我们」时由 JoinUs 挂出来，播完、跳过都会进信纸；replay：桌面「宣传片」应用重看，关掉回桌面。
 // 画面按 16:9 放进屏幕，控件叠在画面里（像游戏过场）：「跳过 / 关闭」一直在右上角，静音时「打开声音」一直在左上角，
 // 其余控件播放时几秒不动就淡出，动一下鼠标、点一下屏幕或按键就回来；画面外的空白由画面本身的低清模糊色填满。
-// 手机竖着拿时整个画面转 90 度横过来铺满（promo.css），横过手机就是正常横屏。
-// 播放按 lib/promo.ts 的规则挑 hls.js 或原生 HLS、AV1 或 H.264，从估计带宽撑得住的一档起播；hls.js 按需加载，不进首屏包。
+// 手机竖着拿时整个画面转 90 度横过来铺满（promo.css，由 PromoLazy 跟官网主包加载），横过手机就是正常横屏。
+// 播放按 lib/promo.ts 的规则挑 hls.js 或原生 HLS、AV1 或 H.264，从估计带宽撑得住的一档起播；hls.js 按需加载，不进首屏包，
+// 分包加载失败过（包括桌面预取时断网）下次换地址重新加载（lib/promo.ts 的 retryableImport，#110）。
 // 能带声音自动播就带声音；浏览器不让就静音播并亮出「打开声音」；静音也不让播（或者用户要求减少动态效果）就停在封面等点播放。
 // 浏览器两种方式都不支持（unsupported）或加载失败（failed）时直接结束（gate 进信纸），宣传片不挡报名；
 // unsupported 以后也播不了，算作看过；failed 可能只是网络问题，不记，下次再试。
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type Hls from "hls.js/light";
-import { PROMO, browserEstimate, choosePlayback, clock, detectCapabilities, startLevelIndex, type Playback } from "../lib/promo";
+import { PROMO, browserEstimate, choosePlayback, clock, detectCapabilities, retryableImport, startLevelIndex, type Playback } from "../lib/promo";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import Icon from "./Icon";
-import "../styles/promo.css";
 
 export type PromoEnd = "ended" | "skipped" | "unsupported" | "failed";
 
@@ -29,6 +29,17 @@ const SLOW_MS = 6000;
 const IDLE_MS = 2500;
 /** 背景模糊色多久取一次画面：只画 32×18 的小图，开销可以忽略 */
 const AMBIENT_MS = 500;
+
+// 换地址的那几个以生产构建为准（Vite 把每个打成文件名不同的分包）
+const importHls = retryableImport([
+  () => import("hls.js/light"),
+  // @ts-expect-error 同一模块，只为换地址
+  () => import("hls.js/light?retry=1"),
+  // @ts-expect-error 同上
+  () => import("hls.js/light?retry=2"),
+  // @ts-expect-error 同上
+  () => import("hls.js/light?retry=3"),
+]);
 
 export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
   const reducedMotion = useReducedMotion();
@@ -85,7 +96,7 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
     if (!element) return;
     let cancelled = false;
     // hls.js 分包与能力探测同时开始：多数浏览器会用 hls.js，串行等会多一次往返
-    const hlsModule = import("hls.js/light");
+    const hlsModule = importHls();
     hlsModule.catch(() => undefined);
     (async () => {
       const caps = await detectCapabilities(element);
@@ -141,7 +152,12 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
         element.muted = false;
         await element.play();
       } catch (error) {
-        if (cancelled || (error as DOMException).name !== "NotAllowedError") return;
+        if (cancelled) return;
+        const name = (error as DOMException).name;
+        // 片源本身放不了：和加载失败一样直接结束
+        if (name === "NotSupportedError") return finish("failed");
+        // 其他原因（比如刚开始播就被新的加载打断，AbortError）：停在封面等人点，不一直转圈
+        if (name !== "NotAllowedError") return setState("waiting-click");
         try {
           element.muted = true;
           setMuted(true);
@@ -150,7 +166,10 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
           if (!cancelled) setState("waiting-click");
         }
       }
-    })();
+    })().catch(() => {
+      // 起播过程中意外抛错（能力探测、hls.js 初始化等）：按加载失败结束，不留一直转圈的播放层
+      if (!cancelled) finish("failed");
+    });
     return () => {
       cancelled = true;
       hls.current?.destroy();
