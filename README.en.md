@@ -43,7 +43,7 @@
 This English page is an overview. The Chinese documents are canonical; when they disagree, follow [README.md](README.md) and [docs/](docs/README.md).
 
 > [!IMPORTANT]
-> **The forum has no real backend or authentication yet.** Locally it either shows a read-only archive of the old class forum (no login, no writes) or the upstream demo, whose identities are not GitHub logins and whose content lives only in the current browser. Unified internal authentication, service integration and the 3D Hub are not built. Do not describe this adoption as a finished production community.
+> **Preview and production are two identical, complete services, isolated from each other.** Each runs web, server (Fastify with its own SQLite) and forum containers, with its own domain, secrets and GitHub OAuth app. The portal, forum and console share one GitHub sign-in (one `sid` cookie; only members of the class GitHub organization can sign in). Deployed images are production builds with no sample data; sample data is only used in local development. **The forum cannot take posts or replies yet**: there is no server-side storage for topics, so the live forum shows only the class categories, tags and the old posts released so far. The signed-in 3D Hub is not built either.
 
 ## What is here
 
@@ -70,8 +70,8 @@ Core packages use Node 22 (at least 22.13) and pnpm 9.15.9. The forum needs Node
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev:web        # portal with read-only mock data: http://127.0.0.1:5173/sites/portal/
-pnpm dev:console    # console with sample data: http://127.0.0.1:5186/console
+pnpm dev:web        # portal; local dev defaults to sample data: http://127.0.0.1:5173/sites/portal/
+pnpm dev:console    # console against the local server (real GitHub sign-in); add ?__data=mock for sample data: http://127.0.0.1:5186/console
 pnpm forum:install && pnpm forum:start   # forum: http://127.0.0.1:3456/
 pnpm verify         # check + test + build, plus forum check/generate
 pnpm test:e2e       # Playwright checks for portal and console
@@ -90,7 +90,7 @@ Rules: [BRANCHING](docs/conventions/BRANCHING.md) · [RELEASES](docs/conventions
 
 ## Deployment
 
-Two isolated Docker stacks on one host behind host nginx: production at `/opt/yzgc/production` (`https://yangtzeu.work`, web on `127.0.0.1:18100`) and preview at `/opt/yzgc/preview` (`https://prev.yangtzeu.work`, web on `127.0.0.1:18200`). Images are per environment, `yzgc-production/{server,web,forum}:<sha12>` and `yzgc-preview/{server,web,forum}:<sha12>`. Environment files live only in `deploy/env/`, with secrets left blank. Deployment switches default to off. See [DEPLOY](docs/ops/DEPLOY.en.md) and [CICD](docs/ops/CICD.md).
+Two isolated Docker stacks on one host behind host nginx: production at `/opt/yzgc/production` (`https://yangtzeu.work`, web on `127.0.0.1:18100`) and preview at `/opt/yzgc/preview` (`https://prev.yangtzeu.work`, web on `127.0.0.1:18200`). Images are per environment, `yzgc-production/{server,web,forum}:<sha12>` and `yzgc-preview/{server,web,forum}:<sha12>`. Environment files live only in `deploy/env/`, with secrets left blank. The preview switch is on, so an rc tag deploys preview; the production switch is off (the free plan cannot configure production approvals on a private repository), and production is deployed by a maintainer with `scripts/deploy-manual.mjs` after the owner accepts the rc. See [DEPLOY](docs/ops/DEPLOY.en.md) and [CICD](docs/ops/CICD.md).
 
 ## License
 
