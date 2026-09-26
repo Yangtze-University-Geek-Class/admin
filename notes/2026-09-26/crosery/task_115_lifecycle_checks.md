@@ -21,3 +21,21 @@
 - 做了什么：会话重启后接手：读 git diff 与新文件；git log dd93912..HEAD -- app/server、55a14a6..HEAD -- app/forum、329ad3d..HEAD -- app/web 找出让模块变新的提交：d3f3df7（三个 Dockerfile 的 FROM 按 digest 固定）、b3d3d94（论坛镜像的邮箱检查扩到整个产物的文本文件）；对照 app/*/Dockerfile 的 FROM 行与第 76-82 行断言核对文档改动属实
 - 结果：server、forum 文档比模块旧（d3f3df7、b3d3d94 没改文档），web 文档头「更新：2026-09-25」早于 b95e3f2 的 2026-09-26；三份文档的补充内容与 Dockerfile 一致
 - 下一步：先单独提交三份文档，再提交检查脚本
+
+## 16:12:13 +08:00 · 提交 · #115 · 三份服务文档补上落后的内容
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：docs(docs): 服务文档补上基础镜像按 digest 固定与论坛镜像的邮箱检查（4837515）；pnpm check:docs、node scripts/note.mjs check
+- 结果：两项检查通过；这条记录写在提交之后：task 分支还没有自己的提交时 note.mjs 把 HEAD 在 origin/stage 里当成已合并、记录暂存到主工作区，flush 后才进 worktree
+
+## 16:14:53 +08:00 · 开发 · #115 · 文档同步检查：合并提交不算改动，补测试并做变异检查
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：scripts/check-doc-sync.mjs 的 lastChange 加 --no-merges，报错里写真正改模块的提交；补「合并提交不算改动」「GitHub 给 PR 做的合并提交」两个用例；branch-guard 的文档同步一步改成前面失败也照跑；CICD、CODE-REVIEW 第 6 项、TESTING、AGENTS 写明规则；五个变异（同秒算更新、去掉浅克隆检查、去掉 PR diff 检查、合并提交算改动、不看工作区）各自让测试失败，恢复后 15 个用例全过
+- 结果：pnpm exec vitest run tests/tooling/doc-sync.test.ts：15 passed；五个变异各有用例失败；node scripts/check-doc-sync.mjs：文档同步通过：6 组模块与文档；actionlint 退出 0
+
+## 16:14:54 +08:00 · 提交 · #115 · 文档跟着模块改的强制检查
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：feat(tooling): 文档跟着模块改的检查进 pnpm check 与 CI；pnpm check
+- 结果：pnpm check 退出 0（含 check:doc-sync：文档同步通过：6 组模块与文档）；actionlint 退出 0

@@ -2,7 +2,7 @@
 
 > 所有项目规范集中于 docs；`docs/` 与 `app/` 严格对齐，根目录及工具文件只负责导航。
 
-状态：`current` · 更新：2026-09-24
+状态：`current` · 更新：2026-09-26
 
 ## AI 第一操作
 
@@ -20,7 +20,30 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | `docs/`（本文档树） | [INDEX](INDEX.md)（生成物） | [DOCUMENTATION](conventions/DOCUMENTATION.md) |
 | `scripts/`、`tests/` | [TESTING](conventions/TESTING.md) · [ops/CICD](ops/CICD.md) | [CONTRIBUTING](conventions/CONTRIBUTING.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md) |
 
-**硬规则**：新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md`，两处缺一视为未完成；模块细节放同目录子文档（见 [MODULAR-DEVELOPMENT](conventions/MODULAR-DEVELOPMENT.md) 与 [DOCUMENTATION](conventions/DOCUMENTATION.md)）。`docs/modules/` 已删除，不再重建。
+**硬规则**：新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md` + 下一节对照表里加一行，缺一视为未完成；模块细节放同目录子文档（见 [MODULAR-DEVELOPMENT](conventions/MODULAR-DEVELOPMENT.md) 与 [DOCUMENTATION](conventions/DOCUMENTATION.md)）。`docs/modules/` 已删除，不再重建。
+
+## 文档跟着模块改
+
+模块改了，对应的文档要在同一个提交或之后的提交里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并：
+
+| 模块路径 | 文档路径 | 头部「更新：」 |
+|---|---|---|
+| `app/server/` | `docs/services/server/` | `docs/services/server/README.md` |
+| `app/web/` | `docs/services/web/` | `docs/services/web/README.md` |
+| `app/console/` | `docs/services/console/` | `docs/services/console/README.md` |
+| `app/forum/` | `docs/services/forum/` | `docs/services/forum/README.md` |
+| `deploy/` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` | `docs/ops/DEPLOY.md`、`docs/ops/ENVIRONMENTS.md`、`docs/ops/CICD.md` |
+| `.github/workflows/` | `docs/ops/CICD.md` | `docs/ops/CICD.md` |
+
+检查的规则：
+
+1. 按 Git 的提交时间比：模块路径最后一次提交（`git log -1 --no-merges --format=%ct -- <模块路径>`）不能比文档路径最后一次提交新。合并提交不算改动，报错里写的是真正改了模块的那个提交。工作区里还没提交的改动算作「现在」，所以改了模块、没动文档时，本机的 `pnpm check` 就不通过。
+2. 第三列文档开头的「更新：」日期不能早于模块最后一次改动的北京日期；一行写了几份文档时，看其中最新的那个日期。
+3. task 分支进 `stage` 的 PR 还要看这次的改动本身：`origin/stage...HEAD` 动了模块路径，就必须也动对应的文档路径（CI `branch-guard`）。这一条补上第 1 条的空子：别人后来改过同一份文档，时间比较会通过，但你这次的改动仍然要带上文档。
+4. 要有完整历史：浅克隆直接报错，不会当作通过。CI 的检出写 `fetch-depth: 0`；本机遇到时运行 `git fetch --unshallow`。
+5. `app/` 下每个服务目录都要在表里，表里写的路径都要存在。不设排除项：`app/` 里的测试、脚本、Dockerfile、锁文件改了，也要回头看服务文档里对应的源码地图、验证命令、镜像说明还对不对。
+
+不通过时，报错会写出是哪一对、是哪个提交让模块变新。先 `git show <提交>` 看改了什么，把文档里对应的说明改对，再把「更新：」改成当天。只改日期、不改内容也能让检查通过，但这是假同步，审查按 [CODE-REVIEW](conventions/CODE-REVIEW.md) 第 6 项拦下；检查只能看出文档动没动，写得对不对由审查人核对。合并与 rebase 的处理见脚本开头的注释，测试在 `tests/tooling/doc-sync.test.ts`。
 
 ## 阅读地图
 

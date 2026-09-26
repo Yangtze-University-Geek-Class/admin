@@ -73,6 +73,16 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: node scripts/note.mjs check --pr --base "origin/${BASE_REF}" --head "${HEAD_REF}"
 
+      # 文档跟着模块改（docs/README.md「文档跟着模块改」）：这次 PR 动了模块路径，就必须也动对应的文档路径。
+      # 按提交时间的整体比较也在 core 的 pnpm check 里；这一步另看本 PR 的改动，补上「别人后来改过同一份文档」的空子。
+      # 前面的执行记录检查没过也照样跑，一次把要补的都列出来。
+      - name: 文档跟着模块改（本 PR 的改动）
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && startsWith(github.head_ref, 'task/') }}
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-doc-sync.mjs --base "origin/${BASE_REF}"
+
       # 全部链路的一览表贴进运行摘要：stage、main 上随时能看到每个人的链路（入口 notes/INDEX.md）。
       - name: 执行记录一览（运行摘要）
         if: ${{ !cancelled() }}
@@ -85,9 +95,11 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
-      - name: 检出代码
+      - name: 检出代码（完整历史）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # pnpm check 里的 check:doc-sync 按提交时间比较模块与文档，浅克隆看不到历史会直接失败。
+          fetch-depth: 0
           # 不把 GITHUB_TOKEN 写进 .git/config：本 job 只读代码，不做任何 Git 写操作。
           persist-credentials: false
 

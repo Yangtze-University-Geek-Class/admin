@@ -2,7 +2,7 @@
 
 > 本仓库专属的 diff 审查清单：触发时机、逐项检查、结论格式与审查记录位置。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-09-26
 
 本规范规定**看什么、怎么判、写在哪**；MR 的字段要求与门禁见 [PULL-REQUESTS](PULL-REQUESTS.md)，分支模型见 [BRANCHING](BRANCHING.md)。
 
@@ -24,7 +24,7 @@
 3. **密钥是否入库**：diff 里不得出现真实 token、密码、会话 Cookie、SSH 私钥、`OAUTH_CLIENT_SECRET`/`SESSION_SECRET`/`ENCRYPTION_KEY`/`TURNSTILE_SECRET_KEY` 的真值。`node scripts/check-secrets.mjs` 只覆盖部分文本模式，**通过它不等于没有泄漏**，必须人眼过一遍 diff 中的新增字符串。
 4. **`.env` 只允许非密值**：`deploy/env/.env.production`、`deploy/env/.env.preview` 入库的只能是地址、端口、域名、路径、开关等可见事实；密钥字段必须留空，由 CI/CD 用环境级 secrets 注入。字段增删要同步 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [deploy/environments.json](../../deploy/environments.json)。
 5. **镜像与 compose 变更风险**：镜像 tag 语义（`<sha12>`）、镜像仓库是否仍按环境分开（`yzgc-preview/*` 与 `yzgc-production/*`，同一 SHA 不得共用镜像引用）、端口是否与另一环境冲突（18100/18101 vs 18200/18201）、命名卷是否被改成宿主目录、健康检查是否仍在、`dockerfile:` 路径是否指向 `app/<service>/Dockerfile`、构建上下文是否仍为仓库根。
-6. **测试与文档同步**：行为变更是否带来相应回归；改动的 API/环境变量/命令/路径是否同步到 [services/](../services/README.md)、[API](../architecture/API.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[README](../../README.md)、[TESTING](TESTING.md)；文档索引是否重新生成（`node scripts/docs-index.mjs --check`）。
+6. **测试与文档同步**：行为变更是否带来相应回归；改动的 API/环境变量/命令/路径是否同步到 [services/](../services/README.md)、[API](../architecture/API.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md)、[README](../../README.md)、[TESTING](TESTING.md)；文档索引是否重新生成（`node scripts/docs-index.mjs --check`）。`pnpm check:doc-sync` 通过只说明对应的文档动过（[docs/README](../README.md)「文档跟着模块改」）：对照模块的改动核对文档改的内容，只改「更新：」日期、没改说明的是假同步，按 `阻塞` 处理。
 7. **边界规则**：`app/` 与 `docs/` 严格对齐（新增服务必须同时有 `docs/services/<svc>/README.md`）；站点之间、shared → 站点、路由模块互相导入、`lib` 反向依赖 `middleware` 都是禁止方向；论坛（Vue/Nuxt）不得导入核心 React/Fastify 实现。
 8. **提交信息规范**：遵循 [COMMITS](COMMITS.md) 的 `<type>(<scope>): <中文简述>`，一次提交一个可独立回滚的目的，不出现 `update`/`WIP`/无信息量消息；机械搬迁与行为改变尽量分开。
 9. **旧模型残留**：diff 中不得把 `next` 分支、`feat/|fix/|docs/` 命名、`release-*`/`prev-*` tag、「push `stage`/`main` 即部署」、systemd、`/opt/yzgc-admin`、宿主 3000 端口当成现行模型（历史章节内须显式标注历史）。发布 tag 只能是 `vX.Y.Z-rc.N` / `vX.Y.Z`（见 [RELEASES](RELEASES.md)）。
