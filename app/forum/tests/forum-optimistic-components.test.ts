@@ -308,6 +308,8 @@ describe('the reply drawer after the server refused a reply', () => {
     const nextZIndex = () => ++lastZIndex
     const toastStore = reactive({ zIndex: lastZIndex })
     const layers = { drawer: 0 }
+    /** What app.vue reads to put the toasts at the top. */
+    const composerOpen = ref(false)
     const TxDrawer = defineComponent({
       props: { visible: Boolean },
       setup(props, { slots }) {
@@ -330,6 +332,7 @@ describe('the reply drawer after the server refused a reply', () => {
         useForumActions: () => ({ createPost: sends.write }),
         useContentSource: () => ({ serverMode: true }),
         useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
+        useShell: () => ({ composerOpen }),
       },
     })
     // The topic page keeps the composer mounted and binds v-model:visible and v-model:reply-to.
@@ -352,6 +355,7 @@ describe('the reply drawer after the server refused a reply', () => {
     return {
       state,
       unmount,
+      composerOpen,
       layers: {
         drawer: () => layers.drawer,
         toasts: () => toastStore.zIndex,
@@ -411,6 +415,23 @@ describe('the reply drawer after the server refused a reply', () => {
     expect(composer.layers.toasts()).toBeGreaterThan(composer.layers.drawer())
   })
 
+  it('has the toasts shown at the top while it is open, the refusal\'s included (#162)', async () => {
+    const composer = mountComposer()
+    expect(composer.composerOpen.value).toBe(false)
+    await composer.open(first)
+    expect(composer.composerOpen.value).toBe(true)
+    await composer.type('我的回复')
+    await composer.send()
+    expect(composer.composerOpen.value).toBe(false)
+    await composer.refuse(0)
+    expect(composer.composerOpen.value).toBe(true)
+    await composer.cancel()
+    expect(composer.composerOpen.value).toBe(false)
+    await composer.open(first)
+    composer.unmount()
+    expect(composer.composerOpen.value).toBe(false)
+  })
+
   it('keeps both texts when another reply, quote and all, was started while the first was out', async () => {
     const composer = mountComposer()
     await composer.open(first)
@@ -466,5 +487,8 @@ describe('the reply drawer after the server refused a reply', () => {
     expect(again.state.visible).toBe(true)
     expect(again.box()).toBe('回复甲')
     expect(again.state.replyTo?.id).toBe('p2')
+    // Opened from onMounted this time: the toasts still end up above the drawer, at the top (#162).
+    expect(again.layers.toasts()).toBeGreaterThan(again.layers.drawer())
+    expect(again.composerOpen.value).toBe(true)
   })
 })

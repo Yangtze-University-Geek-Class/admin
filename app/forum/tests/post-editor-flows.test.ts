@@ -91,6 +91,7 @@ describe('the reply drawer', () => {
         useForumActions: () => ({ createPost }),
         useContentSource: () => ({ serverMode: true }),
         useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
+        useShell: () => ({ composerOpen: ref(false) }),
       },
     })
     // The topic page keeps the composer mounted and binds v-model:visible and :reply-to.

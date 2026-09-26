@@ -81,6 +81,16 @@ const title = computed(() => (replyToUser.value
 // in `content`, not in the editor, so it survives the new editor.
 const editorKey = ref(0)
 
+// At the bottom right a toast would lie over this drawer's 取消 and 回复, so
+// while it is open app.vue shows toasts at the top (#162).
+const { composerOpen } = useShell()
+watch(() => props.visible, (visible) => {
+  composerOpen.value = visible
+}, { immediate: true })
+onBeforeUnmount(() => {
+  composerOpen.value = false
+})
+
 // Prefill on open only: reopening the same target must not stack a second
 // quote on top of a draft the author is still writing.
 watch(() => props.visible, (visible) => {
@@ -102,8 +112,8 @@ function close() {
  * drawer answers the post the last of them answered.
  *
  * The toast saying why came first and took a z-index; the drawer takes the
- * next one as it opens and would cover it (#162). Once the drawer has opened,
- * the toasts take another one and are on top again.
+ * next one as it opens and its mask would cover the toast (#162). Once the
+ * drawer has opened, the toasts take another one and are on top again.
  */
 function takeBackRefused() {
   const refused = server.takeRefusedReplies(props.topic.id)
