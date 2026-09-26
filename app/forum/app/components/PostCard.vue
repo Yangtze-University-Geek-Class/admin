@@ -91,14 +91,27 @@ function startEdit() {
   editing.value = true
 }
 
+/**
+ * Numbers the saves: a save while an earlier one is still out joins its
+ * request (stores/forum-server.ts), and both get the same answer. Only the
+ * latest one acts on it, so 帖子已更新 says so once and a refusal reopens the
+ * editor on the text saved last, not on an older one.
+ */
+let saves = 0
+
 /** The editor closes on the new text; 帖子已更新 waits for the server, and a refusal reopens the editor on this draft. */
 async function saveEdit() {
   if (!draft.value.trim())
     return
   const text = draft.value
+  saves += 1
+  const round = saves
   const saved = actions.editPost(props.post.id, draft.value)
   editing.value = false
-  if (!await saved) {
+  const done = await saved
+  if (round !== saves)
+    return
+  if (!done) {
     if (!editing.value) {
       draft.value = text
       editing.value = true

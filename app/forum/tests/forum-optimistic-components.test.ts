@@ -119,6 +119,79 @@ describe('a post card', () => {
   })
 })
 
+describe('the edit form on a post, against the server', () => {
+  const post: Post = { id: 'p4', topicId: 't1', authorId: 'u1', content: '原来的正文', createdAt: 0, likeUserIds: [] }
+
+  function mountEditable() {
+    const saves = heldWrites<boolean>()
+    const toast = vi.fn()
+    const PostCard = loadComponent('components/PostCard.vue', {
+      imports: {
+        '@talex-touch/tuffex/utils': { toast },
+        '~/data/likes': likes,
+        '~/stores/forum-server': forumServer,
+      },
+      globals: {
+        useForumStore: () => ({ userById: () => member, postById: () => undefined, isBookmarked: () => false, isFirstPost: () => false }),
+        useForumActions: () => ({ editPost: saves.write }),
+        useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
+        useShell: () => ({ loginOpen: ref(false) }),
+        useRelativeTime: () => ({ fromNow: () => '刚刚', formatAbsolute: () => '' }),
+        useAppLink: () => ({ href: (path: string) => path, absoluteUrl: () => 'https://forum.example/t/t1#post-p4' }),
+      },
+    })
+    const { root } = mount(PostCard, { post, topic, floor: 2 }, components)
+    const box = () => find(root, node => node.tag === 'textarea')
+    return {
+      saves,
+      toast,
+      box: () => box()?.props.value,
+      /** 编辑, write `text`, 保存. */
+      save: async (text: string) => {
+        await click(button(root, '编辑'))
+        ;(box()!.props.onInput as (value: string) => void)(text)
+        await nextTick()
+        await click(button(root, '保存'))
+      },
+      answer: async (index: number, done: boolean) => {
+        saves.calls[index]!.answer(done)
+        await settle()
+      },
+    }
+  }
+
+  it('reopens on the text that was saved when the server refuses it', async () => {
+    const card = mountEditable()
+    await card.save('改过的正文')
+    expect(card.saves.calls.map(call => call.args)).toEqual([['p4', '改过的正文']])
+    expect(card.box()).toBeUndefined()
+    await card.answer(0, false)
+    expect(card.box()).toBe('改过的正文')
+    expect(card.toast).not.toHaveBeenCalled()
+  })
+
+  // The store answers both saves with the lane's one result.
+  it('reopens on the second text when a second save, made while the first was out, is refused', async () => {
+    const card = mountEditable()
+    await card.save('第一版')
+    await card.save('第二版')
+    expect(card.box()).toBeUndefined()
+    await card.answer(0, false)
+    await card.answer(1, false)
+    expect(card.box()).toBe('第二版')
+  })
+
+  it('says 帖子已更新 once for two saves the server took', async () => {
+    const card = mountEditable()
+    await card.save('第一版')
+    await card.save('第二版')
+    await card.answer(0, true)
+    await card.answer(1, true)
+    expect(card.toast.mock.calls).toEqual([[{ title: '帖子已更新', variant: 'success' }]])
+    expect(card.box()).toBeUndefined()
+  })
+})
+
 describe('the reply drawer after the server refused a reply', () => {
   const first: Post = { id: 'p2', topicId: 't1', authorId: 'u1', content: '甲的帖子', createdAt: 0, likeUserIds: [] }
   const second: Post = { id: 'p3', topicId: 't1', authorId: 'u1', content: '乙的帖子', createdAt: 0, likeUserIds: [] }
