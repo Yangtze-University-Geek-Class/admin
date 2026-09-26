@@ -25,7 +25,7 @@
 # 安全头（HSTS/CSP 等）由宿主 nginx 统一加，容器不重复下发，避免同一响应带两份 CSP。
 
 # ── 构建阶段：装依赖 → Vite 构建 → 生成 release.json 与 nginx 配置 ──
-FROM node:22-bookworm-slim AS builder
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
 ENV CI=1 \
     PNPM_HOME=/pnpm \
@@ -222,7 +222,7 @@ NGINX_HEADERS
 # ── 运行阶段：nginx 1.31（alpine），以 nginx 用户（uid 101）运行 ──
 # 版本说明：任务书建议的 1.27 已从 Docker Hub 下线（官方只维护 1.30/1.31 两条线），
 # 1.31 也是本地实测配置所用的版本（nginx 1.31.6）。
-FROM nginx:1.31-alpine AS runtime
+FROM nginx:1.31-alpine@sha256:1ed1b0e1d7652937d6cbdaf4018c7b6fc009a7dd6c3047351e2eddda745de43f AS runtime
 
 # 运行阶段也保留发布身份：只为 `docker inspect` 能追溯「这个镜像对应哪次构建」，
 # 静态产物与进程都不读它们（运行时的事实来源仍是 env 文件）。
