@@ -155,6 +155,26 @@ export interface ForumState {
   follows: Follow[]
 }
 
+/**
+ * What one write changed, as the forum server sends it back (#145): the
+ * records in the same shape as in `ForumState`, merged by id into the state
+ * the page already holds (`applyChanges` in stores/forum.ts). Bookmarks and
+ * follows have no id; one that no longer exists comes under `removed`.
+ */
+export interface ForumChanges {
+  users?: User[]
+  tags?: Tag[]
+  topics?: Topic[]
+  posts?: Post[]
+  notifications?: Notification[]
+  bookmarks?: Bookmark[]
+  follows?: Follow[]
+  removed?: {
+    bookmarks?: Array<Pick<Bookmark, 'userId' | 'postId'>>
+    follows?: Array<Pick<Follow, 'followerId' | 'followeeId'>>
+  }
+}
+
 export interface SessionState {
   currentUserId: string | null
 }

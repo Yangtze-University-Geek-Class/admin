@@ -50,3 +50,11 @@ export function serverBody(viewer: FixtureViewer = GUEST_VIEWER) {
 
 export const MEMBER_VIEWER: FixtureViewer = { userId: 'm1001', kind: 'member', capabilities: [] }
 export const MODERATOR_VIEWER: FixtureViewer = { userId: 'm1001', kind: 'member', capabilities: ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate'] }
+
+/**
+ * A write's answer in the shape the contract fixes (#145): only the changed
+ * records, plus the same `viewer` and `guestPolicy` as `/state`.
+ */
+export function writeBody(changes: Record<string, unknown>, viewer: FixtureViewer = GUEST_VIEWER, extra: Record<string, unknown> = {}) {
+  return { changes, viewer, guestPolicy: serverState(viewer).guestPolicy, ...extra }
+}

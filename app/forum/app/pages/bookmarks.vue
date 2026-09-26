@@ -20,9 +20,11 @@ function open(entry: BookmarkEntry) {
   void router.push(`/t/${entry.topic.id}`)
 }
 
-async function remove(entry: BookmarkEntry) {
-  if (!user.value || await actions.toggleBookmark(user.value.id, entry.post.id) === null)
+// The entry leaves the list before the call returns (#145); a refusal brings it back with the server store's toast.
+function remove(entry: BookmarkEntry) {
+  if (!user.value)
     return
+  void actions.toggleBookmark(user.value.id, entry.post.id)
   toast({ title: '已移出书签', variant: 'success' })
 }
 

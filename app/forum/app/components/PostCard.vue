@@ -66,15 +66,18 @@ function like() {
   void actions.toggleLike(props.post.id, current.id)
 }
 
-async function bookmark() {
+// Bookmarks, edits and deletions show before the call returns (#145); a
+// refusal puts the post back as it was, with the server store's toast.
+function bookmark() {
   const current = user.value
   if (!current || !can('bookmark')) {
     loginOpen.value = true
     return
   }
-  const added = await actions.toggleBookmark(current.id, props.post.id)
-  if (added !== null)
-    toast({ title: added ? '已加入书签' : '已移出书签', variant: 'success' })
+  const before = bookmarked.value
+  void actions.toggleBookmark(current.id, props.post.id)
+  if (bookmarked.value !== before)
+    toast({ title: bookmarked.value ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
 // Someone else's post can be in the editor (a moderator's edit): it goes in through `editDraft`, raw HTML shown as text.
@@ -83,27 +86,29 @@ function startEdit() {
   editing.value = true
 }
 
-const saving = ref(false)
-
+/** The editor closes on the new text; 帖子已更新 waits for the server, and a refusal reopens the editor on this draft. */
 async function saveEdit() {
-  if (!draft.value.trim() || saving.value)
+  if (!draft.value.trim())
     return
-  saving.value = true
-  try {
-    if (!await actions.editPost(props.post.id, fromEditor(draft.value)))
-      return
-    editing.value = false
-    toast({ title: '帖子已更新', variant: 'success' })
+  const text = draft.value
+  const saved = actions.editPost(props.post.id, fromEditor(draft.value))
+  editing.value = false
+  if (!await saved) {
+    if (!editing.value) {
+      draft.value = text
+      editing.value = true
+    }
+    return
   }
-  finally {
-    saving.value = false
-  }
+  toast({ title: '帖子已更新', variant: 'success' })
 }
 
-async function remove() {
-  if (!canDelete.value || !await actions.deletePost(props.post.id))
+function remove() {
+  if (!canDelete.value)
     return
-  toast({ title: '帖子已删除' })
+  void actions.deletePost(props.post.id)
+  if (props.post.deleted)
+    toast({ title: '帖子已删除' })
 }
 </script>
 
@@ -172,7 +177,7 @@ async function remove() {
               <TxButton variant="secondary" size="sm" @click="editing = false">
                 取消
               </TxButton>
-              <TxButton variant="primary" size="sm" :loading="saving" :disabled="!draft.trim()" @click="saveEdit">
+              <TxButton variant="primary" size="sm" :disabled="!draft.trim()" @click="saveEdit">
                 保存
               </TxButton>
             </TxFlex>

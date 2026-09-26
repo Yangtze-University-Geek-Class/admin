@@ -82,36 +82,58 @@ function close() {
   emit('update:visible', false)
 }
 
+/**
+ * The reply is on the page as soon as this is called (against the server under
+ * a `pending:` id, see stores/forum-server.ts), so the panel closes at once and
+ * the page is told where it is. 回复已发布 waits for the server; if it refuses,
+ * its toast says why and the panel opens again with the text, so nothing typed
+ * is lost.
+ */
 async function submit() {
   const current = user.value
   const body = text.value
   if (!canSend.value || submitting.value)
     return
+  const draft = content.value
   const replyToPostId = props.replyTo?.id
-  submitting.value = true
-  try {
-    let postId: string | null = null
-    if (current && can('reply', { topic: props.topic }))
-      postId = await actions.createPost({ topicId: props.topic.id, authorId: current.id, content: body, ...(replyToPostId ? { replyToPostId } : {}) })
-    else if (asGuest.value) {
-      const token = turnstileToken.value
-      // Spent either way: the server accepts a token once.
-      if (turnstileSiteKey.value)
-        turnstileRound.value += 1
-      postId = await actions.replyAsGuest({
-        topicId: props.topic.id,
-        content: body,
-        name: guestName.value.trim(),
-        ...(replyToPostId ? { replyToPostId } : {}),
-        ...(token ? { turnstileToken: token } : {}),
-      })
-    }
-    if (!postId)
-      return
-    content.value = ''
-    emit('update:visible', false)
-    toast({ title: '回复已发布', variant: 'success' })
+  let shownId: string | null = null
+  const shown = (postId: string) => {
+    shownId = postId
     emit('submitted', postId)
+  }
+  let sending: Promise<string | null>
+  if (current && can('reply', { topic: props.topic }))
+    sending = actions.createPost({ topicId: props.topic.id, authorId: current.id, content: body, ...(replyToPostId ? { replyToPostId } : {}) }, shown)
+  else if (asGuest.value) {
+    const token = turnstileToken.value
+    // Spent either way: the server accepts a token once.
+    if (turnstileSiteKey.value)
+      turnstileRound.value += 1
+    sending = actions.replyAsGuest({
+      topicId: props.topic.id,
+      content: body,
+      name: guestName.value.trim(),
+      ...(replyToPostId ? { replyToPostId } : {}),
+      ...(token ? { turnstileToken: token } : {}),
+    }, shown)
+  }
+  else {
+    return
+  }
+  submitting.value = true
+  content.value = ''
+  emit('update:visible', false)
+  try {
+    const postId = await sending
+    if (!postId) {
+      if (!content.value.trim())
+        content.value = draft
+      emit('update:visible', true)
+      return
+    }
+    toast({ title: '回复已发布', variant: 'success' })
+    if (postId !== shownId)
+      emit('submitted', postId)
   }
   finally {
     submitting.value = false

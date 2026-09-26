@@ -115,26 +115,30 @@ function openComposer(post?: Post) {
   composerOpen.value = true
 }
 
+// Called twice against the server: once for the reply shown while it is sent,
+// once for the post the server made of it. `replyTo` stays, so a refused reply
+// reopens the composer on the same target.
 async function onSubmitted(postId: string) {
   await nextTick()
-  replyTo.value = undefined
   focusPost(postId)
 }
 
-// Read `pinned`/`closed` back from the store after the write: against the
-// server the whole state is replaced, and the old object no longer changes.
-async function togglePinned() {
+// The topic changes before the call returns (#145); a refusal puts it back
+// with its own toast.
+function togglePinned() {
   const current = topic.value
-  if (!current || !can('pinTopic', { topic: current }) || !await actions.setPinned(current.id, !current.pinned))
+  if (!current || !can('pinTopic', { topic: current }))
     return
-  toast({ title: forum.topicById(topicId)?.pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
+  void actions.setPinned(current.id, !current.pinned)
+  toast({ title: current.pinned ? '话题已置顶' : '已取消置顶', variant: 'success' })
 }
 
-async function toggleClosed() {
+function toggleClosed() {
   const current = topic.value
-  if (!current || !can('closeTopic', { topic: current }) || !await actions.setClosed(current.id, !current.closed))
+  if (!current || !can('closeTopic', { topic: current }))
     return
-  toast({ title: forum.topicById(topicId)?.closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
+  void actions.setClosed(current.id, !current.closed)
+  toast({ title: current.closed ? '话题已关闭' : '话题已重新开放', variant: 'success' })
 }
 
 // One view per topic per browser session, so re-reading a thread in the same

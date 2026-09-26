@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { avatarFileProblem, changedDisplayName, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, NAME_CHARS_HINT, parseServerSnapshot, PROFILE_LIMITS, profileBody, profileProblem, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
-import { serverBody, serverState } from './fixtures/server-state'
+import { avatarFileProblem, changedDisplayName, createForumApi, DEFAULT_GUEST_POLICY, ForumApiError, linkableWebsite, NAME_CHARS_HINT, parseServerSnapshot, parseWriteResult, PROFILE_LIMITS, profileBody, profileProblem, STATE_TIMEOUT_MS, websiteProblem } from '../shared/forum-api'
+import { MEMBER_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -41,6 +41,47 @@ describe('parseServerSnapshot', () => {
   })
 })
 
+describe('parseWriteResult', () => {
+  const state = serverState(MEMBER_VIEWER)
+
+  it('takes only the records a write changed, and the viewer and guest policy beside them', () => {
+    const result = parseWriteResult(writeBody({
+      posts: [state.posts[1]],
+      bookmarks: [{ userId: 'm1001', postId: 'p10001', createdAt: 40 }],
+      removed: { follows: [{ followerId: 'm1001', followeeId: 'u-geekclass', createdAt: 1 }] },
+    }, MEMBER_VIEWER))
+    expect(result.viewer).toEqual(MEMBER_VIEWER)
+    expect(result.guestPolicy).toEqual({ powDifficulty: 2, turnstileSiteKey: null, nameMax: 20, contentMax: 2000 })
+    expect(result.changes).toEqual({
+      posts: [state.posts[1]],
+      bookmarks: [{ userId: 'm1001', postId: 'p10001', createdAt: 40 }],
+      removed: { follows: [{ followerId: 'm1001', followeeId: 'u-geekclass' }] },
+    })
+  })
+
+  it('fills a user in the same way the state read does', () => {
+    const { changes } = parseWriteResult(writeBody({ users: [{ id: 'g2', username: 'guest-2', displayName: '新同学', avatarUrl: '', notifyPrefs: { like: false } }] }))
+    expect(changes.users).toEqual([{ id: 'g2', username: 'guest-2', displayName: '新同学', bio: '', location: '', website: '', avatarColor: '#64748b', joinedAt: 0, role: 'member', notifyPrefs: { reply: true, like: false, follow: true } }])
+  })
+
+  it('refuses the whole answer when any part of it has the wrong shape, so nothing half-read is merged', () => {
+    const refused = (body: unknown) => expect(() => parseWriteResult(body)).toThrow(expect.objectContaining({ code: 'invalid_response' }))
+    // The answer every write gave before #145: a whole state, no changes.
+    refused(serverBody(MEMBER_VIEWER))
+    refused({ ...writeBody({}), changes: undefined })
+    refused({ ...writeBody({}), changes: [] })
+    refused({ ...writeBody({}), viewer: { userId: null, kind: 'member', capabilities: [] } })
+    refused(writeBody({ posts: {} }))
+    refused(writeBody({ posts: [{ topicId: 't73' }] }))
+    refused(writeBody({ users: [{ id: 'm1001' }] }))
+    refused(writeBody({ bookmarks: [{ userId: 'm1001' }] }))
+    refused(writeBody({ follows: [{ followerId: 'm1001', followeeId: 7 }] }))
+    refused(writeBody({ removed: [] }))
+    refused(writeBody({ removed: { bookmarks: [{ postId: 'p1' }] } }))
+    expect(parseWriteResult(writeBody({})).changes).toEqual({})
+  })
+})
+
 describe('createForumApi', () => {
   it('reads the state same-origin with the sid cookie, as JSON', async () => {
     const fetch = vi.fn(async () => jsonResponse(serverBody()))
@@ -68,13 +109,13 @@ describe('createForumApi', () => {
   })
 
   it('puts no time limit on a write', async () => {
-    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(serverBody()))
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(writeBody({})))
     await createForumApi(fetch).toggleLike('p1')
     expect(fetch.mock.calls[0]![1]).not.toHaveProperty('signal')
   })
 
   it('sends a guest reply with the name, the proof and an empty honeypot', async () => {
-    const fetch = vi.fn(async () => jsonResponse({ ...serverBody(), postId: 'p10001' }, 201))
+    const fetch = vi.fn(async () => jsonResponse(writeBody({}, undefined, { postId: 'p10001' }), 201))
     const result = await createForumApi(fetch).createPost({
       topicId: 't73',
       content: '你好',
@@ -90,15 +131,16 @@ describe('createForumApi', () => {
     expect(JSON.parse(String(init.body))).toEqual({ topicId: 't73', content: '你好', guest: { name: '路过的同学' }, pow: { timestamp: 1, nonce: 'a' }, website: '' })
   })
 
-  it('returns the new topic id with the state', async () => {
-    const fetch = vi.fn(async () => jsonResponse({ ...serverBody(), topicId: 't1001', postId: 'p10001' }, 201))
+  it('returns the new topic id with what changed', async () => {
+    const fetch = vi.fn(async () => jsonResponse(writeBody({ topics: [serverState().topics[1]] }, MEMBER_VIEWER, { topicId: 't1001', postId: 'p10001' }), 201))
     const result = await createForumApi(fetch).createTopic({ title: '标题', categoryId: 'c-exam', tags: ['25级', '新标签'], content: '正文' })
     expect(result.topicId).toBe('t1001')
+    expect(result.changes.topics?.map(topic => topic.id)).toEqual(['t1001'])
     expect(JSON.parse(String((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ title: '标题', categoryId: 'c-exam', tags: ['25级', '新标签'], content: '正文' })
   })
 
   it('puts the avatar file itself, typed by its MIME type', async () => {
-    const fetch = vi.fn(async () => jsonResponse(serverBody()))
+    const fetch = vi.fn(async () => jsonResponse(writeBody({})))
     const file = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' })
     await createForumApi(fetch).uploadAvatar(file)
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
@@ -117,7 +159,7 @@ describe('createForumApi', () => {
     ['markAllRead', (api: ReturnType<typeof createForumApi>) => api.markAllRead(), 'POST', '/api/forum/notifications/read-all'],
     ['resetAvatar', (api: ReturnType<typeof createForumApi>) => api.resetAvatar(), 'DELETE', '/api/forum/me/avatar'],
   ] as const)('%s sends no body and no Content-Type', async (_name, call, method, path) => {
-    const fetch = vi.fn(async (url: string, _init?: RequestInit) => url.endsWith('/view') ? new Response(null, { status: 204 }) : jsonResponse(serverBody()))
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => url.endsWith('/view') ? new Response(null, { status: 204 }) : jsonResponse(writeBody({})))
     await call(createForumApi(fetch))
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
     expect([url, init.method]).toEqual([path, method])
