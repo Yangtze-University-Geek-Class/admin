@@ -107,6 +107,12 @@ export const EXPECTED_ORIGINS = Object.freeze({
 const SECRET_KEY_RE = /(?:^|_)(?:SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?|ENCRYPTION_KEY|SSH_KEY|PRIVATE_KEY)(?:_|$)/i;
 const HOST_RE = /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const LOOPBACK_BIND_RE = /^127\.0\.0\.1:[0-9]{4,5}$/;
+/**
+ * 反代层数：客户端 → 宿主 nginx（deploy/nginx/<环境>.conf）→ web 容器 nginx（app/web/Dockerfile）→ server，
+ * 两层各自往 X-Forwarded-For 末尾追加一段。server 只信任这两层（TRUST_PROXY=2），客户端自己填的最左边几段不算数；
+ * `true` 会一路信任到最左边，按 IP 的限流、审计 IP 都能被伪造。改了反代拓扑要同时改这里和两份模板。
+ */
+export const PROXY_HOPS = 2;
 const IMAGE_TAG_RE = /^[a-f0-9]{12}$/;
 const SECRET_VALUE_RE = /^[A-Za-z0-9._+/=:@~-]{4,4096}$/;
 const ENV_FILE_DIR = 'deploy/env';
@@ -312,7 +318,9 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     }
     const host = values.get('HOST') ?? '';
     if (!['0.0.0.0', '127.0.0.1'].includes(host)) problem(`HOST 只能是容器内的 0.0.0.0 或 127.0.0.1：${host}`);
-    if (values.get('TRUST_PROXY') !== 'true') warn('TRUST_PROXY 不是 true：容器里看不到真实客户端地址，反代链路的限流与日志会失真');
+    if (values.get('TRUST_PROXY') !== String(PROXY_HOPS)) {
+      problem(`TRUST_PROXY 必须是反代层数 ${PROXY_HOPS}（宿主 nginx → web 容器 nginx → server）；true 会把客户端自己填的 X-Forwarded-For 当成客户端 IP，按 IP 的限流与审计 IP 都能被伪造：${values.get('TRUST_PROXY')}`);
+    }
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,
       stdio: ['ignore', 'ignore', 'ignore'],

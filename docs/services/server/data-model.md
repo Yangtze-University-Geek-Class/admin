@@ -2,11 +2,11 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-09-25 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-09-26 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
-- 2026-09-23 控制台只新增了 `departments`、`role_assignments`、`application_reviews` 三张表和 `idx_applications_status_created` 等索引，没有 `ALTER` 任何已有表。2026-09-25（#56）再新增 `titles` 与 `console_seeds` 两张表，同样不改已有表。
+- 2026-09-23 控制台只新增了 `departments`、`role_assignments`、`application_reviews` 三张表和 `idx_applications_status_created` 等索引，没有 `ALTER` 任何已有表。2026-09-25（#56）再新增 `titles` 与 `console_seeds` 两张表，同样不改已有表。2026-09-26（#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）新增论坛的 12 张 `forum_*` 表，也不改已有表。
 - 存储是 SQLite（better-sqlite3，WAL，`foreign_keys = ON`）。`DB_PATH` 指向命名卷里的文件，容器内为 `/data/data.db`；Postgres 迁移没有做。
 - `createDatabase` 在启动时执行 `CREATE TABLE/INDEX IF NOT EXISTS`。没有迁移框架，也没有 schema 版本记录：修改 `CREATE` 语句不会改动已有库的结构。
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
@@ -27,8 +27,27 @@
 | `titles` | 称号设置：六个固定 id（admin / captain / head / member / alumni / guest）各一行的名字、英文标签、图标、色调、说明与权限包 | `lib/role-store.ts`：启动时 `INSERT OR IGNORE` 写入代码里的默认值，之后以库为准；控制台 `PATCH /api/console/titles/:title_id` | `lib/access.ts`（计算能力）、控制台 `GET /api/console/catalogue`、匿名 `GET /api/public/org`（不含权限包） | 无个人信息。`capabilities` 是 JSON 数组；admin 读出时永远是全部能力、guest 永远为空，库里存了什么都不算；`updated_by` 是最后修改人的登录名 |
 | `console_seeds` | 一次性播种的标记（目前只有 `departments`） | `lib/role-store.ts`：第一次启动写默认部门后记下；上线前已有部门的库只补记标记 | `lib/role-store.ts` | 无个人信息。有这条标记后不再写默认部门，控制台删掉的默认部门重启后不会复活 |
 | `role_assignments` | 显式称号指派（captain / head / member / alumni） | 控制台 `POST/DELETE /api/console/assignments` | `lib/access.ts`（按 `github_user_id`，或尚无 id 时按小写 `github_login` 匹配）；控制台 `GET /api/console/assignments` | `github_login`（小写）、`github_user_id`、`note`（≤200 字）、`granted_by`。`UNIQUE(github_login, role, department_id)`；部分唯一索引 `uq_role_assignments_captain` 保证显式舰长唯一 |
-| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }` |
+| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出、论坛版务（`forum.post.edit` / `forum.post.delete` 动他人帖子，`forum.topic.pin` / `forum.topic.close`，details 不含正文）以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }`。论坛核对昵称时读 `auth.signin` 的 `actor`（登录过的人），部分索引 `idx_audit_signin_actor` 只收这些行 |
 | `app_state` | 键值状态 | 无 | 无 | 未使用，见下节 |
+
+### 论坛（`forum_*`，#57）
+
+论坛的编号都是字符串，与论坛前端的 `ForumState` 一致：话题 `t<n>`（旧帖沿用旧编号、都小于 1000，新话题从 `t1001` 起）、帖子 `p<n>`（从 `p10001` 起；旧帖首帖是 `body-<n>`）、成员 `m<GitHub user_id>`、游客 `g<n>`、官方账号 `u-geekclass`、通知 `n<n>`、用户建的标签 `tag-<n>`。新编号只从 `forum_counters` 取。分类和精选标签不入库，来自 `app/forum/content/curation.json`。写入方都是 `lib/forum-store.ts`（由 `routes/forum-api/*` 调用），读取方是它的 `state()`（整份论坛状态）与各路由的存在性检查，下表只写表特有的部分。
+
+| 表 | 用途 | 写入时机 | 读取与下发 | 个人信息与备注 |
+|---|---|---|---|---|
+| `forum_counters` | 五个计数器 `topic`、`post`、`notification`、`tag`、`guest` | 启动播种时 `INSERT OR IGNORE` 起点（1000、10000、0、0、0）；每次取新编号加一 | `state.counters`（不含 `guest`） | 无 |
+| `forum_users` | 论坛用户：成员、游客、官方账号 | 成员第一次带 `sid` 请求时建，之后每次请求刷新 `role`、`title`、`github_avatar_url`、GitHub 改名后的 `username`；账号资料接口改 `display_name`、`bio`、`location`、`website`、`notify_*`；头像接口改 `avatar_hash`；每条游客回复建一个游客；播种建官方账号 | `state.users`（全部下发，不含 `github_user_id`、`updated_at`；`notify_*` 只给本人真实值，别人的给初始值） | `github_user_id`（`UNIQUE`）、`username`（GitHub 登录名，`UNIQUE COLLATE NOCASE`）、`display_name`、`bio`、`location`、`website`、`github_avatar_url` 都是个人信息，除 `github_user_id` 外公开展示。游客的昵称由游客自己填，只收允许清单里的字符（见 [API](../../architecture/API.md)「论坛」），存的是 NFKC 之后去掉首尾空白的写法；归一后（NFKC、不分大小写、去掉附加符号、折叠形近字、去掉空白和 `- _ . · ・ '`）不能与成员或官方账号的昵称、用户名相同，也不能是本地知道的组织成员登录名（`role_assignments.github_login`、`audit_logs` 里 `auth.signin` 的 `actor`、`sessions.login`）；成员的 `display_name` 同样只收这些字符，也不能等于官方账号的名字、别人的用户名或这些登录名里别人的；规则只管新写入，库里已有的不改 |
+| `forum_topics` | 话题 | 播种（没有才插入）；成员发帖；回复刷新 `last_activity_at`；浏览数；置顶、关闭 | `state.topics` | `tag_ids` 是 JSON 数组；`category_id` 只能是 curation.json 里的分类 |
+| `forum_posts` | 帖子（话题首帖和回复） | 播种首帖；发帖、回复；编辑写 `edited_at`；软删除把 `deleted` 置 1 并清空 `content` | `state.posts` | `content` 是用户写的 Markdown，原样存储，渲染时由前端净化 |
+| `forum_likes` | 点赞 | 点赞切换 | `state.posts[].likeUserIds` | 无 |
+| `forum_bookmarks` | 收藏 | 收藏切换 | `state.bookmarks`，只下发看的人自己的 | 无 |
+| `forum_follows` | 关注 | 关注切换；`CHECK` 不能关注自己 | `state.follows`，全部下发 | 无 |
+| `forum_notifications` | 通知：回复、@提及、点赞、关注 | 回复、发帖、点赞、关注时按规则写（只写给成员，不给自己）；标记已读 | `state.notifications`，只下发收件人自己的 | 无 |
+| `forum_tags` | 用户发帖时新建的标签 | 发帖时按名字找不到已有标签才建 | `state.tags`（接在精选标签后） | `created_by` 是论坛用户 id |
+| `forum_avatars` | 上传的头像（256×256 WebP 的 BLOB），按内容 sha256 寻址 | 上传头像；换掉或删掉后没人引用的旧图同一事务删除 | `GET /api/forum/avatars/<hash>.webp` | 头像是用户上传的图片，公开可读；重新编码后不含原图元数据 |
+| `forum_topic_views` | 浏览数去重：同一 IP 同一话题一小时一次 | 浏览接口；每次写入前删掉一小时以前的行 | 只在浏览接口里查 | `ip` 是来源 IP（IPv6 存 /64 前缀），最多保留一小时 |
+| `forum_rate_events` | 限流记录：游客回复（`guestPost` 按 IP，IPv6 按 /64；`guestPostSite` 是全站游客回复总量，`subject` 固定为 `site`）、成员发帖与回复（按论坛用户 id）、头像上传（按论坛用户 id） | 游客回复、发帖、回复在动作成功后写一行，头像在读请求体之前就写（每次上传都算）；每次写入前删掉一天以前的行 | 只在限流判断里查 | 游客回复的 `subject` 是来源 IP 或 /64 前缀，最多保留一天 |
 
 ## 未使用的表、列和索引
 
