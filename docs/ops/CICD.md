@@ -133,9 +133,9 @@
 
 **重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册两个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker、重跑 `register.sh` 会重启两个 runner 服务，正在跑的 job 会失败，挑没有 job 的时候跑。
 
-**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。
+**切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。下文「构建下载源」的三个仓库变量 `NPM_REGISTRY`、`DEBIAN_MIRROR`、`BETTER_SQLITE3_BINARY_HOST` 是仓库级的，不看 job 跑在哪台 runner 上：`CI_RUNNER`、`DEPLOY_RUNNER` 都删掉、全部回到托管 runner 时，把这三个也一起删掉，否则托管 runner 也会绕到国内镜像下载（不设它们就是官方源）。
 
-**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`、`DEPLOY_RUNNER`。
+**掉线**：机器断电、断网或关机时，job 排队等 runner 回来；排队超过 24 小时没被领取的 job 由 GitHub 判失败。机器恢复后重跑，或者临时删掉 `CI_RUNNER`、`DEPLOY_RUNNER`；两个都删时，同上把三个下载源变量一起删掉，机器回来、切回自托管时再设上（取值见「构建下载源」）。
 
 **安全边界**（下文「自托管运行器不得接在有生产凭据或真实数据的机器上执行不可信 PR」在这里靠下面几条成立，不是无条件满足）：
 
@@ -153,7 +153,7 @@
 
 | 下载 | 在哪 | 不设变量（官方） | 家里 runner | 校验 |
 |---|---|---|---|---|
-| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 所有用 setup-node 的 job | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
+| Node 22（setup-node 读 `.nvmrc` 的 `22`） | 读 `.nvmrc` 的 setup-node：ci 的 core、env-contract，两条部署工作流的 plan、build、deploy（ci 的 forum job 装 Node 26、不读 `.nvmrc`，不在此列，这里不预置） | `github.com/actions/node-versions` | 不下载：`container-setup.sh` 把装进 `/usr/local` 的同一个官方包解进 runner 的工具缓存 | nodejs.org 的 SHASUMS256 |
 | npm 包 | runner 上的 `pnpm install`、三个 Dockerfile 的构建阶段 | `registry.npmjs.org` | `NPM_REGISTRY` | 锁文件里每个包的 integrity |
 | pnpm 9.15.9（corepack） | server、web 镜像的构建阶段 | 同上 | `NPM_REGISTRY`（`COREPACK_NPM_REGISTRY`） | corepack 用自带的 npm 公钥核对 npm 的发布签名 |
 | pnpm 11.24.0（`npm pack`） | forum 镜像的构建阶段、ci 的 forum job | 同上 | `NPM_REGISTRY` | 写死的官方 sha512（Dockerfile 与 ci.yml 的 `FORUM_PNPM_INTEGRITY`） |
