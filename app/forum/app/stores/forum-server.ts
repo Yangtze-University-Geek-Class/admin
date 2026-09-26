@@ -16,15 +16,16 @@ import { useSessionStore } from './session'
  *   replaces the forum store and signs the session in as `viewer.userId`
  *   (null for a guest). Failure leaves the published posts the build shipped,
  *   and `status: 'error'` switches every write off. A 429 is not an outage:
- *   what the page shows stays, a toast says 请求太频繁, and the store asks
- *   again later (`busy` until then if nothing had loaded yet).
+ *   what the page shows stays, a toast says 请求太频繁 once (not again for
+ *   every refused retry), and the store asks again later with a growing wait
+ *   (`busy` until then if nothing had loaded yet).
  * - Each write calls one endpoint and replaces the whole state from its
  *   answer. A failure changes nothing locally and says why in a toast.
  *
  * The demo (`loginMode=demo`) never touches this store; `useForumActions`
  * picks between the two.
  */
-/** One toast for every 429 on a read, so a burst of them shows once. */
+/** The toast for a 429 on a read; its id keeps two of them from stacking. */
 const RATE_LIMITED_TOAST = { id: 'forum-rate-limited', title: '请求太频繁，稍后再试', variant: 'warning' } as const
 
 /** Waits before asking for the state again after a 429: 10 s, 20 s, 40 s, then every minute. */
@@ -55,6 +56,15 @@ export const useForumServerStore = defineStore('forum-server', () => {
   let loading: Promise<boolean> | null = null
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryAttempt = 0
+  /** 请求太频繁 has been said since the state last loaded; the retries and view counts after it stay quiet. */
+  let saidRateLimited = false
+
+  function sayRateLimited(): void {
+    if (saidRateLimited)
+      return
+    saidRateLimited = true
+    toast(RATE_LIMITED_TOAST)
+  }
 
   function retryLater(): void {
     clearTimeout(retryTimer)
@@ -83,13 +93,14 @@ export const useForumServerStore = defineStore('forum-server', () => {
         apply(await api.state())
         clearTimeout(retryTimer)
         retryAttempt = 0
+        saidRateLimited = false
         return true
       }
       catch (error) {
         if (isRateLimited(error)) {
           if (status.value !== 'ready')
             status.value = 'busy'
-          toast(RATE_LIMITED_TOAST)
+          sayRateLimited()
           retryLater()
           return false
         }
@@ -177,7 +188,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
     /** Views are a statistic: a failed count is not worth a toast, except the shared 请求太频繁 one. */
     recordView: (topicId: string): Promise<void> => api.recordView(topicId).catch((error: unknown) => {
       if (isRateLimited(error))
-        toast(RATE_LIMITED_TOAST)
+        sayRateLimited()
     }),
     markRead: (notificationId: string) => write('没有标为已读', () => api.markRead(notificationId)),
     markAllRead: () => write('没有标为已读', () => api.markAllRead()),

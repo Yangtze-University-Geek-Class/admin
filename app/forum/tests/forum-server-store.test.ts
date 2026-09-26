@@ -102,6 +102,30 @@ describe('loading the forum from the server', () => {
     }
   })
 
+  it('says it once for a run of refusals and waits longer after each one', async () => {
+    vi.useFakeTimers()
+    try {
+      const busy = () => json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429)
+      const calls = fakeServer(busy, busy, json(serverBody()))
+      const { server } = setup()
+      await server.load()
+      expect(toastStore.items.map(item => item.title)).toEqual(['请求太频繁，稍后再试'])
+      await vi.advanceTimersByTimeAsync(stateRetryDelay(0))
+      expect(calls).toHaveLength(2)
+      expect(server.status).toBe('busy')
+      // The first toast has run its course; the second refusal does not bring it back.
+      expect(toastStore.items).toEqual([])
+      await vi.advanceTimersByTimeAsync(stateRetryDelay(1) - 1)
+      expect(calls).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(calls).toHaveLength(3)
+      expect(server.status).toBe('ready')
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('backs off between retries and settles at one a minute', () => {
     expect([0, 1, 2, 3, 9].map(stateRetryDelay)).toEqual([10_000, 20_000, 40_000, 60_000, 60_000])
   })
