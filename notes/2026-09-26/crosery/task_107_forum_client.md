@@ -67,3 +67,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：会话 15:57 重启后由子代理 107b 接着做完，推送 task/107/forum_client（6082c63）；8 张截图经 GitHub 评论框上传（未提交评论），浏览器空间用完即释放
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/126；派独立审查
+
+## 17:34:21 +08:00 · 开发 · #107 · 提示条写明其余旧帖还没公开，429 判断注明 rate_limited
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：核对 team-lead 17:3x 追加的两项：429 rate_limited 处理、display_name_taken / guest_replies_paused / 昵称校验错误显示服务端 message 已在 dd1225d；提示条与 llms.txt 共用的 SITE_NOTICE.published 改成「旧论坛的一部分帖子已经搬过来，其余的还没有公开。」（不列具体版块，#108 另加的 AI 帖子不必再改文案）；node scripts/forum.mjs check；GEEK_FORUM_SOURCE=site GEEK_FORUM_BASE_PATH=/forum/ node scripts/forum.mjs generate；pnpm check
+- 结果：forum check 通过（21 个文件 350 个测试）；site generate 通过，llms.txt 是新句子，产物里没有旧句子；pnpm check 通过。另：main 的 9a02793（记录开 PR）在我改到一半时把未提交的改动一起提交了，未推送，拆成 ed517e9（只有笔记）和本次提交
+
+## 17:34:21 +08:00 · 提交 · #107 · 提示条写明其余旧帖还没公开
+
+- 执行者：agent-claude-geek-main-subagent-107（Claude Code 子代理）
+- 做了什么：fix(forum): SITE_NOTICE、site-state 测试、forum README 与 USAGE 同步
+- 结果：本地提交，未推送
