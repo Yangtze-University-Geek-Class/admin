@@ -6,7 +6,7 @@ const NAME = 'yzgc-images-preview-a1b2c3d4e5f6';
 const options = { repo: REPO, run: '42', name: NAME, dir: '/tmp/bundle', parts: 4 };
 
 /** 假的 GitHub API 与存储：artifact 内容是 payload，下载地址每取一次换一个；failFirst 里的段第一次返回 500。 */
-function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[] } = {}) {
+function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts, slowOthersMs = 0, ignoreAbort = false }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[]; slowOthersMs?: number; ignoreAbort?: boolean } = {}) {
   const calls: string[] = [];
   let issued = 0;
   const failed = new Set<string>();
@@ -27,6 +27,11 @@ function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail
       const range = init.headers?.range ?? '';
       const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range) ?? [];
       if (alwaysFail.has(range)) return new Response('boom', { status: 500 });
+      if (slowOthersMs) {
+        // 其余段还在传输中：等一会儿，期间被取消就像真的 fetch 一样抛 AbortError
+        await new Promise(resolve => setTimeout(resolve, slowOthersMs));
+        if (init.signal?.aborted && !ignoreAbort) throw new DOMException('aborted', 'AbortError');
+      }
       if (failFirst.has(range) && !failed.has(range)) {
         failed.add(range);
         return new Response('expired', { status: 403 });
@@ -99,10 +104,24 @@ describe('fetch-artifact', () => {
 
   it('when one range keeps failing, cancels the others and closes the file only after every range has stopped', async () => {
     const payload = Buffer.alloc(4000, 7);
-    const gh = fakeGitHub(payload, { alwaysFail: new Set(['bytes=0-999']) });
+    const gh = fakeGitHub(payload, { alwaysFail: new Set(['bytes=0-999']), slowOthersMs: 30 });
     const { file, deps: d } = deps(gh.fetchImpl);
     await expect(fetchArtifact(options, 't0ken', d)).rejects.toThrow(/0-999.*5 次/);
+    // 其余三段在 0-999 放弃时还没传完：被取消，一个字节都没写；文件在它们停下之后才关
+    expect(file.bytes.length).toBe(0);
     expect(file).toMatchObject({ closed: true, unzipped: false, removed: true, writesAfterClose: 0 });
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(file.writesAfterClose).toBe(0);
+  });
+
+  it('closes the file only after a range that could not be cancelled has finished writing', async () => {
+    // 已经收到数据、取消不了的段：文件要等它写完才关，不能出现关闭后的写入
+    const payload = Buffer.alloc(4000, 7);
+    const gh = fakeGitHub(payload, { alwaysFail: new Set(['bytes=0-999']), slowOthersMs: 30, ignoreAbort: true });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    await expect(fetchArtifact(options, 't0ken', d)).rejects.toThrow(/0-999/);
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(file).toMatchObject({ closed: true, removed: true, unzipped: false, writesAfterClose: 0 });
   });
 
   it('takes the newest artifact when a rerun left several with the same name, and fails when there is none', async () => {

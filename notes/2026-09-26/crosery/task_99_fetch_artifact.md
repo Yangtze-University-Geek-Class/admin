@@ -31,3 +31,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：findArtifact 同名多个取 id 最大并记日志，0 个报错；fetchRange 带 signal，已取消不重试；fetchArtifact 用 allSettled 等全部段停下再关文件，一段失败 abort 其余；测试改名并补「一段失败取消其余且关闭后无写入」「同名取最新、没有则失败」
 - 结果：tests/tooling 全部通过（fetch-artifact 7 条）
+
+## 11:29:31 +08:00 · 审查 · #99 · 第二轮独立审查：有条件通过，1 条应修
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 6fbd87b（范围 df826d5..6fbd87b），在 /tmp 做 3 个变异版本复跑
+- 结果：有条件通过：实现正确；应修 1 条：「取消其余段」用例守不住，换回 Promise.all、首段失败即关 fd、去掉 abort 三个变异版本都 7 passed
+
+## 11:29:31 +08:00 · 返工 · #99 · 补强取消用例：其余段传输中被取消、取消不了的段写完才关文件
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：假存储加 slowOthersMs（其余段等 30ms，期间被取消就抛 AbortError）与 ignoreAbort；取消用例断言其余段一个字节都没写；新增「取消不了的段写完才关文件」用例
+- 结果：真实实现 8 passed；三个变异版本：旧实现 3 failed、首段失败即关 fd 1 failed、去掉 abort 1 failed
