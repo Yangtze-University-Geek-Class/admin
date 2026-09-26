@@ -14,7 +14,7 @@ import re
 import sqlite3
 import subprocess
 from urllib.parse import unquote, urlsplit
-from verify import verify_snapshot, ROOT
+from verify import main_checkout, verify_snapshot, ROOT
 
 
 def dump(path, value):
@@ -168,12 +168,13 @@ def main():
     parser.add_argument('--node',required=True,help='Project Node 22 for installed sharp ABI')
     args=parser.parse_args()
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', args.name): raise ValueError('Invalid projection name')
-    snapshot=Path(args.snapshot).resolve()
-    if ROOT/'.tools/forum-migration' not in snapshot.parents: raise ValueError('Private capture required')
+    main_root=main_checkout()
+    snapshot=(main_root/args.snapshot).resolve()
+    if main_root/'.tools/forum-migration' not in snapshot.parents: raise ValueError('Private capture required')
     receipt=verify_snapshot(snapshot)
     if receipt['archive_sha256']!=args.archive_sha256: raise ValueError('Capture receipt digest mismatch')
     os.umask(0o077)
-    target=ROOT/'.tools/forum-runtime'/args.name
+    target=main_root/'.tools/forum-runtime'/args.name
     target.mkdir(parents=True,exist_ok=False,mode=0o700)
     source=snapshot/'source'
     manifest=json.loads((source/'manifest.json').read_text())
@@ -191,7 +192,7 @@ def main():
     content_hash=hashlib.sha256((target/'content.json').read_bytes()).hexdigest()
     dump(target/'manifest.json',{'schemaVersion':1,'sourceArchiveSha256':receipt['archive_sha256'],'contentSha256':content_hash,'assets':{key:assets['assets'][key] for key in sorted(used)},'summary':payload['summary']})
     dump(target/'conversion-report.json',{'summary':payload['summary'],'sourceReceipt':receipt,'referencedAssets':len(used),'missingAttachments':missing,'rejectedAssets':assets['rejected'],'sourceAuthoritative':'forum.sqlite; mbbs originals retained, not used to resurrect deleted content'})
-    print(json.dumps({'directory':str(target.relative_to(ROOT)),'contentSha256':content_hash,'summary':payload['summary'],'referencedAssets':len(used),'missingAttachments':len(missing)},ensure_ascii=False))
+    print(json.dumps({'directory':str(target.relative_to(main_root)),'contentSha256':content_hash,'summary':payload['summary'],'referencedAssets':len(used),'missingAttachments':len(missing)},ensure_ascii=False))
 
 
 if __name__=='__main__': main()
