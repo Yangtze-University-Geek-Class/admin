@@ -31,6 +31,32 @@ describe("接口拿到 401 时登录态失效", () => {
     expect((meError.value as ApiError).status).toBe(401);
   });
 
+  it("几个请求先后拿到 401 只处理最先到的那个：身份与称号清单一起清掉，后到的 401 不再改动 meError", async () => {
+    // 身份带 console.access，loadMe 会顺带读 catalogue；其余请求挂起，由测试决定谁的 401 先到。
+    const waiting: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((path: string) => {
+      if (String(path).endsWith("/api/console/me")) return Promise.resolve(json(200, { ...ME, capabilities: ["console.access", "feedback.read"] }));
+      if (String(path).endsWith("/api/console/catalogue")) return Promise.resolve(json(200, { titles: [], capabilities: [] }));
+      return new Promise<Response>(resolve => waiting.push(resolve));
+    }));
+    await loadMe();
+    const { me, meError, catalogue } = useSession();
+    expect(catalogue.value).not.toBeNull();
+
+    const calls = [api("/api/console/feedback"), api("/api/console/summary"), api("/api/console/feedback/1", { method: "PATCH", body: "{}" })];
+    expect(waiting).toHaveLength(3);
+    const settled = calls.map(call => call.then(() => null, (error: unknown) => error));
+    for (const index of [1, 0, 2]) {
+      waiting[index](json(401, { error: "session_expired" }));
+      await settled[index];
+    }
+    const errors = await Promise.all(settled);
+    expect(errors.every(error => error instanceof ApiError && error.status === 401)).toBe(true);
+    expect(meError.value).toBe(errors[1]);
+    expect(me.value).toBeNull();
+    expect(catalogue.value).toBeNull();
+  });
+
   it("写请求拿到 401 同样算退出", async () => {
     server(() => json(401, { error: "not_signed_in" }));
     await loadMe();
