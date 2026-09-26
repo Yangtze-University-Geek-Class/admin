@@ -83,6 +83,23 @@ describe('createForumApi', () => {
     expect((init.headers as Record<string, string>)['content-type']).toBe('image/webp')
   })
 
+  // Fastify answers 400 to a request that says application/json and carries no body.
+  it.each([
+    ['toggleLike', (api: ReturnType<typeof createForumApi>) => api.toggleLike('p1'), 'POST', '/api/forum/posts/p1/like'],
+    ['deletePost', (api: ReturnType<typeof createForumApi>) => api.deletePost('p1'), 'DELETE', '/api/forum/posts/p1'],
+    ['recordView', (api: ReturnType<typeof createForumApi>) => api.recordView('t73'), 'POST', '/api/forum/topics/t73/view'],
+    ['toggleBookmark', (api: ReturnType<typeof createForumApi>) => api.toggleBookmark('p1'), 'POST', '/api/forum/posts/p1/bookmark'],
+    ['markAllRead', (api: ReturnType<typeof createForumApi>) => api.markAllRead(), 'POST', '/api/forum/notifications/read-all'],
+    ['resetAvatar', (api: ReturnType<typeof createForumApi>) => api.resetAvatar(), 'DELETE', '/api/forum/me/avatar'],
+  ] as const)('%s sends no body and no Content-Type', async (_name, call, method, path) => {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => url.endsWith('/view') ? new Response(null, { status: 204 }) : jsonResponse(serverBody()))
+    await call(createForumApi(fetch))
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect([url, init.method]).toEqual([path, method])
+    expect(init.body).toBeUndefined()
+    expect(Object.keys(init.headers as Record<string, string>).map(name => name.toLowerCase())).not.toContain('content-type')
+  })
+
   it('escapes ids in the path and treats 204 as done', async () => {
     const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }))
     await createForumApi(fetch).recordView('t/../1')
