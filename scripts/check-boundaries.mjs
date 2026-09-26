@@ -89,7 +89,7 @@ export function checkProject(root = ROOT) {
     const options = compilerOptions(file, root);
     for (const item of specifiers(readFileSync(file,"utf8"),file)) {
       imports++;
-      const at = `${relative(root,file)}:${item.line}`;
+      const at = `${relative(root,file).split(sep).join("/")}:${item.line}`;
       if (item.spec === null) { violations.push(`${at}: nonliteral module import requires a static module map`); continue; }
       const local = isLocalSpecifier(item.spec, options);
       const target = resolveSpec(file,item.spec,root,options);

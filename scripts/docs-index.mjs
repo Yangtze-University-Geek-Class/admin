@@ -12,17 +12,22 @@
 // 这样「一个目录一份契约」的文档（如 docs/services/<service>/）不会被跳过。
 
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, relative, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const { join, resolve } = path;
+const ROOT = join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOCS = join(ROOT, "docs");
 const INDEX = join(DOCS, "INDEX.md");
-const CHECK = process.argv.includes("--check");
 
 // 顶层目录展示顺序；未列出的目录按字母序追加在后面。
 // 子目录（如 services/<service>）跟随其顶层目录排序，保证同一个顶层目录下的文档成组出现。
 const FOLDER_ORDER = ["conventions", "services", "components", "design", "architecture", "plan", "ops"];
+
+/** docs 下的相对路径，一律用 /（#121）：Windows 上 path.relative 给的是反斜杠，链接、分节和排序都按 / 处理。 */
+export function docRel(docs, file, paths = path) {
+  return paths.relative(docs, file).split(paths.sep).join("/");
+}
 
 function walk(dir) {
   const out = [];
@@ -30,8 +35,7 @@ function walk(dir) {
     if (entry.name.startsWith(".")) continue;
     const full = join(dir, entry.name);
     // Generated vendor references have a dedicated catalogue; keep this index small.
-    const rel = relative(DOCS, full).replaceAll(String.fromCharCode(92), "/");
-    if (["components/tuffex/reference", "components/tuffex/snapshot"].includes(rel)) continue;
+    if (["components/tuffex/reference", "components/tuffex/snapshot"].includes(docRel(DOCS, full))) continue;
     if (entry.isDirectory()) out.push(...walk(full));
     else if (entry.name.endsWith(".md")) out.push(full);
   }
@@ -63,19 +67,18 @@ function summaryOf(text) {
   return (joined.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") || null);
 }
 
-function readDoc(path) {
-  const text = readFileSync(path, "utf8");
-  return { text, title: titleOf(text), summary: summaryOf(text) };
-}
-
-function build() {
-  const files = walk(DOCS).filter((f) => !f.endsWith("INDEX.md"));
+/**
+ * 由 docs 下的文档生成 INDEX.md 的内容。docs 里每份文档给出 `/` 分隔的相对路径和正文，不读磁盘，
+ * 所以生成结果只取决于文档本身，与平台无关。
+ * @param {Array<{ rel: string, text: string }>} docs
+ */
+export function buildIndex(docs) {
+  const byRel = new Map(docs.filter((d) => !d.rel.endsWith("INDEX.md")).map((d) => [d.rel, d.text]));
 
   // 只把中文版当主条目；.en.md 挂到同名主条目下。
   const primary = [];
   const englishBy = new Map();
-  for (const f of files) {
-    const rel = relative(DOCS, f);
+  for (const rel of byRel.keys()) {
     if (rel.endsWith(".en.md")) englishBy.set(rel.replace(/\.en\.md$/, ".md"), rel);
     else primary.push(rel);
   }
@@ -86,8 +89,9 @@ function build() {
 
   for (const rel of primary.sort()) {
     const name = rel.split("/").pop();
-    const folder = dirname(rel) === "." ? "" : dirname(rel);
-    const doc = readDoc(join(DOCS, rel));
+    const folder = path.posix.dirname(rel) === "." ? "" : path.posix.dirname(rel);
+    const text = byRel.get(rel);
+    const doc = { text, title: titleOf(text), summary: summaryOf(text) };
 
     if (name === "README.md") {
       if (folder) folderReadme.set(folder, doc);
@@ -171,16 +175,21 @@ function build() {
   return lines.join("\n");
 }
 
-const generated = build();
+function readDocs() {
+  return walk(DOCS).map((file) => ({ rel: docRel(DOCS, file), text: readFileSync(file, "utf8") }));
+}
 
-if (CHECK) {
-  const current = existsSync(INDEX) ? readFileSync(INDEX, "utf8") : "";
-  if (current !== generated) {
-    console.error("docs/INDEX.md 已过期。运行 `node scripts/docs-index.mjs` 重新生成。");
-    process.exit(1);
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  const generated = buildIndex(readDocs());
+  if (process.argv.includes("--check")) {
+    const current = existsSync(INDEX) ? readFileSync(INDEX, "utf8") : "";
+    if (current !== generated) {
+      console.error("docs/INDEX.md 已过期。运行 `node scripts/docs-index.mjs` 重新生成。");
+      process.exit(1);
+    }
+    console.log("docs/INDEX.md 是最新的。");
+  } else {
+    writeFileSync(INDEX, generated);
+    console.log(`已写入 docs/INDEX.md（${generated.split("\n").length} 行）。`);
   }
-  console.log("docs/INDEX.md 是最新的。");
-} else {
-  writeFileSync(INDEX, generated);
-  console.log(`已写入 docs/INDEX.md（${generated.split("\n").length} 行）。`);
 }
