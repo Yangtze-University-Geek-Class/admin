@@ -8,7 +8,9 @@
 // 三件事，结果以 Markdown 表格打到标准输出（工作流写进运行摘要）：
 //   1. 关闭：开着的 issue，关联的 PR 已经合并进 stage（PR 的 head 是 task/<issue>/…，或正文写了 Closes #<issue>）。
 //      close-on-merge 本该在合并时关掉它；没关上（工作流失败、PR 不是 task 分支）就在这里补关，留「关闭」记录。
-//      合并之后已经有过「关闭」记录、现在又开着的，是有人重开了，不再去关，按下一条算。
+//      这些情况不补关，按下一条算：有人重开过（GitHub 的 stateReason 是 REOPENED，或者合并之后已经有过「关闭」记录，
+//      旧的 issue 当初是用普通文字关的，只能靠前者认出来）；还有开着的 PR 关联同一个 issue。
+//      合并不到一小时的 PR 先不管，那是 close-on-merge 的事，免得两边各留一条。
 //   2. 超期：其余开着的 issue，idle-days 天没有任何动静（GitHub 的 updatedAt）：留一条「超期」记录，写明三种处理办法。
 //      留言本身会刷新 updatedAt，所以同一个 issue 最多每 idle-days 天一条。
 //   3. 缺记录：closed-days 天内关闭的 issue，既没有关联的已合并 PR，也没有「关闭」记录（#112 那样）：
@@ -21,6 +23,10 @@ import { pathToFileURL } from "node:url";
 import { closingIssues, issueFromBranch } from "./pr-contract.mjs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** 合并不到这么久的 PR 留给 close-on-merge */
+export const MERGE_GRACE_MS = 60 * 60 * 1000;
+/** gh issue list 每个 issue 最多带回这么多条评论；到了这个数就单独翻页取全 */
+export const COMMENT_PAGE = 100;
 export const DEFAULT_IDLE_DAYS = 14;
 export const DEFAULT_CLOSED_DAYS = 14;
 /** 追踪记录头（docs/conventions/TRACKING.md §3） */
@@ -86,14 +92,15 @@ export function unrecordedNote({ closedAt, stateReason }) {
 /**
  * 算出巡检要做的事。
  * @param {{
- *   open: Array<{ number: number, title: string, updatedAt: string, comments?: Array<{ body: string, createdAt: string }> }>,
+ *   open: Array<{ number: number, title: string, updatedAt: string, stateReason?: string, comments?: Array<{ body: string, createdAt: string }> }>,
  *   closed: Array<{ number: number, title: string, closedAt: string, stateReason?: string, comments?: Array<{ body: string, createdAt: string }> }>,
  *   merged: Array<{ number: number, title?: string, headRefName: string, baseRefName?: string, body?: string, mergedAt: string, mergeCommit?: { oid: string } }>,
+ *   openPrs?: Array<{ number: number, headRefName: string, body?: string }>,
  *   now?: Date, idleDays?: number, closedDays?: number,
  * }} input
  * @returns {Array<{ type: "close" | "overdue" | "unrecorded", issue: object, pr?: object, body: string, reason: string }>}
  */
-export function planSweep({ open, closed, merged, now = new Date(), idleDays = DEFAULT_IDLE_DAYS, closedDays = DEFAULT_CLOSED_DAYS }) {
+export function planSweep({ open, closed, merged, openPrs = [], now = new Date(), idleDays = DEFAULT_IDLE_DAYS, closedDays = DEFAULT_CLOSED_DAYS }) {
   const mergedFor = new Map();
   for (const pr of merged) {
     if (pr.baseRefName && pr.baseRefName !== "stage") continue;
@@ -103,12 +110,16 @@ export function planSweep({ open, closed, merged, now = new Date(), idleDays = D
     }
   }
 
+  const inFlight = new Set(openPrs.flatMap((pr) => linkedIssues(pr)));
+
   const actions = [];
   for (const issue of [...open].sort((a, b) => a.number - b.number)) {
     const records = trackRecords(issue.comments);
     const pr = mergedFor.get(issue.number);
-    const reopened = pr && records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= Date.parse(pr.mergedAt));
-    if (pr && !reopened) {
+    if (pr && now.getTime() - Date.parse(pr.mergedAt) < MERGE_GRACE_MS) continue;
+    const reopened = issue.stateReason === "REOPENED"
+      || (pr && records.some((record) => record.kind === "closed" && Date.parse(record.createdAt) >= Date.parse(pr.mergedAt)));
+    if (pr && !reopened && !inFlight.has(issue.number)) {
       actions.push({ type: "close", issue, pr, body: closeNote(pr), reason: `PR #${pr.number} 已合并进 stage，issue 还开着` });
       continue;
     }
@@ -159,14 +170,24 @@ function gh(args) {
   return execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
 }
 
+/** 评论到了 COMMENT_PAGE 条的 issue，用 REST 接口翻页把评论取全 */
+function allComments(issue, repo) {
+  if ((issue.comments?.length ?? 0) < COMMENT_PAGE) return issue;
+  const path = `repos/${repo ?? "{owner}/{repo}"}/issues/${issue.number}/comments?per_page=100`;
+  const lines = gh(["api", "--paginate", path, "--jq", ".[] | {body, createdAt: .created_at} | @json"]).split("\n").filter(Boolean);
+  return { ...issue, comments: lines.map((line) => JSON.parse(line)) };
+}
+
 function load({ repo, now, closedDays }) {
   const scope = repo ? ["--repo", repo] : [];
   const since = new Date(now.getTime() - closedDays * DAY_MS).toISOString().slice(0, 10);
   const list = (args) => JSON.parse(gh([...args, ...scope]));
+  const withComments = (issues) => issues.map((issue) => allComments(issue, repo));
   return {
-    open: list(["issue", "list", "--state", "open", "--limit", "500", "--json", "number,title,updatedAt,comments"]),
-    closed: list(["issue", "list", "--state", "closed", "--limit", "500", "--search", `closed:>=${since}`, "--json", "number,title,closedAt,stateReason,comments"]),
+    open: withComments(list(["issue", "list", "--state", "open", "--limit", "500", "--json", "number,title,updatedAt,stateReason,comments"])),
+    closed: withComments(list(["issue", "list", "--state", "closed", "--limit", "500", "--search", `closed:>=${since}`, "--json", "number,title,closedAt,stateReason,comments"])),
     merged: list(["pr", "list", "--state", "merged", "--base", "stage", "--limit", "500", "--json", "number,title,headRefName,baseRefName,body,mergedAt,mergeCommit"]),
+    openPrs: list(["pr", "list", "--state", "open", "--limit", "500", "--json", "number,headRefName,body"]),
   };
 }
 

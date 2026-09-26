@@ -101,3 +101,9 @@
 - 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
 - 做了什么：fix(tooling): 文档同步按第一父链与按 PR 核对，「更新：」按作者时间比；vitest tests/tooling/doc-sync.test.ts；pnpm check；actionlint
 - 结果：21 passed；pnpm check 退出 0（文档同步通过：6 组模块与文档，按 PR 核对（对 origin/stage））；actionlint 退出 0
+
+## 17:13:34 +08:00 · 提交 · #115 · 巡检不再补关重开过的 issue
+
+- 执行者：agent-claude-geek-main-subagent-115（Claude Code 子代理）
+- 做了什么：fix(tooling): 巡检不补关重开过、还有开着的 PR、刚合并的 issue，评论翻页取全；vitest tests/tooling/issue-sweep.test.ts；用 #16 与 PR #21 的真实数据（只读）喂 planSweep
+- 结果：12 passed；#16 标 REOPENED 时不补关，去掉 stateReason 时复现审查说的 close #16 via PR #21；对真实仓库只读巡检：没有要处理的 issue
