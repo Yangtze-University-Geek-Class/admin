@@ -200,4 +200,10 @@ describe('someone else\'s text put into the editor', () => {
       expect(fromEditor(toEditor(source))).toBe(source)
     expect(fromEditor(`${replyQuote('<b>x</b>')}我的回复`)).toBe('> <b>x</b>\n\n我的回复')
   })
+
+  it('keeps a word joiner the author wrote', () => {
+    const source = `词${WORD_JOINER}语 <b>x</b>`
+    expect(fromEditor(toEditor(source))).toBe(source)
+    expect(fromEditor(`${toEditor(source)}，改了一句`)).toBe(`${source}，改了一句`)
+  })
 })

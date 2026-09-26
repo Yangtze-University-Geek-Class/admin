@@ -49,9 +49,12 @@ export function toEditor(source: string): string {
   return escapeHtmlStarts(source)
 }
 
-/** 编辑器里的文字存回去之前去掉 `toEditor` 插的 WORD JOINER；存下来的正文显示时照常再过 `renderableMarkdown`。 */
+/**
+ * 编辑器里的文字存回去之前去掉 `toEditor` 插的 WORD JOINER：只去掉紧跟在 `<` 后面的那些，作者自己写在别处的
+ * U+2060（比如词语中间不许断行的地方）原样保留。存下来的正文显示时照常再过 `renderableMarkdown`。
+ */
 export function fromEditor(text: string): string {
-  return text.replaceAll(WORD_JOINER, '')
+  return text.replaceAll(`<${WORD_JOINER}`, '<')
 }
 
 /** 回复框里预填的引用：被回复那一帖的一行摘要。摘要来自别人写的正文，同样先过 `toEditor`。 */
