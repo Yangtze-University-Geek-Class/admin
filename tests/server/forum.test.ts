@@ -678,6 +678,28 @@ describe('profile', () => {
     expect((await rename('小博', 'carol')).statusCode).toBe(200);
     expect((await rename('小博')).json().state.users.filter((u: { displayName: string }) => u.displayName === '小博')).toHaveLength(2);
   });
+
+  it('keeps a stored nickname that breaks the current rules when other fields change, but still checks a new one', async () => {
+    const s = await setup();
+    await s.state('carol');
+    await s.state('bob');
+    const patch = (body: object) => s.call('PATCH', '/api/forum/me/profile', 'bob', body);
+    const bob = (response: { json(): { state: { users: { id: string }[] } } }) => response.json().state.users.find(u => u.id === 'm102');
+    // 早先存下的昵称：带看不见的字符，或者和官方账号同名。
+    for (const legacy of ['b\u200Bob', '极客班']) {
+      s.db.prepare("UPDATE forum_users SET display_name = ? WHERE id = 'm102'").run(legacy);
+      const kept = await patch({ displayName: legacy, bio: `签名 ${legacy}`, website: 'https://bob.example.test/' });
+      expect(kept.statusCode, JSON.stringify(legacy)).toBe(200);
+      expect(bob(kept), JSON.stringify(legacy)).toMatchObject({ displayName: legacy, bio: `签名 ${legacy}` });
+      expect((await patch({ displayName: ` ${legacy} `, location: '武汉' })).statusCode, JSON.stringify(legacy)).toBe(200);
+    }
+    // 换成别的昵称仍然要过允许清单和冒名检查，被拒时别的字段也不写。
+    const refused = await patch({ displayName: 'b\u2060ob', bio: '不该写进去' });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ error: 'invalid_display_name', message: NAME_RULE });
+    expect((await patch({ displayName: 'Carol', bio: '不该写进去' })).json().error).toBe('display_name_taken');
+    expect((await s.state('bob')).users.find((u: { id: string }) => u.id === 'm102')).toMatchObject({ displayName: '极客班', bio: '签名 极客班' });
+  });
 });
 
 /** 一张真实的 PNG：400×300，左红右蓝。 */

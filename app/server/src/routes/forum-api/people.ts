@@ -35,6 +35,10 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
     const patch: ProfilePatch = { ...req.body };
     if (patch.displayName !== undefined) {
       patch.displayName = patch.displayName.trim();
+      // 昵称没改就不查也不写：早先存下、不合现在规则的昵称不该挡住改签名、网站这些别的字段。
+      if (patch.displayName === forum.user(viewer.userId)?.displayName.trim()) delete patch.displayName;
+    }
+    if (patch.displayName !== undefined) {
       if (!patch.displayName) throw new ForumError(400, "invalid_display_name", `昵称要 1 到 ${FORUM_LIMITS.displayNameMax} 个字`);
       if (!isAllowedName(patch.displayName)) throw new ForumError(400, "invalid_display_name", NAME_RULE_MESSAGE);
       if (forum.displayNameTaken(patch.displayName, viewer)) throw new ForumError(400, "display_name_taken", "这个昵称是官方账号或别人的用户名，换一个吧");
