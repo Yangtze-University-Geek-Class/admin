@@ -26,3 +26,10 @@
 - 做了什么：git push -u origin task/133/console_signed_out（本地 check-branch-invariants --push 通过）；gh pr create #135，正文按 PULL-REQUESTS 九段
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/135；等待 Crosery 审查
 - 下一步：收到审查结论后补「审查」记录
+
+## 20:41:53 +08:00 · 审查 · #133 · 第一轮审查有条件通过：2 应修、2 建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 20:29 指示由 crosery 这边接手 LYsnowQ 的 PR #135；按 CODE-REVIEW 逐项审 93e1a032aef56773307814cd438ae941c0f7a6ef（范围 5c1717b..93e1a03）；vitest tests/console、pnpm check、note.mjs check --pr --for-review、6 处变异、safeReturnTo 15 个跳转输入、git merge-tree --write-tree origin/stage HEAD
+- 结果：结论有条件通过，评论 https://github.com/Yangtze-University-Geek-Class/admin/pull/135#issuecomment-5846345410。tests/console 59 passed；pnpm check 退出 0；note check 通过；变异 4/6 被抓住，删掉 session.ts:64 重复保护与 :66 清 catalogue 两处漏过；跳转输入全部落在本站或回退 /console；与 stage 6254304 合并无冲突。应修：补并发 401 与重试/重新登录的用例；docs/services/console/README.md:67 写 401 例外
+- 下一步：在本分支按审查意见返工
