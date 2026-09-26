@@ -92,8 +92,8 @@ function toTopic(row: TopicRow): ForumTopic {
 
 export type ForumStoreOptions = {
   /**
-   * 论坛之外已经知道的组织成员登录名（现在是控制台里有显式称号的人，role_assignments）。没打开过论坛的人还没有
-   * 论坛用户，靠它挡住游客冒名；没有称号、也没打开过论坛的成员（包括组织 owner）不在这里。
+   * 论坛之外已经知道的组织成员登录名：控制台里有显式称号的人（role_assignments）和登录过的人（auth.signin 审计、
+   * 当前会话）。没打开过论坛的人还没有论坛用户，靠它挡住冒名；从没登录过的组织成员不在这里。
    */
   orgLogins?: () => string[];
 };
@@ -287,7 +287,7 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     },
 
     /**
-     * 游客昵称不能冒用成员或官方账号的昵称、用户名，也不能是 orgLogins 里的登录名（有称号但还没打开过论坛的人）。
+     * 游客昵称不能冒用成员或官方账号的昵称、用户名，也不能是 orgLogins 里的登录名（有称号或登录过、但还没打开过论坛的人）。
      * 按 nameKey 比较：全角、大小写、附加符号都不算区别。
      */
     guestNameTaken(name: string): boolean {

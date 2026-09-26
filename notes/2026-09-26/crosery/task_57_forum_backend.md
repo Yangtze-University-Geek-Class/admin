@@ -120,3 +120,9 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：fix(server): 论坛昵称改用允许清单（forum-rules 的 isAllowedName 与 NAME_RULE_MESSAGE 取代 HIDDEN_NAME_CHAR、nameProblem 与混写规则；nameKey 改为 NFKC、不分大小写、去附加符号；游客与成员昵称共用；forum.test 用 REFUSED_NAMES 覆盖前几轮全部探针和第三轮新探针、ALLOWED_NAMES 覆盖允许的写法；API、SECURITY、SECURITY.en、数据模型、TESTING 同步）
 - 结果：提交前 vitest tests/server 8 个文件 161 条通过，server tsc 通过，check-docs 与 docs-index --check 通过
+
+## 17:53:19 +08:00 · 提交 · #57 · 第三轮建议：昵称也不能冒用登录过、但没打开过论坛的组织成员
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称也不能冒用登录过、但没打开过论坛的组织成员（lib/auth 新增 signedInLogins：audit_logs 里 auth.signin 的 actor 并上 sessions.login；services.ts 的 orgLogins 加上它；forum.test 加 owner1 与 grace 两种探针；SECURITY 把剩下的缺口写成段末单独一句，并写明成员昵称也不能是这些人里别人的登录名；API、数据模型同步）
+- 结果：提交前 vitest tests/server 8 个文件 160 条通过，server tsc 通过，check-docs 通过

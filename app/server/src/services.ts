@@ -22,12 +22,13 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const github = createGithub(overrides.octokitFactory);
   const cache = createCache();
   const roles = createRoleStore(storage.db);
+  const auth = createAuth(storage.db, crypto, config, overrides.httpRequest);
   // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
   const forum = (() => {
     try {
-      // 有称号但没打开过论坛的成员也不能被游客冒名：登录名从控制台的称号指派里取。
+      // 没打开过论坛的组织成员也不能被冒名：登录名取控制台的称号指派，加上登录过的人（审计里的 auth.signin 与当前会话）。
       const store = createForumStore(storage.db, loadForumContent(config.forumContentDir), {
-        orgLogins: () => roles.listAssignments().map(row => row.github_login),
+        orgLogins: () => [...roles.listAssignments().map(row => row.github_login), ...auth.signedInLogins()],
       });
       store.seed();
       return store;
@@ -38,7 +39,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   })();
   return {
     config, storage, crypto,
-    auth: createAuth(storage.db, crypto, config, overrides.httpRequest),
+    auth,
     github, cache, roles,
     access: createAccess({ consoleOrg: config.consoleOrg, getOrgRole: github.getOrgRole, cached: cache.cached, roles }),
     feedback: createFeedbackStore(storage.db),
