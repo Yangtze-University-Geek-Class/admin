@@ -8,6 +8,10 @@
  * only. The textarea stays mounted while it is hidden, so switching modes keeps
  * the text, the cursor and the undo history.
  *
+ * A new editor starts in 编辑, and every use of it should (#144). A caller that
+ * keeps it mounted between uses gives it a new `key` per use, as the reply
+ * drawer does on every open; PostCard's edit form mounts it per edit anyway.
+ *
  * The result is `ForumMarkdown`, the component that shows posts on the topic
  * page, so the preview is what readers will see: raw HTML shows as text and
  * links only go where posts may link. The text itself is never rewritten, which

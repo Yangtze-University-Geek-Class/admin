@@ -68,12 +68,18 @@ const title = computed(() => (replyToUser.value
   ? `回复 @${replyToUser.value.username} 的 #${replyToFloor.value}`
   : `回复：${props.topic.title}`))
 
+// TxDrawer keeps its content mounted while closed, PostEditor included, so a
+// new key per open is what starts every reply in 编辑 (#144). The draft lives
+// in `content`, not in the editor, so it survives the new editor.
+const editorKey = ref(0)
+
 // Prefill on open only: reopening the same target must not stack a second
 // quote on top of a draft the author is still writing.
 watch(() => props.visible, (visible) => {
   if (!visible)
     return
   submitting.value = false
+  editorKey.value += 1
   if (!content.value.trim())
     content.value = props.replyTo ? quoteDraft(props.replyTo) : ''
 })
@@ -151,6 +157,7 @@ async function submit() {
       </TxFlex>
 
       <PostEditor
+        :key="editorKey"
         v-model="content"
         :min-height="240"
         placeholder="写下你的回复，支持 Markdown…"

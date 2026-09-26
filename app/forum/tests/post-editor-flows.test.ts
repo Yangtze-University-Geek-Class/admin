@@ -23,6 +23,7 @@ const TAG = /<(?:style|form|input|button)\b/i
 const member: User = { id: 'u1', username: 'alpha', displayName: '甲', bio: '', location: '', website: '', avatarColor: '#123456', joinedAt: 0, role: 'member', notifyPrefs: { reply: true, like: true, follow: true } }
 const topic: Topic = { id: 't1', slug: 'topic-1', title: '话题', categoryId: 'c1', tagIds: [], authorId: 'u1', createdAt: 0, lastActivityAt: 0, views: 1, pinned: false, closed: false }
 const hostilePost: Post = { id: 'p2', topicId: 't1', authorId: 'u1', content: HOSTILE, createdAt: 0, likeUserIds: [] }
+const plainPost: Post = { id: 'p3', topicId: 't1', authorId: 'u1', content: '另一条帖子', createdAt: 0, likeUserIds: [] }
 
 let components: Record<string, Component>
 
@@ -46,6 +47,8 @@ function editorOf(root: TestNode) {
   return {
     textarea,
     preview,
+    /** The label of the checked mode radio. */
+    mode: () => textOf(find(root, node => node.props.role === 'radio' && node.props['aria-checked'] === true)!),
     previewHtml: () => findAll(preview()!, node => node.tag === 'article').map(node => String(node.props.html)).join(''),
     choose: async (label: string) => {
       (modes().find(node => textOf(node) === label)!.props.onClick as () => void)()
@@ -81,16 +84,24 @@ describe('the reply drawer', () => {
         '../../shared/post-markdown': postMarkdown,
       },
       globals: {
-        useForumStore: () => ({ userById: () => member, postsOfTopic: () => [hostilePost] }),
+        useForumStore: () => ({ userById: () => member, postsOfTopic: () => [hostilePost, plainPost] }),
         useForumServerStore: () => ({ guestPolicy: { contentMax: 2000, nameMax: 20, turnstileSiteKey: null } }),
         useForumActions: () => ({ createPost }),
         useContentSource: () => ({ serverMode: true }),
         useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
       },
     })
-    const state = reactive({ visible: false })
+    // The topic page keeps the composer mounted and binds v-model:visible and :reply-to.
+    const state = reactive({ visible: false, replyTo })
     const Parent = defineComponent({
-      setup: () => () => h(ReplyComposer, { visible: state.visible, topic, replyTo }),
+      setup: () => () => h(ReplyComposer, {
+        'visible': state.visible,
+        topic,
+        'replyTo': state.replyTo,
+        'onUpdate:visible': (visible: boolean) => {
+          state.visible = visible
+        },
+      }),
     })
     const { root } = mount(Parent, {}, components)
     return { root, state, createPost, editor: editorOf(root) }
@@ -125,6 +136,42 @@ describe('the reply drawer', () => {
     await click(button(root, '回复'))
     expect(createPost).toHaveBeenCalledOnce()
     expect(createPost.mock.calls[0]?.[0]).toMatchObject({ content: draft, replyToPostId: 'p2' })
+  })
+
+  // #144: every open starts in 编辑, although the drawer keeps its content mounted between opens.
+  it('opens the next reply in 编辑 after one was sent from 预览', async () => {
+    const { root, state, editor, createPost } = mountComposer(hostilePost)
+    state.visible = true
+    await settle()
+    await editor.choose('预览')
+    await click(button(root, '回复'))
+    expect(createPost).toHaveBeenCalledOnce()
+    expect(state.visible).toBe(false)
+
+    state.replyTo = plainPost
+    state.visible = true
+    await settle()
+    expect(editor.mode()).toBe('编辑')
+    expect(isShown(editor.textarea())).toBe(true)
+    expect(editor.textarea().props.value).toBe(quoteDraft(plainPost))
+    expect(editor.preview()).toBeUndefined()
+  })
+
+  it('reopens in 编辑 with the draft kept after it was closed in 分栏', async () => {
+    const { root, state, editor } = mountComposer()
+    state.visible = true
+    await settle()
+    await editor.type('写了一半')
+    await editor.choose('分栏')
+    await click(button(root, '取消'))
+    expect(state.visible).toBe(false)
+
+    state.visible = true
+    await settle()
+    expect(editor.mode()).toBe('编辑')
+    expect(isShown(editor.textarea())).toBe(true)
+    expect(editor.textarea().props.value).toBe('写了一半')
+    expect(editor.preview()).toBeUndefined()
   })
 
   it('still refuses a reply over the member limit, in any mode', async () => {
