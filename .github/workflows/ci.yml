@@ -35,10 +35,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # 只对 pull_request 取消旧运行（PR 会频繁 force-push）。
-  # push 到长期分支的运行必须跑完，否则主线提交会缺少验证证据。
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # push 与 pull_request 分开成组：同一次推送的两次运行都要跑，只取消同一类的旧运行。
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # pull_request 与推到 task/**、dev/** 的旧运行在新推送到来时取消（#124：旧提交的运行跑完才让路，runner 一直排队）。
+  # push 到长期分支（main、stage）的运行必须跑完，否则主线提交会缺少验证证据。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/task/') || startsWith(github.ref, 'refs/heads/dev/') }}
 
 env:
   # 显式声明 CI，供 core 及其余 job 的脚本使用（部分工具据此关闭交互与进度动画）。

@@ -22,6 +22,7 @@
 - 一次只推一个发布 tag：GitHub 在一次推送超过三个 tag 时不产生 push 事件，工作流不会运行。
 - **打 tag 之前先等这个提交上 `ci.yml` 的 `verify (required check)` 跑完并通过。** 部署记录用 `required_contexts` 只要求这一项检查，它还在跑或没通过时，创建部署记录返回 409，部署 job 在这一步失败（`scripts/deploy-manual.mjs` 同样）。刚合并进 `stage` 的提交要等 push `stage` 触发的那次 CI 结束再打 rc tag。
 - tag 推送触发的是**该 tag 所在提交里**的工作流文件；手工运行也按所选 tag 的工作流文件执行，但入口要求工作流文件已经存在于默认分支（`main`）。
+- `ci.yml` 的旧运行（#124）：push 与 pull_request 各自成组；同一 PR 或同一个 `task/**`、`dev/**` 分支推了新提交，旧提交还没跑完的运行自动取消，runner 让给新提交。push `main`、`stage` 的运行不取消，每个主线提交都要有完整的验证记录。
 - `dev/**` 只在 `ci.yml` 里做机器验证，不部署、不获得任何发布含义；PR 仍然只能指向 `main`/`stage`，`dev/**` 不得作为进入 `stage` 的凭据；旧的 `dev-*` 名字不再触发 `ci.yml`（见 [BRANCHING](../conventions/BRANCHING.md) 命名规则）。
 - `branch-hygiene.yml` 是「合并后立即删除 task 分支」的执行者；它不创建 tag、不动 `main`/`stage`、不改 PR 状态，也不接触任何 secrets。巡检发现残留分支只告警，删除留给人工决定。
 
@@ -124,14 +125,14 @@
 |---|---|
 | 宿主机 | crosery-arch（Arch Linux，Ryzen 7 8845H 16 线程 / 30G 内存），维护者家里 |
 | 隔离 | 非特权 incus 系统容器 `yzgc-runner`（Ubuntu 24.04，`security.nesting=true`，容器里有自己的 Docker），限 8 线程、16G 内存；存储池是 80G 的 btrfs 镜像文件，放在单独的子卷 `/var/lib/incus`，不进宿主机的 snapper 快照 |
-| 注册 | 只注册到本仓库；两个实例 `crosery-arch-1`、`crosery-arch-2`，一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
+| 注册 | 只注册到本仓库；四个实例 `crosery-arch-1`…`crosery-arch-4`（`RUNNER_INSTANCES`，默认 4，#124：两个人同时开 PR 时两个实例排队一个多小时，宿主机 16 核、30G 只用了 4G），一个 PR 的 push 与 pull_request 两次运行可以同时跑；标签 `yzgc-arch` |
 | 与托管 runner 对齐 | 托管 runner 每个 job 一台新机器，这里用两条规则补齐：每个实例一个 HOME（`/home/runner/r<N>/home`，`~/setup-pnpm`、pnpm 的 SQLite 索引、npm 缓存不在并发 job 之间共用，共用时 pnpm 报 `disk I/O error`）；每个 job 开始前由 `ACTIONS_RUNNER_HOOK_JOB_STARTED` 清空工作目录（上一个 job 的 sparse-checkout 会让下一个 job 缺文件，#93 第一轮 CI 实测） |
 | 出站 | incus 网络 ACL `runner-egress` 拒绝容器访问 `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`、`198.18.0.0/15`（家里局域网、tailscale、netbird、宿主机与它的 Docker 网桥、代理的 fake-ip 段），其余放行 |
 | 预装 | 对齐 ubuntu-latest 里工作流直接用到的工具：Node 22 LTS（`branch-guard`、`docker`、`pr-contract` 不经 setup-node 直接调 `node`，官方包按 SHASUMS256 校验）、git、gh、jq、shellcheck、openssl、Docker + buildx + compose。新工作流用到别的预装工具时，先在容器里装上再切过来 |
 | 镜像源 | 家里连不上 Docker Hub，容器内 Docker 走 `docker.m.daocloud.io`、`docker.1ms.run` 镜像加速 |
 | 清理 | 容器内定时器每天清掉 72 小时前的镜像与构建缓存 |
 
-**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册两个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker、重跑 `register.sh` 会重启两个 runner 服务，正在跑的 job 会失败，挑没有 job 的时候跑。
+**重建**：机器上的步骤都在 [deploy/runner/](../../deploy/runner/)。宿主机 root 跑 `host-setup.sh`（incus 初始化、网桥、ACL、放行 Docker 的 FORWARD、建容器）；把 `container-setup.sh`、`job-started.sh`、`register.sh` 三个文件用 `incus file push` 放进容器的同一个目录（如 `/root/`），先跑 `container-setup.sh`（工具、Docker、Node、runner 用户与清理钩子，runner 安装包按官方 SHA256 校验），再按 `register.sh` 开头的写法把注册令牌从 stdin 喂进去注册 `RUNNER_INSTANCES` 个实例（令牌只经环境变量 `ACTIONS_RUNNER_INPUT_TOKEN` 给 `config.sh`，不进任何命令行）。宿主机的 incus 包按本机软件源索引的版本安装，不做部分升级。三个脚本都能重复执行，但重跑 `container-setup.sh` 会重启容器里的 docker，正在跑的 job 会失败，挑没有 job 的时候跑；`register.sh` 只重启 `.env` 改过的实例，已注册、在跑的实例不动，所以加实例时（`RUNNER_INSTANCES=6`）可以直接重跑它，新实例的目录先按 `container-setup.sh` 里那段解包。
 
 **切换**：仓库变量 `CI_RUNNER=yzgc-arch` 时，`ci`、`branch-hygiene`、`issue-lifecycle`、`cert-watch` 跑在常驻容器上；两条部署工作流读另一个变量 `DEPLOY_RUNNER`，现在是 `yzgc-deploy`（下文的一次性 runner），**不要指向常驻的 `yzgc-arch`**（原因见下面的剩余风险）。删掉变量就回到 `ubuntu-latest`（额度恢复或支出上限调高之后）。
 
