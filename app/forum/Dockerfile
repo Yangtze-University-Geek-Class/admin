@@ -141,6 +141,10 @@ server {
     root /usr/share/nginx/html;
     server_tokens off;
 
+    # 兜底（#140）：本容器剥掉前缀后才收到请求，不知道外面的 /forum 和 https。万一还要发跳转，
+    # 只发相对地址，由 web 容器的 proxy_redirect 补回 /forum 前缀，不会拼出 http://<Host>:3000/…。
+    absolute_redirect off;
+
     gzip on;
     gzip_types text/plain text/markdown text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
     gzip_min_length 1024;
@@ -189,12 +193,14 @@ server {
         try_files $uri =404;
     }
 
-    # 预渲染过的路由（about/、categories/ …）直接命中目录里的 index.html，
-    # 其余路径回落 200.html 交给客户端路由。页面同样不缓存：发版后页面里的内联脚本变了，
-    # 缓存里的旧页面配上新的 CSP 哈希会白屏（#78）。expires 不是 add_header，http 层的 CSP 照样继承。
+    # 预渲染过的路由（about/、users/ …）直接取目录里的 index.html，带不带结尾斜杠都一样返回 200，
+    # 其余路径（含没有 index.html 的目录）回落 200.html 交给客户端路由。不写 $uri/：它命中目录后
+    # nginx 会 301 补斜杠，跳转里没有 /forum 前缀，刷新 /forum/users 就会跳出论坛（#140）。
+    # 页面同样不缓存：发版后页面里的内联脚本变了，缓存里的旧页面配上新的 CSP 哈希会白屏（#78）。
+    # expires 不是 add_header，http 层的 CSP 照样继承。
     location / {
         expires -1;
-        try_files $uri $uri/ /200.html;
+        try_files $uri $uri/index.html /200.html;
     }
 }
 NGINX_SITE

@@ -175,3 +175,16 @@
 - 做了什么：7e48c01 应修：displayNameTaken 只豁免自己的登录名本身（不分大小写），不再按 nameKey 豁免，成员 da-ve 改成有称号的 dave 返回 400 display_name_taken；和审查给的写法不同的一处：审查要求 da-ve 改成 Da-Ve 仍是 200，但 Da-Ve 按 nameKey 和 dave 的登录名一样，只照审查的写法会被拒，所以另加一条：提交的昵称就是自己的登录名本身（不分大小写）时直接放行，新成员的默认昵称就是它；测试加 da-ve 成员与 B.o.b 用例，API 同步。0328653 建议：PoW 通过后先记一次 guestPost（和前面的检查之间没有 await），昵称被占、人机验证没过、发出去都只记这一次；写入前只再查全站上限，guestPostSite 只记真正发出的回复；测试用失败的 Turnstile：6 次尝试依次 turnstile_failed / guest_name_taken 交替，第 6 次 429，这个 IP 记 5 次，成功的回复只记 1 次；API、SECURITY 同步。变异核对 6 次（按 nameKey 豁免、去掉自己登录名的直接放行、完全不豁免自己、回到只在被占和成功时计数、成功时重复计数、全站按尝试计数），每次都有对应用例失败，恢复后工作区干净
 - 结果：vitest run tests/server tests/tooling 退出 0（24 个文件 422 条）；pnpm check 退出 0；check:docs 退出 0；没有推送。未验证：预发布环境、真实 Turnstile
 - 下一步：主 agent 复核后推送并请第六轮审查
+
+## 20:16:39 +08:00 · 合并 · #57 · PR #116 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：五轮独立审查：第五轮有条件通过，条件（登录名豁免回退修复并补 da-ve 用例）由主 agent 核对增量 diff、本机 422 条通过后判定满足；最终 head 442c64a 必需 CI 在托管 runner 上 15 项全绿，note check 链路完整；以 merge commit 合入
+- 结果：合并提交 22196ad，PR #116 已合并
+- 下一步：与 #126 一起打 v0.1.0-rc.8 上预发布；task.mjs finish
+
+## 20:16:51 +08:00 · 收尾 · #57 · PR #116 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 57：删 worktree .claude/worktrees/task-57 与本地分支 task/57/forum_backend
+- 结果：PR 已合并

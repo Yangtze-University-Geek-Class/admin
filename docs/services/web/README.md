@@ -14,7 +14,7 @@
 | `app/web/shared/styles/` | 基础样式与令牌（`base.css`、`mascot.css`、`rounded.css`） |
 | `app/web/shared/config/` | 公开前端配置（`app.config.json` → `config/index.ts` 的站点标题与 basePath 合同；不含域名） |
 | `app/web/Dockerfile` | Node 22 构建官网（`app/web`）与控制台（`app/console`）两份产物，叠进同一个 nginx 站点根 → 静态托管与反代；容器内监听 8080（非特权），并生成 `release.json` 供发布身份核对 |
-| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*`、`/auth`、`/auth/*`（OAuth 登录与回调）、`/healthz` → `server:3000`；`/forum` 308 到 `/forum/`，`/forum/*`（含图片、字体，`location ^~` 不让官网的图片规则截走）剥掉前缀后 → `forum:3000`；`/admin`、`/console` 及其子路径与 `/signin` → 控制台入口 `sites/console/index.html`，其余 → portal，与 Host 无关；`/assets/*`（官网）与 `/console-assets/*`（控制台）是带哈希的长缓存资源；`/sites/*` 只提供真实文件，不存在即 404；安全头由宿主 nginx 统一下发，容器不重复 |
+| `app/web` 镜像内 nginx 配置 | 由 `Dockerfile` 生成：`/api/*`、`/auth`、`/auth/*`（OAuth 登录与回调）、`/healthz` → `server:3000`；`/forum` 308 到相对地址 `/forum/`，`/forum/*`（含图片、字体，`location ^~` 不让官网的图片规则截走）剥掉前缀后 → `forum:3000`，论坛发出的相对跳转由 `proxy_redirect / /forum/` 补回前缀；server 块 `absolute_redirect off`，容器发出的跳转（含补过前缀的）都是相对地址，不会带上容器的 `http://…:8080`（#140）；`/admin`、`/console` 及其子路径与 `/signin` → 控制台入口 `sites/console/index.html`，其余 → portal，与 Host 无关；`/assets/*`（官网）与 `/console-assets/*`（控制台）是带哈希的长缓存资源；`/sites/*` 只提供真实文件，不存在即 404；安全头由宿主 nginx 统一下发，容器不重复 |
 
 模块细节：[portal](portal.md)、[shared](shared.md)；管理端已迁到 `app/console`（[console 合同](../console/README.md)，迁移说明见 [admin](admin.md)）。依赖方向：站点 → shared → 通用依赖；shared 不得反向导入站点；`app/web` 与 `app/console` 互不导入。
 

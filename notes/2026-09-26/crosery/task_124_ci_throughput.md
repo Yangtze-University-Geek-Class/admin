@@ -58,3 +58,16 @@
 - 做了什么：2588424 README 徽标改公开仓库、README:176 与 RELEASES:50 与 deploy-manual.mjs 与 ci.yml 注释改成 production 环境与审批人还没配置、CICD 四处旧说法改正；0109ac0 container-setup.sh 在 MODE 校验后立即检查 RUNNER_INSTANCES（只在 ci 模式），值不对时不再先重启 dockerd；PR 正文补 0ec8d72 与仓库外的设置改动
 - 结果：shellcheck 与 sh -n 通过；RUNNER_INSTANCES=12/x 与未知 MODE 都在动任何东西前退出 2；tests/tooling 219 条、pnpm check 通过
 - 下一步：推送，主 agent 核对条件后合并
+
+## 20:43:45 +08:00 · 合并 · #124 · PR #125 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：第二轮有条件通过，两条应修（README 徽标、PR 正文补仓库公开的范围与仓库外设置）由主 agent 返工并核对；合并 stage 后 head 1094327 必需 CI 15 项全绿，note check 链路完整；以 merge commit 合入
+- 结果：合并提交 0fcf422，PR #125 已合并
+- 下一步：容器里的 register.sh 还是旧版，CI 现在走托管 runner，常驻 runner 只是退路，下次动容器时推新版；task.mjs finish
+
+## 20:43:47 +08:00 · 收尾 · #124 · PR #125 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 124：删 worktree .claude/worktrees/task-124 与本地分支 task/124/ci_throughput
+- 结果：PR 已合并

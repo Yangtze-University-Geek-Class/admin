@@ -21,7 +21,8 @@
 #
 # 反代约定（与 app/server 路由、deploy/compose/*.yml 一致）：
 #   /api/、/auth、/healthz → server:3000（Fastify）
-#   /forum、/forum/        → forum:3000（Nuxt 产物以 /forum/ 为 baseURL 构建，转发时剥前缀）
+#   /forum                 → 308 到相对地址 /forum/（不带协议、主机和容器端口，#140）
+#   /forum/                → forum:3000（Nuxt 产物以 /forum/ 为 baseURL 构建，转发时剥前缀，上游的相对跳转补回前缀）
 # 安全头（HSTS/CSP 等）由宿主 nginx 统一加，容器不重复下发，避免同一响应带两份 CSP。
 
 # ── 构建阶段：装依赖 → Vite 构建 → 生成 release.json 与 nginx 配置 ──
@@ -130,6 +131,11 @@ server {
     root /usr/share/nginx/html;
     server_tokens off;
 
+    # 本容器发出的跳转都写相对地址（#140）。nginx 默认把 Location 补成 http://<Host>:8080/…，
+    # 浏览器会跳到容器自己的协议和端口；外面是宿主 nginx 的 https，相对地址由浏览器按当前地址补全。
+    # 下面 proxy_redirect 改写过的论坛跳转同样受它管：不关的话，改写后的 /forum/… 也会被补成绝对地址。
+    absolute_redirect off;
+
     # 上传走 /api/*，与宿主 nginx 保持同一个上限，否则容器会先拒掉大包。
     client_max_body_size 6m;
 
@@ -173,8 +179,12 @@ server {
     location = /forum {
         return 308 /forum/;
     }
+    # 论坛容器不知道外面的 /forum 前缀，它发出的相对跳转（/users/）在这里补回前缀（/forum/users/）。
+    # 写了这一条，默认的 proxy_redirect（http://forum:3000/ → /forum/）就不再生效；它本来也碰不上：
+    # 转发时 Host 是外面的域名，论坛拼不出 http://forum:3000/。论坛自己也关了绝对跳转，只会发相对地址。
     location ^~ /forum/ {
         proxy_pass http://forum:3000/;
+        proxy_redirect / /forum/;
         include /etc/nginx/conf.d/90-proxy-headers.conf;
     }
 

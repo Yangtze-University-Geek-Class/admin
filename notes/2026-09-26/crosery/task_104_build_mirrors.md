@@ -59,3 +59,16 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：container-setup.sh 解到 /usr/local 的那条 tar 加 --no-same-owner（工具缓存那条随后整体 chown 给 runner，不用改）；build-mirrors 测试的断言带上它；PR 正文验证段改成 36 项与 CI 为准
 - 结果：build-mirrors 36 passed，去掉 --no-same-owner 1 项失败；shellcheck 通过；提交 1b586cd
+
+## 19:17:31 +08:00 · 合并 · #104 · PR #106 合入 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：两轮审查有条件通过，条件已满足（最终 head 8223177 必需 CI 在 GitHub 托管 runner 上全绿，note check 链路完整）；按所有者授权以 merge commit 合入 stage
+- 结果：合并提交 b38c4ef，PR #106 已合并
+- 下一步：随下一个 rc 进预发布；task.mjs finish 清理 worktree 与分支
+
+## 19:17:52 +08:00 · 收尾 · #104 · PR #106 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 104：删 worktree .claude/worktrees/task-104 与本地分支 task/104/build_mirrors
+- 结果：PR 已合并

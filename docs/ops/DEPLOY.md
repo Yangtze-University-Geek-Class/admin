@@ -21,7 +21,8 @@
                  ├─ /console、/admin、/signin（含子路径） → sites/console/index.html（app/console，Vue + Tuffex）
                  ├─ /healthz  → server:3000（web 也代理，部署脚本用它做健康门）
                  ├─ /api/*、/auth/* → server:3000（Fastify + /data 命名卷）
-                 ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀；location ^~，图片、字体也转给论坛）
+                 ├─ /forum    → 308 到相对地址 /forum/（web 与论坛两个容器都 absolute_redirect off，跳转不带协议、主机和容器端口）
+                 ├─ /forum/*  → forum:3000（Nuxt 静态产物；镜像按 GEEK_FORUM_BASE_PATH=/forum/ 构建，proxy_pass 带尾斜杠剥离前缀，proxy_redirect 把论坛的相对跳转补回前缀；location ^~，图片、字体也转给论坛）
                  ├─ /admin、/admin/*、/console、/console/*、/signin → admin SPA 入口
                  └─ 其余路径 → portal SPA 入口
 ```
@@ -171,7 +172,7 @@ bash rollback-stack.sh --environment production --to <sha12|previous>
 
 ## 发布和回滚验收
 
-检查 `/healthz`（server 与 web 各一次）、入口域名与深链接（`/`、`/join-us`、`/admin`、`/console/...` 分别进官网与管理端）、`github.yangtzeu.work` 的 301（仅正式环境）、`/api/*` 与 `/forum/*` 是否正确反代、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
+检查 `/healthz`（server 与 web 各一次）、入口域名与深链接（`/`、`/join-us`、`/admin`、`/console/...` 分别进官网与管理端）、`github.yangtzeu.work` 的 301（仅正式环境）、`/api/*` 与 `/forum/*` 是否正确反代（`/forum` 308 到相对地址 `/forum/`，直接打开 `/forum/users` 返回 200、不跳转，#140）、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
 
 未执行的生产验证明确标注，不将本机的 `pnpm verify` PASS、模板文件或模拟测试称为线上验收。
 
