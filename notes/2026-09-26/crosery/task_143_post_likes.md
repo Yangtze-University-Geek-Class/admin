@@ -57,3 +57,9 @@
 - 做了什么：逐项读 origin/stage...f869d28 的 12 个文件：likes.ts 纯函数（「赞」「赞 N」、liked、图标、tone、click）、PostCard 接线、LoginModal 改用 access.ts 的 loginPromptToast、smoke-routes 与 verify-topic-page 改按文字找赞按钮、likes.test.ts、access.test.ts、tests/server/forum.test.ts 的写库回归。核对 Tuffex 0.6.0 的 TxButton：设了 variant 时 type 仍输出 tone-<type> 类，dist 里有 .variant-flat.tone-danger（红字、红边框），所以赞过变红能生效。PR 头 f869d28 的 forum、core、docker、env-contract、actionlint、pr-contract 都通过；branch-guard 与 verify 失败的一次是缺审查记录
 - 结果：通过。行为和文案符合 #143；去掉 aria-label 后读屏读到「赞 3」；写入路径没有动，留给 #145。风险：likes.test.ts 用正则核对 PostCard 的 like() 源码，#145 改 like() 时要一起改这条测试，合并顺序是先 #151 后 #145。未验证：预发布环境上的真实点击，等下一个 rc 部署后在 ego 里验收
 - 下一步：合并 #151，确认 #143 关闭、远程分支和本地工作区清掉；告诉 #145 基于新的 stage 变基
+
+## 23:41:10 +08:00 · 收尾 · #143 · PR #151 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 143：删 worktree .claude/worktrees/task-143 与本地分支 task/143/post_likes
+- 结果：PR 已合并

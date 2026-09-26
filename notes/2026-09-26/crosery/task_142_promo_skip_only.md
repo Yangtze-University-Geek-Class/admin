@@ -52,3 +52,9 @@
 - 做了什么：主 agent（不是作者）审 14d2966（范围 origin/stage..14d2966）：逐行读 PromoPlayer.tsx、promo.css、promo.ts、icons.ts 的 diff；核对 gate 被拒走 blocked 并记看过、AbortError 走 failed 不记看过、replay 被拒停在封面点画面续播、ended 前那次 pause 不闪提示、Esc 与跳过都经 finish 且 closed 防重入、Tab 锁在跳过上；useReducedMotion 首帧同步读 matchMedia，autoplayOff 取挂载时的值成立；删掉的 clock、PROMO.seconds、pause-fill/play-fill/volume-*-line 全仓 grep 无残留引用；指针隐藏仍由 .pt-root.pt-promo.is-idle 负责，没被误删；CI core、forum、docker、env-contract、actionlint 全绿
 - 结果：结论：通过。两条建议不挡合并：浏览器只许静音自动播时画面上没有任何打开声音的提示（作者已列为待所有者决定）；e2e 新加的一条断言 CI 不跑，等预发布 ego 验收补证据
 - 下一步：推送后等 branch-guard、verify 重跑变绿，合并，随 rc.10 上预发布
+
+## 23:15:05 +08:00 · 收尾 · #142 · PR #150 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 142：删 worktree .claude/worktrees/task-142 与本地分支 task/142/promo_skip_only
+- 结果：PR 已合并
