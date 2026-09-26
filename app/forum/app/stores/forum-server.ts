@@ -32,6 +32,7 @@ export function stateRetryDelay(attempt: number): number {
   return Math.min(60_000, 10_000 * 2 ** attempt)
 }
 
+/** The server's `rate_limited` on /state and /view, or a bare 429 from a proxy in front of it: judged by status, not code. */
 const isRateLimited = (error: unknown): boolean => error instanceof ForumApiError && error.status === 429
 
 export interface ReplyAsGuestInput extends CreatePostBody {

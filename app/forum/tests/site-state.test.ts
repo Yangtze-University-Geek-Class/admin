@@ -144,7 +144,7 @@ describe('siteForumState', () => {
     expect(text).toContain(SITE_NOTICE.published)
     expect(text).toContain(SITE_NOTICE.guests)
     for (const sentence of Object.values(SITE_NOTICE)) {
-      expect(sentence).not.toMatch(/招新|入门资料|其余|还没开放/)
+      expect(sentence).not.toMatch(/招新|入门资料|人工智能|AI|暂时不显示|还没开放/)
     }
   })
 })
