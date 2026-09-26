@@ -3,28 +3,39 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * The escaping lives in pure functions (shared/post-markdown.ts, shared/forum-api.ts) that have their own
- * tests; this file holds the pages and components to calling them. The forum toolchain has no DOM to mount
- * a component in, so it reads the source: putting `post.content` back into the editor, or dropping one of
- * these calls, fails here instead of reaching a guest's post.
+ * tests, and PostEditor and the pages using it are mounted in post-editor*.test.ts; this file holds the rest
+ * of the pages and components to calling them by reading the source, so dropping one of these calls fails
+ * here instead of reaching a guest's post.
  */
 function source(path: string): string {
   return readFileSync(new URL(`../app/${path}`, import.meta.url), 'utf8')
 }
 
-describe('someone else\'s text reaches the editor only through the escaping helpers', () => {
-  it('PostCard edits through editDraft and saves fromEditor of the draft', () => {
-    const card = source('components/PostCard.vue')
-    expect(card).toMatch(/draft\.value = editDraft\(props\.post\)/)
-    expect(card).toMatch(/actions\.editPost\(props\.post\.id, fromEditor\(draft\.value\)\)/)
-    expect(card).not.toMatch(/draft\.value = props\.post\.content/)
+describe('post bodies are written in PostEditor and shown through ForumMarkdown', () => {
+  it('the new-topic page, the reply drawer and the edit form all use PostEditor', () => {
+    for (const path of ['pages/new.vue', 'components/ReplyComposer.vue', 'components/PostCard.vue']) {
+      const file = source(path)
+      expect(file, path).toMatch(/<PostEditor\b/)
+      expect(file, path).not.toMatch(/TxMarkdownEditor/)
+    }
   })
 
-  it('ReplyComposer prefills quoteDraft and sends fromEditor of the draft', () => {
-    const composer = source('components/ReplyComposer.vue')
-    expect(composer).toMatch(/content\.value = props\.replyTo \? quoteDraft\(props\.replyTo\) : ''/)
-    expect(composer).toMatch(/const text = computed\(\(\) => fromEditor\(content\.value\)\.trim\(\)\)/)
-    expect(composer).toMatch(/const body = text\.value/)
-    expect(composer).not.toMatch(/postExcerpt\(/)
+  it('PostEditor previews through ForumMarkdown, never TxMarkdownView or another renderer directly', () => {
+    const editor = source('components/PostEditor.vue')
+    expect(editor).toMatch(/<ForumMarkdown [^>]*:content="content"/)
+    expect(editor).not.toMatch(/TxMarkdownView|TxMarkdownEditor|marked|v-html/)
+  })
+
+  it('ForumMarkdown hands TxMarkdownView only renderableMarkdown of the text', () => {
+    const view = source('components/ForumMarkdown.vue')
+    expect(view).toMatch(/const safe = computed\(\(\) => renderableMarkdown\(props\.content\)\)/)
+    expect(view).toMatch(/<TxMarkdownView :content="safe" \/>/)
+  })
+
+  it('PostCard edits the post as written and saves the draft', () => {
+    const card = source('components/PostCard.vue')
+    expect(card).toMatch(/^\s*draft\.value = props\.post\.content$/m)
+    expect(card).toMatch(/actions\.editPost\(props\.post\.id, draft\.value\)/)
   })
 })
 

@@ -2,7 +2,7 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { MEMBER_CONTENT_MAX, NAME_CHARS_HINT } from '../../shared/forum-api'
-import { fromEditor, quoteDraft } from '../../shared/post-markdown'
+import { quoteDraft } from '../../shared/post-markdown'
 
 /**
  * Discourse's composer: a panel that slides up from the bottom of the topic
@@ -17,9 +17,9 @@ import { fromEditor, quoteDraft } from '../../shared/post-markdown'
  * server has Turnstile configured, the guest also passes that check; its token
  * is single-use, so every send renders a fresh widget.
  *
- * The prefilled quote is someone else's text, so it goes into the editor
- * through `quoteDraft` (raw HTML shown as text); what is sent is `fromEditor`
- * of the draft.
+ * The prefilled quote (`quoteDraft`) goes into PostEditor as written: its
+ * preview renders through ForumMarkdown, so raw HTML in someone else's post
+ * shows as text there, as it does on the page.
  */
 const props = defineProps<{
   visible: boolean
@@ -41,7 +41,7 @@ const { user, can, guestCanReply } = useCurrentUser()
 
 const content = ref('')
 /** The draft as it will be sent. */
-const text = computed(() => fromEditor(content.value).trim())
+const text = computed(() => content.value.trim())
 const guestName = ref('')
 const submitting = ref(false)
 
@@ -68,12 +68,18 @@ const title = computed(() => (replyToUser.value
   ? `回复 @${replyToUser.value.username} 的 #${replyToFloor.value}`
   : `回复：${props.topic.title}`))
 
+// TxDrawer keeps its content mounted while closed, PostEditor included, so a
+// new key per open is what starts every reply in 编辑 (#144). The draft lives
+// in `content`, not in the editor, so it survives the new editor.
+const editorKey = ref(0)
+
 // Prefill on open only: reopening the same target must not stack a second
 // quote on top of a draft the author is still writing.
 watch(() => props.visible, (visible) => {
   if (!visible)
     return
   submitting.value = false
+  editorKey.value += 1
   if (!content.value.trim())
     content.value = props.replyTo ? quoteDraft(props.replyTo) : ''
 })
@@ -145,7 +151,7 @@ async function submit() {
   <TxDrawer
     :visible="visible"
     direction="bottom"
-    :size="asGuest ? (turnstileSiteKey ? 660 : 580) : 420"
+    :size="asGuest ? (turnstileSiteKey ? 660 : 580) : 460"
     :close-on-click-mask="false"
     :title="title"
     @update:visible="emit('update:visible', $event)"
@@ -172,12 +178,12 @@ async function submit() {
         </span>
       </TxFlex>
 
-      <TxMarkdownEditor
+      <PostEditor
+        :key="editorKey"
         v-model="content"
-        default-mode="source"
         :min-height="240"
         placeholder="写下你的回复，支持 Markdown…"
-        aria-label="回复内容"
+        label="回复内容"
       />
 
       <TurnstileBox v-if="turnstileSiteKey" v-model:token="turnstileToken" :site-key="turnstileSiteKey" :round="turnstileRound" />

@@ -2,7 +2,6 @@
 import type { Post, Topic } from '~/data/types'
 import { toast } from '@talex-touch/tuffex/utils'
 import { likeControl } from '~/data/likes'
-import { editDraft, fromEditor } from '../../shared/post-markdown'
 
 /**
  * One post in Discourse's stream: avatar on the left, and on the right the
@@ -80,9 +79,9 @@ function bookmark() {
     toast({ title: bookmarked.value ? '已加入书签' : '已移出书签', variant: 'success' })
 }
 
-// Someone else's post can be in the editor (a moderator's edit): it goes in through `editDraft`, raw HTML shown as text.
+// Someone else's post can be in the editor (a moderator's edit); PostEditor's preview renders it through ForumMarkdown, raw HTML shown as text.
 function startEdit() {
-  draft.value = editDraft(props.post)
+  draft.value = props.post.content
   editing.value = true
 }
 
@@ -166,11 +165,10 @@ function remove() {
           <TxAlert v-if="post.deleted" type="info" message="此帖已被删除" />
 
           <template v-else-if="editing">
-            <TxMarkdownEditor
+            <PostEditor
               v-model="draft"
-              default-mode="source"
               :min-height="200"
-              aria-label="编辑帖子内容"
+              label="编辑帖子内容"
               placeholder="修改这条帖子…"
             />
             <TxFlex justify="flex-end" :gap="8">
