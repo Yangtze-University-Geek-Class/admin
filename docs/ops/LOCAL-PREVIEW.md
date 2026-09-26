@@ -10,7 +10,7 @@
 |---|---|---|
 | 宣传主页 | http://127.0.0.1:5173/sites/portal/ | 核心前端。打开 `http://127.0.0.1:5173/` 时，GitHub 登录模式跳到 `/sites/portal/?__data=live`，隔离模式跳到 `?__data=mock` |
 | 极客班控制台 | http://127.0.0.1:5186/console（`pnpm dev:console`） | 默认连 3000 上的本机后端（`live`），后端没起时请求失败；`?__data=mock` 切到只读样板数据（记在本标签页，给自动化测试用，`?__persona=` 切换样板身份），`?__data=live` 切回。5173 上的 `/console`、`/admin`、`/signin`、`/sites/admin/*` 在开发态 302 到这里，查询参数保留 |
-| 新论坛 | http://127.0.0.1:3456/ | 发现 `.tools/forum-runtime/<快照>/` 时显示极客班论坛内容（快照模式），否则为原仓浏览器 localStorage 演示；`GEEK_FORUM_SOURCE=demo` 强制示例，`GEEK_FORUM_SOURCE=site` 显示和镜像一样的极客班论坛（见 [TUFF-FORUM](TUFF-FORUM.md)）。Nuxt 开发服务器把 `/auth` 转给 3000（`app/forum/nuxt.config.ts` 的 `nitro.devProxy`），所以论坛能读 `/auth/me` |
+| 新论坛 | http://127.0.0.1:3456/ | 发现 `.tools/forum-runtime/<快照>/` 时显示极客班论坛内容（快照模式），否则为原仓浏览器 localStorage 演示；`GEEK_FORUM_SOURCE=demo` 强制示例，`GEEK_FORUM_SOURCE=site` 显示和镜像一样的极客班论坛（见 [TUFF-FORUM](TUFF-FORUM.md)）。Nuxt 开发服务器把 `/auth`、`/api/public/org`、`/api/forum` 转给 3000（`app/forum/nuxt.config.ts` 的 `nitro.devProxy`），所以论坛能读 `/auth/me`，`site` 模式下读写论坛后端 |
 | 核心 API | http://127.0.0.1:3000/healthz | 隔离模式为内存库；GitHub 登录模式为 `.tools/local-preview/core.db` |
 
 5173 上的 `/forum/<路径>?<参数>` 302 到 `http://127.0.0.1:3456/<路径>?<参数>`（去掉 `/forum` 前缀、保留参数，`app/web/vite.config.ts`），登录后回到论坛原页面靠的就是这一条；旧 `/sites/forum/*` 转到论坛首页。核心 `/api/forum/*` 是新论坛的接口（见 [API](../architecture/API.md)「论坛」）；这下面新接口没有注册的旧路径、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`，旧的本地注册、上传、发帖不再支持。生产新论坛缺少真实服务时不自动开放演示。

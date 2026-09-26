@@ -58,9 +58,11 @@ export default defineNuxtConfig({
     // 核心只接受 PUBLIC_ORIGIN（本机是 5173）发来的写请求；论坛在 3456，退出（POST /auth/signout）
     // 带的 Origin 对不上会被 403，所以开发代理把 Origin 换成 5173，与线上同域时一致。
     // /api/public/org 是称号与部门的显示信息（提督在控制台改），app/composables/useOrgTitles.ts 读它。
+    // /api/forum 是论坛后端（帖子、回复、资料、头像，stores/forum-server.ts）；写请求同样要过核心的 Origin 校验。
     devProxy: {
       '/auth': { target: 'http://127.0.0.1:3000/auth', changeOrigin: false, headers: { origin: 'http://127.0.0.1:5173' } },
       '/api/public/org': { target: 'http://127.0.0.1:3000/api/public/org', changeOrigin: false, headers: { origin: 'http://127.0.0.1:5173' } },
+      '/api/forum': { target: 'http://127.0.0.1:3000/api/forum', changeOrigin: false, headers: { origin: 'http://127.0.0.1:5173' } },
     },
   },
 

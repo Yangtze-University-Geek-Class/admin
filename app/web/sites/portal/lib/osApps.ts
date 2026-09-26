@@ -36,8 +36,16 @@ export const OS_APPS: readonly OsApp[] = [
   { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
   { id: "wallpaper", name: "壁纸", icon: "image-line", tint: "#0e9f8f", open: { kind: "panel", panel: "wallpaper" }, blurb: "换一张桌面壁纸" },
   { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },
-  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "成员用 GitHub 账号登录" },
+  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "管理组织、成员和论坛" },
 ];
+
+/**
+ * 这个人能看到的应用：控制台只给在里面能管点什么的人（`/auth/me` 的 `console_link`）；没登录和没有管理能力的人，
+ * 桌面、Dock、菜单、启动器和终端里都没有它。控制台自己的准入不变。
+ */
+export function visibleApps(consoleLink: boolean): OsApp[] {
+  return OS_APPS.filter((app) => consoleLink || app.id !== "console");
+}
 
 export function appById(id: string): OsApp | undefined {
   return OS_APPS.find((app) => app.id === id);
@@ -58,9 +66,9 @@ export type LauncherCommand = {
   keywords: string;
 };
 
-export function launcherCommands(): LauncherCommand[] {
+export function launcherCommands(apps: readonly OsApp[] = OS_APPS): LauncherCommand[] {
   return [
-    ...OS_APPS.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: `${app.id} ${app.name}` })),
+    ...apps.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: `${app.id} ${app.name}` })),
     { id: "forum-home", label: "进入论坛首页", hint: "全部话题", icon: "external-link-line", keywords: "forum home 论坛 首页 bbs" },
     { id: "forum-feed", label: "论坛最新", hint: "最近的话题", icon: "fire-line", keywords: "latest feed 最新 帖子 话题 topic" },
     { id: "docs", label: "文档", hint: "官网和论坛的使用说明", icon: "file-text-line", keywords: "docs 文档 guide 指南 help" },
@@ -110,7 +118,7 @@ const HELP: Array<[string, string]> = [
   ["clear", "清屏"],
 ];
 
-export function runTerminal(input: string, repos: readonly RepoSnapshot[]): TerminalResult {
+export function runTerminal(input: string, repos: readonly RepoSnapshot[], apps: readonly OsApp[] = OS_APPS): TerminalResult {
   const [command = "", ...rest] = input.trim().split(/\s+/);
   const echo: TerminalLine = { kind: "echo", text: input.trim() };
   if (!command) return { lines: [echo] };
@@ -119,7 +127,7 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
     case "help":
       return reply(HELP.map(([key, text]) => ({ kind: "out", key, text })));
     case "ls":
-      return reply(OS_APPS.map((app) => ({ kind: "out", key: app.id, text: app.name })));
+      return reply(apps.map((app) => ({ kind: "out", key: app.id, text: app.name })));
     case "clear":
       return { lines: [], clear: true };
     case "whoami":
@@ -135,7 +143,7 @@ export function runTerminal(input: string, repos: readonly RepoSnapshot[]): Term
     case "sudo":
       return reply([{ kind: "err", text: "sudo: 这个终端没有管理员权限。管理组织请用控制台。" }]);
     case "open": {
-      const app = appById(rest[0] ?? "");
+      const app = apps.find((candidate) => candidate.id === (rest[0] ?? ""));
       if (!app) return reply([{ kind: "err", text: `open: 没有叫 ${rest[0] ?? "（空）"} 的应用，试试 ls` }]);
       return reply([{ kind: "ok", text: `打开 ${app.name}` }], app.id);
     }

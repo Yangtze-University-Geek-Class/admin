@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import type { FileUploaderFile } from '@talex-touch/tuffex/file-uploader'
 import { toast } from '@talex-touch/tuffex/utils'
 import { AVATAR_PALETTE } from '~/data/seed-content'
+import { AVATAR_TYPES, avatarFileProblem, NAME_CHARS_HINT, PROFILE_LIMITS, profileBody, profileProblem } from '../../../../shared/forum-api'
 
 // Discourse's /u/<name>/preferences: a left-hand sub-navigation over the form.
 // Only your own; somebody else's redirects back to their profile.
+//
+// Against the forum server (极客班论坛) this is the account profile: 昵称,
+// 个人签名, 所在地, 个人网站 and the notification switches go to
+// PATCH /api/forum/me/profile, and the avatar is a picture — uploaded (PUT the
+// file itself) or the GitHub one — instead of the demo's initials colour.
 definePageMeta({
   key: route => route.path,
 })
@@ -11,9 +18,9 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
+const actions = useForumActions()
 const { user: viewer, isLoggedIn, can } = useCurrentUser()
-const { loginOpen } = useShell()
-const { siteLogin } = useContentSource()
+const { serverMode } = useContentSource()
 const colorMode = useColorMode()
 
 const username = String(route.params.username)
@@ -45,8 +52,85 @@ const draft = reactive({
   notifyPrefs: { ...(profile.value?.notifyPrefs ?? { reply: true, like: true, follow: true }) },
 })
 
+// ------------------------------------------------------------ server avatar
+
+/**
+ * The picked file, kept here rather than in the uploader: its file row has a
+ * remove button whose icon does not render, so the uploader only picks and
+ * this page shows the preview (a data: URL; the site CSP allows data: images,
+ * not blob:) with its own 不用这张.
+ */
+const avatarFile = shallowRef<File | null>(null)
+const avatarPreview = ref('')
+const avatarBusy = ref(false)
+const uploadedAvatar = computed(() => profile.value?.avatarUrl?.startsWith('/api/forum/avatars/') ?? false)
+/** Bumped on every pick or discard, so a slow FileReader never shows a file that is no longer picked. */
+let avatarPick = 0
+
+function pickAvatar(next: FileUploaderFile[]) {
+  const picked = next.at(-1)?.file
+  if (!picked)
+    return
+  const problem = avatarFileProblem(picked)
+  if (problem) {
+    toast({ title: '这张图片不能用', description: problem, variant: 'warning' })
+    return
+  }
+  const pick = ++avatarPick
+  avatarFile.value = picked
+  avatarPreview.value = ''
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (pick === avatarPick && typeof reader.result === 'string')
+      avatarPreview.value = reader.result
+  }
+  reader.readAsDataURL(picked)
+}
+
+function discardAvatar() {
+  avatarPick += 1
+  avatarFile.value = null
+  avatarPreview.value = ''
+}
+
+async function uploadAvatar() {
+  const file = avatarFile.value
+  if (!file || avatarBusy.value)
+    return
+  avatarBusy.value = true
+  try {
+    if (!await actions.uploadAvatar(file))
+      return
+    discardAvatar()
+    toast({ title: '头像已更换', variant: 'success' })
+  }
+  finally {
+    avatarBusy.value = false
+  }
+}
+
+async function resetAvatar() {
+  if (avatarBusy.value)
+    return
+  avatarBusy.value = true
+  try {
+    if (await actions.resetAvatar())
+      toast({ title: '已恢复 GitHub 头像', variant: 'success' })
+  }
+  finally {
+    avatarBusy.value = false
+  }
+}
+
 /** A live user object for the avatar previews, without touching the store. */
-const preview = computed(() => (profile.value ? { ...profile.value, displayName: draft.displayName || profile.value.displayName, avatarColor: draft.avatarColor } : undefined))
+const preview = computed(() => (profile.value
+  ? {
+      ...profile.value,
+      displayName: draft.displayName || profile.value.displayName,
+      avatarColor: draft.avatarColor,
+      ...(avatarPreview.value ? { avatarUrl: avatarPreview.value } : {}),
+    }
+  : undefined))
 
 // Somebody else's preferences page is not a 403 in Discourse either — it just
 // sends you to their profile. Done in setup, with the form behind a `v-if`, so
@@ -66,19 +150,31 @@ function revert() {
   draft.notifyPrefs = { ...current.notifyPrefs }
 }
 
-function save() {
+const saving = ref(false)
+
+async function save() {
   const current = profile.value
-  if (!current || !isSelf.value)
+  if (!current || !isSelf.value || saving.value)
     return
-  forum.updateProfile(current.id, {
-    displayName: draft.displayName.trim() || current.displayName,
-    bio: draft.bio.trim(),
-    location: draft.location.trim(),
-    website: draft.website.trim(),
-    avatarColor: draft.avatarColor,
-    notifyPrefs: { ...draft.notifyPrefs },
-  })
-  toast({ title: '偏好设置已保存', variant: 'success' })
+  // The server's limits, checked before sending; the nickname only when it changed (shared/forum-api.ts).
+  const problem = serverMode ? profileProblem(draft, current.displayName) : null
+  if (problem) {
+    toast({ title: '资料没有保存', description: problem, variant: 'warning' })
+    return
+  }
+  saving.value = true
+  try {
+    const saved = await actions.updateProfile(current.id, {
+      ...profileBody(draft, current.displayName),
+      avatarColor: draft.avatarColor,
+      notifyPrefs: { ...draft.notifyPrefs },
+    })
+    if (saved)
+      toast({ title: serverMode ? '资料已保存' : '偏好设置已保存', variant: 'success' })
+  }
+  finally {
+    saving.value = false
+  }
 }
 
 /**
@@ -93,19 +189,13 @@ function setTheme(value: string | number) {
 
 <template>
   <TxCard v-if="profile && !isLoggedIn">
-    <TxEmptyState
-      variant="permission"
-      :title="siteLogin ? '资料修改还没开放' : '登录后才能修改偏好设置'"
-      :description="siteLogin ? '资料修改正在接入。' : '偏好设置属于某个身份，先选一个再回来。'"
-      :primary-action="siteLogin ? undefined : { label: '登录', variant: 'primary' }"
-      @primary="loginOpen = true"
-    />
+    <SignInState page="preferences" />
   </TxCard>
 
   <TxStack v-else-if="profile && isSelf" :gap="16">
     <TxFlex align="center" :gap="8" wrap="wrap">
       <h1 class="text-xl font-semibold">
-        偏好设置
+        {{ serverMode ? '账号资料' : '偏好设置' }}
       </h1>
       <span class="text-$tx-text-color-secondary">@{{ profile.username }}</span>
     </TxFlex>
@@ -125,18 +215,23 @@ function setTheme(value: string | number) {
           <TxGroupBlock name="个人资料" description="这些信息会显示在你的主页上。" :collapsible="false">
             <TxBlockInput
               v-model="draft.displayName"
-              title="显示名"
-              description="列表和帖子里显示的名字"
-              placeholder="你的显示名"
+              title="昵称"
+              :description="serverMode ? `列表和帖子里显示的名字，最多 ${PROFILE_LIMITS.displayName} 个字，${NAME_CHARS_HINT}；登录名 @${profile.username} 不变` : '列表和帖子里显示的名字'"
+              placeholder="你的昵称"
               clearable
             />
+            <!-- The server keeps line breaks in a signature, so it gets a textarea; the demo keeps upstream's one-line field. -->
             <TxBlockInput
               v-model="draft.bio"
-              title="简介"
-              description="一句话介绍自己"
+              title="个人签名"
+              :description="serverMode ? `显示在你的主页上，可以换行，最多 ${PROFILE_LIMITS.bio} 个字（现在 ${draft.bio.trim().length} 个）` : '一句话介绍自己'"
               placeholder="比如：计科 2024 级，在学前端"
               clearable
-            />
+            >
+              <template v-if="serverMode" #control>
+                <TxInput v-model="draft.bio" type="textarea" :rows="3" placeholder="比如：计科 2024 级，在学前端" aria-label="个人签名" />
+              </template>
+            </TxBlockInput>
             <TxBlockInput
               v-model="draft.location"
               title="所在地"
@@ -146,8 +241,8 @@ function setTheme(value: string | number) {
             />
             <TxBlockInput
               v-model="draft.website"
-              title="网站"
-              description="可选，会作为链接显示"
+              :title="serverMode ? '个人网站' : '网站'"
+              :description="serverMode ? '可选，以 https:// 开头，会作为链接显示' : '可选，会作为链接显示'"
               placeholder="https://example.com"
               clearable
             />
@@ -159,12 +254,47 @@ function setTheme(value: string | number) {
             头像
           </template>
 
-          <TxStack :gap="16">
+          <TxStack v-if="serverMode" :gap="16">
+            <TxFlex align="center" :gap="12">
+              <UserAvatar v-if="preview" :user="preview" size="xlarge" />
+              <TxStack :gap="4">
+                <span class="font-medium">{{ avatarFile ? '新头像预览' : '现在的头像' }}</span>
+                <span class="text-sm text-$tx-text-color-secondary">
+                  {{ avatarFile ? `${avatarFile.name}，点「上传头像」才会换上；服务器会把它裁成正方形。` : uploadedAvatar ? '这是你上传的头像。' : '这是你的 GitHub 头像。' }}
+                </span>
+              </TxStack>
+            </TxFlex>
+
+            <TxFileUploader
+              :model-value="[]"
+              :multiple="false"
+              :max="1"
+              :accept="AVATAR_TYPES.join(',')"
+              button-text="选择图片"
+              drop-text="把图片拖到这里"
+              hint-text="PNG、JPEG 或 WebP，不超过 2MB"
+              @update:model-value="pickAvatar"
+            />
+
+            <TxFlex :gap="8" wrap="wrap">
+              <TxButton variant="primary" icon="i-carbon-upload" :loading="avatarBusy" :disabled="!avatarFile" @click="uploadAvatar">
+                上传头像
+              </TxButton>
+              <TxButton v-if="avatarFile" variant="secondary" icon="i-carbon-close" :disabled="avatarBusy" @click="discardAvatar">
+                不用这张
+              </TxButton>
+              <TxButton variant="secondary" icon="i-carbon-logo-github" :disabled="!uploadedAvatar || avatarBusy" @click="resetAvatar">
+                恢复 GitHub 头像
+              </TxButton>
+            </TxFlex>
+          </TxStack>
+
+          <TxStack v-else :gap="16">
             <TxFlex align="center" :gap="12">
               <UserAvatar v-if="preview" :user="preview" size="xlarge" />
               <TxStack :gap="4">
                 <span class="font-medium">头像预览</span>
-                <span class="text-sm text-$tx-text-color-secondary">头像由显示名的首字母和下面选中的颜色组成。</span>
+                <span class="text-sm text-$tx-text-color-secondary">头像由昵称的首字母和下面选中的颜色组成。</span>
               </TxStack>
             </TxFlex>
 
@@ -235,7 +365,7 @@ function setTheme(value: string | number) {
       <TxButton variant="secondary" @click="revert">
         放弃修改
       </TxButton>
-      <TxButton variant="primary" icon="i-carbon-checkmark" @click="save">
+      <TxButton variant="primary" icon="i-carbon-checkmark" :loading="saving" @click="save">
         保存更改
       </TxButton>
     </TxFlex>
