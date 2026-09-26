@@ -168,3 +168,10 @@
 - 做了什么：收到 PR #116 第五轮定向复查（20:02，审查的提交 e537286）：应修 1 条，是 f34e6d9 带进来的回退：forum-store 里成员自己的登录名豁免按 nameKey 比较，nameKey 去掉了 -，所以成员 da-ve 能把昵称改成有称号的 dave 的登录名，返回 200；要求只豁免自己的登录名本身（不分大小写）。建议 1 条：开了 Turnstile 时，没被占的昵称停在 turnstile_failed、不占额度，被占和没被占又能免费区分（现在 TURNSTILE_SITE_KEY 为空，还没暴露）；要求 PoW 通过后每次尝试都记一次 guestPost，成功时不重复记，guestPostSite 只记真正发出的回复
 - 结果：结论：有条件通过；条件是修完应修，建议能小改就一并处理
 - 下一步：子代理在 task-57 按目的分提交修复
+
+## 20:07:59 +08:00 · 返工 · #57 · 第五轮审查的应修与建议已修完：只豁免自己的登录名本身、PoW 通过后每次尝试都计额度
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：7e48c01 应修：displayNameTaken 只豁免自己的登录名本身（不分大小写），不再按 nameKey 豁免，成员 da-ve 改成有称号的 dave 返回 400 display_name_taken；和审查给的写法不同的一处：审查要求 da-ve 改成 Da-Ve 仍是 200，但 Da-Ve 按 nameKey 和 dave 的登录名一样，只照审查的写法会被拒，所以另加一条：提交的昵称就是自己的登录名本身（不分大小写）时直接放行，新成员的默认昵称就是它；测试加 da-ve 成员与 B.o.b 用例，API 同步。0328653 建议：PoW 通过后先记一次 guestPost（和前面的检查之间没有 await），昵称被占、人机验证没过、发出去都只记这一次；写入前只再查全站上限，guestPostSite 只记真正发出的回复；测试用失败的 Turnstile：6 次尝试依次 turnstile_failed / guest_name_taken 交替，第 6 次 429，这个 IP 记 5 次，成功的回复只记 1 次；API、SECURITY 同步。变异核对 6 次（按 nameKey 豁免、去掉自己登录名的直接放行、完全不豁免自己、回到只在被占和成功时计数、成功时重复计数、全站按尝试计数），每次都有对应用例失败，恢复后工作区干净
+- 结果：vitest run tests/server tests/tooling 退出 0（24 个文件 422 条）；pnpm check 退出 0；check:docs 退出 0；没有推送。未验证：预发布环境、真实 Turnstile
+- 下一步：主 agent 复核后推送并请第六轮审查
