@@ -77,20 +77,22 @@ export function tagSlug(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").replace(/^-|-$/g, "");
 }
 
-/** 单行文本（标题、标签名、所在地）：不许控制字符。昵称另有更严的 hasHiddenNameChars。 */
+/** 单行文本（标题、标签名、所在地）：不许控制字符。昵称另有更严的 nameProblem。 */
 export const hasControlChars = (value: string) => /[\u0000-\u001f\u007f]/.test(value);
 /** 多行文本（签名）：允许换行与制表符，其余控制字符不许。 */
 export const hasControlCharsMultiline = (value: string) => /[\u0000-\u0008\u000b-\u001f\u007f]/.test(value);
 
 /**
  * 昵称里不许有的字符：控制字符（C0、C1）、格式字符 \p{Cf}（零宽 U+200B–U+200F、双向控制 U+202A–U+202E、
- * U+2060–U+2064、BOM U+FEFF、软连字符等）、行与段分隔符，以及几个显示成空白的填充字（U+034F、韩文填充字）。
- * 这些字符看不见，却能让「极客班」+ 零宽空格、反向排列的「班客极」通过「和成员重名」的检查。
- * \p{Cf} 已经包含列出的几段，逐段写出来是为了一眼看清拦了什么。零宽连接符也在里面，所以昵称里不能用组合表情。
+ * U+2060–U+2064、BOM U+FEFF、软连字符等）、行与段分隔符，以及几个不在 \p{Cf} 里、却显示成空白的字符：
+ * U+034F、韩文填充字（U+115F、U+1160、U+3164、U+FFA0）、盲文空格 U+2800、乐谱空符头 U+1D159、
+ * 高棉文不发音元音 U+17B4、U+17B5。这些字符看不见，却能让「极客班」+ 零宽空格、反向排列的「班客极」
+ * 通过「和成员重名」的检查。\p{Cf} 已经包含列出的几段，逐段写出来是为了一眼看清拦了什么。
+ * 零宽连接符也在里面，所以昵称里不能用组合表情。
  */
-const HIDDEN_NAME_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u034F\u115F\u1160\u3164\uFFA0]/u;
+const HIDDEN_NAME_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u034F\u115F\u1160\u3164\uFFA0\u2800\u17B4\u17B5\u{1D159}]/u;
 const HIDDEN_NAME_CHARS = new RegExp(HIDDEN_NAME_CHAR.source, "gu");
-export const hasHiddenNameChars = (value: string) => HIDDEN_NAME_CHAR.test(value);
+const hasHiddenNameChars = (value: string) => HIDDEN_NAME_CHAR.test(value);
 
 /**
  * 判断两个名字算不算同一个：NFKC 归一（全角字母、兼容字形变成普通写法），去掉看不见的字符和附加符号，
@@ -99,6 +101,15 @@ export const hasHiddenNameChars = (value: string) => HIDDEN_NAME_CHAR.test(value
 export function nameKey(value: string): string {
   return value.normalize("NFKC").replace(HIDDEN_NAME_CHARS, "").replace(/[\p{Mn}\p{Me}]/gu, "")
     .toLowerCase().normalize("NFKC").replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * 昵称的字符问题，没问题返回 null。空白名字：nameKey 为空，说明整个名字只有看不见的字符或单独的附加符号，
+ * 列表里没写到的空白字符也拦得住。
+ */
+export function nameProblem(value: string): "hidden" | null {
+  if (hasHiddenNameChars(value) || nameKey(value) === "") return "hidden";
+  return null;
 }
 
 /**

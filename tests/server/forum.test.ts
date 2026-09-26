@@ -418,6 +418,18 @@ describe('replies', () => {
     expect((await send('极客班的同学')).statusCode).toBe(201);
   });
 
+  it('refuses guest names that only look blank: braille and musical blanks, Khmer silent vowels, lone combining marks', async () => {
+    const s = await setup();
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: '203.0.113.61' });
+    // 盲文空格、乐谱空符头、高棉文不发音元音都不在 \p{Cf} 里；只有附加符号的名字 nameKey 为空，列表外的也拦住。
+    for (const name of ['极客班\u2800', '\u2800', '\u{1D159}', 'bob\u{1D159}', '\u17B4', '\u17B5', '\u0332', '\u20DD\u0301']) {
+      const response = await send(name);
+      expect(response.statusCode, JSON.stringify(name)).toBe(400);
+      expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_guest_name', message: '游客要填 1 到 20 个字的昵称，不能含看不见的字符' });
+    }
+    expect((await send('路过的同学')).statusCode).toBe(201);
+  });
+
   it('notifies at most 10 people mentioned in one post, in the order they appear', async () => {
     const s = await setup();
     const handles = Array.from({ length: 12 }, (_, i) => `member${String(i + 1).padStart(2, '0')}`);
@@ -617,6 +629,9 @@ describe('profile', () => {
       const response = await rename(name);
       expect(response.statusCode, JSON.stringify(name)).toBe(400);
       expect(response.json(), JSON.stringify(name)).toMatchObject({ error: 'display_name_taken', message: '这个昵称是官方账号或别人的用户名，换一个吧' });
+    }
+    for (const name of ['极客班\u2800', '\u2800', '\u{1D159}', '\u17B4', '\u0332']) {
+      expect((await rename(name)).json(), JSON.stringify(name)).toMatchObject({ error: 'invalid_display_name' });
     }
     // 自己的用户名换个大小写可以；和别的成员昵称相同也可以。
     expect((await rename('BOB')).statusCode).toBe(200);

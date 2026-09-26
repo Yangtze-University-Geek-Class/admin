@@ -70,3 +70,9 @@
 - 做了什么：收到 PR #116 第二轮审查（17:16，审查的提交 046fb85）：应修 1 条，看起来是空白但不在 \p{Cf} 里的字符还能通过（盲文空格 U+2800、U+1D159、单独的组合符号 U+17B4/U+17B5 使 nameKey 为空）；建议 5 条：拉丁字母混用西里尔或希腊字母的形近昵称、游客昵称只和论坛里已有的用户比较（没打开过论坛的组织成员可被冒用）、state 的自动 HEAD 路由另占一份限流额度且照样算整份 state、.env.example 的 TRUST_PROXY 注释过时、以后一个提交一个目的
 - 结果：结论：有条件通过；条件是应修修完并带测试，建议除提交粒度外一并处理
 - 下一步：子代理在 task-57 worktree 按目的分提交修复
+
+## 17:23:35 +08:00 · 提交 · #57 · 第二轮应修：拦住看起来是空白的昵称
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：fix(server): 论坛昵称拦住盲文空格等看起来是空白的字符（forum-rules 的 HIDDEN_NAME_CHAR 加 U+2800、U+1D159、U+17B4、U+17B5，新增 nameProblem：nameKey 为空的名字拒绝；游客与成员昵称都走它；forum.test 两处新用例；API、SECURITY 同步）
+- 结果：提交前 vitest tests/server/forum.test.ts 42 条通过，server tsc 通过

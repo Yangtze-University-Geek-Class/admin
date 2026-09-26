@@ -88,7 +88,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 - **返回的 `state`**：与 `app/forum/app/data/types.ts` 的 `ForumState`（`version: 1`，`seededAt: 0`）同形，另加 `viewer: { userId, kind: "guest" | "member", capabilities }`（只含 `forum.*`）与 `guestPolicy: { powDifficulty, turnstileSiteKey, nameMax: 20, contentMax: 2000 }`。`users[]` 每项另有 `kind: "member" | "guest" | "official"`；`notifyPrefs` 只有看的人自己的是真实值，别人的一律是这一类用户的初始值（成员全开，游客与官方账号全关），字段照常存在；成员总有 `avatarUrl`（上传过是 `/api/forum/avatars/<hash>.webp`，否则是 GitHub 头像），游客与官方账号没有。`notifications`、`bookmarks` 只含看的人自己的，游客两者都是空数组；`follows` 全部下发。分类、精选标签来自 `app/forum/content/curation.json`（按 `categoryOrder` 排），后面接用户建的标签。删除是软删除：`deleted: true`、`content: ""`。
 - **编号**：旧帖 `t<n>`（<1000）与首帖 `body-<n>`，新话题从 `t1001`、新帖子从 `p10001` 起，游客 `g<n>`（用户名 `guest-<n>`），通知 `n<n>`，新标签 `tag-<n>`；都由数据库计数器得出。
 - **按 IP 计数**：游客回复限流、浏览去重、`state` 与浏览接口的限流按 `req.ip` 计；IPv6 按 /64 前缀计（`lib/forum-rules.ts` 的 `ipSubject`），IPv4 映射的 IPv6 按 IPv4 计。
-- **昵称**：游客昵称与成员的 `displayName` 不能含控制字符（C0、C1）、格式字符 `\p{Cf}`（零宽字符 U+200B–U+200F、双向控制 U+202A–U+202E、U+2060–U+2064、BOM 等）、行与段分隔符和几个显示成空白的填充字。判断重名时两边都按 `nameKey` 归一：NFKC、去掉这些字符与附加符号、不分大小写。
+- **昵称**：游客昵称与成员的 `displayName` 不能含控制字符（C0、C1）、格式字符 `\p{Cf}`（零宽字符 U+200B–U+200F、双向控制 U+202A–U+202E、U+2060–U+2064、BOM 等）、行与段分隔符和几个不在 `\p{Cf}` 里却显示成空白的字符（韩文填充字、盲文空格 U+2800、U+1D159、U+17B4、U+17B5 等）；归一后为空（只有看不见的字符或单独的附加符号）的名字同样拒绝。判断重名时两边都按 `nameKey` 归一：NFKC、去掉这些字符与附加符号、不分大小写。
 - **错误体**：`{ error, message, request_id }`，`message` 是中文，可以直接给用户看。Schema 校验失败是 400 `validation_error`（提示写明哪个字段），路径里的编号格式不对也是 400。
 
 | 方法与路径 | 谁能用 | 限流 | 成功 | 主要错误 |
