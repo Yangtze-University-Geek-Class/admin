@@ -100,3 +100,10 @@
 - 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
 - 做了什么：docs(server): .env.example 的 TRUST_PROXY 说明改成本机不设、部署写层数（去掉过时的 loopback/true/false/CIDR 说明与示例行）
 - 结果：node scripts/check-secrets.mjs 通过
+
+## 17:30:11 +08:00 · 返工 · #57 · 第二轮审查的应修与 4 条可做的建议已修完，按目的分 5 个提交
+
+- 执行者：agent-claude-geek-main-subagent-116（Claude Code 子代理）
+- 做了什么：cd29cfb 应修：昵称拦 U+2800、U+1D159、U+17B4、U+17B5，nameKey 为空的名字拒绝；02be81c 拉丁字母混写西里尔、希腊字母的昵称拒绝；7077bcd 昵称也和 role_assignments 里的登录名比较（没有称号又没打开过论坛的成员与组织 owner 仍是缺口，本地没有来源）；d064c22 HEAD /api/forum/state 回 405，不再另占额度、不再算 state；0d748eb .env.example 的 TRUST_PROXY 说明。提交粒度一条按要求从这一轮起一个目的一个提交。变异核对：去掉 U+2800 与 U+1D159、去掉空 nameKey 判断、去掉混写判断、去掉 orgLogins 比较、去掉 HEAD 处理，每次都有对应用例失败，恢复后工作区干净
+- 结果：vitest run tests/server tests/tooling 退出 0（23 个文件 381 条）；server tsc 退出 0；pnpm check 退出 0；未验证：预发布环境、论坛前端对新 message 的显示；没有推送
+- 下一步：主 agent 复核后推送并请第三轮审查；没有称号的成员与组织 owner 的冒名缺口另开 issue
