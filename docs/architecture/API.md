@@ -30,7 +30,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /api/docs/:id` | 匿名 | 无 | 200 `{ id, label, lang, file, content }` | 404 `doc not found` / `doc file missing` |
 | `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty }` | — |
 | `POST /api/feedback` | 匿名；带有效 `sid` 时记录提交者 | 10 次/分钟 | 200 `{ ok, id, message }` | 400：字段、PoW、蜜罐（`请求被拒绝`）、Turnstile |
-| `GET /api/feedback/public?org=&limit=` | **匿名**，不校验 `ALLOWED_ORGS` | 无 | 200 `{ items }`：该组织非 `spam` 反馈按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org` 时 `items` 为空 | `limit` 默认 20、取 `min(limit, 100)`，**未做整数与下界校验**：负数会让 SQLite 取消行数上限，非整数触发 SQLite `datatype mismatch` 而返回 500。这是已知缺口，与上文「分页为有界正整数」不符，待修 |
+| `GET /api/feedback/public?org=&limit=` | **匿名**，不校验 `ALLOWED_ORGS` | 无 | 200 `{ items }`：该组织非 `spam` 反馈按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org` 时 `items` 为空 | `limit` 默认 20，只接受 1–9999 的正整数（`lib/http-contracts.ts` 的公共 querystring 校验 `^[1-9][0-9]{0,3}$`），之后取 `min(limit, 100)`；负数、0、小数、非数字和超过 9999 的值返回 400 `validation_error`（`tests/server/core.test.ts`） |
 | `GET /api/join/:token` | 匿名（链接令牌即能力） | 无 | 200 `{ org, note, team_slug, expires_at, remaining_uses, valid, reason }` | 404 `邀请链接不存在` |
 | `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；503：发起人 token 失效或结果待核对 |
 | `POST /api/portal/apply` | 匿名 | 5 次/分钟 | 201 | 见「加入我们（投递）端点」 |
