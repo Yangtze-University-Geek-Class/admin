@@ -1,6 +1,6 @@
-# task/111/fetch_stall_timeout · crosery · 2026-09-26
+# task/111/fetch_stall_timeout · lysnowq · 2026-09-26
 
-负责人：crosery
+负责人：lysnowq
 
 ## 15:23:16 +08:00 · 开工 · #111 · 从 origin/stage 28122511456d 建 task/111/fetch_stall_timeout
 
@@ -41,3 +41,21 @@
 - 做了什么：git push -u origin task/111/fetch_stall_timeout（本地 check-branch-invariants --push 通过）；gh pr create #119，正文按 PULL-REQUESTS 九段
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/119；等待 Crosery 审查
 - 下一步：收到审查结论后补「审查」记录
+
+## 17:17:07 +08:00 · 审查 · #111 · Crosery 第一轮：有条件通过
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：收到 PR #119 审查（Crosery 的审查代理，2026-09-26 17:03，审 2b66e2d）：应修 1 条（执行记录负责人应为实际执行人 lysnowq），建议 2 条（finally 清计时与断开没有测试；apiJson 没有超时）
+- 结果：结论：有条件通过；条件是改正负责人、CI 必需检查全绿
+
+## 17:17:07 +08:00 · 返工 · #111 · 负责人改为 lysnowq；补 finally 的测试与 API 超时
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：链路文件从 notes/.../crosery/ 挪到 lysnowq/，只改标题与负责人两行（未进 stage）；子代理 Rework119 补 3 条测试（成功后不留计时器、非 206 断开连接、列表 API 卡住在限时内失败），apiJson 用 AbortSignal.timeout(idleMs)；CICD.md 一行补一句
+- 结果：三条新用例在去掉对应代码时失败（5≠1、false≠true、3000ms 超时），恢复后 pnpm exec vitest run tests/tooling/fetch-artifact.test.ts 14 passed；node --check 通过
+
+## 17:17:23 +08:00 · 返工 · #111 · 子代理 Rework119：补 finally 测试与 API 超时
+
+- 执行者：agent-omp-rework119（omp 子代理，claude-opus-5-5）
+- 做了什么：改 tests/tooling/fetch-artifact.test.ts（listHangs、blobSignals 与 3 条用例）、scripts/fetch-artifact.mjs 的 apiJson/findArtifact、docs/ops/CICD.md 一行；逐条注释掉 clearTimeout / abort 验证用例能抓到后恢复
+- 结果：去掉 clearTimeout：expected 5 to be 1；去掉 abort：expected false to be true；修复前 API 卡住用例 3000ms 超时；恢复并实现后 14 passed

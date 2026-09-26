@@ -8,19 +8,22 @@ const options = { repo: REPO, run: '42', name: NAME, dir: '/tmp/bundle', parts: 
 /**
  * 假的 GitHub API 与存储：artifact 内容是 payload，下载地址每取一次换一个；failFirst 里的段第一次返回 500。
  * stallFirst/stallAlways 里的段返回 206 头之后一个字节都不给（TCP 卡住），hangFirst 里的段第一次连响应头都不回；
- * trickleMs 让其余段每隔这么久才给一个字节。取消时都像真的 fetch 一样以 AbortError 结束。
+ * trickleMs 让其余段每隔这么久才给一个字节；listHangs 让 artifact 列表接口连响应头都不回。取消时都像真的 fetch 一样以 AbortError 结束。
+ * blobSignals 记下每次存储请求带的取消信号。
  */
-function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts, slowOthersMs = 0, ignoreAbort = false, stallFirst = new Set<string>(), stallAlways = new Set<string>(), hangFirst = new Set<string>(), trickleMs = 0 }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[]; slowOthersMs?: number; ignoreAbort?: boolean; stallFirst?: Set<string>; stallAlways?: Set<string>; hangFirst?: Set<string>; trickleMs?: number } = {}) {
+function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail = new Set<string>(), size = payload.length, artifacts, slowOthersMs = 0, ignoreAbort = false, stallFirst = new Set<string>(), stallAlways = new Set<string>(), hangFirst = new Set<string>(), trickleMs = 0, listHangs = false }: { failFirst?: Set<string>; alwaysFail?: Set<string>; size?: number; artifacts?: unknown[]; slowOthersMs?: number; ignoreAbort?: boolean; stallFirst?: Set<string>; stallAlways?: Set<string>; hangFirst?: Set<string>; trickleMs?: number; listHangs?: boolean } = {}) {
   const calls: string[] = [];
   let issued = 0;
   const failed = new Set<string>();
   const stalled = new Set<string>();
   const hung = new Set<string>();
+  const blobSignals: { range: string; signal?: AbortSignal }[] = [];
   const fetchImpl = async (url: string, init: { headers?: Record<string, string>; redirect?: string; signal?: AbortSignal } = {}) => {
     if (init.signal?.aborted) throw new DOMException('aborted', 'AbortError');
     calls.push(url);
     if (url.includes('/actions/runs/42/artifacts')) {
       expect(init.headers?.authorization).toBe('Bearer t0ken');
+      if (listHangs) return new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
       return Response.json({ artifacts: artifacts ?? [{ id: 7, name: NAME, size_in_bytes: size, expired: false }, { id: 8, name: 'other', size_in_bytes: 1, expired: false }] });
     }
     if (/\/actions\/artifacts\/(7|9)\/zip$/.test(url)) {
@@ -32,6 +35,7 @@ function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail
       expect(init.headers?.authorization).toBeUndefined();
       const range = init.headers?.range ?? '';
       const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range) ?? [];
+      blobSignals.push({ range, signal: init.signal });
       if (alwaysFail.has(range)) return new Response('boom', { status: 500 });
       if (hangFirst.has(range) && !hung.has(range)) {
         hung.add(range);
@@ -55,7 +59,7 @@ function fakeGitHub(payload: Buffer, { failFirst = new Set<string>(), alwaysFail
     }
     throw new Error(`unexpected ${url}`);
   };
-  return { fetchImpl, calls, issued: () => issued };
+  return { fetchImpl, calls, issued: () => issued, blobSignals };
 }
 
 /**
@@ -134,6 +138,36 @@ describe('fetch-artifact', () => {
     expect(file.bytes.equals(payload)).toBe(true);
     expect(gh.issued()).toBe(5);
   });
+
+  it('leaves no idle timer behind once the download is done, so the process can exit right away', async () => {
+    const payload = Buffer.from('0123456789abcdefghij');
+    const gh = fakeGitHub(payload);
+    const { deps: d } = deps(gh.fetchImpl);
+    const timers = () => process.getActiveResourcesInfo().filter(kind => kind === 'Timeout').length;
+    const before = timers();
+    // idleMs 取得很大：留下的计时器在断言时一定还没到期
+    await fetchArtifact({ ...options, idleMs: 60_000 }, 't0ken', d);
+    expect(timers()).toBe(before);
+  });
+
+  it('drops the connection of an attempt that came back without 206 instead of leaving its body open', async () => {
+    const payload = Buffer.from('0123456789abcdefghij');
+    const gh = fakeGitHub(payload, { failFirst: new Set(['bytes=5-9']) });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    await fetchArtifact(options, 't0ken', d);
+    expect(file.bytes.equals(payload)).toBe(true);
+    const rejected = gh.blobSignals.find(call => call.range === 'bytes=5-9');
+    expect(rejected?.signal?.aborted).toBe(true);
+  });
+
+  it('gives up, naming the API path, when the artifact list request never answers', async () => {
+    const gh = fakeGitHub(Buffer.from('0123456789'), { listHangs: true });
+    const { file, deps: d } = deps(gh.fetchImpl);
+    const started = Date.now();
+    await expect(fetchArtifact({ ...options, idleMs: 50 }, 't0ken', d)).rejects.toThrow(/\/actions\/runs\/42\/artifacts.*没响应/);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(file.unzipped).toBe(false);
+  }, 3000);
 
   it('fails without unzipping when a range comes back shorter than requested (the blob is smaller than the API says)', async () => {
     const gh = fakeGitHub(Buffer.from('0123456789'), { size: 12 });

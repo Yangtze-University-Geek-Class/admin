@@ -47,18 +47,25 @@ export function ranges(size, parts) {
   return out;
 }
 
-async function apiJson(fetchImpl, token, path) {
-  const response = await fetchImpl(`${API}${path}`, { headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' } });
-  if (!response.ok) throw new Error(`GitHub API ${path} 返回 ${response.status}`);
-  return response.json();
+// API 连不上时同样会卡住不报错：整个请求限 idleMs，不然部署要空等到 job 超时
+async function apiJson(fetchImpl, token, path, idleMs = IDLE_MS) {
+  const signal = AbortSignal.timeout(idleMs);
+  try {
+    const response = await fetchImpl(`${API}${path}`, { headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' }, signal });
+    if (!response.ok) throw new Error(`GitHub API ${path} 返回 ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (signal.aborted) throw new Error(`GitHub API ${path} ${idleMs / 1000} 秒没响应`);
+    throw error;
+  }
 }
 
 /**
  * 找本次运行里名字对上、没过期的 artifact。同名多个时（重跑全部 job）取 id 最大的，也就是最新的，
  * 与 actions/download-artifact 一致。
  */
-export async function findArtifact(fetchImpl, token, { repo, run, name }) {
-  const body = await apiJson(fetchImpl, token, `/repos/${repo}/actions/runs/${run}/artifacts?name=${encodeURIComponent(name)}&per_page=100`);
+export async function findArtifact(fetchImpl, token, { repo, run, name, idleMs }) {
+  const body = await apiJson(fetchImpl, token, `/repos/${repo}/actions/runs/${run}/artifacts?name=${encodeURIComponent(name)}&per_page=100`, idleMs);
   const hits = (body.artifacts ?? []).filter(artifact => artifact.name === name && !artifact.expired);
   if (!hits.length) throw new Error(`运行 ${run} 里没有名为 ${name} 的 artifact`);
   const newest = hits.reduce((a, b) => (b.id > a.id ? b : a));
