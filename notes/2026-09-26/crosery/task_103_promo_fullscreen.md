@@ -37,3 +37,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：onFocus 只在焦点落到按钮上（target 不是播放层）时叫醒；.is-idle .pt-promo-bar:not(:has(:focus-visible)) 才淡出；.is-idle .pt-promo-video cursor none；旋转加 max-width:600px；测试：假 hls 记下 startLoad 时的 startLevel、淡出后再叫醒会再淡出、暂停不淡出、按 pointerdown→焦点移到播放层→click 的真实顺序测手指点画面；portal.md 同步
 - 结果：组件测试 11 passed；四个变异（onFocus 无条件叫醒、wake 不重新计时、hidden 不看状态、先 startLoad）各有测试失败；tsc、check:docs 通过；pnpm test:e2e 14 passed；ego-browser：Tab 到「暂停」后 3.2 秒 is-idle=true 但底部栏 opacity 1、视频 cursor none
+
+## 14:19:52 +08:00 · 审查 · #103 · 第二轮独立审查：有条件通过（条件是 CI 通过）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Claude 独立审查代理审 b95e3f2（范围 b50105f..b95e3f2），重做 5 个变异（每次 git checkout 还原）
+- 结果：第一轮 3 条应修、2 条建议都已修好，无新发现；5 个变异各有测试失败；vitest 24 passed、tsc 0、note check 通过；条件：CI 与 pr-contract 全绿
