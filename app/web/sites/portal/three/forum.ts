@@ -235,9 +235,9 @@ export async function createForumScene(canvas: HTMLCanvasElement, options: Forum
     setHot(-1);
     options.onTip("", 0, 0);
     options.onWipe(0);
-    // resize 会调 onLayout，opening 已清空，镜头回到按窗口算出的取景
+    // resize 会调 onLayout，opening 已清空，镜头回到按窗口算出的取景；poke 让自转和浮动像刚进场一样再动一会儿
     stage.resize();
-    stage.invalidate();
+    stage.poke();
   };
 
   const onDown = (event: PointerEvent) => {
