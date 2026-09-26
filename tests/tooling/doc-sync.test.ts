@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkDocSync, headerDate, parseSyncMap, SHALLOW_MESSAGE } from "../../scripts/check-doc-sync.mjs";
+import { checkDocSync, headerDate, parseSyncMap, parseWaivers, SHALLOW_MESSAGE } from "../../scripts/check-doc-sync.mjs";
 
 // scripts/check-doc-sync.mjs：文档跟着模块改（docs/README.md「文档跟着模块改」，#115）。全部在临时 Git 仓库里跑。
 const dirs: string[] = [];
@@ -315,6 +315,31 @@ describe("文档核对：模块改了、文档里的事实没变", () => {
       [notesOf("task/9/date_only")]: waiver("文档核对：docs/services/svc/ 不用改——只是重构，行为没变"),
     });
     expect(problems(root)).toEqual([]);
+  });
+
+  it("理由去掉零宽字符再判断；照抄模板「<理由>」、只有标点或看不见的字符都不算", () => {
+    const zw = "\u200B\u200C\u200D\u2060\uFEFF";
+    const reasons = (line: string) => parseWaivers(line).map((waiver) => waiver.reason);
+    expect(reasons(`文档核对：docs/services/svc/ 不用改——${zw}`)).toEqual([]);
+    expect(reasons(`文档核对：docs/services/svc/ 不用改—— ${zw} `)).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——<理由>")).toEqual([]);
+    expect(reasons(`文档核对：docs/services/svc/ 不用改——${zw}<理由>${zw}`)).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——。，——……")).toEqual([]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——<>")).toEqual([]);
+    expect(reasons(`文档核对：docs/services/svc/ 不用改——只加${zw}了测试`)).toEqual(["只加了测试"]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——tests only")).toEqual(["tests only"]);
+    expect(reasons("文档核对：docs/services/svc/ 不用改——#115")).toEqual(["#115"]);
+  });
+
+  it("按 PR：执行记录里的文档核对照抄模板或理由只有零宽字符，照样不通过", () => {
+    const root = repo();
+    commit(root, "2026-09-26T08:00:00+08:00", "docs(svc): 当天改过", { "docs/services/svc/README.md": doc("2026-09-26", "早上的说明") });
+    git(root, ["checkout", "-q", "-b", "task/9/tests_only"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "test(svc): 只加测试", {
+      "app/svc/index.test.ts": "// test\n",
+      [notesOf("task/9/tests_only")]: waiver("文档核对：docs/services/svc/ 不用改——<理由>；文档核对：docs/services/svc/ 不用改——\u200B\uFEFF"),
+    });
+    expect(problems(root)).toEqual([expect.stringContaining("这次的改动动了模块、没动文档")]);
   });
 
   it("写了文档核对，「更新：」也要跟上模块的日期", () => {

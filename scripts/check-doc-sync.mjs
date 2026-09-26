@@ -129,11 +129,19 @@ export function uncommitted(root, paths) {
 /** 执行记录里的「文档核对：<文档路径> 不用改——<理由>」，一行可以有几条，用「；」隔开 */
 export const WAIVER_RE = /文档核对：(\S+?) 不用改——([^；\n]*)/g;
 
-/** 从文本里取出文档核对：[{ path, reason }]，理由为空的不算 */
+/** 零宽空格、零宽连接符与不连接符、词连接符、BOM：看不见，不能让它们撑起一条「有理由」的文档核对 */
+const INVISIBLE_RE = /[\u200B-\u200D\u2060\uFEFF]/g;
+
+/** 理由算不算数：去掉看不见的字符后，不能是模板里的「<理由>」，也要有汉字、字母或数字（汉字属于 \p{L}） */
+function realReason(reason) {
+  return reason !== "<理由>" && /[\p{L}\p{N}]/u.test(reason);
+}
+
+/** 从文本里取出文档核对：[{ path, reason }]，理由为空、照抄模板或只有标点的不算 */
 export function parseWaivers(text) {
   return [...String(text).matchAll(WAIVER_RE)]
-    .map((match) => ({ path: match[1], reason: match[2].trim() }))
-    .filter((waiver) => waiver.reason);
+    .map((match) => ({ path: match[1], reason: match[2].replace(INVISIBLE_RE, "").trim() }))
+    .filter((waiver) => realReason(waiver.reason));
 }
 
 const bare = (path) => path.replace(/\/+$/, "");
