@@ -39,9 +39,12 @@ export function useSiteAccount() {
         ? await response.json()
         : null
       account.value = parseMe(body)
-      // 服务端刚结束了这次登录（GitHub 收回了会话里的授权，#164）：和论坛读到 session_expired 一样由 LoginModal 说一次。
-      if (serverMode && sessionExpired(body))
-        useForumServerStore().noteSignedOut()
+      // 服务端刚结束了这次登录（GitHub 收回了会话里的授权，#164）：和论坛读到 session_expired 一样，页面按游客重读，由 LoginModal 说一次。
+      if (serverMode && sessionExpired(body)) {
+        const server = useForumServerStore()
+        server.noteSignedOut({ ended: true })
+        void server.load()
+      }
     }
     catch {
       account.value = null

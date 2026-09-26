@@ -95,8 +95,9 @@ export function loginPromptToast(prompt: LoginPrompt): PromptToast {
 }
 
 /**
- * What the forum says once the server has ended the sign-in (#164): GitHub took
- * back the token the session held. By then the page already reads as a guest.
+ * What the forum says once the sign-in turned out to be gone (#164): the server
+ * ended it because GitHub took back the token the session held, or it ended in
+ * another tab or ran out. The page turns guest at the same time.
  * `failed` is what did not happen because of it (「没有点上赞」); one toast
  * says both. LoginModal shows it and adds the 登录 action.
  */
