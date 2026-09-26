@@ -79,3 +79,15 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：Claude 独立审查代理审 0229891（范围 dd50473..0229891），逐条复核第一轮 4 条应修并核对 runner v2.337.0 源码对 ACTIONS_RUNNER_INPUT_TOKEN 的处理
 - 结果：通过：4 条应修全部已解决；另 3 条建议（发布耗时写实测 11 分钟、钩子注释、「推任意分支」）已在本提交改完；HEAD 的 push 运行 36182831708、PR 运行 36182837253 全部 success（crosery-arch-1/2），pr-contract 运行 36182871736 success
+
+## 04:12:35 +08:00 · 合并 · #93 · PR #94 合进 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr merge 94 --merge --match-head-commit 0d1d7c0（CI push 36183644162、pull_request 36183651704、pr-contract 36183677926 全部 success，第二轮审查通过）
+- 结果：合并提交 bc86fd6；stage 包含 main
+
+## 04:13:43 +08:00 · 收尾 · #93 · PR #94 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 93：删 worktree .claude/worktrees/task-93 与本地分支 task/93/self_hosted_runner
+- 结果：PR 已合并
