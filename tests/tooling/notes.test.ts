@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   addNote, beijingNow, branchSlug, checkAll, checkChainFile, checkPullRequest, collectChains, checkChainOrder,
-  flushPending, mergeEntries, renderIndex, renderSummary,
+  flushPending, mergeEntries, record as recordNote, renderIndex, renderSummary,
 } from "../../scripts/note.mjs";
 import { finishTitle } from "../../scripts/task.mjs";
 
@@ -220,6 +220,65 @@ describe("checkPullRequest", () => {
   it("不是 task 分支（例如 stage 进 main）时不要求", () => {
     const root = repo();
     expect(checkPullRequest(root, { base: "stage", head: "stage" })).toEqual([]);
+  });
+
+  it("detached HEAD 或缺少任务分支名时拒绝空过，显式任务分支仍检查链路", () => {
+    const root = repo();
+    git(root, "checkout", "--detach", "-q");
+    for (const head of ["HEAD", "", git(root, "rev-parse", "HEAD").trim()]) {
+      expect(checkPullRequest(root, { base: "stage", head, forReview: true }).join()).toMatch(/--head.*task\//);
+    }
+    expect(pr(root)).toMatch(/没有 task\/91\/agent_notes 的执行链路/);
+  });
+
+  it("零提交 task 的记录直接写入自己的 worktree，并更新索引", () => {
+    const root = repo();
+    git(root, "update-ref", "refs/remotes/origin/stage", "stage");
+    git(root, "checkout", "-q", "stage");
+    const worktree = join(root, ".claude/worktrees/task-91");
+    git(root, "worktree", "add", "--quiet", worktree, base.chain);
+    const result = recordNote(worktree, { ...base, stage: "开工", title: "新任务" });
+    expect(result.here).toBe(true);
+    expect(result.file).toContain(join(worktree, "notes"));
+    expect(checkAll(worktree)).toEqual([]);
+    expect(existsSync(join(root, ".claude/notes-pending"))).toBe(false);
+  });
+
+  it.each(["合并", "发布", "验收", "收尾"])("%s 记录仍暂存，不修改 task worktree", (stage) => {
+    const root = repo();
+    const result = recordNote(root, { ...base, stage, title: stage });
+    expect(result.here).toBe(false);
+    expect(result.file).toContain(join(root, ".claude/notes-pending/notes"));
+    expect(existsSync(join(root, "notes"))).toBe(false);
+  });
+
+  it("非 task 分支上的记录仍暂存", () => {
+    const root = repo();
+    git(root, "checkout", "-q", "stage");
+    git(root, "update-ref", "refs/remotes/origin/stage", "stage");
+    const result = recordNote(root, { ...base, chain: "stage", stage: "方案", title: "运维方案" });
+    expect(result.here).toBe(false);
+    expect(existsSync(join(root, "notes"))).toBe(false);
+  });
+
+  it.each([false, true])("任务合入 stage 后继续暂存（squash=%s）", (squash) => {
+    const root = repo();
+    record(root, "开工", 0);
+    record(root, "提交", 1);
+    commit(root);
+    git(root, "checkout", "-q", "stage");
+    if (squash) {
+      git(root, "merge", "--squash", "task/91/agent_notes");
+      git(root, "commit", "-qm", "squash task");
+    } else {
+      git(root, "merge", "--ff-only", "task/91/agent_notes");
+    }
+    git(root, "update-ref", "refs/remotes/origin/stage", "stage");
+    git(root, "checkout", "-q", "task/91/agent_notes");
+    const result = recordNote(root, { ...base, stage: "开发", title: "合并后补记" });
+    expect(result.here).toBe(false);
+    expect(result.file).toContain(join(root, ".claude/notes-pending/notes"));
+    expect(git(root, "status", "--porcelain", "--", "notes").trim()).toBe("");
   });
 
   it("审查模式（forReview: true）允许暂缺「审查」记录", () => {
