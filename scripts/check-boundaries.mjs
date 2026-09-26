@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import ts from "typescript";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -89,7 +89,7 @@ export function checkProject(root = ROOT) {
     const options = compilerOptions(file, root);
     for (const item of specifiers(readFileSync(file,"utf8"),file)) {
       imports++;
-      const at = `${relative(root,file)}:${item.line}`;
+      const at = `${relative(root,file).split(sep).join("/")}:${item.line}`;
       if (item.spec === null) { violations.push(`${at}: nonliteral module import requires a static module map`); continue; }
       const local = isLocalSpecifier(item.spec, options);
       const target = resolveSpec(file,item.spec,root,options);
@@ -113,7 +113,8 @@ export function checkProject(root = ROOT) {
   }
   return { files: files.length, imports, violations };
 }
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+// 取 realpath：经符号链接的路径运行时 argv 与 import.meta.url 不同，不然检查什么都不做就退出 0
+if (process.argv[1] && pathToFileURL(realpathSync(resolve(process.argv[1]))).href === import.meta.url) {
   const report = checkProject();
   if (report.violations.length) { console.error(report.violations.join("\n")); process.exitCode = 1; }
   else console.log(`Boundaries passed: ${report.files} files, ${report.imports} imports (static, dynamic, re-export, import-type).`);
