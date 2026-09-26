@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：所有者 20:29 指示由 crosery 这边接手后续改动与合并。第一轮：Claude（crosery 这边的独立审查代理）20:46 审 9eecc18（范围 origin/stage...9eecc18），核对 http-contracts.ts 公共 querystring 校验与 feedback.ts 路由、三份安全/接口文档、执行记录、合并性；审查评论 PR #136 issuecomment-5846383393
 - 结果：结论：通过；0 应修，建议 2 条（用例同时断言 validation_error、正文补 pnpm check 结果）；新用例 1 passed，core.test.ts 42 passed，删掉 limit 校验时新用例失败（expected 120 to be 400）；pnpm check 退出码 0；merge-tree 对 origin/stage 0fcf422 无冲突；未验证预发布请求
+
+## 20:47:16 +08:00 · 返工 · #130 · 公开意见 limit 用例同时核对 validation_error 机器码
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：所有者 20:29 指示由 crosery 这边接手，按第一轮建议 1 改 tests/server/core.test.ts：非法 limit 的断言从只看 400 改为 400 validation_error，注释补上超过 9999；pnpm exec vitest run tests/server/core.test.ts；两次变异：http-policy.ts 把 validation_error 换成 request_error、删掉 http-contracts.ts 的 limit 校验
+- 结果：core.test.ts 42 passed；变异 1 失败 expected '400 request_error' to be '400 validation_error'，变异 2 失败 expected 120 to be '400 validation_error'，均已还原；文档未改
