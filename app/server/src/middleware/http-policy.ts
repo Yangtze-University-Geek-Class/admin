@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { endRejectedSession, isRejectedToken } from "./require-auth.js";
 
 /** User-facing summaries for GitHub 4xx; the upstream text itself is never echoed. */
 const UPSTREAM_MESSAGES: Record<number, string> = {
@@ -31,6 +32,12 @@ export function registerHttpPolicy(app: FastifyInstance) {
   });
   app.setErrorHandler((cause, req, reply) => {
     const error = cause as { statusCode?: number; status?: number; code?: string; message: string; validation?: unknown };
+    // 带会话的请求调 GitHub 用的都是这个会话自己的令牌（邀请链接用发起人的令牌，join.ts 自己接住错误，不会走到这里）。
+    // GitHub 拒绝了它，这个会话就没用了：结束会话，和会话到期一样回 401 session_expired，页面按未登录处理（#164）。
+    if (req.session && isRejectedToken(cause)) {
+      endRejectedSession(req, reply, req.session);
+      return reply.code(401).send({ error: "session_expired", message: "登录已失效，请重新登录", request_id: req.id });
+    }
     // Octokit's RequestError only carries `status`; Fastify's own errors carry `statusCode`.
     const upstream = error.statusCode === undefined && typeof error.status === "number";
     const raw = error.statusCode ?? error.status;

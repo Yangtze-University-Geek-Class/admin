@@ -22,10 +22,14 @@ const FORUM_CAPS = ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate
 type Role = 'admin' | 'member';
 const USERS: Record<string, number> = { alice: 101, bob: 102, carol: 103, dave: 104, erin: 105, frank: 106, 'da-ve': 108 };
 
-/** 模拟 GitHub：只回答组织角色查询；failing=true 时一律 502，用来验证 GitHub 出错的路径。 */
-function github(roles: Record<string, Role>, state = { failing: false }) {
-  return (() => ({
+/**
+ * 模拟 GitHub：只回答组织角色查询；failing=true 时一律 502，用来验证 GitHub 出错的路径。
+ * rejected 里的令牌一律 401（Bad credentials），像被用户撤销或被 GitHub 收回的令牌（#164）。
+ */
+function github(roles: Record<string, Role>, state: { failing: boolean; rejected?: Set<string> } = { failing: false }) {
+  return ((token: string) => ({
     request: async (route: string, params: Record<string, string>) => {
+      if (state.rejected?.has(token)) throw Object.assign(new Error('Bad credentials'), { status: 401 });
       if (state.failing) throw Object.assign(new Error('stub upstream down'), { status: 502 });
       if (route === 'GET /orgs/{org}/memberships/{username}') {
         const role = params.org === CONSOLE_ORG ? roles[params.username.toLowerCase()] : undefined;
@@ -48,7 +52,7 @@ afterEach(async () => {
  * alice 是组织 owner（提督）；bob、carol、dave、erin 是普通成员，其中 carol 是社区部舰员（能管帖子、置顶、关闭），
  * dave 是项目部队长（只能置顶），erin 是领航员；da-ve 是另一个普通成员，登录名去掉 - 和 dave 一样；frank 不在组织里。
  */
-async function setup(options: { failing?: { failing: boolean }; env?: Record<string, string> } = {}) {
+async function setup(options: { failing?: { failing: boolean; rejected?: Set<string> }; env?: Record<string, string> } = {}) {
   const roles: Record<string, Role> = { alice: 'admin', bob: 'member', carol: 'member', dave: 'member', erin: 'member', 'da-ve': 'member' };
   const context = await testApp({ octokitFactory: github(roles, options.failing) }, false, options.env);
   contexts.push(context);
@@ -158,6 +162,46 @@ describe('state', () => {
     expect(response.statusCode).toBe(502);
     expect(response.json().error).toBe('internal_error');
     expect((await s.call('GET', '/api/forum/state')).statusCode).toBe(200);
+  });
+
+  it('ends a session whose GitHub token was rejected, and reads as a guest after that (#164)', async () => {
+    const github = { failing: false, rejected: new Set<string>() };
+    const s = await setup({ failing: github });
+    const bob = s.as('bob');
+    const alice = s.as('alice');
+    expect((await s.state('bob')).viewer.kind).toBe('member');
+    // bob 的令牌被 GitHub 收回；组织角色缓存过期后下一次请求才去问 GitHub。
+    github.rejected.add('token-bob');
+    s.app.services.cache.invalidate('console:orgrole:');
+    const rejected = await s.app.inject({ method: 'GET', url: '/api/forum/state', headers: bob });
+    expect(rejected.statusCode).toBe(401);
+    expect(rejected.json()).toMatchObject({ error: 'session_expired', message: '登录已失效，请重新登录' });
+    const cleared = ([] as string[]).concat((rejected.headers['set-cookie'] as string[] | string | undefined) ?? []);
+    expect(cleared.some(cookie => cookie.startsWith('sid=;'))).toBe(true);
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE login = 'bob'").get()).toEqual({ n: 0 });
+    expect(s.db.prepare("SELECT actor, target FROM audit_logs WHERE action = 'auth.session_rejected'").all()).toEqual([{ actor: 'bob', target: 'bob' }]);
+    // 浏览器还带着旧 sid 也只是游客：会话已经删掉，不再问 GitHub；写操作回 signin_required。
+    const again = await s.app.inject({ method: 'GET', url: '/api/forum/state', headers: bob });
+    expect(again.statusCode).toBe(200);
+    expect(again.json().state.viewer).toEqual({ userId: null, kind: 'guest', capabilities: [] });
+    expect((await s.app.inject({ method: 'POST', url: '/api/forum/posts/body-9/bookmark', headers: bob })).json().error).toBe('signin_required');
+    expect((await s.app.inject({ url: '/auth/me', headers: bob })).json()).toEqual({ signed_in: false });
+    // 只结束这一个会话：别人的会话照常。
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/state', headers: alice })).json().state.viewer.kind).toBe('member');
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'auth.session_rejected'").get()).toEqual({ n: 1 });
+  });
+
+  it('ends the session when a write finds the token rejected (#164)', async () => {
+    const github = { failing: false, rejected: new Set<string>() };
+    const s = await setup({ failing: github });
+    expect((await s.state('bob')).viewer.kind).toBe('member');
+    github.rejected.add('token-bob');
+    s.app.services.cache.invalidate('console:orgrole:');
+    const response = await s.call('POST', '/api/forum/posts/body-9/bookmark', 'bob');
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error).toBe('session_expired');
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE login = 'bob'").get()).toEqual({ n: 0 });
+    expect(s.db.prepare("SELECT COUNT(*) AS n FROM forum_bookmarks").get()).toEqual({ n: 0 });
   });
 
   it('treats a signed-in user who is no longer in the organization as a guest, whatever titles they hold', async () => {
