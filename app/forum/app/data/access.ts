@@ -94,6 +94,24 @@ export function loginPromptToast(prompt: LoginPrompt): PromptToast {
   return { id: 'forum-read-only', title: '现在还不能操作', description: '发帖、回复、点赞和收藏正在接入，现在可以浏览。', signIn: false }
 }
 
+/**
+ * What the forum says once the server has ended the sign-in (#164): GitHub took
+ * back the token the session held. By then the page already reads as a guest.
+ * `failed` is what did not happen because of it (「没有点上赞」); one toast
+ * says both. LoginModal shows it and adds the 登录 action.
+ */
+export function signinLapsedToast(failed: string | null): PromptToast {
+  const next = '请重新用 GitHub 登录。不登录也能看帖和回复。'
+  return {
+    id: 'forum-signin-lapsed',
+    title: failed ?? '登录已失效',
+    description: failed ? `登录已失效，${next}` : next,
+    variant: 'warning',
+    duration: 8000,
+    signIn: true,
+  }
+}
+
 /** A guest may reply to an open topic; closing a topic shuts guests out as well. */
 export function guestMayReply(access: ForumAccess, topic: Topic): boolean {
   return access.guestReply && !topic.closed

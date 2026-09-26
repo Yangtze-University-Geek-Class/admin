@@ -1,27 +1,46 @@
 <script setup lang="ts">
+import type { PromptToast } from '~/data/access'
 import { toast } from '@talex-touch/tuffex/utils'
-import { loginPromptToast } from '~/data/access'
+import { loginPromptToast, signinLapsedToast } from '~/data/access'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
 // 统一登录下论坛没有自己的登录（全站走 GitHub 登录，入口在顶栏右上角），示例身份选择不渲染，谁都不能冒充。
 // 这时点赞、书签、关注等要求登录的按钮仍会打开 loginOpen：给一句说明再关上，不让点击没有反应。
 // 极客班论坛里说明要登录，并直接给登录按钮；论坛服务连不上时说明只能看帖子；快照只能看。说什么在 data/access.ts 的 loginPromptToast。
+// 服务端结束了登录（GitHub 收回了会话里的授权，#164）：头像菜单马上换回登录按钮，页面已按游客重新读过，toast 说一次并给「登录」。
 const { loginOpen } = useShell()
-const { siteLogin } = useContentSource()
+const { siteLogin, serverMode } = useContentSource()
 const { access } = useCurrentUser()
+const { account } = useSiteAccount()
 const { signIn } = useSiteLinks()
 const forum = useForumStore()
 const session = useSessionStore()
+
+function say({ signIn: withSignIn, ...copy }: PromptToast): void {
+  toast({ ...copy, ...(withSignIn ? { action: { label: '登录', onClick: signIn } } : {}) })
+}
 
 if (siteLogin) {
   watch(loginOpen, (open) => {
     if (!open)
       return
     loginOpen.value = false
-    const { signIn: withSignIn, ...copy } = loginPromptToast(access.value.loginPrompt)
-    toast({ ...copy, ...(withSignIn ? { action: { label: '登录', onClick: signIn } } : {}) })
+    say(loginPromptToast(access.value.loginPrompt))
   })
+}
+
+if (serverMode) {
+  const server = useForumServerStore()
+  // 首次读状态在挂载前（site-state.client.ts），那时结束的登录要在这里补说；记下说到第几次，重新挂载也不重复。
+  const said = useState<number>('forum:signin-lapse-said', () => 0)
+  watch(() => server.signinLapse, (lapse) => {
+    if (lapse.count <= said.value)
+      return
+    said.value = lapse.count
+    account.value = null
+    say(signinLapsedToast(lapse.failed))
+  }, { immediate: true })
 }
 
 function pick(user: User) {

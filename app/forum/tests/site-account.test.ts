@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { accountMenu } from '~/data/account-menu'
-import { parseMe } from '../shared/site-account'
+import { parseMe, sessionExpired } from '../shared/site-account'
 
 describe('parseMe', () => {
   it('reads a signed-in answer', () => {
@@ -26,5 +26,14 @@ describe('parseMe', () => {
   it('keeps no avatar that is not a string', () => {
     expect(parseMe({ signed_in: true, login: 'ada', avatar_url: null })?.avatarUrl).toBeNull()
     expect(parseMe({ signed_in: true, login: 'ada', avatar_url: 7 })?.avatarUrl).toBeNull()
+  })
+})
+
+describe('sessionExpired', () => {
+  it('is true only when /auth/me says it just ended the sign-in (#164)', () => {
+    expect(sessionExpired({ signed_in: false, session_expired: true })).toBe(true)
+    for (const body of [null, undefined, '<!doctype html>', {}, { signed_in: false }, { signed_in: false, session_expired: 'true' }, { signed_in: true, login: 'ada', session_expired: true }])
+      expect(sessionExpired(body)).toBe(false)
+    expect(parseMe({ signed_in: false, session_expired: true })).toBeNull()
   })
 })

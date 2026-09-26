@@ -36,7 +36,10 @@ import { useSessionStore } from './session'
  *   toast: the lane's own fields only, read from the server's answers rather
  *   than the page, and the other lanes still out show their wish again on
  *   top. A 401 means the sign-in is gone (expired, signed out elsewhere):
- *   the state is read once more so the page shows what a guest can do.
+ *   the state is read once more so the page shows what a guest can do. When
+ *   the server has ended the sign-in itself (`session_expired`: GitHub took
+ *   back the token the session held, #164) the failure is said by LoginModal
+ *   instead, with a 登录 button (`signinLapse`).
  *
  * The demo (`loginMode=demo`) never touches this store; `useForumActions`
  * picks between the two.
@@ -51,6 +54,15 @@ export function stateRetryDelay(attempt: number): number {
 
 /** The server's `rate_limited` on /state and /view, or a bare 429 from a proxy in front of it: judged by status, not code. */
 const isRateLimited = (error: unknown): boolean => error instanceof ForumApiError && error.status === 429
+
+/** The server has just ended the sign-in and cleared its cookie: GitHub took back the token the session held (#164). */
+const isSessionEnded = (error: unknown): boolean => error instanceof ForumApiError && error.status === 401 && error.code === 'session_expired'
+
+/** One more time the server ended the sign-in; `failed` is what did not happen because of it (a lane's failure title), if anything. */
+export interface SigninLapse {
+  count: number
+  failed: string | null
+}
 
 /** The id a reply (and a guest's name on it) has while it is being sent; the server's ids never contain a colon. */
 export const PENDING_PREFIX = 'pending:'
@@ -141,6 +153,12 @@ export const useForumServerStore = defineStore('forum-server', () => {
   let retryAttempt = 0
   /** 请求太频繁 has been said since the state last loaded; the retries and view counts after it stay quiet. */
   let saidRateLimited = false
+  /**
+   * Replaced each time the server ends the sign-in (#164). LoginModal watches
+   * it: the account menu turns back into the 登录 button and one toast says
+   * so. `/auth/me` answering `session_expired` counts too (useSiteAccount).
+   */
+  const signinLapse = ref<SigninLapse>({ count: 0, failed: null })
   /** One per thing being changed (`like:p12`, `pin:t3` …), while its request is out. */
   const lanes = new Map<string, Lane>()
   let pendingCount = 0
@@ -204,6 +222,27 @@ export const useForumServerStore = defineStore('forum-server', () => {
     status.value = 'ready'
   }
 
+  function noteSignedOut(failed: string | null = null): void {
+    signinLapse.value = { count: signinLapse.value.count + 1, failed }
+  }
+
+  /**
+   * The server ending the sign-in answers the state with a 401 and clears the
+   * cookie (#164): the state is read once more, as a guest, instead of the
+   * forum showing as unreachable.
+   */
+  async function readState(): Promise<ServerSnapshot> {
+    try {
+      return await api.state()
+    }
+    catch (error) {
+      if (!isSessionEnded(error))
+        throw error
+      noteSignedOut()
+      return await api.state()
+    }
+  }
+
   function load(): Promise<boolean> {
     loading ??= (async () => {
       // Only the first read holds the pages back; a page that already shows something keeps showing it
@@ -211,7 +250,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
       if (status.value === 'idle')
         status.value = 'loading'
       try {
-        apply(await api.state())
+        apply(await readState())
         clearTimeout(retryTimer)
         retryAttempt = 0
         saidRateLimited = false
@@ -263,6 +302,12 @@ export const useForumServerStore = defineStore('forum-server', () => {
   }
 
   function fail(title: string, error: unknown): void {
+    if (isSessionEnded(error)) {
+      // One toast, from LoginModal: what failed, that the sign-in is gone, and a 登录 button the store cannot build.
+      noteSignedOut(title)
+      void load()
+      return
+    }
     toast({
       title,
       description: error instanceof ForumApiError ? error.message : '请稍后再试。',
@@ -688,6 +733,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
     guestPolicy,
     granted,
     refusedReplies,
+    signinLapse,
+    noteSignedOut,
     keepRefusedReply,
     takeRefusedReplies,
     load,

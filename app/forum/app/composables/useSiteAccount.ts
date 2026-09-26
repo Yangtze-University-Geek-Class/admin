@@ -2,7 +2,7 @@ import type { SiteAccount } from '../../shared/site-account'
 import { toast } from '@talex-touch/tuffex/utils'
 import { publishedTopicIds } from '../../shared/published'
 import { signinOutcomes } from '../../shared/signin-outcomes'
-import { parseMe } from '../../shared/site-account'
+import { parseMe, sessionExpired } from '../../shared/site-account'
 
 export type { SiteAccount } from '../../shared/site-account'
 
@@ -23,6 +23,7 @@ export function useSiteAccount() {
   const outcomeShown = useState<boolean>('site-account:outcome-shown', () => false)
   const route = useRoute()
   const router = useRouter()
+  const { serverMode } = useContentSource()
 
   function refresh(): Promise<void> {
     if (!import.meta.client)
@@ -38,6 +39,9 @@ export function useSiteAccount() {
         ? await response.json()
         : null
       account.value = parseMe(body)
+      // 服务端刚结束了这次登录（GitHub 收回了会话里的授权，#164）：和论坛读到 session_expired 一样由 LoginModal 说一次。
+      if (serverMode && sessionExpired(body))
+        useForumServerStore().noteSignedOut()
     }
     catch {
       account.value = null

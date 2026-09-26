@@ -19,3 +19,9 @@ export function parseMe(body: unknown): SiteAccount | null {
     return null
   return { login: me.login, avatarUrl: typeof me.avatar_url === 'string' ? me.avatar_url : null, consoleLink: me.console_link === true }
 }
+
+/** `/auth/me` ended the sign-in just now: GitHub took back the token the session held (#164). */
+export function sessionExpired(body: unknown): boolean {
+  const me = body as { signed_in?: unknown, session_expired?: unknown } | null
+  return me?.signed_in === false && me.session_expired === true
+}
