@@ -251,6 +251,20 @@ it('rejects invalid feedback data before persistence', async () => {
   const { app } = await setup();
   expect((await app.inject({ method: 'POST', url: '/api/feedback', payload: { org: 'demo', content: {} } })).statusCode).toBe(400);
 });
+it('bounds the public feedback limit: only 1–9999 is accepted, then capped at 100', async () => {
+  const { app } = await setup();
+  const insert = app.services.storage.db.prepare("INSERT INTO feedback(org, content, status, created_at, updated_at) VALUES('demo', ?, 'open', ?, ?)");
+  for (let i = 0; i < 120; i++) insert.run(`意见 ${i}`, i, i);
+  const count = async (query: string) => {
+    const response = await app.inject({ url: `/api/feedback/public?org=demo${query}` });
+    return response.statusCode === 200 ? response.json().items.length : `${response.statusCode} ${response.json().error}`;
+  };
+  expect(await count('')).toBe(20);
+  expect(await count('&limit=5')).toBe(5);
+  expect(await count('&limit=9999')).toBe(100);
+  // 负数、0、小数、非数字、超过 9999 都在公共 querystring 校验里 400 validation_error，不会取消行数上限，也不会 500（#130）
+  for (const bad of ['-1', '0', '1.5', 'abc', '10000']) expect(await count(`&limit=${bad}`)).toBe('400 validation_error');
+});
 it('serves the portal and the console from two separate build outputs', async () => {
   const root = mkdtempSync(join(tmpdir(), 'geek-static-'));
   const web = join(root, 'web'); const consoleDist = join(root, 'console');
