@@ -108,12 +108,30 @@ export function isAllowedName(value: string): boolean {
   return NAME_PATTERN.test(name) && !NAME_SEPARATORS.test(name) && !/^ | $| {2}/.test(name);
 }
 
+/** 允许清单里长得几乎一样的字，比较时折成同一个。写成转义，免得读代码时也分不清。 */
+const LOOKALIKES: Record<string, string> = {
+  "\u0131": "i", // 无点的 ı
+  "\u0138": "k", // ĸ
+  "\u30AB": "\u529B", // 片假名カ → 汉字力
+  "\u30CB": "\u4E8C", // ニ → 二
+  "\u30ED": "\u53E3", // ロ → 口
+  "\u30A8": "\u5DE5", // エ → 工
+  "\u30CF": "\u516B", // ハ → 八
+  "\u30BF": "\u5915", // タ → 夕
+  "\u30C8": "\u535C", // ト → 卜
+  "\u30FC": "\u4E00", // 长音符ー → 一
+  "\u3078": "\u30D8", // 平假名へ → 片假名ヘ
+};
+const LOOKALIKE = new RegExp(`[${Object.keys(LOOKALIKES).join("")}]`, "gu");
+
 /**
  * 判断两个名字算不算同一个：NFKC（全角、兼容字形变成普通写法）、不分大小写、去掉附加符号（é 和 e、が 和 か 算同一个），
- * 再去掉所有空白和 - _ . · ・ '（「极 客班」「极客班.」和「极客班」、「阿・凡提」和「阿·凡提」算同一个）。只用来比较。
+ * 形近字折成同一个（LOOKALIKES：ı 和 i、カ 和 力……），再去掉所有空白和 - _ . · ・ '（「极 客班」「极客班.」和「极客班」、
+ * 「阿・凡提」和「阿·凡提」算同一个）。只用来比较。
  */
 export function nameKey(value: string): string {
   return value.normalize("NFKC").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC")
+    .replace(LOOKALIKE, char => LOOKALIKES[char] ?? char)
     .replace(/[\s\-_.\u00B7\u30FB']/gu, "");
 }
 

@@ -482,6 +482,20 @@ describe('replies', () => {
     expect((await rename('\u337F'.repeat(8))).json()).toMatchObject({ error: 'invalid_display_name', message: '昵称要 1 到 30 个字' });
   });
 
+  it('treats lookalike letters as the same when comparing names', async () => {
+    const s = await setup();
+    await s.state('alice');
+    await s.call('PATCH', '/api/forum/me/profile', 'bob', { displayName: '张\u529B' });
+    let ip = 170;
+    const send = (name: string) => s.app.inject({ method: 'POST', url: '/api/forum/posts', payload: guestReply('t9', '冒充', name), remoteAddress: `203.0.113.${ip++}` });
+    // alıce（无点 ı）、geeĸclass（ĸ）、张カ（片假名カ，看起来是「张力」）。
+    for (const name of ['al\u0131ce', 'gee\u0138class', '张\u30AB']) {
+      expect((await send(name)).json().error, JSON.stringify(name)).toBe('guest_name_taken');
+    }
+    expect((await s.call('PATCH', '/api/forum/me/profile', 'carol', { displayName: 'al\u0131ce' })).json().error).toBe('display_name_taken');
+    expect((await send('张\u30AB\u30BF')).statusCode).toBe(201);
+  });
+
   it('keeps guests and members from taking the login of an org member who never opened the forum', async () => {
     const s = await setup();
     // dave（队长）、erin（领航员）、zed（后来指派的舰员）只在控制台的称号指派里；owner1 登录过（审计里有 auth.signin），
@@ -942,5 +956,8 @@ describe('rules', () => {
     // 空白和 - _ . · ・ ' 都不算区别。
     expect(nameKey('极客\u3000 班')).toBe('极客班');
     expect(['极\u00A0客班', '极客班.', "极-客_班'", '阿\u30FB凡提', '阿\u00B7凡提'].map(nameKey)).toEqual(['极客班', '极客班', '极客班', '阿凡提', '阿凡提']);
+    // 形近字：ı ĸ 和拉丁字母，片假名カニロエハタトー和汉字力二口工八夕卜一，平假名へ和片假名ヘ。
+    expect(nameKey('al\u0131ce gee\u0138class')).toBe('alicegeekclass');
+    expect(nameKey('\u30AB\u30CB\u30ED\u30A8\u30CF\u30BF\u30C8\u30FC\u3078')).toBe(nameKey('\u529B\u4E8C\u53E3\u5DE5\u516B\u5915\u535C\u4E00\u30D8'));
   });
 });
