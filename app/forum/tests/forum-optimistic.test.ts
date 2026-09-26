@@ -356,6 +356,35 @@ describe('one request at a time per thing', () => {
     expect(calls.slice(1).map(call => call.body)).toEqual([{ content: '第一版' }, { content: '第二版' }])
   })
 
+  // A failure goes back to what the server confirmed, which after a first round is not what the page showed before the click.
+  it('a like the server confirmed in the first round stays when the second round fails', async () => {
+    const first = held()
+    const second = held()
+    const { calls, ...s } = await loaded(MEMBER_VIEWER, undefined, first.answer, second.answer)
+    const clicks = [s.server.toggleLike('p10001'), s.server.toggleLike('p10001')]
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    first.release(liked(true))
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    second.release(json(REFUSAL, 500))
+    expect(await Promise.all(clicks)).toEqual([null, null])
+    expect(likes(s)).toEqual(['m1001'])
+    expect(toastStore.items.map(toast => toast.title)).toEqual(['没有取消赞'])
+  })
+
+  it('an edit the server confirmed in the first round stays when the second is refused', async () => {
+    const first = held()
+    const second = held()
+    const { calls, ...s } = await loaded(MEMBER_VIEWER, undefined, first.answer, second.answer)
+    const saves = [s.server.editPost('p10001', '第一版'), s.server.editPost('p10001', '第二版')]
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    first.release(json(writeBody({ posts: [{ ...post('p10001'), content: '第一版', editedAt: 60 }] }, MEMBER_VIEWER)))
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    second.release(json(REFUSAL, 500))
+    expect(await Promise.all(saves)).toEqual([false, false])
+    expect(s.forum.postById('p10001')).toMatchObject({ content: '第一版', editedAt: 60 })
+    expect(toastStore.items.map(toast => toast.title)).toEqual(['修改没有保存'])
+  })
+
   it('标为全部已读 twice sends one request', async () => {
     const reply = held()
     const { calls, ...s } = await loaded(MEMBER_VIEWER, undefined, reply.answer)
