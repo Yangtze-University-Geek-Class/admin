@@ -19,7 +19,7 @@
 | `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层；镜像的分类和标签也取自 `curation.json` |
 | `app/forum/scripts/` | 上游样式 guard、路由 smoke、CDP 四套验证脚本；`csp-header.mjs`（本项目新增）在镜像构建时把产物里内联脚本的 sha256 加进站点 CSP，写成容器 nginx 的 `add_header` |
 | `app/forum/UPSTREAM.json` `ADOPTION.json` `LICENSE` | 上游文件摘要、本项目集成差异清单、MIT 声明（必须保留） |
-| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内断言 `llms.txt` 写的是极客班论坛、没有 `t/` 目录、产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`） |
+| `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内断言 `llms.txt` 写的是极客班论坛、没有 `t/` 目录、产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 的页面路由是 `try_files $uri $uri/index.html /200.html`：预渲染过的路由（`users/`、`about/` …）带不带结尾斜杠都直接返回目录里的 `index.html`，不再 301 补斜杠（那条跳转没有 `/forum` 前缀，还带 `:3000`，#140），其余路径和没有 `index.html` 的目录回落 `200.html`；server 块 `absolute_redirect off` 兜底，万一再发跳转也只发相对地址，由 web 容器补回前缀；容器 nginx 把 `*.md` 发成 `text/markdown; charset=utf-8`、`llms.txt` 发成 `text/plain; charset=utf-8`，文件不存在时返回 404，不回落页面；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`） |
 
 ## 所有权与来源
 
@@ -131,11 +131,11 @@ pnpm forum:status    # contentSource、mode、snapshotConfigured
 pnpm forum:stop
 ```
 
-工具链选择见 [TUFF-FORUM](../../ops/TUFF-FORUM.md)；容器内由 `yzgc-<environment>/forum` 镜像提供静态产物，web 容器以 `proxy_pass http://forum:3000/`（尾斜杠剥离 `/forum` 前缀）反代。
+工具链选择见 [TUFF-FORUM](../../ops/TUFF-FORUM.md)；容器内由 `yzgc-<environment>/forum` 镜像提供静态产物，web 容器以 `proxy_pass http://forum:3000/`（尾斜杠剥离 `/forum` 前缀）反代，论坛发出的相对跳转由 `proxy_redirect / /forum/` 补回前缀。
 
 ## 验证命令
 
-`csp-header.mjs` 按成对引号读取 script 属性，属性值中的 `>` 或另一种引号不截断标签；`/` 分隔后的 `src`、`type` 也按属性处理。缺失闭合标签或引号、脚本正文含 CR 时仍让构建失败。根 `tests/tooling/forum-csp.test.ts` 用 jsdom（parse5）对照这些属性的解析，并在有 nginx 时原样请求 `/forum/../api/anything`，确认宿主站点 CSP 与上游 CSP 同时保留。
+`csp-header.mjs` 按成对引号读取 script 属性，属性值中的 `>` 或另一种引号不截断标签；`/` 分隔后的 `src`、`type` 也按属性处理。缺失闭合标签或引号、脚本正文含 CR 时仍让构建失败。根 `tests/tooling/forum-csp.test.ts` 用 jsdom（parse5）对照这些属性的解析，并在有 nginx 时原样请求 `/forum/../api/anything`，确认宿主站点 CSP 与上游 CSP 同时保留。根 `tests/tooling/forum-redirects.test.ts`（#140）在有 nginx 时把宿主 `location /`、web 与论坛两份容器配置放进同一个 nginx：`/forum` 是 308 到相对地址 `/forum/`，`/forum/users` 等预渲染路由带不带结尾斜杠都是 200，未知路径回落 `200.html`，所有 `Location` 都不带协议、主机和内部端口。
 
 ```bash
 pnpm forum:check     # Nuxt 类型、测试类型、ESLint、样式 guard、Vitest
