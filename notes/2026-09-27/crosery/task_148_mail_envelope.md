@@ -73,3 +73,16 @@
 - 做了什么：fix(server) c153777、fix(console) e642380、fix(deploy) 9e56af8、docs(docs) 8ddcd0b（scope 词表加 console）、docs(notes) d29e903（审查与返工记录）
 - 结果：提交前 pnpm verify 退出码 0：根 59 个文件 905 条、论坛 30 个文件 541 条，build 与 forum generate 通过；本地提交，未推送
 - 下一步：推送 task 分支、开 PR；返工这段 diff 另开一轮独立复审（Workflow wf_93ec90de-9a5）
+
+## 13:07:36 +08:00 · 推送 · #148 · 推送 task/148/mail_envelope 到 4599150
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：git push -u origin task/148/mail_envelope（SSH 443）
+- 结果：远端新建分支，HEAD 4599150
+
+## 13:07:36 +08:00 · PR · #148 · 开 PR #167 → stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create --base stage，正文九段：目的引用所有者 09-26 22:27 与 09-27 11:02、11:04、11:09、11:30 的原话并说明头像是我理解错了；11 张截图经 PR #165 的评论框上传（没有发评论）；审查结论写第一轮逐条与返工；pr-contract 本地通过
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/167；返工复审进行中，结论暂写有条件通过
+- 下一步：等 CI 与返工复审，按复审结论更新 PR 正文后合并
