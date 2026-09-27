@@ -71,7 +71,7 @@ export function createConfig(env: Record<string, string | undefined>) {
     const aliyunFrom = value("MAIL_ALIYUN_FROM");
     const resendKey = value("MAIL_RESEND_API_KEY");
     const resendFrom = value("MAIL_RESEND_FROM");
-    // 预发布只发白名单；没写时按白名单处理（白名单空就谁也不发），正式环境显式写 all。
+    // 没写时按白名单处理（白名单空就谁也不发，本机不会误发）；预发布和正式的 env 模板都显式写 all（#169）。
     const recipients = value("MAIL_RECIPIENTS").toLowerCase() || "allowlist";
     if (recipients !== "all" && recipients !== "allowlist") throw new Error("MAIL_RECIPIENTS must be all or allowlist");
     return {

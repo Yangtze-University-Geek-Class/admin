@@ -278,7 +278,7 @@ const RECEIVED_MAIL: Record<string, MockMail | null> = {
   "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": skipped("极客班收到了你的报名信", "mail_disabled", now - 8 * DAY),
 };
 
-/** 发信设置按预发布的样子：只给白名单里的邮箱发，其余投递人在「处理这份投递」里会看到「这封不会发出」。 */
+/** 发信设置用白名单模式（真实环境现在都发给所有人，#169），好看到白名单挡下时的说法：只给这三个邮箱发，其余投递人在「处理这份投递」里会看到「这封不会发出」。 */
 const MAIL_ALLOWLIST = new Set(["zhou.zihan@example.test", "zheng.kexin@example.test", "chu.mingzhe@example.test"]);
 const mailSettings = (email: string) => ({ enabled: true, recipients: "allowlist", deliverable: MAIL_ALLOWLIST.has(email.toLowerCase()) });
 

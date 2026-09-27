@@ -70,7 +70,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 
 ## 白名单
 
-- `MAIL_RECIPIENTS=all` 发给所有人（正式环境）；`allowlist` 只发给 `MAIL_ALLOWLIST` 里的地址（预发布），逗号分隔、不分大小写，其余的信写进队列时就记成 `skipped` / `not_allowlisted`。不写 `MAIL_RECIPIENTS` 时按 `allowlist` 处理，白名单也是空的，谁也不发。
+- `MAIL_RECIPIENTS=all` 发给所有人（正式和预发布，预发布从 #169 起）；`allowlist` 只发给 `MAIL_ALLOWLIST` 里的地址，逗号分隔、不分大小写，其余的信写进队列时就记成 `skipped` / `not_allowlisted`。不写 `MAIL_RECIPIENTS` 时按 `allowlist` 处理，白名单也是空的，谁也不发。
 - 控制台的 `mail.deliverable` 说的是「现在给这份投递写信会不会真的发出去」：有发信商、并且（`all` 或地址在白名单里）。
 
 ## 上限

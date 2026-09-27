@@ -74,7 +74,7 @@ export type MailStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
 export type MailSummary = {
   status: MailStatus; skip_reason: string | null; attempts: number; subject: string; sent_at: number | null; updated_at: number;
 };
-/** deliverable：给这位投递人的信现在会不会真的发出去（发信已配置，且在预发布的白名单里）。 */
+/** deliverable：给这位投递人的信现在会不会真的发出去（发信已配置，且 recipients 是 all 或地址在白名单里）。 */
 export type MailSettings = { enabled: boolean; recipients: "all" | "allowlist"; deliverable: boolean };
 
 /** from_status / to_status 是历史：可能是已退役的 `reviewing`。mail 是这次改状态发的信，没发为 null。 */
