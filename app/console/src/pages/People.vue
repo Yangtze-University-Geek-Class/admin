@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxCardItem } from "@talex-touch/tuffex/card-item";
@@ -19,6 +19,7 @@ import LoadingBlock from "../components/LoadingBlock.vue";
 import AssignDialog from "./people/AssignDialog.vue";
 import BundleDialog from "./people/BundleDialog.vue";
 import TitleList from "./people/TitleList.vue";
+import PermissionTree from "./people/PermissionTree.vue";
 import { api } from "../lib/http";
 import { confirm } from "../lib/confirm";
 import { fmtDate, fmtDay } from "../lib/format";
@@ -46,12 +47,16 @@ const depts = computed(() => departments.data.value?.departments ?? []);
 const sorted = computed(() => sortPeople(people.data.value?.people ?? [], depts.value, catalogue.value));
 const groups = computed(() => peopleGroups(sorted.value, depts.value));
 
-/** 顶层分区（成员 / 称号 / 部门与权限包）与名单页签都记在地址里，刷新后停在原处。「称号」只给能管理称号的人。 */
-type Section = "people" | "titles" | "departments";
+/** 分区和名单分组都记在地址里；权限树只读，「称号」仍只给能管理称号的人。 */
+type Section = "people" | "titles" | "departments" | "permissions";
 const section = computed<Section>(() => {
   const view = route.query.view;
   if (view === "titles" && canManageAll.value) return "titles";
-  return view === "departments" ? "departments" : "people";
+  return view === "departments" || view === "permissions" ? view : "people";
+});
+watch(section, next => {
+  // 首次挂载已有部门请求；从其它页签返回时重新取包，不能把旧配置称作当前来源。
+  if (next === "permissions") void departments.reload();
 });
 /** 左侧选中的分组（全部成员 / 某个部门 / 没有部门），记在 ?group= 里。 */
 const group = computed(() => {
@@ -59,10 +64,11 @@ const group = computed(() => {
   return typeof raw === "string" && groups.value.some(item => item.key === raw) ? raw : GROUP_ALL;
 });
 const current = computed(() => groups.value.find(item => item.key === group.value) ?? groups.value[0]);
-const setView = (view: string) => void router.replace({ query: { ...route.query, view: view === "titles" || view === "departments" ? view : undefined } });
+const setView = (view: string) => void router.push({ query: { ...route.query, view: view === "titles" || view === "departments" || view === "permissions" ? view : undefined } });
 const setGroup = (value: string) => void router.replace({ query: { ...route.query, group: value === GROUP_ALL ? undefined : value } });
 
-const SECTION_LABEL: Record<Section, string> = { people: "成员", titles: "称号", departments: "部门与权限包" };
+const SECTION_LABEL: Record<Section, string> = { people: "成员", titles: "称号", departments: "部门与权限包", permissions: "权限树" };
+const SECTION_ICON: Record<Section, string> = { people: "i-carbon-user-multiple", titles: "i-carbon-badge", departments: "i-carbon-building", permissions: "i-carbon-chart-network" };
 
 /** 名单每一行：一个人的全部称号；指派来的称号带上指派人、时间、备注，以及当前查看者能不能撤销。 */
 type TitleLine = { key: string; title: TitleView; assignment: Assignment | null; revocable: boolean };
@@ -150,9 +156,11 @@ async function askDelete(dept: Department) {
 }
 
 const headOfNames = computed(() => (me.value?.head_of ?? []).map(id => depts.value.find(d => d.id === id)?.name).filter(Boolean).join("、"));
-const description = computed(() => canManageAll.value
-  ? "GitHub 组织里的每个人和他们的称号。称号的名字和权限在「称号」里改，部门的权限在「部门与权限包」里改。GitHub 类权限始终受对方自己的组织角色限制。"
-  : `你负责${headOfNames.value || "本部门"}，可以任免本部门的${label("member")}。`);
+const description = computed(() => section.value === "permissions"
+  ? "查看能力的授予来源、你当前的权限和执行边界。这里只做说明，不修改称号或权限包。"
+  : canManageAll.value
+    ? "GitHub 组织里的每个人和他们的称号。称号的名字和权限在「称号」里改，部门的权限在「部门与权限包」里改。GitHub 类权限始终受对方自己的组织角色限制。"
+    : `你负责${headOfNames.value || "本部门"}，可以任免本部门的${label("member")}。`);
 
 function emptyText(key: string) {
   if (key === GROUP_ALL) return { title: "名单是空的", description: "GitHub 组织里还没有成员。" };
@@ -172,26 +180,26 @@ const superiors = computed(() => (captains.value.length
 const bundleLabels = (ids: string[]) => ids.map(capabilityLabel);
 const orderedDepts = computed(() => [...depts.value].sort((a, b) =>
   Number(me.value?.head_of.includes(b.id)) - Number(me.value?.head_of.includes(a.id)) || Number(a.archived) - Number(b.archived) || a.sort_order - b.sort_order));
-const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "titles", "departments"] : ["people", "departments"]));
+const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "titles", "departments", "permissions"] : ["people", "departments", "permissions"]));
 </script>
 
 <template>
   <div class="page">
     <PageHeader title="成员与权限" :description="description">
-      <template #actions>
+      <template v-if="section !== 'permissions'" #actions>
         <TxButton variant="primary" icon="i-carbon-add" @click="openAssign(null)">添加称号</TxButton>
       </template>
     </PageHeader>
 
-    <p v-if="noCaptain && canAppoint" class="page-note">现在没有{{ label("captain") }}，可以用「添加称号」指定一位。</p>
+    <p v-if="section !== 'permissions' && noCaptain && canAppoint" class="page-note">现在没有{{ label("captain") }}，可以用「添加称号」指定一位。</p>
     <ErrorAlert v-if="revoke.error.value" :error="revoke.error.value" @close="revoke.reset()" />
     <ErrorAlert v-if="removeDept.error.value" :error="removeDept.error.value" @close="removeDept.reset()" />
 
-    <ErrorPanel v-if="departments.error.value" :error="departments.error.value" :retry="departments.reload" />
-    <LoadingBlock v-else-if="!departments.data.value" :lines="8" />
+    <ErrorPanel v-if="section !== 'permissions' && departments.error.value" :error="departments.error.value" :retry="departments.reload" />
+    <LoadingBlock v-else-if="section !== 'permissions' && !departments.data.value" :lines="8" />
     <TxCard v-else :padding="0" class="people-card">
       <TxTabs :model-value="section" placement="top" indicator-variant="line" borderless :content-scrollable="false" :content-padding="0" @update:model-value="setView">
-        <TxTabItem v-for="id in sections" :key="id" :name="id" :icon-class="id === 'people' ? 'i-carbon-user-multiple' : id === 'titles' ? 'i-carbon-badge' : 'i-carbon-building'">
+        <TxTabItem v-for="id in sections" :key="id" :name="id" :icon-class="SECTION_ICON[id]">
           <template #name>{{ SECTION_LABEL[id] }}</template>
 
           <template v-if="id === 'people'">
@@ -340,6 +348,10 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
               @primary="reloadCatalogue()"
             />
             <LoadingBlock v-else :lines="6" />
+          </template>
+
+          <template v-else-if="id === 'permissions'">
+            <PermissionTree v-if="section === 'permissions'" :departments="departments" />
           </template>
 
           <div v-else class="dept-list">
