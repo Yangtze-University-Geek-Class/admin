@@ -12,7 +12,7 @@
 
 ## 隔离
 
-核心使用 `buildApp`/`inject` 注册真实路由，仅 `DB_PATH` 指向内存库，外部 HTTP 和 GitHub 默认拒绝，需响应的用例明确注入模拟。不能复制 handler 验证另一份实现，不读取 `.env` 或业务数据库，不发送真实邀请。
+核心使用 `buildApp`/`inject` 注册真实路由，仅 `DB_PATH` 指向内存库，外部 HTTP 和 GitHub 默认拒绝，需响应的用例明确注入模拟；发信商（阿里云、Resend）的请求同样默认拒绝（`tests/server/helpers.ts` 的 `mailFetch`），不发真实邮件。不能复制 handler 验证另一份实现，不读取 `.env` 或业务数据库，不发送真实邀请。
 
 论坛上游测试操作确定性种子和浏览器 localStorage。每次 CDP 使用自己创建的临时 profile，不打开用户已有浏览器配置，不清理用户示例数据。只关闭本次创建的进程组，禁止广泛 pkill。其登录/权限测试证明演示交互，不证明真实身份或服务器授权。`forum:verify` 只对示例种子运行；3456 上若是快照模式或 site 模式（极客班论坛）预览，先 `forum:stop`。快照解析规则用虚构夹具单测（`app/forum/tests/local-snapshot.test.ts`），不读取真实投影。
 
@@ -20,13 +20,15 @@
 
 核心：实例隔离、不打开旧论坛库、真实文档非空、内部文档不公开、保留 GitHub OAuth 和组织权限、篡改状态拒绝、登录门槛（`tests/server/core.test.ts`：成员查询按 `CONSOLE_ORG` 查登录者自己，成员回到发起登录的页面；不是成员、邀请未接受不建会话并审计 `auth.signin_denied`；GitHub 连不上、成员查询 403 回 `?signin=failed`；取消授权回 `?signin=cancelled`；没有有效 state 的错误回调就地 400）、退出清会话、邀请并发和不确定结果、旧 API 返回 410、生产缺少论坛服务失败关闭。论坛接口（`tests/server/forum.test.ts`，内容用 `tests/server/fixtures/forum-content/` 夹具，不读真实论坛内容；只有一条用例核对镜像带的两份公开文件能被读出）：每个端点的正常路径与 401/403/400/404，游客回复带与不带 PoW、蜜罐、按 IP 限流（IPv6 按 /64）与全站游客回复上限，游客与成员昵称的允许清单（前几轮审查的全部探针都要 400）和归一后重名，`TRUST_PROXY=2` 时客户端轮换自己的 `X-Forwarded-For` 仍被限流（`true` 时能绕过，作对照），被移出组织的会话按游客处理，GitHub 拒绝会话里的令牌时会话被删、`sid` 被清、回 401 `session_expired`，之后同一个 `sid` 按游客读（#164；控制台接口与 `/auth/me` 的同一情况在 `tests/server/console.test.ts`，并发的两个请求一起碰到时只审计一次也在这里；`tests/server/invitations.test.ts` 里邀请链接发起人的令牌被拒那条是防回归的哨兵：邀请接口不加载会话、自己接住上游错误，现在它两边都会通过，以后有人让它加载会话又把错误往外抛时才会失败），`state` 与浏览接口的按 IP 限流，已关闭话题只有版务能回，社区部舰员与普通成员的版务差别与审计，账号资料的长度与网址规则，头像上传（sharp 生成的真实 PNG、解压炸弹与 4096×4096 像素上限、超大、非图片、读请求体之前核对登录与次数）与按哈希提供，播种幂等，通知、收藏与通知设置只下发给本人，一帖 @提及最多通知 10 人，`/auth/me` 的 `console_link`；写接口只回改动的记录（#145），每一种写入的真实回答原样经论坛前端的 `parseWriteResult`（`app/forum/shared/forum-api.ts`）读出、一个字段不丢，成员的回答都带本人的用户记录。
 
+发信（#148，覆盖范围逐条写在 [mail](../services/server/mail.md)「验证」）：`tests/server/mail-outbox.test.ts` 用真实路由和假的发信商核对队列、同一事件只发一封、白名单、「已收到」按收件人和全站的上限、阿里云失败换 Resend、重试与放弃、租约、最终状态清掉地址和正文、控制台改状态发信（四个状态、`letter_required`、页面过时回 409 `status_changed`）；`tests/server/mail-envelope.test.ts` 核对转义、链接白名单、按姓称呼、进程时区是 UTC 时仍写北京时间；旧的「评估中」启动时改回「已收到」在 `tests/server/legacy-database.test.ts`；控制台导出 CSV 的北京时间在 `tests/server/console.test.ts`。
+
 论坛：种子确定性、store 状态、权限 helper、持久化解析、提及；桌面/移动 shell、主题筛选/排序/分页、回复/引用/编辑/软删/收藏/点赞、用户资料、通知与全路由图标。开发提醒不得遮挡主流程。
 
 核心 UI：危险操作取消、焦点返回、移动导航、文档语言及入口；控制台按身份的导航可见性、缺能力说明、未登录跳转、成员按称号分页签排序、无原生下拉框/复选框、窄屏抽屉导航与无页面级横向溢出；门户论坛链接必须指向 `app/forum` 的新入口，不加载旧 React 论坛。工程检查要覆盖真实导入解析、别名、反向依赖（含 `app/console` 与 `app/web`、`app/server` 互不导入）、站点配置不含域名（`check-site-config`）、SPA 入口按路径选择（服务端 `resolveSiteEntry` 与 web 容器 nginx，`tests/tooling/web-nginx.test.ts` 在本机有 nginx 时实跑，管理端入口是控制台产物）、论坛路径的跳转（`tests/tooling/forum-redirects.test.ts` 在本机有 nginx 时把宿主、web、论坛三层配置一起实跑：`/forum` 只 308 到相对地址 `/forum/`，预渲染路由带不带结尾斜杠都是 200，任何 `Location` 都不带协议、主机和内部端口）、带哈希产物目录的缓存头（`tests/tooling/hashed-asset-cache.test.ts` 同样在本机有 nginx 时把三层一起实跑：`/assets/`、`/console-assets/`、`/forum/_nuxt/` 下的脚本、样式、字体、图片都缓存一年，安全头与页面相同，论坛的 `_nuxt/builds/latest.json` 不缓存）和文档同步。
 
 ## 分支、环境与发布门禁回归
 
-`tests/tooling/deployment-environment.test.ts` 在临时目录合成夹具，验证 `.env.production` / `.env.preview` 的字段契约（非密值必须预填、契约外字段拒绝、密钥必须留空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口与域名必须不同、`TRUST_PROXY` 等于宿主 nginx 与 web 容器 nginx 两层）与 [deploy/environments.json](../../deploy/environments.json) 的一致性；它不读取真实密钥、不连接服务器。
+`tests/tooling/deployment-environment.test.ts` 在临时目录合成夹具，验证 `.env.production` / `.env.preview` 的字段契约（非密值必须预填、契约外字段拒绝、密钥必须留空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口与域名必须不同、`TRUST_PROXY` 等于宿主 nginx 与 web 容器 nginx 两层；发信：预发布的 `MAIL_RECIPIENTS` 只能是 `allowlist`，发信密钥可以全部留空，阿里云两项只填一项拒绝，名单格式不对拒绝且报错不带名单内容，发不出信或带不了 Reply-To 的组合给提示）与 [deploy/environments.json](../../deploy/environments.json) 的一致性；它不读取真实密钥、不连接服务器。
 
 分支不变量由 `scripts/check-branch-invariants.mjs` 检查（`tests/tooling/branch-invariants.test.ts` 用临时 Git 仓库覆盖不变量、命名规则与 pre-push 的发布 tag 规则：格式错误、rc 不在 stage、正式 tag 不在 main、同提交缺 rc 只告警、版本号不符、删除或移动发布 tag、附注 tag、非发布 tag 只告警）：`--require-remote-refs` 在 CI 上核对真实远端 refs，`--push` 供本地 pre-push 使用；本地也可以用同一命令自查（见 [BRANCHING](BRANCHING.md)）。这类检查只读 Git 证据，不 fetch、不改 refs。
 

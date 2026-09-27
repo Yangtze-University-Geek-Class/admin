@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { createConfig } from '../../app/server/src/config';
 import { CAPABILITY_IDS, computeAccess, DEFAULT_DEPARTMENTS } from '../../app/server/src/lib/roles';
@@ -383,13 +383,29 @@ describe('applications', () => {
     const { app, as, assign, audits, db } = await setup({ gina: 'member', erin: 'member' });
     assign('gina', 'member', 'recruitment');
     assign('erin', 'head', 'recruitment');
-    insertApplication(db, { name: '=cmd', strengths: '@SUM(A1), "quoted" 的特长描述' });
+    // 北京时间 9 月 27 日 01:05 投递的：CSV 里写北京时间，不写 UTC 的 26 日 17:05
+    insertApplication(db, { name: '=cmd', strengths: '@SUM(A1), "quoted" 的特长描述', created_at: Date.UTC(2026, 8, 26, 17, 5) });
     expect((await app.inject({ url: '/api/console/applications/export.csv', headers: as('gina') })).json()).toMatchObject({ error: 'missing_capability', capability: 'applications.export' });
-    const response = await app.inject({ url: '/api/console/applications/export.csv', headers: as('erin') });
+    // 文件名的日期也按北京时间：UTC 26 日 23:30 是北京时间 27 日 07:30
+    const saved = process.env.TZ;
+    process.env.TZ = 'UTC';
+    const realNow = Date.now.bind(Date);
+    let exporting = false;
+    vi.spyOn(Date, 'now').mockImplementation(() => (exporting ? Date.UTC(2026, 8, 26, 23, 30) : realNow()));
+    let response: Awaited<ReturnType<typeof app.inject>>;
+    try {
+      exporting = true;
+      response = await app.inject({ url: '/api/console/applications/export.csv', headers: as('erin') });
+    } finally {
+      exporting = false;
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
+    }
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
-    expect(response.headers['content-disposition']).toMatch(/^attachment; filename="applications-\d{8}\.csv"$/);
-    expect(response.body.startsWith('﻿name,class_name,email,strengths,status,created_at\r\n')).toBe(true);
+    expect(response.headers['content-disposition']).toBe('attachment; filename="applications-20260927.csv"');
+    expect(response.body.startsWith('﻿name,class_name,email,strengths,status,created_at_beijing\r\n')).toBe(true);
+    expect(response.body).toContain(',received,2026-09-27 01:05:00\r\n');
     expect(response.body).toContain("'=cmd,");
     expect(response.body).toContain('"\'@SUM(A1), ""quoted"" 的特长描述"');
     expect(response.body).not.toContain('203.0.113.7');

@@ -1,3 +1,4 @@
+import { beijingParts as beijingTime } from "../beijing-time.js";
 import { ENVELOPE_PIECES, type EnvelopePiece } from "./envelope-pieces.js";
 
 /**
@@ -179,12 +180,13 @@ export function required(value: string, field: string): string {
   return value;
 }
 
-/** 北京时间（UTC+8，不用夏令时），不依赖运行环境的时区与 ICU。 */
+/** 北京时间（lib/beijing-time.ts）；日期不合法时抛模板错误。 */
 function beijingParts(at: Date | number) {
-  const ms = typeof at === "number" ? at : at.getTime();
-  if (!Number.isFinite(ms)) throw new MailTemplateError("missing_field", "日期不合法");
-  const d = new Date(ms + 8 * 3600_000);
-  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, day: d.getUTCDate(), hh: d.getUTCHours(), mm: d.getUTCMinutes() };
+  try {
+    return beijingTime(at);
+  } catch {
+    throw new MailTemplateError("missing_field", "日期不合法");
+  }
 }
 
 /** 2026 年 9 月 27 日 */

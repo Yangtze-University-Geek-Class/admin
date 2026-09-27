@@ -140,6 +140,53 @@ describe('applying queues the 已收到 letter', () => {
   });
 });
 
+describe('limits on the 已收到 letter', () => {
+  it('sends one received letter per address in 24 hours; the applications still go through', async () => {
+    const time = clock();
+    const { apply, review, rows, mail, fetch, detail, db } = await setup(BOTH, fakeFetch(), time);
+    const first = await apply();
+    const second = await apply({ email: ' XIAOMAN.LI@example.test ' });
+    const third = await apply({ name: 'www.evil.example' });
+    expect((db.prepare('SELECT COUNT(*) AS n FROM applications').get() as { n: number }).n).toBe(3);
+    expect(rows().map(row => [row.application_id, row.status, row.skip_reason])).toEqual([
+      [first, 'pending', null], [second, 'skipped', 'recipient_limited'], [third, 'skipped', 'recipient_limited'],
+    ]);
+    expect(rows()[1]).toMatchObject({ recipient: null, html: null, text: null });
+    await mail.drain();
+    expect(fetch.calls).toHaveLength(1);
+    expect((await detail(second)).received_mail).toMatchObject({ status: 'skipped', skip_reason: 'recipient_limited' });
+    // 过了 24 小时再投，照常发
+    time.advance(24 * 3600_000);
+    const later = await apply();
+    expect(rows().at(-1)).toMatchObject({ application_id: later, status: 'pending' });
+    // 改状态的信不受这个上限影响
+    expect((await review(first, { status: 'accepted' })).statusCode).toBe(200);
+    expect(rows().at(-1)).toMatchObject({ kind: 'recruitment.accepted', status: 'pending' });
+  });
+
+  it('does not count letters that were never going to be sent', async () => {
+    const { apply, rows } = await setup({ ...RESEND_ENV, MAIL_RECIPIENTS: 'allowlist', MAIL_ALLOWLIST: 'friend@example.test' });
+    await apply();
+    await apply();
+    await apply({ email: 'friend@example.test' });
+    await apply({ email: 'Friend@example.test' });
+    expect(rows().map(row => row.skip_reason)).toEqual(['not_allowlisted', 'not_allowlisted', null, 'recipient_limited']);
+  });
+
+  it('stops at the hourly cap for one kind of letter, and counts again after the hour', async () => {
+    const time = clock();
+    const { mail, rows } = await setup(BOTH, fakeFetch(), time);
+    const letter = mail.recruitmentLetter('received', { id: 'x', name: '李小满', class_name: '计科2301', email: 'a@example.test', strengths: '一段够长的特长与优点。', created_at: T0 });
+    const put = (n: number) => mail.enqueue({ eventKey: `test:${n}`, kind: 'recruitment.received', to: `u${n}@example.test`, mail: letter }, { perHour: 2 });
+    expect([put(1), put(2), put(3)].map(result => result.status)).toEqual(['pending', 'pending', 'skipped']);
+    expect(rows()[2]).toMatchObject({ skip_reason: 'rate_limited', recipient: null });
+    // 别的种类不算在里面
+    expect(mail.enqueue({ eventKey: 'test:other', kind: 'recruitment.accepted', to: 'u9@example.test', mail: letter }, { perHour: 2 }).status).toBe('pending');
+    time.advance(3600_000);
+    expect(put(4).status).toBe('pending');
+  });
+});
+
 describe('recipients and configuration', () => {
   it('records mail_disabled when no provider is configured, and never keeps the address or body', async () => {
     const { apply, rows, mail, detail } = await setup();
@@ -192,7 +239,8 @@ describe('sending: provider order, retries and the final state', () => {
     await apply();
     await mail.drain();
     expect(fetch.calls.map(call => call.url)).toEqual([ALIYUN_ENDPOINT, RESEND_ENDPOINT]);
-    expect(rows()[0]).toMatchObject({ status: 'sent', provider: 'resend', provider_message_id: 're-2', attempts: 1, last_error: null });
+    // 发出了，前一家的失败也留着，看得出为什么走了 Resend
+    expect(rows()[0]).toMatchObject({ status: 'sent', provider: 'resend', provider_message_id: 're-2', attempts: 1, last_error: 'aliyun http 400 InvalidMailAddress.NotFound' });
 
     const params = Object.fromEntries(new URLSearchParams(aliyunCalls(fetch.calls)[0].body));
     expect(params).toMatchObject({
@@ -287,7 +335,7 @@ describe('sending: provider order, retries and the final state', () => {
     expect(second).toMatchObject({ application_id: fresh, status: 'sending', attempts: 1 });
   });
 
-  it('sends letters with a reply-to only through Resend, and fails them when only Aliyun is configured', async () => {
+  it('sends letters with a reply-to only through Resend, and treats Aliyun alone as not configured', async () => {
     const withReply = await setup({ ...BOTH, MAIL_REPLY_TO: 'join@example.test' });
     await withReply.apply();
     expect(withReply.rows()[0]).toMatchObject({ reply_to: 'join@example.test' });
@@ -297,11 +345,13 @@ describe('sending: provider order, retries and the final state', () => {
     expect(JSON.parse(withReply.fetch.calls[0].body).reply_to).toBe('join@example.test');
     expect(withReply.rows()[0]).toMatchObject({ status: 'sent', provider: 'resend' });
 
+    // 配了回信地址、只有阿里云：没有一家能带 Reply-To，按没有配置发信商处理，控制台不会说「保存并发邮件」
     const aliyunOnly = await setup({ ...ALIYUN_ENV, MAIL_RECIPIENTS: 'all', MAIL_REPLY_TO: 'join@example.test' });
-    await aliyunOnly.apply();
+    const id = await aliyunOnly.apply();
     await aliyunOnly.mail.drain();
     expect(aliyunOnly.fetch.calls).toEqual([]);
-    expect(aliyunOnly.rows()[0]).toMatchObject({ status: 'failed', last_error: 'reply_to_unsupported', recipient: null, html: null, text: null });
+    expect(aliyunOnly.rows()[0]).toMatchObject({ status: 'skipped', skip_reason: 'mail_disabled', recipient: null, html: null, text: null });
+    expect((await aliyunOnly.detail(id)).mail).toEqual({ enabled: false, recipients: 'all', deliverable: false });
   });
 
   it('sends right after enqueue when the worker runs in the server process, and stops with the app', async () => {
@@ -399,6 +449,25 @@ describe('console status changes', () => {
     expect(response.json()).toMatchObject({ error: 'letter_invalid' });
     expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
     expect(rows()).toHaveLength(1);
+  });
+
+  it('refuses a change made from a stale page with 409, without a review or a letter', async () => {
+    const { apply, review, rows, db } = await setup(BOTH);
+    const id = await apply();
+    // 两位审核人都在「已收到」时打开了这份投递
+    const first = await review(id, { status: 'accepted', expected_status: 'received' });
+    expect(first.statusCode).toBe(200);
+    const stale = await review(id, { status: 'interview', expected_status: 'received', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人改成了「已录取」，看过最新的状态再改', application: { id, status: 'accepted' } });
+    expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'accepted' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM application_reviews').get()).toEqual({ n: 1 });
+    expect(rows().map(row => row.kind)).toEqual(['recruitment.received', 'recruitment.accepted']);
+    // 只补备注也要看的是最新的状态
+    expect((await review(id, { note: '补一句', expected_status: 'received' })).statusCode).toBe(409);
+    expect((await review(id, { note: '补一句', expected_status: 'accepted' })).statusCode).toBe(200);
+    // 不是四个状态之一的按请求格式拒绝
+    expect((await review(id, { status: 'rejected', expected_status: 'reviewing' })).json()).toMatchObject({ error: 'validation_error' });
   });
 
   it('queues nothing when notify is false, when going back to 已收到, or for a note only', async () => {

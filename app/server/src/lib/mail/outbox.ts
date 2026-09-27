@@ -8,17 +8,20 @@ import { MailProviderError, type MailProvider } from "./providers.js";
  *
  * - 同一件事只发一封：event_key 唯一（INSERT OR IGNORE），重复触发不会多发。
  * - 没有配置发信商的，写成 skipped/mail_disabled；白名单模式下不在白名单里的地址写成 skipped/not_allowlisted。都不发。
+ * - 调用方可以给一封信加上限（EnqueueLimits）：同一个收件地址在一段时间内已经有同一种信的，写成 skipped/recipient_limited；
+ *   全站一小时内同一种信够数了的，写成 skipped/rate_limited。只数真的要发的信（不数 skipped）。
  * - 发信循环每 15 秒一次，每次放进新信后立刻再跑一次；测试不开循环，直接调 drain()。
  * - 领一封信时写成 sending，并把 next_attempt_at 推到 5 分钟以后当租约：进程在发信中途退出，5 分钟后这封信会重试。
  * - 一次尝试里发信商按顺序试（阿里云在前、Resend 兜底），都失败算一次失败；失败后等 1 分钟、5 分钟、30 分钟、2 小时、6 小时再试，
  *   第 6 次失败就放弃（failed）。
  * - 信到了最终状态（sent / failed / skipped）就清掉收件地址、HTML 和纯文本，只留收件地址的 sha256、主题和结果。
  * - last_error 只有发信商名、HTTP 状态和对方的错误码，不含密钥、地址和正文；日志同样不记地址和正文。
+ *   前一家失败、后一家发出时，前一家的错误也留在 last_error 里。
  */
 
 export type MailKind = "recruitment.received" | "recruitment.interview" | "recruitment.accepted" | "recruitment.rejected";
 export type MailStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
-export type MailSkipReason = "mail_disabled" | "not_allowlisted";
+export type MailSkipReason = "mail_disabled" | "not_allowlisted" | "recipient_limited" | "rate_limited";
 
 /** 控制台看到的一封信的结果：没有收件地址和正文。 */
 export type MailSummary = {
@@ -43,6 +46,14 @@ export type OutboxEntry = {
 type OutboxRow = {
   id: number; event_key: string; kind: string; recipient: string | null; recipient_hash: string; subject: string;
   html: string | null; text: string | null; reply_to: string | null; status: MailStatus; attempts: number; created_at: number;
+};
+
+/** 放进队列时的上限；只对同一种信（kind）计数。 */
+export type EnqueueLimits = {
+  /** 同一个收件地址在这段时间里已经有一封同种的信，这封就不发 */
+  recipientWindowMs?: number;
+  /** 全站一小时内同种的信到了这个数，这封就不发 */
+  perHour?: number;
 };
 
 export type MailLogger = {
@@ -96,6 +107,8 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
   const finish = db.prepare(`UPDATE mail_outbox SET status = @status, skip_reason = @skip_reason, provider = @provider, provider_message_id = @provider_message_id,
     last_error = @last_error, sent_at = @sent_at, updated_at = @at, recipient = NULL, html = NULL, text = NULL WHERE id = @id`);
   const retry = db.prepare("UPDATE mail_outbox SET status = 'pending', next_attempt_at = @next, last_error = @last_error, updated_at = @at WHERE id = @id");
+  const toRecipientSince = db.prepare("SELECT 1 FROM mail_outbox WHERE kind = ? AND recipient_hash = ? AND created_at > ? AND status != 'skipped' LIMIT 1");
+  const countSince = db.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE kind = ? AND created_at > ? AND status != 'skipped'");
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let log: MailLogger | null = null;
@@ -111,6 +124,14 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
   function skipReason(address: string): MailSkipReason | null {
     if (!enabled) return "mail_disabled";
     if (!allowed(address)) return "not_allowlisted";
+    return null;
+  }
+
+  /** 超出调用方给的上限时不发的理由 */
+  function limitReason(kind: MailKind, hash: string, limits: EnqueueLimits): MailSkipReason | null {
+    const at = now();
+    if (limits.recipientWindowMs && toRecipientSince.get(kind, hash, at - limits.recipientWindowMs)) return "recipient_limited";
+    if (limits.perHour && (countSince.get(kind, at - 3600_000) as { n: number }).n >= limits.perHour) return "rate_limited";
     return null;
   }
 
@@ -152,7 +173,7 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
           { to: row.recipient, subject: row.subject, html: row.html, text: row.text, replyTo: row.reply_to, idempotencyKey: idempotencyKey(row) },
           AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
         );
-        end(id, { status: "sent", provider: provider.name, provider_message_id: result.messageId, sent_at: now() });
+        end(id, { status: "sent", provider: provider.name, provider_message_id: result.messageId, sent_at: now(), last_error: errors.length ? errors.join("; ").slice(0, 300) : undefined });
         return;
       } catch (error) {
         errors.push(error instanceof MailProviderError ? error.message : `${provider.name} error`);
@@ -221,15 +242,17 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
     },
     /**
      * 放进一封信。同一个 eventKey 只会有一行：已经有了就不动，返回已有那行。
-     * 不发的信（没配置发信商、不在白名单）直接写成 skipped，不留收件地址和正文。
+     * 不发的信（没配置发信商、不在白名单、超出 limits）直接写成 skipped，不留收件地址和正文。
+     * 查上限和写入之间没有 await，同一进程里不会有两封信同时数到同一个空位。
      */
-    enqueue(entry: OutboxEntry): { id: number; status: MailStatus; created: boolean } {
+    enqueue(entry: OutboxEntry, limits: EnqueueLimits = {}): { id: number; status: MailStatus; created: boolean } {
       const at = now();
-      const reason = skipReason(entry.to);
+      const hash = recipientHash(entry.to);
+      const reason = skipReason(entry.to) ?? limitReason(entry.kind, hash, limits);
       const keep = reason === null;
       const result = insert.run({
         event_key: entry.eventKey, kind: entry.kind, application_id: entry.applicationId ?? null, review_id: entry.reviewId ?? null,
-        recipient: keep ? entry.to.trim() : null, recipient_hash: recipientHash(entry.to), subject: entry.mail.subject,
+        recipient: keep ? entry.to.trim() : null, recipient_hash: hash, subject: entry.mail.subject,
         html: keep ? entry.mail.html : null, text: keep ? entry.mail.text : null, reply_to: entry.mail.replyTo,
         status: keep ? "pending" : "skipped", skip_reason: reason, at,
       });

@@ -2,7 +2,7 @@
 
 > 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。
 
-状态：`current` · 更新：2026-09-26 · 本机开发专用；**部署**环境的字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)
+状态：`current` · 更新：2026-09-27 · 本机开发专用；**部署**环境的字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)
 
 只做 UI 预览使用根 `pnpm dev:web`，无需以下配置。需要真实本地后端时，由操作者在仓库根创建自己的 `.env`，使用本地专用 OAuth 应用和数据库，不能复制生产凭据或数据。
 
@@ -20,6 +20,15 @@ FORUM_UPLOAD_DIR=./data/local/forum-uploads
 POW_DIFFICULTY=3
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
+# 发信（可选，#148）：都不设时不发信；MAIL_RECIPIENTS 不写时按 allowlist 处理，名单为空时谁也不发。本机试发只写自己的邮箱。
+MAIL_ALIYUN_ACCESS_KEY_ID=
+MAIL_ALIYUN_ACCESS_KEY_SECRET=
+MAIL_ALIYUN_FROM=
+MAIL_RESEND_API_KEY=
+MAIL_RESEND_FROM=
+MAIL_REPLY_TO=
+MAIL_RECIPIENTS=allowlist
+MAIL_ALLOWLIST=
 COOKIE_DOMAIN=
 ALLOWED_ORGS=
 # 可不设，默认 Yangtze-University-Geek-Class

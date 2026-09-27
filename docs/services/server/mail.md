@@ -6,7 +6,7 @@
 
 ## 现状
 
-- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
+- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（同一个邮箱 24 小时内只发一封、全站每小时最多 200 封，见「上限」）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
 - 信写进 `mail_outbox`（[数据模型](data-model.md)），同一件事只有一行。服务进程里的发信循环每 15 秒把到期的信发一遍，写进新信后立刻再发一遍。
 - 发信商按顺序是阿里云邮件推送（SingleSendMail）、Resend。两家都没配置时信照样写一行，记成 `skipped` / `mail_disabled`，不发。
 - 控制台的投递详情显示「已收到」那封和每次改状态那封的结果（`received_mail`、`reviews[].mail`），见 [API](../../architecture/API.md)。
@@ -21,7 +21,7 @@ recruitmentMessage(kind: "received" | "interview" | "accepted" | "rejected", inp
 
 // services.mail（mailer.ts）
 mail.recruitmentLetter(kind, application, letter?): RenderedMail   // 按投递拼信并渲染，内容不合规抛 MailTemplateError
-mail.enqueue({ eventKey, kind, applicationId?, reviewId?, to, mail }): { id, status, created }
+mail.enqueue({ eventKey, kind, applicationId?, reviewId?, to, mail }, limits?): { id, status, created }
 mail.summary(eventKey) / mail.reviewSummaries(reviewIds)            // 给控制台看的结果，没有地址和正文
 mail.enabled / mail.recipients / mail.deliverable(address)
 mail.drain() / mail.start(logger) / mail.stop()
@@ -36,7 +36,7 @@ mail.drain() / mail.start(logger) / mail.stop()
   - `accepted` 已录取：控制台填的「接下来」一行一条，没填时写「接下来的安排我们会另外发邮件告诉你」。
   - `rejected` 未通过：只写「这一轮没能请你加入极客班」，不替每个人写原因；改状态的人填了原因才单独成一段。论坛那句照论坛的规则写：不登录也能看帖，也可以用昵称回复（[forum](../forum/README.md)）。
 - 每封信都有「你的报名信息」：姓名、班级、邮箱、投递时间、报名编号，收信人能核对是哪一份报名。
-- 抬头按姓称呼（所有者 2026-09-27，`recruitment.ts` 的 `greetingFor`）：汉字开头的名字取姓，张三写「张同学，你好：」；以复姓清单（`COMPOUND_SURNAMES`，欧阳、司马、上官、诸葛等 38 个）里的一个开头、并且至少三个字的，按复姓，欧阳娜娜写「欧阳同学，你好：」；只有两个字的名字分不清是复姓还是姓加名，一律按单姓，欧阳写「欧同学，你好：」。不是汉字开头的名字照写全名，以字母结尾时中间空一格（「Alice 同学，你好：」）；姓名是空白时只写「你好：」。取姓之前先去掉控制字符；按码点取，不会切开补充平面的汉字。「你的报名信息」里仍写全名。信里没有头像。
+- 抬头按姓称呼（所有者 2026-09-27，`recruitment.ts` 的 `greetingFor`）：汉字开头的名字取姓，张三写「张同学，你好：」；以复姓清单（`COMPOUND_SURNAMES`，欧阳、司马、上官、诸葛等 37 个）里的一个开头、并且至少三个字的，按复姓，欧阳娜娜写「欧阳同学，你好：」；清单里没有「单于」（它是称号，姓单、名字以「于」开头的单于洋写「单同学，你好：」）；只有两个字的名字分不清是复姓还是姓加名，一律按单姓，欧阳写「欧同学，你好：」。不是汉字开头的名字照写全名，以字母结尾时中间空一格（「Alice 同学，你好：」）；姓名是空白时只写「你好：」。取姓之前先去掉控制字符；按码点取，不会切开补充平面的汉字。「你的报名信息」里仍写全名。信里没有头像。
 - 信里的时间和日期（投递时间、落款日期）一律按北京时间写，与服务器的时区无关（容器是 UTC）：`formatMailDate` / `formatMailDateTime` 按 UTC+8 算（中国不用夏令时），投递时间后面写明「（北京时间）」。面试时间是审核人照北京时间填的文字，原样写进信里。
 - 控制台审核时填的备注只给审核人看，不进信里。
 
@@ -54,7 +54,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 - 发信商：阿里云邮件推送在前，Resend 兜底。一家的密钥和发件地址都配了才算配置好；一次尝试里前一家失败就试下一家，都失败才算这次失败。
   - 阿里云：`POST https://dm.aliyuncs.com/`，`Action=SingleSendMail`，API 版本 `2015-11-23`，地域 `cn-hangzhou`，RPC 签名 v1（HMAC-SHA1，参数排序后按 RFC 3986 编码，密钥是 AccessKeySecret 加 `&`，见[阿里云签名机制](https://help.aliyun.com/zh/direct-mail/signature)；测试用文档里的例子核对签名）。`AccountName` 是 `MAIL_ALIYUN_FROM`，`AddressType=1`，`ReplyToAddress=false`，发件人名 `FromAlias=长江大学极客班`，HTML 和纯文本都带上。
   - Resend：`POST https://api.resend.com/emails`，`Authorization: Bearer <MAIL_RESEND_API_KEY>`，发件人 `长江大学极客班 <MAIL_RESEND_FROM>`，有回信地址时写 `reply_to`。每封信带一个重试时不变的 `Idempotency-Key`（事件、收件地址哈希和建信时间的 sha256），上一次其实发出去了（例如进程在记下结果前退出）时 Resend 在 24 小时内不会再发一次。
-  - 带回信地址的信只交给 Resend：阿里云这一边不写按封的 Reply-To（原因见「已知限制」）。只配了阿里云时，这种信记成 `failed`，`last_error` 是 `reply_to_unsupported`。
+  - 带回信地址的信只交给 Resend：阿里云这一边不写按封的 Reply-To（原因见「已知限制」）。配了 `MAIL_REPLY_TO` 时每封信都带回信地址，`mailer.ts` 只把能带 Reply-To 的发信商交给发信队列；只配了阿里云时按没有配置发信商处理，信记成 `skipped` / `mail_disabled`，控制台的 `mail.enabled`、`deliverable` 都是 false，不会说「保存并发邮件」。发信队列里还留着一道检查：真有一封带回信地址的信没有发信商能发时，记成 `failed`，`last_error` 是 `reply_to_unsupported`。
 - 请求只用全局 `fetch` 和 `node:crypto`，没有新增依赖；每个请求 15 秒超时。测试注入假的 `fetch`（`ServiceOverrides.mailFetch`），`tests/server/helpers.ts` 默认拒绝任何发信请求。
 - 发信循环只在服务进程里开：`index.ts` 调 `buildApp({ mailWorker: true })`，应用就绪时开始、每 15 秒一轮，`app.close()` 时打断正在发的请求、等这一轮收尾再关库（被打断的那次按一次失败记）。测试不开循环，直接调 `mail.drain()`，时钟用 `ServiceOverrides.clock`。
 - 配置（都是可选的，都不设时服务照常启动、不发信）：`MAIL_ALIYUN_ACCESS_KEY_ID` 与 `MAIL_ALIYUN_ACCESS_KEY_SECRET`（两个要么都有、要么都没有，只有一个时启动失败）、`MAIL_ALIYUN_FROM`、`MAIL_RESEND_API_KEY`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`（不写时是 `https://cdn.crosery.com/yzgc/mail/v1/`）、`MAIL_REPLY_TO`、`MAIL_RECIPIENTS`、`MAIL_ALLOWLIST`。发件地址和回信地址只收一个普通的邮箱地址，`MAIL_ASSET_BASE` 只收以 `/` 结尾的 https 地址，写错时启动失败，错误信息不带配置的值。每个环境的取值见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
@@ -66,16 +66,28 @@ mail.drain() / mail.start(logger) / mail.stop()
 - 发信循环领一封信时把它改成 `sending`，尝试次数加一，并把 `next_attempt_at` 推到 5 分钟以后当租约：进程在发信中途退出，5 分钟后这封信被重新领走；已经试满 6 次的不再领，记成 `failed`（`lease_expired`）。
 - 一次尝试失败后分别等 1 分钟、5 分钟、30 分钟、2 小时、6 小时再试，第 6 次失败记成 `failed`，不再重试。
 - 发信之前再核对一次发信商和白名单：重启后没有发信商了记 `mail_disabled`，不在白名单里了记 `not_allowlisted`。
+- 前一家失败、后一家发出时，信记成 `sent`，前一家的错误摘要留在 `last_error`（例如阿里云拒收、Resend 发出），看得出为什么走了后一家。
 
 ## 白名单
 
 - `MAIL_RECIPIENTS=all` 发给所有人（正式环境）；`allowlist` 只发给 `MAIL_ALLOWLIST` 里的地址（预发布），逗号分隔、不分大小写，其余的信写进队列时就记成 `skipped` / `not_allowlisted`。不写 `MAIL_RECIPIENTS` 时按 `allowlist` 处理，白名单也是空的，谁也不发。
 - 控制台的 `mail.deliverable` 说的是「现在给这份投递写信会不会真的发出去」：有发信商、并且（`all` 或地址在白名单里）。
 
+## 上限
+
+投递接口不用登录，谁都能在表单里填别人的邮箱，每投一次服务器就以「长江大学极客班」的名义发一封带投递人自己写的文字（姓名、特长原文）的信。所以「已收到」这封有上限（`mailer.ts` 的 `RECEIVED_LETTER_LIMITS`，`apply.ts` 调 `mail.enqueue(…, RECEIVED_LETTER_LIMITS)`）：
+
+- 同一个收件地址（按哈希，不分大小写）24 小时内已经有一封「已收到」的，这封记成 `skipped` / `recipient_limited`；
+- 全站一小时内的「已收到」到了 200 封（和论坛游客回复的全站上限一样），这封记成 `skipped` / `rate_limited`。
+- 只数真的要发的信，不数 `skipped` 的：发信没配置、不在白名单时写进去的行不占名额。
+- 超出上限的投递照样成功、照样出现在控制台，只是不发确认信；控制台写「24 小时内已经给这个邮箱发过确认信」「这一小时发出的确认信已到上限」。
+- 改状态的信（待面试、已录取、未通过）要有「审核投递」能力才能触发，不设这个上限。
+- 剩下的风险：换着邮箱投，每个邮箱每天仍能收到一封；Turnstile 没开时（两个环境现在都没开，见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)），拦批量投递的只有每个 IP 每分钟 5 次、工作量证明和蜜罐。见 [SECURITY](../../architecture/SECURITY.md)。
+
 ## 隐私
 
 - 信到了最终状态（`sent`、`failed`、`skipped`）就把收件地址、HTML 和纯文本改成 NULL；不发的信写入时就不存这三样。留下的是收件地址的 sha256（去掉首尾空白、转小写之后算）、主题、结果、尝试次数、发信商和对方的消息编号。还没发出的信（`pending`、`sending`）在库里带着收件地址和正文，最长到第 6 次失败，约 8 个半小时。
-- `last_error` 只有发信商名、HTTP 状态和对方的错误码（只留字母、数字和 `. _ -`，最长 64 个字符），例如 `aliyun http 400 InvalidMailAddress.NotFound; resend http 500 internal_server_error`，不含密钥、地址、正文和对方回答的原文；网络错误只记错误类型名。日志只记信的编号、种类、次数和同样的错误摘要。
+- `last_error` 只有发信商名、HTTP 状态和对方的错误码（发出的信也可能有，是换发信商之前那一家的错误）（只留字母、数字和 `. _ -`，最长 64 个字符），例如 `aliyun http 400 InvalidMailAddress.NotFound; resend http 500 internal_server_error`，不含密钥、地址、正文和对方回答的原文；网络错误只记错误类型名。日志只记信的编号、种类、次数和同样的错误摘要。
 - 审计 `application.review` 的 details 多了 `mail`（这次改状态有没有写信），不记信的内容。
 - 投递的「已收到」写不进队列（模板出错、写库失败）时，投递照样成功，服务端只记一条带投递编号和错误码的日志。
 
@@ -118,11 +130,14 @@ mail.drain() / mail.start(logger) / mail.stop()
 pnpm exec vitest run tests/server/mail-envelope.test.ts tests/server/mail-outbox.test.ts
 ```
 
-`tests/server/mail-outbox.test.ts` 覆盖：投递写且只写一封「已收到」，发出后只剩哈希和主题；同一个 `event_key` 两次只有一行、只发一封；信写不进队列时投递照样成功；蜜罐不写信；没配置发信商记 `mail_disabled`、白名单模式下不在白名单的记 `not_allowlisted`（不分大小写），都不留地址和正文；配置只有一把阿里云密钥、`MAIL_RECIPIENTS` 写错、回信地址带换行、发件地址带尖括号、`MAIL_ASSET_BASE` 不是 https 时启动失败，错误信息不带配置的值；阿里云失败换 Resend，阿里云请求的参数与签名、Resend 的请求头和正文；阿里云文档里的签名例子；按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃并清掉地址和正文，`last_error` 不带密钥、地址、姓名和对方回答的原文；重试时 `Idempotency-Key` 不变；租约过期的 `sending` 重新发、租约没过期的不动；带回信地址的信只走 Resend，只配了阿里云时记 `reply_to_unsupported`；服务进程开着发信循环时写进新信后马上发出、`app.close()` 能停下；控制台改成评估中或别的值回 400 `invalid_status`；改成待面试没填时间地点回 400 `letter_required`、状态和审核记录都不变；待面试、已录取、未通过的信带上审核人填的内容、不带内部备注，投递详情里能看到每封信的结果；审核人没配回信地址却写「直接回复这封邮件」回 400 `letter_invalid`；`notify: false`、改回已收到、只写备注都不写信。旧的「评估中」启动时改回「已收到」、审核历史不动、再启动不再改，在 `tests/server/legacy-database.test.ts`。
+`tests/server/mail-outbox.test.ts` 覆盖：投递写且只写一封「已收到」，发出后只剩哈希和主题；同一个邮箱（不分大小写、带空白）24 小时内投三次只发一封、投递都成功，过了 24 小时再发，改状态的信不受影响；不会发出的信不占名额；同一种信一小时到上限后记 `rate_limited`，别的种类不算，过了一小时再发；同一个 `event_key` 两次只有一行、只发一封；信写不进队列时投递照样成功；蜜罐不写信；没配置发信商记 `mail_disabled`、白名单模式下不在白名单的记 `not_allowlisted`（不分大小写），都不留地址和正文；配置只有一把阿里云密钥、`MAIL_RECIPIENTS` 写错、回信地址带换行、发件地址带尖括号、`MAIL_ASSET_BASE` 不是 https 时启动失败，错误信息不带配置的值；阿里云失败换 Resend（发出后 `last_error` 留着阿里云的错误），阿里云请求的参数与签名、Resend 的请求头和正文；阿里云文档里的签名例子；按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃并清掉地址和正文，`last_error` 不带密钥、地址、姓名和对方回答的原文；重试时 `Idempotency-Key` 不变；租约过期的 `sending` 重新发、租约没过期的不动；带回信地址的信只走 Resend，配了回信地址又只有阿里云时按没有配置处理（`mail_disabled`，详情里 `enabled`、`deliverable` 是 false）；服务进程开着发信循环时写进新信后马上发出、`app.close()` 能停下；控制台改成评估中或别的值回 400 `invalid_status`；改成待面试没填时间地点回 400 `letter_required`、状态和审核记录都不变；两位审核人从同一个旧画面先后改，第二次带着旧的 `expected_status` 回 409 `status_changed`、不写审核记录也不写信，只补备注也要带最新的状态；待面试、已录取、未通过的信带上审核人填的内容、不带内部备注，投递详情里能看到每封信的结果；审核人没配回信地址却写「直接回复这封邮件」回 400 `letter_invalid`；`notify: false`、改回已收到、只写备注都不写信。旧的「评估中」启动时改回「已收到」、审核历史不动、再启动不再改，在 `tests/server/legacy-database.test.ts`。
 
 `tests/server/mail-envelope.test.ts` 覆盖：四封信都能渲染；恶意姓名 `<img src=x onerror=alert(1)> & "q"` 在 HTML 的每个位置都被转义；`javascript:`、`http:`、其它域名、带账号或端口的链接被拒绝；纯文本版本有编号、时间、地点等关键事实；四封信都有「你的报名信息」（姓名、班级、邮箱、投递时间、报名编号）；已收到的信完整引用特长与优点（转义、按行换行、只在这一封里），投递人自己写了「回复这封邮件」不算请人回信；2000 字的特长加 40 个字的名字仍小于 102KB；抬头按姓称呼（张三、李小满、欧阳娜娜、司马光、叱干阿利、清单里每个复姓加一个字、两个字的欧阳按单姓、不在清单里的张王五按单姓、补充平面的汉字、Alice、空白名字），事实栏仍写全名，抬头的「你好：」不拆开，四封信里都没有头像，恶意姓名在抬头里照写全名并转义，控制字符先去掉再取姓；进程时区是 UTC、洛杉矶、上海时，`2026-09-27T03:00:00Z` 都写成「2026 年 9 月 27 日 11:00」，落款日期同样按北京时间；没有外链样式表、脚本、flex、grid、position；解析后的属性都合法、内联样式真的生效（字体名曾经用双引号，把 `style` 属性截断过）；图片地址都以 `assetBase` 开头并带宽高和替代文字，`file://` 只在 `allowFileAssets` 时放行；主题里没有换行和 U+2028 / U+2029；HTML 小于 102KB；未通过的信不再写「论坛对所有人开放」和名额的理由，传了 `reason` 才有原因；给了 `replyTo` 才请人回信，待面试的信没有 `replyTo` 时指向意见箱，自定义的信请人回复却没有 `replyTo`、`replyTo` 带换行或多个地址都抛错；待面试的时间地点不能为空，没有面试说明时摘要不提；抬头等动态文字带断行规则、邮票格按比例；按钮格子带 `mso-padding-alt`。
 
 ## 已知限制
+
+- 结果不明的失败也会换下一家：阿里云其实收下了、只是 15 秒内没回应（或回应读到一半断了）时，这一次尝试接着交给 Resend，投递人会收到两封一样的信。部署时 `app.close()` 打断正在发的请求，下一轮还是先发阿里云，阿里云没有按封的去重，同样可能重复。这两种都只在超时或断线时出现，没有改：把结果不明的当成失败、只等下一轮重试阿里云，重复反而可能更多。
+- 审核人写进信里的面试时间以外的内容（地点、面试说明、已录取的「接下来」、未通过的原因）只在信里：信发出后正文就清掉，控制台里只看得到主题（待面试的主题带面试时间）。另一位审核人要知道地点，得看备注。
 
 - 没有用真实的阿里云或 Resend 发过一封：签名按阿里云文档的例子核对过，请求形状按两家的文档写，测试都是假的 `fetch`。预发布配好密钥和白名单后要真发一次、在收件箱里看一眼，才能算验证过。
 - 阿里云这边不写按封的回信地址：[SingleSendMail 的官方文档](https://help.aliyun.com/zh/direct-mail/api-dm-2015-11-23-singlesendmail)（2026-09-27 看过）列有可选参数 `ReplyAddress`、`ReplyAddressAlias`，适配器还没用，因为没有用真实的发信试过。要用时把 `providers.ts` 里阿里云的 `supportsReplyTo` 改成 true、把 `ReplyAddress` 传上去，再真发一封核对回信地址。现在两个环境的 `MAIL_REPLY_TO` 都是空的，没有信依赖它。

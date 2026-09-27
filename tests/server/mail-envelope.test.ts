@@ -323,7 +323,10 @@ describe("mail envelope renderer", () => {
     expect(greetingFor("Alice 张")).toBe("Alice 张同学，你好：");
     expect(greetingFor("  ")).toBe("你好：");
     expect(greetingFor("")).toBe("你好：");
-    expect(COMPOUND_SURNAMES).toHaveLength(38);
+    // 「单于」是称号不是常见的姓：姓单、名字以「于」开头的按单姓
+    expect(greetingFor("单于洋")).toBe("单同学，你好：");
+    expect(COMPOUND_SURNAMES).not.toContain("单于");
+    expect(COMPOUND_SURNAMES).toHaveLength(37);
     for (const surname of COMPOUND_SURNAMES) expect(greetingFor(`${surname}某`), surname).toBe(`${surname}同学，你好：`);
 
     // 信里：抬头写姓，事实栏写全名；「你好：」不拆开，窄屏折在逗号后面；没有任何头像

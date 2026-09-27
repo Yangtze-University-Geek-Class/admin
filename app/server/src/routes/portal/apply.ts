@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { MailTemplateError } from "../../lib/mail/envelope.js";
+import { RECEIVED_LETTER_LIMITS } from "../../lib/mail/mailer.js";
 
 type Body = {
   name?: string;
@@ -123,12 +124,13 @@ export default async function applyRoutes(app: FastifyInstance) {
       }, req.ip);
 
       // 投递已经落库；「已收到」的信拼不出来或写不进队列只记日志（不记地址和正文），不让投递失败。
+      // 谁都能填别人的邮箱，所以同一个邮箱 24 小时内只发一封、全站每小时有上限（RECEIVED_LETTER_LIMITS），超出的记成 skipped。
       try {
         const application = { id, name: name.value, class_name: className.value, email: email.value, strengths: strengths.value, created_at: submittedAt };
         mail.enqueue({
           eventKey: `application:${id}:received`, kind: "recruitment.received", applicationId: id, to: email.value,
           mail: mail.recruitmentLetter("received", application),
-        });
+        }, RECEIVED_LETTER_LIMITS);
       } catch (error) {
         req.log.error({ application_id: id, error: error instanceof MailTemplateError ? error.code : (error as Error)?.name ?? "error" }, "received letter not queued");
       }

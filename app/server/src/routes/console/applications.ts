@@ -1,14 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireCapability } from "../../middleware/require-capability.js";
-import { APPLICATION_STATUS_IDS, type ApplicationStatus } from "../../lib/roles.js";
+import { beijingCompactDate, beijingDateTime } from "../../lib/beijing-time.js";
+import { APPLICATION_STATUSES, APPLICATION_STATUS_IDS, type ApplicationStatus } from "../../lib/roles.js";
 import { MailTemplateError, oneLine, type RenderedMail } from "../../lib/mail/envelope.js";
 import type { RecruitmentLetter } from "../../lib/mail/mailer.js";
 
 type ApplicationRow = { id: string; name: string; class_name: string; email: string; strengths: string; status: string; created_at: number };
 type ReviewRow = { id: number; application_id: string; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number };
 type ListQuery = { status?: ApplicationStatus; q?: string; limit?: string; offset?: string };
-type ReviewBody = { status?: string; note?: string; notify?: boolean; letter?: RecruitmentLetter };
+type ReviewBody = { status?: string; expected_status?: ApplicationStatus; note?: string; notify?: boolean; letter?: RecruitmentLetter };
 
 /** 改成这几个状态时发对应的信（改回「已收到」、只写备注都不发） */
 const LETTER_STATUSES = ["interview", "accepted", "rejected"] as const;
@@ -33,7 +34,7 @@ export function csvCell(value: unknown): string {
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
-const yyyymmdd = (time: number) => new Date(time).toISOString().slice(0, 10).replace(/-/g, "");
+const statusLabel = (id: string) => APPLICATION_STATUSES.find(item => item.id === id)?.label ?? id;
 
 export default async function consoleApplicationRoutes(app: FastifyInstance) {
   const { config, mail } = app.services;
@@ -79,12 +80,13 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       const rows = (status
         ? db.prepare(`SELECT ${APPLICATION_COLUMNS} FROM applications WHERE status = ? ORDER BY created_at DESC`).all(status)
         : db.prepare(`SELECT ${APPLICATION_COLUMNS} FROM applications ORDER BY created_at DESC`).all()) as ApplicationRow[];
-      const header = ["name", "class_name", "email", "strengths", "status", "created_at"];
-      const lines = [header.join(","), ...rows.map(row => [row.name, row.class_name, row.email, row.strengths, row.status, new Date(row.created_at).toISOString()].map(csvCell).join(","))];
+      // 投递时间和文件名里的日期按北京时间写（lib/beijing-time.ts），和控制台页面、信里的时间一致；列名写明是北京时间。
+      const header = ["name", "class_name", "email", "strengths", "status", "created_at_beijing"];
+      const lines = [header.join(","), ...rows.map(row => [row.name, row.class_name, row.email, row.strengths, row.status, beijingDateTime(row.created_at)].map(csvCell).join(","))];
       audit(config.consoleOrg, req.session!.login, "application.export", status ?? "all", { count: rows.length, status: status ?? null }, req.ip);
       return reply
         .header("Content-Type", "text/csv; charset=utf-8")
-        .header("Content-Disposition", `attachment; filename="applications-${yyyymmdd(Date.now())}.csv"`)
+        .header("Content-Disposition", `attachment; filename="applications-${beijingCompactDate(Date.now())}.csv"`)
         .send(`﻿${lines.join("\r\n")}\r\n`);
     },
   );
@@ -123,6 +125,12 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       if (status !== undefined && !(APPLICATION_STATUS_IDS as string[]).includes(status)) {
         return reply.code(400).send({ error: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
       }
+      // 控制台带上页面上看到的状态：别人在这之间改过，就不按旧画面改，也不发信（改状态的信发出去撤不回来）。
+      const changedMeanwhile = () => {
+        const latest = findApplication(current.id) ?? current;
+        return reply.code(409).send({ error: "status_changed", message: `这份投递刚被别人改成了「${statusLabel(latest.status)}」，看过最新的状态再改`, application: latest });
+      };
+      if (req.body.expected_status !== undefined && req.body.expected_status !== current.status) return changedMeanwhile();
       const next = status ?? current.status;
       const note = req.body.note?.trim() || null;
       if (next === current.status && !note) return reply.code(400).send({ error: "no_change", message: "状态没有变化，也没有填写备注" });
@@ -148,7 +156,8 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
 
       const reviewer = req.session!.login;
       const review = db.transaction(() => {
-        if (next !== current.status) db.prepare("UPDATE applications SET status = ? WHERE id = ?").run(next, current.id);
+        // 带着读到的状态改：读和写之间状态变了（changes 为 0）就什么也不写，回 409
+        if (next !== current.status && db.prepare("UPDATE applications SET status = ? WHERE id = ? AND status = ?").run(next, current.id, current.status).changes !== 1) return null;
         const result = db.prepare("INSERT INTO application_reviews(application_id, from_status, to_status, note, reviewer, created_at) VALUES(?, ?, ?, ?, ?, ?)")
           .run(current.id, current.status, next, note, reviewer, Date.now());
         const reviewId = Number(result.lastInsertRowid);
@@ -158,6 +167,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
         }
         return db.prepare("SELECT id, from_status, to_status, note, reviewer, created_at FROM application_reviews WHERE id = ?").get(reviewId) as Omit<ReviewRow, "application_id">;
       })();
+      if (!review) return changedMeanwhile();
       // 备注属于候选人相关信息，只进 application_reviews，不写进审计；信的内容也不进审计，只记这次有没有发信。
       audit(config.consoleOrg, reviewer, "application.review", current.id, { from: current.status, to: next, has_note: Boolean(note), mail: Boolean(letterKind) }, req.ip);
       return { application: findApplication(current.id), review: withMail([review])[0] };

@@ -328,6 +328,8 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_due ON mail_outbox(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_review ON mail_outbox(review_id);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_recipient ON mail_outbox(kind, recipient_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_kind_at ON mail_outbox(kind, created_at);
 `);
 
 // 投递状态只剩四个（#148）：旧的「评估中」改回「已收到」。每次启动都跑一遍，没有这样的行时什么也不改；

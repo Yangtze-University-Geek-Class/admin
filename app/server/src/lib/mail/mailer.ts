@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import type { MailConfig } from "../../config.js";
 import { MAIL_LINK_HOSTS, renderEnvelope, safeAssetBase, safeReplyTo, type RenderedMail } from "./envelope.js";
 import { createAliyunProvider, createResendProvider, type FetchLike, type MailProvider } from "./providers.js";
-import { createMailOutbox } from "./outbox.js";
+import { createMailOutbox, type EnqueueLimits } from "./outbox.js";
 import { recruitmentMessage, type RecruitmentKind } from "./recruitment.js";
 
 /**
@@ -17,6 +17,12 @@ export type ApplicationForMail = { id: string; name: string; class_name: string;
 export type RecruitmentLetter = { time?: string; place?: string; notes?: string; message?: string };
 
 export type MailerDeps = { fetch?: FetchLike; now?: () => number };
+
+/**
+ * 投递成功时那封「已收到」的上限（apply.ts）：投递接口不用登录，谁都能填别人的邮箱。
+ * 同一个邮箱 24 小时内只发一封，全站一小时最多 200 封（和论坛游客回复的全站上限一样）；超出的投递照样成功，信记成 skipped。
+ */
+export const RECEIVED_LETTER_LIMITS: EnqueueLimits = { recipientWindowMs: 24 * 3600_000, perHour: 200 };
 
 /** 发件地址、回信地址只收一个普通的邮箱地址；错误信息不带配置的值。 */
 function address(value: string, key: string): string {
@@ -51,7 +57,10 @@ export function createMailer(db: Database.Database, config: MailConfig, publicOr
   if (config.aliyun) providers.push(createAliyunProvider({ ...config.aliyun, from: address(config.aliyun.from, "MAIL_ALIYUN_FROM") }, fetchImpl, now));
   if (config.resend) providers.push(createResendProvider({ ...config.resend, from: address(config.resend.from, "MAIL_RESEND_FROM") }, fetchImpl));
   const siteOrigin = mailSiteOrigin(publicOrigin);
-  const outbox = createMailOutbox(db, { providers, recipients: config.recipients, allowlist: config.allowlist, now });
+  // 配了回信地址时每封信都带 Reply-To，只交给能写按封回信地址的发信商（阿里云这边还没写，见 providers.ts）。
+  // 一家都没有时按没有配置发信商处理：信记成 mail_disabled，控制台也不会说「保存并发邮件」。
+  const usable = replyTo ? providers.filter(provider => provider.supportsReplyTo) : providers;
+  const outbox = createMailOutbox(db, { providers: usable, recipients: config.recipients, allowlist: config.allowlist, now });
 
   /** 按投递和信的内容拼一封招新的信并渲染；内容不合规（例如没配回信地址却请人直接回复）抛 MailTemplateError。 */
   function recruitmentLetter(kind: RecruitmentKind, application: ApplicationForMail, letter: RecruitmentLetter = {}): RenderedMail {
