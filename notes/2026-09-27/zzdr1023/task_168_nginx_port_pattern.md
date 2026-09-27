@@ -31,3 +31,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：git push -u fork task/168/nginx_port_pattern；先试过 git push --dry-run git@github.com:Yangtze-University-Geek-Class/admin.git，被拒「Permission denied to ZZDR1023」，故按 fork PR 路径推到自己 fork（分支名仍为 task/168/nginx_port_pattern）
 - 结果：推送成功：fork 上出现 task/168/nginx_port_pattern（f801d2c）；pre-push 分支与发布 tag 规则、task worktree 生命周期检查均通过
+
+## 15:56:05 +08:00 · PR · #168 · 开 PR #171（base stage）
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：gh pr create --repo Yangtze-University-Geek-Class/admin --base stage --head ZZDR1023:task/168/nginx_port_pattern --title 'test(tooling): 宿主配置残留改按 nginx 指令边界判断，不再被子串误报' --body-file；正文按 docs/conventions/PULL-REQUESTS.md 九段写全，本地 node scripts/pr-contract.mjs check 通过
+- 结果：PR #171：https://github.com/Yangtze-University-Geek-Class/admin/pull/171，base=stage mergeable=MERGEABLE；pr-contract 与 env-contract、lint-workflows 已 pass；branch-guard 因按设计要求链路里已有「PR」「审查」记录而暂红（审查记录在审查结论给出后补）
