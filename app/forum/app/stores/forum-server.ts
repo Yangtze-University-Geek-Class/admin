@@ -240,6 +240,12 @@ export const useForumServerStore = defineStore('forum-server', () => {
     signinLapse.value = { count: signinLapse.value.count + 1, ended, failed, message }
   }
 
+  /** `/auth/me` answered that the server has just ended the sign-in (#164): the page turns guest and the state is read again. */
+  function noteSessionEnded(): void {
+    noteSignedOut({ ended: true })
+    void load()
+  }
+
   /**
    * The server ending the sign-in answers the state with a 401 and clears the
    * cookie (#164): the state is read once more, as a guest, instead of the
@@ -315,10 +321,14 @@ export const useForumServerStore = defineStore('forum-server', () => {
     }
   }
 
-  function fail(title: string, error: unknown): void {
+  /** Whether a write about to go out is sent as a member; its failure is judged by that, not by who the page shows by then. */
+  const sentAsMember = (): boolean => viewer.value?.kind === 'member'
+
+  function fail(title: string, error: unknown, asMember: boolean): void {
     // A member's write refused with 401 (the session ended here or in another tab, or ran out): one toast, from
-    // LoginModal, with what failed, why, and a 登录 button the store cannot build.
-    if (error instanceof ForumApiError && error.status === 401 && (isSessionEnded(error) || viewer.value?.kind === 'member')) {
+    // LoginModal, with what failed, why, and a 登录 button the store cannot build. Another write the member had out
+    // may come back after the page turned guest; it is still sent as a member.
+    if (error instanceof ForumApiError && error.status === 401 && (isSessionEnded(error) || asMember)) {
       noteSignedOut({ ended: isSessionEnded(error), failed: title, message: error.message })
       void load()
       return
@@ -334,11 +344,12 @@ export const useForumServerStore = defineStore('forum-server', () => {
 
   /** Runs one write that waits for the server; `null` means it failed and the toast already said why. */
   async function attempt<T>(failure: string, task: () => Promise<T>): Promise<T | null> {
+    const asMember = sentAsMember()
     try {
       return await task()
     }
     catch (error) {
-      fail(failure, error)
+      fail(failure, error, asMember)
       return null
     }
   }
@@ -374,6 +385,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
     }
     lanes.set(key, lane)
     spec.write(wish)
+    const asMember = sentAsMember()
     const done = (async (): Promise<Settled<V> | null> => {
       try {
         for (;;) {
@@ -395,7 +407,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
           if (other !== lane)
             other.reassert()
         }
-        fail(spec.failure(lane.wish as V), error)
+        fail(spec.failure(lane.wish as V), error, asMember)
         return null
       }
       finally {
@@ -459,6 +471,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
       topic.lastActivityAt = at
     const pending = { posts: [id], users: guest ? [guest.id] : [] }
     shown?.(id)
+    const asMember = sentAsMember()
     try {
       const result = await send()
       forum.removeRecords(pending)
@@ -470,7 +483,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
       const current = forum.topicById(body.topicId)
       if (current && current.lastActivityAt === at)
         current.lastActivityAt = lastActivityAt
-      fail('回复没有发出去', error)
+      fail('回复没有发出去', error, asMember)
       return null
     }
   }
@@ -750,6 +763,7 @@ export const useForumServerStore = defineStore('forum-server', () => {
     refusedReplies,
     signinLapse,
     noteSignedOut,
+    noteSessionEnded,
     keepRefusedReply,
     takeRefusedReplies,
     load,

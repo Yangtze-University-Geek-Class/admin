@@ -15,11 +15,17 @@ import { TUFFEX_STUBS } from './support/tuffex-stubs'
 const NONE: SigninLapse = { count: 0, ended: false, failed: null, message: null }
 
 /** `stillSignedIn` is what `/auth/me` answers when LoginModal asks it again. */
-function setup(lapse: SigninLapse = NONE, stillSignedIn = false) {
+function setup(lapse: SigninLapse = NONE, stillSignedIn = false, holdMe = false) {
   const toast = vi.fn()
   const signIn = vi.fn()
   const account = ref<SiteAccount | null>({ login: 'ada', avatarUrl: null, consoleLink: false })
+  let answer!: () => void
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve
+  })
+  /** What /auth/me says when asked again; held until the test calls `answer()` (answered at once unless `holdMe`). */
   const refresh = vi.fn(async () => {
+    await answered
     account.value = stillSignedIn ? { login: 'ada', avatarUrl: null, consoleLink: false } : null
   })
   const server = reactive({ signinLapse: lapse })
@@ -45,7 +51,9 @@ function setup(lapse: SigninLapse = NONE, stillSignedIn = false) {
   const stub = defineComponent({ setup: () => () => h('div') })
   const mountModal = () => mount(LoginModal, {}, { ...TUFFEX_STUBS, TxModal: stub, TxCardItem: stub, TxStatusBadge: stub, UserAvatar: stub })
   const mounted = mountModal()
-  return { toast, signIn, account, refresh, server, mounted, mountModal }
+  if (!holdMe)
+    answer()
+  return { toast, signIn, account, refresh, server, mounted, mountModal, answer }
 }
 
 describe('LoginModal when the server ends the sign-in (#164)', () => {
@@ -93,11 +101,16 @@ describe('LoginModal when the server ends the sign-in (#164)', () => {
     expect(toast.mock.calls[0]![0]).toMatchObject({ id: 'forum-signin-lapsed', title: '没有赞上', description: '登录已失效，请重新用 GitHub 登录。不登录也能看帖和回复。', action: { label: '登录' } })
   })
 
-  it('says the failure as it was when /auth/me still has the person signed in (taken out of the organisation)', async () => {
-    const { toast, account, server } = setup(NONE, true)
+  it('says what failed and that the account is not in the organisation when /auth/me still has the person signed in', async () => {
+    const { toast, account, server, answer } = setup(NONE, true, true)
     server.signinLapse = { count: 1, ended: false, failed: '没有赞上', message: '登录后才能操作' }
+    await nextTick()
+    // Until /auth/me answers, the page counts as signed out, so it never says 「这个账号不在组织里」 to someone whose sign-in is gone.
+    expect(account.value).toBeNull()
+    expect(toast).not.toHaveBeenCalled()
+    answer()
     await vi.waitFor(() => expect(toast).toHaveBeenCalledTimes(1))
     expect(account.value).toEqual({ login: 'ada', avatarUrl: null, consoleLink: false })
-    expect(toast.mock.calls[0]![0]).toEqual({ title: '没有赞上', description: '登录后才能操作', variant: 'warning' })
+    expect(toast.mock.calls[0]![0]).toEqual({ id: 'forum-not-member', title: '没有赞上', description: access.UNAVAILABLE_COPY['not-member'].description, variant: 'warning' })
   })
 })

@@ -6,7 +6,7 @@ import { stateRetryDelay, useForumServerStore } from '~/stores/forum-server'
 import { useSessionStore } from '~/stores/session'
 import { checkPow, replyPowBody } from '../shared/pow'
 import type { Answer } from './fixtures/fake-server'
-import { fakeServer, json } from './fixtures/fake-server'
+import { fakeServer, held, json } from './fixtures/fake-server'
 import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
 
 function setup() {
@@ -262,6 +262,31 @@ describe('writes against the server', () => {
     finally {
       vi.useRealTimers()
     }
+  })
+
+  it('counts a second write the member had out as the same lapse, not as a guest\'s refusal (#164)', async () => {
+    const like = held()
+    const bookmark = held()
+    const { server } = await signedIn(MEMBER_VIEWER, like.answer, bookmark.answer, json(serverBody()))
+    const liking = server.toggleLike('p10001')
+    const bookmarking = server.toggleBookmark('body-73')
+    like.release(json({ error: 'signin_required', message: '登录后才能操作' }, 401))
+    expect(await liking).toBeNull()
+    expect(server.viewer).toBeNull()
+    bookmark.release(json({ error: 'signin_required', message: '登录后才能操作' }, 401))
+    expect(await bookmarking).toBeNull()
+    expect(server.signinLapse).toEqual({ count: 2, ended: false, failed: '没有加上书签', message: '登录后才能操作' })
+    expect(toastStore.items).toEqual([])
+  })
+
+  it('turns guest and reads the state again when /auth/me says the server ended the sign-in (#164)', async () => {
+    const { calls, session, server } = await signedIn(MEMBER_VIEWER, json(serverBody()))
+    server.noteSessionEnded()
+    expect(server.viewer).toBeNull()
+    expect(session.currentUserId).toBeNull()
+    expect(server.signinLapse).toEqual({ count: 1, ended: true, failed: null, message: null })
+    await vi.waitFor(() => expect(server.viewer?.kind).toBe('guest'))
+    expect(calls.map(call => call.url)).toEqual(['/api/forum/state', '/api/forum/state'])
   })
 
   it('still says a guest\'s refused write itself', async () => {

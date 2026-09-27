@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PromptToast } from '~/data/access'
 import { toast } from '@talex-touch/tuffex/utils'
-import { loginPromptToast, signinLapsedToast } from '~/data/access'
+import { loginPromptToast, refusedNotMemberToast, signinLapsedToast } from '~/data/access'
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
@@ -9,7 +9,7 @@ import type { User } from '~/data/types'
 // 这时点赞、书签、关注等要求登录的按钮仍会打开 loginOpen：给一句说明再关上，不让点击没有反应。
 // 极客班论坛里说明要登录，并直接给登录按钮；论坛服务连不上时说明只能看帖子；快照只能看。说什么在 data/access.ts 的 loginPromptToast。
 // 登录没了（服务端因为 GitHub 收回了会话里的授权而结束了它，或会话在别的标签页结束、到期，#164）：头像菜单换回登录按钮，
-// 页面按游客重读，toast 说一次并给「登录」。成员写操作碰到的普通 401 也可能是被移出了组织，先问一次 /auth/me：还登录着就照原样说失败原因。
+// 页面按游客重读，toast 说一次并给「登录」。成员写操作碰到的普通 401 也可能是被移出了组织，先问一次 /auth/me：还登录着就说哪件事没成、这个账号不在组织里。
 const { loginOpen } = useShell()
 const { siteLogin, serverMode } = useContentSource()
 const { access } = useCurrentUser()
@@ -40,9 +40,11 @@ if (serverMode) {
       return
     said.value = lapse.count
     if (!lapse.ended) {
+      // /auth/me 回来之前先按没登录算，页面不会先说「这个账号不在组织里」。
+      account.value = null
       await refresh()
       if (account.value && lapse.failed) {
-        toast({ title: lapse.failed, description: lapse.message ?? '请稍后再试。', variant: 'warning' })
+        say(refusedNotMemberToast(lapse.failed))
         return
       }
     }

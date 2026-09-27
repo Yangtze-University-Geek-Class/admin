@@ -113,6 +113,15 @@ export function signinLapsedToast(failed: string | null): PromptToast {
   }
 }
 
+/**
+ * A member's write refused because the server now serves this person as a
+ * guest while they are still signed in: they were taken out of the
+ * organisation (#164). Says what failed and why, with the not-member words.
+ */
+export function refusedNotMemberToast(failed: string): PromptToast {
+  return { id: 'forum-not-member', title: failed, description: UNAVAILABLE_COPY['not-member'].description, variant: 'warning', signIn: false }
+}
+
 /** A guest may reply to an open topic; closing a topic shuts guests out as well. */
 export function guestMayReply(access: ForumAccess, topic: Topic): boolean {
   return access.guestReply && !topic.closed

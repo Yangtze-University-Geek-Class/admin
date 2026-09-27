@@ -49,3 +49,24 @@
 - 做了什么：推送 task/164/session_rejected（到 e73a449）；gh pr create --base stage，标签 bug、P0、forum、server；正文 9 段，含改前改后 4 张截图（上传时借 PR #163 的评论框取附件地址，没有发评论）；node scripts/pr-contract.mjs check 通过。另开 #166：点登录整页跳转会丢未发出的草稿（审查建议，本 PR 不做）
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/165；审查结论先按第一轮写有条件通过，第二轮结束后更新
 - 下一步：第二轮审查，CI
+
+## 08:14:47 +08:00 · 提交 · #164 · 5cd60ae、e73a449（第一轮返工）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：5cd60ae docs(server) 数据模型与安全文档写上会话令牌被拒时结束会话，补并发只审计一次的测试；e73a449 fix(forum) 成员的写操作碰到任何 401 都先问 /auth/me；d1817cf docs(notes) 记下 PR #165
+- 结果：提交前 pnpm check exit 0、pnpm test 56 files / 823 tests、node scripts/forum.mjs check 30 files / 536 tests；推送后 PR #165 的 CI 在 d1817cf 上 9 个检查全过（第二轮审查指出这两个提交漏了「提交」记录，这里补上）
+- 下一步：第二轮审查的建议
+
+## 08:14:47 +08:00 · 审查 · #164 · 第二轮独立审查 e73a449：没有阻塞和应修，5 条建议
+
+- 执行者：agent-claude-review-164（Claude Code，claude-opus-5-5）
+- 做了什么：只读审查 08b483c..e73a449 的返工与完整分支，核对第一轮各项；跑了 forum 的 3 个测试文件（59 条通过）、note.mjs check、check-doc-sync、docs-index --check；在仓库外写临时测试复现两条写操作同时 401
+- 结果：第一轮 3 条应修都已修。建议：一、两条写操作同时在途时，第二条在页面换成游客后回来，仍弹没有登录按钮的旧提示（临时测试复现）；二、等 /auth/me 回来前页面短暂按「这个账号不在组织里」算；三、/auth/me 回 session_expired 那段没有测试；四、被移出组织的人收到「登录后才能操作」，应改用不在组织里的说法；五、5cd60ae、e73a449 没有「提交」记录
+- 下一步：按建议返工
+
+## 08:14:47 +08:00 · 返工 · #164 · 按发出时的身份判断失败，等 /auth/me 时先按没登录算，被移出组织改用不在组织里的说法
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：forum-server：attempt、steer、sendReply 在发出时记下是不是成员，fail() 按它判断（先试过「失效到重读完成之间」的标记，新测试抓到重读完成后才回来的写操作仍会漏，改掉）；/auth/me 那条收成 noteSessionEnded()；LoginModal 问 /auth/me 前先把 account 置空，还登录着时弹 refusedNotMemberToast；forum README 与 ADOPTION 同步；测试：store 加两条写操作同时 401 与 noteSessionEnded 两条，access 加 1 条，LoginModal 改被移出组织那条（等 /auth/me 时断言没登录、之后是不在组织里的说法）
+- 结果：变异核对：fail() 改回按页面上的身份判断、LoginModal 去掉先置空，各自对应的测试失败，恢复后通过。node scripts/forum.mjs check exit 0（30 files / 539 tests），pnpm check exit 0，check-doc-sync 通过。重建后本机 harness 在 ego 里再走两个标签页：A、B 各弹一条带登录的「登录已失效」，B 全程用 MutationObserver 看没出现过不在组织里的文字，A 刷新后是游客、不再弹。建议三按 noteSessionEnded 的 store 测试覆盖，组合函数本身由 nuxt typecheck 核对调用
+- 下一步：提交，推送，更新 PR

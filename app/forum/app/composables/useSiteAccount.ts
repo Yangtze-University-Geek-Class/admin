@@ -40,11 +40,8 @@ export function useSiteAccount() {
         : null
       account.value = parseMe(body)
       // 服务端刚结束了这次登录（GitHub 收回了会话里的授权，#164）：和论坛读到 session_expired 一样，页面按游客重读，由 LoginModal 说一次。
-      if (serverMode && sessionExpired(body)) {
-        const server = useForumServerStore()
-        server.noteSignedOut({ ended: true })
-        void server.load()
-      }
+      if (serverMode && sessionExpired(body))
+        useForumServerStore().noteSessionEnded()
     }
     catch {
       account.value = null

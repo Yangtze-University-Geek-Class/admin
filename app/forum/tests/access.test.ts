@@ -1,6 +1,6 @@
 import type { Topic, User } from '~/data/types'
 import { describe, expect, it } from 'vitest'
-import { forumAccess, guestMayReply, loginPromptToast, signinLapsedToast, UNAVAILABLE_COPY } from '~/data/access'
+import { forumAccess, guestMayReply, loginPromptToast, refusedNotMemberToast, signinLapsedToast, UNAVAILABLE_COPY } from '~/data/access'
 import { accountMenu } from '~/data/account-menu'
 import { can } from '~/data/permissions'
 
@@ -94,6 +94,16 @@ describe('what the forum says once the server ended the sign-in (#164)', () => {
       variant: 'warning',
       duration: 8000,
       signIn: true,
+    })
+  })
+
+  it('says what failed and that the account is not in the organisation when it is still signed in', () => {
+    expect(refusedNotMemberToast('没有赞上')).toEqual({
+      id: 'forum-not-member',
+      title: '没有赞上',
+      description: UNAVAILABLE_COPY['not-member'].description,
+      variant: 'warning',
+      signIn: false,
     })
   })
 
