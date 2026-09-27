@@ -25,6 +25,23 @@ export function postExcerpt(markdown: string, maxLength = 120): string {
 }
 
 /**
+ * A post's one-line text, wherever it came from (#156): the server cuts an
+ * `excerpt` for lists (where it no longer sends `content`) and sends `content`
+ * on the topic page and in the answers to writes that changed a body. Either
+ * way the caller wants a line, not a body: prefer the server's `excerpt`
+ * when it is there, otherwise cut one from the body.
+ *
+ * Not to be confused with `content`: a post the server never sent a body for
+ * has an empty `content` but a real `excerpt`, and reading `content` there
+ * would show nothing.
+ */
+export function postLine(post: { content?: string, excerpt?: string }, maxLength = 120): string {
+  if (post.excerpt !== undefined && post.excerpt !== '')
+    return post.excerpt
+  return postExcerpt(post.content ?? '', maxLength)
+}
+
+/**
  * An excerpt centred on where `query` matches, so a hit halfway down a long
  * post is actually visible. Falls back to the leading excerpt when the query
  * only matched something the plain-text pass stripped (a code fence, say).

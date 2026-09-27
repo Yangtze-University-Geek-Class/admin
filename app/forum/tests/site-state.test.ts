@@ -87,7 +87,7 @@ describe('siteForumState', () => {
   })
 
   it('ships the images of t84 instead of linking the image host that refuses other sites (#108)', () => {
-    const t84 = state.posts.find(post => post.topicId === 't84')!.content
+    const t84 = state.posts.find(post => post.topicId === 't84')!.content!
     expect(t84.match(/!\[[^\]\n]*\]\(\.\.\/published\/[a-f0-9]{16}\.webp\)/g)).toHaveLength(8)
     expect(t84).not.toContain('gitee.com')
     // The lecture link had raw spaces, which Markdown does not take as a link target.
@@ -97,12 +97,12 @@ describe('siteForumState', () => {
   it('links only to published topics and to images that ship with the forum', () => {
     const ids = new Set(publishedTopicIds())
     for (const post of state.posts) {
-      for (const [, id] of post.content.matchAll(/\]\(\.\/(t\d+)\)/g))
+      for (const [, id] of (post.content ?? '').matchAll(/\]\(\.\/(t\d+)\)/g))
         expect(ids.has(id!), `${post.topicId} → ${id}`).toBe(true)
-      for (const [, name] of post.content.matchAll(/\]\(\.\.\/published\/([^)]+)\)/g))
+      for (const [, name] of (post.content ?? '').matchAll(/\]\(\.\.\/published\/([^)]+)\)/g))
         expect(existsSync(new URL(`../public/published/${name}`, import.meta.url)), `${post.topicId} → ${name}`).toBe(true)
       // Links back into the old forum's absolute paths would leave the /forum/ base.
-      expect(post.content).not.toMatch(/\]\(\/(?:t|c|u)\//)
+      expect(post.content ?? '').not.toMatch(/\]\(\/(?:t|c|u)\//)
     }
   })
 

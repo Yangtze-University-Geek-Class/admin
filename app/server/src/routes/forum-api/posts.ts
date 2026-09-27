@@ -46,7 +46,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
       if (!forum.rateAllowed("reply", viewer.userId)) throw rateLimited();
       const postId = forum.createPost({ topicId, authorId: viewer.userId, content, replyToPostId });
       forum.rateRecord("reply", viewer.userId);
-      return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId] }), postId });
+      return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId] }, { posts: "full" }), postId });
     }
 
     if (!publicSubmission.checkHoneypot(req.body)) throw new ForumError(400, "request_rejected", "请求被拒绝");
@@ -72,7 +72,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     withinSiteLimit();
     const { guestId, postId } = forum.createGuestPost(name, { topicId, content, replyToPostId });
     forum.rateRecord("guestPostSite", GUEST_POST_SITE_SUBJECT);
-    return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId], users: [guestId] }), postId });
+    return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId], users: [guestId] }, { posts: "full" }), postId });
   });
 
   app.patch<{ Params: PostParams; Body: { content: string } }>("/api/forum/posts/:post_id", async req => {
@@ -83,7 +83,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     if (!req.body.content.trim()) throw new ForumError(400, "empty_content", "正文不能为空");
     forum.editPost(post.id, req.body.content);
     if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.edit", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
-    return forumChanges(req, viewer, { posts: [post.id] });
+    return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
   });
 
   /** 软删除。话题的第一帖不能删；已经删掉的再删一次直接返回这条帖子现在的样子。 */
@@ -91,11 +91,11 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     const viewer = await requireMember(req);
     const post = existingPost(req.params.post_id);
     const moderated = authorOrModerator(viewer, post, "删除");
-    if (post.deleted) return forumChanges(req, viewer, { posts: [post.id] });
+    if (post.deleted) return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
     if (forum.isFirstPost(post.id, post.topicId)) throw new ForumError(400, "first_post", "话题的第一帖不能删除");
     forum.deletePost(post.id);
     if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.delete", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
-    return forumChanges(req, viewer, { posts: [post.id] });
+    return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
   });
 
   app.post<{ Params: PostParams }>("/api/forum/posts/:post_id/like", async req => {

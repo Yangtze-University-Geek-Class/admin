@@ -111,7 +111,8 @@ describe('createSeed', () => {
       const first = state.posts.find(post => post.topicId === topic.id) as Post
       expect(first.authorId).toBe(topic.authorId)
       expect(first.createdAt).toBe(topic.createdAt)
-      expect(first.content.length).toBeGreaterThan(40)
+      // The demo seed always carries bodies (only a list answer from the server omits one, #156).
+      expect(first.content!.length).toBeGreaterThan(40)
     }
   })
 
@@ -161,10 +162,10 @@ describe('createSeed', () => {
     const firsts = firstPostIds(state)
     let mentions = 0
     for (const post of state.posts) {
-      expect(post.content).not.toMatch(/\{(?:mention|quote)\}/)
+      expect(post.content ?? '').not.toMatch(/\{(?:mention|quote)\}/)
       if (firsts.has(post.id))
         continue
-      for (const handle of extractMentions(post.content)) {
+      for (const handle of extractMentions(post.content ?? '')) {
         expect(usernames.has(handle), `${post.id}: @${handle}`).toBe(true)
         mentions++
       }

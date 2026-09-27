@@ -48,6 +48,10 @@ export const GUEST_POST_SITE_SUBJECT = "site";
 export const FORUM_REQUEST_LIMITS = {
   state: { max: 120, timeWindow: 60_000 },
   view: { max: 60, timeWindow: 60_000 },
+  /** 话题页拉一个话题的帖子（含正文）：一个 IP 每分钟 120 次，与 `/state` 同一量级（#156）。 */
+  topicPosts: { max: 120, timeWindow: 60_000 },
+  /** 搜索（#156）：一个 IP 每分钟 30 次，写词时要打字，很少有人逼近。 */
+  search: { max: 30, timeWindow: 60_000 },
 } as const;
 
 /** 同一 IP 同一话题一小时只算一次浏览。 */
@@ -70,6 +74,54 @@ export function extractMentions(content: string): string[] {
   const handles = new Set<string>();
   for (const match of prose.matchAll(MENTION_PATTERN)) handles.add((match[1] ?? "").toLowerCase());
   return [...handles];
+}
+
+/** 帖子列表摘要的长度上限（#156）：`/state` 的每条帖子都只带这么长的摘要。 */
+export const POST_EXCERPT_MAX = 200;
+/** 搜索命中摘要的长度（居中于命中位置）。 */
+export const SEARCH_EXCERPT_MAX = 120;
+/** 搜索每类结果的条数上限；与论坛前端旧的 `searchAll` 的 `SEARCH_LIMIT` 相同。 */
+export const SEARCH_LIMIT = 50;
+/** 搜索词的长度上限。 */
+export const SEARCH_QUERY_MAX = 100;
+
+/**
+ * Markdown 帖子正文压成一行纯文本，供摘要使用。故意是有损的：代码块整段消失，链接只留文字，
+ * 所有空白折成一个空格。与论坛前端 `app/utils/excerpt.ts` 的 `plainText` 逐条相同（服务端不导入论坛代码，
+ * 两边是不同的包，改一边要同步另一边；`tests/server/forum.test.ts` 用同一批输入核对两边结果一致）。
+ */
+export function plainText(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s{0,3}(?:[-*+]|\d+\.)\s+/gm, "")
+    .replace(/[*_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** 一行摘要，超长截断并加省略号。 */
+export function postExcerpt(markdown: string, maxLength = POST_EXCERPT_MAX): string {
+  const text = plainText(markdown);
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+/**
+ * 搜索命中的摘要：以命中位置为中心，命中在后半篇时也看得见。查询词只在纯文本里找不到（命中的是代码块）时，
+ * 退回开头的一行摘要。与论坛前端的 `matchExcerpt` 相同。
+ */
+export function matchExcerpt(markdown: string, query: string, maxLength = SEARCH_EXCERPT_MAX): string {
+  const text = plainText(markdown);
+  const needle = query.trim().toLowerCase();
+  const at = needle ? text.toLowerCase().indexOf(needle) : -1;
+  if (at < 0 || text.length <= maxLength) return postExcerpt(markdown, maxLength);
+  const start = Math.max(0, at - Math.floor((maxLength - needle.length) / 2));
+  const end = Math.min(text.length, start + maxLength);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 }
 
 /** 标签名 → slug：小写、空白换成 `-`、去掉 `[a-z0-9-]` 以外的字符；纯中文会得到空串。 */

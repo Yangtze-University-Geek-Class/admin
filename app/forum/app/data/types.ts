@@ -93,8 +93,20 @@ export interface Post {
   id: string
   topicId: string
   authorId: string
-  /** Markdown. Empty once the post is soft-deleted. */
-  content: string
+  /**
+   * Markdown. Empty once the post is soft-deleted, and absent in a list the
+   * forum server answered without bodies (#156): `/state` carries `excerpt`
+   * instead, and the topic page asks for this topic's posts to get `content`.
+   * “Absent” means “this answer did not send a body”, not “the post is
+   * empty” — a merge must keep the body the page already holds.
+   */
+  content?: string
+  /**
+   * One line of plain text the server cut from the body (#156), for lists and
+   * search hits. Present on every post `/state` returns; `content` is not.
+   * The demo seed and the snapshot leave it out and use `content`.
+   */
+  excerpt?: string
   createdAt: number
   editedAt?: number
   /** Set when the reply targets a specific post rather than the topic. */
@@ -160,6 +172,12 @@ export interface ForumState {
  * records in the same shape as in `ForumState`, merged by id into the state
  * the page already holds (`applyChanges` in stores/forum.ts). Bookmarks and
  * follows have no id; one that no longer exists comes under `removed`.
+ *
+ * Posts come in two shapes (#156): the answer to a write that did not change
+ * a body (a like, a bookmark) carries `excerpt` like `/state` does, and the
+ * answer to one that did (发贴、回复、编辑、删除) carries `content`. A post
+ * whose `content` is absent is not a deleted post — it means “the server did
+ * not send a body”, and `postExcerpt()` reads `excerpt` instead.
  */
 export interface ForumChanges {
   users?: User[]

@@ -147,11 +147,39 @@ function assignChanged<T extends object>(target: T, next: T): void {
   }
 }
 
+/**
+ * Merges one post record. Posts are the one record whose fields differ between
+ * answers (#156): a list answer (`/state`, a like) carries `excerpt` and no
+ * `content`, the topic page's answer and a body-changing write carry `content`
+ * and no `excerpt`. So a missing `content` means "this answer did not send a
+ * body": the body the page already loaded stays. A missing `excerpt` is
+ * cleared like any other field. A deletion is the one case where the body
+ * really goes: the server sends `content: ''`.
+ */
+function assignPost(target: Post, next: Post): void {
+  const sendsBody = 'content' in next
+  const body = target.content
+  assignChanged(target, next)
+  if (!sendsBody)
+    target.content = body
+}
+
 function upsertById<T extends { id: string }>(list: T[], records: T[] | undefined, find: (id: string) => T | undefined): void {
   for (const record of records ?? []) {
     const existing = find(record.id)
     if (existing)
       assignChanged(existing, record)
+    else
+      list.push(record)
+  }
+}
+
+/** `upsertById` for posts, which keep a body an answer did not send (`assignPost`). */
+function upsertPosts(list: Post[], records: Post[] | undefined, find: (id: string) => Post | undefined): void {
+  for (const record of records ?? []) {
+    const existing = find(record.id)
+    if (existing)
+      assignPost(existing, record)
     else
       list.push(record)
   }
@@ -360,7 +388,7 @@ export const useForumStore = defineStore('forum', () => {
         .sort((a, b) => b.lastActivityAt - a.lastActivityAt)
         .slice(0, SEARCH_LIMIT),
       posts: state.value.posts
-        .filter(post => !post.deleted && post.content.toLowerCase().includes(q))
+        .filter(post => !post.deleted && (post.content ?? '').toLowerCase().includes(q))
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, SEARCH_LIMIT),
       users: state.value.users
@@ -517,7 +545,7 @@ export const useForumStore = defineStore('forum', () => {
 
   /** `@username` mentions in a post, for everyone not already told about it. */
   function notifyMentions(post: Post): void {
-    for (const handle of extractMentions(post.content)) {
+    for (const handle of extractMentions(post.content ?? '')) {
       const mentioned = userByUsername(handle)
       if (!mentioned || mentioned.id === post.authorId || hasNotification(mentioned.id, 'reply', { postId: post.id }) || hasNotification(mentioned.id, 'mention', { postId: post.id }))
         continue
@@ -744,7 +772,7 @@ export const useForumStore = defineStore('forum', () => {
     upsertById(current.users, changes.users, id => userMap.value.get(id))
     upsertById(current.tags, changes.tags, id => tagMap.value.get(id))
     upsertById(current.topics, changes.topics, id => topicMap.value.get(id))
-    upsertById(current.posts, changes.posts, id => postMap.value.get(id))
+    upsertPosts(current.posts, changes.posts, id => postMap.value.get(id))
     upsertById(current.notifications, changes.notifications, id => current.notifications.find(item => item.id === id))
     for (const bookmark of changes.bookmarks ?? []) {
       const existing = current.bookmarks.find(item => item.userId === bookmark.userId && item.postId === bookmark.postId)

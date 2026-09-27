@@ -1,6 +1,6 @@
 import type { ServerStatus } from '~/data/access'
 import type { Bookmark, Follow, ForumChanges, Notification, NotifyPrefs, Post, User } from '~/data/types'
-import type { CreatePostBody, CreateTopicBody, ForumViewer, GuestPolicy, ProfileBody, ServerSnapshot, WriteResult } from '../../shared/forum-api'
+import type { CreatePostBody, CreateTopicBody, ForumViewer, GuestPolicy, ProfileBody, SearchAnswer, ServerSnapshot, WriteResult } from '../../shared/forum-api'
 import { toast } from '@talex-touch/tuffex/utils'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -183,6 +183,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
    * nothing: the topic's composer takes them back when it is next on screen.
    */
   const refusedReplies = ref<RefusedReply[]>([])
+  /** In-flight body requests, one per topic, so two mounts share one request. */
+  const topicLoads = new Map<string, Promise<boolean>>()
 
   function keepRefusedReply(reply: RefusedReply): void {
     refusedReplies.value.push({ ...reply })
@@ -197,8 +199,16 @@ export const useForumServerStore = defineStore('forum-server', () => {
   }
 
   function remember(records: Pick<ForumChanges, 'posts' | 'notifications'>): void {
-    for (const post of records.posts ?? [])
-      serverPosts.set(post.id, { content: post.content, ...(post.editedAt === undefined ? {} : { editedAt: post.editedAt }), ...(post.deleted ? { deleted: true } : {}) })
+    for (const post of records.posts ?? []) {
+      // A list answer carries no body (#156): "this answer did not send one" is
+      // not "the server has none", so the body last confirmed stays.
+      const known = serverPosts.get(post.id)?.content
+      serverPosts.set(post.id, {
+        ...('content' in post ? { content: post.content ?? '' } : known === undefined ? {} : { content: known }),
+        ...(post.editedAt === undefined ? {} : { editedAt: post.editedAt }),
+        ...(post.deleted ? { deleted: true } : {}),
+      })
+    }
     for (const notification of records.notifications ?? [])
       serverReads.set(notification.id, notification.read)
   }
@@ -755,6 +765,63 @@ export const useForumServerStore = defineStore('forum-server', () => {
     return await attempt(failure, async () => merge(await send())) !== null
   }
 
+  /**
+   * The topic page's bodies (#156): `/state` carries a list summary for every
+   * post and no body, so the page asks for this topic's posts on entering it.
+   * The answer is merged like a write's (#145), so the bodies land on the
+   * records the list already shows and the page does not replace its state.
+   *
+   * Every mount asks again (that is what brings in replies made elsewhere
+   * meanwhile); two mounts at once share one request. Failure is quiet: the
+   * page keeps the summaries it has, and posts that already have a body (this
+   * session's own replies) still show.
+   */
+  function loadTopic(topicId: string): Promise<boolean> {
+    const running = topicLoads.get(topicId)
+    if (running)
+      return running
+    if (status.value !== 'ready')
+      return Promise.resolve(false)
+    const pending = (async () => {
+      try {
+        const posts = await api.topicPosts(topicId)
+        // Bodies only: a list answer's `excerpt` stays what the list shows.
+        // `remember` also takes the bodies as the server's last word, so a
+        // refused edit afterwards puts this text back rather than an empty one.
+        remember({ posts })
+        forum.applyChanges({ posts })
+        return true
+      }
+      catch (error) {
+        if (isRateLimited(error))
+          sayRateLimited()
+        return false
+      }
+      finally {
+        topicLoads.delete(topicId)
+      }
+    })()
+    topicLoads.set(topicId, pending)
+    return pending
+  }
+
+  /** The server's search (#156): the browser no longer holds every body to match on. */
+  async function search(query: string): Promise<SearchAnswer['results'] | null> {
+    const term = query.trim()
+    if (!term)
+      return { topics: [], posts: [], users: [] }
+    try {
+      return await api.search(term)
+    }
+    catch (error) {
+      if (isRateLimited(error))
+        sayRateLimited()
+      else if (error instanceof ForumApiError)
+        toast({ title: '搜索没有完成', description: error.message, variant: 'warning' })
+      return null
+    }
+  }
+
   return {
     status,
     viewer,
@@ -785,6 +852,8 @@ export const useForumServerStore = defineStore('forum-server', () => {
     markRead,
     markAllRead,
     updateProfile,
+    loadTopic,
+    search,
     uploadAvatar: (file: Blob) => waitFor('头像没有换成', () => api.uploadAvatar(file)),
     resetAvatar: () => waitFor('没有恢复 GitHub 头像', () => api.resetAvatar()),
   }

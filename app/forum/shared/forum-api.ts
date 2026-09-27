@@ -1,4 +1,4 @@
-import type { ForumChanges, ForumState, NotifyPrefs, User } from '../app/data/types'
+import type { ForumChanges, ForumState, NotifyPrefs, Post, Topic, User } from '../app/data/types'
 import type { PowProof } from './pow'
 import { FORUM_STATE_VERSION } from '../app/data/types'
 
@@ -35,6 +35,16 @@ export interface ServerSnapshot {
   state: ForumState
   viewer: ForumViewer
   guestPolicy: GuestPolicy
+}
+
+/** `GET /api/forum/topics/:id/posts` 的回答（#156）：这个话题的全部帖子，带正文。 */
+export interface TopicPostsAnswer {
+  posts: Post[]
+}
+
+/** `GET /api/forum/search` 的回答（#156）：服务端匹配的话题、帖子与用户。 */
+export interface SearchAnswer {
+  results: { topics: Topic[], posts: Post[], users: User[] }
 }
 
 /** 写接口的回答：变了的记录，加上和 `/state` 一样的 `viewer`、`guestPolicy`。 */
@@ -173,6 +183,8 @@ export function createForumApi(fetchImpl: FetchLike) {
 
   return {
     state: async (): Promise<ServerSnapshot> => parseServerSnapshot(await request('GET', '/state', undefined, { signal: timeoutSignal(STATE_TIMEOUT_MS) })),
+    topicPosts: async (topicId: string): Promise<Post[]> => parseTopicPosts(await request('GET', `/topics/${id(topicId)}/posts`, undefined, { signal: timeoutSignal(STATE_TIMEOUT_MS) })),
+    search: async (query: string): Promise<SearchAnswer['results']> => parseSearch(await request('GET', `/search?q=${encodeURIComponent(query)}`)),
     async createTopic(body: CreateTopicBody): Promise<WriteResult & { topicId: string }> {
       const json = await request('POST', '/topics', body)
       return { ...parseWriteResult(json), topicId: stringField(json, 'topicId') }
@@ -272,10 +284,16 @@ export function parseWriteResult(body: unknown): WriteResult {
       throw invalid()
     changes.users = users as User[]
   }
-  for (const key of ['tags', 'topics', 'posts', 'notifications'] as const) {
+  for (const key of ['tags', 'topics', 'notifications'] as const) {
     const list = records(key, ['id'])
     if (list)
       (changes as Record<string, unknown>)[key] = list
+  }
+  const posts = records('posts', ['id'])?.map(normalizePost)
+  if (posts) {
+    if (posts.includes(null))
+      throw invalid()
+    changes.posts = posts as Post[]
   }
   const bookmarks = records('bookmarks', ['userId', 'postId'])
   if (bookmarks)
@@ -303,6 +321,51 @@ export function parseWriteResult(body: unknown): WriteResult {
     }
   }
   return { changes, viewer, guestPolicy: parseGuestPolicy(body.guestPolicy) }
+}
+
+/**
+ * `GET /api/forum/topics/:id/posts`（#156）：每条都要有正文，否则整份不收（不把半份数据放进 store）。
+ * 服务器返回的每条帖子都带 id，客户端的 `parsePost` 不再看 content，这里另外查一遍。
+ */
+export function parseTopicPosts(body: unknown): Post[] {
+  const invalid = (): ForumApiError => new ForumApiError(200, 'invalid_response', '论坛服务返回的数据不完整，请稍后再试。')
+  if (!isRecord(body) || !Array.isArray(body.posts))
+    throw invalid()
+  const posts = (body.posts as unknown[]).map(normalizePost)
+  if (posts.includes(null) || posts.some(post => typeof post!.content !== 'string'))
+    throw invalid()
+  return posts as Post[]
+}
+
+/**
+ * `GET /api/forum/search`（#156）：三类结果，形状与 `/state` 里对应的记录相同（帖子是摘要）。
+ * 形状不对就整份拒收。
+ */
+export function parseSearch(body: unknown): SearchAnswer['results'] {
+  const invalid = (): ForumApiError => new ForumApiError(200, 'invalid_response', '论坛服务返回的数据不完整，请稍后再试。')
+  if (!isRecord(body) || !isRecord(body.results))
+    throw invalid()
+  const { topics, posts, users } = body.results
+  if (!Array.isArray(topics) || !Array.isArray(posts) || !Array.isArray(users))
+    throw invalid()
+  const normalizedUsers = (users as unknown[]).map(normalizeUser)
+  if (normalizedUsers.includes(null))
+    throw invalid()
+  return { topics: topics as Topic[], posts: posts as Post[], users: normalizedUsers as User[] }
+}
+
+/**
+ * 一条帖子记录（`/state` 里的、搜索结果里的、写回答里的）：查 id 与 `likeUserIds`，`content` 缺席时
+ * 不补值。正文与摘要是两回事（#156）：服务器在列表里给 `excerpt`、在话题页与改正文的写回答里给 `content`；
+ * `content` 缺席表示「这次没发正文」（不是「正文为空」），要显示一行文字的地方用 `postLine()`，
+ * 要显示正文的地方先看 `content !== undefined`。
+ */
+function normalizePost(value: unknown): Post | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id)
+    return null
+  if (!Array.isArray(value.likeUserIds) || !value.likeUserIds.every(id => typeof id === 'string'))
+    return null
+  return value as unknown as Post
 }
 
 function parseViewer(value: unknown): ForumViewer | null {

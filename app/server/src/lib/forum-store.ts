@@ -1,7 +1,8 @@
 import type Database from "better-sqlite3";
 import type { ForumContent, ForumTag } from "./forum-content.js";
 import {
-  COUNTER_START, FORUM_LIMITS, FORUM_RATE_LIMITS, ForumError, VIEW_WINDOW_MS, extractMentions, nameKey, paletteColor, tagSlug,
+  COUNTER_START, FORUM_LIMITS, FORUM_RATE_LIMITS, ForumError, POST_EXCERPT_MAX, SEARCH_EXCERPT_MAX, SEARCH_LIMIT, VIEW_WINDOW_MS,
+  extractMentions, matchExcerpt, nameKey, paletteColor, postExcerpt, tagSlug,
   type CounterName, type RateBucket,
 } from "./forum-rules.js";
 
@@ -9,6 +10,9 @@ import {
  * 论坛的持久化与业务规则（#57）：forum_* 表的全部 SQL、编号、通知规则和整份 `ForumState` 的组装。
  * 只接收普通参数，不接触 Fastify；授权（谁能做）在 routes/forum-api，这里只管「做了会怎样」。
  * 输出形状与论坛前端 `app/forum/app/data/types.ts` 的 `ForumState`（version 1）一致。
+ *
+ * #156：`state()` 与不改正文的写回答只下发帖子摘要（`ForumPostSummary`），正文只在 `state()` 之外
+ * ——`topicPosts()`（话题页按话题取）与改正文的写回答（发帖、回复、编辑、删除）——出现；搜索由 `search()` 服务端做。
  */
 
 export type ForumTitle = { id: "admin" | "captain" | "head" | "member" | "alumni"; department?: string };
@@ -23,9 +27,24 @@ export type ForumTopic = {
   id: string; slug: string; title: string; categoryId: string; tagIds: string[]; authorId: string;
   createdAt: number; lastActivityAt: number; views: number; pinned: boolean; closed: boolean;
 };
-export type ForumPost = {
-  id: string; topicId: string; authorId: string; content: string; createdAt: number;
+/**
+ * 帖子记录的公共部分（#156）：`/state` 与写接口回答里的帖子都至少有这些字段，正文不在里面。
+ * 回复数、赞数、参与者、个人页统计这些由客户端从这些字段算出来，不受影响。
+ */
+export type ForumPostSummary = {
+  id: string; topicId: string; authorId: string; createdAt: number;
   editedAt?: number; replyToPostId?: string; likeUserIds: string[]; deleted?: boolean;
+};
+/**
+ * `/state` 里的帖子与搜索命中（#156）：公共字段加服务端截好的一行纯文本摘要 `excerpt`，没有正文。
+ * 列表、书签页、个人页的摘要都读它；正文只在 `topicPosts()` 与改正文的写回答里。
+ */
+export type ForumPostExcerpt = ForumPostSummary & { excerpt: string };
+/** 整条帖子（话题页 `GET /api/forum/topics/:topic_id/posts`，以及发帖、回复、编辑、删除的回答）。 */
+export type ForumPost = ForumPostSummary & { content: string };
+/** 搜索的结果（`GET /api/forum/search`）：话题、帖子摘要与用户，可见性与 `/state` 里的同类记录相同。 */
+export type ForumSearchResult = {
+  topics: ForumTopic[]; posts: ForumPostExcerpt[]; users: ForumUser[];
 };
 export type ForumNotification = {
   id: string; recipientId: string; type: "reply" | "like" | "follow" | "mention" | "system"; actorId: string;
@@ -37,7 +56,7 @@ export type ForumStateBody = {
   version: 1; seededAt: number;
   counters: { topic: number; post: number; notification: number; tag: number };
   users: ForumUser[]; categories: ForumContent["categories"]; tags: ForumTag[];
-  topics: ForumTopic[]; posts: ForumPost[]; notifications: ForumNotification[];
+  topics: ForumTopic[]; posts: ForumPostExcerpt[]; notifications: ForumNotification[];
   bookmarks: ForumBookmark[];
   follows: ForumFollow[];
 };
@@ -45,9 +64,12 @@ export type ForumStateBody = {
  * 一次写入之后变了的记录（#145）：写接口只回这些，前端按 id 并进手里的状态，不再整份替换。
  * 每条记录与 state() 里同一条完全一样（同一套投影），可见性也一样：通知只有看的人自己的，书签只有自己的，
  * 通知设置只有本人的是真值。书签与关注没有 id，取消了的放在 `removed` 里。
+ * 帖子记录默认只有公共字段加 `excerpt`（没有正文，#156）；发帖、回复、编辑、删除这四种改正文的写入
+ * 用 `changes(..., { posts: "full" })` 多带正文，前端才能把新正文显示出来。
+ * 这里的类型是公共部分：带摘要的与带正文的都算，调用方按发出的选项知道是哪种。
  */
 export type ForumChanges = {
-  users?: ForumUser[]; tags?: ForumTag[]; topics?: ForumTopic[]; posts?: ForumPost[]; notifications?: ForumNotification[];
+  users?: ForumUser[]; tags?: ForumTag[]; topics?: ForumTopic[]; posts?: ForumPostSummary[]; notifications?: ForumNotification[];
   bookmarks?: ForumBookmark[]; follows?: ForumFollow[];
   removed?: { bookmarks?: Omit<ForumBookmark, "createdAt">[]; follows?: Omit<ForumFollow, "createdAt">[] };
 };
@@ -55,6 +77,14 @@ export type ForumChanges = {
 export type ChangeKeys = {
   users?: string[]; tags?: string[]; topics?: string[]; posts?: string[]; notifications?: string[];
   bookmarks?: string[]; follows?: Omit<ForumFollow, "createdAt">[];
+};
+/** `changes()` 的选项（#156）：帖子记录带不带正文。 */
+export type ChangeOptions = {
+  /**
+   * `excerpt`（默认）：公共字段加服务端截好的 `excerpt`，没有正文。点赞、书签、置顶这些不改正文的写入用它。
+   * `full`：再多一个 `content`。发帖、回复、编辑、删除这四种改正文的写入用它，前端才能把新正文显示出来。
+   */
+  posts?: "excerpt" | "full";
 };
 export type MemberIdentity = { githubUserId: number; login: string; avatarUrl: string | null; role: "admin" | "member"; title: ForumTitle | null };
 export type NewPost = { topicId: string; authorId: string; content: string; replyToPostId?: string };
@@ -102,6 +132,10 @@ function toUser(row: UserRow, ownPrefs = true): ForumUser {
   };
 }
 
+/**
+ * 列表要的话题（#156）：`/state` 与不改正文的写回答都是普通 `ForumTopic`；首帖摘要落在同一条 `posts[].excerpt` 上，
+ * 列表按主题 id 从 `posts` 里找首帖就行。
+ */
 function toTopic(row: TopicRow): ForumTopic {
   return {
     id: row.id, slug: row.slug, title: row.title, categoryId: row.category_id, tagIds: JSON.parse(row.tag_ids) as string[],
@@ -110,15 +144,30 @@ function toTopic(row: TopicRow): ForumTopic {
   };
 }
 
-function toPost(row: PostRow, likeUserIds: string[]): ForumPost {
+/**
+ * 帖子的三种投影（#156）：正文只在话题页与改正文的写回答里出现。
+ * `excerpt` 由服务端截好（`forum-rules.ts` 的 `postExcerpt`，与论坛前端同一套规则），与正文一样是 Markdown 的行摘要。
+ */
+function toPost(row: PostRow, likeUserIds: string[]): ForumPostSummary {
   return {
-    id: row.id, topicId: row.topic_id, authorId: row.author_id, content: row.content, createdAt: row.created_at,
+    id: row.id, topicId: row.topic_id, authorId: row.author_id, createdAt: row.created_at,
     ...(row.edited_at === null ? {} : { editedAt: row.edited_at }),
     ...(row.reply_to_post_id === null ? {} : { replyToPostId: row.reply_to_post_id }),
     likeUserIds,
     ...(row.deleted ? { deleted: true } : {}),
   };
 }
+
+const toPostFull = (row: PostRow, likeUserIds: string[]): ForumPost => ({ ...toPost(row, likeUserIds), content: row.content });
+/** `/state` 与非空正文写入的摘要投影：服务端截好的一行纯文本，与论坛前端的 `postExcerpt` 同一套规则。 */
+const toPostExcerpt = (row: PostRow, likeUserIds: string[]): ForumPostExcerpt => ({ ...toPost(row, likeUserIds), excerpt: postExcerpt(row.content, POST_EXCERPT_MAX) });
+
+/** 搜索命中只匹配标题/名字，投影与 `/state` 里的同一条完全一样。 */
+const toPostHit = (row: PostRow, likeUserIds: string[], query: string): ForumPostExcerpt =>
+  ({ ...toPost(row, likeUserIds), excerpt: matchExcerpt(row.content, query, SEARCH_EXCERPT_MAX) });
+
+/** `LIKE` 里的 `%`、`_`、`\` 都要转义，配 `ESCAPE '\'` 用；与控制台投递搜索同一条规则。 */
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, match => `\\${match}`);
 
 function toNotification(row: NotificationRow): ForumNotification {
   return {
@@ -254,6 +303,33 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     if (hash) db.prepare("DELETE FROM forum_avatars WHERE hash = ? AND NOT EXISTS (SELECT 1 FROM forum_users WHERE avatar_hash = ?)").run(hash, hash);
   };
 
+  /** 每条帖子的点赞人，按时间与行号排；`state()`、`changes()` 与话题页共用同一套顺序。 */
+  const likesByPost = (): Map<string, string[]> => {
+    const likes = new Map<string, string[]>();
+    for (const like of db.prepare("SELECT post_id, user_id FROM forum_likes ORDER BY created_at, rowid").all() as { post_id: string; user_id: string }[]) {
+      const list = likes.get(like.post_id);
+      if (list) list.push(like.user_id); else likes.set(like.post_id, [like.user_id]);
+    }
+    return likes;
+  };
+
+  /**
+   * 搜索（#156）：正文不在浏览器里了，匹配改在服务端做。
+   * 匹配的列与客户端旧的 `searchAll` 一样（话题标题、帖子正文、用户名与昵称），顺序也一样（各自按时间倒序），
+   * 每类最多 `SEARCH_LIMIT` 条；可见性与 `/state` 相同（帖子只给摘要，没正文）。
+   */
+  function search(viewerId: string | null, query: string): ForumSearchResult {
+    const like = `%${escapeLike(query)}%`;
+    const likes = likesByPost();
+    const topics = (db.prepare("SELECT * FROM forum_topics WHERE title LIKE ? ESCAPE '\\' ORDER BY last_activity_at DESC, rowid DESC LIMIT ?")
+      .all(like, SEARCH_LIMIT) as TopicRow[]).map(toTopic);
+    const posts = (db.prepare("SELECT * FROM forum_posts WHERE content LIKE ? ESCAPE '\\' AND deleted = 0 ORDER BY created_at DESC, rowid DESC LIMIT ?")
+      .all(like, SEARCH_LIMIT) as PostRow[]).map(row => toPostHit(row, likes.get(row.id) ?? [], query));
+    const users = (db.prepare("SELECT * FROM forum_users WHERE username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' ORDER BY joined_at, rowid LIMIT ?")
+      .all(like, like, SEARCH_LIMIT) as UserRow[]).map(row => toUser(row, row.id === viewerId));
+    return { topics, posts, users };
+  }
+
   return {
     content,
     hasCategory: (id: string) => categoryIds.has(id),
@@ -263,6 +339,17 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
       const row = postRow(id);
       return row ? { id: row.id, topicId: row.topic_id, authorId: row.author_id, deleted: row.deleted === 1, replyToPostId: row.reply_to_post_id } : undefined;
     },
+    /**
+     * 一个话题的全部帖子，按楼层排（#156）：话题页先拿这里，才拿得到正文。
+     * 投影与 `state().posts` 里同一条完全一样，只是多带 `content`（含已删除帖子清空后的空串）。
+     */
+    topicPosts(topicId: string): ForumPost[] {
+      const likes = likesByPost();
+      return (db.prepare("SELECT * FROM forum_posts WHERE topic_id = ? ORDER BY created_at, rowid").all(topicId) as PostRow[])
+        .map(row => toPostFull(row, likes.get(row.id) ?? []));
+    },
+    /** 搜索（#156）：正文不在浏览器里了，匹配改在服务端做；可见性与 `/state` 相同。 */
+    search,
     /** 话题的第一帖承载整个话题，不能删。 */
     isFirstPost(postId: string, topicId: string): boolean {
       const first = db.prepare("SELECT id FROM forum_posts WHERE topic_id = ? ORDER BY created_at, rowid LIMIT 1").get(topicId) as { id: string } | undefined;
@@ -483,13 +570,10 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     /**
      * 整份论坛状态。通知与书签只含 `viewerId` 自己的（游客两者都是空数组），通知设置只有本人的是真实值；关注全部下发。
      * 分类与精选标签来自 curation.json，后面接用户新建的标签。
+     * #156：话题带首帖摘要（列表显示它）、帖子只带摘要字段（没有正文）。正文由 `topicPosts()` 进话题页时按话题取。
      */
     state(viewerId: string | null): ForumStateBody {
-      const likes = new Map<string, string[]>();
-      for (const like of db.prepare("SELECT post_id, user_id FROM forum_likes ORDER BY created_at, rowid").all() as { post_id: string; user_id: string }[]) {
-        const list = likes.get(like.post_id);
-        if (list) list.push(like.user_id); else likes.set(like.post_id, [like.user_id]);
-      }
+      const likes = likesByPost();
       const counters = Object.fromEntries((db.prepare("SELECT name, value FROM forum_counters").all() as { name: CounterName; value: number }[]).map(row => [row.name, row.value]));
       return {
         version: 1,
@@ -499,7 +583,7 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
         categories: content.categories,
         tags: [...content.tags, ...(db.prepare("SELECT id, slug, name, color FROM forum_tags ORDER BY created_at, rowid").all() as TagRow[])],
         topics: (db.prepare("SELECT * FROM forum_topics ORDER BY created_at, rowid").all() as TopicRow[]).map(toTopic),
-        posts: (db.prepare("SELECT * FROM forum_posts ORDER BY created_at, rowid").all() as PostRow[]).map(row => toPost(row, likes.get(row.id) ?? [])),
+        posts: (db.prepare("SELECT * FROM forum_posts ORDER BY created_at, rowid").all() as PostRow[]).map(row => toPostExcerpt(row, likes.get(row.id) ?? [])),
         notifications: viewerId === null ? [] : (db.prepare("SELECT * FROM forum_notifications WHERE recipient_id = ? ORDER BY created_at DESC, rowid DESC").all(viewerId) as NotificationRow[])
           .map(toNotification),
         bookmarks: viewerId === null ? [] : (db.prepare("SELECT user_id, post_id, created_at FROM forum_bookmarks WHERE user_id = ? ORDER BY created_at, rowid").all(viewerId) as {
@@ -515,8 +599,10 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
      * 写入之后回给前端的那几条记录（#145），投影与可见性和 state(viewerId) 完全一样：不存在的 id 直接跳过；
      * 通知只取收件人是看的人的，书签只查看的人自己的，游客两者都没有；只有本人的通知设置是真值。
      * 书签、关注查不到就放进 `removed`，前端据此删掉。
+     * #156：帖子默认只回字段（`summary`，没正文也没摘要，点赞、书签这些不改正文的写入用它）；
+     * 发帖、回复、编辑、删除传 `{ posts: "full" }` 才带 `content`，前端要把新正文显示出来。
      */
-    changes(viewerId: string | null, keys: ChangeKeys): ForumChanges {
+    changes(viewerId: string | null, keys: ChangeKeys, options: ChangeOptions = {}): ForumChanges {
       const unique = (list: string[] | undefined) => [...new Set(list ?? [])];
       const out: ForumChanges = {};
       const users = unique(keys.users).map(user).filter(row => row !== undefined).map(row => toUser(row, row.id === viewerId));
@@ -527,9 +613,11 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
       if (tags.length) out.tags = tags;
       const topics = unique(keys.topics).map(topicRow).filter(row => row !== undefined).map(toTopic);
       if (topics.length) out.topics = topics;
-      const likesOf = db.prepare("SELECT user_id FROM forum_likes WHERE post_id = ? ORDER BY created_at, rowid");
-      const posts = unique(keys.posts).map(postRow).filter(row => row !== undefined)
-        .map(row => toPost(row, (likesOf.all(row.id) as { user_id: string }[]).map(like => like.user_id)));
+      const likes = likesByPost();
+      const posts = unique(keys.posts).map(postRow).filter(row => row !== undefined).map(row => {
+        const likeUserIds = likes.get(row.id) ?? [];
+        return options.posts === "full" ? toPostFull(row, likeUserIds) : toPostExcerpt(row, likeUserIds);
+      });
       if (posts.length) out.posts = posts;
       if (viewerId === null) return out;
       const ownNotification = db.prepare("SELECT * FROM forum_notifications WHERE id = ? AND recipient_id = ?");

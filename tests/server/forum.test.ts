@@ -265,6 +265,104 @@ describe('state', () => {
   });
 });
 
+describe('list state without bodies (#156)', () => {
+  /** 一帖很长的正文：它只要出现在首屏，大小就看得出差别。尾部的标记只在这里出现。 */
+  const TAIL = '正文结尾标记-不在首屏-38f2';
+  const LONG = `# 标题\n\n${'这一段是正文，用来验证首屏不再带整篇内容。'.repeat(200)}${TAIL}`;
+
+  it('carries no post body and a one-line excerpt per post in /state', async () => {
+    const s = await setup();
+    const { topicId, postId } = await newTopic(s, 'bob', { content: LONG });
+    await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '短回复' });
+    const res = await s.call('GET', '/api/forum/state');
+    const { posts } = res.json().state as { posts: any[] };
+    // 整篇正文不在回答里（标题与正文的尾部标记都不在）。
+    expect(res.body).not.toContain(TAIL);
+    expect(res.body).not.toContain('# 标题');
+    for (const post of posts) {
+      expect(Object.keys(post), post.id).not.toContain('content');
+      expect(typeof post.excerpt).toBe('string');
+    }
+    // 摘要是纯文本（标题符号与换行都被压掉），长帖截到 200 字加省略号。
+    const long = posts.find(post => post.id === postId);
+    expect(long.excerpt).not.toContain('#');
+    expect(long.excerpt).not.toContain('\n');
+    expect(long.excerpt).toHaveLength(201);
+    expect(long.excerpt.endsWith('…')).toBe(true);
+    expect(posts.find(post => post.id === 'body-9').excerpt.length).toBeLessThan(201);
+    // 除正文外，帖子记录的其它字段照旧：列表与个人页的计数不用变。
+    expect(Object.keys(posts[0]).sort()).toEqual(['authorId', 'createdAt', 'excerpt', 'id', 'likeUserIds', 'topicId']);
+  });
+
+  it('serves one topic\'s posts with bodies, for anyone, and 404s an unknown topic', async () => {
+    const s = await setup();
+    const { topicId, postId } = await newTopic(s, 'bob', { content: LONG });
+    await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '短回复' });
+
+    const guest = await s.app.inject({ method: 'GET', url: `/api/forum/topics/${topicId}/posts` });
+    expect(guest.statusCode).toBe(200);
+    expect(guest.headers['cache-control']).toBe('no-store');
+    const posts = guest.json().posts as any[];
+    expect(posts.map(post => post.id)).toEqual([postId, expect.any(String)]);
+    expect(posts[0].content).toBe(LONG);
+    expect(posts[0]).not.toHaveProperty('excerpt');
+    // 与 /state 里同一条的其它字段逐项相同，包括点赞的人。
+    await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol');
+    const listed = (await s.state()).posts.find((post: { id: string }) => post.id === postId)!;
+    const { excerpt: _excerpt, ...listedRest } = listed;
+    expect((await s.app.inject({ method: 'GET', url: `/api/forum/topics/${topicId}/posts` })).json().posts[0]).toEqual({ ...listedRest, content: LONG });
+
+    const missing = await s.app.inject({ method: 'GET', url: '/api/forum/topics/t404/posts' });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toMatchObject({ error: 'not_found', message: '话题不存在' });
+  });
+
+  it('searches titles, bodies, names and usernames on the server, and matches nothing else', async () => {
+    const s = await setup();
+    const { topicId, postId } = await newTopic(s, 'bob', { title: '机试安排在什么时候', content: `早前的正文\n\n${LONG}` });
+    await s.state('bob');
+
+    // 正文深处的词也搜得到（浏览器里已经没有正文了），命中摘要以它为中心。
+    const hit = (await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%E7%94%A8%E6%9D%A5%E9%AA%8C%E8%AF%81' })).json().results;
+    expect(hit.posts.map((post: { id: string }) => post.id)).toEqual([postId]);
+    expect(hit.posts[0].excerpt).toContain('用来验证');
+    expect(hit.posts[0].excerpt.length).toBeLessThanOrEqual(122);
+    expect(hit.posts[0]).not.toHaveProperty('content');
+
+    // 话题标题、用户名、昵称都匹配。
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%E6%9C%BA%E8%AF%95%E5%AE%89%E6%8E%92' })).json().results.topics.map((t: { id: string }) => t.id)).toEqual([topicId]);
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=bob' })).json().results.users.map((u: { id: string }) => u.id)).toEqual(['m102']);
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%E6%9E%81%E5%AE%A2%E7%8F%AD' })).json().results.users.map((u: { id: string }) => u.id)).toEqual(['u-geekclass']);
+
+    // 空词回空结果；删掉的帖子不参与（与浏览器里旧的 searchAll 一致）。
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%20' })).json().results).toEqual({ topics: [], posts: [], users: [] });
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search' })).json().results.posts).toEqual([]);
+    await s.call('DELETE', `/api/forum/posts/${(await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '将被删除的回复' })).json().postId}`, 'carol');
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%E5%B0%86%E8%A2%AB%E5%88%A0%E9%99%A4' })).json().results.posts).toEqual([]);
+
+    // 搜索词里的 `%` 是字面量，不是通配符；超长的词 400。
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%25' })).json().results).toEqual({ topics: [], posts: [], users: [] });
+    const tooLong = await s.app.inject({ method: 'GET', url: `/api/forum/search?q=${'x'.repeat(101)}` });
+    expect(tooLong.statusCode).toBe(400);
+    expect(tooLong.json()).toMatchObject({ error: 'validation_error' });
+
+    // 游客也能搜，但看到的不比 /state 多：别人的通知、书签不在结果里。
+    await s.call('PATCH', '/api/forum/me/profile', 'carol', { bio: '搜索用的签名' });
+    expect((await s.app.inject({ method: 'GET', url: '/api/forum/search?q=%E6%90%9C%E7%B4%A2%E7%94%A8%E7%9A%84%E7%AD%BE%E5%90%8D' })).json().results.users).toEqual([]);
+  });
+
+  it('limits the topic posts and search reads per IP', async () => {
+    const s = await setup();
+    const address = '198.51.100.43';
+    const posts = (n: number) => s.app.inject({ method: 'GET', url: '/api/forum/topics/t9/posts', remoteAddress: address, headers: { 'x-forwarded-for': `198.51.100.${n}` } });
+    for (let i = 0; i < 120; i += 1) expect((await posts(i)).statusCode).toBe(200);
+    expect((await posts(1)).statusCode).toBe(429);
+    const search = () => s.app.inject({ method: 'GET', url: '/api/forum/search?q=a', remoteAddress: address });
+    for (let i = 0; i < 30; i += 1) expect((await search()).statusCode).toBe(200);
+    expect((await search()).statusCode).toBe(429);
+  });
+});
+
 describe('topics', () => {
   it('lets members post and keeps guests out', async () => {
     const s = await setup();
@@ -797,6 +895,8 @@ describe('likes, bookmarks, follows and notifications', () => {
 
 describe('write responses (#145)', () => {
   const byId = (list: { id: string }[], id: string) => list.find(item => item.id === id);
+  /** `/state` 里的帖子带摘要（#156），写回答里不带：比对时先把摘要拆掉。 */
+  const withoutExcerpt = ({ excerpt: _excerpt, ...rest }: Record<string, unknown>): Record<string, unknown> => rest;
 
   it('answers each write with only the records it changed, each identical to the one in /state', async () => {
     const s = await setup();
@@ -805,21 +905,30 @@ describe('write responses (#145)', () => {
     const full = await s.state('bob');
     expect(Object.keys(created).sort()).toEqual(['posts', 'tags', 'topics', 'users']);
     expect(created.topics).toEqual([byId(full.topics, topicId)]);
-    expect(created.posts).toEqual([byId(full.posts, postId)]);
     expect(created.tags).toEqual(full.tags.filter((t: { id: string }) => ['tag-agents', 'tag-1'].includes(t.id)));
     expect(created.users).toEqual([byId(full.users, 'm102')]);
+    // 发帖是改正文的写入：回答里带正文（前端要把新正文显示出来）。/state 里同一条是摘要，其余字段逐项相同。
+    expect(created.posts).toEqual([{ ...withoutExcerpt(byId(full.posts, postId)), content: '正文' }]);
+    expect(Object.keys(byId(full.posts, postId))).not.toContain('content');
+    expect(byId(full.posts, postId).excerpt).toBe('正文');
 
     const reply = await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '回复 @bob' });
     expect(reply.statusCode).toBe(201);
     const { changes, viewer, guestPolicy, postId: replyId } = reply.json();
     const carol = await s.state('carol');
-    expect(changes).toEqual({ users: [byId(carol.users, 'm103')], topics: [byId(carol.topics, topicId)], posts: [byId(carol.posts, replyId)] });
+    expect(changes).toEqual({
+      users: [byId(carol.users, 'm103')], topics: [byId(carol.topics, topicId)],
+      posts: [{ ...withoutExcerpt(byId(carol.posts, replyId)), content: '回复 @bob' }],
+    });
     expect([viewer, guestPolicy]).toEqual([carol.viewer, carol.guestPolicy]);
     // 话题的最后活动时间跟着回复走：并进前端的那条话题已经是新的。
     expect(changes.topics[0].lastActivityAt).toBe(changes.posts[0].createdAt);
 
+    // 点赞不改正文：回答里带的是 /state 里同一条（摘要，带正文的 200 字以内），长帖也只回这一条短记录。
     const liked = (await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol')).json();
     expect(liked.changes).toEqual({ users: [byId(carol.users, 'm103')], posts: [{ ...byId(carol.posts, postId), likeUserIds: ['m103'] }] });
+    expect(JSON.stringify(liked.changes.posts[0])).not.toContain('content');
+    expect(liked.changes.posts[0].excerpt).toBe('正文');
     expect(JSON.stringify(liked).length).toBeLessThan(1500);
   });
 
@@ -849,11 +958,38 @@ describe('write responses (#145)', () => {
     });
     expect(forum.changes('m102', { users: ['m103'] }).users![0].notifyPrefs).toEqual({ reply: true, like: true, follow: true });
     expect(forum.changes('m103', { users: ['m103'] }).users![0].notifyPrefs).toEqual({ reply: true, like: false, follow: true });
-    // 删掉的帖子和 /state 一样没有正文；不存在的 id 直接跳过。
-    await s.call('DELETE', `/api/forum/posts/${reply.postId}`, 'carol');
+    // 删掉的帖子在回答（full）里正文清空；不存在的 id 直接跳过。
+    const removed = await s.call('DELETE', `/api/forum/posts/${reply.postId}`, 'carol');
+    expect(removed.json().changes.posts).toEqual([expect.objectContaining({ id: reply.postId, content: '', deleted: true })]);
     expect(forum.changes(null, { posts: [reply.postId, 'p99999'], topics: ['t404'], users: ['m999'], tags: ['tag-404'] })).toEqual({
-      posts: [expect.objectContaining({ id: reply.postId, content: '', deleted: true })],
+      posts: [expect.objectContaining({ id: reply.postId, deleted: true })],
     });
+  });
+
+  it('answers a write that does not touch a body with that post\'s excerpt, not its body (#156)', async () => {
+    const s = await setup();
+    // 一条很长的帖子：它只要回到点赞的回答里，回答就大了。
+    const long = '很长的一帖。'.repeat(3000);
+    const { topicId, postId } = await newTopic(s, 'bob', { content: long });
+    await s.state('carol');
+
+    const liked = (await s.call('POST', `/api/forum/posts/${postId}/like`, 'carol')).json();
+    // 回答里只有这条帖子与点讆人自己的记录；帖子这一条带的是摘要（201 字），不是 1.8 万字的正文。
+    expect(liked.changes).toEqual({ users: [expect.objectContaining({ id: 'm103' })], posts: [byId((await s.state('carol')).posts, postId)] });
+    expect(JSON.stringify(liked.changes.posts).length).toBeLessThan(600);
+    expect(liked.changes.posts[0]).not.toHaveProperty('content');
+    expect(liked.changes.posts[0].excerpt).toHaveLength(201);
+    // 书签、置顶、改资料这些也不带正文。
+    const bookmarked = (await s.call('POST', `/api/forum/posts/${postId}/bookmark`, 'carol')).json();
+    expect(JSON.stringify(bookmarked)).not.toContain(long.slice(0, 60));
+    for (const answer of [
+      (await s.call('POST', `/api/forum/topics/${topicId}/pin`, 'alice', { pinned: true })).json(),
+      (await s.call('PATCH', '/api/forum/me/profile', 'carol', { bio: '签名' })).json(),
+    ]) expect(JSON.stringify(answer)).not.toContain(long.slice(0, 60));
+    // 改正文的写入照样带正文：前端要把新正文显示出来。
+    const reply = (await s.call('POST', '/api/forum/posts', 'carol', { topicId, content: '新回复' })).json();
+    expect(reply.changes.posts[0].content).toBe('新回复');
+    expect((await s.call('PATCH', `/api/forum/posts/${postId}`, 'bob', { content: '改过的长帖' })).json().changes.posts[0].content).toBe('改过的长帖');
   });
 });
 
@@ -1097,9 +1233,11 @@ describe('seeding', () => {
     expect(forum.seed()).toBe(0);
     const state = await s.state();
     expect(state.topics.find((t: { id: string }) => t.id === 't73').pinned).toBe(false);
-    expect(state.posts.find((p: { id: string }) => p.id === 'body-73').content).toBe('线上改过的首帖');
+    expect(state.posts.find((p: { id: string }) => p.id === 'body-73').excerpt).toBe('线上改过的首帖');
     expect(state.posts).toHaveLength(3);
     expect(state.counters).toMatchObject({ topic: 1000, post: 10001 });
+    // 正文在话题页的接口里读（#156）：线上改过的首帖原样存着。
+    expect(forum.topicPosts('t73')[0]).toMatchObject({ id: 'body-73', content: '线上改过的首帖' });
 
     // 以后导出的新帖：重新发版后只插入新的那一篇。
     const content = loadForumContent(FORUM_FIXTURE_DIR);

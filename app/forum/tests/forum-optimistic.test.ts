@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useForumStore } from '~/stores/forum'
 import { isPending, useForumServerStore } from '~/stores/forum-server'
 import { fakeServer, held, json } from './fixtures/fake-server'
-import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
+import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState, topicPostsBody, writeBody } from './fixtures/server-state'
 
 /**
  * #145: every interaction against the forum server shows on the page before
@@ -36,6 +36,25 @@ async function loaded(viewer: FixtureViewer, prepare: (state: State) => State = 
   return { calls, ...all }
 }
 
+/**
+ * What the topic page does on mounting (#156): `/state` has no bodies, so the
+ * page asks for this topic's posts and merges that answer. The tests that read
+ * a post's `content` go through here; a test that only reads a like or a flag
+ * does not. The read's own requests are dropped from `calls`, so the counts
+ * below stay about the write under test.
+ */
+async function loadedWithBodies(viewer: FixtureViewer, topics: string[], prepare: (state: State) => State = state => state, ...answers: Parameters<typeof fakeServer>) {
+  const calls = fakeServer(json({ state: prepare(serverState(viewer)) }), ...(topics.length ? topics.map(topicId => json(topicPostsBody(topicId))) : []), ...answers)
+  setActivePinia(createPinia())
+  const all = stores()
+  await all.server.load()
+  for (const topicId of topics)
+    await all.server.loadTopic(topicId)
+  // Keep the state read (the tests count it); drop only the body reads.
+  calls.splice(1, topics.length)
+  return { calls, ...all }
+}
+
 const base = serverState(MEMBER_VIEWER)
 const post = (id: string) => ({ ...base.posts.find(item => item.id === id)! })
 const topic = (id: string) => ({ ...base.topics.find(item => item.id === id)! })
@@ -61,6 +80,8 @@ interface Case {
   refused: null | false
   /** The toast title a refusal brings. */
   failure: string
+  /** Topics whose bodies the page would already hold (#156), as the topic page would. */
+  bodies?: string[]
 }
 
 const contents = (s: Stores) => s.forum.postsOfTopic('t73').map(item => [item.content, s.forum.userById(item.authorId)?.displayName])
@@ -142,6 +163,7 @@ const CASES: Case[] = [
   },
   {
     name: 'edit',
+    bodies: ['t1001'],
     act: s => s.server.editPost('p10001', '改成 Python 可以吗？'),
     read: s => s.forum.postById('p10001')?.content,
     before: '都可以吗？',
@@ -154,6 +176,7 @@ const CASES: Case[] = [
   },
   {
     name: 'delete',
+    bodies: ['t1001'],
     act: s => s.server.deletePost('p10001'),
     read: s => [s.forum.postById('p10001')?.deleted ?? false, s.forum.postById('p10001')?.content],
     before: [false, '都可以吗？'],
@@ -228,6 +251,7 @@ const CASES: Case[] = [
   },
   {
     name: 'reply',
+    bodies: ['t73'],
     act: s => s.server.createPost({ topicId: 't73', content: '收到，谢谢' }),
     read: contents,
     before: [['机试说明', '极客班'], ['谢谢整理', '路过的同学']],
@@ -241,6 +265,7 @@ const CASES: Case[] = [
   {
     name: 'guest reply',
     viewer: { userId: null, kind: 'guest', capabilities: [] },
+    bodies: ['t73'],
     act: s => s.server.replyAsGuest({ topicId: 't73', content: '什么时候机试？', name: '新同学' }),
     read: contents,
     before: [['机试说明', '极客班'], ['谢谢整理', '路过的同学']],
@@ -266,7 +291,7 @@ describe.each(CASES)('$name against the server', (item) => {
 
   it('shows on the page before the request resolves, then keeps what the server sent', async () => {
     const reply = held()
-    const { calls, ...s } = await loaded(viewer, item.prepare, reply.answer)
+    const { calls, ...s } = await loadedWithBodies(viewer, item.bodies ?? [], item.prepare, reply.answer)
     expect(item.read(s)).toEqual(item.before)
     const settled = item.act(s)
     expect(item.read(s)).toEqual(item.after)
@@ -283,7 +308,7 @@ describe.each(CASES)('$name against the server', (item) => {
 
   it('puts the page back and says why when the server refuses', async () => {
     const reply = held()
-    const { calls, ...s } = await loaded(viewer, item.prepare, reply.answer)
+    const { calls, ...s } = await loadedWithBodies(viewer, item.bodies ?? [], item.prepare, reply.answer)
     const settled = item.act(s)
     expect(item.read(s)).toEqual(item.after)
     await vi.waitFor(() => expect(calls).toHaveLength(2))
@@ -422,7 +447,8 @@ describe('two things on one record, both refused', () => {
   // Each failure puts back only its own fields as the server has them, whichever is refused first.
   it.each([['the edit', [0, 1]], ['the deletion', [1, 0]]] as const)('an edit and then a deletion of one post: the server\'s text comes back, not deleted, when %s is refused first', async (_first, order) => {
     const answers = [held(), held()]
-    const { calls, ...s } = await loaded(MEMBER_VIEWER, undefined, answers[0]!.answer, answers[1]!.answer)
+    // The bodies are on the page (#156), so a refusal has to put this text back.
+    const { calls, ...s } = await loadedWithBodies(MEMBER_VIEWER, ['t1001'], undefined, answers[0]!.answer, answers[1]!.answer)
     const editing = s.server.editPost('p10001', '没保存的新文字')
     const deleting = s.server.deletePost('p10001')
     expect(s.forum.postById('p10001')).toMatchObject({ deleted: true, content: '' })

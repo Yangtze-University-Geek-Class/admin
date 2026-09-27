@@ -1,6 +1,6 @@
 import type { ForumState, Post, Topic, User } from '../app/data/types'
 import { TOPIC_SEEDS } from '../app/data/seed-content'
-import { postExcerpt } from '../app/utils/excerpt'
+import { postLine } from '../app/utils/excerpt'
 import { siteNameInText } from './content-source'
 
 /**
@@ -148,7 +148,7 @@ export function forumLlmsTxt(state: ForumState, site: MarkdownSite): string {
     lines.push(`## ${escapeInline(category.name)}`, '')
     for (const topic of topics) {
       const first = postsInFloorOrder(state, topic.id)[0]
-      const summary = first && !first.deleted ? escapeInline(postExcerpt(first.content, SUMMARY_LENGTH)) : ''
+      const summary = first && !first.deleted ? escapeInline(postLine(first, SUMMARY_LENGTH)) : ''
       const link = `[${escapeInline(topic.title)}](${siteUrl(site, topicMarkdownPath(topic.id))})`
       lines.push(summary ? `- ${link}: ${summary}` : `- ${link}`)
     }
@@ -178,7 +178,10 @@ function byline(user: User | undefined): string {
 function postBody(post: Post): string {
   if (post.deleted)
     return '（此帖已被删除）'
-  return post.content.replace(/^(?:[ \t]*\n)+/, '').trimEnd() || '（空）'
+  // The Markdown views are generated from the browser-free sources (the seed,
+  // the snapshot, the site state), which always carry bodies; a record from
+  // `/state` never reaches here.
+  return (post.content ?? '').replace(/^(?:[ \t]*\n)+/, '').trimEnd() || '（空）'
 }
 
 function isoTime(at: number): string {

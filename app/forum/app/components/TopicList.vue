@@ -2,7 +2,6 @@
 import type { DataTableColumn, DataTableSortState } from '@talex-touch/tuffex/data-table'
 import type { Topic } from '~/data/types'
 import { useDeferredLoading } from '@talex-touch/tuffex/skeleton'
-
 /**
  * The topic list itself, in both of Discourse's shapes: a five-column table on
  * desktop, one card item per topic below 1024px. The caller owns filtering and
@@ -84,7 +83,7 @@ function tagsOf(topic: Topic) {
 const excerpts = computed(() => new Map(
   props.topics
     .filter(topic => topic.pinned)
-    .map(topic => [topic.id, postExcerpt(forum.firstPostOf(topic.id)?.content ?? '')]),
+    .map(topic => [topic.id, postLine(forum.firstPostOf(topic.id) ?? {})]),
 ))
 </script>
 

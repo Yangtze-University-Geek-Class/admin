@@ -24,6 +24,14 @@ const props = defineProps<{
   floor: number
   /** Highlights the card after a jump or a fresh reply. */
   flash?: boolean
+  /**
+   * Whether this topic's bodies are still on their way (#156). `/state` no
+   * longer carries them: the topic page asks for this topic's posts on
+   * mounting, and until that answer lands (or if it never does) the card
+   * shows what the list had — the server's one-line excerpt — instead of an
+   * empty body.
+   */
+  bodiesPending?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -45,10 +53,21 @@ const replyTarget = computed(() => (props.post.replyToPostId ? forum.postById(pr
 const replyTargetUser = computed(() => (replyTarget.value ? forum.userById(replyTarget.value.authorId) : undefined))
 
 const sending = computed(() => isPending(props.post.id))
+/**
+ * The server sent a body for this post (the topic page asked for it, #156).
+ * `content` is absent — not empty — in a list answer, so a plain `!== ''`
+ * would call a post without a body “loaded”; the topic page's own answer and
+ * a body-changing write are the only ones that carry it. A deleted post is
+ * `content: ''` and renders the deleted notice instead.
+ */
+const hasBody = computed(() => typeof props.post.content === 'string' && props.post.content !== '')
+/** What to show in place of the body: the server's line, until the body lands. */
+const fallbackLine = computed(() => (props.post.deleted ? '' : postLine(props.post)))
+
 const likeState = computed(() => likeControl(props.post, user.value, can('like')))
 const bookmarked = computed(() => !!user.value && forum.isBookmarked(user.value.id, props.post.id))
 
-const canEdit = computed(() => !props.post.deleted && !sending.value && can('editPost', { post: props.post, topic: props.topic }))
+const canEdit = computed(() => !props.post.deleted && !sending.value && hasBody.value && can('editPost', { post: props.post, topic: props.topic }))
 // The store refuses to delete the post that carries the topic, so that one is
 // never offered rather than failing when picked.
 const canDelete = computed(() => canEdit.value && !forum.isFirstPost(props.post.id))
@@ -88,7 +107,7 @@ async function bookmark() {
 
 // Someone else's post can be in the editor (a moderator's edit); PostEditor's preview renders it through ForumMarkdown, raw HTML shown as text.
 function startEdit() {
-  draft.value = props.post.content
+  draft.value = props.post.content ?? ''
   editing.value = true
 }
 
@@ -202,7 +221,21 @@ async function remove() {
           </template>
 
           <template v-else>
-            <ForumMarkdown :content="post.content" />
+            <!--
+              The body comes from the topic's own request (#156); the list
+              only had a summary. Until it lands the card says what it has,
+              so a slow or failed read never leaves a blank card.
+            -->
+            <ForumMarkdown v-if="hasBody" :content="post.content ?? ''" />
+
+            <template v-else>
+              <p v-if="fallbackLine" class="text-$tx-text-color-secondary">
+                {{ fallbackLine }}
+              </p>
+              <span class="text-sm text-$tx-text-color-secondary">
+                {{ bodiesPending ? '正在读取正文…' : '正文没有读出来，刷新页面再试。' }}
+              </span>
+            </template>
 
             <!--
               Two groups rather than one row split by `ml-auto`: this row wraps

@@ -18,6 +18,7 @@ const BREADCRUMB_TITLE_LENGTH = 24
 const route = useRoute()
 const router = useRouter()
 const forum = useForumStore()
+const server = useForumServerStore()
 const actions = useForumActions()
 const { can, guestCanReply } = useCurrentUser()
 const { isDesktop } = useShell()
@@ -69,6 +70,13 @@ useHead({
 })
 
 const posts = computed<Post[]>(() => (topic.value ? forum.postsOfTopic(topic.value.id) : []))
+/**
+ * Whether this topic's bodies are still on their way (#156). The topic page
+ * asks for them on mounting; while the answer is out the cards show the
+ * server's one-line excerpt rather than an empty body, and a failed read says
+ * so instead of looking like a deleted post.
+ */
+const bodiesPending = ref(false)
 const category = computed(() => (topic.value ? forum.categoryById(topic.value.categoryId) : undefined))
 const tags = computed(() => (topic.value ? topic.value.tagIds.map(id => forum.tagById(id)).filter(tag => tag !== undefined) : []))
 
@@ -143,11 +151,18 @@ async function toggleClosed() {
 }
 
 // One view per topic per browser session, so re-reading a thread in the same
-// tab does not inflate its count.
+// tab does not inflate its count. The bodies arrive with the same mount: the
+// state the page starts from holds summaries, not content (#156).
 onMounted(() => {
   const current = topic.value
   if (!current)
     return
+  // The bodies are not in the state the page starts from (#156): ask for this
+  // topic's posts, and keep saying 正在读取正文… until the answer lands.
+  bodiesPending.value = true
+  void server.loadTopic(current.id).finally(() => {
+    bodiesPending.value = false
+  })
   const key = `tuff-forum:viewed:${current.id}`
   try {
     if (sessionStorage.getItem(key))
@@ -207,6 +222,7 @@ onBeforeUnmount(() => clearTimeout(flashTimer))
               :topic="topic"
               :floor="index + 1"
               :flash="flashPostId === post.id"
+              :bodies-pending="bodiesPending"
               @reply="openComposer"
               @jump="focusPost"
             />

@@ -11,8 +11,9 @@ const router = useRouter()
 const author = computed(() => forum.userById(props.topic.authorId))
 const category = computed(() => forum.categoryById(props.topic.categoryId))
 const tags = computed(() => props.topic.tagIds.map(id => forum.tagById(id)).filter(tag => tag !== undefined))
-// Discourse shows a summary under pinned topics only.
-const excerpt = computed(() => (props.topic.pinned ? postExcerpt(forum.firstPostOf(props.topic.id)?.content ?? '') : ''))
+// Discourse shows a summary under pinned topics only. The server cuts the line
+// for us (#156): `content` is not in the list any more, `excerpt` is.
+const excerpt = computed(() => (props.topic.pinned ? postLine(forum.firstPostOf(props.topic.id) ?? {}) : ''))
 
 function open() {
   void router.push(`/t/${props.topic.id}`)
