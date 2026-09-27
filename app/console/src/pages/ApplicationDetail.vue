@@ -53,7 +53,9 @@ const plan = computed(() => {
 const unchanged = computed(() => !detail.data.value || (status.value === current.value && !note.value.trim()));
 
 const review = useAction(async () => {
-  const body = reviewPatch({ current: current.value, status: status.value, note: note.value, notify: notify.value, draft: letter });
+  const body = reviewPatch({
+    current: current.value, latestReviewId: detail.data.value?.reviews[0]?.id ?? 0, status: status.value, note: note.value, notify: notify.value, draft: letter,
+  });
   let result: ApplicationReviewResult;
   try {
     result = await api<ApplicationReviewResult>(`/api/console/applications/${id.value}`, { method: "PATCH", ...jsonBody(body) });

@@ -89,31 +89,31 @@ describe("reviewPatch", () => {
   const letter = draft({ time: "19:00", place: "三教" });
 
   it("sends notify and the letter when the status changes to one that mails", () => {
-    expect(reviewPatch({ current: "received", status: "interview", note: " 内部备注 ", notify: true, draft: letter })).toEqual({
-      expected_status: "received", status: "interview", note: "内部备注", notify: true, letter: { time: "19:00", place: "三教" },
+    expect(reviewPatch({ latestReviewId: 3, current: "received", status: "interview", note: " 内部备注 ", notify: true, draft: letter })).toEqual({
+      expected_status: "received", expected_review_id: 3, status: "interview", note: "内部备注", notify: true, letter: { time: "19:00", place: "三教" },
     });
   });
 
   it("sends notify:false and no letter when the reviewer unticks the mail", () => {
-    expect(reviewPatch({ current: "received", status: "interview", note: "", notify: false, draft: letter })).toEqual({ expected_status: "received", status: "interview", notify: false });
+    expect(reviewPatch({ latestReviewId: 3, current: "received", status: "interview", note: "", notify: false, draft: letter })).toEqual({ expected_status: "received", expected_review_id: 3, status: "interview", notify: false });
   });
 
   it("sends neither notify nor a letter for going back to received or a note only", () => {
-    expect(reviewPatch({ current: "interview", status: "received", note: "", notify: true, draft: letter })).toEqual({ expected_status: "interview", status: "received" });
-    expect(reviewPatch({ current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ expected_status: "interview", note: "改到周五" });
+    expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "received", note: "", notify: true, draft: letter })).toEqual({ expected_status: "interview", expected_review_id: 3, status: "received" });
+    expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ expected_status: "interview", expected_review_id: 3, note: "改到周五" });
   });
 
-  it("always sends the status the page shows, except a retired one the server would refuse", () => {
-    expect(reviewPatch({ current: "accepted", status: "rejected", note: "", notify: false, draft: letter }).expected_status).toBe("accepted");
-    expect(reviewPatch({ current: "reviewing", status: "received", note: "", notify: true, draft: letter })).toEqual({ status: "received" });
+  it("always sends the status and the latest review the page shows, except for a retired status the server would refuse", () => {
+    expect(reviewPatch({ latestReviewId: 0, current: "accepted", status: "rejected", note: "", notify: false, draft: letter })).toMatchObject({ expected_status: "accepted", expected_review_id: 0 });
+    expect(reviewPatch({ latestReviewId: 3, current: "reviewing", status: "received", note: "", notify: true, draft: letter })).toEqual({ status: "received" });
   });
 });
 
 describe("statusChangedMessage", () => {
   it("reads the server's 409 status_changed and nothing else", () => {
-    const message = "这份投递刚被别人改成了「已录取」，看过最新的状态再改";
+    const message = "这份投递刚被别人处理过，现在是「已录取」，看过最新的记录再改";
     expect(statusChangedMessage(new ApiError(409, "status_changed", message))).toBe(message);
-    expect(statusChangedMessage(new ApiError(409, "status_changed", ""))).toBe("这份投递刚被别人改过，看过最新的状态再改。");
+    expect(statusChangedMessage(new ApiError(409, "status_changed", ""))).toBe("这份投递刚被别人处理过，看过最新的记录再改。");
     expect(statusChangedMessage(new ApiError(409, "invitation_exists", "x"))).toBeNull();
     expect(statusChangedMessage(new ApiError(400, "status_changed", "x"))).toBeNull();
     expect(statusChangedMessage(new Error("offline"))).toBeNull();
@@ -157,6 +157,7 @@ describe("mailState", () => {
     expect(mailState(mail({ status: "skipped", skip_reason: "mail_disabled" })).text).toBe("没有发：发信还没有配置");
     expect(mailState(mail({ status: "skipped", skip_reason: "recipient_limited" })).text).toBe("没有发：24 小时内已经给这个邮箱发过确认信");
     expect(mailState(mail({ status: "skipped", skip_reason: "rate_limited" })).text).toBe("没有发：这一小时发出的确认信已到上限");
+    expect(mailState(mail({ status: "skipped", skip_reason: "source_limited" })).text).toBe("没有发：同一个网络这段时间投递得太多");
     expect(mailState(null)).toEqual({ text: "没有发", tone: "muted" });
   });
 

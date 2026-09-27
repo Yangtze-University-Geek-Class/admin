@@ -138,20 +138,23 @@ describe("preview checks an application review like the server does", () => {
     expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
   });
 
+  const page = { expected_status: "received", expected_review_id: 0 }; // 样板里这份投递还没有审核记录
+
   it("requires the interview time and place only when an interview letter will be queued", () => {
-    expect(patch({ status: "interview", letter: { time: " " } })).toMatchObject({
+    expect(patch({ ...page, status: "interview", letter: { time: " " } })).toMatchObject({
       status: 400, code: "letter_required", payload: { fields: { time: "请填面试时间", place: "请填面试地点" } },
     });
-    expect(patch({ status: "interview", letter: { time: "19:00", place: "三教" } })).toBeNull();
-    expect(patch({ status: "interview", notify: false })).toBeNull();
-    expect(patch({ status: "accepted" })).toBeNull();
+    expect(patch({ ...page, status: "interview", letter: { time: "19:00", place: "三教" } })).toBeNull();
+    expect(patch({ ...page, status: "interview", notify: false })).toBeNull();
+    expect(patch({ ...page, status: "accepted" })).toBeNull();
     expect(patch({ note: "只写备注" })).toBeNull();
   });
 
-  it("refuses a change made from a stale page, with the server's wording", () => {
-    expect(patch({ status: "accepted", expected_status: "interview" })).toMatchObject({
-      status: 409, code: "status_changed", message: "这份投递刚被别人改成了「已收到」，看过最新的状态再改",
-    });
-    expect(patch({ status: "accepted", expected_status: "received" })).toBeNull();
+  it("refuses a change made from a stale or old page, with the server's wording", () => {
+    const stale = { status: 409, code: "status_changed", message: "这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改" };
+    expect(patch({ ...page, status: "accepted", expected_status: "interview" })).toMatchObject(stale);
+    expect(patch({ ...page, status: "accepted", expected_review_id: 7 })).toMatchObject(stale);
+    expect(patch({ status: "accepted" })).toMatchObject({ status: 409, code: "status_changed", message: "这个页面是旧版本，刷新后再改" });
+    expect(patch({ ...page, status: "accepted" })).toBeNull();
   });
 });

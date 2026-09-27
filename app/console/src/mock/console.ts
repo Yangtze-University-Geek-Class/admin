@@ -366,7 +366,8 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
 }
 
 /**
- * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态（expected_status）和样板不同时 409；
+ * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和最新审核记录（expected_status、expected_review_id）
+ * 和样板不同时 409，要改状态却没带这两项时也 409；
  * 改到「待面试」并且要发信时，面试时间和地点必填。通过核对的照样 501，不假装信已经排进发信队列。
  */
 function checkApplicationReview(id: string, body: unknown): void {
@@ -375,15 +376,20 @@ function checkApplicationReview(id: string, body: unknown): void {
   need(MOCK_PERSONAS[name], "applications.review");
   const application = APPLICATIONS.find(a => a.id === id);
   if (!application) throw new ApiError(404, "not_found", "投递不存在");
-  const input = (body && typeof body === "object" ? body : {}) as { status?: unknown; expected_status?: unknown; notify?: unknown; letter?: unknown };
+  const input = (body && typeof body === "object" ? body : {}) as { status?: unknown; expected_status?: unknown; expected_review_id?: unknown; notify?: unknown; letter?: unknown };
   if (input.status !== undefined && !STATUSES.some(s => s.id === input.status)) {
     const message = "状态只能是已收到、待面试、已录取、未通过";
     throw new ApiError(400, "invalid_status", message, undefined, { error: "invalid_status", message });
   }
-  if (input.expected_status !== undefined && input.expected_status !== application.status) {
+  const changed = (message: string) => new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });
+  const latestReviewId = (REVIEWS[id] ?? [])[0]?.id ?? 0;
+  if ((input.expected_status !== undefined && input.expected_status !== application.status)
+    || (input.expected_review_id !== undefined && input.expected_review_id !== latestReviewId)) {
     const label = STATUSES.find(s => s.id === application.status)?.label ?? application.status;
-    const message = `这份投递刚被别人改成了「${label}」，看过最新的状态再改`;
-    throw new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });
+    throw changed(`这份投递刚被别人处理过，现在是「${label}」，看过最新的记录再改`);
+  }
+  if (input.status !== undefined && input.status !== application.status && (input.expected_status === undefined || input.expected_review_id === undefined)) {
+    throw changed("这个页面是旧版本，刷新后再改");
   }
   if (input.status !== "interview" || application.status === "interview" || input.notify === false) return;
   const letter = (input.letter && typeof input.letter === "object" ? input.letter : {}) as { time?: unknown; place?: unknown };
