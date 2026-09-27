@@ -109,7 +109,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 #   ?__persona=<名>   样板数据下切换身份：admin（组织 owner）、captain、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
 ```
 
-开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。改称号、处理投递的写请求先按服务端核对（处理投递：状态只能是四种之一，页面上的状态或最新审核记录和样板不同、改状态却没带这两项时 409，要发待面试的信时面试时间和地点必填），不合法的得到和服务端一样的 403/400/409，合法的照样 501，不假装信已经排进发信队列。投递详情的样板带 `mail`、`received_mail` 和每条审核记录的邮件，上面每种说法都能看到；发信设置按预发布的样子，只有三个样板邮箱在白名单里。
+开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。改称号、处理投递的写请求先按服务端核对（处理投递：状态只能是四种之一，页面上的状态或最新审核记录和样板不同、改状态却没带这两项时 409，要发待面试的信时面试时间和地点必填），不合法的得到和服务端一样的 403/400/409，合法的照样 501，不假装信已经排进发信队列。投递详情的样板带 `mail`、`received_mail` 和每条审核记录的邮件，上面的说法除了三种上限（24 小时内发过、同一个网络投递太多、这一小时到上限）都能看到，这三种的说法在 `tests/console/applications.test.ts` 里核对；发信设置按预发布的样子，只有三个样板邮箱在白名单里。
 
 ## 设计令牌
 

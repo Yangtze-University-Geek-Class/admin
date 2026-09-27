@@ -6,7 +6,7 @@
 
 ## 现状
 
-- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（同一个邮箱 24 小时内只发一封、全站每小时最多 200 封，见「上限」）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
+- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（同一个收件箱 24 小时内只发一封、同一个 IP 一小时最多 5 封且一天最多 20 封、全站每小时最多 200 封，见「上限」）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
 - 信写进 `mail_outbox`（[数据模型](data-model.md)），同一件事只有一行。服务进程里的发信循环每 15 秒把到期的信发一遍，写进新信后立刻再发一遍。
 - 发信商按顺序是阿里云邮件推送（SingleSendMail）、Resend。两家都没配置时信照样写一行，记成 `skipped` / `mail_disabled`，不发。
 - 控制台的投递详情显示「已收到」那封和每次改状态那封的结果（`received_mail`、`reviews[].mail`），见 [API](../../architecture/API.md)。
@@ -78,12 +78,12 @@ mail.drain() / mail.start(logger) / mail.stop()
 投递接口不用登录，谁都能在表单里填别人的邮箱，每投一次服务器就以「长江大学极客班」的名义发一封带投递人自己写的文字（姓名、特长原文）的信。所以「已收到」这封有上限（`mailer.ts` 的 `RECEIVED_LETTER_LIMITS`，`apply.ts` 调 `mail.enqueue(…, RECEIVED_LETTER_LIMITS)`）：
 
 - 同一个收件箱 24 小时内已经有一封「已收到」的，这封记成 `skipped` / `recipient_limited`。收件箱按 `outbox.ts` 的 `limitKey` 算：不分大小写，本地部分去掉第一个 `+` 和后面的标签（`victim+1@` 算 `victim@`），域名去掉末尾的点，Gmail 忽略本地部分里的点、`googlemail.com` 算 `gmail.com`；算出来的哈希存在 `limit_hash`。投递接口不收这几种写法：域名末尾带点、本地部分或域名里连续两个点、带引号或反斜杠的本地部分、IP 字面量（`a@[1.2.3.4]`），它们指向同一个收件箱却会算成不同的收件箱。官网表单用同一条正则；
-- 同一个 IP（IPv6 按 /64 归并，和论坛游客限流一样用 `forum-rules.ts` 的 `ipSubject`）一小时内已经有 5 封、或者一天内已经有 20 封「已收到」的，这封记成 `skipped` / `source_limited`，防止一台机器换着邮箱连发（每个 IP 每分钟最多投 5 次是接口本身的限流，另外算）。库里只存来源的 sha256（`source_hash`），IP 原文在 `applications.source_ip`，和以前一样。校园网出口可能是同一个 IP：同一小时里从同一个出口投递的第 6 个人收不到确认信，投递本身照样成功；数字在 `mailer.ts` 的 `RECEIVED_LETTER_LIMITS`，要调就改这里；
+- 同一个 IP（IPv6 按 /64 归并，和论坛游客限流一样用 `forum-rules.ts` 的 `ipSubject`）一小时内已经有 5 封、或者一天内已经有 20 封「已收到」的，这封记成 `skipped` / `source_limited`，防止一台机器换着邮箱连发（每个 IP 每分钟最多投 5 次是接口本身的限流，另外算）。库里只存来源的 sha256（`source_hash`），IP 原文在 `applications.source_ip`，和以前一样。校园网、宿舍、热点可能共用一个出口 IP（IPv6 同一个 /64 也一样）：同一出口一小时里第 6 个、24 小时里第 21 个投递的人起收不到确认信，投递本身照样成功。数字是 2026-09-27 按所有者「单IP里禁止连续发多个邮件，给它限制一个数量」定的，没有真实的投递分布做依据；在 `mailer.ts` 的 `RECEIVED_LETTER_LIMITS`，招新时控制台里「同一个网络这段时间投递得太多」多了就调这里；
 - 全站一小时内的「已收到」到了 200 封（和论坛游客回复的全站上限一样），这封记成 `skipped` / `rate_limited`。
 - 只数真的要发的信，不数 `skipped` 的：发信没配置、不在白名单时写进去的行不占名额。
 - 超出上限的投递照样成功、照样出现在控制台，只是不发确认信；控制台写「24 小时内已经给这个邮箱发过确认信」「同一个网络这段时间投递得太多」「这一小时发出的确认信已到上限」。
 - 改状态的信（待面试、已录取、未通过）要有「审核投递」能力才能触发，不设这个上限。
-- 剩下的风险：换着邮箱投，每个收件箱每天仍能收到一封（`+` 在地址里是普通字符的少数邮箱会被多限一些）；别的邮箱服务商另有的别名写法没有归并；Turnstile 没开时（两个环境现在都没开，见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)），拦批量投递的只有每个 IP 每分钟 5 次、工作量证明和蜜罐。见 [SECURITY](../../architecture/SECURITY.md)。
+- 剩下的风险：换着邮箱投，每个收件箱每天仍能收到一封（`+` 在地址里是普通字符的少数邮箱会被多限一些）；别的邮箱服务商另有的别名写法没有归并；Turnstile 没开时（两个环境现在都没开，见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)），拦批量投递的只有每个 IP 每分钟 5 次、工作量证明和蜜罐；和真实投递人共用出口的人，几小时里投满 20 份乱填的投递，就能让这个出口剩下的大半天都没有确认信（按 IP 限量本身带来的，投递不受影响）。见 [SECURITY](../../architecture/SECURITY.md)。
 
 ## 隐私
 
