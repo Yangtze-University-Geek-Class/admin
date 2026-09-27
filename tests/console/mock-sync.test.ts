@@ -157,4 +157,14 @@ describe("preview checks an application review like the server does", () => {
     expect(patch({ status: "accepted" })).toMatchObject({ status: 409, code: "status_changed", message: "这个页面是旧版本，刷新后再改" });
     expect(patch({ ...page, status: "accepted" })).toBeNull();
   });
+
+  it("compares against the largest review id like the server, not the first row", () => {
+    const at = (target: string, body: unknown) => {
+      try { checkConsoleWrite(new URL(`http://mock.local/api/console/applications/${target}`), "PATCH", body); return null; }
+      catch (error) { return error as ApiError; }
+    };
+    const accepted = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"; // 样板里按时间排第一的是 16，最大的是 18
+    expect(at(accepted, { expected_status: "accepted", expected_review_id: 16, status: "rejected" })).toMatchObject({ status: 409, code: "status_changed" });
+    expect(at(accepted, { expected_status: "accepted", expected_review_id: 18, status: "rejected" })).toBeNull();
+  });
 });

@@ -68,8 +68,16 @@ export function letterPayload(kind: LetterKind, draft: LetterDraft): Application
 }
 
 /**
+ * 审核记录的版本号：最大的 id，没有记录时是 0，和服务端一样。id 自增，只会变大；
+ * 列表按时间排，服务器时钟往回拨过时排第一的不一定是最新的一条。
+ */
+export function newestReviewId(reviews: readonly { id: number }[]): number {
+  return reviews.reduce((newest, review) => Math.max(newest, review.id), 0);
+}
+
+/**
  * PATCH 体：只带改了的状态、非空备注；改到要发信的状态时带上 notify，勾了才带信的内容。
- * 总是带上页面上看到的状态和最新一条审核记录的 id（latestReviewId，没有记录时是 0），
+ * 总是带上页面上看到的状态和审核记录的版本号（latestReviewId，见 newestReviewId），
  * 别人在这之间处理过时服务端回 409，不按旧画面改、不发信；只比状态会漏掉「改走又改回」。
  */
 export function reviewPatch(input: {

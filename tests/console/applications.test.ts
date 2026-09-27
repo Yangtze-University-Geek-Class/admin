@@ -3,7 +3,7 @@ import { ApiError } from "../../app/console/src/lib/http";
 import { fmtDate, fmtDay } from "../../app/console/src/lib/format";
 import { APPLICATION_STATUSES, statusMeta } from "../../app/console/src/lib/statuses";
 import {
-  emptyLetterDraft, letterErrors, letterPayload, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
+  emptyLetterDraft, letterErrors, letterPayload, mailState, newestReviewId, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
   type LetterDraft,
 } from "../../app/console/src/lib/applications";
 import type { MailSettings, MailSummary } from "../../app/console/src/lib/types";
@@ -82,6 +82,14 @@ describe("letter fields", () => {
     expect(letterPayload("accepted", filled)).toEqual({ notes: "进群" });
     expect(letterPayload("accepted", draft())).toEqual({});
     expect(letterPayload("rejected", filled)).toEqual({ message: "谢谢" });
+  });
+});
+
+describe("newestReviewId", () => {
+  it("takes the largest id, not the first row, and 0 when there are none", () => {
+    // 时钟往回拨过：按时间排第一的是 16，最新写进去的是 18
+    expect(newestReviewId([{ id: 16 }, { id: 18 }, { id: 15 }])).toBe(18);
+    expect(newestReviewId([])).toBe(0);
   });
 });
 

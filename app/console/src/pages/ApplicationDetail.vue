@@ -23,7 +23,7 @@ import { useAction, useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import { APPLICATION_STATUS, APPLICATION_STATUSES, isApplicationStatus, statusMeta } from "../lib/statuses";
 import {
-  LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
+  LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, newestReviewId, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
   type LetterErrors,
 } from "../lib/applications";
 import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus } from "../lib/types";
@@ -54,7 +54,7 @@ const unchanged = computed(() => !detail.data.value || (status.value === current
 
 const review = useAction(async () => {
   const body = reviewPatch({
-    current: current.value, latestReviewId: detail.data.value?.reviews[0]?.id ?? 0, status: status.value, note: note.value, notify: notify.value, draft: letter,
+    current: current.value, latestReviewId: newestReviewId(detail.data.value?.reviews ?? []), status: status.value, note: note.value, notify: notify.value, draft: letter,
   });
   let result: ApplicationReviewResult;
   try {

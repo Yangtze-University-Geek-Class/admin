@@ -366,7 +366,7 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
 }
 
 /**
- * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和最新审核记录（expected_status、expected_review_id）
+ * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
  * 和样板不同时 409，要改状态却没带这两项时也 409；
  * 改到「待面试」并且要发信时，面试时间和地点必填。通过核对的照样 501，不假装信已经排进发信队列。
  */
@@ -382,7 +382,7 @@ function checkApplicationReview(id: string, body: unknown): void {
     throw new ApiError(400, "invalid_status", message, undefined, { error: "invalid_status", message });
   }
   const changed = (message: string) => new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });
-  const latestReviewId = (REVIEWS[id] ?? [])[0]?.id ?? 0;
+  const latestReviewId = Math.max(0, ...(REVIEWS[id] ?? []).map(review => review.id)); // 同服务端：最大的 id
   if ((input.expected_status !== undefined && input.expected_status !== application.status)
     || (input.expected_review_id !== undefined && input.expected_review_id !== latestReviewId)) {
     const label = STATUSES.find(s => s.id === application.status)?.label ?? application.status;

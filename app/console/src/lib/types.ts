@@ -93,7 +93,7 @@ export type ApplicationDetail = {
 export type ApplicationLetter = { time?: string; place?: string; notes?: string; message?: string };
 /**
  * PATCH /api/console/applications/:id。note 只给审核人看，不进信；notify 默认 true。
- * expected_status、expected_review_id 是页面上看到的状态和最新一条审核记录的 id（没有记录时是 0）；
+ * expected_status、expected_review_id 是页面上看到的状态和审核记录的版本号（最大的审核记录 id，没有记录时是 0）；
  * 库里已经被别人处理过时服务端回 409 status_changed，不改也不发信。要改状态时两项都得带。
  */
 export type ApplicationReviewPatch = {
