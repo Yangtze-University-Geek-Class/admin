@@ -160,3 +160,31 @@
 - 做了什么：按所有者授权准备feat(console): 接入只读权限树与权限来源说明；包含四个前端文件、六项行为回归、服务与用户文档、五张虚构样板截图和执行记录；按规范携带已授权160收尾记录
 - 结果：改动静态审查完成，最终权限回归6/6及docs/边界/密钥/notes/生命周期检查通过；根verify既有905通过1失败28跳过保留，失败另交178；本次提交SHA以git commit结果及后续PR记录为准
 - 下一步：推task/176/permission_tree并建指向stage的PR；审查阻塞，不合并发布
+
+## 04:13:38 +08:00 · 推送 · #176 · 权限树实现已提交并推至任务分支
+
+- 执行者：agent-omp-permission-pr
+- 做了什么：git commit feat(console): 接入只读权限树与权限来源说明；git push -u origin task/176/permission_tree
+- 结果：提交8c40328成功，22 files changed/1144 insertions/26 deletions；远端新建task分支并建立tracking。没有推stage/main或tag；远端提示默认分支有72项依赖漏洞（29高33中10低），不把该仓库级提醒当本PR引入或已修复。创建PR时保留178与verify失败
+- 下一步：创建PR申请、发布针对该提交的12项审查结论并补齐PR/审查记录
+
+## 04:16:43 +08:00 · PR · #176 · 创建指向stage的草稿PR179
+
+- 执行者：agent-omp-permission-pr
+- 做了什么：gh pr create --base stage --head task/176/permission_tree --draft；九段正文含Closes #176、Refs #178、5张提交固定链接截图、命令结果、人工步骤、12项审查及风险回滚
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/179；实现提交8c40328cb0884104d66622ca3ce409f6e030206e已推送。草稿明确根verify未通过与未验证项，不合并不发布
+- 下一步：补齐审查/提交记录，检查PR链路后推notes并回填176当前实施
+
+## 04:16:44 +08:00 · 审查 · #176 · 对实现提交给出正式阻塞审查
+
+- 执行者：agent-omp-permission-pr
+- 做了什么：agent-omp-permission-pr按CODE-REVIEW十二项核对完整diff及实际验证，针对8c40328cb0884104d66622ca3ce409f6e030206e将结论写入PR179正文与追踪评论
+- 结果：结论阻塞：tests/server/mail-outbox.test.ts:477全套15秒38/50未解决，由Crosery按178查验；本任务未修改邮件。其余静态范围未发现新的确定缺陷；6项最终回归、1440/390px smoke和docs/边界/密钥通过。OAuth、预发布人工验收、完整论坛浏览器等未验证显式保留
+- 下一步：最终notes契约核对及推送，核对远端CI和附件可读性；不把PR草稿当合并许可
+
+## 04:16:44 +08:00 · 提交 · #176 · 补齐PR179与正式审查执行记录
+
+- 执行者：agent-omp-permission-pr
+- 做了什么：准备docs(notes): 记录权限树PR与阻塞审查；只追加176执行记录，不改变实现提交或既有历史
+- 结果：PR179已创建，正式审查针对8c40328记录于PR；待本次notes检查通过后提交推送，远端门禁按实际结果报告
+- 下一步：回填issue与PR最终追踪并读取CI状态，不合并发布
