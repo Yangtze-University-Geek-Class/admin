@@ -70,3 +70,31 @@
 - 做了什么：forum-server：attempt、steer、sendReply 在发出时记下是不是成员，fail() 按它判断（先试过「失效到重读完成之间」的标记，新测试抓到重读完成后才回来的写操作仍会漏，改掉）；/auth/me 那条收成 noteSessionEnded()；LoginModal 问 /auth/me 前先把 account 置空，还登录着时弹 refusedNotMemberToast；forum README 与 ADOPTION 同步；测试：store 加两条写操作同时 401 与 noteSessionEnded 两条，access 加 1 条，LoginModal 改被移出组织那条（等 /auth/me 时断言没登录、之后是不在组织里的说法）
 - 结果：变异核对：fail() 改回按页面上的身份判断、LoginModal 去掉先置空，各自对应的测试失败，恢复后通过。node scripts/forum.mjs check exit 0（30 files / 539 tests），pnpm check exit 0，check-doc-sync 通过。重建后本机 harness 在 ego 里再走两个标签页：A、B 各弹一条带登录的「登录已失效」，B 全程用 MutationObserver 看没出现过不在组织里的文字，A 刷新后是游客、不再弹。建议三按 noteSessionEnded 的 store 测试覆盖，组合函数本身由 nuxt typecheck 核对调用
 - 下一步：提交，推送，更新 PR
+
+## 08:27:29 +08:00 · 提交 · #164 · 4d91c2d（第二轮返工）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：4d91c2d fix(forum) 按发出时的身份判断写操作失败，等 /auth/me 时先按没登录算，被移出组织改用不在组织里的说法；同一提交带上 提交、审查、返工 三条记录
+- 结果：提交前 node scripts/forum.mjs check exit 0（30 files / 539 tests），pnpm check exit 0；推送后 PR #165 的 CI 在 4d91c2d 上 9 个检查全过（run 36281923271、36281920083）
+- 下一步：第三轮审查
+
+## 08:27:29 +08:00 · 审查 · #164 · 第三轮独立审查 4d91c2d：通过，1 条建议
+
+- 执行者：agent-claude-review-164（Claude Code，claude-opus-5-5）
+- 做了什么：只读审查 e73a449..4d91c2d 与完整分支，核对第二轮 5 条建议；跑了 forum-server-store、login-modal、access 三个测试文件（62 条通过）、note.mjs check --pr --for-review、check-doc-sync、docs-index --check；grep 核对 fail() 与 noteSessionEnded 的调用点；读 viewer.ts 确认「/auth/me 还登录着 + 写操作 401」只会是被移出组织
+- 结果：通过。第二轮建议一、二、四、五已处理，三只做了一半：useSiteAccount 在 /auth/me 回 session_expired 时调 noteSessionEnded 的那一行没有测试（删掉或写反，现有测试照样通过）。未验证：本机没跑完整 verify 与 e2e（以 CI 为准），没复现 ego 双标签页走查，没有预发布验证
+- 下一步：补这条测试后合并
+
+## 08:27:29 +08:00 · 返工 · #164 · 给 useSiteAccount 读到 session_expired 通知论坛补测试
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：tests/support/sfc.ts 加 loadModule：按客户端构建（import.meta.client 为 true）载入 app 下的 TypeScript 模块，和 loadComponent 共用求值；tests/site-account.test.ts 加两条，给 useSiteAccount 假的 fetch 与 store；forum README 失败一段指向这条测试
+- 结果：/auth/me 回 session_expired 时 noteSessionEnded 只调一次、顶栏按没登录算；登录着、普通没登录、读不到、非论坛服务端模式都不调。变异核对：去掉那次调用、去掉 serverMode 条件，各有一条新测试失败，恢复后通过。node scripts/forum.mjs check exit 0（30 files / 541 tests），check-doc-sync 通过
+- 下一步：提交，推送
+
+## 08:27:29 +08:00 · 提交 · #164 · 99678be（第三轮返工）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：99678be test(forum) 测 useSiteAccount 读到 /auth/me 的 session_expired 时通知论坛
+- 结果：提交前 node scripts/forum.mjs check exit 0（30 files / 541 tests）；服务端与根目录代码没变，pnpm check、pnpm test 沿用 4d91c2d 上的结果
+- 下一步：推送，CI 通过后更新 PR 审查结论并合并
