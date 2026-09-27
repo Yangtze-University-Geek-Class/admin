@@ -422,6 +422,72 @@ describe('sending: provider order, retries and the final state', () => {
   });
 });
 
+describe('many letters at once (#169)', () => {
+  /** 带 worker 的真实服务进程：发信商每封慢 5–25 毫秒 */
+  async function busyApp(answer: (call: Call) => Answer = defaultAnswer) {
+    const fake = fakeFetch(answer);
+    const slow = (async (url: string | URL, init?: RequestInit) => {
+      await new Promise(resolve => setTimeout(resolve, 5 + Math.floor(Math.random() * 20)));
+      return fake.fetch(url, init);
+    }) as unknown as typeof fake.fetch;
+    const config = testConfig({
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
+      ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
+      ...BOTH,
+    });
+    const app = await buildApp({ config, staticRoot: false, mailWorker: true, overrides: { mailFetch: slow } });
+    await app.ready();
+    const { db } = app.services.storage;
+    // 50 个人同时投递：各自一个 IP，碰不到每个 IP 的限流和投递次数
+    const burst = (n: number) => Promise.all(Array.from({ length: n }, (_, i) => app.inject({
+      method: 'POST', url: '/api/portal/apply', remoteAddress: `198.18.0.${i + 1}`,
+      payload: { ...APPLICANT, email: `u${i}@example.test`, pow: { timestamp: Date.now(), nonce: 'test' } },
+    })));
+    const sentCount = () => (db.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE status = 'sent'").get() as { n: number }).n;
+    return { app, db, calls: fake.calls, burst, sentCount };
+  }
+  const aliyunTo = (call: Call) => new URLSearchParams(call.body).get('ToAddress');
+  const resendTo = (call: Call) => (JSON.parse(call.body) as { to: string[] }).to[0];
+
+  it('sends every letter exactly once when 50 applications arrive together and the provider is slow', async () => {
+    const { app, calls, burst, sentCount } = await busyApp();
+    try {
+      const responses = await burst(50);
+      expect(responses.map(response => response.statusCode)).toEqual(Array(50).fill(201));
+      // 发信循环在跑的时候再被叫几次，也不会多发
+      await Promise.all([app.services.mail.drain(), app.services.mail.drain(), app.services.mail.drain()]);
+      await vi.waitFor(() => expect(sentCount()).toBe(50), { timeout: 15_000 });
+      const to = aliyunCalls(calls).map(aliyunTo);
+      expect(to).toHaveLength(50);
+      expect(new Set(to)).toEqual(new Set(Array.from({ length: 50 }, (_, i) => `u${i}@example.test`)));
+      expect(resendCalls(calls)).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('still delivers each letter once when half of them fail at Aliyun and go to Resend', async () => {
+    const failOdd = (call: Call): Answer => {
+      if (call.url === ALIYUN_ENDPOINT && Number(/u(\d+)@/.exec(aliyunTo(call) ?? '')?.[1]) % 2 === 1) return { status: 500, json: { Code: 'InternalError' } };
+      return defaultAnswer(call);
+    };
+    const { app, db, calls, burst, sentCount } = await busyApp(failOdd);
+    try {
+      expect((await burst(50)).every(response => response.statusCode === 201)).toBe(true);
+      await vi.waitFor(() => expect(sentCount()).toBe(50), { timeout: 15_000 });
+      const delivered = [
+        ...aliyunCalls(calls).map(aliyunTo).filter(to => Number(/u(\d+)@/.exec(to ?? '')?.[1]) % 2 === 0),
+        ...resendCalls(calls).map(resendTo),
+      ];
+      expect(delivered).toHaveLength(50);
+      expect(new Set(delivered).size).toBe(50);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE provider = 'resend'").get()).toEqual({ n: 25 });
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('console status changes', () => {
   it('rejects statuses outside the four, including the retired reviewing', async () => {
     const { apply, review, rows } = await setup(BOTH);
