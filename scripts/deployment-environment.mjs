@@ -44,7 +44,7 @@ export const OPTIONAL_SECRET_PAIR = Object.freeze(['TURNSTILE_SITE_KEY', 'TURNST
 /** 阿里云邮件推送的 AccessKey 同样是可选的一对：都空 = 不走阿里云，只填一项拒绝渲染。 */
 export const MAIL_ALIYUN_SECRET_PAIR = Object.freeze(['MAIL_ALIYUN_ACCESS_KEY_ID', 'MAIL_ALIYUN_ACCESS_KEY_SECRET']);
 /**
- * 可选的单项密钥：MAIL_RESEND_API_KEY 空 = 不走 Resend；MAIL_ALLOWLIST 是预发布的收件名单（逗号隔开的邮箱，个人信息，所以当密钥存）。
+ * 可选的单项密钥：MAIL_RESEND_API_KEY 空 = 不走 Resend；MAIL_ALLOWLIST 是 MAIL_RECIPIENTS=allowlist 时的收件名单（逗号隔开的邮箱，个人信息，所以当密钥存）。
  * 阿里云与 Resend 都没配时发信关闭，server 把每封信记为「发信没有配置」，一封也不发。
  */
 export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST']);
@@ -52,7 +52,7 @@ export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLO
 export const REQUIRED_SECRET_FIELDS = Object.freeze(
   SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS].includes(field)),
 );
-/** 收件范围：all 发给所有人；allowlist 只发给 MAIL_ALLOWLIST 里的地址。预发布只能是 allowlist。 */
+/** 收件范围：all 发给所有人；allowlist 只发给 MAIL_ALLOWLIST 里的地址。两个环境现在都是 all（#169）。 */
 export const MAIL_RECIPIENT_MODES = Object.freeze(['all', 'allowlist']);
 /** 允许为空但不属于密钥的字段（留空是明确的语义）。MAIL_REPLY_TO 空 = 信里不带 Reply-To，改指向官网意见箱。 */
 const EMPTY_IS_MEANINGFUL = Object.freeze(new Set([...SECRET_FIELDS, 'COOKIE_DOMAIN', 'ALLOWED_ORGS', 'MAIL_REPLY_TO']));
@@ -390,10 +390,8 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     }
     const recipients = values.get('MAIL_RECIPIENTS');
     if (values.has('MAIL_RECIPIENTS')) {
+      // 预发布以前只能是 allowlist；所有者 2026-09-27 14:20 要求预发布的信都发出去（「我们官方发的那些邮件，肯定必须发过去」），#169 放开。
       if (!MAIL_RECIPIENT_MODES.includes(recipients)) problem(`MAIL_RECIPIENTS 只能是 ${MAIL_RECIPIENT_MODES.join(' 或 ')}：${recipients}`);
-      else if (name === 'preview' && recipients !== 'allowlist') {
-        problem('预发布的 MAIL_RECIPIENTS 必须是 allowlist：预发布只给 MAIL_ALLOWLIST 里的地址发信，不打扰真实报名的人');
-      }
     }
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,

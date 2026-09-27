@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { MailTemplateError } from "../../lib/mail/envelope.js";
 import { RECEIVED_LETTER_LIMITS } from "../../lib/mail/mailer.js";
@@ -34,6 +34,20 @@ const EMAIL_REGEX = /^[^\s@"\\()<>,;:[\].]+(\.[^\s@"\\()<>,;:[\].]+)*@[^\s@"\\()
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 const SUCCESS_MESSAGE = "投递成功，我们会在 3 个工作日内联系你。";
+
+/**
+ * 投递次数（#169）：所有者 2026-09-27 14:20「为了防止别人申请时盗刷，可以在申请时限制一个设备或一个IP最多申请5次，
+ * 也就是只能申请5个邮件」。同一个来源 IP（IPv6 按 /64，ipSubject）、同一个设备各自在滚动的 24 小时里最多 5 份成功的投递，
+ * 第 6 份回 429、不落库、不发信。只数成功的投递：蜜罐、校验不过、人机验证不过、被拦下的都不算。
+ * 设备是这个接口自己发的 cookie（APPLY_DEVICE_COOKIE），清掉 cookie 或换浏览器就算新设备，主要靠 IP 这一道。
+ * 共用出口（校园网、宿舍、热点）的人算同一个 IP：一天里第 6 个人投不了，第二天可以再投。
+ * 计数在 application_limits 表，只存 sha256 和时间。每个 IP 每分钟 5 次的请求限流（下面的 rateLimit）另外算。
+ */
+export const APPLY_LIMITS = { windowMs: 24 * 3600_000, perSource: 5, perDevice: 5 } as const;
+export const APPLY_DEVICE_COOKIE = "yugc_apply_device";
+const APPLY_LIMITED_MESSAGE = "同一台设备或同一个网络 24 小时内最多投递 5 次，之前投的都已经收到了。";
+const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 function checkName(input: unknown): Checked {
   if (typeof input !== "string") return { ok: false, error: "姓名格式无效" };
@@ -82,11 +96,36 @@ export default async function applyRoutes(app: FastifyInstance) {
   const { audit, db } = app.services.storage;
   const { verifyTurnstile } = app.services.turnstile;
   const { preflightPublicSubmission, checkHoneypot } = app.services.publicSubmission;
-  const { mail } = app.services;
+  const { config, mail } = app.services;
+  const countSince = db.prepare("SELECT COUNT(*) AS n FROM application_limits WHERE bucket = ? AND subject_hash = ? AND created_at > ?");
+  const recordAttempt = db.prepare("INSERT INTO application_limits(bucket, subject_hash, created_at) VALUES(?, ?, ?)");
+  const pruneAttempts = db.prepare("DELETE FROM application_limits WHERE created_at <= ?");
+  const insertApplication = db.prepare(
+    "INSERT INTO applications(id, name, class_name, email, strengths, source_ip, user_agent, status, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, 'received', ?)"
+  );
+  // 查次数和写入放在同一个同步事务里：中间没有 await，两个请求不会同时通过检查。
+  const admit = db.transaction((row: { id: string; name: string; className: string; email: string; strengths: string; ip: string; userAgent: string | null; at: number }, source: string, device: string) => {
+    const since = row.at - APPLY_LIMITS.windowMs;
+    const used = (bucket: string, subject: string) => (countSince.get(bucket, subject, since) as { n: number }).n;
+    if (used("source", source) >= APPLY_LIMITS.perSource || used("device", device) >= APPLY_LIMITS.perDevice) return false;
+    pruneAttempts.run(since);
+    insertApplication.run(row.id, row.name, row.className, row.email, row.strengths, row.ip, row.userAgent, row.at);
+    recordAttempt.run("source", source, row.at);
+    recordAttempt.run("device", device, row.at);
+    return true;
+  });
 
   app.post<{ Body: Body }>(
     "/api/portal/apply",
-    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: "1 minute",
+          errorResponseBuilder: () => ({ statusCode: 429, error: "rate_limited", message: "操作太频繁，请稍后再试" }),
+        },
+      },
+    },
     async (req, reply) => {
       const body = req.body ?? {};
 
@@ -114,11 +153,20 @@ export default async function applyRoutes(app: FastifyInstance) {
       const captchaOk = await verifyTurnstile(body.turnstile_token, req.ip);
       if (!captchaOk) return reply.code(400).send({ error: "人机验证失败，请刷新重试" });
 
+      // 设备 id：带来的不像我们发的就换一个新的；每次都续一年，只在这个接口的路径下发送。
+      const carried = req.cookies[APPLY_DEVICE_COOKIE];
+      const device = carried && DEVICE_ID.test(carried) ? carried : randomUUID();
+      reply.setCookie(APPLY_DEVICE_COOKIE, device, {
+        httpOnly: true, secure: config.cookieSecure, sameSite: "lax", path: "/api/portal/apply", maxAge: 365 * 24 * 3600,
+      });
+
       const id = randomUUID();
       const submittedAt = Date.now();
-      db.prepare(
-        "INSERT INTO applications(id, name, class_name, email, strengths, source_ip, user_agent, status, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, 'received', ?)"
-      ).run(id, name.value, className.value, email.value, strengths.value, req.ip, req.headers["user-agent"] ?? null, submittedAt);
+      const admitted = admit({
+        id, name: name.value, className: className.value, email: email.value, strengths: strengths.value,
+        ip: req.ip, userAgent: req.headers["user-agent"] ?? null, at: submittedAt,
+      }, sha256(ipSubject(req.ip)), sha256(device));
+      if (!admitted) return reply.code(429).send({ error: "apply_limited", message: APPLY_LIMITED_MESSAGE });
 
       audit(null, "public:apply", "application.received", id, {
         email: maskEmail(email.value),
@@ -128,13 +176,12 @@ export default async function applyRoutes(app: FastifyInstance) {
       }, req.ip);
 
       // 投递已经落库；「已收到」的信拼不出来或写不进队列只记日志（不记地址和正文），不让投递失败。
-      // 谁都能填别人的邮箱，所以同一个收件箱 24 小时内只发一封、同一个 IP 每小时和每天有上限、全站每小时有上限
-      // （RECEIVED_LETTER_LIMITS），超出的记成 skipped。IP 按 /64 归并（ipSubject），库里只存哈希。
+      // 每份投递都发一封，只有全站每小时的上限（RECEIVED_LETTER_LIMITS）；防盗刷靠上面的投递次数。
       try {
         const application = { id, name: name.value, class_name: className.value, email: email.value, strengths: strengths.value, created_at: submittedAt };
         mail.enqueue({
           eventKey: `application:${id}:received`, kind: "recruitment.received", applicationId: id, to: email.value,
-          mail: mail.recruitmentLetter("received", application), source: ipSubject(req.ip),
+          mail: mail.recruitmentLetter("received", application),
         }, RECEIVED_LETTER_LIMITS);
       } catch (error) {
         req.log.error({ application_id: id, error: error instanceof MailTemplateError ? error.code : (error as Error)?.name ?? "error" }, "received letter not queued");

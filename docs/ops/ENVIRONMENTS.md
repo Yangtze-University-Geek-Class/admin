@@ -46,7 +46,7 @@
 | `MAIL_RESEND_FROM` | 可见 | `notify@email-crosery.cn`（Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`） | 同左 |
 | `MAIL_ASSET_BASE` | 可见 | `https://cdn.crosery.com/yzgc/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
 | `MAIL_REPLY_TO` | 可见·留空 | 空 = 信里不带 Reply-To，改请对方到官网意见箱留言；要填就写一个不带显示名的地址 | 空 |
-| `MAIL_RECIPIENTS` | 可见 | `all`：发给每一个投递的人 | `allowlist`：只发给 `MAIL_ALLOWLIST` 里的地址；校验器不接受预发布写别的值 |
+| `MAIL_RECIPIENTS` | 可见 | `all`：发给每一个投递的人 | `all`（#169 起；以前只能是 `allowlist`）；改成 `allowlist` 就只发 `MAIL_ALLOWLIST` 里的地址 |
 | `GEEK_RELEASE_DISPLAY_SUFFIX` | **已移除** | 不再出现在 env 文件里：它是 `BUILD_ONLY_FIELDS`（发布身份只走 build args），写进 `.env` 不会被读取 | 同左 |
 | `OAUTH_CLIENT_ID` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 | `OAUTH_CLIENT_SECRET` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
@@ -56,11 +56,11 @@
 | `TURNSTILE_SECRET_KEY` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 | `MAIL_ALIYUN_ACCESS_KEY_ID` / `MAIL_ALIYUN_ACCESS_KEY_SECRET` | 密钥·留空，可选的一对 | CI/CD 注入，可以不配 | 同左 |
 | `MAIL_RESEND_API_KEY` | 密钥·留空，可选 | CI/CD 注入，可以不配 | 同左 |
-| `MAIL_ALLOWLIST` | 密钥·留空，可选 | `MAIL_RECIPIENTS=allowlist` 时才用 | 预发布的收件名单，CI/CD 注入 |
+| `MAIL_ALLOWLIST` | 密钥·留空，可选 | `MAIL_RECIPIENTS=allowlist` 时才用 | 同左，现在不用 |
 
 **一个环境只有一个域名**（项目所有者 2026-09-23 决定）：官网、管理端、论坛共用 `PUBLIC_ORIGIN`，按 URL 路径区分——`/admin`、`/admin/…`、`/console`、`/console/…`、`/signin` 进管理端 SPA，`/forum/…` 进论坛，其余进官网。旧的按站点分域名字段 `SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST` 已退役，校验器把模板里任何契约外的字段判为失败，防止重新长出第二份域名配置。
 
-校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、契约外字段、密钥留空、`PUBLIC_ORIGIN` 与 `deploy/environments.json` 逐字一致、两环境取值差异，以及发信字段：两个发件地址是不带显示名的邮箱，`MAIL_REPLY_TO` 为空或是一个邮箱，`MAIL_ASSET_BASE` 是以 `/` 结尾的 https 地址，`MAIL_RECIPIENTS` 只能是 `all` 或 `allowlist`，预发布只能是 `allowlist`；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
+校验：`node scripts/deployment-environment.mjs --check`（`pnpm check:environments`）核对模板字段完整性、契约外字段、密钥留空、`PUBLIC_ORIGIN` 与 `deploy/environments.json` 逐字一致、两环境取值差异，以及发信字段：两个发件地址是不带显示名的邮箱，`MAIL_REPLY_TO` 为空或是一个邮箱，`MAIL_ASSET_BASE` 是以 `/` 结尾的 https 地址，`MAIL_RECIPIENTS` 只能是 `all` 或 `allowlist`（两个环境模板现在都是 `all`，#169）；`node scripts/deployment-environment.mjs render --environment <env> --out <路径> --image-tag <sha12>` 生成目标机运行时文件（只读仓库、只写显式 `--out`）。
 
 **不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 tag `vX.Y.Z` → `X.Y.Z`；预发布 tag `vX.Y.Z-rc.N` → `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
@@ -92,7 +92,7 @@
 
 Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `OPTIONAL_SECRET_PAIR`）：**都为空＝明确关闭**，渲染时写空值并提示；只填一项仍拒绝渲染；除 Turnstile 和下面的发信密钥外，其余密钥一律必填。关闭时服务端 `middleware/turnstile.ts` 不校验人机验证，公开的投递、反馈、邀请只靠工作量证明（`POW_DIFFICULTY`）、蜜罐字段与限流；遗留风险是批量脚本的成本只剩计算量，要开启时在 Cloudflare 建站点后把两项同时配进环境级 secrets 并重新部署。首次上线（2026-09-25）两个环境都关闭。
 
-发信的四项也都可以不配（同一脚本的 `MAIL_ALIYUN_SECRET_PAIR` 与 `OPTIONAL_SECRETS`，#148）。阿里云的 AccessKey ID 和 Secret 是一对，只填一项拒绝渲染；`MAIL_RESEND_API_KEY` 单独一项。server 先用阿里云发，失败再换 Resend；阿里云适配器还没写按封的回信地址（SingleSendMail 有 `ReplyAddress` 参数，没用真实发信试过，见 [mail](../services/server/mail.md)「已知限制」），所以 `MAIL_REPLY_TO` 不为空时信只交给 Resend，只配了阿里云时 server 按没有配置发信商处理、一封也不发，render 会提示。阿里云和 Resend 都没配时发信关闭：server 照常启动，投递和改状态照常成功，每封信在发信记录里记为「发信没有配置」，一封也不发，render 同样会提示。`MAIL_RECIPIENTS=allowlist` 时只给 `MAIL_ALLOWLIST` 里的地址发信（不分大小写），其余的信记为不在名单里、不发。预发布只能是 `allowlist`，在预发布上试投递、改状态，不会给真实报名的人发信；名单为空时预发布一封也不发，render 也会提示。名单里是真人的邮箱，属于个人信息，所以和密钥放在一起，不写进模板。渲染时名单只接受英文逗号隔开的邮箱，出错时报错里不带名单内容。2026-09-27 所有者同意后，`preview` 环境配上了 `MAIL_ALIYUN_ACCESS_KEY_ID`、`MAIL_ALIYUN_ACCESS_KEY_SECRET`、`MAIL_RESEND_API_KEY`，`MAIL_ALLOWLIST` 里是所有者自己的一个邮箱（用来在预发布上收信核对），预发布只给这个地址发信。`production` 环境的发信密钥还没配，正式环境不发信。
+发信的四项也都可以不配（同一脚本的 `MAIL_ALIYUN_SECRET_PAIR` 与 `OPTIONAL_SECRETS`，#148）。阿里云的 AccessKey ID 和 Secret 是一对，只填一项拒绝渲染；`MAIL_RESEND_API_KEY` 单独一项。server 先用阿里云发，失败再换 Resend；阿里云适配器还没写按封的回信地址（SingleSendMail 有 `ReplyAddress` 参数，没用真实发信试过，见 [mail](../services/server/mail.md)「已知限制」），所以 `MAIL_REPLY_TO` 不为空时信只交给 Resend，只配了阿里云时 server 按没有配置发信商处理、一封也不发，render 会提示。阿里云和 Resend 都没配时发信关闭：server 照常启动，投递和改状态照常成功，每封信在发信记录里记为「发信没有配置」，一封也不发，render 同样会提示。`MAIL_RECIPIENTS=allowlist` 时只给 `MAIL_ALLOWLIST` 里的地址发信（不分大小写），其余的信记为不在名单里、不发。两个环境现在都是 `all`：所有者 2026-09-27 14:20 要求「邮件不要做限制吧，不然我这边收不到邮件，没法测试。我们官方发的那些邮件，肯定必须发过去」，#169 去掉了「预发布只能是 `allowlist`」这条校验，预发布上投递、改状态的信都会发给投递人。改成 `allowlist` 而名单为空时一封也不发，render 会提示。名单里是真人的邮箱，属于个人信息，所以和密钥放在一起，不写进模板。渲染时名单只接受英文逗号隔开的邮箱，出错时报错里不带名单内容。2026-09-27 所有者同意后，`preview` 环境配上了 `MAIL_ALIYUN_ACCESS_KEY_ID`、`MAIL_ALIYUN_ACCESS_KEY_SECRET`、`MAIL_RESEND_API_KEY`，`MAIL_ALLOWLIST` 里是所有者自己的一个邮箱（#169 之后预发布是 `all`，这一项不起作用）。`production` 环境的发信密钥还没配，正式环境不发信。
 
 ### vars
 

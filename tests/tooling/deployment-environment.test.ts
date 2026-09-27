@@ -131,7 +131,8 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(values.get('MAIL_ASSET_BASE')).toBe('https://cdn.crosery.com/yzgc/mail/v1/');
       expect(values.get('MAIL_REPLY_TO')).toBe('');
     }
-    expect(preview.get('MAIL_RECIPIENTS')).toBe('allowlist');
+    // 预发布和正式都发给所有投递人（#169）
+    expect(preview.get('MAIL_RECIPIENTS')).toBe('all');
     expect(production.get('MAIL_RECIPIENTS')).toBe('all');
     for (const field of [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS]) {
       expect(SECRET_FIELDS).toContain(field);
@@ -207,7 +208,7 @@ describe('committed env templates are the single source of deploy facts', () => 
     }
   });
 
-  it('checks the visible mail fields and keeps preview on the allowlist', () => {
+  it('checks the visible mail fields', () => {
     const edit = (name: string, from: string, to: string) => {
       const root = fixtureRoot();
       const path = join(root, `deploy/env/.env.${name}`);
@@ -217,8 +218,7 @@ describe('committed env templates are the single source of deploy facts', () => 
       return validateEnvironmentFiles({ root, checkCompose: false });
     };
     const failing: Array<[string, string, string, RegExp]> = [
-      // 预发布不打扰真人：收件范围只能是名单。
-      ['preview', '\nMAIL_RECIPIENTS=allowlist\n', '\nMAIL_RECIPIENTS=all\n', /预发布的 MAIL_RECIPIENTS 必须是 allowlist/],
+      ['preview', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=everyone\n', /MAIL_RECIPIENTS 只能是 all 或 allowlist/],
       ['production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=everyone\n', /MAIL_RECIPIENTS 只能是 all 或 allowlist/],
       ['production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=\n', /MAIL_RECIPIENTS 只能是/],
       ['production', '\nMAIL_RECIPIENTS=all\n', '\n', /缺少字段 MAIL_RECIPIENTS/],
@@ -243,9 +243,10 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(report.ok, `${name}: ${to}`).toBe(false);
       expect(report.problems.join('\n')).toMatch(message);
     }
-    // 回复地址写成一个地址、正式环境改成只发名单，都是合法配置。
+    // 回复地址写成一个地址、任何一个环境改成只发名单，都是合法配置。
     expect(edit('production', '\nMAIL_REPLY_TO=\n', '\nMAIL_REPLY_TO=geek@example.com\n').problems).toEqual([]);
     expect(edit('production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=allowlist\n').problems).toEqual([]);
+    expect(edit('preview', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=allowlist\n').problems).toEqual([]);
   });
 
   it('recognises plain addresses, address lists and the asset base', () => {
@@ -446,12 +447,14 @@ describe('optional mail secrets', () => {
   });
 
   it('warns when the configuration can send nothing or cannot carry Reply-To', () => {
-    // 预发布只发名单：发信开着但名单为空，一封也发不出去。
-    const emptyList = render(without(secrets, ['MAIL_ALLOWLIST']));
+    // 改成只发名单、名单又是空的：发信开着，一封也发不出去。
+    const emptyList = render(without(secrets, ['MAIL_ALLOWLIST']), 'preview', ['\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=allowlist\n']);
     expect(emptyList.result.mail).toBe('on');
     expect(emptyList.result.notices.join('\n')).toMatch(/MAIL_RECIPIENTS=allowlist 而 MAIL_ALLOWLIST 为空/);
-    // 正式发给所有人，名单为空不用提示。
-    expect(render(without(secrets, ['MAIL_ALLOWLIST']), 'production').result.notices.join('\n')).not.toMatch(/MAIL_ALLOWLIST 为空/);
+    // 发给所有人时名单为空不用提示（两个环境现在都是这样）。
+    for (const environment of ['preview', 'production']) {
+      expect(render(without(secrets, ['MAIL_ALLOWLIST']), environment).result.notices.join('\n')).not.toMatch(/MAIL_ALLOWLIST 为空/);
+    }
     // 只有阿里云时带不了 Reply-To，server 按没有配置发信商处理。
     const replyTo: [string, string] = ['MAIL_REPLY_TO=\n', 'MAIL_REPLY_TO=geek@example.com\n'];
     expect(render(without(secrets, ['MAIL_RESEND_API_KEY']), 'production', replyTo).result.notices.join('\n')).toMatch(/MAIL_REPLY_TO 不为空却只配了阿里云/);

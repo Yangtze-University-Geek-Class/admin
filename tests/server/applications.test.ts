@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
+import { ipSubject } from '../../app/server/src/lib/forum-rules';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { testApp, testConfig } from './helpers';
 
@@ -195,4 +196,91 @@ it('accepts a client-computed proof of work built from apply:<trim 后姓名>:<t
   expect(wrongPrefix.statusCode).toBe(400);
   expect(wrongPrefix.json().error).toBe('防滥用校验失败，请刷新页面重试');
   expect(app.services.storage.db.prepare('SELECT COUNT(*) AS n FROM applications').get()).toEqual({ n: 1 });
+});
+
+describe('how often one device or network can apply (#169)', () => {
+  const LIMITED = { error: 'apply_limited', message: '同一台设备或同一个网络 24 小时内最多投递 5 次，之前投的都已经收到了。' };
+  const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+  const deviceOf = (response: { cookies: Array<{ name: string; value: string }> }) => response.cookies.find(cookie => cookie.name === 'yugc_apply_device');
+  async function limits() {
+    const { app, db, count } = await fixture();
+    const apply = (ip: string, device?: string, patch: Record<string, unknown> = {}) => app.inject({
+      method: 'POST', url: '/api/portal/apply', remoteAddress: ip, cookies: device ? { yugc_apply_device: device } : {},
+      payload: { ...VALID, pow: { timestamp: Date.now(), nonce: 'test' }, ...patch },
+    });
+    return { app, db, count, apply };
+  }
+
+  it('takes 5 applications from one network in 24 hours, grouping IPv6 by /64, and refuses the 6th without storing it', async () => {
+    const { apply, count, db } = await limits();
+    // 同一个 /64 里的地址各算一次请求限流（每分钟 5 次碰不到），但算同一个来源；每次不带 cookie，算不同的设备
+    for (let n = 1; n <= 5; n += 1) expect((await apply(`2001:db8:1:2::${n}`)).statusCode).toBe(201);
+    const sixth = await apply('2001:db8:1:2::6');
+    expect(sixth.statusCode).toBe(429);
+    expect(sixth.json()).toEqual(LIMITED);
+    expect(count('applications')).toEqual({ n: 5 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM mail_outbox').get()).toEqual({ n: 5 });
+    expect((await apply('203.0.113.9')).statusCode).toBe(201);
+    // 库里只有哈希
+    const rows = db.prepare("SELECT subject_hash FROM application_limits WHERE bucket = 'source'").all() as { subject_hash: string }[];
+    expect(new Set(rows.map(row => row.subject_hash))).toEqual(new Set([sha256(ipSubject('2001:db8:1:2::1')), sha256('203.0.113.9')]));
+    expect(JSON.stringify(db.prepare('SELECT * FROM application_limits').all())).not.toMatch(/2001:db8|203\.0\.113/);
+  });
+
+  it('counts one browser across networks by its cookie, which only goes to the apply endpoint', async () => {
+    const { apply, count } = await limits();
+    const first = await apply('198.51.100.1');
+    const cookie = deviceOf(first);
+    expect(cookie).toMatchObject({ httpOnly: true, path: '/api/portal/apply', sameSite: 'Lax', maxAge: 365 * 24 * 3600 });
+    expect(cookie!.value).toMatch(/^[0-9a-f-]{36}$/);
+    for (let n = 2; n <= 5; n += 1) expect((await apply(`198.51.100.${n}`, cookie!.value)).statusCode).toBe(201);
+    const sixth = await apply('198.51.100.6', cookie!.value);
+    expect(sixth.statusCode).toBe(429);
+    expect(sixth.json()).toEqual(LIMITED);
+    expect(count('applications')).toEqual({ n: 5 });
+    // 清掉 cookie 就算新设备；带来的不像我们发的，换一个新的 id
+    expect((await apply('198.51.100.7')).statusCode).toBe(201);
+    const forged = await apply('198.51.100.8', 'not-a-device-id');
+    expect(forged.statusCode).toBe(201);
+    expect(deviceOf(forged)!.value).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('admits exactly 5 of 10 applications that arrive from one network at the same moment, with a slow human check in between', async () => {
+    // 开着 Turnstile，校验要 20 毫秒：10 个请求一定在「查次数」和「写入」之间交错
+    const slowCheck = (async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return { body: { json: async () => ({ success: true }) } };
+    }) as unknown as ServiceOverrides['httpRequest'];
+    const context = await testApp({ httpRequest: slowCheck }, false, { TURNSTILE_SITE_KEY: 'test-site-key', TURNSTILE_SECRET_KEY: 'test-secret-key' });
+    contexts.push(context);
+    const { app } = context;
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => app.inject({
+      method: 'POST', url: '/api/portal/apply', remoteAddress: `2001:db8:7:8::${i + 1}`,
+      payload: { ...VALID, turnstile_token: 'ok', pow: { timestamp: Date.now(), nonce: 'test' } },
+    })));
+    expect(results.filter(response => response.statusCode === 201)).toHaveLength(5);
+    expect(results.filter(response => response.statusCode === 429)).toHaveLength(5);
+    expect(app.services.storage.db.prepare('SELECT COUNT(*) AS n FROM applications').get()).toEqual({ n: 5 });
+  });
+
+  it('counts only stored applications, and frees the network again after 24 hours', async () => {
+    const { apply, count, db } = await limits();
+    const at = (n: number) => `2001:db8:5:6::${n}`;
+    // 校验不过和蜜罐都不算
+    expect((await apply(at(1), undefined, { email: 'not-an-email' })).statusCode).toBe(400);
+    expect((await apply(at(2), undefined, { website: 'https://bot.example' })).statusCode).toBe(201);
+    expect(count('applications')).toEqual({ n: 0 });
+    for (let n = 3; n <= 7; n += 1) expect((await apply(at(n))).statusCode).toBe(201);
+    expect((await apply(at(8))).statusCode).toBe(429);
+    const now = Date.now();
+    const later = vi.spyOn(Date, 'now').mockReturnValue(now + 24 * 3600_000 + 1_000);
+    try {
+      expect((await apply(at(9))).statusCode).toBe(201);
+    } finally {
+      later.mockRestore();
+    }
+    expect(count('applications')).toEqual({ n: 6 });
+    // 过了窗口的计数在下一次投递时删掉：只剩最后这一份的两行
+    expect(db.prepare('SELECT COUNT(*) AS n FROM application_limits').get()).toEqual({ n: 2 });
+  });
 });

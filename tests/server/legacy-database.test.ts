@@ -113,6 +113,8 @@ const FORUM_TABLES = [
 ];
 /** 发信队列（#148）：同样只新增。 */
 const MAIL_TABLES = ['mail_outbox'];
+/** 投递次数（#169）：同样只新增，`applications` 不改。 */
+const APPLY_TABLES = ['application_limits'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
@@ -210,7 +212,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
 
     // 新表全部建好；旧表一行不少、一列不变。
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
-    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES, ...MAIL_TABLES])].sort());
+    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES, ...MAIL_TABLES, ...APPLY_TABLES])].sort());
     for (const [table, rows] of Object.entries(before.rows)) {
       expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
     }
