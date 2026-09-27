@@ -16,7 +16,7 @@
  * （回复时的引用、版主编辑别人的帖子）原样放进文本框，不另做转义。
  */
 
-import { postExcerpt } from '../app/utils/excerpt'
+import { postLine } from '../app/utils/excerpt'
 
 export const WORD_JOINER = '\u2060'
 
@@ -50,9 +50,12 @@ export function replyQuote(excerpt: string): string {
 /** 回复框引用的摘要最多这么长。 */
 export const QUOTE_LENGTH = 80
 
-/** 回复某一帖时回复框里预填的内容（ReplyComposer.vue）。 */
-export function quoteDraft(post: { content: string }): string {
-  return replyQuote(postExcerpt(post.content, QUOTE_LENGTH))
+/**
+ * 回复某一帖时回复框里预填的内容（ReplyComposer.vue）。
+ * 引的是那一帖的一行文字（#156）：页面在列表里拿到的可能只有服务端截好的 `excerpt`。
+ */
+export function quoteDraft(post: { content?: string, excerpt?: string }): string {
+  return replyQuote(postLine(post, QUOTE_LENGTH))
 }
 
 function neutralize(match: string, lead: string, destination: string): string {

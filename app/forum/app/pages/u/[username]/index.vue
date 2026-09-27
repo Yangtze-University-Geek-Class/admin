@@ -143,7 +143,8 @@ function titleOf(topicId: string): string {
 }
 
 function excerptOf(postId: string | undefined): string {
-  return postId ? postExcerpt(forum.postById(postId)?.content ?? '', 80) : ''
+  const post = postId ? forum.postById(postId) : undefined
+  return post ? postLine(post, 80) : ''
 }
 
 function openTopic(topicId: string) {

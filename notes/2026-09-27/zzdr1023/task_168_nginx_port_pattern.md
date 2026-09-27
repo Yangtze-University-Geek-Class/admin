@@ -49,3 +49,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：gh pr checks 171 核对九项检查；取 core job（run 36304732658 / job 108579086451）日志确认 hashed-asset-cache.test.ts 6 tests 未 skip、Test Files 60 passed，并在 PR 补一条进度记录
 - 结果：8dc550a 上全部通过含必需检查 verify (required check)；本机 build-mirrors 4 条失败确认为本地环境问题（托管 runner 通过）
+
+## 18:32:03 +08:00 · 收尾 · #168 · PR #171 已合并，清理 worktree
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：node scripts/task.mjs finish 168：删 worktree .claude/worktrees/task-168 与本地分支 task/168/nginx_port_pattern
+- 结果：PR 已合并

@@ -49,7 +49,7 @@ function authorOf(entry: BookmarkEntry): string {
         <TxCardItem
           clickable
           :subtitle="`${authorOf(entry)} · ${fromNow(entry.bookmark.createdAt)}`"
-          :description="postExcerpt(entry.post.content, EXCERPT_LENGTH)"
+          :description="postLine(entry.post, EXCERPT_LENGTH)"
           @click="open(entry)"
         >
           <template #title>

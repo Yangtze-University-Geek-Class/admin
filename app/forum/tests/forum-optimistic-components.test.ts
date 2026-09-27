@@ -7,6 +7,7 @@ import { defineComponent, h, nextTick, reactive, ref, watch } from 'vue'
 import * as likes from '~/data/likes'
 import * as forumServer from '~/stores/forum-server'
 import * as forumApi from '../shared/forum-api'
+import * as excerpt from '~/utils/excerpt'
 import * as postMarkdown from '../shared/post-markdown'
 import { find, findAll, loadComponent, mount, textOf } from './support/sfc'
 import { loadMarked, TUFFEX_STUBS } from './support/tuffex-stubs'
@@ -66,7 +67,7 @@ function heldWrites<T>() {
 }
 
 describe('a post card', () => {
-  function mountCard(post: Post) {
+  function mountCard(post: Post, bodiesPending = false) {
     const PostCard = loadComponent('components/PostCard.vue', {
       imports: {
         '@talex-touch/tuffex/utils': { toast: vi.fn() },
@@ -74,6 +75,7 @@ describe('a post card', () => {
         '~/stores/forum-server': forumServer,
       },
       globals: {
+        postLine: excerpt.postLine,
         useForumStore: () => ({ userById: () => member, postById: () => undefined, isBookmarked: () => false, isFirstPost: () => false }),
         useForumActions: () => ({}),
         useCurrentUser: () => ({ user: ref(member), can: () => true, guestCanReply: () => false }),
@@ -82,7 +84,7 @@ describe('a post card', () => {
         useAppLink: () => ({ href: (path: string) => path, absoluteUrl: () => `https://forum.example/t/t1#post-${post.id}` }),
       },
     })
-    return mount(PostCard, { post, topic, floor: 2 }, components).root
+    return mount(PostCard, { post, topic, floor: 2, bodiesPending }, components).root
   }
 
   /** The wrapper that carries the post's anchor. */
@@ -116,6 +118,27 @@ describe('a post card', () => {
     expect(card(root, 'p5').props['aria-busy']).toBeUndefined()
     expect(textOf(root)).not.toContain('发送中')
     expect(controls(root)).toEqual({ like: 1, link: 1, bookmark: 1, edit: 1, more: 1, reply: 1 })
+  })
+
+  /**
+   * #156: a list answer carries the server's `excerpt` and no body. The card
+   * must say what it has — the excerpt plus 正在读取正文… — instead of an empty
+   * body, and must not offer 编辑 before there is text to edit.
+   */
+  it('shows the server\'s excerpt and 正在读取正文… while the body is on its way', () => {
+    const root = mountCard({ id: 'p7', topicId: 't1', authorId: 'u1', excerpt: '机试说明', createdAt: 0, likeUserIds: [] }, true)
+    expect(textOf(root)).toContain('机试说明')
+    expect(textOf(root)).toContain('正在读取正文')
+    expect(controls(root).edit).toBe(0)
+  })
+
+  /** The read came back with a body: the card renders it and offers 编辑 again. */
+  it('renders the body and offers 编辑 once the topic\'s posts arrived', () => {
+    const root = mountCard({ id: 'p8', topicId: 't1', authorId: 'u1', content: '完整的正文', createdAt: 0, likeUserIds: [] })
+    // TxMarkdownView renders through marked (the stub keeps the HTML on the node).
+    expect(findAll(root, node => node.tag === 'article').map(node => String(node.props.html)).join('')).toContain('完整的正文')
+    expect(textOf(root)).not.toContain('正在读取正文')
+    expect(controls(root).edit).toBe(1)
   })
 })
 

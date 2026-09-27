@@ -7,7 +7,7 @@ import { useSessionStore } from '~/stores/session'
 import { checkPow, replyPowBody } from '../shared/pow'
 import type { Answer } from './fixtures/fake-server'
 import { fakeServer, held, json } from './fixtures/fake-server'
-import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
+import { MEMBER_VIEWER, MODERATOR_VIEWER, searchBody, serverBody, serverState, topicPostsBody, writeBody } from './fixtures/server-state'
 
 function setup() {
   setActivePinia(createPinia())
@@ -438,5 +438,82 @@ describe('a guest reply', () => {
     expect(forum.state).toBe(before)
     expect(forum.postsOfTopic('t73')).toHaveLength(2)
     expect(toastStore.items.map(item => [item.title, item.description])).toEqual([['回复没有发出去', '这个昵称是成员在用的，换一个吧']])
+  })
+})
+
+describe('topic bodies and search (#156)', () => {
+  it('asks for one topic\'s posts and merges their bodies onto the records the list showed', async () => {
+    const calls = fakeServer(json(serverBody()), json(topicPostsBody('t73')))
+    const { forum, server } = setup()
+    await server.load()
+    // `/state` came without bodies: only the server's one-line excerpts are there.
+    expect(forum.postsOfTopic('t73').map(post => post.content)).toEqual([undefined, undefined])
+    expect(forum.postById('body-73')?.excerpt).toBe('机试说明')
+
+    expect(await server.loadTopic('t73')).toBe(true)
+    expect(calls[1]).toMatchObject({ url: '/api/forum/topics/t73/posts', method: 'GET' })
+    // 正文并进列表已经显示的那几条：对象不换（页面不重画），其它记录不动。
+    const first = forum.postById('body-73')!
+    expect(first.content).toBe('机试说明')
+    expect(forum.postById('p10001')?.content).toBeUndefined()
+    expect(forum.postsOfTopic('t73')).toHaveLength(2)
+    expect(toastStore.items).toEqual([])
+  })
+
+  it('shares one request between two mounts, and does not ask at all while the state is not ready', async () => {
+    const held1 = held()
+    const calls = fakeServer(json(serverBody()), held1.answer)
+    const { server } = setup()
+    await server.load()
+    const first = server.loadTopic('t73')
+    const second = server.loadTopic('t73')
+    // 同一个话题的两个挂载共用一次请求：第二个挂载不再发请求（pinia 会把 action
+    // 的返回值再包一层，所以这里数请求，不比 Promise 本身）。
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    held1.release(json(topicPostsBody('t73')))
+    expect(await Promise.all([first, second])).toEqual([true, true])
+    expect(calls).toHaveLength(2)
+  })
+
+  it('keeps the summaries and stays quiet when the bodies cannot be read', async () => {
+    fakeServer(json(serverBody()), json({ error: 'server_error', message: '出错了' }, 500))
+    const { forum, server } = setup()
+    await server.load()
+    expect(await server.loadTopic('t73')).toBe(false)
+    expect(forum.postById('body-73')?.excerpt).toBe('机试说明')
+    expect(forum.postById('body-73')?.content).toBeUndefined()
+    expect(toastStore.items).toEqual([])
+    expect(server.status).toBe('ready')
+  })
+
+  it('searches on the server and returns its three lists, or nothing when it refuses', async () => {
+    const calls = fakeServer(json(serverBody()), json(searchBody('机试')))
+    const { server } = setup()
+    await server.load()
+    const results = await server.search('机试')
+    expect(calls[1]).toMatchObject({ url: '/api/forum/search?q=%E6%9C%BA%E8%AF%95', method: 'GET' })
+    // 服务端的答案原样拿回来（这里的假服务端只按名字过滤）：话题、帖子、用户三类。
+    expect(results?.topics.map(topic => topic.id)).toEqual(['t73', 't1001'])
+    expect(results?.posts.map(post => post.id)).toEqual(['body-73'])
+    expect(results?.users).toEqual([])
+
+    fakeServer(json(serverBody()), json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429))
+    const retry = setup()
+    await retry.server.load()
+    expect(await retry.server.search('机试')).toBeNull()
+    expect(toastStore.items.map(item => item.title)).toEqual(['请求太频繁，稍后再试'])
+    // An empty term is answered without a request.
+    expect(await retry.server.search('   ')).toEqual({ topics: [], posts: [], users: [] })
+  })
+
+  it('puts the body the server last confirmed on the page, so a refused edit does not lose it', async () => {
+    fakeServer(json(serverBody()), json(topicPostsBody('t1001')), json({ error: 'server_error', message: '论坛服务出错了' }, 500))
+    const { forum, server } = setup()
+    await server.load()
+    await server.loadTopic('t1001')
+    expect(forum.postById('p10001')?.content).toBe('都可以吗？')
+    expect(await server.editPost('p10001', '没保存的新文字')).toBe(false)
+    // 被拒时回到服务端确认的正文，而不是列表里没有正文的那个值。
+    expect(forum.postById('p10001')?.content).toBe('都可以吗？')
   })
 })

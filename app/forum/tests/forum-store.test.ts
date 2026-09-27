@@ -548,7 +548,7 @@ describe('useForumStore', () => {
       expect(result.topics.length).toBeGreaterThan(0)
       expect(result.topics.every(topic => topic.title.toLowerCase().includes('corebox'))).toBe(true)
       expect(result.posts.length).toBeGreaterThan(0)
-      expect(result.posts.every(post => !post.deleted && post.content.toLowerCase().includes('corebox'))).toBe(true)
+      expect(result.posts.every(post => !post.deleted && (post.content ?? '').toLowerCase().includes('corebox'))).toBe(true)
       expect(forum.searchAll('corebox')).toEqual(result)
 
       expect(forum.searchAll('TALEX').users.map(user => user.username)).toEqual(['talex'])

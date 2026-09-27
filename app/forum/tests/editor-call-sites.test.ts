@@ -34,7 +34,8 @@ describe('post bodies are written in PostEditor and shown through ForumMarkdown'
 
   it('PostCard edits the post as written and saves the draft', () => {
     const card = source('components/PostCard.vue')
-    expect(card).toMatch(/^\s*draft\.value = props\.post\.content$/m)
+    // A list answer may carry no body (#156): the editor starts from the text it has.
+    expect(card).toMatch(/^\s*draft\.value = props\.post\.content \?\? ''$/m)
     expect(card).toMatch(/actions\.editPost\(props\.post\.id, draft\.value\)/)
   })
 })

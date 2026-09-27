@@ -3,7 +3,7 @@ import { loadSession } from "../../middleware/require-auth.js";
 import { resolveAccess } from "../../middleware/require-capability.js";
 import { orderedCapabilities, type Capability } from "../../lib/roles.js";
 import { FORUM_LIMITS, ForumError } from "../../lib/forum-rules.js";
-import type { ChangeKeys, ForumTitle } from "../../lib/forum-store.js";
+import type { ChangeKeys, ChangeOptions, ForumTitle } from "../../lib/forum-store.js";
 
 /**
  * 论坛里「谁在看」：带有效 `sid`、并且现在仍是 `CONSOLE_ORG` active 成员的是成员，其余一律是游客。成员的论坛能力与
@@ -80,8 +80,9 @@ export function forumState(req: FastifyRequest, viewer: ForumViewer) {
 /**
  * 写接口的回答（#145）：只有这次写入改动的记录（`changes`，见 forum-store 的 ForumChanges），加上看的人与游客规则。
  * 成员每次请求都会刷新自己的角色、称号、头像（ensureMember），所以成员本人的用户记录总是带上。
+ * #156：`options.posts` 决定帖子记录带什么（默认只有字段、没有正文也没有摘要）；发帖、回复、编辑、删除传 `full`。
  */
-export function forumChanges(req: FastifyRequest, viewer: ForumViewer, keys: ChangeKeys) {
+export function forumChanges(req: FastifyRequest, viewer: ForumViewer, keys: ChangeKeys, options: ChangeOptions = {}) {
   const users = viewer.userId === null ? keys.users : [viewer.userId, ...(keys.users ?? [])];
-  return { changes: req.server.services.forum.changes(viewer.userId, { ...keys, ...(users ? { users } : {}) }), ...viewerAndPolicy(req, viewer) };
+  return { changes: req.server.services.forum.changes(viewer.userId, { ...keys, ...(users ? { users } : {}) }, options), ...viewerAndPolicy(req, viewer) };
 }

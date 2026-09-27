@@ -33,7 +33,7 @@
 
 ## 实施状态
 
-2026-09-27（#145）：写接口不再回整份 `state`，只回这次写入改动的记录（`{ changes, viewer, guestPolicy }`，可见性与 `GET /state` 相同，形状见 [API](../architecture/API.md)「写接口的回答」）；论坛前端按编号并进手里的状态（`applyChanges`），不再整体替换，写入先显示再发请求，失败退回服务端确认的值（[forum 服务合同](../services/forum/README.md)「服务端模式」）。上面「决策」里的「前端整体替换」与「后果」里的「整份 `state` 每次请求全量下发」现在只对首屏的 `GET /api/forum/state` 成立；首屏不再一次拉全部帖子正文由 #156 跟进。写入的回答不再带回别人的新动态，别人的新回复和通知要重新读状态（刷新页面）才出现。
+2026-09-27（#145）：写接口不再回整份 `state`，只回这次写入改动的记录（`{ changes, viewer, guestPolicy }`，可见性与 `GET /state` 相同，形状见 [API](../architecture/API.md)「写接口的回答」）；论坛前端按编号并进手里的状态（`applyChanges`），不再整体替换，写入先显示再发请求，失败退回服务端确认的值（[forum 服务合同](../services/forum/README.md)「服务端模式」）。上面「决策」里的「前端整体替换」与「后果」里的「整份 `state` 每次请求全量下发」现在只对首屏的 `GET /api/forum/state` 成立；2026-09-27（#156）起首屏的 `state` 也不再带帖子正文（`posts[]` 只有字段加服务端截好的 `excerpt`），正文由 `GET /api/forum/topics/:topic_id/posts` 进话题页时按话题取，搜索由 `GET /api/forum/search` 在服务端做。写入的回答不再带回别人的新动态，别人的新回复和通知要重新读状态（刷新页面）才出现。
 
 ## 重新评估的条件
 

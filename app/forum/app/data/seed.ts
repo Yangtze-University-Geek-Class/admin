@@ -257,7 +257,7 @@ function pickLikers(rng: Prng, users: User[], authorId: string, at: number, isFi
 function renderSnippet(snippet: string, targetUser: User, targetPost: Post): string {
   return snippet
     .replaceAll('{mention}', `@${targetUser.username}`)
-    .replaceAll('{quote}', `> ${excerpt(targetPost.content)}`)
+    .replaceAll('{quote}', `> ${excerpt(targetPost.content ?? '')}`)
 }
 
 /** First prose line of a Markdown body, for quotes and bookmark previews. */
@@ -385,7 +385,7 @@ function buildNotifications(
   for (const post of replies) {
     if (mentionBudget === 0)
       break
-    for (const handle of extractMentions(post.content)) {
+    for (const handle of extractMentions(post.content ?? '')) {
       const mentioned = userByUsername.get(handle)
       if (!mentioned || mentioned.id === post.authorId || notifiedForPost.has(`${mentioned.id}:${post.id}`))
         continue
