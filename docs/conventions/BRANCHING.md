@@ -65,13 +65,30 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 
 ## 禁止事项
 
-- 禁止直接向 `main` 提交或推送（含 agent、脚本、GitHub 网页编辑、CI 机器人）。
-- 禁止 `task/**`、`dev/**` 分支直接进 `main`；禁止把 `stage` 之外的来源合入 `main`。
+- 禁止在无线上紧急缺陷（hot-fix）授权的情况下直接向 `main` 提交或推送（含 agent、脚本、GitHub 网页编辑、CI 机器人）。
+- 禁止常规开发中把 `task/**`、`dev/**` 分支直接进 `main`；常规合并只能由 `stage` 合入 `main`。
 - 禁止在新分支名里使用 `-`（见上文「命名规则」）。
 - 禁止在没有 issue 的情况下开 task 分支：开发前先在仓库开 issue，见 [ISSUES](ISSUES.md)。
 - 禁止向 `stage` 提交未审查的内容：进入 `stage` 前必须走 [CODE-REVIEW](CODE-REVIEW.md)，MR 描述里带审查结论。
 - 禁止长期保留已合并的 task 分支，禁止用分支名当版本号或发布凭据；发布凭据只有所有者授权后打的发布 tag。
 - 禁止 force-push `main`/`stage`，禁止整分支 reset 覆盖他人提交。
+
+## 线上紧急修复（Hotfix）规约
+
+正式环境（`https://yangtzeu.work`）上线后若发生直接影响用户使用的严重故障（整页白屏、多媒体/核心流媒体无法播放、主流程阻断、安全事故等）：
+
+1. **Issue 标记**：先开 Issue（或事后 1 小时内补齐）并打上 `hot-fix` 标签（以及 `P0` 与模块标签）。
+2. **基线拉取与快修上线**：紧急情况下**必须直接以最新 `origin/main` 作为基线**拉出修复分支或在独立 worktree 中快速修复并验证，以最短路径合入 `main` 部署上线消除用户影响。
+3. **硬不变量合回（强制执行）**：
+   - 生产环境修复验收通过后，**必须立即把该修复合并回 `stage` 分支**：
+     ```bash
+     git switch stage && git merge --no-ff origin/main && git push origin stage
+     ```
+   - 运行 `node scripts/check-branch-invariants.mjs` 确认 `stage >= main`（`git merge-base --is-ancestor origin/main origin/stage` 为真）依然成立。绝不允许生产修复仅留在 `main` 而让 `stage` 遗漏，导致后续常规迭代出现代码倒退或冲突。
+4. **源头根治：预发布与正式环境必须保持严格同构（环境一致性原则）**：
+   - 杜绝 Hotfix 的关键在于**预发布环境必须与正式环境保持最高程度的同构**。
+   - 宿主 Nginx 模板（CSP 头规则、旁路 Map、反代参数、跨域与缓存策略）、环境变量结构必须 100% 对齐，仅允许域名/端口绑定与真实环境密钥存在差异。
+   - 严禁「预发布未配/未测、正式才配置」；所有改动必须在预发布真实走过完整改动路径，确保线上变更完全可控。
 
 ## task worktree：一个 issue 一个工作目录
 
