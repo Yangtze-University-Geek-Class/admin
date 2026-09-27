@@ -363,7 +363,7 @@ describe('applications', () => {
     expect((await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'received' } })).json().error).toBe('no_change');
 
     const note = '一面表现不错，约二面时间';
-    const response = await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'interview', note, notify: false } });
+    const response = await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'interview', expected_status: 'received', expected_review_id: 0, note, notify: false } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ application: { id: row.id, status: 'interview' }, review: { from_status: 'received', to_status: 'interview', note, reviewer: 'erin', mail: null } });
     const detail = (await app.inject({ url, headers: as('erin') })).json();

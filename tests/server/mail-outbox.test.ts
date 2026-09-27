@@ -73,10 +73,17 @@ async function setup(env: Record<string, string> = {}, fetch = fakeFetch(), time
     expect(response.statusCode).toBe(201);
     return response.json().id as string;
   };
-  const review = (id: string, payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: `/api/console/applications/${id}`, headers: alice, payload });
+  const patch = (id: string, payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: `/api/console/applications/${id}`, headers: alice, payload });
+  // 像刚打开详情页的控制台那样带上当前状态和最新一条审核记录的 id；payload 里写了的以 payload 为准
+  const seen = (id: string) => {
+    const row = db.prepare('SELECT status FROM applications WHERE id = ?').get(id) as { status: string } | undefined;
+    const last = db.prepare('SELECT id FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(id) as { id: number } | undefined;
+    return row ? { expected_status: row.status, expected_review_id: last?.id ?? 0 } : {};
+  };
+  const review = (id: string, payload: Record<string, unknown>) => patch(id, { ...seen(id), ...payload });
   const detail = async (id: string) => (await app.inject({ url: `/api/console/applications/${id}`, headers: alice })).json();
   const rows = () => db.prepare('SELECT * FROM mail_outbox ORDER BY id').all() as Record<string, unknown>[];
-  return { app, db, fetch, time, apply, review, detail, rows, mail: app.services.mail };
+  return { app, db, fetch, time, apply, review, patch, seen, detail, rows, mail: app.services.mail };
 }
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -162,6 +169,63 @@ describe('limits on the 已收到 letter', () => {
     // 改状态的信不受这个上限影响
     expect((await review(first, { status: 'accepted' })).statusCode).toBe(200);
     expect(rows().at(-1)).toMatchObject({ kind: 'recruitment.accepted', status: 'pending' });
+  });
+
+  it('treats +tags, a trailing dot and Gmail dots as the same inbox, and refuses a domain ending in a dot', async () => {
+    const { app, apply, rows } = await setup(BOTH);
+    await apply({ email: 'victim@gmail.com' });
+    await apply({ email: 'victim+1@gmail.com' });
+    await apply({ email: 'Vic.Tim+x@googlemail.com' });
+    await apply({ email: 'other@example.test' });
+    await apply({ email: 'other+a@example.test' });
+    expect(rows().map(row => row.skip_reason)).toEqual([null, 'recipient_limited', 'recipient_limited', null, 'recipient_limited']);
+    // 末尾带点、连续的点、以点开头的域名在投递时就拒收
+    for (const email of ['victim@gmail.com.', 'a@b..c', 'a@.b.c']) {
+      // 换一个来源 IP，不碰每个 IP 每分钟 5 次的限流
+      const response = await app.inject({ method: 'POST', url: '/api/portal/apply', remoteAddress: '198.51.100.9', payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
+      expect(response.statusCode, email).toBe(400);
+      expect(response.json().fields, email).toHaveProperty('email');
+    }
+    expect(rows()).toHaveLength(5);
+  });
+
+  it('sends at most 5 received letters an hour from one IP, grouping IPv6 by /64; the applications still go through', async () => {
+    const { app, rows, db } = await setup(BOTH);
+    const from = (ip: string, n: number) => app.inject({
+      method: 'POST', url: '/api/portal/apply', remoteAddress: ip,
+      payload: { ...APPLICANT, email: `u${n}@example.test`, pow: { timestamp: Date.now(), nonce: 'test' } },
+    });
+    // 同一个 /64 里的六个地址：每个地址自己的每分钟限流碰不到，但算同一个来源
+    for (let n = 1; n <= 6; n += 1) expect((await from(`2001:db8:1:2::${n}`, n)).statusCode).toBe(201);
+    expect((await from('203.0.113.9', 7)).statusCode).toBe(201);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM applications').get() as { n: number }).n).toBe(7);
+    expect(rows().map(row => [row.status, row.skip_reason])).toEqual([
+      ...Array.from({ length: 5 }, () => ['pending', null]), ['skipped', 'source_limited'], ['pending', null],
+    ]);
+    expect(rows()[5]).toMatchObject({ recipient: null, html: null, text: null });
+    // 库里只有来源的哈希，没有 IP
+    expect(rows()[0].source_hash).toBe(sha256('2001:db8:1:2::/64'));
+    expect(rows()[6].source_hash).toBe(sha256('203.0.113.9'));
+  });
+
+  it('counts the per-source hour and day windows, and skips the check when there is no source', async () => {
+    const time = clock();
+    const { mail, rows } = await setup(BOTH, fakeFetch(), time);
+    const letter = mail.recruitmentLetter('received', { id: 'x', name: '李小满', class_name: '计科2301', email: 'a@example.test', strengths: '一段够长的特长与优点。', created_at: T0 });
+    let n = 0;
+    const put = (source: string | null) => mail.enqueue(
+      { eventKey: `test:${(n += 1)}`, kind: 'recruitment.received', to: `u${n}@example.test`, mail: letter, source },
+      { perSourceHour: 2, perSourceDay: 3 },
+    ).status;
+    expect([put('198.51.100.1'), put('198.51.100.1'), put('198.51.100.1')]).toEqual(['pending', 'pending', 'skipped']);
+    expect(rows().at(-1)).toMatchObject({ skip_reason: 'source_limited' });
+    expect(put('198.51.100.2')).toBe('pending');
+    expect(put(null)).toBe('pending');
+    time.advance(3600_000);
+    // 过了一小时，一天的额度还剩一封
+    expect([put('198.51.100.1'), put('198.51.100.1')]).toEqual(['pending', 'skipped']);
+    time.advance(23 * 3600_000);
+    expect(put('198.51.100.1')).toBe('pending');
   });
 
   it('does not count letters that were never going to be sent', async () => {
@@ -452,22 +516,50 @@ describe('console status changes', () => {
   });
 
   it('refuses a change made from a stale page with 409, without a review or a letter', async () => {
-    const { apply, review, rows, db } = await setup(BOTH);
+    const { apply, review, patch, rows, db } = await setup(BOTH);
     const id = await apply();
-    // 两位审核人都在「已收到」时打开了这份投递
-    const first = await review(id, { status: 'accepted', expected_status: 'received' });
+    // 两位审核人都在「已收到」、还没有审核记录时打开了这份投递
+    const page = { expected_status: 'received', expected_review_id: 0 };
+    const first = await patch(id, { ...page, status: 'accepted' });
     expect(first.statusCode).toBe(200);
-    const stale = await review(id, { status: 'interview', expected_status: 'received', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } });
+    const stale = await patch(id, { ...page, status: 'interview', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } });
     expect(stale.statusCode).toBe(409);
-    expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人改成了「已录取」，看过最新的状态再改', application: { id, status: 'accepted' } });
+    expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人处理过，现在是「已录取」，看过最新的记录再改', application: { id, status: 'accepted' } });
     expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'accepted' });
     expect(db.prepare('SELECT COUNT(*) AS n FROM application_reviews').get()).toEqual({ n: 1 });
     expect(rows().map(row => row.kind)).toEqual(['recruitment.received', 'recruitment.accepted']);
-    // 只补备注也要看的是最新的状态
-    expect((await review(id, { note: '补一句', expected_status: 'received' })).statusCode).toBe(409);
-    expect((await review(id, { note: '补一句', expected_status: 'accepted' })).statusCode).toBe(200);
-    // 不是四个状态之一的按请求格式拒绝
+    // 只补备注也要看的是最新的记录
+    expect((await patch(id, { ...page, note: '补一句' })).statusCode).toBe(409);
+    expect((await review(id, { note: '补一句' })).statusCode).toBe(200);
+    // 不是四个状态之一的、负数的按请求格式拒绝
     expect((await review(id, { status: 'rejected', expected_status: 'reviewing' })).json()).toMatchObject({ error: 'validation_error' });
+    expect((await review(id, { status: 'rejected', expected_review_id: -1 })).json()).toMatchObject({ error: 'validation_error' });
+  });
+
+  it('catches a status changed away and back (ABA) by the latest review id', async () => {
+    const { apply, review, patch, rows } = await setup(BOTH);
+    const id = await apply();
+    const page = { expected_status: 'received', expected_review_id: 0 };
+    // 别人改成待面试（发了面试信），又改回已收到；状态和旧页面看到的一样
+    expect((await review(id, { status: 'interview', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } })).statusCode).toBe(200);
+    expect((await review(id, { status: 'received' })).statusCode).toBe(200);
+    const stale = await patch(id, { ...page, status: 'rejected' });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改' });
+    expect(rows().map(row => row.kind)).toEqual(['recruitment.received', 'recruitment.interview']);
+  });
+
+  it('refuses a status change from an old page that sends neither field, and still takes a note from it', async () => {
+    const { apply, patch, rows, db } = await setup(BOTH);
+    const id = await apply();
+    for (const body of [{ status: 'accepted' }, { status: 'accepted', expected_status: 'received' }, { status: 'accepted', expected_review_id: 0 }]) {
+      const response = await patch(id, body);
+      expect(response.statusCode, JSON.stringify(body)).toBe(409);
+      expect(response.json(), JSON.stringify(body)).toMatchObject({ error: 'status_changed', message: '这个页面是旧版本，刷新后再改' });
+    }
+    expect(rows()).toHaveLength(1);
+    expect((await patch(id, { note: '旧页面补的备注' })).statusCode).toBe(200);
+    expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
   });
 
   it('queues nothing when notify is false, when going back to 已收到, or for a note only', async () => {

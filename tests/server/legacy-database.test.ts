@@ -260,7 +260,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(list).toMatchObject({ total: 1, counts: { received: 1 } });
     const review = await app.inject({
       method: 'PATCH', url: `/api/console/applications/${applicationId}`, headers: as('legacy-session-alice'),
-      payload: { status: 'interview', note: '周四面试', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } },
+      payload: { status: 'interview', expected_status: 'received', expected_review_id: 0, note: '周四面试', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } },
     });
     expect(review.statusCode).toBe(200);
     expect(review.json().application.status).toBe('interview');

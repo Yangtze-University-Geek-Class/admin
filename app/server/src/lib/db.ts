@@ -311,6 +311,8 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   review_id INTEGER,
   recipient TEXT,
   recipient_hash TEXT NOT NULL,
+  limit_hash TEXT NOT NULL,
+  source_hash TEXT,
   subject TEXT NOT NULL,
   html TEXT,
   text TEXT,
@@ -328,7 +330,8 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_due ON mail_outbox(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_review ON mail_outbox(review_id);
-CREATE INDEX IF NOT EXISTS idx_mail_outbox_recipient ON mail_outbox(kind, recipient_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_limit ON mail_outbox(kind, limit_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_source ON mail_outbox(kind, source_hash, created_at);
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_kind_at ON mail_outbox(kind, created_at);
 `);
 

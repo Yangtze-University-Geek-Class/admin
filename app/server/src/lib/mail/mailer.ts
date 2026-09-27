@@ -20,9 +20,11 @@ export type MailerDeps = { fetch?: FetchLike; now?: () => number };
 
 /**
  * 投递成功时那封「已收到」的上限（apply.ts）：投递接口不用登录，谁都能填别人的邮箱。
- * 同一个邮箱 24 小时内只发一封，全站一小时最多 200 封（和论坛游客回复的全站上限一样）；超出的投递照样成功，信记成 skipped。
+ * 同一个收件箱 24 小时内只发一封；同一个 IP（IPv6 按 /64）一小时最多 5 封、一天最多 20 封，防止一台机器换着邮箱连发；
+ * 全站一小时最多 200 封（和论坛游客回复的全站上限一样）。超出的投递照样成功，信记成 skipped。
+ * 校园网出口可能是同一个 IP：同一小时里从一个出口投递的第 6 个人收不到确认信，投递本身不受影响。
  */
-export const RECEIVED_LETTER_LIMITS: EnqueueLimits = { recipientWindowMs: 24 * 3600_000, perHour: 200 };
+export const RECEIVED_LETTER_LIMITS: EnqueueLimits = { recipientWindowMs: 24 * 3600_000, perSourceHour: 5, perSourceDay: 20, perHour: 200 };
 
 /** 发件地址、回信地址只收一个普通的邮箱地址；错误信息不带配置的值。 */
 function address(value: string, key: string): string {

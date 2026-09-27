@@ -8,7 +8,9 @@ import { MailProviderError, type MailProvider } from "./providers.js";
  *
  * - 同一件事只发一封：event_key 唯一（INSERT OR IGNORE），重复触发不会多发。
  * - 没有配置发信商的，写成 skipped/mail_disabled；白名单模式下不在白名单里的地址写成 skipped/not_allowlisted。都不发。
- * - 调用方可以给一封信加上限（EnqueueLimits）：同一个收件地址在一段时间内已经有同一种信的，写成 skipped/recipient_limited；
+ * - 调用方可以给一封信加上限（EnqueueLimits）：同一个收件箱在一段时间内已经有同一种信的，写成 skipped/recipient_limited
+ *   （按 limitKey 规范化后的地址比，victim+1@、末尾带点的域名算同一个收件箱）；
+ *   同一个来源（投递人的 IP，IPv6 按 /64）一小时、一天内同一种信够数了的，写成 skipped/source_limited；
  *   全站一小时内同一种信够数了的，写成 skipped/rate_limited。只数真的要发的信（不数 skipped）。
  * - 发信循环每 15 秒一次，每次放进新信后立刻再跑一次；测试不开循环，直接调 drain()。
  * - 领一封信时写成 sending，并把 next_attempt_at 推到 5 分钟以后当租约：进程在发信中途退出，5 分钟后这封信会重试。
@@ -21,7 +23,7 @@ import { MailProviderError, type MailProvider } from "./providers.js";
 
 export type MailKind = "recruitment.received" | "recruitment.interview" | "recruitment.accepted" | "recruitment.rejected";
 export type MailStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
-export type MailSkipReason = "mail_disabled" | "not_allowlisted" | "recipient_limited" | "rate_limited";
+export type MailSkipReason = "mail_disabled" | "not_allowlisted" | "recipient_limited" | "source_limited" | "rate_limited";
 
 /** 控制台看到的一封信的结果：没有收件地址和正文。 */
 export type MailSummary = {
@@ -41,6 +43,8 @@ export type OutboxEntry = {
   reviewId?: number | null;
   to: string;
   mail: RenderedMail;
+  /** 触发这封信的来源（投递人的 IP，IPv6 按 /64）；只存 sha256，给 EnqueueLimits 的按来源限量用 */
+  source?: string | null;
 };
 
 type OutboxRow = {
@@ -52,6 +56,9 @@ type OutboxRow = {
 export type EnqueueLimits = {
   /** 同一个收件地址在这段时间里已经有一封同种的信，这封就不发 */
   recipientWindowMs?: number;
+  /** 同一个来源一小时、一天内同种的信到了这个数，这封就不发（OutboxEntry.source 为空时不查） */
+  perSourceHour?: number;
+  perSourceDay?: number;
   /** 全站一小时内同种的信到了这个数，这封就不发 */
   perHour?: number;
 };
@@ -81,6 +88,26 @@ export function recipientHash(address: string): string {
   return createHash("sha256").update(normalizeAddress(address)).digest("hex");
 }
 
+const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
+
+/**
+ * 限量时用的收件箱：同一个收件箱的几种写法算一个。本地部分去掉第一个「+」和后面的标签（victim+1@ → victim@），
+ * 域名去掉末尾的点；Gmail 忽略本地部分里的点，googlemail.com 算 gmail.com。
+ * 少数邮箱里「+」是地址本身的一部分，这样会多限一点，对限量来说可以接受。
+ */
+export function limitKey(address: string): string {
+  const value = normalizeAddress(address);
+  const at = value.lastIndexOf("@");
+  if (at < 0) return value;
+  let local = value.slice(0, at).split("+")[0];
+  let domain = value.slice(at + 1).replace(/\.+$/, "");
+  if (GMAIL_DOMAINS.has(domain)) {
+    local = local.replace(/\./g, "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+
 export type OutboxOptions = {
   providers: readonly MailProvider[];
   recipients: "all" | "allowlist";
@@ -95,8 +122,8 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
   const enabled = options.providers.length > 0;
 
   const insert = db.prepare(`INSERT OR IGNORE INTO mail_outbox
-    (event_key, kind, application_id, review_id, recipient, recipient_hash, subject, html, text, reply_to, status, skip_reason, attempts, next_attempt_at, created_at, updated_at)
-    VALUES (@event_key, @kind, @application_id, @review_id, @recipient, @recipient_hash, @subject, @html, @text, @reply_to, @status, @skip_reason, 0, @at, @at, @at)`);
+    (event_key, kind, application_id, review_id, recipient, recipient_hash, limit_hash, source_hash, subject, html, text, reply_to, status, skip_reason, attempts, next_attempt_at, created_at, updated_at)
+    VALUES (@event_key, @kind, @application_id, @review_id, @recipient, @recipient_hash, @limit_hash, @source_hash, @subject, @html, @text, @reply_to, @status, @skip_reason, 0, @at, @at, @at)`);
   const byEvent = db.prepare("SELECT id, status FROM mail_outbox WHERE event_key = ?");
   const summaryByEvent = db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM mail_outbox WHERE event_key = ?`);
   const due = db.prepare("SELECT id, status, attempts FROM mail_outbox WHERE status IN ('pending', 'sending') AND next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT ?");
@@ -107,8 +134,9 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
   const finish = db.prepare(`UPDATE mail_outbox SET status = @status, skip_reason = @skip_reason, provider = @provider, provider_message_id = @provider_message_id,
     last_error = @last_error, sent_at = @sent_at, updated_at = @at, recipient = NULL, html = NULL, text = NULL WHERE id = @id`);
   const retry = db.prepare("UPDATE mail_outbox SET status = 'pending', next_attempt_at = @next, last_error = @last_error, updated_at = @at WHERE id = @id");
-  const toRecipientSince = db.prepare("SELECT 1 FROM mail_outbox WHERE kind = ? AND recipient_hash = ? AND created_at > ? AND status != 'skipped' LIMIT 1");
+  const toRecipientSince = db.prepare("SELECT 1 FROM mail_outbox WHERE kind = ? AND limit_hash = ? AND created_at > ? AND status != 'skipped' LIMIT 1");
   const countSince = db.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE kind = ? AND created_at > ? AND status != 'skipped'");
+  const fromSourceSince = db.prepare("SELECT COUNT(*) AS n FROM mail_outbox WHERE kind = ? AND source_hash = ? AND created_at > ? AND status != 'skipped'");
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let log: MailLogger | null = null;
@@ -128,9 +156,12 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
   }
 
   /** 超出调用方给的上限时不发的理由 */
-  function limitReason(kind: MailKind, hash: string, limits: EnqueueLimits): MailSkipReason | null {
+  function limitReason(kind: MailKind, inbox: string, source: string | null, limits: EnqueueLimits): MailSkipReason | null {
     const at = now();
-    if (limits.recipientWindowMs && toRecipientSince.get(kind, hash, at - limits.recipientWindowMs)) return "recipient_limited";
+    if (limits.recipientWindowMs && toRecipientSince.get(kind, inbox, at - limits.recipientWindowMs)) return "recipient_limited";
+    const fromSource = (windowMs: number) => (fromSourceSince.get(kind, source, at - windowMs) as { n: number }).n;
+    if (source && limits.perSourceHour && fromSource(3600_000) >= limits.perSourceHour) return "source_limited";
+    if (source && limits.perSourceDay && fromSource(24 * 3600_000) >= limits.perSourceDay) return "source_limited";
     if (limits.perHour && (countSince.get(kind, at - 3600_000) as { n: number }).n >= limits.perHour) return "rate_limited";
     return null;
   }
@@ -248,11 +279,13 @@ export function createMailOutbox(db: Database.Database, options: OutboxOptions) 
     enqueue(entry: OutboxEntry, limits: EnqueueLimits = {}): { id: number; status: MailStatus; created: boolean } {
       const at = now();
       const hash = recipientHash(entry.to);
-      const reason = skipReason(entry.to) ?? limitReason(entry.kind, hash, limits);
+      const inbox = createHash("sha256").update(limitKey(entry.to)).digest("hex");
+      const source = entry.source ? createHash("sha256").update(entry.source).digest("hex") : null;
+      const reason = skipReason(entry.to) ?? limitReason(entry.kind, inbox, source, limits);
       const keep = reason === null;
       const result = insert.run({
         event_key: entry.eventKey, kind: entry.kind, application_id: entry.applicationId ?? null, review_id: entry.reviewId ?? null,
-        recipient: keep ? entry.to.trim() : null, recipient_hash: hash, subject: entry.mail.subject,
+        recipient: keep ? entry.to.trim() : null, recipient_hash: hash, limit_hash: inbox, source_hash: source, subject: entry.mail.subject,
         html: keep ? entry.mail.html : null, text: keep ? entry.mail.text : null, reply_to: entry.mail.replyTo,
         status: keep ? "pending" : "skipped", skip_reason: reason, at,
       });

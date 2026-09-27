@@ -9,7 +9,7 @@ import type { RecruitmentLetter } from "../../lib/mail/mailer.js";
 type ApplicationRow = { id: string; name: string; class_name: string; email: string; strengths: string; status: string; created_at: number };
 type ReviewRow = { id: number; application_id: string; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number };
 type ListQuery = { status?: ApplicationStatus; q?: string; limit?: string; offset?: string };
-type ReviewBody = { status?: string; expected_status?: ApplicationStatus; note?: string; notify?: boolean; letter?: RecruitmentLetter };
+type ReviewBody = { status?: string; expected_status?: ApplicationStatus; expected_review_id?: number; note?: string; notify?: boolean; letter?: RecruitmentLetter };
 
 /** 改成这几个状态时发对应的信（改回「已收到」、只写备注都不发） */
 const LETTER_STATUSES = ["interview", "accepted", "rejected"] as const;
@@ -42,6 +42,8 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
 
   const lastReview = db.prepare("SELECT to_status, reviewer, created_at FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
+  // 和详情里 reviews 的顺序一致：reviews[0] 就是这一条
+  const lastReviewId = db.prepare("SELECT id FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
 
   app.get<{ Querystring: ListQuery }>("/api/console/applications", { preHandler: requireCapability("applications.read") }, async (req) => {
     const { status, q } = req.query;
@@ -125,12 +127,22 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       if (status !== undefined && !(APPLICATION_STATUS_IDS as string[]).includes(status)) {
         return reply.code(400).send({ error: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
       }
-      // 控制台带上页面上看到的状态：别人在这之间改过，就不按旧画面改，也不发信（改状态的信发出去撤不回来）。
-      const changedMeanwhile = () => {
+      // 控制台带上页面上看到的状态和最新一条审核记录的 id（没有记录时是 0）：别人在这之间处理过，就不按旧画面改，
+      // 也不发信（改状态的信发出去撤不回来）。只比状态会漏掉「改走又改回」，所以还比审核记录。
+      const changedMeanwhile = (message?: string) => {
         const latest = findApplication(current.id) ?? current;
-        return reply.code(409).send({ error: "status_changed", message: `这份投递刚被别人改成了「${statusLabel(latest.status)}」，看过最新的状态再改`, application: latest });
+        return reply.code(409).send({
+          error: "status_changed", message: message ?? `这份投递刚被别人处理过，现在是「${statusLabel(latest.status)}」，看过最新的记录再改`, application: latest,
+        });
       };
-      if (req.body.expected_status !== undefined && req.body.expected_status !== current.status) return changedMeanwhile();
+      const { expected_status: expectedStatus, expected_review_id: expectedReviewId } = req.body;
+      const seenReviewId = (lastReviewId.get(current.id) as { id: number } | undefined)?.id ?? 0;
+      if (expectedStatus !== undefined && expectedStatus !== current.status) return changedMeanwhile();
+      if (expectedReviewId !== undefined && expectedReviewId !== seenReviewId) return changedMeanwhile();
+      // 要改状态就必须带这两项：部署前打开、还没刷新的旧页面不带，不能让它按旧画面发信。
+      if (status !== undefined && status !== current.status && (expectedStatus === undefined || expectedReviewId === undefined)) {
+        return changedMeanwhile("这个页面是旧版本，刷新后再改");
+      }
       const next = status ?? current.status;
       const note = req.body.note?.trim() || null;
       if (next === current.status && !note) return reply.code(400).send({ error: "no_change", message: "状态没有变化，也没有填写备注" });

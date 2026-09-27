@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { MailTemplateError } from "../../lib/mail/envelope.js";
 import { RECEIVED_LETTER_LIMITS } from "../../lib/mail/mailer.js";
+import { ipSubject } from "../../lib/forum-rules.js";
 
 type Body = {
   name?: string;
@@ -26,7 +27,8 @@ const STRENGTHS_MAX = 2000;
 
 /** 班级允许中文（Han 全部区段）、字母、数字、空格、间隔号与连字符。 */
 const CLASS_NAME_REGEX = /^[\p{Script=Han}a-zA-Z0-9 ·-]+$/u;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 域名按点分段，每段非空：不收 a@b..c、a@.b.c 和末尾带点的 a@b.c.（末尾带点的写法能绕开确认信的按收件箱限量）
+const EMAIL_REGEX = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 const SUCCESS_MESSAGE = "投递成功，我们会在 3 个工作日内联系你。";
@@ -124,12 +126,13 @@ export default async function applyRoutes(app: FastifyInstance) {
       }, req.ip);
 
       // 投递已经落库；「已收到」的信拼不出来或写不进队列只记日志（不记地址和正文），不让投递失败。
-      // 谁都能填别人的邮箱，所以同一个邮箱 24 小时内只发一封、全站每小时有上限（RECEIVED_LETTER_LIMITS），超出的记成 skipped。
+      // 谁都能填别人的邮箱，所以同一个收件箱 24 小时内只发一封、同一个 IP 每小时和每天有上限、全站每小时有上限
+      // （RECEIVED_LETTER_LIMITS），超出的记成 skipped。IP 按 /64 归并（ipSubject），库里只存哈希。
       try {
         const application = { id, name: name.value, class_name: className.value, email: email.value, strengths: strengths.value, created_at: submittedAt };
         mail.enqueue({
           eventKey: `application:${id}:received`, kind: "recruitment.received", applicationId: id, to: email.value,
-          mail: mail.recruitmentLetter("received", application),
+          mail: mail.recruitmentLetter("received", application), source: ipSubject(req.ip),
         }, RECEIVED_LETTER_LIMITS);
       } catch (error) {
         req.log.error({ application_id: id, error: error instanceof MailTemplateError ? error.code : (error as Error)?.name ?? "error" }, "received letter not queued");
