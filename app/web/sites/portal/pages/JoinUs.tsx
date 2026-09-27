@@ -30,7 +30,8 @@ type Receipt = { id: string; submitted_at: number; message: string };
 type PublicConfig = { turnstile_site_key: string | null; pow_difficulty: number };
 
 const EMPTY: FormState = { name: "", className: "", email: "", strengths: "", website: "" };
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 与 app/server/src/routes/portal/apply.ts 的 EMAIL_REGEX 逐字一致（tests/web/portal-join.test.ts 核对）
+const EMAIL_RE = /^[^\s@"\\()<>,;:[\].]+(\.[^\s@"\\()<>,;:[\].]+)*@[^\s@"\\()<>,;:[\].]+(\.[^\s@"\\()<>,;:[\].]+)+$/;
 const CLASS_RE = /^[\u4e00-\u9fa5A-Za-z0-9 ·\-]+$/;
 
 /** 与后端同一套规则，先在前端给出即时反馈；后端仍然是唯一权威。 */

@@ -29,6 +29,7 @@ const STRENGTHS_MAX = 2000;
 const CLASS_NAME_REGEX = /^[\p{Script=Han}a-zA-Z0-9 ·-]+$/u;
 // 本地部分和域名都按点分段、每段非空，不收引号、反斜杠、方括号和 RFC 5322 的其它分隔符：不收 a@b..c、a@.b.c、
 // 末尾带点的 a@b.c.、带引号的 "a"@b.c 和 IP 字面量 a@[1.2.3.4]。这些写法指向同一个收件箱却能绕开确认信的按收件箱限量。
+// 官网表单（app/web/sites/portal/pages/JoinUs.tsx）用同一条，改的时候一起改。
 const EMAIL_REGEX = /^[^\s@"\\()<>,;:[\].]+(\.[^\s@"\\()<>,;:[\].]+)*@[^\s@"\\()<>,;:[\].]+(\.[^\s@"\\()<>,;:[\].]+)+$/;
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
