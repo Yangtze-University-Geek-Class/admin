@@ -42,6 +42,16 @@ it.each([
   expect(response.statusCode).toBe(400); expect(response.json().error).toBe(expected);
   expect(JSON.stringify(response.json())).not.toMatch(/stub|Validation Failed/);
 });
+it('leaves the visitor signed in when GitHub rejects the link creator\'s token (#164)', async () => {
+  const { app } = await fixture(401);
+  // 带着自己会话来点邀请链接的人：被拒的是发起人的令牌，不是他的，他的会话不能因此被删掉。
+  const sid = app.services.auth.createSession('visitor', 7, null, 'visitor-token');
+  const response = await app.inject({ method: 'POST', url: '/api/join/test-link', headers: { cookie: `sid=${sid}` }, payload: { github_login: 'alpha', pow: { timestamp: Date.now(), nonce: 'test' } } });
+  expect(response.statusCode).toBe(400);
+  expect(response.json().error).toBe('邀请失败，稍后重试');
+  expect(app.services.auth.getSession(sid)).not.toBeNull();
+  expect(([] as string[]).concat((response.headers['set-cookie'] as string[] | string | undefined) ?? []).some(cookie => cookie.startsWith('sid='))).toBe(false);
+});
 it('builds invite links on the single public origin', async () => {
   const context = await testApp({ octokitFactory: (() => ({ request: async (method: string) => {
     if (method !== 'GET /orgs/{org}/memberships/{username}') throw new Error('Unexpected upstream operation');

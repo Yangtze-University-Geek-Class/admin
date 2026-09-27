@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-09-26 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -16,7 +16,7 @@
 
 | 表 | 用途 | 写入方 | 读取方 | 敏感字段与备注 |
 |---|---|---|---|---|
-| `sessions` | 服务器会话（`sid`） | `lib/auth.ts`：登录时创建，登出或读取时发现过期即删除 | `lib/auth.ts`：只按 `id` 查询 | `access_token_encrypted`（AES-256-GCM 加密的 GitHub token） |
+| `sessions` | 服务器会话（`sid`） | `lib/auth.ts`：登录时创建；登出、读取时发现过期，或 GitHub 以 401 拒绝会话里的令牌时（`middleware/require-auth.ts` 的 `endRejectedSession`，#164）删除 | `lib/auth.ts`：只按 `id` 查询 | `access_token_encrypted`（AES-256-GCM 加密的 GitHub token） |
 | `invite_links` | 邀请链接（能力令牌） | admin `invite-links.ts`（创建、禁用、删除）；`lib/invite-reservation.ts`（预留和补偿 `current_uses`） | portal `join.ts`；admin `invite-links.ts`、`overview.ts` | `created_by_token_encrypted`（发起人加密 token） |
 | `invite_attempts` | 按「链接 + 标准化收件人」记录的邀请尝试，状态为 `reserved` / `sent` / `failed` / `unknown` | `lib/invite-reservation.ts`；portal `join.ts`（标记 `sent`） | `lib/invite-reservation.ts`（重试时复用结果） | `UNIQUE(token, recipient)` |
 | `invitations` | 邀请发送记录 | portal `join.ts` | admin `invitations.ts`、`overview.ts` | 收件人 GitHub 用户名或邮箱、`source_ip`、`user_agent` |
@@ -27,12 +27,12 @@
 | `titles` | 称号设置：六个固定 id（admin / captain / head / member / alumni / guest）各一行的名字、英文标签、图标、色调、说明与权限包 | `lib/role-store.ts`：启动时 `INSERT OR IGNORE` 写入代码里的默认值，之后以库为准；控制台 `PATCH /api/console/titles/:title_id` | `lib/access.ts`（计算能力）、控制台 `GET /api/console/catalogue`、匿名 `GET /api/public/org`（不含权限包） | 无个人信息。`capabilities` 是 JSON 数组；admin 读出时永远是全部能力、guest 永远为空，库里存了什么都不算；`updated_by` 是最后修改人的登录名 |
 | `console_seeds` | 一次性播种的标记（目前只有 `departments`） | `lib/role-store.ts`：第一次启动写默认部门后记下；上线前已有部门的库只补记标记 | `lib/role-store.ts` | 无个人信息。有这条标记后不再写默认部门，控制台删掉的默认部门重启后不会复活 |
 | `role_assignments` | 显式称号指派（captain / head / member / alumni） | 控制台 `POST/DELETE /api/console/assignments` | `lib/access.ts`（按 `github_user_id`，或尚无 id 时按小写 `github_login` 匹配）；控制台 `GET /api/console/assignments` | `github_login`（小写）、`github_user_id`、`note`（≤200 字）、`granted_by`。`UNIQUE(github_login, role, department_id)`；部分唯一索引 `uq_role_assignments_captain` 保证显式舰长唯一 |
-| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出、论坛版务（`forum.post.edit` / `forum.post.delete` 动他人帖子，`forum.topic.pin` / `forum.topic.close`，details 不含正文）以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }`。论坛核对昵称时读 `auth.signin` 的 `actor`（登录过的人），部分索引 `idx_audit_signin_actor` 只收这些行 |
+| `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出、论坛版务（`forum.post.edit` / `forum.post.delete` 动他人帖子，`forum.topic.pin` / `forum.topic.close`，details 不含正文）以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、令牌被 GitHub 拒绝而结束的会话 `auth.session_rejected`（`actor` 与 `target` 是登录名，没有 `details`）、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }`。论坛核对昵称时读 `auth.signin` 的 `actor`（登录过的人），部分索引 `idx_audit_signin_actor` 只收这些行 |
 | `app_state` | 键值状态 | 无 | 无 | 未使用，见下节 |
 
 ### 论坛（`forum_*`，#57）
 
-论坛的编号都是字符串，与论坛前端的 `ForumState` 一致：话题 `t<n>`（旧帖沿用旧编号、都小于 1000，新话题从 `t1001` 起）、帖子 `p<n>`（从 `p10001` 起；旧帖首帖是 `body-<n>`）、成员 `m<GitHub user_id>`、游客 `g<n>`、官方账号 `u-geekclass`、通知 `n<n>`、用户建的标签 `tag-<n>`。新编号只从 `forum_counters` 取。分类和精选标签不入库，来自 `app/forum/content/curation.json`。写入方都是 `lib/forum-store.ts`（由 `routes/forum-api/*` 调用），读取方是它的 `state()`（整份论坛状态）与各路由的存在性检查，下表只写表特有的部分。
+论坛的编号都是字符串，与论坛前端的 `ForumState` 一致：话题 `t<n>`（旧帖沿用旧编号、都小于 1000，新话题从 `t1001` 起）、帖子 `p<n>`（从 `p10001` 起；旧帖首帖是 `body-<n>`）、成员 `m<GitHub user_id>`、游客 `g<n>`、官方账号 `u-geekclass`、通知 `n<n>`、用户建的标签 `tag-<n>`。新编号只从 `forum_counters` 取。分类和精选标签不入库，来自 `app/forum/content/curation.json`。写入方都是 `lib/forum-store.ts`（由 `routes/forum-api/*` 调用），读取方是它的 `state()`（整份论坛状态）、`changes()`（写接口回答里这次改动的记录，按编号取，可见性与 `state()` 相同，#145）与各路由的存在性检查，下表只写表特有的部分。
 
 | 表 | 用途 | 写入时机 | 读取与下发 | 个人信息与备注 |
 |---|---|---|---|---|

@@ -20,6 +20,8 @@ export function useShell() {
   const drawerOpen = useState<boolean>('shell:drawer-open', () => false)
   const loginOpen = useState<boolean>('shell:login-open', () => false)
   const paletteOpen = useState<boolean>('shell:palette-open', () => false)
+  /** The reply drawer (ReplyComposer) is open; `app.vue` shows toasts at the top meanwhile. */
+  const composerOpen = useState<boolean>('shell:composer-open', () => false)
 
   function toggleSidebar(): void {
     if (isDesktop.value) {
@@ -31,7 +33,7 @@ export function useShell() {
     }
   }
 
-  return { isDesktop, sidebarOpen, drawerOpen, loginOpen, paletteOpen, toggleSidebar }
+  return { isDesktop, sidebarOpen, drawerOpen, loginOpen, paletteOpen, composerOpen, toggleSidebar }
 }
 
 function readSidebarPreference(): boolean {

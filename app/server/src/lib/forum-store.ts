@@ -31,13 +31,30 @@ export type ForumNotification = {
   id: string; recipientId: string; type: "reply" | "like" | "follow" | "mention" | "system"; actorId: string;
   topicId?: string; postId?: string; createdAt: number; read: boolean;
 };
+export type ForumBookmark = { userId: string; postId: string; createdAt: number };
+export type ForumFollow = { followerId: string; followeeId: string; createdAt: number };
 export type ForumStateBody = {
   version: 1; seededAt: number;
   counters: { topic: number; post: number; notification: number; tag: number };
   users: ForumUser[]; categories: ForumContent["categories"]; tags: ForumTag[];
   topics: ForumTopic[]; posts: ForumPost[]; notifications: ForumNotification[];
-  bookmarks: { userId: string; postId: string; createdAt: number }[];
-  follows: { followerId: string; followeeId: string; createdAt: number }[];
+  bookmarks: ForumBookmark[];
+  follows: ForumFollow[];
+};
+/**
+ * 一次写入之后变了的记录（#145）：写接口只回这些，前端按 id 并进手里的状态，不再整份替换。
+ * 每条记录与 state() 里同一条完全一样（同一套投影），可见性也一样：通知只有看的人自己的，书签只有自己的，
+ * 通知设置只有本人的是真值。书签与关注没有 id，取消了的放在 `removed` 里。
+ */
+export type ForumChanges = {
+  users?: ForumUser[]; tags?: ForumTag[]; topics?: ForumTopic[]; posts?: ForumPost[]; notifications?: ForumNotification[];
+  bookmarks?: ForumBookmark[]; follows?: ForumFollow[];
+  removed?: { bookmarks?: Omit<ForumBookmark, "createdAt">[]; follows?: Omit<ForumFollow, "createdAt">[] };
+};
+/** 要回哪些记录：书签按帖子 id（只查看的人自己的），关注按关注者与被关注者。 */
+export type ChangeKeys = {
+  users?: string[]; tags?: string[]; topics?: string[]; posts?: string[]; notifications?: string[];
+  bookmarks?: string[]; follows?: Omit<ForumFollow, "createdAt">[];
 };
 export type MemberIdentity = { githubUserId: number; login: string; avatarUrl: string | null; role: "admin" | "member"; title: ForumTitle | null };
 export type NewPost = { topicId: string; authorId: string; content: string; replyToPostId?: string };
@@ -57,6 +74,9 @@ type PostRow = {
   edited_at: number | null; reply_to_post_id: string | null; deleted: number;
 };
 type TagRow = { id: string; slug: string; name: string; color: string };
+type NotificationRow = {
+  id: string; recipient_id: string; type: ForumNotification["type"]; actor_id: string; topic_id: string | null; post_id: string | null; created_at: number; read: number;
+};
 
 export const avatarPath = (hash: string) => `/api/forum/avatars/${hash}.webp`;
 
@@ -87,6 +107,24 @@ function toTopic(row: TopicRow): ForumTopic {
     id: row.id, slug: row.slug, title: row.title, categoryId: row.category_id, tagIds: JSON.parse(row.tag_ids) as string[],
     authorId: row.author_id, createdAt: row.created_at, lastActivityAt: row.last_activity_at, views: row.views,
     pinned: row.pinned === 1, closed: row.closed === 1,
+  };
+}
+
+function toPost(row: PostRow, likeUserIds: string[]): ForumPost {
+  return {
+    id: row.id, topicId: row.topic_id, authorId: row.author_id, content: row.content, createdAt: row.created_at,
+    ...(row.edited_at === null ? {} : { editedAt: row.edited_at }),
+    ...(row.reply_to_post_id === null ? {} : { replyToPostId: row.reply_to_post_id }),
+    likeUserIds,
+    ...(row.deleted ? { deleted: true } : {}),
+  };
+}
+
+function toNotification(row: NotificationRow): ForumNotification {
+  return {
+    id: row.id, recipientId: row.recipient_id, type: row.type, actorId: row.actor_id,
+    ...(row.topic_id === null ? {} : { topicId: row.topic_id }), ...(row.post_id === null ? {} : { postId: row.post_id }),
+    createdAt: row.created_at, read: row.read === 1,
   };
 }
 
@@ -394,7 +432,9 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     /** 只能标自己的通知；别人的通知当作不存在。 */
     markRead: (notificationId: string, userId: string) =>
       db.prepare("UPDATE forum_notifications SET read = 1 WHERE id = ? AND recipient_id = ?").run(notificationId, userId).changes > 0,
-    markAllRead: (userId: string) => { db.prepare("UPDATE forum_notifications SET read = 1 WHERE recipient_id = ?").run(userId); },
+    /** 返回这次从未读变成已读的通知 id。 */
+    markAllRead: (userId: string): string[] =>
+      (db.prepare("UPDATE forum_notifications SET read = 1 WHERE recipient_id = ? AND read = 0 RETURNING id").all(userId) as { id: string }[]).map(row => row.id),
 
     updateProfile(userId: string, patch: ProfilePatch, now = Date.now()) {
       const columns: [string, string | number][] = [];
@@ -459,20 +499,9 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
         categories: content.categories,
         tags: [...content.tags, ...(db.prepare("SELECT id, slug, name, color FROM forum_tags ORDER BY created_at, rowid").all() as TagRow[])],
         topics: (db.prepare("SELECT * FROM forum_topics ORDER BY created_at, rowid").all() as TopicRow[]).map(toTopic),
-        posts: (db.prepare("SELECT * FROM forum_posts ORDER BY created_at, rowid").all() as PostRow[]).map(row => ({
-          id: row.id, topicId: row.topic_id, authorId: row.author_id, content: row.content, createdAt: row.created_at,
-          ...(row.edited_at === null ? {} : { editedAt: row.edited_at }),
-          ...(row.reply_to_post_id === null ? {} : { replyToPostId: row.reply_to_post_id }),
-          likeUserIds: likes.get(row.id) ?? [],
-          ...(row.deleted ? { deleted: true } : {}),
-        })),
-        notifications: viewerId === null ? [] : (db.prepare("SELECT * FROM forum_notifications WHERE recipient_id = ? ORDER BY created_at DESC, rowid DESC").all(viewerId) as {
-          id: string; recipient_id: string; type: ForumNotification["type"]; actor_id: string; topic_id: string | null; post_id: string | null; created_at: number; read: number;
-        }[]).map(row => ({
-          id: row.id, recipientId: row.recipient_id, type: row.type, actorId: row.actor_id,
-          ...(row.topic_id === null ? {} : { topicId: row.topic_id }), ...(row.post_id === null ? {} : { postId: row.post_id }),
-          createdAt: row.created_at, read: row.read === 1,
-        })),
+        posts: (db.prepare("SELECT * FROM forum_posts ORDER BY created_at, rowid").all() as PostRow[]).map(row => toPost(row, likes.get(row.id) ?? [])),
+        notifications: viewerId === null ? [] : (db.prepare("SELECT * FROM forum_notifications WHERE recipient_id = ? ORDER BY created_at DESC, rowid DESC").all(viewerId) as NotificationRow[])
+          .map(toNotification),
         bookmarks: viewerId === null ? [] : (db.prepare("SELECT user_id, post_id, created_at FROM forum_bookmarks WHERE user_id = ? ORDER BY created_at, rowid").all(viewerId) as {
           user_id: string; post_id: string; created_at: number;
         }[]).map(row => ({ userId: row.user_id, postId: row.post_id, createdAt: row.created_at })),
@@ -480,6 +509,48 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
           follower_id: string; followee_id: string; created_at: number;
         }[]).map(row => ({ followerId: row.follower_id, followeeId: row.followee_id, createdAt: row.created_at })),
       };
+    },
+
+    /**
+     * 写入之后回给前端的那几条记录（#145），投影与可见性和 state(viewerId) 完全一样：不存在的 id 直接跳过；
+     * 通知只取收件人是看的人的，书签只查看的人自己的，游客两者都没有；只有本人的通知设置是真值。
+     * 书签、关注查不到就放进 `removed`，前端据此删掉。
+     */
+    changes(viewerId: string | null, keys: ChangeKeys): ForumChanges {
+      const unique = (list: string[] | undefined) => [...new Set(list ?? [])];
+      const out: ForumChanges = {};
+      const users = unique(keys.users).map(user).filter(row => row !== undefined).map(row => toUser(row, row.id === viewerId));
+      if (users.length) out.users = users;
+      const tags = unique(keys.tags)
+        .map(id => curatedTags.get(id) ?? db.prepare("SELECT id, slug, name, color FROM forum_tags WHERE id = ?").get(id) as TagRow | undefined)
+        .filter(tag => tag !== undefined);
+      if (tags.length) out.tags = tags;
+      const topics = unique(keys.topics).map(topicRow).filter(row => row !== undefined).map(toTopic);
+      if (topics.length) out.topics = topics;
+      const likesOf = db.prepare("SELECT user_id FROM forum_likes WHERE post_id = ? ORDER BY created_at, rowid");
+      const posts = unique(keys.posts).map(postRow).filter(row => row !== undefined)
+        .map(row => toPost(row, (likesOf.all(row.id) as { user_id: string }[]).map(like => like.user_id)));
+      if (posts.length) out.posts = posts;
+      if (viewerId === null) return out;
+      const ownNotification = db.prepare("SELECT * FROM forum_notifications WHERE id = ? AND recipient_id = ?");
+      const notifications = unique(keys.notifications).map(id => ownNotification.get(id, viewerId) as NotificationRow | undefined)
+        .filter(row => row !== undefined).map(toNotification);
+      if (notifications.length) out.notifications = notifications;
+      const removed: NonNullable<ForumChanges["removed"]> = {};
+      const bookmarkAt = db.prepare("SELECT created_at FROM forum_bookmarks WHERE user_id = ? AND post_id = ?");
+      for (const postId of unique(keys.bookmarks)) {
+        const row = bookmarkAt.get(viewerId, postId) as { created_at: number } | undefined;
+        if (row) (out.bookmarks ??= []).push({ userId: viewerId, postId, createdAt: row.created_at });
+        else (removed.bookmarks ??= []).push({ userId: viewerId, postId });
+      }
+      const followAt = db.prepare("SELECT created_at FROM forum_follows WHERE follower_id = ? AND followee_id = ?");
+      for (const { followerId, followeeId } of keys.follows ?? []) {
+        const row = followAt.get(followerId, followeeId) as { created_at: number } | undefined;
+        if (row) (out.follows ??= []).push({ followerId, followeeId, createdAt: row.created_at });
+        else (removed.follows ??= []).push({ followerId, followeeId });
+      }
+      if (removed.bookmarks || removed.follows) out.removed = removed;
+      return out;
     },
   };
 }

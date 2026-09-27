@@ -249,6 +249,11 @@ describe('workflows pass the mirrors from repository variables', () => {
     const builds = docker.split('docker build \\').slice(1);
     expect(builds).toHaveLength(3);
     for (const build of builds) expect(build).toContain('--build-arg NPM_REGISTRY="$NPM_REGISTRY"');
+    // 静态资源 CDN 开关打开的 web、forum 构建（#146）：一个循环，同样传 npm 源。
+    const cdn = job(ci, 'docker-cdn');
+    expect(cdn).toContain(`      NPM_REGISTRY: ${VAR_EXPR.NPM_REGISTRY}\n`);
+    expect(cdn.split('docker build \\').slice(1)).toHaveLength(1);
+    expect(cdn).toContain('--build-arg NPM_REGISTRY="$NPM_REGISTRY"');
     const server = builds.find(build => build.includes('app/server/Dockerfile'))!;
     expect(server).toContain('--build-arg DEBIAN_MIRROR="$DEBIAN_MIRROR"');
     expect(server).toContain('--build-arg BETTER_SQLITE3_BINARY_HOST="$BETTER_SQLITE3_BINARY_HOST"');

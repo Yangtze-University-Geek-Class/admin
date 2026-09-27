@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { FORUM_LIMITS, ForumError, GUEST_POST_SITE_SUBJECT, NAME_RULE_MESSAGE, ipSubject, isAllowedName, normalizeName } from "../../lib/forum-rules.js";
-import { can, forbidden, forumState, forumViewer, guestRepliesPaused, notFound, rateLimited, requireMember, type MemberViewer } from "./viewer.js";
+import { can, forbidden, forumChanges, forumViewer, guestRepliesPaused, notFound, rateLimited, requireMember, type MemberViewer } from "./viewer.js";
 
 type PostParams = { post_id: string };
 type ReplyBody = {
@@ -46,7 +46,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
       if (!forum.rateAllowed("reply", viewer.userId)) throw rateLimited();
       const postId = forum.createPost({ topicId, authorId: viewer.userId, content, replyToPostId });
       forum.rateRecord("reply", viewer.userId);
-      return reply.code(201).send({ state: forumState(req, viewer), postId });
+      return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId] }), postId });
     }
 
     if (!publicSubmission.checkHoneypot(req.body)) throw new ForumError(400, "request_rejected", "请求被拒绝");
@@ -70,9 +70,9 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     if (!(await turnstile.verifyTurnstile(req.body.turnstileToken, req.ip))) throw new ForumError(400, "turnstile_failed", "人机验证失败，请刷新重试");
     // 等人机验证的时候可能有别的游客写进来：写入前再查一次全站上限，查、写、记之间没有 await。全站只记真正发出的回复。
     withinSiteLimit();
-    const { postId } = forum.createGuestPost(name, { topicId, content, replyToPostId });
+    const { guestId, postId } = forum.createGuestPost(name, { topicId, content, replyToPostId });
     forum.rateRecord("guestPostSite", GUEST_POST_SITE_SUBJECT);
-    return reply.code(201).send({ state: forumState(req, viewer), postId });
+    return reply.code(201).send({ ...forumChanges(req, viewer, { posts: [postId], topics: [topicId], users: [guestId] }), postId });
   });
 
   app.patch<{ Params: PostParams; Body: { content: string } }>("/api/forum/posts/:post_id", async req => {
@@ -83,19 +83,19 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     if (!req.body.content.trim()) throw new ForumError(400, "empty_content", "正文不能为空");
     forum.editPost(post.id, req.body.content);
     if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.edit", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { posts: [post.id] });
   });
 
-  /** 软删除。话题的第一帖不能删；已经删掉的再删一次直接返回当前状态。 */
+  /** 软删除。话题的第一帖不能删；已经删掉的再删一次直接返回这条帖子现在的样子。 */
   app.delete<{ Params: PostParams }>("/api/forum/posts/:post_id", async req => {
     const viewer = await requireMember(req);
     const post = existingPost(req.params.post_id);
     const moderated = authorOrModerator(viewer, post, "删除");
-    if (post.deleted) return { state: forumState(req, viewer) };
+    if (post.deleted) return forumChanges(req, viewer, { posts: [post.id] });
     if (forum.isFirstPost(post.id, post.topicId)) throw new ForumError(400, "first_post", "话题的第一帖不能删除");
     forum.deletePost(post.id);
     if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.delete", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { posts: [post.id] });
   });
 
   app.post<{ Params: PostParams }>("/api/forum/posts/:post_id/like", async req => {
@@ -103,12 +103,13 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     const post = existingPost(req.params.post_id);
     assertNotDeleted(post);
     forum.toggleLike(post.id, viewer.userId);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { posts: [post.id] });
   });
 
   app.post<{ Params: PostParams }>("/api/forum/posts/:post_id/bookmark", async req => {
     const viewer = await requireMember(req);
-    forum.toggleBookmark(viewer.userId, existingPost(req.params.post_id).id);
-    return { state: forumState(req, viewer) };
+    const post = existingPost(req.params.post_id);
+    forum.toggleBookmark(viewer.userId, post.id);
+    return forumChanges(req, viewer, { bookmarks: [post.id] });
   });
 }

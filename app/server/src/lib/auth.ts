@@ -52,8 +52,9 @@ function getSession(id: string): Session | null {
   }
 }
 
-function destroySession(id: string) {
-  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+/** 删掉会话；返回这次是否真的删掉了一行（已经删过或本来就没有时为 false）。 */
+function destroySession(id: string): boolean {
+  return db.prepare("DELETE FROM sessions WHERE id = ?").run(id).changes > 0;
 }
 
 /**

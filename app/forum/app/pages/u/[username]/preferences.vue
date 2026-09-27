@@ -150,11 +150,14 @@ function revert() {
   draft.notifyPrefs = { ...current.notifyPrefs }
 }
 
-const saving = ref(false)
-
+/**
+ * The profile shows the change before the call returns (#145), so the button
+ * does not wait; 资料已保存 comes with the server's answer, and a refusal puts
+ * the old profile back with its own toast while the form keeps what was typed.
+ */
 async function save() {
   const current = profile.value
-  if (!current || !isSelf.value || saving.value)
+  if (!current || !isSelf.value)
     return
   // The server's limits, checked before sending; the nickname only when it changed (shared/forum-api.ts).
   const problem = serverMode ? profileProblem(draft, current.displayName) : null
@@ -162,19 +165,13 @@ async function save() {
     toast({ title: '资料没有保存', description: problem, variant: 'warning' })
     return
   }
-  saving.value = true
-  try {
-    const saved = await actions.updateProfile(current.id, {
-      ...profileBody(draft, current.displayName),
-      avatarColor: draft.avatarColor,
-      notifyPrefs: { ...draft.notifyPrefs },
-    })
-    if (saved)
-      toast({ title: serverMode ? '资料已保存' : '偏好设置已保存', variant: 'success' })
-  }
-  finally {
-    saving.value = false
-  }
+  const saved = await actions.updateProfile(current.id, {
+    ...profileBody(draft, current.displayName),
+    avatarColor: draft.avatarColor,
+    notifyPrefs: { ...draft.notifyPrefs },
+  })
+  if (saved)
+    toast({ title: serverMode ? '资料已保存' : '偏好设置已保存', variant: 'success' })
 }
 
 /**
@@ -365,7 +362,7 @@ function setTheme(value: string | number) {
       <TxButton variant="secondary" @click="revert">
         放弃修改
       </TxButton>
-      <TxButton variant="primary" icon="i-carbon-checkmark" :loading="saving" @click="save">
+      <TxButton variant="primary" icon="i-carbon-checkmark" @click="save">
         保存更改
       </TxButton>
     </TxFlex>

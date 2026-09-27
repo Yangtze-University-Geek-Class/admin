@@ -178,6 +178,42 @@ describe('/auth/me console_link', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ signed_in: true, login: 'alice', console_link: false });
   });
+
+  it('ends the session and says signed out when GitHub rejects its token (#164)', async () => {
+    const rejecting = (() => ({ request: async () => { throw Object.assign(new Error('Bad credentials'), { status: 401 }); } })) as unknown as ServiceOverrides['octokitFactory'];
+    const broken = await testApp({ octokitFactory: rejecting }); contexts.push(broken);
+    const sid = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const response = await broken.app.inject({ url: '/auth/me', headers: { cookie: `sid=${sid}` } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ signed_in: false, session_expired: true });
+    expect(([] as string[]).concat((response.headers['set-cookie'] as string[] | string | undefined) ?? []).some(cookie => cookie.startsWith('sid=;'))).toBe(true);
+    expect(broken.app.services.auth.getSession(sid)).toBeNull();
+    // 控制台的接口同样按会话失效回答，控制台据此带人去重新登录（#133）。
+    const other = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const console = await broken.app.inject({ url: '/api/console/me', headers: { cookie: `sid=${other}` } });
+    expect(console.statusCode).toBe(401);
+    expect(console.json().error).toBe('session_expired');
+    expect(broken.app.services.auth.getSession(other)).toBeNull();
+  });
+
+  it('audits an ended session once when two requests find the token rejected at the same time (#164)', async () => {
+    // 页面加载时 /api/forum/state 和 /auth/me 一起到，组织角色缓存不合并同时在途的请求，两边都会问 GitHub。
+    const slow = (() => ({ request: async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      throw Object.assign(new Error('Bad credentials'), { status: 401 });
+    } })) as unknown as ServiceOverrides['octokitFactory'];
+    const broken = await testApp({ octokitFactory: slow }); contexts.push(broken);
+    const sid = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const headers = { cookie: `sid=${sid}` };
+    const [state, me] = await Promise.all([
+      broken.app.inject({ url: '/api/forum/state', headers }),
+      broken.app.inject({ url: '/auth/me', headers }),
+    ]);
+    expect(state.statusCode).toBe(401);
+    expect(state.json().error).toBe('session_expired');
+    expect(me.json()).toEqual({ signed_in: false, session_expired: true });
+    expect(broken.app.services.storage.db.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'auth.session_rejected'").get()).toEqual({ n: 1 });
+  });
 });
 
 describe('assignments', () => {

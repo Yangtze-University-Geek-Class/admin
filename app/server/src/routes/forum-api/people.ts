@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
 import { FORUM_LIMITS, ForumError, NAME_RULE_MESSAGE, hasControlChars, hasControlCharsMultiline, isAllowedName, isAllowedWebsite, normalizeName } from "../../lib/forum-rules.js";
 import type { ProfilePatch } from "../../lib/forum-store.js";
-import { forumState, notFound, rateLimited, requireMember } from "./viewer.js";
+import { forumChanges, notFound, rateLimited, requireMember } from "./viewer.js";
 
 /** 关注、通知、账号资料与头像。 */
 export default async function forumPeopleRoutes(app: FastifyInstance) {
@@ -14,19 +14,18 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
     if (!target) throw notFound("用户不存在");
     if (target.id === viewer.userId) throw new ForumError(400, "cannot_follow_self", "不能关注自己");
     forum.toggleFollow(viewer.userId, target.id);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { follows: [{ followerId: viewer.userId, followeeId: target.id }] });
   });
 
   app.post<{ Params: { notification_id: string } }>("/api/forum/notifications/:notification_id/read", async req => {
     const viewer = await requireMember(req);
     if (!forum.markRead(req.params.notification_id, viewer.userId)) throw notFound("通知不存在");
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { notifications: [req.params.notification_id] });
   });
 
   app.post("/api/forum/notifications/read-all", async req => {
     const viewer = await requireMember(req);
-    forum.markAllRead(viewer.userId);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, { notifications: forum.markAllRead(viewer.userId) });
   });
 
   /** 昵称、个人签名、所在地、个人网站（只收 https）、通知设置；只改传了的字段。 */
@@ -55,7 +54,7 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
       if (!isAllowedWebsite(patch.website)) throw new ForumError(400, "invalid_website", "个人网站要以 https:// 开头");
     }
     forum.updateProfile(viewer.userId, patch);
-    return { state: forumState(req, viewer) };
+    return forumChanges(req, viewer, {});
   });
 
   /**
@@ -86,13 +85,13 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
       }
       const { hash, data } = await processAvatar(req.body);
       forum.setAvatar(viewer.userId, hash, data);
-      return { state: forumState(req, viewer) };
+      return forumChanges(req, viewer, {});
     });
 
     avatarApp.delete("/api/forum/me/avatar", async req => {
       const viewer = await requireMember(req);
       forum.clearAvatar(viewer.userId);
-      return { state: forumState(req, viewer) };
+      return forumChanges(req, viewer, {});
     });
   });
 

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { FORUM_REQUEST_LIMITS, ForumError, hasControlChars, ipSubject } from "../../lib/forum-rules.js";
-import { can, forbidden, forumState, forumViewer, notFound, rateLimited, requireMember } from "./viewer.js";
+import { can, forbidden, forumChanges, forumState, forumViewer, notFound, rateLimited, requireMember } from "./viewer.js";
 
 type TopicParams = { topic_id: string };
 
@@ -34,7 +34,8 @@ export default async function forumTopicRoutes(app: FastifyInstance) {
     if (!forum.rateAllowed("topic", viewer.userId)) throw rateLimited();
     const { topicId, postId } = forum.createTopic({ authorId: viewer.userId, title, categoryId: req.body.categoryId, tags, content: req.body.content });
     forum.rateRecord("topic", viewer.userId);
-    return reply.code(201).send({ state: forumState(req, viewer), topicId, postId });
+    const tagIds = forum.topic(topicId)?.tagIds ?? [];
+    return reply.code(201).send({ ...forumChanges(req, viewer, { topics: [topicId], posts: [postId], tags: tagIds }), topicId, postId });
   });
 
   /** 置顶与关闭：按 forum.topic.pin / forum.topic.close 授权，写审计（只记开关，不记正文）。 */
@@ -50,7 +51,7 @@ export default async function forumTopicRoutes(app: FastifyInstance) {
       const value = req.body[field];
       if (action === "pin") forum.setPinned(topic.id, value); else forum.setClosed(topic.id, value);
       audit(config.consoleOrg, viewer.login, `forum.topic.${action}`, topic.id, { [field]: value }, req.ip);
-      return { state: forumState(req, viewer) };
+      return forumChanges(req, viewer, { topics: [topic.id] });
     });
   }
 

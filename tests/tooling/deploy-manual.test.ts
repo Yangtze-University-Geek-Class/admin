@@ -123,6 +123,12 @@ describe('deploy-manual helpers', () => {
     expect(buildJobSucceeded([{ name: 'build (镜像归档)', conclusion: 'success' }, { name: 'deploy (preview stack)', conclusion: 'failure' }])).toBe(true);
     expect(buildJobSucceeded([{ name: 'build (镜像归档)', conclusion: 'failure' }])).toBe(false);
     expect(buildJobSucceeded([{ name: 'rebuild', conclusion: 'success' }])).toBe(false);
+    // #146 起的运行多一个 cdn-upload job：开关打开时镜像里的 HTML 引用 CDN 上的文件，它没成功就不能部署。
+    const build = { name: 'build (镜像归档)', conclusion: 'success' };
+    expect(buildJobSucceeded([build, { name: 'cdn-upload (上传并核对 CDN 静态文件)', conclusion: 'success' }])).toBe(true);
+    for (const conclusion of ['failure', 'skipped', 'cancelled', null]) {
+      expect(buildJobSucceeded([build, { name: 'cdn-upload (上传并核对 CDN 静态文件)', conclusion }]), String(conclusion)).toBe(false);
+    }
   });
 
   it('writes the CI payload keys (production also preview_tags) plus where it was deployed from', () => {

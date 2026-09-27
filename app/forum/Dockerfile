@@ -62,10 +62,15 @@ COPY app/forum/scripts/csp-header.mjs ./scripts/csp-header.mjs
 COPY deploy/nginx/production.conf /repo/deploy/nginx/production.conf
 # nuxt.config.ts 直接 import 环境身份契约（../../deploy/environments.json）。
 COPY deploy/environments.json /repo/deploy/environments.json
+# nuxt.config.ts 也 import 静态资源 CDN 开关的解析（../../scripts/static-cdn-base.mjs，#146）。
+COPY scripts/static-cdn-base.mjs /repo/scripts/static-cdn-base.mjs
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
+# 静态资源 CDN 开关（#146）：空 = 同源（默认）；非空只能是 scripts/static-cdn-base.mjs 里的地址，
+# nuxt.config.ts 据此设 app.cdnURL=<地址>forum/。只在构建阶段声明，运行阶段不继承。
+ARG STATIC_CDN_BASE=""
 
 # GEEK_FORUM_SOURCE=site：镜像是极客班论坛自己——站名「极客班论坛」、app/forum/content/curation.json
 # 里的分类和标签，加上 content/published 里公开的旧帖（去掉凭据后导出，只有首帖，作者是「极客班」）；
@@ -81,10 +86,15 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
     GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+    STATIC_CDN_BASE="$STATIC_CDN_BASE" \
     pnpm exec nuxt generate \
- # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。
- && grep -q '"#entry":"/forum/_nuxt/' .output/public/index.html \
+ # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。入口在开关打开时是 CDN 上的 <地址>forum/_nuxt/，
+ # 关掉时是站内的 /forum/_nuxt/。
+ && entry="${STATIC_CDN_BASE:+${STATIC_CDN_BASE}forum/_nuxt/}" \
+ && grep -q "\"#entry\":\"${entry:-/forum/_nuxt/}" .output/public/index.html \
  && ! grep -q 'href="/_nuxt/' .output/public/index.html \
+ # 开关打开时，头部 logo（代码里写的 public 文件）要变成 _nuxt/ 下带哈希的文件，才会随产物一起上传 CDN。
+ && { test -z "$STATIC_CDN_BASE" || test -n "$(find .output/public/_nuxt -name 'logo.*.png' -print -quit)"; } \
  # 给 AI 读取的索引 llms.txt 与每篇公开旧帖的 t/<id>.md 必须随产物生成（nuxt.config.ts 的
  # nitro.prerender.routes）：机试文档 t73、t9（#87）和后来补进的现论坛帖子 t78、t84、t89（#108）；不公开的 t5、t15 没有文件。
  && test -s .output/public/llms.txt \
@@ -145,7 +155,9 @@ server {
     # 只发相对地址，由 web 容器的 proxy_redirect 补回 /forum 前缀，不会拼出 http://<Host>:3000/…。
     absolute_redirect off;
 
+    # 压缩级别与 web 容器一致（#146）：nginx 默认是 1，论坛入口 CSS 626,718 字节经源站传 128,152 字节；6 级本机 nginx 实测 95,932。
     gzip on;
+    gzip_comp_level 6;
     gzip_types text/plain text/markdown text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
     gzip_min_length 1024;
 
@@ -172,11 +184,18 @@ server {
         try_files $uri =404;
     }
 
-    # 带内容哈希的产物：长缓存。
-    location /_nuxt/ {
+    # 带内容哈希的产物：长缓存。^~：前缀命中后不再看下面的图片正则，否则 _nuxt/ 里的字体、图片只缓存 7 天（#146）。
+    # 这里不写 add_header，http 层的 CSP 照样继承。
+    location ^~ /_nuxt/ {
         expires 1y;
         try_files $uri =404;
         access_log off;
+    }
+    # _nuxt/ 里唯一不带哈希的文件：Nuxt 的新版本检查读它，文件名固定、每次构建内容都变，不缓存
+    # （Nuxt 请求时带 ?<时间戳>，本来就不会命中缓存；开关打开时不读它，也不上传 CDN）。精确匹配优先于 ^~。
+    location = /_nuxt/builds/latest.json {
+        expires -1;
+        try_files $uri =404;
     }
     location ~* \.(?:png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf)$ {
         expires 7d;

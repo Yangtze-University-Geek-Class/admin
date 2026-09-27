@@ -12,10 +12,10 @@ async function adminFixture(failure: Record<string, unknown> = {}) {
   } })) as unknown as ServiceOverrides['octokitFactory'];
   const context = await testApp({ octokitFactory }); contexts.push(context);
   const sid = context.app.services.auth.createSession('test-admin', 1, null, 'test-access');
-  return { ...context, headers: { cookie: `sid=${sid}` } };
+  return { ...context, sid, headers: { cookie: `sid=${sid}` } };
 }
 
-it.each([401, 403, 404, 409, 422])('maps an upstream GitHub %s to the same 4xx instead of internal_error', async status => {
+it.each([403, 404, 409, 422])('maps an upstream GitHub %s to the same 4xx instead of internal_error', async status => {
   const { app, headers } = await adminFixture({ status });
   const response = await app.inject({ method: 'DELETE', url: '/api/admin/test-org/members/ghost', headers });
   expect(response.statusCode).toBe(status);
@@ -24,6 +24,17 @@ it.each([401, 403, 404, 409, 422])('maps an upstream GitHub %s to the same 4xx i
   expect(body.message).toMatch(/GitHub/);
   expect(body.message).not.toContain('stub upstream rejection');
   expect(body.request_id).toEqual(expect.any(String));
+});
+it('ends the session instead of passing on a GitHub 401: the token stored in it no longer works (#164)', async () => {
+  const { app, sid, headers } = await adminFixture({ status: 401 });
+  const response = await app.inject({ method: 'DELETE', url: '/api/admin/test-org/members/ghost', headers });
+  expect(response.statusCode).toBe(401);
+  expect(response.json()).toMatchObject({ error: 'session_expired', message: '登录已失效，请重新登录', request_id: expect.any(String) });
+  const cookies = ([] as string[]).concat((response.headers['set-cookie'] as string[] | string | undefined) ?? []);
+  expect(cookies.some(cookie => cookie.startsWith('sid=;'))).toBe(true);
+  expect(app.services.auth.getSession(sid)).toBeNull();
+  // 同一个 sid 再来就是普通的会话失效，不再问 GitHub。
+  expect((await app.inject({ method: 'DELETE', url: '/api/admin/test-org/members/ghost', headers })).json()).toEqual({ error: 'session_expired' });
 });
 it.each([[{ status: 502 }, 502], [{ status: 0 }, 500], [{}, 500]] as const)('keeps upstream failure %j sanitized as %i', async (failure, expected) => {
   const { app, headers } = await adminFixture(failure);

@@ -71,3 +71,9 @@
 - 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
 - 做了什么：stage 合入 #106、#113、#117 后与本分支在 docs/ops/CICD.md 的 JIT runner 表冲突：镜像行取 stage（#106 加的 Node 工具缓存说明），下载镜像归档行取本分支（#111 的空闲超时说明）
 - 结果：冲突标记清零；fetch-artifact 测试 14 passed；check-docs、note check 通过；docs-index --check 在 Windows 上失败是 #121 的已知问题，本分支不含该修复，以 CI 为准
+
+## 20:30:15 +08:00 · 收尾 · #111 · PR #119 已合并，清理 worktree
+
+- 执行者：agent-omp-geek-main-26（omp，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 111：删 worktree .claude\worktrees\task-111 与本地分支 task/111/fetch_stall_timeout
+- 结果：PR 已合并

@@ -1,6 +1,6 @@
 import type { Topic, User } from '~/data/types'
 import { describe, expect, it } from 'vitest'
-import { forumAccess, guestMayReply, loginPromptToast, UNAVAILABLE_COPY } from '~/data/access'
+import { forumAccess, guestMayReply, loginPromptToast, refusedNotMemberToast, signinLapsedToast, UNAVAILABLE_COPY } from '~/data/access'
 import { accountMenu } from '~/data/account-menu'
 import { can } from '~/data/permissions'
 
@@ -82,6 +82,38 @@ describe('what a login-required control says to someone who cannot write', () =>
     expect(loginPromptToast(forumAccess('server', 'busy', null).loginPrompt)).toMatchObject({ title: '请求太频繁，稍后再试', signIn: false })
     expect(loginPromptToast(forumAccess('server', 'ready', null, true).loginPrompt)).toMatchObject({ title: '这个账号现在不能在论坛里发帖', signIn: false })
     expect(loginPromptToast(forumAccess('read-only', 'idle', null).loginPrompt)).toMatchObject({ title: '现在还不能操作', signIn: false })
+  })
+})
+
+describe('what the forum says once the server ended the sign-in (#164)', () => {
+  it('says the sign-in is gone and offers the 登录 action', () => {
+    expect(signinLapsedToast(null)).toEqual({
+      id: 'forum-signin-lapsed',
+      title: '登录已失效',
+      description: '请重新用 GitHub 登录。不登录也能看帖和回复。',
+      variant: 'warning',
+      duration: 8000,
+      signIn: true,
+    })
+  })
+
+  it('says what failed and that the account is not in the organisation when it is still signed in', () => {
+    expect(refusedNotMemberToast('没有赞上')).toEqual({
+      id: 'forum-not-member',
+      title: '没有赞上',
+      description: UNAVAILABLE_COPY['not-member'].description,
+      variant: 'warning',
+      signIn: false,
+    })
+  })
+
+  it('names what did not happen because of it, in the same one toast', () => {
+    expect(signinLapsedToast('没有加上书签')).toMatchObject({
+      id: 'forum-signin-lapsed',
+      title: '没有加上书签',
+      description: '登录已失效，请重新用 GitHub 登录。不登录也能看帖和回复。',
+      signIn: true,
+    })
   })
 })
 

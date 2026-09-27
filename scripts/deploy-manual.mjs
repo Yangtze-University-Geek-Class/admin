@@ -131,8 +131,12 @@ export function pickRun(runs, { tag, commit }) {
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] ?? null;
 }
 
-/** 构建镜像归档的 job 必须成功（部署 job 失败或被跳过不影响归档本身）。 */
-export const buildJobSucceeded = jobs => jobs.some(job => /^build\b/.test(job.name) && job.conclusion === 'success');
+/**
+ * 构建镜像归档的 job 必须成功（部署 job 失败或被跳过不影响归档本身）。有 cdn-upload job 的运行（#146 起的工作流）
+ * 还要求它也成功：开关打开时镜像里的 HTML 引用只在 CDN 上的文件，没传完就部署会整页白屏。
+ */
+export const buildJobSucceeded = jobs => jobs.some(job => /^build\b/.test(job.name) && job.conclusion === 'success')
+  && jobs.filter(job => /^cdn-upload\b/.test(job.name)).every(job => job.conclusion === 'success');
 
 /** 与 CI 部署记录同样的 payload 键（正式另有 preview_tags），外加来源与批准记录。 */
 export function deploymentPayload(plan, acceptance) {
@@ -295,7 +299,7 @@ export async function deploy(options, deps = defaultDeps()) {
     const source = pickRun(runs, { tag, commit });
     if (!source) throw new Error(`找不到 ${tag} 在 ${workflowFile(environment)} 上已结束的运行`);
     const jobs = ghJson(`repos/${repo}/actions/runs/${source.id}/jobs?per_page=100`).jobs ?? [];
-    if (!buildJobSucceeded(jobs)) throw new Error(`运行 ${source.id} 的镜像构建 job 没有成功`);
+    if (!buildJobSucceeded(jobs)) throw new Error(`运行 ${source.id} 的镜像构建 job 或 CDN 上传 job 没有成功`);
 
     const artifacts = join(work, 'artifacts');
     run('gh', ['run', 'download', String(source.id), '--repo', repo, '--name', artifactName(environment, plan.imageTag), '--dir', artifacts]);

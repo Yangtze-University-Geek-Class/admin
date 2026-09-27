@@ -30,7 +30,7 @@ const PAGE_COMMANDS: CommandPaletteItem[] = [
 
 const forum = useForumStore()
 const router = useRouter()
-const { paletteOpen } = useShell()
+const { paletteOpen, composerOpen } = useShell()
 
 const commands = computed<CommandPaletteItem[]>(() => [
   // The read-only snapshot has no composer; in 极客班论坛 only a signed-in member has one.
@@ -75,5 +75,6 @@ useEventListener(document, 'keydown', (event) => {
     aria-label="快速跳转"
     @select="onSelect"
   />
-  <TxToastHost />
+  <!-- The reply drawer's 取消 and 回复 sit at the bottom right; while it is open toasts show at the top (#162). -->
+  <TxToastHost :position="composerOpen ? 'top-center' : 'bottom-right'" />
 </template>

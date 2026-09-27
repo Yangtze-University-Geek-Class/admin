@@ -1,4 +1,4 @@
-import type { ForumState, NotifyPrefs, User } from '../app/data/types'
+import type { ForumChanges, ForumState, NotifyPrefs, User } from '../app/data/types'
 import type { PowProof } from './pow'
 import { FORUM_STATE_VERSION } from '../app/data/types'
 
@@ -6,8 +6,9 @@ import { FORUM_STATE_VERSION } from '../app/data/types'
  * 论坛后端的浏览器客户端（接口约定见 docs/services/forum/README.md「服务端模式」）。
  *
  * 核心服务在同域的 `/api/forum/*` 上存帖子、做授权，身份只认全站登录的 `sid` cookie；本机论坛单独跑在
- * 3456 时由 nuxt.config.ts 的 devProxy 转给 127.0.0.1:3000。每个写接口都返回整份 `state`，
- * 调用方整体替换 store，不在本地拼改动。纯函数、不依赖 Nuxt，fetch 由调用方传入，单测直接用假的 fetch。
+ * 3456 时由 nuxt.config.ts 的 devProxy 转给 127.0.0.1:3000。只有 `GET /state` 返回整份状态；写接口只回
+ * 这次变了的几条记录（`changes`，#145），调用方按 id 并进手里的 store。纯函数、不依赖 Nuxt，fetch 由调用方
+ * 传入，单测直接用假的 fetch。
  */
 
 export const FORUM_API_BASE = '/api/forum'
@@ -32,6 +33,13 @@ export interface GuestPolicy {
 
 export interface ServerSnapshot {
   state: ForumState
+  viewer: ForumViewer
+  guestPolicy: GuestPolicy
+}
+
+/** 写接口的回答：变了的记录，加上和 `/state` 一样的 `viewer`、`guestPolicy`。 */
+export interface WriteResult {
+  changes: ForumChanges
   viewer: ForumViewer
   guestPolicy: GuestPolicy
 }
@@ -158,38 +166,36 @@ export function createForumApi(fetchImpl: FetchLike) {
     return json
   }
 
-  const snapshot = async (method: string, path: string, body?: unknown, options?: RequestOptions): Promise<ServerSnapshot> =>
-    parseServerSnapshot(await request(method, path, body, options))
+  const write = async (method: string, path: string, body?: unknown, options?: RequestOptions): Promise<WriteResult> =>
+    parseWriteResult(await request(method, path, body, options))
 
   const id = (value: string): string => encodeURIComponent(value)
 
   return {
-    state: () => snapshot('GET', '/state', undefined, { signal: timeoutSignal(STATE_TIMEOUT_MS) }),
-    async createTopic(body: CreateTopicBody): Promise<ServerSnapshot & { topicId: string }> {
+    state: async (): Promise<ServerSnapshot> => parseServerSnapshot(await request('GET', '/state', undefined, { signal: timeoutSignal(STATE_TIMEOUT_MS) })),
+    async createTopic(body: CreateTopicBody): Promise<WriteResult & { topicId: string }> {
       const json = await request('POST', '/topics', body)
-      return { ...parseServerSnapshot(json), topicId: stringField(json, 'topicId') }
+      return { ...parseWriteResult(json), topicId: stringField(json, 'topicId') }
     },
-    async createPost(body: CreatePostBody | GuestPostBody): Promise<ServerSnapshot & { postId: string }> {
+    async createPost(body: CreatePostBody | GuestPostBody): Promise<WriteResult & { postId: string }> {
       const json = await request('POST', '/posts', body)
-      return { ...parseServerSnapshot(json), postId: stringField(json, 'postId') }
+      return { ...parseWriteResult(json), postId: stringField(json, 'postId') }
     },
-    editPost: (postId: string, content: string) => snapshot('PATCH', `/posts/${id(postId)}`, { content }),
-    deletePost: (postId: string) => snapshot('DELETE', `/posts/${id(postId)}`),
-    toggleLike: (postId: string) => snapshot('POST', `/posts/${id(postId)}/like`),
-    toggleBookmark: (postId: string) => snapshot('POST', `/posts/${id(postId)}/bookmark`),
-    toggleFollow: (userId: string) => snapshot('POST', `/users/${id(userId)}/follow`),
-    setPinned: (topicId: string, pinned: boolean) => snapshot('POST', `/topics/${id(topicId)}/pin`, { pinned }),
-    setClosed: (topicId: string, closed: boolean) => snapshot('POST', `/topics/${id(topicId)}/close`, { closed }),
+    editPost: (postId: string, content: string) => write('PATCH', `/posts/${id(postId)}`, { content }),
+    deletePost: (postId: string) => write('DELETE', `/posts/${id(postId)}`),
+    toggleLike: (postId: string) => write('POST', `/posts/${id(postId)}/like`),
+    toggleBookmark: (postId: string) => write('POST', `/posts/${id(postId)}/bookmark`),
+    toggleFollow: (userId: string) => write('POST', `/users/${id(userId)}/follow`),
+    setPinned: (topicId: string, pinned: boolean) => write('POST', `/topics/${id(topicId)}/pin`, { pinned }),
+    setClosed: (topicId: string, closed: boolean) => write('POST', `/topics/${id(topicId)}/close`, { closed }),
     async recordView(topicId: string): Promise<void> {
       await request('POST', `/topics/${id(topicId)}/view`)
     },
-    markRead: (notificationId: string) => snapshot('POST', `/notifications/${id(notificationId)}/read`),
-    markAllRead: () => snapshot('POST', '/notifications/read-all'),
-    updateProfile: (body: ProfileBody) => snapshot('PATCH', '/me/profile', body),
-    async uploadAvatar(file: Blob): Promise<ServerSnapshot> {
-      return parseServerSnapshot(await request('PUT', '/me/avatar', file, { contentType: file.type }))
-    },
-    resetAvatar: () => snapshot('DELETE', '/me/avatar'),
+    markRead: (notificationId: string) => write('POST', `/notifications/${id(notificationId)}/read`),
+    markAllRead: () => write('POST', '/notifications/read-all'),
+    updateProfile: (body: ProfileBody) => write('PATCH', '/me/profile', body),
+    uploadAvatar: (file: Blob) => write('PUT', '/me/avatar', file, { contentType: file.type }),
+    resetAvatar: () => write('DELETE', '/me/avatar'),
   }
 }
 
@@ -236,6 +242,67 @@ export function parseServerSnapshot(body: unknown): ServerSnapshot {
     follows: raw.follows,
   } as ForumState
   return { state, viewer, guestPolicy: parseGuestPolicy(raw.guestPolicy ?? body.guestPolicy) }
+}
+
+/**
+ * 写接口返回的 `{ changes, viewer, guestPolicy }`（#145）。`changes` 里每一类都可以没有；有的话必须是记录数组，
+ * 带 id 的记录要有字符串 id，书签和关注要有两端的用户或帖子 id，用户按 `/state` 同样的规则补齐。
+ * 形状不对就整份拒收（和写失败一样，本地什么也不改），不把半份数据并进 store。
+ */
+export function parseWriteResult(body: unknown): WriteResult {
+  const invalid = (): ForumApiError => new ForumApiError(200, 'invalid_response', '论坛服务返回的数据不完整，请稍后再试。')
+  if (!isRecord(body) || !isRecord(body.changes))
+    throw invalid()
+  const viewer = parseViewer(body.viewer)
+  if (!viewer)
+    throw invalid()
+  const raw = body.changes
+  const records = (key: string, fields: string[]): Record<string, unknown>[] | undefined => {
+    const list = raw[key]
+    if (list === undefined)
+      return undefined
+    if (!Array.isArray(list) || !list.every(item => isRecord(item) && fields.every(field => typeof item[field] === 'string')))
+      throw invalid()
+    return list as Record<string, unknown>[]
+  }
+  const changes: ForumChanges = {}
+  const users = records('users', ['id'])?.map(normalizeUser)
+  if (users) {
+    if (users.includes(null))
+      throw invalid()
+    changes.users = users as User[]
+  }
+  for (const key of ['tags', 'topics', 'posts', 'notifications'] as const) {
+    const list = records(key, ['id'])
+    if (list)
+      (changes as Record<string, unknown>)[key] = list
+  }
+  const bookmarks = records('bookmarks', ['userId', 'postId'])
+  if (bookmarks)
+    changes.bookmarks = bookmarks as unknown as NonNullable<ForumChanges['bookmarks']>
+  const follows = records('follows', ['followerId', 'followeeId'])
+  if (follows)
+    changes.follows = follows as unknown as NonNullable<ForumChanges['follows']>
+  if (raw.removed !== undefined) {
+    if (!isRecord(raw.removed))
+      throw invalid()
+    const removed = raw.removed
+    const pairs = (key: string, fields: [string, string]): Record<string, string>[] | undefined => {
+      const list = removed[key]
+      if (list === undefined)
+        return undefined
+      if (!Array.isArray(list) || !list.every(item => isRecord(item) && fields.every(field => typeof item[field] === 'string')))
+        throw invalid()
+      return (list as Record<string, string>[]).map(item => ({ [fields[0]]: item[fields[0]]!, [fields[1]]: item[fields[1]]! }))
+    }
+    const removedBookmarks = pairs('bookmarks', ['userId', 'postId'])
+    const removedFollows = pairs('follows', ['followerId', 'followeeId'])
+    changes.removed = {
+      ...(removedBookmarks ? { bookmarks: removedBookmarks as unknown as NonNullable<NonNullable<ForumChanges['removed']>['bookmarks']> } : {}),
+      ...(removedFollows ? { follows: removedFollows as unknown as NonNullable<NonNullable<ForumChanges['removed']>['follows']> } : {}),
+    }
+  }
+  return { changes, viewer, guestPolicy: parseGuestPolicy(body.guestPolicy) }
 }
 
 function parseViewer(value: unknown): ForumViewer | null {

@@ -20,10 +20,13 @@ function open(entry: BookmarkEntry) {
   void router.push(`/t/${entry.topic.id}`)
 }
 
+// The entry leaves the list before the call returns (#145); a refusal brings it back with the server store's toast.
+// 已移出书签 waits for the server (#162).
 async function remove(entry: BookmarkEntry) {
-  if (!user.value || await actions.toggleBookmark(user.value.id, entry.post.id) === null)
+  if (!user.value)
     return
-  toast({ title: '已移出书签', variant: 'success' })
+  if (await actions.toggleBookmark(user.value.id, entry.post.id) === false)
+    toast({ id: `forum-bookmark:${entry.post.id}`, title: '已移出书签', variant: 'success' })
 }
 
 function authorOf(entry: BookmarkEntry): string {

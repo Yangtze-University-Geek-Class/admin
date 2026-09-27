@@ -1,13 +1,16 @@
-import type { ReplyAsGuestInput } from '~/stores/forum-server'
+import type { ReplyAsGuestInput, ReplyShown } from '~/stores/forum-server'
 import type { CreatePostInput, CreateTopicInput, ProfilePatch } from '~/stores/forum'
 
 /**
  * Every write a page makes goes through here, so no component carries two
- * code paths. Against the forum server (`serverMode`) each call is one
- * request and the answer replaces the whole store; a failure changes nothing
- * and the server store's toast says why. In the demo the upstream store
- * mutates this browser's copy exactly as before, synchronously, before the
- * returned promise settles.
+ * code paths. Against the forum server (`serverMode`) the page changes before
+ * the call returns, the request goes out behind it, and the promise settles
+ * once the server answered; a failure puts the page back and the server
+ * store's toast says why (stores/forum-server.ts, #145). New topics and
+ * avatars are the exception and wait for the server. In the demo the
+ * upstream store mutates this browser's copy exactly as before,
+ * synchronously, before the returned promise settles. Either way a page can
+ * read the new state right after the call, without awaiting it.
  *
  * Results: an id, the new on/off state of a toggle, or `true` — and `null` or
  * `false` when the write did not happen.
@@ -23,15 +26,16 @@ export function useForumActions() {
     return server.createTopic({ title: input.title, categoryId: input.categoryId, tags: input.tagIds, content: input.content })
   }
 
-  async function createPost(input: CreatePostInput): Promise<string | null> {
+  /** `shown` hears the id the reply is on the page under while it is sent (server mode; the demo has the real id at once). */
+  async function createPost(input: CreatePostInput, shown?: ReplyShown): Promise<string | null> {
     if (!serverMode)
       return forum.createPost(input).id
-    return server.createPost({ topicId: input.topicId, content: input.content, ...(input.replyToPostId ? { replyToPostId: input.replyToPostId } : {}) })
+    return server.createPost({ topicId: input.topicId, content: input.content, ...(input.replyToPostId ? { replyToPostId: input.replyToPostId } : {}) }, shown)
   }
 
   /** Server mode only: nobody replies without an identity in the demo. */
-  async function replyAsGuest(input: ReplyAsGuestInput): Promise<string | null> {
-    return serverMode ? server.replyAsGuest(input) : null
+  async function replyAsGuest(input: ReplyAsGuestInput, shown?: ReplyShown): Promise<string | null> {
+    return serverMode ? server.replyAsGuest(input, shown) : null
   }
 
   async function editPost(postId: string, content: string): Promise<boolean> {

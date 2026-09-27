@@ -74,7 +74,8 @@ describe('forum CSP script', () => {
 
   it('reads the site policy from each host template and keeps both templates on the same policy', () => {
     const preview = siteCsp(hostConf('preview'));
-    expect(preview).toMatch(/^default-src 'self'; script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
+    // 第二个来源是静态资源 CDN 的前缀（#146），与 scripts/static-cdn-base.mjs 的一致性在 static-cdn.test.ts 里核对。
+    expect(preview).toMatch(/^default-src 'self'; script-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/cdn\.crosery\.com\/yzgc\/static\/site\/;/);
     expect(preview).toContain("object-src 'none'");
     expect(preview).toContain("frame-ancestors 'none'");
     expect(siteCsp(hostConf('production'))).toBe(preview);
@@ -135,11 +136,12 @@ describe('forum CSP wiring', () => {
     // 容器站点里没有自己 add_header 的页面 location 才会继承 http 层的 CSP：add_header 只许出现在 .md 与 llms.txt 两处。
     const site = heredoc(forumDockerfile, 'NGINX_SITE');
     const locations = [...site.matchAll(/^    location ([^{]+) \{\n([\s\S]*?)^    \}$/gm)].map(match => ({ name: match[1], body: match[2] }));
-    expect(locations.map(location => location.name)).toEqual(['~ \\.md$', '= /llms.txt', '/_nuxt/', '~* \\.(?:png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf)$', '= /200.html', '= /404.html', '/']);
+    // /_nuxt/ 是 ^~（整个目录缓存一年，#146），其中不带哈希的 builds/latest.json 精确匹配、不缓存；两处都不写 add_header。
+    expect(locations.map(location => location.name)).toEqual(['~ \\.md$', '= /llms.txt', '^~ /_nuxt/', '= /_nuxt/builds/latest.json', '~* \\.(?:png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf)$', '= /200.html', '= /404.html', '/']);
     expect(site.match(/^\s*add_header /gm)).toHaveLength(2);
     expect(locations.filter(location => location.body.includes('add_header')).map(location => location.name)).toEqual(['~ \\.md$', '= /llms.txt']);
     // 页面不缓存：发版后旧页面配新哈希会白屏。
-    for (const name of ['= /200.html', '= /404.html', '/']) expect(locations.find(location => location.name === name)?.body, name).toContain('expires -1;');
+    for (const name of ['= /200.html', '= /404.html', '/', '= /_nuxt/builds/latest.json']) expect(locations.find(location => location.name === name)?.body, name).toContain('expires -1;');
     // web 容器不发 CSP（server 也不发，已搜过 app/server/src）；要发必须从同一份站点策略出发，并同步这里。
     expect(webDockerfile).not.toMatch(/Content-Security-Policy/i);
   });

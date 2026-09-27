@@ -1,9 +1,11 @@
+import { existsSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import deploymentContract from '../../deploy/environments.json'
 import { selectContentSource } from './shared/content-source'
 import { createDeploymentMetadata } from './shared/deployment'
 import { markdownPrerenderRoutes, seedTopicIds } from './shared/forum-markdown'
 import { publishedTopicIds } from './shared/published'
+import { forumCdnURL, staticCdnBase } from '../../scripts/static-cdn-base.mjs'
 
 const siteDeployment = createDeploymentMetadata(
   deploymentContract,
@@ -28,6 +30,29 @@ const { contentSource, contentDir: geekForumContentDir, siteName, loginMode } = 
 // 页面按这份名单决定要不要输出 alternate 链接（快照模式由 dev 服务器按请求生成，另算）。
 const markdownTopicIds = contentSource === 'site' ? publishedTopicIds() : seedTopicIds()
 
+// 静态资源 CDN 开关（#146，规则在仓库根的 scripts/static-cdn-base.mjs）：STATIC_CDN_BASE 为空时与以前一样同源；
+// 非空时 app.cdnURL 指向 CDN 上的 <base>forum/，/forum/_nuxt/ 下的文件改从 CDN 加载，页面与接口仍走源站。
+const forumBaseURL = process.env.GEEK_FORUM_BASE_PATH || '/'
+const cdnBase = staticCdnBase()
+
+// app.cdnURL 同时决定 Nuxt 的 publicAssetsURL：代码里写的 public/ 文件（如 ForumHeader 的 <img src="/logo.png">）
+// 会被改写成 CDN 上的 forum/logo.png。那是不带哈希的固定地址，上传脚本不传它。开关打开时，把代码 import 的
+// public/ 文件当成普通构建资源：Vite 给它带上内容哈希放进 _nuxt/，和其它产物一起上传。
+// 不经 import 的 public/ 文件（favicon、published/ 下的图片、llms.txt）不受影响，仍从源站取。
+const publicDir = fileURLToPath(new URL('./public', import.meta.url))
+// 论坛包不直接依赖 vite（pnpm 严格隔离），这里不 import 它的 Plugin 类型，按结构写出 Vite 插件。
+function hashPublicImports() {
+  return {
+    name: 'geek-forum-hash-public-imports',
+    enforce: 'pre' as const,
+    resolveId(id: string) {
+      if (!/^\/[\w./-]+$/.test(id) || id.includes('..')) return null
+      const file = `${publicDir}${id}`
+      return existsSync(file) && statSync(file).isFile() ? file : null
+    },
+  }
+}
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-11',
@@ -40,6 +65,7 @@ export default defineNuxtConfig({
   // createSeed 与上游示例帖子因此整段不进浏览器产物（镜像构建断言产物里没有示例帖子标题）。
   vite: {
     define: { 'import.meta.env.GEEK_FORUM_SITE': JSON.stringify(contentSource === 'site') },
+    plugins: cdnBase ? [hashPublicImports()] : [],
   },
 
   // The editorial layer over the read-only snapshot (categories, tags,
@@ -75,6 +101,11 @@ export default defineNuxtConfig({
   // current time, so SSR output could never match the client. SPA only.
   ssr: false,
 
+  // 开关打开时（#146）关掉 Nuxt 每小时一次的「有没有新版本」检查：它读 _nuxt/builds/latest.json，
+  // 这个文件名不带哈希、每次构建内容都变，不上传 CDN（上传只增不改）。旧版本的哈希文件一直留在 CDN 上，
+  // 开着的旧页面照样能加载自己的分块，刷新即拿到新版本。同源构建保持 Nuxt 默认。
+  ...(cdnBase ? { experimental: { checkOutdatedBuildInterval: false as const } } : {}),
+
   // `./modules/tuffex-components` is picked up by Nuxt's `modules/` directory scan.
   modules: [
     '@unocss/nuxt',
@@ -103,7 +134,9 @@ export default defineNuxtConfig({
     // 论坛挂在环境唯一域名（deploy/env/.env.* 的 PUBLIC_ORIGIN）下的 /forum 路径，
     // 由 web 容器的 nginx 反代。静态产物的资源与路由前缀由 baseURL 决定，
     // 因此镜像构建时必须传 GEEK_FORUM_BASE_PATH=/forum/；本地开发保持站点根。
-    baseURL: process.env.GEEK_FORUM_BASE_PATH || '/',
+    baseURL: forumBaseURL,
+    // 只在开关打开时设置（#146）；代码引用的 public/ 文件怎么处理见文件开头的 hashPublicImports。
+    ...(cdnBase ? { cdnURL: forumCdnURL(cdnBase, forumBaseURL) } : {}),
     head: {
       htmlAttrs: { lang: 'zh-CN' },
       // No static title: app.vue's titleTemplate already falls back to the

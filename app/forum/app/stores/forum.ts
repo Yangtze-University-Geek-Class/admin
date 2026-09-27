@@ -1,6 +1,7 @@
 import type {
   Bookmark,
   Category,
+  ForumChanges,
   ForumState,
   Notification,
   NotificationType,
@@ -111,6 +112,56 @@ const SEARCH_LIMIT = 50
 function pushReactive<T extends object>(list: T[], item: T): T {
   list.push(item)
   return list[list.length - 1] as T
+}
+
+/** Equal for merging: the same primitive, or arrays / plain objects whose entries are the same primitives. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b)
+    return true
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((item, index) => item === b[index])
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+    const left = a as Record<string, unknown>
+    const right = b as Record<string, unknown>
+    const keys = Object.keys(left)
+    return keys.length === Object.keys(right).length && keys.every(key => left[key] === right[key])
+  }
+  return false
+}
+
+/**
+ * Makes `target` read like `next` while keeping the object: fields `next` no
+ * longer has are deleted, and only fields whose value differs are written, so
+ * a merge that changes nothing triggers nothing.
+ */
+function assignChanged<T extends object>(target: T, next: T): void {
+  const into = target as Record<string, unknown>
+  const from = next as Record<string, unknown>
+  for (const key of Object.keys(into)) {
+    if (!(key in from))
+      Reflect.deleteProperty(into, key)
+  }
+  for (const [key, value] of Object.entries(from)) {
+    if (!sameValue(into[key], value))
+      into[key] = value
+  }
+}
+
+function upsertById<T extends { id: string }>(list: T[], records: T[] | undefined, find: (id: string) => T | undefined): void {
+  for (const record of records ?? []) {
+    const existing = find(record.id)
+    if (existing)
+      assignChanged(existing, record)
+    else
+      list.push(record)
+  }
+}
+
+function removeWhere<T>(list: T[], match: (item: T) => boolean): void {
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    if (match(list[index] as T))
+      list.splice(index, 1)
+  }
 }
 
 /**
@@ -680,6 +731,55 @@ export const useForumStore = defineStore('forum', () => {
     state.value = next
   }
 
+  /**
+   * Merges what a write sent back (`ForumChanges`, #145) into the state in
+   * place. A record the state already has is updated field by field and keeps
+   * its identity, so only what shows a changed field renders again; a new one
+   * is appended (every getter sorts for itself); a bookmark or follow listed
+   * under `removed` goes. Nothing else is touched. `replaceState` swapped the
+   * whole state for every write and redrew every page from scratch.
+   */
+  function applyChanges(changes: ForumChanges): void {
+    const current = state.value
+    upsertById(current.users, changes.users, id => userMap.value.get(id))
+    upsertById(current.tags, changes.tags, id => tagMap.value.get(id))
+    upsertById(current.topics, changes.topics, id => topicMap.value.get(id))
+    upsertById(current.posts, changes.posts, id => postMap.value.get(id))
+    upsertById(current.notifications, changes.notifications, id => current.notifications.find(item => item.id === id))
+    for (const bookmark of changes.bookmarks ?? []) {
+      const existing = current.bookmarks.find(item => item.userId === bookmark.userId && item.postId === bookmark.postId)
+      if (existing)
+        assignChanged(existing, bookmark)
+      else
+        current.bookmarks.push(bookmark)
+    }
+    for (const follow of changes.follows ?? []) {
+      const existing = current.follows.find(item => item.followerId === follow.followerId && item.followeeId === follow.followeeId)
+      if (existing)
+        assignChanged(existing, follow)
+      else
+        current.follows.push(follow)
+    }
+    for (const { userId, postId } of changes.removed?.bookmarks ?? [])
+      removeWhere(current.bookmarks, item => item.userId === userId && item.postId === postId)
+    for (const { followerId, followeeId } of changes.removed?.follows ?? [])
+      removeWhere(current.follows, item => item.followerId === followerId && item.followeeId === followeeId)
+  }
+
+  /**
+   * Takes records out by id. Only for what this browser put in itself and the
+   * server never had: a reply shown while it was still being sent (and the
+   * guest it was shown under), once the server's answer or refusal is in.
+   */
+  function removeRecords(ids: { posts?: string[], users?: string[] }): void {
+    const posts = new Set(ids.posts)
+    const users = new Set(ids.users)
+    if (posts.size)
+      removeWhere(state.value.posts, post => posts.has(post.id))
+    if (users.size)
+      removeWhere(state.value.users, user => users.has(user.id))
+  }
+
   /** Back to the sample data. Persistence follows through the store subscription. */
   function reset(now?: number): void {
     state.value = initialState(now)
@@ -740,6 +840,8 @@ export const useForumStore = defineStore('forum', () => {
     markAllRead,
     updateProfile,
     replaceState,
+    applyChanges,
+    removeRecords,
     reset,
   }
 })

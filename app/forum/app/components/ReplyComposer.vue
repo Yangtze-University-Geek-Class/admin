@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Post, Topic } from '~/data/types'
-import { toast } from '@talex-touch/tuffex/utils'
+import { nextZIndex, toast, toastStore } from '@talex-touch/tuffex/utils'
 import { MEMBER_CONTENT_MAX, NAME_CHARS_HINT } from '../../shared/forum-api'
 import { quoteDraft } from '../../shared/post-markdown'
 
@@ -20,6 +20,12 @@ import { quoteDraft } from '../../shared/post-markdown'
  * The prefilled quote (`quoteDraft`) goes into PostEditor as written: its
  * preview renders through ForumMarkdown, so raw HTML in someone else's post
  * shows as text there, as it does on the page.
+ *
+ * Against the forum server the drawer closes as soon as a reply is sent
+ * (#145). A reply the server refuses comes back into the drawer with the post
+ * it answered, in front of whatever the drawer holds by then, so nothing
+ * typed is lost: not when another reply was started meanwhile, not when two
+ * were refused, not when the page was left before the refusal arrived.
  */
 const props = defineProps<{
   visible: boolean
@@ -30,6 +36,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [visible: boolean]
+  /** A refused reply goes back to the post it answered (`undefined`: the topic). */
+  'update:replyTo': [post: Post | undefined]
   'submitted': [postId: string]
 }>()
 
@@ -73,6 +81,16 @@ const title = computed(() => (replyToUser.value
 // in `content`, not in the editor, so it survives the new editor.
 const editorKey = ref(0)
 
+// At the bottom right a toast would lie over this drawer's 取消 and 回复, so
+// while it is open app.vue shows toasts at the top (#162).
+const { composerOpen } = useShell()
+watch(() => props.visible, (visible) => {
+  composerOpen.value = visible
+}, { immediate: true })
+onBeforeUnmount(() => {
+  composerOpen.value = false
+})
+
 // Prefill on open only: reopening the same target must not stack a second
 // quote on top of a draft the author is still writing.
 watch(() => props.visible, (visible) => {
@@ -88,36 +106,84 @@ function close() {
   emit('update:visible', false)
 }
 
+/**
+ * Puts this topic's refused replies back (stores/forum-server.ts keeps them):
+ * each one in front of what the drawer holds, a blank line between, and the
+ * drawer answers the post the last of them answered.
+ *
+ * The toast saying why came first and took a z-index; the drawer takes the
+ * next one as it opens and its mask would cover the toast (#162). Once the
+ * drawer has opened, the toasts take another one and are on top again.
+ */
+function takeBackRefused() {
+  const refused = server.takeRefusedReplies(props.topic.id)
+  const last = refused.at(-1)
+  if (!last)
+    return
+  let draft = content.value.trim() ? content.value : ''
+  for (const reply of refused)
+    draft = draft ? `${reply.content}\n\n${draft}` : reply.content
+  content.value = draft
+  emit('update:replyTo', last.replyToPostId ? forum.postById(last.replyToPostId) : undefined)
+  emit('update:visible', true)
+  void nextTick(() => {
+    toastStore.zIndex = nextZIndex()
+  })
+}
+
+onMounted(takeBackRefused)
+watch(() => server.refusedReplies.length, takeBackRefused)
+
+/**
+ * The reply is on the page as soon as this is called (against the server under
+ * a `pending:` id, see stores/forum-server.ts), so the panel closes at once and
+ * the page is told where it is. 回复已发布 waits for the server; if it refuses,
+ * its toast says why and the text goes to the server store with its target,
+ * from where `takeBackRefused` puts it back.
+ */
 async function submit() {
   const current = user.value
   const body = text.value
   if (!canSend.value || submitting.value)
     return
+  const topicId = props.topic.id
   const replyToPostId = props.replyTo?.id
-  submitting.value = true
-  try {
-    let postId: string | null = null
-    if (current && can('reply', { topic: props.topic }))
-      postId = await actions.createPost({ topicId: props.topic.id, authorId: current.id, content: body, ...(replyToPostId ? { replyToPostId } : {}) })
-    else if (asGuest.value) {
-      const token = turnstileToken.value
-      // Spent either way: the server accepts a token once.
-      if (turnstileSiteKey.value)
-        turnstileRound.value += 1
-      postId = await actions.replyAsGuest({
-        topicId: props.topic.id,
-        content: body,
-        name: guestName.value.trim(),
-        ...(replyToPostId ? { replyToPostId } : {}),
-        ...(token ? { turnstileToken: token } : {}),
-      })
-    }
-    if (!postId)
-      return
-    content.value = ''
-    emit('update:visible', false)
-    toast({ title: '回复已发布', variant: 'success' })
+  let shownId: string | null = null
+  const shown = (postId: string) => {
+    shownId = postId
     emit('submitted', postId)
+  }
+  let sending: Promise<string | null>
+  if (current && can('reply', { topic: props.topic }))
+    sending = actions.createPost({ topicId: props.topic.id, authorId: current.id, content: body, ...(replyToPostId ? { replyToPostId } : {}) }, shown)
+  else if (asGuest.value) {
+    const token = turnstileToken.value
+    // Spent either way: the server accepts a token once.
+    if (turnstileSiteKey.value)
+      turnstileRound.value += 1
+    sending = actions.replyAsGuest({
+      topicId: props.topic.id,
+      content: body,
+      name: guestName.value.trim(),
+      ...(replyToPostId ? { replyToPostId } : {}),
+      ...(token ? { turnstileToken: token } : {}),
+    }, shown)
+  }
+  else {
+    return
+  }
+  submitting.value = true
+  content.value = ''
+  emit('update:visible', false)
+  try {
+    const postId = await sending
+    if (!postId) {
+      server.keepRefusedReply({ topicId, content: body, ...(replyToPostId ? { replyToPostId } : {}) })
+      return
+    }
+    toast({ title: '回复已发布', variant: 'success' })
+    if (postId !== shownId)
+      emit('submitted', postId)
   }
   finally {
     submitting.value = false
