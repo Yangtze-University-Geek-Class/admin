@@ -179,10 +179,11 @@ describe('limits on the 已收到 letter', () => {
     await apply({ email: 'other@example.test' });
     await apply({ email: 'other+a@example.test' });
     expect(rows().map(row => row.skip_reason)).toEqual([null, 'recipient_limited', 'recipient_limited', null, 'recipient_limited']);
-    // 末尾带点、连续的点、以点开头的域名在投递时就拒收
-    for (const email of ['victim@gmail.com.', 'a@b..c', 'a@.b.c']) {
-      // 换一个来源 IP，不碰每个 IP 每分钟 5 次的限流
-      const response = await app.inject({ method: 'POST', url: '/api/portal/apply', remoteAddress: '198.51.100.9', payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
+    // 末尾带点、连续的点、以点开头的域名，带引号或反斜杠的本地部分、IP 字面量在投递时就拒收
+    const odd = ['victim@gmail.com.', 'a@b..c', 'a@.b.c', 'vic..tim@gmail.com', '"victim"@gmail.com', 'vi\\ctim@gmail.com', 'victim@[1.2.3.4]'];
+    for (const [i, email] of odd.entries()) {
+      // 每个换一个来源 IP，不碰每个 IP 每分钟 5 次的限流
+      const response = await app.inject({ method: 'POST', url: '/api/portal/apply', remoteAddress: `198.51.100.${10 + i}`, payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
       expect(response.statusCode, email).toBe(400);
       expect(response.json().fields, email).toHaveProperty('email');
     }
