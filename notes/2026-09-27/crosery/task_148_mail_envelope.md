@@ -110,3 +110,21 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：git push origin task/148/mail_envelope（SSH 443）
 - 结果：见下一条 PR 记录里的 CI
+
+## 13:47:20 +08:00 · 审查 · #148 · 第二轮返工复审 5774311..2d32769：没有阻塞，1 条应修、4 条建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Workflow wf_ffedaa0e-325：1 个只读审查代理审第二轮返工，应修再由 1 个代理试着反驳。应修：按 IP 一天 20 封的上限对共用出口的影响写少了（探针：同一出口每 12 分钟一个投递，第 21 个起 source_limited；同一出口上一个人 4 小时投 20 份，之后约 20 小时的 40 个真实投递都没有确认信），SECURITY.en.md 漏了 source_limited。建议：expected_review_id 按 created_at 取第一条，时钟往回拨 120 秒时改走又改回漏检；带引号的本地部分、反斜杠、IP 字面量能通过投递校验并绕开按收件箱限量；mail.md 概述、console README 样板说法、官网表单的邮箱正则与代码不一致；bc81afa 放了两件可以各自回滚的事，上一条提交记录说「改在同一处」不准确，限量和 expected_review_id 只在测试文件和文档里重叠
+- 结果：结论：无阻塞，应修与建议待修。代理核对过：TRUST_PROXY=2 时 req.ip 是真实客户端，伪造 XFF 最左一段不改变分桶，::ffff:a.b.c.d 与 a.b.c.d 同一来源；mail_outbox 不在 stage、main 和任何 tag 里；除控制台外没有别的 PATCH 调用方；5 个文件 104 条测试、tsc、check-docs、docs-index 通过
+
+## 13:47:20 +08:00 · 返工 · #148 · 按第二轮复审返工：版本号取最大 id、邮箱正则收紧并与官网一致、写清共用出口的影响
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：server：lastReviewId 改成 MAX(id)，加时钟往回拨 2 分钟的用例；EMAIL_REGEX 本地部分和域名按点分段、不收引号、反斜杠、方括号等分隔符，用例加四种写法。console：newestReviewId，详情页和样板都用它，样板里钱思远（按时间第一是 16、最大是 18）核对。portal：JoinUs.tsx 的 EMAIL_RE 与后端逐字一致，tests/web/portal-join.test.ts 按源码核对。docs：mailer.ts 注释、mail.md、SECURITY 中英写清同一出口一小时第 6 个、24 小时第 21 个起没有确认信和投满 20 份耗尽出口的风险，5 和 20 没有真实分布做依据；API、console README、TESTING、portal.md 同步。5 与 20 这两个数没改：所有者 13:22 要的是防盗刷，投递本身不受影响，控制台写明原因，招新时按 source_limited 的多少再调
+- 结果：变异 5 项全被抓到（服务端按时间取第一条、控制台取 reviews[0]、样板取第一条、服务端旧正则、官网旧正则）；pnpm verify 退出码 0：根 60 个文件 914 条，论坛 541 条，build 与 forum generate 通过。官网表单没有在浏览器里点过，只按源码核对正则一致
+
+## 13:47:20 +08:00 · 提交 · #148 · 第三轮返工按用途拆成 5 个提交
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：6a74baf fix(server) 版本号取最大 id；4cab353 fix(console) newestReviewId；721437d fix(server) 邮箱正则；7f0c183 fix(portal) 官网表单同一条正则；62a6de4 docs(server) 共用出口的影响。同一行文档里夹着几件事，用 git hash-object 加 update-index 按用途逐个写进暂存区，工作区不动；拆完工作区和最后一个提交一致。另外更正上一条提交记录：bc81afa 里按收件箱和按 IP 限量（outbox.ts、db.ts、mailer.ts、apply.ts）与 expected_review_id（routes/console/applications.ts、contracts.ts）只在 mail-outbox.test.ts 和几份文档里重叠，不是「改在同一处」；已推送不改写
+- 结果：拆之前的整份改动跑过 pnpm verify（退出码 0）；中间的提交没有单独跑测试
