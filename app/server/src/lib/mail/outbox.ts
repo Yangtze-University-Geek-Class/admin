@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { domainToASCII } from "node:url";
 import type Database from "better-sqlite3";
 import type { RenderedMail } from "./envelope.js";
 import { MailProviderError, type MailProvider } from "./providers.js";
@@ -92,7 +93,8 @@ const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
 
 /**
  * 限量时用的收件箱：同一个收件箱的几种写法算一个。本地部分去掉第一个「+」和后面的标签（victim+1@ → victim@），
- * 域名去掉末尾的点；Gmail 忽略本地部分里的点，googlemail.com 算 gmail.com。
+ * 域名先按 IDNA（UTS46，和浏览器、发信商一样）转成 ASCII，再去掉末尾的点：全角字母、全角句点、软连字符、零宽字符
+ * 都算原来的域名；Gmail 忽略本地部分里的点，googlemail.com 算 gmail.com。
  * 少数邮箱里「+」是地址本身的一部分，这样会多限一点，对限量来说可以接受。
  */
 export function limitKey(address: string): string {
@@ -100,7 +102,8 @@ export function limitKey(address: string): string {
   const at = value.lastIndexOf("@");
   if (at < 0) return value;
   let local = value.slice(0, at).split("+")[0];
-  let domain = value.slice(at + 1).replace(/\.+$/, "");
+  const raw = value.slice(at + 1);
+  let domain = (domainToASCII(raw) || raw).replace(/\.+$/, ""); // 转不了的域名按原样
   if (GMAIL_DOMAINS.has(domain)) {
     local = local.replace(/\./g, "");
     domain = "gmail.com";

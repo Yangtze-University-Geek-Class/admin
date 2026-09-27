@@ -190,6 +190,17 @@ describe('limits on the 已收到 letter', () => {
     expect(rows()).toHaveLength(5);
   });
 
+  it('folds a domain written with full-width letters, an ideographic full stop or a zero-width space into the same inbox', async () => {
+    const { app, rows } = await setup(BOTH);
+    const emails = ['victim@gmail.com', 'victim@ｇｍａｉｌ.com', 'victim@gmail.com。', 'victim@gmail.com\u200b', 'victim@例子.中国', 'victim@xn--fsqu00a.xn--fiqs8s'];
+    for (const [i, email] of emails.entries()) {
+      // 每个换一个来源 IP，只看按收件箱的上限
+      const response = await app.inject({ method: 'POST', url: '/api/portal/apply', remoteAddress: `203.0.113.${20 + i}`, payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
+      expect(response.statusCode, email).toBe(201);
+    }
+    expect(rows().map(row => row.skip_reason)).toEqual([null, 'recipient_limited', 'recipient_limited', 'recipient_limited', null, 'recipient_limited']);
+  });
+
   it('sends at most 5 received letters an hour from one IP, grouping IPv6 by /64; the applications still go through', async () => {
     const { app, rows, db } = await setup(BOTH);
     const from = (ip: string, n: number) => app.inject({
