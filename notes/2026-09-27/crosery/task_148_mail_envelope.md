@@ -128,3 +128,21 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：6a74baf fix(server) 版本号取最大 id；4cab353 fix(console) newestReviewId；721437d fix(server) 邮箱正则；7f0c183 fix(portal) 官网表单同一条正则；62a6de4 docs(server) 共用出口的影响。同一行文档里夹着几件事，用 git hash-object 加 update-index 按用途逐个写进暂存区，工作区不动；拆完工作区和最后一个提交一致。另外更正上一条提交记录：bc81afa 里按收件箱和按 IP 限量（outbox.ts、db.ts、mailer.ts、apply.ts）与 expected_review_id（routes/console/applications.ts、contracts.ts）只在 mail-outbox.test.ts 和几份文档里重叠，不是「改在同一处」；已推送不改写
 - 结果：拆之前的整份改动跑过 pnpm verify（退出码 0）；中间的提交没有单独跑测试
+
+## 13:56:43 +08:00 · 审查 · #148 · 第三轮复审 2d32769..b53d864：通过，2 条建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Workflow wf_4789c8d7-095：1 个只读审查代理。第二轮的 1 条应修、4 条建议都确认修了；用 git archive 导出 6a74baf、4cab353、721437d 各跑四个测试文件（101、103、103 条通过），5 个提交各做一件事。建议：全角字母、全角句点、软连字符、零宽空格写的域名按 UTS46 和原域名相同，limitKey 算成不同的收件箱；官网表单对新拦下的写法仍提示「漏掉 @」
+- 结果：结论：通过。核对过普通地址（QQ 号、163、126、foxmail、outlook、Gmail、yangtzeu.edu.cn、中文本地部分和中文域名）都通过；108 条测试、tsc、vue-tsc、docs-index、note check 通过。发信商会不会做 UTS46 映射没有验证
+
+## 13:56:43 +08:00 · 返工 · #148 · 按第三轮复审的建议：域名按 IDNA 归并，官网表单按有没有 @ 提示
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：outbox.ts 的 limitKey 先用 domainToASCII 转域名；新用例六种写法。JoinUs.tsx 有 @ 时提示「检查有没有多打的点、逗号或空格」、超过 120 个字符单独提示，portal-join.test.ts 直接导入 validateJoin 核对。mail.md、data-model、SECURITY 中英同步。提交 8005d9a 5048072
+- 结果：变异 2 项都被抓到；pnpm verify 退出码 0：根 60 个文件 916 条，论坛 541 条，build 与 forum generate 通过。官网表单没有在浏览器里点过
+
+## 13:56:44 +08:00 · 推送 · #148 · 推送第三轮返工与复审建议的修改
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：git push origin task/148/mail_envelope（SSH 443），包括 6a74baf..62a6de4、b53d864 和这两个提交
+- 结果：见下一条 PR 记录里的 CI
