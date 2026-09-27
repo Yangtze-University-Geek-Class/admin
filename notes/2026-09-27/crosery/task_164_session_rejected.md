@@ -98,3 +98,16 @@
 - 做了什么：99678be test(forum) 测 useSiteAccount 读到 /auth/me 的 session_expired 时通知论坛
 - 结果：提交前 node scripts/forum.mjs check exit 0（30 files / 541 tests）；服务端与根目录代码没变，pnpm check、pnpm test 沿用 4d91c2d 上的结果
 - 下一步：推送，CI 通过后更新 PR 审查结论并合并
+
+## 08:31:55 +08:00 · 合并 · #164 · PR #165 合入 stage（f0333b8）
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：19696f7 上 CI 全过（core、forum、docker、docker-cdn、verify、branch-guard、env-contract、actionlint、pr-contract）后，PR 正文审查结论更新为三轮、结论通过，gh pr merge 165 --merge --match-head-commit 19696f7
+- 结果：stage 合并提交 f0333b8；issue-lifecycle 在 00:30:44Z 关闭 #164；远端 task/164/session_rejected 已删除
+- 下一步：打 v0.1.0-rc.12，部署预发布后在 ego 里验收
+
+## 08:32:34 +08:00 · 收尾 · #164 · PR #165 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 164：删 worktree .claude/worktrees/task-164 与本地分支 task/164/session_rejected
+- 结果：PR 已合并

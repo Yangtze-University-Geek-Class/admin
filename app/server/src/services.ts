@@ -11,10 +11,13 @@ import { createAccess } from "./lib/access.js";
 import { createFeedbackStore } from "./lib/feedback-store.js";
 import { loadForumContent } from "./lib/forum-content.js";
 import { createForumStore } from "./lib/forum-store.js";
+import { createMailer } from "./lib/mail/mailer.js";
+import type { FetchLike } from "./lib/mail/providers.js";
 import { createPublicSubmission } from "./middleware/pow.js";
 import { createTurnstile } from "./middleware/turnstile.js";
 
-export type ServiceOverrides = { httpRequest?: typeof request; octokitFactory?: (token: string) => Octokit };
+/** `mailFetch`、`clock`：测试换掉发信商的 HTTP 请求和发信队列的时钟，不连真实的发信商。 */
+export type ServiceOverrides = { httpRequest?: typeof request; octokitFactory?: (token: string) => Octokit; mailFetch?: FetchLike; clock?: () => number };
 /** Composition root. Only this module owns dependencies and database lifetimes. */
 export function createServices(config: AppConfig, overrides: ServiceOverrides = {}) {
   const crypto = createCrypto(config.encryptionKey);
@@ -37,6 +40,15 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
       throw error;
     }
   })();
+  // 发信配置写错（地址格式、MAIL_ASSET_BASE）同样让启动失败；发信循环由 buildApp 的 mailWorker 决定开不开。
+  const mail = (() => {
+    try {
+      return createMailer(storage.db, config.mail, config.publicOrigin, { fetch: overrides.mailFetch, now: overrides.clock });
+    } catch (error) {
+      storage.db.close();
+      throw error;
+    }
+  })();
   return {
     config, storage, crypto,
     auth,
@@ -44,9 +56,10 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     access: createAccess({ consoleOrg: config.consoleOrg, getOrgRole: github.getOrgRole, cached: cache.cached, roles }),
     feedback: createFeedbackStore(storage.db),
     forum,
+    mail,
     publicSubmission: createPublicSubmission(config.powDifficulty),
     turnstile: createTurnstile(config, overrides.httpRequest),
-    close() { storage.db.close(); },
+    close() { void mail.stop(); storage.db.close(); },
   };
 }
 export type AppServices = ReturnType<typeof createServices>;

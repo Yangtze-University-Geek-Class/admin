@@ -140,9 +140,9 @@ export function titleBundleError(id: TitleId, bundle: readonly Capability[]): "t
   return null;
 }
 
+/** 投递状态（#148 起只有四个；旧的 reviewing 启动时改回 received，见 lib/db.ts）。 */
 export const APPLICATION_STATUSES = [
   { id: "received", label: "已收到" },
-  { id: "reviewing", label: "评估中" },
   { id: "interview", label: "待面试" },
   { id: "accepted", label: "已录取" },
   { id: "rejected", label: "未通过" },

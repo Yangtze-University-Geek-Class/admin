@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   RELEASE_TAG_RE, acceptanceComment, acceptanceSays, artifactName, buildJobSucceeded, commentState, deploy, deploymentPayload, expectedDigest, parseArgs,
-  COMMENT_STATE_QUERY, REQUIRED_CONTEXT, archiveCheckCommand, deployStackCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
+  COMMENT_STATE_QUERY, REQUIRED_CONTEXT, SECRET_ENV, archiveCheckCommand, deployStackCommand, pickRun, previewReleaseMatches, repoFromRemote, sshTarget, templateTarget, withoutSecrets, workflowFile,
 } from '../../scripts/deploy-manual.mjs';
 import { readFileSync } from 'node:fs';
 import { RELEASE_TAG_RE as POLICY_TAG_RE } from '../../scripts/release-policy.mjs';
+import { SECRET_FIELDS } from '../../scripts/deployment-environment.mjs';
 
 const COMMIT = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
 const REPO = 'Yangtze-University-Geek-Class/admin';
@@ -103,6 +104,23 @@ describe('deploy-manual helpers', () => {
   it('strips every secret from the environment handed to other child processes', () => {
     const env = { PATH: '/bin', HOME: '/h', OAUTH_CLIENT_SECRET: 's', SESSION_SECRET: 's', ENCRYPTION_KEY: 'k', OAUTH_CLIENT_ID: 'i', TURNSTILE_SITE_KEY: 't', TURNSTILE_SECRET_KEY: 't', DEPLOY_SSH_HOST: 'h' };
     expect(withoutSecrets(env)).toEqual({ PATH: '/bin', HOME: '/h', DEPLOY_SSH_HOST: 'h' });
+    const mail = { MAIL_ALIYUN_ACCESS_KEY_ID: 'a', MAIL_ALIYUN_ACCESS_KEY_SECRET: 'a', MAIL_RESEND_API_KEY: 'r', MAIL_ALLOWLIST: 'x@example.com', MAIL_RECIPIENTS: 'allowlist' };
+    expect(withoutSecrets({ ...env, ...mail })).toEqual({ PATH: '/bin', HOME: '/h', DEPLOY_SSH_HOST: 'h', MAIL_RECIPIENTS: 'allowlist' });
+  });
+
+  it('knows the same secrets as the env contract, and both workflows pass each one to render', () => {
+    // 三处名单必须一致：环境契约的 SECRET_FIELDS、本脚本的 SECRET_ENV、两条部署工作流 render 步骤的 env。
+    expect(SECRET_ENV).toEqual([...SECRET_FIELDS]);
+    for (const env of ['preview', 'production']) {
+      const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
+      const step = workflow.slice(workflow.indexOf('- name: 渲染运行时 env 文件'), workflow.indexOf('deployment-environment.mjs render'));
+      expect(step.length, env).toBeGreaterThan(0);
+      const passed = [...step.matchAll(/^\s+([A-Z][A-Z0-9_]*): \$\{\{ secrets\.([A-Z][A-Z0-9_]*) \}\}$/gm)].map(match => {
+        expect(match[2]).toBe(match[1]);
+        return match[1];
+      });
+      expect(passed, env).toEqual([...SECRET_FIELDS]);
+    }
   });
 
   it('picks the newest finished push run for exactly this tag and commit', () => {
@@ -186,6 +204,7 @@ function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 
   const env: Record<string, string> = {
     DEPLOY_TARGET_ENVIRONMENT: environment, PATH: '/usr/bin', HOME: '/home/x',
     OAUTH_CLIENT_ID: 'id', OAUTH_CLIENT_SECRET: 'secret-value', SESSION_SECRET: 'session-value', ENCRYPTION_KEY: 'key-value',
+    MAIL_RESEND_API_KEY: 'resend-value', MAIL_ALLOWLIST: 'tester@example.com,other@example.org',
     DEPLOY_SSH_HOST: '203.0.113.9', DEPLOY_SSH_PORT: '22000', DEPLOY_SSH_USER: 'root', DEPLOY_SSH_KEY_FILE: '/k', DEPLOY_SSH_KNOWN_HOSTS_FILE: '/h',
   };
   const answer = (command: string, args: string[]) => {
@@ -296,8 +315,10 @@ describe('deploy-manual orchestration', () => {
     for (const needle of ['release-policy.mjs plan', 'deployment-environment.mjs --check', 'deployment-environment.mjs render']) {
       expect(world.calls[world.index(needle)].command).toBe(process.execPath);
     }
-    expect(render.env).toMatchObject({ SESSION_SECRET: 'session-value', ENCRYPTION_KEY: 'key-value' });
-    for (const call of world.calls) expect(call.args.join(' ')).not.toMatch(/secret-value|session-value|key-value/);
+    expect(render.env).toMatchObject({ SESSION_SECRET: 'session-value', ENCRYPTION_KEY: 'key-value', MAIL_RESEND_API_KEY: 'resend-value', MAIL_ALLOWLIST: 'tester@example.com,other@example.org' });
+    // 没导出的可选密钥不出现在 render 的环境里（render 当作没配）。
+    expect(render.env).not.toHaveProperty('MAIL_ALIYUN_ACCESS_KEY_ID');
+    for (const call of world.calls) expect(call.args.join(' ')).not.toMatch(/secret-value|session-value|key-value|resend-value|tester@example\.com/);
   });
 
   it('dry-run stops after download and render: no SSH, no deployment record', async () => {

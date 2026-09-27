@@ -71,10 +71,11 @@ export const MOCK_ROLE_BASE: Record<TitleId, string[]> = {
   alumni: ["console.access", "github.org.read", "feedback.read"],
   guest: [],
 };
-const STATUSES = [
-  { id: "received", label: "已收到" }, { id: "reviewing", label: "评估中" }, { id: "interview", label: "待面试" },
-  { id: "accepted", label: "已录取" }, { id: "rejected", label: "未通过" },
+/** 投递状态（服务端 APPLICATION_STATUSES），测试核对。 */
+export const MOCK_APPLICATION_STATUSES = [
+  { id: "received", label: "已收到" }, { id: "interview", label: "待面试" }, { id: "accepted", label: "已录取" }, { id: "rejected", label: "未通过" },
 ];
+const STATUSES = MOCK_APPLICATION_STATUSES;
 
 export const MOCK_DEPARTMENTS = [
   {
@@ -231,7 +232,7 @@ const APPLICATIONS = [
     strengths: "打过两次校赛 CTF，擅长 Web 方向，写过一个自动化信息收集脚本。想在极客班找到一起刷题、一起复盘的伙伴。" },
   { id: "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8", name: "周子涵", class_name: "计科2301", email: "zhou.zihan@example.test", status: "received", created_at: now - 3 * HOUR,
     strengths: "熟悉 TypeScript 与 React，做过课程设计的在线选课系统（前后端都是自己写的），平时用 Claude Code 和 Cursor 辅助开发。对 Agent 和 MCP 很感兴趣，读过 MCP 规范并写过一个查询校园课表的 MCP Server 原型。希望能参与真实项目，学习代码审查和协作流程。" },
-  { id: "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d", name: "吴一凡", class_name: "软件2302", email: "wu.yifan@example.test", status: "reviewing", created_at: now - 1 * DAY - 2 * HOUR,
+  { id: "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d", name: "吴一凡", class_name: "软件2302", email: "wu.yifan@example.test", status: "received", created_at: now - 1 * DAY - 2 * HOUR,
     strengths: "C++ 基础扎实，ACM 校队预备队员，喜欢算法与系统方向。最近在读《深入理解计算机系统》，想找人一起做实验。" },
   { id: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b", name: "郑可欣", class_name: "信安2401", email: "zheng.kexin@example.test", status: "interview", created_at: now - 3 * DAY,
     strengths: "负责过班级公众号排版，会用 Figma 做界面原型，也在学前端。希望参与官网和论坛的设计与维护，把好看的东西做出来。" },
@@ -240,19 +241,46 @@ const APPLICATIONS = [
   { id: "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a", name: "冯晓", class_name: "软件2301", email: "feng.xiao@example.test", status: "rejected", created_at: now - 8 * DAY,
     strengths: "对编程有兴趣，正在学习 Java 基础，希望通过社团多接触项目。" },
 ];
-const REVIEWS: Record<string, { id: number; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number }[]> = {
-  "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d": [{ id: 11, from_status: "received", to_status: "reviewing", note: "算法方向，转给技术部一起看", reviewer: "li-xiaoman", created_at: now - 20 * HOUR }],
+/** 发信队列里一封信的摘要（同服务端 MailSummary）；只有主题，没有地址和正文。 */
+type MockMail = { status: string; skip_reason: string | null; attempts: number; subject: string; sent_at: number | null; updated_at: number };
+const sent = (subject: string, at: number): MockMail => ({ status: "sent", skip_reason: null, attempts: 1, subject, sent_at: at, updated_at: at });
+const skipped = (subject: string, reason: string, at: number): MockMail => ({ status: "skipped", skip_reason: reason, attempts: 0, subject, sent_at: null, updated_at: at });
+
+/**
+ * 审核记录。`reviewing`（评估中）已经退役，只留在历史里；每种信件状态都有一条，页面上的说法都能看到：
+ * 已发出、正在发、失败后等重试、重试用完、预发布白名单挡下、发信没配置、没有发信。
+ */
+const REVIEWS: Record<string, { id: number; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number; mail: MockMail | null }[]> = {
+  "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d": [{ id: 11, from_status: "received", to_status: "reviewing", note: "算法方向，转给技术部一起看", reviewer: "li-xiaoman", created_at: now - 20 * HOUR, mail: null }],
   "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b": [
-    { id: 13, from_status: "reviewing", to_status: "interview", note: "周四晚 7 点线下面试，何苗负责通知", reviewer: "he-miao", created_at: now - 1 * DAY },
-    { id: 12, from_status: "received", to_status: "reviewing", note: null, reviewer: "li-xiaoman", created_at: now - 2 * DAY },
+    { id: 13, from_status: "reviewing", to_status: "interview", note: "何苗负责面试排期", reviewer: "he-miao", created_at: now - 1 * DAY,
+      mail: { status: "pending", skip_reason: null, attempts: 2, subject: "极客班面试安排：9 月 30 日（周三）19:00", sent_at: null, updated_at: now - 1 * DAY + 6 * MIN } },
+    { id: 12, from_status: "received", to_status: "reviewing", note: null, reviewer: "li-xiaoman", created_at: now - 2 * DAY, mail: null },
   ],
   "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e": [
-    { id: 16, from_status: "interview", to_status: "accepted", note: "面试表现好，已加入项目部", reviewer: "li-xiaoman", created_at: now - 2 * DAY },
-    { id: 15, from_status: "reviewing", to_status: "interview", note: null, reviewer: "he-miao", created_at: now - 4 * DAY },
-    { id: 14, from_status: "received", to_status: "reviewing", note: null, reviewer: "li-xiaoman", created_at: now - 5 * DAY },
+    { id: 16, from_status: "interview", to_status: "accepted", note: "面试表现好，已加入项目部", reviewer: "li-xiaoman", created_at: now - 2 * DAY, mail: sent("你已通过极客班招新", now - 2 * DAY + MIN) },
+    { id: 18, from_status: "interview", to_status: "interview", note: "改到周五晚上，已电话确认", reviewer: "he-miao", created_at: now - 3 * DAY, mail: null },
+    { id: 15, from_status: "reviewing", to_status: "interview", note: null, reviewer: "he-miao", created_at: now - 4 * DAY,
+      mail: skipped("极客班面试安排：9 月 26 日（周五）19:30", "not_allowlisted", now - 4 * DAY) },
+    { id: 14, from_status: "received", to_status: "reviewing", note: null, reviewer: "li-xiaoman", created_at: now - 5 * DAY, mail: null },
   ],
-  "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": [{ id: 17, from_status: "received", to_status: "rejected", note: "方向暂不匹配，已建议先参加公开分享会", reviewer: "li-xiaoman", created_at: now - 7 * DAY }],
+  "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": [{ id: 17, from_status: "received", to_status: "rejected", note: "方向暂不匹配，已建议先参加公开分享会", reviewer: "li-xiaoman", created_at: now - 7 * DAY,
+    mail: { status: "failed", skip_reason: null, attempts: 6, subject: "极客班招新结果", sent_at: null, updated_at: now - 6 * DAY } }],
 };
+
+/** 投递时自动发的「已收到」确认信；吴一凡那封没有记录（null）。 */
+const RECEIVED_MAIL: Record<string, MockMail | null> = {
+  "7c1e4a2b-3d5f-4a6b-8c7d-9e0f1a2b3c4d": { status: "sending", skip_reason: null, attempts: 0, subject: "极客班收到了你的报名信", sent_at: null, updated_at: now - 25 * MIN },
+  "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8": sent("极客班收到了你的报名信", now - 3 * HOUR + MIN),
+  "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d": null,
+  "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b": sent("极客班收到了你的报名信", now - 3 * DAY + MIN),
+  "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e": skipped("极客班收到了你的报名信", "not_allowlisted", now - 6 * DAY),
+  "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": skipped("极客班收到了你的报名信", "mail_disabled", now - 8 * DAY),
+};
+
+/** 发信设置按预发布的样子：只给白名单里的邮箱发，其余投递人在「处理这份投递」里会看到「这封不会发出」。 */
+const MAIL_ALLOWLIST = new Set(["zhou.zihan@example.test", "zheng.kexin@example.test", "chu.mingzhe@example.test"]);
+const mailSettings = (email: string) => ({ enabled: true, recipients: "allowlist", deliverable: MAIL_ALLOWLIST.has(email.toLowerCase()) });
 
 const FEEDBACK = [
   { id: 21, category: "建议", status: "open", submitter_login: "liu-xing", contact: "", content: "希望每月有一次项目复盘分享，录屏放到论坛里，方便没到场的同学补看。", reply: null, replied_by: null, replied_at: null, created_at: now - 5 * HOUR },
@@ -309,9 +337,11 @@ export function mockPersona(): Persona | null {
 
 /**
  * 写请求不伪造成功（见 docs/architecture/API.md），由上层一律返回 501 mock_read_only。
- * 改称号的请求先按服务端的顺序核对能力与权限包规则，不合法的得到与服务端相同的 403/400。
+ * 改称号、处理投递的请求先按服务端的顺序核对能力和字段，不合法的得到与服务端相同的 403/400。
  */
 export function checkConsoleWrite(url: URL, method: string, body: unknown): void {
+  const application = url.pathname.match(/^\/api\/console\/applications\/([0-9a-f-]{36})$/);
+  if (method === "PATCH" && application) return checkApplicationReview(application[1], body);
   const match = url.pathname.match(/^\/api\/console\/titles\/([^/]+)$/);
   if (method !== "PATCH" || !match) return;
   const name = currentPersona();
@@ -333,6 +363,43 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
     ? `${label("admin")}永远拥有全部权限，${label("guest")}没有权限，这两个称号的权限不能改`
     : `「${capability}」只能放进${label("captain")}的权限`;
   throw new ApiError(400, error, message, undefined, { error, message });
+}
+
+/**
+ * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
+ * 和样板不同时 409，要改状态却没带这两项时也 409；
+ * 改到「待面试」并且要发信时，面试时间和地点必填。通过核对的照样 501，不假装信已经排进发信队列。
+ */
+function checkApplicationReview(id: string, body: unknown): void {
+  const name = currentPersona();
+  if (name === SIGNED_OUT) throw new ApiError(401, "not_signed_in", "请先登录", undefined, { error: "not_signed_in" });
+  need(MOCK_PERSONAS[name], "applications.review");
+  const application = APPLICATIONS.find(a => a.id === id);
+  if (!application) throw new ApiError(404, "not_found", "投递不存在");
+  const input = (body && typeof body === "object" ? body : {}) as { status?: unknown; expected_status?: unknown; expected_review_id?: unknown; notify?: unknown; letter?: unknown };
+  if (input.status !== undefined && !STATUSES.some(s => s.id === input.status)) {
+    const message = "状态只能是已收到、待面试、已录取、未通过";
+    throw new ApiError(400, "invalid_status", message, undefined, { error: "invalid_status", message });
+  }
+  const changed = (message: string) => new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });
+  const latestReviewId = Math.max(0, ...(REVIEWS[id] ?? []).map(review => review.id)); // 同服务端：最大的 id
+  if ((input.expected_status !== undefined && input.expected_status !== application.status)
+    || (input.expected_review_id !== undefined && input.expected_review_id !== latestReviewId)) {
+    const label = STATUSES.find(s => s.id === application.status)?.label ?? application.status;
+    throw changed(`这份投递刚被别人处理过，现在是「${label}」，看过最新的记录再改`);
+  }
+  if (input.status !== undefined && input.status !== application.status && (input.expected_status === undefined || input.expected_review_id === undefined)) {
+    throw changed("这个页面是旧版本，刷新后再改");
+  }
+  if (input.status !== "interview" || application.status === "interview" || input.notify === false) return;
+  const letter = (input.letter && typeof input.letter === "object" ? input.letter : {}) as { time?: unknown; place?: unknown };
+  const filled = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+  const fields: Record<string, string> = {};
+  if (!filled(letter.time)) fields.time = "请填面试时间";
+  if (!filled(letter.place)) fields.place = "请填面试地点";
+  if (Object.keys(fields).length === 0) return;
+  const message = "要发待面试的信，请填面试时间和地点";
+  throw new ApiError(400, "letter_required", message, undefined, { error: "letter_required", message, fields });
 }
 
 /** 处理 `/api/console/*` 的 GET；未知路径返回 undefined，交回上层报 404。 */
@@ -409,7 +476,7 @@ export function routeConsole(url: URL): unknown {
     need(persona, "applications.read");
     const application = APPLICATIONS.find(a => a.id === detail[1]);
     if (!application) throw new ApiError(404, "not_found", "投递不存在");
-    return { application, reviews: REVIEWS[application.id] ?? [] };
+    return { application, reviews: REVIEWS[application.id] ?? [], received_mail: RECEIVED_MAIL[application.id] ?? null, mail: mailSettings(application.email) };
   }
   if (path === "/api/console/feedback") {
     need(persona, "feedback.read");

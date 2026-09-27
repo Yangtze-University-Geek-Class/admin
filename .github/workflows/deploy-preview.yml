@@ -465,6 +465,10 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          MAIL_ALIYUN_ACCESS_KEY_ID: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_ID }}
+          MAIL_ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_SECRET }}
+          MAIL_RESEND_API_KEY: ${{ secrets.MAIL_RESEND_API_KEY }}
+          MAIL_ALLOWLIST: ${{ secrets.MAIL_ALLOWLIST }}
         run: |
           set -eu
           node scripts/deployment-environment.mjs render \

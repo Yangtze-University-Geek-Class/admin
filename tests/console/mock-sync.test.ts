@@ -1,12 +1,13 @@
 // tests/ 是中立位置：这里同时读取服务端清单，核对控制台的导航、图标、兜底默认值与开发预览没有和服务端漂移。
 import { describe, expect, it } from "vitest";
+import { ApiError } from "../../app/console/src/lib/http";
 import { CONSOLE_NAV } from "../../app/console/src/lib/nav";
 import { DEPARTMENT_ICONS as CONSOLE_DEPARTMENT_ICONS } from "../../app/console/src/lib/icons";
 import { DEFAULT_CREW, DEFAULT_TITLES, FALLBACK_TONES, TONE_NAMES, titleBundleError as consoleBundleError } from "../../app/console/src/lib/titles";
 import { APPLICATION_STATUS } from "../../app/console/src/lib/statuses";
 import {
-  MOCK_ASSIGNMENTS, MOCK_CAPABILITIES, MOCK_CAPTAIN_ONLY, MOCK_DEPARTMENTS, MOCK_IMPLIES, MOCK_MEMBERS, MOCK_PERSONAS, MOCK_ROLE_BASE, MOCK_TITLES, MOCK_TONES,
-  mockPeople,
+  MOCK_APPLICATION_STATUSES, MOCK_ASSIGNMENTS, MOCK_CAPABILITIES, MOCK_CAPTAIN_ONLY, MOCK_DEPARTMENTS, MOCK_IMPLIES, MOCK_MEMBERS, MOCK_PERSONAS, MOCK_ROLE_BASE, MOCK_TITLES,
+  MOCK_TONES, checkConsoleWrite, mockPeople, routeConsole,
 } from "../../app/console/src/mock/console";
 import {
   APPLICATION_STATUSES, CAPABILITIES, CAPABILITY_IDS, CAPTAIN_ONLY, CREW_TITLE, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, DEPARTMENT_ICONS, IMPLIES,
@@ -43,6 +44,7 @@ describe("console catalogue mirrors the server", () => {
     expect(MOCK_DEPARTMENTS).toEqual(DEFAULT_DEPARTMENTS);
     expect(MOCK_IMPLIES).toEqual(IMPLIES);
     expect(MOCK_CAPTAIN_ONLY).toEqual(CAPTAIN_ONLY);
+    expect(MOCK_APPLICATION_STATUSES).toEqual(APPLICATION_STATUSES.map(({ id, label }) => ({ id, label })));
   });
 
   it("gives every preview title the server's default permission bundle", () => {
@@ -112,5 +114,57 @@ describe("console catalogue mirrors the server", () => {
     });
     // 预览里要有一位不在组织里、只剩称号的人，名单才能展示这种情况。
     expect(people.some(p => p.github_role === null)).toBe(true);
+  });
+
+  it("gives every preview application the detail shape of #148: mail per review, the received letter and mail settings", () => {
+    const { items } = routeConsole(new URL("http://mock.local/api/console/applications")) as { items: { id: string; status: string }[] };
+    for (const item of items) {
+      expect(APPLICATION_STATUSES.map(s => s.id as string), item.id).toContain(item.status);
+      const detail = routeConsole(new URL(`http://mock.local/api/console/applications/${item.id}`)) as Record<string, unknown> & { reviews: Record<string, unknown>[] };
+      expect(Object.keys(detail).sort(), item.id).toEqual(["application", "mail", "received_mail", "reviews"]);
+      for (const review of detail.reviews) expect(review, item.id).toHaveProperty("mail");
+    }
+  });
+});
+
+describe("preview checks an application review like the server does", () => {
+  const id = "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8"; // 样板里状态是「已收到」
+  const patch = (body: unknown) => {
+    try { checkConsoleWrite(new URL(`http://mock.local/api/console/applications/${id}`), "PATCH", body); return null; }
+    catch (error) { return error as ApiError; }
+  };
+
+  it("rejects statuses outside the four, including the retired reviewing", () => {
+    expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
+  });
+
+  const page = { expected_status: "received", expected_review_id: 0 }; // 样板里这份投递还没有审核记录
+
+  it("requires the interview time and place only when an interview letter will be queued", () => {
+    expect(patch({ ...page, status: "interview", letter: { time: " " } })).toMatchObject({
+      status: 400, code: "letter_required", payload: { fields: { time: "请填面试时间", place: "请填面试地点" } },
+    });
+    expect(patch({ ...page, status: "interview", letter: { time: "19:00", place: "三教" } })).toBeNull();
+    expect(patch({ ...page, status: "interview", notify: false })).toBeNull();
+    expect(patch({ ...page, status: "accepted" })).toBeNull();
+    expect(patch({ note: "只写备注" })).toBeNull();
+  });
+
+  it("refuses a change made from a stale or old page, with the server's wording", () => {
+    const stale = { status: 409, code: "status_changed", message: "这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改" };
+    expect(patch({ ...page, status: "accepted", expected_status: "interview" })).toMatchObject(stale);
+    expect(patch({ ...page, status: "accepted", expected_review_id: 7 })).toMatchObject(stale);
+    expect(patch({ status: "accepted" })).toMatchObject({ status: 409, code: "status_changed", message: "这个页面是旧版本，刷新后再改" });
+    expect(patch({ ...page, status: "accepted" })).toBeNull();
+  });
+
+  it("compares against the largest review id like the server, not the first row", () => {
+    const at = (target: string, body: unknown) => {
+      try { checkConsoleWrite(new URL(`http://mock.local/api/console/applications/${target}`), "PATCH", body); return null; }
+      catch (error) { return error as ApiError; }
+    };
+    const accepted = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"; // 样板里按时间排第一的是 16，最大的是 18
+    expect(at(accepted, { expected_status: "accepted", expected_review_id: 16, status: "rejected" })).toMatchObject({ status: 409, code: "status_changed" });
+    expect(at(accepted, { expected_status: "accepted", expected_review_id: 18, status: "rejected" })).toBeNull();
   });
 });

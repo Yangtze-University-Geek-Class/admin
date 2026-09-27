@@ -7,14 +7,20 @@ import { fileURLToPath } from 'node:url';
 import {
   ENVIRONMENTS,
   IMAGE_SERVICES,
+  MAIL_ALIYUN_SECRET_PAIR,
+  OPTIONAL_SECRETS,
   OPTIONAL_SECRET_PAIR,
   PROXY_HOPS,
+  REQUIRED_SECRET_FIELDS,
   SECRET_FIELDS,
   composeImageReferences,
   deploymentTarget,
   imageReference,
   imageRepositoryPrefix,
+  isAddressList,
+  isPlainAddress,
   parseEnvFileText,
+  parseMailAssetBase,
   readEnvironment,
   renderRuntimeEnv,
   validateEnvironmentContract,
@@ -41,7 +47,14 @@ function fixtureRoot({ withStack = false } = {}) {
   return root;
 }
 
-const secrets = Object.fromEntries(SECRET_FIELDS.map(field => [field, `${field.toLowerCase()}-fixture-value`]));
+// 收件名单是逗号隔开的邮箱，其余密钥用「字段名-fixture-value」形状的假值。
+const ALLOWLIST = 'tester@example.com,Second.Tester@Example.org';
+const secrets: Record<string, string> = {
+  ...Object.fromEntries(SECRET_FIELDS.map(field => [field, `${field.toLowerCase()}-fixture-value`])),
+  MAIL_ALLOWLIST: ALLOWLIST,
+};
+const without = (source: Record<string, string>, fields: readonly string[]) =>
+  Object.fromEntries(Object.entries(source).filter(([field]) => !fields.includes(field)));
 
 describe('environment identity contract', () => {
   it('binds each environment to its own https entry and refuses unknown or swapped targets', () => {
@@ -111,6 +124,19 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(preview.has(retired)).toBe(false);
     }
     expect(readEnvironment(repoRoot, 'production')).not.toHaveProperty('hosts');
+    // 发信：两个环境发件地址与图片前缀相同；预发布只发名单，正式发给所有人；回复地址留空。
+    for (const values of [production, preview]) {
+      expect(values.get('MAIL_ALIYUN_FROM')).toBe('notify@mail.email-crosery.cn');
+      expect(values.get('MAIL_RESEND_FROM')).toBe('notify@email-crosery.cn');
+      expect(values.get('MAIL_ASSET_BASE')).toBe('https://cdn.crosery.com/yzgc/mail/v1/');
+      expect(values.get('MAIL_REPLY_TO')).toBe('');
+    }
+    expect(preview.get('MAIL_RECIPIENTS')).toBe('allowlist');
+    expect(production.get('MAIL_RECIPIENTS')).toBe('all');
+    for (const field of [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS]) {
+      expect(SECRET_FIELDS).toContain(field);
+      expect(REQUIRED_SECRET_FIELDS).not.toContain(field);
+    }
   });
 
   it('fails closed when a template carries a real secret or loses isolation', () => {
@@ -178,6 +204,63 @@ describe('committed env templates are the single source of deploy facts', () => 
       const report = validateEnvironmentFiles({ root, checkCompose: false });
       expect(report.ok, `${name}: TRUST_PROXY=${value}`).toBe(false);
       expect(report.problems.join('\n')).toMatch(/TRUST_PROXY 必须是反代层数 2/);
+    }
+  });
+
+  it('checks the visible mail fields and keeps preview on the allowlist', () => {
+    const edit = (name: string, from: string, to: string) => {
+      const root = fixtureRoot();
+      const path = join(root, `deploy/env/.env.${name}`);
+      const before = readFileSync(path, 'utf8');
+      expect(before).toContain(from);
+      writeFileSync(path, before.replace(from, to));
+      return validateEnvironmentFiles({ root, checkCompose: false });
+    };
+    const failing: Array<[string, string, string, RegExp]> = [
+      // 预发布不打扰真人：收件范围只能是名单。
+      ['preview', '\nMAIL_RECIPIENTS=allowlist\n', '\nMAIL_RECIPIENTS=all\n', /预发布的 MAIL_RECIPIENTS 必须是 allowlist/],
+      ['production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=everyone\n', /MAIL_RECIPIENTS 只能是 all 或 allowlist/],
+      ['production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=\n', /MAIL_RECIPIENTS 只能是/],
+      ['production', '\nMAIL_RECIPIENTS=all\n', '\n', /缺少字段 MAIL_RECIPIENTS/],
+      // 图片前缀：https、以 / 结尾、规范形式。
+      ['production', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/\n', '\nMAIL_ASSET_BASE=http://cdn.crosery.com/yzgc/mail/v1/\n', /MAIL_ASSET_BASE 必须是 https/],
+      ['preview', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1\n', /MAIL_ASSET_BASE 必须写成规范形式并以 \/ 结尾/],
+      ['preview', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/?v=2\n', /MAIL_ASSET_BASE 不得包含/],
+      ['preview', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/?\n', /MAIL_ASSET_BASE 必须写成规范形式/],
+      ['production', '\nMAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/\n', '\nMAIL_ASSET_BASE=\n', /MAIL_ASSET_BASE 不是合法 URL/],
+      // 发件地址不带显示名；回复地址留空或是一个地址。
+      ['production', '\nMAIL_ALIYUN_FROM=notify@mail.email-crosery.cn\n', '\nMAIL_ALIYUN_FROM="极客班 <notify@mail.email-crosery.cn>"\n', /MAIL_ALIYUN_FROM 必须是不带显示名的邮箱地址/],
+      ['preview', '\nMAIL_RESEND_FROM=notify@email-crosery.cn\n', '\nMAIL_RESEND_FROM=\n', /MAIL_RESEND_FROM 必须是不带显示名的邮箱地址/],
+      ['preview', '\nMAIL_REPLY_TO=\n', '\nMAIL_REPLY_TO=not-an-address\n', /MAIL_REPLY_TO 只能留空或写一个不带显示名的邮箱地址/],
+      ['production', '\nMAIL_REPLY_TO=\n', '\n', /缺少字段 MAIL_REPLY_TO/],
+      // 发信密钥与收件名单同样只能在目标机上有值。
+      ['preview', '\nMAIL_ALLOWLIST=\n', '\nMAIL_ALLOWLIST=tester@example.com\n', /MAIL_ALLOWLIST 必须在入库模板里留空/],
+      ['production', '\nMAIL_RESEND_API_KEY=\n', '\nMAIL_RESEND_API_KEY=re_committed\n', /MAIL_RESEND_API_KEY 必须在入库模板里留空/],
+      ['production', '\nMAIL_ALIYUN_ACCESS_KEY_SECRET=\n', '\nMAIL_ALIYUN_ACCESS_KEY_SECRET=committed\n', /MAIL_ALIYUN_ACCESS_KEY_SECRET 必须在入库模板里留空/],
+    ];
+    for (const [name, from, to, message] of failing) {
+      const report = edit(name, from, to);
+      expect(report.ok, `${name}: ${to}`).toBe(false);
+      expect(report.problems.join('\n')).toMatch(message);
+    }
+    // 回复地址写成一个地址、正式环境改成只发名单，都是合法配置。
+    expect(edit('production', '\nMAIL_REPLY_TO=\n', '\nMAIL_REPLY_TO=geek@example.com\n').problems).toEqual([]);
+    expect(edit('production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=allowlist\n').problems).toEqual([]);
+  });
+
+  it('recognises plain addresses, address lists and the asset base', () => {
+    for (const value of ['notify@mail.email-crosery.cn', 'Second.Tester+tag@Example.org', 'a_b-c@x.io']) expect(isPlainAddress(value), value).toBe(true);
+    for (const value of ['', 'notify', '@example.com', 'a@b', 'a@@example.com', 'a b@example.com', 'Name <a@example.com>', '"a"@example.com', 'a@example.com ']) {
+      expect(isPlainAddress(value), value).toBe(false);
+    }
+    expect(isAddressList(ALLOWLIST)).toBe(true);
+    expect(isAddressList('solo@example.com')).toBe(true);
+    for (const value of ['', 'a@example.com, b@example.org', 'a@example.com,,b@example.org', 'a@example.com,', 'a@example.com;b@example.org', '"a@example.com"', 'a@example.com#x']) {
+      expect(isAddressList(value), value).toBe(false);
+    }
+    expect(parseMailAssetBase('https://cdn.crosery.com/yzgc/mail/v1/')).toBe('https://cdn.crosery.com/yzgc/mail/v1/');
+    for (const value of ['https://user:pw@cdn.crosery.com/v1/', 'https://cdn.crosery.com:8443/v1/', 'https://CDN.crosery.com/v1/', 'https://cdn.crosery.com/v1/#x', 'https://cdn.crosery.com/a/../v1/']) {
+      expect(() => parseMailAssetBase(value), value).toThrow(/MAIL_ASSET_BASE/);
     }
   });
 });
@@ -286,15 +369,95 @@ describe('optional Turnstile pair', () => {
     const out = join(root, 'runtime/.env.production');
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SECRET_KEY: '' } })).toThrow(/只配了一项/);
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SITE_KEY: '' } })).toThrow(/只配了一项/);
-    // Turnstile 关闭时，其余每一个密钥仍然必填。
-    const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY, ...required } = secrets;
-    void TURNSTILE_SITE_KEY; void TURNSTILE_SECRET_KEY;
-    for (const field of SECRET_FIELDS.filter(name => !OPTIONAL_SECRET_PAIR.includes(name))) {
-      const { [field]: missing, ...rest } = required as Record<string, string>;
-      void missing;
-      expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: rest })).toThrow(new RegExp(field));
+    // Turnstile 与发信都关闭时，其余每一个密钥仍然必填。
+    const required = without(secrets, [...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS]);
+    expect(Object.keys(required)).toEqual([...REQUIRED_SECRET_FIELDS]);
+    for (const field of REQUIRED_SECRET_FIELDS) {
+      expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: without(required, [field]) })).toThrow(new RegExp(field));
     }
     expect(renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: secrets }).turnstile).toBe('on');
+  });
+});
+
+describe('optional mail secrets', () => {
+  const render = (env: Record<string, string>, environment = 'preview', edit?: [string, string]) => {
+    const root = fixtureRoot();
+    if (edit) {
+      const path = join(root, `deploy/env/.env.${environment}`);
+      writeFileSync(path, readFileSync(path, 'utf8').replace(edit[0], edit[1]));
+    }
+    const out = join(root, `runtime/.env.${environment}`);
+    const result = renderRuntimeEnv({ root, environment, out, imageTag: 'a1b2c3d4e5f6', env });
+    return { result, values: parseEnvFileText(readFileSync(out, 'utf8'), 'rendered'), text: readFileSync(out, 'utf8') };
+  };
+  const mailFields = [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS];
+
+  it('treats every mail secret empty as mail off, writes them empty and says so', () => {
+    for (const env of [without(secrets, mailFields), { ...secrets, ...Object.fromEntries(mailFields.map(field => [field, ''])) }]) {
+      const { result, values } = render(env);
+      expect(result.mail).toBe('off');
+      expect(result.mailProviders).toEqual([]);
+      expect(result.secretFields).toEqual(SECRET_FIELDS.filter(field => !mailFields.includes(field)));
+      for (const field of mailFields) expect(values.get(field)).toBe('');
+      expect(values.get('SESSION_SECRET')).toBe(secrets.SESSION_SECRET);
+      expect(result.notices.join('\n')).toMatch(/发信关闭，server 把每封信记为「发信没有配置」/);
+    }
+    // 收件名单单独配着也不算开启发信：没有能发信的通道。
+    expect(render(without(secrets, [...MAIL_ALIYUN_SECRET_PAIR, 'MAIL_RESEND_API_KEY'])).result.mail).toBe('off');
+  });
+
+  it('refuses a half-configured Aliyun pair', () => {
+    for (const field of MAIL_ALIYUN_SECRET_PAIR) {
+      expect(() => render({ ...secrets, [field]: '' })).toThrow(/MAIL_ALIYUN_ACCESS_KEY_ID 与 MAIL_ALIYUN_ACCESS_KEY_SECRET 只配了一项/);
+      expect(() => render(without(secrets, [field]), 'production')).toThrow(/只配了一项/);
+    }
+  });
+
+  it('turns on each provider on its own and keeps the other empty', () => {
+    const aliyunOnly = render(without(secrets, ['MAIL_RESEND_API_KEY']));
+    expect(aliyunOnly.result.mailProviders).toEqual(['aliyun']);
+    expect(aliyunOnly.values.get('MAIL_RESEND_API_KEY')).toBe('');
+    expect(aliyunOnly.values.get('MAIL_ALIYUN_ACCESS_KEY_ID')).toBe(secrets.MAIL_ALIYUN_ACCESS_KEY_ID);
+    const resendOnly = render(without(secrets, MAIL_ALIYUN_SECRET_PAIR), 'production');
+    expect(resendOnly.result.mailProviders).toEqual(['resend']);
+    expect(resendOnly.result.mail).toBe('on');
+    expect(resendOnly.values.get('MAIL_ALIYUN_ACCESS_KEY_SECRET')).toBe('');
+    expect(render(secrets).result.mailProviders).toEqual(['aliyun', 'resend']);
+  });
+
+  it('renders the allowlist verbatim and refuses malformed lists without echoing them', () => {
+    const { values, text } = render(secrets);
+    expect(values.get('MAIL_ALLOWLIST')).toBe(ALLOWLIST);
+    // 逗号在安全字符里：原样写出，不加引号。
+    expect(text.split('\n')).toContain(`MAIL_ALLOWLIST=${ALLOWLIST}`);
+    for (const list of ['tester@example.com, other@example.org', 'tester@example.com,', 'tester@example.com,,other@example.org', '"tester@example.com"', 'Tester <tester@example.com>', 'tester@example.com;other@example.org', 'tester@example.com#x', '$HOME@example.com']) {
+      let message = '';
+      try {
+        render({ ...secrets, MAIL_ALLOWLIST: list });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message, list).toMatch(/MAIL_ALLOWLIST 必须是英文逗号隔开的邮箱地址/);
+      expect(message).not.toContain('tester@example.com');
+    }
+    // 别的密钥照旧不收逗号与空白，报错也不回显取值。
+    expect(() => render({ ...secrets, MAIL_RESEND_API_KEY: 're_a,b' })).toThrow(/MAIL_RESEND_API_KEY 含非法字符/);
+    expect(() => render({ ...secrets, MAIL_ALIYUN_ACCESS_KEY_SECRET: 'with space' })).toThrow(/^(?!.*with space).*MAIL_ALIYUN_ACCESS_KEY_SECRET/);
+  });
+
+  it('warns when the configuration can send nothing or cannot carry Reply-To', () => {
+    // 预发布只发名单：发信开着但名单为空，一封也发不出去。
+    const emptyList = render(without(secrets, ['MAIL_ALLOWLIST']));
+    expect(emptyList.result.mail).toBe('on');
+    expect(emptyList.result.notices.join('\n')).toMatch(/MAIL_RECIPIENTS=allowlist 而 MAIL_ALLOWLIST 为空/);
+    // 正式发给所有人，名单为空不用提示。
+    expect(render(without(secrets, ['MAIL_ALLOWLIST']), 'production').result.notices.join('\n')).not.toMatch(/MAIL_ALLOWLIST 为空/);
+    // 只有阿里云时带不了 Reply-To，server 按没有配置发信商处理。
+    const replyTo: [string, string] = ['MAIL_REPLY_TO=\n', 'MAIL_REPLY_TO=geek@example.com\n'];
+    expect(render(without(secrets, ['MAIL_RESEND_API_KEY']), 'production', replyTo).result.notices.join('\n')).toMatch(/MAIL_REPLY_TO 不为空却只配了阿里云/);
+    expect(render(secrets, 'production', replyTo).result.notices.join('\n')).not.toMatch(/MAIL_REPLY_TO 不为空/);
+    // 全部配齐时没有任何提示。
+    expect(render(secrets).result.notices).toEqual([]);
   });
 });
 

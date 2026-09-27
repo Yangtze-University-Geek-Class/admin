@@ -2,7 +2,7 @@
 
 > 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。
 
-状态：`current` · 更新：2026-09-26
+状态：`current` · 更新：2026-09-27
 
 ## 发布前置
 
@@ -137,7 +137,7 @@ bash deploy-stack.sh --environment production \
 
 环境变量**只**经 `.env` 文件：`deploy/env/.env.production` 与 `deploy/env/.env.preview` 提交入库，非密值（地址、端口、域名、路径、开关）预填真实值，密钥字段留空由 CI/CD 注入。完整字段契约、可见性规则与 GitHub 环境 secrets/vars 清单见 [ENVIRONMENTS](ENVIRONMENTS.md)；本机开发模板见 [ENVIRONMENT](ENVIRONMENT.md)。
 
-关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`（环境唯一的对外地址，逐字等于 `deploy/environments.json` 的 origin）、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代层数，必须为 `2`：宿主 nginx 与 web 容器 nginx 两层；写 `true` 会让客户端伪造 IP，见 [ENVIRONMENTS](ENVIRONMENTS.md)）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
+关键非密字段：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`、`IMAGE_TAG`、`WEB_BIND`、`SERVER_BIND`、`SERVER_PORT`、`FORUM_PORT`、`PUBLIC_ORIGIN`（环境唯一的对外地址，逐字等于 `deploy/environments.json` 的 origin）、`NODE_ENV`、`PORT`、`HOST`（容器内必须 `0.0.0.0`，否则 web 容器连不上）、`TRUST_PROXY`（反代层数，必须为 `2`：宿主 nginx 与 web 容器 nginx 两层；写 `true` 会让客户端伪造 IP，见 [ENVIRONMENTS](ENVIRONMENTS.md)）、`DB_PATH`、`POW_DIFFICULTY`、`COOKIE_DOMAIN`（留空 = host-only）、发信的 `MAIL_ALIYUN_FROM`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`、`MAIL_REPLY_TO`（留空 = 不带 Reply-To）、`MAIL_RECIPIENTS`（预发布 `allowlist`，正式 `all`）。密钥字段：`OAUTH_CLIENT_ID`、`OAUTH_CLIENT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`，以及可以不配的 `MAIL_ALIYUN_ACCESS_KEY_ID`、`MAIL_ALIYUN_ACCESS_KEY_SECRET`、`MAIL_RESEND_API_KEY`、`MAIL_ALLOWLIST`——**仓库里必须留空**。发布身份（`GEEK_RELEASE_VERSION`、`GEEK_RELEASE_COMMIT`、`GEEK_RELEASE_DISPLAY_SUFFIX`）是 `BUILD_ONLY_FIELDS`：只经 build args 注入，写在 env 文件里不会被读取。
 
 禁止把真实密钥写入仓库、镜像、日志或发布记录；`.env` 由目标机最小权限保存，不打印、不提交。
 
