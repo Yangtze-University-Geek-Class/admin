@@ -86,3 +86,15 @@
 - 做了什么：gh pr create --base stage，正文九段：目的引用所有者 09-26 22:27 与 09-27 11:02、11:04、11:09、11:30 的原话并说明头像是我理解错了；11 张截图经 PR #165 的评论框上传（没有发评论）；审查结论写第一轮逐条与返工；pr-contract 本地通过
 - 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/167；返工复审进行中，结论暂写有条件通过
 - 下一步：等 CI 与返工复审，按复审结论更新 PR 正文后合并
+
+## 13:28:14 +08:00 · 审查 · #148 · 返工复审 70dd959..d29e903：没有阻塞，1 条应修、3 条建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Workflow wf_93ec90de-9a5：1 个只读审查代理审返工这段 diff，应修再由 1 个代理反驳核对。应修：「已收到」按收件人限量可以用 +标签或域名末尾的点绕开（临时探针：victim+1@、victim+2@、victim@gmail.example. 各发一封，只有改大小写的被拦；250 封 +标签地址里 200 封 pending，整小时的额度能全发进一个收件箱），SECURITY 与 mail.md 说的每个邮箱每天一封不成立。建议：expected_status 只比状态，改走又改回（ABA）时旧页面照样发信；服务端不要求 expected_status，部署前打开的旧页面照样按旧画面改；c153777 一个提交里放了几件可以各自回滚的事
+- 结果：结论：无阻塞，应修待修。代理核对过：期望状态、确认信上限、回信地址、回车、TESTING 五条返工都生效；5 万行时计数约 2ms；CSV 列改名在仓库里没有使用方；7 个文件 167 条、tsc、vue-tsc、边界、文档、密钥检查通过
+
+## 13:28:14 +08:00 · 返工 · #148 · 按复审返工：按收件箱归并限量、按 IP 限量、审核记录版本号、旧页面不能改状态
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：server：outbox 加 limitKey（去掉 + 标签、域名末尾的点，Gmail 去掉本地部分的点、googlemail 算 gmail），新列 limit_hash 与索引，按收件箱限量；投递的邮箱正则不收末尾带点、连续的点、以点开头的域名。所有者 13:22「防止盗刷……单IP里禁止连续发多个邮件，给它限制一个数量」：OutboxEntry 加 source，新列 source_hash（只存 sha256）与索引，RECEIVED_LETTER_LIMITS 加 perSourceHour 5、perSourceDay 20，apply 传 ipSubject(req.ip)（IPv6 按 /64），超出记 source_limited，投递照样成功。PATCH 加 expected_review_id（页面上最新一条审核记录的 id，没有时是 0），和库里不同回 409；改状态却缺 expected_status 或 expected_review_id 回 409「这个页面是旧版本，刷新后再改」，只补备注可以不带；409 的说法改成「这份投递刚被别人处理过，现在是「…」，看过最新的记录再改」。console：reviewPatch 带 expected_review_id（detail.reviews[0]?.id ?? 0），样板同样核对，source_limited 的说法「没有发：同一个网络这段时间投递得太多」。docs：mail.md、API、SECURITY 中英、data-model、console README、TESTING。c153777 已推送不回写，这次按服务分提交，PR 里写明各提交包含哪几件事。另外所有者 13:10 同意后，用 gh secret set 把 MAIL_ALLOWLIST 设成所有者的邮箱（preview 环境），ENVIRONMENTS 改成白名单里是所有者自己的一个邮箱，地址不进仓库
+- 结果：tsc、vue-tsc 通过；tests/server、tests/console、deployment-environment 19 个文件 349 条通过；变异 11 项全被抓到（+标签不归并、Gmail 的点不归并、旧邮箱正则、不比审核记录、旧页面不强制、RECEIVED_LETTER_LIMITS 去掉按 IP、IPv6 不按 /64、去掉按 IP 的一天窗口、控制台不带 expected_review_id、样板不拦旧页面、source_limited 的说法）。本机 harness 在 ego TaskSpace 6 里：另一个会话把欧阳娜娜改成待面试（发了面试信）又改回已收到，旧页面改成未通过点「保存并发邮件」，请求体带 expected_review_id 0，回「没有保存 这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改」，只发出 3 封（两封确认信、一封面试信），拒信没有发；截图 /tmp/t148/shots2/desktop-aba-409.png。TaskSpace 已 finish，harness 已停
