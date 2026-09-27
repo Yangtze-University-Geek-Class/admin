@@ -16,7 +16,7 @@
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`）；`ConsoleShell` 把它交给 `CapabilityGate`，缺能力时整页换成权限说明，没写的页面按 `console.access` 判断 |
 | `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框和称号列表 `TitleList`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`）、能力门 `CapabilityGate`、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
-| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`statuses`、`format`、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
+| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/mock/` | 开发预览样板数据（全部虚构），只在 DEV 且数据源为 mock 时动态导入，生产构建不含 |
 | `src/styles/theme.css`、`layout.css` | 主题令牌覆盖与页面版式（见「设计令牌」） |
 | `scripts/tuffex-icon-classes.mjs` | 扫描已安装 Tuffex 的 dist，给 UnoCSS 列出组件自带的 `i-carbon-*` 图标类（做法同论坛） |
@@ -66,6 +66,27 @@
 
 `?signed_out=1` 另显示「你已退出登录」。写操作失败用 TxAlert 内联提示，保留已填内容；401 例外，会直接跳去登录，没保存的内容不保留；危险操作一律先确认（初始焦点在「取消」）。
 
+## 投递详情与通知信
+
+投递状态只有四种：已收到、待面试、已录取、未通过（#148 去掉了「评估中」，服务端启动时把还停在评估中的投递改回已收到）。下拉框、列表筛选和进度条都只有这四种；进度条是已收到、待面试、已录取三步，未通过单独写一句。审核记录是历史，里面的 `reviewing` 照旧显示「评估中」；遇到不认识的状态 id 原样显示，页面不出错（`lib/statuses.ts` 的 `statusMeta`）。
+
+「处理这份投递」里选了和现在不同的状态时，出现「通知投递人」一栏：
+
+| 改成 | 这一栏 |
+|---|---|
+| 待面试 | 「给投递人发邮件」（默认勾选）；勾上时要填面试时间（例如「9 月 30 日（周三）19:00」）和面试地点，面试说明选填、一行一条 |
+| 已录取 | 同一个勾选框；勾上时可以填「接下来要做的事」，一行一条 |
+| 未通过 | 同一个勾选框；勾上时可以填「写给投递人的话」 |
+| 已收到 | 只写「改回已收到不发邮件。」 |
+
+栏里最后一行说清楚保存后会怎样，依据是详情接口的 `mail`：会发时写「保存后给 <邮箱> 发「待面试」通知信。」；预发布白名单挡住时写「预发布只给白名单里的邮箱发信，这封不会发出。」；发信没有配置时写「发信还没有配置，这封不会发出。」；没勾时写「这次只改状态，不给投递人发邮件。」。信真的会发出时按钮叫「保存并发邮件」，其余叫「保存」。每换一次目标状态，勾选框回到勾上。备注照旧只给审核人看，页面写明它不会写进给投递人的邮件。
+
+提交的请求体按 [API](../../architecture/API.md) 的 `PATCH /api/console/applications/:application_id`：状态变了才带 `status`，备注非空才带 `note`；改到待面试、已录取、未通过时带 `notify`，勾上才带 `letter`（只带这种信用得到的字段，空的选填项不带）。面试时间最多 60 字、地点 120 字、说明和写给投递人的话 1000 字，本地先核对；服务端的 `letter_required` 显示在面试时间、地点下面，`invalid_status` 显示在状态下面，`letter_invalid`（信渲染不出来，例如没配回信地址却在信里写了「直接回复这封邮件」）显示在「通知投递人」一栏里，其它错误（含字段超长时的 `validation_error`）照旧用 ErrorAlert。保存成功的提示按服务端回来的这封信说：正在发、没发出（白名单、没配置）或只更新了审核记录。
+
+审核记录每一条都写这次的邮件：「已发出（时间）」「正在发」「发送失败，等待第 N 次重试」「没有发出：发了 N 次都失败了」「预发布未发送（不在白名单）」「没有发：发信还没有配置」，没有发信的写「没有发」；有信的再写一行主题。「投递信息」里多一行「确认信」，是投递时自动发的那封「已收到」信的状态，说法相同。
+
+控制台里的时间一律按北京时间（Asia/Shanghai）显示，不跟浏览器所在的时区走，和信里写的投递时间对得上。
+
 ## 构建与托管
 
 `pnpm --filter @yzgc/console build` 先 `vue-tsc` 再 `vite build`，产物：
@@ -88,7 +109,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 #   ?__persona=<名>   样板数据下切换身份：admin（组织 owner）、captain、recruitment、tech、community、projects、crew、member、alumni、guest、signed_out
 ```
 
-开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。
+开发态默认 `live`，是因为本机预览可以走真实 GitHub 登录（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）；本地后端没起时页面是请求失败状态。`?__data=` 的选择记在本标签页的 `sessionStorage`（`yugc:console-data-source`），换标签页回到默认。数据源只在开发构建可切换；生产构建里 `dataSource()` 恒为 `live`，mock 模块不进产物。样板数据只读，写请求返回 501 `mock_read_only`，页面会说明「开发预览是只读的」。改称号、处理投递的写请求先按服务端核对（处理投递：状态只能是四种之一，要发待面试的信时面试时间和地点必填），不合法的得到和服务端一样的 403/400，合法的照样 501，不假装信已经排进发信队列。投递详情的样板带 `mail`、`received_mail` 和每条审核记录的邮件，上面每种说法都能看到；发信设置按预发布的样子，只有三个样板邮箱在白名单里。
 
 ## 设计令牌
 
@@ -98,7 +119,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、与服务端清单同步
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

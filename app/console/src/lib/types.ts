@@ -61,17 +61,39 @@ export type TitleConfig = { id: TitleId; label: string; tag: string; icon: strin
 export type TitlePatch = Partial<Omit<TitleConfig, "id">>;
 export type TitlePatchResponse = { title: TitleConfig };
 
-export type ApplicationStatus = "received" | "reviewing" | "interview" | "accepted" | "rejected";
+/** 投递现在只有这四种状态（#148 去掉了「评估中」）；审核记录里的旧状态按字符串收，见 statuses.ts 的 statusMeta。 */
+export type ApplicationStatus = "received" | "interview" | "accepted" | "rejected";
 export type ApplicationItem = {
   id: string; name: string; class_name: string; email: string; strengths_excerpt: string; status: ApplicationStatus; created_at: number;
-  last_review: { to_status: ApplicationStatus; reviewer: string; created_at: number } | null;
+  last_review: { to_status: string; reviewer: string; created_at: number } | null;
 };
 export type ApplicationList = { items: ApplicationItem[]; total: number; counts: Record<string, number> };
-export type ApplicationReview = { id: number; from_status: ApplicationStatus; to_status: ApplicationStatus; note: string | null; reviewer: string; created_at: number };
-export type ApplicationDetail = {
-  application: { id: string; name: string; class_name: string; email: string; strengths: string; status: ApplicationStatus; created_at: number };
-  reviews: ApplicationReview[];
+
+/** 一封信在发信队列里的状态；地址和正文发完就删，只留主题。 */
+export type MailStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
+export type MailSummary = {
+  status: MailStatus; skip_reason: string | null; attempts: number; subject: string; sent_at: number | null; updated_at: number;
 };
+/** deliverable：给这位投递人的信现在会不会真的发出去（发信已配置，且在预发布的白名单里）。 */
+export type MailSettings = { enabled: boolean; recipients: "all" | "allowlist"; deliverable: boolean };
+
+/** from_status / to_status 是历史：可能是已退役的 `reviewing`。mail 是这次改状态发的信，没发为 null。 */
+export type ApplicationReview = {
+  id: number; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number; mail: MailSummary | null;
+};
+export type ApplicationRecord = { id: string; name: string; class_name: string; email: string; strengths: string; status: ApplicationStatus; created_at: number };
+export type ApplicationDetail = {
+  application: ApplicationRecord;
+  reviews: ApplicationReview[];
+  /** 投递时自动发的「已收到」确认信。 */
+  received_mail: MailSummary | null;
+  mail: MailSettings;
+};
+/** 通知信里投递人能看到的内容；notes 与 message 一行一条。 */
+export type ApplicationLetter = { time?: string; place?: string; notes?: string; message?: string };
+/** PATCH /api/console/applications/:id。note 只给审核人看，不进信；notify 默认 true。 */
+export type ApplicationReviewPatch = { status?: ApplicationStatus; note?: string; notify?: boolean; letter?: ApplicationLetter };
+export type ApplicationReviewResult = { application: ApplicationRecord; review: ApplicationReview };
 
 export type Summary = {
   applications?: { total: number; by_status: Record<string, number>; last_7d: number };

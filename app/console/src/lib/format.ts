@@ -1,4 +1,7 @@
-// 时间与数字格式。控制台只显示北京时间习惯的 24 小时制。
+// 时间与数字格式。控制台一律按北京时间（Asia/Shanghai）显示、24 小时制，不跟浏览器所在的时区走，
+// 和通知信里写的投递时间对得上（#148）。
+
+const TIME_ZONE = "Asia/Shanghai";
 
 type Instant = string | number | null | undefined;
 
@@ -7,13 +10,13 @@ const toDate = (value: Instant) => (value === null || value === undefined || val
 export function fmtDate(value: Instant): string {
   const date = toDate(value);
   if (!date || Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("zh-CN", { hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString("zh-CN", { timeZone: TIME_ZONE, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 export function fmtDay(value: Instant): string {
   const date = toDate(value);
   if (!date || Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return date.toLocaleDateString("zh-CN", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 export function fmtRelative(value: Instant, now = Date.now()): string {

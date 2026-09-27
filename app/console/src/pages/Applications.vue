@@ -20,7 +20,7 @@ import { isMock } from "../lib/runtime";
 import { useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import { toneColor } from "../lib/titles";
-import { APPLICATION_STATUS, APPLICATION_STATUSES, isApplicationStatus } from "../lib/statuses";
+import { APPLICATION_STATUS, APPLICATION_STATUSES, isApplicationStatus, statusMeta } from "../lib/statuses";
 import type { ApplicationItem, ApplicationList } from "../lib/types";
 
 const PAGE_SIZE = 20;
@@ -104,7 +104,7 @@ const exportHref = computed(() => `/api/console/applications/export.csv${status.
         </template>
         <template #cell-status="{ row }: { row: ApplicationItem }">
           <span class="cell-stack">
-            <ToneTag :tone="APPLICATION_STATUS[row.status].tone" :label="APPLICATION_STATUS[row.status].label" />
+            <ToneTag :tone="statusMeta(row.status).tone" :label="statusMeta(row.status).label" />
             <span v-if="row.last_review" class="cell-sub mono">@{{ row.last_review.reviewer }}</span>
           </span>
         </template>
