@@ -190,7 +190,7 @@ describe('committed env templates are the single source of deploy facts', () => 
     // 层数来自真实配置：宿主 nginx 与 web 容器 nginx 各往 X-Forwarded-For 末尾追加一段，server 前面恰好两层。
     const appends = (text: string) => text.match(/proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;/g)?.length ?? 0;
     const webProxyHeaders = readFileSync(join(repoRoot, 'app/web/Dockerfile'), 'utf8').match(/<<'NGINX_HEADERS'[^\n]*\n([\s\S]*?)\nNGINX_HEADERS/)?.[1] ?? '';
-    expect(readFileSync(join(repoRoot, 'app/web/Dockerfile'), 'utf8')).toMatch(/location \/api\/ \{\n\s*proxy_pass http:\/\/server:3000;\n\s*include \/etc\/nginx\/conf\.d\/90-proxy-headers\.conf;/);
+    expect(readFileSync(join(repoRoot, 'app/web/Dockerfile'), 'utf8')).toMatch(/location (?:\^~ )?\/api\/ \{\n\s*proxy_pass http:\/\/server:3000;\n\s*include \/etc\/nginx\/conf\.d\/90-proxy-headers\.conf;/);
     expect(appends(webProxyHeaders)).toBe(1);
     for (const name of ENVIRONMENTS) {
       expect(appends(readFileSync(join(repoRoot, `deploy/nginx/${name}.conf`), 'utf8')), name).toBe(1);

@@ -189,7 +189,7 @@ function setTheme(value: string | number) {
     <SignInState page="preferences" />
   </TxCard>
 
-  <TxStack v-else-if="profile && isSelf" :gap="16">
+  <TxStack v-else-if="profile && isSelf" :gap="20" class="preferences-panel">
     <TxFlex align="center" :gap="8" wrap="wrap">
       <h1 class="text-xl font-semibold">
         {{ serverMode ? '账号资料' : '偏好设置' }}
@@ -198,64 +198,49 @@ function setTheme(value: string | number) {
     </TxFlex>
 
     <TxCard :padding="0">
-      <!--
-        `default-value` is not optional: without a model naming one of its
-        children TxTabs selects nothing and renders its own English
-        "No tab selected" placeholder.
-      -->
-      <TxTabs placement="left" default-value="profile" :nav-min-width="140">
-        <TxTabItem name="profile" icon-class="i-carbon-user">
-          <template #name>
-            个人资料
+      <TxGroupBlock name="个人资料" description="这些信息会显示在你的主页上。" :collapsible="false">
+        <TxBlockInput
+          v-model="draft.displayName"
+          title="昵称"
+          :description="serverMode ? `列表和帖子里显示的名字，最多 ${PROFILE_LIMITS.displayName} 个字，${NAME_CHARS_HINT}；登录名 @${profile.username} 不变` : '列表和帖子里显示的名字'"
+          placeholder="你的昵称"
+          clearable
+        />
+        <!-- The server keeps line breaks in a signature, so it gets a textarea; the demo keeps upstream's one-line field. -->
+        <TxBlockInput
+          v-model="draft.bio"
+          title="个人签名"
+          :description="serverMode ? `显示在你的主页上，可以换行，最多 ${PROFILE_LIMITS.bio} 个字（现在 ${draft.bio.trim().length} 个）` : '一句话介绍自己'"
+          placeholder="比如：计科 2024 级，在学前端"
+          clearable
+        >
+          <template v-if="serverMode" #control>
+            <TxInput v-model="draft.bio" type="textarea" :rows="3" placeholder="比如：计科 2024 级，在学前端" aria-label="个人签名" />
           </template>
+        </TxBlockInput>
+        <TxBlockInput
+          v-model="draft.location"
+          title="所在地"
+          description="可选"
+          placeholder="比如：杭州"
+          clearable
+        />
+        <TxBlockInput
+          v-model="draft.website"
+          :title="serverMode ? '个人网站' : '网站'"
+          :description="serverMode ? '可选，以 https:// 开头，会作为链接显示' : '可选，会作为链接显示'"
+          placeholder="https://example.com"
+          clearable
+        />
+      </TxGroupBlock>
 
-          <TxGroupBlock name="个人资料" description="这些信息会显示在你的主页上。" :collapsible="false">
-            <TxBlockInput
-              v-model="draft.displayName"
-              title="昵称"
-              :description="serverMode ? `列表和帖子里显示的名字，最多 ${PROFILE_LIMITS.displayName} 个字，${NAME_CHARS_HINT}；登录名 @${profile.username} 不变` : '列表和帖子里显示的名字'"
-              placeholder="你的昵称"
-              clearable
-            />
-            <!-- The server keeps line breaks in a signature, so it gets a textarea; the demo keeps upstream's one-line field. -->
-            <TxBlockInput
-              v-model="draft.bio"
-              title="个人签名"
-              :description="serverMode ? `显示在你的主页上，可以换行，最多 ${PROFILE_LIMITS.bio} 个字（现在 ${draft.bio.trim().length} 个）` : '一句话介绍自己'"
-              placeholder="比如：计科 2024 级，在学前端"
-              clearable
-            >
-              <template v-if="serverMode" #control>
-                <TxInput v-model="draft.bio" type="textarea" :rows="3" placeholder="比如：计科 2024 级，在学前端" aria-label="个人签名" />
-              </template>
-            </TxBlockInput>
-            <TxBlockInput
-              v-model="draft.location"
-              title="所在地"
-              description="可选"
-              placeholder="比如：杭州"
-              clearable
-            />
-            <TxBlockInput
-              v-model="draft.website"
-              :title="serverMode ? '个人网站' : '网站'"
-              :description="serverMode ? '可选，以 https:// 开头，会作为链接显示' : '可选，会作为链接显示'"
-              placeholder="https://example.com"
-              clearable
-            />
-          </TxGroupBlock>
-        </TxTabItem>
-
-        <TxTabItem name="avatar" icon-class="i-carbon-user-avatar">
-          <template #name>
-            头像
-          </template>
-
+      <TxGroupBlock name="头像设置" description="自定义你的社区头像或恢复 GitHub 默认头像。" :collapsible="false">
+        <div class="px-5 py-4">
           <TxStack v-if="serverMode" :gap="16">
-            <TxFlex align="center" :gap="12">
+            <TxFlex align="center" :gap="16">
               <UserAvatar v-if="preview" :user="preview" size="xlarge" />
               <TxStack :gap="4">
-                <span class="font-medium">{{ avatarFile ? '新头像预览' : '现在的头像' }}</span>
+                <span class="font-medium text-base">{{ avatarFile ? '新头像预览' : '现在的头像' }}</span>
                 <span class="text-sm text-$tx-text-color-secondary">
                   {{ avatarFile ? `${avatarFile.name}，点「上传头像」才会换上；服务器会把它裁成正方形。` : uploadedAvatar ? '这是你上传的头像。' : '这是你的 GitHub 头像。' }}
                 </span>
@@ -287,7 +272,7 @@ function setTheme(value: string | number) {
           </TxStack>
 
           <TxStack v-else :gap="16">
-            <TxFlex align="center" :gap="12">
+            <TxFlex align="center" :gap="16">
               <UserAvatar v-if="preview" :user="preview" size="xlarge" />
               <TxStack :gap="4">
                 <span class="font-medium">头像预览</span>
@@ -311,51 +296,39 @@ function setTheme(value: string | number) {
               </TxRadio>
             </TxRadioGroup>
           </TxStack>
-        </TxTabItem>
+        </div>
+      </TxGroupBlock>
 
-        <TxTabItem name="notifications" icon-class="i-carbon-notification">
-          <template #name>
-            通知
-          </template>
+      <TxGroupBlock name="通知偏好" description="关掉之后，对应的事件不会再给你发通知。" :collapsible="false">
+        <TxBlockSwitch
+          v-model="draft.notifyPrefs.reply"
+          title="有人回复我"
+          description="别人回复你的话题或帖子时通知你"
+        />
+        <TxBlockSwitch
+          v-model="draft.notifyPrefs.like"
+          title="有人赞我"
+          description="别人赞你的帖子时通知你"
+        />
+        <TxBlockSwitch
+          v-model="draft.notifyPrefs.follow"
+          title="有人关注我"
+          description="别人关注你时通知你"
+        />
+      </TxGroupBlock>
 
-          <TxGroupBlock name="通知" description="关掉之后，对应的事件不会再给你发通知。" :collapsible="false">
-            <TxBlockSwitch
-              v-model="draft.notifyPrefs.reply"
-              title="有人回复我"
-              description="别人回复你的话题或帖子时通知你"
-            />
-            <TxBlockSwitch
-              v-model="draft.notifyPrefs.like"
-              title="有人赞我"
-              description="别人赞你的帖子时通知你"
-            />
-            <TxBlockSwitch
-              v-model="draft.notifyPrefs.follow"
-              title="有人关注我"
-              description="别人关注你时通知你"
-            />
-          </TxGroupBlock>
-        </TxTabItem>
-
-        <TxTabItem name="interface" icon-class="i-carbon-color-palette">
-          <template #name>
-            界面
-          </template>
-
-          <TxGroupBlock name="界面" description="只影响这台设备上的浏览器。" :collapsible="false">
-            <TxBlockSelect
-              :model-value="colorMode.preference"
-              title="主题"
-              description="立即生效，不需要保存"
-              @update:model-value="setTheme"
-            >
-              <TxSelectItem value="system" label="跟随系统" icon="i-carbon-screen" />
-              <TxSelectItem value="light" label="浅色" icon="i-carbon-sun" />
-              <TxSelectItem value="dark" label="深色" icon="i-carbon-moon" />
-            </TxBlockSelect>
-          </TxGroupBlock>
-        </TxTabItem>
-      </TxTabs>
+      <TxGroupBlock name="界面外观" description="只影响这台设备上的浏览器。" :collapsible="false">
+        <TxBlockSelect
+          :model-value="colorMode.preference"
+          title="主题"
+          description="立即生效，不需要保存"
+          @update:model-value="setTheme"
+        >
+          <TxSelectItem value="system" label="跟随系统" icon="i-carbon-screen" />
+          <TxSelectItem value="light" label="浅色" icon="i-carbon-sun" />
+          <TxSelectItem value="dark" label="深色" icon="i-carbon-moon" />
+        </TxBlockSelect>
+      </TxGroupBlock>
     </TxCard>
 
     <TxFlex justify="flex-end" :gap="8">
@@ -368,3 +341,25 @@ function setTheme(value: string | number) {
     </TxFlex>
   </TxStack>
 </template>
+
+<style scoped>
+.preferences-panel :deep(.tx-block-input) {
+  gap: 16px;
+}
+
+.preferences-panel :deep(.tx-block-input__control) {
+  width: 380px;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .preferences-panel :deep(.tx-block-input) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .preferences-panel :deep(.tx-block-input__control) {
+    width: 100%;
+  }
+}
+</style>

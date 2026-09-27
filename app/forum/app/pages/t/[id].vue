@@ -26,7 +26,7 @@ const topicId = String(route.params.id)
 // Read through the store rather than capturing the object: `重置示例数据`
 // replaces the whole state, and a captured entity would keep rendering (and
 // answering `can()`) from a tree nothing writes to any more.
-const topic = computed(() => forum.topicById(topicId))
+const topic = computed(() => forum.topicById(topicId) ?? (/^\d+$/.test(topicId) ? forum.topicById(`t${topicId}`) : undefined))
 
 // The 话题管理 menu lists only what the viewer may do. Pinning and closing are
 // separate forum capabilities (a 项目部 head may pin but not close), so each
