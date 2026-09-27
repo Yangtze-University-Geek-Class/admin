@@ -29,7 +29,7 @@
 
 web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控制台），把两份 dist 叠进同一个站点根（`sites/portal/` + `assets/`，`sites/console/` + `console-assets/`，目录不重叠）。
 
-宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头都在这里，不注入任何站点头；论坛页面的 CSP 由论坛容器下发，见下文「最小权限」）。**每个环境只有一个域名**，管理端靠 URL 路径区分：web 容器 nginx 按路径选 SPA 入口（`/admin`、`/console` 及其子路径与 `/signin` 进控制台入口 `sites/console/index.html`，其余进官网；规则与 `app/server/src/app.ts` 的 `resolveSiteEntry` 一致），镜像与前端产物里不含任何环境域名，同一个镜像在两个环境通用。旧的「管理端独立子域 + 宿主注入站点头」模型已退役：正式的 `github.yangtzeu.work` 只剩 301 跳转，预发布不再有管理端子域。
+宿主 nginx 的 server block 是 `deploy/nginx/production.conf` 与 `deploy/nginx/preview.conf`（TLS、ACME 挑战、安全头都在这里，不注入任何站点头；论坛页面的 CSP 由论坛容器下发，见下文「最小权限」；包含 `/forum/t/(\d+)` 与 `/forum/archive/t/(\d+)` 301 重定向至规范 `/forum/t/t$1`，#173、#177）。**每个环境只有一个域名**，管理端靠 URL 路径区分：web 容器 nginx 按路径选 SPA 入口（`/admin`、`/console` 及其子路径与 `/signin` 进控制台入口 `sites/console/index.html`，其余进官网；规则与 `app/server/src/app.ts` 的 `resolveSiteEntry` 一致），镜像与前端产物里不含任何环境域名，同一个镜像在两个环境通用。旧的「管理端独立子域 + 宿主注入站点头」模型已退役：正式的 `github.yangtzeu.work` 只剩 301 跳转，预发布不再有管理端子域。
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
 

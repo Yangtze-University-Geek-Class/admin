@@ -189,7 +189,7 @@ function setTheme(value: string | number) {
     <SignInState page="preferences" />
   </TxCard>
 
-  <TxStack v-else-if="profile && isSelf" :gap="20" class="preferences-panel">
+  <TxStack v-else-if="profile && isSelf" :gap="20" class="preferences-panel [&_.tx-block-input]:gap-4 [&_.tx-block-input__control]:w-full sm:[&_.tx-block-input__control]:w-380px sm:[&_.tx-block-input__control]:shrink-0 max-sm:[&_.tx-block-input]:flex-col max-sm:[&_.tx-block-input]:items-stretch">
     <TxFlex align="center" :gap="8" wrap="wrap">
       <h1 class="text-xl font-semibold">
         {{ serverMode ? '账号资料' : '偏好设置' }}
@@ -341,25 +341,3 @@ function setTheme(value: string | number) {
     </TxFlex>
   </TxStack>
 </template>
-
-<style scoped>
-.preferences-panel :deep(.tx-block-input) {
-  gap: 16px;
-}
-
-.preferences-panel :deep(.tx-block-input__control) {
-  width: 380px;
-  max-width: 100%;
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .preferences-panel :deep(.tx-block-input) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .preferences-panel :deep(.tx-block-input__control) {
-    width: 100%;
-  }
-}
-</style>

@@ -133,7 +133,7 @@ Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `O
 避免线上紧急缺陷（`hot-fix`）的根本前提是预发布与正式环境保持最高程度的**同构一致性**。线上出现环境级问题的三大主要根因与必检清单：
 
 1. **宿主 Nginx 配置同构（最易忽视点）**：
-   - 两套栈宿主 Nginx（`yzgc-preview.conf` 与 `yzgc-production.conf`）的 CSP 安全头规则、上游旁路映射（如论坛容器 CSP 旁路 Map）、反代超时与安全头部必须保持完全同构，仅允许域名与端口绑定不同；
+   - 两套栈宿主 Nginx（`yzgc-preview.conf` 与 `yzgc-production.conf`）的 CSP 安全头规则、上游旁路映射（如论坛容器 CSP 旁路 Map）、历史路径 301 重定向（`/forum/t/` 与 `/forum/archive/t/`）、反代超时与安全头部必须保持完全同构，仅允许域名与端口绑定不同；
    - 严禁「预发布加了旁路或放行策略，正式环境 Nginx 漏配或各写一套」，改动任一环境模板必须同步核对另一环境。
 2. **七牛云 CDN 防盗链与鉴权白名单**：
    - 宣传片 HLS 流媒体与静态资源依赖七牛 CDN（`cdn.crosery.com` 等）；
