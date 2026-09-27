@@ -12,6 +12,7 @@
 //
 // 密钥只从进程环境读取（与 CI 同名），只经子进程环境传给 render，永不进命令行参数、永不回显：
 //   OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET SESSION_SECRET ENCRYPTION_KEY [TURNSTILE_SITE_KEY TURNSTILE_SECRET_KEY]
+//   [MAIL_ALIYUN_ACCESS_KEY_ID MAIL_ALIYUN_ACCESS_KEY_SECRET] [MAIL_RESEND_API_KEY] [MAIL_ALLOWLIST]（方括号里的可以不配，成对的要么都配要么都不配）
 //   DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment，防止拿错环境的密钥）
 //   DEPLOY_SSH_HOST DEPLOY_SSH_PORT DEPLOY_SSH_USER DEPLOY_SSH_KEY_FILE DEPLOY_SSH_KNOWN_HOSTS_FILE
 import { execFileSync } from 'node:child_process';
@@ -49,7 +50,9 @@ export const deployStackCommand = (plan, environment) =>
   + `--image-tag '${plan.imageTag}' --incoming-dir '${plan.incomingDir}' --images '${plan.incomingDir}/${plan.imagesArchive}' `
   + `--env-file '${plan.incomingDir}/.env.${environment}'`;
 const SSH_ENV = ['DEPLOY_SSH_HOST', 'DEPLOY_SSH_PORT', 'DEPLOY_SSH_USER', 'DEPLOY_SSH_KEY_FILE', 'DEPLOY_SSH_KNOWN_HOSTS_FILE'];
-const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'];
+/** 与 scripts/deployment-environment.mjs 的 SECRET_FIELDS 逐项一致（tests/tooling/deploy-manual.test.ts 核对）。 */
+export const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY',
+  'MAIL_ALIYUN_ACCESS_KEY_ID', 'MAIL_ALIYUN_ACCESS_KEY_SECRET', 'MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST'];
 /** 取出哪些路径：规划器、环境契约、render 与远端物料都在这里面。 */
 const MATERIAL_PATHS = ['deploy', 'scripts', 'package.json'];
 

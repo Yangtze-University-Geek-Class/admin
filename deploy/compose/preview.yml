@@ -56,6 +56,17 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      # 发信：发件地址、图片前缀、收件范围来自 env 文件的可见值；AccessKey、Resend 密钥与收件名单是可选密钥，
+      # 阿里云与 Resend 的密钥都空时 server 照常启动，只把信记为「发信没有配置」，一封也不发。
+      MAIL_ALIYUN_FROM: ${MAIL_ALIYUN_FROM:-}
+      MAIL_RESEND_FROM: ${MAIL_RESEND_FROM:-}
+      MAIL_ASSET_BASE: ${MAIL_ASSET_BASE:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      MAIL_RECIPIENTS: ${MAIL_RECIPIENTS:-}
+      MAIL_ALIYUN_ACCESS_KEY_ID: ${MAIL_ALIYUN_ACCESS_KEY_ID:-}
+      MAIL_ALIYUN_ACCESS_KEY_SECRET: ${MAIL_ALIYUN_ACCESS_KEY_SECRET:-}
+      MAIL_RESEND_API_KEY: ${MAIL_RESEND_API_KEY:-}
+      MAIL_ALLOWLIST: ${MAIL_ALLOWLIST:-}
     ports:
       # 宿主回环，只给本机调试与部署脚本的健康检查用。
       - "${SERVER_BIND:?}:${SERVER_PORT:?}"

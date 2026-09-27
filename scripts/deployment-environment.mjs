@@ -31,14 +31,31 @@ export const SECRET_FIELDS = Object.freeze([
   'ENCRYPTION_KEY',
   'TURNSTILE_SITE_KEY',
   'TURNSTILE_SECRET_KEY',
+  'MAIL_ALIYUN_ACCESS_KEY_ID',
+  'MAIL_ALIYUN_ACCESS_KEY_SECRET',
+  'MAIL_RESEND_API_KEY',
+  'MAIL_ALLOWLIST',
 ]);
 /**
  * Cloudflare Turnstile 是可选的一对：两项都为空 = 明确关闭（服务端 middleware/turnstile.ts 此时只靠工作量证明与限流），
- * 只填一项仍视为半配置。其余密钥一律必填。
+ * 只填一项仍视为半配置。
  */
 export const OPTIONAL_SECRET_PAIR = Object.freeze(['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']);
-/** 允许为空但不属于密钥的字段（留空是明确的语义）。 */
-const EMPTY_IS_MEANINGFUL = Object.freeze(new Set([...SECRET_FIELDS, 'COOKIE_DOMAIN', 'ALLOWED_ORGS']));
+/** 阿里云邮件推送的 AccessKey 同样是可选的一对：都空 = 不走阿里云，只填一项拒绝渲染。 */
+export const MAIL_ALIYUN_SECRET_PAIR = Object.freeze(['MAIL_ALIYUN_ACCESS_KEY_ID', 'MAIL_ALIYUN_ACCESS_KEY_SECRET']);
+/**
+ * 可选的单项密钥：MAIL_RESEND_API_KEY 空 = 不走 Resend；MAIL_ALLOWLIST 是预发布的收件名单（逗号隔开的邮箱，个人信息，所以当密钥存）。
+ * 阿里云与 Resend 都没配时发信关闭，server 把每封信记为「发信没有配置」，一封也不发。
+ */
+export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST']);
+/** 渲染时必填的密钥：上面三类可选项之外的全部。 */
+export const REQUIRED_SECRET_FIELDS = Object.freeze(
+  SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS].includes(field)),
+);
+/** 收件范围：all 发给所有人；allowlist 只发给 MAIL_ALLOWLIST 里的地址。预发布只能是 allowlist。 */
+export const MAIL_RECIPIENT_MODES = Object.freeze(['all', 'allowlist']);
+/** 允许为空但不属于密钥的字段（留空是明确的语义）。MAIL_REPLY_TO 空 = 信里不带 Reply-To，改指向官网意见箱。 */
+const EMPTY_IS_MEANINGFUL = Object.freeze(new Set([...SECRET_FIELDS, 'COOKIE_DOMAIN', 'ALLOWED_ORGS', 'MAIL_REPLY_TO']));
 /** 模板里必须存在的非密钥字段。 */
 const REQUIRED_FIELDS = Object.freeze([
   'GEEK_DEPLOYMENT_ENVIRONMENT',
@@ -63,6 +80,11 @@ const REQUIRED_FIELDS = Object.freeze([
   'FORUM_UPLOAD_DIR',
   'POW_DIFFICULTY',
   'CONSOLE_ORG',
+  'MAIL_ALIYUN_FROM',
+  'MAIL_RESEND_FROM',
+  'MAIL_ASSET_BASE',
+  'MAIL_REPLY_TO',
+  'MAIL_RECIPIENTS',
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */
@@ -115,6 +137,10 @@ const LOOPBACK_BIND_RE = /^127\.0\.0\.1:[0-9]{4,5}$/;
 export const PROXY_HOPS = 2;
 const IMAGE_TAG_RE = /^[a-f0-9]{12}$/;
 const SECRET_VALUE_RE = /^[A-Za-z0-9._+/=:@~-]{4,4096}$/;
+/** 渲染时不加引号的取值：SECRET_VALUE_RE 的字符再加上收件名单用的英文逗号。 */
+const UNQUOTED_VALUE_RE = /^[A-Za-z0-9._+/=:@~,-]*$/;
+/** 邮箱本地部分只收常见字符：不接受显示名、空白、引号；域名部分用 HOST_RE。 */
+const ADDRESS_LOCAL_RE = /^[A-Za-z0-9._+-]{1,64}$/;
 const ENV_FILE_DIR = 'deploy/env';
 
 export function repositoryRoot() {
@@ -144,6 +170,34 @@ export function parseHttpsOrigin(value, label) {
   if (url.pathname !== '/' || url.search || url.hash) fail(`${label} 不得包含路径、查询串或 fragment：${value}`);
   if (!HOST_RE.test(url.hostname)) fail(`${label} 的域名非法：${value}`);
   return url.origin;
+}
+
+/** 信里图片的地址前缀：https、标准端口、不带凭据/查询串/fragment，写成规范形式并以 / 结尾（server 直接在后面拼文件名）。 */
+export function parseMailAssetBase(value, label = 'MAIL_ASSET_BASE') {
+  let url;
+  try {
+    url = new URL(String(value));
+  } catch {
+    fail(`${label} 不是合法 URL：${value}`);
+  }
+  if (url.protocol !== 'https:') fail(`${label} 必须是 https：${value}`);
+  if (url.username || url.password || url.port || url.search || url.hash) fail(`${label} 不得包含凭据、端口、查询串或 fragment：${value}`);
+  if (!HOST_RE.test(url.hostname)) fail(`${label} 的域名非法：${value}`);
+  if (url.href !== value || !value.endsWith('/')) fail(`${label} 必须写成规范形式并以 / 结尾：${value}`);
+  return url.href;
+}
+
+/** 不带显示名的邮箱地址，例 notify@example.com。 */
+export function isPlainAddress(value) {
+  const text = String(value ?? '');
+  const at = text.lastIndexOf('@');
+  return at > 0 && ADDRESS_LOCAL_RE.test(text.slice(0, at)) && HOST_RE.test(text.slice(at + 1).toLowerCase());
+}
+
+/** 收件名单：英文逗号隔开的邮箱地址，不带空白，也不留空项。 */
+export function isAddressList(value) {
+  const text = String(value ?? '');
+  return text.length <= 4096 && text.split(',').every(isPlainAddress);
 }
 
 /** 解析 KEY=VALUE 环境文件；拒绝重复键与非法行，保留「键 → 值」顺序信息。 */
@@ -321,6 +375,26 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     if (values.get('TRUST_PROXY') !== String(PROXY_HOPS)) {
       problem(`TRUST_PROXY 必须是反代层数 ${PROXY_HOPS}（宿主 nginx → web 容器 nginx → server）；true 会把客户端自己填的 X-Forwarded-For 当成客户端 IP，按 IP 的限流与审计 IP 都能被伪造：${values.get('TRUST_PROXY')}`);
     }
+    // 发信：发件地址、图片前缀、收件范围是可见事实；凭据与收件名单是可选密钥（见 renderRuntimeEnv）。
+    for (const field of ['MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']) {
+      if (values.has(field) && !isPlainAddress(values.get(field))) problem(`${field} 必须是不带显示名的邮箱地址（例 notify@example.com）：${values.get(field)}`);
+    }
+    const replyTo = values.get('MAIL_REPLY_TO') ?? '';
+    if (replyTo && !isPlainAddress(replyTo)) problem(`MAIL_REPLY_TO 只能留空或写一个不带显示名的邮箱地址：${replyTo}`);
+    if (values.has('MAIL_ASSET_BASE')) {
+      try {
+        parseMailAssetBase(values.get('MAIL_ASSET_BASE'));
+      } catch (error) {
+        problem(error.message);
+      }
+    }
+    const recipients = values.get('MAIL_RECIPIENTS');
+    if (values.has('MAIL_RECIPIENTS')) {
+      if (!MAIL_RECIPIENT_MODES.includes(recipients)) problem(`MAIL_RECIPIENTS 只能是 ${MAIL_RECIPIENT_MODES.join(' 或 ')}：${recipients}`);
+      else if (name === 'preview' && recipients !== 'allowlist') {
+        problem('预发布的 MAIL_RECIPIENTS 必须是 allowlist：预发布只给 MAIL_ALLOWLIST 里的地址发信，不打扰真实报名的人');
+      }
+    }
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,
       stdio: ['ignore', 'ignore', 'ignore'],
@@ -403,19 +477,32 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
   if (!IMAGE_TAG_RE.test(tag)) fail(`IMAGE_TAG 必须是 12 位小写 SHA：${tag}`);
   const updated = new Map(deployment.values);
   const secretFields = [];
-  const pairFilled = OPTIONAL_SECRET_PAIR.map(field => typeof env[field] === 'string' && env[field] !== '');
-  if (pairFilled[0] !== pairFilled[1]) {
-    fail(`${OPTIONAL_SECRET_PAIR.join(' 与 ')} 只配了一项：要么都填（开启 Turnstile），要么都留空（关闭）`);
+  const filled = field => typeof env[field] === 'string' && env[field] !== '';
+  for (const [pair, enable] of [[OPTIONAL_SECRET_PAIR, '开启 Turnstile'], [MAIL_ALIYUN_SECRET_PAIR, '开启阿里云邮件推送']]) {
+    if (filled(pair[0]) !== filled(pair[1])) fail(`${pair.join(' 与 ')} 只配了一项：要么都填（${enable}），要么都留空（关闭）`);
   }
-  const turnstileOff = !pairFilled[0];
+  const turnstileOff = !filled(OPTIONAL_SECRET_PAIR[0]);
+  const mailProviders = [
+    ...(filled(MAIL_ALIYUN_SECRET_PAIR[0]) ? ['aliyun'] : []),
+    ...(filled('MAIL_RESEND_API_KEY') ? ['resend'] : []),
+  ];
+  // 没填的可选密钥照模板写空值（模板里本来就是空）；必填密钥缺一项就失败关闭。
+  const skipped = new Set([
+    ...(turnstileOff ? OPTIONAL_SECRET_PAIR : []),
+    ...[...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS].filter(field => !filled(field)),
+  ]);
   for (const field of SECRET_FIELDS) {
     const value = env[field];
-    if (turnstileOff && OPTIONAL_SECRET_PAIR.includes(field)) {
+    if (skipped.has(field)) {
       updated.set(field, '');
       continue;
     }
     if (typeof value !== 'string' || !value) fail(`缺少环境密钥 ${field}：拒绝生成半配置的运行时环境文件`);
-    if (!SECRET_VALUE_RE.test(value)) fail(`环境密钥 ${field} 含非法字符（不接受空白、引号、$、#）：拒绝写入`);
+    if (field === 'MAIL_ALLOWLIST') {
+      if (!isAddressList(value)) fail('环境密钥 MAIL_ALLOWLIST 必须是英文逗号隔开的邮箱地址（不接受空白、引号、显示名、空项）：拒绝写入');
+    } else if (!SECRET_VALUE_RE.test(value)) {
+      fail(`环境密钥 ${field} 含非法字符（不接受空白、引号、$、#）：拒绝写入`);
+    }
     updated.set(field, value);
     secretFields.push(field);
   }
@@ -425,12 +512,35 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
     const match = /^([A-Z][A-Z0-9_]*)\s*=/.exec(line);
     if (!match || !changed.has(match[1])) return line;
     const value = updated.get(match[1]) ?? '';
-    return `${match[1]}=${/^[A-Za-z0-9._+/=:@~-]*$/.test(value) ? value : `"${value}"`}`;
+    return `${match[1]}=${UNQUOTED_VALUE_RE.test(value) ? value : `"${value}"`}`;
   });
   const header = '# 本文件由 deployment-environment render 渲染（模板 deploy/env/.env.' + environment + '）：含环境密钥，禁止入库、禁止写入日志。';
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${header}\n${lines.join('\n')}`, { mode: 0o600 });
-  return { out, environment, imageTag: tag, secretFields, turnstile: turnstileOff ? 'off' : 'on', bytes: Buffer.byteLength(lines.join('\n')) };
+  // 给操作者的提示：只说哪些功能关着、哪些组合发不出信，不回显任何值。
+  const notices = [];
+  if (turnstileOff) notices.push(`${OPTIONAL_SECRET_PAIR.join('、')} 都为空：Turnstile 关闭，公开表单只靠工作量证明与限流。`);
+  if (!mailProviders.length) {
+    notices.push(`${[...MAIL_ALIYUN_SECRET_PAIR, 'MAIL_RESEND_API_KEY'].join('、')} 都为空：发信关闭，server 把每封信记为「发信没有配置」，一封也不发。`);
+  } else {
+    if (deployment.values.get('MAIL_RECIPIENTS') === 'allowlist' && !filled('MAIL_ALLOWLIST')) {
+      notices.push('MAIL_RECIPIENTS=allowlist 而 MAIL_ALLOWLIST 为空：每封信都记为不在名单里，一封也不发。');
+    }
+    if (deployment.values.get('MAIL_REPLY_TO') && !mailProviders.includes('resend')) {
+      notices.push('MAIL_REPLY_TO 不为空却只配了阿里云：SingleSendMail 不能逐封设 Reply-To，带回复地址的信会以 reply_to_unsupported 失败；配上 Resend，或把 MAIL_REPLY_TO 留空。');
+    }
+  }
+  return {
+    out,
+    environment,
+    imageTag: tag,
+    secretFields,
+    turnstile: turnstileOff ? 'off' : 'on',
+    mail: mailProviders.length ? 'on' : 'off',
+    mailProviders,
+    notices,
+    bytes: Buffer.byteLength(lines.join('\n')),
+  };
 }
 
 const USAGE = `环境契约校验与运行时环境文件渲染：
@@ -471,7 +581,7 @@ function main(argv) {
     console.log(
       `已渲染 ${result.environment} 运行时环境文件：${result.out}（注入 ${result.secretFields.length} 个密钥字段，IMAGE_TAG=${result.imageTag}，${result.bytes} 字节）。值不回显。`,
     );
-    if (result.turnstile === 'off') console.warn(`[提示] ${OPTIONAL_SECRET_PAIR.join('、')} 都为空：Turnstile 关闭，公开表单只靠工作量证明与限流。`);
+    for (const notice of result.notices) console.warn(`[提示] ${notice}`);
     return;
   }
   throw new Error(`未知子命令：${command}`);
