@@ -6,7 +6,7 @@
 
 ## 现状
 
-- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（同一个收件箱 24 小时内只发一封、同一个 IP 一小时最多 5 封且一天最多 20 封、全站每小时最多 200 封，见「上限」）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
+- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（每份成功的投递都发一封，全站每小时最多 200 封，见「上限」；防盗刷改在投递入口限制设备与 IP 频次）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
 - 信写进 `mail_outbox`（[数据模型](data-model.md)），同一件事只有一行。服务进程里的发信循环每 15 秒把到期的信发一遍，写进新信后立刻再发一遍。
 - 发信商按顺序是阿里云邮件推送（SingleSendMail）、Resend。两家都没配置时信照样写一行，记成 `skipped` / `mail_disabled`，不发。
 - 控制台的投递详情显示「已收到」那封和每次改状态那封的结果（`received_mail`、`reviews[].mail`），见 [API](../../architecture/API.md)。

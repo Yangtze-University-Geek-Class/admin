@@ -28,7 +28,7 @@
 
 ## 分支、环境与发布门禁回归
 
-`tests/tooling/deployment-environment.test.ts` 在临时目录合成夹具，验证 `.env.production` / `.env.preview` 的字段契约（非密值必须预填、契约外字段拒绝、密钥必须留空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口与域名必须不同、`TRUST_PROXY` 等于宿主 nginx 与 web 容器 nginx 两层；发信：预发布的 `MAIL_RECIPIENTS` 只能是 `allowlist`，发信密钥可以全部留空，阿里云两项只填一项拒绝，名单格式不对拒绝且报错不带名单内容，发不出信或带不了 Reply-To 的组合给提示）与 [deploy/environments.json](../../deploy/environments.json) 的一致性；它不读取真实密钥、不连接服务器。
+`tests/tooling/deployment-environment.test.ts` 在临时目录合成夹具，验证 `.env.production` / `.env.preview` 的字段契约（非密值必须预填、契约外字段拒绝、密钥必须留空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口与域名必须不同、`TRUST_PROXY` 等于宿主 nginx 与 web 容器 nginx 两层；发信：`MAIL_RECIPIENTS` 只能是 `all` 或 `allowlist`（两个环境模板现在都是 `all`，#169），发信密钥可以全部留空，阿里云两项只填一项拒绝，名单格式不对拒绝且报错不带名单内容，发不出信或带不了 Reply-To 的组合给提示）与 [deploy/environments.json](../../deploy/environments.json) 的一致性；它不读取真实密钥、不连接服务器。
 
 分支不变量由 `scripts/check-branch-invariants.mjs` 检查（`tests/tooling/branch-invariants.test.ts` 用临时 Git 仓库覆盖不变量、命名规则与 pre-push 的发布 tag 规则：格式错误、rc 不在 stage、正式 tag 不在 main、同提交缺 rc 只告警、版本号不符、删除或移动发布 tag、附注 tag、非发布 tag 只告警）：`--require-remote-refs` 在 CI 上核对真实远端 refs，`--push` 供本地 pre-push 使用；本地也可以用同一命令自查（见 [BRANCHING](BRANCHING.md)）。这类检查只读 Git 证据，不 fetch、不改 refs。
 
