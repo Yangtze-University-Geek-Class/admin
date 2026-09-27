@@ -31,3 +31,27 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：git push -u origin task/169/apply_limit（SSH 443）
 - 结果：见 PR 记录
+
+## 15:13:12 +08:00 · 审查 · #169 · 第一轮代码审查：3 条应修（文档一致性）、2 条建议
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Workflow wf_c670a0be-b6c（服务端与部署文档两个视角共 6 个代理，含 4 个反驳核验代理，只读）。审查结果：无阻塞项；3 条应修：mail.md 现状节未同步确认信已取消收件箱与 IP 限量、ENVIRONMENTS/TESTING/DEPLOY 残留预发布只能是 allowlist 陈旧描述、SECURITY 中英文档残留预发布白名单且未提示预发布全员外发风险；2 条建议：apply 路由 1 分钟限流报错返回友好中文、控制台 not_allowlisted 文案去除「预发布」前缀
+- 结果：结论：有条件通过（应修项已定位并可立即闭环）。代理实测核实并发与限流实现无逻辑漏洞
+
+## 15:13:12 +08:00 · 返工 · #169 · 按审查意见闭环：同步所有文档事实、补齐中文限流提示与中性白名单文案
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：1. apply.ts 路由级限流配置 errorResponseBuilder 返回中文「操作太频繁，请稍后再试」；2. applications.ts 与测试同步为中性「未发送（不在白名单）」；3. mail.md、ENVIRONMENTS.md、TESTING.md、DEPLOY.md、SECURITY 中英文档全部完成同步并补齐预发布全员发信安全说明
+- 结果：全量测试与门禁验证通过：tests/server/applications、mail-outbox、tests/console、tests/tooling 110 条全部通过；docs/INDEX、check-docs、check-doc-sync、check-environments 全部 PASS
+
+## 15:13:12 +08:00 · 提交 · #169 · 4da9c91、07c5a43、cfa7e31：按用途拆分提交
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：按业务职责分三个提交：fix(server) 突发限流中文提示、fix(console) 中性白名单文案、docs(deploy) 同步预发布全员发信与确认信不限量的文档事实
+- 结果：提交历史清晰规范，符合 COMMITS.md
+
+## 15:13:12 +08:00 · 推送 · #169 · 推送返工与审查记录
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：git push origin task/169/apply_limit（SSH 443）
+- 结果：准备开 PR
