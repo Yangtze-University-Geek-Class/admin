@@ -27,6 +27,33 @@ const webSite = heredoc(webDockerfile, 'NGINX_SITE');
 const forumSite = heredoc(forumDockerfile, 'NGINX_SITE');
 const locations = (site: string) => new Map([...site.matchAll(/^ {4}location ([^{]+) \{\n([\s\S]*?)^ {4}\}$/gm)].map(match => [match[1], match[2]]));
 
+/**
+ * 宿主 preview.conf 的 443 server 原样取出来，只换监听端口、去掉 TLS、换上游端口，供本机 nginx 实跑。
+ *
+ * 抽成纯函数是为了能在没有 nginx 的机器上核对「替换干净了没有」：判断必须按指令边界（`listen …443;`、
+ * `ssl_*`、`proxy_pass …:18200`）而不是子串——随机端口本身就可能含 443（#168）。
+ */
+export const hostServerFrom = (preview: string, ports: { host: number; web: number }): string => {
+  const server = /^server \{\n {4}listen 443[\s\S]*?^\}$/m.exec(preview)?.[0] ?? '';
+  return server
+    .replace(/^ {4}listen 443[^\n]*\n {4}listen \[::\]:443[^\n]*\n/m, `    listen 127.0.0.1:${ports.host};\n`)
+    .replace(/^ {4}ssl_[^\n]*\n/gm, '')
+    .replace('proxy_pass http://127.0.0.1:18200;', `proxy_pass http://127.0.0.1:${ports.web};`);
+};
+
+/**
+ * 宿主配置里还残留的 TLS / 固定端口指令。按指令边界匹配：`listen 443 ssl;`、`listen [::]:443 ssl http2;`、
+ * `ssl_certificate`、`proxy_pass http://127.0.0.1:18200;` 都算，端口号里碰巧带 443（如 127.0.0.1:44365）不算。
+ */
+export const hostLeftovers = (host: string): string[] => {
+  const patterns: [string, RegExp][] = [
+    ['listen 443', /^\s*listen\s+[^;]*\b443\b[^;]*;/m],
+    ['ssl_*', /^\s*ssl_[a-z_]+\s/m],
+    ['上游 18200', /^\s*proxy_pass\s+[^;]*:18200\b[^;]*;/m],
+  ];
+  return patterns.filter(([, pattern]) => pattern.test(host)).map(([name]) => name);
+};
+
 const YEAR = 'max-age=31536000';
 const WEEK = 'max-age=604800';
 // 宿主加的安全头，加上论坛容器自己的 CSP 与跨域头：长缓存的 location 不能多出、也不能少掉其中任何一个。
@@ -59,6 +86,34 @@ describe('hashed output folders are cached for a year, whatever the file type (c
 });
 
 const nginxBinary = spawnSync('nginx', ['-v'], { encoding: 'utf8' }).status === 0 ? 'nginx' : null;
+
+// #168：这段替换以前用 expect(host).not.toMatch(/ssl|443|18200/) 兜底，整段配置做子串匹配，
+// freePort() 随机取到 44365、14430 这类含 443 的端口时误报失败（CI run 36297382872）。
+// 下面不依赖 nginx，所以在每台机器、每次 CI 都跑：端口固定成已知会踩雷的值，断言替换确实干净；
+// 再把真的残留（listen 443 / ssl_certificate / proxy_pass …:18200）放回去，断言仍能被判出来。
+describe('host config replacement is judged by directive boundaries, not by substring (#168)', () => {
+  const preview = read('deploy/nginx/preview.conf');
+
+  it('a random port that merely contains 443 does not count as leftover TLS', () => {
+    // 44365、14430、24431 都是 freePort() 真能取到的值；443 本身不算：`listen 127.0.0.1:443;` 就是监听 443，
+    // 这时 FAIL 是对的（下面第二条的 `listen 443` 覆盖宿主原文没被替换的情形）。
+    for (const port of [44365, 14430, 24431]) {
+      const host = hostServerFrom(preview, { host: port, web: 44300 + (port % 100) });
+      expect([port, hostLeftovers(host)]).toEqual([port, []]);
+      expect(host).toContain(`listen 127.0.0.1:${port};`);
+      expect(host).toContain('proxy_pass http://127.0.0.1:');
+    }
+  });
+
+  it('still fails when the host config really keeps a 443 listen, TLS directives or the 18200 upstream', () => {
+    const base = hostServerFrom(preview, { host: 44365, web: 14430 });
+    expect(hostLeftovers(base)).toEqual([]);
+    expect(hostLeftovers(base.replace('    listen 127.0.0.1:44365;', '    listen 443 ssl http2;'))).toEqual(['listen 443']);
+    expect(hostLeftovers(base.replace('    listen 127.0.0.1:44365;', '    listen 127.0.0.1:443;'))).toEqual(['listen 443']);
+    expect(hostLeftovers(base.replace('    server_tokens off;', '    ssl_certificate /etc/letsencrypt/live/prev.yangtzeu.work/fullchain.pem;'))).toEqual(['ssl_*']);
+    expect(hostLeftovers(base.replace(/proxy_pass http:\/\/127\.0\.0\.1:\d+;/, 'proxy_pass http://127.0.0.1:18200;'))).toEqual(['上游 18200']);
+  });
+});
 
 describe.skipIf(!nginxBinary)('hashed output folders through host → web → forum (live nginx on loopback)', () => {
   let root = '';
@@ -138,11 +193,8 @@ describe.skipIf(!nginxBinary)('hashed output folders through host → web → fo
     const server = /^server \{\n {4}listen 443[\s\S]*?^\}$/m.exec(preview)?.[0] ?? '';
     expect(map).toContain('$yzgc_preview_csp');
     expect(server).toContain('add_header Content-Security-Policy $yzgc_preview_csp always;');
-    const host = server
-      .replace(/^ {4}listen 443[^\n]*\n {4}listen \[::\]:443[^\n]*\n/m, `    listen 127.0.0.1:${ports.host};\n`)
-      .replace(/^ {4}ssl_[^\n]*\n/gm, '')
-      .replace('proxy_pass http://127.0.0.1:18200;', `proxy_pass http://127.0.0.1:${ports.web};`);
-    expect(host).not.toMatch(/ssl|443|18200/);
+    const host = hostServerFrom(preview, ports);
+    expect(hostLeftovers(host)).toEqual([]);
 
     const temps = ['client', 'proxy', 'fastcgi', 'uwsgi', 'scgi'].map(name => {
       mkdirSync(join(root, `${name}_temp`));
