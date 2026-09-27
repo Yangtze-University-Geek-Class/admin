@@ -47,3 +47,10 @@
 - 做了什么：三个子代理按 /tmp/t148/contract.md 并行实现，主会话集成：t148-server（mail_outbox、阿里云与 Resend 适配器、重试与租约、白名单、投递成功与改状态的触发、GET 详情带每封信的状态、四封信加「你的报名信息」与特长原文、北京时间、按姓称呼含 38 个复姓、去掉评估中并迁移）；t148-console（四个状态、通知投递人一栏与必填校验、提示与按钮随能不能发出而变、审核记录与确认信显示发信状态、控制台时间固定北京时间、样板数据）；t148-deploy（两份 env 的 MAIL_* 字段、可选密钥与阿里云成对校验、预发布必须 allowlist、compose、两个部署工作流的渲染步骤、deploy-manual、文档）。所有者 11:30 说明是按姓称呼（「张同学」），去掉了一度加上的头像。主会话另外发现 cdn.crosery.com 的 Referer 白名单对 https://mail.qq.com/ 回 403（不带 Referer 是 200），给每张图加 referrerpolicy="no-referrer" 并加测试
 - 结果：pnpm verify 退出码 0：pnpm test 59 files / 898 tests，forum 30 files / 541 tests，build 与 forum generate 通过。变异：server 子代理 14 项全被抓到；referrerpolicy 去掉时测试失败。本机 harness（真实路由、临时 SQLite、假的 Resend 把信写到 /tmp/geek148/mails2）在 ego TaskSpace 254 里：1440 宽改成待面试不填时间地点提示两项必填，填好后「保存并发邮件」，审核记录「邮件：已发出」、确认信「已发出」；信里「张同学，你好：」「欧阳同学，你好：」、你的报名信息、投递时间 12:00（北京时间，当时是北京时间 12:00）、特长原文、四张图都加载；375 宽信件无横向滚动；390 宽不在白名单的投递改成未通过，提示「预发布只给白名单里的邮箱发信，这封不会发出」，按钮是「保存」，记录「预发布未发送（不在白名单）」，没有生成信。TaskSpace 已 finish。未验证：真实发信（阿里云、Resend）、QQ 等真实邮件客户端里的显示、referrerpolicy 在网页邮箱里是否生效
 - 下一步：提交，独立审查，开 PR
+
+## 12:06:23 +08:00 · 提交 · #148 · 77a80c6、d7ca6dc、3ef4f14：server、console、deploy 三个提交
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：1e3ba09 合并 origin/stage（只含冲突的 server README 两处）；5295436 docs(notes) 并入 #164 暂存记录；77a80c6 feat(server)、d7ca6dc feat(console)、3ef4f14 feat(deploy)，按服务分组
+- 结果：提交前 pnpm verify 退出码 0（check、test 898、build、forum:check 541、forum:generate）；本地提交，未推送
+- 下一步：独立审查
