@@ -335,6 +335,18 @@ CREATE INDEX IF NOT EXISTS idx_mail_outbox_source ON mail_outbox(kind, source_ha
 CREATE INDEX IF NOT EXISTS idx_mail_outbox_kind_at ON mail_outbox(kind, created_at);
 `);
 
+// 投递次数（#169，routes/portal/apply.ts 的 APPLY_LIMITS）：每份成功的投递按来源 IP 和设备各记一行，
+// 只存 sha256 和时间，超过计数窗口的在下一次投递时删掉。
+db.exec(`
+CREATE TABLE IF NOT EXISTS application_limits (
+  bucket TEXT NOT NULL CHECK (bucket IN ('source','device')),
+  subject_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_application_limits_subject ON application_limits(bucket, subject_hash, created_at);
+CREATE INDEX IF NOT EXISTS idx_application_limits_at ON application_limits(created_at);
+`);
+
 // 投递状态只剩四个（#148）：旧的「评估中」改回「已收到」。每次启动都跑一遍，没有这样的行时什么也不改；
 // application_reviews 里的 reviewing 是历史，不动。
 db.prepare("UPDATE applications SET status = 'received' WHERE status = 'reviewing'").run();

@@ -67,7 +67,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 
 ## 加入我们（投递）
 
-`POST /api/portal/apply` 匿名可提交，准入与邀请落地共用（蜜罐 + PoW + 可选 Turnstile），落库 `applications` 表并写审计；接口细节见 [API](../../architecture/API.md)。前端 PoW 指纹与后端逐字一致：`apply:<姓名>:<邮箱>`（均为 trim 后取值），`pow` 只发 `{ timestamp, nonce }`（`powProof`）。表单的邮箱校验和后端用同一条正则（不收末尾带点、连续的点、引号、反斜杠和 IP 字面量，这些写法会绕开确认信的按收件箱限量，#148），`tests/web/portal-join.test.ts` 核对两边逐字一致。提交成功后才开始折信、封口、投递动画，回执显示服务端返回的编号、时间和原文消息；失败时信纸留在原位并显示错误，不做假成功。
+`POST /api/portal/apply` 匿名可提交，准入与邀请落地共用（蜜罐 + PoW + 可选 Turnstile），落库 `applications` 表并写审计；接口细节见 [API](../../architecture/API.md)。前端 PoW 指纹与后端逐字一致：`apply:<姓名>:<邮箱>`（均为 trim 后取值），`pow` 只发 `{ timestamp, nonce }`（`powProof`）。表单的邮箱校验和后端用同一条正则（不收末尾带点、连续的点、引号、反斜杠和 IP 字面量，这些写法会绕开确认信的按收件箱限量，#148），`tests/web/portal-join.test.ts` 核对两边逐字一致。提交成功后才开始折信、封口、投递动画，回执显示服务端返回的编号、时间和原文消息；失败时信纸留在原位并显示错误，不做假成功；同一台设备或同一个网络 24 小时内投满 5 份时，服务端回 429 `apply_limited`，信纸下面显示服务端给的原话（#169）。
 
 ## 壁纸
 

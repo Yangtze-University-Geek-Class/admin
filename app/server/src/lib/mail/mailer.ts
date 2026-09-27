@@ -19,15 +19,13 @@ export type RecruitmentLetter = { time?: string; place?: string; notes?: string;
 export type MailerDeps = { fetch?: FetchLike; now?: () => number };
 
 /**
- * 投递成功时那封「已收到」的上限（apply.ts）：投递接口不用登录，谁都能填别人的邮箱。
- * 同一个收件箱 24 小时内只发一封；同一个 IP（IPv6 按 /64）一小时最多 5 封、一天最多 20 封，防止一台机器换着邮箱连发；
- * 全站一小时最多 200 封（和论坛游客回复的全站上限一样）。超出的投递照样成功，信记成 skipped。
- * 校园网、宿舍、热点可能共用一个出口 IP（IPv6 同一个 /64）：同一出口一小时里第 6 个、24 小时里第 21 个投递的人起
- * 收不到确认信，投递本身不受影响；同一出口上有人在几小时里投满 20 份，这个出口剩下的大半天都没有确认信。
- * 数字是 2026-09-27 按所有者「单IP里禁止连续发多个邮件」定的，没有真实投递分布做依据，招新时看控制台里
- * source_limited 的多少再调。
+ * 投递成功时那封「已收到」的上限（apply.ts）：每份成功的投递都发一封，只留全站一小时 200 封（和论坛游客回复的
+ * 全站上限一样），防止有人换很多 IP 刷，把发信商的额度用完、改状态的正式通知发不出去。超出的投递照样成功，信记成 skipped。
+ * 所有者 2026-09-27 14:20：「邮件不要做限制吧，不然我这边收不到邮件，没法测试。」防盗刷改在投递这一步（apply.ts 的
+ * APPLY_LIMITS：同一个设备、同一个 IP 24 小时各最多 5 次）。发信队列按收件箱、按来源限量的选项
+ * （recipientWindowMs、perSourceHour、perSourceDay）还在，确认信现在不用。
  */
-export const RECEIVED_LETTER_LIMITS: EnqueueLimits = { recipientWindowMs: 24 * 3600_000, perSourceHour: 5, perSourceDay: 20, perHour: 200 };
+export const RECEIVED_LETTER_LIMITS: EnqueueLimits = { perHour: 200 };
 
 /** 发件地址、回信地址只收一个普通的邮箱地址；错误信息不带配置的值。 */
 function address(value: string, key: string): string {

@@ -148,38 +148,20 @@ describe('applying queues the 已收到 letter', () => {
 });
 
 describe('limits on the 已收到 letter', () => {
-  it('sends one received letter per address in 24 hours; the applications still go through', async () => {
-    const time = clock();
-    const { apply, review, rows, mail, fetch, detail, db } = await setup(BOTH, fakeFetch(), time);
+  it('sends a received letter for every application, the same address included', async () => {
+    const { apply, review, rows, mail, fetch, detail } = await setup(BOTH);
     const first = await apply();
     const second = await apply({ email: ' XIAOMAN.LI@example.test ' });
-    const third = await apply({ name: 'www.evil.example' });
-    expect((db.prepare('SELECT COUNT(*) AS n FROM applications').get() as { n: number }).n).toBe(3);
-    expect(rows().map(row => [row.application_id, row.status, row.skip_reason])).toEqual([
-      [first, 'pending', null], [second, 'skipped', 'recipient_limited'], [third, 'skipped', 'recipient_limited'],
-    ]);
-    expect(rows()[1]).toMatchObject({ recipient: null, html: null, text: null });
+    expect(rows().map(row => [row.application_id, row.status, row.skip_reason])).toEqual([[first, 'pending', null], [second, 'pending', null]]);
     await mail.drain();
-    expect(fetch.calls).toHaveLength(1);
-    expect((await detail(second)).received_mail).toMatchObject({ status: 'skipped', skip_reason: 'recipient_limited' });
-    // 过了 24 小时再投，照常发
-    time.advance(24 * 3600_000);
-    const later = await apply();
-    expect(rows().at(-1)).toMatchObject({ application_id: later, status: 'pending' });
-    // 改状态的信不受这个上限影响
+    expect(fetch.calls).toHaveLength(2);
+    expect((await detail(second)).received_mail).toMatchObject({ status: 'sent', skip_reason: null });
     expect((await review(first, { status: 'accepted' })).statusCode).toBe(200);
     expect(rows().at(-1)).toMatchObject({ kind: 'recruitment.accepted', status: 'pending' });
   });
 
-  it('treats +tags, a trailing dot and Gmail dots as the same inbox, and refuses a domain ending in a dot', async () => {
-    const { app, apply, rows } = await setup(BOTH);
-    await apply({ email: 'victim@gmail.com' });
-    await apply({ email: 'victim+1@gmail.com' });
-    await apply({ email: 'Vic.Tim+x@googlemail.com' });
-    await apply({ email: 'other@example.test' });
-    await apply({ email: 'other+a@example.test' });
-    expect(rows().map(row => row.skip_reason)).toEqual([null, 'recipient_limited', 'recipient_limited', null, 'recipient_limited']);
-    // 末尾带点、连续的点、以点开头的域名，带引号或反斜杠的本地部分、IP 字面量在投递时就拒收
+  it('refuses a domain ending in a dot, quoted or backslashed local parts and IP literals when applying', async () => {
+    const { app, rows } = await setup(BOTH);
     const odd = ['victim@gmail.com.', 'a@b..c', 'a@.b.c', 'vic..tim@gmail.com', '"victim"@gmail.com', 'vi\\ctim@gmail.com', 'victim@[1.2.3.4]'];
     for (const [i, email] of odd.entries()) {
       // 每个换一个来源 IP，不碰每个 IP 每分钟 5 次的限流
@@ -187,50 +169,40 @@ describe('limits on the 已收到 letter', () => {
       expect(response.statusCode, email).toBe(400);
       expect(response.json().fields, email).toHaveProperty('email');
     }
-    expect(rows()).toHaveLength(5);
+    expect(rows()).toHaveLength(0);
   });
 
-  it('folds a domain written with full-width letters, an ideographic full stop or a zero-width space into the same inbox', async () => {
-    const { app, rows } = await setup(BOTH);
-    const emails = ['victim@gmail.com', 'victim@ｇｍａｉｌ.com', 'victim@gmail.com。', 'victim@gmail.com\u200b', 'victim@例子.中国', 'victim@xn--fsqu00a.xn--fiqs8s'];
-    for (const [i, email] of emails.entries()) {
-      // 每个换一个来源 IP，只看按收件箱的上限
-      const response = await app.inject({ method: 'POST', url: '/api/portal/apply', remoteAddress: `203.0.113.${20 + i}`, payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
-      expect(response.statusCode, email).toBe(201);
-    }
-    expect(rows().map(row => row.skip_reason)).toEqual([null, 'recipient_limited', 'recipient_limited', 'recipient_limited', null, 'recipient_limited']);
-  });
+  // 下面几条是发信队列自带的限量选项（按收件箱、按来源）；确认信现在只用全站每小时的上限（#169），这些选项留给以后要用的地方。
+  const letterFor = (mail: Awaited<ReturnType<typeof setup>>['mail']) =>
+    mail.recruitmentLetter('received', { id: 'x', name: '李小满', class_name: '计科2301', email: 'a@example.test', strengths: '一段够长的特长与优点。', created_at: T0 });
 
-  it('sends at most 5 received letters an hour from one IP, grouping IPv6 by /64; the applications still go through', async () => {
-    const { app, rows, db } = await setup(BOTH);
-    const from = (ip: string, n: number) => app.inject({
-      method: 'POST', url: '/api/portal/apply', remoteAddress: ip,
-      payload: { ...APPLICANT, email: `u${n}@example.test`, pow: { timestamp: Date.now(), nonce: 'test' } },
-    });
-    // 同一个 /64 里的六个地址：每个地址自己的每分钟限流碰不到，但算同一个来源
-    for (let n = 1; n <= 6; n += 1) expect((await from(`2001:db8:1:2::${n}`, n)).statusCode).toBe(201);
-    expect((await from('203.0.113.9', 7)).statusCode).toBe(201);
-    expect((db.prepare('SELECT COUNT(*) AS n FROM applications').get() as { n: number }).n).toBe(7);
-    expect(rows().map(row => [row.status, row.skip_reason])).toEqual([
-      ...Array.from({ length: 5 }, () => ['pending', null]), ['skipped', 'source_limited'], ['pending', null],
-    ]);
-    expect(rows()[5]).toMatchObject({ recipient: null, html: null, text: null });
-    // 库里只有来源的哈希，没有 IP
-    expect(rows()[0].source_hash).toBe(sha256('2001:db8:1:2::/64'));
-    expect(rows()[6].source_hash).toBe(sha256('203.0.113.9'));
+  it('folds +tags, a trailing dot, Gmail dots and IDNA spellings into one inbox when a recipient window is set', async () => {
+    const time = clock();
+    const { mail, rows } = await setup(BOTH, fakeFetch(), time);
+    const letter = letterFor(mail);
+    let n = 0;
+    const put = (to: string) => mail.enqueue({ eventKey: `test:${(n += 1)}`, kind: 'recruitment.received', to, mail: letter }, { recipientWindowMs: 24 * 3600_000 }).status;
+    expect(['victim@gmail.com', 'victim+1@gmail.com', 'Vic.Tim+x@googlemail.com', 'victim@ｇｍａｉｌ.com', 'victim@gmail.com。', 'victim@gmail.com\u200b'].map(put))
+      .toEqual(['pending', 'skipped', 'skipped', 'skipped', 'skipped', 'skipped']);
+    expect(rows().at(-1)).toMatchObject({ skip_reason: 'recipient_limited', recipient: null, html: null, text: null });
+    expect(['other@example.test', 'other+a@example.test', 'victim@例子.中国', 'victim@xn--fsqu00a.xn--fiqs8s'].map(put))
+      .toEqual(['pending', 'skipped', 'pending', 'skipped']);
+    // 过了 24 小时再发
+    time.advance(24 * 3600_000);
+    expect(put('victim@gmail.com')).toBe('pending');
   });
 
   it('counts the per-source hour and day windows, and skips the check when there is no source', async () => {
     const time = clock();
     const { mail, rows } = await setup(BOTH, fakeFetch(), time);
-    const letter = mail.recruitmentLetter('received', { id: 'x', name: '李小满', class_name: '计科2301', email: 'a@example.test', strengths: '一段够长的特长与优点。', created_at: T0 });
+    const letter = letterFor(mail);
     let n = 0;
     const put = (source: string | null) => mail.enqueue(
       { eventKey: `test:${(n += 1)}`, kind: 'recruitment.received', to: `u${n}@example.test`, mail: letter, source },
       { perSourceHour: 2, perSourceDay: 3 },
     ).status;
     expect([put('198.51.100.1'), put('198.51.100.1'), put('198.51.100.1')]).toEqual(['pending', 'pending', 'skipped']);
-    expect(rows().at(-1)).toMatchObject({ skip_reason: 'source_limited' });
+    expect(rows().at(-1)).toMatchObject({ skip_reason: 'source_limited', source_hash: sha256('198.51.100.1') });
     expect(put('198.51.100.2')).toBe('pending');
     expect(put(null)).toBe('pending');
     time.advance(3600_000);
@@ -241,18 +213,18 @@ describe('limits on the 已收到 letter', () => {
   });
 
   it('does not count letters that were never going to be sent', async () => {
-    const { apply, rows } = await setup({ ...RESEND_ENV, MAIL_RECIPIENTS: 'allowlist', MAIL_ALLOWLIST: 'friend@example.test' });
-    await apply();
-    await apply();
-    await apply({ email: 'friend@example.test' });
-    await apply({ email: 'Friend@example.test' });
+    const { mail, rows } = await setup({ ...RESEND_ENV, MAIL_RECIPIENTS: 'allowlist', MAIL_ALLOWLIST: 'friend@example.test' });
+    const letter = letterFor(mail);
+    let n = 0;
+    const put = (to: string) => mail.enqueue({ eventKey: `test:${(n += 1)}`, kind: 'recruitment.received', to, mail: letter }, { recipientWindowMs: 24 * 3600_000 });
+    ['stranger@example.test', 'stranger@example.test', 'friend@example.test', 'Friend@example.test'].forEach(put);
     expect(rows().map(row => row.skip_reason)).toEqual(['not_allowlisted', 'not_allowlisted', null, 'recipient_limited']);
   });
 
   it('stops at the hourly cap for one kind of letter, and counts again after the hour', async () => {
     const time = clock();
     const { mail, rows } = await setup(BOTH, fakeFetch(), time);
-    const letter = mail.recruitmentLetter('received', { id: 'x', name: '李小满', class_name: '计科2301', email: 'a@example.test', strengths: '一段够长的特长与优点。', created_at: T0 });
+    const letter = letterFor(mail);
     const put = (n: number) => mail.enqueue({ eventKey: `test:${n}`, kind: 'recruitment.received', to: `u${n}@example.test`, mail: letter }, { perHour: 2 });
     expect([put(1), put(2), put(3)].map(result => result.status)).toEqual(['pending', 'pending', 'skipped']);
     expect(rows()[2]).toMatchObject({ skip_reason: 'rate_limited', recipient: null });
