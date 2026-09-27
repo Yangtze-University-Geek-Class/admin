@@ -45,7 +45,8 @@ export function validateJoin(form: FormState): FieldErrors {
   if (className.length < 2 || className.length > 40) errors.className = "班级写 2 到 40 个字";
   else if (!CLASS_RE.test(className)) errors.className = "班级只能用中文、字母、数字、空格、· 和 -";
   if (!email) errors.email = "请填写邮箱，我们靠它联系你";
-  else if (email.length > 120 || !EMAIL_RE.test(email)) errors.email = "邮箱格式不对，检查一下有没有漏掉 @";
+  else if (email.length > 120) errors.email = "邮箱最多 120 个字符";
+  else if (!EMAIL_RE.test(email)) errors.email = email.includes("@") ? "邮箱格式不对，检查有没有多打的点、逗号或空格" : "邮箱格式不对，检查一下有没有漏掉 @";
   if (strengths.length < 10) errors.strengths = "至少写 10 个字";
   else if (strengths.length > 2000) errors.strengths = "最多 2000 字，请删减一些";
   return errors;
