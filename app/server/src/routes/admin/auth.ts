@@ -2,6 +2,7 @@ import { safeReturnTo } from "../../lib/safe-return.js";
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { readOAuthState, setOAuthState } from "../../middleware/oauth-state.js";
+import { clearSessionCookies, endRejectedSession, isRejectedToken } from "../../middleware/require-auth.js";
 import type { Capability } from "../../lib/roles.js";
 
 /** 普通舰员、领航员默认就有的能力：只有这些时不在头像菜单里显示「控制台」。 */
@@ -84,17 +85,17 @@ export default async function authRoutes(app: FastifyInstance) {
       destroySession(sid);
       if (s) audit(null, s.login, "auth.signout", undefined, undefined, req.ip);
     }
-    reply.clearCookie("sid", { path: "/", domain: config.cookieDomain });
-    reply.clearCookie("forum_sid", { path: "/", domain: config.cookieDomain });
+    clearSessionCookies(reply);
     return { ok: true };
   });
 
   /**
    * `console_link`：官网与论坛的头像菜单是否显示「控制台」。持有 console.access、github.org.read、feedback.read
    * 之外的任意能力才算管理者（提督、舰长、队长、带部门权限包的舰员）；普通舰员和领航员为 false。
-   * 这只决定显不显示入口，控制台的准入仍按能力判定。GitHub 角色查询失败时按 false 处理，不让 /auth/me 失败。
+   * 这只决定显不显示入口，控制台的准入仍按能力判定。GitHub 角色查询失败时按 false 处理，不让 /auth/me 失败；
+   * 只有 GitHub 拒绝了会话里的令牌时例外：会话已经没用，结束它并回 `{ signed_in: false, session_expired: true }`（#164）。
    */
-  app.get("/auth/me", async (req) => {
+  app.get("/auth/me", async (req, reply) => {
     const sid = req.cookies?.sid;
     if (!sid) return { signed_in: false };
     const s = getSession(sid);
@@ -102,9 +103,14 @@ export default async function authRoutes(app: FastifyInstance) {
     const consoleLink = await app.services.access.resolve({ login: s.login, userId: s.user_id, accessToken: s.accessToken })
       .then(access => [...access.capabilities].some(capability => !CONSOLE_LINK_IGNORED.has(capability)))
       .catch((cause: { code?: string; status?: number }) => {
+        if (isRejectedToken(cause)) return null;
         req.log.warn({ code: cause?.code, status: cause?.status, requestId: req.id }, "console link access check failed");
         return false;
       });
+    if (consoleLink === null) {
+      endRejectedSession(req, reply, s);
+      return { signed_in: false, session_expired: true };
+    }
     return { signed_in: true, login: s.login, user_id: s.user_id, avatar_url: s.avatar_url, console_link: consoleLink };
   });
 }

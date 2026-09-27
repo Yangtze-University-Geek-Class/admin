@@ -6,7 +6,7 @@ import { stateRetryDelay, useForumServerStore } from '~/stores/forum-server'
 import { useSessionStore } from '~/stores/session'
 import { checkPow, replyPowBody } from '../shared/pow'
 import type { Answer } from './fixtures/fake-server'
-import { fakeServer, json } from './fixtures/fake-server'
+import { fakeServer, held, json } from './fixtures/fake-server'
 import { MEMBER_VIEWER, MODERATOR_VIEWER, serverBody, serverState, writeBody } from './fixtures/server-state'
 
 function setup() {
@@ -133,6 +133,37 @@ describe('loading the forum from the server', () => {
     expect([0, 1, 2, 3, 9].map(stateRetryDelay)).toEqual([10_000, 20_000, 40_000, 60_000, 60_000])
   })
 
+  it('reads the state again as a guest when the server has just ended the sign-in, instead of showing it as down (#164)', async () => {
+    const calls = fakeServer(json({ error: 'session_expired', message: '登录已失效，请重新登录' }, 401), json(serverBody()))
+    const { session, server } = setup()
+    session.currentUserId = 'm1001'
+    expect(await server.load()).toBe(true)
+    expect(calls.map(call => call.url)).toEqual(['/api/forum/state', '/api/forum/state'])
+    expect(server.status).toBe('ready')
+    expect(server.viewer?.kind).toBe('guest')
+    expect(session.currentUserId).toBeNull()
+    expect(server.signinLapse).toEqual({ count: 1, ended: true, failed: null, message: null })
+    // LoginModal says it, with the 登录 button; the store itself adds no toast.
+    expect(toastStore.items).toEqual([])
+  })
+
+  it('still counts the forum as down when the read after the sign-in ended fails too', async () => {
+    fakeServer(json({ error: 'session_expired', message: '登录已失效，请重新登录' }, 401), () => { throw new TypeError('Failed to fetch') })
+    const { server } = setup()
+    expect(await server.load()).toBe(false)
+    expect(server.status).toBe('error')
+    expect(server.signinLapse.count).toBe(1)
+  })
+
+  it('does not read the state twice for any other 401', async () => {
+    const calls = fakeServer(json({ error: 'http_401' }, 401))
+    const { server } = setup()
+    expect(await server.load()).toBe(false)
+    expect(calls).toHaveLength(1)
+    expect(server.status).toBe('error')
+    expect(server.signinLapse.count).toBe(0)
+  })
+
   it('shares one request between callers that load at the same time', async () => {
     const calls = fakeServer(json(serverBody()))
     const { server } = setup()
@@ -190,15 +221,79 @@ describe('writes against the server', () => {
     expect(toastStore.items[0]?.description).toBe('帖子不存在')
   })
 
-  it('reads the state once more when a write finds the sign-in gone', async () => {
+  it('reads the state once more when a member\'s write finds the sign-in gone, and leaves saying so to LoginModal (#164)', async () => {
+    // Another tab already had the session ended, or it ran out: this tab only gets signin_required.
     const { calls, session, server } = await signedIn(MEMBER_VIEWER, json({ error: 'signin_required', message: '请先登录' }, 401), json(serverBody()))
     expect(await server.toggleBookmark('body-73')).toBeNull()
-    expect(toastStore.items[0]?.description).toBe('请先登录')
+    expect(server.signinLapse).toEqual({ count: 1, ended: false, failed: '没有加上书签', message: '请先登录' })
+    expect(toastStore.items).toEqual([])
+    // The page turns guest before the state is read again.
+    expect(session.currentUserId).toBeNull()
     await vi.waitFor(() => expect(calls).toHaveLength(3))
     expect(calls[2]).toMatchObject({ url: '/api/forum/state', method: 'GET' })
-    await vi.waitFor(() => expect(session.currentUserId).toBeNull())
-    expect(server.viewer?.kind).toBe('guest')
+    await vi.waitFor(() => expect(server.viewer?.kind).toBe('guest'))
     expect(server.status).toBe('ready')
+  })
+
+  it('leaves it to one toast from LoginModal when a write finds the server ended the sign-in (#164)', async () => {
+    const { calls, forum, server } = await signedIn(MEMBER_VIEWER, json({ error: 'session_expired', message: '登录已失效，请重新登录' }, 401), json(serverBody()))
+    expect(await server.toggleBookmark('body-73')).toBeNull()
+    expect(forum.isBookmarked('m1001', 'body-73')).toBe(false)
+    expect(server.signinLapse).toEqual({ count: 1, ended: true, failed: '没有加上书签', message: '登录已失效，请重新登录' })
+    expect(toastStore.items).toEqual([])
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    expect(calls[2]).toMatchObject({ url: '/api/forum/state', method: 'GET' })
+    await vi.waitFor(() => expect(server.viewer?.kind).toBe('guest'))
+  })
+
+  it('turns the page guest at once, so a 429 on the read after the sign-in ended leaves no member controls (#164)', async () => {
+    const { forum, session, server } = await signedIn(MEMBER_VIEWER, json({ error: 'session_expired', message: '登录已失效，请重新登录' }, 401), json({ error: 'rate_limited', message: '操作太频繁，请稍后再试' }, 429))
+    vi.useFakeTimers()
+    try {
+      const before = forum.state
+      expect(await server.toggleBookmark('body-73')).toBeNull()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(toastStore.items.map(item => item.title)).toEqual(['请求太频繁，稍后再试'])
+      expect(server.status).toBe('ready')
+      expect(server.viewer).toBeNull()
+      expect(session.currentUserId).toBeNull()
+      expect(forum.state).toBe(before)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts a second write the member had out as the same lapse, not as a guest\'s refusal (#164)', async () => {
+    const like = held()
+    const bookmark = held()
+    const { server } = await signedIn(MEMBER_VIEWER, like.answer, bookmark.answer, json(serverBody()))
+    const liking = server.toggleLike('p10001')
+    const bookmarking = server.toggleBookmark('body-73')
+    like.release(json({ error: 'signin_required', message: '登录后才能操作' }, 401))
+    expect(await liking).toBeNull()
+    expect(server.viewer).toBeNull()
+    bookmark.release(json({ error: 'signin_required', message: '登录后才能操作' }, 401))
+    expect(await bookmarking).toBeNull()
+    expect(server.signinLapse).toEqual({ count: 2, ended: false, failed: '没有加上书签', message: '登录后才能操作' })
+    expect(toastStore.items).toEqual([])
+  })
+
+  it('turns guest and reads the state again when /auth/me says the server ended the sign-in (#164)', async () => {
+    const { calls, session, server } = await signedIn(MEMBER_VIEWER, json(serverBody()))
+    server.noteSessionEnded()
+    expect(server.viewer).toBeNull()
+    expect(session.currentUserId).toBeNull()
+    expect(server.signinLapse).toEqual({ count: 1, ended: true, failed: null, message: null })
+    await vi.waitFor(() => expect(server.viewer?.kind).toBe('guest'))
+    expect(calls.map(call => call.url)).toEqual(['/api/forum/state', '/api/forum/state'])
+  })
+
+  it('still says a guest\'s refused write itself', async () => {
+    const { server } = await signedIn({ userId: null, kind: 'guest', capabilities: [] }, json({ error: 'signin_required', message: '登录后才能操作' }, 401), json(serverBody()))
+    expect(await server.toggleLike('p10001')).toBeNull()
+    expect(toastStore.items.map(item => [item.title, item.description])).toEqual([['没有赞上', '登录后才能操作']])
+    expect(server.signinLapse.count).toBe(0)
   })
 
   it('reads the state once more when an answer names a different viewer', async () => {

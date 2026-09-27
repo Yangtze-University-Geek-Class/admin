@@ -94,6 +94,34 @@ export function loginPromptToast(prompt: LoginPrompt): PromptToast {
   return { id: 'forum-read-only', title: '现在还不能操作', description: '发帖、回复、点赞和收藏正在接入，现在可以浏览。', signIn: false }
 }
 
+/**
+ * What the forum says once the sign-in turned out to be gone (#164): the server
+ * ended it because GitHub took back the token the session held, or it ended in
+ * another tab or ran out. The page turns guest at the same time.
+ * `failed` is what did not happen because of it (「没有点上赞」); one toast
+ * says both. LoginModal shows it and adds the 登录 action.
+ */
+export function signinLapsedToast(failed: string | null): PromptToast {
+  const next = '请重新用 GitHub 登录。不登录也能看帖和回复。'
+  return {
+    id: 'forum-signin-lapsed',
+    title: failed ?? '登录已失效',
+    description: failed ? `登录已失效，${next}` : next,
+    variant: 'warning',
+    duration: 8000,
+    signIn: true,
+  }
+}
+
+/**
+ * A member's write refused because the server now serves this person as a
+ * guest while they are still signed in: they were taken out of the
+ * organisation (#164). Says what failed and why, with the not-member words.
+ */
+export function refusedNotMemberToast(failed: string): PromptToast {
+  return { id: 'forum-not-member', title: failed, description: UNAVAILABLE_COPY['not-member'].description, variant: 'warning', signIn: false }
+}
+
 /** A guest may reply to an open topic; closing a topic shuts guests out as well. */
 export function guestMayReply(access: ForumAccess, topic: Topic): boolean {
   return access.guestReply && !topic.closed
