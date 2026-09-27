@@ -19,3 +19,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：docker nginx:alpine 1.31.6 经 shim 提供 nginx 命令；按 CI 的办法装 Node 26.10.0 + pnpm 11.24.0 到 .tools/pnpm11（sha512 核对通过），跑 install/check/generate
 - 结果：pnpm check 通过；pnpm test 914 passed / 4 failed（build-mirrors.test.ts，已在未改动的 origin/stage 上复现同样 4 条失败，属预先存在、与本改动无关）；pnpm build 通过；forum:check 541 passed；forum:generate 通过；hashed-asset-cache 6 条在真 nginx 下全通过
+
+## 15:52:41 +08:00 · 提交 · #168 · 改动与执行记录一起提交
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：git commit 33ef829：test(tooling) 宿主配置残留改按 nginx 指令边界判断；含 notes/2026-09-27/zzdr1023/task_168_nginx_port_pattern.md 与 notes/INDEX.md
+- 结果：提交 33ef829，3 个文件 +79/-6；提交前跑过 pnpm check、pnpm test、pnpm build、forum:check、forum:generate 与真 nginx 下的 hashed-asset-cache
