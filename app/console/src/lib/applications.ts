@@ -3,7 +3,7 @@
 // 字段名、长度上限和错误码与服务端 PATCH /api/console/applications/:id 一致（#148）。
 import { fmtDate } from "./format";
 import { ApiError } from "./http";
-import { APPLICATION_STATUS } from "./statuses";
+import { APPLICATION_STATUS, isApplicationStatus } from "./statuses";
 import type { ApplicationLetter, ApplicationReviewPatch, ApplicationStatus, MailSettings, MailSummary } from "./types";
 
 /** 改成这三种状态时给投递人发通知信；改回「已收到」、只写备注都不发。 */
@@ -67,9 +67,12 @@ export function letterPayload(kind: LetterKind, draft: LetterDraft): Application
   return optional("message", draft.message);
 }
 
-/** PATCH 体：只带改了的状态、非空备注；改到要发信的状态时带上 notify，勾了才带信的内容。 */
+/**
+ * PATCH 体：只带改了的状态、非空备注；改到要发信的状态时带上 notify，勾了才带信的内容。
+ * 总是带上页面上看到的状态（expected_status），别人在这之间改过时服务端回 409，不按旧画面改、不发信。
+ */
 export function reviewPatch(input: { current: string; status: ApplicationStatus; note: string; notify: boolean; draft: LetterDraft }): ApplicationReviewPatch {
-  const body: ApplicationReviewPatch = {};
+  const body: ApplicationReviewPatch = isApplicationStatus(input.current) ? { expected_status: input.current } : {};
   const changed = input.status !== input.current;
   if (changed) body.status = input.status;
   if (input.note.trim()) body.note = input.note.trim();
@@ -78,6 +81,12 @@ export function reviewPatch(input: { current: string; status: ApplicationStatus;
     if (input.notify) body.letter = letterPayload(input.status, input.draft);
   }
   return body;
+}
+
+/** 409 status_changed：别人刚改过这份投递的状态。页面刷新后用这句话提示。 */
+export function statusChangedMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "status_changed") return null;
+  return error.message || "这份投递刚被别人改过，看过最新的状态再改。";
 }
 
 /**
@@ -121,6 +130,8 @@ export function mailState(summary: MailSummary | null): { text: string; tone: Ma
     case "skipped":
       if (summary.skip_reason === "not_allowlisted") return { text: "预发布未发送（不在白名单）", tone: "muted" };
       if (summary.skip_reason === "mail_disabled") return { text: "没有发：发信还没有配置", tone: "muted" };
+      if (summary.skip_reason === "recipient_limited") return { text: "没有发：24 小时内已经给这个邮箱发过确认信", tone: "muted" };
+      if (summary.skip_reason === "rate_limited") return { text: "没有发：这一小时发出的确认信已到上限", tone: "muted" };
       return { text: summary.skip_reason ? `没有发：${summary.skip_reason}` : "没有发", tone: "muted" };
     default:
       return { text: String(summary.status), tone: "muted" };

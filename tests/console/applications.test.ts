@@ -3,7 +3,8 @@ import { ApiError } from "../../app/console/src/lib/http";
 import { fmtDate, fmtDay } from "../../app/console/src/lib/format";
 import { APPLICATION_STATUSES, statusMeta } from "../../app/console/src/lib/statuses";
 import {
-  emptyLetterDraft, letterErrors, letterPayload, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, type LetterDraft,
+  emptyLetterDraft, letterErrors, letterPayload, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
+  type LetterDraft,
 } from "../../app/console/src/lib/applications";
 import type { MailSettings, MailSummary } from "../../app/console/src/lib/types";
 
@@ -89,17 +90,33 @@ describe("reviewPatch", () => {
 
   it("sends notify and the letter when the status changes to one that mails", () => {
     expect(reviewPatch({ current: "received", status: "interview", note: " 内部备注 ", notify: true, draft: letter })).toEqual({
-      status: "interview", note: "内部备注", notify: true, letter: { time: "19:00", place: "三教" },
+      expected_status: "received", status: "interview", note: "内部备注", notify: true, letter: { time: "19:00", place: "三教" },
     });
   });
 
   it("sends notify:false and no letter when the reviewer unticks the mail", () => {
-    expect(reviewPatch({ current: "received", status: "interview", note: "", notify: false, draft: letter })).toEqual({ status: "interview", notify: false });
+    expect(reviewPatch({ current: "received", status: "interview", note: "", notify: false, draft: letter })).toEqual({ expected_status: "received", status: "interview", notify: false });
   });
 
   it("sends neither notify nor a letter for going back to received or a note only", () => {
-    expect(reviewPatch({ current: "interview", status: "received", note: "", notify: true, draft: letter })).toEqual({ status: "received" });
-    expect(reviewPatch({ current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ note: "改到周五" });
+    expect(reviewPatch({ current: "interview", status: "received", note: "", notify: true, draft: letter })).toEqual({ expected_status: "interview", status: "received" });
+    expect(reviewPatch({ current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ expected_status: "interview", note: "改到周五" });
+  });
+
+  it("always sends the status the page shows, except a retired one the server would refuse", () => {
+    expect(reviewPatch({ current: "accepted", status: "rejected", note: "", notify: false, draft: letter }).expected_status).toBe("accepted");
+    expect(reviewPatch({ current: "reviewing", status: "received", note: "", notify: true, draft: letter })).toEqual({ status: "received" });
+  });
+});
+
+describe("statusChangedMessage", () => {
+  it("reads the server's 409 status_changed and nothing else", () => {
+    const message = "这份投递刚被别人改成了「已录取」，看过最新的状态再改";
+    expect(statusChangedMessage(new ApiError(409, "status_changed", message))).toBe(message);
+    expect(statusChangedMessage(new ApiError(409, "status_changed", ""))).toBe("这份投递刚被别人改过，看过最新的状态再改。");
+    expect(statusChangedMessage(new ApiError(409, "invitation_exists", "x"))).toBeNull();
+    expect(statusChangedMessage(new ApiError(400, "status_changed", "x"))).toBeNull();
+    expect(statusChangedMessage(new Error("offline"))).toBeNull();
   });
 });
 
@@ -138,6 +155,8 @@ describe("mailState", () => {
     expect(mailState(mail({ status: "failed", attempts: 6 }))).toEqual({ text: "没有发出：发了 6 次都失败了", tone: "danger" });
     expect(mailState(mail({ status: "skipped", skip_reason: "not_allowlisted" })).text).toBe("预发布未发送（不在白名单）");
     expect(mailState(mail({ status: "skipped", skip_reason: "mail_disabled" })).text).toBe("没有发：发信还没有配置");
+    expect(mailState(mail({ status: "skipped", skip_reason: "recipient_limited" })).text).toBe("没有发：24 小时内已经给这个邮箱发过确认信");
+    expect(mailState(mail({ status: "skipped", skip_reason: "rate_limited" })).text).toBe("没有发：这一小时发出的确认信已到上限");
     expect(mailState(null)).toEqual({ text: "没有发", tone: "muted" });
   });
 

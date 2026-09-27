@@ -23,7 +23,8 @@ import { useAction, useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import { APPLICATION_STATUS, APPLICATION_STATUSES, isApplicationStatus, statusMeta } from "../lib/statuses";
 import {
-  LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, type LetterErrors,
+  LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
+  type LetterErrors,
 } from "../lib/applications";
 import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus } from "../lib/types";
 
@@ -53,7 +54,17 @@ const unchanged = computed(() => !detail.data.value || (status.value === current
 
 const review = useAction(async () => {
   const body = reviewPatch({ current: current.value, status: status.value, note: note.value, notify: notify.value, draft: letter });
-  const result = await api<ApplicationReviewResult>(`/api/console/applications/${id.value}`, { method: "PATCH", ...jsonBody(body) });
+  let result: ApplicationReviewResult;
+  try {
+    result = await api<ApplicationReviewResult>(`/api/console/applications/${id.value}`, { method: "PATCH", ...jsonBody(body) });
+  } catch (error) {
+    // 别人刚改过状态：服务端没改也没发信。刷新成最新的状态，填好的信和备注留着，看过再决定。
+    const changed = statusChangedMessage(error);
+    if (!changed) throw error;
+    toast({ title: "没有保存", description: changed, variant: "warning" });
+    await detail.reload();
+    return;
+  }
   note.value = "";
   Object.assign(letter, emptyLetterDraft());
   touched.value = false;
@@ -155,6 +166,7 @@ async function submit() {
             <template #header>
               <h2 class="section-title">处理这份投递</h2>
             </template>
+            <!-- 面试时间、地点是单行输入框：按回车会隐式提交表单并马上发信，所以回车在这两个框里不提交。 -->
             <TxForm v-if="can('applications.review')" :model="{ status, note, notify, ...letter }" label-position="top" class="review-form" @submit="submit">
               <TxFormItem label="状态">
                 <TxSelect v-model="status" :options="statusOptions" :status="serverErrors?.status ? 'error' : 'default'" class="fill-width" />
@@ -175,6 +187,7 @@ async function submit() {
                             class="fill-width"
                             placeholder="例如 9 月 30 日（周三）19:00"
                             autocomplete="off"
+                            @keydown.enter.prevent
                             :maxlength="LETTER_LIMITS.time"
                             :aria-invalid="Boolean(shown.time)"
                           />
@@ -189,6 +202,7 @@ async function submit() {
                             class="fill-width"
                             placeholder="例如 东校区三教 301"
                             autocomplete="off"
+                            @keydown.enter.prevent
                             :maxlength="LETTER_LIMITS.place"
                             :aria-invalid="Boolean(shown.place)"
                           />

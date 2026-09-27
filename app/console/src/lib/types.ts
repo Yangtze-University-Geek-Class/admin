@@ -91,8 +91,13 @@ export type ApplicationDetail = {
 };
 /** 通知信里投递人能看到的内容；notes 与 message 一行一条。 */
 export type ApplicationLetter = { time?: string; place?: string; notes?: string; message?: string };
-/** PATCH /api/console/applications/:id。note 只给审核人看，不进信；notify 默认 true。 */
-export type ApplicationReviewPatch = { status?: ApplicationStatus; note?: string; notify?: boolean; letter?: ApplicationLetter };
+/**
+ * PATCH /api/console/applications/:id。note 只给审核人看，不进信；notify 默认 true。
+ * expected_status 是页面上看到的状态，库里已经被别人改了时服务端回 409 status_changed，不改也不发信。
+ */
+export type ApplicationReviewPatch = {
+  status?: ApplicationStatus; expected_status?: ApplicationStatus; note?: string; notify?: boolean; letter?: ApplicationLetter;
+};
 export type ApplicationReviewResult = { application: ApplicationRecord; review: ApplicationReview };
 
 export type Summary = {

@@ -147,4 +147,11 @@ describe("preview checks an application review like the server does", () => {
     expect(patch({ status: "accepted" })).toBeNull();
     expect(patch({ note: "只写备注" })).toBeNull();
   });
+
+  it("refuses a change made from a stale page, with the server's wording", () => {
+    expect(patch({ status: "accepted", expected_status: "interview" })).toMatchObject({
+      status: 409, code: "status_changed", message: "这份投递刚被别人改成了「已收到」，看过最新的状态再改",
+    });
+    expect(patch({ status: "accepted", expected_status: "received" })).toBeNull();
+  });
 });
