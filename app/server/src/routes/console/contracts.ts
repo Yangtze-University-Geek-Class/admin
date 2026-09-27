@@ -70,8 +70,12 @@ export const consoleContracts: RouteContracts = {
   "GET /api/console/applications/:application_id": { ...noQuery, ...applicationParams },
   "PATCH /api/console/applications/:application_id": {
     ...noQuery, ...applicationParams,
-    // 空 body 交给路由返回 400 no_change，而不是笼统的 validation_error。
-    body: object({ status: choices(...APPLICATION_STATUS_IDS), note: text(2000) }),
+    // 空 body 交给路由返回 400 no_change，而不是笼统的 validation_error；状态值在路由里核对，回 400 invalid_status。
+    // letter 是改状态时发的信的内容（#148）：待面试的时间、地点、说明，已录取的「接下来」，未通过的原因。
+    body: object({
+      status: text(32), note: text(2000), notify: { type: "boolean" },
+      letter: object({ time: text(60), place: text(120), notes: text(1000), message: text(1000) }),
+    }),
   },
   "GET /api/console/feedback": { querystring: object({ status: choices(...FEEDBACK_STATUSES), limit: limit(500) }) },
   "PATCH /api/console/feedback/:id": {

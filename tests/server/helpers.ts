@@ -23,7 +23,8 @@ export async function testApp(overrides: ServiceOverrides = {}, production = fal
     ...env,
   });
   const deny = () => { throw new Error('Unexpected external network request in isolated core test'); };
-  const app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: deny as unknown as ServiceOverrides['httpRequest'], octokitFactory: deny, ...overrides } });
+  // 发信商的请求同样默认拒绝：要发信的用例自己注入 mailFetch
+  const app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: deny as unknown as ServiceOverrides['httpRequest'], octokitFactory: deny, mailFetch: deny as unknown as ServiceOverrides['mailFetch'], ...overrides } });
   await app.ready();
   return { app, close: () => app.close() };
 }

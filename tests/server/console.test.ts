@@ -344,7 +344,7 @@ describe('applications', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.total).toBe(2);
-    expect(body.counts).toEqual({ received: 1, reviewing: 0, interview: 1, accepted: 0, rejected: 0 });
+    expect(body.counts).toEqual({ received: 1, interview: 1, accepted: 0, rejected: 0 });
     expect(Object.keys(body.items[0]).sort()).toEqual(['class_name', 'created_at', 'email', 'id', 'last_review', 'name', 'status', 'strengths_excerpt']);
     expect(body.items[1].strengths_excerpt).toHaveLength(121);
     expect(response.body).not.toMatch(/203\.0\.113\.7|fixture-agent/);
@@ -363,9 +363,9 @@ describe('applications', () => {
     expect((await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'received' } })).json().error).toBe('no_change');
 
     const note = '一面表现不错，约二面时间';
-    const response = await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'interview', note } });
+    const response = await app.inject({ method: 'PATCH', url, headers: as('erin'), payload: { status: 'interview', note, notify: false } });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ application: { id: row.id, status: 'interview' }, review: { from_status: 'received', to_status: 'interview', note, reviewer: 'erin' } });
+    expect(response.json()).toMatchObject({ application: { id: row.id, status: 'interview' }, review: { from_status: 'received', to_status: 'interview', note, reviewer: 'erin', mail: null } });
     const detail = (await app.inject({ url, headers: as('erin') })).json();
     expect(detail.application.strengths).toBe(row.strengths);
     expect(detail.application.source_ip).toBeUndefined();
@@ -373,7 +373,7 @@ describe('applications', () => {
 
     const reviewAudit = audits().find(item => item.action === 'application.review')!;
     expect(reviewAudit.org).toBe(CONSOLE_ORG);
-    expect(JSON.parse(reviewAudit.details!)).toEqual({ from: 'received', to: 'interview', has_note: true });
+    expect(JSON.parse(reviewAudit.details!)).toEqual({ from: 'received', to: 'interview', has_note: true, mail: false });
     expect(JSON.stringify(audits())).not.toContain(note);
     expect(audits().some(item => item.action === 'application.view' && item.org === CONSOLE_ORG)).toBe(true);
     expect((await app.inject({ url: `/api/console/applications/${randomUUID()}`, headers: as('erin') })).statusCode).toBe(404);

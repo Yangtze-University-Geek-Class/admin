@@ -23,8 +23,10 @@ export type EnvelopeFact = { label: string; value: string; mono?: boolean };
 
 export type EnvelopeBlock =
   | { kind: "paragraph"; text: string }
-  | { kind: "facts"; items: readonly EnvelopeFact[] }
-  | { kind: "list"; title?: string; items: readonly string[] };
+  | { kind: "facts"; title?: string; items: readonly EnvelopeFact[] }
+  | { kind: "list"; title?: string; items: readonly string[] }
+  /** 原样引用一段多行文字（例如投递人写的特长与优点），左边一道竖线 */
+  | { kind: "quote"; title: string; text: string };
 
 export type EnvelopeMessage = {
   subject: string;
@@ -83,6 +85,7 @@ const COLOR = {
   cobalt: "#3346c8",
   wash: "#eff0f8",
   rule: "#dcdee9",
+  quote: "#c9cef0",
 } as const;
 
 // 放进 style="…" 属性里，字体名只能用单引号
@@ -130,6 +133,11 @@ export function safeMailLink(raw: string): string {
   return url.href;
 }
 
+/** 发信用的图片地址前缀：只收 https、以 / 结尾。发信模块启动时用它核对 MAIL_ASSET_BASE。 */
+export function safeAssetBase(raw: string): string {
+  return checkAssetBase(raw, false);
+}
+
 function checkAssetBase(raw: string, allowFile: boolean): string {
   let url: URL;
   try {
@@ -157,7 +165,8 @@ export function safeReplyTo(raw: string): string {
   return value;
 }
 
-// 请对方直接回复的写法；信里出现它就必须带 replyTo
+// 请对方直接回复的写法；信里出现它就必须带 replyTo。
+// 只查我们写的段落和列表：事实栏和引用是投递人自己填的内容，写了这几个字也不算我们请人回复。
 const ASKS_FOR_REPLY = /回复这封(邮件|信)|直接回信/;
 
 function asksForReply(message: EnvelopeMessage): boolean {
@@ -184,16 +193,20 @@ export function formatMailDate(at: Date | number): string {
   return `${p.y} 年 ${p.m} 月 ${p.day} 日`;
 }
 
-/** 2026 年 9 月 27 日 01:30（北京时间） */
+/** 2026 年 9 月 27 日 01:30：北京时间，与服务器的 TZ 无关（容器是 UTC） */
 export function formatMailDateTime(at: Date | number): string {
   const p = beijingParts(at);
   return `${formatMailDate(at)} ${String(p.hh).padStart(2, "0")}:${String(p.mm).padStart(2, "0")}`;
 }
 
+/**
+ * 图片部件放在七牛 CDN 上，CDN 开了 Referer 白名单：不带 Referer 的请求放行，带网页邮箱域名（如 https://mail.qq.com/）的会被拦成 403。
+ * 所以每张图都写 referrerpolicy="no-referrer"，认这个属性的客户端取图时不带 Referer。
+ */
 function img(base: string, piece: EnvelopePiece, alt: string, extra: { cls?: string; style?: string } = {}): string {
   const { file, width, height } = ENVELOPE_PIECES[piece];
   const cls = extra.cls ? ` class="${extra.cls}"` : "";
-  return `<img${cls} src="${escapeHtml(base + file)}" width="${width}" height="${height}" alt="${escapeHtml(alt)}" style="display:block;border:0;outline:none;text-decoration:none;${extra.style ?? ""}">`;
+  return `<img${cls} src="${escapeHtml(base + file)}" width="${width}" height="${height}" alt="${escapeHtml(alt)}" referrerpolicy="no-referrer" style="display:block;border:0;outline:none;text-decoration:none;${extra.style ?? ""}">`;
 }
 
 function paragraphHtml(text: string): string {
@@ -201,7 +214,11 @@ function paragraphHtml(text: string): string {
   return `<p class="em-ink" style="margin:0 0 16px;font-family:${FONT};font-size:15px;line-height:1.9;color:${COLOR.ink};${WRAP}">${body}</p>`;
 }
 
-function factsHtml(items: readonly EnvelopeFact[]): string {
+function blockTitleHtml(title: string): string {
+  return `<p class="em-ink" style="margin:0 0 6px;font-family:${FONT};font-size:14px;line-height:1.7;font-weight:600;color:${COLOR.ink};${WRAP}">${escapeHtml(oneLine(title))}</p>`;
+}
+
+function factsHtml(title: string | undefined, items: readonly EnvelopeFact[]): string {
   const rows = items
     .map((item, i) => {
       const border = i === 0 ? "" : `border-top:1px dashed ${COLOR.rule};`;
@@ -212,7 +229,8 @@ function factsHtml(items: readonly EnvelopeFact[]): string {
 </tr>`;
     })
     .join("\n");
-  return `<table role="presentation" class="em-facts" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLOR.wash}" style="width:100%;margin:4px 0 20px;background-color:${COLOR.wash};border-radius:10px;border-collapse:separate;">
+  const head = title ? blockTitleHtml(title) : "";
+  return `${head}<table role="presentation" class="em-facts" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLOR.wash}" style="width:100%;margin:4px 0 20px;background-color:${COLOR.wash};border-radius:10px;border-collapse:separate;">
 <tr><td style="padding:6px 18px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
 ${rows}
@@ -227,9 +245,7 @@ function listItems(items: readonly string[]): string[] {
 }
 
 function listHtml(title: string | undefined, items: readonly string[]): string {
-  const head = title
-    ? `<p class="em-ink" style="margin:0 0 6px;font-family:${FONT};font-size:14px;line-height:1.7;font-weight:600;color:${COLOR.ink};${WRAP}">${escapeHtml(oneLine(title))}</p>`
-    : "";
+  const head = title ? blockTitleHtml(title) : "";
   const rows = items
     .map(
       (item, i) => `<tr>
@@ -241,6 +257,27 @@ function listHtml(title: string | undefined, items: readonly string[]): string {
   return `${head}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 12px;border-collapse:collapse;">
 ${rows}
 </table>`;
+}
+
+function quoteHtml(title: string, text: string): string {
+  const body = escapeHtml(text).replace(/\n/g, "<br>");
+  return `${blockTitleHtml(title)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 20px;border-collapse:collapse;">
+<tr><td class="em-soft em-quote" style="padding:2px 0 2px 14px;border-left:3px solid ${COLOR.quote};font-family:${FONT};font-size:14px;line-height:1.8;color:${COLOR.soft};${WRAP}">${body}</td></tr>
+</table>`;
+}
+
+/**
+ * 抬头的文字：窄屏上要折行时，最后一个「，」之后的部分（「你好：」）不拆开，折在逗号后面，
+ * 不会折成「…同学，你 / 好：」。前面的名字照常断行（长英文名）。
+ */
+function greetingText(greeting: string): string {
+  const cut = greeting.lastIndexOf("，") + 1;
+  if (cut <= 0 || cut === greeting.length) return escapeHtml(greeting);
+  return `${escapeHtml(greeting.slice(0, cut))}<span style="white-space:nowrap;">${escapeHtml(greeting.slice(cut))}</span>`;
+}
+
+function greetingHtml(greeting: string): string {
+  return `<h1 class="em-ink em-h1" style="margin:0;font-family:${FONT};font-size:22px;line-height:1.5;font-weight:700;color:${COLOR.ink};${WRAP}">${greetingText(greeting)}</h1>`;
 }
 
 function actionHtml(action: { label: string; url: string }): string {
@@ -266,6 +303,7 @@ const STYLE = `<style>
   .em-btn { background-color: #4b5de0 !important; }
   .em-link { color: #a3b1ff !important; }
   .em-foot { color: #9aa1c4 !important; }
+  .em-quote { border-color: #3f4780 !important; }
 }
 @media only screen and (max-width: 620px) {
   .em-outer { padding: 12px 8px 28px !important; }
@@ -296,7 +334,11 @@ export function renderEnvelope(message: EnvelopeMessage, options: EnvelopeOption
   const blocks = message.blocks
     .map(block => {
       if (block.kind === "paragraph") return paragraphHtml(block.text);
-      if (block.kind === "facts") return block.items.length ? factsHtml(block.items) : "";
+      if (block.kind === "facts") return block.items.length ? factsHtml(block.title, block.items) : "";
+      if (block.kind === "quote") {
+        const text = multiLine(block.text);
+        return text ? quoteHtml(block.title, text) : "";
+      }
       const items = listItems(block.items);
       return items.length ? listHtml(block.title, items) : "";
     })
@@ -330,7 +372,7 @@ ${STYLE}
 <tr>
 <td valign="bottom" style="padding:0 12px 0 0;">
 <p class="em-kicker" style="margin:0 0 6px;font-family:${FONT};font-size:13px;line-height:1.6;font-weight:600;letter-spacing:0.04em;color:${COLOR.cobalt};${WRAP}">${escapeHtml(kicker)}</p>
-<h1 class="em-ink em-h1" style="margin:0;font-family:${FONT};font-size:22px;line-height:1.5;font-weight:700;color:${COLOR.ink};${WRAP}">${escapeHtml(greeting)}</h1>
+${greetingHtml(greeting)}
 </td>
 <td class="em-stamp-cell" valign="top" align="right" width="29%" style="width:29%;padding:0;">${img(base, "stamp", "", { cls: "em-stamp", style: "width:100%;max-width:150px;height:auto;margin-left:auto;" })}</td>
 </tr>
@@ -383,8 +425,13 @@ function renderText(
   for (const block of message.blocks) {
     if (block.kind === "paragraph") out.push(multiLine(block.text), "");
     else if (block.kind === "facts" && block.items.length) {
+      if (block.title) out.push(oneLine(block.title));
       for (const item of block.items) out.push(`${oneLine(item.label)}：${oneLine(item.value)}`);
       out.push("");
+    } else if (block.kind === "quote") {
+      const text = multiLine(block.text);
+      if (!text) continue;
+      out.push(oneLine(block.title), ...text.split("\n").map(line => `> ${line}`), "");
     } else if (block.kind === "list") {
       const items = listItems(block.items);
       if (!items.length) continue;

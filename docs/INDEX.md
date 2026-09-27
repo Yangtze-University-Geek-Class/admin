@@ -46,7 +46,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`data-model.md`](./services/server/data-model.md) | data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。 | — |
-| [`mail.md`](./services/server/mail.md) | 站内邮件共用的信封模板：一个纯函数把一封信渲染成主题、HTML 和纯文本，版式照官网「加入我们」的信纸；图片只做几个固定尺寸的部件，放在 CDN 上。 | — |
+| [`mail.md`](./services/server/mail.md) | 招新的四封信怎么拼、怎么渲染、怎么排队发出去：信先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。 | — |
 
 ## services/web/
 

@@ -61,6 +61,29 @@ export function createConfig(env: Record<string, string | undefined>) {
   const consoleOrg = (env.CONSOLE_ORG ?? "").trim() || DEFAULT_CONSOLE_ORG;
   if (!GITHUB_LOGIN_REGEX.test(consoleOrg)) throw new Error("CONSOLE_ORG must be a GitHub organization login");
   if (allowedOrgs.length > 0 && !allowedOrgs.includes(consoleOrg.toLowerCase())) throw new Error("ALLOWED_ORGS must include CONSOLE_ORG");
+  // 发信（#148，lib/mail/）：全部可选，都不设时不发信（本机与测试），投递和改状态照常，信记成 skipped/mail_disabled。
+  // 发信商要同时有密钥和发件地址才算配置好；阿里云的两把密钥要么都有、要么都没有。地址格式在 lib/mail/mailer.ts 里核对。
+  const mail = (() => {
+    const value = (key: string) => (env[key] ?? "").trim();
+    const aliyunKeyId = value("MAIL_ALIYUN_ACCESS_KEY_ID");
+    const aliyunKeySecret = value("MAIL_ALIYUN_ACCESS_KEY_SECRET");
+    if (Boolean(aliyunKeyId) !== Boolean(aliyunKeySecret)) throw new Error("MAIL_ALIYUN_ACCESS_KEY_ID and MAIL_ALIYUN_ACCESS_KEY_SECRET must be set together");
+    const aliyunFrom = value("MAIL_ALIYUN_FROM");
+    const resendKey = value("MAIL_RESEND_API_KEY");
+    const resendFrom = value("MAIL_RESEND_FROM");
+    // 预发布只发白名单；没写时按白名单处理（白名单空就谁也不发），正式环境显式写 all。
+    const recipients = value("MAIL_RECIPIENTS").toLowerCase() || "allowlist";
+    if (recipients !== "all" && recipients !== "allowlist") throw new Error("MAIL_RECIPIENTS must be all or allowlist");
+    return {
+      aliyun: aliyunKeyId && aliyunFrom ? { accessKeyId: aliyunKeyId, accessKeySecret: aliyunKeySecret, from: aliyunFrom } : null,
+      resend: resendKey && resendFrom ? { apiKey: resendKey, from: resendFrom } : null,
+      assetBase: value("MAIL_ASSET_BASE") || "https://cdn.crosery.com/yzgc/mail/v1/",
+      // 空 = 信里不请人直接回复，改成指向官网意见箱
+      replyTo: value("MAIL_REPLY_TO") || null,
+      recipients: recipients as "all" | "allowlist",
+      allowlist: [...new Set(value("MAIL_ALLOWLIST").split(",").map(item => item.trim().toLowerCase()).filter(Boolean))],
+    };
+  })();
   return {
     production, port, publicOrigin, host: listenHost, trustProxy, consoleOrg,
     cookieDomain: env.COOKIE_DOMAIN || undefined,
@@ -74,9 +97,11 @@ export function createConfig(env: Record<string, string | undefined>) {
     allowedOrgs,
     turnstile: { siteKey: env.TURNSTILE_SITE_KEY ?? "", secretKey: env.TURNSTILE_SECRET_KEY ?? "" },
     powDifficulty,
+    mail,
   };
 }
 export type AppConfig = ReturnType<typeof createConfig>;
+export type MailConfig = AppConfig["mail"];
 export function loadConfig(): AppConfig {
   loadEnv({ path: resolve(REPO_ROOT, ".env") });
   return createConfig(process.env);

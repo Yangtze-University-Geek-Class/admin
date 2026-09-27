@@ -111,6 +111,8 @@ const FORUM_TABLES = [
   'forum_avatars', 'forum_bookmarks', 'forum_counters', 'forum_follows', 'forum_likes', 'forum_notifications',
   'forum_posts', 'forum_rate_events', 'forum_tags', 'forum_topic_views', 'forum_topics', 'forum_users',
 ];
+/** 发信队列（#148）：同样只新增。 */
+const MAIL_TABLES = ['mail_outbox'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
@@ -208,7 +210,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
 
     // 新表全部建好；旧表一行不少、一列不变。
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
-    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES])].sort());
+    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES, ...MAIL_TABLES])].sort());
     for (const [table, rows] of Object.entries(before.rows)) {
       expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
     }
@@ -258,10 +260,13 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(list).toMatchObject({ total: 1, counts: { received: 1 } });
     const review = await app.inject({
       method: 'PATCH', url: `/api/console/applications/${applicationId}`, headers: as('legacy-session-alice'),
-      payload: { status: 'reviewing', note: '周四面试' },
+      payload: { status: 'interview', note: '周四面试', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } },
     });
     expect(review.statusCode).toBe(200);
-    expect(review.json().application.status).toBe('reviewing');
+    expect(review.json().application.status).toBe('interview');
+    // 测试没有配置发信商：信照样记一行，写成 mail_disabled，不留地址和正文
+    expect(review.json().review.mail).toMatchObject({ status: 'skipped', skip_reason: 'mail_disabled' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM mail_outbox WHERE recipient IS NOT NULL OR html IS NOT NULL').get()).toEqual({ n: 0 });
     expect(db.pragma('foreign_key_check')).toEqual([]);
 
     // 普通组织成员只是极客班成员。
@@ -299,6 +304,30 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(second.services.roles.captain()).toMatchObject({ github_login: 'carol', role: 'captain' });
     const me = (await second.inject({ url: '/api/console/me', headers: as('legacy-session-alice') })).json();
     expect(me).toMatchObject({ github_role: 'admin', title: { id: 'admin' } });
+  });
+
+  it('moves applications left in the retired 评估中 status back to 已收到 and keeps the review history', async () => {
+    const path = legacyDatabase();
+    const first = await boot(path);
+    const { db } = first.services.storage;
+    // #148 之前的库：一份投递停在 reviewing，审核记录里也有 reviewing
+    const id = '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0';
+    db.prepare("INSERT INTO applications(id, name, class_name, email, strengths, status, created_at) VALUES(?, '旧投递', '计科2301', 'old@example.test', '以前投的报名信，停在评估中。', 'reviewing', ?)").run(id, NOW - DAY);
+    db.prepare("INSERT INTO application_reviews(application_id, from_status, to_status, note, reviewer, created_at) VALUES(?, 'received', 'reviewing', NULL, 'alice', ?)").run(id, NOW - DAY);
+    await first.close();
+    apps.splice(apps.indexOf(first), 1);
+
+    const second = await boot(path);
+    const upgraded = second.services.storage.db;
+    expect(upgraded.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
+    expect(upgraded.prepare('SELECT from_status, to_status FROM application_reviews WHERE application_id = ?').all(id)).toEqual([{ from_status: 'received', to_status: 'reviewing' }]);
+    const counts = (await second.inject({ url: '/api/console/applications', headers: as('legacy-session-alice') })).json().counts;
+    expect(counts).toEqual({ received: 1, interview: 0, accepted: 0, rejected: 0 });
+    // 再启动一次什么也不改
+    await second.close();
+    apps.splice(apps.indexOf(second), 1);
+    const third = await boot(path);
+    expect(third.services.storage.db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
   });
 
   it('upgrades a stage-era database (departments, no seed marker) without re-adding deleted defaults', async () => {

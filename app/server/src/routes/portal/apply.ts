@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
+import { MailTemplateError } from "../../lib/mail/envelope.js";
 
 type Body = {
   name?: string;
@@ -76,6 +77,7 @@ export default async function applyRoutes(app: FastifyInstance) {
   const { audit, db } = app.services.storage;
   const { verifyTurnstile } = app.services.turnstile;
   const { preflightPublicSubmission, checkHoneypot } = app.services.publicSubmission;
+  const { mail } = app.services;
 
   app.post<{ Body: Body }>(
     "/api/portal/apply",
@@ -119,6 +121,17 @@ export default async function applyRoutes(app: FastifyInstance) {
         name_length: name.value.length,
         strengths_length: strengths.value.length,
       }, req.ip);
+
+      // 投递已经落库；「已收到」的信拼不出来或写不进队列只记日志（不记地址和正文），不让投递失败。
+      try {
+        const application = { id, name: name.value, class_name: className.value, email: email.value, strengths: strengths.value, created_at: submittedAt };
+        mail.enqueue({
+          eventKey: `application:${id}:received`, kind: "recruitment.received", applicationId: id, to: email.value,
+          mail: mail.recruitmentLetter("received", application),
+        });
+      } catch (error) {
+        req.log.error({ application_id: id, error: error instanceof MailTemplateError ? error.code : (error as Error)?.name ?? "error" }, "received letter not queued");
+      }
 
       return reply.code(201).send({ id, submitted_at: submittedAt, message: SUCCESS_MESSAGE });
     }

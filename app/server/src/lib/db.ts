@@ -300,6 +300,39 @@ CREATE TABLE IF NOT EXISTS forum_rate_events (
 CREATE INDEX IF NOT EXISTS idx_forum_rate_events_subject ON forum_rate_events(bucket, subject, created_at);
 CREATE INDEX IF NOT EXISTS idx_forum_rate_events_at ON forum_rate_events(created_at);
 `);
+
+// 发信队列（#148，lib/mail/outbox.ts）：一个事件一行（event_key 唯一），发出、放弃或跳过之后清掉收件地址和正文，只留哈希和主题。
+db.exec(`
+CREATE TABLE IF NOT EXISTS mail_outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_key TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL,
+  application_id TEXT,
+  review_id INTEGER,
+  recipient TEXT,
+  recipient_hash TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  html TEXT,
+  text TEXT,
+  reply_to TEXT,
+  status TEXT NOT NULL CHECK (status IN ('pending','sending','sent','failed','skipped')),
+  skip_reason TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL,
+  provider TEXT,
+  provider_message_id TEXT,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  sent_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_due ON mail_outbox(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_review ON mail_outbox(review_id);
+`);
+
+// 投递状态只剩四个（#148）：旧的「评估中」改回「已收到」。每次启动都跑一遍，没有这样的行时什么也不改；
+// application_reviews 里的 reviewing 是历史，不动。
+db.prepare("UPDATE applications SET status = 'received' WHERE status = 'reviewing'").run();
 function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
   db.prepare(
     "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
