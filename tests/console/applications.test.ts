@@ -47,7 +47,7 @@ describe("noticePlan", () => {
   });
 
   it("explains why a letter will not go out", () => {
-    expect(noticePlan("received", "interview", true, ALLOWLIST_MISS, EMAIL)).toMatchObject({ sends: false, hint: "预发布只给白名单里的邮箱发信，这封不会发出。" });
+    expect(noticePlan("received", "interview", true, ALLOWLIST_MISS, EMAIL)).toMatchObject({ sends: false, hint: "当前只给白名单里的邮箱发信，这封不会发出。" });
     expect(noticePlan("received", "interview", true, OFF, EMAIL)).toMatchObject({ sends: false, hint: "发信还没有配置，这封不会发出。" });
     expect(noticePlan("received", "interview", false, ALL, EMAIL)).toMatchObject({ notify: false, sends: false, hint: "这次只改状态，不给投递人发邮件。" });
   });
@@ -161,7 +161,7 @@ describe("mailState", () => {
     expect(mailState(mail({ status: "sending", attempts: 1 })).text).toBe("正在发");
     expect(mailState(mail({ status: "pending", attempts: 2 }))).toEqual({ text: "发送失败，等待第 2 次重试", tone: "warning" });
     expect(mailState(mail({ status: "failed", attempts: 6 }))).toEqual({ text: "没有发出：发了 6 次都失败了", tone: "danger" });
-    expect(mailState(mail({ status: "skipped", skip_reason: "not_allowlisted" })).text).toBe("预发布未发送（不在白名单）");
+    expect(mailState(mail({ status: "skipped", skip_reason: "not_allowlisted" })).text).toBe("未发送（不在白名单）");
     expect(mailState(mail({ status: "skipped", skip_reason: "mail_disabled" })).text).toBe("没有发：发信还没有配置");
     expect(mailState(mail({ status: "skipped", skip_reason: "recipient_limited" })).text).toBe("没有发：24 小时内已经给这个邮箱发过确认信");
     expect(mailState(mail({ status: "skipped", skip_reason: "rate_limited" })).text).toBe("没有发：这一小时发出的确认信已到上限");
@@ -177,7 +177,7 @@ describe("mailState", () => {
   it("tells the reviewer what happened to the letter after saving", () => {
     expect(savedMessage(null)).toBe("审核记录已更新。");
     expect(savedMessage(mail({ status: "pending" }))).toBe("通知信正在发，结果记在审核记录里。");
-    expect(savedMessage(mail({ status: "skipped", skip_reason: "not_allowlisted" }))).toBe("这封信没有发出：预发布只给白名单里的邮箱发信。");
+    expect(savedMessage(mail({ status: "skipped", skip_reason: "not_allowlisted" }))).toBe("这封信没有发出：当前只给白名单里的邮箱发信。");
     expect(savedMessage(mail({ status: "skipped", skip_reason: "mail_disabled" }))).toBe("这封信没有发出：发信还没有配置。");
   });
 });

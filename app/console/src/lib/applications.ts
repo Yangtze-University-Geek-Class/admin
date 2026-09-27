@@ -32,7 +32,7 @@ export function noticePlan(current: string, next: ApplicationStatus, notify: boo
   if (!notify) return { ...base, sends: false, hint: "这次只改状态，不给投递人发邮件。" };
   if (!mail.enabled) return { ...base, sends: false, hint: "发信还没有配置，这封不会发出。" };
   if (!mail.deliverable) {
-    const hint = mail.recipients === "allowlist" ? "预发布只给白名单里的邮箱发信，这封不会发出。" : "这封不会发出。";
+    const hint = mail.recipients === "allowlist" ? "当前只给白名单里的邮箱发信，这封不会发出。" : "这封不会发出。";
     return { ...base, sends: false, hint };
   }
   return { ...base, sends: true, hint: `保存后给 ${email} 发「${APPLICATION_STATUS[next].label}」通知信。` };
@@ -139,7 +139,7 @@ export function mailState(summary: MailSummary | null): { text: string; tone: Ma
     case "failed":
       return { text: summary.attempts > 0 ? `没有发出：发了 ${summary.attempts} 次都失败了` : "没有发出", tone: "danger" };
     case "skipped":
-      if (summary.skip_reason === "not_allowlisted") return { text: "预发布未发送（不在白名单）", tone: "muted" };
+      if (summary.skip_reason === "not_allowlisted") return { text: "未发送（不在白名单）", tone: "muted" };
       if (summary.skip_reason === "mail_disabled") return { text: "没有发：发信还没有配置", tone: "muted" };
       if (summary.skip_reason === "recipient_limited") return { text: "没有发：24 小时内已经给这个邮箱发过确认信", tone: "muted" };
       if (summary.skip_reason === "source_limited") return { text: "没有发：同一个网络这段时间投递得太多", tone: "muted" };
@@ -156,7 +156,7 @@ export function savedMessage(mail: MailSummary | null): string {
   if (mail.status === "pending" || mail.status === "sending") return "通知信正在发，结果记在审核记录里。";
   if (mail.status === "sent") return "通知信已发出。";
   if (mail.status === "failed") return "通知信没有发出，详情见审核记录。";
-  if (mail.skip_reason === "not_allowlisted") return "这封信没有发出：预发布只给白名单里的邮箱发信。";
+  if (mail.skip_reason === "not_allowlisted") return "这封信没有发出：当前只给白名单里的邮箱发信。";
   if (mail.skip_reason === "mail_disabled") return "这封信没有发出：发信还没有配置。";
   return "审核记录已更新。";
 }
