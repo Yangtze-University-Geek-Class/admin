@@ -2,7 +2,7 @@
 
 > 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
 
-状态：`current` · 更新：2026-09-27 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+状态：`current` · 更新：2026-09-28 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
 
 ## 可见性规则
 
