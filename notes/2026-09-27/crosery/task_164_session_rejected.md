@@ -42,3 +42,10 @@
 - 做了什么：forum：signinLapse 加 ended、message；fail() 对成员的任何 401 都记一次（session_expired 为 ended），LoginModal 对非 ended 的先 refresh /auth/me：已没登录弹「登录已失效」带登录，还登录着（被移出组织）照原样弹失败原因；noteSignedOut 先清 viewer 与 currentUserId，重读碰上 429 也不留成员按钮；useSiteAccount 读到 session_expired 时也重读论坛。server：http-policy 注释写明 join 不加载会话。文档：data-model.md 两处、SECURITY「登录门槛」加一条、TESTING 把邀请那条写成哨兵、forum README 失败一段、ADOPTION LoginModal。测试：store 改 1 条加 2 条，LoginModal 改 3 条加 2 条，server 加并发只审计一次 1 条
 - 结果：变异核对：fail() 去掉成员条件、noteSignedOut 不清身份、LoginModal 不问 /auth/me，各自对应的测试失败，恢复后通过；server 并发测试在去掉 destroySession 返回值判断时失败。node scripts/forum.mjs check exit 0（30 files / 536 tests），pnpm check exit 0，pnpm test 56 files / 823 tests，check-doc-sync 通过。本机 harness 在 ego 里开两个标签页：A 点书签后会话结束，B 点赞弹「没有赞上 / 登录已失效…」带登录，右上角换回用 GitHub 登录，不再出现「不在组织里」，之后点书签按游客提示「登录后才能继续」。登录跳转丢草稿不在本 PR 改，另开 issue
 - 下一步：提交，第二轮审查
+
+## 08:02:15 +08:00 · PR · #164 · PR #165 回 stage
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：推送 task/164/session_rejected（到 e73a449）；gh pr create --base stage，标签 bug、P0、forum、server；正文 9 段，含改前改后 4 张截图（上传时借 PR #163 的评论框取附件地址，没有发评论）；node scripts/pr-contract.mjs check 通过。另开 #166：点登录整页跳转会丢未发出的草稿（审查建议，本 PR 不做）
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/165；审查结论先按第一轮写有条件通过，第二轮结束后更新
+- 下一步：第二轮审查，CI
