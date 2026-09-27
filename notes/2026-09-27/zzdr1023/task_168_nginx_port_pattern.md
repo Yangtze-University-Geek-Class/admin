@@ -43,3 +43,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：按 .agents/skills/code-review/SKILL.md 取 diff（git diff --merge-base origin/stage...HEAD）逐项核对；补做 4 组独立复核：真残留仍判出、半替换（留 [::]:443）仍判出、端口边界 182001/218200 不算、注释里的 443 不再误报；结论贴在 PR #171 评论（issuecomment-5854003213），被审查 commit 1b481cc
 - 结果：结论：通过；无阻塞与未决应修项；未验证项 3 条已显式列出（未在托管 runner 实跑、未跑 e2e/forum:verify、本机 build-mirrors 4 条预先存在失败已在未改动 origin/stage 复现）
+
+## 16:02:59 +08:00 · 开发 · #168 · CI 全绿：core 在托管 runner 上真跑了 6 条 nginx 用例
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：gh pr checks 171 核对九项检查；取 core job（run 36304732658 / job 108579086451）日志确认 hashed-asset-cache.test.ts 6 tests 未 skip、Test Files 60 passed，并在 PR 补一条进度记录
+- 结果：8dc550a 上全部通过含必需检查 verify (required check)；本机 build-mirrors 4 条失败确认为本地环境问题（托管 runner 通过）
