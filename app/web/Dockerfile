@@ -161,7 +161,8 @@ server {
     }
 
     # ── 后端接口：一个都不能漏（/auth 是 OAuth 回调）──
-    location /api/ {
+    # ^~：前缀命中后不再看下方的未哈希图片正则，防止 /api/forum/avatars/*.webp 等动态文件接口被静态 try_files 拦截出 404
+    location ^~ /api/ {
         proxy_pass http://server:3000;
         include /etc/nginx/conf.d/90-proxy-headers.conf;
     }
