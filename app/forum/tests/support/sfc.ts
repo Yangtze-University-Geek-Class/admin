@@ -96,29 +96,43 @@ export interface LoadOptions {
 }
 
 /** Compiles `app/<path>` into a component object, as Nuxt would build it. */
-export function loadComponent(path: string, { imports = {}, globals = {} }: LoadOptions = {}): Component {
+export function loadComponent(path: string, options: LoadOptions = {}): Component {
   const file = new URL(`../../app/${path}`, import.meta.url)
   const { descriptor, errors } = parse(readFileSync(file, 'utf8'), { filename: file.pathname })
   if (errors.length)
     throw errors[0]
   const { content } = compileScript(descriptor, { id: path, inlineTemplate: true })
-  const js = ts.transpileModule(content, {
+  const exports = evaluate(path, content, options) as { default?: Component }
+  if (!exports.default)
+    throw new Error(`${path} compiled to no component`)
+  return exports.default
+}
+
+/**
+ * Loads `app/<path>`, a plain TypeScript module such as a composable, the same
+ * way and as the client build has it (`import.meta.client` is true there).
+ */
+export function loadModule<T>(path: string, options: LoadOptions = {}): T {
+  const file = new URL(`../../app/${path}`, import.meta.url)
+  return evaluate(path, readFileSync(file, 'utf8').replaceAll('import.meta.client', 'true'), options) as T
+}
+
+function evaluate(path: string, source: string, { imports = {}, globals = {} }: LoadOptions): Record<string, unknown> {
+  const js = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
 
   const modules: Record<string, unknown> = { vue, ...imports }
   const requireModule = (specifier: string) => {
     if (!(specifier in modules))
-      throw new Error(`${path} imports ${specifier}; pass it in loadComponent's imports`)
+      throw new Error(`${path} imports ${specifier}; pass it in the loader's imports`)
     return modules[specifier]
   }
   const scope = { ...Object.fromEntries(VUE_AUTO_IMPORTS.map(name => [name, vue[name]])), ...globals }
-  const exports: { default?: Component } = {}
+  const exports: Record<string, unknown> = {}
   // Evaluating the compiler's output is the point of this loader.
   new Function('require', 'exports', ...Object.keys(scope), js)(requireModule, exports, ...Object.values(scope))
-  if (!exports.default)
-    throw new Error(`${path} compiled to no component`)
-  return exports.default
+  return exports
 }
 
 export interface Mounted {
