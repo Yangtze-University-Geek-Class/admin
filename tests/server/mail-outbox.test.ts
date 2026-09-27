@@ -74,11 +74,11 @@ async function setup(env: Record<string, string> = {}, fetch = fakeFetch(), time
     return response.json().id as string;
   };
   const patch = (id: string, payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: `/api/console/applications/${id}`, headers: alice, payload });
-  // 像刚打开详情页的控制台那样带上当前状态和最新一条审核记录的 id；payload 里写了的以 payload 为准
+  // 像刚打开详情页的控制台那样带上当前状态和审核记录的版本号（最大的 id）；payload 里写了的以 payload 为准
   const seen = (id: string) => {
     const row = db.prepare('SELECT status FROM applications WHERE id = ?').get(id) as { status: string } | undefined;
-    const last = db.prepare('SELECT id FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(id) as { id: number } | undefined;
-    return row ? { expected_status: row.status, expected_review_id: last?.id ?? 0 } : {};
+    const last = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM application_reviews WHERE application_id = ?').get(id) as { id: number };
+    return row ? { expected_status: row.status, expected_review_id: last.id } : {};
   };
   const review = (id: string, payload: Record<string, unknown>) => patch(id, { ...seen(id), ...payload });
   const detail = async (id: string) => (await app.inject({ url: `/api/console/applications/${id}`, headers: alice })).json();
@@ -546,6 +546,25 @@ describe('console status changes', () => {
     const stale = await patch(id, { ...page, status: 'rejected' });
     expect(stale.statusCode).toBe(409);
     expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改' });
+    expect(rows().map(row => row.kind)).toEqual(['recruitment.received', 'recruitment.interview']);
+  });
+
+  it('uses the largest review id, so a server clock stepping back does not hide a change away and back', async () => {
+    const { apply, review, patch, seen, rows } = await setup(BOTH);
+    const id = await apply();
+    expect((await review(id, { note: '先看一眼' })).statusCode).toBe(200);
+    const page = seen(id); // 旧页面：已收到，版本号是第 1 条审核记录
+    const now = Date.now();
+    const back = vi.spyOn(Date, 'now').mockReturnValue(now - 120_000); // 服务器时钟往回拨了 2 分钟
+    try {
+      expect((await review(id, { status: 'interview', letter: { time: '9 月 30 日 19:00', place: '东校区 3 教 301' } })).statusCode).toBe(200);
+      expect((await review(id, { status: 'received' })).statusCode).toBe(200);
+      const stale = await patch(id, { ...page, status: 'rejected' });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json()).toMatchObject({ error: 'status_changed' });
+    } finally {
+      back.mockRestore();
+    }
     expect(rows().map(row => row.kind)).toEqual(['recruitment.received', 'recruitment.interview']);
   });
 

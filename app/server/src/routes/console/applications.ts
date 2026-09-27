@@ -42,8 +42,8 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
 
   const lastReview = db.prepare("SELECT to_status, reviewer, created_at FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
-  // 和详情里 reviews 的顺序一致：reviews[0] 就是这一条
-  const lastReviewId = db.prepare("SELECT id FROM application_reviews WHERE application_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
+  // 审核记录的版本号取最大的 id：id 自增，只会变大；created_at 跟着服务器时钟，时钟往回拨时最新一条不一定排第一
+  const lastReviewId = db.prepare("SELECT COALESCE(MAX(id), 0) AS id FROM application_reviews WHERE application_id = ?");
 
   app.get<{ Querystring: ListQuery }>("/api/console/applications", { preHandler: requireCapability("applications.read") }, async (req) => {
     const { status, q } = req.query;
@@ -127,7 +127,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       if (status !== undefined && !(APPLICATION_STATUS_IDS as string[]).includes(status)) {
         return reply.code(400).send({ error: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
       }
-      // 控制台带上页面上看到的状态和最新一条审核记录的 id（没有记录时是 0）：别人在这之间处理过，就不按旧画面改，
+      // 控制台带上页面上看到的状态和审核记录的版本号（最大的 id，没有记录时是 0）：别人在这之间处理过，就不按旧画面改，
       // 也不发信（改状态的信发出去撤不回来）。只比状态会漏掉「改走又改回」，所以还比审核记录。
       const changedMeanwhile = (message?: string) => {
         const latest = findApplication(current.id) ?? current;
@@ -136,7 +136,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
         });
       };
       const { expected_status: expectedStatus, expected_review_id: expectedReviewId } = req.body;
-      const seenReviewId = (lastReviewId.get(current.id) as { id: number } | undefined)?.id ?? 0;
+      const seenReviewId = (lastReviewId.get(current.id) as { id: number }).id;
       if (expectedStatus !== undefined && expectedStatus !== current.status) return changedMeanwhile();
       if (expectedReviewId !== undefined && expectedReviewId !== seenReviewId) return changedMeanwhile();
       // 要改状态就必须带这两项：部署前打开、还没刷新的旧页面不带，不能让它按旧画面发信。
