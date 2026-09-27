@@ -527,7 +527,7 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
       notices.push('MAIL_RECIPIENTS=allowlist 而 MAIL_ALLOWLIST 为空：每封信都记为不在名单里，一封也不发。');
     }
     if (deployment.values.get('MAIL_REPLY_TO') && !mailProviders.includes('resend')) {
-      notices.push('MAIL_REPLY_TO 不为空却只配了阿里云：SingleSendMail 不能逐封设 Reply-To，带回复地址的信会以 reply_to_unsupported 失败；配上 Resend，或把 MAIL_REPLY_TO 留空。');
+      notices.push('MAIL_REPLY_TO 不为空却只配了阿里云：阿里云适配器还没写按封的回信地址（见 docs/services/server/mail.md「已知限制」），server 按没有配置发信商处理，一封也不发；配上 Resend，或把 MAIL_REPLY_TO 留空。');
     }
   }
   return {

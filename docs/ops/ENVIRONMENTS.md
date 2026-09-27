@@ -8,7 +8,7 @@
 
 1. **环境变量只经 `.env` 文件**，不同环境用不同后缀：`deploy/env/.env.production`、`deploy/env/.env.preview`。
 2. 这两个文件**提交入库**。**非密钥项**（服务地址、端口、域名、路径、开关）全部预填真实值——部署事实直接可见，机器与人都能一眼看清每个环境长什么样。
-3. **密钥项必须留空**（`KEY=`），由 CI/CD 用 GitHub 环境级 secrets 渲染到目标机 `<STACK_ROOT>/.env.<environment>`，仓库里永远没有真值。留空的值在渲染/校验时**失败关闭**：缺密钥就没有部署。
+3. **密钥项必须留空**（`KEY=`），由 CI/CD 用 GitHub 环境级 secrets 渲染到目标机 `<STACK_ROOT>/.env.<environment>`，仓库里永远没有真值。必填的密钥留空时，渲染/校验**失败关闭**：缺必填密钥就没有部署；Turnstile 和发信的几项可以不配，见下文「环境级 secrets」。
 4. 语义上「留空即代表无值」的字段（`COOKIE_DOMAIN`、`ALLOWED_ORGS`、`MAIL_REPLY_TO`）同样留空，但含义明确，不算缺失。
 5. 目标机运行时文件名固定为 `<STACK_ROOT>/.env.production` / `<STACK_ROOT>/.env.preview`，由 `docker compose --env-file <文件> -f deploy/compose/<环境>.yml` 消费。
 6. 禁止把真实密钥写入仓库、镜像、日志或发布记录；不得把某环境的密钥复用到另一环境。
@@ -92,7 +92,7 @@
 
 Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `OPTIONAL_SECRET_PAIR`）：**都为空＝明确关闭**，渲染时写空值并提示；只填一项仍拒绝渲染；除 Turnstile 和下面的发信密钥外，其余密钥一律必填。关闭时服务端 `middleware/turnstile.ts` 不校验人机验证，公开的投递、反馈、邀请只靠工作量证明（`POW_DIFFICULTY`）、蜜罐字段与限流；遗留风险是批量脚本的成本只剩计算量，要开启时在 Cloudflare 建站点后把两项同时配进环境级 secrets 并重新部署。首次上线（2026-09-25）两个环境都关闭。
 
-发信的四项也都可以不配（同一脚本的 `MAIL_ALIYUN_SECRET_PAIR` 与 `OPTIONAL_SECRETS`，#148）。阿里云的 AccessKey ID 和 Secret 是一对，只填一项拒绝渲染；`MAIL_RESEND_API_KEY` 单独一项。server 先用阿里云发，失败再换 Resend；阿里云的 SingleSendMail 不能给单封信设 Reply-To，所以 `MAIL_REPLY_TO` 不为空时带回复地址的信只走 Resend，只配了阿里云的话这些信会失败，render 会提示。阿里云和 Resend 都没配时发信关闭：server 照常启动，投递和改状态照常成功，每封信在发信记录里记为「发信没有配置」，一封也不发，render 同样会提示。`MAIL_RECIPIENTS=allowlist` 时只给 `MAIL_ALLOWLIST` 里的地址发信（不分大小写），其余的信记为不在名单里、不发。预发布只能是 `allowlist`，在预发布上试投递、改状态，不会给真实报名的人发信；名单为空时预发布一封也不发，render 也会提示。名单里是真人的邮箱，属于个人信息，所以和密钥放在一起，不写进模板。渲染时名单只接受英文逗号隔开的邮箱，出错时报错里不带名单内容。
+发信的四项也都可以不配（同一脚本的 `MAIL_ALIYUN_SECRET_PAIR` 与 `OPTIONAL_SECRETS`，#148）。阿里云的 AccessKey ID 和 Secret 是一对，只填一项拒绝渲染；`MAIL_RESEND_API_KEY` 单独一项。server 先用阿里云发，失败再换 Resend；阿里云适配器还没写按封的回信地址（SingleSendMail 有 `ReplyAddress` 参数，没用真实发信试过，见 [mail](../services/server/mail.md)「已知限制」），所以 `MAIL_REPLY_TO` 不为空时信只交给 Resend，只配了阿里云时 server 按没有配置发信商处理、一封也不发，render 会提示。阿里云和 Resend 都没配时发信关闭：server 照常启动，投递和改状态照常成功，每封信在发信记录里记为「发信没有配置」，一封也不发，render 同样会提示。`MAIL_RECIPIENTS=allowlist` 时只给 `MAIL_ALLOWLIST` 里的地址发信（不分大小写），其余的信记为不在名单里、不发。预发布只能是 `allowlist`，在预发布上试投递、改状态，不会给真实报名的人发信；名单为空时预发布一封也不发，render 也会提示。名单里是真人的邮箱，属于个人信息，所以和密钥放在一起，不写进模板。渲染时名单只接受英文逗号隔开的邮箱，出错时报错里不带名单内容。2026-09-27 所有者同意后，`preview` 环境配上了 `MAIL_ALIYUN_ACCESS_KEY_ID`、`MAIL_ALIYUN_ACCESS_KEY_SECRET`、`MAIL_RESEND_API_KEY`；`MAIL_ALLOWLIST` 还没配，所以预发布仍然一封也不发。`production` 环境的发信密钥还没配。
 
 ### vars
 

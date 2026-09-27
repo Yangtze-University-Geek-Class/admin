@@ -452,10 +452,10 @@ describe('optional mail secrets', () => {
     expect(emptyList.result.notices.join('\n')).toMatch(/MAIL_RECIPIENTS=allowlist 而 MAIL_ALLOWLIST 为空/);
     // 正式发给所有人，名单为空不用提示。
     expect(render(without(secrets, ['MAIL_ALLOWLIST']), 'production').result.notices.join('\n')).not.toMatch(/MAIL_ALLOWLIST 为空/);
-    // 只有阿里云时带不了 Reply-To。
+    // 只有阿里云时带不了 Reply-To，server 按没有配置发信商处理。
     const replyTo: [string, string] = ['MAIL_REPLY_TO=\n', 'MAIL_REPLY_TO=geek@example.com\n'];
-    expect(render(without(secrets, ['MAIL_RESEND_API_KEY']), 'production', replyTo).result.notices.join('\n')).toMatch(/reply_to_unsupported/);
-    expect(render(secrets, 'production', replyTo).result.notices.join('\n')).not.toMatch(/reply_to_unsupported/);
+    expect(render(without(secrets, ['MAIL_RESEND_API_KEY']), 'production', replyTo).result.notices.join('\n')).toMatch(/MAIL_REPLY_TO 不为空却只配了阿里云/);
+    expect(render(secrets, 'production', replyTo).result.notices.join('\n')).not.toMatch(/MAIL_REPLY_TO 不为空/);
     // 全部配齐时没有任何提示。
     expect(render(secrets).result.notices).toEqual([]);
   });
