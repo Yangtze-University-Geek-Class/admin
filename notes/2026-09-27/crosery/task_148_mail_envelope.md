@@ -146,3 +146,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：git push origin task/148/mail_envelope（SSH 443），包括 6a74baf..62a6de4、b53d864 和这两个提交
 - 结果：见下一条 PR 记录里的 CI
+
+## 14:00:09 +08:00 · PR · #148 · 更新 PR #167 正文：三轮复审、所有者 13:22 的按 IP 限量、结论通过
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr edit 167：变更范围加按收件箱归并、按 IP 限量、审核记录版本号、官网表单正则；解决链路写按 IP 限量的数字和共用出口的代价；验证加三次 pnpm verify 和三轮变异；验收证据加证据 12（改走又改回后旧页面 409）；人工验收加第 7 步（官网表单）；审查结论写三轮复审逐条处理，c153777 和 bc81afa 已推送不改写，之后按用途分提交；结论改为通过。另外开了 #168（hashed-asset-cache 随机端口带 443 时误报）
+- 结果：pr-contract 通过；b53d864 两路 CI 全部通过，2d32769 的 push 一路 core 因 #168 失败一次，重跑通过
+- 下一步：等 6130a83 之后的 CI，全绿后合并
