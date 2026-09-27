@@ -37,3 +37,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：gh pr create --repo Yangtze-University-Geek-Class/admin --base stage --head ZZDR1023:task/168/nginx_port_pattern --title 'test(tooling): 宿主配置残留改按 nginx 指令边界判断，不再被子串误报' --body-file；正文按 docs/conventions/PULL-REQUESTS.md 九段写全，本地 node scripts/pr-contract.mjs check 通过
 - 结果：PR #171：https://github.com/Yangtze-University-Geek-Class/admin/pull/171，base=stage mergeable=MERGEABLE；pr-contract 与 env-contract、lint-workflows 已 pass；branch-guard 因按设计要求链路里已有「PR」「审查」记录而暂红（审查记录在审查结论给出后补）
+
+## 15:57:59 +08:00 · 审查 · #168 · 自查按 CODE-REVIEW 14 项逐条核对，结论通过
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：按 .agents/skills/code-review/SKILL.md 取 diff（git diff --merge-base origin/stage...HEAD）逐项核对；补做 4 组独立复核：真残留仍判出、半替换（留 [::]:443）仍判出、端口边界 182001/218200 不算、注释里的 443 不再误报；结论贴在 PR #171 评论（issuecomment-5854003213），被审查 commit 1b481cc
+- 结果：结论：通过；无阻塞与未决应修项；未验证项 3 条已显式列出（未在托管 runner 实跑、未跑 e2e/forum:verify、本机 build-mirrors 4 条预先存在失败已在未改动 origin/stage 复现）
