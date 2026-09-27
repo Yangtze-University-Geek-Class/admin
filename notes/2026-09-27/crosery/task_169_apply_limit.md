@@ -55,3 +55,10 @@
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
 - 做了什么：git push origin task/169/apply_limit（SSH 443）
 - 结果：准备开 PR
+
+## 15:16:22 +08:00 · PR · #169 · 开 PR #170：投递按设备和 IP 各限 5 次，预发布全员发信
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create：正文包含 9 个段落、证据 1（本机 harness 浏览器第 6 次投递拦截截图）、三轮复审结论全部闭环并通过
+- 结果：PR #170 建立成功：https://github.com/Yangtze-University-Geek-Class/admin/pull/170
+- 下一步：等 CI 跑完后合并
