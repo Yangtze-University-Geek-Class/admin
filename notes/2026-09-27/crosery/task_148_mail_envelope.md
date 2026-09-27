@@ -54,3 +54,15 @@
 - 做了什么：1e3ba09 合并 origin/stage（只含冲突的 server README 两处）；5295436 docs(notes) 并入 #164 暂存记录；77a80c6 feat(server)、d7ca6dc feat(console)、3ef4f14 feat(deploy)，按服务分组
 - 结果：提交前 pnpm verify 退出码 0（check、test 898、build、forum:check 541、forum:generate）；本地提交，未推送
 - 下一步：独立审查
+
+## 13:02:33 +08:00 · 审查 · #148 · 独立审查 70dd959：有条件通过，没有阻塞项，6 条应修
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：Workflow wf_764bfa5a-fbd：3 个只读审查代理（server、console、deploy 与文档）审 origin/stage...70dd959，每条应修和第一条建议再由一个代理反驳核对（共 12 个代理）。应修：1 PATCH 没有期望状态，两位审核人按旧画面先后改会给投递人发出互相矛盾的信；2 匿名投递可以反复给任意邮箱发带自定义文字的「已收到」，没有按收件人和全站的上限；3 配了 MAIL_REPLY_TO 又只有阿里云时 deliverable 仍是 true，控制台写「保存并发邮件」，信一定失败；4 面试时间、地点输入框里按回车会隐式提交并马上发信；5 server README 说发信回归矩阵见 TESTING，TESTING 没写；6 执行记录还没有 PR（核对为开 PR 之后的正常步骤，不算缺陷）。建议：超时后同一次尝试换 Resend 可能重复发、换发信商发出后 last_error 被清空；CSV 导出仍是 UTC；ENVIRONMENTS 与 render 提示说 SingleSendMail 不能逐封设 Reply-To，和 mail.md 矛盾；复姓清单里的单于；d7ca6dc 的 scope console 不在 COMMITS 词表；.env.example 与 ENVIRONMENT.md 没列 MAIL_*；待面试信的地点和说明发出后控制台看不到
+- 结果：结论：有条件通过（无阻塞，应修待修）。代理跑过：server 82 条与 239 条测试通过、tsc、check-secrets、check-boundaries 通过；复现了旧画面两次 PATCH 发出 3 封信、同一地址投 5 次发出 5 封、只配阿里云加回信地址时 deliverable true 而信 failed、jsdom 里在面试地点按回车发出 1 次 PATCH。审查结论写进 PR 正文
+
+## 13:02:33 +08:00 · 返工 · #148 · 按审查意见返工：期望状态、确认信上限、回车、回信地址、北京时间 CSV、文档
+
+- 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
+- 做了什么：server：PATCH 加 expected_status，和库里不同回 409 status_changed，UPDATE 带 AND status = ? 兜底，不写审核记录也不写信；mail_outbox 的 enqueue 加 limits，apply 传 RECEIVED_LETTER_LIMITS（同一邮箱 24 小时一封、全站每小时 200 封，只数不是 skipped 的），超出记 recipient_limited / rate_limited，投递照样成功，加两个索引；配了 MAIL_REPLY_TO 时只把能带 Reply-To 的发信商交给队列，只有阿里云时按 mail_disabled 处理；换发信商发出后 last_error 留着前一家的错误；新 lib/beijing-time.ts，CSV 列改 created_at_beijing、文件名日期按北京时间；复姓清单去掉单于。console：reviewPatch 总带 expected_status，409 时弹「没有保存」并重读详情；面试时间、地点输入框 @keydown.enter.prevent；两种新的不发原因的说法；样板同样回 409。deploy：render 提示与 ENVIRONMENTS 改成阿里云适配器还没写按封回信地址，规则 3 改成只有必填密钥失败关闭。docs：mail.md（上限、已知限制里补重复发送和地点看不到两条）、API、SECURITY 中英、data-model、console README、TESTING 回归矩阵与隔离、COMMITS 词表加 console、.env.example 与 ENVIRONMENT.md 列出 MAIL_*。建议里没改的：超时后换 Resend 的重复发送（改成等下一轮只会重复更多，写进已知限制）、地点和说明在控制台看不到（写进已知限制）。另外所有者 12:26 同意后，用 gh secret set 把 MAIL_ALIYUN_ACCESS_KEY_ID、MAIL_ALIYUN_ACCESS_KEY_SECRET、MAIL_RESEND_API_KEY 放进 GitHub preview 环境（值经标准输入传，没打印）；MAIL_ALLOWLIST 没配
+- 结果：tsc 与 vue-tsc 通过；vitest tests/server tests/console tests/tooling/deployment-environment.test.ts 19 个文件 344 条通过；变异 13 项全被抓到（去掉收件人上限、去掉每小时上限、skipped 也计数、apply 不传上限、去掉期望状态核对、去掉回信地址过滤、丢掉换发信商前的错误、CSV 回到 UTC、文件名按 UTC、单于放回清单、控制台不带期望状态、样板不回 409、recipient_limited 的说法）。本机 harness 在 ego TaskSpace 3 里：同一邮箱第二次投递的确认信显示「没有发：24 小时内已经给这个邮箱发过确认信」、只发出 2 封；1440 宽在面试地点按回车，PATCH 0 次、审核记录 0 条；另一个会话先改成已录取后在旧画面点「保存并发邮件」，弹「没有保存 这份投递刚被别人改成了「已录取」，看过最新的状态再改」，状态刷新成已录取，信仍是 2 封；CSV 列 created_at_beijing 是 2026-09-27 13:00:04、文件名 applications-20260927.csv。TaskSpace 已 finish，harness 已停
