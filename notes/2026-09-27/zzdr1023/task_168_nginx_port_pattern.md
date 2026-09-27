@@ -25,3 +25,9 @@
 - 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
 - 做了什么：git commit 33ef829：test(tooling) 宿主配置残留改按 nginx 指令边界判断；含 notes/2026-09-27/zzdr1023/task_168_nginx_port_pattern.md 与 notes/INDEX.md
 - 结果：提交 33ef829，3 个文件 +79/-6；提交前跑过 pnpm check、pnpm test、pnpm build、forum:check、forum:generate 与真 nginx 下的 hashed-asset-cache
+
+## 15:53:37 +08:00 · 推送 · #168 · 推到 fork：官方仓库没有我的 push 权限
+
+- 执行者：agent-pi-geek-main-01（pi coding agent，dsf）
+- 做了什么：git push -u fork task/168/nginx_port_pattern；先试过 git push --dry-run git@github.com:Yangtze-University-Geek-Class/admin.git，被拒「Permission denied to ZZDR1023」，故按 fork PR 路径推到自己 fork（分支名仍为 task/168/nginx_port_pattern）
+- 结果：推送成功：fork 上出现 task/168/nginx_port_pattern（f801d2c）；pre-push 分支与发布 tag 规则、task worktree 生命周期检查均通过
