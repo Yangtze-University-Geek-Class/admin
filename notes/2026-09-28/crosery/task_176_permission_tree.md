@@ -57,3 +57,10 @@
 - 做了什么：对 a118317 与本地未提交改动分开审查；评论 PR #179 issuecomment-5867247459，列明后端舰长删部门、无权限导航、布局及静态说明字典问题
 - 结果：PR 保持 Draft，head a118317；评论结论为阻塞；未提交、未推送、未合并；Tuffex registry latest 0.6.0 与当前清单一致
 - 下一步：所有者本地验收后另行决定 MR
+
+## 17:39:55 +08:00 · 提交 · #176 · 本地返工与权限回归入库
+
+- 执行者：agent-codex-permission-redesign（Codex CLI）
+- 做了什么：fix(console): 收敛部门权限并重排成员权限界面；提交 be0613e124f7f36e2488460ea010655937fbbceb（Refs #176），包含代码、测试、契约和此前执行记录
+- 结果：工作树干净；此前 pnpm verify 退出0（根936项、论坛548项），Playwright 关键E2E 6/6，git diff --check通过；提交没有打tag或部署
+- 下一步：追加执行记录，推送 task 分支后更新 PR #179
