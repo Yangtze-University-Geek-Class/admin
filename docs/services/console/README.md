@@ -44,7 +44,7 @@
 
 ### 只读权限树
 
-「成员与权限」第四页签 **权限树**（`/console/people?view=permissions`，[issue #176](https://github.com/Yangtze-University-Geek-Class/admin/issues/176)）沿用父页能力门，不向普通舰员开放。页签切换用路由历史，刷新、前进后退保留 `view` 和原有 `group`；仅当前页签挂载树，不显示「添加称号」等写按钮。原计划已压缩为 [实施结论](../../plan/CONSOLE-PERMISSION-TREE.md)。本地实现不等于已合并或已发布。
+「成员与权限」第四页签 **权限树**（`/console/people?view=permissions`，[issue #176](https://github.com/Yangtze-University-Geek-Class/admin/issues/176)）沿用父页能力门，不向普通舰员开放。页签切换用路由历史，刷新、前进后退保留 `view` 和原有 `group`；仅当前页签挂载树，不显示「添加称号」等写按钮。原计划已压缩为 [实施结论](../../plan/CONSOLE-PERMISSION-TREE.md)；合并、tag 与部署状态以 [issue #176](https://github.com/Yangtze-University-Geek-Class/admin/issues/176) 的追踪记录为准。
 
 - **读取**：复用父页的 departments Resource；进入或返回页签、手工刷新时读取当前 catalogue、部门与本人 `/me`。树单独保留 catalogue 的准确错误，不使用普通徽章的默认标签回落证明成功。任何加载或错误期间隐藏旧树、统计和授权结论；401 走统一登录回跳，403/上游失败显示 HTTP、机器码与 request id，可刷新重读。各接口不是事务快照；来源和结果不一致时显示警告，不覆盖 `/me`。
 - **结论与来源**：本人视角的有效/受限/未授予只取 `/me.capabilities` 与 `blocked`；称号基础包、部门队长/舰员包与现有 `closure` 只解释来源。业务域名称取当前 catalogue，图标为前端映射；称号与未归档部门视角展示对应配置并标「已包含」，不模拟其他人的实际权限。多称号保留多条路径，rank 不继承，领航员不推导普通舰员；归档/缺失部门不参与来源。owner 自动全能力、自动补充 `console.access` 单列说明。配置或身份中的未知 id 原样保留并警告，不据此赋权。

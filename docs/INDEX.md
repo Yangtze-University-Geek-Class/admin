@@ -99,7 +99,7 @@
 
 | 文档 | 说明 | EN |
 |---|---|---|
-| [`CONSOLE-PERMISSION-TREE.md`](./plan/CONSOLE-PERMISSION-TREE.md) | #176 的离线参考与接入计划已落实为本地只读页签；当前契约迁回 console 服务文档。本记录不表示已合并、已发布或通过人工验收。 | — |
+| [`CONSOLE-PERMISSION-TREE.md`](./plan/CONSOLE-PERMISSION-TREE.md) | #176 的离线参考与接入计划已落实为控制台只读页签；当前契约迁回 console 服务文档。本记录是实施结论，不代替人工验收；合并、tag 与部署状态以 issue #176 的追踪记录为准。 | — |
 | [`REFACTOR.md`](./plan/REFACTOR.md) | 历史阶段记录：旧路径、版本、数量和完成声明仅供追溯。 | [EN](./plan/REFACTOR.en.md) |
 | [`WEB-SPLIT.md`](./plan/WEB-SPLIT.md) | 历史阶段记录：旧路径、版本、数量和完成声明仅供追溯。 | [EN](./plan/WEB-SPLIT.en.md) |
 

@@ -64,3 +64,10 @@
 - 做了什么：fix(console): 收敛部门权限并重排成员权限界面；提交 be0613e124f7f36e2488460ea010655937fbbceb（Refs #176），包含代码、测试、契约和此前执行记录
 - 结果：工作树干净；此前 pnpm verify 退出0（根936项、论坛548项），Playwright 关键E2E 6/6，git diff --check通过；提交没有打tag或部署
 - 下一步：追加执行记录，推送 task 分支后更新 PR #179
+
+## 18:00:48 +08:00 · 提交 · #176 · 权限树结论与合同改用合入口径
+
+- 执行者：agent-omp-geek-main-176（OMP）
+- 做了什么：docs(console): 权限树结论使用合入口径；改 docs/plan/CONSOLE-PERMISSION-TREE.md、docs/plan/README.md、docs/services/console/README.md 与 docs/INDEX.md，去掉「本地实现、未合并、根 verify 未通过仍阻塞」等只在合并前成立的说法；node scripts/docs-index.mjs 重新生成索引
+- 结果：docs-index --check 最新；check-docs.mjs 272 份文档链接通过；check-doc-sync.mjs 6 组模块与文档同步通过（按 PR 对 origin/stage）
+- 下一步：推送 task 分支，核对最终 head 的 CI 与门禁

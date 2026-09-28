@@ -1,6 +1,6 @@
 # 控制台权限树实施结论
 
-> #176 的离线参考与接入计划已落实为本地只读页签；当前契约迁回 console 服务文档。本记录不表示已合并、已发布或通过人工验收。
+> #176 的离线参考与接入计划已落实为控制台只读页签；当前契约迁回 console 服务文档。本记录是实施结论，不代替人工验收；合并、tag 与部署状态以 [issue #176](https://github.com/Yangtze-University-Geek-Class/admin/issues/176) 的追踪记录为准。
 
 状态：`historical` · 更新：2026-09-28 · 适用：`app/console` 权限树接入过程。
 
@@ -25,8 +25,8 @@
 - 同步轮根 `verify` 仍退出1：60文件通过、1文件失败；905项通过、1项失败、28项因无 nginx 跳过。失败为 `mail-outbox.test.ts` 批量邮件一半回退 Resend 的用例，15秒内完成38/50。独立32项邮件测试与50封逐一发送 smoke 通过，只能说明独立路径正常，未证明全套失败根因或修复。
 - 同步轮 Windows 浏览器原16项用例全部通过，包括前轮四个信纸场景。仓库外启动器只预先启动同端口5179/5189的 Vite，原 baseURL、chromium 项目、单 worker、零重试、断言、超时、trace 和浏览器参数保持。直接运行原命令仍遇到 webServer 30秒启动超时；首次外部包装漏解包 CJS 默认导出导致9个 invalid URL，是验证脚本错误，不是产品回归。三次日志均保留，不能把适配后通过写成原 Windows 启动链已修复。
 - 同步轮真实路由逐项核对6种身份的20项能力：owner20有效/0受限、captain15/5、招新与社区双队长13/1、自定义领航员3/0、离组队长6/2、普通舰员2/0；动态改名、改包、归档后重读通过。Origin不匹配写请求为403 `invalid_origin`，匹配为200，匿名读取为401。桌面及390px权限树15/5、详情焦点、无横向溢出和无JS错误已实测。
-- 分环境诊断与完整本轮日志在桌面 `权限树-176-同步验证-LYsnowQ-20260928024421`。旧官网 trace 的 CDN 错误来自测试主动 abort，不是 CORS；headless SwiftShader 实测动画时钟夹紧导致墙钟时间变长，但旧超时具体负载未证实。Windows 论坛启动器环境的裸 `node` 探针为 ENOENT，原生 PATH 为成功；旧300秒运行原日志与适配器缺失，不据此断言唯一根因。按审查规范，根 `verify` 未通过，合并结论仍为**阻塞**。
-- 所有者已授权提交、推送本任务分支并创建指向 `stage` 的 PR；邮件批量回退失败已独立交给 `Crosery` 查验落实（[issue #178](https://github.com/Yangtze-University-Geek-Class/admin/issues/178)），本任务不修改邮件功能或放宽门禁。提交、PR、审查与检查状态以 issue 最新追踪和执行记录为准；仍未合入 stage 或发布，根 `verify` 的未决失败不因拆出 issue 而消失。未做预发布/正式人工验收、真实 GitHub OAuth、读屏/对比度专项、移动真机与完整论坛浏览器套件。
+- 分环境诊断与完整本轮日志在桌面 `权限树-176-同步验证-LYsnowQ-20260928024421`。旧官网 trace 的 CDN 错误来自测试主动 abort，不是 CORS；headless SwiftShader 实测动画时钟夹紧导致墙钟时间变长，但旧超时具体负载未证实。Windows 论坛启动器环境的裸 `node` 探针为 ENOENT，原生 PATH 为成功；旧300秒运行原日志与适配器缺失，不据此断言唯一根因。该隔离环境里的根 `verify` 未通过（邮件批量回退用例，独立为 [issue #178](https://github.com/Yangtze-University-Geek-Class/admin/issues/178)），本记录当时按规范给出阻塞；对当前 head 的审查结论以 PR #179 的评论为准。
+- 所有者已授权提交、推送本任务分支并创建指向 `stage` 的 PR；邮件批量回退失败已独立交给 `Crosery` 查验落实（[issue #178](https://github.com/Yangtze-University-Geek-Class/admin/issues/178)），本任务不修改邮件功能或放宽门禁。提交、PR、审查与检查状态以 issue 最新追踪和执行记录为准；#178 的未决问题不因拆出 issue 而消失。未做预发布/正式人工验收、真实 GitHub OAuth、读屏/对比度专项、移动真机与完整论坛浏览器套件。
 
 ## 仓库外离线参考
 
