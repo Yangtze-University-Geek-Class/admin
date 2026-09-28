@@ -71,3 +71,17 @@
 - 做了什么：docs(console): 权限树结论使用合入口径；改 docs/plan/CONSOLE-PERMISSION-TREE.md、docs/plan/README.md、docs/services/console/README.md 与 docs/INDEX.md，去掉「本地实现、未合并、根 verify 未通过仍阻塞」等只在合并前成立的说法；node scripts/docs-index.mjs 重新生成索引
 - 结果：docs-index --check 最新；check-docs.mjs 272 份文档链接通过；check-doc-sync.mjs 6 组模块与文档同步通过（按 PR 对 origin/stage）
 - 下一步：推送 task 分支，核对最终 head 的 CI 与门禁
+
+## 18:01:51 +08:00 · 推送 · #176 · 权限树最终 head 推送任务分支
+
+- 执行者：agent-omp-geek-main-176（OMP）
+- 做了什么：git push origin task/176/permission_tree：fb0e55c（权限树结论合同收口）与其后的本 notes 记录提交；继续用 PR #179（base stage，Draft）。按所有者授权保留 5177 只读样板入口，不推 stage/main、不打 tag
+- 结果：远端任务分支 head 更新，推送后由 CI 对最终 head 重跑；本轮不打 tag 不部署
+- 下一步：核对最终 head 的 CI 与本地门禁，按 CODE-REVIEW 对新 head 出结论
+
+## 18:01:51 +08:00 · 审查 · #176 · 对 #179 最终 head 给出通过结论
+
+- 执行者：agent-omp-geek-main-176（OMP）
+- 做了什么：按 CODE-REVIEW 十四项对 origin/stage...task/176/permission_tree 全 diff（37 文件 +2206/−174）逐项审查，被审代码与文档最后改动为 fb0e55c，其后只有 notes 记录；本地用 Node 22.23.2/pnpm 9.15.9 复跑 pnpm check 与 pnpm test、pnpm build、forum check/generate 与 tests/e2e/workflows.spec.ts；核对远端检查
+- 结果：本地：check 通过（运行时基线 v22.23.2、边界 202 文件 1152 导入、272 文档、6 组 doc-sync、43 条 notes、typecheck）；936/936 测试通过；三条构建通过；论坛 30 文件 548 项、61 路由生成；Playwright workflows 18/18；node scripts/check-branch-invariants.mjs 与 note.mjs check --pr --for-review 通过。审查无阻塞与应修条目，结论通过；旧的 a118317 阻塞评论不改，仅保留为历史。未验证：真实 OAuth 往返、预发布/正式人工验收、读屏对比度专项、移动真机、完整论坛浏览器套件，#178 未宣告根因解决
+- 下一步：更新 PR 正文九段并重跑 pr-contract，随后按 merge commit 合入 stage
