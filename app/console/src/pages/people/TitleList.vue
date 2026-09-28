@@ -24,10 +24,10 @@ const permissions = (title: CatalogueTitle) => {
 
 /** 代码里固定的规则（名字和说明可以改，这些不随之改变）。 */
 function note(title: CatalogueTitle): string {
-  if (title.id === "admin") return "GitHub 组织的所有者自动获得，不能指派，权限固定为全部。";
-  if (title.id === "head") return `徽章显示为「部门名 · ${title.label}」，用部门的图标和色调；另加部门的权限包。`;
-  if (title.id === "member") return `有部门时徽章显示为「部门名 · ${title.label}」，用部门的图标和中性色调，另加部门的权限包。GitHub 组织的成员没有别的称号时自动获得。`;
-  if (title.id === "guest") return "没有任何称号的人，不能指派，没有权限。";
+  if (title.id === "admin") return "由 GitHub 组织所有者自动获得，不能指派。";
+  if (title.id === "head") return "任职部门的权限会叠加在此称号之上。";
+  if (title.id === "member") return "组织成员自动获得；加入部门后叠加部门权限。";
+  if (title.id === "guest") return "没有称号和权限，不能指派。";
   return "";
 }
 
@@ -37,26 +37,22 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
 
 <template>
   <div class="title-list">
-    <p class="title-list__intro">称号的名字、英文标签、图标、色调、说明和权限都可以在这里改，保存后立即生效。</p>
+    <div class="title-list__heading"><h2>称号</h2><span>{{ ordered.length }} 个</span></div>
     <article v-for="title in ordered" :key="title.id" class="title-item">
       <div class="title-item__head">
-        <span class="title-item__badge"><TitleBadge :title="{ ...title, department: null }" size="md" /></span>
         <div class="title-item__text">
-          <h3>
-            {{ title.label }}
-            <span class="mono title-item__tag">{{ title.tag }}</span>
-          </h3>
+          <h3><TitleBadge :title="{ ...title, department: null }" size="md" /><span class="mono title-item__tag">{{ title.tag }}</span></h3>
           <p class="muted">{{ title.description || "没有填写说明" }}</p>
           <p v-if="note(title)" class="title-item__note">{{ note(title) }}</p>
         </div>
+        <span class="title-item__count">{{ title.id === 'admin' ? '全部权限' : `${permissions(title).length} 项基础权限` }}</span>
         <TxButton v-if="editable(title)" size="sm" icon="i-carbon-edit" :aria-label="`编辑「${title.label}」`" @click="editing = title">编辑</TxButton>
         <span v-else class="muted title-item__locked">只有{{ adminLabel }}能改</span>
       </div>
-      <div class="title-item__caps">
-        <h4>权限</h4>
+      <div v-if="title.id !== 'guest'" class="title-item__caps">
         <div class="tags">
           <TxTag v-if="title.id === 'admin'" label="全部权限" size="sm" variant="soft" />
-          <span v-else-if="title.id === 'guest' || !permissions(title).length" class="muted">没有权限</span>
+          <span v-else-if="!permissions(title).length" class="muted">没有配置基础权限</span>
           <template v-else>
             <TxTag v-for="label in permissions(title)" :key="label" :label="label" size="sm" variant="plain" />
           </template>
@@ -77,15 +73,17 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
   display: flex;
   flex-direction: column;
 }
-.title-list__intro {
-  margin: 0;
-  padding: 12px 20px;
-  font-size: 13px;
-  color: var(--tx-text-color-secondary);
+.title-list__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 20px 24px 14px;
   border-bottom: 1px solid var(--tx-border-color-lighter);
 }
+.title-list__heading h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.title-list__heading span { font-size: 13px; color: var(--tx-text-color-secondary); }
 .title-item {
-  padding: 16px 20px;
+  padding: 22px 24px;
   border-bottom: 1px solid var(--tx-border-color-lighter);
 }
 .title-item:last-child {
@@ -94,25 +92,21 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
 .title-item__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 12px;
-}
-.title-item__badge {
-  flex: 0 0 132px;
-  padding-top: 2px;
+  align-items: center;
+  gap: 12px 20px;
 }
 .title-item__text {
-  flex: 1 1 260px;
+  flex: 1 1 320px;
   min-width: 0;
 }
 .title-item__text h3 {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
 }
 .title-item__tag {
   font-size: 12px;
@@ -120,28 +114,29 @@ const editOpen = computed({ get: () => editing.value !== null, set: value => { i
   color: var(--tx-text-color-secondary);
 }
 .title-item__text p {
-  margin: 2px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
 }
 .title-item__note {
   color: var(--tx-text-color-secondary);
 }
-.title-item__caps {
-  margin-top: 12px;
-  padding-left: 144px;
-}
-.title-item__caps h4 {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 500;
+.title-item__count {
   color: var(--tx-text-color-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.title-item__caps {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--tx-border-color-lighter);
 }
 @media (max-width: 900px) {
-  .title-item__badge {
-    flex-basis: 100%;
+  .title-item__head {
+    align-items: flex-start;
   }
-  .title-item__caps {
-    padding-left: 0;
+  .title-item__count {
+    flex-basis: 100%;
   }
 }
 </style>

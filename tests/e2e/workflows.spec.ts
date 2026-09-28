@@ -133,6 +133,7 @@ test("console navigation follows the persona's capabilities", async ({ page }) =
   const nav = page.getByRole("navigation", { name: "控制台导航" });
   await openConsole(page, "/console", "captain");
   await expect(nav.getByRole("button", { name: "审计日志" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: /邀请/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "概览", level: 1 })).toBeVisible();
 
   await openConsole(page, "/console", "member");
@@ -141,7 +142,14 @@ test("console navigation follows the persona's capabilities", async ({ page }) =
   await expect(nav.getByRole("button", { name: "成员与权限" })).toHaveCount(0);
 
   await openConsole(page, "/console", "recruitment");
-  await expect(nav.getByRole("button", { name: /邀请链接（需要 GitHub 组织管理员身份）/ })).toBeDisabled();
+  await expect(nav.getByRole("button", { name: /邀请/ })).toHaveCount(0);
+
+  await openConsole(page, "/console/github/invite-links", "captain");
+  await expect(page.getByText("你没有「管理邀请」权限")).toBeVisible();
+
+  await openConsole(page, "/console", "admin");
+  await expect(nav.getByRole("button", { name: "邀请", exact: true })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "邀请链接", exact: true })).toBeVisible();
 
   await openConsole(page, "/console", "guest");
   await expect(page.getByRole("heading", { name: "你还不能使用控制台" })).toBeVisible();
@@ -163,6 +171,7 @@ test("signed-out visitors land on the GitHub sign-in page with a return path", a
 test("people are grouped by department like a contacts list, with lead and superior, and no in-page search", async ({ page }) => {
   await openConsole(page, "/console/people");
   await expect(page.getByRole("heading", { name: "成员与权限", level: 1 })).toBeVisible();
+  for (const name of ["成员", "称号", "部门", "权限树"]) await expect(page.getByRole("tab", { name, exact: true })).toBeVisible();
   const groups = page.getByRole("navigation", { name: "按部门查看" });
   for (const name of ["全部成员", "招新部", "技术部", "社区部", "项目部", "没有部门"]) await expect(groups.getByRole("button", { name: new RegExp(`^${name}`) })).toBeVisible();
   await expect(page.getByRole("searchbox")).toHaveCount(0);
@@ -176,9 +185,33 @@ test("people are grouped by department like a contacts list, with lead and super
   expect(logins).toEqual(["@li-xiaoman", "@fang-lin", "@he-miao"]);
 });
 
+test("captain can inspect departments but only the admiral sees department write actions", async ({ page }) => {
+  await openConsole(page, "/console/people?view=departments", "captain");
+  await expect(page.getByRole("button", { name: "编辑权限" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "删除部门" })).toHaveCount(0);
+  await openConsole(page, "/console/people?view=departments", "admin");
+  await expect(page.getByRole("button", { name: "编辑权限" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "删除部门" }).first()).toBeVisible();
+});
+
+test("member groups are spacious and the roster scrolls inside a bounded panel", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openConsole(page, "/console/people");
+  await expect(page.locator(".people-table-scroll")).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const groups = document.querySelector<HTMLElement>(".group-list")!;
+    const panel = document.querySelector<HTMLElement>(".group-panel")!;
+    const roster = document.querySelector<HTMLElement>(".people-table-scroll")!;
+    return { groupWidth: groups.getBoundingClientRect().width, panelHeight: panel.getBoundingClientRect().height, rosterHeight: roster.clientHeight, rosterContentHeight: roster.scrollHeight };
+  });
+  expect(layout.groupWidth).toBeGreaterThanOrEqual(270);
+  expect(layout.panelHeight).toBeLessThanOrEqual(720);
+  expect(layout.rosterContentHeight).toBeGreaterThan(layout.rosterHeight);
+});
+
 test("no native select or checkbox is visible; permission bundles use Tuffex checkboxes", async ({ page }) => {
-  await openConsole(page, "/console/people?view=departments");
-  await page.getByRole("button", { name: "编辑权限包" }).first().click();
+  await openConsole(page, "/console/people?view=departments", "admin");
+  await page.getByRole("button", { name: "编辑权限" }).first().click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("checkbox").first()).toBeVisible();
   const native = await page.evaluate(() => [...document.querySelectorAll("select, input[type=checkbox]")].filter(el => {
@@ -190,7 +223,10 @@ test("no native select or checkbox is visible; permission bundles use Tuffex che
 
 test("destructive confirmation starts on Cancel and cancelling sends nothing", async ({ page }) => {
   await openConsole(page, "/console/people");
-  await page.getByRole("button", { name: "撤销" }).first().click();
+  const details = page.getByRole("button", { name: "查看 @li-xiaoman 的称号详情" });
+  await expect(page.getByRole("button", { name: /撤销 @li-xiaoman/ })).toHaveCount(0);
+  await details.click();
+  await page.getByRole("button", { name: /撤销 @li-xiaoman/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("button", { name: "取消" })).toBeFocused();
   await page.keyboard.press("Escape");

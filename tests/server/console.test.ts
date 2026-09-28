@@ -307,7 +307,7 @@ describe('assignments', () => {
 });
 
 describe('departments', () => {
-  it('seeds four default departments and lets the captain add one without code changes', async () => {
+  it('seeds four default departments and lets the admiral add one without code changes', async () => {
     const { app, as, audits } = await setup({ alice: 'admin', bob: 'member' });
     const listed = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
     expect(listed.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
@@ -331,6 +331,27 @@ describe('departments', () => {
     expect(JSON.parse(update.details!)).toEqual({ changed: ['archived'] });
     const after = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
     expect(after.at(-1)).toMatchObject({ id: 'publicity', archived: true });
+  });
+
+  it('reserves department creation, edits and deletion for GitHub org owners, even when the captain has roles.manage', async () => {
+    const { app, as, assign, audits } = await setup({ alice: 'admin', bob: 'member' });
+    assign('bob', 'captain');
+    const captain = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
+    expect(captain.capabilities).toContain('roles.manage');
+
+    const requests = [
+      { method: 'POST' as const, url: '/api/console/departments', payload: { id: 'new', name: '新部门', tag: 'NEW', icon: 'user', tone: 'slate', head_capabilities: [], member_capabilities: [] } },
+      { method: 'PATCH' as const, url: '/api/console/departments/tech', payload: { name: '改名' } },
+      { method: 'DELETE' as const, url: '/api/console/departments/tech' },
+    ];
+    for (const request of requests) {
+      const response = await app.inject({ ...request, headers: as('bob') });
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({ error: 'admiral_required' });
+    }
+    const departments = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
+    expect(departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
+    expect(audits().filter(row => row.action.startsWith('department.'))).toHaveLength(0);
   });
 });
 

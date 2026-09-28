@@ -122,7 +122,7 @@ const openForum = () => window.open(siteUrl("forum", "/"), "_blank", "noopener")
           <i v-else class="i-carbon-subtract cell-no" role="img" aria-label="无" />
         </template>
       </TxDataTable>
-      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门与权限包」或「称号」里修改。{{ titleLabel("admin", catalogue) }}永远拥有全部论坛权限。</p>
+      <p class="muted small matrix-foot">要改谁能做版务，到「成员与权限」的「部门」或「称号」里修改。{{ titleLabel("admin", catalogue) }}永远拥有全部论坛权限。</p>
     </TxCard>
   </div>
 </template>

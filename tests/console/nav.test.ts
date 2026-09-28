@@ -9,8 +9,8 @@ describe("navState", () => {
   it("shows an item whose capability is held", () => {
     expect(navState(item, identity(["console.access", "github.invites.manage"]))).toBe("visible");
   });
-  it("disables an item whose capability is capped by the GitHub role", () => {
-    expect(navState(item, identity(["console.access"], [{ capability: "github.invites.manage", reason: "github_admin_required" }]))).toBe("disabled");
+  it("hides an item whose capability is capped by the GitHub role", () => {
+    expect(navState(item, identity(["console.access"], [{ capability: "github.invites.manage", reason: "github_admin_required" }]))).toBe("hidden");
   });
   it("hides an item the title never granted", () => {
     expect(navState(item, identity(["console.access"]))).toBe("hidden");
@@ -24,23 +24,22 @@ describe("console navigation per persona", () => {
   const ids = (name: string) => visibleNav(MOCK_PERSONAS[name] as never).map(item => item.id);
   const groups = (name: string) => [...new Set(visibleNav(MOCK_PERSONAS[name] as never).map(item => item.group ?? "home"))];
 
-  it("gives the admin (GitHub organisation owner) every page, none disabled", () => {
+  it("gives the admin (GitHub organisation owner) every page", () => {
     expect(ids("admin")).toEqual(CONSOLE_NAV.map(item => item.id));
-    expect(visibleNav(MOCK_PERSONAS.admin as never).every(item => item.state === "visible")).toBe(true);
   });
-  it("gives the captain every page, with GitHub management capped by their organisation role", () => {
-    expect(ids("captain")).toEqual(CONSOLE_NAV.map(item => item.id));
-    const invites = visibleNav(MOCK_PERSONAS.captain as never).find(item => item.id === "github-invitations");
-    expect(invites).toMatchObject({ state: "disabled", reason: "github_admin_required" });
+  it("hides GitHub management pages from a captain whose org role caps those capabilities", () => {
+    expect(ids("captain")).not.toContain("github-invitations");
+    expect(ids("captain")).not.toContain("github-invite-links");
+    expect(ids("captain")).toContain("github-overview");
   });
   it("gives a plain member only the overview and the GitHub read pages", () => {
     expect(groups("member")).toEqual(["home", "github"]);
     expect(ids("member")).not.toContain("github-invitations");
     expect(ids("member")).not.toContain("people");
   });
-  it("shows invites as disabled, with the reason, for a recruitment head who is not an org admin", () => {
-    const invites = visibleNav(MOCK_PERSONAS.recruitment as never).find(item => item.id === "github-invitations");
-    expect(invites).toMatchObject({ state: "disabled", reason: "github_admin_required" });
+  it("hides capped invitation pages for a recruitment head who is not an org admin", () => {
+    expect(ids("recruitment")).not.toContain("github-invitations");
+    expect(ids("recruitment")).not.toContain("github-invite-links");
   });
   it("gives a department head the people page but not the audit log unless the bundle grants it", () => {
     expect(ids("recruitment")).toContain("people");

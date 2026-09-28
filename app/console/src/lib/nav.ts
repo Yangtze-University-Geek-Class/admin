@@ -3,7 +3,7 @@ import type { BlockReason, Capability, ConsoleMe } from "./types";
 
 export type NavItem = { id: string; to: string; label: string; anyOf: Capability[]; icon: string; group?: NavGroupId; end?: boolean };
 export type NavGroupId = "recruit" | "community" | "github" | "class";
-export type NavState = "visible" | "disabled" | "hidden";
+export type NavState = "visible" | "hidden";
 
 export const FORUM_CAPABILITIES: Capability[] = ["forum.topic.pin", "forum.topic.close", "forum.post.moderate", "forum.category.manage", "forum.badge.assign"];
 export const ROLE_CAPABILITIES: Capability[] = ["roles.manage", "roles.department.manage"];
@@ -33,17 +33,11 @@ export const CONSOLE_NAV: NavItem[] = [
   { id: "audit", to: "/console/audit", label: "审计日志", anyOf: ["audit.read"], icon: "i-carbon-catalog", group: "class" },
 ];
 
-type Identity = Pick<ConsoleMe, "capabilities" | "blocked">;
+type Identity = Pick<ConsoleMe, "capabilities">;
 
-/** 有能力 → visible；能力被 GitHub 组织角色挡住 → disabled（显示原因）；其它 → hidden。 */
+/** 只显示实际持有的能力；被组织角色挡住的能力不出现在导航里。 */
 export function navState(item: Pick<NavItem, "anyOf">, me: Identity): NavState {
-  if (item.anyOf.some(capability => me.capabilities.includes(capability))) return "visible";
-  if (me.blocked.some(entry => item.anyOf.includes(entry.capability))) return "disabled";
-  return "hidden";
-}
-
-export function blockReason(item: Pick<NavItem, "anyOf">, me: Identity): BlockReason | null {
-  return me.blocked.find(entry => item.anyOf.includes(entry.capability))?.reason ?? null;
+  return item.anyOf.some(capability => me.capabilities.includes(capability)) ? "visible" : "hidden";
 }
 
 export const BLOCK_REASON_TEXT: Record<BlockReason, string> = {
@@ -51,13 +45,9 @@ export const BLOCK_REASON_TEXT: Record<BlockReason, string> = {
   github_membership_required: "需要先加入 GitHub 组织",
 };
 
-export type VisibleNavItem = NavItem & { state: Exclude<NavState, "hidden">; reason: BlockReason | null };
-
-/** 按身份裁剪导航：去掉 hidden 项。 */
-export function visibleNav(me: Identity, items: NavItem[] = CONSOLE_NAV): VisibleNavItem[] {
-  return items
-    .map(item => ({ ...item, state: navState(item, me), reason: blockReason(item, me) }))
-    .filter((item): item is VisibleNavItem => item.state !== "hidden");
+/** 按当前生效能力裁剪导航；直接访问仍由页面与服务端分别校验。 */
+export function visibleNav(me: Identity, items: NavItem[] = CONSOLE_NAV): NavItem[] {
+  return items.filter(item => navState(item, me) === "visible");
 }
 
 /** 当前路径对应的导航项：取最长匹配；`end` 项只精确匹配。 */

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireCapability } from "../../middleware/require-capability.js";
 import { CAPTAIN_ONLY, type Capability } from "../../lib/roles.js";
@@ -7,11 +7,18 @@ import type { DepartmentInput, DepartmentPatch } from "../../lib/role-store.js";
 const includesCaptainOnly = (...bundles: (Capability[] | undefined)[]) =>
   bundles.some(bundle => bundle?.some(capability => CAPTAIN_ONLY.includes(capability)));
 
-/** 部门是数据：提督和舰长在控制台新建、编辑、归档、删除，不改代码。 */
+/** 部门是数据：只有组织 owner 能新建、编辑、归档、删除，不改代码。 */
 export default async function consoleDepartmentRoutes(app: FastifyInstance) {
   const { roles, config } = app.services;
   const { audit } = app.services.storage;
   app.addHook("preHandler", requireAuth);
+
+  const requireAdmiral = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (req.access?.githubRole !== "admin") {
+      return reply.code(403).send({ error: "admiral_required", message: `只有${roles.titleConfigs().admin.label}能管理部门` });
+    }
+  };
+  const departmentWrite = [requireCapability("roles.manage"), requireAdmiral];
 
   const view = () => {
     const counts = roles.crewCounts();
@@ -27,7 +34,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
     return `「管理称号与部门」只属于${names.admin.label}和${names.captain.label}，不能放进部门权限包`;
   };
 
-  app.post<{ Body: DepartmentInput }>("/api/console/departments", { preHandler: requireCapability("roles.manage") }, async (req, reply) => {
+  app.post<{ Body: DepartmentInput }>("/api/console/departments", { preHandler: departmentWrite }, async (req, reply) => {
     const body = req.body;
     if (includesCaptainOnly(body.head_capabilities, body.member_capabilities)) {
       return reply.code(400).send({ error: "captain_only_capability", message: captainOnlyMessage() });
@@ -39,7 +46,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { department_id: string }; Body: DepartmentPatch }>(
     "/api/console/departments/:department_id",
-    { preHandler: requireCapability("roles.manage") },
+    { preHandler: departmentWrite },
     async (req, reply) => {
       const { department_id: id } = req.params;
       if (includesCaptainOnly(req.body.head_capabilities, req.body.member_capabilities)) {
@@ -55,7 +62,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
   // 删除部门：这个部门的队长和舰员同时失去部门称号（没有别的称号的组织成员回到默认称号）。审计记下被撤掉的人。
   app.delete<{ Params: { department_id: string } }>(
     "/api/console/departments/:department_id",
-    { preHandler: requireCapability("roles.manage") },
+    { preHandler: departmentWrite },
     async (req, reply) => {
       const { department_id: id } = req.params;
       const department = roles.getDepartment(id);

@@ -8,12 +8,12 @@ import { TxButton } from "@talex-touch/tuffex/button";
 import { TxAvatar } from "@talex-touch/tuffex/avatar";
 import TitleBadge from "./TitleBadge.vue";
 import logoUrl from "../assets/logo.png";
-import { BLOCK_REASON_TEXT, NAV_GROUPS, activeNavId, visibleNav } from "../lib/nav";
+import { NAV_GROUPS, activeNavId, visibleNav } from "../lib/nav";
 import { siteUrl } from "../lib/runtime";
 import type { ConsoleMe } from "../lib/types";
 
 /**
- * 控制台导航：TxSidebarNav。被 GitHub 组织角色挡住的项渲染为禁用，并在名字后写明原因。
+ * 控制台导航：TxSidebarNav。只显示当前实际有权限访问的项。
  * 桌面是左侧栏；窄屏放在 TxDrawer 里（见 ConsoleShell.vue），`navigate` 让抽屉在选中后关闭。
  */
 const props = defineProps<{ me: ConsoleMe }>();
@@ -25,10 +25,9 @@ const query = ref("");
 const entries = computed(() => visibleNav(props.me));
 const items = computed<SidebarNavItem[]>(() => entries.value.map(item => ({
   value: item.id,
-  label: item.state === "disabled" && item.reason ? `${item.label}（${BLOCK_REASON_TEXT[item.reason]}）` : item.label,
+  label: item.label,
   group: item.group,
-  icon: item.state === "disabled" ? "i-carbon-locked" : item.icon,
-  disabled: item.state === "disabled",
+  icon: item.icon,
 })));
 const groups = computed(() => NAV_GROUPS);
 const active = computed(() => activeNavId(route.path) ?? "");
@@ -40,7 +39,7 @@ function openSite(target: "portal" | "forum") {
 
 function onSelect(item: SidebarNavItem) {
   const target = entries.value.find(entry => entry.id === item.value);
-  if (!target || target.state !== "visible") return;
+  if (!target) return;
   void router.push(target.to);
   emit("navigate");
 }
