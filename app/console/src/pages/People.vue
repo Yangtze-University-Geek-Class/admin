@@ -41,6 +41,7 @@ const assignments = useResource(() => api<AssignmentsResponse>("/api/console/ass
 const departments = useResource(() => api<{ departments: Department[] }>("/api/console/departments"));
 
 const canManageAll = computed(() => can("roles.manage"));
+const canManageDepartments = computed(() => me.value?.github_role === "admin");
 const canAppoint = computed(() => Boolean(me.value && canAppointCaptain(me.value)));
 const label = (id: Parameters<typeof titleLabel>[0]) => titleLabel(id, catalogue.value);
 const depts = computed(() => departments.data.value?.departments ?? []);
@@ -67,8 +68,7 @@ const current = computed(() => groups.value.find(item => item.key === group.valu
 const setView = (view: string) => void router.push({ query: { ...route.query, view: view === "titles" || view === "departments" || view === "permissions" ? view : undefined } });
 const setGroup = (value: string) => void router.replace({ query: { ...route.query, group: value === GROUP_ALL ? undefined : value } });
 
-const SECTION_LABEL: Record<Section, string> = { people: "成员", titles: "称号", departments: "部门与权限包", permissions: "权限树" };
-const SECTION_ICON: Record<Section, string> = { people: "i-carbon-user-multiple", titles: "i-carbon-badge", departments: "i-carbon-building", permissions: "i-carbon-chart-network" };
+const SECTION_LABEL: Record<Section, string> = { people: "成员", titles: "称号", departments: "部门", permissions: "权限树" };
 
 /** 名单每一行：一个人的全部称号；指派来的称号带上指派人、时间、备注，以及当前查看者能不能撤销。 */
 type TitleLine = { key: string; title: TitleView; assignment: Assignment | null; revocable: boolean };
@@ -89,12 +89,19 @@ const rows = computed<PersonRow[]>(() => peopleInGroup(sorted.value, group.value
 })));
 
 const columns = computed(() => [
-  { key: "login", title: "成员", width: 180 },
+  { key: "login", title: "成员", width: 190 },
   { key: "titles", title: "称号" },
-  { key: "department", title: "部门", width: 120 },
-  { key: "github", title: "GitHub 身份", width: 104 },
-  { key: "actions", title: "操作", width: 116, align: "right" as const },
+  { key: "department", title: "部门", width: 130 },
+  { key: "github", title: "GitHub 身份", width: 100 },
+  { key: "actions", title: "操作", width: 108, align: "right" as const },
 ]);
+const expandedPeople = ref<string[]>([]);
+const sourcesVisible = (login: string) => expandedPeople.value.includes(login);
+function toggleSources(login: string) {
+  expandedPeople.value = sourcesVisible(login)
+    ? expandedPeople.value.filter(item => item !== login)
+    : [...expandedPeople.value, login];
+}
 
 const noCaptain = computed(() => assignments.data.value !== undefined && assignments.data.value.captain === null);
 
@@ -156,11 +163,12 @@ async function askDelete(dept: Department) {
 }
 
 const headOfNames = computed(() => (me.value?.head_of ?? []).map(id => depts.value.find(d => d.id === id)?.name).filter(Boolean).join("、"));
-const description = computed(() => section.value === "permissions"
-  ? "查看能力的授予来源、你当前的权限和执行边界。这里只做说明，不修改称号或权限包。"
-  : canManageAll.value
-    ? "GitHub 组织里的每个人和他们的称号。称号的名字和权限在「称号」里改，部门的权限在「部门与权限包」里改。GitHub 类权限始终受对方自己的组织角色限制。"
-    : `你负责${headOfNames.value || "本部门"}，可以任免本部门的${label("member")}。`);
+const description = computed(() => {
+  if (section.value === "permissions") return "查看当前权限、授予来源及适用范围。";
+  if (section.value === "titles") return "查看称号及其基础权限。";
+  if (section.value === "departments") return "查看部门成员与权限配置。";
+  return canManageAll.value ? "按部门查看成员与称号。" : `你负责${headOfNames.value || "本部门"}，可以任免本部门的${label("member")}。`;
+});
 
 function emptyText(key: string) {
   if (key === GROUP_ALL) return { title: "名单是空的", description: "GitHub 组织里还没有成员。" };
@@ -186,7 +194,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 <template>
   <div class="page">
     <PageHeader title="成员与权限" :description="description">
-      <template v-if="section !== 'permissions'" #actions>
+      <template v-if="section === 'people'" #actions>
         <TxButton variant="primary" icon="i-carbon-add" @click="openAssign(null)">添加称号</TxButton>
       </template>
     </PageHeader>
@@ -199,7 +207,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
     <LoadingBlock v-else-if="section !== 'permissions' && !departments.data.value" :lines="8" />
     <TxCard v-else :padding="0" class="people-card">
       <TxTabs :model-value="section" placement="top" indicator-variant="line" borderless :content-scrollable="false" :content-padding="0" @update:model-value="setView">
-        <TxTabItem v-for="id in sections" :key="id" :name="id" :icon-class="SECTION_ICON[id]">
+        <TxTabItem v-for="id in sections" :key="id" :name="id">
           <template #name>{{ SECTION_LABEL[id] }}</template>
 
           <template v-if="id === 'people'">
@@ -208,6 +216,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
             <LoadingBlock v-else-if="!people.data.value || !assignments.data.value" :lines="8" />
             <div v-else class="people-groups">
               <nav class="group-list" aria-label="按部门查看">
+                <p class="group-list__heading">成员分组</p>
                 <TxCardItem
                   v-for="item in groups"
                   :key="item.key"
@@ -293,20 +302,23 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
                       </template>
                     </header>
 
-                    <TxDataTable style="--table-min: 860px" :columns="columns" :data="rows" row-key="login" table-layout="fixed" scroll-x class="people-table">
+                    <div class="people-table-scroll" tabindex="0" aria-label="成员名单，可滚动">
+                    <TxDataTable style="--table-min: 780px" :columns="columns" :data="rows" row-key="login" table-layout="fixed" scroll-x class="people-table">
                       <template #cell-login="{ row }: { row: PersonRow }">
                         <UserCell :login="row.login" :src="row.avatar_url" link />
                       </template>
                       <template #cell-titles="{ row }: { row: PersonRow }">
-                        <ul class="title-lines">
+                        <ul class="title-lines" :class="{ 'title-lines--expanded': sourcesVisible(row.login) }">
                           <li v-for="line in row.lines" :key="line.key" class="title-line">
                             <span class="cell-stack title-line__main">
                               <TitleBadge :title="line.title" />
-                              <span v-if="origin(line, row)" class="cell-sub" :title="line.assignment ? fmtDate(line.assignment.created_at) : undefined">{{ origin(line, row) }}</span>
-                              <span v-if="line.assignment?.note" class="cell-sub clamp-2" :title="line.assignment.note">{{ line.assignment.note }}</span>
+                              <template v-if="sourcesVisible(row.login)">
+                                <span v-if="origin(line, row)" class="cell-sub" :title="line.assignment ? fmtDate(line.assignment.created_at) : undefined">{{ origin(line, row) }}</span>
+                                <span v-if="line.assignment?.note" class="cell-sub clamp-2" :title="line.assignment.note">{{ line.assignment.note }}</span>
+                              </template>
                             </span>
                             <TxButton
-                              v-if="line.revocable"
+                              v-if="line.revocable && sourcesVisible(row.login)"
                               variant="ghost"
                               size="sm"
                               class="danger-text"
@@ -318,6 +330,9 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
                             </TxButton>
                           </li>
                         </ul>
+                        <TxButton v-if="row.lines.some(line => origin(line, row) || line.assignment?.note || line.revocable)" variant="bare" size="sm" :aria-expanded="sourcesVisible(row.login)" :aria-label="`${sourcesVisible(row.login) ? '收起' : '查看'} @${row.login} 的称号详情`" class="source-toggle" @click="toggleSources(row.login)">
+                          {{ sourcesVisible(row.login) ? "收起详情" : "称号详情" }}
+                        </TxButton>
                       </template>
                       <template #cell-department="{ row }: { row: PersonRow }">
                         <span v-if="row.departmentNames.length">{{ row.departmentNames.join("、") }}</span>
@@ -333,6 +348,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
                         <TxEmptyState :title="emptyText(current.key).title" :description="emptyText(current.key).description" size="small" />
                       </template>
                     </TxDataTable>
+                    </div>
               </section>
             </div>
           </template>
@@ -355,7 +371,8 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
           </template>
 
           <div v-else class="dept-list">
-            <p class="dept-intro">部门的权限包决定{{ label("head") }}和{{ label("member") }}在基础权限之外还能做什么。{{ label("admin") }}和{{ label("captain") }}可以修改；新增部门不需要改代码。</p>
+            <div class="dept-list__heading"><h2>部门</h2><span>{{ orderedDepts.length }} 个</span></div>
+            <TxEmptyState v-if="!orderedDepts.length" title="还没有部门" description="部门建立后会显示在这里。" size="small" />
             <article v-for="dept in orderedDepts" :key="dept.id" class="dept" :class="{ 'dept--archived': dept.archived }">
               <div class="dept__head">
                 <span class="dept__icon" :style="{ color: toneColor(dept.tone, catalogue), background: `color-mix(in srgb, ${toneColor(dept.tone, catalogue)} 10%, white)` }">
@@ -375,8 +392,8 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
                     {{ label("member") }} {{ dept.crew_count }} 人
                   </p>
                 </div>
-                <div v-if="canManageAll" class="dept__actions">
-                  <TxButton size="sm" icon="i-carbon-edit" @click="editing = dept">编辑权限包</TxButton>
+                <div v-if="canManageDepartments" class="dept__actions">
+                  <TxButton size="sm" icon="i-carbon-edit" @click="editing = dept">编辑权限</TxButton>
                   <TxButton size="sm" variant="ghost" icon="i-carbon-trash-can" class="danger-text" :disabled="removeDept.pending.value" @click="askDelete(dept)">删除部门</TxButton>
                 </div>
               </div>
@@ -411,7 +428,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
       :initial-login="addingLogin"
       @done="refreshAll"
     />
-    <BundleDialog v-if="catalogue" v-model:open="editOpen" :department="editing" :catalogue="catalogue" @done="refreshAll" />
+    <BundleDialog v-if="catalogue && canManageDepartments" v-model:open="editOpen" :department="editing" :catalogue="catalogue" @done="refreshAll" />
   </div>
 </template>
 
@@ -423,21 +440,42 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 }
 .people-card :deep(.tx-tabs__nav) {
   border-bottom: 1px solid var(--tx-border-color-lighter);
+  padding: 0 16px;
 }
-/* 像飞书通讯录：左边是全班和各部门，右边是选中的那一组；窄屏时部门列表横排在上面 */
+.people-card :deep(.tx-tabs__nav-item) {
+  min-height: 52px;
+}
 .people-groups {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
+  height: min(720px, 78dvh);
+  min-height: 480px;
 }
 .group-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px 8px;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 16px;
+  overflow-y: auto;
   border-right: 1px solid var(--tx-border-color-lighter);
+  background: var(--tx-fill-color-light);
+}
+.group-list__heading {
+  margin: 0 12px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tx-text-color-secondary);
 }
 .group-item {
-  --tx-card-item-padding: 6px 10px;
+  --tx-card-item-padding: 12px 14px;
+  flex: 0 0 auto;
+  min-width: 0;
+  border-radius: 10px;
+}
+.group-item[aria-current="true"] {
+  background: color-mix(in srgb, var(--tx-color-primary) 9%, white);
 }
 .group-count {
   font-size: 12px;
@@ -445,28 +483,51 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
   color: var(--tx-text-color-secondary);
 }
 .group-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.people-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 @media (max-width: 900px) {
   .people-groups {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .group-list {
     flex-direction: row;
     overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    padding: 10px 12px;
     border-right: 0;
     border-bottom: 1px solid var(--tx-border-color-lighter);
   }
+  .group-list__heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
   .group-item {
+    --tx-card-item-padding: 8px 12px;
     flex: 0 0 auto;
     width: max-content;
   }
 }
 .group-head {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 20px 16px;
+  gap: 14px;
+  padding: 22px 24px;
 }
 .group-head__org {
   color: var(--tx-color-primary);
@@ -478,18 +539,18 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 }
 .group-head__body h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 650;
 }
 .group-head__body > p {
-  margin: 2px 0 0;
+  margin: 5px 0 0;
   font-size: 13px;
 }
 .group-head__facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 28px;
-  margin: 10px 0 0;
+  gap: 10px 24px;
+  margin: 18px 0 0;
 }
 .group-head__facts div {
   display: flex;
@@ -520,8 +581,8 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 }
 .title-lines {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -529,11 +590,21 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 .title-line {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 .title-line__main {
   flex: 1 1 auto;
+}
+.title-lines--expanded {
+  flex-direction: column;
+  gap: 12px;
+}
+.title-lines--expanded .title-line {
+  justify-content: space-between;
+}
+.source-toggle {
+  margin-top: 4px;
+  font-size: 12px;
 }
 .danger-text {
   color: var(--tx-color-danger);
@@ -542,15 +613,17 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
   display: flex;
   flex-direction: column;
 }
-.dept-intro {
-  margin: 0;
-  padding: 12px 20px;
-  font-size: 13px;
-  color: var(--tx-text-color-secondary);
+.dept-list__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 20px 24px 14px;
   border-bottom: 1px solid var(--tx-border-color-lighter);
 }
+.dept-list__heading h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.dept-list__heading span { font-size: 13px; color: var(--tx-text-color-secondary); }
 .dept {
-  padding: 16px 20px;
+  padding: 22px 24px;
   border-bottom: 1px solid var(--tx-border-color-lighter);
 }
 .dept:last-child {
@@ -563,7 +636,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 .dept__icon {
   display: grid;
@@ -577,7 +650,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 .dept__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
 .dept__title {
   flex: 1 1 260px;
@@ -589,11 +662,11 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 650;
 }
 .dept__title p {
-  margin: 2px 0 0;
+  margin: 5px 0 0;
   font-size: 13px;
 }
 .dept__people {
@@ -602,20 +675,31 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
 .dept__bundles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 24px;
-  margin-top: 12px;
-  padding-left: 48px;
+  gap: 20px;
+  margin-top: 20px;
+  padding: 18px 0 0 50px;
+  border-top: 1px solid var(--tx-border-color-lighter);
 }
 .dept__bundles h4 {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 500;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--tx-text-color-secondary);
 }
 @media (max-width: 900px) {
   .dept__bundles {
     grid-template-columns: minmax(0, 1fr);
     padding-left: 0;
+  }
+  .dept__actions {
+    grid-column: 2;
+  }
+  .dept__head {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .dept__title {
+    grid-column: 2;
   }
 }
 </style>

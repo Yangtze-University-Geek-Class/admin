@@ -1,32 +1,30 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { TxTree, type TreeKey, type TreeNode } from "@talex-touch/tuffex/tree";
 import { TxSearchInput } from "@talex-touch/tuffex/search-input";
-import { TxTabs, TxTabItem } from "@talex-touch/tuffex/tabs";
 import { TxButton } from "@talex-touch/tuffex/button";
 import { TxTag } from "@talex-touch/tuffex/tag";
 import { TxAlert } from "@talex-touch/tuffex/alert";
 import { TxEmptyState } from "@talex-touch/tuffex/empty-state";
+import { TxSelect } from "@talex-touch/tuffex/select";
+import { TxFilterChips } from "@talex-touch/tuffex/filter-chips";
 import ErrorPanel from "../../components/ErrorPanel.vue";
 import LoadingBlock from "../../components/LoadingBlock.vue";
 import { api } from "../../lib/http";
-import { carbon } from "../../lib/icons";
-import { fmtDate } from "../../lib/format";
 import { useResource, type Resource } from "../../lib/resource";
 import { useSession } from "../../lib/session";
-import { buildPermissionTree, type PermissionNode, type PermissionDetail, type PermissionSource } from "../../lib/permission-tree";
+import { buildPermissionTree, configuredPerspectiveDetails, permissionDomainLabel, type PermissionDetail } from "../../lib/permission-tree";
 import { permissionBoundary } from "../../lib/permission-boundaries";
-import type { Catalogue, Department } from "../../lib/types";
+import type { Capability, Catalogue, Department, TitleId } from "../../lib/types";
 
 const props = defineProps<{ departments: Resource<{ departments: Department[] }> }>();
 const { me, meError, meLoading, reload: reloadMe } = useSession();
-// Unlike the shared display catalogue, this read must retain the exact API error and never use defaults.
+
 const snapshot = useResource(async () => {
   const [catalogue] = await Promise.all([api<Catalogue>("/api/console/catalogue"), reloadMe()]);
   if (meError.value) throw meError.value;
   if (!me.value) throw new Error("没有取得当前登录身份，请重新登录。");
-  return { catalogue, readAt: Date.now() };
+  return { catalogue };
 });
 const loading = computed(() => snapshot.loading.value || props.departments.loading.value || meLoading.value);
 const error = computed(() => meError.value || snapshot.error.value || props.departments.error.value);
@@ -39,92 +37,235 @@ async function refresh() {
   await Promise.all([snapshot.reload(), props.departments.reload()]);
 }
 
-const views = ["按能力域", "按称号/部门来源"];
-const view = ref(views[0]);
-const query = ref("");
-const searching = computed(() => Boolean(query.value.trim()));
-const expanded = ref<Record<string, TreeKey[]>>({ [views[0]]: [], [views[1]]: [] });
-const initialized = new Set<string>();
-const selection = ref<Record<string, string>>({ [views[0]]: "", [views[1]]: "" });
-const nodes = computed(() => (view.value === views[0] ? model.value?.byDomain : model.value?.bySource) ?? []);
-const nodeIndex = computed(() => {
-  const result = new Map<string, PermissionNode>();
-  function visit(list: PermissionNode[]) {
-    for (const node of list) {
-      result.set(node.key, node);
-      if (node.children) visit(node.children);
-    }
+// 视角切换：完全由后端接口动态生成（当前我的权限 / 称号权限包 / 部门权限包）
+const selectedPerspective = ref<string>("me");
+
+const perspectiveOptions = computed(() => {
+  const options: { value: string; label: string }[] = [];
+  if (!snapshot.data.value?.catalogue || !props.departments.data.value?.departments) return options;
+
+  const myTitleNames = me.value?.titles.map(t => t.label).join(" · ") || "当前成员";
+  options.push({ value: "me", label: `我 · ${myTitleNames}` });
+
+  // 动态读取 /api/console/catalogue 中的称号定义
+  for (const t of snapshot.data.value.catalogue.titles) {
+    options.push({ value: `title:${t.id}`, label: `称号 · ${t.label}` });
   }
-  visit(nodes.value);
-  return result;
-});
-const sourceIndex = computed(() => new Map(model.value?.sources.map(source => [source.key, source]) ?? []));
-const selected = computed(() => nodeIndex.value.get(selection.value[view.value]));
-const detail = computed(() => selected.value?.capability ? model.value?.details.get(selected.value.capability) : undefined);
-const source = computed(() => selected.value?.sourceKey ? sourceIndex.value.get(selected.value.sourceKey) : undefined);
-const boundary = computed(() => detail.value ? permissionBoundary(detail.value.id) : null);
-const counts = computed(() => {
-  const result = { effective: 0, blocked: 0, ungranted: 0 };
-  for (const detail of model.value?.details.values() ?? []) result[detail.status]++;
-  return result;
-});
-const currentGrants = computed(() => detail.value?.grants.filter(grant => grant.active) ?? []);
-const configuredGrants = computed(() => detail.value?.grants.filter(grant => !grant.active) ?? []);
-const capabilityLabel = (id: string) => model.value?.details.get(id)?.label ?? id;
-const statusText = (detail?: PermissionDetail) => detail ? { effective: "已生效", blocked: "受 GitHub 限制", ungranted: "未授予" }[detail.status] : "";
-const statusColor = (detail?: PermissionDetail) => detail?.status === "effective" ? "var(--tx-color-success)" : detail?.status === "blocked" ? "var(--tx-color-warning)" : "var(--tx-text-color-secondary)";
-const sourceText = (source: PermissionSource) => source.archived ? "已归档 · 不参与" : source.active ? "当前来源" : "配置来源 · 非当前";
-const grantText = (kind: string) => kind === "direct" ? "直接授予" : kind === "implied" ? "隐含授予" : "自动授予";
-const nodeInfo = (node: TreeNode) => nodeIndex.value.get(String(node.key));
-const nodeDetail = (node: TreeNode) => model.value?.details.get(nodeInfo(node)?.capability ?? "");
-const nodeSource = (node: TreeNode) => sourceIndex.value.get(nodeInfo(node)?.sourceKey ?? "");
-const filterNode = (node: TreeNode, text: string) => (nodeInfo(node)?.searchText ?? node.label).toLowerCase().includes(text.toLowerCase());
-function rememberExpansion(keys: TreeKey[]) {
-  // TxTree temporarily expands matching ancestors; query interactions must not overwrite the saved view.
-  if (!searching.value) expanded.value[view.value] = keys;
-}
-function expandAll() {
-  expanded.value[view.value] = [...nodeIndex.value.values()].filter(node => node.children?.length).map(node => node.key);
-}
-watch(nodes, list => {
-  if (!list.length) return;
-  if (!initialized.has(view.value)) {
-    expanded.value[view.value] = list.map(node => node.key);
-    initialized.add(view.value);
+
+  // 动态读取 /api/console/departments 中的部门定义
+  const headLabel = snapshot.data.value.catalogue.titles.find(title => title.id === "head")?.label ?? "负责人";
+  const memberLabel = snapshot.data.value.catalogue.titles.find(title => title.id === "member")?.label ?? "成员";
+  for (const d of props.departments.data.value.departments) {
+    if (d.archived) continue;
+    options.push({ value: `dept:${d.id}:head`, label: `部门 · ${d.name} / ${headLabel}` });
+    options.push({ value: `dept:${d.id}:member`, label: `部门 · ${d.name} / ${memberLabel}` });
   }
-  if (selection.value[view.value] && !nodeIndex.value.has(selection.value[view.value])) selection.value[view.value] = "";
+
+  return options;
+});
+watch(perspectiveOptions, options => {
+  if (options.length && !options.some(option => option.value === selectedPerspective.value)) selectedPerspective.value = "me";
 });
 
+// 当前视角信息
+const currentPerspectiveInfo = computed(() => {
+  const p = selectedPerspective.value;
+  const cat = snapshot.data.value?.catalogue;
+  const depts = props.departments.data.value?.departments ?? [];
+
+  if (p === "me" || !cat) {
+    return {
+      type: "me" as const,
+      title: `@${me.value?.login ?? ""}`,
+      sub: me.value?.titles.map(t => t.label).join(" · ") || "当前成员",
+      isOwner: me.value?.github_role === "admin",
+    };
+  }
+
+  if (p.startsWith("title:")) {
+    const titleId = p.slice(6) as TitleId;
+    const t = cat.titles.find(item => item.id === titleId);
+    return {
+      type: "title" as const,
+      title: `称号 · ${t?.label ?? titleId}`,
+      sub: "称号基础权限",
+      isOwner: titleId === "admin",
+    };
+  }
+
+  if (p.startsWith("dept:")) {
+    const [, deptId, role] = p.split(":");
+    const d = depts.find(item => item.id === deptId);
+    const roleLabel = cat.titles.find(item => item.id === (role === "head" ? "head" : "member"))?.label ?? "成员";
+    return {
+      type: "dept" as const,
+      title: `部门 · ${d?.name ?? deptId}`,
+      sub: `${roleLabel}的部门权限`,
+      isOwner: false,
+    };
+  }
+
+  return { type: "me" as const, title: "", sub: "", isOwner: false };
+});
+
+// 状态筛选
+const statusFilter = ref<"all" | "effective" | "blocked" | "ungranted">("all");
+const query = ref("");
+watch(selectedPerspective, () => { statusFilter.value = "all"; query.value = ""; });
+
+// 业务域分类
+const DOMAIN_ICONS: Record<string, string> = {
+  console: "i-carbon-dashboard", applications: "i-carbon-user-follow", forum: "i-carbon-forum",
+  github: "i-carbon-logo-github", roles: "i-carbon-badge", feedback: "i-carbon-chat",
+  audit: "i-carbon-security",
+};
+
+// 选中的能力 ID
+const selectedId = ref<string>("");
+
+// 当前视角下的全部能力列表（由后端接口动态派生）
+const currentPerspectiveItems = computed<PermissionDetail[]>(() => {
+  const p = selectedPerspective.value;
+  const cat = snapshot.data.value?.catalogue;
+  const depts = props.departments.data.value?.departments ?? [];
+  if (!cat || !model.value) return [];
+
+  if (p === "me") {
+    // 真实登录身份视角
+    return [...model.value.details.values()];
+  }
+
+  // 动态称号或部门视角：直接从后端配置推导
+  let directList: Capability[] = [];
+  if (p.startsWith("title:")) {
+    const titleId = p.slice(6) as TitleId;
+    directList = titleId === "admin" ? cat.capabilities.map(c => c.id) : (cat.role_base[titleId] ?? []);
+  } else if (p.startsWith("dept:")) {
+    const [, deptId, role] = p.split(":");
+    const d = depts.find(item => item.id === deptId);
+    directList = d ? (role === "head" ? d.head_capabilities : d.member_capabilities) : [];
+  }
+
+  return configuredPerspectiveDetails(cat, directList, p, currentPerspectiveInfo.value.title);
+});
+
+// 统计
+const counts = computed(() => {
+  const res = { effective: 0, blocked: 0, ungranted: 0, total: 0 };
+  for (const item of currentPerspectiveItems.value) {
+    res.total++;
+    res[item.status]++;
+  }
+  return res;
+});
+const effectiveLabel = computed(() => selectedPerspective.value === "me" ? "已生效" : "已包含");
+const filters = computed(() => [
+  { value: "all", label: "全部", count: counts.value.total },
+  ...(counts.value.effective > 0 && counts.value.effective < counts.value.total ? [{ value: "effective", label: effectiveLabel.value, count: counts.value.effective }] : []),
+  ...(counts.value.blocked > 0 && counts.value.blocked < counts.value.total ? [{ value: "blocked", label: "受限", count: counts.value.blocked }] : []),
+  ...(counts.value.ungranted > 0 && counts.value.ungranted < counts.value.total ? [{ value: "ungranted", label: "未包含", count: counts.value.ungranted }] : []),
+]);
+watch(filters, options => {
+  if (!options.some(option => option.value === statusFilter.value)) statusFilter.value = "all";
+});
+function setFilter(value: unknown) {
+  if (value === "all" || value === "effective" || value === "blocked" || value === "ungranted") statusFilter.value = value;
+}
+
+// 按业务域分组的能力列表
+const groupedCapabilities = computed(() => {
+  const map = new Map<string, PermissionDetail[]>();
+  const q = query.value.trim().toLowerCase();
+
+  for (const item of currentPerspectiveItems.value) {
+    // 状态过滤
+    if (statusFilter.value === "effective" && item.status !== "effective") continue;
+    if (statusFilter.value === "blocked" && item.status !== "blocked") continue;
+    if (statusFilter.value === "ungranted" && item.status !== "ungranted") continue;
+
+    // 搜索过滤
+    if (q) {
+      const match = item.id.toLowerCase().includes(q) ||
+        item.label.toLowerCase().includes(q) ||
+        (item.description && item.description.toLowerCase().includes(q));
+      if (!match) continue;
+    }
+    const domain = item.domain || "other";
+    if (!map.has(domain)) map.set(domain, []);
+    map.get(domain)!.push(item);
+  }
+
+  const result: { domain: string; label: string; icon: string; items: PermissionDetail[] }[] = [];
+  for (const [domain, items] of map.entries()) {
+    const label = permissionDomainLabel(snapshot.data.value!.catalogue, domain);
+    result.push({ domain, label, icon: DOMAIN_ICONS[domain] ?? "i-carbon-folder", items });
+  }
+  return result;
+});
+
+// 平铺所有当前展示的能力
+const visibleItems = computed(() => groupedCapabilities.value.flatMap(g => g.items));
+
+// 当前选中的详情
+const currentDetail = computed(() => {
+  if (!selectedId.value) return undefined;
+  return currentPerspectiveItems.value.find(item => item.id === selectedId.value);
+});
+const currentBoundary = computed(() => currentDetail.value ? permissionBoundary(currentDetail.value.id) : null);
+
+// 来源归属提取
+const titleGrants = computed(() => {
+  if (!currentDetail.value) return [];
+  return currentDetail.value.grants.filter(g => g.active && g.sourceKey.startsWith("title:"));
+});
+const departmentGrants = computed(() => {
+  if (!currentDetail.value) return [];
+  return currentDetail.value.grants.filter(g => g.active && (g.sourceKey.startsWith("department:") || g.sourceKey.startsWith("dept:")));
+});
+const automaticGrants = computed(() => {
+  if (!currentDetail.value) return [];
+  return currentDetail.value.grants.filter(g => g.active && g.sourceKey.startsWith("automatic:"));
+});
+
+// 默认选中第一项
+watch(visibleItems, list => {
+  if (!list.length) {
+    selectedId.value = "";
+    return;
+  }
+  if (!selectedId.value || !list.some(item => item.id === selectedId.value)) {
+    selectedId.value = list[0].id;
+  }
+}, { immediate: true });
+
 const searchInput = ref<InstanceType<typeof TxSearchInput> | null>(null);
-const treeRegion = ref<HTMLElement | null>(null);
+const listRegion = ref<HTMLElement | null>(null);
 const detailsRegion = ref<HTMLElement | null>(null);
 let disposed = false;
+
 async function jumpToDetails() {
   await nextTick();
   if (disposed) return;
   detailsRegion.value?.focus();
   detailsRegion.value?.scrollIntoView({ block: "start" });
 }
-function selectNode(payload: { key: TreeKey }) {
-  selection.value[view.value] = String(payload.key);
+
+function selectCapability(id: string) {
+  selectedId.value = id;
   if (window.matchMedia("(max-width: 900px)").matches) void jumpToDetails();
 }
-function backToTree() {
-  const target = treeRegion.value?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]') ?? treeRegion.value;
-  target?.focus();
-  target?.scrollIntoView({ block: "nearest" });
+function backToList() {
+  const button = [...(listRegion.value?.querySelectorAll<HTMLButtonElement>("[data-capability-id]") ?? [])]
+    .find(item => item.dataset.capabilityId === selectedId.value);
+  button?.focus();
+  button?.scrollIntoView({ block: "nearest" });
 }
-async function inspectCapability(id: string) {
-  view.value = views[0];
-  query.value = "";
-  await nextTick();
-  const node = [...nodeIndex.value.values()].find(item => item.capability === id);
-  if (!node || disposed) return;
-  selection.value[view.value] = node.key;
-  // Keep the selected capability visible when returning to the tree.
-  expanded.value[view.value] = [...new Set([...expanded.value[view.value], ...nodes.value.filter(root => root.children?.some(child => child.key === node.key)).map(root => root.key)])];
-  await jumpToDetails();
-}
+
+const capabilityLabel = (id: string) => {
+  const cat = snapshot.data.value?.catalogue;
+  return cat?.capabilities.find(c => c.id === id)?.label ?? id;
+};
+
 function onShortcut(event: KeyboardEvent) {
   if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
   const target = event.target;
@@ -132,7 +273,7 @@ function onShortcut(event: KeyboardEvent) {
   if (event.key === "/" && !editing && model.value) {
     event.preventDefault();
     searchInput.value?.focus();
-  } else if (event.key === "Escape" && query.value && (!editing || (target instanceof Node && treeRegion.value?.contains(target)))) {
+  } else if (event.key === "Escape" && query.value) {
     event.preventDefault();
     query.value = "";
     searchInput.value?.focus();
@@ -146,233 +287,712 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="permission-tree" aria-label="我的权限树" :aria-busy="loading">
-    <header class="permission-tree__header">
-      <div>
-        <h2>我的权限树</h2>
-        <p>查看当前登录账号的能力与配置来源，只读，不在这里授予或撤销权限。</p>
-      </div>
-      <TxButton icon="i-carbon-renew" :loading="loading" :disabled="loading" @click="refresh">刷新权限</TxButton>
-    </header>
-
-    <LoadingBlock v-if="loading" label="正在读取权限目录、部门配置与我的身份" :lines="7" />
+  <div class="permission-tree" :aria-busy="loading">
+    <LoadingBlock v-if="loading" label="正在读取权限目录与身份配置" :lines="6" />
     <ErrorPanel v-else-if="error" :error="error" :retry="refresh" />
     <template v-else-if="model && me && snapshot.data.value">
-      <div class="permission-tree__identity">
-        <strong class="mono">@{{ me.login }}</strong>
-        <span class="mono">{{ me.org }}</span>
-        <span>GitHub：{{ me.github_role === 'admin' ? '组织所有者' : me.github_role === 'member' ? '组织成员' : '非当前组织成员' }}</span>
-        <span>称号：{{ me.titles.map(title => title.label).join('、') || '无' }}</span>
-      </div>
-      <div class="permission-tree__summary" role="status">
-        <TxTag :label="`已生效 ${counts.effective}`" color="var(--tx-color-success)" variant="soft" />
-        <TxTag :label="`受限 ${counts.blocked}`" color="var(--tx-color-warning)" variant="soft" />
-        <TxTag :label="`未授予 ${counts.ungranted}`" variant="plain" />
-        <span>共 {{ model.details.size }} 项能力 · 最近读取 {{ fmtDate(snapshot.data.value.readAt) }}（北京时间）</span>
-      </div>
-      <TxAlert type="info" title="这是读取时的权限快照，不是操作许可" :closable="false">
-        能力状态以服务端 /me 为准；来源按当前配置解释。接口分别读取，配置或组织身份变化后请刷新，实际操作仍由服务端校验。
-      </TxAlert>
-      <TxAlert v-if="model.warnings.length" type="warning" title="部分来源无法完整解释" :closable="false">
+      <header class="permission-tree__profile-header">
+        <div class="permission-tree__user-card">
+          <div class="permission-tree__user-main">
+            <strong class="permission-tree__username" :class="{ mono: currentPerspectiveInfo.type === 'me' }">{{ currentPerspectiveInfo.title }}</strong>
+            <span class="permission-tree__role-badge">{{ currentPerspectiveInfo.sub }}</span>
+          </div>
+          <div class="permission-tree__stat-line">
+            <span class="stat-item stat-item--success">
+              {{ counts.effective }} 项{{ selectedPerspective === 'me' ? '生效' : '包含' }}
+            </span>
+            <span v-if="counts.blocked" class="stat-item stat-item--warning">
+              {{ counts.blocked }} 项受限
+            </span>
+            <span v-if="counts.ungranted" class="stat-item stat-item--muted">
+              {{ counts.ungranted }} 项未包含
+            </span>
+            <span class="stat-total">共 {{ counts.total }} 项</span>
+          </div>
+        </div>
+
+        <div class="permission-tree__actions-bar">
+          <div class="permission-tree__persona-picker">
+            <span class="permission-tree__picker-label">查看对象</span>
+            <TxSelect
+              v-model="selectedPerspective"
+              :options="perspectiveOptions"
+              class="permission-tree__persona-select"
+              aria-label="切换查看视角"
+            />
+          </div>
+          <TxButton variant="bare" size="sm" icon="i-carbon-renew" :loading="loading" :disabled="loading" @click="refresh">刷新数据</TxButton>
+        </div>
+      </header>
+
+      <TxAlert v-if="model.warnings.length" type="warning" title="部分权限来源存在不一致" :closable="false" class="permission-tree__alert">
         <ul class="permission-tree__warnings"><li v-for="warning in model.warnings" :key="warning">{{ warning }}</li></ul>
       </TxAlert>
 
-      <div class="permission-tree__layout">
-        <section ref="treeRegion" class="permission-tree__browse" tabindex="-1" aria-label="浏览权限树">
-          <TxTabs v-model="view" placement="top" :content-scrollable="false" :content-padding="0" :animation="{ content: false, size: false }">
-            <TxTabItem :name="views[0]" icon-class="i-carbon-chart-network">
-              <p class="permission-tree__hint">能力域是分类，不是称号高低关系。</p>
-            </TxTabItem>
-            <TxTabItem :name="views[1]" icon-class="i-carbon-user-multiple">
-              <p class="permission-tree__hint">包含全部当前配置；只有标记「当前来源」的配置参与我的权限解释。</p>
-            </TxTabItem>
-          </TxTabs>
-          <label class="permission-tree__search-label">
-            <span>搜索能力、ID 或来源名称</span>
-            <TxSearchInput ref="searchInput" v-model="query" placeholder="例如 applications.read 或部门名称" aria-label="搜索能力、ID 或来源名称" />
-          </label>
-          <div class="permission-tree__tools">
-            <TxButton size="sm" :disabled="searching || !nodes.length" @click="expandAll">全部展开</TxButton>
-            <TxButton size="sm" :disabled="searching || !nodes.length" @click="expanded[view] = []">全部收起</TxButton>
-            <TxButton v-if="selected" size="sm" variant="ghost" @click="jumpToDetails">查看详情</TxButton>
+      <div class="permission-tree__workspace">
+        <section ref="listRegion" class="permission-tree__list-pane" aria-label="能力列表">
+          <div class="permission-tree__filter-bar">
+            <TxFilterChips v-if="filters.length > 1" :model-value="statusFilter" :items="filters" aria-label="按权限状态筛选" @update:model-value="setFilter" />
+            <div class="permission-tree__search-wrap">
+              <TxSearchInput ref="searchInput" v-model="query" placeholder="搜索能力" aria-label="搜索能力名称或代码" />
+            </div>
           </div>
-          <p class="permission-tree__hint">{{ searching ? '搜索保留祖先路径；清空后恢复原展开状态。' : '按 / 搜索，Esc 清空；方向键浏览，Enter 选择。' }}</p>
-          <TxTree
-            :key="view"
-            :nodes="nodes"
-            :model-value="selection[view]"
-            :expanded-keys="expanded[view]"
-            :filter-text="query"
-            :filter-method="filterNode"
-            :indent="12"
-            aria-label="权限目录"
-            @update:expanded-keys="rememberExpansion"
-            @select="selectNode"
-          >
-            <template #item="{ node, expanded: isExpanded, hasChildren, selected: isSelected, toggleExpand }">
-              <!-- The outer TxTree treeitem owns selection and keyboard events; only the caret stops bubbling. -->
-              <div class="permission-tree__row" :class="{ 'permission-tree__row--selected': isSelected }">
-                <TxButton
-                  v-if="hasChildren"
-                  class="permission-tree__caret"
-                  variant="bare"
-                  size="sm"
-                  tabindex="-1"
-                  :icon="isExpanded ? 'i-carbon-chevron-down' : 'i-carbon-chevron-right'"
-                  :aria-label="`${isExpanded ? '收起' : '展开'}${node.label}`"
-                  :disabled="searching"
-                  @click.stop="toggleExpand()"
-                />
-                <span v-else class="permission-tree__leaf" aria-hidden="true" />
-                <span v-if="nodeInfo(node)?.icon" :class="carbon(nodeInfo(node)?.icon)" aria-hidden="true" />
-                <span class="permission-tree__node-text">
-                  <span>{{ node.label }}</span>
-                  <code v-if="nodeInfo(node)?.capability">{{ nodeInfo(node)?.capability }}</code>
-                  <span v-if="nodeSource(node)" class="permission-tree__node-source">{{ sourceText(nodeSource(node)!) }}</span>
-                </span>
-                <TxTag v-if="nodeDetail(node)" :label="statusText(nodeDetail(node))" :color="statusColor(nodeDetail(node))" variant="soft" />
+
+          <div class="permission-tree__groups-scroll">
+            <div v-for="group in groupedCapabilities" :key="group.domain" class="permission-tree__domain-group">
+              <div class="permission-tree__domain-header">
+                <span :class="group.icon" class="permission-tree__domain-icon" />
+                <span class="permission-tree__domain-title">{{ group.label }}</span>
+                <span class="permission-tree__domain-count">{{ group.items.length }}</span>
               </div>
-            </template>
-            <template #empty>
-              <TxEmptyState :title="searching ? '没有匹配的权限' : '没有可展示的配置'" :description="searching ? '换一个关键词，或清空搜索查看全部。' : '服务端目录中没有这一视图的条目，可刷新后重试。'" size="small">
-                <template #actions><TxButton v-if="query" size="sm" @click="query = ''">清空搜索</TxButton></template>
-              </TxEmptyState>
-            </template>
-          </TxTree>
+
+              <div class="permission-tree__domain-items">
+                <button
+                  v-for="item in group.items"
+                  :key="item.id"
+                  type="button"
+                  class="permission-tree__item-row"
+                  :class="{
+                    'permission-tree__item-row--active': selectedId === item.id,
+                    'permission-tree__item-row--blocked': item.status === 'blocked',
+                  }"
+                  :aria-current="selectedId === item.id ? 'true' : undefined"
+                  aria-controls="permission-detail-panel"
+                  :data-capability-id="item.id"
+                  @click="selectCapability(item.id)"
+                >
+                  <div class="permission-tree__item-main">
+                    <span class="permission-tree__item-name">{{ item.label }}</span>
+                    <code class="permission-tree__item-code mono">{{ item.id }}</code>
+                  </div>
+                  <div class="permission-tree__item-tags">
+                    <TxTag
+                      v-if="item.status === 'effective'"
+                      :label="selectedPerspective === 'me' ? '生效' : '包含'"
+                      color="var(--tx-color-success)"
+                      variant="soft"
+                      size="sm"
+                    />
+                    <TxTag
+                      v-else-if="item.status === 'blocked'"
+                      label="受限"
+                      color="var(--tx-color-warning)"
+                      variant="soft"
+                      size="sm"
+                    />
+                    <TxTag
+                      v-else
+                      label="未包含"
+                      variant="plain"
+                      size="sm"
+                    />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <TxEmptyState
+              v-if="!groupedCapabilities.length"
+              :title="query ? '没有找到匹配的权限' : '当前暂无权限'"
+              :description="query ? '请尝试输入其他关键词' : '当前筛选条件下没有条目'"
+              size="small"
+            >
+              <template #actions>
+                <TxButton v-if="query" size="sm" @click="query = ''">清空搜索</TxButton>
+              </template>
+            </TxEmptyState>
+          </div>
         </section>
 
-        <section ref="detailsRegion" class="permission-tree__details" tabindex="-1" aria-label="所选权限详情">
-          <TxButton class="permission-tree__back" variant="ghost" size="sm" icon="i-carbon-arrow-up" @click="backToTree">返回权限树</TxButton>
-          <template v-if="detail && boundary">
-            <header>
-              <h3>{{ detail.label }}</h3>
-              <code>{{ detail.id }}</code>
-              <p>{{ detail.description || '目录未提供能力说明。' }}</p>
-              <div class="permission-tree__tags">
-                <TxTag :label="statusText(detail)" :color="statusColor(detail)" variant="soft" />
-                <TxTag v-if="boundary.reserved" label="预留能力 · 尚无执行入口" variant="plain" />
+        <section id="permission-detail-panel" ref="detailsRegion" class="permission-tree__detail-pane" tabindex="-1" aria-label="权限详情">
+          <div v-if="currentDetail && currentBoundary" class="permission-detail">
+            <TxButton variant="bare" size="sm" icon="i-carbon-arrow-left" class="permission-detail__back" @click="backToList">返回权限列表</TxButton>
+            <!-- 头部 -->
+            <header class="permission-detail__head">
+              <div class="permission-detail__head-top">
+                <h3 class="permission-detail__name">{{ currentDetail.label }}</h3>
+                <div class="permission-detail__status-pills">
+                  <TxTag
+                    v-if="currentDetail.status === 'effective'"
+                    :label="effectiveLabel"
+                    color="var(--tx-color-success)"
+                    variant="soft"
+                  />
+                  <TxTag
+                    v-else-if="currentDetail.status === 'blocked'"
+                    label="受 GitHub 限制"
+                    color="var(--tx-color-warning)"
+                    variant="soft"
+                  />
+                  <TxTag
+                    v-else
+                    label="当前视角未包含"
+                    variant="plain"
+                  />
+                  <TxTag v-if="currentBoundary.reserved" label="尚未开放" variant="plain" />
+                </div>
               </div>
+              <code class="permission-detail__id-pill mono">{{ currentDetail.id }}</code>
+              <p class="permission-detail__desc">{{ currentDetail.description || '当前能力暂无详细说明。' }}</p>
             </header>
-            <p v-if="detail.reason" class="permission-tree__reason">
-              {{ detail.reason === 'github_admin_required' ? '称号配置包含此能力，但需要 GitHub 组织所有者身份，当前被 GitHub 权限上限挡住。' : '此能力要求当前 GitHub 组织成员身份，当前被组织成员资格限制。' }}
-            </p>
-            <p v-else-if="detail.status === 'ungranted'" class="permission-tree__hint">/me 未返回此能力的有效或受限记录；配置中出现它不代表我已获得。</p>
-            <p v-else class="permission-tree__hint">/me 已确认此能力；仍需遵守下方的操作范围与执行边界。</p>
 
-            <h4>我的授予来源</h4>
-            <ul v-if="currentGrants.length" class="permission-tree__grants">
-              <li v-for="grant in currentGrants" :key="`${grant.sourceKey}:${grant.kind}`">
-                <strong>{{ grant.label }}</strong><span>{{ grantText(grant.kind) }} · 当前来源</span>
-                <p v-if="grant.kind === 'implied'">由 {{ grant.via.map(capabilityLabel).join('、') }} 隐含授予。</p>
-              </li>
-            </ul>
-            <p v-else class="permission-tree__hint">当前配置未解释出我的授予来源；不据此改变 /me 的能力状态。</p>
-            <h4>其它配置来源（不授予我）</h4>
-            <ul v-if="configuredGrants.length" class="permission-tree__grants">
-              <li v-for="grant in configuredGrants" :key="`${grant.sourceKey}:${grant.kind}`">
-                <strong>{{ grant.label }}</strong><span>{{ grantText(grant.kind) }} · {{ sourceIndex.get(grant.sourceKey)?.archived ? '已归档' : '非当前来源' }}</span>
-                <p v-if="grant.kind === 'implied'">由 {{ grant.via.map(capabilityLabel).join('、') }} 隐含包含。</p>
-              </li>
-            </ul>
-            <p v-else class="permission-tree__hint">没有其它配置来源。</p>
+            <!-- 受 GitHub 限制警示 -->
+            <div v-if="currentDetail.reason" class="permission-detail__alert-box permission-detail__alert-box--warning">
+              <span class="i-carbon-warning-alt-filled permission-detail__alert-icon" />
+              <div>
+                <strong>受 GitHub 身份限制</strong>
+                <p>
+                  {{ currentDetail.reason === 'github_admin_required' ? '此操作需要 GitHub 组织所有者身份。当前账号无法执行。' : '此操作需要 GitHub 组织成员身份。' }}
+                </p>
+              </div>
+            </div>
 
-            <h4>能力关系</h4>
-            <p class="permission-tree__hint">以下为配置中的传递隐含关系，不是额外授权。</p>
-            <p>包含：<span v-if="!detail.implies.length" class="muted">无</span></p>
-            <div class="permission-tree__relations"><TxButton v-for="id in detail.implies" :key="id" variant="ghost" size="sm" @click="inspectCapability(id)">{{ capabilityLabel(id) }} <code>{{ id }}</code></TxButton></div>
-            <p>由这些能力包含：<span v-if="!detail.impliedBy.length" class="muted">无</span></p>
-            <div class="permission-tree__relations"><TxButton v-for="id in detail.impliedBy" :key="id" variant="ghost" size="sm" @click="inspectCapability(id)">{{ capabilityLabel(id) }} <code>{{ id }}</code></TxButton></div>
-            <h4>范围与执行边界</h4>
-            <p>{{ boundary.scope }}</p>
-            <p>{{ boundary.execution }}</p>
-            <h4>关联页面</h4>
-            <ul v-if="boundary.pages.length" class="permission-tree__pages"><li v-for="page in boundary.pages" :key="page.path"><RouterLink :to="page.path">{{ page.label }}</RouterLink></li></ul>
-            <p v-else class="permission-tree__hint">没有独立的控制台页面。</p>
-            <p class="permission-tree__hint">链接只是导航，进入页面和提交操作仍会核对权限。</p>
-          </template>
-          <template v-else-if="source && selected">
-            <h3>{{ source.label }}</h3>
-            <TxTag :label="sourceText(source)" :variant="source.active ? 'soft' : 'plain'" />
-            <p>{{ source.description || selected.description || '这是一个配置来源，不是能力等级。' }}</p>
-            <p class="permission-tree__hint">{{ source.active ? '此来源参与当前账号的权限解释；各能力是否生效仍以 /me 为准。' : '此来源仅展示配置，不为当前账号授予权限。' }}</p>
-            <h4>{{ source.kind === 'automatic' || source.key === 'title:admin' ? '自动包含' : '直接配置' }}</h4>
-            <div v-if="source.direct.length" class="permission-tree__relations"><TxButton v-for="id in source.direct" :key="id" size="sm" variant="ghost" @click="inspectCapability(id)">{{ capabilityLabel(id) }} <code>{{ id }}</code></TxButton></div>
-            <p v-else class="permission-tree__hint">没有直接配置的能力。</p>
-            <h4>隐含包含</h4>
-            <div v-if="source.inherited.length" class="permission-tree__relations"><TxButton v-for="id in source.inherited" :key="id" size="sm" variant="ghost" @click="inspectCapability(id)">{{ capabilityLabel(id) }} <code>{{ id }}</code></TxButton></div>
-            <p v-else class="permission-tree__hint">没有额外隐含能力。</p>
-          </template>
-          <template v-else-if="selected">
-            <h3>{{ selected.label }}</h3>
-            <p>{{ selected.description || '展开分类，选择一项能力查看来源、限制和关联页面。' }}</p>
-            <p class="permission-tree__hint">此节点只是分类，不是授予来源或权限等级。</p>
-          </template>
-          <TxEmptyState v-else title="选择一项能力或来源" description="在左侧树中选择节点，查看当前状态、授予关系与执行边界；窄屏选择后会跳到这里。" size="small" />
+            <!-- 权限来源归属 -->
+            <div class="permission-detail__card">
+              <h4 class="permission-detail__card-title">
+                <span class="i-carbon-badge" /> 来源
+              </h4>
+
+              <!-- 提督全局规则 -->
+              <div v-if="currentPerspectiveInfo.isOwner" class="permission-detail__source-row">
+                <span class="permission-detail__source-tag">组织所有者</span>
+                <div class="permission-detail__source-desc">
+                  <strong>全部权限</strong>
+                  <p>由 GitHub 组织身份自动获得。</p>
+                </div>
+              </div>
+
+              <!-- 称号赋予 -->
+              <div v-else-if="titleGrants.length" class="permission-detail__source-row">
+                <span class="permission-detail__source-tag permission-detail__source-tag--title">称号</span>
+                <div class="permission-detail__source-desc">
+                  <strong>{{ titleGrants.map(g => g.label).join('、') }}</strong>
+                  <p v-for="g in titleGrants" :key="g.sourceKey">
+                    <span v-if="g.kind === 'implied'">包含于 <code>{{ g.via.map(capabilityLabel).join('、') }}</code></span>
+                    <span v-else>直接授予</span>
+                  </p>
+                </div>
+              </div>
+
+              <!-- 部门赋予 -->
+              <div v-if="departmentGrants.length" class="permission-detail__source-row">
+                <span class="permission-detail__source-tag permission-detail__source-tag--dept">部门</span>
+                <div class="permission-detail__source-desc">
+                  <strong>{{ departmentGrants.map(g => g.label).join('、') }}</strong>
+                  <p v-for="g in departmentGrants" :key="g.sourceKey">
+                    <span v-if="g.kind === 'implied'">包含于 <code>{{ g.via.map(capabilityLabel).join('、') }}</code></span>
+                    <span v-else>直接授予</span>
+                  </p>
+                </div>
+              </div>
+
+              <!-- 自动入口 -->
+              <div v-if="automaticGrants.length && !titleGrants.length && !departmentGrants.length && !currentPerspectiveInfo.isOwner" class="permission-detail__source-row">
+                <span class="permission-detail__source-tag">系统自动</span>
+                <div class="permission-detail__source-desc">
+                  <strong>控制台访问</strong>
+                  <p>由已有业务权限自动获得。</p>
+                </div>
+              </div>
+
+              <!-- 未授予 -->
+              <p v-if="currentDetail.status === 'ungranted'" class="permission-detail__unassigned-note">
+                当前查看对象没有这项权限。
+              </p>
+            </div>
+
+            <!-- 业务范围与执行点 -->
+            <div class="permission-detail__card">
+              <h4 class="permission-detail__card-title">
+                <span class="i-carbon-security" /> 使用范围
+              </h4>
+              <div class="permission-detail__field-grid">
+                <div class="permission-detail__field">
+                  <span class="permission-detail__field-name">适用范围</span>
+                  <p class="permission-detail__field-val">{{ currentBoundary.scope }}</p>
+                </div>
+                <div class="permission-detail__field">
+                  <span class="permission-detail__field-name">执行接口</span>
+                  <p class="permission-detail__field-val mono">{{ currentBoundary.execution }}</p>
+                </div>
+                <div v-if="currentBoundary.pages.length" class="permission-detail__field">
+                  <span class="permission-detail__field-name">关联功能页面</span>
+                  <div class="permission-detail__links">
+                    <RouterLink v-for="p in currentBoundary.pages" :key="p.path" :to="p.path" class="permission-detail__page-btn">
+                      <span class="i-carbon-launch" />
+                      {{ p.label }}
+                    </RouterLink>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 包含的下层能力 -->
+            <div v-if="currentDetail.implies.length || currentDetail.impliedBy.length" class="permission-detail__card">
+              <h4 class="permission-detail__card-title">
+                <span class="i-carbon-flow" /> 关联能力
+              </h4>
+              <div v-if="currentDetail.implies.length" class="permission-detail__relation-row">
+                <span class="permission-detail__relation-label">同时包含</span>
+                <div class="permission-detail__relation-pills">
+                  <button v-for="id in currentDetail.implies" :key="id" type="button" class="permission-detail__pill-chip" @click="selectCapability(id)">
+                    <span>{{ capabilityLabel(id) }}</span>
+                    <code class="mono">{{ id }}</code>
+                  </button>
+                </div>
+              </div>
+              <div v-if="currentDetail.impliedBy.length" class="permission-detail__relation-row">
+                <span class="permission-detail__relation-label">属于以下能力</span>
+                <div class="permission-detail__relation-pills">
+                  <button v-for="id in currentDetail.impliedBy" :key="id" type="button" class="permission-detail__pill-chip" @click="selectCapability(id)">
+                    <span>{{ capabilityLabel(id) }}</span>
+                    <code class="mono">{{ id }}</code>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <TxEmptyState
+            v-else
+            title="请选择一项权限"
+            description="从能力列表中选择一项查看详情。"
+            size="small"
+            class="permission-detail__empty"
+          />
         </section>
       </div>
-      <footer class="permission-tree__caveats">
-        <h3>如何理解这棵树</h3>
-        <ul>
-          <li>一个人可以有多个称号，能力合并计算；rank 仅用于显示顺序，不代表高称号自动继承低称号。</li>
-          <li>GitHub 组织所有者自动获得全部能力，这是特殊规则，不是可手动指派的称号继承。</li>
-          <li>称号与部门包不能越过 GitHub 权限上限；GitHub 管理操作仍要求相应组织角色。</li>
-          <li>论坛操作还会核对当前组织成员资格和具体对象；这份控制台快照不能替代论坛实时鉴权。</li>
-          <li>预留能力和「已生效」是两个维度：服务端可以返回能力，但尚未实现的执行入口不会因此出现。</li>
-        </ul>
-      </footer>
     </template>
-    <TxEmptyState v-else title="权限数据尚未就绪" description="没有取得完整的目录、部门与身份，暂不展示权限结论。" size="small"><template #actions><TxButton @click="refresh">重新读取</TxButton></template></TxEmptyState>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.permission-tree { display: grid; gap: 16px; padding: 20px; min-width: 0; }
-.permission-tree h2, .permission-tree h3, .permission-tree h4 { margin: 0; font-weight: 600; }
-.permission-tree h2 { font-size: 1.125rem; }
-.permission-tree h3 { font-size: 1rem; }
-.permission-tree h4 { font-size: .875rem; margin-top: 20px; }
-.permission-tree p { margin: 6px 0; line-height: 1.65; }
-.permission-tree code { font-size: .75rem; overflow-wrap: anywhere; }
-.permission-tree__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.permission-tree__header p, .permission-tree__hint, .permission-tree__summary, .permission-tree__identity { color: var(--tx-text-color-secondary); font-size: .8125rem; }
-.permission-tree__identity, .permission-tree__summary, .permission-tree__tags, .permission-tree__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.permission-tree__identity { overflow-wrap: anywhere; }
-.permission-tree__identity strong { color: var(--tx-text-color-primary); }
-.permission-tree__layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
-.permission-tree__browse, .permission-tree__details { min-width: 0; scroll-margin-top: 24px; }
-.permission-tree__browse { display: grid; gap: 12px; }
-.permission-tree__details { border-left: 1px solid var(--tx-border-color-lighter); padding-left: 24px; font-size: .875rem; overflow-wrap: anywhere; }
-.permission-tree__details:focus-visible, .permission-tree__browse:focus-visible { outline: 2px solid var(--tx-color-primary); outline-offset: 4px; }
-.permission-tree__search-label { display: grid; gap: 6px; font-size: .8125rem; }
-.permission-tree__row { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 52px; padding: 6px; border-radius: 8px; cursor: pointer; }
-.permission-tree__row:hover { background: var(--tx-fill-color-light); }
-.permission-tree__row--selected, .permission-tree__row--selected:hover { background: color-mix(in srgb, var(--tx-color-primary) 10%, transparent); }
-.permission-tree__caret, .permission-tree__leaf { flex: 0 0 32px; width: 32px; }
-.permission-tree__caret { min-width: 32px; max-width: 32px; min-height: 36px; padding: 0; }
-.permission-tree__node-text { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; font-size: .875rem; }
-.permission-tree__node-text code, .permission-tree__node-source { color: var(--tx-text-color-secondary); font-size: .6875rem; }
-.permission-tree__row :deep(.tx-tag) { flex-shrink: 0; }
-.permission-tree__back { margin-bottom: 12px; }
-.permission-tree__reason { color: var(--tx-color-warning); }
-.permission-tree__grants, .permission-tree__warnings, .permission-tree__pages { margin: 8px 0; padding-left: 20px; }
-.permission-tree__grants li { margin: 8px 0; }
-.permission-tree__grants strong, .permission-tree__grants span { display: block; }
-.permission-tree__grants span, .permission-tree__grants p { color: var(--tx-text-color-secondary); font-size: .8125rem; }
-.permission-tree__relations { display: flex; flex-wrap: wrap; gap: 4px; }
-.permission-tree__relations :deep(button) { height: auto; min-height: 36px; max-width: 100%; white-space: normal; text-align: left; }
-.permission-tree__relations code { margin-left: 4px; }
-.permission-tree__pages a { color: var(--tx-color-primary); }
-.permission-tree__caveats { border-top: 1px solid var(--tx-border-color-lighter); padding-top: 16px; color: var(--tx-text-color-secondary); font-size: .8125rem; line-height: 1.8; }
-.permission-tree__caveats h3 { color: var(--tx-text-color-primary); font-size: .875rem; }
-.permission-tree__caveats ul { padding-left: 20px; margin: 8px 0 0; }
+.permission-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.permission-tree__profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 22px 24px;
+  background: var(--tx-fill-color-blank);
+  border-bottom: 1px solid var(--tx-border-color-lighter);
+}
+.permission-tree__user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.permission-tree__user-main {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.permission-tree__username {
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--tx-text-color-primary);
+}
+.permission-tree__role-badge {
+  font-size: .8125rem;
+  color: var(--tx-text-color-secondary);
+}
+.permission-tree__stat-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: .8125rem;
+}
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+}
+.stat-item--success {
+  color: var(--tx-color-success);
+}
+.stat-item--warning {
+  color: var(--tx-color-warning);
+}
+.stat-item--muted {
+  color: var(--tx-text-color-secondary);
+}
+.stat-total {
+  color: var(--tx-text-color-secondary);
+  font-size: .8125rem;
+}
+
+.permission-tree__actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.permission-tree__persona-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .8125rem;
+}
+.permission-tree__picker-label {
+  color: var(--tx-text-color-secondary);
+  white-space: nowrap;
+}
+.permission-tree__persona-select {
+  min-width: 260px;
+  max-width: min(360px, 50vw);
+}
+
+.permission-tree__workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) minmax(0, 1fr);
+  align-items: start;
+}
+
+.permission-tree__list-pane {
+  background: var(--tx-fill-color-blank);
+  border-right: 1px solid var(--tx-border-color-lighter);
+  padding: 20px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.permission-tree__filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.permission-tree__groups-scroll {
+  max-height: 720px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.permission-tree__domain-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.permission-tree__domain-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 8px;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--tx-text-color-secondary);
+  border-bottom: 1px solid var(--tx-border-color-lighter);
+  margin-bottom: 2px;
+}
+.permission-tree__domain-icon {
+  font-size: .875rem;
+}
+.permission-tree__domain-title {
+  flex: 1;
+}
+.permission-tree__domain-count {
+  font-size: .75rem;
+  color: var(--tx-text-color-secondary);
+}
+.permission-tree__domain-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.permission-tree__item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all .12s ease;
+}
+.permission-tree__item-row:hover {
+  background: var(--tx-fill-color-light);
+}
+.permission-tree__item-row--active {
+  background: color-mix(in srgb, var(--tx-color-primary) 10%, transparent);
+  color: var(--tx-color-primary);
+}
+.permission-tree__item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.permission-tree__item-name {
+  font-size: .8125rem;
+  font-weight: 500;
+  color: var(--tx-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.permission-tree__item-code {
+  font-size: .6875rem;
+  color: var(--tx-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 右侧详情面板 */
+.permission-tree__detail-pane {
+  background: var(--tx-fill-color-blank);
+  padding: 24px 28px 32px;
+  min-width: 0;
+}
+.permission-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.permission-detail__back { display: none; }
+.permission-detail__head {
+  border-bottom: 1px solid var(--tx-border-color-lighter);
+  padding-bottom: 22px;
+}
+.permission-detail__head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.permission-detail__name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+  color: var(--tx-text-color-primary);
+}
+.permission-detail__status-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.permission-detail__id-pill {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 6px;
+  font-size: .75rem;
+  background: var(--tx-fill-color-light);
+  color: var(--tx-text-color-secondary);
+  border-radius: 4px;
+}
+.permission-detail__desc {
+  margin: 10px 0 0;
+  font-size: .875rem;
+  line-height: 1.6;
+  color: var(--tx-text-color-regular);
+}
+
+/* 警示框 */
+.permission-detail__alert-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: .8125rem;
+  line-height: 1.5;
+}
+.permission-detail__alert-box--warning {
+  background: color-mix(in srgb, var(--tx-color-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tx-color-warning) 30%, transparent);
+  color: var(--tx-text-color-primary);
+}
+.permission-detail__alert-icon {
+  font-size: 1rem;
+  color: var(--tx-color-warning);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.permission-detail__alert-box strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.permission-detail__alert-box p {
+  margin: 0;
+}
+
+/* 详情卡片 */
+.permission-detail__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--tx-border-color-lighter);
+}
+.permission-detail__card-title {
+  margin: 0;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--tx-text-color-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.permission-detail__source-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+}
+.permission-detail__source-tag {
+  font-size: .6875rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--tx-fill-color-light);
+  color: var(--tx-text-color-secondary);
+  flex-shrink: 0;
+}
+.permission-detail__source-tag--title {
+  background: color-mix(in srgb, var(--tx-color-primary) 12%, transparent);
+  color: var(--tx-color-primary);
+  font-weight: 500;
+}
+.permission-detail__source-tag--dept {
+  background: color-mix(in srgb, var(--tx-color-success) 12%, transparent);
+  color: var(--tx-color-success);
+  font-weight: 500;
+}
+.permission-detail__source-desc strong {
+  font-size: .8125rem;
+  color: var(--tx-text-color-primary);
+  display: block;
+}
+.permission-detail__source-desc p {
+  margin: 2px 0 0;
+  font-size: .75rem;
+  color: var(--tx-text-color-secondary);
+}
+.permission-detail__unassigned-note {
+  margin: 0;
+  font-size: .8125rem;
+  color: var(--tx-text-color-secondary);
+}
+
+/* 范围字段网格 */
+.permission-detail__field-grid {
+  display: grid;
+  gap: 10px;
+}
+.permission-detail__field {
+  display: grid;
+  gap: 3px;
+}
+.permission-detail__field-name {
+  font-size: .75rem;
+  font-weight: 500;
+  color: var(--tx-text-color-secondary);
+}
+.permission-detail__field-val {
+  margin: 0;
+  font-size: .8125rem;
+  line-height: 1.5;
+  color: var(--tx-text-color-primary);
+}
+.permission-detail__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.permission-detail__page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: .75rem;
+  color: var(--tx-color-primary);
+  background: var(--tx-fill-color-blank);
+  border: 1px solid var(--tx-border-color-lighter);
+  border-radius: 4px;
+  text-decoration: none;
+}
+.permission-detail__page-btn:hover {
+  border-color: var(--tx-color-primary);
+}
+
+/* 包含关系 */
+.permission-detail__relation-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.permission-detail__relation-label {
+  font-size: .75rem;
+  color: var(--tx-text-color-secondary);
+}
+.permission-detail__relation-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.permission-detail__pill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: .75rem;
+  background: var(--tx-fill-color-blank);
+  border: 1px solid var(--tx-border-color-lighter);
+  border-radius: 4px;
+  color: var(--tx-text-color-primary);
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.permission-detail__pill-chip:hover {
+  border-color: var(--tx-color-primary);
+  color: var(--tx-color-primary);
+}
+.permission-detail__pill-chip code {
+  color: var(--tx-text-color-secondary);
+  font-size: .6875rem;
+}
+.permission-detail__empty {
+  padding: 48px 0;
+}
+
 @media (max-width: 900px) {
-  .permission-tree { padding: 16px 12px; }
-  .permission-tree__layout { grid-template-columns: minmax(0, 1fr); }
-  .permission-tree__details { border-left: 0; border-top: 1px solid var(--tx-border-color-lighter); padding: 20px 0 0; }
-  .permission-tree__header { flex-wrap: wrap; }
-  .permission-tree__row { flex-wrap: wrap; }
-  .permission-tree__node-text { flex-basis: calc(100% - 64px); }
-  .permission-tree__row > :last-child:not(.permission-tree__node-text) { margin-left: 38px; }
-  .permission-tree__tools :deep(button), .permission-tree__back, .permission-tree__relations :deep(button) { min-height: 44px; }
+  .permission-tree__profile-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .permission-tree__actions-bar {
+    flex-wrap: wrap;
+  }
+  .permission-tree__workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .permission-tree__list-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--tx-border-color-lighter);
+  }
+  .permission-tree__persona-select {
+    min-width: 0;
+    max-width: min(100%, 360px);
+  }
+  .permission-tree__detail-pane {
+    padding: 22px 20px;
+  }
+  .permission-detail__back {
+    display: inline-flex;
+    align-self: flex-start;
+    margin-bottom: 14px;
+  }
 }
 </style>

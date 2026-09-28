@@ -1,5 +1,5 @@
 import { closure } from "./titles";
-import type { BlockReason, Catalogue, CatalogueCapability, ConsoleMe, Department, TitleId } from "./types";
+import type { BlockReason, Capability, Catalogue, CatalogueCapability, ConsoleMe, Department, TitleId } from "./types";
 
 export type PermissionNode = {
   key: string; label: string; children?: PermissionNode[]; capability?: string; sourceKey?: string;
@@ -21,6 +21,39 @@ export interface PermissionDetail extends CatalogueCapability {
 }
 
 const TITLE_IDS: readonly TitleId[] = ["admin", "captain", "head", "member", "alumni", "guest"];
+
+export function permissionDomainLabel(catalogue: Catalogue, domain: string): string {
+  return catalogue.domains.find(item => item.id === domain)?.label
+    ?? (domain === "unknown" ? "未识别能力" : domain);
+}
+
+export function configuredPerspectiveDetails(catalogue: Catalogue, direct: Capability[], sourceKey: string, sourceLabel: string): PermissionDetail[] {
+  const directSet = new Set(direct);
+  const effective = closure(direct, catalogue.implies);
+  const capabilities = new Map(catalogue.capabilities.map(item => [item.id, item]));
+  for (const id of effective) {
+    if (!capabilities.has(id)) capabilities.set(id, {
+      id, domain: "unknown", label: id,
+      description: "当前能力清单没有此标识的说明；保留原始标识，不据此推断权限。",
+    });
+  }
+  return [...capabilities.values()].map(item => {
+    const isDirect = directSet.has(item.id);
+    const isImplied = !isDirect && effective.has(item.id);
+    return {
+      ...item,
+      status: effective.has(item.id) ? "effective" as const : "ungranted" as const,
+      reason: null,
+      grants: isDirect || isImplied ? [{
+        sourceKey, label: sourceLabel, active: true,
+        kind: isDirect ? "direct" as const : "implied" as const,
+        via: isDirect ? [] : direct.filter(root => closure([root], catalogue.implies).has(item.id)),
+      }] : [],
+      implies: [...closure([item.id], catalogue.implies)].filter(id => id !== item.id),
+      impliedBy: [...capabilities.keys()].filter(id => id !== item.id && closure([id], catalogue.implies).has(item.id)),
+    };
+  });
+}
 
 /** 配置只解释来源；是否生效与受限原因只读 /me，不在前端再次授权。 */
 export function buildPermissionTree(catalogue: Catalogue, departments: Department[], me: ConsoleMe): {

@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-09-27
+状态：`current` · 更新：2026-09-28
 
 ## 合同
 
@@ -45,9 +45,9 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `PATCH /api/console/titles/:title_id` | `roles.manage` | 无 | 200 `{ title: { id, label, tag, icon, tone, description, capabilities } }`，审计 `title.update`（details `{ changed }`）；body 是 `label`（1–8 字）、`tag`（`^[A-Z][A-Z0-9-]{1,15}$`）、`icon`（`department_icons` 之一）、`tone`、`description`（≤200 字）、`capabilities` 的非空子集 | 400 `validation_error`（未知称号、未知字段、空 body、名字只有空白）/ `title_capabilities_fixed`（改 admin 或 guest 的权限）/ `captain_only_capability`（`roles.manage` 放进 captain 以外的包）；403 `missing_capability` / `admiral_required`（admin、captain 两个称号只有 admin 本人能改） |
 | `GET /api/console/summary` | `console.access` | 无 | 200，只含调用者有权看的键：`applications? { total, by_status, last_7d }`、`feedback? { open, total }`、`people? { assignments, departments }` | 401；403 |
 | `GET /api/console/departments` | `console.access` | 无 | 200 `{ departments: [{ …, head_capabilities, member_capabilities, heads, crew_count }] }`，已归档的排在最后 | 401；403 |
-| `POST /api/console/departments` | `roles.manage` | 无 | 201 `{ department }`，审计 `department.create` | 400 `validation_error` / `captain_only_capability`；409 `department_exists` |
-| `PATCH /api/console/departments/:department_id` | `roles.manage` | 无 | 200 `{ department }`，审计 `department.update`（details `{ changed }`） | 400；404 `not_found` |
-| `DELETE /api/console/departments/:department_id` | `roles.manage` | 无 | 200 `{ ok: true, removed }`：同一事务删除部门和它的全部 head / member 指派（`removed` 是撤掉的条数），审计 `department.delete`（details `{ name, removed: [{ github_login, role }] }`）；默认部门只在第一次启动写入（`console_seeds`），删掉后重启不会补回 | 403；404 `not_found` |
+| `POST /api/console/departments` | `roles.manage` 且 GitHub 组织 owner | 无 | 201 `{ department }`，审计 `department.create` | 403 `admiral_required`；400 `validation_error` / `captain_only_capability`；409 `department_exists` |
+| `PATCH /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ department }`，审计 `department.update`（details `{ changed }`） | 403 `admiral_required`；400；404 `not_found` |
+| `DELETE /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ ok: true, removed }`：同一事务删除部门和它的全部 head / member 指派（`removed` 是撤掉的条数），审计 `department.delete`（details `{ name, removed: [{ github_login, role }] }`）；默认部门只在第一次启动写入（`console_seeds`），删掉后重启不会补回 | 403 `admiral_required`；404 `not_found` |
 | `GET /api/console/assignments?department_id=&role=` | `roles.manage` 或 `roles.department.manage` | 无 | 200 `{ assignments, captain }`；只有后者时只返回本人负责部门的行 | 401；403 `missing_capability` / `out_of_department_scope` |
 | `POST /api/console/assignments` | `roles.manage`；或 `roles.department.manage` 且 `role=member`、部门属于本人 | 30 次/分钟 | 201 `{ assignment }`，审计 `role.assign`（details `{ role, department_id, note_length }`）或 `role.captain.transfer`（`{ from, to }`） | 400 `department_required` / `department_not_allowed` / `unknown_department` / `github_user_not_found`；403 `missing_capability` / `out_of_department_scope` / `captain_required`；409 `assignment_exists` |
 | `DELETE /api/console/assignments/:id` | 同上，按目标行判断；captain 那条只有本人或 admin 能撤 | 无 | 200 `{ ok: true }`，审计 `role.revoke` | 404；409 `captain_transfer_required` |

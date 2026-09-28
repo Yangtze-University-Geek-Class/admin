@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPermissionTree } from "../../app/console/src/lib/permission-tree";
+import { buildPermissionTree, configuredPerspectiveDetails, permissionDomainLabel } from "../../app/console/src/lib/permission-tree";
 import type { PermissionNode } from "../../app/console/src/lib/permission-tree";
 import type { Catalogue, ConsoleMe, Department, TitleId, TitleView } from "../../app/console/src/lib/types";
 
@@ -41,6 +41,18 @@ function keys(nodes: PermissionNode[]): string[] {
 }
 
 describe("permission explanation tree", () => {
+  it("derives a configured perspective from the live catalogue and retains unknown configured IDs", () => {
+    const config = catalogue();
+    config.domains[1]!.label = "更新后的业务域";
+    config.implies = { ...config.implies, "future.write": ["future.read"] };
+    const details = configuredPerspectiveDetails(config, ["future.write", "work.edit"], "title:head", "当前head");
+    expect(permissionDomainLabel(config, "work")).toBe("更新后的业务域");
+    expect(permissionDomainLabel(config, "unknown")).toBe("未识别能力");
+    expect(details.find(detail => detail.id === "future.write")).toMatchObject({ domain: "unknown", status: "effective" });
+    expect(details.find(detail => detail.id === "future.read")).toMatchObject({ domain: "unknown", status: "effective", grants: [{ kind: "implied", via: ["future.write"] }] });
+    expect(details.find(detail => detail.id === "work.read")).toMatchObject({ status: "effective", grants: [{ kind: "implied", via: ["work.edit"] }] });
+    expect(details.find(detail => detail.id === "work.export")?.status).toBe("ungranted");
+  });
   it("keeps provider status authoritative when current packs disagree, including blocked overlap", () => {
     const config = catalogue();
     config.role_base.member = ["github.org.manage", "work.edit"];

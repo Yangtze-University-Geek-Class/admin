@@ -56,7 +56,7 @@ const save = useAction(async () => {
       member_capabilities: order.filter(id => crew.value.has(id)),
     }),
   });
-  toast({ title: "权限包已保存", description: props.department!.name, variant: "success" });
+  toast({ title: "部门权限已保存", description: props.department!.name, variant: "success" });
   emit("done");
   emit("update:open", false);
 });
@@ -65,7 +65,7 @@ const save = useAction(async () => {
 <template>
   <TxModal
     :model-value="open"
-    :title="department ? `${department.name}的权限包` : '权限包'"
+    :title="department ? `${department.name}的权限` : '部门权限'"
     width="min(94vw, 720px)"
     @update:model-value="value => emit('update:open', value)"
   >
@@ -100,7 +100,7 @@ const save = useAction(async () => {
     <template #footer>
       <div class="dialog-actions">
         <TxButton variant="secondary" @click="emit('update:open', false)">取消</TxButton>
-        <TxButton variant="primary" :disabled="!dirty" :loading="save.pending.value" @click="save.execute()">{{ dirty ? "保存权限包" : "没有修改" }}</TxButton>
+        <TxButton variant="primary" :disabled="!dirty" :loading="save.pending.value" @click="save.execute()">{{ dirty ? "保存权限" : "没有修改" }}</TxButton>
       </div>
     </template>
   </TxModal>

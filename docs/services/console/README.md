@@ -15,7 +15,7 @@
 | `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost |
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`）；`ConsoleShell` 把它交给 `CapabilityGate`，缺能力时整页换成权限说明，没写的页面按 `console.access` 判断 |
 | `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
-| `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`）、能力门 `CapabilityGate`、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
+| `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`：只显示实际持有能力的页面）、能力门 `CapabilityGate`（直接访问无权限地址仍说明原因）、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
 | `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/lib/permission-tree.ts`、`permission-boundaries.ts` | 前者用当前目录/部门配置解释本人 `/me` 的状态，不生成授权判断；后者维护能力的范围、实际执行点和关联页面，只作说明，随对应后端路由与契约同步 |
 | `src/mock/` | 开发预览样板数据（全部虚构），只在 DEV 且数据源为 mock 时动态导入，生产构建不含 |
@@ -33,7 +33,7 @@
 | `/console` | 概览 | `console.access` |
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
-| `/console/people` | 成员与权限：「成员」像飞书通讯录，左边是全部成员、各部门与「没有部门」（`?group=<部门 id>`），右边是选中那一组的负责人、上级和名单；`?view=titles` 为「称号」（只给 `roles.manage`：六个称号的名字、英文标签、图标、色调、说明和权限都在这里改）；`?view=departments` 为部门与权限包（可编辑权限包、删除部门）；`?view=permissions` 为只读权限树 | `roles.manage`、`roles.department.manage` |
+| `/console/people` | 成员与权限：四个文字页签「成员 / 称号 / 部门 / 权限树」；「成员」左侧宽分组栏，右侧概况与限定高度的内部滚动名单，可逐人展开来源与撤销操作；`?view=titles` 为「称号」（只给 `roles.manage`，列出名称、说明和基础权限）；`?view=departments` 为「部门」（展示负责人、成员与两类部门权限，仅组织 owner 显示编辑或删除）；`?view=permissions` 为只读能力目录与详情，按当前身份、称号或部门查看，只有有区分度的状态筛选会出现 | `roles.manage`、`roles.department.manage` |
 | `/console/feedback` | 意见箱 | `feedback.read` |
 | `/console/audit` | 审计日志 | `audit.read` |
 | `/console/github/**` | GitHub 组织页面；邀请与邀请链接另需 `github.invites.manage`，新建仓库另需 `github.repos.manage` | `github.org.read` |
@@ -46,10 +46,10 @@
 
 「成员与权限」第四页签 **权限树**（`/console/people?view=permissions`，[issue #176](https://github.com/Yangtze-University-Geek-Class/admin/issues/176)）沿用父页能力门，不向普通舰员开放。页签切换用路由历史，刷新、前进后退保留 `view` 和原有 `group`；仅当前页签挂载树，不显示「添加称号」等写按钮。原计划已压缩为 [实施结论](../../plan/CONSOLE-PERMISSION-TREE.md)。本地实现不等于已合并或已发布。
 
-- **读取**：复用父页的 departments Resource；进入或返回页签、手工刷新时读取当前 catalogue、部门与本人 `/me`。树单独保留 catalogue 的准确错误，不使用普通徽章的默认标签回落证明成功。任何加载或错误期间隐藏旧树、统计和授权结论；401 走统一登录回跳，403/上游失败显示 HTTP、机器码与 request id，可刷新重读。各接口不是事务快照，明确标注读取时间；来源和结果不一致时显示警告，不覆盖 `/me`。
-- **结论与来源**：有效/受限/未授予只取 `/me.capabilities` 与 `blocked`；称号基础包、部门队长/舰员包与现有 `closure` 只解释来源。按能力域展示目录，按称号/部门展示所有配置（含非当前和已归档来源）。多称号保留多条路径，rank 不继承，领航员不推导普通舰员；归档/缺失部门不参与来源。owner 自动全能力、自动补充 `console.access` 单列说明。未知 id 原样保留并警告，不据此赋权。
+- **读取**：复用父页的 departments Resource；进入或返回页签、手工刷新时读取当前 catalogue、部门与本人 `/me`。树单独保留 catalogue 的准确错误，不使用普通徽章的默认标签回落证明成功。任何加载或错误期间隐藏旧树、统计和授权结论；401 走统一登录回跳，403/上游失败显示 HTTP、机器码与 request id，可刷新重读。各接口不是事务快照；来源和结果不一致时显示警告，不覆盖 `/me`。
+- **结论与来源**：本人视角的有效/受限/未授予只取 `/me.capabilities` 与 `blocked`；称号基础包、部门队长/舰员包与现有 `closure` 只解释来源。业务域名称取当前 catalogue，图标为前端映射；称号与未归档部门视角展示对应配置并标「已包含」，不模拟其他人的实际权限。多称号保留多条路径，rank 不继承，领航员不推导普通舰员；归档/缺失部门不参与来源。owner 自动全能力、自动补充 `console.access` 单列说明。配置或身份中的未知 id 原样保留并警告，不据此赋权。
 - **边界**：详情区分直接、蕴含与自动授予，并给出 GitHub 上限原因、任免作用域、能力关系与关联页面。`roles.department.manage` 单独持有时的普通任免限于本人负责部门；同时持有 `roles.manage` 时按全局范围处理，现任舰长通过能力门后的移交与卸任另按本人身份核对。`forum.category.manage`、`forum.badge.assign` 单独标记预留，不因「已生效」而显示执行动作；论坛另需当前组织成员身份；旧 `/api/admin/:org/*` 仍按 GitHub 角色鉴权而非 capability。关联链接不承诺能进入或执行。
-- **交互**：实际 Tuffex 0.6.0 `TxTree` 单选、`TxSearchInput` 搜索名称/id/来源、`TxTabs` 切视角、`TxButton` 控制展开。搜索临时保留祖先，清空恢复之前展开；搜索时禁用全展开/收起。`/` 聚焦搜索，Esc 清空；方向键、Enter 选择由树组件处理。窄屏上下布局，选择后焦点跳到详情，「返回权限树」返回原节点。无授权复选框、拖拽、保存、真实成员模拟器或新写接口。
+- **交互**：`TxSelect` 切换本人、称号与部门配置视角；`TxFilterChips` 只在状态结果不同时出现，切换视角后重置筛选；`TxSearchInput` 搜索能力名称、id 与说明。能力按业务域分组为只读选择列表，点击后显示来源、范围与关联页面；`/` 聚焦搜索，Esc 清空。窄屏上下布局，选择后焦点跳到详情，「返回权限列表」返回原节点。无授权复选框、拖拽、保存、真实成员模拟器或新写接口。
 
 ## 接口
 

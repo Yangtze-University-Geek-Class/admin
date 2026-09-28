@@ -96,9 +96,9 @@ const boundaries: Record<string, PermissionBoundary> = {
   },
   "roles.manage": {
     reserved: false,
-    scope: "管理称号、部门和权限包。只允许最高两级称号持有；最高两级的配置仍只能由组织 owner 修改，舰长任免另有本人/owner 限制。",
-    execution: "称号 PATCH、部门写接口及称号指派检查 roles.manage；拥有此能力不能绕过固定权限包、舰长唯一性和角色级限制。",
-    pages: [{ label: "称号", path: "/console/people?view=titles" }, { label: "部门与权限包", path: "/console/people?view=departments" }],
+    scope: "管理称号与人员任免。部门的建立、配置、归档和删除只允许组织 owner；舰长任免另有本人/owner 限制。",
+    execution: "称号 PATCH 与称号指派检查 roles.manage；部门写接口还检查组织 owner 身份，不能只凭此能力操作。",
+    pages: [{ label: "称号", path: "/console/people?view=titles" }, { label: "部门", path: "/console/people?view=departments" }],
   },
   "roles.department.manage": {
     reserved: false, scope: "仅持有此能力时，普通任免限于自己负责部门的舰员；同时持有 roles.manage 时不受此部门范围限制。现任舰长通过接口能力门后，仍可按本人身份移交或卸任。",

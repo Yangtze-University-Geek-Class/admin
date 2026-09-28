@@ -40,7 +40,7 @@ export const MOCK_CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；只能给最高的两级称号，不能放进部门权限包" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号和任免；部门配置与删除另需提督身份；只能给最高两级称号" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
@@ -342,6 +342,16 @@ export function mockPersona(): Persona | null {
 export function checkConsoleWrite(url: URL, method: string, body: unknown): void {
   const application = url.pathname.match(/^\/api\/console\/applications\/([0-9a-f-]{36})$/);
   if (method === "PATCH" && application) return checkApplicationReview(application[1], body);
+  if (/^\/api\/console\/departments(?:\/[^/]+)?$/.test(url.pathname) && ["POST", "PATCH", "DELETE"].includes(method)) {
+    const name = currentPersona();
+    if (name === SIGNED_OUT) throw new ApiError(401, "not_signed_in", "请先登录", undefined, { error: "not_signed_in" });
+    need(MOCK_PERSONAS[name], "roles.manage");
+    if (MOCK_PERSONAS[name].github_role !== "admin") {
+      const message = `只有${MOCK_TITLES.find(title => title.id === "admin")!.label}能管理部门`;
+      throw new ApiError(403, "admiral_required", message, undefined, { error: "admiral_required", message });
+    }
+    return;
+  }
   const match = url.pathname.match(/^\/api\/console\/titles\/([^/]+)$/);
   if (method !== "PATCH" || !match) return;
   const name = currentPersona();

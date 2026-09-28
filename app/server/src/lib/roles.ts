@@ -81,7 +81,7 @@ export const CAPABILITIES = [
   { id: "feedback.read", domain: "feedback", label: "查看意见箱", description: "查看意见箱" },
   { id: "feedback.manage", domain: "feedback", label: "处理意见", description: "修改意见状态、回复、删除" },
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
-  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号、部门和权限包；只能给最高的两级称号，不能放进部门权限包" },
+  { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号和任免；部门配置与删除另需提督身份；只能给最高两级称号" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
 ] as const satisfies readonly { id: string; domain: CapabilityDomain; label: string; description: string }[];
 export type Capability = (typeof CAPABILITIES)[number]["id"];
