@@ -175,12 +175,12 @@
 
 CI 与部署只用 GitHub 托管 runner（#139）：六个工作流的每个 job 都写 `runs-on: ubuntu-latest`。
 
-- 托管 runner 每个 job 一台新虚拟机，job 结束即销毁：前一个 job（包括别人分支上的 job）改不到后一个 job 的文件系统、工具和缓存，部署 job 也一样。仓库公开（2026-09-26 17:49）以后托管 runner 不计分钟，免费版最多 20 个 job 同时跑。
-- 部署用的密钥只经 GitHub Environment 进 job：`preview` 只放行 `v*.*.*-rc.*` 形状的 tag（见上文「平台能力实测」的 2026-09-26 更新），`static-cdn` 的放行规则见上文「静态资源 CDN」第 2 步；`production` 的 required reviewers 还没配，正式部署 job 按设计失败关闭，走上文「维护者机器部署」。
+- 托管 runner 每个 job 一台新虚拟机，job 结束即销毁：前一个 job（包括别人分支上的 job）改不到后一个 job 的文件系统、工具和本地缓存，部署 job 也一样；Actions 缓存（setup-node 的 `cache: pnpm`、`actions/cache`）不随虚拟机销毁，按 GitHub 的分支作用域在多次运行之间共享，从缓存装进来的包仍按锁文件 integrity 核对。仓库公开（2026-09-26 17:49）以后托管 runner 不计分钟，免费版最多 20 个 job 同时跑。
+- 部署用的密钥只经 GitHub Environment 进 job：`preview` 只放行 `v*.*.*-rc.*` 形状的 tag（见上文「平台能力实测」的 2026-09-26 更新），`static-cdn` 的放行规则见上文「静态资源 CDN」第 2 步；`production` 的密钥只经 `production` Environment 进 job（2026-10-02 只读核对：它有 required reviewers 与自定义部署分支规则，2026-09-27 建；`v0.1.0` 的正式部署运行 36314912545 由所有者批准后在托管 runner 上跑完）。
 - **写成字面量，不读仓库变量**。原来的写法是 `${{ vars.CI_RUNNER || 'ubuntu-latest' }}` 与 `${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}`，#139 改掉，理由：两个变量已经删了（#138），留着这种写法只会让人以为还能切回去；改仓库变量不经 PR 与审查，也不进 git 历史，设一个变量就能把带部署私钥的 job 送到别的机器上，写成字面量后换 runner 必须改工作流、经过审查；原来的 runner 组 `yzgc-deploy` 已经不允许公开仓库，设回去 job 也只会排队。`tests/tooling/hosted-runners.test.ts` 核对 `.github/workflows/` 下每个工作流的每个 job 都是 `runs-on: ubuntu-latest`，也没有残留 `vars.CI_RUNNER`、`vars.DEPLOY_RUNNER` 和旧的 runner 标签。
 - 托管 runner 出问题时等 GitHub 恢复后重跑，不再有切到别的机器的退路。以后真要用自托管 runner，先开 issue，重新论证隔离、凭据与公开仓库 fork PR 的边界，再改工作流和上面这条测试；不要靠加标签或设变量切过去。
 
-`historical`：仓库还私有时，免费版每月 2000 分钟的托管额度用完（2026-09-25 所有 job 报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`），CI 改到维护者家里的机器 crosery-arch 上的常驻 incus 容器里跑（#93，后来加到 4 个实例，#124），部署 job 跑在同一台机器上每个 job 一个的一次性容器里（#97）。2026-09-26 17:49 仓库公开后 CI 回到托管 runner；`v0.1.0-rc.8` 在一次性 runner 上两次失败后，所有者 21:05 决定部署也不再用家里的 runner（#138）。机器上的脚本 `deploy/runner/` 已在 #139 删除，原文在 git 历史里（`git show 458999f:deploy/runner/<文件>`），当时的做法、隔离边界与实测记在 `notes/2026-09-26/crosery/` 的 `task_93_self_hosted_runner.md`、`task_97_deploy_jit_runner.md`、`task_124_ci_throughput.md`；宿主机上的容器、服务与 GitHub 上的 runner 注册由所有者清理，从 #139 拆出单独的 issue 跟进。
+`historical`：仓库还私有时，免费版每月 2000 分钟的托管额度用完（2026-09-25 所有 job 报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`），CI 改到维护者家里的机器 crosery-arch 上的常驻 incus 容器里跑（#93，后来加到 4 个实例，#124），部署 job 跑在同一台机器上每个 job 一个的一次性容器里（#97）。2026-09-26 17:49 仓库公开后 CI 回到托管 runner；`v0.1.0-rc.8` 在一次性 runner 上两次失败后，所有者 21:05 决定部署也不再用家里的 runner（#138）。机器上的脚本 `deploy/runner/` 已在 #139 删除，原文在 git 历史里（`git show 458999f:deploy/runner/<文件>`），当时的做法、隔离边界与实测记在 `notes/2026-09-26/crosery/` 的 `task_93_self_hosted_runner.md`、`task_97_deploy_jit_runner.md`、`task_124_ci_throughput.md`；宿主机上的容器、服务、JIT 令牌与 GitHub 上的 runner 注册由所有者清理，从 #139 拆出单独的 issue 跟进，编号记在 #139 的追踪记录里。
 
 ### 构建下载源（#104）
 

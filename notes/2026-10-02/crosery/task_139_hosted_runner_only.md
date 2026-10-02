@@ -26,3 +26,16 @@
 - 执行者：agent-claude-geek-main-subagent-139（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：git diff --cached -U0 .github/workflows 数改动的 runs-on 行
 - 结果：改了 25 处，不是上面开发记录写的 30 处（ci 8、deploy-production 6、deploy-preview 5、issue-lifecycle 3、branch-hygiene 2、cert-watch 1）；其余内容不变
+
+## 20:39:10 +08:00 · 返工 · #139 · 按独立审查意见返工：注释去掉带时效的现状，CICD 补 Actions 缓存与宿主机清理的去向
+
+- 执行者：agent-claude-geek-main-subagent-139（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：F8：ci.yml 下载源注释、app/server/Dockerfile 下载源注释、build-mirrors.test.ts 文件头去掉「现在都没设」，现状指向 docs/ops/CICD.md「构建下载源」；DEPLOY.md 同一句改成带日期的「2026-10-02 核对时三个都没设」。F6：CICD.md「运行位置」第一条改成只隔离本地缓存，写明 setup-node 的 cache: pnpm 与 actions/cache 按分支作用域共享、包仍按锁文件 integrity 核对。F5：historical 段末改成「从 #139 拆出单独的 issue 跟进，编号记在 #139 的追踪记录里」（提交时新 issue 还没建）。另外更正本 PR 新写的一句：gh api 只读核对 production Environment 有 required reviewers（Crosery）与自定义分支规则（2026-09-27T11:05:39Z 建），v0.1.0 的部署运行 36314912545 经所有者批准后在托管 runner 上跑完，原句「required reviewers 还没配、按设计失败关闭」不对，改成核对到的现状。F4：gh api 只读核对 rc.9–rc.15 七次 deploy-preview 运行与 v0.1.0 正式运行的全部 job 都在 runner 组 GitHub Actions、labels ubuntu-latest，写进 PR 正文。F1/F2/F3/F7 的开 issue、截图、PR 与审查记录由主控推送后做
+- 结果：vitest 8 个相关 tooling 测试文件 126 个用例通过；actionlint 1.7.12 对 .github/workflows/*.yml 退出 0；pnpm check 见下一条提交记录
+
+## 20:40:11 +08:00 · 提交 · #139 · 提交：按审查意见返工 #139 的注释与 CICD 文档
+
+- 执行者：agent-claude-geek-main-subagent-139（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：docs(deploy): 按审查意见去掉带时效的现状并补全运行位置的说明；fnm 切到 Node 22.23.2 跑 pnpm check；vitest run hosted-runners、build-mirrors、deploy-manual、doc-sync、docs-index、fetch-artifact、static-cdn-switch、static-cdn-workflows；actionlint -no-color -oneline .github/workflows/*.yml；node scripts/docs-index.mjs --check；node scripts/check-branch-invariants.mjs
+- 结果：pnpm check 退出 0（文档同步通过：6 组模块与文档，按 PR 核对 origin/stage；执行记录通过：44 条链路；密钥门禁通过；三份 typecheck 通过）；8 个测试文件 126 个用例通过；actionlint 1.7.12 退出 0；docs/INDEX.md 是最新的；分支不变量通过。未跑 pnpm verify、e2e、Playwright（按分工不跑）
+- 下一步：主控：按 hostFollowUp 开宿主机清理 issue（负责人 Crosery），替换 PR 正文的 #{{HOST_ISSUE}} 等占位；推送、开 PR、截 PR head 的 CI 运行页；补 PR、审查记录

@@ -22,7 +22,7 @@
 # 写成字面量、不读仓库变量：换 runner 要改工作流、走 PR 审查（docs/ops/CICD.md「运行位置」）。
 #
 # 下载源（#104）：仓库变量 NPM_REGISTRY、DEBIAN_MIRROR、BETTER_SQLITE3_BINARY_HOST 可以把下载换到别的源，
-# 现在都没设，没设时一律回到官方源。装依赖的 job 用 npm_config_registry（npm、pnpm 9）/ pnpm_config_registry（pnpm 11）/
+# 没设时一律回到官方源（哪些设了见 docs/ops/CICD.md「构建下载源」）。装依赖的 job 用 npm_config_registry（npm、pnpm 9）/ pnpm_config_registry（pnpm 11）/
 # npm_config_better_sqlite3_binary_host（prebuild-install），docker job 以同名 build arg 传给 Dockerfile。
 # 锁文件 integrity、corepack 签名、apt 签名照常核对；各项的信任依据见 docs/ops/CICD.md「构建下载源」。
 

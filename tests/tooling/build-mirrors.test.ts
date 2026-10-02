@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-// 构建下载源（#104）：仓库变量可以把下载换到别的源（现在都没设），没设变量时必须回到官方源；
+// 构建下载源（#104）：仓库变量可以把下载换到别的源，没设变量时必须回到官方源；
 // 镜像参数只在 Dockerfile 的构建阶段出现，不进运行镜像。这里核对三个 Dockerfile 与三条工作流的接线，
 // 并在临时目录里实跑其中负责拦下坏输入的 shell：三个 Dockerfile 构建阶段换源、核对的那条 RUN，
 // ci forum job 装 pnpm 11 的那一步（apt、corepack、npm、pnpm 等换成假命令）。
