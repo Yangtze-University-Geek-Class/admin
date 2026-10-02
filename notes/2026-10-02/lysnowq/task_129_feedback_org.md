@@ -15,3 +15,10 @@
 - 做了什么：git commit：fix(portal): 意见箱只收本部署组织的意见（3a53686），代码、测试、文档与开发记录同一提交
 - 结果：3a53686；vitest run tests/server 244 passed；tests/web/portal-feedback-org.test.tsx 2 passed；pnpm check 通过；pnpm --filter @yzgc/server build 通过
 - 下一步：开 PR 回 stage，等待审查
+
+## 16:48:49 +08:00 · 提交 · #129 · PoW 摘要改按提交的组织名计算，补一条能区分修复前后的用例
+
+- 执行者：agent-omp-issue-129（OMP，代表 LYsnowQ）
+- 做了什么：git commit：fix(server): 意见箱 PoW 摘要按提交的组织名计算（718807e）；tests/server/feedback-org.test.ts 增第 5 条（摘要输入绑提交写法，nonce 只对该写法有效）；docs/architecture/API.md 写明摘要输入
+- 结果：718807e；该条用例在把摘要换回规范写法时确实失败（实测 1 failed），修好后 vitest run tests/server 245 passed、tests/web/portal-feedback-org.test.tsx 2 passed
+- 下一步：开 PR 回 stage，等待审查
