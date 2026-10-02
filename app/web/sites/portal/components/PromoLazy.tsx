@@ -4,14 +4,14 @@
 // 浏览器也记着加载失败的分包地址，所以重来时由 retryableImport 换成写死的 ?retry=n 地址重新加载。
 // 播放层样式放在这里（跟官网主包走），不跟播放层分包：Vite 的分包预加载把失败过的样式表记为已加载、不再重试，
 // 断网失败过一次以后，换地址加载回来的播放层会没有样式。
-import { lazy, useEffect, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
 import { retryableImport } from "../lib/promo";
 import type PromoPlayer from "./PromoPlayer";
 import type { PromoEnd } from "./PromoPlayer";
 import Icon from "./Icon";
 import "../styles/promo.css";
 
-type Props = ComponentProps<typeof PromoPlayer>;
+type Props = Omit<ComponentProps<typeof PromoPlayer>, "coverSince">;
 
 // 换地址的那几个以生产构建为准：开发服务器下 .tsx 带查询参数加载可能报 React 刷新的 preamble 错误
 const importPlayer = retryableImport([
@@ -39,20 +39,35 @@ function PromoUnavailable({ onClose }: Props) {
   return <></>;
 }
 
-/** 每次打开时记住当时那个：打开期间父组件重渲染，不会换成新的再加载一遍 */
-export function LazyPromoPlayer(props: Props) {
+/**
+ * 打开一次宣传片。分包在这里自己挂起（Suspense 在本组件里面），所以本组件的状态在等分包的整段时间里都在：
+ * 每次打开记住当时那个播放层，打开期间父组件重渲染，不会换成新的再加载一遍。
+ * placeholder：分包没到时先显示加载遮罩（gate 用，#122）；不传时这段时间什么都不显示。
+ */
+export function LazyPromoPlayer({ placeholder = false, ...props }: Props & { placeholder?: boolean }) {
   const [Player] = useState(() => current);
-  return <Player {...props} />;
+  // 加载遮罩画出来的时刻：播放层顶替它时从这里接着淡入，不从透明重来
+  const [coverSince, setCoverSince] = useState<number>();
+  return (
+    <Suspense fallback={placeholder ? <PromoFallback {...props} onShown={setCoverSince} /> : null}>
+      <Player {...props} coverSince={coverSince} />
+    </Suspense>
+  );
 }
 
 /**
  * 播放层分包还在下载时的加载遮罩（#122）：直接打开 /join-us 的第一次访问会被整页 inert，
- * 弱网下分包要几秒才到，这段时间不能什么都不显示。遮罩沿用播放层同一套全屏层与右上角「跳过」
- * （replay 时「关闭」），跳过与播放层同一语义：先记「看过」，再结束 gate；Esc 同样能关。
- * 分包到了以后由 React 原地换成真正的播放层，共用 promo.css，不闪。
+ * 弱网下分包要几秒才到，这段时间不能什么都不显示。遮罩沿用播放层同一套全屏层与右上角「跳过」，
+ * 跳过与播放层同一语义：先记「看过」，再结束 gate；Esc 同样能关。
+ * 分包到了以后 React 删掉遮罩、挂上真正的播放层（两个是不同的节点）：播放层拿到 onShown 记下的时刻，
+ * 接着遮罩的淡入走（promo.css 的 pt-promo-in），不会从透明重来、透出下面的浅色页面。
  */
-export function PromoFallback({ mode, onSeen, onClose }: Props) {
+function PromoFallback({ mode, onSeen, onClose, onShown }: Props & { onShown: (at: number) => void }) {
   const skip = useRef<HTMLButtonElement>(null);
+  // 在浏览器画出这一帧之前记下：遮罩的淡入动画从这一帧开始
+  useLayoutEffect(() => {
+    onShown(performance.now());
+  }, [onShown]);
   useEffect(() => {
     // 打开时把焦点放在「跳过」上：键盘和读屏一进来就能操作，Esc 也落在遮罩内
     skip.current?.focus({ preventScroll: true });
@@ -61,20 +76,14 @@ export function PromoFallback({ mode, onSeen, onClose }: Props) {
     onSeen?.();
     onClose(reason);
   };
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    close("skipped");
+  };
   const closeLabel = mode === "gate" ? "跳过" : "关闭";
   return (
-    <div
-      className="pt-root pt-promo"
-      role="dialog"
-      aria-modal="true"
-      aria-label="极客班宣传片"
-      tabIndex={-1}
-      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        close("skipped");
-      }}
-    >
+    <div className="pt-root pt-promo" role="dialog" aria-modal="true" aria-label="极客班宣传片" tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="pt-promo-frame">
         <div className="pt-promo-stage">
           <button ref={skip} type="button" className="pt-promo-chip pt-promo-close" onClick={() => close("skipped")}>

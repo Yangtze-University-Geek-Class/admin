@@ -7,13 +7,13 @@
 // 这个浏览器第一次进来时先全屏播宣传片（#77，能跳过），播完或跳过才开始信封动画；之后靠 cookie 不再自动播。
 // 所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
 import { computePow, powProof } from "@shared/lib/pow";
 import Icon from "../components/Icon";
-import { LazyPromoPlayer, PromoFallback } from "../components/PromoLazy";
+import { LazyPromoPlayer } from "../components/PromoLazy";
 import SceneBar from "../components/SceneBar";
 import { RESUME_DESKTOP } from "../lib/links";
 import { hasSeenPromo, promoCookie } from "../lib/promo";
@@ -325,12 +325,8 @@ export default function JoinUs() {
           )}
         </div>
       </div>
-      {promo && (
-        // 分包没到时先显示同一套加载遮罩（#122），不再什么都不显示
-        <Suspense fallback={<PromoFallback mode="gate" onSeen={onPromoSeen} onClose={onPromoClose} />}>
-          <LazyPromoPlayer mode="gate" onSeen={onPromoSeen} onClose={onPromoClose} />
-        </Suspense>
-      )}
+      {/* 分包没到时先显示同一套加载遮罩（placeholder，#122），不再什么都不显示 */}
+      {promo && <LazyPromoPlayer mode="gate" placeholder onSeen={onPromoSeen} onClose={onPromoClose} />}
     </>
   );
 }

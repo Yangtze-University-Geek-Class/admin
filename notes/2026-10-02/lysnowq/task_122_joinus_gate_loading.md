@@ -40,3 +40,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：接手 PR #180（审查 F4）：sed -i '' 's/\r$//' 处理 docs/services/web/README.md、docs/services/web/portal.md、tests/web/portal-promo-gate.test.tsx；单独成一个 style(portal) 提交，不改写历史
 - 结果：改后 git grep -lI $'\r' 工作区无输出；git diff --ignore-cr-at-eol 无改动；对 origin/stage 的 docs/services/web/ diff 只剩 README.md 2 +-、portal.md 3 ++-（原来 124 行和 331 行）。文档核对：docs/services/web/README.md、docs/services/web/portal.md 本提交只换行尾，内容不用改
+
+## 20:20:09 +08:00 · 返工 · #122 · F1：遮罩换成播放层时接着淡入，不再从透明重来
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：PromoLazy.tsx：Suspense 挪进 LazyPromoPlayer（新增 placeholder 属性，gate 传、桌面重看不传），PromoFallback 在 useLayoutEffect 里记下画出来的时刻 coverSince；PromoPlayer.tsx 新增可选 coverSince，挂上时按「遮罩已经盖了多久」给根节点负的 animation-delay；JoinUs.tsx 改用 <LazyPromoPlayer placeholder>，YugcOs.tsx 去掉外层已经多余的 Suspense；tests/web/portal-promo-gate.test.tsx 改成每条用例重新加载模块、分包由用例放行，新增「分包到了换成播放层」一条；portal.md「分包未到的加载占位」按实际机制重写
+- 结果：vitest run tests/web/portal-promo-gate.test.tsx：3 passed；把四个源文件临时换回 9fffb81 的版本再跑：新用例 1 failed（animation-delay: "": expected null not to be null），另外 2 条 passed，已还原；promo-gate/lazy/player/promo/join 五个文件 45 passed；tsc -p app/web/tsconfig.json --noEmit 通过。真实浏览器逐帧未验证（放到最后一个代码提交的构建上做）

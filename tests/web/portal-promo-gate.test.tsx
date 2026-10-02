@@ -3,24 +3,46 @@
 // 以前 Suspense 的 fallback 是 null，这段空白期点不动、没有加载提示、也没有跳过入口。
 // 现在 fallback 是与播放层同一套的加载遮罩：有「正在加载…」，右上角「跳过」一直可用（Esc 同样能关），
 // 跳过与播放层同一语义：写「已看过」的 cookie 并让页面恢复可交互。
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-// react-router-dom 只装在 app/web 下，测试文件从仓库根解析不到：按页面实际用的那一份导入，路由器上下文要和页面同一个实例
-import { MemoryRouter } from "../../app/web/node_modules/react-router-dom/dist/index.mjs";
+// 分包到了以后换成真正的播放层：接着遮罩的淡入走，不从透明重来（否则会透出下面的浅色页面，闪一下）。
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as PromoLib from "../../app/web/sites/portal/lib/promo";
 import { PROMO_COOKIE } from "../../app/web/sites/portal/lib/promo";
 
-// 播放层分包永远不 resolve：Suspense 就停在 fallback 上（真实弱网里下载分包的那几秒）
-vi.mock("../../app/web/sites/portal/components/PromoPlayer", () => Promise.withResolvers().promise);
+// 播放层分包由用例决定什么时候到：不放行就停在 Suspense 的 fallback 上（真实弱网里下载分包的那几秒）。
+// 放行后给真正的播放层；loads 记分包被下载了几次。
+const chunk = vi.hoisted(() => ({ loads: 0, arrive: () => {} }));
+vi.mock("../../app/web/sites/portal/components/PromoPlayer", async (importOriginal) => {
+  chunk.loads += 1;
+  await new Promise<void>((resolve) => (chunk.arrive = resolve));
+  return importOriginal();
+});
+// 真正的播放层挂上以后停在「正在加载」：能力探测不返回，不去碰 hls.js 和片源
+vi.mock("../../app/web/sites/portal/lib/promo", async (importOriginal) => ({
+  ...(await importOriginal<typeof PromoLib>()),
+  detectCapabilities: () => new Promise(() => {}),
+}));
 
-import JoinUs from "../../app/web/sites/portal/pages/JoinUs";
+let JoinUs: typeof import("../../app/web/sites/portal/pages/JoinUs").default;
+// react-router-dom 只装在 app/web 下，测试文件从仓库根解析不到：按页面实际用的那一份导入，路由器上下文要和页面同一个实例
+let MemoryRouter: typeof import("../../app/web/node_modules/react-router-dom/dist/index.mjs").MemoryRouter;
 
-beforeEach(() => {
+beforeEach(async () => {
+  // 每条用例一份新的模块：PromoLazy 记着上一次加载的播放层，分包也要重新「下载」
+  vi.resetModules();
+  chunk.loads = 0;
   // jsdom 没有 matchMedia（useReducedMotion 与 useInert 依赖它）
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
   // 页面挂载会拉 /api/public/config：给一个永远不 resolve 的桩，测试不需要它
-  vi.stubGlobal("fetch", vi.fn(() => Promise.withResolvers().promise));
+  vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+  // 播放层的背景画布与视频：jsdom 没有实现
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   // 每个用例从「没看过」开始
   document.cookie = `${PROMO_COOKIE}=; Max-Age=0; Path=/`;
+  ({ default: JoinUs } = await import("../../app/web/sites/portal/pages/JoinUs"));
+  ({ MemoryRouter } = await import("../../app/web/node_modules/react-router-dom/dist/index.mjs"));
 });
 afterEach(() => {
   cleanup();
@@ -29,10 +51,11 @@ afterEach(() => {
 });
 
 const page = () => document.querySelector<HTMLElement>(".pt-join");
+const open = () => render(<MemoryRouter><JoinUs /></MemoryRouter>);
 
 describe("宣传片加载占位（#122）", () => {
   it("分包没到时显示加载遮罩，跳过可点，会写 cookie 并解除 inert", async () => {
-    render(<MemoryRouter><JoinUs /></MemoryRouter>);
+    open();
 
     // 没有 cookie：整页先 inert，等宣传片
     expect(page()?.inert).toBe(true);
@@ -52,12 +75,36 @@ describe("宣传片加载占位（#122）", () => {
   });
 
   it("Esc 同样能跳过", async () => {
-    render(<MemoryRouter><JoinUs /></MemoryRouter>);
+    open();
     const dialog = await screen.findByRole("dialog", { name: "极客班宣传片" });
 
     fireEvent.keyDown(dialog, { key: "Escape" });
 
     expect(document.cookie).toContain(`${PROMO_COOKIE}=1`);
     expect(page()?.inert).toBe(false);
+  });
+
+  it("分包到了换成播放层：接着遮罩的淡入走，不从透明重来", async () => {
+    open();
+    const cover = await screen.findByRole("dialog", { name: "极客班宣传片" });
+    expect(chunk.loads).toBe(1);
+    // 遮罩已经盖了 300ms，比进场淡入（promo.css 的 pt-promo-in，.25s）长：遮罩早就不透明了
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    await act(async () => chunk.arrive());
+
+    const player = await waitFor(() => {
+      const root = document.querySelector<HTMLElement>(".pt-root.pt-promo");
+      expect(root?.querySelector("video")).toBeTruthy();
+      return root!;
+    });
+    // 播放层是新挂上的节点，会重播一遍进场淡入；负的 animation-delay 让它从遮罩已经淡到的地方接着走（这里是已经走完、直接不透明）
+    expect(player).not.toBe(cover);
+    const delay = /^-(\d+)ms$/.exec(player.style.animationDelay);
+    expect(delay, `animation-delay: "${player.style.animationDelay}"`).not.toBeNull();
+    expect(Number(delay![1])).toBeGreaterThanOrEqual(300);
+    // 播放层接手了：还是 gate，页面仍 inert，焦点在播放层的「跳过」上
+    expect(page()?.inert).toBe(true);
+    expect(document.activeElement?.closest(".pt-promo")).toBe(player);
   });
 });
