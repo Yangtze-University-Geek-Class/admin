@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 并发分段下载本次运行的一个 artifact，再解压到目录（#99）。部署 job 用它代替 actions/download-artifact：
-// 自托管 runner 在家里，单连接从 GitHub 的 Azure 存储下载只有几十 KB/s，163MB 的镜像归档要一小时；
-// 同一个地址并发 16 段 Range 请求合计约 6.6MB/s（2026-09-26 在 crosery-arch 的部署容器里实测）。
+// 并发分段下载本次运行的一个 artifact，再解压到目录（#99）。部署 job 用它代替单连接的 actions/download-artifact。
+// 加它时部署跑在家里的自托管 runner 上（#139 已退役）：单连接从 GitHub 的 Azure 存储下载只有几十 KB/s，
+// 163MB 的镜像归档要一小时；同一个地址并发 16 段 Range 请求合计约 6.6MB/s（2026-09-26 在那台机器的部署容器里实测）。
 //
 //   GH_TOKEN=… node scripts/fetch-artifact.mjs --repo <owner/repo> --run <运行 ID> --name <artifact 名> --dir <目录> [--parts 16] [--idle-seconds 60]
 //
@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 
 const API = 'https://api.github.com';
 const USAGE = 'node scripts/fetch-artifact.mjs --repo <owner/repo> --run <运行 ID> --name <artifact 名> --dir <目录> [--parts 16] [--idle-seconds 60]';
-// 家里单连接只有 40–220KB/s，几十 MB 的一段要传好几分钟，所以只限「多久没收到数据」，不限一段的总时长
+// 慢的网络上单连接只有 40–220KB/s（#99 时的实测），几十 MB 的一段要传好几分钟，所以只限「多久没收到数据」，不限一段的总时长
 const IDLE_MS = 60_000;
 
 export function parseArgs(argv) {

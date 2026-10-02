@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // 维护者机器部署（GitHub 免费版的退路）。
 //
-// production 环境和它的审批人还没配置（仓库原先私有时配不了，2026-09-26 公开后可以配），deploy-production 的部署 job 因此按设计失败关闭
-// （见 docs/ops/CICD.md）。本脚本在维护者机器上执行与 CI deploy job 相同的步骤，而且一切部署物料都取自发布 tag
+// GitHub 计划让 deploy-production 的部署 job 按设计失败关闭时的退路（仓库私有时配不了 production 的审批人，就是这样；
+// 2026-09-27 起 production 有审批人，正式部署照常走工作流，见 docs/ops/CICD.md）。本脚本在维护者机器上执行与 CI deploy job 相同的步骤，而且一切部署物料都取自发布 tag
 // 指向的提交，不取当前工作区：
 //   git archive <提交> 取出 deploy/、scripts/、package.json → 用这份里的 release-policy 规划、环境契约 --check
 //   → （正式）核对所有者批准记录、rc tag、预发布部署记录与 prev 的 release.json → 下载这个 tag 的 CI 运行构建的

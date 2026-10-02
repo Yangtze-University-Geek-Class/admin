@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-09-28 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-02 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -56,7 +56,7 @@ docker compose --env-file deploy/env/.env.production -f deploy/compose/productio
 
 容器内监听 3000，仅经 `web` 容器反代暴露；宿主端口只用于调试。环境变量契约见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
 
-镜像的构建与运行两个阶段都基于 `node:22-bookworm-slim`，`app/server/Dockerfile` 的 `FROM` 按 digest 固定（`<tag>@sha256:<digest>`，#97），自托管 runner 经加速源拉取时 Docker 会核对内容；换基础镜像的步骤见 [DEPLOY](../../ops/DEPLOY.md)「基础镜像按 digest 固定」。
+镜像的构建与运行两个阶段都基于 `node:22-bookworm-slim`，`app/server/Dockerfile` 的 `FROM` 按 digest 固定（`<tag>@sha256:<digest>`，#97），不管从 Docker Hub 还是加速源拉取，Docker 都按 digest 核对内容；构建阶段的下载源参数（#104）由工作流按仓库变量传入，变量没设时传的是官方默认值（现状与去留见 [CICD](../../ops/CICD.md)「构建下载源」与 #188）；换基础镜像的步骤见 [DEPLOY](../../ops/DEPLOY.md)「基础镜像按 digest 固定」。
 
 ## 验证命令
 

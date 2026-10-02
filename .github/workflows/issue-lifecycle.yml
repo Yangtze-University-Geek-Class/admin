@@ -41,7 +41,7 @@ jobs:
   pr-contract:
     name: pr-contract (PR 正文契约)
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -87,7 +87,7 @@ jobs:
       && github.event.action == 'closed'
       && github.event.pull_request.merged == true
       && startsWith(github.event.pull_request.head.ref, 'task/')
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       issues: write
@@ -135,7 +135,7 @@ jobs:
   sweep:
     name: 巡检 issue（补关已合并的，给超期与缺记录的留追踪记录）
     if: github.event_name != 'pull_request'
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
