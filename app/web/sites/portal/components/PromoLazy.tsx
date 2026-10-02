@@ -1,6 +1,6 @@
 // 宣传片播放层按需加载。分包加载失败（断网、发版后旧页面找不到新文件名）时当作「播放失败」直接结束，
 // 不让整个官网跟着卸载：宣传片不挡报名。
-// 失败只算这一次打开（#110）：React.lazy 会一直记住第一次加载的结果，所以失败过的那个，下次打开时换一个新的；
+// 失败只算这一次打开（#110）：React.lazy 会一直记住第一次加载的结果，所以失败的那个用过就换一个新的；
 // 浏览器也记着加载失败的分包地址，所以重来时由 retryableImport 换成写死的 ?retry=n 地址重新加载。
 // 播放层样式放在这里（跟官网主包走），不跟播放层分包：Vite 的分包预加载把失败过的样式表记为已加载、不再重试，
 // 断网失败过一次以后，换地址加载回来的播放层会没有样式。
@@ -24,14 +24,19 @@ const importPlayer = retryableImport([
   // @ts-expect-error 同上
   () => import("./PromoPlayer?retry=3"),
 ]);
-/** failed：这个分包加载失败过。不管有没有人看到这次失败（加载中就点了跳过时没人看到），下次打开都换新的 */
-type Loaded = { Player: LazyExoticComponent<ComponentType<PlayerProps>>; failed: boolean };
+/**
+ * failed：这个分包加载失败过；closed：打开它的那一次已经关掉了（比如加载中点了跳过）。
+ * 失败要有人显示出来（PromoUnavailable）才换新的；打开的那次已经关掉、没人会显示时，失败一到就换。
+ */
+type Loaded = { Player: LazyExoticComponent<ComponentType<PlayerProps>>; failed: boolean; closed: boolean };
 const loadPlayer = (): Loaded => {
   const loaded: Loaded = {
     failed: false,
+    closed: false,
     Player: lazy(() =>
       importPlayer().catch(() => {
         loaded.failed = true;
+        if (loaded.closed) replace(loaded);
         return { default: PromoUnavailable };
       }),
     ),
@@ -39,6 +44,10 @@ const loadPlayer = (): Loaded => {
   return loaded;
 };
 let current = loadPlayer();
+/** 换成新的：只换还在用的那个，已经换过就不再换 */
+const replace = (stale: Loaded) => {
+  if (current === stale) current = loadPlayer();
+};
 
 /** 只结束一次：父组件传的 onClose 每次渲染都是新函数，不能靠依赖数组防重复 */
 function PromoUnavailable({ onClose }: Props) {
@@ -46,25 +55,33 @@ function PromoUnavailable({ onClose }: Props) {
   useEffect(() => {
     if (closed.current) return;
     closed.current = true;
+    // 失败真正显示出来以后才换：换早了，挂起后重试的那次渲染会拿到新的，又去加载一遍。
+    // 直接打开 /join-us 时这个组件和外面的页面可能一起还没提交（React 等分包时会丢掉没提交的渲染重来），
+    // 那时 LazyPromoPlayer 的初始化会再跑一遍，所以不能在初始化里换
+    current = loadPlayer();
     onClose("failed");
   }, [onClose]);
   return <></>;
 }
 
 /**
- * 打开一次宣传片。分包在这里自己挂起（Suspense 在本组件里面），所以本组件的状态在等分包的整段时间里都在：
- * 每次打开记住当时那个播放层，打开期间父组件重渲染，不会换成新的再加载一遍。
+ * 打开一次宣传片：记住当时那个播放层，打开期间父组件重渲染，不会换成新的再加载一遍。
+ * 分包在这里自己挂起（Suspense 在本组件里面），所以挂上以后，等分包的整段时间里本组件的状态一直在。
  * placeholder：分包没到时先显示加载遮罩（gate 用，#122）；不传时这段时间什么都不显示。
  */
 export function LazyPromoPlayer({ placeholder = false, ...props }: Props & { placeholder?: boolean }) {
-  // 打开时定一次：上次的分包失败过就换一个新的（retryableImport 换地址重新加载）。只在这里换：
-  // 本组件在 Suspense 外面，挂起后重试的那次渲染不会再走这里，同一次打开不会加载两遍
-  const [Player] = useState(() => {
-    if (current.failed) current = loadPlayer();
-    return current.Player;
-  });
+  const [loaded] = useState(() => current);
+  // 关掉时：分包已经失败过（失败还没来得及显示）就换新的；还没结果就记下，失败一到再换（#122 加载中跳过）
+  useEffect(() => {
+    loaded.closed = false;
+    return () => {
+      loaded.closed = true;
+      if (loaded.failed) replace(loaded);
+    };
+  }, [loaded]);
   // 加载遮罩画出来的时刻：播放层顶替它时从这里接着淡入，不从透明重来
   const [coverSince, setCoverSince] = useState<number>();
+  const { Player } = loaded;
   return (
     <Suspense fallback={placeholder ? <PromoFallback {...props} onShown={setCoverSince} /> : null}>
       <Player {...props} coverSince={coverSince} />

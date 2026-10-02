@@ -4,7 +4,7 @@
 // 浏览器按 HTML 规范记住加载失败的模块地址，同一个地址以后都直接失败，所以重来要换地址。这里照这个样子模拟：
 // 原地址一旦失败就一直失败；写死的重试地址（?retry=n，生产构建里是文件名不同的分包）换成按当时网络决定成败的桩。
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import { Suspense, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as PromoLazy from "../../app/web/sites/portal/components/PromoLazy";
 import type * as PromoLib from "../../app/web/sites/portal/lib/promo";
@@ -135,6 +135,29 @@ describe("播放层分包", () => {
     expect(await screen.findByRole("dialog", { name: "极客班宣传片" })).toBeTruthy();
     expect(replay).not.toHaveBeenCalled();
     expect(net.retried).toEqual([1, 2]);
+  });
+
+  it("外面的页面也还没提交时分包就失败了（直接打开 /join-us）：同一次打开不会因为 React 丢掉重来而多用重试地址", async () => {
+    // 页面自己的分包还没到：LazyPromoPlayer 渲染了但和页面一起没提交，React 等的时候会丢掉没提交的渲染重来
+    let showPage!: () => void;
+    const PageChunk = lazy(() => new Promise<{ default: ComponentType }>((resolve) => (showPage = () => resolve({ default: () => null }))));
+    const onClose = vi.fn();
+    render(
+      <Suspense fallback={null}>
+        <LazyPromoPlayer mode="gate" onClose={(reason) => onClose(reason)} />
+        <PageChunk />
+      </Suspense>,
+    );
+    await waitFor(() => expect(net.retried).toEqual([1]));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(net.retried).toEqual([1]);
+
+    await act(async () => showPage());
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith("failed"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(net.retried).toEqual([1]);
   });
 
   it("桌面预取时断网、后来网络恢复：第一次打开就换地址加载，直接能播", async () => {

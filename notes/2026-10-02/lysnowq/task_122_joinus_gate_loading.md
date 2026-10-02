@@ -64,3 +64,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：PromoLazy.tsx 的 PromoFallback：onKeyDown 照 PromoPlayer 写，Escape 调 stopPropagation 后跳过，Tab/Shift+Tab 调 preventDefault 并把焦点放回「跳过」；replay 时图标用 close-line。tests/web/portal-promo-gate.test.tsx 新增两条（Tab 默认行为被取消、焦点不动、Esc 不冒泡到 window；replay 遮罩按钮叫「关闭」且图标路径等于 ICONS["close-line"]）；portal.md「分包未到的加载占位」补键盘与 replay 两句
 - 结果：vitest run tests/web/portal-promo-gate.test.tsx：6 passed；把 PromoLazy.tsx 临时换回 6095e07 的版本：两条新用例 failed（Tab：expected true to be false；图标路径是 skip-forward-line），其余 4 passed，已还原；tsc web 通过
+
+## 20:40:55 +08:00 · 返工 · #122 · F8 改法返工：0b68462 在直接打开时会把重试地址用光，改成关掉以后再换
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：ego 浏览器里对 0956b39 的生产构建（本机 localhost:5311，静态服务对 PromoPlayer-*.js 一律回 503）直接打开 /join-us：一次打开发了 4 个 PromoPlayer 请求（原地址加 3 个 ?retry），stage 458999f 与 PR head 22af6fa 同样条件下都是 2 个。原因：页面和播放层一起没提交时 React 会丢掉渲染重来，0b68462 在 LazyPromoPlayer 初始化里「上一个失败过就换新的」于是每次重来都换一个。改成：失败仍等 PromoUnavailable 挂上以后才换（恢复原来的规则）；LazyPromoPlayer 卸载时记 closed，已经失败就换、还没结果的等失败一到再换。tests/web/portal-promo-lazy.test.tsx 新增「外面的页面也还没提交时分包就失败」一条；portal.md「出错时」按新规则重写
+- 结果：vitest run tests/web/portal-promo-lazy.test.tsx：7 passed；同一文件用 0956b39 的 PromoLazy.tsx 跑：新用例 failed（expected [ 1, 2 ] to deeply equal [ 1 ]），用 9fffb81（PR 原实现）跑：「加载中就关掉」那条 failed，均已还原；promo 相关四个文件 48 passed；tsc web 通过。浏览器复测放在本提交的构建上做
