@@ -49,3 +49,10 @@
 - 做了什么：test(portal)：vitest.config.ts 给 react-router-dom 设别名（指向 app/web/node_modules），portal-os-entries 改成 import 'react-router-dom'；portal-os.test.ts 回执按钮改断言 appLinkById('forum') 等于论坛首页、源码只认 appLinkById("forum")，去掉匹配 Windows.tsx「3D 版块」JSX 的正则；portal-os-entries 加「论坛最新」窗口渲染后点「3D 版块」进 /forum-3d、「进入论坛首页」直达论坛首页一条；portal.md「单测」一条同步。文档核对：docs/conventions/TESTING.md 不用改——别名只改测试的导入写法，测试范围与命令没变
 - 结果：Node 22.23.2：tsc -p app/web 通过；npx vitest run tests/web 19 文件 150/150 通过
 - 下一步：按最后一个代码提交重新构建，重拍证据，补走查记录
+
+## 23:10:38 +08:00 · 返工 · #185 · 按 b7ce56d8355e 的构建重做浏览器走查，重拍证据（审查 F2）
+
+- 执行者：agent-claude-geek-main-subagent-185（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：b7ce56d8355e 与 origin/stage 458999fc0c60 各自 pnpm --filter @yzgc/web build（改前在临时 detached worktree 里构建，用完 git worktree remove --force）；本机静态服务改后 5340、改前 5341、改后 html no-store 5342，/forum/ 302 到预发布论坛，/api /auth 转本机核心服务 5440（内存库，GitHub 与发信商为假实现）；ego-browser 单个 TaskSpace（225）走三种尺寸的全部入口、按住按键、两种后退、回执、旧地址、减少动态效果、无障碍树，结束后 task.finish，服务全部停掉；证据图注按画面里实际有的内容重写，补横屏改前图（证据 4）与 GitHub 新标签页、回执落点、3D 版块窗口这几帧
+- 结果：改后 1440×900 15 个入口、390×844 12 个、844×390 12 个全部一跳，场景页分包请求 0 次；按住 3 与 Dock、便签、图标上按住回车都是 window.open 1 次、标签页 1→2（bbf9505 上 Dock、便签各 5 个）；不走往返缓存的后退 390ms 直接显示桌面（bbf9505 上 3.5s 仍是书桌），走往返缓存时回到桌面、刷新从书桌开始；回执去论坛看看一跳（发信请求 0 次）；旧地址正常；无障碍树里 GitHub 组织带「（新标签页打开）」。证据 19 个（含 1 个 mp4）、manifest、walkthrough、PR 正文在本机 /private/tmp/geek-evidence/185/。pnpm check exit 0；pnpm test 62 文件 949/949；pnpm --filter @yzgc/web build 通过。未测：Safari、iOS、微信内置浏览器，预发布环境
+- 下一步：主控把 walkthrough 发到 #185、开 PR、补「PR」「审查」记录，安排对返工增量的复核
