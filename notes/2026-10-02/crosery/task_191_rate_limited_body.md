@@ -33,3 +33,21 @@
 - 执行者：agent-claude-geek-main-subagent-191（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：F1：git archive 2075c55 与 55d2e60 的 app/server 各自 tsc 构建，pnpm --filter @yzgc/web build 出官网产物（两提交之间 app/web 没有改动），用 buildApp 起真实服务托管官网产物，127.0.0.1:5511 改前、5512 改后；临时库里放一条虚构邀请链接，GitHub、HTTP、发信一律拒绝；ego TaskSpace 228 打开真实的 /join/evidence191invite，用户名填 geek_191（格式不对）连点 6 次「发邀请给我」，再打开真实的 /feedback 连续提交 11 次，桌面 1317×998 与 390×844 手机各截一张；服务端每个写请求的状态码打到日志。另用 curl 对两套服务各打一遍，记下 429 的原始响应体。F2：PR 正文第 4 步改成在控制台 DevTools 里 fetch export.csv 6 次，写明每次 200 都记一条 application.export 审计；验收证据删掉「无界面变化」，写明两页的提示从英文变成中文
 - 结果：改前：邀请页第 1–5 次 400「GitHub 用户名格式无效」、第 6 次 429，页面显示「Rate limit exceeded, retry in 55 seconds」（手机 56 seconds）；意见箱第 1–10 次 200、第 11 次 429，显示「Rate limit exceeded, retry in 40 seconds」。改后：同样的次数，两页第 6、11 次都显示「操作太频繁，请稍后再试」。curl：改前 429 {error:request_error, message:Rate limit exceeded, retry in 1 minute}，改后 429 {error:rate_limited, message:操作太频繁，请稍后再试, request_id}。截图 before|after-join|feedback-desktop|mobile.png 共 8 张，已逐张看过；TaskSpace 228 已 finish，四个服务进程已停、临时库已删。顺带看到：邀请页在 390px 下 .pt-invite 右边到 392px，页面横向多出 2px（stage 2075c55 的 app/web 同样，和本次无关，未修）。本机未发布，不是预发布验收
+
+## 23:29:30 +08:00 · 审查 · #191 · 两轮独立审查：f0d1fad、5d41b90 均有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审查。第一轮被审 f0d1fad：应修 F1（正文先写无界面变化又写邀请页、意见箱提示会变，且只有接口截图）、F2（人工验收第 4 步用导出按钮验不出来）；建议 F3（topics.ts 重复写 errorResponseBuilder）、F4（rateLimited() 不看 respCtx，ban 时仍回 429）。第二轮被审 5d41b90：F1–F4 已处理属实；建议 F5（API.md 端点清单开头一句说论坛自己数次数的限流都抛 rateLimited()，但全站游客回复上限抛的是 guest_replies_paused）
+- 结果：两轮都没有阻塞；F1–F4 在 55d2e60 与 PR 正文返工，F5 下一条记录返工
+
+## 23:29:31 +08:00 · 返工 · #191 · API.md 写窄论坛哪些 429 回 rate_limited（第二轮审查 F5）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：docs/architecture/API.md 端点清单开头：「论坛自己数次数的限流抛的也是它」改成「论坛自己按人、按 IP 数次数的限流（发帖、回复、头像）抛的也是它；全站游客回复的总量上限不是限流，另回 429 guest_replies_paused」。核对代码：rateLimited() 只在 topics.ts:55、people.ts:76、posts.ts:46、posts.ts:61 抛，guest_replies_paused 来自 viewer.ts:59 的 guestRepliesPaused()
+- 结果：提交 1792d23（只改 API.md 一句）；pnpm check:doc-sync 通过、check-docs 272 篇通过
+
+## 23:29:31 +08:00 · 提交 · #191 · 提交 1792d23 并合入 stage a18616a
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：1792d23 docs(api): 写准论坛哪些自己计数的 429 回 rate_limited（Refs #191）；ef00e8f 把 origin/stage a18616a（#182 合入后）合进来，冲突只在 docs/architecture/API.md 的意见箱三行：取 stage 一侧（#129 的说明），在 POST /api/feedback 错误列末尾补回本分支的 429 rate_limited；notes/INDEX.md 用 note.mjs index 重新生成
+- 结果：合并后（Node 22.23.2）：pnpm check:doc-sync 通过、check-docs 272 篇、docs-index 最新；vitest run tests/server 12 个文件 253 passed；vitest run tests/web 19 个文件 141 passed。1792d23 与 ef00e8f 改了 notes/ 以外的文件，送增量审查
