@@ -3,6 +3,7 @@ import { request as defaultRequest } from "undici";
 import type Database from "better-sqlite3";
 import type { AppConfig } from "../config.js";
 import type { createCrypto } from "./crypto.js";
+import { truncateWal } from "./db.js";
 import { GITHUB_TIMEOUT_MS } from "./github.js";
 export type Session = {
   id: string;
@@ -69,11 +70,14 @@ function destroySession(id: string): boolean {
 }
 
 /**
- * 删掉所有已过期的会话，返回这次删掉的行数（#128）。登录一次就不再回来的人，他的会话行和里面加密的
- * 高权限 GitHub token 不能一直留在库里；测试直接调这个函数，不用等计时器。
+ * 清一趟（#128）：删掉所有已过期的会话，再截断 WAL；返回删掉的行数和 WAL 截成没有。登录一次就不再回来的人，
+ * 他的会话行和里面加密的高权限 GitHub token 不能一直留在库里；测试直接调这个函数，不用等计时器。
+ * secure_delete（lib/db.ts）只让新写的页不带被删的内容，旧页还在 -wal 和库文件里，截断 WAL 之后才被覆盖；
+ * 所以每趟都截，登出、读到过期、GitHub 拒绝令牌（#164）时删掉的会话也一起清掉。
  */
-function cleanupExpiredSessions(): number {
-  return db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(clock()).changes;
+function cleanupExpiredSessions(): { deleted: number; walTruncated: boolean } {
+  const deleted = db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(clock()).changes;
+  return { deleted, walTruncated: truncateWal(db) };
 }
 
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -86,10 +90,12 @@ function startCleanup(logger: SessionCleanupLogger): void {
   if (cleanupTimer) return;
   const run = () => {
     try {
-      const deleted = cleanupExpiredSessions();
+      const { deleted, walTruncated } = cleanupExpiredSessions();
       if (deleted > 0) logger.info({ deleted }, "expired sessions removed");
+      if (!walTruncated) logger.info({}, "wal truncate deferred: another connection is reading");
     } catch (error) {
-      logger.error({ error: (error as Error)?.name ?? "error" }, "session cleanup failed");
+      // code 是 SQLite 的错误枚举（SQLITE_BUSY、SQLITE_CORRUPT……），不含数据
+      logger.error({ error: (error as Error)?.name ?? "error", code: (error as { code?: unknown })?.code }, "session cleanup failed");
     }
   };
   run();

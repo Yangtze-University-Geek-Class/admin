@@ -8,6 +8,9 @@ if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 const db = new Database(path);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+// 删行、改短字段时把腾出来的空间写成 0（SQLite 默认不写，被删会话里加密的 GitHub token 会留在页的空闲块里，
+// 在线备份照样带走）。只对新写的页生效；库文件和 -wal 里的旧页靠会话清理每趟的 truncateWal 覆盖（lib/auth.ts，#128）。
+db.pragma("secure_delete = ON");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS app_state (
@@ -357,4 +360,20 @@ function audit(org: string | null, actor: string, action: string, target?: strin
 }
 
 return { db, audit };
+}
+
+/**
+ * 把 WAL 写回库文件并截成 0 字节（`wal_checkpoint(TRUNCATE)`），返回这次截成没有（#128）。
+ * 有别的连接正在读（例如外部的在线备份）时截不成：这时不等待（busy_timeout 临时设成 0），
+ * 免得同步调用把事件循环卡在 better-sqlite3 默认的 5 秒等待上，留给调用方下一趟再试。内存库没有 WAL，算截成。
+ */
+export function truncateWal(db: Database.Database): boolean {
+  const timeout = db.pragma("busy_timeout", { simple: true }) as number;
+  db.pragma("busy_timeout = 0");
+  try {
+    const [result] = db.pragma("wal_checkpoint(TRUNCATE)") as { busy: number }[];
+    return result?.busy === 0;
+  } finally {
+    db.pragma(`busy_timeout = ${timeout}`);
+  }
 }

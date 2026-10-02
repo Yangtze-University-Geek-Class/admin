@@ -33,3 +33,9 @@
 - 做了什么：按 CODE-REVIEW 十二项核对 0aa0ca0：分支合规、无密钥/环境变量/镜像改动、用例可区分修复前后、三份文档同步、边界 202文件1152导入、提交规范、无旧模型与危险操作（删除范围与 getSession 一致、无 schema 变更）、执行记录连续、未合并不清理；结论写入 PR 正文；另记录本机 corepack pnpm check 因嵌套 pnpm 解析到全局 11.5.1 而失败属机器级问题
 - 结果：无阻塞与未决应修；结论：通过（PR 正文同名小节）
 - 下一步：等 PR CI；合并后按任务清理流程收尾
+
+## 20:23:02 +08:00 · 返工 · #128 · 按审查 F1/F5/F6 返工：删掉的会话在库文件、WAL 和在线备份里不留密文
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：接手 PR #181（被审 head 443421b546dc，审查结论有条件通过）。F1：lib/db.ts 每个连接打开 secure_delete；新增 truncateWal（wal_checkpoint(TRUNCATE)，busy_timeout 临时设 0，有别的连接在读时不等、下一趟再截）；cleanupExpiredSessions 删完每趟都截 WAL，返回 { deleted, walTruncated }，截不成记 wal truncate deferred。F6：清理出错的日志加 SQLite 错误码 code。tests/server/session-cleanup.test.ts 新增 3 条：unref（hasRef 为 false）、文件库按字节核对 data.db/-wal/在线备份/关库后都找不到被删会话的密文（带清理前能找到的对照）、另一连接占着读时不等待且下一趟截断。F5：data-model.md 改写 sessions 的写入方/读取方、去掉 idx_sessions_login 的「未使用」（signedInLogins 用它当覆盖索引）、保留时间写明「服务运行期间」；README 源码地图补 sessionCleanup 与会话时钟；SECURITY.md 把「不会长期带着」改成实现后的准确说法，并写明打开 secure_delete 之前删掉的行要 VACUUM（预发布/正式要所有者授权）
+- 结果：实验（better-sqlite3 11.10.0 / SQLite 3.49.2）：默认 secure_delete=0，删 20 行后库文件与在线备份各残留 20/20；ON+TRUNCATE 后 0/0/0；另一连接占读时 TRUNCATE 默认等 5178ms，busy_timeout=0 时 0.09ms 返回 busy=1；5 万行删 2.5 万 secure_delete 关/开 25.3ms/27.1ms，空闲截断 0.01ms；旧残留 30 条跑 5 趟后剩 3 条、VACUUM 后 0。pnpm exec vitest run tests/server/session-cleanup.test.ts：8 passed；变异核对 5 项都被抓到（去掉 secure_delete、去掉截断各 2 failed，去掉 busy_timeout=0 那条 5204ms 失败，去掉 unref、去掉 code 各 1 failed）。pnpm exec vitest run tests/server：11 files / 248 passed。pnpm check exit 0（文档同步通过：6 组模块与文档；执行记录通过：44 条链路；密钥门禁通过：746 个文件；typecheck 通过）
