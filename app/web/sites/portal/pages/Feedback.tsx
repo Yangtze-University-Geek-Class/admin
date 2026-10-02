@@ -10,7 +10,10 @@ import ChoiceChips from "../components/ChoiceChips";
 import Icon from "../components/Icon";
 import PageShell, { WindowCard } from "../components/PageShell";
 
-/** 本站组织名（GitHub 组织地址的最后一段）：意见箱只发这里，页面只展示，提交者改不了（#129）。 */
+/**
+ * 意见箱收哪个组织以服务端为准：`GET /api/feedback/categories` 下发的 `org`（部署配置的 CONSOLE_ORG）。
+ * 站点配置里 GitHub 组织地址的最后一段只在接口回来之前、或接口失败时顶上（#129）。页面只展示，提交者改不了。
+ */
 const SITE_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
 /** `GET /api/feedback/public` 下发的字段（正文已截到前 280 字）。 */
@@ -18,6 +21,7 @@ type PublicFeedback = { id: number; category: string | null; content: string; st
 
 export default function Feedback() {
   const [form, setForm] = useState({ category: "建议", content: "", contact: "", website: "" });
+  const [org, setOrg] = useState(SITE_ORG);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
@@ -32,10 +36,11 @@ export default function Feedback() {
   const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
   useEffect(() => {
-    api<{ categories: string[]; pow_difficulty: number }>("/api/feedback/categories")
+    api<{ categories: string[]; pow_difficulty: number; org?: string }>("/api/feedback/categories")
       .then((d) => {
         setCategories(d.categories);
         setPowDiff(d.pow_difficulty);
+        if (d.org) setOrg(d.org);
       })
       .catch(() => setCategoriesFailed(true));
     api<{ turnstile_site_key: string | null }>("/api/public/config")
@@ -44,14 +49,22 @@ export default function Feedback() {
   }, []);
 
   useEffect(() => {
+    // 组织名从回退值换成服务端的值时会再读一次；先发出的那次晚回来也不覆盖后一次的结果。
+    let current = true;
     setRecentFailed(false);
-    api<{ items: PublicFeedback[] }>(`/api/feedback/public?org=${encodeURIComponent(SITE_ORG)}&limit=10`)
-      .then((d) => setRecent(d.items))
+    api<{ items: PublicFeedback[] }>(`/api/feedback/public?org=${encodeURIComponent(org)}&limit=10`)
+      .then((d) => {
+        if (current) setRecent(d.items);
+      })
       .catch(() => {
+        if (!current) return;
         setRecent([]);
         setRecentFailed(true);
       });
-  }, [done]);
+    return () => {
+      current = false;
+    };
+  }, [org, done]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,12 +72,12 @@ export default function Feedback() {
     setBusy("pow");
     setPowTries(0);
     try {
-      const bodyForHash = `fb:${SITE_ORG}:${form.content.trim()}`;
+      const bodyForHash = `fb:${org}:${form.content.trim()}`;
       const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
-        body: JSON.stringify({ ...form, org: SITE_ORG, turnstile_token: tsToken, pow: powProof(pow) }),
+        body: JSON.stringify({ ...form, org, turnstile_token: tsToken, pow: powProof(pow) }),
       });
       setDone(r.message);
       setForm({ ...form, content: "", contact: "", website: "" });
@@ -104,7 +117,7 @@ export default function Feedback() {
             <form onSubmit={submit} className="pt-form">
               <div className="pt-field">
                 <label htmlFor="fb-org">发往的 GitHub 组织</label>
-                <input id="fb-org" className="pt-input is-mono" value={SITE_ORG} readOnly aria-readonly="true" />
+                <input id="fb-org" className="pt-input is-mono" value={org} readOnly aria-readonly="true" />
                 <p className="pt-hint">意见箱只收本组织的意见，这里改不了。</p>
               </div>
 
@@ -179,12 +192,12 @@ export default function Feedback() {
           {recentFailed ? (
             <div className="pt-feed-empty">
               <Icon name="error-warning-line" size={24} />
-              <p>没读到「{SITE_ORG}」的公开意见，稍后刷新试试。</p>
+              <p>没读到「{org}」的公开意见，稍后刷新试试。</p>
             </div>
           ) : recent.length === 0 ? (
             <div className="pt-feed-empty">
               <Icon name="inbox-line" size={24} />
-              <p>{SITE_ORG} 还没有公开的意见。</p>
+              <p>{org} 还没有公开的意见。</p>
             </div>
           ) : (
             <ul>

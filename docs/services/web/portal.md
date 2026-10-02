@@ -16,7 +16,7 @@
 | `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109） |
 | `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表 |
 | `/docs`、`/docs/:id` | `pages/Docs.tsx` | 公开产品介绍与用户指南（白名单由 `/api/docs` 决定） |
-| `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；只发本站组织（页面上的组织框只读展示站点配置里的组织名，#129），`/feedback/:org` 只是旧链接的兼容入口，URL 里的组织名不再生效 |
+| `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；只发本部署的组织（#129）：组织框只读，展示 `GET /api/feedback/categories` 下发的 `org`（`CONSOLE_ORG`），接口回来之前或失败时用站点配置 `urls.githubOrg` 的最后一段，读公开列表和提交都用同一个值。`/feedback/:org` 是控制台意见箱页生成的分享地址（`app/console/src/pages/Feedback.vue`），也接住旧链接，不能删；URL 里的组织名不生效 |
 | `/join/:token` | `pages/JoinByToken.tsx` | GitHub 组织邀请链接（能力令牌）落地页 |
 
 `/join-us` 与 `/join/:token` 是两件事：前者是招新投递，后者是已有邀请链接的组织加入。首页之外的页面按路由懒加载。

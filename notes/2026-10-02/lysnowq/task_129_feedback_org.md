@@ -36,3 +36,9 @@
 - 做了什么：按 CODE-REVIEW 十二项核对 2289fcb：分支合规、无密钥/环境变量/镜像改动、7 条新用例可区分修复前后、五份文档同步、边界 202文件1152导入、提交规范、无旧模型；危险操作面已核对（无 schema 变更、启动归一事务+幂等、只动大小写变体、公开列表收窄不删历史行）；执行记录连续、未合并不清理；core.test.ts 仅换夹具组织名未删断言
 - 结果：无阻塞与未决应修；结论：通过（PR 正文同名小节）
 - 下一步：等 PR CI；合并后按任务清理流程收尾
+
+## 20:14:56 +08:00 · 返工 · #129 · 意见箱的组织名改由服务端下发（审查 F3）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F3：页面的组织名取 app.config.json urls.githubOrg，服务端只认 CONSOLE_ORG，两处没对照，不一致时每次提交都 400、提交者改不了。改为 GET /api/feedback/categories 多下发 org（=CONSOLE_ORG 配置写法），Feedback.tsx 照它展示、读公开列表、算 PoW 摘要和提交；接口回来前或失败时仍用 githubOrg 最后一段；读列表的 effect 加了先发后到不覆盖的保护；mock 数据同步带 org；App.tsx 路由注释写明 /feedback/:org 是控制台意见箱生成的分享地址（F8）。文档：API.md 的 categories 一行、portal.md 的 /feedback 一行同步。否决了在 check-site-config / check:environments 里强制 githubOrg 等于 CONSOLE_ORG：服务端下发之后意见箱不再依赖两处一致，强制相等会给与本 issue 无关的 GitHub 链接加约束
+- 结果：新增 2 条用例（tests/server/feedback-org.test.ts 1 条、tests/web/portal-feedback-org.test.tsx 1 条）；把 app/ 换回改动前时这 2 条失败、其余 7 条通过（Tests 2 failed | 7 passed (9)），恢复后 Tests 9 passed (9)；tsc server=0 web=0（Node 22.23.2）

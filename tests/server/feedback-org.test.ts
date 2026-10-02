@@ -39,6 +39,17 @@ it('accepts the console org in any case and stores it in the configured spelling
   expect(app.services.feedback.listFeedback(app.services.config.consoleOrg).items).toHaveLength(3);
 });
 
+it('tells the portal which org the feedback box takes, so the page never submits a name the server rejects', async () => {
+  const { app } = await setup();
+  expect((await app.inject({ url: '/api/feedback/categories' })).json().org).toBe(ORG);
+  // 部署换了组织（CONSOLE_ORG 与官网站点配置的 githubOrg 对不上）时，官网照接口下发的写法提交，照样能收
+  const other = await setup({ CONSOLE_ORG: 'Some-Other-Org' });
+  const served: string = (await other.app.inject({ url: '/api/feedback/categories' })).json().org;
+  expect(served).toBe('Some-Other-Org');
+  expect((await submit(other.app, served)).statusCode).toBe(200);
+  expect(storedOrgs(other.app)).toEqual(['Some-Other-Org']);
+});
+
 it('rejects an organisation this deployment does not manage, without storing anything', async () => {
   const { app } = await setup();
   const response = await submit(app, 'some-random-org');

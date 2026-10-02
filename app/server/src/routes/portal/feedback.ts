@@ -20,7 +20,8 @@ export default async function feedbackRoutes(app: FastifyInstance) {
   const { preflightPublicSubmission, powDifficulty } = app.services.publicSubmission;
   const { config } = app.services;
   const { turnstileEnabled } = app.services.turnstile;
-  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty() }));
+  // org 是本部署意见箱收的组织（CONSOLE_ORG）：官网照它展示和提交，不另存一份可能对不上的组织名（#129）。
+  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty(), org: config.consoleOrg }));
 
   app.post<{ Body: Body }>("/api/feedback", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
