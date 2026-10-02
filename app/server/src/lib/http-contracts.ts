@@ -10,6 +10,8 @@ export function object(properties: Record<string, unknown>, required: string[] =
 }
 export const body = (properties: Record<string, unknown>, required: string[] = []) => ({ body: object(properties, required) });
 export const choices = (...values: string[]) => ({ type: "string", enum: values });
+/** 公共 querystring 的 `limit`：1–9999 的正整数字符串。模块合同整份替换 querystring 时引用它，不另抄一份。 */
+export const limitParam = { type: "string", pattern: "^[1-9][0-9]{0,3}$" };
 export type RouteContracts = Record<string, FastifySchema>;
 
 /** Module-owned contracts are applied before Fastify compiles its validators. */
@@ -27,7 +29,7 @@ export function registerContracts(app: FastifyInstance, contracts: RouteContract
       params: object(properties, Object.keys(properties)),
       querystring: object({
         page: { type: "string", pattern: "^[1-9][0-9]{0,5}$" },
-        limit: { type: "string", pattern: "^[1-9][0-9]{0,3}$" },
+        limit: limitParam,
         per_page: { type: "string", pattern: "^[1-9][0-9]{0,2}$" },
         offset: { type: "string", pattern: "^[0-9]{1,8}$" },
         q: text(200),

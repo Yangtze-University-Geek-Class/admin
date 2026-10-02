@@ -26,6 +26,15 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const cache = createCache();
   const roles = createRoleStore(storage.db);
   const auth = createAuth(storage.db, crypto, config, overrides.httpRequest, overrides.clock);
+  const feedback = createFeedbackStore(storage.db);
+  // 历史数据一次性归一（#129）：把 org 只是大小写不同的旧行改成 CONSOLE_ORG 的写法，重复启动安全。
+  // 改不动就让启动失败，失败前先关掉刚打开的库，与下面论坛、发信的处理一致。
+  try {
+    feedback.normalizeOrgSpelling(config.consoleOrg);
+  } catch (error) {
+    storage.db.close();
+    throw error;
+  }
   // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
   const forum = (() => {
     try {
@@ -54,7 +63,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     auth,
     github, cache, roles,
     access: createAccess({ consoleOrg: config.consoleOrg, getOrgRole: github.getOrgRole, cached: cache.cached, roles }),
-    feedback: createFeedbackStore(storage.db),
+    feedback,
     forum,
     mail,
     publicSubmission: createPublicSubmission(config.powDifficulty),
