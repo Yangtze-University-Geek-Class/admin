@@ -13,8 +13,8 @@ const LIB = "../../app/web/sites/portal/lib/promo";
 const PLAYER = "../../app/web/sites/portal/components/PromoPlayer";
 const HLS = "../../app/web/node_modules/hls.js/dist/hls.light.mjs";
 
-/** down：网络断着；poisoned：原地址失败过（浏览器记住了）；retried：用到的重试地址编号 */
-const net = { down: true, poisoned: false, retried: [] as number[] };
+/** down：网络断着；poisoned：原地址失败过（浏览器记住了）；retried：用到的重试地址编号；gate：有它时重试地址等它放行才出结果 */
+const net = { down: true, poisoned: false, retried: [] as number[], gate: null as Promise<void> | null };
 
 /** 原地址：失败过一次就一直失败 */
 function original<T>(module: () => T): T {
@@ -42,6 +42,7 @@ function browserImports(retryModule: () => unknown, overrides: Partial<typeof Pr
         const stubs = rest.map((_, i) => async () => {
           const n = i + 1;
           net.retried.push(n);
+          if (net.gate) await net.gate;
           if (net.down || failed.has(n)) {
             failed.add(n);
             throw new TypeError(`Failed to fetch dynamically imported module: chunk.js?retry=${n}`);
@@ -58,6 +59,7 @@ beforeEach(() => {
   net.down = true;
   net.poisoned = false;
   net.retried = [];
+  net.gate = null;
   // 每条用例一份新的模块（模块里记着上一次加载的结果），所以只能在这里注册桩、动态加载
   vi.resetModules();
 });
@@ -129,6 +131,31 @@ describe("播放层分包", () => {
     expect(skipped).not.toHaveBeenCalled();
 
     // 网络恢复后从桌面「宣传片」重看：换下一个地址重新加载，正常播放
+    net.down = false;
+    const replay = vi.fn();
+    render(open(replay));
+    expect(await screen.findByRole("dialog", { name: "极客班宣传片" })).toBeTruthy();
+    expect(replay).not.toHaveBeenCalled();
+    expect(net.retried).toEqual([1, 2]);
+  });
+
+  it("分包已经失败、React 还没把失败显示出来就关掉了：下次打开换地址重新加载，不会一打开就按失败关掉", async () => {
+    // 第 1 个重试地址由用例放行。放行以后，失败送到 PromoLazy 只经过微任务；
+    // React 要在之后的宏任务里才重渲染、提交 PromoUnavailable，所以只排空微任务就卸载，正好落在这段空档里
+    let fail!: () => void;
+    net.gate = new Promise<void>((resolve) => (fail = resolve));
+    const skipped = vi.fn();
+    const view = render(open(skipped));
+    await waitFor(() => expect(net.retried).toEqual([1]));
+    fail();
+    for (let i = 0; i < 50; i += 1) await Promise.resolve();
+    view.unmount();
+    await act(async () => {});
+    // 失败没有被显示：PromoUnavailable 没提交过，也就没人换新的
+    expect(skipped).not.toHaveBeenCalled();
+
+    // 网络恢复后从桌面「宣传片」重看：换下一个地址重新加载，正常播放
+    net.gate = null;
     net.down = false;
     const replay = vi.fn();
     render(open(replay));

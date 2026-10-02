@@ -82,3 +82,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：核对 16:46:27「PR」「审查」两条：记录上的本机时间早于 GitHub 上 PR #180 的创建时间（createdAt 08:46:38Z，即 16:46:38）。审查复核从同一台机器的数据推出作者本机时钟比 GitHub 慢约 17–26 秒：issue #122 的开工评论 08:36:35Z 先发出，之后写的本机开工记录标 16:36:18；22af6fa 本机提交时间 16:46:28，推送触发的 CI 运行建于 08:46:54Z。按服务器时间这两条写在开 PR 之后，记录里的 PR 号和地址也只有 PR 存在后才拿得到，所以不是提前写的；记录时间按规范读本机时钟，原样保留。另外：「审查」一条是作者 agent（agent-omp-issue-122）对 0316df4 的自审，不算 CODE-REVIEW 要求的独立审查结论，正式审查由 Crosery 一方在审完后另记一条「审查」。16:41:34「提交」一条对应的提交是 6b9ac471111e。F9：6b9ac47 里夹着由 task.mjs start 合进来的 #176 暂存记录（三份文件，只追加），revert 那个提交会删掉已入库的记录；本 PR 的回滚改为只回退 app/、tests/、docs/ 的改动，保留 notes/
 - 结果：gh pr view 180：createdAt 2026-10-02T08:46:38Z；gh api actions runs：push 0316df4 08:46:33Z、pull_request 0316df4 08:46:41Z、push 22af6fa 08:46:54Z（数据取自 /private/tmp/geek-ctx/122.json 的复核记录）；本条不改任何已有记录，node scripts/note.mjs check 通过
+
+## 21:57:55 +08:00 · 返工 · #122 · R4：补「分包已失败、还没显示就关掉」的用例
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：按 9d7cd89 一轮审查的 R4（建议）：tests/web/portal-promo-lazy.test.tsx 的重试地址桩加 net.gate，第 1 个重试地址等用例放行；新增一条用例：放行失败后只排空微任务就卸载（失败已送到 PromoLazy、React 还没提交 PromoUnavailable），网络恢复后再打开应换到第 2 个重试地址并正常显示播放层。只改测试，不改 app/。文档核对：docs/services/web/portal.md 不用改——「出错时」一段已写明「关掉时已经失败就换新的」，本提交只补用例；portal.md 不列 promo 的单测文件
+- 结果：vitest run tests/web/portal-promo-lazy.test.tsx：8 passed（连跑 5 次都是 8 passed）。删掉 PromoLazy.tsx:79 的 if (loaded.failed) replace(loaded) 再跑：只有新用例失败（Unable to find role="dialog"，连跑 3 次都失败）；删掉 catch 里的 if (loaded.closed) replace(loaded)：只有「加载中就关掉」那条失败，新用例通过。两支各由一条用例覆盖，PromoLazy.tsx 已还原（git status 只剩测试文件）
