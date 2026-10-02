@@ -54,8 +54,19 @@ export function validateJoin(form: FormState): FieldErrors {
 
 export default function JoinUs() {
   const reducedMotion = useReducedMotion();
-  const [promo, setPromo] = useState(() => typeof document !== "undefined" && !hasSeenPromo(document.cookie));
+  // gate 遇到减少动态效果不播（和 PromoPlayer 的 autoplayOff 同一条规则）：挂载时就按 blocked 算看过，
+  // 不挂播放层、不显示加载遮罩、不下载分包，直接进信纸（#122）
+  const [promoBlocked] = useState(() => reducedMotion && typeof document !== "undefined" && !hasSeenPromo(document.cookie));
+  const [promo, setPromo] = useState(() => !promoBlocked && typeof document !== "undefined" && !hasSeenPromo(document.cookie));
   const page = useInert<HTMLDivElement>(promo);
+  // 宣传片的 gate 与「分包未到」占位共用同一套语义：看过就写 cookie，跳过/结束就收起整层
+  const onPromoSeen = useCallback(() => {
+    document.cookie = promoCookie(window.location.protocol === "https:");
+  }, []);
+  const onPromoClose = useCallback(() => setPromo(false), []);
+  useEffect(() => {
+    if (promoBlocked) onPromoSeen();
+  }, [promoBlocked, onPromoSeen]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const letter = useRef<HTMLFormElement>(null);
   const scene = useRef<JoinHandle | null>(null);
@@ -193,11 +204,6 @@ export default function JoinUs() {
 
   const count = form.strengths.trim().length;
   const letterOn = writing && !receipt;
-  // 宣传片的 gate 与「分包未到」占位共用同一套语义：看过就写 cookie，跳过/结束就收起整层
-  const onPromoSeen = useCallback(() => {
-    document.cookie = promoCookie(window.location.protocol === "https:");
-  }, []);
-  const onPromoClose = useCallback(() => setPromo(false), []);
   return (
     <>
       <div ref={page} className="pt-root pt-scene pt-join" data-phase={phase}>

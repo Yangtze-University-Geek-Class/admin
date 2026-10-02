@@ -84,6 +84,23 @@ describe("宣传片加载占位（#122）", () => {
     expect(page()?.inert).toBe(false);
   });
 
+  it("减少动态效果：不显示遮罩、不下载播放层分包，按 blocked 算看过，直接进信纸", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    open();
+
+    // 和播放层原来的 blocked 一样：写「已看过」的 cookie，页面一开始就能操作
+    await waitFor(() => expect(document.cookie).toContain(`${PROMO_COOKIE}=1`));
+    expect(page()?.inert).toBe(false);
+    expect(screen.queryByRole("dialog", { name: "极客班宣传片" })).toBeNull();
+    expect(screen.queryByText("正在加载…")).toBeNull();
+    expect(chunk.loads).toBe(0);
+  });
+
   it("分包到了换成播放层：接着遮罩的淡入走，不从透明重来", async () => {
     open();
     const cover = await screen.findByRole("dialog", { name: "极客班宣传片" });

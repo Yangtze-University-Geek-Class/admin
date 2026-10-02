@@ -52,3 +52,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：PromoLazy.tsx：loadPlayer 返回 { Player, failed }，import 失败时记 failed；LazyPromoPlayer 打开时（useState 初始化，在 Suspense 外面，挂起重试不会再走）发现上一个失败过就换新的；PromoUnavailable 不再负责换。tests/web/portal-promo-lazy.test.tsx 新增「加载中就关掉、之后分包才失败」一条；portal.md「出错时」补一句
 - 结果：vitest run tests/web/portal-promo-lazy.test.tsx：6 passed；把 PromoLazy.tsx 临时换回 a01ab40 的版本：新用例 1 failed（Unable to find role="dialog"，一打开就按失败关掉了），其余 5 passed，已还原；promo-gate/lazy/player 三个文件 29 passed；tsc web 通过
+
+## 20:23:11 +08:00 · 返工 · #122 · F3：减少动态效果时 gate 不显示遮罩、不下载分包
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：JoinUs.tsx：挂载时 reducedMotion 且没看过 → promoBlocked，promo 初值 false，effect 里按 blocked 写「看过」的 cookie（onPromoSeen 挪到前面共用）；tests/web/portal-promo-gate.test.tsx 新增减少动态效果一条（无 dialog、无「正在加载…」、inert=false、cookie 已写、播放层分包下载 0 次）；portal.md「分包未到的加载占位」「自动播被拒与减少动态效果」两处同步
+- 结果：vitest run tests/web/portal-promo-gate.test.tsx：4 passed；把 JoinUs.tsx 临时换回 0b68462 的版本：新用例 1 failed（expected '' to contain 'yugc_promo_seen=1'），其余 3 passed，已还原；tsc web 通过
