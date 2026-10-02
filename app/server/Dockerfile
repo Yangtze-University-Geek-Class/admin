@@ -16,8 +16,8 @@
 # ── 构建阶段：装依赖 → 编译 TS → 裁掉 devDependencies ──
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
-# 下载源（#104）：维护者家里的自托管 runner 连 registry.npmjs.org、deb.debian.org、GitHub releases
-# 只有几十到两百 KB/s，工作流从仓库变量传国内镜像；不传就是下面的官方默认值，本机和托管 runner 照旧。
+# 下载源（#104）：可以用 build arg 把下载换到别的源。当初是给家里的自托管 runner 换国内镜像（它连官方源
+# 只有几十到两百 KB/s；#139 已退役），现在工作流的仓库变量都没设，不传就是下面的官方默认值。
 # 三个参数只在构建阶段声明；运行阶段是新的 FROM，不继承这里的 ARG，也不继承下面的 ENV。
 # 换源不关任何校验（docs/ops/CICD.md「构建下载源」）：
 #   NPM_REGISTRY               pnpm 按锁文件里的 integrity 核对每个包；corepack 用自带的 npm 公钥核对
