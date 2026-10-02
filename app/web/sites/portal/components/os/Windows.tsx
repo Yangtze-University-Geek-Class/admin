@@ -96,7 +96,7 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
       <div className="pt-win-body">
         {win.id === "about" && <About onOpen={onOpen} />}
         {win.id === "org" && <OrgChart />}
-        {win.id === "forum-feed" && <ForumFeed onOpen={onOpen} />}
+        {win.id === "forum-feed" && <ForumFeed />}
         {win.id === "terminal" && <Terminal onOpen={onOpen} apps={apps} />}
       </div>
     </section>
@@ -212,7 +212,7 @@ function OrgChip({ badge, className, size }: { badge: OrgBadge; className?: stri
   );
 }
 
-function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
+function ForumFeed() {
   const snapshot = useForumSnapshot();
   const now = Date.now();
   if (snapshot.status === "loading") return <p className="pt-empty">正在读取论坛…</p>;
@@ -258,9 +258,10 @@ function ForumFeed({ onOpen }: { onOpen: OpenApp }) {
           {summary.topics} 个话题 · {summary.users} 位用户
         </span>
         <span className="pt-row-btns">
-          <button type="button" className="pt-btn" onClick={(e) => onOpen("forum", e.currentTarget)}>
+          {/* 论坛应用已直达论坛首页（#185）；这里写明了要看 3D 版块，所以直接进 /forum-3d 场景页 */}
+          <Link className="pt-btn" to="/forum-3d">
             <Icon name="sparkling-line" size={15} /> 3D 版块
-          </button>
+          </Link>
           <a className="pt-btn is-primary" href={links.forumHome()}>
             <Icon name="external-link-line" size={15} /> 进入论坛首页
           </a>

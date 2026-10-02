@@ -1,12 +1,13 @@
 // YUGC OS：开机后的「极客班内部系统」，按桌面操作系统来排：菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）、
 // 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
 // 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
+// 论坛和 GitHub 组织点一下直达（#185）：论坛在当前标签页进论坛首页，GitHub 组织在新标签页打开，不经过 /forum-3d、/github 场景页。
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
 import { links } from "../../lib/links";
-import { appById, appByKey, filterCommands, launcherCommands, moveSelection, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
+import { appById, appByKey, appLink, filterCommands, followAppLink, launcherCommands, moveSelection, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
@@ -141,8 +142,13 @@ export default function YugcOs({ active, onBack }: Props) {
         case "route":
           return navigate(app.open.path);
         case "site":
-          window.location.assign(links.console());
+        case "external": {
+          // 点下去当场打开，不播图标飞行：新标签页放进计时器里可能被当成弹窗拦掉；整页跳走后从论坛后退、
+          // 页面从往返缓存恢复时，飞行图标也不会停在屏幕上
+          const link = appLink(app);
+          if (link) followAppLink(link);
           return;
+        }
         case "panel":
           if (app.open.panel === "promo") setPromo(true);
           else setPicker(true);
@@ -159,7 +165,6 @@ export default function YugcOs({ active, onBack }: Props) {
   const runCommand = (id: string) => {
     setLauncher(false);
     if (id.startsWith("app:")) return open(id.slice(4) as AppId);
-    if (id === "forum-home") return window.location.assign(links.forumHome());
     if (id === "forum-feed") return open("forum-feed");
     if (id === "docs") return navigate("/docs");
     if (id === "back") return onBack();

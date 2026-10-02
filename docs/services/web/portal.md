@@ -2,7 +2,7 @@
 
 > 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。
 
-状态：`current` · 更新：2026-09-27
+状态：`current` · 更新：2026-10-02
 
 ## 范围与路由
 
@@ -13,8 +13,8 @@
 | `/` | `pages/Home.tsx` | 加载动画 → 3D 书桌 → 点电脑开机 → YUGC OS 桌面（极客娘壁纸 + 应用图标 + 「新来的看这里」便签 + 窗口 + 带名字的 Dock + ⌘K 启动器） |
 | `/join-us` | `pages/JoinUs.tsx` | 加入我们：信封场景，DOM 信纸就是表单，真实提交 `POST /api/portal/apply` |
 | `/apply` | — | 旧地址，`<Navigate replace>` 到 `/join-us`，已发出的链接不失效 |
-| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109） |
-| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表 |
+| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109）。桌面上的「论坛」已直达论坛首页，不再经过这页（#185，见下文「桌面入口直达」）；这页留给旧地址和「论坛最新」窗口里的「3D 版块」按钮 |
+| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表。桌面上的「GitHub 组织」已直接在新标签页打开组织主页，不再经过这页（#185）；这页只留给旧地址 |
 | `/docs`、`/docs/:id` | `pages/Docs.tsx` | 公开产品介绍与用户指南（白名单由 `/api/docs` 决定） |
 | `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；未指定组织时默认本组织 |
 | `/join/:token` | `pages/JoinByToken.tsx` | GitHub 组织邀请链接（能力令牌）落地页 |
@@ -31,7 +31,7 @@
 | `lib/loaderProgress.ts` | 加载动画的真实进度模型（步骤权重、最短展示时长、平滑趋近） |
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
-| `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
+| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里）、站外应用的地址与打开方式（`appLink`、`followAppLink`）、启动器过滤、终端命令、时间文案 |
 | `lib/promo.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
@@ -53,6 +53,16 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - 控制台 `externalUrl("admin", "/console")`：生产与预发布都是本域名下的 `/console`（每个环境只有一个域名，管理端按路径进入），本机开发为 `/sites/admin/console`。意见箱是站内 `/feedback`。
 - 论坛最新与公开仓库在生产官网拿不到实时接口（论坛的本地状态接口只在开发时存在），因此随构建发布静态快照 `public/portal/forum-latest.json`、`public/portal/repos.json`。界面上不写「快照」「示意」这类给开发者看的说明（`tests/web/portal-os.test.ts` 扫描拦截），数字只写数据里真有的（话题数、用户数、仓库数）。论坛快照只收录已在仓库里公开编辑过的话题（`app/forum/content/curation.json` 的 `topics`），字段白名单为 id、标题、分类、颜色、回复数、浏览数、时间，**不带作者或任何用户名**：论坛私有投影里的用户名含真实姓名，不得进入公开官网包。更新快照 = 替换这两个文件并跑 `tests/web/portal-snapshots.test.ts`（它校验字段白名单与话题 id）。
 - GitHub 天际线的方块高度由固定种子生成（`lib/skyline.ts`），只是造型：页面上不做色阶图例、不标数值，也不在任何地方把它说成提交统计。
+
+## 桌面入口直达
+
+#185（所有者 2026-10-02）：「桌面点「论坛」「GitHub」等入口要再跳一层 3D 场景页才进得去，改成一跳直达」。原来论坛和 GitHub 组织在桌面上先进 `/forum-3d`、`/github` 场景页，要在场景页里再点一次才出站；「加入我们」本来就是直达的。
+
+- **去处只写在 `lib/osApps.ts`**：论坛是 `{ kind: "site", link: "forumHome" }`，在当前标签页进论坛首页（`links.forumHome()`）；GitHub 组织是 `{ kind: "external", link: "githubOrg" }`，在新标签页打开组织主页（`noopener`、不带 referrer）。打开方式沿用官网已有的外链：论坛和控制台是本域名下的另一个端，和页头、页脚、场景页里的论坛链接一样在当前标签页；GitHub 是别人的网站，和页脚、GitHub 场景页、终端 `repos` 里的 GitHub 链接一样在新标签页。`appLink` 把这两种写法解析成地址，`followAppLink` 负责打开。
+- **走这一处的入口**：桌面图标、Dock、2 / 3 键、菜单栏「前往」、⌘K 启动器、「新来的看这里」便签的第 2、3 行、终端 `open forum` / `open github`，以及「加入我们」回执里的「去论坛看看」（`appLinkById("forum")`，原来是指向 `/forum-3d` 的站内链接）。启动器原来单独有一条「进入论坛首页」，和论坛应用去同一个地方，已经去掉，它的搜索词 home、首页、bbs 并进了论坛应用。头像菜单里的「论坛」本来就直达论坛首页，没有改。
+- **点下去当场打开，不播图标飞行**：新标签页要在这次点击或按键里打开，等 520ms 飞行动画之后再开，浏览器可能当成弹窗拦掉；去论坛是整页跳走，也不播，从论坛后退、浏览器从往返缓存恢复整页时，飞行图标不会停在屏幕上。终端是先输出「打开 …」、350ms 后再打开，仍在这次按键的有效时间里。2026-10-02 在 ego-browser（Chromium）里实测：从论坛按后退回到的是桌面（往返缓存恢复，没有重新请求 `/`），终端 `open github` 能开出新标签页；Safari 与微信内置浏览器未测。
+- **旧地址**：`/forum-3d`、`/github` 两页与路由都不动，直接打开照常能用，#109 的往返缓存复位也还在。`/forum-3d` 另外还能从「论坛最新」窗口里的「3D 版块」按钮进（它原来借用论坛应用的去处，论坛直达以后改成直接链到 `/forum-3d`）；`/github` 没有桌面入口。
+- **单测**：`tests/web/portal-os.test.ts` 核对每个应用的去处、`appLink` 与 `followAppLink`、启动器的搜索词，以及源码里指向两个场景页的只剩路由表和「3D 版块」、回执按钮取论坛应用的地址；`tests/web/portal-os-entries.test.tsx`（jsdom）渲染桌面，逐个入口点下去，核对去处、当场打开、路由不动、没有飞行图标，「加入我们」照旧飞图标后进 `/join-us`。
 
 ## 登录入口（菜单栏）
 

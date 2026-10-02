@@ -16,6 +16,7 @@ import Icon from "../components/Icon";
 import { LazyPromoPlayer } from "../components/PromoLazy";
 import SceneBar from "../components/SceneBar";
 import { RESUME_DESKTOP } from "../lib/links";
+import { appLinkById } from "../lib/osApps";
 import { hasSeenPromo, promoCookie } from "../lib/promo";
 import { useInert, useReducedMotion } from "../lib/useReducedMotion";
 import type { JoinHandle, JoinPhase } from "../three/join";
@@ -54,6 +55,8 @@ export function validateJoin(form: FormState): FieldErrors {
 
 export default function JoinUs() {
   const reducedMotion = useReducedMotion();
+  // 回执里的「去论坛看看」和桌面上的论坛应用同一个去处：直达论坛首页（#185），不经过 /forum-3d
+  const forumLink = appLinkById("forum");
   const [promo, setPromo] = useState(() => typeof document !== "undefined" && !hasSeenPromo(document.cookie));
   const page = useInert<HTMLDivElement>(promo);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -309,9 +312,9 @@ export default function JoinUs() {
                 <Link className="pt-btn is-primary" to="/" state={RESUME_DESKTOP}>
                   回到桌面
                 </Link>
-                <Link className="pt-btn" to="/forum-3d">
+                <a className="pt-btn" href={forumLink.href} target={forumLink.newTab ? "_blank" : undefined} rel={forumLink.newTab ? "noreferrer" : undefined}>
                   去论坛看看
-                </Link>
+                </a>
                 <button type="button" className="pt-btn is-quiet" onClick={() => window.location.reload()}>
                   再写一封
                 </button>

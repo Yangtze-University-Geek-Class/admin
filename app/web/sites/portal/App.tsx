@@ -16,6 +16,8 @@ const JoinByToken = lazy(() => import("./pages/JoinByToken"));
  *   /join-us     加入我们（信封场景，真实提交 POST /api/portal/apply）；旧地址 /apply 重定向到这里
  *   /forum-3d    论坛版块气泡场景（主入口「进入论坛首页」）
  *   /github      GitHub 组织贡献天际线（高度为示意）
+ *                这两页不再是桌面入口的中间页（#185）：桌面上的「论坛」直达论坛首页，「GitHub 组织」新标签页打开组织主页；
+ *                页面保留给已收藏、已分享的旧地址，/forum-3d 另有论坛最新窗口里的「3D 版块」按钮进来
  *   /docs /docs/:id /feedback /feedback/:org /join/:token
  */
 export default function App() {
