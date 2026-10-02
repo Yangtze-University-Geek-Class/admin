@@ -136,3 +136,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：81f3213 docs(portal): 加载占位一节的时间线照 #122 实测写，PR #95 的数字写明是首帧时间（Refs #122）；#182 合入后 stage 到 a18616a，ae5ca76 把 origin/stage 合进来，冲突只在生成的 notes/INDEX.md，用 note.mjs index 重新生成
 - 结果：合并后 pnpm check:doc-sync 通过（6 组，按 PR 核对）、check-docs 272 篇通过；81f3213 改了 notes/ 以外的文件，送第四轮增量审查
+
+## 23:37:38 +08:00 · PR · #122 · PR #180 正文换成接手后的版本（第四轮审查 D1）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：2026-10-02 23:37 用 gh pr edit 180 --body-file 把正文换成接手后的版本：18 张证据图（GitHub 附件）、N3 的说法（test:e2e 不在 CI 里跑、本次也没跑）、第四轮审查结论一节、D2 的三处（关联补 ae5ca76、portal 一条写 README 与 stage 相同、回滚第 3 步的理由）。23:07:10、23:07:10 的「审查」与 23:4x 前几条记录里说「已改 PR 正文」「变更范围一并改」的，当时改的是本机草稿 /private/tmp/geek-evidence/122/pr-body.final.md，到这一刻才上传
+- 结果：本机 pr-contract check 通过（9 个段落齐全，有验收证据）；GitHub 上 pr-contract 随正文编辑重跑。#122 审查遗留的 F10 与 e2e 选择器开成 #196
+
+## 23:37:39 +08:00 · 审查 · #122 · 第四轮独立审查 d8712f0：有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查子代理只读审 049e6fe..d8712f0：两次合并用 merge-tree 重算只差 notes/INDEX.md，INDEX 与 renderIndex 输出相同；app/、tests/ 的变化与 stage 一侧 patch-id 相同（6298bc81…）；portal.md:89 与 PR #95 首帧时间表、20:47:57 记录对得上；tests/web 20 个文件 150 passed；CI push 37026322165、pull_request 37026328613 success
+- 结果：有条件通过：应修 D1（GitHub 上的正文还是作者原版）已在上一条记录处理；建议 D2 随正文改；D3（返工记录没和改动同一个提交）不改历史；D4（#122 正文第 14 行旧说法）合并后在「关闭」记录里更正
