@@ -2,7 +2,7 @@
 
 > 一件事从提出到关闭，每一步都以固定格式的评论留在 issue 与 PR 上；人扫一眼能看懂进展，Agent 按字段就能读出状态。
 
-状态：`current` · 更新：2026-09-26 · 适用：所有 issue、PR 的评论，人与 Agent 都遵守。
+状态：`current` · 更新：2026-10-02 · 适用：所有 issue、PR 的评论，人与 Agent 都遵守。
 
 ## §1 生命周期：一件事 = 一个 issue = 一个 task 分支 = 一个 worktree = 一个 PR
 
@@ -35,7 +35,7 @@
 | task 分支（远端） | 合并后立即删除 | `branch-hygiene` 合并后自动删；每周巡检 14 天没提交、没有 open PR 的残留分支，只告警 | 删分支不可逆，残留的由人确认后删 |
 | task worktree（本机） | 合并或放弃后 `task.mjs finish` | `.githooks/pre-push` 运行 `node scripts/task.mjs list --check`：有该清没清的 worktree 就拒绝推送（[BRANCHING](BRANCHING.md)「task worktree」） | 钩子要每台克隆 `pnpm hooks:enable` 启用一次；gh 查不到只警告 |
 | 执行记录（`notes/`） | 开工起连续记到收尾；PR 带开工、提交、PR、审查 | `pnpm check` 的 `check:notes`；CI `branch-guard` 的执行记录检查（[NOTES](NOTES.md) §6） | 收尾写在合并之后，先暂存到主工作区，随下一个 PR 入库，没有检查拦「一直不入库」 |
-| 文档跟着模块改 | 模块改了，对应文档在同一个 PR 里跟着改；文档里的事实没变时，在本 task 的执行记录里写文档核对 | `pnpm check` 的 `check:doc-sync`、CI `core` 与 `branch-guard`（[docs/README](../README.md)「文档跟着模块改」） | 检查只看文档动没动，写得对不对靠审查（[CODE-REVIEW](CODE-REVIEW.md) 第 6 项） |
+| 文档跟着模块改 | 模块改了，对应文档在同一个 PR 里跟着改；文档里的事实没变时，在本 task 的执行记录里写文档核对 | `pnpm check` 的 `check:doc-sync`、CI `core` 与 `branch-guard`（[docs/README](../README.md)「文档跟着模块改」）；发版时两条部署工作流的 plan job 在发布 tag 指向的提交上再核对，不通过就不构建、不部署（[CICD](../ops/CICD.md)） | 检查只看文档动没动，写得对不对靠审查（[CODE-REVIEW](CODE-REVIEW.md) 第 6 项）；仓库没有分支保护，CI 报红拦不住合并，合并的人自己看 CI 结果 |
 
 ## §2 互相引用
 
