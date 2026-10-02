@@ -16,6 +16,8 @@ const UPSTREAM_MESSAGES: Record<number, string> = {
  * app.ts 注册 `@fastify/rate-limit` 时把它设成默认的 errorResponseBuilder，路由级 `config.rateLimit` 不用各写一遍（#191）。
  * 插件把 errorResponseBuilder 的返回值当错误抛出，错误处理器只认 `statusCode` 与 `code`：返回
  * `{ statusCode, error, message }` 这样的普通对象会被回成 `request_error`。
+ * 不看插件传进来的 respCtx，也就不处理 ban：插件 ban 时给的是 403，用它仍回 429。现在没有路由配 ban，
+ * 以后要配时让 builder 按 respCtx.ban 回 403。
  */
 export const rateLimited = () => Object.assign(new Error("操作太频繁，请稍后再试"), { statusCode: 429, code: "rate_limited" });
 
