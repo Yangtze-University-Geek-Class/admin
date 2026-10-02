@@ -34,3 +34,9 @@
 - 做了什么：按 CODE-REVIEW 十二项核对 0316df4：分支不变量、不直推 main、无密钥、无 .env/镜像改动、用例能区分修复前后（改回 null 2 失败）、文档同步 portal.md+README、边界 202文件1154导入、提交信息规范、无旧模型与危险操作、执行记录连续、未合并不清理；结论写入 PR 正文
 - 结果：无阻塞与未决应修；结论：通过（PR 正文同名小节）
 - 下一步：等 PR CI 全绿；合并由维护者决定，合并后按任务清理流程收尾
+
+## 20:15:09 +08:00 · 返工 · #122 · F4：三份文件的行尾从 CRLF 换回 LF
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：接手 PR #180（审查 F4）：sed -i '' 's/\r$//' 处理 docs/services/web/README.md、docs/services/web/portal.md、tests/web/portal-promo-gate.test.tsx；单独成一个 style(portal) 提交，不改写历史
+- 结果：改后 git grep -lI $'\r' 工作区无输出；git diff --ignore-cr-at-eol 无改动；对 origin/stage 的 docs/services/web/ diff 只剩 README.md 2 +-、portal.md 3 ++-（原来 124 行和 331 行）。文档核对：docs/services/web/README.md、docs/services/web/portal.md 本提交只换行尾，内容不用改
