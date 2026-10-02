@@ -57,3 +57,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
 - 做了什么：gh pr create --base stage --head task/191/rate_limited_body，正文九段，8 张改前改后截图（ego，桌面 1317×998 与 390×844，快照写在图注里）已上传为 GitHub 附件；审查结论一节暂写待审查、结论：阻塞，等第三轮增量审查（4d29300）结论后替换
 - 结果：本机 pr-contract check 通过；PR https://github.com/Yangtze-University-Geek-Class/admin/pull/197
+
+## 23:40:43 +08:00 · 审查 · #191 · 第三轮独立审查 4d29300：有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：独立审查子代理只读审 5d41b90..4d29300：F5 改对；ef00e8f 非冲突路径与 stage 一侧 patch-id 相同，API.md 冲突两边都保留；#129 合入后 rate-limits 的意见箱用例仍测限流（临时探针：合法组织 10 次 200 后第 11 次 429 rate_limited）；基线换成 a18616a 后新用例 5 条全失败；tests/server + tests/web 31 个文件 394 passed；pnpm check 退出 0
+- 结果：没有阻塞和应修；建议 F6 API.md:23「不是限流」和 forum-rules.ts:33-39、API.md:102 对不上；F7 1792d23 的 scope api 不在词表、记录没跟改动同一提交（不回写历史，本次起照做）；F8 证据 5–8 截于 #129 合入前；F9 正文 pnpm check 停在 5d41b90。F6 在本提交改，F8、F9 改正文
+
+## 23:40:43 +08:00 · 返工 · #191 · API.md 去掉「不是限流」半句（第三轮审查 F6）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：docs/architecture/API.md:23「全站游客回复的总量上限不是限流，另回 429 guest_replies_paused」改成「全站游客回复的总量上限另回 429 guest_replies_paused」：forum-rules.ts 把 guestPostSite 放在 FORUM_RATE_LIMITS 里，API.md:102 的限流列也写着全站游客合计 200 次/小时。这条记录和改动在同一个提交里（F7）
+- 结果：pnpm check:doc-sync 通过、check-docs 272 篇通过；改了 notes/ 以外的文件，请第三轮审查人复核这一句
