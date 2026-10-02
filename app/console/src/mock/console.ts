@@ -74,6 +74,7 @@ export const MOCK_ROLE_BASE: Record<TitleId, string[]> = {
 /** 投递状态（服务端 APPLICATION_STATUSES），测试核对。 */
 export const MOCK_APPLICATION_STATUSES = [
   { id: "received", label: "已收到" }, { id: "interview", label: "待面试" }, { id: "accepted", label: "已录取" }, { id: "rejected", label: "未通过" },
+  { id: "cancelled", label: "已取消" },
 ];
 const STATUSES = MOCK_APPLICATION_STATUSES;
 
@@ -227,7 +228,12 @@ export function currentPersona(): string {
   return "admin";
 }
 
-const APPLICATIONS = [
+/**
+ * 样板投递。按人合并（#184）的几种情况都有：周子涵同一个邮箱（带 + 标签）投了两次、后一份已取消；
+ * 吴一凡换了个邮箱又投一次（姓名班级相同）；林晓和林小是同一个 Gmail（点和 googlemail.com 不算），只靠邮箱连上。
+ * tests/console/mock-sync.test.ts 用服务端的归并规则核对这里的分组。
+ */
+export const MOCK_APPLICATIONS = [
   { id: "7c1e4a2b-3d5f-4a6b-8c7d-9e0f1a2b3c4d", name: "褚明哲", class_name: "信安2402", email: "chu.mingzhe@example.test", status: "received", created_at: now - 25 * MIN,
     strengths: "打过两次校赛 CTF，擅长 Web 方向，写过一个自动化信息收集脚本。想在极客班找到一起刷题、一起复盘的伙伴。" },
   { id: "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8", name: "周子涵", class_name: "计科2301", email: "zhou.zihan@example.test", status: "received", created_at: now - 3 * HOUR,
@@ -240,7 +246,16 @@ const APPLICATIONS = [
     strengths: "Python 数据分析做过两个小项目，熟悉 pandas 和可视化；会 Linux 常用命令，自己搭过一个家用 NAS。" },
   { id: "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a", name: "冯晓", class_name: "软件2301", email: "feng.xiao@example.test", status: "rejected", created_at: now - 8 * DAY,
     strengths: "对编程有兴趣，正在学习 Java 基础，希望通过社团多接触项目。" },
+  { id: "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b", name: "周子涵", class_name: "计科2301", email: "zhou.zihan+join@example.test", status: "cancelled", created_at: now - 2 * HOUR - 40 * MIN,
+    strengths: "熟悉 TypeScript 与 React，做过课程设计的在线选课系统。重新提交一次，补充：对 Agent 和 MCP 很感兴趣。" },
+  { id: "8b0c2d4e-6f8a-4b1c-9d3e-5f7a9b1c3d5e", name: "吴一凡", class_name: "软件2302", email: "yifan.wu@example.test", status: "received", created_at: now - 5 * HOUR,
+    strengths: "C++ 基础扎实，ACM 校队预备队员。换了个常用邮箱再投一次，之前那个邮箱不常看。" },
+  { id: "4c6e8a0b-1d3f-4a5c-8e7b-9d1f3a5c7e9b", name: "林晓", class_name: "软件2303", email: "geek.demo.linxiao@gmail.com", status: "received", created_at: now - 2 * DAY,
+    strengths: "做过微信小程序的校园二手书项目，负责后端和数据库，想学习更规范的工程流程。" },
+  { id: "0a2c4e6b-8d1f-4b3a-9c5e-7b9d1f3a5c7d", name: "林小", class_name: "软件2303", email: "geekdemolinxiao@googlemail.com", status: "received", created_at: now - 1 * DAY - 6 * HOUR,
+    strengths: "做过校园二手书小程序的后端，名字上次填错了，重新投一份。" },
 ];
+const APPLICATIONS = MOCK_APPLICATIONS;
 /** 发信队列里一封信的摘要（同服务端 MailSummary）；只有主题，没有地址和正文。 */
 type MockMail = { status: string; skip_reason: string | null; attempts: number; subject: string; sent_at: number | null; updated_at: number };
 const sent = (subject: string, at: number): MockMail => ({ status: "sent", skip_reason: null, attempts: 1, subject, sent_at: at, updated_at: at });
@@ -266,6 +281,8 @@ const REVIEWS: Record<string, { id: number; from_status: string; to_status: stri
   ],
   "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": [{ id: 17, from_status: "received", to_status: "rejected", note: "方向暂不匹配，已建议先参加公开分享会", reviewer: "li-xiaoman", created_at: now - 7 * DAY,
     mail: { status: "failed", skip_reason: null, attempts: 6, subject: "极客班招新结果", sent_at: null, updated_at: now - 6 * DAY } }],
+  // 改成「已取消」不发信（#184），审核记录照写
+  "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b": [{ id: 19, from_status: "received", to_status: "cancelled", note: "和 3 小时前那份重复，保留先投的那份", reviewer: "li-xiaoman", created_at: now - 2 * HOUR, mail: null }],
 };
 
 /** 投递时自动发的「已收到」确认信；吴一凡那封没有记录（null）。 */
@@ -276,6 +293,10 @@ const RECEIVED_MAIL: Record<string, MockMail | null> = {
   "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b": sent("极客班收到了你的报名信", now - 3 * DAY + MIN),
   "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e": skipped("极客班收到了你的报名信", "not_allowlisted", now - 6 * DAY),
   "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a": skipped("极客班收到了你的报名信", "mail_disabled", now - 8 * DAY),
+  "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b": skipped("极客班收到了你的报名信", "not_allowlisted", now - 2 * HOUR - 40 * MIN),
+  "8b0c2d4e-6f8a-4b1c-9d3e-5f7a9b1c3d5e": sent("极客班收到了你的报名信", now - 5 * HOUR + MIN),
+  "4c6e8a0b-1d3f-4a5c-8e7b-9d1f3a5c7e9b": sent("极客班收到了你的报名信", now - 2 * DAY + MIN),
+  "0a2c4e6b-8d1f-4b3a-9c5e-7b9d1f3a5c7d": sent("极客班收到了你的报名信", now - 1 * DAY - 6 * HOUR + MIN),
 };
 
 /** 发信设置用白名单模式（真实环境现在都发给所有人，#169），好看到白名单挡下时的说法：只给这三个邮箱发，其余投递人在「处理这份投递」里会看到「这封不会发出」。 */
@@ -288,6 +309,7 @@ const FEEDBACK = [
   { id: 19, category: "新功能", status: "done", submitter_login: "gao-yuan", contact: "", content: "论坛能不能给毕业的学长学姐一个单独的标识？", reply: "已上线「领航员」称号。", replied_by: "sun-qiao", replied_at: now - 3 * DAY, created_at: now - 6 * DAY },
 ];
 const AUDIT = [
+  { id: 39, created_at: now - 2 * HOUR, actor: "li-xiaoman", action: "application.review", target: "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b", ip: "10.0.0.12", details: { from: "received", to: "cancelled", has_note: true, mail: false } },
   { id: 31, created_at: now - 40 * MIN, actor: "li-xiaoman", action: "application.review", target: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b", ip: "10.0.0.12", details: { from: "reviewing", to: "interview", has_note: true } },
   { id: 30, created_at: now - 3 * HOUR, actor: "li-xiaoman", action: "application.export", target: "all", ip: "10.0.0.12", details: { count: 6, status: null } },
   { id: 38, created_at: now - 5 * HOUR, actor: "he-miao", action: "application.view", target: "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8", ip: "10.0.0.21", details: null },
@@ -328,6 +350,48 @@ const excerpt = (text: string) => (text.length > 120 ? `${text.slice(0, 120)}…
 function counts() {
   return Object.fromEntries(STATUSES.map(s => [s.id, APPLICATIONS.filter(a => a.status === s.id).length]));
 }
+
+type MockApplication = (typeof MOCK_APPLICATIONS)[number];
+type Reason = "email" | "name_class";
+const REASONS: Reason[] = ["email", "name_class"];
+const GMAIL = new Set(["gmail.com", "googlemail.com"]);
+/** 同服务端 lib/mail/outbox.ts 的 limitKey：大小写、+ 标签、末尾的点、Gmail 的点与 googlemail.com。样板里只有 ASCII 域名，不做 IDNA。 */
+function mockEmailKey(email: string): string {
+  const value = email.trim().toLowerCase();
+  const at = value.lastIndexOf("@");
+  if (at < 0) return value;
+  let local = value.slice(0, at).split("+")[0];
+  let domain = value.slice(at + 1).replace(/\.+$/, "");
+  if (GMAIL.has(domain)) {
+    local = local.replace(/\./g, "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+const fold = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+const newestFirst = (a: MockApplication, b: MockApplication) => b.created_at - a.created_at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/** 同服务端 lib/application-groups.ts：邮箱归并后相同或姓名班级相同就是同一个人，链式连通；key 是最早一份的 id。 */
+function mockGroups() {
+  const keys = APPLICATIONS.map(a => ({ email: mockEmailKey(a.email), name_class: `${fold(a.name)}\u0000${fold(a.class_name)}` }));
+  const parent = APPLICATIONS.map((_, index) => index);
+  const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
+  APPLICATIONS.forEach((_, i) => APPLICATIONS.forEach((__, j) => {
+    if (j > i && REASONS.some(reason => keys[i][reason] === keys[j][reason])) parent[find(j)] = find(i);
+  }));
+  const buckets = new Map<number, number[]>();
+  APPLICATIONS.forEach((_, index) => buckets.set(find(index), [...(buckets.get(find(index)) ?? []), index]));
+  return [...buckets.values()].map(indexes => {
+    const members = indexes
+      .map(index => ({ ...APPLICATIONS[index], linked_by: REASONS.filter(reason => indexes.some(other => other !== index && keys[other][reason] === keys[index][reason])) }))
+      .sort(newestFirst);
+    return { key: members[members.length - 1].id, reasons: REASONS.filter(reason => members.some(m => m.linked_by.includes(reason))), members };
+  });
+}
+const summaryOf = (a: MockApplication) => ({
+  id: a.id, name: a.name, class_name: a.class_name, email: a.email, strengths_excerpt: excerpt(a.strengths),
+  status: a.status, created_at: a.created_at, last_review: lastReview(a.id),
+});
 
 /** 当前身份（给 GitHub 组织接口的样板用）；未登录返回 null。 */
 export function mockPersona(): Persona | null {
@@ -376,7 +440,7 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
 }
 
 /**
- * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
+ * PATCH /api/console/applications/:id：状态只能是五种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
  * 和样板不同时 409，要改状态却没带这两项时也 409；
  * 改到「待面试」并且要发信时，面试时间和地点必填。通过核对的照样 501，不假装信已经排进发信队列。
  */
@@ -388,7 +452,7 @@ function checkApplicationReview(id: string, body: unknown): void {
   if (!application) throw new ApiError(404, "not_found", "投递不存在");
   const input = (body && typeof body === "object" ? body : {}) as { status?: unknown; expected_status?: unknown; expected_review_id?: unknown; notify?: unknown; letter?: unknown };
   if (input.status !== undefined && !STATUSES.some(s => s.id === input.status)) {
-    const message = "状态只能是已收到、待面试、已录取、未通过";
+    const message = `状态只能是${STATUSES.map(s => s.label).join("、")}`;
     throw new ApiError(400, "invalid_status", message, undefined, { error: "invalid_status", message });
   }
   const changed = (message: string) => new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });
@@ -439,7 +503,9 @@ export function routeConsole(url: URL): unknown {
     need(persona, "console.access");
     const result: Record<string, unknown> = {};
     if (persona.capabilities.includes("applications.read")) {
-      result.applications = { total: APPLICATIONS.length, by_status: counts(), last_7d: APPLICATIONS.filter(a => a.created_at >= now - 7 * DAY).length };
+      // 同服务端：已取消的不算进总数和近 7 天（#184）
+      const live = APPLICATIONS.filter(a => a.status !== "cancelled");
+      result.applications = { total: live.length, by_status: counts(), last_7d: live.filter(a => a.created_at >= now - 7 * DAY).length };
     }
     if (persona.capabilities.includes("feedback.read")) result.feedback = { open: FEEDBACK.filter(f => f.status === "open").length, total: FEEDBACK.length };
     if (persona.capabilities.some(c => c === "roles.manage" || c === "roles.department.manage")) {
@@ -472,13 +538,18 @@ export function routeConsole(url: URL): unknown {
     const q = (search.get("q") ?? "").trim().toLowerCase();
     const limit = Number(search.get("limit") ?? 50);
     const offset = Number(search.get("offset") ?? 0);
-    const filtered = APPLICATIONS.filter(a => (!status || a.status === status) && (!q || [a.name, a.class_name, a.email].some(v => v.toLowerCase().includes(q))));
+    const keep = (a: MockApplication) => (!status || a.status === status) && (!q || [a.name, a.class_name, a.email].some(v => v.toLowerCase().includes(q)));
+    // 同服务端：按投递筛选，再按人合并；主记录是留下的投递里最新一份没取消的，按主记录的投递时间排
+    const people = mockGroups().flatMap(group => {
+      const matched = group.members.filter(keep);
+      return matched.length ? [{ group, matched, primary: matched.find(a => a.status !== "cancelled") ?? matched[0] }] : [];
+    }).sort((a, b) => newestFirst(a.primary, b.primary));
     return {
-      items: filtered.slice(offset, offset + limit).map(a => ({
-        id: a.id, name: a.name, class_name: a.class_name, email: a.email, strengths_excerpt: excerpt(a.strengths),
-        status: a.status, created_at: a.created_at, last_review: lastReview(a.id),
+      items: people.slice(offset, offset + limit).map(({ group, matched, primary }) => ({
+        ...summaryOf(primary),
+        person: { key: group.key, reasons: group.reasons, size: group.members.length, applications: matched.map(a => ({ ...summaryOf(a), linked_by: a.linked_by })) },
       })),
-      total: filtered.length, counts: counts(),
+      total: people.length, total_applications: people.reduce((sum, person) => sum + person.matched.length, 0), counts: counts(),
     };
   }
   const detail = path.match(/^\/api\/console\/applications\/([0-9a-f-]{36})$/);
@@ -486,7 +557,12 @@ export function routeConsole(url: URL): unknown {
     need(persona, "applications.read");
     const application = APPLICATIONS.find(a => a.id === detail[1]);
     if (!application) throw new ApiError(404, "not_found", "投递不存在");
-    return { application, reviews: REVIEWS[application.id] ?? [], received_mail: RECEIVED_MAIL[application.id] ?? null, mail: mailSettings(application.email) };
+    const group = mockGroups().find(item => item.members.some(member => member.id === application.id))!;
+    const person = {
+      key: group.key, reasons: group.reasons,
+      applications: group.members.map(a => ({ id: a.id, name: a.name, class_name: a.class_name, email: a.email, status: a.status, created_at: a.created_at, last_review: lastReview(a.id), linked_by: a.linked_by })),
+    };
+    return { application, person, reviews: REVIEWS[application.id] ?? [], received_mail: RECEIVED_MAIL[application.id] ?? null, mail: mailSettings(application.email) };
   }
   if (path === "/api/console/feedback") {
     need(persona, "feedback.read");

@@ -6,8 +6,8 @@ import { ApiError } from "./http";
 import { APPLICATION_STATUS, isApplicationStatus } from "./statuses";
 import type { ApplicationLetter, ApplicationReviewPatch, ApplicationStatus, MailSettings, MailSummary } from "./types";
 
-/** 改成这三种状态时给投递人发通知信；改回「已收到」、只写备注都不发。 */
-export type LetterKind = Exclude<ApplicationStatus, "received">;
+/** 改成这三种状态时给投递人发通知信；改回「已收到」、改成「已取消」、只写备注都不发。 */
+export type LetterKind = "interview" | "accepted" | "rejected";
 export const isLetterKind = (value: string): value is LetterKind => value === "interview" || value === "accepted" || value === "rejected";
 
 export const LETTER_LIMITS = { time: 60, place: 120, notes: 1000, message: 1000 } as const;
@@ -19,6 +19,7 @@ export const emptyLetterDraft = (): LetterDraft => ({ time: "", place: "", inter
 export type NoticePlan =
   | { kind: "none" }
   | { kind: "back_to_received"; hint: string }
+  | { kind: "cancel"; hint: string }
   | { kind: "letter"; letter: LetterKind; notify: boolean; sends: boolean; hint: string };
 
 /**
@@ -27,6 +28,7 @@ export type NoticePlan =
  */
 export function noticePlan(current: string, next: ApplicationStatus, notify: boolean, mail: MailSettings, email: string): NoticePlan {
   if (next === current) return { kind: "none" };
+  if (next === "cancelled") return { kind: "cancel", hint: "改成已取消不发邮件。审核记录会写下是谁、什么时候取消的，以后还可以改回来。" };
   if (!isLetterKind(next)) return { kind: "back_to_received", hint: "改回已收到不发邮件。" };
   const base = { kind: "letter" as const, letter: next, notify };
   if (!notify) return { ...base, sends: false, hint: "这次只改状态，不给投递人发邮件。" };
@@ -107,7 +109,7 @@ export function statusChangedMessage(error: unknown): string | null {
  */
 export function serverFieldErrors(error: unknown): { status?: string; notice?: string; letter: LetterErrors } | null {
   if (!(error instanceof ApiError) || error.status !== 400) return null;
-  if (error.code === "invalid_status") return { status: error.message || "状态只能是已收到、待面试、已录取、未通过。", letter: {} };
+  if (error.code === "invalid_status") return { status: error.message || "状态只能是已收到、待面试、已录取、未通过、已取消。", letter: {} };
   if (error.code === "letter_invalid") return { notice: error.message || "信的内容不合规，改一下再发。", letter: {} };
   if (error.code !== "letter_required") return null;
   const fields = error.payload?.fields;

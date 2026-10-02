@@ -6,13 +6,14 @@ import { DEPARTMENT_ICONS as CONSOLE_DEPARTMENT_ICONS } from "../../app/console/
 import { DEFAULT_CREW, DEFAULT_TITLES, FALLBACK_TONES, TONE_NAMES, titleBundleError as consoleBundleError } from "../../app/console/src/lib/titles";
 import { APPLICATION_STATUS } from "../../app/console/src/lib/statuses";
 import {
-  MOCK_APPLICATION_STATUSES, MOCK_ASSIGNMENTS, MOCK_CAPABILITIES, MOCK_CAPTAIN_ONLY, MOCK_DEPARTMENTS, MOCK_IMPLIES, MOCK_MEMBERS, MOCK_PERSONAS, MOCK_ROLE_BASE, MOCK_TITLES,
+  MOCK_APPLICATIONS, MOCK_APPLICATION_STATUSES, MOCK_ASSIGNMENTS, MOCK_CAPABILITIES, MOCK_CAPTAIN_ONLY, MOCK_DEPARTMENTS, MOCK_IMPLIES, MOCK_MEMBERS, MOCK_PERSONAS, MOCK_ROLE_BASE, MOCK_TITLES,
   MOCK_TONES, checkConsoleWrite, mockPeople, routeConsole,
 } from "../../app/console/src/mock/console";
 import {
   APPLICATION_STATUSES, CAPABILITIES, CAPABILITY_IDS, CAPTAIN_ONLY, CREW_TITLE, DEFAULT_DEPARTMENTS, DEFAULT_TITLE_CONFIGS, DEPARTMENT_ICONS, IMPLIES,
   ROLE_BASE, TITLES, TITLE_IDS, TONES, computeAccess, orderedCapabilities, titleBundleError, titleRank, type AssignmentRow, type OrgRole,
 } from "../../app/server/src/lib/roles";
+import { groupApplications, matchPeople } from "../../app/server/src/lib/application-groups";
 
 const departments = DEFAULT_DEPARTMENTS.map(item => ({ ...item, archived: false }));
 const titleShape = (t: { id: string; label: string; tag: string; icon: string; tone: string; source: string }) => [t.id, t.label, t.tag, t.icon, t.tone, t.source];
@@ -121,8 +122,31 @@ describe("console catalogue mirrors the server", () => {
     for (const item of items) {
       expect(APPLICATION_STATUSES.map(s => s.id as string), item.id).toContain(item.status);
       const detail = routeConsole(new URL(`http://mock.local/api/console/applications/${item.id}`)) as Record<string, unknown> & { reviews: Record<string, unknown>[] };
-      expect(Object.keys(detail).sort(), item.id).toEqual(["application", "mail", "received_mail", "reviews"]);
+      expect(Object.keys(detail).sort(), item.id).toEqual(["application", "mail", "person", "received_mail", "reviews"]);
       for (const review of detail.reviews) expect(review, item.id).toHaveProperty("mail");
+    }
+  });
+
+  it("groups preview applications by person exactly like the server (#184)", () => {
+    const list = routeConsole(new URL("http://mock.local/api/console/applications?limit=200")) as {
+      items: { id: string; person: { key: string; reasons: string[]; size: number; applications: { id: string; linked_by: string[] }[] } }[];
+      total: number; total_applications: number; counts: Record<string, number>;
+    };
+    const expected = matchPeople(groupApplications(MOCK_APPLICATIONS).groups, () => true);
+    expect(list.items.map(item => ({ primary: item.id, key: item.person.key, reasons: item.person.reasons, size: item.person.size, members: item.person.applications.map(a => [a.id, a.linked_by]) })))
+      .toEqual(expected.map(({ group, primary, matched }) => ({ primary: primary.id, key: group.key, reasons: group.reasons, size: group.members.length, members: matched.map(a => [a.id, a.linked_by]) })));
+    // 预览要能看到三种归并：两项都同、只有姓名班级同、只有邮箱同；还要有一份已取消
+    expect(list.items.map(item => item.person.reasons.join("+")).filter(Boolean).sort()).toEqual(["email", "email+name_class", "name_class"]);
+    expect(list.counts.cancelled).toBeGreaterThan(0);
+    expect(Object.values(list.counts).reduce((a, b) => a + b, 0)).toBe(list.total_applications);
+    for (const status of MOCK_APPLICATION_STATUSES.map(s => s.id)) {
+      const filtered = routeConsole(new URL(`http://mock.local/api/console/applications?status=${status}`)) as { total_applications: number };
+      expect(filtered.total_applications, status).toBe(list.counts[status]);
+    }
+    for (const item of list.items) {
+      const detail = routeConsole(new URL(`http://mock.local/api/console/applications/${item.id}`)) as { person: { key: string; applications: { id: string }[] } };
+      expect(detail.person.key, item.id).toBe(item.person.key);
+      expect(detail.person.applications.map(a => a.id), item.id).toEqual(expected.find(p => p.group.key === item.person.key)!.group.members.map(m => m.id));
     }
   });
 });
@@ -134,8 +158,12 @@ describe("preview checks an application review like the server does", () => {
     catch (error) { return error as ApiError; }
   };
 
-  it("rejects statuses outside the four, including the retired reviewing", () => {
-    expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
+  it("rejects statuses outside the five, including the retired reviewing", () => {
+    expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过、已取消" });
+  });
+
+  it("lets a cancellation through to the read-only answer, like the server would accept it without a letter", () => {
+    expect(patch({ ...page, status: "cancelled", notify: true, letter: { message: "不会发出去" } })).toBeNull();
   });
 
   const page = { expected_status: "received", expected_review_id: 0 }; // 样板里这份投递还没有审核记录

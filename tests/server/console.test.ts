@@ -365,8 +365,9 @@ describe('applications', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.total).toBe(2);
-    expect(body.counts).toEqual({ received: 1, interview: 1, accepted: 0, rejected: 0 });
-    expect(Object.keys(body.items[0]).sort()).toEqual(['class_name', 'created_at', 'email', 'id', 'last_review', 'name', 'status', 'strengths_excerpt']);
+    expect(body.counts).toEqual({ received: 1, interview: 1, accepted: 0, rejected: 0, cancelled: 0 });
+    expect(Object.keys(body.items[0]).sort()).toEqual(['class_name', 'created_at', 'email', 'id', 'last_review', 'name', 'person', 'status', 'strengths_excerpt']);
+    expect(Object.keys(body.items[0].person.applications[0]).sort()).toEqual(['class_name', 'created_at', 'email', 'id', 'last_review', 'linked_by', 'name', 'status', 'strengths_excerpt']);
     expect(body.items[1].strengths_excerpt).toHaveLength(121);
     expect(response.body).not.toMatch(/203\.0\.113\.7|fixture-agent/);
 
@@ -425,8 +426,8 @@ describe('applications', () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
     expect(response.headers['content-disposition']).toBe('attachment; filename="applications-20260927.csv"');
-    expect(response.body.startsWith('﻿name,class_name,email,strengths,status,created_at_beijing\r\n')).toBe(true);
-    expect(response.body).toContain(',received,2026-09-27 01:05:00\r\n');
+    expect(response.body.startsWith('﻿name,class_name,email,strengths,status,created_at_beijing,person_group\r\n')).toBe(true);
+    expect(response.body).toMatch(/,received,2026-09-27 01:05:00,[0-9a-f-]{36}\r\n/);
     expect(response.body).toContain("'=cmd,");
     expect(response.body).toContain('"\'@SUM(A1), ""quoted"" 的特长描述"');
     expect(response.body).not.toContain('203.0.113.7');

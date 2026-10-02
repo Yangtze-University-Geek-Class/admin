@@ -324,12 +324,71 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(upgraded.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
     expect(upgraded.prepare('SELECT from_status, to_status FROM application_reviews WHERE application_id = ?').all(id)).toEqual([{ from_status: 'received', to_status: 'reviewing' }]);
     const counts = (await second.inject({ url: '/api/console/applications', headers: as('legacy-session-alice') })).json().counts;
-    expect(counts).toEqual({ received: 1, interview: 0, accepted: 0, rejected: 0 });
+    expect(counts).toEqual({ received: 1, interview: 0, accepted: 0, rejected: 0, cancelled: 0 });
     // 再启动一次什么也不改
     await second.close();
     apps.splice(apps.indexOf(second), 1);
     const third = await boot(path);
     expect(third.services.storage.db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
+  });
+
+  it('keeps every application and review when the console starts grouping by person and offering 已取消 (#184)', async () => {
+    // 上一版（458999f）的投递库：applications / application_reviews 的建表语句与 lib/db.ts 逐字相同，这次没有改表
+    const path = legacyDatabase();
+    const raw = new Database(path);
+    raw.exec(`
+CREATE TABLE IF NOT EXISTS applications (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  class_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  strengths TEXT NOT NULL,
+  source_ip TEXT,
+  user_agent TEXT,
+  status TEXT NOT NULL DEFAULT 'received',
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS application_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  from_status TEXT NOT NULL,
+  to_status TEXT NOT NULL,
+  note TEXT,
+  reviewer TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);`);
+    const insert = raw.prepare("INSERT INTO applications(id, name, class_name, email, strengths, source_ip, user_agent, status, created_at) VALUES(?, ?, ?, ?, '旧投递的特长与优点', '203.0.113.7', 'fixture-agent', ?, ?)");
+    const review = raw.prepare('INSERT INTO application_reviews(application_id, from_status, to_status, note, reviewer, created_at) VALUES(?, ?, ?, ?, ?, ?)');
+    // 线上那种：同一个邮箱投了两份，姓名班级一样；另有换了邮箱重投的，和两份互不相干的
+    const ids = ['1a2b3c4d-0000-4000-8000-000000000001', '1a2b3c4d-0000-4000-8000-000000000002', '1a2b3c4d-0000-4000-8000-000000000003', '1a2b3c4d-0000-4000-8000-000000000004', '1a2b3c4d-0000-4000-8000-000000000005', '1a2b3c4d-0000-4000-8000-000000000006'];
+    insert.run(ids[0], '旧甲', '计科2301', 'old.jia@example.test', 'received', NOW - 5 * DAY);
+    insert.run(ids[1], '旧甲', '计科2301', 'old.jia@example.test', 'received', NOW - 4 * DAY);
+    insert.run(ids[2], '旧乙', '软件2302', 'yi.first@example.test', 'interview', NOW - 4 * DAY);
+    insert.run(ids[3], '旧乙', '软件2302', 'yi.second@example.test', 'rejected', NOW - 3 * DAY);
+    insert.run(ids[4], '旧丙', '信安2401', 'bing@example.test', 'accepted', NOW - 2 * DAY);
+    insert.run(ids[5], '旧丁', '信安2402', 'ding@example.test', 'received', NOW - DAY);
+    review.run(ids[2], 'received', 'reviewing', null, 'alice', NOW - 4 * DAY + 1);
+    review.run(ids[2], 'reviewing', 'interview', '约周四', 'alice', NOW - 4 * DAY + 2);
+    review.run(ids[3], 'received', 'rejected', null, 'alice', NOW - 3 * DAY + 1);
+    review.run(ids[4], 'received', 'accepted', null, 'bob', NOW - 2 * DAY + 1);
+    const rowsOf = (db: import('better-sqlite3').Database) => ({
+      applications: db.prepare('SELECT * FROM applications ORDER BY rowid').all(),
+      reviews: db.prepare('SELECT * FROM application_reviews ORDER BY id').all(),
+    });
+    const before = rowsOf(raw);
+    raw.close();
+    expect(before.applications).toHaveLength(6);
+    expect(before.reviews).toHaveLength(4);
+
+    for (let round = 0; round < 2; round += 1) {
+      const app = await boot(path);
+      expect(rowsOf(app.services.storage.db), `boot ${round + 1}`).toEqual(before);
+      const list = (await app.inject({ url: '/api/console/applications', headers: as('legacy-session-alice') })).json();
+      expect(list).toMatchObject({ total: 4, total_applications: 6, counts: { received: 3, interview: 1, accepted: 1, rejected: 1, cancelled: 0 } });
+      expect(list.items.map((item: { person: { size: number } }) => item.person.size).sort()).toEqual([1, 1, 2, 2]);
+      await app.close();
+      apps.splice(apps.indexOf(app), 1);
+    }
   });
 
   it('upgrades a stage-era database (departments, no seed marker) without re-adding deleted defaults', async () => {

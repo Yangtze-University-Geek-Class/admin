@@ -17,9 +17,9 @@ const mail = (patch: Partial<MailSummary>): MailSummary =>
   ({ status: "pending", skip_reason: null, attempts: 0, subject: "极客班面试安排", sent_at: null, updated_at: 0, ...patch });
 
 describe("application statuses", () => {
-  it("offers exactly the four live statuses, in pipeline order", () => {
-    expect(APPLICATION_STATUSES).toEqual(["received", "interview", "accepted", "rejected"]);
-    expect(APPLICATION_STATUSES.map(id => statusMeta(id).label)).toEqual(["已收到", "待面试", "已录取", "未通过"]);
+  it("offers exactly the five live statuses, in pipeline order with 已取消 last", () => {
+    expect(APPLICATION_STATUSES).toEqual(["received", "interview", "accepted", "rejected", "cancelled"]);
+    expect(APPLICATION_STATUSES.map(id => statusMeta(id).label)).toEqual(["已收到", "待面试", "已录取", "未通过", "已取消"]);
   });
 
   it("still names the retired reviewing status in old history, and never throws on unknown ids", () => {
@@ -36,6 +36,16 @@ describe("noticePlan", () => {
 
   it("never mails when a status goes back to received", () => {
     expect(noticePlan("interview", "received", true, ALL, EMAIL)).toEqual({ kind: "back_to_received", hint: "改回已收到不发邮件。" });
+  });
+
+  it("never mails when an application is cancelled, and says the review keeps who and when (#184)", () => {
+    const hint = "改成已取消不发邮件。审核记录会写下是谁、什么时候取消的，以后还可以改回来。";
+    for (const current of ["received", "interview", "accepted", "rejected"]) {
+      expect(noticePlan(current, "cancelled", true, ALL, EMAIL), current).toEqual({ kind: "cancel", hint });
+    }
+    // 从已取消改回来：按目标状态照旧
+    expect(noticePlan("cancelled", "received", true, ALL, EMAIL).kind).toBe("back_to_received");
+    expect(noticePlan("cancelled", "interview", true, ALL, EMAIL)).toMatchObject({ kind: "letter", letter: "interview", sends: true });
   });
 
   it("names the recipient and the letter when the mail will go out", () => {
@@ -106,8 +116,10 @@ describe("reviewPatch", () => {
     expect(reviewPatch({ latestReviewId: 3, current: "received", status: "interview", note: "", notify: false, draft: letter })).toEqual({ expected_status: "received", expected_review_id: 3, status: "interview", notify: false });
   });
 
-  it("sends neither notify nor a letter for going back to received or a note only", () => {
+  it("sends neither notify nor a letter for going back to received, cancelling, or a note only", () => {
     expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "received", note: "", notify: true, draft: letter })).toEqual({ expected_status: "interview", expected_review_id: 3, status: "received" });
+    expect(reviewPatch({ latestReviewId: 3, current: "received", status: "cancelled", note: " 重复投递 ", notify: true, draft: letter })).toEqual({ expected_status: "received", expected_review_id: 3, status: "cancelled", note: "重复投递" });
+    expect(reviewPatch({ latestReviewId: 4, current: "cancelled", status: "cancelled", note: "确认重复", notify: true, draft: letter })).toEqual({ expected_status: "cancelled", expected_review_id: 4, note: "确认重复" });
     expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ expected_status: "interview", expected_review_id: 3, note: "改到周五" });
   });
 
@@ -137,7 +149,8 @@ describe("serverFieldErrors", () => {
   });
 
   it("puts invalid_status on the status select", () => {
-    expect(serverFieldErrors(error("invalid_status", {}, "状态只能是已收到、待面试、已录取、未通过"))).toEqual({ status: "状态只能是已收到、待面试、已录取、未通过", letter: {} });
+    expect(serverFieldErrors(error("invalid_status", {}, "状态只能是已收到、待面试、已录取、未通过、已取消"))).toEqual({ status: "状态只能是已收到、待面试、已录取、未通过、已取消", letter: {} });
+    expect(serverFieldErrors(error("invalid_status", {}))).toEqual({ status: "状态只能是已收到、待面试、已录取、未通过、已取消。", letter: {} });
   });
 
   it("puts letter_invalid in the notice section, since it names no single field", () => {

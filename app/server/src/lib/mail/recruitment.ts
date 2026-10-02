@@ -3,7 +3,8 @@ import { formatMailDateTime, oneLine, required, safeMailLink, type EnvelopeBlock
 /**
  * 招新流程的四封信（#148）：投递成功、待面试、已录取、未通过。
  * 只拼内容（EnvelopeMessage），版式和转义由 renderEnvelope 负责；什么时候发、发给谁由发信模块决定。
- * 状态与控制台的投递状态一一对应（lib/roles.ts 的 APPLICATION_STATUSES：received / interview / accepted / rejected）。
+ * 四封信对应控制台的四个投递状态（lib/roles.ts 的 APPLICATION_STATUSES：received / interview / accepted / rejected）；
+ * 第五个状态 cancelled「已取消」（#184，清理重复或无效的投递）没有信。
  *
  * 每封信都附上「你的报名信息」（姓名、班级、邮箱、投递时间、报名编号），已收到的信另外原样引用特长与优点；
  * 抬头按姓称呼（「张同学，你好：」，greetingFor）。时间一律按北京时间写（formatMailDateTime）。

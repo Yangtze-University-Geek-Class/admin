@@ -489,13 +489,13 @@ describe('many letters at once (#169)', () => {
 });
 
 describe('console status changes', () => {
-  it('rejects statuses outside the four, including the retired reviewing', async () => {
+  it('rejects statuses outside the five, including the retired reviewing', async () => {
     const { apply, review, rows } = await setup(BOTH);
     const id = await apply();
     for (const status of ['reviewing', 'bogus', '']) {
       const response = await review(id, { status });
       expect(response.statusCode, status).toBe(400);
-      expect(response.json(), status).toMatchObject({ error: 'invalid_status', message: '状态只能是已收到、待面试、已录取、未通过' });
+      expect(response.json(), status).toMatchObject({ error: 'invalid_status', message: '状态只能是已收到、待面试、已录取、未通过、已取消' });
     }
     expect(rows()).toHaveLength(1);
   });

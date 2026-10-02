@@ -3,12 +3,16 @@ import type { ApplicationStatus, FeedbackStatus, Tone } from "./types";
 
 type StatusMeta = { label: string; tone: Tone };
 
-/** 投递能选的四种状态，顺序就是下拉框和筛选的顺序。 */
+/**
+ * 投递能选的五种状态，顺序就是下拉框和筛选的顺序。「已取消」（#184）是重复或无效的投递，不发信，
+ * 和「未通过」不是一回事；它也用中性的 slate，列表里另把整行文字调淡。
+ */
 export const APPLICATION_STATUS: Record<ApplicationStatus, StatusMeta> = {
   received: { label: "已收到", tone: "slate" },
   interview: { label: "待面试", tone: "amber" },
   accepted: { label: "已录取", tone: "jade" },
   rejected: { label: "未通过", tone: "rose" },
+  cancelled: { label: "已取消", tone: "slate" },
 };
 export const APPLICATION_STATUSES = Object.keys(APPLICATION_STATUS) as ApplicationStatus[];
 export const isApplicationStatus = (value: unknown): value is ApplicationStatus =>

@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxSelect } from "@talex-touch/tuffex/select";
 import { TxInput } from "@talex-touch/tuffex/input";
 import { TxTextarea } from "@talex-touch/tuffex/textarea";
 import { TxCheckbox } from "@talex-touch/tuffex/checkbox";
 import { TxButton } from "@talex-touch/tuffex/button";
+import { TxCellLink } from "@talex-touch/tuffex/cell-link";
+import { TxDataTable } from "@talex-touch/tuffex/data-table";
+import { TxTag } from "@talex-touch/tuffex/tag";
 import { TxTimeline, TxTimelineItem } from "@talex-touch/tuffex/timeline";
 import { TxSteps, TxStep } from "@talex-touch/tuffex/steps";
 import { TxEmptyState } from "@talex-touch/tuffex/empty-state";
@@ -22,13 +25,15 @@ import { fmtDate, fmtRelative } from "../lib/format";
 import { useAction, useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import { APPLICATION_STATUS, APPLICATION_STATUSES, isApplicationStatus, statusMeta } from "../lib/statuses";
+import { reasonLabels } from "../lib/application-groups";
 import {
   LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, newestReviewId, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
   type LetterErrors,
 } from "../lib/applications";
-import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus } from "../lib/types";
+import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus, PersonApplication } from "../lib/types";
 
 const route = useRoute();
+const router = useRouter();
 const { can } = useSession();
 const id = computed(() => String(route.params.applicationId ?? ""));
 const detail = useResource(() => api<ApplicationDetail>(`/api/console/applications/${id.value}`), [id]);
@@ -87,6 +92,19 @@ const stepIndex = computed(() => Math.max(0, pipeline.indexOf(current.value)));
 const reviewers = computed(() => [...new Set((detail.data.value?.reviews ?? []).map(item => item.reviewer))]);
 const receivedMail = computed(() => mailState(detail.data.value?.received_mail ?? null));
 
+/** 同一个人的投递（#184）：只有一份时不显示这张卡片。 */
+const person = computed(() => {
+  const value = detail.data.value?.person;
+  return value && value.applications.length > 1 ? value : null;
+});
+// 时间和来源邮箱放在同一列上下排：窄屏只有两列，邮箱也能看全
+const personColumns = [
+  { key: "application", title: "投递时间与来源邮箱" },
+  { key: "status", title: "状态", width: 124 },
+];
+const openApplication = (row: PersonApplication) => { if (row.id !== id.value) void router.push(`/console/applications/${row.id}`); };
+const timelineColor = (to: string) => (to === "rejected" ? "error" : to === "accepted" ? "success" : to === "cancelled" ? "default" : "primary");
+
 async function submit() {
   if (unchanged.value || review.pending.value) return;
   touched.value = true;
@@ -118,6 +136,7 @@ async function submit() {
 
       <TxCard>
         <p v-if="current === 'rejected'" class="rejected">这份投递已标为「未通过」。</p>
+        <p v-else-if="current === 'cancelled'" class="cancelled">这份投递已标为「已取消」：重复或无效的投递，不算进招新进度。</p>
         <TxSteps v-else :active="stepIndex" size="small">
           <TxStep v-for="(step, index) in pipeline" :key="step" :title="APPLICATION_STATUS[step].label" :step="index" :clickable="false" />
         </TxSteps>
@@ -125,6 +144,39 @@ async function submit() {
 
       <div class="split">
         <div class="stack">
+          <TxCard v-if="person">
+            <template #header>
+              <div class="card-head">
+                <h2 class="section-title">同一个人的投递</h2>
+                <span class="count">{{ person.applications.length }} 份</span>
+              </div>
+            </template>
+            <p class="person-reasons">
+              <span>按</span>
+              <TxTag v-for="label in reasonLabels(person.reasons)" :key="label" :label="label" variant="plain" size="sm" />
+              <span>算作同一个人。重复的那几份可以改成「已取消」，不会发邮件。</span>
+            </p>
+            <TxDataTable :columns="personColumns" :data="person.applications" row-key="id" table-layout="fixed" class="person-table" @row-click="({ row }: { row: PersonApplication }) => openApplication(row)">
+              <template #cell-application="{ row }: { row: PersonApplication }">
+                <span class="cell-stack">
+                  <span class="person-when">
+                    <span v-if="row.id === id" class="current-mark">当前这份</span>
+                    <TxCellLink v-else :href="`/console/applications/${row.id}`" :label="fmtRelative(row.created_at)" @open="openApplication(row)" />
+                    <span class="cell-sub">{{ fmtDate(row.created_at) }}</span>
+                  </span>
+                  <span class="mono person-email">{{ row.email }}</span>
+                  <span v-if="row.name !== detail.data.value.application.name || row.class_name !== detail.data.value.application.class_name" class="cell-sub">{{ row.name }} · {{ row.class_name }}</span>
+                </span>
+              </template>
+              <template #cell-status="{ row }: { row: PersonApplication }">
+                <span class="cell-stack">
+                  <ToneTag :tone="statusMeta(row.status).tone" :label="statusMeta(row.status).label" />
+                  <span v-if="row.last_review" class="cell-sub mono ellipsis" :title="`@${row.last_review.reviewer}`">@{{ row.last_review.reviewer }}</span>
+                </span>
+              </template>
+            </TxDataTable>
+          </TxCard>
+
           <TxCard>
             <template #header>
               <div class="card-head">
@@ -149,7 +201,7 @@ async function submit() {
                 :key="item.id"
                 :title="item.from_status === item.to_status ? `@${item.reviewer} 补充了备注` : `@${item.reviewer} 改为「${statusMeta(item.to_status).label}」`"
                 :time="`${fmtRelative(item.created_at)} · ${fmtDate(item.created_at)}`"
-                :color="item.to_status === 'rejected' ? 'error' : item.to_status === 'accepted' ? 'success' : 'primary'"
+                :color="timelineColor(item.to_status)"
               >
                 <p v-if="item.from_status !== item.to_status" class="review-from">原状态：{{ statusMeta(item.from_status).label }}</p>
                 <p v-if="item.note" class="review-note">{{ item.note }}</p>
@@ -305,6 +357,40 @@ async function submit() {
   margin: 0;
   color: var(--tx-color-danger);
   font-weight: 500;
+}
+.cancelled {
+  margin: 0;
+  color: var(--tx-text-color-secondary);
+  font-weight: 500;
+}
+.person-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--tx-text-color-secondary);
+}
+.person-table :deep(tbody tr) {
+  cursor: pointer;
+}
+.current-mark {
+  font-weight: 500;
+  color: var(--tx-text-color-primary);
+}
+.person-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+.person-email {
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  color: var(--tx-text-color-regular);
 }
 .review-from {
   margin: 2px 0 0;

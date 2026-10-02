@@ -31,8 +31,10 @@ export default async function consoleMeRoutes(app: FastifyInstance) {
       const rows = db.prepare("SELECT status, COUNT(*) AS n FROM applications GROUP BY status").all() as { status: string; n: number }[];
       const byStatus: Record<string, number> = Object.fromEntries(APPLICATION_STATUS_IDS.map(id => [id, 0]));
       for (const row of rows) byStatus[row.status] = row.n;
-      const lastWeek = db.prepare("SELECT COUNT(*) AS n FROM applications WHERE created_at >= ?").get(Date.now() - 7 * DAY_MS) as { n: number };
-      result.applications = { total: rows.reduce((sum, row) => sum + row.n, 0), by_status: byStatus, last_7d: lastWeek.n };
+      // 已取消的是重复或无效的投递（#184），不算进总数和近 7 天；by_status 里照样有 cancelled
+      const lastWeek = db.prepare("SELECT COUNT(*) AS n FROM applications WHERE created_at >= ? AND status <> 'cancelled'").get(Date.now() - 7 * DAY_MS) as { n: number };
+      const total = rows.filter(row => row.status !== "cancelled").reduce((sum, row) => sum + row.n, 0);
+      result.applications = { total, by_status: byStatus, last_7d: lastWeek.n };
     }
     if (access.capabilities.has("feedback.read")) result.feedback = feedback.countFeedback(config.consoleOrg);
     if (access.capabilities.has("roles.manage") || access.capabilities.has("roles.department.manage")) {

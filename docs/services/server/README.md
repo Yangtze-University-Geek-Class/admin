@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-09-28 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-02 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -21,7 +21,7 @@
 | `app/server/src/routes/forum-api/index.ts` | 论坛接口注册入口（`/api/forum/*`，#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）：`topics.ts`（state、发帖、置顶、关闭、浏览数）、`posts.ts`（回复、编辑、删除、点赞、收藏）、`people.ts`（关注、通知、账号资料、头像）、`viewer.ts`（成员 / 游客身份与 `forum.*` 能力） |
 | `app/server/src/routes/forum-api/contracts.ts` | 论坛请求 Schema（拒绝未知字段；编号按字符串格式校验）与中文校验提示；写接口回答的形状 `ForumWriteResponse`（`{ changes, viewer, guestPolicy }`，#145） |
 | `app/server/src/middleware/` | `require-auth`（另有 `loadSession`：有有效 `sid` 就挂上会话、没有不回复，给游客也能用的论坛接口）、`require-org-role`、`require-capability`（控制台与论坛按能力授权）、`oauth-state`、`http-policy`、`pow`、`turnstile` |
-| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`——帖子只带摘要 `excerpt`、话题页按话题取正文的 `topicPosts()`、服务端搜索 `search()`，#156——以及写接口回答里按编号取出的改动记录 `changes()`，#145）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
+| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）、`application-groups`（投递按人合并的纯函数，#184：邮箱按发信队列的收件箱规则归并后相同、或姓名+班级相同就算同一个人，链式连通；列表、详情、导出共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`——帖子只带摘要 `excerpt`、话题页按话题取正文的 `topicPosts()`、服务端搜索 `search()`，#156——以及写接口回答里按编号取出的改动记录 `changes()`，#145）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
 | `app/server/src/lib/mail/` | 站内发信（#148）：`envelope`（`renderEnvelope` 纯函数，输出主题、HTML、纯文本和回信地址；转义、链接白名单、回信地址校验、北京时间格式化在这里）、`envelope-pieces`（CDN 上的图片部件清单）、`recruitment`（已收到、待面试、已录取、未通过四封信的内容）、`outbox`（`mail_outbox` 发信队列、发信循环、重试、白名单）、`providers`（阿里云邮件推送与 Resend 两个适配器）、`mailer`（按配置组装，路由用它拼信和放进队列）。见 [mail](mail.md) |
 | `app/server/Dockerfile` | Node 22 多阶段构建，非 root 运行，`/data` 卷，健康检查 `/healthz`；运行阶段另复制论坛的两份公开内容文件 `app/forum/content/curation.json` 与 `published/topics.json` |
 | `app/server/scripts/` | 已退役的占位文件（`test-invite-*.ts`）：运行只打印「改用 `pnpm test`」并以退出码 1 结束，没有可用的手工流程 |
@@ -40,7 +40,7 @@
 - **论坛接口**（#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）：`/api/forum/*` 是论坛前端的全部数据来源，存储在 `data.db` 的 `forum_*` 表。成员身份只认 `sid`，第一次请求时建论坛用户 `m<GitHub user_id>`，之后每次请求按 `computeAccess` 刷新角色（组织 owner 为 admin）与称号；论坛能力只取 `forum.*`，与控制台同一条授权路径。没有有效 `sid` 的是游客，带 `sid` 但组织角色查到已不是成员的也按游客处理：能看帖、能回复（昵称、PoW、空蜜罐、按 IP 限流、全站游客回复总量上限），不能发帖或做其它写操作。启动时读 `app/forum/content` 的 `curation.json`（分类、标签）与 `published/topics.json`（公开的旧帖），旧帖按编号「没有才插入」（话题 + 首帖 `body-<n>` + 官方账号 `u-geekclass`），已存在的不覆盖；文件缺失或引用不存在的分类、标签时启动失败。新话题从 `t1001`、新帖子从 `p10001` 起编号。删他人帖子、改他人帖子、置顶、关闭以 `org = CONSOLE_ORG` 写审计（不记正文）。`/state` 的帖子只带摘要，正文按话题另取（`GET /api/forum/topics/:topic_id/posts`），搜索在服务端做（`GET /api/forum/search`），见 [API](../../architecture/API.md)「论坛」（#156）。端点、错误码与限流见同一节。
 - **旧论坛接口**：`/api/forum` 下新接口没有注册的旧路径、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`；服务不打开 `forum.db`。论坛页面由 forum 容器提供，直连 server 的 `/forum` 在生产返回 503、开发态跳到 3456，不用模拟成功填补缺口。
 - **加入我们（投递）**：`POST /api/portal/apply` 是匿名写接口，无会话依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs`，再往发信队列写一封「已收到」的信（写不进去只记日志，投递照样成功）。准入沿用公开表单的 PoW、蜜罐与 Turnstile，路由限流 5 次/分钟；同一个 IP（IPv6 按 /64）、同一个设备（接口自己发的 cookie）各自 24 小时内最多 5 份成功的投递，第 6 份回 429（#169，计数在 `application_limits`，只存哈希）。字段约束在 `routes/portal/apply.ts` 内单一校验层实现（该端点不注册 `contracts.ts` body schema），校验失败不落库；`website`、`homepage`、`url_ref` 任一非空即按蜜罐命中处理，返回与成功一致的 201 形状但不落库。审计记录目标 id 和来源 IP，details 只含脱敏邮箱、班级、`name_length` 与 `strengths_length`，不记姓名和候选人正文。字段、错误码与限流细则见 [API](../../architecture/API.md)。
-- **发信**（#148）：投递成功写「已收到」，控制台把投递改成待面试、已录取、未通过时写对应的一封（可以取消，改回已收到不写）。信先写进 `mail_outbox`，同一件事只有一行；服务进程里的发信循环每 15 秒发一遍，阿里云邮件推送在前、Resend 兜底，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃。预发布和正式都发给所有投递人（`MAIL_RECIPIENTS=all`，#169），两家发信商都没配置时不发、记 `mail_disabled`。信到最终状态就清掉收件地址和正文，只留哈希和主题。信里的时间都按北京时间写。细节见 [mail](mail.md)。
+- **发信**（#148）：投递成功写「已收到」，控制台把投递改成待面试、已录取、未通过时写对应的一封（可以取消，改回已收到、改成已取消不写）。信先写进 `mail_outbox`，同一件事只有一行；服务进程里的发信循环每 15 秒发一遍，阿里云邮件推送在前、Resend 兜底，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃。预发布和正式都发给所有投递人（`MAIL_RECIPIENTS=all`，#169），两家发信商都没配置时不发、记 `mail_disabled`。信到最终状态就清掉收件地址和正文，只留哈希和主题。信里的时间都按北京时间写。细节见 [mail](mail.md)。
 - **数据所有权**：论坛的线上数据（账号资料、话题、帖子、点赞、收藏、关注、通知、头像）归本服务，存在 `data.db`；`app/forum/content` 的两份公开文件只作为只读的种子输入。本服务不读取论坛私有备份或只读投影。
 - **接口清单与错误语义**见 [API](../../architecture/API.md)，安全边界见 [SECURITY](../../architecture/SECURITY.md)。
 
@@ -67,7 +67,7 @@ pnpm build                                                # 生成 app/server/di
 node scripts/check-boundaries.mjs                         # 依赖方向与跨端导入
 ```
 
-回归矩阵（实例隔离、不打开旧论坛库、OAuth 与组织权限、邀请并发与未知结果、旧接口 410、生产缺少论坛服务失败关闭、论坛接口 `tests/server/forum.test.ts`、发信 `tests/server/mail-outbox.test.ts` 与 `tests/server/mail-envelope.test.ts`）见 [TESTING](../../conventions/TESTING.md)。
+回归矩阵（实例隔离、不打开旧论坛库、OAuth 与组织权限、邀请并发与未知结果、旧接口 410、生产缺少论坛服务失败关闭、论坛接口 `tests/server/forum.test.ts`、发信 `tests/server/mail-outbox.test.ts` 与 `tests/server/mail-envelope.test.ts`、投递按人合并与已取消 `tests/server/application-groups.test.ts`）见 [TESTING](../../conventions/TESTING.md)。
 
 ## 已知限制
 

@@ -2,11 +2,11 @@
 
 > 招新的四封信怎么拼、怎么渲染、怎么排队发出去：信先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。
 
-状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148
+状态：`current` · 更新：2026-10-02 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148
 
 ## 现状
 
-- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（每份成功的投递都发一封，全站每小时最多 200 封，见「上限」；防盗刷改在投递入口限制设备与 IP 频次）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
+- 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（每份成功的投递都发一封，全站每小时最多 200 封，见「上限」；防盗刷改在投递入口限制设备与 IP 频次）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、改成已取消（#184，清理重复或无效的投递）、只写备注、取消勾选「发信」都不写。
 - 信写进 `mail_outbox`（[数据模型](data-model.md)），同一件事只有一行。服务进程里的发信循环每 15 秒把到期的信发一遍，写进新信后立刻再发一遍。
 - 发信商按顺序是阿里云邮件推送（SingleSendMail）、Resend。两家都没配置时信照样写一行，记成 `skipped` / `mail_disabled`，不发。
 - 控制台的投递详情显示「已收到」那封和每次改状态那封的结果（`received_mail`、`reviews[].mail`），见 [API](../../architecture/API.md)。
@@ -30,7 +30,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 - `EnvelopeMessage`：主题、收件箱摘要（preheader）、信纸左上角的小字、抬头、正文块（`paragraph` 段落、`facts` 两列事实栏，可带标题、`list` 编号列表，空条目会去掉、`quote` 带标题的多行引用）、可选按钮、落款日期、页脚几行字、页脚的站点链接、可选的回信地址 `replyTo`。以后的站内通知（#149）只要拼出同样的结构就能复用版式。
 - `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（正式发信用 `https://cdn.crosery.com/yzgc/mail/v1/`）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
 - 发件人名是 `MAIL_SENDER_NAME`（长江大学极客班），发信模块写 `From` 头时用同一个常量。
-- 四封信与控制台投递状态对应（`lib/roles.ts` 的 `APPLICATION_STATUSES`，只有这四个）：
+- 四封信对应控制台的四个投递状态（`lib/roles.ts` 的 `APPLICATION_STATUSES`）；第五个状态 `cancelled` 已取消（#184）没有信：
   - `received` 已收到：投递成功时发，附上投递人写的特长与优点原文（`quote`，一行一行照写、经过转义）。
   - `interview` 待面试：时间和地点必填（空的直接抛 `MailTemplateError`，控制台接口先回 400 `letter_required`），面试说明可选、一行一条；收件箱摘要写时间和地点，有面试说明时才加一句「面试说明在信里」。
   - `accepted` 已录取：控制台填的「接下来」一行一条，没填时写「接下来的安排我们会另外发邮件告诉你」。
@@ -127,8 +127,10 @@ mail.drain() / mail.start(logger) / mail.stop()
 ## 验证
 
 ```bash
-pnpm exec vitest run tests/server/mail-envelope.test.ts tests/server/mail-outbox.test.ts tests/server/applications.test.ts
+pnpm exec vitest run tests/server/mail-envelope.test.ts tests/server/mail-outbox.test.ts tests/server/applications.test.ts tests/server/application-groups.test.ts
 ```
+
+`tests/server/application-groups.test.ts` 的「marking an application 已取消」覆盖：改成已取消写审核记录（审核人、时间）和审计（`mail: false`），发信队列里一封也没有（勾了发邮件、带了信的内容也一样），改回已收到同样不写信；同一个服务里改成未通过照旧写信。
 
 `tests/server/applications.test.ts` 的「how often one device or network can apply」覆盖投递次数：同一个 /64 里第 6 份回 429 `apply_limited`、不落库也不写信，别的 IP 照常；同一个 cookie 换着 IP 投，第 6 份同样 429，cookie 是 httpOnly、只发给投递接口、一年，清掉 cookie 算新设备，伪造的 cookie 换成新的 id；校验不过、蜜罐不算次数；过了 24 小时可以再投，过期的计数被删掉；`application_limits` 里只有哈希。
 
