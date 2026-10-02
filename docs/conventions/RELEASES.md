@@ -31,7 +31,7 @@
      set -e   # 整块在子 shell 里执行：任何一步失败就停下、不打 tag，也不会关掉当前终端
      git fetch origin --tags
      SHA=<stage 上的 40 位提交 SHA>
-     git merge-base --is-ancestor "$SHA" origin/stage
+     git merge-base --is-ancestor "$SHA" origin/stage || { echo "$SHA 不在 origin/stage 上，不打 tag" >&2; exit 1; }
      CHECK=$(mktemp -d)/rc_doc_sync
      git worktree add --detach "$CHECK" "$SHA"
      if ! (cd "$CHECK" && node scripts/check-doc-sync.mjs); then git worktree remove --force "$CHECK"; exit 1; fi
