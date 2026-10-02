@@ -2,7 +2,7 @@
 // 外壳是 ../components/PageShell.tsx；准入同其它公开表单（PoW + 蜜罐 + 可选 Turnstile）。
 // 分类只有几项，用单选按钮组（../components/ChoiceChips.tsx）而不是原生下拉框。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtRelative } from "@shared/lib/api";
 import { appConfig } from "@shared/config";
 import { computePow, powProof } from "@shared/lib/pow";
@@ -12,7 +12,8 @@ import PageShell, { WindowCard } from "../components/PageShell";
 
 /**
  * 意见箱收哪个组织以服务端为准：`GET /api/feedback/categories` 下发的 `org`（部署配置的 CONSOLE_ORG）。
- * 站点配置里 GitHub 组织地址的最后一段只在接口回来之前、或接口失败时顶上（#129）。页面只展示，提交者改不了。
+ * 站点配置里 GitHub 组织地址的最后一段只在接口回来之前、或接口失败时顶上展示（#129）。页面只展示，提交者改不了；
+ * 接口没读到时不让提交，发出去的组织名、分类和 PoW 难度都只用服务端给的。
  */
 const SITE_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
@@ -27,7 +28,8 @@ export default function Feedback() {
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
   const [powTries, setPowTries] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
-  const [categoriesFailed, setCategoriesFailed] = useState(false);
+  /** `GET /api/feedback/categories` 的状态；只有 ready 时能提交。retrying 是失败后点了「重新读取」、还没回来。 */
+  const [meta, setMeta] = useState<"loading" | "ready" | "failed" | "retrying">("loading");
   const [powDiff, setPowDiff] = useState(3);
   const [recent, setRecent] = useState<PublicFeedback[]>([]);
   const [recentFailed, setRecentFailed] = useState(false);
@@ -35,18 +37,23 @@ export default function Feedback() {
   const [tsToken, setTsToken] = useState("");
   const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
-  useEffect(() => {
+  const loadMeta = useCallback(() => {
     api<{ categories: string[]; pow_difficulty: number; org?: string }>("/api/feedback/categories")
       .then((d) => {
         setCategories(d.categories);
         setPowDiff(d.pow_difficulty);
         if (d.org) setOrg(d.org);
+        setMeta("ready");
       })
-      .catch(() => setCategoriesFailed(true));
+      .catch(() => setMeta("failed"));
+  }, []);
+
+  useEffect(() => {
+    loadMeta();
     api<{ turnstile_site_key: string | null }>("/api/public/config")
       .then((c) => setSiteKey(c.turnstile_site_key))
       .catch(() => undefined);
-  }, []);
+  }, [loadMeta]);
 
   useEffect(() => {
     // 组织名从回退值换成服务端的值时会再读一次；先发出的那次晚回来也不覆盖后一次的结果。
@@ -68,6 +75,8 @@ export default function Feedback() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 按钮已是灰的；这里再拦一次，任何途径触发的提交都不带回退的组织名和默认难度出去
+    if (meta !== "ready") return;
     setErr(null);
     setBusy("pow");
     setPowTries(0);
@@ -127,8 +136,25 @@ export default function Feedback() {
                 <span className="pt-field-label" id="fb-category-label">
                   分类
                 </span>
-                {categoriesFailed ? (
-                  <p className="pt-hint">分类没加载出来，这条会按「未分类」提交。</p>
+                {meta === "failed" || meta === "retrying" ? (
+                  <>
+                    <p className="pt-alert is-error" role="alert">
+                      <Icon name="error-warning-line" size={16} /> 没读到分类和发往的组织，暂时不能提交。点「重新读取」再试，已经写的内容不会丢。
+                    </p>
+                    <div className="pt-form-actions">
+                      <button
+                        type="button"
+                        className="pt-btn is-sm"
+                        disabled={meta === "retrying"}
+                        onClick={() => {
+                          setMeta("retrying");
+                          loadMeta();
+                        }}
+                      >
+                        {meta === "retrying" ? "正在读取…" : "重新读取"}
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <ChoiceChips name="category" labelledBy="fb-category-label" value={form.category} options={categories} onChange={(category) => setForm({ ...form, category })} />
                 )}
@@ -173,7 +199,7 @@ export default function Feedback() {
               )}
 
               <div className="pt-form-actions">
-                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || form.content.length < 5 || (!!siteKey && !tsToken)}>
+                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || meta !== "ready" || form.content.length < 5 || (!!siteKey && !tsToken)}>
                   <Icon name="send-plane-2-line" size={16} />
                   {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在提交…" : "提交意见"}
                 </button>

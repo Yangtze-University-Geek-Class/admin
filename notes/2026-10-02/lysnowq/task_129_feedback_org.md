@@ -90,3 +90,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 S4（建议）：routes/portal/contracts.ts 整份替换公共 querystring 时把 limit 的正则从 lib/http-contracts.ts 抄了一份，公共规则以后改了容易漏改。lib/http-contracts.ts 导出 limitParam，公共 querystring 与 GET /api/feedback/public 的合同都引用它；API.md 公开列表一行改成「合同引用 limitParam，不另写一份」。文档核对：docs/services/server/ 不用改——源码地图里 http-contracts 仍是公共参数验证，没有新增或删除文件，接口行为不变
 - 结果：vitest run tests/server/feedback-org.test.ts tests/server/core.test.ts：Tests 50 passed (50)；把 limitParam 临时改成 ^[0-9]+$ 时 Tests 2 failed | 48 passed（feedback-org 的畸形 org 用例与 core 的 limit 边界用例都失败），恢复后 50 passed；tsc -p app/server/tsconfig.json --noEmit 退出 0（Node 22.23.2）
+
+## 21:35:25 +08:00 · 返工 · #129 · 意见箱读到组织和分类之前不让提交（审查 S2，顺带 S3）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 S2（建议）：GET /api/feedback/categories 失败、CONSOLE_ORG 又和站点配置的 githubOrg 不一样时，组织框显示站点组织，提交后的报错却说只收另一个组织。S3（建议，stage 已有）：同一状态下提示「按未分类提交」，实际仍带 category=建议。Feedback.tsx 把 categoriesFailed 换成 meta（loading/ready/failed/retrying），只有 ready 时提交按钮可用，submit 里再拦一次；失败时分类处显示 role=alert「没读到分类和发往的组织，暂时不能提交。点「重新读取」再试，已经写的内容不会丢。」和「重新读取」按钮（点了变「正在读取…」），读到后照服务端的 org 展示和提交。S3 那句不对的提示随之删掉：失败状态不再能提交，不用另开 issue。tests/web/portal-feedback-org.test.tsx 加 1 条（第一次 categories 回 503：有 alert、按钮灰、直接触发 form submit 也不发请求；点重新读取后组织名换成服务端的、正文还在、提交体 org 是服务端的），原「提交体里的组织」用例改为等按钮可用再点（行为变了：categories 回来前按钮是灰的）。docs/services/web/portal.md 的 /feedback 一行同步
+- 结果：vitest run tests/web/portal-feedback-org.test.tsx：Tests 4 passed (4)；把 Feedback.tsx 换回 a5c6ed8 时新用例失败（Unable to find role="alert"，1 failed | 3 passed）；只去掉 meta !== "ready" 两处时新用例失败（expected false to be true）；恢复后 4 passed。vitest run tests/server tests/web：Test Files 30 passed，Tests 389 passed (389)；tsc -p app/web/tsconfig.json --noEmit 退出 0（Node 22.23.2）
