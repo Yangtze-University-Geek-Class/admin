@@ -105,3 +105,9 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审查：第一轮 443421b546dc（应修 F1 secure_delete 与文档不符、F2 验收步骤做不出来、F3/F4 被复核推翻为建议）；第二轮 367af63ef21d（R1 VACUUM 后续 issue、R2 推送与证据、R3 SECURITY.md 说法、R4 提交记录）；第三轮 22fb01f51ce4（N1 notes/INDEX.md 与 stage 冲突，沿用 R1、R2，建议 N2-N4）
 - 结果：三轮都是有条件通过，余下应修都是合并前主控步骤：N1 已在 8ecd3aa 合并解决；R1 开成 #194；R2 已推送，图与结论随 PR 正文补；N2 注释在 ad7c2b3 之前的返工提交改准（见上一条返工记录）
+
+## 23:05:35 +08:00 · 审查 · #128 · 更正上一条记录里写错的提交号
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：上一条「三轮独立审查」的结果里写「N2 注释在 ad7c2b3 之前的返工提交改准」，ad7c2b3 不存在，是笔误
+- 结果：N2 的注释改动是提交 76ae200（docs(auth): 改准会话清理注释里 -wal 截断后的说法）；已有记录不改，以本条为准
