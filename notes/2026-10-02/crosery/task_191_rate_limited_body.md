@@ -51,3 +51,9 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
 - 做了什么：1792d23 docs(api): 写准论坛哪些自己计数的 429 回 rate_limited（Refs #191）；ef00e8f 把 origin/stage a18616a（#182 合入后）合进来，冲突只在 docs/architecture/API.md 的意见箱三行：取 stage 一侧（#129 的说明），在 POST /api/feedback 错误列末尾补回本分支的 429 rate_limited；notes/INDEX.md 用 note.mjs index 重新生成
 - 结果：合并后（Node 22.23.2）：pnpm check:doc-sync 通过、check-docs 272 篇、docs-index 最新；vitest run tests/server 12 个文件 253 passed；vitest run tests/web 19 个文件 141 passed。1792d23 与 ef00e8f 改了 notes/ 以外的文件，送增量审查
+
+## 23:39:46 +08:00 · PR · #191 · 开 PR #197 指向 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：gh pr create --base stage --head task/191/rate_limited_body，正文九段，8 张改前改后截图（ego，桌面 1317×998 与 390×844，快照写在图注里）已上传为 GitHub 附件；审查结论一节暂写待审查、结论：阻塞，等第三轮增量审查（4d29300）结论后替换
+- 结果：本机 pr-contract check 通过；PR https://github.com/Yangtze-University-Geek-Class/admin/pull/197
