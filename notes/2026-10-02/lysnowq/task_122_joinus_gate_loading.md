@@ -124,3 +124,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审查：第一轮 22af6fa346db（应修 F1 顶替时浅色闪烁、F2 证据缺逐帧与手机触屏、F3 减少动态效果仍显示遮罩、F4 CRLF；F5 被两位复核人推翻为建议）；第二轮 9d7cd89d6a6e；第三轮 049e6fef3be1（N1 notes/INDEX.md 与 stage 冲突、N3 正文把 e2e 写成 CI 兜底）
 - 结果：三轮都是有条件通过；第三轮余下应修 N1 已在 868deb7 合并解决，N3 已改 PR 正文；截图、录屏与审查结论随 PR 正文补
+
+## 23:19:42 +08:00 · 返工 · #122 · 加载占位一节的时间线照 #122 实测写（第三轮审查 N2）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：docs/services/web/portal.md 第 89 行：原句把 PR #95 的首帧时间（播放层出现后 Fast 4G 1.7–2.1 秒、Slow 4G 约 8 秒）写成了「从打开网址到播放层出现」；改成 #122 本机 Slow 4G 实测的时间线（打开网址约 3.2 秒路由占位、约 4.0 秒遮罩、约 4.6 秒播放层，取自 20:47:57 记录的 3195ms、3985ms、4630ms），PR #95 的数字写明是之后的首帧。PR 正文「变更范围」同一说法一并改。21:58:47 那条返工记录与 a8cd042 的提交说明里的旧说法不改，以本条为准
+- 结果：提交 81f3213（只改 portal.md 一句）；pnpm check:doc-sync 通过、check-docs 272 篇通过、docs-index 最新
+
+## 23:19:42 +08:00 · 提交 · #122 · 提交 81f3213 并再合一次 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：81f3213 docs(portal): 加载占位一节的时间线照 #122 实测写，PR #95 的数字写明是首帧时间（Refs #122）；#182 合入后 stage 到 a18616a，ae5ca76 把 origin/stage 合进来，冲突只在生成的 notes/INDEX.md，用 note.mjs index 重新生成
+- 结果：合并后 pnpm check:doc-sync 通过（6 组，按 PR 核对）、check-docs 272 篇通过；81f3213 改了 notes/ 以外的文件，送第四轮增量审查
