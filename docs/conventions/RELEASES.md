@@ -27,11 +27,14 @@
 3. 所有者授权发布这个预发布版本后，维护者先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
 
    ```bash
+   set -e   # 任何一步失败就停下，不打 tag
    git fetch origin --tags && git switch stage && git pull --ff-only
-   git worktree add --detach /tmp/rc_doc_sync <stage 上的 40 位提交 SHA>
-   (cd /tmp/rc_doc_sync && node scripts/check-doc-sync.mjs)   # 不通过就停下，不打 tag
-   git worktree remove /tmp/rc_doc_sync
-   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1" <stage 上的 40 位提交 SHA>
+   SHA=<stage 上的 40 位提交 SHA>
+   CHECK=$(mktemp -d)/rc_doc_sync
+   git worktree add --detach "$CHECK" "$SHA"
+   (cd "$CHECK" && node scripts/check-doc-sync.mjs) || { git worktree remove --force "$CHECK"; exit 1; }
+   git worktree remove "$CHECK"
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1" "$SHA"
    git push origin v0.2.0-rc.1
    ```
 
