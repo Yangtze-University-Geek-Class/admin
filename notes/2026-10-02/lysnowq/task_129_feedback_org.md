@@ -48,3 +48,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 F1：SECURITY.md:21 仍写给出任意组织名即可读取；API.md:33 同一格既写不分大小写又写大小写对不上为空；data-model.md:23 写 org 只存 CONSOLE_ORG 写法，但别的组织的历史行有意保留；ENVIRONMENTS.md:44 没写 CONSOLE_ORG 也决定意见箱收哪个组织。逐一改准：SECURITY.md 写明 POST 只收 CONSOLE_ORG（不分大小写、别的 400 不落库）、公开列表只列 CONSOLE_ORG、别的组织历史行不再公开；API.md:33 删掉自相矛盾的半句；data-model.md 分开写新写入、只差大小写的历史行、别的组织的历史行（公开接口与控制台不返回，旧管理端 /api/admin/:org/feedback 仍按那个组织的 GitHub admin 读得到，受 ALLOWED_ORGS 限制）；ENVIRONMENTS.md 的 CONSOLE_ORG 一行补上意见箱的用途。SECURITY.md、ENVIRONMENTS.md 的「更新：」改为 2026-10-02
 - 结果：node scripts/docs-index.mjs --check：docs/INDEX.md 是最新的；node scripts/check-docs.mjs：Documentation links, routes and skill links passed: 272 documents
+
+## 20:17:08 +08:00 · 返工 · #129 · 公开意见列表的 org 参数加运行时合同（审查 F5）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F5（建议，stage 上已有）：GET /api/feedback/public 的 org 不在合同里，带两个 org 参数时 req.query.org 是数组，toLowerCase 抛错回 500。本 PR 正好重写这一行，成本只有一条合同，所以顺手做：routes/portal/contracts.ts 加 GET /api/feedback/public 的 querystring 合同（org ≤39 字字符串、limit 照抄公共规则、其它参数照旧放行）；tests/server/feedback-org.test.ts 加 1 条（重复 org、40 字 org 回 400 validation_error，limit=0 仍 400，多带参数照常 200）；API.md:33、SECURITY.md 同步。文档核对：docs/services/server/README.md 不用改——源码地图里 routes/portal/contracts.ts 仍是「portal 请求 Schema」，端点合同细节在 API.md
+- 结果：不加合同时新用例失败：expected 500 to be 400；加上后 vitest run tests/server/feedback-org.test.ts tests/server/core.test.ts：Tests 49 passed (49)

@@ -68,6 +68,19 @@ it('reads the public list for the console org in any case, and nothing for other
   expect(await count('some-random-org')).toBe(0);
 });
 
+it('answers a malformed org on the public list with 400 validation_error instead of a server error', async () => {
+  const { app } = await setup();
+  await submit(app, ORG);
+  for (const query of [`org=${ORG}&org=${ORG.toLowerCase()}`, `org=${'a'.repeat(40)}`]) {
+    const response = await app.inject({ url: `/api/feedback/public?${query}` });
+    expect(response.statusCode, query).toBe(400);
+    expect(response.json().error).toBe('validation_error');
+  }
+  // 合同整份替换了公共 querystring：limit 的规则仍在，别的参数照旧放行
+  expect((await app.inject({ url: `/api/feedback/public?org=${ORG}&limit=0` })).statusCode).toBe(400);
+  expect((await app.inject({ url: `/api/feedback/public?org=${ORG}&limit=1&_=1` })).json().items).toHaveLength(1);
+});
+
 it('verifies the proof against the org string the submitter sent, so another case is not a proof failure', async () => {
   const { app } = await setup({ POW_DIFFICULTY: '1' });
   const content = '小写组织名也要能提交';
