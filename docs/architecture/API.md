@@ -20,7 +20,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 ## 端点清单
 
-来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。路由级限流超额时都回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`：`app.ts` 注册插件时把 `middleware/http-policy.ts` 的 `rateLimited()` 设成默认的 `errorResponseBuilder`，论坛自己数次数的限流抛的也是它（#191，回归测试 `tests/server/rate-limits.test.ts`）。按 IP 的限流、审计与投递里记的来源 IP 都取 Fastify 的 `req.ip`：部署环境 `TRUST_PROXY=2`，只信任宿主 nginx 与 web 容器 nginx 各自追加的那段 `X-Forwarded-For`，客户端自己带的最左边几段不算（见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [SECURITY](SECURITY.md)）。
+来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。路由级限流超额时都回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`：`app.ts` 注册插件时把 `middleware/http-policy.ts` 的 `rateLimited()` 设成默认的 `errorResponseBuilder`，论坛自己按人、按 IP 数次数的限流（发帖、回复、头像）抛的也是它；全站游客回复的总量上限不是限流，另回 429 `guest_replies_paused`（#191，回归测试 `tests/server/rate-limits.test.ts`）。按 IP 的限流、审计与投递里记的来源 IP 都取 Fastify 的 `req.ip`：部署环境 `TRUST_PROXY=2`，只信任宿主 nginx 与 web 容器 nginx 各自追加的那段 `X-Forwarded-For`，客户端自己带的最左边几段不算（见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [SECURITY](SECURITY.md)）。
 
 | 方法与路径 | 鉴权 | 限流 | 成功 | 主要错误与说明 |
 |---|---|---|---|---|
