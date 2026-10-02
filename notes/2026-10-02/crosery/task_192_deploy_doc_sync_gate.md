@@ -37,3 +37,33 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
 - 做了什么：按第二轮建议 N1：命令块开头 set -e，提交 SHA 存进 SHA 变量，检查目录改成 mktemp -d 下的新目录，检查失败时先删 worktree 再退出
 - 结果：本机实测：对 origin/stage 2075c55 走到 would-tag；对 9b38684 输出 stopped-before-tag 并退出 1；两次之后 git worktree list 里没有 rc_doc_sync 残留
+
+## 22:47:02 +08:00 · 推送 · #192 · 推送 task 分支
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：git push -u origin task/192/deploy_doc_sync_gate
+- 结果：远端新建分支，head 1504c08be9d393262b5ea4fe9a370864ade23eb8
+
+## 22:47:03 +08:00 · PR · #192 · 开 PR #193 回 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create --base stage，正文九段（/private/tmp/geek-evidence/192/pr-body.md），Closes #192
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/193；CI 截图与最终审查结论待补
+
+## 22:58:49 +08:00 · 提交 · #192 · 补记 1504c08 的提交
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：1504c08 docs(release): 发版前文档同步核对的命令块失败即停；提交前跑了 pnpm check:doc-sync、node scripts/check-docs.mjs，并对 2075c55、9b38684 实测命令块
+- 结果：doc-sync 通过、272 documents passed；2075c55 走到打 tag 前、9b38684 停下退出 1；push 运行 37022233416 八个 job success。第三轮审查建议指出漏记后补记
+
+## 22:58:49 +08:00 · 审查 · #192 · 第三轮独立审查 1504c08：通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审 1504c08be9d393262b5ea4fe9a370864ade23eb8（74bc542..1504c08 与整个 origin/stage...HEAD），临时 worktree 复现工作流这一步与 RELEASES 命令块，变异核对 6/4/2/1/3
+- 结果：通过，无阻塞或应修；建议 3 条：RELEASES 命令块粘进交互终端时 set -e 留在当前 shell、exit 1 会关终端、&& 列表不受 set -e 约束；1504c08 缺「提交」记录；PR 正文验证段停在 74bc542
+
+## 22:58:49 +08:00 · 返工 · #192 · RELEASES 第 3 步整块放进子 shell，fetch/switch/pull 拆成三行
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：按第三轮建议：命令块用 ( set -e … ) 包住，失败只退出子 shell；检查失败用 if ! (…); then 清 worktree 再 exit 1；git fetch、git switch stage、git pull --ff-only 拆成三行
+- 结果：bash 与 zsh 各对 2075c55、9b38684 实测：好的提交走到 would-tag，坏的提交子 shell 退出 1、外层 shell 仍在；( set -e; false; echo not-here ) 之后外层继续执行；没有 rc_doc_sync worktree 残留
