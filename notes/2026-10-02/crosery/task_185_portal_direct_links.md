@@ -21,3 +21,10 @@
 - 做了什么：bbf9505d9e54 与 origin/stage 458999fc0c60 各自 pnpm --filter @yzgc/web build（改前在 /private/tmp 的临时 detached worktree 里构建，用完 git worktree remove --force）；本机静态服务按 web 容器 nginx 规则提供产物（改后 5340、改前 5341），/forum/ 302 到 https://prev.yangtzeu.work/forum/，/api 与 /auth 转给本机核心服务（5440，buildApp 真实路由、内存库、GitHub 与发信商为假实现）；ego-browser（Chromium）单个 TaskSpace，1440×900、390×844 与 844×390（CDP 模拟 DPR3 触屏，matchMedia hover:none 与 pointer:coarse 已核对命中）逐个入口点击，结束后 task.finish、服务全部停掉
 - 结果：改后：1440×900 15 个入口、390×844 12 个、844×390 12 个全部一跳（论坛当前标签页落 https://prev.yangtzeu.work/forum/，GitHub 新标签页落 https://github.com/Yangtze-University-Geek-Class，官网标签页停在桌面），场景页分包请求 0 次；论坛后退均从往返缓存回到桌面、无飞行图标残留；加入我们回执去论坛看看 href=/forum/ 一跳（桌面与竖屏，真实投递，发信请求 0 次）；旧地址 /forum-3d、/github 直接打开正常、控制台无错误；减少动态效果下论坛一跳、加入我们直接进 /join-us。改前：Dock 论坛落 /forum-3d、Dock GitHub 落 /github，要再点一次。证据 12 张与 manifest、walkthrough、PR 正文在本机 /private/tmp/geek-evidence/185/（由主控上传）。未测：Safari、iOS、微信内置浏览器，预发布环境
 - 下一步：主控开 PR、上传证据、安排独立审查
+
+## 22:36:09 +08:00 · 返工 · #185 · 审查 F1：按住按键或回车不再连开多个 GitHub 组织标签页
+
+- 执行者：agent-claude-geek-main-subagent-185（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：fix(portal)：YugcOs.tsx 全局按键遇到 event.repeat 直接返回，回车再拦掉默认动作（Dock、便签、菜单按钮不再把每次自动重复变成点击）；Widgets.tsx 桌面图标的回车、空格只认按下去的那一次；tests/web/portal-os-entries.test.tsx 加按住 3、图标与 Dock、便签上重复回车一条；docs/services/web/portal.md「桌面入口直达」补「按住不放只算一次」
+- 结果：改前在 bbf9505 的构建上复核：Dock、便签按住回车（1+4 次）各开 5 个新标签页，审查已测按住 3 开 5 个；新测试改前失败（followAppLink 被调 5 次）。改后 Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 25/25 通过；ego-browser 本机预检按住 3、图标、Dock、便签上按住回车都只开 1 个新标签页
+- 下一步：返工审查 S1（从论坛后退直接回到桌面）

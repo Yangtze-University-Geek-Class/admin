@@ -200,6 +200,12 @@ export default function YugcOs({ active, onBack }: Props) {
         return onBack();
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // 按住不放时浏览器自动重复的按键不算再按一次：1/2/3 只打开一次；焦点在 Dock、便签、菜单的按钮上按住回车，
+      // 拦掉默认动作，浏览器就不会每次重复都补一次点击。GitHub 组织每打开一次就多一个新标签页
+      if (event.repeat) {
+        if (event.key === "Enter") event.preventDefault();
+        return;
+      }
       const app = appByKey(event.key);
       if (app) open(app.id, root.current?.querySelector<HTMLElement>(`[data-cta="${app.id}"]`));
     };

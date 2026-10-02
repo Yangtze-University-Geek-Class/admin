@@ -157,3 +157,25 @@ it("「加入我们」不变：图标飞行后进 /join-us；减少动态效果�
     vi.useRealTimers();
   }
 });
+
+it("按住不放的自动重复不算再按一次：按住 3、在图标或 Dock、便签按钮上按住回车，GitHub 组织只开一个新标签页（审查 F1）", () => {
+  const { container } = renderDesktop();
+  fireEvent.keyDown(document.body, { key: "3" });
+  for (let i = 0; i < 4; i += 1) fireEvent.keyDown(document.body, { key: "3", repeat: true });
+  expect(followed.calls).toEqual([GITHUB]);
+
+  // 桌面图标自己处理回车：只有按下去的那一次打开
+  const icon = container.querySelector<HTMLElement>('.pt-icons [data-cta="github"]')!;
+  fireEvent.keyDown(icon, { key: "Enter" });
+  fireEvent.keyDown(icon, { key: "Enter", repeat: true });
+  fireEvent.keyDown(icon, { key: "Enter", repeat: true });
+  expect(followed.calls).toEqual([GITHUB, GITHUB]);
+
+  // Dock、便签、菜单上的按钮由浏览器把回车变成点击：按下去的那一次照常（不拦默认动作），
+  // 自动重复的回车拦掉默认动作，浏览器就不会再补一次点击（fireEvent 返回 false 表示默认动作被拦）
+  for (const button of [dock().getByRole("button", { name: /GitHub 组织/ }), screen.getByRole("button", { name: /去「GitHub 组织」/ })]) {
+    expect(fireEvent.keyDown(button, { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(button, { key: "Enter", repeat: true })).toBe(false);
+  }
+  expect(followed.calls).toHaveLength(2);
+});

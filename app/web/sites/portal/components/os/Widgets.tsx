@@ -25,7 +25,8 @@ export function DesktopIcons({ apps, selected, onSelect, onOpen }: { apps: reado
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                onOpen(app.id, event.currentTarget);
+                // 按住不放时浏览器自动重复的按键不算再按一次（GitHub 组织每打开一次就多一个新标签页）
+                if (!event.repeat) onOpen(app.id, event.currentTarget);
               }
             }}
           >
