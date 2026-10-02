@@ -119,6 +119,24 @@ describe("播放层分包", () => {
     expect(net.retried).toEqual([1, 2, 3]);
   });
 
+  it("加载中就关掉（gate 点了跳过）、之后分包才失败：下次打开换地址重新加载，不会一打开就按失败关掉", async () => {
+    const skipped = vi.fn();
+    const view = render(open(skipped));
+    // 分包还没结果就卸载：这次失败没有人显示出来
+    view.unmount();
+    await waitFor(() => expect(net.retried).toEqual([1]));
+    await act(async () => {});
+    expect(skipped).not.toHaveBeenCalled();
+
+    // 网络恢复后从桌面「宣传片」重看：换下一个地址重新加载，正常播放
+    net.down = false;
+    const replay = vi.fn();
+    render(open(replay));
+    expect(await screen.findByRole("dialog", { name: "极客班宣传片" })).toBeTruthy();
+    expect(replay).not.toHaveBeenCalled();
+    expect(net.retried).toEqual([1, 2]);
+  });
+
   it("桌面预取时断网、后来网络恢复：第一次打开就换地址加载，直接能播", async () => {
     net.poisoned = true;
     net.down = false;

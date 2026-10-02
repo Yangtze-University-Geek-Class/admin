@@ -46,3 +46,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：PromoLazy.tsx：Suspense 挪进 LazyPromoPlayer（新增 placeholder 属性，gate 传、桌面重看不传），PromoFallback 在 useLayoutEffect 里记下画出来的时刻 coverSince；PromoPlayer.tsx 新增可选 coverSince，挂上时按「遮罩已经盖了多久」给根节点负的 animation-delay；JoinUs.tsx 改用 <LazyPromoPlayer placeholder>，YugcOs.tsx 去掉外层已经多余的 Suspense；tests/web/portal-promo-gate.test.tsx 改成每条用例重新加载模块、分包由用例放行，新增「分包到了换成播放层」一条；portal.md「分包未到的加载占位」按实际机制重写
 - 结果：vitest run tests/web/portal-promo-gate.test.tsx：3 passed；把四个源文件临时换回 9fffb81 的版本再跑：新用例 1 failed（animation-delay: "": expected null not to be null），另外 2 条 passed，已还原；promo-gate/lazy/player/promo/join 五个文件 45 passed；tsc -p app/web/tsconfig.json --noEmit 通过。真实浏览器逐帧未验证（放到最后一个代码提交的构建上做）
+
+## 20:21:47 +08:00 · 返工 · #122 · F8：加载中跳过后分包失败，下次打开不再立刻按失败关掉
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：PromoLazy.tsx：loadPlayer 返回 { Player, failed }，import 失败时记 failed；LazyPromoPlayer 打开时（useState 初始化，在 Suspense 外面，挂起重试不会再走）发现上一个失败过就换新的；PromoUnavailable 不再负责换。tests/web/portal-promo-lazy.test.tsx 新增「加载中就关掉、之后分包才失败」一条；portal.md「出错时」补一句
+- 结果：vitest run tests/web/portal-promo-lazy.test.tsx：6 passed；把 PromoLazy.tsx 临时换回 a01ab40 的版本：新用例 1 failed（Unable to find role="dialog"，一打开就按失败关掉了），其余 5 passed，已还原；promo-gate/lazy/player 三个文件 29 passed；tsc web 通过
