@@ -18,6 +18,7 @@ import { BLOCK_REASON_TEXT } from "../lib/nav";
 import { useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import { assignerText } from "../lib/titles";
+import { overviewApplicationsMeta } from "../lib/application-groups";
 import type { AuditRow, Summary } from "../lib/types";
 
 const router = useRouter();
@@ -47,7 +48,7 @@ const stats = computed<Stat[]>(() => {
   if (!s) return [];
   const list: Stat[] = [];
   if (s.applications) {
-    list.push({ label: "待处理投递", value: s.applications.by_status.received ?? 0, meta: `共 ${s.applications.total} 份，近 7 天 ${s.applications.last_7d} 份`, to: "/console/applications?status=received", icon: "i-carbon-document-attachment" });
+    list.push({ label: "待处理投递", value: s.applications.by_status.received ?? 0, meta: overviewApplicationsMeta(s.applications), to: "/console/applications?status=received", icon: "i-carbon-document-attachment" });
     list.push({ label: "待面试", value: s.applications.by_status.interview ?? 0, meta: `已录取 ${s.applications.by_status.accepted ?? 0} 人`, to: "/console/applications?status=interview", icon: "i-carbon-time" });
   }
   if (s.feedback) list.push({ label: "待处理意见", value: s.feedback.open, meta: `共 ${s.feedback.total} 条`, to: "/console/feedback?status=open", icon: "i-carbon-chat" });

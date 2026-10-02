@@ -6,7 +6,7 @@ const expandedPeople = ref<ReadonlySet<string>>(new Set());
 </script>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, nextTick, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxDataTable } from "@talex-touch/tuffex/data-table";
@@ -86,6 +86,24 @@ const exportHref = computed(() => {
   const search = query.toString();
   return `/api/console/applications/export.csv${search ? `?${search}` : ""}`;
 });
+
+/**
+ * 窄屏上筛选按钮一行放不下，要横滑；带着 ?status= 打开时选中的那个可能在屏幕外。
+ * 选中的按钮不在可见范围里时把按钮条滚过去（TxFilterChips 的根元素就是横滑的容器，选中的按钮带 aria-pressed="true"）。
+ */
+const toolbar = ref<HTMLElement | null>(null);
+function revealActiveChip() {
+  const chip = toolbar.value?.querySelector<HTMLElement>('[aria-pressed="true"]');
+  const strip = chip?.parentElement;
+  if (!chip || !strip || strip.scrollWidth <= strip.clientWidth) return;
+  const start = chip.offsetLeft;
+  const end = start + chip.offsetWidth;
+  if (start < strip.scrollLeft) strip.scrollLeft = Math.max(0, start - 8);
+  else if (end > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = end - strip.clientWidth + 8;
+}
+onMounted(() => void nextTick(revealActiveChip));
+// 计数到了以后按钮会变宽，所以数据回来后再对一次
+watch([status, () => list.data.value], () => void nextTick(revealActiveChip));
 </script>
 
 <template>
@@ -103,7 +121,7 @@ const exportHref = computed(() => {
       </template>
     </PageHeader>
 
-    <div class="toolbar">
+    <div ref="toolbar" class="toolbar">
       <TxFilterChips :model-value="status" :items="chips" aria-label="按状态筛选" @update:model-value="value => setQuery({ status: String(value) || undefined, page: undefined })" />
       <form class="toolbar__end" role="search" @submit.prevent="setQuery({ q: draft.trim() || undefined, page: undefined })">
         <TxSearchInput v-model="draft" placeholder="搜索姓名、班级或邮箱" class="search" @search="setQuery({ q: draft.trim() || undefined, page: undefined })" @clear="setQuery({ q: undefined, page: undefined })" />
@@ -126,6 +144,7 @@ const exportHref = computed(() => {
           :loading="list.loading.value"
           @row-click="({ row }: { row: ListRow }) => router.push(detailHref(row))"
         >
+          <!-- 窄屏时状态和时间两列要横向滚动才看得到：人的那一行和历次投递都在第一列里再写一遍（.narrow-meta） -->
           <template #cell-name="{ row }: { row: ListRow }">
             <span v-if="row.kind === 'person'" class="cell-stack">
               <TxCellLink :href="detailHref(row)" :label="row.item.name" @open="router.push(detailHref(row))" />
@@ -143,14 +162,17 @@ const exportHref = computed(() => {
                 {{ row.expanded ? "收起" : `${row.shown} 份投递` }}
               </TxButton>
               <span v-if="row.hidden" class="cell-sub">另有 {{ row.hidden }} 份不在当前筛选里</span>
+              <span class="narrow-meta">
+                <ToneTag :tone="statusMeta(row.item.status).tone" :label="statusMeta(row.item.status).label" />
+                <span class="cell-sub">{{ fmtDate(row.item.created_at) }}</span>
+              </span>
             </span>
             <span v-else class="cell-stack history-name">
               <span v-if="row.nameDiffers" class="cell-sub">{{ row.application.name }} · {{ row.application.class_name }}</span>
               <span class="reason-tags">
                 <TxTag v-for="label in reasonLabels(row.application.linked_by)" :key="label" :label="label" variant="plain" size="sm" />
               </span>
-              <!-- 窄屏时状态和时间两列要横向滚动才看得到，历次投递在第一列里再写一遍 -->
-              <span class="history-compact">
+              <span class="narrow-meta">
                 <ToneTag :tone="statusMeta(row.application.status).tone" :label="statusMeta(row.application.status).label" />
                 <span class="cell-sub">{{ fmtDate(row.application.created_at) }}</span>
               </span>
@@ -240,7 +262,7 @@ const exportHref = computed(() => {
 .history-time {
   align-items: flex-end;
 }
-.history-compact {
+.narrow-meta {
   display: none;
 }
 .pager {
@@ -250,7 +272,7 @@ const exportHref = computed(() => {
   border-top: 1px solid var(--tx-border-color-lighter);
 }
 @media (max-width: 900px) {
-  .history-compact {
+  .narrow-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;

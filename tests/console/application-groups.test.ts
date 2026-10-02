@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listRows, listSummary, reasonLabels, toggleExpanded, totalCount } from "../../app/console/src/lib/application-groups";
+import { listRows, listSummary, overviewApplicationsMeta, reasonLabels, toggleExpanded, totalCount } from "../../app/console/src/lib/application-groups";
 import type { ApplicationItem, ApplicationStatus, GroupReason } from "../../app/console/src/lib/types";
 
 /** 投递管理按人合并（#184）的展示：一人一行、展开看历次投递、列表上方的数字。 */
@@ -73,5 +73,14 @@ describe("list wording", () => {
   it("adds up 全部 from every status, cancelled included", () => {
     expect(totalCount({ received: 6, interview: 1, accepted: 1, rejected: 1, cancelled: 1 })).toBe(10);
     expect(totalCount(undefined)).toBe(0);
+  });
+
+  it("says on the overview how many cancelled applications its total leaves out", () => {
+    const byStatus = { received: 7, interview: 1, accepted: 1, rejected: 1, cancelled: 2 };
+    // 概览的 10 份加上不算的 2 份，正好是投递管理「全部」的 12
+    expect(overviewApplicationsMeta({ total: 10, last_7d: 9, by_status: byStatus })).toBe("共 10 份，近 7 天 9 份，不算已取消的 2 份");
+    expect(10 + byStatus.cancelled).toBe(totalCount(byStatus));
+    expect(overviewApplicationsMeta({ total: 4, last_7d: 0, by_status: { received: 4, cancelled: 0 } })).toBe("共 4 份，近 7 天 0 份");
+    expect(overviewApplicationsMeta({ total: 4, last_7d: 1, by_status: { received: 4 } })).toBe("共 4 份，近 7 天 1 份");
   });
 });

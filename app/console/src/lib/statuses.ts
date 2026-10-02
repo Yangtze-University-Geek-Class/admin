@@ -5,7 +5,7 @@ type StatusMeta = { label: string; tone: Tone };
 
 /**
  * 投递能选的五种状态，顺序就是下拉框和筛选的顺序。「已取消」（#184）是重复或无效的投递，不发信，
- * 和「未通过」不是一回事；它也用中性的 slate，列表里另把整行文字调淡。
+ * 和「未通过」不是一回事；它和「已收到」一样用中性的 slate，靠文字区分。
  */
 export const APPLICATION_STATUS: Record<ApplicationStatus, StatusMeta> = {
   received: { label: "已收到", tone: "slate" },

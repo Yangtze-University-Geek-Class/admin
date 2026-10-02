@@ -1,4 +1,4 @@
-// 投递管理按人合并（#184）的展示逻辑：归并理由怎么说、列表一人一行加展开后的历次投递、列表上方那一行数字。
+// 投递管理按人合并（#184）的展示逻辑：归并理由怎么说、列表一人一行加展开后的历次投递、列表上方那一行数字、概览里投递总数那一行。
 // 归并本身在服务端算（GET /api/console/applications 的 person），这里只排版。不导入 Vue，tests/console/application-groups.test.ts 直接测。
 import { APPLICATION_STATUS, isApplicationStatus } from "./statuses";
 import type { ApplicationItem, ApplicationList, ApplicationSummary, GroupReason } from "./types";
@@ -68,4 +68,14 @@ export function listSummary(list: Pick<ApplicationList, "total"> & { total_appli
 /** 「全部」的数字：各状态投递份数之和（counts 是整张表的，和筛选、搜索无关）。 */
 export function totalCount(counts: Record<string, number> | undefined): number {
   return Object.values(counts ?? {}).reduce((sum, n) => sum + n, 0);
+}
+
+/**
+ * 概览「待处理投递」下面那一行。服务端的 total、last_7d 都不算已取消（#184），投递管理的「全部」算，
+ * 有已取消的投递时写明不算几份，两边的数字才对得上。
+ */
+export function overviewApplicationsMeta(applications: { total: number; last_7d: number; by_status: Record<string, number> }): string {
+  const cancelled = applications.by_status.cancelled ?? 0;
+  const excluded = cancelled > 0 ? `，不算已取消的 ${cancelled} 份` : "";
+  return `共 ${applications.total} 份，近 7 天 ${applications.last_7d} 份${excluded}`;
 }

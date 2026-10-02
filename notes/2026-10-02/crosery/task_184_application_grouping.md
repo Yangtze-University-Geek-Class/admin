@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：核对 S5（offset=-1 会从末尾取人）：contracts.ts 早已把 GET /api/console/applications 的 limit 限成 1–200 的整数字符串、offset 限成 ^[0-9]{1,8}$，越界请求在路由之前回 400 validation_error，handler 的 people.slice 拿不到负数，所以不改 handler，只在读 limit/offset 处写一行注释说明依赖契约。test(server): 新增 tests/server/application-groups.test.ts「refuses a limit or offset out of bounds before paging people in memory」（offset=-1、limit=-1/0/201/1.5、offset=abc 都是 400，limit=200 与很大的 offset 正常）；docs/architecture/API.md 列表一行的 400 写全 limit/offset/q，TESTING.md 同步
 - 结果：npx vitest run tests/server/application-groups.test.ts：Tests 16 passed；tsc -p app/server/tsconfig.json --noEmit 无错误；node scripts/check-doc-sync.mjs：文档同步通过
+
+## 22:37:04 +08:00 · 返工 · #184 · 按审查 F1、S1、S4 返工：概览写明不算已取消，窄屏人的那一行补状态，选中的筛选按钮滚进可见范围
+
+- 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：fix(console): 概览写明投递总数不算已取消，窄屏补状态并露出选中的筛选。F1：statuses.ts 注释去掉列表里不存在的「整行文字调淡」，改成和已收到一样用 slate、靠文字区分。S1：lib/application-groups.ts 新增 overviewApplicationsMeta，概览「待处理投递」写「共 N 份，近 7 天 M 份，不算已取消的 K 份」（K 为 0 时不写）。S4：Applications.vue 窄屏（≤900px）人的那一行也在第一列写状态和日期（history-compact 改名 narrow-meta，两种行共用）；选中的筛选按钮不在横滑条的可见范围里时把按钮条滚过去。同步 docs/services/console/README.md（窄屏、概览口径）；tests/console/application-groups.test.ts 加概览那一行的用例
+- 结果：pnpm --filter @yzgc/console typecheck 无错误；npx vitest run tests/console：Test Files 10 passed，Tests 110 passed；node scripts/check-doc-sync.mjs：文档同步通过；本机隔离服务 + ego 390×844 预看：?status=cancelled 打开后「已取消」按钮在可见范围内（按钮条 scrollLeft 164），人的那一行露出「已取消」和日期，页面 scrollWidth 390
