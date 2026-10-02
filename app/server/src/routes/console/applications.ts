@@ -55,10 +55,11 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
   const strengthsOf = (ids: string[]) => new Map((db.prepare("SELECT id, strengths FROM applications WHERE id IN (SELECT value FROM json_each(?))").all(JSON.stringify(ids)) as { id: string; strengths: string }[])
     .map(row => [row.id, row.strengths]));
 
-  app.get<{ Querystring: ListQuery }>("/api/console/applications", { preHandler: requireCapability("applications.read") }, async (req) => {
-    const { status, q } = req.query;
-    const limit = Number(req.query.limit ?? 50);
-    const offset = Number(req.query.offset ?? 0);
+  /**
+   * 筛选和搜索按投递算（和原来一样的 SQL），列表和导出共用（#184）：返回命中的投递 id，不筛时是 null。
+   * 结果再按人合并；同一个人用整张表算，不随筛选变。
+   */
+  const matchedIds = (status: ApplicationStatus | undefined, q: string | undefined) => {
     const where: string[] = [];
     const params: unknown[] = [];
     if (status) { where.push("status = ?"); params.push(status); }
@@ -67,12 +68,17 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       where.push("(name LIKE ? ESCAPE '\\' OR class_name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\')");
       params.push(like, like, like);
     }
+    if (!where.length) return null;
+    return new Set((db.prepare(`SELECT id FROM applications WHERE ${where.join(" AND ")}`).all(...params) as { id: string }[]).map(row => row.id));
+  };
+  const peopleOf = (rows: IdentityRow[], keep: Set<string> | null) => matchPeople(groupApplications(rows).groups, row => !keep || keep.has(row.id));
+
+  app.get<{ Querystring: ListQuery }>("/api/console/applications", { preHandler: requireCapability("applications.read") }, async (req) => {
+    const { status, q } = req.query;
+    const limit = Number(req.query.limit ?? 50);
+    const offset = Number(req.query.offset ?? 0);
     const rows = allIdentities();
-    // 筛选和搜索按投递算（和原来一样的 SQL），结果再按人合并；同一个人用整张表算，不随筛选变。
-    const keep = where.length
-      ? new Set((db.prepare(`SELECT id FROM applications WHERE ${where.join(" AND ")}`).all(...params) as { id: string }[]).map(row => row.id))
-      : null;
-    const people = matchPeople(groupApplications(rows).groups, row => !keep || keep.has(row.id));
+    const people = peopleOf(rows, matchedIds(status, q));
     const counts: Record<string, number> = Object.fromEntries(APPLICATION_STATUS_IDS.map(id => [id, 0]));
     for (const row of rows) counts[row.status] = (counts[row.status] ?? 0) + 1;
 
@@ -98,13 +104,13 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
   });
 
   // 静态路由优先于 /:application_id，Fastify 不会把 export.csv 当成 id。
-  app.get<{ Querystring: { status?: ApplicationStatus } }>(
+  app.get<{ Querystring: { status?: ApplicationStatus; q?: string } }>(
     "/api/console/applications/export.csv",
     { preHandler: requireCapability("applications.export"), config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (req, reply) => {
-      const { status } = req.query;
-      // 和列表同一个口径：同样的分组、同样的先后（一人的投递挨在一起，新的在前），person_group 是列表里的 person.key
-      const people = matchPeople(groupApplications(allIdentities()).groups, row => !status || row.status === status);
+      const { status, q } = req.query;
+      // 和列表同一个口径：同样的状态筛选和搜索、同样的分组、同样的先后（一人的投递挨在一起，新的在前），person_group 是列表里的 person.key
+      const people = peopleOf(allIdentities(), matchedIds(status, q));
       const strengths = strengthsOf(people.flatMap(person => person.matched.map(row => row.id)));
       // 投递时间和文件名里的日期按北京时间写（lib/beijing-time.ts），和控制台页面、信里的时间一致；列名写明是北京时间。
       const header = ["name", "class_name", "email", "strengths", "status", "created_at_beijing", "person_group"];
@@ -115,7 +121,8 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
         }
       }
       const count = lines.length - 1;
-      audit(config.consoleOrg, req.session!.login, "application.export", status ?? "all", { count, status: status ?? null }, req.ip);
+      // 搜索词可能就是投递人的姓名或邮箱，审计只记有没有带搜索，不记搜索词
+      audit(config.consoleOrg, req.session!.login, "application.export", status ?? "all", { count, status: status ?? null, searched: Boolean(q?.trim()) }, req.ip);
       return reply
         .header("Content-Type", "text/csv; charset=utf-8")
         .header("Content-Disposition", `attachment; filename="applications-${beijingCompactDate(Date.now())}.csv"`)

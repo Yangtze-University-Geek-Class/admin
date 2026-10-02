@@ -433,7 +433,7 @@ describe('applications', () => {
     expect(response.body).not.toContain('203.0.113.7');
     const exported = audits().find(item => item.action === 'application.export')!;
     expect(exported.org).toBe(CONSOLE_ORG);
-    expect(JSON.parse(exported.details!)).toEqual({ count: 1, status: null });
+    expect(JSON.parse(exported.details!)).toEqual({ count: 1, status: null, searched: false });
   });
 });
 

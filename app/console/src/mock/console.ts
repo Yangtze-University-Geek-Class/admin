@@ -311,7 +311,7 @@ const FEEDBACK = [
 const AUDIT = [
   { id: 39, created_at: now - 2 * HOUR, actor: "li-xiaoman", action: "application.review", target: "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b", ip: "10.0.0.12", details: { from: "received", to: "cancelled", has_note: true, mail: false } },
   { id: 31, created_at: now - 40 * MIN, actor: "li-xiaoman", action: "application.review", target: "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b", ip: "10.0.0.12", details: { from: "reviewing", to: "interview", has_note: true } },
-  { id: 30, created_at: now - 3 * HOUR, actor: "li-xiaoman", action: "application.export", target: "all", ip: "10.0.0.12", details: { count: 6, status: null } },
+  { id: 30, created_at: now - 3 * HOUR, actor: "li-xiaoman", action: "application.export", target: "all", ip: "10.0.0.12", details: { count: 6, status: null, searched: false } },
   { id: 38, created_at: now - 5 * HOUR, actor: "he-miao", action: "application.view", target: "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8", ip: "10.0.0.21", details: null },
   { id: 37, created_at: now - 20 * HOUR, actor: "li-xiaoman", action: "application.review", target: "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d", ip: "10.0.0.12", details: { from: "received", to: "reviewing", has_note: true } },
   { id: 36, created_at: now - 1 * DAY - 2 * HOUR, actor: "wang-zhe", action: "feedback.update", target: "20", ip: "10.0.0.15", details: { status: "in_progress", has_reply: true } },

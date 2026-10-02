@@ -78,7 +78,14 @@ const columns = [
 const applicationId = (row: ListRow) => (row.kind === "person" ? row.item.id : row.application.id);
 const detailHref = (row: ListRow) => `/console/applications/${applicationId(row)}`;
 const shownOf = (row: ListRow) => (row.kind === "person" ? row.item : row.application);
-const exportHref = computed(() => `/api/console/applications/export.csv${status.value ? `?status=${status.value}` : ""}`);
+/** 导出和列表同一个口径：带上当前的状态筛选和搜索词（#184） */
+const exportHref = computed(() => {
+  const query = new URLSearchParams();
+  if (status.value) query.set("status", status.value);
+  if (q.value) query.set("q", q.value);
+  const search = query.toString();
+  return `/api/console/applications/export.csv${search ? `?${search}` : ""}`;
+});
 </script>
 
 <template>

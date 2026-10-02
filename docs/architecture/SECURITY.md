@@ -2,7 +2,7 @@
 
 > 区分保留核心服务的真实安全边界与原仓论坛的浏览器演示；新论坛尚不具备生产安全条件。
 
-状态：`current` · 更新：2026-09-28
+状态：`current` · 更新：2026-10-02
 
 ## 核心服务
 
@@ -37,7 +37,7 @@
 - **队长范围**：`roles.department.manage` 只允许任免自己负责部门的舰员，跨部门返回 403 `out_of_department_scope`。成员全名单 `GET /api/console/people` 不按部门收窄：持有 `roles.department.manage` 的队长也能看到整个组织的成员（登录名、头像、GitHub 组织角色）和每个人的称号；名单用调用者自己的 token 向 GitHub 列组织成员。
 - **失败语义**：GitHub 角色查询出错时交给 `http-policy` 统一映射（上游 4xx → `upstream_rejected`，5xx → `internal_error`），**不**当成「不是组织成员」，避免 GitHub 一时出错就把提督当成非成员、收掉他的权限。上游 401 例外：GitHub 只在令牌本身无效时回 401，这时会话里存的令牌已经不能用，服务端删掉会话、清 `sid`，回 401 `session_expired`，审计 `auth.session_rejected`，人重新登录后拿新令牌（#164）。邀请链接用发起人的令牌，`join.ts` 自己处理上游错误，不会因此删掉访问者的会话。
 - **公开的组织架构**：`GET /api/public/org` 匿名可读，只给称号与未归档部门的显示信息（名字、标签、图标、色调、说明、层级）和色调色值，不含权限包、不含任何人。官网「组织架构」窗口和论坛的称号徽章读它，读不到时用各自内置的默认值。
-- **审计**：控制台写操作（含 `title.update`）、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
+- **审计**：控制台写操作（含 `title.update`）、投递查看与导出一律以 `org = CONSOLE_ORG` 审计；审核备注只存在 `application_reviews`，不进审计；导出投递时的搜索词也不进审计（可能就是投递人的姓名或邮箱），`application.export` 只记有没有带搜索。控制台审计接口不下发完整的邀请链接 token（只留前 6 位），否则持有 `audit.read` 的非组织管理员就能借链接发起人的 GitHub 授权发邀请，越过 GitHub 上限。
 - **旧接口不变**：`/api/admin/:org/*` 仍只由 GitHub 组织角色控制。
 - **论坛能力在服务端执行**（#57）：带 `sid` 但组织角色查到已不是 `CONSOLE_ORG` 成员的会话在论坛按游客处理，不建论坛用户，称号给的 `forum.*` 也不算。`/api/forum/*` 用同一个 `computeAccess` 算出的 `forum.*` 判定置顶（`forum.topic.pin`）、关闭（`forum.topic.close`）、编辑或删除他人帖子与在已关闭话题回复（`forum.post.moderate`），控制台里改过的称号与部门权限包下一次请求就生效；`forum.category.manage` 与 `forum.badge.assign` 仍没有接口。`state.viewer.capabilities` 下发给前端只用于显示按钮，授权只在服务端。动他人帖子、置顶、关闭以 `org = CONSOLE_ORG` 写审计，details 只有帖子与话题编号、作者编号或开关，不记正文。
 

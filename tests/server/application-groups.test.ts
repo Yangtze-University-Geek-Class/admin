@@ -200,6 +200,33 @@ describe('GET /api/console/applications groups by person', () => {
     expect(cancelled.lines).toEqual([['丙', '信安2401', 'bing.second@example.test', '丙 的特长与优点', 'cancelled', expect.any(String), ids.bing]]);
   });
 
+  it('exports what the list shows for a search too, and audits only that there was one', async () => {
+    const { app, db, alice, list, ids } = await seeded();
+    const exported = async (query: string) => {
+      const response = await app.inject({ url: `/api/console/applications/export.csv${query}`, headers: alice });
+      expect(response.statusCode, query).toBe(200);
+      return response.body.replace(/^\uFEFF/, '').trimEnd().split('\r\n').slice(1).map(line => line.split(','));
+    };
+    // 导出限 5 次/分钟，这里正好用 4 次
+    const exports: Record<string, string[][]> = {};
+    for (const query of ['?q=jia', '?status=received&q=%E4%B8%99', '?q=bing.second', '?q=nobody']) {
+      const listed = (await list(query)).items as Item[];
+      exports[query] = await exported(query);
+      expect(exports[query].map(cells => [cells[2], cells[4], cells[6]]), query).toEqual(listed.flatMap(item => item.person.applications.map(a => [a.email, a.status, item.person.key])));
+    }
+    expect(exports['?q=jia'].map(cells => [cells[2], cells[6]])).toEqual([['Jia@Example.test', ids.jiaOld], ['jia@example.test', ids.jiaOld]]);
+    expect(exports['?status=received&q=%E4%B8%99'].map(cells => [cells[2], cells[6]])).toEqual([['bing@example.test', ids.bing]]);
+    expect(exports['?q=bing.second'].map(cells => [cells[2], cells[4], cells[6]])).toEqual([['bing.second@example.test', 'cancelled', ids.bing]]);
+    expect(exports['?q=nobody']).toEqual([]);
+    // 搜索词可能是投递人的姓名或邮箱：审计只记有没有带搜索
+    const details = (db.prepare("SELECT details FROM audit_logs WHERE action = 'application.export' ORDER BY id").all() as { details: string }[]).map(row => JSON.parse(row.details));
+    expect(details).toEqual([
+      { count: 2, status: null, searched: true }, { count: 1, status: 'received', searched: true },
+      { count: 1, status: null, searched: true }, { count: 0, status: null, searched: true },
+    ]);
+    expect(JSON.stringify(details)).not.toMatch(/jia|bing|丙|nobody/);
+  });
+
   it('counts cancelled applications in by_status but not in the overview total', async () => {
     const { app, alice } = await seeded();
     const summary = (await app.inject({ url: '/api/console/summary', headers: alice })).json();

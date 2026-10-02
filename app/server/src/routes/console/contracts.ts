@@ -66,7 +66,7 @@ export const consoleContracts: RouteContracts = {
   "GET /api/console/applications": {
     querystring: object({ status: choices(...APPLICATION_STATUS_IDS), q: text(100), limit: limit(200), offset }),
   },
-  "GET /api/console/applications/export.csv": { querystring: object({ status: choices(...APPLICATION_STATUS_IDS) }) },
+  "GET /api/console/applications/export.csv": { querystring: object({ status: choices(...APPLICATION_STATUS_IDS), q: text(100) }) },
   "GET /api/console/applications/:application_id": { ...noQuery, ...applicationParams },
   "PATCH /api/console/applications/:application_id": {
     ...noQuery, ...applicationParams,

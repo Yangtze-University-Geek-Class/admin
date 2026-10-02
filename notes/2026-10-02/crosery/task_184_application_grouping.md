@@ -19,3 +19,9 @@
 - 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：本机隔离服务（tsx 起 Fastify，临时 SQLite、假 GitHub、假 Resend，静态目录为 fa9097b 控制台构建，端口 5450/5451）对照改前 458999f，在 ego 浏览器一个 TaskSpace 里走桌面 1440×900 与 390×844 DPR3 触屏：按人合并列表、展开历次投递、链式合并、筛选已取消、详情标成已取消、改待面试、概览数字、导出 CSV；截图 19 张与 CSV 2 份、manifest.json、pr-body.md 写到 /private/tmp/geek-evidence/184/；本地跑 scripts/pr-contract.mjs check 核对正文；用完停掉服务、关闭 TaskSpace、删掉改前的临时 worktree
 - 结果：列表「共 8 人、12 份投递」，全部 12 等于各状态之和；两次改成已取消后 mail-requests.log 为空，改待面试后正好一行发给 sun.yiming@example.test；导出 CSV 的 person_group 与列表 person.key 一致；手机页面 scrollWidth 390 无横向溢出；pr-contract 通过（9 个段落齐全）；pnpm check 通过，npx vitest run tests/server tests/console 21 个文件 364 项通过；全量 pnpm verify、e2e、预发布验收未做
+
+## 22:35:27 +08:00 · 返工 · #184 · 按审查 S6 返工：导出 CSV 带上搜索词，和列表同一个口径
+
+- 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：fix(console): 导出 CSV 跟着列表的搜索词走。服务端把状态筛选与搜索抽成 matchedIds，列表和 export.csv 共用；export.csv 的契约加 q（≤100 字），审计 application.export 加 searched（只记有没有带搜索，不记搜索词）；控制台「导出 CSV」链接带上 status 与 q；样板审计行同步。同步 docs/architecture/API.md、docs/architecture/SECURITY.md（搜索词不进审计）、docs/services/console/README.md（导出）、docs/conventions/TESTING.md；新增 tests/server/application-groups.test.ts「exports what the list shows for a search too」，tests/server/console.test.ts 的审计断言加 searched:false
+- 结果：pnpm typecheck exit 0；npx vitest run tests/server/application-groups.test.ts tests/server/console.test.ts tests/console：Test Files 12 passed，Tests 161 passed；node scripts/check-doc-sync.mjs：文档同步通过：6 组模块与文档
