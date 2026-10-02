@@ -39,3 +39,9 @@
 - 做了什么：docs(deploy): 按审查意见去掉带时效的现状并补全运行位置的说明；fnm 切到 Node 22.23.2 跑 pnpm check；vitest run hosted-runners、build-mirrors、deploy-manual、doc-sync、docs-index、fetch-artifact、static-cdn-switch、static-cdn-workflows；actionlint -no-color -oneline .github/workflows/*.yml；node scripts/docs-index.mjs --check；node scripts/check-branch-invariants.mjs
 - 结果：pnpm check 退出 0（文档同步通过：6 组模块与文档，按 PR 核对 origin/stage；执行记录通过：44 条链路；密钥门禁通过；三份 typecheck 通过）；8 个测试文件 126 个用例通过；actionlint 1.7.12 退出 0；docs/INDEX.md 是最新的；分支不变量通过。未跑 pnpm verify、e2e、Playwright（按分工不跑）
 - 下一步：主控：按 hostFollowUp 开宿主机清理 issue（负责人 Crosery），替换 PR 正文的 #{{HOST_ISSUE}} 等占位；推送、开 PR、截 PR head 的 CI 运行页；补 PR、审查记录
+
+## 20:54:23 +08:00 · 返工 · #139 · 按第二轮审查改正 production 审批人的旧说法，写入跟进 issue 编号
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：第二轮独立审查 N1：CICD.md 头部与「维护者机器部署」、RELEASES.md 第 8 步仍写 production 没配审批人、部署 job 按设计失败关闭；gh api repos/<仓库>/environments/production 只读核对：2026-09-27T11:05:39Z 建，required_reviewers=[Crosery]，DEPLOY_PRODUCTION_ENABLED=enabled（2026-09-27T11:09:25Z），v0.1.0 正式部署运行 36314912545 success。改成现状并把 deploy-manual 写成退路；RELEASES.md 更新日期改为 2026-10-02。宿主机清理开成 #187、下载源变量评估开成 #188，CICD.md 两处写上编号
+- 结果：pnpm check:doc-sync 通过；docs-index --check 通过

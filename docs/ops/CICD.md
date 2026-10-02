@@ -2,7 +2,7 @@
 
 > 六工作流（ci / deploy-preview / deploy-production / branch-hygiene / issue-lifecycle / cert-watch）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-10-02 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿，所有 job 只跑在 GitHub 托管 runner 上（见下文「运行位置」）。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版；仓库原本私有，2026-09-26 17:49 所有者因 CI 排队决定公开（见下文「平台能力实测」的更新）。公开之后 `production` 的 required reviewers 才能配置，**目前还没配**，所以正式部署 job 仍按设计失败关闭，正式环境仍走下文「维护者机器部署」。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
+状态：`accepted` · 更新：2026-10-02 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿，所有 job 只跑在 GitHub 托管 runner 上（见下文「运行位置」）。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版；仓库原本私有，2026-09-26 17:49 所有者因 CI 排队决定公开（见下文「平台能力实测」的更新）。公开之后 `production` 的 required reviewers 才能配置；2026-09-27 所有者建了 `production` Environment，配了 required reviewers（审批人 Crosery）与自定义部署分支规则，并打开 `DEPLOY_PRODUCTION_ENABLED`，`v0.1.0` 的正式部署由 `deploy-production.yml` 在审批后跑完（运行 36314912545）。下文「维护者机器部署」只在部署 job 拿不到环境时作退路。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -160,7 +160,7 @@
 
 ## 维护者机器部署（免费版的退路）
 
-`production` 环境和它的审批人还没配置（仓库原先私有时免费版配不了；2026-09-26 公开后可以配，审批人由所有者定）。`deploy-production` 的部署 job 有两种结局：开关 `DEPLOY_PRODUCTION_ENABLED` 关闭时**跳过**；打开时在「production 环境保护」核对处**失败关闭**。这是正确行为，不得放宽。两种情况下 build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。正式环境（以及 `preview` 的部署 job 拿不到 secrets 时的预发布）改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
+仓库原先私有时免费版配不了 `production` 的审批人，部署 job 在「production 环境保护」核对处失败关闭，正式环境只能从维护者机器部署。2026-09-27 起 `production` 有 required reviewers（审批人 Crosery，2026-10-02 只读核对 `gh api repos/<仓库>/environments/production`），`DEPLOY_PRODUCTION_ENABLED` 已打开，正式部署照常走 `deploy-production.yml`：开关关闭时部署 job **跳过**；环境保护被删掉或审批人被清空时，它仍在「production 环境保护」核对处**失败关闭**，这是正确行为，不得放宽。build job 都会产出镜像归档（正式保留 30 天，预发布保留 7 天，过期要重新运行工作流）。部署 job 失败关闭、或 `preview` 的部署 job 拿不到 secrets 时，改用 `scripts/deploy-manual.mjs` 从维护者机器部署；谁可以运行见 [AGENTS](../../AGENTS.md) §3 与 [RELEASES](../conventions/RELEASES.md)「授权门禁」。步骤与 CI 的 deploy job 一一对应，**一切部署物料取自 tag 指向的提交**，不取当前工作区：
 
 1. 进程环境里的 `DEPLOY_TARGET_ENVIRONMENT` 必须等于 `--environment`（对应 CI 的环境哨兵，防止导出的是另一个环境的密钥）；仓库取自 `origin` 远端。
 2. `git archive <提交> deploy scripts package.json` 解到临时目录（不是 Git 仓库，所以 `--check` 会打两条「无法通过 git check-ignore 判定」的警告，这是预期的：物料来自 `git archive`，必然是入库文件），用**这一份**的 `release-policy` 规划（与工作流同一个 `--branch-ref`、`--require-tag`，`--root` 指向这份物料）并跑环境契约 `--check`；rc tag 只能进 `preview`，正式 tag 只能进 `production`。`DEPLOY_SSH_HOST/PORT/USER` 必须与这份物料里该环境模板的 `DEPLOY_HOST/PORT/USER` 一致。
@@ -180,7 +180,7 @@ CI 与部署只用 GitHub 托管 runner（#139）：六个工作流的每个 job
 - **写成字面量，不读仓库变量**。原来的写法是 `${{ vars.CI_RUNNER || 'ubuntu-latest' }}` 与 `${{ vars.DEPLOY_RUNNER || 'ubuntu-latest' }}`，#139 改掉，理由：两个变量已经删了（#138），留着这种写法只会让人以为还能切回去；改仓库变量不经 PR 与审查，也不进 git 历史，设一个变量就能把带部署私钥的 job 送到别的机器上，写成字面量后换 runner 必须改工作流、经过审查；原来的 runner 组 `yzgc-deploy` 已经不允许公开仓库，设回去 job 也只会排队。`tests/tooling/hosted-runners.test.ts` 核对 `.github/workflows/` 下每个工作流的每个 job 都是 `runs-on: ubuntu-latest`，也没有残留 `vars.CI_RUNNER`、`vars.DEPLOY_RUNNER` 和旧的 runner 标签。
 - 托管 runner 出问题时等 GitHub 恢复后重跑，不再有切到别的机器的退路。以后真要用自托管 runner，先开 issue，重新论证隔离、凭据与公开仓库 fork PR 的边界，再改工作流和上面这条测试；不要靠加标签或设变量切过去。
 
-`historical`：仓库还私有时，免费版每月 2000 分钟的托管额度用完（2026-09-25 所有 job 报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`），CI 改到维护者家里的机器 crosery-arch 上的常驻 incus 容器里跑（#93，后来加到 4 个实例，#124），部署 job 跑在同一台机器上每个 job 一个的一次性容器里（#97）。2026-09-26 17:49 仓库公开后 CI 回到托管 runner；`v0.1.0-rc.8` 在一次性 runner 上两次失败后，所有者 21:05 决定部署也不再用家里的 runner（#138）。机器上的脚本 `deploy/runner/` 已在 #139 删除，原文在 git 历史里（`git show 458999f:deploy/runner/<文件>`），当时的做法、隔离边界与实测记在 `notes/2026-09-26/crosery/` 的 `task_93_self_hosted_runner.md`、`task_97_deploy_jit_runner.md`、`task_124_ci_throughput.md`；宿主机上的容器、服务、JIT 令牌与 GitHub 上的 runner 注册由所有者清理，从 #139 拆出单独的 issue 跟进，编号记在 #139 的追踪记录里。
+`historical`：仓库还私有时，免费版每月 2000 分钟的托管额度用完（2026-09-25 所有 job 报 `The job was not started because recent account payments have failed or your spending limit needs to be increased`），CI 改到维护者家里的机器 crosery-arch 上的常驻 incus 容器里跑（#93，后来加到 4 个实例，#124），部署 job 跑在同一台机器上每个 job 一个的一次性容器里（#97）。2026-09-26 17:49 仓库公开后 CI 回到托管 runner；`v0.1.0-rc.8` 在一次性 runner 上两次失败后，所有者 21:05 决定部署也不再用家里的 runner（#138）。机器上的脚本 `deploy/runner/` 已在 #139 删除，原文在 git 历史里（`git show 458999f:deploy/runner/<文件>`），当时的做法、隔离边界与实测记在 `notes/2026-09-26/crosery/` 的 `task_93_self_hosted_runner.md`、`task_97_deploy_jit_runner.md`、`task_124_ci_throughput.md`；宿主机上的容器、服务、JIT 令牌与 GitHub 上的 runner 注册由所有者清理，从 #139 拆到 #187 跟进。
 
 ### 构建下载源（#104）
 
@@ -196,7 +196,7 @@ CI 与部署只用 GitHub 托管 runner（#139）：六个工作流的每个 job
 | pnpm/action-setup 的引导版 pnpm（`npm ci`） | core、env-contract、两条部署工作流的 build job | 同上 | `NPM_REGISTRY` | action 自带的锁文件 |
 | pnpm 9.15.9（action-setup 的 `self-update`） | 同上 | 同上 | **不换源**：这些 job 故意不设 `pnpm_config_registry` | 只有源自己给的 integrity，所以留在官方源 |
 | Debian 包（`apt-get`） | server 镜像的构建阶段 | `deb.debian.org` | `DEBIAN_MIRROR` | apt 按 `debian-archive-keyring` 核对 InRelease 签名 |
-| better-sqlite3 预编译包 | runner 上的 `pnpm install`、server 镜像的构建阶段 | GitHub releases | `BETTER_SQLITE3_BINARY_HOST` | 不核对哈希，只靠 https，见下文 |
+| better-sqlite3 预编译包 | runner 上的 `pnpm install`、server 镜像的构建阶段 | GitHub releases | `BETTER_SQLITE3_BINARY_HOST` | 不核对哈希，只靠 https，见下文；只用托管 runner 之后这套变量还要不要，在 #188 评估 |
 
 仓库变量（Settings → Secrets and variables → Actions → Variables，仓库级，不是密钥）：
 
