@@ -36,7 +36,7 @@ export function resolveSiteEntry(url: string): string {
 /**
  * `staticRoot`：false 关闭静态托管；不传时依次查找 app/web/dist 与 app/console/dist。
  * `mailWorker`：开发信循环（每 15 秒发一次到期的信，app.close() 时停下）；只有 index.ts 打开，测试直接调 services.mail.drain()。
- * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；同样只有 index.ts 打开，测试直接调 auth.cleanupExpiredSessions()。
+ * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
  */
 export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean; mailWorker?: boolean; sessionCleanup?: boolean };
 export async function buildApp(options: BuildAppOptions) {

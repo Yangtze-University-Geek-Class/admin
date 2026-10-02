@@ -83,7 +83,7 @@ function cleanupExpiredSessions(): { deleted: number; walTruncated: boolean } {
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * 打开定时清理（buildApp 的 sessionCleanup，只有真实进程调用；测试直接调 cleanupExpiredSessions）。
+ * 打开定时清理（buildApp 的 sessionCleanup，index.ts 与本机预览调用；测试直接调 cleanupExpiredSessions）。
  * 立即清一次，之后每小时清一次；计时器 unref，不阻止进程退出；单次出错只记日志，不抛出、不影响请求。
  */
 function startCleanup(logger: SessionCleanupLogger): void {
