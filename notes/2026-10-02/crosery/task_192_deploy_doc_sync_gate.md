@@ -109,3 +109,9 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
 - 做了什么：7b392e01ed8f docs(release): 发版前核对的提交不在 origin/stage 上时打印原因（Refs #192），只改 RELEASES.md 第 34 行
 - 结果：提交前检查见上一条返工记录；改了 notes/ 以外的文件，请第五轮审查人复核这一行
+
+## 23:42:47 +08:00 · 审查 · #192 · 第六轮独立审查 f49de8e：通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：第五轮审查人复核 7bee870..f49de8e：命令块在 bash 5.3 -i、bash 3.2 -i、zsh 5.9 -f -i、bash 脚本 × task 分支检出与 detached 检出（主工作区占着 stage）× 5 种情况共 40 次实测，1c49c29 每次都打印「不在 origin/stage 上，不打 tag」、rc=1；门禁通过；CI push 37027977237、pull_request 37027986297 各 8 个 job success，pr-contract 37028096455 pass
+- 结果：通过，没有阻塞或应修；建议：PR 正文「1c49c29 后」那条还标着「（最终写法）」，随正文改掉。PR 正文第五轮 S2 已改
