@@ -91,3 +91,21 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
 - 做了什么：1172243a6eab docs(release): 发版前核对的命令块不切分支，改用 merge-base 核对提交在 origin/stage 上（Refs #192），只改 docs/conventions/RELEASES.md
 - 结果：提交前同一工作区：pnpm check:doc-sync 通过、check-docs 272 篇通过、vitest 4 个文件 90 passed；需要第五轮增量审查（改了 notes/ 以外的文件）
+
+## 23:34:29 +08:00 · 审查 · #192 · 第五轮独立审查 7bee870：通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：独立审查子代理只读审 1c49c29..7bee870：命令块在 bash 5.3 -i、bash 3.2 -i、zsh 5.9 -f -i、bash 脚本四种方式 × task 分支检出与 detached 检出（主工作区占着 stage）× 5 种情况共 40 次实测；残留扫描只剩 main 合回 stage 那一步的 switch；门禁与 CI（push 37025780881、pull_request 37025786937 各 8 个 job success）通过
+- 结果：通过，没有阻塞或应修；建议 S1：提交不在 origin/stage 上时 merge-base 不输出就以 1 退出，看不出原因；建议 S2：PR 正文第 29、56 行过时。S1 下一条返工，S2 随正文更新改
+
+## 23:34:29 +08:00 · 返工 · #192 · merge-base 不通过时打印原因（第五轮审查 S1）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：RELEASES.md 第 3 步：git merge-base --is-ancestor "$SHA" origin/stage 后面加 || { echo "$SHA 不在 origin/stage 上，不打 tag" >&2; exit 1; }，不加行内注释
+- 结果：本机实测（task-192 worktree）：1c49c29 在 zsh 5.9 -f -i、bash 5.3 脚本下都打印「1c49c29… 不在 origin/stage 上，不打 tag」，外层 OUTER-ALIVE rc=1；bash 5.3 -i、bash 3.2 -i 外层都在、rc=1；2075c55 仍走到 WOULD-TAG、rc=0；9b38684 rc=1；不存在的 SHA 先报 fatal: Not a valid commit name 再打印这句，rc=1（原来是 128）；无 rc_doc_sync 残留。pnpm check:doc-sync 通过、check-docs 272 篇、release-policy 与 branch-invariants 44 passed
+
+## 23:34:29 +08:00 · 提交 · #192 · 提交 7b392e01ed8f：merge-base 不通过时打印原因
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：7b392e01ed8f docs(release): 发版前核对的提交不在 origin/stage 上时打印原因（Refs #192），只改 RELEASES.md 第 34 行
+- 结果：提交前检查见上一条返工记录；改了 notes/ 以外的文件，请第五轮审查人复核这一行
