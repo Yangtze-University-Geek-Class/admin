@@ -31,3 +31,16 @@
 - 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：docs(notes): 记录 #190 本机浏览器核对；node scripts/note.mjs check
 - 结果：执行记录检查通过
+
+## 22:57:06 +08:00 · 返工 · #190 · 按独立审查 R190-1、R190-6 改 API.md 的 join 400 与测试引用
+
+- 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：R190-1：API.md 端点清单 POST /api/join/:token 的 400 拆成两种：Schema 校验（routes/portal/contracts.ts，在找链接之前）回 validation_error + Ajv 英文 message + request_id；路由自己判断的（蜜罐、PoW、用户名和邮箱都没填、格式不对、Turnstile、已知失败）回 { error: <中文句子> }。R190-6：state 说明里的「测试「关注列表对所有人公开」」改成 tests/server/forum.test.ts 的 toggles follows, refuses self-follows and notifies once 用例。临时探针 zz_probe_190r.test.ts（buildApp + inject，每次换来源 IP 避开限流，未入库，跑完已移到 /private/tmp/geek-evidence/190/rework/）
+- 结果：探针 17 条：未知字段、github_login 40、email 255、note 281、pow 缺 nonce、nonce 33、timestamp 是字符串、github_login 是数字、website 201、链接不存在时带未知字段都回 400 validation_error 带 request_id；都没填、用户名格式、邮箱格式、蜜罐、缺 PoW 回 400 中文句子，没有 request_id；链接不存在 404；同一 IP 第 6 次 429 request_error。文档核对：docs/services/server/ 不用改——本轮只改 docs/architecture/API.md 与执行记录，app/server 没动
+- 下一步：pnpm check 后提交；R190-2、R190-3、R190-7、R190-8 要发到 GitHub 的记录与 issue 草稿交主控
+
+## 22:57:45 +08:00 · 提交 · #190 · 提交 join 400 两种形状与测试引用的返工
+
+- 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：docs(docs): API 手册写清 join 的两种 400，改正关注列表的测试引用；pnpm check；npx vitest run tests/server/invitations.test.ts tests/server/forum.test.ts
+- 结果：pnpm check exit 0（文档同步通过：6 组模块与文档，按 PR 核对（对 origin/stage）；执行记录通过：45 条链路；docs/INDEX.md 是最新的）；2 个测试文件 70 passed
