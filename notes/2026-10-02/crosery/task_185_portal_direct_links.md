@@ -35,3 +35,10 @@
 - 做了什么：feat(portal)：YugcOs open() 在当前标签页去论坛、控制台前先 navigate('.', { replace: true, state: RESUME_DESKTOP })，Home 重新加载时读到就直接进桌面；往返缓存恢复（pageshow persisted）时清掉 state，之后刷新照常从书桌开始；GitHub 组织开新标签页不记；portal-os-entries 加一条；portal.md 补「从论坛后退直接回到桌面」与「实测」
 - 结果：新测试改前失败（state 为 null）。改后 Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 26/26 通过；ego-browser 本机预检：注入 unload 监听让首页进不了往返缓存（Page.backForwardCacheNotUsed：UnloadHandlerExistsInMainFrame），从论坛后退重新请求 /，250ms 时 .pt-home data-state=desktop；走往返缓存时回到桌面、history.state.usr 已清，刷新后 data-state=idle（从书桌开始）
 - 下一步：返工审查 S4（新标签页的读屏提示）
+
+## 22:37:26 +08:00 · 返工 · #185 · 审查 S4：新标签页打开的 GitHub 组织给读屏补一句
+
+- 执行者：agent-claude-geek-main-subagent-185（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：feat(portal)：osApps 加 NEW_TAB_NOTE「（新标签页打开）」与 opensNewTab；Dock 的 aria-label、桌面图标、菜单栏「前往」、⌘K 结果、便签按钮里给 GitHub 组织补这句（.pt-sr 视觉隐藏）；portal-os-entries 改 GitHub 组织的读屏名称并加一条，portal-os 加 opensNewTab 断言；portal.md 补「读屏提示」
+- 结果：Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 27/27 通过；ego-browser 本机预检 1440×900：Dock aria-label 为「GitHub 组织（新标签页打开）」，桌面、「前往」菜单、⌘K 搜 github 的截图与 bbf9505 的截图逐像素比只差时钟与选中状态，补的文字界面上看不到
+- 下一步：返工审查 S2、S3（测试写法）

@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
 import { RESUME_DESKTOP, links } from "../../lib/links";
-import { appById, appByKey, appLink, filterCommands, followAppLink, launcherCommands, moveSelection, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
+import { NEW_TAB_NOTE, appById, appByKey, appLink, filterCommands, followAppLink, launcherCommands, moveSelection, opensNewTab, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
@@ -270,9 +270,9 @@ export default function YugcOs({ active, onBack }: Props) {
     window.setTimeout(() => root.current?.querySelector<HTMLElement>('[data-cta="promo"]')?.focus({ preventScroll: true }), 0);
   };
 
-  const MENUS: Record<MenuName, Array<{ label: string; run: () => void; key?: string } | null>> = {
+  const MENUS: Record<MenuName, Array<{ label: string; run: () => void; key?: string; note?: string } | null>> = {
     system: [{ label: "关于极客班", run: () => open("about") }, { label: "组织架构", run: () => open("org") }, null, { label: "回到书桌", run: onBack, key: "Esc" }],
-    go: apps.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key })),
+    go: apps.map((app) => ({ label: app.name, run: () => open(app.id), key: app.key, note: opensNewTab(app) ? NEW_TAB_NOTE : undefined })),
     window: [
       { label: "更换壁纸…", run: () => setPicker(true) },
       { label: "全部最小化", run: () => setWins((current) => current.map((w) => ({ ...w, minimized: true }))) },
@@ -353,6 +353,7 @@ export default function YugcOs({ active, onBack }: Props) {
                   }}
                 >
                   {item.label}
+                  {item.note && <span className="pt-sr">{item.note}</span>}
                   {item.key && <kbd>{item.key}</kbd>}
                 </button>
               ) : (
@@ -399,7 +400,7 @@ export default function YugcOs({ active, onBack }: Props) {
               key={app.id}
               type="button"
               className={["pt-dk", app.key ? "" : "is-extra", wins.some((w) => w.id === app.id) ? "is-running" : ""].filter(Boolean).join(" ")}
-              aria-label={app.name}
+              aria-label={opensNewTab(app) ? app.name + NEW_TAB_NOTE : app.name}
               onClick={(e) => open(app.id, e.currentTarget)}
             >
               <AppGlyph app={app} size={20} />
@@ -472,20 +473,26 @@ export default function YugcOs({ active, onBack }: Props) {
                 />
               </label>
               <ul id="pt-ln-list" role="listbox" aria-label="结果">
-                {shown.map((command, index) => (
-                  <li
-                    key={command.id}
-                    id={`pt-ln-${command.id}`}
-                    role="option"
-                    aria-selected={index === selected}
-                    onPointerEnter={() => setSelected(index)}
-                    onClick={() => runCommand(command.id)}
-                  >
-                    <Icon name={command.icon} size={17} />
-                    <b>{command.label}</b>
-                    <span>{command.hint}</span>
-                  </li>
-                ))}
+                {shown.map((command, index) => {
+                  const app = command.id.startsWith("app:") ? appById(command.id.slice(4) as AppId) : undefined;
+                  return (
+                    <li
+                      key={command.id}
+                      id={`pt-ln-${command.id}`}
+                      role="option"
+                      aria-selected={index === selected}
+                      onPointerEnter={() => setSelected(index)}
+                      onClick={() => runCommand(command.id)}
+                    >
+                      <Icon name={command.icon} size={17} />
+                      <b>
+                        {command.label}
+                        {app && opensNewTab(app) && <span className="pt-sr">{NEW_TAB_NOTE}</span>}
+                      </b>
+                      <span>{command.hint}</span>
+                    </li>
+                  );
+                })}
                 {shown.length === 0 && <li className="pt-empty">没找到「{query.trim()}」。试试「论坛」或「加入」</li>}
               </ul>
               <footer>

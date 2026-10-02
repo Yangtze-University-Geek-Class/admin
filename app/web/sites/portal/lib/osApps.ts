@@ -91,6 +91,16 @@ export function followAppLink(link: AppLink, win: Pick<Window, "open" | "locatio
   else win.location.assign(link.href);
 }
 
+/**
+ * 点下去在新标签页打开的应用（GitHub 组织）给读屏补的一句：焦点会直接跑到新标签页，先说一声。
+ * 只放进视觉上隐藏的 .pt-sr 或 aria-label，界面上看不到（Dock、桌面图标、菜单栏「前往」、⌘K、便签都加）。
+ */
+export const NEW_TAB_NOTE = "（新标签页打开）";
+
+export function opensNewTab(app: OsApp): boolean {
+  return appLink(app)?.newTab === true;
+}
+
 /** 按 id 取应用的站外地址；不是站外应用时抛错（只给写死 id 的调用方用，例如「加入我们」回执页的「去论坛看看」） */
 export function appLinkById(id: AppId): AppLink {
   const app = appById(id);

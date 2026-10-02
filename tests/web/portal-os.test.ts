@@ -5,7 +5,7 @@ import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
 import { ORG_ICONS } from "../../app/web/sites/portal/lib/org";
 import { parseMe } from "../../app/web/sites/portal/lib/account";
 import { links } from "../../app/web/sites/portal/lib/links";
-import { OS_APPS, agoLabel, appById, appByKey, appLink, appLinkById, filterCommands, followAppLink, launcherCommands, moveSelection, runTerminal, visibleApps } from "../../app/web/sites/portal/lib/osApps";
+import { NEW_TAB_NOTE, OS_APPS, agoLabel, appById, appByKey, appLink, appLinkById, filterCommands, followAppLink, launcherCommands, moveSelection, opensNewTab, runTerminal, visibleApps } from "../../app/web/sites/portal/lib/osApps";
 
 const PORTAL = new URL("../../app/web/sites/portal/", import.meta.url).pathname;
 
@@ -77,6 +77,9 @@ describe("YUGC OS 应用与启动器", () => {
     for (const id of ["join", "promo", "about", "org", "terminal", "wallpaper", "feedback"]) expect(appLink(appById(id)!), id).toBeNull();
     expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
     expect(() => appLinkById("join")).toThrow();
+    // 只有在新标签页打开的应用给读屏补「（新标签页打开）」
+    expect(OS_APPS.filter(opensNewTab).map((app) => app.id)).toEqual(["github"]);
+    expect(NEW_TAB_NOTE).toBe("（新标签页打开）");
   });
 
   it("打开站外应用：新标签页用 noopener、不带 referrer；当前标签页整页跳转，两者不混用", () => {

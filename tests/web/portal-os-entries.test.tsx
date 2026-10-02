@@ -75,7 +75,7 @@ it("Dock、桌面图标、便签：论坛当前标签页直达论坛首页，Git
   const { container, where } = renderDesktop();
   fireEvent.click(dock().getByRole("button", { name: "论坛" }));
   expect(followed.calls).toEqual([FORUM]);
-  fireEvent.click(dock().getByRole("button", { name: "GitHub 组织" }));
+  fireEvent.click(dock().getByRole("button", { name: "GitHub 组织（新标签页打开）" }));
   expect(followed.calls).toEqual([FORUM, GITHUB]);
 
   // 桌面图标：鼠标单击只选中，双击打开
@@ -104,7 +104,7 @@ it("2、3 键与菜单栏「前往」同样直达", () => {
   fireEvent.click(screen.getByRole("button", { name: "前往" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "论坛 2" }));
   fireEvent.click(screen.getByRole("button", { name: "前往" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "GitHub 组织 3" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: /^GitHub 组织\s*（新标签页打开）\s*3$/ }));
   expect(followed.calls.slice(2)).toEqual([FORUM, GITHUB]);
   expect(where()).toBe("/");
 });
@@ -207,4 +207,28 @@ it("当前标签页去论坛前，在这条历史记录上记下「回来直接�
     window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   });
   expect(state()).toBeNull();
+});
+
+it("会在新标签页打开的 GitHub 组织，给读屏补一句「新标签页打开」，界面上不显示；论坛不加（审查 S4）", () => {
+  renderDesktop();
+  dock().getByRole("button", { name: "GitHub 组织（新标签页打开）" });
+  dock().getByRole("button", { name: "论坛" });
+  const icons = within(screen.getByRole("list", { name: "桌面上的应用" }));
+  icons.getByRole("button", { name: /^GitHub 组织\s*（新标签页打开）$/ });
+  icons.getByRole("button", { name: "论坛" });
+  screen.getByRole("button", { name: /^3\s*去「GitHub 组织」看我们的代码.*（新标签页打开）$/ });
+
+  fireEvent.click(screen.getByRole("button", { name: "前往" }));
+  screen.getByRole("menuitem", { name: /^GitHub 组织\s*（新标签页打开）\s*3$/ });
+  screen.getByRole("menuitem", { name: /^论坛\s*2$/ });
+  fireEvent.keyDown(document.body, { key: "Escape" });
+
+  fireEvent.click(screen.getByRole("button", { name: /搜索/ }));
+  fireEvent.change(screen.getByRole("combobox"), { target: { value: "github" } });
+  screen.getByRole("option", { name: /^GitHub 组织\s*（新标签页打开）/ });
+
+  // 补的这句只给读屏：Dock 写在 aria-label 里，其余放在视觉上隐藏的 .pt-sr 里（这时开着的是桌面图标、便签、启动器结果三处）
+  const notes = [...document.querySelectorAll(".pt-sr")].filter((node) => node.textContent?.includes("新标签页"));
+  expect(notes).toHaveLength(3);
+  for (const node of notes) expect(node.textContent).toBe("（新标签页打开）");
 });
