@@ -66,3 +66,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 F6（建议）：只读框沿用 .pt-input 的底色和悬停，看起来和可编辑框一样；说明「这里改不了」没有用 aria-describedby 关联。改法：styles/pages.css 加 .pt-input[readonly]（浅灰底 rgb(27 33 64 / 5%)、文字 --pt-ink-soft、悬停不变色、默认指针；聚焦环保留，键盘焦点照样看得见）；Feedback.tsx 给说明加 id=fb-org-hint、输入框加 aria-describedby；jsdom 用例断言关联；portal.md 的 /feedback 一行同步。--pt-ink-soft 在新底色上的对比度按 WCAG 公式算约 5.4:1
 - 结果：vitest run tests/web/portal-feedback-org.test.tsx：Tests 3 passed (3)；浏览器外观在最后一个代码提交构建后拍图核对
+
+## 20:29:23 +08:00 · 返工 · #129 · 聚焦中的只读框被悬停时保留钴蓝边框
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：浏览器核对 ee94850 的构建时发现：.pt-input[readonly]:hover（特异性 0,3,0）压过 .pt-input:focus（0,2,0），键盘聚焦后鼠标又停在框上时边框变回灰色，只剩焦点环。改成 .pt-input[readonly]:hover:not(:focus)
+- 结果：ego 浏览器 1440×900，本机隔离服务 127.0.0.1:5430：改前 {focus:true, hover:true, border:rgba(27,33,64,0.14)}；重新 pnpm --filter @yzgc/web build 后 {focus:true, hover:true, border:rgb(51,70,200)}，焦点环 rgba(51,70,200,0.12) 0 0 0 4px 两次都在

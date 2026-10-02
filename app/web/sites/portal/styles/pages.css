@@ -54,7 +54,7 @@
 .pt-input::placeholder { color: var(--pt-ink-mute); }
 /* 只读框（意见箱的组织名）：浅灰底、文字转淡、悬停不变色，看得出改不了；聚焦环照旧，键盘用户看得到焦点在哪 */
 .pt-input[readonly] { background: rgb(27 33 64 / 5%); color: var(--pt-ink-soft); cursor: default; }
-.pt-input[readonly]:hover { border-color: rgb(27 33 64 / 14%); }
+.pt-input[readonly]:hover:not(:focus) { border-color: rgb(27 33 64 / 14%); }
 
 /* 单选胶囊（ChoiceChips）：原生 radio 藏起来但留在无障碍树里，方向键切换、Tab 只停一次 */
 .pt-choices { display: flex; flex-wrap: wrap; gap: 8px; }
