@@ -72,3 +72,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：浏览器核对 ee94850 的构建时发现：.pt-input[readonly]:hover（特异性 0,3,0）压过 .pt-input:focus（0,2,0），键盘聚焦后鼠标又停在框上时边框变回灰色，只剩焦点环。改成 .pt-input[readonly]:hover:not(:focus)
 - 结果：ego 浏览器 1440×900，本机隔离服务 127.0.0.1:5430：改前 {focus:true, hover:true, border:rgba(27,33,64,0.14)}；重新 pnpm --filter @yzgc/web build 后 {focus:true, hover:true, border:rgb(51,70,200)}，焦点环 rgba(51,70,200,0.12) 0 0 0 4px 两次都在
+
+## 20:36:35 +08:00 · 开发 · #129 · 最后一个代码提交 7b4c083 的构建在本机真实后端上走浏览器验收（审查 F2）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F2：原证据只有两张接口用桩的桌面图，没有手机图和真实后端。本机起隔离服务（/private/tmp 下的验收脚本，不入库：真实 buildApp 与路由、临时 SQLite 文件、POW_DIFFICULTY=1、假 GitHub 只认 alice 为组织 owner、发信与外部请求一律拒绝，静态托管该树的 web/console 构建产物；端口 5430 改后、5431 改前 stage 458999f、5432 改后且 CONSOLE_ORG=Some-Other-Org）。ego 浏览器（1440×900 与 390×844 DPR3 触屏）走：改前小写组织名与别的组织都提交成功、控制台一条也看不到；用 stage 构建往同一个库写两条旧数据后换 7b4c083 构建启动，小写那条被归一、别的组织那条留在库里不公开；改后桌面与手机各提交一条，成功提示与「最近的意见」都出现；/feedback/some-random-org 仍发本站组织；控制台意见箱看到三条；Tab 从导航第 6 下停在只读组织框，无障碍树 textbox「发往的 GitHub 组织」readonly、描述为说明文字；部署换组织时页面照服务端下发的 Some-Other-Org 展示并提交成功。docs/assets/feedback-org 的截图换成这次构建的改前改后桌面与手机各一（原 after-desktop 已与返工后的样式对不上）
+- 结果：截图 12 张与接口输出在 /private/tmp/geek-evidence/129/（主控上传到 PR）；接口：POST org=some-random-org → 400 意见箱只接收「Yangtze-University-Geek-Class」组织的意见，小写 → 200 且存成规范写法，GET public 别的组织 → {items:[]}，重复 org → 400 validation_error，40 字 org → 400；启动后库里 org 为 Yangtze-University-Geek-Class 与 some-random-org。同一 HEAD：fnm exec --using=22.23.2 corepack pnpm check 退出 0；vitest run tests/server tests/web：Test Files 30 passed，Tests 388 passed (388)。不是预发布验收，prev 环境未验证
