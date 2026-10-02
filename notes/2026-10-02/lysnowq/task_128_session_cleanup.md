@@ -63,3 +63,21 @@
 - 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：补记（审查 R4：这三个提交当时只记了「返工」「开发」，缺「提交」；只追加，不改原记录）。17a1da4fb181 fix(auth): 删掉的会话在库文件、WAL 和在线备份里不留密文（lib/db.ts、lib/auth.ts、tests/server/session-cleanup.test.ts、SECURITY.md、data-model.md、server README、notes，7 files +141/-16）；0b1c51a6a856 fix(tooling): 本机预览也定时清过期会话（scripts/local-preview.mjs、app.ts 与 auth.ts 注释、LOCAL-PREVIEW.md、server README、notes，6 files +14/-5）；367af63ef21d docs(notes): 记录 #128 本机浏览器验收与 F3 的补充说明（notes 1 file +12）
 - 结果：17a1da4 提交前：pnpm exec vitest run tests/server/session-cleanup.test.ts 8 passed，变异核对 5 项都被抓到，pnpm exec vitest run tests/server 11 files / 248 passed，pnpm check exit 0；0b1c51a 提交前：node --check scripts/local-preview.mjs 通过，docs-index --check 最新，check-docs 272 documents passed，check-doc-sync 6 组通过，tsc -p app/server/tsconfig.json --noEmit exit 0，提交后在它上面 pnpm check exit 0、tests/server 248 passed、pnpm build exit 0；367af63 提交前：node scripts/note.mjs check 通过（44 条链路），note.mjs check --pr --base origin/stage --head task/128/session_cleanup 通过
+
+## 22:13:39 +08:00 · 返工 · #128 · 按第二轮独立审查（审 367af63ef21d）R1–R4 返工：SECURITY 改准 -wal 的说法并写明保证只到文件为止
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：R3：docs/architecture/SECURITY.md「删掉的会话在库文件里也不留字节」把「data.db 和 -wal 里还带着旧内容的页就被覆盖了」改成「data.db 里的旧页被检查点覆盖，-wal 截成 0 字节」（TRUNCATE 是截断，交还给文件系统的块不写 0）；「还剩的」加一句：保证只到 data.db、-wal、在线备份这几个文件为止，文件系统释放的块、卷或磁盘的块级快照和裸盘镜像不在范围内。R4：上一条「提交」已补记 17a1da4、0b1c51a、367af63（提交 74faf54）；PR 正文草稿「变更范围」notes 一行改成按实际条数写。R1：后续 VACUUM 的 issue 要主控开（子代理不做外发），PR 正文草稿「关联」加 Refs 占位，另写好 issue 正文草稿交主控；SECURITY.md 的「另开 issue」暂不填号（审查说本 PR 不强求）。R2：推送、上传证据图、贴审查结论、记「推送」「PR」「审查」都由主控做，本条不记。代码没改：lib/auth.ts:75 与 lib/db.ts:12 的注释同样写着 -wal 里的旧页「被覆盖」，改它就是新的代码提交、证据要全部重拍，没改，交主控定
+- 结果：pnpm exec vitest run tests/server/session-cleanup.test.ts：8 passed（用例本来就断言截断后 -wal 为 0 字节，和新说法一致）；pnpm check exit 0（Boundaries 202 files / 1153 imports；docs/INDEX.md 是最新的；272 documents passed；文档同步通过 6 组；执行记录通过 44 条链路；密钥门禁 746 个文件；typecheck 通过）。最后一个改代码的提交仍是 0b1c51a6a856，证据 1–12 取自它的构建，本次只改文档，不重拍
+
+## 22:13:49 +08:00 · 提交 · #128 · SECURITY 的 -wal 说法与保证范围一起提交
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：docs(security): 写准删掉的会话清到哪一层：-wal 是截断，保证只到文件为止（docs/architecture/SECURITY.md 2 行改动，加上本条和上一条「返工」记录）；父提交 74faf54
+- 结果：提交前 pnpm check exit 0、tests/server/session-cleanup.test.ts 8 passed（见上一条）；node scripts/note.mjs check --pr --base origin/stage --head task/128/session_cleanup 通过。本提交的 SHA 写不进它自己，见 git log
+
+## 22:14:43 +08:00 · 提交 · #128 · 更正上一条「提交」的提交说明：scope 改成 docs
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：上一条「提交」写的提交说明 docs(security): … 用了不在 COMMITS 词表里的 scope security；这个提交还没推送，用 git commit --amend 把提交说明改成 docs(docs): 写准删掉的会话清到哪一层，-wal 是截断，保证只到文件为止，改动内容不变，并把本条一起放进这个提交；上一条记录不改
+- 结果：提交说明以 git log 为准；note.mjs check --pr --base origin/stage --head task/128/session_cleanup 在 amend 后重跑
