@@ -13,3 +13,9 @@
 - 执行者：agent-omp-issue-128（OMP，代表 LYsnowQ）
 - 做了什么：fix(auth): 定时主动清理过期会话，不再长期留存加密令牌（app/server/src/{app,index,services,lib/auth}.ts、tests/server/session-cleanup.test.ts、docs/services/server/README.md、docs/services/server/data-model.md、docs/architecture/SECURITY.md）
 - 结果：commit 5df3f49，10 files changed/219 insertions/15 deletions；本次提交前 corepack pnpm check 与 corepack pnpm exec vitest run tests/server（245 passed）都通过
+
+## 16:44:00 +08:00 · 开发 · #128 · 去掉会话清理用例里未使用的 HOUR/DAY 常量
+
+- 执行者：agent-omp-issue-128（OMP，代表 LYsnowQ）
+- 做了什么：tests/server/session-cleanup.test.ts：删掉没有引用的两个常量，计时只用导出的 SESSION_CLEANUP_INTERVAL_MS 与 SESSION_TTL_MS
+- 结果：corepack pnpm exec vitest run tests/server/session-cleanup.test.ts：5 passed

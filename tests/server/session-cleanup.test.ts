@@ -11,9 +11,6 @@ import { testApp, testConfig } from './helpers';
  * 时钟通过 ServiceOverrides.clock 注入（写法同 tests/server/mail-outbox.test.ts），用例不依赖真实时间。
  */
 
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-
 /** 可以拨的时钟 */
 function clock(start = Date.UTC(2026, 8, 28, 3, 0)) {
   let now = start;
