@@ -2,13 +2,13 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-02 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
-- 2026-09-23 控制台只新增了 `departments`、`role_assignments`、`application_reviews` 三张表和 `idx_applications_status_created` 等索引，没有 `ALTER` 任何已有表。2026-09-25（#56）再新增 `titles` 与 `console_seeds` 两张表，同样不改已有表。2026-09-26（#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）新增论坛的 12 张 `forum_*` 表，也不改已有表。2026-09-27（#148）新增发信队列 `mail_outbox`，同样不改已有表的结构；同时每次启动执行一次 `UPDATE applications SET status = 'received' WHERE status = 'reviewing'`，把停在已取消的「评估中」的投递改回「已收到」（没有这样的行时什么也不改，`application_reviews` 里的 `reviewing` 是历史，不动）。
+- 2026-09-23 控制台只新增了 `departments`、`role_assignments`、`application_reviews` 三张表和 `idx_applications_status_created` 等索引，没有 `ALTER` 任何已有表。2026-09-25（#56）再新增 `titles` 与 `console_seeds` 两张表，同样不改已有表。2026-09-26（#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）新增论坛的 12 张 `forum_*` 表，也不改已有表。2026-09-27（#148）新增发信队列 `mail_outbox`，同样不改已有表的结构；同时每次启动执行一次 `UPDATE applications SET status = 'received' WHERE status = 'reviewing'`，把停在已取消的「评估中」的投递改回「已收到」（没有这样的行时什么也不改，`application_reviews` 里的 `reviewing` 是历史，不动）。2026-10-02（#129）不改表结构，每次启动把 `feedback.org` 只与 `CONSOLE_ORG` 大小写不同的历史行改成配置里的写法（`lib/feedback-store.ts` 的 `normalizeOrgSpelling`，别的组织不动，可重复执行）。
 - 存储是 SQLite（better-sqlite3，WAL，`foreign_keys = ON`）。`DB_PATH` 指向命名卷里的文件，容器内为 `/data/data.db`；Postgres 迁移没有做。
-- `createDatabase` 在启动时执行 `CREATE TABLE/INDEX IF NOT EXISTS`。没有迁移框架，也没有 schema 版本记录：修改 `CREATE` 语句不会改动已有库的结构。唯一改数据的一步是上面那条 `reviewing → received`，可以重复执行。
+- `createDatabase` 在启动时执行 `CREATE TABLE/INDEX IF NOT EXISTS`。没有迁移框架，也没有 schema 版本记录：修改 `CREATE` 语句不会改动已有库的结构。改数据的两步是上面那条 `reviewing → received` 与 `feedback.org` 的大小写归一，都不改表结构、都可以重复执行。
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
 - 本文只记录表级事实和关键字段名，列类型与约束以 `db.ts` 为准。改表时同步修改本文。
 
@@ -20,7 +20,7 @@
 | `invite_links` | 邀请链接（能力令牌） | admin `invite-links.ts`（创建、禁用、删除）；`lib/invite-reservation.ts`（预留和补偿 `current_uses`） | portal `join.ts`；admin `invite-links.ts`、`overview.ts` | `created_by_token_encrypted`（发起人加密 token） |
 | `invite_attempts` | 按「链接 + 标准化收件人」记录的邀请尝试，状态为 `reserved` / `sent` / `failed` / `unknown` | `lib/invite-reservation.ts`；portal `join.ts`（标记 `sent`） | `lib/invite-reservation.ts`（重试时复用结果） | `UNIQUE(token, recipient)` |
 | `invitations` | 邀请发送记录 | portal `join.ts` | admin `invitations.ts`、`overview.ts` | 收件人 GitHub 用户名或邮箱、`source_ip`、`user_agent` |
-| `feedback` | 意见反馈 | portal `POST /api/feedback`；admin `feedback.ts`（处理、回复、删除） | admin `feedback.ts`；portal `GET /api/feedback/public`（匿名可读） | `contact`、`source_ip`、`user_agent`。匿名接口只返回 `id`、`category`、`content`（截到前 280 字）、`status`、`reply`、`votes`、`created_at`、`replied_at`，见 [API](../../architecture/API.md) |
+| `feedback` | 意见反馈 | portal `POST /api/feedback`；admin `feedback.ts`（处理、回复、删除） | admin `feedback.ts`；portal `GET /api/feedback/public`（匿名可读） | `contact`、`source_ip`、`user_agent`。`org` 只存本部署 `CONSOLE_ORG` 的写法（#129，大小写不同的历史行启动时归一）；匿名接口只返回 `id`、`category`、`content`（截到前 280 字）、`status`、`reply`、`votes`、`created_at`、`replied_at`，见 [API](../../architecture/API.md) |
 | `applications` | 加入我们投递 | portal `POST /api/portal/apply`；控制台 `PATCH /api/console/applications/:application_id`（只改 `status`）；启动时把 `reviewing` 改回 `received` | 控制台 `GET /api/console/applications*`（需 `applications.read`；导出需 `applications.export`）；`lib/mail/mailer.ts` 拼招新的信（姓名、班级、邮箱、特长、投递时间、编号） | `name`、`class_name`、`email`、`strengths`、`source_ip`、`user_agent`，全部属于候选人个人信息；控制台不下发 `source_ip` 与 `user_agent`。`status` 取值 `received`（默认，已收到）/ `interview`（待面试）/ `accepted`（已录取）/ `rejected`（未通过）；`reviewing`（评估中）2026-09-27 取消，控制台写不进去（400 `invalid_status`） |
 | `application_reviews` | 投递审核历史（追加式，避免 `ALTER TABLE applications`） | 控制台 `PATCH /api/console/applications/:application_id`，与状态更新、那次的信（`mail_outbox`）同一事务 | 控制台投递列表（`last_review`）与详情（`reviews`，每条带那次的信的结果） | `note` ≤2000 字，属于候选人相关信息，不写进审计，也不进信里；外键 `ON DELETE CASCADE`。2026-09-27 以前的行里 `from_status` / `to_status` 可能是 `reviewing`，原样保留 |
 | `departments` | 部门与两份权限包（队长 / 舰员） | `lib/role-store.ts`：第一次启动写入 4 个默认部门（`console_seeds` 标记之后不再写）；控制台 `POST/PATCH/DELETE /api/console/departments` | `lib/access.ts`（计算能力）；控制台 `GET /api/console/departments` | 无个人信息。`head_capabilities` / `member_capabilities` 是 JSON 数组，只含可下放的能力；`archived=1` 的部门不再授予称号 |

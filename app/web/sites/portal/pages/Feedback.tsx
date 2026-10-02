@@ -3,7 +3,6 @@
 // 分类只有几项，用单选按钮组（../components/ChoiceChips.tsx）而不是原生下拉框。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
 import { api, fmtRelative } from "@shared/lib/api";
 import { appConfig } from "@shared/config";
 import { computePow, powProof } from "@shared/lib/pow";
@@ -11,14 +10,14 @@ import ChoiceChips from "../components/ChoiceChips";
 import Icon from "../components/Icon";
 import PageShell, { WindowCard } from "../components/PageShell";
 
-export default function Feedback() {
-  const { org: orgParam } = useParams();
-  const [search] = useSearchParams();
-  // 没有指定组织时默认本组织（GitHub 组织地址的最后一段），「最近的反馈」一打开就有内容
-  const defaultOrg = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
-  const initialOrg = orgParam ?? search.get("org") ?? defaultOrg;
+/** 本站组织名（GitHub 组织地址的最后一段）：意见箱只发这里，页面只展示，提交者改不了（#129）。 */
+const SITE_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
-  const [form, setForm] = useState({ org: initialOrg, category: "建议", content: "", contact: "", website: "" });
+/** `GET /api/feedback/public` 下发的字段（正文已截到前 280 字）。 */
+type PublicFeedback = { id: number; category: string | null; content: string; status: string; reply: string | null; created_at: number };
+
+export default function Feedback() {
+  const [form, setForm] = useState({ category: "建议", content: "", contact: "", website: "" });
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
@@ -26,7 +25,7 @@ export default function Feedback() {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesFailed, setCategoriesFailed] = useState(false);
   const [powDiff, setPowDiff] = useState(3);
-  const [recent, setRecent] = useState<any[]>([]);
+  const [recent, setRecent] = useState<PublicFeedback[]>([]);
   const [recentFailed, setRecentFailed] = useState(false);
   const [siteKey, setSiteKey] = useState<string | null>(null);
   const [tsToken, setTsToken] = useState("");
@@ -45,15 +44,14 @@ export default function Feedback() {
   }, []);
 
   useEffect(() => {
-    if (!form.org) return;
     setRecentFailed(false);
-    api<{ items: any[] }>(`/api/feedback/public?org=${encodeURIComponent(form.org)}&limit=10`)
+    api<{ items: PublicFeedback[] }>(`/api/feedback/public?org=${encodeURIComponent(SITE_ORG)}&limit=10`)
       .then((d) => setRecent(d.items))
       .catch(() => {
         setRecent([]);
         setRecentFailed(true);
       });
-  }, [form.org, done]);
+  }, [done]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,12 +59,12 @@ export default function Feedback() {
     setBusy("pow");
     setPowTries(0);
     try {
-      const bodyForHash = `fb:${form.org}:${form.content.trim()}`;
+      const bodyForHash = `fb:${SITE_ORG}:${form.content.trim()}`;
       const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
-        body: JSON.stringify({ ...form, turnstile_token: tsToken, pow: powProof(pow) }),
+        body: JSON.stringify({ ...form, org: SITE_ORG, turnstile_token: tsToken, pow: powProof(pow) }),
       });
       setDone(r.message);
       setForm({ ...form, content: "", contact: "", website: "" });
@@ -105,8 +103,9 @@ export default function Feedback() {
           ) : (
             <form onSubmit={submit} className="pt-form">
               <div className="pt-field">
-                <label htmlFor="fb-org">发给哪个 GitHub 组织</label>
-                <input id="fb-org" className="pt-input is-mono" placeholder="例如 Yangtze-University-Geek-Class" value={form.org} onChange={(e) => setForm({ ...form, org: e.target.value })} required />
+                <label htmlFor="fb-org">发往的 GitHub 组织</label>
+                <input id="fb-org" className="pt-input is-mono" value={SITE_ORG} readOnly aria-readonly="true" />
+                <p className="pt-hint">意见箱只收本组织的意见，这里改不了。</p>
               </div>
 
               <div className="pt-field">
@@ -159,7 +158,7 @@ export default function Feedback() {
               )}
 
               <div className="pt-form-actions">
-                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || form.content.length < 5 || !form.org || (!!siteKey && !tsToken)}>
+                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || form.content.length < 5 || (!!siteKey && !tsToken)}>
                   <Icon name="send-plane-2-line" size={16} />
                   {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在提交…" : "提交意见"}
                 </button>
@@ -180,12 +179,12 @@ export default function Feedback() {
           {recentFailed ? (
             <div className="pt-feed-empty">
               <Icon name="error-warning-line" size={24} />
-              <p>没读到 {form.org} 的公开意见。检查一下组织名，或者稍后刷新。</p>
+              <p>没读到「{SITE_ORG}」的公开意见，稍后刷新试试。</p>
             </div>
           ) : recent.length === 0 ? (
             <div className="pt-feed-empty">
               <Icon name="inbox-line" size={24} />
-              <p>{form.org || "这个组织"} 还没有公开的意见。</p>
+              <p>{SITE_ORG} 还没有公开的意见。</p>
             </div>
           ) : (
             <ul>
