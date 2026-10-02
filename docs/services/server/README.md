@@ -10,7 +10,7 @@
 |---|---|
 | `app/server/src/index.ts` | 唯一启动入口：加载配置、监听端口、处理关闭信号；只有这里打开发信循环（`buildApp({ mailWorker: true })`） |
 | `app/server/src/app.ts` | 组装 portal/admin/console/forum 路由、中间件与插件；直连时托管 `app/web/dist` 与 `app/console/dist` 两份前端产物，`resolveSiteEntry` 按路径把 `/console`、`/admin`、`/signin`（含子路径）回落到控制台入口；**不监听端口**，可注入依赖 |
-| `app/server/src/services.ts` | 每个应用实例拥有自己的 data.db、缓存、身份与外部客户端；建库后读论坛内容并播种（读不出来就关库、启动失败）；按发信配置建 `mail`（配置写错同样启动失败）；提供关闭方法。测试用 `ServiceOverrides.mailFetch`、`clock` 换掉发信商请求和发信队列的时钟 |
+| `app/server/src/services.ts` | 每个应用实例拥有自己的 data.db、缓存、身份与外部客户端；建库后先把意见箱只与 `CONSOLE_ORG` 差大小写的旧组织名归一（#129），再读论坛内容并播种（任何一步失败都先关库、启动失败）；按发信配置建 `mail`（配置写错同样启动失败）；提供关闭方法。测试用 `ServiceOverrides.mailFetch`、`clock` 换掉发信商请求和发信队列的时钟 |
 | `app/server/src/config.ts` | 环境变量解析与校验（端口、唯一对外地址 `PUBLIC_ORIGIN`、`CONSOLE_ORG`、密钥长度、难度参数、发信的 `MAIL_*`，都不设时不发信）；不读取前端配置。`forumContentDir` 固定为 `app/forum/content`（不是环境变量，镜像里是同一个相对位置） |
 | `app/server/src/routes/portal/index.ts` | portal 路由注册入口（docs / feedback / join / apply / public config / org：`GET /api/public/org`，`org.ts`） |
 | `app/server/src/routes/portal/contracts.ts` | portal 请求 Schema（本模块输入协议源） |
@@ -21,7 +21,7 @@
 | `app/server/src/routes/forum-api/index.ts` | 论坛接口注册入口（`/api/forum/*`，#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）：`topics.ts`（state、发帖、置顶、关闭、浏览数）、`posts.ts`（回复、编辑、删除、点赞、收藏）、`people.ts`（关注、通知、账号资料、头像）、`viewer.ts`（成员 / 游客身份与 `forum.*` 能力） |
 | `app/server/src/routes/forum-api/contracts.ts` | 论坛请求 Schema（拒绝未知字段；编号按字符串格式校验）与中文校验提示；写接口回答的形状 `ForumWriteResponse`（`{ changes, viewer, guestPolicy }`，#145） |
 | `app/server/src/middleware/` | `require-auth`（另有 `loadSession`：有有效 `sid` 就挂上会话、没有不回复，给游客也能用的论坛接口）、`require-org-role`、`require-capability`（控制台与论坛按能力授权）、`oauth-state`、`http-policy`、`pow`、`turnstile` |
-| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL，管理端与控制台共用）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`——帖子只带摘要 `excerpt`、话题页按话题取正文的 `topicPosts()`、服务端搜索 `search()`，#156——以及写接口回答里按编号取出的改动记录 `changes()`，#145）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
+| `app/server/src/lib/` | `db`、`auth`、`crypto`、`github`、`cache`、`http-contracts`、`invite-reservation`、`safe-return`；控制台的 `roles`（称号、部门、能力清单与 `computeAccess` 纯函数）、`role-store`（部门与指派持久化）、`access`（GitHub 组织角色缓存 60 秒 + 身份解析）、`feedback-store`（意见箱 SQL、组织名归一，管理端与控制台共用；启动时把 `feedback.org` 只是大小写不同的历史行改成 `CONSOLE_ORG` 的写法，#129）；论坛的 `forum-content`（读、校验两份公开内容文件）、`forum-store`（`forum_*` 表的全部 SQL、编号、通知规则、整份 `ForumState`——帖子只带摘要 `excerpt`、话题页按话题取正文的 `topicPosts()`、服务端搜索 `search()`，#156——以及写接口回答里按编号取出的改动记录 `changes()`，#145）、`forum-rules`（长度、限流、提及、标签 slug 等纯规则）、`forum-avatar`（sharp 重新编码头像）；`password-policy` 是旧论坛遗留的死代码，没有任何导入，待删 |
 | `app/server/src/lib/mail/` | 站内发信（#148）：`envelope`（`renderEnvelope` 纯函数，输出主题、HTML、纯文本和回信地址；转义、链接白名单、回信地址校验、北京时间格式化在这里）、`envelope-pieces`（CDN 上的图片部件清单）、`recruitment`（已收到、待面试、已录取、未通过四封信的内容）、`outbox`（`mail_outbox` 发信队列、发信循环、重试、白名单）、`providers`（阿里云邮件推送与 Resend 两个适配器）、`mailer`（按配置组装，路由用它拼信和放进队列）。见 [mail](mail.md) |
 | `app/server/Dockerfile` | Node 22 多阶段构建，非 root 运行，`/data` 卷，健康检查 `/healthz`；运行阶段另复制论坛的两份公开内容文件 `app/forum/content/curation.json` 与 `published/topics.json` |
 | `app/server/scripts/` | 已退役的占位文件（`test-invite-*.ts`）：运行只打印「改用 `pnpm test`」并以退出码 1 结束，没有可用的手工流程 |
