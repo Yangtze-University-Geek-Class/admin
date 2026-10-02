@@ -84,3 +84,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：旧记录不改，在这里更正。(1) 10-02 16:44:41 与 16:44:54 两条和提交 3a53686 正文写「pnpm check 通过」，但 PR #182 正文写的是作者那台 Windows 机器上原样执行 corepack pnpm check 会因嵌套 pnpm 解析到全局 11.5.1 失败、改为逐个跑脚本；表里只有 check-boundaries、check-doc-sync、note.mjs check、docs-index --check、check-docs、check-secrets 与三个 tsc，没有 check:runtime、check:site-config、check:environments 和 tuffex-docs check。所以当时本机没有完整跑过 pnpm check，e76dd50 的完整 pnpm check 只由 CI core 作业（run 36986539583）第 7 步「静态检查（pnpm check）」的 success 证明。(2) 提交 8ed08b9 首行写「携带此前暂存的收尾执行记录」，实际只带了 09-26 开工与 09-27 开发两条，没有收尾；已推送的提交说明不改写。(3) 09-26 开工写的基线是 origin/stage 625430426a96，10-02 开发前分支移到了 origin/stage 458999f（8ed08b9 的父提交就是 458999f），链路里没记。git merge-base --is-ancestor 确认 625430426a96 与 09-27 记录提到的 c8e7648 都是 458999f 的祖先，当时分支上没有自己的提交，没有丢提交。另外 PR 正文自审第 11 项说链路里有「阻塞」与「PoW 返工」记录，实际没有这两种阶段，PoW 修复记在 16:48:49 的「提交」里
 - 结果：本轮返工在这台 Mac 上原样执行 fnm exec --using=22.23.2 corepack pnpm check（含 check:runtime、check:site-config、check:environments、check:boundaries、check:docs 与 tuffex-docs check、check:doc-sync、check:notes、check:secrets、typecheck），在 ee94850 与 7b4c083 各跑一次，都退出 0
+
+## 21:32:55 +08:00 · 返工 · #129 · 公开意见列表的合同引用公共 limit 规则（审查 S4）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 S4（建议）：routes/portal/contracts.ts 整份替换公共 querystring 时把 limit 的正则从 lib/http-contracts.ts 抄了一份，公共规则以后改了容易漏改。lib/http-contracts.ts 导出 limitParam，公共 querystring 与 GET /api/feedback/public 的合同都引用它；API.md 公开列表一行改成「合同引用 limitParam，不另写一份」。文档核对：docs/services/server/ 不用改——源码地图里 http-contracts 仍是公共参数验证，没有新增或删除文件，接口行为不变
+- 结果：vitest run tests/server/feedback-org.test.ts tests/server/core.test.ts：Tests 50 passed (50)；把 limitParam 临时改成 ^[0-9]+$ 时 Tests 2 failed | 48 passed（feedback-org 的畸形 org 用例与 core 的 limit 边界用例都失败），恢复后 50 passed；tsc -p app/server/tsconfig.json --noEmit 退出 0（Node 22.23.2）
