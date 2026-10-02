@@ -2,11 +2,13 @@
 
 > 区分保留核心服务的真实安全边界与原仓论坛的浏览器演示；新论坛尚不具备生产安全条件。
 
-状态：`current` · 更新：2026-09-28
+状态：`current` · 更新：2026-10-02
 
 ## 核心服务
 
 保留 portal/admin 的服务端 requireAuth、GitHub active membership 校验及按组织审计；极客班控制台另按能力授权（见下节）。GitHub token 用 AES-256-GCM 加密，密钥解码必须为 32 字节；sid 是服务器会话，不在浏览器状态中产生管理权限。OAuth state 签名并检查十分钟有效期，回跳来源使用允许列表。Cookie 的 HttpOnly/Secure/SameSite 和共享 Domain 均需按真实部署验证，不称为完整 CSRF 或子域隔离。
+
+**会话行的保留时间**：`sid` 有效期 7 天（`app/server/src/lib/auth.ts` 的 `SESSION_TTL_MS`）。过期会话由服务主动删除，不依赖本人再来访问：进程启动时清一次，之后每小时按 `expires_at` 批量 `DELETE`（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，`app.close()` 时停掉）；一趟清理出错只记日志，不抛出、不影响请求（#128）。所以 `sessions` 里的一行最多留 7 天加一个清理间隔（1 小时），数据库备份、迁移包和卷里不会长期带着已过期但仍能解密的高权限 GitHub token。清理和登出都只删本站的会话行，**不**撤销 GitHub 端已经给出的授权（用户不登录也不会自动失去 `admin:org`/`repo` 那几项；在 GitHub 上撤销要另做）。
 
 **登录门槛：只有 `CONSOLE_ORG` 的 active 成员能登录。** 官网、论坛、控制台共用这一个登录和同一个 `sid`。`/auth/callback` 通过签名 state 校验、换到 token、取到 `/user` 之后，用这个 token 调 `GET /user/memberships/orgs/{CONSOLE_ORG}`（`app/server/src/lib/github.ts` 的 `getOwnMembership`，OAuth scope 含 `read:org`），查的是登录者自己的成员状态，不按用户名查别人。结果处理（`app/server/src/routes/admin/auth.ts`）：
 

@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-02 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -10,13 +10,14 @@
 - 存储是 SQLite（better-sqlite3，WAL，`foreign_keys = ON`）。`DB_PATH` 指向命名卷里的文件，容器内为 `/data/data.db`；Postgres 迁移没有做。
 - `createDatabase` 在启动时执行 `CREATE TABLE/INDEX IF NOT EXISTS`。没有迁移框架，也没有 schema 版本记录：修改 `CREATE` 语句不会改动已有库的结构。唯一改数据的一步是上面那条 `reviewing → received`，可以重复执行。
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
+- 会话的有效期是 7 天（`lib/auth.ts` 的 `SESSION_TTL_MS`）；服务进程启动时清一次过期会话，之后每小时清一次（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，关停时清掉），所以 `sessions` 里任何一行最多留 7 天加一个清理间隔；清理失败只记日志，不影响服务。清理只删本站的行，不撤销 GitHub 端的授权（#128）。
 - 本文只记录表级事实和关键字段名，列类型与约束以 `db.ts` 为准。改表时同步修改本文。
 
 ## 表
 
 | 表 | 用途 | 写入方 | 读取方 | 敏感字段与备注 |
 |---|---|---|---|---|
-| `sessions` | 服务器会话（`sid`） | `lib/auth.ts`：登录时创建；登出、读取时发现过期，或 GitHub 以 401 拒绝会话里的令牌时（`middleware/require-auth.ts` 的 `endRejectedSession`，#164）删除 | `lib/auth.ts`：只按 `id` 查询 | `access_token_encrypted`（AES-256-GCM 加密的 GitHub token） |
+| `sessions` | 服务器会话（`sid`，有效期 7 天） | `lib/auth.ts`：登录时创建；登出、读取时发现过期，GitHub 以 401 拒绝会话里的令牌时（`middleware/require-auth.ts` 的 `endRejectedSession`，#164），以及服务进程启动时清一次、之后每小时一次按 `expires_at` 批量删除过期会话（#128）时删除 | `lib/auth.ts`：只按 `id` 查询 | `access_token_encrypted`（AES-256-GCM 加密的 GitHub token）。过期行最多多留一个清理间隔（1 小时）就被删掉，备份、迁移包和卷里不会长期留着这些高权限凭据（#128） |
 | `invite_links` | 邀请链接（能力令牌） | admin `invite-links.ts`（创建、禁用、删除）；`lib/invite-reservation.ts`（预留和补偿 `current_uses`） | portal `join.ts`；admin `invite-links.ts`、`overview.ts` | `created_by_token_encrypted`（发起人加密 token） |
 | `invite_attempts` | 按「链接 + 标准化收件人」记录的邀请尝试，状态为 `reserved` / `sent` / `failed` / `unknown` | `lib/invite-reservation.ts`；portal `join.ts`（标记 `sent`） | `lib/invite-reservation.ts`（重试时复用结果） | `UNIQUE(token, recipient)` |
 | `invitations` | 邀请发送记录 | portal `join.ts` | admin `invitations.ts`、`overview.ts` | 收件人 GitHub 用户名或邮箱、`source_ip`、`user_agent` |

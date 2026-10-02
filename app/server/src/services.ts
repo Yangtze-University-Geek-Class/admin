@@ -16,7 +16,7 @@ import type { FetchLike } from "./lib/mail/providers.js";
 import { createPublicSubmission } from "./middleware/pow.js";
 import { createTurnstile } from "./middleware/turnstile.js";
 
-/** `mailFetch`、`clock`：测试换掉发信商的 HTTP 请求和发信队列的时钟，不连真实的发信商。 */
+/** `mailFetch`、`clock`：测试换掉发信商的 HTTP 请求，以及发信队列与会话清理用的时钟，都不连真实时间。 */
 export type ServiceOverrides = { httpRequest?: typeof request; octokitFactory?: (token: string) => Octokit; mailFetch?: FetchLike; clock?: () => number };
 /** Composition root. Only this module owns dependencies and database lifetimes. */
 export function createServices(config: AppConfig, overrides: ServiceOverrides = {}) {
@@ -25,7 +25,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const github = createGithub(overrides.octokitFactory);
   const cache = createCache();
   const roles = createRoleStore(storage.db);
-  const auth = createAuth(storage.db, crypto, config, overrides.httpRequest);
+  const auth = createAuth(storage.db, crypto, config, overrides.httpRequest, overrides.clock);
   // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
   const forum = (() => {
     try {
@@ -59,7 +59,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     mail,
     publicSubmission: createPublicSubmission(config.powDifficulty),
     turnstile: createTurnstile(config, overrides.httpRequest),
-    close() { void mail.stop(); storage.db.close(); },
+    close() { void mail.stop(); auth.stopCleanup(); storage.db.close(); },
   };
 }
 export type AppServices = ReturnType<typeof createServices>;
