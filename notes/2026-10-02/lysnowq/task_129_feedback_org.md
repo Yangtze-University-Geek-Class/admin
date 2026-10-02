@@ -22,3 +22,17 @@
 - 做了什么：git commit：fix(server): 意见箱 PoW 摘要按提交的组织名计算（718807e）；tests/server/feedback-org.test.ts 增第 5 条（摘要输入绑提交写法，nonce 只对该写法有效）；docs/architecture/API.md 写明摘要输入
 - 结果：718807e；该条用例在把摘要换回规范写法时确实失败（实测 1 failed），修好后 vitest run tests/server 245 passed、tests/web/portal-feedback-org.test.tsx 2 passed
 - 下一步：开 PR 回 stage，等待审查
+
+## 16:52:06 +08:00 · PR · #129 · 开 PR #182 指向 stage，附前后截图与独立复现
+
+- 执行者：agent-omp-issue-129（OMP，代表 LYsnowQ）
+- 做了什么：gh pr create：base=stage、head=task/129/feedback_org；正文九段含解决链路、修复前后对照（stage 源码 7/7 失败 → 修复版 7/7 通过）、整套服务端 245 条、各步 check、真实浏览器只读验证、人工验收步骤与十二项自审；新增 docs/assets/feedback-org/ 两张 webp
+- 结果：PR https://github.com/Yangtze-University-Geek-Class/admin/pull/182
+- 下一步：补「审查」记录并重推，等 PR CI
+
+## 16:52:06 +08:00 · 审查 · #129 · 自审通过：组织名以 CONSOLE_ORG 为准、前端去掉可改入口
+
+- 执行者：agent-omp-issue-129（OMP，代表 LYsnowQ）
+- 做了什么：按 CODE-REVIEW 十二项核对 2289fcb：分支合规、无密钥/环境变量/镜像改动、7 条新用例可区分修复前后、五份文档同步、边界 202文件1152导入、提交规范、无旧模型；危险操作面已核对（无 schema 变更、启动归一事务+幂等、只动大小写变体、公开列表收窄不删历史行）；执行记录连续、未合并不清理；core.test.ts 仅换夹具组织名未删断言
+- 结果：无阻塞与未决应修；结论：通过（PR 正文同名小节）
+- 下一步：等 PR CI；合并后按任务清理流程收尾
