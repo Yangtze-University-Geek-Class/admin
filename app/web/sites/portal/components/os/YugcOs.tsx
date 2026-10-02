@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
-import { links } from "../../lib/links";
+import { RESUME_DESKTOP, links } from "../../lib/links";
 import { appById, appByKey, appLink, filterCommands, followAppLink, launcherCommands, moveSelection, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
@@ -55,6 +55,8 @@ export default function YugcOs({ active, onBack }: Props) {
   const [picker, setPicker] = useState(false);
   const [promo, setPromo] = useState(false);
   const pickerBox = useRef<HTMLDivElement>(null);
+  /** 当前标签页去了论坛或控制台，离开前在历史记录上记了「回来直接进桌面」 */
+  const leftForSite = useRef(false);
   // 打开面板时把焦点放到当前壁纸上；preventScroll：autoFocus 会让浏览器滚动整个桌面去「露出」按钮，桌面整体上移
   useEffect(() => {
     if (picker) pickerBox.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
@@ -146,7 +148,14 @@ export default function YugcOs({ active, onBack }: Props) {
           // 点下去当场打开，不播图标飞行：新标签页放进计时器里可能被当成弹窗拦掉；整页跳走后从论坛后退、
           // 页面从往返缓存恢复时，飞行图标也不会停在屏幕上
           const link = appLink(app);
-          if (link) followAppLink(link);
+          if (!link) return;
+          // 当前标签页整页跳走（论坛、控制台）：先在这条历史记录上记下「回来直接进桌面」。浏览器没用往返缓存时，
+          // 后退会重新加载首页，Home 读到它就跳过加载动画和书桌，和从场景页返回一样；用了往返缓存时由下面的 pageshow 清掉
+          if (!link.newTab) {
+            navigate(".", { replace: true, state: RESUME_DESKTOP });
+            leftForSite.current = true;
+          }
+          followAppLink(link);
           return;
         }
         case "panel":
@@ -159,6 +168,17 @@ export default function YugcOs({ active, onBack }: Props) {
     },
     [launchScene, navigate, openWindow],
   );
+
+  // 去论坛后从往返缓存回来：桌面原样还在，把离开前记下的「回来直接进桌面」清掉，之后刷新照常从书桌开始
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || !leftForSite.current) return;
+      leftForSite.current = false;
+      navigate(".", { replace: true, state: null });
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [navigate]);
 
   const commands = useMemo(() => launcherCommands(apps), [apps]);
   const shown = useMemo(() => filterCommands(commands, query), [commands, query]);

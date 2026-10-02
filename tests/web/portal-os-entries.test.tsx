@@ -22,7 +22,7 @@ vi.mock("../../app/web/sites/portal/lib/wallpapers", async (importOriginal) => (
 }));
 
 import YugcOs from "../../app/web/sites/portal/components/os/YugcOs";
-import { links } from "../../app/web/sites/portal/lib/links";
+import { RESUME_DESKTOP, links, wantsDesktop } from "../../app/web/sites/portal/lib/links";
 
 const FORUM = { href: links.forumHome(), newTab: false };
 const GITHUB = { href: "https://github.com/Yangtze-University-Geek-Class", newTab: true };
@@ -45,7 +45,13 @@ afterEach(() => {
 });
 
 function Where() {
-  return <output data-testid="where">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return (
+    <>
+      <output data-testid="where">{location.pathname}</output>
+      <output data-testid="state">{JSON.stringify(location.state ?? null)}</output>
+    </>
+  );
 }
 
 function renderDesktop() {
@@ -59,7 +65,8 @@ function renderDesktop() {
     </MemoryRouter>,
   );
   const where = () => screen.getByTestId("where").textContent;
-  return { ...view, where };
+  const state = () => JSON.parse(screen.getByTestId("state").textContent ?? "null") as unknown;
+  return { ...view, where, state };
 }
 
 const dock = () => within(screen.getByRole("navigation", { name: "Dock" }));
@@ -178,4 +185,26 @@ it("按住不放的自动重复不算再按一次：按住 3、在图标或 Dock
     expect(fireEvent.keyDown(button, { key: "Enter", repeat: true })).toBe(false);
   }
   expect(followed.calls).toHaveLength(2);
+});
+
+it("当前标签页去论坛前，在这条历史记录上记下「回来直接进桌面」；GitHub 组织开新标签页不记；从往返缓存恢复时清掉（审查 S1）", () => {
+  const { state, where } = renderDesktop();
+  fireEvent.click(dock().getByRole("button", { name: /GitHub 组织/ }));
+  expect(state()).toBeNull();
+  fireEvent.click(dock().getByRole("button", { name: "论坛" }));
+  expect(followed.calls).toEqual([GITHUB, FORUM]);
+  expect(state()).toEqual(RESUME_DESKTOP);
+  expect(where()).toBe("/");
+
+  // 浏览器没用往返缓存时，后退会重新加载首页，Home 用 wantsDesktop 读到这个 state 就直接进桌面（状态机的 resume 见 portal-desk.test.ts）；
+  // 用了往返缓存时桌面原样还在，把 state 清掉，之后刷新照常从书桌开始
+  expect(wantsDesktop(state())).toBe(true);
+  act(() => {
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: false }));
+  });
+  expect(state()).toEqual(RESUME_DESKTOP);
+  act(() => {
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  });
+  expect(state()).toBeNull();
 });

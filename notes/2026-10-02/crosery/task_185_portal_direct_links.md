@@ -28,3 +28,10 @@
 - 做了什么：fix(portal)：YugcOs.tsx 全局按键遇到 event.repeat 直接返回，回车再拦掉默认动作（Dock、便签、菜单按钮不再把每次自动重复变成点击）；Widgets.tsx 桌面图标的回车、空格只认按下去的那一次；tests/web/portal-os-entries.test.tsx 加按住 3、图标与 Dock、便签上重复回车一条；docs/services/web/portal.md「桌面入口直达」补「按住不放只算一次」
 - 结果：改前在 bbf9505 的构建上复核：Dock、便签按住回车（1+4 次）各开 5 个新标签页，审查已测按住 3 开 5 个；新测试改前失败（followAppLink 被调 5 次）。改后 Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 25/25 通过；ego-browser 本机预检按住 3、图标、Dock、便签上按住回车都只开 1 个新标签页
 - 下一步：返工审查 S1（从论坛后退直接回到桌面）
+
+## 22:36:47 +08:00 · 返工 · #185 · 审查 S1：从论坛后退不走往返缓存时也直接回到桌面
+
+- 执行者：agent-claude-geek-main-subagent-185（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：feat(portal)：YugcOs open() 在当前标签页去论坛、控制台前先 navigate('.', { replace: true, state: RESUME_DESKTOP })，Home 重新加载时读到就直接进桌面；往返缓存恢复（pageshow persisted）时清掉 state，之后刷新照常从书桌开始；GitHub 组织开新标签页不记；portal-os-entries 加一条；portal.md 补「从论坛后退直接回到桌面」与「实测」
+- 结果：新测试改前失败（state 为 null）。改后 Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 26/26 通过；ego-browser 本机预检：注入 unload 监听让首页进不了往返缓存（Page.backForwardCacheNotUsed：UnloadHandlerExistsInMainFrame），从论坛后退重新请求 /，250ms 时 .pt-home data-state=desktop；走往返缓存时回到桌面、history.state.usr 已清，刷新后 data-state=idle（从书桌开始）
+- 下一步：返工审查 S4（新标签页的读屏提示）
