@@ -81,3 +81,9 @@
 - 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：上一条「提交」写的提交说明 docs(security): … 用了不在 COMMITS 词表里的 scope security；这个提交还没推送，用 git commit --amend 把提交说明改成 docs(docs): 写准删掉的会话清到哪一层，-wal 是截断，保证只到文件为止，改动内容不变，并把本条一起放进这个提交；上一条记录不改
 - 结果：提交说明以 git log 为准；note.mjs check --pr --base origin/stage --head task/128/session_cleanup 在 amend 后重跑
+
+## 23:02:05 +08:00 · 返工 · #128 · 改准 auth.ts、db.ts 两处注释里 -wal 截断后的说法
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：复查建议 N2：注释写 -wal 旧页截断后「被覆盖」，与 22fb01f 改过的 SECURITY.md 不一致；改成检查点盖掉库文件旧页、-wal 截成 0 字节、交还文件系统的块不写 0。只改注释，不改行为。文档核对：docs/services/server/ 不用改——只改了 auth.ts、db.ts 的注释，行为与接口没变，SECURITY.md 已在 22fb01f 写准
+- 结果：tsc 无输出；vitest tests/server/session-cleanup.test.ts 8 passed；证据图来自 22fb01f 之前的代码提交，注释改动不影响运行

@@ -72,7 +72,8 @@ function destroySession(id: string): boolean {
 /**
  * 清一趟（#128）：删掉所有已过期的会话，再截断 WAL；返回删掉的行数和 WAL 截成没有。登录一次就不再回来的人，
  * 他的会话行和里面加密的高权限 GitHub token 不能一直留在库里；测试直接调这个函数，不用等计时器。
- * secure_delete（lib/db.ts）只让新写的页不带被删的内容，旧页还在 -wal 和库文件里，截断 WAL 之后才被覆盖；
+ * secure_delete（lib/db.ts）只让新写的页不带被删的内容，旧页还在 -wal 和库文件里：截断 WAL 时检查点把新页写回库文件、
+ * 盖掉库文件里的旧页，-wal 截成 0 字节（交还给文件系统的块不写 0，保证只到文件为止，见 docs/architecture/SECURITY.md）；
  * 所以每趟都截，登出、读到过期、GitHub 拒绝令牌（#164）时删掉的会话也一起清掉。
  */
 function cleanupExpiredSessions(): { deleted: number; walTruncated: boolean } {

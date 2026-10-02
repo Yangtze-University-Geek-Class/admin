@@ -9,7 +9,8 @@ const db = new Database(path);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 // 删行、改短字段时把腾出来的空间写成 0（SQLite 默认不写，被删会话里加密的 GitHub token 会留在页的空闲块里，
-// 在线备份照样带走）。只对新写的页生效；库文件和 -wal 里的旧页靠会话清理每趟的 truncateWal 覆盖（lib/auth.ts，#128）。
+// 在线备份照样带走）。只对新写的页生效；库文件里的旧页靠会话清理每趟 truncateWal 的检查点盖掉，-wal 截成 0 字节
+// （lib/auth.ts，#128；交还给文件系统的块不写 0，见 docs/architecture/SECURITY.md）。
 db.pragma("secure_delete = ON");
 
 db.exec(`
