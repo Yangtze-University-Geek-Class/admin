@@ -28,7 +28,13 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const auth = createAuth(storage.db, crypto, config, overrides.httpRequest);
   const feedback = createFeedbackStore(storage.db);
   // 历史数据一次性归一（#129）：把 org 只是大小写不同的旧行改成 CONSOLE_ORG 的写法，重复启动安全。
-  feedback.normalizeOrgSpelling(config.consoleOrg);
+  // 改不动就让启动失败，失败前先关掉刚打开的库，与下面论坛、发信的处理一致。
+  try {
+    feedback.normalizeOrgSpelling(config.consoleOrg);
+  } catch (error) {
+    storage.db.close();
+    throw error;
+  }
   // 论坛内容读不出来就让启动失败，不带着半份论坛上线；失败前先关掉刚打开的库。
   const forum = (() => {
     try {

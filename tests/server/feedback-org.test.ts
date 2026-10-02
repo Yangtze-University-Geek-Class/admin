@@ -2,7 +2,7 @@
 // 别的组织名 400，不落库。控制台只按 CONSOLE_ORG 查，大小写不同的旧数据启动时改成规范写法。
 import { afterEach, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { testApp } from './helpers';
@@ -117,4 +117,21 @@ it('moves older rows written in another case onto the configured spelling when t
   expect(second.app.services.feedback.listFeedback(ORG).items.map(item => item.content)).toEqual(['旧的小写意见']);
   // 别的组织的旧数据不动：不猜它本来想发给谁
   expect(storedOrgs(second.app)).toEqual([ORG, 'some-random-org']);
+});
+
+it('closes the database it just opened when the startup rename fails', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'geek-feedback-org-'));
+  dirs.push(dir);
+  const dbPath = join(dir, 'data.db');
+  const first = await setup({ DB_PATH: dbPath });
+  const db = first.app.services.storage.db;
+  db.prepare("INSERT INTO feedback(org, content, status, created_at, updated_at) VALUES(?, '旧的小写意见', 'open', 1, 1)").run(ORG.toLowerCase());
+  // 让归一那条 UPDATE 失败，模拟启动时改不动库
+  db.exec("CREATE TRIGGER feedback_frozen BEFORE UPDATE ON feedback BEGIN SELECT RAISE(ABORT, 'feedback is frozen'); END");
+  await first.close();
+  contexts.splice(contexts.indexOf(first), 1);
+
+  await expect(setup({ DB_PATH: dbPath })).rejects.toThrow('feedback is frozen');
+  // WAL 模式下最后一个连接正常关闭时会删掉 -wal 文件；没关的连接会把它留着
+  expect(existsSync(`${dbPath}-wal`)).toBe(false);
 });

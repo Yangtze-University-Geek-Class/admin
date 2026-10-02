@@ -54,3 +54,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 F5（建议，stage 上已有）：GET /api/feedback/public 的 org 不在合同里，带两个 org 参数时 req.query.org 是数组，toLowerCase 抛错回 500。本 PR 正好重写这一行，成本只有一条合同，所以顺手做：routes/portal/contracts.ts 加 GET /api/feedback/public 的 querystring 合同（org ≤39 字字符串、limit 照抄公共规则、其它参数照旧放行）；tests/server/feedback-org.test.ts 加 1 条（重复 org、40 字 org 回 400 validation_error，limit=0 仍 400，多带参数照常 200）；API.md:33、SECURITY.md 同步。文档核对：docs/services/server/README.md 不用改——源码地图里 routes/portal/contracts.ts 仍是「portal 请求 Schema」，端点合同细节在 API.md
 - 结果：不加合同时新用例失败：expected 500 to be 400；加上后 vitest run tests/server/feedback-org.test.ts tests/server/core.test.ts：Tests 49 passed (49)
+
+## 20:17:56 +08:00 · 返工 · #129 · 启动时归一组织名失败也先关库（审查 F7）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F7（建议）：services.ts 里 feedback.normalizeOrgSpelling 在论坛、发信的 try/catch 之外，抛错时启动失败但刚打开的 data.db 不关，与同文件约定不一致。包一层 try/catch，失败先 storage.db.close() 再抛；tests/server/feedback-org.test.ts 加 1 条：用触发器让归一的 UPDATE 失败，启动报错且 -wal 文件已被删（WAL 库最后一个连接正常关闭才会删）；docs/services/server/README.md 的 services.ts 一行同步
+- 结果：去掉 try/catch 时新用例失败（expected true to be false）；加上后 feedback-org + legacy-database 连跑 3 次都是 Tests 12 passed (12)
