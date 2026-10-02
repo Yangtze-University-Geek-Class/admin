@@ -75,7 +75,8 @@ export function LazyPromoPlayer({ placeholder = false, ...props }: Props & { pla
 /**
  * 播放层分包还在下载时的加载遮罩（#122）：直接打开 /join-us 的第一次访问会被整页 inert，
  * 弱网下分包要几秒才到，这段时间不能什么都不显示。遮罩沿用播放层同一套全屏层与右上角「跳过」，
- * 跳过与播放层同一语义：先记「看过」，再结束 gate；Esc 同样能关。
+ * 跳过与播放层同一语义：先记「看过」，再结束 gate；Esc 同样能关，Tab 留在按钮上。
+ * replay 也能用（按钮叫「关闭」、图标与播放层一致），目前桌面重看不带 placeholder。
  * 分包到了以后 React 删掉遮罩、挂上真正的播放层（两个是不同的节点）：播放层拿到 onShown 记下的时刻，
  * 接着遮罩的淡入走（promo.css 的 pt-promo-in），不会从透明重来、透出下面的浅色页面。
  */
@@ -93,10 +94,16 @@ function PromoFallback({ mode, onSeen, onClose, onShown }: Props & { onShown: (a
     onSeen?.();
     onClose(reason);
   };
+  // 和播放层的键盘规则一致（PromoPlayer 的 onKeyDown）
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    close("skipped");
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      close("skipped");
+    } else if (event.key === "Tab") {
+      // 遮罩上只有这一个按钮：焦点留在它身上，不跑到浏览器界面
+      event.preventDefault();
+      skip.current?.focus();
+    }
   };
   const closeLabel = mode === "gate" ? "跳过" : "关闭";
   return (
@@ -104,7 +111,7 @@ function PromoFallback({ mode, onSeen, onClose, onShown }: Props & { onShown: (a
       <div className="pt-promo-frame">
         <div className="pt-promo-stage">
           <button ref={skip} type="button" className="pt-promo-chip pt-promo-close" onClick={() => close("skipped")}>
-            <Icon name="skip-forward-line" size={16} />
+            <Icon name={mode === "gate" ? "skip-forward-line" : "close-line"} size={16} />
             {closeLabel}
             <kbd>Esc</kbd>
           </button>

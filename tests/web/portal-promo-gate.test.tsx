@@ -84,6 +84,37 @@ describe("宣传片加载占位（#122）", () => {
     expect(page()?.inert).toBe(false);
   });
 
+  it("遮罩里 Tab 留在「跳过」上，Esc 不再冒泡到页面（和播放层一致）", async () => {
+    const escapes = vi.fn();
+    const onWindowKey = (event: KeyboardEvent) => event.key === "Escape" && escapes();
+    window.addEventListener("keydown", onWindowKey);
+    try {
+      open();
+      const skip = await screen.findByRole("button", { name: /跳过/ });
+      expect(document.activeElement).toBe(skip);
+
+      // fireEvent 返回 false 表示默认行为被取消：焦点不会跑出遮罩
+      expect(fireEvent.keyDown(skip, { key: "Tab" })).toBe(false);
+      expect(fireEvent.keyDown(skip, { key: "Tab", shiftKey: true })).toBe(false);
+      expect(document.activeElement).toBe(skip);
+
+      fireEvent.keyDown(skip, { key: "Escape" });
+      expect(document.cookie).toContain(`${PROMO_COOKIE}=1`);
+      expect(escapes).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", onWindowKey);
+    }
+  });
+
+  it("replay 用这层遮罩时：按钮叫「关闭」，图标和播放层一样", async () => {
+    const { LazyPromoPlayer } = await import("../../app/web/sites/portal/components/PromoLazy");
+    const { ICONS } = await import("../../app/web/sites/portal/lib/icons");
+    render(<LazyPromoPlayer mode="replay" placeholder onClose={() => {}} />);
+
+    const close = await screen.findByRole("button", { name: /关闭/ });
+    expect(close.querySelector("path")?.getAttribute("d")).toBe(ICONS["close-line"][0]);
+  });
+
   it("减少动态效果：不显示遮罩、不下载播放层分包，按 blocked 算看过，直接进信纸", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query === "(prefers-reduced-motion: reduce)",

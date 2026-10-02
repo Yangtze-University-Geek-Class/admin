@@ -58,3 +58,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：JoinUs.tsx：挂载时 reducedMotion 且没看过 → promoBlocked，promo 初值 false，effect 里按 blocked 写「看过」的 cookie（onPromoSeen 挪到前面共用）；tests/web/portal-promo-gate.test.tsx 新增减少动态效果一条（无 dialog、无「正在加载…」、inert=false、cookie 已写、播放层分包下载 0 次）；portal.md「分包未到的加载占位」「自动播被拒与减少动态效果」两处同步
 - 结果：vitest run tests/web/portal-promo-gate.test.tsx：4 passed；把 JoinUs.tsx 临时换回 0b68462 的版本：新用例 1 failed（expected '' to contain 'yugc_promo_seen=1'），其余 3 passed，已还原；tsc web 通过
+
+## 20:24:09 +08:00 · 返工 · #122 · F6、F7：遮罩的键盘与 replay 图标和播放层一致
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：PromoLazy.tsx 的 PromoFallback：onKeyDown 照 PromoPlayer 写，Escape 调 stopPropagation 后跳过，Tab/Shift+Tab 调 preventDefault 并把焦点放回「跳过」；replay 时图标用 close-line。tests/web/portal-promo-gate.test.tsx 新增两条（Tab 默认行为被取消、焦点不动、Esc 不冒泡到 window；replay 遮罩按钮叫「关闭」且图标路径等于 ICONS["close-line"]）；portal.md「分包未到的加载占位」补键盘与 replay 两句
+- 结果：vitest run tests/web/portal-promo-gate.test.tsx：6 passed；把 PromoLazy.tsx 临时换回 6095e07 的版本：两条新用例 failed（Tab：expected true to be false；图标路径是 skip-forward-line），其余 4 passed，已还原；tsc web 通过
