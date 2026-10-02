@@ -1,6 +1,7 @@
 // 意见箱只收本部署管理的组织（#129）：组织名按不区分大小写认 CONSOLE_ORG，落库统一成配置里的写法；
 // 别的组织名 400，不落库。控制台只按 CONSOLE_ORG 查，大小写不同的旧数据启动时改成规范写法。
 import { afterEach, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,6 +55,27 @@ it('reads the public list for the console org in any case, and nothing for other
   expect(await count(ORG)).toBe(1);
   expect(await count(ORG.toLowerCase())).toBe(1);
   expect(await count('some-random-org')).toBe(0);
+});
+
+it('verifies the proof against the org string the submitter sent, so another case is not a proof failure', async () => {
+  const { app } = await setup({ POW_DIFFICULTY: '1' });
+  const content = '小写组织名也要能提交';
+  const submitted = `fb:${ORG.toLowerCase()}:${content}`;
+  const canonical = `fb:${ORG}:${content}`;
+  const timestamp = Date.now();
+  // 只对提交的写法有效的 nonce：如果服务端改用规范写法算摘要，这条请求会 400，用例能区分修复前后
+  const sha = (input: string) => createHash('sha256').update(input).digest('hex');
+  let nonce = '';
+  for (let n = 0; !nonce; n++) {
+    const candidate = n.toString(36);
+    if (sha(`${timestamp}:${submitted}:${candidate}`).startsWith('0') && !sha(`${timestamp}:${canonical}:${candidate}`).startsWith('0')) nonce = candidate;
+  }
+  const response = await app.inject({
+    method: 'POST', url: '/api/feedback', headers: { origin: 'https://example.test' },
+    payload: { org: ORG.toLowerCase(), content, category: '建议', pow: { timestamp, nonce } },
+  });
+  expect(response.statusCode).toBe(200);
+  expect(storedOrgs(app)).toEqual([ORG]);
 });
 
 it('moves older rows written in another case onto the configured spelling when the server starts', async () => {

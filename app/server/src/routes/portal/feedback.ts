@@ -26,14 +26,16 @@ export default async function feedbackRoutes(app: FastifyInstance) {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
   }, async (req, reply) => {
     const { content, category, contact, turnstile_token } = req.body ?? {};
-    const org = normalizeFeedbackOrg(req.body?.org ?? "", config.consoleOrg);
+    // PoW 摘要按提交者实际发出的组织名算，只有落库与比较用规范写法：换大小写提交的客户端不必改摘要输入。
+    const requestedOrg = req.body?.org ?? "";
+    const org = normalizeFeedbackOrg(requestedOrg, config.consoleOrg);
     if (!org) return reply.code(400).send({ error: `意见箱只接收「${config.consoleOrg}」组织的意见` });
     const text = content?.trim();
     if (!text || text.length < 5) return reply.code(400).send({ error: "意见内容至少 5 个字" });
     if (text.length > 5000) return reply.code(400).send({ error: "意见内容过长（5000 字以内）" });
     if (category && !CATEGORIES.includes(category)) return reply.code(400).send({ error: "分类无效" });
 
-    const bodyForHash = `fb:${org}:${text}`;
+    const bodyForHash = `fb:${requestedOrg}:${text}`;
     if (!(await preflightPublicSubmission(req, reply, bodyForHash))) return;
 
     const captchaOk = await verifyTurnstile(turnstile_token, req.ip);
