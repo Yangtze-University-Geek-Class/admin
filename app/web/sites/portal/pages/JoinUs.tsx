@@ -13,7 +13,7 @@ import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
 import { computePow, powProof } from "@shared/lib/pow";
 import Icon from "../components/Icon";
-import { LazyPromoPlayer } from "../components/PromoLazy";
+import { LazyPromoPlayer, PromoFallback } from "../components/PromoLazy";
 import SceneBar from "../components/SceneBar";
 import { RESUME_DESKTOP } from "../lib/links";
 import { hasSeenPromo, promoCookie } from "../lib/promo";
@@ -193,6 +193,11 @@ export default function JoinUs() {
 
   const count = form.strengths.trim().length;
   const letterOn = writing && !receipt;
+  // 宣传片的 gate 与「分包未到」占位共用同一套语义：看过就写 cookie，跳过/结束就收起整层
+  const onPromoSeen = useCallback(() => {
+    document.cookie = promoCookie(window.location.protocol === "https:");
+  }, []);
+  const onPromoClose = useCallback(() => setPromo(false), []);
   return (
     <>
       <div ref={page} className="pt-root pt-scene pt-join" data-phase={phase}>
@@ -321,14 +326,9 @@ export default function JoinUs() {
         </div>
       </div>
       {promo && (
-        <Suspense fallback={null}>
-          <LazyPromoPlayer
-            mode="gate"
-            onSeen={() => {
-              document.cookie = promoCookie(window.location.protocol === "https:");
-            }}
-            onClose={() => setPromo(false)}
-          />
+        // 分包没到时先显示同一套加载遮罩（#122），不再什么都不显示
+        <Suspense fallback={<PromoFallback mode="gate" onSeen={onPromoSeen} onClose={onPromoClose} />}>
+          <LazyPromoPlayer mode="gate" onSeen={onPromoSeen} onClose={onPromoClose} />
         </Suspense>
       )}
     </>
