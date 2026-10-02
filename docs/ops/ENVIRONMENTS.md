@@ -2,7 +2,7 @@
 
 > 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。
 
-状态：`current` · 更新：2026-09-28 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
+状态：`current` · 更新：2026-10-02 · 机器配置：[deploy/environments.json](../../deploy/environments.json)
 
 ## 可见性规则
 
@@ -41,7 +41,7 @@
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
 | `ALLOWED_ORGS` | 可见·留空 | 空 = 不限制组织允许列表 | 空 |
-| `CONSOLE_ORG` | 可见 | `Yangtze-University-Geek-Class`（极客班控制台 `/api/console/*` 固定管理的组织；`ALLOWED_ORGS` 非空时必须包含它，否则 server 启动失败） | 同左 |
+| `CONSOLE_ORG` | 可见 | `Yangtze-University-Geek-Class`（极客班控制台 `/api/console/*` 固定管理的组织；也是官网意见箱唯一收的组织：`GET /api/feedback/categories` 把它下发给官网，`POST /api/feedback` 只收它、`GET /api/feedback/public` 只列它，#129；`ALLOWED_ORGS` 非空时必须包含它，否则 server 启动失败） | 同左 |
 | `MAIL_ALIYUN_FROM` | 可见 | `notify@mail.email-crosery.cn`（阿里云邮件推送的发信地址，不带显示名） | 同左 |
 | `MAIL_RESEND_FROM` | 可见 | `notify@email-crosery.cn`（Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`） | 同左 |
 | `MAIL_ASSET_BASE` | 可见 | `https://cdn.crosery.com/yzgc/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
