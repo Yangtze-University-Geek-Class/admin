@@ -11,6 +11,14 @@ const UPSTREAM_MESSAGES: Record<number, string> = {
   429: "GitHub 请求过于频繁，请稍后重试",
 };
 
+/**
+ * 限流的 429，经下面的错误处理器回 `{ error: "rate_limited", message, request_id }`。路由自己数次数时 throw 它；
+ * app.ts 注册 `@fastify/rate-limit` 时把它设成默认的 errorResponseBuilder，路由级 `config.rateLimit` 不用各写一遍（#191）。
+ * 插件把 errorResponseBuilder 的返回值当错误抛出，错误处理器只认 `statusCode` 与 `code`：返回
+ * `{ statusCode, error, message }` 这样的普通对象会被回成 `request_error`。
+ */
+export const rateLimited = () => Object.assign(new Error("操作太频繁，请稍后再试"), { statusCode: 429, code: "rate_limited" });
+
 /** Fail closed for browser cross-origin writes; bearer-only clients remain usable. */
 export function registerHttpPolicy(app: FastifyInstance) {
   app.addHook("onRequest", async (req, reply) => {

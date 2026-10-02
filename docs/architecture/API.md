@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-09-28
+状态：`current` · 更新：2026-10-02
 
 ## 合同
 
@@ -20,7 +20,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 ## 端点清单
 
-来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。按 IP 的限流、审计与投递里记的来源 IP 都取 Fastify 的 `req.ip`：部署环境 `TRUST_PROXY=2`，只信任宿主 nginx 与 web 容器 nginx 各自追加的那段 `X-Forwarded-For`，客户端自己带的最左边几段不算（见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [SECURITY](SECURITY.md)）。
+来源是 `app/server/src/app.ts` 与 `routes/**`。所有 POST/PUT/PATCH/DELETE 先经 `middleware/http-policy.ts` 核对 Origin 与 Fetch Metadata，不符返回 403 `invalid_origin`。`/api/*` 与 `/auth/*` 响应一律 `Cache-Control: no-store`，唯一的例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200 响应（按内容哈希寻址，长期缓存）。表中「无」表示没有路由级限流（`@fastify/rate-limit` 以 `global: false` 注册）。路由级限流超额时都回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`：`app.ts` 注册插件时把 `middleware/http-policy.ts` 的 `rateLimited()` 设成默认的 `errorResponseBuilder`，论坛自己数次数的限流抛的也是它（#191，回归测试 `tests/server/rate-limits.test.ts`）。按 IP 的限流、审计与投递里记的来源 IP 都取 Fastify 的 `req.ip`：部署环境 `TRUST_PROXY=2`，只信任宿主 nginx 与 web 容器 nginx 各自追加的那段 `X-Forwarded-For`，客户端自己带的最左边几段不算（见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [SECURITY](SECURITY.md)）。
 
 | 方法与路径 | 鉴权 | 限流 | 成功 | 主要错误与说明 |
 |---|---|---|---|---|
@@ -29,10 +29,10 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /api/docs` | 匿名 | 无 | 200 `{ items }`，只列白名单文档（产品介绍、用户指南，中英各一） | — |
 | `GET /api/docs/:id` | 匿名 | 无 | 200 `{ id, label, lang, file, content }` | 404 `doc not found` / `doc file missing` |
 | `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty }` | — |
-| `POST /api/feedback` | 匿名；带有效 `sid` 时记录提交者 | 10 次/分钟 | 200 `{ ok, id, message }` | 400：字段、PoW、蜜罐（`请求被拒绝`）、Turnstile |
+| `POST /api/feedback` | 匿名；带有效 `sid` 时记录提交者 | 10 次/分钟 | 200 `{ ok, id, message }` | 400：字段、PoW、蜜罐（`请求被拒绝`）、Turnstile；429 `rate_limited` |
 | `GET /api/feedback/public?org=&limit=` | **匿名**，不校验 `ALLOWED_ORGS` | 无 | 200 `{ items }`：该组织非 `spam` 反馈按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org` 时 `items` 为空 | `limit` 默认 20，只接受 1–9999 的正整数（`lib/http-contracts.ts` 的公共 querystring 校验 `^[1-9][0-9]{0,3}$`），之后取 `min(limit, 100)`；负数、0、小数、非数字和超过 9999 的值返回 400 `validation_error`（`tests/server/core.test.ts`） |
 | `GET /api/join/:token` | 匿名（链接令牌即能力） | 无 | 200 `{ org, note, team_slug, expires_at, remaining_uses, valid, reason }` | 404 `邀请链接不存在` |
-| `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；503：发起人 token 失效或结果待核对 |
+| `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；429 `rate_limited`；503：发起人 token 失效或结果待核对 |
 | `POST /api/portal/apply` | 匿名 | 5 次/分钟；同一 IP、同一设备各 24 小时 5 份 | 201；往发信队列写一封「已收到」的信 | 见「加入我们（投递）端点」 |
 | `GET /auth/github` | 匿名 | 无 | 302 到 GitHub 授权页，写入签名的 `oauth_state` cookie | — |
 | `GET /auth/callback` | `oauth_state` cookie | 无 | 一律 302 回允许列表内的 `return_to`（不合规时 `<PUBLIC_ORIGIN>/console`）。登录者在 `CONSOLE_ORG` 是 `active` 成员：签发 `sid`，审计 `auth.signin`。其余情况不签发 `sid`，在回跳地址上加 `signin` 参数：`not_member`（成员查询 404）、`invite_pending`（成员状态 `pending`），这两种审计 `auth.signin_denied` 并尽力撤销这次授权（`DELETE /applications/{client_id}/grant`）；`cancelled`（GitHub 回传 `error=access_denied`）；`failed`（GitHub 回传其它 `error`，或换 token、取 `/user`、查成员身份出错，含 403 与超时） | 400 `missing_params`（缺 `state`，或 `code` 与 `error` 都没有）/ `invalid_state`（state 签名、有效期或 cookie 不符，GitHub 回传 `error` 时也先做这项检查）；410 `legacy_forum_retired`（`state` 以 `forum-` 开头）。这些情况返回 JSON，不跳转。规则见 [SECURITY](SECURITY.md)「登录门槛」 |
@@ -49,11 +49,11 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `PATCH /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ department }`，审计 `department.update`（details `{ changed }`） | 403 `admiral_required`；400；404 `not_found` |
 | `DELETE /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ ok: true, removed }`：同一事务删除部门和它的全部 head / member 指派（`removed` 是撤掉的条数），审计 `department.delete`（details `{ name, removed: [{ github_login, role }] }`）；默认部门只在第一次启动写入（`console_seeds`），删掉后重启不会补回 | 403 `admiral_required`；404 `not_found` |
 | `GET /api/console/assignments?department_id=&role=` | `roles.manage` 或 `roles.department.manage` | 无 | 200 `{ assignments, captain }`；只有后者时只返回本人负责部门的行 | 401；403 `missing_capability` / `out_of_department_scope` |
-| `POST /api/console/assignments` | `roles.manage`；或 `roles.department.manage` 且 `role=member`、部门属于本人 | 30 次/分钟 | 201 `{ assignment }`，审计 `role.assign`（details `{ role, department_id, note_length }`）或 `role.captain.transfer`（`{ from, to }`） | 400 `department_required` / `department_not_allowed` / `unknown_department` / `github_user_not_found`；403 `missing_capability` / `out_of_department_scope` / `captain_required`；409 `assignment_exists` |
+| `POST /api/console/assignments` | `roles.manage`；或 `roles.department.manage` 且 `role=member`、部门属于本人 | 30 次/分钟 | 201 `{ assignment }`，审计 `role.assign`（details `{ role, department_id, note_length }`）或 `role.captain.transfer`（`{ from, to }`） | 400 `department_required` / `department_not_allowed` / `unknown_department` / `github_user_not_found`；403 `missing_capability` / `out_of_department_scope` / `captain_required`；409 `assignment_exists`；429 `rate_limited` |
 | `DELETE /api/console/assignments/:id` | 同上，按目标行判断；captain 那条只有本人或 admin 能撤 | 无 | 200 `{ ok: true }`，审计 `role.revoke` | 404；409 `captain_transfer_required` |
 | `GET /api/console/people` | `roles.manage` 或 `roles.department.manage` | 无 | 200 `{ people: [{ login, user_id, avatar_url, github_role, titles }] }`：用调用者自己的 token 列出 `CONSOLE_ORG` 的全部正式成员（按 admin / member 各列一次），每人的 `titles` 按 `computeAccess` 计算，与本人登录后看到的一致（owner 是 admin，没有指派的成员是 member、`source: "github"`）；有指派但已不在组织里的人也列出，`github_role: null`；按主称号层级、再按登录名排序 | 401；403；GitHub 出错按「错误」统一映射 |
 | `GET /api/console/applications?status=&q=&limit=&offset=` | `applications.read` | 无 | 200 `{ items, total, counts }`，`items` 只含 `id`、`name`、`class_name`、`email`、`strengths_excerpt`（≤120 字）、`status`、`created_at`、`last_review`；`counts` 的键是四个状态 `received`、`interview`、`accepted`、`rejected` | 401；403；400 `validation_error`（`status` 不是这四个之一，包括已取消的 `reviewing`） |
-| `GET /api/console/applications/export.csv?status=` | `applications.export` | 5 次/分钟 | 200 `text/csv; charset=utf-8`，UTF-8 BOM，`attachment; filename="applications-YYYYMMDD.csv"`（北京时间的日期）；列是 `name,class_name,email,strengths,status,created_at_beijing`，投递时间写成北京时间 `2026-09-27 01:05:00`；审计 `application.export`（`{ count, status }`） | 403 |
+| `GET /api/console/applications/export.csv?status=` | `applications.export` | 5 次/分钟 | 200 `text/csv; charset=utf-8`，UTF-8 BOM，`attachment; filename="applications-YYYYMMDD.csv"`（北京时间的日期）；列是 `name,class_name,email,strengths,status,created_at_beijing`，投递时间写成北京时间 `2026-09-27 01:05:00`；审计 `application.export`（`{ count, status }`） | 403；429 `rate_limited` |
 | `GET /api/console/applications/:application_id` | `applications.read` | 无 | 200 `{ application, reviews, received_mail, mail }`（`application` 含完整 `strengths`）：`reviews` 每条是 `{ id, from_status, to_status, note, reviewer, created_at, mail }`，`mail` 是那次改状态写的信的 `MailSummary`，没写信时是 `null`；`received_mail` 是投递时那封「已收到」的 `MailSummary` 或 `null`；`mail` 是 `{ enabled, recipients, deliverable }`（有没有配置发信商、`all` 还是 `allowlist`、现在给这位投递人写信会不会真的发出去）。`MailSummary = { status, skip_reason, attempts, subject, sent_at, updated_at }`，没有收件地址和正文。审计 `application.view` | 400（非 UUID）；404 |
 | `PATCH /api/console/applications/:application_id` | `applications.review` | 无 | 200 `{ application, review }`，`review` 带 `mail`（同上）。body `{ status?, expected_status?, expected_review_id?, note?, notify?, letter? }`：`status` 是四个状态之一，`expected_status`、`expected_review_id` 是页面上看到的状态和审核记录的版本号：这份投递最大的审核记录 id（没有记录时是 0；id 自增，`reviews` 按时间排，服务器时钟往回拨过时排第一的不一定是最大的；控制台总是带上，要改状态时两项都必须带），`note` ≤2000 字只给审核人看，`notify` 默认 true，`letter` 是 `{ time?（≤60 字）, place?（≤120 字）, notes?（≤1000 字，一行一条）, message?（≤1000 字） }`。状态真的改成待面试、已录取、未通过并且 `notify` 不是 false 时写一封信：待面试用 `time`、`place`、`notes`（面试说明），已录取用 `notes`（接下来），未通过用 `message`（原因）；改回已收到、只写备注、`notify: false` 都不写信。同一事务更新状态、追加 `application_reviews`、写进发信队列（`event_key` 为 `review:<审核记录 id>`）；审计 `application.review`（`{ from, to, has_note, mail }`，不记备注原文和信的内容） | 400 `invalid_status`（`{ error, message: "状态只能是已收到、待面试、已录取、未通过" }`，包括 `reviewing`）/ `no_change` / `letter_required`（改成待面试要写信却没填时间或地点：`{ error, message: "要发待面试的信，请填面试时间和地点", fields: { time?, place? } }`）/ `letter_invalid`（信的内容不合规，例如没配置回信地址却写了「直接回复这封邮件」）/ `validation_error`（未知字段、超长、`expected_status` 不是四个状态之一、`expected_review_id` 不是非负整数）；以上 400 都不改状态、不写记录；404；409 `status_changed`（`{ error, message, application }`，不改状态、不写记录、不写信）：`expected_status` 或 `expected_review_id` 和库里不同时 `message` 是「这份投递刚被别人处理过，现在是「…」，看过最新的记录再改」（只比状态会漏掉改走又改回），要改状态却缺这两项之一（部署前打开的旧页面）时是「这个页面是旧版本，刷新后再改」；只写备注可以不带 |
 | `GET /api/console/feedback?status=&limit=` | `feedback.read` | 无 | 200 `{ items, counts }`，形状同管理端意见箱，组织固定为 `CONSOLE_ORG` | 401；403 |
@@ -142,7 +142,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 - `201 { id, submitted_at, message }`：`id` 为 UUID，`submitted_at` 为毫秒时间戳，`message` 为中文提示；响应不回显 `strengths` 或其它请求字段。同时往发信队列写一封「已收到」的信（`event_key` 为 `application:<id>:received`），信里有报名信息和特长原文；信写不进队列时只记日志，投递照样成功，响应不变。蜜罐命中不写信。
 - `400 { error, fields }`：字段校验失败的逐字段中文错误，`fields` 只包含出错字段，`error` 等于首个出错字段的提示；校验失败不写库。
 - `400 { error }`：PoW 与 Turnstile 失败沿用公开表单既有形状（`防滥用校验失败，请刷新页面重试`、`人机验证失败，请刷新重试`）。蜜罐命中不返回 400，见下文。
-- `429`：限流，路由级 5 次/分钟/客户端。
+- `429 { error: "rate_limited", message, request_id }`：路由级限流，5 次/分钟/客户端。
 - `429 { error: "apply_limited", message }`（#169）：同一个来源 IP（IPv6 按 /64）或同一个设备 24 小时内已经有 5 份成功的投递；这一份不落库、不写信，`message` 是「同一台设备或同一个网络 24 小时内最多投递 5 次，之前投的都已经收到了。」。只数成功的投递，校验不过、蜜罐、人机验证不过的都不算。计数见 [数据模型](../services/server/data-model.md) 的 `application_limits`。
 
 边界行为：蜜罐检查在字段校验之前，命中时返回与成功完全一致的 `201` 形状但不落库，不向脚本暴露陷阱；公开表单通用的蜜罐 400 `请求被拒绝` 在本端点走不到。字段约束在路由内单一校验层实现，该端点不注册 `contracts.ts` body schema；除三个蜜罐字段外，未知字段被忽略而不是让投递失败。落库与审计见 `app/server/src/routes/portal/apply.ts`、[server 合同](../services/server/README.md) 与 [数据模型](../services/server/data-model.md)：审计动作 `public:apply` / `application.received` 记录目标 id 和来源 IP（`ip` 列），details 只含脱敏邮箱、班级、`name_length` 和 `strengths_length`，不记姓名与完整 `strengths`。回归测试见 `tests/server/applications.test.ts`。
