@@ -144,7 +144,7 @@ export default function Feedback() {
                     <div className="pt-form-actions">
                       <button
                         type="button"
-                        className="pt-btn is-sm"
+                        className="pt-btn"
                         disabled={meta === "retrying"}
                         onClick={() => {
                           setMeta("retrying");

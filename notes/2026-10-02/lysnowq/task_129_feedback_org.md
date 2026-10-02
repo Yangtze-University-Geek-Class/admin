@@ -96,3 +96,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 S2（建议）：GET /api/feedback/categories 失败、CONSOLE_ORG 又和站点配置的 githubOrg 不一样时，组织框显示站点组织，提交后的报错却说只收另一个组织。S3（建议，stage 已有）：同一状态下提示「按未分类提交」，实际仍带 category=建议。Feedback.tsx 把 categoriesFailed 换成 meta（loading/ready/failed/retrying），只有 ready 时提交按钮可用，submit 里再拦一次；失败时分类处显示 role=alert「没读到分类和发往的组织，暂时不能提交。点「重新读取」再试，已经写的内容不会丢。」和「重新读取」按钮（点了变「正在读取…」），读到后照服务端的 org 展示和提交。S3 那句不对的提示随之删掉：失败状态不再能提交，不用另开 issue。tests/web/portal-feedback-org.test.tsx 加 1 条（第一次 categories 回 503：有 alert、按钮灰、直接触发 form submit 也不发请求；点重新读取后组织名换成服务端的、正文还在、提交体 org 是服务端的），原「提交体里的组织」用例改为等按钮可用再点（行为变了：categories 回来前按钮是灰的）。docs/services/web/portal.md 的 /feedback 一行同步
 - 结果：vitest run tests/web/portal-feedback-org.test.tsx：Tests 4 passed (4)；把 Feedback.tsx 换回 a5c6ed8 时新用例失败（Unable to find role="alert"，1 failed | 3 passed）；只去掉 meta !== "ready" 两处时新用例失败（expected false to be true）；恢复后 4 passed。vitest run tests/server tests/web：Test Files 30 passed，Tests 389 passed (389)；tsc -p app/web/tsconfig.json --noEmit 退出 0（Node 22.23.2）
+
+## 21:52:56 +08:00 · 返工 · #129 · 「重新读取」按钮改用 44px 触控高度
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：ego 浏览器 390×844 DPR3 触屏核对 33ebeed 构建的失败状态时量到「重新读取」按钮 78×36（用的是 .pt-btn.is-sm），低于 docs/design/DESIGN.md 第 54 行「触控目标 ≥44px」。改成普通 .pt-btn（min-height 44px，与同页「再写一条」一致）。文档核对：docs/services/web/ 不用改——portal.md 只写了按钮文字和行为，没写尺寸
+- 结果：vitest run tests/web/portal-feedback-org.test.tsx：Tests 4 passed (4)；tsc -p app/web/tsconfig.json --noEmit 退出 0；改后按钮高度在新构建上用浏览器复量（见后面的开发记录）
