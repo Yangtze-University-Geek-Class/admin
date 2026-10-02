@@ -87,3 +87,21 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：复查建议 N2：注释写 -wal 旧页截断后「被覆盖」，与 22fb01f 改过的 SECURITY.md 不一致；改成检查点盖掉库文件旧页、-wal 截成 0 字节、交还文件系统的块不写 0。只改注释，不改行为。文档核对：docs/services/server/ 不用改——只改了 auth.ts、db.ts 的注释，行为与接口没变，SECURITY.md 已在 22fb01f 写准
 - 结果：tsc 无输出；vitest tests/server/session-cleanup.test.ts 8 passed；证据图来自 22fb01f 之前的代码提交，注释改动不影响运行
+
+## 23:05:08 +08:00 · 提交 · #128 · 合入 origin/stage 2075c55，只解 notes/INDEX.md 生成物冲突
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：git merge --no-ff origin/stage（#189 合并后 stage 在同一行加了 2026-10-02 的 crosery），冲突只有 notes/INDEX.md，用 node scripts/note.mjs index 重新生成；合并提交 8ecd3aad43e2 只含这一处
+- 结果：note.mjs check 通过（45 条链路）；check:doc-sync 通过（按 PR 核对）
+
+## 23:05:08 +08:00 · 推送 · #128 · 推送接手后的返工与合并
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：git push origin task/128/session_cleanup（推送前核对远端仍是作者最后的 443421b，作者没有在审查后再推）
+- 结果：远端 head 8ecd3aad43e2c103382e528c3b08d901fd1c2505；22:14:43 那条记录说 amend 后会重跑 note.mjs check，补记结果：执行记录通过（45 条链路）
+
+## 23:05:08 +08:00 · 审查 · #128 · 三轮独立审查：443421b、367af63、22fb01f 均有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审查：第一轮 443421b546dc（应修 F1 secure_delete 与文档不符、F2 验收步骤做不出来、F3/F4 被复核推翻为建议）；第二轮 367af63ef21d（R1 VACUUM 后续 issue、R2 推送与证据、R3 SECURITY.md 说法、R4 提交记录）；第三轮 22fb01f51ce4（N1 notes/INDEX.md 与 stage 冲突，沿用 R1、R2，建议 N2-N4）
+- 结果：三轮都是有条件通过，余下应修都是合并前主控步骤：N1 已在 8ecd3aa 合并解决；R1 开成 #194；R2 已推送，图与结论随 PR 正文补；N2 注释在 ad7c2b3 之前的返工提交改准（见上一条返工记录）
