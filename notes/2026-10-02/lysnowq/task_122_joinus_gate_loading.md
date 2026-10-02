@@ -106,3 +106,21 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：按 9d7cd89 一轮审查的 R5（建议）：20:15 起的返工提交只记了「返工」，没有「提交」。这里补一条，列出接手以来全部本地提交：9fffb81 style(portal) 行尾 CRLF→LF；a01ab40 fix(portal) 遮罩换播放层接着淡入；0b68462 fix(portal) 加载中跳过后分包失败换新的；6095e07 fix(portal) 减少动态效果不挂遮罩；0956b39 fix(portal) 遮罩键盘与 replay 图标；e072bcf fix(portal) 分包失败等关掉再换；c763c00 docs(portal) 删旧截图；9d7cd89 docs(notes) 自审记录与回滚范围；500dede test(portal) 补分包已失败还没显示就关掉的用例（R4）；a8cd042 docs(portal) 改正播放层出现时间的说法（R3）；以及带着本条与上一条记录的 docs(notes) 提交（SHA 见 git log）。22af6fa 那一轮的「审查」记录不在本条范围：按分工「审查」由主控在补本轮审查记录时一起追加
 - 结果：提交前：pnpm check exit 0（runtime v22.23.2、boundaries 202 文件 1154 导入、docs 272 份、doc-sync 6 组、notes 44 条链路、secrets 746 个文件、tsc server/web/console 通过）；pnpm test：Test Files 62 passed，Tests 945 passed；vitest run tests/web/portal-promo-lazy.test.tsx 8 passed；pnpm --filter @yzgc/web build 通过（built in 2.95s）
+
+## 23:07:10 +08:00 · 提交 · #122 · 合入 origin/stage 2075c55，只解 notes/INDEX.md 生成物冲突
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：git merge --no-ff origin/stage，冲突只有 notes/INDEX.md，用 node scripts/note.mjs index 重新生成；合并提交 868deb78cdd3 只含这一处；PR 正文「关联」写明与 stage 的冲突已解，「验证」改写 test:e2e 不在 CI、本次也没跑（复查 N3）
+- 结果：note.mjs check 通过（45 条链路）；check:doc-sync 通过（按 PR 核对）
+
+## 23:07:10 +08:00 · 推送 · #122 · 推送接手后的返工与合并
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：git push origin task/122/joinus_gate_loading（推送前核对远端仍是作者最后的 22af6fa，作者没有在审查后再推）
+- 结果：远端 head 868deb78cdd3
+
+## 23:07:10 +08:00 · 审查 · #122 · 三轮独立审查：22af6fa、9d7cd89、049e6fe 均有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 只读审查：第一轮 22af6fa346db（应修 F1 顶替时浅色闪烁、F2 证据缺逐帧与手机触屏、F3 减少动态效果仍显示遮罩、F4 CRLF；F5 被两位复核人推翻为建议）；第二轮 9d7cd89d6a6e；第三轮 049e6fef3be1（N1 notes/INDEX.md 与 stage 冲突、N3 正文把 e2e 写成 CI 兜底）
+- 结果：三轮都是有条件通过；第三轮余下应修 N1 已在 868deb7 合并解决，N3 已改 PR 正文；截图、录屏与审查结论随 PR 正文补
