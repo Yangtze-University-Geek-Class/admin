@@ -42,3 +42,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 F3：页面的组织名取 app.config.json urls.githubOrg，服务端只认 CONSOLE_ORG，两处没对照，不一致时每次提交都 400、提交者改不了。改为 GET /api/feedback/categories 多下发 org（=CONSOLE_ORG 配置写法），Feedback.tsx 照它展示、读公开列表、算 PoW 摘要和提交；接口回来前或失败时仍用 githubOrg 最后一段；读列表的 effect 加了先发后到不覆盖的保护；mock 数据同步带 org；App.tsx 路由注释写明 /feedback/:org 是控制台意见箱生成的分享地址（F8）。文档：API.md 的 categories 一行、portal.md 的 /feedback 一行同步。否决了在 check-site-config / check:environments 里强制 githubOrg 等于 CONSOLE_ORG：服务端下发之后意见箱不再依赖两处一致，强制相等会给与本 issue 无关的 GitHub 链接加约束
 - 结果：新增 2 条用例（tests/server/feedback-org.test.ts 1 条、tests/web/portal-feedback-org.test.tsx 1 条）；把 app/ 换回改动前时这 2 条失败、其余 7 条通过（Tests 2 failed | 7 passed (9)），恢复后 Tests 9 passed (9)；tsc server=0 web=0（Node 22.23.2）
+
+## 20:15:45 +08:00 · 返工 · #129 · 四处文档改成与意见箱的实际行为一致（审查 F1）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F1：SECURITY.md:21 仍写给出任意组织名即可读取；API.md:33 同一格既写不分大小写又写大小写对不上为空；data-model.md:23 写 org 只存 CONSOLE_ORG 写法，但别的组织的历史行有意保留；ENVIRONMENTS.md:44 没写 CONSOLE_ORG 也决定意见箱收哪个组织。逐一改准：SECURITY.md 写明 POST 只收 CONSOLE_ORG（不分大小写、别的 400 不落库）、公开列表只列 CONSOLE_ORG、别的组织历史行不再公开；API.md:33 删掉自相矛盾的半句；data-model.md 分开写新写入、只差大小写的历史行、别的组织的历史行（公开接口与控制台不返回，旧管理端 /api/admin/:org/feedback 仍按那个组织的 GitHub admin 读得到，受 ALLOWED_ORGS 限制）；ENVIRONMENTS.md 的 CONSOLE_ORG 一行补上意见箱的用途。SECURITY.md、ENVIRONMENTS.md 的「更新：」改为 2026-10-02
+- 结果：node scripts/docs-index.mjs --check：docs/INDEX.md 是最新的；node scripts/check-docs.mjs：Documentation links, routes and skill links passed: 272 documents
