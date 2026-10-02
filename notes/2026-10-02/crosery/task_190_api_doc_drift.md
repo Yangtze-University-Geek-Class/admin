@@ -44,3 +44,15 @@
 - 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：docs(docs): API 手册写清 join 的两种 400，改正关注列表的测试引用；pnpm check；npx vitest run tests/server/invitations.test.ts tests/server/forum.test.ts
 - 结果：pnpm check exit 0（文档同步通过：6 组模块与文档，按 PR 核对（对 origin/stage）；执行记录通过：45 条链路；docs/INDEX.md 是最新的）；2 个测试文件 70 passed
+
+## 23:05:39 +08:00 · 返工 · #190 · ego 浏览器本机核对 d33b25aa2a59 的 join 两种 400，按 R190-5 重截渲染图
+
+- 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：本机起核心服务 127.0.0.1:5521（task/190 worktree，文件库在 /private/tmp/geek-evidence/190/rework/，插入测试链接 probe190）与静态服务 5522；ego TaskSpace 233 在 http://127.0.0.1:5521/healthz 页面里同源 fetch POST /api/join/probe190 五种请求；用 marked GFM 渲染 d33b25aa2a59 的 API.md（顶部固定快照标注、单元格可折行），重截 04–07 并新截 09（join 一行）
+- 结果：未知字段、github_login 40 个字符回 400 validation_error + Ajv 英文 + request_id；蜜罐、PoW 不对、PoW 对但用户名和邮箱都没填回 400 中文句子、没有 request_id（截图 08）；渲染页 scrollWidth 1317 等于视口宽度，410 一行「主要错误」列完整（07）；6 张图都带「本机·未发布 @d33b25aa2a59（0.1.1 预发布队列）」；6e4edfa 的旧 04–07 移到 superseded-6e4edfa/；TaskSpace 233 已 finish，5521、5522 上自己起的进程已关
+
+## 23:06:07 +08:00 · 提交 · #190 · 提交返工后的浏览器核对记录
+
+- 执行者：agent-claude-geek-main-subagent-190（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：docs(notes): 记录 #190 返工后的本机浏览器核对；node scripts/note.mjs check
+- 结果：执行记录检查见本条之后的 node scripts/note.mjs check 输出；只改 notes/
