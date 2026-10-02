@@ -45,3 +45,15 @@
 - 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：scripts/local-preview.mjs 的 buildApp 加 sessionCleanup: true（两种模式都开；GitHub 登录模式的 .tools/local-preview/core.db 存的是本机登录者真实令牌，密钥就在旁边的 keys.json）；docs/ops/LOCAL-PREVIEW.md「数据生命周期」写明预览也清过期会话、不写服务日志、用 sqlite3 查行；app.ts 的 BuildAppOptions 注释、auth.ts startCleanup 注释与 server README 源码地图的 index.ts 一行改成「index.ts 和本机预览打开」
 - 结果：node --check scripts/local-preview.mjs 通过；node scripts/docs-index.mjs --check：docs/INDEX.md 是最新的；node scripts/check-docs.mjs：272 documents passed；node scripts/check-doc-sync.mjs：文档同步通过（6 组）；tsc -p app/server/tsconfig.json --noEmit exit 0。local-preview 本身固定占 3000/5173，不在分给本任务的端口里，改端口副本的实跑结果在之后的验收记录里写
+
+## 20:44:05 +08:00 · 开发 · #128 · 本机浏览器验收（0b1c51a6a856 的构建）：登录 → 过期 → 启动清理 → 刷新退出，库与文件里都没了
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：pnpm build 后在 /private/tmp/geek-acc-128 起 harness（app/server/dist 的 buildApp，logger 与 sessionCleanup 打开，临时文件库，假 GitHub，端口 5420，浏览器用 geek128.localhost 打开以免和本机别的服务的 sid cookie 混在一起）；ego TaskSpace 205「geek #128 验收」：控制台用（假的）GitHub 登录 → 停服务、sqlite3 把这一行改成已过期 → 再起服务 → 刷新；手机 390×844 DPR3 触屏再走一遍并插入别人的过期行；另用真实入口 node app/server/dist/index.js 对比 stage 458999fc0c60、PR 原 head 443421b546dc 与 0b1c51a6a856；scripts/local-preview.mjs 的改端口副本（3000→5423、5173→5323）对比 stage 版脚本
+- 结果：桌面：重启日志 {deleted:1, msg: expired sessions removed}，刷新前 sessions_left=0，浏览器里的 sid 就是被删那一行（CDP 读 cookie 比对 true），core.db / core.db-wal(0 字节) / sqlite3 .backup 里都找不到这一行的密文，刷新后回登录页、/auth/me {signed_in:false}；手机：只删别人的过期行、自己的会话刷新后仍登录，改成过期重启后 deleted:1、刷新回登录页。真实入口：stage 重启后过期行还在、无清理日志、密文在库文件与在线备份；443421b 删了行但密文仍在 core.db、-wal、在线备份；0b1c51a 删行且三处都找不到，SIGTERM 0.06s 退出码 0。本机预览：改后脚本启动后过期行没了，stage 版脚本留着。证据 12 张在 /private/tmp/geek-evidence/128/，TaskSpace 已 finish，harness、预览进程都已停，before worktree 已删
+
+## 20:44:05 +08:00 · 返工 · #128 · 按审查 F3 补说明：pnpm check 的两种说法、记录时间与自审，不改原记录
+
+- 执行者：agent-claude-geek-main-subagent-128（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：核对 16:42:43「开发」、16:42:49「提交」与 5df3f49 提交说明写的「corepack pnpm check 通过」和 16:48:49「审查」、PR 正文写的「本机原样执行因嵌套 pnpm 解析到全局 11.5.1 而失败」：两种说法出自作者 Windows 本机上的两个执行者（agent-omp-issue-128、agent-omp-issue-122-128），接手方复现不了那台机器，哪一条属实无法核对；能核对的是 CI 在 443421b 上跑的 pnpm check 通过（run 36986222111，审查记录），以及本机 macOS（Node 22.23.2、pnpm 9.15.9）在 17a1da4 与 0b1c51a 上 pnpm check exit 0。16:48:49 的「PR」「审查」两条比 PR 创建（08:49:01Z）早 12 秒：PR 以 0aa0ca0 开，带这两条记录的 443421b 在 PR 创建后 13 秒推上，复核判断是作者本机时钟偏慢，原记录不改。16:48:49 的「审查」是作者 agent 自审 0aa0ca0；独立审查（审 443421b546dc，结论有条件通过）的「审查」记录由主控在审查结论贴进 PR 时补。PR 正文「关联」里 Refs #111 / #121「随本分支带入的两条收尾执行记录」不属实（那两条已由 6eadceb / PR #161 进 stage，本 diff 里没有），新的 PR 正文删掉这句
+- 结果：本机：pnpm check exit 0（0b1c51a6a856：Boundaries 202 files / 1153 imports；文档同步通过 6 组；执行记录通过 44 条链路；密钥门禁 746 个文件；typecheck 通过）；node scripts/note.mjs check --pr --base origin/stage --head task/128/session_cleanup：执行记录通过，本 task 的链路完整
