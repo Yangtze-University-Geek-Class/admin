@@ -75,3 +75,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
 - 做了什么：RELEASES.md 第 8 步与 CICD.md「维护者机器部署」改用与 AGENTS §3、RELEASES 授权门禁相同的条件（GitHub 计划让部署 job 按设计失败关闭时），并写明环境保护被删、审批人被清空时先恢复保护再重跑工作流、不改用 deploy-manual；README.md「没有」一栏去掉已上线的两项，部署开关一句改成现状；deploy-manual.mjs 文件头注释改成退路；server README:59 与 Dockerfile:20 改成「工作流每次都传，值取仓库变量，没设时是官方默认值」
 - 结果：pnpm check:doc-sync 通过；check-docs 272 份通过；vitest hosted-runners、build-mirrors、deploy-manual 共 66 passed
+
+## 21:19:25 +08:00 · 提交 · #139 · 补记 cc5a1c2 的提交
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：cc5a1c2 docs(deploy): 收紧 deploy-manual 的使用条件，改掉 README 与脚本注释里的旧说法；提交前跑了 pnpm check:doc-sync、node scripts/check-docs.mjs、vitest hosted-runners/build-mirrors/deploy-manual
+- 结果：三项通过（66 passed）；当时只记了「返工」，第四轮审查建议 R4-4 指出后补记
+
+## 21:19:25 +08:00 · 审查 · #139 · 第四轮独立审查 cc5a1c2：通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 审 cc5a1c208e772ee6a5875f8dbce751f12ad52c99（79a1f6d..cc5a1c2，并按 1-12 项复核整个 PR），只读
+- 结果：通过：第三轮应修 (1)-(4) 与 3 条建议已处理并核对属实，无阻塞或应修；新提建议 R4-1~R4-4（CICD.md:5 与 163、RELEASES.md:20 的措辞，cc5a1c2 缺提交记录，已补）。CI cc5a1c2：pull_request 运行 37011064541 success、push 运行 37011060370 success
