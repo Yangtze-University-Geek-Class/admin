@@ -120,3 +120,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：第一轮独立审查（被审 c02e39f）有条件通过，F1–F8 由 Crosery 一方在 7b4c083 前后返工；第二轮（被审 0d26ca8，最后一个代码提交 261040a）有条件通过：应修 R2-1 notes/INDEX.md 与 stage 冲突、R2-2 新提交没推送 CI 没跑图片没上传；建议 R2-3 重新读取后焦点丢失、R2-4 失败状态右侧列表按回退组织读、R2-5 证据 17 图注、R2-6 docs/assets/feedback-org 四张 webp 没人引用
 - 结果：R2-1 在 7db605f 解决；R2-2 本次推送、上传 18 张图、更新正文，CI 等新 head；R2-5 改了图注（提交按钮不在这一帧里，写明是量得的 disabled=true）；R2-3、R2-4、R2-6 记进 #195，本 PR 不改。没有阻塞项
+
+## 23:20:26 +08:00 · 合并 · #129 · PR #182 以 merge commit 合入 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：最终 head 9cc3485 的 CI（pull_request 37025400943、push 37025394572）success、正文改后 pr-contract 37025981726 pass、mergeStateStatus CLEAN 后，gh pr merge 182 --merge --match-head-commit 9cc34858af2a；正文换上 18 张证据图、第二轮审查结论与合并条件核对，审查评论 issuecomment-5955478653
+- 结果：合并提交 a18616a3b41e；issue-lifecycle 在 2026-10-02T15:18:45Z 关了 #129；远端 task/129/feedback_org 已删（ls-remote 0 条）；第二轮的三条建议在 #195
+
+## 23:20:27 +08:00 · 收尾 · #129 · PR #182 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：node scripts/task.mjs finish 129：删 worktree .claude/worktrees/task-129 与本地分支 task/129/feedback_org
+- 结果：PR 已合并
