@@ -45,3 +45,33 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
 - 做了什么：第二轮独立审查 N1：CICD.md 头部与「维护者机器部署」、RELEASES.md 第 8 步仍写 production 没配审批人、部署 job 按设计失败关闭；gh api repos/<仓库>/environments/production 只读核对：2026-09-27T11:05:39Z 建，required_reviewers=[Crosery]，DEPLOY_PRODUCTION_ENABLED=enabled（2026-09-27T11:09:25Z），v0.1.0 正式部署运行 36314912545 success。改成现状并把 deploy-manual 写成退路；RELEASES.md 更新日期改为 2026-10-02。宿主机清理开成 #187、下载源变量评估开成 #188，CICD.md 两处写上编号
 - 结果：pnpm check:doc-sync 通过；docs-index --check 通过
+
+## 20:54:55 +08:00 · 推送 · #139 · 推送 task 分支
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：git push -u origin task/139/hosted_runner_only
+- 结果：远端新建分支，head 79a1f6d37f4dd8039febdff9318991d3a6f7dc8e
+
+## 20:54:55 +08:00 · PR · #139 · 开 PR #189 回 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：gh pr create --base stage，正文按九段模板（/private/tmp/geek-evidence/139/pr-body.md），Closes #139，Refs #187 #188
+- 结果：https://github.com/Yangtze-University-Geek-Class/admin/pull/189；验收证据截图待 CI 跑完后补，审查结论待最终 head 审查后替换
+
+## 21:07:42 +08:00 · 提交 · #139 · 补记 79a1f6d 的提交
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：79a1f6d docs(deploy): 改正 production 审批人的旧说法，写入宿主机清理与下载源的跟进 issue；提交前跑了 pnpm check:doc-sync、node scripts/docs-index.mjs --check
+- 结果：两项通过；当时漏记这条「提交」，第三轮审查（建议项）指出后补记
+
+## 21:07:42 +08:00 · 审查 · #139 · 第三轮独立审查 79a1f6d：有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：Claude Code 独立审查子代理（claude-opus-5-5）代 Crosery 审 79a1f6d37f4dd8039febdff9318991d3a6f7dc8e（origin/stage...HEAD），只读；只读核对 production 环境、仓库变量、运行 36314912545、yangtzeu.work/release.json
+- 结果：有条件通过，无阻塞；应修 4 条：RELEASES.md:50 与 CICD.md:163 把 deploy-manual 的使用条件放宽到「部署 job 失败关闭」；README.md:66、176 与 deploy-manual.mjs:4 仍是旧说法；PR 正文与 79a1f6d 对不上；#139 缺拆分记录。建议 3 条（server README:59 与 Dockerfile:20 措辞、79a1f6d 缺提交记录、Refs 补 #188）。check:doc-sync、docs-index、note check、actionlint、vitest 45 passed
+
+## 21:07:42 +08:00 · 返工 · #139 · 按第三轮审查收紧 deploy-manual 的使用条件，改掉其余旧说法
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
+- 做了什么：RELEASES.md 第 8 步与 CICD.md「维护者机器部署」改用与 AGENTS §3、RELEASES 授权门禁相同的条件（GitHub 计划让部署 job 按设计失败关闭时），并写明环境保护被删、审批人被清空时先恢复保护再重跑工作流、不改用 deploy-manual；README.md「没有」一栏去掉已上线的两项，部署开关一句改成现状；deploy-manual.mjs 文件头注释改成退路；server README:59 与 Dockerfile:20 改成「工作流每次都传，值取仓库变量，没设时是官方默认值」
+- 结果：pnpm check:doc-sync 通过；check-docs 272 份通过；vitest hosted-runners、build-mirrors、deploy-manual 共 66 passed

@@ -47,7 +47,7 @@
    git push origin v0.2.0
    ```
 
-8. `deploy-production.yml` 先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈（2026-09-27 起 `production` 配了 required reviewers，审批人 Crosery；`v0.1.0` 即这样部署）。部署 job 失败关闭时（例如环境保护被删掉），由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。
+8. `deploy-production.yml` 先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈（2026-09-27 起 `production` 配了 required reviewers，审批人 Crosery；`v0.1.0` 即这样部署）。GitHub 计划让部署 job 按设计失败关闭时（例如仓库改回私有、免费版配不了 required reviewers），由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。环境保护被删掉、审批人被清空时，先查清原因、恢复保护再重跑工作流，不改用 `deploy-manual.mjs`。
 
 ## 授权门禁
 
