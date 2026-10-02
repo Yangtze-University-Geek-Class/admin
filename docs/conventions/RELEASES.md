@@ -24,15 +24,14 @@
 
 1. `task/<issue>/<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`。
 2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」开一个普通 task PR 改 `version`，同样合入 `stage`。
-3. 所有者授权发布这个预发布版本后，维护者先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
+3. 所有者授权发布这个预发布版本后，维护者先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。下面的命令块不切分支，在主工作区或 release worktree 里都能跑；`git merge-base --is-ancestor` 和第 4 步的 plan 一样，先核对这个提交在 `origin/stage` 上。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
 
    ```bash
    (
      set -e   # 整块在子 shell 里执行：任何一步失败就停下、不打 tag，也不会关掉当前终端
      git fetch origin --tags
-     git switch stage
-     git pull --ff-only
      SHA=<stage 上的 40 位提交 SHA>
+     git merge-base --is-ancestor "$SHA" origin/stage
      CHECK=$(mktemp -d)/rc_doc_sync
      git worktree add --detach "$CHECK" "$SHA"
      if ! (cd "$CHECK" && node scripts/check-doc-sync.mjs); then git worktree remove --force "$CHECK"; exit 1; fi
