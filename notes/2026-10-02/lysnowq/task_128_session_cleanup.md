@@ -111,3 +111,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：上一条「三轮独立审查」的结果里写「N2 注释在 ad7c2b3 之前的返工提交改准」，ad7c2b3 不存在，是笔误
 - 结果：N2 的注释改动是提交 76ae200（docs(auth): 改准会话清理注释里 -wal 截断后的说法）；已有记录不改，以本条为准
+
+## 23:23:14 +08:00 · 提交 · #128 · 再合一次 stage：和 #129 的三处真冲突
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：#182（#129）合入后 stage 到 a18616a，329d5e4 把 origin/stage 合进来。冲突三处：app/server/src/services.ts 两边都改了 createAuth 那一行附近，取 stage 一侧（加 feedback store 与 normalizeOrgSpelling 的 try/catch），createAuth 保留本分支加的 overrides.clock 参数；docs/services/server/README.md 的 services.ts 一行，合成「先归一旧组织名（#129）…任何一步失败都先关库」加上本分支的「发信队列与会话（建会话、判过期、定时清理）用的时钟」；docs/services/server/data-model.md 约定一节，取 stage 一侧的 #129 两句，存储一句保留本分支的 secure_delete = ON（#128）。另在合并前提交 f2… 更正记录（下一条记录写提交号）
+- 结果：合并后同一 HEAD：tsc -p app/server --noEmit 退出 0；vitest run tests/server 12 个文件 256 passed；fnm exec --using=22.23.2 pnpm check 通过（文档同步 6 组按 PR 核对，执行记录 46 条链路，密钥扫描 747 个文本）；pnpm typecheck 退出 0。merge 提交里有代码冲突的解决，送增量审查
+
+## 23:23:26 +08:00 · 推送 · #128 · 推送更正记录与再次合入 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：上一条说的更正记录提交是 e2a1f48（docs(notes): 更正 #128 审查记录里写错的提交号）；推送 e2a1f48、329d5e4 与本条记录所在的 docs(notes) 提交
+- 结果：推送后送第四轮增量审查（76ae200 注释、8ecd3aa 与 329d5e4 两次合 stage）
