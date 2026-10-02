@@ -108,3 +108,15 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：审查 S1（建议）：原证据 3 只拍到提交成功，看不到框里的小写组织名；原证据 9 看不到地址栏。本轮在 ego 浏览器重拍 18 张：stage 458999f 构建（本机隔离服务 5431、临时库 data2.db）拍改前首屏桌面与手机、提交前框里是 yangtze-university-geek-class、提交成功、控制台（库里三条只看到组织名写法完全一致的 #3）、分类没读到时提示「按未分类提交」且能提交（实际提交体 category=建议，即 S3）桌面与手机；261040a 构建（5430 起在 data3.db 上：先用 stage 构建经真实接口写入同样三条，再用 261040a 启动，第 1 条归一成 Yangtze-University-Geek-Class）拍改后首屏桌面与手机、组织框打字改不动并提交、手机选 Bug 提交整页、/feedback/some-random-org（左下角叠一行验收脚本写的 location.pathname，图注写明不是页面内容）、控制台 #4 #3 #1 三条、键盘 Tab 第 6 下聚焦组织框；5432（CONSOLE_ORG=Some-Other-Org）拍照服务端组织名提交成功、页面注入脚本让第一次 categories 回 503 时的提示与灰按钮（桌面与手机）、点「重新读取」→「正在读取…」→ 组织名换成 Some-Other-Org → 提交成功的四帧。docs/assets/feedback-org 的 webp 没换：正常状态的画面与 7b4c083 构建一样，本轮只多了失败状态
 - 结果：截图与 manifest 在 /private/tmp/geek-evidence/129/（主控上传到 PR）。浏览器核对：改后组织框 readOnly、背景 rgba(27,33,64,0.05)；打字后值仍是 Yangtze-University-Geek-Class；提交体 org=Yangtze-University-Geek-Class；/feedback/some-random-org 的 pathname 与组织框值已读出；Tab 第 6 下聚焦，只聚焦时边框 rgb(51,70,200)、焦点环 0 0 0 4px，悬停也不变；无障碍树 textbox「发往的 GitHub 组织」readonly、描述为说明文字；失败状态 role=alert、提交按钮 disabled、在联系方式框按回车不发请求（__posted=null）、「重新读取」按钮 390×844 下 90×44；重新读取后提交体 org=Some-Other-Org、正文保留。390×844 DPR3 触屏 matchMedia(pointer: coarse)=true，scrollWidth 390。接口（261040a）：categories 带 org；POST some-random-org → 400；小写 → 200 存规范写法；public 别的组织 → {items:[]}；重复 org、40 字 org、limit=0、limit=10000 → 400 validation_error；limit=1 → 200。同一 HEAD：fnm exec --using=22.23.2 corepack pnpm check 退出 0（Boundaries 202 files 1152 imports；文档同步 6 组；执行记录 44 条链路；密钥扫描 747 个文本）；vitest run tests/server tests/web：Test Files 30 passed，Tests 389 passed (389)。不是预发布验收，prev 环境未验证
+
+## 23:12:54 +08:00 · 推送 · #129 · 推送接手后的返工与合并
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：把 origin/stage 2075c55（#189 合入后）合进 task/129/feedback_org，只有生成的 notes/INDEX.md 冲突，取 stage 一侧后用 node scripts/note.mjs index 重新生成，merge 提交 7db605f 里只有这处；推送 a5c6ed8、33ebeed、261040a、0d26ca8、7db605f
+- 结果：远端 task/129/feedback_org = 7db605f628f4，作者在 e76dd50 之后没有推过新提交；同一 HEAD：pnpm check:doc-sync 通过（6 组），note.mjs check --pr 通过（45 条链路）。CI 在新 head 上的结果在下一条记录
+
+## 23:12:54 +08:00 · 审查 · #129 · 两轮独立审查：c02e39f、0d26ca8 均有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：第一轮独立审查（被审 c02e39f）有条件通过，F1–F8 由 Crosery 一方在 7b4c083 前后返工；第二轮（被审 0d26ca8，最后一个代码提交 261040a）有条件通过：应修 R2-1 notes/INDEX.md 与 stage 冲突、R2-2 新提交没推送 CI 没跑图片没上传；建议 R2-3 重新读取后焦点丢失、R2-4 失败状态右侧列表按回退组织读、R2-5 证据 17 图注、R2-6 docs/assets/feedback-org 四张 webp 没人引用
+- 结果：R2-1 在 7db605f 解决；R2-2 本次推送、上传 18 张图、更新正文，CI 等新 head；R2-5 改了图注（提交按钮不在这一帧里，写明是量得的 disabled=true）；R2-3、R2-4、R2-6 记进 #195，本 PR 不改。没有阻塞项
