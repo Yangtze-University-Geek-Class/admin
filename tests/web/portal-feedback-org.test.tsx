@@ -51,6 +51,9 @@ it("组织框只读展示本站组织", async () => {
   render(<Feedback />);
   await waitFor(() => expect(orgField().value).toBe(ORG));
   expect(orgField().readOnly).toBe(true);
+  // 「这里改不了」的说明挂在框上，读屏聚焦到框时一起读出
+  expect(orgField().getAttribute("aria-describedby")).toBe("fb-org-hint");
+  expect(document.getElementById("fb-org-hint")?.textContent).toContain("这里改不了");
 });
 
 it("提交体里的组织是本站组织，页面没有可改的入口", async () => {

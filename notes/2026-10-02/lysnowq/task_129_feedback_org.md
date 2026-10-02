@@ -60,3 +60,9 @@
 - 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查 F7（建议）：services.ts 里 feedback.normalizeOrgSpelling 在论坛、发信的 try/catch 之外，抛错时启动失败但刚打开的 data.db 不关，与同文件约定不一致。包一层 try/catch，失败先 storage.db.close() 再抛；tests/server/feedback-org.test.ts 加 1 条：用触发器让归一的 UPDATE 失败，启动报错且 -wal 文件已被删（WAL 库最后一个连接正常关闭才会删）；docs/services/server/README.md 的 services.ts 一行同步
 - 结果：去掉 try/catch 时新用例失败（expected true to be false）；加上后 feedback-org + legacy-database 连跑 3 次都是 Tests 12 passed (12)
+
+## 20:18:24 +08:00 · 返工 · #129 · 意见箱只读组织框的外观与读屏说明（审查 F6）
+
+- 执行者：agent-claude-geek-main-subagent-129（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查 F6（建议）：只读框沿用 .pt-input 的底色和悬停，看起来和可编辑框一样；说明「这里改不了」没有用 aria-describedby 关联。改法：styles/pages.css 加 .pt-input[readonly]（浅灰底 rgb(27 33 64 / 5%)、文字 --pt-ink-soft、悬停不变色、默认指针；聚焦环保留，键盘焦点照样看得见）；Feedback.tsx 给说明加 id=fb-org-hint、输入框加 aria-describedby；jsdom 用例断言关联；portal.md 的 /feedback 一行同步。--pt-ink-soft 在新底色上的对比度按 WCAG 公式算约 5.4:1
+- 结果：vitest run tests/web/portal-feedback-org.test.tsx：Tests 3 passed (3)；浏览器外观在最后一个代码提交构建后拍图核对
