@@ -24,7 +24,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 
 ## 文档跟着模块改
 
-模块改了，对应的文档要在同一个 PR 里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并（这是规则：仓库还没有分支保护，CI 报红拦不住合并，合并的人要自己看 CI 结果，见 [CICD](ops/CICD.md)）。发版时两条部署工作流的 plan job 还会在发布 tag 指向的提交上按下面第 2 条再核对一次，不通过就不构建、不部署：
+模块改了，对应的文档要在同一个 PR 里跟着改。下表是模块与文档的唯一对照清单，`scripts/check-doc-sync.mjs` 逐行核对（`pnpm check:doc-sync`，在 `pnpm check` 里，CI 的 core 与 branch-guard 都会跑），不通过就不能合并（这是规则：是否配了分支保护以 [CICD](ops/CICD.md) 为准，没配置时 CI 报红拦不住合并，合并的人要自己看 CI 结果）。发版时两条部署工作流的 plan job 还会在发布 tag 指向的提交上按下面第 2 条再核对一次，不通过就不构建、不部署：
 
 | 模块路径 | 文档路径 | 头部「更新：」 |
 |---|---|---|

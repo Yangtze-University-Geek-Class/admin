@@ -24,15 +24,18 @@
 
 1. `task/<issue>/<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`。
 2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」开一个普通 task PR 改 `version`，同样合入 `stage`。
-3. 所有者授权发布这个预发布版本后，维护者在 `stage` 的提交上打 rc tag 并推送：
+3. 所有者授权发布这个预发布版本后，维护者先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
 
    ```bash
    git fetch origin --tags && git switch stage && git pull --ff-only
+   git worktree add --detach /tmp/rc_doc_sync <stage 上的 40 位提交 SHA>
+   (cd /tmp/rc_doc_sync && node scripts/check-doc-sync.mjs)   # 不通过就停下，不打 tag
+   git worktree remove /tmp/rc_doc_sync
    git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1" <stage 上的 40 位提交 SHA>
    git push origin v0.2.0-rc.1
    ```
 
-4. `deploy-preview.yml` 核对 tag、版本号与「提交在 `origin/stage` 上」，构建三个镜像并部署到预发布栈；部署记录的 payload 带上这个 rc tag。
+4. `deploy-preview.yml` 的 plan job 核对 tag、版本号、「提交在 `origin/stage` 上」，再在 tag 指向的提交上核对文档同步（[CICD](../ops/CICD.md#触发与职责)「发版时在 tag 指向的提交上再核对一次文档同步」），都通过才构建三个镜像并部署到预发布栈；部署记录的 payload 带上这个 rc tag。
 5. 所有者在预发布环境实际试用这个 rc 的产物，按 [RELEASE-ACCEPTANCE-TEMPLATE](../ops/RELEASE-ACCEPTANCE-TEMPLATE.md) 记录结论。不通过就在 `stage` 上修复，打下一个 `rc.N+1`，回到第 4 步。
 6. 验收通过后，维护者把 `main` 快进到被验收的那个提交（只允许快进；push `main` 只跑 CI，不部署）：
 
@@ -47,7 +50,7 @@
    git push origin v0.2.0
    ```
 
-8. `deploy-production.yml` 先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈（2026-09-27 起 `production` 配了 required reviewers，审批人 Crosery；`v0.1.0` 即这样部署）。GitHub 计划让部署 job 按设计失败关闭时（例如仓库改回私有、免费版配不了 required reviewers），由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。环境保护被删掉、审批人被清空时，先查清原因、恢复保护再重跑工作流，不改用 `deploy-manual.mjs`。
+8. `deploy-production.yml` 的 plan job 同样在 tag 指向的提交上核对文档同步，然后先跑证据 job（见下文），再构建镜像，经 `production` 环境审批后部署到正式栈（2026-09-27 起 `production` 配了 required reviewers，审批人 Crosery；`v0.1.0` 即这样部署）。GitHub 计划让部署 job 按设计失败关闭时（例如仓库改回私有、免费版配不了 required reviewers），由维护者用 `scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准记录链接>` 部署这次运行构建的镜像，它重做同样的证据核对，见 [CICD](../ops/CICD.md#维护者机器部署免费版的退路)。环境保护被删掉、审批人被清空时，先查清原因、恢复保护再重跑工作流，不改用 `deploy-manual.mjs`。
 
 ## 授权门禁
 
@@ -116,8 +119,8 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 
 正式发布后暴露的影响用户的问题按 [BRANCHING.md](BRANCHING.md) 处理：
 1. **开 Issue 与打标**：必须开 Issue 记录故障现象，打上 `hot-fix` 与 `P0` 标签。
-2. **基线拉取与紧急上线**：直接以 `origin/main` 作为基线拉出快速修复，关键路径验证通过后合入 `main` 快速发布上线。
-3. **强制合回 stage**：正式环境修复上线且验收通过后，**必须立即把该提交合并回 `stage`**，执行 `git merge-base --is-ancestor origin/main origin/stage` 恢复并确保 `stage >= main` 硬不变量成立。
+2. **基线拉取与紧急上线**：直接以 `origin/main` 作为基线拉出快速修复，关键路径验证通过后合入 `main` 快速发布上线。修复改了模块（[docs/README](../README.md)「文档跟着模块改」表里的路径），就在同一个改动里把对应文档改对；文档里的事实确实没变时，在随修复一起提交的执行记录里写文档核对。没跟文档的修复，在它上面打的发布 tag 会被部署工作流的 plan 拦下。
+3. **强制合回 stage**：正式环境修复上线且验收通过后，**必须立即把该提交合并回 `stage`**，执行 `git merge-base --is-ancestor origin/main origin/stage` 恢复并确保 `stage >= main` 硬不变量成立。合回的合并提交把修复的模块改动和文档（或文档核对）一起带进 `stage`；修复没跟文档时，这个合并提交在 `stage` 上就不同步（例：`9b38684`、`7c01897`），push `stage` 的 CI `core` 报红，在它和它之后、文档补上之前的提交上打的 rc 都会被 plan 拦下，只能作废编号，补好文档后再打下一个。
 4. **同构预防**：预发布与正式环境必须保持最高同构（Nginx 模板、CSP 头、跨域白名单与环境变量结构对齐），任何配置与依赖在正式上线前必须在预发布真实走过完整改动路径，确保线上可控。
 
 ## tag 不可变
