@@ -6,10 +6,10 @@ import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-// 构建下载源（#104）：家里的自托管 runner 经仓库变量换国内镜像，没设变量时必须回到官方源；
-// 镜像参数只在 Dockerfile 的构建阶段出现，不进运行镜像。这里核对三个 Dockerfile、三条工作流与 runner
-// 准备脚本的接线，并在临时目录里实跑其中负责拦下坏输入的 shell：三个 Dockerfile 构建阶段换源、核对的那条 RUN，
-// ci forum job 装 pnpm 11 的那一步，container-setup.sh 下载并核对 Node 的函数（apt、corepack、npm、curl 等换成假命令）。
+// 构建下载源（#104）：仓库变量可以把下载换到别的源，没设变量时必须回到官方源；
+// 镜像参数只在 Dockerfile 的构建阶段出现，不进运行镜像。这里核对三个 Dockerfile 与三条工作流的接线，
+// 并在临时目录里实跑其中负责拦下坏输入的 shell：三个 Dockerfile 构建阶段换源、核对的那条 RUN，
+// ci forum job 装 pnpm 11 的那一步（apt、corepack、npm、pnpm 等换成假命令）。
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 const readOr = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return ''; } };
@@ -340,102 +340,6 @@ describe('runner-side installs check the better-sqlite3 binary host before downl
     expect(run.status).toBe(1);
     expect(run.stderr).toContain(message);
     expect(run.stdout).toBe('');
-  });
-});
-
-describe('runner containers pre-seed Node 22 into the actions tool cache', () => {
-  const setup = read('deploy/runner/container-setup.sh');
-
-  it('uses the @actions/tool-cache layout for both the CI runners and the one-shot deploy runner', () => {
-    expect(setup).toContain('dir=$cache/node/${node_version#v}/x64');
-    expect(setup).toContain(': > "$dir.complete"');
-    expect(setup).toContain('seed_node_tool_cache /home/runner/r1/_work/_tool /home/runner/r2/_work/_tool');
-    expect(setup).toMatch(/d=\/home\/runner\/actions-runner\n[\s\S]*seed_node_tool_cache "\$d\/_work\/_tool"/);
-    // 缓存要在 chown 之前写好，runner 用户才能读写。
-    for (const call of ['seed_node_tool_cache "$d/_work/_tool"', 'seed_node_tool_cache /home/runner/r1']) {
-      const at = setup.indexOf(call);
-      expect(setup.indexOf('chown -R runner:runner /home/runner', at)).toBeGreaterThan(at);
-    }
-    // 与 /usr/local 同一个按 SHASUMS256 校验过的官方包（下面实跑核对）；setup-node 读的 .nvmrc 是 22。
-    expect(setup).toMatch(/\nif ! node --version[^\n]*\n {2}fetch_node\n(?: {2}#[^\n]*\n)* {2}tar -xJf "\$node_tarball" -C \/usr\/local --strip-components=1 --no-same-owner /);
-    expect(read('.nvmrc').trim()).toBe('22');
-  });
-
-  type Tarball = { name: string; sha256: string };
-  const NODE_VERSION = 'v22.99.0';
-
-  /**
-   * 抽出 fetch_node（连同 mktemp 建的下载目录与 EXIT 清理）和 seed_node_tool_cache，curl 换成从夹具复制的假命令，
-   * 给两个缓存目录播种。夹具是真的 .tar.xz，顶层目录与官方包相同；shasums 决定假 SHASUMS256.txt 的内容。
-   * mktemp 也换成假的，把目录建在沙箱的 tmp 里：macOS 的 mktemp -d 不看 TMPDIR，测试就看不到目录有没有删掉。
-   */
-  function seed(shasums: (tarball: Tarball) => string) {
-    const box = sandbox({
-      mktemp: 'd="$TMPDIR/mktemp.$$"; mkdir -m 0700 "$d"; echo "$d"',
-      curl: [
-        'out=; url=',
-        'while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift 2 ;; -*) shift ;; *) url=$1; shift ;; esac; done',
-        'case "$url" in */SHASUMS256.txt) cp "$FIXTURES/SHASUMS256.txt" "$out" ;; *) cp "$FIXTURES/node.tar.xz" "$out" ;; esac',
-      ].join('\n'),
-    });
-    const fixtures = join(box.root, 'fixtures');
-    const top = `node-${NODE_VERSION}-linux-x64`;
-    mkdirSync(join(fixtures, top, 'bin'), { recursive: true });
-    writeFileSync(join(fixtures, top, 'bin', 'node'), 'fake node\n');
-    expect(spawnSync('tar', ['-cJf', join(fixtures, 'node.tar.xz'), '-C', fixtures, top]).status).toBe(0);
-    const sha256 = createHash('sha256').update(readFileSync(join(fixtures, 'node.tar.xz'))).digest('hex');
-    writeFileSync(join(fixtures, 'SHASUMS256.txt'), shasums({ name: `${top}.tar.xz`, sha256 }));
-    const block = (re: RegExp) => {
-      const match = re.exec(setup);
-      if (!match) throw new Error(`container-setup.sh 里找不到 ${re}`);
-      return match[0];
-    };
-    const script = [
-      'set -eu',
-      `node_version=${NODE_VERSION}`,
-      block(/^node_dir=\$\(mktemp -d\)\n[\s\S]*?\n}\n/m),
-      block(/^seed_node_tool_cache\(\) \{\n[\s\S]*?\n}\n/m),
-      'seed_node_tool_cache "$CACHE/r1" "$CACHE/r2"',
-    ].join('\n');
-    const tmp = join(box.root, 'tmp');
-    mkdirSync(tmp);
-    const cache = join(box.root, 'cache');
-    return {
-      ...box.run(script, { TMPDIR: tmp, CACHE: cache, FIXTURES: fixtures }),
-      tmp,
-      x64: (runner: string) => join(cache, runner, 'node', NODE_VERSION.slice(1), 'x64'),
-    };
-  }
-
-  it('verifies the official tarball once per run and unpacks it into every cache', () => {
-    const run = seed(({ name, sha256 }) => `${'1'.repeat(64)}  node-${NODE_VERSION}-darwin-arm64.tar.gz\n${sha256}  ${name}\n`);
-    expect(run.status, run.stderr).toBe(0);
-    for (const runner of ['r1', 'r2']) {
-      expect(readFileSync(join(run.x64(runner), 'bin', 'node'), 'utf8')).toBe('fake node\n');
-      expect(existsSync(`${run.x64(runner)}.complete`)).toBe(true);
-    }
-    // 两个缓存只下载、核对一次；下载目录是这次 mktemp 新建的，退出时连同包一起删掉。
-    const [mktemp, tarball, shasumsFile, ...rest] = run.calls.trim().split('\n');
-    expect(rest).toEqual([]);
-    expect(mktemp).toBe('mktemp -d');
-    expect(tarball).toMatch(/^curl -fsSL -o (\S+)\/mktemp\.\d+\/node-v22\.99\.0-linux-x64\.tar\.xz https:\/\/nodejs\.org\/dist\/v22\.99\.0\/node-v22\.99\.0-linux-x64\.tar\.xz$/);
-    expect(tarball.startsWith(`curl -fsSL -o ${run.tmp}/`)).toBe(true);
-    expect(shasumsFile.endsWith(` https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt`)).toBe(true);
-    expect(readdirSync(run.tmp)).toEqual([]);
-  });
-
-  it.each<[string, (tarball: Tarball) => string]>([
-    ['the checksum does not match', ({ name }) => `${'0'.repeat(64)}  ${name}\n`],
-    ['SHASUMS256.txt has no line for this tarball', ({ sha256 }) => `${sha256}  node-${NODE_VERSION}-linux-arm64.tar.xz\n`],
-  ])('stops before unpacking anything when %s', (_label, shasums) => {
-    const run = seed(shasums);
-    expect(run.status).not.toBe(0);
-    expect(run.stderr).toContain(`node-${NODE_VERSION}-linux-x64.tar.xz 与 nodejs.org 的 SHASUMS256 对不上`);
-    for (const runner of ['r1', 'r2']) {
-      expect(existsSync(run.x64(runner))).toBe(false);
-      expect(existsSync(`${run.x64(runner)}.complete`)).toBe(false);
-    }
-    expect(readdirSync(run.tmp)).toEqual([]);
   });
 });
 
