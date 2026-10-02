@@ -25,3 +25,9 @@
 - 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
 - 做了什么：fix(console): 导出 CSV 跟着列表的搜索词走。服务端把状态筛选与搜索抽成 matchedIds，列表和 export.csv 共用；export.csv 的契约加 q（≤100 字），审计 application.export 加 searched（只记有没有带搜索，不记搜索词）；控制台「导出 CSV」链接带上 status 与 q；样板审计行同步。同步 docs/architecture/API.md、docs/architecture/SECURITY.md（搜索词不进审计）、docs/services/console/README.md（导出）、docs/conventions/TESTING.md；新增 tests/server/application-groups.test.ts「exports what the list shows for a search too」，tests/server/console.test.ts 的审计断言加 searched:false
 - 结果：pnpm typecheck exit 0；npx vitest run tests/server/application-groups.test.ts tests/server/console.test.ts tests/console：Test Files 12 passed，Tests 161 passed；node scripts/check-doc-sync.mjs：文档同步通过：6 组模块与文档
+
+## 22:36:15 +08:00 · 返工 · #184 · 按审查 S5 核对：limit、offset 越界在契约层就是 400，补回归用例
+
+- 执行者：agent-claude-geek-main-subagent-184（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：核对 S5（offset=-1 会从末尾取人）：contracts.ts 早已把 GET /api/console/applications 的 limit 限成 1–200 的整数字符串、offset 限成 ^[0-9]{1,8}$，越界请求在路由之前回 400 validation_error，handler 的 people.slice 拿不到负数，所以不改 handler，只在读 limit/offset 处写一行注释说明依赖契约。test(server): 新增 tests/server/application-groups.test.ts「refuses a limit or offset out of bounds before paging people in memory」（offset=-1、limit=-1/0/201/1.5、offset=abc 都是 400，limit=200 与很大的 offset 正常）；docs/architecture/API.md 列表一行的 400 写全 limit/offset/q，TESTING.md 同步
+- 结果：npx vitest run tests/server/application-groups.test.ts：Tests 16 passed；tsc -p app/server/tsconfig.json --noEmit 无错误；node scripts/check-doc-sync.mjs：文档同步通过

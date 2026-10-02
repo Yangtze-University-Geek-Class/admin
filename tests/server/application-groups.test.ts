@@ -165,6 +165,18 @@ describe('GET /api/console/applications groups by person', () => {
     expect(new Set(pages.slice(0, 3).map(page => page.items[0].person.key)).size).toBe(3);
   });
 
+  it('refuses a limit or offset out of bounds before paging people in memory', async () => {
+    const { app, alice, list } = await seeded();
+    // 分页改成在内存里切人（people.slice）以后，负的 offset 会从末尾取；契约在路由之前就拒绝它们
+    for (const query of ['?offset=-1', '?limit=-1', '?limit=0', '?limit=201', '?limit=1.5', '?offset=abc']) {
+      const response = await app.inject({ url: `/api/console/applications${query}`, headers: alice });
+      expect(response.statusCode, query).toBe(400);
+      expect(response.json().error, query).toBe('validation_error');
+    }
+    expect((await list('?limit=200')).items).toHaveLength(3);
+    expect((await list('?limit=1&offset=99999999')).items).toEqual([]);
+  });
+
   it('searches applications and still says how many the person has in all', async () => {
     const { list, ids } = await seeded();
     const found = await list(`?q=${encodeURIComponent('bing.second')}`);

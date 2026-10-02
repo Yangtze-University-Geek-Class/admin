@@ -75,6 +75,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
 
   app.get<{ Querystring: ListQuery }>("/api/console/applications", { preHandler: requireCapability("applications.read") }, async (req) => {
     const { status, q } = req.query;
+    // 契约（contracts.ts）已把 limit 限在 1–200、offset 限成非负整数，越界的请求到不了这里
     const limit = Number(req.query.limit ?? 50);
     const offset = Number(req.query.offset ?? 0);
     const rows = allIdentities();
