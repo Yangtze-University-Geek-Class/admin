@@ -94,3 +94,15 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：按 9d7cd89 一轮审查的 R3（建议）：docs/services/web/portal.md「分包未到的加载占位」原写「播放层分包在 Fast 4G 下约 1.7–2.1 秒、Slow 4G 下约 8 秒才到」，这组数是 #77 / PR #95 量的「从打开网址到播放层出现」（#122 正文原话），不是分包本身的下载时间。改成「从打开网址到播放层出现，Fast 4G 下约 1.7–2.1 秒、Slow 4G 下约 8 秒（#77 / PR #95 实测）」，并补上 #122 本机 Slow 4G 实测的「遮罩出现到播放层出现约 0.65 秒」（3985ms → 4630ms，见 20:47:57 那条记录）。docs/services/web/README.md 的「更新：」已是 2026-10-02，不用再改
 - 结果：pnpm check:docs：docs/INDEX.md 是最新的，272 份文档链接通过；pnpm check:doc-sync：6 组按 PR 核对通过；git grep -lI 回车符：portal.md 无 CR
+
+## 22:15:43 +08:00 · 返工 · #122 · R2：正常速度与预发布 CSP 下复测遮罩换播放层，照做人工验收第 8 步
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：按 9d7cd89 一轮审查的 R1、R2（应修）改 PR 正文（/private/tmp/geek-evidence/122/pr-body.md，主控上传）：回滚命令换成 git revert -m 1 --no-commit <合并提交> 加 git checkout HEAD -- notes/；未验证清单补齐。为了把能做的未验证项做掉：在 a8cd042 上 pnpm --filter @yzgc/web build（app/ 自 e072bcf 起没改，dist 100 个文件与 e072bcf 的构建逐字节相同，整体 sha256 c6b4e200fea1），本机静态服务 localhost:5311 给每个响应加 deploy/nginx/preview.conf 里 map default 那一份 CSP；ego 浏览器（TaskSpace 219「geek #122 验收」，用完已 finish）不放慢，遮罩盖满后放行分包，MutationObserver 记播放层插入时的计算样式、之后 30 个 rAF 的不透明度，CDP Page.startScreencast 逐帧收图，桌面 1440×900 与 390×844 触屏竖屏各一次；再用 CDP Network.emulateNetworkConditions 照人工验收第 8 步做：RTT 5000ms（又试 3000ms）、遮罩出现后点「跳过」、马上切 Offline、等 14 秒、切回、回到桌面双击「宣传片」
+- 结果：桌面：播放层插入时不透明度 1、animation-delay -3435ms、没有在跑的进场动画，30 个 rAF（8ms 一帧，共 242ms）全是 1，录屏 171 帧没有浅色页面帧，视频没静音在播（currentTime 1.66s）；390×844：-3444ms，30 个 rAF（241ms）全是 1，138 帧，currentTime 2.29s。CSP 违规只有 base.css 里 cdn.jsdelivr.net 的 Maple Mono 两个 font-src（与本 PR 无关，stage 上同样引用），hls.js 从 cdn.crosery.com 播放正常。证据 15–18（/private/tmp/geek-evidence/122/）。第 8 步：两次都没造出「跳过后分包失败」——PromoPlayer 分包 responseEnd 正好落在切 Offline 那一刻、状态 200（例：start 9044、end 9322、点跳过 9323），Chrome 换网络档位时把压着的响应直接放出来，不会让它失败；所以这一步区分不了改前改后，PR 正文改为不要求人工做，这条路径以单测和证据 11、12（静态服务按住再 503）为准
+
+## 22:16:17 +08:00 · 提交 · #122 · 补记接手以来的本地提交（审查 R5）
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：按 9d7cd89 一轮审查的 R5（建议）：20:15 起的返工提交只记了「返工」，没有「提交」。这里补一条，列出接手以来全部本地提交：9fffb81 style(portal) 行尾 CRLF→LF；a01ab40 fix(portal) 遮罩换播放层接着淡入；0b68462 fix(portal) 加载中跳过后分包失败换新的；6095e07 fix(portal) 减少动态效果不挂遮罩；0956b39 fix(portal) 遮罩键盘与 replay 图标；e072bcf fix(portal) 分包失败等关掉再换；c763c00 docs(portal) 删旧截图；9d7cd89 docs(notes) 自审记录与回滚范围；500dede test(portal) 补分包已失败还没显示就关掉的用例（R4）；a8cd042 docs(portal) 改正播放层出现时间的说法（R3）；以及带着本条与上一条记录的 docs(notes) 提交（SHA 见 git log）。22af6fa 那一轮的「审查」记录不在本条范围：按分工「审查」由主控在补本轮审查记录时一起追加
+- 结果：提交前：pnpm check exit 0（runtime v22.23.2、boundaries 202 文件 1154 导入、docs 272 份、doc-sync 6 组、notes 44 条链路、secrets 746 个文件、tsc server/web/console 通过）；pnpm test：Test Files 62 passed，Tests 945 passed；vitest run tests/web/portal-promo-lazy.test.tsx 8 passed；pnpm --filter @yzgc/web build 通过（built in 2.95s）
