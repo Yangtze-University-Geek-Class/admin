@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-09-28
+状态：`current` · 更新：2026-10-02
 
 ## 合同
 
@@ -28,9 +28,9 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `GET /api/public/org` | 匿名 | 无 | 200 `{ tones, titles, departments }`：`tones` 是色调 id → 浅色色值；`titles` 按 admin、captain、head、member、alumni、guest 排，每项 `{ id, label, tag, icon, tone, description, rank }`，读 `titles` 表（控制台改过的名字立刻生效）；`departments` 只含未归档部门的 `{ id, name, tag, icon, tone, description }`。不含权限包，不含任何人。官网「组织架构」窗口与论坛称号读它 | — |
 | `GET /api/docs` | 匿名 | 无 | 200 `{ items }`，只列白名单文档（产品介绍、用户指南，中英各一） | — |
 | `GET /api/docs/:id` | 匿名 | 无 | 200 `{ id, label, lang, file, content }` | 404 `doc not found` / `doc file missing` |
-| `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty }` | — |
-| `POST /api/feedback` | 匿名；带有效 `sid` 时记录提交者 | 10 次/分钟 | 200 `{ ok, id, message }` | 400：字段、PoW、蜜罐（`请求被拒绝`）、Turnstile |
-| `GET /api/feedback/public?org=&limit=` | **匿名**，不校验 `ALLOWED_ORGS` | 无 | 200 `{ items }`：该组织非 `spam` 反馈按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org` 时 `items` 为空 | `limit` 默认 20，只接受 1–9999 的正整数（`lib/http-contracts.ts` 的公共 querystring 校验 `^[1-9][0-9]{0,3}$`），之后取 `min(limit, 100)`；负数、0、小数、非数字和超过 9999 的值返回 400 `validation_error`（`tests/server/core.test.ts`） |
+| `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty, org }`；`org` 是本部署意见箱收的组织，即 `CONSOLE_ORG` 的配置写法，官网意见箱照它展示、读公开列表和提交（#129） | — |
+| `POST /api/feedback` | 匿名；带有效 `sid` 时记录提交者 | 10 次/分钟 | 200 `{ ok, id, message }` | 400：字段、PoW、蜜罐（`请求被拒绝`）、Turnstile；PoW 摘要输入是 `fb:<请求里的 org>:<trim 后的正文>`（摘要按提交者发出的组织名算，换大小写提交不必改摘要）；`org` 与部署配置 `CONSOLE_ORG` 只差大小写时按配置写法落库，其它组织名返回 400 `意见箱只接收「<CONSOLE_ORG>」组织的意见` 且不落库（#129） |
+| `GET /api/feedback/public?org=&limit=` | **匿名** | 无 | 200 `{ items }`：只返回 `CONSOLE_ORG`（不分大小写，比较前统一成配置写法）下非 `spam` 的反馈，按时间倒序，含 `category`、`content`（截到前 280 字）、`status`、管理员 `reply`、`votes`；缺 `org`、或组织名与 `CONSOLE_ORG` 不分大小写比较也对不上时 `items` 为空（#129，不区分「不存在」与「不属于本部署」；库里别的组织的历史行不再经这里公开） | 本端点有自己的 querystring 合同（`routes/portal/contracts.ts`，#129）：`org` 是不超过 39 字的字符串，重复给出 `org`（会被解析成数组）或超长返回 400 `validation_error`，不再是 500（`tests/server/feedback-org.test.ts`）；`limit` 默认 20，只接受 1–9999 的正整数（合同引用 `lib/http-contracts.ts` 的公共规则 `limitParam`，`^[1-9][0-9]{0,3}$`，不另写一份），之后取 `min(limit, 100)`；负数、0、小数、非数字和超过 9999 的值返回 400 `validation_error`（`tests/server/core.test.ts`）；其它参数照旧放行 |
 | `GET /api/join/:token` | 匿名（链接令牌即能力） | 无 | 200 `{ org, note, team_slug, expires_at, remaining_uses, valid, reason }` | 404 `邀请链接不存在` |
 | `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400：字段、PoW、蜜罐、Turnstile 或已知失败；404；503：发起人 token 失效或结果待核对 |
 | `POST /api/portal/apply` | 匿名 | 5 次/分钟；同一 IP、同一设备各 24 小时 5 份 | 201；往发信队列写一封「已收到」的信 | 见「加入我们（投递）端点」 |

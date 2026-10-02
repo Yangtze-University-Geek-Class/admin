@@ -16,7 +16,8 @@ const JoinByToken = lazy(() => import("./pages/JoinByToken"));
  *   /join-us     加入我们（信封场景，真实提交 POST /api/portal/apply）；旧地址 /apply 重定向到这里
  *   /forum-3d    论坛版块气泡场景（主入口「进入论坛首页」）
  *   /github      GitHub 组织贡献天际线（高度为示意）
- *   /docs /docs/:id /feedback /feedback/:org /join/:token
+ *   /docs /docs/:id /feedback /join/:token；/feedback/:org 是控制台意见箱页生成的分享地址（也接住旧链接），
+ *                URL 里的组织名不生效，页面只发服务端下发的本部署组织（#129）
  */
 export default function App() {
   return (

@@ -24,6 +24,11 @@ type Props = {
   /** 真正开始播放、跳过、播完或浏览器根本不让播时调用一次（gate 用它写「已播过」的 cookie） */
   onSeen?: () => void;
   onClose: (reason: PromoEnd) => void;
+  /**
+   * 加载遮罩（PromoLazy 的 PromoFallback）开始显示的时刻（performance.now()）。分包到了以后播放层顶替遮罩，
+   * 是新挂上的节点，会重播一遍进场淡入：传了这个时刻就从遮罩已经淡到的地方接着走，遮罩早就盖满时直接不透明（#122）
+   */
+  coverSince?: number;
 };
 
 /** 过了这么久还没出画面（或卡住没恢复），就提示可以先跳过 */
@@ -44,7 +49,7 @@ const importHls = retryableImport([
   () => import("hls.js/light?retry=3"),
 ]);
 
-export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
+export default function PromoPlayer({ mode, onSeen, onClose, coverSince }: Props) {
   // 只看挂上那一刻的设置：播放中改了系统设置，不会把正在播的片子收掉
   const reducedMotion = useReducedMotion();
   const [autoplayOff] = useState(() => mode === "gate" && reducedMotion);
@@ -59,6 +64,8 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
   const [state, setState] = useState<"loading" | "playing" | "buffering" | "paused">("loading");
   const [slow, setSlow] = useState(false);
   const [idle, setIdle] = useState(false);
+  // 负的 animation-delay：进场淡入从「遮罩已经盖了多久」那一刻开始，超过淡入时长就是已经播完、直接不透明
+  const [fadeFrom] = useState(() => (coverSince === undefined ? undefined : `${-Math.round(performance.now() - coverSince)}ms`));
   const [poster] = useState(() => (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? PROMO.posterSmall : PROMO.poster));
 
   const markSeen = useCallback(() => {
@@ -250,6 +257,7 @@ export default function PromoPlayer({ mode, onSeen, onClose }: Props) {
       aria-modal="true"
       aria-label="极客班宣传片"
       tabIndex={-1}
+      style={fadeFrom ? { animationDelay: fadeFrom } : undefined}
       onKeyDown={onKeyDown}
       onPointerMove={(event) => event.pointerType === "mouse" && wake()}
       data-codec={playback?.codec}
