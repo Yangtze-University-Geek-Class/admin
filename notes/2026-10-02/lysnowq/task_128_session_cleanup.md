@@ -123,3 +123,21 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：上一条说的更正记录提交是 e2a1f48（docs(notes): 更正 #128 审查记录里写错的提交号）；推送 e2a1f48、329d5e4 与本条记录所在的 docs(notes) 提交
 - 结果：推送后送第四轮增量审查（76ae200 注释、8ecd3aa 与 329d5e4 两次合 stage）
+
+## 23:51:09 +08:00 · 审查 · #128 · 第四轮独立审查 70a036e：有条件通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：独立审查子代理只读审 22fb01f..70a036e：76ae200 的注释与 SQLite pragma 文档、SECURITY.md、data-model.md 一致；8ecd3aa、329d5e4 用 merge-tree 重算，只有冲突文件不同，services.ts 保留 overrides.clock 与 #129 的归一，启动失败先关库，计时器只在 onReady 启动；tests/server + tests/web 397 passed；在 70a036e 新构建上走真实入口：deleted 1、组织名归一、密文在库文件、-wal、备份里各 0 处；CI push 37026654768、pull_request 37026665459 全绿
+- 结果：有条件通过：应修两条（正文草稿停在 22fb01f；R2 剩下的上传正文、发评论、补记录），本次一起处理；建议两条在这里写明：23:23:14 那条记录里的「f2…」是笔误，指 e2a1f48；22:14:43 前后那条写的「45 条链路」不是 22fb01f 上的数，22fb01f 上是 44 条，45 条是 8ecd3aa 上的数
+
+## 23:51:09 +08:00 · 提交 · #128 · 再合一次 stage（#180、#193 合入后）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：6b1cc2a 把 origin/stage bfe3231 合进来，没有冲突；notes/INDEX.md 用 note.mjs index 重新生成没有变化
+- 结果：git diff 70a036e 6b1cc2a -- . ':!notes' 与 stage 一侧 git diff a18616a bfe3231 的 patch-id 相同；pnpm check:doc-sync 通过；vitest run tests/server 256 passed
+
+## 23:51:09 +08:00 · PR · #128 · PR #181 正文换成接手后的版本（第四轮审查应修）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：用 gh pr edit 181 --body-file 换正文：12 张证据图（GitHub 附件）、第三轮 N1–N4 与 329d5e4 冲突的解决写进「解决链路」、验证表补合入 stage 后与第四轮真实入口的结果、「未验证」写明 test:e2e 不在 CI 里跑、审查结论换成第四轮；第 2–4 轮审查评论贴到 PR
+- 结果：上传时间与最终 head 的 CI 见合并记录；本机 pr-contract check 通过
