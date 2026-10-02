@@ -67,3 +67,27 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5）
 - 做了什么：按第三轮建议：命令块用 ( set -e … ) 包住，失败只退出子 shell；检查失败用 if ! (…); then 清 worktree 再 exit 1；git fetch、git switch stage、git pull --ff-only 拆成三行
 - 结果：bash 与 zsh 各对 2075c55、9b38684 实测：好的提交走到 would-tag，坏的提交子 shell 退出 1、外层 shell 仍在；( set -e; false; echo not-here ) 之后外层继续执行；没有 rc_doc_sync worktree 残留
+
+## 23:16:05 +08:00 · 提交 · #192 · 补记 1c49c29 的提交（第四轮审查 S2）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：1c49c29 docs(release): 发版前核对的命令块放进子 shell，粘进终端失败也不会关掉当前终端（Refs #192），只改 docs/conventions/RELEASES.md 第 3 步命令块与说明
+- 结果：提交前在同一 HEAD 跑过 pnpm check:doc-sync（按 PR 核对通过，6 组）和 node scripts/note.mjs check（通过）；这条是第四轮审查指出缺记录后补记，不是当时写的
+
+## 23:16:05 +08:00 · 审查 · #192 · 第四轮独立审查 1c49c29：通过
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：独立审查子代理只读审 1504c08..1c49c29 并复核 origin/stage...1c49c29 门禁：命令块在 bash 5.3、bash 3.2、zsh 5.9 的脚本与交互方式共 12 次实测，好提交走到打 tag 前、坏提交与 fetch、switch、pull 失败都停在打 tag 前，外层 shell 都在，无 worktree 残留；CI 37023799609、37023794989 各 8 个 job success
+- 结果：通过，没有阻塞或应修；建议 S1：在 release worktree（主工作区停在 stage）里跑时 git switch stage 报 already used by worktree、整块停下；建议 S2：1c49c29 缺提交记录，本次已补记。S1 在下一个提交里改
+
+## 23:16:05 +08:00 · 返工 · #192 · 发版前核对的命令块不再切分支，用 merge-base 核对提交在 origin/stage 上（第四轮审查 S1）
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：RELEASES.md 第 3 步：去掉 git switch stage、git pull --ff-only 两行，在 SHA 之后加 git merge-base --is-ancestor "$SHA" origin/stage（不带行内注释，zsh 交互模式下行内注释会变成参数）；说明里补一句命令块不切分支、在主工作区或 release worktree 里都能跑
+- 结果：本机实测（task-192 worktree，检出在 task 分支上，相当于不在 stage 的检出）：bash 5.3 -i、bash 3.2 -i、zsh 5.9 -f -i、bash 5.3 脚本四种方式 × 4 个 SHA：2075c55 走到 WOULD-TAG、外层 rc=0；1c49c29（不在 origin/stage 上）rc=1 不打；9b38684（文档不同步）rc=1 不打；不存在的 SHA rc=128 不打；git worktree list 无 rc_doc_sync 残留。pnpm check:doc-sync 通过、check-docs 272 篇通过、docs-index 最新、vitest release-policy/branch-invariants/deploy-doc-sync/doc-sync 90 passed、check-secrets 通过
+
+## 23:16:06 +08:00 · 提交 · #192 · 提交 1172243a6eab：命令块不切分支
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
+- 做了什么：1172243a6eab docs(release): 发版前核对的命令块不切分支，改用 merge-base 核对提交在 origin/stage 上（Refs #192），只改 docs/conventions/RELEASES.md
+- 结果：提交前同一工作区：pnpm check:doc-sync 通过、check-docs 272 篇通过、vitest 4 个文件 90 passed；需要第五轮增量审查（改了 notes/ 以外的文件）
