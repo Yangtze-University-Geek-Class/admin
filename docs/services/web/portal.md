@@ -66,7 +66,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - **读屏提示**：会在新标签页打开的应用（`opensNewTab`，现在只有 GitHub 组织）在 Dock 的 `aria-label` 后面、桌面图标、菜单栏「前往」、⌘K 结果、便签的按钮里补一句「（新标签页打开）」（`NEW_TAB_NOTE`，放在视觉上隐藏的 `.pt-sr` 里），界面上看不到，读屏点下去之前就知道焦点会跑到新标签页。
 - **实测**（ego-browser，Chromium）：从论坛按后退，往返缓存恢复与不走往返缓存（重新请求 `/`）两种情况回到的都是桌面；按住 3、在 Dock 或便签上按住回车只开一个新标签页；终端 `open github` 能开出新标签页。Safari 与微信内置浏览器未测。
 - **旧地址**：`/forum-3d`、`/github` 两页与路由都不动，直接打开照常能用，#109 的往返缓存复位也还在。`/forum-3d` 另外还能从「论坛最新」窗口里的「3D 版块」按钮进（它原来借用论坛应用的去处，论坛直达以后改成直接链到 `/forum-3d`）；`/github` 没有桌面入口。
-- **单测**：`tests/web/portal-os.test.ts` 核对每个应用的去处、`appLink` 与 `followAppLink`、启动器的搜索词，以及源码里指向两个场景页的只剩路由表和「3D 版块」、回执按钮取论坛应用的地址；`tests/web/portal-os-entries.test.tsx`（jsdom）渲染桌面，逐个入口点下去，核对去处、当场打开、路由不动、没有飞行图标，「加入我们」照旧飞图标后进 `/join-us`。
+- **单测**：`tests/web/portal-os.test.ts` 核对每个应用的去处、`appLink` 与 `followAppLink`、`opensNewTab`、启动器的搜索词，以及源码里指向两个场景页的只剩路由表和「3D 版块」、回执按钮取论坛应用的地址（`appLinkById("forum")`）；`tests/web/portal-os-entries.test.tsx`（jsdom）渲染桌面，逐个入口点下去，核对去处、当场打开、路由不动、没有飞行图标，「加入我们」照旧飞图标后进 `/join-us`，另外核对按住不放只算一次、去论坛前记下 `RESUME_DESKTOP` 并在往返缓存恢复时清掉、「论坛最新」窗口的「3D 版块」进 `/forum-3d`、读屏提示。
 
 ## 登录入口（菜单栏）
 

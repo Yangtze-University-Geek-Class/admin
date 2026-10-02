@@ -3,8 +3,8 @@
 // 都当场打开 osApps 给的地址，不经过 /forum-3d、/github 场景页；「加入我们」照旧飞图标再进 /join-us。
 // jsdom 改不了 window.location.assign，所以把 osApps 的 followAppLink 换成记录调用的假函数，地址仍由真的 appLink 算。
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-// react-router-dom 只装在 app/web 里（根目录的 vitest 只给 react、react-dom 设了别名）；按真实路径解析到桌面用的同一份
-import { MemoryRouter, Route, Routes, useLocation } from "../../app/web/node_modules/react-router-dom";
+// react-router-dom 只装在 app/web 里，vitest.config.ts 给它设了别名，和桌面用的是同一份
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AppLink } from "../../app/web/sites/portal/lib/osApps";
 
@@ -207,6 +207,24 @@ it("当前标签页去论坛前，在这条历史记录上记下「回来直接�
     window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   });
   expect(state()).toBeNull();
+});
+
+it("「论坛最新」窗口：写明的「3D 版块」进 /forum-3d 场景页，「进入论坛首页」直达论坛首页（审查 S3）", async () => {
+  const snapshot = { summary: { capturedAt: "2026-10-01", topics: 3, posts: 9, users: 2, categories: [] }, latest: [] };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => new Response(JSON.stringify(String(url).includes("forum-latest") ? snapshot : { signed_in: false }), { status: 200, headers: { "content-type": "application/json" } })),
+  );
+  const { where } = renderDesktop();
+  fireEvent.click(screen.getByRole("button", { name: /搜索/ }));
+  const input = screen.getByRole("combobox");
+  fireEvent.change(input, { target: { value: "论坛最新" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  const scene = await screen.findByRole("link", { name: /3D 版块/ });
+  expect(screen.getByRole("link", { name: /进入论坛首页/ }).getAttribute("href")).toBe(links.forumHome());
+  fireEvent.click(scene);
+  expect(where()).toBe("/forum-3d");
+  expect(followed.calls).toEqual([]);
 });
 
 it("会在新标签页打开的 GitHub 组织，给读屏补一句「新标签页打开」，界面上不显示；论坛不加（审查 S4）", () => {

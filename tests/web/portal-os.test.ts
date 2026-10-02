@@ -131,14 +131,14 @@ describe("入口直达，不再经过 3D 场景页（#185）", () => {
       .filter((file) => /["'`]\/(forum-3d|github)["'`]/.test(readFileSync(file, "utf8")))
       .map((file) => file.slice(PORTAL.length))
       .sort();
+    // Windows.tsx 里那一处是「论坛最新」窗口的「3D 版块」按钮，渲染后点下去进 /forum-3d 由 portal-os-entries.test.tsx 核对
     expect(hits).toEqual(["App.tsx", "components/os/Windows.tsx"]);
-    expect(readFileSync(`${PORTAL}components/os/Windows.tsx`, "utf8")).toMatch(/<Link className="pt-btn" to="\/forum-3d">\s*<Icon name="sparkling-line" size=\{15\} \/> 3D 版块/);
   });
 
-  it("「加入我们」回执里的「去论坛看看」和桌面上的论坛应用取同一个地址", () => {
-    const join = readFileSync(`${PORTAL}pages/JoinUs.tsx`, "utf8");
-    expect(join).toMatch(/const forumLink = appLinkById\("forum"\)/);
-    expect(join).toMatch(/<a className="pt-btn" href=\{forumLink\.href\}[^>]*>\s*去论坛看看/);
+  it("「加入我们」回执里的「去论坛看看」和桌面上的论坛应用取同一个地址：论坛首页，当前标签页", () => {
+    expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
+    // 只认取地址的那一句，不认 JSX 的写法（属性顺序、换行改了不影响）
+    expect(readFileSync(`${PORTAL}pages/JoinUs.tsx`, "utf8")).toMatch(/appLinkById\("forum"\)/);
   });
 });
 

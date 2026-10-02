@@ -42,3 +42,10 @@
 - 做了什么：feat(portal)：osApps 加 NEW_TAB_NOTE「（新标签页打开）」与 opensNewTab；Dock 的 aria-label、桌面图标、菜单栏「前往」、⌘K 结果、便签按钮里给 GitHub 组织补这句（.pt-sr 视觉隐藏）；portal-os-entries 改 GitHub 组织的读屏名称并加一条，portal-os 加 opensNewTab 断言；portal.md 补「读屏提示」
 - 结果：Node 22.23.2：tsc -p app/web 通过；vitest portal-os-entries、portal-os 2 文件 27/27 通过；ego-browser 本机预检 1440×900：Dock aria-label 为「GitHub 组织（新标签页打开）」，桌面、「前往」菜单、⌘K 搜 github 的截图与 bbf9505 的截图逐像素比只差时钟与选中状态，补的文字界面上看不到
 - 下一步：返工审查 S2、S3（测试写法）
+
+## 22:38:15 +08:00 · 返工 · #185 · 审查 S2、S3：入口测试走别名导入，不再按 JSX 原文断言
+
+- 执行者：agent-claude-geek-main-subagent-185（Claude Code 子代理，claude-opus-5-5）
+- 做了什么：test(portal)：vitest.config.ts 给 react-router-dom 设别名（指向 app/web/node_modules），portal-os-entries 改成 import 'react-router-dom'；portal-os.test.ts 回执按钮改断言 appLinkById('forum') 等于论坛首页、源码只认 appLinkById("forum")，去掉匹配 Windows.tsx「3D 版块」JSX 的正则；portal-os-entries 加「论坛最新」窗口渲染后点「3D 版块」进 /forum-3d、「进入论坛首页」直达论坛首页一条；portal.md「单测」一条同步。文档核对：docs/conventions/TESTING.md 不用改——别名只改测试的导入写法，测试范围与命令没变
+- 结果：Node 22.23.2：tsc -p app/web 通过；npx vitest run tests/web 19 文件 150/150 通过
+- 下一步：按最后一个代码提交重新构建，重拍证据，补走查记录
