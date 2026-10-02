@@ -2,7 +2,8 @@
 // 文档跟着模块改（docs/README.md「文档跟着模块改」，#115）。对照表只写在 docs/README.md 那一节，这里是它的实现。
 //
 //   node scripts/check-doc-sync.mjs                        在 task/* 分支上自动按 PR 核对（对 origin/stage，没有就对本地 stage）；
-//                                                          其它分支（stage、main、dev/*、CI 的 PR 合并提交）按第一父链的时间核对
+//                                                          其它分支（stage、main、dev/*、CI 的 PR 合并提交）和没有分支名的
+//                                                          detached HEAD（部署工作流 plan job 检出的发布 tag，#192）按第一父链的时间核对
 //   node scripts/check-doc-sync.mjs --base origin/stage [--head task/<issue>/<slug>]
 //                                                          不管在哪个分支，都按 PR 核对；--head 给出 task 分支名，
 //                                                          用来找这个 task 自己的执行记录（CI 的 branch-guard 检出的是合并提交，没有分支名）
