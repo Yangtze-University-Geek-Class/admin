@@ -88,3 +88,9 @@
 - 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：按 9d7cd89 一轮审查的 R4（建议）：tests/web/portal-promo-lazy.test.tsx 的重试地址桩加 net.gate，第 1 个重试地址等用例放行；新增一条用例：放行失败后只排空微任务就卸载（失败已送到 PromoLazy、React 还没提交 PromoUnavailable），网络恢复后再打开应换到第 2 个重试地址并正常显示播放层。只改测试，不改 app/。文档核对：docs/services/web/portal.md 不用改——「出错时」一段已写明「关掉时已经失败就换新的」，本提交只补用例；portal.md 不列 promo 的单测文件
 - 结果：vitest run tests/web/portal-promo-lazy.test.tsx：8 passed（连跑 5 次都是 8 passed）。删掉 PromoLazy.tsx:79 的 if (loaded.failed) replace(loaded) 再跑：只有新用例失败（Unable to find role="dialog"，连跑 3 次都失败）；删掉 catch 里的 if (loaded.closed) replace(loaded)：只有「加载中就关掉」那条失败，新用例通过。两支各由一条用例覆盖，PromoLazy.tsx 已还原（git status 只剩测试文件）
+
+## 21:58:47 +08:00 · 返工 · #122 · R3：portal.md 改正播放层出现时间的说法
+
+- 执行者：agent-claude-geek-main-subagent-122（Claude Code 子代理，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：按 9d7cd89 一轮审查的 R3（建议）：docs/services/web/portal.md「分包未到的加载占位」原写「播放层分包在 Fast 4G 下约 1.7–2.1 秒、Slow 4G 下约 8 秒才到」，这组数是 #77 / PR #95 量的「从打开网址到播放层出现」（#122 正文原话），不是分包本身的下载时间。改成「从打开网址到播放层出现，Fast 4G 下约 1.7–2.1 秒、Slow 4G 下约 8 秒（#77 / PR #95 实测）」，并补上 #122 本机 Slow 4G 实测的「遮罩出现到播放层出现约 0.65 秒」（3985ms → 4630ms，见 20:47:57 那条记录）。docs/services/web/README.md 的「更新：」已是 2026-10-02，不用再改
+- 结果：pnpm check:docs：docs/INDEX.md 是最新的，272 份文档链接通过；pnpm check:doc-sync：6 组按 PR 核对通过；git grep -lI 回车符：portal.md 无 CR
