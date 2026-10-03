@@ -5,10 +5,10 @@ import { can, forbidden, forumChanges, forumState, forumViewer, notFound, rateLi
 type TopicParams = { topic_id: string };
 
 /** 不登录也能调的读接口按 IP 限流（IPv6 按 /64）：@fastify/rate-limit 在 onRequest 计数，超了和论坛其它接口一样回
- * 429 `rate_limited`。计数在进程内存里，重启清零。
+ * 429 `rate_limited`（app.ts 注册插件时给的默认 errorResponseBuilder，这里不另写）。计数在进程内存里，重启清零。
  */
 const perIp = (limit: { max: number; timeWindow: number }) => ({
-  config: { rateLimit: { ...limit, keyGenerator: (req: FastifyRequest) => ipSubject(req.ip), errorResponseBuilder: () => rateLimited() } },
+  config: { rateLimit: { ...limit, keyGenerator: (req: FastifyRequest) => ipSubject(req.ip) } },
 });
 
 /** 看帖、发帖、话题浏览数与版务（置顶、关闭）。 */

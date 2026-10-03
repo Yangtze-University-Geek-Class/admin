@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { APP_ROOT, type AppConfig } from "./config.js";
 import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
-import { registerHttpPolicy } from "./middleware/http-policy.js";
+import { rateLimited, registerHttpPolicy } from "./middleware/http-policy.js";
 
 /** 官网产物（app/web）与控制台产物（app/console）分开构建，静态托管时两个目录叠在一起。 */
 const webDist = resolve(APP_ROOT, "web/dist");
@@ -36,8 +36,9 @@ export function resolveSiteEntry(url: string): string {
 /**
  * `staticRoot`：false 关闭静态托管；不传时依次查找 app/web/dist 与 app/console/dist。
  * `mailWorker`：开发信循环（每 15 秒发一次到期的信，app.close() 时停下）；只有 index.ts 打开，测试直接调 services.mail.drain()。
+ * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
  */
-export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean; mailWorker?: boolean };
+export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean; mailWorker?: boolean; sessionCleanup?: boolean };
 export async function buildApp(options: BuildAppOptions) {
   const config = options.config;
   const services = options.services ?? createServices(config, options.overrides);
@@ -51,13 +52,16 @@ export async function buildApp(options: BuildAppOptions) {
   app.addHook("onClose", async () => {
     // 先等发信循环收尾，再关库
     if (options.mailWorker) await services.mail.stop();
+    if (options.sessionCleanup) services.auth.stopCleanup();
     if (!options.services) services.close();
   });
   // 应用就绪（listen 之前）才开发信循环：路由注册失败时不会留下一个没人关的定时器
   if (options.mailWorker) app.addHook("onReady", async () => { services.mail.start(app.log); });
+  if (options.sessionCleanup) app.addHook("onReady", async () => { services.auth.startCleanup(app.log); });
   registerHttpPolicy(app);
   await app.register(cookie, { secret: config.sessionSecret });
-  await app.register(rateLimit, { global: false });
+  // 只限写了 config.rateLimit 的路由；超额一律 429 rate_limited，路由不另写 errorResponseBuilder（#191）
+  await app.register(rateLimit, { global: false, errorResponseBuilder: () => rateLimited() });
 
   await app.register(portalRoutes);
   await app.register(adminRoutes);

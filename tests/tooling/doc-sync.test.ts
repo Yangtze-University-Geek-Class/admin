@@ -460,6 +460,29 @@ describe("stage 上按第一父链的时间核对", () => {
     expect(problems(root)[0]).toContain("工作区里改了模块（app/svc/extra.ts）");
   });
 
+  it("检出发布 tag（detached HEAD，部署工作流的 plan job，#192）：没有分支名，按第一父链的时间核对，不按 PR 核对", () => {
+    const root = repo();
+    git(root, ["checkout", "-q", "-b", "task/9/pr"]);
+    commit(root, "2026-09-26T09:00:00+08:00", "docs(svc): 先写文档", { "docs/services/svc/README.md": doc("2026-09-26", "a 改成 2") });
+    commit(root, "2026-09-26T10:00:00+08:00", "fix(svc): 后改代码", { "app/svc/index.ts": "export const a = 2;\n" });
+    git(root, ["checkout", "-q", "stage"]);
+    mergeInto(root, "task/9/pr", "2026-09-26T12:00:00+08:00");
+    git(root, ["tag", "v0.1.0-rc.1"]);
+    commit(root, "2026-09-26T13:00:00+08:00", "fix(svc): stage 上直接改模块", { "app/svc/index.ts": "export const a = 3;\n" });
+    git(root, ["tag", "v0.1.0-rc.2"]);
+    // 同一个提交上另有一条 task 分支也不影响：detached HEAD 没有分支名
+    git(root, ["branch", "task/9/same", "v0.1.0-rc.2"]);
+
+    git(root, ["checkout", "-q", "--detach", "v0.1.0-rc.2"]);
+    const broken = checkDocSync(root, { now: NOW });
+    expect(broken.base).toBeNull();
+    expect(broken.problems).toEqual([expect.stringContaining("文档没跟上模块：app/svc/ ↔ docs/services/svc/")]);
+    expect(broken.problems[0]).toContain("fix(svc): stage 上直接改模块");
+
+    git(root, ["checkout", "-q", "--detach", "v0.1.0-rc.1"]);
+    expect(checkDocSync(root, { now: NOW })).toMatchObject({ base: null, problems: [] });
+  });
+
   it("GitHub 给 PR 做的合并提交（两边都一起改了模块和文档）：通过", () => {
     const root = repo();
     git(root, ["checkout", "-q", "-b", "task/9/both"]);

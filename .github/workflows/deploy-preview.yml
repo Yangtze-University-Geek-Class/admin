@@ -132,6 +132,21 @@ jobs:
         shell: bash
         run: node scripts/deployment-environment.mjs --check
 
+      - name: 文档同步（发布 tag 指向的提交）
+        shell: bash
+        # 文档没跟上模块的提交不发版（docs/README.md「文档跟着模块改」，#192）。检出的是 tag（detached HEAD，没有分支名），
+        # check-doc-sync 按第一父链的时间核对，与 push stage 时 core 里 pnpm check 的规则相同；完整历史来自上面检出的
+        # fetch-depth: 0，浅克隆直接失败。脚本只用 Node 内置模块，不装依赖。不通过 plan 就失败，后面的 job 都 needs plan。
+        env:
+          COMMIT: ${{ steps.identity.outputs.commit }}
+        run: |
+          set -eu
+          if [ "$(git rev-parse HEAD)" != "$COMMIT" ]; then
+            echo "检出的 HEAD 不是发布 tag 指向的提交 ${COMMIT}：拒绝核对文档同步。" >&2
+            exit 1
+          fi
+          node scripts/check-doc-sync.mjs
+
   # 静态资源 CDN 开关（#146）：有上传 token、且 preview 线上的 CSP 已放行 CDN 时，build 用 CDN 地址构建；
   # 否则同源构建（与原来一样）。上传 token 只在这个 job 与 cdn-upload 里出现：两个 job 都不安装依赖，
   # 只跑仓库里零依赖的 scripts/static-cdn.mjs（docs/ops/CICD.md「静态资源 CDN」）。
