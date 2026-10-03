@@ -2,8 +2,7 @@
 // 外壳是 ../components/PageShell.tsx；准入同其它公开表单（PoW + 蜜罐 + 可选 Turnstile）。
 // 分类只有几项，用单选按钮组（../components/ChoiceChips.tsx）而不是原生下拉框。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtRelative } from "@shared/lib/api";
 import { appConfig } from "@shared/config";
 import { computePow, powProof } from "@shared/lib/pow";
@@ -11,62 +10,83 @@ import ChoiceChips from "../components/ChoiceChips";
 import Icon from "../components/Icon";
 import PageShell, { WindowCard } from "../components/PageShell";
 
-export default function Feedback() {
-  const { org: orgParam } = useParams();
-  const [search] = useSearchParams();
-  // 没有指定组织时默认本组织（GitHub 组织地址的最后一段），「最近的反馈」一打开就有内容
-  const defaultOrg = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
-  const initialOrg = orgParam ?? search.get("org") ?? defaultOrg;
+/**
+ * 意见箱收哪个组织以服务端为准：`GET /api/feedback/categories` 下发的 `org`（部署配置的 CONSOLE_ORG）。
+ * 站点配置里 GitHub 组织地址的最后一段只在接口回来之前、或接口失败时顶上展示（#129）。页面只展示，提交者改不了；
+ * 接口没读到时不让提交，发出去的组织名、分类和 PoW 难度都只用服务端给的。
+ */
+const SITE_ORG = appConfig.urls.githubOrg.split("/").filter(Boolean).pop() ?? "";
 
-  const [form, setForm] = useState({ org: initialOrg, category: "建议", content: "", contact: "", website: "" });
+/** `GET /api/feedback/public` 下发的字段（正文已截到前 280 字）。 */
+type PublicFeedback = { id: number; category: string | null; content: string; status: string; reply: string | null; created_at: number };
+
+export default function Feedback() {
+  const [form, setForm] = useState({ category: "建议", content: "", contact: "", website: "" });
+  const [org, setOrg] = useState(SITE_ORG);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "pow" | "submit">("");
   const [powTries, setPowTries] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
-  const [categoriesFailed, setCategoriesFailed] = useState(false);
+  /** `GET /api/feedback/categories` 的状态；只有 ready 时能提交。retrying 是失败后点了「重新读取」、还没回来。 */
+  const [meta, setMeta] = useState<"loading" | "ready" | "failed" | "retrying">("loading");
   const [powDiff, setPowDiff] = useState(3);
-  const [recent, setRecent] = useState<any[]>([]);
+  const [recent, setRecent] = useState<PublicFeedback[]>([]);
   const [recentFailed, setRecentFailed] = useState(false);
   const [siteKey, setSiteKey] = useState<string | null>(null);
   const [tsToken, setTsToken] = useState("");
   const [captchaEpoch, setCaptchaEpoch] = useState(0);
 
-  useEffect(() => {
-    api<{ categories: string[]; pow_difficulty: number }>("/api/feedback/categories")
+  const loadMeta = useCallback(() => {
+    api<{ categories: string[]; pow_difficulty: number; org?: string }>("/api/feedback/categories")
       .then((d) => {
         setCategories(d.categories);
         setPowDiff(d.pow_difficulty);
+        if (d.org) setOrg(d.org);
+        setMeta("ready");
       })
-      .catch(() => setCategoriesFailed(true));
-    api<{ turnstile_site_key: string | null }>("/api/public/config")
-      .then((c) => setSiteKey(c.turnstile_site_key))
-      .catch(() => undefined);
+      .catch(() => setMeta("failed"));
   }, []);
 
   useEffect(() => {
-    if (!form.org) return;
+    loadMeta();
+    api<{ turnstile_site_key: string | null }>("/api/public/config")
+      .then((c) => setSiteKey(c.turnstile_site_key))
+      .catch(() => undefined);
+  }, [loadMeta]);
+
+  useEffect(() => {
+    // 组织名从回退值换成服务端的值时会再读一次；先发出的那次晚回来也不覆盖后一次的结果。
+    let current = true;
     setRecentFailed(false);
-    api<{ items: any[] }>(`/api/feedback/public?org=${encodeURIComponent(form.org)}&limit=10`)
-      .then((d) => setRecent(d.items))
+    api<{ items: PublicFeedback[] }>(`/api/feedback/public?org=${encodeURIComponent(org)}&limit=10`)
+      .then((d) => {
+        if (current) setRecent(d.items);
+      })
       .catch(() => {
+        if (!current) return;
         setRecent([]);
         setRecentFailed(true);
       });
-  }, [form.org, done]);
+    return () => {
+      current = false;
+    };
+  }, [org, done]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 按钮已是灰的；这里再拦一次，任何途径触发的提交都不带回退的组织名和默认难度出去
+    if (meta !== "ready") return;
     setErr(null);
     setBusy("pow");
     setPowTries(0);
     try {
-      const bodyForHash = `fb:${form.org}:${form.content.trim()}`;
+      const bodyForHash = `fb:${org}:${form.content.trim()}`;
       const pow = await computePow(bodyForHash, powDiff, (n) => setPowTries(n));
       setBusy("submit");
       const r = await api<{ ok: boolean; message: string }>("/api/feedback", {
         method: "POST",
-        body: JSON.stringify({ ...form, turnstile_token: tsToken, pow: powProof(pow) }),
+        body: JSON.stringify({ ...form, org, turnstile_token: tsToken, pow: powProof(pow) }),
       });
       setDone(r.message);
       setForm({ ...form, content: "", contact: "", website: "" });
@@ -105,16 +125,36 @@ export default function Feedback() {
           ) : (
             <form onSubmit={submit} className="pt-form">
               <div className="pt-field">
-                <label htmlFor="fb-org">发给哪个 GitHub 组织</label>
-                <input id="fb-org" className="pt-input is-mono" placeholder="例如 Yangtze-University-Geek-Class" value={form.org} onChange={(e) => setForm({ ...form, org: e.target.value })} required />
+                <label htmlFor="fb-org">发往的 GitHub 组织</label>
+                <input id="fb-org" className="pt-input is-mono" value={org} readOnly aria-readonly="true" aria-describedby="fb-org-hint" />
+                <p className="pt-hint" id="fb-org-hint">
+                  意见箱只收本组织的意见，这里改不了。
+                </p>
               </div>
 
               <div className="pt-field">
                 <span className="pt-field-label" id="fb-category-label">
                   分类
                 </span>
-                {categoriesFailed ? (
-                  <p className="pt-hint">分类没加载出来，这条会按「未分类」提交。</p>
+                {meta === "failed" || meta === "retrying" ? (
+                  <>
+                    <p className="pt-alert is-error" role="alert">
+                      <Icon name="error-warning-line" size={16} /> 没读到分类和发往的组织，暂时不能提交。点「重新读取」再试，已经写的内容不会丢。
+                    </p>
+                    <div className="pt-form-actions">
+                      <button
+                        type="button"
+                        className="pt-btn"
+                        disabled={meta === "retrying"}
+                        onClick={() => {
+                          setMeta("retrying");
+                          loadMeta();
+                        }}
+                      >
+                        {meta === "retrying" ? "正在读取…" : "重新读取"}
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <ChoiceChips name="category" labelledBy="fb-category-label" value={form.category} options={categories} onChange={(category) => setForm({ ...form, category })} />
                 )}
@@ -159,7 +199,7 @@ export default function Feedback() {
               )}
 
               <div className="pt-form-actions">
-                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || form.content.length < 5 || !form.org || (!!siteKey && !tsToken)}>
+                <button type="submit" className="pt-btn is-primary" disabled={Boolean(busy) || meta !== "ready" || form.content.length < 5 || (!!siteKey && !tsToken)}>
                   <Icon name="send-plane-2-line" size={16} />
                   {busy === "pow" ? "正在做防刷验证…" : busy === "submit" ? "正在提交…" : "提交意见"}
                 </button>
@@ -180,12 +220,12 @@ export default function Feedback() {
           {recentFailed ? (
             <div className="pt-feed-empty">
               <Icon name="error-warning-line" size={24} />
-              <p>没读到 {form.org} 的公开意见。检查一下组织名，或者稍后刷新。</p>
+              <p>没读到「{org}」的公开意见，稍后刷新试试。</p>
             </div>
           ) : recent.length === 0 ? (
             <div className="pt-feed-empty">
               <Icon name="inbox-line" size={24} />
-              <p>{form.org || "这个组织"} 还没有公开的意见。</p>
+              <p>{org} 还没有公开的意见。</p>
             </div>
           ) : (
             <ul>

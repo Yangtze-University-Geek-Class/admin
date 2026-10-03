@@ -62,8 +62,8 @@
 
 | 状态 | 内容 |
 |---|---|
-| 已有 | 官网、控制台、后端接口；官网、论坛、控制台共用的 GitHub 登录；两套完整隔离的 Docker 栈（各自的 SQLite、密钥、域名），打 rc tag 自动部署预发布；分支守卫、PR 正文检查、tag 发版流水线（CI 与部署跑在自托管 runner 上） |
-| 没有 | 论坛发帖、回复的服务端存储；登录后的 3D Hub；正式环境的自动部署（正式发布由维护者在所有者验收后部署）；正式域名上的新栈（要等第一个 `vX.Y.Z` 正式发布） |
+| 已有 | 官网、控制台、后端接口；官网、论坛、控制台共用的 GitHub 登录；两套完整隔离的 Docker 栈（各自的 SQLite、密钥、域名），打 rc tag 自动部署预发布；分支守卫、PR 正文检查、tag 发版流水线（CI 与部署跑在 GitHub 托管 runner 上） |
+| 没有 | 论坛发帖、回复的服务端存储；登录后的 3D Hub |
 
 ---
 
@@ -173,7 +173,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 
 - 镜像按环境分仓库：`yzgc-production/{server,web,forum}:<sha12>` 与 `yzgc-preview/{server,web,forum}:<sha12>`；回滚就是切回更早发布 tag 的镜像。
 - 环境变量只在 `deploy/env/.env.<环境>`；密钥留空，真实值只在目标机，由 CI/CD 的环境级 secrets 填。
-- 部署开关：`DEPLOY_PREVIEW_ENABLED` 已打开，打 rc tag 就部署预发布；`DEPLOY_PRODUCTION_ENABLED` 关闭（`production` 环境和它的审批人还没配置），正式发布由维护者在所有者验收后用 `scripts/deploy-manual.mjs` 部署同一 tag 的 CI 产物。不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
+- 部署开关：`DEPLOY_PREVIEW_ENABLED` 已打开，打 rc tag 就部署预发布；`DEPLOY_PRODUCTION_ENABLED` 也已打开（2026-09-27 起），打正式 tag 后由 `deploy-production.yml` 经 `production` 环境的所有者审批部署；`scripts/deploy-manual.mjs` 只在 GitHub 计划让部署 job 按设计失败关闭时作退路，部署同一 tag 的 CI 产物。不用 systemd、pm2 或手工 node 进程代替 Docker 栈。
 
 操作步骤：[DEPLOY](docs/ops/DEPLOY.md) · [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md) · [CICD](docs/ops/CICD.md)。
 

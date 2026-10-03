@@ -2,7 +2,7 @@
 // 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
 // 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
 // 论坛和 GitHub 组织点一下直达（#185）：论坛在当前标签页进论坛首页，GitHub 组织在新标签页打开，不经过 /forum-3d、/github 场景页。
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
@@ -522,11 +522,7 @@ export default function YugcOs({ active, onBack }: Props) {
           </div>
         )}
       </div>
-      {promo && (
-        <Suspense fallback={null}>
-          <LazyPromoPlayer mode="replay" onClose={closePromo} />
-        </Suspense>
-      )}
+      {promo && <LazyPromoPlayer mode="replay" onClose={closePromo} />}
     </>
   );
 }

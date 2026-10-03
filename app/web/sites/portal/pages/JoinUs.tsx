@@ -7,7 +7,7 @@
 // 这个浏览器第一次进来时先全屏播宣传片（#77，能跳过），播完或跳过才开始信封动画；之后靠 cookie 不再自动播。
 // 所有进入「加入我们」的路径（桌面、Dock、快捷键、页头链接、直接打开网址）都经过这里。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
-import { Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { ApiError, requestJson } from "@shared/lib/http";
@@ -57,8 +57,19 @@ export default function JoinUs() {
   const reducedMotion = useReducedMotion();
   // 回执里的「去论坛看看」和桌面上的论坛应用同一个去处：直达论坛首页（#185），不经过 /forum-3d
   const forumLink = appLinkById("forum");
-  const [promo, setPromo] = useState(() => typeof document !== "undefined" && !hasSeenPromo(document.cookie));
+  // gate 遇到减少动态效果不播（和 PromoPlayer 的 autoplayOff 同一条规则）：挂载时就按 blocked 算看过，
+  // 不挂播放层、不显示加载遮罩、不下载分包，直接进信纸（#122）
+  const [promoBlocked] = useState(() => reducedMotion && typeof document !== "undefined" && !hasSeenPromo(document.cookie));
+  const [promo, setPromo] = useState(() => !promoBlocked && typeof document !== "undefined" && !hasSeenPromo(document.cookie));
   const page = useInert<HTMLDivElement>(promo);
+  // 宣传片的 gate 与「分包未到」占位共用同一套语义：看过就写 cookie，跳过/结束就收起整层
+  const onPromoSeen = useCallback(() => {
+    document.cookie = promoCookie(window.location.protocol === "https:");
+  }, []);
+  const onPromoClose = useCallback(() => setPromo(false), []);
+  useEffect(() => {
+    if (promoBlocked) onPromoSeen();
+  }, [promoBlocked, onPromoSeen]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const letter = useRef<HTMLFormElement>(null);
   const scene = useRef<JoinHandle | null>(null);
@@ -323,17 +334,8 @@ export default function JoinUs() {
           )}
         </div>
       </div>
-      {promo && (
-        <Suspense fallback={null}>
-          <LazyPromoPlayer
-            mode="gate"
-            onSeen={() => {
-              document.cookie = promoCookie(window.location.protocol === "https:");
-            }}
-            onClose={() => setPromo(false)}
-          />
-        </Suspense>
-      )}
+      {/* 分包没到时先显示同一套加载遮罩（placeholder，#122），不再什么都不显示 */}
+      {promo && <LazyPromoPlayer mode="gate" placeholder onSeen={onPromoSeen} onClose={onPromoClose} />}
     </>
   );
 }

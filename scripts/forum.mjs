@@ -82,7 +82,7 @@ function toolchain({ contentDir = '', demoLogin = false, seedOnly = false } = {}
   const env = { PATH: `${bin}:${dirname(node)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME || root, TMPDIR: process.env.TMPDIR || tmpdir(), NUXT_TELEMETRY_DISABLED: '1' };
   env.FORUM_NODE = node;
   env.FORUM_PNPM = pnpm;
-  // pnpm_config_registry：CI 在家里的自托管 runner 上把论坛的 pnpm 11 指向国内镜像（#104，pnpm 11 不读 npm_config_*）；
+  // pnpm_config_registry：CI 的 forum job 把它设成仓库变量 NPM_REGISTRY，变量没设时就是官方源（#104；pnpm 11 不读 npm_config_*）；
   // 装依赖仍按 app/forum/pnpm-lock.yaml 的 integrity 核对。没设就是 pnpm 的默认官方源。
   for (const key of ['GEEK_DEPLOYMENT_ENVIRONMENT', 'GEEK_RELEASE_VERSION', 'GEEK_RELEASE_COMMIT', 'GEEK_FORUM_BASE_PATH', 'pnpm_config_registry']) {
     if (process.env[key]) env[key] = process.env[key];

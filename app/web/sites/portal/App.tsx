@@ -18,7 +18,8 @@ const JoinByToken = lazy(() => import("./pages/JoinByToken"));
  *   /github      GitHub 组织贡献天际线（高度为示意）
  *                这两页不再是桌面入口的中间页（#185）：桌面上的「论坛」直达论坛首页，「GitHub 组织」新标签页打开组织主页；
  *                页面保留给已收藏、已分享的旧地址，/forum-3d 另有论坛最新窗口里的「3D 版块」按钮进来
- *   /docs /docs/:id /feedback /feedback/:org /join/:token
+ *   /docs /docs/:id /feedback /join/:token；/feedback/:org 是控制台意见箱页生成的分享地址（也接住旧链接），
+ *                URL 里的组织名不生效，页面只发服务端下发的本部署组织（#129）
  */
 export default function App() {
   return (
