@@ -1,16 +1,24 @@
 // YUGC OS 的应用清单、启动器过滤、终端命令与时间文案（纯逻辑，tests/web/portal-os.test.ts 覆盖）。
-// 链接的实际地址在组件里按站点规则解析（externalUrl / Router），这里只描述「打开什么」。
+// 每个应用打开什么只写在 OS_APPS 里：桌面图标、Dock、1/2/3、菜单栏「前往」、⌘K、便签、终端和「加入我们」回执页都从这里取。
+// 去别的站点的应用（论坛、控制台、GitHub 组织）只写指向 ./links 里的哪一条，由 appLink 解析成地址；地址规则仍只在 ./links。
 import type { IconName } from "./icons";
+import { links } from "./links";
 
 export type AppId = "join" | "forum" | "github" | "promo" | "about" | "org" | "terminal" | "feedback" | "console" | "wallpaper";
 
-/** scene：进入官网内的 3D 场景页；window：在桌面里开窗口；panel：桌面自带的全屏面板（换壁纸、重看宣传片）；route：站内普通页面；site：跨站 */
+/**
+ * scene：进入官网内的 3D 场景页（只有「加入我们」）；window：在桌面里开窗口；panel：桌面自带的全屏面板（换壁纸、重看宣传片）；
+ * route：站内普通页面；site：同一个域名下的另一个端（论坛、控制台），当前标签页整页跳过去；
+ * external：别人的网站（GitHub 组织），新标签页打开。
+ * 论坛与 GitHub 组织点一下直达（#185），不再先进 /forum-3d、/github 场景页；那两个页面留给旧地址，直接打开照常能用。
+ */
 export type AppOpen =
-  | { kind: "scene"; path: "/join-us" | "/forum-3d" | "/github" }
+  | { kind: "scene"; path: "/join-us" }
   | { kind: "window" }
   | { kind: "panel"; panel: "wallpaper" | "promo" }
   | { kind: "route"; path: string }
-  | { kind: "site"; site: "admin"; path: string };
+  | { kind: "site"; link: "forumHome" | "console" }
+  | { kind: "external"; link: "githubOrg" };
 
 export type OsApp = {
   id: AppId;
@@ -24,19 +32,21 @@ export type OsApp = {
   key?: "1" | "2" | "3";
   primary?: boolean;
   lock?: boolean;
+  /** 启动器搜索用的额外关键词（名称和 id 之外） */
+  keywords?: string;
 };
 
 export const OS_APPS: readonly OsApp[] = [
   { id: "join", name: "加入我们", icon: "mail-send-line", tint: "#3346c8", key: "1", primary: true, open: { kind: "scene", path: "/join-us" }, blurb: "写封信报名，我们用邮件联系你" },
-  { id: "forum", name: "论坛", icon: "discuss-line", tint: "#5b5fd6", key: "2", open: { kind: "scene", path: "/forum-3d" }, blurb: "班级公告，课程、竞赛和求职讨论" },
-  { id: "github", name: "GitHub 组织", icon: "github-line", tint: "#1b2140", key: "3", open: { kind: "scene", path: "/github" }, blurb: "极客班的公开仓库" },
+  { id: "forum", name: "论坛", icon: "discuss-line", tint: "#5b5fd6", key: "2", open: { kind: "site", link: "forumHome" }, blurb: "班级公告，课程、竞赛和求职讨论", keywords: "bbs home 首页" },
+  { id: "github", name: "GitHub 组织", icon: "github-line", tint: "#1b2140", key: "3", open: { kind: "external", link: "githubOrg" }, blurb: "极客班的公开仓库" },
   { id: "promo", name: "宣传片", icon: "film-line", tint: "#d4478a", open: { kind: "panel", panel: "promo" }, blurb: "极客班宣传片，1 分 45 秒" },
   { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "极客班是做什么的" },
   { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "有哪些部门，谁负责什么" },
   { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
   { id: "wallpaper", name: "壁纸", icon: "image-line", tint: "#0e9f8f", open: { kind: "panel", panel: "wallpaper" }, blurb: "换一张桌面壁纸" },
   { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },
-  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", site: "admin", path: "/console" }, blurb: "管理组织、成员和论坛" },
+  { id: "console", name: "控制台", icon: "shield-user-line", tint: "#c9453c", lock: true, open: { kind: "site", link: "console" }, blurb: "管理组织、成员和论坛" },
 ];
 
 /**
@@ -55,6 +65,50 @@ export function appByKey(key: string): OsApp | undefined {
   return OS_APPS.find((app) => app.key === key);
 }
 
+export type AppLink = { href: string; newTab: boolean };
+
+/**
+ * 去别的站点的应用指向哪里、怎么打开：本域名下的论坛和控制台在当前标签页打开（和官网其它论坛链接一样）；
+ * GitHub 组织在新标签页打开（和页脚、GitHub 场景页里的 GitHub 链接一样）。留在官网里的应用返回 null。
+ */
+export function appLink(app: OsApp): AppLink | null {
+  switch (app.open.kind) {
+    case "site":
+      return { href: links[app.open.link](), newTab: false };
+    case "external":
+      return { href: links[app.open.link](), newTab: true };
+    default:
+      return null;
+  }
+}
+
+/**
+ * 打开站外应用：新标签页（noopener，不带 referrer，和页脚的 rel="noreferrer" 一样）或当前标签页整页跳转。
+ * 要在点击（按键）的当下同步调用：放进计时器里的新标签页，浏览器可能当成弹窗拦掉。
+ */
+export function followAppLink(link: AppLink, win: Pick<Window, "open" | "location"> = window): void {
+  if (link.newTab) win.open(link.href, "_blank", "noopener,noreferrer");
+  else win.location.assign(link.href);
+}
+
+/**
+ * 点下去在新标签页打开的应用（GitHub 组织）给读屏补的一句：焦点会直接跑到新标签页，先说一声。
+ * 只放进视觉上隐藏的 .pt-sr 或 aria-label，界面上看不到（Dock、桌面图标、菜单栏「前往」、⌘K、便签都加）。
+ */
+export const NEW_TAB_NOTE = "（新标签页打开）";
+
+export function opensNewTab(app: OsApp): boolean {
+  return appLink(app)?.newTab === true;
+}
+
+/** 按 id 取应用的站外地址；不是站外应用时抛错（只给写死 id 的调用方用，例如「加入我们」回执页的「去论坛看看」） */
+export function appLinkById(id: AppId): AppLink {
+  const app = appById(id);
+  const link = app ? appLink(app) : null;
+  if (!link) throw new Error(`应用 ${id} 不指向别的站点`);
+  return link;
+}
+
 // ── 启动器（⌘K）──────────────────────────────────────────────────────────
 
 export type LauncherCommand = {
@@ -68,8 +122,8 @@ export type LauncherCommand = {
 
 export function launcherCommands(apps: readonly OsApp[] = OS_APPS): LauncherCommand[] {
   return [
-    ...apps.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: `${app.id} ${app.name}` })),
-    { id: "forum-home", label: "进入论坛首页", hint: "全部话题", icon: "external-link-line", keywords: "forum home 论坛 首页 bbs" },
+    // 论坛应用本身就直达论坛首页（#185），原来单独的「进入论坛首页」命令和它重复，已并进论坛应用的关键词
+    ...apps.map((app) => ({ id: `app:${app.id}`, label: app.name, hint: app.blurb, icon: app.icon, keywords: [app.id, app.name, app.keywords].filter(Boolean).join(" ") })),
     { id: "forum-feed", label: "论坛最新", hint: "最近的话题", icon: "fire-line", keywords: "latest feed 最新 帖子 话题 topic" },
     { id: "docs", label: "文档", hint: "官网和论坛的使用说明", icon: "file-text-line", keywords: "docs 文档 guide 指南 help" },
     { id: "back", label: "回到书桌", hint: "Esc", icon: "arrow-left-line", keywords: "back desk 书桌 返回 exit" },

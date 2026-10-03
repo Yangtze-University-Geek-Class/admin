@@ -13,8 +13,8 @@
 | `/` | `pages/Home.tsx` | 加载动画 → 3D 书桌 → 点电脑开机 → YUGC OS 桌面（极客娘壁纸 + 应用图标 + 「新来的看这里」便签 + 窗口 + 带名字的 Dock + ⌘K 启动器） |
 | `/join-us` | `pages/JoinUs.tsx` | 加入我们：信封场景，DOM 信纸就是表单，真实提交 `POST /api/portal/apply` |
 | `/apply` | — | 旧地址，`<Navigate replace>` 到 `/join-us`，已发出的链接不失效 |
-| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109） |
-| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表 |
+| `/forum-3d` | `pages/Forum3D.tsx` | 论坛版块气泡场景，主入口「进入论坛首页」一直可见，版块图标为 Remix 线性图标；进论坛前镜头推近、遮罩盖满，从论坛按后退回来时浏览器可能从往返缓存（bfcache）恢复整页，`pageshow.persisted` 时调场景的 `reset()` 回到进场的样子（#109）。桌面上的「论坛」已直达论坛首页，不再经过这页（#185，见下文「桌面入口直达」）；这页留给旧地址和「论坛最新」窗口里的「3D 版块」按钮 |
+| `/github` | `pages/GithubScene.tsx` | GitHub 组织贡献天际线（方块高度是装饰）+ 公开仓库列表。桌面上的「GitHub 组织」已直接在新标签页打开组织主页，不再经过这页（#185）；这页只留给旧地址 |
 | `/docs`、`/docs/:id` | `pages/Docs.tsx` | 公开产品介绍与用户指南（白名单由 `/api/docs` 决定） |
 | `/feedback`、`/feedback/:org` | `pages/Feedback.tsx` | 匿名意见箱；只发本部署的组织（#129）：组织框只读（浅灰底、悬停不变色，说明「这里改不了」用 `aria-describedby` 挂在框上），展示 `GET /api/feedback/categories` 下发的 `org`（`CONSOLE_ORG`），读公开列表和提交都用同一个值；接口回来之前或失败时组织框先显示站点配置 `urls.githubOrg` 的最后一段，但提交按钮是灰的：组织名、分类和 PoW 难度都要等这个接口读到才能提交，失败时分类处显示「没读到分类和发往的组织，暂时不能提交」和「重新读取」按钮，已经写的正文不清空（`tests/web/portal-feedback-org.test.tsx`）。`/feedback/:org` 是控制台意见箱页生成的分享地址（`app/console/src/pages/Feedback.vue`），也接住旧链接，不能删；URL 里的组织名不生效 |
 | `/join/:token` | `pages/JoinByToken.tsx` | GitHub 组织邀请链接（能力令牌）落地页 |
@@ -31,7 +31,7 @@
 | `lib/loaderProgress.ts` | 加载动画的真实进度模型（步骤权重、最短展示时长、平滑趋近） |
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
-| `lib/osApps.ts` | YUGC OS 应用清单、启动器过滤、终端命令、时间文案 |
+| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里）、站外应用的地址与打开方式（`appLink`、`followAppLink`）、启动器过滤、终端命令、时间文案 |
 | `lib/promo.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
@@ -53,6 +53,20 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 - 控制台 `externalUrl("admin", "/console")`：生产与预发布都是本域名下的 `/console`（每个环境只有一个域名，管理端按路径进入），本机开发为 `/sites/admin/console`。意见箱是站内 `/feedback`。
 - 论坛最新与公开仓库在生产官网拿不到实时接口（论坛的本地状态接口只在开发时存在），因此随构建发布静态快照 `public/portal/forum-latest.json`、`public/portal/repos.json`。界面上不写「快照」「示意」这类给开发者看的说明（`tests/web/portal-os.test.ts` 扫描拦截），数字只写数据里真有的（话题数、用户数、仓库数）。论坛快照只收录已在仓库里公开编辑过的话题（`app/forum/content/curation.json` 的 `topics`），字段白名单为 id、标题、分类、颜色、回复数、浏览数、时间，**不带作者或任何用户名**：论坛私有投影里的用户名含真实姓名，不得进入公开官网包。更新快照 = 替换这两个文件并跑 `tests/web/portal-snapshots.test.ts`（它校验字段白名单与话题 id）。
 - GitHub 天际线的方块高度由固定种子生成（`lib/skyline.ts`），只是造型：页面上不做色阶图例、不标数值，也不在任何地方把它说成提交统计。
+
+## 桌面入口直达
+
+#185（所有者 2026-10-02）：「桌面点「论坛」「GitHub」等入口要再跳一层 3D 场景页才进得去，改成一跳直达」。原来论坛和 GitHub 组织在桌面上先进 `/forum-3d`、`/github` 场景页，要在场景页里再点一次才出站；「加入我们」本来就是直达的。
+
+- **去处只写在 `lib/osApps.ts`**：论坛是 `{ kind: "site", link: "forumHome" }`，在当前标签页进论坛首页（`links.forumHome()`）；GitHub 组织是 `{ kind: "external", link: "githubOrg" }`，在新标签页打开组织主页（`noopener`、不带 referrer）。打开方式沿用官网已有的外链：论坛和控制台是本域名下的另一个端，和页头、页脚、场景页里的论坛链接一样在当前标签页；GitHub 是别人的网站，和页脚、GitHub 场景页、终端 `repos` 里的 GitHub 链接一样在新标签页。`appLink` 把这两种写法解析成地址，`followAppLink` 负责打开。
+- **走这一处的入口**：桌面图标、Dock、2 / 3 键、菜单栏「前往」、⌘K 启动器、「新来的看这里」便签的第 2、3 行、终端 `open forum` / `open github`，以及「加入我们」回执里的「去论坛看看」（`appLinkById("forum")`，原来是指向 `/forum-3d` 的站内链接）。启动器原来单独有一条「进入论坛首页」，和论坛应用去同一个地方，已经去掉，它的搜索词 home、首页、bbs 并进了论坛应用。头像菜单里的「论坛」本来就直达论坛首页，没有改。
+- **点下去当场打开，不播图标飞行**：新标签页要在这次点击或按键里打开，等 520ms 飞行动画之后再开，浏览器可能当成弹窗拦掉；去论坛是整页跳走，也不播，从论坛后退、浏览器从往返缓存恢复整页时，飞行图标不会停在屏幕上。终端是先输出「打开 …」、350ms 后再打开，仍在这次按键的有效时间里。
+- **按住不放只算一次**：GitHub 组织每打开一次就多一个新标签页，按住 3、或者焦点在桌面图标、Dock、便签、菜单的按钮上按住回车，浏览器的自动重复会一口气开好几个。`YugcOs.tsx` 的全局按键处理遇到 `event.repeat` 直接返回，回车还要拦掉默认动作（浏览器不再把每次重复变成一次点击）；桌面图标自己处理回车和空格，同样只认按下去的那一次。
+- **从论坛后退直接回到桌面**：在当前标签页去论坛、控制台之前，`open()` 先用 `navigate(".", { replace: true, state: RESUME_DESKTOP })` 在这条历史记录上记下「回来直接进桌面」。浏览器没用往返缓存、后退时重新加载首页，`Home` 读到它就跳过加载动画和书桌，和从场景页返回一样，再清掉 state；用了往返缓存时桌面原样还在，`YugcOs` 在 `pageshow`（`persisted`）里清掉 state，之后刷新照常从书桌开始。GitHub 组织在新标签页打开，官网这页不动，不记。
+- **读屏提示**：会在新标签页打开的应用（`opensNewTab`，现在只有 GitHub 组织）在 Dock 的 `aria-label` 后面、桌面图标、菜单栏「前往」、⌘K 结果、便签的按钮里补一句「（新标签页打开）」（`NEW_TAB_NOTE`，放在视觉上隐藏的 `.pt-sr` 里），界面上看不到，读屏点下去之前就知道焦点会跑到新标签页。
+- **实测**（ego-browser，Chromium）：从论坛按后退，往返缓存恢复与不走往返缓存（重新请求 `/`）两种情况回到的都是桌面；按住 3、在 Dock 或便签上按住回车只开一个新标签页；终端 `open github` 能开出新标签页。Safari 与微信内置浏览器未测。
+- **旧地址**：`/forum-3d`、`/github` 两页与路由都不动，直接打开照常能用，#109 的往返缓存复位也还在。`/forum-3d` 另外还能从「论坛最新」窗口里的「3D 版块」按钮进（它原来借用论坛应用的去处，论坛直达以后改成直接链到 `/forum-3d`）；`/github` 没有桌面入口。
+- **单测**：`tests/web/portal-os.test.ts` 核对每个应用的去处、`appLink` 与 `followAppLink`、`opensNewTab`、启动器的搜索词，以及源码里指向两个场景页的只剩路由表和「3D 版块」、回执按钮取论坛应用的地址（`appLinkById("forum")`）；`tests/web/portal-os-entries.test.tsx`（jsdom）渲染桌面，逐个入口点下去，核对去处、当场打开、路由不动、没有飞行图标，「加入我们」照旧飞图标后进 `/join-us`，另外核对按住不放只算一次、去论坛前记下 `RESUME_DESKTOP` 并在往返缓存恢复时清掉、「论坛最新」窗口的「3D 版块」进 `/forum-3d`、读屏提示。
 
 ## 登录入口（菜单栏）
 
