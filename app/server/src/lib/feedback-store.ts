@@ -10,6 +10,14 @@ export type AdminFeedbackItem = {
 };
 const ADMIN_FEEDBACK_COLUMNS = "id, category, content, contact, submitter_login, status, reply, replied_by, replied_at, created_at";
 
+/**
+ * 本部署的意见箱只收 `CONSOLE_ORG` 的意见（#129）：组织名不分大小写认它，并统一成配置里的写法；
+ * 不是本组织的一律返回 null，调用方据此拒绝或返回空列表。GitHub 组织名只用 ASCII，`toLowerCase()` 足够。
+ */
+export function normalizeFeedbackOrg(org: string, consoleOrg: string): string | null {
+  return org.toLowerCase() === consoleOrg.toLowerCase() ? consoleOrg : null;
+}
+
 /** 意见箱的 SQL（管理端与控制台共用）。只接收普通参数，授权由调用方完成。 */
 export function createFeedbackStore(db: Database.Database) {
   function listFeedback(org: string, options: { status?: string; limit?: number } = {}) {
@@ -45,6 +53,20 @@ export function createFeedbackStore(db: Database.Database) {
   function deleteFeedback(org: string, id: number): boolean {
     return db.prepare("DELETE FROM feedback WHERE id = ? AND org = ?").run(id, org).changes > 0;
   }
-  return { listFeedback, countFeedback, updateFeedback, deleteFeedback };
+  /**
+   * 一次性归一（#129）：把 org 只是大小写不同的历史行改成配置里的写法，重复启动安全（第二轮没有匹配行）。
+   * 别的组织的旧数据不动：不猜它本来想发给谁。
+   */
+  function normalizeOrgSpelling(consoleOrg: string) {
+    return db.transaction(() => {
+      const rows = db.prepare("SELECT DISTINCT org FROM feedback").all() as { org: string }[];
+      const update = db.prepare("UPDATE feedback SET org = ? WHERE org = ?");
+      for (const row of rows) {
+        const normalized = normalizeFeedbackOrg(row.org, consoleOrg);
+        if (normalized && normalized !== row.org) update.run(normalized, row.org);
+      }
+    })();
+  }
+  return { listFeedback, countFeedback, updateFeedback, deleteFeedback, normalizeOrgSpelling };
 }
 export type FeedbackStore = ReturnType<typeof createFeedbackStore>;

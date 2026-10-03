@@ -118,13 +118,7 @@ export default async function applyRoutes(app: FastifyInstance) {
   app.post<{ Body: Body }>(
     "/api/portal/apply",
     {
-      config: {
-        rateLimit: {
-          max: 5,
-          timeWindow: "1 minute",
-          errorResponseBuilder: () => ({ statusCode: 429, error: "rate_limited", message: "操作太频繁，请稍后再试" }),
-        },
-      },
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (req, reply) => {
       const body = req.body ?? {};

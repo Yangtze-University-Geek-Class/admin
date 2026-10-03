@@ -43,3 +43,10 @@
 - 做了什么：提交17:50真实方案记录；issue184新方案评论5967986042已追加。保持旧notes只追加，业务代码尚未改
 - 结果：git status仅本链路notes修改；codexhost harness inspect claude仍RUNTIME_UNREACHABLE，本轮无新审查会话
 - 下一步：notes-only提交后合入origin/stage，不改主工作区
+
+## 18:00:39 +08:00 · 开发 · #184 · 合入最新 stage 保留其他已交付修复
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：git merge --no-ff --no-commit origin/stage；解决API、server合同和数据模型冲突，保留#129组织归一及#128索引退役，notes索引用脚本重建
+- 结果：四处文档冲突已解决；自动合入其余stage代码，邮箱返工尚未开始；合并目标c2859ff4867dd9bbd724c82beb7af80b788d4097
+- 下一步：提交合并树后补真实路由失败回归

@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
 import { ORG_ICONS } from "../../app/web/sites/portal/lib/org";
 import { parseMe } from "../../app/web/sites/portal/lib/account";
-import { OS_APPS, agoLabel, appByKey, filterCommands, launcherCommands, moveSelection, runTerminal, visibleApps } from "../../app/web/sites/portal/lib/osApps";
+import { links } from "../../app/web/sites/portal/lib/links";
+import { NEW_TAB_NOTE, OS_APPS, agoLabel, appById, appByKey, appLink, appLinkById, filterCommands, followAppLink, launcherCommands, moveSelection, opensNewTab, runTerminal, visibleApps } from "../../app/web/sites/portal/lib/osApps";
 
 const PORTAL = new URL("../../app/web/sites/portal/", import.meta.url).pathname;
 
@@ -58,22 +59,49 @@ describe("YUGC OS 应用与启动器", () => {
     expect(new Set(OS_APPS.map((app) => app.id)).size).toBe(OS_APPS.length);
   });
 
-  it("入口指向新路由：/join-us、/forum-3d、/github、/feedback、控制台 /console", () => {
+  it("入口指向：加入我们进 /join-us 场景，论坛与 GitHub 组织直达（#185），意见箱 /feedback，控制台 /console", () => {
     const open = Object.fromEntries(OS_APPS.map((app) => [app.id, app.open]));
     expect(open.join).toEqual({ kind: "scene", path: "/join-us" });
-    expect(open.forum).toEqual({ kind: "scene", path: "/forum-3d" });
-    expect(open.github).toEqual({ kind: "scene", path: "/github" });
+    expect(open.forum).toEqual({ kind: "site", link: "forumHome" });
+    expect(open.github).toEqual({ kind: "external", link: "githubOrg" });
     expect(open.feedback).toEqual({ kind: "route", path: "/feedback" });
-    expect(open.console).toEqual({ kind: "site", site: "admin", path: "/console" });
+    expect(open.console).toEqual({ kind: "site", link: "console" });
+    // 没有哪个应用再经过 /forum-3d、/github 场景页
+    expect(JSON.stringify(OS_APPS)).not.toMatch(/forum-3d|"\/github"/);
+  });
+
+  it("站外应用的地址与打开方式：论坛、控制台当前标签页，GitHub 组织新标签页；留在官网里的应用没有站外地址", () => {
+    expect(appLink(appById("forum")!)).toEqual({ href: links.forumHome(), newTab: false });
+    expect(appLink(appById("console")!)).toEqual({ href: links.console(), newTab: false });
+    expect(appLink(appById("github")!)).toEqual({ href: "https://github.com/Yangtze-University-Geek-Class", newTab: true });
+    for (const id of ["join", "promo", "about", "org", "terminal", "wallpaper", "feedback"]) expect(appLink(appById(id)!), id).toBeNull();
+    expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
+    expect(() => appLinkById("join")).toThrow();
+    // 只有在新标签页打开的应用给读屏补「（新标签页打开）」
+    expect(OS_APPS.filter(opensNewTab).map((app) => app.id)).toEqual(["github"]);
+    expect(NEW_TAB_NOTE).toBe("（新标签页打开）");
+  });
+
+  it("打开站外应用：新标签页用 noopener、不带 referrer；当前标签页整页跳转，两者不混用", () => {
+    const calls: string[] = [];
+    const win = { open: (...args: unknown[]) => (calls.push(`open ${args.join(" ")}`), null), location: { assign: (href: string) => calls.push(`assign ${href}`) } } as unknown as Pick<Window, "open" | "location">;
+    followAppLink({ href: "https://github.com/x", newTab: true }, win);
+    followAppLink({ href: "/forum/", newTab: false }, win);
+    expect(calls).toEqual(["open https://github.com/x _blank noopener,noreferrer", "assign /forum/"]);
   });
 
   it("启动器过滤：空查询全部返回；中英文关键词都能命中；前缀优先；多词都要命中", () => {
     const commands = launcherCommands();
     expect(filterCommands(commands, "   ")).toHaveLength(commands.length);
     expect(filterCommands(commands, "加入")[0].id).toBe("app:join");
-    expect(filterCommands(commands, "FORUM").map((c) => c.id)).toContain("forum-home");
+    expect(filterCommands(commands, "FORUM").map((c) => c.id)).toContain("app:forum");
     expect(filterCommands(commands, "论坛")[0].id).toBe("app:forum");
-    expect(filterCommands(commands, "forum home").map((c) => c.id)).toEqual(["forum-home"]);
+    // 原来单独的「进入论坛首页」命令和论坛应用去同一个地方，已并进论坛应用（#185）；它的搜索词照样找得到论坛
+    expect(commands.map((c) => c.id)).not.toContain("forum-home");
+    expect(filterCommands(commands, "forum home").map((c) => c.id)).toEqual(["app:forum"]);
+    expect(filterCommands(commands, "首页")[0].id).toBe("app:forum");
+    expect(filterCommands(commands, "bbs")[0].id).toBe("app:forum");
+    expect(filterCommands(commands, "github")[0].id).toBe("app:github");
     expect(filterCommands(commands, "zzz-没有这个")).toEqual([]);
   });
 
@@ -94,6 +122,23 @@ describe("YUGC OS 应用与启动器", () => {
     expect(runTerminal("repos", []).lines[1].kind).toBe("dim");
     expect(runTerminal("clear", repos)).toEqual({ lines: [], clear: true });
     expect(runTerminal("rm -rf /", repos).lines.at(-1)?.kind).toBe("err");
+  });
+});
+
+describe("入口直达，不再经过 3D 场景页（#185）", () => {
+  it("源码里指向 /forum-3d、/github 的只剩路由表和论坛窗口里写明的「3D 版块」", () => {
+    const hits = sources(PORTAL)
+      .filter((file) => /["'`]\/(forum-3d|github)["'`]/.test(readFileSync(file, "utf8")))
+      .map((file) => file.slice(PORTAL.length))
+      .sort();
+    // Windows.tsx 里那一处是「论坛最新」窗口的「3D 版块」按钮，渲染后点下去进 /forum-3d 由 portal-os-entries.test.tsx 核对
+    expect(hits).toEqual(["App.tsx", "components/os/Windows.tsx"]);
+  });
+
+  it("「加入我们」回执里的「去论坛看看」和桌面上的论坛应用取同一个地址：论坛首页，当前标签页", () => {
+    expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
+    // 只认取地址的那一句，不认 JSX 的写法（属性顺序、换行改了不影响）
+    expect(readFileSync(`${PORTAL}pages/JoinUs.tsx`, "utf8")).toMatch(/appLinkById\("forum"\)/);
   });
 });
 

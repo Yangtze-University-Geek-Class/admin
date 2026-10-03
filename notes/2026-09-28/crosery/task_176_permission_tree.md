@@ -85,3 +85,16 @@
 - 做了什么：按 CODE-REVIEW 十四项对 origin/stage...task/176/permission_tree 全 diff（37 文件 +2206/−174）逐项审查，被审代码与文档最后改动为 fb0e55c，其后只有 notes 记录；本地用 Node 22.23.2/pnpm 9.15.9 复跑 pnpm check 与 pnpm test、pnpm build、forum check/generate 与 tests/e2e/workflows.spec.ts；核对远端检查
 - 结果：本地：check 通过（运行时基线 v22.23.2、边界 202 文件 1152 导入、272 文档、6 组 doc-sync、43 条 notes、typecheck）；936/936 测试通过；三条构建通过；论坛 30 文件 548 项、61 路由生成；Playwright workflows 18/18；node scripts/check-branch-invariants.mjs 与 note.mjs check --pr --for-review 通过。审查无阻塞与应修条目，结论通过；旧的 a118317 阻塞评论不改，仅保留为历史。未验证：真实 OAuth 往返、预发布/正式人工验收、读屏对比度专项、移动真机、完整论坛浏览器套件，#178 未宣告根因解决
 - 下一步：更新 PR 正文九段并重跑 pr-contract，随后按 merge commit 合入 stage
+
+## 18:13:10 +08:00 · 合并 · #176 · PR #179 以 merge commit 合入 stage
+
+- 执行者：agent-omp-geek-main-176（OMP）
+- 做了什么：gh pr merge 179 --merge：head 02927af1f8f6fa0a71df80da074633ab18e9ec34 合入 stage（merge commit 458999fc0c6033816f27e50d79c37dd29f8bb6b1，父提交 0c32616 + 02927af）；合入前 body 与 review 已更新并转 Ready，pr-contract 重跑通过
+- 结果：PR #179 MERGED；issue-lifecycle 运行 36408076866 success，issue #176 于 10:10:21Z 自动关闭（COMPLETED）；branch-hygiene 运行 36408076945 success，远端 task/176/permission_tree 已删；node scripts/check-branch-invariants.mjs 通过（origin/stage 458999fc 含 origin/main）；未打 tag、未部署、package.json 版本仍 0.1.0
+- 下一步：本机 task.mjs finish 176 清理 worktree 与本地分支
+
+## 18:14:02 +08:00 · 收尾 · #176 · PR #179 已合并，清理 worktree
+
+- 执行者：agent-omp-geek-main-176（OMP）
+- 做了什么：node scripts/task.mjs finish 176：删 worktree .claude/worktrees/task-176 与本地分支 task/176/permission_tree
+- 结果：PR 已合并

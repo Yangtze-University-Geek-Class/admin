@@ -7,6 +7,7 @@ export default defineConfig({
       "@shared": fileURLToPath(new URL("./app/web/shared", import.meta.url)),
       "react": fileURLToPath(new URL("./app/web/node_modules/react", import.meta.url)),
       "react-dom": fileURLToPath(new URL("./app/web/node_modules/react-dom", import.meta.url)),
+      "react-router-dom": fileURLToPath(new URL("./app/web/node_modules/react-router-dom", import.meta.url)),
     },
   },
   test: {

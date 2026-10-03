@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { normalizeFeedbackOrg } from "../../lib/feedback-store.js";
 
 type Body = {
   org: string;
@@ -11,7 +12,6 @@ type Body = {
 };
 
 const CATEGORIES = ["建议", "Bug", "新功能", "投诉", "其他"];
-const ORG_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
 
 export default async function feedbackRoutes(app: FastifyInstance) {
   const { audit, db } = app.services.storage;
@@ -20,19 +20,23 @@ export default async function feedbackRoutes(app: FastifyInstance) {
   const { preflightPublicSubmission, powDifficulty } = app.services.publicSubmission;
   const { config } = app.services;
   const { turnstileEnabled } = app.services.turnstile;
-  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty() }));
+  // org 是本部署意见箱收的组织（CONSOLE_ORG）：官网照它展示和提交，不另存一份可能对不上的组织名（#129）。
+  app.get("/api/feedback/categories", async () => ({ categories: CATEGORIES, pow_difficulty: powDifficulty(), org: config.consoleOrg }));
 
   app.post<{ Body: Body }>("/api/feedback", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
   }, async (req, reply) => {
-    const { org, content, category, contact, turnstile_token } = req.body ?? {};
-    if (!org || !ORG_REGEX.test(org)) return reply.code(400).send({ error: "组织无效" });
+    const { content, category, contact, turnstile_token } = req.body ?? {};
+    // PoW 摘要按提交者实际发出的组织名算，只有落库与比较用规范写法：换大小写提交的客户端不必改摘要输入。
+    const requestedOrg = req.body?.org ?? "";
+    const org = normalizeFeedbackOrg(requestedOrg, config.consoleOrg);
+    if (!org) return reply.code(400).send({ error: `意见箱只接收「${config.consoleOrg}」组织的意见` });
     const text = content?.trim();
     if (!text || text.length < 5) return reply.code(400).send({ error: "意见内容至少 5 个字" });
     if (text.length > 5000) return reply.code(400).send({ error: "意见内容过长（5000 字以内）" });
     if (category && !CATEGORIES.includes(category)) return reply.code(400).send({ error: "分类无效" });
 
-    const bodyForHash = `fb:${org}:${text}`;
+    const bodyForHash = `fb:${requestedOrg}:${text}`;
     if (!(await preflightPublicSubmission(req, reply, bodyForHash))) return;
 
     const captchaOk = await verifyTurnstile(turnstile_token, req.ip);
@@ -56,7 +60,8 @@ export default async function feedbackRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Querystring: { org?: string; limit?: string } }>("/api/feedback/public", async (req) => {
-    const { org } = req.query;
+    // 公开列表也只看本部署管理的组织：别的组织名（含任意大小写）一律返回空列表，不透露是否存在。
+    const org = normalizeFeedbackOrg(req.query.org ?? "", config.consoleOrg);
     const limit = Math.min(Number(req.query.limit ?? 20), 100);
     if (!org) return { items: [] };
     const rows = db.prepare(

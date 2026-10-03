@@ -253,10 +253,12 @@ it('rejects invalid feedback data before persistence', async () => {
 });
 it('bounds the public feedback limit: only 1–9999 is accepted, then capped at 100', async () => {
   const { app } = await setup();
-  const insert = app.services.storage.db.prepare("INSERT INTO feedback(org, content, status, created_at, updated_at) VALUES('demo', ?, 'open', ?, ?)");
-  for (let i = 0; i < 120; i++) insert.run(`意见 ${i}`, i, i);
+  // 公开列表只服务本部署的组织（#129），所以夹具用 CONSOLE_ORG；本用例断言的是 limit 的边界，不是组织名。
+  const org = app.services.config.consoleOrg;
+  const insert = app.services.storage.db.prepare("INSERT INTO feedback(org, content, status, created_at, updated_at) VALUES(?, ?, 'open', ?, ?)");
+  for (let i = 0; i < 120; i++) insert.run(org, `意见 ${i}`, i, i);
   const count = async (query: string) => {
-    const response = await app.inject({ url: `/api/feedback/public?org=demo${query}` });
+    const response = await app.inject({ url: `/api/feedback/public?org=${org}${query}` });
     return response.statusCode === 200 ? response.json().items.length : `${response.statusCode} ${response.json().error}`;
   };
   expect(await count('')).toBe(20);
