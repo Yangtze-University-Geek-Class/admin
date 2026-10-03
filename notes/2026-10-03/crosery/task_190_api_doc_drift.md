@@ -40,3 +40,16 @@
 - 做了什么：ego TaskSpace 201 / p1 在 GitHub PR #200 的 API.md rich diff 核对并上传五张 1440x1000 截图；逐张打开检查长度数法、公开 follows、request_id 例外与统一 429、join 两类 400/409、旧路径 410 及分页和 dependabot.error。更新九段 PR 正文，保留历史截图边界；新增证据 9–13 标注 c42bda189c6e，文档内容为 e01ed5a。
 - 结果：PR 正文契约通过；strict note check 50 条链路通过；doc-sync 6 组通过。旧 PR CI 37104928634 的 notes 门禁失败已显式说明，不隐藏或放宽检查。当前只剩 notes 提交和最终 head CI；未跑 Playwright、未预发布人工验收。
 - 下一步：提交 notes-only，正常推送，待新 head 适用 CI 全绿
+
+## 15:39:07 +08:00 · 合并 · #190 · PR #200 通过最终门禁并合入 stage
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：notes-only 提交 683770eb14caf0ad7ffb43c98aeadb9aea91dbe2 正常推送；push CI 37106678700、PR CI 37106680954 全部适用检查 success，最终正文 pr-contract 37106895969 success；13 张附件匿名 GET 均 200。gh pr merge 200 --merge --match-head-commit 683770eb14caf0ad7ffb43c98aeadb9aea91dbe2。
+- 结果：合并提交 622f03a90dc999cc70b76e23d89bf2a5b265f6c5；issue-lifecycle 37106974173 和 branch-hygiene 37106974182 completed/success；#190 CLOSED，远端 task/190/* 不存在，task-190 工作区干净。外仓手册留 geek-cli#2，#198/#199 不冒称完成；未发版。
+- 下一步：task.mjs finish 190；pending 记录收入最近 task PR
+
+## 15:39:28 +08:00 · 收尾 · #190 · PR #200 已合并，清理 worktree
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：node scripts/task.mjs finish 190：删 worktree .claude/worktrees/task-190 与本地分支 task/190/api_doc_drift
+- 结果：PR 已合并
