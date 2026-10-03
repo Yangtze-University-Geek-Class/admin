@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { APP_ROOT, type AppConfig } from "./config.js";
 import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
-import { registerHttpPolicy } from "./middleware/http-policy.js";
+import { rateLimited, registerHttpPolicy } from "./middleware/http-policy.js";
 
 /** 官网产物（app/web）与控制台产物（app/console）分开构建，静态托管时两个目录叠在一起。 */
 const webDist = resolve(APP_ROOT, "web/dist");
@@ -60,7 +60,8 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.sessionCleanup) app.addHook("onReady", async () => { services.auth.startCleanup(app.log); });
   registerHttpPolicy(app);
   await app.register(cookie, { secret: config.sessionSecret });
-  await app.register(rateLimit, { global: false });
+  // 只限写了 config.rateLimit 的路由；超额一律 429 rate_limited，路由不另写 errorResponseBuilder（#191）
+  await app.register(rateLimit, { global: false, errorResponseBuilder: () => rateLimited() });
 
   await app.register(portalRoutes);
   await app.register(adminRoutes);

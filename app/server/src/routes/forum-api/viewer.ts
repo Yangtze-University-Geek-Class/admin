@@ -54,7 +54,7 @@ export async function requireMember(req: FastifyRequest): Promise<MemberViewer> 
 export const can = (viewer: ForumViewer, capability: Capability) => viewer.capabilities.includes(capability);
 export const forbidden = (message: string) => new ForumError(403, "forbidden", message);
 export const notFound = (message: string) => new ForumError(404, "not_found", message);
-export const rateLimited = () => new ForumError(429, "rate_limited", "操作太频繁，请稍后再试");
+export { rateLimited } from "../../middleware/http-policy.js";
 /** 全站的游客回复总量到了上限（FORUM_RATE_LIMITS.guestPostSite）：所有游客暂时不能回复，成员照常。 */
 export const guestRepliesPaused = () => new ForumError(429, "guest_replies_paused", "游客回复暂时太多，请过一会儿再试，或者登录后回复");
 

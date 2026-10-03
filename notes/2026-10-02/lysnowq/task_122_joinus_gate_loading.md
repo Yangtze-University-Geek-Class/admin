@@ -148,3 +148,15 @@
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
 - 做了什么：独立审查子代理只读审 049e6fe..d8712f0：两次合并用 merge-tree 重算只差 notes/INDEX.md，INDEX 与 renderIndex 输出相同；app/、tests/ 的变化与 stage 一侧 patch-id 相同（6298bc81…）；portal.md:89 与 PR #95 首帧时间表、20:47:57 记录对得上；tests/web 20 个文件 150 passed；CI push 37026322165、pull_request 37026328613 success
 - 结果：有条件通过：应修 D1（GitHub 上的正文还是作者原版）已在上一条记录处理；建议 D2 随正文改；D3（返工记录没和改动同一个提交）不改历史；D4（#122 正文第 14 行旧说法）合并后在「关闭」记录里更正
+
+## 23:43:31 +08:00 · 合并 · #122 · PR #180 以 merge commit 合入 stage
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：最终 head d473c6e 的 CI（push 37028334269、pull_request 37028341007）success，正文改后 pr-contract 重跑 success，mergeStateStatus CLEAN；gh pr merge 180 --merge --match-head-commit d473c6e9786d；第 2–4 轮审查评论已贴在 PR。23:37:38 那条「PR」记录里说的「23:07:10、23:07:10 的「审查」与 23:4x 前几条记录」，指的是 23:07:10「提交」、23:07:10「审查」、23:19:42「返工」三条（文件第 113、126、131 行）
+- 结果：合并提交 38685d136e0c；issue-lifecycle 在 2026-10-02T15:42:46Z 关了 #122；远端 task/122/joinus_gate_loading 已删（ls-remote 0 条）；第四轮建议 D4 在 #122 留更正评论；F10 与 e2e 选择器在 #196
+
+## 23:43:32 +08:00 · 收尾 · #122 · PR #180 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，Crosery 一方接手）
+- 做了什么：node scripts/task.mjs finish 122：删 worktree .claude/worktrees/task-122 与本地分支 task/122/joinus_gate_loading
+- 结果：PR 已合并

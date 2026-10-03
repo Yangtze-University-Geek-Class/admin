@@ -22,6 +22,8 @@
 
 发信（#148，覆盖范围逐条写在 [mail](../services/server/mail.md)「验证」）：`tests/server/mail-outbox.test.ts` 用真实路由和假的发信商核对队列、同一事件只发一封、白名单、每份投递都发「已收到」、发信队列按收件箱、来源和全站的上限、阿里云失败换 Resend、重试与放弃、租约、最终状态清掉地址和正文、控制台改状态发信（四个状态、`letter_required`、页面过时或改走又改回时回 409 `status_changed`（服务器时钟往回拨过也一样）、旧页面不带页面状态时拒绝改状态）、「已收到」按收件箱归并（`+` 标签、Gmail 的点）和按 IP 限量（IPv6 按 /64）；`tests/server/mail-envelope.test.ts` 核对转义、链接白名单、按姓称呼、进程时区是 UTC 时仍写北京时间；旧的「评估中」启动时改回「已收到」在 `tests/server/legacy-database.test.ts`；控制台导出 CSV 的北京时间在 `tests/server/console.test.ts`；官网「加入我们」的邮箱正则和投递接口逐字一致在 `tests/web/portal-join.test.ts`。投递次数（同一个 IP 按 /64、同一个设备 cookie 各 24 小时 5 份，第 6 份 429 `apply_limited`，#169）在 `tests/server/applications.test.ts`。
 
+路由级限流（#191）：`tests/server/rate-limits.test.ts` 对邀请链接、控制台导出 CSV 与指派、官网投递、意见箱各自连发到超额，核对第一次超额回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }` 且 `no-store`，额度内的请求照常（限流在鉴权和校验之前计数），换一个 IP 不受影响。论坛接口的限流在 `tests/server/forum.test.ts`。
+
 论坛：种子确定性、store 状态、权限 helper、持久化解析、提及；桌面/移动 shell、主题筛选/排序/分页、回复/引用/编辑/软删/收藏/点赞、用户资料、通知与全路由图标。开发提醒不得遮挡主流程。
 
 核心 UI：危险操作取消、焦点返回、移动导航、文档语言及入口；控制台按身份的导航可见性、缺能力说明、未登录跳转、成员按称号分页签排序、无原生下拉框/复选框、窄屏抽屉导航与无页面级横向溢出；门户论坛链接必须指向 `app/forum` 的新入口，不加载旧 React 论坛。工程检查要覆盖真实导入解析、别名、反向依赖（含 `app/console` 与 `app/web`、`app/server` 互不导入）、站点配置不含域名（`check-site-config`）、SPA 入口按路径选择（服务端 `resolveSiteEntry` 与 web 容器 nginx，`tests/tooling/web-nginx.test.ts` 在本机有 nginx 时实跑，管理端入口是控制台产物）、论坛路径的跳转（`tests/tooling/forum-redirects.test.ts` 在本机有 nginx 时把宿主、web、论坛三层配置一起实跑：`/forum` 只 308 到相对地址 `/forum/`，预渲染路由带不带结尾斜杠都是 200，任何 `Location` 都不带协议、主机和内部端口）、带哈希产物目录的缓存头（`tests/tooling/hashed-asset-cache.test.ts` 同样在本机有 nginx 时把三层一起实跑：`/assets/`、`/console-assets/`、`/forum/_nuxt/` 下的脚本、样式、字体、图片都缓存一年，安全头与页面相同，论坛的 `_nuxt/builds/latest.json` 不缓存）和文档同步。

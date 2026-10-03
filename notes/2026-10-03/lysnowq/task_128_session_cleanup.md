@@ -19,3 +19,16 @@
 - 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
 - 做了什么：本次提交仅含 notes/INDEX.md 与当天 task-128 追加记录；运行 git diff --check、note.mjs check --pr、check-doc-sync 和 session-cleanup 回归
 - 结果：diff 检查退出 0；notes 48 条链路完整；doc-sync 6 组通过；vitest Tests 8 passed；未改 app、tests、scripts 或服务文档
+
+## 14:16:37 +08:00 · 合并 · #128 · PR #181 合入 stage 并核对自动化收尾
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：gh pr merge 181 --merge --match-head-commit fe1fda98a308e4315bc8f8675329a276db659f00；核对 issue-lifecycle、branch-hygiene、issue 状态和远端分支
+- 结果：合并提交 e624f5697b7fe7bea62f3fa42461a3065f32f13d；issue-lifecycle 37102478890 与 branch-hygiene 37102478819 completed/success；#128 CLOSED；git ls-remote task/128/* 无输出；#194 OPEN；未发布或部署
+- 下一步：task.mjs finish 128；pending 随 #197 入库
+
+## 14:16:51 +08:00 · 收尾 · #128 · PR #181 已合并，清理 worktree
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：node scripts/task.mjs finish 128：删 worktree .claude/worktrees/task-128 与本地分支 task/128/session_cleanup
+- 结果：PR 已合并
