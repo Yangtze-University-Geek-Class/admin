@@ -57,3 +57,30 @@
 - 做了什么：核对新增PR记录，准备docs(notes)提交；只追加本链路已发生的操作，不改源码或既有记录
 - 结果：65e3b94的CI已通过且正文契约37109301739成功；本次新增7行notes，需推新head并重新等待最终CI
 - 下一步：正常提交和推送notes-only，合并时记录新的head与CI
+
+## 16:29:40 +08:00 · 推送 · #185 · 最终条件核验记录提交正常推送并通过全部适用 CI
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：git commit 5d4eec428d3f21f81ddb2eeec1a092e2ba2612f9：docs(notes): 记录入口 PR 条件闭合核验；git push origin task/185/portal_direct_links
+- 结果：推送成功，pre-push分支与7个进行中worktree通过；最终push CI37109420334、PR CI37109423502全部适用job成功，verify和branch-guard成功；只追加14行notes，无源码变更
+- 下一步：归档最终正文契约与合并收尾
+
+## 16:29:59 +08:00 · PR · #185 · 更新最终 head 与 CI 后通过正文契约
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：gh pr edit 201 将最终head改为5d4eec428d3f21f81ddb2eeec1a092e2ba2612f9并补push/PR CI37109420334和37109423502；保持19项历史证据边界和独立审查原文；检查PR OPEN非draft、base stage、mergeState CLEAN
+- 结果：本地九段契约和strict notes 51链路通过，最终正文触发Issue lifecycle37109673209 completed/success；diff --check通过，工作区干净。之前条件闭合评论5967115859保留，不改写评论
+- 下一步：归档匹配最终head的stage合并与生命周期核验
+
+## 16:30:18 +08:00 · 合并 · #185 · PR201 经最终 CI 与审查条件闭合后合入 stage
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：gh pr merge 201 --merge --match-head-commit 5d4eec428d3f21f81ddb2eeec1a092e2ba2612f9；等issue-lifecycle37109802032与branch-hygiene37109802107完成；gh issue view185与git ls-remote --heads origin task/185/*核对；fetch更新origin/stage
+- 结果：合并提交c2859ff4867dd9bbd724c82beb7af80b788d4097；两工作流completed/success，#185 CLOSED，远端task/185无输出；stage包含main；本地task185干净。62项精准回归与19/19附件已核验，浏览器截图为历史快照，未做预发布验收，未发版或部署
+- 下一步：task.mjs finish185并只读issue-sweep和task list核对，pending随最近下一PR入库
+
+## 16:30:30 +08:00 · 收尾 · #185 · PR #201 已合并，清理 worktree
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：node scripts/task.mjs finish 185：删 worktree .claude/worktrees/task-185 与本地分支 task/185/portal_direct_links
+- 结果：PR 已合并

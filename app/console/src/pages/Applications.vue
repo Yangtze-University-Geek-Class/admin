@@ -108,7 +108,7 @@ watch([status, () => list.data.value], () => void nextTick(revealActiveChip));
 
 <template>
   <div class="page">
-    <PageHeader title="投递管理" description="官网「投递简历」收到的投递。同一邮箱或姓名班级相同的投递算同一个人，合成一行。打开详情和导出都会记入审计日志。">
+    <PageHeader title="投递管理" description="同一邮箱的历次投递合成一行。同名同班、邮箱不同只提示疑似重复，需人工核对。打开详情和导出都会记入审计日志。">
       <template #actions>
         <template v-if="can('applications.export')">
           <TxTooltip v-if="isMock()" content="开发预览不能导出，请连接本地后端">
@@ -162,6 +162,14 @@ watch([status, () => list.data.value], () => void nextTick(revealActiveChip));
                 {{ row.expanded ? "收起" : `${row.shown} 份投递` }}
               </TxButton>
               <span v-if="row.hidden" class="cell-sub">另有 {{ row.hidden }} 份不在当前筛选里</span>
+              <TxButton
+                v-if="row.item.person?.possible_duplicate_count"
+                variant="bare"
+                size="sm"
+                class="person-toggle"
+                :aria-label="`核对 ${row.item.name} 的 ${row.item.person.possible_duplicate_count} 份疑似重复投递`"
+                @click.stop="router.push(detailHref(row))"
+              >疑似重复 {{ row.item.person.possible_duplicate_count }} 份</TxButton>
               <span class="narrow-meta">
                 <ToneTag :tone="statusMeta(row.item.status).tone" :label="statusMeta(row.item.status).label" />
                 <span class="cell-sub">{{ fmtDate(row.item.created_at) }}</span>

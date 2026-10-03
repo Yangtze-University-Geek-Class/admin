@@ -1,37 +1,32 @@
-import { limitKey } from "./mail/outbox.js";
-
 /**
- * 投递按人归并（#184）：两份投递的邮箱按发信队列的收件箱规则（mail/outbox.ts 的 limitKey：大小写、`+` 标签、
- * Gmail 的点、googlemail.com、IDNA 写法、末尾的点）归并后相同，或者姓名和班级都相同，就算同一个人；
- * 两两连通的投递归成一组（A、B 同邮箱，B、C 姓名班级相同，A、B、C 是一个人）。
- * 只在查询时算，不落库；只用来展示，不自动改任何投递的状态。
+ * 邮箱分组仅用于展示重复投递，不证明身份；不复用发信限流的别名规则。
+ * 姓名班级只用于人工核对提示，不参与合并，不自动改状态。
  */
 
-export type GroupReason = "email" | "name_class";
-export const GROUP_REASONS: readonly GroupReason[] = ["email", "name_class"];
+export type GroupReason = "email";
+export const GROUP_REASONS: readonly GroupReason[] = ["email"];
 
 export type GroupableApplication = { id: string; name: string; class_name: string; email: string; created_at: number };
 export type GroupMember<T> = T & { linked_by: GroupReason[] };
 export type PersonGroup<T> = {
-  /** 这个人最早一份投递的 id；导出 CSV 的 person_group 列是同一个值。 */
+  /** 本邮箱组最早一份投递的 id；导出 CSV 的 person_group 列是同一个值。 */
   key: string;
-  /** 这一组为什么归成一个人：组里有没有同邮箱的、有没有姓名班级相同的。只有一份投递时是空的。 */
+  /** 多份同邮箱投递为 email；只有一份投递时为空。 */
   reasons: GroupReason[];
   /** 新的在前（created_at DESC, id），和列表原来的顺序一样。 */
   members: GroupMember<T>[];
 };
 
-/** 姓名 + 班级的比较键：NFKC（全角数字、字母算半角）、去掉所有空白、转小写。任一项为空时不参与归并。 */
+/** 仅提示疑似重复：任一项为空时不参与匹配。 */
 export function nameClassKey(name: string, className: string): string | null {
   const fold = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
   const [n, c] = [fold(name), fold(className)];
   return n && c ? `${n}\u0000${c}` : null;
 }
 
-/** 邮箱的比较键：和发信队列按收件箱限量用同一套规则。 */
+/** 不剥离 + 标签、点、域名别名，不将收件箱路由规则视为身份。 */
 export function emailKey(email: string): string | null {
-  const key = limitKey(email);
-  return key && key !== "@" ? key : null;
+  return email.trim().toLowerCase() || null;
 }
 
 const newestFirst = (a: GroupableApplication, b: GroupableApplication) => b.created_at - a.created_at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -51,9 +46,9 @@ export function groupApplications<T extends GroupableApplication>(rows: readonly
     if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb);
   };
 
-  const keys = rows.map(row => ({ email: emailKey(row.email), name_class: nameClassKey(row.name, row.class_name) }));
-  const seen = { email: new Map<string, number>(), name_class: new Map<string, number>() };
-  const sizes = { email: new Map<string, number>(), name_class: new Map<string, number>() };
+  const keys = rows.map(row => ({ email: emailKey(row.email) }));
+  const seen = { email: new Map<string, number>() };
+  const sizes = { email: new Map<string, number>() };
   keys.forEach((key, index) => {
     for (const reason of GROUP_REASONS) {
       const value = key[reason];
@@ -91,6 +86,32 @@ export function groupApplications<T extends GroupableApplication>(rows: readonly
   }
   groups.sort((a, b) => newestFirst(a.members[0], b.members[0]));
   return { groups, byId };
+}
+
+export function nameClassIndex<T extends GroupableApplication>(rows: readonly T[]): Map<string, T[]> {
+  const index = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = nameClassKey(row.name, row.class_name);
+    if (key === null) continue;
+    const matches = index.get(key);
+    if (matches) matches.push(row);
+    else index.set(key, [row]);
+  }
+  return index;
+}
+
+/** 只匹配本邮箱组直接出现过的姓名班级，不沿疑似关系扩展。 */
+export function possibleDuplicates<T extends GroupableApplication>(group: PersonGroup<T>, index: ReadonlyMap<string, readonly T[]>): T[] {
+  const ownIds = new Set(group.members.map(row => row.id));
+  const keys = new Set(group.members.map(row => nameClassKey(row.name, row.class_name)));
+  const candidates = new Map<string, T>();
+  for (const key of keys) {
+    if (key === null) continue;
+    for (const row of index.get(key) ?? []) {
+      if (!ownIds.has(row.id)) candidates.set(row.id, row);
+    }
+  }
+  return [...candidates.values()].sort(newestFirst);
 }
 
 export type MatchedPerson<T> = { group: PersonGroup<T>; primary: GroupMember<T>; matched: GroupMember<T>[] };

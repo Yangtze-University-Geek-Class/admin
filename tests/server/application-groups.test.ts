@@ -6,8 +6,8 @@ import { APPLICATION_STATUS_IDS } from '../../app/server/src/lib/roles';
 import { testApp } from './helpers';
 
 /**
- * 投递按人归并与「已取消」（#184）：邮箱按收件箱规则归并后相同、或姓名+班级相同，任一成立就是同一个人，链式连通；
- * 列表一人一条、计数按投递份数且和筛选结果对得上、分页按人、CSV 与列表同一口径、改成已取消不发信但写审核记录。
+ * 邮箱展示分组与「已取消」（#184）：只有地址去首尾空白、不分大小写相同才分组。
+ * 同名同班跨邮箱仅提示，CSV 与列表同口径，改成已取消不发信但写审核记录。
  * 发信商的请求一律拒绝（helpers.ts 的 mailFetch），这里只看发信队列里写没写信。
  */
 
@@ -39,42 +39,41 @@ describe('groupApplications', () => {
     expect(groups[0].members.map(m => [m.id, m.linked_by])).toEqual([[b.id, ['email']], [a.id, ['email']]]);
   });
 
-  it('joins applications with the same name and class even when the email differs', () => {
+  it('does not join the same name and class when the email differs', () => {
     const a = row('李四', '软件2301', 'lisi@example.test', 0);
     const b = row('李四', '软件2301', 'li.si.new@example.test', 3);
     const { groups } = groupApplications([a, b]);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ key: a.id, reasons: ['name_class'] });
-    expect(groups[0].members.every(m => m.linked_by.join() === 'name_class')).toBe(true);
+    expect(groups.map(g => [g.key, g.reasons])).toEqual([[b.id, []], [a.id, []]]);
+    expect(groups.every(g => g.members.length === 1 && g.members[0].linked_by.length === 0)).toBe(true);
   });
 
-  it('chains links: A and B share an inbox, B and C share a name and class, so A, B, C are one person', () => {
+  it('does not chain a shared email through a same-name classmate', () => {
     const a = row('王五', '信安2401', 'wangwu@example.test', 0);
-    const b = row('王小五', '信安2402', 'wangwu+again@example.test', 10);
+    const b = row('王小五', '信安2402', 'wangwu@example.test', 10);
     const c = row('王小五', '信安2402', 'xiaowu@example.test', 20);
     const other = row('王五', '信安2402', 'someone@example.test', 30); // 同名不同班：不是同一个人
     const { groups, byId } = groupApplications([a, b, c, other]);
-    expect(groups.map(g => g.members.map(m => m.id))).toEqual([[other.id], [c.id, b.id, a.id]]);
+    expect(groups.map(g => g.members.map(m => m.id))).toEqual([[other.id], [c.id], [b.id, a.id]]);
     const person = byId.get(a.id)!;
-    expect(person).toBe(byId.get(c.id));
-    expect(person.reasons).toEqual(['email', 'name_class']);
-    expect(Object.fromEntries(person.members.map(m => [m.id, m.linked_by]))).toEqual({ [a.id]: ['email'], [b.id]: ['email', 'name_class'], [c.id]: ['name_class'] });
+    expect(person).not.toBe(byId.get(c.id));
+    expect(person.reasons).toEqual(['email']);
+    expect(Object.fromEntries(person.members.map(m => [m.id, m.linked_by]))).toEqual({ [a.id]: ['email'], [b.id]: ['email'] });
     expect(byId.get(other.id)).toMatchObject({ key: other.id, reasons: [] });
     expect(byId.get(other.id)!.members[0].linked_by).toEqual([]);
   });
 
-  it('folds case, +tags, Gmail dots and googlemail.com like the mail queue does', () => {
+  it('keeps +tags, Gmail dots and googlemail.com separate from identity grouping', () => {
     const rows = [
       row('赵六', '计科2301', 'Zhao.Liu@Gmail.com', 0),
       row('赵 六', '计科２３０１', 'zhaoliu@googlemail.com', 1),
       row('Zhao Liu', 'CS2301', 'zhaoliu+join@gmail.com.', 2),
     ];
     const { groups } = groupApplications(rows);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].reasons).toEqual(['email', 'name_class']);
-    // 姓名班级：全角数字算半角、空白不算；不同写法的英文名字不会凑到一起，第三份只靠邮箱连上
+    expect(groups).toHaveLength(3);
+    expect(groups.every(g => g.reasons.length === 0)).toBe(true);
+    // 姓名班级归一只给人工提示用。
     expect(nameClassKey('赵 六', '计科２３０１')).toBe(nameClassKey('赵六', '计科2301'));
-    expect(groups[0].members.find(m => m.name === 'Zhao Liu')!.linked_by).toEqual(['email']);
+    expect(groups[0].members.find(m => m.name === 'Zhao Liu')!.linked_by).toEqual([]);
     // 别的域名的点不忽略
     expect(groupApplications([row('甲', '一班', 'a.b@example.test', 0), row('乙', '二班', 'ab@example.test', 1)]).groups).toHaveLength(2);
   });
@@ -82,7 +81,7 @@ describe('groupApplications', () => {
   it('keys a person by the earliest application and orders people by their newest one', () => {
     const early = row('孙七', '计科2303', 'sunqi@example.test', 0);
     const lone = row('周八', '计科2304', 'zhouba@example.test', 50);
-    const late = row('孙七', '计科2303', 'sun7@example.test', 100);
+    const late = row('孙七', '计科2303', 'sunqi@example.test', 100);
     const { groups } = groupApplications([lone, late, early]);
     expect(groups.map(g => g.key)).toEqual([early.id, lone.id]);
   });
@@ -104,7 +103,7 @@ async function setup() {
   return { app, db, alice, insert, list };
 }
 
-/** 三个人五份投递：甲同一个邮箱投了两次；乙一份；丙换邮箱又投了一次，后投的那份已取消。 */
+/** 四个邮箱组五份投递：甲两份同地址；丙两份不同地址只做疑似提示。 */
 async function seeded() {
   const context = await setup();
   const { insert } = context;
@@ -121,22 +120,97 @@ async function seeded() {
 type Item = { id: string; status: string; person: { key: string; reasons: string[]; size: number; applications: { id: string; email: string; status: string; linked_by: string[] }[] } };
 
 describe('GET /api/console/applications groups by person', () => {
+  it('keeps same-name classmates with different emails separate in the list, detail and CSV', async () => {
+    const { app, alice, insert, list } = await setup();
+    const first = insert({ name: '李四', class_name: '软件2301', email: 'lisi@example.test', minutes: 0 });
+    const second = insert({ name: '李四', class_name: '软件2301', email: 'li.si.new@example.test', minutes: 3 });
+    const listed = await list();
+    expect(listed.total).toBe(2);
+    expect(listed.items.map((item: Item) => [item.person.key, item.person.size])).toEqual([[second, 1], [first, 1]]);
+    const detail = (await app.inject({ url: `/api/console/applications/${first}`, headers: alice })).json();
+    expect(detail.person.applications.map((item: { id: string }) => item.id)).toEqual([first]);
+    const csv = await app.inject({ url: '/api/console/applications/export.csv', headers: alice });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.body.replace(/^\uFEFF/, '').trimEnd().split('\r\n').slice(1).map(line => line.split(',')[6])).toEqual([second, first]);
+  });
+
+  it('hints at direct same-name classmates without making the hint transitive or changing statuses', async () => {
+    const { app, alice, insert, list } = await setup();
+    const a = insert({ name: '王五', class_name: '一班', email: 'wang@example.test', minutes: 0 });
+    const b = insert({ name: '王小五', class_name: '二班', email: 'WANG@example.test', minutes: 1 });
+    const c = insert({ name: '王小五', class_name: '二班', email: 'other@example.test', minutes: 2 });
+    insert({ name: '赵六', class_name: '三班', email: 'other@example.test', minutes: 3 });
+    const e = insert({ name: '赵六', class_name: '三班', email: 'third@example.test', minutes: 4 });
+    const detail = (await app.inject({ url: `/api/console/applications/${a}`, headers: alice })).json();
+    expect(detail.person.applications.map((item: { id: string }) => item.id)).toEqual([b, a]);
+    expect(detail.possible_duplicates).toMatchObject({ total: 1, applications: [{ id: c, status: 'received' }] });
+    expect(detail.possible_duplicates.applications.map((item: { id: string }) => item.id)).not.toContain(e);
+    expect(JSON.stringify(detail.possible_duplicates)).not.toMatch(/source_ip|user_agent|strengths/);
+    const listed = await list('?status=received&q=wang');
+    expect(listed.items[0].person.possible_duplicate_count).toBe(1);
+    expect(listed.total_applications).toBe(2);
+    const unchanged = (await list()).items as Item[];
+    expect(unchanged.flatMap(item => item.person.applications).map(item => item.status)).toEqual(Array(5).fill('received'));
+  });
+
+  it('keeps mail-routing aliases separate through the list, detail and CSV interfaces', async () => {
+    const { app, alice, insert, list } = await setup();
+    const addresses = ['student.name@gmail.com', 'studentname@gmail.com', 'student.name+join@gmail.com', 'student.name@googlemail.com'];
+    const ids = addresses.map((email, minutes) => insert({ name: '同名同学', class_name: '计科2301', email, minutes }));
+    const listed = await list();
+    expect(listed).toMatchObject({ total: 4, total_applications: 4 });
+    expect(listed.items.map((item: Item) => item.person.size)).toEqual([1, 1, 1, 1]);
+    for (const id of ids) {
+      const detail = (await app.inject({ url: `/api/console/applications/${id}`, headers: alice })).json();
+      expect(detail.person.applications.map((item: { id: string }) => item.id)).toEqual([id]);
+      expect(detail.possible_duplicates.total).toBe(3);
+    }
+    const csv = await app.inject({ url: '/api/console/applications/export.csv', headers: alice });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.body.replace(/^\uFEFF/, '').trimEnd().split('\r\n').slice(1).map(line => line.split(',')[6])).toEqual([...ids].reverse());
+  });
+
+  it('returns the newest twenty direct hints while retaining the full count and protecting their identities', async () => {
+    const { app, alice, insert, list } = await setup();
+    const id = insert({ name: '同名同学', class_name: '计科2301', email: 'first@example.test', minutes: 0 });
+    const ids = Array.from({ length: 23 }, (_, index) => insert({
+      name: '同名同学', class_name: '计科2301', email: `other${index}@example.test`, minutes: index + 1,
+    }));
+    const url = `/api/console/applications/${id}`;
+    const detail = (await app.inject({ url, headers: alice })).json();
+    expect(detail.possible_duplicates.total).toBe(23);
+    expect(detail.possible_duplicates.applications.map((item: { id: string }) => item.id)).toEqual([...ids].reverse().slice(0, 20));
+    expect((await list('?q=first%40')).items[0].person.possible_duplicate_count).toBe(23);
+    const unrelated = insert({ name: '另一同学', class_name: '软件2302', email: 'unrelated@example.test', minutes: 30 });
+    expect((await app.inject({ url: `/api/console/applications/${unrelated}`, headers: alice })).json().possible_duplicates).toEqual({ total: 0, applications: [] });
+    const member = { cookie: `sid=${app.services.auth.createSession('bob', 102, null, 'token-bob')}` };
+    for (const endpoint of ['/api/console/applications', url]) {
+      const anonymous = await app.inject({ url: endpoint });
+      expect(anonymous.statusCode).toBe(401);
+      expect(anonymous.json()).not.toHaveProperty('possible_duplicates');
+      const forbidden = await app.inject({ url: endpoint, headers: member });
+      expect(forbidden.statusCode).toBe(403);
+      expect(forbidden.json().error).toBe('missing_capability');
+      expect(forbidden.json()).not.toHaveProperty('possible_duplicates');
+    }
+  });
+
   it('lists one row per person with every application underneath, and counts applications per status', async () => {
     const { list, ids } = await seeded();
     const body = await list();
-    expect(body.total).toBe(3);
+    expect(body.total).toBe(4);
     expect(body.total_applications).toBe(5);
     expect(body.counts).toEqual({ received: 3, interview: 1, accepted: 0, rejected: 0, cancelled: 1 });
     const sum = Object.values(body.counts as Record<string, number>).reduce((a, b) => a + b, 0);
     expect(sum).toBe(body.total_applications);
-    // 丙的主记录是没取消的那份，排在甲（30 分钟）后面；甲的主记录是新投的那份
-    expect(body.items.map((item: Item) => item.id)).toEqual([ids.jiaNew, ids.bing, ids.yi]);
-    const [jia, bing, yi] = body.items as Item[];
-    expect(jia.person).toMatchObject({ key: ids.jiaOld, reasons: ['email', 'name_class'], size: 2 });
+    expect(body.items.map((item: Item) => item.id)).toEqual([ids.bingAgain, ids.jiaNew, ids.bing, ids.yi]);
+    const [bingAgain, jia, bing, yi] = body.items as Item[];
+    expect(jia.person).toMatchObject({ key: ids.jiaOld, reasons: ['email'], size: 2, possible_duplicate_count: 0 });
     expect(jia.person.applications.map(a => [a.id, a.email, a.status])).toEqual([[ids.jiaNew, 'Jia@Example.test', 'received'], [ids.jiaOld, 'jia@example.test', 'received']]);
     expect(bing.status).toBe('received');
-    expect(bing.person).toMatchObject({ key: ids.bing, reasons: ['name_class'], size: 2 });
-    expect(bing.person.applications.map(a => [a.id, a.status, a.linked_by])).toEqual([[ids.bingAgain, 'cancelled', ['name_class']], [ids.bing, 'received', ['name_class']]]);
+    expect(bing.person).toMatchObject({ key: ids.bing, reasons: [], size: 1, possible_duplicate_count: 1 });
+    expect(bing.person.applications.map(a => [a.id, a.status, a.linked_by])).toEqual([[ids.bing, 'received', []]]);
+    expect(bingAgain.person).toMatchObject({ key: ids.bingAgain, reasons: [], size: 1, possible_duplicate_count: 1 });
     expect(yi.person).toMatchObject({ key: ids.yi, reasons: [], size: 1 });
   });
 
@@ -148,21 +222,21 @@ describe('GET /api/console/applications groups by person', () => {
       expect(filtered.total_applications, status).toBe(counts[status]);
       expect((filtered.items as Item[]).flatMap(item => item.person.applications).every(a => a.status === status), status).toBe(true);
     }
-    // 选「已取消」：丙那一份取消的投递，主记录就是它，这个人一共两份
+    // 不同邮箱的取消投递保持独立分组。
     const cancelled = await list('?status=cancelled');
     expect(cancelled).toMatchObject({ total: 1, total_applications: 1 });
-    expect(cancelled.items[0]).toMatchObject({ id: ids.bingAgain, status: 'cancelled', person: { key: ids.bing, size: 2 } });
+    expect(cancelled.items[0]).toMatchObject({ id: ids.bingAgain, status: 'cancelled', person: { key: ids.bingAgain, size: 1 } });
     expect(cancelled.items[0].person.applications.map((a: { id: string }) => a.id)).toEqual([ids.bingAgain]);
   });
 
   it('pages by person: a person is never split across pages, and total stays the number of people', async () => {
     const { list } = await seeded();
     const pages = [];
-    for (const offset of [0, 1, 2, 3]) pages.push(await list(`?limit=1&offset=${offset}`));
-    expect(pages.map(page => page.total)).toEqual([3, 3, 3, 3]);
-    expect(pages.map(page => page.items.length)).toEqual([1, 1, 1, 0]);
-    expect(pages.slice(0, 3).map(page => page.items[0].person.applications.length)).toEqual([2, 2, 1]);
-    expect(new Set(pages.slice(0, 3).map(page => page.items[0].person.key)).size).toBe(3);
+    for (const offset of [0, 1, 2, 3, 4]) pages.push(await list(`?limit=1&offset=${offset}`));
+    expect(pages.map(page => page.total)).toEqual([4, 4, 4, 4, 4]);
+    expect(pages.map(page => page.items.length)).toEqual([1, 1, 1, 1, 0]);
+    expect(pages.slice(0, 4).map(page => page.items[0].person.applications.length)).toEqual([1, 2, 1, 1]);
+    expect(new Set(pages.slice(0, 4).map(page => page.items[0].person.key)).size).toBe(4);
   });
 
   it('refuses a limit or offset out of bounds before paging people in memory', async () => {
@@ -173,23 +247,23 @@ describe('GET /api/console/applications groups by person', () => {
       expect(response.statusCode, query).toBe(400);
       expect(response.json().error, query).toBe('validation_error');
     }
-    expect((await list('?limit=200')).items).toHaveLength(3);
+    expect((await list('?limit=200')).items).toHaveLength(4);
     expect((await list('?limit=1&offset=99999999')).items).toEqual([]);
   });
 
   it('searches applications and still says how many the person has in all', async () => {
     const { list, ids } = await seeded();
-    const found = await list(`?q=${encodeURIComponent('bing.second')}`);
-    expect(found).toMatchObject({ total: 1, total_applications: 1 });
-    expect(found.items[0]).toMatchObject({ id: ids.bingAgain, person: { key: ids.bing, size: 2 } });
+    const found = await list('?q=Jia&status=received');
+    expect(found).toMatchObject({ total: 1, total_applications: 2 });
+    expect(found.items[0]).toMatchObject({ id: ids.jiaNew, person: { key: ids.jiaOld, size: 2 } });
     expect((await list('?q=%25')).total).toBe(0);
   });
 
   it('shows the whole person on the detail page, the current application included', async () => {
     const { app, alice, ids } = await seeded();
-    const detail = (await app.inject({ url: `/api/console/applications/${ids.bingAgain}`, headers: alice })).json();
-    expect(detail.person).toMatchObject({ key: ids.bing, reasons: ['name_class'] });
-    expect(detail.person.applications.map((a: { id: string; status: string }) => [a.id, a.status])).toEqual([[ids.bingAgain, 'cancelled'], [ids.bing, 'received']]);
+    const detail = (await app.inject({ url: `/api/console/applications/${ids.jiaOld}`, headers: alice })).json();
+    expect(detail.person).toMatchObject({ key: ids.jiaOld, reasons: ['email'] });
+    expect(detail.person.applications.map((a: { id: string; status: string }) => [a.id, a.status])).toEqual([[ids.jiaNew, 'received'], [ids.jiaOld, 'received']]);
     const lone = (await app.inject({ url: `/api/console/applications/${ids.yi}`, headers: alice })).json();
     expect(lone.person).toMatchObject({ key: ids.yi, reasons: [], applications: [{ id: ids.yi, linked_by: [] }] });
   });
@@ -207,9 +281,9 @@ describe('GET /api/console/applications groups by person', () => {
     const listed = (await list()).items as Item[];
     // 每一行的 person_group 是列表里那个人的 person.key，先后和列表展开后的顺序一样
     expect(all.lines.map(cells => [cells[2], cells[4], cells[6]])).toEqual(listed.flatMap(item => item.person.applications.map(a => [a.email, a.status, item.person.key])));
-    expect(new Set(all.lines.map(cells => cells[6])).size).toBe(3);
+    expect(new Set(all.lines.map(cells => cells[6])).size).toBe(4);
     const cancelled = await csv('?status=cancelled');
-    expect(cancelled.lines).toEqual([['丙', '信安2401', 'bing.second@example.test', '丙 的特长与优点', 'cancelled', expect.any(String), ids.bing]]);
+    expect(cancelled.lines).toEqual([['丙', '信安2401', 'bing.second@example.test', '丙 的特长与优点', 'cancelled', expect.any(String), ids.bingAgain]]);
   });
 
   it('exports what the list shows for a search too, and audits only that there was one', async () => {
@@ -228,7 +302,7 @@ describe('GET /api/console/applications groups by person', () => {
     }
     expect(exports['?q=jia'].map(cells => [cells[2], cells[6]])).toEqual([['Jia@Example.test', ids.jiaOld], ['jia@example.test', ids.jiaOld]]);
     expect(exports['?status=received&q=%E4%B8%99'].map(cells => [cells[2], cells[6]])).toEqual([['bing@example.test', ids.bing]]);
-    expect(exports['?q=bing.second'].map(cells => [cells[2], cells[4], cells[6]])).toEqual([['bing.second@example.test', 'cancelled', ids.bing]]);
+    expect(exports['?q=bing.second'].map(cells => [cells[2], cells[4], cells[6]])).toEqual([['bing.second@example.test', 'cancelled', ids.bingAgain]]);
     expect(exports['?q=nobody']).toEqual([]);
     // 搜索词可能是投递人的姓名或邮箱：审计只记有没有带搜索
     const details = (db.prepare("SELECT details FROM audit_logs WHERE action = 'application.export' ORDER BY id").all() as { details: string }[]).map(row => JSON.parse(row.details));

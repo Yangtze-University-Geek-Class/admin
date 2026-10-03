@@ -30,7 +30,7 @@ import {
   LETTER_LIMITS, emptyLetterDraft, letterErrors, mailState, newestReviewId, noticePlan, reviewPatch, savedMessage, serverFieldErrors, statusChangedMessage,
   type LetterErrors,
 } from "../lib/applications";
-import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus, PersonApplication } from "../lib/types";
+import type { ApplicationDetail, ApplicationReviewResult, ApplicationStatus, PersonApplication, PossibleDuplicate } from "../lib/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -97,12 +97,13 @@ const person = computed(() => {
   const value = detail.data.value?.person;
   return value && value.applications.length > 1 ? value : null;
 });
+const possible = computed(() => detail.data.value?.possible_duplicates);
 // 时间和来源邮箱放在同一列上下排：窄屏只有两列，邮箱也能看全
 const personColumns = [
   { key: "application", title: "投递时间与来源邮箱" },
   { key: "status", title: "状态", width: 124 },
 ];
-const openApplication = (row: PersonApplication) => { if (row.id !== id.value) void router.push(`/console/applications/${row.id}`); };
+const openApplication = (row: { id: string }) => { if (row.id !== id.value) void router.push(`/console/applications/${row.id}`); };
 const timelineColor = (to: string) => (to === "rejected" ? "error" : to === "accepted" ? "success" : to === "cancelled" ? "default" : "primary");
 
 async function submit() {
@@ -147,14 +148,14 @@ async function submit() {
           <TxCard v-if="person">
             <template #header>
               <div class="card-head">
-                <h2 class="section-title">同一个人的投递</h2>
+                <h2 class="section-title">同一邮箱的投递</h2>
                 <span class="count">{{ person.applications.length }} 份</span>
               </div>
             </template>
             <p class="person-reasons">
               <span>按</span>
               <TxTag v-for="label in reasonLabels(person.reasons)" :key="label" :label="label" variant="plain" size="sm" />
-              <span>算作同一个人。重复的那几份可以改成「已取消」，不会发邮件。</span>
+              <span>分组，邮箱未经身份验证。确认重复后可改成「已取消」并写备注，不发邮件。</span>
             </p>
             <TxDataTable :columns="personColumns" :data="person.applications" row-key="id" table-layout="fixed" class="person-table" @row-click="({ row }: { row: PersonApplication }) => openApplication(row)">
               <template #cell-application="{ row }: { row: PersonApplication }">
@@ -173,6 +174,29 @@ async function submit() {
                   <ToneTag :tone="statusMeta(row.status).tone" :label="statusMeta(row.status).label" />
                   <span v-if="row.last_review" class="cell-sub mono ellipsis" :title="`@${row.last_review.reviewer}`">@{{ row.last_review.reviewer }}</span>
                 </span>
+              </template>
+            </TxDataTable>
+          </TxCard>
+
+          <TxCard v-if="possible?.total">
+            <template #header>
+              <div class="card-head">
+                <h2 class="section-title">疑似重复，待人工核对</h2>
+                <span class="count">{{ possible.total }} 份</span>
+              </div>
+            </template>
+            <p class="person-reasons">同名同班、邮箱不同，仅作核对线索，不算同一人，也不会自动取消。</p>
+            <p v-if="possible.total > possible.applications.length" class="person-reasons">仅列最新 {{ possible.applications.length }} 份；其余可回投递管理按姓名搜索。</p>
+            <TxDataTable :columns="personColumns" :data="possible.applications" row-key="id" table-layout="fixed" class="person-table" @row-click="({ row }: { row: PossibleDuplicate }) => openApplication(row)">
+              <template #cell-application="{ row }: { row: PossibleDuplicate }">
+                <span class="cell-stack">
+                  <TxCellLink :href="`/console/applications/${row.id}`" :label="`${row.name} · ${row.class_name}`" @open="openApplication(row)" />
+                  <span class="cell-sub">{{ fmtDate(row.created_at) }}</span>
+                  <span class="mono person-email">{{ row.email }}</span>
+                </span>
+              </template>
+              <template #cell-status="{ row }: { row: PossibleDuplicate }">
+                <ToneTag :tone="statusMeta(row.status).tone" :label="statusMeta(row.status).label" />
               </template>
             </TxDataTable>
           </TxCard>

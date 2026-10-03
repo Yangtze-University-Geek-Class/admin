@@ -384,8 +384,8 @@ CREATE TABLE IF NOT EXISTS application_reviews (
       const app = await boot(path);
       expect(rowsOf(app.services.storage.db), `boot ${round + 1}`).toEqual(before);
       const list = (await app.inject({ url: '/api/console/applications', headers: as('legacy-session-alice') })).json();
-      expect(list).toMatchObject({ total: 4, total_applications: 6, counts: { received: 3, interview: 1, accepted: 1, rejected: 1, cancelled: 0 } });
-      expect(list.items.map((item: { person: { size: number } }) => item.person.size).sort()).toEqual([1, 1, 2, 2]);
+      expect(list).toMatchObject({ total: 5, total_applications: 6, counts: { received: 3, interview: 1, accepted: 1, rejected: 1, cancelled: 0 } });
+      expect(list.items.map((item: { person: { size: number } }) => item.person.size).sort()).toEqual([1, 1, 1, 1, 2]);
       await app.close();
       apps.splice(apps.indexOf(app), 1);
     }

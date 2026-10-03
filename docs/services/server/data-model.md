@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-10-02 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-03 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -12,6 +12,7 @@
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
 - 会话的有效期是 7 天（`lib/auth.ts` 的 `SESSION_TTL_MS`）；服务进程启动时清一次过期会话，之后每小时清一次（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，关停时清掉），所以服务运行期间 `sessions` 里任何一行最多留 7 天加一个清理间隔，停机期间到期的行在下次启动时删掉；清理失败只记日志，不影响服务。每趟清理删完之后做一次 `wal_checkpoint(TRUNCATE)`（`lib/db.ts` 的 `truncateWal`；有别的连接正在读时不等，下一趟再截），配合 `secure_delete`，删掉的会话（不管是清理、登出还是别的路径删的）在下一趟之后 `data.db`、`-wal` 和在线备份里都找不到密文。打开 `secure_delete` 之前删掉的行还可能留在空闲空间里，要 `VACUUM` 才清得掉，见 [SECURITY](../../architecture/SECURITY.md)「还剩的」。清理只删本站的行，不撤销 GitHub 端的授权（#128）。
 - 本文只记录表级事实和关键字段名，列类型与约束以 `db.ts` 为准。改表时同步修改本文。
+- #184 的 `person` / `person_group` 只表示邮箱展示分组：去首尾空白、不分大小写相同才成组，不使用发信队列的 `limit_hash` 别名规则。同名同班跨邮箱只是疑似提示，不落库、不改状态；全部历史行保留，分组数量不是已验证人数。
 
 ## 表
 
@@ -58,7 +59,7 @@
 
 - `app_state` 表：`src` 中没有任何读写，按预留处理（例如以后存 schema 版本）。
 - `feedback.votes` 列：没有写入路径，值恒为默认的 0，只被 `GET /api/feedback/public` 原样返回。
-- `idx_applications_email` 索引：没有按邮箱查询 `applications` 的代码。控制台按人合并（#184）把整张表读进内存比较归并后的邮箱，用不上这个索引。
+- `idx_applications_email` 索引：没有按邮箱查询 `applications` 的代码。控制台邮箱展示分组（#184）把整张表的身份列读进内存比较地址，用不上这个索引。
 
 删除这些对象属于代码和数据库变更，要另开 issue。只删 `CREATE INDEX` 语句不会移除已有库里的索引。
 

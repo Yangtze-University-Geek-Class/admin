@@ -63,26 +63,26 @@ export type TitlePatchResponse = { title: TitleConfig };
 
 /** 投递的五种状态（#148 去掉了「评估中」，#184 加了「已取消」）；审核记录里的旧状态按字符串收，见 statuses.ts 的 statusMeta。 */
 export type ApplicationStatus = "received" | "interview" | "accepted" | "rejected" | "cancelled";
-/** 为什么算同一个人：email 同一邮箱（按收件箱归并后），name_class 姓名班级相同。 */
-export type GroupReason = "email" | "name_class";
+export type GroupReason = "email";
 export type LastReview = { to_status: string; reviewer: string; created_at: number };
 export type ApplicationSummary = {
   id: string; name: string; class_name: string; email: string; strengths_excerpt: string; status: ApplicationStatus; created_at: number;
   last_review: LastReview | null;
 };
 /**
- * GET /api/console/applications 一人一条（#184）：顶层是这个人的主记录（筛选结果里最新一份没取消的）；
- * person.applications 是这个人在筛选结果里的投递（新的在前），person.size 是他一共几份（不随筛选变）。
+ * person 字段保留兼容命名，表示邮箱展示分组，不证明身份。
+ * 顶层为最新非取消主记录；size 不随筛选变化，applications 仅含命中的投递。
  */
 export type ApplicationItem = ApplicationSummary & {
-  person: { key: string; reasons: GroupReason[]; size: number; applications: (ApplicationSummary & { linked_by: GroupReason[] })[] };
+  person: { key: string; reasons: GroupReason[]; size: number; possible_duplicate_count?: number; applications: (ApplicationSummary & { linked_by: GroupReason[] })[] };
 };
-/** total 是人数（分页按人），total_applications 是筛选结果里的投递份数；counts 是整张表每个状态的投递份数。 */
+/** total 是邮箱组数；total_applications 是命中份数；counts 是全表状态份数。 */
 export type ApplicationList = { items: ApplicationItem[]; total: number; total_applications: number; counts: Record<string, number> };
-/** 详情里同一个人的投递（含当前这一份）。 */
+/** 详情里同一邮箱的投递（含当前这一份）。 */
 export type PersonApplication = {
   id: string; name: string; class_name: string; email: string; status: ApplicationStatus; created_at: number; last_review: LastReview | null; linked_by: GroupReason[];
 };
+export type PossibleDuplicate = Omit<PersonApplication, "linked_by">;
 
 /** 一封信在发信队列里的状态；地址和正文发完就删，只留主题。 */
 export type MailStatus = "pending" | "sending" | "sent" | "failed" | "skipped";
@@ -99,8 +99,9 @@ export type ApplicationReview = {
 export type ApplicationRecord = { id: string; name: string; class_name: string; email: string; strengths: string; status: ApplicationStatus; created_at: number };
 export type ApplicationDetail = {
   application: ApplicationRecord;
-  /** 同一个人的全部投递（#184）；旧版本服务端没有这一项。 */
+  /** 同一邮箱的全部投递；旧版本服务端没有此项。 */
   person?: { key: string; reasons: GroupReason[]; applications: PersonApplication[] } | null;
+  possible_duplicates?: { total: number; applications: PossibleDuplicate[] };
   reviews: ApplicationReview[];
   /** 投递时自动发的「已收到」确认信。 */
   received_mail: MailSummary | null;

@@ -229,8 +229,7 @@ export function currentPersona(): string {
 }
 
 /**
- * 样板投递。按人合并（#184）的几种情况都有：周子涵同一个邮箱（带 + 标签）投了两次、后一份已取消；
- * 吴一凡换了个邮箱又投一次（姓名班级相同）；林晓和林小是同一个 Gmail（点和 googlemail.com 不算），只靠邮箱连上。
+ * 虚构样板：周子涵同地址重复；吴一凡同名同班、不同地址仅提示；Gmail 别名不合并。
  * tests/console/mock-sync.test.ts 用服务端的归并规则核对这里的分组。
  */
 export const MOCK_APPLICATIONS = [
@@ -246,7 +245,7 @@ export const MOCK_APPLICATIONS = [
     strengths: "Python 数据分析做过两个小项目，熟悉 pandas 和可视化；会 Linux 常用命令，自己搭过一个家用 NAS。" },
   { id: "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a", name: "冯晓", class_name: "软件2301", email: "feng.xiao@example.test", status: "rejected", created_at: now - 8 * DAY,
     strengths: "对编程有兴趣，正在学习 Java 基础，希望通过社团多接触项目。" },
-  { id: "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b", name: "周子涵", class_name: "计科2301", email: "zhou.zihan+join@example.test", status: "cancelled", created_at: now - 2 * HOUR - 40 * MIN,
+  { id: "3e7f9a1c-2b4d-4e6f-8a0b-1c3d5e7f9a2b", name: "周子涵", class_name: "计科2301", email: "Zhou.Zihan@example.test", status: "cancelled", created_at: now - 2 * HOUR - 40 * MIN,
     strengths: "熟悉 TypeScript 与 React，做过课程设计的在线选课系统。重新提交一次，补充：对 Agent 和 MCP 很感兴趣。" },
   { id: "8b0c2d4e-6f8a-4b1c-9d3e-5f7a9b1c3d5e", name: "吴一凡", class_name: "软件2302", email: "yifan.wu@example.test", status: "received", created_at: now - 5 * HOUR,
     strengths: "C++ 基础扎实，ACM 校队预备队员。换了个常用邮箱再投一次，之前那个邮箱不常看。" },
@@ -352,28 +351,17 @@ function counts() {
 }
 
 type MockApplication = (typeof MOCK_APPLICATIONS)[number];
-type Reason = "email" | "name_class";
-const REASONS: Reason[] = ["email", "name_class"];
-const GMAIL = new Set(["gmail.com", "googlemail.com"]);
-/** 同服务端 lib/mail/outbox.ts 的 limitKey：大小写、+ 标签、末尾的点、Gmail 的点与 googlemail.com。样板里只有 ASCII 域名，不做 IDNA。 */
+type Reason = "email";
+const REASONS: Reason[] = ["email"];
 function mockEmailKey(email: string): string {
-  const value = email.trim().toLowerCase();
-  const at = value.lastIndexOf("@");
-  if (at < 0) return value;
-  let local = value.slice(0, at).split("+")[0];
-  let domain = value.slice(at + 1).replace(/\.+$/, "");
-  if (GMAIL.has(domain)) {
-    local = local.replace(/\./g, "");
-    domain = "gmail.com";
-  }
-  return `${local}@${domain}`;
+  return email.trim().toLowerCase();
 }
 const fold = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
 const newestFirst = (a: MockApplication, b: MockApplication) => b.created_at - a.created_at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-/** 同服务端 lib/application-groups.ts：邮箱归并后相同或姓名班级相同就是同一个人，链式连通；key 是最早一份的 id。 */
+/** 样板分组不导入服务端源码，由 mock-sync 核对契约。 */
 function mockGroups() {
-  const keys = APPLICATIONS.map(a => ({ email: mockEmailKey(a.email), name_class: `${fold(a.name)}\u0000${fold(a.class_name)}` }));
+  const keys = APPLICATIONS.map(a => ({ email: mockEmailKey(a.email) }));
   const parent = APPLICATIONS.map((_, index) => index);
   const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
   APPLICATIONS.forEach((_, i) => APPLICATIONS.forEach((__, j) => {
@@ -388,6 +376,14 @@ function mockGroups() {
     return { key: members[members.length - 1].id, reasons: REASONS.filter(reason => members.some(m => m.linked_by.includes(reason))), members };
   });
 }
+function mockPossibleDuplicates(group: ReturnType<typeof mockGroups>[number]) {
+  const own = new Set(group.members.map(a => a.id));
+  const keys = new Set(group.members.map(a => `${fold(a.name)}\u0000${fold(a.class_name)}`));
+  return APPLICATIONS.filter(a => !own.has(a.id) && keys.has(`${fold(a.name)}\u0000${fold(a.class_name)}`)).sort(newestFirst);
+}
+const identityOf = (a: MockApplication) => ({
+  id: a.id, name: a.name, class_name: a.class_name, email: a.email, status: a.status, created_at: a.created_at, last_review: lastReview(a.id),
+});
 const summaryOf = (a: MockApplication) => ({
   id: a.id, name: a.name, class_name: a.class_name, email: a.email, strengths_excerpt: excerpt(a.strengths),
   status: a.status, created_at: a.created_at, last_review: lastReview(a.id),
@@ -547,7 +543,7 @@ export function routeConsole(url: URL): unknown {
     return {
       items: people.slice(offset, offset + limit).map(({ group, matched, primary }) => ({
         ...summaryOf(primary),
-        person: { key: group.key, reasons: group.reasons, size: group.members.length, applications: matched.map(a => ({ ...summaryOf(a), linked_by: a.linked_by })) },
+        person: { key: group.key, reasons: group.reasons, size: group.members.length, possible_duplicate_count: mockPossibleDuplicates(group).length, applications: matched.map(a => ({ ...summaryOf(a), linked_by: a.linked_by })) },
       })),
       total: people.length, total_applications: people.reduce((sum, person) => sum + person.matched.length, 0), counts: counts(),
     };
@@ -560,9 +556,10 @@ export function routeConsole(url: URL): unknown {
     const group = mockGroups().find(item => item.members.some(member => member.id === application.id))!;
     const person = {
       key: group.key, reasons: group.reasons,
-      applications: group.members.map(a => ({ id: a.id, name: a.name, class_name: a.class_name, email: a.email, status: a.status, created_at: a.created_at, last_review: lastReview(a.id), linked_by: a.linked_by })),
+      applications: group.members.map(a => ({ ...identityOf(a), linked_by: a.linked_by })),
     };
-    return { application, person, reviews: REVIEWS[application.id] ?? [], received_mail: RECEIVED_MAIL[application.id] ?? null, mail: mailSettings(application.email) };
+    const possible = mockPossibleDuplicates(group);
+    return { application, person, possible_duplicates: { total: possible.length, applications: possible.slice(0, 20).map(identityOf) }, reviews: REVIEWS[application.id] ?? [], received_mail: RECEIVED_MAIL[application.id] ?? null, mail: mailSettings(application.email) };
   }
   if (path === "/api/console/feedback") {
     need(persona, "feedback.read");

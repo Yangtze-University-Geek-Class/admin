@@ -13,7 +13,7 @@ function person(key: string, applications: ReturnType<typeof application>[], siz
 }
 
 describe("listRows", () => {
-  const zhou = person("p1", [application("new", "cancelled", ["email", "name_class"]), application("old", "received", ["email", "name_class"])], 2, ["email", "name_class"]);
+  const zhou = person("p1", [application("new", "cancelled", ["email"]), application("old", "received", ["email"])]);
   const wu = person("p2", [application("only", "received")]);
   const lin = person("p3", [application("lin", "received", ["email"], { name: "林小" })], 3);
 
@@ -28,7 +28,7 @@ describe("listRows", () => {
     expect(rows.map(row => row.key)).toEqual(["person:p1", "history:p1:new", "history:p1:old", "person:p2"]);
     const history = rows.filter(row => row.kind === "history");
     expect(history.map(row => row.kind === "history" && [row.application.status, row.application.linked_by, row.nameDiffers])).toEqual([
-      ["cancelled", ["email", "name_class"], false], ["received", ["email", "name_class"], false],
+      ["cancelled", ["email"], false], ["received", ["email"], false],
     ]);
     expect(rows[0]).toMatchObject({ kind: "person", expanded: true, personKey: "p1" });
   });
@@ -59,15 +59,15 @@ describe("toggleExpanded", () => {
 
 describe("list wording", () => {
   it("names the merge reasons and keeps unknown ones as they are", () => {
-    expect(reasonLabels(["email", "name_class", "phone"])).toEqual(["同一邮箱", "姓名班级相同", "phone"]);
+    expect(reasonLabels(["email", "phone"])).toEqual(["同一邮箱", "phone"]);
   });
 
   it("says how many people and applications the list holds, per filter", () => {
-    expect(listSummary({ total: 7, total_applications: 10 }, "", false)).toBe("共 7 人、10 份投递");
-    expect(listSummary({ total: 1, total_applications: 1 }, "cancelled", false)).toBe("「已取消」：1 人、1 份投递");
-    expect(listSummary({ total: 1, total_applications: 2 }, "", true)).toBe("搜索结果：1 人、2 份投递");
-    expect(listSummary({ total: 1, total_applications: 1 }, "received", true)).toBe("「已收到」里的搜索结果：1 人、1 份投递");
-    expect(listSummary({ total: 3 }, "", false)).toBe("共 3 人");
+    expect(listSummary({ total: 7, total_applications: 10 }, "", false)).toBe("共 7 个邮箱组、10 份投递");
+    expect(listSummary({ total: 1, total_applications: 1 }, "cancelled", false)).toBe("「已取消」：1 个邮箱组、1 份投递");
+    expect(listSummary({ total: 1, total_applications: 2 }, "", true)).toBe("搜索结果：1 个邮箱组、2 份投递");
+    expect(listSummary({ total: 1, total_applications: 1 }, "received", true)).toBe("「已收到」里的搜索结果：1 个邮箱组、1 份投递");
+    expect(listSummary({ total: 3 }, "", false)).toBe("共 3 个邮箱组");
   });
 
   it("adds up 全部 from every status, cancelled included", () => {

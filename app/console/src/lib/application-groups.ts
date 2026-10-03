@@ -3,7 +3,7 @@
 import { APPLICATION_STATUS, isApplicationStatus } from "./statuses";
 import type { ApplicationItem, ApplicationList, ApplicationSummary, GroupReason } from "./types";
 
-export const GROUP_REASON_LABEL: Record<GroupReason, string> = { email: "同一邮箱", name_class: "姓名班级相同" };
+export const GROUP_REASON_LABEL: Record<GroupReason, string> = { email: "同一邮箱" };
 
 /** 归并理由的说法；不认识的原样显示。 */
 export function reasonLabels(reasons: readonly string[]): string[] {
@@ -55,14 +55,13 @@ export function toggleExpanded(expanded: ReadonlySet<string>, key: string): Set<
 }
 
 /**
- * 列表上方的一行：「共 7 人、10 份投递」「「已取消」：1 人、1 份投递」「搜索结果：1 人、1 份投递」。
- * 不带搜索时这里的份数就是筛选按钮上的数字（服务端保证）。旧服务端没有 total_applications 时只说人数。
+ * 分组是填写的邮箱地址，不是已验证人数；份数和筛选按钮一致。
  */
 export function listSummary(list: Pick<ApplicationList, "total"> & { total_applications?: number }, status: string, searching: boolean): string {
   const label = isApplicationStatus(status) ? APPLICATION_STATUS[status].label : "";
   const head = label ? (searching ? `「${label}」里的搜索结果：` : `「${label}」：`) : searching ? "搜索结果：" : "共 ";
   const applications = typeof list.total_applications === "number" ? `、${list.total_applications} 份投递` : "";
-  return `${head}${list.total} 人${applications}`;
+  return `${head}${list.total} 个邮箱组${applications}`;
 }
 
 /** 「全部」的数字：各状态投递份数之和（counts 是整张表的，和筛选、搜索无关）。 */

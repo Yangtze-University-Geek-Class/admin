@@ -3,12 +3,12 @@ import { requireAuth } from "../../middleware/require-auth.js";
 import { requireCapability } from "../../middleware/require-capability.js";
 import { beijingCompactDate, beijingDateTime } from "../../lib/beijing-time.js";
 import { APPLICATION_STATUSES, APPLICATION_STATUS_IDS, type ApplicationStatus } from "../../lib/roles.js";
-import { groupApplications, matchPeople, type GroupMember } from "../../lib/application-groups.js";
+import { groupApplications, matchPeople, nameClassIndex, possibleDuplicates, type GroupMember } from "../../lib/application-groups.js";
 import { MailTemplateError, oneLine, type RenderedMail } from "../../lib/mail/envelope.js";
 import type { RecruitmentLetter } from "../../lib/mail/mailer.js";
 
 type ApplicationRow = { id: string; name: string; class_name: string; email: string; strengths: string; status: string; created_at: number };
-/** 归并用的列：不带特长全文，整张表读一遍也不大。 */
+/** 分组与人工核对只读身份列，不读取特长正文。 */
 type IdentityRow = Omit<ApplicationRow, "strengths">;
 type ReviewRow = { id: number; application_id: string; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number };
 type ListQuery = { status?: ApplicationStatus; q?: string; limit?: string; offset?: string };
@@ -80,6 +80,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
     const offset = Number(req.query.offset ?? 0);
     const rows = allIdentities();
     const people = peopleOf(rows, matchedIds(status, q));
+    const duplicateIndex = nameClassIndex(rows);
     const counts: Record<string, number> = Object.fromEntries(APPLICATION_STATUS_IDS.map(id => [id, 0]));
     for (const row of rows) counts[row.status] = (counts[row.status] ?? 0) + 1;
 
@@ -95,6 +96,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
         ...view(primary),
         person: {
           key: group.key, reasons: group.reasons, size: group.members.length,
+          possible_duplicate_count: possibleDuplicates(group, duplicateIndex).length,
           applications: matched.map(row => ({ ...view(row), linked_by: row.linked_by })),
         },
       })),
@@ -147,19 +149,25 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       if (!application) return reply.code(404).send({ error: "not_found", message: "投递不存在" });
       audit(config.consoleOrg, req.session!.login, "application.view", application.id, undefined, req.ip);
       // 同一个人的全部投递（含这一份），口径和列表一样（#184）
-      const group = groupApplications(allIdentities()).byId.get(application.id);
+      const rows = allIdentities();
+      const group = groupApplications(rows).byId.get(application.id);
+      const candidates = group ? possibleDuplicates(group, nameClassIndex(rows)) : [];
+      const identityView = (row: IdentityRow) => ({
+        id: row.id, name: row.name, class_name: row.class_name, email: row.email, status: row.status, created_at: row.created_at,
+        last_review: lastReviewOf(row.id),
+      });
       const person = group
         ? {
           key: group.key, reasons: group.reasons,
           applications: group.members.map(row => ({
-            id: row.id, name: row.name, class_name: row.class_name, email: row.email, status: row.status, created_at: row.created_at,
-            last_review: lastReviewOf(row.id), linked_by: row.linked_by,
+            ...identityView(row), linked_by: row.linked_by,
           })),
         }
         : null;
       return {
         application,
         person,
+        possible_duplicates: { total: candidates.length, applications: candidates.slice(0, 20).map(identityView) },
         reviews: withMail(reviewsOf(application.id)),
         received_mail: mail.summary(`application:${application.id}:received`),
         mail: { enabled: mail.enabled, recipients: mail.recipients, deliverable: mail.deliverable(application.email) },
