@@ -8,6 +8,12 @@
 
 保留 portal/admin 的服务端 requireAuth、GitHub active membership 校验及按组织审计；极客班控制台另按能力授权（见下节）。GitHub token 用 AES-256-GCM 加密，密钥解码必须为 32 字节；sid 是服务器会话，不在浏览器状态中产生管理权限。OAuth state 签名并检查十分钟有效期，回跳来源使用允许列表。Cookie 的 HttpOnly/Secure/SameSite 和共享 Domain 均需按真实部署验证，不称为完整 CSRF 或子域隔离。
 
+**会话行的保留时间**：`sid` 有效期 7 天（`app/server/src/lib/auth.ts` 的 `SESSION_TTL_MS`）。过期会话由服务主动删除，不依赖本人再来访问：进程启动时清一次，之后每小时按 `expires_at` 批量 `DELETE`（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，`app.close()` 时停掉）；一趟清理出错只记日志（带 SQLite 错误码），不抛出、不影响请求（#128）。所以服务运行期间，`sessions` 里的一行最多在过期后再留一个清理间隔（1 小时）；停机期间到期的行在下次启动时删掉。清理和登出都只删本站的会话行，**不**撤销 GitHub 端已经给出的授权（用户不登录也不会自动失去 `admin:org`/`repo` 那几项；在 GitHub 上撤销要另做）。
+
+**删掉的会话在库文件里也不留字节**：SQLite 默认只把删掉的行标成空闲，字节还在页里，在线备份会原样带走。`app/server/src/lib/db.ts` 给每个连接打开 `secure_delete`，删行、改短字段时把腾出来的空间写成 0；每趟清理删完之后做一次 `wal_checkpoint(TRUNCATE)`（`truncateWal`），把 WAL 写回库文件再截断：`data.db` 里的旧页被检查点覆盖，`-wal` 截成 0 字节。登出、读到过期、GitHub 拒绝令牌（#164）删掉的会话也在下一趟清理后不留字节。有别的连接正在读时这一趟截不成，不等待（不让事件循环卡在默认 5 秒的锁等待上），日志记 `wal truncate deferred`，下一趟再截。SQLite 在线 backup API 做的备份读的是最新的页，不带删掉的会话。`tests/server/session-cleanup.test.ts` 按字节核对 `data.db`、`-wal` 和在线备份里找不到被删会话的密文。
+
+**还剩的**：打开 `secure_delete` 之前删掉的行（本改动上线前预发布、正式库里删过的会话），字节留在空闲空间里，要等被新数据覆盖；本机实测正常运行几趟之后 30 条里还剩 3 条，做一次 `VACUUM` 后为 0。在预发布、正式库上做 `VACUUM` 是对业务数据库的维护操作，要所有者授权，另开 issue。上面这些保证只到文件为止：`data.db`、`-wal` 和在线备份这几个文件里找不到被删会话的字节；`-wal` 截断时交还给文件系统的块并没有写成 0，文件系统释放的块、卷或磁盘的块级快照和裸盘镜像不在范围内，卷本身泄漏时这些块里可能还有旧密文。
+
 **登录门槛：只有 `CONSOLE_ORG` 的 active 成员能登录。** 官网、论坛、控制台共用这一个登录和同一个 `sid`。`/auth/callback` 通过签名 state 校验、换到 token、取到 `/user` 之后，用这个 token 调 `GET /user/memberships/orgs/{CONSOLE_ORG}`（`app/server/src/lib/github.ts` 的 `getOwnMembership`，OAuth scope 含 `read:org`），查的是登录者自己的成员状态，不按用户名查别人。结果处理（`app/server/src/routes/admin/auth.ts`）：
 
 - `active`：建会话、写 `sid`、审计 `auth.signin`，回到 `return_to`。

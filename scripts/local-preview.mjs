@@ -107,7 +107,8 @@ async function serve(instance) {
       OAUTH_CLIENT_SECRET: github ? process.env.OAUTH_CLIENT_SECRET : "local-preview-disabled",
     });
     const unavailable = () => { throw Object.assign(new Error("External integrations are disabled in local preview"), { statusCode: 503, code: "local_preview_external_disabled" }); };
-    app = await buildApp({ config, staticRoot: false, ...(!github && { overrides: { httpRequest: unavailable, octokitFactory: unavailable } }) });
+    // sessionCleanup 与正式进程一样：启动时清一次过期会话，之后每小时一次（#128）；GitHub 登录模式的 core.db 里存的是真实令牌
+    app = await buildApp({ config, staticRoot: false, sessionCleanup: true, ...(!github && { overrides: { httpRequest: unavailable, octokitFactory: unavailable } }) });
     if (!github) {
       app.addHook("onRequest", async (req, reply) => {
         const path = req.url.split("?")[0];

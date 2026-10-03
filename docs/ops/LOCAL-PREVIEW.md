@@ -2,7 +2,7 @@
 
 > 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。
 
-状态：`current` · 更新：2026-09-26
+状态：`current` · 更新：2026-10-02
 
 ## 地址
 
@@ -82,6 +82,8 @@ GitHub 登录要从预览进程连 `github.com` 换 token、查用户和组织�
 ## 数据生命周期
 
 隔离模式的内存库在核心服务重启后清空。GitHub 登录模式的 `core.db` 与 `keys.json` 在 `stop` 后保留（`stop` 的提示写明登录与数据留在 `.tools/local-preview`）；要从头来，先 `stop`，再自己删除这两个文件，脚本不替你删。
+
+过期会话和正式进程一样会被清掉（#128）：预览进程启动时清一次，之后每小时一次，删完截断 WAL（见 [SECURITY](../architecture/SECURITY.md)「会话行的保留时间」）。`core.db` 里存的是本机登录者真实的 GitHub 令牌（加密），密钥就在旁边的 `keys.json`，所以不让它一直留着。预览不写服务日志，要看清理有没有删掉某一行，用 `sqlite3 .tools/local-preview/core.db 'SELECT login, expires_at FROM sessions'` 查（预览在跑时也能查）。
 
 论坛示例模式的数据保存在当前浏览器，停止服务不会主动清空它，上游重置示例数据需用户明确操作；快照模式只读显示极客班归档，不写论坛状态。控制台样板数据只读；论坛示例模式允许浏览器内示例交互，没有跨设备存储。全站 GitHub 登录只让论坛和控制台知道你是谁，论坛仍没有发帖、回复的后端。
 
