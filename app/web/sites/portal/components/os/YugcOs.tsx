@@ -1,7 +1,7 @@
 // YUGC OS：开机后的「极客班内部系统」，按桌面操作系统来排：菜单栏（系统菜单 / 前台应用 / 搜索 / 时钟）、
 // 极客娘壁纸、左上角一列应用图标、右上角「新来的看这里」便签、可拖动窗口、带名字的 Dock、⌘K 启动器。
 // 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import { signInHref, useAccount } from "../../lib/account";
@@ -484,11 +484,7 @@ export default function YugcOs({ active, onBack }: Props) {
           </div>
         )}
       </div>
-      {promo && (
-        <Suspense fallback={null}>
-          <LazyPromoPlayer mode="replay" onClose={closePromo} />
-        </Suspense>
-      )}
+      {promo && <LazyPromoPlayer mode="replay" onClose={closePromo} />}
     </>
   );
 }

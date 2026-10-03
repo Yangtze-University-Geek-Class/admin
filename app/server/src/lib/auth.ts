@@ -3,6 +3,7 @@ import { request as defaultRequest } from "undici";
 import type Database from "better-sqlite3";
 import type { AppConfig } from "../config.js";
 import type { createCrypto } from "./crypto.js";
+import { truncateWal } from "./db.js";
 import { GITHUB_TIMEOUT_MS } from "./github.js";
 export type Session = {
   id: string;
@@ -13,9 +14,20 @@ export type Session = {
   expires_at: number;
 };
 
-export function createAuth(db: Database.Database, crypto: ReturnType<typeof createCrypto>, config: AppConfig, undiciRequest = defaultRequest) {
+/** 清理循环只记日志：一次清理失败不影响服务，也不抛出（#128）。 */
+export type SessionCleanupLogger = {
+  info(details: Record<string, unknown>, message: string): void;
+  error(details: Record<string, unknown>, message: string): void;
+};
+
+/** 过期会话的清理间隔：每小时一次；启动时还会先清一次（#128）。 */
+export const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+/** 会话有效期：签发后 7 天。 */
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function createAuth(db: Database.Database, crypto: ReturnType<typeof createCrypto>, config: AppConfig, undiciRequest = defaultRequest, clock: () => number = Date.now) {
 const { encrypt, decrypt } = crypto;
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function createSession(
   login: string,
@@ -24,7 +36,7 @@ function createSession(
   accessToken: string
 ): string {
   const id = randomBytes(24).toString("base64url");
-  const now = Date.now();
+  const now = clock();
   db.prepare(
     "INSERT INTO sessions(id, login, user_id, avatar_url, access_token_encrypted, created_at, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
   ).run(id, login, userId, avatarUrl, encrypt(accessToken), now, now + SESSION_TTL_MS);
@@ -34,7 +46,7 @@ function createSession(
 function getSession(id: string): Session | null {
   const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as any;
   if (!row) return null;
-  if (row.expires_at < Date.now()) {
+  if (row.expires_at < clock()) {
     db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
     return null;
   }
@@ -55,6 +67,47 @@ function getSession(id: string): Session | null {
 /** 删掉会话；返回这次是否真的删掉了一行（已经删过或本来就没有时为 false）。 */
 function destroySession(id: string): boolean {
   return db.prepare("DELETE FROM sessions WHERE id = ?").run(id).changes > 0;
+}
+
+/**
+ * 清一趟（#128）：删掉所有已过期的会话，再截断 WAL；返回删掉的行数和 WAL 截成没有。登录一次就不再回来的人，
+ * 他的会话行和里面加密的高权限 GitHub token 不能一直留在库里；测试直接调这个函数，不用等计时器。
+ * secure_delete（lib/db.ts）只让新写的页不带被删的内容，旧页还在 -wal 和库文件里：截断 WAL 时检查点把新页写回库文件、
+ * 盖掉库文件里的旧页，-wal 截成 0 字节（交还给文件系统的块不写 0，保证只到文件为止，见 docs/architecture/SECURITY.md）；
+ * 所以每趟都截，登出、读到过期、GitHub 拒绝令牌（#164）时删掉的会话也一起清掉。
+ */
+function cleanupExpiredSessions(): { deleted: number; walTruncated: boolean } {
+  const deleted = db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(clock()).changes;
+  return { deleted, walTruncated: truncateWal(db) };
+}
+
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 打开定时清理（buildApp 的 sessionCleanup，index.ts 与本机预览调用；测试直接调 cleanupExpiredSessions）。
+ * 立即清一次，之后每小时清一次；计时器 unref，不阻止进程退出；单次出错只记日志，不抛出、不影响请求。
+ */
+function startCleanup(logger: SessionCleanupLogger): void {
+  if (cleanupTimer) return;
+  const run = () => {
+    try {
+      const { deleted, walTruncated } = cleanupExpiredSessions();
+      if (deleted > 0) logger.info({ deleted }, "expired sessions removed");
+      if (!walTruncated) logger.info({}, "wal truncate deferred: another connection is reading");
+    } catch (error) {
+      // code 是 SQLite 的错误枚举（SQLITE_BUSY、SQLITE_CORRUPT……），不含数据
+      logger.error({ error: (error as Error)?.name ?? "error", code: (error as { code?: unknown })?.code }, "session cleanup failed");
+    }
+  };
+  run();
+  cleanupTimer = setInterval(run, SESSION_CLEANUP_INTERVAL_MS);
+  cleanupTimer.unref();
+}
+
+/** 关停时停掉定时清理（buildApp 的 onClose）。 */
+function stopCleanup(): void {
+  if (cleanupTimer) clearInterval(cleanupTimer);
+  cleanupTimer = null;
 }
 
 /**
@@ -130,5 +183,5 @@ async function revokeGrant(accessToken: string): Promise<void> {
   if (res.statusCode !== 204) throw Object.assign(new Error("grant revoke failed"), { code: "github_revoke_failed", status: res.statusCode });
 }
 
-return { createSession, getSession, destroySession, signedInLogins, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant };
+return { createSession, getSession, destroySession, signedInLogins, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant, cleanupExpiredSessions, startCleanup, stopCleanup };
 }
