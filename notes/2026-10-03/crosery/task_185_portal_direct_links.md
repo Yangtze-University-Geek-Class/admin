@@ -43,3 +43,17 @@
 - 做了什么：docs(notes): 追加已完成的推送、PR、独立对象复审记录；node scripts/note.mjs check --pr --base origin/stage --head task/185/portal_direct_links；doc-sync显式PR核对；正文契约；19项附件无登录curl GET
 - 结果：严格notes通过：51链路、本task链路完整；doc-sync 6组通过；pr-contract九段齐全；18PNG和1MP4全部200、非空、类型正确；直接fetch曾网络失败已由curl完整重验，未降低判定。此次只追加notes，5ca16b48b62f后源码文档没有改动，不需新代码复审
 - 下一步：推送notes-only并等待最终head CI，不用初次缺PR记录的失败CI放行
+
+## 16:19:21 +08:00 · PR · #185 · 最终 CI 成功后更新 PR201 并发布主控条件闭合核验
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：正常推送最终notes-only head 65e3b94ebdde6ecf069d7304aadafe319c09220f；核验push CI37108765962、PR CI37108768187、pr-contract37108768258 success；gh pr edit 201 更新九段正文，条件闭合评论5967115859已发布
+- 结果：最终head与5ca16b48b62f之间只追加notes；strict notes 51链路完整，19/19附件200；新fetch stage仍622f03a且包含main，独立审查原文保留。正文更新后的pr-contract尚待完成，未合并、未发布
+- 下一步：新的正文契约成功后匹配head合并并清理
+
+## 16:20:39 +08:00 · 提交 · #185 · 追加 PR 正文与条件核验的执行记录
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：核对新增PR记录，准备docs(notes)提交；只追加本链路已发生的操作，不改源码或既有记录
+- 结果：65e3b94的CI已通过且正文契约37109301739成功；本次新增7行notes，需推新head并重新等待最终CI
+- 下一步：正常提交和推送notes-only，合并时记录新的head与CI
