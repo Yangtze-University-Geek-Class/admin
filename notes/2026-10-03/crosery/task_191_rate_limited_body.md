@@ -50,3 +50,23 @@
 - 做了什么：docs(notes): 记录限流最终推送与附件核验；追加更正：上一条下一步说随 #190 flush，但 note.mjs 实际定位到仍未合并的 task-191 并直接追加，这条记录本次随 #197 入库，不移走、不改写
 - 结果：相对 92f4667 仅追加 notes；8 张匿名 GET 均 200；git diff --check 和 note.mjs check --pr 提交前重查；后续推送只带本 notes-only 提交，业务树仍是 b6be55b
 - 下一步：正常推送此 notes-only 提交，最终 CI 全绿后合并；合并记录同时写明本次推送结果
+
+## 14:38:45 +08:00 · PR · #191 · 最终正文记录 ecc9bdd 的全绿门禁与附件核验
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：合并前 gh pr edit 197 补最终 head、CI 运行号、8 张匿名附件核验并标记条件已满足；等待重跑的 pr-contract 后再合并
+- 结果：ecc9bdd4f48eb2eaea730620e0beb6c016257535，push 37103428340、PR 37103432147 全部 pass，正文重跑 37103663413 completed/success；仅 notes 的后续提交未改变已审业务树；8/8 图片 HTTP 200
+- 下一步：收齐合并与本机收尾，pending 随 #190 入库
+
+## 14:39:03 +08:00 · 合并 · #191 · PR #197 合入 stage 并完成远端生命周期
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：正常推送 ecc9bdd，pre-push 门禁通过；gh pr merge 197 --merge --match-head-commit ecc9bdd4f48eb2eaea730620e0beb6c016257535；核对两个收尾工作流与 issue/分支
+- 结果：合并提交 df4db703d218ed165a126c07e188f09df2bfe834；issue-lifecycle 37103700408 和 branch-hygiene 37103700386 completed/success；#191 CLOSED；git ls-remote task/191/* 无输出；无 tag、版本变更或部署
+- 下一步：task.mjs finish 191；开始 #190 文档同步返工
+
+## 14:39:23 +08:00 · 收尾 · #191 · PR #197 已合并，清理 worktree
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：node scripts/task.mjs finish 191：删 worktree .claude/worktrees/task-191 与本地分支 task/191/rate_limited_body
+- 结果：PR 已合并
