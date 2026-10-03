@@ -29,3 +29,17 @@
 - 做了什么：准备docs(notes)提交两轮历史Opus原文读取和S2阻塞记录；本轮不改源码、测试、契约或截图，未决定产品口径
 - 结果：node scripts/note.mjs check通过44链路；精准用例1 passed/15 skipped；issue184评论5967162670已发，维持未合并未推状态
 - 下一步：等待所有者决定，确认后合入最新stage并继续交付
+
+## 17:50:48 +08:00 · 方案 · #184 · 所有者选择按邮箱聚合并核对 issue 关闭状态
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：所有者2026-10-03聊天提出跟邮箱走；收紧自动聚合为邮箱地址去首尾空白与大小写相同，不把姓名班级或不同邮箱别名当身份。沿用issue验收约定的列表、详情、CSV接口回归；同名同班仅给人工核对提示，不自动取消、不删记录、不发信。已逐项核对22个开放issue与150个已合并PR并运行只读巡检
+- 结果：issue-sweep只读没有要处理的issue，22个开放issue无关联已合并stage PR；#137是fork权限缺口未修，不误关闭。#184代码尚未返工
+- 下一步：合入最新stage，补误合并回归、修改聚合与疑似关联展示，再独立Opus复审及浏览器验证
+
+## 17:57:14 +08:00 · 提交 · #184 · 保存邮箱聚合方案记录以便合入 stage
+
+- 执行者：agent-codex-geek-main-followup-20261003（Codex，交接续办）
+- 做了什么：提交17:50真实方案记录；issue184新方案评论5967986042已追加。保持旧notes只追加，业务代码尚未改
+- 结果：git status仅本链路notes修改；codexhost harness inspect claude仍RUNTIME_UNREACHABLE，本轮无新审查会话
+- 下一步：notes-only提交后合入origin/stage，不改主工作区
