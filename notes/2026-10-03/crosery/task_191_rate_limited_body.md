@@ -36,3 +36,17 @@
 - 做了什么：docs(notes): 归档限流复审与会话清理收尾，Refs #191；只暂存 notes/，包含 #122、#192、#128 pending 的合并和收尾及本轮 #191 审查/PR/提交记录
 - 结果：业务代码与文档仍是已审 b6be55b；pnpm check exit 0，49 条链路；限流和会话清理 13 passed，独立 server 全目录 261 passed；提交前再跑 note.mjs check --pr 与 git diff --check
 - 下一步：正常 git push，不能绕过 pre-push；核对最终 head CI
+
+## 14:30:41 +08:00 · 推送 · #191 · 最终 head 92f4667 已正常推送并核验正文附件
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：git push origin task/191/rate_limited_body；ego TaskSpace 201 核对实际 PR 正文的 F8、第五轮审查和新检查结果；匿名 GET 八张 user-attachments 图片
+- 结果：92f4667c98fd77d09ccdd980c5e4659ec47861f1；pre-push 通过，9 个 worktree 生命周期通过；8/8 HTTP 200 image/png；正文已显示 F8/F9 和第五轮复审；CI 37103163224、37103166080 正在运行，pr-contract 37103166070 pass，尚未合并
+- 下一步：最终 CI 全绿后合并；此控制台记录随 #190 flush 入库
+
+## 14:31:31 +08:00 · 提交 · #191 · 归档实际推送与匿名附件核验结果
+
+- 执行者：agent-codex-geek-main-1003（Codex，Crosery 一方接手续办）
+- 做了什么：docs(notes): 记录限流最终推送与附件核验；追加更正：上一条下一步说随 #190 flush，但 note.mjs 实际定位到仍未合并的 task-191 并直接追加，这条记录本次随 #197 入库，不移走、不改写
+- 结果：相对 92f4667 仅追加 notes；8 张匿名 GET 均 200；git diff --check 和 note.mjs check --pr 提交前重查；后续推送只带本 notes-only 提交，业务树仍是 b6be55b
+- 下一步：正常推送此 notes-only 提交，最终 CI 全绿后合并；合并记录同时写明本次推送结果
