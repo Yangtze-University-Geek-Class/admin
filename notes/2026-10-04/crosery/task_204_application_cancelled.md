@@ -97,3 +97,21 @@
 - 做了什么：git commit完成feat(console): 新增投递已取消状态且不发取消邮件；git push --dry-run origin HEAD:refs/heads/task/204/application_cancelled验证启用的pre-push；独立核对8旧worktree状态及远端stage/task204 refs，不删除或覆盖任何旧任务
 - 结果：实现提交c8fd3f9c22df23a874a2d8b59421dd5d0c05ca0d，26文件580新增45删除，提交后task204工作区干净。dry-run退出1：分支/tag规则通过，8个issue CLOSED、无PR但未finish的worktree使钩子拒绝；hook内脏状态提示与独立git status不一致，独立核对149/158/166/186干净但有未合入提交，184/202/203/71有未提交修改。ls-remote只有stage c2859ff4867dd9bbd724c82beb7af80b788d4097，无远端task204；没有实际push、PR、merge、关204或部署。远端已有v0.1.0而package仍0.1.0，不自行改version或建发布tag；本条结果记录将本地提交为docs(notes)
 - 下一步：请Crosery决定完整归档保留8个旧取消任务的已提交/未提交代码及记录后是否清理worktree/分支；解除门禁后再推进204 stage PR与合并收尾；预发布需确认具体新版本号
+
+## 18:20:56 +08:00 · 方案 · #204 · 获准PR合入stage，本轮不发布
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：Crosery明确授权：你去提交pr合进去就行了，然后预发布目前还没打算推送；准备可恢复归档8个已取消task的提交与未提交代码并核验恢复，再正常推送审查合并204；主仓未提交改动保持原样
+- 结果：origin/stage仍c2859ff4867dd9bbd724c82beb7af80b788d4097，task204 HEAD为67835ff4b9129f3953ab238b47685f05a74c49ed，OPEN且无PR；旧task均无活动cwd，保留忽略.tools而不读取私有内容；本轮不打tag、不改版本、不部署或进入main
+
+## 18:27:17 +08:00 · 开发 · #204 · 8个旧取消task已可恢复归档并完成清理
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：为149/158/166/184/186/202/203/71建立完整Git bundle，4个脏任务保留stash，隔离clone/apply index并核对HEAD、索引、状态、所有文件及权限与未跟踪内容；保留旧私有.tools，可信task.mjs finish后并入14份原记录和收尾
+- 结果：8/8恢复一致，旧worktree和本地task分支均删除；主仓tracked/untracked状态与哈希未变；归档.tools/cancelled-tasks-2026-10-04T10_24_30_686Z含manifest/verified/completed。首轮149恢复因归档umask权限不同停止且未清理，后续用manifest恢复权限后核验通过；远端184仍存在且SHA与归档一致，准备正常删除。不合入旧任务源代码
+
+## 18:29:13 +08:00 · 提交 · #204 · 准备提交取消任务收尾记录并建立stage PR
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：仅提交notes新增与严格追加，保留8个取消链路的原历史和真实收尾，不带其源代码；正常git push --delete task/184/application_grouping完成远端残留删除；Node22运行pnpm check及diff检查
+- 结果：删除184推送退出0，pre-push分支/tag和task生命周期门禁均通过；pnpm check退出0，272文档、6组doc-sync、59链路、779文本密钥扫描、server/web/console类型检查通过；业务代码仍c8fd3f9。即将执行docs(notes): 归档并清理已取消任务的残留记录，成功SHA在后续记录补记；未创建PR/合并/发布
