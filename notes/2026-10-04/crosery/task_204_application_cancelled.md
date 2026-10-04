@@ -135,3 +135,17 @@
 - 做了什么：仅提交task204链路末尾新增PR与审查记录；提交说明docs(notes): 补齐投递取消的PR与双轴审查记录
 - 结果：主仓16项已有tracked修改及.claude/plans保留；本task仅notes一文件修改，业务代码不变；git commit成功SHA由PR最终审查存档，不在提交中制造SHA自引用
 - 下一步：正常推送并核验最终SHA notes delta、CI与PR门禁
+
+## 18:47:51 +08:00 · 推送 · #204 · 最终PR及审查notes正常推送完成
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：git commit创建aaf496ba13d750d55021f5d116c89eed2ad72ca5；git push origin HEAD:refs/heads/task/204/application_cancelled正常通过启用的pre-push，无--no-verify；未tag/deploy/main
+- 结果：push退出0，分支与发布tag检查通过，task生命周期1个还在做；最终head为aaf496ba13d750d55021f5d116c89eed2ad72ca5。PR契约CI37196388638成功，push CI37196385305与PR CI37196388632仍在跑；最新notes追加检查59链路与密钥扫描779文本通过，67835ff到最终HEAD的非notes diff为空。执行记录按规范暂存主仓，避免为审查SHA制造后续提交
+- 下一步：独立notes delta复核和最终CI完成后归档PR审查，通过才合入stage
+
+## 18:49:24 +08:00 · 提交 · #204 · 记录最终推送及CI完成，准备最后notes提交
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：PR CI37196388632与push CI37196385305均完成成功；note工具从主仓写指定chain时实际进入活动task，上一推送记录的暂存表述更正为活动task，原记录保持。仅将本次真实推送和更正记录提交为docs(notes): 记录投递取消的推送与CI验证
+- 结果：aaf496ba13d750d55021f5d116c89eed2ad72ca5全部CI通过，pr-contract成功；stage保护API404 Branch not protected，流程核验不冒充服务端保护。业务代码无改；最后notes提交将重新正常push并等待对应新SHA CI；后续操作记录待合并后按规范暂存，不再追加未审提交
+- 下一步：双轴只读核对最后notes差异，PR存档最终SHA结论；最后SHA全绿后合并和清理
