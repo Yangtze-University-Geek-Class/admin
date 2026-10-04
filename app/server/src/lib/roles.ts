@@ -140,12 +140,13 @@ export function titleBundleError(id: TitleId, bundle: readonly Capability[]): "t
   return null;
 }
 
-/** 投递状态（#148 起只有四个；旧的 reviewing 启动时改回 received，见 lib/db.ts）。 */
+/** 投递状态；cancelled 不发信，旧的 reviewing 启动时改回 received（lib/db.ts）。 */
 export const APPLICATION_STATUSES = [
   { id: "received", label: "已收到" },
   { id: "interview", label: "待面试" },
   { id: "accepted", label: "已录取" },
   { id: "rejected", label: "未通过" },
+  { id: "cancelled", label: "已取消" },
 ] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]["id"];
 export const APPLICATION_STATUS_IDS: ApplicationStatus[] = APPLICATION_STATUSES.map(item => item.id);

@@ -324,7 +324,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     expect(upgraded.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
     expect(upgraded.prepare('SELECT from_status, to_status FROM application_reviews WHERE application_id = ?').all(id)).toEqual([{ from_status: 'received', to_status: 'reviewing' }]);
     const counts = (await second.inject({ url: '/api/console/applications', headers: as('legacy-session-alice') })).json().counts;
-    expect(counts).toEqual({ received: 1, interview: 0, accepted: 0, rejected: 0 });
+    expect(counts).toEqual({ received: 1, interview: 0, accepted: 0, rejected: 0, cancelled: 0 });
     // 再启动一次什么也不改
     await second.close();
     apps.splice(apps.indexOf(second), 1);
@@ -347,5 +347,37 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     const ids = second.services.roles.listDepartments().map(item => item.id).sort();
     expect(ids).toEqual(['community', 'design', 'recruitment', 'tech']);
     expect(second.services.storage.db.prepare("SELECT name FROM console_seeds").all()).toEqual([{ name: 'departments' }]);
+  });
+
+  it('keeps cancelled applications and their complete review history across restarts', async () => {
+    const path = legacyDatabase();
+    const first = await boot(path);
+    const id = '3b4c5d6e-7f80-4123-9456-7890abcdef12';
+    first.services.storage.db.prepare("INSERT INTO applications(id, name, class_name, email, strengths, status, created_at) VALUES(?, '撤回同学', '计科2401', 'cancelled@example.test', '撤回的报名信也需要完整保留。', 'received', ?)").run(id, NOW - DAY);
+    first.services.storage.db.prepare("INSERT INTO application_reviews(application_id, from_status, to_status, note, reviewer, created_at) VALUES(?, 'reviewing', 'received', '旧的审核历史', 'alice', ?)").run(id, NOW - DAY);
+    const reviewId = (first.services.storage.db.prepare('SELECT MAX(id) AS id FROM application_reviews WHERE application_id = ?').get(id) as { id: number }).id;
+    const result = await first.inject({
+      method: 'PATCH', url: `/api/console/applications/${id}`, headers: as('legacy-session-alice'),
+      payload: { status: 'cancelled', expected_status: 'received', expected_review_id: reviewId, note: '投递人撤回' },
+    });
+    expect(result.statusCode).toBe(200);
+    expect(result.json().review.mail).toBeNull();
+    const application = first.services.storage.db.prepare('SELECT * FROM applications WHERE id = ?').get(id);
+    const reviews = first.services.storage.db.prepare('SELECT * FROM application_reviews WHERE application_id = ? ORDER BY id').all(id);
+    await first.close();
+    apps.splice(apps.indexOf(first), 1);
+    for (let restart = 0; restart < 2; restart++) {
+      const current = await boot(path);
+      const { db } = current.services.storage;
+      expect(db.prepare('SELECT * FROM applications WHERE id = ?').get(id)).toEqual(application);
+      expect(db.prepare('SELECT * FROM application_reviews WHERE application_id = ? ORDER BY id').all(id)).toEqual(reviews);
+      const list = await current.inject({ url: '/api/console/applications?status=cancelled', headers: as('legacy-session-alice') });
+      expect(list.statusCode).toBe(200);
+      expect(list.json()).toMatchObject({ total: 1, counts: { cancelled: 1 }, items: [{ id, status: 'cancelled' }] });
+      expect(db.prepare('SELECT * FROM mail_outbox').all()).toEqual([]);
+      expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
+      await current.close();
+      apps.splice(apps.indexOf(current), 1);
+    }
   });
 });

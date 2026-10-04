@@ -489,13 +489,13 @@ describe('many letters at once (#169)', () => {
 });
 
 describe('console status changes', () => {
-  it('rejects statuses outside the four, including the retired reviewing', async () => {
+  it('rejects statuses outside the five, including the retired reviewing', async () => {
     const { apply, review, rows } = await setup(BOTH);
     const id = await apply();
     for (const status of ['reviewing', 'bogus', '']) {
       const response = await review(id, { status });
       expect(response.statusCode, status).toBe(400);
-      expect(response.json(), status).toMatchObject({ error: 'invalid_status', message: '状态只能是已收到、待面试、已录取、未通过' });
+      expect(response.json(), status).toMatchObject({ error: 'invalid_status', message: '状态只能是已收到、待面试、已录取、未通过、已取消' });
     }
     expect(rows()).toHaveLength(1);
   });
@@ -581,7 +581,7 @@ describe('console status changes', () => {
     // 只补备注也要看的是最新的记录
     expect((await patch(id, { ...page, note: '补一句' })).statusCode).toBe(409);
     expect((await review(id, { note: '补一句' })).statusCode).toBe(200);
-    // 不是四个状态之一的、负数的按请求格式拒绝
+    // 不是有效状态之一的、负数的按请求格式拒绝
     expect((await review(id, { status: 'rejected', expected_status: 'reviewing' })).json()).toMatchObject({ error: 'validation_error' });
     expect((await review(id, { status: 'rejected', expected_review_id: -1 })).json()).toMatchObject({ error: 'validation_error' });
   });
@@ -647,5 +647,55 @@ describe('console status changes', () => {
     expect((await detail(id)).reviews.map((item: { mail: unknown }) => item.mail)).toEqual([null, null, null]);
     // 没有这份投递
     expect((await review(randomUUID(), { status: 'accepted' })).statusCode).toBe(404);
+  });
+
+  it.each(['received', 'interview', 'accepted', 'rejected'])('cancels from %s without a new mail, even when notify and letter are forced', async (from) => {
+    const { apply, review, rows, detail, mail, fetch, db } = await setup(BOTH);
+    const id = await apply();
+    await mail.drain();
+    if (from !== 'received') {
+      expect((await review(id, { status: from, letter: { time: '19:00', place: '三教' } })).statusCode).toBe(200);
+      await mail.drain();
+    }
+    const before = await detail(id);
+    const queued = rows();
+    const calls = fetch.calls.length;
+    const response = await review(id, {
+      status: 'cancelled', note: '投递人撤回这份简历', notify: true,
+      letter: { time: '', place: '', message: '直接回复这封邮件' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().application).toEqual({ ...before.application, status: 'cancelled' });
+    expect(response.json().review).toMatchObject({ from_status: from, to_status: 'cancelled', reviewer: 'alice', note: '投递人撤回这份简历', mail: null });
+    const after = await detail(id);
+    expect(after.reviews).toHaveLength(before.reviews.length + 1);
+    expect(after.reviews.filter((item: { id: number }) => item.id !== response.json().review.id)).toEqual(before.reviews);
+    expect(after.received_mail).toEqual(before.received_mail);
+    expect(rows()).toEqual(queued);
+    await mail.drain();
+    expect(fetch.calls).toHaveLength(calls);
+    const audit = db.prepare("SELECT details FROM audit_logs WHERE action = 'application.review' ORDER BY id DESC LIMIT 1").get() as { details: string };
+    expect(JSON.parse(audit.details)).toEqual({ from, to: 'cancelled', has_note: true, mail: false });
+  });
+
+  it('keeps cancellation silent by default, permits notes and restoration, and rejects stale pages', async () => {
+    const { apply, review, patch, rows, db, detail } = await setup(BOTH);
+    const id = await apply();
+    const page = { expected_status: 'received', expected_review_id: 0 };
+    expect((await review(id, { status: 'cancelled' })).statusCode).toBe(200);
+    expect(rows()).toHaveLength(1);
+    const stale = await patch(id, { ...page, status: 'accepted' });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toMatchObject({ error: 'status_changed', message: '这份投递刚被别人处理过，现在是「已取消」，看过最新的记录再改' });
+    const note = await review(id, { note: '补充取消原因', notify: true });
+    expect(note.statusCode).toBe(200);
+    expect(note.json().review).toMatchObject({ from_status: 'cancelled', to_status: 'cancelled', mail: null });
+    expect((await review(id, { status: 'received' })).statusCode).toBe(200);
+    const oldVersion = await patch(id, { ...page, status: 'cancelled' });
+    expect(oldVersion.statusCode).toBe(409);
+    expect((await patch(id, { status: 'cancelled' })).statusCode).toBe(409);
+    expect(rows()).toHaveLength(1);
+    expect((await detail(id)).reviews).toHaveLength(3);
+    expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(id)).toEqual({ status: 'received' });
   });
 });

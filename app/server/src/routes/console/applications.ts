@@ -11,7 +11,7 @@ type ReviewRow = { id: number; application_id: string; from_status: string; to_s
 type ListQuery = { status?: ApplicationStatus; q?: string; limit?: string; offset?: string };
 type ReviewBody = { status?: string; expected_status?: ApplicationStatus; expected_review_id?: number; note?: string; notify?: boolean; letter?: RecruitmentLetter };
 
-/** 改成这几个状态时发对应的信（改回「已收到」、只写备注都不发） */
+/** 只有这三种状态发通知信；已取消、改回已收到、只写备注都不发。 */
 const LETTER_STATUSES = ["interview", "accepted", "rejected"] as const;
 type LetterStatus = (typeof LETTER_STATUSES)[number];
 const isLetterStatus = (value: string): value is LetterStatus => (LETTER_STATUSES as readonly string[]).includes(value);
@@ -125,7 +125,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       if (!current) return reply.code(404).send({ error: "not_found", message: "投递不存在" });
       const { status, notify, letter = {} } = req.body;
       if (status !== undefined && !(APPLICATION_STATUS_IDS as string[]).includes(status)) {
-        return reply.code(400).send({ error: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
+        return reply.code(400).send({ error: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过、已取消" });
       }
       // 控制台带上页面上看到的状态和审核记录的版本号（最大的 id，没有记录时是 0）：别人在这之间处理过，就不按旧画面改，
       // 也不发信（改状态的信发出去撤不回来）。只比状态会漏掉「改走又改回」，所以还比审核记录。

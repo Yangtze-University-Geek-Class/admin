@@ -74,6 +74,7 @@ export const MOCK_ROLE_BASE: Record<TitleId, string[]> = {
 /** 投递状态（服务端 APPLICATION_STATUSES），测试核对。 */
 export const MOCK_APPLICATION_STATUSES = [
   { id: "received", label: "已收到" }, { id: "interview", label: "待面试" }, { id: "accepted", label: "已录取" }, { id: "rejected", label: "未通过" },
+  { id: "cancelled", label: "已取消" },
 ];
 const STATUSES = MOCK_APPLICATION_STATUSES;
 
@@ -240,6 +241,8 @@ const APPLICATIONS = [
     strengths: "Python 数据分析做过两个小项目，熟悉 pandas 和可视化；会 Linux 常用命令，自己搭过一个家用 NAS。" },
   { id: "6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a", name: "冯晓", class_name: "软件2301", email: "feng.xiao@example.test", status: "rejected", created_at: now - 8 * DAY,
     strengths: "对编程有兴趣，正在学习 Java 基础，希望通过社团多接触项目。" },
+  { id: "3b4c5d6e-7f80-4123-9456-7890abcdef12", name: "林晓", class_name: "计科2401", email: "lin.xiao@example.test", status: "cancelled", created_at: now - 9 * DAY,
+    strengths: "熟悉 JavaScript，做过班级活动报名页，希望学习后端开发和协作。" },
 ];
 /** 发信队列里一封信的摘要（同服务端 MailSummary）；只有主题，没有地址和正文。 */
 type MockMail = { status: string; skip_reason: string | null; attempts: number; subject: string; sent_at: number | null; updated_at: number };
@@ -251,6 +254,7 @@ const skipped = (subject: string, reason: string, at: number): MockMail => ({ st
  * 已发出、正在发、失败后等重试、重试用完、预发布白名单挡下、发信没配置、没有发信。
  */
 const REVIEWS: Record<string, { id: number; from_status: string; to_status: string; note: string | null; reviewer: string; created_at: number; mail: MockMail | null }[]> = {
+  "3b4c5d6e-7f80-4123-9456-7890abcdef12": [{ id: 19, from_status: "received", to_status: "cancelled", note: "投递人撤回这份简历", reviewer: "li-xiaoman", created_at: now - 8 * DAY, mail: null }],
   "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d": [{ id: 11, from_status: "received", to_status: "reviewing", note: "算法方向，转给技术部一起看", reviewer: "li-xiaoman", created_at: now - 20 * HOUR, mail: null }],
   "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b": [
     { id: 13, from_status: "reviewing", to_status: "interview", note: "何苗负责面试排期", reviewer: "he-miao", created_at: now - 1 * DAY,
@@ -270,6 +274,7 @@ const REVIEWS: Record<string, { id: number; from_status: string; to_status: stri
 
 /** 投递时自动发的「已收到」确认信；吴一凡那封没有记录（null）。 */
 const RECEIVED_MAIL: Record<string, MockMail | null> = {
+  "3b4c5d6e-7f80-4123-9456-7890abcdef12": sent("极客班收到了你的报名信", now - 9 * DAY + MIN),
   "7c1e4a2b-3d5f-4a6b-8c7d-9e0f1a2b3c4d": { status: "sending", skip_reason: null, attempts: 0, subject: "极客班收到了你的报名信", sent_at: null, updated_at: now - 25 * MIN },
   "2f9d6b1a-8e3c-4d7f-a1b2-c3d4e5f6a7b8": sent("极客班收到了你的报名信", now - 3 * HOUR + MIN),
   "5a3b8c2d-1e4f-4b6a-9c8d-7e6f5a4b3c2d": null,
@@ -376,7 +381,7 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
 }
 
 /**
- * PATCH /api/console/applications/:id：状态只能是四种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
+ * PATCH /api/console/applications/:id：状态只能是五种之一；页面上看到的状态和审核记录的版本号（expected_status、expected_review_id）
  * 和样板不同时 409，要改状态却没带这两项时也 409；
  * 改到「待面试」并且要发信时，面试时间和地点必填。通过核对的照样 501，不假装信已经排进发信队列。
  */
@@ -388,7 +393,7 @@ function checkApplicationReview(id: string, body: unknown): void {
   if (!application) throw new ApiError(404, "not_found", "投递不存在");
   const input = (body && typeof body === "object" ? body : {}) as { status?: unknown; expected_status?: unknown; expected_review_id?: unknown; notify?: unknown; letter?: unknown };
   if (input.status !== undefined && !STATUSES.some(s => s.id === input.status)) {
-    const message = "状态只能是已收到、待面试、已录取、未通过";
+    const message = "状态只能是已收到、待面试、已录取、未通过、已取消";
     throw new ApiError(400, "invalid_status", message, undefined, { error: "invalid_status", message });
   }
   const changed = (message: string) => new ApiError(409, "status_changed", message, undefined, { error: "status_changed", message, application });

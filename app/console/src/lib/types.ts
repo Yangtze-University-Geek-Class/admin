@@ -61,8 +61,8 @@ export type TitleConfig = { id: TitleId; label: string; tag: string; icon: strin
 export type TitlePatch = Partial<Omit<TitleConfig, "id">>;
 export type TitlePatchResponse = { title: TitleConfig };
 
-/** 投递现在只有这四种状态（#148 去掉了「评估中」）；审核记录里的旧状态按字符串收，见 statuses.ts 的 statusMeta。 */
-export type ApplicationStatus = "received" | "interview" | "accepted" | "rejected";
+/** 当前投递状态；审核记录中的旧状态按字符串收，见 statuses.ts 的 statusMeta。 */
+export type ApplicationStatus = "received" | "interview" | "accepted" | "rejected" | "cancelled";
 export type ApplicationItem = {
   id: string; name: string; class_name: string; email: string; strengths_excerpt: string; status: ApplicationStatus; created_at: number;
   last_review: { to_status: string; reviewer: string; created_at: number } | null;

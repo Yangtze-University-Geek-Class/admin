@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-10-02 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-04 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -12,6 +12,7 @@
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
 - 会话的有效期是 7 天（`lib/auth.ts` 的 `SESSION_TTL_MS`）；服务进程启动时清一次过期会话，之后每小时清一次（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，关停时清掉），所以服务运行期间 `sessions` 里任何一行最多留 7 天加一个清理间隔，停机期间到期的行在下次启动时删掉；清理失败只记日志，不影响服务。每趟清理删完之后做一次 `wal_checkpoint(TRUNCATE)`（`lib/db.ts` 的 `truncateWal`；有别的连接正在读时不等，下一趟再截），配合 `secure_delete`，删掉的会话（不管是清理、登出还是别的路径删的）在下一趟之后 `data.db`、`-wal` 和在线备份里都找不到密文。打开 `secure_delete` 之前删掉的行还可能留在空闲空间里，要 `VACUUM` 才清得掉，见 [SECURITY](../../architecture/SECURITY.md)「还剩的」。清理只删本站的行，不撤销 GitHub 端的授权（#128）。
 - 本文只记录表级事实和关键字段名，列类型与约束以 `db.ts` 为准。改表时同步修改本文。
+- 2026-10-04（#204）新增投递存储值 `cancelled`（已取消），不改表结构、不批量修改数据；仍只把旧 `reviewing` 改回 `received`，重启不覆盖 `cancelled` 或任何审核历史。取消保留原简历，追加 `to_status = cancelled` 的审核；可以补备注或恢复状态。取消这一步不写 `mail_outbox`，也不修改此前的邮件。
 
 ## 表
 
@@ -22,7 +23,7 @@
 | `invite_attempts` | 按「链接 + 标准化收件人」记录的邀请尝试，状态为 `reserved` / `sent` / `failed` / `unknown` | `lib/invite-reservation.ts`；portal `join.ts`（标记 `sent`） | `lib/invite-reservation.ts`（重试时复用结果） | `UNIQUE(token, recipient)` |
 | `invitations` | 邀请发送记录 | portal `join.ts` | admin `invitations.ts`、`overview.ts` | 收件人 GitHub 用户名或邮箱、`source_ip`、`user_agent` |
 | `feedback` | 意见反馈 | portal `POST /api/feedback`；admin `feedback.ts`（处理、回复、删除） | admin `feedback.ts`；portal `GET /api/feedback/public`（匿名可读） | `contact`、`source_ip`、`user_agent`。`org`：新写入只存本部署 `CONSOLE_ORG` 的配置写法（#129）；只与它差大小写的历史行启动时归一；别的组织的历史行原样保留，公开接口和控制台都不返回，旧的管理端 `GET /api/admin/:org/feedback` 仍按那个组织的 GitHub admin 身份读得到（受 `ALLOWED_ORGS` 限制）；匿名接口只返回 `id`、`category`、`content`（截到前 280 字）、`status`、`reply`、`votes`、`created_at`、`replied_at`，见 [API](../../architecture/API.md) |
-| `applications` | 加入我们投递 | portal `POST /api/portal/apply`；控制台 `PATCH /api/console/applications/:application_id`（只改 `status`）；启动时把 `reviewing` 改回 `received` | 控制台 `GET /api/console/applications*`（需 `applications.read`；导出需 `applications.export`）；`lib/mail/mailer.ts` 拼招新的信（姓名、班级、邮箱、特长、投递时间、编号） | `name`、`class_name`、`email`、`strengths`、`source_ip`、`user_agent`，全部属于候选人个人信息；控制台不下发 `source_ip` 与 `user_agent`。`status` 取值 `received`（默认，已收到）/ `interview`（待面试）/ `accepted`（已录取）/ `rejected`（未通过）；`reviewing`（评估中）2026-09-27 取消，控制台写不进去（400 `invalid_status`） |
+| `applications` | 加入我们投递 | portal `POST /api/portal/apply`；控制台 `PATCH /api/console/applications/:application_id`（只改 `status`）；启动时把 `reviewing` 改回 `received` | 控制台 `GET /api/console/applications*`（需 `applications.read`；导出需 `applications.export`）；`lib/mail/mailer.ts` 拼招新的信（姓名、班级、邮箱、特长、投递时间、编号） | `name`、`class_name`、`email`、`strengths`、`source_ip`、`user_agent`，全部属于候选人个人信息；控制台不下发 `source_ip` 与 `user_agent`。`status` 取值 `received`（默认，已收到）/ `interview`（待面试）/ `accepted`（已录取）/ `rejected`（未通过）/ `cancelled`（已取消，不发取消通知）；`reviewing`（评估中）2026-09-27 退役，控制台写不进去（400 `invalid_status`） |
 | `application_reviews` | 投递审核历史（追加式，避免 `ALTER TABLE applications`） | 控制台 `PATCH /api/console/applications/:application_id`，与状态更新、那次的信（`mail_outbox`）同一事务 | 控制台投递列表（`last_review`）与详情（`reviews`，每条带那次的信的结果） | `note` ≤2000 字，属于候选人相关信息，不写进审计，也不进信里；外键 `ON DELETE CASCADE`。2026-09-27 以前的行里 `from_status` / `to_status` 可能是 `reviewing`，原样保留 |
 | `departments` | 部门与两份权限包（队长 / 舰员） | `lib/role-store.ts`：第一次启动写入 4 个默认部门（`console_seeds` 标记之后不再写）；控制台 `POST/PATCH/DELETE /api/console/departments` | `lib/access.ts`（计算能力）；控制台 `GET /api/console/departments` | 无个人信息。`head_capabilities` / `member_capabilities` 是 JSON 数组，只含可下放的能力；`archived=1` 的部门不再授予称号 |
 | `titles` | 称号设置：六个固定 id（admin / captain / head / member / alumni / guest）各一行的名字、英文标签、图标、色调、说明与权限包 | `lib/role-store.ts`：启动时 `INSERT OR IGNORE` 写入代码里的默认值，之后以库为准；控制台 `PATCH /api/console/titles/:title_id` | `lib/access.ts`（计算能力）、控制台 `GET /api/console/catalogue`、匿名 `GET /api/public/org`（不含权限包） | 无个人信息。`capabilities` 是 JSON 数组；admin 读出时永远是全部能力、guest 永远为空，库里存了什么都不算；`updated_by` 是最后修改人的登录名 |
