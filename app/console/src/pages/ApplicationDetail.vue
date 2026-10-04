@@ -70,7 +70,7 @@ const review = useAction(async () => {
   note.value = "";
   Object.assign(letter, emptyLetterDraft());
   touched.value = false;
-  toast({ title: "已保存", description: savedMessage(result.review.mail ?? null), variant: "success" });
+  toast({ title: "已保存", description: savedMessage(result.review.mail ?? null, result.application.status), variant: "success" });
   await detail.reload();
 });
 
@@ -81,7 +81,7 @@ const shown = computed<LetterErrors>(() => ({ ...serverErrors.value?.letter, ...
 // 服务端按字段拒绝后，改了表单就把那条错误收起来，改由本地核对接手。
 watch([status, notify, () => ({ ...letter })], () => { if (serverErrors.value) review.reset(); });
 
-/** 进度条：已收到 → 待面试 → 已录取；「未通过」单独标红。旧的「评估中」算在已收到这一步。 */
+/** 进度条只表示正常流程；未通过与已取消单列，旧的评估中算在已收到。 */
 const pipeline: ApplicationStatus[] = ["received", "interview", "accepted"];
 const stepIndex = computed(() => Math.max(0, pipeline.indexOf(current.value)));
 const reviewers = computed(() => [...new Set((detail.data.value?.reviews ?? []).map(item => item.reviewer))]);
@@ -118,6 +118,7 @@ async function submit() {
 
       <TxCard>
         <p v-if="current === 'rejected'" class="rejected">这份投递已标为「未通过」。</p>
+        <p v-else-if="current === 'cancelled'" class="muted">这份投递已取消。简历和审核记录已保留。</p>
         <TxSteps v-else :active="stepIndex" size="small">
           <TxStep v-for="(step, index) in pipeline" :key="step" :title="APPLICATION_STATUS[step].label" :step="index" :clickable="false" />
         </TxSteps>
@@ -171,7 +172,11 @@ async function submit() {
             <!-- 面试时间、地点是单行输入框：按回车会隐式提交表单并马上发信，所以回车在这两个框里不提交。 -->
             <TxForm v-if="can('applications.review')" :model="{ status, note, notify, ...letter }" label-position="top" class="review-form" @submit="submit">
               <TxFormItem label="状态">
-                <TxSelect v-model="status" :options="statusOptions" :status="serverErrors?.status ? 'error' : 'default'" class="fill-width" />
+                <!-- TxSelect 0.6.0 的 attrs 落在外层，原生 label 给内层输入框命名。 -->
+                <label class="fill-width">
+                  <span class="sr-only">状态</span>
+                  <TxSelect v-model="status" :options="statusOptions" :status="serverErrors?.status ? 'error' : 'default'" class="fill-width" />
+                </label>
                 <span v-if="serverErrors?.status" class="field-error">{{ serverErrors.status }}</span>
               </TxFormItem>
 

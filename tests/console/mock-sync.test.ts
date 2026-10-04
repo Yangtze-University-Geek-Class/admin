@@ -134,11 +134,21 @@ describe("preview checks an application review like the server does", () => {
     catch (error) { return error as ApiError; }
   };
 
-  it("rejects statuses outside the four, including the retired reviewing", () => {
-    expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过" });
+  it("rejects statuses outside the five, including the retired reviewing", () => {
+    expect(patch({ status: "reviewing" })).toMatchObject({ status: 400, code: "invalid_status", message: "状态只能是已收到、待面试、已录取、未通过、已取消" });
   });
 
   const page = { expected_status: "received", expected_review_id: 0 }; // 样板里这份投递还没有审核记录
+
+  it("accepts cancellation without checking letter fields and retains a cancelled sample", () => {
+    expect(patch({ ...page, status: "cancelled", notify: true, letter: {} })).toBeNull();
+    const list = routeConsole(new URL("http://mock.local/api/console/applications?status=cancelled")) as { total: number; counts: Record<string, number>; items: { id: string; status: string }[] };
+    expect(list.total).toBe(1);
+    expect(list.counts.cancelled).toBe(1);
+    expect(list.items[0].status).toBe("cancelled");
+    const detail = routeConsole(new URL(`http://mock.local/api/console/applications/${list.items[0].id}`)) as { reviews: { to_status: string; mail: unknown }[] };
+    expect(detail.reviews[0]).toMatchObject({ to_status: "cancelled", mail: null });
+  });
 
   it("requires the interview time and place only when an interview letter will be queued", () => {
     expect(patch({ ...page, status: "interview", letter: { time: " " } })).toMatchObject({

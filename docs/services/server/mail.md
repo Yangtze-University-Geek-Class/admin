@@ -2,11 +2,12 @@
 
 > 招新的四封信怎么拼、怎么渲染、怎么排队发出去：信先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。
 
-状态：`current` · 更新：2026-09-27 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148
+状态：`current` · 更新：2026-10-04 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148、#204
 
 ## 现状
 
 - 投递成功（`POST /api/portal/apply`）写一封「已收到」的信（每份成功的投递都发一封，全站每小时最多 200 封，见「上限」；防盗刷改在投递入口限制设备与 IP 频次）；控制台把投递改成待面试、已录取、未通过（`PATCH /api/console/applications/:application_id`）时写对应的一封，改回已收到、只写备注、取消勾选「发信」都不写。
+- 改成「已取消」（`cancelled`，#204）不生成通知信：即使请求带 `notify: true`、面试字段或请对方回信的文字，也不渲染、不新增邮件，审核记录 `mail: null`。`letter` 的类型、长度和未知字段仍按请求 Schema 校验。取消不撤回此前已经排队或发出的其他邮件，不影响原确认信和其他状态的通知规则。
 - 信写进 `mail_outbox`（[数据模型](data-model.md)），同一件事只有一行。服务进程里的发信循环每 15 秒把到期的信发一遍，写进新信后立刻再发一遍。
 - 发信商按顺序是阿里云邮件推送（SingleSendMail）、Resend。两家都没配置时信照样写一行，记成 `skipped` / `mail_disabled`，不发。
 - 控制台的投递详情显示「已收到」那封和每次改状态那封的结果（`received_mail`、`reviews[].mail`），见 [API](../../architecture/API.md)。
@@ -30,7 +31,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 - `EnvelopeMessage`：主题、收件箱摘要（preheader）、信纸左上角的小字、抬头、正文块（`paragraph` 段落、`facts` 两列事实栏，可带标题、`list` 编号列表，空条目会去掉、`quote` 带标题的多行引用）、可选按钮、落款日期、页脚几行字、页脚的站点链接、可选的回信地址 `replyTo`。以后的站内通知（#149）只要拼出同样的结构就能复用版式。
 - `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（正式发信用 `https://cdn.crosery.com/yzgc/mail/v1/`）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
 - 发件人名是 `MAIL_SENDER_NAME`（长江大学极客班），发信模块写 `From` 头时用同一个常量。
-- 四封信与控制台投递状态对应（`lib/roles.ts` 的 `APPLICATION_STATUSES`，只有这四个）：
+- 控制台有五种投递状态（`lib/roles.ts` 的 `APPLICATION_STATUSES`），其中只有下面四种对应信件；`cancelled` 没有信件模板：
   - `received` 已收到：投递成功时发，附上投递人写的特长与优点原文（`quote`，一行一行照写、经过转义）。
   - `interview` 待面试：时间和地点必填（空的直接抛 `MailTemplateError`，控制台接口先回 400 `letter_required`），面试说明可选、一行一条；收件箱摘要写时间和地点，有面试说明时才加一句「面试说明在信里」。
   - `accepted` 已录取：控制台填的「接下来」一行一条，没填时写「接下来的安排我们会另外发邮件告诉你」。
@@ -129,6 +130,8 @@ mail.drain() / mail.start(logger) / mail.stop()
 ```bash
 pnpm exec vitest run tests/server/mail-envelope.test.ts tests/server/mail-outbox.test.ts tests/server/applications.test.ts
 ```
+
+取消回归（#204）：`tests/server/mail-outbox.test.ts` 从四种原状态取消，核对原简历、审核和确认信保留，取消审核 `mail: null`、审计 `mail: false`，整个队列不变，再 drain 不增加发信商调用；包含默认通知开关、强制 `notify: true` 与信件内容、取消后补备注/恢复、旧页面及改走又改回的 409。`tests/server/legacy-database.test.ts` 用虚构文件库核对重启两次后取消状态与全部历史仍在；不发真实邮件。
 
 `tests/server/applications.test.ts` 的「how often one device or network can apply」覆盖投递次数：同一个 /64 里第 6 份回 429 `apply_limited`、不落库也不写信，别的 IP 照常；同一个 cookie 换着 IP 投，第 6 份同样 429，cookie 是 httpOnly、只发给投递接口、一年，清掉 cookie 算新设备，伪造的 cookie 换成新的 id；校验不过、蜜罐不算次数；过了 24 小时可以再投，过期的计数被删掉；`application_limits` 里只有哈希。
 

@@ -17,9 +17,9 @@ const mail = (patch: Partial<MailSummary>): MailSummary =>
   ({ status: "pending", skip_reason: null, attempts: 0, subject: "极客班面试安排", sent_at: null, updated_at: 0, ...patch });
 
 describe("application statuses", () => {
-  it("offers exactly the four live statuses, in pipeline order", () => {
-    expect(APPLICATION_STATUSES).toEqual(["received", "interview", "accepted", "rejected"]);
-    expect(APPLICATION_STATUSES.map(id => statusMeta(id).label)).toEqual(["已收到", "待面试", "已录取", "未通过"]);
+  it("offers the five live statuses, with cancellation last", () => {
+    expect(APPLICATION_STATUSES).toEqual(["received", "interview", "accepted", "rejected", "cancelled"]);
+    expect(APPLICATION_STATUSES.map(id => statusMeta(id).label)).toEqual(["已收到", "待面试", "已录取", "未通过", "已取消"]);
   });
 
   it("still names the retired reviewing status in old history, and never throws on unknown ids", () => {
@@ -36,6 +36,17 @@ describe("noticePlan", () => {
 
   it("never mails when a status goes back to received", () => {
     expect(noticePlan("interview", "received", true, ALL, EMAIL)).toEqual({ kind: "back_to_received", hint: "改回已收到不发邮件。" });
+  });
+
+  it("never offers a letter when cancelling, regardless of mail settings or notify", () => {
+    for (const settings of [ALL, ALLOWLIST_MISS, OFF]) {
+      for (const notify of [true, false]) {
+        expect(noticePlan("interview", "cancelled", notify, settings, EMAIL)).toEqual({
+          kind: "cancelled", hint: "这份投递将标为已取消，不发邮件。简历和审核记录会保留。",
+        });
+      }
+    }
+    expect(noticePlan("cancelled", "cancelled", true, ALL, EMAIL)).toEqual({ kind: "none" });
   });
 
   it("names the recipient and the letter when the mail will go out", () => {
@@ -111,6 +122,18 @@ describe("reviewPatch", () => {
     expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "interview", note: "改到周五", notify: true, draft: letter })).toEqual({ expected_status: "interview", expected_review_id: 3, note: "改到周五" });
   });
 
+  it("sends cancellation without a letter, and keeps cancelled in the page version", () => {
+    expect(reviewPatch({ latestReviewId: 3, current: "interview", status: "cancelled", note: " 已撤回 ", notify: true, draft: letter })).toEqual({
+      expected_status: "interview", expected_review_id: 3, status: "cancelled", note: "已撤回",
+    });
+    expect(reviewPatch({ latestReviewId: 4, current: "cancelled", status: "cancelled", note: "补充说明", notify: true, draft: letter })).toEqual({
+      expected_status: "cancelled", expected_review_id: 4, note: "补充说明",
+    });
+    expect(reviewPatch({ latestReviewId: 4, current: "cancelled", status: "received", note: "", notify: true, draft: letter })).toEqual({
+      expected_status: "cancelled", expected_review_id: 4, status: "received",
+    });
+  });
+
   it("always sends the status and the latest review the page shows, except for a retired status the server would refuse", () => {
     expect(reviewPatch({ latestReviewId: 0, current: "accepted", status: "rejected", note: "", notify: false, draft: letter })).toMatchObject({ expected_status: "accepted", expected_review_id: 0 });
     expect(reviewPatch({ latestReviewId: 3, current: "reviewing", status: "received", note: "", notify: true, draft: letter })).toEqual({ status: "received" });
@@ -137,7 +160,8 @@ describe("serverFieldErrors", () => {
   });
 
   it("puts invalid_status on the status select", () => {
-    expect(serverFieldErrors(error("invalid_status", {}, "状态只能是已收到、待面试、已录取、未通过"))).toEqual({ status: "状态只能是已收到、待面试、已录取、未通过", letter: {} });
+    expect(serverFieldErrors(error("invalid_status", {}, "状态只能是已收到、待面试、已录取、未通过、已取消"))).toEqual({ status: "状态只能是已收到、待面试、已录取、未通过、已取消", letter: {} });
+    expect(serverFieldErrors(error("invalid_status", {}))?.status).toContain("已取消");
   });
 
   it("puts letter_invalid in the notice section, since it names no single field", () => {
@@ -176,6 +200,7 @@ describe("mailState", () => {
 
   it("tells the reviewer what happened to the letter after saving", () => {
     expect(savedMessage(null)).toBe("审核记录已更新。");
+    expect(savedMessage(null, "cancelled")).toBe("投递已取消，没有发送邮件。");
     expect(savedMessage(mail({ status: "pending" }))).toBe("通知信正在发，结果记在审核记录里。");
     expect(savedMessage(mail({ status: "skipped", skip_reason: "not_allowlisted" }))).toBe("这封信没有发出：当前只给白名单里的邮箱发信。");
     expect(savedMessage(mail({ status: "skipped", skip_reason: "mail_disabled" }))).toBe("这封信没有发出：发信还没有配置。");

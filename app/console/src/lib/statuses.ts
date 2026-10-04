@@ -3,12 +3,13 @@ import type { ApplicationStatus, FeedbackStatus, Tone } from "./types";
 
 type StatusMeta = { label: string; tone: Tone };
 
-/** 投递能选的四种状态，顺序就是下拉框和筛选的顺序。 */
+/** 投递可选状态，顺序就是下拉框和筛选的顺序。 */
 export const APPLICATION_STATUS: Record<ApplicationStatus, StatusMeta> = {
   received: { label: "已收到", tone: "slate" },
   interview: { label: "待面试", tone: "amber" },
   accepted: { label: "已录取", tone: "jade" },
   rejected: { label: "未通过", tone: "rose" },
+  cancelled: { label: "已取消", tone: "slate" },
 };
 export const APPLICATION_STATUSES = Object.keys(APPLICATION_STATUS) as ApplicationStatus[];
 export const isApplicationStatus = (value: unknown): value is ApplicationStatus =>

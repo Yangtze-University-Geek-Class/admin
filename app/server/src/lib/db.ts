@@ -351,7 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_application_limits_subject ON application_limits(
 CREATE INDEX IF NOT EXISTS idx_application_limits_at ON application_limits(created_at);
 `);
 
-// 投递状态只剩四个（#148）：旧的「评估中」改回「已收到」。每次启动都跑一遍，没有这样的行时什么也不改；
+// 旧的「评估中」改回「已收到」（#148）。每次启动都跑一遍，没有这样的行时什么也不改；
 // application_reviews 里的 reviewing 是历史，不动。
 db.prepare("UPDATE applications SET status = 'received' WHERE status = 'reviewing'").run();
 function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {

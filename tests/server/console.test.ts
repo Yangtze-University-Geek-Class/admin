@@ -365,7 +365,7 @@ describe('applications', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.total).toBe(2);
-    expect(body.counts).toEqual({ received: 1, interview: 1, accepted: 0, rejected: 0 });
+    expect(body.counts).toEqual({ received: 1, interview: 1, accepted: 0, rejected: 0, cancelled: 0 });
     expect(Object.keys(body.items[0]).sort()).toEqual(['class_name', 'created_at', 'email', 'id', 'last_review', 'name', 'status', 'strengths_excerpt']);
     expect(body.items[1].strengths_excerpt).toHaveLength(121);
     expect(response.body).not.toMatch(/203\.0\.113\.7|fixture-agent/);
@@ -398,6 +398,73 @@ describe('applications', () => {
     expect(JSON.stringify(audits())).not.toContain(note);
     expect(audits().some(item => item.action === 'application.view' && item.org === CONSOLE_ORG)).toBe(true);
     expect((await app.inject({ url: `/api/console/applications/${randomUUID()}`, headers: as('erin') })).statusCode).toBe(404);
+  });
+
+  it('includes cancelled applications in filters, counts, summary, catalogue and CSV', async () => {
+    const { app, as, assign, audits, db } = await setup({ erin: 'member' });
+    assign('erin', 'head', 'recruitment');
+    const older = insertApplication(db, { name: '撤回甲', email: 'cancel_a@example.test', created_at: Date.now() - 1000 });
+    const newer = insertApplication(db, { name: '撤回乙', email: 'cancel_b@example.test' });
+    insertApplication(db, { name: '保留投递', email: 'active@example.test' });
+    const headers = as('erin');
+    for (const row of [older, newer]) {
+      const result = await app.inject({
+        method: 'PATCH', url: `/api/console/applications/${row.id}`, headers,
+        payload: { status: 'cancelled', expected_status: 'received', expected_review_id: 0 },
+      });
+      expect(result.statusCode).toBe(200);
+      expect(result.json().review.mail).toBeNull();
+    }
+    const counts = { received: 1, interview: 0, accepted: 0, rejected: 0, cancelled: 2 };
+    const all = await app.inject({ url: '/api/console/applications', headers });
+    expect(all.statusCode).toBe(200);
+    expect(all.json()).toMatchObject({ total: 3, counts });
+    const filtered = await app.inject({ url: '/api/console/applications?status=cancelled&limit=1&offset=1', headers });
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json()).toMatchObject({ total: 2, counts, items: [{ id: older.id, status: 'cancelled', last_review: { to_status: 'cancelled', reviewer: 'erin' } }] });
+    const searched = await app.inject({ url: '/api/console/applications?status=cancelled&q=cancel_b', headers });
+    expect(searched.statusCode).toBe(200);
+    expect(searched.json().items.map((item: { id: string }) => item.id)).toEqual([newer.id]);
+    expect(searched.json().total).toBe(1);
+    const summary = await app.inject({ url: '/api/console/summary', headers });
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json().applications).toEqual({ total: 3, last_7d: 3, by_status: counts });
+    const catalogue = await app.inject({ url: '/api/console/catalogue', headers });
+    expect(catalogue.statusCode).toBe(200);
+    expect(catalogue.json().application_statuses).toEqual([
+      { id: 'received', label: '已收到' }, { id: 'interview', label: '待面试' },
+      { id: 'accepted', label: '已录取' }, { id: 'rejected', label: '未通过' }, { id: 'cancelled', label: '已取消' },
+    ]);
+    const csv = await app.inject({ url: '/api/console/applications/export.csv?status=cancelled', headers });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.body).toContain('cancel_a@example.test');
+    expect(csv.body).toContain('cancel_b@example.test');
+    expect(csv.body).not.toContain('active@example.test');
+    expect(csv.body.match(/,cancelled,/g)).toHaveLength(2);
+    expect(JSON.parse(audits().find(item => item.action === 'application.export')!.details!)).toEqual({ count: 2, status: 'cancelled' });
+  });
+
+  it('requires review permission and the correct origin to cancel without changing data on denial', async () => {
+    const { app, as, assign, audits, db } = await setup({ bob: 'member', gina: 'member' });
+    db.prepare('UPDATE departments SET member_capabilities = ? WHERE id = ?').run(JSON.stringify(['applications.read']), 'recruitment');
+    assign('gina', 'member', 'recruitment');
+    const row = insertApplication(db);
+    const url = `/api/console/applications/${row.id}`;
+    const payload = { status: 'cancelled', expected_status: 'received', expected_review_id: 0 };
+    expect((await app.inject({ method: 'PATCH', url, payload })).statusCode).toBe(401);
+    for (const login of ['bob', 'gina']) {
+      const denied = await app.inject({ method: 'PATCH', url, payload, headers: as(login) });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.json()).toMatchObject({ error: 'missing_capability', capability: 'applications.review' });
+    }
+    expect((await app.inject({ url, headers: as('gina') })).statusCode).toBe(200);
+    const origin = await app.inject({ method: 'PATCH', url, payload, headers: { ...as('gina'), origin: 'https://foreign.example.test' } });
+    expect(origin.statusCode).toBe(403);
+    expect(origin.json().error).toBe('invalid_origin');
+    expect(db.prepare('SELECT status FROM applications WHERE id = ?').get(row.id)).toEqual({ status: 'received' });
+    expect(db.prepare('SELECT * FROM application_reviews').all()).toEqual([]);
+    expect(db.prepare('SELECT * FROM mail_outbox').all()).toEqual([]);
+    expect(audits().filter(item => item.action === 'application.review')).toEqual([]);
   });
 
   it('exports CSV with a BOM and neutralises spreadsheet formulas', async () => {

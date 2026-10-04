@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-10-02 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-04 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -40,7 +40,8 @@
 - **论坛接口**（#57，[ADR-0004](../../decisions/0004-forum-backend-in-core-server.md)）：`/api/forum/*` 是论坛前端的全部数据来源，存储在 `data.db` 的 `forum_*` 表。成员身份只认 `sid`，第一次请求时建论坛用户 `m<GitHub user_id>`，之后每次请求按 `computeAccess` 刷新角色（组织 owner 为 admin）与称号；论坛能力只取 `forum.*`，与控制台同一条授权路径。没有有效 `sid` 的是游客，带 `sid` 但组织角色查到已不是成员的也按游客处理：能看帖、能回复（昵称、PoW、空蜜罐、按 IP 限流、全站游客回复总量上限），不能发帖或做其它写操作。启动时读 `app/forum/content` 的 `curation.json`（分类、标签）与 `published/topics.json`（公开的旧帖），旧帖按编号「没有才插入」（话题 + 首帖 `body-<n>` + 官方账号 `u-geekclass`），已存在的不覆盖；文件缺失或引用不存在的分类、标签时启动失败。新话题从 `t1001`、新帖子从 `p10001` 起编号。删他人帖子、改他人帖子、置顶、关闭以 `org = CONSOLE_ORG` 写审计（不记正文）。`/state` 的帖子只带摘要，正文按话题另取（`GET /api/forum/topics/:topic_id/posts`），搜索在服务端做（`GET /api/forum/search`），见 [API](../../architecture/API.md)「论坛」（#156）。端点、错误码与限流见同一节。
 - **旧论坛接口**：`/api/forum` 下新接口没有注册的旧路径、`/auth/forum/*`、`/forum/u/*` 返回 410 `legacy_forum_retired`；服务不打开 `forum.db`。论坛页面由 forum 容器提供，直连 server 的 `/forum` 在生产返回 503、开发态跳到 3456，不用模拟成功填补缺口。
 - **加入我们（投递）**：`POST /api/portal/apply` 是匿名写接口，无会话依赖；成功时写一行 `applications`（含来源 IP 与 User-Agent）和一条 `audit_logs`，再往发信队列写一封「已收到」的信（写不进去只记日志，投递照样成功）。准入沿用公开表单的 PoW、蜜罐与 Turnstile，路由限流 5 次/分钟；同一个 IP（IPv6 按 /64）、同一个设备（接口自己发的 cookie）各自 24 小时内最多 5 份成功的投递，第 6 份回 429（#169，计数在 `application_limits`，只存哈希）。字段约束在 `routes/portal/apply.ts` 内单一校验层实现（该端点不注册 `contracts.ts` body schema），校验失败不落库；`website`、`homepage`、`url_ref` 任一非空即按蜜罐命中处理，返回与成功一致的 201 形状但不落库。审计记录目标 id 和来源 IP，details 只含脱敏邮箱、班级、`name_length` 与 `strengths_length`，不记姓名和候选人正文。字段、错误码与限流细则见 [API](../../architecture/API.md)。
-- **发信**（#148）：投递成功写「已收到」，控制台把投递改成待面试、已录取、未通过时写对应的一封（可以取消，改回已收到不写）。信先写进 `mail_outbox`，同一件事只有一行；服务进程里的发信循环每 15 秒发一遍，阿里云邮件推送在前、Resend 兜底，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃。预发布和正式都发给所有投递人（`MAIL_RECIPIENTS=all`，#169），两家发信商都没配置时不发、记 `mail_disabled`。信到最终状态就清掉收件地址和正文，只留哈希和主题。信里的时间都按北京时间写。细节见 [mail](mail.md)。
+- **取消投递**（#204）：当前状态清单为已收到、待面试、已录取、未通过、已取消（`cancelled`）。取消仍要 `applications.review` 和页面版本 `expected_status` / `expected_review_id`；只修改这一份投递的状态并追加审核历史，简历和旧记录保留。列表、计数、概览与 CSV 筛选接受取消。服务端只为待面试、已录取、未通过生成审核通知，取消即使传 `notify: true` 与合法 `letter` 字段也不渲染、不新增邮件，审核 `mail` 为 `null`、审计 `mail` 为 `false`；此前已排队或已发出的其他邮件不撤回。可以按原审核流程补备注或恢复状态，不新增去重、按人聚合或自动取消。
+- **发信**（#148）：投递成功写「已收到」，控制台把投递改成待面试、已录取、未通过时写对应的一封（可以取消发信勾选，改回已收到不写）。信先写进 `mail_outbox`，同一件事只有一行；服务进程里的发信循环每 15 秒发一遍，阿里云邮件推送在前、Resend 兜底，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，第 6 次失败放弃。预发布和正式都发给所有投递人（`MAIL_RECIPIENTS=all`，#169），两家发信商都没配置时不发、记 `mail_disabled`。信到最终状态就清掉收件地址和正文，只留哈希和主题。信里的时间都按北京时间写。细节见 [mail](mail.md)。
 - **数据所有权**：论坛的线上数据（账号资料、话题、帖子、点赞、收藏、关注、通知、头像）归本服务，存在 `data.db`；`app/forum/content` 的两份公开文件只作为只读的种子输入。本服务不读取论坛私有备份或只读投影。
 - **限流**：`@fastify/rate-limit` 以 `global: false` 注册，只管写了 `config.rateLimit` 的路由（官网投递、意见箱、邀请链接、控制台导出 CSV 与指派、论坛按 IP 计的浏览类接口）；超额时都回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`。`app.ts` 注册插件时把 `middleware/http-policy.ts` 的 `rateLimited()` 设成默认的 `errorResponseBuilder`，路由不另写；论坛自己数次数的限流（发帖、回复、头像）抛的也是它（#191）。插件把 `errorResponseBuilder` 的返回值当错误抛给错误处理器，错误处理器只认 `statusCode` 与 `code`，所以要返回带这两项的 Error：返回 `{ statusCode, error, message }` 这样的普通对象会被回成 `request_error`。回归测试在 `tests/server/rate-limits.test.ts`。
 - **接口清单与错误语义**见 [API](../../architecture/API.md)，安全边界见 [SECURITY](../../architecture/SECURITY.md)。
