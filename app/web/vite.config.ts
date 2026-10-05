@@ -58,7 +58,7 @@ function devSiteFallback(): Plugin {
             _res.end();
             return;
           }
-          const site = SITE_NAMES.find((s) => path.startsWith(`/sites/${s}/`));
+          const site = SITE_NAMES.find((s) => path === `/sites/${s}` || path.startsWith(`/sites/${s}/`));
           if (!site) return next();
           // 真实资源（带扩展名）放行，交给 Vite 处理
           if (/\.[a-z0-9]+$/i.test(path)) return next();
@@ -113,4 +113,3 @@ export default defineConfig({
     },
   },
 });
-

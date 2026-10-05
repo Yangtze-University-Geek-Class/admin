@@ -35,19 +35,24 @@ type Props = {
   onOpen: OpenApp;
   /** 这个人能打开的应用（visibleApps），终端的 ls / open 只认这些。 */
   apps: readonly OsApp[];
+  phone?: boolean;
 };
 
-export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen, apps }: Props) {
+export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen, apps, phone = false }: Props) {
   const meta = META[win.id];
   const ref = useRef<HTMLElement>(null);
   const width = Math.min(meta.width, window.innerWidth - 24);
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>("input, a, button:not(.pt-win-lights button)")?.focus({ preventScroll: true });
-  }, []);
+    if (ref.current) ref.current.inert = win.minimized || (phone && !front);
+    if (!win.minimized && front) {
+      const target = ref.current?.querySelector<HTMLElement>("input") ?? ref.current?.querySelector<HTMLElement>("a, button:not(.pt-win-lights button)");
+      target?.focus({ preventScroll: true });
+    }
+  }, [front, phone, win.minimized]);
 
   const startDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    if ((event.target as HTMLElement).closest("button") || win.zoomed) return;
+    if ((event.target as HTMLElement).closest("button") || win.zoomed || phone) return;
     const bar = event.currentTarget;
     const sx = event.clientX;
     const sy = event.clientY;
@@ -72,12 +77,14 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
       className={cls}
       role="dialog"
       aria-label={meta.title}
-      hidden={win.minimized}
+      hidden={win.minimized || (phone && !front)}
       style={{ left: win.x, top: win.y, width, zIndex: win.z }}
       onPointerDown={onFocus}
     >
-      <header className="pt-win-bar" onPointerDown={startDrag} onDoubleClick={onZoom}>
-        <span className="pt-win-lights">
+      <header className="pt-win-bar" onPointerDown={startDrag} onDoubleClick={() => !phone && onZoom()}>
+        {phone ? <button type="button" className="pt-phone-back" aria-label="返回主屏幕" onClick={onMinimize}>
+          <Icon name="arrow-left-line" size={20} /> 主屏幕
+        </button> : <span className="pt-win-lights">
           <button type="button" aria-label="关闭" onClick={onClose}>
             <Icon name="close-line" size={10} />
           </button>
@@ -87,11 +94,11 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
           <button type="button" aria-label="放大" onClick={onZoom}>
             <Icon name="fullscreen-line" size={9} />
           </button>
-        </span>
+        </span>}
         <b>
           <Icon name={meta.icon} size={14} /> {meta.title}
         </b>
-        <span className="pt-win-path">{meta.path}</span>
+        {phone ? <button type="button" className="pt-phone-close" aria-label="关闭应用" onClick={onClose}><Icon name="close-line" size={20} /></button> : <span className="pt-win-path">{meta.path}</span>}
       </header>
       <div className="pt-win-body">
         {win.id === "about" && <About onOpen={onOpen} />}
@@ -145,6 +152,15 @@ function About({ onOpen }: { onOpen: OpenApp }) {
           <Link className="pt-btn" to="/docs">
             <Icon name="file-text-line" size={16} /> 文档
           </Link>
+        </div>
+        <p>3D 手机模型为 Apple iPhone 15 Pro Max Black，已轻量化并替换屏幕内容。</p>
+        <div className="pt-row-btns">
+          <a className="pt-btn" href="https://sketchfab.com/3d-models/apple-iphone-15-pro-max-black-df17520841214c1792fb8a44c6783ee7" target="_blank" rel="noopener noreferrer">
+            模型作者：polyman<span className="pt-sr">（新标签页打开）</span>
+          </a>
+          <a className="pt-btn" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">
+            CC BY 4.0<span className="pt-sr">（新标签页打开）</span>
+          </a>
         </div>
       </div>
     </div>

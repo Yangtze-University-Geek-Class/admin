@@ -107,8 +107,8 @@ const MIME = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
   svg: 'image/svg+xml', ico: 'image/x-icon', wasm: 'application/wasm', glb: 'model/gltf-binary',
 };
-/** 浏览器按 CORS 取的类型：模块脚本、带 crossorigin 的样式表、字体、fetch 的 JSON。 */
-const CORS_EXTENSIONS = new Set(['js', 'mjs', 'css', 'json', 'woff2', 'woff', 'ttf', 'otf', 'wasm']);
+/** 浏览器按 CORS 取的类型：模块脚本、带 crossorigin 的样式表、字体、fetch 的 JSON/GLB。 */
+const CORS_EXTENSIONS = new Set(['js', 'mjs', 'css', 'json', 'woff2', 'woff', 'ttf', 'otf', 'wasm', 'glb']);
 
 export function extensionOf(name) {
   return (/\.([a-z0-9]+)$/.exec(name)?.[1] ?? '');

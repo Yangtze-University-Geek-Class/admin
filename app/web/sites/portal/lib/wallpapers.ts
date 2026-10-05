@@ -1,5 +1,5 @@
 // YUGC OS 的壁纸：清单、选择、下载解码与空闲预取（tests/web/portal-wallpapers.test.ts 覆盖）。
-// 两张静态图，由 crosery-ct（mox_image_generate）按所有者给的海报风格生成。
+// 桌面与手机各有独立构图；生成记录见 assets/wallpapers/README.md。
 // 图片地址只写在这份清单里。图片放在 sites/portal/assets/wallpapers/，由这里 import：
 // 构建时文件名带上内容哈希，与 JS、CSS 一样跟着静态资源 CDN 开关（#146，scripts/static-cdn-base.mjs）走，
 // 开关为空时是站内的 /assets/…，打开时是 CDN 上的同一个文件。
@@ -8,22 +8,34 @@ import geekImage from "../assets/wallpapers/geek.webp";
 import geekThumb from "../assets/wallpapers/geek-thumb.webp";
 import yugcImage from "../assets/wallpapers/yugc.webp";
 import yugcThumb from "../assets/wallpapers/yugc-thumb.webp";
+import geekPhoneImage from "../assets/wallpapers/geek-phone.webp";
+import geekPhoneThumb from "../assets/wallpapers/geek-phone-thumb.webp";
+import yugcPhoneImage from "../assets/wallpapers/yugc-phone.webp";
+import yugcPhoneThumb from "../assets/wallpapers/yugc-phone-thumb.webp";
 
-export type Wallpaper = {
+export type WallpaperSurface = {
   id: string;
   name: string;
-  /** 桌面壁纸（1920×1080 webp） */
+  /** 当前屏幕形态的大图 */
   image: string;
-  /** 选择面板里的小图（320×180）；换壁纸时大图还没到，先拿它放大模糊顶上 */
+  /** 同构图缩略图；大图还没到时放大模糊占位 */
   thumb: string;
   /** 画面主色：图片还没到时的底色，避免闪白 */
   tint: string;
 };
 
+export type Wallpaper = WallpaperSurface & {
+  phone: { image: string; thumb: string };
+};
+
 export const WALLPAPERS: readonly Wallpaper[] = [
-  { id: "yugc", name: "极客娘 1", image: yugcImage, thumb: yugcThumb, tint: "#b9d6f7" },
-  { id: "geek", name: "极客娘 2", image: geekImage, thumb: geekThumb, tint: "#a9cdf5" },
+  { id: "yugc", name: "极客娘 1", image: yugcImage, thumb: yugcThumb, phone: { image: yugcPhoneImage, thumb: yugcPhoneThumb }, tint: "#b9d6f7" },
+  { id: "geek", name: "极客娘 2", image: geekImage, thumb: geekThumb, phone: { image: geekPhoneImage, thumb: geekPhoneThumb }, tint: "#a9cdf5" },
 ];
+
+export function wallpaperForScreen(wallpaper: Wallpaper, portrait: boolean): WallpaperSurface {
+  return portrait ? { ...wallpaper, ...wallpaper.phone } : wallpaper;
+}
 
 export const DEFAULT_WALLPAPER = WALLPAPERS[0].id;
 export const WALLPAPER_KEY = "yugc:wallpaper";
@@ -114,20 +126,21 @@ export function canPrefetchWallpapers(connection: ConnectionHint): boolean {
 }
 
 /** 预取顺序：先全部缩略图（很小，选择面板一打开就有图），再当前这张以外的大图 */
-export function wallpaperPrefetchList(currentId: string): string[] {
-  return [...WALLPAPERS.map((wallpaper) => wallpaper.thumb), ...WALLPAPERS.filter((wallpaper) => wallpaper.id !== currentId).map((wallpaper) => wallpaper.image)];
+export function wallpaperPrefetchList(currentId: string, portrait = false): string[] {
+  const surfaces = WALLPAPERS.map(wallpaper => wallpaperForScreen(wallpaper, portrait));
+  return [...surfaces.map(wallpaper => wallpaper.thumb), ...surfaces.filter(wallpaper => wallpaper.id !== currentId).map(wallpaper => wallpaper.image)];
 }
 
 /**
  * 桌面空闲后按顺序一张一张预取（低优先级，不和正在用的请求抢带宽），之后换壁纸不用等下载。
  * 返回取消函数：桌面卸载或退回书桌时停下还没开始的那几张。
  */
-export function prefetchWallpapersWhenIdle(currentId: string): () => void {
+export function prefetchWallpapersWhenIdle(currentId: string, portrait = false): () => void {
   const connection = (navigator as Navigator & { connection?: ConnectionHint }).connection;
   if (!canPrefetchWallpapers(connection)) return () => undefined;
   let cancelled = false;
   const run = async () => {
-    for (const url of wallpaperPrefetchList(currentId)) {
+    for (const url of wallpaperPrefetchList(currentId, portrait)) {
       if (cancelled) return;
       await loadWallpaperImage(url, "low");
     }

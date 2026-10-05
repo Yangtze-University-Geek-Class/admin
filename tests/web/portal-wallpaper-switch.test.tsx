@@ -98,6 +98,23 @@ const sharpened = (wall: HTMLElement) => fireEvent.transitionEnd(wall.querySelec
 const LONG = 5000;
 
 describe("换壁纸", () => {
+  it("同一个壁纸id切换竖屏资源也追加新层，旧图等动画结束才卸载", async () => {
+    const desktop = byId("yugc");
+    const portrait = { ...desktop, image: "/yugc-phone.webp", thumb: "/yugc-phone-thumb.webp" };
+    const view = render(<WallpaperLayer wallpaper={desktop} />);
+    await finish(desktop.image);
+    view.rerender(<WallpaperLayer wallpaper={portrait} />);
+    expect(walls(view.container)).toHaveLength(2);
+    expect(top(view.container)).toMatchObject({ enter: "fade", thumb: `url("${portrait.thumb}")`, full: null });
+    await finish(portrait.image);
+    expect(top(view.container).full).toBe(`url("${portrait.image}")`);
+    entered(walls(view.container)[1]);
+    expect(walls(view.container)).toHaveLength(1);
+    view.rerender(<WallpaperLayer wallpaper={desktop} />);
+    expect(top(view.container).full).toBe(`url("${desktop.image}")`);
+    expect(images.created.filter(image => image.src === desktop.image)).toHaveLength(1);
+  });
+
   it("点下去立刻换上占位：底色 + 模糊缩略图，从缩略图展开；大图解码好之前不出现大图，解码好后换上", async () => {
     const yugc = byId("yugc");
     const geek = byId("geek");
@@ -245,6 +262,20 @@ describe("空闲预取", () => {
     }
     expect(images.created.map((image) => image.src)).toEqual(expected);
     expect(lib.isWallpaperDecoded(byId("geek").image)).toBe(true);
+  });
+
+  it("手机竖屏预取只使用独立竖图，旋转取消后不再排后续手机版资源", async () => {
+    const queue = idleQueue();
+    const cancel = lib.prefetchWallpapersWhenIdle("yugc", true);
+    queue.shift()!();
+    expect(images.created[0].src).toBe(byId("yugc").phone.thumb);
+    cancel();
+    await finish(images.created[0].src);
+    expect(images.created).toHaveLength(1);
+    lib.prefetchWallpapersWhenIdle("yugc", false);
+    queue.shift()!();
+    for (const url of lib.wallpaperPrefetchList("yugc")) await finish(url);
+    expect(images.created.slice(1).map(image => image.src)).toEqual(lib.wallpaperPrefetchList("yugc"));
   });
 
   it("预取到一半时换过去：接着等这一次下载，不重新下；下完就清晰过来", async () => {

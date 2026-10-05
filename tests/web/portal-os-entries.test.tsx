@@ -34,6 +34,8 @@ beforeEach(() => {
   reducedMotion = false;
   // 已经看过宣传片：桌面不去预取播放器分包
   document.cookie = "yugc_promo_seen=1; Path=/";
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: reducedMotion && query.includes("reduce"), media: query, addEventListener() {}, removeEventListener() {} }));
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ signed_in: false }), { status: 200, headers: { "content-type": "application/json" } })));
 });

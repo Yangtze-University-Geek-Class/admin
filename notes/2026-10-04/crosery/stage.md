@@ -62,3 +62,10 @@
 - 做了什么：ego-browser TaskSpace7复现/api/console/people连续三次503 internal_error；只读核对me、departments、assignments、catalogue均200；真实buildApp/inject使用独立内存库、同一应用与虚构会话，仅切换GET /orgs/{org}/members响应做503到200到503单变量对照；只读取源码，不改产品代码或验收启动器，不重启服务，不建issue/分支/PR
 - 结果：控制组均200且roles.manage=true；外部拒绝计数控制请求6到6、成员请求6到7；隔离对照退出码0，禁用名单响应503 internal_error、启用响应200且两名虚构成员分别派生admin/member称号、再次禁用503；真实网络调用0、邮件禁用；根因位于task204的.tools/acceptance204/serve.mjs第31至36行，仅配置membership响应而拒绝成员名单；截图环境PID6460保留运行。已定位不等于已修复，真实OAuth实例及线上未验证
 - 下一步：如需修复，应补本地虚构成员适配并核对验收页面范围，不返回假空名单或放宽生产鉴权；本轮按用户要求只诊断、先不提issue
+
+## 19:08:35 +08:00 · 验收 · #204 · stage交付完整闭环和无task残留核验完成，不发布
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：finish204后核验本机生命周期、worktree及本地/远端task refs；只读issue-sweep与open issues/PR查询；读取stage合并SHA CI；回填204实施/真实验收勾选，并在204与205追加最终核验评论5979310177/5979310183
+- 结果：task生命周期0个还在做，本地/远端task refs空；open issues和open PR均[]；初次GitHub EOF后只读重试成功，巡检退出0没有要处理的issue，无--apply。stage ec6027b7039a8f0e41279d2c88837196844423be CI37197131783全部8job成功；204 CLOSED/COMPLETED、205 MERGED。主仓原有diff和索引哈希一致，HEAD2075c553不动；main远端仍61da3fea，stage包含main。验收证据已保全，task204的收尾为最后条；本次核验按stage操作记录另存pending，不追加关闭链路。未tag、改version、deploy或main；stage protection404如实报告，真实OAuth/邮件/线上及跨浏览器未验证
+- 下一步：本次交付结束；pending记录随下一次获准PR合法入库，不为记录新建issue或PR

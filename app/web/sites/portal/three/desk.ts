@@ -1,4 +1,4 @@
-// 首页首屏：浅色书桌 + 笔记本电脑（程序化建模，无外部模型）。点击屏幕 → 镜头推近 → 交给 DOM 版 YUGC OS。
+// 首页首屏：浅色书桌 + 横屏笔记本 / 竖屏 iPhone 模型。点击屏幕 → 镜头推近 → 交给 DOM 版 YUGC OS。
 // 由 pages/Home.tsx 动态加载；本模块不碰 React，只接收一个 canvas、一个悬停提示元素和几个回调。
 //
 // 相对原型的性能调整：像素比由 Stage 的调速器管（起步 2，跟不上就降档）、阴影 1024 且只在物体移动时刷新、机器人与热气不投实时阴影
@@ -11,7 +11,8 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { coverDistance, viewOffset, type Band } from "../lib/cameraMath";
 import type { LoaderStep } from "../lib/loaderProgress";
 import { damp, ease, span } from "../lib/motion";
-import { Motion, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
+import { loadPhone } from "./phone";
+import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
 export type DeskOptions = {
   reducedMotion: boolean;
@@ -271,6 +272,8 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const setVeil = (opacity: number) => {
     veil.material.opacity = opacity;
     veil.visible = opacity > 0.001;
+    phoneVeil.material.opacity = opacity;
+    phoneVeil.visible = opacity > 0.001;
   };
   const webcam = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12), new THREE.MeshBasicMaterial({ color: "#2b3150" }));
   webcam.position.set(0, 0.758, 0.0114);
@@ -284,6 +287,63 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     }
   });
   let screenHot = false;
+
+  // 手机屏幕在局部 XY 平面，整个机身平放到桌面，法线朝上。
+  const device = await loadPhone(0.62).catch(error => {
+    stage.dispose();
+    throw error;
+  });
+  const { phone, bounds: phoneBounds } = device;
+  laptop.name = "desk-laptop";
+  phone.position.set(0.05, -phoneBounds.min.z + 0.003, 0.12);
+  phone.rotation.set(-Math.PI / 2, 0, -0.12);
+  scene.add(phone);
+  if (options.cancelled()) {
+    stage.dispose();
+    return null;
+  }
+  const phoneTex = canvasTexture(620, Math.round(620 * device.size.y / device.size.x), (x, W, H) => {
+    x.clearRect(0, 0, W, H);
+    const gradient = x.createLinearGradient(0, 0, W, H);
+    gradient.addColorStop(0, ICE);
+    gradient.addColorStop(1, PALETTE.cobaltSoft);
+    x.fillStyle = gradient;
+    x.fillRect(0, 0, W, H);
+    x.fillStyle = PALETTE.ink;
+    x.textAlign = "left";
+    x.font = '600 30px "SF Mono", Menlo, monospace';
+    x.fillText(new Date().toTimeString().slice(0, 5), 44, 64);
+    if (logo) drawEmblem(x, logo, W / 2, 440, 230);
+    x.textAlign = "center";
+    x.fillStyle = PALETTE.ink;
+    x.font = '700 56px "PingFang SC", sans-serif';
+    x.fillText("YUGC OS", W / 2, 636);
+    x.fillStyle = PALETTE.inkSoft;
+    x.font = '28px "PingFang SC", sans-serif';
+    x.fillText("长江大学极客班", W / 2, 692);
+    x.fillText("点一下，打开手机", W / 2, 1000);
+    x.fillStyle = PALETTE.ink;
+    x.beginPath();
+    x.roundRect(W / 2 - 90, H - 44, 180, 8, 4);
+    x.fill();
+  }, TEXT_SCALE);
+  const phoneScreenW = device.size.x;
+  const phoneScreenH = device.size.y;
+  const phoneScreen = new THREE.Mesh(device.display, new THREE.MeshBasicMaterial({ map: phoneTex.texture, toneMapped: false }));
+  phoneScreen.name = "phone-screen";
+  phoneScreen.position.copy(device.center);
+  phoneScreen.position.z += 0.0002;
+  phone.add(phoneScreen);
+  const phoneButton = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.093), new THREE.MeshBasicMaterial({ map: buttonTex.texture, transparent: true, depthWrite: false, toneMapped: false }));
+  phoneButton.position.set(0, -0.23, phoneScreen.position.z + 0.0002);
+  phone.add(phoneButton);
+  const phoneVeil = new THREE.Mesh(device.display.clone(), veil.material.clone());
+  phoneVeil.position.copy(phoneScreen.position);
+  phoneVeil.position.z += 0.0006;
+  phoneVeil.renderOrder = 2;
+  phoneVeil.visible = false;
+  phone.add(phoneVeil);
+  let phoneMode = false;
 
   // ── 桌面小物 ───────────────────────────────────────────────────────────
   const mug = new THREE.Group();
@@ -477,14 +537,17 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const tmpQuat = new THREE.Quaternion();
   const computeFocus = () => {
     scene.updateMatrixWorld(true);
-    screen.getWorldPosition(focusTarget);
-    tmpNormal.set(0, 0, 1).applyQuaternion(screen.getWorldQuaternion(tmpQuat));
-    const d = coverDistance(camera.fov, camera.aspect, SCREEN_W, SCREEN_H, 0.88);
+    const activeScreen = phoneMode ? phoneScreen : screen;
+    activeScreen.getWorldPosition(focusTarget);
+    tmpNormal.set(0, 0, 1).applyQuaternion(activeScreen.getWorldQuaternion(tmpQuat));
+    const d = coverDistance(camera.fov, camera.aspect, phoneMode ? phoneScreenW : SCREEN_W, phoneMode ? phoneScreenH : SCREEN_H, 0.88);
     focusPos.copy(focusTarget).addScaledVector(tmpNormal, d);
   };
   const offset = { x: 0, y: 0 };
   const applyCamera = () => {
     camera.position.copy(pose.pos);
+    if (phoneMode) camera.up.set(0, 0, -1);
+    else camera.up.set(0, 1, 0);
     camera.lookAt(pose.target);
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -494,20 +557,22 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     } else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   };
-  // 竖屏：电脑落在顶栏与文案之间那条横带的正中，横向尽量占满（stage.ts 的 bandPose 按透视算距离与偏移）；
-  // 手机、竖放平板、分屏窗口都用同一套算法，不为每种比例单独调数。取机身与屏幕外壳贴身的角点，四周留 6%
+  // 竖屏手机放进顶栏与文案之间的横带，按机身角点取景；不为每种屏幕比例单独调相机。
   const PORTRAIT_FOV = 40;
-  const PORTRAIT_DIR = new THREE.Vector3(1.0, 2.0, 3.3);
+  const PORTRAIT_DIR = new THREE.Vector3(0, 3.4, 2.4);
   const portraitPose = (aspect: number, band: Band): Pose => {
     scene.updateMatrixWorld(true);
-    base.geometry.computeBoundingBox();
-    shell.geometry.computeBoundingBox();
-    const points = [...boxCorners(base.geometry.boundingBox!, base.matrixWorld), ...boxCorners(shell.geometry.boundingBox!, shell.matrixWorld)];
-    const { pos, target, offset } = bandPose(points, PORTRAIT_DIR, PORTRAIT_FOV, aspect, band, 0.94);
+    const points = boxCorners(phoneBounds, phone.matrixWorld);
+    const { pos, target, offset } = bandPose(points, PORTRAIT_DIR, PORTRAIT_FOV, aspect, band, 0.88);
     return { pos, target, fov: PORTRAIT_FOV, ox: offset.x, oy: offset.y };
   };
   stage.onLayout = (w, h) => {
     const band = options.band();
+    phoneMode = band !== null;
+    phone.visible = phoneMode;
+    laptop.visible = !phoneMode;
+    TARGETS[0].hint = phoneMode ? "打开手机" : "打开电脑";
+    setHot(null);
     // 竖屏镜头从高处俯看，墙上的海报会落在顶栏品牌字后面（校徽也和品牌重复），竖屏不挂
     frame.visible = posterMesh.visible = band === null;
     idle = band
@@ -515,7 +580,12 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       : { pos: new THREE.Vector3(2.25, 1.6, 2.75), target: new THREE.Vector3(-0.1, 0.36, 0.0), fov: 33, ox: -0.17, oy: 0.02 };
     camera.fov = idle.fov;
     camera.aspect = w / h;
-    if (focused) {
+    if (anim) {
+      // 旋转过程中重定向剩余飞行，不回到旧设备的坐标，也不重复开机回调。
+      if (focused) computeFocus();
+      anim.toPos.copy(focused ? focusPos : idle.pos);
+      anim.toTarget.copy(focused ? focusTarget : idle.target);
+    } else if (focused) {
       computeFocus();
       pose.pos.copy(focusPos);
       pose.target.copy(focusTarget);
@@ -603,7 +673,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     const rect = canvas.getBoundingClientRect();
     ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    if (touchKeys) {
+    if (touchKeys && !phoneMode) {
       // 键盘所在平面：笔记本局部 y = KEY_Y
       laptop.updateMatrixWorld();
       planeNormal.set(0, 1, 0).transformDirection(laptop.matrixWorld);
@@ -620,7 +690,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       const target = TARGETS[i];
       if (target.exact) {
         hits.length = 0;
-        ray.intersectObjects(screenParts, false, hits);
+        ray.intersectObjects(phoneMode ? phoneParts : screenParts, false, hits);
         if (hits.length) return target;
         continue;
       }
@@ -629,6 +699,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     }
     return null;
   };
+  const phoneParts: THREE.Object3D[] = [phoneScreen, ...device.pickParts];
 
   let dirtyMin = Infinity;
   let dirtyMax = -1;
@@ -681,6 +752,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const clock = window.setInterval(() => {
     if (!stage.isPaused && !focused) {
       clockTex.redraw();
+      if (phoneMode) phoneTex.redraw();
       stage.invalidate();
     }
   }, 20000);
@@ -774,10 +846,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return null;
   }
   screenTex.redraw();
+  phoneTex.redraw();
   poster.redraw();
   report("emblem", "校徽已加载");
   stage.resize();
-  await stage.warmUp([veil]);
+  await stage.warmUp([veil, phoneVeil, phoneMode ? laptop : phone]);
   if (options.cancelled()) {
     dispose();
     return null;
@@ -852,7 +925,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       if (active || !anim) stage.setPaused(!active);
     },
     pressKey() {
-      if (focused) return;
+      if (focused || phoneMode) return;
       press(Math.floor(Math.random() * keyPress.length));
     },
     dispose,

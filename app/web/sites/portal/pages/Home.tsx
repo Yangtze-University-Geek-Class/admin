@@ -12,26 +12,18 @@ import YugcOs from "../components/os/YugcOs";
 import { STACKED_QUERY } from "../lib/cameraMath";
 import { deskView, nextDeskState, type DeskEvent, type DeskState } from "../lib/deskMachine";
 import { wantsDesktop } from "../lib/links";
-import { loadWallpaperImage, readWallpaperChoice } from "../lib/wallpapers";
+import { loadWallpaperImage, readWallpaperChoice, wallpaperForScreen } from "../lib/wallpapers";
 import { LOADER_STEPS, type LoaderStep } from "../lib/loaderProgress";
 import { useInert, useReducedMotion } from "../lib/useReducedMotion";
+import { PHONE_QUERY, PORTRAIT_QUERY, useMediaQuery } from "../lib/useMediaQuery";
 import type { DeskHandle } from "../three/desk";
 import "../styles/portal.css";
 import "../styles/desk.css";
 import "../styles/os.css";
 
-/** 系统桌面的壁纸（用户选的那张的静态图）：开机画面放完之前一定要解码好，桌面露出来时是完整的一张图 */
-let wallpaperReady: Promise<void> | null = null;
-let wallpaperDecoded = false;
-function preloadWallpaper(): Promise<void> {
-  if (!wallpaperReady) {
-    // 和桌面换壁纸共用同一份下载：桌面露出来时这张已经解码好，不再下一次。
-    // 解码失败（离线、被拦）也放行：桌面有底色，不能让开机画面卡住
-    wallpaperReady = loadWallpaperImage(readWallpaperChoice().image).then(() => {
-      wallpaperDecoded = true;
-    });
-  }
-  return wallpaperReady;
+function currentWallpaperUrl(): string {
+  const portrait = window.matchMedia(PHONE_QUERY).matches && window.matchMedia(PORTRAIT_QUERY).matches;
+  return wallpaperForScreen(readWallpaperChoice(), portrait).image;
 }
 
 // 开机日志：只写桌面上真的会加载的东西
@@ -45,6 +37,22 @@ const BOOT_LINES: Array<[string, string]> = [
 
 export default function Home() {
   const reducedMotion = useReducedMotion();
+  const stacked = useMediaQuery(STACKED_QUERY);
+  const phone = useMediaQuery(PHONE_QUERY);
+  const portrait = useMediaQuery(PORTRAIT_QUERY);
+  const wallpaperSettled = useRef(new Set<string>());
+  const preloadWallpaper = useCallback(async () => {
+    let url = currentWallpaperUrl();
+    for (;;) {
+      await loadWallpaperImage(url);
+      // 失败也放行；下载期间旋转或更换选择，必须继续等待当前实际要显示的资源。
+      wallpaperSettled.current.add(url);
+      const current = currentWallpaperUrl();
+      if (current === url) return;
+      url = current;
+    }
+  }, []);
+  useEffect(() => { void preloadWallpaper(); }, [phone, portrait, preloadWallpaper]);
   const location = useLocation();
   const navigate = useNavigate();
   const resume = useRef(wantsDesktop(location.state));
@@ -175,7 +183,7 @@ export default function Home() {
     void preloadWallpaper().then(() => {
       if (bootRunRef.current === run && stateRef.current === "booting") dispatch({ type: "bootDone" });
     });
-  }, []);
+  }, [preloadWallpaper]);
 
   const startBoot = useCallback(() => {
     dispatch({ type: "arrived" });
@@ -194,7 +202,7 @@ export default function Home() {
       const handle = desk.current;
       const skip = instant || reducedMotion || !handle;
       // 跳过动画会直接露出桌面：先等壁纸解码好（书桌搭好时就开始下载了，通常已经好了）
-      if (skip && !wallpaperDecoded) {
+      if (skip && !wallpaperSettled.current.has(currentWallpaperUrl())) {
         setWaiting(true);
         void preloadWallpaper().then(() => {
           setWaiting(false);
@@ -211,7 +219,7 @@ export default function Home() {
         },
       });
     },
-    [reducedMotion, startBoot],
+    [preloadWallpaper, reducedMotion, startBoot],
   );
   enterRef.current = enter;
 
@@ -284,10 +292,10 @@ export default function Home() {
             <br />
             <span className="is-accent">极客班</span>
           </h1>
-          <p>点一下桌上的电脑开机。报名、逛论坛、看我们在 GitHub 上的代码，都从这里进。</p>
+          <p>点一下桌上的{stacked ? "手机" : "电脑"}开机。报名、逛论坛、看我们在 GitHub 上的代码，都从这里进。</p>
           <div className="pt-hud-actions">
             <button ref={enterButton} type="button" className="pt-enter" onClick={() => enter(false)}>
-              <Icon name="shut-down-line" size={16} /> 打开电脑 <kbd>Enter</kbd>
+              <Icon name="shut-down-line" size={16} /> 打开{stacked ? "手机" : "电脑"} <kbd>Enter</kbd>
             </button>
             <button type="button" className="pt-skip" aria-busy={waiting || undefined} disabled={waiting} onClick={() => enter(true)}>
               {waiting ? "正在打开…" : "跳过动画"}

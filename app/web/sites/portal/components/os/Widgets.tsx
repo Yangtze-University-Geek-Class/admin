@@ -9,10 +9,10 @@ type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
  * 桌面图标：单击选中、双击或回车打开（和电脑桌面一样）。触屏上单击就打开。
  * 三个主入口排在最前；它们是做什么的，由右边的「新来的看这里」便签和 Dock 上的名字说明。
  */
-export function DesktopIcons({ apps, selected, onSelect, onOpen }: { apps: readonly OsApp[]; selected: AppId | null; onSelect: (id: AppId | null) => void; onOpen: OpenApp }) {
+export function DesktopIcons({ apps, selected, onSelect, onOpen, phone = false }: { apps: readonly OsApp[]; selected: AppId | null; onSelect: (id: AppId | null) => void; onOpen: OpenApp; phone?: boolean }) {
   const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
   return (
-    <ul className="pt-icons" aria-label="桌面上的应用">
+    <ul className="pt-icons" aria-label={phone ? "主屏幕上的应用" : "桌面上的应用"}>
       {apps.map((app) => (
         <li key={app.id} className={app.key ? "is-main" : undefined}>
           <button
@@ -20,8 +20,8 @@ export function DesktopIcons({ apps, selected, onSelect, onOpen }: { apps: reado
             data-cta={app.id}
             className={selected === app.id ? "pt-dti is-sel" : "pt-dti"}
             title={app.blurb}
-            onClick={(event) => (touch ? onOpen(app.id, event.currentTarget) : onSelect(app.id))}
-            onDoubleClick={(event) => onOpen(app.id, event.currentTarget)}
+            onClick={(event) => (phone || touch ? onOpen(app.id, event.currentTarget) : onSelect(app.id))}
+            onDoubleClick={(event) => !phone && !touch && onOpen(app.id, event.currentTarget)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
@@ -57,21 +57,21 @@ export function AppGlyph({ app, size = 24 }: { app: OsApp; size?: number }) {
  * 「新来的看这里」：像贴在桌面上的便签，说清怎么加入、另外两个应用是什么；每一行点下去就打开写着的那个应用。
  * 可以收起；收起后只在菜单栏「帮助」里重新打开，本次浏览不再自动出现。
  */
-export function StartNote({ onOpen, onClose }: { onOpen: OpenApp; onClose: () => void }) {
+export function StartNote({ onOpen, onClose, phone = false }: { onOpen: OpenApp; onClose: () => void; phone?: boolean }) {
   const steps: Array<{ id: AppId; title: string; text: string }> = [
     { id: "join", title: "在「加入我们」写封信", text: "写上姓名、班级、邮箱，再说说你会什么。招新部看完用邮件联系你。" },
     { id: "forum", title: "去「论坛」看看大家在聊什么", text: "公告、课程、竞赛和求职都在这里，不用登录也能看。" },
     { id: "github", title: "去「GitHub 组织」看我们的代码", text: "极客班的公开仓库都在这里。" },
   ];
   return (
-    <aside className="pt-note" aria-labelledby="pt-note-title">
-      <header>
+    <aside className="pt-note" aria-label={phone ? "加入指引" : undefined} aria-labelledby={phone ? undefined : "pt-note-title"}>
+      {!phone && <header>
         <h2 id="pt-note-title">新来的看这里</h2>
         <button type="button" className="pt-note-close" aria-label="收起这张便签" onClick={onClose}>
           <Icon name="close-line" size={14} />
         </button>
-      </header>
-      <p className="pt-note-lead">这是长江大学极客班的桌面。想加入就写封信；也可以先看看论坛和我们的代码。</p>
+      </header>}
+      <p className="pt-note-lead">这是长江大学极客班的{phone ? "主屏幕" : "桌面"}。想加入就写封信；也可以先看看论坛和我们的代码。</p>
       <ol>
         {steps.map((step, index) => {
           const app = appById(step.id);
@@ -90,7 +90,7 @@ export function StartNote({ onOpen, onClose }: { onOpen: OpenApp; onClose: () =>
           );
         })}
       </ol>
-      <p className="pt-note-foot">双击桌面上的图标也能打开应用，按 ⌘K 可以搜索。</p>
+      <p className="pt-note-foot">{phone ? "点一下主屏幕上的图标就能打开应用。" : "双击桌面上的图标也能打开应用，按 ⌘K 可以搜索。"}</p>
     </aside>
   );
 }

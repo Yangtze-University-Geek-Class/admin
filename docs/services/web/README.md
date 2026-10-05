@@ -2,7 +2,7 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-10-02 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-10-06 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
@@ -26,6 +26,7 @@
 - **配置**：构建期只读公开配置（`app.config.json`），不加载私有 `.env`，也不含任何域名，同一份产物在两个环境通用；`scripts/check-site-config.mjs`（`pnpm check:site-config`）校验站点不带 host、论坛 basePath 非空且不与其他站点重叠、production 数据源固定为 live。
 - **静态资源 CDN 开关**（#146）：构建参数 `STATIC_CDN_BASE` 为空时与原来一样同源；等于 `https://cdn.crosery.com/yzgc/static/site/` 时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把带哈希的构建资源（`assets/` 下的 JS、CSS、字体、图片）改写到 CDN，`base` 仍是 `/`，入口 HTML、路由和 `public/` 里不带哈希的文件（看板娘、favicon）仍走源站；桌面壁纸由 `sites/portal/lib/wallpapers.ts` import（文件在 `sites/portal/assets/wallpapers/`），构建时带哈希，跟着开关走。别的非空值让构建失败。规则只在 `scripts/static-cdn-base.mjs`；`app/web/Dockerfile` 把同一个参数传给官网与控制台两次构建，并断言两个入口页引用的是对应地址。开关由部署工作流决定，上传与核对见 [CICD](../../ops/CICD.md)「静态资源 CDN」。两个环境用同一个 CDN 前缀，产物仍不含环境域名。
 - **UI 选型**：官网是既有 React 实现，后续新增/迁移界面按 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)；控制台已迁到 Vue + Tuffex（`app/console`）。不引入平行基础 UI 体系。
+- **手机首页**（#206）：竖屏书桌平放现成的 iPhone 15 Pro Max 模型，圆角屏幕及交接遮罩使用模型实际几何；模型以本地带哈希资源发布，保留 CC BY 4.0 署名和许可。移动 YUGC OS 使用状态栏、四列应用和四项 Dock；共用电脑端应用、账号、权限过滤与壁纸选择ID，手机竖屏加载独立生成的竖图和缩略图。搜索位于Dock上方并支持主屏空白处下滑，壁纸应用和系统设置提供换图、回书桌，不摆三按钮工具条。响应式切换不重新挂载应用窗口；搜索、壁纸、设置和按需指引复用 `shared/ui/Modal`。断点、素材与操作契约见 [portal](portal.md)「手机首页与主屏幕」。
 
 ## 运行
 
@@ -36,7 +37,7 @@ pnpm dev            # 前后端开发（需要本机 .env，模板见 ../../ops/
 pnpm preview:local  # 核心 5173/3000 + 独立论坛 3456，见 ../../ops/LOCAL-PREVIEW.md
 ```
 
-本机地址：官网 `http://127.0.0.1:5173/sites/portal/`；控制台 `http://127.0.0.1:5186/console`（`pnpm dev:console`）。5173 上的 `/console`、`/admin`、`/signin` 与旧的 `/sites/admin/*` 在开发态 302 到 5186；`/forum/<路径>` 302 到 `http://127.0.0.1:3456/<路径>`（去掉 `/forum` 前缀，查询参数保留，登录后回到论坛原页面靠它）。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
+本机地址：官网 `http://127.0.0.1:5173/sites/portal/`（不带尾斜杠的 `/sites/portal` 同样回落到入口，支持 Router 记录的首页后退与刷新）；控制台 `http://127.0.0.1:5186/console`（`pnpm dev:console`）。5173 上的 `/console`、`/admin`、`/signin` 与旧的 `/sites/admin/*` 在开发态 302 到 5186；`/forum/<路径>` 302 到 `http://127.0.0.1:3456/<路径>`（去掉 `/forum` 前缀，查询参数保留，登录后回到论坛原页面靠它）。容器内由 nginx 托管构建产物并按路径选择入口；宿主 nginx 只做 TLS 终止与 `server_name` → 回环端口转发。
 
 镜像的构建阶段 `node:22-bookworm-slim` 与运行阶段 `nginx:1.31-alpine` 在 `app/web/Dockerfile` 里按 digest 固定（`<tag>@sha256:<digest>`，#97）；换基础镜像的步骤见 [DEPLOY](../../ops/DEPLOY.md)「基础镜像按 digest 固定」。
 

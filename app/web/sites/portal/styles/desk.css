@@ -81,6 +81,8 @@
    藏在屏幕下方的 .pt-nano 让内容比视口高 370px，一滚整个桌面就上移。clip 不产生滚动容器，滚不动 */
 .pt-os { position: fixed; inset: 0; z-index: 10; background: var(--pt-ice); opacity: 0; pointer-events: none; transition: opacity .35s; overflow: hidden; overflow: clip; }
 .pt-os.is-on { opacity: 1; pointer-events: auto; }
+/* 手机跳过开机时直接交接已解码的主屏，淡入会透出书桌与旧设备。 */
+.pt-home[data-state="desktop"] .pt-os:has(.is-phone) { transition-duration: 0s; }
 .pt-boot { position: absolute; inset: 0; z-index: 70; display: grid; place-items: center; background: var(--pt-ice); opacity: 0; pointer-events: none; transition: opacity .4s; }
 /* 开机画面进场不做渐变：它和外层 .pt-os 同时淡入时，半透明的开机画面会透出底下已经挂好的桌面（先闪一下桌面）。
    外层 .pt-os 负责淡入；开机画面只在退场（切到桌面）时淡出。开机期间桌面本身也不可见，开机画面淡出时才露出来。 */
