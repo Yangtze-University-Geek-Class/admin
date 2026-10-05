@@ -2,7 +2,7 @@
 
 > 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。
 
-状态：`current` · 更新：2026-10-04
+状态：`current` · 更新：2026-10-06
 
 ## 根入口和分工
 
@@ -29,6 +29,8 @@
 论坛：种子确定性、store 状态、权限 helper、持久化解析、提及；桌面/移动 shell、主题筛选/排序/分页、回复/引用/编辑/软删/收藏/点赞、用户资料、通知与全路由图标。开发提醒不得遮挡主流程。
 
 核心 UI：危险操作取消、焦点返回、移动导航、文档语言及入口；控制台按身份的导航可见性、缺能力说明、未登录跳转、成员按称号分页签排序、无原生下拉框/复选框、窄屏抽屉导航与无页面级横向溢出；门户论坛链接必须指向 `app/forum` 的新入口，不加载旧 React 论坛。工程检查要覆盖真实导入解析、别名、反向依赖（含 `app/console` 与 `app/web`、`app/server` 互不导入）、站点配置不含域名（`check-site-config`）、SPA 入口按路径选择（服务端 `resolveSiteEntry` 与 web 容器 nginx，`tests/tooling/web-nginx.test.ts` 在本机有 nginx 时实跑，管理端入口是控制台产物）、论坛路径的跳转（`tests/tooling/forum-redirects.test.ts` 在本机有 nginx 时把宿主、web、论坛三层配置一起实跑：`/forum` 只 308 到相对地址 `/forum/`，预渲染路由带不带结尾斜杠都是 200，任何 `Location` 都不带协议、主机和内部端口）、带哈希产物目录的缓存头（`tests/tooling/hashed-asset-cache.test.ts` 同样在本机有 nginx 时把三层一起实跑：`/assets/`、`/console-assets/`、`/forum/_nuxt/` 下的脚本、样式、字体、图片都缓存一年，安全头与页面相同，论坛的 `_nuxt/builds/latest.json` 不缓存）和文档同步。
+
+移动 YUGC OS 与手机首页（#206）：`tests/e2e/portal-phone.spec.ts` 在真实 Chromium 里覆盖 360×780、390×844、430×932 的整个模型取景与实际触点、显示屏与交接遮罩的四角几何圆角、两张独立竖图与 180×390 缩略图、主屏下滑搜索、旋转与横竖切换保留窗口内容、系统设置内换壁纸与回书桌、跳过开机首帧不透明与慢图解码等待、减少动态效果与无 WebGL 回退、模型下载失败释放场景、非零不对称安全区，以及 1440×900 电脑端不改版；`tests/web/portal-phone.test.tsx` 覆盖手机壳层结构、`console_link` 权限过滤、论坛/GitHub 一跳直达、隐藏面板不卸载与返回主屏幕；`tests/web/portal-wallpapers.test.ts` 核对竖图尺寸与体积预算、同 id 按形态解析与只预取当前形态。Chromium 设备模拟不代表 iPhone Safari 真机，真机证据另立记录。
 
 控制台只读权限树（#176）：`tests/console/permission-tree.test.ts` 覆盖 `/me` 优先于来源、受限冲突、传递蕴含与环、多来源唯一节点、动态包与名称、归档/缺失部门、owner/guest 固定规则、领航员不派生普通舰员及未知 id。浏览器分别核对真实 `/console/people?view=permissions` 的前进后退、搜索与展开记忆、键盘、390px 详情焦点、普通成员页面门与 401 登录回跳，以及 catalogue/部门失败时旧树隐藏和刷新恢复。动态名称/权限包/归档用隔离内存服务的真实路由修改后重读；只注入虚构 GitHub 外部响应，不读取业务库、不发邮件，也不把该证据称为真实 OAuth 或预发布人工验收。
 
