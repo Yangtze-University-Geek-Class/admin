@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
+import sharp from "../../app/server/node_modules/sharp";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WALLPAPER, WALLPAPERS, canPrefetchWallpapers, resolveWallpaper, revealClipFrom, wallpaperPrefetchList } from "../../app/web/sites/portal/lib/wallpapers";
+import { DEFAULT_WALLPAPER, WALLPAPERS, canPrefetchWallpapers, resolveWallpaper, revealClipFrom, wallpaperForScreen, wallpaperPrefetchList } from "../../app/web/sites/portal/lib/wallpapers";
 
 const REPO = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 const PUBLIC = `${REPO}/app/web/public`;
@@ -8,6 +9,20 @@ const ASSETS = "/app/web/sites/portal/assets/wallpapers/";
 const STYLES = new URL("../../app/web/sites/portal/styles", import.meta.url).pathname;
 
 describe("桌面壁纸", () => {
+  it("每张壁纸另有独立竖图和竖屏缩略图，尺寸与体积满足手机预算", async () => {
+    for (const wallpaper of WALLPAPERS) {
+      expect(wallpaper.phone).toBeDefined();
+      for (const [key, maxBytes] of [["image", 300e3], ["thumb", 20e3]] as const) {
+        const file = wallpaper.phone[key];
+        expect(file.startsWith(ASSETS)).toBe(true);
+        expect(file).not.toBe(wallpaper[key]);
+        expect(statSync(`${REPO}${file}`).size).toBeLessThan(maxBytes);
+        const metadata = await sharp(`${REPO}${file}`).metadata();
+        expect(metadata.height! / metadata.width!).toBeCloseTo(19.5 / 9, 1);
+      }
+    }
+  });
+
   it("每张壁纸的图都在，体积有上限（开机画面要等它解码完）", () => {
     for (const wallpaper of WALLPAPERS) {
       for (const file of [wallpaper.image, wallpaper.thumb]) {
@@ -55,6 +70,12 @@ describe("换壁纸的动效与预取", () => {
     const [yugc, geek] = WALLPAPERS;
     expect(wallpaperPrefetchList("yugc")).toEqual([yugc.thumb, geek.thumb, geek.image]);
     expect(wallpaperPrefetchList("geek")).toEqual([yugc.thumb, geek.thumb, yugc.image]);
+  });
+  it("竖屏预取只下载手机版本，选择id不变，横屏仍用原资源", () => {
+    const [yugc, geek] = WALLPAPERS;
+    expect(wallpaperPrefetchList("yugc", true)).toEqual([yugc.phone.thumb, geek.phone.thumb, geek.phone.image]);
+    expect(wallpaperForScreen(yugc, true)).toMatchObject({ id: "yugc", image: yugc.phone.image, thumb: yugc.phone.thumb });
+    expect(wallpaperForScreen(geek, false)).toBe(geek);
   });
 
   it("减少动态效果时全站把动画压成 .01ms，换壁纸的淡入和清晰过来保留原时长（不然旧层卸掉前根本看不到淡入）", () => {

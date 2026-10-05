@@ -402,6 +402,22 @@ describe('upload and verification', () => {
     await expect(uploadAll(png, { token, referer: REFERER, fetch: qiniu.fetch, log: quiet, backoff: 0 })).resolves.toMatchObject({ total: 1 });
   });
 
+  it('requires CORS for the fetched iPhone GLB, even when its hash, size and MIME type match', async () => {
+    const file = join(repoRoot, 'app/web/sites/portal/assets/models/iphone_15_pro_max.glb');
+    const entry = {
+      file,
+      key: `${STATIC_CDN_PREFIX}assets/iphone_15_pro_max-XxYyZz12.glb`,
+      size: readFileSync(file).length,
+      mime: mimeFor('iphone_15_pro_max-XxYyZz12.glb'),
+    };
+    expect(entry.mime).toBe('model/gltf-binary');
+    const token = tokenFor(uploadPolicy({ now: Date.now(), seconds: DAY }));
+    const missing = fakeQiniu({ cdn: { acao: null } });
+    await expect(uploadAll([entry], { token, referer: REFERER, fetch: missing.fetch, log: quiet, backoff: 0 })).rejects.toThrow(/Access-Control-Allow-Origin/);
+    const valid = fakeQiniu();
+    await expect(uploadAll([entry], { token, referer: REFERER, fetch: valid.fetch, log: quiet, backoff: 0 })).resolves.toMatchObject({ total: 1 });
+  });
+
   it('retries a busy upload endpoint', async () => {
     const qiniu = fakeQiniu({ upload: { failFirst: 2 } });
     const token = tokenFor(uploadPolicy({ now: Date.now(), seconds: DAY }));

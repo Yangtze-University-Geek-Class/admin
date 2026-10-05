@@ -4,7 +4,7 @@
 // 新层的动画真正播完（animationend）才卸掉它下面的层，全程没有空白帧；不按固定计时卸，主线程卡一下或标签页在后台时
 // 动画会晚开始，按计时卸会露出空桌面。连点几次时每一层只管自己的动画和解码，桌面最后停在最后点的那张。
 import { useCallback, useEffect, useRef, useState, type AnimationEvent, type CSSProperties } from "react";
-import { isWallpaperDecoded, loadWallpaperImage, revealClipFrom, type Box, type Wallpaper } from "../../lib/wallpapers";
+import { isWallpaperDecoded, loadWallpaperImage, revealClipFrom, type Box, type WallpaperSurface } from "../../lib/wallpapers";
 import { useReducedMotion } from "../../lib/useReducedMotion";
 
 /** 从缩略图展开到整个桌面的时长（毫秒） */
@@ -16,7 +16,7 @@ export const WALLPAPER_SHARPEN_MS = 480;
 
 type Layer = {
   key: number;
-  wallpaper: Wallpaper;
+  wallpaper: WallpaperSurface;
   /** none：开机时的第一层；reveal：从缩略图展开；fade：直接淡入 */
   enter: "none" | "reveal" | "fade";
   /** reveal 的 clip-path 起点 */
@@ -24,7 +24,7 @@ type Layer = {
 };
 
 type Props = {
-  wallpaper: Wallpaper;
+  wallpaper: WallpaperSurface;
   /** 点的那张缩略图在屏幕上的位置；没有时直接淡入 */
   from?: Box | null;
 };
@@ -50,9 +50,11 @@ export default function WallpaperLayer({ wallpaper, from }: Props) {
     const rect = box.current?.getBoundingClientRect();
     const clip = !still && thumb && rect ? revealClipFrom(thumb, rect) : undefined;
     setLayers((current) => {
-      if (current[current.length - 1].wallpaper.id === wallpaper.id) return current;
+      const previous = current[current.length - 1].wallpaper;
+      if (previous.image === wallpaper.image) return current;
+      const reveal = previous.id !== wallpaper.id && clip;
       counter.current += 1;
-      return [...current, { key: counter.current, wallpaper, enter: clip ? "reveal" : "fade", clip }];
+      return [...current, { key: counter.current, wallpaper, enter: reveal ? "reveal" : "fade", clip: reveal || undefined }];
     });
   }, [wallpaper]);
 

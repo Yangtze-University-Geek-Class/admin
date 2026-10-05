@@ -99,7 +99,7 @@
 
 ## 静态资源 CDN（#146）
 
-带内容哈希的静态文件（官网 `/assets/`、控制台 `/console-assets/`、论坛 `/forum/_nuxt/`）可以改从七牛 CDN `https://cdn.crosery.com` 加载，不再全部从香港源站取。官网桌面壁纸由代码 import，也带哈希，在 `/assets/` 里一起走。HTML、接口、`release.json` 和不带哈希的文件（看板娘、favicon、论坛的公开旧帖图片与 `llms.txt`）仍走源站。
+带内容哈希的静态文件（官网 `/assets/`、控制台 `/console-assets/`、论坛 `/forum/_nuxt/`）可以改从七牛 CDN `https://cdn.crosery.com` 加载，不再全部从香港源站取。官网桌面壁纸与 iPhone GLB 模型（#206）由代码 import，也带哈希，在 `/assets/` 里一起走。GLB 的类型为 `model/gltf-binary`，由 GLTFLoader 使用 `fetch` 获取，必须通过跨域响应头核对，不能按普通 `<img>` 跳过 CORS。HTML、接口、`release.json` 和不带哈希的文件（看板娘、favicon、论坛的公开旧帖图片与 `llms.txt`）仍走源站。
 
 **开关**：一个构建参数 `STATIC_CDN_BASE`。空（默认）与原来一样同源；非空时只能逐字等于 `https://cdn.crosery.com/yzgc/static/site/`，否则构建失败。规则只写在 `scripts/static-cdn-base.mjs` 一处：`app/web`、`app/console` 的 Vite 配置用 `experimental.renderBuiltUrl` 只改写构建资源的地址（`base` 仍是 `/`），`app/forum` 的 Nuxt 配置设 `app.cdnURL`。源站路径与 CDN 对象一一对应：源站 `/X` ↔ 对象 `yzgc/static/site/X`（论坛是 `yzgc/static/site/forum/_nuxt/…`）。预发布与正式共用这个前缀：文件名带内容哈希，内容相同键就相同。镜像里仍有全部文件，开关打开后源站照样能直接访问它们。
 
@@ -109,7 +109,7 @@
 |---|---|---|
 | `cdn-plan` | 检出这个提交，不安装依赖，运行 `static-cdn.mjs decide --origin <环境 origin>`：没有 token 输出空（同源）；token 的策略不对（不是只写 `crosery:yzgc/static/site/` 前缀、不是只增不改、带回调或持久化处理、没有到期时间、到期时间在 366 天以后）或 90 分钟内到期（后面的 `build` 最长 60 分钟、`cdn-upload` 最长 20 分钟，再留 10 分钟排队）直接失败；线上 CSP（HEAD `<origin>/`）的 `script-src`、`style-src`、`font-src` 还没放行这个前缀时告警并退回同源。剩余有效期不到 30 天时告警 | 能（`environment: static-cdn`） |
 | `build` | 按 `cdn-plan` 的输出给 web、forum 两个镜像传 `STATIC_CDN_BASE`（server 不传）；Dockerfile 在镜像里断言入口页引用的是这个地址。开关打开时从刚构建的镜像里 `docker cp` 出三个产物目录，`static-cdn.mjs plan` 离线挑文件（文件名不是构建产出的形状——官网、控制台是 `<name>-<8 位哈希>.<ext>`，论坛是 `<8 位哈希>.js`、`<name>.<8 位哈希>.<ext>` 与 `builds/meta/<构建 id>.json`——或是源码 `public/` 里原样复制进来的、符号链接、隐藏文件、未知类型或超过 10 MiB 的文件，就失败），打成 artifact `yzgc-static-<environment>-<sha12>`（保留 7 天） | 不能：这个 job 运行 `pnpm install` 与 `docker build`，不挂任何 Environment |
-| `cdn-upload` | 第一步只报告开关状态；开关打开时检出、下载上一步的 artifact（`scripts/fetch-artifact.mjs`），`static-cdn.mjs upload` 先确认 token 还剩 20 分钟以上，再逐个表单上传到 `https://up-z2.qiniup.com`，再经 CDN 带 `Referer: <origin>/`、`Origin: <origin>`、`Accept-Encoding: identity` 逐个 HEAD 核对：200、ETag 等于本地算出的七牛 qetag、长度一致、`Content-Type` 对、JS/CSS/字体带 `Access-Control-Allow-Origin`（`*` 或本环境 origin）。任一不符即失败 | 能（`environment: static-cdn`），同样不安装依赖 |
+| `cdn-upload` | 第一步只报告开关状态；开关打开时检出、下载上一步的 artifact（`scripts/fetch-artifact.mjs`），`static-cdn.mjs upload` 先确认 token 还剩 20 分钟以上，再逐个表单上传到 `https://up-z2.qiniup.com`，再经 CDN 带 `Referer: <origin>/`、`Origin: <origin>`、`Accept-Encoding: identity` 逐个 HEAD 核对：200、ETag 等于本地算出的七牛 qetag、长度一致、`Content-Type` 对、JS/CSS/字体及 fetch 加载的 JSON/WASM/GLB 带 `Access-Control-Allow-Origin`（`*` 或本环境 origin）。任一不符即失败 | 能（`environment: static-cdn`），同样不安装依赖 |
 | `deploy` | `needs` 加上 `cdn-upload`：上传或核对失败，这次不部署 | — |
 
 - 上传只写 `yzgc/static/site/{assets,console-assets,forum/_nuxt}/` 下的键（脚本的前缀守卫 + token 策略两道），`insertOnly`：同名同内容七牛返回 200，算成功；同名不同内容返回 614（键已存在），不覆盖，随后的 CDN 核对发现 ETag 与本地不同，脚本失败并报出这个键。脚本里没有删除、移动、改元信息的调用。

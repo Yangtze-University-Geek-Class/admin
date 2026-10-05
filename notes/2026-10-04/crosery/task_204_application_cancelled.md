@@ -149,3 +149,41 @@
 - 做了什么：PR CI37196388632与push CI37196385305均完成成功；note工具从主仓写指定chain时实际进入活动task，上一推送记录的暂存表述更正为活动task，原记录保持。仅将本次真实推送和更正记录提交为docs(notes): 记录投递取消的推送与CI验证
 - 结果：aaf496ba13d750d55021f5d116c89eed2ad72ca5全部CI通过，pr-contract成功；stage保护API404 Branch not protected，流程核验不冒充服务端保护。业务代码无改；最后notes提交将重新正常push并等待对应新SHA CI；后续操作记录待合并后按规范暂存，不再追加未审提交
 - 下一步：双轴只读核对最后notes差异，PR存档最终SHA结论；最后SHA全绿后合并和清理
+
+## 19:01:37 +08:00 · 推送 · #204 · 最后notes提交正常推送，最终SHA已入stage
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：git commit生成079b58761a13993db16eebabd3802ab5bd234915并正常git push至task/204/application_cancelled；pre-push分支/tag及task生命周期均通过，未绕过门禁
+- 结果：最后提交只追加14行notes，无业务改变。最终SHA PR CI37196682748与push CI37196678885全部job及verify成功；该SHA已作为PR205 head合入stage，origin/stage已fetch到ec6027b7039a8f0e41279d2c88837196844423be，因此后续记录按规范暂存，不再追加PR提交
+
+## 19:02:08 +08:00 · 审查 · #204 · 最终SHA两轴独立报告已存档PR并核验CI
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：Faraday Standards与Locke Spec复核最终079b58761a13993db16eebabd3802ab5bd234915，两轴各0 findings；分别存档PR205评论5979220537和5979227747，含时间、SHA、逐项核对、真实证据与未验证边界
+- 结果：固定完整范围c2859ff...079b587中非notes代码与原完整业务审查一致，notes严格追加；最终PR/push全部job及verify成功；未冒充真实OAuth/邮件、预发布/正式验收或保护配置。stage protection API404，如实列入PR
+
+## 19:02:26 +08:00 · PR · #204 · PR正文审查结论通过并转ready，契约复核成功
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：gh pr edit 205更新九段正文、最终SHA审查/CI和边界；gh pr ready 205；gh pr checks 205和mergeable核对，无admin/auto合并
+- 结果：最后ready事件契约37197072731成功，edited事件37197061395按并发规则被ready事件取代取消；所有有效checks通过，base stage、head079b587、MERGEABLE/CLEAN、issue当时OPEN，task工作区干净。无tag/deploy/main
+
+## 19:02:46 +08:00 · 合并 · #204 · PR205正常merge commit合入stage，issue与远端task自动清理成功
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：按明确授权gh pr merge 205 --merge --match-head-commit 079b58761a13993db16eebabd3802ab5bd234915；等待实际issue-lifecycle及branch-hygiene完成，fetch/prune并核验远端refs
+- 结果：合并提交ec6027b7039a8f0e41279d2c88837196844423be，PR MERGED；37197132080关闭job成功，204 CLOSED/COMPLETED且两边关闭评论齐全；37197132086删除job成功，ls-remote无任何task refs。main仍61da3fea76f6f22aa53e731d98c842ac4a38d54f；stage包含main。stage自身CI37197131783仍在跑；尚未本地finish，不提前标无残留；本轮不tag/deploy/main
+- 下一步：停本task临时预览、保全截图日志，finish204后本机生命周期和分支/worktree核验
+
+## 19:03:56 +08:00 · 开发 · #204 · 合并后停止本task临时预览并保全验收证据，准备finish
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：核对PID6460的cwd与serve.mjs属于task204后仅kill -TERM6460；原.tools与test-results整体移动到主仓忽略.tools/task-204-delivery-079b5876，不读取私有凭据、不覆盖其他预览
+- 结果：PID6460已消失、5421无监听；原5186/5173/3000/3456/5420实例仍在；截图日志及启动器原样保留。origin/stage ec6027b7包含main61da3fea核验退出0；远端无task refs；准备从主仓可信task.mjs finish204，issue和PR均已关闭/合并
+- 下一步：finish204并核验本机worktree、task分支、生命周期及只读issue巡检
+
+## 19:04:14 +08:00 · 收尾 · #204 · PR #205 已合并，清理 worktree
+
+- 执行者：agent-codex-geek-main-application-cancelled-20261004
+- 做了什么：node scripts/task.mjs finish 204：删 worktree .claude/worktrees/task-204 与本地分支 task/204/application_cancelled
+- 结果：PR 已合并

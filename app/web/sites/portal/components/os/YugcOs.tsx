@@ -5,13 +5,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
+import Modal from "@shared/ui/Modal";
+import { PHONE_QUERY, PORTRAIT_QUERY, useMediaQuery } from "../../lib/useMediaQuery";
 import { signInHref, useAccount } from "../../lib/account";
 import { RESUME_DESKTOP, links } from "../../lib/links";
 import { NEW_TAB_NOTE, appById, appByKey, appLink, filterCommands, followAppLink, launcherCommands, moveSelection, opensNewTab, visibleApps, type AppId, type OsApp } from "../../lib/osApps";
 import { browserEstimate, choosePlayback, detectCapabilities, hasSeenPromo, preconnectPromo, prefetchPromoStart } from "../../lib/promo";
 import Icon from "../Icon";
 import OsWindow, { windowWidth, type WindowId, type WindowState } from "./Windows";
-import { WALLPAPERS, prefetchWallpapersWhenIdle, readWallpaperChoice, saveWallpaperChoice, type Box, type Wallpaper } from "../../lib/wallpapers";
+import { WALLPAPERS, prefetchWallpapersWhenIdle, readWallpaperChoice, saveWallpaperChoice, wallpaperForScreen, type Box, type Wallpaper } from "../../lib/wallpapers";
 import WallpaperLayer from "./Wallpaper";
 import { AppGlyph, DesktopIcons, StartNote } from "./Widgets";
 import { LazyPromoPlayer } from "../PromoLazy";
@@ -28,6 +30,9 @@ type MenuName = "system" | "go" | "window" | "help" | "account";
 const NOTE_KEY = "yugc:start-note";
 
 export default function YugcOs({ active, onBack }: Props) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  const portrait = useMediaQuery(PORTRAIT_QUERY);
+  const phoneWallpaper = phone && portrait;
   const navigate = useNavigate();
   const { account, loaded, signOut } = useAccount();
   // 控制台只给 console_link 为 true 的人：其他人的桌面、Dock、菜单、启动器、终端里都没有它。
@@ -54,6 +59,11 @@ export default function YugcOs({ active, onBack }: Props) {
   const [wallpaperFrom, setWallpaperFrom] = useState<Box | null>(null);
   const [picker, setPicker] = useState(false);
   const [promo, setPromo] = useState(false);
+  const [phoneGuide, setPhoneGuide] = useState(false);
+  const [phoneSettings, setPhoneSettings] = useState(false);
+  const searchFocus = useRef<HTMLButtonElement>(null);
+  const swipe = useRef<{ x: number; y: number; at: number } | null>(null);
+  const wallpaperFocus = useRef<HTMLButtonElement>(null);
   const pickerBox = useRef<HTMLDivElement>(null);
   /** 当前标签页去了论坛或控制台，离开前在历史记录上记了「回来直接进桌面」 */
   const leftForSite = useRef(false);
@@ -70,7 +80,7 @@ export default function YugcOs({ active, onBack }: Props) {
   // 桌面空闲后预取其余壁纸，之后换壁纸不用等下载；开了省流量或 2G 时不预取（lib/wallpapers.ts）
   const wallpaperId = useRef(wallpaper.id);
   wallpaperId.current = wallpaper.id;
-  useEffect(() => (active ? prefetchWallpapersWhenIdle(wallpaperId.current) : undefined), [active]);
+  useEffect(() => (active ? prefetchWallpapersWhenIdle(wallpaperId.current, phoneWallpaper) : undefined), [active, phoneWallpaper]);
   const toggleNote = (show: boolean) => {
     setNote(show);
     try {
@@ -83,6 +93,7 @@ export default function YugcOs({ active, onBack }: Props) {
   const cascade = useRef(0);
   const root = useRef<HTMLDivElement>(null);
   const launcherInput = useRef<HTMLInputElement>(null);
+  const homeFocusNeeded = useRef(false);
 
   // 桌面变为可交互时（开机结束、跳过动画、从场景页返回），把焦点放进桌面：
   // 触发开机的按钮所在的书桌层此时已 inert，不移焦点的话键盘用户会落在 <body> 上。
@@ -102,6 +113,11 @@ export default function YugcOs({ active, onBack }: Props) {
 
   const front = useMemo(() => wins.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0] ?? null, [wins]);
   const frontName = front ? { about: "关于极客班", org: "组织架构", terminal: "终端", "forum-feed": "论坛" }[front.id] : "桌面";
+  useEffect(() => {
+    if (!homeFocusNeeded.current || front) return;
+    homeFocusNeeded.current = false;
+    root.current?.querySelector<HTMLElement>('[data-cta="join"]')?.focus({ preventScroll: true });
+  }, [front, wins]);
 
   const openWindow = useCallback((id: WindowId) => {
     setWins((current) => {
@@ -196,11 +212,22 @@ export default function YugcOs({ active, onBack }: Props) {
     if (front?.id === id) return;
     patchWindow(id, { z: ++zTop.current });
   };
+  const returnHome = () => {
+    homeFocusNeeded.current = true;
+    setWins((current) => current.map((w) => ({ ...w, minimized: true })));
+  };
+  const search = () => {
+    setQuery("");
+    setSelected(0);
+    setLauncher(true);
+  };
 
   // 键盘：⌘K 启动器、Esc 逐层关闭、1/2/3 打开主入口
   useEffect(() => {
     if (!active || promo) return;
     const onKey = (event: KeyboardEvent) => {
+      // 原生 dialog 的 inert 不会阻止 window 监听器，弹层快捷键交给弹层自身。
+      if (launcher || picker || phoneGuide || phoneSettings) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setLauncher((value) => !value);
@@ -215,8 +242,10 @@ export default function YugcOs({ active, onBack }: Props) {
       }
       if (event.key === "Escape") {
         if (menu) return setMenu(null);
-        if (launcher) return setLauncher(false);
-        if (front) return closeWindow(front.id);
+        if (front) {
+          if (phone) return returnHome();
+          return closeWindow(front.id);
+        }
         return onBack();
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -231,7 +260,7 @@ export default function YugcOs({ active, onBack }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, front, launcher, menu, onBack, open, promo]);
+  }, [active, front, launcher, menu, onBack, open, phone, phoneGuide, phoneSettings, picker, promo]);
 
   useEffect(() => {
     if (launcher) launcherInput.current?.focus();
@@ -299,11 +328,18 @@ export default function YugcOs({ active, onBack }: Props) {
   };
 
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false });
+  const phoneTime = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
     <>
-      <div className="pt-os-shell" ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
-        <header className="pt-mb" aria-label="菜单栏">
+      <div className={phone ? "pt-os-shell is-phone" : "pt-os-shell"} ref={root} onPointerDown={(event) => !(event.target as HTMLElement).closest(".pt-menu, [data-menu]") && setMenu(null)}>
+        {phone ? <header className="pt-phone-status" aria-label="手机状态栏">
+          <time>{phoneTime}</time>
+          <button type="button" className="pt-phone-system" aria-label="YUGC OS 系统设置" aria-haspopup="dialog" onClick={() => setPhoneSettings(true)}>YUGC OS</button>
+          {account ? <button type="button" className="pt-phone-account" data-menu aria-label={`账号：${account.login}`} aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
+            {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={18} />}
+          </button> : loaded ? <a className="pt-phone-signin" href={signInHref()}><Icon name="github-line" size={18} /> 登录<span className="pt-sr">，用 GitHub 登录</span></a> : <span />}
+        </header> : <header className="pt-mb" aria-label="菜单栏">
           <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
             <img src={appConfig.portal.brand.logo} alt="" />
           </button>
@@ -337,7 +373,7 @@ export default function YugcOs({ active, onBack }: Props) {
             )
           )}
           <span className="pt-mb-clock">{time}</span>
-        </header>
+        </header>}
         {menu && (
           <div className="pt-menu" role="menu" style={{ left: menu.left }}>
             {MENUS[menu.name].map((item, index) =>
@@ -363,11 +399,32 @@ export default function YugcOs({ active, onBack }: Props) {
           </div>
         )}
 
-        <main className="pt-dt" onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}>
-          <WallpaperLayer wallpaper={wallpaper} from={wallpaperFrom} />
+        <main className="pt-dt"
+          onPointerDown={(event) => event.target === event.currentTarget && setSelectedIcon(null)}
+          onTouchStart={(event) => {
+            swipe.current = null;
+            if (!phone || !active || front || launcher || picker || phoneGuide || phoneSettings || promo || event.touches.length !== 1 || event.currentTarget.scrollTop !== 0) return;
+            if ((event.target as HTMLElement).closest("button, a, input, textarea, dialog")) return;
+            const touch = event.touches[0];
+            swipe.current = { x: touch.clientX, y: touch.clientY, at: performance.now() };
+          }}
+          onTouchCancel={() => { swipe.current = null; }}
+          onTouchEnd={(event) => {
+            const start = swipe.current;
+            swipe.current = null;
+            const end = event.changedTouches[0];
+            if (!start || !end || event.touches.length || front || event.currentTarget.scrollTop !== 0) return;
+            if (performance.now() - start.at > 600 || end.clientY - start.y < 64 || Math.abs(end.clientX - start.x) > 40) return;
+            searchFocus.current?.focus({ preventScroll: true });
+            search();
+          }}>
+          <WallpaperLayer wallpaper={wallpaperForScreen(wallpaper, phoneWallpaper)} from={wallpaperFrom} />
           <h1 className="pt-sr">长江大学极客班 · YUGC OS</h1>
-          <DesktopIcons apps={apps} selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} />
-          {note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
+          <div className="pt-home-apps" ref={(node) => { if (node) node.inert = phone && !!front; }}>
+            {phone && <div className="pt-phone-heading"><h2>极客班</h2><button type="button" onClick={() => setPhoneGuide(true)}>新来的看这里 <Icon name="arrow-right-s-line" size={14} /></button></div>}
+            <DesktopIcons apps={apps} selected={selectedIcon} onSelect={setSelectedIcon} onOpen={open} phone={phone} />
+            {!phone && note && <StartNote onOpen={open} onClose={() => toggleNote(false)} />}
+          </div>
 
           <div className="pt-windows">
             {wins.map((win) => (
@@ -376,26 +433,34 @@ export default function YugcOs({ active, onBack }: Props) {
                 win={win}
                 front={front?.id === win.id}
                 onFocus={() => focusWindow(win.id)}
-                onClose={() => closeWindow(win.id)}
-                onMinimize={() => patchWindow(win.id, { minimized: true })}
+                onClose={() => {
+                  closeWindow(win.id);
+                  if (phone) {
+                    returnHome();
+                    window.setTimeout(() => root.current?.querySelector<HTMLElement>(`[data-cta="${win.id}"]`)?.focus({ preventScroll: true }), 0);
+                  }
+                }}
+                onMinimize={() => phone ? returnHome() : patchWindow(win.id, { minimized: true })}
                 onZoom={() => patchWindow(win.id, { zoomed: !win.zoomed })}
                 onMove={(x, y) => patchWindow(win.id, { x, y })}
                 onOpen={open}
                 apps={apps}
+                phone={phone}
               />
             ))}
           </div>
         </main>
 
+        {phone && !front && <button ref={searchFocus} type="button" className="pt-phone-search" onClick={search}><span><Icon name="search-line" size={14} /> 搜索</span></button>}
         <nav className="pt-dock" aria-label="Dock">
-          <button type="button" className="pt-dk is-back" aria-label="回到书桌" onClick={onBack}>
-            <Icon name="arrow-left-line" size={20} />
+          <button type="button" className="pt-dk is-back" aria-label={phone ? "返回主屏幕" : "回到书桌"} onClick={phone ? returnHome : onBack}>
+            <Icon name={phone ? "home-4-line" : "arrow-left-line"} size={20} />
             <span className="pt-dk-label" aria-hidden="true">
-              回到书桌 <kbd>Esc</kbd>
+              {phone ? "主屏幕" : <>回到书桌 <kbd>Esc</kbd></>}
             </span>
           </button>
           <span className="pt-dk-sep" aria-hidden="true" />
-          {apps.map((app) => (
+          {(phone ? apps.filter((app) => app.key) : apps).map((app) => (
             <button
               key={app.id}
               type="button"
@@ -414,14 +479,14 @@ export default function YugcOs({ active, onBack }: Props) {
         </nav>
 
         {picker && (
-          <div className="pt-picker" role="dialog" aria-modal="true" aria-label="更换壁纸" onPointerDown={(e) => e.target === e.currentTarget && setPicker(false)} onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setPicker(false))}>
+          <Modal title="更换壁纸" className={`pt-root pt-os-modal pt-picker-modal${phone ? " is-phone" : ""}`} onClose={() => setPicker(false)} initialFocusRef={wallpaperFocus}>
             <div className="pt-picker-box" ref={pickerBox}>
-              <header>
+              {!phone && <header>
                 <h2>更换壁纸</h2>
-                <button type="button" className="pt-note-close" aria-label="关闭" onClick={() => setPicker(false)}>
+                <button type="button" className="pt-note-close" aria-label="关闭对话框" onClick={() => setPicker(false)}>
                   <Icon name="close-line" size={14} />
                 </button>
-              </header>
+              </header>}
               <ul role="radiogroup" aria-label="壁纸">
                 {WALLPAPERS.map((item) => (
                   <li key={item.id}>
@@ -429,21 +494,30 @@ export default function YugcOs({ active, onBack }: Props) {
                       type="button"
                       role="radio"
                       aria-checked={wallpaper.id === item.id}
+                      ref={wallpaper.id === item.id ? wallpaperFocus : undefined}
+                      onKeyDown={(e) => {
+                        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+                        e.preventDefault();
+                        const direction = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+                        const next = WALLPAPERS[(WALLPAPERS.indexOf(item) + direction + WALLPAPERS.length) % WALLPAPERS.length];
+                        const button = pickerBox.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[WALLPAPERS.indexOf(next)];
+                        if (button) { chooseWallpaper(next, button); button.focus(); }
+                      }}
                       className={wallpaper.id === item.id ? "is-on" : undefined}
                       onClick={(event) => chooseWallpaper(item, event.currentTarget)}
                     >
-                      <img src={item.thumb} alt="" width={160} height={90} loading="lazy" />
+                      <img src={wallpaperForScreen(item, phoneWallpaper).thumb} alt="" width={phoneWallpaper ? 90 : 160} height={phoneWallpaper ? 195 : 90} loading="lazy" />
                       <span>{item.name}</span>
                     </button>
                   </li>
                 ))}
               </ul>
             </div>
-          </div>
+          </Modal>
         )}
 
         {launcher && (
-          <div className="pt-launcher" role="dialog" aria-modal="true" aria-label="启动器" onPointerDown={(e) => e.target === e.currentTarget && setLauncher(false)}>
+          <Modal title="启动器" className={`pt-root pt-os-modal pt-launcher-modal${phone ? " is-phone" : ""}`} onClose={() => setLauncher(false)} initialFocusRef={launcherInput}>
             <div className="pt-ln-box">
               <label className="pt-ln-input">
                 <Icon name="search-line" size={18} />
@@ -453,6 +527,7 @@ export default function YugcOs({ active, onBack }: Props) {
                   placeholder="搜索应用或命令，比如「论坛」「文档」"
                   autoComplete="off"
                   role="combobox"
+                  aria-label="搜索应用或命令"
                   aria-expanded="true"
                   aria-controls="pt-ln-list"
                   aria-activedescendant={shown[selected] ? `pt-ln-${shown[selected].id}` : undefined}
@@ -464,7 +539,10 @@ export default function YugcOs({ active, onBack }: Props) {
                     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                       e.preventDefault();
                       setSelected((current) => moveSelection(current, e.key === "ArrowDown" ? 1 : -1, shown.length));
-                    } else if (e.key === "Enter" && shown[selected]) runCommand(shown[selected].id);
+                    } else if (e.key === "Enter" && shown[selected]) {
+                      e.preventDefault();
+                      runCommand(shown[selected].id);
+                    }
                     else if (e.key === "Escape") {
                       e.stopPropagation();
                       setLauncher(false);
@@ -513,8 +591,17 @@ export default function YugcOs({ active, onBack }: Props) {
                 </span>
               </footer>
             </div>
-          </div>
+          </Modal>
         )}
+        {phoneGuide && <Modal title="新来的看这里" className="pt-root pt-os-modal pt-phone-guide is-phone" onClose={() => setPhoneGuide(false)}>
+          <StartNote phone onOpen={(id, from) => { setPhoneGuide(false); open(id, from); }} onClose={() => setPhoneGuide(false)} />
+        </Modal>}
+        {phoneSettings && <Modal title="系统设置" className={`pt-root pt-os-modal pt-phone-settings${phone ? " is-phone" : ""}`} onClose={() => setPhoneSettings(false)}>
+          <div className="pt-phone-settings-list">
+            <button type="button" onClick={() => { setPhoneSettings(false); setPicker(true); }}><Icon name="image-line" size={20} /> 更换壁纸 <Icon name="arrow-right-s-line" size={18} /></button>
+            <button type="button" onClick={() => { setPhoneSettings(false); onBack(); }}><Icon name="arrow-left-line" size={20} /> 回到书桌 <Icon name="arrow-right-s-line" size={18} /></button>
+          </div>
+        </Modal>}
 
         {flight && (
           <div className="pt-flight" aria-hidden="true" style={{ left: flight.x - 36, top: flight.y - 36, ["--tint" as string]: flight.app.tint }}>

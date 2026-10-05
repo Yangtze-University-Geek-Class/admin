@@ -4,6 +4,7 @@
    壁纸是静态图片；不做全屏 backdrop-filter，只有便签和 Dock 这种小面积用一点模糊。 */
 
 .pt-os-shell { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; }
+.pt-home-apps { height: 100%; }
 
 /* ── 菜单栏（不透明白，细边） ── */
 .pt-mb {
@@ -45,7 +46,7 @@
 
 /* 壁纸：一张壁纸一层，换壁纸时新层压在上面（components/os/Wallpaper.tsx，时长由那里的常量经 --wall-* 传进来）。
    新层 = 底色 + 放大模糊的缩略图（大图还没到时的占位）+ 大图（解码好后淡入，画面清晰过来）；
-   新层从点的缩略图位置以圆角矩形展开到整个桌面；减少动态效果时脚本选 data-enter="fade"，整层淡入。竖屏裁切保留人物所在的右侧。 */
+   新层从点的缩略图位置展开；旋转同ID资源与减少动态效果时整层淡入。 */
 .pt-walls { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .pt-wall { position: absolute; inset: 0; overflow: hidden; }
 .pt-wall-thumb, .pt-wall-full { position: absolute; inset: 0; background: center / cover no-repeat; }
@@ -63,9 +64,6 @@
 @media (prefers-reduced-motion: reduce) {
   .pt-wall[data-enter="fade"] { animation-duration: var(--wall-enter) !important; }
   .pt-wall > .pt-wall-full { transition-duration: var(--wall-sharpen) !important; }
-}
-@media (max-aspect-ratio: 9/10) {
-  .pt-wall-thumb, .pt-wall-full { background-position: 78% center; }
 }
 
 /* 更换壁纸：缩略图单选 */
@@ -164,6 +162,7 @@
   box-shadow: 0 0 0 1px rgb(27 33 64 / 8%), var(--pt-shadow-float); animation: pt-win-in .24s cubic-bezier(.2,.9,.25,1.1);
 }
 .pt-win:not(.is-front) { box-shadow: 0 0 0 1px rgb(27 33 64 / 8%), 0 2px 8px rgb(27 33 64 / 8%); }
+.pt-win[hidden] { display: none; }
 .pt-win:not(.is-front) .pt-win-bar { opacity: .75; }
 .pt-win.is-drag { user-select: none; }
 .pt-win.is-zoomed { left: 12px !important; top: 12px !important; width: calc(100% - 24px) !important; height: calc(100% - 100px); max-height: none; }
@@ -264,29 +263,89 @@
   .pt-dk { min-width: 56px; }
   .pt-dk-label kbd { display: none; }
 }
-@media (max-width: 860px) {
-  /* 手机：图标排成四列网格，便签放在图标下面；Dock 排在滚动区下面的一条底栏（含底部安全区），不盖住内容 */
-  .pt-dt { display: flex; flex-direction: column; gap: 16px; padding: 16px 14px 18px; overflow-y: auto; }
-  .pt-icons { height: auto; width: 100%; grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: auto; gap: 4px; }
-  .pt-dti { padding: 8px 2px; font-size: 12px; }
-  /* 手机上图标整片压在人物身上（头发是深蓝），白色描边托不住字：名字放进一块磨砂小底，任何壁纸上都看得清 */
-  .pt-dti-name { padding: 1px 4px; border-radius: 7px; font-size: 11.5px; letter-spacing: -.01em; background: rgb(255 255 255 / 72%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); text-shadow: none; }
-  .pt-glyph { width: 54px; height: 54px; border-radius: 15px; }
-  .pt-note { position: relative; top: auto; left: auto; width: 100%; }
-  .pt-dock {
-    position: relative; left: auto; bottom: auto; transform: none; flex: none; align-self: center;
-    max-width: calc(100% - 16px); overflow-x: auto; margin: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
-  }
-  /* 手机的 Dock 和手机主屏一样只放常用的：回到书桌 + 三个主入口；其余应用在上面的图标网格里 */
-  .pt-dk { min-width: 64px; }
-  .pt-dk.is-extra, .pt-dk-label kbd { display: none; }
-  .pt-dk:hover, .pt-dk:focus-visible { transform: none; }
-  .pt-mb-item, .pt-mb-stat, .pt-mb-search span, .pt-mb-search kbd { display: none; }
-  .pt-win { left: 8px !important; right: 8px; width: auto !important; top: 8px !important; max-height: calc(100% - 16px); }
-  .pt-about { grid-template-columns: minmax(0, 1fr); }
-  .pt-about img { width: 72px; height: 72px; }
-  .pt-orgc-depts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pt-feedwin-row { grid-template-columns: 8px minmax(0, 1fr) auto; }
-  .pt-feedwin-row .pt-feedwin-num, .pt-feedwin-row .pt-feedwin-at { display: none; }
+.pt-phone-status {
+  position: relative; z-index: 30; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+  flex: none; min-height: calc(56px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(18px, env(safe-area-inset-right, 0px)) 0 max(18px, env(safe-area-inset-left, 0px));
+  color: var(--pt-ink); font-size: 0.875rem;
 }
+.pt-phone-status time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pt-phone-system { min-height: 44px; min-width: 44px; padding: 4px 12px; border: 0; border-radius: 999px; background: none; color: var(--pt-ink); font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+.pt-phone-system:hover { background: var(--pt-ice); }
+.pt-phone-account, .pt-phone-signin { justify-self: end; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 18px; background: var(--pt-card); color: var(--pt-ink); text-decoration: none; cursor: pointer; }
+.pt-phone-account img { width: 28px; height: 28px; border-radius: 50%; }
+.is-phone .pt-menu { left: auto !important; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(56px + env(safe-area-inset-top, 0px)); max-height: calc(100% - 160px); overflow: auto; }
+.is-phone .pt-menu button { min-height: 44px; }
+.is-phone .pt-dt { padding: 12px max(12px, env(safe-area-inset-right, 0px)) 16px max(12px, env(safe-area-inset-left, 0px)); overflow-y: auto; overscroll-behavior-y: contain; background: none; }
+.is-phone .pt-walls { position: fixed; }
+.is-phone .pt-home-apps { position: relative; z-index: 2; height: auto; }
+.is-phone .pt-home-apps[inert] { display: none; }
+.pt-phone-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 16px; }
+.pt-phone-heading h2 { font-size: 1.5rem; font-weight: 800; text-shadow: 0 1px 2px var(--pt-card); }
+.pt-phone-heading button { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 14px; background: var(--pt-card); color: var(--pt-ink-soft); font-size: 0.75rem; cursor: pointer; }
+.is-phone .pt-icons { height: auto; width: 100%; grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: auto; gap: 12px 4px; }
+.is-phone .pt-dti { min-height: 92px; padding: 6px 0; gap: 6px; cursor: pointer; }
+.is-phone .pt-dti-name { max-width: 100%; padding: 1px 4px; border-radius: 6px; font-size: 0.71875rem; background: var(--pt-ice); text-shadow: none; }
+.is-phone .pt-glyph { width: 56px; height: 56px; border-radius: 17px; }
+.pt-phone-search { position: relative; z-index: 2; align-self: center; flex: none; display: grid; place-items: center; min-width: 88px; min-height: 44px; margin: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px)); padding: 0; border: 0; border-radius: 999px; background: none; color: var(--pt-ink); cursor: pointer; }
+.pt-phone-search span { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px; background: var(--pt-ice); font-size: 0.75rem; }
+.pt-phone-search:hover span { background: var(--pt-card); }
+.pt-phone-settings-list { display: grid; }
+.pt-phone-settings-list button { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--pt-line); background: none; color: var(--pt-ink); text-align: left; cursor: pointer; }
+.pt-phone-settings-list button:last-child { border-bottom: 0; }
+.pt-phone-settings-list button > .pt-icon:last-child { margin-left: auto; color: var(--pt-ink-soft); }
+.pt-phone-settings-list button:hover { color: var(--pt-cobalt); }
+.is-phone .pt-dock {
+  position: relative; left: auto; bottom: auto; transform: none; flex: none; align-self: center;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: min(430px, calc(100% - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))); max-width: none;
+  gap: 0; padding: 12px 6px 10px; margin: 8px calc(12px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px)); border-radius: 28px;
+}
+.is-phone .pt-dk { min-width: 0; min-height: 74px; padding: 0 0 4px; gap: 6px; }
+.is-phone .pt-dk .pt-glyph, .is-phone .pt-dk.is-back > .pt-icon { width: 52px; height: 52px; border-radius: 16px; }
+.is-phone .pt-dk.is-back > .pt-icon { background: var(--pt-ice); }
+.is-phone .pt-dk-label { max-width: 100%; font-size: 0.6875rem; color: var(--pt-ink); }
+.is-phone .pt-dk-label kbd, .is-phone .pt-dk-sep { display: none; }
+.is-phone .pt-dk:hover, .is-phone .pt-dk:focus-visible { transform: none; }
+.is-phone .pt-win, .is-phone .pt-win.is-zoomed {
+  left: env(safe-area-inset-left, 0px) !important; right: env(safe-area-inset-right, 0px); top: 0 !important; bottom: 0; width: auto !important; height: auto; max-height: none;
+  border-radius: 22px; background: var(--pt-card);
+}
+.is-phone .pt-win-bar { height: auto; min-height: 56px; padding: 6px 8px; gap: 6px; grid-template-columns: auto minmax(0, 1fr) 44px; cursor: default; }
+.is-phone .pt-win-bar b { font-size: 0.8125rem; text-overflow: ellipsis; }
+.pt-phone-back, .pt-phone-close { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-height: 44px; min-width: 44px; padding: 4px; border: 0; border-radius: 12px; background: none; color: var(--pt-cobalt); cursor: pointer; font-size: 0.8125rem; }
+.is-phone .pt-win-body { flex: 1; min-height: 0; padding: 20px 16px; overflow-wrap: anywhere; }
+.is-phone .pt-about { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.is-phone .pt-about img { width: 72px; height: 72px; }
+.is-phone .pt-about dl div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.is-phone .pt-row-btns > * { min-height: 44px; }
+.is-phone .pt-orgc-depts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.is-phone .pt-orgc-chain li { flex-wrap: wrap; }
+.is-phone .pt-orgc-line::after { left: -70px; right: -70px; }
+.is-phone .pt-orgc-note { align-items: start; text-align: left; }
+.is-phone .pt-feedwin-row { grid-template-columns: 8px minmax(0, 1fr) auto; min-height: 44px; }
+.is-phone .pt-feedwin-row .pt-feedwin-num, .is-phone .pt-feedwin-row .pt-feedwin-at { display: none; }
+.is-phone .pt-win-body:has(.pt-term) { display: flex; padding: 0; overflow: hidden; }
+.is-phone .pt-term { flex: 1; min-width: 0; height: auto; margin: 0; padding: 16px 12px; }
+.is-phone .pt-term-in { flex-wrap: wrap; margin-top: 8px; }
+.is-phone .pt-term-in input { min-height: 44px; font-size: 1rem; }
 
+/* 复用 shared Modal 的原生顶层、背景 inert、焦点循环与返回，不再只画一个 aria-modal 遮罩。 */
+.pt-root.pt-os-modal { position: fixed; min-height: 0; width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; background: transparent; color: var(--pt-ink); box-shadow: none; }
+.pt-os-modal::backdrop { background: rgb(236 237 243 / 72%); backdrop-filter: none; }
+.pt-os-modal:not(.is-phone) > header { display: none; }
+.pt-picker-modal:not(.is-phone) { width: min(560px, calc(100% - 32px)); }
+.pt-picker-modal:not(.is-phone)::backdrop { background: rgb(236 237 243 / 55%); }
+.pt-launcher-modal:not(.is-phone) { inset: 0 0 auto; margin: 14vh auto 0; }
+.pt-os-modal .pt-picker-box, .pt-os-modal .pt-ln-box { width: 100%; }
+.pt-root.pt-os-modal.is-phone { inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); width: min(640px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))); max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); padding: 18px; border: 1px solid var(--pt-line); border-radius: 20px; background: var(--pt-card); box-shadow: var(--pt-shadow-float); }
+.pt-os-modal.is-phone > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.pt-os-modal.is-phone > header h2 { color: var(--pt-ink); font-size: 1rem; }
+.pt-os-modal.is-phone > header button { min-width: 44px; min-height: 44px; border: 0; border-radius: 10px; background: var(--pt-cobalt-wash); color: var(--pt-ink-soft); cursor: pointer; }
+.pt-os-modal.is-phone .pt-picker-box, .pt-os-modal.is-phone .pt-ln-box { padding: 0; border-radius: 0; box-shadow: none; animation: none; }
+.pt-os-modal.is-phone .pt-ln-input { padding: 12px 4px; }
+.pt-os-modal.is-phone .pt-ln-box li { min-height: 44px; }
+.pt-os-modal .pt-note { position: relative; top: auto; left: auto; width: 100%; padding: 0; background: none; backdrop-filter: none; box-shadow: none; animation: none; }
+.pt-os-modal.is-phone .pt-picker-box ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pt-picker-modal.is-phone .pt-picker-box img { aspect-ratio: auto; max-height: min(48dvh, 320px); object-fit: contain; }
+.pt-os-modal.is-phone .pt-ln-box ul { max-height: min(340px, 48dvh); }
+.pt-os-modal.is-phone .pt-ln-box footer { display: none; }
