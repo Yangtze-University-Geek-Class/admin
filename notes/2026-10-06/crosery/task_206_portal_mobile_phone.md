@@ -35,3 +35,16 @@
 - 执行者：agent-prime-geek-main-206（Prime Agent，交接codex会话01a10031）
 - 做了什么：gh pr create --base stage --head task/206/portal_mobile_phone --attach 四张最终状态截图；正文按 PULL-REQUESTS 九段（目的/关联/变更范围/解决链路/验证命令与结果/验收证据10项/人工验收步骤/审查结论两轴/风险与回滚），Closes #206，含两轴最终结论、14项计数更正与未验证清单
 - 结果：PR 207 OPEN、base=stage、head=ec171fa481ad312ef4de920257dcfc4814a55cd7、mergeable=MERGEABLE；正文无本地路径残留（4张本机截图经--attach上传为github user-attachments资产，共9张证据图）；本地pr-contract check退出0；issue #206仍OPEN等合并自动关。本条与返工提交记录随后入库，不合并、不打tag、不部署
+
+## 02:26:19 +08:00 · 合并 · #206 · PR207以merge commit合入stage，issue与远端分支自动清理核验通过
+
+- 执行者：agent-prime-geek-main-206（Prime Agent，交接codex会话01a10031）
+- 做了什么：gh pr merge 207 --merge --match-head-commit 922366d8ef2119dc463fc70d55d755961dca6b17；随后fetch并等issue-lifecycle与branch-hygiene跑完，只读核验issue/远端refs/巡检报告/本机生命周期
+- 结果：合并提交6f0bc819e662686f9f9e56bf5c5ed3ecf6663c41，PR state=MERGED base=stage；issue-lifecycle run 37355317569与branch-hygiene run 37355317611均success；gh issue view 206 state=CLOSED reason=COMPLETED且带「关闭」追踪记录（引用合并提交）；git ls-remote --heads origin task/206/* 计数0；只读issue-sweep报告「没有要处理的issue」；origin/stage ec6027b7→6f0bc819，stage包含main未变。PR最终HEAD 922366d8的17项check全pass含verify required check；此前docker job因容器内corepack拉pnpm的undici断言（网络瞬时）失败一次，gh run rerun --failed后全绿，未改任何CI或断言。本机worktree与分支尚未finish，5173/3456预览仍指向待删worktree，先切源再清理；未打tag、未部署、未动main
+- 下一步：切5173/3456/5186到持久检出的合并后提交，保留acceptance206数据与登录，再task.mjs finish 206并核验无残留
+
+## 02:32:06 +08:00 · 收尾 · #206 · PR #207 已合并，清理 worktree
+
+- 执行者：agent-prime-geek-main-206（Prime Agent，交接codex会话01a10031）
+- 做了什么：node scripts/task.mjs finish 206：删 worktree .claude/worktrees/task-206 与本地分支 task/206/portal_mobile_phone
+- 结果：PR 已合并

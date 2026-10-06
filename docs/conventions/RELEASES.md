@@ -2,7 +2,7 @@
 
 > 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，所有者在预发布验收通过后，在同一提交上打 `vX.Y.Z` 发正式。tag 不可移动、不可删除，版本号不自动提升。
 
-状态：`current` · 更新：2026-10-02 · 依据：项目所有者 2026-09-24 指令：「后续所有相关的 都是走发版的逻辑，通过打 tag 去发版。目前所有的发版流程是：先发预发布版，预发布版测试没啥问题的时候，再发正式版。」写法由所有者选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
+状态：`current` · 更新：2026-10-06 · 依据：项目所有者 2026-09-24 指令：「后续所有相关的 都是走发版的逻辑，通过打 tag 去发版。目前所有的发版流程是：先发预发布版，预发布版测试没啥问题的时候，再发正式版。」写法由所有者选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
 
 ## 发布模型：tag 驱动
 
@@ -76,6 +76,7 @@
 
 - `package.json` 的 `version` 何时改、改成多少，由所有者决定。修改走普通 task PR（先开 issue、经审查合入 `stage`），合入以后才能打这个版本的 rc。版本号按 SemVer 2.0.0 选择升哪一位。
 - 禁止 semantic-release、版本机器人或按 commit type 推算版本的脚本；`feat`/`fix` 提交消息不是发版许可。工作流不会改版本号，也不会打 tag。
+- 发布版本只取**提交态根** `package.json` 的 `version`（`scripts/release-policy.mjs` 与两条部署工作流都读根清单）。`app/forum/package.json` 由上游溯源固定：`app/forum/UPSTREAM.json` 与 `scripts/check-forum-adoption.mjs:20,23` 禁止改动上游清单与锁文件，要动它得先单独复审一次上游升级。所以升号 PR 不改论坛清单，它与根清单版本不同不是缺陷。
 
 ## 展示值与发布身份
 
