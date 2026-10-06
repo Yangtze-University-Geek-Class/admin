@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-10-04 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-06 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 

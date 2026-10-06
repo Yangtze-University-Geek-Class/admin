@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-10-04 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-10-06 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
