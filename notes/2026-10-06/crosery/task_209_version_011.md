@@ -61,3 +61,9 @@
 - 执行者：agent-prime-geek-main-209（Prime Agent，升号发预发布）
 - 做了什么：git add 后本地提交，说明 docs(notes): 记录 #209 审查结论并把发布版本只取根清单写进 RELEASES；随后正常 git push（启用的 pre-push，无 --no-verify）
 - 结果：SHA 见下一条 PR 记录补记；本提交只含 docs/conventions/RELEASES.md 与 notes/2026-10-06/crosery/task_209_version_011.md；PR #210 正文审查结论段替换为 Standards 实际结论 **通过**（含条目、两项应修处置与未验证项），gh pr ready 210 后等 CI
+
+## 16:40:56 +08:00 · PR · #209 · PR210填实际审查结论并通过两项应修后转ready
+
+- 执行者：agent-prime-geek-main-209（Prime Agent，升号发预发布）
+- 做了什么：gh pr edit 210 --body-file（把 Standards 实际结论替换掉先前「报告未到齐」的有条件通过草稿，记录 e4c0e7a1 增量与门禁复跑结果，并修正 head 引用）；gh pr ready 210；本轮不再改清单与源码
+- 结果：PR #210 由 draft 转 OPEN ready，base=stage，head=e4c0e7a154e34c3e68ee3388db37c77559dd3299；本地 pr-contract check 退出0（9段齐全，审查结论行逐字为「**结论：通过**」）；issue #209 仍OPEN；本条记录随下一次提交入库，等远端 CI 全绿后 merge，随后在合并提交上打 v0.1.1-rc.1（所有者已授权该版本与该 rc）
