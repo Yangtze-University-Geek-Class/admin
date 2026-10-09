@@ -73,14 +73,6 @@ const clickButton = (text, scope = 'body') => `(() => {
   return true
 })()`
 
-/** Clicks a `[role="tab"]`, a filter chip or any control by its visible text. */
-const clickByRole = (role, text) => `(() => {
-  const el = [...document.querySelectorAll('[role=${JSON.stringify(role)}]')].find(b => b.textContent.replace(/\\s+/g, ' ').trim() === ${JSON.stringify(text)})
-  if (!el) return false
-  el.click()
-  return true
-})()`
-
 const READ_STATE = `(() => JSON.parse(localStorage.getItem(${JSON.stringify(STATE_KEY)}) ?? 'null'))()`
 
 // ------------------------------------------------------ store maths, redone
@@ -463,12 +455,8 @@ try {
   const NEW_BIO = '这条简介是在偏好设置里改的。'
 
   const prefsBefore = await evaluate(`(() => ({
-    activeTab: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim(),
-    tabs: [...document.querySelectorAll('[role="tab"]')].map(t => t.textContent.trim()),
     values: [...document.querySelectorAll('.tx-block-input input')].map(i => i.value),
   }))()`)
-  assert(prefsBefore.tabs.join('/') === '个人资料/头像/通知/界面', `preference tabs ${JSON.stringify(prefsBefore.tabs)}`)
-  assert(prefsBefore.activeTab === '个人资料', `preferences opened on "${prefsBefore.activeTab}"`)
   assert(prefsBefore.values[0] === talex.displayName, `显示名 field holds "${prefsBefore.values[0]}"`)
 
   await setInput('.tx-block-input input', 0, NEW_NAME)
@@ -501,13 +489,11 @@ try {
 
   // Avatar colour: a radio that changes the preview and survives a save.
   await open(`${BASE}/u/talex/preferences`)
-  await waitFor(has('[role="tab"]'))
-  assert(await evaluate(clickByRole('tab', '头像')), '头像 tab is not clickable')
   await waitFor(has('.tx-radio'))
   await sleep(250)
-  const colourBefore = await evaluate(`${q('[role="tabpanel"] .tx-avatar')}.style.getPropertyValue('--tx-avatar-bg').trim()`)
+  const colourBefore = await evaluate(`${q('.preferences-panel .tx-avatar')}.style.getPropertyValue('--tx-avatar-bg').trim()`)
   const picked = await evaluate(`(() => {
-    const radios = [...document.querySelectorAll('[role="tabpanel"] .tx-radio')]
+    const radios = [...document.querySelectorAll('.preferences-panel .tx-radio')]
     const target = radios.find(r => !r.querySelector('.tx-avatar')?.style.getPropertyValue('--tx-avatar-bg').trim().includes(${JSON.stringify(colourBefore)}))
     if (!target) return null
     const want = target.querySelector('.tx-avatar').style.getPropertyValue('--tx-avatar-bg').trim()
@@ -516,16 +502,15 @@ try {
   })()`)
   assert(picked, 'no avatar colour other than the current one is offered')
   await sleep(300)
-  const colourAfter = await evaluate(`${q('[role="tabpanel"] .tx-avatar')}.style.getPropertyValue('--tx-avatar-bg').trim()`)
+  const colourAfter = await evaluate(`${q('.preferences-panel .tx-avatar')}.style.getPropertyValue('--tx-avatar-bg').trim()`)
   assert(colourAfter === picked, `the preview stayed ${colourAfter} after picking ${picked}`)
 
   // A notification switch, on the same save.
-  assert(await evaluate(clickByRole('tab', '通知')), '通知 tab is not clickable')
   await waitFor(has('.tx-block-switch'))
   await sleep(250)
-  const switchBefore = await evaluate(`${q('[role="tabpanel"] .tx-block-switch [role="switch"], [role="tabpanel"] .tx-block-switch button')}?.getAttribute('aria-checked')`)
+  const switchBefore = await evaluate(`${q('.preferences-panel .tx-block-switch [role="switch"], .preferences-panel .tx-block-switch button')}?.getAttribute('aria-checked')`)
   assert(await evaluate(`(() => {
-    const el = ${q('[role="tabpanel"] .tx-block-switch [role="switch"], [role="tabpanel"] .tx-block-switch button')}
+    const el = ${q('.preferences-panel .tx-block-switch [role="switch"], .preferences-panel .tx-block-switch button')}
     if (!el) return false
     el.click()
     return true
@@ -828,17 +813,13 @@ try {
   await waitFor(has('.tx-block-input input'))
   await sleep(400)
   const narrowPrefs = await evaluate(`(() => {
-    const tabs = [...document.querySelectorAll('[role="tab"]')]
-    const hittable = tabs.filter((tab) => {
-      const rect = tab.getBoundingClientRect()
-      if (rect.width < 1 || rect.height < 1) return false
-      const hit = document.elementFromPoint(Math.round(rect.left + rect.width / 2), Math.round(rect.top + rect.height / 2))
-      return !!hit && tab.contains(hit)
-    }).length
-    return { tabs: tabs.length, hittable, inputs: document.querySelectorAll('.tx-block-input input').length }
+    const clipped = [...document.querySelectorAll('.preferences-panel .tx-block-input input')].filter(input => {
+      const rect = input.getBoundingClientRect()
+      return rect.left < 0 || rect.right > innerWidth + 1
+    }).map(input => input.placeholder)
+    return { clipped, pageOverflow: document.documentElement.scrollWidth > innerWidth + 1 }
   })()`)
-  assert(narrowPrefs.tabs === 4 && narrowPrefs.hittable === 4, `${narrowPrefs.hittable} of ${narrowPrefs.tabs} preference tabs are reachable at 390px`)
-  assert(narrowPrefs.inputs === 4, `${narrowPrefs.inputs} profile inputs at 390px`)
+  assert(!narrowPrefs.pageOverflow && narrowPrefs.clipped.length === 0, `preference fields overflow at 390px: ${JSON.stringify(narrowPrefs)}`)
 
   // The busiest inbox, so "nothing is clipped" is a claim about long sentences
   // rather than about one short row.
@@ -878,7 +859,7 @@ try {
   await screenshot('reports/user-mobile.png')
   assertClean('390px')
   record('the profile, preferences and notifications hold up at 390px', {
-    note: `stat grid reflows to ${narrowProfile.gridColumns} columns with all 6 cards, 4/4 preference tabs are the hit target at their own centre, @${busiest.user.username}'s ${narrowNotify.rows} notification titles (longest ${narrowNotify.longest} chars, ${narrowNotify.wrapped} wrapped) with 0 clipped`,
+    note: `stat grid reflows to ${narrowProfile.gridColumns} columns with all 6 cards, preference fields stay inside the 390px viewport, @${busiest.user.username}'s ${narrowNotify.rows} notification titles (longest ${narrowNotify.longest} chars, ${narrowNotify.wrapped} wrapped) with 0 clipped`,
   })
 
   // ------------------------------------------------------------------ 11 dark

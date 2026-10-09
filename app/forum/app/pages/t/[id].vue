@@ -190,7 +190,7 @@ onBeforeUnmount(() => clearTimeout(flashTimer))
           <span>{{ topic.title }}</span>
         </h1>
 
-        <TxDropdownMenu v-if="canPin || canClose" placement="bottom-end" reference-class="ml-auto">
+        <TxDropdownMenu v-if="canPin || canClose" placement="bottom-end" reference-class="ml-auto" panel-background="pure">
           <template #trigger>
             <TxIconButton icon="i-carbon-overflow-menu-horizontal" label="话题管理" />
           </template>

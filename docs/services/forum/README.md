@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；线上镜像是极客班论坛：帖子、回复、资料存在核心服务（同域 `/api/forum/*`，#57），游客能看帖和用昵称回复，成员用全站 GitHub 登录后发帖、点赞、收藏、关注、改资料；本机可显示极客班论坛快照；上游验收与本机示例预览仍是浏览器里的示例数据。
 
-状态：`current` · 更新：2026-09-28 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-10-09 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -39,7 +39,7 @@
 
 Node ≥26、pnpm 11.24.0；Nuxt 4/Vue 3、Pinia、UnoCSS、TuffEx 0.6.0。独立 pnpm workspace 和锁文件，根命令只做进程编排，不能跨包导入核心 React 页面、Fastify 模块或数据库。`app/pages` 管路由，`components` 管组合，`composables` 管交互状态，`stores` 管原仓数据和操作，`data` 管类型、种子、权限与序列化。镜像以 `/forum/` 为 base 构建：会离开路由器的地址（`TxCellLink` 的 `href`、复制与分享的链接）统一经 `app/composables/useAppLink.ts` 用 `router.resolve` 带上 base，`router.push`/`navigateTo` 仍传不带前缀的路由路径。
 
-UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同时保留原仓更严格的样式规则：使用真实 Tx 组件 props/slots 和 Uno 工具类，无项目自定义样式表、Vue style 块、内联样式写入。保留组件自动注册与库内图标 safelist 收集。当前全量组件 CSS 是上游明确采用的集成方案，不随意删除导致组件失样式。
+UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同时保留原仓更严格的样式规则：使用真实 Tx 组件 props/slots 和 Uno 工具类，无项目自定义样式表、Vue style 块、内联样式写入。保留组件自动注册与库内图标 safelist 收集。当前全量组件 CSS 是上游明确采用的集成方案，不随意删除导致组件失样式。论坛的 4 个 `TxDropdownMenu` 面板（`AccountMenu.vue` 头像菜单、`ForumHeader.vue` 示例用户菜单、`PostCard.vue` 帖子操作、`t/[id].vue` 话题管理）显式传 `panel-background="pure"`（#212）：Tuffex 0.6.0 的默认值是 `refraction`，面板用 `backdrop-filter` 折射背后的内容，而论坛顶栏与页面是 `bg-$tx-bg-color` 纯色底，折射在近白背景上糊出青绿色带和白色光斑；`mask` 在 0.6.0 只有 0.75 不透明度（`TxCard` 的 `maskOpacity` 默认值），仍会透出底下的页面文字；`pure` 是库自带的全不透明纯色配方（浅色 `--tx-fill-color-lighter` `#fafafa`、深色 `#1d1d1d`），与论坛其它 `TxCard` 的默认面板底色一致，不改组件本体、不写自定义样式。
 
 ## 契约：身份与数据
 
@@ -162,6 +162,8 @@ node scripts/check-forum-adoption.mjs   # 上游文件摘要与集成差异
 ```
 
 CDP 使用独立临时浏览器，只清理本次进程组。原仓单测与旧 Fastify 的历史测试不能混算。`forum:check/generate/verify` 默认以示例种子运行、不转发快照目录；调用方给 `GEEK_FORUM_SOURCE=site` 时 `check`/`generate` 按极客班论坛构建，`verify` 忽略它（上游 CDP 套件断言示例数据）。3456 上若有快照模式或极客班论坛模式的预览，`forum:verify` 拒绝执行并要求先 `forum:stop`。快照文档与资产索引的解析规则由 `app/forum/tests/local-snapshot.test.ts` 用虚构夹具覆盖，测试不读取真实投影。
+
+偏好页的 CDP 验证按当前连续表单操作：资料改动保存前不进入 store，头像颜色与通知开关随「保存更改」写入并在重载后保留；别人的偏好页不渲染表单；390px 下输入控件不越出视口。不再要求已退役的四个偏好页页签或 `tabpanel` 结构。
 
 ## 已知限制与生产准入
 

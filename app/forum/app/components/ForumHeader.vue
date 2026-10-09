@@ -88,7 +88,7 @@ function logout() {
           </span>
 
           <template v-if="!siteLogin && user">
-            <TxDropdownMenu placement="bottom-end">
+            <TxDropdownMenu placement="bottom-end" panel-background="pure">
               <template #trigger>
                 <TxIconButton label="用户菜单" shape="circle">
                   <UserAvatar :user="user" size="small" />
