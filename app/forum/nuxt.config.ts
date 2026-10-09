@@ -66,6 +66,22 @@ export default defineNuxtConfig({
   vite: {
     define: { 'import.meta.env.GEEK_FORUM_SITE': JSON.stringify(contentSource === 'site') },
     plugins: cdnBase ? [hashPublicImports()] : [],
+    // 分包：SPA 首屏要用到的 Tuffex 组件与论坛自己的组件、页面各合成一个分包。默认按动态导入切成 70 个文件（37 个不到 3KB），
+    // 入口脚本执行后才发现下一批，要串三层请求，每层都叠一次服务端往返（#217）。
+    build: {
+      rollupOptions: {
+        output: {
+          // Vite 的类型仍是 rollup 的 OutputOptions，运行时的打包器是 rolldown，它认 codeSplitting
+          // @ts-expect-error codeSplitting 是 rolldown 的输出选项
+          codeSplitting: {
+            groups: [
+              { name: 'tuffex', test: /node_modules[\\/]@talex-touch[\\/]/, priority: 20 },
+              { name: 'app', test: /[\\/]app[\\/](components|pages|composables|stores|data|layouts)[\\/]/, priority: 10 },
+            ],
+          },
+        },
+      },
+    },
   },
 
   // The editorial layer over the read-only snapshot (categories, tags,
