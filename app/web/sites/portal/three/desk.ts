@@ -2,7 +2,7 @@
 // 由 pages/Home.tsx 动态加载；本模块不碰 React，只接收一个 canvas、一个悬停提示元素和几个回调。
 //
 // 相对原型的性能调整：像素比由 Stage 的调速器管（起步 2，跟不上就降档）、阴影 1024 且只在物体移动时刷新、机器人与热气不投实时阴影
-// （贴地柔影代替）、去掉看不出的 clearcoat、键盘按键只更新变化的实例、拾取用代理几何与键盘平面换算、
+// （贴地柔影代替）、去掉看不出的 clearcoat、键盘按压只更新按住中的键并一次 flush、拾取用代理几何与键盘按真实键矩形换算，
 // 环境动画（热气、悬浮、叶子）只在用户最近有操作时播放，静置几秒后停到静止姿态、循环停止；进入系统桌面后整个循环停下。
 // 屏幕拆成三层：静态底图（大贴图，只画一次）+「开机」按钮 + 时钟（两张小贴图，悬停和走时只重画小的），
 // 推近时再盖一层与开机画面同色的「幕」渐显，最后一帧与 DOM 开机画面严丝合缝，不重画大贴图、没有跳变。
@@ -11,6 +11,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { coverDistance, viewOffset, type Band } from "../lib/cameraMath";
 import type { LoaderStep } from "../lib/loaderProgress";
 import { damp, ease, span } from "../lib/motion";
+import { LAPTOP_DISPLAY, createLaptop } from "./laptop";
 import { loadPhone } from "./phone";
 import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
@@ -45,13 +46,14 @@ export type DeskHandle = {
   dispose(): void;
 };
 
-const SCREEN_W = 1.1;
-const SCREEN_H = 0.6875;
+/** 屏幕几何与位置取 laptop.ts 的模型常量，集成不再单独调 */
+const SCREEN_W = LAPTOP_DISPLAY.width;
+const SCREEN_H = LAPTOP_DISPLAY.height;
 /** 屏幕贴图的逻辑尺寸（绘制坐标）；实际画布按 SCREEN_SCALE 放大 */
 const SCREEN_PX_W = 1280;
 const SCREEN_PX_H = 800;
 const SCREEN_SCALE = 1.6;
-const SCREEN_Y = 0.398;
+const SCREEN_Y = LAPTOP_DISPLAY.y;
 const PAPER = "#f5f4f0";
 /** 开机画面的底色（与 styles/portal.css 的 --pt-ice 一致） */
 const ICE = "#fbfbfd";
@@ -123,57 +125,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return root;
   };
 
-  // ── 笔记本电脑 ─────────────────────────────────────────────────────────
-  const alu = new THREE.MeshStandardMaterial({ color: "#d4d8e0", metalness: 0.8, roughness: 0.3 });
-  const aluDeep = new THREE.MeshStandardMaterial({ color: "#b8bdc9", metalness: 0.7, roughness: 0.45 });
-  const laptop = new THREE.Group();
-  laptop.position.set(0.05, 0, 0);
-  laptop.rotation.y = 0.2;
+  // ── 笔记本电脑（建模在 laptop.ts：圆角薄壳、错列深色键盘、铰链与端口细节）──
+  const { laptop, lid, shell, bezel, display, keyboard } = createLaptop();
   scene.add(laptop);
-  const base = new THREE.Mesh(new RoundedBoxGeometry(1.2, 0.036, 0.8, 2, 0.012), alu);
-  base.position.y = 0.018;
-  laptop.add(base);
-  const well = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.004, 0.37), aluDeep);
-  well.position.set(0, 0.035, -0.12);
-  laptop.add(well);
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.003, 0.25), new THREE.MeshStandardMaterial({ color: "#cdd1da", metalness: 0.6, roughness: 0.22 }));
-  pad.position.set(0, 0.0365, 0.2);
-  laptop.add(pad);
-
-  const COLS = 13;
-  const ROWS = 5;
-  const KEY_PITCH_X = 0.077;
-  const KEY_PITCH_Z = 0.068;
-  const KEY_X0 = -0.462;
-  const KEY_Z0 = -0.272;
-  const KEY_Y = 0.041;
-  const keys = new THREE.InstancedMesh(new RoundedBoxGeometry(0.068, 0.012, 0.058, 2, 0.005), new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }), COLS * ROWS);
-  keys.receiveShadow = true;
-  const keyPress = new Float32Array(COLS * ROWS);
-  const m4 = new THREE.Matrix4();
-  const tint = new THREE.Color();
-  const keyX = (i: number) => KEY_X0 + (i % COLS) * KEY_PITCH_X;
-  const keyZ = (i: number) => KEY_Z0 + Math.floor(i / COLS) * KEY_PITCH_Z;
-  for (let i = 0; i < COLS * ROWS; i++) {
-    const r = Math.floor(i / COLS);
-    const c = i % COLS;
-    m4.makeTranslation(keyX(i), KEY_Y, keyZ(i));
-    keys.setMatrixAt(i, m4);
-    keys.setColorAt(i, tint.set(r === 2 && c === 12 ? "#3346c8" : r === 0 && c === 0 ? "#f5a524" : "#f4f5f9"));
-  }
-  keys.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  laptop.add(keys);
-
-  const lid = new THREE.Group();
-  lid.position.set(0, 0.036, -0.395);
-  lid.rotation.x = -0.27;
-  laptop.add(lid);
-  const shell = new THREE.Mesh(new RoundedBoxGeometry(1.2, 0.78, 0.022, 2, 0.01), alu);
-  shell.position.y = 0.39;
-  lid.add(shell);
-  const bezel = new THREE.Mesh(new THREE.PlaneGeometry(1.172, 0.752), new THREE.MeshStandardMaterial({ color: "#14172a", roughness: 0.18, metalness: 0.1 }));
-  bezel.position.set(0, 0.392, 0.0112);
-  lid.add(bezel);
+  /** 每个键的按压量 0..1，逐帧阻尼后交给 keyboard.setPressed */
+  const keyPress = new Float32Array(keyboard.keys.length);
 
   // 屏幕底图：只画一次（和校徽加载完再补画一次），悬停与走时都不碰它
   const screenTex = canvasTexture(
@@ -211,8 +167,9 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     },
     SCREEN_SCALE,
   );
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ map: screenTex.texture, toneMapped: false }));
-  screen.position.set(0, SCREEN_Y, 0.0116);
+  const screen = new THREE.Mesh(display, new THREE.MeshBasicMaterial({ map: screenTex.texture, toneMapped: false }));
+  screen.name = "laptop-screen";
+  screen.position.set(0, SCREEN_Y, LAPTOP_DISPLAY.z);
   lid.add(screen);
   /** 屏幕贴图上的一块矩形（绘制坐标）→ 盖在屏幕上的小平面 */
   const screenPatch = (left: number, top: number, width: number, height: number, map: THREE.Texture, z: number) => {
@@ -264,8 +221,9 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   );
   screenPatch(SCREEN_PX_W - 130, 0, 120, 44, clockTex.texture, 0.0118);
   // 推近时渐显的「幕」：与开机画面同色，盖住屏幕内容
-  const veil = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ color: ICE, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
-  veil.position.set(0, SCREEN_Y, 0.012);
+  const veil = new THREE.Mesh(display.clone(), new THREE.MeshBasicMaterial({ color: ICE, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  veil.name = "laptop-veil";
+  veil.position.set(0, SCREEN_Y, LAPTOP_DISPLAY.z + 0.0004);
   veil.renderOrder = 2;
   veil.visible = false;
   lid.add(veil);
@@ -275,11 +233,8 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     phoneVeil.material.opacity = opacity;
     phoneVeil.visible = opacity > 0.001;
   };
-  const webcam = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12), new THREE.MeshBasicMaterial({ color: "#2b3150" }));
-  webcam.position.set(0, 0.758, 0.0114);
-  lid.add(webcam);
   cast(laptop);
-  keys.castShadow = false;
+  for (const v of keyboard.visuals) v.castShadow = false;
   lid.traverse((o) => {
     if (o !== shell && o !== bezel) {
       o.castShadow = false;
@@ -294,7 +249,6 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     throw error;
   });
   const { phone, bounds: phoneBounds } = device;
-  laptop.name = "desk-laptop";
   phone.position.set(0.05, -phoneBounds.min.z + 0.003, 0.12);
   phone.rotation.set(-Math.PI / 2, 0, -0.12);
   scene.add(phone);
@@ -650,7 +604,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return moving;
   };
 
-  // ── 拾取：屏幕是两个三角形；其余物体用包围盒；键盘按平面换算格子 ────────
+  // ── 拾取：屏幕用模型的圆角几何；其余物体用包围盒；键盘按平面换算到真实键矩形 ────
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const hits: THREE.Intersection[] = [];
@@ -674,16 +628,21 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     if (touchKeys && !phoneMode) {
-      // 键盘所在平面：笔记本局部 y = KEY_Y
+      // 键盘所在平面：笔记本局部 y = keyboard.y；变宽按键按真实矩形命中
       laptop.updateMatrixWorld();
       planeNormal.set(0, 1, 0).transformDirection(laptop.matrixWorld);
-      planePoint.set(0, KEY_Y, 0).applyMatrix4(laptop.matrixWorld);
+      planePoint.set(0, keyboard.y, 0).applyMatrix4(laptop.matrixWorld);
       keyPlane.setFromNormalAndCoplanarPoint(planeNormal, planePoint);
       if (ray.ray.intersectPlane(keyPlane, hitPoint)) {
         keyLocal.copy(hitPoint).applyMatrix4(inverse.copy(laptop.matrixWorld).invert());
-        const c = Math.round((keyLocal.x - KEY_X0) / KEY_PITCH_X);
-        const r = Math.round((keyLocal.z - KEY_Z0) / KEY_PITCH_Z);
-        if (c >= 0 && c < COLS && r >= 0 && r < ROWS) press(r * COLS + c);
+        const rects = keyboard.keys;
+        for (let i = 0; i < rects.length; i++) {
+          const k = rects[i];
+          if (Math.abs(keyLocal.x - k.x) * 2 <= k.width && Math.abs(keyLocal.z - k.z) * 2 <= k.depth) {
+            press(i);
+            break;
+          }
+        }
       }
     }
     for (let i = 0; i < TARGETS.length; i++) {
@@ -701,8 +660,6 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   };
   const phoneParts: THREE.Object3D[] = [phoneScreen, ...device.pickParts];
 
-  let dirtyMin = Infinity;
-  let dirtyMax = -1;
   const press = (i: number) => {
     keyPress[i] = 1;
     stage.invalidate();
@@ -790,22 +747,17 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     }
     robotShadow.material.opacity = 1 - (robot.position.y - 0.3) * 3;
 
-    // 键盘：只更新按下中的键，并只上传变化的实例区间
-    dirtyMin = Infinity;
-    dirtyMax = -1;
+    // 键盘：只更新按住中的键，逐帧阻尼；这一帧有变化就 flush 一次上传
+    let keyMoving = false;
     for (let i = 0; i < keyPress.length; i++) {
       if (keyPress[i] <= 0) continue;
       keyPress[i] *= Math.pow(0.02, dt);
       if (keyPress[i] < 0.001) keyPress[i] = 0;
-      m4.makeTranslation(keyX(i), KEY_Y - keyPress[i] * 0.007, keyZ(i));
-      keys.setMatrixAt(i, m4);
-      if (i < dirtyMin) dirtyMin = i;
-      if (i > dirtyMax) dirtyMax = i;
+      keyboard.setPressed(i, keyPress[i]);
+      keyMoving = true;
     }
-    if (dirtyMax >= 0) {
-      keys.instanceMatrix.clearUpdateRanges();
-      keys.instanceMatrix.addUpdateRange(dirtyMin * 16, (dirtyMax - dirtyMin + 1) * 16);
-      keys.instanceMatrix.needsUpdate = true;
+    if (keyMoving) {
+      keyboard.flush();
       motion = Motion.Active;
     }
 
