@@ -21,7 +21,7 @@ export type DeskOptions = {
   /** 跟随指针的小提示（「点击开机」等） */
   hint: HTMLElement;
   logoUrl: string;
-  /** 墙上挂画用的极客娘立绘（透明底） */
+  /** 墙上挂画用的极客娘画像（整幅不透明插画） */
   portraitUrl: string;
   /** 点中了屏幕 */
   onEnter: () => void;
@@ -456,57 +456,26 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   scene.add(n2);
   noteShadow(n2, 0.17);
 
+  // 挂画：生成的极客娘画像整幅铺满（cover）；加载失败时用浅色底 + 校徽
+  const POSTER_W = 512;
+  const POSTER_H = 692;
   const poster = canvasTexture(
-    512,
-    640,
+    POSTER_W,
+    POSTER_H,
     (x) => {
-      const bg = x.createLinearGradient(0, 0, 0, 640);
+      const bg = x.createLinearGradient(0, 0, 0, POSTER_H);
       bg.addColorStop(0, "#eaf0ff");
       bg.addColorStop(1, "#fbfaf7");
       x.fillStyle = bg;
-      x.fillRect(0, 0, 512, 640);
-      // 人物身后的柔光圆与六边形（发卡的形状），脚下一层柔影
-      const glow = x.createRadialGradient(256, 290, 20, 256, 290, 240);
-      glow.addColorStop(0, "rgba(255,255,255,0.95)");
-      glow.addColorStop(1, "rgba(200,214,255,0)");
-      x.fillStyle = glow;
-      x.fillRect(0, 0, 512, 640);
-      x.strokeStyle = "rgba(51,70,200,0.16)";
-      x.lineWidth = 3;
-      x.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i + Math.PI / 6;
-        x.lineTo(256 + Math.cos(a) * 200, 290 + Math.sin(a) * 200);
-      }
-      x.closePath();
-      x.stroke();
-      const floor = x.createRadialGradient(256, 556, 4, 256, 556, 130);
-      floor.addColorStop(0, "rgba(51,70,200,0.22)");
-      floor.addColorStop(1, "rgba(51,70,200,0)");
-      x.fillStyle = floor;
-      x.save();
-      x.translate(256, 556);
-      x.scale(1, 0.16);
-      x.translate(-256, -556);
-      x.fillRect(100, 380, 312, 360);
-      x.restore();
+      x.fillRect(0, 0, POSTER_W, POSTER_H);
       if (portrait) {
-        const h = 548;
-        const w = (h * portrait.naturalWidth) / portrait.naturalHeight;
-        x.drawImage(portrait, (512 - w) / 2, 26, w, h);
+        const k = Math.max(POSTER_W / portrait.naturalWidth, POSTER_H / portrait.naturalHeight);
+        const w = portrait.naturalWidth * k;
+        const h = portrait.naturalHeight * k;
+        x.drawImage(portrait, (POSTER_W - w) / 2, (POSTER_H - h) / 2, w, h);
       } else if (logo) {
-        drawEmblem(x, logo, 256, 250, 300);
+        drawEmblem(x, logo, POSTER_W / 2, POSTER_H / 2, 300);
       }
-      x.strokeStyle = "rgba(51,70,200,0.28)";
-      x.lineWidth = 2;
-      x.strokeRect(14, 14, 484, 612);
-      x.fillStyle = "#1b2140";
-      x.textAlign = "center";
-      x.font = '700 30px "PingFang SC", "Hiragino Sans GB", sans-serif';
-      x.fillText("极客娘", 256, 596);
-      x.fillStyle = "rgba(27,33,64,0.5)";
-      x.font = '500 13px "SF Mono", Menlo, monospace';
-      x.fillText("YANGTZE UNIVERSITY GEEK CLASS", 256, 620);
     },
     TEXT_SCALE,
   );

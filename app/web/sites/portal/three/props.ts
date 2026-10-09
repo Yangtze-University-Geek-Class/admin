@@ -293,12 +293,12 @@ export function createPencil(): THREE.Group {
 // ── 相框 ────────────────────────────────────────────────────────────────────
 /**
  * 挂画：薄画板（白边，侧面可见厚度）+ 画面 + 顶角两枚小图钉，不带相框。原点在画板中心，前面朝 +Z。
- * art 是 4:5 的画面贴图。
+ * art 是 3:4 左右（0.6×0.81）的画面贴图。
  */
 export function createPortrait(art: THREE.Texture): { group: THREE.Group; poster: THREE.Mesh } {
   const group = new THREE.Group();
-  const W = 0.64;
-  const H = 0.8;
+  const W = 0.6;
+  const H = 0.81;
   const D = 0.016;
   const board = new THREE.Mesh(new RoundedBoxGeometry(W, H, D, 3, 0.004), new THREE.MeshStandardMaterial({ color: "#f3f1ec", roughness: 0.6 }));
   const poster = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.004, H - 0.004), new THREE.MeshStandardMaterial({ map: art, roughness: 0.75 }));
