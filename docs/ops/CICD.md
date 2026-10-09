@@ -2,7 +2,7 @@
 
 > 六工作流（ci / deploy-preview / deploy-production / branch-hygiene / issue-lifecycle / cert-watch）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-10-02 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿，所有 job 只跑在 GitHub 托管 runner 上（见下文「运行位置」）。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版；仓库原本私有，2026-09-26 17:49 所有者因 CI 排队决定公开（见下文「平台能力实测」的更新）。公开之后 `production` 的 required reviewers 才能配置；2026-09-27 所有者建了 `production` Environment，配了 required reviewers（审批人 Crosery）与自定义部署分支规则，并打开 `DEPLOY_PRODUCTION_ENABLED`，`v0.1.0` 的正式部署由 `deploy-production.yml` 在审批后跑完（运行 36314912545）。下文「维护者机器部署」只在部署 job 拿不到环境时作退路。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
+状态：`accepted` · 更新：2026-10-09 · 实施状态：工作流为 `.github/workflows/ci.yml`、`deploy-preview.yml`、`deploy-production.yml`、`branch-hygiene.yml`、`issue-lifecycle.yml`、`cert-watch.yml`，actionlint 全绿，所有 job 只跑在 GitHub 托管 runner 上（见下文「运行位置」）。两条部署工作流由 SemVer 发布 tag 触发（2026-09-24 所有者指令），此前「push `stage`/`main` 即部署」的触发方式已删除；更早的 `preview.yml`、`release.yml`（`release-*`/`prev-*` tag）也早已删除。首次上线（2026-09-25，#63）已配置：`preview` Environment 的环境级 secrets（部署 SSH、OAuth、会话与加密密钥；Turnstile 两项未配＝关闭）与 `DEPLOY_TARGET_ENVIRONMENT=preview`，目标机 `/opt/yzgc/preview`、`prev.yangtzeu.work` 证书与站点配置。组织是 GitHub 免费版；仓库原本私有，2026-09-26 17:49 所有者因 CI 排队决定公开（见下文「平台能力实测」的更新）。公开之后 `production` 的 required reviewers 才能配置；2026-09-27 所有者建了 `production` Environment，配了 required reviewers（审批人 Crosery）与自定义部署分支规则，并打开 `DEPLOY_PRODUCTION_ENABLED`，`v0.1.0` 的正式部署由 `deploy-production.yml` 在审批后跑完（运行 36314912545）。下文「维护者机器部署」只在部署 job 拿不到环境时作退路。这些前置条件都由维护者手工完成，任何工作流都不会自动创建。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -137,6 +137,8 @@
 
    `--env-file` 里要有 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`（也可以直接放进进程环境、不给 `--env-file`）；`--days` 改有效期（1–366 天，默认 180）。stdout 是终端时脚本拒绝输出，stderr 只打策略与到期时间。
 6. 下一次打 rc tag：`cdn-plan` 的日志写「CSP 已放行 … 这次带哈希的静态文件从 CDN 加载」，`cdn-upload` 列出上传与核对的文件数。`cdn-plan` 提示快到期时重复第 5 步；剩不到 90 分钟时 `cdn-plan` 直接失败。
+
+2026-10-09 所有者授权后已做完第 1–5 步：宿主 nginx 两份模板已装并 reload（CSP 早已放行 CDN 前缀）；`static-cdn` 环境只允许 tag `v*`；第 3 步实测，临时分支上 `deployment: false` 的 job 被拒绝（`Branch ... is not allowed to deploy to static-cdn`）；tag ruleset `release-tags-immutable` 限制 `v*` 的创建、更新、删除，仅仓库管理员可绕过；`STATIC_CDN_UPLOAD_TOKEN` 已写入，到期 2027-04-07。下一个 rc tag 起部署走 CDN。
 
 要关掉：删掉 `static-cdn` 里的 `STATIC_CDN_UPLOAD_TOKEN`，下一次部署就回到同源。
 

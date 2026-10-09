@@ -162,7 +162,7 @@ export function createPlant(): Plant {
     const a = i * 2.399 + 0.4;
     const r = 0.045 + ((i * 37) % 11) * 0.0068;
     const s = 0.007 + ((i * 17) % 5) * 0.0021;
-    const g = new THREE.IcosahedronGeometry(s, 1).toNonIndexed();
+    const g = new THREE.IcosahedronGeometry(s, 1);
     g.scale(1.2, 0.65, 1);
     g.rotateY(a * 3);
     g.translate(Math.cos(a) * r, soilTop - 0.0015 - Math.min(0.012, r * 0.05) + 0.004, Math.sin(a) * r);

@@ -231,11 +231,25 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   veil.renderOrder = 2;
   veil.visible = false;
   lid.add(veil);
+  // 手机模型（1.7 MB）只在手机壳层下才下载：电脑端不拉，窗口变窄时再按需加载并重排镜头。
+  type PhoneRig = {
+    phone: THREE.Group;
+    bounds: THREE.Box3;
+    screenW: number;
+    screenH: number;
+    tex: ReturnType<typeof canvasTexture<undefined>>;
+    screen: THREE.Mesh;
+    veil: typeof veil;
+    parts: THREE.Object3D[];
+  };
+  let rig = null as PhoneRig | null;
   const setVeil = (opacity: number) => {
     veil.material.opacity = opacity;
     veil.visible = opacity > 0.001;
-    phoneVeil.material.opacity = opacity;
-    phoneVeil.visible = opacity > 0.001;
+    if (rig) {
+      rig.veil.material.opacity = opacity;
+      rig.veil.visible = opacity > 0.001;
+    }
   };
   cast(laptop);
   for (const v of keyboard.visuals) v.castShadow = false;
@@ -248,59 +262,74 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let screenHot = false;
 
   // 手机屏幕在局部 XY 平面，整个机身平放到桌面，法线朝上。
-  const device = await loadPhone(0.62).catch(error => {
-    stage.dispose();
-    throw error;
-  });
-  const { phone, bounds: phoneBounds } = device;
-  phone.position.set(0.05, -phoneBounds.min.z + 0.003, 0.12);
-  phone.rotation.set(-Math.PI / 2, 0, -0.12);
-  scene.add(phone);
-  if (options.cancelled()) {
-    stage.dispose();
-    return null;
+  const buildPhone = async (): Promise<void> => {
+    const device = await loadPhone(0.62);
+    if (options.cancelled()) return;
+    const { phone, bounds } = device;
+    phone.position.set(0.05, -bounds.min.z + 0.003, 0.12);
+    phone.rotation.set(-Math.PI / 2, 0, -0.12);
+    phone.visible = false;
+    scene.add(phone);
+    const tex = canvasTexture(620, Math.round(620 * device.size.y / device.size.x), (x, W, H) => {
+      x.clearRect(0, 0, W, H);
+      const gradient = x.createLinearGradient(0, 0, W, H);
+      gradient.addColorStop(0, ICE);
+      gradient.addColorStop(1, PALETTE.cobaltSoft);
+      x.fillStyle = gradient;
+      x.fillRect(0, 0, W, H);
+      x.fillStyle = PALETTE.ink;
+      x.textAlign = "left";
+      x.font = '600 30px "SF Mono", Menlo, monospace';
+      x.fillText(new Date().toTimeString().slice(0, 5), 44, 64);
+      if (logo) drawEmblem(x, logo, W / 2, 440, 230);
+      x.textAlign = "center";
+      x.fillStyle = PALETTE.ink;
+      x.font = '700 56px "PingFang SC", sans-serif';
+      x.fillText("YUGC OS", W / 2, 636);
+      x.fillStyle = PALETTE.inkSoft;
+      x.font = '28px "PingFang SC", sans-serif';
+      x.fillText("长江大学极客班", W / 2, 692);
+      x.fillText("点一下，打开手机", W / 2, 1000);
+      x.fillStyle = PALETTE.ink;
+      x.beginPath();
+      x.roundRect(W / 2 - 90, H - 44, 180, 8, 4);
+      x.fill();
+    }, TEXT_SCALE);
+    const screen = new THREE.Mesh(device.display, new THREE.MeshBasicMaterial({ map: tex.texture, toneMapped: false }));
+    screen.name = "phone-screen";
+    screen.position.copy(device.center);
+    screen.position.z += 0.0002;
+    phone.add(screen);
+    const button = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.093), new THREE.MeshBasicMaterial({ map: buttonTex.texture, transparent: true, depthWrite: false, toneMapped: false }));
+    button.position.set(0, -0.23, screen.position.z + 0.0002);
+    phone.add(button);
+    const phoneVeil = new THREE.Mesh(device.display.clone(), veil.material.clone());
+    phoneVeil.position.copy(screen.position);
+    phoneVeil.position.z += 0.0006;
+    phoneVeil.renderOrder = 2;
+    phoneVeil.visible = false;
+    phone.add(phoneVeil);
+    tex.redraw();
+    rig = { phone, bounds, screenW: device.size.x, screenH: device.size.y, tex, screen, veil: phoneVeil, parts: [screen, ...device.pickParts] };
+  };
+  let phoneLoading: Promise<void> | null = null;
+  const ensurePhone = (): Promise<void> => {
+    phoneLoading ??= buildPhone().catch((error) => {
+      phoneLoading = null;
+      throw error;
+    });
+    return phoneLoading;
+  };
+  if (options.band() !== null) {
+    await ensurePhone().catch((error) => {
+      stage.dispose();
+      throw error;
+    });
+    if (options.cancelled()) {
+      stage.dispose();
+      return null;
+    }
   }
-  const phoneTex = canvasTexture(620, Math.round(620 * device.size.y / device.size.x), (x, W, H) => {
-    x.clearRect(0, 0, W, H);
-    const gradient = x.createLinearGradient(0, 0, W, H);
-    gradient.addColorStop(0, ICE);
-    gradient.addColorStop(1, PALETTE.cobaltSoft);
-    x.fillStyle = gradient;
-    x.fillRect(0, 0, W, H);
-    x.fillStyle = PALETTE.ink;
-    x.textAlign = "left";
-    x.font = '600 30px "SF Mono", Menlo, monospace';
-    x.fillText(new Date().toTimeString().slice(0, 5), 44, 64);
-    if (logo) drawEmblem(x, logo, W / 2, 440, 230);
-    x.textAlign = "center";
-    x.fillStyle = PALETTE.ink;
-    x.font = '700 56px "PingFang SC", sans-serif';
-    x.fillText("YUGC OS", W / 2, 636);
-    x.fillStyle = PALETTE.inkSoft;
-    x.font = '28px "PingFang SC", sans-serif';
-    x.fillText("长江大学极客班", W / 2, 692);
-    x.fillText("点一下，打开手机", W / 2, 1000);
-    x.fillStyle = PALETTE.ink;
-    x.beginPath();
-    x.roundRect(W / 2 - 90, H - 44, 180, 8, 4);
-    x.fill();
-  }, TEXT_SCALE);
-  const phoneScreenW = device.size.x;
-  const phoneScreenH = device.size.y;
-  const phoneScreen = new THREE.Mesh(device.display, new THREE.MeshBasicMaterial({ map: phoneTex.texture, toneMapped: false }));
-  phoneScreen.name = "phone-screen";
-  phoneScreen.position.copy(device.center);
-  phoneScreen.position.z += 0.0002;
-  phone.add(phoneScreen);
-  const phoneButton = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.093), new THREE.MeshBasicMaterial({ map: buttonTex.texture, transparent: true, depthWrite: false, toneMapped: false }));
-  phoneButton.position.set(0, -0.23, phoneScreen.position.z + 0.0002);
-  phone.add(phoneButton);
-  const phoneVeil = new THREE.Mesh(device.display.clone(), veil.material.clone());
-  phoneVeil.position.copy(phoneScreen.position);
-  phoneVeil.position.z += 0.0006;
-  phoneVeil.renderOrder = 2;
-  phoneVeil.visible = false;
-  phone.add(phoneVeil);
   let phoneMode = false;
 
   // ── 桌面小物 ───────────────────────────────────────────────────────────
@@ -499,10 +528,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const tmpQuat = new THREE.Quaternion();
   const computeFocus = () => {
     scene.updateMatrixWorld(true);
-    const activeScreen = phoneMode ? phoneScreen : screen;
+    const activeScreen = phoneMode ? rig!.screen : screen;
     activeScreen.getWorldPosition(focusTarget);
     tmpNormal.set(0, 0, 1).applyQuaternion(activeScreen.getWorldQuaternion(tmpQuat));
-    const d = coverDistance(camera.fov, camera.aspect, phoneMode ? phoneScreenW : SCREEN_W, phoneMode ? phoneScreenH : SCREEN_H, 0.88);
+    const d = coverDistance(camera.fov, camera.aspect, phoneMode ? rig!.screenW : SCREEN_W, phoneMode ? rig!.screenH : SCREEN_H, 0.88);
     focusPos.copy(focusTarget).addScaledVector(tmpNormal, d);
   };
   const offset = { x: 0, y: 0 };
@@ -524,20 +553,28 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const PORTRAIT_DIR = new THREE.Vector3(0, 3.4, 2.4);
   const portraitPose = (aspect: number, band: Band): Pose => {
     scene.updateMatrixWorld(true);
-    const points = boxCorners(phoneBounds, phone.matrixWorld);
+    const points = boxCorners(rig!.bounds, rig!.phone.matrixWorld);
     const { pos, target, offset } = bandPose(points, PORTRAIT_DIR, PORTRAIT_FOV, aspect, band, 0.88);
     return { pos, target, fov: PORTRAIT_FOV, ox: offset.x, oy: offset.y };
   };
   stage.onLayout = (w, h) => {
     const band = options.band();
-    phoneMode = band !== null;
-    phone.visible = phoneMode;
+    if (band !== null && !rig) {
+      // 窗口变窄才需要手机：按需下载，到了再重排一次（加载期间先留着笔记本）
+      void ensurePhone()
+        .then(() => {
+          if (!options.cancelled()) stage.resize();
+        })
+        .catch(() => undefined);
+    }
+    phoneMode = band !== null && rig !== null;
+    if (rig) rig.phone.visible = phoneMode;
     laptop.visible = !phoneMode;
     TARGETS[0].hint = phoneMode ? "打开手机" : "打开电脑";
     setHot(null);
     // 竖屏镜头从高处俯看，墙上的海报会落在顶栏品牌字后面（校徽也和品牌重复），竖屏不挂
     frame.visible = posterMesh.visible = band === null;
-    idle = band
+    idle = phoneMode && band
       ? portraitPose(w / h, band)
       : { pos: new THREE.Vector3(2.25, 1.6, 2.75), target: new THREE.Vector3(-0.1, 0.36, 0.0), fov: 33, ox: -0.17, oy: 0.02 };
     camera.fov = idle.fov;
@@ -657,7 +694,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       const target = TARGETS[i];
       if (target.exact) {
         hits.length = 0;
-        ray.intersectObjects(phoneMode ? phoneParts : screenParts, false, hits);
+        ray.intersectObjects(phoneMode ? rig!.parts : screenParts, false, hits);
         if (hits.length) return target;
         continue;
       }
@@ -666,7 +703,6 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     }
     return null;
   };
-  const phoneParts: THREE.Object3D[] = [phoneScreen, ...device.pickParts];
 
   const press = (i: number) => {
     keyPress[i] = 1;
@@ -717,7 +753,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   const clock = window.setInterval(() => {
     if (!stage.isPaused && !focused) {
       clockTex.redraw();
-      if (phoneMode) phoneTex.redraw();
+      if (phoneMode) rig!.tex.redraw();
       stage.invalidate();
     }
   }, 20000);
@@ -806,11 +842,12 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return null;
   }
   screenTex.redraw();
-  phoneTex.redraw();
+  rig?.tex.redraw();
   poster.redraw();
   report("emblem", "校徽已加载");
   stage.resize();
-  await stage.warmUp([veil, phoneVeil, phoneMode ? laptop : phone]);
+  // warmUp 结束时把传入的对象设为不可见：只传当前隐藏的那个设备（电脑端没有手机模型时就没有）
+  await stage.warmUp([veil, ...(rig ? [rig.veil] : []), ...(phoneMode ? [laptop] : rig ? [rig.phone] : [])]);
   if (options.cancelled()) {
     dispose();
     return null;

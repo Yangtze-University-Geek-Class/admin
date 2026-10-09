@@ -6,21 +6,7 @@
 @import "@fontsource/quicksand/600.css";
 @import "highlight.js/styles/github.css";
 
-/* Maple Mono NF CN: 等宽 + Nerd Font + 中文优化，开源 (subframe7536/maple-font) */
-@font-face {
-  font-family: "Maple Mono NF CN";
-  src: url("https://cdn.jsdelivr.net/gh/subframe7536/maple-font@v7.0/woff2/MapleMono-NF-CN-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Maple Mono NF CN";
-  src: url("https://cdn.jsdelivr.net/gh/subframe7536/maple-font@v7.0/woff2/MapleMono-NF-CN-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* 等宽字体直接用系统字体栈：原先从 cdn.jsdelivr.net 取 Maple Mono，被站点 CSP 拦截，每次访问白发请求且字体加载不上（#217）。 */
 
 @tailwind base;
 @tailwind components;

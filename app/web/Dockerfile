@@ -149,7 +149,7 @@ server {
     gzip_proxied any;
     gzip_comp_level 6;
     gzip_min_length 1024;
-    gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm;
+    gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml application/wasm model/gltf-binary;
 
     access_log /dev/stdout;
     error_log /dev/stderr warn;
