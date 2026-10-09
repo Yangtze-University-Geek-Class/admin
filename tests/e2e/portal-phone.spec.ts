@@ -399,3 +399,72 @@ test("1440×900 保留笔记本与电脑桌面，双击图标、窗口、菜单�
   await page.keyboard.press("Escape");
   await noOverflow(page);
 });
+
+test.describe("圆润 PC 电脑 #213", () => {
+  test.setTimeout(60_000);
+
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+    test(`${viewport.width}×${viewport.height} 实际屏幕可悬停开机、退回、Enter 再开机，离开首页释放 WebGL`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await idle(page);
+      const point = await page.evaluate(() => {
+        // Stage 在 DEV 构造时注册该实例，Window 的标准类型不包含这个测试入口。
+        const holder = window as unknown as { __yugcStage: Stage };
+        const stage = holder.__yugcStage;
+        const screen = stage.scene.getObjectByName("laptop-screen")!;
+        const world = screen.getWorldPosition(screen.position.clone());
+        const projected = stage.project(world, { x: 0, y: 0 });
+        const rect = stage.canvas.getBoundingClientRect();
+        return { x: projected.x + rect.left, y: projected.y + rect.top };
+      });
+      expect(point.x).toBeGreaterThan(0);
+      expect(point.x).toBeLessThan(viewport.width);
+      expect(point.y).toBeGreaterThan(0);
+      expect(point.y).toBeLessThan(viewport.height);
+      await page.mouse.move(point.x, point.y);
+      await expect(page.locator(".pt-desk-tip")).toHaveText("打开电脑");
+      await page.mouse.click(point.x, point.y);
+      await home(page);
+      await page.getByRole("button", { name: "回到书桌", exact: true }).click();
+      await expect(page.locator(".pt-home")).toHaveAttribute("data-state", "idle", { timeout: 20_000 });
+      await page.evaluate(() => {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+      });
+      await page.keyboard.press("Enter");
+      await home(page);
+      await noOverflow(page);
+      await page.evaluate(() => {
+        // SPA 导航后保留同一实例引用，核对 GPU 上下文确实释放。
+        const holder = window as unknown as { __yugcStage: Stage; __priorStage: Stage };
+        holder.__priorStage = holder.__yugcStage;
+      });
+      await page.getByRole("button", { name: "帮助", exact: true }).click();
+      await page.getByRole("menuitem", { name: "文档", exact: true }).click();
+      await expect(page).toHaveURL(/\/sites\/portal\/docs$/);
+      await expect.poll(() => page.evaluate(() => {
+        // 该引用由本用例在导航前保存，不读取外部数据。
+        const holder = window as unknown as { __priorStage: Stage };
+        return holder.__priorStage.renderer.getContext().isContextLost();
+      })).toBe(true);
+    });
+  }
+
+  test("PC 减少动态效果与无 WebGL 路径仍可进入电脑桌面", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await idle(page);
+    await page.getByRole("button", { name: "打开电脑" }).click();
+    await home(page);
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { value: function (this: HTMLCanvasElement, type: string, ...args: unknown[]) {
+        return type.startsWith("webgl") ? null : Reflect.apply(original, this, [type, ...args]);
+      } });
+    });
+    await page.reload();
+    await home(page);
+    await expect(page.getByRole("list", { name: "桌面上的应用" })).toBeVisible();
+    await noOverflow(page);
+  });
+});

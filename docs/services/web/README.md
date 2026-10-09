@@ -2,7 +2,7 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-10-06 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-10-09 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
@@ -27,6 +27,7 @@
 - **静态资源 CDN 开关**（#146）：构建参数 `STATIC_CDN_BASE` 为空时与原来一样同源；等于 `https://cdn.crosery.com/yzgc/static/site/` 时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把带哈希的构建资源（`assets/` 下的 JS、CSS、字体、图片）改写到 CDN，`base` 仍是 `/`，入口 HTML、路由和 `public/` 里不带哈希的文件（看板娘、favicon）仍走源站；桌面壁纸由 `sites/portal/lib/wallpapers.ts` import（文件在 `sites/portal/assets/wallpapers/`），构建时带哈希，跟着开关走。别的非空值让构建失败。规则只在 `scripts/static-cdn-base.mjs`；`app/web/Dockerfile` 把同一个参数传给官网与控制台两次构建，并断言两个入口页引用的是对应地址。开关由部署工作流决定，上传与核对见 [CICD](../../ops/CICD.md)「静态资源 CDN」。两个环境用同一个 CDN 前缀，产物仍不含环境域名。
 - **UI 选型**：官网是既有 React 实现，后续新增/迁移界面按 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)；控制台已迁到 Vue + Tuffex（`app/console`）。不引入平行基础 UI 体系。
 - **手机首页**（#206）：竖屏书桌平放现成的 iPhone 15 Pro Max 模型，圆角屏幕及交接遮罩使用模型实际几何；模型以本地带哈希资源发布，保留 CC BY 4.0 署名和许可。移动 YUGC OS 使用状态栏、四列应用和四项 Dock；共用电脑端应用、账号、权限过滤与壁纸选择ID，手机竖屏加载独立生成的竖图和缩略图。搜索位于Dock上方并支持主屏空白处下滑，壁纸应用和系统设置提供换图、回书桌，不摆三按钮工具条。响应式切换不重新挂载应用窗口；搜索、壁纸、设置和按需指引复用 `shared/ui/Modal`。断点、素材与操作契约见 [portal](portal.md)「手机首页与主屏幕」。
+- **电脑首页笔记本**（#213）：`three/laptop.ts` 原创建模的圆角铝壳、深色错列键盘与圆角触控板，替换原先的方块键盘与矩形边框；屏幕尺寸、开机交接与手机场景不变，细节见 [portal](portal.md)「手机首页与主屏幕」同节。
 
 ## 运行
 

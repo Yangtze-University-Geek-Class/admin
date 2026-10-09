@@ -2,7 +2,7 @@
 // 由 pages/Home.tsx 动态加载；本模块不碰 React，只接收一个 canvas、一个悬停提示元素和几个回调。
 //
 // 相对原型的性能调整：像素比由 Stage 的调速器管（起步 2，跟不上就降档）、阴影 1024 且只在物体移动时刷新、机器人与热气不投实时阴影
-// （贴地柔影代替）、去掉看不出的 clearcoat、键盘按键只更新变化的实例、拾取用代理几何与键盘平面换算、
+// （贴地柔影代替）、去掉看不出的 clearcoat、键盘按压只更新按住中的键并一次 flush、拾取用代理几何与键盘按真实键矩形换算，
 // 环境动画（热气、悬浮、叶子）只在用户最近有操作时播放，静置几秒后停到静止姿态、循环停止；进入系统桌面后整个循环停下。
 // 屏幕拆成三层：静态底图（大贴图，只画一次）+「开机」按钮 + 时钟（两张小贴图，悬停和走时只重画小的），
 // 推近时再盖一层与开机画面同色的「幕」渐显，最后一帧与 DOM 开机画面严丝合缝，不重画大贴图、没有跳变。
@@ -11,7 +11,9 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { coverDistance, viewOffset, type Band } from "../lib/cameraMath";
 import type { LoaderStep } from "../lib/loaderProgress";
 import { damp, ease, span } from "../lib/motion";
+import { LAPTOP_DISPLAY, createLaptop } from "./laptop";
 import { loadPhone } from "./phone";
+import { createCoaster, createMug, createNotebook, createPencil, createPlant, createPortrait } from "./props";
 import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
 export type DeskOptions = {
@@ -19,6 +21,8 @@ export type DeskOptions = {
   /** 跟随指针的小提示（「点击开机」等） */
   hint: HTMLElement;
   logoUrl: string;
+  /** 墙上挂画用的极客娘画像（整幅不透明插画） */
+  portraitUrl: string;
   /** 点中了屏幕 */
   onEnter: () => void;
   /**
@@ -45,13 +49,14 @@ export type DeskHandle = {
   dispose(): void;
 };
 
-const SCREEN_W = 1.1;
-const SCREEN_H = 0.6875;
+/** 屏幕几何与位置取 laptop.ts 的模型常量，集成不再单独调 */
+const SCREEN_W = LAPTOP_DISPLAY.width;
+const SCREEN_H = LAPTOP_DISPLAY.height;
 /** 屏幕贴图的逻辑尺寸（绘制坐标）；实际画布按 SCREEN_SCALE 放大 */
 const SCREEN_PX_W = 1280;
 const SCREEN_PX_H = 800;
 const SCREEN_SCALE = 1.6;
-const SCREEN_Y = 0.398;
+const SCREEN_Y = LAPTOP_DISPLAY.y;
 const PAPER = "#f5f4f0";
 /** 开机画面的底色（与 styles/portal.css 的 --pt-ice 一致） */
 const ICE = "#fbfbfd";
@@ -72,6 +77,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
 
   // ── 贴图 ──────────────────────────────────────────────────────────────
   let logo: HTMLImageElement | null = null;
+  let portrait: HTMLImageElement | null = null;
   const wood = canvasTexture(1024, 512, (x, w, h) => {
     x.fillStyle = "#ece2d2";
     x.fillRect(0, 0, w, h);
@@ -123,57 +129,11 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return root;
   };
 
-  // ── 笔记本电脑 ─────────────────────────────────────────────────────────
-  const alu = new THREE.MeshStandardMaterial({ color: "#d4d8e0", metalness: 0.8, roughness: 0.3 });
-  const aluDeep = new THREE.MeshStandardMaterial({ color: "#b8bdc9", metalness: 0.7, roughness: 0.45 });
-  const laptop = new THREE.Group();
-  laptop.position.set(0.05, 0, 0);
-  laptop.rotation.y = 0.2;
+  // ── 笔记本电脑（建模在 laptop.ts：圆角薄壳、错列深色键盘、铰链与端口细节）──
+  const { laptop, lid, shell, bezel, display, keyboard } = createLaptop();
   scene.add(laptop);
-  const base = new THREE.Mesh(new RoundedBoxGeometry(1.2, 0.036, 0.8, 2, 0.012), alu);
-  base.position.y = 0.018;
-  laptop.add(base);
-  const well = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.004, 0.37), aluDeep);
-  well.position.set(0, 0.035, -0.12);
-  laptop.add(well);
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.003, 0.25), new THREE.MeshStandardMaterial({ color: "#cdd1da", metalness: 0.6, roughness: 0.22 }));
-  pad.position.set(0, 0.0365, 0.2);
-  laptop.add(pad);
-
-  const COLS = 13;
-  const ROWS = 5;
-  const KEY_PITCH_X = 0.077;
-  const KEY_PITCH_Z = 0.068;
-  const KEY_X0 = -0.462;
-  const KEY_Z0 = -0.272;
-  const KEY_Y = 0.041;
-  const keys = new THREE.InstancedMesh(new RoundedBoxGeometry(0.068, 0.012, 0.058, 2, 0.005), new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }), COLS * ROWS);
-  keys.receiveShadow = true;
-  const keyPress = new Float32Array(COLS * ROWS);
-  const m4 = new THREE.Matrix4();
-  const tint = new THREE.Color();
-  const keyX = (i: number) => KEY_X0 + (i % COLS) * KEY_PITCH_X;
-  const keyZ = (i: number) => KEY_Z0 + Math.floor(i / COLS) * KEY_PITCH_Z;
-  for (let i = 0; i < COLS * ROWS; i++) {
-    const r = Math.floor(i / COLS);
-    const c = i % COLS;
-    m4.makeTranslation(keyX(i), KEY_Y, keyZ(i));
-    keys.setMatrixAt(i, m4);
-    keys.setColorAt(i, tint.set(r === 2 && c === 12 ? "#3346c8" : r === 0 && c === 0 ? "#f5a524" : "#f4f5f9"));
-  }
-  keys.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  laptop.add(keys);
-
-  const lid = new THREE.Group();
-  lid.position.set(0, 0.036, -0.395);
-  lid.rotation.x = -0.27;
-  laptop.add(lid);
-  const shell = new THREE.Mesh(new RoundedBoxGeometry(1.2, 0.78, 0.022, 2, 0.01), alu);
-  shell.position.y = 0.39;
-  lid.add(shell);
-  const bezel = new THREE.Mesh(new THREE.PlaneGeometry(1.172, 0.752), new THREE.MeshStandardMaterial({ color: "#14172a", roughness: 0.18, metalness: 0.1 }));
-  bezel.position.set(0, 0.392, 0.0112);
-  lid.add(bezel);
+  /** 每个键的按压量 0..1，逐帧阻尼后交给 keyboard.setPressed */
+  const keyPress = new Float32Array(keyboard.keys.length);
 
   // 屏幕底图：只画一次（和校徽加载完再补画一次），悬停与走时都不碰它
   const screenTex = canvasTexture(
@@ -211,8 +171,9 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     },
     SCREEN_SCALE,
   );
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ map: screenTex.texture, toneMapped: false }));
-  screen.position.set(0, SCREEN_Y, 0.0116);
+  const screen = new THREE.Mesh(display, new THREE.MeshBasicMaterial({ map: screenTex.texture, toneMapped: false }));
+  screen.name = "laptop-screen";
+  screen.position.set(0, SCREEN_Y, LAPTOP_DISPLAY.z);
   lid.add(screen);
   /** 屏幕贴图上的一块矩形（绘制坐标）→ 盖在屏幕上的小平面 */
   const screenPatch = (left: number, top: number, width: number, height: number, map: THREE.Texture, z: number) => {
@@ -264,8 +225,9 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   );
   screenPatch(SCREEN_PX_W - 130, 0, 120, 44, clockTex.texture, 0.0118);
   // 推近时渐显的「幕」：与开机画面同色，盖住屏幕内容
-  const veil = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN_W, SCREEN_H), new THREE.MeshBasicMaterial({ color: ICE, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
-  veil.position.set(0, SCREEN_Y, 0.012);
+  const veil = new THREE.Mesh(display.clone(), new THREE.MeshBasicMaterial({ color: ICE, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  veil.name = "laptop-veil";
+  veil.position.set(0, SCREEN_Y, LAPTOP_DISPLAY.z + 0.0004);
   veil.renderOrder = 2;
   veil.visible = false;
   lid.add(veil);
@@ -275,11 +237,8 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     phoneVeil.material.opacity = opacity;
     phoneVeil.visible = opacity > 0.001;
   };
-  const webcam = new THREE.Mesh(new THREE.CircleGeometry(0.006, 12), new THREE.MeshBasicMaterial({ color: "#2b3150" }));
-  webcam.position.set(0, 0.758, 0.0114);
-  lid.add(webcam);
   cast(laptop);
-  keys.castShadow = false;
+  for (const v of keyboard.visuals) v.castShadow = false;
   lid.traverse((o) => {
     if (o !== shell && o !== bezel) {
       o.castShadow = false;
@@ -294,7 +253,6 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     throw error;
   });
   const { phone, bounds: phoneBounds } = device;
-  laptop.name = "desk-laptop";
   phone.position.set(0.05, -phoneBounds.min.z + 0.003, 0.12);
   phone.rotation.set(-Math.PI / 2, 0, -0.12);
   scene.add(phone);
@@ -346,27 +304,13 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let phoneMode = false;
 
   // ── 桌面小物 ───────────────────────────────────────────────────────────
-  const mug = new THREE.Group();
-  mug.position.set(1.08, 0, 0.36);
-  scene.add(mug);
-  const ceramic = new THREE.MeshStandardMaterial({ color: "#fbfbfd", roughness: 0.22 });
-  const mugBody = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.105, 0.26, 36, 1, true), ceramic);
-  mugBody.position.y = 0.13;
-  const mugIn = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.097, 0.25, 36, 1, true), new THREE.MeshStandardMaterial({ color: "#f1f1f4", side: THREE.BackSide, roughness: 0.3 }));
-  mugIn.position.y = 0.135;
-  const mugBottom = new THREE.Mesh(new THREE.CircleGeometry(0.105, 36), ceramic);
-  mugBottom.rotation.x = -Math.PI / 2;
-  mugBottom.position.y = 0.002;
-  const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.104, 36), new THREE.MeshStandardMaterial({ color: "#6b4630", roughness: 0.15 }));
-  coffee.rotation.x = -Math.PI / 2;
-  coffee.position.y = 0.215;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.1162, 0.1142, 0.03, 36, 1, true), new THREE.MeshStandardMaterial({ color: "#3346c8", roughness: 0.35 }));
-  band.position.y = 0.17;
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.016, 10, 24, Math.PI), ceramic);
-  handle.rotation.z = -Math.PI / 2;
-  handle.position.set(0.112, 0.13, 0);
-  mug.add(mugBody, mugIn, mugBottom, coffee, band, handle);
+  const coaster = createCoaster();
+  coaster.position.set(1.08, 0, 0.36);
+  scene.add(coaster);
+  const mug = createMug();
+  mug.position.set(1.08, 0.008, 0.36);
   mug.rotation.y = -0.9;
+  scene.add(mug);
   cast(mug);
   const steamTex = canvasTexture(128, 128, (x, w) => {
     const g = x.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
@@ -384,33 +328,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   });
   let steamBurst = 0;
 
-  const plant = new THREE.Group();
+  const { group: plant, leaves } = createPlant();
   plant.position.set(-1.32, 0, -0.62);
+  plant.scale.setScalar(1.2);
   scene.add(plant);
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.115, 0.26, 32), new THREE.MeshStandardMaterial({ color: "#f6f3ee", roughness: 0.45 }));
-  pot.position.y = 0.13;
-  const soil = new THREE.Mesh(new THREE.CircleGeometry(0.14, 24), new THREE.MeshStandardMaterial({ color: "#5a4636", roughness: 1 }));
-  soil.rotation.x = -Math.PI / 2;
-  soil.position.y = 0.25;
-  plant.add(pot, soil);
-  const leafGeo = new THREE.SphereGeometry(1, 16, 10);
-  const leafLight = new THREE.MeshStandardMaterial({ color: "#6db287", roughness: 0.55 });
-  const leafDark = new THREE.MeshStandardMaterial({ color: "#4f9a6f", roughness: 0.55 });
-  const leaves: THREE.Group[] = [];
-  for (let i = 0; i < 9; i++) {
-    const pivot = new THREE.Group();
-    pivot.position.y = 0.25;
-    pivot.rotation.y = (i / 9) * Math.PI * 2 + (i % 2) * 0.3;
-    const leaf = new THREE.Mesh(leafGeo, i % 3 ? leafLight : leafDark);
-    const len = 0.2 + (i % 3) * 0.06;
-    leaf.scale.set(0.045, len, 0.012);
-    leaf.position.y = len;
-    pivot.add(leaf);
-    pivot.userData.tilt = 0.35 + (i % 3) * 0.18;
-    pivot.rotation.z = pivot.userData.tilt as number;
-    plant.add(pivot);
-    leaves.push(pivot);
-  }
   cast(plant);
   let plantWiggle = 0;
 
@@ -461,15 +382,25 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let robotHop = 0;
   let blinkAt = 2.5;
 
-  const notebook = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.022, 0.31, 2, 0.006), new THREE.MeshStandardMaterial({ color: "#3346c8", roughness: 0.55 }));
-  notebook.position.set(-0.52, 0.011, 0.78);
+  const notebook = createNotebook();
+  notebook.position.set(-0.52, 0, 0.78);
   notebook.rotation.y = 0.35;
   scene.add(cast(notebook));
-  const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.34, 6), new THREE.MeshStandardMaterial({ color: "#f5a524", roughness: 0.5 }));
-  pencil.rotation.set(0, 0.1, Math.PI / 2);
-  pencil.position.set(-0.5, 0.032, 0.78);
+  const pencil = createPencil();
+  pencil.rotation.y = 0.1;
+  pencil.position.set(-0.5, 0.0317, 0.78);
   scene.add(cast(pencil));
 
+  // 便签：纸面带明暗渐变与粘条，下沿微微翘起；每张下面垫一层柔影（不投实时阴影）
+  const noteShadowTex = canvasTexture(64, 64, (x, w) => {
+    const g = x.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    g.addColorStop(0, "rgba(40,30,20,0.34)");
+    g.addColorStop(0.6, "rgba(40,30,20,0.12)");
+    g.addColorStop(1, "rgba(40,30,20,0)");
+    x.clearRect(0, 0, w, w);
+    x.fillStyle = g;
+    x.fillRect(0, 0, w, w);
+  });
   const note = (text: string, color: string, size = 0.2) => {
     const tex = canvasTexture(
       256,
@@ -477,8 +408,16 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       (x, W) => {
         x.fillStyle = color;
         x.fillRect(0, 0, W, W);
-        x.fillStyle = "rgba(0,0,0,0.05)";
+        const shade = x.createLinearGradient(0, 0, 0, W);
+        shade.addColorStop(0, "rgba(255,255,255,0.22)");
+        shade.addColorStop(0.55, "rgba(255,255,255,0)");
+        shade.addColorStop(1, "rgba(60,40,0,0.12)");
+        x.fillStyle = shade;
+        x.fillRect(0, 0, W, W);
+        x.fillStyle = "rgba(0,0,0,0.06)";
         x.fillRect(0, 0, W, 34);
+        x.fillStyle = "rgba(0,0,0,0.05)";
+        x.fillRect(0, 34, W, 2);
         x.fillStyle = "#1b2140";
         x.font = '600 30px "SF Mono", Menlo, "PingFang SC", monospace';
         x.textAlign = "center";
@@ -486,41 +425,64 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       },
       TEXT_SCALE,
     );
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex.texture, roughness: 0.9 }));
+    const geo = new THREE.PlaneGeometry(size, size, 10, 10);
+    const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+    const half = size / 2;
+    for (let i = 0; i < pos.count; i++) {
+      // 本地 -y 是平放后朝向观众的下沿：越靠近下沿越翘，z 对应世界向上
+      const edge = Math.max(0, (-pos.getY(i) / half - 0.15) / 0.85);
+      const side = Math.abs(pos.getX(i) / half);
+      pos.setZ(i, 0.012 * edge * edge * (1 - 0.35 * side));
+    }
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex.texture, roughness: 0.9 }));
     mesh.receiveShadow = true;
     return mesh;
+  };
+  const noteShadow = (paper: THREE.Mesh, size: number) => {
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(size * 1.4, size * 1.4), new THREE.MeshBasicMaterial({ map: noteShadowTex.texture, transparent: true, depthWrite: false }));
+    shadow.rotation.set(-Math.PI / 2, 0, paper.rotation.z);
+    shadow.position.set(paper.position.x + 0.006, 0.0008, paper.position.z + 0.01);
+    scene.add(shadow);
   };
   const n1 = note("TODO\n写 README", "#ffe27a");
   n1.rotation.set(-Math.PI / 2, 0, -0.25);
   n1.position.set(0.78, 0.0015, 0.66);
   scene.add(n1);
+  noteShadow(n1, 0.2);
   const n2 = note("git pull", "#dfe5ff", 0.17);
   n2.rotation.set(-Math.PI / 2, 0, 0.18);
   n2.position.set(0.96, 0.0016, 0.86);
   scene.add(n2);
+  noteShadow(n2, 0.17);
 
+  // 挂画：生成的极客娘画像整幅铺满（cover）；加载失败时用浅色底 + 校徽
+  const POSTER_W = 512;
+  const POSTER_H = 692;
   const poster = canvasTexture(
-    512,
-    640,
+    POSTER_W,
+    POSTER_H,
     (x) => {
-      x.fillStyle = "#fbfaf7";
-      x.fillRect(0, 0, 512, 640);
-      if (logo) drawEmblem(x, logo, 256, 250, 300);
-      x.fillStyle = "#1b2140";
-      x.textAlign = "center";
-      x.font = '700 40px "PingFang SC", "Hiragino Sans GB", sans-serif';
-      x.fillText("长江大学极客班", 256, 500);
+      const bg = x.createLinearGradient(0, 0, 0, POSTER_H);
+      bg.addColorStop(0, "#eaf0ff");
+      bg.addColorStop(1, "#fbfaf7");
+      x.fillStyle = bg;
+      x.fillRect(0, 0, POSTER_W, POSTER_H);
+      if (portrait) {
+        const k = Math.max(POSTER_W / portrait.naturalWidth, POSTER_H / portrait.naturalHeight);
+        const w = portrait.naturalWidth * k;
+        const h = portrait.naturalHeight * k;
+        x.drawImage(portrait, (POSTER_W - w) / 2, (POSTER_H - h) / 2, w, h);
+      } else if (logo) {
+        drawEmblem(x, logo, POSTER_W / 2, POSTER_H / 2, 300);
+      }
     },
     TEXT_SCALE,
   );
-  const frame = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.9, 0.03, 2, 0.008), new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }));
-  frame.position.set(-0.55, 0.92, -1.48);
-  frame.scale.setScalar(0.8);
+  const { group: frame, poster: posterMesh } = createPortrait(poster.texture);
+  frame.position.set(-0.55, 0.92, -1.49);
+  frame.scale.setScalar(0.9);
   scene.add(cast(frame));
-  const posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.8), new THREE.MeshStandardMaterial({ map: poster.texture, roughness: 0.8 }));
-  posterMesh.position.set(-0.55, 0.92, -1.463);
-  posterMesh.scale.setScalar(0.8);
-  scene.add(posterMesh);
   report("scene", "书桌已摆好");
 
   // ── 镜头 ───────────────────────────────────────────────────────────────
@@ -650,7 +612,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     return moving;
   };
 
-  // ── 拾取：屏幕是两个三角形；其余物体用包围盒；键盘按平面换算格子 ────────
+  // ── 拾取：屏幕用模型的圆角几何；其余物体用包围盒；键盘按平面换算到真实键矩形 ────
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const hits: THREE.Intersection[] = [];
@@ -674,16 +636,21 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     if (touchKeys && !phoneMode) {
-      // 键盘所在平面：笔记本局部 y = KEY_Y
+      // 键盘所在平面：笔记本局部 y = keyboard.y；变宽按键按真实矩形命中
       laptop.updateMatrixWorld();
       planeNormal.set(0, 1, 0).transformDirection(laptop.matrixWorld);
-      planePoint.set(0, KEY_Y, 0).applyMatrix4(laptop.matrixWorld);
+      planePoint.set(0, keyboard.y, 0).applyMatrix4(laptop.matrixWorld);
       keyPlane.setFromNormalAndCoplanarPoint(planeNormal, planePoint);
       if (ray.ray.intersectPlane(keyPlane, hitPoint)) {
         keyLocal.copy(hitPoint).applyMatrix4(inverse.copy(laptop.matrixWorld).invert());
-        const c = Math.round((keyLocal.x - KEY_X0) / KEY_PITCH_X);
-        const r = Math.round((keyLocal.z - KEY_Z0) / KEY_PITCH_Z);
-        if (c >= 0 && c < COLS && r >= 0 && r < ROWS) press(r * COLS + c);
+        const rects = keyboard.keys;
+        for (let i = 0; i < rects.length; i++) {
+          const k = rects[i];
+          if (Math.abs(keyLocal.x - k.x) * 2 <= k.width && Math.abs(keyLocal.z - k.z) * 2 <= k.depth) {
+            press(i);
+            break;
+          }
+        }
       }
     }
     for (let i = 0; i < TARGETS.length; i++) {
@@ -701,8 +668,6 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   };
   const phoneParts: THREE.Object3D[] = [phoneScreen, ...device.pickParts];
 
-  let dirtyMin = Infinity;
-  let dirtyMax = -1;
   const press = (i: number) => {
     keyPress[i] = 1;
     stage.invalidate();
@@ -790,22 +755,17 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
     }
     robotShadow.material.opacity = 1 - (robot.position.y - 0.3) * 3;
 
-    // 键盘：只更新按下中的键，并只上传变化的实例区间
-    dirtyMin = Infinity;
-    dirtyMax = -1;
+    // 键盘：只更新按住中的键，逐帧阻尼；这一帧有变化就 flush 一次上传
+    let keyMoving = false;
     for (let i = 0; i < keyPress.length; i++) {
       if (keyPress[i] <= 0) continue;
       keyPress[i] *= Math.pow(0.02, dt);
       if (keyPress[i] < 0.001) keyPress[i] = 0;
-      m4.makeTranslation(keyX(i), KEY_Y - keyPress[i] * 0.007, keyZ(i));
-      keys.setMatrixAt(i, m4);
-      if (i < dirtyMin) dirtyMin = i;
-      if (i > dirtyMax) dirtyMax = i;
+      keyboard.setPressed(i, keyPress[i]);
+      keyMoving = true;
     }
-    if (dirtyMax >= 0) {
-      keys.instanceMatrix.clearUpdateRanges();
-      keys.instanceMatrix.addUpdateRange(dirtyMin * 16, (dirtyMax - dirtyMin + 1) * 16);
-      keys.instanceMatrix.needsUpdate = true;
+    if (keyMoving) {
+      keyboard.flush();
       motion = Motion.Active;
     }
 
@@ -840,7 +800,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   });
 
   // ── 就绪：校徽贴图、着色器编译、第一帧 ─────────────────────────────────
-  logo = await loadImage(options.logoUrl);
+  [logo, portrait] = await Promise.all([loadImage(options.logoUrl), loadImage(options.portraitUrl)]);
   if (options.cancelled()) {
     dispose();
     return null;
