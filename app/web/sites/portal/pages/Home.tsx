@@ -113,6 +113,7 @@ export default function Home() {
           reducedMotion,
           hint: hint.current,
           logoUrl: appConfig.portal.brand.logo,
+          portraitUrl: appConfig.mascot.poses.intro.file,
           // 文案叠在画面下方时，书桌只取顶栏与文案之间那条横带
           band: () => {
             if (!window.matchMedia(STACKED_QUERY).matches || !hudTop.current || !hudCopy.current) return null;

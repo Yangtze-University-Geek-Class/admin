@@ -13,6 +13,7 @@ import type { LoaderStep } from "../lib/loaderProgress";
 import { damp, ease, span } from "../lib/motion";
 import { LAPTOP_DISPLAY, createLaptop } from "./laptop";
 import { loadPhone } from "./phone";
+import { createCoaster, createMug, createNotebook, createPencil, createPlant, createPortrait } from "./props";
 import { Motion, PALETTE, Stage, TEXT_SCALE, bandPose, boxCorners, canvasTexture, drawEmblem, loadImage, softShadow } from "./stage";
 
 export type DeskOptions = {
@@ -20,6 +21,8 @@ export type DeskOptions = {
   /** 跟随指针的小提示（「点击开机」等） */
   hint: HTMLElement;
   logoUrl: string;
+  /** 墙上挂画用的极客娘立绘（透明底） */
+  portraitUrl: string;
   /** 点中了屏幕 */
   onEnter: () => void;
   /**
@@ -74,6 +77,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
 
   // ── 贴图 ──────────────────────────────────────────────────────────────
   let logo: HTMLImageElement | null = null;
+  let portrait: HTMLImageElement | null = null;
   const wood = canvasTexture(1024, 512, (x, w, h) => {
     x.fillStyle = "#ece2d2";
     x.fillRect(0, 0, w, h);
@@ -300,27 +304,13 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let phoneMode = false;
 
   // ── 桌面小物 ───────────────────────────────────────────────────────────
-  const mug = new THREE.Group();
-  mug.position.set(1.08, 0, 0.36);
-  scene.add(mug);
-  const ceramic = new THREE.MeshStandardMaterial({ color: "#fbfbfd", roughness: 0.22 });
-  const mugBody = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.105, 0.26, 36, 1, true), ceramic);
-  mugBody.position.y = 0.13;
-  const mugIn = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.097, 0.25, 36, 1, true), new THREE.MeshStandardMaterial({ color: "#f1f1f4", side: THREE.BackSide, roughness: 0.3 }));
-  mugIn.position.y = 0.135;
-  const mugBottom = new THREE.Mesh(new THREE.CircleGeometry(0.105, 36), ceramic);
-  mugBottom.rotation.x = -Math.PI / 2;
-  mugBottom.position.y = 0.002;
-  const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.104, 36), new THREE.MeshStandardMaterial({ color: "#6b4630", roughness: 0.15 }));
-  coffee.rotation.x = -Math.PI / 2;
-  coffee.position.y = 0.215;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.1162, 0.1142, 0.03, 36, 1, true), new THREE.MeshStandardMaterial({ color: "#3346c8", roughness: 0.35 }));
-  band.position.y = 0.17;
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.016, 10, 24, Math.PI), ceramic);
-  handle.rotation.z = -Math.PI / 2;
-  handle.position.set(0.112, 0.13, 0);
-  mug.add(mugBody, mugIn, mugBottom, coffee, band, handle);
+  const coaster = createCoaster();
+  coaster.position.set(1.08, 0, 0.36);
+  scene.add(coaster);
+  const mug = createMug();
+  mug.position.set(1.08, 0.008, 0.36);
   mug.rotation.y = -0.9;
+  scene.add(mug);
   cast(mug);
   const steamTex = canvasTexture(128, 128, (x, w) => {
     const g = x.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
@@ -338,33 +328,10 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   });
   let steamBurst = 0;
 
-  const plant = new THREE.Group();
+  const { group: plant, leaves } = createPlant();
   plant.position.set(-1.32, 0, -0.62);
+  plant.scale.setScalar(1.2);
   scene.add(plant);
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.115, 0.26, 32), new THREE.MeshStandardMaterial({ color: "#f6f3ee", roughness: 0.45 }));
-  pot.position.y = 0.13;
-  const soil = new THREE.Mesh(new THREE.CircleGeometry(0.14, 24), new THREE.MeshStandardMaterial({ color: "#5a4636", roughness: 1 }));
-  soil.rotation.x = -Math.PI / 2;
-  soil.position.y = 0.25;
-  plant.add(pot, soil);
-  const leafGeo = new THREE.SphereGeometry(1, 16, 10);
-  const leafLight = new THREE.MeshStandardMaterial({ color: "#6db287", roughness: 0.55 });
-  const leafDark = new THREE.MeshStandardMaterial({ color: "#4f9a6f", roughness: 0.55 });
-  const leaves: THREE.Group[] = [];
-  for (let i = 0; i < 9; i++) {
-    const pivot = new THREE.Group();
-    pivot.position.y = 0.25;
-    pivot.rotation.y = (i / 9) * Math.PI * 2 + (i % 2) * 0.3;
-    const leaf = new THREE.Mesh(leafGeo, i % 3 ? leafLight : leafDark);
-    const len = 0.2 + (i % 3) * 0.06;
-    leaf.scale.set(0.045, len, 0.012);
-    leaf.position.y = len;
-    pivot.add(leaf);
-    pivot.userData.tilt = 0.35 + (i % 3) * 0.18;
-    pivot.rotation.z = pivot.userData.tilt as number;
-    plant.add(pivot);
-    leaves.push(pivot);
-  }
   cast(plant);
   let plantWiggle = 0;
 
@@ -415,15 +382,25 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   let robotHop = 0;
   let blinkAt = 2.5;
 
-  const notebook = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.022, 0.31, 2, 0.006), new THREE.MeshStandardMaterial({ color: "#3346c8", roughness: 0.55 }));
-  notebook.position.set(-0.52, 0.011, 0.78);
+  const notebook = createNotebook();
+  notebook.position.set(-0.52, 0, 0.78);
   notebook.rotation.y = 0.35;
   scene.add(cast(notebook));
-  const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.34, 6), new THREE.MeshStandardMaterial({ color: "#f5a524", roughness: 0.5 }));
-  pencil.rotation.set(0, 0.1, Math.PI / 2);
-  pencil.position.set(-0.5, 0.032, 0.78);
+  const pencil = createPencil();
+  pencil.rotation.y = 0.1;
+  pencil.position.set(-0.5, 0.0317, 0.78);
   scene.add(cast(pencil));
 
+  // 便签：纸面带明暗渐变与粘条，下沿微微翘起；每张下面垫一层柔影（不投实时阴影）
+  const noteShadowTex = canvasTexture(64, 64, (x, w) => {
+    const g = x.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    g.addColorStop(0, "rgba(40,30,20,0.34)");
+    g.addColorStop(0.6, "rgba(40,30,20,0.12)");
+    g.addColorStop(1, "rgba(40,30,20,0)");
+    x.clearRect(0, 0, w, w);
+    x.fillStyle = g;
+    x.fillRect(0, 0, w, w);
+  });
   const note = (text: string, color: string, size = 0.2) => {
     const tex = canvasTexture(
       256,
@@ -431,8 +408,16 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       (x, W) => {
         x.fillStyle = color;
         x.fillRect(0, 0, W, W);
-        x.fillStyle = "rgba(0,0,0,0.05)";
+        const shade = x.createLinearGradient(0, 0, 0, W);
+        shade.addColorStop(0, "rgba(255,255,255,0.22)");
+        shade.addColorStop(0.55, "rgba(255,255,255,0)");
+        shade.addColorStop(1, "rgba(60,40,0,0.12)");
+        x.fillStyle = shade;
+        x.fillRect(0, 0, W, W);
+        x.fillStyle = "rgba(0,0,0,0.06)";
         x.fillRect(0, 0, W, 34);
+        x.fillStyle = "rgba(0,0,0,0.05)";
+        x.fillRect(0, 34, W, 2);
         x.fillStyle = "#1b2140";
         x.font = '600 30px "SF Mono", Menlo, "PingFang SC", monospace';
         x.textAlign = "center";
@@ -440,41 +425,95 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
       },
       TEXT_SCALE,
     );
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex.texture, roughness: 0.9 }));
+    const geo = new THREE.PlaneGeometry(size, size, 10, 10);
+    const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+    const half = size / 2;
+    for (let i = 0; i < pos.count; i++) {
+      // 本地 -y 是平放后朝向观众的下沿：越靠近下沿越翘，z 对应世界向上
+      const edge = Math.max(0, (-pos.getY(i) / half - 0.15) / 0.85);
+      const side = Math.abs(pos.getX(i) / half);
+      pos.setZ(i, 0.012 * edge * edge * (1 - 0.35 * side));
+    }
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex.texture, roughness: 0.9 }));
     mesh.receiveShadow = true;
     return mesh;
+  };
+  const noteShadow = (paper: THREE.Mesh, size: number) => {
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(size * 1.4, size * 1.4), new THREE.MeshBasicMaterial({ map: noteShadowTex.texture, transparent: true, depthWrite: false }));
+    shadow.rotation.set(-Math.PI / 2, 0, paper.rotation.z);
+    shadow.position.set(paper.position.x + 0.006, 0.0008, paper.position.z + 0.01);
+    scene.add(shadow);
   };
   const n1 = note("TODO\n写 README", "#ffe27a");
   n1.rotation.set(-Math.PI / 2, 0, -0.25);
   n1.position.set(0.78, 0.0015, 0.66);
   scene.add(n1);
+  noteShadow(n1, 0.2);
   const n2 = note("git pull", "#dfe5ff", 0.17);
   n2.rotation.set(-Math.PI / 2, 0, 0.18);
   n2.position.set(0.96, 0.0016, 0.86);
   scene.add(n2);
+  noteShadow(n2, 0.17);
 
   const poster = canvasTexture(
     512,
     640,
     (x) => {
-      x.fillStyle = "#fbfaf7";
+      const bg = x.createLinearGradient(0, 0, 0, 640);
+      bg.addColorStop(0, "#eaf0ff");
+      bg.addColorStop(1, "#fbfaf7");
+      x.fillStyle = bg;
       x.fillRect(0, 0, 512, 640);
-      if (logo) drawEmblem(x, logo, 256, 250, 300);
+      // 人物身后的柔光圆与六边形（发卡的形状），脚下一层柔影
+      const glow = x.createRadialGradient(256, 290, 20, 256, 290, 240);
+      glow.addColorStop(0, "rgba(255,255,255,0.95)");
+      glow.addColorStop(1, "rgba(200,214,255,0)");
+      x.fillStyle = glow;
+      x.fillRect(0, 0, 512, 640);
+      x.strokeStyle = "rgba(51,70,200,0.16)";
+      x.lineWidth = 3;
+      x.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i + Math.PI / 6;
+        x.lineTo(256 + Math.cos(a) * 200, 290 + Math.sin(a) * 200);
+      }
+      x.closePath();
+      x.stroke();
+      const floor = x.createRadialGradient(256, 556, 4, 256, 556, 130);
+      floor.addColorStop(0, "rgba(51,70,200,0.22)");
+      floor.addColorStop(1, "rgba(51,70,200,0)");
+      x.fillStyle = floor;
+      x.save();
+      x.translate(256, 556);
+      x.scale(1, 0.16);
+      x.translate(-256, -556);
+      x.fillRect(100, 380, 312, 360);
+      x.restore();
+      if (portrait) {
+        const h = 548;
+        const w = (h * portrait.naturalWidth) / portrait.naturalHeight;
+        x.drawImage(portrait, (512 - w) / 2, 26, w, h);
+      } else if (logo) {
+        drawEmblem(x, logo, 256, 250, 300);
+      }
+      x.strokeStyle = "rgba(51,70,200,0.28)";
+      x.lineWidth = 2;
+      x.strokeRect(14, 14, 484, 612);
       x.fillStyle = "#1b2140";
       x.textAlign = "center";
-      x.font = '700 40px "PingFang SC", "Hiragino Sans GB", sans-serif';
-      x.fillText("长江大学极客班", 256, 500);
+      x.font = '700 30px "PingFang SC", "Hiragino Sans GB", sans-serif';
+      x.fillText("极客娘", 256, 596);
+      x.fillStyle = "rgba(27,33,64,0.5)";
+      x.font = '500 13px "SF Mono", Menlo, monospace';
+      x.fillText("YANGTZE UNIVERSITY GEEK CLASS", 256, 620);
     },
     TEXT_SCALE,
   );
-  const frame = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.9, 0.03, 2, 0.008), new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }));
-  frame.position.set(-0.55, 0.92, -1.48);
-  frame.scale.setScalar(0.8);
+  const { group: frame, poster: posterMesh } = createPortrait(poster.texture);
+  frame.position.set(-0.55, 0.92, -1.49);
+  frame.scale.setScalar(0.9);
   scene.add(cast(frame));
-  const posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.8), new THREE.MeshStandardMaterial({ map: poster.texture, roughness: 0.8 }));
-  posterMesh.position.set(-0.55, 0.92, -1.463);
-  posterMesh.scale.setScalar(0.8);
-  scene.add(posterMesh);
   report("scene", "书桌已摆好");
 
   // ── 镜头 ───────────────────────────────────────────────────────────────
@@ -792,7 +831,7 @@ export async function createDesk(canvas: HTMLCanvasElement, options: DeskOptions
   });
 
   // ── 就绪：校徽贴图、着色器编译、第一帧 ─────────────────────────────────
-  logo = await loadImage(options.logoUrl);
+  [logo, portrait] = await Promise.all([loadImage(options.logoUrl), loadImage(options.portraitUrl)]);
   if (options.cancelled()) {
     dispose();
     return null;
