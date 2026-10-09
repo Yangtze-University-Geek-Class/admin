@@ -2,7 +2,7 @@
 
 > 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。
 
-状态：`current` · 更新：2026-10-06
+状态：`current` · 更新：2026-10-09
 
 ## 根入口和分工
 
@@ -33,6 +33,10 @@
 移动 YUGC OS 与手机首页（#206）：`tests/e2e/portal-phone.spec.ts` 在真实 Chromium 里覆盖 360×780、390×844、430×932 的整个模型取景与实际触点、显示屏与交接遮罩的四角几何圆角、两张独立竖图与 180×390 缩略图、主屏下滑搜索、旋转与横竖切换保留窗口内容、系统设置内换壁纸与回书桌、跳过开机首帧不透明与慢图解码等待、减少动态效果与无 WebGL 回退、模型下载失败释放场景、非零不对称安全区，以及 1440×900 电脑端不改版；`tests/web/portal-phone.test.tsx` 覆盖手机壳层结构、`console_link` 权限过滤、论坛/GitHub 一跳直达、隐藏面板不卸载与返回主屏幕；`tests/web/portal-wallpapers.test.ts` 核对竖图尺寸与体积预算、同 id 按形态解析与只预取当前形态。Chromium 设备模拟不代表 iPhone Safari 真机，真机证据另立记录。
 
 控制台只读权限树（#176）：`tests/console/permission-tree.test.ts` 覆盖 `/me` 优先于来源、受限冲突、传递蕴含与环、多来源唯一节点、动态包与名称、归档/缺失部门、owner/guest 固定规则、领航员不派生普通舰员及未知 id。浏览器分别核对真实 `/console/people?view=permissions` 的前进后退、搜索与展开记忆、键盘、390px 详情焦点、普通成员页面门与 401 登录回跳，以及 catalogue/部门失败时旧树隐藏和刷新恢复。动态名称/权限包/归档用隔离内存服务的真实路由修改后重读；只注入虚构 GitHub 外部响应，不读取业务库、不发邮件，也不把该证据称为真实 OAuth 或预发布人工验收。
+
+邀请页历史记录版式（#211）：`tests/e2e/workflows.spec.ts` 增加 `/console/github/invitations` 用例，在 1440/1280/1024×900 与 390×844 量真实 Chromium 渲染的几何：24 字符合成 token（与线上 `randomBytes(18)` 等长，取自 `/invitations` 样板）在本格内截断、不划穿「结果」列、悬停 `title` 带全值；`pending_admin` 显示「待核对」，结果徽章与北京时间各保单行；两张表行高一致；窄屏横向滚动关在 `.tx-data-table` 自己的容器里、页面无横向溢出。根修法是 `app/console/src/styles/layout.css`：`.ellipsis` 共用溢出和单行规则，`inline-block` + `vertical-align: bottom` + `max-width: 100%` 只补到 14 处普通行内 `span.ellipsis`；概览的 `dd` 保留块布局。抽查共用页面的窄屏边界，不固定 CSS display 或日期分隔符作为行为契约。
+
+同一用例还在 390px 核对概览的 GitHub 组织名不会越过自身事实列：覆盖共用截断规则把原生块元素误改成按内容撑宽的行内块时，组织名压到相邻组织角色的回归。
 
 ## 分支、环境与发布门禁回归
 

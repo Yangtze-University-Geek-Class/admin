@@ -157,10 +157,24 @@
   overflow: hidden;
 }
 
+/*
+ * 单行截断（#211）。截断只对块盒或行内块盒生效：挂在普通内联 <span> 上的
+ * overflow:text-overflow 完全不工作，文本会直接越过单元格压到下一列。
+ * 所以 inline-block + vertical-align: bottom（不抬高所在行）只补在 <span> 上——
+ * 控制台的 14 处裸内联消费方全是 span（审计、邀请链接、邀请记录、投递管理、仓库、仓库详情、成员单元格等）。
+ * 已经是块盒的消费方（概览 .identity__facts 的 dd）保持自身版式：inline-block 会让它按内容宽（实测 233px）
+ * 越过 152px 的所在列压到相邻事实里，块盒本来就被容器宽度限住，加上 overflow 就截断。
+ * max-width: 100% 是给 span 的兜底（最宽到所在容器），不覆盖消费方自己更宽的 max-width。
+ */
 .ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+span.ellipsis {
+  display: inline-block;
+  vertical-align: bottom;
+  max-width: 100%;
 }
 
 .tags {

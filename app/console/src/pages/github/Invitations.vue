@@ -44,14 +44,19 @@ const historyColumns = [
   { key: "who", title: "受邀人", width: 150 },
   { key: "note", title: "备注" },
   { key: "link", title: "邀请链接", width: 130 },
-  { key: "status", title: "结果", width: 84 },
+  // 单行徽章约 62px（3 字 + 图标 + sm 内边距），84px 的列只剩 60px 会挤成两行，放宽到放得下为止（#211）
+  { key: "status", title: "结果", width: 104, nowrap: true },
   { key: "ip", title: "来源 IP", width: 116 },
-  { key: "created_at", title: "时间", width: 120 },
+  // 「年-月-日 时:分」的时间串实宽 ~106px，120px 的列放不下；140px + 既有 nowrap 机制保持单行（#211）
+  { key: "created_at", title: "时间", width: 140, nowrap: true },
 ];
 const STATUS: Record<string, { text: string; status: "success" | "danger" | "warning" | "muted" }> = {
   sent: { text: "已发出", status: "success" },
   failed: { text: "失败", status: "danger" },
+  // 服务端写的是 `pending_admin`（`routes/portal/join.ts` 的不确定结果），只留 `pending` 时真实数据落到兜底
+  // 会直接显示英文原文，比「待核对」宽得多，徽章又挤成两行（#211）。
   pending: { text: "待核对", status: "warning" },
+  pending_admin: { text: "待核对", status: "warning" },
 };
 </script>
 
@@ -82,10 +87,12 @@ const STATUS: Record<string, { text: string; status: "success" | "danger" | "war
 
       <TxCard :padding="0">
         <template #header><div class="card-head table-head"><h2 class="section-title">本站发出的记录</h2><span class="count">{{ data.data.value.history.length }} 条</span></div></template>
-        <TxDataTable style="--table-min: 680px" :columns="historyColumns" :data="data.data.value.history" row-key="id" table-layout="fixed" scroll-x>
+        <!-- 固定列宽之和 640，「备注」至少留 80 → --table-min 720；窄屏由 scroll-x 在表自己的容器里横向滚动（#211） -->
+        <TxDataTable style="--table-min: 720px" :columns="historyColumns" :data="data.data.value.history" row-key="id" table-layout="fixed" scroll-x>
           <template #cell-who="{ row }: { row: History }"><span class="mono">{{ who(row) }}</span></template>
           <template #cell-note="{ row }: { row: History }"><span :class="{ muted: !row.note }">{{ row.note ?? "无" }}</span></template>
-          <template #cell-link="{ row }: { row: History }"><span class="mono muted ellipsis">{{ row.invite_link_token ?? "无" }}</span></template>
+          <!-- 截断后要能看全值：与 InviteLinks.vue 的链接单元格同一做法（#211） -->
+          <template #cell-link="{ row }: { row: History }"><span class="mono muted ellipsis" :title="row.invite_link_token ?? undefined">{{ row.invite_link_token ?? "无" }}</span></template>
           <template #cell-status="{ row }: { row: History }">
             <TxStatusBadge :text="STATUS[row.status]?.text ?? row.status" :status="STATUS[row.status]?.status ?? 'muted'" size="sm" />
           </template>
@@ -100,7 +107,12 @@ const STATUS: Record<string, { text: string; status: "success" | "danger" | "war
 
 <style scoped>
 .table-head {
-  padding: 4px 4px 0;
+  padding: 12px 12px 8px;
+}
+/* 两张表行高一致（#211）：「待接受」表的一行 = 26px 的 sm「取消邀请」按钮 + 上下各 10px 单元格内边距 + 1px 分隔线 ≈ 47px。
+   「本站发出的记录」单行内容只有 ~40px，两表的 td 取同一个高度就不再参差。 */
+:deep(.tx-data-table__cell) {
+  height: 47px;
 }
 .danger-text {
   color: var(--tx-color-danger);

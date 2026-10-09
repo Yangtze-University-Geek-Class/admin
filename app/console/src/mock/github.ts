@@ -104,9 +104,12 @@ export function routeGithub(url: URL): unknown {
         { id: 1, login: "new-builder", email: null, role: "direct_member", inviter: { login: "xu-yan" }, created_at: iso(1 * HOUR) },
         { id: 2, login: null, email: "freshman@example.test", role: "direct_member", inviter: { login: "li-xiaoman" }, created_at: iso(1 * DAY) },
       ],
+      // 样板 token 与线上等长：服务端 `randomBytes(18).toString("base64url")` 正好 24 字。
+      // 16 字的旧样板撑不满 130px 的格，#211 的截断与遮挡在样板页复现不出来。三种结果各一条。
       history: [
-        { id: 11, github_login: "bai-shuo", email: null, note: "转专业", invite_link_token: "dev-preview-link", status: "sent", source_ip: "10.0.0.31", created_at: now - 3 * DAY },
-        { id: 10, github_login: "typo-user", email: null, note: null, invite_link_token: "dev-preview-link", status: "failed", source_ip: "10.0.0.32", created_at: now - 4 * DAY },
+        { id: 12, github_login: "bai-shuo", email: null, note: "转专业", invite_link_token: "k7Qz2mXw9Rb4Tn8Lp1Vs6Yd3", status: "sent", source_ip: "10.0.0.31", created_at: now - 3 * DAY },
+        { id: 11, github_login: "typo-user", email: null, note: null, invite_link_token: "m2Xq7dR4vN9bF6kT3sL8pW1z", status: "pending_admin", source_ip: null, created_at: now - 3 * DAY - 5 * MIN },
+        { id: 10, github_login: "hao-chen", email: null, note: "线下报名", invite_link_token: "A9fT4xLp7Qm2Rv8Kd1Zn6Bs0", status: "failed", source_ip: "10.0.0.32", created_at: now - 4 * DAY },
       ],
     };
   }

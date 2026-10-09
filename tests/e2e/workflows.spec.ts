@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CONSOLE_ORIGIN } from "../../playwright.config";
 
 test.beforeEach(async ({ page }) => {
@@ -244,6 +244,122 @@ test("mobile console keeps navigation in a drawer and has no page-level horizont
   await nav.getByRole("button", { name: "投递管理" }).click();
   await expect(page).toHaveURL(/\/console\/applications/);
   await expect(page.getByRole("heading", { name: "投递管理", level: 1 })).toBeVisible();
+});
+
+// #211：邀请页「本站发出的记录」。样板数据里的 invite_link_token 是 24 字符合成 token（与线上等长：
+// 服务端 `randomBytes(18).toString("base64url")` 正好 24 字），这里断言的是真实 Chromium 渲染出的几何。
+type HistoryRow = {
+  token: string;
+  tokenTitle: string | null;
+  ellipsisShown: boolean;
+  pastOwnCell: number;
+  overlapsStatus: boolean;
+  badgeText: string;
+  badgeHeight: number;
+  timeHeight: number;
+  rowHeight: number;
+};
+
+const invitationCard = (page: Page, title: string): Locator => page.locator(".tx-card").filter({ has: page.getByRole("heading", { name: title }) });
+
+async function measureInvitationHistory(card: Locator): Promise<HistoryRow[]> {
+  return card.evaluate((root: HTMLElement) =>
+    [...root.querySelectorAll("tbody tr")].map(row => {
+      const cells = [...row.querySelectorAll("td")] as HTMLTableCellElement[];
+      const token = cells[2].querySelector("span") as HTMLElement;
+      const badge = cells[3].querySelector(".tx-status-badge") as HTMLElement;
+      const badgeText = badge.querySelector(".tx-status-badge__text") ?? badge;
+      const time = cells[5].querySelector("span") as HTMLElement;
+      return {
+        token: token.textContent ?? "",
+        tokenTitle: token.getAttribute("title"),
+        ellipsisShown: token.scrollWidth > token.clientWidth,
+        pastOwnCell: token.getBoundingClientRect().right - cells[2].getBoundingClientRect().right,
+        overlapsStatus: token.getBoundingClientRect().right > cells[3].getBoundingClientRect().left,
+        badgeText: badgeText.textContent?.trim() ?? "",
+        badgeHeight: badgeText.getBoundingClientRect().height, // 只量 .tx-status-badge__text：徽章容器里的图标是独立的盒，整盒高度会把单行文字误报成多行
+        timeHeight: time.getBoundingClientRect().height,
+        rowHeight: row.getBoundingClientRect().height,
+      };
+    }));
+}
+
+async function expectInvitationHeadingInset(card: Locator) {
+  const bounds = await card.evaluate(root => {
+    const cardRect = root.getBoundingClientRect();
+    const headingRect = root.querySelector("h2")!.getBoundingClientRect();
+    const column = root.querySelector("thead th")!;
+    return {
+      left: headingRect.left - cardRect.left,
+      top: headingRect.top - cardRect.top,
+      right: cardRect.right - headingRect.right,
+      columnAlignment: Math.abs(headingRect.left - column.getBoundingClientRect().left - Number.parseFloat(getComputedStyle(column).paddingLeft)),
+    };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(12);
+  expect(bounds.top).toBeGreaterThanOrEqual(12);
+  expect(bounds.right).toBeGreaterThanOrEqual(12);
+  expect(bounds.columnAlignment).toBeLessThanOrEqual(1);
+}
+
+test("console invitations: the 24-char token truncates inside its cell, badges and Beijing time stay single-line, both tables share the row height (#211)", async ({ page }) => {
+  for (const width of [1440, 1280, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openConsole(page, "/console/github/invitations", "admin");
+    const history = invitationCard(page, "本站发出的记录");
+    const pending = invitationCard(page, "待接受");
+    await expect(history.locator("tbody tr")).toHaveCount(3);
+    await expect(pending.locator("tbody tr")).toHaveCount(2);
+    await expectInvitationHeadingInset(pending);
+    await expectInvitationHeadingInset(history);
+
+    const rows = await measureInvitationHistory(history);
+    // 三枚徽章都在：sent / pending_admin / failed
+    expect(rows.map(r => r.badgeText)).toEqual(["已发出", "待核对", "失败"]);
+    for (const row of rows) {
+      expect(row.tokenTitle).toBe(row.token); // 截断后悬停看全值（对齐 InviteLinks 的做法）
+      expect(row.ellipsisShown).toBe(true); // 24 字在 130px 列里必须出现「…」
+      expect(row.pastOwnCell).toBeLessThanOrEqual(0); // 不越过本格（修前实测 61px）
+      expect(row.overlapsStatus).toBe(false); // 不划穿「结果」列左缘
+      expect(row.badgeHeight).toBeLessThanOrEqual(24); // 单行文字 ~20px；折成两行 ~40px（修前徽章整盒 30px、行高 60px）
+      expect(row.timeHeight).toBeLessThanOrEqual(24);
+    }
+    // 两张表行高一致（修前 60px vs 47px 参差）
+    const pendingHeight = await pending.locator("tbody tr").first().evaluate(el => el.getBoundingClientRect().height);
+    for (const row of rows) expect(Math.abs(row.rowHeight - pendingHeight)).toBeLessThanOrEqual(1);
+  }
+
+  // 390×844：滚动关在表自己的容器里（--table-min 720 > 可用宽），页面不横向溢出，token 仍不越出本格
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openConsole(page, "/console/github/invitations", "admin");
+  const history = invitationCard(page, "本站发出的记录");
+  await expect(history.locator("tbody tr")).toHaveCount(3);
+  await expectInvitationHeadingInset(invitationCard(page, "待接受"));
+  await expectInvitationHeadingInset(history);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const scroller = await history.locator(".tx-data-table").first().evaluate(el => ({
+    scrolls: (el as HTMLElement).scrollWidth > el.clientWidth,
+    overflowX: getComputedStyle(el).overflowX,
+  }));
+  expect(scroller.scrolls).toBe(true);
+  expect(["auto", "scroll"]).toContain(scroller.overflowX);
+  for (const row of await measureInvitationHistory(history)) {
+    expect(row.ellipsisShown).toBe(true);
+    expect(row.pastOwnCell).toBeLessThanOrEqual(0);
+    expect(row.badgeHeight).toBeLessThanOrEqual(24);
+    expect(row.overlapsStatus).toBe(false);
+    expect(row.tokenTitle).toBe(row.token);
+    expect(row.timeHeight).toBeLessThanOrEqual(24);
+  }
+
+  await openConsole(page, "/console", "admin");
+  const org = page.locator(".identity__facts dd.ellipsis");
+  await expect(org).toBeVisible();
+  const bounds = await org.evaluate(el => ({
+    textRight: el.getBoundingClientRect().right,
+    columnRight: el.parentElement!.getBoundingClientRect().right,
+  }));
+  expect(bounds.textRight).toBeLessThanOrEqual(bounds.columnRight + 0.5);
 });
 
 test("forum 3D page resets its scene when restored from the back/forward cache (#109)", async ({ page }) => {

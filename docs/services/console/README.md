@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-10-06 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-10-09 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -130,7 +130,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ## 验证
 
-`tests/e2e/application-cancelled.spec.mts` 在 1440px / 390px 下由浏览器调用真实 Fastify 路由与内存库，只有身份查询和发信商是假响应，不接用户的本机验收实例、不发真实邮件；覆盖打开选项、键盘选取消、保存、刷新、保留历史、取消筛选与导出链接，以及过期画面 409 后保留备注。截图和自动测试不代替预发布所有者验收。
+`tests/e2e/application-cancelled.spec.mts` 在 1440px / 390px 下由浏览器调用真实 Fastify 路由与内存库，只有身份查询和发信商是假响应，不接用户的本机验收实例、不发真实邮件；覆盖打开选项、键盘选取消、保存、刷新、保留历史、取消筛选与导出链接，以及过期画面 409 后保留备注。`tests/e2e/workflows.spec.ts` 里的邀请页用例在 1440/1280/1024 与 390×844 下量真实渲染几何：24 字符合成 token 在本格内截断（不越出单元格、不划穿「结果」列）、结果徽章与北京时间各保单行、两张表行高一致、窄屏横向滚动关在表自己的容器里（#211）。截图和自动测试不代替预发布所有者验收。
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
@@ -144,4 +144,6 @@ node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导�
 - Tuffex 0.6.0 发布包里 17 个子路径（breadcrumb、steps、pagination、error-state、permission-state 等）的 `style.css` 是空文件，只能整包引入 `@talex-touch/tuffex/style.css`（与论坛相同），CSS 约 570KB（gzip 约 83KB）。上游修好后可改回按组件引入。
 - Tuffex 与其依赖 `@talex-touch/utils` 声明 `engines.node >=26`，工作区是 Node 22；实测构建与运行正常；pnpm 默认不开 engine-strict，仓库也没有打开它。`@talex-touch/utils` 把 `electron` 声明为 peer：根 `package.json` 用 `pnpm.packageExtensions` 标成可选，锁文件里没有 electron。`@unocss/inspector` 通过 `pnpm.overrides` 固定 `@vitejs/devtools-kit@0.7.3`（与论坛同版本），0.7.5 依赖的 devframe 1.0 与 0.9 混装会让 Vite 配置加载失败。
 - TxFormItem 在标签置顶时不会撑满宽度、TxDataTable 在窄屏会把固定布局的列压到重叠：`layout.css` 用两条选择器补上（见文件注释），没有改组件内部结构。
+- 截断依赖 `layout.css` 里的 `.ellipsis`：统一隐藏溢出并保持单行；普通行内 `span.ellipsis` 另用 `inline-block` + `vertical-align: bottom` + `max-width: 100%` 使省略号生效，`dd` 等块元素保持原布局（#211），避免概览的组织名撑出所在列。邀请页「本站发出的记录」的邀请链接单元格带 `:title` 存全值，「结果」「时间」两列宽度 `104`/`140` 并走 Tuffex 的按列 `nowrap`，表体 `--table-min: 720px`，两表行高统一 47px；`/invitations` 样板的历史记录用 24 字符 token，截断在预览里看得见。
+- 邀请页表体保持零卡片内边距，让表格铺满卡片；标题区另留上/左右各 12px、下 8px，与首列文本左缘对齐，不能沿用 4px 的标题内边距。浏览器回归同时核对两张卡片的标题不贴边，不能只测 token 遮挡。
 - 键盘与读屏只做了基本检查（焦点可见、对话框初始焦点在取消）；WCAG 2.2 AA 对比度、屏幕阅读器未做专项测试。
