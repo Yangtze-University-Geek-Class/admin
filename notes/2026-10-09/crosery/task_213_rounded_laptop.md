@@ -49,3 +49,9 @@
 - 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
 - 做了什么：提交 feat：props.ts、desk.ts、Home.tsx、portal.md；推送 task/213/rounded_laptop
 - 结果：已推送，PR #214 正文证据更新
+
+## 17:52:05 +08:00 · 返工 · #213 · 挂画换成重新生成的极客娘插画
+
+- 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
+- 做了什么：所有者反馈：「丑死了，这是哪个时代的备份图片啊，你去重新生成啊」。旧立绘是站内早期 Q 版素材，不适合当画像。用 crapi（gpt-image-2.5）以 pose-07-intro 为参考重新生成不透明竖幅插画，保留发型、发卡、白色连帽外套与蓝色水手领、百褶裙与运动鞋；转 webp（800 宽，74KB）放 app/web/public/portal/geek-girl-portrait.webp；画板改 0.6×0.81，画面 cover 铺满，去掉题字与内框。文档核对：portal.md 已改说明
+- 结果：tsc、check:doc-sync、check:secrets 通过；ego-browser 1440 整图与放大图已看；画像为 AI 生成素材，所有者确认前不视为定稿
