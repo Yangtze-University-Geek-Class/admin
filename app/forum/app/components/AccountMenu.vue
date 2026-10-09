@@ -53,7 +53,7 @@ function run(key: AccountMenuKey) {
 </script>
 
 <template>
-  <TxDropdownMenu placement="bottom-end">
+  <TxDropdownMenu placement="bottom-end" panel-background="pure">
     <template #trigger>
       <TxIconButton :label="`@${account.login}`" shape="circle">
         <UserAvatar v-if="user" :user="user" size="small" />

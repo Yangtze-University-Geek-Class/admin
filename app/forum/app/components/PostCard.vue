@@ -281,7 +281,7 @@ async function remove() {
                   编辑
                 </TxButton>
                 <!-- No class on the menu itself: TxBaseAnchor forwards attrs to the teleported panel. -->
-                <TxDropdownMenu v-if="canDelete" placement="bottom-end">
+                <TxDropdownMenu v-if="canDelete" placement="bottom-end" panel-background="pure">
                   <template #trigger>
                     <TxIconButton icon="i-carbon-overflow-menu-horizontal" label="更多操作" size="sm" />
                   </template>
