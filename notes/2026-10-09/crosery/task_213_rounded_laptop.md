@@ -31,3 +31,9 @@
 - 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
 - 做了什么：收到 Crosery 附图反馈：「电脑的那个验收不通过，大边框大下巴，尽量真全面屏」。LAPTOP_DISPLAY 改 1.2×0.75（仍 16:10），黑玻璃 1.24×0.776 几乎铺满上盖，上下黑边约 12mm；摄像头移入上黑边并缩小；屏幕圆角 0.034；同步 portal.md 对屏幕尺寸的说法。文档核对：portal.md 已改，README 无需改（未写尺寸）
 - 结果：tsc 通过；ego-browser 1440 idle 与对焦截图 v2-1440.png、v2-focus-b.png 已看，边框和下巴明显收窄；未重跑 e2e，视觉等所有者再验收
+
+## 17:15:47 +08:00 · 提交 · #213 · 提交全面屏返工
+
+- 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
+- 做了什么：提交 2032d07d、7fa26b43 并推送；PR #214 正文证据换成返工后截图
+- 结果：已推送，等所有者再次验收
