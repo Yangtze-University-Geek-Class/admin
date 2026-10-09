@@ -20,7 +20,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { TEXT_SCALE, canvasTexture } from "./stage";
 
 /** 屏幕在 lid 局部坐标系里的尺寸与位置（与旧 desk.ts 的 SCREEN_W/H 和屏幕 z 完全一致） */
-export const LAPTOP_DISPLAY = { width: 1.1, height: 0.6875, y: 0.398, z: 0.0116 } as const;
+export const LAPTOP_DISPLAY = { width: 1.2, height: 0.75, y: 0.396, z: 0.0116 } as const;
 
 export type LaptopKeyRect = { x: number; z: number; width: number; depth: number };
 
@@ -69,9 +69,10 @@ const LID_R = 0.052;
 const LID_BEVEL = 0.004;
 const LID_FRONT_Z = 0.01; // 上盖前面（含倒角仍低于黑玻璃）
 const BEZEL_Z = 0.0108; // 黑玻璃前面 < LAPTOP_DISPLAY.z(0.0116)，屏幕/按钮/幕的层序不变
-const BEZEL_W = 1.236;
-const BEZEL_H = 0.777;
-const BEZEL_R = 0.045;
+const BEZEL_W = 1.24;
+const BEZEL_H = 0.776;
+const BEZEL_R = 0.046;
+const BEZEL_Y = 0.395; // 黑玻璃几乎铺满上盖：四周铝边约 7mm，屏幕四周黑边约 12mm（全面屏）
 const KEY_UNIT = 0.0707; // 1u 键距，整排 15u ≈ 1.06m
 const KEY_GAP = 0.0065;
 const KEYBOARD_REAR_Z = -0.345;
@@ -441,19 +442,19 @@ export function createLaptop(): LaptopHandle {
 
   // 黑玻璃：圆角矩形（与 display 同一套收角语言），前面 z 低于屏幕 z
   const bezel = new THREE.Mesh(new THREE.ShapeGeometry(roundedRect(BEZEL_W, BEZEL_H, BEZEL_R), 4), bezelMat);
-  bezel.position.set(0, LID_H / 2 - 0.003, BEZEL_Z);
+  bezel.position.set(0, BEZEL_Y, BEZEL_Z);
   lid.add(bezel);
 
   // 摄像头（镜头圈 + 内孔）与上盖其它深色小件合并成一个网格
-  const camRing = new THREE.CircleGeometry(0.005, 12);
-  camRing.translate(0, 0.758, BEZEL_Z + 0.0004);
-  const camLens = new THREE.CircleGeometry(0.0018, 8);
-  camLens.translate(0, 0.758, BEZEL_Z + 0.0008);
+  const camRing = new THREE.CircleGeometry(0.0035, 12);
+  camRing.translate(0, 0.777, BEZEL_Z + 0.0004);
+  const camLens = new THREE.CircleGeometry(0.0014, 8);
+  camLens.translate(0, 0.777, BEZEL_Z + 0.0008);
   const lidTrim = new THREE.Mesh(mergeAll([camRing, camLens]), trimMat);
   lid.add(lidTrim);
 
   // ── 屏幕几何（不挂载，desk 侧负责材质与 LAPTOP_DISPLAY 位置）────────────
-  const display = new THREE.ShapeGeometry(roundedRect(LAPTOP_DISPLAY.width, LAPTOP_DISPLAY.height, 0.025), 4);
+  const display = new THREE.ShapeGeometry(roundedRect(LAPTOP_DISPLAY.width, LAPTOP_DISPLAY.height, 0.034), 4);
   {
     // ShapeGeometry 的 uv 是原始 x/y，归一化到 [0,1] 让整张屏幕贴图角对角铺满
     const pos = display.getAttribute("position") as THREE.BufferAttribute;
