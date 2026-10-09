@@ -25,3 +25,21 @@
 - 执行者：agent-claude-geek-217
 - 做了什么：更新 portal.md、forum README、DEPLOY.md。论坛交互排查：点赞、菜单、回复弹窗均无长任务，游客 PoW 15–24ms，发评论已是乐观更新；页面 backdrop-filter 仅 4–5 处。剩余卡顿主要是 API 首字节 240–500ms 抖动，属服务端或链路，需所有者授权查服务器。文档核对：ENVIRONMENTS.md、CICD.md 不用改——gzip_types 与部署流程无关，仅随 deploy/ 日期对齐
 - 结果：待跑 check
+
+## 20:28:25 +08:00 · 提交 · #217 · 三个提交推送
+
+- 执行者：agent-claude-geek-217
+- 做了什么：c38e2aaf 官网手机模型按需加载并去字体声明；b3df2499 论坛分包合并与 gzip；41175d60 文档同步
+- 结果：已推送 task/217/perf_load
+
+## 20:28:25 +08:00 · PR · #217 · 开 PR #218
+
+- 执行者：agent-claude-geek-217
+- 做了什么：按九段正文开 PR #218，Closes #217，验收证据写无界面变化及性能数字
+- 结果：pr-contract、core、forum、docker、docker-cdn 通过
+
+## 20:28:25 +08:00 · 审查 · #217 · 自审 41175d602f9e
+
+- 执行者：agent-claude-geek-217
+- 做了什么：按 CODE-REVIEW 核对 diff：分支名、密钥、依赖、文档同步、执行记录
+- 结果：有条件通过：条件为 CI 全绿与所有者预发布验收；e2e 与预发布未验
