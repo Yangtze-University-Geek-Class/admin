@@ -37,3 +37,15 @@
 - 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
 - 做了什么：提交 2032d07d、7fa26b43 并推送；PR #214 正文证据换成返工后截图
 - 结果：已推送，等所有者再次验收
+
+## 17:35:27 +08:00 · 返工 · #213 · 桌面小物精细化，墙上改挂极客娘画像
+
+- 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
+- 做了什么：所有者两条反馈：「周围建模还有旁边的都精细一点」「后面的相框我觉得没啥必要，能不能放个极客娘的一个画像上去」「目前的细节还是不够，而且还有优化的空间」。新增 three/props.ts：杯子/杯垫、盆栽、笔记本与铅笔、挂画；便签加卷边与柔影；去掉 clearcoat 材质（与 desk.ts 既有性能取舍一致）；Home.tsx 传入 portraitUrl。文档核对：portal.md 已补，README 无需改（未列小物）
+- 结果：tsc 通过；ego-browser 1440 整图与植物/杯子/笔记本/挂画放大图已看；未重跑 e2e 与帧率实测，真机帧率未测
+
+## 17:36:02 +08:00 · 提交 · #213 · 提交小物精细化与挂画
+
+- 执行者：agent-claude-geek-213（claude，crosery/sonnet-5-5）
+- 做了什么：提交 feat：props.ts、desk.ts、Home.tsx、portal.md；推送 task/213/rounded_laptop
+- 结果：已推送，PR #214 正文证据更新
