@@ -40,6 +40,7 @@ export const ORG_DEFAULTS: OrgPayload = {
     { id: "tech", name: "技术部", tag: "TECH", icon: "terminal", tone: "jade", description: "负责组织仓库、基础设施与技术规范" },
     { id: "community", name: "社区部", tag: "COMMUNITY", icon: "forum", tone: "rose", description: "负责论坛版务、意见箱与社区氛围" },
     { id: "projects", name: "项目部", tag: "PROJECTS", icon: "application", tone: "cobalt", description: "负责项目立项、协作仓库与项目展示" },
+    { id: "netsec", name: "网络网安组", tag: "NETSEC", icon: "chart-network", tone: "violet", description: "负责网络安全方向的学习交流、竞赛参赛与攻防实践" },
   ],
 };
 

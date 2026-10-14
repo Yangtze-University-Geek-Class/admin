@@ -307,10 +307,10 @@ describe('assignments', () => {
 });
 
 describe('departments', () => {
-  it('seeds four default departments and lets the admiral add one without code changes', async () => {
+  it('seeds the five default departments and lets the admiral add one without code changes', async () => {
     const { app, as, audits } = await setup({ alice: 'admin', bob: 'member' });
     const listed = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
-    expect(listed.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
+    expect(listed.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'tech', 'community', 'projects', 'netsec']);
     expect(listed[0]).toMatchObject({ name: '招新部', heads: [], crew_count: 0, archived: false });
 
     const payload = { id: 'publicity', name: '宣传部', tag: 'PR', icon: 'bullhorn', tone: 'rose', head_capabilities: ['forum.topic.pin', 'forum.topic.pin', 'feedback.manage'] };
@@ -350,7 +350,7 @@ describe('departments', () => {
       expect(response.json()).toMatchObject({ error: 'admiral_required' });
     }
     const departments = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
-    expect(departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
+    expect(departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects', 'netsec']);
     expect(audits().filter(row => row.action.startsWith('department.'))).toHaveLength(0);
   });
 });
@@ -602,7 +602,7 @@ describe('titles are data the 提督 can edit', () => {
     expect(org.titles[0]).toMatchObject({ id: 'admin', label: '提督' });
     expect(org.titles[0]).not.toHaveProperty('capabilities');
     expect(org.tones.jade).toBe('#18694A');
-    expect(org.departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
+    expect(org.departments.map((department: { id: string }) => department.id)).toEqual(['recruitment', 'tech', 'community', 'projects', 'netsec']);
   });
 
   it('keeps the 提督 at every capability, the 乘客 at none, and 管理称号 in the 舰长 bundle only', async () => {
@@ -693,7 +693,7 @@ describe('titles are data the 提督 can edit', () => {
     expect(response.json()).toEqual({ ok: true, removed: 2 });
     expect((await app.inject({ method: 'DELETE', url: '/api/console/departments/tech', headers: as('alice') })).statusCode).toBe(404);
     const departments = (await app.inject({ url: '/api/console/departments', headers: as('alice') })).json().departments as { id: string }[];
-    expect(departments.map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    expect(departments.map(item => item.id)).toEqual(['recruitment', 'community', 'projects', 'netsec']);
     // 队长回到组织成员的默认称号；别的部门不受影响。
     const bob = (await app.inject({ url: '/api/console/me', headers: as('bob') })).json();
     expect(bob.title.id).toBe('member');
@@ -702,10 +702,10 @@ describe('titles are data the 提督 can edit', () => {
     const logged = audits().find(row => row.action === 'department.delete')!;
     expect(logged).toMatchObject({ org: CONSOLE_ORG, actor: 'alice', target: 'tech' });
     expect(JSON.parse(logged.details!)).toEqual({ name: '技术部', removed: [{ github_login: 'bob', role: 'head' }, { github_login: 'carol', role: 'member' }] });
-    expect((await app.inject('/api/public/org')).json().departments.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    expect((await app.inject('/api/public/org')).json().departments.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'community', 'projects', 'netsec']);
     // 重启（重新建 role store）不会把删掉的默认部门补回来。
     const { createRoleStore } = await import('../../app/server/src/lib/role-store');
-    expect(createRoleStore(app.services.storage.db).listDepartments().map(item => item.id)).toEqual(['recruitment', 'community', 'projects']);
+    expect(createRoleStore(app.services.storage.db).listDepartments().map(item => item.id)).toEqual(['recruitment', 'community', 'projects', 'netsec']);
   });
 
   it('trims names on save and never reads 管理称号与部门 out of a non-captain row, even if the database has it', async () => {

@@ -102,7 +102,7 @@ describe("读组织架构", () => {
 });
 
 describe("组织架构窗口显示的内容来自数据", () => {
-  it("默认值：直属链、四个部门、成员行与底部", () => {
+  it("默认值：直属链、五个部门、成员行与底部", () => {
     const chart = orgChartModel(DEFAULT_ORG);
     expect(chart.chain.map((item) => [item.id, item.label, item.icon, item.color])).toEqual([
       ["admin", "提督", ORG_ICONS["user-admin"], TONES.violet],
@@ -113,6 +113,7 @@ describe("组织架构窗口显示的内容来自数据", () => {
       ["技术部", ORG_ICONS.terminal, TONES.jade, "队长", TONES.jade],
       ["社区部", ORG_ICONS.forum, TONES.rose, "队长", TONES.rose],
       ["项目部", ORG_ICONS.application, TONES.cobalt, "队长", TONES.cobalt],
+      ["网络网安组", ORG_ICONS["chart-network"], TONES.violet, "队长", TONES.violet],
     ]);
     expect(chart.crew).toMatchObject({ label: "舰员", description: DEFAULT_TITLE_CONFIGS.member.description, color: TONES.sky });
     expect(chart.foot.map((item) => item.label)).toEqual(["领航员", "乘客"]);
@@ -137,7 +138,7 @@ describe("组织架构窗口显示的内容来自数据", () => {
   it("「关于极客班」的两句话跟着称号和部门的名字变", () => {
     expect(orgSummary(DEFAULT_ORG)).toEqual({
       members: "在读的同学是舰员，毕业的学长学姐是领航员。",
-      roles: "提督和舰长总负责，下面有招新部、技术部、社区部、项目部，部门里是队长和舰员",
+      roles: "提督和舰长总负责，下面有招新部、技术部、社区部、项目部、网络网安组，部门里是队长和舰员",
     });
     expect(orgSummary(readOrg(edited()))).toEqual({
       members: "在读的同学是水手，毕业的学长学姐是老水手。",

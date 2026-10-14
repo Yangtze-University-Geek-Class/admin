@@ -101,6 +101,11 @@ export const MOCK_DEPARTMENTS = [
     description: "负责项目立项、协作仓库与项目展示",
     head_capabilities: ["github.repos.manage", "github.teams.manage", "forum.topic.pin"], member_capabilities: [],
   },
+  {
+    id: "netsec", name: "网络网安组", tag: "NETSEC", icon: "chart-network", tone: "violet" as Tone, sort_order: 50,
+    description: "负责网络安全方向的学习交流、竞赛参赛与攻防实践",
+    head_capabilities: [], member_capabilities: [],
+  },
 ];
 const deptView = (id: string) => {
   const d = MOCK_DEPARTMENTS.find(item => item.id === id)!;

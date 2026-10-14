@@ -345,7 +345,7 @@ describe('booting on the existing production data.db (legacy schema, no applicat
 
     const second = await boot(path);
     const ids = second.services.roles.listDepartments().map(item => item.id).sort();
-    expect(ids).toEqual(['community', 'design', 'recruitment', 'tech']);
+    expect(ids).toEqual(['community', 'design', 'netsec', 'recruitment', 'tech']);
     expect(second.services.storage.db.prepare("SELECT name FROM console_seeds").all()).toEqual([{ name: 'departments' }]);
   });
 

@@ -18,6 +18,7 @@ import ErrorAlert from "../components/ErrorAlert.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import AssignDialog from "./people/AssignDialog.vue";
 import BundleDialog from "./people/BundleDialog.vue";
+import DepartmentDialog from "./people/DepartmentDialog.vue";
 import TitleList from "./people/TitleList.vue";
 import PermissionTree from "./people/PermissionTree.vue";
 import { api } from "../lib/http";
@@ -113,6 +114,13 @@ function openAssign(login: string | null) {
 }
 const editing = ref<Department | null>(null);
 const editOpen = computed({ get: () => editing.value !== null, set: value => { if (!value) editing.value = null; } });
+/** 新建或编辑部门的资料（名字、标签、图标、色调、说明、排序）；权限包仍用上面的「编辑权限」。 */
+const creatingDept = ref(false);
+const editingDept = ref<Department | null>(null);
+const deptOpen = computed({
+  get: () => creatingDept.value || editingDept.value !== null,
+  set: value => { if (!value) { creatingDept.value = false; editingDept.value = null; } },
+});
 
 async function refreshAll() {
   await Promise.all([people.reload(), assignments.reload(), departments.reload(), reloadMe()]);
@@ -196,6 +204,9 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
     <PageHeader title="成员与权限" :description="description">
       <template v-if="section === 'people'" #actions>
         <TxButton variant="primary" icon="i-carbon-add" @click="openAssign(null)">添加称号</TxButton>
+      </template>
+      <template v-else-if="section === 'departments' && canManageDepartments" #actions>
+        <TxButton variant="primary" icon="i-carbon-add" @click="creatingDept = true">新建部门</TxButton>
       </template>
     </PageHeader>
 
@@ -393,7 +404,8 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
                   </p>
                 </div>
                 <div v-if="canManageDepartments" class="dept__actions">
-                  <TxButton size="sm" icon="i-carbon-edit" @click="editing = dept">编辑权限</TxButton>
+                  <TxButton size="sm" icon="i-carbon-edit" @click="editingDept = dept">编辑资料</TxButton>
+                  <TxButton size="sm" icon="i-carbon-user-admin" @click="editing = dept">编辑权限</TxButton>
                   <TxButton size="sm" variant="ghost" icon="i-carbon-trash-can" class="danger-text" :disabled="removeDept.pending.value" @click="askDelete(dept)">删除部门</TxButton>
                 </div>
               </div>
@@ -429,6 +441,7 @@ const sections = computed<Section[]>(() => (canManageAll.value ? ["people", "tit
       @done="refreshAll"
     />
     <BundleDialog v-if="catalogue && canManageDepartments" v-model:open="editOpen" :department="editing" :catalogue="catalogue" @done="refreshAll" />
+    <DepartmentDialog v-if="catalogue && canManageDepartments" v-model:open="deptOpen" :department="editingDept" :catalogue="catalogue" @done="refreshAll" />
   </div>
 </template>
 

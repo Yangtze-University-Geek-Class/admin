@@ -44,6 +44,13 @@ export type Department = DepartmentView & {
   description: string; head_capabilities: Capability[]; member_capabilities: Capability[];
   sort_order: number; archived: boolean; heads: string[]; crew_count: number;
 };
+/** POST /api/console/departments 的正文（服务端 role-store.ts 的 DepartmentInput）。id 是主键，建立后不能改。 */
+export type DepartmentInput = {
+  id: string; name: string; tag: string; icon: string; tone: Tone; description?: string;
+  head_capabilities: Capability[]; member_capabilities?: Capability[]; sort_order?: number;
+};
+/** PATCH /api/console/departments/:department_id 的正文：只提交改动的字段，至少一项，不含 id。 */
+export type DepartmentPatch = Partial<Omit<DepartmentInput, "id">> & { archived?: boolean };
 
 export type AssignableRole = Exclude<TitleId, "admin" | "guest">;
 export type Assignment = {

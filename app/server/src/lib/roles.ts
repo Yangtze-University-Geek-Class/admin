@@ -184,6 +184,13 @@ export const DEFAULT_DEPARTMENTS: Omit<Department, "archived">[] = [
     head_capabilities: ["github.repos.manage", "github.teams.manage", "forum.topic.pin"],
     member_capabilities: [],
   },
+  // 技术方向分组：只做归属与展示，不带额外权限（队长的组内任免来自 head 的基础权限包）。
+  {
+    id: "netsec", name: "网络网安组", tag: "NETSEC", icon: "chart-network", tone: "violet", sort_order: 50,
+    description: "负责网络安全方向的学习交流、竞赛参赛与攻防实践",
+    head_capabilities: [],
+    member_capabilities: [],
+  },
 ];
 
 export type AssignmentRow = {

@@ -163,6 +163,7 @@ export const DEPARTMENTS: readonly DepartmentDefinition[] = [
     crewForum: ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate'],
   },
   { id: 'projects', name: '项目部', tag: 'PROJECTS', icon: 'i-carbon-application', tone: 'cobalt', headForum: ['forum.topic.pin'], crewForum: [] },
+  { id: 'netsec', name: '网络网安组', tag: 'NETSEC', icon: 'i-carbon-chart-network', tone: 'violet', headForum: [], crewForum: [] },
 ]
 
 /**

@@ -117,6 +117,7 @@ const SERVER_DEPARTMENTS = [
     crewForum: ['forum.topic.pin', 'forum.topic.close', 'forum.post.moderate'],
   },
   { id: 'projects', name: '项目部', tag: 'PROJECTS', icon: 'application', tone: 'cobalt', headForum: ['forum.topic.pin'], crewForum: [] },
+  { id: 'netsec', name: '网络网安组', tag: 'NETSEC', icon: 'chart-network', tone: 'violet', headForum: [], crewForum: [] },
 ]
 
 const SERVER_DEPARTMENT_ID_PATTERN = '^[a-z][a-z0-9-]{1,31}$'

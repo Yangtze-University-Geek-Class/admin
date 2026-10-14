@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-10-09 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-10-13 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -14,9 +14,9 @@
 |---|---|
 | `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost |
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`）；`ConsoleShell` 把它交给 `CapabilityGate`，缺能力时整页换成权限说明，没写的页面按 `console.access` 判断 |
-| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
+| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、新建或编辑部门资料、编辑部门权限包、编辑称号四个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`：只显示实际持有能力的页面）、能力门 `CapabilityGate`（直接访问无权限地址仍说明原因）、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
-| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
+| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`departments`（部门的编辑校验、提交正文与改动比对）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/lib/permission-tree.ts`、`permission-boundaries.ts` | 前者用当前目录/部门配置解释本人 `/me` 的状态，不生成授权判断；后者维护能力的范围、实际执行点和关联页面，只作说明，随对应后端路由与契约同步 |
 | `src/mock/` | 开发预览样板数据（全部虚构），只在 DEV 且数据源为 mock 时动态导入，生产构建不含 |
 | `src/styles/theme.css`、`layout.css` | 主题令牌覆盖与页面版式（见「设计令牌」） |
@@ -33,7 +33,7 @@
 | `/console` | 概览 | `console.access` |
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
-| `/console/people` | 成员与权限：四个文字页签「成员 / 称号 / 部门 / 权限树」；「成员」左侧宽分组栏，右侧概况与限定高度的内部滚动名单，可逐人展开来源与撤销操作；`?view=titles` 为「称号」（只给 `roles.manage`，列出名称、说明和基础权限）；`?view=departments` 为「部门」（展示负责人、成员与两类部门权限，仅组织 owner 显示编辑或删除）；`?view=permissions` 为只读能力目录与详情，按当前身份、称号或部门查看，只有有区分度的状态筛选会出现 | `roles.manage`、`roles.department.manage` |
+| `/console/people` | 成员与权限：四个文字页签「成员 / 称号 / 部门 / 权限树」；「成员」左侧宽分组栏，右侧概况与限定高度的内部滚动名单，可逐人展开来源与撤销操作；`?view=titles` 为「称号」（只给 `roles.manage`，列出名称、说明和基础权限）；`?view=departments` 为「部门」（展示负责人、成员与两类部门权限，仅组织 owner 显示新建部门、编辑资料、编辑权限或删除）；`?view=permissions` 为只读能力目录与详情，按当前身份、称号或部门查看，只有有区分度的状态筛选会出现 | `roles.manage`、`roles.department.manage` |
 | `/console/feedback` | 意见箱 | `feedback.read` |
 | `/console/audit` | 审计日志 | `audit.read` |
 | `/console/github/**` | GitHub 组织页面；邀请与邀请链接另需 `github.invites.manage`，新建仓库另需 `github.repos.manage` | `github.org.read` |
@@ -134,7 +134,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、部门的编辑校验与提交正文、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

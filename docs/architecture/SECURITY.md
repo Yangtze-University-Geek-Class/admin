@@ -2,7 +2,7 @@
 
 > 区分保留核心服务的真实安全边界与原仓论坛的浏览器演示；新论坛尚不具备生产安全条件。
 
-状态：`current` · 更新：2026-10-02
+状态：`current` · 更新：2026-10-13
 
 ## 核心服务
 
@@ -37,7 +37,7 @@
 - **谁能改称号**：`PATCH /api/console/titles/:title_id` 要 `roles.manage`。服务端强制两条固定规则（`titleBundleError`）：提督的权限包永远是全部能力、乘客永远没有，这两个称号的权限包不能改（400 `title_capabilities_fixed`，名字、标签等显示字段可以改），读取时也不看库里存的值；`roles.manage` 只能放进舰长的权限包（400 `captain_only_capability`）。最高的两级（提督、舰长）只有提督本人能改（403 `admiral_required`）：否则持有 `roles.manage` 的舰长能把自己的权限包改宽，提督就管不住舰长。名字不能只有空白。图标只能取 `DEPARTMENT_ICONS` 里的一个，色调只能取固定调色板里的一个。有实际改动时审计 `title.update`。错误提示里的称号名字取当前库里的名字。权限包改动在下一次请求就对所有持有该称号的人生效（每次请求都重新读称号设置）。
 - **提督 = GitHub 组织 owner**：`CONSOLE_ORG` 的组织 owner（GitHub 组织角色 `admin`）自动获得提督称号（`source: "github"`），不经指派、不能在控制台撤下，拥有全部能力，不管有没有舰长。旧的「没有舰长时组织 admin 临时代任舰长（bootstrap）」已删除：`/api/console/me` 不再有 `bootstrap` 字段，`/api/console/assignments` 不再有 `bootstrap_active`，`source` 也不再有 `bootstrap`。
 - **舰长**：全站最多一位（部分唯一索引 `uq_role_assignments_captain`）。只有提督或现任舰长能任命或移交舰长，其他人 403 `captain_required`；移交在单个事务里删掉旧行、插入新行。captain 行只能由舰长本人卸任或由提督撤下，其他人 409 `captain_transfer_required`；撤下后暂时没有舰长，提督不受影响。舰长的权限包默认是全部能力（含 `roles.manage`），只有提督能在控制台改。
-- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部），每个部门有队长与舰员两份**权限包**，叠加在队长、舰员称号自己的权限包之上。新增部门、改称号都不改代码；新增「能力」才需要改代码，因为能力必须有执行点。部门的新建、编辑、归档、删除同时要求 `roles.manage` 和 GitHub 组织 owner（提督）身份；舰长即使持有 `roles.manage` 也只能查看配置，写接口返回 403 `admiral_required`。删除部门（`DELETE /api/console/departments/:id`）在同一事务里撤掉这个部门的全部队长与舰员指派并审计被撤掉的人（`department.delete`），他们的其它称号不受影响；默认部门只在第一次启动写入（`console_seeds` 标记），删掉后重启不会复活。
+- **部门**是数据（`departments` 表，默认 招新部 / 技术部 / 社区部 / 项目部 / 网络网安组），每个部门有队长与舰员两份**权限包**，叠加在队长、舰员称号自己的权限包之上。新增部门、改称号都不改代码；新增「能力」才需要改代码，因为能力必须有执行点。部门的新建、编辑、归档、删除同时要求 `roles.manage` 和 GitHub 组织 owner（提督）身份；舰长即使持有 `roles.manage` 也只能查看配置，写接口返回 403 `admiral_required`。删除部门（`DELETE /api/console/departments/:id`）在同一事务里撤掉这个部门的全部队长与舰员指派并审计被撤掉的人（`department.delete`），他们的其它称号不受影响；默认部门只在第一次启动写入（`console_seeds` 标记），删掉后重启不会复活。
 - **能力**是扁平清单（`console.* github.* forum.* applications.* feedback.* audit.* roles.*`），取蕴含闭包（`*.manage` → `*.read`，任何 `github.*.manage` → `github.org.read`，`roles.manage` → `roles.department.manage`）。提督拥有全部能力（按清单动态计算）；`roles.manage` 只有提督和舰长的权限包里能有，不能放进部门权限包，也不能放进队长、舰员、领航员的称号权限包（服务端拒绝，`captain_only_capability`）。
 - **GitHub 上限**：GitHub 操作一律用会话里用户自己的 token，控制台**不能授予任何 GitHub 权力**。最终 `github.*` 能力 = 称号给的能力 ∩ 用户在 `CONSOLE_ORG` 的 GitHub 角色上限（admin：全部；member：只有 `github.org.read`；非成员：无）。被挡掉的能力放进 `blocked`（`github_admin_required` / `github_membership_required`）。非 GitHub 能力（投递、意见箱、审计、称号管理、论坛）不需要组织身份。
 - **队长范围**：`roles.department.manage` 只允许任免自己负责部门的舰员，跨部门返回 403 `out_of_department_scope`。成员全名单 `GET /api/console/people` 不按部门收窄：持有 `roles.department.manage` 的队长也能看到整个组织的成员（登录名、头像、GitHub 组织角色）和每个人的称号；名单用调用者自己的 token 向 GitHub 列组织成员。

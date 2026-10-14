@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；线上镜像是极客班论坛：帖子、回复、资料存在核心服务（同域 `/api/forum/*`，#57），游客能看帖和用昵称回复，成员用全站 GitHub 登录后发帖、点赞、收藏、关注、改资料；本机可显示极客班论坛快照；上游验收与本机示例预览仍是浏览器里的示例数据。
 
-状态：`current` · 更新：2026-10-09 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-10-13 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -100,7 +100,7 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 ## 称号
 
-用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。称号是数据：名字、英文标签、图标、色调和说明由提督在控制台改，存在核心服务的 `titles` 表里。论坛启动后由 `app/composables/useOrgTitles.ts` 读一次同域的匿名接口 `GET /api/public/org`（本机经 `nuxt.config.ts` 的 devProxy 转到 3000），用纯函数 `applyPublicOrg` 叠在 `app/forum/app/data/titles.ts` 的默认值上；读不到、形状不对就保持默认值，不报错。默认值与服务端默认值逐项一致（`tests/titles-server-parity.test.ts` 核对）：称号 id、中文、英文标签、图标、色调、rank 与说明，部门舰员样式（`CREW`：slate、rank 3），八个色调色值，四个默认部门。图标在服务端是 Carbon 名称，论坛用字面量类名表 `ICON_CLASSES` 覆盖全部 18 个可选图标（UnoCSS 只生成看得见的字面量），认不出的图标或色调退回该称号的默认值；控制台新建的部门也按服务端给的名字和图标显示。
+用户名旁显示极客班称号，与论坛角色（`User.role`：admin / moderator / member）并存，不替代它。称号是数据：名字、英文标签、图标、色调和说明由提督在控制台改，存在核心服务的 `titles` 表里。论坛启动后由 `app/composables/useOrgTitles.ts` 读一次同域的匿名接口 `GET /api/public/org`（本机经 `nuxt.config.ts` 的 devProxy 转到 3000），用纯函数 `applyPublicOrg` 叠在 `app/forum/app/data/titles.ts` 的默认值上；读不到、形状不对就保持默认值，不报错。默认值与服务端默认值逐项一致（`tests/titles-server-parity.test.ts` 核对）：称号 id、中文、英文标签、图标、色调、rank 与说明，部门舰员样式（`CREW`：slate、rank 3），八个色调色值，五个默认部门。图标在服务端是 Carbon 名称，论坛用字面量类名表 `ICON_CLASSES` 覆盖全部 18 个可选图标（UnoCSS 只生成看得见的字面量），认不出的图标或色调退回该称号的默认值；控制台新建的部门也按服务端给的名字和图标显示。
 
 | 称号 | 默认显示 | 标签 | 图标 | 色调 | 排序 |
 |---|---|---|---|---|---|
@@ -113,7 +113,7 @@ UI 依照 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)，同�
 
 表里是默认值，控制台改过的以 `/api/public/org` 为准；称号 id 与存储值不变。乘客（`guest`，`PASSENGER`）不在论坛显示。
 
-默认部门：招新部 `recruitment`（`user-follow`，coral）、技术部 `tech`（`terminal`，jade）、社区部 `community`（`forum`，rose）、项目部 `projects`（`application`，cobalt）。控制台新建的部门按 `/api/public/org` 给的名字、图标和色调显示，但不带任何论坛能力。
+默认部门：招新部 `recruitment`（`user-follow`，coral）、技术部 `tech`（`terminal`，jade）、社区部 `community`（`forum`，rose）、项目部 `projects`（`application`，cobalt）、网络网安组 `netsec`（`chart-network`，violet）。控制台新建的部门按 `/api/public/org` 给的名字、图标和色调显示，但不带任何论坛能力。
 
 - **显示**：`TitleBadge.vue` 只渲染 Tuffex `TxTag`（默认 outline 配方，`color` 取清单色值），不写样式、不绑定点击，因此不成为 Tab 停留点。部门舰员也用 outline + 清单里的中性 slate，而不是 `plain` 变体：`plain` 忽略 `color`，文字取 `--tx-text-color-secondary`，在自己的底色上不到 3:1。深色模式不另起色板，而是 `color-mix(in srgb, <清单色> 40%, var(--tx-text-color-primary))`，向 Tuffex 自己的文字令牌提亮。单测按 WCAG 公式核对：浅色沿用服务端的口径（白底与 12% 同色底 ≥5:1）；深色从 `@talex-touch/tuffex/base.css` 读出深色与深色高对比的真实令牌（`--tx-bg-color`、`-page`、`-overlay`、`--tx-fill-color-light`），在每个底色及 12% 同色底上都 ≥5:1。单测只覆盖白底：浅色页面底 `#f2f3f5`（及浅色高对比的 `#eef2f7`）上，文字本身仍 ≥5.3:1，但在 12% 同色底上 amber、violet、coral、rose、slate 降到约 4.5–4.8:1（slate 最低，约 4.5:1），高于 WCAG AA 普通文本的 4.5:1，未达服务端 5:1 的口径；称号目前都渲染在白色卡片里，因此没有另行调整色值。帖子作者行、`/users` 的「角色」列在有称号时显示称号、否则保留原角色徽章；个人页横幅同时显示称号与角色徽章。`/users` 表头仍写「角色」，因为上游目录验收逐字断言表头；排序先按称号排序值，再按角色。
 - **论坛能力**：极客班论坛里只看服务端下发的 `viewer.capabilities`（见上文「服务端模式」）。示例与快照里是 `permissions.ts#hasForumCapability(user, capability)`：admin / moderator 仍持有全部论坛能力；其他人按称号取能力（`titleForumCapabilities`）——提督和舰长持有全部，队长与部门舰员持有所在默认部门权限包里的 `forum.*`，领航员、不属于部门的舰员、未知部门与无称号都没有。动作对应：`forum.topic.pin` 对应 pinTopic，`forum.topic.close` 对应 closeTopic，`forum.post.moderate` 对应编辑或删除他人帖子、在已关闭话题回复；`forum.category.manage` 与 `forum.badge.assign` 暂无对应动作。`isStaff`（版务，「关于」页管理团队据此显示）= 持有 `forum.post.moderate`，与控制台「论坛管理」页的版务定义一致：默认是 admin、moderator、舰长、社区部队长和社区部舰员。话题页的「话题管理」菜单不看 `isStaff`，而是逐项问 `can()`：能置顶或能关闭就显示菜单，菜单里只列本人能用的项。项目部队长只能置顶、不算版务，菜单里只有「置顶话题」。这仍是前端演示权限，不是服务端授权。 **遗留**（只在示例与快照模式）：这两种模式的论坛能力仍按 `titles.ts` 里默认部门的权限包计算，控制台改过的称号权限、部门权限包不会影响它们——公开接口 `/api/public/org` 不下发权限包。极客班论坛（服务端模式）没有这个问题：能力是核心服务按控制台同一套权限计算（`resolveAccess`）得出、放在 `viewer.capabilities` 里下发的。
