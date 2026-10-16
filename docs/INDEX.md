@@ -129,6 +129,7 @@
 | [`0002-tuffex-ui-foundation.md`](./decisions/0002-tuffex-ui-foundation.md) | 记录用户指定的组件体系，并提供有固定版本、可离线检索的开发文档。 | — |
 | [`0003-adopt-tuff-forum.md`](./decisions/0003-adopt-tuff-forum.md) | 用户明确选择使用原仓代码，而不是模仿 UI 或重写一套 React 论坛。 | — |
 | [`0004-forum-backend-in-core-server.md`](./decisions/0004-forum-backend-in-core-server.md) | Tuff Forum 前端（ADR-0003）没有后端；论坛的帖子、账号资料和社区功能由核心服务 `app/server` 提供，存在同一个 `data.db` 里。 | — |
+| [`0005-sso-extend-core-server.md`](./decisions/0005-sso-extend-core-server.md) | 现阶段三端同源共用一个 `sid`，「统一登录」的实际缺口是第二身份源与将来的内部 Hub，不是缺一个身份提供方；先按 ADR-0004 的同一思路在 `app/server` 里扩展，身份模型采用内部 OpenID 底座（PR #229），GitHub 组织门槛不动。 | — |
 
 ## handovers/
 
@@ -169,4 +170,4 @@
 
 ---
 
-共 58 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 59 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
