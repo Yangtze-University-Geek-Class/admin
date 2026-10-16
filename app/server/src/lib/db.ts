@@ -181,6 +181,29 @@ CREATE INDEX IF NOT EXISTS idx_application_reviews_app ON application_reviews(ap
 CREATE INDEX IF NOT EXISTS idx_applications_status_created ON applications(status, created_at DESC);
 `);
 
+// 比赛（#238）：官网桌面「比赛」应用读的公开赛事信息。只新增本表与索引，不改动已有表（没有迁移框架）。
+// 时间是 UTC 毫秒时间戳（`Date.now()`），界面按北京时间显示；`offline` 只表示「下线」，不表示「进行中/已结束」——
+// 那两种由 `start_at` / `end_at` / `signup_deadline` 与当前时间算出来，免得靠定时任务去翻状态。
+db.exec(`
+CREATE TABLE IF NOT EXISTS competitions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('internal','external')),
+  start_at INTEGER NOT NULL,
+  end_at INTEGER NOT NULL,
+  signup_deadline INTEGER,
+  url TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  offline INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK (end_at >= start_at),
+  CHECK (kind = 'external' OR url IS NULL),
+  CHECK (signup_deadline IS NULL OR signup_deadline <= end_at)
+);
+CREATE INDEX IF NOT EXISTS idx_competitions_offline_start ON competitions(offline, start_at);
+`);
+
 // 论坛（#57，ADR-0004）：/api/forum/* 的全部数据。只新增 forum_* 表和索引，不改已有表。
 // 编号是字符串（t73、body-73、p10001、m<GitHub id>、g<n>、n<n>、tag-<n>），与论坛前端的 ForumState 一致；
 // 新编号从 forum_counters 取，不用时间或随机数。

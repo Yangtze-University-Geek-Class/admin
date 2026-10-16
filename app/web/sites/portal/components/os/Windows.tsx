@@ -1,4 +1,4 @@
-// YUGC OS 的窗口：可拖动、最小化、放大、关闭、聚焦；内容有「关于」「组织架构」「论坛最新」「终端」四种。
+// YUGC OS 的窗口：可拖动、最小化、放大、关闭、聚焦；内容有「关于」「组织架构」「论坛最新」「终端」「比赛」五种。
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
@@ -6,19 +6,23 @@ import { links } from "../../lib/links";
 import { agoLabel, runTerminal, type AppId, type OsApp, type TerminalLine } from "../../lib/osApps";
 import { orgChartModel, orgSummary, useOrg, type OrgBadge } from "../../lib/org";
 import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
+import { shortDay, useCompetitions, type CompetitionKind, type CompetitionStatus } from "../../lib/competitions";
 import Icon from "../Icon";
 
-export type WindowId = "about" | "org" | "terminal" | "forum-feed";
+export type WindowId = "about" | "org" | "terminal" | "forum-feed" | "competitions";
 export type WindowState = { id: WindowId; z: number; x: number; y: number; minimized: boolean; zoomed: boolean };
 
 type OpenApp = (id: AppId | "forum-feed", from?: HTMLElement | null) => void;
 
-const META: Record<WindowId, { title: string; icon: "book-2-line" | "organization-chart" | "terminal-box-line" | "fire-line"; width: number; path: string }> = {
+const META: Record<WindowId, { title: string; icon: "book-2-line" | "organization-chart" | "terminal-box-line" | "fire-line" | "trophy-line"; width: number; path: string }> = {
   about: { title: "关于极客班", icon: "book-2-line", width: 640, path: "~/yugc/about" },
   org: { title: "组织架构", icon: "organization-chart", width: 760, path: "~/yugc/org" },
   terminal: { title: "nano@yugc — zsh", icon: "terminal-box-line", width: 640, path: "~/yugc" },
   "forum-feed": { title: "论坛 · 最新", icon: "fire-line", width: 780, path: "~/yugc/forum" },
+  competitions: { title: "比赛", icon: "trophy-line", width: 720, path: "~/yugc/competitions" },
 };
+/** 状态文案：与服务端 `competitionStatus` 的四个值一一对应。 */
+const STATUS_TEXT: Record<CompetitionStatus, string> = { registering: "报名中", closed: "报名已截止", ongoing: "进行中", ended: "已结束" };
 
 export function windowWidth(id: WindowId): number {
   return META[id].width;
@@ -201,12 +205,61 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
           {win.id === "about" && <About onOpen={onOpen} />}
           {win.id === "org" && <OrgChart />}
           {win.id === "forum-feed" && <ForumFeed />}
+          {win.id === "competitions" && <Competitions />}
           {win.id === "terminal" && <Terminal onOpen={onOpen} apps={apps} />}
         </div>
       </section>
     </>
   );
 }
+/** 比赛（#238）窗口：还能赶上的排在前面，可按内部/外部筛；外部比赛给官方链接，内部比赛不放假按钮。 */
+export function Competitions() {
+  const { items, failed, loading } = useCompetitions();
+  const [filter, setFilter] = useState<"all" | CompetitionKind>("all");
+  const shown = filter === "all" ? items : items.filter((item) => item.kind === filter);
+  if (loading) return <p className="pt-empty">正在读取比赛…</p>;
+  if (failed) return <p className="pt-empty">比赛列表没加载出来，稍后再打开这个窗口看看。</p>;
+  return (
+    <div className="pt-comp">
+      <div className="pt-comp-filter" role="group" aria-label="按类型筛选">
+        {([["all", "全部"], ["internal", "内部"], ["external", "外部"]] as const).map(([value, label]) => (
+          <button key={value} type="button" className={filter === value ? "is-on" : undefined} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 ? (
+        <p className="pt-empty">{items.length === 0 ? "现在还没有登记的比赛。" : "这个类型下暂时没有比赛。"}</p>
+      ) : (
+        <ol className="pt-comp-list">
+          {shown.map((item) => (
+            <li key={item.id} className={`is-${item.status}`}>
+              <div className="pt-comp-head">
+                <b>{item.name}</b>
+                <span className="pt-comp-tags">
+                  <span className={`pt-comp-kind is-${item.kind}`}>{item.kind === "internal" ? "内部" : "外部"}</span>
+                  <span className="pt-comp-status">{STATUS_TEXT[item.status]}</span>
+                </span>
+              </div>
+              {item.description && <p className="pt-comp-desc">{item.description}</p>}
+              <p className="pt-comp-when">
+                <Icon name="calendar-event-line" size={13} />
+                {shortDay(item.start_at)} 起，到 {shortDay(item.end_at)}
+                {item.signup_deadline !== null && <span className="pt-comp-due">报名截止 {shortDay(item.signup_deadline)}</span>}
+              </p>
+              {item.url && (
+                <a className="pt-comp-link" href={item.url} target="_blank" rel="noreferrer">
+                  查看官方页面<Icon name="external-link-line" size={13} />
+                </a>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 
 function About({ onOpen }: { onOpen: OpenApp }) {
   const { brand } = appConfig.portal;

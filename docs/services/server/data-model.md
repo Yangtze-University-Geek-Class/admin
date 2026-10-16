@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-10-04 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-16 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -12,6 +12,7 @@
 - 所有 `*_at` 列都是 `Date.now()` 毫秒时间戳。
 - 会话的有效期是 7 天（`lib/auth.ts` 的 `SESSION_TTL_MS`）；服务进程启动时清一次过期会话，之后每小时清一次（`SESSION_CLEANUP_INTERVAL_MS`，计时器 unref，关停时清掉），所以服务运行期间 `sessions` 里任何一行最多留 7 天加一个清理间隔，停机期间到期的行在下次启动时删掉；清理失败只记日志，不影响服务。每趟清理删完之后做一次 `wal_checkpoint(TRUNCATE)`（`lib/db.ts` 的 `truncateWal`；有别的连接正在读时不等，下一趟再截），配合 `secure_delete`，删掉的会话（不管是清理、登出还是别的路径删的）在下一趟之后 `data.db`、`-wal` 和在线备份里都找不到密文。打开 `secure_delete` 之前删掉的行还可能留在空闲空间里，要 `VACUUM` 才清得掉，见 [SECURITY](../../architecture/SECURITY.md)「还剩的」。清理只删本站的行，不撤销 GitHub 端的授权（#128）。
 - 本文只记录表级事实和关键字段名，列类型与约束以 `db.ts` 为准。改表时同步修改本文。
+- 2026-10-16（#238）新增 `competitions` 一张表与 `idx_competitions_offline_start`：官网桌面「比赛」窗口读它，控制台维护。只新增，不改任何已有表；`status`（报名中 / 报名已截止 / 进行中 / 已结束）不入库，一律由 `start_at` / `end_at` / `signup_deadline` 与当前时间算出来，所以不需要定时任务去翻状态。
 - 2026-10-04（#204）新增投递存储值 `cancelled`（已取消），不改表结构、不批量修改数据；仍只把旧 `reviewing` 改回 `received`，重启不覆盖 `cancelled` 或任何审核历史。取消保留原简历，追加 `to_status = cancelled` 的审核；可以补备注或恢复状态。取消这一步不写 `mail_outbox`，也不修改此前的邮件。
 
 ## 表
@@ -31,6 +32,7 @@
 | `role_assignments` | 显式称号指派（captain / head / member / alumni） | 控制台 `POST/DELETE /api/console/assignments` | `lib/access.ts`（按 `github_user_id`，或尚无 id 时按小写 `github_login` 匹配）；控制台 `GET /api/console/assignments` | `github_login`（小写）、`github_user_id`、`note`（≤200 字）、`granted_by`。`UNIQUE(github_login, role, department_id)`；部分唯一索引 `uq_role_assignments_captain` 保证显式舰长唯一 |
 | `audit_logs` | 审计记录 | `storage.audit()`，各路由调用；控制台写操作与投递查看/导出、论坛版务（`forum.post.edit` / `forum.post.delete` 动他人帖子，`forum.topic.pin` / `forum.topic.close`，details 不含正文）以 `org = CONSOLE_ORG` 写入 | admin `GET /api/admin/:org/logs`，只返回 `org = :org` 的行；控制台 `GET /api/console/audit`，只返回 `org = CONSOLE_ORG` 的行 | `ip` 列记录来源 IP。`org` 为空的记录（登录 `auth.signin`、被拒的登录 `auth.signin_denied`、登出、令牌被 GitHub 拒绝而结束的会话 `auth.session_rejected`（`actor` 与 `target` 是登录名，没有 `details`）、加入我们投递）不会通过任何接口返回；`auth.signin_denied` 的 details 是 `{ org, reason }`。论坛核对昵称时读 `auth.signin` 的 `actor`（登录过的人），部分索引 `idx_audit_signin_actor` 只收这些行 |
 | `mail_outbox` | 发信队列与发信结果（#148），一件事一行（`event_key` 唯一：`application:<投递 id>:received` 或 `review:<审核记录 id>`） | `lib/mail/outbox.ts`：投递成功写「已收到」，控制台改成待面试、已录取、未通过时写对应的信（`INSERT OR IGNORE`）；发信循环改 `status`、`attempts`、`next_attempt_at`、`provider`、`provider_message_id`、`last_error`、`sent_at` | 发信循环；控制台投递详情的 `received_mail`、`reviews[].mail`（只读 `status`、`skip_reason`、`attempts`、`subject`、`sent_at`、`updated_at`） | `recipient`（收件地址）、`html`、`text`（信里有姓名、班级、邮箱、特长）是个人信息，信到最终状态（`sent` / `failed` / `skipped`）时改成 NULL，不发的信写入时就是 NULL；`recipient_hash` 是去掉首尾空白、转小写后的地址 sha256，一直保留；`limit_hash` 是按收件箱归并后（去掉 `+` 标签，域名按 IDNA 转成 ASCII 并去掉末尾的点，Gmail 去掉本地部分的点）的地址 sha256，只给「已收到」限量用；`source_hash` 是触发这封信的来源（投递人的 IP，IPv6 取 /64）的 sha256，只有「已收到」有，给按 IP 限量用；`subject`、`reply_to`（我们自己的回信地址）保留。`status` 取值 `pending` / `sending` / `sent` / `failed` / `skipped`，`skip_reason` 取值 `mail_disabled` / `not_allowlisted` / `recipient_limited` / `source_limited` / `rate_limited`（后三个是「已收到」的上限：按 `kind` + `limit_hash` + `created_at`、`kind` + `source_hash` + `created_at` 和 `kind` + `created_at` 三个索引数最近 24 小时、1 小时里不是 `skipped` 的行）。`sending` 时 `next_attempt_at` 是 5 分钟租约的到期时间。`last_error` 只有发信商名、HTTP 状态和对方的错误码；换发信商后发出的信也会留着前一家的错误。没有外键：`application_id`、`review_id` 只是记录，删投递不会连带删信 |
+| `competitions` | 比赛（#238）：官网桌面「比赛」窗口的赛事信息 | 控制台 `POST/PATCH/DELETE /api/console/competitions[/:competition_id]`（需 `competitions.manage`）；只新增，不改已有表 | 匿名 `GET /api/public/competitions`（只返回未下线的，不含内部字段）；控制台 `GET /api/console/competitions`（含已下线的） | 无个人信息：只有比赛名称、类型、起止与报名截止时间（`Date.now()` 毫秒时间戳）、外部比赛的官方链接、说明文字与 `offline`。`id` 是 `randomUUID()`；`kind` 是 `internal` / `external`，外部比赛才允许 `url` 且只接受 https（表上 CHECK 约束）；时间关系（结束不早于开始、截止不晚于结束）另有路由级 400 与服务端的 `competitionError` 各判一次 |
 | `application_limits` | 投递次数（#169），每份成功的投递按来源和设备各一行 | `routes/portal/apply.ts`：投递落库的同一个事务里写两行（`bucket` 是 `source` 或 `device`），并删掉超过 24 小时的行 | 同一个路由：写之前按 `bucket` + `subject_hash` + `created_at` 数最近 24 小时的行，满 5 行回 429 | `subject_hash` 是来源（IP，IPv6 取 /64）或设备 id（cookie `yugc_apply_device` 的值）的 sha256，不存 IP 和设备 id 本身；最多留 24 小时。没有外键，不指向具体哪份投递 |
 | `app_state` | 键值状态 | 无 | 无 | 未使用，见下节 |
 

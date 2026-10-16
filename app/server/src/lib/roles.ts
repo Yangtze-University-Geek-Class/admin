@@ -50,7 +50,7 @@ export const TITLES: Record<TitleId, TitleDefinition> = {
 /** 部门舰员（`member` + 部门）：rank 3，中性色，徽章用 plain 变体；名字取舰员称号的名字。 */
 export const CREW_TITLE = { tag: "CREW", tone: "slate" as Tone, rank: 3 };
 
-export type CapabilityDomain = "console" | "github" | "forum" | "applications" | "feedback" | "audit" | "roles";
+export type CapabilityDomain = "console" | "github" | "forum" | "applications" | "feedback" | "audit" | "roles" | "competitions";
 export const DOMAINS: { id: CapabilityDomain; label: string }[] = [
   { id: "console", label: "控制台" },
   { id: "applications", label: "招新投递" },
@@ -59,6 +59,7 @@ export const DOMAINS: { id: CapabilityDomain; label: string }[] = [
   { id: "feedback", label: "意见箱" },
   { id: "audit", label: "审计" },
   { id: "roles", label: "称号与权限" },
+  { id: "competitions", label: "比赛" },
 ];
 
 /** 能力清单：扁平、按类别分组。顺序即 `/api/console/me` 下发 capabilities 的顺序。 */
@@ -83,6 +84,7 @@ export const CAPABILITIES = [
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
   { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号和任免；部门配置与删除另需提督身份；只能给最高两级称号" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
+  { id: "competitions.manage", domain: "competitions", label: "管理比赛", description: "新建、编辑、下线比赛" },
 ] as const satisfies readonly { id: string; domain: CapabilityDomain; label: string; description: string }[];
 export type Capability = (typeof CAPABILITIES)[number]["id"];
 export const CAPABILITY_IDS: Capability[] = CAPABILITIES.map(item => item.id);

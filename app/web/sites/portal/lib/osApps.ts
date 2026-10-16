@@ -4,7 +4,7 @@
 import type { IconName } from "./icons";
 import { links } from "./links";
 
-export type AppId = "join" | "forum" | "github" | "promo" | "about" | "org" | "terminal" | "feedback" | "console" | "wallpaper";
+export type AppId = "join" | "forum" | "github" | "promo" | "about" | "org" | "competitions" | "terminal" | "feedback" | "console" | "wallpaper";
 
 /**
  * scene：进入官网内的 3D 场景页（只有「加入我们」）；window：在桌面里开窗口；panel：桌面自带的全屏面板（换壁纸、重看宣传片）；
@@ -43,6 +43,7 @@ export const OS_APPS: readonly OsApp[] = [
   { id: "promo", name: "宣传片", icon: "film-line", tint: "#d4478a", open: { kind: "panel", panel: "promo" }, blurb: "极客班宣传片，1 分 45 秒" },
   { id: "about", name: "关于极客班", icon: "book-2-line", tint: "#0e8fc9", open: { kind: "window" }, blurb: "极客班是做什么的" },
   { id: "org", name: "组织架构", icon: "organization-chart", tint: "#128a7e", open: { kind: "window" }, blurb: "有哪些部门，谁负责什么" },
+  { id: "competitions", name: "比赛", icon: "trophy-line", tint: "#b4761f", open: { kind: "window" }, blurb: "近期有什么比赛，哪天截止", keywords: "contest 赛事 竞赛 报名" },
   { id: "terminal", name: "终端", icon: "terminal-box-line", tint: "#2b3150", open: { kind: "window" }, blurb: "输入 help 查看命令" },
   { id: "wallpaper", name: "壁纸", icon: "image-line", tint: "#0e9f8f", open: { kind: "panel", panel: "wallpaper" }, blurb: "换一张桌面壁纸" },
   { id: "feedback", name: "意见箱", icon: "feedback-line", tint: "#c9821a", open: { kind: "route", path: "/feedback" }, blurb: "提建议或报 bug，不用登录" },

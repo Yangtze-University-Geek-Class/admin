@@ -214,6 +214,27 @@
 .pt-feedwin-num { display: inline-flex; align-items: center; gap: 4px; font: 12px var(--pt-mono); color: var(--pt-ink-soft); font-variant-numeric: tabular-nums; }
 .pt-feedwin footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--pt-ink-soft); font-variant-numeric: tabular-nums; }
 
+/* 比赛（#238）窗口：筛选按钮、条目、状态与官方链接 */
+.pt-comp-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.pt-comp-filter button { min-height: 44px; padding: 4px 16px; border: 1px solid var(--pt-line); border-radius: 999px; background: none; font: inherit; font-size: 12.5px; color: inherit; cursor: pointer; }
+.pt-comp-filter button:hover { border-color: rgb(51 70 200 / 45%); color: var(--pt-cobalt); }
+.pt-comp-filter button.is-on { border-color: transparent; background: var(--pt-cobalt-wash); color: var(--pt-cobalt); font-weight: 600; }
+.pt-comp-list { display: flex; flex-direction: column; gap: 10px; }
+.pt-comp-list > li { padding: 12px 14px; border: 1px solid var(--pt-line); border-radius: 12px; }
+/* 已经结束的整条压暗，不再抢注意力 */
+.pt-comp-list > li.is-ended { opacity: 0.66; }
+.pt-comp-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pt-comp-tags { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+.pt-comp-kind { padding: 1px 8px; border-radius: 999px; background: var(--pt-cobalt-wash); color: var(--pt-cobalt); }
+.pt-comp-kind.is-external { background: #fdf1dc; color: #8a5a12; }
+.pt-comp-status { color: var(--pt-ink-soft); }
+.pt-comp-list > li.is-registering .pt-comp-status { color: var(--pt-green); }
+.pt-comp-list > li.is-ongoing .pt-comp-status { color: var(--pt-cobalt); }
+.pt-comp-desc { margin-top: 6px; font-size: 13px; color: var(--pt-ink-soft); }
+.pt-comp-when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--pt-ink-soft); font-variant-numeric: tabular-nums; }
+.pt-comp-due { padding-left: 6px; border-left: 1px solid var(--pt-line); }
+.pt-comp-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; margin-top: 8px; font-size: 12.5px; color: var(--pt-cobalt); text-decoration: none; }
+.pt-comp-link:hover { text-decoration: underline; }
 .pt-term { display: flex; flex-direction: column; height: 330px; margin: -20px -22px; padding: 14px 18px; background: #fbfbfd; font: 13px/1.75 var(--pt-mono); cursor: text; }
 .pt-term-out { flex: 1; overflow: auto; }
 .pt-term-out > div { white-space: pre-wrap; word-break: break-word; }

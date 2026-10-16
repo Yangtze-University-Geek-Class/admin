@@ -29,6 +29,7 @@ export const CONSOLE_NAV: NavItem[] = [
   { id: "github-invitations", to: "/console/github/invitations", label: "邀请", anyOf: ["github.invites.manage"], icon: "i-carbon-email", group: "github" },
   { id: "github-invite-links", to: "/console/github/invite-links", label: "邀请链接", anyOf: ["github.invites.manage"], icon: "i-carbon-link", group: "github" },
   { id: "people", to: "/console/people", label: "成员与权限", anyOf: ROLE_CAPABILITIES, icon: "i-carbon-user-admin", group: "class" },
+  { id: "competitions", to: "/console/competitions", label: "比赛", anyOf: ["competitions.manage"], icon: "i-carbon-trophy", group: "community" },
   { id: "feedback", to: "/console/feedback", label: "意见箱", anyOf: ["feedback.read"], icon: "i-carbon-chat", group: "class" },
   { id: "audit", to: "/console/audit", label: "审计日志", anyOf: ["audit.read"], icon: "i-carbon-catalog", group: "class" },
 ];

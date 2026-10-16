@@ -34,6 +34,7 @@
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
 | `/console/people` | 成员与权限：四个文字页签「成员 / 称号 / 部门 / 权限树」；「成员」左侧宽分组栏，右侧概况与限定高度的内部滚动名单，可逐人展开来源与撤销操作；`?view=titles` 为「称号」（只给 `roles.manage`，列出名称、说明和基础权限）；`?view=departments` 为「部门」（展示负责人、成员与两类部门权限，仅组织 owner 显示编辑或删除）；`?view=permissions` 为只读能力目录与详情，按当前身份、称号或部门查看，只有有区分度的状态筛选会出现 | `roles.manage`、`roles.department.manage` |
+| `/console/competitions` | 比赛：新建、编辑、下线、删除；日期按北京时间选，服务端按 UTC 存 | `competitions.manage` |
 | `/console/feedback` | 意见箱 | `feedback.read` |
 | `/console/audit` | 审计日志 | `audit.read` |
 | `/console/github/**` | GitHub 组织页面；邀请与邀请链接另需 `github.invites.manage`，新建仓库另需 `github.repos.manage` | `github.org.read` |

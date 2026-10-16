@@ -42,6 +42,7 @@ export const MOCK_CAPABILITIES = [
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
   { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号和任免；部门配置与删除另需提督身份；只能给最高两级称号" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
+  { id: "competitions.manage", domain: "competitions", label: "管理比赛", description: "新建、编辑、下线比赛" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
 /** GitHub 类的管理能力：只有组织所有者能用，其他人被 GitHub 上限挡住。 */
@@ -49,6 +50,7 @@ const GITHUB_MANAGE = ALL.filter(id => id.startsWith("github.") && id !== "githu
 const DOMAINS = [
   { id: "console", label: "控制台" }, { id: "applications", label: "招新投递" }, { id: "forum", label: "论坛" },
   { id: "github", label: "GitHub 组织" }, { id: "feedback", label: "意见箱" }, { id: "audit", label: "审计" }, { id: "roles", label: "称号与权限" },
+  { id: "competitions", label: "比赛" },
 ];
 export const MOCK_IMPLIES: Record<string, string[]> = {
   "github.org.manage": ["github.org.read"],
@@ -287,6 +289,26 @@ const RECEIVED_MAIL: Record<string, MockMail | null> = {
 const MAIL_ALLOWLIST = new Set(["zhou.zihan@example.test", "zheng.kexin@example.test", "chu.mingzhe@example.test"]);
 const mailSettings = (email: string) => ({ enabled: true, recipients: "allowlist", deliverable: MAIL_ALLOWLIST.has(email.toLowerCase()) });
 
+/**
+ * 比赛样板（#238）：开发预览的「比赛」页读这里。状态由时间现算（与服务端 `competitionStatus` 同口径），
+ * 所以样板只写死起止与截止，不写状态字段。
+ */
+const MOCK_COMPETITIONS = [
+  { id: "c1001", name: "极客班算法挑战赛", kind: "internal", start_at: now + 6 * DAY, end_at: now + 6 * DAY + 6 * HOUR, signup_deadline: now + 4 * DAY, url: null, description: "班内选拔，前五名进校赛。", offline: false },
+  { id: "c1002", name: "蓝桥杯省赛", kind: "external", start_at: now + 20 * DAY, end_at: now + 20 * DAY + 4 * HOUR, signup_deadline: now + 12 * DAY, url: "https://dasai.lanqiao.cn/", description: "以学校为单位报名。", offline: false },
+  { id: "c1003", name: "上学年内测赛", kind: "internal", start_at: now - 9 * DAY, end_at: now - 8 * DAY, signup_deadline: null, url: null, description: "已结束。", offline: false },
+];
+/** 状态的算法与服务端 `competitionStatus` 保持一致，样板不另外写一份结果。 */
+function mockCompetitionStatus(row: { start_at: number; end_at: number; signup_deadline: number | null }) {
+  if (now > row.end_at) return "ended";
+  if (row.signup_deadline !== null && now <= row.signup_deadline) return "registering";
+  if (now >= row.start_at) return "ongoing";
+  return row.signup_deadline === null ? "registering" : "closed";
+}
+const competitionView = () => MOCK_COMPETITIONS
+  .map(row => ({ ...row, status: mockCompetitionStatus(row) }))
+  .sort((a, b) => (now > a.end_at ? 1 : 0) - (now > b.end_at ? 1 : 0) || a.start_at - b.start_at);
+
 const FEEDBACK = [
   { id: 21, category: "建议", status: "open", submitter_login: "liu-xing", contact: "", content: "希望每月有一次项目复盘分享，录屏放到论坛里，方便没到场的同学补看。", reply: null, replied_by: null, replied_at: null, created_at: now - 5 * HOUR },
   { id: 20, category: "Bug", status: "in_progress", submitter_login: null, contact: "wechat: example", content: "官网投递页在手机上提交按钮被输入法挡住了。", reply: "已复现，正在修。", replied_by: "wang-zhe", replied_at: now - 1 * DAY, created_at: now - 2 * DAY },
@@ -355,6 +377,12 @@ export function checkConsoleWrite(url: URL, method: string, body: unknown): void
       const message = `只有${MOCK_TITLES.find(title => title.id === "admin")!.label}能管理部门`;
       throw new ApiError(403, "admiral_required", message, undefined, { error: "admiral_required", message });
     }
+    return;
+  }
+  if (/^\/api\/console\/competitions(?:\/[^/]+)?$/.test(url.pathname) && ["POST", "PATCH", "DELETE"].includes(method)) {
+    const name = currentPersona();
+    if (name === SIGNED_OUT) throw new ApiError(401, "not_signed_in", "请先登录", undefined, { error: "not_signed_in" });
+    need(MOCK_PERSONAS[name], "competitions.manage");
     return;
   }
   const match = url.pathname.match(/^\/api\/console\/titles\/([^/]+)$/);
@@ -500,6 +528,10 @@ export function routeConsole(url: URL): unknown {
     const statusCounts: Record<string, number> = { open: 0, triaged: 0, in_progress: 0, done: 0, wont_do: 0, spam: 0 };
     for (const f of FEEDBACK) statusCounts[f.status] += 1;
     return { items, counts: statusCounts };
+  }
+  if (path === "/api/console/competitions") {
+    need(persona, "console.access");
+    return { competitions: competitionView() };
   }
   if (path === "/api/console/audit") {
     need(persona, "audit.read");

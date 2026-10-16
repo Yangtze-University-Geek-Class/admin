@@ -112,7 +112,7 @@ export default function YugcOs({ active, onBack }: Props) {
   }, [active]);
 
   const front = useMemo(() => wins.filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0] ?? null, [wins]);
-  const frontName = front ? { about: "关于极客班", org: "组织架构", terminal: "终端", "forum-feed": "论坛" }[front.id] : "桌面";
+  const frontName = front ? { about: "关于极客班", org: "组织架构", competitions: "比赛", terminal: "终端", "forum-feed": "论坛" }[front.id] : "桌面";
   useEffect(() => {
     if (!homeFocusNeeded.current || front) return;
     homeFocusNeeded.current = false;

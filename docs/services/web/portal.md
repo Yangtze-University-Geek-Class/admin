@@ -33,10 +33,11 @@
 | `lib/loaderProgress.ts` | 加载动画的真实进度模型（步骤权重、最短展示时长、平滑趋近） |
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
-| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里）、站外应用的地址与打开方式（`appLink`、`followAppLink`）、启动器过滤、终端命令、时间文案 |
+| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里；「比赛」是 `{ kind: "window" }`）、站外应用的地址与打开方式（`appLink`、`followAppLink`）、启动器过滤、终端命令、时间文案 |
 | `lib/promo.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；全屏播放层（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、GitHub 组织 |
 | `lib/org.ts` | 「组织架构」窗口与「关于极客班」里的称号和部门：读匿名 `GET /api/public/org`（窗口打开时读一次、关掉即取消），`ORG_DEFAULTS` 是与服务端默认值一致的唯一一份兜底（`tests/web/portal-org.test.ts` 核对），读到之前和读不到时显示它；服务端的 Carbon 图标名经 `ORG_ICONS` 换成官网的 Remix 图标，认不出的用圆圈。官网静态文案不写称号名字，因为提督可以在控制台改名 |
+| `lib/competitions.ts` | 「比赛」窗口的数据：读匿名 `GET /api/public/competitions`（窗口打开时读一次、关掉即取消），状态跟着服务端给的 `status` 走、窗口开着时每 60 秒按时间戳再算一次（`statusAt` 与服务端 `competitionStatus` 同口径），读不到时窗口说「没加载出来」而不是冒充「没有比赛」；日期换算（`beijingDay`、`shortDay`）都按北京时间，`readCompetition` 丢掉缺字段的条目、只收 https 的外部链接 |
 | `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
@@ -48,6 +49,19 @@
 文档 API 仅允许公开产品介绍和用户指南；内部规范、部署、安全与审查材料不在白名单。反馈写入 data.db，管理侧由服务端 admin/console 接口读取、控制台（`app/console`）页面处理；两侧通过一致数据模型协作，不互相 import 路由。
 
 three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在首屏包里；卸载时 `Stage.dispose()` 释放几何体、材质、贴图、环境贴图并丢弃 WebGL 上下文。没有 WebGL 时首页直接给系统桌面，场景页的 DOM 入口（信纸、版块列表、仓库列表）照常可用。
+
+## 比赛窗口（#238）
+
+桌面与手机主屏幕的「比赛」应用开一个窗口，读匿名 `GET /api/public/competitions`（数据只由控制台写入，见 [server 合同](../server/README.md)）。
+
+- **排序与筛选**：服务端排好序（还能赶上的在前、已结束的在后），窗口只按「全部 / 内部 / 外部」筛，不在前端重排。
+- **状态**：`status` 由服务端按当前时间算出来（报名中 / 报名已截止 / 进行中 / 已结束）。窗口开着时每 60 秒用同一套口径按时间戳再算一次，所以报名在半夜截止、或比赛当天开始时不用刷新也能跟上。
+- **外部比赛**才有官方链接（只接受 https，新标签页打开，`rel="noreferrer"`）；内部比赛不显示报名按钮——报名与组队是另一件事（#239），这里不放点不动的假按钮。
+- **时间**一律按北京时间显示（`YYYY-MM-DD` 短日期）。
+- **读不到**时窗口写「比赛列表没加载出来」，与「现在还没有登记的比赛」是两句不同的话。
+- 公开接口不含任何成员信息，也不含 `offline`、创建与更新时间这些内部字段。
+
+单测 `tests/web/portal-competitions.test.tsx`。
 
 ## 链接与数据
 

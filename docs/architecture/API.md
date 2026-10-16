@@ -28,6 +28,7 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 |---|---|---|---|---|
 | `GET /api/public/config` | 匿名 | 无 | 200 `{ turnstile_site_key, pow_difficulty }` | — |
 | `GET /api/public/org` | 匿名 | 无 | 200 `{ tones, titles, departments }`：`tones` 是色调 id → 浅色色值；`titles` 按 admin、captain、head、member、alumni、guest 排，每项 `{ id, label, tag, icon, tone, description, rank }`，读 `titles` 表（控制台改过的名字立刻生效）；`departments` 只含未归档部门的 `{ id, name, tag, icon, tone, description }`。不含权限包，不含任何人。官网「组织架构」窗口与论坛称号读它 | — |
+| `GET /api/public/competitions` | 匿名 | 无 | 200 `{ competitions }`，按「还能赶上的在前、已结束的在后」排（分别为开始时间正序 / 倒序），每项 `{ id, name, kind, start_at, end_at, signup_deadline, url, description, status }`。`kind` 是 `internal` / `external`；`status` 是 `registering` / `closed` / `ongoing` / `ended`，由服务端按当前时间算出来，不入库；`url` 只在外部比赛上有，且只接受 https。已下线的（`offline=1`）不返回；不含任何成员信息。官网桌面「比赛」窗口读它 | — |
 | `GET /api/docs` | 匿名 | 无 | 200 `{ items }`，只列白名单文档（产品介绍、用户指南，中英各一） | — |
 | `GET /api/docs/:id` | 匿名 | 无 | 200 `{ id, label, lang, file, content }` | 404 `doc not found` / `doc file missing` |
 | `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty, org }`；`org` 是本部署意见箱收的组织，即 `CONSOLE_ORG` 的配置写法，官网意见箱照它展示、读公开列表和提交（#129） | — |
@@ -50,6 +51,10 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `POST /api/console/departments` | `roles.manage` 且 GitHub 组织 owner | 无 | 201 `{ department }`，审计 `department.create` | 403 `admiral_required`；400 `validation_error` / `captain_only_capability`；409 `department_exists` |
 | `PATCH /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ department }`，审计 `department.update`（details `{ changed }`） | 403 `admiral_required`；400；404 `not_found` |
 | `DELETE /api/console/departments/:department_id` | `roles.manage` 且 GitHub 组织 owner | 无 | 200 `{ ok: true, removed }`：同一事务删除部门和它的全部 head / member 指派（`removed` 是撤掉的条数），审计 `department.delete`（details `{ name, removed: [{ github_login, role }] }`）；默认部门只在第一次启动写入（`console_seeds`），删掉后重启不会补回 | 403 `admiral_required`；404 `not_found` |
+| `GET /api/console/competitions` | `console.access` | 无 | 200 `{ competitions }`，含已下线的（多一个 `offline`），其它字段同公开列表 | 401；403 |
+| `POST /api/console/competitions` | `competitions.manage` | 30 次/分钟 | 201 `{ competition }`，审计 `competition.create` | 400 `validation_error` / `bad_range`（结束早于开始）/ `deadline_after_end`；401；403 |
+| `PATCH /api/console/competitions/:competition_id` | `competitions.manage` | 60 次/分钟 | 200 `{ competition }`，审计 `competition.update`；`offline: true` 即「下线」（公开列表不再返回，控制台仍看得到） | 400 同上；404 `not_found`；401；403 |
+| `DELETE /api/console/competitions/:competition_id` | `competitions.manage` | 30 次/分钟 | 200 `{ ok: true }`，审计 `competition.delete`。真删；只想让官网不显示用 PATCH 下线 | 404 `not_found`；401；403 |
 | `GET /api/console/assignments?department_id=&role=` | `roles.manage` 或 `roles.department.manage` | 无 | 200 `{ assignments, captain }`；只有后者时只返回本人负责部门的行 | 401；403 `missing_capability` / `out_of_department_scope` |
 | `POST /api/console/assignments` | `roles.manage`；或 `roles.department.manage` 且 `role=member`、部门属于本人 | 30 次/分钟 | 201 `{ assignment }`，审计 `role.assign`（details `{ role, department_id, note_length }`）或 `role.captain.transfer`（`{ from, to }`） | 400 `department_required` / `department_not_allowed` / `unknown_department` / `github_user_not_found`；403 `missing_capability` / `out_of_department_scope` / `captain_required`；409 `assignment_exists`；429 `rate_limited` |
 | `DELETE /api/console/assignments/:id` | 同上，按目标行判断；captain 那条只有本人或 admin 能撤 | 无 | 200 `{ ok: true }`，审计 `role.revoke` | 404；409 `captain_transfer_required` |

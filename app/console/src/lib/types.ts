@@ -115,3 +115,12 @@ export type FeedbackItem = {
 export type FeedbackList = { items: FeedbackItem[]; counts: Record<string, number> };
 
 export type AuditRow = { id: number; actor: string; action: string; target: string | null; ip: string | null; details: unknown; created_at: number };
+
+/** 比赛（#238）：状态由服务端按时间算好，控制台只负责显示。 */
+export type CompetitionStatus = "registering" | "closed" | "ongoing" | "ended";
+export type CompetitionKind = "internal" | "external";
+export type CompetitionRecord = {
+  id: string; name: string; kind: CompetitionKind;
+  start_at: number; end_at: number; signup_deadline: number | null;
+  url: string | null; description: string; status: CompetitionStatus; offline: boolean;
+};

@@ -23,6 +23,7 @@ const routes: RouteRecordRaw[] = [
       { path: "applications/:applicationId", ...gated(["applications.read"], () => import("./pages/ApplicationDetail.vue")) },
       { path: "forum", ...gated(FORUM_CAPABILITIES, () => import("./pages/Forum.vue")) },
       { path: "people", ...gated(ROLE_CAPABILITIES, () => import("./pages/People.vue")) },
+      { path: "competitions", ...gated(["competitions.manage"], () => import("./pages/Competitions.vue")) },
       { path: "feedback", ...gated(["feedback.read"], () => import("./pages/Feedback.vue")) },
       { path: "audit", ...gated(["audit.read"], () => import("./pages/Audit.vue")) },
       { path: "github", ...gated(["github.org.read"], () => import("./pages/github/Overview.vue")) },
