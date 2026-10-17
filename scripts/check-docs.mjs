@@ -37,23 +37,29 @@ else {
 }
 
 // 技能只有一个实现放在 .agents/skills/，各 CLI 目录只允许符号链接过去，禁止复制内容。
-const skillDir = ".agents/skills/code-review";
-const skillFile = `${skillDir}/SKILL.md`;
-const skillLinks = [".omp/skills/code-review", ".claude/skills/code-review"];
+const skillsRoot = ".agents/skills";
+const skills = existsSync(join(root, skillsRoot))
+  ? readdirSync(join(root, skillsRoot), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()
+  : [];
+const skillFiles = skills.map(name => `${skillsRoot}/${name}/SKILL.md`);
 
 // 入口文件同样参与相对链接校验；docs/ 下所有文档由 walk 收集。
-const pointers = ["AGENTS.md", "README.md", "README.en.md", skillFile];
+const pointers = ["AGENTS.md", "README.md", "README.en.md", ...skillFiles];
 
 for (const file of required) if (!existsSync(join(root, file))) errors.push(`missing ${file}`);
-if (!existsSync(join(root, skillFile))) errors.push(`missing ${skillFile}`);
-for (const link of skillLinks) {
-  const path = join(root, link);
-  if (!existsSync(path)) {
-    errors.push(`missing skill link ${link}`);
-    continue;
+if (!skills.includes("code-review")) errors.push(`missing ${skillsRoot}/code-review/SKILL.md`);
+for (const name of skills) {
+  const skillDir = `${skillsRoot}/${name}`;
+  if (!existsSync(join(root, skillDir, "SKILL.md"))) errors.push(`missing ${skillDir}/SKILL.md`);
+  for (const link of [`.omp/skills/${name}`, `.claude/skills/${name}`]) {
+    const path = join(root, link);
+    if (!existsSync(path)) {
+      errors.push(`missing skill link ${link}`);
+      continue;
+    }
+    if (!lstatSync(path).isSymbolicLink()) errors.push(`${link}: must be a symlink to ${skillDir}, not a copy`);
+    else if (realpathSync(path) !== realpathSync(join(root, skillDir))) errors.push(`${link}: symlink must resolve to ${skillDir}`);
   }
-  if (!lstatSync(path).isSymbolicLink()) errors.push(`${link}: must be a symlink to ${skillDir}, not a copy`);
-  else if (realpathSync(path) !== realpathSync(join(root, skillDir))) errors.push(`${link}: symlink must resolve to ${skillDir}`);
 }
 
 const documents = [...walk(join(root, "docs")), ...pointers.map(file => join(root, file)).filter(existsSync)];

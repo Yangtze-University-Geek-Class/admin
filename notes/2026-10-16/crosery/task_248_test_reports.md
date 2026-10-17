@@ -55,3 +55,9 @@
 - 执行者：agent-claude-geek-248
 - 做了什么：文档核对：docs/services/web/ 不用改——只给 os.css 补一条 .is-phone .pt-win[hidden]{display:none}，让已有的「收起的手机窗口不显示」行为生效，服务文档没有描述这条样式细节
 - 结果：check-doc-sync 复核
+
+## 23:37:41 +08:00 · 收尾 · #248 · PR #251 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-248
+- 做了什么：node scripts/task.mjs finish 248：删 worktree .claude/worktrees/task-248 与本地分支 task/248/test_reports
+- 结果：PR 已合并
