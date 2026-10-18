@@ -103,6 +103,8 @@ export const consoleContracts: RouteContracts = {
     body: { ...object({ ...competitionFields, offline: { type: "boolean" } }), minProperties: 1 },
   },
   "DELETE /api/console/competitions/:competition_id": { ...noQuery, ...competitionParams },
+  "GET /api/console/competitions/:competition_id/roster": { ...noQuery, ...competitionParams },
+  "GET /api/console/competitions/:competition_id/roster.csv": { ...noQuery, ...competitionParams },
   "DELETE /api/console/feedback/:id": noQuery,
   "GET /api/console/audit": { querystring: object({ limit: limit(200), offset, action: text(64) }) },
 };

@@ -10,6 +10,7 @@ import { createRoleStore } from "./lib/role-store.js";
 import { createAccess } from "./lib/access.js";
 import { createFeedbackStore } from "./lib/feedback-store.js";
 import { createCompetitionStore } from "./lib/competition-store.js";
+import { createCompetitionSignupStore } from "./lib/competition-signup-store.js";
 import { loadForumContent } from "./lib/forum-content.js";
 import { createForumStore } from "./lib/forum-store.js";
 import { createMailer } from "./lib/mail/mailer.js";
@@ -29,6 +30,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const auth = createAuth(storage.db, crypto, config, overrides.httpRequest, overrides.clock);
   const feedback = createFeedbackStore(storage.db);
   const competitions = createCompetitionStore(storage.db);
+  const competitionSignups = createCompetitionSignupStore(storage.db);
   // 历史数据一次性归一（#129）：把 org 只是大小写不同的旧行改成 CONSOLE_ORG 的写法，重复启动安全。
   // 改不动就让启动失败，失败前先关掉刚打开的库，与下面论坛、发信的处理一致。
   try {
@@ -62,6 +64,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   })();
   return {
     competitions,
+    competitionSignups,
     config, storage, crypto,
     auth,
     github, cache, roles,

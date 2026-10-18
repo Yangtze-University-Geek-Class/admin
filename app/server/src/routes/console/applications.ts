@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireCapability } from "../../middleware/require-capability.js";
 import { beijingCompactDate, beijingDateTime } from "../../lib/beijing-time.js";
+import { csvCell } from "../../lib/csv.js";
 import { APPLICATION_STATUSES, APPLICATION_STATUS_IDS, type ApplicationStatus } from "../../lib/roles.js";
 import { MailTemplateError, oneLine, type RenderedMail } from "../../lib/mail/envelope.js";
 import type { RecruitmentLetter } from "../../lib/mail/mailer.js";
@@ -29,11 +30,7 @@ const excerpt = (value: string) => (value.length > EXCERPT_LENGTH ? `${value.sli
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, match => `\\${match}`);
 
 /** 表格公式注入防护：以 = + - @ 制表符 回车 开头的单元格前加 '。 */
-export function csvCell(value: unknown): string {
-  let text = value === null || value === undefined ? "" : String(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
+export { csvCell };
 const statusLabel = (id: string) => APPLICATION_STATUSES.find(item => item.id === id)?.label ?? id;
 
 export default async function consoleApplicationRoutes(app: FastifyInstance) {

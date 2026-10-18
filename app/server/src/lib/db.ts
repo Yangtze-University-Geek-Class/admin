@@ -202,6 +202,54 @@ CREATE TABLE IF NOT EXISTS competitions (
   CHECK (signup_deadline IS NULL OR signup_deadline <= end_at)
 );
 CREATE INDEX IF NOT EXISTS idx_competitions_offline_start ON competitions(offline, start_at);
+
+-- 比赛报名与组队（#239）：支持内部赛报名、外部赛意向与双向确认组队机制。
+CREATE TABLE IF NOT EXISTS competition_signups (
+  id TEXT PRIMARY KEY,
+  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  github_login TEXT NOT NULL,
+  github_user_id INTEGER,
+  kind TEXT NOT NULL CHECK (kind IN ('internal', 'external')),
+  status TEXT NOT NULL CHECK (status IN ('registered', 'intent', 'cancelled')),
+  note TEXT NOT NULL DEFAULT '',
+  contact TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (competition_id, github_login)
+);
+CREATE INDEX IF NOT EXISTS idx_signups_comp_status ON competition_signups(competition_id, status);
+CREATE INDEX IF NOT EXISTS idx_signups_user ON competition_signups(github_login);
+
+CREATE TABLE IF NOT EXISTS competition_teams (
+  id TEXT PRIMARY KEY,
+  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  leader_login TEXT NOT NULL,
+  leader_user_id INTEGER,
+  status TEXT NOT NULL CHECK (status IN ('recruiting', 'confirmed', 'disbanded')),
+  max_members INTEGER NOT NULL DEFAULT 5 CHECK (max_members >= 1 AND max_members <= 20),
+  slogan TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (competition_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_teams_comp ON competition_teams(competition_id, status);
+
+CREATE TABLE IF NOT EXISTS competition_team_members (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES competition_teams(id) ON DELETE CASCADE,
+  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  github_login TEXT NOT NULL,
+  github_user_id INTEGER,
+  role TEXT NOT NULL CHECK (role IN ('leader', 'member')),
+  status TEXT NOT NULL CHECK (status IN ('confirmed', 'pending_invite', 'pending_apply', 'rejected')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (team_id, github_login)
+);
+CREATE INDEX IF NOT EXISTS idx_team_members_comp_user ON competition_team_members(competition_id, github_login);
+CREATE INDEX IF NOT EXISTS idx_team_members_team_status ON competition_team_members(team_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_confirmed_member_per_comp ON competition_team_members(competition_id, github_login) WHERE status = 'confirmed';
 `);
 
 // 论坛（#57，ADR-0004）：/api/forum/* 的全部数据。只新增 forum_* 表和索引，不改已有表。
