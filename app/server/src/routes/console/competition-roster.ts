@@ -13,7 +13,10 @@ export default async function consoleCompetitionRosterRoutes(app: FastifyInstanc
   /** 获取比赛名单花名册与去重统计 */
   app.get<{ Params: { competition_id: string } }>(
     "/api/console/competitions/:competition_id/roster",
-    { preHandler: manage },
+    {
+      preHandler: manage,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.competition_id);
       if (!comp) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
@@ -34,7 +37,10 @@ export default async function consoleCompetitionRosterRoutes(app: FastifyInstanc
     };
   }>(
     "/api/console/competitions/:competition_id/signup-settings",
-    { preHandler: manage },
+    {
+      preHandler: manage,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.competition_id);
       if (!comp) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
@@ -68,7 +74,10 @@ export default async function consoleCompetitionRosterRoutes(app: FastifyInstanc
   /** 导出比赛花名册为 CSV 文件 */
   app.get<{ Params: { competition_id: string } }>(
     "/api/console/competitions/:competition_id/roster.csv",
-    { preHandler: manage },
+    {
+      preHandler: manage,
+      schema: { response: { 200: { type: "string" } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.competition_id);
       if (!comp) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });

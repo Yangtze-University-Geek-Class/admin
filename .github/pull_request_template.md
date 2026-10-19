@@ -1,5 +1,5 @@
 <!--
-PR 正文契约：docs/conventions/PULL-REQUESTS.md。CI 的 pr-contract 检查会逐项核对下面九个段落（### 标题逐字保留，可在后面加括号说明）。
+PR 正文契约：docs/conventions/PULL-REQUESTS.md。CI 的 pr-contract 检查会逐项核对下面十个段落（### 标题逐字保留，可在后面加括号说明）。
 一件事 = 一个 issue = 一个 task/<issue>/<slug> 分支 = 一个 PR。合并进 stage 后 issue 自动关闭，分支自动删除。
 进展按 docs/conventions/TRACKING.md 的格式写成评论，不要改写已经发出的评论。
 填写时把每段里的注释删掉，写实际内容。
@@ -15,6 +15,11 @@ Closes #<!-- issue 号，必须与分支名 task/<issue>/<slug> 一致 -->
 
 ### 变更范围
 <!-- 按服务列出改了什么（app/web、app/server、app/forum、app/console、deploy、docs……），再写明「不做什么」。 -->
+
+### 宏观对齐
+<!-- 必须引用 docs/changes/<issue>.json。说明业务域、用例、后端接口、权限与资源范围、数据和事务、依赖/副作用、文档、测试及交付影响。
+纯 UI、文档和工程 PR 也要逐维说明“不变”的理由与证据，不能写“无影响”跳过。实际 diff 与声明交叉检查，规则见 docs/conventions/ARCHITECTURE-ALIGNMENT.md。
+-->
 
 ### 解决链路
 <!--

@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "issue": 259,
+  "kind": "engineering",
+  "summary": "将项目地图的正式目录接到人和Agent的常用入口，保持同源文档可直接发现与按需检索。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "只改善工程人员与Agent定位项目上下文的入口，不改变产品功能和业务流程。",
+      "evidence": [
+        "README.md",
+        "docs/architecture/catalog/README.md"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "接口与注册实现没有变动，导航继续引用已入库的真实接口目录和源码证据。",
+      "evidence": [
+        "docs/architecture/catalog/routes.md"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "不改变业务授权、公开文档白名单或分支保护，只补充现有工程资料的阅读导航。",
+      "evidence": [
+        "AGENTS.md",
+        "docs/architecture/catalog/README.md"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "沿用现有结构化目录和数据模型，不复制第二份事实，不读取或修改业务记录。",
+      "evidence": [
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "只使用已有文档和生成命令，没有新增包依赖、外部服务或运行配置。",
+      "evidence": [
+        "package.json",
+        "docs/architecture/catalog/README.md"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "在仓库首页、文档首页及Agent入口直接导航到固定目录，补充人读和机器检索指引。",
+      "evidence": [
+        "AGENTS.md",
+        "README.md",
+        "README.en.md",
+        "docs/README.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/architecture/catalog/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增可复现的检索示例并核验入口目标和锚点，继续执行既有目录、链接与完整验证。",
+      "evidence": [
+        "docs/architecture/catalog/README.md",
+        "docs/README.md"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "仍随仓库文档交付，不创建额外托管站点，不改变发布版本、镜像或部署流程。",
+      "evidence": [
+        "README.md",
+        "docs/conventions/RELEASES.md"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "AGENTS.md",
+        "README.md",
+        "README.en.md",
+        "docs/README.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/architecture/catalog/README.md",
+        "docs/INDEX.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "统一工程导航和Agent检索入口，所有链接指向既有正式目录并保持生成器与业务源码原样。"
+    }
+  ],
+  "documents": [
+    "AGENTS.md",
+    "README.md",
+    "README.en.md",
+    "docs/README.md",
+    "docs/conventions/AGENT-START.md",
+    "docs/architecture/catalog/README.md"
+  ],
+  "tests": [],
+  "compatibility": "现有地图、机器目录和命令路径保持不变；既有书签与源码链接仍使用同一份目录。",
+  "migration": "没有数据或接口迁移；只增加导航指针并重新生成文档索引。",
+  "rollback": "回滚本次导航文档及影响声明即可，不需要回滚业务数据或任何已部署服务。"
+}

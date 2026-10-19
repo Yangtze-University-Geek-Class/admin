@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "issue": 257,
+  "kind": "engineering",
+  "summary": "统一交付可追溯的项目目录、交互地图与每个PR必须完成的宏观颗粒度对齐检查。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "identity",
+    "organization",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "github",
+    "forum",
+    "mail",
+    "audit",
+    "public_content",
+    "platform"
+  ],
+  "flows": [
+    "flow:application.cancel"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "业务功能本身不变，统一补齐工程读图与每个PR的宏观对齐流程，现有业务接口逐项关联权限、数据和副作用。",
+      "evidence": [
+        "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "只增加可选路由观测钩子，业务HTTP方法、路径、响应与默认执行流程均保持原样。",
+      "evidence": [
+        "app/server/src/app.ts",
+        "tests/server/catalog.test.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "业务身份和资源授权保持原样；新增工程合并检查的强制要求，远端必需检查的实际启用另行核对。",
+      "evidence": [
+        ".github/workflows/architecture-alignment.yml",
+        "docs/architecture/SECURITY.md",
+        "app/server/src/app.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "从隔离内存SQLite提取既有表、列和外键，不新增数据库结构，不读取或修改任何业务记录。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "scripts/catalog/collect.ts",
+        "app/server/src/app.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "根目录显式声明已被服务端锁定的Node类型开发依赖，修复干净CI安装时类型解析缺失；没有新增生产依赖或外部业务调用。",
+      "evidence": [
+        "package.json",
+        "pnpm-lock.yaml"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "宏观规则与相关人工文档同步更新；事实未变的合法重构仍沿用本任务真实文档核对，不用无意义改字制造同步。",
+      "evidence": [
+        "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
+        "docs/ops/CICD.md",
+        "docs/architecture/catalog/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "真实路由、内存库与Git回归已执行；真实浏览器已验证搜索、关联跳转、影响报告导入和拒绝、缩放拖动及窄屏目录与详情。",
+      "evidence": [
+        "tests/tooling/architecture-alignment.test.ts",
+        "tests/tooling/catalog-map.test.ts",
+        "tests/server/catalog.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "新增只读PR检查工作流并保留现有验证与发布链；不触发部署，分支保护从未启用状态单独核验。",
+      "evidence": [
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/issue-lifecycle.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/app.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "route:GET /healthz"
+      ],
+      "reason": "应用工厂只增加可选路由观测点，默认业务路径不变并以真实路由回归核对。"
+    },
+    {
+      "paths": [
+        "scripts/catalog/",
+        "scripts/project-catalog.ts",
+        "docs/architecture/catalog/",
+        "tests/server/catalog.test.ts",
+        "tests/tooling/project-catalog.test.ts",
+        "tests/tooling/catalog-map.test.ts",
+        "tests/e2e/catalog-map.spec.ts",
+        "tests/tooling/catalog-coverage.test.ts",
+        "docs/services/server/endpoint-contracts.md"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform"
+      ],
+      "nodes": [
+        "domain:identity",
+        "domain:organization",
+        "domain:recruitment",
+        "domain:feedback",
+        "domain:invitations",
+        "domain:github",
+        "domain:forum",
+        "domain:mail",
+        "domain:audit",
+        "domain:public_content",
+        "domain:platform",
+        "flow:application.cancel"
+      ],
+      "reason": "统一目录与地图共同读取真实注册、数据结构和能力，不复制接口或数据库定义，明确区分源码事实与声明。"
+    },
+    {
+      "paths": [
+        "scripts/check-architecture.mjs",
+        "scripts/pr-contract.mjs",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/issue-lifecycle.yml",
+        ".github/pull_request_template.md",
+        "tests/tooling/architecture-alignment.test.ts",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/pr-contract.test.ts",
+        "package.json",
+        "AGENTS.md",
+        "tests/tooling/hosted-runners.test.ts",
+        "scripts/pr-markdown.mjs",
+        "pnpm-lock.yaml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "application:server"
+      ],
+      "reason": "每个PR必须八维对齐，交叉核对真实diff、目录引用和文档测试，保留既有分支及发布授权规则。"
+    },
+    {
+      "paths": [
+        "README.md",
+        "README.en.md",
+        "docs/README.md",
+        "docs/INDEX.md",
+        "docs/architecture/API.md",
+        "docs/architecture/ARCHITECTURE.md",
+        "docs/architecture/ARCHITECTURE.en.md",
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/SECURITY.en.md",
+        "docs/conventions/",
+        "docs/services/README.md",
+        "docs/services/server/README.md",
+        "docs/ops/CICD.md",
+        "docs/changes/README.md"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "document:docs/architecture/API.md",
+        "document:docs/architecture/SECURITY.md"
+      ],
+      "reason": "修正已核实的宏观说明漂移，建立每个PR的统一入口和硬规则，不把源码或机器检查声称为实际部署。"
+    },
+    {
+      "paths": [
+        "design-qa.md",
+        "docs/reviews/257/"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "记录真实桌面和窄屏截图、搜索与数据关系跳转、报告成功及拒绝路径，不把静态检查代替交互验收。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
+    "docs/architecture/catalog/README.md",
+    "docs/ops/CICD.md",
+    "docs/services/server/README.md"
+  ],
+  "tests": [
+    "tests/server/catalog.test.ts",
+    "tests/tooling/project-catalog.test.ts",
+    "tests/tooling/catalog-map.test.ts",
+    "tests/tooling/architecture-alignment.test.ts",
+    "tests/tooling/architecture-workflow.test.ts",
+    "tests/tooling/pr-contract.test.ts",
+    "tests/e2e/catalog-map.spec.ts",
+    "tests/tooling/hosted-runners.test.ts",
+    "tests/tooling/catalog-coverage.test.ts"
+  ],
+  "compatibility": "业务HTTP契约与数据库保持兼容；工程流程有意收紧，已有开放PR需要补充影响声明并运行新检查。",
+  "migration": "没有业务数据库迁移；工程基线先独立建立，后续PR补齐声明和目录后按新规则验证。",
+  "rollback": "回滚工程提交及对应必需检查配置需明确授权，保留已有业务数据、历史记录和发布授权边界。"
+}

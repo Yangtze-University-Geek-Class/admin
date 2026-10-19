@@ -18,6 +18,8 @@
 
 ## 回归矩阵
 
+项目目录（#257）：`tests/server/catalog.test.ts` 观测真实应用的根路由、循环注册和头像子插件，核对启用观测后健康、公开文档与未登录拒绝路径不变；`tests/tooling/project-catalog.test.ts` 从真实应用和内存 SQLite 提取结构，覆盖全部注册项、最终 Schema、自动 HEAD、物理外键和部分索引、能力蕴含、业务声明、Nitro 静态声明、来源摘要确定性、环境变量隔离、重复与悬空引用失败，以及入库目录过期。生成器不监听、不读 `.env`/业务库/私有快照，不发外部请求，不执行被链接的业务测试；`pnpm check:catalog` 独立核对生成物，`pnpm typecheck:catalog` 核对工具类型（也在根 typecheck 中）。目录通过不等于权限、业务或线上验收通过，维护规则见[项目目录](../architecture/catalog/README.md)。
+
 投递取消（#204）：`tests/console/applications.test.ts` 与 `mock-sync.test.ts` 核对五状态、取消提示与不带邮件的 PATCH；`tests/server/mail-outbox.test.ts` 用真实路由与假的发信商覆盖从四种状态取消、强带通知及信件内容仍不写信、保留简历与历史、补备注/恢复、版本冲突；`tests/server/console.test.ts` 核对取消的权限/Origin、列表/搜索/分页/全局计数、概览、目录与 CSV；`legacy-database.test.ts` 在虚构文件库重启两次核对取消状态和完整历史不被迁移覆盖。`tests/e2e/application-cancelled.spec.mts` 将浏览器业务请求交给真实 Fastify 路由和内存库，仅外部身份/发信商使用假响应，覆盖 1440px / 390px 键盘选择、保存、刷新、审核、筛选/导出链接与旧画面冲突。不访问用户验收实例、不发真实邮件，截图不代替预发布上的人工验收。
 
 核心：实例隔离、不打开旧论坛库、真实文档非空、内部文档不公开、保留 GitHub OAuth 和组织权限、篡改状态拒绝、登录门槛（`tests/server/core.test.ts`：成员查询按 `CONSOLE_ORG` 查登录者自己，成员回到发起登录的页面；不是成员、邀请未接受不建会话并审计 `auth.signin_denied`；GitHub 连不上、成员查询 403 回 `?signin=failed`；取消授权回 `?signin=cancelled`；没有有效 state 的错误回调就地 400）、退出清会话、邀请并发和不确定结果、旧 API 返回 410、生产缺少论坛服务失败关闭。论坛接口（`tests/server/forum.test.ts`，内容用 `tests/server/fixtures/forum-content/` 夹具，不读真实论坛内容；只有一条用例核对镜像带的两份公开文件能被读出）：每个端点的正常路径与 401/403/400/404，游客回复带与不带 PoW、蜜罐、按 IP 限流（IPv6 按 /64）与全站游客回复上限，游客与成员昵称的允许清单（前几轮审查的全部探针都要 400）和归一后重名，`TRUST_PROXY=2` 时客户端轮换自己的 `X-Forwarded-For` 仍被限流（`true` 时能绕过，作对照），被移出组织的会话按游客处理，GitHub 拒绝会话里的令牌时会话被删、`sid` 被清、回 401 `session_expired`，之后同一个 `sid` 按游客读（#164；控制台接口与 `/auth/me` 的同一情况在 `tests/server/console.test.ts`，并发的两个请求一起碰到时只审计一次也在这里；`tests/server/invitations.test.ts` 里邀请链接发起人的令牌被拒那条是防回归的哨兵：邀请接口不加载会话、自己接住上游错误，现在它两边都会通过，以后有人让它加载会话又把错误往外抛时才会失败），`state` 与浏览接口的按 IP 限流，已关闭话题只有版务能回，社区部舰员与普通成员的版务差别与审计，账号资料的长度与网址规则，头像上传（sharp 生成的真实 PNG、解压炸弹与 4096×4096 像素上限、超大、非图片、读请求体之前核对登录与次数）与按哈希提供，播种幂等，通知、收藏与通知设置只下发给本人，一帖 @提及最多通知 10 人，`/auth/me` 的 `console_link`；写接口只回改动的记录（#145），每一种写入的真实回答原样经论坛前端的 `parseWriteResult`（`app/forum/shared/forum-api.ts`）读出、一个字段不丢，成员的回答都带本人的用户记录；`/state` 的帖子只有字段加服务端截好的一行摘要 `excerpt`，没有正文，一条话题的帖子按话题取（`GET /api/forum/topics/:topic_id/posts`，游客也能取、不存在的话题 404、按 IP 限流），搜索在服务端按话题标题、帖子正文、用户名与昵称匹配（`GET /api/forum/search`：`%` 是字面量、超长的词 400、空词回空结果、删掉的帖子不参与、游客看到的不比 `/state` 多、按 IP 限流），不改正文的写入（点赞、书签、置顶、改资料）回答里不带正文、改正文的写入（发帖、回复、编辑、删除）带（#156）。
@@ -39,6 +41,10 @@
 同一用例还在 390px 核对概览的 GitHub 组织名不会越过自身事实列：覆盖共用截断规则把原生块元素误改成按内容撑宽的行内块时，组织名压到相邻组织角色的回归。
 
 测试报告（#248）：CI 的 `core` 用 `pnpm run test --coverage` 产出 Vitest v8 覆盖率（server、console、web），产物 `vitest-coverage`；`test-report.yml` 在 PR 上于托管 runner 跑 `pnpm test:e2e`，产物 `playwright-report`（HTML，含失败 trace）。两份保留 14 天，只作机器验证附件：没有覆盖率门槛，也不替代 PR 里的改前改后截图和人工验收。本机仍不跑 Playwright（见环境约定），要看报告去 CI 产物。`stage` 上的 e2e 此前不在 CI 里跑，#233 把手机窗口改成页面抽屉后 `.is-phone .pt-win` 的 `display:flex` 盖掉了 `[hidden]`，收起的窗口仍显示，用例红了没人发现，现已补 `.is-phone .pt-win[hidden]` 并让 e2e 进 PR 检查；托管 runner 比本机慢，超时用 `E2E_TIMEOUT_SCALE` 放大。
+
+宏观对齐（#257）：`architecture-alignment.test.ts` 通过公开检查接口与真实临时 Git 提交覆盖八维缺项、假 UI 分类、未覆盖文件、过宽路径、未知目录节点、生成文档冒充业务文档、漏回归、隐藏正文引用，以及固定提交不受脏工作区干扰。`catalog-map.test.ts` 核对地图与目录同源、离线和脚本数据转义。真实浏览器另测搜索定位、节点与跨页钻取、PR 报告导入、窄屏导航和详情，不把静态检查当浏览器验收。
+
+`catalog-coverage.test.ts` 核对全部业务操作及补充入口都有流程关联；删除真实接口的关联后生成必须失败。`pr-contract.test.ts` 拒绝阻塞审查、隐藏或重复标题、围栏/缩进代码中的伪结论；宏观检查共享同一正文解析，并拒绝用已删除流程证明当前源码。`catalog-map.spec.ts` 在 CI 真实 Chromium 中覆盖地图搜索、表关系、窄屏和影响报告的成功、过期摘要、未知节点及清除操作。
 
 ## 分支、环境与发布门禁回归
 

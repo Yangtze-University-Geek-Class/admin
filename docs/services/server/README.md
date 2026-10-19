@@ -2,14 +2,14 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-10-19 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-20 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
 | 路径 | 职责 |
 |---|---|
 | `app/server/src/index.ts` | 唯一启动入口：加载配置、监听端口、处理关闭信号；只有这里打开发信循环（`buildApp({ mailWorker: true })`）；过期会话的定时清理（`sessionCleanup: true`，#128）这里和本机预览 `scripts/local-preview.mjs` 打开，测试默认不开 |
-| `app/server/src/app.ts` | 组装 portal/admin/console/forum 路由、中间件与插件；直连时托管 `app/web/dist` 与 `app/console/dist` 两份前端产物，`resolveSiteEntry` 按路径把 `/console`、`/admin`、`/signin`（含子路径）回落到控制台入口；**不监听端口**，可注入依赖 |
+| `app/server/src/app.ts` | 组装 portal/admin/console/forum 路由、中间件与插件；直连时托管 `app/web/dist` 与 `app/console/dist` 两份前端产物，`resolveSiteEntry` 按路径把 `/console`、`/admin`、`/signin`（含子路径）回落到控制台入口；**不监听端口**，可注入依赖；可选 `observeRoute` 在根路由与子插件之前挂载，供隔离目录工具读取最终路由 Schema，默认不启用 |
 | `app/server/src/services.ts` | 每个应用实例拥有自己的 data.db、缓存、身份与外部客户端；建库后先把意见箱只与 `CONSOLE_ORG` 差大小写的旧组织名归一（#129），再读论坛内容并播种（任何一步失败都先关库、启动失败）；按发信配置建 `mail`（配置写错同样启动失败）；提供关闭方法。测试用 `ServiceOverrides.mailFetch`、`clock` 换掉发信商请求，以及发信队列与会话（建会话、判过期、定时清理）用的时钟 |
 | `app/server/src/config.ts` | 环境变量解析与校验（端口、唯一对外地址 `PUBLIC_ORIGIN`、`CONSOLE_ORG`、密钥长度、难度参数、发信的 `MAIL_*`，都不设时不发信）；不读取前端配置。`forumContentDir` 固定为 `app/forum/content`（不是环境变量，镜像里是同一个相对位置） |
 | `app/server/src/routes/portal/index.ts` | portal 路由注册入口（docs / feedback / join / apply / public config / org / competition signups & teams：`competition-signups.ts`） |
@@ -45,6 +45,7 @@
 - **数据所有权**：论坛的线上数据（账号资料、话题、帖子、点赞、收藏、关注、通知、头像）归本服务，存在 `data.db`；`app/forum/content` 的两份公开文件只作为只读的种子输入。本服务不读取论坛私有备份或只读投影。
 - **限流**：`@fastify/rate-limit` 以 `global: false` 注册，只管写了 `config.rateLimit` 的路由（官网投递、意见箱、邀请链接、控制台导出 CSV 与指派、论坛按 IP 计的浏览类接口）；超额时都回 429 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`。`app.ts` 注册插件时把 `middleware/http-policy.ts` 的 `rateLimited()` 设成默认的 `errorResponseBuilder`，路由不另写；论坛自己数次数的限流（发帖、回复、头像）抛的也是它（#191）。插件把 `errorResponseBuilder` 的返回值当错误抛给错误处理器，错误处理器只认 `statusCode` 与 `code`，所以要返回带这两项的 Error：返回 `{ statusCode, error, message }` 这样的普通对象会被回成 `request_error`。回归测试在 `tests/server/rate-limits.test.ts`。
 - **接口清单与错误语义**见 [API](../../architecture/API.md)，安全边界见 [SECURITY](../../architecture/SECURITY.md)。
+- **工程目录**见[项目目录](../../architecture/catalog/README.md)：真实注册、内存库结构和能力由生成器提取；每个业务操作及补充入口必须关联真实用例。[接口行为契约](endpoint-contracts.md)逐项说明响应、错误、资源范围与副作用。不公开内部目录，不把结构提取当作业务或部署验收。
 
 ## 运行
 
@@ -78,5 +79,5 @@ node scripts/check-boundaries.mjs                         # 依赖方向与跨�
 - 邀请的 GitHub 结果未知时保留待核对状态，需要人工核对后由授权维护修正，不会自动重发。
 - `app/server/package.json` 仍声明旧上传与旧论坛遗留依赖：`@fastify/multipart`、`multer`、`marked`、`dompurify`、`isomorphic-dompurify` 在 `src` 中零引用，`bcryptjs` 只被无人导入的 `lib/password-policy.ts` 引用。`sharp` 已在用：论坛头像上传（`lib/forum-avatar.ts`，#57）。唯一的上传接口是 `PUT /api/forum/me/avatar`，请求体就是图片本身，没有注册 multipart 插件。删除其余遗留依赖和死代码要另开 issue 并更新锁文件。
 - 论坛的 `GET /api/forum/state` 全量下发用户、话题、帖子摘要与关注，没有分页；**不含帖子正文**（#156）：`posts[]` 只有字段加服务端截好的一行摘要 `excerpt`，正文由 `GET /api/forum/topics/:topic_id/posts` 在进话题页时按话题取，搜索由 `GET /api/forum/search` 在服务端按标题、正文、名字匹配。写接口从 #145 起只回这次改动的记录（`changes`），其中帖子这一条与 `/state` 里的同一条一样（摘要，没有正文），只有发帖、回复、编辑、删除多带 `content`。见 [API](../../architecture/API.md)「论坛」。GitHub 角色查询失败时成员的论坛请求失败（与控制台一致），不降级成游客视图。
-- 发信没有用真实的阿里云或 Resend 验证过（测试全是假的请求），也没有退信和投诉回调；同一环境只有一个 server 容器，发信循环没有多进程协调，租约过期重发时阿里云那边可能收到两封。见 [mail](mail.md)「已知限制」。
+- 自动发信回归使用虚构的外部请求；真实发信记录及邮件客户端验收范围只在 [mail](mail.md)「已知限制」维护，不在本页复制一份状态。没有退信和投诉回调；同一环境只有一个 server 容器，发信循环没有多进程协调，租约过期重发可能重复。
 - `app/server/scripts/` 只剩已退役的占位文件，运行即失败退出，不是任何流程的入口；邀请流程的回归由 `pnpm test` 覆盖。

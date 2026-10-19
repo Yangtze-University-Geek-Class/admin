@@ -7,7 +7,7 @@
 ## §1 生命周期：一件事 = 一个 issue = 一个 task 分支 = 一个 worktree = 一个 PR
 
 ```
-开 issue ──▶ task.mjs start：从 stage 拉 task/<issue>/<slug> + 独立 worktree ──▶ 开 PR（Closes #<issue>）──▶ 审查 + CI ──▶ 合并进 stage
+Crosery 确认 → 开 issue ──▶ task.mjs start：从 stage 拉 task/<issue>/<slug> + 独立 worktree ──▶ 开 PR（Closes #<issue>）──▶ 审查 + CI ──▶ 合并进 stage
    │                                                                                                                    │
    └──────────────────────────── 每个阶段在 issue 上发一条「追踪记录」─────────────────────────────────────────────────┘
                                                                                                                          ▼
@@ -20,9 +20,9 @@
 - **PR 是这次改动的证据档**：解决链路、验收证据、人工验收步骤写在正文（[PULL-REQUESTS](PULL-REQUESTS.md)）；审查与返工写成评论。
 - 做完当场关，开着的 issue 只留还有人在做的事：
   - 合并后必须关（2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理。`issue-lifecycle` 工作流关闭 issue，并在 issue 和 PR 上各留一条「关闭」记录，`branch-hygiene` 工作流删除远端 task 分支；本机 worktree 由开发者 `task.mjs finish` 删。GitHub 只在合进默认分支 `main` 时才按 `Closes #n` 自动关闭，所以不能依赖它；自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工关闭，并照 §3 的格式留言。合并的人按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
-  - 不走 PR 做完的（运维操作、决定不做、重复、被别的改动顺带解决）：做完的人当场写「关闭」记录，写明做了什么、在哪验证、或者为什么不做、被哪个 #n 取代，再关闭；不静默关闭。
-  - 只剩外部等待的（等第三方处理、等别人给凭据）：关掉原 issue，把剩下的那一步开成新 issue，写明负责人和在等什么，两边 `Refs` 互相引用。例：#70 在我们这边能做的都做完后，只剩请 GitHub Support 清理 PR 旧引用里的提交，于是关掉 #70，剩下的一步开成 #114。
-- **一件事做不完**：在原 issue 留「阻塞」或「拆分」记录，拆出的新 issue 用 `Refs #<原 issue>` 互相引用；不在已合并的分支上继续提交。
+  - 不走 PR 做完的（运维操作、被别的改动顺带解决）：做完的人当场写「关闭」记录，写明做了什么、在哪验证，再关闭；不静默关闭。Crosery 取消或决定不做的事项，以 `not planned` 关闭并保留决定依据，不能写成已修复或职责完成，也不自动恢复。
+  - 只剩外部等待的（等第三方处理、等别人给凭据）：记录已完成范围与等待原因，先向 Crosery 提出继续、拆分或建单候选，按 [ISSUES](ISSUES.md) §1 获确认后执行；不自动关闭原单并建立替代 issue。历史上的 #70 → #114 只作追溯，不作为自动拆单依据。
+- **一件事做不完**：在原 issue 留「阻塞」记录并提出候选。拆分须先获 Crosery 对具体事项的确认，获批的新 issue 用 `Refs #<原 issue>` 互相引用；不在已合并的分支上继续提交。
 - 评论之外，执行者自己的每一步记在仓库的 `notes/` 里（[NOTES](NOTES.md)）：评论给所有人看进展，`notes/` 按人和时间追溯每个 agent 做过什么，两者都要写。
 - 每天巡检（`issue-lifecycle` 的 `sweep`，`scripts/issue-sweep.mjs`）：关联的 PR 已经合并进 `stage`、issue 还开着的，自动关闭并留「关闭」记录（最近一次合并之后被人重开过的、还有开着的 PR 关联同一个 issue 的不关，「超期」记录里写明原因；PR 合并不到一小时的留给 `close-on-merge`）；其余开着的 issue 14 天没有任何动静，留一条「超期」记录；14 天内关闭的 issue 既没有合并的 PR 也没有「关闭」记录的，留一条「缺记录」，请关闭的人补上，不重开。
 
@@ -30,12 +30,13 @@
 
 | 生命周期 | 规则 | 强制在哪 | 查不到时 |
 |---|---|---|---|
-| issue | PR 合并后它 `Closes` 的 issue 必须关闭，自动化没关上由合并的人当场手工关；不走 PR 做完的当场写「关闭」再关；只剩外部等待的拆新 issue | 合并时 `issue-lifecycle` 的 `close-on-merge`；合并的人按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对；每天的 `sweep` 补关已合并的、给超期和缺记录的 issue 留记录 | 定时任务跑的是默认分支 `main` 上的工作流；`sweep` 只留记录、不重开，关不关由人决定 |
+| issue | PR 合并后它 `Closes` 的 issue 必须关闭，自动化没关上由合并的人当场手工关；不走 PR 做完的当场写「关闭」再关；外部等待先提候选，拆单须经 Crosery 确认 | 合并时 `issue-lifecycle` 的 `close-on-merge`；合并的人按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对；每天的 `sweep` 补关已合并的、给超期和缺记录的 issue 留记录；建单确认由执行者核对正文依据，不能声称脚本已强制 | 定时任务跑的是默认分支 `main` 上的工作流；`sweep` 不重开，不恢复取消事项 |
 | issue 提单 | 带「组:类」改动类型标签；`ui:*` 有截图、`func:*` 写了涉及接口；正文列出相关 issue（[ISSUES](ISSUES.md) §2） | `issue-gate`（issue 创建、编辑、改标签时评论并加 `needs-evidence`，列出相似 issue）；`task.mjs start` 拒绝不合格的 issue 开工 | issues 事件只跑默认分支 `main` 上的工作流，要随发布进入 `main` 才生效；规范生效前（编号 < 235）的 issue 不检查；关键词推测只是建议，不自动加标签 |
-| PR | 九段正文、`Closes #<issue>` 与分支号一致、issue 开着；PR 的「组:类」标签覆盖 issue 的标签，`ui:*` 有改前改后截图，`func:*` 有接口测试与接口验证 | `issue-lifecycle` 的 `pr-contract` | 无 |
+| PR | 十段正文、`Closes #<issue>` 与分支号一致、issue 开着；PR 的「组:类」标签覆盖 issue 的标签，`ui:*` 有改前改后截图，`func:*` 有接口测试与接口验证 | `issue-lifecycle` 的 `pr-contract` | 无 |
 | task 分支（远端） | 合并后立即删除 | `branch-hygiene` 合并后自动删；每周巡检 14 天没提交、没有 open PR 的残留分支，只告警 | 删分支不可逆，残留的由人确认后删 |
 | task worktree（本机） | 合并或放弃后 `task.mjs finish` | `.githooks/pre-push` 运行 `node scripts/task.mjs list --check`：有该清没清的 worktree 就拒绝推送（[BRANCHING](BRANCHING.md)「task worktree」） | 钩子要每台克隆 `pnpm hooks:enable` 启用一次；gh 查不到只警告 |
 | 执行记录（`notes/`） | 开工起连续记到收尾；PR 带开工、提交、PR、审查 | `pnpm check` 的 `check:notes`；CI `branch-guard` 的执行记录检查（[NOTES](NOTES.md) §6） | 收尾写在合并之后，先暂存到主工作区，随下一个 PR 入库，没有检查拦「一直不入库」 |
+| PR 宏观对齐 | 每个 PR 的八维评估、精确变更覆盖、业务流程和证据引用 | 根 check 的 check:architecture 与每个 PR 的 architecture-alignment；正文编辑重跑 | GitHub 合并拦截须设置必需检查；机器不能证明自然语言语义真实 |
 | 文档跟着模块改 | 模块改了，对应文档在同一个 PR 里跟着改；文档里的事实没变时，在本 task 的执行记录里写文档核对 | `pnpm check` 的 `check:doc-sync`、CI `core` 与 `branch-guard`（[docs/README](../README.md)「文档跟着模块改」）；发版时两条部署工作流的 plan job 在发布 tag 指向的提交上再核对，不通过就不构建、不部署（[CICD](../ops/CICD.md)） | 检查只看文档动没动，写得对不对靠审查（[CODE-REVIEW](CODE-REVIEW.md) 第 6 项）；是否配了分支保护以 [CICD](../ops/CICD.md) 为准，没配置时 CI 报红拦不住合并，合并的人自己看 CI 结果 |
 
 ## §2 互相引用
@@ -80,7 +81,7 @@
 | `rework` | 返工 | 审查或验收提出的问题，以及改了什么 | PR |
 | `accept` | 验收 | 人工验收结果：在哪个环境、按哪几步、看到了什么 | PR 或 issue |
 | `closed` | 关闭 | 合并、发布或放弃；写明合并提交或原因 | issue 与 PR 各一条 |
-| `overdue` | 超期 | 巡检自动发：开着的 issue 14 天没有动静，请负责人关掉、拆出外部等待或写进展 | issue |
+| `overdue` | 超期 | 巡检自动发：开着的 issue 14 天没有动静，请负责人核对现状并写进展；关闭按事实与决定办理，拆分先提候选并经 Crosery 确认 | issue |
 | `unrecorded` | 缺记录 | 巡检自动发：issue 关了，却没有合并的 PR，也没有「关闭」记录 | issue |
 
 ### 例子

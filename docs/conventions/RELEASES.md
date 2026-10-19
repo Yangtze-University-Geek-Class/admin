@@ -23,7 +23,7 @@
 ## 发布流程
 
 1. `task/<issue>/<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`。
-2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」开一个普通 task PR 改 `version`，同样合入 `stage`。
+2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」取得 Crosery 对版本变更事项与建单的确认，再走普通 task PR 改 `version`，同样合入 `stage`。
 3. 发布这个预发布版本获得授权后，先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。下面的命令块不切分支，在主工作区或 release worktree 里都能跑；`git merge-base --is-ancestor` 和第 4 步的 plan 一样，先核对这个提交在 `origin/stage` 上。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
 
    ```bash
@@ -74,7 +74,7 @@
 
 ## 版本号
 
-- `package.json` 的 `version` 何时改、改成多少，要先有明确的决定（写在对应 issue 里）。修改走普通 task PR（先开 issue、经审查合入 `stage`），合入以后才能打这个版本的 rc。版本号按 SemVer 2.0.0 选择升哪一位。
+- `package.json` 的 `version` 何时改、改成多少，要先有 Crosery 的明确决定（写在对应 issue 里）。建单遵循 [ISSUES](ISSUES.md) §1 的确认门禁，修改走普通 task PR、经审查合入 `stage`，合入以后才能打这个版本的 rc。版本号按 SemVer 2.0.0 选择升哪一位。
 - 禁止 semantic-release、版本机器人或按 commit type 推算版本的脚本；`feat`/`fix` 提交消息不是发版许可。工作流不会改版本号，也不会打 tag。
 - 发布版本只取**提交态根** `package.json` 的 `version`（`scripts/release-policy.mjs` 与两条部署工作流都读根清单）。`app/forum/package.json` 由上游溯源固定：`app/forum/UPSTREAM.json` 与 `scripts/check-forum-adoption.mjs:20,23` 禁止改动上游清单与锁文件，要动它得先单独复审一次上游升级。所以升号 PR 不改论坛清单，它与根清单版本不同不是缺陷。
 
@@ -125,7 +125,7 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 ## 线上紧急缺陷（Hotfix）规约
 
 正式发布后暴露的影响用户的问题按 [BRANCHING.md](BRANCHING.md) 处理：
-1. **开 Issue 与打标**：必须开 Issue 记录故障现象，打上 `hot-fix` 与 `P0` 标签。
+1. **开 Issue 与打标**：按 [ISSUES](ISSUES.md) §1 先取得 Crosery 对紧急事项、操作范围和建单安排的确认，再开 Issue 记录故障现象并打上 `hot-fix` 与 `P0` 标签；不得因紧急或事后补单自动建单。
 2. **基线拉取与紧急上线**：直接以 `origin/main` 作为基线拉出快速修复，关键路径验证通过后合入 `main` 快速发布上线。修复改了模块（[docs/README](../README.md)「文档跟着模块改」表里的路径），就在同一个改动里把对应文档改对；文档里的事实确实没变时，在随修复一起提交的执行记录里写文档核对。没跟文档的修复，在它上面打的发布 tag 会被部署工作流的 plan 拦下。
 3. **强制合回 stage**：正式环境修复上线且验收通过后，**必须立即把该提交合并回 `stage`**，执行 `git merge-base --is-ancestor origin/main origin/stage` 恢复并确保 `stage >= main` 硬不变量成立。合回的合并提交把修复的模块改动和文档（或文档核对）一起带进 `stage`；修复没跟文档时，这个合并提交在 `stage` 上就不同步（例：`9b38684`、`7c01897`），push `stage` 的 CI `core` 报红，在它和它之后、文档补上之前的提交上打的 rc 都会被 plan 拦下，只能作废编号，补好文档后再打下一个。
 4. **同构预防**：预发布与正式环境必须保持最高同构（Nginx 模板、CSP 头、跨域白名单与环境变量结构对齐），任何配置与依赖在正式上线前必须在预发布真实走过完整改动路径，确保线上可控。
@@ -133,7 +133,8 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 ## tag 不可变
 
 - 发布 tag 一经推送就不移动、不覆盖、不删除重建。打错了（提交不对、版本号不对）就打下一个 rc 或升版本，已推送的错误 tag 保留作记录。
-- 本地 pre-push 守卫拒绝删除和强制移动发布 tag。GitHub 的 tag 保护（rulesets）在当前计划下不可用（见 [CICD](../ops/CICD.md)），所以这条规则目前只有本地钩子、工作流里的核对和流程约束，**没有服务端强制**。
+- 本地 pre-push 守卫拒绝删除和强制移动发布 tag。远端已有服务端规则：2026-10-18 只读核对 `gh api repos/Yangtze-University-Geek-Class/admin/rulesets/24788930`，`release-tags-immutable` 为 `active`，目标为 `tag`，覆盖 `refs/tags/v*`，限制 `creation`、`update`、`deletion`。配置与历史核对记录见 [CICD](../ops/CICD.md)；不再沿用旧的「当前计划不可用、没有服务端强制」结论。
+- 该规则保留 `RepositoryRole` 5 的 `always` 绕过项；具备规则管理权限的管理员也能修改或停用配置。服务端规则因此不等于无人可绕过或不可篡改，执行者仍须遵守本规范的建 tag 授权与发布 tag 不可移动、不可删除要求。上述证据是实际配置读取，不是本次尝试创建、移动或删除 tag 的拒绝实验。
 - 历史上的 `release-X.Y.Z` / `prev-X.Y.Z` tag 只作追溯，不触发部署，也不删除重建。
 
 ## 实现与核验边界

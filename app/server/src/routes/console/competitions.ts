@@ -27,14 +27,21 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
   const manage = [requireCapability("competitions.manage")];
 
   /** 控制台看全部，含已下线的；公开接口把 `offline` 的滤掉。 */
-  app.get("/api/console/competitions", { preHandler: requireCapability("console.access") }, async () => {
+  app.get("/api/console/competitions", {
+    preHandler: requireCapability("console.access"),
+    schema: { response: { 200: { type: "object", additionalProperties: true } } },
+  }, async () => {
     const now = Date.now();
     return { competitions: competitions.list(now).map(record => toConsoleCompetition(record, now)) };
   });
 
   app.post<{ Body: CompetitionDraft }>(
     "/api/console/competitions",
-    { preHandler: manage, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    {
+      preHandler: manage,
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+      schema: { response: { 201: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const draft = normalize(req.body);
       const invalid = competitionError(draft);
@@ -49,7 +56,11 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { competition_id: string }; Body: CompetitionPatch }>(
     "/api/console/competitions/:competition_id",
-    { preHandler: manage, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    {
+      preHandler: manage,
+      config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { competition_id: id } = req.params;
       const current = competitions.get(id);
@@ -80,7 +91,11 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { competition_id: string } }>(
     "/api/console/competitions/:competition_id",
-    { preHandler: manage, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    {
+      preHandler: manage,
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { competition_id: id } = req.params;
       const record = competitions.get(id);

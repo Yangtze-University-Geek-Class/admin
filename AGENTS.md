@@ -18,6 +18,8 @@
 
 再按任务读取适用规范与服务契约（`docs/services/` 下的服务文档、[TESTING](docs/conventions/TESTING.md)、安全与运维文档等）。
 
+**项目定位、功能设计与 PR 审查先查[项目地图与检索入口](docs/architecture/catalog/README.md)**：按业务域找到接口、权限、数据及源码证据，再确定改动位置。Agent 按该入口读取同源 Markdown/JSON；人查看[交互地图](docs/architecture/catalog/map.html)。
+
 读完之前禁止：编辑文件、安装依赖、执行项目脚本、操作业务数据、启动或停止服务、任何 Git 写操作（提交、推送、切分支、建分支、合并）。只允许读规范必需的只读操作：`git branch --show-current`、`git status`、读取文档。
 
 文档被截断就继续读到完整；文件缺失、读不到或规范互相冲突时停下来报告阻塞，不凭记忆继续。上下文压缩或恢复后同样适用。
@@ -38,10 +40,12 @@
 
 ## 2. 工作流硬门禁
 
-**先 issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 预发布验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
+**建单先由 Crosery 确认。** Agent 先查证、查重，用「痛点／解决方案／最终效果与验收条件」提出候选；只有 Crosery 明确批准具体事项后，才可新建、拆分、补建、重开或建立替代 issue，并在正文保留确认依据（[ISSUES](docs/conventions/ISSUES.md) §1–§2）。未确认只保留候选，不建 issue 或 task 分支、不擅自实施候选；「先 issue」、审查建议、巡检、紧急补单与后续跟进都不是建单授权。所有者取消的事项不自动恢复。
+
+**所有者确认建单 → issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
 - **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）。开工用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 建分支和独立 worktree，所有开发都在 worktree 里做，不在主工作区切分支；合并后 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（[BRANCHING](docs/conventions/BRANCHING.md)「task worktree」）；本机有 PR 已合并或 issue 已关、还没 finish 的 worktree 时，`pre-push` 拒绝任何推送（钩子每台克隆用 `pnpm hooks:enable` 启用一次）。开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
-- issue 做完当场关（2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理；`issue-lifecycle` 自动关 issue、`branch-hygiene` 自动删远端分支，自动化没关上的（例如 fork PR 没有写权限，#137）由合并的人当场手工关并留「关闭」记录，本机 worktree 由开发者 `task.mjs finish`。不走 PR 做完的（运维操作、决定不做、被别的改动顺带解决）由做完的人当场写「关闭」记录再关；只剩外部等待的关掉原 issue，剩下的一步开成新 issue 写明负责人（例：#70 → #114）。每天的巡检补关 PR 已合并还开着的 issue，给 14 天没动静的留「超期」、给关了却没有 PR 也没有记录的留「缺记录」。每个生命周期在哪里强制见 [TRACKING](docs/conventions/TRACKING.md) §1。
+- issue 做完当场关（2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理；`issue-lifecycle` 自动关 issue、`branch-hygiene` 自动删远端分支，自动化没关上的（例如 fork PR 没有写权限，#137）由合并的人当场手工关并留「关闭」记录，本机 worktree 由开发者 `task.mjs finish`。不走 PR 做完的（运维操作、被别的改动顺带解决）由做完的人当场写「关闭」记录再关；所有者取消的用 `not planned` 关闭，取消不表示修复或职责完成。只剩外部等待或新发现的问题先提出候选，由 Crosery 决定是否继续、拆分或建单，不自动生成替代 issue。每天的巡检补关 PR 已合并还开着的 issue，给 14 天没动静的留「超期」、给关了却没有 PR 也没有记录的留「缺记录」。每个生命周期在哪里强制见 [TRACKING](docs/conventions/TRACKING.md) §1。
 - 每个阶段的进展以 [TRACKING](docs/conventions/TRACKING.md) §3 的「追踪记录」格式写成 issue / PR 评论；恢复上下文先读 issue 正文和最后几条追踪记录，不凭记忆续做。
 - **执行记录前后必须写**（[NOTES](docs/conventions/NOTES.md)）：每一步按北京时间记进 `notes/<日期>/<GitHub 用户名>/<链路>.md`，入口是 `notes/INDEX.md`。开发前由 `task.mjs start` 记「开工」（要带 `GEEK_NOTES_USER` 与 `GEEK_NOTES_BY` 身份），开发中每次提交、开 PR、审查、返工都记，合并、发布、验收照记，`task.mjs finish` 记「收尾」。task PR 的链路缺「开工」「提交」「PR」「审查」时 CI 不通过，不能合并。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
@@ -49,6 +53,8 @@
 - 文档跟着模块改：`app/<服务>`、`deploy/`、`.github/workflows/` 改了，对应文档在同一个 PR 里跟着改，服务文档头的「更新：」不早于模块最后改动的日期；文档里的事实确实没变时，在这个 task 的执行记录里写「文档核对：<文档路径> 不用改——<理由>」。对照表与规则只在 [docs/README](docs/README.md)「文档跟着模块改」，`pnpm check` 与 CI 强制。只改日期、不改内容是假同步。PR 只用 merge commit 进 `stage`（[BRANCHING](docs/conventions/BRANCHING.md)）。
 - **issue 与 PR 必带「组:类」改动类型标签**（`ui:*` / `func:*` / `infra:*`，口径见 [ISSUES](docs/conventions/ISSUES.md) §2）：`ui:*` 的 issue 和 PR 必须有已上传至 GitHub 托管的有效截图（用户提供图片，Agent 必须负责转存上传为 GitHub 附件链接，禁止写入裸文件名或本地路径充数；缺图必须主动找用户要）；`func:*` 必须有接口测试与接口验证，建单前先查开放与已关闭的相似 issue 并在正文写「相关 issue」；`task.mjs start` 与 CI 的 `pr-contract` 核对。
 - 提交信息只遵循 [COMMITS](docs/conventions/COMMITS.md)；提交、推送、合并、打 tag、部署分别需要对应授权。发版流程、tag 规则与回滚见 [RELEASES](docs/conventions/RELEASES.md)。
+
+**每个 PR 必须宏观颗粒度对齐**（[ARCHITECTURE-ALIGNMENT](docs/conventions/ARCHITECTURE-ALIGNMENT.md)）：先读项目目录及相关业务合同，提交 `docs/changes/<issue>.json`，逐项评估业务、后端接口、权限与资源范围、数据与事务、依赖/副作用、文档、验证和交付。纯 UI、文档或工程 PR 也不得省略；实际 diff 未覆盖、假称无影响、悬空节点、漏相关文档或回归时拒绝。运行 `pnpm check:architecture`，审查核对语义，不以填表或绿标代替设计。进入 stage 前 `architecture-alignment`、`pr-contract`、`verify` 必须成功；远端强制状态另查分支保护，不凭工作流文件推断。
 
 ## 3. 部署硬门禁
 
@@ -81,6 +87,7 @@
 - 把 `proposed`/`historical` 文档当现行规范执行；规范冲突时自己挑一份照做而不报告。
 - 伪造审查结论、验收证据、测试结果或审批记录。
 - 不写执行记录就开发、合并或发布；改写、删除已写的记录，手填时间，或补写没发生过的事。
+- 未经 Crosery 对具体事项确认就新建、拆分、补建、重开或建立替代 issue，或把取消关闭写成已修复。
 - 未经授权创建或推送发布 tag，或者移动、删除已推送的发布 tag。
 
 ## 6. 文档路由表
@@ -97,3 +104,5 @@
 新增服务 = 新增 `app/<service>` + 新增 `docs/services/<service>/README.md` + [docs/README](docs/README.md)「文档跟着模块改」对照表里加一行，缺一视为未完成；模块细节放同目录子文档。完整目录清单见生成物 [docs/INDEX.md](docs/INDEX.md)，不要手工编辑。
 
 **工具适配器政策**：本仓只有 `AGENTS.md` 一个 agent 入口。`CLAUDE.md`、`GEMINI.md`、`CONVENTIONS.md`、`.clinerules`、`.cursorrules`、`.windsurfrules`、`.cursor/rules/*`、`.github/copilot-instructions.md` 以及所有模块级 `AGENTS.md` 一律不再保留（连指针也不留）。技能只有一个实现放在 `.agents/skills/`，其它 CLI 用自己的目录符号链接过去（`.omp/skills/<name>`、`.claude/skills/<name>`），禁止复制内容形成第二份规则。
+
+接入或排查 OMP、Claude 的根入口加载时读 [AGENT-ADAPTERS](docs/conventions/AGENT-ADAPTERS.md)：使用已核验的加载方式，不另建入口文件。

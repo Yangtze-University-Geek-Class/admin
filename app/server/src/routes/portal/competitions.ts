@@ -7,7 +7,9 @@ import { toPublicCompetition } from "../../lib/competition-store.js";
  */
 export default async function portalCompetitionRoutes(app: FastifyInstance) {
   const { competitions } = app.services;
-  app.get("/api/public/competitions", async () => {
+  app.get("/api/public/competitions", {
+    schema: { response: { 200: { type: "object", additionalProperties: true } } },
+  }, async () => {
     const now = Date.now();
     return { competitions: competitions.listPublic(now).map(record => toPublicCompetition(record, now)) };
   });

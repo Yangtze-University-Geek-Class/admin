@@ -2,14 +2,14 @@
 
 > 职责清楚、依赖单向、契约明确；`app/` 与 `docs/services/` 严格对齐，不为目录形式制造部署复杂度。
 
-状态：`current` · 更新：2026-09-23
+状态：`current` · 更新：2026-10-18
 
 ## 当前边界
 
 - 前端：官网在 `app/web/sites/portal`，拥有本端路由、页面、业务组件；共享 React 适配在 `app/web/shared`，不得反向导入站点。极客班控制台是独立的 Vue 3 + Tuffex 包 `app/console`（[console 合同](../services/console/README.md)），与 `app/web` 互不导入，也不导入 `app/server` 源码。
 - 论坛：`app/forum` 是直接采用的 Nuxt/Vue/TuffEx 原仓工程，不导入核心 React 实现，也不被核心导入。
 - 后端：`app/server/src/routes/<module>/index.ts` 是模块注册入口，`contracts.ts` 是输入协议源，路由只处理 HTTP 映射、授权与调用。多处写操作共用的规则放在具名策略/服务中，不在每个 handler 复制归档、锁定、删除幂等或额度校验。
-- 组装：`app/web` 两个站点由同一 Vite 构建产出，`app/server` 由 `app.ts` 组装、`index.ts` 监听，`app/forum` 独立构建。三个服务分别打包为 `web`、`server`、`forum` 镜像，镜像仓库按环境分开（`yzgc-preview/*`、`yzgc-production/*`，见 [DEPLOY](../ops/DEPLOY.md)）。
+- 组装：`app/web` 官网与 `app/console` 控制台各自构建，产物共同装进 web 镜像；`app/server` 由 `app.ts` 组装、`index.ts` 监听，`app/forum` 独立构建。四个源码应用对应 `web`、`server`、`forum` 三个运行单元，镜像仓库按环境分开（`yzgc-preview/*`、`yzgc-production/*`，见 [DEPLOY](../ops/DEPLOY.md)）。
 
 跨服务只通过显式 URL、HTTP 契约及后续统一认证接口连接，禁止共用可变 store 或直接读取对方数据库。
 
@@ -32,7 +32,9 @@
 
 ## 数据与事务
 
-`data.db` 属于 portal 的反馈/邀请流程和 admin 的管理数据；位于 `app/server` 的命名卷（容器内 `/data/data.db`），不跨环境共享。核心不再使用旧 `forum.db`，也不代表线上旧服务已停用。源库及附件已按授权完成[本地备份保全](../ops/FORUM-DATA-CAPTURE.md)，尚未导入可写库；应用不得直接引用该私有备份，只能通过 `GEEK_FORUM_CONTENT_DIR` 指向的只读投影目录，并且只经 `app/forum/server` 的路由读取。论坛目前使用浏览器 localStorage 或只读快照，不是共享数据库。后续真实论坛持久化必须定义所有权和迁移策略。核心 SQL 值参数化，动态列名只来自代码允许列表。
+`data.db` 由核心服务 `app/server` 拥有，保存反馈、邀请、投递、称号与能力配置、审计、邮件队列和论坛业务数据；位于本环境自己的命名卷（容器内 `/data/data.db`），不跨环境共享。论坛前端经核心 `/api/forum/*` 访问，不能直接读库。旧 `forum.db` 与附件按授权[保全](../ops/FORUM-DATA-CAPTURE.md)；代码退役不授予删除旧数据的权限。公开旧帖只作为核心后端的只读播种输入；本机私有快照是另一条开发专用只读路径，不是在线论坛的数据源。核心 SQL 值参数化，动态列名只来自代码允许列表。
+
+应用、运行单元、业务域及数据表的关系见[项目目录](../architecture/catalog/README.md)。它记录实际结构与显式归属，不要求一个业务只能对应一个接口或一张表；业务规则与权限仍以服务端实现和对应合同为准。
 
 一次本地业务状态变化及派生计数应处于同一事务。外部请求不能放进长事务。邀请额度先原子预留，再调用 GitHub；明确失败可补偿，结果未知保留待核对状态，不能盲目重试。删除重试不得再次扣计数。
 

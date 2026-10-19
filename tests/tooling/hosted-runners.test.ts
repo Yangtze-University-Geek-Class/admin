@@ -22,8 +22,9 @@ function jobs(text: string) {
 }
 
 describe('workflows run only on GitHub-hosted runners', () => {
-  it('covers the nine workflows described in docs/ops/CICD.md', () => {
+  it('covers the ten workflows described in docs/ops/CICD.md', () => {
     expect(workflows.map(([name]) => name)).toEqual([
+      'architecture-alignment.yml',
       'branch-hygiene.yml',
       'cert-watch.yml',
       'ci.yml',

@@ -2,7 +2,7 @@
 
 > PR 是一次改动的证据档：写清解决链路、验证结果、可以直接照着做的人工验收步骤和截图录屏；审查与返工写成评论，合并后 issue 自动关闭。
 
-状态：`current` · 更新：2026-10-15
+状态：`current` · 更新：2026-10-18
 
 ## 目标分支
 
@@ -10,18 +10,19 @@ MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，�
 
 ## 正文契约
 
-一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 PR（生命周期见 [TRACKING](TRACKING.md) §1）。标题遵循 [COMMITS](COMMITS.md)。正文从模板 `.github/pull_request_template.md` 开始写，**九个段落一个都不能少**；CI 的 `pr-contract` 检查（`.github/workflows/issue-lifecycle.yml` 调 `scripts/pr-contract.mjs`）逐项核对，改 PR 描述会自动重跑：
+一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 PR（生命周期见 [TRACKING](TRACKING.md) §1）。标题遵循 [COMMITS](COMMITS.md)。正文从模板 `.github/pull_request_template.md` 开始写，**十个段落一个都不能少**；CI 的 `pr-contract` 检查（`.github/workflows/issue-lifecycle.yml` 调 `scripts/pr-contract.mjs`）逐项核对，改 PR 描述会自动重跑：
 
 | 段落（`### 标题`） | 要求 | CI 核对 |
 |---|---|---|
 | 目的 | 解决什么问题、谁提的、为什么现在做；引用 issue 里的原话 | 非空 |
 | 关联 | `Closes #<issue>`，与分支号一致、只关这一个；相关的写 `Refs #n`，依赖写 `Depends on #n`。PR 的「组:类」标签要覆盖这个 issue 的标签（[ISSUES](ISSUES.md) §2） | issue 号一致、issue 存在且开着、不关别的 issue；issue 编号 ≥ 235 时标签集合覆盖 |
 | 变更范围 | 按服务列出改了什么，再写明「不做什么」 | 非空 |
+| 宏观对齐 | 引用 `docs/changes/<issue>.json`，说明八维影响与关键取舍；纯 UI/文档也须给出不变的理由与证据，规则见 [ARCHITECTURE-ALIGNMENT](ARCHITECTURE-ALIGNMENT.md) | 段落非空；独立 architecture-alignment 核对声明、目录和真实 diff |
 | 解决链路 | 复现 → 定位（根因与怎么确认的）→ 修复（为什么这样改、否决了什么）→ 验证（能区分修复前后的回归） | 非空 |
 | 验证命令与结果 | 实际跑过的命令 + 真实输出摘要；失败、跳过、未验证的逐条列出。关联 issue 带 `func:*` 时必须有接口测试命令及真实输出，以及对真实接口的请求（方法 + 路径）、状态码或 `requestId`；没有接口变化写「无接口变更：<理由>」 | 非空；`func:*` 时核对测试命令、方法 + 路径、状态码或 `requestId`，或有理由的「无接口变更」 |
 | 验收证据 | 界面改动放改前改后截图（桌面与手机各一），动画放逐帧拼图或录屏；每项写编号、尺寸 / 设备、对应的验收点。没有界面变化写「无界面变化：<理由>」。关联 issue 带 `ui:*` 时必须放改前改后截图，不接受「无界面变化」 | 至少一张图 / 视频 / 附件链接，或写明无界面变化；`ui:*` 时必须有图，不认「无界面变化」 |
 | 人工验收步骤 | 给验收人照着做的清单：打开哪个地址（写版本或 commit）→ 做什么 → **应看到**什么 | 非空 |
-| 审查结论 | 按 [CODE-REVIEW](CODE-REVIEW.md) 逐项；审查人、时间、被审查 commit；最后一行 `**结论：通过**` / `**结论：有条件通过**` / `**结论：阻塞**` | 有结论行 |
+| 审查结论 | 按 [CODE-REVIEW](CODE-REVIEW.md) 逐项；审查人、时间、被审查 commit；最后一行 `**结论：通过**` / `**结论：有条件通过**` / `**结论：阻塞**` | 必须有且仅有一行可见、精确匹配的结论行；注释或代码块不算；结论为「阻塞」时检查直接失败 |
 | 风险与回滚 | 已知风险、没覆盖到的环境、回滚方式（revert 合并提交 / 镜像 tag） | 非空 |
 
 截图与录屏直接拖进 GitHub 编辑框上传（仓库是私有的，附件同样只有成员可见）；本机路径（`/tmp/...`）别人看不到，不算证据。修复漏洞不把真实凭据或可利用的生产数据放入公开讨论。
@@ -30,7 +31,7 @@ MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，�
 
 - 审查意见、返工、人工验收结果写成评论，格式统一用 [TRACKING](TRACKING.md) §3 的追踪记录（`review` / `rework` / `accept`），不改写已发出的评论。
 - 合并进 `stage` 后：它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理（[ISSUES](ISSUES.md) §1）。`branch-hygiene` 删除 task 分支，`issue-lifecycle` 关闭 issue 并在 issue 与 PR 上各留一条「关闭」记录。自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工补齐，按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
-- 已合并的 PR 不再追加提交；验收发现的新问题开新 issue，`Refs #<原 issue>`。
+- 已合并的 PR 不再追加提交；验收发现的新问题先按 [ISSUES](ISSUES.md) §1 提候选，Crosery 确认后才建续作 issue 并 `Refs #<原 issue>`，不自动拆单或恢复取消事项。
 
 ## 审查要求
 

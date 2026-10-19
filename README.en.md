@@ -23,6 +23,8 @@
   &nbsp;·&nbsp;
   <a href="docs/README.md"><b>Docs map</b></a>
   &nbsp;·&nbsp;
+  <a href="docs/architecture/catalog/README.md"><b>Project map</b></a>
+  &nbsp;·&nbsp;
   <a href="AGENTS.md"><b>Agent entry</b></a>
 </p>
 
@@ -43,7 +45,11 @@
 This English page is an overview. The Chinese documents are canonical; when they disagree, follow [README.md](README.md) and [docs/](docs/README.md).
 
 > [!IMPORTANT]
-> **Preview and production are deployed from the same compose files and environment contract: two identical, complete services, isolated from each other.** Each runs web, server (Fastify with its own SQLite) and forum containers, with its own domain, secrets and GitHub OAuth app. The portal, forum and console share one GitHub sign-in (one `sid` cookie; only members of the class GitHub organization can sign in). Deployed images are production builds with no sample data; sample data is only used in local development. **The forum cannot take posts or replies yet**: there is no server-side storage for topics, so the preview forum shows only the class categories, tags and the old posts released so far. The signed-in 3D Hub is not built either. **The production domain still serves the old deployment** (no forum, sign-in still calls back to the old `github.yangtzeu.work`); it switches to this stack with the first `vX.Y.Z` release.
+> Each environment has an isolated Docker stack with web, server (Fastify and its own SQLite), and forum. The portal, console and forum share GitHub sign-in and a host-only `sid`. Forum topics, replies, profiles and notifications use the core `/api/forum/*` backend. Local demo and read-only snapshot modes are separate and are not authentication or persistence evidence. The signed-in 3D Hub is not implemented. Check the target environment's `/release.json` and acceptance records for deployment status; this page describes source capabilities, not a live inventory.
+
+## Project map
+
+The canonical entry is [docs/architecture/catalog/](docs/architecture/catalog/README.md), maintained alongside the code. Open the [interactive map](docs/architecture/catalog/map.html) in a local browser; on GitHub, download the raw file first. The [text overview](docs/architecture/catalog/CATALOG.md) is readable directly on GitHub. Agents should follow the [retrieval guide](docs/architecture/catalog/README.md#agent-按需检索) and query the [structured catalog](docs/architecture/catalog/catalog.json) for source evidence.
 
 ## What is here
 
@@ -51,8 +57,8 @@ This English page is an overview. The Chinese documents are canonical; when they
 |---|---|---|---|---|
 | Portal | `app/web` | 3D desk that boots into the YUGC OS desktop; join-us letter, forum and GitHub scenes, docs, feedback, invite landing | React 18 · Vite 6 · three.js 0.186 | [web](docs/services/web/README.md) |
 | Console | `app/console` | GitHub sign-in; pages shown by title: applications, people and permissions, feedback, audit, GitHub org admin | Vue 3.5 · Tuffex 0.6 · Vite 7 | [console](docs/services/console/README.md) |
-| Forum | `app/forum` | MIT-licensed Tuff Forum adopted as-is; can show a read-only snapshot of the old forum locally | Nuxt 4 · Tuffex 0.6 · Node >=26 · pnpm 11.24.0 | [forum](docs/services/forum/README.md) |
-| Server | `app/server` | GitHub OAuth, sessions, invite links, applications, feedback, console API | Fastify 5 · better-sqlite3 · Node 22 | [server](docs/services/server/README.md) |
+| Forum | `app/forum` | MIT-licensed Tuff Forum integrated with the core backend; separate local demo and read-only snapshot modes | Nuxt 4 · Tuffex 0.6 · Node >=26 · pnpm 11.24.0 | [forum](docs/services/forum/README.md) |
+| Server | `app/server` | GitHub OAuth, sessions, invite links, applications, feedback, console and forum APIs | Fastify 5 · better-sqlite3 · Node 22 | [server](docs/services/server/README.md) |
 
 ## Architecture
 
@@ -62,7 +68,9 @@ This English page is an overview. The Chinese documents are canonical; when they
 
 </div>
 
-One domain per environment, split by path: `/` portal, `/console` console (old `/admin` redirects there), `/forum/` forum, `/api` and `/auth` server. Only the `web` container publishes a host port; host nginx terminates TLS.
+One domain per environment, split by path: `/` portal, `/console` console (old `/admin` redirects there), `/forum/` forum, `/api` and `/auth` server. The `web` container provides the shared entry point; server also exposes a host-loopback debugging port. Host nginx terminates TLS.
+
+The internal [project catalog](docs/architecture/catalog/README.md) links applications, business domains, registered routes, database structures and capabilities. Generate it with `pnpm catalog:generate`, update the docs index, and validate with `pnpm check:catalog`. It does not claim production deployment or completed business acceptance.
 
 ## Quick start
 
@@ -90,7 +98,7 @@ Rules: [BRANCHING](docs/conventions/BRANCHING.md) · [RELEASES](docs/conventions
 
 ## Deployment
 
-Two isolated Docker stacks on one host behind host nginx: production at `/opt/yzgc/production` (`https://yangtzeu.work`, web on `127.0.0.1:18100`) and preview at `/opt/yzgc/preview` (`https://prev.yangtzeu.work`, web on `127.0.0.1:18200`). Images are per environment, `yzgc-production/{server,web,forum}:<sha12>` and `yzgc-preview/{server,web,forum}:<sha12>`. Environment files live only in `deploy/env/`, with secrets left blank. The preview switch is on, so an rc tag deploys preview; the production switch is off (the free plan cannot configure production approvals on a private repository), and production is deployed by a maintainer with `scripts/deploy-manual.mjs` after the owner accepts the rc. See [DEPLOY](docs/ops/DEPLOY.en.md) and [CICD](docs/ops/CICD.md).
+Two isolated Docker stacks on one host behind host nginx: production at `/opt/yzgc/production` (`https://yangtzeu.work`, web on `127.0.0.1:18100`) and preview at `/opt/yzgc/preview` (`https://prev.yangtzeu.work`, web on `127.0.0.1:18200`). Images are per environment, `yzgc-production/{server,web,forum}:<sha12>` and `yzgc-preview/{server,web,forum}:<sha12>`. Environment files live only in `deploy/env/`, with secrets left blank. Deployment also requires the corresponding environment switch and release authorization. Production requires acceptance of the same preview commit. `scripts/deploy-manual.mjs` is only the authorized fallback for a tag’s CI artifacts when the documented GitHub-plan limitation applies; it is not an alternative to restoring missing protection. See [DEPLOY](docs/ops/DEPLOY.en.md) and [CICD](docs/ops/CICD.md).
 
 ## License
 

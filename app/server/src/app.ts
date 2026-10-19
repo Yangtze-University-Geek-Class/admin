@@ -2,7 +2,7 @@ import portalRoutes from "./routes/portal/index.js";
 import adminRoutes from "./routes/admin/index.js";
 import consoleRoutes from "./routes/console/index.js";
 import forumRoutes from "./routes/forum-api/index.js";
-import Fastify from "fastify";
+import Fastify, { type RouteOptions } from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
@@ -38,7 +38,7 @@ export function resolveSiteEntry(url: string): string {
  * `mailWorker`：开发信循环（每 15 秒发一次到期的信，app.close() 时停下）；只有 index.ts 打开，测试直接调 services.mail.drain()。
  * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
  */
-export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean; mailWorker?: boolean; sessionCleanup?: boolean };
+export type BuildAppOptions = { config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean; mailWorker?: boolean; sessionCleanup?: boolean; observeRoute?: (route: RouteOptions) => void };
 export async function buildApp(options: BuildAppOptions) {
   const config = options.config;
   const services = options.services ?? createServices(config, options.overrides);
@@ -47,6 +47,8 @@ export async function buildApp(options: BuildAppOptions) {
     trustProxy: config.trustProxy,
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
   });
+  // 目录工具在 ready 后读取最终 Schema；必须在根路由和所有子插件之前观测注册。
+  if (options.observeRoute) app.addHook("onRoute", options.observeRoute);
 
   app.decorate("services", services);
   app.addHook("onClose", async () => {

@@ -4,6 +4,8 @@
 
 状态：`current` · 更新：2026-10-18
 
+方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
+
 ## 合同
 
 各路由模块 contracts.ts 拥有本模块请求 Schema。http-contracts 提供公共参数验证；文档 ID 等非数字标识必须有模块例外。TypeScript 泛型不代替运行时校验，用户不得提供待执行的 Schema。

@@ -11,13 +11,15 @@
 
 | 文档 | 说明 | EN |
 |---|---|---|
+| [`AGENT-ADAPTERS.md`](./conventions/AGENT-ADAPTERS.md) | OMP 与 Claude 读取根 AGENTS.md 的本机加载证据、启动方式和验证边界；本页只说明接入，不定义第二套项目规则。 | — |
 | [`AGENT-START.md`](./conventions/AGENT-START.md) | AI 进入 geek_main 的第一步：确认当前分支并完整读取 docs 中的适用规范；不能以记忆、任务紧急或测试通过替代。 | — |
+| [`ARCHITECTURE-ALIGNMENT.md`](./conventions/ARCHITECTURE-ALIGNMENT.md) | 每个 PR 都把业务、后端、权限、数据、依赖、文档、验证和交付对齐到实际变更；纯 UI、文档和工程改动也不能省略。 | — |
 | [`BRANCHING.md`](./conventions/BRANCHING.md) | 只有 `main`（正式）与 `stage`（预发布）两条长期分支；task 分支合并后必须立即删除，任何操作前先确认当前分支。 | — |
 | [`CODE-REVIEW.md`](./conventions/CODE-REVIEW.md) | 本仓库专属的 diff 审查清单：触发时机、逐项检查、结论格式与审查记录位置。 | — |
 | [`COMMITS.md`](./conventions/COMMITS.md) | Conventional Commits 结构，中文说明，一次提交一个可回滚目的。 | [EN](./conventions/COMMITS.en.md) |
 | [`CONTRIBUTING.md`](./conventions/CONTRIBUTING.md) | 统一入口、最小变更、可审查的提交与资源隔离。 | [EN](./conventions/CONTRIBUTING.en.md) |
 | [`DOCUMENTATION.md`](./conventions/DOCUMENTATION.md) | 区分当前事实、已接受决策、未实施提议和历史材料；`docs/` 与 `app/` 严格对齐。 | — |
-| [`ISSUES.md`](./conventions/ISSUES.md) | issue 是一件事的主档：开发前先开 issue，写清现象、复现、环境与验收条件；之后每一步进展都以追踪记录留在评论里，PR 合并即关闭。 | [EN](./conventions/ISSUES.en.md) |
+| [`ISSUES.md`](./conventions/ISSUES.md) | issue 是经 Crosery 确认事项的主档：查证、查重、确认后建单；写清现象、验收条件和确认依据，进展以追踪记录留在评论里，PR 合并即关闭。 | [EN](./conventions/ISSUES.en.md) |
 | [`MODULAR-DEVELOPMENT.md`](./conventions/MODULAR-DEVELOPMENT.md) | 职责清楚、依赖单向、契约明确；`app/` 与 `docs/services/` 严格对齐，不为目录形式制造部署复杂度。 | — |
 | [`NOTES.md`](./conventions/NOTES.md) | 每个人、每个 agent 做的每一步，都按北京时间写进仓库里的 `notes/<日期>/<GitHub 用户名>/<链路>.md`；开发前先记开工，开发后记到收尾，链路不完整的 PR 不能合并。 | — |
 | [`PROJECT.md`](./conventions/PROJECT.md) | 项目定位、授权边界、统一入口和完成定义。 | — |
@@ -46,6 +48,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`data-model.md`](./services/server/data-model.md) | data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。 | — |
+| [`endpoint-contracts.md`](./services/server/endpoint-contracts.md) | 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，不向生产路由增加响应序列化 Schema。 | — |
 | [`mail.md`](./services/server/mail.md) | 招新的四封信怎么拼、怎么渲染、怎么排队发出去：信先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。 | — |
 
 ## services/web/
@@ -90,8 +93,19 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`API.md`](./architecture/API.md) | 模块自有 Schema、明确错误语义和外部副作用约定。 | — |
-| [`ARCHITECTURE.md`](./architecture/ARCHITECTURE.md) | 三个服务（web/server/forum）组成的严格 monorepo；两套 Docker 栈交付两个环境；明确当前实现与目标的差异。 | [EN](./architecture/ARCHITECTURE.en.md) |
-| [`SECURITY.md`](./architecture/SECURITY.md) | 区分保留核心服务的真实安全边界与原仓论坛的浏览器演示；新论坛尚不具备生产安全条件。 | [EN](./architecture/SECURITY.en.md) |
+| [`ARCHITECTURE.md`](./architecture/ARCHITECTURE.md) | 四个源码应用、三个 Docker 运行单元；区分当前代码、开发模式与部署证据，并从统一目录追溯接口、数据和权限。 | [EN](./architecture/ARCHITECTURE.en.md) |
+| [`SECURITY.md`](./architecture/SECURITY.md) | 区分核心后端授权、论坛服务端模式与本机演示；代码防护、真实环境配置和人工验收分别取证。 | [EN](./architecture/SECURITY.en.md) |
+
+## architecture/catalog/
+
+人查看交互地图，Agent 检索同源文本与结构化目录；应用、接口、数据、权限和业务流程统一关联源码证据。
+
+| 文档 | 说明 | EN |
+|---|---|---|
+| [`CATALOG.md`](./architecture/catalog/CATALOG.md) | 应用、运行单元、业务域与源码证据的统一入口；不表示线上部署状态。 | — |
+| [`data-model.md`](./architecture/catalog/data-model.md) | 从真实建库函数产生的内存 SQLite 提取表、列、索引和物理外键；不读取业务记录。 | — |
+| [`permissions.md`](./architecture/catalog/permissions.md) | 直接读取服务端能力定义、蕴含关系及可定位的路由检查，不复制运行时角色权限包。 | — |
+| [`routes.md`](./architecture/catalog/routes.md) | 真实 Fastify 注册的方法、路径、Schema 与源码位置；含根路由、嵌套插件、循环注册及自动 HEAD。 | — |
 
 ## plan/
 
@@ -109,7 +123,7 @@
 
 | 文档 | 说明 | EN |
 |---|---|---|
-| [`CICD.md`](./ops/CICD.md) | 七工作流（ci / deploy-preview / deploy-production / branch-hygiene / issue-lifecycle / issue-gate / cert-watch）+ `.env` 驱动；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
+| [`CICD.md`](./ops/CICD.md) | 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
 | [`DEPLOY.md`](./ops/DEPLOY.md) | 同机两套 Docker 栈 + 宿主 nginx TLS 终止；生产发布为独立授权操作，模板存在不等于已经部署。 | [EN](./ops/DEPLOY.en.md) |
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
 | [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 两份入库 `.env` 的字段契约与可见性规则；地址端口直接写，密钥留空由 CI/CD 注入。 | — |
@@ -118,6 +132,10 @@
 | [`RELEASE-ACCEPTANCE-TEMPLATE.md`](./ops/RELEASE-ACCEPTANCE-TEMPLATE.md) | 空白模板，供验收人逐字段手工填写；不是流水线自动生成的通过证明。 | — |
 | [`TUFF-FORUM.md`](./ops/TUFF-FORUM.md) | 独立启动直接引入的 Nuxt/TuffEx 原仓；本机有私有快照时显示极客班论坛内容，登录只走全站 GitHub 登录，不将其冒充生产论坛。 | — |
 | [`USAGE.md`](./ops/USAGE.md) | 公开访问说明：全站 GitHub 登录、加入我们、核心 GitHub 管理和新论坛浏览器演示分别怎么用；不包含内部凭据。 | [EN](./ops/USAGE.en.md) |
+
+## changes/
+
+每个任务的一份宏观对齐记录，与真实 diff、项目目录及 PR 正文一起审查。
 
 ## decisions/
 
@@ -169,4 +187,4 @@
 
 ---
 
-共 58 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 65 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

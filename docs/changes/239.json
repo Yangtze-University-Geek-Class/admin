@@ -1,0 +1,481 @@
+{
+  "version": 1,
+  "issue": 239,
+  "kind": "business",
+  "summary": "交付比赛报名设置、个人参赛/意向登记、队伍与队员双向确认流转、控制台花名册查看与去重CSV导出及审计日志。",
+  "applications": [
+    "server",
+    "web",
+    "console"
+  ],
+  "domains": [
+    "competitions",
+    "identity",
+    "organization",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "github",
+    "forum",
+    "mail",
+    "audit",
+    "public_content",
+    "platform"
+  ],
+  "flows": [
+    "flow:competition.public.list",
+    "flow:competition.console.list",
+    "flow:competition.console.create",
+    "flow:competition.console.update",
+    "flow:competition.console.delete",
+    "flow:competition.roster.read",
+    "flow:competition.signup_settings.update",
+    "flow:competition.roster.export",
+    "flow:competition.signup.my_competitions",
+    "flow:competition.signup.my_status",
+    "flow:competition.signup.submit",
+    "flow:competition.signup.cancel",
+    "flow:competition.teams.list",
+    "flow:competition.free_agents.list",
+    "flow:competition.teams.create",
+    "flow:competition.teams.apply",
+    "flow:competition.teams.invite",
+    "flow:competition.teams.respond",
+    "flow:competition.teams.leave",
+    "flow:competition.teams.transfer",
+    "flow:competition.teams.disband",
+    "flow:competition.teams.lock",
+    "flow:competition.teams.unlock",
+    "flow:application.cancel",
+    "flow:application.export",
+    "flow:feedback.categories",
+    "flow:github.organizations.list",
+    "flow:invitation.admin.list",
+    "flow:forum.state",
+    "flow:documentation.list",
+    "flow:platform.public_config"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "新增比赛报名状态机、找队友登记、组队双向流转（申请/邀请/响应/退队/解散/锁定）、控制台花名册统计与去重展示。",
+      "evidence": [
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/console/competition-roster.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增比赛报名与组队共计23个业务路由处理函数，补齐Fastify显式响应Schema约束；封装花名册导出防公式注入CSV流。",
+      "evidence": [
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/portal/competitions.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "新增competitions.manage能力用于控制台赛事CRUD与花名册管理；前台组队操作执行requireAuth与requireOrgMember组织成员认证。",
+      "evidence": [
+        "app/server/src/lib/roles.ts",
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/console/competitions.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "在SQLite数据库新增competitions、competition_signup_settings、competition_signups、competition_teams、competition_team_members共5张物理表。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/competition-signup-store.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "沿用现有Fastify与更好SQLite生态依赖，未新增或变更生产运行期依赖。",
+      "evidence": [
+        "app/server/src/lib/db.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "更新API文档、安全契约文档、控制台服务文档及服务端数据模型文档，全面对齐比赛与报名组队模型契约。",
+      "evidence": [
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增competitions与competition-signups单元测试，覆盖状态机双向流转、去重统计、并发安全与CSV防注入回归。",
+      "evidence": [
+        "tests/server/competition-signups.test.ts",
+        "tests/server/competitions.test.ts",
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "服务随现有Docker栈部署，环境变量与镜像构建流程不变；仅新增只读PR架构对齐检查工作流。",
+      "evidence": [
+        "app/server/src/services.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/portal/competitions.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/lib/competition-store.ts",
+        "app/server/src/lib/competition-signup-store.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "table:competitions",
+        "table:competition_signup_settings",
+        "table:competition_signups",
+        "table:competition_teams",
+        "table:competition_team_members",
+        "capability:competitions.manage",
+        "route:GET /api/public/competitions",
+        "route:GET /api/console/competitions",
+        "route:POST /api/console/competitions",
+        "route:PATCH /api/console/competitions/:competition_id",
+        "route:DELETE /api/console/competitions/:competition_id",
+        "route:GET /api/console/competitions/:competition_id/roster",
+        "route:PUT /api/console/competitions/:competition_id/signup-settings",
+        "route:GET /api/console/competitions/:competition_id/roster.csv",
+        "route:GET /api/me/competitions",
+        "route:GET /api/competitions/:id/my-status",
+        "route:POST /api/competitions/:id/signup",
+        "route:DELETE /api/competitions/:id/signup",
+        "route:GET /api/competitions/:id/teams",
+        "route:GET /api/competitions/:id/free-agents",
+        "route:POST /api/competitions/:id/teams",
+        "route:POST /api/teams/:id/apply",
+        "route:POST /api/teams/:id/invite",
+        "route:POST /api/teams/:id/respond",
+        "route:POST /api/teams/:id/leave",
+        "route:POST /api/teams/:id/transfer",
+        "route:DELETE /api/teams/:id",
+        "route:POST /api/teams/:id/lock",
+        "route:DELETE /api/teams/:id/lock"
+      ],
+      "reason": "核心后端比赛服务与报名组队状态机路由、持久化及花名册CSV导出功能实现。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/csv.ts"
+      ],
+      "domains": [
+        "competitions",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "domain:recruitment",
+        "route:GET /api/console/competitions/:competition_id/roster.csv",
+        "route:GET /api/console/applications/export.csv"
+      ],
+      "reason": "CSV单元格公式注入防护通用函数，供花名册导出与招聘申请导出复用。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/applications.ts"
+      ],
+      "domains": [
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:recruitment",
+        "route:GET /api/console/applications/export.csv"
+      ],
+      "reason": "招聘控制台应用管理路由复用独立提取的CSV安全转义工具。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/db.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "table:competitions",
+        "table:competition_signup_settings",
+        "table:competition_signups",
+        "table:competition_teams",
+        "table:competition_team_members",
+        "database:data.db"
+      ],
+      "reason": "数据库启动DDL新增比赛信息、报名设置、报名记录、队伍与队员共5张业务表及索引。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/roles.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "capability:competitions.manage"
+      ],
+      "reason": "角色权限字典新增competitions.manage能力定义及其与控制台身份的关联。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/index.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "route:GET /api/console/competitions",
+        "route:POST /api/console/competitions"
+      ],
+      "reason": "控制台路由挂载与请求Schema契约定义，包含比赛管理与花名册路由注册。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/portal/contracts.ts",
+        "app/server/src/routes/portal/index.ts"
+      ],
+      "domains": [
+        "competitions",
+        "feedback",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "route:GET /api/public/competitions",
+        "route:GET /api/me/competitions"
+      ],
+      "reason": "前台门户公开路由挂载与前台比赛报名相关接口契约校验声明。"
+    },
+    {
+      "paths": [
+        "app/server/src/services.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "application:server"
+      ],
+      "reason": "核心后端依赖注入装配点注册competitions与competitionSignups业务存储单例。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/competitions.ts",
+        "app/console/src/pages/Competitions.vue"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:console"
+      ],
+      "reason": "控制台比赛管理前端视图与状态转换、表单校验及去重统计展示纯逻辑。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/nav.ts",
+        "app/console/src/lib/permission-boundaries.ts",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts",
+        "app/console/src/router.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:console",
+        "capability:competitions.manage"
+      ],
+      "reason": "控制台导航项、路由配置、权限边界说明、前端类型声明与样板数据集成。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/lib/competitions.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:web"
+      ],
+      "reason": "官网门户前台比赛数据获取、缓存与时间感知状态推导客户端模块。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/osApps.ts"
+      ],
+      "domains": [
+        "competitions",
+        "feedback",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:web"
+      ],
+      "reason": "官网桌面操作系统应用窗口定义、桌面图标与比赛应用接入。"
+    },
+    {
+      "paths": [
+        "app/web/shared/lib/mock-api.ts"
+      ],
+      "domains": [
+        "competitions",
+        "platform"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:web"
+      ],
+      "reason": "官网开发预览样板接口支持无后端环境下的比赛列表浏览。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/styles/os.css"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "application:web"
+      ],
+      "reason": "官网桌面比赛应用窗口与布局样式定义。"
+    },
+    {
+      "paths": [
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/console/README.md",
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/web/README.md",
+        "docs/services/web/portal.md"
+      ],
+      "domains": [
+        "competitions",
+        "platform"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "document:docs/architecture/API.md",
+        "document:docs/architecture/SECURITY.md",
+        "document:docs/services/server/data-model.md"
+      ],
+      "reason": "人工架构契约文档、安全策略、数据模型与各应用服务契约更新说明。"
+    },
+    {
+      "paths": [
+        "tests/console/competitions.test.ts",
+        "tests/server/competition-signups.test.ts",
+        "tests/server/competitions.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/web/portal-competitions.test.tsx"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions"
+      ],
+      "reason": "比赛创建CRUD、报名设置、组队双向确认状态机及桌面渲染单元测试与回归套件。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "competitions",
+        "platform"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "domain:platform"
+      ],
+      "reason": "宏观架构目录登记比赛域及相关实体，并生成架构地图与目录元数据。"
+    }
+  ],
+  "documents": [
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/data-model.md",
+    "docs/services/console/README.md",
+    "docs/services/server/README.md",
+    "docs/services/web/README.md",
+    "docs/services/web/portal.md"
+  ],
+  "tests": [
+    "tests/server/competition-signups.test.ts",
+    "tests/server/competitions.test.ts",
+    "tests/console/competitions.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/web/portal-competitions.test.tsx"
+  ],
+  "compatibility": "保持现有接口与历史数据完全兼容；新增比赛表和状态机均使用独立表命名空间，不侵入既有业务结构。",
+  "migration": "在db.ts启动阶段通过CREATE TABLE IF NOT EXISTS幂等建表，无历史破坏性变更，无破坏性数据迁移。",
+  "rollback": "如果回滚，直接回退代码提交即可；新增数据表保留或按需DROP TABLE，不影响其他业务域数据一致性。"
+}

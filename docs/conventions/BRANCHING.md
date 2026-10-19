@@ -68,7 +68,7 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 - 禁止在无线上紧急缺陷（hot-fix）授权的情况下直接向 `main` 提交或推送（含 agent、脚本、GitHub 网页编辑、CI 机器人）。
 - 禁止常规开发中把 `task/**`、`dev/**` 分支直接进 `main`；常规合并只能由 `stage` 合入 `main`。
 - 禁止在新分支名里使用 `-`（见上文「命名规则」）。
-- 禁止在没有 issue 的情况下开 task 分支：开发前先在仓库开 issue，见 [ISSUES](ISSUES.md)。
+- 禁止在没有经 Crosery 确认的 issue 时开 task 分支：先按 [ISSUES](ISSUES.md) §1 完成确认与建单，不以分支流程代替建单授权。
 - 禁止向 `stage` 提交未审查的内容：进入 `stage` 前必须走 [CODE-REVIEW](CODE-REVIEW.md)，MR 描述里带审查结论。
 - 禁止长期保留已合并的 task 分支，禁止用分支名当版本号或发布凭据；发布凭据只有经授权后打的发布 tag。
 - 禁止 force-push `main`/`stage`，禁止整分支 reset 覆盖他人提交。
@@ -77,7 +77,7 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 
 正式环境（`https://yangtzeu.work`）上线后若发生直接影响用户使用的严重故障（整页白屏、多媒体/核心流媒体无法播放、主流程阻断、安全事故等）：
 
-1. **Issue 标记**：先开 Issue（或事后 1 小时内补齐）并打上 `hot-fix` 标签（以及 `P0` 与模块标签）。
+1. **Issue 标记**：经 Crosery 明确批准该紧急事项及建单后开 Issue，打上 `hot-fix`、`P0` 与模块标签。紧急处理和事后补单都遵循 [ISSUES](ISSUES.md) §1；时限与紧急程度不授予自动建单权限。
 2. **基线拉取与快修上线**：紧急情况下**必须直接以最新 `origin/main` 作为基线**拉出修复分支或在独立 worktree 中快速修复并验证，以最短路径合入 `main` 部署上线消除用户影响。修复改了模块（[docs/README](../README.md)「文档跟着模块改」表里的路径），就在同一个改动里把对应文档改对；文档里的事实确实没变时，在随修复一起提交的执行记录里写文档核对。没跟文档的修复，在它上面打的发布 tag 会被部署工作流的 plan 拦下（[RELEASES](RELEASES.md) 第 3、4 步）。
 3. **硬不变量合回（强制执行）**：
    - 生产环境修复验收通过后，**必须立即把该修复合并回 `stage` 分支**：
@@ -95,7 +95,7 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 
 **一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR，四者生命周期相同，都跟着 issue 走**（[TRACKING](TRACKING.md) §1）：
 
-- **开工**：`node scripts/task.mjs start <issue> <slug>`。它先确认 issue 开着，再从最新 `origin/stage` 建分支，同时在主工作区的 `.claude/worktrees/task-<issue>` 建一个独立 worktree，并在 issue 上留一条开工记录。之后这件事的所有编辑、安装、构建、测试、提交都在这个 worktree 里做。
+- **开工**：先核对 issue 的 Crosery 确认依据，再运行 `node scripts/task.mjs start <issue> <slug>`。它先确认 issue 开着，再从最新 `origin/stage` 建分支，同时在主工作区的 `.claude/worktrees/task-<issue>` 建一个独立 worktree，并在 issue 上留一条开工记录。脚本通过不替代所有者确认。之后这件事的所有编辑、安装、构建、测试、提交都在这个 worktree 里做。
 - **不碰主工作区**：主工作区（以及别的 task 的 worktree）上可能有别人的未提交改动、正在跑的预览或论坛进程；在自己的 worktree 里做，互不影响，也不用切分支、stash。
 - **一个 issue 只有一个 worktree**：`start` 发现已有同号 worktree 会拒绝，直接进去继续做。不要在同一个 worktree 里做第二件事。
 - **结束**：PR 合并进 `stage` 后，`branch-hygiene` 删远端分支，`issue-lifecycle` 关 issue；本机运行 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（在主工作区运行，不要在要删的 worktree 里运行）。fork 来的 PR 合并时 `issue-lifecycle` 没有写权限（#137），issue 不会自动关，由合并的人按 [ISSUES](ISSUES.md) §1 与 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项当场手工关并留「关闭」记录。`node scripts/task.mjs list` 列出每个 worktree 的 issue / PR 状态；`prune` 一次清掉所有可清理的。
@@ -108,7 +108,7 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 ```bash
 pnpm hooks:enable                              # 0. 每台克隆一次：启用 pre-push（分支规则、发布 tag、该清理的 worktree）
 git branch --show-current                      # 1. 确认当前在哪
-# 2. 按 ISSUES.md 开 issue，记下编号
+# 2. 按 ISSUES.md 查证、查重，经 Crosery 确认后开 issue，记下编号
 node scripts/task.mjs start <issue> <slug>     # 3. 从最新 origin/stage 建 task/<issue>/<slug> 与 .claude/worktrees/task-<issue>
 cd .claude/worktrees/task-<issue> && pnpm install --frozen-lockfile
 # 4. 在 worktree 里开发、验证、提交（见 CONTRIBUTING.md），每个阶段在 issue 上留追踪记录（TRACKING.md §3）

@@ -2,7 +2,7 @@
 #
 # 一件事 = 一个 issue = 一个 task/<issue>/<slug> 分支 = 一个 PR。三件事：
 #   1. pr-contract：每个进 stage 的 PR 检查正文契约（Closes #<issue> 与分支号一致、issue 开着、
-#      九个必需段落齐全、有验收证据、有审查结论）。改 PR 描述会自动重跑。
+#      十个必需段落齐全、有验收证据、有审查结论）。改 PR 描述会自动重跑。
 #   2. close-on-merge：PR 合并进 stage 后关闭对应 issue，并在 issue 与 PR 上各留一条追踪记录。
 #      GitHub 只在合进默认分支 main 时才按 Closes #n 自动关闭，所以这里自己关。
 #      删 task 分支由 branch-hygiene.yml 负责，这里不重复。
@@ -47,13 +47,14 @@ jobs:
       contents: read
       issues: read
     steps:
-      - name: 检出默认分支上的检查脚本（不检出 PR 代码）
+      - name: 检出目标分支上的检查脚本（不检出 PR 代码）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
           sparse-checkout: |
             scripts/pr-contract.mjs
+            scripts/pr-markdown.mjs
             scripts/issue-labels.mjs
           sparse-checkout-cone-mode: false
 

@@ -42,6 +42,7 @@ export const consoleContracts: RouteContracts = {
   "POST /api/console/departments": {
     ...noQuery,
     body: object({ id: departmentId, ...departmentFields }, ["id", "name", "tag", "icon", "tone", "head_capabilities"]),
+    response: { 201: { type: "object", additionalProperties: true } },
   },
   "PATCH /api/console/titles/:title_id": {
     ...noQuery,
@@ -53,11 +54,13 @@ export const consoleContracts: RouteContracts = {
       }),
       minProperties: 1,
     },
+    response: { 200: { type: "object", additionalProperties: true } },
   },
   "PATCH /api/console/departments/:department_id": {
     ...noQuery,
     params: object({ department_id: departmentId }, ["department_id"]),
     body: { ...object({ ...departmentFields, archived: { type: "boolean" } }), minProperties: 1 },
+    response: { 200: { type: "object", additionalProperties: true } },
   },
   "DELETE /api/console/departments/:department_id": {
     ...noQuery,

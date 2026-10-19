@@ -49,3 +49,15 @@
 - 执行者：agent-claude-geek-main-254b（Claude Code，claude-sonnet-5-5）
 - 做了什么：gh pr create 开出 #256，目标 stage，标签 docs、infra:tooling，Closes #254；正文九段按 pr-contract 本地检查通过（分支 task/254/role_not_person_rest ↔ issue #254，9 个段落齐全，有验收证据）。审查结论一节写明审查人是独立审查 agent（omp，crosery/deepseek-v4.1-flash，只读），被审提交 01855c568f65，结论有条件通过，两条应修已改；返工提交 708b4820。
 - 结果：PR https://github.com/Yangtze-University-Geek-Class/admin/pull/256 ；note.mjs check --pr 在补完本条后应通过
+
+## 03:34:12 +08:00 · 合并 · #254 · PR #256 合并进 stage
+
+- 执行者：agent-claude-geek-main-254b（Claude Code，claude-sonnet-5-5）
+- 做了什么：gh pr merge 256 --merge；合并前 core、verify、forum、branch-guard、pr-contract、docker、docker-cdn、env-contract、lint-workflows、e2e 均通过，状态 MERGEABLE/CLEAN；issue-lifecycle 自动关闭 #254 并留「关闭」记录，branch-hygiene 删除远端分支
+- 结果：合并提交 c47bc31acbe7e0b541f3845719043b34794ea209，2026-10-17T19:33:37Z；#254 状态 CLOSED（COMPLETED），远端 task/254/role_not_person_rest 已删
+
+## 03:34:35 +08:00 · 收尾 · #254 · PR #256 已合并，清理 worktree
+
+- 执行者：agent-claude-geek-main-254b（Claude Code，claude-sonnet-5-5）
+- 做了什么：node scripts/task.mjs finish 254：删 worktree .claude/worktrees/task-254 与本地分支 task/254/role_not_person_rest
+- 结果：PR 已合并

@@ -37,7 +37,10 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 获取我的所有报名与待处理事项（用于「我的参赛」与角标） */
   app.get(
     "/api/me/competitions",
-    { preHandler: memberOnly },
+    {
+      preHandler: memberOnly,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req) => {
       return competitionSignups.getMyCompetitions(currentAccountId(req), Date.now());
     },
@@ -46,7 +49,10 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 个人在此比赛的当前报名与组队状态 */
   app.get<{ Params: { id: string } }>(
     "/api/competitions/:id/my-status",
-    { preHandler: memberOnly },
+    {
+      preHandler: memberOnly,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.id);
       if (!comp || comp.offline) {
@@ -60,7 +66,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 个人报名 / 登记意向 */
   app.post<{ Params: { id: string }; Body: { note?: string; looking_for_team?: boolean } }>(
     "/api/competitions/:id/signup",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 201: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.signup(
         req.params.id,
@@ -78,7 +88,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 取消报名 / 取消意向 */
   app.delete<{ Params: { id: string } }>(
     "/api/competitions/:id/signup",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.cancelSignup(
         req.params.id,
@@ -95,7 +109,10 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 查看某比赛的所有公开队伍列表 */
   app.get<{ Params: { id: string } }>(
     "/api/competitions/:id/teams",
-    { preHandler: memberOnly },
+    {
+      preHandler: memberOnly,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.id);
       if (!comp || comp.offline) {
@@ -109,7 +126,10 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 查看找队友列表 */
   app.get<{ Params: { id: string } }>(
     "/api/competitions/:id/free-agents",
-    { preHandler: memberOnly },
+    {
+      preHandler: memberOnly,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const comp = competitions.get(req.params.id);
       if (!comp || comp.offline) {
@@ -123,7 +143,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 创建参赛队伍 */
   app.post<{ Params: { id: string }; Body: { name: string; slogan?: string } }>(
     "/api/competitions/:id/teams",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 201: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { name, slogan } = req.body ?? {};
       const result = competitionSignups.createTeam(
@@ -142,7 +166,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 申请加入队伍 */
   app.post<{ Params: { id: string }; Body?: { message?: string } }>(
     "/api/teams/:id/apply",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 201: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.applyToTeam(
         req.params.id,
@@ -160,7 +188,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 队长邀请队员入队 */
   app.post<{ Params: { id: string }; Body: { account_id: string; message?: string } }>(
     "/api/teams/:id/invite",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 201: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { account_id, message } = req.body ?? {};
       if (!account_id?.trim()) {
@@ -182,7 +214,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 响应入队申请或队长邀请（accept / decline / withdraw） */
   app.post<{ Params: { id: string }; Body: { membership_id: string; action: "accept" | "decline" | "withdraw" } }>(
     "/api/teams/:id/respond",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { membership_id, action } = req.body ?? {};
       const result = competitionSignups.respondToMembership(
@@ -202,7 +238,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 退出队伍 */
   app.post<{ Params: { id: string } }>(
     "/api/teams/:id/leave",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.leaveTeam(
         req.params.id,
@@ -219,7 +259,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 队长转让队伍 */
   app.post<{ Params: { id: string }; Body: { account_id: string } }>(
     "/api/teams/:id/transfer",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const { account_id } = req.body ?? {};
       const result = competitionSignups.transferTeam(
@@ -238,7 +282,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 队长解散队伍 */
   app.delete<{ Params: { id: string } }>(
     "/api/teams/:id",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.disbandTeam(
         req.params.id,
@@ -255,7 +303,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 队长确认锁定参赛队伍 */
   app.post<{ Params: { id: string } }>(
     "/api/teams/:id/lock",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.lockTeam(
         req.params.id,
@@ -272,7 +324,11 @@ export default async function portalCompetitionSignupRoutes(app: FastifyInstance
   /** 队长撤销确认参赛锁定 */
   app.delete<{ Params: { id: string } }>(
     "/api/teams/:id/lock",
-    { preHandler: memberOnly, ...rateLimit },
+    {
+      preHandler: memberOnly,
+      ...rateLimit,
+      schema: { response: { 200: { type: "object", additionalProperties: true } } },
+    },
     async (req, reply) => {
       const result = competitionSignups.unlockTeam(
         req.params.id,

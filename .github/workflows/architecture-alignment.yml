@@ -1,0 +1,69 @@
+name: Architecture alignment
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-alignment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-alignment:
+    name: architecture-alignment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 读取候选提交与完整历史（不安装或运行应用）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 安装检查运行时
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: 按真实 diff 核对宏观颗粒度
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -eu
+          git fetch --no-tags origin "$BASE_SHA"
+          policy="${RUNNER_TEMP}/check-architecture.mjs"
+          # 常规 PR 使用目标分支的检查器，候选分支不能通过改自己的校验逻辑放行。
+          if git cat-file -e "${BASE_SHA}:scripts/check-architecture.mjs" 2>/dev/null; then
+            git show "${BASE_SHA}:scripts/check-architecture.mjs" > "$policy"
+            git show "${BASE_SHA}:scripts/check-doc-sync.mjs" > "${RUNNER_TEMP}/check-doc-sync.mjs"
+            git show "${BASE_SHA}:scripts/note.mjs" > "${RUNNER_TEMP}/note.mjs"
+            git show "${BASE_SHA}:scripts/pr-markdown.mjs" > "${RUNNER_TEMP}/pr-markdown.mjs"
+          else
+            # 首次安装仍完整执行检查，不跳过。此引导版本须连同 PR 审查。
+            echo "目标分支尚未安装宏观检查器，本次执行并审查候选引导版本。"
+            cp scripts/check-architecture.mjs "$policy"
+            cp scripts/check-doc-sync.mjs "${RUNNER_TEMP}/check-doc-sync.mjs"
+            cp scripts/note.mjs "${RUNNER_TEMP}/note.mjs"
+            cp scripts/pr-markdown.mjs "${RUNNER_TEMP}/pr-markdown.mjs"
+          fi
+          printf '%s' "$PR_BODY" > "${RUNNER_TEMP}/architecture-body.md"
+          node "$policy" --root "$GITHUB_WORKSPACE" --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --branch "$HEAD_REF" --body-file "${RUNNER_TEMP}/architecture-body.md" \
+            --report "${RUNNER_TEMP}/architecture-impact.json"
+
+      - name: 保存宏观影响报告
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: architecture-impact
+          path: ${{ runner.temp }}/architecture-impact.json
+          if-no-files-found: error
+          retention-days: 14

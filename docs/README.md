@@ -2,11 +2,21 @@
 
 > 所有项目规范集中于 docs；`docs/` 与 `app/` 严格对齐，根目录及工具文件只负责导航。
 
-状态：`current` · 更新：2026-10-02
+状态：`current` · 更新：2026-10-19
 
 ## AI 第一操作
 
 Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md) 和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
+
+## 项目地图
+
+统一入口：[项目地图与工程目录](architecture/catalog/README.md)。文件与当前检出的代码配套，按下面的阅读方式选择：
+
+| 需要做什么 | 直接入口 |
+|---|---|
+| 人浏览服务、接口、权限和数据关系 | [交互地图](architecture/catalog/map.html)（本机浏览器打开，或下载原文件后打开） |
+| 人或 Agent 快速了解业务结构 | [文本总览与业务流程](architecture/catalog/CATALOG.md) |
+| Agent 按接口、表、能力或源码定位 | [检索指引](architecture/catalog/README.md#agent-按需检索) · [结构化目录](architecture/catalog/catalog.json) |
 
 ## app ↔ docs ↔ 规范 地图
 
@@ -54,6 +64,8 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 
 | 主题 | 规范文档 |
 |---|---|
+| 应用、业务、接口、数据结构与能力的统一入口 | [项目目录](architecture/catalog/README.md)（可重建的内部工程目录，含源码证据；不代表已部署） |
+| 每个 PR 的业务、接口、权限、数据与文档对齐 | [ARCHITECTURE-ALIGNMENT](conventions/ARCHITECTURE-ALIGNMENT.md) |
 | 分支模型、不变量、合并后删分支 | [BRANCHING](conventions/BRANCHING.md) |
 | diff 审查清单与结论格式 | [CODE-REVIEW](conventions/CODE-REVIEW.md) |
 | 打 tag 发版、人工验收、版本展示、回滚 | [RELEASES](conventions/RELEASES.md) |

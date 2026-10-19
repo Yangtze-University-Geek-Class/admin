@@ -25,6 +25,8 @@
   &nbsp;·&nbsp;
   <a href="docs/README.md"><b>文档总入口</b></a>
   &nbsp;·&nbsp;
+  <a href="docs/architecture/catalog/README.md"><b>项目地图</b></a>
+  &nbsp;·&nbsp;
   <a href="AGENTS.md"><b>AGENTS 入口</b></a>
 </p>
 
@@ -47,9 +49,16 @@
 `geek_main` 是极客班的统一仓库：`app/` 下四个服务，`docs/` 下全部规范，`deploy/` 下两套一模一样的 Docker 栈（正式、预发布）。包名沿用 `yzgc-admin`、`@yzgc/web`、`@yzgc/server`，不为改名而改名。
 
 > [!IMPORTANT]
-> **预发布与正式按同一份 compose 与环境契约部署，是两套一模一样、互相隔离的完整服务。** 每套都有 web、server（Fastify + 自己的 SQLite）、forum 三个容器，各用各的域名、密钥和 GitHub OAuth 应用。官网、论坛、控制台共用同一个 GitHub 登录（一个 `sid` cookie，只有极客班 GitHub 组织的成员能登录成功）。部署的镜像都是生产构建，不含样板数据；样板数据只在本机开发态使用。**论坛还不能发帖和回复**：帖子还没有服务端存储，预发布线上只有极客班自己的分类、标签和放出来的旧帖。登录后的 3D Hub 也还没做。**正式域名现在跑的还是旧部署**（没有论坛，登录回调还是旧的 `github.yangtzeu.work`），第一个 `vX.Y.Z` 正式发布后才换成这套栈。
+> **每个环境是一套互相隔离的完整 Docker 栈**：web、server（Fastify 与本环境的 SQLite）、forum。官网、控制台和论坛共用 GitHub 登录及 host-only `sid`；论坛发帖、回复、资料、通知等数据由核心 `/api/forum/*` 提供，并非只有浏览器存储。本机演示和只读快照是另外的运行模式，不作为真实认证或持久化证据。登录后的 3D Hub 尚未实现。当前线上运行的版本以目标环境 `/release.json` 和对应验收记录为准，不由当前分支或本页推断。
 
 ---
+
+## 项目地图
+
+正式入口是 [docs/architecture/catalog/](docs/architecture/catalog/README.md)，和代码一起维护：
+
+- **人看关系**：[交互地图](docs/architecture/catalog/map.html)，在本机浏览器打开；在 GitHub 文件页下载原文件后打开即可。[文本总览](docs/architecture/catalog/CATALOG.md)可直接在线阅读。
+- **Agent 查实现**：从[检索指引](docs/architecture/catalog/README.md#agent-按需检索)进入接口、数据模型、权限和业务流程，按需查询[结构化目录](docs/architecture/catalog/catalog.json)与源码证据。
 
 ## 现在有什么
 
@@ -57,13 +66,14 @@
 |---|---|---|---|---|
 | 官网 portal | `app/web` | 3D 书桌 → 开机进 YUGC OS 桌面；加入我们（信封投递）、论坛与 GitHub 场景、文档、意见箱、邀请落地 | React 18 · Vite 6 · three.js 0.186 | [web](docs/services/web/README.md) · [portal](docs/services/web/portal.md) |
 | 控制台 console | `app/console` | 用 GitHub 登录，按称号显示页面：投递、成员与权限、意见箱、审计、GitHub 组织管理 | Vue 3.5 · Tuffex 0.6 · Vite 7 | [console](docs/services/console/README.md) |
-| 论坛 forum | `app/forum` | 原样采用 MIT 许可的 Tuff Forum；本机可只读显示老论坛快照 | Nuxt 4 · Vue 3 · Tuffex 0.6 · Node ≥26 · pnpm 11.24.0 | [forum](docs/services/forum/README.md) |
-| 后端 server | `app/server` | GitHub OAuth 登录、会话、邀请链接、投递、意见箱、控制台接口 | Fastify 5 · better-sqlite3 · Node 22 | [server](docs/services/server/README.md) |
+| 论坛 forum | `app/forum` | 基于 MIT 许可的 Tuff Forum，接核心论坛接口；本机另有演示与只读快照模式 | Nuxt 4 · Vue 3 · Tuffex 0.6 · Node ≥26 · pnpm 11.24.0 | [forum](docs/services/forum/README.md) |
+| 后端 server | `app/server` | GitHub OAuth 登录、会话、邀请链接、投递、意见箱、控制台与论坛接口 | Fastify 5 · better-sqlite3 · Node 22 | [server](docs/services/server/README.md) |
 
 | 状态 | 内容 |
 |---|---|
-| 已有 | 官网、控制台、后端接口；官网、论坛、控制台共用的 GitHub 登录；两套完整隔离的 Docker 栈（各自的 SQLite、密钥、域名），打 rc tag 自动部署预发布；分支守卫、PR 正文检查、tag 发版流水线（CI 与部署跑在 GitHub 托管 runner 上） |
-| 没有 | 论坛发帖、回复的服务端存储；登录后的 3D Hub |
+| 已有 | 官网、控制台、后端及论坛读写接口；官网、论坛、控制台共用的 GitHub 登录；两套完整隔离的 Docker 栈（各自的 SQLite、密钥、域名），打 rc tag 自动部署预发布；分支守卫、PR 正文检查、tag 发版流水线（CI 与部署跑在 GitHub 托管 runner 上） |
+| 工程目录 | 可重建的接口、数据、权限目录与交互地图；每个 PR 的宏观对齐声明及检查，远端启用状态见 CI/CD 文档 |
+| 没有 | 登录后的 3D Hub；存量接口完整响应 Schema |
 
 ---
 
@@ -75,7 +85,7 @@
 
 </div>
 
-每个环境只有一个域名，按路径分：`/` 官网，`/console` 控制台（旧的 `/admin` 跳过去），`/forum/` 论坛，`/api`、`/auth` 后端。`web` 容器是唯一对宿主暴露端口的容器，TLS 由宿主 nginx 终止。细节见 [ARCHITECTURE](docs/architecture/ARCHITECTURE.md) 与 [DEPLOY](docs/ops/DEPLOY.md)。
+每个环境只有一个域名，按路径分：`/` 官网，`/console` 控制台（旧的 `/admin` 跳过去），`/forum/` 论坛，`/api`、`/auth` 后端。`web` 容器提供统一入口，server 另有宿主回环调试端口；TLS 由宿主 nginx 终止。细节见 [ARCHITECTURE](docs/architecture/ARCHITECTURE.md) 与 [DEPLOY](docs/ops/DEPLOY.md)。
 
 ---
 
@@ -107,6 +117,8 @@ pnpm forum:install && pnpm forum:start   # 论坛
 ### 3. 提交前验证
 
 ```bash
+pnpm catalog:generate # 重建内部工程目录，随后运行 pnpm docs:index
+pnpm check:catalog  # 核对应用、接口、表、能力与目录生成物
 pnpm check          # 运行时、环境契约、依赖边界、文档索引与链接、密钥扫描、类型检查
 pnpm test           # 真实路由 + 内存 SQLite，外部服务全部模拟
 pnpm build          # 官网、控制台、后端构建
@@ -156,7 +168,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 - 一件事 = 一个 issue = 一条 `task/<issue>/<slug>` 分支 = 一个 worktree = 一个 PR。开工用 `node scripts/task.mjs start <issue> <slug>`，合并后分支删掉、issue 自动关闭。分支名不用 `-`，只用 `/` 分层。
 - `dev/<github-username>` 是个人随便写的地方，不部署，也不能直接进 `stage`。
 - **推分支不部署。** 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，验收通过后，在同一提交上打 `vX.Y.Z` 发正式。打 tag 要有授权，已推送的 tag 不移动、不删除。
-- 进 `stage` 的每个 PR 都要按 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md) 写审查结论，正文九段按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 写，CI 会核对。
+- 进 `stage` 的每个 PR 都要按 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md) 写审查结论，正文十段按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 写，CI 会核对。
 
 完整规则：[BRANCHING](docs/conventions/BRANCHING.md) · [RELEASES](docs/conventions/RELEASES.md) · [TRACKING](docs/conventions/TRACKING.md) · [ISSUES](docs/conventions/ISSUES.md) · [COMMITS](docs/conventions/COMMITS.md)。
 
@@ -183,6 +195,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 
 | 想知道 | 去看 |
 |---|---|
+| 现有业务、应用、后端接口、数据结构和能力关系 | [项目目录](docs/architecture/catalog/README.md) |
 | 所有规范、app ↔ docs 对照表 | [docs/README.md](docs/README.md)（完整目录 [INDEX](docs/INDEX.md) 是生成物） |
 | Agent 接手这个仓库 | [AGENTS.md](AGENTS.md) → [AGENT-START](docs/conventions/AGENT-START.md) |
 | 系统怎么拼起来、数据归谁 | [ARCHITECTURE](docs/architecture/ARCHITECTURE.md) · [API](docs/architecture/API.md) · [SECURITY](docs/architecture/SECURITY.md) |
