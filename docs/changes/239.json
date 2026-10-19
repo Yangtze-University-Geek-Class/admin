@@ -402,6 +402,7 @@
     },
     {
       "paths": [
+        "docs/ops/CICD.md",
         "docs/architecture/API.md",
         "docs/architecture/SECURITY.md",
         "docs/services/console/README.md",
@@ -418,9 +419,10 @@
         "domain:competitions",
         "document:docs/architecture/API.md",
         "document:docs/architecture/SECURITY.md",
-        "document:docs/services/server/data-model.md"
+        "document:docs/services/server/data-model.md",
+        "domain:platform"
       ],
-      "reason": "人工架构契约文档、安全策略、数据模型与各应用服务契约更新说明。"
+      "reason": "人工架构契约文档、安全策略、数据模型、运维CI/CD与各应用服务契约更新说明。"
     },
     {
       "paths": [
@@ -466,7 +468,8 @@
     "docs/services/console/README.md",
     "docs/services/server/README.md",
     "docs/services/web/README.md",
-    "docs/services/web/portal.md"
+    "docs/services/web/portal.md",
+    "docs/ops/CICD.md"
   ],
   "tests": [
     "tests/server/competition-signups.test.ts",
