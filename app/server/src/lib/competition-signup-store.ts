@@ -6,34 +6,54 @@ import { competitionStatus, type CompetitionRecord } from "./competition-store.j
 import { csvCell } from "./csv.js";
 import { beijingDateTime } from "./beijing-time.js";
 
-export type SignupKind = "internal" | "external";
-export type SignupStatus = "registered" | "intent" | "cancelled";
-export type TeamStatus = "recruiting" | "confirmed" | "disbanded";
+export type ParticipationType = "individual" | "team";
+export type SignupStatus = "active" | "cancelled";
+export type TeamStatus = "recruiting" | "locked" | "disbanded";
 export type MemberRole = "leader" | "member";
-export type MemberStatus = "confirmed" | "pending_invite" | "pending_apply" | "rejected";
+export type MemberStatus =
+  | "applied"
+  | "invited"
+  | "active"
+  | "declined"
+  | "withdrawn"
+  | "left"
+  | "removed"
+  | "disbanded";
+
+export type SignupSettingsRecord = {
+  competition_id: string;
+  enabled: boolean;
+  participation: ParticipationType;
+  team_min: number | null;
+  team_max: number | null;
+  updated_at: number;
+  updated_by: string;
+};
 
 export type SignupRecord = {
   id: string;
   competition_id: string;
-  github_login: string;
-  github_user_id: number | null;
-  kind: SignupKind;
+  account_id: string;
   status: SignupStatus;
+  looking_for_team: boolean;
   note: string;
-  contact: string;
   created_at: number;
   updated_at: number;
+  cancelled_at: number | null;
 };
 
 export type TeamMemberRecord = {
   id: string;
   team_id: string;
   competition_id: string;
-  github_login: string;
-  github_user_id: number | null;
+  account_id: string;
   role: MemberRole;
   status: MemberStatus;
+  message: string;
+  created_by: string;
+  decided_by: string | null;
   created_at: number;
+  decided_at: number | null;
   updated_at: number;
 };
 
@@ -41,94 +61,212 @@ export type TeamRecord = {
   id: string;
   competition_id: string;
   name: string;
-  leader_login: string;
-  leader_user_id: number | null;
-  status: TeamStatus;
-  max_members: number;
+  name_key: string;
   slogan: string;
+  leader_account_id: string;
+  status: TeamStatus;
+  locked_at: number | null;
+  disbanded_at: number | null;
   created_at: number;
   updated_at: number;
 };
 
-export type TeamWithMembers = TeamRecord & {
-  members: TeamMemberRecord[];
-  confirmed_count: number;
+export type Member = {
+  account_id: string;
+  name: string;
+  avatar_url: string | null;
+};
+
+export type PendingItem = {
+  membership_id: string;
+  type: "applied" | "invited";
+  direction: "incoming" | "outgoing";
+  team: { id: string; name: string; member_count: number };
+  user: Member;
+  message: string;
+  created_at: number;
+};
+
+export type TeamWithMembers = {
+  id: string;
+  name: string;
+  slogan: string;
+  status: "recruiting" | "locked";
+  leader: Member;
+  members: (Member & { role: "leader" | "member" })[];
+  member_count: number;
+  my_relation: "none" | "applied" | "invited" | "member" | "leader";
+  can_apply: boolean;
+  pending?: PendingItem[];
+};
+
+export type State = "none" | "signed_up" | "in_team" | "confirmed" | "unplaced";
+
+export type MyStatus = {
+  writable: boolean;
+  state: State;
+  signup: { note: string; looking_for_team: boolean; created_at: number } | null;
+  team: {
+    id: string;
+    name: string;
+    status: "recruiting" | "locked";
+    role: "leader" | "member";
+    member_count: number;
+  } | null;
+  pending: PendingItem[];
+  actions: string[];
+  stats: {
+    signups: number;
+    teams: number;
+    confirmed_teams: number;
+    confirmed_participants: number;
+    unplaced: number;
+  };
+};
+
+export type MyCompetitions = {
+  pending_count: number;
+  pending: (PendingItem & { competition: { id: string; name: string } })[];
+  competitions: {
+    competition: CompetitionRecord;
+    state: State;
+    team: MyStatus["team"];
+    signed_up_at: number;
+  }[];
+};
+
+export type FreeAgent = {
+  account_id: string;
+  name: string;
+  avatar_url: string | null;
+  note: string;
+  created_at: number;
 };
 
 export type RosterSummary = {
   total_signups: number;
-  internal_registered: number;
-  external_intents: number;
   teams_count: number;
+  confirmed_teams: number;
   confirmed_participants: number;
   unassigned_count: number;
 };
 
 export type CompetitionRoster = {
   competition_id: string;
+  settings: SignupSettingsRecord | null;
   summary: RosterSummary;
-  signups: SignupRecord[];
-  teams: TeamWithMembers[];
-  unassigned_logins: string[];
-};
-
-export type MyCompetitionStatus = {
-  signup: SignupRecord | null;
-  confirmed_team: TeamWithMembers | null;
-  pending_invites: { membership_id: string; team: TeamRecord }[];
-  pending_applications: { membership_id: string; team: TeamRecord }[];
+  signups: (SignupRecord & { user: Member })[];
+  teams: {
+    id: string;
+    name: string;
+    slogan: string;
+    status: TeamStatus;
+    leader: Member;
+    members: (Member & { role: MemberRole; status: MemberStatus })[];
+    member_count: number;
+    created_at: number;
+  }[];
+  unassigned: Member[];
 };
 
 export interface CompetitionSignupStore {
+  getSettings(competitionId: string): SignupSettingsRecord | null;
+
+  updateSettings(
+    competitionId: string,
+    data: {
+      enabled: boolean;
+      participation: ParticipationType;
+      team_min?: number | null;
+      team_max?: number | null;
+    },
+    updatedBy: string,
+    now: number,
+  ): { ok: true; settings: SignupSettingsRecord } | { ok: false; error: string; message: string };
+
+  hasActiveSignups(competitionId: string): boolean;
+  hasAnySignups(competitionId: string): boolean;
+
   signup(
     competitionId: string,
-    user: { login: string; userId: number | null },
-    data: { note?: string; contact?: string },
+    accountId: string,
+    data: { note?: string; looking_for_team?: boolean },
     now: number,
   ): { ok: true; signup: SignupRecord } | { ok: false; error: string; message: string };
 
   cancelSignup(
     competitionId: string,
-    login: string,
+    accountId: string,
     now: number,
   ): { ok: true } | { ok: false; error: string; message: string };
 
   createTeam(
     competitionId: string,
-    leader: { login: string; userId: number | null },
-    data: { name: string; slogan?: string; maxMembers?: number },
+    leaderAccountId: string,
+    data: { name: string; slogan?: string },
     now: number,
   ): { ok: true; team: TeamWithMembers } | { ok: false; error: string; message: string };
 
   applyToTeam(
     teamId: string,
-    applicant: { login: string; userId: number | null },
+    applicantAccountId: string,
+    data: { message?: string },
     now: number,
-  ): { ok: true; membership_id: string } | { ok: false; error: string; message: string };
+  ): { ok: true; membership_id: string; status: MemberStatus } | { ok: false; error: string; message: string };
 
   inviteToTeam(
     teamId: string,
-    leaderLogin: string,
-    invitee: { login: string; userId?: number | null },
+    leaderAccountId: string,
+    data: { account_id: string; message?: string },
     now: number,
-  ): { ok: true; membership_id: string } | { ok: false; error: string; message: string };
+  ): { ok: true; membership_id: string; status: MemberStatus } | { ok: false; error: string; message: string };
 
   respondToMembership(
+    teamId: string,
     membershipId: string,
-    actorLogin: string,
-    action: "accept" | "reject",
+    actorAccountId: string,
+    action: "accept" | "decline" | "withdraw",
     now: number,
   ): { ok: true; status: MemberStatus } | { ok: false; error: string; message: string };
 
   leaveTeam(
     teamId: string,
-    actorLogin: string,
+    actorAccountId: string,
     now: number,
-  ): { ok: true; action: "left" | "disbanded" } | { ok: false; error: string; message: string };
+  ): { ok: true; action: "left" } | { ok: false; error: string; message: string };
 
-  getMyStatus(competitionId: string, login: string): MyCompetitionStatus;
+  transferTeam(
+    teamId: string,
+    leaderAccountId: string,
+    targetAccountId: string,
+    now: number,
+  ): { ok: true; leader_account_id: string } | { ok: false; error: string; message: string };
 
-  listTeams(competitionId: string): TeamWithMembers[];
+  disbandTeam(
+    teamId: string,
+    leaderAccountId: string,
+    now: number,
+  ): { ok: true; action: "disbanded" } | { ok: false; error: string; message: string };
+
+  lockTeam(
+    teamId: string,
+    leaderAccountId: string,
+    now: number,
+  ): { ok: true; status: "locked" } | { ok: false; error: string; message: string };
+
+  unlockTeam(
+    teamId: string,
+    leaderAccountId: string,
+    now: number,
+  ): { ok: true; status: "recruiting" } | { ok: false; error: string; message: string };
+
+  getFreeAgents(competitionId: string): FreeAgent[];
+
+  getMyStatus(competitionId: string, accountId: string, now: number): MyStatus;
+
+  getMyCompetitions(accountId: string, now: number): MyCompetitions;
+
+  listTeams(competitionId: string, viewerAccountId?: string): TeamWithMembers[];
 
   getRoster(competitionId: string): CompetitionRoster | null;
 
@@ -140,138 +278,469 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
     "SELECT * FROM competitions WHERE id = ? AND offline = 0",
   );
 
-  const getSignupStmt = db.prepare<[string, string], SignupRecord>(
-    "SELECT * FROM competition_signups WHERE competition_id = ? AND github_login = ?",
-  );
+  const getSettingsRowStmt = db.prepare<[string], {
+    competition_id: string;
+    enabled: number;
+    participation: ParticipationType;
+    team_min: number | null;
+    team_max: number | null;
+    updated_at: number;
+    updated_by: string;
+  }>("SELECT * FROM competition_signup_settings WHERE competition_id = ?");
 
-  const insertSignupStmt = db.prepare(
-    `INSERT INTO competition_signups (id, competition_id, github_login, github_user_id, kind, status, note, contact, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(competition_id, github_login) DO UPDATE SET
-       status = excluded.status,
-       note = excluded.note,
-       contact = excluded.contact,
-       github_user_id = COALESCE(excluded.github_user_id, competition_signups.github_user_id),
-       updated_at = excluded.updated_at`,
-  );
+  function getSettingsRecord(competitionId: string): SignupSettingsRecord | null {
+    const row = getSettingsRowStmt.get(competitionId);
+    if (!row) return null;
+    return {
+      competition_id: row.competition_id,
+      enabled: row.enabled === 1,
+      participation: row.participation,
+      team_min: row.team_min,
+      team_max: row.team_max,
+      updated_at: row.updated_at,
+      updated_by: row.updated_by,
+    };
+  }
+
+  function resolveMember(accountId: string): Member {
+    const sessionRow = db.prepare<[string, number], { login: string; avatar_url: string | null }>(
+      "SELECT login, avatar_url FROM sessions WHERE login = ? OR user_id = ? ORDER BY expires_at DESC LIMIT 1",
+    ).get(accountId, Number(accountId) || -1);
+
+    if (sessionRow) {
+      return {
+        account_id: accountId,
+        name: sessionRow.login,
+        avatar_url: sessionRow.avatar_url,
+      };
+    }
+
+    return {
+      account_id: accountId,
+      name: accountId,
+      avatar_url: null,
+    };
+  }
+
+  function isWritable(comp: CompetitionRecord, settings: SignupSettingsRecord | null, now: number): { writable: true } | { writable: false; error: string; message: string } {
+    if (!settings || !settings.enabled) {
+      return { writable: false, error: "signup_not_enabled", message: "该比赛尚未开放报名" };
+    }
+    const status = competitionStatus(comp, now);
+    if (status !== "registering") {
+      return { writable: false, error: "signup_closed", message: "该比赛当前不在报名时间内" };
+    }
+    return { writable: true };
+  }
+
+  const getSignupRowStmt = db.prepare<[string, string], {
+    id: string;
+    competition_id: string;
+    account_id: string;
+    status: SignupStatus;
+    looking_for_team: number;
+    note: string;
+    created_at: number;
+    updated_at: number;
+    cancelled_at: number | null;
+  }>("SELECT * FROM competition_signups WHERE competition_id = ? AND account_id = ?");
+
+  function getSignupRecord(competitionId: string, accountId: string): SignupRecord | null {
+    const row = getSignupRowStmt.get(competitionId, accountId);
+    if (!row) return null;
+    return {
+      ...row,
+      looking_for_team: row.looking_for_team === 1,
+    };
+  }
 
   const getTeamByIdStmt = db.prepare<[string], TeamRecord>(
     "SELECT * FROM competition_teams WHERE id = ?",
   );
 
-  const getTeamMembersStmt = db.prepare<[string], TeamMemberRecord>(
+  const getActiveTeamMembersStmt = db.prepare<[string], TeamMemberRecord>(
+    "SELECT * FROM competition_team_members WHERE team_id = ? AND status = 'active' ORDER BY role DESC, created_at ASC",
+  );
+
+  const getAllTeamMembersStmt = db.prepare<[string], TeamMemberRecord>(
     "SELECT * FROM competition_team_members WHERE team_id = ? ORDER BY role DESC, created_at ASC",
   );
 
-  const countConfirmedMembersStmt = db.prepare<[string], { count: number }>(
-    "SELECT COUNT(*) AS count FROM competition_team_members WHERE team_id = ? AND status = 'confirmed'",
+  const countActiveMembersStmt = db.prepare<[string], { count: number }>(
+    "SELECT COUNT(*) AS count FROM competition_team_members WHERE team_id = ? AND status = 'active'",
   );
 
-  const findUserConfirmedTeamStmt = db.prepare<[string, string], TeamRecord>(
-    `SELECT t.* FROM competition_teams t
-     JOIN competition_team_members m ON t.id = m.team_id
-     WHERE m.competition_id = ? AND m.github_login = ? AND m.status = 'confirmed' AND t.status != 'disbanded'
-     LIMIT 1`,
-  );
+  function findUserActiveTeam(competitionId: string, accountId: string): TeamRecord | null {
+    return db.prepare<[string, string], TeamRecord>(
+      `SELECT t.* FROM competition_teams t
+       JOIN competition_team_members m ON t.id = m.team_id
+       WHERE m.competition_id = ? AND m.account_id = ? AND m.status = 'active' AND t.status != 'disbanded'
+       LIMIT 1`,
+    ).get(competitionId, accountId) ?? null;
+  }
 
-  const getMembershipByIdStmt = db.prepare<[string], TeamMemberRecord>(
-    "SELECT * FROM competition_team_members WHERE id = ?",
-  );
+  function getPendingItemsForTeam(team: TeamRecord): PendingItem[] {
+    const rows = db.prepare<[string], TeamMemberRecord>(
+      "SELECT * FROM competition_team_members WHERE team_id = ? AND status IN ('applied', 'invited') ORDER BY created_at ASC",
+    ).all(team.id);
 
-  const getMembershipByTeamAndUserStmt = db.prepare<[string, string], TeamMemberRecord>(
-    "SELECT * FROM competition_team_members WHERE team_id = ? AND github_login = ?",
-  );
+    const count = countActiveMembersStmt.get(team.id)?.count ?? 0;
 
-  function getFullTeam(teamId: string): TeamWithMembers | null {
+    return rows.map(r => {
+      const isApplied = r.status === "applied";
+      return {
+        membership_id: r.id,
+        type: isApplied ? "applied" : "invited",
+        direction: isApplied ? "incoming" : "outgoing",
+        team: { id: team.id, name: team.name, member_count: count },
+        user: resolveMember(r.account_id),
+        message: r.message,
+        created_at: r.created_at,
+      };
+    });
+  }
+
+  function getFullTeam(teamId: string, viewerAccountId?: string): TeamWithMembers | null {
     const team = getTeamByIdStmt.get(teamId);
     if (!team) return null;
-    const members = getTeamMembersStmt.all(teamId);
-    const confirmed_count = members.filter(m => m.status === "confirmed").length;
-    return { ...team, members, confirmed_count };
+    const activeMembers = getActiveTeamMembersStmt.all(teamId);
+    const member_count = activeMembers.length;
+    const leader = resolveMember(team.leader_account_id);
+    const members = activeMembers.map(m => ({
+      ...resolveMember(m.account_id),
+      role: m.role as "leader" | "member",
+    }));
+
+    let my_relation: TeamWithMembers["my_relation"] = "none";
+    if (viewerAccountId) {
+      if (team.leader_account_id === viewerAccountId) {
+        my_relation = "leader";
+      } else {
+        const mem = db.prepare<[string, string], { status: MemberStatus }>(
+          "SELECT status FROM competition_team_members WHERE team_id = ? AND account_id = ? AND status IN ('active', 'applied', 'invited') LIMIT 1",
+        ).get(teamId, viewerAccountId);
+        if (mem) {
+          if (mem.status === "active") my_relation = "member";
+          else if (mem.status === "applied") my_relation = "applied";
+          else if (mem.status === "invited") my_relation = "invited";
+        }
+      }
+    }
+
+    const settings = getSettingsRecord(team.competition_id);
+    const team_max = settings?.team_max ?? 20;
+    const can_apply =
+      team.status === "recruiting" &&
+      member_count < team_max &&
+      my_relation === "none";
+
+    const isLeader = viewerAccountId && team.leader_account_id === viewerAccountId;
+    const pending = isLeader ? getPendingItemsForTeam(team) : undefined;
+
+    return {
+      id: team.id,
+      name: team.name,
+      slogan: team.slogan,
+      status: team.status as "recruiting" | "locked",
+      leader,
+      members,
+      member_count,
+      my_relation,
+      can_apply,
+      pending,
+    };
+  }
+
+  function computeStats(competitionId: string, comp: CompetitionRecord, settings: SignupSettingsRecord | null) {
+    const activeSignups = db.prepare<[string], { count: number }>(
+      "SELECT COUNT(*) AS count FROM competition_signups WHERE competition_id = ? AND status = 'active'",
+    ).get(competitionId)?.count ?? 0;
+
+    const nonDisbandedTeams = db.prepare<[string], { count: number }>(
+      "SELECT COUNT(*) AS count FROM competition_teams WHERE competition_id = ? AND status != 'disbanded'",
+    ).get(competitionId)?.count ?? 0;
+
+    const confirmedTeams = db.prepare<[string], { count: number }>(
+      "SELECT COUNT(*) AS count FROM competition_teams WHERE competition_id = ? AND status = 'locked'",
+    ).get(competitionId)?.count ?? 0;
+
+    let confirmed_participants = 0;
+    if (settings?.participation === "individual" && comp.kind === "internal") {
+      confirmed_participants = activeSignups;
+    } else {
+      const lockedMembers = db.prepare<[string], { count: number }>(
+        `SELECT COUNT(*) AS count FROM competition_team_members m
+         JOIN competition_teams t ON m.team_id = t.id
+         WHERE m.competition_id = ? AND m.status = 'active' AND t.status = 'locked'`,
+      ).get(competitionId)?.count ?? 0;
+      confirmed_participants = lockedMembers;
+    }
+
+    let unplaced = 0;
+    if (settings?.participation === "team") {
+      const unplacedCount = db.prepare<[string], { count: number }>(
+        `SELECT COUNT(*) AS count FROM competition_signups s
+         WHERE s.competition_id = ? AND s.status = 'active'
+           AND NOT EXISTS (
+             SELECT 1 FROM competition_team_members m
+             WHERE m.competition_id = s.competition_id AND m.account_id = s.account_id AND m.status = 'active'
+           )`,
+      ).get(competitionId)?.count ?? 0;
+      unplaced = unplacedCount;
+    }
+
+    return {
+      signups: activeSignups,
+      teams: nonDisbandedTeams,
+      confirmed_teams: confirmedTeams,
+      confirmed_participants,
+      unplaced,
+    };
   }
 
   return {
-    signup(competitionId, user, data, now) {
-      const comp = getCompStmt.get(competitionId);
-      if (!comp) return { ok: false, error: "competition_not_found", message: "比赛不存在或已下线" };
-      const status = competitionStatus(comp, now);
-      if (status !== "registering") {
-        return { ok: false, error: "signup_closed", message: "该比赛当前不在报名时间内" };
-      }
-
-      const signupKind: SignupKind = comp.kind;
-      const signupStatus: SignupStatus = comp.kind === "internal" ? "registered" : "intent";
-      const id = randomUUID();
-      const note = data.note?.trim() ?? "";
-      const contact = data.contact?.trim() ?? "";
-
-      insertSignupStmt.run(
-        id,
-        competitionId,
-        user.login,
-        user.userId,
-        signupKind,
-        signupStatus,
-        note,
-        contact,
-        now,
-        now,
-      );
-
-      const saved = getSignupStmt.get(competitionId, user.login)!;
-      return { ok: true, signup: saved };
+    getSettings(competitionId) {
+      return getSettingsRecord(competitionId);
     },
 
-    cancelSignup(competitionId, login, now) {
-      const existing = getSignupStmt.get(competitionId, login);
-      if (!existing || existing.status === "cancelled") {
+    updateSettings(competitionId, data, updatedBy, now) {
+      const comp = getCompStmt.get(competitionId);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在" };
+
+      if (data.enabled && comp.signup_deadline === null) {
+        return { ok: false, error: "signup_deadline_required", message: "开放报名必须设置报名截止时间" };
+      }
+
+      if (data.participation === "individual") {
+        if (data.team_min != null || data.team_max != null) {
+          return { ok: false, error: "bad_team_size", message: "个人赛不可设置队伍人数" };
+        }
+      } else {
+        if (
+          data.team_min == null ||
+          data.team_max == null ||
+          !Number.isInteger(data.team_min) ||
+          !Number.isInteger(data.team_max) ||
+          data.team_min < 1 ||
+          data.team_max > 20 ||
+          data.team_min > data.team_max
+        ) {
+          return { ok: false, error: "bad_team_size", message: "团队赛人数范围须为 1 至 20 之间，且下限不大于上限" };
+        }
+      }
+
+      const activeSignupCount = db.prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM competition_signups WHERE competition_id = ? AND status = 'active'",
+      ).get(competitionId)?.count ?? 0;
+
+      const currentSettings = getSettingsRecord(competitionId);
+      if (activeSignupCount > 0 && currentSettings && currentSettings.participation !== data.participation) {
+        return { ok: false, error: "competition_has_signups", message: "已有未取消的报名记录，无法修改参赛形式" };
+      }
+
+      if (data.participation === "team") {
+        const teamMax = data.team_max!;
+        const teamMin = data.team_min!;
+        const maxActiveMembers = db.prepare<[string], { max_c: number | null }>(
+          `SELECT MAX(cnt) AS max_c FROM (
+             SELECT COUNT(*) as cnt FROM competition_team_members m
+             JOIN competition_teams t ON m.team_id = t.id
+             WHERE m.competition_id = ? AND m.status = 'active' AND t.status != 'disbanded'
+             GROUP BY m.team_id
+           )`,
+        ).get(competitionId)?.max_c ?? 0;
+
+        if (maxActiveMembers > teamMax) {
+          return { ok: false, error: "team_size_conflict", message: "队伍人数上限不能小于当前未解散队伍的在队人数" };
+        }
+
+        const minLockedMembers = db.prepare<[string], { min_c: number | null }>(
+          `SELECT MIN(cnt) AS min_c FROM (
+             SELECT COUNT(*) as cnt FROM competition_team_members m
+             JOIN competition_teams t ON m.team_id = t.id
+             WHERE m.competition_id = ? AND m.status = 'active' AND t.status = 'locked'
+             GROUP BY m.team_id
+           )`,
+        ).get(competitionId)?.min_c;
+
+        if (minLockedMembers != null && minLockedMembers < teamMin) {
+          return { ok: false, error: "team_size_conflict", message: "队伍人数下限不能大于已有已锁定队伍的人数" };
+        }
+      }
+
+      db.prepare(
+        `INSERT INTO competition_signup_settings (competition_id, enabled, participation, team_min, team_max, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(competition_id) DO UPDATE SET
+           enabled = excluded.enabled,
+           participation = excluded.participation,
+           team_min = excluded.team_min,
+           team_max = excluded.team_max,
+           updated_at = excluded.updated_at,
+           updated_by = excluded.updated_by`,
+      ).run(
+        competitionId,
+        data.enabled ? 1 : 0,
+        data.participation,
+        data.team_min ?? null,
+        data.team_max ?? null,
+        now,
+        updatedBy,
+      );
+
+      return { ok: true, settings: getSettingsRecord(competitionId)! };
+    },
+
+    hasActiveSignups(competitionId) {
+      const row = db.prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM competition_signups WHERE competition_id = ? AND status = 'active'",
+      ).get(competitionId);
+      return (row?.count ?? 0) > 0;
+    },
+
+    hasAnySignups(competitionId) {
+      const row = db.prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM competition_signups WHERE competition_id = ?",
+      ).get(competitionId);
+      return (row?.count ?? 0) > 0;
+    },
+
+    signup(competitionId, accountId, data, now) {
+      const comp = getCompStmt.get(competitionId);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(competitionId);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      const note = data.note?.trim() ?? "";
+      if (Array.from(note).length > 200) {
+        return { ok: false, error: "bad_note", message: "备注不能超过 200 个字符" };
+      }
+      const looking_for_team = data.looking_for_team ? 1 : 0;
+
+      const existing = getSignupRecord(competitionId, accountId);
+      if (existing) {
+        db.prepare(
+          `UPDATE competition_signups
+           SET status = 'active', looking_for_team = ?, note = ?, updated_at = ?, cancelled_at = NULL
+           WHERE competition_id = ? AND account_id = ?`,
+        ).run(looking_for_team, note, now, competitionId, accountId);
+      } else {
+        const id = randomUUID();
+        db.prepare(
+          `INSERT INTO competition_signups (id, competition_id, account_id, status, looking_for_team, note, created_at, updated_at, cancelled_at)
+           VALUES (?, ?, ?, 'active', ?, ?, ?, ?, NULL)`,
+        ).run(id, competitionId, accountId, looking_for_team, note, now, now);
+      }
+
+      return { ok: true, signup: getSignupRecord(competitionId, accountId)! };
+    },
+
+    cancelSignup(competitionId, accountId, now) {
+      const comp = getCompStmt.get(competitionId);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(competitionId);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      const signup = getSignupRecord(competitionId, accountId);
+      if (!signup || signup.status === "cancelled") {
         return { ok: false, error: "not_signed_up", message: "尚未报名或已取消" };
       }
 
-      // 检查是否为进行中队伍的队长
-      const leadingTeam = db.prepare<[string, string], { id: string }>(
-        "SELECT id FROM competition_teams WHERE competition_id = ? AND leader_login = ? AND status != 'disbanded'",
-      ).get(competitionId, login);
-      if (leadingTeam) {
-        return { ok: false, error: "is_team_leader", message: "您当前是参赛队伍队长，请先解散队伍再取消报名" };
+      const activeMember = db.prepare<[string, string], TeamMemberRecord>(
+        `SELECT m.* FROM competition_team_members m
+         JOIN competition_teams t ON m.team_id = t.id
+         WHERE m.competition_id = ? AND m.account_id = ? AND m.status = 'active' AND t.status != 'disbanded'
+         LIMIT 1`,
+      ).get(competitionId, accountId);
+
+      const tx = db.transaction(() => {
+        if (activeMember) {
+          const team = getTeamByIdStmt.get(activeMember.team_id)!;
+          if (team.status === "locked") {
+            throw Object.assign(new Error("team_locked"), { code: "team_locked", msg: "队伍已确认锁定，请先撤销确认参赛" });
+          }
+
+          if (activeMember.role === "leader") {
+            const memberCount = countActiveMembersStmt.get(team.id)!.count;
+            if (memberCount > 1) {
+              throw Object.assign(new Error("is_team_leader"), {
+                code: "is_team_leader",
+                msg: "您当前是队伍队长且队内还有其他成员，请先转让队长或解散队伍",
+              });
+            }
+            db.prepare(
+              "UPDATE competition_teams SET status = 'disbanded', disbanded_at = ?, updated_at = ? WHERE id = ?",
+            ).run(now, now, team.id);
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'disbanded', updated_at = ? WHERE team_id = ? AND status IN ('active', 'applied', 'invited')",
+            ).run(now, team.id);
+          } else {
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'left', updated_at = ? WHERE id = ?",
+            ).run(now, activeMember.id);
+          }
+        }
+
+        db.prepare(
+          "UPDATE competition_signups SET status = 'cancelled', cancelled_at = ?, updated_at = ? WHERE competition_id = ? AND account_id = ?",
+        ).run(now, now, competitionId, accountId);
+
+        db.prepare(
+          "UPDATE competition_team_members SET status = 'withdrawn', updated_at = ? WHERE competition_id = ? AND account_id = ? AND status IN ('applied', 'invited')",
+        ).run(now, competitionId, accountId);
+      });
+
+      try {
+        tx();
+      } catch (err: any) {
+        if (err.code) return { ok: false, error: err.code, message: err.msg };
+        throw err;
       }
-
-      // 如果是队伍成员，退队
-      db.prepare(
-        "DELETE FROM competition_team_members WHERE competition_id = ? AND github_login = ?",
-      ).run(competitionId, login);
-
-      db.prepare(
-        "UPDATE competition_signups SET status = 'cancelled', updated_at = ? WHERE competition_id = ? AND github_login = ?",
-      ).run(now, competitionId, login);
 
       return { ok: true };
     },
 
-    createTeam(competitionId, leader, data, now) {
+    createTeam(competitionId, leaderAccountId, data, now) {
       const comp = getCompStmt.get(competitionId);
-      if (!comp) return { ok: false, error: "competition_not_found", message: "比赛不存在或已下线" };
-      const status = competitionStatus(comp, now);
-      if (status === "ended") {
-        return { ok: false, error: "competition_ended", message: "比赛已结束，无法新建队伍" };
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(competitionId);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (settings?.participation !== "team") {
+        return { ok: false, error: "individual_competition", message: "个人赛不能创建队伍" };
       }
 
-      const name = data.name.trim();
-      if (!name) return { ok: false, error: "bad_team_name", message: "队伍名称不能为空" };
+      const leaderSignup = getSignupRecord(competitionId, leaderAccountId);
+      if (!leaderSignup || leaderSignup.status !== "active") {
+        return { ok: false, error: "not_signed_up", message: "须先报名方可建队" };
+      }
 
-      const maxMembers = Math.min(20, Math.max(1, data.maxMembers ?? 5));
+      const trimmedName = data.name.trim();
+      const nameLength = Array.from(trimmedName).length;
+      if (nameLength < 2 || nameLength > 30) {
+        return { ok: false, error: "bad_team_name", message: "队伍名称须在 2 至 30 个字符之间" };
+      }
+
       const slogan = data.slogan?.trim() ?? "";
-
-      // 检查队长是否已加入确认队伍
-      const existingTeam = findUserConfirmedTeamStmt.get(competitionId, leader.login);
-      if (existingTeam) {
-        return { ok: false, error: "already_in_team", message: "您已在其他队伍中确认参赛，无法建队" };
+      if (Array.from(slogan).length > 60) {
+        return { ok: false, error: "bad_slogan", message: "口号长度不能超过 60 个字符" };
       }
 
-      // 检查队伍名重复
+      const activeTeam = findUserActiveTeam(competitionId, leaderAccountId);
+      if (activeTeam) {
+        return { ok: false, error: "already_in_team", message: "您已在其他队伍中" };
+      }
+
+      const nameKey = trimmedName.normalize("NFKC").toLowerCase();
       const dup = db.prepare<[string, string], { id: string }>(
-        "SELECT id FROM competition_teams WHERE competition_id = ? AND name = ? AND status != 'disbanded'",
-      ).get(competitionId, name);
+        "SELECT id FROM competition_teams WHERE competition_id = ? AND name_key = ? AND status != 'disbanded'",
+      ).get(competitionId, nameKey);
       if (dup) {
         return { ok: false, error: "duplicate_team_name", message: "该比赛中已存在同名队伍" };
       }
@@ -281,380 +750,749 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
 
       const tx = db.transaction(() => {
         db.prepare(
-          `INSERT INTO competition_teams (id, competition_id, name, leader_login, leader_user_id, status, max_members, slogan, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'recruiting', ?, ?, ?, ?)`,
-        ).run(teamId, competitionId, name, leader.login, leader.userId, maxMembers, slogan, now, now);
+          `INSERT INTO competition_teams (id, competition_id, name, name_key, slogan, leader_account_id, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'recruiting', ?, ?)`,
+        ).run(teamId, competitionId, trimmedName, nameKey, slogan, leaderAccountId, now, now);
 
         db.prepare(
-          `INSERT INTO competition_team_members (id, team_id, competition_id, github_login, github_user_id, role, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'leader', 'confirmed', ?, ?)`,
-        ).run(memberId, teamId, competitionId, leader.login, leader.userId, now, now);
+          `INSERT INTO competition_team_members (id, team_id, competition_id, account_id, role, status, message, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'leader', 'active', '', ?, ?, ?)`,
+        ).run(memberId, teamId, competitionId, leaderAccountId, leaderAccountId, now, now);
 
-        // 如果队长还没有报名记录，自动补一条登记
-        const existingSignup = getSignupStmt.get(competitionId, leader.login);
-        if (!existingSignup || existingSignup.status === "cancelled") {
-          const signupKind: SignupKind = comp.kind;
-          const signupStatus: SignupStatus = comp.kind === "internal" ? "registered" : "intent";
-          insertSignupStmt.run(
-            randomUUID(),
-            competitionId,
-            leader.login,
-            leader.userId,
-            signupKind,
-            signupStatus,
-            "建队自动登记",
-            "",
-            now,
-            now,
-          );
-        }
+        db.prepare(
+          "UPDATE competition_team_members SET status = 'withdrawn', updated_at = ? WHERE competition_id = ? AND account_id = ? AND id != ? AND status IN ('applied', 'invited')",
+        ).run(now, competitionId, leaderAccountId, memberId);
       });
       tx();
 
-      return { ok: true, team: getFullTeam(teamId)! };
+      return { ok: true, team: getFullTeam(teamId, leaderAccountId)! };
     },
 
-    applyToTeam(teamId, applicant, now) {
+    applyToTeam(teamId, applicantAccountId, data, now) {
       const team = getTeamByIdStmt.get(teamId);
       if (!team || team.status === "disbanded") {
         return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
       }
 
       const comp = getCompStmt.get(team.competition_id);
-      if (!comp || competitionStatus(comp, now) === "ended") {
-        return { ok: false, error: "competition_ended", message: "比赛已结束" };
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (team.status === "locked") {
+        return { ok: false, error: "team_locked", message: "该队伍已确认锁定参赛，不再接受申请" };
       }
 
-      const confirmedCount = countConfirmedMembersStmt.get(teamId)!.count;
-      if (confirmedCount >= team.max_members) {
+      const signup = getSignupRecord(team.competition_id, applicantAccountId);
+      if (!signup || signup.status !== "active") {
+        return { ok: false, error: "not_signed_up", message: "须先报名方可申请入队" };
+      }
+
+      const inActiveTeam = findUserActiveTeam(team.competition_id, applicantAccountId);
+      if (inActiveTeam) {
+        return { ok: false, error: "already_in_team", message: "您已在其他队伍中" };
+      }
+
+      const activeCount = countActiveMembersStmt.get(teamId)!.count;
+      const teamMax = settings?.team_max ?? 20;
+      if (activeCount >= teamMax) {
         return { ok: false, error: "team_full", message: "队伍人数已达上限" };
       }
 
-      const inConfirmedTeam = findUserConfirmedTeamStmt.get(team.competition_id, applicant.login);
-      if (inConfirmedTeam) {
-        return { ok: false, error: "already_in_team", message: "您已在其他队伍中确认参赛" };
+      const message = data.message?.trim() ?? "";
+      if (Array.from(message).length > 100) {
+        return { ok: false, error: "bad_message", message: "申请附言不能超过 100 个字符" };
       }
 
-      const existing = getMembershipByTeamAndUserStmt.get(teamId, applicant.login);
+      const existing = db.prepare<[string, string], TeamMemberRecord>(
+        "SELECT * FROM competition_team_members WHERE team_id = ? AND account_id = ? AND status IN ('active', 'applied', 'invited')",
+      ).get(teamId, applicantAccountId);
+
       if (existing) {
-        if (existing.status === "confirmed") {
-          return { ok: false, error: "already_in_team", message: "您已是该队伍正式成员" };
-        }
-        if (existing.status === "pending_apply") {
-          return { ok: false, error: "already_applied", message: "您已提交申请，请等待队长确认" };
-        }
-        if (existing.status === "pending_invite") {
-          // 队长先前已邀请，申请人主动加入 -> 双方确认，直接成为 confirmed
-          db.prepare(
-            "UPDATE competition_team_members SET status = 'confirmed', updated_at = ? WHERE id = ?",
-          ).run(now, existing.id);
-          return { ok: true, membership_id: existing.id };
+        if (existing.status === "active") return { ok: false, error: "already_in_team", message: "您已在队伍中" };
+        if (existing.status === "applied") return { ok: false, error: "already_applied", message: "您已提交过申请，等待队长处理" };
+        if (existing.status === "invited") {
+          const tx = db.transaction(() => {
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'active', decided_by = ?, decided_at = ?, updated_at = ? WHERE id = ?",
+            ).run(applicantAccountId, now, now, existing.id);
+
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'withdrawn', updated_at = ? WHERE competition_id = ? AND account_id = ? AND id != ? AND status IN ('applied', 'invited')",
+            ).run(now, team.competition_id, applicantAccountId, existing.id);
+
+            if (activeCount + 1 >= teamMax) {
+              db.prepare(
+                "UPDATE competition_team_members SET status = 'declined', decided_by = 'system', decided_at = ?, updated_at = ? WHERE team_id = ? AND status IN ('applied', 'invited')",
+              ).run(now, now, teamId);
+            }
+          });
+          tx();
+          return { ok: true, membership_id: existing.id, status: "active" };
         }
       }
 
       const memberId = randomUUID();
       db.prepare(
-        `INSERT INTO competition_team_members (id, team_id, competition_id, github_login, github_user_id, role, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'member', 'pending_apply', ?, ?)
-         ON CONFLICT(team_id, github_login) DO UPDATE SET
-           status = 'pending_apply',
-           role = 'member',
-           updated_at = excluded.updated_at`,
-      ).run(memberId, teamId, team.competition_id, applicant.login, applicant.userId, now, now);
+        `INSERT INTO competition_team_members (id, team_id, competition_id, account_id, role, status, message, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'member', 'applied', ?, ?, ?, ?)`,
+      ).run(memberId, teamId, team.competition_id, applicantAccountId, message, applicantAccountId, now, now);
 
-      // 确保申请人有该赛事的登记记录
-      const existingSignup = getSignupStmt.get(team.competition_id, applicant.login);
-      if (!existingSignup || existingSignup.status === "cancelled") {
-        const signupKind: SignupKind = comp.kind;
-        const signupStatus: SignupStatus = comp.kind === "internal" ? "registered" : "intent";
-        insertSignupStmt.run(
-          randomUUID(),
-          team.competition_id,
-          applicant.login,
-          applicant.userId,
-          signupKind,
-          signupStatus,
-          "申请入队自动登记",
-          "",
-          now,
-          now,
-        );
-      }
-
-      return { ok: true, membership_id: memberId };
+      return { ok: true, membership_id: memberId, status: "applied" };
     },
 
-    inviteToTeam(teamId, leaderLogin, invitee, now) {
+    inviteToTeam(teamId, leaderAccountId, data, now) {
       const team = getTeamByIdStmt.get(teamId);
       if (!team || team.status === "disbanded") {
         return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
       }
 
-      if (team.leader_login.toLowerCase() !== leaderLogin.toLowerCase()) {
-        return { ok: false, error: "not_team_leader", message: "只有队长可以发送邀请" };
+      if (team.leader_account_id !== leaderAccountId) {
+        return { ok: false, error: "not_team_leader", message: "只有队长可以发送组队邀请" };
       }
 
       const comp = getCompStmt.get(team.competition_id);
-      if (!comp || competitionStatus(comp, now) === "ended") {
-        return { ok: false, error: "competition_ended", message: "比赛已结束" };
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (team.status === "locked") {
+        return { ok: false, error: "team_locked", message: "该队伍已确认锁定参赛，不再发送邀请" };
       }
 
-      const confirmedCount = countConfirmedMembersStmt.get(teamId)!.count;
-      if (confirmedCount >= team.max_members) {
+      const inviteeAccountId = data.account_id.trim();
+      if (inviteeAccountId === leaderAccountId) {
+        return { ok: false, error: "already_in_team", message: "不能邀请自己" };
+      }
+
+      const inviteeSignup = getSignupRecord(team.competition_id, inviteeAccountId);
+      if (!inviteeSignup || inviteeSignup.status !== "active") {
+        return { ok: false, error: "invitee_not_signed_up", message: "对方尚未报名本场比赛" };
+      }
+
+      const inActiveTeam = findUserActiveTeam(team.competition_id, inviteeAccountId);
+      if (inActiveTeam) {
+        return { ok: false, error: "already_in_team", message: "对方已在其他队伍中" };
+      }
+
+      const activeCount = countActiveMembersStmt.get(teamId)!.count;
+      const teamMax = settings?.team_max ?? 20;
+      if (activeCount >= teamMax) {
         return { ok: false, error: "team_full", message: "队伍人数已达上限" };
       }
 
-      const inConfirmedTeam = findUserConfirmedTeamStmt.get(team.competition_id, invitee.login);
-      if (inConfirmedTeam) {
-        return { ok: false, error: "already_in_team", message: "该用户已在其他队伍中确认参赛" };
+      const message = data.message?.trim() ?? "";
+      if (Array.from(message).length > 100) {
+        return { ok: false, error: "bad_message", message: "邀请附言不能超过 100 个字符" };
       }
 
-      const existing = getMembershipByTeamAndUserStmt.get(teamId, invitee.login);
+      const existing = db.prepare<[string, string], TeamMemberRecord>(
+        "SELECT * FROM competition_team_members WHERE team_id = ? AND account_id = ? AND status IN ('active', 'applied', 'invited')",
+      ).get(teamId, inviteeAccountId);
+
       if (existing) {
-        if (existing.status === "confirmed") {
-          return { ok: false, error: "already_in_team", message: "该用户已在队伍中" };
-        }
-        if (existing.status === "pending_invite") {
-          return { ok: false, error: "already_invited", message: "已发送过邀请，等待对方确认" };
-        }
-        if (existing.status === "pending_apply") {
-          // 对方先前已申请，队长主动邀请 -> 双方确认，直接成为 confirmed
-          db.prepare(
-            "UPDATE competition_team_members SET status = 'confirmed', updated_at = ? WHERE id = ?",
-          ).run(now, existing.id);
-          return { ok: true, membership_id: existing.id };
+        if (existing.status === "active") return { ok: false, error: "already_in_team", message: "对方已在队伍中" };
+        if (existing.status === "invited") return { ok: false, error: "already_invited", message: "已向对方发出过邀请，等待对方处理" };
+        if (existing.status === "applied") {
+          const tx = db.transaction(() => {
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'active', decided_by = ?, decided_at = ?, updated_at = ? WHERE id = ?",
+            ).run(leaderAccountId, now, now, existing.id);
+
+            db.prepare(
+              "UPDATE competition_team_members SET status = 'withdrawn', updated_at = ? WHERE competition_id = ? AND account_id = ? AND id != ? AND status IN ('applied', 'invited')",
+            ).run(now, team.competition_id, inviteeAccountId, existing.id);
+
+            if (activeCount + 1 >= teamMax) {
+              db.prepare(
+                "UPDATE competition_team_members SET status = 'declined', decided_by = 'system', decided_at = ?, updated_at = ? WHERE team_id = ? AND status IN ('applied', 'invited')",
+              ).run(now, now, teamId);
+            }
+          });
+          tx();
+          return { ok: true, membership_id: existing.id, status: "active" };
         }
       }
 
       const memberId = randomUUID();
       db.prepare(
-        `INSERT INTO competition_team_members (id, team_id, competition_id, github_login, github_user_id, role, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'member', 'pending_invite', ?, ?)
-         ON CONFLICT(team_id, github_login) DO UPDATE SET
-           status = 'pending_invite',
-           role = 'member',
-           updated_at = excluded.updated_at`,
-      ).run(memberId, teamId, team.competition_id, invitee.login, invitee.userId ?? null, now, now);
+        `INSERT INTO competition_team_members (id, team_id, competition_id, account_id, role, status, message, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'member', 'invited', ?, ?, ?, ?)`,
+      ).run(memberId, teamId, team.competition_id, inviteeAccountId, message, leaderAccountId, now, now);
 
-      return { ok: true, membership_id: memberId };
+      return { ok: true, membership_id: memberId, status: "invited" };
     },
 
-    respondToMembership(membershipId, actorLogin, action, now) {
-      const membership = getMembershipByIdStmt.get(membershipId);
-      if (!membership) {
-        return { ok: false, error: "membership_not_found", message: "申请或邀请记录不存在" };
-      }
-
-      const team = getTeamByIdStmt.get(membership.team_id);
+    respondToMembership(teamId, membershipId, actorAccountId, action, now) {
+      const team = getTeamByIdStmt.get(teamId);
       if (!team || team.status === "disbanded") {
-        return { ok: false, error: "team_disbanded", message: "队伍已解散" };
+        return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
       }
 
-      // 权限核对：
-      // 如果是 pending_invite，只有被邀请人自己（github_login）可以确认/拒绝
-      if (membership.status === "pending_invite") {
-        if (membership.github_login.toLowerCase() !== actorLogin.toLowerCase()) {
-          return { ok: false, error: "forbidden", message: "只有被邀请人可以处理该邀请" };
-        }
-      } else if (membership.status === "pending_apply") {
-        // 如果是 pending_apply，只有队长可以确认/拒绝
-        if (team.leader_login.toLowerCase() !== actorLogin.toLowerCase()) {
-          return { ok: false, error: "forbidden", message: "只有队长可以审批入队申请" };
-        }
-      } else {
-        return { ok: false, error: "invalid_state", message: "该申请或邀请已处于非等待状态" };
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      const membership = db.prepare<[string], TeamMemberRecord>(
+        "SELECT * FROM competition_team_members WHERE id = ?",
+      ).get(membershipId);
+
+      if (!membership || membership.team_id !== teamId) {
+        return { ok: false, error: "not_found", message: "成员申请或邀请不存在" };
       }
 
-      if (action === "reject") {
+      if (membership.status !== "applied" && membership.status !== "invited") {
+        return { ok: false, error: "invalid_state", message: "该记录已非等待处理状态" };
+      }
+
+      if (membership.status === "applied") {
+        if (action === "accept" || action === "decline") {
+          if (team.leader_account_id !== actorAccountId) {
+            return { ok: false, error: "not_team_leader", message: "只有队长可以同意或拒绝入队申请" };
+          }
+        } else if (action === "withdraw") {
+          if (membership.account_id !== actorAccountId) {
+            return { ok: false, error: "forbidden", message: "只有申请人可以撤回申请" };
+          }
+        }
+      } else if (membership.status === "invited") {
+        if (action === "accept" || action === "decline") {
+          if (membership.account_id !== actorAccountId) {
+            return { ok: false, error: "forbidden", message: "只有受邀人可以接受或拒绝邀请" };
+          }
+        } else if (action === "withdraw") {
+          if (team.leader_account_id !== actorAccountId) {
+            return { ok: false, error: "not_team_leader", message: "只有队长可以撤回邀请" };
+          }
+        }
+      }
+
+      if (action === "decline" || action === "withdraw") {
+        const nextStatus = action === "decline" ? "declined" : "withdrawn";
         db.prepare(
-          "UPDATE competition_team_members SET status = 'rejected', updated_at = ? WHERE id = ?",
-        ).run(now, membershipId);
-        return { ok: true, status: "rejected" };
+          "UPDATE competition_team_members SET status = ?, decided_by = ?, decided_at = ?, updated_at = ? WHERE id = ?",
+        ).run(nextStatus, actorAccountId, now, now, membershipId);
+        return { ok: true, status: nextStatus };
       }
 
-      // 接收确认：核对满员与是否已在其他队
-      const confirmedCount = countConfirmedMembersStmt.get(team.id)!.count;
-      if (confirmedCount >= team.max_members) {
+      const activeCount = countActiveMembersStmt.get(teamId)!.count;
+      const teamMax = settings?.team_max ?? 20;
+      if (activeCount >= teamMax) {
         return { ok: false, error: "team_full", message: "队伍人数已达上限，无法确认加入" };
       }
 
-      const alreadyInTeam = findUserConfirmedTeamStmt.get(membership.competition_id, membership.github_login);
-      if (alreadyInTeam && alreadyInTeam.id !== team.id) {
-        return { ok: false, error: "already_in_team", message: "该成员已在其他队伍中确认参赛" };
+      const inActiveTeam = findUserActiveTeam(team.competition_id, membership.account_id);
+      if (inActiveTeam) {
+        return { ok: false, error: "already_in_team", message: "该成员已在其他队伍中" };
       }
 
       const tx = db.transaction(() => {
         db.prepare(
-          "UPDATE competition_team_members SET status = 'confirmed', updated_at = ? WHERE id = ?",
-        ).run(now, membershipId);
+          "UPDATE competition_team_members SET status = 'active', decided_by = ?, decided_at = ?, updated_at = ? WHERE id = ?",
+        ).run(actorAccountId, now, now, membershipId);
 
-        // 如果加上这名成员刚好满员，更新队伍状态为 confirmed
-        if (confirmedCount + 1 >= team.max_members) {
-          db.prepare("UPDATE competition_teams SET status = 'confirmed', updated_at = ? WHERE id = ?").run(now, team.id);
-        }
-
-        // 自动拒绝该用户在该比赛其他队伍的待处理邀请或申请，避免双向悬空
         db.prepare(
-          `UPDATE competition_team_members SET status = 'rejected', updated_at = ?
-           WHERE competition_id = ? AND github_login = ? AND id != ? AND status IN ('pending_invite', 'pending_apply')`,
-        ).run(now, membership.competition_id, membership.github_login, membershipId);
+          "UPDATE competition_team_members SET status = 'withdrawn', updated_at = ? WHERE competition_id = ? AND account_id = ? AND id != ? AND status IN ('applied', 'invited')",
+        ).run(now, team.competition_id, membership.account_id, membershipId);
+
+        if (activeCount + 1 >= teamMax) {
+          db.prepare(
+            "UPDATE competition_team_members SET status = 'declined', decided_by = 'system', decided_at = ?, updated_at = ? WHERE team_id = ? AND status IN ('applied', 'invited')",
+          ).run(now, now, teamId);
+        }
       });
       tx();
 
-      return { ok: true, status: "confirmed" };
+      return { ok: true, status: "active" };
     },
 
-    leaveTeam(teamId, actorLogin, now) {
+    leaveTeam(teamId, actorAccountId, now) {
       const team = getTeamByIdStmt.get(teamId);
       if (!team || team.status === "disbanded") {
         return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
       }
 
-      const isLeader = team.leader_login.toLowerCase() === actorLogin.toLowerCase();
-      if (isLeader) {
-        // 队长退队直接解散队伍
-        const tx = db.transaction(() => {
-          db.prepare(
-            "UPDATE competition_teams SET status = 'disbanded', updated_at = ? WHERE id = ?",
-          ).run(now, teamId);
-          db.prepare(
-            "DELETE FROM competition_team_members WHERE team_id = ?",
-          ).run(teamId);
-        });
-        tx();
-        return { ok: true, action: "disbanded" };
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (team.status === "locked") {
+        return { ok: false, error: "team_locked", message: "队伍已锁定参赛，成员不能退出" };
       }
 
-      // 普通队员退队
-      const member = getMembershipByTeamAndUserStmt.get(teamId, actorLogin);
-      if (!member || member.status !== "confirmed") {
-        return { ok: false, error: "not_in_team", message: "您不是该队伍的正式成员" };
+      if (team.leader_account_id === actorAccountId) {
+        return { ok: false, error: "is_team_leader", message: "队长不能直接退出，请先转让队长或解散队伍" };
       }
 
-      const tx = db.transaction(() => {
-        db.prepare("DELETE FROM competition_team_members WHERE id = ?").run(member.id);
-        if (team.status === "confirmed") {
-          db.prepare("UPDATE competition_teams SET status = 'recruiting', updated_at = ? WHERE id = ?").run(now, teamId);
-        }
-      });
-      tx();
+      const member = db.prepare<[string, string], TeamMemberRecord>(
+        "SELECT * FROM competition_team_members WHERE team_id = ? AND account_id = ? AND status = 'active'",
+      ).get(teamId, actorAccountId);
+
+      if (!member) {
+        return { ok: false, error: "not_in_team", message: "您不是该队伍在队成员" };
+      }
+
+      db.prepare(
+        "UPDATE competition_team_members SET status = 'left', updated_at = ? WHERE id = ?",
+      ).run(now, member.id);
 
       return { ok: true, action: "left" };
     },
 
-    getMyStatus(competitionId, login) {
-      const signup = getSignupStmt.get(competitionId, login) ?? null;
-      const confirmedTeamRecord = findUserConfirmedTeamStmt.get(competitionId, login);
-      const confirmed_team = confirmedTeamRecord ? getFullTeam(confirmedTeamRecord.id) : null;
+    transferTeam(teamId, leaderAccountId, targetAccountId, now) {
+      const team = getTeamByIdStmt.get(teamId);
+      if (!team || team.status === "disbanded") {
+        return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
+      }
 
-      const pending_invites = (db.prepare<[string, string], TeamMemberRecord & TeamRecord>(
-        `SELECT m.id AS membership_id, t.* FROM competition_team_members m
-         JOIN competition_teams t ON m.team_id = t.id
-         WHERE m.competition_id = ? AND m.github_login = ? AND m.status = 'pending_invite' AND t.status != 'disbanded'`,
-      ).all(competitionId, login) as unknown as { membership_id: string; id: string; competition_id: string; name: string; leader_login: string; leader_user_id: number | null; status: TeamStatus; max_members: number; slogan: string; created_at: number; updated_at: number }[]).map(row => ({
-        membership_id: row.membership_id,
-        team: {
-          id: row.id,
-          competition_id: row.competition_id,
-          name: row.name,
-          leader_login: row.leader_login,
-          leader_user_id: row.leader_user_id,
-          status: row.status,
-          max_members: row.max_members,
-          slogan: row.slogan,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        },
-      }));
+      if (team.leader_account_id !== leaderAccountId) {
+        return { ok: false, error: "not_team_leader", message: "只有队长可以转让队伍" };
+      }
 
-      const pending_applications = (db.prepare<[string, string], TeamMemberRecord & TeamRecord>(
-        `SELECT m.id AS membership_id, t.* FROM competition_team_members m
-         JOIN competition_teams t ON m.team_id = t.id
-         WHERE m.competition_id = ? AND m.github_login = ? AND m.status = 'pending_apply' AND t.status != 'disbanded'`,
-      ).all(competitionId, login) as unknown as { membership_id: string; id: string; competition_id: string; name: string; leader_login: string; leader_user_id: number | null; status: TeamStatus; max_members: number; slogan: string; created_at: number; updated_at: number }[]).map(row => ({
-        membership_id: row.membership_id,
-        team: {
-          id: row.id,
-          competition_id: row.competition_id,
-          name: row.name,
-          leader_login: row.leader_login,
-          leader_user_id: row.leader_user_id,
-          status: row.status,
-          max_members: row.max_members,
-          slogan: row.slogan,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        },
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (targetAccountId === leaderAccountId) {
+        return { ok: true, leader_account_id: leaderAccountId };
+      }
+
+      const targetMember = db.prepare<[string, string], TeamMemberRecord>(
+        "SELECT * FROM competition_team_members WHERE team_id = ? AND account_id = ? AND status = 'active'",
+      ).get(teamId, targetAccountId);
+
+      if (!targetMember) {
+        return { ok: false, error: "target_not_in_team", message: "目标成员不在队伍中" };
+      }
+
+      const tx = db.transaction(() => {
+        db.prepare(
+          "UPDATE competition_teams SET leader_account_id = ?, updated_at = ? WHERE id = ?",
+        ).run(targetAccountId, now, teamId);
+
+        db.prepare(
+          "UPDATE competition_team_members SET role = 'leader', updated_at = ? WHERE id = ?",
+        ).run(now, targetMember.id);
+
+        db.prepare(
+          "UPDATE competition_team_members SET role = 'member', updated_at = ? WHERE team_id = ? AND account_id = ?",
+        ).run(now, teamId, leaderAccountId);
+      });
+      tx();
+
+      return { ok: true, leader_account_id: targetAccountId };
+    },
+
+    disbandTeam(teamId, leaderAccountId, now) {
+      const team = getTeamByIdStmt.get(teamId);
+      if (!team || team.status === "disbanded") {
+        return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
+      }
+
+      if (team.leader_account_id !== leaderAccountId) {
+        return { ok: false, error: "not_team_leader", message: "只有队长可以解散队伍" };
+      }
+
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      const tx = db.transaction(() => {
+        db.prepare(
+          "UPDATE competition_teams SET status = 'disbanded', disbanded_at = ?, updated_at = ? WHERE id = ?",
+        ).run(now, now, teamId);
+
+        db.prepare(
+          "UPDATE competition_team_members SET status = 'disbanded', updated_at = ? WHERE team_id = ? AND status IN ('active', 'applied', 'invited')",
+        ).run(now, teamId);
+      });
+      tx();
+
+      return { ok: true, action: "disbanded" };
+    },
+
+    lockTeam(teamId, leaderAccountId, now) {
+      const team = getTeamByIdStmt.get(teamId);
+      if (!team || team.status === "disbanded") {
+        return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
+      }
+
+      if (team.leader_account_id !== leaderAccountId) {
+        return { ok: false, error: "not_team_leader", message: "只有队长可以确认参赛" };
+      }
+
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (team.status === "locked") {
+        return { ok: false, error: "already_locked", message: "队伍已锁定确认参赛" };
+      }
+
+      const activeCount = countActiveMembersStmt.get(teamId)!.count;
+      const teamMin = settings?.team_min ?? 1;
+      const teamMax = settings?.team_max ?? 20;
+
+      if (activeCount < teamMin) {
+        return { ok: false, error: "team_too_small", message: `队伍人数未达下限（至少 ${teamMin} 人）` };
+      }
+      if (activeCount > teamMax) {
+        return { ok: false, error: "team_full", message: `队伍人数超出上限（最多 ${teamMax} 人）` };
+      }
+
+      const tx = db.transaction(() => {
+        db.prepare(
+          "UPDATE competition_teams SET status = 'locked', locked_at = ?, updated_at = ? WHERE id = ?",
+        ).run(now, now, teamId);
+
+        db.prepare(
+          "UPDATE competition_team_members SET status = 'declined', decided_by = ?, decided_at = ?, updated_at = ? WHERE team_id = ? AND status IN ('applied', 'invited')",
+        ).run(leaderAccountId, now, now, teamId);
+      });
+      tx();
+
+      return { ok: true, status: "locked" };
+    },
+
+    unlockTeam(teamId, leaderAccountId, now) {
+      const team = getTeamByIdStmt.get(teamId);
+      if (!team || team.status === "disbanded") {
+        return { ok: false, error: "team_not_found", message: "队伍不存在或已解散" };
+      }
+
+      if (team.leader_account_id !== leaderAccountId) {
+        return { ok: false, error: "not_team_leader", message: "只有队长可以撤销确认参赛" };
+      }
+
+      const comp = getCompStmt.get(team.competition_id);
+      if (!comp) return { ok: false, error: "not_found", message: "比赛不存在或已下线" };
+
+      const settings = getSettingsRecord(team.competition_id);
+      const writableCheck = isWritable(comp, settings, now);
+      if (!writableCheck.writable) return { ok: false, error: writableCheck.error, message: writableCheck.message };
+
+      if (team.status !== "locked") {
+        return { ok: false, error: "not_locked", message: "队伍当前未锁定" };
+      }
+
+      db.prepare(
+        "UPDATE competition_teams SET status = 'recruiting', locked_at = NULL, updated_at = ? WHERE id = ?",
+      ).run(now, teamId);
+
+      return { ok: true, status: "recruiting" };
+    },
+
+    getFreeAgents(competitionId) {
+      const rows = db.prepare<[string], {
+        account_id: string;
+        note: string;
+        created_at: number;
+      }>(
+        `SELECT s.account_id, s.note, s.created_at
+         FROM competition_signups s
+         WHERE s.competition_id = ? AND s.status = 'active' AND s.looking_for_team = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM competition_team_members m
+             WHERE m.competition_id = s.competition_id AND m.account_id = s.account_id AND m.status = 'active'
+           )
+         ORDER BY s.created_at ASC`,
+      ).all(competitionId);
+
+      return rows.map(r => ({
+        ...resolveMember(r.account_id),
+        note: r.note,
+        created_at: r.created_at,
       }));
+    },
+
+    getMyStatus(competitionId, accountId, now) {
+      const comp = getCompStmt.get(competitionId);
+      const settings = getSettingsRecord(competitionId);
+      const writable = comp ? isWritable(comp, settings, now).writable : false;
+
+      const signup = getSignupRecord(competitionId, accountId);
+      const activeTeam = findUserActiveTeam(competitionId, accountId);
+      const team = activeTeam ? getFullTeam(activeTeam.id, accountId) : null;
+
+      const pendingRows = db.prepare<[string, string, string], {
+        membership_id: string;
+        team_id: string;
+        team_name: string;
+        account_id: string;
+        status: MemberStatus;
+        message: string;
+        created_at: number;
+        leader_account_id: string;
+      }>(
+        `SELECT m.id AS membership_id, t.id AS team_id, t.name AS team_name, m.account_id, m.status, m.message, m.created_at, t.leader_account_id
+         FROM competition_team_members m
+         JOIN competition_teams t ON m.team_id = t.id
+         WHERE m.competition_id = ? AND t.status != 'disbanded'
+           AND (
+             (m.account_id = ? AND m.status = 'invited')
+             OR (t.leader_account_id = ? AND m.status = 'applied')
+           )
+         ORDER BY m.created_at ASC`,
+      ).all(competitionId, accountId, accountId);
+
+      const pending: PendingItem[] = pendingRows.map(r => {
+        const isApplied = r.status === "applied";
+        const count = countActiveMembersStmt.get(r.team_id)?.count ?? 0;
+        const otherAccountId = isApplied ? r.account_id : r.leader_account_id;
+        return {
+          membership_id: r.membership_id,
+          type: isApplied ? "applied" : "invited",
+          direction: "incoming",
+          team: { id: r.team_id, name: r.team_name, member_count: count },
+          user: resolveMember(otherAccountId),
+          message: r.message,
+          created_at: r.created_at,
+        };
+      });
+
+      const compStatus = comp ? competitionStatus(comp, now) : "ended";
+      const isInternal = comp?.kind === "internal";
+      const isTeam = settings?.participation === "team";
+
+      let state: State = "none";
+      if (!signup || signup.status === "cancelled") {
+        state = "none";
+      } else if (compStatus === "ended" || compStatus === "closed") {
+        if (!isTeam) {
+          state = isInternal ? "confirmed" : "signed_up";
+        } else {
+          if (team && team.status === "locked") state = "confirmed";
+          else state = "unplaced";
+        }
+      } else {
+        if (!isTeam) {
+          state = isInternal ? "confirmed" : "signed_up";
+        } else {
+          if (!team) state = "signed_up";
+          else if (team.status === "recruiting") state = "in_team";
+          else if (team.status === "locked") state = "confirmed";
+          else state = "signed_up";
+        }
+      }
+
+      const actions: string[] = [];
+      if (writable) {
+        if (!signup || signup.status === "cancelled") {
+          actions.push("signup");
+        } else {
+          actions.push("cancel_signup");
+          if (isTeam) {
+            if (!team) {
+              actions.push("create_team");
+            } else if (team.my_relation === "leader") {
+              if (team.status === "recruiting") {
+                const teamMin = settings?.team_min ?? 1;
+                const teamMax = settings?.team_max ?? 20;
+                if (team.member_count >= teamMin && team.member_count <= teamMax) {
+                  actions.push("lock");
+                }
+                actions.push("transfer", "disband", "invite");
+              } else if (team.status === "locked") {
+                actions.push("unlock");
+              }
+            } else if (team.my_relation === "member") {
+              if (team.status !== "locked") {
+                actions.push("leave");
+              }
+            }
+          }
+        }
+      }
+
+      const stats = comp ? computeStats(competitionId, comp, settings) : { signups: 0, teams: 0, confirmed_teams: 0, confirmed_participants: 0, unplaced: 0 };
 
       return {
-        signup,
-        confirmed_team,
-        pending_invites,
-        pending_applications,
+        writable,
+        state,
+        signup: signup && signup.status === "active" ? { note: signup.note, looking_for_team: signup.looking_for_team, created_at: signup.created_at } : null,
+        team: team
+          ? {
+              id: team.id,
+              name: team.name,
+              status: team.status,
+              role: team.my_relation === "leader" ? "leader" : "member",
+              member_count: team.member_count,
+            }
+          : null,
+        pending,
+        actions,
+        stats,
       };
     },
 
-    listTeams(competitionId) {
+    getMyCompetitions(accountId, now) {
+      const rows = db.prepare<[string], {
+        competition_id: string;
+        created_at: number;
+      }>(
+        `SELECT DISTINCT competition_id, created_at
+         FROM competition_signups
+         WHERE account_id = ? AND status = 'active'
+         ORDER BY created_at DESC`,
+      ).all(accountId);
+
+      const competitions: MyCompetitions["competitions"] = [];
+      for (const r of rows) {
+        const comp = getCompStmt.get(r.competition_id);
+        if (!comp) continue;
+        const myStatus = this.getMyStatus(comp.id, accountId, now);
+        competitions.push({
+          competition: comp,
+          state: myStatus.state,
+          team: myStatus.team,
+          signed_up_at: r.created_at,
+        });
+      }
+
+      const pendingRows = db.prepare<[string, string], {
+        membership_id: string;
+        team_id: string;
+        team_name: string;
+        competition_id: string;
+        comp_name: string;
+        account_id: string;
+        status: MemberStatus;
+        message: string;
+        created_at: number;
+        leader_account_id: string;
+      }>(
+        `SELECT m.id AS membership_id, t.id AS team_id, t.name AS team_name, c.id AS competition_id, c.name AS comp_name,
+                m.account_id, m.status, m.message, m.created_at, t.leader_account_id
+         FROM competition_team_members m
+         JOIN competition_teams t ON m.team_id = t.id
+         JOIN competitions c ON m.competition_id = c.id
+         WHERE c.offline = 0 AND t.status != 'disbanded'
+           AND (
+             (m.account_id = ? AND m.status = 'invited')
+             OR (t.leader_account_id = ? AND m.status = 'applied')
+           )
+         ORDER BY m.created_at DESC`,
+      ).all(accountId, accountId);
+
+      const pending = pendingRows.map(r => {
+        const isApplied = r.status === "applied";
+        const count = countActiveMembersStmt.get(r.team_id)?.count ?? 0;
+        const otherAccountId = isApplied ? r.account_id : r.leader_account_id;
+        return {
+          membership_id: r.membership_id,
+          type: (isApplied ? "applied" : "invited") as "applied" | "invited",
+          direction: "incoming" as const,
+          team: { id: r.team_id, name: r.team_name, member_count: count },
+          user: resolveMember(otherAccountId),
+          message: r.message,
+          created_at: r.created_at,
+          competition: { id: r.competition_id, name: r.comp_name },
+        };
+      });
+
+      return {
+        pending_count: pending.length,
+        pending,
+        competitions,
+      };
+    },
+
+    listTeams(competitionId, viewerAccountId) {
       const teams = db.prepare<[string], TeamRecord>(
         "SELECT * FROM competition_teams WHERE competition_id = ? AND status != 'disbanded' ORDER BY created_at DESC",
       ).all(competitionId);
-      return teams.map(t => getFullTeam(t.id)!);
+      return teams.map(t => getFullTeam(t.id, viewerAccountId)!);
     },
 
     getRoster(competitionId) {
       const comp = getCompStmt.get(competitionId);
       if (!comp) return null;
 
-      const signups = db.prepare<[string], SignupRecord>(
-        "SELECT * FROM competition_signups WHERE competition_id = ? AND status != 'cancelled' ORDER BY created_at ASC",
+      const settings = getSettingsRecord(competitionId);
+      const signups = db.prepare<[string], {
+        id: string;
+        competition_id: string;
+        account_id: string;
+        status: SignupStatus;
+        looking_for_team: number;
+        note: string;
+        created_at: number;
+        updated_at: number;
+        cancelled_at: number | null;
+      }>(
+        "SELECT * FROM competition_signups WHERE competition_id = ? ORDER BY created_at ASC",
+      ).all(competitionId).map(s => ({
+        ...s,
+        looking_for_team: s.looking_for_team === 1,
+        user: resolveMember(s.account_id),
+      }));
+
+      const teamRows = db.prepare<[string], TeamRecord>(
+        "SELECT * FROM competition_teams WHERE competition_id = ? ORDER BY created_at ASC",
       ).all(competitionId);
 
-      const teams = db.prepare<[string], TeamRecord>(
-        "SELECT * FROM competition_teams WHERE competition_id = ? AND status != 'disbanded' ORDER BY created_at ASC",
-      ).all(competitionId).map(t => getFullTeam(t.id)!);
+      const teams = teamRows.map(t => {
+        const allMembers = getAllTeamMembersStmt.all(t.id);
+        const activeMembers = allMembers.filter(m => m.status === "active");
+        return {
+          id: t.id,
+          name: t.name,
+          slogan: t.slogan,
+          status: t.status,
+          leader: resolveMember(t.leader_account_id),
+          members: allMembers.map(m => ({
+            ...resolveMember(m.account_id),
+            role: m.role,
+            status: m.status,
+          })),
+          member_count: activeMembers.length,
+          created_at: t.created_at,
+        };
+      });
 
-      // 去重统计已确认参赛人员：
-      // 在内部赛中，所有 status == 'registered' 的成员都是正式报名；
-      // 在团队赛中，所有 confirmed_team 成员也是确认参赛；两者合并去重
-      const confirmedUserSet = new Set<string>();
-      if (comp.kind === "internal") {
-        for (const s of signups) {
-          if (s.status === "registered") confirmedUserSet.add(s.github_login.toLowerCase());
-        }
-      }
-      for (const t of teams) {
-        for (const m of t.members) {
-          if (m.status === "confirmed") confirmedUserSet.add(m.github_login.toLowerCase());
-        }
-      }
+      const unassignedAccounts = db.prepare<[string], { account_id: string }>(
+        `SELECT s.account_id FROM competition_signups s
+         WHERE s.competition_id = ? AND s.status = 'active'
+           AND NOT EXISTS (
+             SELECT 1 FROM competition_team_members m
+             WHERE m.competition_id = s.competition_id AND m.account_id = s.account_id AND m.status = 'active'
+           )`,
+      ).all(competitionId);
 
-      // 未成队人员：登记了意向/报名，但尚未在任何 confirmed 队伍中的人员
-      const teamConfirmedLogins = new Set<string>();
-      for (const t of teams) {
-        for (const m of t.members) {
-          if (m.status === "confirmed") teamConfirmedLogins.add(m.github_login.toLowerCase());
-        }
-      }
-      const unassigned_logins = signups
-        .filter(s => !teamConfirmedLogins.has(s.github_login.toLowerCase()))
-        .map(s => s.github_login);
-
-      const summary: RosterSummary = {
-        total_signups: signups.length,
-        internal_registered: signups.filter(s => s.kind === "internal" && s.status === "registered").length,
-        external_intents: signups.filter(s => s.kind === "external" && s.status === "intent").length,
-        teams_count: teams.length,
-        confirmed_participants: confirmedUserSet.size,
-        unassigned_count: unassigned_logins.length,
-      };
+      const summary = computeStats(competitionId, comp, settings);
 
       return {
         competition_id: competitionId,
-        summary,
+        settings,
+        summary: {
+          total_signups: summary.signups,
+          teams_count: summary.teams,
+          confirmed_teams: summary.confirmed_teams,
+          confirmed_participants: summary.confirmed_participants,
+          unassigned_count: summary.unplaced,
+        },
         signups,
         teams,
-        unassigned_logins,
+        unassigned: unassignedAccounts.map(u => resolveMember(u.account_id)),
       };
     },
 
@@ -662,17 +1500,15 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
       const roster = this.getRoster(competitionId);
       if (!roster) return null;
 
-      // 生成带 UTF-8 BOM 的 CSV 文本
       const headers = [
-        "序号", "GitHub 账号", "登记类型", "状态", "队伍", "队内角色", "联系方式", "参赛备注", "登记时间",
+        "序号", "账号", "姓名", "参赛形式", "状态", "队伍", "队内角色", "参赛备注", "登记时间",
       ];
 
-      // 建立 user -> team / role 索引
       const userTeamMap = new Map<string, { teamName: string; role: string }>();
       for (const t of roster.teams) {
         for (const m of t.members) {
-          if (m.status === "confirmed") {
-            userTeamMap.set(m.github_login.toLowerCase(), {
+          if (m.status === "active") {
+            userTeamMap.set(m.account_id, {
               teamName: t.name,
               role: m.role === "leader" ? "队长" : "队员",
             });
@@ -683,15 +1519,18 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
       const rows: string[][] = [];
       let index = 1;
       for (const s of roster.signups) {
-        const teamInfo = userTeamMap.get(s.github_login.toLowerCase());
+        const teamInfo = userTeamMap.get(s.account_id);
+        const participationStr = roster.settings?.participation === "team" ? "团队赛" : "个人赛";
+        const statusStr = s.status === "active" ? "已报名" : "已取消";
+
         rows.push([
           String(index++),
-          s.github_login,
-          s.kind === "internal" ? "内部赛正式报名" : "外部赛意向",
-          s.status === "registered" ? "已报名" : s.status === "intent" ? "意向登记" : "已取消",
-          teamInfo?.teamName ?? "（个人未成队）",
+          s.account_id,
+          s.user.name,
+          participationStr,
+          statusStr,
+          teamInfo?.teamName ?? "（未入队）",
           teamInfo?.role ?? "—",
-          s.contact || "—",
           s.note || "—",
           beijingDateTime(s.created_at),
         ]);
@@ -702,7 +1541,6 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
         ...rows.map(row => row.map(csvCell).join(",")),
       ];
 
-      // 返回 UTF-8 BOM 加上 CSV 内容
       return "﻿" + csvLines.join("\r\n");
     },
   };

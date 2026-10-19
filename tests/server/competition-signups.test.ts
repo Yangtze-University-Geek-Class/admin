@@ -52,404 +52,10 @@ const HOUR = 3600_000;
 const NOW = Date.now();
 
 describe('competition signups and team formation (#239)', () => {
-  it('handles internal registration and external intent registration', async () => {
-    const { app, as } = await setup();
-    const internalComp = app.services.competitions.insert(
-      'comp-internal-1',
-      {
-        name: '班级极客算法邀请赛',
-        kind: 'internal',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 10 * HOUR,
-        signup_deadline: NOW + HOUR,
-        url: null,
-        description: '内部赛',
-      },
-      NOW,
-    )!;
-
-    const externalComp = app.services.competitions.insert(
-      'comp-external-1',
-      {
-        name: '全国大学生计算机大赛',
-        kind: 'external',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 10 * HOUR,
-        signup_deadline: NOW + HOUR,
-        url: 'https://example.com/contest',
-        description: '外部赛',
-      },
-      NOW,
-    )!;
-
-    // 内部比赛报名：状态为 registered
-    const resInternal = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${internalComp.id}/signup`,
-      headers: as('bob'),
-      payload: { note: '练习动态规划', contact: 'QQ: 123456' },
-    });
-    expect(resInternal.statusCode).toBe(201);
-    const bodyInternal = resInternal.json();
-    expect(bodyInternal.ok).toBe(true);
-    expect(bodyInternal.signup.kind).toBe('internal');
-    expect(bodyInternal.signup.status).toBe('registered');
-    expect(bodyInternal.signup.github_login).toBe('bob');
-    expect(bodyInternal.signup.contact).toBe('QQ: 123456');
-
-    // 外部比赛登记意向：状态为 intent
-    const resExternal = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${externalComp.id}/signup`,
-      headers: as('charlie'),
-      payload: { note: '找前端队友', contact: 'WeChat: c_team' },
-    });
-    expect(resExternal.statusCode).toBe(201);
-    const bodyExternal = resExternal.json();
-    expect(bodyExternal.ok).toBe(true);
-    expect(bodyExternal.signup.kind).toBe('external');
-    expect(bodyExternal.signup.status).toBe('intent');
-
-    // 重复报名为幂等更新
-    const resUpdate = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${internalComp.id}/signup`,
-      headers: as('bob'),
-      payload: { note: '练习图论算法', contact: 'QQ: 654321' },
-    });
-    expect(resUpdate.statusCode).toBe(201);
-    expect(resUpdate.json().signup.contact).toBe('QQ: 654321');
-
-    // 取消报名
-    const resCancel = await app.inject({
-      method: 'DELETE',
-      url: `/api/competitions/${internalComp.id}/signup`,
-      headers: as('bob'),
-    });
-    expect(resCancel.statusCode).toBe(200);
-    expect(resCancel.json().ok).toBe(true);
-
-    // 取消后再取消报 400
-    const resCancelAgain = await app.inject({
-      method: 'DELETE',
-      url: `/api/competitions/${internalComp.id}/signup`,
-      headers: as('bob'),
-    });
-    expect(resCancelAgain.statusCode).toBe(400);
-    expect(resCancelAgain.json().error).toBe('not_signed_up');
-  });
-
-  it('rejects registration when competition signup is closed', async () => {
-    const { app, as } = await setup();
-    const closedComp = app.services.competitions.insert(
-      'comp-closed-1',
-      {
-        name: '已截止比赛',
-        kind: 'internal',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 10 * HOUR,
-        signup_deadline: NOW - 1000, // 过去的时间
-        url: null,
-        description: '截止测试',
-      },
-      NOW,
-    )!;
-
-    const res = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${closedComp.id}/signup`,
-      headers: as('bob'),
-      payload: { note: '想报名' },
-    });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('signup_closed');
-  });
-
-  it('supports team creation, mutual confirmation, and capacity limits', async () => {
-    const { app, as } = await setup();
-    const comp = app.services.competitions.insert(
-      'comp-team-1',
-      {
-        name: '三人组队挑战赛',
-        kind: 'external',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 20 * HOUR,
-        signup_deadline: NOW + HOUR,
-        url: 'https://example.com/team',
-        description: '团队赛',
-      },
-      NOW,
-    )!;
-
-    // 1. Bob 创建队伍（容量上限 2 人）
-    const resCreateTeam = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/teams`,
-      headers: as('bob'),
-      payload: { name: '极客一队', slogan: '冲冲冲', maxMembers: 2 },
-    });
-    expect(resCreateTeam.statusCode).toBe(201);
-    const team = resCreateTeam.json().team;
-    expect(team.name).toBe('极客一队');
-    expect(team.leader_login).toBe('bob');
-    expect(team.confirmed_count).toBe(1);
-    expect(team.members[0].role).toBe('leader');
-    expect(team.members[0].status).toBe('confirmed');
-
-    // 2. 同名建队被拒
-    const resDup = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/teams`,
-      headers: as('charlie'),
-      payload: { name: '极客一队' },
-    });
-    expect(resDup.statusCode).toBe(400);
-    expect(resDup.json().error).toBe('duplicate_team_name');
-
-    // 3. 队长邀请 Charlie
-    const resInvite = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/invite`,
-      headers: as('bob'),
-      payload: { login: 'charlie' },
-    });
-    expect(resInvite.statusCode).toBe(201);
-    const inviteMembershipId = resInvite.json().membership_id;
-
-    // 4. 非被邀请人（如 Dave）尝试响应邀请返回 403
-    const resIllegalRespond = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/respond`,
-      headers: as('dave'),
-      payload: { membership_id: inviteMembershipId, action: 'accept' },
-    });
-    expect(resIllegalRespond.statusCode).toBe(403);
-    expect(resIllegalRespond.json().error).toBe('forbidden');
-
-    // 5. Charlie 接受邀请 -> 双方确认成为 confirmed
-    const resAccept = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/respond`,
-      headers: as('charlie'),
-      payload: { membership_id: inviteMembershipId, action: 'accept' },
-    });
-    expect(resAccept.statusCode).toBe(200);
-    expect(resAccept.json().status).toBe('confirmed');
-
-    // 6. 此时队伍达到 2 人上限，Dave 尝试申请加入被拒
-    const resApplyFull = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/apply`,
-      headers: as('dave'),
-    });
-    expect(resApplyFull.statusCode).toBe(400);
-    expect(resApplyFull.json().error).toBe('team_full');
-
-    // 7. Charlie 此时已被确认在一队，无法再建新队伍
-    const resCharlieCreate = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/teams`,
-      headers: as('charlie'),
-      payload: { name: '查理的新队' },
-    });
-    expect(resCharlieCreate.statusCode).toBe(400);
-    expect(resCharlieCreate.json().error).toBe('already_in_team');
-
-    // 8. Charlie 主动退队
-    const resLeave = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/leave`,
-      headers: as('charlie'),
-    });
-    expect(resLeave.statusCode).toBe(200);
-    expect(resLeave.json().action).toBe('left');
-
-    // 9. 退队后队伍恢复招募状态，Dave 再次申请入队成功
-    const resDaveApply = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/apply`,
-      headers: as('dave'),
-    });
-    expect(resDaveApply.statusCode).toBe(201);
-    const applyMembershipId = resDaveApply.json().membership_id;
-
-    // 10. 队长 Bob 审批通过 Dave
-    const resBobApprove = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/respond`,
-      headers: as('bob'),
-      payload: { membership_id: applyMembershipId, action: 'accept' },
-    });
-    expect(resBobApprove.statusCode).toBe(200);
-    expect(resBobApprove.json().status).toBe('confirmed');
-
-    // 11. 队长 Bob 解散队伍
-    const resDisband = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${team.id}/leave`,
-      headers: as('bob'),
-    });
-    expect(resDisband.statusCode).toBe(200);
-    expect(resDisband.json().action).toBe('disbanded');
-  });
-
-  it('provides personal status query for members', async () => {
-    const { app, as } = await setup();
-    const comp = app.services.competitions.insert(
-      'comp-status-1',
-      {
-        name: '个人状态测试赛',
-        kind: 'internal',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 10 * HOUR,
-        signup_deadline: NOW + HOUR,
-        url: null,
-        description: '状态测试',
-      },
-      NOW,
-    )!;
-
-    // 先查询为空
-    const resEmpty = await app.inject({
-      method: 'GET',
-      url: `/api/competitions/${comp.id}/my-status`,
-      headers: as('bob'),
-    });
-    expect(resEmpty.statusCode).toBe(200);
-    expect(resEmpty.json().status.signup).toBeNull();
-    expect(resEmpty.json().status.confirmed_team).toBeNull();
-
-    // 报名后查询有记录
-    await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/signup`,
-      headers: as('bob'),
-      payload: { note: '参赛目标一等奖' },
-    });
-
-    const resAfter = await app.inject({
-      method: 'GET',
-      url: `/api/competitions/${comp.id}/my-status`,
-      headers: as('bob'),
-    });
-    expect(resAfter.statusCode).toBe(200);
-    expect(resAfter.json().status.signup.status).toBe('registered');
-    expect(resAfter.json().status.signup.note).toBe('参赛目标一等奖');
-  });
-
-  it('provides console roster summary and CSV export with capability and formula injection guard', async () => {
-    const { app, as } = await setup();
-    const compId = randomUUID();
-    const comp = app.services.competitions.insert(
-      compId,
-      {
-        name: '新生算法杯',
-        kind: 'internal',
-        start_at: NOW + 2 * HOUR,
-        end_at: NOW + 10 * HOUR,
-        signup_deadline: NOW + HOUR,
-        url: null,
-        description: '新生赛',
-      },
-      NOW,
-    )!;
-
-    // 报名并带潜在 CSV 注入字符测试（例如 =cmd|' /C calc'!A0）
-    await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/signup`,
-      headers: as('bob'),
-      payload: { note: '=SUM(1,2)', contact: '13800000000' },
-    });
-
-    await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/signup`,
-      headers: as('charlie'),
-      payload: { note: '+cmd', contact: '13900000000' },
-    });
-
-    // Bob 建队并吸纳 Charlie
-    const teamRes = await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/teams`,
-      headers: as('bob'),
-      payload: { name: '胜利之师', maxMembers: 3 },
-    });
-    const teamId = teamRes.json().team.id;
-
-    const inviteRes = await app.inject({
-      method: 'POST',
-      url: `/api/teams/${teamId}/invite`,
-      headers: as('bob'),
-      payload: { login: 'charlie' },
-    });
-    await app.inject({
-      method: 'POST',
-      url: `/api/teams/${teamId}/respond`,
-      headers: as('charlie'),
-      payload: { membership_id: inviteRes.json().membership_id, action: 'accept' },
-    });
-
-    // Dave 只报名不入队（成为未成队成员）
-    await app.inject({
-      method: 'POST',
-      url: `/api/competitions/${comp.id}/signup`,
-      headers: as('dave'),
-      payload: { note: '单人参战' },
-    });
-
-    // 1. 无权限舰员（bob）访问控制台 roster 接口被拒 403
-    const resBobDenied = await app.inject({
-      method: 'GET',
-      url: `/api/console/competitions/${comp.id}/roster`,
-      headers: as('bob'),
-    });
-    expect(resBobDenied.statusCode).toBe(403);
-    expect(resBobDenied.json().error).toBe('missing_capability');
-
-    // 2. 提督（alice）访问 roster 获得花名册与去重统计
-    const resRoster = await app.inject({
-      method: 'GET',
-      url: `/api/console/competitions/${comp.id}/roster`,
-      headers: as('alice'),
-    });
-    expect(resRoster.statusCode).toBe(200);
-    const roster = resRoster.json().roster;
-    expect(roster.summary.total_signups).toBe(3); // bob, charlie, dave
-    expect(roster.summary.internal_registered).toBe(3);
-    expect(roster.summary.teams_count).toBe(1);
-    expect(roster.summary.confirmed_participants).toBe(3); // 3 位均已确认
-    expect(roster.summary.unassigned_count).toBe(1); // 仅 dave 未成队
-    expect(roster.unassigned_logins).toEqual(['dave']);
-
-    // 3. 提督（alice）导出 CSV
-    const resCsv = await app.inject({
-      method: 'GET',
-      url: `/api/console/competitions/${comp.id}/roster.csv`,
-      headers: as('alice'),
-    });
-    expect(resCsv.statusCode).toBe(200);
-    expect(resCsv.headers['content-type']).toContain('text/csv');
-    expect(resCsv.headers['content-disposition']).toContain('attachment');
-    const csvContent = resCsv.body;
-
-    // 必须带有 UTF-8 BOM
-    expect(csvContent.startsWith('﻿')).toBe(true);
-
-    // 公式注入符号被正确单引号转义
-    expect(csvContent).toContain("'=SUM(1,2)");
-    expect(csvContent).toContain("'+cmd");
-    expect(csvContent).toContain('bob');
-    expect(csvContent).toContain('charlie');
-    expect(csvContent).toContain('dave');
-    expect(csvContent).toContain('胜利之师');
-  });
-
   it('strictly isolates access: anonymous 401, outsider 403', async () => {
     const { app, as } = await setup();
     const comp = app.services.competitions.insert(
-      'comp-auth-1',
+      randomUUID(),
       {
         name: '权限防护赛',
         kind: 'internal',
@@ -462,7 +68,7 @@ describe('competition signups and team formation (#239)', () => {
       NOW,
     )!;
 
-    // 未登录访问报名 -> 401
+    // 未登录访问报名 -> 401 not_signed_in
     const resAnon = await app.inject({
       method: 'POST',
       url: `/api/competitions/${comp.id}/signup`,
@@ -471,7 +77,7 @@ describe('competition signups and team formation (#239)', () => {
     expect(resAnon.statusCode).toBe(401);
     expect(resAnon.json().error).toBe('not_signed_in');
 
-    // 非组织成员（outsider）访问报名 -> 403 not_a_member_of_org
+    // 非组织成员（outsider）访问报名 -> 403 not_member
     const resOutsider = await app.inject({
       method: 'POST',
       url: `/api/competitions/${comp.id}/signup`,
@@ -479,6 +85,527 @@ describe('competition signups and team formation (#239)', () => {
       payload: { note: '外部人员尝试' },
     });
     expect(resOutsider.statusCode).toBe(403);
-    expect(resOutsider.json().error).toBe('not_a_member_of_org');
+    expect(resOutsider.json().error).toBe('not_member');
+  });
+
+  it('manages signup settings and enforces competition constraints', async () => {
+    const { app, as } = await setup();
+    const comp = app.services.competitions.insert(
+      randomUUID(),
+      {
+        name: '规则测试赛',
+        kind: 'internal',
+        start_at: NOW + 2 * HOUR,
+        end_at: NOW + 10 * HOUR,
+        signup_deadline: NOW + HOUR,
+        url: null,
+        description: '设置测试',
+      },
+      NOW,
+    )!;
+
+    // 1. 无 competitions.manage 能力的成员不能改设置 -> 403
+    const resBob = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('bob'),
+      payload: { enabled: true, participation: 'team', team_min: 2, team_max: 4 },
+    });
+    expect(resBob.statusCode).toBe(403);
+
+    // 2. 团队赛参数校验：team_min > team_max -> 400 bad_team_size
+    const resBadSize = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'team', team_min: 5, team_max: 3 },
+    });
+    expect(resBadSize.statusCode).toBe(400);
+    expect(resBadSize.json().error).toBe('bad_team_size');
+
+    // 3. 个人赛不能指定人数 -> 400 bad_team_size
+    const resBadInd = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'individual', team_min: 1, team_max: 1 },
+    });
+    expect(resBadInd.statusCode).toBe(400);
+    expect(resBadInd.json().error).toBe('bad_team_size');
+
+    // 4. 正确设置团队赛参数
+    const resOk = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'team', team_min: 2, team_max: 3 },
+    });
+    expect(resOk.statusCode).toBe(200);
+    expect(resOk.json().settings.enabled).toBe(true);
+    expect(resOk.json().settings.team_min).toBe(2);
+    expect(resOk.json().settings.team_max).toBe(3);
+
+    // 5. Bob 报名
+    const resBobSignup = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '参赛', looking_for_team: true },
+    });
+    expect(resBobSignup.statusCode).toBe(201);
+
+    // 6. 已有报名后，不能修改比赛 kind (PATCH) -> 409 competition_has_signups
+    const resPatchKind = await app.inject({
+      method: 'PATCH',
+      url: `/api/console/competitions/${comp.id}`,
+      headers: as('alice'),
+      payload: { kind: 'external' },
+    });
+    expect(resPatchKind.statusCode).toBe(409);
+    expect(resPatchKind.json().error).toBe('competition_has_signups');
+
+    // 7. 开放报名期间，不能清空报名截止时间 -> 409 signup_deadline_required
+    const resPatchDeadline = await app.inject({
+      method: 'PATCH',
+      url: `/api/console/competitions/${comp.id}`,
+      headers: as('alice'),
+      payload: { signup_deadline: null },
+    });
+    expect(resPatchDeadline.statusCode).toBe(409);
+    expect(resPatchDeadline.json().error).toBe('signup_deadline_required');
+
+    // 8. 已有报名记录的比赛不能直接删除，只能下线 -> 409 competition_has_signups
+    const resDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/console/competitions/${comp.id}`,
+      headers: as('alice'),
+    });
+    expect(resDelete.statusCode).toBe(409);
+    expect(resDelete.json().error).toBe('competition_has_signups');
+  });
+
+  it('handles individual competition registration, idempotency and cancellation', async () => {
+    const { app, as } = await setup();
+    const comp = app.services.competitions.insert(
+      randomUUID(),
+      {
+        name: '单人天梯赛',
+        kind: 'internal',
+        start_at: NOW + 2 * HOUR,
+        end_at: NOW + 10 * HOUR,
+        signup_deadline: NOW + HOUR,
+        url: null,
+        description: '单人赛',
+      },
+      NOW,
+    )!;
+
+    // 1. 尚未开放报名时写操作报 409 signup_not_enabled
+    const resNotOpen = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '急着报名' },
+    });
+    expect(resNotOpen.statusCode).toBe(409);
+    expect(resNotOpen.json().error).toBe('signup_not_enabled');
+
+    // 管理员开放个人赛报名
+    const putRes = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'individual', team_min: null, team_max: null },
+    });
+    expect(putRes.statusCode).toBe(200);
+
+    // 2. 报名成功（不含 contact 字段）
+    const resSignup = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '冲刺冠军' },
+    });
+    expect(resSignup.statusCode).toBe(201);
+    expect(resSignup.json().signup.status).toBe('active');
+    expect(resSignup.json().signup.account_id).toBe('bob');
+    expect(resSignup.json().signup.note).toBe('冲刺冠军');
+
+    // 3. 重复报名为幂等更新
+    const resUpdate = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '更新备注' },
+    });
+    expect(resUpdate.statusCode).toBe(201);
+    expect(resUpdate.json().signup.note).toBe('更新备注');
+
+    // 4. 个人赛不能建队 -> 409 individual_competition
+    const resTeam = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/teams`,
+      headers: as('bob'),
+      payload: { name: '违规建队' },
+    });
+    expect(resTeam.statusCode).toBe(409);
+    expect(resTeam.json().error).toBe('individual_competition');
+
+    // 5. 查看个人状态（内部个人赛报名后 state 为 confirmed）
+    const resStatus = await app.inject({
+      method: 'GET',
+      url: `/api/competitions/${comp.id}/my-status`,
+      headers: as('bob'),
+    });
+    expect(resStatus.statusCode).toBe(200);
+    expect(resStatus.json().status.state).toBe('confirmed');
+    expect(resStatus.json().status.actions).toContain('cancel_signup');
+
+    // 6. 取消报名
+    const resCancel = await app.inject({
+      method: 'DELETE',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+    });
+    expect(resCancel.statusCode).toBe(200);
+
+    // 7. 取消后状态恢复为 none
+    const resStatusAfter = await app.inject({
+      method: 'GET',
+      url: `/api/competitions/${comp.id}/my-status`,
+      headers: as('bob'),
+    });
+    expect(resStatusAfter.json().status.state).toBe('none');
+
+    // 8. 再次取消报 409 not_signed_up
+    const resCancelAgain = await app.inject({
+      method: 'DELETE',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+    });
+    expect(resCancelAgain.statusCode).toBe(409);
+    expect(resCancelAgain.json().error).toBe('not_signed_up');
+  });
+
+  it('runs complete team lifecycle: recruiting, invite, apply, mutual confirm, lock, unlock, leave, disband', async () => {
+    const { app, as } = await setup();
+    const comp = app.services.competitions.insert(
+      randomUUID(),
+      {
+        name: '极客团队对抗赛',
+        kind: 'internal',
+        start_at: NOW + 2 * HOUR,
+        end_at: NOW + 20 * HOUR,
+        signup_deadline: NOW + HOUR,
+        url: null,
+        description: '团队赛',
+      },
+      NOW,
+    )!;
+
+    // 开放团队赛：队伍人数 [2, 3]
+    const putRes = await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'team', team_min: 2, team_max: 3 },
+    });
+    expect(putRes.statusCode).toBe(200);
+
+    // 1. 未报名不能建队 -> 409 not_signed_up
+    const resNoSignupTeam = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/teams`,
+      headers: as('bob'),
+      payload: { name: '先锋战队' },
+    });
+    expect(resNoSignupTeam.statusCode).toBe(409);
+    expect(resNoSignupTeam.json().error).toBe('not_signed_up');
+
+    // Bob 报名并建队
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '找人组队' },
+    });
+
+    const resCreate = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/teams`,
+      headers: as('bob'),
+      payload: { name: '先锋战队', slogan: '勇争第一' },
+    });
+    expect(resCreate.statusCode).toBe(201);
+    const teamId = resCreate.json().team.id;
+    expect(resCreate.json().team.name).toBe('先锋战队');
+    expect(resCreate.json().team.leader.account_id).toBe('bob');
+    expect(resCreate.json().team.member_count).toBe(1);
+
+    // 2. Charlie 报名且勾选找队友，出现在 free-agents 接口中
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('charlie'),
+      payload: { note: '找队伍', looking_for_team: true },
+    });
+
+    const resFreeAgents = await app.inject({
+      method: 'GET',
+      url: `/api/competitions/${comp.id}/free-agents`,
+      headers: as('bob'),
+    });
+    expect(resFreeAgents.statusCode).toBe(200);
+    expect(resFreeAgents.json().free_agents.some((f: any) => f.account_id === 'charlie')).toBe(true);
+
+    // 3. 邀请 Charlie（收 account_id）
+    const resInvite = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/invite`,
+      headers: as('bob'),
+      payload: { account_id: 'charlie', message: '来我们队吧' },
+    });
+    expect(resInvite.statusCode).toBe(201);
+    const inviteId = resInvite.json().membership_id;
+
+    // 4. Dave 尝试响应 Charlie 的邀请 -> 403 forbidden
+    const resDaveIllegal = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/respond`,
+      headers: as('dave'),
+      payload: { membership_id: inviteId, action: 'accept' },
+    });
+    expect(resDaveIllegal.statusCode).toBe(403);
+    expect(resDaveIllegal.json().error).toBe('forbidden');
+
+    // 5. Charlie 接收邀请 -> 加入队伍
+    const resCharlieAccept = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/respond`,
+      headers: as('charlie'),
+      payload: { membership_id: inviteId, action: 'accept' },
+    });
+    expect(resCharlieAccept.statusCode).toBe(200);
+    expect(resCharlieAccept.json().status).toBe('active');
+
+    // 入队后 Charlie 从 free-agents 消失
+    const resFreeAgents2 = await app.inject({
+      method: 'GET',
+      url: `/api/competitions/${comp.id}/free-agents`,
+      headers: as('bob'),
+    });
+    expect(resFreeAgents2.json().free_agents.some((f: any) => f.account_id === 'charlie')).toBe(false);
+
+    // 6. Dave 报名并申请入队
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('dave'),
+      payload: { note: 'Dave 报名' },
+    });
+
+    const resDaveApply = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/apply`,
+      headers: as('dave'),
+      payload: { message: '请带上我' },
+    });
+    expect(resDaveApply.statusCode).toBe(201);
+    const applyId = resDaveApply.json().membership_id;
+
+    // 7. 队长 Bob 同意 Dave 入队（此时队伍满 3 人上限）
+    const resBobApprove = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/respond`,
+      headers: as('bob'),
+      payload: { membership_id: applyId, action: 'accept' },
+    });
+    expect(resBobApprove.statusCode).toBe(200);
+    expect(resBobApprove.json().status).toBe('active');
+
+    // 8. Eve 报名尝试申请满员队伍 -> 409 team_full
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('eve'),
+      payload: { note: 'Eve 报名' },
+    });
+    const resEveApply = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/apply`,
+      headers: as('eve'),
+    });
+    expect(resEveApply.statusCode).toBe(409);
+    expect(resEveApply.json().error).toBe('team_full');
+
+    // 9. 队长确认参赛锁定队伍（达到 team_min = 2，team_max = 3）
+    const resLock = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/lock`,
+      headers: as('bob'),
+    });
+    expect(resLock.statusCode).toBe(200);
+    expect(resLock.json().status).toBe('locked');
+
+    // 10. 队伍锁定后队员无法退队 -> 409 team_locked
+    const resLeaveLocked = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/leave`,
+      headers: as('charlie'),
+    });
+    expect(resLeaveLocked.statusCode).toBe(409);
+    expect(resLeaveLocked.json().error).toBe('team_locked');
+
+    // 11. 队长撤销锁定 -> 恢复 recruiting
+    const resUnlock = await app.inject({
+      method: 'DELETE',
+      url: `/api/teams/${teamId}/lock`,
+      headers: as('bob'),
+    });
+    expect(resUnlock.statusCode).toBe(200);
+    expect(resUnlock.json().status).toBe('recruiting');
+
+    // 12. 队员 Dave 退出队伍
+    const resDaveLeave = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/leave`,
+      headers: as('dave'),
+    });
+    expect(resDaveLeave.statusCode).toBe(200);
+    expect(resDaveLeave.json().action).toBe('left');
+
+    // 13. 队长 Bob 转让队长给 Charlie
+    const resTransfer = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/transfer`,
+      headers: as('bob'),
+      payload: { account_id: 'charlie' },
+    });
+    expect(resTransfer.statusCode).toBe(200);
+    expect(resTransfer.json().leader_account_id).toBe('charlie');
+
+    // 14. 原队长 Bob 现在成为队员，可以退队
+    const resBobLeave = await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/leave`,
+      headers: as('bob'),
+    });
+    expect(resBobLeave.statusCode).toBe(200);
+    expect(resBobLeave.json().action).toBe('left');
+
+    // 15. 新队长 Charlie 解散队伍
+    const resDisband = await app.inject({
+      method: 'DELETE',
+      url: `/api/teams/${teamId}`,
+      headers: as('charlie'),
+    });
+    expect(resDisband.statusCode).toBe(200);
+    expect(resDisband.json().action).toBe('disbanded');
+  });
+
+  it('provides personal multi-competition dashboard and console roster CSV export with audit', async () => {
+    const { app, as } = await setup();
+    const compId = randomUUID();
+    const comp = app.services.competitions.insert(
+      compId,
+      {
+        name: '全国极客应用大赛',
+        kind: 'external',
+        start_at: NOW + 2 * HOUR,
+        end_at: NOW + 10 * HOUR,
+        signup_deadline: NOW + HOUR,
+        url: 'https://example.com/geek',
+        description: '导出与看板测试',
+      },
+      NOW,
+    )!;
+
+    // 开启团队赛报名
+    await app.inject({
+      method: 'PUT',
+      url: `/api/console/competitions/${comp.id}/signup-settings`,
+      headers: as('alice'),
+      payload: { enabled: true, participation: 'team', team_min: 1, team_max: 3 },
+    });
+
+    // 报名并带潜在 CSV 注入字符测试
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('bob'),
+      payload: { note: '=SUM(1,2)' },
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('charlie'),
+      payload: { note: '+cmd' },
+    });
+
+    // Bob 建队并邀请 Charlie，Charlie 尚未接受（pending 状态）
+    const teamRes = await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/teams`,
+      headers: as('bob'),
+      payload: { name: '胜利之师' },
+    });
+    const teamId = teamRes.json().team.id;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/invite`,
+      headers: as('bob'),
+      payload: { account_id: 'charlie' },
+    });
+
+    // 1. Charlie 查看「我的参赛」仪表板 GET /api/me/competitions
+    const resMyComps = await app.inject({
+      method: 'GET',
+      url: '/api/me/competitions',
+      headers: as('charlie'),
+    });
+    expect(resMyComps.statusCode).toBe(200);
+    expect(resMyComps.json().pending_count).toBe(1);
+    expect(resMyComps.json().pending[0].team.name).toBe('胜利之师');
+    expect(resMyComps.json().competitions.length).toBe(1);
+
+    // 2. 提督（alice）查看控制台花名册
+    const resRoster = await app.inject({
+      method: 'GET',
+      url: `/api/console/competitions/${comp.id}/roster`,
+      headers: as('alice'),
+    });
+    expect(resRoster.statusCode).toBe(200);
+    const roster = resRoster.json().roster;
+    expect(roster.summary.total_signups).toBe(2);
+    expect(roster.summary.teams_count).toBe(1);
+
+    // 3. 提督（alice）导出 CSV
+    const resCsv = await app.inject({
+      method: 'GET',
+      url: `/api/console/competitions/${comp.id}/roster.csv`,
+      headers: as('alice'),
+    });
+    expect(resCsv.statusCode).toBe(200);
+    expect(resCsv.headers['content-type']).toContain('text/csv');
+    const csvContent = resCsv.body;
+
+    // 校验 BOM、注入防护、去除 contact、正确字段
+    expect(csvContent.startsWith('﻿')).toBe(true);
+    expect(csvContent).toContain("'=SUM(1,2)");
+    expect(csvContent).toContain("'+cmd");
+    expect(csvContent).toContain('bob');
+    expect(csvContent).toContain('charlie');
+    expect(csvContent).not.toContain('contact');
+
+    // 4. 校验审计日志中有 competition.roster.export
+    const auditRes = await app.inject({
+      method: 'GET',
+      url: '/api/console/audit?action=competition.roster.export',
+      headers: as('alice'),
+    });
+    expect(auditRes.statusCode).toBe(200);
+    expect(auditRes.json().logs.some((item: any) => item.action === 'competition.roster.export')).toBe(true);
   });
 });

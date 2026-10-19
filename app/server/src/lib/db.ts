@@ -204,52 +204,71 @@ CREATE TABLE IF NOT EXISTS competitions (
 CREATE INDEX IF NOT EXISTS idx_competitions_offline_start ON competitions(offline, start_at);
 
 -- 比赛报名与组队（#239）：支持内部赛报名、外部赛意向与双向确认组队机制。
+CREATE TABLE IF NOT EXISTS competition_signup_settings (
+  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,
+  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+  participation TEXT NOT NULL CHECK (participation IN ('individual', 'team')),
+  team_min INTEGER,
+  team_max INTEGER,
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT NOT NULL,
+  CHECK ((participation = 'individual' AND team_min IS NULL AND team_max IS NULL)
+      OR (participation = 'team' AND team_min IS NOT NULL AND team_max IS NOT NULL
+          AND team_min BETWEEN 1 AND 20 AND team_max BETWEEN team_min AND 20))
+);
+
 CREATE TABLE IF NOT EXISTS competition_signups (
   id TEXT PRIMARY KEY,
   competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
-  github_login TEXT NOT NULL,
-  github_user_id INTEGER,
-  kind TEXT NOT NULL CHECK (kind IN ('internal', 'external')),
-  status TEXT NOT NULL CHECK (status IN ('registered', 'intent', 'cancelled')),
-  note TEXT NOT NULL DEFAULT '',
-  contact TEXT NOT NULL DEFAULT '',
+  account_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active', 'cancelled')),
+  looking_for_team INTEGER NOT NULL DEFAULT 0 CHECK (looking_for_team IN (0, 1)),
+  note TEXT NOT NULL DEFAULT '' CHECK (length(note) <= 200),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  UNIQUE (competition_id, github_login)
+  cancelled_at INTEGER,
+  UNIQUE (competition_id, account_id)
 );
-CREATE INDEX IF NOT EXISTS idx_signups_comp_status ON competition_signups(competition_id, status);
-CREATE INDEX IF NOT EXISTS idx_signups_user ON competition_signups(github_login);
+CREATE INDEX IF NOT EXISTS idx_competition_signups_account ON competition_signups(account_id);
 
 CREATE TABLE IF NOT EXISTS competition_teams (
   id TEXT PRIMARY KEY,
   competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  leader_login TEXT NOT NULL,
-  leader_user_id INTEGER,
-  status TEXT NOT NULL CHECK (status IN ('recruiting', 'confirmed', 'disbanded')),
-  max_members INTEGER NOT NULL DEFAULT 5 CHECK (max_members >= 1 AND max_members <= 20),
+  name_key TEXT NOT NULL,
   slogan TEXT NOT NULL DEFAULT '',
+  leader_account_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('recruiting', 'locked', 'disbanded')),
+  locked_at INTEGER,
+  disbanded_at INTEGER,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  UNIQUE (competition_id, name)
+  updated_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_teams_comp ON competition_teams(competition_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_competition_teams_name
+  ON competition_teams(competition_id, name_key) WHERE status <> 'disbanded';
+CREATE INDEX IF NOT EXISTS idx_competition_teams_competition ON competition_teams(competition_id, status);
 
 CREATE TABLE IF NOT EXISTS competition_team_members (
   id TEXT PRIMARY KEY,
   team_id TEXT NOT NULL REFERENCES competition_teams(id) ON DELETE CASCADE,
   competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
-  github_login TEXT NOT NULL,
-  github_user_id INTEGER,
+  account_id TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('leader', 'member')),
-  status TEXT NOT NULL CHECK (status IN ('confirmed', 'pending_invite', 'pending_apply', 'rejected')),
+  status TEXT NOT NULL CHECK (status IN
+    ('applied', 'invited', 'active', 'declined', 'withdrawn', 'left', 'removed', 'disbanded')),
+  message TEXT NOT NULL DEFAULT '' CHECK (length(message) <= 100),
+  created_by TEXT NOT NULL,
+  decided_by TEXT,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  UNIQUE (team_id, github_login)
+  decided_at INTEGER,
+  updated_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_team_members_comp_user ON competition_team_members(competition_id, github_login);
-CREATE INDEX IF NOT EXISTS idx_team_members_team_status ON competition_team_members(team_id, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_confirmed_member_per_comp ON competition_team_members(competition_id, github_login) WHERE status = 'confirmed';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_team_members_active
+  ON competition_team_members(competition_id, account_id) WHERE status = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_team_members_pending
+  ON competition_team_members(team_id, account_id) WHERE status IN ('applied', 'invited');
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON competition_team_members(team_id, status);
+CREATE INDEX IF NOT EXISTS idx_team_members_account ON competition_team_members(account_id, status);
 `);
 
 // 论坛（#57，ADR-0004）：/api/forum/* 的全部数据。只新增 forum_* 表和索引，不改已有表。

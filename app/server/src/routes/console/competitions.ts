@@ -20,7 +20,7 @@ const normalize = (draft: CompetitionDraft): CompetitionDraft => ({ ...draft, ur
  * 「下线」是 `PATCH { offline: true }`（公开接口不再返回，控制台仍看得到）；`DELETE` 是真删。
  */
 export default async function consoleCompetitionRoutes(app: FastifyInstance) {
-  const { competitions, config } = app.services;
+  const { competitions, competitionSignups, config } = app.services;
   const { audit } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
@@ -54,6 +54,20 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
       const { competition_id: id } = req.params;
       const current = competitions.get(id);
       if (!current) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
+
+      if (req.body.kind && req.body.kind !== current.kind) {
+        if (competitionSignups.hasActiveSignups(id)) {
+          return reply.code(409).send({ error: "competition_has_signups", message: "已有未取消的报名记录，无法修改比赛类型" });
+        }
+      }
+
+      if (req.body.signup_deadline === null) {
+        const settings = competitionSignups.getSettings(id);
+        if (settings?.enabled) {
+          return reply.code(409).send({ error: "signup_deadline_required", message: "开放报名期间不能清空报名截止时间" });
+        }
+      }
+
       // 时间关系要拿「改完之后的样子」判：只改开始时间时，结束时间取库里的，不能只看这一条补丁。
       const invalid = competitionError(normalize({ ...patchBase(current), ...req.body, kind: req.body.kind ?? current.kind }));
       if (invalid) return reply.code(400).send({ error: invalid, message: RANGE_MESSAGE[invalid] });
@@ -70,7 +84,13 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { competition_id: id } = req.params;
       const record = competitions.get(id);
-      if (!record || !competitions.remove(id)) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
+      if (!record) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
+
+      if (competitionSignups.hasAnySignups(id)) {
+        return reply.code(409).send({ error: "competition_has_signups", message: "有报名记录的比赛不能删除，只能下线" });
+      }
+
+      if (!competitions.remove(id)) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
       audit(config.consoleOrg, req.session!.login, "competition.delete", id, { name: record.name }, req.ip);
       return { ok: true };
     },

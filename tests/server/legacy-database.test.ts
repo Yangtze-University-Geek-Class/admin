@@ -116,7 +116,7 @@ const MAIL_TABLES = ['mail_outbox'];
 /** 投递次数（#169）：同样只新增，`applications` 不改。 */
 const APPLY_TABLES = ['application_limits'];
 /** 比赛（#238、#239）：同样只新增，不改任何旧表。 */
-const COMPETITION_TABLES = ['competitions', 'competition_signups', 'competition_teams', 'competition_team_members'];
+const COMPETITION_TABLES = ['competitions', 'competition_signup_settings', 'competition_signups', 'competition_teams', 'competition_team_members'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];

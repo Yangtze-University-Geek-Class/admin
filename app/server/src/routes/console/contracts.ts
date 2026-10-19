@@ -103,6 +103,15 @@ export const consoleContracts: RouteContracts = {
     body: { ...object({ ...competitionFields, offline: { type: "boolean" } }), minProperties: 1 },
   },
   "DELETE /api/console/competitions/:competition_id": { ...noQuery, ...competitionParams },
+  "PUT /api/console/competitions/:competition_id/signup-settings": {
+    ...noQuery, ...competitionParams,
+    body: object({
+      enabled: { type: "boolean" },
+      participation: choices("individual", "team"),
+      team_min: { anyOf: [integer(1, 20), { type: "null" }] },
+      team_max: { anyOf: [integer(1, 20), { type: "null" }] },
+    }, ["enabled", "participation"]),
+  },
   "GET /api/console/competitions/:competition_id/roster": { ...noQuery, ...competitionParams },
   "GET /api/console/competitions/:competition_id/roster.csv": { ...noQuery, ...competitionParams },
   "DELETE /api/console/feedback/:id": noQuery,

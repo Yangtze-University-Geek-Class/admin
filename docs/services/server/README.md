@@ -2,7 +2,7 @@
 
 > 核心 portal/admin/console 与论坛接口的应用组装、资源生命周期和真实 GitHub 适配；一个 Fastify 进程。
 
-状态：`current` · 更新：2026-10-18 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
+状态：`current` · 更新：2026-10-19 · 源码：`app/server/` · 镜像：`yzgc-<environment>/server:<sha12>`
 
 ## 源码地图
 
@@ -32,7 +32,7 @@
 
 - **入口职责**：`buildApp` 注册真实应用但不监听；只有 `index.ts` 读取环境并监听。测试通过 `inject` 注册真实路由，只把 `DB_PATH` 指向内存库。
 - **依赖方向**：`config → lib → middleware → routes`。`middleware` 不导入 `routes`；`lib` 不反向依赖 `middleware`；身份/持久化适配器只接收普通参数，不接受 Fastify 请求/响应对象。
-- **运行时装**：`DB_PATH` 指向 SQLite（WAL，better-sqlite3，`secure_delete` 打开，#128）；`sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`application_reviews`、`application_limits`、`departments`、`role_assignments`、`titles`、`console_seeds`、`competitions`、`competition_signups`、`competition_teams`、`competition_team_members`、`audit_logs`、`app_state`、`mail_outbox` 与论坛的 `forum_*` 表由本服务拥有，其中 `app_state` 当前无读写（预留）。每张表的写入方、读取方、个人信息字段和未使用对象见 [数据模型](data-model.md)。
+- **运行时装**：`DB_PATH` 指向 SQLite（WAL，better-sqlite3，`secure_delete` 打开，#128）；`sessions`、`invite_links`、`invite_attempts`、`invitations`、`feedback`、`applications`、`application_reviews`、`application_limits`、`departments`、`role_assignments`、`titles`、`console_seeds`、`competitions`、`competition_signup_settings`、`competition_signups`、`competition_teams`、`competition_team_members`、`audit_logs`、`app_state`、`mail_outbox` 与论坛的 `forum_*` 表由本服务拥有，其中 `app_state` 当前无读写（预留）。每张表的写入方、读取方、个人信息字段和未使用对象见 [数据模型](data-model.md)。
 - **单一 origin**：每个环境只有一个对外地址 `PUBLIC_ORIGIN`（正式 `https://yangtzeu.work`、预发布 `https://prev.yangtzeu.work`）。OAuth `redirect_uri` 是 `<PUBLIC_ORIGIN>/auth/callback`，登录后默认回 `<PUBLIC_ORIGIN>/console`，邀请链接是 `<PUBLIC_ORIGIN>/join/<token>`；`return_to` 与写请求的 `Origin` 只接受这一个 origin。
 - **SPA 入口按路径选择**：服务端直接托管前端产物时，`resolveSiteEntry` 把管理端路径（`ADMIN_SPA_PATHS`：`/admin`、`/admin/…`、`/console`、`/console/…`、`/signin`）交给管理端入口（`ADMIN_SPA_ENTRY` = `sites/console/index.html`，即 `app/console` 的产物），其余交给 portal 入口，与 Host 无关；两者各只在 `app.ts` 定义一处，web 容器 nginx 的 location 与之一致。管理端换成别的前端产物时只改入口常量。
 - **身份**：全站只有这一个登录，官网、论坛、控制台共用它签发的 `sid`（服务器会话，host-only）；会话有效期 7 天，过期行由服务主动清理（启动时一次、之后每小时一次，#128）；不签发、不桥接旧 `forum_sid`。GitHub OAuth 保留签名 state、十分钟有效期和允许列表回跳。`/auth/callback` 用刚换到的 token 查登录者自己在 `CONSOLE_ORG` 的成员状态（`lib/github.ts` 的 `getOwnMembership`，`GET /user/memberships/orgs/{org}`），只有 `active` 才签发 `sid`；不是成员或邀请没接受时不建会话、审计 `auth.signin_denied`，GitHub 出错（含 403）、用户取消时也不建会话，都 302 回到原页面并带 `?signin=not_member|invite_pending|failed|cancelled`（`routes/admin/auth.ts` 的 `SigninOutcome`）。换 token 与取 `/user` 的请求 15 秒超时。会话里存的 GitHub 令牌被 GitHub 以 401 拒绝（用户撤销了授权，或同一用户的令牌超过 10 个、最久没用的被收回）时，这个会话就结束：`middleware/http-policy.ts` 的错误处理对带会话的请求删掉会话、清 `sid`，回 401 `session_expired`，审计 `auth.session_rejected`；`/auth/me` 遇到同样情况回 `{ signed_in: false, session_expired: true }`（`middleware/require-auth.ts` 的 `endRejectedSession`，#164）。邀请链接用的是发起人的令牌，`routes/portal/join.ts` 自己处理上游错误，不影响访问者的会话。规则见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」，状态码见 [API](../../architecture/API.md)。
