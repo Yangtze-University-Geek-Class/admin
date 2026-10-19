@@ -42,7 +42,7 @@ export const MOCK_CAPABILITIES = [
   { id: "audit.read", domain: "audit", label: "查看审计日志", description: "查看审计日志（含 IP）" },
   { id: "roles.manage", domain: "roles", label: "管理称号与部门", description: "管理称号和任免；部门配置与删除另需提督身份；只能给最高两级称号" },
   { id: "roles.department.manage", domain: "roles", label: "任免本部门成员", description: "任免自己负责的部门里的成员" },
-  { id: "competitions.manage", domain: "competitions", label: "管理比赛", description: "新建、编辑、下线比赛" },
+  { id: "competitions.manage", domain: "competitions", label: "管理比赛", description: "新建、编辑、下线比赛，配置报名设置，查看并导出花名册（写审计）" },
 ];
 const ALL = MOCK_CAPABILITIES.map(item => item.id);
 /** GitHub 类的管理能力：只有组织所有者能用，其他人被 GitHub 上限挡住。 */

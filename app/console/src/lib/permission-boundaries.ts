@@ -96,8 +96,8 @@ const boundaries: Record<string, PermissionBoundary> = {
   },
   "competitions.manage": {
     reserved: false,
-    scope: "新建、编辑、下线与删除官网「比赛」应用的赛事信息。",
-    execution: "POST、PATCH、DELETE /api/console/competitions[/:competition_id] 检查 competitions.manage 并写审计。",
+    scope: "新建、编辑、下线与删除官网「比赛」应用的赛事信息；配置报名设置；查看并导出比赛花名册（含成员 GitHub 登录名、队伍与备注），导出会写审计，文件离开系统后无法追踪。",
+    execution: "POST、PATCH、DELETE /api/console/competitions[/:competition_id]、PUT /:competition_id/signup-settings、GET /:competition_id/roster 与 roster.csv 检查 competitions.manage；写操作与导出写审计。",
     pages: [{ label: "比赛", path: "/console/competitions" }],
   },
   "roles.manage": {

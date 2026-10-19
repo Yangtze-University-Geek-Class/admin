@@ -261,6 +261,16 @@ describe('competition signups and team formation (#239)', () => {
     expect(resStatus.json().status.state).toBe('confirmed');
     expect(resStatus.json().status.actions).toContain('cancel_signup');
 
+    // 5.1 查看个人赛控制台花名册：unassigned 为空列表且 unassigned_count 为 0
+    const resRosterInd = await app.inject({
+      method: 'GET',
+      url: `/api/console/competitions/${comp.id}/roster`,
+      headers: as('alice'),
+    });
+    expect(resRosterInd.statusCode).toBe(200);
+    expect(resRosterInd.json().roster.summary.unassigned_count).toBe(0);
+    expect(resRosterInd.json().roster.unassigned).toEqual([]);
+
     // 6. 取消报名
     const resCancel = await app.inject({
       method: 'DELETE',
@@ -438,6 +448,10 @@ describe('competition signups and team formation (#239)', () => {
     expect(resEveApply.statusCode).toBe(409);
     expect(resEveApply.json().error).toBe('team_full');
 
+    // 报名截止后（比赛进行中），未入队的成员状态应为 unplaced
+    const eveOngoingStatus = app.services.competitionSignups.getMyStatus(comp.id, 'eve', NOW + 3 * HOUR);
+    expect(eveOngoingStatus.state).toBe('unplaced');
+
     // 9. 队长确认参赛锁定队伍（达到 team_min = 2，team_max = 3）
     const resLock = await app.inject({
       method: 'POST',
@@ -543,6 +557,19 @@ describe('competition signups and team formation (#239)', () => {
       payload: { note: '+cmd' },
     });
 
+    // Dave 报名后又取消报名，验证已取消账号不出现在 CSV 与汇总中
+    await app.inject({
+      method: 'POST',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('dave'),
+      payload: { note: '临时有事取消' },
+    });
+    await app.inject({
+      method: 'DELETE',
+      url: `/api/competitions/${comp.id}/signup`,
+      headers: as('dave'),
+    });
+
     // Bob 建队并邀请 Charlie，Charlie 尚未接受（pending 状态）
     const teamRes = await app.inject({
       method: 'POST',
@@ -591,15 +618,38 @@ describe('competition signups and team formation (#239)', () => {
     expect(resCsv.headers['content-type']).toContain('text/csv');
     const csvContent = resCsv.body;
 
-    // 校验 BOM、注入防护、去除 contact、正确字段
+    // 校验 BOM、注入防护、去除 contact、正确字段，已取消的 dave 不在 CSV 中
     expect(csvContent.startsWith('﻿')).toBe(true);
     expect(csvContent).toContain("'=SUM(1,2)");
     expect(csvContent).toContain("'+cmd");
     expect(csvContent).toContain('bob');
     expect(csvContent).toContain('charlie');
+    expect(csvContent).toContain('组队中');
+    expect(csvContent).toContain('未入队');
+    expect(csvContent).not.toContain('dave');
     expect(csvContent).not.toContain('contact');
 
-    // 4. 校验审计日志中有 competition.roster.export
+    // 4. Charlie 接受邀请后 Bob 锁定队伍，再导出 CSV 状态应变为「已确认」
+    await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/respond`,
+      headers: as('charlie'),
+      payload: { membership_id: resMyComps.json().pending[0].membership_id, action: 'accept' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/api/teams/${teamId}/lock`,
+      headers: as('bob'),
+    });
+    const resCsvLocked = await app.inject({
+      method: 'GET',
+      url: `/api/console/competitions/${comp.id}/roster.csv`,
+      headers: as('alice'),
+    });
+    expect(resCsvLocked.statusCode).toBe(200);
+    expect(resCsvLocked.body).toContain('已确认');
+
+    // 5. 校验审计日志中有 competition.roster.export
     const auditRes = await app.inject({
       method: 'GET',
       url: '/api/console/audit?action=competition.roster.export',

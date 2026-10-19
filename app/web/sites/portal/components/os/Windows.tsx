@@ -6,7 +6,7 @@ import { links } from "../../lib/links";
 import { agoLabel, runTerminal, type AppId, type OsApp, type TerminalLine } from "../../lib/osApps";
 import { orgChartModel, orgSummary, useOrg, type OrgBadge } from "../../lib/org";
 import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
-import { shortDay, useCompetitions, type CompetitionKind, type CompetitionStatus } from "../../lib/competitions";
+import { beijingDay, useCompetitions, type CompetitionKind, type CompetitionStatus } from "../../lib/competitions";
 import Icon from "../Icon";
 
 export type WindowId = "about" | "org" | "terminal" | "forum-feed" | "competitions";
@@ -244,8 +244,8 @@ export function Competitions() {
               {item.description && <p className="pt-comp-desc">{item.description}</p>}
               <p className="pt-comp-when">
                 <Icon name="calendar-event-line" size={13} />
-                {shortDay(item.start_at)} 起，到 {shortDay(item.end_at)}
-                {item.signup_deadline !== null && <span className="pt-comp-due">报名截止 {shortDay(item.signup_deadline)}</span>}
+                {beijingDay(item.start_at)} 起，到 {beijingDay(item.end_at)}
+                {item.signup_deadline !== null && <span className="pt-comp-due">报名截止 {beijingDay(item.signup_deadline)}</span>}
               </p>
               {item.url && (
                 <a className="pt-comp-link" href={item.url} target="_blank" rel="noopener noreferrer">

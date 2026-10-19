@@ -302,10 +302,11 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
     };
   }
 
+  const resolveMemberStmt = db.prepare<[string], { login: string; avatar_url: string | null }>(
+    "SELECT login, avatar_url FROM sessions WHERE login = ? ORDER BY expires_at DESC LIMIT 1",
+  );
   function resolveMember(accountId: string): Member {
-    const sessionRow = db.prepare<[string, number], { login: string; avatar_url: string | null }>(
-      "SELECT login, avatar_url FROM sessions WHERE login = ? OR user_id = ? ORDER BY expires_at DESC LIMIT 1",
-    ).get(accountId, Number(accountId) || -1);
+    const sessionRow = resolveMemberStmt.get(accountId);
 
     if (sessionRow) {
       return {
@@ -1276,7 +1277,7 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
       let state: State = "none";
       if (!signup || signup.status === "cancelled") {
         state = "none";
-      } else if (compStatus === "ended" || compStatus === "closed") {
+      } else if (compStatus !== "registering") {
         if (!isTeam) {
           state = isInternal ? "confirmed" : "signed_up";
         } else {
@@ -1469,7 +1470,7 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
         };
       });
 
-      const unassignedAccounts = db.prepare<[string], { account_id: string }>(
+      const unassignedAccounts = settings?.participation !== "team" ? [] : db.prepare<[string], { account_id: string }>(
         `SELECT s.account_id FROM competition_signups s
          WHERE s.competition_id = ? AND s.status = 'active'
            AND NOT EXISTS (
@@ -1504,24 +1505,31 @@ export function createCompetitionSignupStore(db: Database.Database): Competition
         "序号", "账号", "姓名", "参赛形式", "状态", "队伍", "队内角色", "参赛备注", "登记时间",
       ];
 
-      const userTeamMap = new Map<string, { teamName: string; role: string }>();
+      const userTeamMap = new Map<string, { teamName: string; role: string; locked: boolean }>();
       for (const t of roster.teams) {
         for (const m of t.members) {
           if (m.status === "active") {
             userTeamMap.set(m.account_id, {
               teamName: t.name,
               role: m.role === "leader" ? "队长" : "队员",
+              locked: t.status === "locked",
             });
           }
         }
       }
 
+      const comp = getCompStmt.get(competitionId);
+      const isInternal = comp?.kind === "internal";
+      const isTeam = roster.settings?.participation === "team";
+
       const rows: string[][] = [];
       let index = 1;
-      for (const s of roster.signups) {
+      for (const s of roster.signups.filter(s => s.status === "active")) {
         const teamInfo = userTeamMap.get(s.account_id);
-        const participationStr = roster.settings?.participation === "team" ? "团队赛" : "个人赛";
-        const statusStr = s.status === "active" ? "已报名" : "已取消";
+        const participationStr = isTeam ? "团队赛" : "个人赛";
+        const statusStr = isTeam
+          ? (teamInfo?.locked ? "已确认" : teamInfo ? "组队中" : "未入队")
+          : (isInternal ? "已确认" : "已报名");
 
         rows.push([
           String(index++),
