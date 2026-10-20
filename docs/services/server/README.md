@@ -12,7 +12,7 @@
 | `app/server/src/app.ts` | 组装 portal/admin/console/forum 路由、中间件与插件；直连时托管 `app/web/dist` 与 `app/console/dist` 两份前端产物，`resolveSiteEntry` 按路径把 `/console`、`/admin`、`/signin`（含子路径）回落到控制台入口；**不监听端口**，可注入依赖；可选 `observeRoute` 在根路由与子插件之前挂载，供隔离目录工具读取最终路由 Schema，默认不启用 |
 | `app/server/src/services.ts` | 每个应用实例拥有自己的 data.db、缓存、身份与外部客户端；建库后先把意见箱只与 `CONSOLE_ORG` 差大小写的旧组织名归一（#129），再读论坛内容并播种（任何一步失败都先关库、启动失败）；按发信配置建 `mail`（配置写错同样启动失败）；提供关闭方法。测试用 `ServiceOverrides.mailFetch`、`clock` 换掉发信商请求，以及发信队列与会话（建会话、判过期、定时清理）用的时钟 |
 | `app/server/src/config.ts` | 环境变量解析与校验（端口、唯一对外地址 `PUBLIC_ORIGIN`、`CONSOLE_ORG`、密钥长度、难度参数、发信的 `MAIL_*`，都不设时不发信）；不读取前端配置。`forumContentDir` 固定为 `app/forum/content`（不是环境变量，镜像里是同一个相对位置） |
-| `app/server/src/routes/portal/index.ts` | portal 路由注册入口（docs / feedback / join / apply / public config / org / competitions / competition signups & teams：`competition-signups.ts`） |
+| `app/server/src/routes/portal/index.ts` | portal 路由注册入口（docs / feedback / join / apply / public config / org：`org.ts` / competitions / competition signups & teams：`competition-signups.ts`） |
 | `app/server/src/routes/portal/contracts.ts` | portal 请求 Schema（本模块输入协议源，含比赛报名、组队与申请/邀请双向确认） |
 | `app/server/src/routes/admin/index.ts` | admin 路由注册入口（`/auth/*`、`/api/me/*`、`/api/admin/:org/*`） |
 | `app/server/src/routes/admin/contracts.ts` | admin 请求 Schema |

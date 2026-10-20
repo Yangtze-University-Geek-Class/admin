@@ -29,3 +29,10 @@
 - 做了什么：按 CODE-REVIEW 逐项复核合入后的 diff：契约文件取 stage 显式响应 Schema 且保留 #239 新接口；console/competitions.ts 的 409 报名检查在事务之前、审计与写入同一事务；Windows.tsx 使用 stage 的 dayRange/shortDay 渲染；ownership.json 无悬空引用（pnpm check:catalog 通过）、8 维评估与 coverage 按新 base 裁剪（pnpm check:architecture 通过）
 - 结果：pnpm check 全部通过；pnpm test 83 个文件 1277 通过 28 跳过；pnpm build 成功；PR #261 mergeable=MERGEABLE，正文与追踪评论已更新；未验证项：预发布环境人工验收、PR 标签（fork 账号无权限，已请维护者补）
 - 下一步：等待维护者补 PR 标签与人工审查
+
+## 11:34:35 +08:00 · 返工 · #239 · 补齐 API.md 缺失的 7 个比赛端点并由代码核对字段
+
+- 执行者：agent-claude-geek-main-01（Claude Code，deepseek-v4.1-flash）
+- 做了什么：审查发现 API.md 端点清单缺 GET /api/me/competitions、GET /api/competitions/:id/free-agents、PUT .../signup-settings、POST /api/teams/:id/transfer、DELETE /api/teams/:id、POST/DELETE /api/teams/:id/lock 共 7 行，且 my-status、roster 与 PATCH/DELETE 比赛三行的响应形状与实际 store 类型不符；按 competition-signup-store.ts 的 MyStatus/MyCompetition/PendingItem/FreeAgent/RosterSummary 与 mapErrorCode 的错误码逐行重写；server/README.md 的 portal 入口保留 stage 的 org.ts 说明
+- 结果：pnpm check:doc-sync 通过（6 组模块与文档）；check-docs 285 篇通过；check:architecture 通过（35 个文件 140 个节点）
+- 下一步：提交并推送，更新 PR 正文的变更范围与未验证项
