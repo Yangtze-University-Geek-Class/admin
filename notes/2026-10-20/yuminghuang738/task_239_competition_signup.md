@@ -57,3 +57,10 @@
 - 做了什么：等 8428f17 的新一轮 CI 跑完并核对结果：architecture-alignment、branch-guard、env-contract、lint-workflows、docker、docker-cdn、forum、core、e2e、verify、Netlify 三项全部 pass；逐行读 pr-contract 失败日志，两处 error 都是 PR_LABELS 为空导致（缺少 ui:interaction、func:api、func:auth、func:data），正文契约本身通过
 - 结果：13 项通过、1 项失败（pr-contract 仅标签问题，fork 账号无 AddLabelsToLabelable 权限）；已在 PR 留两条追踪评论并请维护者补标签；未验证项仍是预发布环境人工验收
 - 下一步：等维护者补标签使 pr-contract 转绿并做人工验收；合并进 stage 后由合并人关 issue、task.mjs finish 清 worktree
+
+## 13:05:03 +08:00 · 返工 · #239 · 把 origin/stage（含 #263 控制台加载提示）合回本分支并解决目录产物冲突
+
+- 执行者：agent-claude-geek-main-01（Claude Code，deepseek-v4.1-flash）
+- 做了什么：stage 前进到 b51bf13（PR #264 #263 控制台首次打开加载提示），PR #261 变为 CONFLICTING；git merge origin/stage 后 6 个 catalog 生成物冲突（CATALOG.md、catalog.json、data-model.md、map.html、permissions.md、routes.md 的来源摘要行），按规范只手工解决 ownership.json 之外不改生成物：git checkout --ours 后重跑 pnpm catalog:generate 以当前源码重新生成；docs/services/console/README.md 的 #263 三处改动自动合并保留
+- 结果：合并提交 6a4095e；pnpm check 通过（exit=0，含 catalog/architecture/doc-sync/typecheck）；pnpm test 84 个文件 1285 通过 28 跳过；pnpm build 成功；check:architecture 35 个文件 140 个节点
+- 下一步：推送到 fork，确认 PR #261 恢复 MERGEABLE 并重跑 CI
