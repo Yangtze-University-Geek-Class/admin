@@ -36,3 +36,10 @@
 - 做了什么：审查发现 API.md 端点清单缺 GET /api/me/competitions、GET /api/competitions/:id/free-agents、PUT .../signup-settings、POST /api/teams/:id/transfer、DELETE /api/teams/:id、POST/DELETE /api/teams/:id/lock 共 7 行，且 my-status、roster 与 PATCH/DELETE 比赛三行的响应形状与实际 store 类型不符；按 competition-signup-store.ts 的 MyStatus/MyCompetition/PendingItem/FreeAgent/RosterSummary 与 mapErrorCode 的错误码逐行重写；server/README.md 的 portal 入口保留 stage 的 org.ts 说明
 - 结果：pnpm check:doc-sync 通过（6 组模块与文档）；check-docs 285 篇通过；check:architecture 通过（35 个文件 140 个节点）
 - 下一步：提交并推送，更新 PR 正文的变更范围与未验证项
+
+## 11:37:06 +08:00 · 推送 · #239 · 推送 API.md 端点补齐提交并更新 PR
+
+- 执行者：agent-claude-geek-main-01（Claude Code，deepseek-v4.1-flash）
+- 做了什么：git push fork task/239/competition_signup 推送 4ec61df；gh pr edit 更新 PR #261 正文的变更范围（7 个漏记端点与三处响应形状修正）；gh pr comment 留下进展追踪记录
+- 结果：4e97518..4ec61df 推送成功；PR 正文与追踪评论已更新；CI 在新提交上重新排队（core/e2e/docker/pr-contract 等）
+- 下一步：等 CI 结果；pr-contract 仍需维护者补 ui:interaction、func:api、func:auth、func:data 标签
