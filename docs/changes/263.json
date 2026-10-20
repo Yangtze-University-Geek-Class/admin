@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "issue": 263,
+  "kind": "engineering",
+  "summary": "控制台首次打开时，入口页一到就显示与登录确认界面一致的加载提示，不再在下载样式和脚本期间整页空白。",
+  "applications": [
+    "console"
+  ],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "只改变控制台脚本到达之前入口页上显示的内容，登录确认、能力判断和各页面功能都没有变化。",
+      "evidence": [
+        "app/console/src/pages/ConsoleRoot.vue",
+        "app/console/src/router.ts"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "没有新增或修改服务端接口，入口页仍由 web 镜像与服务端按原有路径规则回落提供。",
+      "evidence": [
+        "docs/architecture/catalog/routes.md",
+        "docs/services/web/README.md"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "加载提示不读取身份、不展示任何数据，未登录跳转与能力门仍由挂载后的 ConsoleRoot 处理。",
+      "evidence": [
+        "app/console/src/pages/ConsoleRoot.vue",
+        "docs/architecture/SECURITY.md"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不读写数据库、浏览器存储或接口数据，只在入口页加入静态文字与内联样式。",
+      "evidence": [
+        "docs/architecture/catalog/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "没有新增依赖包或外部服务，转圈样式按已安装的 Tuffex 转圈组件手写复刻。",
+      "evidence": [
+        "app/console/package.json"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "控制台服务合同补充加载提示的显示与隐藏条件、慢网补充说明以及构建时挪动样式表的原因。",
+      "evidence": [
+        "docs/services/console/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增入口页结构、主题令牌一致和样式表挪位的单元测试，并在开发服务器上扣住脚本做浏览器回归。",
+      "evidence": [
+        "tests/console/boot-placeholder.test.ts",
+        "tests/e2e/workflows.spec.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "控制台构建产物的入口页把样式表链接从头部挪到正文末尾，镜像内容结构、路径和部署流程不变。",
+      "evidence": [
+        "app/console/vite.config.ts",
+        "app/web/Dockerfile"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/console/index.html",
+        "app/console/vite.config.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:console"
+      ],
+      "reason": "控制台入口页自带加载提示，构建插件只调整样式表位置，应用源码、路由和接口调用保持原样。"
+    },
+    {
+      "paths": [
+        "tests/console/boot-placeholder.test.ts",
+        "tests/e2e/workflows.spec.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:console"
+      ],
+      "reason": "回归测试覆盖入口页结构、与主题令牌一致、样式表挪位，以及浏览器里提示的显示与交接。"
+    },
+    {
+      "paths": [
+        "docs/services/console/README.md",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/services/console/README.md",
+        "domain:platform"
+      ],
+      "reason": "控制台服务合同记录加载提示的行为、隐藏规则和构建时挪动样式表的取舍；合同与控制台源码是项目目录来源，按 pnpm catalog:generate 只重建来源摘要，接口、表和能力条目不变。"
+    }
+  ],
+  "documents": [
+    "docs/services/console/README.md"
+  ],
+  "tests": [
+    "tests/console/boot-placeholder.test.ts",
+    "tests/e2e/workflows.spec.ts"
+  ],
+  "compatibility": "入口路径、资源文件名规则和 CDN 开关都不变；提示只用主流浏览器均支持的选择器与动画，挂载后的界面与之前相同。",
+  "migration": "没有数据、接口或配置迁移；发布新的 web 镜像后入口页即带加载提示。",
+  "rollback": "回滚本次入口页与构建配置改动并重新构建 web 镜像即可，不涉及数据或其他服务。"
+}

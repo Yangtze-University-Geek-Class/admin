@@ -168,6 +168,24 @@ test("signed-out visitors land on the GitHub sign-in page with a return path", a
   await expect(page.getByRole("button", { name: "用 GitHub 登录" })).toBeVisible();
 });
 
+test("before the console script arrives the entry page already says 正在加载控制台, and hides it once the console renders (#263)", async ({ page }) => {
+  let release = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/src/main.ts", async route => { await held; await route.continue(); });
+  const url = new URL("/console", CONSOLE_ORIGIN);
+  url.searchParams.set("__data", "mock");
+  url.searchParams.set("__persona", "captain");
+  // 模块脚本还没到，load 与 DOMContentLoaded 都不会发生，只等入口页开始到达。
+  await page.goto(url.toString(), { waitUntil: "commit" });
+  const boot = page.getByRole("status").filter({ hasText: "正在加载控制台" });
+  await expect(boot).toBeVisible();
+  await expect(page.getByText("网络较慢，长时间没有反应可以刷新页面")).toBeHidden();
+  await expect(page.locator("#app")).toBeEmpty();
+  release();
+  await expect(page.getByRole("heading", { name: "概览", level: 1 })).toBeVisible({ timeout: 15_000 * SLOW });
+  await expect(boot).toBeHidden();
+});
+
 test("people are grouped by department like a contacts list, with lead and superior, and no in-page search", async ({ page }) => {
   await openConsole(page, "/console/people");
   await expect(page.getByRole("heading", { name: "成员与权限", level: 1 })).toBeVisible();

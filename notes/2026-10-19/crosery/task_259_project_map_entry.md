@@ -31,3 +31,21 @@
 - 执行者：agent-codex-map-entry（Codex）
 - 做了什么：703eb27实现提交经pre-push通过后推送，创建PR260回stage；运行本机OMP真实loadAgentsMd provider读取当前根AGENTS，再解析到正式检索指引
 - 结果：PR https://github.com/Yangtze-University-Geek-Class/admin/pull/260；rootLoaded、mapPointerLoaded、retrievalGuideExists均true，warnings为空。不启动模型会话；与6入口245链接及rg/jq查询结果一起作为导航验收证据
+
+## 01:06:31 +08:00 · 合并 · #259 · 项目地图固定入口已合入stage
+
+- 执行者：agent-codex-map-entry（Codex）
+- 做了什么：PR260在三项必需检查成功后以merge commit合入stage1293f892f0de0660c57932466fe63c6ff35a404a；最终审查结论与245链接/查询/OMP加载证据已留PR，未修改地图或业务代码
+- 结果：实现提交703eb27b、记录提交9ffe1315均已合并；标准merge API成功，无管理员绕过。等待合并后自动关闭issue、删除分支及stage CI后finish，未发版
+
+## 01:11:28 +08:00 · 验收 · #259 · 正式入口已入stage且合并后CI通过
+
+- 执行者：agent-codex-map-entry（Codex）
+- 做了什么：核对stage1293f892的导航文件与正式目录，CI39147840962成功；PR260必需检查成功后合并，Branch hygiene39147841518与Issue lifecycle39147841553成功；核对issue关闭和远端分支删除
+- 结果：仓库首页、文档首页及Agent入口均指向docs/architecture/catalog；检索样例和OMP加载实测通过，地图与基线逐字一致。未变更业务UI或发布环境，随后finish本机任务目录
+
+## 01:13:40 +08:00 · 收尾 · #259 · PR #260 已合并，清理 worktree
+
+- 执行者：agent-codex-map-entry（Codex）
+- 做了什么：node scripts/task.mjs finish 259：删 worktree .claude/worktrees/task-259 与本地分支 task/259/project_map_entry
+- 结果：PR 已合并

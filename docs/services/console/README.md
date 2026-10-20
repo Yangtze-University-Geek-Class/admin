@@ -12,7 +12,7 @@
 
 | 路径 | 职责 |
 |---|---|
-| `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost |
+| `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost；`index.html` 自带首次打开的加载提示（#263，见「构建与托管」） |
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`）；`ConsoleShell` 把它交给 `CapabilityGate`，缺能力时整页换成权限说明，没写的页面按 `console.access` 判断 |
 | `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`Competitions`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`：只显示实际持有能力的页面）、能力门 `CapabilityGate`（直接访问无权限地址仍说明原因）、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
@@ -121,6 +121,8 @@ app/console/dist/
 
 `base` 是 `/`，不读 `public/`（favicon 与 logo 作为模块导入进 `console-assets/`）。静态资源 CDN 开关（#146，构建参数 `STATIC_CDN_BASE`）打开时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把 `console-assets/` 下的文件改写到 `https://cdn.crosery.com/yzgc/static/site/console-assets/…`，入口页与路由仍走源站；为空时同源。规则与 web 相同，见 [web 合同](../web/README.md)「静态资源 CDN 开关」。web 镜像把这份 dist 叠进 nginx 站点根，`/console`、`/console/…`、`/admin`、`/admin/…`、`/signin` 回落到 `sites/console/index.html`；服务端 `resolveSiteEntry` 同一规则（直连 server 时）。详见 [web 合同](../web/README.md) 与 [DEPLOY](../../ops/DEPLOY.md)。
 
+首次打开的加载提示（#263）：`index.html` 在 `#app` 后面放了一段 `.console-boot`（转圈 +「正在加载控制台」）和它的内联样式，入口页一到就画出来，不等控制台的样式表和脚本；样子和位置照 `ConsoleRoot` 的「正在确认登录状态」，颜色、字体取 `src/styles/theme.css` 的令牌，改令牌时一起改（`tests/console/boot-placeholder.test.ts` 核对）。Vue 挂载后 `#app` 不再为空，`#app:not(:empty) ~ .console-boot` 把提示藏起，交接时不闪白；10 秒后还没挂载，在下方补一句「网络较慢，长时间没有反应可以刷新页面」；减少动态效果时不转圈；禁用 JavaScript 时只显示「控制台需要开启 JavaScript 才能使用。」。线上 CSP 允许内联样式、不允许内联脚本，所以提示只用样式。Vite 默认把样式表链接放进 `<head>`，浏览器要等它下完才开始画（Fast 3G 下约 1.2 秒），所以构建时 `vite.config.ts` 的 `moveStylesheetsToBodyEnd` 把它挪到 `</body>` 前：预加载扫描器照常并行下载，模块脚本按 HTML 规范仍等样式表就绪才执行，挂载时样式已经齐了。开发态（`pnpm dev:console`）样式由脚本注入，不经过这一步。
+
 ## 开发
 
 ```bash
@@ -139,11 +141,11 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ## 验证
 
-`tests/e2e/application-cancelled.spec.mts` 在 1440px / 390px 下由浏览器调用真实 Fastify 路由与内存库，只有身份查询和发信商是假响应，不接用户的本机验收实例、不发真实邮件；覆盖打开选项、键盘选取消、保存、刷新、保留历史、取消筛选与导出链接，以及过期画面 409 后保留备注。`tests/e2e/workflows.spec.ts` 里的邀请页用例在 1440/1280/1024 与 390×844 下量真实渲染几何：24 字符合成 token 在本格内截断（不越出单元格、不划穿「结果」列）、结果徽章与北京时间各保单行、两张表行高一致、窄屏横向滚动关在表自己的容器里（#211）。截图和自动测试不代替在预发布做的人工验收。
+`tests/e2e/application-cancelled.spec.mts` 在 1440px / 390px 下由浏览器调用真实 Fastify 路由与内存库，只有身份查询和发信商是假响应，不接用户的本机验收实例、不发真实邮件；覆盖打开选项、键盘选取消、保存、刷新、保留历史、取消筛选与导出链接，以及过期画面 409 后保留备注。`tests/e2e/workflows.spec.ts` 里的邀请页用例在 1440/1280/1024 与 390×844 下量真实渲染几何：24 字符合成 token 在本格内截断（不越出单元格、不划穿「结果」列）、结果徽章与北京时间各保单行、两张表行高一致、窄屏横向滚动关在表自己的容器里（#211）；另一条在开发服务器上扣住 `src/main.ts`：脚本没到时入口页已显示「正在加载控制台」、`#app` 为空，放行后概览出来、提示藏起（#263）。截图和自动测试不代替在预发布做的人工验收。
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）、首次加载提示（入口页结构、令牌一致、样式表挪位）
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

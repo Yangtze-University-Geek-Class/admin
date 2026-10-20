@@ -7,9 +7,118 @@
     <meta name="robots" content="noindex" />
     <link rel="icon" type="image/png" sizes="32x32" href="/src/assets/favicon-32.png" />
     <title>极客班控制台</title>
+    <!--
+      首次打开的加载提示（#263）：入口页一到就画出来，不等控制台的样式表和脚本。样子照 ConsoleRoot 的
+      「正在确认登录状态」（.root-state 与 24px 的 TxSpinner），交接时位置不变、不闪白；颜色与字体取自
+      src/styles/theme.css 的令牌（tests/console/boot-placeholder.test.ts 核对）。CSP 允许内联样式、不允许
+      内联脚本，所以这里只有样式：Vue 挂载后 #app 不再为空，提示由选择器藏起来。
+    -->
+    <style>
+      html {
+        background: #f4f6fc;
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+      }
+      .console-boot,
+      .console-noscript {
+        position: relative;
+        box-sizing: border-box;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 12px;
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px 16px;
+        color: #535b85;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+      #app:not(:empty) ~ .console-boot {
+        display: none;
+      }
+      .console-boot__spinner {
+        position: relative;
+        box-sizing: border-box;
+        width: 24px;
+        height: 24px;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        animation: console-boot-turn 0.85s linear infinite;
+      }
+      .console-boot__ball,
+      .console-boot__dot {
+        position: absolute;
+        left: 50%;
+        border-radius: 50%;
+        background: currentColor;
+        transform: translate(-50%, -50%);
+      }
+      .console-boot__ball {
+        top: 50%;
+        width: 100%;
+        height: 100%;
+        animation: console-boot-pulse 0.85s ease-out infinite;
+      }
+      .console-boot__dot {
+        top: 0;
+        width: 6px;
+        height: 6px;
+      }
+      .console-boot__slow {
+        position: absolute;
+        top: calc(50% + 40px);
+        right: 16px;
+        left: 16px;
+        text-align: center;
+        line-height: 22px;
+        visibility: hidden;
+        animation: console-boot-slow 0s linear 10s forwards;
+      }
+      @keyframes console-boot-turn {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes console-boot-pulse {
+        from {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(0);
+        }
+        to {
+          opacity: 0.45;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+      @keyframes console-boot-slow {
+        to {
+          visibility: visible;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .console-boot__spinner {
+          animation: none;
+        }
+        .console-boot__ball {
+          animation: none;
+          opacity: 0;
+        }
+      }
+    </style>
+    <noscript><style>.console-boot { display: none; }</style></noscript>
   </head>
   <body>
     <div id="app"></div>
+    <div class="console-boot" role="status">
+      <span class="console-boot__spinner" aria-hidden="true"><span class="console-boot__ball"></span><span class="console-boot__dot"></span></span>
+      <span>正在加载控制台</span>
+      <span class="console-boot__slow">网络较慢，长时间没有反应可以刷新页面</span>
+    </div>
+    <noscript><p class="console-noscript">控制台需要开启 JavaScript 才能使用。</p></noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

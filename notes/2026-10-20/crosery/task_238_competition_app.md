@@ -29,3 +29,9 @@
 - 做了什么：提交上一条返工的改动：6 个应用文件、2 个测试文件、3 份服务文档、6 个项目目录生成文件与本执行记录
 - 结果：pnpm test 82 个文件 1282 条通过；pnpm check（Node 22.23.2）退出 0：文档同步 6 组、项目目录 179 方法路径/28 表/21 能力、宏观对齐 72 个变更文件/87 个关联节点、文档链接 285 份
 - 下一步：推到 fork，等 CI、e2e 与 Netlify 预览，复看后更新 #243 正文，以 merge commit 合并并关闭 #238、留关闭记录；#239 保持打开
+
+## 04:25:19 +08:00 · 收尾 · #238 · PR #243 已合并，清理 worktree
+
+- 执行者：agent-notion-geek-handoff（Notion AI，接手 Codex PR 跟进）
+- 做了什么：node scripts/task.mjs finish 238：删 worktree .claude/worktrees/task-238 与本地分支 task/238/competition_app
+- 结果：PR 已合并

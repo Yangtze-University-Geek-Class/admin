@@ -23,6 +23,40 @@ function emitEntryUnderSites(): Plugin {
   };
 }
 
+const STYLESHEET_REL = /\srel\s*=\s*(["']?)stylesheet\1[\s/>]/i;
+
+/**
+ * 把 <head> 里的样式表链接按原顺序挪到 </body> 前，其余标签（图标、模块脚本、modulepreload）原样不动。
+ *
+ * 首次打开的加载提示（#263，index.html 的 .console-boot）要在入口页一到就画出来；样式表留在 <head> 时，
+ * 浏览器要等它下完才开始画（Fast 3G 下约 1.2 秒）。挪到 body 末尾后仍由预加载扫描器并行下载，
+ * 模块脚本按 HTML 规范仍等文档里的样式表就绪才执行，所以挂载时样式已经齐了，不会露出没有样式的界面。
+ */
+export function moveStylesheetsToBodyEnd(html: string): string {
+  const headEnd = html.indexOf("</head>");
+  const bodyEnd = html.lastIndexOf("</body>");
+  if (headEnd < 0 || bodyEnd < headEnd) return html;
+  const links: string[] = [];
+  const head = html.slice(0, headEnd).replace(/[ \t]*<link\b[^>]*>[ \t]*(?:\r?\n)?/gi, (tag) => {
+    if (!STYLESHEET_REL.test(tag)) return tag;
+    links.push(tag.trim());
+    return "";
+  });
+  if (!links.length) return html;
+  const body = html.slice(headEnd, bodyEnd);
+  const indent = /\n([ \t]*)$/.exec(body)?.[1] ?? "";
+  const moved = links.map((link) => `\n${indent}  ${link}`).join("");
+  return `${head}${body.replace(/\s*$/, "")}${moved}\n${indent}${html.slice(bodyEnd)}`;
+}
+
+function stylesheetsAfterBootPlaceholder(): Plugin {
+  return {
+    name: "yzgc-console-boot-stylesheets",
+    apply: "build",
+    transformIndexHtml: { order: "post", handler: moveStylesheetsToBodyEnd },
+  };
+}
+
 /**
  * 静态资源 CDN 开关（#146，scripts/static-cdn-base.mjs）：STATIC_CDN_BASE 为空时同源；
  * 非空时 console-assets/ 下带哈希的文件改从 CDN 加载，入口 HTML 与路由仍走源站（base 不变）。
@@ -39,6 +73,7 @@ export default defineConfig({
   plugins: [
     vue(),
     UnoCSS(),
+    stylesheetsAfterBootPlaceholder(),
     emitEntryUnderSites(),
   ],
   server: {
