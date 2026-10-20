@@ -25,9 +25,9 @@
   "flows": [
     "flow:competition.public.list",
     "flow:competition.console.list",
-    "flow:competition.console.create",
-    "flow:competition.console.update",
-    "flow:competition.console.delete",
+    "flow:competition.create",
+    "flow:competition.update",
+    "flow:competition.delete",
     "flow:competition.roster.read",
     "flow:competition.signup_settings.update",
     "flow:competition.roster.export",
@@ -133,7 +133,6 @@
         "app/server/src/routes/portal/competitions.ts",
         "app/server/src/routes/console/competitions.ts",
         "app/server/src/routes/console/competition-roster.ts",
-        "app/server/src/lib/competition-store.ts",
         "app/server/src/lib/competition-signup-store.ts"
       ],
       "domains": [
@@ -303,25 +302,8 @@
     },
     {
       "paths": [
-        "app/console/src/lib/competitions.ts",
-        "app/console/src/pages/Competitions.vue"
-      ],
-      "domains": [
-        "competitions"
-      ],
-      "nodes": [
-        "domain:competitions",
-        "application:console"
-      ],
-      "reason": "控制台比赛管理前端视图与状态转换、表单校验及去重统计展示纯逻辑。"
-    },
-    {
-      "paths": [
-        "app/console/src/lib/nav.ts",
         "app/console/src/lib/permission-boundaries.ts",
-        "app/console/src/lib/types.ts",
-        "app/console/src/mock/console.ts",
-        "app/console/src/router.ts"
+        "app/console/src/mock/console.ts"
       ],
       "domains": [
         "audit",
@@ -340,76 +322,11 @@
     },
     {
       "paths": [
-        "app/web/sites/portal/lib/competitions.ts"
-      ],
-      "domains": [
-        "competitions"
-      ],
-      "nodes": [
-        "domain:competitions",
-        "application:web"
-      ],
-      "reason": "官网门户前台比赛数据获取、缓存与时间感知状态推导客户端模块。"
-    },
-    {
-      "paths": [
-        "app/web/sites/portal/components/os/Windows.tsx",
-        "app/web/sites/portal/components/os/YugcOs.tsx",
-        "app/web/sites/portal/lib/osApps.ts"
-      ],
-      "domains": [
-        "competitions",
-        "feedback",
-        "identity",
-        "invitations",
-        "organization",
-        "platform",
-        "public_content",
-        "recruitment"
-      ],
-      "nodes": [
-        "domain:competitions",
-        "application:web"
-      ],
-      "reason": "官网桌面操作系统应用窗口定义、桌面图标与比赛应用接入。"
-    },
-    {
-      "paths": [
-        "app/web/shared/lib/mock-api.ts"
-      ],
-      "domains": [
-        "competitions",
-        "platform"
-      ],
-      "nodes": [
-        "domain:competitions",
-        "application:web"
-      ],
-      "reason": "官网开发预览样板接口支持无后端环境下的比赛列表浏览。"
-    },
-    {
-      "paths": [
-        "app/web/sites/portal/styles/os.css"
-      ],
-      "domains": [
-        "competitions"
-      ],
-      "nodes": [
-        "domain:competitions",
-        "application:web"
-      ],
-      "reason": "官网桌面比赛应用窗口与布局样式定义。"
-    },
-    {
-      "paths": [
         "docs/ops/CICD.md",
         "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md",
         "docs/services/console/README.md",
         "docs/services/server/README.md",
-        "docs/services/server/data-model.md",
-        "docs/services/web/README.md",
-        "docs/services/web/portal.md"
+        "docs/services/server/data-model.md"
       ],
       "domains": [
         "competitions",
@@ -426,11 +343,8 @@
     },
     {
       "paths": [
-        "tests/console/competitions.test.ts",
         "tests/server/competition-signups.test.ts",
-        "tests/server/competitions.test.ts",
-        "tests/server/legacy-database.test.ts",
-        "tests/web/portal-competitions.test.tsx"
+        "tests/server/legacy-database.test.ts"
       ],
       "domains": [
         "competitions"
