@@ -3,6 +3,9 @@ import {
   APPLICATION_STATUS_IDS, ASSIGNABLE_ROLES, CAPABILITY_IDS, DEPARTMENT_ICONS, DEPARTMENT_ID_PATTERN, DEPARTMENT_TAG_PATTERN, TITLE_IDS, TITLE_TAG_PATTERN, TONE_IDS,
 } from "../../lib/roles.js";
 import { FEEDBACK_STATUSES } from "../../lib/feedback-store.js";
+import {
+  competitionFields, competitionFailures, competitionDeleted, consoleCompetitionList, consoleCompetitionResult,
+} from "../../lib/competition-contract.js";
 
 /** 与 config.GITHUB_LOGIN_REGEX 一致；这里写成 JSON Schema 可用的字符串。 */
 const GITHUB_LOGIN_PATTERN = "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$";
@@ -22,15 +25,21 @@ const departmentFields = {
   icon: choices(...DEPARTMENT_ICONS), tone: choices(...TONE_IDS), description: text(200),
   head_capabilities: bundle, member_capabilities: bundle, sort_order: integer(0, 10000),
 };
-const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
-/** 比赛（#238）：时间是 UTC 毫秒时间戳，界面上按北京时间填与看；`url` 对所有类型可选，填了必须是 https。 */
-const competitionFields = {
-  name: text(80, 2), kind: choices("internal", "external"),
-  start_at: integer(0), end_at: integer(0),
-  signup_deadline: { anyOf: [integer(0), { type: "null" }] },
-  url: { anyOf: [{ ...text(500, 1), pattern: "^https://\\S+$" }, { type: "null" }] },
-  description: text(1000),
+// 新能力也扩展了这些权限包接口的入参枚举，响应合同必须保留原有展示、计数与时间字段。
+const departmentViewFields = {
+  id: departmentId, ...departmentFields, archived: { type: "boolean" },
+  created_at: integer(0), updated_at: integer(0),
+  heads: { type: "array", items: login }, crew_count: integer(0),
 };
+const departmentResult = object({
+  department: object(departmentViewFields, Object.keys(departmentViewFields)),
+}, ["department"]);
+const titleViewFields = {
+  id: choices(...TITLE_IDS), label: text(8, 1), tag: text(16, 1), icon: { type: "string" },
+  tone: choices(...TONE_IDS), description: text(200), capabilities: bundle,
+};
+const titleResult = object({ title: object(titleViewFields, Object.keys(titleViewFields)) }, ["title"]);
+const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
 const competitionParams = { params: object({ competition_id: { type: "string", pattern: UUID_PATTERN } }, ["competition_id"]) };
 
 /** `/api/console/*` 的输入协议源。所有 body 与 query 都拒绝未知字段。 */
@@ -42,7 +51,7 @@ export const consoleContracts: RouteContracts = {
   "POST /api/console/departments": {
     ...noQuery,
     body: object({ id: departmentId, ...departmentFields }, ["id", "name", "tag", "icon", "tone", "head_capabilities"]),
-    response: { 201: { type: "object", additionalProperties: true } },
+    response: { 201: departmentResult },
   },
   "PATCH /api/console/titles/:title_id": {
     ...noQuery,
@@ -54,13 +63,13 @@ export const consoleContracts: RouteContracts = {
       }),
       minProperties: 1,
     },
-    response: { 200: { type: "object", additionalProperties: true } },
+    response: { 200: titleResult },
   },
   "PATCH /api/console/departments/:department_id": {
     ...noQuery,
     params: object({ department_id: departmentId }, ["department_id"]),
     body: { ...object({ ...departmentFields, archived: { type: "boolean" } }), minProperties: 1 },
-    response: { 200: { type: "object", additionalProperties: true } },
+    response: { 200: departmentResult },
   },
   "DELETE /api/console/departments/:department_id": {
     ...noQuery,
@@ -96,16 +105,18 @@ export const consoleContracts: RouteContracts = {
     ...noQuery,
     body: { ...object({ status: choices(...FEEDBACK_STATUSES), reply: text(5000) }), minProperties: 1 },
   },
-  "GET /api/console/competitions": noQuery,
+  "GET /api/console/competitions": { ...noQuery, response: { 200: consoleCompetitionList, ...competitionFailures } },
   "POST /api/console/competitions": {
     ...noQuery,
     body: object({ ...competitionFields }, ["name", "kind", "start_at", "end_at"]),
+    response: { 201: consoleCompetitionResult, ...competitionFailures },
   },
   "PATCH /api/console/competitions/:competition_id": {
     ...noQuery, ...competitionParams,
     body: { ...object({ ...competitionFields, offline: { type: "boolean" } }), minProperties: 1 },
+    response: { 200: consoleCompetitionResult, ...competitionFailures },
   },
-  "DELETE /api/console/competitions/:competition_id": { ...noQuery, ...competitionParams },
+  "DELETE /api/console/competitions/:competition_id": { ...noQuery, ...competitionParams, response: { 200: competitionDeleted, ...competitionFailures } },
   "PUT /api/console/competitions/:competition_id/signup-settings": {
     ...noQuery, ...competitionParams,
     body: object({

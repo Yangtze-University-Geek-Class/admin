@@ -6,14 +6,15 @@ import {
   type CompetitionDraft, type CompetitionPatch, type CompetitionRecord,
 } from "../../lib/competition-store.js";
 
-/** 时间先后关系的错误码 → 给操作者看的话。 */
-const RANGE_MESSAGE: Record<"bad_range" | "deadline_after_end", string> = {
+const VALIDATION_MESSAGE: Record<NonNullable<ReturnType<typeof competitionError>>, string> = {
+  bad_name: "比赛名称至少需要 2 个非首尾空白字符",
   bad_range: "结束时间不能早于开始时间",
   deadline_after_end: "报名截止不能晚于比赛结束",
+  bad_url: "请填写有效的 https:// 官方链接",
 };
 
 /** 补丁归一：`url` 与 `kind` 无关（内部比赛也能挂自己的比赛官网），这里只保证空串按「没填」处理。 */
-const normalize = (draft: CompetitionDraft): CompetitionDraft => ({ ...draft, url: draft.url?.trim() ? draft.url.trim() : null });
+const normalize = (draft: CompetitionDraft): CompetitionDraft => ({ ...draft, name: draft.name.trim(), url: draft.url?.trim() ? draft.url.trim() : null });
 
 /**
  * 比赛（#238）：控制台里新建、编辑、下线。授权按 `competitions.manage` 判定，只在服务端。
@@ -21,7 +22,7 @@ const normalize = (draft: CompetitionDraft): CompetitionDraft => ({ ...draft, ur
  */
 export default async function consoleCompetitionRoutes(app: FastifyInstance) {
   const { competitions, competitionSignups, config } = app.services;
-  const { audit } = app.services.storage;
+  const { audit, db } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
   const manage = [requireCapability("competitions.manage")];
@@ -45,11 +46,14 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const draft = normalize(req.body);
       const invalid = competitionError(draft);
-      if (invalid) return reply.code(400).send({ error: invalid, message: RANGE_MESSAGE[invalid] });
+      if (invalid) return reply.code(400).send({ error: invalid, message: VALIDATION_MESSAGE[invalid] });
       const id = newCompetitionId();
-      const created = competitions.insert(id, draft, Date.now());
-      if (!created) return reply.code(500).send({ error: "not_created", message: "比赛没有建成功，请重试" });
-      audit(config.consoleOrg, req.session!.login, "competition.create", id, { name: created.name, kind: created.kind }, req.ip);
+      const created = db.transaction(() => {
+        const record = competitions.insert(id, draft, Date.now());
+        if (!record) throw new Error("Competition insert returned no row");
+        audit(config.consoleOrg, req.session!.login, "competition.create", id, { name: record.name, kind: record.kind }, req.ip);
+        return record;
+      })();
       return reply.code(201).send({ competition: toConsoleCompetition(created, Date.now()) });
     },
   );
@@ -81,10 +85,15 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
 
       // 时间关系要拿「改完之后的样子」判：只改开始时间时，结束时间取库里的，不能只看这一条补丁。
       const invalid = competitionError(normalize({ ...patchBase(current), ...req.body, kind: req.body.kind ?? current.kind }));
-      if (invalid) return reply.code(400).send({ error: invalid, message: RANGE_MESSAGE[invalid] });
-      const changed = competitions.update(id, req.body, Date.now());
+      if (invalid) return reply.code(400).send({ error: invalid, message: VALIDATION_MESSAGE[invalid] });
+      const patch = { ...req.body };
+      if (patch.name !== undefined) patch.name = patch.name.trim();
+      const changed = db.transaction(() => {
+        const record = competitions.update(id, patch, Date.now());
+        if (record) audit(config.consoleOrg, req.session!.login, "competition.update", id, { changed: Object.keys(req.body) }, req.ip);
+        return record;
+      })();
       if (!changed) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
-      audit(config.consoleOrg, req.session!.login, "competition.update", id, { changed: Object.keys(req.body) }, req.ip);
       return { competition: toConsoleCompetition(changed, Date.now()) };
     },
   );
@@ -98,15 +107,17 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const { competition_id: id } = req.params;
-      const record = competitions.get(id);
-      if (!record) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
-
       if (competitionSignups.hasAnySignups(id)) {
         return reply.code(409).send({ error: "competition_has_signups", message: "有报名记录的比赛不能删除，只能下线" });
       }
 
-      if (!competitions.remove(id)) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
-      audit(config.consoleOrg, req.session!.login, "competition.delete", id, { name: record.name }, req.ip);
+      const removed = db.transaction(() => {
+        const record = competitions.get(id);
+        if (!record || !competitions.remove(id)) return false;
+        audit(config.consoleOrg, req.session!.login, "competition.delete", id, { name: record.name }, req.ip);
+        return true;
+      })();
+      if (!removed) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
       return { ok: true };
     },
   );

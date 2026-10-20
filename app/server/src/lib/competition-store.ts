@@ -1,13 +1,12 @@
 // 比赛（#238）：官方赛事信息的持久化。只接收普通参数；授权判断在调用方（控制台路由）。
 //
-// `competitionStatus`、`compareCompetitions`、`toPublicCompetition` 与 `competitionError` 是列表排序、筛选、
-// 「状态」与合法性判断的唯一实现，服务端与官网前端不允许各写一份；`status` 不入库，一律由时间戳与当前时间算出来。
+// `status` 不入库，按时间戳现算；官网按同一规则更新状态，跨端一致性由回归测试核对。
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 
 export type CompetitionKind = "internal" | "external";
-/** 状态由时间算出来，不入库：报名中 / 报名已截止 / 进行中 / 已结束。 */
-export type CompetitionStatus = "registering" | "closed" | "ongoing" | "ended";
+/** 状态由时间算出来，不入库：未开始 / 报名中 / 报名已截止 / 进行中 / 已结束。 */
+export type CompetitionStatus = "upcoming" | "registering" | "closed" | "ongoing" | "ended";
 
 export type CompetitionRecord = {
   id: string; name: string; kind: CompetitionKind;
@@ -62,7 +61,7 @@ export function competitionStatus(record: Pick<CompetitionRecord, "start_at" | "
   if (record.signup_deadline !== null && now <= record.signup_deadline) return "registering";
   if (now >= record.start_at) return "ongoing";
   // 比赛还没开始、报名也截止了：报不了名，但还没开场，对外说「报名已截止」。
-  return record.signup_deadline === null ? "registering" : "closed";
+  return record.signup_deadline === null ? "upcoming" : "closed";
 }
 
 /**
@@ -83,11 +82,19 @@ export function compareCompetitions(
 
 /**
  * 时间的先后关系在路由里先判，不靠库上的 CHECK 抛 500。返回 null 表示合法。
- * `url` 与 `kind` 无关，只由输入契约保证「填了必须是 https」。
+ * `url` 与 `kind` 无关；输入契约检查形状，这里解析地址，拒绝只有 https 前缀的无效链接。
  */
-export function competitionError(draft: CompetitionDraft): "bad_range" | "deadline_after_end" | null {
+export function competitionError(draft: CompetitionDraft): "bad_name" | "bad_range" | "deadline_after_end" | "bad_url" | null {
+  if ([...draft.name.trim()].length < 2) return "bad_name";
   if (draft.end_at < draft.start_at) return "bad_range";
   if (draft.signup_deadline !== null && draft.signup_deadline > draft.end_at) return "deadline_after_end";
+  if (draft.url) {
+    try {
+      if (new URL(draft.url).protocol !== "https:") return "bad_url";
+    } catch {
+      return "bad_url";
+    }
+  }
   return null;
 }
 

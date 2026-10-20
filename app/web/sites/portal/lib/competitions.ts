@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { api } from "@shared/lib/api";
 
 export type CompetitionKind = "internal" | "external";
-export type CompetitionStatus = "registering" | "closed" | "ongoing" | "ended";
+export type CompetitionStatus = "upcoming" | "registering" | "closed" | "ongoing" | "ended";
 export type Competition = {
   id: string; name: string; kind: CompetitionKind;
   start_at: number; end_at: number; signup_deadline: number | null;
@@ -17,34 +17,39 @@ export type Competition = {
 export const COMPETITIONS_URL = "/api/public/competitions";
 
 const KINDS: CompetitionKind[] = ["internal", "external"];
-const STATUSES: CompetitionStatus[] = ["registering", "closed", "ongoing", "ended"];
+const STATUSES: CompetitionStatus[] = ["upcoming", "registering", "closed", "ongoing", "ended"];
 /** 只认识要用的那几个字段：缺 `id`、名称或起止时间的条目直接丢掉，不显示半条。 */
 type RawCompetition = { id?: unknown; name?: unknown; kind?: unknown; start_at?: unknown; end_at?: unknown; signup_deadline?: unknown; url?: unknown; description?: unknown; status?: unknown };
 
-const asNumber = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
+// 北京时间显示还要加八小时；UTC 有效但换算后越界的时间也不能交给界面。
+const asTimestamp = (value: unknown): number | null =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && Number.isFinite(new Date(value + 8 * 3600_000).getTime()) ? value : null;
 const asText = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /**
  * 读一条比赛。`id`、名称、起止时间缺一不可。服务端给的 `status` 认不出时按时间现算，
- * 不把状态显示错；外部比赛才带链接，且只收 https。
+ * 不把状态显示错；所有类型的比赛都可以带有效的 https 链接。
  */
 export function readCompetition(value: unknown): Competition | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as RawCompetition;
   const id = asText(raw.id);
   const name = asText(raw.name);
-  const start = asNumber(raw.start_at);
-  const end = asNumber(raw.end_at);
-  if (!id || !name || start === null || end === null) return null;
+  const start = asTimestamp(raw.start_at);
+  const end = asTimestamp(raw.end_at);
+  if (!id || !name || start === null || end === null || end < start) return null;
   const kind = KINDS.includes(raw.kind as CompetitionKind) ? (raw.kind as CompetitionKind) : "internal";
-  const signup_deadline = asNumber(raw.signup_deadline);
+  const signup_deadline = asTimestamp(raw.signup_deadline);
   const status = STATUSES.includes(raw.status as CompetitionStatus)
     ? (raw.status as CompetitionStatus)
     : statusAt({ start_at: start, end_at: end, signup_deadline }, Date.now());
-  // 服务端的 status 只当形状校验用，展示时一律重算（见 useCompetitions）
-  void status;
   const link = asText(raw.url);
-  const url = /^https:\/\/\S+$/.test(link) ? link : null;
+  let url: string | null = null;
+  try {
+    if (/^https:\/\/\S+$/.test(link) && new URL(link).protocol === "https:") url = link;
+  } catch {
+    // 无效链接不妨碍读取赛事的其余公开信息。
+  }
   return { id, name, kind, start_at: start, end_at: end, signup_deadline, url, description: asText(raw.description), status };
 }
 
@@ -53,14 +58,15 @@ export function statusAt(record: { start_at: number; end_at: number; signup_dead
   if (now > record.end_at) return "ended";
   if (record.signup_deadline !== null && now <= record.signup_deadline) return "registering";
   if (now >= record.start_at) return "ongoing";
-  return record.signup_deadline === null ? "registering" : "closed";
+  return record.signup_deadline === null ? "upcoming" : "closed";
 }
 
 /** 读响应：只留读得出来的条目，保持服务端给的顺序。 */
 export function readCompetitions(body: unknown): Competition[] {
-  const list = typeof body === "object" && body !== null && Array.isArray((body as { competitions?: unknown }).competitions)
-    ? ((body as { competitions: unknown[] }).competitions)
-    : [];
+  if (typeof body !== "object" || body === null || !Array.isArray((body as { competitions?: unknown }).competitions)) {
+    throw new Error("Invalid competitions response");
+  }
+  const list = (body as { competitions: unknown[] }).competitions;
   return list.map(readCompetition).filter((item): item is Competition => item !== null);
 }
 
@@ -88,18 +94,23 @@ export function useCompetitions(): CompetitionFeed {
         setFailed(false);
         setLoading(false);
       },
-      () => {
+    ).catch(() => {
         if (controller.signal.aborted) return;
         setFailed(true);
         setLoading(false);
-      },
-    );
+      });
     const timer = window.setInterval(() => { if (!controller.signal.aborted) tick((n) => n + 1); }, 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
 
   const now = Date.now();
-  return { items: items.map((item) => ({ ...item, status: statusAt(item, now) })), failed, loading };
+  const current = items.map((item) => ({ ...item, status: statusAt(item, now) })).sort((a, b) => {
+    const aEnded = now > a.end_at;
+    const bEnded = now > b.end_at;
+    if (aEnded !== bEnded) return aEnded ? 1 : -1;
+    return (aEnded ? b.start_at - a.start_at : a.start_at - b.start_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  });
+  return { items: current, failed, loading };
 }
 
 /** 时间戳 → 北京时间的 `YYYY-MM-DD`。 */
@@ -118,7 +129,15 @@ export function beijingDayEdge(date: string, edge: "start" | "end"): number | nu
   return edge === "start" ? midnight : midnight + 24 * 3600_000 - 1;
 }
 
-/** 「10-18」这种短日期；列表里不重复写年份。 */
-export function shortDay(at: number): string {
-  return beijingDay(at).slice(5);
+/** 本年省略年份；跨年赛事保留年份，按北京时间判断当前年。 */
+export function shortDay(at: number, now = Date.now()): string {
+  const date = beijingDay(at);
+  const year = beijingDay(now).split("-")[0];
+  return date.startsWith(`${year}-`) ? date.slice(year.length + 1) : date;
+}
+
+/** 比赛时间：起止在北京时间同一天时只写一个日期，跨天才写「起，到」，不出现「10-26 起，到 10-26」。 */
+export function dayRange(start: number, end: number, now = Date.now()): string {
+  const from = shortDay(start, now);
+  return beijingDay(start) === beijingDay(end) ? from : `${from} 起，到 ${shortDay(end, now)}`;
 }

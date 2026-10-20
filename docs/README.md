@@ -91,12 +91,12 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 本机预览与论坛运行 | [LOCAL-PREVIEW](ops/LOCAL-PREVIEW.md)、[TUFF-FORUM](ops/TUFF-FORUM.md) |
 | 极客班论坛原始数据拉取与本地备份 | [FORUM-DATA-CAPTURE](ops/FORUM-DATA-CAPTURE.md) |
 | 用户指南，可公开 | [USAGE](ops/USAGE.md) |
-| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md)、[ADR-0004](decisions/0004-forum-backend-in-core-server.md) |
+| 架构决策 | [ADR-0001](decisions/0001-modular-monolith.md)、[ADR-0002](decisions/0002-tuffex-ui-foundation.md)、[ADR-0003](decisions/0003-adopt-tuff-forum.md)、[ADR-0004](decisions/0004-forum-backend-in-core-server.md)、[ADR-0005](decisions/0005-sso-extend-core-server.md) |
 | 交付证据与历史整改记录 | [reviews](reviews/README.md)；历史材料见 [history](history/README.md)、[plan](plan/README.md)、[handovers](handovers/README.md) |
 
 ## 文档类别与优先级
 
-`conventions/` 规定如何协作，`services/` 规定每个服务的边界与实现位置，`architecture/` 描述当前系统，`design/` 规定当前交互与选型，`ops/` 记录操作流程，`decisions/` 保存已接受的决策，`plan/` `history/` `handovers/` 保存计划与历史材料，`reviews/` 保存交付证据，`public/` 仅存允许公开的材料。
+`conventions/` 规定如何协作，`services/` 规定每个服务的边界与实现位置，`architecture/` 描述当前系统，`design/` 规定当前交互与选型，`ops/` 记录操作流程，`decisions/` 保存架构决策及待确认方案，以各文档的状态与实施说明为准；`plan/` `history/` `handovers/` 保存计划与历史材料，`reviews/` 保存交付证据，`public/` 仅存允许公开的材料。
 
 同一规则只在一个规范源定义，其余文档链接过去。状态词表只有 `current` / `accepted` / `proposed` / `historical`（见 [DOCUMENTATION](conventions/DOCUMENTATION.md)）：`historical` 与 `proposed` 文档不覆盖 current 规范，也不得被当作现行操作依据。代码与 current 文档不一致是缺陷，必须在改动中说明并同步修正；不能通过随意选择某份文档掩盖冲突。
 

@@ -11,7 +11,7 @@ const DAY_MS = 24 * 3600_000;
 const pad = (value: number) => String(value).padStart(2, "0");
 
 export const STATUS_TEXT: Record<CompetitionStatus, string> = {
-  registering: "报名中", closed: "报名已截止", ongoing: "进行中", ended: "已结束",
+  upcoming: "未开始", registering: "报名中", closed: "报名已截止", ongoing: "进行中", ended: "已结束",
 };
 
 export const KIND_TEXT = { internal: "内部", external: "外部" } as const;
@@ -23,6 +23,11 @@ export function beijingDate(at: number | null | undefined): string {
   if (at === null || at === undefined || !Number.isFinite(at)) return "";
   const d = new Date(at + BEIJING_OFFSET_MS);
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+/** 起止在北京时间同一天：列表只写一个日期，不写成「某日起，到同一日」。 */
+export function isOneDay(record: { start_at: number; end_at: number }): boolean {
+  return beijingDate(record.start_at) === beijingDate(record.end_at);
 }
 
 /**
@@ -62,7 +67,7 @@ export function formFrom(record: {
   };
 }
 
-type Field = "name" | "startDate" | "endDate" | "deadlineDate" | "url";
+type Field = "name" | "startDate" | "endDate" | "deadlineDate" | "url" | "description";
 
 /**
  * 表单校验。逐条报错，空对象表示可以提交。
@@ -71,8 +76,10 @@ type Field = "name" | "startDate" | "endDate" | "deadlineDate" | "url";
 export function formErrors(form: CompetitionForm): Partial<Record<Field, string>> {
   const errors: Partial<Record<Field, string>> = {};
   const name = form.name.trim();
-  if (name.length < 2) errors.name = "请填比赛名称，至少 2 个字。";
-  else if (name.length > 80) errors.name = "比赛名称最多 80 个字。";
+  // JSON Schema 按 Unicode 码点计数，不能把扩展汉字的 UTF-16 代理对算成两个字。
+  const nameLength = [...name].length;
+  if (nameLength < 2) errors.name = "请填比赛名称，至少 2 个字。";
+  else if (nameLength > 80) errors.name = "比赛名称最多 80 个字。";
 
   const start = dateEdge(form.startDate, "start");
   const end = dateEdge(form.endDate, "end");
@@ -85,7 +92,15 @@ export function formErrors(form: CompetitionForm): Partial<Record<Field, string>
   else if (deadline !== null && end !== null && deadline > end) errors.deadlineDate = "报名截止不能晚于比赛结束。";
   // 链接对所有比赛类型都可选：不填就不跳转，填了必须是 https（比赛官网可以是站内的，也要 https 的对外地址）
   const url = form.url.trim();
-  if (url && !/^https:\/\/\S+$/.test(url)) errors.url = "官方链接要以 https:// 开头。";
+  if (url) {
+    try {
+      if (!/^https:\/\/\S+$/.test(url) || new URL(url).protocol !== "https:") errors.url = "请填写有效的 https:// 官方链接。";
+    } catch {
+      errors.url = "请填写有效的 https:// 官方链接。";
+    }
+    if ([...url].length > 500) errors.url = "官方链接最多 500 个字。";
+  }
+  if ([...form.description.trim()].length > 1000) errors.description = "说明最多 1000 个字。";
   return errors;
 }
 
@@ -93,10 +108,10 @@ export function formErrors(form: CompetitionForm): Partial<Record<Field, string>
  * 表单 → 提交给服务端的正文（UTC 时间戳）。
  * 开始取当天 00:00、结束取当天 23:59:59.999、截止取当天 23:59:59.999：
  * 「报名截止当天」整个白天都还能报，不会在当天零点就报不上名。
- * 链接可选：没填送 null，服务端按「没给」处理。
+ * 链接可选：没填送 null，编辑时表示明确清空；提供原记录时只生成修改过的字段。
  */
-export function formPayload(form: CompetitionForm) {
-  return {
+export function formPayload(form: CompetitionForm, original?: Parameters<typeof formFrom>[0]) {
+  const payload = {
     name: form.name.trim(),
     kind: form.kind,
     start_at: dateEdge(form.startDate, "start") as number,
@@ -104,5 +119,17 @@ export function formPayload(form: CompetitionForm) {
     signup_deadline: form.deadlineDate.trim() ? dateEdge(form.deadlineDate, "end") : null,
     url: form.url.trim() || null,
     description: form.description.trim(),
+  };
+  if (!original) return payload;
+  const before = formFrom(original);
+  // 日期控件只到天；没改这个日期时保留 API 记录的时分，不把一次文字编辑变成改赛程。
+  return {
+    ...(payload.name !== original.name ? { name: payload.name } : {}),
+    ...(payload.kind !== original.kind ? { kind: payload.kind } : {}),
+    ...(form.startDate.trim() !== before.startDate ? { start_at: payload.start_at } : {}),
+    ...(form.endDate.trim() !== before.endDate ? { end_at: payload.end_at } : {}),
+    ...(form.deadlineDate.trim() !== before.deadlineDate ? { signup_deadline: payload.signup_deadline } : {}),
+    ...(payload.url !== original.url ? { url: payload.url } : {}),
+    ...(payload.description !== original.description ? { description: payload.description } : {}),
   };
 }

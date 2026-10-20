@@ -10,6 +10,7 @@ const now = Date.now();
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
+const beijingDayEnd = (at: number) => Math.floor((at + 8 * HOUR) / DAY) * DAY + DAY - 8 * HOUR - 1;
 export const MOCK_ORG = "Yangtze-University-Geek-Class";
 
 export const MOCK_TONES: Record<Tone, string> = {
@@ -294,20 +295,28 @@ const mailSettings = (email: string) => ({ enabled: true, recipients: "allowlist
  * 所以样板只写死起止与截止，不写状态字段。
  */
 const MOCK_COMPETITIONS = [
-  { id: "c1001", name: "极客班算法挑战赛", kind: "internal", start_at: now + 6 * DAY, end_at: now + 6 * DAY + 6 * HOUR, signup_deadline: now + 4 * DAY, url: null, description: "班内选拔，前五名进校赛。", offline: false },
-  { id: "c1002", name: "蓝桥杯省赛", kind: "external", start_at: now + 20 * DAY, end_at: now + 20 * DAY + 4 * HOUR, signup_deadline: now + 12 * DAY, url: "https://dasai.lanqiao.cn/", description: "以学校为单位报名。", offline: false },
-  { id: "c1003", name: "上学年内测赛", kind: "internal", start_at: now - 9 * DAY, end_at: now - 8 * DAY, signup_deadline: null, url: null, description: "已结束。", offline: false },
+  { id: "c1001", name: "极客班算法挑战赛", kind: "internal", start_at: now + 6 * DAY, end_at: now + 6 * DAY + 6 * HOUR, signup_deadline: beijingDayEnd(now + 4 * DAY), url: null, description: "班内选拔，前五名进校赛。", offline: false },
+  { id: "c1002", name: "蓝桥杯省赛", kind: "external", start_at: now + 20 * DAY, end_at: now + 20 * DAY + 4 * HOUR, signup_deadline: beijingDayEnd(now + 12 * DAY), url: "https://dasai.lanqiao.cn/", description: "以学校为单位报名。", offline: false },
+  { id: "c1003", name: "上一期内测赛", kind: "internal", start_at: now - 9 * DAY, end_at: now - 8 * DAY, signup_deadline: null, url: null, description: "热身用的小比赛，不计成绩。", offline: false },
 ];
 /** 状态的算法与服务端 `competitionStatus` 保持一致，样板不另外写一份结果。 */
-function mockCompetitionStatus(row: { start_at: number; end_at: number; signup_deadline: number | null }) {
-  if (now > row.end_at) return "ended";
-  if (row.signup_deadline !== null && now <= row.signup_deadline) return "registering";
-  if (now >= row.start_at) return "ongoing";
-  return row.signup_deadline === null ? "registering" : "closed";
+function mockCompetitionStatus(row: { start_at: number; end_at: number; signup_deadline: number | null }, at: number) {
+  if (at > row.end_at) return "ended";
+  if (row.signup_deadline !== null && at <= row.signup_deadline) return "registering";
+  if (at >= row.start_at) return "ongoing";
+  return row.signup_deadline === null ? "upcoming" : "closed";
 }
-const competitionView = () => MOCK_COMPETITIONS
-  .map(row => ({ ...row, status: mockCompetitionStatus(row) }))
-  .sort((a, b) => (now > a.end_at ? 1 : 0) - (now > b.end_at ? 1 : 0) || a.start_at - b.start_at);
+const competitionView = () => {
+  const at = Date.now();
+  return MOCK_COMPETITIONS
+    .map(row => ({ ...row, status: mockCompetitionStatus(row, at) }))
+    .sort((a, b) => {
+      const aEnded = at > a.end_at;
+      const bEnded = at > b.end_at;
+      if (aEnded !== bEnded) return aEnded ? 1 : -1;
+      return (aEnded ? b.start_at - a.start_at : a.start_at - b.start_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    });
+};
 
 const FEEDBACK = [
   { id: 21, category: "建议", status: "open", submitter_login: "liu-xing", contact: "", content: "希望每月有一次项目复盘分享，录屏放到论坛里，方便没到场的同学补看。", reply: null, replied_by: null, replied_at: null, created_at: now - 5 * HOUR },

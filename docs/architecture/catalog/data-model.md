@@ -2,9 +2,9 @@
 
 > 从真实建库函数产生的内存 SQLite 提取表、列、索引和物理外键；不读取业务记录。
 
-状态：`current` · 更新：2026-10-18 · 自动生成，不手工编辑。
+状态：`current` · 更新：2026-10-20 · 自动生成，不手工编辑。
 
-来源摘要：`6e752944da9e196c7d0b95ba3037551c28986ac8e1e6e7e3b865277d5e1c2128`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`d2f12c41ffee16ed471d9a414db5af4eef5972df46a1ace9be579bcbd1434b2a`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -463,7 +463,7 @@ CREATE TABLE competition_teams (
 
 业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:188](../../../app/server/src/lib/db.ts#L188)。
 
-比赛信息。状态由起止时间与当前时间动态计算；不含个人信息。
+只存赛事事实，不含参赛者或队伍；status 由起止时间与报名截止按当前时间算（未开始/报名中/报名已截止/进行中/已结束），offline 仅控制公开可见性；有报名记录的比赛只能下线不能删除。参赛与组队数据在 competition_signup* / competition_team* 表。
 
 | 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
 |---|---|---|---|---|---|

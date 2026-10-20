@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { reactive, ref } from "vue";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxDataTable } from "@talex-touch/tuffex/data-table";
 import { TxButton } from "@talex-touch/tuffex/button";
@@ -19,14 +19,14 @@ import { api, jsonBody } from "../lib/http";
 import { confirm } from "../lib/confirm";
 import { fmtDay } from "../lib/format";
 import { useAction, useResource } from "../lib/resource";
-import { KIND_TEXT, STATUS_TEXT, emptyForm, formErrors, formFrom, formPayload, type CompetitionForm } from "../lib/competitions";
+import { KIND_TEXT, STATUS_TEXT, emptyForm, formErrors, formFrom, formPayload, isOneDay, type CompetitionForm } from "../lib/competitions";
 import type { CompetitionRecord, CompetitionStatus } from "../lib/types";
 
 const list = useResource(() => api<{ competitions: CompetitionRecord[] }>("/api/console/competitions"), []);
 
 /** 状态色：报名中用成功色，进行中用主色，报不了名的与结束过的都弱化。 */
 const STATUS_TONE: Record<CompetitionStatus, "success" | "info" | "warning" | "muted"> = {
-  registering: "success", ongoing: "info", closed: "warning", ended: "muted",
+  upcoming: "info", registering: "success", ongoing: "info", closed: "warning", ended: "muted",
 };
 
 const columns = [
@@ -38,6 +38,7 @@ const columns = [
 
 const editing = ref(false);
 const editingId = ref<string | null>(null);
+const original = ref<CompetitionRecord>();
 const form = reactive<CompetitionForm>(emptyForm());
 const errors = ref<Partial<Record<string, string>>>({});
 const kindOptions = [
@@ -48,6 +49,7 @@ const kindOptions = [
 function openCreate() {
   Object.assign(form, emptyForm());
   editingId.value = null;
+  original.value = undefined;
   errors.value = {};
   save.reset();
   editing.value = true;
@@ -55,6 +57,7 @@ function openCreate() {
 function openEdit(row: CompetitionRecord) {
   Object.assign(form, formFrom(row));
   editingId.value = row.id;
+  original.value = row;
   errors.value = {};
   save.reset();
   editing.value = true;
@@ -63,7 +66,8 @@ const save = useAction(async () => {
   const found = formErrors(form);
   errors.value = found;
   if (Object.keys(found).length) return;
-  const payload = formPayload(form);
+  const payload = formPayload(form, original.value);
+  if (editingId.value && !Object.keys(payload).length) { editing.value = false; return; }
   if (editingId.value) await api(`/api/console/competitions/${editingId.value}`, { method: "PATCH", ...jsonBody(payload) });
   else await api("/api/console/competitions", { method: "POST", ...jsonBody(payload) });
   toast({ title: editingId.value ? "已保存" : "已新建比赛", variant: "success" });
@@ -89,7 +93,7 @@ async function askRemove(row: CompetitionRecord) {
   <div class="page">
     <PageHeader title="比赛" description="官网桌面「比赛」应用显示的赛事。时间按北京时间选，服务端按 UTC 存。">
       <template #actions>
-        <TxButton variant="primary" icon="i-carbon-add" @click="openCreate">新建比赛</TxButton>
+        <TxButton class="competition-create" variant="primary" icon="i-carbon-add" @click="openCreate">新建比赛</TxButton>
       </template>
     </PageHeader>
     <ErrorAlert v-if="toggleOffline.error.value" :error="toggleOffline.error.value" @close="toggleOffline.reset()" />
@@ -110,8 +114,12 @@ async function askRemove(row: CompetitionRecord) {
         </template>
         <template #cell-window="{ row }: { row: CompetitionRecord }">
           <span class="cell-stack">
-            <span>{{ fmtDay(row.start_at) }} 起</span>
-            <span class="cell-sub">到 {{ fmtDay(row.end_at) }}<template v-if="row.signup_deadline"> · 截止 {{ fmtDay(row.signup_deadline) }}</template></span>
+            <span v-if="isOneDay(row)">{{ fmtDay(row.start_at) }}</span>
+            <template v-else>
+              <span>{{ fmtDay(row.start_at) }} 起</span>
+              <span class="cell-sub">到 {{ fmtDay(row.end_at) }}</span>
+            </template>
+            <span v-if="row.signup_deadline" class="cell-sub">报名截止 {{ fmtDay(row.signup_deadline) }}</span>
           </span>
         </template>
         <template #cell-status="{ row }: { row: CompetitionRecord }">
@@ -130,7 +138,7 @@ async function askRemove(row: CompetitionRecord) {
 
     <TxModal v-model="editing" :title="editingId ? '编辑比赛' : '新建比赛'" width="min(92vw, 640px)">
       <TxForm :model="form" label-position="top">
-        <div class="form-grid">
+        <div class="form-grid competition-form">
           <TxFormItem label="比赛名称" class="wide">
             <TxInput v-model="form.name" class="fill-width" placeholder="例如：极客班算法挑战赛" />
             <span v-if="errors.name" class="field-error">{{ errors.name }}</span>
@@ -158,6 +166,7 @@ async function askRemove(row: CompetitionRecord) {
           </TxFormItem>
           <TxFormItem label="说明（选填）" class="wide">
             <TxTextarea v-model="form.description" :rows="3" placeholder="一两句说清这是什么比赛、谁能参加。" />
+            <span v-if="errors.description" class="field-error">{{ errors.description }}</span>
           </TxFormItem>
         </div>
         <ErrorAlert v-if="save.error.value" :error="save.error.value" @close="save.reset()" />
@@ -193,8 +202,26 @@ async function askRemove(row: CompetitionRecord) {
   gap: 8px;
 }
 .field-error {
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
   color: var(--tx-color-danger);
+}
+.competition-create,
+.row-actions :deep(button),
+.dialog-actions :deep(button),
+.competition-form :deep(.tx-radio) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.competition-form :deep(.tx-input) {
+  min-height: 46px;
+}
+.competition-form :deep(.tx-input__inner) {
+  min-height: 44px;
+}
+/* TxModal 会 Teleport；以本页表单为条件限定关闭按钮，不改其它弹窗。 */
+:global([role="dialog"]:has(.competition-form) .tx-modal__close) {
+  width: 44px;
+  height: 44px;
 }
 </style>

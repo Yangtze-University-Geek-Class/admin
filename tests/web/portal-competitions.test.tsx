@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Competitions } from "../../app/web/sites/portal/components/os/Windows";
-import { COMPETITIONS_URL, beijingDay, beijingDayEdge, readCompetition, readCompetitions, shortDay, statusAt } from "../../app/web/sites/portal/lib/competitions";
+import { COMPETITIONS_URL, beijingDay, beijingDayEdge, dayRange, readCompetition, readCompetitions, shortDay, statusAt } from "../../app/web/sites/portal/lib/competitions";
 import { competitionStatus } from "../../app/server/src/lib/competition-store";
 
 // 开发态默认走只读样板数据；这里切到真实数据源，让窗口真的去请求列表（请求由 fetch 桩接住）。
@@ -85,7 +85,7 @@ it("窗口关掉就取消请求", () => {
 it("状态由时间算出来，截止当天整天都还算报名中", () => {
   const at = (start: number, end: number, deadline: number | null) => ({ start_at: start, end_at: end, signup_deadline: deadline });
   expect(statusAt(at(NOW + HOUR, NOW + 2 * HOUR, NOW + 30 * 60_000), NOW)).toBe("registering");
-  expect(statusAt(at(NOW + HOUR, NOW + 2 * HOUR, null), NOW)).toBe("registering");
+  expect(statusAt(at(NOW + HOUR, NOW + 2 * HOUR, null), NOW)).toBe("upcoming");
   expect(statusAt(at(NOW + HOUR, NOW + 2 * HOUR, NOW - 1), NOW)).toBe("closed");
   expect(statusAt(at(NOW - HOUR, NOW + HOUR, NOW - 1), NOW)).toBe("ongoing");
   // 已开场但还能补报：报名中压过进行中
@@ -107,13 +107,15 @@ it("窗口开着时每 60 秒按时间重算：到点后不用刷新就变成已
   vi.useFakeTimers();
   try {
     vi.setSystemTime(NOW);
-    vi.stubGlobal("fetch", vi.fn(async () => json({ competitions: [{ ...INTERNAL, start_at: NOW + 30 * 60_000, end_at: NOW + 45 * 60_000, signup_deadline: NOW + 10 * 60_000 }] })));
+    vi.stubGlobal("fetch", vi.fn(async () => json({ competitions: [{ ...INTERNAL, start_at: NOW + 30 * 60_000, end_at: NOW + 45 * 60_000, signup_deadline: NOW + 10 * 60_000 }, { ...EXTERNAL, signup_deadline: null }] })));
     render(<Competitions />);
     await vi.waitFor(() => expect(screen.getByText("报名中")).toBeTruthy());
+    expect(screen.getAllByRole("listitem")[0].textContent).toContain(INTERNAL.name);
     // 时间推过结束点，再等一次重算
     vi.setSystemTime(NOW + 60 * 60_000);
     await vi.advanceTimersByTimeAsync(60_000);
     await vi.waitFor(() => expect(screen.getByText("已结束")).toBeTruthy());
+    expect(screen.getAllByRole("listitem")[0].textContent).toContain(EXTERNAL.name);
   } finally {
     vi.useRealTimers();
   }
@@ -130,7 +132,23 @@ it("接口给的条目缺字段就丢掉，链接只收 https，认不出的状�
   expect(readCompetition({ id: "c2", name: "B", kind: "external", start_at: 1, end_at: 2, url: "http://example.test/x" })!.url).toBeNull();
   expect(readCompetition({ id: "c2", name: "B", kind: "external", start_at: 1, end_at: 2, url: "https://example.test/x" })!.url).toBe("https://example.test/x");
   expect(readCompetitions({ competitions: [{ id: "c1", name: "A", start_at: 1, end_at: 2 }, "junk", null] })).toHaveLength(1);
-  expect(readCompetitions(null)).toEqual([]);
+  expect(() => readCompetitions(null)).toThrow();
+});
+
+it("接口结构损坏时显示加载失败，不冒充空列表", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => json({ error: "unexpected_response" })));
+  render(<Competitions />);
+  await waitFor(() => expect(screen.getByText(/没加载出来/)).toBeTruthy());
+  expect(screen.queryByText("现在还没有登记的比赛。")).toBeNull();
+});
+
+it("不显示无法表示的日期或无法解析的官方链接", () => {
+  expect(readCompetition({ ...INTERNAL, start_at: 1e30, end_at: 1e31 })).toBeNull();
+  expect(readCompetition({ ...INTERNAL, end_at: 8_640_000_000_000_000 })).toBeNull();
+  expect(readCompetition({ ...INTERNAL, signup_deadline: 1e30 })?.signup_deadline).toBeNull();
+  for (const url of ["https://?", "https://#", "https://[bad-host]"]) {
+    expect(readCompetition({ ...INTERNAL, url })?.url).toBeNull();
+  }
 });
 
 it("按北京时间显示日期，跨零点算作后一天", () => {
@@ -138,7 +156,36 @@ it("按北京时间显示日期，跨零点算作后一天", () => {
   expect(beijingDayEdge("2026-10-16", "start")).toBe(Date.parse("2026-10-15T16:00:00Z"));
   expect(beijingDayEdge("2026-10-16", "end")).toBe(Date.parse("2026-10-16T15:59:59.999Z"));
   expect(beijingDayEdge("2026-02-30", "start")).toBeNull();
-  expect(shortDay(Date.parse("2026-10-15T16:30:00Z"))).toBe("10-16");
+  expect(shortDay(Date.parse("2026-10-15T16:30:00Z"), Date.parse("2026-10-01T00:00:00Z"))).toBe("10-16");
+});
+
+it("跨年日期保留年份，并按北京时间判断当前年", () => {
+  const beforeNewYear = Date.parse("2026-12-31T15:59:59Z");
+  const afterNewYear = Date.parse("2026-12-31T16:00:00Z");
+  expect(shortDay(Date.parse("2025-10-20T00:00:00+08:00"), beforeNewYear)).toBe("2025-10-20");
+  expect(shortDay(afterNewYear, beforeNewYear)).toBe("2027-01-01");
+  expect(shortDay(afterNewYear, afterNewYear)).toBe("01-01");
+  expect(shortDay(beforeNewYear, afterNewYear)).toBe("2026-12-31");
+});
+
+it("同一天的比赛只写一个日期，跨天才写「起，到」", () => {
+  const now = Date.parse("2026-10-01T00:00:00+08:00");
+  const at = (text: string) => Date.parse(`${text}+08:00`);
+  expect(dayRange(at("2026-10-26T00:00:00"), at("2026-10-26T23:59:59.999"), now)).toBe("10-26");
+  expect(dayRange(at("2026-10-26T00:00:00"), at("2026-10-28T23:59:59.999"), now)).toBe("10-26 起，到 10-28");
+  // UTC 里跨了一天，北京时间仍是同一天：按北京时间算
+  expect(dayRange(Date.parse("2026-10-25T16:00:00Z"), Date.parse("2026-10-26T15:59:59.999Z"), now)).toBe("10-26");
+  expect(dayRange(at("2026-12-31T00:00:00"), at("2027-01-01T23:59:59.999"), now)).toBe("12-31 起，到 2027-01-01");
+});
+
+it("窗口里一天内的比赛不写成「某日起，到同一日」", async () => {
+  const day = beijingDay(NOW + 6 * DAY);
+  const oneDay = { ...INTERNAL, start_at: beijingDayEdge(day, "start") as number, end_at: beijingDayEdge(day, "end") as number };
+  vi.stubGlobal("fetch", vi.fn(async () => json({ competitions: [oneDay] })));
+  render(<Competitions />);
+  await waitFor(() => expect(screen.getByText("极客班算法挑战赛")).toBeTruthy());
+  expect(screen.getByText(shortDay(oneDay.start_at))).toBeTruthy();
+  expect(screen.queryByText(/起，到/)).toBeNull();
 });
 
 // 服务端（competitionStatus）与官网（statusAt）各写了一份同一套口径，这里按 org 默认值那条先例逐点比对：

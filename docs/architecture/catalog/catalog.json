@@ -483,7 +483,8 @@
       "docs": [
         "docs/architecture/API.md",
         "docs/services/server/data-model.md",
-        "docs/services/console/README.md"
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "id": "competitions",
       "tables": [
@@ -5994,7 +5995,10 @@
       "capabilities": [],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "doesNotEnqueue": [],
       "domain": "competitions",
@@ -6004,7 +6008,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 11,
+          "line": 6,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -6012,11 +6016,19 @@
           "path": "app/server/src/routes/portal/index.ts"
         },
         {
-          "line": 1,
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 23,
+          "path": "app/server/src/lib/competition-contract.ts"
+        },
+        {
+          "line": 82,
           "path": "app/web/sites/portal/lib/competitions.ts"
         },
         {
-          "line": 22,
+          "line": 216,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -6028,15 +6040,15 @@
           "path": "app/web/sites/portal/lib/osApps.ts"
         },
         {
-          "line": 11,
+          "line": 29,
           "path": "app/web/shared/lib/mock-api.ts"
         }
       ],
       "id": "flow:competition.public.list",
       "invariants": [
-        "权限与资源：公开接口，无需登录；仅返回未下线比赛（offline=0）。",
-        "响应与错误：200 { competitions }；计算动态状态（registering/ongoing/closed/ended），不暴露内部字段与成员个人信息。",
-        "数据与副作用：只读查询，无数据库写入与副作用。"
+        "匿名只读未下线赛事，响应只含公开字段，不含offline、创建时间或成员信息。",
+        "响应200 {competitions}；五种状态按时间计算，未知报名截止的未来赛事为upcoming；未结束在前，已结束按开始时间倒序。",
+        "官网按类型筛选并每60秒重算状态与排序，损坏响应显示失败；全部类型链接可选且必须可解析HTTPS。"
       ],
       "operation": "GET /api/public/competitions",
       "operationLabel": "GET /api/public/competitions",
@@ -6044,13 +6056,17 @@
       "reads": [
         "competitions"
       ],
-      "relatedDomains": [],
+      "relatedDomains": [
+        "platform"
+      ],
       "testStatus": "linked-not-executed-by-generator",
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/web/portal-competitions.test.tsx"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
-      "title": "获取公开比赛列表",
+      "title": "浏览公开比赛信息",
       "writes": []
     },
     {
@@ -6060,26 +6076,29 @@
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "doesNotEnqueue": [],
       "domain": "competitions",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -6090,27 +6109,19 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "id": "flow:competition.console.list",
       "invariants": [
-        "权限与资源：需要 console.access 能力；返回全部比赛（含已下线 offline=1）。",
-        "响应与错误：200 { competitions }；每个条目包含 offline 标记和管理时间戳。",
-        "数据与副作用：仅在会话过期时删除会话并记审计日志，无业务表写入。"
+        "有效sid及console.access可读，控制台页面和导航另需competitions.manage；公开与管理读取范围分别定义。",
+        "200 {competitions}含offline；401未登录，403缺能力。列表按当前时间重算，样板重读同样更新，不冒充真实数据。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。"
       ],
       "operation": "GET /api/console/competitions",
       "operationLabel": "GET /api/console/competitions",
@@ -6125,14 +6136,17 @@
       "relatedDomains": [
         "identity",
         "organization",
-        "audit"
+        "audit",
+        "platform"
       ],
       "testStatus": "linked-not-executed-by-generator",
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
-      "title": "控制台查看比赛列表",
+      "title": "控制台查看全部比赛",
       "writes": [
         "sessions",
         "audit_logs"
@@ -6145,17 +6159,20 @@
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "doesNotEnqueue": [],
       "domain": "competitions",
       "evidence": [
         {
-          "line": 38,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 119,
+          "line": 126,
           "path": "app/server/src/lib/competition-store.ts"
         },
         {
@@ -6165,13 +6182,33 @@
         {
           "line": 87,
           "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "id": "flow:competition.console.create",
+      "id": "flow:competition.create",
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。",
         "响应与错误：201 { competition }；起止与报名截止时间合法性校验失败 400 bad_range / deadline_after_end。",
-        "数据与副作用：写入 competitions 表并记录 competition.create 审计日志。"
+        "数据与副作用：写入 competitions 表并记录 competition.create 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "201 {competition}；校验名称、时间范围和解析后的HTTPS地址；未知字段或错误时间/地址400，限流429。",
+        "比赛行与competition.create审计同一事务提交；审计失败一起回滚，不发邮件，不创建报名或队伍。"
       ],
       "operation": "POST /api/console/competitions",
       "operationLabel": "POST /api/console/competitions",
@@ -6191,7 +6228,9 @@
       "testStatus": "linked-not-executed-by-generator",
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "title": "新建比赛",
       "writes": [
@@ -6207,21 +6246,41 @@
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "doesNotEnqueue": [],
       "domain": "competitions",
       "evidence": [
         {
-          "line": 57,
+          "line": 61,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
         }
       ],
-      "id": "flow:competition.console.update",
+      "id": "flow:competition.update",
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 60 次/分钟。",
         "响应与错误：200 { competition }；已有报名时禁止修改比赛类型（409 competition_has_signups）；开放报名中禁止清空报名截止时间（409 signup_deadline_required）。",
-        "数据与副作用：更新 competitions 表对应字段并记录 competition.update 审计日志。"
+        "数据与副作用：更新 competitions 表对应字段并记录 competition.update 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "200 {competition}；404不存在；合并原记录后验证时间，失败不写。省略字段保留，url和signup_deadline的null明确清空。",
+        "控制台只PATCH实际修改字段，单改说明不改原始时分；offline=true从公开列表移除，false恢复原记录。",
+        "比赛更新与competition.update审计同一事务，审计失败回滚，不发邮件。"
       ],
       "operation": "PATCH /api/console/competitions/:competition_id",
       "operationLabel": "PATCH /api/console/competitions/:competition_id",
@@ -6243,9 +6302,11 @@
       "testStatus": "linked-not-executed-by-generator",
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
-      "title": "修改或下线比赛",
+      "title": "修改、下线和恢复比赛",
       "writes": [
         "competitions",
         "audit_logs",
@@ -6259,21 +6320,36 @@
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "doesNotEnqueue": [],
       "domain": "competitions",
       "evidence": [
         {
-          "line": 92,
+          "line": 101,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
         }
       ],
-      "id": "flow:competition.console.delete",
+      "id": "flow:competition.delete",
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。",
         "响应与错误：200 { ok: true }；有报名记录（含软取消）的比赛不可删除（409 competition_has_signups）。",
-        "数据与副作用：从 competitions 物理删除记录并写 competition.delete 审计日志。"
+        "数据与副作用：从 competitions 物理删除记录并写 competition.delete 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "200 {ok:true}；不存在或重复删除404。DELETE真删，暂时隐藏应使用下线。",
+        "只删除本环境赛事记录，并与competition.delete审计在同一事务提交；审计失败保留赛事，业务删除不增加共同身份查询以外的外部请求。"
       ],
       "operation": "DELETE /api/console/competitions/:competition_id",
       "operationLabel": "DELETE /api/console/competitions/:competition_id",
@@ -6294,7 +6370,9 @@
       "testStatus": "linked-not-executed-by-generator",
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "title": "删除比赛",
       "writes": [
@@ -7386,6 +7464,11 @@
       "title": "docs/services/web/README.md"
     },
     {
+      "id": "document:docs/services/web/portal.md",
+      "kind": "document",
+      "title": "docs/services/web/portal.md"
+    },
+    {
       "id": "domain:audit",
       "kind": "domain",
       "title": "审计"
@@ -7486,24 +7569,19 @@
       "title": "读取组织管理员审计"
     },
     {
-      "id": "flow:competition.console.create",
+      "id": "flow:competition.console.list",
+      "kind": "flow",
+      "title": "控制台查看全部比赛"
+    },
+    {
+      "id": "flow:competition.create",
       "kind": "flow",
       "title": "新建比赛"
     },
     {
-      "id": "flow:competition.console.delete",
+      "id": "flow:competition.delete",
       "kind": "flow",
       "title": "删除比赛"
-    },
-    {
-      "id": "flow:competition.console.list",
-      "kind": "flow",
-      "title": "控制台查看比赛列表"
-    },
-    {
-      "id": "flow:competition.console.update",
-      "kind": "flow",
-      "title": "修改或下线比赛"
     },
     {
       "id": "flow:competition.free_agents.list",
@@ -7513,7 +7591,7 @@
     {
       "id": "flow:competition.public.list",
       "kind": "flow",
-      "title": "获取公开比赛列表"
+      "title": "浏览公开比赛信息"
     },
     {
       "id": "flow:competition.roster.export",
@@ -7599,6 +7677,11 @@
       "id": "flow:competition.teams.unlock",
       "kind": "flow",
       "title": "队长撤销锁定参赛队伍"
+    },
+    {
+      "id": "flow:competition.update",
+      "kind": "flow",
+      "title": "修改、下线和恢复比赛"
     },
     {
       "id": "flow:console.identity",
@@ -9296,6 +9379,11 @@
       "title": "tests/console/competitions.test.ts"
     },
     {
+      "id": "test:tests/e2e/competitions.spec.mts",
+      "kind": "test",
+      "title": "tests/e2e/competitions.spec.mts"
+    },
+    {
       "id": "test:tests/server/applications.test.ts",
       "kind": "test",
       "title": "tests/server/applications.test.ts"
@@ -9373,7 +9461,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "6e752944da9e196c7d0b95ba3037551c28986ac8e1e6e7e3b865277d5e1c2128",
+    "fingerprint": "d2f12c41ffee16ed471d9a414db5af4eef5972df46a1ace9be579bcbd1434b2a",
     "sources": [
       {
         "path": "app/console/package.json",
@@ -9433,7 +9521,7 @@
       },
       {
         "path": "app/console/src/lib/competitions.ts",
-        "sha256": "09bd7a5734348e71e0371925f445672685b9bf414d243d74270283318f87c1c2"
+        "sha256": "861055cdda13424b5c27d4203d3f44c628cde4b28f11cb4fb3bc3f7b1aee95a0"
       },
       {
         "path": "app/console/src/lib/confirm.ts",
@@ -9505,7 +9593,7 @@
       },
       {
         "path": "app/console/src/lib/types.ts",
-        "sha256": "45ce3c78240338967f0a2f435043fd75ea539b69bda0a0b1be452a6311e06685"
+        "sha256": "ea52cafd0730b9ae1c60ba7a2503fcbfb760961fed9183d024aea4d4ee1836f7"
       },
       {
         "path": "app/console/src/main.ts",
@@ -9513,7 +9601,7 @@
       },
       {
         "path": "app/console/src/mock/console.ts",
-        "sha256": "0deabd383bd8c5b5fab86f0a45d1c51aad8db06e5b5b2378831e1700c55c065a"
+        "sha256": "5bb667bc8fce1698bc630649456a3f1f4cf95802f8272c15dad0c08833433850"
       },
       {
         "path": "app/console/src/mock/github.ts",
@@ -9537,7 +9625,7 @@
       },
       {
         "path": "app/console/src/pages/Competitions.vue",
-        "sha256": "68e294076ad7c2a182a76fbb109a49594f7f3aabbae1a8f926e3861eed3eb017"
+        "sha256": "eab1529f0f33b3e6ab4d295cda8e41e0b40144538e27c8b9a47e2ac060568325"
       },
       {
         "path": "app/console/src/pages/ConsoleRoot.vue",
@@ -10108,12 +10196,16 @@
         "sha256": "0e213ba1a9942a245ed9ca4a01ba3cd43d082bcf593197d210501ecec5dc0249"
       },
       {
+        "path": "app/server/src/lib/competition-contract.ts",
+        "sha256": "14553929b1d7527e3a9ac5898f51760ad2f3c84e0ccb60225027de0f2b43209a"
+      },
+      {
         "path": "app/server/src/lib/competition-signup-store.ts",
         "sha256": "ee5c7cd9b9e37e9aff49f6fc06198f6e0b4eacb4e8bae12a59c15b9a7908827d"
       },
       {
         "path": "app/server/src/lib/competition-store.ts",
-        "sha256": "9d80d7c1d1201c7416633e4ac647e9cfdad2061502d986fec5415eb65c8a2cb7"
+        "sha256": "5e238306c8036129e8a547108d258c18df0f9950d5d744f462117e6fb2a33abd"
       },
       {
         "path": "app/server/src/lib/crypto.ts",
@@ -10309,11 +10401,11 @@
       },
       {
         "path": "app/server/src/routes/console/competitions.ts",
-        "sha256": "805784e5cf87dc400b1f51e2aa3cfec03133e3219370189a3f2d2dfa1379df4e"
+        "sha256": "9f43dccbf03cf22603d04b6fe097e556be1ea7054d75cab002b3339f4630b0ba"
       },
       {
         "path": "app/server/src/routes/console/contracts.ts",
-        "sha256": "30f3481ad8a2f4506f19f2e1026fa38c9f6f796264e0a500377c2e08e7296a96"
+        "sha256": "d8688180b14dbc2a2e000a8e9cd2543e137d855603461129e1d6fde131dec1ed"
       },
       {
         "path": "app/server/src/routes/console/departments.ts",
@@ -10373,11 +10465,11 @@
       },
       {
         "path": "app/server/src/routes/portal/competitions.ts",
-        "sha256": "269761ce755b579f1a7e877895c2cc598e3e5c95261707eeb76501d9567bc850"
+        "sha256": "25497c42b465f757a2011adc03c65a34b98340180b9a6d2144ab566ecb604b65"
       },
       {
         "path": "app/server/src/routes/portal/contracts.ts",
-        "sha256": "c743f9332a543822650f1cee62f6425bb1ea9250eed4cd3d62153413e034347b"
+        "sha256": "57010dbe890395fee3925a7a4d64917666b9b8bc6e4a072596520b8a48ffeb99"
       },
       {
         "path": "app/server/src/routes/portal/docs.ts",
@@ -10429,7 +10521,7 @@
       },
       {
         "path": "app/web/shared/lib/mock-api.ts",
-        "sha256": "986d281365dffc0b0ea178a8e7e030fc1bf02233709cb78df952a12383122a71"
+        "sha256": "0b162a2b1b9e56fc712b828fe710e0dc156629cb8a805fd6ab4cc151e4e5ce45"
       },
       {
         "path": "app/web/shared/lib/mount.tsx",
@@ -10529,7 +10621,7 @@
       },
       {
         "path": "app/web/sites/portal/components/os/Windows.tsx",
-        "sha256": "c1065776f7ac03034cd300c898a575e9c1ad99ea12632fb1f8340a606390a9ae"
+        "sha256": "1e914ceb7c4726ce0d9d4494a6dacde2f86b55e4dd360d646f8ddfb117fdb83a"
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
@@ -10549,7 +10641,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/competitions.ts",
-        "sha256": "8e05e5feb7bdc2688da9a9ff07c4997d61be4cc610c34fc679a243f87bc0bef4"
+        "sha256": "1d8b760cc5ef688ebef940bbf768eb08803e3391b9fd9c5e0a2eadf169f71bf0"
       },
       {
         "path": "app/web/sites/portal/lib/deskMachine.ts",
@@ -10681,7 +10773,7 @@
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "5a6f60e2b5bdcd41b61c660ceb6c096a8570ccf540b82da5cf9eb43c9fe30dde"
+        "sha256": "1748397a1fc15d9d05ef33186fda9c155c68ae1b5f0b4457b4f7046e69868cb7"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -10693,7 +10785,7 @@
       },
       {
         "path": "docs/architecture/catalog/ownership.json",
-        "sha256": "00ae1207c313a34bb5486bab42e41ca5c4d34a9fa1d868fc59e70d2c14bfe0b0"
+        "sha256": "c3dbab2ab32b3fd149138c21d54780987650b3b3a5557f8ff3022796be768cf2"
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
@@ -10701,7 +10793,7 @@
       },
       {
         "path": "docs/conventions/DOCUMENTATION.md",
-        "sha256": "c989b3c6989a63b5f151d8f37bd691914cade11292ee8e88e7208a613bcfb888"
+        "sha256": "fc1ce2e4fa56ccd7f17d3c79f80f0bc2a694e6600d3d8ec58514f1ffb7a6cb2a"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -10709,7 +10801,7 @@
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "629147dd1caaaad77b2127769ebc76bfb5af055fd8b622c9f0749794eef85054"
+        "sha256": "aabb86f9bd6c9bea297e2b67cb1400454cb2dc3ef98f68c413530bc9575436b3"
       },
       {
         "path": "docs/services/forum/README.md",
@@ -10717,15 +10809,15 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "8574d13b6e98b57982ff09fe41a776a6b236184e333fa7e48d016decd21d4b47"
+        "sha256": "ede3eded071bb6ab6397245edf5c55ae01e3052d2d9cebeb77e3345d375f5e15"
       },
       {
         "path": "docs/services/server/data-model.md",
-        "sha256": "02ec096a4b0ae269f69a7930540fce7804c039c888945bae8d4044a8d27ef5b5"
+        "sha256": "05339b50bfedc597ed2d405f15486d3501c17874caf61455a6d67f5e9e80098b"
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
-        "sha256": "f2dfd748612800b0ec9e9645881adb7a1c4121a174924d54aceced951f4f2aea"
+        "sha256": "dc5cec34c17c3d5ec3089497c88c5e8a2a76b8351cc3c2df3c008d94e93e2398"
       },
       {
         "path": "docs/services/server/mail.md",
@@ -10733,7 +10825,11 @@
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "c34054bb367acf86ef7ccabc5e89b5aaadddff4ce901355a89577a21be08b50a"
+        "sha256": "73892dd0b5a789710d342e9cd6c0215f6b4e6bc8f67e05435ad59460e503bca2"
+      },
+      {
+        "path": "docs/services/web/portal.md",
+        "sha256": "8a20e7f046faebe53601cf1de21572d4f34d278e3b4744fc76ae0e64cb0c9f54"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -10773,7 +10869,11 @@
       },
       {
         "path": "tests/console/competitions.test.ts",
-        "sha256": "6417bf088ed2fbceb1329fba6bea7c5b0c6de628170657dac766eb3b45f20734"
+        "sha256": "8498f0d62bac733abce436ff8b91b158df457ebdd9ded01b87e4f9fdca344505"
+      },
+      {
+        "path": "tests/e2e/competitions.spec.mts",
+        "sha256": "10e6a71797d0d0c747be9118c7f2cd405b0eada27bc605466d61b6b653ffc457"
       },
       {
         "path": "tests/server/applications.test.ts",
@@ -10785,7 +10885,7 @@
       },
       {
         "path": "tests/server/competitions.test.ts",
-        "sha256": "d16cf9d0880138537c3354b5c50ce5c11b26bfaa10f3f2c61dbcf7938ee9b97d"
+        "sha256": "6111c55221001c5d9e123aba465d3aca2d36b613b07db25a9fec02cb05822e54"
       },
       {
         "path": "tests/server/configuration.test.ts",
@@ -10833,7 +10933,7 @@
       },
       {
         "path": "tests/web/portal-competitions.test.tsx",
-        "sha256": "2812ccfd512cb71fae6297e485ef68807e2851b7f6c6ca4fd9335e6198a9350c"
+        "sha256": "9d9c7a0a08ab01c43418bf4bd0fc6d42a14a9d0b41092481189a3fba9d67fa2d"
       }
     ]
   },
@@ -11040,7 +11140,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 92,
+          "line": 101,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -11532,7 +11632,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -12276,7 +12376,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -12756,7 +12856,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 57,
+          "line": 61,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -12960,7 +13060,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 38,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -13650,6 +13750,12 @@
       "basis": "declaration",
       "from": "domain:competitions",
       "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "domain:competitions",
+      "to": "document:docs/services/web/portal.md",
       "type": "documented-by"
     },
     {
@@ -15608,438 +15714,6 @@
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.create",
-      "to": "domain:competitions",
-      "type": "belongs-to"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.create",
-      "to": "document:docs/architecture/API.md",
-      "type": "documented-by"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.create",
-      "to": "document:docs/services/server/endpoint-contracts.md",
-      "type": "documented-by"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:competitions",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:departments",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:role_assignments",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:sessions",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:titles",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "capability:competitions.manage",
-      "type": "requires"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.create",
-      "to": "test:tests/console/competitions.test.ts",
-      "type": "test-entry"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.create",
-      "to": "test:tests/server/competitions.test.ts",
-      "type": "test-entry"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "route:POST /api/console/competitions",
-      "type": "uses"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:audit_logs",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:competitions",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 38,
-          "path": "app/server/src/routes/console/competitions.ts"
-        },
-        {
-          "line": 119,
-          "path": "app/server/src/lib/competition-store.ts"
-        },
-        {
-          "line": 188,
-          "path": "app/server/src/lib/db.ts"
-        },
-        {
-          "line": 87,
-          "path": "app/server/src/lib/roles.ts"
-        }
-      ],
-      "from": "flow:competition.console.create",
-      "to": "table:sessions",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.delete",
-      "to": "domain:competitions",
-      "type": "belongs-to"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.delete",
-      "to": "document:docs/architecture/API.md",
-      "type": "documented-by"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.delete",
-      "to": "document:docs/services/server/endpoint-contracts.md",
-      "type": "documented-by"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:competition_signups",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:competitions",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:departments",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:role_assignments",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:sessions",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:titles",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "capability:competitions.manage",
-      "type": "requires"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.delete",
-      "to": "test:tests/console/competitions.test.ts",
-      "type": "test-entry"
-    },
-    {
-      "basis": "declaration",
-      "from": "flow:competition.console.delete",
-      "to": "test:tests/server/competitions.test.ts",
-      "type": "test-entry"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "route:DELETE /api/console/competitions/:competition_id",
-      "type": "uses"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:audit_logs",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:competitions",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
-        {
-          "line": 92,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.delete",
-      "to": "table:sessions",
-      "type": "writes"
-    },
-    {
-      "basis": "declaration",
       "from": "flow:competition.console.list",
       "to": "domain:competitions",
       "type": "belongs-to"
@@ -16053,27 +15727,45 @@
     {
       "basis": "declaration",
       "from": "flow:competition.console.list",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.console.list",
+      "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.console.list",
       "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.console.list",
+      "to": "document:docs/services/web/portal.md",
       "type": "documented-by"
     },
     {
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16084,20 +15776,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16108,20 +15792,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16132,20 +15816,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16156,20 +15832,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16180,20 +15856,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16204,20 +15872,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16228,20 +15896,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16252,20 +15912,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16276,20 +15936,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16300,20 +15952,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16324,20 +15976,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16353,27 +15997,39 @@
     {
       "basis": "declaration",
       "from": "flow:competition.console.list",
+      "to": "test:tests/e2e/competitions.spec.mts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.console.list",
       "to": "test:tests/server/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.console.list",
+      "to": "test:tests/web/portal-competitions.test.tsx",
       "type": "test-entry"
     },
     {
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16384,20 +16040,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16408,20 +16056,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16432,20 +16080,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16456,20 +16096,20 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         },
         {
-          "line": 27,
-          "path": "app/server/src/routes/console/contracts.ts"
-        },
-        {
-          "line": 29,
+          "line": 28,
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 1,
-          "path": "app/console/src/lib/competitions.ts"
+          "line": 25,
+          "path": "app/console/src/pages/Competitions.vue"
+        },
+        {
+          "line": 120,
+          "path": "app/console/src/lib/types.ts"
         },
         {
           "line": 32,
@@ -16480,20 +16120,12 @@
           "path": "app/console/src/lib/permission-boundaries.ts"
         },
         {
-          "line": 119,
-          "path": "app/console/src/lib/types.ts"
-        },
-        {
-          "line": 292,
-          "path": "app/console/src/mock/console.ts"
-        },
-        {
-          "line": 1,
-          "path": "app/console/src/pages/Competitions.vue"
-        },
-        {
           "line": 26,
           "path": "app/console/src/router.ts"
+        },
+        {
+          "line": 309,
+          "path": "app/console/src/mock/console.ts"
         }
       ],
       "from": "flow:competition.console.list",
@@ -16502,55 +16134,77 @@
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "domain:competitions",
       "type": "belongs-to"
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "document:docs/architecture/API.md",
       "type": "documented-by"
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.create",
+      "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.create",
       "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.create",
+      "to": "document:docs/services/web/portal.md",
       "type": "documented-by"
     },
     {
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.update",
-      "to": "table:competition_signup_settings",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
+        },
         {
-          "line": 57,
-          "path": "app/server/src/routes/console/competitions.ts"
-        }
-      ],
-      "from": "flow:competition.console.update",
-      "to": "table:competition_signups",
-      "type": "reads"
-    },
-    {
-      "basis": "declaration",
-      "evidence": [
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
         {
-          "line": 57,
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:competitions",
       "type": "reads"
     },
@@ -16558,11 +16212,39 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:departments",
       "type": "reads"
     },
@@ -16570,11 +16252,39 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:role_assignments",
       "type": "reads"
     },
@@ -16582,11 +16292,39 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:sessions",
       "type": "reads"
     },
@@ -16594,11 +16332,39 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:titles",
       "type": "reads"
     },
@@ -16606,47 +16372,143 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "capability:competitions.manage",
       "type": "requires"
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "test:tests/console/competitions.test.ts",
       "type": "test-entry"
     },
     {
       "basis": "declaration",
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
+      "to": "test:tests/e2e/competitions.spec.mts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.create",
       "to": "test:tests/server/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.create",
+      "to": "test:tests/web/portal-competitions.test.tsx",
       "type": "test-entry"
     },
     {
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
-      "to": "route:PATCH /api/console/competitions/:competition_id",
+      "from": "flow:competition.create",
+      "to": "route:POST /api/console/competitions",
       "type": "uses"
     },
     {
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:audit_logs",
       "type": "writes"
     },
@@ -16654,11 +16516,39 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
       "to": "table:competitions",
       "type": "writes"
     },
@@ -16666,11 +16556,319 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 39,
           "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 188,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 39,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 109,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/server/src/lib/roles.ts"
+        },
+        {
+          "line": 32,
+          "path": "app/server/src/services.ts"
         }
       ],
-      "from": "flow:competition.console.update",
+      "from": "flow:competition.create",
+      "to": "table:sessions",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "domain:competitions",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "document:docs/architecture/API.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "document:docs/services/web/portal.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:competition_signups",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:competitions",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:departments",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:role_assignments",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:sessions",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:titles",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "capability:competitions.manage",
+      "type": "requires"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "test:tests/console/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "test:tests/e2e/competitions.spec.mts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "test:tests/server/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.delete",
+      "to": "test:tests/web/portal-competitions.test.tsx",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "route:DELETE /api/console/competitions/:competition_id",
+      "type": "uses"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:audit_logs",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
+      "to": "table:competitions",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 101,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 87,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.delete",
       "to": "table:sessions",
       "type": "writes"
     },
@@ -16803,7 +17001,25 @@
     {
       "basis": "declaration",
       "from": "flow:competition.public.list",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.public.list",
+      "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.public.list",
       "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.public.list",
+      "to": "document:docs/services/web/portal.md",
       "type": "documented-by"
     },
     {
@@ -16814,7 +17030,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 11,
+          "line": 6,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -16822,11 +17038,19 @@
           "path": "app/server/src/routes/portal/index.ts"
         },
         {
-          "line": 1,
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 23,
+          "path": "app/server/src/lib/competition-contract.ts"
+        },
+        {
+          "line": 82,
           "path": "app/web/sites/portal/lib/competitions.ts"
         },
         {
-          "line": 22,
+          "line": 216,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -16838,13 +17062,25 @@
           "path": "app/web/sites/portal/lib/osApps.ts"
         },
         {
-          "line": 11,
+          "line": 29,
           "path": "app/web/shared/lib/mock-api.ts"
         }
       ],
       "from": "flow:competition.public.list",
       "to": "table:competitions",
       "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.public.list",
+      "to": "test:tests/console/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.public.list",
+      "to": "test:tests/e2e/competitions.spec.mts",
+      "type": "test-entry"
     },
     {
       "basis": "declaration",
@@ -16866,7 +17102,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 11,
+          "line": 6,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -16874,11 +17110,19 @@
           "path": "app/server/src/routes/portal/index.ts"
         },
         {
-          "line": 1,
+          "line": 126,
+          "path": "app/server/src/lib/competition-store.ts"
+        },
+        {
+          "line": 23,
+          "path": "app/server/src/lib/competition-contract.ts"
+        },
+        {
+          "line": 82,
           "path": "app/web/sites/portal/lib/competitions.ts"
         },
         {
-          "line": 22,
+          "line": 216,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -16890,7 +17134,7 @@
           "path": "app/web/sites/portal/lib/osApps.ts"
         },
         {
-          "line": 11,
+          "line": 29,
           "path": "app/web/shared/lib/mock-api.ts"
         }
       ],
@@ -19457,6 +19701,354 @@
         }
       ],
       "from": "flow:competition.teams.unlock",
+      "to": "table:sessions",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "domain:competitions",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "document:docs/architecture/API.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "document:docs/services/server/data-model.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "document:docs/services/web/portal.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:competition_signup_settings",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:competition_signups",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:competitions",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:departments",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:role_assignments",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:sessions",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:titles",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "capability:competitions.manage",
+      "type": "requires"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "test:tests/console/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "test:tests/e2e/competitions.spec.mts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "test:tests/server/competitions.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:competition.update",
+      "to": "test:tests/web/portal-competitions.test.tsx",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "route:PATCH /api/console/competitions/:competition_id",
+      "type": "uses"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:audit_logs",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
+      "to": "table:competitions",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 61,
+          "path": "app/server/src/routes/console/competitions.ts"
+        },
+        {
+          "line": 113,
+          "path": "app/console/src/lib/competitions.ts"
+        },
+        {
+          "line": 77,
+          "path": "app/console/src/pages/Competitions.vue"
+        }
+      ],
+      "from": "flow:competition.update",
       "to": "table:sessions",
       "type": "writes"
     },
@@ -36336,7 +36928,7 @@
       "basis": "static-evidence",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -36864,7 +37456,7 @@
       "basis": "static-evidence",
       "evidence": [
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/routes/console/competitions.ts"
         }
       ],
@@ -39097,7 +39689,7 @@
         }
       },
       "source": {
-        "line": 92,
+        "line": 101,
         "path": "app/server/src/routes/console/competitions.ts"
       }
     },
@@ -41853,7 +42445,7 @@
         }
       },
       "source": {
-        "line": 30,
+        "line": 31,
         "path": "app/server/src/routes/console/competitions.ts"
       }
     },
@@ -43021,30 +43613,8 @@
           "type": "object"
         },
         "querystring": {
-          "additionalProperties": true,
-          "properties": {
-            "limit": {
-              "pattern": "^[1-9][0-9]{0,3}$",
-              "type": "string"
-            },
-            "offset": {
-              "pattern": "^[0-9]{1,8}$",
-              "type": "string"
-            },
-            "page": {
-              "pattern": "^[1-9][0-9]{0,5}$",
-              "type": "string"
-            },
-            "per_page": {
-              "pattern": "^[1-9][0-9]{0,2}$",
-              "type": "string"
-            },
-            "q": {
-              "maxLength": 200,
-              "minLength": 0,
-              "type": "string"
-            }
-          },
+          "additionalProperties": false,
+          "properties": {},
           "required": [],
           "type": "object"
         },
@@ -45823,7 +46393,7 @@
         }
       },
       "source": {
-        "line": 30,
+        "line": 31,
         "path": "app/server/src/routes/console/competitions.ts"
       }
     },
@@ -48339,7 +48909,7 @@
               "type": "string"
             },
             "end_at": {
-              "maximum": 9007199254740991,
+              "maximum": 8639999971200000,
               "minimum": 0,
               "type": "integer"
             },
@@ -48361,7 +48931,7 @@
             "signup_deadline": {
               "anyOf": [
                 {
-                  "maximum": 9007199254740991,
+                  "maximum": 8639999971200000,
                   "minimum": 0,
                   "type": "integer"
                 },
@@ -48371,7 +48941,7 @@
               ]
             },
             "start_at": {
-              "maximum": 9007199254740991,
+              "maximum": 8639999971200000,
               "minimum": 0,
               "type": "integer"
             },
@@ -48419,7 +48989,7 @@
         }
       },
       "source": {
-        "line": 57,
+        "line": 61,
         "path": "app/server/src/routes/console/competitions.ts"
       }
     },
@@ -48597,7 +49167,178 @@
         },
         "response": {
           "200": {
-            "additionalProperties": true,
+            "additionalProperties": false,
+            "properties": {
+              "department": {
+                "additionalProperties": false,
+                "properties": {
+                  "archived": {
+                    "type": "boolean"
+                  },
+                  "created_at": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "crew_count": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "description": {
+                    "maxLength": 200,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "head_capabilities": {
+                    "items": {
+                      "enum": [
+                        "console.access",
+                        "github.org.read",
+                        "github.org.manage",
+                        "github.members.manage",
+                        "github.repos.manage",
+                        "github.teams.manage",
+                        "github.invites.manage",
+                        "forum.topic.pin",
+                        "forum.topic.close",
+                        "forum.post.moderate",
+                        "forum.category.manage",
+                        "forum.badge.assign",
+                        "applications.read",
+                        "applications.review",
+                        "applications.export",
+                        "feedback.read",
+                        "feedback.manage",
+                        "audit.read",
+                        "roles.manage",
+                        "roles.department.manage",
+                        "competitions.manage"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 42,
+                    "type": "array"
+                  },
+                  "heads": {
+                    "items": {
+                      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "icon": {
+                    "enum": [
+                      "star-filled",
+                      "badge",
+                      "code",
+                      "compass",
+                      "user",
+                      "user-follow",
+                      "terminal",
+                      "forum",
+                      "application",
+                      "bullhorn",
+                      "education",
+                      "idea",
+                      "trophy",
+                      "user-favorite",
+                      "chart-network",
+                      "logo-github",
+                      "book",
+                      "user-admin"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "pattern": "^[a-z][a-z0-9-]{1,31}$",
+                    "type": "string"
+                  },
+                  "member_capabilities": {
+                    "items": {
+                      "enum": [
+                        "console.access",
+                        "github.org.read",
+                        "github.org.manage",
+                        "github.members.manage",
+                        "github.repos.manage",
+                        "github.teams.manage",
+                        "github.invites.manage",
+                        "forum.topic.pin",
+                        "forum.topic.close",
+                        "forum.post.moderate",
+                        "forum.category.manage",
+                        "forum.badge.assign",
+                        "applications.read",
+                        "applications.review",
+                        "applications.export",
+                        "feedback.read",
+                        "feedback.manage",
+                        "audit.read",
+                        "roles.manage",
+                        "roles.department.manage",
+                        "competitions.manage"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 42,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 12,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "sort_order": {
+                    "maximum": 10000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "tag": {
+                    "pattern": "^[A-Z][A-Z0-9-]{1,15}$",
+                    "type": "string"
+                  },
+                  "tone": {
+                    "enum": [
+                      "amber",
+                      "cobalt",
+                      "violet",
+                      "jade",
+                      "sky",
+                      "coral",
+                      "rose",
+                      "slate"
+                    ],
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "tag",
+                  "icon",
+                  "tone",
+                  "description",
+                  "head_capabilities",
+                  "member_capabilities",
+                  "sort_order",
+                  "archived",
+                  "created_at",
+                  "updated_at",
+                  "heads",
+                  "crew_count"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "department"
+            ],
             "type": "object"
           }
         }
@@ -48837,7 +49578,99 @@
         },
         "response": {
           "200": {
-            "additionalProperties": true,
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "additionalProperties": false,
+                "properties": {
+                  "capabilities": {
+                    "items": {
+                      "enum": [
+                        "console.access",
+                        "github.org.read",
+                        "github.org.manage",
+                        "github.members.manage",
+                        "github.repos.manage",
+                        "github.teams.manage",
+                        "github.invites.manage",
+                        "forum.topic.pin",
+                        "forum.topic.close",
+                        "forum.post.moderate",
+                        "forum.category.manage",
+                        "forum.badge.assign",
+                        "applications.read",
+                        "applications.review",
+                        "applications.export",
+                        "feedback.read",
+                        "feedback.manage",
+                        "audit.read",
+                        "roles.manage",
+                        "roles.department.manage",
+                        "competitions.manage"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 42,
+                    "type": "array"
+                  },
+                  "description": {
+                    "maxLength": 200,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "enum": [
+                      "admin",
+                      "captain",
+                      "head",
+                      "member",
+                      "alumni",
+                      "guest"
+                    ],
+                    "type": "string"
+                  },
+                  "label": {
+                    "maxLength": 8,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "tag": {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "tone": {
+                    "enum": [
+                      "amber",
+                      "cobalt",
+                      "violet",
+                      "jade",
+                      "sky",
+                      "coral",
+                      "rose",
+                      "slate"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "tag",
+                  "icon",
+                  "tone",
+                  "description",
+                  "capabilities"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "title"
+            ],
             "type": "object"
           }
         }
@@ -49901,7 +50734,7 @@
               "type": "string"
             },
             "end_at": {
-              "maximum": 9007199254740991,
+              "maximum": 8639999971200000,
               "minimum": 0,
               "type": "integer"
             },
@@ -49920,7 +50753,7 @@
             "signup_deadline": {
               "anyOf": [
                 {
-                  "maximum": 9007199254740991,
+                  "maximum": 8639999971200000,
                   "minimum": 0,
                   "type": "integer"
                 },
@@ -49930,7 +50763,7 @@
               ]
             },
             "start_at": {
-              "maximum": 9007199254740991,
+              "maximum": 8639999971200000,
               "minimum": 0,
               "type": "integer"
             },
@@ -49976,7 +50809,7 @@
         }
       },
       "source": {
-        "line": 38,
+        "line": 39,
         "path": "app/server/src/routes/console/competitions.ts"
       }
     },
@@ -50154,7 +50987,178 @@
         },
         "response": {
           "201": {
-            "additionalProperties": true,
+            "additionalProperties": false,
+            "properties": {
+              "department": {
+                "additionalProperties": false,
+                "properties": {
+                  "archived": {
+                    "type": "boolean"
+                  },
+                  "created_at": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "crew_count": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "description": {
+                    "maxLength": 200,
+                    "minLength": 0,
+                    "type": "string"
+                  },
+                  "head_capabilities": {
+                    "items": {
+                      "enum": [
+                        "console.access",
+                        "github.org.read",
+                        "github.org.manage",
+                        "github.members.manage",
+                        "github.repos.manage",
+                        "github.teams.manage",
+                        "github.invites.manage",
+                        "forum.topic.pin",
+                        "forum.topic.close",
+                        "forum.post.moderate",
+                        "forum.category.manage",
+                        "forum.badge.assign",
+                        "applications.read",
+                        "applications.review",
+                        "applications.export",
+                        "feedback.read",
+                        "feedback.manage",
+                        "audit.read",
+                        "roles.manage",
+                        "roles.department.manage",
+                        "competitions.manage"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 42,
+                    "type": "array"
+                  },
+                  "heads": {
+                    "items": {
+                      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "icon": {
+                    "enum": [
+                      "star-filled",
+                      "badge",
+                      "code",
+                      "compass",
+                      "user",
+                      "user-follow",
+                      "terminal",
+                      "forum",
+                      "application",
+                      "bullhorn",
+                      "education",
+                      "idea",
+                      "trophy",
+                      "user-favorite",
+                      "chart-network",
+                      "logo-github",
+                      "book",
+                      "user-admin"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "pattern": "^[a-z][a-z0-9-]{1,31}$",
+                    "type": "string"
+                  },
+                  "member_capabilities": {
+                    "items": {
+                      "enum": [
+                        "console.access",
+                        "github.org.read",
+                        "github.org.manage",
+                        "github.members.manage",
+                        "github.repos.manage",
+                        "github.teams.manage",
+                        "github.invites.manage",
+                        "forum.topic.pin",
+                        "forum.topic.close",
+                        "forum.post.moderate",
+                        "forum.category.manage",
+                        "forum.badge.assign",
+                        "applications.read",
+                        "applications.review",
+                        "applications.export",
+                        "feedback.read",
+                        "feedback.manage",
+                        "audit.read",
+                        "roles.manage",
+                        "roles.department.manage",
+                        "competitions.manage"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 42,
+                    "type": "array"
+                  },
+                  "name": {
+                    "maxLength": 12,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "sort_order": {
+                    "maximum": 10000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "tag": {
+                    "pattern": "^[A-Z][A-Z0-9-]{1,15}$",
+                    "type": "string"
+                  },
+                  "tone": {
+                    "enum": [
+                      "amber",
+                      "cobalt",
+                      "violet",
+                      "jade",
+                      "sky",
+                      "coral",
+                      "rose",
+                      "slate"
+                    ],
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "tag",
+                  "icon",
+                  "tone",
+                  "description",
+                  "head_capabilities",
+                  "member_capabilities",
+                  "sort_order",
+                  "archived",
+                  "created_at",
+                  "updated_at",
+                  "heads",
+                  "crew_count"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "department"
+            ],
             "type": "object"
           }
         }
@@ -53766,6 +54770,12 @@
       "domains": [
         "competitions"
       ],
+      "path": "app/server/src/lib/competition-contract.ts"
+    },
+    {
+      "domains": [
+        "competitions"
+      ],
       "path": "app/server/src/lib/competition-signup-store.ts"
     },
     {
@@ -56738,7 +57748,7 @@
         }
       ],
       "name": "competitions",
-      "note": "比赛信息。状态由起止时间与当前时间动态计算；不含个人信息。",
+      "note": "只存赛事事实，不含参赛者或队伍；status 由起止时间与报名截止按当前时间算（未开始/报名中/报名已截止/进行中/已结束），offline 仅控制公开可见性；有报名记录的比赛只能下线不能删除。参赛与组队数据在 competition_signup* / competition_team* 表。",
       "source": {
         "line": 188,
         "path": "app/server/src/lib/db.ts"
@@ -60111,7 +61121,7 @@
     }
   ],
   "unmappedSources": [],
-  "updated": "2026-10-18",
+  "updated": "2026-10-20",
   "version": 1,
   "visibility": "internal-engineering"
 }

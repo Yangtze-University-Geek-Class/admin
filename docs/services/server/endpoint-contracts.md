@@ -1,8 +1,8 @@
 # 业务接口契约与用例
 
-> 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，不向生产路由增加响应序列化 Schema。
+> 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，区分存量人工说明与已挂载的机器响应契约。
 
-状态：`current` · 更新：2026-10-18
+状态：`current` · 更新：2026-10-19
 
 ## 口径与共同边界
 
@@ -17,7 +17,7 @@
 
 ## 基础设施、退役路径与 HEAD 继承
 
-当前隔离注册清单合计 **172 条方法路径**：92 个显式非 HEAD 业务操作（下文逐项说明）+ 24 个显式非 HEAD 退役项 + 4 个基础设施 GET + 51 个自动 HEAD + 1 个显式 HEAD。另有 5 个 Nitro/预渲染声明入口，独立列于文末，不混入 Fastify 注册数。
+当前隔离注册清单合计 **179 条方法路径**：97 个显式非 HEAD 业务操作（下文逐项说明）+ 24 个显式非 HEAD 退役项 + 4 个基础设施 GET + 53 个自动 HEAD + 1 个显式 HEAD。另有 5 个 Nitro/预渲染声明入口，独立列于文末，不混入 Fastify 注册数。
 
 | 清单类别 | 方法路径 / 分组 | 实际行为及边界 | 源码与已有验证入口 |
 |---|---|---|---|
@@ -25,12 +25,12 @@
 | 基础设施（1） | `GET /` | 仅静态根目录不存在或明确 `staticRoot:false` 时注册占位响应：200 `{ok:true,note:"app/web/dist and app/console/dist not built yet"}`。目录工具关闭静态托管，故本次清单包含这一项。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
 | 基础设施（2） | `GET /forum`、`GET /forum/*` | 直连核心服务时：production 为503 `{error:"forum_service_not_ready",message}`；开发为302到 `http://127.0.0.1:3456/`。正常 Docker 入口由 web 反代论坛，这两个 handler 不证明已配置反代。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
 | 退役（24） | `/api/forum`、`/api/forum/*`、`/auth/forum/*`、`/forum/u/*` 各自的 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`OPTIONS` | 共用 retired handler，410 `{error:"legacy_forum_retired",message}`，不映射或写入旧论坛。先匹配现有具体论坛接口，再由通配路径接住剩余请求；共同写请求Origin校验可能先回403。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
-| 自动 HEAD（51） | 清单中 `registration: automatic-head` 的所有项 | 按相同 path 找对应 `GET`，继承其状态码、响应头、鉴权、限流和 handler 行为，最终不发送body。不会因为没有body就跳过会话处理、上游查询、投递查看/导出审计等副作用。4个基础设施和4个退役GET的HEAD也包含在51内。 | [目录注册观测](../../../scripts/catalog/collect.ts)，[project-catalog.test.ts](../../../tests/tooling/project-catalog.test.ts)；各GET的行为验证见各用例 |
+| 自动 HEAD（53） | 清单中 `registration: automatic-head` 的所有项 | 按相同 path 找对应 `GET`，继承其状态码、响应头、鉴权、限流和 handler 行为，最终不发送body。不会因为没有body就跳过会话处理、上游查询、投递查看/导出审计等副作用。4个基础设施和4个退役GET的HEAD也包含在53内。 | [目录注册观测](../../../scripts/catalog/collect.ts)，[project-catalog.test.ts](../../../tests/tooling/project-catalog.test.ts)；各GET的行为验证见各用例 |
 | 显式 HEAD（1） | `HEAD /api/forum/state` | 405、`Allow: GET`、空体；单独handler不计算整份state，不花GET的120次额度，不调用forumViewer刷新用户。 | [topics.ts](../../../app/server/src/routes/forum-api/topics.ts)，[forum.test.ts](../../../tests/server/forum.test.ts) |
 
-自动 HEAD 规则只适用于清单实际注册的51项，不能对所有GET自行补造。例如论坛 state、search、topic posts 显式关闭自动HEAD；state另有上述405处理器，其他未单独注册的HEAD仍受实际路由匹配和退役通配项约束。HEAD是读取方法，不经过核心写请求Origin门禁，但对应GET的会话、能力及资源范围校验仍有效。
+自动 HEAD 规则只适用于清单实际注册的53项，不能对所有GET自行补造。例如论坛 state、search、topic posts 显式关闭自动HEAD；state另有上述405处理器，其他未单独注册的HEAD仍受实际路由匹配和退役通配项约束。HEAD是读取方法，不经过核心写请求Origin门禁，但对应GET的会话、能力及资源范围校验仍有效。
 
-有静态产物的模式另经 `@fastify/static` 和 app.ts 的 not-found handler：API/auth/healthz未知路径、含扩展名的缺失资源及非GET/HEAD请求为404；其他GET/HEAD按路径回控制台或官网SPA，并设no-cache。该模式的静态文件枚举不属于这172条关闭静态托管的隔离基线，也不由此文档声称已部署。
+有静态产物的模式另经 `@fastify/static` 和 app.ts 的 not-found handler：API/auth/healthz未知路径、含扩展名的缺失资源及非GET/HEAD请求为404；其他GET/HEAD按路径回控制台或官网SPA，并设no-cache。该模式的静态文件枚举不属于这179条关闭静态托管的隔离基线，也不由此文档声称已部署。
 
 ## 发起 GitHub 登录
 
@@ -1662,3 +1662,19 @@ SQLite读写：无。源码：[app/forum/server/middleware/forum-markdown.ts](..
 
 SQLite读写：无。源码：[app/forum/server/middleware/forum-markdown.ts](../../../app/forum/server/middleware/forum-markdown.ts)。验证入口：[app/forum/tests/forum-markdown.test.ts](../../../app/forum/tests/forum-markdown.test.ts)、[app/forum/tests/site-state.test.ts](../../../app/forum/tests/site-state.test.ts)。
 
+
+## 比赛信息发布
+
+五个比赛操作（#238）的请求字段、成功响应以及共同 `4xx` / `5xx` 错误体由 [competition-contract.ts](../../../app/server/src/lib/competition-contract.ts) 与所属路由 `contracts.ts` 实际挂载。公开 DTO 与控制台 DTO 分开，控制台仅多 `offline`；内部创建/更新时间、成员和权限信息不混入公开回答。既有其他端点仍按目录记录响应 Schema 缺口，不因此声称全站已是完整 OpenAPI。
+
+| 操作与用例 | 权限与资源 | 成功、失败和副作用 |
+|---|---|---|
+| `GET /api/public/competitions` · `flow:competition.public.list` | 匿名，只返回未下线赛事 | 200 `{ competitions }`；五种时间状态与排序见 [API](../../architecture/API.md)「比赛信息发布合同」。不读取会话或成员、不写库、不发外部请求；空列表合法。 |
+| `GET /api/console/competitions` · `flow:competition.console.list` | 有效 `sid` 与 `console.access`；页面导航仍需 `competitions.manage` | 200 `{ competitions }` 含 `offline`；401 未登录、403 缺能力。共同身份路径会读称号/部门与 GitHub 角色缓存；会话过期或令牌被拒才产生删除/审计等条件副作用。 |
+| `POST /api/console/competitions` · `flow:competition.create` | `competitions.manage`，每分钟 30 次，固定本环境组织 | 201 `{ competition }`；400 `validation_error` / `bad_name` / `bad_url` / `bad_range` / `deadline_after_end`，401、403、429；比赛与 `competition.create` 审计在同一事务提交。 |
+| `PATCH /api/console/competitions/:competition_id` · `flow:competition.update` | 同一管理能力，每分钟 60 次 | 200 `{ competition }`；在原记录与补丁合并后验证，缺记录 404，其他拒绝同新建。省略字段保留，null 清空可空字段；下线不删除，恢复沿用原 id。更新与审计同一事务。 |
+| `DELETE /api/console/competitions/:competition_id` · `flow:competition.delete` | 同一管理能力，每分钟 30 次 | 200 `{ ok: true }`，真删；不存在或重复删除 404。删除与审计同一事务，审计失败返回 500 且保留赛事。 |
+
+这些操作不实现参赛、队伍或通知邮件。写入与审计任何一步失败都回滚；GitHub 身份检查在事务前完成，不把网络等待放进 SQLite 事务。源码：[console/competitions.ts](../../../app/server/src/routes/console/competitions.ts)、[portal/competitions.ts](../../../app/server/src/routes/portal/competitions.ts)、[competition-store.ts](../../../app/server/src/lib/competition-store.ts)。验证入口：[真实路由与审计故障回归](../../../tests/server/competitions.test.ts)、[两尺寸浏览器业务回归](../../../tests/e2e/competitions.spec.mts)。
+
+新增 `competitions.manage` 同时扩展 `POST /api/console/departments`、`PATCH /api/console/departments/:department_id`、`PATCH /api/console/titles/:title_id` 的权限包枚举。这三条在原有行为上补成功响应 Schema：部门保留 `created_at`、`updated_at`、`heads`、`crew_count` 与原有全部字段；称号保留显示字段及 `capabilities`。它们的授权、存储与审计执行逻辑不变，错误仍走原处理器。既有权限包不会因能力清单新增而自动获得管理比赛权限；有权限的管理者可通过原接口明确授予，回归见 `tests/server/competitions.test.ts`。

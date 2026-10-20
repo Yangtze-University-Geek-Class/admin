@@ -1,0 +1,320 @@
+{
+  "version": 1,
+  "issue": 238,
+  "kind": "business",
+  "summary": "将比赛信息发布的数据库、五个后端接口、权限与控制台和官网表现按真实业务流程对齐并补齐回归。",
+  "applications": [
+    "server",
+    "web",
+    "console"
+  ],
+  "domains": [
+    "identity",
+    "organization",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "github",
+    "forum",
+    "mail",
+    "audit",
+    "public_content",
+    "platform",
+    "competitions"
+  ],
+  "flows": [
+    "flow:competition.public.list",
+    "flow:competition.console.list",
+    "flow:competition.create",
+    "flow:competition.update",
+    "flow:competition.delete",
+    "flow:application.cancel",
+    "flow:feedback.console.update",
+    "flow:invitation.admin.list",
+    "flow:github.organizations.list",
+    "flow:forum.state",
+    "flow:documentation.list",
+    "flow:organization.departments.create",
+    "flow:organization.departments.update",
+    "flow:organization.titles.update"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "登记、公开浏览与管理赛事形成完整业务；内部/外部链接均可选，五种时间状态一致，下线可恢复、删除独立；报名与组队不在本次实现。",
+      "evidence": [
+        "app/server/src/lib/competition-store.ts",
+        "app/web/sites/portal/components/os/Windows.tsx"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增五个比赛接口及真实请求/响应Schema；新能力同时扩展三条既有权限包接口的入参枚举，补其成功响应并保留展示、时间和计数字段；拒绝非法比赛输入，公开和管理DTO分开。",
+      "evidence": [
+        "app/server/src/lib/competition-contract.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/portal/competitions.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "新增 competitions.manage 能力及执行点；写入服务端校验，控制台导航/页面同步；读取仍需console.access。共同身份逻辑与既有业务授权保持，已保存的自定义权限包不自动扩权。",
+      "evidence": [
+        "app/server/src/lib/roles.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/console/src/lib/permission-boundaries.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "只新增competitions表，不改既有表与业务数据；状态现算，PATCH省略保留、null清空；赛事写入与审计同一SQLite事务，失败整体回滚，保留精确时间戳。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/competition-store.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "tests/server/legacy-database.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "新增比赛页面、存储、现有会话/权限与审计之间的调用关联和审计事件；包、凭据和第三方服务数量保持，业务维护没有邮件、报名或队伍副作用。",
+      "evidence": [
+        "app/server/src/services.ts",
+        "app/server/src/routes/console/competitions.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "更新API、数据模型、接口行为契约与三端服务合同，并登记五条业务流程与相关源码证据；生成目录与交互地图保持同源。",
+      "evidence": [
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/catalog/ownership.json",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "比赛真实路由覆盖鉴权、输入、null、审计故障回滚及三条权限配置DTO完整性；两端验证日期/状态/失败，新增CI两尺寸浏览器回归，本机真实HTTP与截图另验收。",
+      "evidence": [
+        "tests/server/competitions.test.ts",
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "仍由原有server与web镜像交付，不新增运行单元、环境变量或发布tag。Netlify保持只读样板，本机隔离服务才用于真实写入验收；所有者要求合并进 stage；合并只跑 CI、不部署任何环境，发到预发布要等获授权的 rc tag。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/services/web/README.md"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/competition-contract.ts",
+        "app/server/src/lib/competition-store.ts",
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/roles.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/index.ts",
+        "app/server/src/routes/portal/competitions.ts",
+        "app/server/src/routes/portal/contracts.ts",
+        "app/server/src/routes/portal/index.ts",
+        "app/server/src/services.ts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "table:competitions",
+        "capability:competitions.manage",
+        "flow:competition.create",
+        "flow:competition.update",
+        "flow:competition.delete",
+        "route:POST /api/console/departments",
+        "route:PATCH /api/console/departments/:department_id",
+        "route:PATCH /api/console/titles/:title_id"
+      ],
+      "reason": "新增赛事模块并接入现有会话、能力和审计；db/roles/注册合同是多业务共用文件，其余表、能力和接口保持，关联既有用例用于完整回归核对。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/competitions.ts",
+        "app/console/src/lib/nav.ts",
+        "app/console/src/lib/permission-boundaries.ts",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts",
+        "app/console/src/pages/Competitions.vue",
+        "app/console/src/router.ts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "application:console",
+        "flow:competition.console.list",
+        "flow:competition.update"
+      ],
+      "reason": "新增比赛维护页面和数据逻辑，导航、类型和样板是多业务共用入口；只增加比赛分支并保留已有业务行为，提交实际修改字段避免重写赛程。"
+    },
+    {
+      "paths": [
+        "app/web/shared/lib/mock-api.ts",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/competitions.ts",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/styles/os.css"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "application:web",
+        "flow:competition.public.list"
+      ],
+      "reason": "官网桌面和手机新增比赛窗口、筛选与可选链接，重算状态与排序；共用窗口/应用注册/样板仅补赛事分支，其余入口保持。"
+    },
+    {
+      "paths": [
+        "docs/INDEX.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/conventions/TESTING.md",
+        "docs/services/console/README.md",
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/web/README.md",
+        "docs/services/web/portal.md",
+        "docs/reviews/238/",
+        "docs/plan/COMPETITION-APP.md",
+        "docs/plan/README.md",
+        "docs/assets/competition-app/",
+        "docs/decisions/0005-sso-extend-core-server.md",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "table:competitions",
+        "flow:competition.public.list",
+        "flow:competition.console.list"
+      ],
+      "reason": "业务合同、权限边界、数据模型与测试矩阵同步；ownership登记实际流程，所有派生目录由生成器重建，未把规划SSO或报名组队登记为现有能力；#239 报名组队方案以 accepted（未实施）计划与方案草图入库，不改运行代码；ADR-0005 与统一登录规格只把指向本方案的 PR 链接改成仓库内链接。"
+    },
+    {
+      "paths": [
+        "tests/console/competitions.test.ts",
+        "tests/e2e/competitions.spec.mts",
+        "tests/server/competitions.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/web/portal-competitions.test.tsx"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.create",
+        "flow:competition.update",
+        "flow:competition.delete",
+        "flow:competition.public.list"
+      ],
+      "reason": "覆盖本次比赛业务和既有数据库兼容路径，包含真实HTTP处理、拒绝路径、原时分保持、审计失败回滚、列表时钟以及两尺寸浏览器操作；不访问真实业务库。"
+    }
+  ],
+  "documents": [
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/README.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/console/README.md",
+    "docs/services/web/README.md",
+    "docs/services/web/portal.md",
+    "docs/conventions/TESTING.md",
+    "docs/reviews/238/README.md",
+    "docs/plan/COMPETITION-APP.md"
+  ],
+  "tests": [
+    "tests/server/competitions.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/console/competitions.test.ts",
+    "tests/web/portal-competitions.test.tsx",
+    "tests/e2e/competitions.spec.mts"
+  ],
+  "compatibility": "既有接口、表、用户会话和已保存权限包不改；比赛新增upcoming状态与三端同时交付，所有类型URL可选。共享db、roles和入口文件因此关联已有业务域，表示兼容回归范围，不宣称改造这些业务。",
+  "migration": "stage基线没有competitions，启动只新增表和索引，既有记录与权限配置保留；虚构旧库回归覆盖重启兼容。没有读取或迁移任何真实业务数据。",
+  "rollback": "合并后在 stage 上用 git revert -m 1 撤销本 PR 的合并提交；回滚运行代码时保留新增赛事表和记录，不删除数据，不移动发布tag；不自动撤销已经产生的审计记录。"
+}

@@ -2,9 +2,9 @@
 
 > 应用、运行单元、业务域与源码证据的统一入口；不表示线上部署状态。
 
-状态：`current` · 更新：2026-10-18 · 自动生成，不手工编辑。
+状态：`current` · 更新：2026-10-20 · 自动生成，不手工编辑。
 
-来源摘要：`6e752944da9e196c7d0b95ba3037551c28986ac8e1e6e7e3b865277d5e1c2128`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`d2f12c41ffee16ed471d9a414db5af4eef5972df46a1ace9be579bcbd1434b2a`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -43,7 +43,7 @@
 | 审计 | 4 | `audit_logs` | [docs/architecture/SECURITY.md](../../../docs/architecture/SECURITY.md) · [docs/services/server/data-model.md](../../../docs/services/server/data-model.md) |
 | 公开文档 | 4 | 无本地表 | [docs/conventions/DOCUMENTATION.md](../../../docs/conventions/DOCUMENTATION.md) · [docs/architecture/API.md](../../../docs/architecture/API.md) |
 | 基础设施与兼容入口 | 38 | `app_state` | [docs/architecture/ARCHITECTURE.md](../../../docs/architecture/ARCHITECTURE.md) · [docs/services/server/README.md](../../../docs/services/server/README.md) · [docs/conventions/ARCHITECTURE-ALIGNMENT.md](../../../docs/conventions/ARCHITECTURE-ALIGNMENT.md) |
-| 比赛与战队 | 31 | `competitions`、`competition_signup_settings`、`competition_signups`、`competition_teams`、`competition_team_members` | [docs/architecture/API.md](../../../docs/architecture/API.md) · [docs/services/server/data-model.md](../../../docs/services/server/data-model.md) · [docs/services/console/README.md](../../../docs/services/console/README.md) |
+| 比赛与战队 | 31 | `competitions`、`competition_signup_settings`、`competition_signups`、`competition_teams`、`competition_team_members` | [docs/architecture/API.md](../../../docs/architecture/API.md) · [docs/services/server/data-model.md](../../../docs/services/server/data-model.md) · [docs/services/console/README.md](../../../docs/services/console/README.md) · [docs/services/web/portal.md](../../../docs/services/web/portal.md) |
 
 ## 业务流程
 
@@ -1854,7 +1854,7 @@
 
 测试入口：[app/forum/tests/forum-markdown.test.ts](../../../app/forum/tests/forum-markdown.test.ts) · [app/forum/tests/site-state.test.ts](../../../app/forum/tests/site-state.test.ts)。生成器未执行这些测试。
 
-### 获取公开比赛列表
+### 浏览公开比赛信息
 
 标识：`flow:competition.public.list`；性质：显式声明并关联源码，不是自动证明业务正确。
 
@@ -1863,15 +1863,15 @@
 - 读取：`competitions`
 - 写入：
 - 不入队：
-- 权限与资源：公开接口，无需登录；仅返回未下线比赛（offline=0）。
-- 响应与错误：200 { competitions }；计算动态状态（registering/ongoing/closed/ended），不暴露内部字段与成员个人信息。
-- 数据与副作用：只读查询，无数据库写入与副作用。
+- 匿名只读未下线赛事，响应只含公开字段，不含offline、创建时间或成员信息。
+- 响应200 {competitions}；五种状态按时间计算，未知报名截止的未来赛事为upcoming；未结束在前，已结束按开始时间倒序。
+- 官网按类型筛选并每60秒重算状态与排序，损坏响应显示失败；全部类型链接可选且必须可解析HTTPS。
 
-源码：[app/server/src/routes/portal/competitions.ts:10](../../../app/server/src/routes/portal/competitions.ts#L10) · [app/server/src/routes/portal/contracts.ts:11](../../../app/server/src/routes/portal/contracts.ts#L11) · [app/server/src/routes/portal/index.ts:9](../../../app/server/src/routes/portal/index.ts#L9) · [app/web/sites/portal/lib/competitions.ts:1](../../../app/web/sites/portal/lib/competitions.ts#L1) · [app/web/sites/portal/components/os/Windows.tsx:22](../../../app/web/sites/portal/components/os/Windows.tsx#L22) · [app/web/sites/portal/components/os/YugcOs.tsx:115](../../../app/web/sites/portal/components/os/YugcOs.tsx#L115) · [app/web/sites/portal/lib/osApps.ts:46](../../../app/web/sites/portal/lib/osApps.ts#L46) · [app/web/shared/lib/mock-api.ts:11](../../../app/web/shared/lib/mock-api.ts#L11)
+源码：[app/server/src/routes/portal/competitions.ts:10](../../../app/server/src/routes/portal/competitions.ts#L10) · [app/server/src/routes/portal/contracts.ts:6](../../../app/server/src/routes/portal/contracts.ts#L6) · [app/server/src/routes/portal/index.ts:9](../../../app/server/src/routes/portal/index.ts#L9) · [app/server/src/lib/competition-store.ts:126](../../../app/server/src/lib/competition-store.ts#L126) · [app/server/src/lib/competition-contract.ts:23](../../../app/server/src/lib/competition-contract.ts#L23) · [app/web/sites/portal/lib/competitions.ts:82](../../../app/web/sites/portal/lib/competitions.ts#L82) · [app/web/sites/portal/components/os/Windows.tsx:216](../../../app/web/sites/portal/components/os/Windows.tsx#L216) · [app/web/sites/portal/components/os/YugcOs.tsx:115](../../../app/web/sites/portal/components/os/YugcOs.tsx#L115) · [app/web/sites/portal/lib/osApps.ts:46](../../../app/web/sites/portal/lib/osApps.ts#L46) · [app/web/shared/lib/mock-api.ts:29](../../../app/web/shared/lib/mock-api.ts#L29)
 
-测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx)。生成器未执行这些测试。
+测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx) · [tests/e2e/competitions.spec.mts](../../../tests/e2e/competitions.spec.mts)。生成器未执行这些测试。
 
-### 控制台查看比赛列表
+### 控制台查看全部比赛
 
 标识：`flow:competition.console.list`；性质：显式声明并关联源码，不是自动证明业务正确。
 
@@ -1880,17 +1880,17 @@
 - 读取：`competitions`、`sessions`、`role_assignments`、`departments`、`titles`
 - 写入：`sessions`、`audit_logs`
 - 不入队：
-- 权限与资源：需要 console.access 能力；返回全部比赛（含已下线 offline=1）。
-- 响应与错误：200 { competitions }；每个条目包含 offline 标记和管理时间戳。
-- 数据与副作用：仅在会话过期时删除会话并记审计日志，无业务表写入。
+- 有效sid及console.access可读，控制台页面和导航另需competitions.manage；公开与管理读取范围分别定义。
+- 200 {competitions}含offline；401未登录，403缺能力。列表按当前时间重算，样板重读同样更新，不冒充真实数据。
+- 共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。
 
-源码：[app/server/src/routes/console/competitions.ts:30](../../../app/server/src/routes/console/competitions.ts#L30) · [app/server/src/routes/console/contracts.ts:27](../../../app/server/src/routes/console/contracts.ts#L27) · [app/server/src/routes/console/index.ts:29](../../../app/server/src/routes/console/index.ts#L29) · [app/console/src/lib/competitions.ts:1](../../../app/console/src/lib/competitions.ts#L1) · [app/console/src/lib/nav.ts:32](../../../app/console/src/lib/nav.ts#L32) · [app/console/src/lib/permission-boundaries.ts:97](../../../app/console/src/lib/permission-boundaries.ts#L97) · [app/console/src/lib/types.ts:119](../../../app/console/src/lib/types.ts#L119) · [app/console/src/mock/console.ts:292](../../../app/console/src/mock/console.ts#L292) · [app/console/src/pages/Competitions.vue:1](../../../app/console/src/pages/Competitions.vue#L1) · [app/console/src/router.ts:26](../../../app/console/src/router.ts#L26)
+源码：[app/server/src/routes/console/competitions.ts:31](../../../app/server/src/routes/console/competitions.ts#L31) · [app/server/src/routes/console/index.ts:28](../../../app/server/src/routes/console/index.ts#L28) · [app/console/src/pages/Competitions.vue:25](../../../app/console/src/pages/Competitions.vue#L25) · [app/console/src/lib/types.ts:120](../../../app/console/src/lib/types.ts#L120) · [app/console/src/lib/nav.ts:32](../../../app/console/src/lib/nav.ts#L32) · [app/console/src/lib/permission-boundaries.ts:97](../../../app/console/src/lib/permission-boundaries.ts#L97) · [app/console/src/router.ts:26](../../../app/console/src/router.ts#L26) · [app/console/src/mock/console.ts:309](../../../app/console/src/mock/console.ts#L309)
 
-测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts)。生成器未执行这些测试。
+测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx) · [tests/e2e/competitions.spec.mts](../../../tests/e2e/competitions.spec.mts)。生成器未执行这些测试。
 
 ### 新建比赛
 
-标识：`flow:competition.console.create`；性质：显式声明并关联源码，不是自动证明业务正确。
+标识：`flow:competition.create`；性质：显式声明并关联源码，不是自动证明业务正确。
 
 - 操作：`POST /api/console/competitions`
 - 能力：`competitions.manage`
@@ -1900,14 +1900,18 @@
 - 权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。
 - 响应与错误：201 { competition }；起止与报名截止时间合法性校验失败 400 bad_range / deadline_after_end。
 - 数据与副作用：写入 competitions 表并记录 competition.create 审计日志。
+- 权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。
+- 共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。
+- 201 {competition}；校验名称、时间范围和解析后的HTTPS地址；未知字段或错误时间/地址400，限流429。
+- 比赛行与competition.create审计同一事务提交；审计失败一起回滚，不发邮件，不创建报名或队伍。
 
-源码：[app/server/src/routes/console/competitions.ts:38](../../../app/server/src/routes/console/competitions.ts#L38) · [app/server/src/lib/competition-store.ts:119](../../../app/server/src/lib/competition-store.ts#L119) · [app/server/src/lib/db.ts:188](../../../app/server/src/lib/db.ts#L188) · [app/server/src/lib/roles.ts:87](../../../app/server/src/lib/roles.ts#L87)
+源码：[app/server/src/routes/console/competitions.ts:39](../../../app/server/src/routes/console/competitions.ts#L39) · [app/server/src/lib/competition-store.ts:126](../../../app/server/src/lib/competition-store.ts#L126) · [app/server/src/lib/db.ts:188](../../../app/server/src/lib/db.ts#L188) · [app/server/src/lib/roles.ts:87](../../../app/server/src/lib/roles.ts#L87) · [app/server/src/routes/console/competitions.ts:39](../../../app/server/src/routes/console/competitions.ts#L39) · [app/server/src/routes/console/contracts.ts:109](../../../app/server/src/routes/console/contracts.ts#L109) · [app/server/src/lib/roles.ts:87](../../../app/server/src/lib/roles.ts#L87) · [app/server/src/services.ts:32](../../../app/server/src/services.ts#L32)
 
-测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts)。生成器未执行这些测试。
+测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx) · [tests/e2e/competitions.spec.mts](../../../tests/e2e/competitions.spec.mts)。生成器未执行这些测试。
 
-### 修改或下线比赛
+### 修改、下线和恢复比赛
 
-标识：`flow:competition.console.update`；性质：显式声明并关联源码，不是自动证明业务正确。
+标识：`flow:competition.update`；性质：显式声明并关联源码，不是自动证明业务正确。
 
 - 操作：`PATCH /api/console/competitions/:competition_id`
 - 能力：`competitions.manage`
@@ -1917,14 +1921,19 @@
 - 权限与资源：需要 competitions.manage 能力；频控 60 次/分钟。
 - 响应与错误：200 { competition }；已有报名时禁止修改比赛类型（409 competition_has_signups）；开放报名中禁止清空报名截止时间（409 signup_deadline_required）。
 - 数据与副作用：更新 competitions 表对应字段并记录 competition.update 审计日志。
+- 权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。
+- 共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。
+- 200 {competition}；404不存在；合并原记录后验证时间，失败不写。省略字段保留，url和signup_deadline的null明确清空。
+- 控制台只PATCH实际修改字段，单改说明不改原始时分；offline=true从公开列表移除，false恢复原记录。
+- 比赛更新与competition.update审计同一事务，审计失败回滚，不发邮件。
 
-源码：[app/server/src/routes/console/competitions.ts:57](../../../app/server/src/routes/console/competitions.ts#L57)
+源码：[app/server/src/routes/console/competitions.ts:61](../../../app/server/src/routes/console/competitions.ts#L61) · [app/server/src/routes/console/competitions.ts:61](../../../app/server/src/routes/console/competitions.ts#L61) · [app/console/src/lib/competitions.ts:113](../../../app/console/src/lib/competitions.ts#L113) · [app/console/src/pages/Competitions.vue:77](../../../app/console/src/pages/Competitions.vue#L77)
 
-测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts)。生成器未执行这些测试。
+测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx) · [tests/e2e/competitions.spec.mts](../../../tests/e2e/competitions.spec.mts)。生成器未执行这些测试。
 
 ### 删除比赛
 
-标识：`flow:competition.console.delete`；性质：显式声明并关联源码，不是自动证明业务正确。
+标识：`flow:competition.delete`；性质：显式声明并关联源码，不是自动证明业务正确。
 
 - 操作：`DELETE /api/console/competitions/:competition_id`
 - 能力：`competitions.manage`
@@ -1934,10 +1943,14 @@
 - 权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。
 - 响应与错误：200 { ok: true }；有报名记录（含软取消）的比赛不可删除（409 competition_has_signups）。
 - 数据与副作用：从 competitions 物理删除记录并写 competition.delete 审计日志。
+- 权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。
+- 共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。
+- 200 {ok:true}；不存在或重复删除404。DELETE真删，暂时隐藏应使用下线。
+- 只删除本环境赛事记录，并与competition.delete审计在同一事务提交；审计失败保留赛事，业务删除不增加共同身份查询以外的外部请求。
 
-源码：[app/server/src/routes/console/competitions.ts:92](../../../app/server/src/routes/console/competitions.ts#L92)
+源码：[app/server/src/routes/console/competitions.ts:101](../../../app/server/src/routes/console/competitions.ts#L101) · [app/server/src/routes/console/competitions.ts:101](../../../app/server/src/routes/console/competitions.ts#L101) · [app/console/src/pages/Competitions.vue:87](../../../app/console/src/pages/Competitions.vue#L87)
 
-测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts)。生成器未执行这些测试。
+测试入口：[tests/server/competitions.test.ts](../../../tests/server/competitions.test.ts) · [tests/console/competitions.test.ts](../../../tests/console/competitions.test.ts) · [tests/web/portal-competitions.test.tsx](../../../tests/web/portal-competitions.test.tsx) · [tests/e2e/competitions.spec.mts](../../../tests/e2e/competitions.spec.mts)。生成器未执行这些测试。
 
 ### 查看比赛花名册与去重统计
 

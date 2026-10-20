@@ -2,7 +2,7 @@
 
 > 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。
 
-状态：`current` · 更新：2026-10-18
+状态：`current` · 更新：2026-10-19
 
 ## 根入口和分工
 
@@ -19,6 +19,8 @@
 ## 回归矩阵
 
 项目目录（#257）：`tests/server/catalog.test.ts` 观测真实应用的根路由、循环注册和头像子插件，核对启用观测后健康、公开文档与未登录拒绝路径不变；`tests/tooling/project-catalog.test.ts` 从真实应用和内存 SQLite 提取结构，覆盖全部注册项、最终 Schema、自动 HEAD、物理外键和部分索引、能力蕴含、业务声明、Nitro 静态声明、来源摘要确定性、环境变量隔离、重复与悬空引用失败，以及入库目录过期。生成器不监听、不读 `.env`/业务库/私有快照，不发外部请求，不执行被链接的业务测试；`pnpm check:catalog` 独立核对生成物，`pnpm typecheck:catalog` 核对工具类型（也在根 typecheck 中）。目录通过不等于权限、业务或线上验收通过，维护规则见[项目目录](../architecture/catalog/README.md)。
+
+比赛信息发布（#238）：`tests/server/competitions.test.ts`、`tests/console/competitions.test.ts`、`tests/web/portal-competitions.test.tsx` 覆盖五个比赛路由及三条受能力枚举影响的权限配置路由的响应 Schema 挂载、权限包 DTO 完整性和显式授予后生效、审计失败时增改删事务回滚、鉴权、字段与日期范围、可解析 HTTPS、空响应与损坏响应、五种状态、跨结束时刻重排、样板时钟及北京时间截止日末。`tests/e2e/competitions.spec.mts` 在 CI 的 1440×900 / 390×844 浏览器里通过真实 Fastify 路由和内存库验证 URL 失败留在表单、仅改说明不重写精确时分、刷新以及下线/恢复后的公开可见性；只模拟外部 GitHub。它不验证真实 OAuth，不访问本机验收实例；本机用 ego-browser 另做真实 HTTP 与截图验收。
 
 投递取消（#204）：`tests/console/applications.test.ts` 与 `mock-sync.test.ts` 核对五状态、取消提示与不带邮件的 PATCH；`tests/server/mail-outbox.test.ts` 用真实路由与假的发信商覆盖从四种状态取消、强带通知及信件内容仍不写信、保留简历与历史、补备注/恢复、版本冲突；`tests/server/console.test.ts` 核对取消的权限/Origin、列表/搜索/分页/全局计数、概览、目录与 CSV；`legacy-database.test.ts` 在虚构文件库重启两次核对取消状态和完整历史不被迁移覆盖。`tests/e2e/application-cancelled.spec.mts` 将浏览器业务请求交给真实 Fastify 路由和内存库，仅外部身份/发信商使用假响应，覆盖 1440px / 390px 键盘选择、保存、刷新、审核、筛选/导出链接与旧画面冲突。不访问用户验收实例、不发真实邮件，截图不代替预发布上的人工验收。
 

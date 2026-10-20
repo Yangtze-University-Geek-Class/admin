@@ -6,7 +6,7 @@ import { links } from "../../lib/links";
 import { agoLabel, runTerminal, type AppId, type OsApp, type TerminalLine } from "../../lib/osApps";
 import { orgChartModel, orgSummary, useOrg, type OrgBadge } from "../../lib/org";
 import { useForumSnapshot, useRepoSnapshot } from "../../lib/snapshots";
-import { beijingDay, useCompetitions, type CompetitionKind, type CompetitionStatus } from "../../lib/competitions";
+import { dayRange, shortDay, useCompetitions, type CompetitionKind, type CompetitionStatus } from "../../lib/competitions";
 import Icon from "../Icon";
 
 export type WindowId = "about" | "org" | "terminal" | "forum-feed" | "competitions";
@@ -22,7 +22,7 @@ const META: Record<WindowId, { title: string; icon: "book-2-line" | "organizatio
   competitions: { title: "比赛", icon: "trophy-line", width: 780, path: "~/yugc/competitions" },
 };
 /** 状态文案：与服务端 `competitionStatus` 的四个值一一对应。 */
-const STATUS_TEXT: Record<CompetitionStatus, string> = { registering: "报名中", closed: "报名已截止", ongoing: "进行中", ended: "已结束" };
+const STATUS_TEXT: Record<CompetitionStatus, string> = { upcoming: "未开始", registering: "报名中", closed: "报名已截止", ongoing: "进行中", ended: "已结束" };
 
 export function windowWidth(id: WindowId): number {
   return META[id].width;
@@ -212,7 +212,7 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
     </>
   );
 }
-/** 比赛（#238）窗口：还能赶上的排在前面，可按内部/外部筛；外部比赛给官方链接，内部比赛不放假按钮。 */
+/** 比赛（#238）窗口：还能赶上的排在前面，可按内部/外部筛；有有效官方链接就显示，不放尚未实现的报名按钮。 */
 export function Competitions() {
   const { items, failed, loading } = useCompetitions();
   const [filter, setFilter] = useState<"all" | CompetitionKind>("all");
@@ -244,8 +244,8 @@ export function Competitions() {
               {item.description && <p className="pt-comp-desc">{item.description}</p>}
               <p className="pt-comp-when">
                 <Icon name="calendar-event-line" size={13} />
-                {beijingDay(item.start_at)} 起，到 {beijingDay(item.end_at)}
-                {item.signup_deadline !== null && <span className="pt-comp-due">报名截止 {beijingDay(item.signup_deadline)}</span>}
+                {dayRange(item.start_at, item.end_at)}
+                {item.signup_deadline !== null && <span className="pt-comp-due">报名截止 {shortDay(item.signup_deadline)}</span>}
               </p>
               {item.url && (
                 <a className="pt-comp-link" href={item.url} target="_blank" rel="noopener noreferrer">

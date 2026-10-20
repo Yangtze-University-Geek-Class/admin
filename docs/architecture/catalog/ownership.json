@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-18",
+  "updated": "2026-10-20",
   "applications": [
     {
       "id": "web",
@@ -190,7 +190,8 @@
       "docs": [
         "docs/architecture/API.md",
         "docs/services/server/data-model.md",
-        "docs/services/console/README.md"
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ],
       "tables": [
         "competitions",
@@ -257,7 +258,7 @@
     "sessions": "包含加密会话凭据。目录仅记录列与约束，不读取会话值。",
     "invite_links": "包含能力令牌与加密上游凭据。目录不读取记录。",
     "mail_outbox": "包含发信中的个人信息；application_id、review_id 不是数据库外键。具体保留规则见 mail.md。",
-    "competitions": "比赛信息。状态由起止时间与当前时间动态计算；不含个人信息。",
+    "competitions": "只存赛事事实，不含参赛者或队伍；status 由起止时间与报名截止按当前时间算（未开始/报名中/报名已截止/进行中/已结束），offline 仅控制公开可见性；有报名记录的比赛只能下线不能删除。参赛与组队数据在 competition_signup* / competition_team* 表。",
     "competition_signup_settings": "比赛报名设置。控制报名开关、参赛形式（个人/组队）与队伍人数限制；不含个人信息。",
     "competition_signups": "比赛报名记录。按 account_id 关联参赛人员，存储找队意向及参赛备注；软删除（cancelled）。",
     "competition_teams": "比赛队伍记录。存储队名、口号、队长 account_id 及组队锁定状态（recruiting/locked/disbanded）。",
@@ -5545,9 +5546,11 @@
     },
     {
       "id": "competition.public.list",
-      "title": "获取公开比赛列表",
+      "title": "浏览公开比赛信息",
       "domain": "competitions",
-      "relatedDomains": [],
+      "relatedDomains": [
+        "platform"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/public/competitions",
       "capabilities": [],
@@ -5557,61 +5560,75 @@
       "writes": [],
       "doesNotEnqueue": [],
       "invariants": [
-        "权限与资源：公开接口，无需登录；仅返回未下线比赛（offline=0）。",
-        "响应与错误：200 { competitions }；计算动态状态（registering/ongoing/closed/ended），不暴露内部字段与成员个人信息。",
-        "数据与副作用：只读查询，无数据库写入与副作用。"
+        "匿名只读未下线赛事，响应只含公开字段，不含offline、创建时间或成员信息。",
+        "响应200 {competitions}；五种状态按时间计算，未知报名截止的未来赛事为upcoming；未结束在前，已结束按开始时间倒序。",
+        "官网按类型筛选并每60秒重算状态与排序，损坏响应显示失败；全部类型链接可选且必须可解析HTTPS。"
       ],
       "evidence": [
         {
           "path": "app/server/src/routes/portal/competitions.ts",
-          "needle": "app.get(\"/api/public/competitions\", {"
+          "needle": "  app.get(\"/api/public/competitions\", {"
         },
         {
           "path": "app/server/src/routes/portal/contracts.ts",
-          "needle": "\"GET /api/me/competitions\": { querystring: object({}) },"
+          "needle": "  \"GET /api/public/competitions\":"
         },
         {
           "path": "app/server/src/routes/portal/index.ts",
           "needle": "import r5 from \"./competitions.js\";"
         },
         {
+          "path": "app/server/src/lib/competition-store.ts",
+          "needle": "export function createCompetitionStore("
+        },
+        {
+          "path": "app/server/src/lib/competition-contract.ts",
+          "needle": "export const publicCompetitionList ="
+        },
+        {
           "path": "app/web/sites/portal/lib/competitions.ts",
-          "needle": "// 比赛（#238）的数据：官网桌面「比赛」窗口读 GET /api/public/competitions。"
+          "needle": "export function useCompetitions("
         },
         {
           "path": "app/web/sites/portal/components/os/Windows.tsx",
-          "needle": "competitions: { title: \"比赛\", icon: \"trophy-line\", width: 780, path: \"~/yugc/competitions\" },"
+          "needle": "export function Competitions()"
         },
         {
           "path": "app/web/sites/portal/components/os/YugcOs.tsx",
-          "needle": "competitions: \"比赛\""
+          "needle": "  const frontName = front ?"
         },
         {
           "path": "app/web/sites/portal/lib/osApps.ts",
-          "needle": "{ id: \"competitions\", name: \"比赛\", icon: \"trophy-line\","
+          "needle": "  { id: \"competitions\", name: \"比赛\","
         },
         {
           "path": "app/web/shared/lib/mock-api.ts",
-          "needle": "/** 比赛样板只写起止时间：状态由界面按同一套口径（`statusAt`）现算，这里不写死。 */"
+          "needle": "  if (pathname === \"/api/public/competitions\")"
         }
       ],
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/web/portal-competitions.test.tsx"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ]
     },
     {
       "id": "competition.console.list",
-      "title": "控制台查看比赛列表",
+      "title": "控制台查看全部比赛",
       "domain": "competitions",
       "relatedDomains": [
         "identity",
         "organization",
-        "audit"
+        "audit",
+        "platform"
       ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/console/competitions",
@@ -5631,63 +5648,60 @@
       ],
       "doesNotEnqueue": [],
       "invariants": [
-        "权限与资源：需要 console.access 能力；返回全部比赛（含已下线 offline=1）。",
-        "响应与错误：200 { competitions }；每个条目包含 offline 标记和管理时间戳。",
-        "数据与副作用：仅在会话过期时删除会话并记审计日志，无业务表写入。"
+        "有效sid及console.access可读，控制台页面和导航另需competitions.manage；公开与管理读取范围分别定义。",
+        "200 {competitions}含offline；401未登录，403缺能力。列表按当前时间重算，样板重读同样更新，不冒充真实数据。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。"
       ],
       "evidence": [
         {
           "path": "app/server/src/routes/console/competitions.ts",
-          "needle": "app.get(\"/api/console/competitions\", {"
-        },
-        {
-          "path": "app/server/src/routes/console/contracts.ts",
-          "needle": "const competitionFields = {"
+          "needle": "  app.get(\"/api/console/competitions\","
         },
         {
           "path": "app/server/src/routes/console/index.ts",
-          "needle": "await app.register(competitionRoster);"
-        },
-        {
-          "path": "app/console/src/lib/competitions.ts",
-          "needle": "// 比赛（#238）控制台页面的纯逻辑"
-        },
-        {
-          "path": "app/console/src/lib/nav.ts",
-          "needle": "{ id: \"competitions\", to: \"/console/competitions\","
-        },
-        {
-          "path": "app/console/src/lib/permission-boundaries.ts",
-          "needle": "\"competitions.manage\": {"
-        },
-        {
-          "path": "app/console/src/lib/types.ts",
-          "needle": "/** 比赛（#238）：状态由服务端按时间算好，控制台只负责显示。 */"
-        },
-        {
-          "path": "app/console/src/mock/console.ts",
-          "needle": "/**\n * 比赛样板（#238）：开发预览的「比赛」页读这里。"
+          "needle": "  await app.register(competitions);"
         },
         {
           "path": "app/console/src/pages/Competitions.vue",
-          "needle": "<script setup lang=\"ts\">\nimport { computed, reactive, ref } from \"vue\";"
+          "needle": "const list = useResource("
+        },
+        {
+          "path": "app/console/src/lib/types.ts",
+          "needle": "export type CompetitionStatus ="
+        },
+        {
+          "path": "app/console/src/lib/nav.ts",
+          "needle": "  { id: \"competitions\", to:"
+        },
+        {
+          "path": "app/console/src/lib/permission-boundaries.ts",
+          "needle": "  \"competitions.manage\": {"
         },
         {
           "path": "app/console/src/router.ts",
-          "needle": "{ path: \"competitions\", ...gated([\"competitions.manage\"], () => import(\"./pages/Competitions.vue\")) },"
+          "needle": "      { path: \"competitions\","
+        },
+        {
+          "path": "app/console/src/mock/console.ts",
+          "needle": "const competitionView = () => {"
         }
       ],
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ]
     },
     {
-      "id": "competition.console.create",
+      "id": "competition.create",
       "title": "新建比赛",
       "domain": "competitions",
       "relatedDomains": [
@@ -5716,7 +5730,11 @@
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。",
         "响应与错误：201 { competition }；起止与报名截止时间合法性校验失败 400 bad_range / deadline_after_end。",
-        "数据与副作用：写入 competitions 表并记录 competition.create 审计日志。"
+        "数据与副作用：写入 competitions 表并记录 competition.create 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "201 {competition}；校验名称、时间范围和解析后的HTTPS地址；未知字段或错误时间/地址400，限流429。",
+        "比赛行与competition.create审计同一事务提交；审计失败一起回滚，不发邮件，不创建报名或队伍。"
       ],
       "evidence": [
         {
@@ -5734,20 +5752,41 @@
         {
           "path": "app/server/src/lib/roles.ts",
           "needle": "{ id: \"competitions.manage\","
+        },
+        {
+          "path": "app/server/src/routes/console/competitions.ts",
+          "needle": "  app.post<{ Body: CompetitionDraft }>("
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "  \"POST /api/console/competitions\": {"
+        },
+        {
+          "path": "app/server/src/lib/roles.ts",
+          "needle": "  { id: \"competitions.manage\","
+        },
+        {
+          "path": "app/server/src/services.ts",
+          "needle": "  const competitions = createCompetitionStore(storage.db);"
         }
       ],
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ]
     },
     {
-      "id": "competition.console.update",
-      "title": "修改或下线比赛",
+      "id": "competition.update",
+      "title": "修改、下线和恢复比赛",
       "domain": "competitions",
       "relatedDomains": [
         "identity",
@@ -5777,25 +5816,47 @@
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 60 次/分钟。",
         "响应与错误：200 { competition }；已有报名时禁止修改比赛类型（409 competition_has_signups）；开放报名中禁止清空报名截止时间（409 signup_deadline_required）。",
-        "数据与副作用：更新 competitions 表对应字段并记录 competition.update 审计日志。"
+        "数据与副作用：更新 competitions 表对应字段并记录 competition.update 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "200 {competition}；404不存在；合并原记录后验证时间，失败不写。省略字段保留，url和signup_deadline的null明确清空。",
+        "控制台只PATCH实际修改字段，单改说明不改原始时分；offline=true从公开列表移除，false恢复原记录。",
+        "比赛更新与competition.update审计同一事务，审计失败回滚，不发邮件。"
       ],
       "evidence": [
         {
           "path": "app/server/src/routes/console/competitions.ts",
           "needle": "app.patch<{ Params: { competition_id: string }; Body: CompetitionPatch }>("
+        },
+        {
+          "path": "app/server/src/routes/console/competitions.ts",
+          "needle": "  app.patch<{ Params: { competition_id: string }; Body: CompetitionPatch }>("
+        },
+        {
+          "path": "app/console/src/lib/competitions.ts",
+          "needle": "export function formPayload("
+        },
+        {
+          "path": "app/console/src/pages/Competitions.vue",
+          "needle": "const toggleOffline = useAction("
         }
       ],
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ]
     },
     {
-      "id": "competition.console.delete",
+      "id": "competition.delete",
       "title": "删除比赛",
       "domain": "competitions",
       "relatedDomains": [
@@ -5825,21 +5886,38 @@
       "invariants": [
         "权限与资源：需要 competitions.manage 能力；频控 30 次/分钟。",
         "响应与错误：200 { ok: true }；有报名记录（含软取消）的比赛不可删除（409 competition_has_signups）。",
-        "数据与副作用：从 competitions 物理删除记录并写 competition.delete 审计日志。"
+        "数据与副作用：从 competitions 物理删除记录并写 competition.delete 审计日志。",
+        "权限与资源：有效全站sid，组织固定CONSOLE_ORG，写口独立检查competitions.manage；客户端不能自报角色或org。",
+        "共同身份路径：读取sessions与称号/部门权限，使用本人GitHub token查角色并缓存60秒；过期会话删除，上游拒绝token时删除并审计，不代表成功读取总是写库。",
+        "200 {ok:true}；不存在或重复删除404。DELETE真删，暂时隐藏应使用下线。",
+        "只删除本环境赛事记录，并与competition.delete审计在同一事务提交；审计失败保留赛事，业务删除不增加共同身份查询以外的外部请求。"
       ],
       "evidence": [
         {
           "path": "app/server/src/routes/console/competitions.ts",
           "needle": "app.delete<{ Params: { competition_id: string } }>("
+        },
+        {
+          "path": "app/server/src/routes/console/competitions.ts",
+          "needle": "  app.delete<{ Params: { competition_id: string } }>("
+        },
+        {
+          "path": "app/console/src/pages/Competitions.vue",
+          "needle": "async function askRemove("
         }
       ],
       "tests": [
         "tests/server/competitions.test.ts",
-        "tests/console/competitions.test.ts"
+        "tests/console/competitions.test.ts",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/e2e/competitions.spec.mts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md"
+        "docs/architecture/API.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md"
       ]
     },
     {
@@ -6793,9 +6871,6 @@
       "identity"
     ],
     "app/server/src/lib/competition-": [
-      "competitions"
-    ],
-    "app/console/src/pages/Competition": [
       "competitions"
     ],
     "app/server/src/lib/csv.ts": [
