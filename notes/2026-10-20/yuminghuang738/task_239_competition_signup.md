@@ -43,3 +43,10 @@
 - 做了什么：git push fork task/239/competition_signup 推送 4ec61df；gh pr edit 更新 PR #261 正文的变更范围（7 个漏记端点与三处响应形状修正）；gh pr comment 留下进展追踪记录
 - 结果：4e97518..4ec61df 推送成功；PR 正文与追踪评论已更新；CI 在新提交上重新排队（core/e2e/docker/pr-contract 等）
 - 下一步：等 CI 结果；pr-contract 仍需维护者补 ui:interaction、func:api、func:auth、func:data 标签
+
+## 11:40:50 +08:00 · 返工 · #239 · 修 core 门禁：补跑 catalog 生成（API.md 改动未重生成产物）
+
+- 执行者：agent-claude-geek-main-01（Claude Code，deepseek-v4.1-flash）
+- 做了什么：CI core 在 check:catalog 失败（目录缺失或过期），原因是上一提交改了 docs/architecture/API.md 与 docs/services/server/README.md 后只跑了 doc-sync/docs/architecture，没有重跑 pnpm catalog:generate；执行 pnpm catalog:generate 重生成 6 个产物（catalog.json、CATALOG.md、routes.md、data-model.md、permissions.md、map.html），差异只有来源摘要与 API.md、server/README.md 两个源码哈希
+- 结果：pnpm check:catalog 通过（4 应用、3 运行单元、203 方法路径、32 表、21 能力）；pnpm check:architecture 通过（35 个文件 140 个节点）
+- 下一步：提交并推送，确认 core 转绿

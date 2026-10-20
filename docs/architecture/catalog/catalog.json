@@ -9461,7 +9461,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "d2f12c41ffee16ed471d9a414db5af4eef5972df46a1ace9be579bcbd1434b2a",
+    "fingerprint": "9d60b31308885adc87f5722b4b1adaeb774309ca66e5c20ea4aa0e8f7cb65fbd",
     "sources": [
       {
         "path": "app/console/package.json",
@@ -10773,7 +10773,7 @@
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "1748397a1fc15d9d05ef33186fda9c155c68ae1b5f0b4457b4f7046e69868cb7"
+        "sha256": "e178dfbf26d8ea4e43339c9c46b9b98493a1b003b4fab2c5bcf8548b82c99bc6"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -10809,7 +10809,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "ede3eded071bb6ab6397245edf5c55ae01e3052d2d9cebeb77e3345d375f5e15"
+        "sha256": "52d3c4f04d853ca7a62d13b649cfe7814af3a453072758f880858967bf1b372a"
       },
       {
         "path": "docs/services/server/data-model.md",
