@@ -12,7 +12,7 @@ import { loadForumContent } from '../../app/server/src/lib/forum-content';
 import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { FORUM_FIXTURE_DIR, testApp, testConfig } from './helpers';
+import { FORUM_FIXTURE_DIR, signIn, testApp, testConfig } from './helpers';
 
 /** sharp 是 app/server 的依赖，根目录没有它；从 server 包里取，用来生成真实的测试图片和核对输出。 */
 const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp') as typeof import('../../app/server/node_modules/sharp');
@@ -59,11 +59,11 @@ async function setup(options: { failing?: { failing: boolean; rejected?: Set<str
   const { app } = context;
   const sids = new Map<string, string>();
   const as = (login: string) => {
-    if (!sids.has(login)) sids.set(login, app.services.auth.createSession(login, USERS[login] ?? null, `https://avatars.example.test/${login}`, `token-${login}`));
+    if (!sids.has(login)) sids.set(login, signIn(app, login, USERS[login], `https://avatars.example.test/${login}`, `token-${login}`));
     return { cookie: `sid=${sids.get(login)}` };
   };
   const assign = (login: string, role: 'captain' | 'head' | 'member' | 'alumni', department_id = '') =>
-    app.services.roles.insertAssignment({ github_login: login, github_user_id: USERS[login] ?? null, role, department_id, note: null, granted_by: 'fixture' });
+    app.services.roles.insertAssignment({ github_login: login, github_user_id: USERS[login], role, department_id, note: null, granted_by: 'fixture' });
   assign('carol', 'member', 'community');
   assign('dave', 'head', 'projects');
   assign('erin', 'alumni');
@@ -682,7 +682,7 @@ describe('replies', () => {
     // grace 有当前会话。这些人都没打开过论坛。frank 没有称号、也从没登录过：这是剩下的缺口。
     s.app.services.roles.insertAssignment({ github_login: 'zed', github_user_id: null, role: 'member', department_id: 'tech', note: null, granted_by: 'fixture' });
     s.app.services.storage.audit(null, 'owner1', 'auth.signin', 'owner1');
-    s.app.services.auth.createSession('grace', 107, null, 'token-grace');
+    signIn(s.app, 'grace', 107, null, 'token-grace');
     // mallory 登录被拒过（auth.signin_denied）：不是登录过的人，名字照常能用。
     s.app.services.storage.audit(null, 'mallory', 'auth.signin_denied', 'mallory', { org: CONSOLE_ORG, reason: 'not_member' });
     let ip = 63;

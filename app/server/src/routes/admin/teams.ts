@@ -34,7 +34,7 @@ export default async function teamsRoutes(app: FastifyInstance) {
       if (!name) return reply.code(400).send({ error: "name 必填" });
       const octokit = octokitWith(req.session!.accessToken);
       const res = await octokit.request("POST /orgs/{org}/teams", { org, name, description, privacy });
-      audit(org, req.session!.login, "team.create", res.data.slug, { name }, req.ip);
+      audit(org, req.session!, "team.create", res.data.slug, { name }, req.ip);
       return { ok: true, team: res.data };
     }
   );
@@ -46,7 +46,7 @@ export default async function teamsRoutes(app: FastifyInstance) {
       const { org, slug } = req.params;
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("DELETE /orgs/{org}/teams/{team_slug}", { org, team_slug: slug });
-      audit(org, req.session!.login, "team.delete", slug, undefined, req.ip);
+      audit(org, req.session!, "team.delete", slug, undefined, req.ip);
       return { ok: true };
     }
   );

@@ -24,7 +24,7 @@ export default async function adminFeedbackRoutes(app: FastifyInstance) {
       const { status, reply: replyText } = req.body;
       if (status && !VALID_STATUS.includes(status)) return reply.code(400).send({ error: "状态无效" });
       if (!updateFeedback(org, Number(id), { status, reply: replyText }, req.session!.login)) return reply.code(404).send({ error: "意见不存在" });
-      audit(org, req.session!.login, "feedback.update", id, { status, has_reply: Boolean(replyText) }, req.ip);
+      audit(org, req.session!, "feedback.update", id, { status, has_reply: Boolean(replyText) }, req.ip);
       return { ok: true };
     }
   );
@@ -35,7 +35,7 @@ export default async function adminFeedbackRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { org, id } = req.params;
       if (!deleteFeedback(org, Number(id))) return reply.code(404).send({ error: "意见不存在" });
-      audit(org, req.session!.login, "feedback.delete", id, undefined, req.ip);
+      audit(org, req.session!, "feedback.delete", id, undefined, req.ip);
       return { ok: true };
     }
   );

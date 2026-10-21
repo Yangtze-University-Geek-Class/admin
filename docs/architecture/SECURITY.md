@@ -2,7 +2,7 @@
 
 > 区分核心后端授权、论坛服务端模式与本机演示；代码防护、真实环境配置和人工验收分别取证。
 
-状态：`current` · 更新：2026-10-18
+状态：`current` · 更新：2026-10-21
 
 ## 核心服务
 
@@ -16,17 +16,30 @@
 
 **登录门槛：只有 `CONSOLE_ORG` 的 active 成员能登录。** 官网、论坛、控制台共用这一个登录和同一个 `sid`。`/auth/callback` 通过签名 state 校验、换到 token、取到 `/user` 之后，用这个 token 调 `GET /user/memberships/orgs/{CONSOLE_ORG}`（`app/server/src/lib/github.ts` 的 `getOwnMembership`，OAuth scope 含 `read:org`），查的是登录者自己的成员状态，不按用户名查别人。结果处理（`app/server/src/routes/admin/auth.ts`）：
 
-- `active`：建会话、写 `sid`、审计 `auth.signin`，回到 `return_to`。
-- 不是成员（GitHub 返回 404）或邀请还没接受（`pending`）：不建会话、不写 `sid`、不保存 token；审计 `auth.signin_denied`（`actor` 与 `target` 是 GitHub 登录名，`details` 为 `{ org, reason }`，`reason` 取 `not_member` 或 `pending`）；尽力撤销这个用户对本应用的授权（`DELETE /applications/{client_id}/grant`，用应用自己的 client_id 与 secret 做 Basic 认证），撤销失败只记警告日志；302 回到 `return_to` 并带 `?signin=not_member` 或 `?signin=invite_pending`。这条审计的 `org` 列为空，和登录、登出一样不经任何审计接口返回，只能在数据库里查。
-- 换 token、取 `/user` 或成员查询出错（包括组织限制 OAuth App 访问时 GitHub 返回的 403）：一律 `?signin=failed`，**不**当成「不是成员」；服务端只记一条带 `code`、`status`、request id 的错误日志，不含 token 和上游响应。
-- 用户在 GitHub 授权页取消（`error=access_denied`）回 `?signin=cancelled`，GitHub 回传其它 `error` 回 `?signin=failed`。
+- `active`：建会话、写 `sid`、审计 `auth.signin`，回到 `return_to`。会话绑定一个极客班账号（#262，`sessions.openid` = `users.id`，接口里叫 `account_id`）：按 GitHub **数字 id** 找身份，没有就建号（只有 GitHub 能建号），沿 `merged_into` 走到终点账号，按 GitHub id 认领还没认领的称号和论坛用户，插入会话、删掉请求带来的旧 `sid`、写审计，这些在一个 `BEGIN IMMEDIATE` 事务里（`lib/identity-store.ts` 的 `signInWithGithub`），任何一步失败整体回滚、按 `failed` 回登录页，旧会话照常有效。只有登录名、没有 GitHub id 的旧称号**不认领**：旧登录名可能已被别人注册。终点账号已停用：不建会话，审计 `auth.signin_denied`（`reason` 为 `account_disabled`），撤销授权，回 `signin=account_disabled`；合并链超过 8 跳或成环按 `failed`。读会话时没有账号（#262 之前留下、没有 GitHub id 的旧会话）或账号不是 `active` 的，一律按未登录处理并删掉这一行。
+- 不是成员（GitHub 返回 404）或邀请还没接受（`pending`）：不建会话、不写 `sid`、不保存 token；审计 `auth.signin_denied`（`actor` 与 `target` 是 GitHub 登录名，`details` 为 `{ org, reason, provider }`，`reason` 取 `not_member` 或 `pending`，`provider` 是 `github`；这个 GitHub id 已经有账号时另写 `actor_account_id`）；尽力撤销这个用户对本应用的授权（`DELETE /applications/{client_id}/grant`，用应用自己的 client_id 与 secret 做 Basic 认证），撤销失败只记警告日志；302 到 `/signin` 并带 `signin=not_member` 或 `signin=invite_pending` 与原来的 `return_to` 路径。这条审计的 `org` 列为空，和登录、登出一样不经任何审计接口返回，只能在数据库里查。
+- 换 token、取 `/user` 或成员查询出错（包括组织限制 OAuth App 访问时 GitHub 返回的 403）：一律按 `signin=failed` 回统一登录页，**不**当成「不是成员」；服务端只记一条带 `code`、`status`、request id 的错误日志，不含 token 和上游响应。
+- 用户在 GitHub 授权页取消（`error=access_denied`）按 `signin=cancelled` 回登录页，GitHub 回传其它 `error` 按 `signin=failed` 回登录页。
 - 登录之后，会话里存的令牌被 GitHub 以 401 拒绝（用户撤销了授权，或同一用户的令牌超过 10 个、最久没用的被收回）：这个会话结束，服务端删掉它、清 `sid`，回 401 `session_expired`，审计 `auth.session_rejected`；`/auth/me` 回 `{ signed_in: false, session_expired: true }`。人重新登录后拿新令牌（#164，细节见下文「失败语义」与 [API](API.md) 的上游错误映射）。
 
-以上回跳都先要求 state 有效，目标是校验过的 `return_to`（只接受 `PUBLIC_ORIGIN`，否则回 `<PUBLIC_ORIGIN>/console`）。缺 `state`、既无 `code` 也无 `error`、state 签名或 cookie 不符，仍就地返回 400 JSON，不跳转；以 `forum-` 开头的旧论坛 state 返回 410。换 token、取 `/user`、撤销授权的请求 15 秒超时；Octokit 当前版本不读 `request.timeout`，所以默认的 Octokit 给它用的 `fetch` 套了 15 秒的 `AbortSignal.timeout`（`lib/github.ts` 的 `withTimeout`），成员查询和控制台的所有 GitHub 调用同样 15 秒超时。GitHub 连不上时登录尽快以 `failed` 回到原页面。不是成员的人拿不到会话：官网公开页面和论坛帖子不登录照样能看，控制台对他们只有登录页。
+以上回跳都先要求 state 有效，目标是校验过的 `return_to`（只接受 `PUBLIC_ORIGIN`，否则回 `<PUBLIC_ORIGIN>/console`）。**失败一律去统一登录页**：302 到 `${PUBLIC_ORIGIN}/signin?signin=<原因>&return_to=<原来要回的本站路径>`（`routes/admin/auth.ts` 的 `signinFailureUrl`），原路径里残留的 `signin` 参数先去掉；登录页与官网、论坛、控制台的「登录」入口都从这里出发，原因在登录页说清后可以直接换一种方式重试（#262）。登录页对 `return_to` 再做一次同源校验：只接受以单个 `/` 开头的同源路径（拒绝 `//`、`/\`、控制字符、绝对 URL 和带着用户名密码的地址），不合格一律回 `/console`，并且不回到 `/signin` 自己（`app/console/src/lib/signin.ts` 的 `safeReturnPath`）；服务端另按 `PUBLIC_ORIGIN` 校验一次（`lib/safe-return.ts`）。缺 `state`、既无 `code` 也无 `error`、state 签名或 cookie 不符，仍就地返回 400 JSON，不跳转；以 `forum-` 开头的旧论坛 state 返回 410。换 token、取 `/user`、撤销授权的请求 15 秒超时；Octokit 当前版本不读 `request.timeout`，所以默认的 Octokit 给它用的 `fetch` 套了 15 秒的 `AbortSignal.timeout`（`lib/github.ts` 的 `withTimeout`），成员查询和控制台的所有 GitHub 调用同样 15 秒超时。GitHub 连不上时登录尽快以 `failed` 回到登录页。不是成员的人拿不到会话：官网公开页面和论坛帖子不登录照样能看，控制台对他们只有登录页。
 
 公开邀请/反馈/加入我们投递有限流、蜜罐、PoW 和可选 Turnstile。意见箱只收 `CONSOLE_ORG` 的意见：`POST /api/feedback` 的组织名不分大小写认它、按配置写法落库，别的组织名回 400、不落库（#129）。论坛的游客回复（`POST /api/forum/posts` 不带 `sid`）是另一个匿名写入口，同样要蜜罐、PoW（摘要输入 `${topicId}:${content}`）与可选 Turnstile，正文 ≤2000 字、昵称 1–20 字，昵称先做 NFKC、去掉首尾空白，再按允许清单收字符（`isAllowedName`），存的就是校验过的这个写法（不换行空格、全角空格这类字符存成普通空格，不会原样存下来显示得像没有空格）：汉字、常用拉丁字母（含拼音声调、越南文）、平假名、片假名、韩文（只收合成好的音节，单独的字母不收）、ASCII 数字，以及空格和 `- _ . · ・ '`，空格不能在首尾或连着用；看不见的字符、表情、其它文字（西里尔、希腊、亚美尼亚等的形近字母）和 IPA、小型大写这类形近拉丁字母都进不来。原来的屏蔽清单拦一种漏一种（第三轮审查又找到未分配的可忽略字符 U+2065、U+FFF0、U+E0080 和亚美尼亚、傈僳、切罗基的形近字母），所以换成允许清单。按 NFKC、不分大小写、去掉附加符号、把形近字折成同一个（ı 和 i、片假名カ和汉字力这类）、去掉所有空白和 `- _ . · ・ '` 之后（「极 客班」「极客班.」都算「极客班」），昵称不能与成员或官方账号的昵称、用户名相同，也不能是本地知道的组织成员的登录名：控制台里有称号的人（`role_assignments`）和登录过的人（审计里的 `auth.signin` 与当前会话，包括登录过的组织 owner），没打开过论坛的也算；成员改昵称同样只收这些字符，也不能等于官方账号的名字、别人的用户名或这些人里别人的登录名。昵称被占的回答（`guest_name_taken`）会透露某个名字是不是登录过或有称号的组织成员，所以这项检查放在限流和 PoW 之后；PoW 通过后每次尝试都记一次这个 IP 的回复额度，不管后面是昵称被占、人机验证没过还是发出去了，匿名探测和回复共用下面的额度、要先解 PoW，开了 Turnstile 时也分不出被占和没被占在额度上的差别。游客回复每个 IP 5 次/分钟、30 次/天，IPv6 按 /64 前缀计，全站游客回复合计每小时 200 次，超了所有游客暂停回复（`guest_replies_paused`），成员不受影响（都记在 `forum_rate_events`，重启不清零）；`GET /api/forum/state` 每个 IP 120 次/分钟、浏览接口 60 次/分钟（进程内计数）；游客不能发帖、编辑、删除或做其它写操作，每条游客回复是一个单独的游客用户，不能冒用成员身份。游客的来源 IP 只存在限流记录（最多一天）和浏览去重（最多一小时）里，不随帖子下发。反馈摘要与管理员回复经 `GET /api/feedback/public` 匿名可读：只返回 `CONSOLE_ORG`（组织名不分大小写）下非 `spam` 反馈的前 280 字、状态、回复和票数，别的组织名一律返回空列表，库里别的组织的历史行不再公开（#129）；`org` 与 `limit` 经本端点的 querystring 合同校验（`org` 不超过 39 字、重复给出回 400，`limit` 为正整数），最多返回 100 条（见 [API](API.md) 端点清单）；反馈正文因此按公开内容对待，用户指南已提示勿提交敏感信息。「加入我们」投递没有匿名读取接口；控制台的读取、详情和导出分别按对应能力授权，见 [API](API.md)。邀请先预留额度、再请求上游，明确失败补偿、未知结果保留待核对，不把超时解释为未发送。写请求核对 Origin 与 Fetch Metadata，返回错误不打印 token 或完整上游响应。鉴权 API 禁止缓存。公开文档使用允许列表，不公开内部运维、安全、规范和审查内容。论坛昵称的冒名检查还剩一个缺口：从没登录过、也没有称号的组织成员（包括从没登录过的组织 owner），本地没有这些人的登录名，游客和成员仍能用这些名字。
 
 **客户端 IP 从哪来**：上面所有按 IP 的限流（邀请、反馈、投递、论坛），以及审计和投递里记的来源 IP，都取 Fastify 的 `req.ip`。部署链路是客户端 → 宿主 nginx → web 容器 nginx → server，两层 nginx 各往 `X-Forwarded-For` 末尾追加一段，所以两个环境都是 `TRUST_PROXY=2`：只信任这两层，客户端自己带的最左边几段不算。2026-09-26 之前两个环境写的是 `true`，信任整条链，`req.ip` 取的是客户端能随便填的最左边一段，换着填就能绕过所有按 IP 的限流，写进审计和投递的 IP 也能伪造（#116 审查发现，轮换 `X-Forwarded-For` 8 次 8 次成功）。改了反代拓扑要同时改两份 env 模板和 `scripts/deployment-environment.mjs` 的 `PROXY_HOPS`，`pnpm check:environments` 与 `tests/tooling/deployment-environment.test.ts` 核对层数与两份 nginx 配置一致。本机开发不设 `TRUST_PROXY`，只信任回环上的代理。
+
+## 设备授权（RFC 8628，给 `geek login` 预留）
+
+命令行的登录不走浏览器会话，按 RFC 8628 的 device authorization grant 换一个只能读账号资料的令牌（#262，源码 `app/server/src/lib/device-store.ts`、`app/server/src/routes/identity/device.ts`，接口见 [API](API.md)）：
+
+- **授权对象是极客班账号**：确认页要极客班 SSO 会话（`requireAuth`），写进 `device_grants.account_id` 的是会话的 `account_id`（`users.id`），不是 GitHub id；账号不是 `active` 时确认后的轮询回 `access_denied`，已有令牌在 `/auth/device/userinfo` 立即失效，不用等过期。
+- **凭据不入库、只发一次**：`device_code`（32 字节随机数）与 `access_token`（`gk_` 前缀加 32 字节随机数）只把 sha256 存进 `device_grants`，明文只出现在发码与换令牌的响应里；换过令牌的行改成 `consumed` 且记下令牌哈希，同一个 `device_code` 再轮询只会得到 `invalid_grant`。令牌 30 天到期，到期或账号停用后 `device_grants` 里的哈希不再能换成身份。
+- **时限与节奏**：`user_code` 8 位、字符集去掉元音与易混字符（`BCDFGHJKLMNPQRSTVWXZ`），10 分钟有效；默认轮询间隔 5 秒，提前轮询回 `slow_down` 并把这一行的间隔加 5 秒写回，凭据泄漏时留给暴力尝试的窗口更小。
+- **限流按接口分开**：发码 10 次/分钟、轮询 60 次/分钟、确认页读取 30 次/分钟（`user_code` 空间有限，查询也要挡枚举）、确认 20 次/分钟，都按 IP 计，超额 429。`user_code` 输入的字符集与长度先做校验，不合法按不存在处理。
+- **确认页防钓鱼**：`/device` 显示客户端名（目前只有「极客班命令行」）、请求的 `scope`（逐项说成人话）、终端里那串代码与剩余时间，并在允许/拒绝上方明说「只有你刚在自己的电脑上运行了 `geek login`、终端里就是这串代码时才允许，别人发给你的代码不要确认」。代码不是 `pending` 或已经过期时不给按钮，只说明原因（过期、已被拒绝、已用过）。
+- **跨站写入**：`POST /api/identity/device/approve` 是普通写请求，先经 `middleware/http-policy.ts` 的 Origin / Fetch Metadata 校验（外域 403 `invalid_origin`），会话 Cookie 是 `SameSite=Lax`，第三方站点不能带着会话替你确认。
+- **接口面最小**：设备令牌只被 `GET /auth/device/userinfo` 接受，`sub` 与 `account_id` 都是极客班账号，`login`、`avatar_url` 是绑定的 GitHub 资料；其它接口仍只认会话 Cookie，令牌换不到任何控制台、论坛或 GitHub 能力。`verification_uri` 由 `PUBLIC_ORIGIN` 拼出（`<PUBLIC_ORIGIN>/device`），不写死域名，预发布与正式各自指向自己。
+- **审计不留凭据**：允许与拒绝各写一条 `identity.device.approve` / `identity.device.deny`（`actor` 是操作者登录名、另记 `actor_account_id`），`details` 只有 `client_id` 与 `scope`，不记 `device_code`、令牌与 `user_code`；审计 `org` 列为空，不经任何接口返回。
 
 ## 极客班控制台：称号与能力
 

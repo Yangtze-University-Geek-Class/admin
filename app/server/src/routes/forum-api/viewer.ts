@@ -10,8 +10,8 @@ import type { ChangeKeys, ChangeOptions, ForumTitle } from "../../lib/forum-stor
  * 控制台同一条路径（`resolveAccess` → `computeAccess`），只取 `forum.*`；按钮显隐只是提示，授权在这里。
  */
 export type ForumViewer =
-  | { kind: "guest"; userId: null; login: null; capabilities: Capability[] }
-  | { kind: "member"; userId: string; login: string; capabilities: Capability[] };
+  | { kind: "guest"; userId: null; login: null; accountId: null; capabilities: Capability[] }
+  | { kind: "member"; userId: string; login: string; accountId: string; capabilities: Capability[] };
 export type MemberViewer = Extract<ForumViewer, { kind: "member" }>;
 
 declare module "fastify" {
@@ -20,17 +20,17 @@ declare module "fastify" {
   }
 }
 
-const GUEST: ForumViewer = Object.freeze({ kind: "guest", userId: null, login: null, capabilities: [] });
+const GUEST: ForumViewer = Object.freeze({ kind: "guest", userId: null, login: null, accountId: null, capabilities: [] });
 
 /**
- * 解析并缓存到 req.forumViewer。成员第一次来建论坛用户，之后每次请求刷新角色（组织 owner 是 admin）、
+ * 解析并缓存到 req.forumViewer。成员按会话的极客班账号认人（#262）：第一次来建论坛用户，之后每次请求刷新角色（组织 owner 是 admin）、
  * 称号（排序最高的那个）和 GitHub 头像地址。GitHub 角色查询出错直接抛给 http-policy，不把成员降成游客。
  * 登录后被移出组织（组织角色查到「不是成员」）的人：会话还在，论坛按游客处理，不建、不刷新论坛用户，
  * 显式称号给的 forum.* 能力也不算。组织角色缓存 60 秒，移出后最长 60 秒生效。
  */
 export async function forumViewer(req: FastifyRequest): Promise<ForumViewer> {
   if (req.forumViewer) return req.forumViewer;
-  // 没有 GitHub user_id 的会话只出现在旧数据里，建不了 `m<id>`，按游客处理。
+  // 会话都有极客班账号和绑定的 GitHub id（没有 user_id 的旧会话读到时已按未登录删掉，lib/auth.ts）；这里再兜一次底。
   if (!loadSession(req) || req.session!.user_id === null) return (req.forumViewer = GUEST);
   const session = req.session!;
   const access = await resolveAccess(req);
@@ -38,11 +38,11 @@ export async function forumViewer(req: FastifyRequest): Promise<ForumViewer> {
   const top = access.titles[0];
   const title: ForumTitle | null = top && top.id !== "guest" ? { id: top.id, ...(top.department ? { department: top.department.id } : {}) } : null;
   const userId = req.server.services.forum.ensureMember({
-    githubUserId: session.user_id!, login: session.login, avatarUrl: session.avatar_url,
+    accountId: session.account_id, githubUserId: session.user_id!, login: session.login, avatarUrl: session.avatar_url,
     role: access.githubRole === "admin" ? "admin" : "member", title,
   });
   const capabilities = orderedCapabilities(access.capabilities).filter(capability => capability.startsWith("forum."));
-  return (req.forumViewer = { kind: "member", userId, login: session.login, capabilities });
+  return (req.forumViewer = { kind: "member", userId, login: session.login, accountId: session.account_id, capabilities });
 }
 
 export async function requireMember(req: FastifyRequest): Promise<MemberViewer> {

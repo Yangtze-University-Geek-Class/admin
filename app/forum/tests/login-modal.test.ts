@@ -66,7 +66,7 @@ describe('LoginModal when the server ends the sign-in (#164)', () => {
     expect(refresh).not.toHaveBeenCalled()
     expect(toast).toHaveBeenCalledTimes(1)
     const shown = toast.mock.calls[0]![0] as { id: string, title: string, description: string, action: { label: string, onClick: () => void } }
-    expect(shown).toMatchObject({ id: 'forum-signin-lapsed', title: '没有加上书签', description: '登录已失效，请重新用 GitHub 登录。不登录也能看帖和回复。', variant: 'warning' })
+    expect(shown).toMatchObject({ id: 'forum-signin-lapsed', title: '没有加上书签', description: '登录已失效，请重新登录。不登录也能看帖和回复。', variant: 'warning' })
     expect(shown).not.toHaveProperty('signIn')
     expect(shown.action.label).toBe('登录')
     shown.action.onClick()
@@ -98,7 +98,7 @@ describe('LoginModal when the server ends the sign-in (#164)', () => {
     await vi.waitFor(() => expect(toast).toHaveBeenCalledTimes(1))
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(account.value).toBeNull()
-    expect(toast.mock.calls[0]![0]).toMatchObject({ id: 'forum-signin-lapsed', title: '没有赞上', description: '登录已失效，请重新用 GitHub 登录。不登录也能看帖和回复。', action: { label: '登录' } })
+    expect(toast.mock.calls[0]![0]).toMatchObject({ id: 'forum-signin-lapsed', title: '没有赞上', description: '登录已失效，请重新登录。不登录也能看帖和回复。', action: { label: '登录' } })
   })
 
   it('says what failed and that the account is not in the organisation when /auth/me still has the person signed in', async () => {

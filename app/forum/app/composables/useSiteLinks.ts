@@ -4,14 +4,17 @@
  */
 export function useSiteLinks() {
   const route = useRoute()
-  const { absoluteUrl } = useAppLink()
+  const { href } = useAppLink()
   const deployment = useDeploymentInfo()
   const portalOrigin = import.meta.dev ? 'http://127.0.0.1:5173' : ''
 
-  /** 走核心服务的 GitHub 登录，登录后回到当前论坛页面（带着查询和锚点）。`return_to` 只接受 PUBLIC_ORIGIN。 */
+  /**
+   * 去极客班统一登录页（#262，登录方式由登录页按 GET /auth/providers 列出，GitHub 只是其一），登录后回到当前论坛页面
+   * （带着查询和锚点）。`return_to` 只带本站路径（含 `/forum` 前缀），登录页与核心服务都会再按同源校验。
+   */
   const signInHref = computed(() => {
-    const back = import.meta.dev ? `${portalOrigin}/forum${route.fullPath}` : absoluteUrl(route.fullPath)
-    return `${portalOrigin}/auth/github?return_to=${encodeURIComponent(back)}`
+    const back = import.meta.dev ? `/forum${route.fullPath}` : href(route.fullPath)
+    return `${portalOrigin}/signin?return_to=${encodeURIComponent(back)}`
   })
   const consoleHref = `${portalOrigin}/console`
   const portalHref = computed(() => (import.meta.dev ? `${portalOrigin}/sites/portal/` : deployment.value.origin || '/'))

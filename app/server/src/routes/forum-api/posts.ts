@@ -82,7 +82,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     assertNotDeleted(post);
     if (!req.body.content.trim()) throw new ForumError(400, "empty_content", "正文不能为空");
     forum.editPost(post.id, req.body.content);
-    if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.edit", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
+    if (moderated) audit(config.consoleOrg, { login: viewer.login, account_id: viewer.accountId }, "forum.post.edit", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
     return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
   });
 
@@ -94,7 +94,7 @@ export default async function forumPostRoutes(app: FastifyInstance) {
     if (post.deleted) return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
     if (forum.isFirstPost(post.id, post.topicId)) throw new ForumError(400, "first_post", "话题的第一帖不能删除");
     forum.deletePost(post.id);
-    if (moderated) audit(config.consoleOrg, viewer.login, "forum.post.delete", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
+    if (moderated) audit(config.consoleOrg, { login: viewer.login, account_id: viewer.accountId }, "forum.post.delete", post.id, { topic_id: post.topicId, author_id: post.authorId }, req.ip);
     return forumChanges(req, viewer, { posts: [post.id] }, { posts: "full" });
   });
 

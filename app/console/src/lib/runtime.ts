@@ -37,7 +37,15 @@ export function siteUrl(target: "portal" | "forum", path = "/"): string {
   return target === "forum" ? `/forum${suffix}` : suffix;
 }
 
-/** GitHub 登录入口：登录后回到 `returnTo`（服务端只接受本站地址）。 */
+/**
+ * 极客班统一登录页（#262）：`returnTo` 可以是本站完整地址或路径，统一转成同源路径交给 `/signin?return_to=`；
+ * 不再直接拼 `/auth/github`，登录方式由登录页按 `GET /auth/providers` 列出。
+ */
 export function signInHref(returnTo: string): string {
-  return `/auth/github?return_to=${encodeURIComponent(returnTo)}`;
+  let path = "/console";
+  try {
+    const url = new URL(returnTo, window.location.origin);
+    if (url.origin === window.location.origin) path = `${url.pathname}${url.search}${url.hash}`;
+  } catch { /* 解析不了就回控制台首页 */ }
+  return `/signin?return_to=${encodeURIComponent(path)}`;
 }

@@ -53,7 +53,9 @@ function mount() {
 
 it("手机有状态栏、应用和四项 Dock，没有电脑菜单和默认大便签；指引按需打开，书桌仍可到达", async () => {
   const { container, onBack } = mount();
-  await screen.findByRole("link", { name: /用 GitHub 登录/ });
+  // 统一登录（#262）：右上角只写「登录」，去 /signin 并带上当前页面，不再直接连 GitHub
+  expect((await screen.findByRole("link", { name: "登录" })).getAttribute("href")).toBe(`/signin?return_to=${encodeURIComponent("/")}`);
+  expect(screen.queryByText(/GitHub 登录/)).toBeNull();
   expect(container.querySelector(".pt-phone-status")).not.toBeNull();
   expect(container.querySelector(".pt-phone-tools")).toBeNull();
   for (const name of ["前往", "窗口", "帮助"]) expect(screen.queryByRole("button", { name })).toBeNull();
@@ -75,7 +77,7 @@ it.each([null, false, true])("手机控制台沿用 console_link=%s，图标、�
     consoleLink === null ? { signed_in: false } : { signed_in: true, login: "test-member", user_id: 1, console_link: consoleLink },
   ), { status: 200, headers: { "content-type": "application/json" } })));
   mount();
-  if (consoleLink === null) await screen.findByRole("link", { name: /用 GitHub 登录/ });
+  if (consoleLink === null) await screen.findByRole("link", { name: "登录" });
   else await screen.findByRole("button", { name: "账号：test-member" });
   expect(icons().queryByRole("button", { name: "控制台" }) !== null).toBe(consoleLink === true);
   fireEvent.click(screen.getByRole("button", { name: "搜索", exact: true }));

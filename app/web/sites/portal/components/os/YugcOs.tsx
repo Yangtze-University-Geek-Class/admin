@@ -3,7 +3,7 @@
 // 加入我们、论坛、GitHub 组织都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」在桌面上重看（#77），不影响「只自动播一次」。
 // 论坛和 GitHub 组织点一下直达（#185）：论坛在当前标签页进论坛首页，GitHub 组织在新标签页打开，不经过 /forum-3d、/github 场景页。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { appConfig } from "@shared/config";
 import Modal from "@shared/ui/Modal";
 import { PHONE_QUERY, PORTRAIT_QUERY, useMediaQuery } from "../../lib/useMediaQuery";
@@ -34,6 +34,9 @@ export default function YugcOs({ active, onBack }: Props) {
   const portrait = useMediaQuery(PORTRAIT_QUERY);
   const phoneWallpaper = phone && portrait;
   const navigate = useNavigate();
+  // 登录后回到当前页面：订阅路由变化，让 signInHref() 按浏览器当前地址（含开发态的 /sites/portal 前缀）重算 return_to
+  useLocation();
+  const signInLink = signInHref();
   const { account, loaded, signOut } = useAccount();
   // 控制台只给 console_link 为 true 的人：其他人的桌面、Dock、菜单、启动器、终端里都没有它。
   const consoleLink = account?.consoleLink === true;
@@ -338,7 +341,7 @@ export default function YugcOs({ active, onBack }: Props) {
           <button type="button" className="pt-phone-system" aria-label="YUGC OS 系统设置" aria-haspopup="dialog" onClick={() => setPhoneSettings(true)}>YUGC OS</button>
           {account ? <button type="button" className="pt-phone-account" data-menu aria-label={`账号：${account.login}`} aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
             {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={18} />}
-          </button> : loaded ? <a className="pt-phone-signin" href={signInHref()}><Icon name="github-line" size={18} /> 登录<span className="pt-sr">，用 GitHub 登录</span></a> : <span />}
+          </button> : loaded ? <a className="pt-phone-signin" href={signInLink}><Icon name="user-line" size={18} /> 登录</a> : <span />}
         </header> : <header className="pt-mb" aria-label="菜单栏">
           <button type="button" className="pt-mb-logo" data-menu aria-label="系统菜单" aria-haspopup="menu" aria-expanded={menu?.name === "system"} onClick={(e) => toggleMenu("system", e.currentTarget)}>
             <img src={appConfig.portal.brand.logo} alt="" />
@@ -358,7 +361,7 @@ export default function YugcOs({ active, onBack }: Props) {
           <span className="pt-mb-stat" aria-hidden="true">
             <Icon name="wifi-line" size={15} />
           </span>
-          {/* 全站唯一的登录入口：用 GitHub 登录，登录后默认进论坛；登录后换成头像菜单（论坛 / 控制台（仅 console_link）/ 退出） */}
+          {/* 全站唯一的登录入口：去极客班统一登录页（GitHub 只是登录方式之一），登录后回到当前页面；登录后换成头像菜单（论坛 / 控制台（仅 console_link）/ 退出） */}
           {account ? (
             <button type="button" className="pt-mb-account" data-menu aria-haspopup="menu" aria-expanded={menu?.name === "account"} onClick={(e) => toggleMenu("account", e.currentTarget)}>
               {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <Icon name="user-line" size={15} />}
@@ -366,9 +369,9 @@ export default function YugcOs({ active, onBack }: Props) {
             </button>
           ) : (
             loaded && (
-              <a className="pt-mb-signin" href={signInHref()}>
-                <Icon name="github-line" size={15} />
-                <span>用 GitHub 登录</span>
+              <a className="pt-mb-signin" href={signInLink}>
+                <Icon name="user-line" size={15} />
+                <span>登录</span>
               </a>
             )
           )}

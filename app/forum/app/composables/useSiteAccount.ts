@@ -9,7 +9,8 @@ export type { SiteAccount } from '../../shared/site-account'
 /**
  * 极客班统一登录的会话（真实数据模式用）。
  *
- * 登录只有一个入口：核心服务的 `/auth/github` → `/auth/callback` 写下 `sid` cookie，官网、论坛、控制台共用；
+ * 登录只有一个入口：极客班统一登录页 `/signin`（#262）→ 选一种登录方式 → `/auth/callback` 写下 `sid` cookie，官网、论坛、控制台共用；
+ * 登录没成功时核心服务回到 `/signin` 说明原因；这里只处理旧链接里残留的 `?signin=`（说一次再从地址里拿掉）。
  * 只有极客班 GitHub 组织的成员能登录成功，其他人不登录照样能看论坛。
  * 论坛与官网、控制台同域（线上 `/forum/` 由 web 容器反代），所以直接读同域的 `/auth/me` 就知道是谁；
  * 本机独立端口上没有 `/auth/me`（返回 404 或 HTML），当作未登录。回答怎么读见 `shared/site-account.ts`。

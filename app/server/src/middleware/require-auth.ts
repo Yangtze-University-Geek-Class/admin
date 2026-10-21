@@ -1,10 +1,13 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-
+import type { IdentityProvider } from "../lib/identity-store.js";
 
 declare module "fastify" {
   interface FastifyRequest {
+    /** `account_id` 是极客班账号（#262）；`login`、`user_id`、`avatar_url` 是绑定的 GitHub 账号。 */
     session?: {
       id: string;
+      account_id: string;
+      provider: IdentityProvider;
       login: string;
       user_id: number | null;
       avatar_url: string | null;
@@ -28,6 +31,8 @@ export function loadSession(req: FastifyRequest): boolean {
   if (!s) return false;
   req.session = {
     id: s.id,
+    account_id: s.account_id,
+    provider: s.provider,
     login: s.login,
     user_id: s.user_id,
     avatar_url: s.avatar_url,
@@ -56,9 +61,9 @@ export function isRejectedToken(error: unknown): boolean {
  * 会话里存的 GitHub 令牌已经失效，这个会话再也查不了组织角色：删掉它、清 cookie，之后的请求按未登录处理（#164）。
  * 同一页面的几个请求一起碰到时，只有真正删掉会话的那一个记审计 `auth.session_rejected`。
  */
-export function endRejectedSession(req: FastifyRequest, reply: FastifyReply, session: { id: string; login: string }): void {
+export function endRejectedSession(req: FastifyRequest, reply: FastifyReply, session: { id: string; login: string; account_id: string }): void {
   const { auth, storage } = req.server.services;
-  if (auth.destroySession(session.id)) storage.audit(null, session.login, "auth.session_rejected", session.login, undefined, req.ip);
+  if (auth.destroySession(session.id)) storage.audit(null, session, "auth.session_rejected", session.login, undefined, req.ip);
   clearSessionCookies(reply);
   req.log.warn({ requestId: req.id }, "session ended: GitHub rejected its token");
 }

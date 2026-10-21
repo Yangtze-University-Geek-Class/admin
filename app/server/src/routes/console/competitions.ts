@@ -44,7 +44,7 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
       const created = db.transaction(() => {
         const record = competitions.insert(id, draft, Date.now());
         if (!record) throw new Error("Competition insert returned no row");
-        audit(config.consoleOrg, req.session!.login, "competition.create", id, { name: record.name, kind: record.kind }, req.ip);
+        audit(config.consoleOrg, req.session!, "competition.create", id, { name: record.name, kind: record.kind }, req.ip);
         return record;
       })();
       return reply.code(201).send({ competition: toConsoleCompetition(created, Date.now()) });
@@ -65,7 +65,7 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
       if (patch.name !== undefined) patch.name = patch.name.trim();
       const changed = db.transaction(() => {
         const record = competitions.update(id, patch, Date.now());
-        if (record) audit(config.consoleOrg, req.session!.login, "competition.update", id, { changed: Object.keys(req.body) }, req.ip);
+        if (record) audit(config.consoleOrg, req.session!, "competition.update", id, { changed: Object.keys(req.body) }, req.ip);
         return record;
       })();
       if (!changed) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });
@@ -81,7 +81,7 @@ export default async function consoleCompetitionRoutes(app: FastifyInstance) {
       const removed = db.transaction(() => {
         const record = competitions.get(id);
         if (!record || !competitions.remove(id)) return false;
-        audit(config.consoleOrg, req.session!.login, "competition.delete", id, { name: record.name }, req.ip);
+        audit(config.consoleOrg, req.session!, "competition.delete", id, { name: record.name }, req.ip);
         return true;
       })();
       if (!removed) return reply.code(404).send({ error: "not_found", message: "比赛不存在" });

@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app/server/src/app';
 import { createConfig } from '../../app/server/src/config';
 import type { ServiceOverrides } from '../../app/server/src/services';
@@ -27,4 +28,15 @@ export async function testApp(overrides: ServiceOverrides = {}, production = fal
   const app = await buildApp({ config, staticRoot: false, overrides: { httpRequest: deny as unknown as ServiceOverrides['httpRequest'], octokitFactory: deny, mailFetch: deny as unknown as ServiceOverrides['mailFetch'], ...overrides } });
   await app.ready();
   return { app, close: () => app.close() };
+}
+
+/**
+ * 测试里签一个 GitHub 会话（#262）：走真实的登录事务（找到或建立极客班账号、认领、写会话和审计），
+ * 代替原来直接调 auth.createSession(login, userId, avatarUrl, token)。会话从此都带账号，没有 GitHub id 的会话按未登录处理。
+ */
+export function signIn(app: FastifyInstance, login: string, githubId: number, avatarUrl: string | null = null, accessToken = `token-${login}`): string {
+  if (!Number.isInteger(githubId)) throw new Error(`test sign-in needs a GitHub id for ${login}`);
+  const result = app.services.identity.signInWithGithub({ github: { id: githubId, login, avatarUrl }, accessToken });
+  if (!result.ok) throw new Error(`test sign-in refused for ${login}: ${result.reason}`);
+  return result.sid;
 }

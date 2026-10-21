@@ -85,7 +85,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       // 投递时间和文件名里的日期按北京时间写（lib/beijing-time.ts），和控制台页面、信里的时间一致；列名写明是北京时间。
       const header = ["name", "class_name", "email", "strengths", "status", "created_at_beijing"];
       const lines = [header.join(","), ...rows.map(row => [row.name, row.class_name, row.email, row.strengths, row.status, beijingDateTime(row.created_at)].map(csvCell).join(","))];
-      audit(config.consoleOrg, req.session!.login, "application.export", status ?? "all", { count: rows.length, status: status ?? null }, req.ip);
+      audit(config.consoleOrg, req.session!, "application.export", status ?? "all", { count: rows.length, status: status ?? null }, req.ip);
       return reply
         .header("Content-Type", "text/csv; charset=utf-8")
         .header("Content-Disposition", `attachment; filename="applications-${beijingCompactDate(Date.now())}.csv"`)
@@ -107,7 +107,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const application = findApplication(req.params.application_id);
       if (!application) return reply.code(404).send({ error: "not_found", message: "投递不存在" });
-      audit(config.consoleOrg, req.session!.login, "application.view", application.id, undefined, req.ip);
+      audit(config.consoleOrg, req.session!, "application.view", application.id, undefined, req.ip);
       return {
         application,
         reviews: withMail(reviewsOf(application.id)),
@@ -181,7 +181,7 @@ export default async function consoleApplicationRoutes(app: FastifyInstance) {
       })();
       if (!review) return changedMeanwhile();
       // 备注属于候选人相关信息，只进 application_reviews，不写进审计；信的内容也不进审计，只记这次有没有发信。
-      audit(config.consoleOrg, reviewer, "application.review", current.id, { from: current.status, to: next, has_note: Boolean(note), mail: Boolean(letterKind) }, req.ip);
+      audit(config.consoleOrg, req.session!, "application.review", current.id, { from: current.status, to: next, has_note: Boolean(note), mail: Boolean(letterKind) }, req.ip);
       return { application: findApplication(current.id), review: withMail([review])[0] };
     },
   );

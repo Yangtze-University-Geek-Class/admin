@@ -44,10 +44,11 @@ export default async function feedbackRoutes(app: FastifyInstance) {
 
     let submitter_login: string | null = null;
     let submitter_id: number | null = null;
+    let submitter_account: string | null = null;
     const sid = req.cookies?.sid;
     if (sid) {
       const s = getSession(sid);
-      if (s) { submitter_login = s.login; submitter_id = s.user_id; }
+      if (s) { submitter_login = s.login; submitter_id = s.user_id; submitter_account = s.account_id; }
     }
 
     const now = Date.now();
@@ -55,7 +56,7 @@ export default async function feedbackRoutes(app: FastifyInstance) {
       "INSERT INTO feedback(org, content, category, contact, submitter_login, submitter_id, source_ip, user_agent, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)"
     ).run(org, text, category ?? null, contact?.trim()?.slice(0, 200) ?? null, submitter_login, submitter_id, req.ip, req.headers["user-agent"] ?? null, now, now);
 
-    audit(org, submitter_login ?? "public", "feedback.submit", String(r.lastInsertRowid), { category, content_preview: text.slice(0, 80) }, req.ip);
+    audit(org, submitter_login ? { login: submitter_login, account_id: submitter_account } : "public", "feedback.submit", String(r.lastInsertRowid), { category, content_preview: text.slice(0, 80) }, req.ip);
     return { ok: true, id: r.lastInsertRowid, message: "意见已收到，组织负责人会查看。感谢你的反馈。" };
   });
 

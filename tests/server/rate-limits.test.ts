@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp } from './helpers';
+import { signIn, testApp } from './helpers';
 
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
@@ -28,7 +28,7 @@ it.each([
   const context = await testApp({ octokitFactory: github });
   contexts.push(context);
   const { app } = context;
-  const headers = signedIn ? { cookie: `sid=${app.services.auth.createSession('alice', 101, null, 'token-alice')}` } : {};
+  const headers = signedIn ? { cookie: `sid=${signIn(app, 'alice', 101, null, 'token-alice')}` } : {};
   const send = () => app.inject({ method, url, headers, remoteAddress: '198.51.100.20', ...('payload' in rest ? { payload: rest.payload } : {}) });
   const statuses: number[] = [];
   for (let i = 0; i < max; i += 1) statuses.push((await send()).statusCode);

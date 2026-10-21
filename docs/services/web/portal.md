@@ -2,7 +2,7 @@
 
 > 公开官网：3D 书桌与 YUGC OS 桌面、加入我们（信封场景）、论坛与 GitHub 场景、文档、意见箱和邀请落地；不自建登录，菜单栏显示全站 GitHub 登录的账号或登录入口。
 
-状态：`current` · 更新：2026-10-20
+状态：`current` · 更新：2026-10-21
 
 ## 范围与路由
 
@@ -40,7 +40,7 @@
 | `lib/competitions.ts` | 「比赛」窗口的数据：读匿名 `GET /api/public/competitions`（窗口打开时读一次、关掉即取消，`reload` 再读一次），状态一律由本地按时间戳算（`statusAt`，与服务端 `competitionStatus` 同口径），窗口开着时每 60 秒重算状态与排序；响应里的 `status` 只当形状校验，读不到时窗口说「没加载出来」并给「重试」，而不是冒充「没有比赛」；日期换算（`beijingDay`、`shortDay`、`dayRange`）都按北京时间，`readCompetition` 丢掉缺字段的条目、只收可解析的 https 链接（所有类型可选） |
 | `lib/competitionLabels.ts` | 比赛窗口的文案与日期纯函数（北京时间）：状态与类型文案、星期与钟点、「还剩几天」、卡片上的日期、详情三格要点、赛程节点、操作条、搜索与筛选 |
 | `components/os/competitions/*` | 比赛窗口（#265）：`CompetitionsApp`（筛选、搜索、选中、手机进出详情、读取中 / 没有 / 筛空 / 读不到四种状态）、`CompetitionList`（卡片与方向键）、`CompetitionDetail`（详情与底部操作条） |
-| `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/auth/github?return_to=…`，默认回 `<当前 origin>/forum/` |
+| `lib/account.ts` | 全站登录状态：`useAccount()` 读同域 `/auth/me`、`signOut()` 调 `POST /auth/signout`；`signInHref(returnTo)` 生成 `/signin?return_to=…`（#262，统一登录页，登录方式由它按 `/auth/providers` 渲染），默认回当前页面的 pathname + search + hash |
 | `lib/snapshots.ts` | 读取 `public/portal/forum-latest.json`、`repos.json` 快照 |
 | `lib/icons.ts`、`components/Icon.tsx` | Remix Icon 路径注册表与图标组件 |
 | `components/os/*` | YUGC OS 桌面：应用图标与「新来的看这里」便签（`Widgets.tsx`）、窗口、菜单栏、Dock、启动器；换壁纸面板在 `YugcOs.tsx`，壁纸图层与换壁纸动效在 `Wallpaper.tsx`；壁纸清单、下载解码与空闲预取在 `lib/wallpapers.ts`（图片地址只写在这里），文件在 `assets/wallpapers/`，由清单 import（每张有1920×1080桌面版、900×1950独立手机竖屏版和对应缩略图），见下文「壁纸」 |
@@ -94,7 +94,7 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 
 #206：竖屏书桌使用 polyman 的 iPhone 15 Pro Max Black 3D 模型（CC BY 4.0），屏幕朝上、平放桌面；电脑端保留原笔记本。#213：电脑端笔记本由 `three/laptop.ts` 的 `createLaptop()` 原创建模，大圆角铝壳与独立倒角的屏幕边框，深色错列变宽键盘、圆角触控板与铰链；屏幕按全面屏做：`LAPTOP_DISPLAY` 为 1.2×0.75（16:10，仍是 1280×800 贴图），黑玻璃只比屏幕宽一圈，上下黑边约 12mm、无厚下巴；屏幕与遮罩层级沿用原值，镜头取景按新尺寸，开机交接与手机场景不变；键盘拾取。桌面小物在 `three/props.ts`：马克杯（车削杯壁、杯口、杯把管、咖啡与油脂）带软木杯垫，盆栽有托盘、盆沿、土面碎石与三圈放样叶片，硬壳笔记本有纸页、松紧带、封面标签与书签带，六棱柱铅笔；墙上去掉相框，挂一幅极客娘画像（`public/portal/geek-girl-portrait.webp`，用图像模型以现有立绘为参考重新生成的不透明竖幅插画，整幅铺满画板，加载失败回退校徽）；便签带卷边与贴地柔影。材质一律 Standard，不用 clearcoat按真实键矩形命中，不再按网格换算。模型随构建作为本地带哈希资源发布，不在运行时访问 Sketchfab，不增加生产依赖或线上 Draco 解码器。保留真实机身、玻璃、按键、摄像头和 Dynamic Island；屏幕与推镜遮罩复用模型自带的圆角显示屏网格，不用薄盒倒角或矩形面片冒充正面圆角。统一缩放不改变长宽比；取景按整个机身包围盒，拾取使用实际屏幕、玻璃和边框。`STACKED_QUERY` 与 DOM 横带取景保持一致，设备切换时屏幕拾取、悬停提示与推镜目标一起切换，隐藏设备不参与拾取。首屏说明与主按钮分别写「手机」「打开手机」；点真实屏幕、按钮、跳过动画均复用原首页状态机。无 WebGL 或模型加载失败时直接进系统，减少动态效果仍跳过加载与镜头飞行。
 
-- **手机壳层**：`PHONE_QUERY` 为宽 ≤860px，或粗指针、宽 ≤1024px 且高 ≤600px（手机横屏仍用手机壳层）。手机状态栏显示真实时间和既有 GitHub 登录入口；四列应用网格、四项 Dock（主屏幕、加入我们、论坛、GitHub 组织）。不在应用区摆「搜索 / 壁纸 / 书桌」三按钮工具条；搜索是 Dock 上方的单个紧凑入口，也可在主屏空白处下滑打开；壁纸沿用「壁纸」应用，回书桌放在顶部 YUGC OS 的「系统设置」弹层内。不显示电脑「前往 / 窗口 / 帮助」菜单与默认欢迎便签，指引由「新来的看这里」按需打开。
+- **手机壳层**：`PHONE_QUERY` 为宽 ≤860px，或粗指针、宽 ≤1024px 且高 ≤600px（手机横屏仍用手机壳层）。手机状态栏显示真实时间和全站登录入口；四列应用网格、四项 Dock（主屏幕、加入我们、论坛、GitHub 组织）。不在应用区摆「搜索 / 壁纸 / 书桌」三按钮工具条；搜索是 Dock 上方的单个紧凑入口，也可在主屏空白处下滑打开；壁纸沿用「壁纸」应用，回书桌放在顶部 YUGC OS 的「系统设置」弹层内。不显示电脑「前往 / 窗口 / 帮助」菜单与默认欢迎便签，指引由「新来的看这里」按需打开。
 - **下滑搜索**：仅主屏幕且滚动位置为顶部时响应单指、短距离纵向下滑；横滑、多指、取消、长按、应用内和按钮/输入框上的手势不响应，不阻止内容正常滚动。搜索进入及关闭复用 Modal，关闭返回搜索入口焦点，不用手势作为唯一入口。
 - **手机交接**：跳过开机直接进入已准备好的主屏幕，系统外层进场不做透明淡入，避免首帧透出书桌与机身；正常开机画面的退场与电脑端动效保留。首帧不透明和慢图等待分别做浏览器回归，不把最终稳定截图当作没有闪烁的证明。
 - **应用操作**：单击打开。手机一次只显示前台面板，其余面板 `hidden` / `inert` 但不卸载；返回主屏幕最小化全部面板，保留终端输入和输出，关闭应用才卸载该面板并回主屏幕。手机不提供电脑拖动与放大控件；面板内容在状态栏与 Dock 之间独立滚动，触控控件 ≥44px，输入字号16px。安全区使用 `env(safe-area-inset-*)`，面板、Dock、账号菜单和弹层同时避让左右 inset；Dock 按两侧分别留边后在安全宽度内居中，支持不对称 inset。
@@ -104,14 +104,14 @@ three.js 只通过各页面里的 `import("../three/<scene>")` 进入，不在�
 
 ## 登录入口（菜单栏 / 手机状态栏）
 
-官网不自建登录态，只显示核心服务的全站 GitHub 登录（官网、论坛、控制台共用同一个 `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」）。`components/os/YugcOs.tsx` 在菜单栏时钟左边放这个入口，`lib/account.ts` 读完 `/auth/me` 之前不显示：
+官网不自建登录态，只显示核心服务的全站登录（官网、论坛、控制台共用同一个 `sid` 和一个极客班账号，只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」）。`components/os/YugcOs.tsx` 在菜单栏时钟左边放这个入口，`lib/account.ts` 读完 `/auth/me` 之前不显示：
 
-- 未登录：「用 GitHub 登录」链接（GitHub 图标 + 文字，钴蓝底），指向 `/auth/github?return_to=<当前 origin>/forum/`，登录后进论坛首页。本机开发时 5173 把 `/auth` 代理给 127.0.0.1:3000，回到的 `/forum/` 再 302 到 3456（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。
-- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单，「控制台」只在 `/auth/me` 的 `console_link` 为 true 时出现；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。
+- 未登录：「登录」链接（用户图标 + 文字，钴蓝底），指向 `/signin?return_to=<当前页面的 pathname + search + hash>`（#262；以前直接去 `/auth/github`，文案是「用 GitHub 登录」）。登录方式在统一登录页按 `/auth/providers` 列出，GitHub 只是现在唯一的一种。链接随路由变化重算（`useLocation()`），登录后回到当前页面。本机开发时 5173 把 `/auth`、`/signin` 转给核心后端与控制台 dev server（见 [LOCAL-PREVIEW](../../ops/LOCAL-PREVIEW.md)）。
+- 已登录：头像与 GitHub 登录名（最长 120px，超出省略），点开是「论坛」「控制台」「退出」菜单，「控制台」只在 `/auth/me` 的 `console_link` 为 true 时出现；退出调 `POST /auth/signout`，官网、论坛、控制台一起变成未登录。菜单宽约 220px，靠右时往左收，不出屏幕。手机状态栏的入口同样写「登录」、去同一个地址。
 
 **控制台入口只给管理者**：`/auth/me` 的 `console_link`（持有 `console.access`、`github.org.read`、`feedback.read` 之外任一能力的人：提督、舰长、队长、带部门权限包的舰员）为 true 时，桌面图标、Dock、「前往」菜单、启动器（⌘K）、终端的 `ls` / `open console`、头像菜单和普通页面页脚才出现「控制台」；没登录、普通舰员和领航员都看不到。`lib/osApps.ts` 的 `visibleApps(consoleLink)` 是桌面这几处唯一的过滤，`components/PageShell.tsx` 的页脚同样按它显示。这只决定入口显不显示，控制台自己的准入不变（直接打开 `/console` 仍按能力判定）。单测 `tests/web/portal-os.test.ts`，浏览器用例 `tests/e2e/workflows.spec.ts`（页脚按 `console_link` 出现）。
 
-官网不读 `?signin=`。从官网登录没成功时回到的是论坛首页，由论坛说明原因（见 [forum 合同](../forum/README.md)「全站登录」）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子与回复存在核心服务，见 [forum 合同](../forum/README.md)「服务端模式」），登录方式是统一登录，从官网登录后回到的 `/forum/` 顶栏显示同一个账号。退出等服务端确认后才显示未登录。
+官网不读 `?signin=`：从官网登录没成功时，核心服务把人送到统一登录页 `/signin?signin=<原因>&return_to=<刚才的官网路径>` 说明原因，登录页再回官网或重试（#262；以前回到论坛首页由论坛说明）。预发布与正式的论坛镜像是极客班论坛（自己的站名、分类和标签，帖子与回复存在核心服务，见 [forum 合同](../forum/README.md)「服务端模式」），登录方式是统一登录，从官网登录后回到的页面顶部显示同一个账号；从论坛登录则回论坛（`/signin?return_to=/forum/…`）。退出等服务端确认后才显示未登录。
 
 ## 加入我们（投递）
 

@@ -33,7 +33,7 @@ export default async function membersRoutes(app: FastifyInstance) {
     if (login === req.session!.login) return reply.code(400).send({ error: "不能移除自己" });
     const octokit = octokitWith(req.session!.accessToken);
     await octokit.request("DELETE /orgs/{org}/memberships/{username}", { org, username: login });
-    audit(org, req.session!.login, "member.remove", login, undefined, req.ip);
+    audit(org, req.session!, "member.remove", login, undefined, req.ip);
     return { ok: true };
   });
 
@@ -46,7 +46,7 @@ export default async function membersRoutes(app: FastifyInstance) {
       if (role !== "admin" && role !== "member") return reply.code(400).send({ error: "role 必须是 admin 或 member" });
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("PUT /orgs/{org}/memberships/{username}", { org, username: login, role });
-      audit(org, req.session!.login, "member.role", login, { role }, req.ip);
+      audit(org, req.session!, "member.role", login, { role }, req.ip);
       return { ok: true };
     }
   );

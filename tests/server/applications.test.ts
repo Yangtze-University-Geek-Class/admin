@@ -84,13 +84,15 @@ it.each(INVALID)('refuses %s with a field-scoped Chinese error and no persistenc
 
 it('answers the honeypot exactly like a success without persisting anything', async () => {
   const { submit, count } = await fixture();
+  // 启动时的账号回填（#262）在空库上也会记一条 system 审计：比的是投递前后，不是绝对行数
+  const auditsBefore = count('audit_logs');
   const response = await submit({ ...VALID, website: 'https://bot.example' });
   expect(response.statusCode).toBe(201);
   const body = response.json();
   expect(Object.keys(body).sort()).toEqual(['id', 'message', 'submitted_at']);
   expect(body.message).toBe(SUCCESS_MESSAGE);
   expect(count('applications')).toEqual({ n: 0 });
-  expect(count('audit_logs')).toEqual({ n: 0 });
+  expect(count('audit_logs')).toEqual(auditsBefore);
 });
 
 it('holds the 2000-character boundary for 个人特长与优点', async () => {

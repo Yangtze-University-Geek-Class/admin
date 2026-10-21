@@ -2,7 +2,7 @@
 
 > 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，区分存量人工说明与已挂载的机器响应契约。
 
-状态：`current` · 更新：2026-10-19
+状态：`current` · 更新：2026-10-21
 
 ## 口径与共同边界
 
@@ -17,7 +17,7 @@
 
 ## 基础设施、退役路径与 HEAD 继承
 
-当前隔离注册清单合计 **179 条方法路径**：97 个显式非 HEAD 业务操作（下文逐项说明）+ 24 个显式非 HEAD 退役项 + 4 个基础设施 GET + 53 个自动 HEAD + 1 个显式 HEAD。另有 5 个 Nitro/预渲染声明入口，独立列于文末，不混入 Fastify 注册数。
+当前隔离注册清单合计 **188 条方法路径**：103 个显式非 HEAD 业务操作（下文逐项说明）+ 24 个显式非 HEAD 退役项 + 4 个基础设施 GET + 56 个自动 HEAD + 1 个显式 HEAD。另有 5 个 Nitro/预渲染声明入口，独立列于文末，不混入 Fastify 注册数。
 
 | 清单类别 | 方法路径 / 分组 | 实际行为及边界 | 源码与已有验证入口 |
 |---|---|---|---|
@@ -25,12 +25,12 @@
 | 基础设施（1） | `GET /` | 仅静态根目录不存在或明确 `staticRoot:false` 时注册占位响应：200 `{ok:true,note:"app/web/dist and app/console/dist not built yet"}`。目录工具关闭静态托管，故本次清单包含这一项。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
 | 基础设施（2） | `GET /forum`、`GET /forum/*` | 直连核心服务时：production 为503 `{error:"forum_service_not_ready",message}`；开发为302到 `http://127.0.0.1:3456/`。正常 Docker 入口由 web 反代论坛，这两个 handler 不证明已配置反代。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
 | 退役（24） | `/api/forum`、`/api/forum/*`、`/auth/forum/*`、`/forum/u/*` 各自的 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`OPTIONS` | 共用 retired handler，410 `{error:"legacy_forum_retired",message}`，不映射或写入旧论坛。先匹配现有具体论坛接口，再由通配路径接住剩余请求；共同写请求Origin校验可能先回403。 | [app.ts](../../../app/server/src/app.ts)，[core.test.ts](../../../tests/server/core.test.ts) |
-| 自动 HEAD（53） | 清单中 `registration: automatic-head` 的所有项 | 按相同 path 找对应 `GET`，继承其状态码、响应头、鉴权、限流和 handler 行为，最终不发送body。不会因为没有body就跳过会话处理、上游查询、投递查看/导出审计等副作用。4个基础设施和4个退役GET的HEAD也包含在53内。 | [目录注册观测](../../../scripts/catalog/collect.ts)，[project-catalog.test.ts](../../../tests/tooling/project-catalog.test.ts)；各GET的行为验证见各用例 |
+| 自动 HEAD（54） | 清单中 `registration: automatic-head` 的所有项 | 按相同 path 找对应 `GET`，继承其状态码、响应头、鉴权、限流和 handler 行为，最终不发送body。不会因为没有body就跳过会话处理、上游查询、投递查看/导出审计等副作用。4个基础设施和4个退役GET的HEAD也包含在54内。 | [目录注册观测](../../../scripts/catalog/collect.ts)，[project-catalog.test.ts](../../../tests/tooling/project-catalog.test.ts)；各GET的行为验证见各用例 |
 | 显式 HEAD（1） | `HEAD /api/forum/state` | 405、`Allow: GET`、空体；单独handler不计算整份state，不花GET的120次额度，不调用forumViewer刷新用户。 | [topics.ts](../../../app/server/src/routes/forum-api/topics.ts)，[forum.test.ts](../../../tests/server/forum.test.ts) |
 
-自动 HEAD 规则只适用于清单实际注册的53项，不能对所有GET自行补造。例如论坛 state、search、topic posts 显式关闭自动HEAD；state另有上述405处理器，其他未单独注册的HEAD仍受实际路由匹配和退役通配项约束。HEAD是读取方法，不经过核心写请求Origin门禁，但对应GET的会话、能力及资源范围校验仍有效。
+自动 HEAD 规则只适用于清单实际注册的56项，不能对所有GET自行补造。例如论坛 state、search、topic posts 显式关闭自动HEAD；state另有上述405处理器，其他未单独注册的HEAD仍受实际路由匹配和退役通配项约束。HEAD是读取方法，不经过核心写请求Origin门禁，但对应GET的会话、能力及资源范围校验仍有效。
 
-有静态产物的模式另经 `@fastify/static` 和 app.ts 的 not-found handler：API/auth/healthz未知路径、含扩展名的缺失资源及非GET/HEAD请求为404；其他GET/HEAD按路径回控制台或官网SPA，并设no-cache。该模式的静态文件枚举不属于这179条关闭静态托管的隔离基线，也不由此文档声称已部署。
+有静态产物的模式另经 `@fastify/static` 和 app.ts 的 not-found handler：API/auth/healthz未知路径、含扩展名的缺失资源及非GET/HEAD请求为404；其他GET/HEAD按路径回控制台或官网SPA，并设no-cache。该模式的静态文件枚举不属于这188条关闭静态托管的隔离基线，也不由此文档声称已部署。
 
 ## 发起 GitHub 登录
 
@@ -44,21 +44,105 @@
 
 本地表读取：无。本地表写入：无。
 
-源码：[app/server/src/routes/admin/auth.ts:37](../../../app/server/src/routes/admin/auth.ts#L37)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)。
+源码：[app/server/src/routes/admin/auth.ts:40](../../../app/server/src/routes/admin/auth.ts#L40)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)。
 
-## 校验登录回调并建立统一会话
+## 列出本站启用的登录方式
+
+`GET /auth/providers` · `flow:identity.providers`
+
+权限与资源：匿名可读，不读会话、不需要能力。
+
+响应与错误：200 {providers:[...]}，每项含id、name、kind、start、can_register；交付1只有GitHub（kind=redirect，start=/auth/github，can_register=true），响应Schema固定字段。
+
+数据与副作用：只读进程内的固定列表，不读写数据库、不请求GitHub。
+
+本地表读取：无。本地表写入：无。
+
+源码：[app/server/src/routes/identity/providers.ts:23](../../../app/server/src/routes/identity/providers.ts#L23)。验证入口：[tests/server/identity.test.ts](../../../tests/server/identity.test.ts)。
+
+## 命令行申请设备授权码（RFC 8628）
+
+`POST /auth/device/code` · `flow:identity.device.code`
+
+权限与资源：匿名；只有登记过的公开客户端geek-cli能发码，scope只认openid、profile；每分钟10次。
+
+响应与错误：200 {device_code,user_code,verification_uri,verification_uri_complete,expires_in=600,interval=5}，user_code显示为XXXX-XXXX，verification_uri是<PUBLIC_ORIGIN>/device，Cache-Control: no-store；未登记客户端400 invalid_client，未知scope400 invalid_scope。
+
+数据与副作用：写一行pending的device_grants，device_code只存sha256；顺手删掉过期超过一天且令牌已失效的旧行；不读会话、不请求GitHub。表单（application/x-www-form-urlencoded）与JSON都收。
+
+本地表读取：无。本地表写入：device_grants。
+
+源码：[app/server/src/routes/identity/device.ts:33](../../../app/server/src/routes/identity/device.ts#L33)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`createGrant`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)。
+
+## 命令行轮询设备授权，批准后换一次性访问令牌
+
+`POST /auth/device/token` · `flow:identity.device.token`
+
+权限与资源：匿名，凭device_code与发码时相同的client_id；每分钟60次。
+
+响应与错误：按RFC 8628 §3.5回400 authorization_pending、slow_down（轮询间隔加5秒写回）、access_denied（用户拒绝或账号不是active）、expired_token、invalid_grant（不存在或已换过令牌）、invalid_client、unsupported_grant_type；批准后200 {access_token,token_type:Bearer,expires_in=2592000,scope,account_id}，Cache-Control: no-store。
+
+数据与副作用：判定顺序是invalid_grant（已换过令牌）、invalid_client、access_denied（已拒绝）、expired_token，pending再判slow_down并记last_poll_at，approved才发令牌；换令牌在一个BEGIN IMMEDIATE事务里，令牌只签发一次，库里只存sha256与到期时间，明文只在这条响应里。
+
+本地表读取：device_grants、users、identities。本地表写入：device_grants。
+
+源码：[app/server/src/routes/identity/device.ts:57](../../../app/server/src/routes/identity/device.ts#L57)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`poll`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)。
+
+## 确认页按 user_code 读一次设备授权
+
+`GET /api/identity/device` · `flow:identity.device.view`
+
+权限与资源：要极客班会话（requireAuth），不要控制台能力；每分钟30次，user_code空间有限，查询也限流。
+
+响应与错误：200 {user_code,client_id,client_name,scope,status,expires_at}，status是pending、approved、denied、consumed或expired；user_code不合法或不存在404 device_code_not_found；没登录401。
+
+数据与副作用：只读，不改状态、不续期；不返回device_code与令牌。user_code输入对大小写、连字符和空格不敏感。
+
+本地表读取：device_grants。本地表写入：无。
+
+源码：[app/server/src/routes/identity/device.ts:91](../../../app/server/src/routes/identity/device.ts#L91)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`describe`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)、[tests/console/device.test.ts](../../../tests/console/device.test.ts)。
+
+## 登录的人允许或拒绝一次设备授权
+
+`POST /api/identity/device/approve` · `flow:identity.device.approve`
+
+权限与资源：要极客班会话；授权绑定到会话的account_id（极客班账号，不是GitHub id）；每分钟20次；跨站写入受共同Origin校验与SameSite=Lax会话Cookie限制。
+
+响应与错误：200 {ok:true,status:approved|denied}；不存在404 device_code_not_found；不是pending或已过期409 device_code_not_pending；decision不合法400 invalid_decision。
+
+数据与副作用：条件UPDATE只改pending且未过期的行，并发的确认只有一次生效；拒绝不写account_id；写audit_logs的identity.device.approve或identity.device.deny，只含client_id与scope，不含device_code与令牌。
+
+本地表读取：device_grants。本地表写入：device_grants、audit_logs。
+
+源码：[app/server/src/routes/identity/device.ts:102](../../../app/server/src/routes/identity/device.ts#L102)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`decide`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)。
+
+## 命令行凭设备令牌读极客班账号（OpenID）
+
+`GET /auth/device/userinfo` · `flow:identity.device.userinfo`
+
+权限与资源：只认Authorization: Bearer <access_token>（geek login换到的gk_…令牌），不读cookie、不要会话；这个令牌只在这个接口有效，其它接口仍只认会话Cookie。
+
+响应与错误：200 {sub,account_id,login,avatar_url,scope}，sub与account_id都是极客班账号；令牌缺失、不存在、过期或账号不是active时401 invalid_token，并带WWW-Authenticate: Bearer error="invalid_token"。
+
+数据与副作用：只读；按令牌的sha256查行，联查users与GitHub身份的登录名、头像；不记录令牌明文。
+
+本地表读取：device_grants、users、identities。本地表写入：无。
+
+源码：[app/server/src/routes/identity/device.ts:125](../../../app/server/src/routes/identity/device.ts#L125)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`authenticate`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)。
+
+## 校验登录回调，在一个事务里建号或找到账号并建立统一会话
 
 `GET /auth/callback` · `flow:identity.callback`
 
-权限与资源：state与签名cookie必须相符且未过期；仅CONSOLE_ORG active成员成功。
+权限与资源：state与签名cookie必须相符且未过期；仅CONSOLE_ORG active成员成功；只有GitHub能建号，按GitHub数字id匹配身份，不用会变的登录名。
 
-响应与错误：成功302回return_to；取消/上游失败/非成员分别带signin结果回跳；缺参数或无效state为400，旧forum-state为410。
+响应与错误：成功302回return_to；取消/上游失败/非成员/账号停用一律302到<PUBLIC_ORIGIN>/signin?signin=<cancelled|failed|not_member|invite_pending|account_disabled>&return_to=<原来要回的本站路径>，原路径里残留的signin参数会去掉（#262）；合并链超过8跳、成环或事务失败按failed；缺参数或无效state为400，旧forum-state为410。
 
-数据与副作用：调用GitHub换token、取用户、查本人组织成员状态；成功写sessions及auth.signin审计。非成员不建会话、审计拒绝并尽力撤销授权；失败日志不输出token。
+数据与副作用：外部请求在事务外做完；建号、刷新身份、沿merged_into走到终点、按GitHub id认领称号与论坛用户、写sessions（含openid、provider）、删请求带来的旧会话、写identity_audit与auth.signin在一个BEGIN IMMEDIATE事务里，失败整体回滚、旧会话照常有效。非成员与停用账号不建会话、审计拒绝并尽力撤销授权；失败日志不输出token。
 
-本地表读取：无。本地表写入：sessions, audit_logs。
+本地表读取：identities, users。本地表写入：sessions, audit_logs, users, identities, identity_audit, role_assignments, forum_users。
 
-源码：[app/server/src/routes/admin/auth.ts:44](../../../app/server/src/routes/admin/auth.ts#L44)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)。
+源码：[app/server/src/routes/admin/auth.ts:47](../../../app/server/src/routes/admin/auth.ts#L47)、[app/server/src/lib/identity-store.ts](../../../app/server/src/lib/identity-store.ts)（`signInWithGithub`）。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)、[tests/server/identity.test.ts](../../../tests/server/identity.test.ts)。
 
 ## 退出当前会话
 
@@ -68,11 +152,11 @@
 
 响应与错误：200 {ok:true}；不向调用者泄露sid是否存在。
 
-数据与副作用：清sid和旧forum_sid cookie；实际读取到会话才写auth.signout，不撤销GitHub授权。
+数据与副作用：清sid和旧forum_sid cookie；实际读取到会话才写auth.signout（带actor_account_id）和本人的identity_audit退出记录，不撤销GitHub授权。
 
-本地表读取：sessions。本地表写入：sessions, audit_logs。
+本地表读取：sessions。本地表写入：sessions, audit_logs, identity_audit。
 
-源码：[app/server/src/routes/admin/auth.ts:81](../../../app/server/src/routes/admin/auth.ts#L81)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)、[tests/server/session-cleanup.test.ts](../../../tests/server/session-cleanup.test.ts)。
+源码：[app/server/src/routes/admin/auth.ts:94](../../../app/server/src/routes/admin/auth.ts#L94)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)、[tests/server/session-cleanup.test.ts](../../../tests/server/session-cleanup.test.ts)、[tests/server/identity.test.ts](../../../tests/server/identity.test.ts)。
 
 ## 读取统一登录状态与控制台入口
 
@@ -80,13 +164,13 @@
 
 权限与资源：只返回当前sid的身份；console_link是显示提示，不赋予后端权限。
 
-响应与错误：200 {signed_in:false}或身份字段及console_link；GitHub拒绝token时200 {signed_in:false,session_expired:true}，其他角色查询失败仍保持登录但入口false。
+响应与错误：200 {signed_in:false}或身份字段（login、user_id、avatar_url、account_id、provider）及console_link；GitHub拒绝token时200 {signed_in:false,session_expired:true}，其他角色查询失败仍保持登录但入口false。
 
-数据与副作用：访问GitHub角色缓存和权限数据；过期/被拒token才删会话，拒绝token写审计；无其他业务写入。
+数据与副作用：会话联查账号，过期、没有账号（启动回填映射不到的旧会话）或账号不是active的会话按未登录处理并删除；访问GitHub角色缓存和权限数据，被拒token才删会话并写审计；无其他业务写入。
 
-本地表读取：sessions, role_assignments, departments, titles。本地表写入：sessions, audit_logs。
+本地表读取：sessions, role_assignments, departments, titles, users。本地表写入：sessions, audit_logs。
 
-源码：[app/server/src/routes/admin/auth.ts:98](../../../app/server/src/routes/admin/auth.ts#L98)。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)、[tests/server/console.test.ts](../../../tests/server/console.test.ts)。
+源码：[app/server/src/routes/admin/auth.ts:114](../../../app/server/src/routes/admin/auth.ts#L114)、[app/server/src/lib/auth.ts](../../../app/server/src/lib/auth.ts)（`getSession`）。验证入口：[tests/server/core.test.ts](../../../tests/server/core.test.ts)、[tests/server/console.test.ts](../../../tests/server/console.test.ts)、[tests/server/identity.test.ts](../../../tests/server/identity.test.ts)、[tests/server/legacy-database.test.ts](../../../tests/server/legacy-database.test.ts)。
 
 ## 列出本人组织
 

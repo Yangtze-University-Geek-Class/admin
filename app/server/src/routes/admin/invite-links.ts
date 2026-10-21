@@ -52,7 +52,7 @@ export default async function inviteLinksRoutes(app: FastifyInstance) {
       team_slug ?? null,
       now
     );
-    audit(org, req.session!.login, "invite_link.create", token, { hours, max_uses, note, team_slug }, req.ip);
+    audit(org, req.session!, "invite_link.create", token, { hours, max_uses, note, team_slug }, req.ip);
     // 邀请页在官网 SPA 的 /join/<token>，与管理端同一个 origin。
     return { ok: true, token, url: `${app.services.config.publicOrigin}/join/${token}`, expires_at: expires };
   });
@@ -66,7 +66,7 @@ export default async function inviteLinksRoutes(app: FastifyInstance) {
       const row = db.prepare("SELECT * FROM invite_links WHERE token = ? AND org = ?").get(token, org);
       if (!row) return reply.code(404).send({ error: "not_found" });
       db.prepare("UPDATE invite_links SET disabled = ? WHERE token = ?").run(disabled ? 1 : 0, token);
-      audit(org, req.session!.login, "invite_link.toggle", token, { disabled }, req.ip);
+      audit(org, req.session!, "invite_link.toggle", token, { disabled }, req.ip);
       return { ok: true };
     }
   );
@@ -78,7 +78,7 @@ export default async function inviteLinksRoutes(app: FastifyInstance) {
       const { org, token } = req.params;
       const r = db.prepare("DELETE FROM invite_links WHERE token = ? AND org = ?").run(token, org);
       if (r.changes === 0) return reply.code(404).send({ error: "not_found" });
-      audit(org, req.session!.login, "invite_link.delete", token, undefined, req.ip);
+      audit(org, req.session!, "invite_link.delete", token, undefined, req.ip);
       return { ok: true };
     }
   );

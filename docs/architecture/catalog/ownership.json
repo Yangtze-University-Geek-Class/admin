@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-20",
+  "updated": "2026-10-21",
   "applications": [
     {
       "id": "web",
@@ -53,10 +53,15 @@
       "id": "identity",
       "title": "身份与会话",
       "docs": [
-        "docs/architecture/SECURITY.md"
+        "docs/architecture/SECURITY.md",
+        "docs/plan/UNIFIED-LOGIN.md"
       ],
       "tables": [
-        "sessions"
+        "sessions",
+        "users",
+        "identities",
+        "identity_audit",
+        "device_grants"
       ]
     },
     {
@@ -201,6 +206,7 @@
   "routeOwners": {
     "app/server/src/app.ts": "platform",
     "app/server/src/routes/admin/auth.ts": "identity",
+    "app/server/src/routes/identity/providers.ts": "identity",
     "app/server/src/routes/admin/activity.ts": "github",
     "app/server/src/routes/admin/feedback.ts": "feedback",
     "app/server/src/routes/admin/invitations.ts": "invitations",
@@ -231,7 +237,8 @@
     "app/server/src/routes/portal/join.ts": "invitations",
     "app/server/src/routes/portal/org.ts": "organization",
     "app/server/src/routes/portal/competitions.ts": "competitions",
-    "app/server/src/routes/console/competitions.ts": "competitions"
+    "app/server/src/routes/console/competitions.ts": "competitions",
+    "app/server/src/routes/identity/device.ts": "identity"
   },
   "routeOverrides": {
     "GET /api/public/config": "platform"
@@ -250,9 +257,13 @@
     "app_state": "预留表；当前没有业务读写消费者。存在表不代表已有业务能力。",
     "applications": "包含候选人个人信息。具体读取范围、字段下发和取消规则见业务文档；目录不包含记录。",
     "sessions": "包含加密会话凭据。目录仅记录列与约束，不读取会话值。",
+    "users": "极客班账号：id 就是接口里的 account_id（极客班 OpenID），随机生成、永不复用；只有身份模块（lib/identity-store.ts）读写。目录不读取记录。",
+    "identities": "每种登录方式一行；GitHub 的 provider_uid 是数字 id 的十进制串，login、avatar_url 只是展示镜像。同一 GitHub 账号只能绑定一个极客班账号。目录不读取记录。",
+    "identity_audit": "给本人看的账号记录（登录、被拒、退出），不存 IP、UA、邮箱原文和第三方标识；管理审计仍在 audit_logs。",
     "invite_links": "包含能力令牌与加密上游凭据。目录不读取记录。",
     "mail_outbox": "包含发信中的个人信息；application_id、review_id 不是数据库外键。具体保留规则见 mail.md。",
-    "competitions": "只存赛事事实，不含参赛者或队伍；status由时间计算，offline仅控制公开可见性，删除与下线不同。报名组队尚未实现。"
+    "competitions": "只存赛事事实，不含参赛者或队伍；status由时间计算，offline仅控制公开可见性，删除与下线不同。报名组队尚未实现。",
+    "device_grants": "命令行设备授权（RFC 8628，给 geek login）：一行是一次授权，device_code 与发出的访问令牌只存 sha256，account_id 是确认人的极客班账号；status 只存 pending/approved/denied/consumed，过期按 expires_at 现算。只有 lib/device-store.ts 读写，目录不读取记录。"
   },
   "supplementalInterfaces": [
     {
@@ -432,25 +443,320 @@
       ]
     },
     {
-      "id": "identity.callback",
-      "title": "校验登录回调并建立统一会话",
+      "id": "identity.providers",
+      "title": "列出本站启用的登录方式",
+      "domain": "identity",
+      "relatedDomains": [],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /auth/providers",
+      "capabilities": [],
+      "reads": [],
+      "writes": [],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：匿名可读，不读会话、不需要能力。",
+        "响应与错误：200 {providers:[...]}，每项含id、name、kind、start、can_register；交付1只有GitHub（kind=redirect，start=/auth/github，can_register=true），响应Schema固定字段。",
+        "数据与副作用：只读进程内的固定列表，不读写数据库、不请求GitHub。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/providers.ts",
+          "needle": "  app.get(\"/auth/providers\", async () => ({ providers: loginProviders() }));"
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"GET /auth/providers\": {"
+        },
+        {
+          "path": "app/server/src/routes/identity/index.ts",
+          "needle": "export default async function identityRoutes(app: FastifyInstance) {"
+        },
+        {
+          "path": "app/console/src/pages/SignIn.vue",
+          "needle": "<h1>极客班统一登录</h1>"
+        },
+        {
+          "path": "app/console/src/lib/signin.ts",
+          "needle": "export function safeReturnPath(raw: unknown, origin: string"
+        },
+        {
+          "path": "app/console/src/mock/index.ts",
+          "needle": "url.pathname === \"/auth/providers\""
+        }
+      ],
+      "tests": [
+        "tests/server/identity.test.ts",
+        "tests/console/signin.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    {
+      "id": "identity.device.code",
+      "title": "命令行申请设备授权码（RFC 8628）",
+      "domain": "identity",
+      "relatedDomains": [],
+      "assessment": "declared-with-source-evidence",
+      "operation": "POST /auth/device/code",
+      "capabilities": [],
+      "reads": [],
+      "writes": [
+        "device_grants"
+      ],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：匿名；只有登记过的公开客户端 geek-cli 能发码，scope 只认 openid、profile；每分钟 10 次。",
+        "响应与错误：200 {device_code,user_code(XXXX-XXXX),verification_uri=<PUBLIC_ORIGIN>/device,verification_uri_complete,expires_in=600,interval=5}，Cache-Control no-store；未登记客户端 400 invalid_client，未知 scope 400 invalid_scope。",
+        "数据与副作用：写一行 pending 的 device_grants，device_code 只存 sha256；顺手删掉过期超过一天且令牌已失效的旧行；不读会话、不请求 GitHub。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/device.ts",
+          "needle": "    \"/auth/device/code\","
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"POST /auth/device/code\": {"
+        },
+        {
+          "path": "app/server/src/lib/device-store.ts",
+          "needle": "export function createDeviceStore("
+        }
+      ],
+      "tests": [
+        "tests/server/device-flow.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ]
+    },
+    {
+      "id": "identity.device.token",
+      "title": "命令行轮询设备授权，批准后换一次性访问令牌",
+      "domain": "identity",
+      "relatedDomains": [],
+      "assessment": "declared-with-source-evidence",
+      "operation": "POST /auth/device/token",
+      "capabilities": [],
+      "reads": [
+        "device_grants",
+        "users",
+        "identities"
+      ],
+      "writes": [
+        "device_grants"
+      ],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：匿名，凭 device_code 与发码时相同的 client_id；每分钟 60 次。",
+        "响应与错误：按 RFC 8628 §3.5 回 400 authorization_pending、slow_down（轮询间隔加 5 秒写回）、access_denied（用户拒绝或账号不是 active）、expired_token、invalid_grant（不存在或已换过令牌）、invalid_client、unsupported_grant_type；批准后 200 {access_token(gk_…),token_type:Bearer,expires_in=2592000,scope,account_id}，Cache-Control no-store。",
+        "数据与副作用：在 BEGIN IMMEDIATE 事务里判定并改状态；令牌只发一次，库里只存 sha256 与到期时间，明文只在这次响应里。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/device.ts",
+          "needle": "    \"/auth/device/token\","
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"POST /auth/device/token\": {"
+        },
+        {
+          "path": "app/server/src/lib/device-store.ts",
+          "needle": "export function createDeviceStore("
+        }
+      ],
+      "tests": [
+        "tests/server/device-flow.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ]
+    },
+    {
+      "id": "identity.device.view",
+      "title": "确认页按 user_code 读一次设备授权",
+      "domain": "identity",
+      "relatedDomains": [],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/identity/device",
+      "capabilities": [],
+      "reads": [
+        "device_grants"
+      ],
+      "writes": [],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：要极客班会话（requireAuth），不要控制台能力；每分钟 30 次，挂不上穷举 user_code。",
+        "响应与错误：200 {user_code,client_id,client_name,scope,status(pending|approved|denied|consumed|expired),expires_at}；user_code 不合法或不存在 404 device_code_not_found；没登录 401。",
+        "数据与副作用：只读，不改状态、不续期；不返回 device_code 与令牌。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/device.ts",
+          "needle": "    \"/api/identity/device\","
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"GET /api/identity/device\": {"
+        },
+        {
+          "path": "app/server/src/lib/device-store.ts",
+          "needle": "export function createDeviceStore("
+        },
+        {
+          "path": "app/console/src/pages/Device.vue",
+          "needle": "/api/identity/device?user_code="
+        },
+        {
+          "path": "app/console/src/lib/device.ts",
+          "needle": "export function deviceSignInPath("
+        }
+      ],
+      "tests": [
+        "tests/server/device-flow.test.ts",
+        "tests/console/device.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    {
+      "id": "identity.device.approve",
+      "title": "登录的人允许或拒绝一次设备授权",
       "domain": "identity",
       "relatedDomains": [
         "audit"
       ],
       "assessment": "declared-with-source-evidence",
-      "operation": "GET /auth/callback",
+      "operation": "POST /api/identity/device/approve",
       "capabilities": [],
-      "reads": [],
+      "reads": [
+        "device_grants"
+      ],
       "writes": [
-        "sessions",
+        "device_grants",
         "audit_logs"
       ],
       "doesNotEnqueue": [],
       "invariants": [
-        "权限与资源：state与签名cookie必须相符且未过期；仅CONSOLE_ORG active成员成功。",
-        "响应与错误：成功302回return_to；取消/上游失败/非成员分别带signin结果回跳；缺参数或无效state为400，旧forum-state为410。",
-        "数据与副作用：调用GitHub换token、取用户、查本人组织成员状态；成功写sessions及auth.signin审计。非成员不建会话、审计拒绝并尽力撤销授权；失败日志不输出token。"
+        "权限与资源：要极客班会话；授权绑定到会话的 account_id（不是 GitHub id）；每分钟 20 次。",
+        "响应与错误：200 {ok:true,status:approved|denied}；不存在 404 device_code_not_found；不是 pending 或已过期 409 device_code_not_pending；decision 不合法 400。",
+        "数据与副作用：条件 UPDATE 只改 pending 且未过期的行，并发的确认只有一次生效；写 audit_logs identity.device.approve 或 identity.device.deny，只含 client_id 与 scope，不含 device_code 与令牌。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/device.ts",
+          "needle": "    \"/api/identity/device/approve\","
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"POST /api/identity/device/approve\": {"
+        },
+        {
+          "path": "app/server/src/lib/device-store.ts",
+          "needle": "export function createDeviceStore("
+        },
+        {
+          "path": "app/console/src/pages/Device.vue",
+          "needle": "只确认自己发起的登录"
+        }
+      ],
+      "tests": [
+        "tests/server/device-flow.test.ts",
+        "tests/console/device.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    {
+      "id": "identity.device.userinfo",
+      "title": "命令行凭设备令牌读极客班账号（OpenID）",
+      "domain": "identity",
+      "relatedDomains": [],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /auth/device/userinfo",
+      "capabilities": [],
+      "reads": [
+        "device_grants",
+        "users",
+        "identities"
+      ],
+      "writes": [],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：Bearer 令牌（geek login 换到的 gk_…），不读 cookie。",
+        "响应与错误：200 {sub=account_id,account_id,login,avatar_url,scope}；令牌缺失、不存在、过期或账号不是 active 时 401 invalid_token，并带 WWW-Authenticate: Bearer error=\"invalid_token\"。",
+        "数据与副作用：只读；按令牌的 sha256 查行，不记录令牌明文。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/device.ts",
+          "needle": "  app.get(\"/auth/device/userinfo\", async (req, reply) => {"
+        },
+        {
+          "path": "app/server/src/routes/identity/contracts.ts",
+          "needle": "  \"GET /auth/device/userinfo\": {"
+        },
+        {
+          "path": "app/server/src/lib/device-store.ts",
+          "needle": "export function createDeviceStore("
+        }
+      ],
+      "tests": [
+        "tests/server/device-flow.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ]
+    },
+    {
+      "id": "identity.callback",
+      "title": "校验登录回调，在一个事务里建号或找到账号并建立统一会话",
+      "domain": "identity",
+      "relatedDomains": [
+        "audit",
+        "organization",
+        "forum"
+      ],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /auth/callback",
+      "capabilities": [],
+      "reads": [
+        "identities",
+        "users"
+      ],
+      "writes": [
+        "sessions",
+        "audit_logs",
+        "users",
+        "identities",
+        "identity_audit",
+        "role_assignments",
+        "forum_users"
+      ],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：state与签名cookie必须相符且未过期；仅CONSOLE_ORG active成员成功；只有GitHub能建号，按GitHub数字id匹配身份，不用会变的登录名。",
+        "响应与错误：成功302回return_to；取消/上游失败/非成员/账号停用一律302到统一登录页/signin，带signin结果（cancelled、failed、not_member或invite_pending、account_disabled）与原来的return_to路径（#262）；合并链超过8跳、成环或事务失败按failed；缺参数或无效state为400，旧forum-state为410。",
+        "数据与副作用：外部请求在事务外做完；建号、刷新身份、沿merged_into走到终点、按GitHub id认领称号与论坛用户、写sessions（含openid、provider）、删请求带来的旧会话、写identity_audit与auth.signin在一个BEGIN IMMEDIATE事务里，失败整体回滚、旧会话照常有效。非成员与停用账号不建会话、审计拒绝并尽力撤销授权；失败日志不输出token。"
       ],
       "evidence": [
         {
@@ -460,15 +766,26 @@
         {
           "path": "app/server/src/lib/auth.ts",
           "needle": "function createSession("
+        },
+        {
+          "path": "app/server/src/lib/identity-store.ts",
+          "needle": "  function signInWithGithub(input: { github: GithubAccount;"
+        },
+        {
+          "path": "app/server/src/lib/db.ts",
+          "needle": "function audit(org: string | null, actor: AuditActor,"
         }
       ],
       "tests": [
-        "tests/server/core.test.ts"
+        "tests/server/core.test.ts",
+        "tests/server/identity.test.ts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
         "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md"
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/data-model.md",
+        "docs/plan/UNIFIED-LOGIN.md"
       ]
     },
     {
@@ -486,23 +803,29 @@
       ],
       "writes": [
         "sessions",
-        "audit_logs"
+        "audit_logs",
+        "identity_audit"
       ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：仅销毁cookie sid对应本站会话；允许没有会话的幂等退出，仍受共同写请求Origin校验。",
         "响应与错误：200 {ok:true}；不向调用者泄露sid是否存在。",
-        "数据与副作用：清sid和旧forum_sid cookie；实际读取到会话才写auth.signout，不撤销GitHub授权。"
+        "数据与副作用：清sid和旧forum_sid cookie；实际读取到会话才写auth.signout（带actor_account_id）和本人的identity_audit退出记录，不撤销GitHub授权。"
       ],
       "evidence": [
         {
           "path": "app/server/src/routes/admin/auth.ts",
           "needle": "  app.post(\"/auth/signout\", async (req, reply) => {"
+        },
+        {
+          "path": "app/server/src/lib/identity-store.ts",
+          "needle": "  function recordSignout(accountId: string, provider: IdentityProvider): void {"
         }
       ],
       "tests": [
         "tests/server/core.test.ts",
-        "tests/server/session-cleanup.test.ts"
+        "tests/server/session-cleanup.test.ts",
+        "tests/server/identity.test.ts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
@@ -525,7 +848,8 @@
         "sessions",
         "role_assignments",
         "departments",
-        "titles"
+        "titles",
+        "users"
       ],
       "writes": [
         "sessions",
@@ -534,8 +858,8 @@
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：只返回当前sid的身份；console_link是显示提示，不赋予后端权限。",
-        "响应与错误：200 {signed_in:false}或身份字段及console_link；GitHub拒绝token时200 {signed_in:false,session_expired:true}，其他角色查询失败仍保持登录但入口false。",
-        "数据与副作用：访问GitHub角色缓存和权限数据；过期/被拒token才删会话，拒绝token写审计；无其他业务写入。"
+        "响应与错误：200 {signed_in:false}或身份字段（login、user_id、avatar_url、account_id、provider）及console_link；GitHub拒绝token时200 {signed_in:false,session_expired:true}，其他角色查询失败仍保持登录但入口false。",
+        "数据与副作用：会话联查账号，过期、没有账号（启动回填映射不到的旧会话）或账号不是active的会话按未登录处理并删除；访问GitHub角色缓存和权限数据，被拒token才删会话并写审计；无其他业务写入。"
       ],
       "evidence": [
         {
@@ -545,16 +869,97 @@
         {
           "path": "app/server/src/lib/access.ts",
           "needle": "export function createAccess("
+        },
+        {
+          "path": "app/server/src/lib/auth.ts",
+          "needle": "function getSession(id: string): Session | null {"
+        },
+        {
+          "path": "app/server/src/lib/db.ts",
+          "needle": "const identityBackfill = backfillIdentity(db, Date.now());"
+        },
+        {
+          "path": "app/console/src/lib/runtime.ts",
+          "needle": "/signin?return_to=${encodeURIComponent(path)}"
+        },
+        {
+          "path": "app/console/src/lib/errors.ts",
+          "needle": "请重新登录。"
+        },
+        {
+          "path": "app/console/src/router.ts",
+          "needle": "path: \"/device\""
+        },
+        {
+          "path": "app/web/sites/portal/lib/account.ts",
+          "needle": "return `/signin?return_to=${encodeURIComponent(path)}`;"
+        },
+        {
+          "path": "app/web/sites/portal/components/os/YugcOs.tsx",
+          "needle": "const signInLink = signInHref();"
+        },
+        {
+          "path": "app/forum/app/composables/useSiteLinks.ts",
+          "needle": "return `${portalOrigin}/signin?return_to=${encodeURIComponent(back)}`"
+        },
+        {
+          "path": "app/forum/app/components/ForumHeader.vue",
+          "needle": "i-carbon-login"
+        },
+        {
+          "path": "app/forum/app/components/LoginModal.vue",
+          "needle": "全站走极客班统一登录页 /signin"
+        },
+        {
+          "path": "app/forum/app/components/SignInState.vue",
+          "needle": "只有极客班成员能登录。"
+        },
+        {
+          "path": "app/forum/app/composables/useSiteAccount.ts",
+          "needle": "这里只处理旧链接里残留的 `?signin=`"
+        },
+        {
+          "path": "app/forum/app/data/access.ts",
+          "needle": "要先登录，只有极客班成员能登录"
+        },
+        {
+          "path": "app/forum/app/pages/about.vue",
+          "needle": "官网、论坛、控制台共用同一个极客班账号、同一次登录。"
+        },
+        {
+          "path": "app/forum/app/pages/new.vue",
+          "needle": "只有极客班成员能登录。不登录也能看帖"
+        },
+        {
+          "path": "app/forum/shared/signin-outcomes.ts",
+          "needle": "#262 起核心服务把它带到统一登录页 /signin"
+        },
+        {
+          "path": "app/forum/shared/site-notice.ts",
+          "needle": "要先登录，只有极客班成员能登录"
+        },
+        {
+          "path": "app/forum/app/components/AdoptionNotice.vue",
+          "needle": "极客班成员可以在右上角登录"
         }
       ],
       "tests": [
         "tests/server/core.test.ts",
-        "tests/server/console.test.ts"
+        "tests/server/console.test.ts",
+        "tests/server/identity.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/console/signin.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/e2e/workflows.spec.ts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
         "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md"
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/data-model.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md",
+        "docs/services/forum/README.md"
       ]
     },
     {
@@ -3053,7 +3458,9 @@
         "sessions",
         "role_assignments",
         "departments",
-        "titles"
+        "titles",
+        "identities",
+        "users"
       ],
       "writes": [
         "role_assignments",
@@ -5914,6 +6321,9 @@
     "app/server/src/lib/auth.ts": [
       "identity"
     ],
+    "app/server/src/lib/identity-store.ts": [
+      "identity"
+    ],
     "app/server/src/lib/crypto.ts": [
       "identity"
     ],
@@ -6050,6 +6460,9 @@
     ],
     "app/web/sites/portal/lib/competitionLabels.ts": [
       "competitions"
+    ],
+    "app/server/src/lib/device-store.ts": [
+      "identity"
     ]
   }
 }

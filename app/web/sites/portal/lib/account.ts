@@ -1,6 +1,6 @@
-// 全站统一登录（官网、论坛、控制台共用同一个 sid cookie）。登录只走核心服务的 GitHub 登录：
-// /auth/github?return_to=… → GitHub → /auth/callback → 回到 return_to。登录后默认进论坛。
-// 同域读 /auth/me 就知道是谁；本机开发时 5173 把 /auth 代理给核心后端，127.0.0.1 上各端口共用这个 cookie。
+// 全站统一登录（官网、论坛、控制台共用同一个 sid cookie，#262）。「登录」一律去极客班统一登录页：
+// /signin?return_to=<本站路径> → 选登录方式（GET /auth/providers，GitHub 只是其一）→ /auth/callback → 回到 return_to。
+// 同域读 /auth/me 就知道是谁；本机开发时 5173 把 /auth 代理给核心后端、把 /signin 转给控制台 dev server，127.0.0.1 上各端口共用这个 cookie。
 import { useCallback, useEffect, useState } from "react";
 
 /**
@@ -9,9 +9,13 @@ import { useCallback, useEffect, useState } from "react";
  */
 export type Account = { login: string; avatarUrl: string | null; consoleLink: boolean };
 
-/** 登录后回到的地址：默认论坛首页（同域的 /forum/，本机开发时 5173 再转到论坛的 dev server） */
-export function signInHref(returnTo = `${window.location.origin}/forum/`): string {
-  return `/auth/github?return_to=${encodeURIComponent(returnTo)}`;
+/**
+ * 统一登录页地址。`returnTo` 是登录后回到的本站路径（默认当前页面）；只带路径、不带域名，
+ * 登录页（app/console/src/lib/signin.ts）与服务端（app/server/src/lib/safe-return.ts）都会再按同源校验。
+ */
+export function signInHref(returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`): string {
+  const path = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+  return `/signin?return_to=${encodeURIComponent(path)}`;
 }
 
 export function parseMe(body: unknown): Account | null {

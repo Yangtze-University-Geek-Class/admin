@@ -2,6 +2,7 @@ import portalRoutes from "./routes/portal/index.js";
 import adminRoutes from "./routes/admin/index.js";
 import consoleRoutes from "./routes/console/index.js";
 import forumRoutes from "./routes/forum-api/index.js";
+import identityRoutes from "./routes/identity/index.js";
 import Fastify, { type RouteOptions } from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -21,7 +22,7 @@ const consoleDist = resolve(APP_ROOT, "console/dist");
  * 服务端只在这里定义一次；web 镜像内 nginx 的 location 必须与之一致（app/web/Dockerfile）。
  * 管理端是独立的 Vue 包 app/console（极客班控制台），产物入口在 app/console/dist/sites/console/index.html。
  */
-export const ADMIN_SPA_PATHS = Object.freeze({ exact: ["/signin"], prefixes: ["/admin", "/console"] });
+export const ADMIN_SPA_PATHS = Object.freeze({ exact: ["/signin", "/device"], prefixes: ["/admin", "/console"] });
 export const ADMIN_SPA_ENTRY = "sites/console/index.html";
 export const PORTAL_SPA_ENTRY = "sites/portal/index.html";
 
@@ -67,6 +68,7 @@ export async function buildApp(options: BuildAppOptions) {
 
   await app.register(portalRoutes);
   await app.register(adminRoutes);
+  await app.register(identityRoutes);
   await app.register(consoleRoutes);
   await app.register(forumRoutes);
   // 旧论坛接口已退役，不映射成新接口：新论坛接口（routes/forum-api）注册的具体路径优先匹配，

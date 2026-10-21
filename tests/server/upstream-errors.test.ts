@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp } from './helpers';
+import { signIn, testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
 
@@ -11,7 +11,7 @@ async function adminFixture(failure: Record<string, unknown> = {}) {
     throw Object.assign(new Error('stub upstream rejection'), failure);
   } })) as unknown as ServiceOverrides['octokitFactory'];
   const context = await testApp({ octokitFactory }); contexts.push(context);
-  const sid = context.app.services.auth.createSession('test-admin', 1, null, 'test-access');
+  const sid = signIn(context.app, 'test-admin', 1, null, 'test-access');
   return { ...context, sid, headers: { cookie: `sid=${sid}` } };
 }
 

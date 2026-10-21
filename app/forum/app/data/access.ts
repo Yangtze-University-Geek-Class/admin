@@ -83,7 +83,7 @@ export function loginPromptToast(prompt: LoginPrompt): PromptToast {
     return {
       id: 'forum-sign-in',
       title: '登录后才能继续',
-      description: '发新话题、点赞、收藏和关注要先用 GitHub 登录，只有极客班成员能登录。不登录也能看帖和回复。',
+      description: '发新话题、点赞、收藏和关注要先登录，只有极客班成员能登录。不登录也能看帖和回复。',
       duration: 6000,
       signIn: true,
     }
@@ -102,7 +102,7 @@ export function loginPromptToast(prompt: LoginPrompt): PromptToast {
  * says both. LoginModal shows it and adds the 登录 action.
  */
 export function signinLapsedToast(failed: string | null): PromptToast {
-  const next = '请重新用 GitHub 登录。不登录也能看帖和回复。'
+  const next = '请重新登录。不登录也能看帖和回复。'
   return {
     id: 'forum-signin-lapsed',
     title: failed ?? '登录已失效',

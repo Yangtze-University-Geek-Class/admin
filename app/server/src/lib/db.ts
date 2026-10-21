@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { backfillIdentity } from "./identity-store.js";
+
+/** 审计里的操作者：GitHub 登录名，或带上极客班账号的会话（写进 actor_account_id，#262）。 */
+export type AuditActor = string | { login: string; account_id?: string | null };
 
 export function createDatabase(path: string) {
 if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -377,13 +381,107 @@ CREATE INDEX IF NOT EXISTS idx_application_limits_at ON application_limits(creat
 // 旧的「评估中」改回「已收到」（#148）。每次启动都跑一遍，没有这样的行时什么也不改；
 // application_reviews 里的 reviewing 是历史，不动。
 db.prepare("UPDATE applications SET status = 'received' WHERE status = 'reviewing'").run();
-function audit(org: string | null, actor: string, action: string, target?: string, details?: unknown, ip?: string) {
+
+// 统一登录（#262，docs/plan/UNIFIED-LOGIN.md「数据库」）：users 一行是一个极客班账号（id 就是接口里的 account_id），
+// identities 一行是一种登录方式（同一个 GitHub 账号只能绑定一个账号），identity_audit 是给本人看的账号记录。
+// 只有 lib/identity-store.ts 读写这三张表。
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled','merged')),
+  merged_into TEXT REFERENCES users(id),
+  canonical_email TEXT,
+  org_state TEXT NOT NULL DEFAULT 'active' CHECK (org_state IN ('active','pending','not_member','unknown')),
+  org_checked_at INTEGER,
+  membership_version INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK ((status = 'merged') = (merged_into IS NOT NULL)),
+  CHECK (merged_into <> id)
+);
+
+CREATE TABLE IF NOT EXISTS identities (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  provider TEXT NOT NULL CHECK (provider IN ('github','google','email')),
+  provider_uid TEXT NOT NULL,
+  provider_union_id TEXT,
+  email TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 0,
+  login TEXT,
+  avatar_url TEXT,
+  created_at INTEGER NOT NULL,
+  last_login_at INTEGER,
+  UNIQUE (provider, provider_uid)
+);
+CREATE INDEX IF NOT EXISTS idx_identities_user ON identities(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_identities_github_user ON identities(user_id) WHERE provider = 'github';
+CREATE INDEX IF NOT EXISTS idx_identities_union ON identities(provider, provider_union_id) WHERE provider_union_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS identity_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  action TEXT NOT NULL,
+  provider TEXT,
+  result TEXT NOT NULL CHECK (result IN ('ok','denied','failed')),
+  reason TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_identity_audit_user ON identity_audit(user_id, created_at DESC);
+`);
+
+// 设备授权（#262，RFC 8628，为 `geek login` 预留）：一行是一次授权。device_code 与 access_token 只存 sha256；
+// status 只写四个真实状态，`expired` 由 expires_at 现算。只有 lib/device-store.ts 读写这张表。
+db.exec(`
+CREATE TABLE IF NOT EXISTS device_grants (
+  id TEXT PRIMARY KEY,
+  device_code_hash TEXT NOT NULL UNIQUE,
+  user_code TEXT NOT NULL UNIQUE,
+  client_id TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending','approved','denied','consumed')),
+  account_id TEXT,
+  interval_s INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  last_poll_at INTEGER,
+  decided_at INTEGER,
+  token_hash TEXT UNIQUE,
+  token_expires_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_device_grants_account ON device_grants(account_id);
+`);
+
+// 已有表加列：SQLite 的 ADD COLUMN 没有 IF NOT EXISTS，先看 PRAGMA table_info。新列都可空，换回旧镜像时
+// 旧代码的 INSERT 不写它们也照常成功；再上线时由下面的回填补齐回滚期间的数据。
+function addColumn(table: string, column: string, definition: string) {
+  const columns = db.pragma(`table_info(${table})`) as { name: string }[];
+  if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+addColumn("sessions", "openid", "TEXT REFERENCES users(id)");
+addColumn("sessions", "provider", "TEXT");
+addColumn("role_assignments", "account_id", "TEXT REFERENCES users(id)");
+addColumn("forum_users", "account_id", "TEXT REFERENCES users(id)");
+// 审计不加外键：审计行要比任何账号状态活得久
+addColumn("audit_logs", "actor_account_id", "TEXT");
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_sessions_openid ON sessions(openid);
+CREATE INDEX IF NOT EXISTS idx_role_assignments_account ON role_assignments(account_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_forum_users_account ON forum_users(account_id) WHERE account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_actor_account ON audit_logs(actor_account_id) WHERE actor_account_id IS NOT NULL;
+`);
+// 每次启动都回填一遍（全是带条件的更新，可以重跑）：给还在用的旧会话建号、映射会话、认领称号和论坛用户。
+const identityBackfill = backfillIdentity(db, Date.now());
+
+function audit(org: string | null, actor: AuditActor, action: string, target?: string, details?: unknown, ip?: string) {
+  const login = typeof actor === "string" ? actor : actor.login;
+  const accountId = typeof actor === "string" ? null : actor.account_id ?? null;
   db.prepare(
-    "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)"
-  ).run(org, actor, action, target ?? null, details ? JSON.stringify(details) : null, ip ?? null, Date.now());
+    "INSERT INTO audit_logs(org, actor, action, target, details, ip, created_at, actor_account_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(org, login, action, target ?? null, details ? JSON.stringify(details) : null, ip ?? null, Date.now(), accountId);
 }
 
-return { db, audit };
+return { db, audit, identityBackfill };
 }
 
 /**

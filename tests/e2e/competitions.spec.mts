@@ -33,7 +33,10 @@ test.beforeEach(async ({ page }) => {
   });
   await app.ready();
   context = { app, close: () => app.close() };
-  headers = { cookie: `sid=${context.app.services.auth.createSession("alice", 101, null, "test-only-token")}` };
+  // 走真实的 GitHub 登录事务签会话（#262）：建出 alice 的极客班账号，会话带 account_id
+  const signin = context.app.services.identity.signInWithGithub({ github: { id: 101, login: "alice", avatarUrl: null }, accessToken: "test-only-token" });
+  if (!signin.ok) throw new Error(`test sign-in refused: ${signin.reason}`);
+  headers = { cookie: `sid=${signin.sid}` };
   const now = Date.now();
   const created = await context.app.inject({
     method: "POST", url: "/api/console/competitions", headers,

@@ -2,7 +2,7 @@
 
 > 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。
 
-状态：`current` · 更新：2026-10-02
+状态：`current` · 更新：2026-10-21
 
 ## 地址
 
@@ -69,13 +69,13 @@ GitHub 登录要从预览进程连 `github.com` 换 token、查用户和组织�
 
 `sid` 是 host-only cookie，浏览器按主机不按端口发送：在 5173 登录后，127.0.0.1 上的 5186（控制台）和 3456（论坛）也带着同一个 `sid`，控制台经自己的 Vite 代理、论坛经 `nitro.devProxy` 读 `/auth/me`。`return_to` 只接受 `http://127.0.0.1:5173` 这一个 origin：
 
-- 论坛的「用 GitHub 登录」在开发态指向 `http://127.0.0.1:5173/auth/github?return_to=http://127.0.0.1:5173/forum<当前路径>`，登录后经上面的 302 回到 3456 的原页面；
-- 官网菜单栏的登录链接默认回 `http://127.0.0.1:5173/forum/`，即论坛首页；
-- 控制台（5186）发起的登录，`return_to` 是 5186 上的地址，不被接受，回到 `http://127.0.0.1:5173/console` 再 302 到 5186 的 `/console`，原来的深链接不保留。
+- 论坛的「登录」在开发态指向 `http://127.0.0.1:5173/signin?return_to=/forum<当前路径>`；5173 的 `vite.config.ts` 把 `/signin` 302 到 5186（控制台 dev server），登录后经 5173 的 `/auth/callback` 302 回到 3456 的原页面；
+- 官网菜单栏的登录链接回当前页面（`/signin?return_to=<当前路径>`）；
+- 控制台（5186）的 `/signin` 由控制台自己的 dev server 提供，`return_to` 是同源路径（如 `/console/people`），登录时转成完整地址交给核心；`return_to` 里的 5186 地址不被核心接受，会回到 `http://127.0.0.1:5173/console` 再 302 到 5186 的 `/console`，原来的深链接不保留。
 
 核心只接受 `PUBLIC_ORIGIN`（本机是 `http://127.0.0.1:5173`）发来的写请求。控制台（5186）的 Vite 代理和论坛（3456）的 `nitro.devProxy` 都把转给核心的 `Origin` 换成 5173，与线上同域时一致；否则本机控制台的保存、审核和两处的「退出」都会被 403 `invalid_origin`。两条代理只在开发服务器上，不进构建产物。
 
-登录没成功时回跳地址带 `?signin=<原因>`，各页面怎么说明见 [SECURITY](../architecture/SECURITY.md) 与 [API](../architecture/API.md)。
+登录没成功时核心服务把人送到 `http://127.0.0.1:5173/signin?signin=<原因>&return_to=<原路径>` 说明原因（本机 5186、3456 上的页面同理由 5173 的登录页处理），见 [SECURITY](../architecture/SECURITY.md) 与 [API](../architecture/API.md)。
 
 **注意：GitHub 登录模式下的本机控制台操作的是真实的 GitHub 组织。** 控制台里的 GitHub 操作（邀请、移出成员、改仓库等）用的是登录者自己的 token 和组织权限，与线上控制台一样会改到真实的 `Yangtze-University-Geek-Class`；本机数据库（称号、投递、意见箱）只在 `.tools/local-preview/core.db`。
 

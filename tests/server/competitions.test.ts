@@ -4,7 +4,7 @@ import type { ServiceOverrides } from '../../app/server/src/services';
 import { competitionStatus, compareCompetitions } from '../../app/server/src/lib/competition-store';
 import { formFrom, formPayload } from '../../app/console/src/lib/competitions';
 import { buildApp, type BuildAppOptions } from '../../app/server/src/app';
-import { testApp, testConfig } from './helpers';
+import { signIn, testApp, testConfig } from './helpers';
 
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
@@ -30,7 +30,7 @@ async function setup() {
   const context = await testApp({ octokitFactory: github({ alice: 'admin', bob: 'member' }) });
   contexts.push(context);
   const { app } = context;
-  const as = (login: string) => ({ cookie: `sid=${app.services.auth.createSession(login, USERS[login] ?? null, null, `token-${login}`)}` });
+  const as = (login: string) => ({ cookie: `sid=${signIn(app, login, USERS[login], null, `token-${login}`)}` });
   return { app, as };
 }
 

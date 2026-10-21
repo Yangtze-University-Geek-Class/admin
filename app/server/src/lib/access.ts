@@ -7,7 +7,8 @@ export type AccessDeps = {
   cached: <T>(key: string, ttlMs: number, fn: () => Promise<T>) => Promise<T>;
   roles: RoleStore;
 };
-export type ResolveInput = { login: string; userId: number | null; accessToken: string };
+/** `accountId`：会话的极客班账号（#262），称号先按它认人。 */
+export type ResolveInput = { login: string; userId: number | null; accountId: string | null; accessToken: string };
 
 /** GitHub 组织角色缓存 60 秒；撤销组织管理员最长 60 秒后生效。错误不缓存（由 cache 保证）。 */
 export const ORG_ROLE_TTL_MS = 60_000;
@@ -20,11 +21,11 @@ export function createAccess({ consoleOrg, getOrgRole, cached, roles }: AccessDe
   async function orgRole(login: string, accessToken: string): Promise<OrgRole> {
     return cached(`console:orgrole:${login.toLowerCase()}`, ORG_ROLE_TTL_MS, () => getOrgRole(accessToken, consoleOrg, login));
   }
-  async function resolve({ login, userId, accessToken }: ResolveInput): Promise<Access> {
+  async function resolve({ login, userId, accountId, accessToken }: ResolveInput): Promise<Access> {
     const githubRole = await orgRole(login, accessToken);
     return computeAccess({
       login, orgRole: githubRole,
-      assignments: roles.assignmentsFor(login, userId),
+      assignments: roles.assignmentsFor(login, userId, accountId),
       departments: roles.listDepartments(),
       titles: roles.titleConfigs(),
     });

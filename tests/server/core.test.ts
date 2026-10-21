@@ -6,14 +6,14 @@ import { ADMIN_SPA_ENTRY, ADMIN_SPA_PATHS, PORTAL_SPA_ENTRY, buildApp, resolveSi
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { testApp, testConfig } from './helpers';
+import { signIn, testApp, testConfig } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 async function setup(overrides?: ServiceOverrides, production = false) { const c = await testApp(overrides, production); contexts.push(c); return c; }
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
 
 it('isolates the core database and does not instantiate any retired forum services', async () => {
   const a = await setup(); const b = await setup();
-  a.app.services.auth.createSession('isolated-user', 1, null, 'test-token');
+  signIn(a.app, 'isolated-user', 1, null, 'test-token');
   expect(b.app.services.storage.db.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 0 });
   expect('forumDb' in a.app.services).toBe(false);
   expect('forumAuth' in a.app.services).toBe(false);
@@ -57,7 +57,7 @@ it('preserves authentication and cross-origin protection for organization manage
   expect((await app.inject('/auth/me')).headers['cache-control']).toBe('no-store');
 });
 it('preserves core sessions without minting or reading old forum sessions', async () => {
-  const { app } = await setup(); const sid = app.services.auth.createSession('test-user', 5, null, 'test-access');
+  const { app } = await setup(); const sid = signIn(app, 'test-user', 5, null, 'test-access');
   const headers = { cookie: `sid=${sid}` };
   expect((await app.inject({ url: '/auth/me', headers })).json().login).toBe('test-user');
   expect((await app.inject({ method: 'POST', url: '/auth/signout', headers })).statusCode).toBe(200);
@@ -122,17 +122,17 @@ it('returns a member to the page that started the sign-in', async () => {
 it.each([
   ['not a member of the organization', null, 'not_member'],
   ['invited but has not accepted yet', 'pending', 'invite_pending'],
-] as const)('refuses to sign in a GitHub user who is %s and says why on the original page', async (_case, membership, outcome) => {
+] as const)('refuses to sign in a GitHub user who is %s and says why on the unified sign-in page (#262)', async (_case, membership, outcome) => {
   const { app } = await setup({ httpRequest: stubProvider, octokitFactory: membershipStub(membership) });
   const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
   const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
   expect(response.statusCode).toBe(302);
-  expect(response.headers.location).toBe(`https://example.test/forum/?signin=${outcome}`);
+  expect(response.headers.location).toBe(`https://example.test/signin?signin=${outcome}&return_to=%2Fforum%2F`);
   expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
   expect(app.services.storage.db.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 0 });
   const denied = app.services.storage.db.prepare("SELECT actor, details FROM audit_logs WHERE action = 'auth.signin_denied'").get() as { actor: string; details: string };
   expect(denied.actor).toBe('test-github-user');
-  expect(JSON.parse(denied.details)).toEqual({ org: 'Yangtze-University-Geek-Class', reason: membership ?? 'not_member' });
+  expect(JSON.parse(denied.details)).toEqual({ org: 'Yangtze-University-Geek-Class', reason: membership ?? 'not_member', provider: 'github' });
   // 被拒的人在 GitHub 上的授权被撤掉：用应用自己的 client_id:client_secret，撤的是这次换到的 token 所属的 grant
   const revoke = providerCalls.find(call => call.url.includes('/grant'));
   expect(revoke).toMatchObject({ method: 'DELETE', url: 'https://api.github.com/applications/test-client/grant' });
@@ -147,7 +147,7 @@ it('still sends a refused user back with the reason when revoking the grant fail
   const { app } = await setup({ httpRequest: revokeFails, octokitFactory: membershipStub(null) });
   const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
   const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
-  expect(response.headers.location).toBe('https://example.test/forum/?signin=not_member');
+  expect(response.headers.location).toBe('https://example.test/signin?signin=not_member&return_to=%2Fforum%2F');
   expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
 });
 it('gives every GitHub API call a timeout, because Octokit ignores request.timeout', async () => {
@@ -167,7 +167,7 @@ it('goes back to the original page instead of a JSON error when GitHub cannot be
   const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
   const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
   expect(response.statusCode).toBe(302);
-  expect(response.headers.location).toBe('https://example.test/forum/?signin=failed');
+  expect(response.headers.location).toBe('https://example.test/signin?signin=failed&return_to=%2Fforum%2F');
   expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
 });
 it('does not treat a failed membership lookup as "not a member"', async () => {
@@ -176,15 +176,23 @@ it('does not treat a failed membership lookup as "not a member"', async () => {
   const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
   const response = await app.inject({ url: `/auth/callback?code=ok&state=${state}`, headers: { cookie } });
   // 403 不能当成「不是成员」：成员也会被组织的 OAuth App 限制挡住，这时只能说登录没完成
-  expect(response.headers.location).toBe('https://example.test/forum/?signin=failed');
+  expect(response.headers.location).toBe('https://example.test/signin?signin=failed&return_to=%2Fforum%2F');
   expect(setCookies(response).some(c => c.startsWith('sid='))).toBe(false);
 });
-it('takes a cancelled GitHub authorization back to the original page', async () => {
+it('keeps the original page (path, query) in return_to when sign-in fails, dropping a stale signin param', async () => {
+  const { app } = await setup();
+  const { state, cookie } = await startSignIn(app, 'https://example.test/forum/t/t84?page=2&signin=failed');
+  const response = await app.inject({ url: `/auth/callback?error=access_denied&state=${state}`, headers: { cookie } });
+  const location = new URL(String(response.headers.location));
+  expect([location.origin, location.pathname]).toEqual(['https://example.test', '/signin']);
+  expect(Object.fromEntries(location.searchParams)).toEqual({ signin: 'cancelled', return_to: '/forum/t/t84?page=2' });
+});
+it('takes a cancelled GitHub authorization back to the unified sign-in page', async () => {
   const { app } = await setup();
   const { state, cookie } = await startSignIn(app, 'https://example.test/forum/');
   const response = await app.inject({ url: `/auth/callback?error=access_denied&state=${state}`, headers: { cookie } });
   expect(response.statusCode).toBe(302);
-  expect(response.headers.location).toBe('https://example.test/forum/?signin=cancelled');
+  expect(response.headers.location).toBe('https://example.test/signin?signin=cancelled&return_to=%2Fforum%2F');
   // 没有有效 state 的错误回调仍然就地拒绝，不跳到任何地方
   expect((await app.inject('/auth/callback?error=access_denied&state=forged')).statusCode).toBe(400);
   expect((await app.inject('/auth/callback?error=access_denied')).statusCode).toBe(400);
@@ -201,14 +209,14 @@ it('keeps return targets on the single public origin', async () => {
 });
 it.each([
   ['/admin', 'admin'], ['/admin/', 'admin'], ['/admin/demo/repos', 'admin'], ['/admin/signin?return_to=/admin', 'admin'],
-  ['/console', 'admin'], ['/console/people', 'admin'], ['/signin', 'admin'],
+  ['/console', 'admin'], ['/console/people', 'admin'], ['/signin', 'admin'], ['/device', 'admin'],
   ['/', 'portal'], ['/join-us', 'portal'], ['/join/abc', 'portal'], ['/docs/usage', 'portal'], ['/administrator', 'portal'],
   ['/consoles', 'portal'], ['/signin/extra', 'portal'], ['/?next=/admin', 'portal'],
 ])('picks the SPA entry for %s by path only (%s), never by host', (url, site) => {
   expect(resolveSiteEntry(url)).toBe(site === 'admin' ? ADMIN_SPA_ENTRY : PORTAL_SPA_ENTRY);
 });
 it('keeps the admin path list and entry file in one place', () => {
-  expect(ADMIN_SPA_PATHS).toEqual({ exact: ['/signin'], prefixes: ['/admin', '/console'] });
+  expect(ADMIN_SPA_PATHS).toEqual({ exact: ['/signin', '/device'], prefixes: ['/admin', '/console'] });
   // 管理端是 Vue 控制台（app/console），入口在它自己的产物里。
   expect([ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY]).toEqual(['sites/console/index.html', 'sites/portal/index.html']);
 });
@@ -239,7 +247,7 @@ it('lists admin feedback without the submitter IP, user agent or numeric account
   const { app } = await setup({ octokitFactory }); const now = Date.now();
   app.services.storage.db.prepare('INSERT INTO feedback(org,content,category,contact,submitter_login,submitter_id,source_ip,user_agent,status,votes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
     .run('test-org', 'test feedback body', '建议', 'test-contact', 'test-student', 424242, '203.0.113.9', 'test-agent/1.0', 'open', 3, now, now);
-  const sid = app.services.auth.createSession('test-admin', 1, null, 'test-access');
+  const sid = signIn(app, 'test-admin', 1, null, 'test-access');
   const response = await app.inject({ url: '/api/admin/test-org/feedback', headers: { cookie: `sid=${sid}` } });
   expect(response.statusCode).toBe(200);
   const { items, counts } = response.json();

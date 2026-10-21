@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { createConfig } from '../../app/server/src/config';
 import { CAPABILITY_IDS, computeAccess, DEFAULT_DEPARTMENTS } from '../../app/server/src/lib/roles';
-import { testApp } from './helpers';
+import { signIn, testApp } from './helpers';
 
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
@@ -41,9 +41,9 @@ async function setup(roles: Record<string, Role> = {}, calls: string[] = []) {
   const context = await testApp({ octokitFactory: github(roles, USERS, calls) });
   contexts.push(context);
   const { app } = context;
-  const as = (login: string) => ({ cookie: `sid=${app.services.auth.createSession(login, USERS[login] ?? null, null, `token-${login}`)}` });
+  const as = (login: string) => ({ cookie: `sid=${signIn(app, login, USERS[login], null, `token-${login}`)}` });
   const assign = (login: string, role: 'captain' | 'head' | 'member' | 'alumni', department_id = '') =>
-    app.services.roles.insertAssignment({ github_login: login, github_user_id: USERS[login] ?? null, role, department_id, note: null, granted_by: 'fixture' });
+    app.services.roles.insertAssignment({ github_login: login, github_user_id: USERS[login], role, department_id, note: null, granted_by: 'fixture' });
   const audits = () => app.services.storage.db.prepare('SELECT org, actor, action, target, details FROM audit_logs ORDER BY id').all() as { org: string | null; actor: string; action: string; target: string; details: string | null }[];
   return { app, as, assign, audits, db: app.services.storage.db };
 }
@@ -137,7 +137,7 @@ describe('identity and capabilities', () => {
 
     const failing = (() => ({ request: async () => { throw Object.assign(new Error('upstream down'), { status: 502 }); } })) as unknown as ServiceOverrides['octokitFactory'];
     const broken = await testApp({ octokitFactory: failing }); contexts.push(broken);
-    const sid = broken.app.services.auth.createSession('alice', 101, null, 'token');
+    const sid = signIn(broken.app, 'alice', 101, null, 'token');
     const response = await broken.app.inject({ url: '/api/console/me', headers: { cookie: `sid=${sid}` } });
     expect(response.statusCode).toBe(502);
     expect(response.json().error).toBe('internal_error');
@@ -173,7 +173,7 @@ describe('/auth/me console_link', () => {
   it('stays signed in without the link when GitHub cannot be reached', async () => {
     const failing = (() => ({ request: async () => { throw Object.assign(new Error('upstream down'), { status: 502 }); } })) as unknown as ServiceOverrides['octokitFactory'];
     const broken = await testApp({ octokitFactory: failing }); contexts.push(broken);
-    const sid = broken.app.services.auth.createSession('alice', 101, null, 'token');
+    const sid = signIn(broken.app, 'alice', 101, null, 'token');
     const response = await broken.app.inject({ url: '/auth/me', headers: { cookie: `sid=${sid}` } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ signed_in: true, login: 'alice', console_link: false });
@@ -182,14 +182,14 @@ describe('/auth/me console_link', () => {
   it('ends the session and says signed out when GitHub rejects its token (#164)', async () => {
     const rejecting = (() => ({ request: async () => { throw Object.assign(new Error('Bad credentials'), { status: 401 }); } })) as unknown as ServiceOverrides['octokitFactory'];
     const broken = await testApp({ octokitFactory: rejecting }); contexts.push(broken);
-    const sid = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const sid = signIn(broken.app, 'alice', 101, null, 'revoked-token');
     const response = await broken.app.inject({ url: '/auth/me', headers: { cookie: `sid=${sid}` } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ signed_in: false, session_expired: true });
     expect(([] as string[]).concat((response.headers['set-cookie'] as string[] | string | undefined) ?? []).some(cookie => cookie.startsWith('sid=;'))).toBe(true);
     expect(broken.app.services.auth.getSession(sid)).toBeNull();
     // 控制台的接口同样按会话失效回答，控制台据此带人去重新登录（#133）。
-    const other = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const other = signIn(broken.app, 'alice', 101, null, 'revoked-token');
     const console = await broken.app.inject({ url: '/api/console/me', headers: { cookie: `sid=${other}` } });
     expect(console.statusCode).toBe(401);
     expect(console.json().error).toBe('session_expired');
@@ -203,7 +203,7 @@ describe('/auth/me console_link', () => {
       throw Object.assign(new Error('Bad credentials'), { status: 401 });
     } })) as unknown as ServiceOverrides['octokitFactory'];
     const broken = await testApp({ octokitFactory: slow }); contexts.push(broken);
-    const sid = broken.app.services.auth.createSession('alice', 101, null, 'revoked-token');
+    const sid = signIn(broken.app, 'alice', 101, null, 'revoked-token');
     const headers = { cookie: `sid=${sid}` };
     const [state, me] = await Promise.all([
       broken.app.inject({ url: '/api/forum/state', headers }),
@@ -538,13 +538,17 @@ describe('summary, feedback and audit', () => {
     app.services.storage.audit(CONSOLE_ORG, 'alice', 'application.export', 'all', { count: 0 }, '127.0.0.1');
     app.services.storage.audit('other-org', 'mallory', 'role.assign', 'x', undefined, '198.51.100.1');
     app.services.storage.audit(null, 'alice', 'auth.signin', 'alice', undefined, '127.0.0.1');
-    const logs = (await app.inject({ url: '/api/console/audit', headers: as('alice') })).json().logs;
-    expect(logs.map((row: { action: string }) => row.action).sort()).toEqual(['application.export', 'role.assign']);
-    expect((await app.inject({ url: '/api/console/audit?action=role.', headers: as('alice') })).json().logs).toHaveLength(1);
-    expect((await app.inject({ url: '/api/console/audit?action=%25', headers: as('alice') })).json().logs).toHaveLength(0);
+    // 读审计不写审计。as() 走真实登录事务（#262）会写 auth.signin，所以先登录、再数
+    const alice = as('alice');
     assign('erin', 'head', 'recruitment');
-    expect((await app.inject({ url: '/api/console/audit', headers: as('erin') })).statusCode).toBe(403);
-    expect(db.prepare('SELECT COUNT(*) AS n FROM audit_logs').get()).toEqual({ n: 4 });
+    const erin = as('erin');
+    const before = db.prepare('SELECT COUNT(*) AS n FROM audit_logs').get();
+    const logs = (await app.inject({ url: '/api/console/audit', headers: alice })).json().logs;
+    expect(logs.map((row: { action: string }) => row.action).sort()).toEqual(['application.export', 'role.assign']);
+    expect((await app.inject({ url: '/api/console/audit?action=role.', headers: alice })).json().logs).toHaveLength(1);
+    expect((await app.inject({ url: '/api/console/audit?action=%25', headers: alice })).json().logs).toHaveLength(0);
+    expect((await app.inject({ url: '/api/console/audit', headers: erin })).statusCode).toBe(403);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM audit_logs').get()).toEqual(before);
   });
 
   it('never hands a live invite-link token to an audit reader who is not a GitHub org admin', async () => {

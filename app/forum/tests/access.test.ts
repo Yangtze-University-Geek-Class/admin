@@ -71,7 +71,7 @@ describe('what a login-required control says to someone who cannot write', () =>
     expect(loginPromptToast(forumAccess('server', 'ready', null).loginPrompt)).toEqual({
       id: 'forum-sign-in',
       title: '登录后才能继续',
-      description: '发新话题、点赞、收藏和关注要先用 GitHub 登录，只有极客班成员能登录。不登录也能看帖和回复。',
+      description: '发新话题、点赞、收藏和关注要先登录，只有极客班成员能登录。不登录也能看帖和回复。',
       duration: 6000,
       signIn: true,
     })
@@ -90,7 +90,7 @@ describe('what the forum says once the server ended the sign-in (#164)', () => {
     expect(signinLapsedToast(null)).toEqual({
       id: 'forum-signin-lapsed',
       title: '登录已失效',
-      description: '请重新用 GitHub 登录。不登录也能看帖和回复。',
+      description: '请重新登录。不登录也能看帖和回复。',
       variant: 'warning',
       duration: 8000,
       signIn: true,
@@ -111,7 +111,7 @@ describe('what the forum says once the server ended the sign-in (#164)', () => {
     expect(signinLapsedToast('没有加上书签')).toMatchObject({
       id: 'forum-signin-lapsed',
       title: '没有加上书签',
-      description: '登录已失效，请重新用 GitHub 登录。不登录也能看帖和回复。',
+      description: '登录已失效，请重新登录。不登录也能看帖和回复。',
       signIn: true,
     })
   })
