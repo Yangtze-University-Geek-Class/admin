@@ -333,7 +333,7 @@ test.describe("手机主屏幕 #206", () => {
       await idle(page);
       await page.getByRole("button", { name: "跳过动画" }).tap();
       await home(page);
-      if (consoleLink === null) await expect(page.getByRole("link", { name: /用 GitHub 登录/ })).toHaveAttribute("href", /\/auth\/github\?return_to=/);
+      if (consoleLink === null) await expect(page.getByRole("link", { name: "登录", exact: true })).toHaveAttribute("href", /^\/signin\?return_to=%2F/);
       else await expect(page.getByRole("button", { name: "账号：test-member" })).toBeVisible();
       if (consoleLink !== null) {
         await page.setViewportSize({ width: 844, height: 390 });

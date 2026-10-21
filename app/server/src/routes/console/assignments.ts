@@ -17,7 +17,7 @@ const outOfScope = (reply: FastifyReply, memberLabel: string) =>
  * 只能任免自己负责部门的舰员。舰长只能由提督或现任舰长指定，已有舰长时在事务里移交。
  */
 export default async function consoleAssignmentRoutes(app: FastifyInstance) {
-  const { roles, config, github } = app.services;
+  const { roles, config, github, identity } = app.services;
   const { audit } = app.services.storage;
   app.addHook("preHandler", requireAuth);
 
@@ -79,8 +79,9 @@ export default async function consoleAssignmentRoutes(app: FastifyInstance) {
       // 用调用者自己的 token 查 GitHub 账号，记录数字 id 以应对改名；绝不借用他人 token。
       const user = await github.getUser(req.session!.accessToken, login);
       if (!user) return reply.code(400).send({ error: "github_user_not_found", message: "GitHub 上找不到这个用户名" });
-      const input = { github_login: user.login, github_user_id: user.id, note, granted_by: req.session!.login };
-      const actor = req.session!.login;
+      // 对方已经有极客班账号就直接写上（#262）；还没登录过的人第一次登录时按 GitHub id 认领
+      const input = { github_login: user.login, github_user_id: user.id, note, granted_by: req.session!.login, account_id: identity.accountForGithub(user.id) };
+      const actor = req.session!;
 
       if (role === "captain") {
         const { previous, assignment } = roles.transferCaptain(input);
@@ -114,7 +115,7 @@ export default async function consoleAssignmentRoutes(app: FastifyInstance) {
           : reply.code(403).send(missingCapability(access, ["roles.manage"]));
       }
       roles.deleteAssignment(row.id);
-      audit(config.consoleOrg, req.session!.login, "role.revoke", row.github_login, { role: row.role, department_id: row.department_id }, req.ip);
+      audit(config.consoleOrg, req.session!, "role.revoke", row.github_login, { role: row.role, department_id: row.department_id }, req.ip);
       return { ok: true };
     },
   );

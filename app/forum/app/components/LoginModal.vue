@@ -5,7 +5,7 @@ import { loginPromptToast, refusedNotMemberToast, signinLapsedToast } from '~/da
 import type { User } from '~/data/types'
 
 // Mock sign-in: pick any seeded user. Mounted once, in the default layout.
-// 统一登录下论坛没有自己的登录（全站走 GitHub 登录，入口在顶栏右上角），示例身份选择不渲染，谁都不能冒充。
+// 统一登录下论坛没有自己的登录（全站走极客班统一登录页 /signin，入口在顶栏右上角），示例身份选择不渲染，谁都不能冒充。
 // 这时点赞、书签、关注等要求登录的按钮仍会打开 loginOpen：给一句说明再关上，不让点击没有反应。
 // 极客班论坛里说明要登录，并直接给登录按钮；论坛服务连不上时说明只能看帖子；快照只能看。说什么在 data/access.ts 的 loginPromptToast。
 // 登录没了（服务端因为 GitHub 收回了会话里的授权而结束了它，或会话在别的标签页结束、到期，#164）：头像菜单换回登录按钮，

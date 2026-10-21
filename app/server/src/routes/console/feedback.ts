@@ -23,7 +23,7 @@ export default async function consoleFeedbackRoutes(app: FastifyInstance) {
       if (!updateFeedback(config.consoleOrg, Number(req.params.id), { status, reply: replyText }, req.session!.login)) {
         return reply.code(404).send({ error: "not_found", message: "意见不存在" });
       }
-      audit(config.consoleOrg, req.session!.login, "feedback.update", req.params.id, { status, has_reply: Boolean(replyText) }, req.ip);
+      audit(config.consoleOrg, req.session!, "feedback.update", req.params.id, { status, has_reply: Boolean(replyText) }, req.ip);
       return { ok: true };
     },
   );
@@ -33,7 +33,7 @@ export default async function consoleFeedbackRoutes(app: FastifyInstance) {
     { preHandler: requireCapability("feedback.manage") },
     async (req, reply) => {
       if (!deleteFeedback(config.consoleOrg, Number(req.params.id))) return reply.code(404).send({ error: "not_found", message: "意见不存在" });
-      audit(config.consoleOrg, req.session!.login, "feedback.delete", req.params.id, undefined, req.ip);
+      audit(config.consoleOrg, req.session!, "feedback.delete", req.params.id, undefined, req.ip);
       return { ok: true };
     },
   );

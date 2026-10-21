@@ -11,6 +11,8 @@ const gated = (anyOf: string[], load: () => Promise<unknown>) => ({ component: l
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: "/console" },
   { path: "/signin", component: () => import("./pages/SignIn.vue") },
+  // 设备授权确认页（RFC 8628，给 `geek login`）：和 /signin 一样不在控制台壳子里，只要登录、不要控制台能力。
+  { path: "/device", component: () => import("./pages/Device.vue") },
   { path: "/console/signin", redirect: to => ({ path: "/signin", query: to.query }) },
   { path: "/admin/signin", redirect: to => ({ path: "/signin", query: to.query }) },
   { path: "/admin/:rest(.*)*", redirect: "/console" },
@@ -24,6 +26,7 @@ const routes: RouteRecordRaw[] = [
       { path: "forum", ...gated(FORUM_CAPABILITIES, () => import("./pages/Forum.vue")) },
       { path: "people", ...gated(ROLE_CAPABILITIES, () => import("./pages/People.vue")) },
       { path: "competitions", ...gated(["competitions.manage"], () => import("./pages/Competitions.vue")) },
+      { path: "competitions/:id", ...gated(["competitions.manage"], () => import("./pages/CompetitionHub.vue")) },
       { path: "feedback", ...gated(["feedback.read"], () => import("./pages/Feedback.vue")) },
       { path: "audit", ...gated(["audit.read"], () => import("./pages/Audit.vue")) },
       { path: "github", ...gated(["github.org.read"], () => import("./pages/github/Overview.vue")) },

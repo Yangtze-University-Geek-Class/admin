@@ -18,8 +18,16 @@ function sources(dir: string): string[] {
 }
 
 describe("控制台入口只给 console_link 为 true 的人", () => {
-  it("/auth/me 的 console_link 原样读出，缺失或不是 true 都当作 false", () => {
-    expect(parseMe({ signed_in: true, login: "ada", avatar_url: null, console_link: true })).toEqual({ login: "ada", avatarUrl: null, consoleLink: true });
+  it("/auth/me 的 console_link 原样读出，缺失或不是 true 都当作 false；account_id 读出极客班账号", () => {
+    expect(parseMe({ signed_in: true, login: "ada", avatar_url: null, console_link: true, account_id: "acc_1" })).toEqual({
+      login: "ada", avatarUrl: null, consoleLink: true, accountId: "acc_1",
+    });
+    expect(parseMe({ signed_in: true, login: "ada", avatar_url: null, console_link: true })).toEqual({
+      login: "ada", avatarUrl: null, consoleLink: true, accountId: null,
+    });
+    // 旧会话没有 account_id：比赛窗口靠它为 null 判断认不出「我」，不当成空字符串
+    expect(parseMe({ signed_in: true, login: "ada", account_id: "" })?.accountId).toBeNull();
+    expect(parseMe({ signed_in: true, login: "ada", account_id: 7 })?.accountId).toBeNull();
     expect(parseMe({ signed_in: true, login: "ada", avatar_url: null })?.consoleLink).toBe(false);
     expect(parseMe({ signed_in: true, login: "ada", console_link: "true" })?.consoleLink).toBe(false);
     expect(parseMe({ signed_in: false })).toBeNull();

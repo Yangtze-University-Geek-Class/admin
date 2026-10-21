@@ -33,7 +33,10 @@ test.beforeEach(async ({ page }) => {
   });
   await app.ready();
   context = { app, close: () => app.close() };
-  headers = { cookie: `sid=${context.app.services.auth.createSession("alice", 101, null, "test-only-token")}` };
+  // 走真实的 GitHub 登录事务签会话（#262）：建出 alice 的极客班账号，会话带 account_id
+  const signin = context.app.services.identity.signInWithGithub({ github: { id: 101, login: "alice", avatarUrl: null }, accessToken: "test-only-token" });
+  if (!signin.ok) throw new Error(`test sign-in refused: ${signin.reason}`);
+  headers = { cookie: `sid=${signin.sid}` };
   const now = Date.now();
   const created = await context.app.inject({
     method: "POST", url: "/api/console/competitions", headers,
@@ -88,7 +91,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await dialog.getByPlaceholder("一两句说清这是什么比赛、谁能参加。").fill("修改说明，不修改赛程");
     await dialog.getByRole("button", { name: "保存", exact: true }).click();
     await expect(dialog).toBeHidden();
-    const publicList = async () => (await context.app.inject({ url: "/api/public/competitions" })).json().competitions;
+    // #239 的种子比赛（oss-challenge-2026-1）也在公开列表里：这里只核对本用例造的那场。
+    const publicList = async () => ((await context.app.inject({ url: "/api/public/competitions" })).json().competitions as { id: string }[])
+      .filter(item => item.id !== "oss-challenge-2026-1");
     expect(await publicList()).toEqual([expect.objectContaining({
       id: competition.id, start_at: competition.start_at, end_at: competition.end_at,
       signup_deadline: null, description: "修改说明，不修改赛程", status: "upcoming",

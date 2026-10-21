@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp } from './helpers';
+import { signIn, testApp } from './helpers';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
 async function fixture(failure?: number, options: { message?: string; lookup?: number } = {}) {
@@ -45,7 +45,7 @@ it.each([
 it('leaves the visitor signed in when GitHub rejects the link creator\'s token (#164)', async () => {
   const { app } = await fixture(401);
   // 带着自己会话来点邀请链接的人：被拒的是发起人的令牌，不是他的，他的会话不能因此被删掉。
-  const sid = app.services.auth.createSession('visitor', 7, null, 'visitor-token');
+  const sid = signIn(app, 'visitor', 7, null, 'visitor-token');
   const response = await app.inject({ method: 'POST', url: '/api/join/test-link', headers: { cookie: `sid=${sid}` }, payload: { github_login: 'alpha', pow: { timestamp: Date.now(), nonce: 'test' } } });
   expect(response.statusCode).toBe(400);
   expect(response.json().error).toBe('邀请失败，稍后重试');
@@ -58,7 +58,7 @@ it('builds invite links on the single public origin', async () => {
     return { data: { state: 'active', role: 'admin' } };
   } })) as ServiceOverrides['octokitFactory'] });
   contexts.push(context);
-  const sid = context.app.services.auth.createSession('test-admin', 9, null, 'test-stub-only');
+  const sid = signIn(context.app, 'test-admin', 9, null, 'test-stub-only');
   const response = await context.app.inject({ method: 'POST', url: '/api/admin/test-org/invite-links', headers: { cookie: `sid=${sid}`, origin: 'https://example.test' }, payload: { hours: 1, max_uses: 1 } });
   expect(response.statusCode).toBe(200);
   const { token, url } = response.json();

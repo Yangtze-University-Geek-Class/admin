@@ -9,10 +9,18 @@ import { api } from "@shared/lib/api";
 
 export type CompetitionKind = "internal" | "external";
 export type CompetitionStatus = "upcoming" | "registering" | "closed" | "ongoing" | "ended";
+export type Participation = "individual" | "team";
+/**
+ * 内部赛的在线报名设置（#239）：组织者在控制台打开；`scoring: "contribution"` 是按合入的 Issue / PR 计分的天梯。
+ * 外部赛一律在官网报名，读进来就是 NO_SIGNUP。
+ */
+export type SignupSettings = { enabled: boolean; participation: Participation; team_min: number; team_max: number; scoring: "none" | "contribution" };
+export const NO_SIGNUP: SignupSettings = { enabled: false, participation: "individual", team_min: 1, team_max: 1, scoring: "none" };
 export type Competition = {
   id: string; name: string; kind: CompetitionKind;
   start_at: number; end_at: number; signup_deadline: number | null;
   url: string | null; description: string; status: CompetitionStatus;
+  signup: SignupSettings;
 };
 
 export const COMPETITIONS_URL = "/api/public/competitions";
@@ -20,7 +28,7 @@ export const COMPETITIONS_URL = "/api/public/competitions";
 const KINDS: CompetitionKind[] = ["internal", "external"];
 const STATUSES: CompetitionStatus[] = ["upcoming", "registering", "closed", "ongoing", "ended"];
 /** 只认识要用的那几个字段：缺 `id`、名称或起止时间的条目直接丢掉，不显示半条。 */
-type RawCompetition = { id?: unknown; name?: unknown; kind?: unknown; start_at?: unknown; end_at?: unknown; signup_deadline?: unknown; url?: unknown; description?: unknown; status?: unknown };
+type RawCompetition = { id?: unknown; name?: unknown; kind?: unknown; start_at?: unknown; end_at?: unknown; signup_deadline?: unknown; url?: unknown; description?: unknown; status?: unknown; signup?: unknown };
 
 // 北京时间显示还要加八小时；UTC 有效但换算后越界的时间也不能交给界面。
 const asTimestamp = (value: unknown): number | null =>
@@ -51,7 +59,23 @@ export function readCompetition(value: unknown): Competition | null {
   } catch {
     // 无效链接不妨碍读取赛事的其余公开信息。
   }
-  return { id, name, kind, start_at: start, end_at: end, signup_deadline, url, description: asText(raw.description), status };
+  const signup = kind === "internal" ? readSignup(raw.signup) : NO_SIGNUP;
+  return { id, name, kind, start_at: start, end_at: end, signup_deadline, url, description: asText(raw.description), status, signup };
+}
+
+/**
+ * 读报名设置：缺了、没开、或队伍人数说不通（最少大于最多、不在 1–50 人）都当没开在线报名，
+ * 不显示「每队 3–1 人」这种规则。个人赛的人数固定是 1。
+ */
+export function readSignup(value: unknown): SignupSettings {
+  if (typeof value !== "object" || value === null) return NO_SIGNUP;
+  const raw = value as { enabled?: unknown; participation?: unknown; team_min?: unknown; team_max?: unknown; scoring?: unknown };
+  const team = raw.participation === "team";
+  const size = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 50 ? n : null);
+  const min = team ? size(raw.team_min) : 1;
+  const max = team ? size(raw.team_max) : 1;
+  if (raw.enabled !== true || min === null || max === null || min > max) return NO_SIGNUP;
+  return { enabled: true, participation: team ? "team" : "individual", team_min: min, team_max: max, scoring: raw.scoring === "contribution" ? "contribution" : "none" };
 }
 
 /** 服务端 `competitionStatus` 的同一套口径，用于接口没给状态或值认不出时兜底。 */

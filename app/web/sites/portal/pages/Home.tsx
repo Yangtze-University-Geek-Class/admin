@@ -20,6 +20,7 @@ import type { DeskHandle } from "../three/desk";
 import "../styles/portal.css";
 import "../styles/desk.css";
 import "../styles/os.css";
+import "../styles/competitions.css";
 
 function currentWallpaperUrl(): string {
   const portrait = window.matchMedia(PHONE_QUERY).matches && window.matchMedia(PORTRAIT_QUERY).matches;

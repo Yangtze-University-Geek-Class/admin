@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxDataTable } from "@talex-touch/tuffex/data-table";
 import { TxButton } from "@talex-touch/tuffex/button";
@@ -22,6 +23,7 @@ import { useAction, useResource } from "../lib/resource";
 import { KIND_TEXT, STATUS_TEXT, emptyForm, formErrors, formFrom, formPayload, isOneDay, type CompetitionForm } from "../lib/competitions";
 import type { CompetitionRecord, CompetitionStatus } from "../lib/types";
 
+const router = useRouter();
 const list = useResource(() => api<{ competitions: CompetitionRecord[] }>("/api/console/competitions"), []);
 
 /** 状态色：报名中用成功色，进行中用主色，报不了名的与结束过的都弱化。 */
@@ -33,7 +35,7 @@ const columns = [
   { key: "name", title: "比赛", minWidth: 220 },
   { key: "window", title: "时间（北京时间）", width: 200 },
   { key: "status", title: "状态", width: 108 },
-  { key: "actions", title: "操作", width: 216, align: "right" as const },
+  { key: "actions", title: "操作", width: 300, align: "right" as const },
 ];
 
 const editing = ref(false);
@@ -127,6 +129,7 @@ async function askRemove(row: CompetitionRecord) {
         </template>
         <template #cell-actions="{ row }: { row: CompetitionRecord }">
           <span class="row-actions">
+            <TxButton v-if="row.kind === 'internal'" size="sm" variant="ghost" @click="router.push(`/console/competitions/${row.id}`)">报名与积分</TxButton>
             <TxButton size="sm" variant="ghost" @click="openEdit(row)">编辑</TxButton>
             <TxButton size="sm" variant="ghost" :disabled="toggleOffline.pending.value" @click="toggleOffline.execute(row)">{{ row.offline ? "上线" : "下线" }}</TxButton>
             <TxButton size="sm" variant="ghost" class="danger-text" :disabled="remove.pending.value" @click="askRemove(row)">删除</TxButton>

@@ -34,7 +34,7 @@ export default async function consoleTitleRoutes(app: FastifyInstance) {
       }
       const changed = roles.updateTitle(id, req.body, req.session!.login);
       if (changed === null) return reply.code(404).send({ error: "not_found", message: "称号不存在" });
-      if (changed.length) audit(config.consoleOrg, req.session!.login, "title.update", id, { changed }, req.ip);
+      if (changed.length) audit(config.consoleOrg, req.session!, "title.update", id, { changed }, req.ip);
       return { title: roles.titleConfigs()[id] };
     },
   );

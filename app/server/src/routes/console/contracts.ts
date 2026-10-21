@@ -5,6 +5,7 @@ import {
 import { FEEDBACK_STATUSES } from "../../lib/feedback-store.js";
 import {
   competitionFields, competitionFailures, competitionDeleted, consoleCompetitionList, consoleCompetitionResult,
+  competitionRoster, signupSettingsResult, signupBody, consoleCompetitionIdParam, scoreEventList, scoreEventResult, scoreEventParam,
 } from "../../lib/competition-contract.js";
 
 /** 与 config.GITHUB_LOGIN_REGEX 一致；这里写成 JSON Schema 可用的字符串。 */
@@ -40,7 +41,8 @@ const titleViewFields = {
 };
 const titleResult = object({ title: object(titleViewFields, Object.keys(titleViewFields)) }, ["title"]);
 const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
-const competitionParams = { params: object({ competition_id: { type: "string", pattern: UUID_PATTERN } }, ["competition_id"]) };
+// 比赛 id 是 UUID，但种子比赛用的是可读 slug（oss-challenge-2026-1），路径参数不能只收 UUID。
+const competitionParams = consoleCompetitionIdParam;
 
 /** `/api/console/*` 的输入协议源。所有 body 与 query 都拒绝未知字段。 */
 export const consoleContracts: RouteContracts = {
@@ -117,6 +119,28 @@ export const consoleContracts: RouteContracts = {
     response: { 200: consoleCompetitionResult, ...competitionFailures },
   },
   "DELETE /api/console/competitions/:competition_id": { ...noQuery, ...competitionParams, response: { 200: competitionDeleted, ...competitionFailures } },
+  "PUT /api/console/competitions/:competition_id/signup-settings": {
+    ...noQuery, ...competitionParams,
+    body: signupBody.settings,
+    response: { 200: signupSettingsResult, ...competitionFailures },
+  },
+  "GET /api/console/competitions/:competition_id/roster": { ...noQuery, ...competitionParams, response: { 200: competitionRoster, ...competitionFailures } },
+  // 200 是 text/csv 字符串（UTF-8 BOM、CRLF 换行），处理函数先设 Content-Type，Fastify 不会再按 JSON 序列化它；失败仍是 JSON。
+  "GET /api/console/competitions/:competition_id/roster.csv": {
+    ...noQuery, ...competitionParams,
+    response: { 200: { type: "string", description: "text/csv; charset=utf-8" }, ...competitionFailures },
+  },
+  "GET /api/console/competitions/:competition_id/score-events": { ...noQuery, ...competitionParams, response: { 200: scoreEventList, ...competitionFailures } },
+  "POST /api/console/competitions/:competition_id/score-events": {
+    ...noQuery, ...competitionParams,
+    body: signupBody.scoreEvent,
+    response: { 201: scoreEventResult, ...competitionFailures },
+  },
+  "POST /api/console/competitions/:competition_id/score-events/:event_id/revoke": {
+    ...noQuery, ...scoreEventParam,
+    body: signupBody.revoke,
+    response: { 200: scoreEventResult, ...competitionFailures },
+  },
   "DELETE /api/console/feedback/:id": noQuery,
   "GET /api/console/audit": { querystring: object({ limit: limit(200), offset, action: text(64) }) },
 };

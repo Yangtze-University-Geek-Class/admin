@@ -27,7 +27,7 @@ export default async function invitationsRoutes(app: FastifyInstance) {
     if (!Number.isFinite(n)) return reply.code(400).send({ error: "invalid id" });
     const octokit = octokitWith(req.session!.accessToken);
     await octokit.request("DELETE /orgs/{org}/invitations/{invitation_id}", { org, invitation_id: n });
-    audit(org, req.session!.login, "invitation.cancel", String(n), undefined, req.ip);
+    audit(org, req.session!, "invitation.cancel", String(n), undefined, req.ip);
     return { ok: true };
   });
 }

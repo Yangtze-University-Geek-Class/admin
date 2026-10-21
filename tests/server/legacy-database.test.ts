@@ -115,8 +115,15 @@ const FORUM_TABLES = [
 const MAIL_TABLES = ['mail_outbox'];
 /** 投递次数（#169）：同样只新增，`applications` 不改。 */
 const APPLY_TABLES = ['application_limits'];
-/** 比赛（#238）：同样只新增，`competitions` 不改任何旧表。 */
-const COMPETITION_TABLES = ['competitions'];
+/** 比赛（#238）与报名、组队、积分（#239）：同样只新增，`competitions` 不改任何旧表。 */
+const COMPETITION_TABLES = [
+  'competition_score_events', 'competition_signup_settings', 'competition_signups',
+  'competition_team_members', 'competition_teams', 'competitions',
+];
+/** 极客班账号（#262）：新表之外，只给 sessions、role_assignments、forum_users、audit_logs 加可空列，旧列不动。 */
+const IDENTITY_TABLES = ['identities', 'identity_audit', 'users'];
+/** 命令行设备授权（#262，RFC 8628）：同样只新增。 */
+const DEVICE_TABLES = ['device_grants'];
 
 const dirs: string[] = [];
 const apps: { close: () => Promise<unknown> }[] = [];
@@ -154,6 +161,13 @@ function legacyDatabase() {
   audit.run(CONSOLE_ORG, 'alice', 'feedback.update', '2', JSON.stringify({ status: 'done', has_reply: false }), NOW - DAY);
   db.close();
   return path;
+}
+
+/** 表里最前面的 rows.length 行、只取旧行有的列：升级加的列（#262）和之后新写的行不算改动。 */
+function legacyColumns(db: import('better-sqlite3').Database, table: string, rows: Record<string, unknown>[]) {
+  const columns = Object.keys(rows[0] ?? {});
+  return (db.prepare(`SELECT * FROM ${table} ORDER BY rowid LIMIT ?`).all(rows.length) as Record<string, unknown>[])
+    .map(row => Object.fromEntries(columns.map(column => [column, row[column]])));
 }
 
 function snapshot(path: string) {
@@ -212,12 +226,13 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     const app = await boot(path);
     const { db } = app.services.storage;
 
-    // 新表全部建好；旧表一行不少、一列不变。
+    // 新表全部建好；旧表一行不少、旧列一字不变（#262 加的列和启动回填写的那条审计另外核对）。
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
-    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES, ...MAIL_TABLES, ...APPLY_TABLES, ...COMPETITION_TABLES])].sort());
+    expect(tables).toEqual([...new Set([...LEGACY_TABLES, ...CONSOLE_TABLES, ...FORUM_TABLES, ...MAIL_TABLES, ...APPLY_TABLES, ...COMPETITION_TABLES, ...IDENTITY_TABLES, ...DEVICE_TABLES])].sort());
     for (const [table, rows] of Object.entries(before.rows)) {
-      expect(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
+      expect(legacyColumns(db, table, rows), table).toEqual(rows);
     }
+    expect(db.prepare("SELECT actor, action FROM audit_logs WHERE id > 3").all()).toEqual([{ actor: 'system', action: 'identity.backfill' }]);
     const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map(row => row.name);
     expect(indexes).toEqual(expect.arrayContaining(['idx_applications_status_created', 'idx_application_reviews_app', 'uq_role_assignments_captain', 'idx_role_assignments_login', 'idx_audit_signin_actor']));
     // 登录过的人的查询（auth.signedInLogins）只读部分索引，不扫整张审计表。
@@ -348,7 +363,9 @@ describe('booting on the existing production data.db (legacy schema, no applicat
     const second = await boot(path);
     const ids = second.services.roles.listDepartments().map(item => item.id).sort();
     expect(ids).toEqual(['community', 'design', 'recruitment', 'tech']);
-    expect(second.services.storage.db.prepare("SELECT name FROM console_seeds").all()).toEqual([{ name: 'departments' }]);
+    expect(second.services.storage.db.prepare("SELECT name FROM console_seeds ORDER BY name").all()).toEqual([
+      { name: 'competition_oss_2026_1' }, { name: 'departments' }, { name: 'identity_v1' },
+    ]);
   });
 
   it('keeps cancelled applications and their complete review history across restarts', async () => {
@@ -381,5 +398,83 @@ describe('booting on the existing production data.db (legacy schema, no applicat
       await current.close();
       apps.splice(apps.indexOf(current), 1);
     }
+  });
+});
+
+/** 交付 1 的五条核对 SQL（docs/plan/UNIFIED-LOGIN.md「交付 1：回填」），PR 里贴的是同一份查询在升级前后的输出。 */
+function identityChecks(db: import('better-sqlite3').Database, now: number) {
+  const n = (sql: string, ...params: unknown[]) => (db.prepare(sql).get(...params) as { n: number }).n;
+  return {
+    sessions_unmapped: n('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ? AND openid IS NULL', now),
+    assignments_left: n(`SELECT COUNT(*) AS n FROM role_assignments r JOIN identities i
+      ON i.provider = 'github' AND CAST(i.provider_uid AS INTEGER) = r.github_user_id WHERE r.account_id IS NULL`),
+    forum_left: n(`SELECT COUNT(*) AS n FROM forum_users f JOIN identities i
+      ON i.provider = 'github' AND CAST(i.provider_uid AS INTEGER) = f.github_user_id WHERE f.account_id IS NULL`),
+    duplicated_github: db.prepare("SELECT user_id FROM identities WHERE provider = 'github' GROUP BY user_id HAVING COUNT(*) <> 1").all(),
+    accounts_without_github: n(`SELECT COUNT(*) AS n FROM users u WHERE NOT EXISTS
+      (SELECT 1 FROM identities i WHERE i.user_id = u.id AND i.provider = 'github')`),
+  };
+}
+const backfillReports = (db: import('better-sqlite3').Database) =>
+  (db.prepare("SELECT actor, details FROM audit_logs WHERE action = 'identity.backfill' ORDER BY id").all() as { actor: string; details: string }[])
+    .map(row => ({ actor: row.actor, ...JSON.parse(row.details) }));
+
+describe('maps the existing sessions, titles and forum users to 极客班 accounts at boot (#262)', () => {
+  it('backfills on upgrade, fills in what a rolled-back image wrote, and reruns without changes', async () => {
+    const path = legacyDatabase();
+    const legacy = new Database(path);
+    const { encrypt } = createCrypto(ENCRYPTION_KEY);
+    const oldSession = legacy.prepare('INSERT INTO sessions(id, login, user_id, avatar_url, access_token_encrypted, created_at, expires_at) VALUES(?, ?, ?, NULL, ?, ?, ?)');
+    oldSession.run('legacy-session-no-id', 'ghost', null, encrypt('token-ghost'), NOW - DAY, NOW + DAY);     // 很早以前没有 GitHub id 的会话
+    oldSession.run('legacy-session-expired', 'erin', 105, encrypt('token-erin'), NOW - 9 * DAY, NOW - DAY); // 已过期：不建号
+    legacy.close();
+
+    const first = await boot(path);
+    const db1 = first.services.storage.db;
+    // 每个未过期、有 GitHub id 的会话的主人各一个账号和一条 GitHub 身份；会话写上账号
+    expect(backfillReports(db1)).toEqual([{ actor: 'system', users: 2, identities: 2, sessions_mapped: 2, sessions_unmapped: 1, assignments_claimed: 0, assignments_unclaimed: 0, forum_claimed: 0 }]);
+    expect(db1.prepare("SELECT login, provider_uid FROM identities ORDER BY provider_uid").all()).toEqual([{ login: 'alice', provider_uid: '101' }, { login: 'bob', provider_uid: '102' }]);
+    expect(db1.prepare("SELECT id, provider FROM sessions WHERE openid IS NOT NULL ORDER BY id").all()).toEqual([
+      { id: 'legacy-session-alice', provider: 'github' }, { id: 'legacy-session-bob', provider: 'github' },
+    ]);
+    expect(identityChecks(db1, Date.now())).toEqual({ sessions_unmapped: 1, assignments_left: 0, forum_left: 0, duplicated_github: [], accounts_without_github: 0 });
+    // 映射到账号的旧会话照常有效，三端读到同一个 account_id；没有 GitHub id 的旧会话按未登录处理并删掉
+    const me = (await first.inject({ url: '/auth/me', headers: as('legacy-session-alice') })).json();
+    expect(me).toMatchObject({ signed_in: true, login: 'alice', user_id: 101, provider: 'github' });
+    expect(me.account_id).toBe((db1.prepare("SELECT user_id FROM identities WHERE provider_uid = '101'").get() as { user_id: string }).user_id);
+    expect((await first.inject({ url: '/auth/me', headers: as('legacy-session-no-id') })).json()).toEqual({ signed_in: false });
+    expect(db1.prepare("SELECT COUNT(*) AS n FROM sessions WHERE id = 'legacy-session-no-id'").get()).toEqual({ n: 0 });
+    expect((await first.inject({ url: '/api/forum/state', headers: as('legacy-session-alice') })).statusCode).toBe(200);
+
+    // 模拟回滚到旧镜像期间写的数据：旧代码只写旧列（新列都可空，插入不会失败）
+    db1.prepare('INSERT INTO sessions(id, login, user_id, avatar_url, access_token_encrypted, created_at, expires_at) VALUES(?, ?, ?, NULL, ?, ?, ?)')
+      .run('rollback-session-carol', 'carol', 103, encrypt('token-carol'), NOW, NOW + DAY);
+    first.services.roles.insertAssignment({ github_login: 'carol', github_user_id: 103, role: 'head', department_id: 'tech', note: null, granted_by: 'alice' });
+    first.services.roles.insertAssignment({ github_login: 'dave', github_user_id: null, role: 'member', department_id: '', note: null, granted_by: 'alice' });
+    db1.prepare("UPDATE forum_users SET account_id = NULL WHERE github_user_id = 101").run();
+    await first.close();
+    apps.splice(apps.indexOf(first), 1);
+
+    const second = await boot(path);
+    const db2 = second.services.storage.db;
+    // 再上线时同一段回填补上：carol 建号、会话映射、称号按 GitHub id 认领、论坛用户认领；没有 GitHub id 的称号不认领
+    expect(backfillReports(db2).slice(1)).toEqual([{ actor: 'system', users: 1, identities: 1, sessions_mapped: 1, sessions_unmapped: 0, assignments_claimed: 1, assignments_unclaimed: 1, forum_claimed: 1 }]);
+    expect(db2.prepare("SELECT github_login, account_id IS NOT NULL AS claimed FROM role_assignments ORDER BY github_login").all()).toEqual([
+      { github_login: 'carol', claimed: 1 }, { github_login: 'dave', claimed: 0 },
+    ]);
+    expect(identityChecks(db2, Date.now())).toEqual({ sessions_unmapped: 0, assignments_left: 0, forum_left: 0, duplicated_github: [], accounts_without_github: 0 });
+    await second.close();
+    apps.splice(apps.indexOf(second), 1);
+    const upgraded = snapshot(path);
+
+    // 第三次启动没有可补的：不再写审计，identity_v1 只有一行，数据一行不变
+    const third = await boot(path);
+    const db3 = third.services.storage.db;
+    expect(backfillReports(db3)).toHaveLength(2);
+    expect(db3.prepare("SELECT COUNT(*) AS n FROM console_seeds WHERE name = 'identity_v1'").get()).toEqual({ n: 1 });
+    for (const [table, rows] of Object.entries(upgraded.rows)) {
+      expect(db3.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), table).toEqual(rows);
+    }
+    expect(db3.prepare('SELECT COUNT(*) AS n FROM users').get()).toEqual({ n: 3 });
   });
 });

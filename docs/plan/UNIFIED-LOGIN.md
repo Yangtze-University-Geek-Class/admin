@@ -1,12 +1,14 @@
 # 统一登录：极客班账号、登录页与跨业务对齐方案
 
-> #237 的实施规格（未实施）：把 ADR-0005 落到可以直接开工的颗粒度——统一登录页 `/signin`、账号页 `/account` 与控制台的界面状态，三种登录方式的后端流程，全站一套的个人资料（头像、昵称），新表与迁移，要会话的接口在邮箱或 Google 会话下怎么处理，以及各业务要改什么、怎么验收；按四个候选 issue 拆分交付。
+> #237 的实施规格（交付 1 已由 #262 实施：账号底座与 GitHub 登录事务、统一登录页 `/signin`、三端入口改「登录」、RFC 8628 设备授权；账号页 `/account`、邮箱与 Google 登录及交付 2–4 其余部分未实施）：把 ADR-0005 落到可以直接开工的颗粒度——统一登录页 `/signin`、账号页 `/account` 与控制台的界面状态，三种登录方式的后端流程，全站一套的个人资料（头像、昵称），新表与迁移，要会话的接口在邮箱或 Google 会话下怎么处理，以及各业务要改什么、怎么验收；按四个候选 issue 拆分交付。
 
-状态：`accepted`（所有者已接受，未实施；四个候选 issue 仍要逐个批准后才建单开工）· 更新：2026-10-20 · 适用：`app/server` 的身份、会话、成员资格、个人资料与登录接口及表，`app/console` 的 `/signin`、`/account` 与导航，官网、论坛、控制台和比赛的登录入口、头像与昵称显示
+状态：`accepted`（所有者已接受；交付 1 已由 #262 实施，交付 2–4 未实施，仍要逐个批准后才建单开工）· 更新：2026-10-21 · 适用：`app/server` 的身份、会话、成员资格、个人资料与登录接口及表，`app/console` 的 `/signin`、`/account` 与导航，官网、论坛、控制台和比赛的登录入口、头像与昵称显示
 
 **一句话**：一个人只有一个极客班 OpenID（`users.id`）。GitHub、邮箱验证码、Google 都是绑定在它名下的登录渠道，不管用哪个登录，落到的都是同一个 OpenID；官网、论坛、控制台和以后上线的业务共用这一套登录和会话，业务只认这个 OpenID。
 
-本文是已接受、未实施的方案：下面的接口、表和界面都**还不存在**，现行行为以 [server 合同](../services/server/README.md)、[接口行为契约](../services/server/endpoint-contracts.md) 和 [SECURITY](../architecture/SECURITY.md) 为准。为什么这样选见 [ADR-0005](../decisions/0005-sso-extend-core-server.md)（`accepted`），本文只写怎么做；两者不一致时先改 ADR 再改本文。文中图片都是**方案草图**（静态 HTML 渲染，数据虚构），不是实现截图。
+**实施进度**：#262（PR #268）实施了交付 1 的全部四项：后端底座（`users`、`identities`、`identity_audit` 三张表，`sessions`、`role_assignments`、`forum_users`、`audit_logs` 加列与启动回填，GitHub 登录事务的建号、合并链、认领、停用拒绝与整体回滚，`GET /auth/providers`，`/auth/me` 加 `account_id`、`provider`）；统一登录页 `/signin` 改版（标题「极客班统一登录」，登录方式按 `/auth/providers` 动态渲染，`return_to` 只认同源路径，五种 `signin` 结果在页内说明）；官网菜单栏、论坛右上角、控制台的登录入口统一改成「登录」并去 `/signin`；`/auth/callback` 失败改为 302 到 `/signin?signin=<原因>&return_to=<原路径>`；另加 RFC 8628 设备授权（`/auth/device/code`、`/auth/device/token`、`/auth/device/userinfo`、`/api/identity/device`、`/api/identity/device/approve` 与确认页 `/device`，为 `geek login` 预留，见 [SECURITY](../architecture/SECURITY.md)「设备授权」）。交付 2–4（账号页 `/account`、邮箱验证码、Google、成员资格模块、统一资料）仍未实施。
+
+除上面已实施的部分外，本文是已接受、未实施的方案：其余接口、表和界面都**还不存在**，现行行为以 [server 合同](../services/server/README.md)、[接口行为契约](../services/server/endpoint-contracts.md) 和 [SECURITY](../architecture/SECURITY.md) 为准。为什么这样选见 [ADR-0005](../decisions/0005-sso-extend-core-server.md)（`accepted`），本文只写怎么做；两者不一致时先改 ADR 再改本文。文中图片都是**方案草图**（静态 HTML 渲染，数据虚构），不是实现截图。
 
 ## 给开工 Agent 的读法
 
@@ -19,15 +21,15 @@
 
 ## 现状（stage 上已有什么）
 
-- **登录**：`GET /auth/github`（`app/server/src/routes/admin/auth.ts:37`，`return_to` 缺省回 `/console`）→ `GET /auth/callback`（`:44`）用本人 token 查 `GET /user/memberships/orgs/{CONSOLE_ORG}`，只有 `active` 才 `createSession`（`app/server/src/lib/auth.ts:32`）并写 `auth.signin`；`pending` 与非成员写 `auth.signin_denied`、尽力撤销授权、不建会话。失败带 `?signin=<原因>` 回发起登录的页面（`withSigninOutcome`，`auth.ts:14`）。`GET /auth/me`（`:98`）返回 `signed_in`、`login`、`user_id`、`avatar_url`、`console_link`；`POST /auth/signout`（`:81`）。
+- **登录**：`GET /auth/github`（`app/server/src/routes/admin/auth.ts`，`return_to` 缺省回 `/console`）→ `GET /auth/callback` 用本人 token 查 `GET /user/memberships/orgs/{CONSOLE_ORG}`，只有 `active` 才在一个 `BEGIN IMMEDIATE` 事务里建号或找到极客班账号、签发会话并写 `auth.signin`（#262，`lib/identity-store.ts` 的 `signInWithGithub`）；`pending` 与非成员写 `auth.signin_denied`、尽力撤销授权、不建会话。失败一律 302 到 `${PUBLIC_ORIGIN}/signin?signin=<原因>&return_to=<原路径>`（`signinFailureUrl`）。`GET /auth/me` 返回 `signed_in`、`login`、`user_id`、`avatar_url`、`account_id`、`provider`、`console_link`；`POST /auth/signout`。`GET /auth/providers` 列出登录方式（目前只有 GitHub）。RFC 8628 设备授权另有 5 个接口与 `/device` 确认页（#262，登录方式之外给命令行的通道）。
 - **会话**：`sessions` 一行（`app/server/src/lib/db.ts:23`）存登录名、GitHub 数字 id、头像、加密的 GitHub token（`NOT NULL`）；7 天、不续期（`lib/auth.ts:27`），过期行每小时清理（#128）。三端同域共用 host-only 的 `sid`。
 - **访问判定**：`createAccess`（`app/server/src/lib/access.ts:19`）每次用会话里本人 token 查组织角色，缓存键 `console:orgrole:<login>`、60 秒；`computeAccess`（`lib/roles.ts:273`）由组织角色与称号算能力，`github.*` 受本人组织角色上限（`githubCeiling`，`roles.ts:256`）。`requireCapability` 缺能力回 `403 missing_capability`（带 `reason`）；`requireOrgRole`（`middleware/require-org-role.ts`）供 `routes/admin/` 下 11 个文件使用，同样用本人 token。
 - **项目地图**（`docs/architecture/catalog/catalog.json`）：98 条业务流程里 79 条读会话——41 条要调用者本人的 GitHub token，38 条只看「是谁」和称号能力（明细见[要本人 GitHub 令牌的接口](#要本人-github-令牌的接口交付-2)）。#243 合入后多 4 条只看身份的比赛控制台流程（42）。
 - **业务数据以 GitHub 账号为主语**：`role_assignments` 存 `github_login` 与 `github_user_id`（`db.ts:154`），`assignmentsFor`（`lib/role-store.ts:182`）先按 GitHub id、没有 id 的行按小写登录名；授予称号时用调用者 token 查对方 id（`routes/console/assignments.ts:80`）。论坛 `forum_users.id = m<GitHub id>`（`db.ts:199`），`ensureMember`（`lib/forum-store.ts:394`）每次请求刷新、改名跟随。意见箱存 `submitter_login` / `submitter_id`；审计 `audit_logs.actor` 是登录名（`db.ts:98`），论坛用 `auth.signin` 的 actor 挡游客冒名（`signedInLogins`，`lib/auth.ts:117`）。
 - **资料**：只有论坛有个人资料。`forum_users`（`db.ts:199`）存昵称、个人签名、所在地、个人网站、头像底色、GitHub 头像地址和上传头像的哈希，图在 `forum_avatars`（`db.ts:193`）。改资料走 `PATCH /api/forum/me/profile`（`routes/forum-api/people.ts:32`：昵称 NFKC 后 1–30 字、不能是官方账号或别人的用户名，签名不超过 200 字、所在地不超过 60 字，网站只收 `https://`）；换头像走 `PUT /api/forum/me/avatar`（`:80`，PNG、JPEG、WebP 不超过 2 MB，`lib/forum-avatar.ts` 用 sharp 摆正、居中裁成 256×256 WebP 并去掉元数据，每小时 10 次）；图按内容哈希寻址，`GET /api/forum/avatars/:file`（`:99`）是 `/api`、`/auth` 里唯一不加 `no-store`、可以长期缓存的响应（`middleware/http-policy.ts:39`）。官网（`app/web/sites/portal/lib/account.ts:10-20`）和控制台（`components/ConsoleNav.vue:74`）只显示 `/auth/me` 的 GitHub 登录名和头像：同一个人在论坛改了昵称和头像，官网和控制台看不到。
 - **发信**：`mail_outbox` 队列每 15 秒发一次，阿里云在前、Resend 兜底，失败按 1 分钟到 6 小时退避（`lib/mail/outbox.ts`）；`MAIL_RECIPIENTS` 缺省是 `allowlist`，只发 `MAIL_ALLOWLIST` 里的地址（`app/server/src/config.ts:75`）。
-- **前端**：控制台 `/signin`（`app/console/src/pages/SignIn.vue`）只收 `/console`、`/admin` 回跳；401 文案是「请重新用 GitHub 登录。」（`lib/errors.ts:36`），任何 401 都当作退出（`lib/http.ts:56`）；`signInHref` 写死 `/auth/github`（`lib/runtime.ts:41`）。官网登录地址在 `app/web/sites/portal/lib/account.ts:14`（缺省回 `/forum/`），头像菜单在 `components/os/YugcOs.tsx:316`；论坛在 `app/forum/app/composables/useSiteLinks.ts:14`、`data/account-menu.ts`、`components/LoginModal.vue`、`shared/signin-outcomes.ts`。网关只把 `/admin`、`/console`、`/signin` 交给控制台（`app/web/Dockerfile:203`、`app/server/src/app.ts:24`）。
-- **迁移方式**：没有迁移框架，建表一律 `CREATE TABLE IF NOT EXISTS` + 启动时幂等回填 + `console_seeds` 标记（[data-model](../services/server/data-model.md)）。**至今没有 `ALTER` 过已有表**：本方案的加列与表重建是第一次，要按[数据库](#数据库)一节的做法写，并补旧库测试。
+- **前端**（#262 后）：控制台 `/signin` 是统一登录页（`app/console/src/pages/SignIn.vue`），按 `GET /auth/providers` 渲染登录方式，`return_to` 走 `safeReturnPath`（同源路径，不合格回 `/console`）；401 文案是「请重新登录。」，任何 401 都当作退出（`lib/http.ts`）；`signInHref` 生成 `/signin?return_to=…`（`lib/runtime.ts`）。官网登录地址在 `app/web/sites/portal/lib/account.ts`（缺省回当前页面），头像菜单在 `components/os/YugcOs.tsx`；论坛在 `app/forum/app/composables/useSiteLinks.ts`（portal origin + `/signin?return_to=/forum…`）、`data/account-menu.ts`、`components/LoginModal.vue`、`shared/signin-outcomes.ts`（只兼容旧链接）。网关把 `/admin`、`/console`、`/signin`、`/device` 交给控制台（`app/web/Dockerfile`、`app/server/src/app.ts`、`vite.config.ts`、`netlify.toml`）。
+- **迁移方式**：没有迁移框架，建表一律 `CREATE TABLE IF NOT EXISTS` + 启动时幂等回填 + `console_seeds` 标记（[data-model](../services/server/data-model.md)）。第一次 `ALTER` 已有表发生在 #262（交付 1）：先查 `PRAGMA table_info` 再 `ADD COLUMN`，新列可空，旧镜像照样能跑；交付 2 的 `sessions` 重建要按[数据库](#数据库)一节的做法写，并补旧库测试。
 
 ## 目标、约束与不做
 
@@ -60,7 +62,7 @@
 
 | 交付 | 用户看到的结果 | 主要改动 | 依赖 |
 |---|---|---|---|
-| 1 统一账号与登录（候选 1） | 三端都进统一登录页、登录后回原页面；被拒原因在登录页说清楚；GitHub 改名不丢称号和帖子 | `users`、`identities`、`identity_audit`；`sessions`、`role_assignments`、`forum_users`、`audit_logs` 加列并回填；登录事务；`GET /auth/providers`；`/auth/me` 加字段；`/signin` 改版；官网、论坛入口改指 `/signin` | ADR-0005 确认 |
+| 1 统一账号与登录（候选 1，**#262 已实施**） | 三端都进统一登录页、登录后回原页面；被拒原因在登录页说清楚；GitHub 改名不丢称号和帖子 | `users`、`identities`、`identity_audit`；`sessions`、`role_assignments`、`forum_users`、`audit_logs` 加列并回填；登录事务；`GET /auth/providers`；`/auth/me` 加字段；`/signin` 改版；官网、论坛入口改指 `/signin` | ADR-0005 确认 |
 | 2 邮箱验证码与账号页（候选 2） | 在 `/account` 绑定邮箱后可以用验证码登录；邮箱会话打开要 GitHub 的页面时有明确说明；成员资格失效时有提示 | 成员资格模块；`sessions` 重建；`email_challenges`（资格来源 B 时加 `identity_credentials`）；即时发信；`/account`；`github_session_required` 守卫与导航锁定 | 1；资格来源的决定（ADR 待确认 2）；发件域名 SPF、DKIM、DMARC |
 | 3 Google 登录（候选 3） | 在 `/account` 绑定 Google 后可以用 Google 登录 | Google OIDC 登录与绑定、`google_oauth_state` | 2；Google 凭据、官网隐私政策页、域名验证 |
 | 4 统一资料（候选 4） | 在 `/account/profile` 改一次头像和昵称，官网、论坛、控制台和比赛同时换成新的，开着的页面自动刷新 | `user_profiles` 及回填；`/api/identity/profile`、`/api/identity/avatar`、`GET /api/avatars/:file`；`/auth/me` 加 `profile`；论坛资料接口改写同一份；四端头像统一按 `avatar` 显示；管理员重置资料 | 1；可与 2 并行 |
@@ -68,6 +70,20 @@
 ADR 的交付 2 在这里拆成 2、3 两个候选（待确认 4）：邮箱只依赖已有的发信商，Google 要等所有者建凭据和隐私页，绑在一起会互相拖。ADR 的交付 3（对外 OIDC）不在本文。交付 4 对应 ADR 决策 10 与交付清单第 4 项（2026-10-19 所有者新提的要求），只依赖交付 1 的账号表，可以和 2 并行（待确认 9）。
 
 ## 结构与呈现
+
+### 交付 1 实拍（#262）
+
+本地真实服务（API 内存库、官网、控制台、论坛同时运行）上的截图，账号为测试数据；下面各节的草图仍是交付 3 之后的完整形态。
+
+![桌面 · 官网菜单栏与论坛右上角的「登录」入口](../assets/unified-login/delivered-entries.webp)
+
+![桌面 · /signin：登录方式来自 GET /auth/providers](../assets/unified-login/delivered-signin-desktop.webp)
+
+![桌面 · /signin：登录被拒（不是组织成员）的说明与申请入口](../assets/unified-login/delivered-signin-failed-desktop.webp)
+
+![桌面 · /device：确认 geek login 的设备代码](../assets/unified-login/delivered-device-desktop.webp)
+
+![手机 · 登录 / 登录被拒 / 输入设备代码 / 确认设备](../assets/unified-login/delivered-mobile.webp)
 
 ### 统一登录页（桌面）
 
@@ -823,13 +839,13 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 **与现状不同的行为**（PR 正文逐条写明）：
 
-1. 登录失败回统一登录页，不再回发起登录的页面。
-2. `/signin` 接受任意同源路径作为 `return_to`。
-3. 三端入口从「用 GitHub 登录」改成「登录」。
-4. 401 文案从「请重新用 GitHub 登录。」改成「请重新登录。」。
+1. 登录失败回统一登录页，不再回发起登录的页面。（#262 已完成）
+2. `/signin` 接受任意同源路径作为 `return_to`。（#262 已完成）
+3. 三端入口从「用 GitHub 登录」改成「登录」。（#262 已完成）
+4. 401 文案从「请重新用 GitHub 登录。」改成「请重新登录。」。（#262 已完成）
 5. 交付 2 起，被确认移出组织会撤销这个账号的全部会话（现在 GitHub 会话会留着，论坛按游客）。
 6. 交付 2 起，403 与 503 明确不按退出处理。
-7. 登录成功时删除请求带来的旧 `sid`。
+7. 登录成功时删除请求带来的旧 `sid`。（#262 已完成）
 8. `user_id` 为空的旧会话在交付 1 上线后要重新登录。
 9. 交付 4 起，官网和控制台显示个人资料里的头像与昵称，不再是 GitHub 登录名与头像。
 10. 交付 4 起，论坛菜单的「账号资料」改名「偏好设置」，头像、昵称、签名等到 `/account/profile` 修改。
@@ -844,7 +860,7 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 每一步都能单独跑测试，但只在第 5 步之后报完成（ADR「后果」第 1 条）。
 
-## 候选 issue（未建单）
+## 候选 issue（候选 1 已建单 #262 并交付，其余未建单）
 
 按 [ISSUES](../conventions/ISSUES.md) 需求正文的顺序写好，Crosery 批准后照抄建单，正文链接本文作为方案。四张单都要写「与现状不同的行为」里属于自己的条目。
 
@@ -854,7 +870,7 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 标签：`enhancement`、`server`、`P1`、`func:auth`、`func:data`、`func:api`、`ui:content`、`ui:layout`
 
-- **确认依据**：建单时写 Crosery 批准本候选的原话与时间、批准的范围。本文与 ADR-0005 已被接受（`accepted`），但那只是定了方向，不能当作对本候选的批准。
+- **确认依据**：建单时写 Crosery 批准本候选的原话与时间、批准的范围。本文与 ADR-0005 已被接受（`accepted`），但那只是定了方向，不能当作对本候选的批准。**已实施**：本候选由 #262 建单，交付 1 的全部范围（含登录页改版与三端入口）已在 PR #268 交付，另加了本文未列的 RFC 8628 设备授权（所有者在 #262 的任务里追加）；其余三项仍未建单。
 - **现状与问题**：登录和业务数据都以 GitHub 账号为主语，称号缺 GitHub id 时按登录名匹配，改名或旧名被别人注册会认错人；官网、论坛、控制台各写一份「用 GitHub 登录」，被拒原因带回发起页各自解释；没有能挂第二种登录方式的账号。
 - **期望的结果**：GitHub 登录落到一个极客班账号；三端都进统一登录页，登录后回到原页面，被拒原因在登录页讲清楚；GitHub 改名不丢称号和帖子。
 - **范围与不做什么**：做交付 1（[交付总览](#交付总览)）。不做邮箱、Google、账号页、成员资格模块、账号合并和停用管理界面。

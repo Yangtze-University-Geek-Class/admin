@@ -4,7 +4,7 @@ import type { ServiceOverrides } from '../../app/server/src/services';
 import { competitionStatus, compareCompetitions } from '../../app/server/src/lib/competition-store';
 import { formFrom, formPayload } from '../../app/console/src/lib/competitions';
 import { buildApp, type BuildAppOptions } from '../../app/server/src/app';
-import { testApp, testConfig } from './helpers';
+import { signIn, testApp, testConfig } from './helpers';
 
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
@@ -30,7 +30,7 @@ async function setup() {
   const context = await testApp({ octokitFactory: github({ alice: 'admin', bob: 'member' }) });
   contexts.push(context);
   const { app } = context;
-  const as = (login: string) => ({ cookie: `sid=${app.services.auth.createSession(login, USERS[login] ?? null, null, `token-${login}`)}` });
+  const as = (login: string) => ({ cookie: `sid=${signIn(app, login, USERS[login], null, `token-${login}`)}` });
   return { app, as };
 }
 
@@ -41,6 +41,10 @@ const DRAFT = {
   start_at: BASE, end_at: BASE + 3 * HOUR,
   signup_deadline: BASE - 24 * HOUR, url: null as string | null, description: '班内选拔',
 };
+
+/** #239 的种子比赛（报名与积分演练用）：这里只关心本用例造的比赛，按 id 排除，不删用例。 */
+const SEED_COMPETITION_ID = 'oss-challenge-2026-1';
+const own = <T extends { id: string }>(rows: T[]) => rows.filter(row => row.id !== SEED_COMPETITION_ID);
 
 it('registers response contracts for competition and capability configuration operations', async () => {
   const routes: Parameters<NonNullable<BuildAppOptions['observeRoute']>>[0][] = [];
@@ -121,10 +125,11 @@ describe('public list', () => {
 
     const listed = await app.inject({ url: '/api/public/competitions' });
     expect(listed.statusCode).toBe(200);
-    expect(listed.json().competitions.map((row: { name: string }) => row.name)).toEqual(['极客班算法赛', '校外赛']);
-    // 公开形状里没有内部字段，也没有任何成员信息
-    const row = listed.json().competitions[0];
-    expect(Object.keys(row).sort()).toEqual(['description', 'end_at', 'id', 'kind', 'name', 'signup_deadline', 'start_at', 'status', 'url']);
+    expect(own(listed.json().competitions).map((row: { name: string }) => row.name)).toEqual(['极客班算法赛', '校外赛']);
+    // 公开形状里没有内部字段，也没有任何成员信息；每场多一个报名摘要（#239），不含报名人数
+    const row = own(listed.json().competitions)[0];
+    expect(Object.keys(row).sort()).toEqual(['description', 'end_at', 'id', 'kind', 'name', 'signup', 'signup_deadline', 'start_at', 'status', 'url']);
+    expect(row.signup).toEqual({ enabled: false, participation: 'individual', team_min: 1, team_max: 1, scoring: 'none' });
     expect(JSON.stringify(listed.json())).not.toMatch(/offline|created_at|login|user_id/);
 
     // 下线之后公开列表不再返回，控制台仍看得到
@@ -132,7 +137,7 @@ describe('public list', () => {
     const offline = await app.inject({ method: 'PATCH', url: `/api/console/competitions/${id}`, headers: as('alice'), payload: { offline: true } });
     expect(offline.statusCode).toBe(200);
     const after = await app.inject({ url: '/api/public/competitions' });
-    expect(after.json().competitions.map((row: { name: string }) => row.name)).toEqual(['校外赛']);
+    expect(own(after.json().competitions).map((row: { name: string }) => row.name)).toEqual(['校外赛']);
     const consoleList = await app.inject({ url: '/api/console/competitions', headers: as('alice') });
     expect(consoleList.json().competitions.map((row: { id: string }) => row.id)).toContain(id);
   });
@@ -186,7 +191,7 @@ describe('console writes need competitions.manage', () => {
     ]) {
       expect((await app.inject({ ...request, headers: as('alice') })).statusCode).toBe(500);
       const listed = await app.inject({ url: '/api/public/competitions' });
-      expect(listed.json().competitions).toEqual([expect.objectContaining({ id: original.id, name: original.name })]);
+      expect(own(listed.json().competitions)).toEqual([expect.objectContaining({ id: original.id, name: original.name })]);
     }
   });
 
@@ -223,7 +228,7 @@ describe('console writes need competitions.manage', () => {
       const rejected = await app.inject({ method: 'POST', url: '/api/console/competitions', headers: as('alice'), payload });
       expect(rejected.statusCode).toBe(400);
     }
-    expect((await app.inject({ url: '/api/public/competitions' })).json().competitions).toEqual([]);
+    expect(own((await app.inject({ url: '/api/public/competitions' })).json().competitions)).toEqual([]);
     const created = await app.inject({ method: 'POST', url: '/api/console/competitions', headers: as('alice'), payload: { ...DRAFT, name: '  极客班算法赛  ' } });
     expect(created.json().competition.name).toBe('极客班算法赛');
     const id = created.json().competition.id;
@@ -249,8 +254,8 @@ describe('console writes need competitions.manage', () => {
     expect(rejected.statusCode).toBe(400);
     expect(rejected.json().error).toBe('bad_url');
     const listed = await app.inject({ url: '/api/public/competitions' });
-    expect(listed.json().competitions).toHaveLength(1);
-    expect(listed.json().competitions[0].url).toBe('https://example.test/contest');
+    expect(own(listed.json().competitions)).toHaveLength(1);
+    expect(own(listed.json().competitions)[0].url).toBe('https://example.test/contest');
   });
 
   it('refuses an unauthenticated caller and a member without the capability', async () => {
@@ -263,7 +268,7 @@ describe('console writes need competitions.manage', () => {
     expect(member.statusCode).toBe(403);
     expect(member.json()).toMatchObject({ error: 'missing_capability', capability: 'competitions.manage' });
     // 舰员连读都要 console.access，这里他确实有；确认没有写入发生
-    expect((await app.inject({ url: '/api/console/competitions', headers: as('bob') })).json().competitions).toEqual([]);
+    expect(own((await app.inject({ url: '/api/console/competitions', headers: as('bob') })).json().competitions)).toEqual([]);
   });
 
   it('rejects an end before the start and a deadline after the end', async () => {

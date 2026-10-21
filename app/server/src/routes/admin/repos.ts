@@ -271,7 +271,7 @@ export default async function reposRoutes(app: FastifyInstance) {
           commit_message: req.body?.commit_message,
           sha: req.body?.sha,
         });
-        audit(org, req.session!.login, "pr.merge", `${repo}#${num}`, { method: req.body?.merge_method ?? "merge" }, req.ip);
+        audit(org, req.session!, "pr.merge", `${repo}#${num}`, { method: req.body?.merge_method ?? "merge" }, req.ip);
         invalidate(`repo:`);
         invalidate(`repos:`);
         return { ok: true, merged: r.data.merged, sha: r.data.sha, message: r.data.message };
@@ -292,7 +292,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const r = await octokit.request("PATCH /repos/{owner}/{repo}/issues/{issue_number}", {
         owner: org, repo, issue_number: num, state: req.body?.state as any,
       });
-      audit(org, req.session!.login, `issue.${req.body?.state}`, `${repo}#${num}`, undefined, req.ip);
+      audit(org, req.session!, `issue.${req.body?.state}`, `${repo}#${num}`, undefined, req.ip);
       invalidate(`repo:`);
       return { ok: true, state: r.data.state };
     },
@@ -309,7 +309,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const r = await octokit.request("POST /repos/{owner}/{repo}/issues/{issue_number}/comments", {
         owner: org, repo, issue_number: num, body: req.body.body,
       });
-      audit(org, req.session!.login, "issue.comment", `${repo}#${num}`, undefined, req.ip);
+      audit(org, req.session!, "issue.comment", `${repo}#${num}`, undefined, req.ip);
       return { ok: true, id: r.data.id, html_url: r.data.html_url };
     },
   );
@@ -329,7 +329,7 @@ export default async function reposRoutes(app: FastifyInstance) {
         gitignore_template: gitignore_template || undefined,
         license_template: license_template || undefined,
       });
-      audit(org, req.session!.login, "repo.create", name, { visibility }, req.ip);
+      audit(org, req.session!, "repo.create", name, { visibility }, req.ip);
       invalidate(`repos:`);
       return { ok: true, repo: { name: res.data.name, full_name: res.data.full_name, html_url: res.data.html_url } };
     }
@@ -342,7 +342,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const { org, repo } = req.params;
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("DELETE /repos/{owner}/{repo}", { owner: org, repo });
-      audit(org, req.session!.login, "repo.delete", repo, undefined, req.ip);
+      audit(org, req.session!, "repo.delete", repo, undefined, req.ip);
       invalidate(`repo:`);
       invalidate(`repos:`);
       return { ok: true };
@@ -357,7 +357,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const permission = req.body?.permission ?? "push";
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("PUT /repos/{owner}/{repo}/collaborators/{username}", { owner: org, repo, username: login, permission });
-      audit(org, req.session!.login, "repo.collab.add", `${repo}/${login}`, { permission }, req.ip);
+      audit(org, req.session!, "repo.collab.add", `${repo}/${login}`, { permission }, req.ip);
       invalidate(`repo:`);
       return { ok: true };
     }
@@ -370,7 +370,7 @@ export default async function reposRoutes(app: FastifyInstance) {
       const { org, repo, login } = req.params;
       const octokit = octokitWith(req.session!.accessToken);
       await octokit.request("DELETE /repos/{owner}/{repo}/collaborators/{username}", { owner: org, repo, username: login });
-      audit(org, req.session!.login, "repo.collab.remove", `${repo}/${login}`, undefined, req.ip);
+      audit(org, req.session!, "repo.collab.remove", `${repo}/${login}`, undefined, req.ip);
       invalidate(`repo:`);
       return { ok: true };
     }

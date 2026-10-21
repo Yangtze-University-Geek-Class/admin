@@ -122,15 +122,14 @@ function logout() {
           </template>
 
           <!--
-            统一登录：只有这一个登录入口，走全站统一的 GitHub 登录（同一个 cookie）；登录后是头像菜单
+            统一登录（#262）：只有这一个「登录」入口，去极客班统一登录页 /signin（GitHub 只是登录方式之一，同一个 cookie）；登录后是头像菜单
             （AccountMenu：主页、资料、书签、通知、按权限出现的控制台、宣传主页、环境与版本、退出），
             不登录也能以游客身份看帖子，极客班论坛里还能回复。
           -->
           <template v-else-if="siteLogin">
             <AccountMenu v-if="account" :account="account" />
-            <!-- 手机顶栏放不下完整文字，只写「登录」，读屏仍读完整说明 -->
-            <TxButton v-else-if="loaded" variant="primary" size="sm" icon="i-carbon-logo-github" :aria-label="isDesktop ? undefined : '用 GitHub 登录'" @click="signIn">
-              {{ isDesktop ? '用 GitHub 登录' : '登录' }}
+            <TxButton v-else-if="loaded" variant="primary" size="sm" icon="i-carbon-login" @click="signIn">
+              登录
             </TxButton>
           </template>
           <TxButton v-else variant="primary" size="sm" @click="loginOpen = true">

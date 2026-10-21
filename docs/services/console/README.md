@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按称号能力显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-10-20 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-10-21 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -14,11 +14,11 @@
 |---|---|
 | `app/console/index.html`、`src/main.ts`、`src/App.vue` | 入口：整包引入 Tuffex 样式、UnoCSS 图标、主题；挂路由、全局确认框、TxToastHost；`index.html` 自带首次打开的加载提示（#263，见「构建与托管」） |
 | `src/router.ts` | 路由表与每页所需能力（`meta.anyOf`）；`ConsoleShell` 把它交给 `CapabilityGate`，缺能力时整页换成权限说明，没写的页面按 `console.access` 判断 |
-| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`Competitions`、`SignIn`、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
+| `src/pages/` | 页面：`Overview`、`Applications`/`ApplicationDetail`、`Forum`、`People`（`people/` 下是添加称号、编辑部门权限包、编辑称号三个对话框、称号列表 `TitleList` 和只读权限树 `PermissionTree`）、`Feedback`、`Audit`、`Competitions`、`SignIn`（极客班统一登录页，登录方式按 `GET /auth/providers` 渲染）、`Device`（设备授权确认页，`/device`）、`ConsoleRoot`（取身份与乘客态）；`github/` 下是组织概况、成员、仓库与仓库详情（`github/repo/`）、团队、活动、安全、组织资料、邀请、邀请链接、新建仓库 |
 | `src/components/` | 外壳（`ConsoleShell`、`ConsoleNav`：只显示实际持有能力的页面）、能力门 `CapabilityGate`（直接访问无权限地址仍说明原因）、状态组件（`ErrorPanel`、`ErrorAlert`、`LoadingBlock`）、`TitleBadge`/`ToneTag`/`UserCell`、`PageHeader`、`ConfirmHost` |
-| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`signin`（登录未成原因解析与引导行动点）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
+| `src/lib/` | 纯逻辑（可单测，不导入 Vue）：`http`（请求与 `ApiError`）、`errors`（错误 → 文案与错误卡片的主按钮）、`signin`（登录未成原因解析、`return_to` 同源校验 `safeReturnPath`、`/auth/providers` 的解析与跳转地址）、`device`（设备授权确认页的纯逻辑：`user_code` 格式化与校验、去登录页的路径、scope 说法、剩余时间）、`nav`（导航与能力可见性）、`people`（按部门分组、负责人与排序、撤销规则）、`titles`（称号的默认值、徽章与编辑校验）、`org-settings`（组织资料改动计算）、`applications`（处理投递：通知信的提示、字段核对、PATCH 体、信件状态的说法）、`statuses`、`format`（时间一律按北京时间）、`icons`、`types`；带 Vue 的：`session`（身份与能力清单）、`resource`（读写状态）、`confirm`、`github`、`runtime`（数据源与跨服务链接） |
 | `src/lib/permission-tree.ts`、`permission-boundaries.ts` | 前者用当前目录/部门配置解释本人 `/me` 的状态，不生成授权判断；后者维护能力的范围、实际执行点和关联页面，只作说明，随对应后端路由与契约同步 |
-| `src/mock/` | 开发预览样板数据（全部虚构），只在数据源为 mock 且（DEV 或 PR 预览构建 `VITE_PREVIEW_MOCK=1`，#245）时动态导入，镜像构建不含；`lib/runtime.ts` 的 `PREVIEW_MOCK` 只由根目录 `netlify.toml` 设置 |
+| `src/mock/` | 开发预览样板数据（全部虚构），只在数据源为 mock 且（DEV 或 PR 预览构建 `VITE_PREVIEW_MOCK=1`，#245）时动态导入，镜像构建不含；`lib/runtime.ts` 的 `PREVIEW_MOCK` 只由根目录 `netlify.toml` 设置。mock 的 `/auth/providers` 与服务端同形（只有 GitHub 一种），登录页在样板数据下也按它渲染；设备授权页用到的 `/auth/me`（跟随样板身份，未登录样板回 `signed_in: false`）与 `GET /api/identity/device`（任何完整的用户码都是十分钟内有效的待确认样板）也同形，允许/拒绝仍按只读回 501 |
 | `src/styles/theme.css`、`layout.css` | 主题令牌覆盖与页面版式（见「设计令牌」） |
 | `scripts/tuffex-icon-classes.mjs` | 扫描已安装 Tuffex 的 dist，给 UnoCSS 列出组件自带的 `i-carbon-*` 图标类（做法同论坛） |
 | `vite.config.ts`、`uno.config.ts`、`tsconfig.json` | 构建、图标、类型检查配置 |
@@ -29,12 +29,14 @@
 
 | 路径 | 页面 | 所需能力（任一） |
 |---|---|---|
-| `/signin` | GitHub 登录；`?signin=<原因>` 时说明上次登录为什么没成功 | 无 |
+| `/signin` | 极客班统一登录页：调匿名 `GET /auth/providers` 渲染登录方式（目前只有 GitHub，按钮「通过 GitHub 继续」）；`?signin=<原因>` 说明上次登录为什么没成功；`return_to` 只接受同源路径（不合格回 `/console`），登录后回到它 | 无 |
+| `/device` | 设备授权确认页（RFC 8628）：带入或输入 8 位 `user_code`，显示客户端、权限、剩余时间与防钓鱼提示，允许或拒绝；没登录先去 `/signin?return_to=/device?user_code=…` | 无（要极客班会话，页面自己读 `/auth/me`） |
 | `/console` | 概览 | `console.access` |
 | `/console/applications`、`/console/applications/:id` | 投递管理、投递详情 | `applications.read` |
 | `/console/forum` | 论坛管理 | 任一 `forum.*` |
 | `/console/people` | 成员与权限：四个文字页签「成员 / 称号 / 部门 / 权限树」；「成员」左侧宽分组栏，右侧概况与限定高度的内部滚动名单，可逐人展开来源与撤销操作；`?view=titles` 为「称号」（只给 `roles.manage`，列出名称、说明和基础权限）；`?view=departments` 为「部门」（展示负责人、成员与两类部门权限，仅组织 owner 显示编辑或删除）；`?view=permissions` 为只读能力目录与详情，按当前身份、称号或部门查看，只有有区分度的状态筛选会出现 | `roles.manage`、`roles.department.manage` |
 | `/console/competitions` | 比赛：新建、编辑、下线、删除；日期按北京时间选，服务端按 UTC 存 | `competitions.manage` |
+| `/console/competitions/:id` | 报名与积分（#239）：报名设置、名单与统计、导出 CSV、积分登记与撤销；入口在内部比赛那一行的「报名与积分」 | `competitions.manage` |
 | `/console/feedback` | 意见箱 | `feedback.read` |
 | `/console/audit` | 审计日志 | `audit.read` |
 | `/console/github/**` | GitHub 组织页面；邀请与邀请链接另需 `github.invites.manage`，新建仓库另需 `github.repos.manage` | `github.org.read` |
@@ -42,6 +44,12 @@
 | `/console/signin`、`/admin/signin` | 跳到 `/signin` | — |
 
 旧的多组织入口 `/admin/:org/*` 不再保留页面：组织固定为 `CONSOLE_ORG`，GitHub 组织页面挂在 `/console/github/**` 下，接口仍是 `/api/admin/:org/*`。页面能力门只是提示，授权只在服务端。
+
+### 设备授权确认页
+
+`/device` 给命令行 `geek login` 用（#262，RFC 8628）。页面先读 `/auth/me`：没登录就跳 `/signin?return_to=/device?user_code=<代码>`，登录完带着同一串代码回来；已登录则按地址里的 `user_code`（或用户自己输入）调 `GET /api/identity/device`。代码输入对大小写、连字符和空格不敏感，输入时按服务端的字符集格式化并显示为 `XXXX-XXXX`。
+
+结果按 `status` 分：`pending` 且未过期时显示客户端名（「极客班命令行 请求登录」）、`client_id`、逐项解释过的权限、代码与剩余时间，并固定提示「只有你刚在自己的电脑上运行了 `geek login`、终端里就是这串代码时才允许。别人发给你的代码不要确认。」；允许、拒绝调 `POST /api/identity/device/approve`，成功后换成「已授权」「已拒绝这次授权」。`expired`、`denied`、`consumed` 不给按钮，只说明原因并给「输入其它代码」。读取时 401 回登录页、404 提示核对代码（「没有找到这串代码」），确认时 404/409 按「已经不能确认」处理（过期、已被拒绝或已用过），其余错误提示网络问题；`user_code` 同步到地址栏，刷新与回跳都保留。确认页在控制台壳子之外（和 `/signin` 一样），不要控制台能力。
 
 ### 只读权限树
 
@@ -58,24 +66,26 @@
 
 - `/api/console/*`：`me`、`catalogue`、`summary`、`departments`（含删除）、`titles`、`people`、`assignments`、`applications`（含 `export.csv` 下载链接）、`competitions`、`feedback`、`audit`。称号的名字、标签、图标、色调、说明和权限一律取自 `catalogue`，代码里只有加载前的默认值（`lib/titles.ts` 的 `DEFAULT_TITLES`）。契约见 [API](../../architecture/API.md)「极客班控制台」。
 - `/api/admin/:org/*`：GitHub 组织页面，`:org` 取 `/api/console/me` 返回的 `org`。
-- `/auth/github?return_to=<本站地址>` 登录；`POST /auth/signout` 退出。登录是全站共用的（官网、论坛、控制台同一个 `sid`），只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」。
+- `/auth/providers`（匿名）列出本站启用的登录方式，`/signin` 按它渲染按钮，前端不写死渠道；`/api/identity/device` 与 `/api/identity/device/approve` 是设备授权确认页用的两个接口。
+- 登录走极客班统一登录页 `/signin?return_to=<本站路径>`：选一种登录方式（目前是 GitHub）后 302 到 `/auth/github?return_to=<完整本站地址>`，回调成功后回到 `return_to`；登录失败由核心服务送回 `/signin?signin=<原因>&return_to=<原路径>`。`POST /auth/signout` 退出。登录是全站共用的（官网、论坛、控制台同一个 `sid`），只有 `CONSOLE_ORG` 的 active 成员能登录，见 [SECURITY](../../architecture/SECURITY.md)「登录门槛」。
 
 请求一律同源 `fetch`、`credentials: "same-origin"`，错误体解析成 `ApiError { status, code, message, requestId, payload }`，与 `app/web/shared/lib/http.ts` 同一契约。写操作经服务端的 Origin/Fetch Metadata 检查，控制台与接口同域，不需要额外处理。
 
 ## 状态
 
-每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。用到一半登录失效（#133，会话到期、别处退出）时同样处理：`lib/http.ts` 的 `api()` 拿到任何 401（`/auth/signout` 除外）就调 `lib/session.ts` 注册的处理，清掉本地身份、把这个 401 记成 `meError`，`ConsoleRoot.vue` 于是带着当前地址跳 `/signin`；读写哪一种都一样，不再停在只有「重试」的「登录已失效」上。万一某处仍显示「登录已失效」，`ErrorPanel` 给的是「重新登录」（登录后回到当前页），不是「重试」。403、5xx 和网络错误不算退出。GitHub 拒绝会话里存的令牌时，服务端结束这个会话并回 401 `session_expired`（#164，见 [API](../../architecture/API.md) 的上游错误映射），控制台照样按退出处理，重新登录会换一个新的 GitHub 授权。登录没成功时核心服务把人送回原来的控制台地址并带 `?signin=<原因>`；`ConsoleRoot.vue` 把 `signin` 从 `return_to` 里拿掉、单独传给 `/signin`，再次登录成功后不会带着旧原因回去。已登录但没有任何能力显示乘客说明。
+每个读取都有加载（Tuffex 骨架）、空（TxEmptyState，写明下一步）、失败（TxErrorState + 重试，附 `HTTP 状态 · 机器码 · request id` 一行）三种状态。缺能力：页面级用 `CapabilityGate`（TxPermissionState）写明缺哪项；若称号给了、但被 GitHub 组织角色挡住，说明是这个原因。未登录（`/api/console/me` 返回 401）跳到 `/signin?return_to=<原路径>`。用到一半登录失效（#133，会话到期、别处退出）时同样处理：`lib/http.ts` 的 `api()` 拿到任何 401（`/auth/signout` 除外）就调 `lib/session.ts` 注册的处理，清掉本地身份、把这个 401 记成 `meError`，`ConsoleRoot.vue` 于是带着当前地址跳 `/signin`；读写哪一种都一样，不再停在只有「重试」的「登录已失效」上。万一某处仍显示「登录已失效」，`ErrorPanel` 给的是「重新登录」（登录后回到当前页），不是「重试」。403、5xx 和网络错误不算退出。GitHub 拒绝会话里存的令牌时，服务端结束这个会话并回 401 `session_expired`（#164，见 [API](../../architecture/API.md) 的上游错误映射），控制台照样按退出处理，重新登录会换一个新的 GitHub 授权。登录没成功时核心服务把人送回统一登录页 `/signin?signin=<原因>&return_to=<原路径>`（#262；以前是回原来的控制台地址带 `?signin=`）；`lib/signin.ts` 解析原因，页面在按钮上方说明，原来的 `return_to` 留在地址里，再登录成功后照它回去。`ConsoleRoot.vue` 仍会把残留的 `signin` 从 `return_to` 里拿掉，再次登录成功后不会带着旧原因回去。已登录但没有任何能力显示乘客说明。
 
-登录页（`SignIn.vue`）写「只对极客班 GitHub 组织的成员开放。能看到哪些页面、做哪些操作，取决于你的称号。」，按 `signin` 参数（通过 `lib/signin.ts` 解析）在按钮上方显示一条不可关闭的 TxAlert，未知取值不显示。「用 GitHub 登录」始终是主按钮；未入组或待接受邀请时，它下面一行是两个并排的次按钮：这一原因的下一步和「回到官网」（正常打开时只有一个整行的「回到官网」），宽度不足 440px 时竖排：
+登录页（`SignIn.vue`）是官网、论坛、控制台共用的「极客班统一登录」页：标题「极客班统一登录」，副标题「一个极客班账号，通行全站」，下面一排列出官网、论坛、控制台、比赛，表示这个账号能进的地方。登录方式不写死：页面加载时调匿名 `GET /auth/providers`，`kind: "redirect"` 的每种方式一个按钮（「通过 <名字> 继续」），现在只有 GitHub 一个；加载中显示「正在读取可用的登录方式…」，取不到或列表为空时显示「登录方式没有加载出来，可能是网络不稳定。」和「重试」。按钮下方写明 GitHub 只是接入方式之一、全站以极客班账号认人；最后一行「登录后回到 `<return_to>`」。`return_to` 走 `safeReturnPath`：只接受同源路径，`//`、`/\`、控制字符、绝对 URL 一律换成 `/console`，也不回到 `/signin` 自己。按 `signin` 参数（通过 `lib/signin.ts` 解析，未知取值不显示）在按钮上方显示一条不可关闭的 TxAlert；带行动点的原因（`not_member`）在页脚多一个次按钮，和「回到官网」并排，宽度不足 440px 时竖排：
 
 | `signin` | 类型 | 标题 | 正文 | 行动点 |
 |---|---|---|---|---|
-| `not_member` | warning | 只有极客班成员可以登录 | 这个 GitHub 账号不在极客班的 GitHub 组织里，控制台只对成员开放。 | 次按钮「申请加入极客班」（信封图标，当前标签页打开官网 `/join-us`） |
-| `invite_pending` | warning | 还没接受组织邀请 | 到 GitHub 的通知或邮件里接受极客班组织的邀请，再回来登录。 | 次按钮「前往 GitHub 接受邀请」（外链图标，新标签页打开 GitHub 组织邀请页） |
+| `not_member` | warning | 只有极客班成员可以登录 | 这个 GitHub 账号不在极客班的 GitHub 组织里。极客班账号只对组织成员开放，不登录也能浏览官网和论坛。 | 次按钮「申请加入极客班」（信封图标，当前标签页打开官网 `/join-us`） |
+| `invite_pending` | warning | 还没接受组织邀请 | 到 GitHub 的通知或邮件里接受极客班组织的邀请，再回来登录。 | — |
 | `cancelled` | info | 已取消登录 | — | — |
 | `failed` | warning | 登录没有完成 | 请稍后再试一次。 | — |
+| `account_disabled` | warning | 这个极客班账号已停用 | 账号停用后不能登录，已有的会话也已失效。如有疑问请联系组织管理员。 | — |
 
-`?signed_out=1` 另显示「你已退出登录」。写操作失败用 TxAlert 内联提示，保留已填内容；401 例外，会直接跳去登录，没保存的内容不保留；危险操作一律先确认（初始焦点在「取消」）。
+`?signed_out=1` 另显示「你已退出登录」（正文「官网、论坛、控制台已一起退出。」）。写操作失败用 TxAlert 内联提示，保留已填内容；401 例外，会直接跳去登录，没保存的内容不保留；危险操作一律先确认（初始焦点在「取消」）。
 
 ## 比赛信息维护
 
@@ -83,7 +93,19 @@
 
 日期按北京时间填写，新建取当天起止边界；编辑只提交改变的字段，单改名称、说明或链接不会覆盖已保存的具体时分。清空链接或截止日期明确提交 null；没有改动时关闭编辑框而不发送空 PATCH。名称、说明和 URL 按 Unicode 码点计数，与接口一致；长度及 HTTPS 解析在表单先校验，服务端仍独立校验。状态包括未开始、报名中、报名已截止、进行中、已结束，取本次接口结果；每次重读样板数据同样按当前时间和已结束倒序计算。
 
-PR 预览只读，合法写操作返回 501 `mock_read_only`，不能用预览保存按钮证明持久化通过；写入后官网刷新可见的完整链路在隔离本地服务或真实验收环境核对。报名、组队和 SSO 新身份模型不在此页面的交付范围。
+PR 预览只读，合法写操作返回 501 `mock_read_only`，不能用预览保存按钮证明持久化通过；写入后官网刷新可见的完整链路在隔离本地服务或真实验收环境核对。报名、组队与积分在下一节的「报名与积分」页。
+
+## 报名与积分（#239）
+
+比赛列表里只有内部比赛那一行有「报名与积分」，进入 `/console/competitions/:id`；页面与后端都按 `competitions.manage`。页面先从 `GET /api/console/competitions` 找到这一场（已下线的也能打开），再读名单与积分记录；直接打开外部比赛只显示「外部比赛在官网报名」的说明和意向名单，设置与积分不显示。
+
+- **报名设置**（只对内部比赛）：在线报名开关、参赛形式（个人赛 / 团队赛）、每队最低与最高人数（团队赛才出现，1–20）、计分（不计分 / 开源贡献积分）。表单先校验「开开放报名要有报名截止时间」「人数是 1–20 的整数且最低不大于最高」，其余冲突由服务端 409 原样显示（有未取消的报名后不能改形式、人数不能让现有队伍越界）。保存成功后提示「报名设置已保存」并重读名单与比赛列表；设置写入与审计同一事务。
+- **名单与统计**：五个统计卡——报名人数（外部比赛叫「意向人数」）、队伍、已确认队伍、已确认人数、未成队（个人赛为 0）；下面「报名」与「队伍」两张表。报名列出用户、状态、留言、是否在找队伍、队伍与角色（领队 / 队员）、报名时间（北京时间），含已取消的行；队伍列出队名、状态（招募中 / 已确认 / 已解散）、人数、领队与成员，含已解散的行。空态分别写「还没有人报名」「还没有队伍」。
+- **导出 CSV**：右上「导出 CSV」取 `roster.csv`，列是账号、登录名、状态、留言、找队伍、队伍名、角色与三个北京时间时间列；服务端带 BOM 与 CRLF、单元格防公式注入，并写 `competition.roster.export` 审计。导出每分钟 5 次，超限时页面提示「导出太频繁，请一分钟后再试」，其他错误进统一错误提示。
+- **积分**：只有开启了「开源贡献积分」的内部比赛才显示登记表单。选手从已报名者里选（按登录名搜索），类型为合入 Issue、合入 PR 或作弊扣分；Issue 要仓库 `owner/name` 与编号，分值 5–30，PR 分值 15–100，扣分固定 −50 且不带仓库编号；说明最多 200 字。登记成功提示「已登记积分」并重读记录与名单。记录表按时间倒序，列出时间、选手、类型、仓库链接、分值、说明、登记人与状态；已撤销的行保留并显示撤销原因。撤销要填原因（最多 200 字），只改状态，不删除记录。没有开启积分时写明在「报名设置」里选「开源贡献积分」后才能登记。
+- 开发预览的样板数据同样只读：写请求一律被拒（501，页面翻译成「开发预览是只读的」），不能用预览保存证明持久化通过。
+
+纯函数与样板数据的单测在 `tests/console/competition-hub.test.ts`（设置与积分表单校验、请求体、统计、CSV 路径与限流提示、样板名单形状）；接口与审计由 `tests/server/competition-signups.test.ts` 与 `tests/server/competition-scores.test.ts` 覆盖。页面本身没有组件级或浏览器端到端用例，见 [TESTING](../../conventions/TESTING.md) 的说明。
 
 ## 投递详情与通知信
 
@@ -119,7 +141,7 @@ app/console/dist/
   console-assets/*.js|css|png   # 带哈希的资源，不与官网的 /assets/ 重名
 ```
 
-`base` 是 `/`，不读 `public/`（favicon 与 logo 作为模块导入进 `console-assets/`）。静态资源 CDN 开关（#146，构建参数 `STATIC_CDN_BASE`）打开时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把 `console-assets/` 下的文件改写到 `https://cdn.crosery.com/yzgc/static/site/console-assets/…`，入口页与路由仍走源站；为空时同源。规则与 web 相同，见 [web 合同](../web/README.md)「静态资源 CDN 开关」。web 镜像把这份 dist 叠进 nginx 站点根，`/console`、`/console/…`、`/admin`、`/admin/…`、`/signin` 回落到 `sites/console/index.html`；服务端 `resolveSiteEntry` 同一规则（直连 server 时）。详见 [web 合同](../web/README.md) 与 [DEPLOY](../../ops/DEPLOY.md)。
+`base` 是 `/`，不读 `public/`（favicon 与 logo 作为模块导入进 `console-assets/`）。静态资源 CDN 开关（#146，构建参数 `STATIC_CDN_BASE`）打开时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把 `console-assets/` 下的文件改写到 `https://cdn.crosery.com/yzgc/static/site/console-assets/…`，入口页与路由仍走源站；为空时同源。规则与 web 相同，见 [web 合同](../web/README.md)「静态资源 CDN 开关」。web 镜像把这份 dist 叠进 nginx 站点根，`/console`、`/console/…`、`/admin`、`/admin/…`、`/signin`、`/device` 回落到 `sites/console/index.html`；服务端 `resolveSiteEntry` 与开发态 Vite 的 `/device` 代理同一规则（直连 server 时）。详见 [web 合同](../web/README.md) 与 [DEPLOY](../../ops/DEPLOY.md)。
 
 首次打开的加载提示（#263）：`index.html` 在 `#app` 后面放了一段 `.console-boot`（转圈 +「正在加载控制台」）和它的内联样式，入口页一到就画出来，不等控制台的样式表和脚本；样子和位置照 `ConsoleRoot` 的「正在确认登录状态」，颜色、字体取 `src/styles/theme.css` 的令牌，改令牌时一起改（`tests/console/boot-placeholder.test.ts` 核对）。Vue 挂载后 `#app` 不再为空，`#app:not(:empty) ~ .console-boot` 把提示藏起，交接时不闪白；10 秒后还没挂载，在下方补一句「网络较慢，长时间没有反应可以刷新页面」；减少动态效果时不转圈；禁用 JavaScript 时只显示「控制台需要开启 JavaScript 才能使用。」。线上 CSP 允许内联样式、不允许内联脚本，所以提示只用样式。Vite 默认把样式表链接放进 `<head>`，浏览器要等它下完才开始画（Fast 3G 下约 1.2 秒），所以构建时 `vite.config.ts` 的 `moveStylesheetsToBodyEnd` 把它挪到 `</body>` 前：预加载扫描器照常并行下载，模块脚本按 HTML 规范仍等样式表就绪才执行，挂载时样式已经齐了。开发态（`pnpm dev:console`）样式由脚本注入，不经过这一步。
 
@@ -145,7 +167,7 @@ pnpm dev:console                     # http://127.0.0.1:5186/console ，默认�
 
 ```bash
 pnpm --filter @yzgc/console typecheck   # vue-tsc（根 pnpm typecheck 也会跑）
-pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）、首次加载提示（入口页结构、令牌一致、样式表挪位）
+pnpm test                               # tests/console/*：导航可见性、名单排序与按部门分组、称号编辑校验、组织资料改动、错误映射、用到一半 401 时统一退出、处理投递（通知信提示、字段核对、请求体、信件状态、北京时间）、与服务端清单同步（含投递状态与样板的处理投递核对）、首次加载提示（入口页结构、令牌一致、样式表挪位）、统一登录页（`signin.test.ts`：按 `/auth/providers` 渲染、`return_to` 同源校验、五种 `signin` 原因文案）、设备授权确认页（`device.test.ts`：代码格式化与校验、各状态的按钮与提示、没登录去登录页的路径、样板数据的待确认授权与只读）
 pnpm --filter @yzgc/console build       # 根 pnpm build 也会跑
 node scripts/check-boundaries.mjs       # console ↔ web ↔ server 互不导入
 ```

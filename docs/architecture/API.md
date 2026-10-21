@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-10-19
+状态：`current` · 更新：2026-10-21
 
 方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
 
@@ -30,7 +30,8 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 |---|---|---|---|---|
 | `GET /api/public/config` | 匿名 | 无 | 200 `{ turnstile_site_key, pow_difficulty }` | — |
 | `GET /api/public/org` | 匿名 | 无 | 200 `{ tones, titles, departments }`：`tones` 是色调 id → 浅色色值；`titles` 按 admin、captain、head、member、alumni、guest 排，每项 `{ id, label, tag, icon, tone, description, rank }`，读 `titles` 表（控制台改过的名字立刻生效）；`departments` 只含未归档部门的 `{ id, name, tag, icon, tone, description }`。不含权限包，不含任何人。官网「组织架构」窗口与论坛称号读它 | — |
-| `GET /api/public/competitions` | 匿名 | 无 | 200 `{ competitions }`，按「还能赶上的在前、已结束的在后」排（分别为开始时间正序 / 倒序），每项 `{ id, name, kind, start_at, end_at, signup_deadline, url, description, status }`。`kind` 是 `internal` / `external`；`status` 是 `upcoming` / `registering` / `closed` / `ongoing` / `ended`，由服务端按当前时间算出来，不入库；`url` 对所有比赛类型可选（内部比赛也能挂自己的比赛官网），填了只接受 https。已下线的（`offline=1`）不返回；不含任何成员信息。官网桌面「比赛」窗口读它 | — |
+| `GET /api/public/competitions` | 匿名 | 无 | 200 `{ competitions }`，按「还能赶上的在前、已结束的在后」排（分别为开始时间正序 / 倒序），每项 `{ id, name, kind, start_at, end_at, signup_deadline, url, description, status, signup }`，`signup` 是报名摘要 `{ enabled, participation, team_min, team_max, scoring }`，不含人数。`kind` 是 `internal` / `external`；`status` 是 `upcoming` / `registering` / `closed` / `ongoing` / `ended`，由服务端按当前时间算出来，不入库；`url` 对所有比赛类型可选（内部比赛也能挂自己的比赛官网），填了只接受 https。已下线的（`offline=1`）不返回；不含任何成员信息。官网桌面「比赛」窗口读它 | — |
+| `GET /api/public/competitions/:id` | 匿名 | 无 | 200 单场公开信息，字段与列表项一致（含 `signup`）；只在成功响应上带 `Access-Control-Allow-Origin: *`（只读、不带 cookie）。比赛不存在或已下线一律 404 `not_found`；不含人数、队伍与任何成员信息 | 404 |
 | `GET /api/docs` | 匿名 | 无 | 200 `{ items }`，只列白名单文档（产品介绍、用户指南，中英各一） | — |
 | `GET /api/docs/:id` | 匿名 | 无 | 200 `{ id, label, lang, file, content }` | 404 `doc not found` / `doc file missing` |
 | `GET /api/feedback/categories` | 匿名 | 无 | 200 `{ categories, pow_difficulty, org }`；`org` 是本部署意见箱收的组织，即 `CONSOLE_ORG` 的配置写法，官网意见箱照它展示、读公开列表和提交（#129） | — |
@@ -40,9 +41,15 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `POST /api/join/:token` | 匿名 | 5 次/分钟 | 200 `{ ok, invitation_id, message }` | 400 分两种。Schema 校验（`routes/portal/contracts.ts`，在找链接之前）不过回 `{ error: "validation_error", message, request_id }`，`message` 是 Ajv 的英文（如 `body/github_login must NOT have more than 39 characters`）：未知字段、类型不对、`github_login` 超过 39、`email` 超过 254、`note` 超过 280、`pow` 不是 `{ timestamp: 整数, nonce: 1–32 字 }`、蜜罐字段超过 200、`turnstile_token` 超过 4096。路由自己判断的回 `{ error: <中文句子> }`：蜜罐非空（`请求被拒绝`）、PoW 不对、用户名和邮箱都没填、用户名或邮箱格式不对、Turnstile 没过、已知失败；404 同上；409 `invite_unavailable`（链接已禁用、已过期或次数用完）/ `invite_pending_review`（同一链接、同一收件人上一次的结果还没定），见「错误」；429 `rate_limited`；503 `{ error: <中文句子> }`：发起人 token 失效或结果待核对 |
 | `POST /api/portal/apply` | 匿名 | 5 次/分钟；同一 IP、同一设备各 24 小时 5 份 | 201；往发信队列写一封「已收到」的信 | 见「加入我们（投递）端点」 |
 | `GET /auth/github` | 匿名 | 无 | 302 到 GitHub 授权页，写入签名的 `oauth_state` cookie | — |
-| `GET /auth/callback` | `oauth_state` cookie | 无 | 一律 302 回允许列表内的 `return_to`（不合规时 `<PUBLIC_ORIGIN>/console`）。登录者在 `CONSOLE_ORG` 是 `active` 成员：签发 `sid`，审计 `auth.signin`。其余情况不签发 `sid`，在回跳地址上加 `signin` 参数：`not_member`（成员查询 404）、`invite_pending`（成员状态 `pending`），这两种审计 `auth.signin_denied` 并尽力撤销这次授权（`DELETE /applications/{client_id}/grant`）；`cancelled`（GitHub 回传 `error=access_denied`）；`failed`（GitHub 回传其它 `error`，或换 token、取 `/user`、查成员身份出错，含 403 与超时） | 400 `missing_params`（缺 `state`，或 `code` 与 `error` 都没有）/ `invalid_state`（state 签名、有效期或 cookie 不符，GitHub 回传 `error` 时也先做这项检查）；410 `legacy_forum_retired`（`state` 以 `forum-` 开头）。这些情况返回 JSON，不跳转。规则见 [SECURITY](SECURITY.md)「登录门槛」 |
+| `GET /auth/callback` | `oauth_state` cookie | 无 | 一律 302 回允许列表内的 `return_to`（不合规时 `<PUBLIC_ORIGIN>/console`）。登录者在 `CONSOLE_ORG` 是 `active` 成员：在一个事务里按 GitHub 数字 id 建号或找到极客班账号、认领称号与论坛用户、签发 `sid`（作废请求带来的旧 `sid`）、审计 `auth.signin`（`details` 为 `{ provider: "github" }`，#262）；事务失败整体回滚，按 `failed` 回跳。其余情况不签发 `sid`，一律 302 到统一登录页 `<PUBLIC_ORIGIN>/signin?signin=<结果>&return_to=<原来要回的本站路径>`（`routes/admin/auth.ts` 的 `signinFailureUrl`，原路径里残留的 `signin` 参数会去掉；#262 以前是回到原页面加 `signin`），结果为：`not_member`（成员查询 404）、`invite_pending`（成员状态 `pending`），这两种审计 `auth.signin_denied` 并尽力撤销这次授权（`DELETE /applications/{client_id}/grant`）；`account_disabled`（这个 GitHub 账号绑定的极客班账号已停用，同样审计 `auth.signin_denied` 并撤销授权，#262）；`cancelled`（GitHub 回传 `error=access_denied`）；`failed`（GitHub 回传其它 `error`，或换 token、取 `/user`、查成员身份出错，含 403 与超时；账号合并链超过 8 跳或成环；登录事务失败） | 400 `missing_params`（缺 `state`，或 `code` 与 `error` 都没有）/ `invalid_state`（state 签名、有效期或 cookie 不符，GitHub 回传 `error` 时也先做这项检查）；410 `legacy_forum_retired`（`state` 以 `forum-` 开头）。这些情况返回 JSON，不跳转。规则见 [SECURITY](SECURITY.md)「登录门槛」 |
 | `POST /auth/signout` | 可选 `sid` | 无 | 200 `{ ok: true }`，清除 `sid` 与旧 `forum_sid` cookie | — |
-| `GET /auth/me` | 可选 `sid` | 无 | 200 `{ signed_in: false }` 或 `{ signed_in: true, login, user_id, avatar_url, console_link }`。`console_link` 是布尔值：登录者持有 `console.access`、`github.org.read`、`feedback.read` 之外的任意能力时为 true（提督、舰长、队长、带部门权限包的舰员），普通舰员与领航员为 false；官网与论坛只在它为 true 时显示「控制台」入口，控制台准入不变。按 `computeAccess` 计算（GitHub 角色缓存 60 秒），GitHub 查询失败时为 false，不让本接口失败。GitHub 以 401 拒绝会话里的令牌时结束会话、清 `sid`，回 `{ signed_in: false, session_expired: true }`（#164） | — |
+| `GET /auth/providers` | 匿名 | 无 | 200 `{ providers: [{ id, name, kind, start, can_register }] }`：本站启用的登录方式，前端按顺序渲染、不写死渠道（#262）。目前只有 `{ id: "github", name: "GitHub", kind: "redirect", start: "/auth/github", can_register: true }`；响应 Schema 在 `routes/identity/contracts.ts` | — |
+| `POST /auth/device/code` | 匿名 | 10 次/分钟 | 200 `{ device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval }`（#262，RFC 8628）：`user_code` 8 位、字符集 `BCDFGHJKLMNPQRSTVWXZ`、显示为 `XXXX-XXXX`；`verification_uri` 是 `<PUBLIC_ORIGIN>/device`，不写死域名；`expires_in` 600、`interval` 5。收表单或 JSON；`scope` 可选，默认 `openid profile`。`Cache-Control: no-store`，响应 Schema 在 `routes/identity/contracts.ts` | 400 `invalid_client`（未登记客户端，目前只认 `geek-cli`）/ `invalid_scope`（含 `openid`、`profile` 以外的值）；429 |
+| `POST /auth/device/token` | 匿名（凭 `device_code` 与 `client_id`） | 60 次/分钟 | 200 `{ access_token, token_type: "Bearer", expires_in, scope, account_id }`：`grant_type` 必须是 `urn:ietf:params:oauth:grant-type:device_code`；批准后令牌 30 天、`contracts.ts` 只认 `Bearer`；`Cache-Control: no-store` | 400 `authorization_pending`（还没确认）/ `slow_down`（轮询过快，间隔每次加 5 秒）/ `access_denied`（用户拒绝，或账号已不是 `active`）/ `expired_token`（10 分钟到期）/ `invalid_grant`（不存在或已换过令牌，令牌只签发一次）/ `invalid_client`（`client_id` 与发码时不一致）/ `unsupported_grant_type`；错误体是 OAuth 的 `{ error, error_description }` |
+| `GET /api/identity/device?user_code=` | `sid` | 30 次/分钟 | 200 `{ user_code, client_id, client_name, scope, status, expires_at }`，`status` 是 `pending` / `approved` / `denied` / `consumed` / `expired`；只读、不续期，不返回 `device_code` 与令牌 | 401 `not_signed_in` / `session_expired`；404 `device_code_not_found`（代码不合法或不存在） |
+| `POST /api/identity/device/approve` | `sid` | 20 次/分钟 | 200 `{ ok: true, status }`：body `{ user_code, decision: "approve" \| "deny" }`；授权绑定会话的 `account_id`（极客班账号，不是 GitHub id）；写审计 `identity.device.approve` / `identity.device.deny`，只含 `client_id` 与 `scope` | 401；400 `invalid_decision`；404 `device_code_not_found`；409 `device_code_not_pending`（不是 `pending` 或已过期）；429。跨站写入由共同 Origin 校验与 `SameSite=Lax` 会话 Cookie 挡住 |
+| `GET /auth/device/userinfo` | `Authorization: Bearer <access_token>` | 无 | 200 `{ sub, account_id, login, avatar_url, scope }`：`sub` 与 `account_id` 都是极客班账号；只要 `openid`、`profile` 范围内的资料 | 401 `invalid_token`（缺失、不存在、过期或账号不是 `active`），带 `WWW-Authenticate: Bearer error="invalid_token"`。这个令牌只在这个接口有效，其它接口仍只认会话 Cookie |
+| `GET /auth/me` | 可选 `sid` | 无 | 200 `{ signed_in: false }` 或 `{ signed_in: true, login, user_id, avatar_url, account_id, provider, console_link }`。`account_id` 是极客班账号（26 位 Crockford Base32，官网、论坛、控制台读到同一个值），`provider` 是这次的登录方式（目前只有 `github`）；`login`、`user_id`（GitHub 数字 id）、`avatar_url` 仍是绑定的 GitHub 账号（#262）。没有账号的旧会话或账号已停用时按未登录回答并删掉会话。`console_link` 是布尔值：登录者持有 `console.access`、`github.org.read`、`feedback.read` 之外的任意能力时为 true（提督、舰长、队长、带部门权限包的舰员），普通舰员与领航员为 false；官网与论坛只在它为 true 时显示「控制台」入口，控制台准入不变。按 `computeAccess` 计算（GitHub 角色缓存 60 秒），GitHub 查询失败时为 false，不让本接口失败。GitHub 以 401 拒绝会话里的令牌时结束会话、清 `sid`，回 `{ signed_in: false, session_expired: true }`（#164） | — |
 | `GET /api/me/orgs` | `sid` | 无 | 200 `{ orgs, allowed_orgs }`，按 `ALLOWED_ORGS` 过滤，缓存 120 秒 | 401 `not_signed_in` / `session_expired` |
 | `/api/admin/:org/*` | `sid` + `ALLOWED_ORGS` + GitHub 组织角色 | 无 | 按路由 | 401 `not_signed_in` / `session_expired`；403 `org_not_whitelisted` / `not_a_member_of_org` / `requires_org_admin` |
 | `GET /api/console/me` | `sid` | 无 | 200 `ConsoleMe`（见「极客班控制台」） | 401 `not_signed_in` / `session_expired` |
@@ -57,6 +64,12 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 | `POST /api/console/competitions` | `competitions.manage` | 30 次/分钟 | 201 `{ competition }`，审计 `competition.create` | 400 `validation_error` / `bad_name`（去首尾空白后不足 2 字）/ `bad_url`（不能解析的 HTTPS 地址）/ `bad_range`（结束早于开始）/ `deadline_after_end`；401；403 |
 | `PATCH /api/console/competitions/:competition_id` | `competitions.manage` | 60 次/分钟 | 200 `{ competition }`，审计 `competition.update`；`offline: true` 即「下线」（公开列表不再返回，控制台仍看得到） | 400 同上；404 `not_found`；401；403 |
 | `DELETE /api/console/competitions/:competition_id` | `competitions.manage` | 30 次/分钟 | 200 `{ ok: true }`，审计 `competition.delete`。真删；只想让官网不显示用 PATCH 下线 | 404 `not_found`；401；403 |
+| `PUT /api/console/competitions/:competition_id/signup-settings` | `competitions.manage` | 30 次/分钟 | 200 `{ settings }`（`enabled`、`participation`、`team_min`、`team_max`、`scoring`），审计 `competition.signup_settings.update`（改前改后五个字段（是否开放、参赛形式、两个人数、计分）），与写入同一事务 | 400 `bad_team_size`；404 `not_found`；409 `deadline_required` / `has_signups` / `team_size_conflict`；401；403；429 |
+| `GET /api/console/competitions/:competition_id/roster` | `competitions.manage` | 无 | 200 `{ settings, stats, signups, teams }`：报名含已取消的，队伍含已解散的；`stats` 是 `{ signups, teams, locked_teams, confirmed_people, unplaced }` | 404 `not_found`；401；403 |
+| `GET /api/console/competitions/:competition_id/roster.csv` | `competitions.manage` | 5 次/分钟 | 200 `text/csv; charset=utf-8`，UTF-8 BOM、CRLF，附件文件名带比赛 id 与北京时间日期；列是 `account_id,login,status,note,looking_for_team,team_name,role` 与三个北京时间时间列；单元格走 `csvCell` 防公式注入；审计 `competition.roster.export`（`{ rows }`） | 404；401；403；429 `rate_limited` |
+| `GET /api/console/competitions/:competition_id/score-events` | `competitions.manage` | 无 | 200 `{ events }`，按登记时间倒序；每条含选手、类型 `issue` / `pr` / `penalty`、仓库与编号、分值、说明、登记人登录名、状态 `active` / `revoked` 与撤销原因 | 404；401；403 |
+| `POST /api/console/competitions/:competition_id/score-events` | `competitions.manage` | 30 次/分钟 | 201 `{ event }`，审计 `competition.score.add`（`{ competition_id, account_id, kind, points }`），与写入同一事务 | 400 `bad_repo` / `bad_number` / `bad_points`；404；409 `scoring_not_enabled` / `not_signed_up` / `duplicate_score_event`；401；403；429 |
+| `POST /api/console/competitions/:competition_id/score-events/:event_id/revoke` | `competitions.manage` | 30 次/分钟 | 200 `{ event }`；只把状态改成 `revoked` 并记撤销人、时间与原因，审计 `competition.score.revoke` | 404 `not_found`；409 `already_revoked`；401；403；429 |
 | `GET /api/console/assignments?department_id=&role=` | `roles.manage` 或 `roles.department.manage` | 无 | 200 `{ assignments, captain }`；只有后者时只返回本人负责部门的行 | 401；403 `missing_capability` / `out_of_department_scope` |
 | `POST /api/console/assignments` | `roles.manage`；或 `roles.department.manage` 且 `role=member`、部门属于本人 | 30 次/分钟 | 201 `{ assignment }`，审计 `role.assign`（details `{ role, department_id, note_length }`）或 `role.captain.transfer`（`{ from, to }`） | 400 `department_required` / `department_not_allowed` / `unknown_department` / `github_user_not_found`；403 `missing_capability` / `out_of_department_scope` / `captain_required`；409 `assignment_exists`；429 `rate_limited` |
 | `DELETE /api/console/assignments/:id` | 同上，按目标行判断；captain 那条只有本人或 admin 能撤 | 无 | 200 `{ ok: true }`，审计 `role.revoke` | 404；409 `captain_transfer_required` |
@@ -83,12 +96,33 @@ portal 包括 /api/docs、/api/feedback、/api/join/:token、/api/portal/apply�
 
 ### 比赛信息发布合同（#238）
 
-`competitions` 只存赛事事实；报名与组队由 #239 另行交付。新建必填 `name`、`kind`、`start_at`、`end_at`，可选 `signup_deadline`、`url`、`description`；PATCH 是非空字段子集，可另带 `offline`。名称去首尾空白后至少 2 个 Unicode 码点、最多 80 个；说明最多 1000 个码点；链接最多 500 个码点（控制台与 JSON Schema 同口径，扩展汉字不按两个 UTF-16 码元重复计数），所有类型都可不填，非空必须能解析为 HTTPS URL。请求 Schema 检查类型、范围与形状，路由调用 `competitionError` 校验名称、链接与时间关系；失败不写库、不记成功审计。五个操作同时挂载真实成功响应及共同错误 Schema，公开 DTO 不含内部字段，详见 `app/server/src/lib/competition-contract.ts`。
+`competitions` 只存赛事事实；报名、组队与积分见下一节。新建必填 `name`、`kind`、`start_at`、`end_at`，可选 `signup_deadline`、`url`、`description`；PATCH 是非空字段子集，可另带 `offline`。名称去首尾空白后至少 2 个 Unicode 码点、最多 80 个；说明最多 1000 个码点；链接最多 500 个码点（控制台与 JSON Schema 同口径，扩展汉字不按两个 UTF-16 码元重复计数），所有类型都可不填，非空必须能解析为 HTTPS URL。请求 Schema 检查类型、范围与形状，路由调用 `competitionError` 校验名称、链接与时间关系；失败不写库、不记成功审计。五个操作同时挂载真实成功响应及共同错误 Schema，公开 DTO 不含内部字段，详见 `app/server/src/lib/competition-contract.ts`。
 
-时间是 UTC 毫秒整数，范围 `0..8639999971200000`（Date 有效上限减北京时间八小时偏移）；结束不早于开始，报名截止不晚于结束。控制台新建的日期取北京时间整天；编辑时只 PATCH 修改过的字段，未修改日期保留 API 原始时分。省略 `url` / `signup_deadline` 保留原值，显式 `null` 才清空。`offline` 只影响公开可见性，重新上线保留原记录；DELETE 真删，重复删除 404。三种写操作与各自审计在同一事务内，审计失败回滚业务写入，GitHub 权限检查在事务前完成。
+时间是 UTC 毫秒整数，范围 `0..8639999971200000`（Date 有效上限减北京时间八小时偏移）；结束不早于开始，报名截止不晚于结束。控制台新建的日期取北京时间整天；编辑时只 PATCH 修改过的字段，未修改日期保留 API 原始时分。省略 `url` / `signup_deadline` 保留原值，显式 `null` 才清空。`offline` 只影响公开可见性，重新上线保留原记录；DELETE 真删，重复删除 404。有未取消的报名后 PATCH 不能改 `kind`（409 `kind_locked`），已开放报名时不能把 `signup_deadline` 清成 null（409 `deadline_required`），有报名记录（含已取消）的比赛不能 DELETE（409 `has_signups`）。三种写操作与各自审计在同一事务内，审计失败回滚业务写入，GitHub 权限检查在事务前完成。
 
 状态不入库，顺序为：`now > end_at` → `ended`；有截止且 `now <= signup_deadline` → `registering`；`now >= start_at` → `ongoing`；尚未开始且没有报名截止 → `upcoming`；其余 → `closed`。未填截止不推定正在报名。官网每 60 秒重算状态与排序；控制台重读时取服务端当前结果。匿名响应仅含表中列出的公开字段，控制台读取另含 `offline`；现有 `console.access` 允许读取，写入仍需 `competitions.manage`，UI 页面也按该管理能力显示。
 
+
+### 比赛报名、组队与积分合同（#239）
+
+门户的成员接口要求登录且是极客班成员（`middleware/require-member.ts` 按会话 `account_id` 判断，没有账号回 401 `not_signed_in`，不是成员回 403 `not_member`）。写操作统一要求「已开放报名且状态为报名中」：未开放回 409 `signup_not_enabled`，不在报名中（含截止后）回 409 `signup_closed`；比赛不存在或已下线回 404。成员写操作每人每分钟 30 次，名单导出每分钟 5 次。请求体与响应由 [competition-contract.ts](../../app/server/src/lib/competition-contract.ts) 与两个 `contracts.ts` 挂载，逐项错误码见 [接口行为契约](../services/server/endpoint-contracts.md)「比赛报名、组队与积分」。
+
+「我的状态」由报名、队伍与参赛形式现算，不单独存储：未报名 `none`；个人赛报名后内部赛是 `confirmed`、外部赛是 `signed_up`；团队赛已报名未入队在报名中是 `signed_up`，入队后队伍招募中是 `in_team`，队伍已确认是 `confirmed`，截止时还没入队或队伍没确认是 `unplaced`。`actions` 只列此刻服务端会接受的操作（报名、修改报名、取消报名、建队、申请、邀请、确认、撤销确认、转让、解散、退出），截止后为空。
+
+| 方法与路径 | 成功 | 主要错误 |
+|---|---|---|
+| `GET /api/me/competitions` | 200 `{ items, pending_total }`：我的比赛、`state`、队伍摘要与本人待处理数 | 401；403 |
+| `GET /api/competitions/:id/my-status` | 200 我的状态（`settings`、`writable`、`signup`、`state`、`team`、`role`、`pending`、`stats`、`actions`） | 404 |
+| `POST`、`DELETE /api/competitions/:id/signup` | 200 我的状态；报名幂等，取消保留行并联动队伍 | 400 `bad_note`；409 `signup_not_enabled` / `signup_closed` / `not_signed_up` / `team_locked` / `is_team_leader` |
+| `GET /api/competitions/:id/teams`、`/free-agents` | 200 `{ teams }`、`{ people }`：未解散队伍与在队成员；找队友的人与留言 | 404 |
+| `POST /api/competitions/:id/teams` | 201 我的状态；建队人即领队 | 400 `bad_team_name` / `bad_slogan`；409 `not_signed_up` / `individual_competition` / `already_in_team` / `duplicate_team_name` |
+| `POST /api/teams/:id/apply`、`/invite` | 201 我的状态；写一条待处理成员关系 | 400 `bad_message`；403 `not_team_leader`（invite）；409 `team_locked` / `team_full` / `already_applied` / `already_invited` / `invitee_not_signed_up` / `target_not_member` |
+| `POST /api/teams/:id/respond` | 200 我的状态；`accept` / `decline` / `withdraw`，关系必须属于路径上的队伍 | 403 `not_team_leader`；404 `not_found`；409 `invalid_state` / `team_locked` / `team_full` / `already_in_team` / `target_not_member` |
+| `POST /api/teams/:id/leave`、`/transfer`；`DELETE /api/teams/:id` | 200 我的状态；队员退出、领队转让、领队解散 | 403 `not_team_leader`；404 `not_found`；409 `is_team_leader` / `team_locked` / `target_not_member` |
+| `POST`、`DELETE /api/teams/:id/lock` | 200 我的状态；确认参赛关闭其余待处理项，撤销确认回到招募中 | 403 `not_team_leader`；409 `team_too_small` / `invalid_state` |
+| `GET /api/competitions/:id/leaderboard` | 200 `{ updated_at, individuals, teams }`：0 分也列，同分并列同名次并跳号，队伍分是在队成员个人分之和 | 404；409 `scoring_not_enabled` |
+
+积分只对开启 `scoring: "contribution"` 的比赛生效：登记 Issue 5–30 分、PR 15–100 分、作弊扣分固定 −50（400 `bad_points`）；Issue 与 PR 必填 `owner/name` 仓库与正整数编号；同一条 Issue/PR 不能重复记分（409 `duplicate_score_event`），撤销后不再计分但记录保留（409 `already_revoked` 表示重复撤销）。控制台的设置、名单与积分接口见端点清单，全部要 `competitions.manage`，写入与审计同一事务；门户的自助操作不写审计。
 
 ## 极客班控制台
 

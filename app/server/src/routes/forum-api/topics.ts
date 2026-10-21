@@ -71,7 +71,7 @@ export default async function forumTopicRoutes(app: FastifyInstance) {
       if (!topic) throw notFound("话题不存在");
       const value = req.body[field];
       if (action === "pin") forum.setPinned(topic.id, value); else forum.setClosed(topic.id, value);
-      audit(config.consoleOrg, viewer.login, `forum.topic.${action}`, topic.id, { [field]: value }, req.ip);
+      audit(config.consoleOrg, { login: viewer.login, account_id: viewer.accountId }, `forum.topic.${action}`, topic.id, { [field]: value }, req.ip);
       return forumChanges(req, viewer, { topics: [topic.id] });
     });
   }

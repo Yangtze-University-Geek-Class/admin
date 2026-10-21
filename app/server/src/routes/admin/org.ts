@@ -37,7 +37,7 @@ export default async function orgRoutes(app: FastifyInstance) {
       if (Object.keys(update).length === 0) return reply.code(400).send({ error: "no editable fields" });
       const octokit = octokitWith(req.session!.accessToken);
       const res = await octokit.request("PATCH /orgs/{org}", { org, ...update });
-      audit(org, req.session!.login, "org.update", org, update, req.ip);
+      audit(org, req.session!, "org.update", org, update, req.ip);
       return res.data;
     }
   );

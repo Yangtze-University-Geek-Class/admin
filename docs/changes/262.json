@@ -1,0 +1,517 @@
+{
+  "version": 1,
+  "issue": 262,
+  "kind": "business",
+  "summary": "统一登录交付 1（#262）：引入极客班账号（users、identities、identity_audit），sessions、role_assignments、forum_users、audit_logs 加列并在启动时幂等回填，GitHub 登录改成一个事务里建号或找到账号、认领称号与论坛用户并签发会话；新增统一登录页 /signin（按 GET /auth/providers 动态渲染登录方式）、/auth/callback 失败改为回登录页、官网/论坛/控制台入口统一改「登录」；新增 RFC 8628 设备授权 5 个接口与确认页 /device（为 geek login 预留），以及 device_grants 表。",
+  "applications": [
+    "server",
+    "web",
+    "console",
+    "forum"
+  ],
+  "domains": [
+    "identity",
+    "organization",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "github",
+    "forum",
+    "mail",
+    "audit",
+    "public_content",
+    "platform",
+    "competitions"
+  ],
+  "flows": [
+    "flow:identity.callback",
+    "flow:identity.current",
+    "flow:identity.signout",
+    "flow:identity.providers",
+    "flow:organization.assignments.grant",
+    "flow:organization.departments.create",
+    "flow:organization.titles.update",
+    "flow:application.review",
+    "flow:feedback.admin.update",
+    "flow:feedback.console.update",
+    "flow:feedback.submit",
+    "flow:invitation.admin.cancel",
+    "flow:invitation.links.create",
+    "flow:github.members.remove",
+    "flow:github.organization.update",
+    "flow:github.repositories.delete",
+    "flow:github.teams.create",
+    "flow:forum.state",
+    "flow:forum.topics.create",
+    "flow:forum.posts.reply",
+    "flow:competition.create",
+    "flow:documentation.list",
+    "flow:identity.device.code",
+    "flow:identity.device.token",
+    "flow:identity.device.view",
+    "flow:identity.device.approve",
+    "flow:identity.device.userinfo"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "一个人对应一个极客班账号：GitHub 是唯一能建号的方式，按 GitHub 数字 id 而不是会变的登录名认人；改名后称号和论坛用户跟着账号走，只看登录名的旧称号不被同名新人认领；停用账号拒绝登录。登录入口收敛：官网菜单栏、论坛右上角、控制台都改成「登录」并进统一登录页 /signin，登录方式由后端列表决定、前端不写死渠道；登录没成功一律在登录页说明原因并可以重试，而不是散落在各自页面。另加设备授权（RFC 8628）：命令行 geek login 拿到 8 位代码，本人在确认页允许后换到一个只读账号资料、绑定极客班账号的令牌。",
+      "evidence": [
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/routes/admin/auth.ts",
+        "app/console/src/pages/SignIn.vue",
+        "app/web/sites/portal/lib/account.ts",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增 lib/identity-store.ts 承担建号、合并链、认领和会话签发；/auth/callback 外部请求在事务外、写库在一个 BEGIN IMMEDIATE 事务里，失败整体回滚；失败一律 302 到 /signin?signin=「原因」&return_to=「原路径」（signinFailureUrl），成功仍回 return_to。/auth/me 增加 account_id、provider；新增匿名 GET /auth/providers。新增 lib/device-store.ts（device_grants 状态机）与 routes/identity/device.ts 的 5 个接口（发码、轮询换令牌、确认页读取与确认、userinfo），全部挂响应 Schema；ADMIN_SPA_PATHS 增加 /device。",
+      "evidence": [
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/routes/identity/device.ts",
+        "app/server/src/routes/admin/auth.ts",
+        "app/server/src/routes/identity/contracts.ts",
+        "app/server/src/app.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "能力模型与授权执行点不变，身份来源改为会话里的账号：称号依次按账号、GitHub id、登录名匹配，已认领的行只认账号；没有账号的旧会话和非 active 账号按未登录处理；论坛成员先按账号找论坛用户。设备授权的确认页要极客班 SSO 会话（requireAuth），授权绑定会话的 account_id 而不是 GitHub id；发码与轮询匿名，凭 client_id 与 device_code；设备令牌只被 /auth/device/userinfo 接受，换不到任何控制台、论坛或 GitHub 能力；跨站写入由共同 Origin 校验与 SameSite=Lax 会话 Cookie 挡住。",
+      "evidence": [
+        "app/server/src/lib/role-store.ts",
+        "app/server/src/lib/access.ts",
+        "app/server/src/routes/identity/device.ts",
+        "app/server/src/middleware/require-auth.ts",
+        "app/console/src/lib/signin.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "新增 users、identities、identity_audit；第一次给已有表加可空列 sessions.openid、sessions.provider、role_assignments.account_id、forum_users.account_id、audit_logs.actor_account_id 和四个索引（先查 PRAGMA table_info 再 ADD COLUMN）；每次启动在一个事务里回填并写 identity_v1 与 identity.backfill。新增 device_grants（CREATE TABLE IF NOT EXISTS，不改旧表）：明文 device_code 与 access_token 不入库、只存 sha256，状态 pending/approved/denied/consumed，expired 由 expires_at 现算，发码时清理过期超过 24 小时且令牌已失效的行；只有 lib/device-store.ts 读写。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/lib/identity-store.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/device-flow.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "不新增依赖包、凭据或外部服务；services.ts 把身份模块接到会话创建与审计，并组装 device store，审计多 actor_account_id 和 system 的 identity.backfill，登录与退出另写本人的 identity_audit。设备授权不调用任何上游：发码、轮询、确认与 userinfo 只读本地表；确认时写 audit_logs 的 identity.device.approve / identity.device.deny，只含 client_id 与 scope，不含 device_code 与令牌。web 容器 nginx 与 netlify 的 /device 派发只是路由，不新增运行单元。",
+      "evidence": [
+        "app/server/src/services.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/web/Dockerfile",
+        "netlify.toml",
+        "app/web/vite.config.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "server 合同、数据模型、接口行为契约、API 与 SECURITY 写明账号绑定、登录事务、新字段与新接口、加列与回填及回滚，并新增「设备授权」的安全小节（哈希存储、一次性签发、过期与 slow_down、限流、绑定 account_id、防钓鱼确认、审计不留凭据、令牌只调 userinfo、verification_uri 随 PUBLIC_ORIGIN、跨站写入防护）。console、web、forum 合同写明统一登录页与 /device 页面、入口文案与链接、nginx 派发；统一登录方案标出交付 1 已实施与未实施的界线；目录登记设备流程、路由与表。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md",
+        "docs/services/forum/README.md",
+        "docs/plan/UNIFIED-LOGIN.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增登录事务测试与旧库回填测试，并新增设备授权端到端用例（发码字段与 no-store、invalid_client/invalid_scope、轮询的 pending/slow_down/expired/denied/consumed、令牌只发一次、userinfo 与账号停用、确认页的 401/404/409 与审计条数）、控制台登录页与确认页用例、nginx 派发与官网/论坛入口回归。未验证：预发布真实 GitHub 往返、真实库迁移计数、真实命令行 geek login 客户端（本 PR 只做服务端与网页确认页）。",
+      "evidence": [
+        "tests/server/device-flow.test.ts",
+        "tests/console/device.test.ts",
+        "tests/console/signin.test.ts",
+        "tests/tooling/web-nginx.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/e2e/portal-phone.spec.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "仍由原有 server 与 web 镜像交付，不新增环境变量、运行单元或发布 tag；server 新镜像第一次启动时自动建 device_grants、加列和回填，失败则启动失败；web 镜像 nginx 把 /device 与控制台入口一起派发，直连 Fastify 与 Netlify 预览同一规则。合并进 stage 只跑 CI，发到预发布要等获授权的 rc tag。",
+      "evidence": [
+        "app/server/src/app.ts",
+        "app/web/Dockerfile",
+        "netlify.toml",
+        "app/web/vite.config.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/auth.ts",
+        "app/server/src/lib/access.ts",
+        "app/server/src/routes/admin/auth.ts",
+        "app/server/src/routes/identity/",
+        "app/server/src/services.ts",
+        "app/server/src/app.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/routes/identity/device.ts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:identity",
+        "table:users",
+        "table:identities",
+        "table:identity_audit",
+        "table:sessions",
+        "route:GET /auth/providers",
+        "route:GET /auth/callback",
+        "route:GET /auth/me",
+        "flow:identity.callback",
+        "flow:identity.current",
+        "flow:identity.providers",
+        "table:device_grants",
+        "route:POST /auth/device/code",
+        "route:POST /auth/device/token",
+        "route:GET /api/identity/device",
+        "route:POST /api/identity/device/approve",
+        "route:GET /auth/device/userinfo",
+        "flow:identity.device.code",
+        "flow:identity.device.token",
+        "flow:identity.device.view",
+        "flow:identity.device.approve",
+        "flow:identity.device.userinfo"
+      ],
+      "reason": "账号底座与登录事务：db.ts 建三张新表与 device_grants、给四张已有表加列并在启动时回填，是全部业务域共用的建库文件；auth.ts 的会话读写改成带账号，access.ts 透传账号；回调、退出、/auth/me 改走身份模块，回调失败改为回 /signin；device-store.ts 是 device_grants 的唯一读写方，device.ts 只调用它；app.ts 只注册 identity 路由并把 /device 交给控制台入口。其余表结构不变，关联各域流程用于回归核对。"
+    },
+    {
+      "paths": [
+        "app/server/src/middleware/require-auth.ts",
+        "app/server/src/middleware/require-capability.ts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail",
+        "audit",
+        "public_content",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "flow:github.members.remove",
+        "flow:organization.assignments.grant",
+        "flow:forum.state"
+      ],
+      "reason": "中间件是所有业务域共用的会话与能力入口：会话类型多 account_id、provider，被 GitHub 拒绝的会话按会话写审计，能力解析透传账号；授权判断、错误码与执行点不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/role-store.ts",
+        "app/server/src/routes/console/assignments.ts",
+        "app/server/src/routes/console/departments.ts",
+        "app/server/src/routes/console/titles.ts"
+      ],
+      "domains": [
+        "organization",
+        "identity",
+        "audit"
+      ],
+      "nodes": [
+        "domain:organization",
+        "table:role_assignments",
+        "flow:organization.assignments.grant",
+        "flow:organization.departments.create",
+        "flow:organization.titles.update"
+      ],
+      "reason": "称号按账号、GitHub id、登录名依次匹配，授予时对方已有账号就写 account_id；部门与称号设置只把审计操作者换成会话（多写 actor_account_id），规则不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/forum-store.ts",
+        "app/server/src/routes/forum-api/viewer.ts",
+        "app/server/src/routes/forum-api/topics.ts",
+        "app/server/src/routes/forum-api/posts.ts"
+      ],
+      "domains": [
+        "forum",
+        "identity",
+        "audit"
+      ],
+      "nodes": [
+        "domain:forum",
+        "table:forum_users",
+        "flow:forum.state",
+        "flow:forum.topics.create",
+        "flow:forum.posts.reply"
+      ],
+      "reason": "论坛成员先按账号找论坛用户，没有才按「m 加 GitHub id」建并写上账号；版务审计带 actor_account_id。游客规则、编号和帖子数据不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/admin/feedback.ts",
+        "app/server/src/routes/admin/invitations.ts",
+        "app/server/src/routes/admin/invite-links.ts",
+        "app/server/src/routes/admin/members.ts",
+        "app/server/src/routes/admin/org.ts",
+        "app/server/src/routes/admin/repos.ts",
+        "app/server/src/routes/admin/teams.ts",
+        "app/server/src/routes/console/applications.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/console/feedback.ts",
+        "app/server/src/routes/portal/feedback.ts"
+      ],
+      "domains": [
+        "feedback",
+        "invitations",
+        "github",
+        "recruitment",
+        "mail",
+        "competitions",
+        "platform",
+        "audit",
+        "identity"
+      ],
+      "nodes": [
+        "flow:feedback.admin.update",
+        "flow:feedback.console.update",
+        "flow:feedback.submit",
+        "flow:invitation.admin.cancel",
+        "flow:invitation.links.create",
+        "flow:github.organization.update",
+        "flow:github.repositories.delete",
+        "flow:github.teams.create",
+        "flow:application.review",
+        "flow:competition.create"
+      ],
+      "reason": "这些路由只把审计的操作者从登录名换成会话（审计 actor 仍写登录名，另写 actor_account_id），请求、响应、授权和业务写入不变；投递审核人、意见箱提交者的记法不变。"
+    },
+    {
+      "paths": [
+        "tests/server/helpers.ts",
+        "tests/server/identity.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/core.test.ts",
+        "tests/server/console.test.ts",
+        "tests/server/applications.test.ts",
+        "tests/server/competitions.test.ts",
+        "tests/server/forum.test.ts",
+        "tests/server/invitations.test.ts",
+        "tests/server/mail-outbox.test.ts",
+        "tests/server/rate-limits.test.ts",
+        "tests/server/session-cleanup.test.ts",
+        "tests/server/upstream-errors.test.ts",
+        "tests/e2e/application-cancelled.spec.mts",
+        "tests/e2e/competitions.spec.mts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "forum",
+        "audit"
+      ],
+      "nodes": [
+        "flow:identity.callback",
+        "flow:identity.current",
+        "flow:identity.providers"
+      ],
+      "reason": "新增登录事务与回填用例；其余用例改用 helpers 的 signIn 走真实登录事务签会话，只在审计条数与 signin_denied 详情处按新行为调整断言，被测行为不变。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/plan/UNIFIED-LOGIN.md",
+        "docs/assets/unified-login/",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/INDEX.md",
+        "docs/architecture/ARCHITECTURE.md",
+        "docs/architecture/SECURITY.en.md",
+        "docs/conventions/TESTING.md",
+        "docs/design/DESIGN.md",
+        "docs/ops/LOCAL-PREVIEW.md",
+        "docs/ops/TUFF-FORUM.md",
+        "docs/ops/USAGE.md",
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/services/web/README.md",
+        "docs/services/web/portal.md"
+      ],
+      "domains": [
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/services/server/data-model.md",
+        "domain:identity",
+        "flow:identity.providers",
+        "flow:identity.device.code",
+        "flow:identity.device.approve"
+      ],
+      "reason": "人工文档同步账号绑定、登录事务、加列回填与回滚、统一登录页与三端入口、callback 失败去向与设备授权（接口、状态机、限流、安全边界、页面与 nginx 派发）；ownership 登记设备流程、device_grants 与相关路由，并更新回调、读取、退出流程的读写与证据；其余目录文件由 pnpm catalog:generate 重建，docs/INDEX.md 由 docs-index 脚本重建。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/SignIn.vue",
+        "app/console/src/pages/Device.vue",
+        "app/console/src/lib/signin.ts",
+        "app/console/src/lib/device.ts",
+        "app/console/src/lib/runtime.ts",
+        "app/console/src/lib/errors.ts",
+        "app/console/src/mock/index.ts",
+        "app/console/src/router.ts"
+      ],
+      "domains": [
+        "identity",
+        "organization",
+        "recruitment",
+        "feedback",
+        "github",
+        "audit",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.current",
+        "flow:identity.device.view",
+        "flow:identity.device.approve"
+      ],
+      "reason": "控制台 /signin 改成统一登录页：按 GET /auth/providers 渲染登录方式，return_to 走 safeReturnPath 的同源校验，五种 signin 原因在页内说明；新增 /device 确认页（读 /api/identity/device、写 /api/identity/device/approve，没登录先去登录页）；signInHref 改为 /signin，401 文案改成「请重新登录。」；mock 增加 /auth/providers。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/lib/account.ts",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/Dockerfile",
+        "app/web/vite.config.ts",
+        "netlify.toml"
+      ],
+      "domains": [
+        "identity",
+        "public_content",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "organization",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.current"
+      ],
+      "reason": "官网菜单栏与手机状态栏的入口改成「登录」，signInHref 生成 /signin?return_to= 加当前页面的 pathname、search 与 hash，并随路由重算；web 镜像 nginx、开发态 Vite 与控制台路径判断把 /device 派发给控制台入口，Netlify 预览同一规则。"
+    },
+    {
+      "paths": [
+        "app/forum/app/",
+        "app/forum/shared/",
+        "app/forum/ADOPTION.json",
+        "app/forum/tests/"
+      ],
+      "domains": [
+        "forum",
+        "identity"
+      ],
+      "nodes": [
+        "domain:forum",
+        "domain:identity",
+        "flow:identity.current"
+      ],
+      "reason": "论坛顶栏唯一入口改成「登录」（用户图标，桌面与手机同一文案），useSiteLinks 生成 portal origin + /signin?return_to=/forum… 的地址；旧链接里的 ?signin= 结果只在兼容路径读取；登录门槛、帖子与回复规则不变，ADOPTION.json 同步说明。"
+    },
+    {
+      "paths": [
+        "tests/server/device-flow.test.ts",
+        "tests/console/device.test.ts",
+        "tests/console/signin.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/tooling/web-nginx.test.ts",
+        "tests/e2e/portal-phone.spec.ts",
+        "tests/e2e/workflows.spec.ts"
+      ],
+      "domains": [
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "flow:identity.device.code",
+        "flow:identity.device.token",
+        "flow:identity.device.approve",
+        "flow:identity.device.userinfo",
+        "flow:identity.current"
+      ],
+      "reason": "设备授权端到端用例覆盖发码、轮询状态机、一次性令牌、userinfo 与账号停用、确认页 401/404/409 与审计；控制台用例覆盖登录方式渲染、return_to 同源校验与确认页状态；nginx 派发、官网手机入口与 e2e 登录入口按新链接调整。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/console/README.md",
+    "docs/services/web/README.md",
+    "docs/services/web/portal.md",
+    "docs/services/forum/README.md",
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/architecture/ARCHITECTURE.md",
+    "docs/plan/UNIFIED-LOGIN.md",
+    "docs/ops/USAGE.md",
+    "docs/ops/LOCAL-PREVIEW.md"
+  ],
+  "tests": [
+    "tests/server/device-flow.test.ts",
+    "tests/server/identity.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/server/helpers.ts",
+    "tests/server/core.test.ts",
+    "tests/server/console.test.ts",
+    "tests/server/applications.test.ts",
+    "tests/server/session-cleanup.test.ts",
+    "tests/console/device.test.ts",
+    "tests/console/signin.test.ts",
+    "tests/web/portal-phone.test.tsx",
+    "tests/tooling/web-nginx.test.ts",
+    "tests/e2e/portal-phone.spec.ts",
+    "tests/e2e/workflows.spec.ts",
+    "tests/e2e/application-cancelled.spec.mts",
+    "tests/e2e/competitions.spec.mts",
+    "app/forum/tests/access.test.ts",
+    "app/forum/tests/login-modal.test.ts"
+  ],
+  "compatibility": "现有会话由启动回填映射到账号，继续有效；只有很早以前没有 GitHub id 的会话要重新登录一次。/auth/me 只增加字段，原字段语义不变（user_id 仍是 GitHub 数字 id）。登录入口从直接去 /auth/github 改成先到 /signin，老书签与回调链接照常可用；/auth/callback 失败不再回原页面加 ?signin=，而是回 /signin 并带 return_to（论坛保留了旧 ?signin= 的兼容读取）。设备授权是新增接口与页面，不影响已有端点；令牌格式 gk_… 与 /auth/* 的 no-store 约定一致。",
+  "migration": "新镜像启动时在建库阶段自动执行：先查 PRAGMA table_info 再 ADD COLUMN 加五个可空列和四个索引，再在一个事务里回填（建号、映射会话、按 GitHub id 认领称号与论坛用户），第一次写 identity_v1 与 identity.backfill 计数；device_grants 用 CREATE TABLE IF NOT EXISTS 新建，不改旧表。两步都可重复执行，不需要手工步骤。",
+  "rollback": "合并后在 stage 上 git revert -m 1 撤销本 PR 的合并提交并重新构建 server 与 web 镜像；已上线的库不用动：旧代码不认识新表、新列和 device_grants，插入时不写新列也照常成功，登录、论坛与其它表不受影响；web 镜像回滚后 /device 不再派发给控制台，服务器直连时 ADMIN_SPA_PATHS 也随之回到旧清单。之后再上线时回填补上回滚期间产生的会话、称号和论坛用户；回滚期间做过的设备授权重新运行 geek login 即可。"
+}

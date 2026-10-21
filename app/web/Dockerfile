@@ -14,7 +14,7 @@
 # 127.0.0.1:<WEB_BIND> 控制。宿主 nginx 只做 TLS 终止与 server_name 转发。
 #
 # 每个环境只有一个域名，SPA 入口只按 URL 路径选择，与 Host 头无关：
-#   /admin、/admin/…、/console、/console/…、/signin → sites/console/index.html（app/console）
+#   /admin、/admin/…、/console、/console/…、/signin、/device → sites/console/index.html（app/console）
 #   其余路径                                         → sites/portal/index.html（app/web）
 # 规则与 app/server/src/app.ts 的 resolveSiteEntry 保持一致。镜像里不含任何域名，
 # 同一个镜像在两个环境通用。
@@ -196,11 +196,11 @@ server {
     }
 
     # ── 管理端（控制台）SPA 入口：路径清单与入口文件都只写在这一处 ──
-    # /admin、/console 及其子路径，外加 /signin；与 app/server/src/app.ts 的
+    # /admin、/console 及其子路径，外加 /signin 与 /device（设备授权确认页）；与 app/server/src/app.ts 的
     # ADMIN_SPA_PATHS / ADMIN_SPA_ENTRY 一致。/administrator、/consoles 不匹配。
     # 必须放在下面的图片正则之前：nginx 取第一个匹配的正则，仓库名这类路径段
     # 即使以 .svg/.png 结尾，也要进控制台入口而不是 404。入口页每次部署都换哈希，回源校验。
-    location ~ ^/(?:(?:admin|console)(?:/|$)|signin$) {
+    location ~ ^/(?:(?:admin|console)(?:/|$)|signin$|device$) {
         expires -1;
         try_files $uri /sites/console/index.html;
     }

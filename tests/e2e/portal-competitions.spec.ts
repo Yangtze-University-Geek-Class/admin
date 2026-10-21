@@ -79,8 +79,11 @@ test.describe("比赛窗口 #265", () => {
     await win.getByRole("button", { name: "外部", exact: true }).click();
     await expect(cards).toHaveCount(1);
     await expect(heading).toHaveText("CCPC 2026 哈尔滨站");
-    const go = win.getByRole("link", { name: /去官网报名/ });
+    // 桌面主按钮在 Hero 里；官网链接也收在 Hero 的标签里
+    const go = win.locator(".pt-cx-hero .pt-btn");
+    await expect(go).toHaveText(/去官网报名/);
     await expect(go).toHaveAttribute("href", "https://ccpc.io/");
+    await expect(win.locator("a.pt-cx-hero-tag")).toHaveCount(1);
     await expect(go).toHaveAttribute("target", "_blank");
     await expect(go).toHaveAttribute("rel", "noopener noreferrer");
     await page.screenshot({ path: testInfo.outputPath("desktop-1440-ccpc.png"), animations: "disabled" });
@@ -136,8 +139,12 @@ test.describe("比赛窗口 #265", () => {
       await expect(list).toHaveCount(0);
       const back = win.getByRole("button", { name: "返回比赛列表" });
       await expect(back).toHaveText("比赛列表");
-      const go = win.getByRole("link", { name: /去官网报名/ });
-      await atLeast44(win.locator(".pt-cx-site, .pt-cx-act .pt-btn, .pt-phone-back"));
+      // 手机上主按钮在底部操作条里（拇指够得着），Hero 里只放官网链接
+      const go = win.locator(".pt-cx-act .pt-btn");
+      await expect(go).toHaveText(/去官网报名/);
+      await expect(win.locator(".pt-cx-hero .pt-btn")).toHaveCount(0);
+      await expect(win.locator("a.pt-cx-hero-tag")).toHaveCount(1);
+      await atLeast44(win.locator(".pt-cx-act .pt-btn, .pt-phone-back"));
       // 手机上窗口是停在 Dock 上方的整页卡片（卡片下面是手机 Dock）：操作条贴在卡片底部
       const sheet = (await win.boundingBox())!;
       const goBox = (await go.boundingBox())!;

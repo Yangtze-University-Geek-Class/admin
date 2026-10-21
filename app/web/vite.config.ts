@@ -19,12 +19,12 @@ const SITE_NAMES = ["portal"] as const;
 
 /** 控制台是独立的 Vue 包（app/console），开发态跑在 5186；这里只负责把入口路径转过去。 */
 const CONSOLE_DEV_ORIGIN = "http://127.0.0.1:5186";
-const CONSOLE_PATH = /^\/(?:(?:admin|console)(?:\/|$)|signin$)/;
+const CONSOLE_PATH = /^\/(?:(?:admin|console)(?:\/|$)|signin$|device$)/;
 
 /**
  * 开发态的按端 SPA fallback。
  *
- * 生产由 web 镜像的 nginx（直连时由 Fastify）按路径派发：/admin、/console、/signin 进
+ * 生产由 web 镜像的 nginx（直连时由 Fastify）按路径派发：/admin、/console、/signin、/device 进
  * 控制台（app/console 的 dist/sites/console/index.html），其余进 portal；Vite dev 默认只服务
  * 真实的 HTML 文件，portal 深链接需要回落到入口。
  * 这里把 `/sites/<端>/<任意非文件路径>` 一律回落到该端的 index.html，
@@ -48,7 +48,7 @@ function devSiteFallback(): Plugin {
             _res.end();
             return;
           }
-          // 控制台（/console、/admin、/signin，以及旧的 /sites/admin/…）由 app/console 的 dev server 提供
+          // 控制台（/console、/admin、/signin、/device，以及旧的 /sites/admin/…）由 app/console 的 dev server 提供
           const legacy = path === "/sites/admin" || path.startsWith("/sites/admin/");
           const consolePath = legacy ? path.slice("/sites/admin".length).replace(/^\/?$/, "/console") : path;
           if (CONSOLE_PATH.test(consolePath)) {

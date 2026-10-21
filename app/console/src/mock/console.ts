@@ -4,7 +4,9 @@
 import { ApiError } from "../lib/http";
 import { DEPARTMENT_ICONS } from "../lib/icons";
 import { DEFAULT_CREW, DEFAULT_TITLES, kindRank, makeTitle, titleBundleError, titleKind } from "../lib/titles";
-import type { Assignment, GithubRole, Person, TitleId, TitleView, Tone } from "../lib/types";
+import type {
+  Assignment, CompetitionRoster, GithubRole, Person, RosterSignup, RosterStats, RosterTeam, ScoreEvent, SignupSettings, TitleId, TitleView, Tone,
+} from "../lib/types";
 
 const now = Date.now();
 const MIN = 60_000;
@@ -318,6 +320,107 @@ const competitionView = () => {
     });
 };
 
+/** 报名与积分样板（#239）：只读；设置、名单与 CSV 读这里，写请求仍按 mock 约定回 501。 */
+const DEFAULT_ROSTER_SETTINGS: SignupSettings = { enabled: false, participation: "individual", team_min: 1, team_max: 1, scoring: "none" };
+const MOCK_ROSTER_SETTINGS: Record<string, SignupSettings> = {
+  c1001: { enabled: true, participation: "team", team_min: 2, team_max: 3, scoring: "contribution" },
+};
+const mockPerson = (login: string) => ({ account_id: `mock-${login}`, login, avatar_url: null });
+const mockSignup = (login: string, patch: Partial<RosterSignup> = {}): RosterSignup => ({
+  ...mockPerson(login), status: "active", note: "", looking_for_team: false,
+  team_id: null, team_name: null, role: null, created_at: now - 3 * DAY, updated_at: now - 3 * DAY, cancelled_at: null, ...patch,
+});
+const MOCK_ROSTER_TEAMS: Record<string, RosterTeam[]> = {
+  c1001: [
+    {
+      id: "t1001", name: "夜航星", slogan: "把每一道题当最后一次提交。", status: "locked",
+      leader_account_id: "mock-chen-hang", member_count: 3, created_at: now - 2 * DAY, disbanded_at: null,
+      members: [
+        { ...mockPerson("chen-hang"), role: "leader", joined_at: now - 2 * DAY },
+        { ...mockPerson("li-xiaoman"), role: "member", joined_at: now - 2 * DAY + HOUR },
+        { ...mockPerson("wang-zhe"), role: "member", joined_at: now - 2 * DAY + 2 * HOUR },
+      ],
+    },
+    {
+      id: "t1002", name: "打字机", slogan: "", status: "recruiting",
+      leader_account_id: "mock-sun-qiao", member_count: 1, created_at: now - DAY, disbanded_at: null,
+      members: [{ ...mockPerson("sun-qiao"), role: "leader", joined_at: now - DAY }],
+    },
+  ],
+};
+const MOCK_SIGNUPS: Record<string, RosterSignup[]> = {
+  c1001: [
+    mockSignup("chen-hang", { team_id: "t1001", team_name: "夜航星", role: "leader" }),
+    mockSignup("li-xiaoman", { team_id: "t1001", team_name: "夜航星", role: "member" }),
+    mockSignup("wang-zhe", { team_id: "t1001", team_name: "夜航星", role: "member" }),
+    mockSignup("sun-qiao", { team_id: "t1002", team_name: "打字机", role: "leader", created_at: now - 2 * DAY }),
+    mockSignup("zhao-yi", { note: "会一点 Rust，想找后端方向。", looking_for_team: true, created_at: now - DAY }),
+    mockSignup("he-miao", { status: "cancelled", created_at: now - 2 * DAY, cancelled_at: now - HOUR }),
+  ],
+};
+const MOCK_SCORE_EVENTS: Record<string, ScoreEvent[]> = {
+  c1001: [
+    {
+      id: "s1001", competition_id: "c1001", person: mockPerson("chen-hang"), kind: "pr",
+      repo: "Yangtze-University-Geek-Class/portal", number: 265, points: 60,
+      reason: "比赛窗口的列表、详情与手机布局。", status: "active", created_by_login: "xu-yan",
+      created_at: now - 6 * HOUR, revoked_at: null, revoke_reason: null,
+    },
+    {
+      id: "s1002", competition_id: "c1001", person: mockPerson("li-xiaoman"), kind: "issue",
+      repo: "Yangtze-University-Geek-Class/admin", number: 239, points: 20,
+      reason: "补上名单导出与积分登记的接口。", status: "active", created_by_login: "xu-yan",
+      created_at: now - DAY, revoked_at: null, revoke_reason: null,
+    },
+    {
+      id: "s1003", competition_id: "c1001", person: mockPerson("wang-zhe"), kind: "penalty",
+      repo: null, number: null, points: -50, reason: "提交里带了别人的代码。", status: "revoked",
+      created_by_login: "xu-yan", created_at: now - 2 * DAY, revoked_at: now - 2 * HOUR, revoke_reason: "误判：改动是结对完成的。",
+    },
+  ],
+};
+
+/**
+ * 名单的样板口径与服务端 `statsOf` 一致：报名只算未取消的；个人赛的确认人数等于报名人数、
+ * 没有「未成队」；团队赛的确认人数是已确认队伍的在队人数之和。
+ */
+function mockRoster(competitionId: string): CompetitionRoster {
+  const competition = MOCK_COMPETITIONS.find(row => row.id === competitionId);
+  if (!competition) throw new ApiError(404, "not_found", "比赛不存在或已下线");
+  const settings = MOCK_ROSTER_SETTINGS[competitionId] ?? DEFAULT_ROSTER_SETTINGS;
+  const signups = MOCK_SIGNUPS[competitionId] ?? [];
+  const teams = MOCK_ROSTER_TEAMS[competitionId] ?? [];
+  const active = signups.filter(row => row.status === "active");
+  const live = teams.filter(team => team.status !== "disbanded");
+  const locked = live.filter(team => team.status === "locked");
+  const inTeam = new Set(live.flatMap(team => team.members.map(member => member.account_id)));
+  const stats: RosterStats = {
+    signups: active.length,
+    teams: live.length,
+    locked_teams: locked.length,
+    confirmed_people: settings.participation === "individual" ? active.length : locked.reduce((sum, team) => sum + team.member_count, 0),
+    unplaced: settings.participation === "team" ? active.filter(row => !inTeam.has(row.account_id)).length : 0,
+  };
+  return { settings, stats, signups, teams };
+}
+
+const csvCell = (value: string | number) => {
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+const beijingStamp = (at: number) => new Date(at + 8 * HOUR).toISOString().slice(0, 16).replace("T", " ");
+
+/** 导出的样板：列与服务端 roster.csv 一致，时间按北京时间写。 */
+function mockRosterCsv(competitionId: string): string {
+  const header = ["account_id", "login", "status", "note", "looking_for_team", "team_name", "role", "created_at_beijing", "updated_at_beijing", "cancelled_at_beijing"];
+  const rows = mockRoster(competitionId).signups.map(row => [
+    row.account_id, row.login, row.status, row.note, row.looking_for_team ? "1" : "0",
+    row.team_name ?? "", row.role ?? "", beijingStamp(row.created_at), beijingStamp(row.updated_at),
+    row.cancelled_at === null ? "" : beijingStamp(row.cancelled_at),
+  ].map(csvCell).join(","));
+  return `\ufeff${[header.join(","), ...rows].join("\r\n")}\r\n`;
+}
+
 const FEEDBACK = [
   { id: 21, category: "建议", status: "open", submitter_login: "liu-xing", contact: "", content: "希望每月有一次项目复盘分享，录屏放到论坛里，方便没到场的同学补看。", reply: null, replied_by: null, replied_at: null, created_at: now - 5 * HOUR },
   { id: 20, category: "Bug", status: "in_progress", submitter_login: null, contact: "wechat: example", content: "官网投递页在手机上提交按钮被输入法挡住了。", reply: "已复现，正在修。", replied_by: "wang-zhe", replied_at: now - 1 * DAY, created_at: now - 2 * DAY },
@@ -541,6 +644,14 @@ export function routeConsole(url: URL): unknown {
   if (path === "/api/console/competitions") {
     need(persona, "console.access");
     return { competitions: competitionView() };
+  }
+  const roster = path.match(/^\/api\/console\/competitions\/([^/]+)\/(roster|roster\.csv|score-events)$/);
+  if (roster) {
+    need(persona, "competitions.manage");
+    const competitionId = decodeURIComponent(roster[1]);
+    if (roster[2] === "roster") return mockRoster(competitionId);
+    if (roster[2] === "roster.csv") return mockRosterCsv(competitionId);
+    return { events: MOCK_SCORE_EVENTS[competitionId] ?? [] };
   }
   if (path === "/api/console/audit") {
     need(persona, "audit.read");

@@ -124,3 +124,37 @@ export type CompetitionRecord = {
   start_at: number; end_at: number; signup_deadline: number | null;
   url: string | null; description: string; status: CompetitionStatus; offline: boolean;
 };
+
+/** 报名设置（#239）：没有设置行的比赛按默认值（未开放报名）。 */
+export type SignupParticipation = "individual" | "team";
+export type SignupScoring = "none" | "contribution";
+export type SignupSettings = {
+  enabled: boolean; participation: SignupParticipation; team_min: number; team_max: number; scoring: SignupScoring;
+};
+
+/** 名单统计：口径见服务端 `statsOf`（个人赛的确认人数等于报名人数，没有「未成队」）。 */
+export type RosterStats = { signups: number; teams: number; locked_teams: number; confirmed_people: number; unplaced: number };
+export type RosterPerson = { account_id: string; login: string; avatar_url: string | null };
+/** 控制台名单里的报名：含已取消的历史行。 */
+export type RosterSignup = RosterPerson & {
+  status: "active" | "cancelled"; note: string; looking_for_team: boolean;
+  team_id: string | null; team_name: string | null; role: "leader" | "member" | null;
+  created_at: number; updated_at: number; cancelled_at: number | null;
+};
+export type RosterTeamMember = RosterPerson & { role: "leader" | "member"; joined_at: number };
+export type RosterTeam = {
+  id: string; name: string; slogan: string; status: "recruiting" | "locked" | "disbanded";
+  leader_account_id: string; members: RosterTeamMember[]; member_count: number;
+  created_at: number; disbanded_at: number | null;
+};
+export type CompetitionRoster = { settings: SignupSettings; stats: RosterStats; signups: RosterSignup[]; teams: RosterTeam[] };
+
+/** 积分账本：一条记录只改状态，撤销留痕。 */
+export type ScoreKind = "issue" | "pr" | "penalty";
+export type ScoreEvent = {
+  id: string; competition_id: string; person: RosterPerson; kind: ScoreKind;
+  repo: string | null; number: number | null; points: number; reason: string;
+  status: "active" | "revoked"; created_by_login: string; created_at: number;
+  revoked_at: number | null; revoke_reason: string | null;
+};
+export type ScoreEventList = { events: ScoreEvent[] };

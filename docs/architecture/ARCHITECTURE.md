@@ -2,7 +2,7 @@
 
 > 四个源码应用、三个 Docker 运行单元；区分当前代码、开发模式与部署证据，并从统一目录追溯接口、数据和权限。
 
-状态：`current` · 更新：2026-10-18
+状态：`current` · 更新：2026-10-21
 
 ## 当前拓扑
 
@@ -50,7 +50,7 @@ geek_main 根 README / AGENTS / 命令 / docs
 
 `buildApp` 注册真实核心应用但不监听；`index.ts` 才加载环境和监听。`services.ts` 统一拥有 data.db、缓存、身份、论坛存储与外部客户端。**数据层是 SQLite（better-sqlite3，WAL），存放在 Docker 命名卷里**（容器内 `/data/data.db`）。结构清单见生成的[数据目录](catalog/data-model.md)，用途、读写方、个人信息及未使用对象见 [server 数据模型](../services/server/data-model.md)，本页不再维护容易漏项的第二份表名清单。Postgres 迁移未做；任何迁移仍需方案、授权与恢复演练。
 
-核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。全站只有这一个登录：官网、论坛、控制台共用同一个 host-only `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，登录没成功时带 `?signin=<原因>` 回到发起登录的页面（见 [SECURITY](SECURITY.md)「登录门槛」）。官网菜单栏和论坛只经同域 `/auth/me` 读身份；论坛没有自己的登录。论坛的数据与授权在核心服务的 `/api/forum/*`（#57，[ADR-0004](../decisions/0004-forum-backend-in-core-server.md)）：存在同一个 data.db 的 `forum_*` 表，成员只认 `sid`，论坛能力与控制台同一条 `computeAccess` 路径，游客能看帖和回复。
+核心 GitHub OAuth 的 sid 和组织权限校验保留，不再创建旧 forum_sid。全站只有这一个登录：官网、论坛、控制台共用同一个 host-only `sid`，只有 `CONSOLE_ORG` 的 active 成员能登录，三端的「登录」都进统一登录页 `/signin`，登录没成功时带 `signin=<原因>` 与原来的 `return_to` 回到这一页说明（#262，见 [SECURITY](SECURITY.md)「登录门槛」）。官网菜单栏和论坛只经同域 `/auth/me` 读身份；论坛没有自己的登录。论坛的数据与授权在核心服务的 `/api/forum/*`（#57，[ADR-0004](../decisions/0004-forum-backend-in-core-server.md)）：存在同一个 data.db 的 `forum_*` 表，成员只认 `sid`，论坛能力与控制台同一条 `computeAccess` 路径，游客能看帖和回复。
 
 原始 forum.db 及附件在私有备份中保持原样，未删除、未导入可写库；本机展示的只读投影由该备份离线生成（见 [数据保全](../ops/FORUM-DATA-CAPTURE.md)）。旧论坛数据和代码生命周期分开；代码退役不等于授权删除数据。新论坛的跨设备存储已在核心服务（上段）；旧数据导入仍须另立方案，只有公开的旧帖（`app/forum/content/published/topics.json`）在启动时按编号「没有才插入」。
 

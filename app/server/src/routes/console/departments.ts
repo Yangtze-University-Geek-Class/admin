@@ -40,7 +40,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "captain_only_capability", message: captainOnlyMessage() });
     }
     if (!roles.insertDepartment(body)) return reply.code(409).send({ error: "department_exists", message: "部门 id 已存在" });
-    audit(config.consoleOrg, req.session!.login, "department.create", body.id, { name: body.name }, req.ip);
+    audit(config.consoleOrg, req.session!, "department.create", body.id, { name: body.name }, req.ip);
     return reply.code(201).send({ department: view().find(item => item.id === body.id) });
   });
 
@@ -54,7 +54,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
       }
       const changed = roles.updateDepartment(id, req.body);
       if (changed === null) return reply.code(404).send({ error: "not_found", message: "部门不存在" });
-      if (changed.length) audit(config.consoleOrg, req.session!.login, "department.update", id, { changed }, req.ip);
+      if (changed.length) audit(config.consoleOrg, req.session!, "department.update", id, { changed }, req.ip);
       return { department: view().find(item => item.id === id) };
     },
   );
@@ -68,7 +68,7 @@ export default async function consoleDepartmentRoutes(app: FastifyInstance) {
       const department = roles.getDepartment(id);
       const removed = roles.deleteDepartment(id);
       if (!department || removed === null) return reply.code(404).send({ error: "not_found", message: "部门不存在" });
-      audit(config.consoleOrg, req.session!.login, "department.delete", id, {
+      audit(config.consoleOrg, req.session!, "department.delete", id, {
         name: department.name,
         removed: removed.map(row => ({ github_login: row.github_login, role: row.role })),
       }, req.ip);

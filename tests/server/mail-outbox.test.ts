@@ -6,7 +6,7 @@ import { aliyunSignature, ALIYUN_ENDPOINT, RESEND_ENDPOINT } from '../../app/ser
 import { MAX_ATTEMPTS, RETRY_DELAYS_MS, SEND_LEASE_MS } from '../../app/server/src/lib/mail/outbox';
 import { formatMailDateTime } from '../../app/server/src/lib/mail/envelope';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp, testConfig } from './helpers';
+import { signIn, testApp, testConfig } from './helpers';
 
 /**
  * 发信队列与触发点（#148）：投递发「已收到」、控制台改状态发对应的信；同一事件只发一封；
@@ -67,7 +67,7 @@ async function setup(env: Record<string, string> = {}, fetch = fakeFetch(), time
   contexts.push(context);
   const { app } = context;
   const { db } = app.services.storage;
-  const alice = { cookie: `sid=${app.services.auth.createSession('alice', 101, null, 'token-alice')}` };
+  const alice = { cookie: `sid=${signIn(app, 'alice', 101, null, 'token-alice')}` };
   const apply = async (patch: Record<string, unknown> = {}) => {
     const response = await app.inject({ method: 'POST', url: '/api/portal/apply', payload: { ...APPLICANT, pow: { timestamp: Date.now(), nonce: 'test' }, ...patch } });
     expect(response.statusCode).toBe(201);

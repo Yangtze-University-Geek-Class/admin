@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import CompetitionsApp, { type PhoneNav } from "../../app/web/sites/portal/components/os/competitions/CompetitionsApp";
-import { COMPETITIONS_URL, beijingDay, beijingDayEdge, dayRange, readCompetition, readCompetitions, shortDay, statusAt } from "../../app/web/sites/portal/lib/competitions";
+import { COMPETITIONS_URL, beijingDay, beijingDayEdge, dayRange, NO_SIGNUP, readCompetition, readCompetitions, shortDay, statusAt } from "../../app/web/sites/portal/lib/competitions";
 import {
   applyFilter, cardWhen, competitionAction, dayLabel, deadlineFact, deadlineLabel, matchesQuery, NO_FILTER, pointLabel,
   scheduleFact, scheduleSteps, signupFact, siteHost, statusHint,
@@ -67,13 +67,21 @@ describe("桌面：左边列表、右边详情", () => {
     fireEvent.click(card(EXTERNAL.name));
     expect(card(EXTERNAL.name).getAttribute("aria-current")).toBe("true");
     const external = screen.getByRole("region", { name: EXTERNAL.name });
+    // 官网链接在 Hero 的标签里，主按钮是 Hero 里的「去官网报名」（手机上主按钮改在底部操作条）
+    const hero = external.querySelector<HTMLElement>(".pt-cx-hero")!;
     const go = within(external).getByRole("link", { name: /去官网报名/ });
+    expect(go.closest(".pt-cx-hero")).toBe(hero);
+    expect(go.classList.contains("is-hero")).toBe(true);
     expect(go.getAttribute("href")).toBe(EXTERNAL.url);
     expect(go.getAttribute("target")).toBe("_blank");
     expect(go.getAttribute("rel")).toContain("noopener");
     expect(go.getAttribute("rel")).toContain("noreferrer");
     const site = within(external).getByRole("link", { name: /dasai\.lanqiao\.cn/ });
+    expect(site.classList.contains("pt-cx-hero-tag")).toBe(true);
+    expect(site.closest(".pt-cx-hero")).toBe(hero);
     expect(site.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(within(hero).getByText("外部赛")).toBeTruthy();
+    expect(within(hero).getByText("报名中")).toBeTruthy();
     // 外部比赛的链接都指向登记的官网，没有别的去处
     expect(within(external).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([EXTERNAL.url, EXTERNAL.url]);
     expect(within(external).getByText("在比赛官网报名")).toBeTruthy();
@@ -158,7 +166,11 @@ describe("手机：列表点进详情再返回", () => {
     expect(document.activeElement).toBe(detailHeading());
     expect(screen.queryByRole("list", { name: "比赛列表" })).toBeNull();
     expect(screen.queryByRole("searchbox")).toBeNull();
-    expect(screen.getByRole("link", { name: /去官网报名/ })).toBeTruthy();
+    // 手机上主按钮在底部操作条（拇指够得着），Hero 里只放官网链接
+    const go = screen.getByRole("link", { name: /去官网报名/ });
+    expect(go.closest(".pt-cx-act")).not.toBeNull();
+    expect(go.closest(".pt-cx-hero")).toBeNull();
+    expect(screen.getByRole("link", { name: /dasai\.lanqiao\.cn/ }).classList.contains("pt-cx-hero-tag")).toBe(true);
     const back = nav.mock.lastCall?.[0];
     expect(back).toMatchObject({ backText: "比赛列表", backLabel: "返回比赛列表" });
 
@@ -294,6 +306,11 @@ describe("读入与北京时间", () => {
     expect(readCompetition({ id: "c2", name: "B", kind: "external", start_at: 1, end_at: 2, url: "https://example.test/x" })!.url).toBe("https://example.test/x");
     expect(readCompetitions({ competitions: [{ id: "c1", name: "A", start_at: 1, end_at: 2 }, "junk", null] })).toHaveLength(1);
     expect(() => readCompetitions(null)).toThrow();
+    // 新的 signup 字段（#239）：内部赛开了在线报名才认，外部赛一律在官网报名
+    const signup = { enabled: true, participation: "team", team_min: 1, team_max: 3, scoring: "contribution" };
+    expect(readCompetition({ ...INTERNAL, signup })?.signup).toEqual(signup);
+    expect(readCompetition(INTERNAL)?.signup).toEqual(NO_SIGNUP);
+    expect(readCompetition({ ...EXTERNAL, signup })?.signup).toEqual(NO_SIGNUP);
   });
 
   it("不显示无法表示的日期或无法解析的官方链接", () => {
@@ -407,7 +424,7 @@ describe("日期与文案（北京时间 2026-10-20 周二 10:00）", () => {
       expect({ registering: 0, closed: 1, ongoing: 2, ended: 3, upcoming: -1 }[statusAt(item, point)]).toBe(done);
     }
     const oneDay = { start_at: start("2026-10-26"), end_at: end("2026-10-26"), signup_deadline: null };
-    expect(scheduleSteps(oneDay, now)).toEqual([{ key: "day", label: "比赛日", when: "10-26（周一）全天", state: "next" }]);
+    expect(scheduleSteps(oneDay, now)).toEqual([{ key: "day", label: "比赛日", when: "10-26（周一）全天", state: "next", at: start("2026-10-26") }]);
     expect(scheduleSteps(oneDay, at("2026-10-26T15:00:00"))[0].state).toBe("now");
     expect(scheduleSteps(oneDay, end("2026-10-26") + 1)[0].state).toBe("done");
   });

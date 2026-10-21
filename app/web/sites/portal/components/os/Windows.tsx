@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
+import type { Account } from "../../lib/account";
 import { links } from "../../lib/links";
 import { agoLabel, runTerminal, type AppId, type OsApp, type TerminalLine } from "../../lib/osApps";
 import { orgChartModel, orgSummary, useOrg, type OrgBadge } from "../../lib/org";
@@ -39,9 +40,12 @@ type Props = {
   /** 这个人能打开的应用（visibleApps），终端的 ls / open 只认这些。 */
   apps: readonly OsApp[];
   phone?: boolean;
+  /** 桌面读到的登录者：比赛窗口用它决定要不要读「我的参赛」、在队伍与天梯里认出「我」（#239）。 */
+  account?: Account | null;
+  accountLoaded?: boolean;
 };
 
-export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen, apps, phone = false }: Props) {
+export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZoom, onMove, onOpen, apps, phone = false, account = null, accountLoaded = true }: Props) {
   const meta = META[win.id];
   const ref = useRef<HTMLElement>(null);
   const width = Math.min(meta.width, window.innerWidth - 24);
@@ -207,7 +211,7 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
           {win.id === "about" && <About onOpen={onOpen} />}
           {win.id === "org" && <OrgChart />}
           {win.id === "forum-feed" && <ForumFeed />}
-          {win.id === "competitions" && <CompetitionsApp phone={phone} onPhoneNav={setPhoneNav} />}
+          {win.id === "competitions" && <CompetitionsApp phone={phone} onPhoneNav={setPhoneNav} account={account} accountLoaded={accountLoaded} />}
           {win.id === "terminal" && <Terminal onOpen={onOpen} apps={apps} />}
         </div>
       </section>

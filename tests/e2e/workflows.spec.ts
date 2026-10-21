@@ -162,10 +162,12 @@ test("console pages explain a missing capability instead of rendering data", asy
   await expect(page.getByText("403 missing_capability · audit.read")).toBeVisible();
 });
 
-test("signed-out visitors land on the GitHub sign-in page with a return path", async ({ page }) => {
+test("signed-out visitors land on the unified sign-in page with a return path and server-listed providers (#262)", async ({ page }) => {
   await openConsole(page, "/console/people", "signed_out");
   await expect(page).toHaveURL(/\/signin\?return_to=/);
-  await expect(page.getByRole("button", { name: "用 GitHub 登录" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "极客班统一登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "通过 GitHub 继续" })).toBeVisible();
+  await expect(page.getByText("/console/people")).toBeVisible();
 });
 
 test("before the console script arrives the entry page already says 正在加载控制台, and hides it once the console renders (#263)", async ({ page }) => {

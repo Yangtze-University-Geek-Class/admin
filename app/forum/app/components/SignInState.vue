@@ -23,7 +23,7 @@ const state = computed(() => {
     case 'pick-identity':
       return { title: copy.demo, description: copy.demoHint, action: { label: '登录', variant: 'primary' as const } }
     case 'sign-in':
-      return { title: copy.signIn, description: '只有极客班成员能用 GitHub 登录。', action: { label: '用 GitHub 登录', variant: 'primary' as const, icon: 'i-carbon-logo-github' } }
+      return { title: copy.signIn, description: '只有极客班成员能登录。', action: { label: '登录', variant: 'primary' as const, icon: 'i-carbon-login' } }
     case 'offline':
     case 'busy':
     case 'not-member':

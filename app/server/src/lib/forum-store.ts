@@ -86,12 +86,13 @@ export type ChangeOptions = {
    */
   posts?: "excerpt" | "full";
 };
-export type MemberIdentity = { githubUserId: number; login: string; avatarUrl: string | null; role: "admin" | "member"; title: ForumTitle | null };
+/** `accountId`：会话的极客班账号（#262），论坛按它认人；`githubUserId` 只用来给新成员编 `m<id>`。 */
+export type MemberIdentity = { accountId: string; githubUserId: number; login: string; avatarUrl: string | null; role: "admin" | "member"; title: ForumTitle | null };
 export type NewPost = { topicId: string; authorId: string; content: string; replyToPostId?: string };
 export type ProfilePatch = { displayName?: string; bio?: string; location?: string; website?: string; notifyPrefs?: Partial<NotifyPrefs> };
 
 type UserRow = {
-  id: string; kind: ForumUserKind; github_user_id: number | null; username: string; display_name: string; bio: string;
+  id: string; kind: ForumUserKind; github_user_id: number | null; account_id: string | null; username: string; display_name: string; bio: string;
   location: string; website: string; avatar_color: string; github_avatar_url: string | null; avatar_hash: string | null;
   role: ForumUser["role"]; title: string | null; notify_reply: number; notify_like: number; notify_follow: number; joined_at: number;
 };
@@ -192,6 +193,7 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
 
   const selectUser = db.prepare("SELECT * FROM forum_users WHERE id = ?");
   const selectUserByName = db.prepare("SELECT * FROM forum_users WHERE username = ? COLLATE NOCASE");
+  const selectUserByAccount = db.prepare("SELECT * FROM forum_users WHERE account_id = ?");
   const selectTopic = db.prepare("SELECT * FROM forum_topics WHERE id = ?");
   const selectPost = db.prepare("SELECT * FROM forum_posts WHERE id = ?");
   const bumpCounter = db.prepare("UPDATE forum_counters SET value = value + 1 WHERE name = ? RETURNING value");
@@ -388,25 +390,28 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     },
 
     /**
-     * 成员的论坛用户：`m<GitHub user_id>`。第一次请求时建，之后每次请求刷新角色、称号与 GitHub 头像地址；
+     * 成员的论坛用户：先按极客班账号找（#262）；没有就是 `m<GitHub user_id>`，第一次请求时建并写上账号
+     * （登录事务已经认领过同一个 GitHub id 的旧行）。之后每次请求刷新角色、称号与 GitHub 头像地址；
      * 用户自己改过的昵称、签名、上传的头像不动。GitHub 改了登录名时，新名字没人占就跟着改。
      */
     ensureMember(identity: MemberIdentity, now = Date.now()): string {
-      const id = `m${identity.githubUserId}`;
+      const claimed = selectUserByAccount.get(identity.accountId) as UserRow | undefined;
+      const id = claimed?.id ?? `m${identity.githubUserId}`;
       const title = identity.title ? JSON.stringify(identity.title) : null;
       const avatarUrl = identity.avatarUrl || null;
-      const row = user(id);
+      const row = claimed ?? user(id);
       if (!row) {
         db.prepare(
-          `INSERT INTO forum_users(id, kind, github_user_id, username, display_name, avatar_color, github_avatar_url, role, title, joined_at, updated_at)
-           VALUES(?, 'member', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(id, identity.githubUserId, freeUsername(identity.login, identity.githubUserId), identity.login, paletteColor(identity.githubUserId), avatarUrl, identity.role, title, now, now);
+          `INSERT INTO forum_users(id, kind, github_user_id, username, display_name, avatar_color, github_avatar_url, role, title, joined_at, updated_at, account_id)
+           VALUES(?, 'member', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(id, identity.githubUserId, freeUsername(identity.login, identity.githubUserId), identity.login, paletteColor(identity.githubUserId), avatarUrl, identity.role, title, now, now, identity.accountId);
         return id;
       }
       const username = row.username.toLowerCase() !== identity.login.toLowerCase() && !usernameTaken(identity.login) ? identity.login : row.username;
-      if (row.role !== identity.role || row.title !== title || row.github_avatar_url !== avatarUrl || row.username !== username) {
-        db.prepare("UPDATE forum_users SET role = ?, title = ?, github_avatar_url = ?, username = ?, updated_at = ? WHERE id = ?")
-          .run(identity.role, title, avatarUrl, username, now, id);
+      const accountId = row.account_id ?? identity.accountId;
+      if (row.role !== identity.role || row.title !== title || row.github_avatar_url !== avatarUrl || row.username !== username || row.account_id !== accountId) {
+        db.prepare("UPDATE forum_users SET role = ?, title = ?, github_avatar_url = ?, username = ?, account_id = ?, updated_at = ? WHERE id = ?")
+          .run(identity.role, title, avatarUrl, username, accountId, now, id);
       }
       return id;
     },

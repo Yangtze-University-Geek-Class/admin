@@ -1,0 +1,392 @@
+{
+  "version": 1,
+  "issue": 239,
+  "kind": "business",
+  "summary": "比赛应用（#239）：官网比赛窗口升级为「赛事 / 我的参赛」，极客班成员在内部比赛上报名、组队、找队友、确认参赛，并按报名与队伍看积分天梯；控制台新增报名与积分页（报名设置、名单与统计、CSV 导出、积分登记与撤销）。服务端新增 5 张表（报名设置、报名、队伍、队伍成员、积分账本）、一套成员守卫与 23 个接口，公开列表与单场接口带报名摘要；有报名后 #238 的 PATCH/DELETE 增加约束。参赛者按统一账号 account_id 识别，不按 GitHub 登录名；外部比赛的报名只是意向。",
+  "applications": [
+    "server",
+    "web",
+    "console"
+  ],
+  "domains": [
+    "competitions",
+    "identity",
+    "organization",
+    "audit",
+    "platform",
+    "public_content",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "github",
+    "forum",
+    "mail"
+  ],
+  "flows": [
+    "flow:competition.public.list",
+    "flow:competition.public.detail",
+    "flow:competition.console.list",
+    "flow:competition.create",
+    "flow:competition.update",
+    "flow:competition.delete",
+    "flow:competition.me.list",
+    "flow:competition.my_status",
+    "flow:competition.signup.upsert",
+    "flow:competition.signup.cancel",
+    "flow:competition.teams.list",
+    "flow:competition.free_agents.list",
+    "flow:competition.team.create",
+    "flow:competition.team.apply",
+    "flow:competition.team.invite",
+    "flow:competition.team.respond",
+    "flow:competition.team.leave",
+    "flow:competition.team.transfer",
+    "flow:competition.team.disband",
+    "flow:competition.team.lock",
+    "flow:competition.team.unlock",
+    "flow:competition.leaderboard.read",
+    "flow:competition.signup_settings.update",
+    "flow:competition.roster.read",
+    "flow:competition.roster.export",
+    "flow:competition.score_events.list",
+    "flow:competition.score_events.create",
+    "flow:competition.score_events.revoke",
+    "flow:application.review",
+    "flow:feedback.admin.update",
+    "flow:forum.state",
+    "flow:invitation.links.create",
+    "flow:github.members.remove",
+    "flow:documentation.list"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "一个应用两个视图：所有人看同一份赛事，「我的参赛」只属于登录成员。内部比赛开放报名后可报名（团队赛再建队、申请/邀请、确认参赛），「我的状态」由报名、队伍与比赛类型现算（未报名、已报名、已成队、已确认参赛、未成队）；外部比赛的报名只是意向，用来找队友和统计。组织者在控制台按比赛开放报名、定个人或团队与每队人数、是否计分，看名单并导出；积分按合入的 Issue +5～+30、PR +15～+100、作弊 −50 登记，可撤销，天梯按在队成员积分现算。所有写操作统一要求「已开放报名且在报名中」，截止后整场只读，未确认的队伍不计入参赛。",
+      "evidence": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/lib/competition-score-store.ts",
+        "app/web/sites/portal/components/os/competitions/CompetitionsApp.tsx",
+        "app/console/src/pages/CompetitionHub.vue",
+        "docs/plan/COMPETITION-APP.md"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增 routes/portal/competition-signups.ts（我的参赛、我的状态、报名与取消、队伍与找队友、申请/邀请/处理/退出/转让/解散/确认/撤销确认、天梯）与 routes/console/competition-roster.ts（报名设置、名单、CSV、积分记录、登记、撤销），全部挂载请求与响应 Schema，错误码集中在 lib/competition-signup-store.ts 的 SIGNUP_ERRORS 与 lib/competition-score-store.ts 的 SCORE_ERRORS，路由只做鉴权、限流与映射。公开列表每场多 signup 摘要，新增匿名 GET /api/public/competitions/:id（只在成功响应上放开 CORS）。#238 的 PATCH 增加 kind_locked、deadline_required，DELETE 增加 has_signups；成员写 30 次/分钟、名单导出 5 次/分钟。写操作在事务里重读状态再写，唯一索引兜底并发。",
+      "evidence": [
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/routes/portal/competitions.ts",
+        "app/server/src/routes/portal/contracts.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/lib/competition-contract.ts",
+        "app/server/src/routes/console/competitions.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "不新增能力：名单、设置与积分复用 competitions.manage；门户接口要求登录（401 not_signed_in）且是极客班成员（403 not_member），成员判断只在 middleware/require-member.ts 一处，按会话 account_id 认人、不读 GitHub 登录名。领队与当事人是行级角色：领队操作校验 not_team_leader，成员关系必须属于路径上的队伍（否则 404），停用或已不是成员的账号不能被邀请、同意或接任（target_not_member）。匿名与本场无关成员拿不到人数、队伍与待处理；待处理申请与邀请只给领队与当事人；组织者也要遵守时间窗口、一人一队与领队规则。",
+      "evidence": [
+        "app/server/src/middleware/require-member.ts",
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/web/sites/portal/lib/competitionHub.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "只新增 5 张表：competition_signup_settings（每场一行，没有行即未开放）、competition_signups（一人一场一行，取消保留行）、competition_teams（队名查重键 name_key，唯一索引只约束未解散队伍）、competition_team_members（在队与待处理同一张表，两个部分唯一索引保证一人一队与一条待处理）、competition_score_events（issue/pr/penalty 分值 CHECK，撤销只改状态，唯一索引防同一 Issue/PR 重复记分）。全部外键引用 users(id)，不改 competitions 表结构。启动时 CREATE TABLE IF NOT EXISTS，旧库重启幂等；同时插入一期开源贡献赛与它的报名设置，用 console_seeds 标记，只插一次，删除后重启不再补。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/competition-signups.test.ts",
+        "tests/server/competition-scores.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "依赖 #262 统一登录交付 1：会话里的 account_id 与 users 表是报名、组队、积分的外键与身份键；没有 account_id 的会话按未登录处理。services.ts 把两个新 store 组装进依赖图，路由只从 app.services 取。不新增依赖包、凭据、第三方服务或环境变量；不调用 GitHub、不发邮件、不发站内信、不建论坛内容、不建 GitHub team。",
+      "evidence": [
+        "app/server/src/services.ts",
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/routes/portal/index.ts",
+        "app/server/src/routes/console/index.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "server 合同、数据模型、接口行为契约、API 与 SECURITY 写明新接口、错误码、限流、5 张表与种子比赛、报名数据的可见范围与审计；portal 合同写明比赛应用的结构、不同身份看到什么与手机呈现；console 合同写明报名与积分页与入口；比赛方案改成已实施并补实施结论、差异与交付截图；目录登记 23 个新流程、5 张新表与两张新路由文件，并更新公开列表、PATCH、DELETE 的不变量。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/web/portal.md",
+        "docs/services/console/README.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/plan/COMPETITION-APP.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增服务端报名/组队与积分两组真实 HTTP 用例（401/403、公开摘要不含人数、幂等与取消联动、队伍全流程、设置校验与审计、CSV 注入与导出审计、#238 三条新约束、30/5 次限流；积分分值边界、重复、撤销留痕、天梯并列与 0 分），旧库重启与种子只插一次的回归；官网新增门户用例（报名、建队、邀请、天梯、分身份与状态文案）并调整 #265 的浏览用例；控制台用例覆盖表单校验、请求体、CSV 路径、错误文案与样板数据。未验证：两账号在预发布环境的真实验收与 #239 控制台页的浏览器端到端（本 PR 只到纯函数与真实接口层）。",
+      "evidence": [
+        "tests/server/competition-signups.test.ts",
+        "tests/server/competition-scores.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/web/portal-competition-hub.test.tsx",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/console/competition-hub.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "仍由既有 server、web、console 产物交付：server 新镜像第一次启动时建 5 张表并写入种子比赛，失败则启动失败；web 与 console 随现有镜像发布，不新增路由入口、运行单元、环境变量或发布 tag。合并进 stage 只跑 CI，发预发布要等获授权的 rc tag。",
+      "evidence": [
+        "app/server/src/services.ts",
+        "app/server/src/lib/db.ts",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/console/src/router.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/lib/competition-score-store.ts",
+        "app/server/src/lib/competition-contract.ts",
+        "app/server/src/lib/db.ts",
+        "app/server/src/middleware/require-member.ts",
+        "app/server/src/services.ts",
+        "app/server/src/routes/portal/competition-signups.ts",
+        "app/server/src/routes/portal/competitions.ts",
+        "app/server/src/routes/portal/contracts.ts",
+        "app/server/src/routes/portal/index.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/routes/console/competitions.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/index.ts"
+      ],
+      "domains": [
+        "competitions",
+        "identity",
+        "organization",
+        "audit",
+        "platform",
+        "public_content",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "github",
+        "forum",
+        "mail"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "table:competition_signup_settings",
+        "table:competition_signups",
+        "table:competition_teams",
+        "table:competition_team_members",
+        "table:competition_score_events",
+        "route:GET /api/me/competitions",
+        "route:GET /api/competitions/:id/my-status",
+        "route:POST /api/competitions/:id/signup",
+        "route:DELETE /api/competitions/:id/signup",
+        "route:GET /api/competitions/:id/teams",
+        "route:GET /api/competitions/:id/free-agents",
+        "route:POST /api/competitions/:id/teams",
+        "route:POST /api/teams/:id/apply",
+        "route:POST /api/teams/:id/invite",
+        "route:POST /api/teams/:id/respond",
+        "route:POST /api/teams/:id/leave",
+        "route:POST /api/teams/:id/transfer",
+        "route:DELETE /api/teams/:id",
+        "route:POST /api/teams/:id/lock",
+        "route:DELETE /api/teams/:id/lock",
+        "route:GET /api/competitions/:id/leaderboard",
+        "route:GET /api/public/competitions",
+        "route:GET /api/public/competitions/:id",
+        "route:PUT /api/console/competitions/:competition_id/signup-settings",
+        "route:GET /api/console/competitions/:competition_id/roster",
+        "route:GET /api/console/competitions/:competition_id/roster.csv",
+        "route:GET /api/console/competitions/:competition_id/score-events",
+        "route:POST /api/console/competitions/:competition_id/score-events",
+        "route:POST /api/console/competitions/:competition_id/score-events/:event_id/revoke",
+        "flow:competition.me.list",
+        "flow:competition.my_status",
+        "flow:competition.signup.upsert",
+        "flow:competition.signup.cancel",
+        "flow:competition.teams.list",
+        "flow:competition.free_agents.list",
+        "flow:competition.team.create",
+        "flow:competition.team.apply",
+        "flow:competition.team.invite",
+        "flow:competition.team.respond",
+        "flow:competition.team.leave",
+        "flow:competition.team.transfer",
+        "flow:competition.team.disband",
+        "flow:competition.team.lock",
+        "flow:competition.team.unlock",
+        "flow:competition.leaderboard.read",
+        "flow:competition.public.detail",
+        "flow:competition.signup_settings.update",
+        "flow:competition.roster.read",
+        "flow:competition.roster.export",
+        "flow:competition.score_events.list",
+        "flow:competition.score_events.create",
+        "flow:competition.score_events.revoke"
+      ],
+      "reason": "报名、组队与积分的服务端落地：两个 store 承担全部规则与状态机，db.ts 建 5 张表并写入一期开源贡献赛，require-member.ts 是唯一的成员判断，competition-contract.ts 定义请求与响应 Schema；门户与控制台路由只做鉴权、限流与错误映射，#238 的比赛写入在同一张错误码表上加了三条约束。services.ts 把两个 store 接进依赖图。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/components/os/competitions/",
+        "app/web/sites/portal/lib/competitionHub.ts",
+        "app/web/sites/portal/lib/competitionLabels.ts",
+        "app/web/sites/portal/lib/competitions.ts",
+        "app/web/sites/portal/lib/account.ts",
+        "app/web/sites/portal/lib/icons.ts",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/pages/Home.tsx",
+        "app/web/sites/portal/styles/competitions.css",
+        "app/web/sites/portal/styles/os.css"
+      ],
+      "domains": [
+        "competitions",
+        "identity",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment",
+        "feedback",
+        "invitations"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.public.list",
+        "flow:competition.public.detail",
+        "flow:competition.me.list",
+        "flow:competition.my_status",
+        "flow:competition.signup.upsert",
+        "flow:competition.team.respond",
+        "flow:competition.leaderboard.read"
+      ],
+      "reason": "官网比赛窗口改成应用：CompetitionsApp 承担「赛事 / 我的参赛」、筛选、搜索、手机进出详情与我的参赛状态；CompetitionDetail 承担 Hero、概览、页签与按 actions 渲染的操作条；TeamHub、HubDialog、Leaderboard、Avatar 承担队伍、找队友、弹窗与天梯；competitionHub.ts 负责接口调用、响应形状校验、错误文案与状态文案，#239 的样式从 os.css 拆到 competitions.css；account.ts 加 accountId 让天梯与队伍认出「我」。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/CompetitionHub.vue",
+        "app/console/src/lib/competition-hub.ts",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts",
+        "app/console/src/pages/Competitions.vue",
+        "app/console/src/router.ts"
+      ],
+      "domains": [
+        "competitions",
+        "organization",
+        "recruitment",
+        "feedback",
+        "github",
+        "audit"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "route:GET /api/console/competitions",
+        "flow:competition.console.list",
+        "flow:competition.signup_settings.update",
+        "flow:competition.roster.read",
+        "flow:competition.score_events.create"
+      ],
+      "reason": "控制台新增 /console/competitions/:id「报名与积分」页：报名设置、五个统计、报名与队伍两张表、CSV 导出、积分登记与撤销，权限沿用 competitions.manage；列表页只给内部比赛加入口；competition-hub.ts 放表单校验、请求体、统计与积分文案；types.ts 与 mock 的样板数据跟着加，router.ts 注册新路由。"
+    },
+    {
+      "paths": [
+        "tests/server/competition-signups.test.ts",
+        "tests/server/competition-scores.test.ts",
+        "tests/server/competitions.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/web/portal-competition-hub.test.tsx",
+        "tests/web/portal-competitions.test.tsx",
+        "tests/web/portal-os.test.ts",
+        "tests/console/competition-hub.test.ts",
+        "tests/e2e/competitions.spec.mts",
+        "tests/e2e/portal-competitions.spec.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.upsert",
+        "flow:competition.team.respond",
+        "flow:competition.leaderboard.read",
+        "flow:competition.roster.export"
+      ],
+      "reason": "服务端两组新用例覆盖报名、组队、名单、导出、设置与积分全流程及错误码与限流，旧库与种子比赛有重启用例，#238 的比赛用例补上 signup 摘要与三条新约束；官网补门户用例，控制台补纯函数与样板数据用例，e2e 沿用两尺寸的比赛窗口回归。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/web/portal.md",
+        "docs/services/console/README.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/plan/COMPETITION-APP.md",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/assets/competition-app/"
+      ],
+      "domains": [
+        "competitions",
+        "identity",
+        "platform",
+        "audit"
+      ],
+      "nodes": [
+        "document:docs/services/server/README.md",
+        "document:docs/services/server/data-model.md",
+        "document:docs/services/server/endpoint-contracts.md",
+        "document:docs/services/web/portal.md",
+        "document:docs/services/console/README.md",
+        "document:docs/plan/COMPETITION-APP.md",
+        "domain:competitions"
+      ],
+      "reason": "人工文档同步新接口、错误码、限流、5 张表与种子比赛、报名数据可见范围与审计、比赛应用的结构与手机呈现、控制台新页面，以及方案的已实施结论与交付截图；ownership 登记 23 个流程、5 张表、两张新路由文件与三条既有流程的新不变量，其余目录文件由 pnpm catalog:generate 重建。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/web/portal.md",
+    "docs/services/console/README.md",
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/plan/COMPETITION-APP.md"
+  ],
+  "tests": [
+    "tests/server/competition-signups.test.ts",
+    "tests/server/competition-scores.test.ts",
+    "tests/server/competitions.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/web/portal-competition-hub.test.tsx",
+    "tests/web/portal-competitions.test.tsx",
+    "tests/web/portal-os.test.ts",
+    "tests/console/competition-hub.test.ts",
+    "tests/e2e/competitions.spec.mts",
+    "tests/e2e/portal-competitions.spec.ts"
+  ],
+  "compatibility": "报名与组队是新增接口与页面，未登录或非成员看到的赛事列表与 #265 一致；公开列表只是每场多一个 signup 摘要，旧客户端忽略即可，单场公开接口是新路径。有报名的比赛不能再改内外部或删除，这是 #238 行为的收紧，控制台把 409 原样显示。积分只对开启计分的比赛可见，未开启时接口回 409、页面不显示天梯。",
+  "migration": "新镜像启动时 CREATE TABLE IF NOT EXISTS 建 5 张表，不改 competitions；同一启动步骤插入一期开源贡献赛与它的报名设置，用 console_seeds 的 competition_oss_2026_1 标记只插一次，之后删掉或改掉都不会在重启时补回来。旧库重启不需要手工步骤，升级后用同一条语句可重复执行。",
+  "rollback": "合并后在 stage 上 git revert -m 1 撤销本 PR 的合并提交并重建 server、web、console 产物。已上线的库不用动：旧代码不认识这 5 张表，报名、队伍、积分数据留在库里，重新上线时照常读取；种子比赛只是 competitions 里的一行，旧页面照常显示，不想要可由组织者删除。web 与 console 回滚后比赛窗口与列表页回到 #265 / #238 的样子，接口多出来的 signup 字段被忽略。"
+}

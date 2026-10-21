@@ -50,6 +50,11 @@
   status = 200
 
 [[redirects]]
+  from = "/device"
+  to = "/sites/console/index.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/sites/portal/index.html"
   status = 200

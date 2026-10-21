@@ -7,7 +7,7 @@ import type Database from 'better-sqlite3';
 import { buildApp } from '../../app/server/src/app';
 import { SESSION_CLEANUP_INTERVAL_MS, SESSION_TTL_MS } from '../../app/server/src/lib/auth';
 import type { ServiceOverrides } from '../../app/server/src/services';
-import { testApp, testConfig } from './helpers';
+import { signIn, testApp, testConfig } from './helpers';
 
 /**
  * 过期会话的主动清理（#128）：`sessions` 每行都存着加密的高权限 GitHub token，登录一次就不再回来的会话
@@ -63,11 +63,11 @@ async function rawApp(sessionCleanup: boolean) {
 
 describe('expired sessions are deleted without waiting for their owner to come back (#128)', () => {
   it('deletes the expired rows and leaves the unexpired ones alone', async () => {
-    const { auth, db, time, rows } = await setup();
-    const stale = auth.createSession('stale-user', 1, null, 'token-stale');
+    const { app, auth, db, time, rows } = await setup();
+    const stale = signIn(app, 'stale-user', 1, null, 'token-stale');
     // 拨到过期之后再建一个：这时前者已过期、后者还有效
     time.advance(SESSION_TTL_MS + 1);
-    const fresh = auth.createSession('fresh-user', 2, null, 'token-fresh');
+    const fresh = signIn(app, 'fresh-user', 2, null, 'token-fresh');
     expect(rows()).toEqual([stale, fresh]);
 
     // 没有人再拿这个 sid 访问过：过期行仍在库里，只有主动清理才会消失
@@ -80,10 +80,10 @@ describe('expired sessions are deleted without waiting for their owner to come b
 
   it('cleans once when the loop starts, then hourly, and stops for good when stopped', async () => {
     fakeIntervals();
-    const { auth, time, rows } = await setup();
-    auth.createSession('stale-user', 1, null, 'token-stale');
+    const { app, auth, time, rows } = await setup();
+    signIn(app, 'stale-user', 1, null, 'token-stale');
     time.advance(SESSION_TTL_MS + 1);
-    const fresh = auth.createSession('fresh-user', 2, null, 'token-fresh');
+    const fresh = signIn(app, 'fresh-user', 2, null, 'token-fresh');
 
     const logger = { info: vi.fn(), error: vi.fn() };
     auth.startCleanup(logger);
@@ -96,7 +96,7 @@ describe('expired sessions are deleted without waiting for their owner to come b
     expect(logger.info).toHaveBeenCalledTimes(2);
 
     auth.stopCleanup();
-    const later = auth.createSession('later-user', 3, null, 'token-later');
+    const later = signIn(app, 'later-user', 3, null, 'token-later');
     time.advance(SESSION_TTL_MS + 1);
     vi.advanceTimersByTime(SESSION_CLEANUP_INTERVAL_MS * 3);
     expect(rows()).toEqual([later]);                                  // 停掉之后不再清
@@ -118,12 +118,12 @@ describe('expired sessions are deleted without waiting for their owner to come b
   it('runs with the app (startup pass, hourly timer, stop on close) only when asked', async () => {
     fakeIntervals();
     const context = await rawApp(true);
-    context.auth.createSession('stale-user', 1, null, 'token-stale');
+    signIn(context.app, 'stale-user', 1, null, 'token-stale');
     context.time.advance(SESSION_TTL_MS + 1);
     await context.app.ready();                                        // onReady：启动时清一次
     expect(context.rows()).toEqual([]);
 
-    const another = context.auth.createSession('another-user', 2, null, 'token-another');
+    const another = signIn(context.app, 'another-user', 2, null, 'token-another');
     expect(context.auth.getSession(another)?.login).toBe('another-user');
     context.time.advance(SESSION_TTL_MS + 1);
     vi.advanceTimersByTime(SESSION_CLEANUP_INTERVAL_MS);              // 之后每小时清一次
@@ -136,7 +136,7 @@ describe('expired sessions are deleted without waiting for their owner to come b
   it('does not run the loop when the flag is off, so injected-service tests never clean on their own', async () => {
     fakeIntervals();
     const plain = await rawApp(false);
-    const kept = plain.auth.createSession('kept-user', 4, null, 'token-kept');
+    const kept = signIn(plain.app, 'kept-user', 4, null, 'token-kept');
     plain.time.advance(SESSION_TTL_MS + 1);
     await plain.app.ready();
     vi.advanceTimersByTime(SESSION_CLEANUP_INTERVAL_MS * 3);
@@ -179,7 +179,7 @@ describe('a removed session leaves no bytes of its token in the files (#128)', (
     const close = async () => { if (!closed) { closed = true; await app.close(); } };
     apps.push({ close: async () => { await close(); rmSync(dir, { recursive: true, force: true }); } });
     const { auth, storage: { db } } = app.services;
-    const stale = auth.createSession('stale-user', 1, null, 'token-stale');
+    const stale = signIn(app, 'stale-user', 1, null, 'token-stale');
     const sealed = (db.prepare('SELECT access_token_encrypted AS v FROM sessions WHERE id = ?').get(stale) as { v: string }).v;
     time.advance(SESSION_TTL_MS + 1);
     return { dir, path, wal: `${path}-wal`, auth, db, stale, sealed, close };

@@ -33,7 +33,7 @@ export function describeError(error: unknown, labelOf: (capability: string) => s
   const reason = isBlockReason(payload.reason) ? payload.reason : null;
   const base = { code: error.code, status: error.status, requestId: error.requestId ?? null, capability, reason };
 
-  if (error.status === 401) return { ...base, kind: "signed_out", title: "登录已失效", detail: "请重新用 GitHub 登录。" };
+  if (error.status === 401) return { ...base, kind: "signed_out", title: "登录已失效", detail: "请重新登录。" };
   if (error.status === 403 && error.code === "missing_capability" && capability) {
     const name = labelOf(capability);
     return {

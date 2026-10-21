@@ -46,3 +46,9 @@
 - 做了什么：PR #266 的 e2e（Playwright 报告）失败 1 条：手机 390×844 用例里「全部」筛选胶囊量出 43.99998px（boundingBox 坐标经 float32 换算，实际是 44px），其余 47 条通过。73c63ae9 把 atLeast44 改为不小于 44 - 0.01，并重建项目目录的来源摘要。
 - 结果：e2e portal-competitions 2 条通过；pnpm check 退出 0。界面与样式没有改。
 - 下一步：推送后等 CI 全绿，按 merge commit 合并 PR #266。
+
+## 18:19:56 +08:00 · 收尾 · #265 · PR #266 已合并，清理 worktree
+
+- 执行者：agent-notion-geek（Notion AI，经 wanctl 操作公司 Mac）
+- 做了什么：node scripts/task.mjs finish 265：删 worktree .claude/worktrees/task-265 与本地分支 task/265/competition_window
+- 结果：PR 已合并
