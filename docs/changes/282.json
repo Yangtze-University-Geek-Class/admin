@@ -1,304 +1,133 @@
 {
   "version": 1,
   "issue": 282,
-  "kind": "business",
-  "summary": "控制台一键系统备份（#282）：GET /api/console/backup 把 data.db 快照、sites/ 下的站点文件和清单打成 tar.gz 流式下载，方便服务器出故障或要搬到新环境时恢复；新增权限节点 system.backup，只有站长的根通配默认拿到；配套恢复脚本 scripts/backup-restore.mjs 和控制台「备份」页。",
-  "applications": [
-    "server",
-    "console"
-  ],
+  "kind": "engineering",
+  "summary": "每日 issue 巡检的 sweep job 补上漏检出的 pr-markdown.mjs，并新增按 job 核对 sparse-checkout 与脚本本地 import 闭包的回归，避免同类漏文件再次让定时任务起不来。",
+  "applications": [],
   "domains": [
-    "audit",
-    "competitions",
-    "feedback",
-    "forum",
-    "github",
-    "gitlab",
-    "identity",
-    "invitations",
-    "organization",
-    "permissions",
-    "platform",
-    "recruitment"
+    "platform"
   ],
-  "flows": [
-    "flow:platform.system_backup",
-    "flow:competition.console.list",
-    "flow:audit.console.activity.list",
-    "flow:permissions.nodes.list",
-    "flow:console.summary",
-    "flow:identity.callback"
-  ],
+  "flows": [],
   "assessments": {
     "business": {
-      "status": "changed",
-      "reason": "新增控制台「备份」功能：所有者 2026-10-24 22:22 要求论坛和全系统数据能一键打包下载，方便原服务器坏了或要搬到新机器时恢复，预发布和正式各自独立备份。",
+      "status": "unchanged",
+      "reason": "不改任何业务规则、用户可见行为或数据流转。只让本该每天运行的 issue 巡检恢复，补关已合并 issue、给超期与缺记录留追踪记录的行为仍由 scripts/issue-sweep.mjs 原样决定。",
       "evidence": [
-        "app/server/src/routes/console/backup.ts",
-        "app/console/src/pages/Backup.vue",
-        "docs/ops/BACKUP.md"
+        "docs/conventions/TRACKING.md",
+        "scripts/issue-sweep.mjs"
       ]
     },
     "backend": {
-      "status": "changed",
-      "reason": "新增 GET /api/console/backup 流式打包路由（system-backup.ts 组装快照、清空短时数据、算 sha256）、tar-stream.ts 的纯 Node 流式 tar+gzip 实现，以及 scripts/backup-restore.mjs 的恢复脚本；services.ts 把 sitesRoot 提成具名变量供路由取用。环境变量名单按当前环境读 deploy/env 下当前环境那份（.env.preview 或 .env.production）；镜像里没有这份模板时为空，恢复脚本再按备份的环境名读仓库里的模板。",
+      "status": "unchanged",
+      "reason": "不新增或修改任何 Fastify 路由、请求响应约定与错误码；改动只在 CI 工作流的检出文件清单与测试工具，服务端代码一行未动。",
       "evidence": [
-        "app/server/src/routes/console/backup.ts",
-        "app/server/src/lib/system-backup.ts",
-        "app/server/src/lib/tar-stream.ts",
-        "app/server/src/services.ts"
+        ".github/workflows/issue-lifecycle.yml",
+        "docs/architecture/catalog/routes.md"
       ]
     },
     "permissions": {
-      "status": "changed",
-      "reason": "新增权限节点 system.backup 与 system 业务域标签；种子里只有站长的根通配 `*` 默认拿到这个节点，部门部长等 curated 列表没有也不需要改。下载还要求 10 分钟内登录过（requireStepUp，和控制台写操作同一个窗口），归档里有全部账号和密码哈希；控制台页面不够新时先请人重新登录。",
+      "status": "unchanged",
+      "reason": "sweep job 的权限声明（contents: read、issues: write、pull-requests: read）逐字未改；本次只是让它检出的文件足够把脚本跑起来，不扩大任何授权范围，也不改变谁能触发巡检。",
       "evidence": [
-        "app/server/src/lib/permission-nodes.ts",
-        "docs/architecture/SECURITY.md"
+        ".github/workflows/issue-lifecycle.yml"
       ]
     },
     "data": {
-      "status": "changed",
-      "reason": "备份只在 SQLite 在线备份出的快照副本上操作，不碰原库：清空 sessions/device_grants/oauth_grants/oidc_payloads/email_challenges/invite_attempts/application_limits/limit_events/forum_rate_events 这些短时数据后再打包，账号与密码哈希保留；没有新建或改动表结构，不需要迁移脚本。",
+      "status": "not-applicable",
+      "reason": "不读写数据库、缓存或任何持久化存储；工作流只读 GitHub issue 与 PR 元数据并写评论，表结构与数据模型没有变化。",
       "evidence": [
-        "app/server/src/lib/system-backup.ts",
-        "docs/ops/BACKUP.md"
+        "docs/architecture/catalog/data-model.md"
       ]
     },
     "dependencies": {
       "status": "unchanged",
-      "reason": "tar-stream.ts 和 system-backup.ts 全部用 Node 内置模块（node:fs、node:zlib、node:crypto、node:os）和已有的 better-sqlite3，backup-restore.mjs 同理；没有新增或升级任何生产依赖。",
+      "reason": "没有新增 npm 包、外部服务或构建步骤。pr-markdown.mjs 早已存在且只导入 Node 内置模块，本次只是让 sweep job 也把它检出，没有版本变化。",
       "evidence": [
-        "app/server/src/lib/tar-stream.ts",
-        "app/server/package.json"
+        "scripts/pr-markdown.mjs",
+        "scripts/pr-contract.mjs"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "新增 docs/ops/BACKUP.md 说明备份内容、下载、恢复与跨环境搬迁步骤；server、console 服务文档、endpoint-contracts.md、SECURITY.md 残余风险段、DEPLOY.md、docs/README.md 和 docs/ops/README.md 的入口表同步补充这个功能。BACKUP.md 补「整机搬到新服务器」一节（所有者 2026-10-25 01:00）：数据、镜像、compose、环境变量、密钥、nginx 与证书、DNS、CDN、宿主机脚本各自从哪里来，GitLab 不在这份备份里，搬迁顺序。",
+      "reason": "docs/ops/CICD.md 的工作流表格里把 sweep 的检出脚本清单改成与实现一致，并写清漏检出会让 job 直接 ERR_MODULE_NOT_FOUND。模块路径 .github/workflows/ 在文档对照表内，必须同一 PR 同步。",
       "evidence": [
-        "docs/ops/BACKUP.md",
-        "docs/services/server/README.md",
-        "docs/services/console/README.md",
-        "docs/services/server/endpoint-contracts.md"
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "新增 4 个测试文件覆盖打包/解包、权限与限流、恢复脚本，本地用 Node 22 跑 `pnpm vitest run tests/server/ tests/console/ tests/tooling/` 全绿（100 个测试文件、1705 个用例，含 tests/tooling/catalog-coverage.test.ts 独立核对的 165/165 业务操作有流程关联）；`pnpm --filter @yzgc/server exec tsc --noEmit` 和 `pnpm --filter @yzgc/console run build`（vue-tsc + vite build）都通过，Backup.vue 的产物 chunk 正常打出。合入 stage f00e9966 后补：backup-route 加刚登录过的用例（20 分钟前的会话 403 step_up_required、不留操作记录），backup-restore 加环境变量名单回退的用例，四个备份测试文件 22 个用例通过。另修 stage 上 3 个过期用例（core.test 两个、identity.test 一个，fb386a9b 改了规则没改用例），tests/server、tests/console、tests/tooling 101 个文件 1726 个用例全部通过。",
+      "reason": "新增 tests/tooling/workflow-sparse-checkout.test.ts：把每个 job 实际运行的脚本展开成本地 import 闭包，与该 job 的 sparse-checkout 清单比对，漏一个就失败；另有三条针对 sweep → pr-contract → pr-markdown 链路的定点断言。修复前跑该测试有 3 条失败并直接点名 pr-markdown.mjs，修复后 13 条全绿。",
       "evidence": [
-        "tests/server/backup-route.test.ts",
-        "tests/server/system-backup.test.ts",
-        "tests/server/tar-stream.test.ts",
-        "tests/tooling/backup-restore.test.ts"
+        "tests/tooling/workflow-sparse-checkout.test.ts",
+        ".github/workflows/issue-lifecycle.yml"
       ]
     },
     "delivery": {
-      "status": "not-applicable",
-      "reason": "不改部署 compose、CI 工作流、Dockerfile 或任何构建配置；恢复脚本只在本机或维护者手动迁移数据时执行，不接入自动部署流程。",
+      "status": "changed",
+      "reason": "改了 .github/workflows/issue-lifecycle.yml 的 sweep job 检出清单，这是 CI 交付面的一部分；但镜像、compose、环境变量契约与部署流程都没动，也不触发任何环境的部署。工作流文件随 PR 进 stage，进 main 后次日的定时运行才会实际用上新清单。",
       "evidence": [
-        "docs/ops/DEPLOY.md",
-        "scripts/backup-restore.mjs"
+        ".github/workflows/issue-lifecycle.yml"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "app/console/src/lib/activity.ts",
-        "app/console/src/lib/nav.ts",
-        "app/console/src/lib/permission-nodes.ts",
-        "app/console/src/mock/console.ts",
-        "app/console/src/router.ts"
-      ],
-      "domains": [
-        "organization",
-        "recruitment",
-        "feedback",
-        "github",
-        "audit",
-        "competitions"
-      ],
-      "nodes": [
-        "domain:organization",
-        "domain:recruitment",
-        "domain:feedback",
-        "domain:github",
-        "domain:audit",
-        "domain:competitions",
-        "application:console"
-      ],
-      "reason": "备份页接入控制台已有的共享注册表：导航分组、权限节点目录镜像、活动文案、mock 数据与路由；这几个文件原本就按 app/console/src/ 的目录声明覆盖这些业务域，这次只各加一条备份相关的条目，不改变它们原有的覆盖范围。"
-    },
-    {
-      "paths": [
-        "app/console/src/pages/Backup.vue"
+        ".github/workflows/issue-lifecycle.yml"
       ],
       "domains": [
         "platform"
       ],
       "nodes": [
-        "domain:platform",
-        "route:GET /api/console/backup",
-        "application:console"
+        "domain:platform"
       ],
-      "reason": "备份页本身的业务域是 platform，单独声明覆盖，不借用其它控制台页面挂的目录归属。"
+      "reason": "sweep job 的 sparse-checkout 增加一行 scripts/pr-markdown.mjs，使 issue-sweep.mjs → pr-contract.mjs → pr-markdown.mjs 这条导入链在检出后完整；pr-contract job 原有清单保持不动。"
     },
     {
       "paths": [
-        "app/server/src/lib/permission-nodes.ts"
-      ],
-      "domains": [
-        "permissions"
-      ],
-      "nodes": [
-        "domain:permissions",
-        "application:server"
-      ],
-      "reason": "新增 system.backup 节点与 system 域标签，只影响权限节点目录本身。"
-    },
-    {
-      "paths": [
-        "app/server/src/routes/console/index.ts"
-      ],
-      "domains": [
-        "audit",
-        "competitions",
-        "feedback",
-        "forum",
-        "gitlab",
-        "identity",
-        "organization",
-        "permissions",
-        "platform",
-        "recruitment"
-      ],
-      "nodes": [
-        "domain:platform",
-        "route:GET /api/console/backup",
-        "application:server"
-      ],
-      "reason": "index.ts 只新增一行 register(backup)；它是整个控制台路由的汇总入口，目录按它已经挂载的全部子路由业务域一并声明，不是这次改动单独引入的范围。"
-    },
-    {
-      "paths": [
-        "app/server/src/services.ts"
+        "tests/tooling/workflow-sparse-checkout.test.ts"
       ],
       "domains": [
         "platform"
       ],
       "nodes": [
-        "domain:platform",
-        "application:server"
+        "domain:platform"
       ],
-      "reason": "把 sitesRoot 提成具名变量，复用给站点包 store 和返回给路由层用于打包备份，只影响 platform 域的服务装配。"
+      "reason": "新增回归：逐个 job 比对「实际运行的脚本的本地 import 闭包」与 sparse-checkout 清单，并定点核对 sweep 那条链路；修复前失败、修复后通过，能区分前后。"
     },
     {
       "paths": [
-        "app/server/src/lib/system-backup.ts",
-        "app/server/src/lib/tar-stream.ts",
-        "app/server/src/routes/console/backup.ts",
-        "scripts/backup-restore.mjs"
+        "docs/ops/CICD.md"
       ],
       "domains": [
         "platform"
       ],
       "nodes": [
-        "domain:platform",
-        "route:GET /api/console/backup",
-        "flow:platform.system_backup",
-        "application:server"
+        "domain:platform"
       ],
-      "reason": "一键系统备份的核心实现：组装归档、流式 tar+gzip、GET /api/console/backup 路由，以及配套的命令行恢复脚本，都只属于 platform 域。"
+      "reason": "工作流表格里 sweep 的检出脚本清单与行为描述改成与实现一致，并写清漏检出的后果。docs/ops/CICD.md 不在项目目录的 document 节点里（目录只登记 API、ARCHITECTURE、SECURITY 等少数几份），所以对齐到它所属的 platform 域。"
     },
     {
       "paths": [
-        "docs/README.md",
-        "docs/architecture/SECURITY.md",
-        "docs/ops/DEPLOY.md",
-        "docs/ops/README.md",
-        "docs/services/console/README.md",
-        "docs/services/server/README.md",
-        "docs/ops/BACKUP.md",
-        "docs/services/server/endpoint-contracts.md",
-        "docs/INDEX.md",
-        "docs/architecture/catalog/"
+        "docs/history/changes/gitlab/282.json",
+        "docs/history/changes/gitlab/282.md"
       ],
       "domains": [
         "platform"
       ],
       "nodes": [
-        "domain:platform",
-        "application:server"
+        "domain:platform"
       ],
-      "reason": "新增 docs/ops/BACKUP.md，并在读档地图、安全残余风险、部署说明、服务文档与接口契约里补上这个 platform 域功能的入口和形状；docs/INDEX.md 和 docs/architecture/catalog/ 下的目录产物随 pnpm catalog:generate、pnpm docs:index 重新生成，不是手改。"
-    },
-    {
-      "paths": [
-        "docs/architecture/catalog/ownership.json"
-      ],
-      "domains": [
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform",
-        "flow:platform.system_backup"
-      ],
-      "reason": "给新路由登记 routeOwners、给跨域共享文件登记 moduleOwners，并新增 platform.system_backup 这条流程声明。"
-    },
-    {
-      "paths": [
-        "tests/console/nav.test.ts",
-        "tests/console/permissions.test.ts",
-        "tests/server/backup-route.test.ts",
-        "tests/server/system-backup.test.ts",
-        "tests/server/tar-stream.test.ts",
-        "tests/tooling/backup-restore.test.ts"
-      ],
-      "domains": [
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform",
-        "test:tests/server/backup-route.test.ts"
-      ],
-      "reason": "nav.test.ts、permissions.test.ts 更新导航与权限分组新增「系统」后的期望；另外 4 个是这次新功能的新测试。"
-    },
-    {
-      "paths": [
-        "tests/server/core.test.ts",
-        "tests/server/identity.test.ts"
-      ],
-      "domains": [
-        "identity"
-      ],
-      "nodes": [
-        "domain:identity",
-        "flow:identity.callback",
-        "application:server"
-      ],
-      "reason": "顺手修 stage 上的现有问题：fb386a9b（#280，2026-10-24 22:38「补资料只拦极客班成员」，依据所有者 22:05「必须是极客班成员才要填这些」）改了登录回调，新注册的普通用户不再先去补资料页，但这三个用例还按旧规则期望跳补资料页，stage f00e9966 上就失败（干净检出复现过）；期望改成直接回到开始登录的页面。"
+      "reason": "把 GitLab #282 的原影响声明按 #270 先例归档到历史目录：.json 与 origin/stage 上的原件逐字一致（SHA-256 已核对），.md 说明归档依据与当前任务声明的位置。两份都是历史材料，不改变任何现行规范。"
     }
   ],
   "documents": [
-    "docs/ops/BACKUP.md",
-    "docs/README.md",
-    "docs/architecture/SECURITY.md",
-    "docs/ops/DEPLOY.md",
-    "docs/ops/README.md",
-    "docs/services/console/README.md",
-    "docs/services/server/README.md",
-    "docs/services/server/endpoint-contracts.md"
+    "docs/ops/CICD.md"
   ],
   "tests": [
-    "tests/console/nav.test.ts",
-    "tests/console/permissions.test.ts",
-    "tests/server/backup-route.test.ts",
-    "tests/server/system-backup.test.ts",
-    "tests/server/tar-stream.test.ts",
-    "tests/tooling/backup-restore.test.ts"
+    "tests/tooling/workflow-sparse-checkout.test.ts"
   ],
-  "compatibility": "新增的路由、权限节点和控制台页面都是追加，不改动任何现有接口的请求或响应形状；没有这个节点的账号完全看不到「备份」入口，老的调用方不受影响。",
-  "migration": "不用跑结构迁移：没有新建或改动任何数据库表结构，只是运行时新增一个权限节点；app/server/src/lib/migrations/2026-10-yugc-v2.ts 的 entrySeeds 不用改，站长既有的根通配 `*` 自动覆盖新节点，部门部长等 curated 列表本来就不该有它。上线顺序：合并后下次部署自动带上新节点和新路由，不需要额外的手工迁移步骤或重启外的操作。",
-  "rollback": "回滚这次合并即可：system.backup 节点和 GET /api/console/backup 路由一起消失，不留下需要清理的数据库结构改动或残留文件；备份归档本身是导出产物，不影响回滚。"
+  "compatibility": "只改工作流的检出文件清单与测试，不改任何接口、数据或产物；已合并的历史 PR、既有 issue 与发布 tag 都不受影响，sweep 的判定逻辑（scripts/issue-sweep.mjs）一行未动。",
+  "migration": "没有数据或配置迁移。工作流文件随 PR 合入 stage，再随 stage 进入 main 后，次日 03:37 UTC 的定时运行才会用上新清单；在此之前线上仍是修复前的失败状态。",
+  "rollback": "revert 这个 PR 的合并提交即可恢复原清单，不影响其他服务；回滚后 sweep 会退回 ERR_MODULE_NOT_FOUND 的失败状态。"
 }
