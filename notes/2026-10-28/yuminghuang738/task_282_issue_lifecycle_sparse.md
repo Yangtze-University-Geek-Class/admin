@@ -14,3 +14,10 @@
 - 做了什么：改 .github/workflows/issue-lifecycle.yml 的 sweep job sparse-checkout 加 scripts/pr-markdown.mjs（diff 仅一行）；新增 tests/tooling/workflow-sparse-checkout.test.ts（13 个用例）；更新 docs/ops/CICD.md 的 sweep 一行
 - 结果：新增测试修复前 3 条失败并点名 pr-markdown.mjs，修复后 13 条全绿；temporary pnpm9 install 后清理
 - 下一步：提交、推 fork、开 PR
+
+## 22:12:42 +08:00 · 提交 · #282 · 提交 CI 修复与 GitLab #282 归档
+
+- 执行者：agent-dsh-geek-main-sonnet（DeepSeek Harness，claude-sonnet-5-5-high）
+- 做了什么：两个提交：3560b080 docs(history) 归档 GitLab #282 声明；fix(ci) 补 pr-markdown.mjs 与新增回归。跑 check-architecture、check-doc-sync、check-docs、note.mjs check
+- 结果：宏观对齐通过（13 文件、1 节点）；文档同步通过（8 组）；docs 链接 364 篇通过；执行记录 142 条链路通过
+- 下一步：推 fork、开 PR

@@ -196,6 +196,7 @@
 | [`273.md`](./history/changes/gitlab/273.md) | 保全旧 GitLab 同号声明的原始字节及来源，不将旧业务批准转移给当前 GitHub 任务。 | — |
 | [`274.md`](./history/changes/gitlab/274.md) | 保全旧 GitLab 同号声明的原始字节及来源，不将旧业务批准转移给当前 GitHub 任务。 | — |
 | [`275.md`](./history/changes/gitlab/275.md) | 保全旧 GitLab 同号声明的原始字节及来源，不将旧业务批准转移给当前 GitHub 任务。 | — |
+| [`282.md`](./history/changes/gitlab/282.md) |  | — |
 
 ## history/portal-contest-night/
 
@@ -231,4 +232,4 @@ iPhone 15 Pro Max model attribution
 
 ---
 
-共 82 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 83 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
