@@ -119,6 +119,18 @@
         "domain:platform"
       ],
       "reason": "把 GitLab #282 的原影响声明按 #270 先例归档到历史目录：.json 与 origin/stage 上的原件逐字一致（SHA-256 已核对），.md 说明归档依据与当前任务声明的位置。两份都是历史材料，不改变任何现行规范。"
+    },
+    {
+      "paths": [
+        "docs/INDEX.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "执行记录与 GitLab #282 归档文件带来的索引变化：新增 docs/history/changes/gitlab/282.md 与 notes 链路后按 pnpm docs:index 重新生成的派生产物，不是手改。"
     }
   ],
   "documents": [
