@@ -31,13 +31,13 @@
 | `lib/useMediaQuery.ts` | 响应式媒体查询订阅；OS 用 `PHONE_QUERY` 与 `PORTRAIT_QUERY`，变化时保留组件状态 |
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、竖屏横带取景、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
-| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里：`scene`、`window`、`panel`、`site` 四种；「代码仓库」「比赛」「意见箱」是 `{ kind: "window" }`）、站外应用的地址（`appLink`、`followAppLink`，只剩论坛和控制台）、启动器过滤、时间文案、读屏用的 `NEW_TAB_NOTE` |
+| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里：`scene`、`window`、`panel`、`site` 四种；「比赛」「意见箱」是 `{ kind: "window" }`）、站外应用的地址（`appLink`、`followAppLink`，只剩论坛、代码仓库和控制台）、启动器过滤、时间文案、读屏用的 `NEW_TAB_NOTE` |
 | `lib/applyOpen.ts` | 招新总开关（#284）在官网这一侧的读法：`applyOpenOf` 只认明确的 `apply_open: false` 为关闭（没有字段、读不到都按开放），`joinView` 把「配置读到没有、开关、寄信时服务端说已关」映射成窗口的 loading / letter / closed 三种，`useApplyOpen` 给桌面挂载时读一次 `GET /api/public/config` |
 | `lib/shell/*` | 终端窗口里的模拟 Linux（#279）：`vfs.ts` 文件系统、`parse.ts` 命令行解析、`commands.ts` 命令、`index.ts` 执行与存盘补全、`ansi.ts` 颜色码转片段；纯逻辑，不碰 DOM，见下文「窗口外框与终端」 |
 | `lib/promo.ts`、`lib/promoWindow.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；桌面里的「宣传片」窗口（#284）：要不要自动弹、窗口多大放哪、收起和露出时对视频做什么在 `lib/promoWindow.ts`，窗口外框用 `components/os/Windows.tsx` 的，播放器是窗口正文（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、账号设置 `/account`、代码仓库（自建 GitLab，站点配置 `urls.gitlab`） |
 | `lib/departments.ts` | 「组织架构」窗口和「关于极客班」里的部门：读匿名 `GET /api/public/departments`（窗口打开时读一次、关掉即取消），`DEFAULT_DEPARTMENTS` 与 #274 迁移的初始数据一致（AI、算法、硬件、网安、管理五个部门加「无部门」），读到之前和读不到时显示它；`readDepartments` 把认不出的部门色换成次要文字色、认不出的图标换成 `team-line`，称号按 `weight` 从高到低 |
-| `lib/codeRepos.ts` | 「代码仓库」窗口和终端 `repos` 读的公开项目：`GET /api/public/gitlab/projects`，`readCodeRepos` 只留有名字和 http(s) 地址的项目，`last_activity_at` 认 ISO 字符串（也认毫秒），按最近活动从新到旧；`unavailable: true` 单独成一种状态 |
+| `lib/codeRepos.ts` | 终端 `repos` 读的公开项目（代码仓库窗口已不从桌面打开）：`GET /api/public/gitlab/projects`，`readCodeRepos` 只留有名字和 http(s) 地址的项目，`last_activity_at` 认 ISO 字符串（也认毫秒），按最近活动从新到旧；`unavailable: true` 单独成一种状态 |
 | `lib/competitions.ts` | 「比赛」窗口的数据：读匿名 `GET /api/public/competitions`（窗口打开时读一次、关掉即取消，`reload` 再读一次），状态一律由本地按时间戳算（`statusAt`，与服务端 `competitionStatus` 同口径），窗口开着时每 60 秒重算状态与排序；响应里的 `status` 只当形状校验，读不到时窗口说「没加载出来」并给「重试」，而不是冒充「没有比赛」；日期换算（`beijingDay`、`shortDay`、`dayRange`）都按北京时间，`readCompetition` 丢掉缺字段的条目、只收可解析的 https 链接（所有类型可选）；#278 加 `site_url`（只认 `/c/<slug>/`）、`prizes`（`readPrizes`：名次说不通、金额不是非负整数的一档丢掉）、`grade_factors`（`readGradeFactors`）与 `finalized_at` |
 | `lib/competitionLabels.ts` | 比赛窗口的文案与日期纯函数（北京时间）：状态与类型文案、星期与钟点、「还剩几天」、卡片上的日期、详情要点、赛程节点、操作条、搜索与筛选 |
 | `lib/competitionHub.ts` | 报名与组队的客户端（#239）：`hubPaths` 是成员接口的唯一路径集合（比赛 id 与队伍 id 都做路径段编码），`useHub` 负责写操作、失败文案与统一重读，`useMemberRead` 负责成员接口的读取、轮询（天梯 10 秒、页面不可见时不发，#278）与响应形状校验；`readMyResults` 读定榜结果（兑奖码不是 `YUGC-` 开头的当作没有奖），`factorText`、`rankRange`、`shortTime` 写系数、名次与定榜时间；`readMyStatus` 等读出函数丢掉认不出的状态、未知操作与缺账号 id 的成员，`entryText`、`hubSentence`、`journey`、`pendingView`、`teamSlots`、`nextMilestone` 是状态文案、底部进度与槽位的纯函数，`failText` 把限流、登录过期与服务端中文说明分开说 |
@@ -87,7 +87,7 @@ three.js 只通过 `/forum-3d` 页里的 `import("../three/forum")` 进入，首
 ## 组织架构与代码仓库窗口（#275）
 
 - **组织架构**：按 `GET /api/public/departments` 的顺序画部门卡片：部门图标（Remix 图标名，服务端可以不给）、部门名、说明、按权重排的称号。部门色走 `data-tone`：AI = Y 青绿、算法 = U 蓝、硬件 = C 靛蓝、网安 = G 粉、管理 = 胶囊蓝（`pill`）、无部门 = 次要文字色（`ink`）。读到之前和读不到时显示默认值，不出错误提示。窗口底部一句说明身份怎么来：注册后是注册用户，填邀请码成为极客班成员，部门和称号由管理员在控制台里分。「关于极客班」里的部门名同样来自这份数据。单测 `tests/web/portal-org-window.test.tsx`。
-- **代码仓库**：原来的「代码仓库」应用在新标签页打开 GitLab，「GitHub 组织」应用另开 GitHub 组织页；#275 删掉 GitHub 组织应用，「代码仓库」改成桌面窗口，列 `GET /api/public/gitlab/projects` 给的公开项目（名字、说明或路径、最近活动），点项目在新标签页打开。读取中写「正在读取公开项目…」，服务端回 `unavailable: true` 写「代码仓库暂时连不上」，接口读不到写「公开项目没加载出来」，没有公开项目也照实说；窗口底部始终有「打开代码仓库」（`links.gitlab()`，新标签页）。终端 `repos` 和 `~/projects` 列同一份数据，没有项目时写「代码仓库里还没有公开项目」。单测 `tests/web/portal-code-repos.test.tsx`。
+- **代码仓库**：#311 起桌面、Dock、菜单栏、⌘K、便签和终端都整页直达 `links.gitlab()`（同论坛），不开窗口；窗口组件 `CodeRepos` 留在 `Windows.tsx`，不再从桌面打开。历史：原来的「代码仓库」应用在新标签页打开 GitLab，「GitHub 组织」应用另开 GitHub 组织页；#275 删掉 GitHub 组织应用，「代码仓库」改成桌面窗口，列 `GET /api/public/gitlab/projects` 给的公开项目（名字、说明或路径、最近活动），点项目在新标签页打开。读取中写「正在读取公开项目…」，服务端回 `unavailable: true` 写「代码仓库暂时连不上」，接口读不到写「公开项目没加载出来」，没有公开项目也照实说；窗口底部始终有「打开代码仓库」（`links.gitlab()`，新标签页）。终端 `repos` 和 `~/projects` 列同一份数据，没有项目时写「代码仓库里还没有公开项目」。单测 `tests/web/portal-code-repos.test.tsx`。
 - **窗口正文的令牌**：窗口和桌面弹层里（`:is(.pt-win, .pt-os-modal)`）把 `--pt-*` 映射到 `--os-*`，用 `--pt-*` 写的旧样式（比赛窗口等）进了窗口也是 OS 的颜色；正文链接用 `--os-accent`，卡片圆角 14px，终端底色 `--os-term-bg`、文字用 `--os-bios-*`。
 
 ## 窗口外框与终端（#279）
