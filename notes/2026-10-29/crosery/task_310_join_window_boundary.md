@@ -67,3 +67,33 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：run 40832899945 的 deploy 在创建 deployment 时 409：workflow_dispatch 的 hotfix-verify check-run 不自动成为 Deployments required context。证据 job 在完整验证成功后写同名 success commit status；保留 required_contexts=hotfix-verify
 - 结果：hotfix-policy 与 architecture-workflow 共 29 项测试通过；check:architecture --base gitlab/stage、check:doc-sync 通过
+
+## 16:44:05 +08:00 · 返工 · #310 · 加入我们再次打不开：pages 分包的 CSS 在浏览器缓存里坏了
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：线上 v0.1.1 的加入我们窗口仍显示「信纸没能打开」。ego-browser 捕获到 Unable to preload CSS 指向 pages-D_k9Sm8z.css。该 URL 默认缓存的 fetch 报 Failed to fetch；禁用缓存的 fetch 返回 200 与 8263B；禁用缓存导航一次后恢复。改为 pages.css 在 App.tsx 引入（随入口 CSS），JoinBox 与 FeedbackBox 不再引用，产物里不再有 pages 分包
+- 结果：tsc 与 vite build 通过；tests/web 在 Node 22 下 39 文件 387 例通过（含新增的 tests/web/portal-window-css-entry.test.ts）；本地产物验证：加入我们渲染招新已关闭页（招新开关关着，属配置状态），无 fallback，无控制台错误；文档核对：docs/services/web/portal.md 不用改——窗口功能、入口和提交流程不变，只是 pages.css 的加载位置变了，portal.md 没有记录它的位置；文档核对：docs/services/web/README.md 不用改——README 的源码地图与模块职责没有变化
+
+## 16:45:22 +08:00 · 审查 · #310 · 文档核对与宏观对齐声明
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：核对 docs/services/web 下的 README 与 portal.md：两份文档都不记录 pages.css 的加载位置，窗口功能、入口与提交流程没有变化；docs/changes/310.json 只描述本 PR 的五个源码文件与回归测试
+- 结果：文档核对：docs/services/web/ 不用改——服务文档目录下 README 与 portal.md 都已核对，窗口功能、入口与提交流程不变，只是 pages.css 的加载位置变了，文档没有记录这一位置
+
+## 16:51:24 +08:00 · 提交 · #310 · 提交 40bba025：表单样式随入口加载
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：App.tsx 引入 pages.css，JoinBox 与 FeedbackBox 去掉引用；注释与 os.css 说明同步到新的加载位置；新增 tests/web/portal-window-css-entry.test.ts；docs/changes/310.json 只描述本 PR；catalog:generate 的生成物随证据行号更新
+- 结果：pnpm check（Node 22）退出码 0；tests/web 39 文件 387 例通过（Node 22）；check:architecture 默认 base 通过（14 个变更文件）
+
+## 16:51:24 +08:00 · PR · #310 · 开 GitLab MR !63（main ← task/310/join_window_boundary）
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：标签 hot-fix、ui:interaction、P0；截图是本地构建的加入我们窗口，已上传到 GitLab：/uploads/7fbe2b86a3dde9ffe76d91447ea86143/join-window-local-310.png
+- 结果：MR !63 可合并，无冲突，无流水线，无需审批；线上核对待部署后补记
+
+## 16:51:24 +08:00 · 审查 · #310 · 自审 MR !63
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：逐项核对 diff：5 个源码文件、回归测试、声明、目录生成物与执行记录；未运行 code-review 技能的并行审查
+- 结果：未发现业务或契约变化；残留风险：入口 CSS 顺序变化只核对了选择器与属性冲突，没有逐页截图比对，已列入 MR 的未验证项
