@@ -25,3 +25,9 @@
 - 执行者：agent-claude-stage-sync-301（Claude Code，k3.1-pro[1m]）
 - 做了什么：按 CODE-REVIEW 逐项核对当前 task diff；补 GitHub #301、PR #302 的 hot-fix 标签，PR 正文补改前改后 Markdown 截图链接
 - 结果：check:architecture --base origin/stage、check:doc-sync、check:notes 通过；无密钥、无直推、无保护绕过；生产 cutover 不属于本 PR 已执行证据
+
+## 15:40:53 +08:00 · 返工 · #301 · 同步 architecture 与 hotfix deployment 状态修复
+
+- 执行者：agent-claude-stage-sync-301（Claude Code，k3.1-pro[1m]）
+- 做了什么：合并 main 76383144；在 docs/changes/301.json 增加两处工作流、回归测试和 CICD 文档覆盖
+- 结果：check:architecture --base origin/stage 通过；29 项相关测试通过

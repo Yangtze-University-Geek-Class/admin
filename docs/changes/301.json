@@ -79,7 +79,12 @@
       "evidence": [
         "docs/services/web/portal.md",
         "docs/services/server/README.md",
-        "docs/ops/GITLAB.md"
+        "docs/ops/GITLAB.md",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
@@ -88,7 +93,12 @@
       "evidence": [
         "tests/web/portal-window-load-failed.test.tsx",
         "tests/server/signin-methods.test.ts",
-        "tests/tooling/oidc-subject-migration.test.ts"
+        "tests/tooling/oidc-subject-migration.test.ts",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "delivery": {
@@ -96,7 +106,12 @@
       "reason": "只通过受保护 PR 恢复 stage>=main，hotfix 窗口不豁免检查；不创建或移动发布 tag，不部署预览或正式。",
       "evidence": [
         "deploy/hotfix/windows.json",
-        "docs/ops/DEPLOY.md"
+        "docs/ops/DEPLOY.md",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     }
   },
@@ -108,7 +123,12 @@
         "tests/web/portal-window-load-failed.test.tsx",
         "docs/services/web/portal.md",
         "docs/services/web/README.md",
-        "docs/architecture/catalog/ownership.json"
+        "docs/architecture/catalog/ownership.json",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ],
       "domains": [
         "recruitment",
@@ -123,7 +143,7 @@
       "nodes": [
         "domain:recruitment"
       ],
-      "reason": "Windows.tsx 是比赛、反馈、身份、文档等窗口的共用外壳，本次只给加入我们窗口加错误边界；新边界和 Windows 的加入我们分支登记为 application.submit 的真实流程证据，其他窗口行为不变。"
+      "reason": "Windows.tsx 是比赛、反馈、身份、文档等窗口的共用外壳，本次只给加入我们窗口加错误边界；新边界和 Windows 的加入我们分支登记为 application.submit 的真实流程证据，其他窗口行为不变。 同步 architecture 临时目录依赖与 hotfix-verify commit status 修复。"
     },
     {
       "paths": [
