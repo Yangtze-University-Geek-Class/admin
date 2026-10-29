@@ -61,3 +61,9 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：GitHub PR #302 的 architecture-alignment 失败：_temp/check-architecture.mjs 找不到同目录 hotfix-windows.mjs；常规 base 与引导两处都复制该依赖，补 workflow 回归与 CICD 文档
 - 结果：tests/tooling/architecture-workflow.test.ts 2 通过；check:architecture --base gitlab/stage、check:doc-sync 通过。先提交 task，不冻结或替换正在构建的 main 1fb9c4e2
+
+## 15:37:53 +08:00 · 返工 · #308 · hotfix deployment required_contexts 409 修复
+
+- 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
+- 做了什么：run 40832899945 的 deploy 在创建 deployment 时 409：workflow_dispatch 的 hotfix-verify check-run 不自动成为 Deployments required context。证据 job 在完整验证成功后写同名 success commit status；保留 required_contexts=hotfix-verify
+- 结果：hotfix-policy 与 architecture-workflow 共 29 项测试通过；check:architecture --base gitlab/stage、check:doc-sync 通过

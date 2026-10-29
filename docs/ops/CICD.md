@@ -142,7 +142,7 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 `issue` 输入必须是 `deploy/hotfix/windows.json` 里登记的、`open` 且没过期、`tag` 就是这次 tag 的 hotfix 窗口（所有者署名与批准原话，最长 7 天）；`plan` 与审批后的二次 `plan` 都用 `scripts/hotfix-policy.mjs` 校验，没登记、已 `closed` 或已过期都直接失败。同一份登记也让 `branch-guard` 放行窗口内 `main` 领先 `stage` 的提交（每个提交要归属于窗口 issue）。hotfix 的 MR 合进 `main` 后用 `scripts/hotfix-sync.mjs` 同步镜像并把 `main` 合回 `stage`；仓库根的 `.gitlab-ci.yml` 可以在 `main` 更新后自动跑它（项目变量 `HOTFIX_SYNC_ENABLED=true` 才启用，默认关闭）。规则见 [BRANCHING](../conventions/BRANCHING.md)「线上紧急修复」。
 
 - `plan` 用只读 `hotfix-policy.mjs` 绑定当前 main、检出 HEAD、工作流 SHA、历史 tag 祖先与提交态版本，核对文档和环境契约。
-- `core` 跑 `pnpm check/test/build`，`forum` 使用与常规 CI 相同的 Node 26/pnpm 11 独立检查和生成；`hotfix-verify` 汇总这两项成功并验证线上同版本及成功生产 deployment。普通 CI 的分支不变量仍按原规则报告，不用假绿掩盖 hotfix 期间 main 暂时领先。
+- `core` 跑 `pnpm check/test/build`，`forum` 使用与常规 CI 相同的 Node 26/pnpm 11 独立检查和生成；`hotfix-verify` 汇总这两项成功并验证线上同版本及成功生产 deployment。上述证据全部成功后，job 再用 `statuses: write` 把同名 `hotfix-verify` 写为 success commit status：`workflow_dispatch` 的 check-run 不会自动满足 Deployments API 的 `required_contexts`，2026-10-29 首次 hotfix 部署因此在创建记录时 409；这个显式状态只映射已完成的真实验证，不跳过检查。普通 CI 的分支不变量仍按原规则报告，不用假绿掩盖 hotfix 期间 main 暂时领先。
 - CDN 规划、三镜像构建、内容验证和部署步骤沿用 `deploy-production.yml` 的合同；本工作流与常规正式发布共用 `deploy-production` 并发锁，所有 job 仍在 GitHub 托管 runner。维护这些步骤时同步两份工作流。
 - `production` 与 `static-cdn` 的部署来源规则需要额外精确允许 `main`，原 tag 规则和生产 required reviewers 保留；不允许 task、stage 或任意分支取得生产密钥。
 - 审批后重新核对 main/tag/线上版本，分发前要求 `yzgc-backup@production.service` 完成一致性备份及隔离恢复验证。镜像与 env 仍经原有校验、`deploy-stack.sh` 健康门和自动回滚。模板密钥留空，production 的 Google 客户端配置经本环境 secrets 注入。

@@ -70,7 +70,9 @@
         "docs/ops/GITLAB.md",
         ".github/workflows/architecture-alignment.yml",
         "tests/tooling/architecture-workflow.test.ts",
-        "docs/ops/CICD.md"
+        "docs/ops/CICD.md",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/hotfix-policy.test.ts"
       ]
     },
     "verification": {
@@ -83,7 +85,9 @@
         "tests/tooling/gitlab-cutover.test.ts",
         ".github/workflows/architecture-alignment.yml",
         "tests/tooling/architecture-workflow.test.ts",
-        "docs/ops/CICD.md"
+        "docs/ops/CICD.md",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/hotfix-policy.test.ts"
       ]
     },
     "delivery": {
@@ -94,7 +98,9 @@
         "docs/ops/GITLAB.md",
         ".github/workflows/architecture-alignment.yml",
         "tests/tooling/architecture-workflow.test.ts",
-        "docs/ops/CICD.md"
+        "docs/ops/CICD.md",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/hotfix-policy.test.ts"
       ]
     }
   },
@@ -134,7 +140,9 @@
         "docs/ops/ENVIRONMENTS.md",
         ".github/workflows/architecture-alignment.yml",
         "tests/tooling/architecture-workflow.test.ts",
-        "docs/ops/CICD.md"
+        "docs/ops/CICD.md",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/hotfix-policy.test.ts"
       ],
       "domains": [
         "platform"
@@ -142,7 +150,7 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "登记所有者批准的 hotfix 窗口与原话例外，记录执行与文档核对；不改变部署环境或发布 tag。 architecture-alignment 在 runner 临时目录同时复制 hotfix-windows.mjs，修复 hotfix PR 的模块缺失。"
+      "reason": "登记所有者批准的 hotfix 窗口与原话例外，记录执行与文档核对；不改变部署环境或发布 tag。 architecture-alignment 在 runner 临时目录同时复制 hotfix-windows.mjs，修复 hotfix PR 的模块缺失。 hotfix-verify 在真实验证成功后写同名 commit status，满足 Deployments required_contexts。"
     }
   ],
   "documents": [
