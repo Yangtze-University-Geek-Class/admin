@@ -19,3 +19,15 @@
 - 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
 - 做了什么：docs/changes/311.json 重写为本 PR 的影响声明（kind engineering）：coverage 只列两份手机测试与目录生成物，verification changed、其余维度 unchanged；文档核对：docs/conventions/TESTING.md 不用改——本 PR 只把两份手机测试的断言对齐到已上线行为，测试规范与验证命令不变。
 - 结果：pnpm check:architecture 待本次重跑核对；声明的 coverage 与 working tree 的 8 个变更文件（2 测试 + 6 目录生成物）一一对应
+
+## 22:24:44 +08:00 · PR · #311 · 开 GitLab MR !65 到 main（十段正文、四标签、改前改后截图）
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：MR !65（task/311/test_fix → main）：正文按 PULL-REQUESTS 十段契约写，宏观对齐引用 docs/changes/311.json；验收证据为真实浏览器实拍 4 张（改前=正式站弹窗现场，改后=本机预览 9c496220 整页直达 GitLab 登录链路），经 /projects/1/uploads 上传；标签 P0、hot-fix、portal、ui:interaction
+- 结果：node scripts/pr-contract.mjs check 通过：分支 task/311/test_fix ↔ issue #311，10 个段落齐全，有验收证据；MR https://git.yangtzeu.work/geek/admin/-/merge_requests/65
+
+## 22:24:45 +08:00 · 审查 · #311 · 自审 9c496220，CODE-REVIEW 15 项逐条
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：按 CODE-REVIEW 清单逐项核对 9c496220 的 diff：分支不变量、无直推常规 main、无密钥、无 env/镜像改动、文档核对真实、无边界违规、执行记录链路完整、标签与截图对照 diff 属实、宏观对齐声明与真实 diff 一致、env-isolation 通过
+- 结果：审查结论：通过（逐条结论与结论行写在 MR !65 正文「审查结论」段）
