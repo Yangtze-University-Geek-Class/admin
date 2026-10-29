@@ -14,3 +14,16 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：提交 47b755ce：sync-control.mjs 新增 repairDuplicates 与 repair-duplicates 命令；cutover.sh 新增 repair-duplicates 步骤（演算只读挂载正式库，apply 先 systemctl start yzgc-backup@production 再读写挂载）；migrate-oidc-subjects.mjs 演算带 --provision-unmatched 时单独计「可最小补建」；stop-preview-sync 的前置演算带它；gitlab-cutover.yml 加选项；GITLAB.md 2a 与 CICD.md 表同步；docs/changes/308.json 改为本 MR 的声明。
 - 结果：vitest tests/tooling/gitlab-sync-control.test.ts gitlab-cutover.test.ts oidc-subject-migration.test.ts：3 文件 64 用例通过；pnpm check 通过（文档同步、执行记录、密钥、目录、宏观对齐 #308 11 个文件、typecheck）。
+
+## 01:51:07 +08:00 · 审查 · #308 · 重复号修复首轮独立审查：阻塞 1、中等 1
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：独立审查子会话（claude-opus-5-5，只拿 diff 与背景事实，不拿结论）审 gitlab/main...fe12663d。
+- 结果：阻塞：repair-duplicates --apply 没核对正式同步已停、没拿部署锁，同步循环按 account_id 写回的头像/邮箱/权限缓存会和改映射撞车，预发布与正式会同时写原号。中等：同一正式账号可能出现两次，先写哪条取决于导出顺序。其余：identities 缺失被当成已解绑；补建演算不查 sub 归属；补测失败路径与多条记录。机密不进输出、provisionable 未放宽 switch/enable 门禁，已核实。
+
+## 01:51:07 +08:00 · 返工 · #308 · 按审查返工：正式写者先停、重复条目整批拒绝
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：提交 8daa13ca：新增 stop-production-sync；repair-duplicates --apply 先 verify_production_off，再在子 shell 里取正式部署锁、跑一致性备份、读写挂载修复；同一正式账号/重复号/原号出现两次整批拒绝；读不到 identities 报 identities_unreadable；补建演算核对 sub 归属。GITLAB.md 2a、CICD.md、308.json 同步。
+- 结果：三个测试文件 71 用例通过（新增：正式同步开着拒绝 apply、stop-production-sync、封禁 500 后重跑接续、连不上只报原因码、原号封禁、多条中一条被拒整批不写、同一账号两次、用户名被占、身份列表缺失、补建 sub 被占）；bash -n 通过；宏观对齐通过。
+- 下一步：增量复审，过了就开 MR、合 main、镜像 GitHub
