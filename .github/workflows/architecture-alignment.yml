@@ -43,6 +43,7 @@ jobs:
           # 常规 PR 使用目标分支的检查器，候选分支不能通过改自己的校验逻辑放行。
           if git cat-file -e "${BASE_SHA}:scripts/check-architecture.mjs" 2>/dev/null; then
             git show "${BASE_SHA}:scripts/check-architecture.mjs" > "$policy"
+            git show "${BASE_SHA}:scripts/hotfix-windows.mjs" > "${RUNNER_TEMP}/hotfix-windows.mjs"
             git show "${BASE_SHA}:scripts/check-doc-sync.mjs" > "${RUNNER_TEMP}/check-doc-sync.mjs"
             git show "${BASE_SHA}:scripts/note.mjs" > "${RUNNER_TEMP}/note.mjs"
             git show "${BASE_SHA}:scripts/pr-markdown.mjs" > "${RUNNER_TEMP}/pr-markdown.mjs"
@@ -50,6 +51,7 @@ jobs:
             # 首次安装仍完整执行检查，不跳过。此引导版本须连同 PR 审查。
             echo "目标分支尚未安装宏观检查器，本次执行并审查候选引导版本。"
             cp scripts/check-architecture.mjs "$policy"
+            cp scripts/hotfix-windows.mjs "${RUNNER_TEMP}/hotfix-windows.mjs"
             cp scripts/check-doc-sync.mjs "${RUNNER_TEMP}/check-doc-sync.mjs"
             cp scripts/note.mjs "${RUNNER_TEMP}/note.mjs"
             cp scripts/pr-markdown.mjs "${RUNNER_TEMP}/pr-markdown.mjs"
