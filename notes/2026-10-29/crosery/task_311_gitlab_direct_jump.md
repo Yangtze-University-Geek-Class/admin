@@ -17,3 +17,9 @@
 - 文档核对：docs/ops/DEPLOY.md 不用改——本次只登记 deploy/hotfix/windows.json 的 #311 窗口条目，部署流程、环境与发布路径都不变。
 - 文档核对：docs/ops/ENVIRONMENTS.md 不用改——同上，环境键与域名不变。
 - 文档核对：docs/ops/CICD.md 不用改——同上，CI/CD 工作流不变。
+
+## 23:18:59 +08:00 · 收尾 · #311 · #311 gitlab_direct_jump 链路收尾
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：该链路的修复（217050f4）经 !64 合入 main 并上线；worktree/分支随 #311 清理一并删除
+- 结果：GitLab main 5930046a85d2db5be0775240e47678fa86495892 已含 217050f4

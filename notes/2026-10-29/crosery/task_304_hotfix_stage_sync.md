@@ -19,3 +19,9 @@
 - 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
 - 做了什么：发现 docs/changes/304.json 已属于 GitLab #304（论坛旧帖 OSS 图片迁 Garage CDN，声明在 b37beca5）：两仓 issue 共用扁平命名空间，GitHub #304 与它同号。误覆盖已恢复（git checkout b734c99 -- docs/changes/304.json）；301.json 历史显示上次 GitHub #301 同步同样覆盖过 GitLab #301 的声明（8bc5fc8d → 9e171b65）
 - 结果：阻塞待所有者选择：沿用先例接管 304.json / 换 GitHub 号（需新建工单）/ 授权绕过 stage 保护 / 延后 GitHub 同步。GitLab stage 合回不受影响，已完成（b734c992）
+
+## 23:23:29 +08:00 · 开发 · #304 · 所有者定夺：同步声明接管 docs/changes/304.json
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：所有者 2026-10-29 22:xx 选定（ask 超时后按推荐方案自动选定，已在 GitHub #304 与 GitLab geek/admin#304 双侧留痕）沿用 GitHub #301 先例：GitHub #304 的同步声明接管 docs/changes/304.json；GitLab #304 的原声明保留在 b37beca5
+- 结果：声明已写入（kind business，coverage 24 个材料文件逐一覆盖，八维评估）；回滚点：git show b37beca5:docs/changes/304.json

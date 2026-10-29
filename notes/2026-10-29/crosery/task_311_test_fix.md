@@ -31,3 +31,21 @@
 - 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
 - 做了什么：按 CODE-REVIEW 清单逐项核对 9c496220 的 diff：分支不变量、无直推常规 main、无密钥、无 env/镜像改动、文档核对真实、无边界违规、执行记录链路完整、标签与截图对照 diff 属实、宏观对齐声明与真实 diff 一致、env-isolation 通过
 - 结果：审查结论：通过（逐条结论与结论行写在 MR !65 正文「审查结论」段）
+
+## 23:15:07 +08:00 · 发布 · #311 · deploy-hotfix 40891492605 上线 v0.1.1@5930046a
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：重新派发 deploy-hotfix（tag v0.1.1，commit 5930046a85d2db5be0775240e47678fa86495892，issue 311），经 production 审批后部署；10 个 job 全绿（plan/parity/hotfix-core/forum/hotfix-verify/cdn-plan/build/cdn-upload/deploy/smoke）
+- 结果：gh run view 40891492605：conclusion success；正式站 release.json = {environment: production, version: 0.1.1, commit: 5930046a85d2db5be0775240e47678fa86495892}
+
+## 23:15:07 +08:00 · 验收 · #311 · 正式站线上核对：代码仓库整页直达生效
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：浏览器实测 yangtzeu.work：桌面 1280×800 与手机 390×844 各点 Dock「代码仓库」，当前标签页直接跳走进入 GitLab 登录链路，零 dialog（修复前是弹「代码仓库」窗口且 URL 不变）；smoke 线上烟测通过
+- 结果：桌面：https://yangtzeu.work/ → prev.yangtzeu.work/signin?return_to=/oidc/interaction/…（未登录先进 GitLab SSO 登录链路）；手机同样；dialogs=[]；GitLab 登录改接正式是独立收尾项
+
+## 23:18:59 +08:00 · 收尾 · #311 · #311 链路收尾：修复上线并验收，清理 worktree
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：GitLab API 证实 #311 closed（!65 合并自动关）、GitLab main=5930046a 含两链路全部提交；task.mjs finish 因 gh 看不到 GitLab issue 拒清，按证据手动 git worktree remove + branch -d 清理 task/311 的 worktree 与分支
+- 结果：链路记录 6 条（开工→提交→开发→PR→审查→收尾）；发布/验收/收尾记录暂存 notes-pending，随下一个 task PR 入库
