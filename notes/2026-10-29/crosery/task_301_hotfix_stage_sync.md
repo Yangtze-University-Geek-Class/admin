@@ -19,3 +19,9 @@
 - 执行者：agent-claude-stage-sync-301（Claude Code，k3.1-pro[1m]）
 - 做了什么：关闭误用 GitLab #310 的旧 PR #286，改用 GitHub #301 开 PR #302，正文含十段契约与审查结论
 - 结果：PR https://github.com/Yangtze-University-Geek-Class/admin/pull/302 已开，等待必需检查
+
+## 15:28:10 +08:00 · 审查 · #301 · 自审受保护 stage 同步与标签
+
+- 执行者：agent-claude-stage-sync-301（Claude Code，k3.1-pro[1m]）
+- 做了什么：按 CODE-REVIEW 逐项核对当前 task diff；补 GitHub #301、PR #302 的 hot-fix 标签，PR 正文补改前改后 Markdown 截图链接
+- 结果：check:architecture --base origin/stage、check:doc-sync、check:notes 通过；无密钥、无直推、无保护绕过；生产 cutover 不属于本 PR 已执行证据
