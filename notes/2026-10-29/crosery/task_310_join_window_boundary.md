@@ -37,3 +37,9 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：hotfix-core 的 check:catalog 因 Windows.tsx 行号变化导致目录来源摘要过期；运行 pnpm catalog:generate
 - 结果：pnpm check:catalog 通过：5 应用、301 方法路径、69 表、16 能力；生成物只更新摘要与 Windows.tsx 行号
+
+## 14:42:18 +08:00 · 开发 · #308 · 补齐旧 GitLab 成员的最小正式身份与 sub 迁移
+
+- 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
+- 做了什么：正式签发者改接的 migrate-subjects 演算：可迁 5、冲突 0、对不上 2。按所有者已批准的两名旧成员最小补建：identity-store provisionAccount 支持无邮箱；新增 account.js provision-github；migrate-oidc-subjects export 带有效成员的 GitHub 登录名与角色，import --apply --provision-unmatched 调正式镜像补建并保留 sub；cutover.sh 接上；登记 #308 hotfix 窗口
+- 结果：tests/server/signin-methods.test.ts 52、tests/tooling/oidc-subject-migration.test.ts 11、tests/tooling/gitlab-cutover.test.ts 14 通过；server typecheck 通过。文档核对：docs/ops/DEPLOY.md、docs/ops/ENVIRONMENTS.md、docs/ops/CICD.md 不用改——只改 GitLab cutover 脚本和登记 hotfix 窗口，部署栈、env 键与工作流未变
