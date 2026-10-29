@@ -445,6 +445,17 @@ describe('email password sign-in (#262)', () => {
 });
 
 describe('console permissions come only from the site account; GitHub is a connection the server makes (#262 第四期)', () => {
+  it('provisions a legacy member by immutable GitHub id without inventing or copying an email', async () => {
+    const { app } = await setup();
+    const member = app.services.identity.provisionAccount({ githubId: 340692242, githubLogin: 'legacy-member', orgRole: 'member' });
+    expect(member).toMatchObject({ created: true, emailLinked: false });
+    const account = app.services.storage.db.prepare("SELECT org_state, org_role, canonical_email FROM users WHERE id = ?").get(member.accountId) as { org_state: string; org_role: string; canonical_email: string | null };
+    expect(account).toEqual({ org_state: 'active', org_role: 'member', canonical_email: null });
+    expect(app.services.storage.db.prepare("SELECT provider, provider_uid, login FROM identities WHERE user_id = ?").all(member.accountId)).toEqual([{ provider: 'github', provider_uid: '340692242', login: 'legacy-member' }]);
+    expect(app.services.storage.db.prepare("SELECT group_id FROM perm_members WHERE account_id = ?").all(member.accountId)).toEqual([{ group_id: 'level.member' }]);
+    expect(app.services.identity.provisionAccount({ githubId: 340692242, githubLogin: 'legacy-member', orgRole: 'member' })).toMatchObject({ accountId: member.accountId, created: false, emailLinked: false });
+  });
+
   it('gives the provisioned owner 站长 every permission node through email and reports GitHub as not connected without a GitHub App', async () => {
     const { app, mail, calls } = await setup();
     const owner = app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' });

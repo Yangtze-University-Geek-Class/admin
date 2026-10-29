@@ -649,9 +649,10 @@ export function createIdentityStore(db: Database.Database, deps: IdentityDeps) {
 
   /**
    * 运维用的建号（`dist/cli/account.js`，所有者 2026-10-23「给我的admin账号弄个邮箱登录」）：按 GitHub 数字 id 找到或建立账号，
-   * 刷新 GitHub 身份的登录名，记下组织角色，再绑定邮箱。可以重跑：已经绑好的不重复写。只在服务器上由维护者执行，不开接口。
+   * 刷新 GitHub 身份的登录名，记下组织角色，再按传入值绑定邮箱。可以重跑：已经绑好的不重复写。只在服务器上由维护者执行，不开接口。
+   * 不传邮箱时只补 GitHub 身份与成员资格，供 GitLab 改接正式前补建旧成员（#308），不按邮箱合号。
    */
-  function provisionAccount(input: { githubId: number; githubLogin: string; orgRole: Exclude<RecordedOrgRole, null>; email: string }): { accountId: string; created: boolean; emailLinked: boolean } {
+  function provisionAccount(input: { githubId: number; githubLogin: string; orgRole: Exclude<RecordedOrgRole, null>; email?: string }): { accountId: string; created: boolean; emailLinked: boolean } {
     return db.transaction(() => {
       const now = clock();
       let identity = githubIdentity.get(String(input.githubId)) as { id: string; user_id: string } | undefined;
@@ -670,15 +671,17 @@ export function createIdentityStore(db: Database.Database, deps: IdentityDeps) {
       syncPermissionLevel(account.id, input.orgRole, "cli:provision", now);
       claimAssignments.run(account.id, input.githubId);
       claimForumUser.run(account.id, input.githubId, account.id);
-      const owner = identityOf.get("email", input.email) as { user_id: string } | undefined;
-      if (owner && owner.user_id !== account.id) throw new Error("this email already belongs to another account");
       let emailLinked = false;
-      if (!owner) {
-        if (providerOfAccount.get(account.id, "email")) throw new Error("this account already has a different email");
-        insertChannel.run({ id: newUlid(now), user_id: account.id, provider: "email", uid: input.email, email: input.email, verified: 1, now, last_login_at: null });
-        setCanonicalEmail.run(input.email, now, account.id);
-        accountEvent(account.id, "link", "email", "ok", "provisioned", now);
-        emailLinked = true;
+      if (input.email) {
+        const owner = identityOf.get("email", input.email) as { user_id: string } | undefined;
+        if (owner && owner.user_id !== account.id) throw new Error("this email already belongs to another account");
+        if (!owner) {
+          if (providerOfAccount.get(account.id, "email")) throw new Error("this account already has a different email");
+          insertChannel.run({ id: newUlid(now), user_id: account.id, provider: "email", uid: input.email, email: input.email, verified: 1, now, last_login_at: null });
+          setCanonicalEmail.run(input.email, now, account.id);
+          accountEvent(account.id, "link", "email", "ok", "provisioned", now);
+          emailLinked = true;
+        }
       }
       deps.audit("system", "account.provision", input.githubLogin, { account_id: account.id, created, email_linked: emailLinked, org_role: input.orgRole }, undefined, { surface: "system" });
       return { accountId: account.id, created, emailLinked };
