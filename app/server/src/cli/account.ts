@@ -50,6 +50,22 @@ async function main(argv: string[]): Promise<number> {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return 0;
     }
+    if (command === "provision-github") {
+      const githubId = Number(option(args, "github-id"));
+      const githubLogin = option(args, "github-login") ?? "";
+      const orgRole = option(args, "org-role");
+      if (!Number.isSafeInteger(githubId) || githubId <= 0 || !githubLogin || (orgRole !== "admin" && orgRole !== "member")) {
+        process.stderr.write("usage: account.js provision-github --github-id <数字> --github-login <登录名> --org-role admin|member\n");
+        return 2;
+      }
+      const identity = createIdentityStore(storage.db, {
+        createSession: () => { throw new Error("provision-github never creates sessions"); },
+        audit: storage.audit, limits: createLimits(storage.db),
+      });
+      const result = identity.provisionAccount({ githubId, githubLogin, orgRole });
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return 0;
+    }
     if (command === "invite") {
       const code = await readStdin();
       try {

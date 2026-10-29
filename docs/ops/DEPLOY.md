@@ -2,7 +2,7 @@
 
 > 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。
 
-状态：`current` · 更新：2026-10-28 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
+状态：`current` · 更新：2026-10-29 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
 
 ## 发布前置
 
@@ -10,7 +10,7 @@
 
 发布前先过同构这一关（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md)）：预发布做过、不在提交里的事（表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务）正式都做完，`node scripts/parity.mjs check --release` 清零；`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 会在清单有 `pending` 时拒绝构建与部署。三份 env（`.env.production`、`.env.preview`、`.env.dev`）由 `pnpm check:env-isolation` 核对，正式的值不会混进预发布，反之亦然。
 
-hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗口是 `open` 且没过期（所有者批准的原话在登记里），否则 `deploy-hotfix` 的 plan 失败。hotfix 的 MR 合进 `main` 后，立刻用 `node scripts/hotfix-sync.mjs apply` 把 `main` 同步到镜像远端并合回 `stage`；线上核对通过后加 `--close-window <issue> --evidence "…"` 关闭窗口。
+hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗口是 `open` 且没过期（所有者批准的原话在登记里），否则 `deploy-hotfix` 的 plan 失败。GitLab 签发者改接走 `gitlab-cutover.yml`：先 `migrate-subjects` 演算，再 apply；正式库缺失的有效旧成员由 server 镜像的 `account.js provision-github` 按 GitHub UID 最小补建并保留原 `sub`，不按邮箱合号，随后才能 `switch-issuer`。登记里的原话若含正式站域名，`check-env-isolation` 会判为写死；原话不改写，在 `deploy/env/origin-exceptions.json` 登记 `deploy/hotfix/windows.json`（`max: 1`）并写理由（#310，2026-10-29）。`deploy/` 下每次改动后，文档的更新时间都要晚于这次改动，否则 plan 的文档同步检查失败。hotfix 的 MR 合进 `main` 后，立刻用 `node scripts/hotfix-sync.mjs apply` 把 `main` 同步到镜像远端并合回 `stage`；线上核对通过后加 `--close-window <issue> --evidence "…"` 关闭窗口。
 
 发布者明确目标环境、commit、镜像 tag、回滚对象和维护窗口。先在本地或 CI 完成 `pnpm verify` 与相关浏览器检查，再部署；不从含无关修改的工作区发布。核心与论坛使用两套工具链（Node 22/pnpm 9.15.9 与 Node ≥26/pnpm 11.24.0），镜像构建在容器内完成，不上传 Mac 原生依赖。
 

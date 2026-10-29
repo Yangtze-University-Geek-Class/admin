@@ -4,13 +4,14 @@
 //
 //   docker cp migrate-oidc-subjects.mjs <容器>:/tmp/                                    两个容器各复制一次，用完删掉
 //   docker exec <源环境 server 容器> node /tmp/migrate-oidc-subjects.mjs export --sector <GitLab 主机名>      → stdout 一行 JSON
-//   docker exec -i <目标环境 server 容器> node /tmp/migrate-oidc-subjects.mjs import --sector <GitLab 主机名> [--apply] < 上一步的 JSON
+//   docker exec -i <目标环境 server 容器> node /tmp/migrate-oidc-subjects.mjs import --sector <GitLab 主机名> [--apply] [--provision-unmatched] < 上一步的 JSON
 //                                                                                    缺省只演算，--apply 才写
 //
 // import 只新增（INSERT）：目标库里该账号在该 sector 已有不同的 sub、或这个 sub 已属于别人，都记为冲突并拒绝整批写入，
 // 不覆盖任何已有行。输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const SECTOR_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
@@ -34,19 +35,28 @@ export function assertSector(sector) {
 export function exportSubjects(db, sector) {
   assertSector(sector);
   const rows = db.prepare('SELECT user_id, sub FROM oauth_subjects WHERE sector_id = ?').all(sector);
-  const identitiesOf = db.prepare('SELECT provider, provider_uid FROM identities WHERE user_id = ? ORDER BY provider');
+  const identitiesOf = db.prepare('SELECT provider, provider_uid, login FROM identities WHERE user_id = ? ORDER BY provider');
+  const accountOf = db.prepare("SELECT status, org_state, org_role FROM users WHERE id = ?");
   const entries = [];
   let withoutIdentity = 0;
   for (const row of rows) {
     const ids = identitiesOf.all(row.user_id).filter(id => PROVIDERS.has(id.provider));
     if (ids.length === 0) { withoutIdentity += 1; continue; }
-    entries.push({ sub: row.sub, identities: ids.map(id => ({ provider: id.provider, provider_uid: String(id.provider_uid) })) });
+    const account = accountOf.get(row.user_id);
+    const github = ids.find(id => id.provider === 'github');
+    entries.push({
+      sub: row.sub,
+      identities: ids.map(id => ({ provider: id.provider, provider_uid: String(id.provider_uid) })),
+      ...(github && account?.status === 'active' && account?.org_state === 'active' && (account.org_role === 'admin' || account.org_role === 'member')
+        ? { provision: { github_login: github.login || `github-${github.provider_uid}`, org_role: account.org_role } }
+        : {}),
+    });
   }
   return { sector, entries, withoutIdentity };
 }
 
 /** 目标环境：演算（或写入）。返回 { plan, conflicts, unmatched, applied }。 */
-export function importSubjects(db, payload, { sector, apply = false, now = Date.now() } = {}) {
+export function importSubjects(db, payload, { sector, apply = false, now = Date.now(), provisionUnmatched = false, provisionAccount = null } = {}) {
   assertSector(sector);
   if (payload?.sector !== sector || !Array.isArray(payload.entries)) throw new Error('输入不是同一个 sector 的 export 结果');
   const findUser = db.prepare('SELECT user_id FROM identities WHERE provider = ? AND provider_uid = ?');
@@ -55,33 +65,74 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
   const plan = [];
   const conflicts = [];
   const unmatched = [];
+  const provisioned = [];
   const claimed = new Map();
   for (const entry of payload.entries) {
+    db.prepare('SAVEPOINT subject_entry').run();
+    let keepEntry = true;
+    const rollbackEntry = () => {
+      if (!keepEntry) return;
+      keepEntry = false;
+      db.prepare('ROLLBACK TO subject_entry').run();
+      db.prepare('RELEASE subject_entry').run();
+    };
     const users = new Set();
     for (const id of entry.identities) {
       const user = findUser.get(id.provider, String(id.provider_uid));
       if (user) users.add(user.user_id);
     }
     const label = entry.identities.map(id => `${id.provider}:${id.provider_uid}`).join(',');
-    if (users.size === 0) { unmatched.push(label); continue; }
-    if (users.size > 1) { conflicts.push(`${label}：同一个源账号对到目标库的多个账号`); continue; }
+    if (users.size === 0) {
+      const github = entry.identities.find(id => id.provider === 'github');
+      const provision = apply && provisionUnmatched && entry.provision && github && provisionAccount;
+      if (!provision) { unmatched.push(label); rollbackEntry(); continue; }
+      if (entry.identities.some(id => id.provider !== 'github')) {
+        conflicts.push(`${label}：目标库缺失账号还有其它身份，不做最小补建`);
+        rollbackEntry();
+        continue;
+      }
+      db.prepare('SAVEPOINT provision_unmatched').run();
+      try {
+        const created = provisionAccount({ githubId: Number(github.provider_uid), githubLogin: entry.provision.github_login, orgRole: entry.provision.org_role });
+        const user = findUser.get('github', String(github.provider_uid));
+        if (!user) throw new Error('最小补建后仍找不到 GitHub 身份');
+        users.add(user.user_id);
+        provisioned.push({ label, accountId: user.user_id, created: created.created });
+        db.prepare('RELEASE provision_unmatched').run();
+      } catch (error) {
+        db.prepare('ROLLBACK TO provision_unmatched').run();
+        db.prepare('RELEASE provision_unmatched').run();
+        conflicts.push(`${label}：最小补建失败（${error instanceof Error ? error.message : String(error)}）`);
+        rollbackEntry();
+        continue;
+      }
+    }
+    if (users.size > 1) { conflicts.push(`${label}：同一个源账号对到目标库的多个账号`); rollbackEntry(); continue; }
     const [userId] = users;
     const existing = currentSub.get(sector, userId);
     if (existing) {
-      if (existing.sub !== entry.sub) conflicts.push(`${label}：目标库该账号已有不同的 sub`);
+      if (existing.sub !== entry.sub) { conflicts.push(`${label}：目标库该账号已有不同的 sub`); rollbackEntry(); }
+      else db.prepare('RELEASE subject_entry').run();
       continue;
     }
     const owner = subOwner.get(sector, entry.sub)?.user_id ?? claimed.get(entry.sub);
-    if (owner && owner !== userId) { conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`); continue; }
+    if (owner && owner !== userId) {
+      conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`);
+      rollbackEntry();
+      const provisionIndex = provisioned.findIndex(item => item.accountId === userId);
+      if (provisionIndex >= 0) provisioned.splice(provisionIndex, 1);
+      continue;
+    }
     claimed.set(entry.sub, userId);
     plan.push({ userId, sub: entry.sub, label });
+    db.prepare('RELEASE subject_entry').run();
   }
   let applied = 0;
   if (apply && conflicts.length === 0 && plan.length > 0) {
     const insert = db.prepare('INSERT INTO oauth_subjects(sector_id, user_id, sub, created_at) VALUES(?, ?, ?, ?)');
     db.transaction(() => { for (const item of plan) { insert.run(sector, item.userId, item.sub, now); applied += 1; } })();
   }
-  return { plan, conflicts, unmatched, applied };
+  return { plan, conflicts, unmatched, applied, provisioned };
 }
 
 function option(argv, name) {
@@ -101,19 +152,24 @@ function main(argv) {
   }
   if (mode === 'import') {
     const apply = argv.includes('--apply');
+    const provisionUnmatched = argv.includes('--provision-unmatched');
     const db = new Database(dbPath, { fileMustExist: true });
     db.pragma('busy_timeout = 5000');
-    const result = importSubjects(db, JSON.parse(readFileSync(0, 'utf8')), { sector, apply });
+    const provisionAccount = ({ githubId, githubLogin, orgRole }) => JSON.parse(execFileSync(process.execPath, [
+      'app/server/dist/cli/account.js', 'provision-github', '--github-id', String(githubId), '--github-login', githubLogin, '--org-role', orgRole,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    const result = importSubjects(db, JSON.parse(readFileSync(0, 'utf8')), { sector, apply, provisionUnmatched, provisionAccount });
     const lines = [
-      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}${apply ? `，已写入 ${result.applied}` : ''}`,
+      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}${apply ? `，已写入 ${result.applied}` : ''}${result.provisioned.length ? `，最小补建 ${result.provisioned.length}` : ''}`,
       ...result.conflicts.map(item => `冲突 ${item}`),
       ...result.unmatched.map(item => `对不上 ${item}`),
+      ...result.provisioned.map(item => `最小补建 ${item.label}（${item.created ? '新建' : '已存在'}）`),
       ...(apply && result.applied > 0 ? [`回滚：DELETE FROM oauth_subjects WHERE sector_id='${sector}' AND user_id IN (${result.plan.map(item => `'${item.userId}'`).join(',')})`] : []),
     ];
     process.stdout.write(`${lines.join('\n')}\n`);
     return result.conflicts.length > 0 ? 1 : 0;
   }
-  process.stderr.write('用法：migrate-oidc-subjects.mjs export|import --sector <主机名> [--apply]\n');
+  process.stderr.write('用法：migrate-oidc-subjects.mjs export|import --sector <主机名> [--apply] [--provision-unmatched]\n');
   return 2;
 }
 
