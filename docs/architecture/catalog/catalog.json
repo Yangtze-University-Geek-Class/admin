@@ -3171,6 +3171,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "id": "flow:application.submit",
@@ -16943,7 +16951,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "11a73f32cfa4105b3ccac3c0ccbb96887b9678bb81a5305595ff36840857664a",
+    "fingerprint": "3dcfa4b15bb927a51d250a1c8afe21c842ebeb0864c15449fda69d84e2eb4659",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18879,7 +18887,7 @@
       },
       {
         "path": "docs/architecture/catalog/ownership.json",
-        "sha256": "3eec465dc5a6c68c2c4cf6654cdace42b8d964f2216e78821e0994aeaa1f0816"
+        "sha256": "49c52a02dd0204d6cad4fb93ccdf0393dbb8ba26606759454370018c5f2825aa"
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
@@ -25380,6 +25388,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25448,6 +25464,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25516,6 +25540,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25626,6 +25658,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25694,6 +25734,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25762,6 +25810,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25830,6 +25886,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",
@@ -25898,6 +25962,14 @@
         {
           "line": 9,
           "path": "app/server/src/lib/mail/envelope-pieces.ts"
+        },
+        {
+          "line": 7,
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
+        },
+        {
+          "line": 264,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
         }
       ],
       "from": "flow:application.submit",

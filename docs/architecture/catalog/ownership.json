@@ -3036,6 +3036,14 @@
         {
           "path": "app/server/src/lib/mail/envelope-pieces.ts",
           "needle": "export const ENVELOPE_PIECES = {"
+        },
+        {
+          "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
+          "needle": "export default class WindowLoadFailed"
+        },
+        {
+          "path": "app/web/sites/portal/components/os/Windows.tsx",
+          "needle": "{win.id === \"join\" && ("
         }
       ],
       "tests": [
