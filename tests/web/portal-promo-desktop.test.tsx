@@ -346,8 +346,9 @@ describe("手机上", () => {
     document.cookie = `${PROMO_COOKIE}=1; Path=/`;
     mount();
     fireEvent.click(icons().getByRole("button", { name: "宣传片" }));
-    fireEvent.click(dock().getByRole("button", { name: "代码仓库" }));
-    expect(screen.getByRole("dialog", { name: "代码仓库" })).toBeTruthy();
+    // #311 之后 Dock 上能开窗口的只剩「加入我们」（论坛、代码仓库都当场跳走）；看过宣传片（cookie）时打开它不会再自动弹宣传片
+    fireEvent.click(dock().getByRole("button", { name: "加入我们" }));
+    expect(screen.getByRole("dialog", { name: "加入我们" })).toBeTruthy();
     expect(promoWindow()).toBeNull();
     expect(playerActive()).toBe("false");
     expect(player.unmounted).toBe(0);

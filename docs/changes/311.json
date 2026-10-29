@@ -1,90 +1,70 @@
 {
   "version": 1,
   "issue": 311,
-  "kind": "business",
-  "summary": "P0 hotfix：桌面、Dock、菜单栏、⌘K、便签和终端里的「代码仓库」改为整页直达（同论坛），不再打开窗口。地址沿用 links.gitlab()，本次不改地址；窗口组件保留，不从桌面打开。",
+  "kind": "engineering",
+  "summary": "P0 hotfix #311 收尾：把仍断言旧「代码仓库开窗口」行为的两份手机回归测试对齐到 217050f4 已合入的整页直达行为，并随测试源码证据重新生成项目目录，解除 deploy-hotfix 的 hotfix-core 失败。",
   "applications": [
     "web"
   ],
   "domains": [
-    "recruitment",
-    "mail",
-    "audit",
-    "platform",
-    "identity",
-    "invitations",
-    "permissions",
-    "feedback",
-    "competitions",
-    "public_content",
-    "organization"
+    "platform"
   ],
-  "flows": [
-    "flow:application.submit",
-    "flow:identity.invite.redeem",
-    "flow:identity.current",
-    "flow:feedback.submit",
-    "flow:feedback.public.list",
-    "flow:competition.public.list",
-    "flow:documentation.read",
-    "flow:platform.public_config"
-  ],
+  "flows": [],
   "assessments": {
     "business": {
-      "status": "changed",
-      "reason": "代码仓库的打开方式从窗口改为整页直达（kind site，link gitlab）；论坛与控制台不变，其余窗口不变。",
+      "status": "unchanged",
+      "reason": "业务行为不变：「代码仓库整页直达」的行为变更已在 217050f4 评审合入 main；本 PR 只把回归测试的断言从「代码仓库开窗口」对齐到「整页直达」，不改任何运行时行为。",
       "evidence": [
-        "app/web/sites/portal/lib/osApps.ts",
-        "app/web/sites/portal/components/os/YugcOs.tsx",
-        "app/web/sites/portal/lib/shell/commands.ts"
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
       ]
     },
     "backend": {
       "status": "unchanged",
-      "reason": "不修改 /api/public/gitlab/projects 与其它路由；终端 repos 仍读同一接口。",
+      "reason": "无服务端改动：两份测试只覆盖 portal 前端入口的打开方式，不触及任何路由。",
       "evidence": [
-        "app/server/src/routes/portal/gitlab.ts"
+        "tests/web/portal-phone.test.tsx"
       ]
     },
     "permissions": {
       "status": "unchanged",
-      "reason": "匿名可见范围不变；代码仓库的访问权限仍由 GitLab 决定，本次不改。",
+      "reason": "可见范围与授权不变：跳转地址仍是 links.gitlab()，代码仓库的访问权限仍由 GitLab 决定。",
       "evidence": [
-        "docs/architecture/catalog/permissions.md"
+        "app/web/sites/portal/lib/links.ts"
       ]
     },
     "data": {
       "status": "unchanged",
-      "reason": "不改表结构、数据和事务。",
+      "reason": "不涉及表结构、数据与事务，只是测试断言的更新。",
       "evidence": [
         "docs/services/server/data-model.md"
       ]
     },
     "dependencies": {
       "status": "unchanged",
-      "reason": "不增删依赖：package.json 与锁文件没有改动；跳转只用现有的 followAppLink 与 links.gitlab()。",
+      "reason": "package.json 与锁文件没有改动，测试只用仓库内已有的 testing-library 与 vitest。",
       "evidence": [
-        "app/web/package.json"
+        "package.json"
       ]
     },
     "documentation": {
-      "status": "changed",
-      "reason": "docs/services/web/portal.md 记录的应用打开方式、codeRepos.ts 的用途与代码仓库条目已同步到整页直达。",
+      "status": "unchanged",
+      "reason": "文档事实不变：#311 的打开方式说明已在 217050f4 随 docs/services/web/portal.md 同步，本 PR 只改测试断言，测试规范与验证命令都不变；已在本链路执行记录写文档核对。",
       "evidence": [
-        "docs/services/web/portal.md"
+        "docs/conventions/TESTING.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "更新入口与链接测试：桌面、Dock、2/3 键、菜单栏、便签、⌘K、终端都断言整页直达同一地址，不开窗口。",
+      "reason": "两份手机回归测试改为断言 #311 直达行为：论坛、代码仓库单击各直达一次、双击不重复、不开窗口；宣传片被遮挡的场景改用「加入我们」窗口盖住，保留 active 与卸载断言，手机一次只露一个窗口的不变量不变。",
       "evidence": [
-        "tests/web/portal-os.test.ts",
-        "tests/web/portal-os-entries.test.tsx"
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
       ]
     },
     "delivery": {
-      "status": "changed",
-      "reason": "经 deploy-hotfix 上线：deploy/hotfix/windows.json 登记 #311 窗口（tag v0.1.1，所有者 2026-10-29 原话），部署流程与环境不变。",
+      "status": "unchanged",
+      "reason": "不涉及构建产物、部署模板与工作流：hotfix 窗口登记已随 217050f4 进入 main，本次修复与测试经 deploy-hotfix 同一 #311 窗口上线。",
       "evidence": [
         "deploy/hotfix/windows.json"
       ]
@@ -93,36 +73,8 @@
   "coverage": [
     {
       "paths": [
-        "app/web/sites/portal/lib/osApps.ts",
-        "app/web/sites/portal/components/os/YugcOs.tsx",
-        "app/web/sites/portal/lib/shell/commands.ts"
-      ],
-      "domains": [
-        "recruitment",
-        "feedback",
-        "competitions",
-        "identity",
-        "invitations",
-        "organization",
-        "public_content",
-        "platform"
-      ],
-      "nodes": [
-        "domain:recruitment",
-        "domain:feedback",
-        "domain:competitions",
-        "domain:identity",
-        "domain:invitations",
-        "domain:organization",
-        "domain:public_content",
-        "domain:platform"
-      ],
-      "reason": "代码仓库入口改为整页直达：应用清单、桌面注释与终端的离线提示文案同步。"
-    },
-    {
-      "paths": [
-        "tests/web/portal-os.test.ts",
-        "tests/web/portal-os-entries.test.tsx"
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
       ],
       "domains": [
         "platform"
@@ -130,31 +82,7 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "入口与链接测试改为断言整页直达。"
-    },
-    {
-      "paths": [
-        "docs/services/web/portal.md"
-      ],
-      "domains": [
-        "public_content"
-      ],
-      "nodes": [
-        "domain:public_content"
-      ],
-      "reason": "门户文档同步应用打开方式。"
-    },
-    {
-      "paths": [
-        "deploy/hotfix/windows.json"
-      ],
-      "domains": [
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform"
-      ],
-      "reason": "热修复窗口登记：新增 #311 条目，deploy-hotfix 只接受 open 且未过期的窗口。"
+      "reason": "手机入口与宣传片遮挡的回归测试改为断言整页直达，覆盖单击直达、双击不重复与窗口 active/卸载的既有不变量。"
     },
     {
       "paths": [
@@ -171,17 +99,17 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "项目目录生成物随源码证据行号更新（pnpm catalog:generate），没有人工改动；check:catalog 核对通过。"
+      "reason": "项目目录生成物随源码证据哈希更新（pnpm catalog:generate），没有人工改动；check:catalog 核对通过。"
     }
   ],
   "documents": [
-    "docs/services/web/portal.md"
+    "docs/conventions/TESTING.md"
   ],
   "tests": [
-    "tests/web/portal-os.test.ts",
-    "tests/web/portal-os-entries.test.tsx"
+    "tests/web/portal-phone.test.tsx",
+    "tests/web/portal-promo-desktop.test.tsx"
   ],
-  "compatibility": "不改 HTTP 接口、表结构、环境变量与既有账号。终端 repos 与 /api/public/gitlab/projects 不变；代码仓库窗口组件保留，不再从桌面、Dock、菜单或 ⌘K 打开。",
-  "migration": "无数据或配置迁移：只改前端的打开方式。",
-  "rollback": "revert 本 MR 的合并提交即可恢复窗口打开方式。"
+  "compatibility": "不改 HTTP 接口、表结构、环境变量与用户可见行为；仅测试断言对齐 #311 已上线的整页直达，失败输出与 CI hotfix-core 的两处断言一一对应。",
+  "migration": "无数据或配置迁移：只改回归测试与项目目录生成物。",
+  "rollback": "revert 本 MR 的合并提交即可恢复旧测试断言，不影响运行时行为。"
 }

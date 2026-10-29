@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AppLink } from "../../app/web/sites/portal/lib/osApps";
+import { links } from "../../app/web/sites/portal/lib/links";
 import { PHONE_QUERY } from "../../app/web/sites/portal/lib/useMediaQuery";
 
 const followed = vi.hoisted(() => ({ calls: [] as AppLink[] }));
@@ -106,16 +107,17 @@ it.each([null, false, true])("手机控制台沿用 console_link=%s，图标、�
   expect(listed.includes("console.app")).toBe(consoleLink === true);
 });
 
-it("手机单击直达，双击事件不重复打开；论坛当前页，代码仓库在应用里打开", () => {
-  const { container } = mount();
+it("手机单击直达，双击事件不重复打开；论坛和代码仓库都在当前页直达，不开窗口（#311）", () => {
+  mount();
   fireEvent.click(icons().getByRole("button", { name: "论坛" }));
   expect(followed.calls).toEqual([{ href: "http://127.0.0.1:3456/", newTab: false }]);
   fireEvent.click(icons().getByRole("button", { name: "代码仓库" }));
   fireEvent.doubleClick(icons().getByRole("button", { name: "代码仓库" }));
-  expect(screen.getAllByRole("dialog", { name: "代码仓库" })).toHaveLength(1);
-  expect(followed.calls).toHaveLength(1);
-  expect(icons().queryByRole("button", { name: /GitHub/ })).toBeNull();
-  expect(container.querySelector(".pt-scene")).toBeNull();
+  expect(followed.calls).toEqual([
+    { href: "http://127.0.0.1:3456/", newTab: false },
+    { href: links.gitlab(), newTab: false },
+  ]);
+  expect(screen.queryAllByRole("dialog")).toHaveLength(0);
 });
 
 it("指引与壁纸弹层隔离背景数字键和搜索快捷键", () => {
