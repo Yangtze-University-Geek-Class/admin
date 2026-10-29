@@ -36,10 +36,11 @@
     {
       "issue": 311,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "Crosery",
       "approvedAt": "2026-10-29T17:31:00+08:00",
-      "expiresAt": "2026-11-05T17:31:00+08:00",
+      "closedAt": "2026-10-29T23:44:49+08:00",
+      "evidence": "修复 217050f4+5930046a 经 deploy-hotfix 40891492605 十个 job 全绿上线（含 smoke），release.json=production 0.1.1@5930046a；桌面 1280×800 与手机 390×844 浏览器实测代码仓库整页直达零弹窗（GitLab #311 accept note 1848）；合回 stage b734c992。",
       "quote": "主界面里面的代码仓库点击的时候不走弹窗和论坛一样直接跳转过去，大哥就这样了，差不多走hotfix快速上线吧"
     }
   ]
