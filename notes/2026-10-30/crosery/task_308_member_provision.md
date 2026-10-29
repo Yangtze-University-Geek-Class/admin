@@ -15,3 +15,9 @@
 - 做了什么：97d08369：exportSubjects 先看已记录的 org_role，没有时按有效的 level.member 记为 member；补建不了的写 provision_skip（inactive/alumni/not_member/no_github），import 带 --provision-unmatched 时随「对不上」打印原因；汇总行格式不变。GITLAB.md 同步说明。新增用例覆盖成员、过期、校友、停用、无 GitHub、管理员六种。
 - 结果：三组用例 73 通过。
 - 下一步：审查、开 MR、合并后重跑 stop-preview-sync 演算。
+
+## 02:12:55 +08:00 · 提交 · #308 · 宏观对齐声明与文档核对
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：dea04a69：docs/changes/308.json 改为本 MR 的声明（覆盖迁移工具、用例与 GITLAB.md）。文档核对：docs/ops/DEPLOY.md 不用改——它只写「正式库缺失的有效旧成员由 account.js provision-github 按 GitHub UID 最小补建」，口径变化写在 GITLAB.md。文档核对：docs/ops/ENVIRONMENTS.md 不用改——没有改 env 键、端口或环境划分。文档核对：docs/ops/CICD.md 不用改——没有改工作流或步骤选项。
+- 结果：check-architecture 通过（5 个变更文件、3 个关联节点）。
