@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
+// 表单样式（pages.css）随入口一起加载，不作为「加入我们」「意见箱」窗口打开时才取的分包 CSS：分包 CSS 取失败时窗口整个打不开（#310）
+import "./styles/pages.css";
 
 // 3D 场景页与普通页面按路由分包：首页之外的页面只在访问时下载。three.js 本身在各场景的 import() 里再次延迟。
 const Forum3D = lazy(() => import("./pages/Forum3D"));

@@ -84,11 +84,11 @@ describe("YUGC OS 应用与启动器", () => {
     expect(new Set(OS_APPS.map((app) => app.id)).size).toBe(OS_APPS.length);
   });
 
-  it("入口指向：加入我们（#279）、代码仓库和意见箱（#275）在桌面开窗口，论坛直达（#185），控制台 /console", () => {
+  it("入口指向：加入我们（#279）和意见箱（#275）在桌面开窗口，论坛直达（#185），代码仓库直达（#311），控制台 /console", () => {
     const open = Object.fromEntries(OS_APPS.map((app) => [app.id, app.open]));
     expect(open.join).toEqual({ kind: "window" });
     expect(open.forum).toEqual({ kind: "site", link: "forumHome" });
-    expect(open.gitlab).toEqual({ kind: "window" });
+    expect(open.gitlab).toEqual({ kind: "site", link: "gitlab" });
     expect(open.github).toBeUndefined();
     expect(open.feedback).toEqual({ kind: "window" });
     expect(open.console).toEqual({ kind: "site", link: "console" });
@@ -96,11 +96,13 @@ describe("YUGC OS 应用与启动器", () => {
     expect(JSON.stringify(OS_APPS)).not.toMatch(/forum-3d|"\/github"/);
   });
 
-  it("站外应用的地址与打开方式：论坛、控制台当前标签页；留在官网里的应用（包括代码仓库窗口）没有站外地址", () => {
+  it("站外应用的地址与打开方式：论坛、代码仓库、控制台当前标签页；留在官网里的应用没有站外地址", () => {
     expect(appLink(appById("forum")!)).toEqual({ href: links.forumHome(), newTab: false });
+    expect(appLink(appById("gitlab")!)).toEqual({ href: links.gitlab(), newTab: false });
     expect(appLink(appById("console")!)).toEqual({ href: links.console(), newTab: false });
-    for (const id of ["join", "gitlab", "promo", "about", "org", "competitions", "terminal", "wallpaper", "feedback"]) expect(appLink(appById(id)!), id).toBeNull();
+    for (const id of ["join", "promo", "about", "org", "competitions", "terminal", "wallpaper", "feedback"]) expect(appLink(appById(id)!), id).toBeNull();
     expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
+    expect(appLinkById("gitlab")).toEqual({ href: links.gitlab(), newTab: false });
     expect(() => appLinkById("join")).toThrow();
     // 桌面上没有在新标签页打开的应用了；窗口里去 GitLab、比赛官网的链接给读屏补这一句
     expect(NEW_TAB_NOTE).toBe("（新标签页打开）");

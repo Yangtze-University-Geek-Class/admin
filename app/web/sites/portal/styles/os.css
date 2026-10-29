@@ -476,7 +476,7 @@
 .is-phone .pt-orgc-note { align-items: start; text-align: left; }
 .is-phone .pt-repos-list time { display: none; }
 
-/* 意见箱窗口（#275）：表单和「最近的意见」并排，表单控件换成窗口的配色；表单本身的样式在 pages.css，跟着窗口内容一起加载 */
+/* 意见箱窗口（#275）：表单和「最近的意见」并排，表单控件换成窗口的配色；表单本身的样式在 pages.css，随入口一起加载 */
 .pt-feedback.is-window { gap: 20px; }
 .pt-feedback-lead { margin-bottom: 14px; font-size: 13.5px; color: var(--os-ink-soft); }
 .pt-feedback.is-window :is(.pt-feed-item, .pt-feed-empty) { border-color: rgb(58 118 214 / 18%); border-radius: var(--os-radius-card); background: rgb(255 255 255 / 70%); }

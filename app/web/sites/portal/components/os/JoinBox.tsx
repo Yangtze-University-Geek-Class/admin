@@ -1,5 +1,5 @@
 // 「加入我们」窗口（#279）：一封信就是表单，写在桌面窗口里，不再跳到单独的页面（原来的 /join-us 三维信封场景已归档到
-// docs/history/portal-yugc-os-v1/）。打开时才加载，防刷验证和表单样式不进桌面首屏。
+// docs/history/portal-yugc-os-v1/）。打开时才加载，防刷验证不进桌面首屏。
 //
 // 窗口先读 /api/public/config（#284）：招新总开关开着显示信纸，关着整个窗口换成 JoinClosed 的关闭页，没有表单；
 // 读到之前只显示「正在打开信纸…」，不先闪出表单。信纸里寄出时服务端回 403 apply_closed（开关在写信的时候被关了）也换成关闭页。
@@ -23,7 +23,6 @@ import { promoEntry } from "../../lib/promoWindow";
 import { useReducedMotion } from "../../lib/useReducedMotion";
 import JoinClosed from "./JoinClosed";
 import type { OpenApp } from "./Windows";
-import "../../styles/pages.css";
 
 type FormState = { name: string; className: string; email: string; strengths: string; website: string };
 type FieldName = "name" | "className" | "email" | "strengths";

@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "issue": 311,
+  "kind": "engineering",
+  "summary": "P0 hotfix #311 收尾：把仍断言旧「代码仓库开窗口」行为的两份手机回归测试对齐到 217050f4 已合入的整页直达行为，并随测试源码证据重新生成项目目录，解除 deploy-hotfix 的 hotfix-core 失败。",
+  "applications": [
+    "web"
+  ],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务行为不变：「代码仓库整页直达」的行为变更已在 217050f4 评审合入 main；本 PR 只把回归测试的断言从「代码仓库开窗口」对齐到「整页直达」，不改任何运行时行为。",
+      "evidence": [
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "无服务端改动：两份测试只覆盖 portal 前端入口的打开方式，不触及任何路由。",
+      "evidence": [
+        "tests/web/portal-phone.test.tsx"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "可见范围与授权不变：跳转地址仍是 links.gitlab()，代码仓库的访问权限仍由 GitLab 决定。",
+      "evidence": [
+        "app/web/sites/portal/lib/links.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不涉及表结构、数据与事务，只是测试断言的更新。",
+      "evidence": [
+        "docs/services/server/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "package.json 与锁文件没有改动，测试只用仓库内已有的 testing-library 与 vitest。",
+      "evidence": [
+        "package.json"
+      ]
+    },
+    "documentation": {
+      "status": "unchanged",
+      "reason": "文档事实不变：#311 的打开方式说明已在 217050f4 随 docs/services/web/portal.md 同步，本 PR 只改测试断言，测试规范与验证命令都不变；已在本链路执行记录写文档核对。",
+      "evidence": [
+        "docs/conventions/TESTING.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "两份手机回归测试改为断言 #311 直达行为：论坛、代码仓库单击各直达一次、双击不重复、不开窗口；宣传片被遮挡的场景改用「加入我们」窗口盖住，保留 active 与卸载断言，手机一次只露一个窗口的不变量不变。",
+      "evidence": [
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "不涉及构建产物、部署模板与工作流：hotfix 窗口登记已随 217050f4 进入 main，本次修复与测试经 deploy-hotfix 同一 #311 窗口上线。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "手机入口与宣传片遮挡的回归测试改为断言整页直达，覆盖单击直达、双击不重复与窗口 active/卸载的既有不变量。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "项目目录生成物随源码证据哈希更新（pnpm catalog:generate），没有人工改动；check:catalog 核对通过。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/TESTING.md"
+  ],
+  "tests": [
+    "tests/web/portal-phone.test.tsx",
+    "tests/web/portal-promo-desktop.test.tsx"
+  ],
+  "compatibility": "不改 HTTP 接口、表结构、环境变量与用户可见行为；仅测试断言对齐 #311 已上线的整页直达，失败输出与 CI hotfix-core 的两处断言一一对应。",
+  "migration": "无数据或配置迁移：只改回归测试与项目目录生成物。",
+  "rollback": "revert 本 MR 的合并提交即可恢复旧测试断言，不影响运行时行为。"
+}

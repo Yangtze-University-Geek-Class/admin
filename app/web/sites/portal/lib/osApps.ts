@@ -15,7 +15,7 @@ export type AppId = "join" | "forum" | "gitlab" | "promo" | "about" | "org" | "c
 export type AppOpen =
   | { kind: "window" }
   | { kind: "panel"; panel: "wallpaper" }
-  | { kind: "site"; link: "forumHome" | "console" };
+  | { kind: "site"; link: "forumHome" | "console" | "gitlab" };
 
 export type OsApp = {
   id: AppId;
@@ -34,7 +34,7 @@ export type OsApp = {
 export const OS_APPS: readonly OsApp[] = [
   { id: "join", name: "加入我们", icon: "mail-send-line", key: "1", primary: true, open: { kind: "window" }, blurb: "写封信报名，我们用邮件联系你" },
   { id: "forum", name: "论坛", icon: "discuss-line", key: "2", open: { kind: "site", link: "forumHome" }, blurb: "班级公告，课程、竞赛和求职讨论", keywords: "bbs home 首页" },
-  { id: "gitlab", name: "代码仓库", icon: "git-repository-line", key: "3", open: { kind: "window" }, blurb: "极客班自己的 GitLab，用极客班账号登录", keywords: "gitlab git repo code 代码 仓库" },
+  { id: "gitlab", name: "代码仓库", icon: "git-repository-line", key: "3", open: { kind: "site", link: "gitlab" }, blurb: "极客班自己的 GitLab，用极客班账号登录", keywords: "gitlab git repo code 代码 仓库" },
   { id: "promo", name: "宣传片", icon: "film-line", open: { kind: "window" }, blurb: "极客班宣传片，1 分 45 秒" },
   { id: "about", name: "关于极客班", icon: "book-2-line", open: { kind: "window" }, blurb: "极客班是做什么的" },
   { id: "org", name: "组织架构", icon: "organization-chart", open: { kind: "window" }, blurb: "有哪些部门，谁负责什么" },

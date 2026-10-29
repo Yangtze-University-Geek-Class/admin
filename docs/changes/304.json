@@ -2,168 +2,175 @@
   "version": 1,
   "issue": 304,
   "kind": "business",
-  "summary": "把公开旧帖中 56 张阿里 OSS 原图统一导出为内容寻址 WebP，正文改用 Garage CDN 绝对地址，启动时更新未人工编辑的已有旧帖；发布上传器按正文实际引用收集、校验并写入发布清单，8 张 drop 截图继续不公开。",
+  "summary": "GitHub 受保护 stage 同步：把已合入两仓 main 的 #310 加入我们窗口边界修复与 #311 代码仓库整页直达（含测试对齐）合回 stage，恢复两仓 stage >= main。源事项为 GitLab geek/admin#310、#311，不冒充 GitHub 同号 issue；不直推、不取消保护、不创建或移动发布 tag。本文件因两仓 issue 共用 docs/changes 扁平命名空间而接管同号文件（所有者 2026-10-29 定夺沿用 #301 先例），GitLab #304 的原声明保留在提交 b37beca5。",
   "applications": [
-    "server",
-    "forum"
+    "web"
   ],
   "domains": [
-    "forum",
-    "public_content",
+    "recruitment",
+    "mail",
+    "audit",
     "platform",
     "identity",
+    "invitations",
     "permissions",
-    "audit"
+    "feedback",
+    "competitions",
+    "public_content",
+    "organization"
   ],
   "flows": [
-    "flow:forum.site-published.asset"
+    "flow:application.submit",
+    "flow:identity.invite.redeem",
+    "flow:identity.current",
+    "flow:feedback.submit",
+    "flow:feedback.public.list",
+    "flow:competition.public.list",
+    "flow:documentation.read",
+    "flow:platform.public_config"
   ],
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "旧帖图片加载从阿里 OSS 或同源相对地址切到自有 Garage CDN；话题、作者、可见范围与正文其它内容不变。",
+      "reason": "合回 #310 的加入我们窗口边界修复（窗口层叠与分包失败回退）与 #311 的代码仓库整页直达（同论坛，不再开窗口）；同步本身不新增任何产品规则。",
       "evidence": [
-        "app/forum/content/published/topics.json",
-        "app/forum/content/published/manifest.json"
+        "app/web/sites/portal/App.tsx",
+        "app/web/sites/portal/components/os/JoinBox.tsx",
+        "app/web/sites/portal/components/os/FeedbackBox.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/lib/shell/commands.ts"
       ]
     },
     "backend": {
-      "status": "changed",
-      "reason": "不改 API 路由或响应 Schema；forum-store.seed 在启动时更新未人工编辑的已有旧帖正文，让已有数据库收到 CDN 地址，edited_at 非空的人工编辑不覆盖。",
+      "status": "unchanged",
+      "reason": "两件 hotfix 全部是 portal 前端改动，服务端路由、接口与权限代码零改动（diff 无 app/server 路径）。",
       "evidence": [
-        "app/server/src/lib/forum-store.ts",
-        "tests/server/forum.test.ts"
+        "tests/web/portal-window-css-entry.test.ts"
       ]
     },
     "permissions": {
       "status": "unchanged",
-      "reason": "只迁移已经公开可见的阿里 OSS 图片；8 张 drop 截图不上传，未标 cdn 的同源图片不进入公开桶，不扩大任何话题或附件的可见范围；启动更新仍以官方作者和 edited_at 为边界。",
+      "reason": "不涉及身份、授权与资源范围的变化；代码仓库访问权限仍由 GitLab 决定。",
       "evidence": [
-        "app/forum/content/published/manifest.json",
-        "scripts/static-cdn.mjs",
-        "app/server/src/lib/forum-store.ts"
+        "docs/architecture/catalog/permissions.md"
       ]
     },
     "data": {
-      "status": "changed",
-      "reason": "56 张公开原图导出为 56 个、共 2120132 字节的内容寻址 WebP；topics.json 的 63 处引用改为 CDN 地址。没有表结构变化，已有数据库启动时只更新未人工编辑的旧帖正文。",
+      "status": "unchanged",
+      "reason": "不涉及表结构、数据与事务，全部是前端展示与测试。",
       "evidence": [
-        "app/forum/public/published/878332195a0ee7b8.webp",
-        "app/forum/content/published/topics.json",
-        "app/server/src/lib/forum-store.ts",
-        "tests/server/forum.test.ts"
+        "docs/services/server/data-model.md"
       ]
     },
     "dependencies": {
-      "status": "changed",
-      "reason": "图片运行依赖从阿里 OSS 改为既有 Garage；上传复用现有 SigV4、只增不改、完整 GET/Range/MIME/CORS 校验，没有新增包依赖；已有库在启动播种事务内更新正文。",
+      "status": "unchanged",
+      "reason": "package.json 与锁文件没有改动；只合回已审查的既有代码与测试。",
       "evidence": [
-        "scripts/static-cdn.mjs",
-        "scripts/static-cdn-s3.mjs",
-        "scripts/static-cdn-manifest.mjs",
-        "app/server/src/lib/forum-store.ts"
+        "package.json"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "CDN 合同补公开对象目录、角色和固定地址行为；论坛与 server 合同补 cdn 清单规则和已有库更新/人工编辑保护；CICD 补发布收集范围；server 镜像注释区分 CDN 与 viewer 同源图片。",
+      "reason": "docs/services/web/portal.md 随两件 hotfix 同步了加入我们窗口与代码仓库整页直达的说明；目录生成物随源码证据重生成。",
       "evidence": [
-        "docs/ops/CDN.md",
-        "docs/services/forum/README.md",
-        "docs/services/server/README.md",
-        "docs/ops/CICD.md",
-        "app/server/Dockerfile"
+        "docs/services/web/portal.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "回归覆盖 56 张图片和 8 张 drop 的边界、正文阿里引用清零、文件存在与哈希、只收实际引用、内容变化/缺文件失败、发布清单角色与来源，以及已有库更新未编辑帖并保留人工编辑；随后由真实 CDN 上传和预发布浏览器验收。",
+      "reason": "五份回归测试随修复合回：窗口 CSS 入口（#310）、入口直达与 os 链接（#311）、手机单击直达与宣传片遮挡（#311 测试对齐），全部在源 MR 与本次同步中全量通过。",
       "evidence": [
-        "app/forum/tests/site-state.test.ts",
-        "tests/tooling/static-cdn.test.ts",
-        "tests/tooling/static-cdn-manifest.test.ts",
-        "tests/server/forum.test.ts"
+        "tests/web/portal-window-css-entry.test.ts",
+        "tests/web/portal-os-entries.test.tsx",
+        "tests/web/portal-os.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "plan/upload 新增 forum/published 对象，cdn-upload 先于 deploy 完成；镜像保留同源副本，旧 CDN 对象不删除，正式发布可沿用同一门禁。",
+      "reason": "deploy/hotfix/windows.json 合回 #310 与 #311 的 P0 窗口登记（tag v0.1.1，所有者原话与批准时间在登记里）；部署流程、工作流与环境不变，本 PR 不部署。",
       "evidence": [
-        "scripts/static-cdn.mjs",
-        "app/server/Dockerfile",
-        "docs/ops/CICD.md"
+        "deploy/hotfix/windows.json"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "app/forum/content/published/manifest.json",
-        "app/forum/content/published/topics.json",
-        "app/forum/public/published/",
-        "scripts/forum-migration/export-published.mjs"
+        "app/web/sites/portal/App.tsx",
+        "app/web/sites/portal/components/os/JoinBox.tsx",
+        "app/web/sites/portal/components/os/FeedbackBox.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/styles/os.css"
       ],
       "domains": [
-        "forum",
-        "public_content"
-      ],
-      "nodes": [
-        "flow:forum.site-published.asset"
-      ],
-      "reason": "清单登记 56 张公开阿里图的原图 SHA 与 cdn 标记，导出器生成内容寻址 WebP 和 CDN 正文地址，drop 与未标记图片保持原行为。"
-    },
-    {
-      "paths": [
-        "scripts/static-cdn.mjs",
-        "scripts/static-cdn-s3.mjs",
-        "scripts/static-cdn-manifest.mjs"
-      ],
-      "domains": [
+        "recruitment",
+        "feedback",
+        "competitions",
         "platform",
-        "forum"
+        "public_content",
+        "invitations",
+        "identity",
+        "organization"
       ],
       "nodes": [
+        "domain:recruitment",
+        "domain:feedback",
+        "domain:competitions",
         "domain:platform",
-        "flow:forum.site-published.asset"
+        "domain:public_content",
+        "domain:invitations",
+        "domain:identity",
+        "domain:organization"
       ],
-      "reason": "上传器开放 forum/published 前缀，只收正文引用并核对文件哈希；S3 合同和发布清单接受 published-image。"
+      "reason": "#310 加入我们窗口边界修复合回：窗口分包失败回退、窗口层叠与样式入口。"
     },
     {
       "paths": [
-        "app/server/Dockerfile",
-        "app/server/src/lib/forum-store.ts",
-        "app/forum/tests/site-state.test.ts",
-        "tests/tooling/static-cdn.test.ts",
-        "tests/tooling/static-cdn-manifest.test.ts",
-        "tests/server/forum.test.ts"
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/lib/shell/commands.ts"
       ],
       "domains": [
-        "forum",
+        "recruitment",
+        "feedback",
+        "competitions",
+        "identity",
+        "invitations",
+        "organization",
+        "public_content",
         "platform"
       ],
       "nodes": [
-        "application:server",
-        "domain:platform",
-        "flow:forum.site-published.asset"
+        "domain:recruitment",
+        "domain:feedback",
+        "domain:competitions",
+        "domain:identity",
+        "domain:invitations",
+        "domain:organization",
+        "domain:public_content",
+        "domain:platform"
       ],
-      "reason": "镜像保留同源副本；启动更新未人工编辑的旧帖正文；回归覆盖完整迁移、上传边界、清单来源与人工编辑保护。"
+      "reason": "#311 代码仓库整页直达合回：应用清单改为 site 直达，桌面注释与终端离线提示同步。"
     },
     {
       "paths": [
-        "docs/ops/CDN.md",
-        "docs/ops/CICD.md",
-        "docs/services/forum/README.md",
-        "docs/services/server/README.md"
+        "tests/web/portal-window-css-entry.test.ts",
+        "tests/web/portal-os-entries.test.tsx",
+        "tests/web/portal-os.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
       ],
       "domains": [
-        "platform",
-        "forum"
+        "platform"
       ],
       "nodes": [
-        "domain:platform",
-        "application:forum"
+        "domain:platform"
       ],
-      "reason": "同步公开对象、导出规则、发布收集和 viewer 边界文档。"
+      "reason": "两件 hotfix 的回归测试合回，断言窗口边界与整页直达行为。"
     },
     {
       "paths": [
@@ -180,23 +187,57 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "源码与文档更新后重新生成的项目目录，只有来源摘要变化（生成物，由 catalog:generate 产出，不手工编辑）。"
+      "reason": "项目目录生成物随源码证据哈希重生成（pnpm catalog:generate），没有人工改动。"
+    },
+    {
+      "paths": [
+        "docs/changes/310.json",
+        "docs/changes/311.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "两件 hotfix 各自 PR 的影响声明随同步合回，审查结论存档不变。"
+    },
+    {
+      "paths": [
+        "deploy/hotfix/windows.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "hotfix 窗口登记合回：#310 与 #311 的 open 窗口条目（tag v0.1.1，所有者批准原话在登记里）。"
+    },
+    {
+      "paths": [
+        "docs/services/web/portal.md"
+      ],
+      "domains": [
+        "public_content"
+      ],
+      "nodes": [
+        "domain:public_content"
+      ],
+      "reason": "门户文档同步两件 hotfix 的行为说明。"
     }
   ],
   "documents": [
-    "docs/ops/CDN.md",
-    "docs/ops/CICD.md",
-    "docs/services/forum/README.md",
-    "docs/services/server/README.md"
+    "docs/services/web/portal.md"
   ],
   "tests": [
-    "app/forum/tests/site-state.test.ts",
-    "tests/tooling/static-cdn.test.ts",
-    "tests/tooling/static-cdn-manifest.test.ts",
-    "tests/tooling/forum-published.test.ts",
-    "tests/server/forum.test.ts"
+    "tests/web/portal-window-css-entry.test.ts",
+    "tests/web/portal-os-entries.test.tsx",
+    "tests/web/portal-os.test.ts",
+    "tests/web/portal-phone.test.tsx",
+    "tests/web/portal-promo-desktop.test.tsx"
   ],
-  "compatibility": "API 路由、响应 Schema、话题可见范围和未标记图片的同源行为不变；CDN 地址带内容哈希，旧对象不删除；人工编辑过的旧帖不覆盖。",
-  "migration": "47 个未迁移阿里外链加 9 个已脱敏阿里原图，共 56 张导出并改写；8 张 drop 截图不下载、不上传。已有数据库启动时只更新 edited_at 为空的旧帖正文，无表结构迁移。",
-  "rollback": "回滚 topics.json、清单和上传器即可恢复旧引用与旧发布范围；已上传对象保留供旧版本使用，不执行删除。"
+  "compatibility": "不改 HTTP 接口、表结构、环境变量与既有账号；合回的是已在两仓 main 审查、CI 全绿并经 deploy-hotfix 40891492605 部署与 smoke 的 #310/#311 修复，无新增改动。",
+  "migration": "无数据或配置迁移：只合回已上线的前端修复、回归测试、hotfix 窗口登记、目录生成物与执行记录。",
+  "rollback": "revert 本次同步合并即可把 stage 退回同步前状态；线上运行的是 main 的镜像，不受 stage 同步影响（RELEASES「回滚」）。"
 }

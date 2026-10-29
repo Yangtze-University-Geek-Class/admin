@@ -3137,7 +3137,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -3940,11 +3940,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -3989,7 +3989,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -16951,7 +16951,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "3dcfa4b15bb927a51d250a1c8afe21c842ebeb0864c15449fda69d84e2eb4659",
+    "fingerprint": "b1e0f4c1dc96995eed09b5db80730bf139ccb8224e11bbd31b1cdac63d89c3c4",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18575,7 +18575,7 @@
       },
       {
         "path": "app/web/sites/portal/App.tsx",
-        "sha256": "16f07766f2bd365907370700050dd03f9a06d061cb2d37fe6078df7e67913b7c"
+        "sha256": "76c163d74d1cad35aa3f6b59069511bdaa78a8e3cecfac2b04586af9790611f3"
       },
       {
         "path": "app/web/sites/portal/components/ChoiceChips.tsx",
@@ -18635,11 +18635,11 @@
       },
       {
         "path": "app/web/sites/portal/components/os/FeedbackBox.tsx",
-        "sha256": "f65335661a81a495a51b8c624802d5bb03fda9dd56cd07715cd638dec6b91685"
+        "sha256": "dc8f40a19f8f35e126c760362ceffa4152f7f3622cb35b4667192b362e74337c"
       },
       {
         "path": "app/web/sites/portal/components/os/JoinBox.tsx",
-        "sha256": "f125f61d67f269a27e966c59227e4de9442b7f4048153d1fa5a3b0dc5073c87e"
+        "sha256": "68d6748972d5536314d2811d424193101fe07ad1bfa8d861e49572bb47ff3820"
       },
       {
         "path": "app/web/sites/portal/components/os/JoinClosed.tsx",
@@ -18671,11 +18671,11 @@
       },
       {
         "path": "app/web/sites/portal/components/os/Windows.tsx",
-        "sha256": "2ebce03ff400fde5508ecee3e8434a64089c637d7570e15d0917e2ea330ff965"
+        "sha256": "7c84fbabd18a28e488a4c4a7ad18a980d89a34d949fd7173780f230d5d7623d4"
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
-        "sha256": "6b50f256604864bc99bcbaa14889fcd02d3997a84051d32103f9ea159a009a4e"
+        "sha256": "6f1cf5f7fd19247f8a5640465c910b046128d0758725f31909313c6577b11d95"
       },
       {
         "path": "app/web/sites/portal/components/os/competitions/Avatar.tsx",
@@ -18787,7 +18787,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/osApps.ts",
-        "sha256": "aaacb1b28e0a5f46133179046061ac82f2a0d1aa6929d8219d3c33b6ceaeed7a"
+        "sha256": "9b3bbae2a7f613d924cf60582323f2303cbfc8f5b6e7c38472bb805c041db13f"
       },
       {
         "path": "app/web/sites/portal/lib/pixelRatio.ts",
@@ -18807,7 +18807,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/shell/commands.ts",
-        "sha256": "1222d8231d4ead701784bda2bea70d5af6caa2b28ec0fe367193c2cb3ff07bd9"
+        "sha256": "54e5f0d741160dea44ddfcdabb641585c63b01eecabf8177f6edcef970fec38c"
       },
       {
         "path": "app/web/sites/portal/lib/shell/index.ts",
@@ -18963,7 +18963,7 @@
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "3759fec54be892ed0ea1f3bc1765b8e283d8fa5c5ac3de11f0c6453b2755beb2"
+        "sha256": "632fa62c95f5f5d73cb99975178a068b68815cd79221a9089700206dc30ba08d"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -19331,11 +19331,11 @@
       },
       {
         "path": "tests/web/portal-os.test.ts",
-        "sha256": "7236ea06a18023350feb448532e7465841c474ba6b1bcf02899e0c6df1806357"
+        "sha256": "ea5c0b610f12441d818e1f9df8aa91f218da90d1fccdb6b07dab5bd2c5b9b97f"
       },
       {
         "path": "tests/web/portal-phone.test.tsx",
-        "sha256": "4108750274d4d6966bd023d755b5a21d14385f581cc80a0d5bccd448acf45a38"
+        "sha256": "de33be38b563320cdd6898bd6e3d517030ec9f665f9edc941bd60043c9d45544"
       },
       {
         "path": "tests/web/portal-profile-card.test.tsx",
@@ -19343,7 +19343,7 @@
       },
       {
         "path": "tests/web/portal-promo-desktop.test.tsx",
-        "sha256": "590362ba7cade15485329d31b0a8674a27ef7811b24d026864c404bb4e531eec"
+        "sha256": "77e2772ef6a638a5aab0ca7ae66d1ae100100c11e97ad9ca7c844f064e1ffadb"
       },
       {
         "path": "tests/web/portal-promo-window.test.ts",
@@ -25354,7 +25354,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25430,7 +25430,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25506,7 +25506,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25624,7 +25624,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25700,7 +25700,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25776,7 +25776,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25852,7 +25852,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25928,7 +25928,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -54304,11 +54304,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -54340,11 +54340,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -54388,7 +54388,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54422,7 +54422,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54438,7 +54438,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54454,7 +54454,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54470,7 +54470,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
