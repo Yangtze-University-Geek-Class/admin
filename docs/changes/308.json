@@ -62,7 +62,7 @@
       "reason": "独立实例目录、端口、网络、凭据与备份角色；入口只经固定动作安装器，校验、锁、备份与失败恢复不省略。差异键有独立目标约束，不放宽密钥规则；初始化不动正式实例、不开放SSO、不复用旧用户ID。"
     },
     {
-      "paths": ["app/server/src/routes/portal/gitlab.ts", "app/server/src/routes/portal/contracts.ts", "app/server/src/lib/gitlab-sync.ts", "app/web/sites/portal/lib/codeRepos.ts", "app/web/sites/portal/components/os/Windows.tsx", "app/web/sites/portal/components/os/Terminal.tsx", "app/web/sites/portal/lib/shell/index.ts", "app/web/sites/portal/lib/shell/commands.ts", "app/web/shared/lib/mock-api.ts", "tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts", "tests/web/portal-os.test.ts", "tests/web/portal-os-entries.test.tsx"],
+      "paths": ["app/server/src/routes/portal/gitlab.ts", "app/server/src/routes/portal/contracts.ts", "app/server/src/lib/gitlab-sync.ts", "app/web/sites/portal/lib/codeRepos.ts", "app/web/sites/portal/components/os/Windows.tsx", "app/web/sites/portal/components/os/Terminal.tsx", "app/web/sites/portal/lib/shell/index.ts", "app/web/sites/portal/lib/shell/commands.ts", "app/web/shared/lib/mock-api.ts", "tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts", "tests/web/portal-os.test.ts"],
       "domains": ["gitlab", "identity", "permissions", "platform", "audit", "competitions", "feedback", "invitations", "organization", "public_content", "recruitment"],
       "nodes": ["flow:gitlab.projects.member.list", "flow:gitlab.projects.public.list", "flow:gitlab.settings.update", "flow:identity.current", "flow:competition.public.list"],
       "reason": "改变成员项目查询和跨身份状态隔离。共享路由合同、窗口与终端还承载比赛、投递、意见箱、邀请、组织和公开文档，因此纳入相邻流程核对；这些模块的接口、授权和数据不变，不能因为共用文件省略影响面。"
