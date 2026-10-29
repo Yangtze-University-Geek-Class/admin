@@ -79,3 +79,21 @@
 - 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
 - 做了什么：核对 docs/services/web 下的 README 与 portal.md：两份文档都不记录 pages.css 的加载位置，窗口功能、入口与提交流程没有变化；docs/changes/310.json 只描述本 PR 的五个源码文件与回归测试
 - 结果：文档核对：docs/services/web/ 不用改——服务文档目录下 README 与 portal.md 都已核对，窗口功能、入口与提交流程不变，只是 pages.css 的加载位置变了，文档没有记录这一位置
+
+## 16:51:24 +08:00 · 提交 · #310 · 提交 40bba025：表单样式随入口加载
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：App.tsx 引入 pages.css，JoinBox 与 FeedbackBox 去掉引用；注释与 os.css 说明同步到新的加载位置；新增 tests/web/portal-window-css-entry.test.ts；docs/changes/310.json 只描述本 PR；catalog:generate 的生成物随证据行号更新
+- 结果：pnpm check（Node 22）退出码 0；tests/web 39 文件 387 例通过（Node 22）；check:architecture 默认 base 通过（14 个变更文件）
+
+## 16:51:24 +08:00 · PR · #310 · 开 GitLab MR !63（main ← task/310/join_window_boundary）
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：标签 hot-fix、ui:interaction、P0；截图是本地构建的加入我们窗口，已上传到 GitLab：/uploads/7fbe2b86a3dde9ffe76d91447ea86143/join-window-local-310.png
+- 结果：MR !63 可合并，无冲突，无流水线，无需审批；线上核对待部署后补记
+
+## 16:51:24 +08:00 · 审查 · #310 · 自审 MR !63
+
+- 执行者：agent-claude-join-css-310（Claude Code，claude-haiku-5-5）
+- 做了什么：逐项核对 diff：5 个源码文件、回归测试、声明、目录生成物与执行记录；未运行 code-review 技能的并行审查
+- 结果：未发现业务或契约变化；残留风险：入口 CSS 顺序变化只核对了选择器与属性冲突，没有逐页截图比对，已列入 MR 的未验证项
