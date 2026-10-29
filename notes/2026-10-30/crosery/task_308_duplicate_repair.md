@@ -27,3 +27,10 @@
 - 做了什么：提交 8daa13ca：新增 stop-production-sync；repair-duplicates --apply 先 verify_production_off，再在子 shell 里取正式部署锁、跑一致性备份、读写挂载修复；同一正式账号/重复号/原号出现两次整批拒绝；读不到 identities 报 identities_unreadable；补建演算核对 sub 归属。GITLAB.md 2a、CICD.md、308.json 同步。
 - 结果：三个测试文件 71 用例通过（新增：正式同步开着拒绝 apply、stop-production-sync、封禁 500 后重跑接续、连不上只报原因码、原号封禁、多条中一条被拒整批不写、同一账号两次、用户名被占、身份列表缺失、补建 sub 被占）；bash -n 通过；宏观对齐通过。
 - 下一步：增量复审，过了就开 MR、合 main、镜像 GitHub
+
+## 01:56:38 +08:00 · 返工 · #308 · 增量复审后的两处返工
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：复审 8daa13ca 不阻塞，指出两处：migrate-subjects 补建在 account.js 子进程里提交，父连接同一条的读快照看不到新账号，第一次 --apply 会报最小补建失败；repair-duplicates 的正式写者核对在拿锁之前。d5d7f943：补建前先查 sub 是否已属于别人，再结束读事务、建完重开；verify_production_off 挪进 flock 之后；GITLAB.md 改正「回滚该账号」的说法；新增双连接 WAL 用例（旧代码红、新代码绿）。
+- 结果：三组用例 72 通过；check-architecture、check-doc-sync 对 gitlab/main 通过。
+- 下一步：更新 MR 正文，开 GitLab MR 进 main 并合并，按顺序跑正式改接。
