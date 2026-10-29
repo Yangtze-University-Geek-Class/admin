@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 308,
   "kind": "business",
-  "summary": "GitLab #308 第三个 MR：stop-preview-sync 演算（run 40927643521）把 GitHub 组织成员 IofStage 算作对不上。迁移工具导出时先看已记录的 org_role，没有时按有效的 level.member 权限组记为成员，与 GitLab 同步认有效成员的口径一致；补建不了的条目带原因（停用、校友、非成员、无 GitHub 身份），写入端随「对不上」打印。汇总行格式与严格判定不变。",
+  "summary": "GitLab #308 第三个 MR：stop-preview-sync 演算（run 40927643521）把 GitHub 组织成员 IofStage 算作对不上。迁移工具导出时改按 server 的成员口径（identity-store.ts membershipFromRow）：成员看有效的 level.member，管理员看有效的站长称号，已弃用的 org_role/org_state 不再参与；补建不了的条目带原因（停用、校友、非成员、无 GitHub 身份），写入端随「对不上」打印。汇总行格式与严格判定不变。",
   "applications": [
     "server"
   ],
@@ -35,10 +35,11 @@
     },
     "permissions": {
       "status": "changed",
-      "reason": "补建的成员口径从 org_role 扩到有效的 level.member 权限组（同 sync-control.mjs accountsForVerification）；补建出的账号由 provisionAccount 放进 level.member，与源环境一致。管理员只认已记录的 org_role=admin。",
+      "reason": "补建的成员与角色改按 server 规则判定：有效 level.member 才补建，有效 title.site.owner 才按 admin 补建（provisionAccount 会据此发站长称号），旧字段 org_role=admin 不再带来站长资格，org_role=member 但 level 已过期的不再补建。",
       "evidence": [
         "deploy/gitlab/migrate-oidc-subjects.mjs",
-        "tests/tooling/oidc-subject-migration.test.ts"
+        "tests/tooling/oidc-subject-migration.test.ts",
+        "app/server/src/lib/identity-store.ts"
       ]
     },
     "data": {
@@ -64,7 +65,7 @@
     },
     "verification": {
       "status": "changed",
-      "reason": "新增用例覆盖成员、过期、校友、停用、无 GitHub、管理员六种导出结果，以及写入端的原因打印与不带补建时的旧输出。真实结果以合并后 stop-preview-sync 演算日志为准。",
+      "reason": "新增用例覆盖有效成员、过期、校友、停用、无 GitHub、站长、旧字段说是成员但无 level、旧字段说是管理员但无站长称号、expires_at 等于此刻、站长称号过期、org_state 非 active 十一种导出结果，以及写入端的原因打印与不带补建时的旧输出。真实结果以合并后 stop-preview-sync 演算日志为准。",
       "evidence": [
         "tests/tooling/oidc-subject-migration.test.ts"
       ]

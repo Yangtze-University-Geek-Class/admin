@@ -47,9 +47,10 @@ export function exportSubjects(db, sector, now = Date.now()) {
   assertSector(sector);
   const rows = db.prepare('SELECT user_id, sub FROM oauth_subjects WHERE sector_id = ?').all(sector);
   const identitiesOf = db.prepare('SELECT provider, provider_uid, login FROM identities WHERE user_id = ? ORDER BY provider');
-  const accountOf = db.prepare('SELECT status, org_state, org_role FROM users WHERE id = ?');
-  // GitLab 同步按权限组认有效成员（sync-control.mjs 的 accountsForVerification）；org_role 是旧字段，新号可能为空
-  const levelOf = db.prepare("SELECT group_id FROM perm_members WHERE account_id = ? AND group_id IN ('level.member','level.alumni') AND (expires_at IS NULL OR expires_at > ?)");
+  const accountOf = db.prepare('SELECT status FROM users WHERE id = ?');
+  // 与 server 的 membershipFromRow（identity-store.ts）同一口径：成员看有效的 level.member，管理员看有效的站长称号；
+  // org_role、org_state 是已弃用的旧字段，不参与判定
+  const groupsOf = db.prepare("SELECT group_id FROM perm_members WHERE account_id = ? AND group_id IN ('level.member','level.alumni','title.site.owner') AND (expires_at IS NULL OR expires_at > ?)");
   const entries = [];
   let withoutIdentity = 0;
   for (const row of rows) {
@@ -57,10 +58,9 @@ export function exportSubjects(db, sector, now = Date.now()) {
     if (ids.length === 0) { withoutIdentity += 1; continue; }
     const account = accountOf.get(row.user_id);
     const github = ids.find(id => id.provider === 'github');
-    const levels = new Set(levelOf.all(row.user_id, now).map(level => level.group_id));
-    const recorded = account?.org_state === 'active' && (account.org_role === 'admin' || account.org_role === 'member') ? account.org_role : null;
-    const orgRole = recorded ?? (levels.has('level.member') ? 'member' : null);
-    const skip = !github ? 'no_github' : account?.status !== 'active' ? 'inactive' : orgRole ? null : levels.has('level.alumni') ? 'alumni' : 'not_member';
+    const groups = new Set(groupsOf.all(row.user_id, now).map(group => group.group_id));
+    const orgRole = groups.has('level.member') ? (groups.has('title.site.owner') ? 'admin' : 'member') : null;
+    const skip = !github ? 'no_github' : account?.status !== 'active' ? 'inactive' : orgRole ? null : groups.has('level.alumni') ? 'alumni' : 'not_member';
     entries.push({
       sub: row.sub,
       identities: ids.map(id => ({ provider: id.provider, provider_uid: String(id.provider_uid) })),
