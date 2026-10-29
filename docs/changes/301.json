@@ -161,10 +161,7 @@
         "deploy/hotfix/windows.json",
         "deploy/env/origin-exceptions.json",
         "docs/ops/DEPLOY.md",
-        "docs/ops/ENVIRONMENTS.md",
-        "notes/2026-10-29/crosery/task_301_hotfix_stage_sync.md",
-        "notes/2026-10-29/crosery/task_310_join_window_boundary.md",
-        "notes/INDEX.md"
+        "docs/ops/ENVIRONMENTS.md"
       ],
       "domains": [
         "platform"
