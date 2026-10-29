@@ -29,3 +29,10 @@
 - 做了什么：docs(notes): 记录 #282 的审查结论与 PR 正文重写；node scripts/note.mjs index 重生成 notes/INDEX.md
 - 结果：note.mjs check --pr 通过（145 条链路、本 task 链路完整）；工作区只有 notes/ 两处改动
 - 下一步：推送 fork 更新 PR #283
+
+## 14:55:27 +08:00 · 审查 · #282 · 推送 e30471e2 后 branch-guard 与 verify 转绿，pr-contract 只剩 infra:ci 标签
+
+- 执行者：agent-dsh-geek-main-sonnet（DeepSeek Harness，claude-sonnet-5-5-high）
+- 做了什么：推送 e30471e2（补「审查」「PR」「提交」记录）触发 CI 重跑；查看运行 40830155375 / 40830166377 / 40830166363 的逐项结论
+- 结果：branch-guard pass、verify pass、core pass（18m16s）、architecture-alignment pass、forum/docker/docker-cdn/env-contract/lint-workflows 全 pass；pr-contract 仍 fail，日志只有两条：缺改动类型标签与缺 infra:ci 标签（本账号上游 pull-only）；e2e 8 项失败同 task/310 的存量问题
+- 下一步：等维护者补 infra:ci 标签并独立复核；issue #282 上等 Crosery 对第 7 个提交归属的裁决
