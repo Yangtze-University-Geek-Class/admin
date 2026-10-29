@@ -46,6 +46,7 @@ jobs:
             git show "${BASE_SHA}:scripts/check-doc-sync.mjs" > "${RUNNER_TEMP}/check-doc-sync.mjs"
             git show "${BASE_SHA}:scripts/note.mjs" > "${RUNNER_TEMP}/note.mjs"
             git show "${BASE_SHA}:scripts/pr-markdown.mjs" > "${RUNNER_TEMP}/pr-markdown.mjs"
+            git show "${BASE_SHA}:scripts/hotfix-windows.mjs" > "${RUNNER_TEMP}/hotfix-windows.mjs"
           else
             # 首次安装仍完整执行检查，不跳过。此引导版本须连同 PR 审查。
             echo "目标分支尚未安装宏观检查器，本次执行并审查候选引导版本。"
@@ -53,6 +54,7 @@ jobs:
             cp scripts/check-doc-sync.mjs "${RUNNER_TEMP}/check-doc-sync.mjs"
             cp scripts/note.mjs "${RUNNER_TEMP}/note.mjs"
             cp scripts/pr-markdown.mjs "${RUNNER_TEMP}/pr-markdown.mjs"
+            cp scripts/hotfix-windows.mjs "${RUNNER_TEMP}/hotfix-windows.mjs"
           fi
           printf '%s' "$PR_BODY" > "${RUNNER_TEMP}/architecture-body.md"
           node "$policy" --root "$GITHUB_WORKSPACE" --base "$BASE_SHA" --head "$HEAD_SHA" \

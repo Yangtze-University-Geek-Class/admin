@@ -45,6 +45,35 @@ function executedScripts(block: string) {
 }
 
 /**
+ * 工作流把脚本复制到 `${RUNNER_TEMP}` 再运行的第二种写法（#282 发现的第二类漏文件）：
+ *   git show "${BASE_SHA}:scripts/x.mjs" > "${RUNNER_TEMP}/x.mjs"
+ *   cp scripts/x.mjs "${RUNNER_TEMP}/x.mjs"
+ * 这里返回它复制了哪些 `scripts/` 下的文件。复制到临时目录后 import 的解析基准变成临时目录，
+ * 所以闭包里每一份都必须显式复制，漏一份就是 ERR_MODULE_NOT_FOUND（architecture-alignment 的
+ * hotfix-windows.mjs 就是这么漏的）。
+ */
+function copiedScripts(block: string) {
+  const shown = [...block.matchAll(/git show "\$\{BASE_SHA\}:(scripts\/[\w./-]+\.m?js)"/g)].map((m) => m[1]);
+  const copied = [...block.matchAll(/\bcp (scripts\/[\w./-]+\.m?js) "/g)].map((m) => m[1]);
+  return { shown: new Set(shown), copied: new Set(copied) };
+}
+
+/**
+ * 被复制到临时目录后运行的那份脚本的入口。工作流用 `node "$policy"`（变量）调用，`executedScripts`
+ * 认不出来，所以复制模式要单独找入口：优先取 `cp`/`git show` 里对应 `node "$var"` 的路径；
+ * 找不到时退回 `cp`/`git show` 清单里被 import 最多的那份（复制清单通常就是给一个入口用的）。
+ */
+function copiedEntry(block: string, candidates: Set<string>) {
+  const direct = /node "?\$\{?RUNNER_TEMP\}?\/([\w.-]+\.m?js)"?/.exec(block);
+  if (direct) {
+    const hit = [...candidates].find((path) => path.endsWith(`/${direct[1]}`));
+    if (hit) return hit;
+  }
+  // 没有显式 node 调用的写法：取复制清单里第一份（工作流都是「入口 + 依赖」的顺序）
+  return [...candidates][0] ?? null;
+}
+
+/**
  * 一个脚本的本地 import 闭包：自己 + `from "./x.mjs"` / `from "../y.mjs"` 递归下去。
  * 只跟相对路径；`node:` 内置模块和裸包名不需要检出额外的仓库文件。
  */
@@ -95,6 +124,32 @@ describe('每个 job 的 sparse-checkout 覆盖它真正运行的脚本的全部
           missing.map((file) => `  - ${file}`).join('\n') +
           '\n漏了本地 import 目标时，检出后第一步就是 ERR_MODULE_NOT_FOUND（#282）。把这几行补进这个 job 的 sparse-checkout。',
       ).toEqual([]);
+    }
+  });
+});
+
+describe('复制到临时目录再运行时，复制清单覆盖脚本的全部本地 import', () => {
+  // architecture-alignment.yml 把检查器复制到 ${RUNNER_TEMP} 再跑。复制后 import 的解析基准
+  // 变成临时目录，闭包里每一份都得显式复制。这里漏 hotfix-windows.mjs 让该检查长期起不来。
+  it.each(workflows)('%s', (name) => {
+    const text = read(`.github/workflows/${name}`);
+    for (const [id, block] of jobs(text)) {
+      const { shown, copied } = copiedScripts(block);
+      if (!shown.size && !copied.size) continue;
+      // 复制模式跑的是临时目录里那份，入口要用复制清单推出来，不能靠 executedScripts
+      const all = new Set([...shown, ...copied]);
+      const entry = copiedEntry(block, all);
+      const needed = entry ? new Set<string>(importClosure(entry)) : new Set<string>();
+      for (const mode of [{ name: 'git show', set: shown }, { name: 'cp', set: copied }]) {
+        if (!mode.set.size) continue;
+        const missing = [...needed].filter((file) => !mode.set.has(file)).sort();
+        expect(
+          missing,
+          `${name} 的 ${id} job 用 ${mode.name} 把脚本复制到 \${RUNNER_TEMP} 再运行，但复制清单漏了：\n` +
+            missing.map((file) => `  - ${file}`).join('\n') +
+            '\n复制到临时目录后 import 的解析基准是临时目录，漏一份就是 ERR_MODULE_NOT_FOUND（#282 architecture-alignment 的 hotfix-windows.mjs）。把这几行补进这个复制清单。',
+        ).toEqual([]);
+      }
     }
   });
 });

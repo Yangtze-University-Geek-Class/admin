@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 282,
   "kind": "engineering",
-  "summary": "每日 issue 巡检的 sweep job 补上漏检出的 pr-markdown.mjs，并新增按 job 核对 sparse-checkout 与脚本本地 import 闭包的回归，避免同类漏文件再次让定时任务起不来。",
+  "summary": "每日 issue 巡检的 sweep job 补上漏检出的 pr-markdown.mjs；同时补上 architecture-alignment 复制到临时目录时漏掉的 hotfix-windows.mjs（同一类缺陷的第二个实例），并新增按 job 核对检出/复制清单与脚本本地 import 闭包的回归。",
   "applications": [],
   "domains": [
     "platform"
@@ -56,15 +56,16 @@
     },
     "verification": {
       "status": "changed",
-      "reason": "新增 tests/tooling/workflow-sparse-checkout.test.ts：把每个 job 实际运行的脚本展开成本地 import 闭包，与该 job 的 sparse-checkout 清单比对，漏一个就失败；另有三条针对 sweep → pr-contract → pr-markdown 链路的定点断言。修复前跑该测试有 3 条失败并直接点名 pr-markdown.mjs，修复后 13 条全绿。",
+      "reason": "新增 tests/tooling/workflow-sparse-checkout.test.ts，覆盖两种漏文件写法：① job 的 sparse-checkout 清单；② 把脚本 git show / cp 到 ${RUNNER_TEMP} 再运行时的复制清单（复制后 import 解析基准变成临时目录，漏一份就是 ERR_MODULE_NOT_FOUND）。把每个 job 实际运行的脚本展开成本地 import 闭包再与清单比对。修复前跑该测试有失败并直接点名缺失文件（sweep 的 pr-markdown.mjs、architecture-alignment 的 hotfix-windows.mjs），修复后 27 条全绿。",
       "evidence": [
         "tests/tooling/workflow-sparse-checkout.test.ts",
-        ".github/workflows/issue-lifecycle.yml"
+        ".github/workflows/issue-lifecycle.yml",
+        ".github/workflows/architecture-alignment.yml"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "改了 .github/workflows/issue-lifecycle.yml 的 sweep job 检出清单，这是 CI 交付面的一部分；但镜像、compose、环境变量契约与部署流程都没动，也不触发任何环境的部署。工作流文件随 PR 进 stage，进 main 后次日的定时运行才会实际用上新清单。",
+      "reason": "改了 .github/workflows/issue-lifecycle.yml 的 sweep 检出清单与 .github/workflows/architecture-alignment.yml 的复制清单，都属于 CI 交付面；但镜像、compose、环境变量契约与部署流程都没动，也不触发任何环境的部署。工作流文件随 PR 进 stage，进 main 后才会被实际使用。",
       "evidence": [
         ".github/workflows/issue-lifecycle.yml"
       ]
@@ -85,6 +86,18 @@
     },
     {
       "paths": [
+        ".github/workflows/architecture-alignment.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "该 job 把检查器复制到 ${RUNNER_TEMP} 再运行；check-architecture.mjs 在 #309 新增了 import { activeWindows, readRegistryAt } from \"./hotfix-windows.mjs\"，复制清单没跟上，导致检查器一启动就 ERR_MODULE_NOT_FOUND（运行 40816149793）。git show 与 cp 两处都补上。"
+    },
+    {
+      "paths": [
         "tests/tooling/workflow-sparse-checkout.test.ts"
       ],
       "domains": [
@@ -93,7 +106,7 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "新增回归：逐个 job 比对「实际运行的脚本的本地 import 闭包」与 sparse-checkout 清单，并定点核对 sweep 那条链路；修复前失败、修复后通过，能区分前后。"
+      "reason": "新增回归：逐个 job 比对「实际运行脚本的本地 import 闭包」与检出/复制清单，覆盖 sparse-checkout 与复制到临时目录两种写法；修复前失败、修复后通过，能区分前后。"
     },
     {
       "paths": [
