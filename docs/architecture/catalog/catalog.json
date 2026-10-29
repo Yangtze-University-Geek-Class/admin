@@ -16943,7 +16943,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "83f40cc743bff67b7a664aa6f0789083b7f5aa9d636d2a1554e3b7c3db668519",
+    "fingerprint": "8665b13e77e4419379e2f9eea1e41964ee0dd6a213ee0999672254801f897e9c",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -19327,7 +19327,7 @@
       },
       {
         "path": "tests/web/portal-phone.test.tsx",
-        "sha256": "4108750274d4d6966bd023d755b5a21d14385f581cc80a0d5bccd448acf45a38"
+        "sha256": "de33be38b563320cdd6898bd6e3d517030ec9f665f9edc941bd60043c9d45544"
       },
       {
         "path": "tests/web/portal-profile-card.test.tsx",
@@ -19335,7 +19335,7 @@
       },
       {
         "path": "tests/web/portal-promo-desktop.test.tsx",
-        "sha256": "590362ba7cade15485329d31b0a8674a27ef7811b24d026864c404bb4e531eec"
+        "sha256": "77e2772ef6a638a5aab0ca7ae66d1ae100100c11e97ad9ca7c844f064e1ffadb"
       },
       {
         "path": "tests/web/portal-promo-window.test.ts",
