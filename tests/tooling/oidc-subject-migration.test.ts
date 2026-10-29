@@ -113,10 +113,14 @@ describe("import", () => {
       db.prepare("INSERT INTO identities VALUES('new-member','github',?,?)").run(String(githubId), githubLogin);
       return { accountId: "new-member", created: true };
     };
+    // 不带补建的演算（切签发者、开正式写者之前的门禁）仍然算对不上
+    expect(importSubjects(db, source, { sector: SECTOR, provisionAccount })).toMatchObject({ unmatched: ["github:999"], provisionable: [] });
+    // 带补建的演算（停预发布写者之前）：写入时能补建的单独计数，不算对不上，也不建号
     const dry = importSubjects(db, source, { sector: SECTOR, provisionUnmatched: true, provisionAccount });
-    expect(dry.unmatched).toEqual(["github:999"]);
-    expect(dry.provisioned).toEqual([]);
+    expect(dry).toMatchObject({ unmatched: [], provisionable: ["github:999"], provisioned: [], applied: 0 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
+    const google = { sector: SECTOR, entries: [{ ...source.entries[0], identities: [...source.entries[0].identities, { provider: "google", provider_uid: "g-1" }] }] };
+    expect(importSubjects(db, google, { sector: SECTOR, provisionUnmatched: true, provisionAccount })).toMatchObject({ unmatched: ["github:999,google:g-1"], provisionable: [] });
     const applied = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
     expect(applied).toMatchObject({ applied: 1, conflicts: [], unmatched: [] });
     expect(applied.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);

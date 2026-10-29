@@ -5,6 +5,7 @@
 #   cutover.sh status            --production-origin <URL>                              只读：客户端、签发者、secret 文件是否就位、正式的发现文档
 #   cutover.sh register-client   --production-origin <URL> [--apply]                    正式库登记 gitlab 客户端，secret 只写 yzgc-oidc-secret.production（0600）；已有就不动
 #   cutover.sh migrate-subjects  --production-origin <URL> [--sector <主机>] [--apply]  把预发布里 GitLab 已在用的 sub 带到正式库（只新增，冲突整批拒绝）
+#   cutover.sh repair-duplicates --production-origin <URL> [--sector <主机>] [--apply]  正式同步提前建出的重复号：解绑并封禁重复号，正式库改回原号的 sub 与映射
 #   cutover.sh switch-issuer     --production-origin <URL> [--apply]                    签发者与 secret 换成正式的，reconfigure；先备份，前置不满足就拒绝
 #   cutover.sh rollback-issuer   --preview-origin <URL> [--apply]                       签发者写回预发布，secret 与 gitlab.rb 用最近一次备份，reconfigure
 #
@@ -172,8 +173,8 @@ sync_status() {
 
 stop_preview_sync() {
     need_production
-    # 对不上身份时不先关掉仍在服务成员的旧写者。
-    APPLY=0 migrate_subjects
+    # 对不上身份时不先关掉仍在服务成员的旧写者；写入时能最小补建的不算对不上。
+    APPLY=0 PROVISION_DRY=1 migrate_subjects
     echo '将排空预发布旧进程，持久 mode 与 canonical env 均改 off，重启原镜像并核对健康'
     writes || return 0
     restart_with_mode preview off
@@ -240,8 +241,32 @@ migrate_subjects() {
     "${DOCKER}" cp "${HERE}/migrate-oidc-subjects.mjs" "${PROD_SERVER}:/tmp/migrate-oidc-subjects.mjs"
     "${DOCKER}" exec "${PREVIEW_SERVER}" node /tmp/migrate-oidc-subjects.mjs export --sector "${SECTOR}" >"${work}/export.json"
     local flag=()
-    if [[ "${APPLY}" == 1 ]]; then flag=(--apply --provision-unmatched); else echo "（演算，未写入；加 --apply 才执行）"; fi
+    if [[ "${APPLY}" == 1 ]]; then flag=(--apply --provision-unmatched)
+    else
+        echo "（演算，未写入；加 --apply 才执行）"
+        # 停预发布写者前的演算：写入时能最小补建的不算对不上，否则缺号的成员要等预发布停写才能补建，两步互相卡住
+        if [[ "${PROVISION_DRY:-0}" == 1 ]]; then flag=(--provision-unmatched); fi
+    fi
     "${DOCKER}" exec -i "${PROD_SERVER}" node /tmp/migrate-oidc-subjects.mjs import --sector "${SECTOR}" "${flag[@]}" <"${work}/export.json"
+}
+
+repair_duplicates() {
+    need_production
+    sector_ok
+    WORK="$(mktemp -d)"
+    local work="${WORK}" flag=() access=ro
+    trap 'rm -rf "${WORK}"; "${DOCKER}" exec "${PREVIEW_SERVER}" rm -f /tmp/migrate-oidc-subjects.mjs >/dev/null 2>&1 || true' EXIT
+    "${DOCKER}" cp "${HERE}/migrate-oidc-subjects.mjs" "${PREVIEW_SERVER}:/tmp/migrate-oidc-subjects.mjs"
+    "${DOCKER}" exec "${PREVIEW_SERVER}" node /tmp/migrate-oidc-subjects.mjs export --sector "${SECTOR}" >"${work}/export.json"
+    if [[ "${APPLY}" == 1 ]]; then
+        flag=(--apply)
+        access=rw
+        # 改正式库之前先跑一次已有的一致性备份
+        "${SYSTEMCTL}" start "yzgc-backup@production.service"
+    else
+        echo "（演算，未写入；加 --apply 才执行）"
+    fi
+    sync_control production "container:${PROD_SERVER}" "${access}" repair-duplicates --source-stdin "${flag[@]}" <"${work}/export.json"
 }
 
 switch_issuer() {
@@ -304,7 +329,8 @@ case "${STEP}" in
     verify-accounts) verify_accounts ;;
     register-client) register_client ;;
     migrate-subjects) migrate_subjects ;;
+    repair-duplicates) repair_duplicates ;;
     switch-issuer) switch_issuer ;;
     rollback-issuer) rollback_issuer ;;
-    *) echo "用法：cutover.sh status|sync-status|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
 esac

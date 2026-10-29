@@ -2,87 +2,146 @@
   "version": 1,
   "issue": 308,
   "kind": "business",
-  "summary": "GitLab #308：成员仓库读取与SSO入口修复，贯通环境基址/子路径/独立OIDC客户端；现有GitLab保留正式，新增独立预发布编排、备份和受保护入口安装路径。香港专用受限通道已获批安装并实测拒绝任意命令，未激活新路由或实例。正式主体与旧ID的完整对账门禁仍保留，两个缺失身份的补建未获明确批准。",
-  "applications": ["server", "web"],
-  "domains": ["gitlab", "identity", "permissions", "platform", "audit", "competitions", "feedback", "invitations", "organization", "public_content", "recruitment", "mail", "forum"],
-  "flows": ["flow:gitlab.entry.open", "flow:platform.public_config", "flow:gitlab.projects.member.list", "flow:gitlab.projects.public.list", "flow:gitlab.accounts.sync", "flow:gitlab.settings.read", "flow:gitlab.settings.update", "flow:identity.current", "flow:competition.public.list", "flow:feedback.public.list", "flow:documentation.list", "flow:application.submit", "flow:identity.invite.redeem"],
+  "summary": "GitLab #308 第二个 MR：改接正式前，正式同步（10-29 15:43–16:18）给 6 名已有 GitLab 号的成员又建了 `_yz` 号，主体迁移冲突挡住签发者改接。新增 cutover 步骤 repair-duplicates（默认演算、逐人核对、整批拒绝），写入时解绑并封禁重复号、正式库 sub 与映射改回原号；停预发布写者前的主体演算把可最小补建的成员单独计数，解开停写与补建的互锁。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "gitlab",
+    "identity",
+    "organization",
+    "forum",
+    "audit",
+    "platform"
+  ],
+  "flows": [
+    "flow:gitlab.accounts.sync",
+    "flow:gitlab.settings.update"
+  ],
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "有效极客班成员及往届成员不再被当作匿名公开项目读取；每位成员的 GitLab 绑定、原主体与权限必须核对。游客和注册用户仍只读公开项目，旧成员身份不丢失后才改接正式。",
-      "evidence": ["app/server/src/routes/portal/gitlab.ts", "app/web/sites/portal/lib/codeRepos.ts", "deploy/gitlab/sync-control.mjs"]
+      "reason": "成员改接正式统一登录后要落到自己原来的 GitLab 号（仓库、issue、MR 都在原号上），不能落到同步提前建出的空号；重复号只封不删，原号与权限不变。",
+      "evidence": [
+        "deploy/gitlab/sync-control.mjs",
+        "deploy/gitlab/cutover.sh"
+      ]
     },
     "backend": {
-      "status": "changed",
-      "reason": "新增最小 GET /api/me/gitlab/projects 及响应 Schema；复用现有项目客户端，网络等待后重查资格，上游项目 HTTP 失败返回 unavailable 而不伪装空列表；持久设置读写复用同步模块所有权。",
-      "evidence": ["app/server/src/routes/portal/gitlab.ts", "app/server/src/routes/portal/contracts.ts", "app/server/src/lib/gitlab-sync.ts"]
+      "status": "unchanged",
+      "reason": "不改 server 运行代码与接口；修复工具复用同步模块的表与 GitLab 管理接口，经一次性容器运行。",
+      "evidence": [
+        "deploy/gitlab/sync-control.mjs"
+      ]
     },
     "permissions": {
       "status": "changed",
-      "reason": "使用与 OIDC 相同的 active + 当前有效直接 member/alumni 口径，不授予 gitlab.view 或控制台管理权限；缓存不跳过资格。切换要求旧进程排空、预发布运行 env 和持久配置 off，唯一正式写者及原绑定核验后才开放新 issuer。",
-      "evidence": ["app/server/src/routes/portal/gitlab.ts", "deploy/gitlab/cutover.sh", "deploy/gitlab/sync-control.mjs", "tests/server/gitlab-sync.test.ts"]
+      "reason": "只处理受管普通成员：原号与重复号都必须非管理员、非机器人、非保留名；重复号必须从没登录过、只绑正式 sub；原号只能对应本账号。GitLab 写操作只有解绑 openid_connect 身份与封禁重复号，经 production 审批的 cutover 工作流执行。",
+      "evidence": [
+        "deploy/gitlab/sync-control.mjs",
+        "tests/tooling/gitlab-sync-control.test.ts",
+        ".github/workflows/gitlab-cutover.yml"
+      ]
     },
     "data": {
       "status": "changed",
-      "reason": "不改表结构，不复制预发布用户、帖子、报名或其他业务数据。主体迁移只按不可变 provider+uid 新增原 sub，缺身份或冲突整批拒绝；模式写入只改 app_state.gitlab_settings。终端存盘从用户名改为稳定账号与等级隔离，不猜测认领或删除原存盘。",
-      "evidence": ["deploy/gitlab/migrate-oidc-subjects.mjs", "app/server/src/lib/gitlab-sync.ts", "app/web/sites/portal/lib/shell/index.ts", "tests/tooling/oidc-subject-migration.test.ts"]
+      "reason": "不改表结构。正式库每个重复号账号在一个事务里改 oauth_subjects 的 sub（条件是仍为原正式 sub）和 gitlab_accounts 映射（条件是仍映射重复号），清掉权限、头像、邮箱的同步缓存；写前跑正式一致性备份。主体迁移的写入行为不变，只是演算带补建时多一个计数。",
+      "evidence": [
+        "deploy/gitlab/sync-control.mjs",
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        "deploy/gitlab/cutover.sh"
+      ]
     },
     "dependencies": {
       "status": "changed",
-      "reason": "不新增依赖或改锁文件。状态与模式写入使用无网络一次性容器和原镜像；逐成员验证只读 GitLab API。宿主步骤复用原备份与部署锁；Actions 投影需 deploy job 最小 checks:read/statuses:write，来源不完整不得写成功。",
-      "evidence": ["app/server/src/lib/gitlab-sync.ts", ".github/workflows/gitlab-cutover.yml", "deploy/gitlab/cutover.sh", "deploy/gitlab/sync-control.mjs", ".github/workflows/deploy-hotfix.yml", "scripts/hotfix-policy.mjs"]
+      "reason": "不新增依赖。修复走正式容器网络调用 GitLab 管理接口（令牌只放请求头，redirect=error，15 秒超时），失败只报原因码；中途失败可重跑接续。",
+      "evidence": [
+        "deploy/gitlab/sync-control.mjs",
+        ".github/workflows/gitlab-cutover.yml"
+      ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "同步门户、Server、OIDC、API、接口契约及 GitLab/环境/CI 操作说明，登记成员业务链并重建工程目录与索引；追加执行记录，不改历史记录。",
-      "evidence": ["docs/services/web/portal.md", "docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/ops/GITLAB.md", "docs/ops/ENVIRONMENTS.md", "docs/ops/CICD.md", "docs/architecture/catalog/ownership.json"]
+      "reason": "GITLAB.md 的改接顺序加 2a 修复步骤与停写演算的补建计数，CICD.md 的工作流表加 repair-duplicates；追加执行记录。",
+      "evidence": [
+        "docs/ops/GITLAB.md",
+        "docs/ops/CICD.md"
+      ]
     },
     "verification": {
       "status": "changed",
-      "reason": "行为回归覆盖游客/注册/成员/alumni/停用/到期/等待撤权、迟到回包、账号与终端存盘隔离、未匹配主体整批拒绝、单写者前置及逐成员 OIDC/ID/组权限。已观察桌面与390px真实浏览器样板；不能将样板或隔离 HTTP 验收称作正式 SSO 验收，真实改接尚受身份缺口阻断。",
-      "evidence": ["tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts", "tests/tooling/gitlab-cutover.test.ts", "tests/tooling/gitlab-sync-control.test.ts", "tests/tooling/oidc-subject-migration.test.ts", "tests/tooling/hotfix-policy.test.ts"]
+      "reason": "单测覆盖演算只读、写入顺序与结果、重跑幂等、修到一半接续、7 种拒绝形状、原号被占与 sub 被占、无关条目跳过；cutover 测试覆盖只读/读写挂载、备份顺序、拒绝时非零退出、停写演算才带补建。真实修复结果以 cutover 运行日志与 verify-accounts 为准。",
+      "evidence": [
+        "tests/tooling/gitlab-sync-control.test.ts",
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/oidc-subject-migration.test.ts"
+      ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "沿既有0.1.1 P0 hotfix与production保护路径，不新建或移动tag，不改DNS；部署记录保留非空required_contexts。现有上线CDN/HLS证据核销P-0009；P-0007/P-0011与窗口在真实身份改接和验收完成前继续pending/open。",
-      "evidence": [".github/workflows/deploy-hotfix.yml", ".github/workflows/gitlab-cutover.yml", "scripts/hotfix-policy.mjs", "deploy/parity/ledger.json"]
+      "reason": "沿 #308 P0 hotfix 窗口进 main，不新建或移动 tag；cutover 只在 main 上手动派发并过 production 审批。改接完成、真实登录核对后才关窗、核销 P-0007/P-0011。",
+      "evidence": [
+        ".github/workflows/gitlab-cutover.yml",
+        "deploy/gitlab/cutover.sh"
+      ]
     }
   },
   "coverage": [
     {
-      "paths": ["app/server/src/config.ts", "app/web/shared/config/index.ts", "app/web/shared/config/app.config.json", "app/web/sites/portal/lib/links.ts"],
-      "domains": ["gitlab", "platform", "identity", "organization", "forum", "competitions", "recruitment", "feedback", "public_content", "invitations"],
-      "nodes": ["flow:gitlab.entry.open", "flow:gitlab.accounts.sync", "flow:platform.public_config", "domain:platform"],
-      "reason": "后端保留GitLab子路径并按本环境客户端选择sector，门户改用同源重定向；共享配置仍用于相邻入口，其他业务的域名与权限不变。"
+      "paths": [
+        "deploy/gitlab/sync-control.mjs",
+        "deploy/gitlab/cutover.sh",
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        ".github/workflows/gitlab-cutover.yml",
+        "tests/tooling/gitlab-sync-control.test.ts",
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/oidc-subject-migration.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "organization",
+        "forum",
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.accounts.sync",
+        "flow:gitlab.settings.update"
+      ],
+      "reason": "重复号修复步骤与停写前演算的补建计数，保持整批拒绝、单写者与备份门禁。"
     },
     {
-      "paths": ["deploy/env/.env.production", "deploy/env/.env.preview", "deploy/env/.env.dev", "scripts/check-env-isolation.mjs", "scripts/deployment-environment.mjs", "deploy/gitlab/preview.py", "deploy/gitlab/preview-compose.yml", "deploy/gitlab/backup.sh", "deploy/gitlab/restore-drill.sh", "deploy/gitlab/gitlab-preview-compose.service", "deploy/gitlab/gitlab-preview-backup.service", "deploy/gitlab/gitlab-preview-backup.timer", "deploy/remote/edge-gitlab.py", "deploy/remote/install-host.sh", "deploy/remote/garage-archive.mjs", "tests/tooling/gitlab-preview.test.ts", "tests/tooling/gitlab-backup-storage.test.ts", "tests/tooling/garage-archive.test.ts", "tests/tooling/deployment-environment.test.ts", "tests/tooling/env-isolation.test.ts"],
-      "domains": ["platform", "gitlab", "identity"],
-      "nodes": ["domain:platform", "flow:gitlab.accounts.sync", "flow:gitlab.entry.open"],
-      "reason": "独立实例目录、端口、网络、凭据与备份角色；入口只经固定动作安装器，校验、锁、备份与失败恢复不省略。差异键有独立目标约束，不放宽密钥规则；初始化不动正式实例、不开放SSO、不复用旧用户ID。"
-    },
-    {
-      "paths": ["app/server/src/routes/portal/gitlab.ts", "app/server/src/routes/portal/contracts.ts", "app/server/src/lib/gitlab-sync.ts", "app/web/sites/portal/lib/codeRepos.ts", "app/web/sites/portal/components/os/Windows.tsx", "app/web/sites/portal/components/os/Terminal.tsx", "app/web/sites/portal/lib/shell/index.ts", "app/web/sites/portal/lib/shell/commands.ts", "app/web/shared/lib/mock-api.ts", "tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts", "tests/web/portal-os.test.ts"],
-      "domains": ["gitlab", "identity", "permissions", "platform", "audit", "competitions", "feedback", "invitations", "organization", "public_content", "recruitment"],
-      "nodes": ["flow:gitlab.projects.member.list", "flow:gitlab.projects.public.list", "flow:gitlab.settings.update", "flow:identity.current", "flow:competition.public.list"],
-      "reason": "改变成员项目查询和跨身份状态隔离。共享路由合同、窗口与终端还承载比赛、投递、意见箱、邀请、组织和公开文档，因此纳入相邻流程核对；这些模块的接口、授权和数据不变，不能因为共用文件省略影响面。"
-    },
-    {
-      "paths": [".github/workflows/deploy-hotfix.yml", ".github/workflows/gitlab-cutover.yml", "scripts/hotfix-policy.mjs", "deploy/gitlab/cutover.sh", "deploy/gitlab/migrate-oidc-subjects.mjs", "deploy/gitlab/sync-control.mjs", "deploy/parity/ledger.json", "tests/tooling/hotfix-policy.test.ts", "tests/tooling/gitlab-cutover.test.ts", "tests/tooling/oidc-subject-migration.test.ts", "tests/tooling/gitlab-sync-control.test.ts"],
-      "domains": ["platform", "gitlab", "identity"],
-      "nodes": ["domain:platform", "flow:gitlab.accounts.sync", "flow:gitlab.settings.update"],
-      "reason": "真实检查来源核验及受保护同步运维，完整主体与旧账号保全门禁，不关闭审批、不复制业务用户、不双写。"
-    },
-    {
-      "paths": ["docs/architecture/API.md", "docs/architecture/catalog/", "docs/services/server/README.md", "docs/services/server/endpoint-contracts.md", "docs/services/server/oidc.md", "docs/services/web/README.md", "docs/services/web/portal.md", "docs/ops/CICD.md", "docs/ops/ENVIRONMENTS.md", "docs/ops/GITLAB.md", "docs/ops/DEPLOY.md", "docs/conventions/RELEASE-PARITY.md", "docs/assets/reviews/308/"],
-      "domains": ["platform", "gitlab", "identity", "permissions"],
-      "nodes": ["domain:platform", "flow:gitlab.projects.member.list", "flow:gitlab.accounts.sync"],
-      "reason": "更新同源契约和可复查证据，生成目录与索引，保全已存在的暂存执行记录并追加本次记录。"
+      "paths": [
+        "docs/ops/GITLAB.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "organization",
+        "forum",
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.accounts.sync"
+      ],
+      "reason": "改接顺序与工作流说明随步骤更新。"
     }
   ],
-  "documents": ["docs/services/server/README.md", "docs/services/server/endpoint-contracts.md", "docs/services/server/oidc.md", "docs/services/web/README.md", "docs/services/web/portal.md", "docs/architecture/API.md", "docs/ops/CICD.md", "docs/ops/ENVIRONMENTS.md", "docs/ops/GITLAB.md", "docs/ops/DEPLOY.md", "docs/conventions/RELEASE-PARITY.md"],
-  "tests": ["tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts", "tests/tooling/gitlab-cutover.test.ts", "tests/tooling/gitlab-sync-control.test.ts", "tests/tooling/oidc-subject-migration.test.ts", "tests/tooling/hotfix-policy.test.ts", "tests/tooling/gitlab-preview.test.ts", "tests/tooling/gitlab-backup-storage.test.ts", "tests/tooling/garage-archive.test.ts", "tests/tooling/deployment-environment.test.ts", "tests/tooling/env-isolation.test.ts", "tests/tooling/install-host.test.ts"],
-  "compatibility": "匿名公开接口继续供游客、注册用户和既有消费者使用；新增成员端点只给最小项目DTO。持久设置字段不变，运行进程仍用applySettings或受控重启，不提供伪实时兼容层。",
-  "migration": "无DDL变更。主体只新增并严格整批对账；没有完整稳定身份或资格时不切换。终端旧用户名存盘保留但不自动认领。",
-  "rollback": "应用按受控hotfix入口回退先前生产镜像9438af8b3f04，不还原业务库覆盖新写入。签发者使用cutover备份回滚；写者切回必须先停当前写者并核对身份，不能双开或删除已用主体。"
+  "documents": [
+    "docs/ops/GITLAB.md",
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/gitlab-sync-control.test.ts",
+    "tests/tooling/gitlab-cutover.test.ts",
+    "tests/tooling/oidc-subject-migration.test.ts"
+  ],
+  "compatibility": "cutover 既有步骤的参数、输出格式与门禁不变；新步骤默认演算。主体迁移不带补建的演算输出不变，切签发者与开正式写者的严格判定不变。",
+  "migration": "无 DDL。修复只改出问题的 6 行主体与映射，写前备份；IofStage 由既有 migrate-subjects --apply --provision-unmatched 最小补建。",
+  "rollback": "正式库用修复前的一致性备份恢复这几行；GitLab 上被封的重复号可解封并按需要重新绑定身份（身份值在备份里），原号不受影响。"
 }

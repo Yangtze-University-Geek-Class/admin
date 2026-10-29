@@ -9,7 +9,8 @@
 //
 // import 只新增（INSERT）：目标库里该账号在该 sector 已有不同的 sub、或这个 sub 已属于别人，都记为冲突并拒绝整批写入，
 // 不覆盖任何已有行。目标身份缺失或源账号无可对账身份时整批拒绝写入；只有显式 --provision-unmatched 才按 GitHub UID
-// 最小补建（建号失败或 sub 冲突就回滚这个账号，不留下半条迁移）。输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
+// 最小补建（建号失败或 sub 冲突就回滚这个账号，不留下半条迁移）；演算时带它，能补建的单独计为「可最小补建」，不算对不上。
+// 输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -62,7 +63,7 @@ export function exportSubjects(db, sector) {
   return { sector, entries, withoutIdentity };
 }
 
-/** 目标环境：演算（或写入）。返回 { plan, conflicts, unmatched, withoutIdentity, applied, provisioned }。 */
+/** 目标环境：演算（或写入）。返回 { plan, conflicts, unmatched, withoutIdentity, applied, provisioned, provisionable }。 */
 export function importSubjects(db, payload, { sector, apply = false, now = Date.now(), provisionUnmatched = false, provisionAccount = null } = {}) {
   assertSector(sector);
   if (payload?.sector !== sector || !Array.isArray(payload.entries)) throw new Error('输入不是同一个 sector 的 export 结果');
@@ -75,6 +76,7 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
   const conflicts = [];
   const unmatched = [];
   const provisioned = [];
+  const provisionable = [];
   const claimed = new Map();
   for (const entry of payload.entries) {
     db.prepare('SAVEPOINT subject_entry').run();
@@ -94,6 +96,12 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
     if (users.size === 0) {
       const github = entry.identities.find(id => id.provider === 'github');
       const provision = apply && provisionUnmatched && entry.provision && github && provisionAccount;
+      // 演算时带 --provision-unmatched：写入时能按 GitHub UID 最小补建的单独计数，不当成对不上（停预发布写者之前要先知道）
+      if (!apply && provisionUnmatched && entry.provision && github && entry.identities.every(id => id.provider === 'github')) {
+        provisionable.push(label);
+        rollbackEntry();
+        continue;
+      }
       if (!provision) { unmatched.push(label); rollbackEntry(); continue; }
       if (entry.identities.some(id => id.provider !== 'github')) {
         conflicts.push(`${label}：目标库缺失账号还有其它身份，不做最小补建`);
@@ -141,7 +149,7 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
     const insert = db.prepare('INSERT INTO oauth_subjects(sector_id, user_id, sub, created_at) VALUES(?, ?, ?, ?)');
     db.transaction(() => { for (const item of plan) { insert.run(sector, item.userId, item.sub, now); applied += 1; } })();
   }
-  return { plan, conflicts, unmatched, withoutIdentity, applied, provisioned };
+  return { plan, conflicts, unmatched, withoutIdentity, applied, provisioned, provisionable };
 }
 
 function option(argv, name) {
@@ -169,10 +177,11 @@ function main(argv) {
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
     const result = importSubjects(db, JSON.parse(readFileSync(0, 'utf8')), { sector, apply, provisionUnmatched, provisionAccount });
     const lines = [
-      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}，源账号无可对账身份 ${result.withoutIdentity}${apply ? `，已写入 ${result.applied}` : ''}${result.provisioned.length ? `，最小补建 ${result.provisioned.length}` : ''}`,
+      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}，源账号无可对账身份 ${result.withoutIdentity}${apply ? `，已写入 ${result.applied}` : ''}${result.provisioned.length ? `，最小补建 ${result.provisioned.length}` : ''}${result.provisionable.length ? `，可最小补建 ${result.provisionable.length}` : ''}`,
       ...result.conflicts.map(item => `冲突 ${item}`),
       ...result.unmatched.map(item => `对不上 ${item}`),
       ...result.provisioned.map(item => `最小补建 ${item.label}（${item.created ? '新建' : '已存在'}）`),
+      ...result.provisionable.map(item => `可最小补建 ${item}`),
       ...(apply && result.applied > 0 ? [`回滚：DELETE FROM oauth_subjects WHERE sector_id='${sector}' AND user_id IN (${result.plan.map(item => `'${item.userId}'`).join(',')})`] : []),
     ];
     process.stdout.write(`${lines.join('\n')}\n`);

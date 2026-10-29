@@ -21,6 +21,7 @@ on:
           - verify-accounts
           - register-client
           - migrate-subjects
+          - repair-duplicates
           - switch-issuer
           - rollback-issuer
           - preview-status

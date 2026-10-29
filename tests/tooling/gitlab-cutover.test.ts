@@ -13,7 +13,7 @@ afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: tru
 
 const RB_PREVIEW = `# 其它配置\n    issuer: '${PREVIEW}/oidc', discovery: true, client_auth_method: 'basic',\n    client_options: { identifier: 'gitlab', secret: File.read('/etc/gitlab/yzgc-oidc-secret').strip },\n`;
 
-function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number; previewMode?: string; productionMode?: string; stopExit?: number; backupExit?: number; baselineExit?: number; composeFailOnce?: boolean } = {}) {
+function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number; previewMode?: string; productionMode?: string; stopExit?: number; backupExit?: number; baselineExit?: number; composeFailOnce?: boolean; repairExit?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "cutover-"));
   dirs.push(dir);
   const config = join(dir, "config");
@@ -61,6 +61,7 @@ elif [[ "$1" == run ]]; then
     echo '{"failures":[]}'
     exit ${options.baselineExit ?? 0}
   elif [[ "$*" == *verify* ]]; then cat > /dev/null; echo '{"failures":[],"verified_members":1}'
+  elif [[ "$*" == *repair-duplicates* ]]; then cat > /dev/null; echo '演算 sector=git.yangtzeu.work：重复号 1，拒绝 0'; exit ${options.repairExit ?? 0}
   else printf '{"configuration":{"mode":"%s"},"bindings":[]}\n' "$(cat "$root/mode")"; fi
 elif [[ "$1" == stop ]]; then echo false > "$root/running"
 elif [[ "$1" == start ]]; then echo true > "$root/running"
@@ -241,6 +242,41 @@ describe("cutover.sh migrate-subjects 与参数校验", () => {
     expect(f.run("migrate-subjects", "--production-origin", PROD, "--sector", "a b").status).toBe(1);
     expect(f.run("explode").status).toBe(2);
     expect(f.run("status", "--bogus").status).toBe(2);
+  });
+});
+
+describe('cutover.sh repair-duplicates', () => {
+  it('缺省演算：从预发布导出、只读挂载正式库调用修复，不备份、不带 --apply', () => {
+    const f = fixture({ previewMode: 'on' });
+    const result = f.run('repair-duplicates', '--production-origin', PROD);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('演算');
+    const calls = f.called();
+    expect(calls).toContain('migrate-oidc-subjects.mjs export --sector git.yangtzeu.work');
+    expect(calls).toMatch(/--network container:yzgc-production-server --volumes-from yzgc-production-server:ro .*repair-duplicates --source-stdin --sector git\.yangtzeu\.work/);
+    expect(calls).not.toContain('backup start');
+    expect(calls).not.toMatch(/repair-duplicates.*--apply/);
+    expect(calls).toContain('rm -f /tmp/migrate-oidc-subjects.mjs');
+  });
+
+  it('--apply 先跑正式备份，再以读写挂载带 --apply 修复；修复拒绝时非 0 退出', () => {
+    const f = fixture({ previewMode: 'on' });
+    const result = f.run('repair-duplicates', '--production-origin', PROD, '--apply');
+    expect(result.status, result.stderr).toBe(0);
+    const calls = f.called();
+    expect(calls.indexOf('backup start yzgc-backup@production.service')).toBeGreaterThanOrEqual(0);
+    expect(calls.indexOf('backup start yzgc-backup@production.service')).toBeLessThan(calls.indexOf('repair-duplicates'));
+    expect(calls).toMatch(/--volumes-from yzgc-production-server:rw .*repair-duplicates --source-stdin --apply --sector git\.yangtzeu\.work/);
+    expect(fixture({ repairExit: 1 }).run('repair-duplicates', '--production-origin', PROD, '--apply').status).toBe(1);
+  });
+
+  it('停预发布写者之前的演算带 --provision-unmatched，切签发者与开正式写者的演算不带', () => {
+    const f = fixture({ previewMode: 'on', productionMode: 'off' });
+    expect(f.run('stop-preview-sync', '--production-origin', PROD).status).toBe(0);
+    expect(f.called()).toContain('import --sector git.yangtzeu.work --provision-unmatched');
+    const g = fixture({ productionMode: 'off' });
+    expect(g.run('enable-production-sync', '--production-origin', PROD).status).toBe(0);
+    expect(g.called()).not.toContain('--provision-unmatched');
   });
 });
 
