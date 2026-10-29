@@ -67,7 +67,10 @@
       "evidence": [
         "docs/services/web/portal.md",
         "docs/services/server/README.md",
-        "docs/ops/GITLAB.md"
+        "docs/ops/GITLAB.md",
+        ".github/workflows/architecture-alignment.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
@@ -77,7 +80,10 @@
         "tests/web/portal-window-load-failed.test.tsx",
         "tests/server/signin-methods.test.ts",
         "tests/tooling/oidc-subject-migration.test.ts",
-        "tests/tooling/gitlab-cutover.test.ts"
+        "tests/tooling/gitlab-cutover.test.ts",
+        ".github/workflows/architecture-alignment.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "delivery": {
@@ -85,7 +91,10 @@
       "reason": "通过既有 v0.1.1 hotfix 入口上线，不创建或移动发布 tag；登记 #308、#310 窗口。上线后由 gitlab-cutover 完成 sub 迁移和正式 issuer 切换。",
       "evidence": [
         "deploy/hotfix/windows.json",
-        "docs/ops/GITLAB.md"
+        "docs/ops/GITLAB.md",
+        ".github/workflows/architecture-alignment.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "docs/ops/CICD.md"
       ]
     }
   },
@@ -122,7 +131,10 @@
         "deploy/hotfix/windows.json",
         "deploy/env/origin-exceptions.json",
         "docs/ops/DEPLOY.md",
-        "docs/ops/ENVIRONMENTS.md"
+        "docs/ops/ENVIRONMENTS.md",
+        ".github/workflows/architecture-alignment.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "docs/ops/CICD.md"
       ],
       "domains": [
         "platform"
@@ -130,7 +142,7 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "登记所有者批准的 hotfix 窗口与原话例外，记录执行与文档核对；不改变部署环境或发布 tag。"
+      "reason": "登记所有者批准的 hotfix 窗口与原话例外，记录执行与文档核对；不改变部署环境或发布 tag。 architecture-alignment 在 runner 临时目录同时复制 hotfix-windows.mjs，修复 hotfix PR 的模块缺失。"
     }
   ],
   "documents": [

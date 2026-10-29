@@ -55,3 +55,9 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：run 40832185985 的 hotfix-core 在 check:catalog 失败；pnpm catalog:generate 并核对生成物差异
 - 结果：pnpm check:catalog 通过；仅来源摘要和 identity-store 行号变化
+
+## 15:24:33 +08:00 · 返工 · #310 · 修复 architecture-alignment 临时目录漏复制依赖
+
+- 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
+- 做了什么：GitHub PR #302 的 architecture-alignment 失败：_temp/check-architecture.mjs 找不到同目录 hotfix-windows.mjs；常规 base 与引导两处都复制该依赖，补 workflow 回归与 CICD 文档
+- 结果：tests/tooling/architecture-workflow.test.ts 2 通过；check:architecture --base gitlab/stage、check:doc-sync 通过。先提交 task，不冻结或替换正在构建的 main 1fb9c4e2
