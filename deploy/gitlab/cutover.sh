@@ -240,7 +240,7 @@ migrate_subjects() {
     "${DOCKER}" cp "${HERE}/migrate-oidc-subjects.mjs" "${PROD_SERVER}:/tmp/migrate-oidc-subjects.mjs"
     "${DOCKER}" exec "${PREVIEW_SERVER}" node /tmp/migrate-oidc-subjects.mjs export --sector "${SECTOR}" >"${work}/export.json"
     local flag=()
-    if [[ "${APPLY}" == 1 ]]; then flag=(--apply); else echo "（演算，未写入；加 --apply 才执行）"; fi
+    if [[ "${APPLY}" == 1 ]]; then flag=(--apply --provision-unmatched); else echo "（演算，未写入；加 --apply 才执行）"; fi
     "${DOCKER}" exec -i "${PROD_SERVER}" node /tmp/migrate-oidc-subjects.mjs import --sector "${SECTOR}" "${flag[@]}" <"${work}/export.json"
 }
 

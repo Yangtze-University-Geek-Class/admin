@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -154,5 +154,26 @@ describe("部署状态只承认本次真实成功检查", () => {
     const fetcher: typeof fetch = async (url, init) => String(url).includes("/check-runs/") ? new Response("unavailable", { status: 503 }) : f.options.fetcher(url, init);
     await expect(publishVerifiedCheck({ commit: f.commit }, { ...f.options, fetcher })).rejects.toThrow(/HTTP 503/);
     expect(f.writes).toEqual([]);
+  });
+});
+
+describe("hotfix 工作流保持生产保护", () => {
+  const workflow = readFileSync(resolve(root, ".github/workflows/deploy-hotfix.yml"), "utf8");
+  it("只有 main 手工触发，核心/论坛全验，不制造 rc", () => {
+    expect(workflow).toContain('test "$GITHUB_REF" = refs/heads/main');
+    expect(workflow).toContain("needs: [plan, core, forum]");
+    expect(workflow).toContain("run: pnpm check"); expect(workflow).toContain("run: pnpm test");
+    expect(workflow).toContain("run: node scripts/forum.mjs check");
+    expect(workflow).not.toMatch(/^  (push|pull_request):/m);
+    expect(workflow).not.toMatch(/git tag|continue-on-error|\|\| true/);
+  });
+  it("CDN、镜像构建和内容校验与常规生产流程逐字一致", () => {
+    const normal = readFileSync(resolve(root, ".github/workflows/deploy-production.yml"), "utf8");
+    const shared = (text: string) => text.slice(text.indexOf("  cdn-plan:\n"), text.indexOf("  deploy:\n"));
+    expect(shared(workflow)).toBe(shared(normal));
+  });
+  it("复用生产锁、审批、凭据隔离、备份、镜像校验和回滚", () => {
+    for (const literal of ["group: deploy-production", "cancel-in-progress: false", "required_reviewers", "name: production", "name: static-cdn", "hotfix-verify", "yzgc-backup@production.service", "rollback-stack.sh", "sha256sum -c", "payload[mode]=hotfix", "payload[base_tag_commit]", "GOOGLE_CLIENT_SECRET", "deployment-environment.mjs ssh-config", "hotfix-policy.mjs verify-live"]) expect(workflow).toContain(literal);
+    expect(workflow.indexOf("生产一致性备份与隔离恢复门禁")).toBeLessThan(workflow.indexOf("分发镜像、env 文件与 compose 物料"));
   });
 });

@@ -31,13 +31,13 @@
 | `lib/useMediaQuery.ts` | 响应式媒体查询订阅；OS 用 `PHONE_QUERY` 与 `PORTRAIT_QUERY`，变化时保留组件状态 |
 | `lib/cameraMath.ts`、`lib/motion.ts` | 相机距离（cover/contain）、像素 ↔ 相机平面换算、竖屏横带取景、缓动与插值 |
 | `lib/pixelRatio.ts` | 3D 像素比调速器：起步档位、降档规则、帧间隔预算（纯逻辑） |
-| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里：`scene`、`window`、`panel`、`site` 四种；「代码仓库」「比赛」「意见箱」是 `{ kind: "window" }`）、站外应用的地址（`appLink`、`followAppLink`，只剩论坛和控制台）、启动器过滤、时间文案、读屏用的 `NEW_TAB_NOTE` |
+| `lib/osApps.ts` | YUGC OS 应用清单（每个应用打开什么只写在这里：`scene`、`window`、`panel`、`site` 四种；「比赛」「意见箱」是 `{ kind: "window" }`）、站外应用的地址（`appLink`、`followAppLink`，只剩论坛、代码仓库和控制台）、启动器过滤、时间文案、读屏用的 `NEW_TAB_NOTE` |
 | `lib/applyOpen.ts` | 招新总开关（#284）在官网这一侧的读法：`applyOpenOf` 只认明确的 `apply_open: false` 为关闭（没有字段、读不到都按开放），`joinView` 把「配置读到没有、开关、寄信时服务端说已关」映射成窗口的 loading / letter / closed 三种，`useApplyOpen` 给桌面挂载时读一次 `GET /api/public/config` |
 | `lib/shell/*` | 终端窗口里的模拟 Linux（#279）：`vfs.ts` 文件系统、`parse.ts` 命令行解析、`commands.ts` 命令、`index.ts` 执行与存盘补全、`ansi.ts` 颜色码转片段；纯逻辑，不碰 DOM，见下文「窗口外框与终端」 |
 | `lib/promo.ts`、`lib/promoWindow.ts`、`components/PromoPlayer.tsx`、`components/PromoLazy.tsx`、`styles/promo.css` | 宣传片：CDN 地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式、起播预取（纯逻辑在 `lib/promo.ts`）；桌面里的「宣传片」窗口（#284）：要不要自动弹、窗口多大放哪、收起和露出时对视频做什么在 `lib/promoWindow.ts`，窗口外框用 `components/os/Windows.tsx` 的，播放器是窗口正文（见下文「宣传片」） |
 | `lib/links.ts` | 站外链接的唯一解析点：论坛首页/版块/话题、控制台、账号设置 `/account`；代码仓库使用同源 `/api/public/gitlab`，由后端重定向到本环境群组，不再读取 `urls.gitlab` |
 | `lib/departments.ts` | 「组织架构」窗口和「关于极客班」里的部门：读匿名 `GET /api/public/departments`（窗口打开时读一次、关掉即取消），`DEFAULT_DEPARTMENTS` 与 #274 迁移的初始数据一致（AI、算法、硬件、网安、管理五个部门加「无部门」），读到之前和读不到时显示它；`readDepartments` 把认不出的部门色换成次要文字色、认不出的图标换成 `team-line`，称号按 `weight` 从高到低 |
-| `lib/codeRepos.ts` | 「代码仓库」窗口和终端 `repos` 共用：游客/注册用户读公开接口，有效 member/alumni 读 `GET /api/me/gitlab/projects`；按稳定账号隔离结果、取消并丢弃迟到回包，区分 loading/ready/unavailable/error/denied；保留地址校验和最近活动排序 |
+| `lib/codeRepos.ts` | 「代码仓库」窗口组件（#311 后桌面入口全部直达 `/api/public/gitlab`，窗口只在站内渲染）与终端 `repos` 共用：游客/注册用户读 `GET /api/public/gitlab/projects`，有效 member/alumni 读 `GET /api/me/gitlab/projects`；按稳定账号隔离结果、取消并丢弃迟到回包，区分 loading/ready/unavailable/error/denied；保留地址校验和最近活动排序 |
 | `lib/competitions.ts` | 「比赛」窗口的数据：读匿名 `GET /api/public/competitions`（窗口打开时读一次、关掉即取消，`reload` 再读一次），状态一律由本地按时间戳算（`statusAt`，与服务端 `competitionStatus` 同口径），窗口开着时每 60 秒重算状态与排序；响应里的 `status` 只当形状校验，读不到时窗口说「没加载出来」并给「重试」，而不是冒充「没有比赛」；日期换算（`beijingDay`、`shortDay`、`dayRange`）都按北京时间，`readCompetition` 丢掉缺字段的条目、只收可解析的 https 链接（所有类型可选）；#278 加 `site_url`（只认 `/c/<slug>/`）、`prizes`（`readPrizes`：名次说不通、金额不是非负整数的一档丢掉）、`grade_factors`（`readGradeFactors`）与 `finalized_at` |
 | `lib/competitionLabels.ts` | 比赛窗口的文案与日期纯函数（北京时间）：状态与类型文案、星期与钟点、「还剩几天」、卡片上的日期、详情要点、赛程节点、操作条、搜索与筛选 |
 | `lib/competitionHub.ts` | 报名与组队的客户端（#239）：`hubPaths` 是成员接口的唯一路径集合（比赛 id 与队伍 id 都做路径段编码），`useHub` 负责写操作、失败文案与统一重读，`useMemberRead` 负责成员接口的读取、轮询（天梯 10 秒、页面不可见时不发，#278）与响应形状校验；`readMyResults` 读定榜结果（兑奖码不是 `YUGC-` 开头的当作没有奖），`factorText`、`rankRange`、`shortTime` 写系数、名次与定榜时间；`readMyStatus` 等读出函数丢掉认不出的状态、未知操作与缺账号 id 的成员，`entryText`、`hubSentence`、`journey`、`pendingView`、`teamSlots`、`nextMilestone` 是状态文案、底部进度与槽位的纯函数，`failText` 把限流、登录过期与服务端中文说明分开说 |
@@ -87,7 +87,7 @@ three.js 只通过 `/forum-3d` 页里的 `import("../three/forum")` 进入，首
 ## 组织架构与代码仓库窗口（#275）
 
 - **组织架构**：按 `GET /api/public/departments` 的顺序画部门卡片：部门图标（Remix 图标名，服务端可以不给）、部门名、说明、按权重排的称号。部门色走 `data-tone`：AI = Y 青绿、算法 = U 蓝、硬件 = C 靛蓝、网安 = G 粉、管理 = 胶囊蓝（`pill`）、无部门 = 次要文字色（`ink`）。读到之前和读不到时显示默认值，不出错误提示。窗口底部一句说明身份怎么来：注册后是注册用户，填邀请码成为极客班成员，部门和称号由管理员在控制台里分。「关于极客班」里的部门名同样来自这份数据。单测 `tests/web/portal-org-window.test.tsx`。
-- **代码仓库**：游客及注册用户只读 `GET /api/public/gitlab/projects`；member/alumni 在账号加载完成后读 `GET /api/me/gitlab/projects`，不需要控制台 `gitlab.view`。空列表、上游不可用、请求错误和资格失效分开显示；成员不再被当成「没有公开项目」。项目在新标签页打开。游客经 `signInHref("/?open=gitlab")` 去统一登录，注册用户去 `/account` 核对身份，成员进入 `links.gitlab()`；跨端使用普通链接，不套门户 Router basename。退出或换账号立即隐藏旧私有列表，取消及迟到响应不得恢复它。回归见 `tests/web/portal-code-repos.test.tsx`。
+- **代码仓库**：#311 起桌面、Dock、菜单栏、⌘K、便签和终端都整页直达 `links.gitlab()`（同论坛），不开窗口；窗口组件 `CodeRepos` 留在 `Windows.tsx`，不再从桌面打开。窗口内容（站内渲染时）：游客及注册用户只读 `GET /api/public/gitlab/projects`，member/alumni 在账号加载完成后读 `GET /api/me/gitlab/projects`，不需要控制台 `gitlab.view`；空列表、上游不可用、请求错误和资格失效（denied 提示重新登录核对身份）分开显示，成员不再被当成「没有公开项目」；项目在新标签页打开。游客经 `signInHref("/?open=gitlab")` 去统一登录（回跳 `?open=gitlab` 经 site 入口直达本环境 GitLab），注册用户去 `/account` 核对身份（按钮「查看账号身份」），成员按钮「进入代码仓库」（`links.gitlab()`）；跨端使用普通链接，不套门户 Router basename。退出或换账号立即隐藏旧私有列表，取消及迟到响应不得恢复它。历史：原来的「代码仓库」应用在新标签页打开 GitLab，「GitHub 组织」应用另开 GitHub 组织页；#275 删掉 GitHub 组织应用，「代码仓库」改成桌面窗口，列 `GET /api/public/gitlab/projects` 给的公开项目（名字、说明或路径、最近活动），点项目在新标签页打开。终端 `repos` 和 `~/projects` 列同一份数据，没有项目时写「代码仓库里还没有可访问的项目」。回归见 `tests/web/portal-code-repos.test.tsx`。
 - **窗口正文的令牌**：窗口和桌面弹层里（`:is(.pt-win, .pt-os-modal)`）把 `--pt-*` 映射到 `--os-*`，用 `--pt-*` 写的旧样式（比赛窗口等）进了窗口也是 OS 的颜色；正文链接用 `--os-accent`，卡片圆角 14px，终端底色 `--os-term-bg`、文字用 `--os-bios-*`。
 
 ## 窗口外框与终端（#279）
@@ -181,6 +181,7 @@ three.js 只通过 `/forum-3d` 页里的 `import("../three/forum")` 进入，首
 - **没登录**（#275）：读完 `/auth/me` 发现没登录时，信纸上只有「先注册再投递」、一句说明和「注册」「登录」两个按钮，都带 `return_to=/?open=join`，注册或登录后回到桌面并打开这个窗口；不显示表单，免得写完了才发现要登录、跳走时内容丢掉。
 - **限额**：注册用户每天 3 份，成员不限（SPEC §3.8，数字是服务端 meta 的初始值）。登录后信纸底部按 `/auth/me` 的 `quota` 写「今天还能投 N 份」；成员 `apply_daily_limit` 为 -1 时不写。今天投完了按钮变灰，写「今天的投递次数用完了，明天再来」。寄出成功后用 201 回执里的 `quota` 更新。
 - **失败**：写到一半登录失效（401）时信纸留着，寄出按钮换成「重新登录」，提示先把写好的内容复制下来；被每日限额挡下（429 `rate_limited`、`bucket: "apply.daily"`）照服务端的 message 说并把按钮置灰；按 IP 或设备的限额（429）同样照服务端原话显示（#169）。
+- **窗口加载失败**（2026-10-29 线上白屏修复）：「加入我们」窗口的分包（`JoinBox`）加载失败（断网、CDN 超时、发版后旧页面找不到新文件名）时，`components/os/WindowLoadFailed.tsx` 只在这个窗口里显示「信纸没能打开。刷新页面再试一次。」和「刷新页面」按钮，桌面和官网不跟着卸掉变成白屏。它是 React 错误边界，只包「加入我们」这一个窗口；意见箱、终端窗口的分包失败暂未包，仍会整页白屏。桌面空闲时的预取失败不显示，点开窗口时才会看到这段说明。
 - **招新总开关**（#284，2026-10-25 00:15：「投递的话可以选择开启和关闭，关闭的时候会有个单独的页面」）：开关在控制台「投递」页顶部（权限 `apply.settings`），状态由 `GET /api/public/config` 的 `apply_open` 带给官网（没设过为 `true`）。「加入我们」窗口每次打开都重读一遍：读到之前只显示「正在打开信纸…」，不先闪出表单；开着是信纸，关着整个窗口换成 `components/os/JoinClosed.tsx`：「招新暂未开放」、一句说明、刷新或重新打开窗口能看到最新状态，下面是「看宣传片」「关于极客班」两个去别的窗口的入口和一个去论坛的链接；没有表单，也没有注册、登录这类报名入口，也不去读 `/auth/me`。读不到配置不算关闭：信纸照常出来并提示连不上服务器，关不关由服务端在寄出时裁决。
 - **寄信时被关**（#284）：服务端回 403 `apply_closed` 时整个窗口同样换成关闭页（没寄出去的内容不保留），并把「关了」报给桌面。
 - **桌面上其它叫人去报名的地方**（#284）：`YugcOs` 挂载时读一次开关（`useApplyOpen`），「加入我们」窗口读到的开关也会同步回来。关着时：「加入我们」图标、启动器和终端里的说明换成「招新暂未开放」（`visibleApps(consoleLink, applyOpen)`，应用本身还在，点开是关闭页）；「新来的看这里」便签去掉写信那一行；「关于极客班」窗口的「怎么加入」写「现在不招新」，并去掉「加入我们」按钮。页头和页脚的「加入我们」链接只是打开这个窗口，不改；`index.html` 的 meta 描述是静态文字，跟不上开关；终端里一条 10-24 的「apply: 投递成功」是装样子的历史记录，不改。

@@ -3137,7 +3137,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -3932,11 +3932,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -3981,7 +3981,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -6968,7 +6968,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -11134,7 +11134,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -11601,7 +11601,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -11946,7 +11946,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -17098,7 +17098,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "29582f9420cd1527aa752fa4e8cee62c53b5d788d96382092706ab142a6f4291",
+    "fingerprint": "c3dfaa654a08b2d19f5df76b3026c4e0c063d247abc9ffc9baa7e5c34cfd0f76",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17986,7 +17986,7 @@
       },
       {
         "path": "app/server/src/cli/account.ts",
-        "sha256": "a16deb50befe70c2b8d0f80282ef24e1acb920417f0feda4216243d90b9185b0"
+        "sha256": "7460500160ae65fa389230f2f7e6cf18888f4d911cde1b42a2c4c3d0c9dd1f18"
       },
       {
         "path": "app/server/src/cli/oidc.ts",
@@ -18158,7 +18158,7 @@
       },
       {
         "path": "app/server/src/lib/identity-store.ts",
-        "sha256": "a5f0f2f531235de5a99534e1de328045d893193d89ea099b5fc5e82b3598e890"
+        "sha256": "c36b8e9e0dce56ba1f517b0bfc534fe5f0602de44703fdb37b6d5d11761ec7cb"
       },
       {
         "path": "app/server/src/lib/invite-codes.ts",
@@ -18722,7 +18722,7 @@
       },
       {
         "path": "app/web/sites/portal/App.tsx",
-        "sha256": "16f07766f2bd365907370700050dd03f9a06d061cb2d37fe6078df7e67913b7c"
+        "sha256": "76c163d74d1cad35aa3f6b59069511bdaa78a8e3cecfac2b04586af9790611f3"
       },
       {
         "path": "app/web/sites/portal/components/ChoiceChips.tsx",
@@ -18782,11 +18782,11 @@
       },
       {
         "path": "app/web/sites/portal/components/os/FeedbackBox.tsx",
-        "sha256": "f65335661a81a495a51b8c624802d5bb03fda9dd56cd07715cd638dec6b91685"
+        "sha256": "dc8f40a19f8f35e126c760362ceffa4152f7f3622cb35b4667192b362e74337c"
       },
       {
         "path": "app/web/sites/portal/components/os/JoinBox.tsx",
-        "sha256": "f125f61d67f269a27e966c59227e4de9442b7f4048153d1fa5a3b0dc5073c87e"
+        "sha256": "68d6748972d5536314d2811d424193101fe07ad1bfa8d861e49572bb47ff3820"
       },
       {
         "path": "app/web/sites/portal/components/os/JoinClosed.tsx",
@@ -18813,12 +18813,16 @@
         "sha256": "b9cab3e36d928be5e62d69f4f1a7b60b94a918f57ce4d4b8ed79c36ac221b855"
       },
       {
+        "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
+        "sha256": "b6479ddb51e38686f7578d083631c5a86235a3979c43da9860e3e7224446feec"
+      },
+      {
         "path": "app/web/sites/portal/components/os/Windows.tsx",
-        "sha256": "970914883803126ca60582b67deaefaaf112ba614e565bde725b4d97dc50aed4"
+        "sha256": "2e9e9bae0e90a0f7c8a365aa4647394aef4ff2b2bdfe93c1216be3ca41b165f0"
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
-        "sha256": "6b50f256604864bc99bcbaa14889fcd02d3997a84051d32103f9ea159a009a4e"
+        "sha256": "6f1cf5f7fd19247f8a5640465c910b046128d0758725f31909313c6577b11d95"
       },
       {
         "path": "app/web/sites/portal/components/os/competitions/Avatar.tsx",
@@ -18930,7 +18934,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/osApps.ts",
-        "sha256": "aaacb1b28e0a5f46133179046061ac82f2a0d1aa6929d8219d3c33b6ceaeed7a"
+        "sha256": "9b3bbae2a7f613d924cf60582323f2303cbfc8f5b6e7c38472bb805c041db13f"
       },
       {
         "path": "app/web/sites/portal/lib/pixelRatio.ts",
@@ -18950,7 +18954,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/shell/commands.ts",
-        "sha256": "fae5b11533dfcc93e10769cdb54df3be1ada2da016afefb75c4d4002fa44eff2"
+        "sha256": "e14166946bb37bb44e20f85445fc807f21b5caa43a10e6441a1653eebb4a7845"
       },
       {
         "path": "app/web/sites/portal/lib/shell/index.ts",
@@ -19050,7 +19054,7 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "01c939ce401c4c18aa8dbcc1f56c7f0c1d9bb82867e72e52482ba08ee6daab0a"
+        "sha256": "862ed7ce51a16b2cbf63b7e5a9749a603fad8c56a86dab361528977857adda4c"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -19078,7 +19082,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "a57563a15afc8ffa1ab94301884af212d5e1580f80a4dd8b3e38b5ba14ee3782"
+        "sha256": "a7acd9eee8c5a270cb2400673625c876a4c6bc5fe19184f6699eb828f1453675"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19102,11 +19106,11 @@
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "fe20d4a487185ef9db7170ee67e5c731406b3f5087223899cb9d549959958886"
+        "sha256": "b32a867c6eb61cec6474021bb227f2ca2a345f71c9928c3461e1f3eedefe03d9"
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "e966571d0d53425832d337bf29468b1661634aca5f619c309bbc25cabeb62eb2"
+        "sha256": "2503c48d9fe541e55af8d7f51e54372ee180b957751c62f723ae665104729cef"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -19410,7 +19414,7 @@
       },
       {
         "path": "tests/server/signin-methods.test.ts",
-        "sha256": "40d3074a337295648c34015f2c8ffa2753d9e9a68a5e427fb5ad034429176a4c"
+        "sha256": "b239e3e1d5c7eb8f47f27e968284c2424d9d92dafbc0dd506b922231f96a06ec"
       },
       {
         "path": "tests/server/sticker-packs-migration.test.ts",
@@ -19478,11 +19482,11 @@
       },
       {
         "path": "tests/web/portal-os.test.ts",
-        "sha256": "6bc7293e34f9c86eb9c61beb9634f7c1b4b3a0cc8465f08c9487cf1ce77a63dd"
+        "sha256": "364476c6352ac09e38d1a5bd2d616b5b0e023de05aeb351dfbbdc50b9d23563c"
       },
       {
         "path": "tests/web/portal-phone.test.tsx",
-        "sha256": "4108750274d4d6966bd023d755b5a21d14385f581cc80a0d5bccd448acf45a38"
+        "sha256": "de33be38b563320cdd6898bd6e3d517030ec9f665f9edc941bd60043c9d45544"
       },
       {
         "path": "tests/web/portal-profile-card.test.tsx",
@@ -19490,7 +19494,7 @@
       },
       {
         "path": "tests/web/portal-promo-desktop.test.tsx",
-        "sha256": "590362ba7cade15485329d31b0a8674a27ef7811b24d026864c404bb4e531eec"
+        "sha256": "77e2772ef6a638a5aab0ca7ae66d1ae100100c11e97ad9ca7c844f064e1ffadb"
       },
       {
         "path": "tests/web/portal-promo-window.test.ts",
@@ -25553,7 +25557,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25621,7 +25625,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25689,7 +25693,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25799,7 +25803,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25867,7 +25871,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -25935,7 +25939,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -26003,7 +26007,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -26071,7 +26075,7 @@
           "path": "app/server/src/lib/apply-quota.ts"
         },
         {
-          "line": 167,
+          "line": 166,
           "path": "app/web/sites/portal/components/os/JoinBox.tsx"
         },
         {
@@ -35697,7 +35701,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35781,7 +35785,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35865,7 +35869,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35949,7 +35953,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -36069,7 +36073,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -54439,11 +54443,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -54475,11 +54479,11 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 66,
+          "line": 65,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         },
         {
-          "line": 32,
+          "line": 34,
           "path": "app/web/sites/portal/App.tsx"
         },
         {
@@ -54523,7 +54527,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54557,7 +54561,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54573,7 +54577,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54589,7 +54593,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -54605,7 +54609,7 @@
           "path": "app/server/src/routes/portal/feedback.ts"
         },
         {
-          "line": 91,
+          "line": 90,
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx"
         }
       ],
@@ -71415,7 +71419,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71463,7 +71467,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71511,7 +71515,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71559,7 +71563,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71607,7 +71611,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71655,7 +71659,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71703,7 +71707,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71751,7 +71755,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71799,7 +71803,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71847,7 +71851,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71919,7 +71923,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71967,7 +71971,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -72015,7 +72019,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -72063,7 +72067,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -72111,7 +72115,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -72505,7 +72509,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -72545,7 +72549,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -72585,7 +72589,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -72643,7 +72647,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -72683,7 +72687,7 @@
           "path": "app/web/sites/portal/lib/codeRepos.ts"
         },
         {
-          "line": 378,
+          "line": 381,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -82125,7 +82129,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82169,7 +82173,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82213,7 +82217,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82257,7 +82261,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82301,7 +82305,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82345,7 +82349,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82389,7 +82393,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82433,7 +82437,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82489,7 +82493,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82533,7 +82537,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82577,7 +82581,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82621,7 +82625,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -137274,6 +137278,19 @@
         "recruitment"
       ],
       "path": "app/web/sites/portal/components/os/Widgets.tsx"
+    },
+    {
+      "domains": [
+        "competitions",
+        "feedback",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
     },
     {
       "domains": [

@@ -99,6 +99,11 @@
       "reason": "环境身份的唯一机器配置"
     },
     {
+      "file": "deploy/hotfix/windows.json",
+      "max": 1,
+      "reason": "热修复窗口登记里所有者批准的原话（#310 确认依据）含正式站域名，按原话保留，不改写"
+    },
+    {
       "file": "deploy/nginx/preview.conf",
       "max": 8,
       "only": "preview",

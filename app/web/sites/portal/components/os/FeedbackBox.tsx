@@ -1,5 +1,5 @@
 // YUGC OS 的「意见箱」窗口（#275）：匿名向组织提建议 / 报 bug，旁边列出该组织公开的近期反馈。Windows.tsx 打开窗口时才加载，
-// 防刷验证和表单样式不进桌面首屏。旧地址 /feedback、/feedback/:org 不再有单独的页面，只跳到桌面打开这个窗口（App.tsx）；
+// 防刷验证不进桌面首屏。旧地址 /feedback、/feedback/:org 不再有单独的页面，只跳到桌面打开这个窗口（App.tsx）；
 // 原来的页面在 docs/history/portal-yugc-os-v1/。准入同其它公开表单（PoW + 蜜罐 + 可选 Turnstile）。
 // 分类只有几项，用单选按钮组（../ChoiceChips.tsx）而不是原生下拉框。
 import TurnstileWidget from "@shared/ui/TurnstileWidget";
@@ -9,7 +9,6 @@ import { appConfig } from "@shared/config";
 import { computePow, powProof } from "@shared/lib/pow";
 import ChoiceChips from "../ChoiceChips";
 import Icon from "../Icon";
-import "../../styles/pages.css";
 
 /**
  * 意见箱收哪个组织以服务端为准：`GET /api/feedback/categories` 下发的 `org`（部署配置的 CONSOLE_ORG）。

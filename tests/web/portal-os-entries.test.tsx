@@ -33,6 +33,7 @@ import YugcOs from "../../app/web/sites/portal/components/os/YugcOs";
 import { links } from "../../app/web/sites/portal/lib/links";
 
 const FORUM = { href: links.forumHome(), newTab: false };
+const REPOS = { href: links.gitlab(), newTab: false };
 
 let reducedMotion = false;
 
@@ -187,12 +188,10 @@ it("/?open=feedback 进桌面就打开意见箱窗口，打开后把参数从地
   expect(screen.queryAllByRole("dialog")).toHaveLength(0);
 });
 
-it("代码仓库在桌面上开窗口：Dock、桌面图标、3 键、菜单栏「前往」、便签、⌘K、终端都打开同一个窗口，不离开官网", async () => {
+it("代码仓库整页直达（#311）：Dock、桌面图标、3 键、菜单栏「前往」、便签、⌘K、终端都当场打开同一个地址，不开窗口", async () => {
   // jsdom 没有 scrollTo（终端每多一行滚到底）
   Element.prototype.scrollTo ??= () => undefined;
   const { container, where } = renderDesktop();
-  const repos = () => screen.queryAllByRole("dialog", { name: "代码仓库" });
-  const close = () => fireEvent.click(within(repos()[0]).getByRole("button", { name: "关闭" }));
   const entries: Array<[string, () => void]> = [
     ["Dock", () => fireEvent.click(dock().getByRole("button", { name: "代码仓库" }))],
     ["桌面图标", () => fireEvent.doubleClick(container.querySelector<HTMLElement>('.pt-icons [data-cta="gitlab"]')!)],
@@ -210,19 +209,18 @@ it("代码仓库在桌面上开窗口：Dock、桌面图标、3 键、菜单栏�
     }],
   ];
   for (const [name, open] of entries) {
+    const before = followed.calls.length;
     open();
-    expect(repos(), name).toHaveLength(1);
-    close();
-    expect(repos(), name).toHaveLength(0);
+    expect(followed.calls.slice(before), name).toEqual([REPOS]);
   }
+  expect(screen.queryAllByRole("dialog", { name: "代码仓库" })).toHaveLength(0);
 
   fireEvent.click(dock().getByRole("button", { name: "终端" }));
   const input = await screen.findByRole("textbox", { name: "终端输入" });
   fireEvent.change(input, { target: { value: "open gitlab" } });
   fireEvent.keyDown(input, { key: "Enter" });
-  await waitFor(() => expect(repos()).toHaveLength(1));
-
-  expect(followed.calls).toEqual([]);
+  await waitFor(() => expect(followed.calls).toHaveLength(entries.length + 1));
+  expect(followed.calls.at(-1)).toEqual(REPOS);
   expect(where()).toBe("/");
 });
 
@@ -351,7 +349,7 @@ it("「论坛最新」窗口：写明的「3D 版块」进 /forum-3d 场景页�
   expect(followed.calls).toEqual([]);
 });
 
-it("桌面入口在当前页打开；游客从仓库窗口进入同页 SSO 并保留回跳窗口", async () => {
+it("桌面上的入口都留在本页或当前标签页，不补「新标签页打开」；代码仓库也在当前标签页直达（#311）", () => {
   renderDesktop();
   dock().getByRole("button", { name: "代码仓库" });
   dock().getByRole("button", { name: "论坛" });
@@ -366,11 +364,6 @@ it("桌面入口在当前页打开；游客从仓库窗口进入同页 SSO 并�
   expect([...document.querySelectorAll(".pt-sr")].filter((node) => node.textContent?.includes("新标签页"))).toHaveLength(0);
 
   fireEvent.click(dock().getByRole("button", { name: "代码仓库" }));
-  const win = screen.getByRole("dialog", { name: "代码仓库" });
-  await waitFor(() => {
-    const signIn = within(win).getByRole("link");
-    expect(signIn.getAttribute("href")).toBe("/signin?return_to=%2F%3Fopen%3Dgitlab");
-    expect(signIn.getAttribute("target")).toBeNull();
-  });
-  expect(followed.calls).toEqual([]);
+  expect(followed.calls).toEqual([REPOS]);
+  expect(screen.queryAllByRole("dialog", { name: "代码仓库" })).toHaveLength(0);
 });

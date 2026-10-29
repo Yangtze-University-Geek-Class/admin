@@ -12,6 +12,7 @@ it("checks all pull requests and edited bodies without skip labels or path filte
 });
 it("uses the base policy when available and checks candidate Git objects as data", () => {
   expect(workflow).toContain('git show "${BASE_SHA}:scripts/check-architecture.mjs" > "$policy"');
+  expect(workflow).toContain('git show "${BASE_SHA}:scripts/hotfix-windows.mjs" > "${RUNNER_TEMP}/hotfix-windows.mjs"');
   expect(workflow).toContain('--base "$BASE_SHA" --head "$HEAD_SHA"');
   expect(workflow).toContain('--branch "$HEAD_REF" --body-file');
   expect(workflow).toContain("persist-credentials: false");
@@ -19,5 +20,6 @@ it("uses the base policy when available and checks candidate Git objects as data
   expect(workflow).not.toContain("secrets.");
   expect(workflow).not.toMatch(/pnpm install|npm install/);
   expect(workflow).toContain('cp scripts/check-architecture.mjs "$policy"');
+  expect(workflow).toContain('cp scripts/hotfix-windows.mjs "${RUNNER_TEMP}/hotfix-windows.mjs"');
   expect(workflow).toContain('node "$policy"');
 });

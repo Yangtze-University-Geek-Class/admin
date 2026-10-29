@@ -106,6 +106,7 @@ jobs:
     permissions:
       contents: read
       deployments: read
+      statuses: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -127,6 +128,21 @@ jobs:
           set -eu
           node scripts/hotfix-policy.mjs plan > "$RUNNER_TEMP/hotfix-plan.json"
           node scripts/hotfix-policy.mjs verify-live "$RUNNER_TEMP/hotfix-plan.json"
+
+      - name: 写入 hotfix-verify 的 commit status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+        run: |
+          set -eu
+          # workflow_dispatch 的 check-run 不会自动成为 Deployments API 的 required_contexts。
+          # 只有上面的完整核心/论坛验证与真实生产证据都成功后，才把同一个上下文写成 success；
+          # deploy 创建记录时仍要求 hotfix-verify，不减少任何验证。
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" \
+            -f context=hotfix-verify -f state=success \
+            -f description="核心、论坛与生产证据核对通过" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
   forum:
     needs: plan

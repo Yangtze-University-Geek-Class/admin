@@ -110,16 +110,17 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 - `users.id` 是内部账号 ID，不是给 GitLab 的主体标识；下游 `sub` 按 sector（回调主机）生成 32 字节随机值，持久化于 `oauth_subjects`，不能从账号 ID 重新计算。GitLab `openid_connect` 的 `extern_uid` 必须沿用该值。
 - 迁移保全 `oauth_clients`、GitLab sector 的 `oauth_subjects`、`gitlab_accounts` 和原 `ENCRYPTION_KEY`；跨库内部 ID 可不同，须按不可变身份及认领证明对账，不按邮箱/昵称自动合号或直接照抄内部 ID。
 - 改接必须是单写者：旧预发布排空停写 → 保全原 sector/sub、client 与账号关联 → 正式唯一写者对账并核验 → 改 GitLab issuer/client secret。不能只写 env 或 app_state 就声称旧进程停写；运行进程缓存设置，须替换并核对健康。
+- 已完成的前置（2026-10-28）：正式 `OIDC_JWKS`、`GITLAB_API_TOKEN` 写进 GitHub 环境 `production`，由 hotfix 部署渲染进正式 env；正式库登记了 `gitlab` 客户端，明文 secret 只在 Arch `/srv/gitlab/config/yzgc-oidc-secret.production`（0600）。GitLab 现在读的 `yzgc-oidc-secret` 仍是预发布的，改接之前不动它。
 - 以下路径统一由 [gitlab-cutover.yml](../../.github/workflows/gitlab-cutover.yml) 在 `main` 执行，保留 production 审批、哨兵与部署开关；默认演算，`apply` 才写，不另发 rc、不升号、不改镜像或 DNS：
   1. `status` 核对正式 discovery/client/secret 文件存在；`sync-status` 使用只读库与无网络一次性容器报告持久配置、有效直接成员及绑定计数，不播种资料或启动循环。`scope=persisted-configuration` 不冒充旧进程内存模式。
-  2. `migrate-subjects` 先演算。只认稳定 provider+provider_uid，保留已有 sub；冲突、目标库对不上或源账号无不可变身份均整批拒绝且非零退出。只报告计数与 provider uid，不打印 sub。
+  2. `migrate-subjects` 先演算。只认稳定 provider+provider_uid，保留已有 sub；冲突、目标库对不上或源账号无不可变身份均整批拒绝且非零退出；只有显式 `--provision-unmatched` 才按 GitHub UID 最小补建（cutover.sh 的 `--apply` 已带；建号失败或 sub 冲突会回滚该账号，不留下半条迁移）。只报告计数与 provider uid，不打印 sub。手工兜底：把 [migrate-oidc-subjects.mjs](../../deploy/gitlab/migrate-oidc-subjects.mjs) `docker cp` 进两个 server 容器的 `/tmp/`，预发布容器 `export --sector <GitLab 主机名>`，正式容器 `import` 先演算看过「可迁、冲突、对不上」三个数再 `--apply`。
   3. `stop-preview-sync --apply` 先确认身份能完整对账，再执行本环境一致性备份及隔离恢复门；取双栈部署锁，正常排空旧进程（强杀不算通过），用同步模块的持久设置写口改 off，原子更新本环境 canonical env，以原镜像重启。必须有新 StartedAt、运行 env=off、持久有效配置=off 和健康门证据。
      同步设置写入或重启失败时，先停失败实例，再恢复原有效模式与本环境 env 备份并复检健康；尚未写设置的排空失败只重启原实例。恢复成功仍返回失败，不把重试恢复写成切换成功；恢复失败明确报告，不能继续切另一写者。全程禁止拉取或构建镜像。
   4. `migrate-subjects --apply` 只在上述预发布 off 后新增主体记录；已有值不覆盖。正式账号或资格缺失交由本人注册/所有者核对，不按邮箱、名字合号，不复制预发布业务用户，也不自动授予资格。
   5. `enable-production-sync` 要求预发布运行 env 和持久模式均 off、四项主体计数清零、旧成员在正式仍具有有效资格及既有 GitLab ID 不变；`--apply` 经同样备份、锁、排空和健康门开启正式。服务按原入口立即启动一轮对账，并保留正常周期。
   6. `verify-accounts` 使用正式容器网络和只读库，逐成员核对 active 非管理员/服务账号、唯一 `openid_connect` 绑定的原 sub、原 GitLab ID 与 geek 组 Developer 30 / Owner 50；HTTP 未知或缺绑定不得算通过。报告不含 sub、邮箱、令牌或内部 account_id。
-  7. `switch-issuer` 在前述核验、正式 discovery/client/secret 和严格迁移演算均满足后，备份配置并原子替换签发者文件与正式 secret，执行 reconfigure。成员真实登录及原 GitLab ID 另验，不以脚本配置通过代替登录。
-  回滚签发者用 `rollback-issuer` 恢复备份；同步写者回退仍须先停止当前写者，确认没有双写，再恢复旧源，不能只回写 app_state 或删除主体来覆盖新状态。业务用户、仓库与上线后的写入不删除。
+  7. `switch-issuer` 在前述核验、正式 discovery/client/secret 和严格迁移演算均满足后，备份配置并原子替换签发者文件与正式 secret，执行 reconfigure。核对未登录访问 `/users/sign_in` 的跳转目标是正式 origin 的 `/oidc/auth`；成员真实登录及原 GitLab ID 另验，不以脚本配置通过代替登录。
+  回滚签发者用 `rollback-issuer` 恢复备份；同步写者回退仍须先停止当前写者，确认没有双写，再恢复旧源，不能只回写 app_state 或删除主体来覆盖新状态。业务用户、仓库与上线后的写入不删除；迁移写入的行用脚本打印的 `DELETE` 逆向清理。
 - 原生运维工具从 server 包解析 SQLite 依赖；本机使用当前 worktree 的依赖，`/ops` 挂载或 `/tmp` 分发时使用运行镜像 `/app/app/server`，不遍历 pnpm 内部存储、不替换原生模块 ABI。
 - root 的应急地址为 `/users/sign_in?auto_sign_in=false`；普通成员的密码限制、组权限和资料传播须另验，不能从配置片段推断已生效。默认头像优先级也不等于核心同步永不改用户头像。
 - 交接中的真实 SSO 成员资格故障仍未在本任务修复或复测；“同步无错误”、资产纳管、语法通过均不证明有效成员/往届/站长可登录。历史资料头像同步不是 NANO 头像池任务，不混用两平台同号 issue 或在 GitLab MR 写关闭 GitHub issue 的裸编号。
