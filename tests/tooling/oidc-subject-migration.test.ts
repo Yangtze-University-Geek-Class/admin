@@ -12,13 +12,15 @@ const SECTOR = "git.example.test";
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string; orgRole?: 'admin' | 'member' | null }>) {
+function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string; orgRole?: 'admin' | 'member' | null; status?: string; levels?: Array<[string, number | null]> }>) {
   const db = new Database(":memory:");
   db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
     CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-    CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+    CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
   for (const user of users) {
-    db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
+    db.prepare("INSERT INTO users(id, org_role, status) VALUES(?, ?, ?)").run(user.id, user.orgRole ?? null, user.status ?? 'active');
+    for (const [group, expiresAt] of user.levels ?? []) db.prepare("INSERT INTO perm_members VALUES(?,?,'fixture',1,?)").run(user.id, group, expiresAt);
     for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
     if (user.sub) db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, user.id, user.sub, 1);
   }
@@ -38,8 +40,34 @@ describe("export", () => {
     expect(out.withoutIdentity).toBe(1);
     expect(out.entries).toEqual([
       { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }], provision: { github_login: "user-100", org_role: "member" } },
-      { sub: "sub-b", identities: [{ provider: "github", provider_uid: "200" }, { provider: "google", provider_uid: "g-1" }] },
+      { sub: "sub-b", identities: [{ provider: "github", provider_uid: "200" }, { provider: "google", provider_uid: "g-1" }], provision_skip: "not_member" },
     ]);
+  });
+
+  it("按权限组认成员：org_role 为空但在 level.member 里的也能最小补建，校友和过期的写明原因", () => {
+    const now = 1_000;
+    const db = database([
+      { id: "m1", identities: [["github", "101"]], sub: "sub-m1", levels: [["level.member", null]] },
+      { id: "m2", identities: [["github", "102"]], sub: "sub-m2", levels: [["level.member", now - 1]] },
+      { id: "a1", identities: [["github", "103"]], sub: "sub-a1", levels: [["level.alumni", null]] },
+      { id: "x1", identities: [["github", "104"]], sub: "sub-x1", status: "disabled", levels: [["level.member", null]] },
+      { id: "g1", identities: [["google", "g-9"]], sub: "sub-g1", levels: [["level.member", null]] },
+      { id: "o1", identities: [["github", "105"]], sub: "sub-o1", orgRole: "admin", levels: [["level.member", null]] },
+    ]);
+    const bySub = Object.fromEntries(exportSubjects(db, SECTOR, now).entries.map(entry => [entry.sub, entry]));
+    expect(bySub["sub-m1"].provision).toEqual({ github_login: "user-101", org_role: "member" });
+    expect(bySub["sub-m2"]).toMatchObject({ provision_skip: "not_member" });
+    expect(bySub["sub-a1"]).toMatchObject({ provision_skip: "alumni" });
+    expect(bySub["sub-x1"]).toMatchObject({ provision_skip: "inactive" });
+    expect(bySub["sub-g1"]).toMatchObject({ provision_skip: "no_github" });
+    expect(bySub["sub-o1"].provision).toEqual({ github_login: "user-105", org_role: "admin" });
+    // 写入端：补建不了的随「对不上」写明原因；不带 --provision-unmatched 时照旧只给身份
+    const target = database([]);
+    const payload = exportSubjects(db, SECTOR, now);
+    const dry = importSubjects(target, payload, { sector: SECTOR, provisionUnmatched: true });
+    expect([...dry.provisionable].sort()).toEqual(["github:101", "github:105"]);
+    expect([...dry.unmatched].sort()).toEqual(["github:102（源账号不是极客班成员）", "github:103（源账号是校友，最小补建只建成员）", "github:104（源账号不是有效状态）", "google:g-9（源账号没有 GitHub 身份）"]);
+    expect([...importSubjects(target, payload, { sector: SECTOR }).unmatched].sort()).toEqual(["github:101", "github:102", "github:103", "github:104", "github:105", "google:g-9"]);
   });
 
   it("sector 不是主机名时拒绝", () => {
@@ -192,7 +220,8 @@ describe("命令行", () => {
       const db = new Database(path);
       db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
         CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-        CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+        CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
       for (const user of users) {
         db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
         for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
@@ -223,7 +252,8 @@ describe("命令行", () => {
     const db = new Database(path);
     db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
       CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-      CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+      CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
     db.transaction(() => {
       for (let i = 0; i < 1500; i += 1) {
         db.prepare("INSERT INTO users(id) VALUES(?)").run(`u${i}`);
