@@ -71,6 +71,7 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 13. **危险操作**：数据库/数据目录变更是否有兼容与恢复路径，是否有删除数据、覆盖配置、顺带升级无关依赖、修改生产凭据，或「以测试通过代替人工验收」的表述。
 14. **执行记录**：`node scripts/note.mjs check --pr --for-review --base origin/stage --head <task 分支>` 必须通过；再打开 `notes/<日期>/<用户名>/<链路>.md` 对照 `git log`、PR 和 CI 运行号，核对记录的 SHA、命令输出、时间与实际一致，没有补写没发生过的事（`docs/conventions/NOTES.md`）。审查中允许暂缺「审查」记录，审查给出结论后由作者补记，CI 恢复全绿后方可合并。
 15. **合并后清理**（合并之后由合并的人当场跑，2026-09-26 定的强制规范）：先等这次合并触发的工作流跑完，`gh run list --workflow issue-lifecycle.yml --branch <task 分支> --limit 1` 与 `gh run list --workflow branch-hygiene.yml --branch <task 分支> --limit 1` 都是 `completed`；再查 `gh issue view <issue> --json state` 必须是 `CLOSED`；`git ls-remote --heads origin 'task/<issue>/*'` 必须没有输出；只读运行 `node scripts/issue-sweep.mjs`，报告里不能有「将补关」（合并不到一小时的 PR 它先不管，刚合并时以 `gh issue view` 为准）；开发者本机 `node scripts/task.mjs list --check` 必须通过。只有工作流失败、issue 还开着时（例如 fork PR 合并时工作流没有写权限，#137）才当场手工关，工作流还在跑时不手工关，免得留两条「关闭」；手工关的按 `docs/conventions/TRACKING.md` §3 留「关闭」记录（`docs/conventions/CODE-REVIEW.md` 第 12 项）。
+16. **环境隔离与同构**（`docs/conventions/RELEASE-PARITY.md`，CODE-REVIEW 第 15 项）：`pnpm check:env-isolation`；`git diff <基线>...HEAD -- deploy .github/workflows scripts app | grep -nE 'yangtzeu\.work'` 看有没有另一个环境的域名新增、`deploy/env/origin-exceptions.json` 的新增登记理由是否真实；`node scripts/parity.mjs list` 看 `pending`，对照 diff 找预发布做过而没登记的事；`git diff <基线>...HEAD -- scripts/parity.mjs deploy/parity` 看有没有放宽检查或加豁免；数据只对齐格式，diff 里不该有把预发布数据行带到正式的做法；新增接口要能指出调用方，被替换的旧接口要删（RELEASE-PARITY 第九节）。
 
 ## 输出格式
 

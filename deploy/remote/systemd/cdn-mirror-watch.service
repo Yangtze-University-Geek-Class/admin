@@ -1,0 +1,8 @@
+[Unit]
+Description=CDN mirror freshness watch
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/yzgc/tools/cdn-mirror.sh watch
+UMask=0077
+TimeoutStartSec=60

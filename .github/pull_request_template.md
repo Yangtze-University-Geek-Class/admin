@@ -57,4 +57,4 @@ Closes #<!-- issue 号，必须与分支名 task/<issue>/<slug> 一致 -->
 <!-- 按 docs/conventions/CODE-REVIEW.md 逐项；审查人、时间、被审查 commit、逐条结论，最后一行 **结论：通过** / **结论：有条件通过** / **结论：阻塞**。 -->
 
 ### 风险与回滚
-<!-- 已知风险、没覆盖到的环境、回滚方式（revert 合并提交 / 镜像 tag）。 -->
+<!-- 已知风险、没覆盖到的环境、回滚方式（revert 合并提交 / 镜像 tag）。动了 env 键与密钥、表结构的手工步骤、数据格式、宿主配置、外部服务的，写同构清单编号（deploy/parity/ledger.json 的 P-xxxx）和正式要做的动作，规则见 docs/conventions/RELEASE-PARITY.md。 -->

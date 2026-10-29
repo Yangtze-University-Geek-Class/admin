@@ -228,3 +228,20 @@ it("checks actual Git snapshots, not an unrelated dirty worktree, without execut
   expect(inspectChange({ root, base, branch: "task/12/ui_spacing", body: input.body }).ok).toBe(false);
   expect(() => inspectChange({ root, base, head, branch: "dev/alice" })).toThrow("不能跳过");
 });
+
+it("hotfix 窗口开着时，宏观对齐的默认基线是 origin/main，其余情况仍是 origin/stage", async () => {
+  const { hotfixBase } = await import("../../scripts/check-architecture.mjs");
+  const registry = { schemaVersion: 1, windows: [{
+    issue: 309, tag: "v0.1.1", status: "open", approvedBy: "Crosery",
+    approvedAt: "2026-10-28T19:11:00+08:00", expiresAt: "2026-11-04T19:11:00+08:00", quote: "线上 bug 必须全部走 hotfix",
+  }] };
+  const now = new Date("2026-10-28T23:00:00+08:00");
+  expect(hotfixBase(registry, "task/309/env_isolation_parity", now)).toBe("origin/main");
+  expect(hotfixBase(registry, "task/310/other_work", now)).toBe(null);
+  expect(hotfixBase(registry, "stage", now)).toBe(null);
+  expect(hotfixBase(null, "task/309/env_isolation_parity", now)).toBe(null);
+  const closed = { schemaVersion: 1, windows: [{ ...registry.windows[0], status: "closed", closedAt: "2026-10-29T08:00:00+08:00", evidence: "合回 stage 的提交与线上核对" }] };
+  expect(hotfixBase(closed, "task/309/env_isolation_parity", now)).toBe(null);
+  const expired = { schemaVersion: 1, windows: [{ ...registry.windows[0], expiresAt: "2026-10-29T19:11:00+08:00" }] };
+  expect(hotfixBase(expired, "task/309/env_isolation_parity", new Date("2026-10-30T09:00:00+08:00"))).toBe(null);
+});

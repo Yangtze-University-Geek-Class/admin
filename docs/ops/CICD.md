@@ -2,7 +2,7 @@
 
 > 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-10-28 · 适用：现有发布流程及 GitHub admin#270 的 Arch 迁移接管。源码入口为 `.github/workflows/ci.yml`、两条 `deploy-*.yml`、架构/issue/分支/测试报告工作流；CI 与部署使用 GitHub 托管 runner。历史已发布状态、保护配置与本 task 未提交变更分别取证，不把旧 actionlint/CI 通过记录推广到本次候选。
+状态：`accepted` · 更新：2026-10-29 · 适用：现有发布流程及 GitHub admin#270 的 Arch 迁移接管。源码入口为 `.github/workflows/ci.yml`、两条 `deploy-*.yml`、架构/issue/分支/测试报告工作流；CI 与部署使用 GitHub 托管 runner。历史已发布状态、保护配置与本 task 未提交变更分别取证，不把旧 actionlint/CI 通过记录推广到本次候选。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -17,6 +17,8 @@
 - 原版双栈已由 Arch 接管，版本未变，见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。本轮只更新后续发布连接及源码合同，没有新的 rc 或正式版本批准；两个已有 enabled 开关保持不变，没有触发发布工作流。
 - 2026-10-26 实测 GitHub 账号及 admin 权限恢复。双环境各 5 项 SSH secrets 已更新，正式 10 项、预发布 12 项应用 secrets 按 Arch 原运行值同步；预发布补齐 Google 两项、OIDC_JWKS、GITLAB_API_TOKEN。API 回读共 preview 17 / production 15 项。环境哨兵、required reviewers、tag 规则、分支保护保持不变。
 
+核心单测包含真实 Rust CLI 分发与技能安装用例，测试中的 Cargo 以 `--locked --offline` 运行。`ci.yml` 的 `core` 和 `deploy-hotfix.yml` 的 `hotfix-core` 在单测前先运行 `cargo fetch --manifest-path app/cli/Cargo.toml --locked`，准备该锁文件的依赖；冷 runner 不依赖开发机缓存。预取失败就停止，不去掉测试的离线约束、不跳过两条真实 CLI 用例，也不以 Docker job 的独立缓存代替本 job 的依赖准备。
+
 
 ## 触发与职责
 
@@ -28,6 +30,7 @@
 | `deploy-production.yml` | push tag `v[0-9]+.[0-9]+.[0-9]+`；`workflow_dispatch`（必填 `tag`，并从同名 tag 运行） | 断言 ref 是 `refs/tags/vX.Y.Z`（rc tag 被拒绝）→ `release-policy` 规划（提交在 `origin/main` 上、同一提交有 `vX.Y.Z-rc.N`）→ 文档同步（tag 指向的提交，见下文）→ 证据检查（见下文）→ `cdn-plan` → 固定容器构建并核对 CLI 五目标物料 → 构建镜像（仅 web 接收 `cli=dist/cli`）→ `cdn-upload` → 分发 `.env.production` → 部署 → 记录 deployment。开关 `vars.DEPLOY_PRODUCTION_ENABLED`，`environment: production`，不取消正在跑的运行 |
 | `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev/**` 或长期分支）；每周巡检远端 `task/**`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
 | `cert-watch.yml` | 每天 01:43 UTC、`workflow_dispatch`（都只在默认分支 `main` 上的文件生效，合入 `main` 后才开始） | 从公网用 `openssl s_client -verify_return_error -verify_hostname` 核对 `yangtzeu.work`、`prev.yangtzeu.work` 的证书：连不上、链不可信、名字不匹配或剩余不到总有效期的四分之一即失败（GitHub 通知维护者）。`permissions: {}`，不接触任何 secrets；香港入口由 Caddy 续期，旧转发入口在 DNS 过渡期仍由 certbot 续期，见 [DEPLOY](DEPLOY.md#证书续期与到期监控) |
+| `gitlab-cutover.yml` | 只有 `workflow_dispatch`（输入 `step`：status / register-client / migrate-subjects / switch-issuer / rollback-issuer，`apply` 缺省不勾）；只在 `main` 上的文件生效，要 `DEPLOY_PRODUCTION_ENABLED == 'enabled'` | 把 GitLab 统一登录改接正式的宿主侧步骤（`deploy/gitlab/cutover.sh`，同构清单 P-0006、P-0007）放进流水线，开发者不需要登录目标机。和正式部署一样先读 REST 核对 `production` 环境有 required reviewers、环境哨兵等于 production，再用部署 SSH 通道执行；缺省只读或演算，勾 `apply` 才写。输出只有计数，不含 secret 与 `sub` 的值，写进 Step Summary。步骤顺序与回滚见 [GITLAB](GITLAB.md)「极客班统一登录（OIDC）契约」 |
 | `issue-lifecycle.yml` | PR 指向 `stage` 的 opened / edited / synchronize / reopened / closed / labeled / unlabeled、每天 03:37 UTC、`workflow_dispatch`（可勾「只读」） | `pr-contract`：核对 PR 正文契约（`Closes #<issue>` 与 task 分支号一致、issue 存在且开着、十个必需段落、验收证据、审查结论；issue 编号 ≥ 235 时再核对 PR 的「组:类」标签覆盖 issue 的标签、`ui:*` 有截图、`func:*` 有接口测试与接口验证；`scripts/pr-contract.mjs`、`scripts/issue-labels.mjs`，只检出目标分支上的脚本，不执行 PR 代码）；`close-on-merge`：合并进 `stage` 后关闭 issue 并在 issue 与 PR 上各留一条追踪记录（`issues: write`、`pull-requests: write`）；`sweep` 每天巡检（`scripts/issue-sweep.mjs`，规则见 [TRACKING](../conventions/TRACKING.md) §1）：关联 PR 已合并进 `stage` 还开着的 issue 自动关闭并留「关闭」记录（合并后重开过的、还有开着的 PR 的、合并不到一小时的不关），14 天没动静的留「超期」记录，14 天内关闭却没有合并 PR 也没有「关闭」记录的留「缺记录」，不重开（`issues: write`，检出 `issue-sweep.mjs`、`pr-contract.mjs`、`pr-markdown.mjs`、`issue-labels.mjs` 四个脚本；sparse-checkout 必须覆盖所跑脚本的本地 import 闭包，漏一份整个 job 一启动就 `ERR_MODULE_NOT_FOUND`，#282，`tests/tooling/workflow-sparse-checkout.test.ts` 逐 job 核对）。定时任务只跑默认分支 `main` 上的文件，合入 `main` 之前仍是旧的每周只告警 |
 | `issue-gate.yml` | issue 的 opened / edited / labeled / unlabeled | `gate`：把表单「改动类型」选的值加成「组:类」标签；核对标签、`ui:*` 截图、`func:*` 涉及接口，缺则加 `needs-evidence` 并评论，补齐后摘掉；评论里列出标题相似的开放与已关闭 issue（`scripts/issue-gate.mjs`、`scripts/issue-labels.mjs`；`issues: write`，只检出这两个脚本，不执行 issue 正文）。没有表单的 CLI / API 建单只给关键词推测，不自动加标签。只提示和标记，不关闭、不重开。issues 事件只跑默认分支 `main` 上的文件，所以要随发布进入 `main` 才生效 |
 | `pr-agent.yml` | PR 指向 `stage` 的 opened / reopened / ready_for_review | `review`：用开源 PR-Agent（镜像按摘要固定，`docker://pragent/pr-agent@sha256:…`）读 PR diff，经 `https://ai.crosery.com/v1` 调模型（主 `gemini-3.8-flash-high`，备 `gemini-3.5-flash-lite`），在 PR 里写**一条**审查评论。只用 `pull_request`、不检出 PR 代码、不监听 `issue_comment`；只处理同仓库分支的 PR（fork 的拿不到 secrets，跳过）；关掉 describe 与 improve（describe 会改写 PR 正文，破坏十段契约）。密钥只有仓库级 secret `PR_AGENT_LLM_KEY`（网关 key，不属于环境级清单）。**只评论，不批准、不阻塞合并**，也不是审查结论（[CODE-REVIEW](../conventions/CODE-REVIEW.md)「机器审查的边界」）。另有 CodeRabbit 免费版（GitHub App，仅装在本仓库，配置 `.coderabbit.yaml`，不推代码、不批准、关掉所有 finishing touches）。升级镜像要核对新摘要后改工作流并走 PR 审查 |
@@ -46,7 +49,7 @@
 - `branch-guard` 运行 `node scripts/check-branch-invariants.mjs`（`--require-remote-refs`）：核对两条不变量（`stage ≥ main`、`main` 不领先 `stage`）与分支命名卫生，并检查写入 `main` 的提交来源。不变量定义见 [BRANCHING](../conventions/BRANCHING.md)。同一脚本的 `--push` 模式还在本地 pre-push 里核对发布 tag（格式、所在分支、版本号、不可删除和移动）；`ci.yml` 不由 tag 触发，tag 的服务端核对在两条部署工作流的 plan job 里。
 - **文档跟着模块改**（对照表与规则见 [docs/README](../README.md)「文档跟着模块改」，`scripts/check-doc-sync.mjs`）：`core` 的 `pnpm check` 里有 `check:doc-sync`：PR 运行时检出的是 GitHub 做的合并提交，push `stage`/`main`/`dev/**` 时是分支本身，都按第一父链的时间比较每一对模块与文档；push `task/**` 时按 PR 对 `origin/stage` 核对。检出写 `fetch-depth: 0`，浅克隆直接失败。`branch-guard` 在 task 分支进 `stage` 的 PR 上再跑 `--base origin/stage --head <task 分支>`：merge-base 以来动了模块，就要改对应文档的说明，或者在这个 task 的执行记录里写文档核对（`--head` 用来找到这个 task 的执行记录，检出的合并提交上没有分支名）。第一父链的比较依赖 PR 只用 merge commit 进 `stage`（[BRANCHING](../conventions/BRANCHING.md)）。改 `.github/workflows/` 就要同时改本文档；改 `deploy/` 就要改 [DEPLOY](DEPLOY.md)、[ENVIRONMENTS](ENVIRONMENTS.md) 或本文档里对应的说明（三份里至少动一份，改哪份看改了什么）。
 - **发版时在 tag 指向的提交上再核对一次文档同步**（#192）：两条部署工作流的 plan job 在 `release-policy` 规划与环境契约之后、任何构建之前跑「文档同步（发布 tag 指向的提交）」：先核对检出的 HEAD 就是 tag 指向的提交，再运行 `node scripts/check-doc-sync.mjs`。检出的是 tag（detached HEAD，没有分支名），脚本按第一父链的时间核对，与 push `stage` 时 `core` 里 `pnpm check` 的规则相同；完整历史来自 plan 检出的 `fetch-depth: 0`，浅克隆直接失败。脚本只用 Node 内置模块，plan job 只按 `.nvmrc` 装 Node，不装依赖。不通过 plan 就失败，后面每个 job 都 `needs: plan`，不构建、不上传 CDN、不部署；`scripts/deploy-manual.mjs` 只认 build 成功的运行，也部署不了。不通过时按报错在 `stage` 上补文档，再在补好的提交上打下一个 rc。rc tag 打在 `stage` 的合并提交上时比的是 `stage` 的第一父链；打在 PR 里面的某个提交上时比的是那条 task 分支的直线历史，模块提交排在文档提交后面就报不同步。这一步只在包含它的提交上生效：tag 触发的是 tag 所在提交里的工作流文件。`tests/tooling/deploy-doc-sync.test.ts` 核对两条工作流都有这一步、在 plan job 里、排在完整历史的 tag 检出与 Node 安装之后、没有条件和吞掉失败的写法、其它 job 都 `needs: plan`，并在临时仓库里照工作流的写法跑这一步：不同步的提交失败，同步的通过，HEAD 不是 tag 的提交或浅克隆都失败。
-- `env-contract` 校验两份 `.env` 的字段契约（非密值必填、契约外字段拒绝、密钥必空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性，并用 `pnpm check:site-config` 确认前端 `app.config.json` 不含任何域名（每个环境一个 origin，管理端按路径区分）。
+- `env-contract` 校验两份 `.env` 的字段契约（非密值必填、契约外字段拒绝、密钥必空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口/域名必须不同）与 `deploy/environments.json`、compose 文件的一致性，并用 `pnpm check:site-config` 确认前端 `app.config.json` 不含任何域名（每个环境一个 origin，管理端按路径区分）。 `pnpm check` 另跑 `check:env-isolation`（#309）：核对正式、预发布、本机三份 `.env` 键集一致、值互相隔离，正式与预发布除登记的差异键外取值相同，代码和部署片段里的环境域名都登记在 `deploy/env/origin-exceptions.json`（规则见 [RELEASE-PARITY](../conventions/RELEASE-PARITY.md)）。
 - 部署工作流用 **build args** 把发布身份注入镜像：`GEEK_RELEASE_VERSION`（正式 `X.Y.Z`，预发布 `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 SHA），不写进 `.env`；展示规则见 [RELEASES](../conventions/RELEASES.md)。
 - plan job 检出发布 tag（`fetch-depth: 0`，带全部分支与 tag），核对检出的 HEAD 就是 tag 指向的提交；build 与 deploy job 按 plan 输出的完整 SHA 检出，不再按 tag 名重新解析。
 - **镜像名按环境分开**：`deploy-preview.yml` 构建并打包 `yzgc-preview/{server,web,forum}:<sha12>`，`deploy-production.yml` 构建并打包 `yzgc-production/{server,web,forum}:<sha12>`（仓库名来自 plan 输出的 `imageRepository`，归档名 `yzgc-images-<environment>-<sha12>.tar.gz`）。目标机的 `deploy-stack.sh` 在 `docker load` 之前读归档清单，出现别的仓库或别的 tag 就拒绝。`ci.yml` 的 `docker` job 按正式身份构建 `yzgc-production/*`，并用同一个 `IMAGE_TAG` 解析两套 compose，两边出现相同镜像引用即失败；`docker-cdn` 在另一个 runner 上按同样的身份、打开静态资源 CDN 开关再构建 web、forum 两个镜像。
@@ -105,6 +108,7 @@
 | `GOOGLE_CLIENT_SECRET` | Google 登录的 OAuth 客户端密钥 |
 | `OIDC_JWKS` | 对外授权的签名私钥（可选，#270）：`dist/cli/oidc.js keygen` 输出的一行 base64；为空时 `/oidc/*` 一律 404 |
 | `GITLAB_API_TOKEN` | 自建 GitLab 管理员的 `api` 令牌（#270）：只在 `GITLAB_SYNC=on` 时必填 |
+| `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY` | Garage 只读密钥 `backup-reader`（#309）：不进运行时 env，部署后的宿主层步骤经 stdin 写入目标机 `/etc/cdn-mirror/env`，供 CDN 镜像拉取五个桶；没配时沿用目标机已有的凭据 |
 
 两条部署工作流的「渲染运行时 env 文件」步骤把上表从 `OAUTH_CLIENT_ID` 起的每一项按同名传给 `scripts/deployment-environment.mjs render`，`scripts/deploy-manual.mjs` 的 `SECRET_ENV` 也是同一份名单；`tests/tooling/deploy-manual.test.ts` 核对这三处与 `SECRET_FIELDS` 一致。发信四项都没配时照常部署，server 不发信；Google 两项都没配时照常部署，登录页不出现 Google；`OIDC_JWKS` 没配时照常部署，对外授权关闭，`GITLAB_API_TOKEN` 没配而 `GITLAB_SYNC=on` 时渲染失败、不部署，见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -130,6 +134,28 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 
 这是待合并源码的合同，不会回溯修改旧 tag。2026-10-26 已用同一 `ssh-config` 入口、项目专用 key、双端严格 known_hosts 实测两环境 SSH/SCP 成功；香港该 key 的本地 TCP 转发目标限制为 Arch:22，执行 shell 被拒绝。此证据来自维护者机器，不冒称 GitHub runner 已运行新流程。恢复副本隔离仍见 [ENVIRONMENTS](ENVIRONMENTS.md#副本启动安全门禁)，已接管的权威源不套用副本关闭外发的值。
 
+
+## 同版本 P0 hotfix（#306）
+
+所有者 2026-10-28 确认的流程见 [RELEASES](../conventions/RELEASES.md#线上紧急缺陷hotfix规约)。新增第十一条工作流 `deploy-hotfix.yml`，只从 `main` 手工触发，输入当前正式版本 tag、明确的 main 完整 SHA 和已批准的 P0 issue。不创建、不移动 tag，不改版本号，不制造 rc 证据。
+
+`issue` 输入必须是 `deploy/hotfix/windows.json` 里登记的、`open` 且没过期、`tag` 就是这次 tag 的 hotfix 窗口（所有者署名与批准原话，最长 7 天）；`plan` 与审批后的二次 `plan` 都用 `scripts/hotfix-policy.mjs` 校验，没登记、已 `closed` 或已过期都直接失败。同一份登记也让 `branch-guard` 放行窗口内 `main` 领先 `stage` 的提交（每个提交要归属于窗口 issue）。hotfix 的 MR 合进 `main` 后用 `scripts/hotfix-sync.mjs` 同步镜像并把 `main` 合回 `stage`；仓库根的 `.gitlab-ci.yml` 可以在 `main` 更新后自动跑它（项目变量 `HOTFIX_SYNC_ENABLED=true` 才启用，默认关闭）。规则见 [BRANCHING](../conventions/BRANCHING.md)「线上紧急修复」。
+
+- `plan` 用只读 `hotfix-policy.mjs` 绑定当前 main、检出 HEAD、工作流 SHA、历史 tag 祖先与提交态版本，核对文档和环境契约。
+- `core` 跑 `pnpm check/test/build`，`forum` 使用与常规 CI 相同的 Node 26/pnpm 11 独立检查和生成；`hotfix-verify` 汇总这两项成功并验证线上同版本及成功生产 deployment。普通 CI 的分支不变量仍按原规则报告，不用假绿掩盖 hotfix 期间 main 暂时领先。
+- CDN 规划、三镜像构建、内容验证和部署步骤沿用 `deploy-production.yml` 的合同；本工作流与常规正式发布共用 `deploy-production` 并发锁，所有 job 仍在 GitHub 托管 runner。维护这些步骤时同步两份工作流。
+- `production` 与 `static-cdn` 的部署来源规则需要额外精确允许 `main`，原 tag 规则和生产 required reviewers 保留；不允许 task、stage 或任意分支取得生产密钥。
+- 审批后重新核对 main/tag/线上版本，分发前要求 `yzgc-backup@production.service` 完成一致性备份及隔离恢复验证。镜像与 env 仍经原有校验、`deploy-stack.sh` 健康门和自动回滚。模板密钥留空，production 的 Google 客户端配置经本环境 secrets 注入。
+- deployment 的 `ref` 是实际修复 SHA，payload 的 `mode=hotfix`、`base_tag_commit`、`issue` 与 `tag` 一起保留；required context 为真实运行的 `hotfix-verify`，不是修改普通 `verify` 状态。
+- 正式验证后将 main 合回 stage，再核对双仓 refs 与 `git merge-base --is-ancestor main stage`。回滚选择部署历史里的上一生产镜像 SHA，不恢复旧数据库覆盖上线后的新写入。
+
+## 同构清单与发版烟测（#309）
+
+规则见 [RELEASE-PARITY](../conventions/RELEASE-PARITY.md)，实现是 `scripts/parity.mjs`，数据是 `deploy/parity/ledger.json`（同构清单）与 `deploy/parity/smoke.json`（烟测）。`deploy-production.yml` 与 `deploy-hotfix.yml` 各多两个 job，预发布部署不变：
+
+- `parity`（`needs: plan`，检出 plan 核对过的提交）：运行 `node scripts/parity.mjs check --release --version "$RELEASE_VERSION"`（版本取自 plan 的 `version`）。部署后才能做的条目只拦属于更早版本的遗留。清单里还有 `pending` 条目就失败，`build` 的 `needs` 包含它，所以不构建镜像、不上传 CDN、不部署。没有网络访问和 secrets。
+- `smoke`（`needs: [plan, deploy]`，仅在 `deploy` 成功后运行）：用 `node scripts/parity.mjs smoke --origin <正式 origin> --env production` 核对 `smoke.json` 的 `require` 段（含内部赛事官网 `/c/oss-challenge-2026-1/`），最多重试 6 次、间隔 30 秒。`deploy-production.yml` 里还会读 `deploy/environments.json` 得到预发布 origin，运行 `parity.mjs compare` 核对 `mirror` 段；证据 job 已核对预发布与正式是同一提交。`deploy-hotfix.yml` 不做 `compare`，因为 `main` 上的修复提交与预发布的 rc 提交可以不同。
+- `smoke` 失败只让这次运行变红，不回滚已切换的栈；回滚按 [DEPLOY](DEPLOY.md) 的步骤处理。部署开关关闭时 `deploy` 被跳过，`smoke` 随之跳过。
 
 ## 证据链与失败关闭
 

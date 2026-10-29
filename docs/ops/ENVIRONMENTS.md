@@ -1,13 +1,13 @@
 # 环境与 `.env` 契约
 
-> 两份仓库环境模板、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
+> 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
 
-状态：`current` · 更新：2026-10-27 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
+状态：`current` · 更新：2026-10-28 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
 
 ## 可见性规则
 
-1. **环境变量只经 `.env` 文件**，不同环境用不同后缀：`deploy/env/.env.production`、`deploy/env/.env.preview`。
-2. 这两个文件**提交入库**；非密地址、端口、路径和开关对齐 Arch 目标。模板、真实运行配置、GitHub 配置和工作流执行仍分别取证。
+1. **环境变量只经 `.env` 文件**，不同环境用不同后缀：`deploy/env/.env.production`、`deploy/env/.env.preview`，本机调试另有 `deploy/env/.env.dev`。三份键集一致、值互相隔离，由 `pnpm check:env-isolation` 核对（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第一节）。
+2. 这三个文件**提交入库**；非密地址、端口、路径和开关对齐 Arch 目标。模板、真实运行配置、GitHub 配置和工作流执行仍分别取证。
 3. **密钥项必须留空**（`KEY=`），由 CI/CD 用 GitHub 环境级 secrets 渲染到目标机 `<STACK_ROOT>/.env.<environment>`，仓库里永远没有真值。必填的密钥留空时，渲染/校验**失败关闭**：缺必填密钥就没有部署；Turnstile 和发信的几项可以不配，见下文「环境级 secrets」。
 4. 语义上「留空即代表无值」的字段（`COOKIE_DOMAIN`、`MAIL_REPLY_TO`）同样留空，但含义明确，不算缺失。
 5. 目标机运行时文件名固定为 `<STACK_ROOT>/.env.production` / `<STACK_ROOT>/.env.preview`，由 `docker compose --env-file <文件> -f deploy/compose/<环境>.yml` 消费。
@@ -69,7 +69,11 @@
 
 **不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 tag `vX.Y.Z` → `X.Y.Z`；预发布 tag `vX.Y.Z-rc.N` → `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
-本机开发用的 `.env` 是另一回事：模板见 [ENVIRONMENT](ENVIRONMENT.md)，由操作者自建、不入库、只连本机数据。
+本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要真实后端时 `cp deploy/env/.env.dev .env` 后在 `.env` 或 shell 里补本机用的密钥，`.env` 不入库。只看界面直接 `pnpm dev:web` 或 `pnpm preview:local`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
+
+**正式与预发布的差异键**只有：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`WEB_BIND`、`SERVER_BIND`、`PUBLIC_ORIGIN`、`GITLAB_SYNC`（GitLab 同步只允许一个环境写）。其余键两份取值必须相同，新增差异键先登记在 `scripts/check-env-isolation.mjs` 的 `PER_ENVIRONMENT_KEYS` 并在上表说明原因。每份文件不得出现另外两个环境才有的域名、端口、镜像仓库和目录。代码与部署片段里的环境域名只能出现在 `deploy/env/origin-exceptions.json` 登记过的文件里。
+
+**密钥在两个 GitHub 环境里必须同名同集**：预发布配了的密钥，正式也要配（第三方账号和域名不同，取值不同）。缺口登记在同构清单 `deploy/parity/ledger.json`，发版前清零（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第五节）。
 
 ## 副本启动安全门禁
 

@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "issue": 284,
+  "kind": "business",
+  "summary": "招新总开关与宣传片窗口（所有者 2026-10-25 00:15「投递的话可以选择开启和关闭，关闭的时候会有个单独的页面，然后就是里面的宣传视频播放要是那种窗口的播放器形式」）：控制台「投递」页顶部加开关（权限 apply.settings，仅所有者；二次验证、确认、写操作记录），关闭后官网「加入我们」窗口整个换成关闭页，服务端拒绝新的投递（403 apply_closed，不占每日额度）；官网宣传片从全屏层改成桌面窗口，沿用桌面已有的窗口管理（关闭、最小化、恢复、手机底部面板），首次自动弹出的条件不变。",
+  "applications": [
+    "server",
+    "console",
+    "web"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "gitlab",
+    "identity",
+    "invitations",
+    "mail",
+    "organization",
+    "permissions",
+    "platform",
+    "public_content",
+    "recruitment"
+  ],
+  "flows": [
+    "flow:application.settings.read",
+    "flow:application.settings.update",
+    "flow:application.submit",
+    "flow:application.list",
+    "flow:identity.current",
+    "flow:identity.account.view",
+    "flow:identity.invite.redeem",
+    "flow:competition.public.list",
+    "flow:feedback.public.list",
+    "flow:documentation.list",
+    "flow:gitlab.projects.public.list",
+    "flow:audit.console.activity.list",
+    "flow:console.summary",
+    "flow:competition.console.list",
+    "flow:competition.update",
+    "flow:identity.invites.list",
+    "flow:permissions.nodes.list",
+    "flow:permissions.groups.list",
+    "flow:identity.callback",
+    "flow:platform.public_config",
+    "flow:audit.events.report"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "投递多了总开关：关闭后官网「加入我们」窗口是独立的关闭页、没有表单，服务端拒绝新的投递，重新开放后恢复；每天 3 份的额度不是总开关，规则不变。宣传片改成桌面窗口，自动弹出的条件、只弹一次的 cookie 和视频来源不变。",
+      "evidence": [
+        "app/server/src/lib/apply-settings.ts",
+        "app/server/src/routes/portal/apply.ts",
+        "app/web/sites/portal/components/os/JoinClosed.tsx",
+        "app/web/sites/portal/lib/promoWindow.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增 GET 与 PATCH /api/console/applications/settings；GET /api/public/config 多一个布尔字段 apply_open；POST /api/portal/apply 在开关关闭时回 403 apply_closed，不写 applications、不占额度。接口契约、响应 Schema 和错误码都写进了契约表。",
+      "evidence": [
+        "app/server/src/routes/console/applications.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/portal/apply.ts",
+        "app/server/src/routes/portal/public-config.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "新增权限节点 apply.settings，默认只有所有者；读取开关用已有的 apply.view，修改要 apply.settings、二次验证并写操作记录。官网 /api/public/config 匿名可读，只带一个布尔值。",
+      "evidence": [
+        "app/server/src/lib/permission-nodes.ts",
+        "app/server/src/routes/console/applications.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "没有新表和新列：开关存在已有的 app_state 表（键 apply_open，值 1 或 0），没有这一行就是开放，所以老数据和未配置的环境行为不变。关闭期间被拒的请求不写 applications，也不占投递额度。",
+      "evidence": [
+        "app/server/src/lib/apply-settings.ts",
+        "docs/services/server/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "没有新增依赖，package.json 和锁文件没动；官网窗口播放器继续用已有的 hls.js 精简版，控制台开关用已有的 Tuffex 组件。",
+      "evidence": [
+        "app/server/src/lib/apply-settings.ts",
+        "app/web/sites/portal/components/PromoPlayer.tsx"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "服务端合同、接口契约表、API 与安全文档写明开关的接口、权限和关闭时的错误码；控制台文档写投递页开关；官网文档重写宣传片一节并写关闭页；设计文档里的宣传片段落改成窗口。",
+      "evidence": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/console/README.md",
+        "docs/services/web/portal.md",
+        "docs/design/DESIGN.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "服务端、控制台、官网各有回归测试，覆盖开关的读写与权限、关闭时拒绝投递且不占额度、关闭页没有表单、宣传片窗口的开关与状态机、手机面板；红绿对照过多处改坏源码的变体。未验证：真实浏览器里窗口的最小化恢复、手机 390 宽面板和 e2e，本机没有启动浏览器。",
+      "evidence": [
+        "tests/server/apply-switch.test.ts",
+        "tests/console/applications.test.ts",
+        "tests/web/portal-apply-switch.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx",
+        "tests/web/portal-promo-window.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "不改镜像、部署、环境变量和发布流程；开关存在业务库里，上线后默认开放，需要时由所有者在控制台操作。",
+      "evidence": [
+        "app/server/src/services.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/apply-settings.ts",
+        "app/server/src/services.ts",
+        "app/server/src/routes/console/applications.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/lib/permission-nodes.ts",
+        "tests/server/apply-switch.test.ts"
+      ],
+      "domains": [
+        "recruitment",
+        "platform",
+        "audit",
+        "permissions",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "organization",
+        "mail"
+      ],
+      "nodes": [
+        "application:server",
+        "flow:application.settings.read",
+        "flow:application.settings.update"
+      ],
+      "reason": "控制台读写招新总开关：读要 apply.view，改要 apply.settings 加二次验证，改动写操作记录；开关值存在 app_state。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/portal/apply.ts",
+        "app/server/src/routes/portal/public-config.ts"
+      ],
+      "domains": [
+        "recruitment",
+        "platform",
+        "public_content"
+      ],
+      "nodes": [
+        "application:server",
+        "flow:application.submit"
+      ],
+      "reason": "投递接口在开关关闭时回 403 apply_closed 且不落库不占额度；公开配置带出 apply_open 给官网。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/activity.ts",
+        "app/console/src/lib/applications.ts",
+        "app/console/src/lib/permission-nodes.ts",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts",
+        "app/console/src/pages/Applications.vue",
+        "tests/console/applications.test.ts"
+      ],
+      "domains": [
+        "organization",
+        "recruitment",
+        "feedback",
+        "github",
+        "audit",
+        "competitions",
+        "platform",
+        "permissions"
+      ],
+      "nodes": [
+        "application:console",
+        "flow:application.settings.read",
+        "flow:application.settings.update",
+        "flow:application.list",
+        "flow:console.summary",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "投递管理页顶部的开关：读取状态、确认后修改、没有 apply.settings 时只读，操作记录里认得新的动作名；类型、样板数据和权限节点清单是控制台各页共用的文件，这次只加了开关相关的条目，其它页面不变。"
+    },
+    {
+      "paths": [
+        "app/web/shared/lib/mock-api.ts",
+        "app/web/sites/portal/lib/applyOpen.ts",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/components/os/JoinBox.tsx",
+        "app/web/sites/portal/components/os/JoinClosed.tsx",
+        "app/web/sites/portal/components/os/Widgets.tsx",
+        "tests/web/portal-apply-switch.test.tsx",
+        "app/web/sites/portal/lib/promo.ts",
+        "app/web/sites/portal/lib/promoWindow.ts",
+        "app/web/sites/portal/components/PromoLazy.tsx",
+        "app/web/sites/portal/components/PromoPlayer.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/styles/os.css",
+        "app/web/sites/portal/styles/promo.css",
+        "tests/web/portal-promo.test.ts",
+        "tests/web/portal-promo-desktop.test.tsx",
+        "tests/web/portal-promo-gate.test.tsx",
+        "tests/web/portal-promo-lazy.test.tsx",
+        "tests/web/portal-promo-player.test.tsx",
+        "tests/web/portal-promo-window.test.ts",
+        "tests/e2e/workflows.spec.ts"
+      ],
+      "domains": [
+        "public_content",
+        "recruitment",
+        "feedback",
+        "invitations",
+        "organization",
+        "identity",
+        "platform",
+        "competitions"
+      ],
+      "nodes": [
+        "application:web",
+        "flow:application.submit",
+        "flow:identity.current",
+        "flow:identity.account.view",
+        "flow:identity.invite.redeem",
+        "flow:competition.public.list",
+        "flow:feedback.public.list",
+        "flow:documentation.list",
+        "flow:gitlab.projects.public.list"
+      ],
+      "reason": "官网读 apply_open：关着时「加入我们」窗口是独立的关闭页，桌面图标说明、便签和「关于」窗口不再叫人报名；宣传片从全屏层改成桌面窗口，沿用窗口管理，自动弹出的条件不变。桌面外壳和 lib 是各应用共用的文件，这次只动了加入我们和宣传片，其它窗口的行为不变。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "recruitment",
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "flow:application.settings.read",
+        "flow:application.settings.update",
+        "flow:application.submit"
+      ],
+      "reason": "目录里投递相关能力的证据锚点和测试入口，跟着新的开关与宣传片窗口更新。"
+    },
+    {
+      "paths": [
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/design/DESIGN.md",
+        "docs/services/console/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/README.md",
+        "docs/services/web/portal.md"
+      ],
+      "domains": [
+        "recruitment",
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "application:console",
+        "application:web"
+      ],
+      "reason": "接口、权限、数据、控制台与官网文档同步写明招新总开关和宣传片窗口。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/endpoint-contracts.md",
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/README.md",
+    "docs/services/server/data-model.md",
+    "docs/services/console/README.md",
+    "docs/services/web/portal.md",
+    "docs/design/DESIGN.md"
+  ],
+  "tests": [
+    "tests/server/apply-switch.test.ts",
+    "tests/console/applications.test.ts",
+    "tests/web/portal-apply-switch.test.tsx",
+    "tests/web/portal-promo-desktop.test.tsx",
+    "tests/web/portal-promo-window.test.ts",
+    "tests/web/portal-promo-gate.test.tsx",
+    "tests/web/portal-promo-player.test.tsx",
+    "tests/web/portal-promo-lazy.test.tsx",
+    "tests/e2e/workflows.spec.ts"
+  ],
+  "compatibility": "接口只加不改：旧客户端读 /api/public/config 多一个布尔字段不受影响，读不到或没有这个字段官网按开放处理；POST /api/portal/apply 只在开关关闭时多一种 403，开放时行为不变。控制台和官网随同一个镜像发布。",
+  "migration": "没有数据迁移，不加表不加列；开关是 app_state 里的一行，没有这一行就是开放，上线后默认开放，所有者需要时在控制台「投递」页顶部打开或关闭。",
+  "rollback": "回滚这次合并、换回上一版镜像即可：官网回到全屏宣传片和始终开放的「加入我们」，控制台没有开关；app_state 里留着的 apply_open 一行没有程序读它，无害。"
+}

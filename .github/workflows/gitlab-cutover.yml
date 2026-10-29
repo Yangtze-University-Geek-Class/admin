@@ -1,0 +1,134 @@
+# GitLab 统一登录改接正式（同构清单 P-0006、P-0007，docs/ops/GITLAB.md）。
+#
+# 开发者不需要登录目标机：这些宿主侧步骤由本工作流经部署用的 SSH 通道执行，步骤本身是 deploy/gitlab/cutover.sh，
+# 缺省只读或演算，勾选 apply 才写。只在默认分支上手动触发；和正式部署一样要过 production 环境的审批。
+# 先 status，再 register-client、migrate-subjects 演算，看过结果再 apply，最后 switch-issuer；出问题用 rollback-issuer。
+
+name: GitLab cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 要执行的步骤
+        required: true
+        type: choice
+        options:
+          - status
+          - register-client
+          - migrate-subjects
+          - switch-issuer
+          - rollback-issuer
+      apply:
+        description: 真正写入（不勾选只读或演算）
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: cutover (${{ inputs.step }}${{ inputs.apply && ', apply' || '' }})
+    if: vars.DEPLOY_PRODUCTION_ENABLED == 'enabled' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      deployment: false
+    env:
+      STEP: ${{ inputs.step }}
+      APPLY: ${{ inputs.apply }}
+    steps:
+      - name: 校验 production 环境保护（人工审批必须真实存在）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if ! environment="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production" 2>/dev/null)"; then
+            echo "读不到 GitHub Environment 'production'：拒绝执行。" >&2
+            exit 1
+          fi
+          reviewers="$(echo "$environment" | jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length')"
+          if [ "$reviewers" -lt 1 ]; then
+            echo "Environment 'production' 没有 required reviewers 保护规则：拒绝执行。" >&2
+            exit 1
+          fi
+          echo "production 环境保护确认：required reviewers 规则 ${reviewers} 条。"
+
+      - name: 校验环境哨兵（防止仓库级变量静默回落）
+        shell: bash
+        env:
+          DEPLOY_TARGET_ENVIRONMENT: ${{ vars.DEPLOY_TARGET_ENVIRONMENT }}
+        run: |
+          set -eu
+          if [ "${DEPLOY_TARGET_ENVIRONMENT}" != "production" ]; then
+            echo "环境哨兵不匹配：DEPLOY_TARGET_ENVIRONMENT 必须是 production，实际 '${DEPLOY_TARGET_ENVIRONMENT}'" >&2
+            exit 1
+          fi
+
+      - name: 检出默认分支
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 安装 Node（读取 .nvmrc）
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: 校验 SSH 目标并生成受控配置（必须与模板逐字一致）
+        shell: bash
+        env:
+          DEPLOY_TARGET_ENVIRONMENT: ${{ vars.DEPLOY_TARGET_ENVIRONMENT }}
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          set -eu
+          node scripts/deployment-environment.mjs ssh-config --environment production \
+            --out "$RUNNER_TEMP/ssh/config" --key-file "$RUNNER_TEMP/ssh/id_deploy" \
+            --known-hosts-file "$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: 准备 SSH（私钥与 known_hosts 只落在 runner 的临时目录）
+        shell: bash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/ssh/id_deploy"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
+          chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: 执行 cutover.sh
+        shell: bash
+        run: |
+          set -eu
+          cfg="$RUNNER_TEMP/ssh/config"
+          production_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.production)"
+          preview_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.preview)"
+          work_dir=/opt/yzgc/cutover-incoming
+          ssh -F "$cfg" yzgc-target "rm -rf $work_dir && install -d -m 700 $work_dir"
+          tar -C deploy/gitlab -cf - cutover.sh migrate-oidc-subjects.mjs | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
+          flag=""
+          if [ "$APPLY" = "true" ]; then flag="--apply"; fi
+          {
+            echo "## GitLab cutover：${STEP}$([ -n "$flag" ] && echo '（apply）' || echo '（只读或演算）')"
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          ssh -F "$cfg" yzgc-target "bash $work_dir/cutover.sh $STEP --production-origin $production_origin --preview-origin $preview_origin $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ssh -F "$cfg" yzgc-target "rm -rf $work_dir"
+          exit "$status"

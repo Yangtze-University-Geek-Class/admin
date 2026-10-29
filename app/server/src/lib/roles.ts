@@ -5,7 +5,7 @@
  * #276 核查发现：原先这里写「接口 `/api/console/catalogue` 原样下发，授权中间件据此判定」已经不是
  * 真的——这个接口已经删除，真正的授权判定早就切到 #274 新权限体系（`lib/permissions.ts` 的
  * `createPermissionEngine()`、`middleware/require-permission.ts`），这份清单与 `computeAccess()`
- * 只剩 `GET /api/console/departments`（只读列表，按 ID 展示固定部门）和一条单测还在读；是不是整段删除
+ * 只剩一条单测还在读；没有页面调用的 `GET /api/console/departments` 已在 #309 删除。是不是整段删除
  * 留给所有者或团队负责人决定，这次只按明确指出的 github.* 能力清理。
  */
 

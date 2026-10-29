@@ -245,6 +245,30 @@ jobs:
             || { echo "预发布站点当前不是提交 ${COMMIT} 的 rc 版本（期望其一：${expected}）：拒绝进入正式环境。" >&2; exit 1; }
           echo "证据成立：${PREVIEW_ORIGIN}/release.json 是提交 ${COMMIT} 的预发布版本。"
 
+  # 同构清单：预发布做过、不在提交里的事（表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务），正式都要做完才能构建。
+  # 规则见 docs/conventions/RELEASE-PARITY.md；清单里还有 pending 就失败，不构建、不部署。
+  parity:
+    name: parity (预发布到正式的同构清单)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: 检出 plan 核对过的提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: 清单必须清零
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: node scripts/parity.mjs check --release --version "$RELEASE_VERSION"
+
   # 静态资源 CDN 开关（#146）：有 S3 凭据、且 production 线上的 CSP 已放行 CDN 时，build 用 CDN 地址构建；
   # 否则同源构建（与原来一样）。S3 凭据只在这个 job 与 cdn-upload 里出现：两个 job 都不安装依赖，
   # 只跑仓库里零依赖的 scripts/static-cdn.mjs（docs/ops/CICD.md「静态资源 CDN」）。
@@ -293,7 +317,7 @@ jobs:
   # 构建：与预发布同构，但按正式身份（无 @ 后缀）构建。
   build:
     name: build (镜像归档)
-    needs: [plan, evidence, cdn-plan]
+    needs: [plan, evidence, cdn-plan, parity]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -760,6 +784,27 @@ jobs:
             -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
           echo "部署记录已更新：${state}"
 
+      - name: 同步宿主层物料（systemd 单元、CDN 镜像）并核对
+        shell: bash
+        env:
+          CDN_MIRROR_ACCESS_KEY_ID: ${{ secrets.CDN_MIRROR_ACCESS_KEY_ID }}
+          CDN_MIRROR_SECRET_ACCESS_KEY: ${{ secrets.CDN_MIRROR_SECRET_ACCESS_KEY }}
+        run: |
+          set -eu
+          cfg="$RUNNER_TEMP/ssh/config"
+          host_dir=/opt/yzgc/host-incoming-${GITHUB_RUN_ID}
+          ssh -F "$cfg" yzgc-target "find /opt/yzgc -maxdepth 1 -name 'host-incoming-*' -mmin +1440 -exec rm -rf -- {} + ; rm -rf $host_dir && install -d -m 700 $host_dir"
+          tar -C deploy/remote -cf - install-host.sh cdn-mirror.sh cdn-mirror.hosts systemd \
+            | ssh -F "$cfg" yzgc-target "tar -C $host_dir -xf -"
+          if [ -n "${CDN_MIRROR_ACCESS_KEY_ID:-}" ] && [ -n "${CDN_MIRROR_SECRET_ACCESS_KEY:-}" ]; then
+            printf 'CDN_MIRROR_ACCESS_KEY_ID=%s\nCDN_MIRROR_SECRET_ACCESS_KEY=%s\n' "$CDN_MIRROR_ACCESS_KEY_ID" "$CDN_MIRROR_SECRET_ACCESS_KEY" \
+              | ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh apply --source $host_dir --mirror-env-stdin"
+          else
+            echo "::notice::环境里没有 CDN_MIRROR_ACCESS_KEY_ID / CDN_MIRROR_SECRET_ACCESS_KEY：沿用目标机上已有的镜像凭据"
+            ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh apply --source $host_dir"
+          fi
+          ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh verify --source $host_dir && rm -rf $host_dir"
+
       - name: 输出入口与身份
         if: always()
         shell: bash
@@ -780,3 +825,42 @@ jobs:
             echo "回滚：\`deploy/remote/rollback-stack.sh\`（把 IMAGE_TAG 切回更早的正式 tag 的镜像 → compose up -d）；tag 本身不移动、不删除。"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "正式入口：${ORIGIN}"
+
+  # 发版烟测：部署成功后按 deploy/parity/smoke.json 的 require 段核对线上（含内部赛事官网）。失败时这次运行变红，
+  # 已经切换的栈不会被它回滚：按 docs/ops/DEPLOY.md 的回滚步骤处理。
+  smoke:
+    name: smoke (线上烟测)
+    needs: [plan, deploy]
+    if: needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: 检出本次部署的提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: 线上必须满足 require 段
+        env:
+          ORIGIN: ${{ needs.plan.outputs.origin }}
+        run: |
+          set -eu
+          for attempt in 1 2 3 4 5 6; do
+            if node scripts/parity.mjs smoke --origin "$ORIGIN" --env production; then exit 0; fi
+            echo "第 $attempt 次未通过，30 秒后重试" >&2
+            sleep 30
+          done
+          exit 1
+      - name: 与预发布同构（证据 job 已核对两边是同一个提交）
+        env:
+          ORIGIN: ${{ needs.plan.outputs.origin }}
+        run: |
+          set -eu
+          PREVIEW=$(node -p "JSON.parse(require('fs').readFileSync('deploy/environments.json','utf8')).environments.preview.origin")
+          node scripts/parity.mjs compare --preview "$PREVIEW" --production "$ORIGIN"

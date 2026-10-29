@@ -281,7 +281,6 @@
     "app/server/src/routes/console/applications.ts": "recruitment",
     "app/server/src/routes/console/mail-templates.ts": "mail",
     "app/server/src/routes/console/activity.ts": "audit",
-    "app/server/src/routes/console/departments.ts": "organization",
     "app/server/src/routes/console/feedback.ts": "feedback",
     "app/server/src/routes/console/me.ts": "organization",
     "app/server/src/routes/forum-api/people.ts": "forum",
@@ -2316,53 +2315,6 @@
         {
           "path": "app/console/src/main.ts",
           "needle": "import { createApp } from \"vue\";"
-        }
-      ],
-      "tests": [
-        "tests/server/console.test.ts"
-      ],
-      "docs": [
-        "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md"
-      ]
-    },
-    {
-      "id": "organization.departments.list",
-      "title": "读取部门及成员计数",
-      "domain": "organization",
-      "relatedDomains": [],
-      "assessment": "declared-with-source-evidence",
-      "operation": "GET /api/console/departments",
-      "capabilities": [],
-      "reads": [
-        "departments",
-        "role_assignments"
-      ],
-      "writes": [],
-      "doesNotEnqueue": [],
-      "invariants": [
-        "权限与资源：需要节点 console.access（#274 切到权限节点体系，不再是 requireCapability 的旧能力）。",
-        "响应与错误：200 {departments}，含heads和crew_count，也保留归档标记。",
-        "数据与副作用：只读 departments 与 role_assignments（固定清单，#274 起控制台不再支持新建/改名/归档/删除，见 departments.ts 头部注释）；写权限包不在此入口。",
-        "迁移步骤 4（#274/#276）：services.ts 在 createRoleStore() 播种默认部门之后调用一次 archiveOldDepartments()，把四行默认部门标成 archived=1——旧的 GET /api/public/org 与论坛称号徽章都已改读新权限体系，没有活的读者再按 archived=0 过滤；这个只读列表原样下发 archived:true，不隐藏、不改查询。"
-      ],
-      "evidence": [
-        {
-          "path": "app/server/src/routes/console/departments.ts",
-          "needle": "app.get(\"/api/console/departments\", { preHandler: requirePermission(\"console.access\") }, async () => {"
-        },
-        {
-          "path": "app/server/src/lib/role-store.ts",
-          "needle": "function crewCounts("
-        },
-        {
-          "path": "app/server/src/lib/migrations/2026-10-yugc-v2.ts",
-          "needle": "export function archiveOldDepartments(db: Database.Database) {"
-        },
-        {
-          "path": "app/server/src/services.ts",
-          "needle": "archiveOldDepartments(storage.db);"
         }
       ],
       "tests": [

@@ -2,11 +2,11 @@
 
 > 所有项目规范集中于 docs；`docs/` 与 `app/` 严格对齐，根目录及工具文件只负责导航。
 
-状态：`current` · 更新：2026-10-27
+状态：`current` · 更新：2026-10-28
 
 ## AI 第一操作
 
-Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md) 和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
+Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md)、[RELEASE-PARITY](conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务时）和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
 
 ## 项目地图
 
@@ -72,6 +72,7 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 | 分支模型、不变量、合并后删分支 | [BRANCHING](conventions/BRANCHING.md) |
 | diff 审查清单与结论格式 | [CODE-REVIEW](conventions/CODE-REVIEW.md) |
 | 打 tag 发版、人工验收、版本展示、回滚 | [RELEASES](conventions/RELEASES.md) |
+| 三份 env 的隔离、去硬编码、预发布到正式的同构清单与发版烟测、无损迁移 | [RELEASE-PARITY](conventions/RELEASE-PARITY.md) |
 | 项目身份、范围、授权边界与完成定义 | [PROJECT](conventions/PROJECT.md) |
 | 环境准备、开发与贡献流程 | [CONTRIBUTING](conventions/CONTRIBUTING.md) |
 | 提交格式与职责范围 | [COMMITS](conventions/COMMITS.md) |

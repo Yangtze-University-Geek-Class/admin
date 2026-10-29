@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "note": "发版烟测。require：某个环境发完后必须满足的绝对期望（{origin} 是被测站点，{env} 是环境名）；mirror：同一份提交在预发布与正式上，这些地址的状态、类型必须一致，sameShape 再比 JSON 的键和值类型（数据各环境自己的，只比格式），sameBody 只用于来自代码的静态文件。地址里不写域名。",
+  "require": [
+    { "path": "/release.json", "status": 200, "json": { "environment": "{env}" } },
+    { "path": "/", "status": 200 },
+    { "path": "/healthz", "status": 200 },
+    { "path": "/api/forum/state", "status": 200 },
+    { "path": "/api/public/competitions", "status": 200 },
+    { "path": "/c/oss-challenge-2026-1/", "status": 200, "contains": "OSS CHALLENGE" },
+    { "path": "/forum/", "status": 200 },
+    { "path": "/console/", "status": 200 },
+    { "path": "/signin", "status": 200 },
+    { "path": "/cli/install.sh", "status": 200 },
+    { "path": "/cli/latest.json", "status": 200 }
+  ],
+  "mirror": [
+    { "path": "/release.json", "sameShape": true },
+    { "path": "/c/oss-challenge-2026-1/" },
+    { "path": "/oidc/.well-known/openid-configuration", "issuerOwnOrigin": true },
+    { "path": "/api/forum/state", "sameShape": true },
+    { "path": "/api/public/competitions", "sameShape": true },
+    { "path": "/forum/" },
+    { "path": "/console/" },
+    { "path": "/signin" },
+    { "path": "/device" },
+    { "path": "/cli/install.sh" },
+    { "path": "/cli/latest.json" },
+    { "path": "/robots.txt" }
+  ]
+}

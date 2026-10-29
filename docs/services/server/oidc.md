@@ -2,7 +2,7 @@
 
 > 不同源的应用用极客班账号登录：核心服务内嵌一个 OpenID Connect 签发者，第一个下游是自建的 GitLab（`https://git.yangtzeu.work`）。同一模块按极客班账号在 GitLab 上建好用户、放进 `geek` 组，离开的封禁。
 
-状态：`current` · 更新：2026-10-27 · 源码：`app/server/src/lib/oidc-store.ts`、`lib/oidc-provider.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/`、`routes/console/gitlab.ts`、`cli/oidc.ts`；同意页 `app/console/src/pages/Authorize.vue` · 上级合同：[server](README.md) · 历史来源：GitLab geek/admin #270、#271（头像）、#272（邮箱）；当前回归：GitHub Yangtze-University-Geek-Class/admin #271（不同命名空间，旧声明见 `docs/history/changes/gitlab/271.json`） · 决策：[ADR-0005](../../decisions/0005-sso-extend-core-server.md) 决策 3、8
+状态：`current` · 更新：2026-10-28 · 源码：`app/server/src/lib/oidc-store.ts`、`lib/oidc-provider.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/`、`routes/console/gitlab.ts`、`cli/oidc.ts`；同意页 `app/console/src/pages/Authorize.vue` · 上级合同：[server](README.md) · 历史来源：GitLab geek/admin #270、#271（头像）、#272（邮箱）；当前回归：GitHub Yangtze-University-Geek-Class/admin #271（不同命名空间，旧声明见 `docs/history/changes/gitlab/271.json`） · 决策：[ADR-0005](../../decisions/0005-sso-extend-core-server.md) 决策 3、8
 
 ## 签发者与端点
 
@@ -91,7 +91,7 @@ HTTP 失败、超时、429/5xx、详情不完整、身份失配与缺失 sub 均
 
 ## GitLab 一侧的配置
 
-GitLab 只有一台。正式站上线前它接预发布的签发者 `https://prev.yangtzeu.work/oidc`（所有者 2026-10-23 选定）：预发布 `GITLAB_SYNC=on`，成员和角色以预发布为准；预发布的数据库因此不能清空重建，否则 `oauth_subjects` 里的 `sub` 没了，GitLab 上的身份对不上。正式站上线后改接正式签发者，按这个顺序：先把预发布的 `GITLAB_SYNC` 改成 `off`；再把预发布 `oauth_subjects` 里 GitLab sector 的行按稳定的 provider/subject 身份证据及逐人核对记录对到正式库的账号上写过去（邮箱相同不构成身份合并证据），`sub` 不变，大家的 GitLab 账号也不变，然后改 GitLab 的 `issuer`；最后才把正式的 `GITLAB_SYNC` 改成 `on`。两个环境同时 `on` 时，两份名单对不上的人会被一边封禁、另一边解封，来回反复。顺序是先在接 GitLab 的那个环境登记 `gitlab` 客户端、把 `GITLAB_SYNC` 改成 `on` 并看到第一轮对账成功，再改 GitLab：同步没开时成员离开不会被封禁。`/etc/gitlab/gitlab.rb` 里加（secret 放在 root 0600 的文件里由 `File.read` 读入，不写进仓库）：
+GitLab 只有一台。正式站上线前它接预发布的签发者 `https://prev.yangtzeu.work/oidc`（所有者 2026-10-23 选定）：预发布 `GITLAB_SYNC=on`，成员和角色以预发布为准；预发布的数据库因此不能清空重建，否则 `oauth_subjects` 里的 `sub` 没了，GitLab 上的身份对不上。正式站上线后改接正式签发者，按这个顺序：先把预发布的 `GITLAB_SYNC` 改成 `off`；再把预发布 `oauth_subjects` 里 GitLab sector 的行按稳定的 provider/subject 身份证据及逐人核对记录对到正式库的账号上写过去（邮箱相同不构成身份合并证据），`sub` 不变，大家的 GitLab 账号也不变，然后改 GitLab 的 `issuer`；最后才把正式的 `GITLAB_SYNC` 改成 `on`。两个环境同时 `on` 时，两份名单对不上的人会被一边封禁、另一边解封，来回反复。顺序是先在接 GitLab 的那个环境登记 `gitlab` 客户端、把 `GITLAB_SYNC` 改成 `on` 并看到第一轮对账成功，再改 GitLab：同步没开时成员离开不会被封禁。`/etc/gitlab/gitlab.rb` 里加（secret 放在 root 0600 的文件里由 `File.read` 读入，不写进仓库）： 签发者现在不写在 `deploy/gitlab/gitlab-oidc.rb` 里（#309）：片段读宿主 `/etc/gitlab/yzgc-oidc-issuer`，改接哪个环境只改这个文件再 `gitlab-ctl reconfigure`，步骤和同构清单编号见 [GitLab 运维合同](../../ops/GITLAB.md)。
 
 ```ruby
 gitlab_rails['omniauth_enabled'] = true

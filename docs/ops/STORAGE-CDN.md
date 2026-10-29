@@ -98,9 +98,31 @@ ufw status verbose; fail2ban-client status sshd
 
 容量与内存：`garage` 的 cgroup 上限 250M、`caddy` 120M、`s3manager` 80M、bridge 50M；常驻约 309 MB，另配 2.5 GB swap。不要把大文件反复拖进控制台预览（会走内存缓冲）。
 
+## Arch 镜像与备份核验
+
+Garage 是单节点单副本（`replication_factor = 1`），这台机器没有自己的备份。内容的第二份放在 Arch：[`deploy/remote/cdn-mirror.sh`](../../deploy/remote/cdn-mirror.sh) 每天 02:20（Asia/Shanghai）用一把只对五个桶有读权限的 Garage 密钥 `backup-reader`，经 `https://cdn.yangtzeu.work` 把 `geek-public`、`geek-production-private`、`geek-preview-private`、`geek-backup`、`cdn` 单向拉到 `/srv/cdn-mirror/current/<桶>/`。
+
+| 项 | 做法 |
+|---|---|
+| 密钥 | 目标机 `/etc/cdn-mirror/env`（0600，`CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY`）；只读，Arch 上拿到它改不了 Garage |
+| 保留 | 被覆盖或在源端删除的对象进 `/srv/cdn-mirror/trash/<UTC 时间>/<桶>/`，保留 `CDN_MIRROR_KEEP_DAYS`（默认 14）天，过期整次运行目录才删；镜像本体不删 |
+| 重试与路径 | 每个 rclone 调用带 5 次重试、10 次底层重试和连接/读写超时。Arch 直连香港存储机往返约 230 ms、重传严重（首次实测 10 分钟只拉下约 70 MB），所以服务单元用 `BindReadOnlyPaths=-/etc/cdn-mirror/hosts:/etc/hosts` 给镜像单独一份 hosts，把 `cdn.yangtzeu.work` 指到香港边缘；同样的 383 MiB 改走边缘后约 1 分钟拉下 100 MB。这份 hosts 只在该服务里生效，不改全局，也不改 DNS；文件不存在就按正常解析。DNS 改到边缘后（P-0008）可以删掉它 |
+| 核验 | 同步后逐桶比对源桶与镜像的对象数、字节数，再 `rclone check` 逐对象；不一致先再同步一次，仍不一致记失败。源桶读成空而镜像非空时拒绝同步 |
+| 结果 | `/srv/cdn-mirror/status.json`：`ok`、`error`、`last_success_at`、各桶对象数/字节数/`verified` |
+| 新鲜度 | `cdn-mirror-watch.timer` 每小时跑 `cdn-mirror.sh watch`：最近一次失败、没有 status 或 `last_success_at` 超过 36 小时，写 `/srv/cdn-mirror/ALERT` 并让该 unit 失败（`systemctl --failed` 可见，journal 有 `cdn-mirror ALERT`）。目前没有向外推送的渠道 |
+| 磁盘 | 可用空间低于 10 GiB 停止同步并记失败 |
+
+安装不需要登录目标机：`deploy/remote/install-host.sh` 由三条部署工作流在栈部署成功后运行（`plan` / `apply` / `verify`，见 [RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第十节），把 `cdn-mirror.sh`、`cdn-mirror.hosts` 和 `deploy/remote/systemd/` 下的单元装到位、`daemon-reload`、有凭据时启用两个定时器，再核对一致；只做 `daemon-reload`，不重启任何服务。镜像凭据是 GitHub 环境（`production`、`preview`）的 secret `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY`，由流水线经 stdin 写入 `/etc/cdn-mirror/env`。Garage 上的只读密钥只需要建一次（在 Garage 机上，需要管理员）：`garage key create backup-reader`，再对五个桶各执行 `garage bucket allow --read --key backup-reader <桶>`；生成的值只写进上面两个环境 secret。手动跑一次：`systemctl start cdn-mirror.service`（oneshot 会长时间处于 activating，看 `journalctl -u cdn-mirror` 与 `status.json`）。
+
+首次同步发现过一个坑：网关会把文本响应压成 gzip，rclone 默认带 `Accept-Encoding: gzip` 下载并原样写盘，镜像里 436 个 css/js 变成了压缩包，只有逐对象核验报 `sizes differ` 才暴露。脚本现在设 `RCLONE_CONFIG_CDN_USE_ACCEPT_ENCODING_GZIP=false`，下载内容的 MD5 与对象 ETag 一致。
+
+恢复到一个新的 Garage：先按「日常运维」里的命令重建桶（`garage bucket create`，公共桶 `garage bucket website --allow`）并为应用生成写密钥，再把镜像推回去：`rclone copy /srv/cdn-mirror/current/<桶> <远端>:<桶>`。恢复的是对象内容；桶别名、website 开关和密钥不在镜像里，按本文件的桶表重建。镜像只保证内容，不替代 Garage 本机元数据备份。
+
+GitLab 与平台备份不走这里。Arch 上实际运行的 GitLab 备份是七牛版 `/srv/gitlab/backup.sh`（SHA-256 `74b4f357…`，每日 03:30，本机加密副本加七牛 `crosery-backup/gitlab/<日期>/`，保留最近 3 天）；仓库里的 [`deploy/gitlab/backup.sh`](../../deploy/gitlab/backup.sh) 是写 Garage `geek-backup` 的版本，目标机尚未安装，Garage 上也没有对应的写密钥。两者不能混着当“已备份”：七牛有 GitLab 备份，Garage 的 `geek-backup` 目前只有 3 个对象。
+
 ## 冷热分层（规划，未实施）
 
-计划以 NetBird/WireGuard 把家庭 NAS 接进同一虚拟内网，NAS 每日用 rclone 增量拉取公共桶做冷存档，香港机只保留最近 30 天热数据（`rclone delete --min-age 30d`）。这两个动作都**尚未实施**：一旦执行就是在删香港侧数据，需所有者单独批准并先有 NAS 侧校验记录。当前没有任何自动删除策略，桶只会增长。
+上面的 Arch 镜像只是单向拉取副本，不删除香港侧的任何数据。计划里“香港机只保留最近 30 天热数据（`rclone delete --min-age 30d`）”这一步仍**未实施**：一旦执行就是在删香港侧数据，需所有者单独批准，并先有镜像核验记录（`status.json` 里该桶 `verified: true` 且新鲜）。当前没有任何自动删除策略，桶只会增长。
 
 ## 明确不做
 

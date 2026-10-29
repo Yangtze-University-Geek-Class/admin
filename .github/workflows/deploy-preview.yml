@@ -647,6 +647,27 @@ jobs:
             -f state="$state" -f environment_url="$ORIGIN" -f description="$description" > /dev/null
           echo "部署记录已更新：${state}"
 
+      - name: 同步宿主层物料（systemd 单元、CDN 镜像）并核对
+        shell: bash
+        env:
+          CDN_MIRROR_ACCESS_KEY_ID: ${{ secrets.CDN_MIRROR_ACCESS_KEY_ID }}
+          CDN_MIRROR_SECRET_ACCESS_KEY: ${{ secrets.CDN_MIRROR_SECRET_ACCESS_KEY }}
+        run: |
+          set -eu
+          cfg="$RUNNER_TEMP/ssh/config"
+          host_dir=/opt/yzgc/host-incoming-${GITHUB_RUN_ID}
+          ssh -F "$cfg" yzgc-target "find /opt/yzgc -maxdepth 1 -name 'host-incoming-*' -mmin +1440 -exec rm -rf -- {} + ; rm -rf $host_dir && install -d -m 700 $host_dir"
+          tar -C deploy/remote -cf - install-host.sh cdn-mirror.sh cdn-mirror.hosts systemd \
+            | ssh -F "$cfg" yzgc-target "tar -C $host_dir -xf -"
+          if [ -n "${CDN_MIRROR_ACCESS_KEY_ID:-}" ] && [ -n "${CDN_MIRROR_SECRET_ACCESS_KEY:-}" ]; then
+            printf 'CDN_MIRROR_ACCESS_KEY_ID=%s\nCDN_MIRROR_SECRET_ACCESS_KEY=%s\n' "$CDN_MIRROR_ACCESS_KEY_ID" "$CDN_MIRROR_SECRET_ACCESS_KEY" \
+              | ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh apply --source $host_dir --mirror-env-stdin"
+          else
+            echo "::notice::环境里没有 CDN_MIRROR_ACCESS_KEY_ID / CDN_MIRROR_SECRET_ACCESS_KEY：沿用目标机上已有的镜像凭据"
+            ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh apply --source $host_dir"
+          fi
+          ssh -F "$cfg" yzgc-target "bash $host_dir/install-host.sh verify --source $host_dir && rm -rf $host_dir"
+
       - name: 输出入口与身份
         if: always()
         shell: bash

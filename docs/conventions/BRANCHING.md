@@ -2,7 +2,7 @@
 
 > 只有 `main`（正式）与 `stage`（预发布）两条长期分支；task 分支合并后必须立即删除，任何操作前先确认当前分支。
 
-状态：`current` · 更新：2026-10-18 · 依据：明确指令（2026-09-23 分支模型；2026-09-24 改为打 tag 发版；2026-09-26 worktree 做完即清，推送前检查）。
+状态：`current` · 更新：2026-10-28 · 依据：明确指令（2026-09-23 分支模型；2026-09-24 改为打 tag 发版；2026-09-26 worktree 做完即清，推送前检查）。
 
 ## 第负一步：先确认分支
 
@@ -75,21 +75,43 @@ node scripts/check-branch-invariants.mjs --strict-long-lived # 把「main/stage 
 
 ## 线上紧急修复（Hotfix）规约
 
+2026-10-28 所有者确认的 P0 例外：修复以最新 `main` 为基线，经审查与关键路径验证后先进 `main`，以既有正式版本的 hotfix 入口上线，不发 rc、不升号、不移动既有 tag；成功验证后立即合回 `stage`。分支不变量不关闭、不跳过：窗口由 `deploy/hotfix/windows.json` 登记（见下），`branch-guard` 和本地 `pre-push` 在登记存在时放行 `main` 领先 `stage` 的提交，没有登记就照常失败；独立 `hotfix-verify` 检查真实修复 SHA，收尾时把窗口标 `closed`、恢复 `stage >= main` 并重跑常规 CI。实施合同见 [RELEASES 的 Hotfix 规约](RELEASES.md#线上紧急缺陷hotfix规约)。
+
+**hotfix 窗口登记**（`deploy/hotfix/windows.json`，校验与判定在 `scripts/hotfix-windows.mjs`，由 `scripts/check-branch-invariants.mjs` 与 `scripts/hotfix-policy.mjs` 共用）：
+
+- 一个 P0 issue 对应一个窗口，字段：`issue`、绑定的既有正式版本 `tag`、`status`（`open` / `closed`）、所有者的 `approvedBy: Crosery`、`approvedAt` 与批准原话 `quote`、`expiresAt`（最长到批准后 7 天）；收尾时补 `closedAt` 与 `evidence`。可选 `commits`：窗口建立之前、说明里没有引用窗口 issue 的提交 SHA。
+- 登记随修复一起进 `main`（读的是 `main` 上的那一份）。`main` 领先 `stage` 的每个提交，说明里要引用窗口 issue（`#N` 或 `task/N/`）或列在 `commits` 里；有一个不归属，`branch-guard` 与 `pre-push` 照常按两条硬不变量失败。窗口过了 `expiresAt` 还开着、登记格式不对、缺所有者原话，同样失败。
+- `deploy-hotfix` 的 `issue` 输入必须是登记里 `open`、没过期、`tag` 就是这次 tag 的窗口，否则 plan 失败；窗口在等待审批期间被关或过期，二次 plan 也会失败。
+- 收尾时从 `main` 单独提交窗口 `closed` 与 `evidence`，再把这个提交合回 `stage`；只推进这次关闭登记，不把 `stage` 的未发布功能合入 `main`。
+
+### hotfix 合并后的自动同步
+
+`scripts/hotfix-sync.mjs`（`plan` 只读，`apply` 执行，有 `tests/tooling/hotfix-sync.test.ts`）一次做完 hotfix 合并后的收尾，任何一步不满足就停下，不强推、不覆盖：
+
+1. 取源远端（默认 `gitlab`）和镜像远端（默认 `origin`）的 `main`、`stage`；镜像引用必须能快进到源的目标，两边分叉就停，不强推。
+2. 在唯一命名的临时 task 分支和 worktree 中准备合并，不复用或删除既有分支。冲突全是生成物（`docs/INDEX.md`、`notes/INDEX.md`）时重生成；有非生成物冲突就放弃，退出码 3，任何远端引用都不改变。合并提交只含冲突取舍。
+3. 带 `--close-window` 时，从源 `main` 单独提交登记关闭，再把关闭提交合回 `stage`，不把未发布的 `stage` 提交带进 `main`。
+4. 本地准备和祖先检查全部成功后，先推源与镜像的 `stage`，再推 `main`，正常执行 Git 钩子。跨远端推送不是事务：网络或远端保护拒绝时停止并报告已完成的步骤，不强推；只读 `plan` 可核对实际状态。重复完成的操作不生成新提交。
+
+无人值守的触发：仓库根的 `.gitlab-ci.yml` 在 `main` 更新后跑脚本（项目变量 `HOTFIX_SYNC_ENABLED=true` 才运行，默认关闭；项目要允许 CI job token 推送）。单远端模式只同步该 GitLab 的 main/stage，不证明 GitHub 也已同步。GitHub 的 `stage` 启用必需 PR 和检查时，必须使用该平台现有的同步工单及独立 task PR，等必需检查成功后合并；不直接推送、不取消保护，不把 GitLab 同号 issue 冒充 GitHub issue。没有该保护的受控远端才按 `plan` 后 `apply` 手工同步。窗口登记只放行分支不变量，不豁免 PR、检查或审批。
+
 正式环境（`https://yangtzeu.work`）上线后若发生直接影响用户使用的严重故障（整页白屏、多媒体/核心流媒体无法播放、主流程阻断、安全事故等）：
 
 1. **Issue 标记**：经 Crosery 明确批准该紧急事项及建单后开 Issue，打上 `hot-fix`、`P0` 与模块标签。紧急处理和事后补单都遵循 [ISSUES](ISSUES.md) §1；时限与紧急程度不授予自动建单权限。
 2. **基线拉取与快修上线**：紧急情况下**必须直接以最新 `origin/main` 作为基线**拉出修复分支或在独立 worktree 中快速修复并验证，以最短路径合入 `main` 部署上线消除用户影响。修复改了模块（[docs/README](../README.md)「文档跟着模块改」表里的路径），就在同一个改动里把对应文档改对；文档里的事实确实没变时，在随修复一起提交的执行记录里写文档核对。没跟文档的修复，在它上面打的发布 tag 会被部署工作流的 plan 拦下（[RELEASES](RELEASES.md) 第 3、4 步）。
 3. **硬不变量合回（强制执行）**：
-   - 生产环境修复验收通过后，**必须立即把该修复合并回 `stage` 分支**：
+   - hotfix MR 合进 `main` 后立即按上一节确定同步路径：无必需 PR 的远端先 `plan` 再 `apply`；受保护的 GitHub `stage` 走同步 task PR，核对双仓 `stage >= main`。线上验收通过后再用 `--close-window <issue> --evidence "<合回 stage 的提交与线上核对>"` 准备关闭登记，保护规则不变。未要求 PR 的远端手工等价于：
      ```bash
      git switch stage && git merge --no-ff origin/main && git push origin stage
      ```
+   - 关闭登记独立提交在 `main`，再合回 `stage`，写 `closedAt` 与 `evidence`（合回 stage 的提交、线上核对结果）；不把 `stage` 的未发布功能快进到 `main`。
    - 运行 `node scripts/check-branch-invariants.mjs` 确认 `stage >= main`（`git merge-base --is-ancestor origin/main origin/stage` 为真）依然成立。绝不允许生产修复仅留在 `main` 而让 `stage` 遗漏，导致后续常规迭代出现代码倒退或冲突。
    - 上面的合并提交把修复的模块改动和文档（或文档核对）一起带进 `stage`。修复没跟文档时，这个合并提交在 `stage` 上就不同步（例：`9b38684`、`7c01897`）：push `stage` 的 CI `core` 报红，在它和它之后、文档补上之前的提交上打的 rc 都会被 plan 拦下；rc tag 不能移动，只能作废编号，补好文档后再打下一个。
 4. **源头根治：预发布与正式环境必须保持严格同构（环境一致性原则）**：
    - 杜绝 Hotfix 的关键在于**预发布环境必须与正式环境保持最高程度的同构**。
    - 宿主 Nginx 模板（CSP 头规则、旁路 Map、反代参数、跨域与缓存策略）、环境变量结构必须 100% 对齐，仅允许域名/端口绑定与真实环境密钥存在差异。
    - 严禁「预发布未配/未测、正式才配置」；所有改动必须在预发布真实走过完整改动路径，确保线上变更完全可控。
+   - 反过来也成立：预发布做过的每一件事，正式都要有对应动作。三份 env 的隔离、代码里不写另一个环境的地址、同构清单与发版烟测由 [RELEASE-PARITY](RELEASE-PARITY.md) 规定，`pnpm check:env-isolation`、`deploy-*.yml` 的 `parity` job 与 `smoke` job 强制。
 
 ## task worktree：一个 issue 一个工作目录
 

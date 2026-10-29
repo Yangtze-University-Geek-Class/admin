@@ -295,16 +295,11 @@ describe('控制台意见箱（CONTRACT-274 §5：feedback.view / feedback.handl
   });
 });
 
-describe('GET /api/console/departments（固定部门名册，和权限节点的 dept.* 分组是两回事，见 routes/console/departments.ts）', () => {
-  it('列出固定的四个部门、人数与队长', async () => {
+describe('GET /api/console/departments 已删除（没有任何页面调用，部门名册由 /api/public/departments 提供）', () => {
+  it('有 console.access 的账号也只得到 404', async () => {
     const { app, as, accountId } = await setupConsole();
     grantPermNode(app, accountId('bob'), 'console.access');
-    const listed = (await app.inject({ url: '/api/console/departments', headers: as('bob') })).json().departments;
-    expect(listed.map((item: { id: string }) => item.id)).toEqual(['recruitment', 'tech', 'community', 'projects']);
-    // #276 挪来的 #274 迁移步骤 4：/api/public/org 退场、论坛也切到 /api/public/departments 之后，
-    // 四个默认部门在 createRoleStore() 播种后随即被 archiveOldDepartments() 标成已归档（services.ts）；
-    // 这个只读列表照样原样下发 archived 状态，不隐藏、不过滤。
-    expect(listed[0]).toMatchObject({ name: '招新部', heads: [], crew_count: 0, archived: true });
+    expect((await app.inject({ url: '/api/console/departments', headers: as('bob') })).statusCode).toBe(404);
   });
 });
 

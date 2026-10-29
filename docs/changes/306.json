@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 306,
   "kind": "business",
-  "summary": "v0.1.1 升级后补齐旧 GitHub 用户：给升级前就存在、还没有账号的论坛用户和名册成员建账号与 GitHub 身份，按旧记录恢复成员资格，并修正名册映射台账的预先记账；只补不删，各只跑一次。",
+  "summary": "P0：补齐 v0.1.1 升级后旧 GitHub 账号与成员资格，并从 main 进行同版本 hotfix；不发 rc、不升号、不移动既有 tag，正式验收后同步 stage。",
   "applications": [
     "server",
     "web",
@@ -26,121 +26,72 @@
       "status": "changed",
       "reason": "升级前的 GitHub 成员重新登录后进入原来的论坛身份、帖子与成员权限，不再被当成新用户；升级后才注册的人规则不变。",
       "evidence": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
-        "app/server/src/lib/migrations/2026-10-yugc-v2.ts",
-        "tests/server/legacy-github-restore.test.ts"
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs"
       ]
     },
     "backend": {
       "status": "changed",
       "reason": "启动迁移在 assignAccountIdentities 之前补建账号与 GitHub 身份、认领论坛用户与名册，在 mapRoleAssignments 之后恢复停在自动授予注册用户的旧成员；不新增、不修改任何 API 路由或响应结构。",
       "evidence": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
-        "app/server/src/lib/migrations/2026-10-yugc-v2.ts"
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs"
       ]
     },
     "permissions": {
       "status": "changed",
       "reason": "成员资格按旧记录恢复：论坛旧管理员 → level.member 与 title.site.owner，论坛成员与名册成员 → level.member，往届 → level.alumni。只改来源是 migration:2026-10-yugc-v2 或 github-signin 的自动授予，控制台和邀请码授予的不动；种子台账不再把刚认领、还没有权限成员记录的名册行预先记成已映射。",
       "evidence": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
-        "app/server/src/lib/migrations/2026-10-yugc-v2.ts",
-        "docs/architecture/SECURITY.md"
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs"
       ]
     },
     "data": {
       "status": "changed",
       "reason": "只增不删：users、identities、account_profiles 增加，forum_users 与 role_assignments 的 account_id 被认领，perm_members 增加；console_seeds 记 legacy_github_v1 与 legacy_github_v1_levels，各只跑一次。生产库副本与升级前备份各演练一次：账号 4→44，论坛用户关联 32，名册关联 25，旧表行数无减少，第二次启动无变化。",
       "evidence": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
-        "app/server/src/lib/migrations/2026-10-yugc-v2.ts",
-        "tests/server/legacy-github-restore.test.ts"
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs"
       ]
     },
     "dependencies": {
-      "status": "unchanged",
-      "reason": "没有新依赖，不动外部服务。",
+      "status": "changed",
+      "reason": "增加同版本 GitHub Actions 发布入口，复用 production/static-cdn 环境和既有部署链；账号迁移不新增运行依赖，环境只新增精确 main 来源许可。",
       "evidence": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts"
+        ".github/workflows/deploy-hotfix.yml",
+        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
+        "package.json"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "SECURITY 增补旧 GitHub 用户补齐与台账修正，server 服务合同的源码地图补上新迁移。",
+      "reason": "服务合同、SECURITY 与发布规范同步：旧账号补齐、hotfix 独立验证、不可变 tag、真实 SHA 与生产后合回 stage。",
       "evidence": [
         "docs/architecture/SECURITY.md",
-        "docs/services/server/README.md"
+        "docs/services/server/README.md",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "新增 9 个迁移用例（没有修复时 6 个失败）；在 Arch 上用现网库的一致性副本和升级前备份各演练两次启动，核对账号数、关联数、成员数与每张表行数。",
+      "reason": "13 个数据恢复回归、25 个 hotfix 规划/证据/接线回归，另有真实隔离生产副本两次启动演练与前后逐行对账；全部旧 GitHub uid 的联合覆盖为44、差集0。",
       "evidence": [
-        "tests/server/legacy-github-restore.test.ts"
+        "tests/tooling/hotfix-policy.test.ts",
+        "tests/tooling/hosted-runners.test.ts"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "版本号升到 0.1.2，走 hotfix 发布：预发布 rc 核对后正式发布；发布前备份已另存，回滚用发布前备份与上一镜像。",
+      "reason": "沿用 0.1.1 及原 tag 作为版本锚点，不发 rc、不移 tag；main 修复 SHA 经独立 hotfix-verify 与 production 审批、备份及健康门后上线，随后立即合回 stage。",
       "evidence": [
-        "package.json",
-        "app/server/package.json"
+        ".github/workflows/deploy-hotfix.yml",
+        "package.json"
       ]
     }
   },
   "coverage": [
-    {
-      "paths": [
-        "app/server/src/lib/migrations/2026-10-legacy-github.ts",
-        "app/server/src/lib/migrations/2026-10-yugc-v2.ts",
-        "tests/server/legacy-github-restore.test.ts",
-        "tests/server/legacy-database.test.ts"
-      ],
-      "domains": [
-        "identity",
-        "permissions",
-        "forum"
-      ],
-      "nodes": [
-        "domain:identity",
-        "domain:permissions",
-        "domain:forum",
-        "application:server"
-      ],
-      "reason": "迁移补账号、恢复成员资格并认领论坛用户与名册；测试按生产形状覆盖补建、恢复、不越权、只跑一次与只补不删。"
-    },
-    {
-      "paths": [
-        "package.json",
-        "app/server/package.json",
-        "app/web/package.json",
-        "app/console/package.json",
-        "docs/services/web/README.md",
-        "docs/services/console/README.md"
-      ],
-      "domains": [
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform"
-      ],
-      "reason": "发布版本升到 0.1.2，包内容不变；web 与 console 服务文档只按规则更新头部日期（文档核对见执行记录）。"
-    },
-    {
-      "paths": [
-        "docs/architecture/SECURITY.md",
-        "docs/services/server/README.md"
-      ],
-      "domains": [
-        "identity",
-        "permissions"
-      ],
-      "nodes": [
-        "domain:identity",
-        "domain:permissions"
-      ],
-      "reason": "SECURITY 与 server 服务合同跟随迁移更新。"
-    },
     {
       "paths": [
         "docs/architecture/catalog/CATALOG.md",
@@ -160,30 +111,48 @@
     },
     {
       "paths": [
-        "docs/architecture/catalog/ownership.json"
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs",
+        "tests/tooling/hotfix-policy.test.ts",
+        "tests/tooling/hosted-runners.test.ts",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/ops/CICD.md"
       ],
       "domains": [
-        "identity",
-        "permissions"
+        "platform"
       ],
       "nodes": [
-        "domain:identity",
-        "domain:permissions"
+        "domain:platform"
       ],
-      "reason": "登记新迁移文件的模块归属与登录流程证据。"
+      "reason": "P0 hotfix 独立入口绑定 main 完整 SHA 与不变正式 tag，保留生产审批、备份、CDN、镜像校验和回滚；测试拒绝非 main、漂移、错误版本及缺生产证据。"
+    },
+    {
+      "paths": [
+        "app/console/package.json",
+        "app/server/package.json",
+        "app/web/package.json",
+        "package.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "保持 v0.1.1 版本锚点，包内容与依赖不变；发布身份由 hotfix workflow 使用真实修复 SHA 标识。"
     }
   ],
   "documents": [
-    "docs/architecture/SECURITY.md",
-    "docs/services/server/README.md",
-    "docs/services/web/README.md",
-    "docs/services/console/README.md"
+    "docs/conventions/RELEASES.md",
+    "docs/conventions/BRANCHING.md",
+    "docs/ops/CICD.md"
   ],
   "tests": [
-    "tests/server/legacy-github-restore.test.ts",
-    "tests/server/legacy-database.test.ts"
+    "tests/tooling/hotfix-policy.test.ts",
+    "tests/tooling/hosted-runners.test.ts"
   ],
   "compatibility": "不改 API、表结构和现有数据；升级后才注册的账号和所有者在控制台调过的成员资格不受影响。",
   "migration": "部署后第一次启动自动执行，一个事务内完成；只补不删。执行前另存了发布前备份。",
-  "rollback": "换回上一镜像即可，新增行留在库里不影响旧版本；需要恢复数据时用发布前备份，不重置库。"
+  "rollback": "以 deploy-history 中上一生产镜像 SHA 回滚，不移动任何 tag；数据库保持兼容且保留发布后的新写入，不以旧库覆盖现网。"
 }

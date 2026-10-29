@@ -26,7 +26,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const PREVIEW_ORIGIN = 'https://prev.yangtzeu.work';
+const PREVIEW_ORIGIN = JSON.parse(readFileSync(new URL('../deploy/environments.json', import.meta.url), 'utf8')).environments.preview.origin;
 const ENVIRONMENTS = ['preview', 'production'];
 /** 与 scripts/release-policy.mjs 的 RELEASE_TAG_RE 逐字一致（tests/tooling/deploy-manual.test.ts 核对）。 */
 export const RELEASE_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.([1-9]\d*))?$/;

@@ -2,7 +2,7 @@
 
 > 本仓库专属的 diff 审查清单：触发时机、逐项检查、结论格式与审查记录位置。
 
-状态：`current` · 更新：2026-10-18
+状态：`current` · 更新：2026-10-28
 
 本规范规定**看什么、怎么判、写在哪**；MR 的字段要求与门禁见 [PULL-REQUESTS](PULL-REQUESTS.md)，分支模型见 [BRANCHING](BRANCHING.md)。
 
@@ -35,6 +35,8 @@
 13. **标签与证明**：PR 带「组:类」改动类型标签且覆盖它 `Closes` 的 issue；`ui:*` 的改动有改前改后截图，对照 diff 看图确实是这次改动的界面；`func:*` 的改动有接口测试和对真实接口的验证，接口测试确实覆盖这次改的路由与失败路径，不是只有类型检查或构建成功；写「无接口变更」「无界面变化」的，对照 diff 确认属实。`pr-contract` 只检查有没有，内容是否属实靠审查（[ISSUES](ISSUES.md) §2、[PULL-REQUESTS](PULL-REQUESTS.md)）。
 
 14. **宏观颗粒度对齐**：按 [ARCHITECTURE-ALIGNMENT](ARCHITECTURE-ALIGNMENT.md) 对照 `docs/changes/<issue>.json`、真实 diff 和目录影响报告，核对业务归属与模块设计、接口及消费者兼容、权限和资源范围、数据/事务/迁移、外部副作用、文档与测试。纯 UI 和文档不能只写“无影响”跳过。缺项、声明与实现不符或只处理局部导致上下游遗漏，按阻塞处理；机器通过只证明可检查部分，不替代语义审查。
+
+15. **环境隔离与同构**（[RELEASE-PARITY](RELEASE-PARITY.md)）：`pnpm check:env-isolation` 通过；diff 里没有另一个环境的域名、端口、签发者、镜像仓库，`deploy/env/origin-exceptions.json` 新增的登记有真实理由而不是为了过检查；预发布做了而不在提交里的事（表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务）已登记进 `deploy/parity/ledger.json`，`production.action` 具体到别人照着能执行；没有靠 `waive`、`not-applicable`、改 `scripts/parity.mjs` 或 `deploy/parity/smoke.json` 放宽来换绿色，所有者豁免带有署名和原话。数据只对齐格式，没有把预发布的数据行带到正式；新增的接口有页面、CLI 或外部协议的调用方，被替换的旧接口已删（[RELEASE-PARITY](RELEASE-PARITY.md) 第九节）。机器检查只证明登记过的满足规则，漏登记靠审查对照 diff 发现。
 
 ## 产出格式
 

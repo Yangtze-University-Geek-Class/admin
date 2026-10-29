@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { registerContracts } from "../../lib/http-contracts.js";
 import { consoleContracts } from "./contracts.js";
 import me from "./me.js";
-import departments from "./departments.js";
 import applications from "./applications.js";
 import feedback from "./feedback.js";
 import competitions from "./competitions.js";
@@ -25,7 +24,6 @@ import mailTemplates from "./mail-templates.js";
 export default async function consoleRoutes(app: FastifyInstance) {
   registerContracts(app, consoleContracts);
   await app.register(me);
-  await app.register(departments);
   await app.register(applications);
   await app.register(feedback);
   await app.register(competitions);

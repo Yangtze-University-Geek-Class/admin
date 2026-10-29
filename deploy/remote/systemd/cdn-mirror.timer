@@ -1,0 +1,11 @@
+[Unit]
+Description=CDN mirror schedule (02:20 Asia/Shanghai)
+
+[Timer]
+OnCalendar=*-*-* 02:20:00 Asia/Shanghai
+RandomizedDelaySec=300
+Persistent=true
+Unit=cdn-mirror.service
+
+[Install]
+WantedBy=timers.target

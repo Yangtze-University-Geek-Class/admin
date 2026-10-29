@@ -8,6 +8,10 @@
 
 **先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：发版只靠打 tag。`vX.Y.Z-rc.N` 打在 `stage` 的提交上部署预发布；在预发布试用并明确批准后，`main` 快进到同一提交，再打 `vX.Y.Z` 部署正式。** push `stage`/`main` 不部署。发布内容由发布 tag 指向的提交决定；镜像 tag 是该提交的 `<sha12>`。
 
+发布前先过同构这一关（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md)）：预发布做过、不在提交里的事（表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务）正式都做完，`node scripts/parity.mjs check --release` 清零；`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 会在清单有 `pending` 时拒绝构建与部署。三份 env（`.env.production`、`.env.preview`、`.env.dev`）由 `pnpm check:env-isolation` 核对，正式的值不会混进预发布，反之亦然。
+
+hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗口是 `open` 且没过期（所有者批准的原话在登记里），否则 `deploy-hotfix` 的 plan 失败。hotfix 的 MR 合进 `main` 后，立刻用 `node scripts/hotfix-sync.mjs apply` 把 `main` 同步到镜像远端并合回 `stage`；线上核对通过后加 `--close-window <issue> --evidence "…"` 关闭窗口。
+
 发布者明确目标环境、commit、镜像 tag、回滚对象和维护窗口。先在本地或 CI 完成 `pnpm verify` 与相关浏览器检查，再部署；不从含无关修改的工作区发布。核心与论坛使用两套工具链（Node 22/pnpm 9.15.9 与 Node ≥26/pnpm 11.24.0），镜像构建在容器内完成，不上传 Mac 原生依赖。
 
 ## 迁移现状与授权边界
@@ -58,6 +62,7 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 - 固定项目子网：production `172.31.181.0/24`、preview `172.31.182.0/24`；server DNS 为 `1.1.1.1` / `8.8.8.8`。固定子网与出网规则绑定，后续 Compose 不能丢失这些字段。
 - Arch 规则优先级 91/92 查询表 18182，经 tun0 到香港；保留 Docker 默认 NAT，香港追加 `yzgc-docker-egress` 出口 NAT。只作用于项目子网，不改宿主默认路由；容器到 GitHub/GitLab/Google 均实测 200。
 - 两端 `yzgc-egress.service` 持久化网络；Arch `yzgc-compose@production.service` / `@preview.service` 在 Docker 与隧道之后编排 Compose，不运行宿主业务 Node。
+- 隧道抖动不拖垮站点（#309，物料由 `deploy/remote/install-host.sh` 在部署后自动安装并核对，不需要登录目标机）：`hk-tunnel-watchdog` 原来只要一次 ping 丢包就重启 `hk-tunnel`，`yzgc-egress` 跟着重启，又因 `yzgc-compose@` 写 `Requires=yzgc-egress.service` 把六个容器一起停掉再拉起，整站断 25 秒以上，GitLab 也随隧道一起断。现在 [`yzgc-compose@.service`](../../deploy/remote/systemd/yzgc-compose@.service) 改为 `Wants=`，egress 重启只重放路由；[watchdog 覆盖项](../../deploy/remote/systemd/hk-tunnel-watchdog.service.d/tolerate-loss.conf)改为 tun0 地址消失立刻重启、否则连续 3 次 ping 都丢才重启。回滚：安装器覆盖前会留 `<目标文件>.bak-<UTC 时间>`；把仓库里这两份物料 revert 后重新部署即可，不手改目标机（2026-10-28 首次手工安装时的备份在 Arch `/root/yzgc-compose@.service.bak-20261028T2030`）。隧道本身仍是单条链路，掉线期间 `git.yangtzeu.work` 不可达，根治需要第二条路径，未实施。
 - `/opt/yzgc/tools/docker-backup.py` 在原 Linux 镜像内做保留 sessions 的一致备份，每份再断网恢复核对；`yzgc-backup@*.timer` 北京时间 04:00、随机延后不超过 10 分钟。`yzgc-health.timer` 每 10 分钟只读检查，不全局 prune。详见 [BACKUP](BACKUP.md)。
 - 这些实机维护工具暂由迁移交接中的源码保全；现有 `platform-maintenance.sh` / `platform-backup@` 是另一套未安装候选，不能混称已纳管或覆盖现行任务。
 
@@ -233,6 +238,8 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 ## 发布和回滚验收
 
 检查 `/healthz`（server 与 web 各一次）、入口域名与深链接（`/`、`/join-us`、`/admin`、`/console/...` 分别进官网与管理端）、`github.yangtzeu.work` 的 301（仅正式环境）、`/api/*` 与 `/forum/*` 是否正确反代（`/forum` 308 到相对地址 `/forum/`，直接打开 `/forum/users` 返回 200、不跳转，#140）、缺失资产 404、真实 OAuth/Cookie、验证码、权限、邀请结果、服务重启后的数据保留。HTML/资产/后端必须来自同一镜像 tag：用 `docker inspect` 的镜像 digest 与 `<栈根>/.env.<environment>` 的 `IMAGE_TAG` 交叉核对，web 容器内置的 `/release.json`（`no-store`）可作为发布身份的第二证据。数据库有新增字段时，回滚旧镜像前确认兼容，不以重置数据卷代替回滚。
+
+部署工作流在部署成功后自动运行 `smoke`（`node scripts/parity.mjs smoke --origin <站点> --env <环境>`），按 `deploy/parity/smoke.json` 核对关键地址，含内部赛事官网 `/c/oss-challenge-2026-1/`；正式 tag 部署还会与预发布做 `compare`。烟测失败时这次运行变红，已切换的栈不会被它回滚：先按上文「回滚」切回上一个镜像，再查清差异；数据缺口用服务自带的函数补，不手写对正式库的 UPDATE（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第四节）。
 
 未执行的生产验证明确标注，不将本机的 `pnpm verify` PASS、模板文件或模拟测试称为线上验收。
 

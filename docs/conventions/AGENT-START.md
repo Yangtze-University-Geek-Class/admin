@@ -2,7 +2,7 @@
 
 > AI 进入 geek_main 的第一步：确认当前分支并完整读取 docs 中的适用规范；不能以记忆、任务紧急或测试通过替代。
 
-状态：`current` · 更新：2026-10-19 · 适用：所有 AI、编码代理、工具适配器和上下文恢复。
+状态：`current` · 更新：2026-10-28 · 适用：所有 AI、编码代理、工具适配器和上下文恢复。
 
 ## 第零步：确认分支 + 先读，不先做
 
@@ -10,7 +10,7 @@
 
 必须先停止：代码编辑、安装、脚本执行、服务启停、数据访问、Git 写操作和发布操作。不得先运行项目命令，事后补读。
 
-阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [TRACKING](TRACKING.md) → [NOTES](NOTES.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md) 与 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
+阅读顺序：根 [AGENTS](../../AGENTS.md) → [docs 总入口](../README.md) → 本文 → [PROJECT](PROJECT.md) → [BRANCHING](BRANCHING.md) → [CONTRIBUTING](CONTRIBUTING.md) → [TRACKING](TRACKING.md) → [NOTES](NOTES.md) → [CODE-REVIEW](CODE-REVIEW.md) → [RELEASES](RELEASES.md)，再按根任务映射读取适用规范与服务文档（[docs/services](../services/README.md)）。代码任务还需读 [TESTING](TESTING.md)；UI 任务必须查 Tuffex 文档；数据/认证任务必须读安全和对应服务合同；发布/部署任务必须读 [CICD](../ops/CICD.md)、[DEPLOY](../ops/DEPLOY.md)、[ENVIRONMENTS](../ops/ENVIRONMENTS.md) 与 [RELEASE-PARITY](RELEASE-PARITY.md)，并先看 `deploy/parity/ledger.json` 里还有哪些 `pending`。
 
 文档被截断就继续读到完整。文件缺失、权限不足、规范冲突或无法确认版本时停止相关实施，说明阻塞项，不能猜测。新会话、上下文压缩后丢失规范、切换模块或发现规范更新，都要重新确认并补读。
 

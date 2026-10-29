@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "note": "预发布到正式的同构清单：预发布做过的、不在提交里的事（表结构、数据、env 键与密钥、宿主配置、外部服务），正式都要有对应动作。规则见 docs/conventions/RELEASE-PARITY.md。回填条目的预发布日期是登记日，建立日期未追溯。",
+  "entries": [
+    {
+      "id": "P-0001",
+      "surface": "data",
+      "issue": 309,
+      "title": "内部赛事官网 oss-challenge-2026-1 的 competition_sites 与 competition_site_versions 数据",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布两张表各 1 行，/c/oss-challenge-2026-1/ 返回 200（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "把预发布的两张表各 1 行迁入正式库，competition 的 site_url 写成 /c/oss-challenge-2026-1/",
+        "doneAt": "2026-10-28",
+        "evidence": "omp:01a181c9 会话 17:39 报告已补入正式库各 1 行；2026-10-28 19:2x 复测两个环境该地址都是 200，正文 md5 相同"
+      }
+    },
+    {
+      "id": "P-0002",
+      "surface": "host",
+      "issue": 309,
+      "title": "正式前置 Caddy 的 CSP 与预发布对齐（script-src、media-src、connect-src 放行新 CDN 与 blob:）",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布 CSP 含新 CDN 与 blob:（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "改正式站点块的 CSP 两行，caddy validate 后 reload，保留备份",
+        "doneAt": "2026-10-28",
+        "evidence": "omp:01a181c9 会话改 /etc/caddy/sites/yzgc.caddy 并留备份；2026-10-28 19:1x 复测两环境响应头 Content-Security-Policy 前 600 个字符相同。这段配置仍不在仓库里，后续要收进模板"
+      }
+    },
+    {
+      "id": "P-0003",
+      "surface": "env",
+      "issue": 308,
+      "title": "正式缺 OIDC_JWKS：对外授权关闭，/oidc/* 全部 404",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布已配，/oidc/.well-known/openid-configuration 返回 200（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "在正式 server 容器里 node app/server/dist/cli/oidc.js keygen 生成，写进 GitHub 环境 production 的 secret OIDC_JWKS，由 hotfix 部署重新渲染 env；验收：parity compare 的 /oidc/.well-known/openid-configuration 两边都是 200 且 issuer 是各自的 PUBLIC_ORIGIN/oidc",
+        "doneAt": "2026-10-28T20:45:10+08:00",
+        "evidence": "2026-10-28 20:41 在正式 server 容器里 oidc.js keygen 生成，经管道直接写入 GitHub 环境 production 的 secret OIDC_JWKS（未打印）；gh secret list --env production 已列出该名字。/oidc/* 在线验收要等下一次正式部署渲染 env 后由 parity compare 完成"
+      }
+    },
+    {
+      "id": "P-0004",
+      "surface": "env",
+      "issue": 307,
+      "title": "正式缺 GOOGLE_CLIENT_ID 与 GOOGLE_CLIENT_SECRET：登录页没有 Google",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布两项已配，登录页有 Google（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "所有者在 Google Cloud 给正式 PUBLIC_ORIGIN 建 Web 应用客户端（重定向 URI <PUBLIC_ORIGIN>/auth/google/callback），两项写进 GitHub 环境 production 的 secrets，hotfix 部署重新渲染；验收：正式登录页出现 Google",
+        "doneAt": "2026-10-28T20:06:56+08:00",
+        "evidence": "20:2x 实测：gh secret list --env production 有 GOOGLE_CLIENT_ID 与 GOOGLE_CLIENT_SECRET（2026-10-28T07:23Z 创建）；GET /auth/providers 列出 google；GET /auth/google 302 到 accounts.google.com，redirect_uri 是正式回调。Google 控制台里是否登记了正式回调没有验证"
+      }
+    },
+    {
+      "id": "P-0005",
+      "surface": "env",
+      "issue": 308,
+      "title": "正式缺 GITLAB_API_TOKEN：赛事采集与 /api/public/gitlab/projects 不可用",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布 GITLAB_SYNC=on 且令牌已配，gitlab_accounts 6 行（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "用 GitLab 管理员接口为 geek 组建一个只读范围的访问令牌，写进 GitHub 环境 production 的 secret GITLAB_API_TOKEN（不打印、不进日志）；这次部署 GITLAB_SYNC 保持 off，账号自动建号等预发布关掉同步后再开（见 P-0011）；验收：parity compare 的 /api/public/gitlab/projects 两边状态一致",
+        "doneAt": "2026-10-28T20:45:10+08:00",
+        "evidence": "2026-10-28 20:41 用 GitLab 管理员接口给 geek-sync 用户建了名为 yzgc-production 同步、范围 api、到期 2027-10-22 的令牌（id 5，与预发布令牌 id 3 分开），值经管道直接写入 GitHub 环境 production 的 secret GITLAB_API_TOKEN（未打印）；gh secret list --env production 已列出该名字。GITLAB_SYNC 保持 off。在线验收要等下一次正式部署后由 parity compare 完成"
+      }
+    },
+    {
+      "id": "P-0006",
+      "surface": "data",
+      "issue": 308,
+      "title": "正式库没有登记 OIDC 客户端 gitlab（oauth_clients 0 行）",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布 oauth_clients 1 行 client_id=gitlab、status=active（回填登记）"
+      },
+      "production": {
+        "status": "done",
+        "action": "在正式 server 容器里 node app/server/dist/cli/oidc.js client add --client-id gitlab ...，secret 落宿主 /srv/gitlab/config/yzgc-oidc-secret 与本机凭据库 GITLAB_OIDC_CLIENT_SECRET；验收：正式 oauth_clients 出现 gitlab 且 status=active",
+        "doneAt": "2026-10-28T20:45:10+08:00",
+        "evidence": "2026-10-28 20:45 在正式 server 容器里 oidc.js client add --client-id gitlab 登记，oauth_clients 现有 gitlab 一行（client list 实测）；明文 secret 只写进 Arch /srv/gitlab/config/yzgc-oidc-secret.production（0600），当前 GitLab 仍读 yzgc-oidc-secret（预发布的），改接签发者时再原子替换"
+      }
+    },
+    {
+      "id": "P-0007",
+      "surface": "host",
+      "issue": 308,
+      "phase": "post_deploy",
+      "title": "GitLab 统一登录的签发者改接正式（deploy/gitlab/gitlab-oidc.rb 读 /etc/gitlab/yzgc-oidc-issuer）",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "GitLab 现在信任预发布签发者，预发布账号能登录（回填登记）"
+      },
+      "production": {
+        "status": "pending",
+        "action": "部署带 OIDC_JWKS 的正式版本后，在 GitHub Actions 手动触发 gitlab-cutover：先 migrate-subjects 演算、看过可迁/冲突/对不上三个数再 apply，再 switch-issuer（演算后 apply）；验收：status 显示 GitLab 签发者读宿主文件且 yzgc-oidc-issuer 是正式 origin，正式成员能经「极客班统一登录」进 GitLab，原有 GitLab 账号没有变成新账号。回滚：rollback-issuer。不需要登录目标机"
+      },
+      "release": "0.1.1"
+    },
+    {
+      "id": "P-0008",
+      "surface": "external",
+      "issue": 305,
+      "title": "cdn 子域的 A 记录从 Garage 直连换到香港边缘",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "边缘 12/12 成功，直连 6 次只成功 2 次（omp:01a181c9 实测，回填登记）"
+      },
+      "production": {
+        "status": "waived",
+        "action": "所有者登录 DNSPod 把 cdn 子域 A 记录指向香港边缘；验收：cdn-verify.sh 连续 12 次 200",
+        "waiver": {
+          "by": "Crosery",
+          "at": "2026-10-28T22:32:15+08:00",
+          "quote": "cdn是另外一台服务器，指向我们的线上服务干嘛，cdn是边缘对象存储，不能解析到我们自己的服务器"
+        }
+      }
+    },
+    {
+      "id": "P-0009",
+      "surface": "external",
+      "issue": 295,
+      "phase": "post_deploy",
+      "title": "正式构建改走新 CDN（静态资源由 cdn-upload 上传，页面引用 CDN 地址）",
+      "preview": {
+        "doneAt": "2026-10-28",
+        "evidence": "预发布 rc.29 的 portal 脚本在新 CDN 上（回填登记）"
+      },
+      "production": {
+        "status": "pending",
+        "action": "前置 P-0002、P-0008。下一次正式 hotfix 部署由 static-cdn 环境的凭据构建；验收：正式首页脚本地址在新 CDN 上，宣传片 HLS 能播"
+      },
+      "release": "0.1.1"
+    },
+    {
+      "id": "P-0010",
+      "surface": "host",
+      "title": "Arch 隧道看门狗容忍丢包，站点编排单元不再因 egress 重启而停容器",
+      "issue": 309,
+      "preview": {
+        "doneAt": "2026-10-28T20:37:34+08:00",
+        "evidence": "Arch 同时承载预发布与正式，一次安装对两套栈生效：egress 重启后六个站点容器的 StartedAt 不变；看门狗覆盖项改为 3 次 ping 全丢才重启（2026-10-28 20:30 实测，回滚文件 /root/yzgc-compose@.service.bak-20261028T2030）"
+      },
+      "production": {
+        "status": "done",
+        "action": "同一台 Arch，无需再做；复核 systemctl show yzgc-compose@production -p Requires 不含 yzgc-egress.service",
+        "doneAt": "2026-10-28T20:37:44+08:00",
+        "evidence": "Arch 实机：yzgc-compose@production 与 @preview 的 Requires 都不含 yzgc-egress.service，Wants 含它；hk-tunnel-watchdog 已加载 tolerate-loss 覆盖项（2026-10-28 20:40 systemctl show/cat）"
+      }
+    },
+    {
+      "id": "P-0011",
+      "surface": "env",
+      "title": "GitLab 账号自动建号只留一个写者：预发布关闭 GITLAB_SYNC，正式开启",
+      "issue": 309,
+      "phase": "post_deploy",
+      "preview": {
+        "doneAt": "2026-10-28T20:38:49+08:00",
+        "evidence": "预发布 GITLAB_SYNC 现为 on，已与 6 个 OIDC 身份对应；两边同时 on 会在同一个 GitLab 里抢建同名账号（docs/services/server/oidc.md 单写者规则）"
+      },
+      "production": {
+        "status": "pending",
+        "action": "先发预发布把 GITLAB_SYNC 改 off（需所有者授权 rc 标签），再把正式 GITLAB_SYNC 改 on 并重新部署；验收：正式 level.member 账号都有 GitLab 账号并在 geek 组内（只读核对数量）。这一步改的是 env 模板和部署，不需要登录目标机"
+      },
+      "release": "0.1.1"
+    },
+    {
+      "id": "P-0012",
+      "surface": "host",
+      "title": "Arch 的 CDN 镜像：每天拉取五个桶的只读副本并核验",
+      "issue": 309,
+      "preview": {
+        "doneAt": "2026-10-28T21:04:01+08:00",
+        "evidence": "Arch 同时承载预发布与正式，一次安装对两边生效：2026-10-28 21:02 首次完整同步成功，五个桶对象数与字节数和 Garage 一致（geek-public 2014 个 402217556 字节），逐对象核验通过；定时器 02:20 与每小时新鲜度检查已启用"
+      },
+      "production": {
+        "status": "done",
+        "action": "同一台 Arch，无需再做；部署后宿主层步骤会核对物料一致。复核：systemctl list-timers 'cdn-mirror*'，cat /srv/cdn-mirror/status.json 的 ok 为 true",
+        "doneAt": "2026-10-28T21:04:01+08:00",
+        "evidence": "Arch 实机 2026-10-28 21:03：install-host.sh plan 八项全是 same，verify 通过，cdn-mirror.sh watch 输出 ok；两个定时器已启用（下次 02:22）；status.json 的 ok 为 true，五个桶 verified"
+      }
+    }
+  ]
+}

@@ -8,6 +8,10 @@
  *   I1  `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须为真（即 stage ≥ main）。
  *   I2  `main` 不得领先 `stage`：任何写入 `main` 的提交都必须已经存在于 `stage`（只允许把 stage 快进/合并进 main）。
  *
+ * 唯一的例外是已登记的 P0 hotfix 窗口（deploy/hotfix/windows.json，读 main 上的那一份，规则见 scripts/hotfix-windows.mjs）：
+ * main 领先 stage 的每个提交都必须归属于一个 open、没过期的窗口（提交说明引用窗口 issue 的 #N 或 task/N/，或窗口显式列出 SHA），
+ * 有一个不归属就按原样失败。窗口超过 7 天还开着也失败；窗口 closed 之后不变量恢复原样。
+ *
  * 分支命名规范（2026-09-23 起分支名一律不用 `-`，只用 `/` 分层；每段只含小写字母与数字，段内多个词用 `_` 连接）：
  *   main / stage         长期分支，只允许这两条
  *   task/<issue>/<slug>  从 stage 拉出，PR 回 stage，合并后删除；例：task/12/portal_redesign
@@ -36,6 +40,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { RELEASE_TAG_RE, listTagCommits, packageVersionAt, parseReleaseTag, previewTagsFor } from './release-policy.mjs';
+import { WINDOWS_FILE, activeWindows, expiredWindows, readRegistryAt, validateWindows, windowOf } from './hotfix-windows.mjs';
 
 /** 两条硬不变量原文（失败时必须原样打印）。 */
 export const INVARIANTS = Object.freeze([
@@ -146,8 +151,49 @@ function branchNamingMessage(branch) {
   return null;
 }
 
-/** 默认模式：两条硬不变量 + 分支命名卫生。 */
-export function checkInvariants({ repo = process.cwd(), requireRemote = false, strictLongLived = false } = {}) {
+const AHEAD_LIMIT = 500;
+
+/**
+ * main 领先 stage 的提交，逐个看是否归属于已登记的 hotfix 窗口。登记读 mainSha 那一版；
+ * 没有登记文件、登记不合法或窗口过期，都等于没有窗口：领先的提交全部算未归属。
+ */
+export function analyzeAhead({ repo, mainSha, stageSha, now = new Date() }) {
+  const range = git(repo, ['log', `--max-count=${AHEAD_LIMIT}`, '--format=%H%x00%B%x01', `${stageSha}..${mainSha}`]);
+  const ahead = range.status === 0
+    ? (range.stdout ?? '').split('\x01').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map(entry => {
+      const [sha, message = ''] = entry.split('\x00');
+      return { sha, message };
+    })
+    : [];
+  const problems = [];
+  let registry = null;
+  if (ahead.length) {
+    try { registry = readRegistryAt(repo, mainSha); } catch (error) { problems.push(error.message); }
+    if (registry) {
+      const invalid = validateWindows(registry);
+      if (invalid.length) { problems.push(`${WINDOWS_FILE} 格式有误：${invalid.join('；')}`); registry = null; }
+    }
+  }
+  const stale = registry ? expiredWindows(registry, now) : [];
+  for (const item of stale) problems.push(`hotfix 窗口 #${item.issue} 已超过 expiresAt（${item.expiresAt}）还没收尾：合回 stage 并把窗口标 closed，或由所有者重新批准。`);
+  const windows = registry ? activeWindows(registry, now) : [];
+  const unattributed = [];
+  const attributed = [];
+  for (const entry of ahead) {
+    const owner = windowOf(entry.sha, entry.message, windows);
+    (owner ? attributed : unattributed).push(owner ? { sha: entry.sha, issue: owner.issue } : entry.sha);
+  }
+  return { ahead: ahead.map(entry => entry.sha), attributed, unattributed, windows, problems };
+}
+
+const shortList = list => list.map(sha => sha.slice(0, 12)).join(' ');
+const windowNote = (analysis, label) => {
+  const issues = [...new Set(analysis.attributed.map(item => `#${item.issue}`))].join('、');
+  return `${label}：hotfix 窗口 ${issues} 内 main 领先 stage ${analysis.ahead.length} 个提交，已逐个核对归属；合回 stage 并把窗口标 closed 后不变量恢复。`;
+};
+
+/** 默认模式：两条硬不变量（hotfix 窗口内按登记放行）+ 分支命名卫生。 */
+export function checkInvariants({ repo = process.cwd(), requireRemote = false, strictLongLived = false, now = new Date() } = {}) {
   const violations = [];
   const warnings = [];
   const notes = [];
@@ -157,13 +203,13 @@ export function checkInvariants({ repo = process.cwd(), requireRemote = false, s
   if (main.scope === 'local' || stage.scope === 'local') {
     notes.push('提示：使用了本地分支作为证据；CI 必须用 --require-remote-refs 强制远端证据。');
   }
-  if (!isAncestor(repo, main.sha, stage.sha)) {
+  const analysis = analyzeAhead({ repo, mainSha: main.sha, stageSha: stage.sha, now });
+  for (const problem of analysis.problems) violations.push(problem);
+  if (analysis.unattributed.length) {
     violations.push(`${INVARIANTS[0]}\n  证据：${main.sha.slice(0, 12)} 不是 ${stage.sha.slice(0, 12)} 的祖先，stage 缺少 main 的提交。`);
-  }
-  const aheadResult = git(repo, ['rev-list', '--max-count=50', `${stage.ref}..${main.ref}`]);
-  const ahead = aheadResult.status === 0 ? (aheadResult.stdout ?? '').trim().split('\n').filter(Boolean) : [];
-  if (ahead.length) {
-    violations.push(`${INVARIANTS[1]}\n  证据：main 领先 stage 的提交 ${ahead.map(sha => sha.slice(0, 12)).join(' ')}`);
+    violations.push(`${INVARIANTS[1]}\n  证据：main 领先 stage 的提交 ${shortList(analysis.unattributed)}${analysis.windows.length ? `（不属于已登记的 hotfix 窗口 ${analysis.windows.map(item => `#${item.issue}`).join('、')}）` : ''}`);
+  } else if (analysis.ahead.length) {
+    notes.push(windowNote(analysis, '证据'));
   }
   for (const branch of collectBranches(repo)) {
     const message = branchNamingMessage(branch);
@@ -239,9 +285,17 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
         continue;
       }
       if (!isAncestor(repo, localSha, stage.sha)) {
-        violations.push(
-          `${INVARIANTS[1]}\n  证据：被推的 main tip ${localSha.slice(0, 12)} 不在 ${stage.ref}@${stage.sha.slice(0, 12)} 的历史里。\n${FIX_MAIN}`,
-        );
+        const analysis = analyzeAhead({ repo, mainSha: localSha, stageSha: stage.sha });
+        if (analysis.problems.length || analysis.unattributed.length) {
+          violations.push(
+            `${INVARIANTS[1]}\n  证据：被推的 main tip ${localSha.slice(0, 12)} 不在 ${stage.ref}@${stage.sha.slice(0, 12)} 的历史里`
+              + `${analysis.unattributed.length ? `，其中 ${shortList(analysis.unattributed)} 不属于已登记的 hotfix 窗口` : ''}。`
+              + `${analysis.problems.length ? `\n  ${analysis.problems.join('\n  ')}` : ''}\n${FIX_MAIN}\n`
+              + `  P0 hotfix：先在 main 上登记窗口（${WINDOWS_FILE}，需要所有者原话），提交说明引用窗口 issue 的 #N。`,
+          );
+          continue;
+        }
+        notes.push(windowNote(analysis, target));
         continue;
       }
       notes.push(`${target}：main tip ${localSha.slice(0, 12)} 已存在于 ${stage.ref}，允许推送（main 只做 stage 的快进）。`);
@@ -259,10 +313,16 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
       if (!main) {
         warnings.push('本地找不到 main 或 origin/main：无法在推送前确认 stage ≥ main，交由 CI 的 branch-guard 再判定。');
       } else if (!isAncestor(repo, main.sha, localSha)) {
-        violations.push(
-          `${INVARIANTS[0]}\n  证据：被推的 stage tip ${localSha.slice(0, 12)} 不包含 ${main.ref}@${main.sha.slice(0, 12)}。\n`
-            + '  修复：git switch stage && git merge --no-ff origin/main && git push origin stage',
-        );
+        const analysis = analyzeAhead({ repo, mainSha: main.sha, stageSha: localSha });
+        if (analysis.problems.length || analysis.unattributed.length) {
+          violations.push(
+            `${INVARIANTS[0]}\n  证据：被推的 stage tip ${localSha.slice(0, 12)} 不包含 ${main.ref}@${main.sha.slice(0, 12)}。\n`
+              + '  修复：git switch stage && git merge --no-ff origin/main && git push origin stage'
+              + `${analysis.problems.length ? `\n  ${analysis.problems.join('\n  ')}` : ''}`,
+          );
+        } else {
+          notes.push(windowNote(analysis, target));
+        }
       } else {
         notes.push(`${target}：stage ≥ main 成立，允许推送。`);
       }

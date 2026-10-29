@@ -15,6 +15,7 @@
 7. [NOTES](docs/conventions/NOTES.md)
 8. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
 9. [RELEASES](docs/conventions/RELEASES.md)
+10. [RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务的任务必读）
 
 再按任务读取适用规范与服务契约（`docs/services/` 下的服务文档、[TESTING](docs/conventions/TESTING.md)、安全与运维文档等）。
 
@@ -29,7 +30,7 @@
 **长期分支只有两条：`main`（正式）与 `stage`（预发布）；其余分支必须是短生命周期。**
 
 - `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须成功；`main` 不得领先 `stage`，写进 `main` 的提交必须已经存在于 `stage`。
-- 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。
+- 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。唯一的例外是 `deploy/hotfix/windows.json` 里所有者批准、未过期的 P0 hotfix 窗口：窗口内 `main` 可以领先 `stage`，领先的每个提交都要归属于该窗口 issue，hotfix MR 合进 `main` 后立刻运行 `node scripts/hotfix-sync.mjs apply` 合回 `stage`，保证 `stage >= main`（[BRANCHING](docs/conventions/BRANCHING.md)「线上紧急修复」）；不用 `--no-verify` 绕过门禁。
 - 分支名一律不用 `-`，只用 `/` 分层，段内多词用 `_`（正则见 [BRANCHING](docs/conventions/BRANCHING.md)）。
 - 任务分支命名 `task/<issue>/<slug>`（例 `task/12/portal_redesign`），**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
 - `dev/<github-username>`（例 `dev/alice`）是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
@@ -60,13 +61,17 @@
 
 **每个环境一套完整 Docker 栈：`production` 与 `preview`，各自 compose、网络、卷，互不共享数据。**
 
-- 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview`，由 `docker compose --env-file` 消费；不得另建环境文件或在别处定义第二份环境变量。
+- 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview` / `deploy/env/.env.dev`（本机调试，脱敏入库，默认走本地），前两份由 `docker compose --env-file` 消费；三份键集一致、值互相隔离，`pnpm check:env-isolation` 核对（含在 `pnpm check` 里）。不得另建环境文件或在别处定义第二份环境变量。
+- 代码、工作流、宿主配置片段不写另一个环境的域名、端口、签发者、镜像仓库：从该环境的 env 文件或 `deploy/environments.json` 读，宿主片段读宿主文件；确需写死的位置登记在 `deploy/env/origin-exceptions.json` 并写理由（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第二节）。
+- 对齐的是接口和数据库表结构；数据不对齐，只对齐格式（用户、帖子、报名等内容各环境自有，不复制不同步）；没有任何页面调用的接口不留（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第九节）。
+- 预发布做过的每一件事，正式都要有对应动作：代码靠提交和 tag，表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务靠同构清单 `deploy/parity/ledger.json`（`node scripts/parity.mjs`）。`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 在清单还有 `pending` 时不构建、不部署；部署后 `smoke` job 核对线上，含内部赛事官网。hotfix 同样适用，豁免只能由所有者逐条留原话。
 - 非密钥项（origin、host、端口、路径、开关）预填真实值；**密钥留空，真实值只存在于目标机 `.env.<环境>`**，由 CI/CD 用环境级 secrets 填充。
 - 密钥不得入库、不得进镜像、不得进日志或发布记录。
 - 部署只由发布 tag 触发（`deploy-preview.yml` / `deploy-production.yml`），部署开关默认关闭，未显式开启不部署。AI 不得自行部署、不得创建/推送/移动/删除发布 tag、不得修改版本号或镜像 tag、不得触发流水线。
 - 唯一的例外路径：GitHub 计划使部署 job 按设计失败关闭时，用 `scripts/deploy-manual.mjs` 从本机部署**同一发布 tag 由 CI 构建的镜像归档**，物料取自 tag 指向的提交，核对与 CI 相同（正式还要仓库里有「批准发布」评论）。它只能在这次发布已获授权之后运行，由经授权的人，或经明确授权的 agent 执行；不得用它部署未打 tag 的提交或本机构建的镜像。
 - 发布 tag 不可移动、不可删除；创建发布 tag 需要对该版本号的明确授权，正式 tag 还需要对同一提交的预发布验收记录。
 - 禁止用 systemd、pm2 或手工 `node` 进程替代 Docker 栈；禁止在目标机手工修改运行中的栈。
+- 宿主层物料（systemd 单元、CDN 镜像、隧道看门狗）只经 `deploy/remote/install-host.sh` 由部署流水线安装并核对；GitLab 登录改接等一次性运维只经 `gitlab-cutover.yml`。开发者与 agent 不为了改线上而登录目标机，新的宿主操作先在仓库里补流水线路径和 CI 测试（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第十节）。
 
 ## 4. 证据硬门禁
 
@@ -77,6 +82,7 @@
 ## 5. 禁止事项（黑名单）
 
 - 没读完第 0 节的规范就开始开发、安装依赖、跑脚本或操作数据。
+- 在代码、工作流或宿主片段里写另一个环境的域名，或不写理由地扩大 `deploy/env/origin-exceptions.json`；预发布做了而正式没做就打正式 tag、派发 hotfix；把预发布的数据行或数据库文件复制到正式；用 `waive`、`not-applicable` 或改 `parity.mjs`、`smoke.json`、检查脚本绕过同构清单。
 - 在 `main` 上直接提交/推送，或让 task/dev 分支直接进 `main`。
 - task 分支合并后残留死分支或死 worktree、合并后关联 issue 仍开着，或新建 `main`/`stage` 之外的长期分支。
 - 在主工作区里切 task 分支开发，或在同一个 worktree 里做两个 issue。

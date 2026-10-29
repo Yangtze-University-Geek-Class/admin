@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "note": "P0 hotfix 窗口登记：main 在窗口内可以领先 stage，领先的每个提交都要在提交说明里引用窗口 issue（#N 或 task/N/）或列在 commits 里；deploy-hotfix 只接受这里 open 且没过期的 issue。窗口从所有者批准起最长 7 天，合回 stage 后改 closed。规则见 docs/conventions/BRANCHING.md。",
+  "windows": [
+    {
+      "issue": 309,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "Crosery",
+      "approvedAt": "2026-10-28T19:11:00+08:00",
+      "expiresAt": "2026-11-04T19:11:00+08:00",
+      "quote": "我们目前有很严重的线上bug，必须全部走hotfix",
+      "commits": [
+        "228be7bfe3390208644864ab9834e2cfefe3b79a"
+      ]
+    }
+  ]
+}

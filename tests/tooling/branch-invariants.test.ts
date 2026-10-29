@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -466,5 +466,129 @@ describe('pre-push guard: release tags', () => {
     });
     expect(accepted.status).toBe(0);
     expect(accepted.stdout).toContain('pre-push 分支与发布 tag 规则通过');
+  });
+});
+
+// P0 hotfix 窗口：main 在已登记的窗口内可以领先 stage，每个领先的提交都要归属于窗口。
+describe('hotfix windows', () => {
+  const window = (overrides: Record<string, unknown> = {}) => ({
+    issue: 5, tag: 'v1.2.3', status: 'open', approvedBy: 'Crosery', approvedAt: '2026-10-28T19:11:00+08:00',
+    expiresAt: '2026-11-04T19:11:00+08:00', quote: '这是一个必须走 hotfix 的 P0 问题', ...overrides,
+  });
+  const registryOf = (...windows: Record<string, unknown>[]) => JSON.stringify({ schemaVersion: 1, windows });
+  const NOW = new Date('2026-10-30T00:00:00+08:00');
+
+  /** stage 有自己的提交；main 上的第一笔提交带登记文件（可为空），其后每条消息一笔提交。 */
+  function hotfixRepo({ registry, messages }: { registry?: string; messages: string[] }) {
+    const cwd = mkdtempSync(join(tmpdir(), 'geek-hotfix-window-'));
+    roots.push(cwd);
+    git(cwd, 'init', '--initial-branch=main');
+    git(cwd, 'commit', '--allow-empty', '-m', 'baseline');
+    git(cwd, 'checkout', '-b', 'stage');
+    git(cwd, 'commit', '--allow-empty', '-m', 'stage only work');
+    git(cwd, 'checkout', 'main');
+    const shas: string[] = [];
+    messages.forEach((message, index) => {
+      if (index === 0 && registry !== undefined) {
+        mkdirSync(join(cwd, 'deploy/hotfix'), { recursive: true });
+        writeFileSync(join(cwd, 'deploy/hotfix/windows.json'), registry);
+        git(cwd, 'add', 'deploy/hotfix/windows.json');
+      }
+      git(cwd, 'commit', '--allow-empty', '-m', message);
+      shas.push(git(cwd, 'rev-parse', 'HEAD'));
+    });
+    return { cwd, shas, stageTip: git(cwd, 'rev-parse', 'stage') };
+  }
+
+  it('allows main to lead stage when every ahead commit references the open window issue', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix(deploy): 修复 (#5)', "Merge branch 'task/5/hotfix_x' into 'main'", 'docs(notes): 记录 task/5 的提交'] });
+    const result = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.notes.join('\n')).toMatch(/hotfix 窗口 #5 内 main 领先 stage 3 个提交/);
+  });
+
+  it('fails with both invariant texts when one ahead commit is not attributable to the window', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix: 修复 (#5)', 'chore: 顺手改一点别的', 'fix: 又一笔 (#50)'] });
+    const result = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(result.ok).toBe(false);
+    const joined = result.violations.join('\n');
+    for (const invariant of INVARIANTS) expect(joined).toContain(invariant);
+    expect(joined).toContain(f.shas[1].slice(0, 12));
+    expect(joined).toContain(f.shas[2].slice(0, 12));
+    expect(joined).not.toContain(f.shas[0].slice(0, 12));
+    expect(joined).toContain('#5');
+  });
+
+  it('attributes a commit that the window lists by SHA even without an issue reference', () => {
+    // 登记提交不能列自己的 SHA：被列的提交在登记之前
+    const f = hotfixRepo({ messages: ['fix: 窗口建立之前的提交，没写编号'] });
+    const registry = (commits: string[]) => registryOf(window({ commits }));
+    mkdirSync(join(f.cwd, 'deploy/hotfix'), { recursive: true });
+    writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), registry([f.shas[0]]));
+    git(f.cwd, 'add', 'deploy/hotfix/windows.json');
+    git(f.cwd, 'commit', '-m', 'chore: 登记 hotfix 窗口 (#5)');
+    expect(checkInvariants({ repo: f.cwd, now: NOW }).ok).toBe(true);
+    // 列的不是这个提交，就不归属
+    writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), registry(['0'.repeat(40)]));
+    git(f.cwd, 'commit', '-am', 'chore: 改登记 (#5)');
+    const result = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join('\n')).toContain(f.shas[0].slice(0, 12));
+  });
+
+  it('treats a closed window, an expired window and a missing or broken registry as no window', () => {
+    const messages = ['fix: 修复 (#5)'];
+    expect(checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ status: 'closed', closedAt: '2026-10-29', evidence: '已合回 stage，线上核对通过' })), messages }).cwd, now: NOW }).ok).toBe(false);
+    const expired = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window()), messages }).cwd, now: new Date('2026-11-05T00:00:00+08:00') });
+    expect(expired.ok).toBe(false);
+    expect(expired.violations.join('\n')).toContain('已超过 expiresAt');
+    expect(checkInvariants({ repo: hotfixRepo({ messages }).cwd, now: NOW }).ok).toBe(false);
+    const broken = checkInvariants({ repo: hotfixRepo({ registry: '{ not json', messages }).cwd, now: NOW });
+    expect(broken.ok).toBe(false);
+    expect(broken.violations.join('\n')).toContain('不是合法 JSON');
+  });
+
+  it('rejects a registry without the owner quote and a window longer than 7 days', () => {
+    const noQuote = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ quote: '' })), messages: ['fix (#5)'] }).cwd, now: NOW });
+    expect(noQuote.ok).toBe(false);
+    expect(noQuote.violations.join('\n')).toContain('批准原话');
+    const tooLong = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ expiresAt: '2026-11-20T00:00:00+08:00' })), messages: ['fix (#5)'] }).cwd, now: NOW });
+    expect(tooLong.ok).toBe(false);
+    expect(tooLong.violations.join('\n')).toContain('最长 7 天');
+    const notOwner = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ approvedBy: 'someone' })), messages: ['fix (#5)'] }).cwd, now: NOW });
+    expect(notOwner.ok).toBe(false);
+  });
+
+  it('keeps the strict behaviour once stage contains main, even if the window is still marked open', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)'] });
+    git(f.cwd, 'checkout', 'stage');
+    git(f.cwd, 'merge', '--no-ff', '-m', 'merge main into stage', 'main');
+    const result = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(result.ok).toBe(true);
+    expect(result.notes.join('\n')).not.toContain('hotfix 窗口');
+  });
+
+  it('pre-push: pushing a main tip that leads stage is allowed only for attributable commits', () => {
+    const ok = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)', 'docs: task/5 的记录'] });
+    const tip = ok.shas[1];
+    const allowed = checkPushes({ repo: ok.cwd, pushes: [{ localRef: 'refs/heads/main', localSha: tip, remoteRef: 'refs/heads/main', remoteSha: '0'.repeat(40) }] });
+    expect(allowed.violations).toEqual([]);
+    expect(allowed.notes.join('\n')).toContain('hotfix 窗口 #5');
+    const bad = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)', 'chore: 别的'] });
+    const refused = checkPushes({ repo: bad.cwd, pushes: [{ localRef: 'refs/heads/main', localSha: bad.shas[1], remoteRef: 'refs/heads/main', remoteSha: '0'.repeat(40) }] });
+    expect(refused.violations.join('\n')).toContain(bad.shas[1].slice(0, 12));
+    expect(refused.violations.join('\n')).toContain('P0 hotfix：先在 main 上登记窗口');
+    const noRegistry = hotfixRepo({ messages: ['fix (#5)'] });
+    expect(checkPushes({ repo: noRegistry.cwd, pushes: [{ localRef: 'refs/heads/main', localSha: noRegistry.shas[0], remoteRef: 'refs/heads/main', remoteSha: '0'.repeat(40) }] }).violations).not.toEqual([]);
+  });
+
+  it('pre-push: a stage push that lacks only window commits of main is allowed, other main commits still block it', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)'] });
+    const stage = checkPushes({ repo: f.cwd, pushes: [{ localRef: 'refs/heads/stage', localSha: f.stageTip, remoteRef: 'refs/heads/stage', remoteSha: f.stageTip }] });
+    expect(stage.violations).toEqual([]);
+    const other = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)', 'chore: 别的'] });
+    const blocked = checkPushes({ repo: other.cwd, pushes: [{ localRef: 'refs/heads/stage', localSha: other.stageTip, remoteRef: 'refs/heads/stage', remoteSha: other.stageTip }] });
+    expect(blocked.violations.join('\n')).toContain(INVARIANTS[0]);
   });
 });

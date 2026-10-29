@@ -5,6 +5,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSyncMap, parseWaivers, waives } from "./check-doc-sync.mjs";
+import { activeWindows, readRegistryAt } from "./hotfix-windows.mjs";
 import { parsePrSections } from "./pr-markdown.mjs";
 
 export const DIMENSIONS = ["business", "backend", "permissions", "data", "dependencies", "documentation", "verification", "delivery"];
@@ -244,6 +245,26 @@ export function inspectChange({ root, base = "origin/stage", head, branch, body 
   return { ...result, base: ancestor, head: head ? headSha : "working-tree", branch };
 }
 
+/**
+ * hotfix 分支的默认基线：分支从 `origin/main` 拉出，按 `origin/stage` 比会把 main 自己的提交算进本次改动。
+ * 只有这个 task 的 issue 在窗口登记里开着（登记读 `origin/main` 那份，本地还没合入时读 HEAD）才改用 `origin/main`；
+ * 常规 task 分支、没有窗口、登记读不到时仍是 `origin/stage`。
+ */
+export function hotfixBase(registry, branch, now = new Date()) {
+  const issue = TASK.exec(branch ?? "")?.[1];
+  if (!issue) return null;
+  return activeWindows(registry, now).some((item) => String(item.issue) === issue) ? "origin/main" : null;
+}
+
+function defaultBase(root, branch, explicit) {
+  if (explicit) return explicit;
+  let registry = null;
+  try { registry = readRegistryAt(root, "origin/main") ?? readRegistryAt(root, "HEAD"); } catch { registry = null; }
+  const base = hotfixBase(registry, branch);
+  if (!base) return "origin/stage";
+  try { commit(root, base); return base; } catch { return "origin/stage"; }
+}
+
 function main() {
   const options = {};
   const allowed = new Set(["root", "base", "head", "branch", "body-file", "report"]);
@@ -258,7 +279,7 @@ function main() {
     console.log("非任务检出：逐 PR 宏观对齐由 architecture-alignment 检查；目录新鲜度仍由 check:catalog 核对。"); return;
   }
   const body = options["body-file"] ? readFileSync(options["body-file"], "utf8") : null;
-  const result = inspectChange({ root, base: options.base, head: options.head, branch, body });
+  const result = inspectChange({ root, base: defaultBase(root, branch, options.base), head: options.head, branch, body });
   if (options.report) writeFileSync(resolve(options.report), `${JSON.stringify(result, null, 2)}\n`);
   for (const error of result.errors) console.error(`宏观对齐：${JSON.stringify(error)}`);
   console.log(`宏观对齐${result.ok ? "通过" : "失败"}：#${result.issue}，${result.changedFiles.length} 个变更文件，${result.affectedNodeIds.length} 个关联节点。`);

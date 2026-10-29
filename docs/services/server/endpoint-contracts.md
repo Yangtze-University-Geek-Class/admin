@@ -2,7 +2,7 @@
 
 > 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，区分存量人工说明与已挂载的机器响应契约。
 
-状态：`current` · 更新：2026-10-27
+状态：`current` · 更新：2026-10-28
 
 ## 口径与共同边界
 
@@ -286,20 +286,6 @@ GitHub #271 回归后的成员口径：active 账号的当前有效直接 level.
 本地表读取：applications, feedback, activity_events, users。本地表写入：无。
 
 源码：[app/server/src/routes/console/me.ts](../../../app/server/src/routes/console/me.ts)。验证入口：[tests/server/console.test.ts](../../../tests/server/console.test.ts)。
-
-## 读取部门及成员计数
-
-`GET /api/console/departments` · `flow:organization.departments.list`
-
-权限与资源：需要节点 console.access（#274 切到权限节点体系，不再是旧的 requireCapability），读取全部部门配置；不是仅本人部门。
-
-响应与错误：200 {departments}，含heads和crew_count，也保留归档标记。
-
-数据与副作用：只读 departments 与 role_assignments（部门是固定清单，#274 起控制台不再支持新建/改名/归档/删除，旧的写路由已删）；写权限包不在此入口。
-
-本地表读取：departments, role_assignments。本地表写入：无。
-
-源码：[app/server/src/routes/console/departments.ts](../../../app/server/src/routes/console/departments.ts)。验证入口：[tests/server/console.test.ts](../../../tests/server/console.test.ts)。
 
 ## 新权限体系：节点、权限组、用户列表与操作记录（控制台，#274 CONTRACT §4、§5）
 

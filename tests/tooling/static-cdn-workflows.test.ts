@@ -79,7 +79,7 @@ describe('deploy workflows', () => {
     for (const [name, text] of Object.entries(workflows)) {
       expect(job(text, 'cdn-plan'), name).toContain(`node scripts/static-cdn.mjs decide --origin "$ORIGIN" >> "$GITHUB_OUTPUT"`);
       const build = job(text, 'build');
-      expect(build, name).toMatch(/\n {4}needs: \[plan, (?:evidence, )?cdn-plan\]\n/);
+      expect(build, name).toMatch(/\n {4}needs: \[plan, (?:evidence, )?cdn-plan(?:, parity)?\]\n/);
       expect(build, name).toContain('          STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}\n');
       // 三个镜像都带这个构建参数：web、forum 的前端产物，server 里内置表情图片的地址（#286）。
       expect(build, name).toContain('            cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE")\n');

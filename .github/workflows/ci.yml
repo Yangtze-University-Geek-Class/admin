@@ -151,6 +151,9 @@ jobs:
         shell: bash
         run: pnpm check
 
+      - name: 准备离线 CLI 集成测试依赖（锁文件不可变）
+        run: cargo fetch --manifest-path app/cli/Cargo.toml --locked
+
       - name: 单元测试与覆盖率（pnpm run test --coverage）
         shell: bash
         run: pnpm run test --coverage

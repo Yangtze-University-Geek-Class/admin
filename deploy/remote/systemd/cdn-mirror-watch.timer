@@ -1,0 +1,10 @@
+[Unit]
+Description=CDN mirror freshness watch schedule
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+Unit=cdn-mirror-watch.service
+
+[Install]
+WantedBy=timers.target

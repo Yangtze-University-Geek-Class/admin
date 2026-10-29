@@ -1,0 +1,19 @@
+# GitLab 上唯一的流水线：hotfix 的 MR 合进 main 之后，自动把 main 合回 stage，保证 stage >= main。
+# 逻辑和冲突处理都在 scripts/hotfix-sync.mjs（有测试），这里只负责在 main 更新后调用它。
+# 默认关闭：项目 CI/CD 变量 HOTFIX_SYNC_ENABLED 设为 true 才运行；还要求项目允许 CI job token 推送仓库，
+# 并且 GitHub 一侧由 GitLab 的推送镜像同步（docs/conventions/BRANCHING.md「hotfix 合并后的自动同步」）。
+workflow:
+  rules:
+    - if: '$HOTFIX_SYNC_ENABLED == "true" && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+
+hotfix-sync:
+  tags: [macos, arm64]
+  timeout: 15 minutes
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - git config user.name "hotfix-sync"
+    - git config user.email "hotfix-sync@users.noreply.invalid"
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - node scripts/hotfix-sync.mjs plan --source origin --mirror origin
+    - node scripts/hotfix-sync.mjs apply --source origin --mirror origin

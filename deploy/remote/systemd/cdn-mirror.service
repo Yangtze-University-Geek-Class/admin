@@ -1,0 +1,18 @@
+[Unit]
+Description=CDN mirror (Garage to Arch, read-only pull)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/cdn-mirror/env
+ExecStart=/bin/bash /opt/yzgc/tools/cdn-mirror.sh run
+# 可选：/etc/cdn-mirror/hosts 只给这个服务看，用来让镜像绕开直连香港存储机的差路径（Arch 直连往返 230 ms、重传严重），
+# 改走香港边缘；不改全局 hosts，也不碰 DNS。文件不存在就按正常解析。
+# nsswitch 里 resolve 排在 files 前面，glibc 会问 systemd-resolved（看不到这份私有 hosts）；GODEBUG=netdns=go 让 rclone 自己先读 /etc/hosts。
+BindReadOnlyPaths=-/etc/cdn-mirror/hosts:/etc/hosts
+Environment=GODEBUG=netdns=go
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=2h

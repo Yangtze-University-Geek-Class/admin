@@ -2,11 +2,11 @@
   "version": 1,
   "issue": 284,
   "kind": "business",
-  "summary": "招新总开关与宣传片窗口（所有者 2026-10-25 00:15「投递的话可以选择开启和关闭，关闭的时候会有个单独的页面，然后就是里面的宣传视频播放要是那种窗口的播放器形式」）：控制台「投递」页顶部加开关（权限 apply.settings，仅所有者；二次验证、确认、写操作记录），关闭后官网「加入我们」窗口整个换成关闭页，服务端拒绝新的投递（403 apply_closed，不占每日额度）；官网宣传片从全屏层改成桌面窗口，沿用桌面已有的窗口管理（关闭、最小化、恢复、手机底部面板），首次自动弹出的条件不变。",
+  "summary": "按既有 GitHub #284 恢复 stage>=main：将已审查的同版本 P0 hotfix（GitLab !51/!52、main 86e504ac）通过受保护 task PR 合回 stage。不直推 stage、不取消必需检查；完整声明被合回的部门死接口删除、环境隔离、同构/发布门禁和宿主运维路径，避免把携带业务源码的同步伪称为纯文档。",
   "applications": [
     "server",
-    "console",
-    "web"
+    "web",
+    "console"
   ],
   "domains": [
     "audit",
@@ -16,304 +16,519 @@
     "github",
     "gitlab",
     "identity",
-    "invitations",
     "mail",
     "organization",
     "permissions",
     "platform",
-    "public_content",
     "recruitment"
   ],
   "flows": [
+    "flow:competition.create",
+    "flow:mail.template.list",
+    "flow:console.forum.categories.list",
+    "flow:gitlab.accounts.list",
     "flow:application.settings.read",
-    "flow:application.settings.update",
-    "flow:application.submit",
-    "flow:application.list",
-    "flow:identity.current",
-    "flow:identity.account.view",
-    "flow:identity.invite.redeem",
-    "flow:competition.public.list",
-    "flow:feedback.public.list",
-    "flow:documentation.list",
-    "flow:gitlab.projects.public.list",
-    "flow:audit.console.activity.list",
-    "flow:console.summary",
-    "flow:competition.console.list",
-    "flow:competition.update",
-    "flow:identity.invites.list",
-    "flow:permissions.nodes.list",
     "flow:permissions.groups.list",
-    "flow:identity.callback",
-    "flow:platform.public_config",
-    "flow:audit.events.report"
+    "flow:audit.console.activity.list",
+    "flow:feedback.categories",
+    "flow:identity.callback"
   ],
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "投递多了总开关：关闭后官网「加入我们」窗口是独立的关闭页、没有表单，服务端拒绝新的投递，重新开放后恢复；每天 3 份的额度不是总开关，规则不变。宣传片改成桌面窗口，自动弹出的条件、只弹一次的 cookie 和视频来源不变。",
+      "reason": "携带 main 已有的 GET /api/console/departments 死接口删除；控制台实际消费者仍使用 public/departments，其他已登记流程保持原行为。同步本身不新增业务规则。",
       "evidence": [
-        "app/server/src/lib/apply-settings.ts",
-        "app/server/src/routes/portal/apply.ts",
-        "app/web/sites/portal/components/os/JoinClosed.tsx",
-        "app/web/sites/portal/lib/promoWindow.ts"
+        "app/server/src/routes/console/index.ts",
+        "tests/server/console.test.ts"
       ]
     },
     "backend": {
       "status": "changed",
-      "reason": "新增 GET 与 PATCH /api/console/applications/settings；GET /api/public/config 多一个布尔字段 apply_open；POST /api/portal/apply 在开关关闭时回 403 apply_closed，不写 applications、不占额度。接口契约、响应 Schema 和错误码都写进了契约表。",
+      "reason": "合回 console 路由注册与契约的既有删除，不新增接口。原部门表和 public/departments 保留，回归明确旧入口为 404。",
       "evidence": [
-        "app/server/src/routes/console/applications.ts",
         "app/server/src/routes/console/contracts.ts",
-        "app/server/src/routes/portal/apply.ts",
-        "app/server/src/routes/portal/public-config.ts"
+        "app/server/src/routes/console/index.ts",
+        "tests/server/console.test.ts"
       ]
     },
     "permissions": {
       "status": "changed",
-      "reason": "新增权限节点 apply.settings，默认只有所有者；读取开关用已有的 apply.view，修改要 apply.settings、二次验证并写操作记录。官网 /api/public/config 匿名可读，只带一个布尔值。",
+      "reason": "移除无消费者的 console.access 只读入口；hotfix 窗口限定批准 issue/tag/有效期，保留生产审批和受保护 stage 的 PR/检查，不扩大业务权限。",
       "evidence": [
-        "app/server/src/lib/permission-nodes.ts",
-        "app/server/src/routes/console/applications.ts"
+        "app/server/src/lib/roles.ts",
+        "scripts/check-branch-invariants.mjs",
+        "scripts/hotfix-windows.mjs"
       ]
     },
     "data": {
-      "status": "changed",
-      "reason": "没有新表和新列：开关存在已有的 app_state 表（键 apply_open，值 1 或 0），没有这一行就是开放，所以老数据和未配置的环境行为不变。关闭期间被拒的请求不写 applications，也不占投递额度。",
+      "status": "unchanged",
+      "reason": "合回范围没有表结构和存储格式变化，departments 数据不动。迁移脚本缺省演算且本 PR 不执行，身份主体只可按稳定 provider 身份对账；不复制预发布用户记录覆盖正式。",
       "evidence": [
-        "app/server/src/lib/apply-settings.ts",
-        "docs/services/server/data-model.md"
+        "app/server/src/routes/console/index.ts",
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        "deploy/parity/smoke.json"
       ]
     },
     "dependencies": {
-      "status": "unchanged",
-      "reason": "没有新增依赖，package.json 和锁文件没动；官网窗口播放器继续用已有的 hls.js 精简版，控制台开关用已有的 Tuffex 组件。",
+      "status": "changed",
+      "reason": "带回 main 的同版本 0.1.1 包标识和 GitHub hotfix/cutover 工作流、环境隔离命令；不改变依赖集合或锁文件。宿主安装和 GitLab 操作仍由受保护流水线控制，本 PR 合并不部署。",
       "evidence": [
-        "app/server/src/lib/apply-settings.ts",
-        "app/web/sites/portal/components/PromoPlayer.tsx"
+        "package.json",
+        "app/server/package.json",
+        ".github/workflows/deploy-hotfix.yml"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "服务端合同、接口契约表、API 与安全文档写明开关的接口、权限和关闭时的错误码；控制台文档写投递页开关；官网文档重写宣传片一节并写关闭页；设计文档里的宣传片段落改成窗口。",
+      "reason": "main 的服务接口、环境、同构、发布与运维文档随同源码合回；本声明覆盖完整 stage 差异，不把 GitLab #309 当作 GitHub 同号 issue。",
       "evidence": [
         "docs/services/server/endpoint-contracts.md",
-        "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md",
-        "docs/services/console/README.md",
-        "docs/services/web/portal.md",
-        "docs/design/DESIGN.md"
+        "docs/conventions/BRANCHING.md",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "服务端、控制台、官网各有回归测试，覆盖开关的读写与权限、关闭时拒绝投递且不占额度、关闭页没有表单、宣传片窗口的开关与状态机、手机面板；红绿对照过多处改坏源码的变体。未验证：真实浏览器里窗口的最小化恢复、手机 390 宽面板和 e2e，本机没有启动浏览器。",
+      "reason": "携带同步回归并修复真实 CI 暴露的临时 Git 身份隔离；所有断言保留。新的 CI 已有2955条通过，但两个真实 Rust CLI 用例因冷 Cargo 缓存缺 anyhow 被 --offline 拒绝，因此 core/hotfix-core 在测试前按 Cargo.lock 执行 cargo fetch --locked，离线测试约束不变。不用开发机暖缓存或 Docker job 的独立缓存伪称本 job 已准备。",
       "evidence": [
-        "tests/server/apply-switch.test.ts",
-        "tests/console/applications.test.ts",
-        "tests/web/portal-apply-switch.test.tsx",
-        "tests/web/portal-promo-desktop.test.tsx",
-        "tests/web/portal-promo-window.test.ts"
+        "tests/tooling/hotfix-sync.test.ts",
+        "tests/tooling/env-isolation.test.ts",
+        "tests/server/console.test.ts"
       ]
     },
     "delivery": {
-      "status": "unchanged",
-      "reason": "不改镜像、部署、环境变量和发布流程；开关存在业务库里，上线后默认开放，需要时由所有者在控制台操作。",
+      "status": "changed",
+      "reason": "受保护 stage 仅由本 task PR 合回 main，窗口不豁免必需检查。GitLab stage 已含 main；GitHub 合并后再将两仓 stage 对齐。不创建发布 tag、不触发预发布、不改 DNS 或线上栈。",
       "evidence": [
-        "app/server/src/services.ts"
+        ".github/workflows/deploy-hotfix.yml",
+        "deploy/hotfix/windows.json",
+        "scripts/hotfix-sync.mjs"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "app/server/src/lib/apply-settings.ts",
-        "app/server/src/services.ts",
-        "app/server/src/routes/console/applications.ts",
-        "app/server/src/routes/console/contracts.ts",
-        "app/server/src/lib/permission-nodes.ts",
-        "tests/server/apply-switch.test.ts"
+        "scripts/check-env-isolation.mjs",
+        "deploy/env/.env.dev",
+        "deploy/env/origin-exceptions.json",
+        ".env.example",
+        "package.json",
+        "tests/tooling/env-isolation.test.ts"
       ],
       "domains": [
-        "recruitment",
-        "platform",
-        "audit",
-        "permissions",
-        "competitions",
-        "feedback",
-        "forum",
-        "gitlab",
-        "identity",
-        "organization",
-        "mail"
+        "platform"
       ],
       "nodes": [
-        "application:server",
-        "flow:application.settings.read",
-        "flow:application.settings.update"
+        "application:server"
       ],
-      "reason": "控制台读写招新总开关：读要 apply.view，改要 apply.settings 加二次验证，改动写操作记录；开关值存在 app_state。"
+      "reason": "环境隔离检查与第三份 env 模板：键集一致、值互相隔离、代码里的环境域名登记；接入 pnpm check。"
     },
     {
       "paths": [
-        "app/server/src/routes/portal/apply.ts",
-        "app/server/src/routes/portal/public-config.ts"
+        "deploy/gitlab/gitlab-oidc.rb",
+        "scripts/deploy-manual.mjs"
       ],
       "domains": [
-        "recruitment",
-        "platform",
-        "public_content"
+        "platform"
       ],
       "nodes": [
-        "application:server",
-        "flow:application.submit"
+        "application:server"
       ],
-      "reason": "投递接口在开关关闭时回 403 apply_closed 且不落库不占额度；公开配置带出 apply_open 给官网。"
+      "reason": "去掉写死的预发布签发者（改读宿主文件）和手工部署工具里写死的预发布 origin（改读 deploy/environments.json）。"
     },
     {
       "paths": [
-        "app/console/src/lib/activity.ts",
-        "app/console/src/lib/applications.ts",
-        "app/console/src/lib/permission-nodes.ts",
-        "app/console/src/lib/types.ts",
-        "app/console/src/mock/console.ts",
-        "app/console/src/pages/Applications.vue",
-        "tests/console/applications.test.ts"
+        "scripts/parity.mjs",
+        "deploy/parity/ledger.json",
+        "deploy/parity/smoke.json",
+        "tests/tooling/parity.test.ts"
       ],
       "domains": [
-        "organization",
-        "recruitment",
-        "feedback",
-        "github",
-        "audit",
-        "competitions",
-        "platform",
-        "permissions"
+        "platform"
       ],
       "nodes": [
-        "application:console",
-        "flow:application.settings.read",
-        "flow:application.settings.update",
-        "flow:application.list",
-        "flow:console.summary",
-        "flow:audit.console.activity.list"
+        "application:server"
       ],
-      "reason": "投递管理页顶部的开关：读取状态、确认后修改、没有 apply.settings 时只读，操作记录里认得新的动作名；类型、样板数据和权限节点清单是控制台各页共用的文件，这次只加了开关相关的条目，其它页面不变。"
+      "reason": "预发布到正式的同构清单与发版烟测，含内部赛事官网的 require 与 mirror 检查。"
     },
     {
       "paths": [
-        "app/web/shared/lib/mock-api.ts",
-        "app/web/sites/portal/lib/applyOpen.ts",
-        "app/web/sites/portal/lib/osApps.ts",
-        "app/web/sites/portal/components/os/JoinBox.tsx",
-        "app/web/sites/portal/components/os/JoinClosed.tsx",
-        "app/web/sites/portal/components/os/Widgets.tsx",
-        "tests/web/portal-apply-switch.test.tsx",
-        "app/web/sites/portal/lib/promo.ts",
-        "app/web/sites/portal/lib/promoWindow.ts",
-        "app/web/sites/portal/components/PromoLazy.tsx",
-        "app/web/sites/portal/components/PromoPlayer.tsx",
-        "app/web/sites/portal/components/os/Windows.tsx",
-        "app/web/sites/portal/components/os/YugcOs.tsx",
-        "app/web/sites/portal/styles/os.css",
-        "app/web/sites/portal/styles/promo.css",
-        "tests/web/portal-promo.test.ts",
-        "tests/web/portal-promo-desktop.test.tsx",
-        "tests/web/portal-promo-gate.test.tsx",
-        "tests/web/portal-promo-lazy.test.tsx",
-        "tests/web/portal-promo-player.test.tsx",
-        "tests/web/portal-promo-window.test.ts",
-        "tests/e2e/workflows.spec.ts"
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/static-cdn-workflows.test.ts"
       ],
       "domains": [
-        "public_content",
-        "recruitment",
-        "feedback",
-        "invitations",
-        "organization",
-        "identity",
-        "platform",
-        "competitions"
+        "platform"
       ],
       "nodes": [
-        "application:web",
-        "flow:application.submit",
-        "flow:identity.current",
-        "flow:identity.account.view",
-        "flow:identity.invite.redeem",
-        "flow:competition.public.list",
-        "flow:feedback.public.list",
-        "flow:documentation.list",
-        "flow:gitlab.projects.public.list"
+        "application:server"
       ],
-      "reason": "官网读 apply_open：关着时「加入我们」窗口是独立的关闭页，桌面图标说明、便签和「关于」窗口不再叫人报名；宣传片从全屏层改成桌面窗口，沿用窗口管理，自动弹出的条件不变。桌面外壳和 lib 是各应用共用的文件，这次只动了加入我们和宣传片，其它窗口的行为不变。"
+      "reason": "两条正式部署工作流新增 parity 门禁 job 与部署后的 smoke job，build 依赖 parity。"
     },
     {
       "paths": [
-        "docs/architecture/catalog/ownership.json",
-        "docs/architecture/catalog/catalog.json",
+        "AGENTS.md",
+        "docs/conventions/RELEASE-PARITY.md",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/CODE-REVIEW.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/README.md",
+        "docs/INDEX.md",
+        ".github/pull_request_template.md",
+        ".agents/skills/release-parity/SKILL.md",
+        ".agents/skills/code-review/SKILL.md",
+        ".claude/skills/release-parity",
+        ".omp/skills/release-parity"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "硬规范与提示词规范：根入口、发布与分支规范、审查清单、阅读地图、PR 模板和 agent 技能同步写入同构规则。"
+    },
+    {
+      "paths": [
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/ENVIRONMENT.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/GITLAB.md",
+        "docs/ops/RELEASE-ACCEPTANCE-TEMPLATE.md",
+        "docs/services/server/oidc.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "运维文档同步：三份 env 与差异键、parity 与 smoke job、GitLab 签发者读宿主文件及哈希表、验收模板加同构核对。"
+    },
+    {
+      "paths": [
         "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
         "docs/architecture/catalog/data-model.md",
         "docs/architecture/catalog/map.html",
         "docs/architecture/catalog/permissions.md",
         "docs/architecture/catalog/routes.md"
       ],
       "domains": [
-        "recruitment",
         "platform"
       ],
       "nodes": [
-        "application:server",
-        "flow:application.settings.read",
-        "flow:application.settings.update",
-        "flow:application.submit"
+        "domain:platform"
       ],
-      "reason": "目录里投递相关能力的证据锚点和测试入口，跟着新的开关与宣传片窗口更新。"
+      "reason": "服务与运维文档更新后重新生成的项目目录，只有来源摘要变化（生成物，由 catalog:generate 产出，不手工编辑）。"
     },
     {
       "paths": [
-        "docs/architecture/API.md",
-        "docs/architecture/SECURITY.md",
-        "docs/design/DESIGN.md",
-        "docs/services/console/README.md",
-        "docs/services/server/data-model.md",
-        "docs/services/server/endpoint-contracts.md",
-        "docs/services/server/README.md",
-        "docs/services/web/portal.md"
+        "app/server/src/routes/console/index.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/departments.ts",
+        "app/server/src/lib/roles.ts",
+        "tests/server/console.test.ts",
+        "docs/architecture/catalog/ownership.json"
       ],
       "domains": [
-        "recruitment",
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:audit",
+        "domain:competitions",
+        "domain:feedback",
+        "domain:forum",
+        "domain:gitlab",
+        "domain:identity",
+        "domain:mail",
+        "domain:organization",
+        "domain:permissions",
+        "domain:platform",
+        "domain:recruitment"
+      ],
+      "reason": "删除没有任何页面调用的 GET /api/console/departments：路由文件、注册、contracts 条目、业务流程声明、测试（改为断言 404）和 roles.ts 里的说明。表与数据不动。 console 的 contracts.ts、index.ts 与 roles.ts 同时是多个业务域路由记录的源码文件，这些域的行为都没有变，只是少了一条路由和一处说明。"
+    },
+    {
+      "paths": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/data-model.md",
+        "docs/architecture/API.md"
+      ],
+      "domains": [
+        "organization"
+      ],
+      "nodes": [
+        "domain:organization"
+      ],
+      "reason": "服务端合同与接口手册去掉已删除的部门接口；API.md 里早已不存在的部门写接口三行一并去掉，data-model 的读者改指向 GET /api/public/departments。"
+    },
+    {
+      "paths": [
+        "deploy/remote/systemd/yzgc-compose@.service",
+        "deploy/remote/systemd/hk-tunnel-watchdog.service.d/tolerate-loss.conf",
+        "docs/ops/DEPLOY.md"
+      ],
+      "domains": [
         "platform"
       ],
       "nodes": [
-        "application:server",
-        "application:console",
-        "application:web"
+        "domain:platform"
       ],
-      "reason": "接口、权限、数据、控制台与官网文档同步写明招新总开关和宣传片窗口。"
+      "reason": "Arch 站点编排单元对 egress 改 Wants、隧道看门狗容忍丢包：隧道抖动不再把六个站点容器停掉再拉起。已装到 Arch，回滚文件和命令写在 DEPLOY.md。"
+    },
+    {
+      "paths": [
+        "deploy/remote/cdn-mirror.sh",
+        "deploy/remote/systemd/cdn-mirror.service",
+        "deploy/remote/systemd/cdn-mirror.timer",
+        "deploy/remote/systemd/cdn-mirror-watch.service",
+        "deploy/remote/systemd/cdn-mirror-watch.timer",
+        "docs/ops/STORAGE-CDN.md",
+        "tests/tooling/cdn-mirror.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "Garage 单副本没有备份：Arch 每天用只读密钥单向镜像五个桶，被覆盖或删除的对象进回收目录保留 14 天，逐桶核验对象数、字节数和逐对象校验，每小时检查新鲜度。只读，不改 Garage，不改应用。"
+    },
+    {
+      "paths": [
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        "tests/tooling/oidc-subject-migration.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GitLab 改接正式前搬 sub：只按不可变身份对账，缺省只演算，--apply 才新增行，冲突整批拒绝；一次性运维脚本，不安装、不进应用代码。"
+    },
+    {
+      "paths": [
+        "deploy/remote/install-host.sh",
+        "deploy/remote/cdn-mirror.hosts",
+        ".github/workflows/deploy-preview.yml",
+        "tests/tooling/install-host.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "宿主层物料（systemd 单元、看门狗覆盖项、CDN 镜像）改由部署工作流在栈部署后安装并核对，开发者不再需要登录目标机；镜像凭据由环境 secret 经 stdin 写入。"
+    },
+    {
+      "paths": [
+        "deploy/gitlab/cutover.sh",
+        ".github/workflows/gitlab-cutover.yml",
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/hosted-runners.test.ts",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GitLab 统一登录改接的宿主侧步骤放进手动触发的工作流（production 审批，缺省演算），含登记客户端、搬 sub、换签发者、回滚，假 docker 与 curl 的 CI 测试。"
+    },
+    {
+      "paths": [
+        "AGENTS.md",
+        ".agents/skills/release-parity/SKILL.md",
+        "docs/conventions/RELEASE-PARITY.md",
+        "scripts/parity.mjs",
+        "tests/tooling/parity.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "规范：宿主与一次性运维必须有流水线路径；同构清单增加 post_deploy 阶段和 check --complete。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "SECURITY、server 服务合同更新后重新生成的项目目录，只有来源摘要变化（生成物，由 catalog:generate 产出，不手工编辑）。"
+    },
+    {
+      "paths": [
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/hotfix-policy.mjs",
+        "tests/tooling/hotfix-policy.test.ts",
+        "tests/tooling/hosted-runners.test.ts",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "P0 hotfix 独立入口绑定 main 完整 SHA 与不变正式 tag，保留生产审批、备份、CDN、镜像校验和回滚；测试拒绝非 main、漂移、错误版本及缺生产证据。"
+    },
+    {
+      "paths": [
+        "app/console/package.json",
+        "app/server/package.json",
+        "app/web/package.json",
+        "package.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "保持 v0.1.1 版本锚点，包内容与依赖不变；发布身份由 hotfix workflow 使用真实修复 SHA 标识。"
+    },
+    {
+      "paths": [
+        "scripts/hotfix-windows.mjs",
+        "deploy/hotfix/windows.json",
+        "scripts/check-branch-invariants.mjs",
+        "scripts/hotfix-policy.mjs",
+        "tests/tooling/branch-invariants.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "scripts/hotfix-sync.mjs",
+        "tests/tooling/hotfix-sync.test.ts",
+        ".gitlab-ci.yml",
+        "AGENTS.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/RELEASES.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/CICD.md",
+        "deploy/parity/ledger.json",
+        "tests/tooling/parity.test.ts",
+        "scripts/check-architecture.mjs",
+        "tests/tooling/architecture-alignment.test.ts",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "tests/tooling/task-worktree.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "hotfix 窗口登记限定已批准、未过期的 P0，分支门禁与 pre-push 同源判定；同步在唯一临时分支准备合并，非生成物冲突和已知镜像分叉在任何推送前失败。保留 Git 钩子与既有分支；关闭窗口只在 main 提交登记，再合回 stage，不把 stage 未发布功能带进 main。GitLab 流水线默认关闭地调用它。"
+    },
+    {
+      "paths": [
+        "tests/tooling/hotfix-sync.test.ts",
+        "docs/conventions/TESTING.md"
+      ],
+      "domains": ["platform"],
+      "nodes": ["domain:platform"],
+      "reason": "真实 CI 暴露的夹具隔离缺陷：提交身份只配置在临时仓库供 worktree 继承，不改生产同步脚本，不增设全局身份，不删断言或放宽门禁；测试规范给出无全局配置的验证命令。"
+    },
+    {
+      "paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "docs/ops/CICD.md"
+      ],
+      "domains": ["platform"],
+      "nodes": ["domain:platform"],
+      "reason": "补齐新 runner 的真实验证前置：核心与 hotfix-core 先按既有 Cargo.lock 预取依赖，再运行原有离线 CLI 行为测试，不更改依赖版本、测试断言、离线约束或失败关闭规则。"
+    },
+    {
+      "paths": [
+        "docs/changes/306.json",
+        "docs/changes/309.json",
+        "docs/history/changes/gitlab/284.json",
+        "docs/history/changes/gitlab/284.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "同步 main 中已审查的 hotfix 声明；原 docs/changes/284.json 属于 GitLab 招新与宣传片事项，按既有 #270 模式逐字保存在 docs/history/changes/gitlab/284.json 并附 SHA-256，不改写历史为本次同步。"
     }
   ],
   "documents": [
-    "docs/services/server/endpoint-contracts.md",
     "docs/architecture/API.md",
-    "docs/architecture/SECURITY.md",
-    "docs/services/server/README.md",
+    "docs/conventions/RELEASE-PARITY.md",
+    "docs/conventions/TESTING.md",
+    "docs/ops/CICD.md",
+    "docs/ops/DEPLOY.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/GITLAB.md",
+    "docs/ops/STORAGE-CDN.md",
     "docs/services/server/data-model.md",
-    "docs/services/console/README.md",
-    "docs/services/web/portal.md",
-    "docs/design/DESIGN.md"
+    "docs/services/server/endpoint-contracts.md",
+    "docs/conventions/BRANCHING.md",
+    "docs/conventions/RELEASES.md"
   ],
   "tests": [
-    "tests/server/apply-switch.test.ts",
-    "tests/console/applications.test.ts",
-    "tests/web/portal-apply-switch.test.tsx",
-    "tests/web/portal-promo-desktop.test.tsx",
-    "tests/web/portal-promo-window.test.ts",
-    "tests/web/portal-promo-gate.test.tsx",
-    "tests/web/portal-promo-player.test.tsx",
-    "tests/web/portal-promo-lazy.test.tsx",
-    "tests/e2e/workflows.spec.ts"
+    "tests/server/console.test.ts",
+    "tests/tooling/env-isolation.test.ts",
+    "tests/tooling/parity.test.ts",
+    "tests/tooling/static-cdn-workflows.test.ts",
+    "tests/tooling/cdn-mirror.test.ts",
+    "tests/tooling/oidc-subject-migration.test.ts",
+    "tests/tooling/install-host.test.ts",
+    "tests/tooling/gitlab-cutover.test.ts",
+    "tests/tooling/hosted-runners.test.ts",
+    "tests/tooling/hotfix-policy.test.ts",
+    "tests/tooling/branch-invariants.test.ts",
+    "tests/tooling/hotfix-sync.test.ts",
+    "tests/tooling/task-worktree.test.ts"
   ],
-  "compatibility": "接口只加不改：旧客户端读 /api/public/config 多一个布尔字段不受影响，读不到或没有这个字段官网按开放处理；POST /api/portal/apply 只在开关关闭时多一种 403，开放时行为不变。控制台和官网随同一个镜像发布。",
-  "migration": "没有数据迁移，不加表不加列；开关是 app_state 里的一行，没有这一行就是开放，上线后默认开放，所有者需要时在控制台「投递」页顶部打开或关闭。",
-  "rollback": "回滚这次合并、换回上一版镜像即可：官网回到全屏宣传片和始终开放的「加入我们」，控制台没有开关；app_state 里留着的 apply_open 一行没有程序读它，无害。"
+  "removals": [
+    {
+      "path": "app/server/src/routes/console/departments.ts",
+      "baseAnchor": "app.get(\"/api/console/departments\"",
+      "reason": "没有任何页面、CLI、脚本或外部协议调用的只读接口；控制台读部门名册走 GET /api/public/departments。业务流程 organization.departments.list 随路由一并删除，departments 表与数据不动。",
+      "domains": [
+        "organization"
+      ]
+    }
+  ],
+  "compatibility": "同步 main 已有的 API 清理与门禁；消费者继续使用公开部门接口，不改变身份、论坛或赛事数据。三个包只恢复既有正式版本锚点 0.1.1，运行依赖不变。",
+  "migration": "本 PR 不执行业务迁移或线上操作；表结构保持原样，主体迁移与 GitLab 单写者切换必须在后续获批流水线演算、对账后执行。",
+  "rollback": "如同步存在缺陷，以新的受审查 PR revert 本同步合并，不重写 main/stage、不移动发布 tag、不以旧数据库覆盖真实新写入。"
 }

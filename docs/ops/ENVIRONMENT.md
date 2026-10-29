@@ -2,9 +2,9 @@
 
 > 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。
 
-状态：`current` · 更新：2026-10-24 · 本机开发专用；**部署**环境的字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)
+状态：`current` · 更新：2026-10-28 · 本机开发专用；**部署**环境的字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)
 
-只做 UI 预览使用根 `pnpm dev:web`，无需以下配置。需要真实本地后端时，由操作者在仓库根创建自己的 `.env`，使用本地专用 OAuth 应用和数据库，不能复制生产凭据或数据。
+本机调试的完整键集在入库的 [deploy/env/.env.dev](../../deploy/env/.env.dev)（脱敏，密钥留空，只含回环地址），与正式、预发布两份同一套键，`pnpm check:env-isolation` 核对；下面是需要手填的最小占位。只做 UI 预览使用根 `pnpm dev:web`，无需以下配置。需要真实本地后端时，由操作者在仓库根创建自己的 `.env`，使用本地专用 OAuth 应用和数据库，不能复制生产凭据或数据。
 
 ```dotenv
 NODE_ENV=development

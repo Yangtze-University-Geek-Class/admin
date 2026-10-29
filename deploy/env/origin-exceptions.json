@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "note": "代码和部署片段里允许写死环境域名的文件。只登记确需写死的位置，写理由和次数上限；only 限定该文件只能出现一个环境的域名。新增写死位置要先审，再改这里。",
+  "exceptions": [
+    {
+      "file": ".github/workflows/cert-watch.yml",
+      "max": 4,
+      "reason": "两个环境的证书到期都要监控，名单必须同时列出两个域名"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "max": 2,
+      "reason": "注释：说明 CI 不部署任何环境"
+    },
+    {
+      "file": ".github/workflows/deploy-production.yml",
+      "max": 2,
+      "reason": "证据 job 读预发布 release.json，核对正式 tag 对应的 rc 提交仍在预发布运行"
+    },
+    {
+      "file": "app/cli/src/config.rs",
+      "max": 8,
+      "reason": "命令行的编译期默认源站：默认正式，--env preview 指向预发布，用户机器上没有 env 文件可读"
+    },
+    {
+      "file": "app/cli/src/ui/login_anim.rs",
+      "max": 3,
+      "reason": "登录动画的单元测试样例文字"
+    },
+    {
+      "file": "app/console/src/mock/mail-templates.ts",
+      "max": 2,
+      "reason": "控制台样板数据，不进请求"
+    },
+    {
+      "file": "app/console/src/pages/competition/SitePanel.vue",
+      "max": 1,
+      "reason": "界面提示里的命令示例"
+    },
+    {
+      "file": "app/forum/app/components/DeploymentInfo.vue",
+      "max": 2,
+      "reason": "部署信息页的说明文字，显示两个环境的入口"
+    },
+    {
+      "file": "app/forum/shared/deployment.ts",
+      "max": 2,
+      "reason": "论坛构建期校验契约里的两个 origin 必须等于约定值，是校验锚点不是运行时配置"
+    },
+    {
+      "file": "app/forum/shared/forum-markdown.ts",
+      "max": 1,
+      "reason": "类型定义的注释，说明发布构建里 origin 的取值，不参与运行"
+    },
+    {
+      "file": "app/server/src/lib/mail/envelope.ts",
+      "max": 8,
+      "reason": "邮件链接白名单：只放行官网两个域名，防止信里的链接被改成别处；不是环境切换"
+    },
+    {
+      "file": "app/server/src/lib/mail/mailer.ts",
+      "max": 1,
+      "reason": "已知遗留：PUBLIC_ORIGIN 不在白名单（本机、测试）时信里链接回退到正式域名；本机不发信，正式与预发布的 PUBLIC_ORIGIN 都在白名单里，后续改成回环放行"
+    },
+    {
+      "file": "app/server/src/lib/mail/recruitment.ts",
+      "max": 4,
+      "reason": "类型定义的注释，说明站点地址只能是官网域名，不参与运行"
+    },
+    {
+      "file": "app/server/src/lib/mail/template-content.ts",
+      "max": 7,
+      "reason": "按钮路径校验用的占位站点与注释，只校验路径形状，不发请求"
+    },
+    {
+      "file": "app/web/Dockerfile",
+      "max": 2,
+      "reason": "命令行安装脚本的默认源站在构建时是正式域名，nginx 按请求的 Host 换成当前环境（#289）"
+    },
+    {
+      "file": "app/web/sites/contests/_starter/vite.config.ts",
+      "max": 1,
+      "reason": "比赛站点模板里的命令示例注释"
+    },
+    {
+      "file": "app/web/sites/portal/lib/shell/index.ts",
+      "max": 1,
+      "reason": "桌面里虚拟系统文件的主页文字"
+    },
+    {
+      "file": "deploy/compose/preview.yml",
+      "max": 1,
+      "only": "preview",
+      "reason": "注释：说明与正式栈的差异"
+    },
+    {
+      "file": "deploy/environments.json",
+      "max": 2,
+      "reason": "环境身份的唯一机器配置"
+    },
+    {
+      "file": "deploy/nginx/preview.conf",
+      "max": 8,
+      "only": "preview",
+      "reason": "预发布宿主 nginx 模板，只写预发布域名"
+    },
+    {
+      "file": "deploy/nginx/production.conf",
+      "max": 9,
+      "only": "production",
+      "reason": "正式宿主 nginx 模板，只写正式域名"
+    },
+    {
+      "file": "deploy/remote/prepare-arch-runtime.mjs",
+      "max": 2,
+      "reason": "2026-10-26 无损迁移的一次性准备工具，里面断言的是当时的版本与域名，已用完不再改"
+    },
+    {
+      "file": "scripts/cli-dist.mjs",
+      "max": 10,
+      "reason": "命令行安装脚本生成器：脚本默认正式域名，用法注释里举预发布的例子，运行时可由 GEEK_ORIGIN 覆盖"
+    },
+    {
+      "file": "scripts/contest-site.mjs",
+      "max": 1,
+      "reason": "文件头用法说明里的命令示例，不参与运行"
+    },
+    {
+      "file": "scripts/deployment-environment.mjs",
+      "max": 2,
+      "reason": "EXPECTED_ORIGINS 是对 deploy/environments.json 与 env 模板的交叉校验锚点，不是运行时配置"
+    },
+    {
+      "file": "scripts/forum-migration/prepare.py",
+      "max": 4,
+      "reason": "论坛旧站数据迁移脚本的域名白名单，一次性工具"
+    },
+    {
+      "file": "scripts/release-policy.mjs",
+      "max": 2,
+      "reason": "命令行 --help 的用法文字，不参与运行"
+    }
+  ]
+}

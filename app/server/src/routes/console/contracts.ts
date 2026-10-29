@@ -163,7 +163,6 @@ export const consoleContracts: RouteContracts = {
   "GET /api/console/me": { ...noQuery, response: { 200: meResult } },
   "GET /api/console/summary": { ...noQuery, response: { 200: summaryResult } },
   // 部门是固定清单（SPEC §1），不再支持控制台里新建/改名/归档/删除，写路由跟着一起删；只留这条只读列表（部门 + 人数）。
-  "GET /api/console/departments": noQuery,
   // GitLab 账号同步（#270）：mode 是 off、dry-run 或 on；pending 是现在还要做的事，dry-run 时只列出、不做
   "GET /api/console/gitlab/accounts": {
     ...noQuery,

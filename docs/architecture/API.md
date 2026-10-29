@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-10-27
+状态：`current` · 更新：2026-10-28
 
 方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
 
@@ -74,10 +74,6 @@ portal 包括 /api/docs、/api/feedback、/api/portal/apply、/api/public/config
 | `GET /api/console/catalogue` | `console.access` | 无 | 200 `{ titles, crew, tones, capabilities, domains, role_base, implies, captain_only, department_icons, application_statuses }`；`titles`（含 admin，带 `rank` 与 `description`）与 `role_base` 读 `titles` 表：admin 永远是全部能力，guest 为空 | 401；403 `missing_capability` |
 | `PATCH /api/console/titles/:title_id` | `roles.manage` | 无 | 200 `{ title: { id, label, tag, icon, tone, description, capabilities } }`，审计 `title.update`（details `{ changed }`）；body 是 `label`（1–8 字）、`tag`（`^[A-Z][A-Z0-9-]{1,15}$`）、`icon`（`department_icons` 之一）、`tone`、`description`（≤200 字）、`capabilities` 的非空子集 | 400 `validation_error`（未知称号、未知字段、空 body、名字只有空白）/ `title_capabilities_fixed`（改 admin 或 guest 的权限）/ `captain_only_capability`（`roles.manage` 放进 captain 以外的包）；403 `missing_capability` / `admiral_required`（admin、captain 两个称号只有 admin 本人能改） |
 | `GET /api/console/summary` | `console.access` | 无 | 200，只含调用者有权看的键：`applications? { total, by_status, last_7d }`、`feedback? { open, total }`、`people? { assignments, departments }` | 401；403 |
-| `GET /api/console/departments` | `console.access` | 无 | 200 `{ departments: [{ …, head_capabilities, member_capabilities, heads, crew_count }] }`，已归档的排在最后 | 401；403 |
-| `POST /api/console/departments` | `roles.manage` 且站内管理员（提督） | 无 | 201 `{ department }`，审计 `department.create` | 403 `admiral_required`；400 `validation_error` / `captain_only_capability`；409 `department_exists` |
-| `PATCH /api/console/departments/:department_id` | `roles.manage` 且站内管理员（提督） | 无 | 200 `{ department }`，审计 `department.update`（details `{ changed }`） | 403 `admiral_required`；400；404 `not_found` |
-| `DELETE /api/console/departments/:department_id` | `roles.manage` 且站内管理员（提督） | 无 | 200 `{ ok: true, removed }`：同一事务删除部门和它的全部 head / member 指派（`removed` 是撤掉的条数），审计 `department.delete`（details `{ name, removed: [{ github_login, role }] }`）；默认部门只在第一次启动写入（`console_seeds`），删掉后重启不会补回 | 403 `admiral_required`；404 `not_found` |
 | `GET /api/console/competitions` | `console.access` | 无 | 200 `{ competitions }`，含已下线的（多一个 `offline`），其它字段同公开列表 | 401；403 |
 | `POST /api/console/competitions` | `competitions.manage` | 30 次/分钟 | 201 `{ competition }`，审计 `competition.create` | 400 `validation_error` / `bad_name`（去首尾空白后不足 2 字）/ `bad_url`（不能解析的 HTTPS 地址）/ `bad_range`（结束早于开始）/ `deadline_after_end`；401；403 |
 | `PATCH /api/console/competitions/:competition_id` | `competitions.manage` | 60 次/分钟 | 200 `{ competition }`，审计 `competition.update`；`offline: true` 即「下线」（公开列表不再返回，控制台仍看得到） | 400 同上；404 `not_found`；401；403 |

@@ -25,6 +25,7 @@
 | [`PROJECT.md`](./conventions/PROJECT.md) | 项目定位、授权边界、统一入口和完成定义。 | — |
 | [`PULL-REQUESTS.md`](./conventions/PULL-REQUESTS.md) | PR 是一次改动的证据档：写清解决链路、验证结果、可以直接照着做的人工验收步骤和截图录屏；审查与返工写成评论，合并后 issue 自动关闭。 | [EN](./conventions/PULL-REQUESTS.en.md) |
 | [`REFERENCES.md`](./conventions/REFERENCES.md) | 可追溯的工程依据，不把外部建议、产品选择和已完成验收混为一谈。 | — |
+| [`RELEASE-PARITY.md`](./conventions/RELEASE-PARITY.md) | 对齐的是接口和表结构，数据只对齐格式；预发布上做过的每一件事，正式都有对应动作；地址、端口、签发者只来自各环境自己的 env 文件；发版前同构清单清零，发版后烟测通过。 | — |
 | [`RELEASES.md`](./conventions/RELEASES.md) | 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，在预发布验收通过后，在同一提交上打 `vX.Y.Z` 发正式。tag 不可移动、不可删除，版本号不自动提升。 | — |
 | [`TESTING.md`](./conventions/TESTING.md) | 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。 | — |
 | [`TRACKING.md`](./conventions/TRACKING.md) | 一件事从提出到关闭，每一步都以固定格式的评论留在 issue 与 PR 上；人扫一眼能看懂进展，Agent 按字段就能读出状态。 | — |
@@ -138,7 +139,7 @@
 | [`CICD.md`](./ops/CICD.md) | 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
 | [`DEPLOY.md`](./ops/DEPLOY.md) | 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。 | [EN](./ops/DEPLOY.en.md) |
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
-| [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 两份仓库环境模板、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。 | — |
+| [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。 | — |
 | [`FORUM-DATA-CAPTURE.md`](./ops/FORUM-DATA-CAPTURE.md) | 已通过 Mac SSH 获取三份 SQLite 在线备份及两代附件；本机论坛可只读显示由此生成的投影，未导入可写库或切换线上服务。 | — |
 | [`GITLAB.md`](./ops/GITLAB.md) | `deploy/gitlab/` 的来源、安装映射、OIDC 与头像边界、私有备份及恢复验收门禁；源码纳管不代表重新部署或统一登录恢复。 | — |
 | [`LOCAL-PREVIEW.md`](./ops/LOCAL-PREVIEW.md) | 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。 | — |
@@ -197,6 +198,7 @@
 | [`274.md`](./history/changes/gitlab/274.md) | 保全旧 GitLab 同号声明的原始字节及来源，不将旧业务批准转移给当前 GitHub 任务。 | — |
 | [`275.md`](./history/changes/gitlab/275.md) | 保全旧 GitLab 同号声明的原始字节及来源，不将旧业务批准转移给当前 GitHub 任务。 | — |
 | [`282.md`](./history/changes/gitlab/282.md) |  | — |
+| [`284.md`](./history/changes/gitlab/284.md) |  | — |
 
 ## history/portal-contest-night/
 
@@ -232,4 +234,4 @@ iPhone 15 Pro Max model attribution
 
 ---
 
-共 83 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 85 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

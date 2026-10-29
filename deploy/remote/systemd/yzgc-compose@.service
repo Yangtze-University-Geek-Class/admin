@@ -1,0 +1,20 @@
+[Unit]
+Description=YUGC %i Docker stack
+Requires=docker.service
+# 隧道重启会让 yzgc-egress（PartOf=hk-tunnel）跟着重启。原来写 Requires=yzgc-egress.service，egress 一重启就把两套站点
+# 的六个容器一起停掉再拉起（整站中断 25 秒以上）；改成 Wants=：egress 照常重放路由，站点容器不动。
+Wants=yzgc-egress.service
+After=docker.service yzgc-egress.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/docker compose --env-file /opt/yzgc/%i/.env.%i -f /opt/yzgc/%i/deploy/compose/%i.yml up -d --no-build --pull never --wait --wait-timeout 180
+ExecStop=/usr/bin/docker compose --env-file /opt/yzgc/%i/.env.%i -f /opt/yzgc/%i/deploy/compose/%i.yml stop --timeout 60
+TimeoutStartSec=240
+TimeoutStopSec=200
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

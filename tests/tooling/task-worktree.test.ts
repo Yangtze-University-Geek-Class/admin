@@ -63,7 +63,7 @@ describe("推送前检查：该清理的 worktree（list --check 与 pre-push）
   // 临时仓库：带上 task.mjs 与 pre-push 需要的脚本，建一个 PR 已合并没 finish 的 worktree 和一个还在做的 worktree；
   // gh 换成假的，只回答 task.mjs 会问的两种查询。
   const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
-  const SCRIPTS = ["task.mjs", "issue-labels.mjs", "note.mjs", "check-branch-invariants.mjs", "release-policy.mjs", "deployment-environment.mjs"];
+  const SCRIPTS = ["task.mjs", "issue-labels.mjs", "note.mjs", "check-branch-invariants.mjs", "hotfix-windows.mjs", "release-policy.mjs", "deployment-environment.mjs"];
   const FAKE_GH = [
     `#!${process.execPath}`,
     "// 假 gh：issue view <n> 回 FAKE_GH_ISSUE_<n>（默认 OPEN）；pr list --head task/<n>/… 回 FAKE_GH_PR_<n>（「状态 编号」，没设就是没有 PR）",
