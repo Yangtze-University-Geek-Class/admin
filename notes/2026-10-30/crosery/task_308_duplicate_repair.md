@@ -34,3 +34,10 @@
 - 做了什么：复审 8daa13ca 不阻塞，指出两处：migrate-subjects 补建在 account.js 子进程里提交，父连接同一条的读快照看不到新账号，第一次 --apply 会报最小补建失败；repair-duplicates 的正式写者核对在拿锁之前。d5d7f943：补建前先查 sub 是否已属于别人，再结束读事务、建完重开；verify_production_off 挪进 flock 之后；GITLAB.md 改正「回滚该账号」的说法；新增双连接 WAL 用例（旧代码红、新代码绿）。
 - 结果：三组用例 72 通过；check-architecture、check-doc-sync 对 gitlab/main 通过。
 - 下一步：更新 MR 正文，开 GitLab MR 进 main 并合并，按顺序跑正式改接。
+
+## 01:58:38 +08:00 · PR · #308 · 开 MR !66 进 main
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitLab geek/admin!66：task/308/duplicate_repair → main（hotfix 窗口 #308），正文十节，含两轮审查结论「通过」、运行顺序与人工验收步骤；标签 P0、bug、func:auth、hot-fix、infra:deploy。
+- 结果：MR 已开，无冲突；pnpm check exit 0，三组用例 72 通过。
+- 下一步：正式 hotfix 部署 40919416935 结束后合并，镜像 GitHub main，按顺序跑 gitlab-cutover。
