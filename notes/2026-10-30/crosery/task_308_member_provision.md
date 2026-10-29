@@ -21,3 +21,16 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：dea04a69：docs/changes/308.json 改为本 MR 的声明（覆盖迁移工具、用例与 GITLAB.md）。文档核对：docs/ops/DEPLOY.md 不用改——它只写「正式库缺失的有效旧成员由 account.js provision-github 按 GitHub UID 最小补建」，口径变化写在 GITLAB.md。文档核对：docs/ops/ENVIRONMENTS.md 不用改——没有改 env 键、端口或环境划分。文档核对：docs/ops/CICD.md 不用改——没有改工作流或步骤选项。
 - 结果：check-architecture 通过（5 个变更文件、3 个关联节点）。
+
+## 02:15:01 +08:00 · 审查 · #308 · 补建口径的独立审查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：审查 agent 按 code-review 技能核对 97d08369：不阻塞；指出判定先看已弃用的 org_role，与 server 的 membershipFromRow（identity-store.ts）不一致——org_role=admin 但没有站长称号的人会经 provisionAccount 在正式库拿到站长资格，org_role=member 但 level 已过期的会被补建；建议只看有效 level.member 与 title.site.owner，并补 5 个边界用例。核实：写入端与 cutover.sh 严格正则不受新字段影响。
+- 结果：结论：可以合并，建议同一个 MR 内修正判定。
+
+## 02:15:01 +08:00 · 返工 · #308 · 按 server 口径判定成员与角色
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：79fe78aa：导出只看有效的 level.member（成员）与 title.site.owner（管理员），校友写 alumni，org_role/org_state 不再读取；补上审查列出的 5 个边界用例；GITLAB.md 与 docs/changes/308.json 同步。
+- 结果：三组用例 73 通过；pnpm check exit 0；check-architecture、check-doc-sync 对 gitlab/main 通过。
+- 下一步：开 MR 进 main，合并后重跑 stop-preview-sync 演算。
