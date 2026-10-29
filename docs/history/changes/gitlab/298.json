@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "issue": 298,
+  "kind": "engineering",
+  "summary": "note.mjs 的链路顺序检查对 task_276_forum_image_scan 在 2026-10-24 22:03:16 的一条收尾后发布记录做限定豁免，解除 pnpm check 与 verify (required check) 的历史红灯；别的链路与记录的检查不变。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不触碰站内身份、投递、论坛或比赛的任何规则与数据；只改执行记录的校验脚本。",
+      "evidence": [
+        "scripts/note.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不新增应用 HTTP 接口、数据库表或服务端代码。",
+      "evidence": [
+        "scripts/note.mjs"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "不改任何权限节点或资源范围；豁免按用户、链路、文件、时刻、阶段五项一起匹配，只放过一条已发生的记录，不扩权。",
+      "evidence": [
+        "scripts/note.mjs"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不改任何 notes 文件的字节，不删除或改写历史记录；只改校验逻辑。",
+      "evidence": [
+        "notes/2026-10-24/crosery/task_276_forum_image_scan.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不新增依赖，不放宽 --pr 模式的只追加核对。",
+      "evidence": [
+        "scripts/note.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "NOTES 规范新增第 6 节，写明这条历史例外、匹配条件和再加例外的要求。",
+      "evidence": [
+        "docs/conventions/NOTES.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 4 条回归：被豁免的那一条通过；同一链再追加记录、时间或阶段不同的记录、别的链路同样的收尾后发布，仍然报错。",
+      "evidence": [
+        "tests/tooling/notes.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "note.mjs check 在 stage 上转绿，verify (required check) 不再因它失败；不改部署工作流，不建 tag。",
+      "evidence": [
+        "scripts/note.mjs"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/note.mjs",
+        "tests/tooling/notes.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "note.mjs 新增只匹配一条历史记录的豁免表，并用回归守住「其它链路、其它记录、新追加的记录仍然报错」。"
+    },
+    {
+      "paths": [
+        "docs/conventions/NOTES.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "NOTES 规范新增第 6 节，写明例外的匹配条件，并要求再加例外必须由所有者另行裁决。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/NOTES.md"
+  ],
+  "tests": [
+    "tests/tooling/notes.test.ts"
+  ],
+  "compatibility": "只放宽一条已发生记录的检查；其它链路与新记录的检查完全不变，--pr 模式不变。",
+  "migration": "不涉及数据或接口迁移：没有表结构、接口或配置变化，已有 notes 文件的字节全部保持不变，只是校验脚本对其中一条记录不再报错。",
+  "rollback": "回滚本次改动即可，note.mjs check 会回到报这一条的状态。"
+}

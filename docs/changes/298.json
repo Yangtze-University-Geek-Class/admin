@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 298,
   "kind": "engineering",
-  "summary": "note.mjs 的链路顺序检查对 task_276_forum_image_scan 在 2026-10-24 22:03:16 的一条收尾后发布记录做限定豁免，解除 pnpm check 与 verify (required check) 的历史红灯；别的链路与记录的检查不变。",
+  "summary": "修 issue-gate 的 needs-evidence 死锁：该标签既是开工门禁的判定输入，又是 issue-gate 判定要不要打它的输出，导致标签一旦打上就永远摘不掉、issue 补齐证据后仍被永久拒绝开工。改为区分两个调用方。",
   "applications": [],
   "domains": [
     "platform"
@@ -11,66 +11,68 @@
   "assessments": {
     "business": {
       "status": "unchanged",
-      "reason": "不触碰站内身份、投递、论坛或比赛的任何规则与数据；只改执行记录的校验脚本。",
+      "reason": "不改任何业务规则、用户可见行为或数据。issue 提单门禁的要求（ui:* 要截图、func:* 要写涉及接口、带 needs-evidence 不得开工）逐条保持，只是让「补齐后自动摘掉」这个既有承诺真正生效。",
       "evidence": [
-        "scripts/note.mjs"
+        "docs/conventions/ISSUES.md",
+        "scripts/issue-labels.mjs"
       ]
     },
     "backend": {
       "status": "unchanged",
-      "reason": "不新增应用 HTTP 接口、数据库表或服务端代码。",
+      "reason": "不新增或修改任何 Fastify 路由、请求响应约定与错误码；改动只在仓库的 issue 检查脚本与工作流调用方式。",
       "evidence": [
-        "scripts/note.mjs"
+        "scripts/issue-gate.mjs",
+        "docs/architecture/catalog/routes.md"
       ]
     },
     "permissions": {
       "status": "unchanged",
-      "reason": "不改任何权限节点或资源范围；豁免按用户、链路、文件、时刻、阶段五项一起匹配，只放过一条已发生的记录，不扩权。",
+      "reason": "issue-gate.yml 的权限声明（issues: write）逐字未改；开工门禁对 needs-evidence 的拒绝逻辑保留，没有放宽任何授权或放行条件。",
       "evidence": [
-        "scripts/note.mjs"
+        ".github/workflows/issue-gate.yml"
       ]
     },
     "data": {
-      "status": "unchanged",
-      "reason": "不改任何 notes 文件的字节，不删除或改写历史记录；只改校验逻辑。",
+      "status": "not-applicable",
+      "reason": "不读写数据库、缓存或持久化存储；只读 GitHub issue 元数据并写标签与评论，表结构与数据模型没有变化。",
       "evidence": [
-        "notes/2026-10-24/crosery/task_276_forum_image_scan.md"
+        "docs/architecture/catalog/data-model.md"
       ]
     },
     "dependencies": {
       "status": "unchanged",
-      "reason": "不新增依赖，不放宽 --pr 模式的只追加核对。",
+      "reason": "没有新增 npm 包或外部服务；改动是同一组脚本内部函数的参数与返回值调整。",
       "evidence": [
-        "scripts/note.mjs"
+        "package.json"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "NOTES 规范新增第 6 节，写明这条历史例外、匹配条件和再加例外的要求。",
+      "reason": "docs/conventions/ISSUES.md 的 needs-evidence 一条补充「判定补齐时不能把标签本身算成缺失」的原因与 #298；docs/ops/CICD.md 的 issue-gate 一行同步说明。两份都记录了这个循环依赖与修法，避免以后有人把开关改回去。",
       "evidence": [
-        "docs/conventions/NOTES.md"
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "新增 4 条回归：被豁免的那一条通过；同一链再追加记录、时间或阶段不同的记录、别的链路同样的收尾后发布，仍然报错。",
+      "reason": "tests/tooling/issue-labels.test.ts 新增三个用例：带标签时开工门禁拒绝但 issue-gate 判定通过；忽略标签后仍不掩盖真正缺失的截图；没有标签时 evidenceLabeled 为 false。把 ignoreEvidenceLabel 关掉后实测有 1 条失败（expected false to be true），恢复后 27 条全绿；连同 task-worktree 的开工门禁用例共 37 条通过。",
       "evidence": [
-        "tests/tooling/notes.test.ts"
+        "tests/tooling/issue-labels.test.ts"
       ]
     },
     "delivery": {
-      "status": "changed",
-      "reason": "note.mjs check 在 stage 上转绿，verify (required check) 不再因它失败；不改部署工作流，不建 tag。",
+      "status": "unchanged",
+      "reason": "不改镜像、compose、环境变量契约或部署流程，也不触发任何环境的部署。工作流文件随 PR 进 stage，进 main 后下一次 issue 事件才用上新逻辑。",
       "evidence": [
-        "scripts/note.mjs"
+        "deploy/compose/production.yml"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "scripts/note.mjs",
-        "tests/tooling/notes.test.ts"
+        "scripts/issue-labels.mjs"
       ],
       "domains": [
         "platform"
@@ -78,11 +80,11 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "note.mjs 新增只匹配一条历史记录的豁免表，并用回归守住「其它链路、其它记录、新追加的记录仍然报错」。"
+      "reason": "checkIssue 增加 ignoreEvidenceLabel 选项与 evidenceLabeled 返回值：默认（开工门禁）仍把 needs-evidence 算作错误；issue-gate 传入 true 时忽略它，从而能判定「证据是否已补齐」。"
     },
     {
       "paths": [
-        "docs/conventions/NOTES.md"
+        "scripts/issue-gate.mjs"
       ],
       "domains": [
         "platform"
@@ -90,16 +92,67 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "NOTES 规范新增第 6 节，写明例外的匹配条件，并要求再加例外必须由所有者另行裁决。"
+      "reason": "调用 checkIssue 时传 ignoreEvidenceLabel: true，让摘标签条件不再被标签自身阻断；评论正文增加「已摘掉 needs-evidence」的如实说明。"
+    },
+    {
+      "paths": [
+        "tests/tooling/issue-labels.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "新增三条回归覆盖两个调用方的相反要求，以及「忽略标签但不掩盖真实缺失」这一边界；修复前失败、修复后通过。"
+    },
+    {
+      "paths": [
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "记录 needs-evidence 的循环依赖与修法，说明判定补齐时必须忽略标签本身。"
+    },
+    {
+      "paths": [
+        "docs/history/changes/gitlab/298.json",
+        "docs/history/changes/gitlab/298.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "把 GitLab #298 的原影响声明按 #270 先例归档：.json 与 origin/stage 上的原件逐字一致（SHA-256 已核对），.md 说明归档依据与当前声明位置。历史材料，不改变现行规范。"
+    },
+    {
+      "paths": [
+        "docs/INDEX.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "新增 docs/history/changes/gitlab/298.md 后按 pnpm docs:index 重新生成的派生产物，不是手改。"
     }
   ],
   "documents": [
-    "docs/conventions/NOTES.md"
+    "docs/conventions/ISSUES.md",
+    "docs/ops/CICD.md"
   ],
   "tests": [
-    "tests/tooling/notes.test.ts"
+    "tests/tooling/issue-labels.test.ts"
   ],
-  "compatibility": "只放宽一条已发生记录的检查；其它链路与新记录的检查完全不变，--pr 模式不变。",
-  "migration": "不涉及数据或接口迁移：没有表结构、接口或配置变化，已有 notes 文件的字节全部保持不变，只是校验脚本对其中一条记录不再报错。",
-  "rollback": "回滚本次改动即可，note.mjs check 会回到报这一条的状态。"
+  "compatibility": "checkIssue 新增的参数可选、返回值只增字段，现有两处调用方（task.mjs start 与 issue-gate）行为分别是「不变」与「修好」；不涉及接口、数据或产物兼容性。",
+  "migration": "没有数据或配置迁移。工作流文件随 PR 合入 stage，再随 stage 进入 main 后，issue-gate 在下一次 issue 事件时使用新逻辑；在此之前线上仍是自锁行为。",
+  "rollback": "revert 这个 PR 的合并提交即可恢复原逻辑，不影响其他服务；回滚后 needs-evidence 仍会自锁，需人工摘标签。"
 }
