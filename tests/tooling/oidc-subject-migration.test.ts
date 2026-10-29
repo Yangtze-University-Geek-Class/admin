@@ -132,7 +132,7 @@ describe("import", () => {
     expect(rows(db)).toEqual([{ user_id: "new-member", sub: "sub-legacy" }]);
   });
 
-  it("补建后 sub 冲突或建号失败时回滚这个账号，不留下半条迁移", () => {
+  it("补建要拿的 sub 已属于别人时不建号，整批拒绝", () => {
     const db = target();
     db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, "q3", "sub-legacy", 1);
     const source = { sector: SECTOR, entries: [{ sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } }] };
@@ -147,6 +147,34 @@ describe("import", () => {
     expect(result.applied).toBe(0);
     expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
     expect(rows(db)).toEqual([{ user_id: "q3", sub: "sub-legacy" }]);
+  });
+
+  it("补建在另一个连接里提交时（正式运行走 account.js 子进程），同一次写入能对上新账号", () => {
+    const dir = mkdtempSync(join(tmpdir(), "oidc-sub-"));
+    dirs.push(dir);
+    const file = join(dir, "data.db");
+    const seed = database([{ id: "p1", identities: [["github", "100"]], orgRole: "member" }]);
+    seed.prepare("VACUUM INTO ?").run(file);
+    const db = new Database(file);
+    db.pragma("journal_mode = WAL");
+    const child = new Database(file);
+    const provisionAccount = ({ githubId, githubLogin, orgRole }: { githubId: number; githubLogin: string; orgRole: string }) => {
+      child.transaction(() => {
+        child.prepare("INSERT INTO users(id, org_role) VALUES('new-member', ?)").run(orgRole);
+        child.prepare("INSERT INTO identities VALUES('new-member','github',?,?)").run(String(githubId), githubLogin);
+      })();
+      return { accountId: "new-member", created: true };
+    };
+    const source = { sector: SECTOR, entries: [
+      { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }] },
+      { sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } },
+    ] };
+    const result = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
+    expect(result).toMatchObject({ applied: 2, conflicts: [], unmatched: [] });
+    expect(result.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);
+    expect(rows(db)).toEqual([{ user_id: "new-member", sub: "sub-legacy" }, { user_id: "p1", sub: "sub-a" }]);
+    child.close();
+    db.close();
   });
 
   it("输入不是同一个 sector 的 export 结果时拒绝", () => {

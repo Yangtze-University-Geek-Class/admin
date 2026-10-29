@@ -280,11 +280,11 @@ repair_duplicates() {
         sync_control production "container:${PROD_SERVER}" ro repair-duplicates --source-stdin <"${work}/export.json"
         return
     fi
-    # 正式同步循环开着时，它按 account_id 写回的头像、邮箱、权限缓存会和改映射撞车：先停正式写者
-    verify_production_off
     (
         exec 8>"${PROD_ROOT}/.deploy.lock"
         "${FLOCK}" -w 900 8 || die "正式部署锁等待超时"
+        # 正式同步循环开着时，它按 account_id 写回的头像、邮箱、权限缓存会和改映射撞车：拿到锁之后再确认正式写者已停
+        verify_production_off
         # 改正式库之前先跑一次已有的一致性备份
         "${SYSTEMCTL}" start "yzgc-backup@production.service"
         sync_control production "container:${PROD_SERVER}" rw repair-duplicates --source-stdin --apply <"${work}/export.json"

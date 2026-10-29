@@ -9,7 +9,8 @@
 //
 // import 只新增（INSERT）：目标库里该账号在该 sector 已有不同的 sub、或这个 sub 已属于别人，都记为冲突并拒绝整批写入，
 // 不覆盖任何已有行。目标身份缺失或源账号无可对账身份时整批拒绝写入；只有显式 --provision-unmatched 才按 GitHub UID
-// 最小补建（建号失败或 sub 冲突就回滚这个账号，不留下半条迁移）；演算时带它，能补建的单独计为「可最小补建」，不算对不上。
+// 最小补建（sub 已属于别人就不建号；建号由 account.js 在一个事务里完成，失败不留半个账号；补建出来的账号写入前
+// 整批被拒时保留，重跑时直接复用）；演算时带它，能补建的单独计为「可最小补建」，不算对不上。
 // 输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -111,6 +112,12 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
         rollbackEntry();
         continue;
       }
+      // 补建出来的账号要拿的 sub 已经属于别人：建号前就拒绝，不留下一个用不上的账号
+      const subTaken = subOwner.get(sector, entry.sub)?.user_id ?? claimed.get(entry.sub);
+      if (subTaken) { conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`); rollbackEntry(); continue; }
+      // 正式运行时补建在子进程里提交；这一条已经读过的快照看不到它，先结束读事务，建完再开新的
+      db.prepare('RELEASE subject_entry').run();
+      db.prepare('SAVEPOINT subject_entry').run();
       db.prepare('SAVEPOINT provision_unmatched').run();
       try {
         const created = provisionAccount({ githubId: Number(github.provider_uid), githubLogin: entry.provision.github_login, orgRole: entry.provision.org_role });
