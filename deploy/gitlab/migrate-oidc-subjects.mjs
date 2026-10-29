@@ -98,7 +98,10 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
       const provision = apply && provisionUnmatched && entry.provision && github && provisionAccount;
       // 演算时带 --provision-unmatched：写入时能按 GitHub UID 最小补建的单独计数，不当成对不上（停预发布写者之前要先知道）
       if (!apply && provisionUnmatched && entry.provision && github && entry.identities.every(id => id.provider === 'github')) {
-        provisionable.push(label);
+        // 写入时补建出来的账号也要拿这个 sub：已经属于目标库别的账号，演算就报冲突，不等停了预发布写者才发现
+        const owner = subOwner.get(sector, entry.sub)?.user_id ?? claimed.get(entry.sub);
+        if (owner) conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`);
+        else { provisionable.push(label); claimed.set(entry.sub, `provision:${label}`); }
         rollbackEntry();
         continue;
       }

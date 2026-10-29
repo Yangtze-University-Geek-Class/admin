@@ -121,6 +121,11 @@ describe("import", () => {
     expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
     const google = { sector: SECTOR, entries: [{ ...source.entries[0], identities: [...source.entries[0].identities, { provider: "google", provider_uid: "g-1" }] }] };
     expect(importSubjects(db, google, { sector: SECTOR, provisionUnmatched: true, provisionAccount })).toMatchObject({ unmatched: ["github:999,google:g-1"], provisionable: [] });
+    // 补建出来的账号要拿的 sub 已经属于目标库的别人：演算就报冲突
+    db.prepare("INSERT INTO users(id, org_role) VALUES('someone', 'member')").run();
+    db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, "someone", "sub-legacy", 1);
+    expect(importSubjects(db, source, { sector: SECTOR, provisionUnmatched: true, provisionAccount })).toMatchObject({ provisionable: [], conflicts: ["github:999：这个 sub 已属于目标库的另一个账号"] });
+    db.prepare("DELETE FROM oauth_subjects WHERE user_id = 'someone'").run();
     const applied = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
     expect(applied).toMatchObject({ applied: 1, conflicts: [], unmatched: [] });
     expect(applied.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);

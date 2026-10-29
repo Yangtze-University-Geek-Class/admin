@@ -94,7 +94,7 @@ export async function verifyAccounts(db, env, sector, options = {}) {
   return { ...report, verified_members: verified, failures };
 }
 
-const REPAIR_REASON = /^(source_sub_taken|duplicate_unmapped|original_missing|original_ambiguous|original_not_managed|original_already_mapped|original_username_taken|mapping_inconsistent|duplicate_identity_unexpected|duplicate_not_managed|duplicate_activity_unknown|duplicate_used|gitlab_http_[0-9]{3})$/;
+const REPAIR_REASON = /^(source_sub_taken|identities_unreadable|account_repeated|duplicate_repeated|original_repeated|duplicate_unmapped|original_missing|original_ambiguous|original_not_managed|original_already_mapped|original_username_taken|mapping_inconsistent|duplicate_identity_unexpected|duplicate_not_managed|duplicate_activity_unknown|duplicate_used|gitlab_http_[0-9]{3})$/;
 
 /**
  * 改接之前正式同步已经开过（2026-10-29 15:43–16:18），给 GitLab 上已有号的成员又建了一个号：正式库给这个账号生成了新的 sub，
@@ -124,7 +124,11 @@ export async function repairDuplicates(db, env, sector, payload, options = {}) {
     if (result.status !== 200) throw new Error(`gitlab_http_${result.status}`);
     return result.data;
   }
-  const oidcOf = user => (Array.isArray(user?.identities) ? user.identities.filter(identity => identity?.provider === 'openid_connect') : []);
+  // 读不到身份列表不能当成「已解绑」
+  const oidcOf = user => {
+    if (!Array.isArray(user?.identities)) throw new Error('identities_unreadable');
+    return user.identities.filter(identity => identity?.provider === 'openid_connect');
+  };
   const managed = user => user && user.is_admin === false && user.bot !== true && (!user.user_type || user.user_type === 'human')
     && typeof user.username === 'string' && !['root', 'geek-sync'].includes(user.username.toLowerCase());
   const findUser = db.prepare('SELECT user_id FROM identities WHERE provider = ? AND provider_uid = ?');
@@ -177,6 +181,14 @@ export async function repairDuplicates(db, env, sector, payload, options = {}) {
       // 网络异常的对象可能带请求头或 sub，只报固定的原因码
       refused.push({ label, reason: error instanceof Error && REPAIR_REASON.test(error.message) ? error.message : 'gitlab_unreachable' });
     }
+  }
+
+  // 同一个正式账号、同一个重复号或原号出现两次（例如两个预发布账号在正式库已合并）：先写哪条取决于导出顺序，整批拒绝
+  for (const [field, reason] of [['accountId', 'account_repeated'], ['duplicate', 'duplicate_repeated'], ['original', 'original_repeated']]) {
+    const keyOf = item => (field === 'accountId' ? item.accountId : item[field].id);
+    const seen = new Map();
+    for (const item of plan) seen.set(keyOf(item), (seen.get(keyOf(item)) ?? 0) + 1);
+    for (const item of plan) if (seen.get(keyOf(item)) > 1) refused.push({ label: item.label, reason });
   }
 
   const repaired = [];

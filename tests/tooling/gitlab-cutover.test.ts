@@ -259,15 +259,36 @@ describe('cutover.sh repair-duplicates', () => {
     expect(calls).toContain('rm -f /tmp/migrate-oidc-subjects.mjs');
   });
 
+  it('--apply 要求正式同步已停：持久或运行 env 还是 on 就拒绝，什么也不写', () => {
+    const f = fixture({ previewMode: 'on', productionMode: 'on' });
+    const result = f.run('repair-duplicates', '--production-origin', PROD, '--apply');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('stop-production-sync');
+    expect(f.called()).not.toContain('backup start');
+    expect(f.called()).not.toMatch(/repair-duplicates --source-stdin --apply/);
+  });
+
   it('--apply 先跑正式备份，再以读写挂载带 --apply 修复；修复拒绝时非 0 退出', () => {
-    const f = fixture({ previewMode: 'on' });
+    const f = fixture({ previewMode: 'on', productionMode: 'off' });
     const result = f.run('repair-duplicates', '--production-origin', PROD, '--apply');
     expect(result.status, result.stderr).toBe(0);
     const calls = f.called();
     expect(calls.indexOf('backup start yzgc-backup@production.service')).toBeGreaterThanOrEqual(0);
-    expect(calls.indexOf('backup start yzgc-backup@production.service')).toBeLessThan(calls.indexOf('repair-duplicates'));
+    expect(calls.indexOf('backup start yzgc-backup@production.service')).toBeLessThan(calls.indexOf('repair-duplicates --source-stdin --apply'));
     expect(calls).toMatch(/--volumes-from yzgc-production-server:rw .*repair-duplicates --source-stdin --apply --sector git\.yangtzeu\.work/);
-    expect(fixture({ repairExit: 1 }).run('repair-duplicates', '--production-origin', PROD, '--apply').status).toBe(1);
+    expect(fixture({ productionMode: 'off', repairExit: 1 }).run('repair-duplicates', '--production-origin', PROD, '--apply').status).toBe(1);
+  });
+
+  it('stop-production-sync 缺省演算；--apply 经备份、排空把正式改 off，不动预发布', () => {
+    const f = fixture({ previewMode: 'on', productionMode: 'on' });
+    expect(f.run('stop-production-sync', '--production-origin', PROD).status).toBe(0);
+    expect(readFileSync(join(f.dir, 'production/mode'), 'utf8')).toBe('on');
+    const result = f.run('stop-production-sync', '--production-origin', PROD, '--apply');
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(f.dir, 'production/mode'), 'utf8')).toBe('off');
+    expect(readFileSync(join(f.dir, 'production/.env.production'), 'utf8')).toBe('GITLAB_SYNC=off\nSECRET=kept-fixture-secret\n');
+    expect(readFileSync(join(f.dir, 'preview/mode'), 'utf8')).toBe('on');
+    expect(f.called().indexOf('backup start yzgc-backup@production')).toBeLessThan(f.called().indexOf('set-mode off'));
   });
 
   it('停预发布写者之前的演算带 --provision-unmatched，切签发者与开正式写者的演算不带', () => {

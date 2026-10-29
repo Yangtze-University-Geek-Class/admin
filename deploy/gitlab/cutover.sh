@@ -5,7 +5,8 @@
 #   cutover.sh status            --production-origin <URL>                              只读：客户端、签发者、secret 文件是否就位、正式的发现文档
 #   cutover.sh register-client   --production-origin <URL> [--apply]                    正式库登记 gitlab 客户端，secret 只写 yzgc-oidc-secret.production（0600）；已有就不动
 #   cutover.sh migrate-subjects  --production-origin <URL> [--sector <主机>] [--apply]  把预发布里 GitLab 已在用的 sub 带到正式库（只新增，冲突整批拒绝）
-#   cutover.sh repair-duplicates --production-origin <URL> [--sector <主机>] [--apply]  正式同步提前建出的重复号：解绑并封禁重复号，正式库改回原号的 sub 与映射
+#   cutover.sh stop-production-sync --production-origin <URL> [--apply]               正式同步写者排空停写（修重复号之前）；之后用 enable-production-sync 重开
+#   cutover.sh repair-duplicates --production-origin <URL> [--sector <主机>] [--apply]  正式同步提前建出的重复号：解绑并封禁重复号，正式库改回原号的 sub 与映射（要求正式同步已停）
 #   cutover.sh switch-issuer     --production-origin <URL> [--apply]                    签发者与 secret 换成正式的，reconfigure；先备份，前置不满足就拒绝
 #   cutover.sh rollback-issuer   --preview-origin <URL> [--apply]                       签发者写回预发布，secret 与 gitlab.rb 用最近一次备份，reconfigure
 #
@@ -78,6 +79,14 @@ sync_control() {
     "${DOCKER}" run --rm --pull=never -i --network "${network}" --volumes-from "${container}:${access}" \
       --env-file "${root}/.env.${environment}" --mount "type=bind,source=${HERE}/../..,target=/ops,readonly" \
       --entrypoint node "${image}" --experimental-transform-types /ops/deploy/gitlab/sync-control.mjs "$@" --sector "${SECTOR}"
+}
+
+verify_production_off() {
+    local state running_mode
+    state="$(sync_control production none ro status)"
+    [[ "$(jq -r '.configuration.mode' <<<"${state}")" == off ]] || die "正式持久有效配置仍在同步：先 stop-production-sync"
+    running_mode="$("${DOCKER}" exec "${PROD_SERVER}" node -p 'process.env.GITLAB_SYNC')"
+    [[ "${running_mode}" == off ]] || die "正式运行容器 env 仍不是 off：先 stop-production-sync 完成停写重启"
 }
 
 verify_preview_off() {
@@ -171,6 +180,14 @@ sync_status() {
     sync_control preview none ro status
 }
 
+stop_production_sync() {
+    need_production
+    echo '将排空正式旧进程，持久 mode 与 canonical env 均改 off，重启原镜像并核对健康；修完重复号后用 enable-production-sync 重开'
+    writes || return 0
+    restart_with_mode production off
+    verify_production_off
+}
+
 stop_preview_sync() {
     need_production
     # 对不上身份时不先关掉仍在服务成员的旧写者；写入时能最小补建的不算对不上。
@@ -254,19 +271,24 @@ repair_duplicates() {
     need_production
     sector_ok
     WORK="$(mktemp -d)"
-    local work="${WORK}" flag=() access=ro
+    local work="${WORK}"
     trap 'rm -rf "${WORK}"; "${DOCKER}" exec "${PREVIEW_SERVER}" rm -f /tmp/migrate-oidc-subjects.mjs >/dev/null 2>&1 || true' EXIT
     "${DOCKER}" cp "${HERE}/migrate-oidc-subjects.mjs" "${PREVIEW_SERVER}:/tmp/migrate-oidc-subjects.mjs"
     "${DOCKER}" exec "${PREVIEW_SERVER}" node /tmp/migrate-oidc-subjects.mjs export --sector "${SECTOR}" >"${work}/export.json"
-    if [[ "${APPLY}" == 1 ]]; then
-        flag=(--apply)
-        access=rw
+    if [[ "${APPLY}" != 1 ]]; then
+        echo "（演算，未写入；加 --apply 才执行）"
+        sync_control production "container:${PROD_SERVER}" ro repair-duplicates --source-stdin <"${work}/export.json"
+        return
+    fi
+    # 正式同步循环开着时，它按 account_id 写回的头像、邮箱、权限缓存会和改映射撞车：先停正式写者
+    verify_production_off
+    (
+        exec 8>"${PROD_ROOT}/.deploy.lock"
+        "${FLOCK}" -w 900 8 || die "正式部署锁等待超时"
         # 改正式库之前先跑一次已有的一致性备份
         "${SYSTEMCTL}" start "yzgc-backup@production.service"
-    else
-        echo "（演算，未写入；加 --apply 才执行）"
-    fi
-    sync_control production "container:${PROD_SERVER}" "${access}" repair-duplicates --source-stdin "${flag[@]}" <"${work}/export.json"
+        sync_control production "container:${PROD_SERVER}" rw repair-duplicates --source-stdin --apply <"${work}/export.json"
+    )
 }
 
 switch_issuer() {
@@ -324,6 +346,7 @@ rollback_issuer() {
 case "${STEP}" in
     status) status ;;
     sync-status) sync_status ;;
+    stop-production-sync) stop_production_sync ;;
     stop-preview-sync) stop_preview_sync ;;
     enable-production-sync) enable_production_sync ;;
     verify-accounts) verify_accounts ;;
@@ -332,5 +355,5 @@ case "${STEP}" in
     repair-duplicates) repair_duplicates ;;
     switch-issuer) switch_issuer ;;
     rollback-issuer) rollback_issuer ;;
-    *) echo "用法：cutover.sh status|sync-status|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
 esac

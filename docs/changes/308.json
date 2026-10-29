@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 308,
   "kind": "business",
-  "summary": "GitLab #308 第二个 MR：改接正式前，正式同步（10-29 15:43–16:18）给 6 名已有 GitLab 号的成员又建了 `_yz` 号，主体迁移冲突挡住签发者改接。新增 cutover 步骤 repair-duplicates（默认演算、逐人核对、整批拒绝），写入时解绑并封禁重复号、正式库 sub 与映射改回原号；停预发布写者前的主体演算把可最小补建的成员单独计数，解开停写与补建的互锁。",
+  "summary": "GitLab #308 第二个 MR：改接正式前，正式同步（10-29 15:43–16:18）给 6 名已有 GitLab 号的成员又建了 `_yz` 号，主体迁移冲突挡住签发者改接。新增 cutover 步骤 stop-production-sync 与 repair-duplicates（默认演算、逐人核对、整批拒绝，写入要求正式写者已停），写入时解绑并封禁重复号、正式库 sub 与映射改回原号；停预发布写者前的主体演算把可最小补建的成员单独计数，解开停写与补建的互锁。",
   "applications": [
     "server"
   ],
