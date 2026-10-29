@@ -2,7 +2,7 @@
 // 宣传片（#284）是单独的一个窗口，正文是 PromoLazy.tsx 的播放器；最小化、关闭、放大、手机上的底部面板都走这里同一套窗口外框。
 // 账号资料（#280）由菜单栏头像打开，正文在 ProfileCard.tsx；它不是桌面应用，不在 Dock 和启动器里。
 // 比赛窗口的内容在 competitions/（#265）：它在手机详情页会借标题栏左边的返回键回列表（PhoneNav）。
-// 意见箱、加入我们、终端窗口的内容在 FeedbackBox.tsx、JoinBox.tsx、Terminal.tsx，打开时才加载：防刷验证、表单样式和终端的模拟 Linux（#279）不进桌面首屏。
+// 意见箱、加入我们、终端窗口的内容在 FeedbackBox.tsx、JoinBox.tsx、Terminal.tsx，打开时才加载：防刷验证和终端的模拟 Linux（#279）不进桌面首屏；表单样式（pages.css）在入口里一起加载（#310）。
 import type { LinkNotice } from "../../lib/linkNotice";
 import { Suspense, lazy, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Link } from "react-router-dom";

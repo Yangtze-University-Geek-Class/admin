@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-27 · 自动生成，不手工编辑。
 
-来源摘要：`11a73f32cfa4105b3ccac3c0ccbb96887b9678bb81a5305595ff36840857664a`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`9186763fdb77d3de1fbb48be4b2d305c52bba79d4524503daedab40e43ddbc31`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -749,7 +749,7 @@
 - 数据与副作用：计数与投递同事务，发设备cookie；记脱敏application.received审计，尽力入队已收到邮件（每小时总量限制），入队失败仅日志不回滚投递；无需会话。
 - 招新总开关（#284）：app_state 里 apply_open 为关闭时，权限节点之后直接 403 {error:"apply_closed",message:"招新暂未开放"}，不落 applications、不占任何一条每日额度、不入队信、不发设备 cookie；被拒的请求由 http-policy 记 outcome 为 denied 的 http.apply_closed；没登录仍先回 401，路由级每 IP 每分钟 5 次的限流更早，照常计一次。
 
-源码：[app/server/src/routes/portal/apply.ts:119](../../../app/server/src/routes/portal/apply.ts#L119) · [app/server/src/routes/portal/apply.ts:115](../../../app/server/src/routes/portal/apply.ts#L115) · [app/server/src/lib/apply-settings.ts:12](../../../app/server/src/lib/apply-settings.ts#L12) · [app/server/src/lib/mail/mailer.ts:59](../../../app/server/src/lib/mail/mailer.ts#L59) · [app/server/src/lib/limits.ts:4](../../../app/server/src/lib/limits.ts#L4) · [app/server/src/lib/apply-quota.ts:4](../../../app/server/src/lib/apply-quota.ts#L4) · [app/web/sites/portal/components/os/JoinBox.tsx:167](../../../app/web/sites/portal/components/os/JoinBox.tsx#L167) · [app/web/sites/portal/components/PromoLazy.tsx:88](../../../app/web/sites/portal/components/PromoLazy.tsx#L88) · [app/web/sites/portal/components/PromoPlayer.tsx:48](../../../app/web/sites/portal/components/PromoPlayer.tsx#L48) · [app/web/sites/portal/lib/promoWindow.ts:10](../../../app/web/sites/portal/lib/promoWindow.ts#L10) · [app/web/sites/portal/lib/promo.ts:22](../../../app/web/sites/portal/lib/promo.ts#L22) · [app/web/sites/portal/lib/applyOpen.ts:8](../../../app/web/sites/portal/lib/applyOpen.ts#L8) · [app/web/sites/portal/components/os/JoinClosed.tsx:7](../../../app/web/sites/portal/components/os/JoinClosed.tsx#L7) · [app/server/src/lib/mail/envelope.ts:321](../../../app/server/src/lib/mail/envelope.ts#L321) · [app/server/src/lib/mail/envelope-pieces.ts:9](../../../app/server/src/lib/mail/envelope-pieces.ts#L9)
+源码：[app/server/src/routes/portal/apply.ts:119](../../../app/server/src/routes/portal/apply.ts#L119) · [app/server/src/routes/portal/apply.ts:115](../../../app/server/src/routes/portal/apply.ts#L115) · [app/server/src/lib/apply-settings.ts:12](../../../app/server/src/lib/apply-settings.ts#L12) · [app/server/src/lib/mail/mailer.ts:59](../../../app/server/src/lib/mail/mailer.ts#L59) · [app/server/src/lib/limits.ts:4](../../../app/server/src/lib/limits.ts#L4) · [app/server/src/lib/apply-quota.ts:4](../../../app/server/src/lib/apply-quota.ts#L4) · [app/web/sites/portal/components/os/JoinBox.tsx:166](../../../app/web/sites/portal/components/os/JoinBox.tsx#L166) · [app/web/sites/portal/components/PromoLazy.tsx:88](../../../app/web/sites/portal/components/PromoLazy.tsx#L88) · [app/web/sites/portal/components/PromoPlayer.tsx:48](../../../app/web/sites/portal/components/PromoPlayer.tsx#L48) · [app/web/sites/portal/lib/promoWindow.ts:10](../../../app/web/sites/portal/lib/promoWindow.ts#L10) · [app/web/sites/portal/lib/promo.ts:22](../../../app/web/sites/portal/lib/promo.ts#L22) · [app/web/sites/portal/lib/applyOpen.ts:8](../../../app/web/sites/portal/lib/applyOpen.ts#L8) · [app/web/sites/portal/components/os/JoinClosed.tsx:7](../../../app/web/sites/portal/components/os/JoinClosed.tsx#L7) · [app/server/src/lib/mail/envelope.ts:321](../../../app/server/src/lib/mail/envelope.ts#L321) · [app/server/src/lib/mail/envelope-pieces.ts:9](../../../app/server/src/lib/mail/envelope-pieces.ts#L9)
 
 测试入口：[tests/server/apply-switch.test.ts](../../../tests/server/apply-switch.test.ts) · [tests/server/applications.test.ts](../../../tests/server/applications.test.ts) · [tests/server/mail-outbox.test.ts](../../../tests/server/mail-outbox.test.ts) · [tests/server/rate-limits.test.ts](../../../tests/server/rate-limits.test.ts) · [tests/web/portal-apply-switch.test.tsx](../../../tests/web/portal-apply-switch.test.tsx) · [tests/web/portal-promo-desktop.test.tsx](../../../tests/web/portal-promo-desktop.test.tsx) · [tests/web/portal-promo-window.test.ts](../../../tests/web/portal-promo-window.test.ts)。生成器未执行这些测试。
 
@@ -970,7 +970,7 @@
 - 响应与错误：200 {items}；正文截280字、含回复/状态/票数，不含contact/IP/UA；limit由合同限制且最终最多100。
 - 数据与副作用：只读本组织反馈，不查询其他组织是否有记录。
 
-源码：[app/server/src/routes/portal/feedback.ts:66](../../../app/server/src/routes/portal/feedback.ts#L66) · [app/web/sites/portal/components/os/FeedbackBox.tsx:66](../../../app/web/sites/portal/components/os/FeedbackBox.tsx#L66) · [app/web/sites/portal/App.tsx:32](../../../app/web/sites/portal/App.tsx#L32) · [app/web/sites/portal/components/PageShell.tsx:29](../../../app/web/sites/portal/components/PageShell.tsx#L29)
+源码：[app/server/src/routes/portal/feedback.ts:66](../../../app/server/src/routes/portal/feedback.ts#L66) · [app/web/sites/portal/components/os/FeedbackBox.tsx:65](../../../app/web/sites/portal/components/os/FeedbackBox.tsx#L65) · [app/web/sites/portal/App.tsx:34](../../../app/web/sites/portal/App.tsx#L34) · [app/web/sites/portal/components/PageShell.tsx:29](../../../app/web/sites/portal/components/PageShell.tsx#L29)
 
 测试入口：[tests/server/feedback-org.test.ts](../../../tests/server/feedback-org.test.ts) · [tests/server/core.test.ts](../../../tests/server/core.test.ts)。生成器未执行这些测试。
 
@@ -987,7 +987,7 @@
 - 响应与错误：200 {ok:true,id,message}；非法org/内容/分类或人机校验失败400，超额429。
 - 数据与副作用：写feedback及feedback.submit审计（80字预览）；有效sid补账号，过期sid可删除；联系方式截200字，不发送邮件。
 
-源码：[app/server/src/routes/portal/feedback.ts:26](../../../app/server/src/routes/portal/feedback.ts#L26) · [app/web/sites/portal/components/os/FeedbackBox.tsx:91](../../../app/web/sites/portal/components/os/FeedbackBox.tsx#L91)
+源码：[app/server/src/routes/portal/feedback.ts:26](../../../app/server/src/routes/portal/feedback.ts#L26) · [app/web/sites/portal/components/os/FeedbackBox.tsx:90](../../../app/web/sites/portal/components/os/FeedbackBox.tsx#L90)
 
 测试入口：[tests/server/feedback-org.test.ts](../../../tests/server/feedback-org.test.ts) · [tests/server/core.test.ts](../../../tests/server/core.test.ts) · [tests/server/rate-limits.test.ts](../../../tests/server/rate-limits.test.ts)。生成器未执行这些测试。
 
