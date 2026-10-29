@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 308,
   "kind": "business",
-  "summary": "GitLab #308 第二个 MR：改接正式前，正式同步（10-29 15:43–16:18）给 6 名已有 GitLab 号的成员又建了 `_yz` 号，主体迁移冲突挡住签发者改接。新增 cutover 步骤 stop-production-sync 与 repair-duplicates（默认演算、逐人核对、整批拒绝，写入要求正式写者已停），写入时解绑并封禁重复号、正式库 sub 与映射改回原号；停预发布写者前的主体演算把可最小补建的成员单独计数，解开停写与补建的互锁。",
+  "summary": "GitLab #308 第三个 MR：stop-preview-sync 演算（run 40927643521）把 GitHub 组织成员 IofStage 算作对不上。迁移工具导出时改按 server 的成员口径（identity-store.ts membershipFromRow）：成员看有效的 level.member，管理员看有效的站长称号，已弃用的 org_role/org_state 不再参与；补建不了的条目带原因（停用、校友、非成员、无 GitHub 身份），写入端随「对不上」打印。汇总行格式与严格判定不变。",
   "applications": [
     "server"
   ],
@@ -21,101 +21,68 @@
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "成员改接正式统一登录后要落到自己原来的 GitLab 号（仓库、issue、MR 都在原号上），不能落到同步提前建出的空号；重复号只封不删，原号与权限不变。",
+      "reason": "在 GitLab 同步里算有效成员、但旧字段 org_role 为空的成员，改接时能在正式库最小补建并保住原 GitLab 号；校友、过期、停用的仍不补建并写明原因。",
       "evidence": [
-        "deploy/gitlab/sync-control.mjs",
-        "deploy/gitlab/cutover.sh"
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "backend": {
       "status": "unchanged",
-      "reason": "不改 server 运行代码与接口；修复工具复用同步模块的表与 GitLab 管理接口，经一次性容器运行。",
+      "reason": "不改 server 运行代码与接口；补建仍走既有 account.js provision-github。",
       "evidence": [
-        "deploy/gitlab/sync-control.mjs"
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "permissions": {
       "status": "changed",
-      "reason": "只处理受管普通成员：原号与重复号都必须非管理员、非机器人、非保留名；重复号必须从没登录过、只绑正式 sub；原号只能对应本账号。GitLab 写操作只有解绑 openid_connect 身份与封禁重复号，经 production 审批的 cutover 工作流执行。",
+      "reason": "补建的成员与角色改按 server 规则判定：有效 level.member 才补建，有效 title.site.owner 才按 admin 补建（provisionAccount 会据此发站长称号），旧字段 org_role=admin 不再带来站长资格，org_role=member 但 level 已过期的不再补建。",
       "evidence": [
-        "deploy/gitlab/sync-control.mjs",
-        "tests/tooling/gitlab-sync-control.test.ts",
-        ".github/workflows/gitlab-cutover.yml"
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        "tests/tooling/oidc-subject-migration.test.ts",
+        "app/server/src/lib/identity-store.ts"
       ]
     },
     "data": {
       "status": "changed",
-      "reason": "不改表结构。正式库每个重复号账号在一个事务里改 oauth_subjects 的 sub（条件是仍为原正式 sub）和 gitlab_accounts 映射（条件是仍映射重复号），清掉权限、头像、邮箱的同步缓存；写前跑正式一致性备份。主体迁移的写入行为不变，只是演算带补建时多一个计数。",
+      "reason": "不改表结构。导出 JSON 多一个诊断字段 provision_skip；写入行为（只新增、整批拒绝）不变。",
       "evidence": [
-        "deploy/gitlab/sync-control.mjs",
-        "deploy/gitlab/migrate-oidc-subjects.mjs",
-        "deploy/gitlab/cutover.sh"
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "dependencies": {
-      "status": "changed",
-      "reason": "不新增依赖。修复走正式容器网络调用 GitLab 管理接口（令牌只放请求头，redirect=error，15 秒超时），失败只报原因码；中途失败可重跑接续。",
+      "status": "unchanged",
+      "reason": "导出只多读一张已有的 perm_members 表（server 镜像里已有），补建仍调用同一个 account.js provision-github 子进程，GitLab 与网络调用不变。",
       "evidence": [
-        "deploy/gitlab/sync-control.mjs",
-        ".github/workflows/gitlab-cutover.yml"
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "GITLAB.md 的改接顺序加 2a 修复步骤与停写演算的补建计数，CICD.md 的工作流表加 repair-duplicates；追加执行记录。",
+      "reason": "GITLAB.md 写明最小补建按 level.member 认成员与不补建的情形；追加执行记录。",
       "evidence": [
-        "docs/ops/GITLAB.md",
-        "docs/ops/CICD.md"
+        "docs/ops/GITLAB.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "单测覆盖演算只读、写入顺序与结果、重跑幂等、修到一半接续、7 种拒绝形状、原号被占与 sub 被占、无关条目跳过；cutover 测试覆盖只读/读写挂载、备份顺序、拒绝时非零退出、停写演算才带补建。真实修复结果以 cutover 运行日志与 verify-accounts 为准。",
+      "reason": "新增用例覆盖有效成员、过期、校友、停用、无 GitHub、站长、旧字段说是成员但无 level、旧字段说是管理员但无站长称号、expires_at 等于此刻、站长称号过期、org_state 非 active 十一种导出结果，以及写入端的原因打印与不带补建时的旧输出。真实结果以合并后 stop-preview-sync 演算日志为准。",
       "evidence": [
-        "tests/tooling/gitlab-sync-control.test.ts",
-        "tests/tooling/gitlab-cutover.test.ts",
         "tests/tooling/oidc-subject-migration.test.ts"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "沿 #308 P0 hotfix 窗口进 main，不新建或移动 tag；cutover 只在 main 上手动派发并过 production 审批。改接完成、真实登录核对后才关窗、核销 P-0007/P-0011。",
+      "reason": "沿 #308 P0 hotfix 窗口进 main，不新建或移动 tag；合并后经 gitlab-cutover.yml 重跑 stop-preview-sync 演算。",
       "evidence": [
-        ".github/workflows/gitlab-cutover.yml",
-        "deploy/gitlab/cutover.sh"
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "deploy/gitlab/sync-control.mjs",
-        "deploy/gitlab/cutover.sh",
         "deploy/gitlab/migrate-oidc-subjects.mjs",
-        ".github/workflows/gitlab-cutover.yml",
-        "tests/tooling/gitlab-sync-control.test.ts",
-        "tests/tooling/gitlab-cutover.test.ts",
         "tests/tooling/oidc-subject-migration.test.ts"
-      ],
-      "domains": [
-        "gitlab",
-        "identity",
-        "organization",
-        "forum",
-        "audit",
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform",
-        "flow:gitlab.accounts.sync",
-        "flow:gitlab.settings.update"
-      ],
-      "reason": "重复号修复步骤与停写前演算的补建计数，保持整批拒绝、单写者与备份门禁。"
-    },
-    {
-      "paths": [
-        "docs/ops/GITLAB.md",
-        "docs/ops/CICD.md"
       ],
       "domains": [
         "gitlab",
@@ -129,19 +96,34 @@
         "domain:platform",
         "flow:gitlab.accounts.sync"
       ],
-      "reason": "改接顺序与工作流说明随步骤更新。"
+      "reason": "导出按权限组认成员并写明不能补建的原因；只新增、整批拒绝与汇总行格式不变。"
+    },
+    {
+      "paths": [
+        "docs/ops/GITLAB.md"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "organization",
+        "forum",
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.accounts.sync"
+      ],
+      "reason": "改接说明写明补建的成员口径。"
     }
   ],
   "documents": [
-    "docs/ops/GITLAB.md",
-    "docs/ops/CICD.md"
+    "docs/ops/GITLAB.md"
   ],
   "tests": [
-    "tests/tooling/gitlab-sync-control.test.ts",
-    "tests/tooling/gitlab-cutover.test.ts",
     "tests/tooling/oidc-subject-migration.test.ts"
   ],
-  "compatibility": "cutover 既有步骤的参数、输出格式与门禁不变；新步骤默认演算。主体迁移不带补建的演算输出不变，切签发者与开正式写者的严格判定不变。",
-  "migration": "无 DDL。修复只改出问题的 6 行主体与映射，写前备份；IofStage 由既有 migrate-subjects --apply --provision-unmatched 最小补建。",
-  "rollback": "正式库用修复前的一致性备份恢复这几行；GitLab 上被封的重复号可解封并按需要重新绑定身份（身份值在备份里），原号不受影响。"
+  "compatibility": "汇总行格式与 cutover.sh 的严格判定不变；导出多一个字段，旧版 import 会忽略它。",
+  "migration": "无 DDL。IofStage 由 migrate-subjects --apply --provision-unmatched 最小补建。",
+  "rollback": "revert 本 MR 的合并提交；已补建的账号可在控制台按成员管理处理。"
 }

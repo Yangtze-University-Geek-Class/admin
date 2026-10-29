@@ -19,6 +19,8 @@ import { pathToFileURL } from 'node:url';
 
 const SECTOR_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 const PROVIDERS = new Set(['github', 'google']);
+// 导出时说明这个账号为什么不能在目标库最小补建，写入时随「对不上」一起打印
+const SKIP_REASONS = { inactive: '源账号不是有效状态', alumni: '源账号是校友，最小补建只建成员', not_member: '源账号不是极客班成员', no_github: '源账号没有 GitHub 身份' };
 
 export function loadDatabase() {
   // 工作区与容器都从 server 包解析；运维脚本可能挂在 /ops 或复制到 /tmp。
@@ -41,11 +43,14 @@ export function assertSector(sector) {
 }
 
 /** 源环境：这个 sector 下每个账号的不可变身份和 sub。没有可对账身份的账号只计数。 */
-export function exportSubjects(db, sector) {
+export function exportSubjects(db, sector, now = Date.now()) {
   assertSector(sector);
   const rows = db.prepare('SELECT user_id, sub FROM oauth_subjects WHERE sector_id = ?').all(sector);
   const identitiesOf = db.prepare('SELECT provider, provider_uid, login FROM identities WHERE user_id = ? ORDER BY provider');
-  const accountOf = db.prepare('SELECT status, org_state, org_role FROM users WHERE id = ?');
+  const accountOf = db.prepare('SELECT status FROM users WHERE id = ?');
+  // 与 server 的 membershipFromRow（identity-store.ts）同一口径：成员看有效的 level.member，管理员看有效的站长称号；
+  // org_role、org_state 是已弃用的旧字段，不参与判定
+  const groupsOf = db.prepare("SELECT group_id FROM perm_members WHERE account_id = ? AND group_id IN ('level.member','level.alumni','title.site.owner') AND (expires_at IS NULL OR expires_at > ?)");
   const entries = [];
   let withoutIdentity = 0;
   for (const row of rows) {
@@ -53,12 +58,13 @@ export function exportSubjects(db, sector) {
     if (ids.length === 0) { withoutIdentity += 1; continue; }
     const account = accountOf.get(row.user_id);
     const github = ids.find(id => id.provider === 'github');
+    const groups = new Set(groupsOf.all(row.user_id, now).map(group => group.group_id));
+    const orgRole = groups.has('level.member') ? (groups.has('title.site.owner') ? 'admin' : 'member') : null;
+    const skip = !github ? 'no_github' : account?.status !== 'active' ? 'inactive' : orgRole ? null : groups.has('level.alumni') ? 'alumni' : 'not_member';
     entries.push({
       sub: row.sub,
       identities: ids.map(id => ({ provider: id.provider, provider_uid: String(id.provider_uid) })),
-      ...(github && account?.status === 'active' && account?.org_state === 'active' && (account.org_role === 'admin' || account.org_role === 'member')
-        ? { provision: { github_login: github.login || `github-${github.provider_uid}`, org_role: account.org_role } }
-        : {}),
+      ...(skip ? { provision_skip: skip } : { provision: { github_login: github.login || `github-${github.provider_uid}`, org_role: orgRole } }),
     });
   }
   return { sector, entries, withoutIdentity };
@@ -106,7 +112,11 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
         rollbackEntry();
         continue;
       }
-      if (!provision) { unmatched.push(label); rollbackEntry(); continue; }
+      if (!provision) {
+        unmatched.push(provisionUnmatched && SKIP_REASONS[entry.provision_skip] ? `${label}（${SKIP_REASONS[entry.provision_skip]}）` : label);
+        rollbackEntry();
+        continue;
+      }
       if (entry.identities.some(id => id.provider !== 'github')) {
         conflicts.push(`${label}：目标库缺失账号还有其它身份，不做最小补建`);
         rollbackEntry();
