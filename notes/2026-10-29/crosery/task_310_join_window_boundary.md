@@ -43,3 +43,9 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：正式签发者改接的 migrate-subjects 演算：可迁 5、冲突 0、对不上 2。按所有者已批准的两名旧成员最小补建：identity-store provisionAccount 支持无邮箱；新增 account.js provision-github；migrate-oidc-subjects export 带有效成员的 GitHub 登录名与角色，import --apply --provision-unmatched 调正式镜像补建并保留 sub；cutover.sh 接上；登记 #308 hotfix 窗口
 - 结果：tests/server/signin-methods.test.ts 52、tests/tooling/oidc-subject-migration.test.ts 11、tests/tooling/gitlab-cutover.test.ts 14 通过；server typecheck 通过。文档核对：docs/ops/DEPLOY.md、docs/ops/ENVIRONMENTS.md、docs/ops/CICD.md 不用改——只改 GitLab cutover 脚本和登记 hotfix 窗口，部署栈、env 键与工作流未变
+
+## 14:54:25 +08:00 · 返工 · #308 · 同步 GitLab cutover 的部署文档
+
+- 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
+- 做了什么：run 40831650480 的 plan 因 deploy/gitlab 与 hotfix 窗口改动晚于 docs/ops 失败；在 DEPLOY.md 写明 migrate-subjects、最小补建与 switch-issuer 顺序
+- 结果：文档核对：docs/ops/ENVIRONMENTS.md、docs/ops/CICD.md 不用改——未改 env 键、工作流或部署栈；仅更新 DEPLOY.md 的真实 cutover 步骤
