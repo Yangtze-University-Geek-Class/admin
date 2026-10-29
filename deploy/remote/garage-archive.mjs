@@ -20,6 +20,11 @@ const ROLES = Object.freeze({
     key: /^gitlab\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
     prefix: /^gitlab\/(?:\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/?)?$/,
   },
+  'gitlab-preview-backup': {
+    bucket: 'geek-preview-private', access: 'GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID', secret: 'GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY',
+    key: /^gitlab\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
+    prefix: /^gitlab\/(?:\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/?)?$/,
+  },
   'platform-preview-backup': {
     bucket: 'geek-backup', access: 'PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID', secret: 'PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY',
     key: /^platform\/preview\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
@@ -49,8 +54,8 @@ function parseArgs(argv) {
     'put-tree': ['--role', '--source', '--prefix'],
     'put-file': ['--role', '--source', '--key'],
     'get-tree': ['--role', '--prefix', '--destination'],
-    'resolve-gitlab-run': ['--run'],
-    'list-gitlab-runs': ['--day'],
+    'resolve-gitlab-run': ['--run', '--role'],
+    'list-gitlab-runs': ['--day', '--role'],
     'prune-runs': ['--role', '--keep-dates'],
   };
   // 无值布尔开关：恢复路径必须显式要求清单校验，缺省下载保持通用；清理缺省只列清单，--apply 才删除
@@ -335,9 +340,9 @@ function gitlabRunTarget(run) {
   return { day: match[1], run: match[2], prefix: `gitlab/${match[1]}/${match[2]}/` };
 }
 
-function listGitlabRuns(day, env = process.env) {
+function listGitlabRuns(day, env, roleName) {
   if (day !== undefined) requireThat(/^\d{4}-\d{2}-\d{2}$/.test(day), '--day 必须是 YYYY-MM-DD');
-  const role = roleConfig('gitlab-backup', env);
+  const role = roleConfig(roleName, env);
   const runs = new Set();
   for (const item of listPrefix(role, 'gitlab/')) {
     const match = /^(\d{4}-\d{2}-\d{2})\/([A-Za-z0-9._-]+)\/SHA256SUMS$/.exec(item.path);
@@ -347,9 +352,9 @@ function listGitlabRuns(day, env = process.env) {
 }
 
 // 显式选择：只核对调用者点名的 run，绝不按字典序或时间来“猜”要恢复哪一份
-function resolveGitlabRun(run, env = process.env) {
+function resolveGitlabRun(run, env, roleName) {
   const target = gitlabRunTarget(run);
-  const role = roleConfig('gitlab-backup', env);
+  const role = roleConfig(roleName, env);
   const objects = listPrefix(role, target.prefix);
   requireThat(objects.length > 0, `远端不存在 ${target.prefix}`);
   const manifest = objects.find(item => item.path === MANIFEST_NAME);
@@ -363,6 +368,7 @@ function resolveGitlabRun(run, env = process.env) {
 
 const PRUNE_FAMILIES = Object.freeze({
   'gitlab-backup': 'gitlab/',
+  'gitlab-preview-backup': 'gitlab/',
   'platform-preview-backup': 'platform/preview/',
   'platform-production-backup': 'platform/production/',
 });
@@ -443,13 +449,15 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     const keepDates = options['--keep-dates'] === undefined ? DEFAULT_KEEP_DATES : Number(options['--keep-dates']);
     return pruneRuns(roleConfig(options['--role'], env), { keepDates, apply: options['--apply'] === true });
   }
-  if (command === 'list-gitlab-runs') return { runs: listGitlabRuns(options['--day'], env) };
+  const gitlabRole = options['--role'] ?? 'gitlab-backup';
+  if (command === 'list-gitlab-runs' || command === 'resolve-gitlab-run') requireThat(['gitlab-backup', 'gitlab-preview-backup'].includes(gitlabRole), 'GitLab 恢复只接受 GitLab 备份角色');
+  if (command === 'list-gitlab-runs') return { runs: listGitlabRuns(options['--day'], env, gitlabRole) };
   if (command === 'resolve-gitlab-run') {
     if (!options['--run']) {
-      const runs = listGitlabRuns(undefined, env);
+      const runs = listGitlabRuns(undefined, env, gitlabRole);
       throw new ArchiveError(`必须显式指定 --run <YYYY-MM-DD>/<run>，不会自动选择最新 run。可用 run：${runs.length > 0 ? runs.join('、') : '（无）'}`);
     }
-    return resolveGitlabRun(options['--run'], env);
+    return resolveGitlabRun(options['--run'], env, gitlabRole);
   }
   const role = roleConfig(options['--role'], env);
   if (command === 'put-file') return { bucket: role.bucket, ...(await putFile(role, options['--source'], options['--key'])) };

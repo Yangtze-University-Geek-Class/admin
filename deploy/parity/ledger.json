@@ -144,8 +144,10 @@
         "evidence": "预发布 rc.29 的 portal 脚本在新 CDN 上（回填登记）"
       },
       "production": {
-        "status": "pending",
-        "action": "前置 P-0002、P-0008。下一次正式 hotfix 部署由 static-cdn 环境的凭据构建；验收：正式首页脚本地址在新 CDN 上，宣传片 HLS 能播"
+        "status": "done",
+        "action": "前置 P-0002、P-0008。下一次正式 hotfix 部署由 static-cdn 环境的凭据构建；验收：正式首页脚本地址在新 CDN 上，宣传片 HLS 能播",
+        "doneAt": "2026-10-29T08:37:29+08:00",
+        "evidence": "正式 hotfix 40729259328 attempt 2 全部10个job success；/release.json=production 0.1.1@9438af8b3f044d4ebcd2a8bf993e4f556749c9b5。真实浏览器入口脚本 https://cdn.yangtzeu.work/geek-public/static/site/assets/portal-3j-ZJlxy.js；宣传片加载新CDN的 media/promo/v5-tone-e1419fc9331a/master-h264.m3u8 和 h264_720/index.m3u8，readyState=4、paused=false、duration=105、currentTime=72.538444，观察到播放画面。未改CDN DNS。"
       },
       "release": "0.1.1"
     },
@@ -195,6 +197,22 @@
         "action": "同一台 Arch，无需再做；部署后宿主层步骤会核对物料一致。复核：systemctl list-timers 'cdn-mirror*'，cat /srv/cdn-mirror/status.json 的 ok 为 true",
         "doneAt": "2026-10-28T21:04:01+08:00",
         "evidence": "Arch 实机 2026-10-28 21:03：install-host.sh plan 八项全是 same，verify 通过，cdn-mirror.sh watch 输出 ok；两个定时器已启用（下次 02:22）；status.json 的 ok 为 true，五个桶 verified"
+      }
+    },
+    {
+      "id": "P-0013",
+      "surface": "host",
+      "title": "GitLab预发布子路径入口的受限运维通道",
+      "issue": 308,
+      "preview": {
+        "doneAt": "2026-10-29T12:07:30+08:00",
+        "evidence": "所有者明确批准首次安装。香港已通过仓库install-host安装固定动作接收器；专用SSH plan成功、id被拒，候选Caddy配置真实validate通过。未激活预发布路由、未启动GitLab。"
+      },
+      "production": {
+        "status": "done",
+        "action": "在同一香港宿主保全正式Caddy块和原SSH授权；独立私钥仅存production环境GITLAB_EDGE_SSH_KEY，经required reviewers调用固定动作。核对正式配置摘要不变，不能把通道安装当成正式SSO或预发布实例验收。",
+        "doneAt": "2026-10-29T12:13:42+08:00",
+        "evidence": "同一香港宿主的首次受限通道安装已完成；专用key仅在production环境GITLAB_EDGE_SSH_KEY，真实required_reviewers仍存在。新key执行plan成功、id被拒，临时私钥已删除。Caddy未reload，正式配置摘要仍为c9ef6f81db7e9e2b569546b031669df5bf7f6469c66be4417d794694be92271a；本条不核销GitLab实例或SSO验收。"
       }
     }
   ]

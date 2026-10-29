@@ -34,9 +34,9 @@
 | `deploy/env/.env.preview` | 预发布栈 | 预发布的域名、端口、栈目录、镜像仓库 |
 | `deploy/env/.env.dev` | 本机调试 | 回环地址、`.tools/local-preview` 下的数据；`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` |
 
-三份文件都入库，键集完全一致，密钥一律留空（正式与预发布由 CI/CD 从各自的 GitHub 环境 secrets 渲染，本机由操作者在 shell 或仓库根 `.env` 里补，不写进文件）。`.env.dev` 入库前要脱敏：只能是回环地址、公开的发件地址和已经在另外两份里公开的共用服务地址（CDN、GitLab），不放任何真实密钥、账号、个人信息。本机调试以本地为主：`pnpm dev:web`、`pnpm preview:local` 不需要连任何远端。
+三份文件都入库，键集完全一致，密钥一律留空（正式与预发布由 CI/CD 从各自的 GitHub 环境 secrets 渲染，本机由操作者在 shell 或仓库根 `.env` 里补，不写进文件）。`.env.dev` 只保留回环地址、公开发件地址和共用 CDN 地址，不放真实密钥、账号或个人信息；本机 GitLab 使用回环基址且同步关闭，不连接正式 GitLab。
 
-正式与预发布除下列差异键以外，值必须相同：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`WEB_BIND`、`SERVER_BIND`、`PUBLIC_ORIGIN`、`GITLAB_SYNC`（GitLab 同步只允许一个环境写，两边同时开会反复封禁解封同一批人）。要新增差异键，先在 `scripts/check-env-isolation.mjs` 的 `PER_ENVIRONMENT_KEYS` 登记，并在 [ENVIRONMENTS](../ops/ENVIRONMENTS.md) 字段表里说明为什么必须不同。
+正式与预发布除环境身份、栈路径/端口、`GITLAB_SYNC` 与独立 GitLab 的 `GITLAB_URL`、`GITLAB_OIDC_CLIENT`、`GITLAB_STACK_ROOT`、`GITLAB_HTTP_BIND`、`GITLAB_DOCKER_SUBNET`、`GITLAB_DOCKER_GATEWAY` 外，值必须相同。每个 GitLab 只有本环境一个同步写者；两个实例的URL、目录、绑定和子网不得相同。差异键在 `scripts/check-env-isolation.mjs` 的 `PER_ENVIRONMENT_KEYS` 登记，具体值与原因见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。新增差异须同样说明，不能绕过隔离检查。
 
 每份文件里不得出现另外两个环境才有的值：正式文件没有预发布域名、预发布端口 18200/18201、`yzgc-preview`；预发布文件没有正式域名、端口 18100/18101、`yzgc-production`；本机文件没有任何部署栈的域名、端口和目录。
 
@@ -153,6 +153,7 @@ hotfix 从 `main` 修（[RELEASES](RELEASES.md)「线上紧急缺陷（Hotfix）
 |---|---|---|
 | systemd 单元、隧道看门狗覆盖项、CDN 镜像脚本等宿主层物料 | `deploy/remote/install-host.sh`（`plan` 只读比对、`apply` 备份后覆盖并 daemon-reload、`verify` 核对一致与 systemd 状态）；`deploy-preview/production/hotfix.yml` 在栈部署成功后自动运行（物料落在 `/opt/yzgc/host-incoming-<运行编号>`，preview 与 production 同时发布互不踩；这一步失败让部署 job 变红，随后的线上烟测 job 因此被跳过：先按 `docs/ops/DEPLOY.md` 查宿主层，再在本机运行 `node scripts/parity.mjs smoke --origin <正式 origin> --env production` 补做线上核对，只读 HTTP，不需要登录目标机），镜像凭据由环境 secret `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY` 经 stdin 写入 | `tests/tooling/install-host.test.ts`：临时根目录加假 systemctl，覆盖 changed/missing、备份、凭据 0600 与不回显、绝不重启服务 |
 | GitLab 统一登录改接（登记客户端、搬 `sub`、换签发者与 secret、回滚） | `deploy/gitlab/cutover.sh`，由 `gitlab-cutover.yml` 手动触发（production 环境审批，缺省演算，勾 `apply` 才写） | `tests/tooling/gitlab-cutover.test.ts`：假 docker 与 curl，覆盖前置检查、备份、回滚、不回显 secret |
+| GitLab 独立预发布与香港入口 | `gitlab-cutover` 的 `install-preview` 与 `edge-*`；首次受限通道由所有者单独批准，经 `install-host.sh --target edge` 安装，后续密钥只执行固定动作；正式Caddy块不变 | `tests/tooling/gitlab-preview.test.ts`：真实CLI、临时根、失败恢复、漂移拒绝与受限命令；真实Caddy解析另验 |
 | 预发布到正式的数据格式迁移、一次性数据修复 | 先写成带演算模式的脚本放进仓库，再接进上面这类工作流 | 临时库上的测试 |
 
 凭据的第一次生成（例如在 Garage 上建只读密钥、在 GitLab 上建访问令牌）需要对应系统的管理员权限，不在流水线里：生成后只写进 GitHub 环境 secret，之后的安装与轮换都走流水线。清单条目里要写明这一步由谁、用什么命令做。

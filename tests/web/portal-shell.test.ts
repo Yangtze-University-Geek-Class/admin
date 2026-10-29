@@ -272,12 +272,14 @@ describe("桌面", () => {
     expect(OS_APPS.find((app) => app.id === "console")).toBeTruthy();
   });
 
-  it("repos 和 ~/projects 列出代码仓库里的公开项目", () => {
+  it("repos 和 ~/projects 随可访问项目更新，撤掉列表后移除旧项目", () => {
     const shell = make();
-    expect(sh(shell, "repos").out).toBe("代码仓库里还没有公开项目");
     shell.setRepos([{ name: "admin", path: "geek/admin", description: "官网和后端", url: "https://git.yangtzeu.work/geek/admin", cloneUrl: "https://git.yangtzeu.work/geek/admin.git", activeAt: null }]);
     expect(sh(shell, "repos").out).toContain("geek/admin");
     expect(sh(shell, "cat ~/projects/admin/README.md").out).toContain("https://git.yangtzeu.work/geek/admin");
+    shell.setRepos([]);
+    expect(sh(shell, "ls ~/projects").out).toBe("");
+    expect(sh(shell, "cat ~/projects/admin/README.md").err).toContain("No such file");
   });
 
   it("clear 清屏，exit 关窗口，!! 重复上一条", () => {
@@ -305,6 +307,23 @@ describe("存盘与补全", () => {
     expect(sh(second, "ls ~/Desktop").out).toContain("forum.app");
     expect(second.history()).toContain("mkdir notes && echo 记一笔 > notes/todo.txt && chmod 600 notes/todo.txt");
     expect(make({ account: account(), storage }).run("ls notes").lines.at(-1)?.kind).toBe("err");
+  });
+
+  it("同名不同账号、退出和身份降级都不能载入旧成员的文件与命令历史；同一账号改名仍可续用", () => {
+    const storage = memory();
+    const first = make({ account: account(), storage });
+    sh(first, "echo private-note > secret.txt");
+    const another = make({ account: account({ accountId: "acc_2" }), storage });
+    expect(sh(another, "cat secret.txt").err).toContain("No such file");
+    expect(another.history()).not.toContain("echo private-note > secret.txt");
+    const visitor = make({ storage });
+    expect(sh(visitor, "cat secret.txt").err).toContain("No such file");
+    const registered = make({ account: account({ level: "registered" }), storage });
+    expect(sh(registered, "cat secret.txt").err).toContain("No such file");
+    expect(registered.history()).not.toContain("echo private-note > secret.txt");
+    const renamed = make({ account: account({ username: "renamed" }), storage });
+    expect(sh(renamed, "cat secret.txt").out).toBe("private-note");
+    expect(renamed.history()).toContain("echo private-note > secret.txt");
   });
 
   it("家目录写满报 No space left on device", () => {

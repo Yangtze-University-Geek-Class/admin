@@ -265,13 +265,13 @@
     }
   ],
   "coverage": {
-    "automaticHead": 89,
-    "businessOperations": 183,
-    "businessOperationsWithFlow": 183,
+    "automaticHead": 91,
+    "businessOperations": 185,
+    "businessOperationsWithFlow": 185,
     "capabilities": 16,
-    "declaredFlows": 190,
-    "responseSchemas": 152,
-    "routeMethods": 301,
+    "declaredFlows": 192,
+    "responseSchemas": 154,
+    "routeMethods": 305,
     "supplementalInterfaces": 6,
     "supplementalInterfacesWithFlow": 6,
     "tables": 69
@@ -1743,7 +1743,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -2630,7 +2630,7 @@
           "path": "app/server/src/routes/portal/events.ts"
         },
         {
-          "line": 43,
+          "line": 49,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -6932,7 +6932,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -7360,7 +7360,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -8749,7 +8749,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -9727,7 +9727,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -9799,7 +9799,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -9859,7 +9859,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -9920,7 +9920,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -10048,7 +10048,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -10134,7 +10134,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -10199,7 +10199,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -11142,12 +11142,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -11518,7 +11514,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11597,7 +11593,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11815,15 +11811,59 @@
       "domain": "gitlab",
       "evidence": [
         {
-          "line": 12,
+          "line": 14,
           "path": "app/server/src/routes/portal/gitlab.ts"
         },
         {
-          "line": 30,
+          "line": 36,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
-          "line": 70,
+          "line": 14,
+          "path": "app/web/sites/portal/lib/links.ts"
+        }
+      ],
+      "id": "flow:gitlab.entry.open",
+      "invariants": [
+        "只按本环境 GITLAB_URL 与有效群组设置生成 302 Location，保留部署子路径；查询参数不能改变目的地。",
+        "无基址返回 503；不发送管理员令牌、不读私有项目、不缓存重定向。"
+      ],
+      "operation": "GET /api/public/gitlab",
+      "operationLabel": "GET /api/public/gitlab",
+      "operationNodeId": "route:GET /api/public/gitlab",
+      "reads": [],
+      "relatedDomains": [
+        "platform"
+      ],
+      "testStatus": "linked-not-executed-by-generator",
+      "tests": [
+        "tests/server/gitlab-sync.test.ts"
+      ],
+      "title": "门户进入本环境的 GitLab 群组",
+      "writes": []
+    },
+    {
+      "assessment": "declared-with-source-evidence",
+      "capabilities": [],
+      "docs": [
+        "docs/services/server/oidc.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/services/web/portal.md"
+      ],
+      "doesNotEnqueue": [],
+      "domain": "gitlab",
+      "evidence": [
+        {
+          "line": 19,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 41,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 81,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11879,6 +11919,81 @@
     },
     {
       "assessment": "declared-with-source-evidence",
+      "capabilities": [],
+      "docs": [
+        "docs/services/server/oidc.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/services/web/portal.md"
+      ],
+      "doesNotEnqueue": [],
+      "domain": "gitlab",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "id": "flow:gitlab.projects.member.list",
+      "invariants": [
+        "仅有效 sid 且 active、当前有效直接 member/alumni 可读；没有 gitlab.view 也能读取，不开放控制台账号与同步管理权限。",
+        "服务端在等待 GitLab 前后核对资格；匿名401、非成员403，缓存不能跳过资格；响应 no-store。公开端点即使带cookie仍只给public项目。",
+        "门户按 account_id 隔离状态，退出或换人立即隐藏旧列表并忽略迟到响应；终端同时重建且存盘按稳定账号与身份等级隔离。",
+        "只返回项目名称、路径、说明、HTTPS链接和最近活动，不返回管理令牌、身份绑定、内部管理字段。"
+      ],
+      "operation": "GET /api/me/gitlab/projects",
+      "operationLabel": "GET /api/me/gitlab/projects",
+      "operationNodeId": "route:GET /api/me/gitlab/projects",
+      "reads": [
+        "sessions",
+        "users",
+        "perm_members"
+      ],
+      "relatedDomains": [
+        "identity",
+        "permissions"
+      ],
+      "testStatus": "linked-not-executed-by-generator",
+      "tests": [
+        "tests/server/gitlab-sync.test.ts",
+        "tests/web/portal-code-repos.test.tsx",
+        "tests/web/portal-shell.test.ts"
+      ],
+      "title": "有效极客班成员从门户与终端查看成员项目",
+      "writes": [
+        "sessions"
+      ]
+    },
+    {
+      "assessment": "declared-with-source-evidence",
       "capabilities": [
         "roles.manage",
         "roles.department.manage"
@@ -11901,7 +12016,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11960,11 +12075,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -12251,7 +12366,7 @@
           "path": "app/server/src/routes/portal/departments.ts"
         },
         {
-          "line": 23,
+          "line": 30,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -14246,9 +14361,19 @@
       "title": "控制台立即同步一个账号到 GitLab"
     },
     {
+      "id": "flow:gitlab.entry.open",
+      "kind": "flow",
+      "title": "门户进入本环境的 GitLab 群组"
+    },
+    {
       "id": "flow:gitlab.projects.console.list",
       "kind": "flow",
       "title": "控制台查看 GitLab 组与项目清单（含私有）"
+    },
+    {
+      "id": "flow:gitlab.projects.member.list",
+      "kind": "flow",
+      "title": "有效极客班成员从门户与终端查看成员项目"
     },
     {
       "id": "flow:gitlab.projects.public.list",
@@ -14991,6 +15116,11 @@
       "title": "GET /api/me/competitions"
     },
     {
+      "id": "route:GET /api/me/gitlab/projects",
+      "kind": "route",
+      "title": "GET /api/me/gitlab/projects"
+    },
+    {
       "id": "route:GET /api/public/competitions",
       "kind": "route",
       "title": "GET /api/public/competitions"
@@ -15039,6 +15169,11 @@
       "id": "route:GET /api/public/departments",
       "kind": "route",
       "title": "GET /api/public/departments"
+    },
+    {
+      "id": "route:GET /api/public/gitlab",
+      "kind": "route",
+      "title": "GET /api/public/gitlab"
     },
     {
       "id": "route:GET /api/public/gitlab/projects",
@@ -15441,6 +15576,11 @@
       "title": "HEAD /api/me/competitions"
     },
     {
+      "id": "route:HEAD /api/me/gitlab/projects",
+      "kind": "route",
+      "title": "HEAD /api/me/gitlab/projects"
+    },
+    {
       "id": "route:HEAD /api/public/competitions",
       "kind": "route",
       "title": "HEAD /api/public/competitions"
@@ -15489,6 +15629,11 @@
       "id": "route:HEAD /api/public/departments",
       "kind": "route",
       "title": "HEAD /api/public/departments"
+    },
+    {
+      "id": "route:HEAD /api/public/gitlab",
+      "kind": "route",
+      "title": "HEAD /api/public/gitlab"
     },
     {
       "id": "route:HEAD /api/public/gitlab/projects",
@@ -16901,6 +17046,11 @@
       "title": "tests/web/portal-apply-switch.test.tsx"
     },
     {
+      "id": "test:tests/web/portal-code-repos.test.tsx",
+      "kind": "test",
+      "title": "tests/web/portal-code-repos.test.tsx"
+    },
+    {
       "id": "test:tests/web/portal-competition-hub.test.tsx",
       "kind": "test",
       "title": "tests/web/portal-competition-hub.test.tsx"
@@ -16939,11 +17089,16 @@
       "id": "test:tests/web/portal-promo-window.test.ts",
       "kind": "test",
       "title": "tests/web/portal-promo-window.test.ts"
+    },
+    {
+      "id": "test:tests/web/portal-shell.test.ts",
+      "kind": "test",
+      "title": "tests/web/portal-shell.test.ts"
     }
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "8665b13e77e4419379e2f9eea1e41964ee0dd6a213ee0999672254801f897e9c",
+    "fingerprint": "c3dfaa654a08b2d19f5df76b3026c4e0c063d247abc9ffc9baa7e5c34cfd0f76",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17839,7 +17994,7 @@
       },
       {
         "path": "app/server/src/config.ts",
-        "sha256": "c232778b65744241c44e2578beab7eab9bc97aa9a039fe05993212a4dd65bc9b"
+        "sha256": "4c1e3d3876a24873b20fc67f931cba18f201a016300b7cf405d2893125f7a499"
       },
       {
         "path": "app/server/src/index.ts",
@@ -17987,7 +18142,7 @@
       },
       {
         "path": "app/server/src/lib/gitlab-sync.ts",
-        "sha256": "8b8cb54482e541e4354243eb682d981cf57fed5c97540a00692e3ab762fddb14"
+        "sha256": "2b9568b626c5b33a570f37f5ac0083c40cf7c0a0ead48de4ab99ff2912f8e66e"
       },
       {
         "path": "app/server/src/lib/google.ts",
@@ -18367,7 +18522,7 @@
       },
       {
         "path": "app/server/src/routes/portal/contracts.ts",
-        "sha256": "017b029638ef9f81da75d429fe1ece1fb1cf88922e3f88665a62a4da49ab3116"
+        "sha256": "0184d8e5e56ada635f98d8d8d450d62aaf7981fa1722eb8dff856e14c0cd2939"
       },
       {
         "path": "app/server/src/routes/portal/departments.ts",
@@ -18387,7 +18542,7 @@
       },
       {
         "path": "app/server/src/routes/portal/gitlab.ts",
-        "sha256": "d31ae9c3e58ebab9f4721e9d18ab123b2b2c8cac20a15146514fcff2c8a684bd"
+        "sha256": "7a7bf8567d8a16ae3987c21663f6278d2d1281a2edb2a85d8428cdaf17465157"
       },
       {
         "path": "app/server/src/routes/portal/index.ts",
@@ -18423,7 +18578,7 @@
       },
       {
         "path": "app/web/shared/config/index.ts",
-        "sha256": "abe1ba3bc9b615409a14387ca0084aee9b0a600cfbe642e5e0b931eba159a8ab"
+        "sha256": "c8ab8e5154368266c9f8ac9989f7a175446beb97a6b81c1a3f4ee6f4119e9482"
       },
       {
         "path": "app/web/shared/lib/api.ts",
@@ -18443,7 +18598,7 @@
       },
       {
         "path": "app/web/shared/lib/mock-api.ts",
-        "sha256": "528cacf175ec6a2978bbe37635e28a3e6c0c3cfabe75d977b929a802c68c4f92"
+        "sha256": "2b5336d2c9f8d639e062a016ffb7f84abc4e37791f100bc920af6a9a5139d7ac"
       },
       {
         "path": "app/web/shared/lib/mount.tsx",
@@ -18647,7 +18802,7 @@
       },
       {
         "path": "app/web/sites/portal/components/os/Terminal.tsx",
-        "sha256": "9cc0ffe8514ae1e16358b4e0f8884db1adfcc1b897d5d83f1604e68be533f808"
+        "sha256": "fad78e6025dbc013c61981091e8a273c528c27d30060f66eee7b3b0cc62b2d0e"
       },
       {
         "path": "app/web/sites/portal/components/os/Wallpaper.tsx",
@@ -18663,7 +18818,7 @@
       },
       {
         "path": "app/web/sites/portal/components/os/Windows.tsx",
-        "sha256": "7c84fbabd18a28e488a4c4a7ad18a980d89a34d949fd7173780f230d5d7623d4"
+        "sha256": "2e9e9bae0e90a0f7c8a365aa4647394aef4ff2b2bdfe93c1216be3ca41b165f0"
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
@@ -18735,7 +18890,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/codeRepos.ts",
-        "sha256": "373260101b7fb23c90edda06b66cef0a10c188a44cf66e2e6a16f153c7d123aa"
+        "sha256": "afc1ae6aa2b0c32de022e9cf128f4bf3c27c0997b8d1f18047317e005b40810b"
       },
       {
         "path": "app/web/sites/portal/lib/competitionHub.ts",
@@ -18767,7 +18922,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/links.ts",
-        "sha256": "fc94c96bde51cd3b8ea3a06a0a5446647a7d7100fd4a4208d6c9b18772324ab1"
+        "sha256": "4e4a5ef7c7a33b30fc5dc77920f82d0a9978cc2516b26995cc384d7985b86b52"
       },
       {
         "path": "app/web/sites/portal/lib/motion.ts",
@@ -18799,11 +18954,11 @@
       },
       {
         "path": "app/web/sites/portal/lib/shell/commands.ts",
-        "sha256": "54e5f0d741160dea44ddfcdabb641585c63b01eecabf8177f6edcef970fec38c"
+        "sha256": "e14166946bb37bb44e20f85445fc807f21b5caa43a10e6441a1653eebb4a7845"
       },
       {
         "path": "app/web/sites/portal/lib/shell/index.ts",
-        "sha256": "1ab1cf5e7f4b92a8e03ca6aa13ba38a86de4613996aeae384df00e42358b4b51"
+        "sha256": "723d49114b2a18798feff39b74dcdf6300cec83c5df01f2cb4e47625010a27e7"
       },
       {
         "path": "app/web/sites/portal/lib/shell/parse.ts",
@@ -18867,7 +19022,7 @@
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "5e42ba1f429f8181a1278f7d6df93758fe3d714aeede58cadd7829ad7b0f9c10"
+        "sha256": "2541f57cf9e6d6b8b86dcbed549a73ceeff541753cddd5be5c944ca9b78ed24e"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -18879,7 +19034,7 @@
       },
       {
         "path": "docs/architecture/catalog/ownership.json",
-        "sha256": "3eec465dc5a6c68c2c4cf6654cdace42b8d964f2216e78821e0994aeaa1f0816"
+        "sha256": "a8dc6bd766b3a5c88a222ce07783ddaeb70a4b670cf30c92bdce5f84050f50da"
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
@@ -18899,7 +19054,7 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "b40680667a58ecf176f3d64eae833e1fec81e7948029757db46a19c1376836e0"
+        "sha256": "862ed7ce51a16b2cbf63b7e5a9749a603fad8c56a86dab361528977857adda4c"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -18927,7 +19082,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "1908fdf903087caa7c08c630fb9989f2315abaa741dbfeccd80f293cde0512e1"
+        "sha256": "a7acd9eee8c5a270cb2400673625c876a4c6bc5fe19184f6699eb828f1453675"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -18939,7 +19094,7 @@
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
-        "sha256": "4a8435667e47352010a8950ff0ec3a72f24c3e10f061178c3ed07336129b4d6a"
+        "sha256": "c396db3ddc9e8e14a7970501ab65155c91280c94beba7e7d723288975364dd34"
       },
       {
         "path": "docs/services/server/mail.md",
@@ -18947,15 +19102,15 @@
       },
       {
         "path": "docs/services/server/oidc.md",
-        "sha256": "1c8d78ebb46b9d3b4d0f7b9b160895e9ab393f7504686f4261aec187116cc333"
+        "sha256": "fc1653cf8b4fd4fcd1bf23561835fe4462a77f29d6f7fe7e63989174244149db"
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "ad9e828122966129c21682e959e51af43f20bcd0e5fb63de45d4d440cc3a8fdf"
+        "sha256": "b32a867c6eb61cec6474021bb227f2ca2a345f71c9928c3461e1f3eedefe03d9"
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "632fa62c95f5f5d73cb99975178a068b68815cd79221a9089700206dc30ba08d"
+        "sha256": "2503c48d9fe541e55af8d7f51e54372ee180b957751c62f723ae665104729cef"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -19187,7 +19342,7 @@
       },
       {
         "path": "tests/server/gitlab-sync.test.ts",
-        "sha256": "92b878c69a8557604db12dff98c010a8ef85ba06a54c3bfb66d8736cdb8250e7"
+        "sha256": "636f8551ec016272fdd30293e8d2202e9a4ff795a439967e2feffd7607dee5f8"
       },
       {
         "path": "tests/server/grade.test.ts",
@@ -19310,6 +19465,10 @@
         "sha256": "ec28597c3b0235ea43a0a9ef6e0c37a55a9c46409f549556e7398ad9bb94276d"
       },
       {
+        "path": "tests/web/portal-code-repos.test.tsx",
+        "sha256": "d6f973c7d06b81d0c6dcb34f7f350647fdccf5ffd139f8639c571d9cc614788f"
+      },
+      {
         "path": "tests/web/portal-competition-hub.test.tsx",
         "sha256": "aeeb7e906e9f27b2d5eba5df4fa17e5189f6eb9cc83081bc2b457d591d1bf48d"
       },
@@ -19323,7 +19482,7 @@
       },
       {
         "path": "tests/web/portal-os.test.ts",
-        "sha256": "ea5c0b610f12441d818e1f9df8aa91f218da90d1fccdb6b07dab5bd2c5b9b97f"
+        "sha256": "364476c6352ac09e38d1a5bd2d616b5b0e023de05aeb351dfbbdc50b9d23563c"
       },
       {
         "path": "tests/web/portal-phone.test.tsx",
@@ -19340,6 +19499,10 @@
       {
         "path": "tests/web/portal-promo-window.test.ts",
         "sha256": "f724dd7ca8a6a53e672c0e123a15aa14a2e3f0a725bbe0eab2f666e354679dc9"
+      },
+      {
+        "path": "tests/web/portal-shell.test.ts",
+        "sha256": "0049586fe2f5cf222931bb018b1f476831dca10377444910f95530202b97e888"
       }
     ]
   },
@@ -20410,6 +20573,18 @@
       "basis": "runtime",
       "evidence": [
         {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        }
+      ],
+      "from": "application:server",
+      "to": "route:GET /api/me/gitlab/projects",
+      "type": "provides"
+    },
+    {
+      "basis": "runtime",
+      "evidence": [
+        {
           "line": 18,
           "path": "app/server/src/routes/portal/competitions.ts"
         }
@@ -20530,7 +20705,19 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 12,
+          "line": 14,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        }
+      ],
+      "from": "application:server",
+      "to": "route:GET /api/public/gitlab",
+      "type": "provides"
+    },
+    {
+      "basis": "runtime",
+      "evidence": [
+        {
+          "line": 19,
           "path": "app/server/src/routes/portal/gitlab.ts"
         }
       ],
@@ -21490,6 +21677,18 @@
       "basis": "runtime",
       "evidence": [
         {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        }
+      ],
+      "from": "application:server",
+      "to": "route:HEAD /api/me/gitlab/projects",
+      "type": "provides"
+    },
+    {
+      "basis": "runtime",
+      "evidence": [
+        {
           "line": 18,
           "path": "app/server/src/routes/portal/competitions.ts"
         }
@@ -21610,7 +21809,19 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 12,
+          "line": 14,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        }
+      ],
+      "from": "application:server",
+      "to": "route:HEAD /api/public/gitlab",
+      "type": "provides"
+    },
+    {
+      "basis": "runtime",
+      "evidence": [
+        {
+          "line": 19,
           "path": "app/server/src/routes/portal/gitlab.ts"
         }
       ],
@@ -26384,7 +26595,7 @@
           "path": "app/server/src/routes/portal/events.ts"
         },
         {
-          "line": 43,
+          "line": 49,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -26488,7 +26699,7 @@
           "path": "app/server/src/routes/portal/events.ts"
         },
         {
-          "line": 43,
+          "line": 49,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32208,7 +32419,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32236,7 +32447,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32264,7 +32475,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32292,7 +32503,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32320,7 +32531,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32348,7 +32559,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32376,7 +32587,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32404,7 +32615,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32432,7 +32643,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32460,7 +32671,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32488,7 +32699,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32534,7 +32745,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 65,
+          "line": 71,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32578,7 +32789,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32606,7 +32817,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32634,7 +32845,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32662,7 +32873,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32690,7 +32901,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32718,7 +32929,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32746,7 +32957,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32774,7 +32985,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32802,7 +33013,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32830,7 +33041,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32870,7 +33081,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -32898,7 +33109,7 @@
           "path": "app/server/src/routes/portal/competition-signups.ts"
         },
         {
-          "line": 66,
+          "line": 72,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34638,7 +34849,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34658,7 +34869,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34678,7 +34889,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34698,7 +34909,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34718,7 +34929,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34750,7 +34961,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34770,7 +34981,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 14,
+          "line": 21,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -34822,7 +35033,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34842,7 +35053,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34862,7 +35073,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34882,7 +35093,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34902,7 +35113,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34922,7 +35133,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34960,7 +35171,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -34980,7 +35191,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 17,
+          "line": 24,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35036,7 +35247,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35064,7 +35275,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35092,7 +35303,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35120,7 +35331,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35148,7 +35359,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35176,7 +35387,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35204,7 +35415,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35232,7 +35443,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35260,7 +35471,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35288,7 +35499,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35316,7 +35527,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35362,7 +35573,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35390,7 +35601,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 16,
+          "line": 23,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35454,7 +35665,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35538,7 +35749,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35622,7 +35833,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35706,7 +35917,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35826,7 +36037,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 13,
+          "line": 20,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35952,7 +36163,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -35992,7 +36203,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36032,7 +36243,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36072,7 +36283,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36112,7 +36323,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36152,7 +36363,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36192,7 +36403,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36232,7 +36443,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36272,7 +36483,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36342,7 +36553,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36382,7 +36593,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 20,
+          "line": 27,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36458,7 +36669,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36538,7 +36749,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36618,7 +36829,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36698,7 +36909,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36778,7 +36989,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36858,7 +37069,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -36938,7 +37149,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37018,7 +37229,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37098,7 +37309,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37178,7 +37389,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37258,7 +37469,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37338,7 +37549,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37418,7 +37629,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37516,7 +37727,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37596,7 +37807,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 19,
+          "line": 26,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -37718,7 +37929,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37734,7 +37945,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37750,7 +37961,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37766,7 +37977,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37782,7 +37993,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37798,7 +38009,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37814,7 +38025,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37830,7 +38041,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37846,7 +38057,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37862,7 +38073,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37878,7 +38089,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37924,7 +38135,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37940,7 +38151,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 18,
+          "line": 25,
           "path": "app/server/src/routes/portal/contracts.ts"
         }
       ],
@@ -37992,7 +38203,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38020,7 +38231,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38048,7 +38259,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38076,7 +38287,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38104,7 +38315,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38132,7 +38343,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38160,7 +38371,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38206,7 +38417,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -38234,7 +38445,7 @@
           "path": "app/server/src/routes/portal/competitions.ts"
         },
         {
-          "line": 21,
+          "line": 28,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -70758,7 +70969,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70798,7 +71009,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70838,7 +71049,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70878,7 +71089,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70918,7 +71129,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70958,7 +71169,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -70998,7 +71209,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71038,7 +71249,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71090,7 +71301,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71130,7 +71341,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71200,7 +71411,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71248,7 +71459,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71296,7 +71507,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71344,7 +71555,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71392,7 +71603,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71440,7 +71651,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71488,7 +71699,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71536,7 +71747,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71584,7 +71795,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71632,7 +71843,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71704,7 +71915,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71752,7 +71963,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71800,7 +72011,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71848,7 +72059,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71896,7 +72107,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 82,
+          "line": 93,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -71931,6 +72142,62 @@
       "from": "flow:gitlab.accounts.sync",
       "to": "table:sessions",
       "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "domain:gitlab",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "document:docs/architecture/API.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "document:docs/services/server/oidc.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "document:docs/services/web/portal.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.entry.open",
+      "to": "test:tests/server/gitlab-sync.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 14,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 36,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 14,
+          "path": "app/web/sites/portal/lib/links.ts"
+        }
+      ],
+      "from": "flow:gitlab.entry.open",
+      "to": "route:GET /api/public/gitlab",
+      "type": "uses"
     },
     {
       "basis": "declaration",
@@ -72194,6 +72461,254 @@
     },
     {
       "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "domain:gitlab",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "document:docs/architecture/API.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "document:docs/services/server/oidc.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "document:docs/services/web/portal.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "from": "flow:gitlab.projects.member.list",
+      "to": "table:perm_members",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "from": "flow:gitlab.projects.member.list",
+      "to": "table:sessions",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "from": "flow:gitlab.projects.member.list",
+      "to": "table:users",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "test:tests/server/gitlab-sync.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "test:tests/web/portal-code-repos.test.tsx",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:gitlab.projects.member.list",
+      "to": "test:tests/web/portal-shell.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "from": "flow:gitlab.projects.member.list",
+      "to": "route:GET /api/me/gitlab/projects",
+      "type": "uses"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 29,
+          "path": "app/server/src/routes/portal/gitlab.ts"
+        },
+        {
+          "line": 45,
+          "path": "app/server/src/routes/portal/contracts.ts"
+        },
+        {
+          "line": 525,
+          "path": "app/server/src/lib/identity-store.ts"
+        },
+        {
+          "line": 37,
+          "path": "app/web/sites/portal/lib/codeRepos.ts"
+        },
+        {
+          "line": 381,
+          "path": "app/web/sites/portal/components/os/Windows.tsx"
+        },
+        {
+          "line": 55,
+          "path": "app/web/sites/portal/components/os/Terminal.tsx"
+        },
+        {
+          "line": 160,
+          "path": "app/web/sites/portal/lib/shell/index.ts"
+        },
+        {
+          "line": 1100,
+          "path": "app/web/sites/portal/lib/shell/commands.ts"
+        }
+      ],
+      "from": "flow:gitlab.projects.member.list",
+      "to": "table:sessions",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
       "from": "flow:gitlab.projects.public.list",
       "to": "domain:gitlab",
       "type": "belongs-to"
@@ -72232,15 +72747,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 12,
+          "line": 19,
           "path": "app/server/src/routes/portal/gitlab.ts"
         },
         {
-          "line": 30,
+          "line": 41,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
-          "line": 70,
+          "line": 81,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72322,7 +72837,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72346,7 +72861,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72370,7 +72885,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72394,7 +72909,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72418,7 +72933,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72442,7 +72957,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72472,7 +72987,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72496,7 +73011,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 97,
+          "line": 44,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72550,11 +73065,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72574,11 +73089,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72598,11 +73113,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72622,11 +73137,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72646,11 +73161,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72676,11 +73191,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72700,11 +73215,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72724,11 +73239,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 761,
+          "line": 760,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 102,
+          "line": 51,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -74438,7 +74953,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74502,7 +75017,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74566,7 +75081,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74630,7 +75145,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74694,7 +75209,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74782,7 +75297,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -74846,7 +75361,7 @@
           "path": "app/web/sites/portal/components/os/ProfileCard.tsx"
         },
         {
-          "line": 14,
+          "line": 13,
           "path": "app/web/sites/portal/lib/links.ts"
         },
         {
@@ -77276,7 +77791,7 @@
           "path": "app/server/src/routes/portal/departments.ts"
         },
         {
-          "line": 23,
+          "line": 30,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -77302,7 +77817,7 @@
           "path": "app/server/src/routes/portal/departments.ts"
         },
         {
-          "line": 23,
+          "line": 30,
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
@@ -81622,12 +82137,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81670,12 +82181,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81718,12 +82225,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81766,12 +82269,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81814,12 +82313,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81862,12 +82357,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81910,12 +82401,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -81958,12 +82445,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -82018,12 +82501,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -82066,12 +82545,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -82114,12 +82589,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -82162,12 +82633,8 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 15,
+          "line": 14,
           "path": "app/web/sites/portal/lib/links.ts"
-        },
-        {
-          "line": 24,
-          "path": "app/web/shared/config/index.ts"
         },
         {
           "line": 65,
@@ -87438,6 +87905,12 @@
     },
     {
       "basis": "declaration",
+      "from": "route:GET /api/me/gitlab/projects",
+      "to": "domain:gitlab",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
       "from": "route:GET /api/public/competitions",
       "to": "domain:competitions",
       "type": "belongs-to"
@@ -87494,6 +87967,12 @@
       "basis": "declaration",
       "from": "route:GET /api/public/departments",
       "to": "domain:identity",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "route:GET /api/public/gitlab",
+      "to": "domain:gitlab",
       "type": "belongs-to"
     },
     {
@@ -87978,6 +88457,12 @@
     },
     {
       "basis": "declaration",
+      "from": "route:HEAD /api/me/gitlab/projects",
+      "to": "domain:gitlab",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
       "from": "route:HEAD /api/public/competitions",
       "to": "domain:competitions",
       "type": "belongs-to"
@@ -88034,6 +88519,12 @@
       "basis": "declaration",
       "from": "route:HEAD /api/public/departments",
       "to": "domain:identity",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "route:HEAD /api/public/gitlab",
+      "to": "domain:gitlab",
       "type": "belongs-to"
     },
     {
@@ -105127,6 +105618,123 @@
         ],
         "responseSchema": true
       },
+      "domain": "gitlab",
+      "id": "route:GET /api/me/gitlab/projects",
+      "key": "GET /api/me/gitlab/projects",
+      "kind": "business",
+      "method": "GET",
+      "path": "/api/me/gitlab/projects",
+      "registration": "explicit",
+      "schema": {
+        "params": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "querystring": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "response": {
+          "200": {
+            "additionalProperties": false,
+            "properties": {
+              "projects": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "anyOf": [
+                        {
+                          "maxLength": 2000,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "http_url_to_repo": {
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "last_activity_at": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "path_with_namespace": {
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "web_url": {
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "path_with_namespace",
+                    "description",
+                    "web_url",
+                    "http_url_to_repo",
+                    "last_activity_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "unavailable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "projects"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      "source": {
+        "line": 29,
+        "path": "app/server/src/routes/portal/gitlab.ts"
+      }
+    },
+    {
+      "application": "server",
+      "authorization": {
+        "assessment": "partial-static-evidence",
+        "capabilityGroups": [],
+        "checks": [],
+        "note": "仅列注册作用域和 handler 中可定位的检查；条件、对象归属及间接调用仍以实现和权限测试为准，不等于完整授权策略。"
+      },
+      "contractCoverage": {
+        "description": "仅报告已挂载 Schema，不代表所有请求语义或响应状态都已描述。",
+        "requestSections": [
+          "params",
+          "querystring"
+        ],
+        "responseSchema": true
+      },
       "domain": "competitions",
       "id": "route:GET /api/public/competitions",
       "key": "GET /api/public/competitions",
@@ -107985,6 +108593,79 @@
         "responseSchema": true
       },
       "domain": "gitlab",
+      "id": "route:GET /api/public/gitlab",
+      "key": "GET /api/public/gitlab",
+      "kind": "business",
+      "method": "GET",
+      "path": "/api/public/gitlab",
+      "registration": "explicit",
+      "schema": {
+        "params": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "querystring": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "response": {
+          "302": {
+            "description": "跳转到本环境 GitLab 群组",
+            "type": "string"
+          },
+          "503": {
+            "additionalProperties": false,
+            "properties": {
+              "error": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "message": {
+                "maxLength": 256,
+                "minLength": 0,
+                "type": "string"
+              },
+              "request_id": {
+                "maxLength": 128,
+                "minLength": 0,
+                "type": "string"
+              }
+            },
+            "required": [
+              "error",
+              "message"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      "source": {
+        "line": 14,
+        "path": "app/server/src/routes/portal/gitlab.ts"
+      }
+    },
+    {
+      "application": "server",
+      "authorization": {
+        "assessment": "partial-static-evidence",
+        "capabilityGroups": [],
+        "checks": [],
+        "note": "仅列注册作用域和 handler 中可定位的检查；条件、对象归属及间接调用仍以实现和权限测试为准，不等于完整授权策略。"
+      },
+      "contractCoverage": {
+        "description": "仅报告已挂载 Schema，不代表所有请求语义或响应状态都已描述。",
+        "requestSections": [
+          "params",
+          "querystring"
+        ],
+        "responseSchema": true
+      },
+      "domain": "gitlab",
       "id": "route:GET /api/public/gitlab/projects",
       "key": "GET /api/public/gitlab/projects",
       "kind": "business",
@@ -108081,7 +108762,7 @@
         }
       },
       "source": {
-        "line": 12,
+        "line": 19,
         "path": "app/server/src/routes/portal/gitlab.ts"
       }
     },
@@ -113745,6 +114426,70 @@
         ],
         "responseSchema": false
       },
+      "domain": "gitlab",
+      "id": "route:HEAD /api/me/gitlab/projects",
+      "key": "HEAD /api/me/gitlab/projects",
+      "kind": "business",
+      "method": "HEAD",
+      "path": "/api/me/gitlab/projects",
+      "registration": "automatic-head",
+      "schema": {
+        "params": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "querystring": {
+          "additionalProperties": true,
+          "properties": {
+            "limit": {
+              "pattern": "^[1-9][0-9]{0,3}$",
+              "type": "string"
+            },
+            "offset": {
+              "pattern": "^[0-9]{1,8}$",
+              "type": "string"
+            },
+            "page": {
+              "pattern": "^[1-9][0-9]{0,5}$",
+              "type": "string"
+            },
+            "per_page": {
+              "pattern": "^[1-9][0-9]{0,2}$",
+              "type": "string"
+            },
+            "q": {
+              "maxLength": 200,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "source": {
+        "line": 29,
+        "path": "app/server/src/routes/portal/gitlab.ts"
+      }
+    },
+    {
+      "application": "server",
+      "authorization": {
+        "assessment": "partial-static-evidence",
+        "capabilityGroups": [],
+        "checks": [],
+        "note": "仅列注册作用域和 handler 中可定位的检查；条件、对象归属及间接调用仍以实现和权限测试为准，不等于完整授权策略。"
+      },
+      "contractCoverage": {
+        "description": "仅报告已挂载 Schema，不代表所有请求语义或响应状态都已描述。",
+        "requestSections": [
+          "params",
+          "querystring"
+        ],
+        "responseSchema": false
+      },
       "domain": "competitions",
       "id": "route:HEAD /api/public/competitions",
       "key": "HEAD /api/public/competitions",
@@ -114435,6 +115180,70 @@
         "responseSchema": false
       },
       "domain": "gitlab",
+      "id": "route:HEAD /api/public/gitlab",
+      "key": "HEAD /api/public/gitlab",
+      "kind": "business",
+      "method": "HEAD",
+      "path": "/api/public/gitlab",
+      "registration": "automatic-head",
+      "schema": {
+        "params": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "querystring": {
+          "additionalProperties": true,
+          "properties": {
+            "limit": {
+              "pattern": "^[1-9][0-9]{0,3}$",
+              "type": "string"
+            },
+            "offset": {
+              "pattern": "^[0-9]{1,8}$",
+              "type": "string"
+            },
+            "page": {
+              "pattern": "^[1-9][0-9]{0,5}$",
+              "type": "string"
+            },
+            "per_page": {
+              "pattern": "^[1-9][0-9]{0,2}$",
+              "type": "string"
+            },
+            "q": {
+              "maxLength": 200,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      "source": {
+        "line": 14,
+        "path": "app/server/src/routes/portal/gitlab.ts"
+      }
+    },
+    {
+      "application": "server",
+      "authorization": {
+        "assessment": "partial-static-evidence",
+        "capabilityGroups": [],
+        "checks": [],
+        "note": "仅列注册作用域和 handler 中可定位的检查；条件、对象归属及间接调用仍以实现和权限测试为准，不等于完整授权策略。"
+      },
+      "contractCoverage": {
+        "description": "仅报告已挂载 Schema，不代表所有请求语义或响应状态都已描述。",
+        "requestSections": [
+          "params",
+          "querystring"
+        ],
+        "responseSchema": false
+      },
+      "domain": "gitlab",
       "id": "route:HEAD /api/public/gitlab/projects",
       "key": "HEAD /api/public/gitlab/projects",
       "kind": "business",
@@ -114478,7 +115287,7 @@
         }
       },
       "source": {
-        "line": 12,
+        "line": 19,
         "path": "app/server/src/routes/portal/gitlab.ts"
       }
     },
@@ -148444,7 +149253,7 @@
     }
   ],
   "unmappedSources": [],
-  "updated": "2026-10-27",
+  "updated": "2026-10-29",
   "version": 1,
   "visibility": "internal-engineering"
 }

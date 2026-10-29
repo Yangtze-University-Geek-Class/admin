@@ -15,10 +15,21 @@ on:
         type: choice
         options:
           - status
+          - sync-status
+          - stop-preview-sync
+          - enable-production-sync
+          - verify-accounts
           - register-client
           - migrate-subjects
           - switch-issuer
           - rollback-issuer
+          - preview-status
+          - install-preview
+          - verify-preview
+          - edge-status
+          - edge-apply
+          - edge-verify
+          - edge-rollback
       apply:
         description: 真正写入（不勾选只读或演算）
         required: true
@@ -110,16 +121,50 @@ jobs:
           chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
           chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
 
+      - name: 执行香港固定入口动作
+        if: startsWith(inputs.step, 'edge-')
+        shell: bash
+        env:
+          GITLAB_EDGE_SSH_KEY: ${{ secrets.GITLAB_EDGE_SSH_KEY }}
+        run: |
+          set -eu
+          test -n "$GITLAB_EDGE_SSH_KEY"
+          key="$RUNNER_TEMP/ssh/id_edge"
+          printf '%s\n' "$GITLAB_EDGE_SSH_KEY" > "$key"
+          chmod 600 "$key"
+          trap 'rm -f "$key"' EXIT
+          edge_target="$(node --input-type=module -e 'import {readEnvironment} from "./scripts/deployment-environment.mjs"; const u=new URL("ssh://"+readEnvironment(process.cwd(),"production").values.get("DEPLOY_PROXY_JUMP")); if(u.port && u.port!=="22") throw Error("unexpected edge port"); console.log(u.username+"@"+u.hostname);')"
+          operation=plan
+          case "$STEP" in
+            edge-status) operation=plan ;;
+            edge-verify) operation=verify ;;
+            edge-apply)
+              if [ "$APPLY" = true ]; then
+                health="$(ssh -F "$RUNNER_TEMP/ssh/config" yzgc-target "docker inspect --format '{{.State.Health.Status}}' gitlab-preview")"
+                test "$health" = healthy
+                operation=apply
+              fi ;;
+            edge-rollback) if [ "$APPLY" = true ]; then operation=rollback; fi ;;
+            *) exit 2 ;;
+          esac
+          ssh -F /dev/null -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ClearAllForwardings=yes -o "UserKnownHostsFile=$RUNNER_TEMP/ssh/known_hosts" \
+            -i "$key" "$edge_target" "$operation" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: 执行 cutover.sh
+        if: "!startsWith(inputs.step, 'edge-')"
         shell: bash
         run: |
           set -eu
           cfg="$RUNNER_TEMP/ssh/config"
           production_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.production)"
           preview_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.preview)"
-          work_dir=/opt/yzgc/cutover-incoming
-          ssh -F "$cfg" yzgc-target "rm -rf $work_dir && install -d -m 700 $work_dir"
-          tar -C deploy/gitlab -cf - cutover.sh migrate-oidc-subjects.mjs | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
+          production_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.production)"
+          preview_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.preview)"
+          work_dir="/opt/yzgc/cutover-incoming-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # 这里只分发无密钥源码；server 镜像以 UID 1000 只读挂载 /ops，必须可遍历此目录。
+          ssh -F "$cfg" yzgc-target "rm -rf $work_dir && install -d -m 755 $work_dir"
+          tar -cf - deploy/gitlab deploy/remote/garage-archive.mjs deploy/remote/install-host.sh deploy/env/.env.preview app/server/src/lib/gitlab-sync.ts | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
           flag=""
           if [ "$APPLY" = "true" ]; then flag="--apply"; fi
           {
@@ -128,7 +173,18 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           status=0
-          ssh -F "$cfg" yzgc-target "bash $work_dir/cutover.sh $STEP --production-origin $production_origin --preview-origin $preview_origin $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
+          case "$STEP" in
+            preview-status|install-preview|verify-preview)
+              action=plan
+              if [ "$STEP" = verify-preview ]; then action=verify; fi
+              if [ "$STEP" = install-preview ] && [ "$APPLY" = true ]; then action=apply; fi
+              ssh -F "$cfg" yzgc-target "python3 $work_dir/deploy/gitlab/preview.py $action --env-file $work_dir/deploy/env/.env.preview $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
+              if [ "$status" = 0 ] && [ "$action" = apply ]; then
+                ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/remote/install-host.sh apply --target gitlab-preview --source $work_dir/deploy/remote && bash $work_dir/deploy/remote/install-host.sh verify --target gitlab-preview --source $work_dir/deploy/remote" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
+              fi ;;
+            *)
+              ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/gitlab/cutover.sh $STEP --production-origin $production_origin --preview-origin $preview_origin --production-stack-root $production_root --preview-stack-root $preview_root $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$? ;;
+          esac
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           ssh -F "$cfg" yzgc-target "rm -rf $work_dir"
           exit "$status"

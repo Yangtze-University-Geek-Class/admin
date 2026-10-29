@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-29
 
 方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
 
@@ -289,6 +289,12 @@ CONTRACT-276 在上面这套 #57/#156/#274 的基础上加了六件事：话题�
 - `429 { error: "rate_limited", bucket: "apply.daily", message, retry_after }`（#169，#274 改成按账号为主）：账号当天（北京时间零点重置）的投递额度（`meta.limit.apply.daily`：注册用户 3 份、极客班成员不限）、来源 IP（IPv6 按 /64）当天 10 份、设备当天 5 份，三条线任一超限都回这个形状，不区分是哪一条（不给探测哪条更松的机会）；`retry_after` 是到下一个北京零点的秒数。这一份不落库、不写信、不计入任何一条线的额度。计数见 [数据模型](../services/server/data-model.md) 的 `limit_events`（`application_limits` 表已弃用，只留历史数据）。
 
 边界行为：蜜罐检查在字段校验之前，命中时返回与成功完全一致的 `201` 形状但不落库，不向脚本暴露陷阱；公开表单通用的蜜罐 400 `请求被拒绝` 在本端点走不到。字段约束在路由内单一校验层实现，该端点不注册 `contracts.ts` body schema；除三个蜜罐字段外，未知字段被忽略而不是让投递失败。落库与审计见 `app/server/src/routes/portal/apply.ts`、[server 合同](../services/server/README.md) 与 [数据模型](../services/server/data-model.md)：审计动作 `application.received` 记录目标 id、来源 IP（`ip` 列）与 `account_id`，details 只含脱敏邮箱、班级、`name_length` 和 `strengths_length`，不记姓名与完整 `strengths`。回归测试见 `tests/server/applications.test.ts`、`tests/server/rate-limits.test.ts`、`tests/server/mail-outbox.test.ts`。
+
+## 门户代码仓库
+
+`GET /api/public/gitlab` 是门户的跨环境入口：匿名302到本环境GitLab群组，保留基址子路径且不缓存；无基址503，未知查询字段400。目的地只由服务端配置决定，不接受客户端指定跳转地址。
+
+公开 `GET /api/public/gitlab/projects` 始终只给 public 项目；成员 `GET /api/me/gitlab/projects` 要有效会话和同 OIDC 口径的有效直接 member/alumni，不要求控制台管理节点。返回相同的最小项目 DTO，成员接口不开放账号或同步管理信息；游客401、无资格403，网络等待后再次核验资格。上游不可用与真实空列表分开，响应不缓存。完整响应和验证见[成员项目契约](../services/server/endpoint-contracts.md#门户代码仓库列表)。
 
 ## 错误
 

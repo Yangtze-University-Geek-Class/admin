@@ -30,7 +30,7 @@
 | `deploy-production.yml` | push tag `v[0-9]+.[0-9]+.[0-9]+`；`workflow_dispatch`（必填 `tag`，并从同名 tag 运行） | 断言 ref 是 `refs/tags/vX.Y.Z`（rc tag 被拒绝）→ `release-policy` 规划（提交在 `origin/main` 上、同一提交有 `vX.Y.Z-rc.N`）→ 文档同步（tag 指向的提交，见下文）→ 证据检查（见下文）→ `cdn-plan` → 固定容器构建并核对 CLI 五目标物料 → 构建镜像（仅 web 接收 `cli=dist/cli`）→ `cdn-upload` → 分发 `.env.production` → 部署 → 记录 deployment。开关 `vars.DEPLOY_PRODUCTION_ENABLED`，`environment: production`，不取消正在跑的运行 |
 | `branch-hygiene.yml` | PR `closed`（`merged == true`）、每周一 03:17 UTC、`workflow_dispatch` | 合并后删除 head 为 `task/**` 的本仓分支（`contents: write`，只删 `task/**`，**永不**自动删 `dev/**` 或长期分支）；每周巡检远端 `task/**`，对「14 天无提交活动且无 open PR」的残留分支只输出 `::warning::` 与 step summary，不删除 |
 | `cert-watch.yml` | 每天 01:43 UTC、`workflow_dispatch`（都只在默认分支 `main` 上的文件生效，合入 `main` 后才开始） | 从公网用 `openssl s_client -verify_return_error -verify_hostname` 核对 `yangtzeu.work`、`prev.yangtzeu.work` 的证书：连不上、链不可信、名字不匹配或剩余不到总有效期的四分之一即失败（GitHub 通知维护者）。`permissions: {}`，不接触任何 secrets；香港入口由 Caddy 续期，旧转发入口在 DNS 过渡期仍由 certbot 续期，见 [DEPLOY](DEPLOY.md#证书续期与到期监控) |
-| `gitlab-cutover.yml` | 只有 `workflow_dispatch`（输入 `step`：status / register-client / migrate-subjects / switch-issuer / rollback-issuer，`apply` 缺省不勾）；只在 `main` 上的文件生效，要 `DEPLOY_PRODUCTION_ENABLED == 'enabled'` | 把 GitLab 统一登录改接正式的宿主侧步骤（`deploy/gitlab/cutover.sh`，同构清单 P-0006、P-0007）放进流水线，开发者不需要登录目标机。和正式部署一样先读 REST 核对 `production` 环境有 required reviewers、环境哨兵等于 production，再用部署 SSH 通道执行；缺省只读或演算，勾 `apply` 才写。输出只有计数，不含 secret 与 `sub` 的值，写进 Step Summary。步骤顺序与回滚见 [GITLAB](GITLAB.md)「极客班统一登录（OIDC）契约」 |
+| `gitlab-cutover.yml` | `workflow_dispatch`，仅 `main`；`apply` 默认 false，保留 production required reviewers、哨兵与部署开关 | `status`/`sync-status` 只读；`stop-preview-sync` 先演算身份、备份和排空旧进程，再改持久设置及 canonical env、重启原镜像并核对健康；`migrate-subjects` 整批拒绝未对账身份；`enable-production-sync` 要求预发布确实 off、主体迁完且旧成员资格对齐；`verify-accounts` 逐人核对唯一 OIDC 绑定、原 GitLab ID 与组权限；最后 `switch-issuer`。不另发 rc、不改镜像或业务用户记录，回滚入口保留。状态输出只含计数、公开 provider uid 与 GitLab ID，不含 secret/sub。 |
 | `issue-lifecycle.yml` | PR 指向 `stage` 的 opened / edited / synchronize / reopened / closed / labeled / unlabeled、每天 03:37 UTC、`workflow_dispatch`（可勾「只读」） | `pr-contract`：核对 PR 正文契约（`Closes #<issue>` 与 task 分支号一致、issue 存在且开着、十个必需段落、验收证据、审查结论；issue 编号 ≥ 235 时再核对 PR 的「组:类」标签覆盖 issue 的标签、`ui:*` 有截图、`func:*` 有接口测试与接口验证；`scripts/pr-contract.mjs`、`scripts/issue-labels.mjs`，只检出目标分支上的脚本，不执行 PR 代码）；`close-on-merge`：合并进 `stage` 后关闭 issue 并在 issue 与 PR 上各留一条追踪记录（`issues: write`、`pull-requests: write`）；`sweep` 每天巡检（`scripts/issue-sweep.mjs`，规则见 [TRACKING](../conventions/TRACKING.md) §1）：关联 PR 已合并进 `stage` 还开着的 issue 自动关闭并留「关闭」记录（合并后重开过的、还有开着的 PR 的、合并不到一小时的不关），14 天没动静的留「超期」记录，14 天内关闭却没有合并 PR 也没有「关闭」记录的留「缺记录」，不重开（`issues: write`，只检出两个脚本）。定时任务只跑默认分支 `main` 上的文件，合入 `main` 之前仍是旧的每周只告警 |
 | `issue-gate.yml` | issue 的 opened / edited / labeled / unlabeled | `gate`：把表单「改动类型」选的值加成「组:类」标签；核对标签、`ui:*` 截图、`func:*` 涉及接口，缺则加 `needs-evidence` 并评论，补齐后摘掉；评论里列出标题相似的开放与已关闭 issue（`scripts/issue-gate.mjs`、`scripts/issue-labels.mjs`；`issues: write`，只检出这两个脚本，不执行 issue 正文）。没有表单的 CLI / API 建单只给关键词推测，不自动加标签。只提示和标记，不关闭、不重开。issues 事件只跑默认分支 `main` 上的文件，所以要随发布进入 `main` 才生效 |
 | `pr-agent.yml` | PR 指向 `stage` 的 opened / reopened / ready_for_review | `review`：用开源 PR-Agent（镜像按摘要固定，`docker://pragent/pr-agent@sha256:…`）读 PR diff，经 `https://ai.crosery.com/v1` 调模型（主 `gemini-3.8-flash-high`，备 `gemini-3.5-flash-lite`），在 PR 里写**一条**审查评论。只用 `pull_request`、不检出 PR 代码、不监听 `issue_comment`；只处理同仓库分支的 PR（fork 的拿不到 secrets，跳过）；关掉 describe 与 improve（describe 会改写 PR 正文，破坏十段契约）。密钥只有仓库级 secret `PR_AGENT_LLM_KEY`（网关 key，不属于环境级清单）。**只评论，不批准、不阻塞合并**，也不是审查结论（[CODE-REVIEW](../conventions/CODE-REVIEW.md)「机器审查的边界」）。另有 CodeRabbit 免费版（GitHub App，仅装在本仓库，配置 `.coderabbit.yaml`，不推代码、不批准、关掉所有 finishing touches）。升级镜像要核对新摘要后改工作流并走 PR 审查 |
@@ -134,6 +134,13 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 
 这是待合并源码的合同，不会回溯修改旧 tag。2026-10-26 已用同一 `ssh-config` 入口、项目专用 key、双端严格 known_hosts 实测两环境 SSH/SCP 成功；香港该 key 的本地 TCP 转发目标限制为 Arch:22，执行 shell 被拒绝。此证据来自维护者机器，不冒称 GitHub runner 已运行新流程。恢复副本隔离仍见 [ENVIRONMENTS](ENVIRONMENTS.md#副本启动安全门禁)，已接管的权威源不套用副本关闭外发的值。
 
+### GitLab 双实例的受保护运维入口（#308）
+
+`gitlab-cutover.yml` 仍仅从main运行并要求production的真实required reviewers、哨兵、受控Arch目标和部署开关；不放行task分支或取消审批。新增 `preview-status` / `install-preview` / `verify-preview` 分发同一提交的独立编排与安装器，默认plan，`install-preview` 且勾apply才安装；不替换平台应用镜像、不复制正式数据。安装后经 `install-host.sh --target gitlab-preview` 安装该实例的备份与开机单元。
+
+香港入口动作 `edge-status` / `edge-apply` / `edge-verify` / `edge-rollback` 使用独立环境secret `GITLAB_EDGE_SSH_KEY`，主机从canonical `DEPLOY_PROXY_JUMP` 推导，沿用已核验known_hosts。专用key服务端只允许固定动作，不能取shell或上传任意配置；edge-apply写入前还要核对独立预发布容器healthy。首次受限通道安装由所有者单独批准，不能拿个人root私钥替代。候选配置通过真实Caddy解析不是已上线证据，SSO/Git/Issue/MR仍须真实验收。
+
+
 
 ## 同版本 P0 hotfix（#306）
 
@@ -147,6 +154,7 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 - `production` 与 `static-cdn` 的部署来源规则需要额外精确允许 `main`，原 tag 规则和生产 required reviewers 保留；不允许 task、stage 或任意分支取得生产密钥。
 - 审批后重新核对 main/tag/线上版本，分发前要求 `yzgc-backup@production.service` 完成一致性备份及隔离恢复验证。镜像与 env 仍经原有校验、`deploy-stack.sh` 健康门和自动回滚。模板密钥留空，production 的 Google 客户端配置经本环境 secrets 注入。
 - deployment 的 `ref` 是实际修复 SHA，payload 的 `mode=hotfix`、`base_tag_commit`、`issue` 与 `tag` 一起保留；required context 为真实运行的 `hotfix-verify`，不是修改普通 `verify` 状态。
+- 部署记录 API 读取 commit status contexts，因此创建记录前由 `hotfix-policy.mjs publish-check` 严格核对本次 main/workflow_dispatch 的 run、attempt、SHA、唯一成功 hotfix-verify job、check suite、GitHub Actions app 和真实 job URL，再投影为同名成功 status。非空 `required_contexts` 保留；来源不完整、失败或歧义时拒绝发布 status。仅 deploy job 获得 `checks: read`、`statuses: write`，不修改任何 check-run 结论。
 - 正式验证后将 main 合回 stage，再核对双仓 refs 与 `git merge-base --is-ancestor main stage`。回滚选择部署历史里的上一生产镜像 SHA，不恢复旧数据库覆盖上线后的新写入。
 
 ## 同构清单与发版烟测（#309）

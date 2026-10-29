@@ -18,12 +18,16 @@ APPLY=0
 PROD_ORIGIN=""
 PREVIEW_ORIGIN=""
 SECTOR="git.yangtzeu.work"
+PROD_ROOT=""
+PREVIEW_ROOT=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --apply) APPLY=1; shift ;;
         --production-origin) PROD_ORIGIN="${2:-}"; shift 2 ;;
         --preview-origin) PREVIEW_ORIGIN="${2:-}"; shift 2 ;;
         --sector) SECTOR="${2:-}"; shift 2 ;;
+        --production-stack-root) PROD_ROOT="${2:-}"; shift 2 ;;
+        --preview-stack-root) PREVIEW_ROOT="${2:-}"; shift 2 ;;
         *) echo "cutover: 未知参数 $1" >&2; exit 2 ;;
     esac
 done
@@ -31,6 +35,8 @@ done
 CONFIG="${GITLAB_CONFIG:-/srv/gitlab/config}"
 DOCKER="${DOCKER:-docker}"
 CURL="${CURL:-curl}"
+SYSTEMCTL="${SYSTEMCTL:-systemctl}"
+FLOCK="${FLOCK:-flock}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_SERVER="${PROD_SERVER:-yzgc-production-server}"
 PREVIEW_SERVER="${PREVIEW_SERVER:-yzgc-preview-server}"
@@ -57,6 +63,142 @@ issuer_mode() {
     if [[ "${count}" == 1 ]]; then echo "写死在 gitlab.rb：$(grep -E "${ISSUER_LINE_RE}" "${GITLAB_RB}" | sed -E "s/.*issuer: '([^']*)'.*/\1/")"
     elif grep -q "File.read('/etc/gitlab/yzgc-oidc-issuer')" "${GITLAB_RB}"; then echo "读宿主文件 yzgc-oidc-issuer"
     else echo "无法判断（gitlab.rb 里 issuer 行数 ${count}）"; fi
+}
+
+sync_control() {
+    local environment="$1" network="$2" access="$3"
+    shift 3
+    local root container image
+    if [[ "${environment}" == production ]]; then root="${PROD_ROOT}"; container="${PROD_SERVER}"; else root="${PREVIEW_ROOT}"; container="${PREVIEW_SERVER}"; fi
+    [[ "${root}" =~ ^/[A-Za-z0-9_./-]+/${environment}$ && "${root}" != *'/../'* ]] || die "缺少有效的 ${environment} stack root"
+    [[ -f "${root}/.env.${environment}" ]] || die "缺少 ${environment} canonical env"
+    image="$("${DOCKER}" inspect --format '{{.Config.Image}}' "${container}")"
+    [[ -n "${image}" ]] || die "读不到 ${environment} server 镜像"
+    "${DOCKER}" run --rm --pull=never -i --network "${network}" --volumes-from "${container}:${access}" \
+      --env-file "${root}/.env.${environment}" --mount "type=bind,source=${HERE}/../..,target=/ops,readonly" \
+      --entrypoint node "${image}" --experimental-transform-types /ops/deploy/gitlab/sync-control.mjs "$@" --sector "${SECTOR}"
+}
+
+verify_preview_off() {
+    local state running_mode
+    state="$(sync_control preview none ro status)"
+    [[ "$(jq -r '.configuration.mode' <<<"${state}")" == off ]] || die "预发布持久有效配置仍在同步，拒绝切换"
+    running_mode="$("${DOCKER}" exec "${PREVIEW_SERVER}" node -p 'process.env.GITLAB_SYNC')"
+    [[ "${running_mode}" == off ]] || die "预发布运行容器 env 仍不是 off：先 stop-preview-sync 完成停写重启"
+}
+
+wait_server_health() {
+    local container="$1" current
+    for ((attempt=0; attempt<60; attempt++)); do
+        current="$("${DOCKER}" inspect --format '{{.State.Health.Status}}' "${container}")"
+        [[ "${current}" == healthy ]] && return 0
+        sleep 3
+    done
+    return 1
+}
+
+restart_with_mode() (
+    local environment="$1" mode="$2" root container compose previous next original_mode backup settings_changed=0
+    if [[ "${environment}" == production ]]; then root="${PROD_ROOT}"; container="${PROD_SERVER}"; else root="${PREVIEW_ROOT}"; container="${PREVIEW_SERVER}"; fi
+    compose="$("${DOCKER}" inspect --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "${container}")"
+    [[ "${compose}" == "${root}/"* && "${compose}" != *,* && -f "${compose}" ]] || die "${environment} compose 路径不在本环境栈内"
+    [[ "$(grep -c '^GITLAB_SYNC=' "${root}/.env.${environment}")" == 1 ]] || die "${environment} env 的 GITLAB_SYNC 缺失或重复"
+    # 沿用已经配置的一致性备份与隔离恢复门，不另外复制或重置业务库。
+    "${SYSTEMCTL}" start "yzgc-backup@${environment}.service"
+    exec 8>"${PROD_ROOT}/.deploy.lock"
+    "${FLOCK}" -w 900 8 || die "正式部署锁等待超时"
+    exec 9>"${PREVIEW_ROOT}/.deploy.lock"
+    "${FLOCK}" -w 900 9 || die "预发布部署锁等待超时"
+    original_mode="$(sync_control "${environment}" none ro status | jq -er '.configuration.mode')"
+    [[ "${original_mode}" == on || "${original_mode}" == off ]] || die '只切换已核实的 on/off 写者，不改未知或 dry-run 状态'
+    backup="${root}/.env.${environment}.sync-backup-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    cp -p "${root}/.env.${environment}" "${backup}"
+    chmod 0600 "${backup}"
+    recover_mode() {
+        local failed="$1"
+        [[ "${failed}" == 0 ]] && return 0
+        trap - EXIT
+        echo "cutover: ${environment} 切换失败，恢复原有效同步模式 ${original_mode}" >&2
+        if [[ "${settings_changed}" == 0 ]]; then
+            if ! "${DOCKER}" start "${container}" || ! wait_server_health "${container}"; then
+                echo 'cutover: 原实例重启失败，设置未更改，需人工恢复' >&2
+            fi
+            return "${failed}"
+        fi
+        if ! "${DOCKER}" stop --time 120 "${container}"; then
+            echo 'cutover: 无法停止失败实例，拒绝在运行中改持久设置' >&2
+            return "${failed}"
+        fi
+        if ! sync_control "${environment}" none rw set-mode "${original_mode}" --apply; then
+            echo 'cutover: 原有效模式恢复失败，实例保持停止，需人工恢复' >&2
+            return "${failed}"
+        fi
+        cp -p "${backup}" "${root}/.env.${environment}.sync-restore"
+        mv "${root}/.env.${environment}.sync-restore" "${root}/.env.${environment}"
+        if "${DOCKER}" compose --env-file "${root}/.env.${environment}" -f "${compose}" up -d --no-deps --no-build --pull never server && wait_server_health "${container}"; then
+            echo "cutover: ${environment} 已恢复原有效模式与原 env，服务健康；本次操作仍失败" >&2
+        else
+            echo 'cutover: 恢复后的健康门失败，需人工恢复' >&2
+        fi
+        return "${failed}"
+    }
+    trap 'recover_mode $?' EXIT
+    previous="$("${DOCKER}" inspect --format '{{.State.StartedAt}}' "${container}")"
+    "${DOCKER}" stop --time 120 "${container}"
+    [[ "$("${DOCKER}" inspect --format '{{.State.ExitCode}}' "${container}")" == 0 ]] || die "${environment} 未正常排空退出，拒绝继续"
+    settings_changed=1
+    sync_control "${environment}" none rw set-mode "${mode}" --apply
+    next="${root}/.env.${environment}.sync-new"
+    sed -E "s/^GITLAB_SYNC=.*/GITLAB_SYNC=${mode}/" "${root}/.env.${environment}" >"${next}"
+    chmod 0600 "${next}"
+    mv "${next}" "${root}/.env.${environment}"
+    "${DOCKER}" compose --env-file "${root}/.env.${environment}" -f "${compose}" up -d --no-deps --no-build --pull never server
+    wait_server_health "${container}" || die "${environment} 重启后健康门失败"
+    [[ "$("${DOCKER}" inspect --format '{{.State.StartedAt}}' "${container}")" != "${previous}" ]] || die "${environment} 旧进程未被替换"
+    [[ "$("${DOCKER}" exec "${container}" node -p 'process.env.GITLAB_SYNC')" == "${mode}" ]] || die "${environment} 运行 env 未生效"
+    [[ "$(sync_control "${environment}" none ro status | jq -r '.configuration.mode')" == "${mode}" ]] || die "${environment} 持久设置未生效"
+    echo "${environment} 已排空旧进程、持久设置与运行 env=${mode}，新进程健康；未改镜像或业务记录"
+    trap - EXIT
+    "${FLOCK}" -u 9
+    "${FLOCK}" -u 8
+)
+
+sync_status() {
+    echo '正式同步配置与成员绑定：'
+    sync_control production none ro status
+    echo '预发布同步配置与成员绑定：'
+    sync_control preview none ro status
+}
+
+stop_preview_sync() {
+    need_production
+    # 对不上身份时不先关掉仍在服务成员的旧写者。
+    APPLY=0 migrate_subjects
+    echo '将排空预发布旧进程，持久 mode 与 canonical env 均改 off，重启原镜像并核对健康'
+    writes || return 0
+    restart_with_mode preview off
+    verify_preview_off
+}
+
+enable_production_sync() {
+    need_production
+    verify_preview_off
+    local pending baseline
+    pending="$(APPLY=0 migrate_subjects)" || die '主体演算不完整，拒绝开启正式同步'
+    grep -Eq '^演算 sector=[a-z0-9.-]+：可迁 0，冲突 0，目标库对不上 0，源账号无可对账身份 0$' <<<"${pending}" || die '主体尚未全部迁移，拒绝开启正式同步'
+    baseline="$(sync_control preview none ro status)"
+    sync_control production none ro check-baseline --baseline-stdin <<<"${baseline}"
+    echo '将以原正式镜像开启唯一同步写者；启动后由现有循环立即对账'
+    writes || return 0
+    restart_with_mode production on
+    verify_preview_off
+}
+
+verify_accounts() {
+    verify_preview_off
+    local baseline
+    baseline="$(sync_control preview none ro status)"
+    sync_control production "container:${PROD_SERVER}" ro verify --baseline-stdin <<<"${baseline}"
 }
 
 status() {
@@ -89,6 +231,7 @@ register_client() {
 migrate_subjects() {
     need_production
     sector_ok
+    if [[ "${APPLY}" == 1 ]]; then verify_preview_off; fi
     WORK="$(mktemp -d)"
     local work="${WORK}"
     # EXIT 而不是 RETURN：import 遇到冲突以非 0 退出时，导出文件（sub 与身份的对应）和容器里的脚本也要清掉
@@ -104,13 +247,16 @@ migrate_subjects() {
 switch_issuer() {
     need_production
     [[ "$(discovery_issuer "${PROD_ORIGIN}")" == "${PROD_ORIGIN}/oidc" ]] || die "正式的发现文档不可用或 issuer 不是 ${PROD_ORIGIN}/oidc：先部署带 OIDC_JWKS 的正式版本"
+    verify_preview_off
+    [[ "$(sync_control production none ro status | jq -r '.configuration.mode')" == on ]] || die '正式同步尚未开启，拒绝开放正式 SSO'
+    verify_accounts
     [[ ",$(client_ids "${PROD_SERVER}")," == *,gitlab,* ]] || die "正式库没有 gitlab 客户端：先 register-client"
     [[ -f "${SECRET_PRODUCTION}" ]] || die "缺 ${SECRET_PRODUCTION##*/}"
     [[ "$(grep -Ec "${ISSUER_LINE_RE}" "${GITLAB_RB}" || true)" == 1 ]] || grep -q "File.read('/etc/gitlab/yzgc-oidc-issuer')" "${GITLAB_RB}" || die "gitlab.rb 里找不到唯一的 issuer 行"
-    # 已有 GitLab 用户的 sub 没带到正式库就切换，他们首次登录会被建成新账号，rollback 撤销不了：先要求演算结果是「可迁 0，冲突 0」
+    # 目标找不到身份也会断联；只有完整演算成功且四项均清零才能切换。
     local pending
-    pending="$(APPLY=0 migrate_subjects 2>&1 || true)"
-    grep -q '可迁 0，冲突 0' <<<"${pending}" || die "还有 sub 没迁到正式库（或有冲突），先 migrate-subjects --apply：$(grep -m1 '^演算' <<<"${pending}" || echo 演算失败)"
+    pending="$(APPLY=0 migrate_subjects 2>&1)" || die "主体迁移演算失败，拒绝切换：$(grep -m1 '^演算' <<<"${pending}" || echo 演算失败)"
+    grep -Eq '^演算 sector=[a-z0-9.-]+：可迁 0，冲突 0，目标库对不上 0，源账号无可对账身份 0$' <<<"${pending}" || die "还有 sub 没迁到正式库或身份未核清，先完成 migrate-subjects --apply：$(grep -m1 '^演算' <<<"${pending}" || echo 演算失败)"
     echo "前置满足：将备份 gitlab.rb 与 yzgc-oidc-secret，issuer 改为 ${PROD_ORIGIN}/oidc，secret 换成正式的，reconfigure"
     writes || return 0
     local stamp
@@ -152,9 +298,13 @@ rollback_issuer() {
 
 case "${STEP}" in
     status) status ;;
+    sync-status) sync_status ;;
+    stop-preview-sync) stop_preview_sync ;;
+    enable-production-sync) enable_production_sync ;;
+    verify-accounts) verify_accounts ;;
     register-client) register_client ;;
     migrate-subjects) migrate_subjects ;;
     switch-issuer) switch_issuer ;;
     rollback-issuer) rollback_issuer ;;
-    *) echo "用法：cutover.sh status|register-client|migrate-subjects|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
 esac

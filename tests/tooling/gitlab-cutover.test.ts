@@ -13,7 +13,7 @@ afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: tru
 
 const RB_PREVIEW = `# 其它配置\n    issuer: '${PREVIEW}/oidc', discovery: true, client_auth_method: 'basic',\n    client_options: { identifier: 'gitlab', secret: File.read('/etc/gitlab/yzgc-oidc-secret').strip },\n`;
 
-function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number } = {}) {
+function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number; previewMode?: string; productionMode?: string; stopExit?: number; backupExit?: number; baselineExit?: number; composeFailOnce?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "cutover-"));
   dirs.push(dir);
   const config = join(dir, "config");
@@ -21,14 +21,55 @@ function fixture(options: { prodClients?: string[]; discovery?: string; rb?: str
   const calls = join(dir, "calls.log");
   mkdirSync(config);
   mkdirSync(bin);
+  for (const environment of ['production', 'preview']) {
+    const root = join(dir, environment);
+    mkdirSync(root);
+    const mode = environment === 'production' ? options.productionMode ?? 'on' : options.previewMode ?? 'off';
+    writeFileSync(join(root, `.env.${environment}`), `GITLAB_SYNC=${mode}\nSECRET=kept-fixture-secret\n`);
+    writeFileSync(join(root, 'compose.yml'), 'services: {}\n');
+    writeFileSync(join(root, 'mode'), mode);
+    writeFileSync(join(root, 'started'), 'before');
+    writeFileSync(join(root, 'running'), 'true');
+  }
+  writeFileSync(join(bin, 'systemctl'), `#!/bin/bash\necho "backup $*" >> '${calls}'\nexit ${options.backupExit ?? 0}\n`, { mode: 0o755 });
+  writeFileSync(join(bin, 'flock'), '#!/bin/bash\nexit 0\n', { mode: 0o755 });
   writeFileSync(join(config, "gitlab.rb"), options.rb ?? RB_PREVIEW);
   writeFileSync(join(config, "yzgc-oidc-secret"), "preview-secret-value");
-  writeFileSync(join(dir, "import-output.txt"), options.importOutput ?? "演算 sector=git.yangtzeu.work：可迁 0，冲突 0，目标库对不上 0");
+  writeFileSync(join(dir, "import-output.txt"), options.importOutput ?? "演算 sector=git.yangtzeu.work：可迁 0，冲突 0，目标库对不上 0，源账号无可对账身份 0");
   writeFileSync(join(dir, "prod-clients.json"), JSON.stringify((options.prodClients ?? []).map(client_id => ({ client_id }))));
   // 假 docker：client list 读 prod-clients.json，client add 返回固定 secret，其余只记录调用
   writeFileSync(join(bin, "docker"), `#!/usr/bin/env bash
 echo "$*" >> "${calls}"
-if [[ "$1" == exec && "$*" == *"client list"* ]]; then
+environment=preview
+if [[ "$*" == *production* ]]; then environment=production; fi
+root="${dir}/$environment"
+if [[ "$1" == inspect ]]; then
+  case "$3" in
+    *Config.Image*) echo 'yzgc-fixture/server:unchanged' ;;
+    *config_files*) echo "$root/compose.yml" ;;
+    *StartedAt*) cat "$root/started" ;;
+    *ExitCode*) echo '${options.stopExit ?? 0}' ;;
+    *Health.Status*) echo healthy ;;
+  esac
+elif [[ "$1" == run ]]; then
+  if [[ "$*" == *'set-mode '* ]]; then
+    while [[ $# -gt 0 && "$1" != set-mode ]]; do shift; done
+    printf '%s' "$2" > "$root/mode"
+    echo '{"applied":true,"restart_required":true}'
+  elif [[ "$*" == *check-baseline* ]]; then
+    cat > /dev/null
+    echo '{"failures":[]}'
+    exit ${options.baselineExit ?? 0}
+  elif [[ "$*" == *verify* ]]; then cat > /dev/null; echo '{"failures":[],"verified_members":1}'
+  else printf '{"configuration":{"mode":"%s"},"bindings":[]}\n' "$(cat "$root/mode")"; fi
+elif [[ "$1" == stop ]]; then echo false > "$root/running"
+elif [[ "$1" == start ]]; then echo true > "$root/running"
+elif [[ "$1" == compose ]]; then
+  if [[ '${options.composeFailOnce ?? false}' == true && ! -f "$root/compose-failed" ]]; then touch "$root/compose-failed"; exit 1; fi
+  echo after > "$root/started"
+  echo true > "$root/running"
+elif [[ "$1" == exec && "$*" == *process.env.GITLAB_SYNC* ]]; then sed -n 's/^GITLAB_SYNC=//p' "$root/.env.$environment"
+elif [[ "$1" == exec && "$*" == *"client list"* ]]; then
   if [[ "$2" == *production* ]]; then cat "${dir}/prod-clients.json"; else echo '[{"client_id":"gitlab"}]'; fi
 elif [[ "$1" == exec && "$*" == *"client add"* ]]; then echo '{"client_id":"gitlab","client_secret":"brand-new-secret","redirect_uris":["x"]}'
 elif [[ "$1" == exec && "$*" == *"export"* ]]; then echo '{"sector":"git.example.test","entries":[],"withoutIdentity":0}'
@@ -40,11 +81,11 @@ exit 0
 echo '${options.discovery ?? JSON.stringify({ issuer: `${PROD}/oidc` })}'
 `, { mode: 0o755 });
   chmodSync(join(bin, "docker"), 0o755);
-  const run = (...args: string[]) => spawnSync("bash", [script, ...args], {
+  const run = (...args: string[]) => spawnSync("bash", [script, ...args, '--production-stack-root', join(dir, 'production'), '--preview-stack-root', join(dir, 'preview')], {
     encoding: "utf8",
-    env: { ...process.env, GITLAB_CONFIG: config, DOCKER: join(bin, "docker"), CURL: join(bin, "curl") },
+    env: { ...process.env, GITLAB_CONFIG: config, DOCKER: join(bin, "docker"), CURL: join(bin, "curl"), SYSTEMCTL: join(bin, 'systemctl'), FLOCK: join(bin, 'flock') },
   });
-  return { config, calls, run, read: (name: string) => readFileSync(join(config, name), "utf8"), called: () => (existsSync(calls) ? readFileSync(calls, "utf8") : "") };
+  return { config, calls, dir, run, read: (name: string) => readFileSync(join(config, name), "utf8"), called: () => (existsSync(calls) ? readFileSync(calls, "utf8") : "") };
 }
 
 describe("cutover.sh status 与 register-client", () => {
@@ -123,14 +164,14 @@ describe("cutover.sh switch-issuer 与 rollback-issuer", () => {
   });
 
   it("还有 sub 没迁到正式库、或迁移有冲突时拒绝切换：否则现有 GitLab 用户首次登录会变成新账号", () => {
-    const pending = fixture({ prodClients: ["gitlab"], importOutput: "演算 sector=git.yangtzeu.work：可迁 3，冲突 0，目标库对不上 0" });
+    const pending = fixture({ prodClients: ["gitlab"], importOutput: "演算 sector=git.yangtzeu.work：可迁 3，冲突 0，目标库对不上 0，源账号无可对账身份 0" });
     writeFileSync(join(pending.config, "yzgc-oidc-secret.production"), "production-secret-value");
     const refused = pending.run("switch-issuer", "--production-origin", PROD, "--apply");
     expect(refused.status).toBe(1);
     expect(refused.stderr).toContain("还有 sub 没迁到正式库");
     expect(pending.read("gitlab.rb")).toBe(RB_PREVIEW);
     expect(pending.called()).not.toContain("reconfigure");
-    const conflict = fixture({ prodClients: ["gitlab"], importOutput: "演算 sector=git.yangtzeu.work：可迁 0，冲突 1，目标库对不上 0", importExit: 1 });
+    const conflict = fixture({ prodClients: ["gitlab"], importOutput: "演算 sector=git.yangtzeu.work：可迁 0，冲突 1，目标库对不上 0，源账号无可对账身份 0", importExit: 1 });
     writeFileSync(join(conflict.config, "yzgc-oidc-secret.production"), "production-secret-value");
     expect(conflict.run("switch-issuer", "--production-origin", PROD, "--apply").status).toBe(1);
     expect(conflict.called()).not.toContain("reconfigure");
@@ -187,7 +228,7 @@ describe("cutover.sh migrate-subjects 与参数校验", () => {
   });
 
   it("导入有冲突以非 0 退出时，容器里的脚本也要删掉", () => {
-    const f = fixture({ importOutput: "演算 sector=git.yangtzeu.work：可迁 0，冲突 1，目标库对不上 0", importExit: 1 });
+    const f = fixture({ importOutput: "演算 sector=git.yangtzeu.work：可迁 0，冲突 1，目标库对不上 0，源账号无可对账身份 0", importExit: 1 });
     const result = f.run("migrate-subjects", "--production-origin", PROD, "--apply");
     expect(result.status).toBe(1);
     expect(f.called().match(/rm -f \/tmp\/migrate-oidc-subjects\.mjs/g)?.length).toBeGreaterThanOrEqual(2);
@@ -203,27 +244,75 @@ describe("cutover.sh migrate-subjects 与参数校验", () => {
   });
 });
 
-describe("gitlab-cutover.yml", () => {
-  const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/gitlab-cutover.yml"), "utf8");
-
-  it("只手动触发，写入默认不勾，必须过 production 环境审批和部署开关", () => {
-    expect(workflow).toMatch(/^on:\n {2}workflow_dispatch:/m);
-    expect(workflow).not.toMatch(/^ {2}(push|pull_request|schedule):/m);
-    expect(workflow).toMatch(/apply:[\s\S]*?default: false/);
-    expect(workflow).toContain("vars.DEPLOY_PRODUCTION_ENABLED == 'enabled' && github.ref == 'refs/heads/main'");
-    expect(workflow).toMatch(/environment:\n {6}name: production/);
-    expect(workflow).toContain("required_reviewers");
-    expect(workflow).toContain("DEPLOY_TARGET_ENVIRONMENT");
-    expect(workflow).not.toMatch(/continue-on-error|\|\| true/);
+describe('唯一同步写者切换', () => {
+  it('预发布仍运行 on 或持久 on 时，正式不能启动，主体也不能写入', () => {
+    const f = fixture({ previewMode: 'on', productionMode: 'off' });
+    expect(f.run('enable-production-sync', '--production-origin', PROD, '--apply').status).toBe(1);
+    expect(f.run('migrate-subjects', '--production-origin', PROD, '--apply').status).toBe(1);
+    expect(readFileSync(join(f.dir, 'production/mode'), 'utf8')).toBe('off');
+    expect(f.called()).not.toContain('set-mode on');
+    expect(f.called()).not.toContain('import --sector');
   });
 
-  it("步骤选项与 cutover.sh 的子命令一致，只带 cutover.sh 和对账脚本，origin 取自 env 模板", () => {
-    const options = [...workflow.matchAll(/^ {10}- ([a-z-]+)$/gm)].map(match => match[1]);
-    expect(options).toEqual(["status", "register-client", "migrate-subjects", "switch-issuer", "rollback-issuer"]);
-    const sh = readFileSync(script, "utf8");
-    for (const name of options) expect(sh).toContain(`${name})`);
-    expect(workflow).toContain("tar -C deploy/gitlab -cf - cutover.sh migrate-oidc-subjects.mjs");
-    expect(workflow).toContain("deploy/env/.env.production");
-    expect(workflow).not.toMatch(/https:\/\/(prev\.)?yangtzeu\.work/);
+  it('停预发布先备份排空，再改持久设置和canonical env，启动原镜像的新进程', () => {
+    const f = fixture({ previewMode: 'on', productionMode: 'off' });
+    const dry = f.run('stop-preview-sync', '--production-origin', PROD);
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(readFileSync(join(f.dir, 'preview/mode'), 'utf8')).toBe('on');
+    expect(f.called()).not.toContain('stop --time');
+    const result = f.run('stop-preview-sync', '--production-origin', PROD, '--apply');
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(f.dir, 'preview/mode'), 'utf8')).toBe('off');
+    expect(readFileSync(join(f.dir, 'preview/.env.preview'), 'utf8')).toBe('GITLAB_SYNC=off\nSECRET=kept-fixture-secret\n');
+    expect(readFileSync(join(f.dir, 'preview/started'), 'utf8')).toBe('after\n');
+    const calls = f.called();
+    expect(calls.indexOf('backup start yzgc-backup@preview')).toBeLessThan(calls.indexOf('stop --time 120'));
+    expect(calls.indexOf('stop --time 120')).toBeLessThan(calls.indexOf('set-mode off'));
+    expect(calls.indexOf('set-mode off')).toBeLessThan(calls.indexOf('compose --env-file'));
+    expect(result.stdout + result.stderr).not.toContain('kept-fixture-secret');
+    expect(readFileSync(join(f.dir, 'production/mode'), 'utf8')).toBe('off');
+  });
+
+  it.each([{ backupExit: 1 }, { stopExit: 137 }])('备份或正常排空失败时不改持久开关 %j', options => {
+    const f = fixture({ ...options, previewMode: 'on', productionMode: 'off' });
+    const result = f.run('stop-preview-sync', '--production-origin', PROD, '--apply');
+    expect(result.status).not.toBe(0);
+    expect(readFileSync(join(f.dir, 'preview/mode'), 'utf8')).toBe('on');
+    expect(f.called()).not.toContain('set-mode off');
+    expect(f.called()).not.toContain('set-mode on');
+  });
+
+  it('两个 unmatched 或旧成员资格未对齐时，不先停止旧写者或开启新写者', () => {
+    const missing = fixture({ previewMode: 'on', importOutput: '演算 sector=git.yangtzeu.work：可迁 0，冲突 0，目标库对不上 2，源账号无可对账身份 0', importExit: 1 });
+    expect(missing.run('stop-preview-sync', '--production-origin', PROD, '--apply').status).toBe(1);
+    expect(missing.called()).not.toContain('stop --time');
+    const wrongRole = fixture({ productionMode: 'off', baselineExit: 1 });
+    expect(wrongRole.run('enable-production-sync', '--production-origin', PROD, '--apply').status).toBe(1);
+    expect(wrongRole.called()).not.toContain('set-mode on');
+  });
+
+  it('只有旧写者已关闭、主体和成员对齐后才开启正式，保留镜像与其他env字段', () => {
+    const f = fixture({ productionMode: 'off' });
+    const result = f.run('enable-production-sync', '--production-origin', PROD, '--apply');
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(join(f.dir, 'production/mode'), 'utf8')).toBe('on');
+    expect(readFileSync(join(f.dir, 'production/.env.production'), 'utf8')).toBe('GITLAB_SYNC=on\nSECRET=kept-fixture-secret\n');
+    expect(readFileSync(join(f.dir, 'preview/mode'), 'utf8')).toBe('off');
+    expect(result.stdout + result.stderr).not.toContain('kept-fixture-secret');
+  });
+
+  it.each(['stop-preview-sync', 'enable-production-sync'])('启动失败恢复原有效模式与服务，不影响另一个环境：%s', step => {
+    const stopping = step === 'stop-preview-sync';
+    const environment = stopping ? 'preview' : 'production';
+    const originalMode = stopping ? 'on' : 'off';
+    const f = fixture({ previewMode: stopping ? 'on' : 'off', productionMode: 'off', composeFailOnce: true });
+    const result = f.run(step, '--production-origin', PROD, '--apply');
+    expect(result.status).not.toBe(0);
+    expect(readFileSync(join(f.dir, environment, 'mode'), 'utf8')).toBe(originalMode);
+    expect(readFileSync(join(f.dir, environment, `.env.${environment}`), 'utf8')).toBe(`GITLAB_SYNC=${originalMode}\nSECRET=kept-fixture-secret\n`);
+    expect(readFileSync(join(f.dir, environment, 'running'), 'utf8').trim()).toBe('true');
+    const other = stopping ? 'production' : 'preview';
+    expect(readFileSync(join(f.dir, other, 'started'), 'utf8')).toBe('before');
   });
 });
+

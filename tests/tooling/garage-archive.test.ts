@@ -88,6 +88,8 @@ if (args[0] === 'lsjson' && args.includes('--stat')) {
   const credentials = {
     GITLAB_BACKUP_S3_ACCESS_KEY_ID: 'synthetic-access',
     GITLAB_BACKUP_S3_SECRET_ACCESS_KEY: 'synthetic-secret-never-disclose',
+    GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: 'gitlab-preview-access',
+    GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: 'gitlab-preview-secret-never-disclose',
     PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: 'preview-access',
     PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: 'preview-secret-never-disclose',
     PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID: 'production-access',
@@ -396,6 +398,26 @@ describe('Garage archive retention (prune-runs)', () => {
     && readdirSync(path, { withFileTypes: true }).some(entry => (entry.isDirectory() ? hasFiles(join(path, entry.name)) : true));
   const exists = (f: ArchiveFixture, prefix: string) => hasFiles(join(f.objects, 'geek-backup', ...prefix.split('/').filter(Boolean)));
   const seed = (f: ArchiveFixture, dates: string[]) => { for (const date of dates) writeRun(f, day(date), { 'a.gpg': `a-${date}`, 'b.gpg': `b-${date}` }); };
+
+  it('preview upload, selection and pruning cannot read or delete production GitLab backups', () => {
+    const f = fixture();
+    const dates = ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'];
+    for (const date of dates) {
+      const source = writeRun(f, day(date), { 'backup.gpg': `encrypted-${date}` });
+      const upload = f.run(['put-tree', '--role', 'gitlab-preview-backup', '--source', source, '--prefix', day(date)]);
+      expect(upload.status, upload.stderr).toBe(0);
+    }
+    const denied = f.run(['list-gitlab-runs', '--role', 'gitlab-preview-backup'], { GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: '' });
+    expect(denied.status).toBe(1);
+    const pruned = f.run(['prune-runs', '--role', 'gitlab-preview-backup', '--apply']);
+    expect(pruned.status, pruned.stderr).toBe(0);
+    expect(existsSync(join(f.objects, 'geek-preview-private', day(dates[0]), 'backup.gpg'))).toBe(false);
+    for (const date of dates) expect(readFileSync(join(f.objects, 'geek-backup', day(date), 'backup.gpg'), 'utf8')).toBe(`encrypted-${date}`);
+    const missing = f.run(['resolve-gitlab-run', '--role', 'gitlab-preview-backup', '--run', `${dates[0]}/run1`]);
+    expect(missing.status).toBe(1);
+    const production = f.run(['resolve-gitlab-run', '--run', `${dates[0]}/run1`]);
+    expect(production.status, production.stderr).toBe(0);
+  });
 
   it('lists what it would remove by default and deletes nothing', () => {
     const f = fixture();

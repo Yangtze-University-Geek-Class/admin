@@ -176,6 +176,10 @@ function route(path: string): unknown {
   if (pathname === "/api/identity/me") return demoIdentity(mockPersona() ?? "visitor");
   if (pathname === "/api/public/departments") return { departments: demoDepartments };
   if (pathname === "/api/public/gitlab/projects") return { projects: demoProjects };
+  if (pathname === "/api/me/gitlab/projects") {
+    if (mockPersona() !== "member") throw new ApiError(403, "not_member", "代码仓库仅向有效极客班成员开放");
+    return { projects: demoProjects };
+  }
 
   throw new ApiError(404, "mock_route_missing", `开发预览未实现此接口：${pathname}`);
 }

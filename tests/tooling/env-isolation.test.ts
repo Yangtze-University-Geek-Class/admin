@@ -52,6 +52,13 @@ describe("三份 env 模板的隔离", () => {
     for (const key of PER_ENVIRONMENT_KEYS) expect(parseEnv(real().production).values.has(key)).toBe(true);
   });
 
+  it.each(['GITLAB_URL', 'GITLAB_STACK_ROOT', 'GITLAB_HTTP_BIND', 'GITLAB_DOCKER_SUBNET', 'GITLAB_DOCKER_GATEWAY'])('拒绝两个实例复用 %s', key => {
+    const files = real();
+    const production = parseEnv(files.production).values.get(key)!;
+    files.preview = files.preview.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${production}`);
+    expect(checkEnvFiles(files, origins).some(finding => finding.rule === 'gitlab_isolation' && finding.message.includes(key))).toBe(true);
+  });
+
   it("名字像密钥的键必须留空，本机必须不外发不同步", () => {
     const files = real();
     files.dev = files.dev.replace("OIDC_JWKS=", "OIDC_JWKS=abcdef").replace("GITLAB_SYNC=off", "GITLAB_SYNC=on").replace("MAIL_RECIPIENTS=allowlist", "MAIL_RECIPIENTS=all");

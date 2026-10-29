@@ -1,6 +1,6 @@
 // 桌面终端的模拟 shell（#279）：createShell 造一台小 Linux，run 跑一行命令，complete 做 Tab 补全。
 // 文件系统见 vfs.ts，切词见 parse.ts，命令见 commands.ts；这里负责展开变量和通配符、管道、重定向、&& || ;、脚本和存盘。
-// 登录了用极客班用户名当用户名（/home/<用户名>），没登录是 guest；家目录里自己写的文件按用户名存在 localStorage。
+// 家目录使用极客班用户名；本机存盘按稳定账号与身份等级隔离，游客单独存盘，不认领旧用户名存盘。
 // 桌面上的应用是 ~/Desktop 里的 .app 脚本，也装在 /usr/local/bin 里当命令用；运行它、敲应用名或 open <应用> 都会在桌面上打开那个窗口。
 import type { Account } from "../account";
 import type { CodeProject } from "../codeRepos";
@@ -61,7 +61,7 @@ const README = `# 欢迎来到 YUGC OS 的终端
 
   Desktop/    桌面上的应用，运行 ./Desktop/forum.app、forum 或 open forum 都能打开
   Documents/  文档，linux.md 是 Linux 启明道场每一关对应的命令
-  projects/   代码仓库里的公开项目
+  projects/   代码仓库中可访问的项目
   .bashrc     每次打开终端先执行的命令（隐藏文件，ls -a 才看得到）
 
 试试：
@@ -157,6 +157,7 @@ const unescapeGlob = (text: string) => text.replace(/\\(.)/g, "$1");
 
 export function createShell({ account, apps, repos: initialRepos = [], storage = defaultStorage() }: ShellOptions): Shell {
   const user = safeUser(account);
+  const storageKey = account ? (account.accountId ? `${STORE_PREFIX}account:${account.accountId}:${account.level ?? "registered"}` : null) : `${STORE_PREFIX}guest`;
   const home = `/home/${user}`;
   const fs = new Vfs(home);
   const vars = new Map<string, string>();
@@ -578,7 +579,7 @@ export function createShell({ account, apps, repos: initialRepos = [], storage =
   }
 
   function persist() {
-    if (!storage) return;
+    if (!storage || !storageKey) return;
     const entries: Array<[string, "d" | "f", number, string?]> = [];
     const walk = (node: DirNode, rel: string) => {
       for (const [name, child] of [...node.children].sort(([a], [b]) => (a < b ? -1 : 1))) {
@@ -590,7 +591,7 @@ export function createShell({ account, apps, repos: initialRepos = [], storage =
     const homeNode = fs.get(home);
     if (homeNode?.type === "dir") walk(homeNode, "");
     try {
-      storage.setItem(STORE_PREFIX + user, JSON.stringify({ v: 1, entries }));
+      storage.setItem(storageKey, JSON.stringify({ v: 1, entries }));
     } catch {
       // 存不下（隐私模式、配额满）就只在这次打开里有效
     }
@@ -599,7 +600,7 @@ export function createShell({ account, apps, repos: initialRepos = [], storage =
   function load() {
     let saved: unknown = null;
     try {
-      saved = JSON.parse(storage?.getItem(STORE_PREFIX + user) ?? "null");
+      saved = storageKey ? JSON.parse(storage?.getItem(storageKey) ?? "null") : null;
     } catch {
       saved = null;
     }

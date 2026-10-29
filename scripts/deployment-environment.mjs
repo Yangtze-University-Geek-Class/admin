@@ -105,6 +105,11 @@ const REQUIRED_FIELDS = Object.freeze([
   'GITLAB_SYNC',
   'GITLAB_URL',
   'GITLAB_GROUP',
+  'GITLAB_OIDC_CLIENT',
+  'GITLAB_STACK_ROOT',
+  'GITLAB_HTTP_BIND',
+  'GITLAB_DOCKER_SUBNET',
+  'GITLAB_DOCKER_GATEWAY',
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */
@@ -512,18 +517,21 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
       // 预发布以前只能是 allowlist；2026-09-27 14:20 要求预发布的信都发出去（「我们官方发的那些邮件，肯定必须发过去」），#169 放开。
       if (!MAIL_RECIPIENT_MODES.includes(recipients)) problem(`MAIL_RECIPIENTS 只能是 ${MAIL_RECIPIENT_MODES.join(' 或 ')}：${recipients}`);
     }
-    // GitLab 账号同步（#270）：开关、GitLab 的 https origin、组路径都是可见事实；管理员令牌在密钥段。
+    // 每个环境使用自己的 GitLab 基址（可带部署子路径）与 OIDC 客户端，令牌仍只在密钥段。
     if (values.has('GITLAB_SYNC') && !GITLAB_SYNC_MODES.includes(values.get('GITLAB_SYNC'))) {
       problem(`GITLAB_SYNC 只能是 ${GITLAB_SYNC_MODES.join(' / ')}：${values.get('GITLAB_SYNC')}`);
     }
     if (values.has('GITLAB_URL')) {
       try {
-        if (parseHttpsOrigin(values.get('GITLAB_URL'), 'GITLAB_URL') !== values.get('GITLAB_URL')) problem(`GITLAB_URL 必须写成不带结尾 / 的 origin：${values.get('GITLAB_URL')}`);
+        const base = new URL(values.get('GITLAB_URL'));
+        if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash
+          || `${base.origin}${base.pathname.replace(/\/+$/, '')}` !== values.get('GITLAB_URL')) problem('GITLAB_URL 必须是规范 HTTPS 基址，不带凭据、查询、锚点或尾斜杠');
       } catch (error) {
         problem(error.message);
       }
     }
     if (values.has('GITLAB_GROUP') && !/^[A-Za-z0-9_.-]{1,255}$/.test(values.get('GITLAB_GROUP'))) problem(`GITLAB_GROUP 必须是 GitLab 的组路径：${values.get('GITLAB_GROUP')}`);
+    if (values.has('GITLAB_OIDC_CLIENT') && !/^[a-z0-9_]{3,64}$/.test(values.get('GITLAB_OIDC_CLIENT'))) problem('GITLAB_OIDC_CLIENT 必须是客户端标识');
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,
       stdio: ['ignore', 'ignore', 'ignore'],

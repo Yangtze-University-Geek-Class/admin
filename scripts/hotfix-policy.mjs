@@ -63,19 +63,69 @@ export async function verifyLive(plan, { fetcher = fetch, repo, token, gitRepo =
   throw new Error('当前生产提交没有同版本成功部署记录');
 }
 
+/** 部署 API 读取 commit status，不读取 Actions check；只投影本次运行已经成功的真实检查。 */
+export async function publishVerifiedCheck(plan, { repo, token, runId, runAttempt, fetcher = fetch }) {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || !token || !SHA.test(plan?.commit ?? '')
+    || !/^[1-9]\d*$/.test(String(runId ?? '')) || !/^[1-9]\d*$/.test(String(runAttempt ?? ''))) {
+    throw new Error('缺少明确的 hotfix 检查来源');
+  }
+  const base = `https://api.github.com/repos/${repo}`;
+  const request = async (path, body) => {
+    const response = await fetcher(`${base}${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      redirect: 'error', signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) throw new Error(`检查来源请求失败：HTTP ${response.status}`);
+    return response.json();
+  };
+  const run = await request(`/actions/runs/${runId}`);
+  if (run.id !== Number(runId) || run.run_attempt !== Number(runAttempt) || run.head_sha !== plan.commit
+    || run.event !== 'workflow_dispatch' || run.head_branch !== 'main' || run.status !== 'in_progress'
+    || run.path !== '.github/workflows/deploy-hotfix.yml' || run.repository?.full_name?.toLowerCase() !== repo.toLowerCase()
+    || !Number.isSafeInteger(run.check_suite_id)) throw new Error('hotfix 运行来源与当前计划不一致');
+  const page = await request(`/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+  if (!Array.isArray(page.jobs) || page.total_count !== page.jobs.length) throw new Error('hotfix job 列表不完整');
+  const jobs = page.jobs.filter(job => job.name === 'hotfix-verify');
+  if (jobs.length !== 1) throw new Error('本次 hotfix-verify 检查不唯一或缺失');
+  const job = jobs[0];
+  if (!Number.isSafeInteger(job.id) || job.run_id !== run.id || job.head_sha !== plan.commit
+    || !Number.isSafeInteger(job.run_attempt) || job.run_attempt < 1 || job.run_attempt > run.run_attempt
+    || job.status !== 'completed' || job.conclusion !== 'success'
+    || job.check_run_url !== `${base}/check-runs/${job.id}`) throw new Error('本次 hotfix-verify 尚未成功');
+  const check = await request(`/check-runs/${job.id}`);
+  const evidenceUrl = `https://github.com/${repo}/actions/runs/${runId}/job/${job.id}`;
+  if (check.id !== job.id || check.name !== 'hotfix-verify' || check.head_sha !== plan.commit
+    || check.status !== 'completed' || check.conclusion !== 'success' || check.app?.id !== 15368
+    || check.app?.slug !== 'github-actions' || check.check_suite?.id !== run.check_suite_id
+    || check.details_url !== evidenceUrl) throw new Error('hotfix 检查不是本次可信的成功证据');
+  const status = await request(`/statuses/${plan.commit}`, {
+    state: 'success', context: 'hotfix-verify', target_url: evidenceUrl,
+    description: `Verified Actions check ${check.id}; deployment status API projection`,
+  });
+  if (status.state !== 'success' || status.context !== 'hotfix-verify' || status.target_url !== evidenceUrl) {
+    throw new Error('部署状态接口没有返回对应的检查证据');
+  }
+  return { context: status.context, checkRunId: check.id, statusId: status.id, evidenceUrl };
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'plan') {
     if (args.length) throw new Error('plan 只从工作流进程环境接收参数');
     const plan = planHotfix({ tag: process.env.RELEASE_TAG, commit: process.env.HOTFIX_COMMIT, event: process.env.GITHUB_EVENT_NAME, ref: process.env.GITHUB_REF, workflowSha: process.env.GITHUB_SHA, issue: process.env.HOTFIX_ISSUE });
     console.log(JSON.stringify(plan, null, 2));
-  } else if (command === 'verify-live' && args.length === 1) {
+  } else if ((command === 'verify-live' || command === 'publish-check') && args.length === 1) {
     const plan = JSON.parse(readFileSync(args[0], 'utf8'));
     // 重新检查 refs 与版本，等待审批期间 main 或 tag 漂移时停止，不能部署旧计划。
     const current = planHotfix({ tag: plan.tag, commit: plan.commit, event: process.env.GITHUB_EVENT_NAME, ref: process.env.GITHUB_REF, workflowSha: process.env.GITHUB_SHA, issue: plan.issue });
     if (current.baseCommit !== plan.baseCommit || current.origin !== plan.origin) throw new Error('hotfix 计划的版本锚点或环境已漂移');
-    console.log(JSON.stringify(await verifyLive(current, { repo: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN })));
-  } else throw new Error('usage: hotfix-policy.mjs plan | verify-live <plan.json>');
+    const identity = { repo: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN };
+    const result = command === 'verify-live' ? await verifyLive(current, identity)
+      : await publishVerifiedCheck(current, { ...identity, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT });
+    console.log(JSON.stringify(result));
+  } else throw new Error('usage: hotfix-policy.mjs plan | verify-live|publish-check <plan.json>');
 }
 if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
   main().catch(error => { console.error(error.message); process.exitCode = 1; });

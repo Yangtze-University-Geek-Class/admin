@@ -587,6 +587,8 @@ jobs:
       # 读本次运行的镜像归档（scripts/fetch-artifact.mjs 经 REST API 下载）。
       actions: read
       deployments: write
+      checks: read
+      statuses: write
     env:
       RELEASE_TAG: ${{ needs.plan.outputs.tag }}
       RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
@@ -721,6 +723,12 @@ jobs:
           chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
           chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
           echo "SSH 物料就绪：私钥 $(wc -l < "$RUNNER_TEMP/ssh/id_deploy") 行，known_hosts $(wc -l < "$RUNNER_TEMP/ssh/known_hosts") 行"
+
+      - name: 将本次成功检查绑定到部署状态接口
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/hotfix-policy.mjs publish-check "$RUNNER_TEMP/hotfix-plan.json"
 
       - name: 创建部署记录（in_progress）
         id: record

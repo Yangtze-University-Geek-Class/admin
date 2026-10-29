@@ -66,10 +66,24 @@ describe("import", () => {
 
   it("--apply 在一个事务里新增，之后再跑一遍没有可迁的", () => {
     const db = target();
-    expect(importSubjects(db, payload, { sector: SECTOR, apply: true, now: 7 }).applied).toBe(2);
+    const complete = { ...payload, entries: payload.entries.slice(0, 2) };
+    expect(importSubjects(db, complete, { sector: SECTOR, apply: true, now: 7 }).applied).toBe(2);
     expect(rows(db)).toEqual([{ user_id: "q1", sub: "sub-a" }, { user_id: "q2", sub: "sub-b" }]);
-    const again = importSubjects(db, payload, { sector: SECTOR, apply: true });
+    const again = importSubjects(db, complete, { sector: SECTOR, apply: true });
     expect(again).toMatchObject({ plan: [], conflicts: [], applied: 0 });
+  });
+
+  it('目标身份缺失或源账号没有不可变身份时，拒绝整批写入', () => {
+    const missing = target();
+    const result = importSubjects(missing, payload, { sector: SECTOR, apply: true });
+    expect(result.unmatched).toEqual(['github:999']);
+    expect(result.applied).toBe(0);
+    expect(rows(missing)).toEqual([]);
+    const noIdentity = target();
+    const unprovable = importSubjects(noIdentity, { ...payload, entries: payload.entries.slice(0, 2), withoutIdentity: 1 }, { sector: SECTOR, apply: true });
+    expect(unprovable.withoutIdentity).toBe(1);
+    expect(unprovable.applied).toBe(0);
+    expect(rows(noIdentity)).toEqual([]);
   });
 
   it("目标库已有不同的 sub、或 sub 已属于别人时记冲突，整批都不写", () => {

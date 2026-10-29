@@ -5,7 +5,7 @@ import { ICONS, isIconName } from "../../app/web/sites/portal/lib/icons";
 import { bindEmailHref, emailRequired, parseMe } from "../../app/web/sites/portal/lib/account";
 import { links } from "../../app/web/sites/portal/lib/links";
 import type { CodeProject } from "../../app/web/sites/portal/lib/codeRepos";
-import { NEW_TAB_NOTE, OS_APPS, agoLabel, appById, appByKey, appLink, appLinkById, filterCommands, followAppLink, launcherCommands, moveSelection, visibleApps } from "../../app/web/sites/portal/lib/osApps";
+import { OS_APPS, agoLabel, appById, appByKey, appLink, appLinkById, filterCommands, followAppLink, launcherCommands, moveSelection, visibleApps } from "../../app/web/sites/portal/lib/osApps";
 import { createShell } from "../../app/web/sites/portal/lib/shell";
 
 const terminal = (apps: ReturnType<typeof visibleApps>, repos: CodeProject[] = []) => createShell({ account: null, apps, repos, storage: null });
@@ -104,9 +104,6 @@ describe("YUGC OS 应用与启动器", () => {
     expect(appLinkById("forum")).toEqual({ href: links.forumHome(), newTab: false });
     expect(appLinkById("gitlab")).toEqual({ href: links.gitlab(), newTab: false });
     expect(() => appLinkById("join")).toThrow();
-    // 桌面上没有在新标签页打开的应用了；窗口里去 GitLab、比赛官网的链接给读屏补这一句
-    expect(NEW_TAB_NOTE).toBe("（新标签页打开）");
-    expect(links.gitlab()).toBe("https://git.yangtzeu.work/geek");
   });
 
   it("打开站外应用：新标签页用 noopener、不带 referrer；当前标签页整页跳转，两者不混用", () => {
@@ -155,7 +152,6 @@ describe("YUGC OS 应用与启动器", () => {
     const listed = shell.run("repos").lines.map((line) => line.text).join("\n");
     expect(listed).toContain("https://git.example.invalid/geek/geek-cli");
     expect(listed).toContain("geek/notes");
-    expect(terminal(visibleApps(false)).run("repos").lines.at(-1)?.text).toContain("代码仓库里还没有公开项目");
     expect(shell.run("clear")).toMatchObject({ lines: [], clear: true });
     expect(shell.run("rm -rf /").lines.at(-1)?.kind).toBe("err");
   });

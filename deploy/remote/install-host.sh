@@ -18,17 +18,25 @@ MODE="${1:-}"
 SOURCE=""
 ROOT="/"
 MIRROR_ENV_STDIN=0
+TARGET="arch"
+EDGE_ENV=""
+EDGE_KEY_STDIN=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --source) SOURCE="${2:-}"; shift 2 ;;
         --root) ROOT="${2:-}"; shift 2 ;;
         --mirror-env-stdin) MIRROR_ENV_STDIN=1; shift ;;
+        --target) TARGET="${2:-}"; shift 2 ;;
+        --edge-env-file) EDGE_ENV="${2:-}"; shift 2 ;;
+        --edge-public-key-stdin) EDGE_KEY_STDIN=1; shift ;;
         *) echo "install-host: 未知参数 $1" >&2; exit 2 ;;
     esac
 done
 [[ "${MODE}" =~ ^(plan|apply|verify)$ ]] || { echo "用法：install-host.sh plan|apply|verify --source <目录> [--root /]" >&2; exit 2; }
 [[ -d "${SOURCE}" ]] || { echo "install-host: --source 目录不存在" >&2; exit 2; }
 [[ "${ROOT}" == /* ]] || { echo "install-host: --root 必须是绝对路径" >&2; exit 2; }
+[[ "${TARGET}" == arch || "${TARGET}" == edge || "${TARGET}" == gitlab-preview ]] || { echo "install-host: --target 必须是 arch、edge 或 gitlab-preview" >&2; exit 2; }
+if [[ "${TARGET}" == edge && "${MODE}" == apply && ! -f "${EDGE_ENV}" ]]; then echo "install-host: edge 首次安装需要 --edge-env-file" >&2; exit 2; fi
 ROOT="${ROOT%/}"
 
 # 源文件相对路径 → 目标路径 → 权限。新增物料只改这张表。
@@ -42,6 +50,22 @@ MANIFEST=(
     "systemd/yzgc-compose@.service|/etc/systemd/system/yzgc-compose@.service|0644"
     "systemd/hk-tunnel-watchdog.service.d/tolerate-loss.conf|/etc/systemd/system/hk-tunnel-watchdog.service.d/tolerate-loss.conf|0644"
 )
+if [[ "${TARGET}" == edge ]]; then
+    MANIFEST=("edge-gitlab.py|/usr/local/libexec/yzgc-edge|0755")
+    [[ "${MIRROR_ENV_STDIN}" == 0 ]] || { echo "install-host: edge 不接收 CDN 凭据" >&2; exit 2; }
+fi
+if [[ "${TARGET}" == gitlab-preview ]]; then
+    MANIFEST=(
+        "../gitlab/backup.sh|/srv/gitlab-preview/backup.sh|0755"
+        "../gitlab/restore-drill.sh|/srv/gitlab-preview/restore-drill.sh|0755"
+        "garage-archive.mjs|/srv/gitlab-preview/garage-archive.mjs|0755"
+        "../gitlab/gitlab-preview-compose.service|/etc/systemd/system/gitlab-preview-compose.service|0644"
+        "../gitlab/gitlab-preview-backup.service|/etc/systemd/system/gitlab-preview-backup.service|0644"
+        "../gitlab/gitlab-preview-backup.timer|/etc/systemd/system/gitlab-preview-backup.timer|0644"
+    )
+    [[ "${MIRROR_ENV_STDIN}" == 0 && "${EDGE_KEY_STDIN}" == 0 ]] || { echo 'install-host: GitLab 目标不接收其他宿主凭据' >&2; exit 2; }
+    [[ -f "${ROOT}/srv/gitlab-preview/installation.json" ]] || { echo 'install-host: 先安装并验证独立预发布实例' >&2; exit 2; }
+fi
 MIRROR_ENV="${ROOT}/etc/cdn-mirror/env"
 SYSTEMCTL="${INSTALL_HOST_SYSTEMCTL:-systemctl}"
 # 只有装在真实根上（或测试显式给了假的 systemctl）才碰 systemd；演练目录里不调用
@@ -111,6 +135,20 @@ apply() {
         install -m "${mode}" "${src}" "${target}.new"
         mv "${target}.new" "${target}"
     done
+    if [[ "${TARGET}" == edge ]]; then
+        local key_args=()
+        if [[ "${EDGE_KEY_STDIN}" == 1 ]]; then key_args=(--public-key-stdin); fi
+        python3 "${ROOT}/usr/local/libexec/yzgc-edge" bootstrap --root "${ROOT:-/}" --env-file "${EDGE_ENV}" "${key_args[@]}"
+        return
+    fi
+    if [[ "${TARGET}" == gitlab-preview ]]; then
+        if use_systemd; then
+            "${SYSTEMCTL}" daemon-reload
+            "${SYSTEMCTL}" enable gitlab-preview-compose.service
+            if [[ -f "${ROOT}/etc/gitlab-preview-backup/env" ]]; then "${SYSTEMCTL}" enable --now gitlab-preview-backup.timer; fi
+        fi
+        return
+    fi
     if [[ "${MIRROR_ENV_STDIN}" == 1 ]]; then write_mirror_env; fi
     install -d -m 0700 "${ROOT}/srv/cdn-mirror"
     if use_systemd; then
@@ -127,6 +165,14 @@ verify() {
     plan
     local failed=0
     if [[ "${differences}" -gt 0 ]]; then echo "verify：有 ${differences} 项和仓库物料不一致" >&2; failed=1; fi
+    if [[ "${TARGET}" == gitlab-preview ]]; then
+        return "${failed}"
+    fi
+    if [[ "${TARGET}" == edge ]]; then
+        [[ -f "${ROOT}/etc/yzgc-edge/gitlab-preview.json" ]] || failed=1
+        [[ "${failed}" == 0 ]] && echo "verify：入口安装器与固定目标已安装"
+        return "${failed}"
+    fi
     if use_systemd; then
         local unit requires
         for unit in production preview; do

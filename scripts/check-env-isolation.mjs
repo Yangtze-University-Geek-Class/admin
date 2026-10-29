@@ -6,7 +6,7 @@
  *   1. 键集：三份 `deploy/env/.env.*` 的键完全一致。
  *   2. 身份：各自的 origin 只能是自己的（正式、预发布取 deploy/environments.json，本机是回环）。
  *   3. 隔离：每份文件不得出现另外两个环境才有的域名、镜像仓库、端口、路径。
- *   4. 同构：正式与预发布除登记的差异键（域名、端口、项目名、栈目录、GitLab 单写者开关）外，值必须相同。
+ *   4. 同构：正式与预发布除登记的差异键（域名、端口、项目名、栈目录、独立 GitLab 实例）外，值必须相同。
  *   5. 密钥：名字像密钥的键三份都必须留空；本机另外不外发邮件、不同步 GitLab。
  *   6. 硬编码：代码和部署片段里的正式域名和预发布域名只能出现在 deploy/env/origin-exceptions.json
  *      登记过的文件里，登记要写次数上限和理由；`only` 限定一个环境的文件里出现另一个环境的域名也失败。
@@ -26,7 +26,7 @@ export const ENV_FILES = Object.freeze({
 export const EXCEPTIONS_FILE = 'deploy/env/origin-exceptions.json';
 export const DEV_ORIGIN = 'http://127.0.0.1:5173';
 
-/** 正式与预发布允许取不同值的键：域名、端口、项目名、栈目录、GitLab 单写者开关；其余键的值必须相同。 */
+/** 正式与预发布允许取不同值的键：环境身份与各自独立的 GitLab 实例；其余键的值必须相同。 */
 export const PER_ENVIRONMENT_KEYS = Object.freeze([
   'GEEK_DEPLOYMENT_ENVIRONMENT',
   'GEEK_ENVIRONMENT_ORIGIN',
@@ -36,6 +36,12 @@ export const PER_ENVIRONMENT_KEYS = Object.freeze([
   'SERVER_BIND',
   'PUBLIC_ORIGIN',
   'GITLAB_SYNC',
+  'GITLAB_URL',
+  'GITLAB_OIDC_CLIENT',
+  'GITLAB_STACK_ROOT',
+  'GITLAB_HTTP_BIND',
+  'GITLAB_DOCKER_SUBNET',
+  'GITLAB_DOCKER_GATEWAY',
 ]);
 
 /** 名字像密钥的键：三份模板都必须留空。 */
@@ -151,6 +157,9 @@ export function checkEnvFiles(files, origins) {
     if (a !== undefined && b !== undefined && a !== b) {
       add('parity', ENV_FILES.preview, `${key} 在正式与预发布取值不同（正式 ${JSON.stringify(a)}，预发布 ${JSON.stringify(b)}）；确属环境差异就加进 PER_ENVIRONMENT_KEYS 并写进 docs/ops/ENVIRONMENTS.md，否则对齐`);
     }
+  }
+  for (const key of ['GITLAB_URL', 'GITLAB_STACK_ROOT', 'GITLAB_HTTP_BIND', 'GITLAB_DOCKER_SUBNET', 'GITLAB_DOCKER_GATEWAY']) {
+    if (parsed.production.values.get(key) === parsed.preview.values.get(key)) add('gitlab_isolation', ENV_FILES.preview, `${key} 必须属于独立 GitLab 实例，不能与正式共用`);
   }
 
   // 5. 密钥留空；本机不外发、不同步

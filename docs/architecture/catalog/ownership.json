@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-27",
+  "updated": "2026-10-29",
   "applications": [
     {
       "id": "web",
@@ -1189,7 +1189,7 @@
         },
         {
           "path": "app/web/sites/portal/components/os/Terminal.tsx",
-          "needle": "  const shell = useMemo(() => createShell({ account, apps }), [account?.username, appKey]);"
+          "needle": "  const shell = useMemo(() => createShell({ account, apps }), [account?.accountId, account?.level, account?.username, appKey]);"
         },
         {
           "path": "app/server/src/lib/grade.ts",
@@ -10665,11 +10665,7 @@
         },
         {
           "path": "app/web/sites/portal/lib/links.ts",
-          "needle": "gitlab: (): string => appConfig.urls.gitlab"
-        },
-        {
-          "path": "app/web/shared/config/index.ts",
-          "needle": "gitlab: string"
+          "needle": "gitlab: (): string => \"/api/public/gitlab\""
         },
         {
           "path": "app/web/sites/portal/components/os/Widgets.tsx",
@@ -11276,6 +11272,26 @@
       ]
     },
     {
+      "id": "gitlab.entry.open",
+      "title": "门户进入本环境的 GitLab 群组",
+      "domain": "gitlab",
+      "relatedDomains": ["platform"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/public/gitlab",
+      "capabilities": [], "reads": [], "writes": [], "doesNotEnqueue": [],
+      "invariants": [
+        "只按本环境 GITLAB_URL 与有效群组设置生成 302 Location，保留部署子路径；查询参数不能改变目的地。",
+        "无基址返回 503；不发送管理员令牌、不读私有项目、不缓存重定向。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/public/gitlab\","},
+        {"path": "app/server/src/routes/portal/contracts.ts", "needle": "\"GET /api/public/gitlab\":"},
+        {"path": "app/web/sites/portal/lib/links.ts", "needle": "gitlab: (): string => \"/api/public/gitlab\""}
+      ],
+      "tests": ["tests/server/gitlab-sync.test.ts"],
+      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
+    },
+    {
       "id": "gitlab.projects.public.list",
       "title": "门户公开查看 GitLab 上公开的代码仓库",
       "domain": "gitlab",
@@ -11334,7 +11350,7 @@
         },
         {
           "path": "app/web/sites/portal/components/os/Terminal.tsx",
-          "needle": "    if (repos.status === \"ready\") shell.setRepos(repos.projects);"
+          "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);"
         }
       ],
       "tests": [
@@ -11346,6 +11362,36 @@
         "docs/architecture/API.md",
         "docs/services/web/portal.md"
       ]
+    },
+    {
+      "id": "gitlab.projects.member.list",
+      "title": "有效极客班成员从门户与终端查看成员项目",
+      "domain": "gitlab",
+      "relatedDomains": ["identity", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/me/gitlab/projects",
+      "capabilities": [],
+      "reads": ["sessions", "users", "perm_members"],
+      "writes": ["sessions"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "仅有效 sid 且 active、当前有效直接 member/alumni 可读；没有 gitlab.view 也能读取，不开放控制台账号与同步管理权限。",
+        "服务端在等待 GitLab 前后核对资格；匿名401、非成员403，缓存不能跳过资格；响应 no-store。公开端点即使带cookie仍只给public项目。",
+        "门户按 account_id 隔离状态，退出或换人立即隐藏旧列表并忽略迟到响应；终端同时重建且存盘按稳定账号与身份等级隔离。",
+        "只返回项目名称、路径、说明、HTTPS链接和最近活动，不返回管理令牌、身份绑定、内部管理字段。"
+      ],
+      "evidence": [
+        { "path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/me/gitlab/projects\"" },
+        { "path": "app/server/src/routes/portal/contracts.ts", "needle": "  \"GET /api/me/gitlab/projects\":" },
+        { "path": "app/server/src/lib/identity-store.ts", "needle": "function isMember(" },
+        { "path": "app/web/sites/portal/lib/codeRepos.ts", "needle": "export function useCodeRepos(" },
+        { "path": "app/web/sites/portal/components/os/Windows.tsx", "needle": "export function CodeRepos(" },
+        { "path": "app/web/sites/portal/components/os/Terminal.tsx", "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);" },
+        { "path": "app/web/sites/portal/lib/shell/index.ts", "needle": "  const storageKey = account ?" },
+        { "path": "app/web/sites/portal/lib/shell/commands.ts", "needle": "function repos(ctx: Ctx): Io {" }
+      ],
+      "tests": ["tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts"],
+      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
     },
     {
       "id": "gitlab.settings.read",
@@ -11387,7 +11433,7 @@
         },
         {
           "path": "app/server/src/lib/gitlab-sync.ts",
-          "needle": "function readPersisted("
+          "needle": "export function readGitlabSyncSettings("
         },
         {
           "path": "app/console/src/pages/gitlab/Settings.vue",
@@ -11449,7 +11495,7 @@
         },
         {
           "path": "app/server/src/lib/gitlab-sync.ts",
-          "needle": "function writePersisted("
+          "needle": "export function writeGitlabSyncSettings("
         }
       ],
       "tests": [
