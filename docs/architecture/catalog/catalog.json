@@ -6968,7 +6968,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -16943,7 +16943,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "c9a4ca2d9139f0167ac937fb41538ada17be9fddc0675988939b0be55ef0c07d",
+    "fingerprint": "a01e78066483e0cf43647edd983d076e0f442d66b129a1dfbe479f18a6589e46",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18658,8 +18658,12 @@
         "sha256": "b9cab3e36d928be5e62d69f4f1a7b60b94a918f57ce4d4b8ed79c36ac221b855"
       },
       {
+        "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
+        "sha256": "b6479ddb51e38686f7578d083631c5a86235a3979c43da9860e3e7224446feec"
+      },
+      {
         "path": "app/web/sites/portal/components/os/Windows.tsx",
-        "sha256": "84c576db3fee89b60a7074fa09f10d7f7ea948fca74257523d559bd6c250822b"
+        "sha256": "2ebce03ff400fde5508ecee3e8434a64089c637d7570e15d0917e2ea330ff965"
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
@@ -18895,7 +18899,7 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "00b06adb823e2fa349c0a52884a247e62260b35210042e406d3485248aab289c"
+        "sha256": "a4a8691dd20c01e123b9e48ff679bdf5f4152050853c9362e97af009224468ef"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -18947,11 +18951,11 @@
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "e8841ce3d5bf74cee1ebe6e40fe29d446e6ba92d34a040d63165806a5f7c9e53"
+        "sha256": "ad9e828122966129c21682e959e51af43f20bcd0e5fb63de45d4d440cc3a8fdf"
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "7ab34e708c765aa49b6cb6288d534676bcc312fdc47a977296b62561fca37fdf"
+        "sha256": "3759fec54be892ed0ea1f3bc1765b8e283d8fa5c5ac3de11f0c6453b2755beb2"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -35486,7 +35490,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35570,7 +35574,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35654,7 +35658,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35738,7 +35742,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -35858,7 +35862,7 @@
           "path": "app/web/sites/portal/components/os/competitions/CompetitionDetail.tsx"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/web/sites/portal/components/os/Windows.tsx"
         },
         {
@@ -136465,6 +136469,19 @@
         "recruitment"
       ],
       "path": "app/web/sites/portal/components/os/Widgets.tsx"
+    },
+    {
+      "domains": [
+        "competitions",
+        "feedback",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx"
     },
     {
       "domains": [
