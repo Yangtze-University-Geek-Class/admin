@@ -11134,7 +11134,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -11605,7 +11605,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -16943,7 +16943,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "a01e78066483e0cf43647edd983d076e0f442d66b129a1dfbe479f18a6589e46",
+    "fingerprint": "11a73f32cfa4105b3ccac3c0ccbb96887b9678bb81a5305595ff36840857664a",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17831,7 +17831,7 @@
       },
       {
         "path": "app/server/src/cli/account.ts",
-        "sha256": "a16deb50befe70c2b8d0f80282ef24e1acb920417f0feda4216243d90b9185b0"
+        "sha256": "7460500160ae65fa389230f2f7e6cf18888f4d911cde1b42a2c4c3d0c9dd1f18"
       },
       {
         "path": "app/server/src/cli/oidc.ts",
@@ -18003,7 +18003,7 @@
       },
       {
         "path": "app/server/src/lib/identity-store.ts",
-        "sha256": "a5f0f2f531235de5a99534e1de328045d893193d89ea099b5fc5e82b3598e890"
+        "sha256": "c36b8e9e0dce56ba1f517b0bfc534fe5f0602de44703fdb37b6d5d11761ec7cb"
       },
       {
         "path": "app/server/src/lib/invite-codes.ts",
@@ -18899,7 +18899,7 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "a4a8691dd20c01e123b9e48ff679bdf5f4152050853c9362e97af009224468ef"
+        "sha256": "b40680667a58ecf176f3d64eae833e1fec81e7948029757db46a19c1376836e0"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -18927,7 +18927,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "be2b2cc0a4bd3faaa6da33324c6014e604668dca59a01c0ccbfe2bbdfff47bc3"
+        "sha256": "1908fdf903087caa7c08c630fb9989f2315abaa741dbfeccd80f293cde0512e1"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19259,7 +19259,7 @@
       },
       {
         "path": "tests/server/signin-methods.test.ts",
-        "sha256": "40d3074a337295648c34015f2c8ffa2753d9e9a68a5e427fb5ad034429176a4c"
+        "sha256": "b239e3e1d5c7eb8f47f27e968284c2424d9d92dafbc0dd506b922231f96a06ec"
       },
       {
         "path": "tests/server/sticker-packs-migration.test.ts",
@@ -71208,7 +71208,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71256,7 +71256,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71304,7 +71304,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71352,7 +71352,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71400,7 +71400,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71448,7 +71448,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71496,7 +71496,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71544,7 +71544,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71592,7 +71592,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71640,7 +71640,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71712,7 +71712,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71760,7 +71760,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71808,7 +71808,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71856,7 +71856,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -71904,7 +71904,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 815,
+          "line": 818,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81614,7 +81614,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81662,7 +81662,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81710,7 +81710,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81758,7 +81758,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81806,7 +81806,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81854,7 +81854,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81902,7 +81902,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -81950,7 +81950,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82010,7 +82010,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82058,7 +82058,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82106,7 +82106,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
@@ -82154,7 +82154,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 809,
+          "line": 812,
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
