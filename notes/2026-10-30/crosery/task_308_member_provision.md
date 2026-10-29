@@ -34,3 +34,10 @@
 - 做了什么：79fe78aa：导出只看有效的 level.member（成员）与 title.site.owner（管理员），校友写 alumni，org_role/org_state 不再读取；补上审查列出的 5 个边界用例；GITLAB.md 与 docs/changes/308.json 同步。
 - 结果：三组用例 73 通过；pnpm check exit 0；check-architecture、check-doc-sync 对 gitlab/main 通过。
 - 下一步：开 MR 进 main，合并后重跑 stop-preview-sync 演算。
+
+## 02:15:52 +08:00 · PR · #308 · 开 MR !67 进 main
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitLab geek/admin!67：task/308/member_provision → main（hotfix 窗口 #308），正文十节，审查两轮结论「通过」；标签 P0、bug、func:auth、hot-fix、infra:deploy。
+- 结果：MR 已开，无冲突。
+- 下一步：合并，镜像 GitHub main，重跑 stop-preview-sync 演算。
