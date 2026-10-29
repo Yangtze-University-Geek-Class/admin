@@ -12,12 +12,14 @@ const SECTOR = "git.example.test";
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string }>) {
+function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string; orgRole?: 'admin' | 'member' | null }>) {
   const db = new Database(":memory:");
-  db.exec(`CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT);
+  db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
+    CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
     CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
   for (const user of users) {
-    for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?)").run(user.id, provider, uid);
+    db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
+    for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
     if (user.sub) db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, user.id, user.sub, 1);
   }
   return db;
@@ -27,7 +29,7 @@ const rows = (db: any) => db.prepare("SELECT user_id, sub FROM oauth_subjects WH
 describe("export", () => {
   it("按不可变身份导出 sub，没有可对账身份的账号只计数", () => {
     const db = database([
-      { id: "p1", identities: [["github", "100"]], sub: "sub-a" },
+      { id: "p1", identities: [["github", "100"]], sub: "sub-a", orgRole: "member" },
       { id: "p2", identities: [["github", "200"], ["google", "g-1"]], sub: "sub-b" },
       { id: "p3", sub: "sub-c" },
       { id: "p4", identities: [["github", "400"]] },
@@ -35,7 +37,7 @@ describe("export", () => {
     const out = exportSubjects(db, SECTOR);
     expect(out.withoutIdentity).toBe(1);
     expect(out.entries).toEqual([
-      { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }] },
+      { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }], provision: { github_login: "user-100", org_role: "member" } },
       { sub: "sub-b", identities: [{ provider: "github", provider_uid: "200" }, { provider: "google", provider_uid: "g-1" }] },
     ]);
   });
@@ -89,6 +91,41 @@ describe("import", () => {
     expect(importSubjects(db, split, { sector: SECTOR }).conflicts).toHaveLength(1);
   });
 
+  it("显式允许时才按 GitHub UID 最小补建缺失成员，并保留原 sub", () => {
+    const db = target();
+    const source = { sector: SECTOR, entries: [{ sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } }] };
+    const provisionAccount = ({ githubId, githubLogin, orgRole }: { githubId: number; githubLogin: string; orgRole: string }) => {
+      db.prepare("INSERT INTO users(id, org_role) VALUES('new-member', ?)").run(orgRole);
+      db.prepare("INSERT INTO identities VALUES('new-member','github',?,?)").run(String(githubId), githubLogin);
+      return { accountId: "new-member", created: true };
+    };
+    const dry = importSubjects(db, source, { sector: SECTOR, provisionUnmatched: true, provisionAccount });
+    expect(dry.unmatched).toEqual(["github:999"]);
+    expect(dry.provisioned).toEqual([]);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
+    const applied = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
+    expect(applied).toMatchObject({ applied: 1, conflicts: [], unmatched: [] });
+    expect(applied.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);
+    expect(rows(db)).toEqual([{ user_id: "new-member", sub: "sub-legacy" }]);
+  });
+
+  it("补建后 sub 冲突或建号失败时回滚这个账号，不留下半条迁移", () => {
+    const db = target();
+    db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, "q3", "sub-legacy", 1);
+    const source = { sector: SECTOR, entries: [{ sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } }] };
+    const provisionAccount = () => {
+      db.prepare("INSERT INTO users(id, org_role) VALUES('new-member', 'member')").run();
+      db.prepare("INSERT INTO identities VALUES('new-member','github','999','legacy-member')").run();
+      return { accountId: "new-member", created: true };
+    };
+    const result = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
+    expect(result.conflicts).toEqual(["github:999：这个 sub 已属于目标库的另一个账号"]);
+    expect(result.provisioned).toEqual([]);
+    expect(result.applied).toBe(0);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
+    expect(rows(db)).toEqual([{ user_id: "q3", sub: "sub-legacy" }]);
+  });
+
   it("输入不是同一个 sector 的 export 结果时拒绝", () => {
     expect(() => importSubjects(target(), { sector: "other.example.test", entries: [] }, { sector: SECTOR })).toThrow(/同一个 sector/);
   });
@@ -102,10 +139,12 @@ describe("命令行", () => {
     const dbFile = (name: string, users: Parameters<typeof database>[0]) => {
       const path = join(dir, name);
       const db = new Database(path);
-      db.exec(`CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT);
+      db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
+        CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
         CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
       for (const user of users) {
-        for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?)").run(user.id, provider, uid);
+        db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
+        for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
         if (user.sub) db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, user.id, user.sub, 1);
       }
       db.close();
@@ -131,11 +170,13 @@ describe("命令行", () => {
     const script = resolve(process.cwd(), "deploy/gitlab/migrate-oidc-subjects.mjs");
     const path = join(dir, "big.db");
     const db = new Database(path);
-    db.exec(`CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT);
+    db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
+      CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
       CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
     db.transaction(() => {
       for (let i = 0; i < 1500; i += 1) {
-        db.prepare("INSERT INTO identities VALUES(?,?,?)").run(`u${i}`, "github", String(100000 + i));
+        db.prepare("INSERT INTO users(id) VALUES(?)").run(`u${i}`);
+        db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(`u${i}`, "github", String(100000 + i), `user-${100000 + i}`);
         db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, `u${i}`, `subject-${"x".repeat(40)}-${i}`, 1);
       }
     })();

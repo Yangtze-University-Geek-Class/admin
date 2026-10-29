@@ -13,6 +13,24 @@
       "commits": [
         "228be7bfe3390208644864ab9834e2cfefe3b79a"
       ]
+    },
+    {
+      "issue": 310,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "Crosery",
+      "approvedAt": "2026-10-29T13:03:00+08:00",
+      "expiresAt": "2026-11-04T13:03:00+08:00",
+      "quote": "你线上yangtzeu.work，点击加入我们然后白屏，一大堆bug，预发布怎么没有，现在hotfix你快点修复啊"
+    },
+    {
+      "issue": 308,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "Crosery",
+      "approvedAt": "2026-10-29T13:03:00+08:00",
+      "expiresAt": "2026-11-04T13:03:00+08:00",
+      "quote": "肯定批转啊，全部极客班成员都有我们仓库的访问权限，支持极客班的统一sso登录"
     }
   ]
 }

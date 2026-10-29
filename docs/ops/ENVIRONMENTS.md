@@ -2,7 +2,7 @@
 
 > 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
 
-状态：`current` · 更新：2026-10-28 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
+状态：`current` · 更新：2026-10-29 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
 
 ## 可见性规则
 

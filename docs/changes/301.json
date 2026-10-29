@@ -1,100 +1,187 @@
 {
   "version": 1,
   "issue": 301,
-  "kind": "engineering",
-  "summary": "站点资源与备份迁到新 CDN 的收口：改正 STORAGE-CDN、DEPLOY、.env.example 里「带哈希资源仍走七牛」「没有代码写 geek-backup」的过期说法，并让合同测试守住新说法；边缘 CSP 与备份安装是目标机操作，不在源码里。",
-  "applications": [],
-  "domains": [
-    "platform"
+  "kind": "business",
+  "summary": "GitHub 受保护 stage 同步：把已合入 main 的加入我们白屏修复与 GitLab 旧成员最小补建/签发者迁移 hotfix 合回 stage。源事项是 GitLab #308/#310，不冒充 GitHub 同号 issue；不直推、不取消保护、不创建或移动发布 tag。",
+  "applications": [
+    "web",
+    "server"
   ],
-  "flows": [],
+  "domains": [
+    "identity",
+    "gitlab",
+    "platform",
+    "recruitment",
+    "forum",
+    "organization",
+    "audit",
+    "mail",
+    "competitions",
+    "public_content",
+    "feedback",
+    "invitations"
+  ],
+  "flows": [
+    "flow:identity.oidc.protocol",
+    "flow:identity.oidc.interaction",
+    "flow:gitlab.accounts.sync",
+    "flow:application.submit",
+    "flow:competition.public.list",
+    "flow:documentation.list",
+    "flow:feedback.categories",
+    "flow:feedback.submit",
+    "flow:platform.system_backup"
+  ],
   "assessments": {
     "business": {
-      "status": "unchanged",
-      "reason": "不改登录、论坛、比赛或投递的任何规则；只改运维文档和示例环境文件里关于静态资源与备份去向的描述。",
+      "status": "changed",
+      "reason": "加入我们窗口分包失败只在本窗口提示；旧 GitLab 成员改接正式签发者时保留原账号和 sub。同步本身不增加新产品规则。",
       "evidence": [
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md"
+        "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "backend": {
-      "status": "unchanged",
-      "reason": "不新增应用接口、数据库表或服务端代码。",
+      "status": "changed",
+      "reason": "合回 provisionAccount 无邮箱最小补建与 provision-github 运维命令，不新增或修改 HTTP 路由。",
       "evidence": [
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md"
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/cli/account.ts"
       ]
     },
     "permissions": {
-      "status": "unchanged",
-      "reason": "不涉及权限节点、令牌或 scope。",
+      "status": "changed",
+      "reason": "只按不可变 GitHub UID 补建 active 的 member/admin 并授予 level.member；不按邮箱或昵称合号，不复制密码或会话。",
       "evidence": [
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md"
+        "app/server/src/lib/identity-store.ts",
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "data": {
-      "status": "unchanged",
-      "reason": "不读写业务数据；桶、前缀、保留规则的合同本身不变，只是把过期的描述改成与实际一致。",
+      "status": "changed",
+      "reason": "合回脚本只在显式 apply 时新增缺失 users、identities、perm_members、oauth_subjects；不改表结构，不覆盖已有 sub，冲突回滚。",
       "evidence": [
-        "docs/ops/STORAGE-CDN.md"
+        "app/server/src/lib/identity-store.ts",
+        "deploy/gitlab/migrate-oidc-subjects.mjs"
       ]
     },
     "dependencies": {
-      "status": "unchanged",
-      "reason": "不新增依赖；CDN 构建开关、上传脚本与归档器的行为不变。",
+      "status": "changed",
+      "reason": "复用 server 镜像与既有 production cutover 通道，不新增依赖；本 PR 合并不部署。",
       "evidence": [
-        "scripts/static-cdn-base.mjs"
+        "app/server/src/cli/account.ts",
+        "deploy/gitlab/cutover.sh"
       ]
     },
     "documentation": {
       "status": "changed",
-      "reason": "STORAGE-CDN 的「是/不是」表、geek-backup 桶行和「明确不做」改成与现行路径一致；DEPLOY 的香港对象存储一节改成站点静态资源与备份归档；.env.example 的邮件图片示例改用新域名。",
+      "reason": "门户、server、GitLab 运维与 hotfix 文档随源码合回；目录按当前源码重生成。",
       "evidence": [
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md",
-        ".env.example"
+        "docs/services/web/portal.md",
+        "docs/services/server/README.md",
+        "docs/ops/GITLAB.md",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "verification": {
       "status": "changed",
-      "reason": "合同测试原先断言文档里有「目前没有任何代码写它」，现改为断言写明归档器路径且旧说法已删。",
+      "reason": "携带白屏、无邮箱补建、保留 sub、冲突回滚和 cutover 回归。真实生产补建、reconfigure 与线上浏览器验收不属于本 PR 的证明范围。",
       "evidence": [
-        "tests/tooling/storage-cdn-config.test.ts"
+        "tests/web/portal-window-load-failed.test.tsx",
+        "tests/server/signin-methods.test.ts",
+        "tests/tooling/oidc-subject-migration.test.ts",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     },
     "delivery": {
-      "status": "unchanged",
-      "reason": "不改部署工作流、镜像或 tag；预发布边缘 CSP 的放行与备份脚本的安装是目标机操作，取证在 issue 与执行记录里。",
+      "status": "changed",
+      "reason": "只通过受保护 PR 恢复 stage>=main，hotfix 窗口不豁免检查；不创建或移动发布 tag，不部署预览或正式。",
       "evidence": [
-        "docs/ops/DEPLOY.md"
+        "deploy/hotfix/windows.json",
+        "docs/ops/DEPLOY.md",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md",
-        ".env.example",
-        "tests/tooling/storage-cdn-config.test.ts"
+        "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "tests/web/portal-window-load-failed.test.tsx",
+        "docs/services/web/portal.md",
+        "docs/services/web/README.md",
+        "docs/architecture/catalog/ownership.json",
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "tests/tooling/architecture-workflow.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "docs/ops/CICD.md"
       ],
       "domains": [
-        "platform"
+        "recruitment",
+        "competitions",
+        "feedback",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content"
       ],
       "nodes": [
-        "domain:platform"
+        "domain:recruitment"
       ],
-      "reason": "运维文档、示例环境文件和合同测试同步改成站点静态资源走新 CDN、备份写 geek-backup 的现行事实。"
+      "reason": "Windows.tsx 是比赛、反馈、身份、文档等窗口的共用外壳，本次只给加入我们窗口加错误边界；新边界和 Windows 的加入我们分支登记为 application.submit 的真实流程证据，其他窗口行为不变。 同步 architecture 临时目录依赖与 hotfix-verify commit status 修复。"
     },
     {
       "paths": [
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/cli/account.ts",
+        "deploy/gitlab/migrate-oidc-subjects.mjs",
+        "deploy/gitlab/cutover.sh",
+        "tests/server/signin-methods.test.ts",
+        "tests/tooling/oidc-subject-migration.test.ts",
+        "docs/services/server/README.md",
+        "docs/ops/GITLAB.md",
         "docs/architecture/catalog/CATALOG.md",
         "docs/architecture/catalog/catalog.json",
         "docs/architecture/catalog/data-model.md",
         "docs/architecture/catalog/map.html",
         "docs/architecture/catalog/permissions.md",
-        "docs/architecture/catalog/routes.md"
+        "docs/architecture/catalog/routes.md",
+        "docs/changes/310.json"
+      ],
+      "domains": [
+        "identity",
+        "gitlab",
+        "forum",
+        "organization",
+        "audit"
+      ],
+      "nodes": [
+        "domain:identity",
+        "domain:gitlab"
+      ],
+      "reason": "旧成员按不可变 GitHub UID 最小补建并保留 sub；目录只随行号和摘要重生成，不新增接口或表。"
+    },
+    {
+      "paths": [
+        "deploy/hotfix/windows.json",
+        "deploy/env/origin-exceptions.json",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/ENVIRONMENTS.md"
       ],
       "domains": [
         "platform"
@@ -102,17 +189,23 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "STORAGE-CDN、DEPLOY 更新后重新生成的项目目录，只有来源摘要变化（生成物，由 catalog:generate 产出，不手工编辑）。"
+      "reason": "hotfix 窗口、原话例外与执行记录随 main 合回；GitHub #301 只负责受保护同步。"
     }
   ],
   "documents": [
-    "docs/ops/STORAGE-CDN.md",
+    "docs/services/web/portal.md",
+    "docs/services/web/README.md",
+    "docs/services/server/README.md",
+    "docs/ops/GITLAB.md",
     "docs/ops/DEPLOY.md"
   ],
   "tests": [
-    "tests/tooling/storage-cdn-config.test.ts"
+    "tests/web/portal-window-load-failed.test.tsx",
+    "tests/server/signin-methods.test.ts",
+    "tests/tooling/oidc-subject-migration.test.ts",
+    "tests/tooling/gitlab-cutover.test.ts"
   ],
-  "compatibility": "只改文档、示例环境文件和一条合同测试断言；构建开关、上传脚本、归档器和部署工作流的行为不变。",
-  "migration": "不涉及数据或接口迁移：没有表结构、接口或配置变化。边缘 CSP 的放行与备份脚本安装是目标机操作，各自有备份和回滚命令，记录在 issue 与执行记录里。",
-  "rollback": "回滚本次改动即可，文档回到「带哈希资源仍走七牛」的旧说法，与实际不符。"
+  "compatibility": "不改 HTTP 接口、表结构、env 键或既有账号；provision 原行为保留，新 provision-github 仅供 cutover 使用。",
+  "migration": "本 PR 不执行生产迁移；正式补建与 sub 迁移由 gitlab-cutover 在部署后单独执行。",
+  "rollback": "revert stage 同步合并可恢复分支内容；不回滚已发布 main 或生产数据。"
 }

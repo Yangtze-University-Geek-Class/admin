@@ -12,6 +12,7 @@ import { links } from "../../lib/links";
 import { useCodeRepos } from "../../lib/codeRepos";
 import { useDepartments } from "../../lib/departments";
 import { NEW_TAB_NOTE, agoLabel, type AppId, type OsApp } from "../../lib/osApps";
+import WindowLoadFailed from "./WindowLoadFailed";
 import { promoWidth } from "../../lib/promoWindow";
 import { useForumSnapshot } from "../../lib/snapshots";
 import CompetitionsApp, { type PhoneNav } from "./competitions/CompetitionsApp";
@@ -261,9 +262,11 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
         </header>
         <div className={win.id === "competitions" ? "pt-win-body is-flush" : win.id === "promo" ? "pt-win-body is-flush is-promo" : "pt-win-body"}>
           {win.id === "join" && (
-            <Suspense fallback={<p className="pt-empty">正在打开信纸…</p>}>
-              <JoinBox onOpen={onOpen} onApplyOpen={onApplyOpen} onAutoPromo={onAutoPromo} />
-            </Suspense>
+            <WindowLoadFailed>
+              <Suspense fallback={<p className="pt-empty">正在打开信纸…</p>}>
+                <JoinBox onOpen={onOpen} onApplyOpen={onApplyOpen} onAutoPromo={onAutoPromo} />
+              </Suspense>
+            </WindowLoadFailed>
           )}
           {/* 窗口收起（最小化；手机上被别的窗口盖住）时 active 为 false：播放器暂停，露出来接着播；关掉窗口播放器卸载，停止播放并释放片源 */}
           {win.id === "promo" && <LazyPromoPlayer active={!win.minimized && (!phone || front)} onSeen={promo?.onSeen} onEnd={promo?.onEnd ?? NO_END} />}

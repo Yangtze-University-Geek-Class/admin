@@ -106,5 +106,10 @@ describe("hotfix 工作流保持生产保护", () => {
   it("复用生产锁、审批、凭据隔离、备份、镜像校验和回滚", () => {
     for (const literal of ["group: deploy-production", "cancel-in-progress: false", "required_reviewers", "name: production", "name: static-cdn", "hotfix-verify", "yzgc-backup@production.service", "rollback-stack.sh", "sha256sum -c", "payload[mode]=hotfix", "payload[base_tag_commit]", "GOOGLE_CLIENT_SECRET", "deployment-environment.mjs ssh-config", "hotfix-policy.mjs verify-live"]) expect(workflow).toContain(literal);
     expect(workflow.indexOf("生产一致性备份与隔离恢复门禁")).toBeLessThan(workflow.indexOf("分发镜像、env 文件与 compose 物料"));
+    expect(workflow).toContain("statuses: write");
+    expect(workflow).toContain('gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}"');
+    expect(workflow).toContain("-f context=hotfix-verify -f state=success");
+    expect(workflow.indexOf("node scripts/hotfix-policy.mjs verify-live")).toBeLessThan(workflow.indexOf('gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}"'));
+    expect(workflow).toContain('-f "required_contexts[]=hotfix-verify"');
   });
 });
