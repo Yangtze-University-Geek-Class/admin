@@ -3,7 +3,7 @@
 // 头像点开「账号资料」窗口（#280 起是桌面窗口，正文在 ProfileCard.tsx）：访客在那里登录、注册，登录后改资料、绑定登录方式、填邀请码、退出。
 // 加入我们、论坛、代码仓库（自建 GitLab，#270）都是桌面上的应用；便签按顺序告诉新来的人怎么加入。「宣传片」是桌面里的一个窗口（#284，原来是全屏层），
 // 「加入我们」第一次打开时自动弹出一次（#77），自己点开重看不影响「只自动播一次」。
-// 论坛点一下直达论坛首页（#185），不经过 /forum-3d 场景页；代码仓库是桌面里的窗口，列出公开项目（#275）。
+// 论坛点一下直达论坛首页（#185），不经过 /forum-3d 场景页；代码仓库整页直达（#311），和论坛一样不开窗口。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Modal from "@shared/ui/Modal";

@@ -16951,7 +16951,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "71b541e27ca2b9d5f21f96e7e94e40738d80abbba523ecc50f5bd223cb405dba",
+    "fingerprint": "b1e0f4c1dc96995eed09b5db80730bf139ccb8224e11bbd31b1cdac63d89c3c4",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18675,7 +18675,7 @@
       },
       {
         "path": "app/web/sites/portal/components/os/YugcOs.tsx",
-        "sha256": "6b50f256604864bc99bcbaa14889fcd02d3997a84051d32103f9ea159a009a4e"
+        "sha256": "6f1cf5f7fd19247f8a5640465c910b046128d0758725f31909313c6577b11d95"
       },
       {
         "path": "app/web/sites/portal/components/os/competitions/Avatar.tsx",
@@ -18787,7 +18787,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/osApps.ts",
-        "sha256": "aaacb1b28e0a5f46133179046061ac82f2a0d1aa6929d8219d3c33b6ceaeed7a"
+        "sha256": "9b3bbae2a7f613d924cf60582323f2303cbfc8f5b6e7c38472bb805c041db13f"
       },
       {
         "path": "app/web/sites/portal/lib/pixelRatio.ts",
@@ -18807,7 +18807,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/shell/commands.ts",
-        "sha256": "1222d8231d4ead701784bda2bea70d5af6caa2b28ec0fe367193c2cb3ff07bd9"
+        "sha256": "54e5f0d741160dea44ddfcdabb641585c63b01eecabf8177f6edcef970fec38c"
       },
       {
         "path": "app/web/sites/portal/lib/shell/index.ts",
@@ -18963,7 +18963,7 @@
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "3759fec54be892ed0ea1f3bc1765b8e283d8fa5c5ac3de11f0c6453b2755beb2"
+        "sha256": "632fa62c95f5f5d73cb99975178a068b68815cd79221a9089700206dc30ba08d"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -19331,11 +19331,11 @@
       },
       {
         "path": "tests/web/portal-os.test.ts",
-        "sha256": "7236ea06a18023350feb448532e7465841c474ba6b1bcf02899e0c6df1806357"
+        "sha256": "ea5c0b610f12441d818e1f9df8aa91f218da90d1fccdb6b07dab5bd2c5b9b97f"
       },
       {
         "path": "tests/web/portal-phone.test.tsx",
-        "sha256": "4108750274d4d6966bd023d755b5a21d14385f581cc80a0d5bccd448acf45a38"
+        "sha256": "de33be38b563320cdd6898bd6e3d517030ec9f665f9edc941bd60043c9d45544"
       },
       {
         "path": "tests/web/portal-profile-card.test.tsx",
@@ -19343,7 +19343,7 @@
       },
       {
         "path": "tests/web/portal-promo-desktop.test.tsx",
-        "sha256": "590362ba7cade15485329d31b0a8674a27ef7811b24d026864c404bb4e531eec"
+        "sha256": "77e2772ef6a638a5aab0ca7ae66d1ae100100c11e97ad9ca7c844f064e1ffadb"
       },
       {
         "path": "tests/web/portal-promo-window.test.ts",

@@ -1112,7 +1112,7 @@ const unavailable =
   (ctx) =>
     fail(`${ctx.name}: ${reason}`, 127);
 
-const offline = unavailable("这个终端不联网，也装不了软件。代码在「代码仓库」窗口里：open gitlab");
+const offline = unavailable("这个终端不联网，也装不了软件。代码在「代码仓库」里：open gitlab");
 const fullscreen = unavailable("这个终端没有全屏程序。写文件用 echo 和重定向，例如 echo hello > a.txt，追加用 >>");
 
 function manText(name: string, spec: CommandSpec): string {
