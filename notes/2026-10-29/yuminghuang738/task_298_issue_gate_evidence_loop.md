@@ -14,3 +14,10 @@
 - 做了什么：checkIssue 增加 ignoreEvidenceLabel 选项与 evidenceLabeled 返回值；issue-gate 传 true 并如实展示标签状态；tests/tooling/issue-labels.test.ts 加三条回归；ISSUES.md 与 CICD.md 记录循环依赖
 - 结果：issue-labels 测试 27 条通过、连同 task-worktree 共 37 条；把开关关掉后实测 1 条失败（expected false to be true），恢复后全绿
 - 下一步：提交、推 fork、开 PR
+
+## 14:57:16 +08:00 · PR · #298 · 推 fork 并开 PR #300
+
+- 执行者：agent-dsh-geek-main-sonnet（DeepSeek Harness，claude-sonnet-5-5-high）
+- 做了什么：git push 到 fork；gh pr create --base stage；正文十段按 PULL-REQUESTS 写，含宏观对齐、修复前后对比、未验证项
+- 结果：PR #300 已创建；本地已验证 check-architecture、check-doc-sync、check-docs、check-secrets、docs-index 均通过
+- 下一步：等维护者补 infra:ci 标签与审查
