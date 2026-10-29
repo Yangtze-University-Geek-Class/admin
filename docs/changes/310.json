@@ -119,7 +119,10 @@
     },
     {
       "paths": [
-        "deploy/hotfix/windows.json"
+        "deploy/hotfix/windows.json",
+        "deploy/env/origin-exceptions.json",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/ENVIRONMENTS.md"
       ],
       "domains": [
         "platform"
