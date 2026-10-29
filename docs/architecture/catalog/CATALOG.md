@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-27 · 自动生成，不手工编辑。
 
-来源摘要：`a01e78066483e0cf43647edd983d076e0f442d66b129a1dfbe479f18a6589e46`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`11a73f32cfa4105b3ccac3c0ccbb96887b9678bb81a5305595ff36840857664a`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -2772,7 +2772,7 @@
 - 响应与错误：签发者 <PUBLIC_ORIGIN>/oidc，协议与主机按 PUBLIC_ORIGIN，不信请求头；未知客户端、错回调 400 中文错误页且不跳转；缺 PKCE 等带 error 回到下游；userinfo 只给 sub（pairwise）、name、preferred_username、picture，有 email scope 时给验证过的 email；账号不再是成员时 401。
 - 数据与副作用：是否登录以本站 sid 为准，不是成员、换了账号或账号还没有登录邮箱（#273，允许过这个应用、签发者会话还在也一样）时进交互；交互、会话与授权码写 oidc_payloads；第一次给某 sector 发 sub 时写 oauth_subjects；不发 refresh token。
 
-源码：[app/server/src/routes/oidc/index.ts:169](../../../app/server/src/routes/oidc/index.ts#L169) · [app/server/src/lib/oidc-provider.ts:74](../../../app/server/src/lib/oidc-provider.ts#L74) · [app/server/src/lib/oidc-store.ts:52](../../../app/server/src/lib/oidc-store.ts#L52) · [app/server/src/lib/account-directory.ts:20](../../../app/server/src/lib/account-directory.ts#L20) · [app/server/src/lib/db.ts:495](../../../app/server/src/lib/db.ts#L495) · [app/server/src/lib/identity-store.ts:809](../../../app/server/src/lib/identity-store.ts#L809) · [app/server/src/lib/forum-store.ts:811](../../../app/server/src/lib/forum-store.ts#L811) · [app/web/sites/portal/lib/links.ts:15](../../../app/web/sites/portal/lib/links.ts#L15) · [app/web/shared/config/index.ts:24](../../../app/web/shared/config/index.ts#L24) · [app/web/sites/portal/components/os/Widgets.tsx:65](../../../app/web/sites/portal/components/os/Widgets.tsx#L65)
+源码：[app/server/src/routes/oidc/index.ts:169](../../../app/server/src/routes/oidc/index.ts#L169) · [app/server/src/lib/oidc-provider.ts:74](../../../app/server/src/lib/oidc-provider.ts#L74) · [app/server/src/lib/oidc-store.ts:52](../../../app/server/src/lib/oidc-store.ts#L52) · [app/server/src/lib/account-directory.ts:20](../../../app/server/src/lib/account-directory.ts#L20) · [app/server/src/lib/db.ts:495](../../../app/server/src/lib/db.ts#L495) · [app/server/src/lib/identity-store.ts:812](../../../app/server/src/lib/identity-store.ts#L812) · [app/server/src/lib/forum-store.ts:811](../../../app/server/src/lib/forum-store.ts#L811) · [app/web/sites/portal/lib/links.ts:15](../../../app/web/sites/portal/lib/links.ts#L15) · [app/web/shared/config/index.ts:24](../../../app/web/shared/config/index.ts#L24) · [app/web/sites/portal/components/os/Widgets.tsx:65](../../../app/web/sites/portal/components/os/Widgets.tsx#L65)
 
 测试入口：[tests/server/oidc.test.ts](../../../tests/server/oidc.test.ts) · [tests/server/oidc-eligibility.test.ts](../../../tests/server/oidc-eligibility.test.ts)。生成器未执行这些测试。
 
@@ -2893,7 +2893,7 @@
 - 有效直接 member/alumni 且 active 才有资格；既有 sector/sub 与远端 OIDC 绑定精确核验，管理员、bot、服务账号及无有效映射对象不写。未知 HTTP、超时、429/5xx、畸形或截断分页不作封禁依据；明确失去资格的受管账号仍封禁，远端漂移重新撤权。
 - 每次远端写前重读资格，等待时变化在同一账号锁内最多重算两次；定时与立即同步串行，不协调跨环境双权威。
 
-源码：[app/server/src/routes/console/gitlab.ts:23](../../../app/server/src/routes/console/gitlab.ts#L23) · [app/server/src/routes/console/contracts.ts:174](../../../app/server/src/routes/console/contracts.ts#L174) · [app/server/src/lib/gitlab-sync.ts:82](../../../app/server/src/lib/gitlab-sync.ts#L82) · [app/server/src/lib/db.ts:542](../../../app/server/src/lib/db.ts#L542) · [app/server/src/lib/identity-store.ts:815](../../../app/server/src/lib/identity-store.ts#L815) · [app/console/src/pages/gitlab/Accounts.vue:64](../../../app/console/src/pages/gitlab/Accounts.vue#L64) · [app/console/src/lib/gitlab.ts:80](../../../app/console/src/lib/gitlab.ts#L80) · [app/console/src/lib/types.ts:140](../../../app/console/src/lib/types.ts#L140) · [app/server/src/lib/gitlab-sync.ts:417](../../../app/server/src/lib/gitlab-sync.ts#L417) · [app/server/src/lib/gitlab-sync.ts:121](../../../app/server/src/lib/gitlab-sync.ts#L121)
+源码：[app/server/src/routes/console/gitlab.ts:23](../../../app/server/src/routes/console/gitlab.ts#L23) · [app/server/src/routes/console/contracts.ts:174](../../../app/server/src/routes/console/contracts.ts#L174) · [app/server/src/lib/gitlab-sync.ts:82](../../../app/server/src/lib/gitlab-sync.ts#L82) · [app/server/src/lib/db.ts:542](../../../app/server/src/lib/db.ts#L542) · [app/server/src/lib/identity-store.ts:818](../../../app/server/src/lib/identity-store.ts#L818) · [app/console/src/pages/gitlab/Accounts.vue:64](../../../app/console/src/pages/gitlab/Accounts.vue#L64) · [app/console/src/lib/gitlab.ts:80](../../../app/console/src/lib/gitlab.ts#L80) · [app/console/src/lib/types.ts:140](../../../app/console/src/lib/types.ts#L140) · [app/server/src/lib/gitlab-sync.ts:417](../../../app/server/src/lib/gitlab-sync.ts#L417) · [app/server/src/lib/gitlab-sync.ts:121](../../../app/server/src/lib/gitlab-sync.ts#L121)
 
 测试入口：[tests/server/gitlab-sync.test.ts](../../../tests/server/gitlab-sync.test.ts) · [tests/console/gitlab.test.ts](../../../tests/console/gitlab.test.ts) · [tests/server/identity-eligibility.test.ts](../../../tests/server/identity-eligibility.test.ts) · [tests/server/oidc-eligibility.test.ts](../../../tests/server/oidc-eligibility.test.ts)。生成器未执行这些测试。
 

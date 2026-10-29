@@ -99,7 +99,13 @@
         "tests/server/signin-methods.test.ts",
         "tests/tooling/oidc-subject-migration.test.ts",
         "docs/services/server/README.md",
-        "docs/ops/GITLAB.md"
+        "docs/ops/GITLAB.md",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
       ],
       "domains": [
         "identity",
@@ -109,11 +115,14 @@
         "domain:identity",
         "domain:gitlab"
       ],
-      "reason": "旧成员按不可变 GitHub UID 最小补建，保留 GitLab sub；不填邮箱、不复制业务行，冲突时回滚，签发者切换仍要求可迁 0、冲突 0。"
+      "reason": "旧成员按不可变 GitHub UID 最小补建，保留 GitLab sub；不填邮箱、不复制业务行，冲突时回滚，签发者切换仍要求可迁 0、冲突 0。 项目目录随 identity-store 行号与来源摘要重生成，不新增接口、表或能力。"
     },
     {
       "paths": [
-        "deploy/hotfix/windows.json"
+        "deploy/hotfix/windows.json",
+        "deploy/env/origin-exceptions.json",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/ENVIRONMENTS.md"
       ],
       "domains": [
         "platform"

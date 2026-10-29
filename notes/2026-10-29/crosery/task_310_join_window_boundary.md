@@ -49,3 +49,9 @@
 - 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
 - 做了什么：run 40831650480 的 plan 因 deploy/gitlab 与 hotfix 窗口改动晚于 docs/ops 失败；在 DEPLOY.md 写明 migrate-subjects、最小补建与 switch-issuer 顺序
 - 结果：文档核对：docs/ops/ENVIRONMENTS.md、docs/ops/CICD.md 不用改——未改 env 键、工作流或部署栈；仅更新 DEPLOY.md 的真实 cutover 步骤
+
+## 14:59:01 +08:00 · 返工 · #308 · 随 identity-store 改动重新生成项目目录
+
+- 执行者：agent-claude-p0-join-310（Claude Code，k3.1-pro[1m]）
+- 做了什么：run 40832185985 的 hotfix-core 在 check:catalog 失败；pnpm catalog:generate 并核对生成物差异
+- 结果：pnpm check:catalog 通过；仅来源摘要和 identity-store 行号变化
