@@ -16,11 +16,13 @@ on:
         options:
           - status
           - sync-status
+          - stop-production-sync
           - stop-preview-sync
           - enable-production-sync
           - verify-accounts
           - register-client
           - migrate-subjects
+          - repair-duplicates
           - switch-issuer
           - rollback-issuer
           - preview-status

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDatabase } from '../../app/server/src/lib/db';
 import { readGitlabSyncSettings, writeGitlabSyncSettings } from '../../app/server/src/lib/gitlab-sync';
-import { compareBaseline, readSyncReport, verifyAccounts } from '../../deploy/gitlab/sync-control.mjs';
+import { compareBaseline, readSyncReport, repairDuplicates, verifyAccounts } from '../../deploy/gitlab/sync-control.mjs';
 
 const databases: Array<{ close(): void }> = [];
 afterEach(() => { for (const db of databases.splice(0)) db.close(); });
@@ -128,5 +128,182 @@ describe('逐成员 GitLab 验收', () => {
     const thrown = await verifyAccounts(db, ENV, SECTOR, { now: NOW, fetcher: async () => { throw new Error('fixture-token private-fixture-sub'); } });
     expect(thrown.failures[0].reason).toBe('gitlab_unreachable');
     expect(JSON.stringify([failed, thrown])).not.toMatch(/fixture-token|private-fixture-sub/);
+  });
+});
+
+describe('改接前正式同步建出的重复号', () => {
+  // 正式库：account-a 已有正式的 sub，映射到同步建出来的 59（alice_yz）；GitLab 上原来的号 8 绑着预发布的 sub
+  function duplicated() {
+    const db = fixture();
+    db.prepare("UPDATE oauth_subjects SET sub='production-sub' WHERE user_id='account-a'").run();
+    db.prepare("UPDATE gitlab_accounts SET gitlab_user_id=59, username='alice_yz', last_error='gitlab_email_500', avatar_source='a', emails_source='e' WHERE account_id='account-a'").run();
+    return db;
+  }
+  const PAYLOAD = { sector: SECTOR, entries: [{ sub: 'preview-sub', identities: [{ provider: 'github', provider_uid: '101' }] }], withoutIdentity: 0 };
+
+  function gitlab(overrides: { original?: Record<string, unknown>; duplicate?: Record<string, unknown>; extra?: Record<number, Record<string, unknown>> } = {}) {
+    const users: Record<number, Record<string, unknown>> = {
+      8: { id: 8, username: 'alice', state: 'active', is_admin: false, bot: false, user_type: 'human', identities: [{ provider: 'openid_connect', extern_uid: 'preview-sub' }], last_sign_in_at: '2026-10-20T00:00:00Z', current_sign_in_at: '2026-10-20T00:00:00Z', ...overrides.original },
+      59: { id: 59, username: 'alice_yz', state: 'active', is_admin: false, bot: false, user_type: 'human', identities: [{ provider: 'openid_connect', extern_uid: 'production-sub' }], last_sign_in_at: null, current_sign_in_at: null, ...overrides.duplicate },
+      ...overrides.extra,
+    };
+    const writes: string[] = [];
+    async function fetcher(input: string, init: RequestInit = {}) {
+      expect(init.redirect).toBe('error');
+      expect(init.headers).toEqual({ 'PRIVATE-TOKEN': 'fixture-token' });
+      const url = new URL(input);
+      const method = init.method ?? 'GET';
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      if (method === 'GET' && url.pathname === '/api/v4/users') {
+        const sub = url.searchParams.get('extern_uid');
+        return json(Object.values(users).filter(user => ((user.identities ?? []) as { extern_uid: string }[]).some(identity => identity.extern_uid === sub)).map(user => ({ id: user.id, username: user.username })));
+      }
+      const match = url.pathname.match(/^\/api\/v4\/users\/(\d+)(\/.*)?$/);
+      const user = match ? users[Number(match[1])] : undefined;
+      if (!user) return json({ message: '404 User Not Found' }, 404);
+      if (method === 'GET' && !match![2]) return json(user);
+      writes.push(`${method} ${url.pathname}`);
+      if (method === 'DELETE' && match![2] === '/identities/openid_connect') {
+        const before = (user.identities as unknown[]).length;
+        user.identities = (user.identities as { provider: string }[]).filter(identity => identity.provider !== 'openid_connect');
+        return new Response(null, { status: before === (user.identities as unknown[]).length ? 404 : 204 });
+      }
+      if (method === 'POST' && match![2] === '/block') { user.state = 'blocked'; return json(true, 201); }
+      return json({}, 400);
+    }
+    return { fetcher, users, writes };
+  }
+  const row = (db: ReturnType<typeof fixture>) => db.prepare("SELECT gitlab_user_id, username, state, access_level, avatar_source, emails_source, last_error FROM gitlab_accounts WHERE account_id='account-a'").get();
+  const sub = (db: ReturnType<typeof fixture>) => (db.prepare("SELECT sub FROM oauth_subjects WHERE user_id='account-a'").get() as { sub: string }).sub;
+
+  it('演算只读：列出重复号与原号，不碰 GitLab 写接口和正式库，输出不含 sub 与令牌', async () => {
+    const db = duplicated();
+    const remote = gitlab();
+    db.pragma('query_only = ON');
+    const result = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, now: NOW });
+    expect(result).toEqual({ plan: [{ label: 'github:101', duplicate: 59, original: 8 }], refused: [], repaired: [] });
+    expect(remote.writes).toEqual([]);
+    expect(sub(db)).toBe('production-sub');
+    expect(JSON.stringify(result)).not.toMatch(/preview-sub|production-sub|fixture-token|account-a/);
+  });
+
+  it('写入：先解绑并封禁重复号，再把 sub 与映射改回原号，清掉同步缓存让下一轮重新对齐；重跑什么也不做', async () => {
+    const db = duplicated();
+    const remote = gitlab();
+    const result = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW + 5 });
+    expect(result.repaired).toEqual([{ label: 'github:101', duplicate: 59, original: 8 }]);
+    expect(remote.writes).toEqual(['DELETE /api/v4/users/59/identities/openid_connect', 'POST /api/v4/users/59/block']);
+    expect(remote.users[59]).toMatchObject({ state: 'blocked', identities: [] });
+    expect(remote.users[8]).toMatchObject({ state: 'active', identities: [{ provider: 'openid_connect', extern_uid: 'preview-sub' }] });
+    expect(sub(db)).toBe('preview-sub');
+    expect(row(db)).toEqual({ gitlab_user_id: 8, username: 'alice', state: 'active', access_level: null, avatar_source: null, emails_source: null, last_error: null });
+    const again = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW + 6 });
+    expect(again).toEqual({ plan: [], refused: [], repaired: [] });
+    expect(remote.writes).toHaveLength(2);
+  });
+
+  it('上次在 GitLab 上解绑封禁之后中断：重跑接着改正式库，不再调写接口', async () => {
+    const db = duplicated();
+    const remote = gitlab({ duplicate: { identities: [], state: 'blocked' } });
+    const result = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW });
+    expect(result.repaired).toHaveLength(1);
+    expect(remote.writes).toEqual([]);
+    expect(sub(db)).toBe('preview-sub');
+  });
+
+  it.each([
+    { name: '重复号登录过', remote: { duplicate: { last_sign_in_at: '2026-10-29T08:00:00Z' } }, reason: 'duplicate_used' },
+    { name: '读不到重复号的登录记录', remote: { duplicate: { last_sign_in_at: undefined } }, reason: 'duplicate_activity_unknown' },
+    { name: '重复号绑着别的身份', remote: { duplicate: { identities: [{ provider: 'openid_connect', extern_uid: 'someone-else' }] } }, reason: 'duplicate_identity_unexpected' },
+    { name: '重复号是管理员', remote: { duplicate: { is_admin: true } }, reason: 'duplicate_not_managed' },
+    { name: 'GitLab 上找不到原号', remote: { original: { identities: [] } }, reason: 'original_missing' },
+    { name: '原号是管理员', remote: { original: { is_admin: true } }, reason: 'original_not_managed' },
+    { name: '同一个预发布 sub 对到两个号', remote: { extra: { 70: { id: 70, username: 'x', state: 'active', is_admin: false, identities: [{ provider: 'openid_connect', extern_uid: 'preview-sub' }] } } }, reason: 'original_ambiguous' },
+  ])('$name：整批拒绝，什么也不写', async ({ remote: overrides, reason }) => {
+    const db = duplicated();
+    const remote = gitlab(overrides as Parameters<typeof gitlab>[0]);
+    const result = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW });
+    expect(result).toEqual({ plan: [], refused: [{ label: 'github:101', reason }], repaired: [] });
+    expect(remote.writes).toEqual([]);
+    expect(sub(db)).toBe('production-sub');
+    expect(row(db)).toMatchObject({ gitlab_user_id: 59 });
+  });
+
+  it('解绑或封禁返回意外状态：抛错停下，正式库不改；修好 GitLab 后重跑接着做', async () => {
+    const db = duplicated();
+    const remote = gitlab();
+    const failing = async (input: string, init: RequestInit = {}) => (init.method === 'POST' ? new Response('fixture-token preview-sub', { status: 500 }) : remote.fetcher(input, init));
+    await expect(repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: failing, apply: true, now: NOW })).rejects.toThrow(/^repair_block_500$/);
+    expect(sub(db)).toBe('production-sub');
+    expect(row(db)).toMatchObject({ gitlab_user_id: 59 });
+    expect(remote.users[59]).toMatchObject({ identities: [], state: 'active' });
+    const again = await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW });
+    expect(again.repaired).toHaveLength(1);
+    expect(remote.users[59]).toMatchObject({ state: 'blocked' });
+    expect(sub(db)).toBe('preview-sub');
+  });
+
+  it('GitLab 连不上：只报 gitlab_unreachable，不带异常原文', async () => {
+    const result = await repairDuplicates(duplicated(), ENV, SECTOR, PAYLOAD, { now: NOW, fetcher: async () => { throw new Error('fixture-token preview-sub'); } });
+    expect(result.refused).toEqual([{ label: 'github:101', reason: 'gitlab_unreachable' }]);
+    expect(JSON.stringify(result)).not.toMatch(/fixture-token|preview-sub/);
+  });
+
+  it('原号是封禁状态：映射照改，状态记成 blocked，留给同步按资格决定解不解封', async () => {
+    const db = duplicated();
+    const remote = gitlab({ original: { state: 'blocked' } });
+    await repairDuplicates(db, ENV, SECTOR, PAYLOAD, { fetcher: remote.fetcher, apply: true, now: NOW });
+    expect(row(db)).toMatchObject({ gitlab_user_id: 8, state: 'blocked' });
+  });
+
+  it('多条里有一条被拒，或同一个正式账号出现两次：整批不写', async () => {
+    const db = duplicated();
+    db.prepare("INSERT INTO users(id,status,created_at,updated_at) VALUES('account-b','active',?,?)").run(NOW, NOW);
+    db.prepare("INSERT INTO identities(id,user_id,provider,provider_uid,login,created_at,last_login_at) VALUES('identity-b','account-b','github','202','bob',?,?)").run(NOW, NOW);
+    db.prepare("INSERT INTO oauth_subjects(sector_id,user_id,sub,created_at) VALUES(?,'account-b','production-sub-b',?)").run(SECTOR, NOW);
+    db.prepare("INSERT INTO gitlab_accounts(account_id,gitlab_user_id,username,state,access_level,created_at,updated_at) VALUES('account-b',60,'bob_yz','active',30,?,?)").run(NOW, NOW);
+    const remote = gitlab({ extra: { 60: { id: 60, username: 'bob_yz', state: 'active', is_admin: false, identities: [{ provider: 'openid_connect', extern_uid: 'production-sub-b' }], last_sign_in_at: '2026-10-29T09:00:00Z', current_sign_in_at: null } } });
+    const mixed = { ...PAYLOAD, entries: [...PAYLOAD.entries, { sub: 'preview-sub-b', identities: [{ provider: 'github', provider_uid: '202' }] }] };
+    const refused = await repairDuplicates(db, ENV, SECTOR, mixed, { fetcher: remote.fetcher, apply: true, now: NOW });
+    expect(refused.refused).toEqual([{ label: 'github:202', reason: 'original_missing' }]);
+    expect(refused.repaired).toEqual([]);
+    expect(remote.writes).toEqual([]);
+    expect(sub(db)).toBe('production-sub');
+    const twice = { ...PAYLOAD, entries: [PAYLOAD.entries[0], { sub: 'preview-sub', identities: [{ provider: 'github', provider_uid: '101' }] }] };
+    const repeated = await repairDuplicates(db, ENV, SECTOR, twice, { fetcher: gitlab().fetcher, apply: true, now: NOW });
+    expect(repeated.refused.map(item => item.reason)).toEqual(expect.arrayContaining(['account_repeated', 'duplicate_repeated', 'original_repeated']));
+    expect(repeated.repaired).toEqual([]);
+    expect(sub(db)).toBe('production-sub');
+  });
+
+  it('原号的用户名已被正式库别的账号占用、或 GitLab 没返回身份列表：拒绝', async () => {
+    const named = duplicated();
+    named.prepare("INSERT INTO users(id,status,created_at,updated_at) VALUES('account-b','active',?,?)").run(NOW, NOW);
+    named.prepare("INSERT INTO gitlab_accounts(account_id,gitlab_user_id,username,state,access_level,created_at,updated_at) VALUES('account-b',NULL,'ALICE','pending',NULL,?,?)").run(NOW, NOW);
+    expect((await repairDuplicates(named, ENV, SECTOR, PAYLOAD, { fetcher: gitlab().fetcher, now: NOW })).refused).toEqual([{ label: 'github:101', reason: 'original_username_taken' }]);
+    const unreadable = await repairDuplicates(duplicated(), ENV, SECTOR, PAYLOAD, { fetcher: gitlab({ duplicate: { identities: undefined } }).fetcher, now: NOW });
+    expect(unreadable.refused).toEqual([{ label: 'github:101', reason: 'identities_unreadable' }]);
+  });
+
+  it('原号已经映射给正式库的另一个账号、或预发布的 sub 已属于别人：拒绝', async () => {
+    const mapped = duplicated();
+    mapped.prepare("INSERT INTO users(id,status,created_at,updated_at) VALUES('account-b','active',?,?)").run(NOW, NOW);
+    mapped.prepare("INSERT INTO gitlab_accounts(account_id,gitlab_user_id,username,state,access_level,created_at,updated_at) VALUES('account-b',8,'bob','active',30,?,?)").run(NOW, NOW);
+    expect((await repairDuplicates(mapped, ENV, SECTOR, PAYLOAD, { fetcher: gitlab().fetcher, now: NOW })).refused).toEqual([{ label: 'github:101', reason: 'original_already_mapped' }]);
+    const taken = duplicated();
+    taken.prepare("INSERT INTO users(id,status,created_at,updated_at) VALUES('account-b','active',?,?)").run(NOW, NOW);
+    taken.prepare("INSERT INTO oauth_subjects(sector_id,user_id,sub,created_at) VALUES(?,'account-b','preview-sub',?)").run(SECTOR, NOW);
+    expect((await repairDuplicates(taken, ENV, SECTOR, PAYLOAD, { fetcher: gitlab().fetcher, now: NOW })).refused).toEqual([{ label: 'github:101', reason: 'source_sub_taken' }]);
+  });
+
+  it('sub 已经一致、或正式库对不上账号的条目不归这里管', async () => {
+    const db = fixture();
+    const remote = gitlab();
+    const payload = { sector: SECTOR, entries: [
+      { sub: 'private-fixture-sub', identities: [{ provider: 'github', provider_uid: '101' }] },
+      { sub: 'other', identities: [{ provider: 'github', provider_uid: '999' }] },
+    ], withoutIdentity: 0 };
+    expect(await repairDuplicates(db, ENV, SECTOR, payload, { fetcher: remote.fetcher, apply: true, now: NOW })).toEqual({ plan: [], refused: [], repaired: [] });
+    await expect(repairDuplicates(db, ENV, SECTOR, { ...payload, sector: 'other.test' }, { fetcher: remote.fetcher })).rejects.toThrow('sector');
   });
 });

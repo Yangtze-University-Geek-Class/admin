@@ -2,7 +2,7 @@
 
 > `deploy/gitlab/` 的来源、安装映射、OIDC 与头像边界、私有备份及恢复验收门禁；源码纳管不代表重新部署或统一登录恢复。
 
-状态：`current` · 更新：2026-10-29 · 适用：既有 GitLab 旁路服务的源码维护与获批恢复。依据：[GitHub admin#270](https://github.com/Yangtze-University-Geek-Class/admin/issues/270)（Arch 预部署与运维源码纳管）；历史身份事项分别为 [GitLab geek/admin#270](https://git.yangtzeu.work/geek/admin/-/issues/270)（统一登录）、[GitLab geek/admin#271](https://git.yangtzeu.work/geek/admin/-/issues/271)（资料头像同步）、[GitLab geek/admin#272](https://git.yangtzeu.work/geek/admin/-/issues/272)（提交邮箱同步）。
+状态：`current` · 更新：2026-10-30 · 适用：既有 GitLab 旁路服务的源码维护与获批恢复。依据：[GitHub admin#270](https://github.com/Yangtze-University-Geek-Class/admin/issues/270)（Arch 预部署与运维源码纳管）；历史身份事项分别为 [GitLab geek/admin#270](https://git.yangtzeu.work/geek/admin/-/issues/270)（统一登录）、[GitLab geek/admin#271](https://git.yangtzeu.work/geek/admin/-/issues/271)（资料头像同步）、[GitLab geek/admin#272](https://git.yangtzeu.work/geek/admin/-/issues/272)（提交邮箱同步）。
 
 
 ## 架构拓扑与运行网络
@@ -113,8 +113,9 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 - 已完成的前置（2026-10-28）：正式 `OIDC_JWKS`、`GITLAB_API_TOKEN` 写进 GitHub 环境 `production`，由 hotfix 部署渲染进正式 env；正式库登记了 `gitlab` 客户端，明文 secret 只在 Arch `/srv/gitlab/config/yzgc-oidc-secret.production`（0600）。GitLab 现在读的 `yzgc-oidc-secret` 仍是预发布的，改接之前不动它。
 - 以下路径统一由 [gitlab-cutover.yml](../../.github/workflows/gitlab-cutover.yml) 在 `main` 执行，保留 production 审批、哨兵与部署开关；默认演算，`apply` 才写，不另发 rc、不升号、不改镜像或 DNS：
   1. `status` 核对正式 discovery/client/secret 文件存在；`sync-status` 使用只读库与无网络一次性容器报告持久配置、有效直接成员及绑定计数，不播种资料或启动循环。`scope=persisted-configuration` 不冒充旧进程内存模式。
-  2. `migrate-subjects` 先演算。只认稳定 provider+provider_uid，保留已有 sub；冲突、目标库对不上或源账号无不可变身份均整批拒绝且非零退出；只有显式 `--provision-unmatched` 才按 GitHub UID 最小补建（cutover.sh 的 `--apply` 已带；建号失败或 sub 冲突会回滚该账号，不留下半条迁移）。只报告计数与 provider uid，不打印 sub。手工兜底：把 [migrate-oidc-subjects.mjs](../../deploy/gitlab/migrate-oidc-subjects.mjs) `docker cp` 进两个 server 容器的 `/tmp/`，预发布容器 `export --sector <GitLab 主机名>`，正式容器 `import` 先演算看过「可迁、冲突、对不上」三个数再 `--apply`。
-  3. `stop-preview-sync --apply` 先确认身份能完整对账，再执行本环境一致性备份及隔离恢复门；取双栈部署锁，正常排空旧进程（强杀不算通过），用同步模块的持久设置写口改 off，原子更新本环境 canonical env，以原镜像重启。必须有新 StartedAt、运行 env=off、持久有效配置=off 和健康门证据。
+  2. `migrate-subjects` 先演算。只认稳定 provider+provider_uid，保留已有 sub；冲突、目标库对不上或源账号无不可变身份均整批拒绝且非零退出；只有显式 `--provision-unmatched` 才按 GitHub UID 最小补建（cutover.sh 的 `--apply` 已带；sub 已属于别人时不建号；`account.js` 在一个事务里建号，失败不留半个账号；建出来的账号若因别的条目整批被拒而没写入 sub，会保留下来，重跑时直接复用）。只报告计数与 provider uid，不打印 sub。手工兜底：把 [migrate-oidc-subjects.mjs](../../deploy/gitlab/migrate-oidc-subjects.mjs) `docker cp` 进两个 server 容器的 `/tmp/`，预发布容器 `export --sector <GitLab 主机名>`，正式容器 `import` 先演算看过「可迁、冲突、对不上」三个数再 `--apply`。
+  2a. 正式同步已经开过时，先 `stop-production-sync --apply`（同 3 的备份、双锁、排空与健康门，把正式持久模式和运行 env 改 off），再 `repair-duplicates`。它处理改接前正式同步已经开过留下的重复号（2026-10-29 15:43–16:18 正式同步给已有 GitLab 号的 6 名成员又建了 `_yz` 号，主体迁移因此报「目标库该账号已有不同的 sub」）。先演算：从预发布导出 sector 主体，用正式容器网络、只读库逐人核对——原号按预发布 sub 唯一找到、是受管普通成员、正式库没有别的账号映射它；重复号是正式库这一行映射的号，只绑着正式 sub（或上次修到一半已解绑），GitLab 上 `last_sign_in_at` 与 `current_sign_in_at` 都为空。任一条不满足、或同一正式账号/重复号/原号出现两次，整批拒绝、非零退出、不写。`--apply` 要求正式持久模式与运行 env 都是 off（同步循环按 account_id 写回头像、邮箱、权限缓存，会和改映射撞车），取正式部署锁并先跑正式一致性备份，再逐人在 GitLab 解绑重复号的 `openid_connect` 身份并封禁（不删除），之后在一个事务里把正式库这个账号的 sub 换成预发布的、`gitlab_accounts` 改映射原号并清掉权限、头像、邮箱的同步缓存，下一轮同步按正式资料重新对齐原号；中途失败重跑从剩下的步骤接着做。输出只有计数、provider uid 和 GitLab 数字 ID（实现与测试：[sync-control.mjs](../../deploy/gitlab/sync-control.mjs) 的 `repairDuplicates`，`tests/tooling/gitlab-sync-control.test.ts`）。
+  3. `stop-preview-sync --apply` 先确认身份能完整对账（这一步的演算带 `--provision-unmatched`：写入时能按 GitHub UID 最小补建的成员单独计为「可最小补建」，不算对不上；否则缺号成员要等预发布停写才能补建，两步互相卡住。切签发者和开正式写者之前的演算不带，仍按对不上拒绝），再执行本环境一致性备份及隔离恢复门；取双栈部署锁，正常排空旧进程（强杀不算通过），用同步模块的持久设置写口改 off，原子更新本环境 canonical env，以原镜像重启。必须有新 StartedAt、运行 env=off、持久有效配置=off 和健康门证据。
      同步设置写入或重启失败时，先停失败实例，再恢复原有效模式与本环境 env 备份并复检健康；尚未写设置的排空失败只重启原实例。恢复成功仍返回失败，不把重试恢复写成切换成功；恢复失败明确报告，不能继续切另一写者。全程禁止拉取或构建镜像。
   4. `migrate-subjects --apply` 只在上述预发布 off 后新增主体记录；已有值不覆盖。正式账号或资格缺失交由本人注册/所有者核对，不按邮箱、名字合号，不复制预发布业务用户，也不自动授予资格。
   5. `enable-production-sync` 要求预发布运行 env 和持久模式均 off、四项主体计数清零、旧成员在正式仍具有有效资格及既有 GitLab ID 不变；`--apply` 经同样备份、锁、排空和健康门开启正式。服务按原入口立即启动一轮对账，并保留正常周期。
