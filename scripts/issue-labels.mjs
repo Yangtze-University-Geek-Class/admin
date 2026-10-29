@@ -115,20 +115,28 @@ export function labelsFromForm(body) {
 
 /**
  * 检查一个 issue 的类型标签与证明。number 小于 TYPE_LABEL_SINCE 的旧 issue 一律放行。
- * 返回 { ok, errors[], groups: Set }。
- * @param {{ number: number, labels: Array<string | { name: string }>, body: string }} input
+ *
+ * `needs-evidence` 标签既是这个检查的**输入**，又是 `issue-gate` 判定要不要打它的**输出**（#298）：
+ * 开工门禁（`task.mjs start`）看到这个标签就该拒绝，所以保留这条错误；但 `issue-gate` 自己
+ * 决定「补齐了没有」时必须忽略它，否则标签一旦打上就永远算「还有错」，摘除条件永远不成立。
+ * 用 `ignoreEvidenceLabel` 区分这两种调用方。
+ *
+ * @param {{ number: number, labels: Array<string | { name: string }>, body: string, ignoreEvidenceLabel?: boolean }} input
+ * @returns {{ ok: boolean, errors: string[], groups: Set<string>, evidenceLabeled: boolean }}
+ *   `evidenceLabeled` 是标签本身的状态，与 `errors` 分开给出，供调用方展示提示。
  */
-export function checkIssue({ number, labels, body }) {
+export function checkIssue({ number, labels, body, ignoreEvidenceLabel = false }) {
   const errors = [];
   const labelNames = (labels ?? []).map((l) => (typeof l === "string" ? l : l?.name)).filter(Boolean);
-  if (labelNames.includes(NEEDS_EVIDENCE_LABEL)) {
+  const evidenceLabeled = labelNames.includes(NEEDS_EVIDENCE_LABEL);
+  if (evidenceLabeled && !ignoreEvidenceLabel) {
     errors.push("issue 带有 needs-evidence 标签：证据或标签尚未补齐，不得开工。");
   }
   const groups = groupsOf(labels);
-  if (number < TYPE_LABEL_SINCE) return { ok: errors.length === 0, errors, groups };
+  if (number < TYPE_LABEL_SINCE) return { ok: errors.length === 0, errors, groups, evidenceLabeled };
   if (groups.size === 0) {
     errors.push(`缺少改动类型标签：从 ${TYPE_LABELS.join("、")} 里至少选一个（跨类就都选）。`);
-    return { ok: false, errors, groups };
+    return { ok: false, errors, groups, evidenceLabeled };
   }
   if (groups.has("ui") && !IMAGE_RE.test(visible(body))) {
     errors.push("带 ui:* 标签的 issue 正文必须有现状截图（上传至 GitHub 附件或以 Markdown 图片语法提供，不接受裸文件名），没有截图不得开工。");
@@ -139,7 +147,7 @@ export function checkIssue({ number, labels, body }) {
     const hasApi = METHOD_PATH_RE.test(text) || NO_API_RE.test(text);
     if (!hasApi) errors.push("带 func:* 标签的 issue 要写「涉及接口」：方法 + 路径（例 `POST /api/forum/topics`）、请求响应约定和要补的接口测试；确实没有接口变化写「无接口变更：<理由>」。");
   }
-  return { ok: errors.length === 0, errors, groups };
+  return { ok: errors.length === 0, errors, groups, evidenceLabeled };
 }
 
 /**

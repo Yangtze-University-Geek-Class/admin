@@ -67,7 +67,7 @@
 判定口径：看用户或调用方能直接看到什么变化。线上界面上看得到的归 `ui:*`；接口、权限、数据、外部服务的行为变了归 `func:*`；用户和调用方都看不到、只改部署、CI、脚本、文档的归 `infra:*`（文档类带 `infra:tooling`）。拿不准就多选，不要少选。既有的端标签（portal / forum / admin / server / shared / deploy / docs）、严重性（P0 / P1 / P2）和 `hot-fix` 照旧，与「组:类」并存。
 
 - **谁来打**：issue 表单的「改动类型」下拉框选中的值会被 `issue-gate` 加成标签。用 `gh issue create`、API 建单的（包括别人的 Agent）没有表单，要自己带 `--label`；没带的，`issue-gate` 会按标题和正文的关键词在评论里推测并给出添加命令，**不会自动添加**，由提单人对照上面的口径确认。
-- **没有标签、`ui` 没有截图、`func` 没写「涉及接口」**：`issue-gate` 加 `needs-evidence` 并评论缺什么，补齐后自动摘掉。带 `needs-evidence` 或检查不过的 issue 不得开工，`node scripts/task.mjs start` 会拒绝。没有接口变化的写「无接口变更：<理由>」，理由要有实际内容。
+- **没有标签、`ui` 没有截图、`func` 没写「涉及接口」**：`issue-gate` 加 `needs-evidence` 并评论缺什么，补齐后自动摘掉。带 `needs-evidence` 或检查不过的 issue 不得开工，`node scripts/task.mjs start` 会拒绝。这个标签既是开工门禁的依据，又是 `issue-gate` 要维护的状态，所以判定「补齐了没有」时不能把它自己算成缺失（#298）——否则标签一打上就永远摘不掉。没有接口变化的写「无接口变更：<理由>」，理由要有实际内容。
 - **PR**：标签集合必须覆盖它 `Closes` 的 issue 的标签；`pr-contract` 按组核对「验收证据」与「验证命令与结果」，规则见 [PULL-REQUESTS](PULL-REQUESTS.md)。
 - **生效范围**：编号 235 起的 issue 强制；更早的不回溯，也不因此补标签。
 
