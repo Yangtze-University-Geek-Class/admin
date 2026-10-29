@@ -25,3 +25,15 @@
 - 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
 - 做了什么：所有者 2026-10-29 22:xx 选定（ask 超时后按推荐方案自动选定，已在 GitHub #304 与 GitLab geek/admin#304 双侧留痕）沿用 GitHub #301 先例：GitHub #304 的同步声明接管 docs/changes/304.json；GitLab #304 的原声明保留在 b37beca5
 - 结果：声明已写入（kind business，coverage 24 个材料文件逐一覆盖，八维评估）；回滚点：git show b37beca5:docs/changes/304.json
+
+## 23:25:13 +08:00 · PR · #304 · 开 GitHub 受保护 stage 同步 PR #305
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：PR #305（task/304/hotfix_stage_sync → stage）：十段正文、hot-fix + infra:deploy 标签、验收证据引用源 MR !65 的改前改后实拍与同步前后 SHA 对照；命名空间接管说明写入正文与两侧 issue
+- 结果：node scripts/pr-contract.mjs check 通过（分支 task/304/hotfix_stage_sync ↔ issue #304，10 段齐全）；PR https://github.com/Yangtze-University-Geek-Class/admin/pull/305
+
+## 23:25:13 +08:00 · 审查 · #304 · 自审 be018bee，CODE-REVIEW 15 项逐条
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：按 CODE-REVIEW 逐项核对同步 diff（29 个变更文件）：分支不变量、无直推常规 main/stage、无密钥、无 env/镜像改动、文档核对真实（deploy/ 三份）、无边界违规、执行记录链路完整、宏观对齐声明与真实 diff 一致（--base origin/stage 29 文件 16 节点）、env-isolation 通过、不部署不动 tag
+- 结果：审查结论：通过（逐条结论与结论行在 PR #305 正文「审查结论」段）
