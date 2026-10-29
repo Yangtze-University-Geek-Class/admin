@@ -17,10 +17,11 @@
     {
       "issue": 310,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "Crosery",
       "approvedAt": "2026-10-29T13:03:00+08:00",
-      "expiresAt": "2026-11-04T13:03:00+08:00",
+      "closedAt": "2026-10-29T23:44:49+08:00",
+      "evidence": "修复 53e40b1a 经 deploy-hotfix 40845330511（HOTFIX_ISSUE: 310）上线，deploy+smoke 全绿；合回 stage daa55c20→b734c992（gitlab/stage 含 main）；GitLab #310 已关闭。",
       "quote": "你线上yangtzeu.work，点击加入我们然后白屏，一大堆bug，预发布怎么没有，现在hotfix你快点修复啊"
     },
     {
