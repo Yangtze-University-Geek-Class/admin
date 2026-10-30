@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推 task/316/github_stage_sync 到 GitHub，开 PR（Closes #316，标签 infra:deploy）
 - 结果：等必需检查
+
+## 21:48:56 +08:00 · 提交 · #316 · 带上 MR !90，改走 hotfix
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：所有者决定不打 0.1.2：本分支应用 GitLab stage 3bd632a8..3643fb14（版本号回 0.1.1、#346 hotfix 窗口）；声明覆盖按实际改动重算
+- 结果：check-architecture --forge github --base origin/stage：通过，101 个变更文件
