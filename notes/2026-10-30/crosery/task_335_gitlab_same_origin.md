@@ -80,3 +80,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：docs/changes/335.json 按 #311 收尾先例重写为本次修复的影响声明；文档核对：docs/ops/DEPLOY.md 不用改——5d126b5 只把同构清单条目改号为 P-0017，DEPLOY 不写条目编号；文档核对：docs/ops/ENVIRONMENTS.md 不用改——同上，环境键与地址没有变化；文档核对：docs/ops/CICD.md 不用改——同上，工作流与步骤没有变化
 - 结果：check-architecture --base origin/main 通过（5 个变更文件，2 个关联节点）
+
+## 16:00:39 +08:00 · 提交 · #335 · console 文档核对
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：文档核对：docs/services/console/ 不用改——163d38e 只把控制台 mock 数据里的 GitLab 示例地址换成 example.test/gitlab，界面、接口与文档描述的行为都没变；文档已在 e10b1fa 同步过 GitLab 地址说明
+- 结果：doc-sync 对 origin/main 的既有不同步全部写了文档核对
