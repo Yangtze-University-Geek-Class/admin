@@ -5,7 +5,7 @@
 ## 01:21:12 +08:00 · 开工 · #298 · 从 origin/stage 93120cfa 建 task/298/note_k10_exception
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：GitLab #298：校验器对 task_276_forum_image_scan 一条历史记录的限定豁免。所有者 2026-10-28 01:18 同意说明里列出的全部事项并要求立即发版；GitLab issue 不在 GitHub，task.mjs 查不到，改用 git worktree add 手工建分支与 worktree。
+- 做了什么：GitLab #298：校验器对 task_276_forum_image_scan 一条历史记录的限定豁免。所有者 2026-10-28 01:18 同意说明里列出的全部事项并要求[已脱敏]；GitLab issue 不在 GitHub，task.mjs 查不到，改用 git worktree add 手工建分支与 worktree。
 - 结果：分支基于 stage 93120cfa；先写失败测试再改 note.mjs。
 
 ## 01:22:31 +08:00 · 提交 · #298 · note.mjs 对 task_276 一条历史记录的限定豁免

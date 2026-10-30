@@ -1,3 +1,8 @@
+# GitHub 只做代码镜像和 CI：issue 与合并请求在 GitLab 提交，编号与计分以 GitLab 为准（#330）。
+contact_links:
+  - name: 在 GitLab 提 issue（主平台）
+    url: https://yangtzeu.work/gitlab/geek/admin/-/issues/new
+    about: GitHub 只做代码镜像。issue 与合并请求请在 GitLab 提，编号与计分以 GitLab 为准。
 name: 配置
 description: 调整仓库配置、模板或标签体系。
 title: "docs：<要改什么>"

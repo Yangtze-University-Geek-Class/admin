@@ -24,9 +24,9 @@ describe('server STATIC_CDN_BASE rule equals scripts/static-cdn-base.mjs', () =>
 
   it.each([
     undefined, '', ' ', '\n', '\t ', STATIC_CDN_BASE, ` ${STATIC_CDN_BASE} `, `${STATIC_CDN_BASE}\n`,
-    'https://cdn.crosery.com', 'https://cdn.crosery.com/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/',
+    'https://cdn-old.example.test', 'https://cdn-old.example.test/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/',
     'https://CDN.yangtzeu.work/geek-public/static/site/', 'https://cdn.yangtzeu.work/geek-public/static/site//', 'https://cdn.yangtzeu.work/geek-public/static/site/forum/',
-    'https://evil.example/yzgc/static/site/', 'https://cdn.crosery.com/yzgc/promo/', '/yzgc/static/site/', 'null', '0',
+    'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/', '/yzgc/static/site/', 'null', '0',
   ])('gives the same answer for %j', raw => {
     expect(run(() => parseStaticCdnBase(raw))).toEqual(run(() => staticCdnBase({ STATIC_CDN_BASE: raw })));
   });

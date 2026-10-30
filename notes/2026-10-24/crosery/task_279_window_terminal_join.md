@@ -5,7 +5,7 @@
 ## 13:56:17 +08:00 · 开工 · #279 · #279 窗口按钮重做、终端改成仿真 Linux、「加入我们」改成桌面窗口
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
-- 做了什么：rc.18 验收 A5 发现「加入我们」仍跳旧版 /join-us 三维信封页；所有者 13:45 要求窗口按钮定制、终端仿真 Linux。从 stage e43df562 手工建 task/279/window_terminal_join 和 worktree（task.mjs start 只认 GitHub issue），pnpm install --offline。
+- 做了什么：rc.18 验收 A5 发现「加入我们」仍跳旧版 /join-us 三维信封页；所有者 13:45 要求[已脱敏]。从 stage e43df562 手工建 task/279/window_terminal_join 和 worktree（task.mjs start 只认 GitHub issue），pnpm install --offline。
 - 结果：worktree 已建好
 - 下一步：读 Windows.tsx、osApps.ts 终端部分和 JoinUs.tsx，先做加入我们窗口
 
@@ -40,7 +40,7 @@
 ## 15:19:25 +08:00 · 审查 · #279 · MR !9 自审：有条件通过
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
-- 做了什么：按 .agents/skills/code-review 两条线自审 ada1fc43（所有者 10-24 要求不开子 agent，没有独立审查人）。规范：检查脚本全过；安全核对无 eval/new Function/dangerouslySetInnerHTML、只把 https 地址变链接、存盘读回跳过 . 与 .. 路径、写入只限家目录和 /tmp；资源核对嵌套 16 层、seq 10000 行、界面 1000 行。需求：issue 列的 29 条命令、管道重定向等、三个按钮、加入我们窗口逐条对上；手机面板按 #233 不放珠子；超出 issue 的是意见箱两处 GitHub 字样和终端懒加载。审查中自己发现并修掉：$((2**64)) 显示 Infinity（改 64 位回绕）、for 循环多报 do/done、算术写错仍执行命令、直接敲 forum 打不开（装进 /usr/local/bin）、Windows.tsx 没用的导入。
+- 做了什么：按 .agents/skills/code-review 两条线自审 ada1fc43（所有者 10-24 要求[已脱敏]，没有独立审查人）。规范：检查脚本全过；安全核对无 eval/new Function/dangerouslySetInnerHTML、只把 https 地址变链接、存盘读回跳过 . 与 .. 路径、写入只限家目录和 /tmp；资源核对嵌套 16 层、seq 10000 行、界面 1000 行。需求：issue 列的 29 条命令、管道重定向等、三个按钮、加入我们窗口逐条对上；手机面板按 #233 不放珠子；超出 issue 的是意见箱两处 GitHub 字样和终端懒加载。审查中自己发现并修掉：$((2**64)) 显示 Infinity（改 64 位回绕）、for 循环多报 do/done、算术写错仍执行命令、直接敲 forum 打不开（装进 /usr/local/bin）、Windows.tsx 没用的导入。
 - 结果：结论：有条件通过（合并后发 rc.19 在预发布按人工验收步骤走一遍）。结论贴在 MR !9 正文和评论 754。未验证：预发布真实验收、登录后家目录与 neofetch 只有单测、Safari 与真机。
 - 下一步：合并进 stage（merge commit），关 #279，发 rc.19
 

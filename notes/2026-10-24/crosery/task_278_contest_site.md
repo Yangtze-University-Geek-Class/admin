@@ -75,7 +75,7 @@
 ## 17:34:33 +08:00 · 返工 · #278 · 比赛官网改成浅色、不沿用主站风格
 
 - 执行者：agent-claude-geek-main-3c2a7a67-c278（Claude Code 子 agent，claude-opus-5-5）
-- 做了什么：按所有者 2026-10-24 16:38 的要求（「比赛官网能不能不要有暗色了，就比赛官网炫酷好看一点，去炫技」）重做第一期官网：去掉夜空 Canvas（sky.ts）和极客娘图（public/geek-girl.webp），首屏改成暖白底加四团慢慢漂移的彩色光晕，标题是贡献热力图拼出的「OSS CHALLENGE」（5×7 点阵、指针放大、点一下扩波纹、有新贡献时自动扩一圈），倒计时每位数字滚动，首屏下面加一条斜着滚动的贡献条（ticker.ts）；各段落改成白卡片、2px 墨线和彩色硬阴影，年级系数改成柱状图，第一名奖项卡是转动的彩色边框，天梯换名次时行位移动画；手机 720px 以下单列。另修 server：已发布版本的 HTML 原来也是 public, max-age=300，换版本后浏览器拿缓存里的旧 index.html 去找已经删掉的资源文件，整页不加载（本机换包时复现：页面引用旧的 index-BW3XsS8W.js，fetch 失败）；改成 HTML no-cache、其它文件仍 5 分钟，测试、接口文档、API.md、目录与 changes/278.json 同步。测试里的必备文件和打包样例换成 ticker.ts 与 styles.css，vite 的 publicDir 关掉。
+- 做了什么：按所有者 2026-10-24 16:38 的要求（「[已脱敏]」）重做第一期官网：去掉夜空 Canvas（sky.ts）和极客娘图（public/geek-girl.webp），首屏改成暖白底加四团慢慢漂移的彩色光晕，标题是贡献热力图拼出的「OSS CHALLENGE」（5×7 点阵、指针放大、点一下扩波纹、有新贡献时自动扩一圈），倒计时每位数字滚动，首屏下面加一条斜着滚动的贡献条（ticker.ts）；各段落改成白卡片、2px 墨线和彩色硬阴影，年级系数改成柱状图，第一名奖项卡是转动的彩色边框，天梯换名次时行位移动画；手机 720px 以下单列。另修 server：已发布版本的 HTML 原来也是 public, max-age=300，换版本后浏览器拿缓存里的旧 index.html 去找已经删掉的资源文件，整页不加载（本机换包时复现：页面引用旧的 index-BW3XsS8W.js，fetch 失败）；改成 HTML no-cache、其它文件仍 5 分钟，测试、接口文档、API.md、目录与 changes/278.json 同步。测试里的必备文件和打包样例换成 ticker.ts 与 styles.css，vite 的 publicDir 关掉。
 - 结果：构建 JS 33.21 kB（gzip 13.90 kB）、CSS 6.79 kB gzip，包 4 个文件 25080 字节；pnpm typecheck 通过，pnpm test 119 个文件 1864 条全过。ego 浏览器在本机 nginx 叠加宿主 CSP 的环境里：1440×900 与 390×844 横向溢出 0、来源 null、只请求同源资源，可见文字 191 处对比度全部 ≥4.5，渐变字三色在底色上 4.83–5.93；减少动态效果时运行中的动画 0 个、标题照常画出；Tab 焦点有 3px 紫色描边；换包后普通刷新直接拿到新的 index-CgGejInr.js。截图在 /tmp/geek-takeover/c278/shots/v3-site-*。
 - 下一步：跑 check:catalog、check-architecture 与 pnpm check，提交，收 ego TaskSpace，回报 team-lead。
 
@@ -96,7 +96,7 @@
 ## 19:05:01 +08:00 · 方案 · #278 · 计分改两档评定、官网首屏一屏讲清楚
 
 - 执行者：agent-claude-geek-main-3c2a7a67-c278（Claude Code 子 agent，claude-opus-5-5）
-- 做了什么：按所有者 16:59（低年级友好、大一得分高、PR 不按代码行数、按重要程度和核心度评，Issue 同样）与 16:57（去暗色、炫技但看得明白）定方案：基础分 = 重要程度（一般/重要/关键）× 核心度（边缘/业务/核心）查表，Issue 5–30、MR 15–100，落在原 CHECK 内不重建表；规则只放 app/server/src/lib/competition-rubric.ts（不导入任何模块），服务端登记、试算接口、候选确认、公开 scoring 与模拟脚本都读它；GitLab 用「重要程度::」「核心度::」标签，三个标签都由非作者的评审人最后加上才自动计分；防刷每人每周「一般 × 边缘」只算 1 条；scripts/contest-score-sim.mjs 固定种子模拟 60 人比赛选系数。官网首屏左边标题、怎么拿分三步、倒计时与报名，右边奖金卡与天梯前五（手机前三），几层光、逐字标题、随指针倾斜、滚动驱动，减少动态效果停在最终状态。
+- 做了什么：按所有者 16:59（[已脱敏]）与 16:57（[已脱敏]）定方案：基础分 = 重要程度（一般/重要/关键）× 核心度（边缘/业务/核心）查表，Issue 5–30、MR 15–100，落在原 CHECK 内不重建表；规则只放 app/server/src/lib/competition-rubric.ts（不导入任何模块），服务端登记、试算接口、候选确认、公开 scoring 与模拟脚本都读它；GitLab 用「重要程度::」「核心度::」标签，三个标签都由非作者的评审人最后加上才自动计分；防刷每人每周「一般 × 边缘」只算 1 条；scripts/contest-score-sim.mjs 固定种子模拟 60 人比赛选系数。官网首屏左边标题、怎么拿分三步、倒计时与报名，右边奖金卡与天梯前五（手机前三），几层光、逐字标题、随指针倾斜、滚动驱动，减少动态效果停在最终状态。
 - 结果：方案定稿：默认系数 3.5/2.2/1.4/1.0，防刷每周 1 条
 - 下一步：实现服务端、控制台、门户、官网，跑模拟、迁移演练和浏览器验收
 
@@ -117,7 +117,7 @@
 ## 19:42:55 +08:00 · 返工 · #278 · 门户比赛窗口的官网入口与详情头图改成浅色
 
 - 执行者：agent-claude-geek-main-3c2a7a67-c278（Claude Code 子 agent，claude-opus-5-5）
-- 做了什么：按 team-lead 转达（所有者 16:38、16:57 要求比赛官网去掉暗色，门户里那块是官网入口，不能一深一浅）：新增 ContestBackdrop（ContestGlow 柔光与流动透视网格、HeatMark 热力图字标），官网入口横幅和详情头图换成和官网首屏同一套色板与元素；字形与配色挪到 app/web/shared/lib/heatmark.ts，官网 title.ts 改为导入，样子不变；夜空 NightSky 删除，原文件、旧 ContestSite 与旧 competitions.css 按 4c7c5dd5 逐字节归档到 docs/history/portal-contest-night/ 并写 README；portal.md、web README、DESIGN.md、ownership、changes/278.json 跟着改。中途发现减少动态效果的规则写在格子入场动画前面压不住（152 个格子还在等延迟），挪到后面后为 0。
+- 做了什么：按 team-lead 转达（所有者 16:38、16:57 要求[已脱敏]）：新增 ContestBackdrop（ContestGlow 柔光与流动透视网格、HeatMark 热力图字标），官网入口横幅和详情头图换成和官网首屏同一套色板与元素；字形与配色挪到 app/web/shared/lib/heatmark.ts，官网 title.ts 改为导入，样子不变；夜空 NightSky 删除，原文件、旧 ContestSite 与旧 competitions.css 按 4c7c5dd5 逐字节归档到 docs/history/portal-contest-night/ 并写 README；portal.md、web README、DESIGN.md、ownership、changes/278.json 跟着改。中途发现减少动态效果的规则写在格子入场动画前面压不住（152 个格子还在等延迟），挪到后面后为 0。
 - 结果：pnpm typecheck 通过，pnpm test 123 个文件 1923 条通过，check:catalog、check:docs、check-architecture（base 4c7c5dd5，124 个变更文件 234 个节点）等通过。ego 本机：1440×900 横幅 1066×100、头图 706×237，390×844 横幅 344×171、头图 344×276，横向溢出 0、没有 emoji；截图像素测渐变字对比度 4.99–6.44，导语 8.95；减少动态效果 0 个动画在跑。帧率因浏览器窗口不在前台（hasFocus=false）测出 8–162 帧/2 秒不稳定，不作结论。截图 /tmp/geek-takeover/c278/shots/v6-portal-1440-banner.png、v6-portal-1440-hero.png、v6-portal-390-banner.png、v6-portal-390-hero.png，官网 v5-site-1440-hero.png、v5-site-390-hero.png。
 - 下一步：提交记录，收 ego TaskSpace 与本机服务，回报 team-lead
 

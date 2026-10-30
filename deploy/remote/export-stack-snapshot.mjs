@@ -6,7 +6,9 @@ import { createRequire } from 'node:module';
 import { pipeline } from 'node:stream/promises';
 
 const [environment, appVersion, imageTag] = process.argv.slice(2);
-if (!['production', 'preview'].includes(environment) || !/^\d+\.\d+\.\d+(?:-rc\.\d+)?(?:@[a-f0-9]{12})?$/.test(appVersion ?? '') || !/^[a-f0-9]{12}$/.test(imageTag ?? '')) {
+// 版本口径与 platform-maintenance.sh 相同：正式只有 X.Y.Z；预发布是 X.Y.Z-rc.N / -hf.N / -stable 加 @<镜像 tag>，N 从 1 起、没有前导 0。
+const releaseVersionRe = () => (environment === 'production' ? /^\d+\.\d+\.\d+$/ : new RegExp(`^\\d+\\.\\d+\\.\\d+(?:-rc\\.[1-9]\\d*|-hf\\.[1-9]\\d*|-stable)@${imageTag}$`));
+if (!['production', 'preview'].includes(environment) || !/^[a-f0-9]{12}$/.test(imageTag ?? '') || !releaseVersionRe().test(appVersion ?? '')) {
   throw new Error('用法：export-stack-snapshot.mjs <production|preview> <已发布版本> <sha12>');
 }
 if (readdirSync('/output').some(name => name === 'system-backup.tar.gz' || name === 'manifest.json')) {

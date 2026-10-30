@@ -19,7 +19,7 @@ describe('build switch STATIC_CDN_BASE', () => {
     expect(staticCdnBase({ STATIC_CDN_BASE: '' })).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE: '  ' })).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE })).toBe(STATIC_CDN_BASE);
-    for (const wrong of ['https://cdn.crosery.com/', 'https://cdn.crosery.com/yzgc/static/site', 'http://cdn.crosery.com/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn.crosery.com/yzgc/promo/']) {
+    for (const wrong of ['https://cdn-old.example.test/', 'https://cdn-old.example.test/yzgc/static/site', 'http://cdn-old.example.test/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
       expect(() => staticCdnBase({ STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
     }
   });
@@ -118,7 +118,7 @@ describe('images', () => {
       }
     };
     // 纯空白：staticCdnBase 当作空，镜像里的核对更严（不接受），所以不放进对照表；工作流只会传空或固定值。
-    for (const value of ['', STATIC_CDN_BASE, 'https://cdn.crosery.com/', 'https://cdn.crosery.com/yzgc/static/site', 'http://cdn.crosery.com/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', `${STATIC_CDN_BASE}forum/`, 'https://cdn.crosery.com/yzgc/promo/', '$(id)', '"; exit 0; "']) {
+    for (const value of ['', STATIC_CDN_BASE, 'https://cdn-old.example.test/', 'https://cdn-old.example.test/yzgc/static/site', 'http://cdn-old.example.test/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', `${STATIC_CDN_BASE}forum/`, 'https://cdn-old.example.test/yzgc/promo/', '$(id)', '"; exit 0; "']) {
       const accepted = (() => { try { staticCdnBase({ STATIC_CDN_BASE: value }); return true; } catch { return false; } })();
       expect(runs(value), JSON.stringify(value)).toBe(accepted);
     }

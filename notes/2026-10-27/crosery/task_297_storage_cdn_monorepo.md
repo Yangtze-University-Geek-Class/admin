@@ -5,7 +5,7 @@
 ## 11:03:22 +08:00 · 开工 · #297 · 把香港对象存储/CDN 收进 monorepo 并脱敏
 
 - 执行者：agent-omp-geek-main-01a17ae3（omp，deepseek-v4.1-flash）
-- 做了什么：GitLab #297；因 scripts/task.mjs 写死 origin/stage 而 GitHub stage 落后 473 提交，改用 git worktree add -b task/297/storage_cdn_monorepo .claude/worktrees/task-297 gitlab/stage（02cb751c）建分支与 worktree；经 wanctl P2P 从家里 Mac cba0eaa3 的 /Users/crosery/work_file/hk-storage-cdn 取回 8 个文件（36KB）
+- 做了什么：GitLab #297；因 scripts/task.mjs 写死 origin/stage 而 GitHub stage 落后 473 提交，改用 git worktree add -b task/297/storage_cdn_monorepo .claude/worktrees/task-297 gitlab/stage（02cb751c）建分支与 worktree；经 wanctl P2P 从家里 Mac cba0eaa3 的 /Users/[已脱敏]/work_file/hk-storage-cdn 取回 8 个文件（36KB）
 - 结果：worktree 在 .claude/worktrees/task-297；来源文件落在 /tmp/hk-cdn-import
 - 下一步：写 deploy/storage-cdn 脱敏模板、docs/ops/STORAGE-CDN.md、doc-sync 对照行与防泄漏回归
 
@@ -68,7 +68,7 @@
 ## 21:50:40 +08:00 · 合并 · #297 · MR !34 合并进 GitLab stage，GitHub stage 同步到合并提交
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者 2026-10-27 说香港对象存储的配置作为 monorepo 落盘进仓库。按 sha=a0989b0f 用 merge commit 合并 !34（GitLab API，删源分支），合并提交 74b6d64adee7；随后在临时克隆里把 GitHub stage 的 enforce_admins 临时关闭、快进到 74b6d64adee7、立即恢复。
+- 做了什么：所有者 2026-10-27 说[已脱敏]。按 sha=a0989b0f 用 merge commit 合并 !34（GitLab API，删源分支），合并提交 74b6d64adee7；随后在临时克隆里把 GitHub stage 的 enforce_admins 临时关闭、快进到 74b6d64adee7、立即恢复。
 - 结果：git ls-remote 两侧 stage 都是 74b6d64adee7、main 都是 61da3fea76f6；GitHub stage 保护恢复后与改前逐项相同；推送只触发 ci.yml，没有部署 workflow；GitLab #297 已写关闭记录（评论 1474）并关闭。
 
 ## 21:51:38 +08:00 · 收尾 · #297 · 手工清理 task/297 的 worktree 与本地分支

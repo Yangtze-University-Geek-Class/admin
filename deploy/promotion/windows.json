@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "note": "部分晋升窗口登记：main 上领先 stage 的提交，只能是这里 picks 里的 stage 提交经 git cherry-pick -x 挑进 main 的结果；窗口最长 3 天，超期还开着就失败。判定与核对方法见 scripts/promotion-windows.mjs。",
+  "windows": []
+}

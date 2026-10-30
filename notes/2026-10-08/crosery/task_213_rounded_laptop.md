@@ -12,7 +12,7 @@
 
 - 执行者：agent-omp-geek-213（omp，crosery/gpt-6.1-sol）
 - 做了什么：读取desk构造、屏幕/键盘拾取、相机及开机交接；createDesk LSP引用为desk与Home，外部API不改；原模型薄壳RoundedBox倒角受厚度约束，屏框/触控板为矩形、键盘是白色棋盘格。采用原创建模：二维大圆角轮廓与独立小边缘倒角挤出，铝合金薄壳，错列宽键深色键盘与批处理字面，圆角玻璃/触控板及铰链细节；模型与scene集成按固定接口分开并行，主代理负责真实视觉及行为复验
-- 结果：task/213/rounded_laptop基于df90b67a8c03；保留屏幕1.1×0.6875、lid和屏幕原坐标，手机不改。旧1440实景截图已保存 .tools/acceptance213/before-1440.png；不引入外部模型/品牌标识/依赖，不仅仅改一个radius参数。所有者要求本轮完成，不能再只留建单
+- 结果：task/213/rounded_laptop基于df90b67a8c03；保留屏幕1.1×0.6875、lid和屏幕原坐标，手机不改。旧1440实景截图已保存 .tools/acceptance213/before-1440.png；不引入外部模型/品牌标识/依赖，不仅仅改一个radius参数。所有者要求[已脱敏]
 
 ## 10:47:37 +08:00 · 方案 · #213 · desk.ts 按固定接口接入 createLaptop，拾取改用真实键矩形
 

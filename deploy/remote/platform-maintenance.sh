@@ -112,7 +112,7 @@ async function backup(here, settings, options, environment) {
   }
   const version = metadata.GEEK_RELEASE_VERSION;
   requireThat(metadata.GEEK_DEPLOYMENT_ENVIRONMENT === environment && /^[a-f0-9]{40}$/.test(metadata.GEEK_RELEASE_COMMIT ?? '') && metadata.GEEK_RELEASE_COMMIT.startsWith(tag), '源镜像环境或提交与运行配置不一致');
-  requireThat(typeof version === 'string' && (environment === 'production' ? /^\d+\.\d+\.\d+$/.test(version) : new RegExp(`^\\d+\\.\\d+\\.\\d+-rc\\.[1-9]\\d*@${tag}$`).test(version)), '源镜像版本与环境不一致');
+  requireThat(typeof version === 'string' && (environment === 'production' ? /^\d+\.\d+\.\d+$/.test(version) : new RegExp(`^\\d+\\.\\d+\\.\\d+(?:-rc\\.[1-9]\\d*|-hf\\.[1-9]\\d*|-stable)@${tag}$`).test(version)), '源镜像版本与环境不一致');
   const helperRef = options['--helper-image'] ?? sourceRef;
   requireThat(/^[A-Za-z0-9][A-Za-z0-9_./:@-]{0,255}$/.test(helperRef), 'helper-image 必须是明确的本地镜像引用');
   const helperId = helperRef === sourceRef ? sourceId : docker(['image', 'inspect', helperRef, '--format', '{{.Id}}']);

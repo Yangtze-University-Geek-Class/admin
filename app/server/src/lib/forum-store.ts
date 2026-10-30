@@ -683,6 +683,28 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
       return orgLogins().some(login => login.toLowerCase() !== ownLogin && nameKey(login) === key);
     },
 
+    /**
+     * 站内用户名/昵称能不能用（PENTEST-20261029 finding 9/11）：`PATCH /api/identity/profile` 原来只在
+     * account_profiles 里查重，官方账号、还没建档的成员都住在 forum_users，于是低权账号能把 username 改成
+     * geekclass 之类的官方名，匿名 `/api/forum/state` 立刻出现两个同名账号。论坛列表里显示的 username/displayName
+     * 就是统一资料这一份（toUser 的 visible），所以占用判定必须和 displayNameTaken 同一套命名空间，只按账号豁免自己。
+     * 允许自己的登录名：新成员默认用户名就是它。
+     */
+    identityNameTaken(name: string, self: { accountId: string; login: string }): boolean {
+      // 不能像 displayNameTaken 那样先按登录名直接放行（CodeRabbit 复审）：登录名 `geek-class` 与官方用户名
+      // `geekclass` 在 nameKey 下相同，先返回就等于给了一种绕过。这里只豁免「属于自己的记录」，
+      // 自己的登录名仍然在 orgLogins 里按账号跳过，不会挡住新成员默认昵称。
+      const ownLogin = self.login.toLowerCase();
+      const key = nameKey(name);
+      for (const candidate of userCandidates()) {
+        if (candidate.row.account_id === self.accountId || candidate.row.kind === "guest") continue;
+        const other = candidateName(candidate);
+        if (nameKey(other.username) === key) return true;
+        if (candidate.row.kind === "official" && nameKey(other.display_name) === key) return true;
+      }
+      return orgLogins().some(login => login.toLowerCase() !== ownLogin && nameKey(login) === key);
+    },
+
     createTopic(input: { authorId: string; title: string; categoryId: string; tags: string[]; content: string }, now = Date.now()): { topicId: string; postId: string } {
       return db.transaction(() => {
         const tagIds = resolveTags(input.tags, input.authorId, now);

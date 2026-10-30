@@ -58,8 +58,7 @@ export function seedCategoryVisibility(db: Database.Database, now: number): void
 export const YUGC_STICKER_PACK_ID = "yugc";
 
 /**
- * 第一套「极客娘」里 15 张原图的 sha256（2026-10-25 换成带小字的版本，#276，所有者「他们的表情包都是带点小文字的
- * 看着更可爱一点」）。库里这张表情还指着原图的，换成仓库里现在的图；管理员自己换过图的（哈希对不上）不动。
+ * 第一套「极客娘」里 15 张原图的 sha256（2026-10-25 换成带小字的版本，#276，所有者认为带小字的版本更可爱）。库里这张表情还指着原图的，换成仓库里现在的图；管理员自己换过图的（哈希对不上）不动。
  * 原图的文件行留着：页面缓存里的旧地址照样能打开。
  */
 export const YUGC_UNCAPTIONED: Record<string, string> = {

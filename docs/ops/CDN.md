@@ -19,7 +19,7 @@ S3 endpoint 为 `https://cdn.yangtzeu.work`，region 为 `garage`，`forcePathSt
 
 除下述明确允许公开的发布来源清单外，业务、内容哈希反查和运维索引只允许放私有桶。上传器不会把私有桶内容或私有索引同步到公开桶。
 
-旧 `yzgc/static/site/` 映射到 `static/site/`，旧 `yzgc/static/promo/` 映射到 `media/promo/`，旧 `yzgc/mail/` 映射到 `mail/`。旧实际域名主要为 `cdn.crosery.com`，不是仅 `.cn`。历史 notes、changes、archive、已发布 tag 不改写；旧版本回滚所需的旧供应商对象不能由此源码任务删除。
+旧 `yzgc/static/site/` 映射到 `static/site/`，旧 `yzgc/static/promo/` 映射到 `media/promo/`，旧 `yzgc/mail/` 映射到 `mail/`。旧实际域名主要为七牛侧的个人域名，不是仅 `.cn`。历史 notes、changes、archive、已发布 tag 不改写；旧版本回滚所需的旧供应商对象不能由此源码任务删除。
 
 ## 公开发布清单与私有内容索引
 

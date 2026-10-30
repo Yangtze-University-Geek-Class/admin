@@ -8,7 +8,7 @@
 **2026-09-23 追加（monorepo 改造）**：本文记录的是 `next` 分支 + `modules/forum` 目录 + systemd/`/opt/yzgc-admin` 部署时代的快照，这些模型已被取代——分支模型见 [BRANCHING](../conventions/BRANCHING.md)，发布模型见 [RELEASES](../conventions/RELEASES.md)，服务路径为 `app/{server,web,forum}`（见 [services](../services/README.md)），部署为同机两套 Docker 栈（见 [DEPLOY](../ops/DEPLOY.md) 的历史章节）。本文其余内容仅作历史追溯。  
 交接日期：2026-09-13  
 现场只读核对时间：2026-09-13 02:25:38 UTC，即北京时间 10:25:38  
-项目位置：`/Users/crosery/work_file/geek_main`  
+项目位置：`~/work_file/geek_main`  
 适用范围：本轮围绕 Mac、geek_main、论坛迁移、组件库、主站规划、数据迁移和发版规范的完整交接；不涉及用户的其他项目。  
 保密范围：内部交接。本文不包含密码、私钥、Token、会话值、用户正文或数据库附件；不要加入网站公开文档白名单。
 
@@ -272,7 +272,7 @@ git status --porcelain：197 个条目
 ### 6.1 原始私有备份
 
 ```text
-/Users/crosery/work_file/geek_main/.tools/forum-migration/20260913-initial/
+~/work_file/geek_main/.tools/forum-migration/20260913-initial/
 ├── transfer.tar.gz
 └── source/
     ├── manifest.json
@@ -348,7 +348,7 @@ a5f30455530251d7d2347808632b049fcb6147d68e548e52331e3a393a835aac
 ### 6.2 展示投影：已经生成，但没有接页面
 
 ```text
-/Users/crosery/work_file/geek_main/.tools/forum-runtime/geek-20260913/
+~/work_file/geek_main/.tools/forum-runtime/geek-20260913/
 ├── content.json
 ├── manifest.json
 ├── conversion-report.json
@@ -720,7 +720,7 @@ WebCodex 历史收尾仍有名称启发式 `sensitive_path_risk` 和脏工作区
 
 ### 12.2 前面交付做得不好的地方
 
-主要问题不是“少了一段说明”，而是实施没有闭合用户体验：任务跨过代码替换、文档整理、备份、转换和环境显示，却没有完成最重要的页面真实内容接入，也没有交付可运行的发布工作流。
+主要问题不是只缺一段说明，而是实施没有闭合用户体验：任务跨过代码替换、文档整理、备份、转换和环境显示，却没有完成最重要的页面真实内容接入，也没有交付可运行的发布工作流。
 
 应明确纠正：
 
@@ -791,7 +791,7 @@ WebCodex 历史收尾仍有名称启发式 `sensitive_path_risk` 和脏工作区
 ### 14.1 只读定位和状态
 
 ```bash
-cd /Users/crosery/work_file/geek_main
+cd ~/work_file/geek_main
 git status --short
 git branch --show-current
 git rev-parse HEAD
@@ -882,43 +882,43 @@ pnpm check:environments
 
 旧报告是阶段证据，不是最新结论的替代。比如 TUFF-FORUM-ADOPTION 仍有当时“尚未读取旧库”的记录，后来已执行授权备份；LOCAL-CONTENT-ENVIRONMENTS 则没有把已完成测试数字补回正文。本交接明确阶段区别，没有静默重写历史结果。
 
-## 16. 用户关键原话摘录
+## 16. 用户关键要求摘要
 
-以下摘录保留约束来源；其余需求的完整拆解见第 1–3 节。
+以下摘要保留约束来源；其余需求的完整拆解见第 1–3 节。
 
-> geek_main里面是统一总入口，项目模块化要清晰，耦合尽量要少
+> geek_main 是统一总入口：项目要模块化、结构清晰，各模块之间的耦合尽量少。
 
-> docs里面存放对应所有项目规范提交规范贡献规范以及模块化开发规范，技术文档规范等
+> docs 里存放各项目通用的规范：提交规范、贡献规范、模块化开发规范、技术文档规范等。
 
-> 我们的论坛完全运用这个的开发规范，学习里面的开发技巧用对应的组件库，然后论坛全线迁移过去。
+> 论坛要完全采用这套开发规范，学习其中的开发技巧，使用对应的组件库，并把论坛整体迁移过去。
 
-> 宣传主页所有人可以进来，然后进入我们的内部主站需要去进行登录，支持github的认证登录，预留其他登录的可扩展接口
+> 宣传主页对所有人开放；进入内部主站需要登录，支持 GitHub 认证登录，并预留其他登录方式的扩展接口。
 
-> 其他额外服务... 可以预留统一规范的接入接口，支持高度DIY扩展
+> 其他额外服务要预留统一规范的接入接口，支持高度 DIY 扩展。
 
-> 总入口的页面要丰富设计，有那种3D设计游戏感
+> 总入口页面要有丰富的设计，带有 3D、游戏感的效果。
 
-> 后面我们的项目开发完全依赖这个组件库，请你把这个组件库便于ai查询的文档放到docs里面的文件夹方便ai后续的开发。
+> 之后的项目开发完全依赖这个组件库，要把组件库便于 AI 查询的文档放进 docs 目录，方便 AI 后续开发。
 
-> 把那个我们极客班的论坛数据全部迁移进来。
+> 把极客班论坛的全部数据迁移进来。
 
-> 如果你可以连接的话，你先把这个数据拉到我们本地来。然后后面你帮我写个CICD，就是控制发版。
+> 能连接上的话，先把这份数据拉到本地；之后再写一套控制发版的 CI/CD。
 
-> 我们的main分支是主代码，我们发版通常是打tag去部署到服务器里面去
+> main 分支是主代码，发版通常是打 tag 后部署到服务器。
 
-> release-版本号是对应的正式环境发版  
-> prev-版本号是预发布环境发版
+> release-版本号对应正式环境发版。  
+> prev-版本号对应预发布环境发版。
 
-> 版本号必须严格有人试过发版才能去打tag发版更新版本号
+> 版本号必须经过真人实际试用、明确通过后，才能打 tag 发版并更新版本号。
 
-> 其他的大部分更新都是基于commit的id在版本号后面@commit-id 代表是对应版本号的那个commit末端，这个只在预发布的时候会进行
+> 其他大部分更新基于 commit id：在版本号后面写 @commit-id，表示对应版本号的那个 commit 末端；这只在预发布时使用。
 
-> ai进入项目如果它是ai第一步停下任何的事情，必须严格看规范的文档，在我们的docs里面
+> AI 进入项目后第一步必须先停下，严格阅读 docs 里的规范文档，再做任何事。
 
-> prev.yangtzeu.work 是预发布  
-> yangtzeu.work 是发布
+> prev.yangtzeu.work 是预发布环境。  
+> yangtzeu.work 是正式（发布）环境。
 
-> 你这任务完成的非常不好，然后把我前面所说的所有内容和细节以及你的一些结果做成一个交接文档，告诉我，并告诉我位置。
+> 对前面的交付很不满意，要求把前面提出的全部内容、细节和已有结果整理成一份交接文档，并告知文档位置。
 
 ## 17. 本次交接范围与最后提醒
 

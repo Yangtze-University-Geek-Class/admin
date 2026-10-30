@@ -21,7 +21,7 @@ type SiteEntry = {
 type AppConfig = {
   environment: { development: RuntimeEnvironment; production: RuntimeEnvironment };
   sites: Record<AppSiteKind, SiteEntry>;
-  urls: { githubOrg: string; gitlab: string };
+  urls: { githubOrg: string };
   features: {
     development: Record<string, boolean>;
     production: Record<string, boolean>;

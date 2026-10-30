@@ -123,6 +123,10 @@ export function createDeviceStore(db: Database.Database, deps: DeviceStoreDeps =
   // token_expires_at 判断，撤销和自然过期走同一条判定，不用再教它认一个新状态。只对 consumed 的行生效，
   // 撤销一个从没兑换过令牌的授权没有意义（也没有 token_hash 可匹配）。
   const revokeByTokenHash = db.prepare("UPDATE device_grants SET token_expires_at = ? WHERE token_hash = ? AND status = 'consumed' AND token_expires_at > ?");
+  // 改密码、重设密码（#332）：同一个账号已经兑换出去的令牌一起到期，只动还没到期的那些。
+  const revokeByAccount = db.prepare("UPDATE device_grants SET token_expires_at = ? WHERE account_id = ? AND status = 'consumed' AND token_expires_at > ?");
+  // 已批准、还没兑换成令牌的授权（#332）：改密码前就能批准，所以也要过期；poll() 按 expires_at 判断，回 expired_token。
+  const expireApprovedByAccount = db.prepare("UPDATE device_grants SET expires_at = ? WHERE account_id = ? AND status = 'approved' AND expires_at > ?");
   // 身份表由 lib/identity-store.ts 写；这里只读登录名和头像给 userinfo，不碰会话与账号状态机。
   // 没有绑定 GitHub 的账号（邮箱、Google 注册）用账号自己的 yz_ 登录名
   const selectProfile = db.prepare(`SELECT u.status AS status, COALESCE(i.login, u.handle) AS login, i.avatar_url AS avatar_url, i.provider_uid AS github_user_id
@@ -232,7 +236,20 @@ export function createDeviceStore(db: Database.Database, deps: DeviceStoreDeps =
     return revokeByTokenHash.run(clock(), sha256(token), clock()).changes === 1;
   }
 
-  return { createGrant, describe, decide, poll, authenticate, revoke };
+  /**
+   * #332 改密码、重设密码时吊销这个账号的命令行授权，在调用方的事务里执行（lib/account-revoke.ts）：
+   * 已兑换的令牌和 `revoke()` 一样只改 token_expires_at，authenticate() 按同一个时间判断；已批准、还没兑换的设备授权改成现在过期。
+   * 返回两类各自真正改到的行数。
+   */
+  function revokeAccountTokens(accountId: string): { tokens: number; grants: number } {
+    const now = clock();
+    return {
+      tokens: revokeByAccount.run(now, accountId, now).changes,
+      grants: expireApprovedByAccount.run(now, accountId, now).changes,
+    };
+  }
+
+  return { createGrant, describe, decide, poll, authenticate, revoke, revokeAccountTokens };
 }
 
 export type DeviceStore = {
@@ -242,4 +259,5 @@ export type DeviceStore = {
   poll: (input: { deviceCode: string | undefined; clientId: string | undefined }) => DevicePollResult;
   authenticate: (token: string | undefined) => { accountId: string; scope: string; login: string; avatarUrl: string | null; userId: number | null } | null;
   revoke: (token: string | undefined) => boolean;
+  revokeAccountTokens: (accountId: string) => { tokens: number; grants: number };
 };

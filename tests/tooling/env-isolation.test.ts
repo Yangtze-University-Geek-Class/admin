@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  ENV_FILES, PER_ENVIRONMENT_KEYS, checkEnvFiles, checkHardcodedOrigins, checkRepository, countOrigins, isScanned, parseEnv,
+  ENV_FILES, PER_ENVIRONMENT_KEYS, checkEnvFiles, checkHardcodedOrigins, checkRepository, checkSubdomains, countOrigins, isScanned, isSubdomainScanned, parseEnv,
 } from "../../scripts/check-env-isolation.mjs";
 
 const root = process.cwd();
@@ -50,6 +50,13 @@ describe("三份 env 模板的隔离", () => {
     const findings = checkEnvFiles(files, origins);
     expect(findings.find(f => f.rule === "parity")?.message).toContain("POW_DIFFICULTY");
     for (const key of PER_ENVIRONMENT_KEYS) expect(parseEnv(real().production).values.has(key)).toBe(true);
+  });
+
+  it.each(['GITLAB_URL', 'GITLAB_OIDC_SECTOR', 'GITLAB_STACK_ROOT', 'GITLAB_HTTP_BIND', 'GITLAB_DOCKER_SUBNET', 'GITLAB_DOCKER_GATEWAY'])('拒绝两个实例复用 %s', key => {
+    const files = real();
+    const production = parseEnv(files.production).values.get(key)!;
+    files.preview = files.preview.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${production}`);
+    expect(checkEnvFiles(files, origins).some(finding => finding.rule === 'gitlab_isolation' && finding.message.includes(key))).toBe(true);
   });
 
   it("名字像密钥的键必须留空，本机必须不外发不同步", () => {
@@ -116,5 +123,50 @@ describe("代码里写死的环境域名", () => {
     const snippet = read("deploy/gitlab/gitlab-oidc.rb");
     expect(countOrigins(snippet)).toEqual({ production: 0, preview: 0 });
     expect(snippet).toContain("File.read('/etc/gitlab/yzgc-oidc-issuer')");
+  });
+});
+
+describe("环境入口之外的子域名（#335）", () => {
+  const allowed = ["yangtzeu.work", "prev.yangtzeu.work"];
+  const entries = [
+    { host: "cdn.yangtzeu.work", anywhere: true, reason: "独立的对象存储服务器，各环境共用" },
+    { host: "git.yangtzeu.work", file: "deploy/gitlab/gitlab.caddy", max: 1, reason: "旧地址只做跳转" },
+  ];
+
+  it("没登记的子域名会失败；环境入口和登记过的不算", () => {
+    const findings = checkSubdomains([
+      { path: "app/web/x.ts", text: "https://yangtzeu.work/a https://prev.yangtzeu.work/b https://cdn.yangtzeu.work/c" },
+      { path: "deploy/gitlab/gitlab.caddy", text: "git.yangtzeu.work {\n}\n" },
+      { path: "scripts/y.mjs", text: "const learn = 'https://Linux.yangtzeu.work';" },
+    ], entries, allowed);
+    expect(findings).toEqual([{ rule: "subdomain", file: "scripts/y.mjs", message: expect.stringContaining("linux.yangtzeu.work") }]);
+  });
+
+  it("超过登记次数、同一主机写进别的文件、登记过却已经没有了，都会失败", () => {
+    const over = checkSubdomains([{ path: "deploy/gitlab/gitlab.caddy", text: "git.yangtzeu.work git.yangtzeu.work" }], entries, allowed);
+    expect(rules(over)).toEqual(["subdomain"]);
+    expect(over[0].message).toContain("上限 1");
+    const elsewhere = checkSubdomains([
+      { path: "deploy/gitlab/gitlab.caddy", text: "git.yangtzeu.work" },
+      { path: "deploy/gitlab/docker-compose.yml", text: "external_url 'https://git.yangtzeu.work'" },
+    ], entries, allowed);
+    expect(elsewhere).toEqual([{ rule: "subdomain", file: "deploy/gitlab/docker-compose.yml", message: expect.stringContaining("git.yangtzeu.work") }]);
+    expect(checkSubdomains([], entries, allowed)).toEqual([{ rule: "stale_exception", file: "deploy/gitlab/gitlab.caddy", message: expect.stringContaining("git.yangtzeu.work") }]);
+  });
+
+  it("登记要写主机和理由，再加上文件与次数，或者 anywhere", () => {
+    const bad = checkSubdomains([], [
+      { host: "git.yangtzeu.work", file: "a", max: 0, reason: "旧地址只做跳转" },
+      { host: "x.example.test", anywhere: true, reason: "不是本站的子域名哦" },
+      { host: "git.yangtzeu.work", file: "b", max: 1, reason: "短" },
+      { host: "cdn.yangtzeu.work", anywhere: true, file: "c", max: 1, reason: "两种写法不能同时用" },
+      { host: "yangtzeu.work", anywhere: true, reason: "环境入口不用登记在这里" },
+    ], allowed);
+    expect(bad.filter(f => f.rule === "exception")).toHaveLength(5);
+  });
+
+  it("扫描 app、deploy（含 env 模板）、scripts、tests，不扫文档与执行记录", () => {
+    for (const path of ["deploy/env/.env.production", "tests/tooling/x.test.ts", "app/server/README.md", "scripts/forge.mjs", "deploy/gitlab/gitlab.caddy"]) expect(isSubdomainScanned(path)).toBe(true);
+    for (const path of ["docs/ops/GITLAB.md", "notes/INDEX.md", "app/web/node_modules/x/index.js", ".github/workflows/ci.yml", "app/web/public/a.png", "deploy/env/origin-exceptions.json"]) expect(isSubdomainScanned(path)).toBe(false);
   });
 });

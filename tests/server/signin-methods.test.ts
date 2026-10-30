@@ -60,7 +60,7 @@ function github(roles: Record<string, 'admin' | 'member' | null>, calls: string[
 function googleStub() {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const jwk = { ...(publicKey.export({ format: 'jwk' }) as JsonWebKey), kid: 'test-kid', alg: 'RS256', use: 'sig' };
-  const claims: Record<string, unknown> = { sub: 'google-sub-1', email: 'g.user@gmail.com', email_verified: true };
+  const claims: Record<string, unknown> = { sub: 'google-sub-1', email: 'g.user@example.test', email_verified: true };
   const tokenRequests: string[] = [];
   let nonce = '';
   const sign = (payload: Record<string, unknown>) => {
@@ -458,15 +458,15 @@ describe('console permissions come only from the site account; GitHub is a conne
 
   it('gives the provisioned owner 站长 every permission node through email and reports GitHub as not connected without a GitHub App', async () => {
     const { app, mail, calls } = await setup();
-    const owner = app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' });
+    const owner = app.services.identity.provisionAccount({ githubId: 900000001, githubLogin: 'fixture-owner', orgRole: 'admin', email: 'owner@example.test' });
     expect(owner).toMatchObject({ created: true, emailLinked: true });
     // 重跑不重复建
-    expect(app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' })).toMatchObject({ accountId: owner.accountId, created: false, emailLinked: false });
+    expect(app.services.identity.provisionAccount({ githubId: 900000001, githubLogin: 'fixture-owner', orgRole: 'admin', email: 'owner@example.test' })).toMatchObject({ accountId: owner.accountId, created: false, emailLinked: false });
 
     const user = browser(app);
     await user.send('POST', '/auth/email/start', { email: 'owner@example.test' });
     expect((await user.send('POST', '/auth/email/verify', { ...REAL, code: await mail.codeFor('owner@example.test') })).json()).toMatchObject({ registered: false });
-    expect((await user.send('GET', '/auth/me')).json()).toMatchObject({ login: 'Crosery', user_id: 130495739, account_id: owner.accountId, provider: 'email', console_link: true });
+    expect((await user.send('GET', '/auth/me')).json()).toMatchObject({ login: 'fixture-owner', user_id: 900000001, account_id: owner.accountId, provider: 'email', console_link: true });
     const me = (await user.send('GET', '/api/console/me')).json();
     expect(me).toMatchObject({ account_id: owner.accountId, provider: 'email', level: 'member', level_name: '极客班成员', department: null });
     expect(me.titles).toEqual([expect.objectContaining({ id: 'title.site.owner', department_id: null })]);
@@ -497,7 +497,7 @@ describe('console permissions come only from the site account; GitHub is a conne
   it('makes an invite-registered member a 舰员 who can be given a department head title by account, without GitHub', async () => {
     const { app, mail, invite, calls } = await setup();
     invite('yugc-test-2026');
-    const owner = app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' });
+    const owner = app.services.identity.provisionAccount({ githubId: 900000001, githubLogin: 'fixture-owner', orgRole: 'admin', email: 'owner@example.test' });
     const user = browser(app);
     await user.send('POST', '/auth/email/start', { email: 'crew@example.test' });
     await user.send('POST', '/auth/email/verify', { ...REAL, code: await mail.codeFor('crew@example.test'), invite_code: 'yugc-test-2026' });
@@ -566,7 +566,7 @@ describe('site ownership in 成员与权限 (#274：按权限节点判定，取�
   it('needs users.manage to change anyone\'s titles, keeps one site owner, and the change applies to the next request at once', async () => {
     const { app, db, mail, invite, tick } = await setup();
     invite('yugc-test-2026');
-    const owner = app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' });
+    const owner = app.services.identity.provisionAccount({ githubId: 900000001, githubLogin: 'fixture-owner', orgRole: 'admin', email: 'owner@example.test' });
     const signInByEmail = async (email: string, invite_code?: string, nth = 1) => {
       const user = browser(app);
       await user.send('POST', '/auth/email/start', { email });
@@ -888,10 +888,10 @@ describe('Google sign-in (#262)', () => {
     expect(google.tokenRequests.at(-1)).toContain('code_verifier=');
     const me = (await first.user.send('GET', '/auth/me')).json();
     expect(me).toMatchObject({ signed_in: true, provider: 'google', email_required: true, level: 'registered' });
-    expect(db.prepare("SELECT provider_uid, email FROM identities WHERE provider = 'google'").get()).toEqual({ provider_uid: 'google-sub-1', email: 'g.user@gmail.com' });
+    expect(db.prepare("SELECT provider_uid, email FROM identities WHERE provider = 'google'").get()).toEqual({ provider_uid: 'google-sub-1', email: 'g.user@example.test' });
     // 绑上同一个 Gmail 地址就行；注册用户不用补姓名和年级（#280），之后用 Google 登录直接回原页，同一个账号
-    expect((await first.user.send('POST', '/api/identity/email/start', { email: 'g.user@gmail.com' })).statusCode).toBe(202);
-    expect((await first.user.send('POST', '/api/identity/email/verify', { code: await mail.codeFor('g.user@gmail.com') })).json()).toEqual({ ok: true });
+    expect((await first.user.send('POST', '/api/identity/email/start', { email: 'g.user@example.test' })).statusCode).toBe(202);
+    expect((await first.user.send('POST', '/api/identity/email/verify', { code: await mail.codeFor('g.user@example.test') })).json()).toEqual({ ok: true });
     const again = await googleFlow(app, google);
     expect(again.location).toBe('https://example.test/forum/');
     expect((await again.user.send('GET', '/auth/me')).json().account_id).toBe(me.account_id);
@@ -913,12 +913,12 @@ describe('Google sign-in (#262)', () => {
     const { app, mail, invite } = await setup({ env: GOOGLE_ENV, google });
     invite('yugc-test-2026');
     const user = browser(app);
-    await user.send('POST', '/auth/email/start', { email: 'g.user@gmail.com' });
-    await user.send('POST', '/auth/email/verify', { ...REAL, code: await mail.codeFor('g.user@gmail.com'), invite_code: 'yugc-test-2026' });
+    await user.send('POST', '/auth/email/start', { email: 'g.user@example.test' });
+    await user.send('POST', '/auth/email/verify', { ...REAL, code: await mail.codeFor('g.user@example.test'), invite_code: 'yugc-test-2026' });
     expect((await googleFlow(app, google, '&invite=yugc-test-2026')).location).toContain('signin=email_taken');
 
     google.claims.sub = 'google-sub-2';
-    google.claims.email = 'other@gmail.com';
+    google.claims.email = 'other@example.test';
     google.claims.aud = 'someone-else';
     expect((await googleFlow(app, google, '&invite=yugc-test-2026')).location).toContain('signin=failed');
   });
@@ -967,6 +967,41 @@ describe('forgot password and the bind-email gate (#273)', () => {
     const view = (await user.send('GET', '/api/identity/me')).json();
     expect(view.recent[0]).toMatchObject({ action: 'login', provider: 'email' });
     expect(view.recent.map((r: { action: string }) => r.action)).toContain('password_reset');
+  });
+
+  it('revokes the account\'s other sessions when the password is reset (PENTEST-20261029 finding 14)', async () => {
+    const context = await setup();
+    const { app, mail, invite, tick } = context;
+    invite('yugc-test-2026');
+    await emailAccount(context, 'revoke@example.test', 'old passphrase here');
+    tick(61_000);
+    // 旧设备或已经泄露的那条会话：用旧密码登录出来的另一个 sid
+    const stale = browser(app);
+    expect((await stale.send('POST', '/auth/email/password', { email: 'revoke@example.test', password: 'old passphrase here' })).statusCode).toBe(200);
+    expect((await stale.send('GET', '/auth/me')).json().signed_in).toBe(true);
+    // 受害者走「忘了密码」重设
+    const user = browser(app);
+    await user.send('POST', '/auth/email/start', { email: 'revoke@example.test', purpose: 'reset' });
+    expect((await user.send('POST', '/auth/email/reset', { code: await mail.codeFor('revoke@example.test', 2), password: 'new passphrase here' })).statusCode).toBe(200);
+    // 重设之前签发的会话必须失效，这次新签发的照常能用
+    expect((await stale.send('GET', '/auth/me')).json().signed_in).toBe(false);
+    expect((await user.send('GET', '/auth/me')).json().signed_in).toBe(true);
+  });
+
+  it('revokes the account\'s other sessions when the signed-in user changes the password (PENTEST-20261029 finding 14)', async () => {
+    const context = await setup();
+    const { app, invite, tick } = context;
+    invite('yugc-test-2026');
+    await emailAccount(context, 'change@example.test', 'old passphrase here');
+    tick(61_000);
+    const stale = browser(app);
+    expect((await stale.send('POST', '/auth/email/password', { email: 'change@example.test', password: 'old passphrase here' })).statusCode).toBe(200);
+    const user = browser(app);
+    expect((await user.send('POST', '/auth/email/password', { email: 'change@example.test', password: 'old passphrase here' })).statusCode).toBe(200);
+    // 刚登录过，不用再输当前密码；改完之后只留发起修改的这一条
+    expect((await user.send('POST', '/api/identity/password', { password: 'new passphrase here' })).statusCode).toBe(200);
+    expect((await stale.send('GET', '/auth/me')).json().signed_in).toBe(false);
+    expect((await user.send('GET', '/auth/me')).json().signed_in).toBe(true);
   });
 
   it('sets a first password the same way for an email account that never had one', async () => {
@@ -1056,7 +1091,7 @@ describe('hardening from the #262 review', () => {
   // 的「refuses a disabled account and keeps a recorded site role untouched on repeat sign-in」。
   it('shows a GitHub-linked admin signed in by email as a forum member, not a guest', async () => {
     const { app, mail } = await setup();
-    app.services.identity.provisionAccount({ githubId: 130495739, githubLogin: 'Crosery', orgRole: 'admin', email: 'owner@example.test' });
+    app.services.identity.provisionAccount({ githubId: 900000001, githubLogin: 'fixture-owner', orgRole: 'admin', email: 'owner@example.test' });
     const user = browser(app);
     await user.send('POST', '/auth/email/start', { email: 'owner@example.test' });
     await user.send('POST', '/auth/email/verify', { ...REAL, code: await mail.codeFor('owner@example.test') });
@@ -1154,7 +1189,7 @@ describe('Google link (#291)', () => {
 
     expect(await linkFlow(alice, google)).toBe('https://example.test/?open=profile&link=linked&provider=google');
     expect(countUsers(db)).toBe(1);
-    expect(googleRows(db)).toEqual([{ user_id: aliceId, provider_uid: 'google-sub-1', email: 'g.user@gmail.com', email_verified: 1, last_login_at: null }]);
+    expect(googleRows(db)).toEqual([{ user_id: aliceId, provider_uid: 'google-sub-1', email: 'g.user@example.test', email_verified: 1, last_login_at: null }]);
     expect(alice.jar.get('sid')).toBe(sid);
     expect((await alice.send('GET', '/auth/me')).json().account_id).toBe(aliceId);
     expect(activityRows(app, { action: 'auth.link' })).toMatchObject([{ account_id: aliceId, outcome: 'ok', meta: { provider: 'google' } }]);
@@ -1223,7 +1258,7 @@ describe('Google link (#291)', () => {
     // 第一次的授权（另一个 Google 账号）这时才回来：本账号已有 Google，拒绝
     alice.jar.set('google_oauth_state', cookieOfFirst);
     google.claims.sub = 'google-sub-2';
-    google.claims.email = 'second@gmail.com';
+    google.claims.email = 'second@example.test';
     google.setNonce(first.searchParams.get('nonce')!);
     expect(String((await alice.send('GET', `/auth/google/callback?code=ok&state=${first.searchParams.get('state')}`)).headers.location)).toBe('https://example.test/account?link=exists&provider=google');
     expect(googleRows(db)).toMatchObject([{ provider_uid: 'google-sub-1' }]);

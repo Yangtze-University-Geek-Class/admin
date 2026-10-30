@@ -120,7 +120,7 @@
 
 - 执行者：agent-claude-geek-main-1002（Claude Code，claude-opus-5-5，代 Crosery）
 - 做了什么：最终 head 2be086c（合入 stage 38685d1，无冲突）的 CI push 37029072812、pull_request 37029080786 success，正文改后 pr-contract 重跑 success，mergeStateStatus CLEAN；验收证据是这次运行页的 ego 截图（叠了快照说明），附件匿名访问 200；第五、六轮审查评论贴在 PR；gh pr merge 193 --merge --match-head-commit 2be086c897fc
-- 结果：合并提交 bfe32310e59b；issue-lifecycle 关了 #192；远端 task/192 分支已删。部署工作流里这一步第一次真实运行要等 0.1.1 的 rc tag（要所有者授权）。所有者 21:52 要的文档同步强制：PR 阶段 check-doc-sync 已在 CI core 与 branch-guard，发版阶段由本 PR 加在两条部署工作流的 plan job；API.md 不在对照表里的缺口开成 #198 等所有者选方案；stage/main 没有分支保护，CI 红了也拦不住合并，要所有者在仓库设置里定
+- 结果：合并提交 bfe32310e59b；issue-lifecycle 关了 #192；远端 task/192 分支已删。部署工作流里这一步第一次真实运行要等 0.1.1 的 rc tag（要所有者授权）。所有者 21:52 要的[已脱敏]：PR 阶段 check-doc-sync 已在 CI core 与 branch-guard，发版阶段由本 PR 加在两条部署工作流的 plan job；API.md 不在对照表里的缺口开成 #198 等所有者选方案；stage/main 没有分支保护，CI 红了也拦不住合并，要所有者在仓库设置里定
 
 ## 23:51:45 +08:00 · 收尾 · #192 · PR #193 已合并，清理 worktree
 

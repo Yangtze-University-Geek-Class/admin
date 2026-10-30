@@ -162,7 +162,7 @@ describe("登录、注册两个标签 (initialSignInTab / registerProblem)", () 
 
   it("邮箱只挡明显填错的；验证码要先发过、再填满 6 位", () => {
     expect(looksLikeEmail(" new@example.com ")).toBe(true);
-    for (const bad of ["new@", "@example.com", "new example@x.com", ""]) expect(looksLikeEmail(bad), bad).toBe(false);
+    for (const bad of ["new@", "@example.com", "new example@example.test", ""]) expect(looksLikeEmail(bad), bad).toBe(false);
     expect(codeProblem(false, "123456")).toBe("先获取验证码");
     expect(codeProblem(true, "12345")).toBe("验证码是 6 位数字");
     expect(codeProblem(true, "123456")).toBeNull();

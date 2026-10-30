@@ -2,7 +2,7 @@
 
 负责人：crosery
 
-## 01:44:35 +08:00 · 开工 · #295 · 按所有者要求在 GitLab 开展 CDN 迁移
+## 01:44:35 +08:00 · 开工 · #295 · 按所有者要求[已脱敏]
 
 - 执行者：agent-claude-completion-5a（Claude Code）
 - 做了什么：GitLab geek/admin#295 已获明确确认并建立；对真实事项调用现有 task.mjs startGate 成功，再从 origin/stage 建独立 task/295/cdn_migration worktree。现行 start 只连接 GitHub，遵循所有者改以 GitLab 为主的指令，没有伪造 gh 响应或跳过提单校验。

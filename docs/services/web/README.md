@@ -2,7 +2,7 @@
 
 > 官网 portal（React/Vite）+ shared 适配层；web 镜像同时托管控制台产物（`app/console`），是每个环境的 HTTP 入口容器。
 
-状态：`current` · 更新：2026-10-29 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
+状态：`current` · 更新：2026-10-30 · 源码：`app/web/` · 镜像：`yzgc-<environment>/web:<sha12>`
 
 ## 源码地图
 
@@ -26,11 +26,12 @@
 - **域名**：每个环境只有一个域名——正式 `yangtzeu.work`、预发布 `prev.yangtzeu.work`。portal、控制台、论坛同域，按路径区分：控制台是 `/console/…`（统一登录页 `/signin`、设备授权确认页 `/device`、账号页 `/account`、对外授权的同意页 `/authorize`、绑定邮箱页 `/bind-email` 与补资料页 `/complete-profile`（#280）也在控制台产物里，旧的 `/admin/…` 跳到 `/console`），论坛是 `/forum/…`，其余路径是 portal。旧的管理端独立子域与论坛子域都已退役（见 [DEPLOY](../../ops/DEPLOY.md) 历史章节）。
 - **HTTP 边界**：前端只通过 `shared/lib/api` 访问 `/api/*`；跨端链接使用 `externalUrl`，同端使用 Router。生产态跨端链接是同源路径（`/forum/…`、`/console`），不拼域名；开发态仍走 `/sites/<端>/…`，论坛指向本机 3456。
 - **配置**：构建期只读公开配置（`app.config.json`），不加载私有 `.env`，也不含任何域名，同一份产物在两个环境通用；`scripts/check-site-config.mjs`（`pnpm check:site-config`）校验站点不带 host、论坛 basePath 非空且不与其他站点重叠、production 数据源固定为 live。
+- **GitLab 链接**：`links.gitlab()` 返回同源 `/api/public/gitlab`，后端按本环境基址和群组给出302；`urls.gitlab` 已移除，不把正式 GitLab 地址带进预发布产物。GitLab 项目本身的 HTTPS/clone 地址仍来自经过校验的项目 DTO。
 - **静态资源 CDN 开关**（#146）：构建参数 `STATIC_CDN_BASE` 为空时与原来一样同源；等于 `https://cdn.yangtzeu.work/geek-public/static/site/` 时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把带哈希的构建资源（`assets/` 下的 JS、CSS、字体、图片）改写到 CDN，`base` 仍是 `/`，入口 HTML、路由和 `public/` 里不带哈希的文件（favicon、logo、论坛快照、邮件里引用的图）仍走源站；桌面壁纸由 `sites/portal/lib/wallpapers.ts` import（文件在 `sites/portal/assets/wallpapers/`），构建时带哈希，跟着开关走。别的非空值让构建失败。规则只在 `scripts/static-cdn-base.mjs`；`app/web/Dockerfile` 把同一个参数传给官网与控制台两次构建，并断言两个入口页引用的是对应地址。开关由部署工作流决定，上传与核对见 [CICD](../../ops/CICD.md)「静态资源 CDN」。两个环境用同一个 CDN 前缀，产物仍不含环境域名。
 - **UI 选型**：官网是既有 React 实现，后续新增/迁移界面按 [Tuffex 使用政策](../../components/tuffex/USAGE-POLICY.md)；控制台已迁到 Vue + Tuffex（`app/console`）。不引入平行基础 UI 体系。
 - **比赛窗口**（#238）：读匿名比赛接口，按时间显示六种状态（含规划中，#278 重开），每分钟同步重排；日期不在当前北京年份时保留年份，起止同一天只写一个日期；内部与外部链接均可选，只有可解析的 HTTPS 地址可点。损坏的列表响应进入失败态，不冒充空数据；样板截止日期按北京时间日末构造。详见 [portal](portal.md)「比赛窗口」。
 - **比赛官网与 SDK**（#278）：官网站点包不在 web 镜像里，`pnpm --filter @yzgc/web build:contest` 构建到 `sites/contests/<比赛>/dist/site/`，`pnpm contest:site pack <目录> --competition <比赛 id>` 打成 zip 并跑一遍与上传接口相同的校验（`scripts/contest-site.mjs`，规则在 `app/server/src/lib/site-package.ts`：zip ≤ 20MB、≤ 500 个文件、必须有 `index.html` 与 `yzgc-site.json`、不能有符号链接与以 `.` 开头的文件），再在控制台上传、预览、发布。官网只调 `/api/public/*`，不带 cookie；报名、组队、看自己的兑奖码都跳回桌面的比赛窗口（`/?open=competitions&competition=<id>`，加 `&view=team` 直接到组队）。主构建之后再跑 `vite build -c sdk.vite.config.ts` 产出 `dist/sdk/competition/v1.js`，镜像构建时断言它存在。
-- **首页与 YUGC OS v2**（#275）：首页先看今天（北京时间）播没播过开机动画（Canvas 2D，电脑与手机两套构图，能跳过、静音、重播），没播就播，播完淡出到桌面；播过或开了减少动态效果直接进桌面。三维书桌、加载动画、iPhone 模型首页、GitHub 天际线场景与旧吉祥物都已删除，three.js 只留给论坛场景页（加入我们在 #279 改成桌面窗口）。桌面默认壁纸「晴空」接着开机动画最后一帧画；菜单栏头像打开「账号资料」窗口（#280 起是桌面窗口）；组织架构读 `/api/public/departments`，代码仓库是读 `/api/public/gitlab/projects` 的窗口；加入我们是桌面窗口（#279），要登录并显示当天剩余投递份数；前端埋点攒批发 `POST /api/events`。手机是同一套组件的主屏幕形态（状态栏、四列应用、主屏幕加三个主入口的 Dock，窗口按 iOS 页面卡片从底部升起，#233）。细节见 [portal](portal.md)。
+- **首页与 YUGC OS v2**（#275）：首页先看今天（北京时间）播没播过开机动画（Canvas 2D，电脑与手机两套构图，能跳过、静音、重播），没播就播，播完淡出到桌面；播过或开了减少动态效果直接进桌面。三维书桌、加载动画、iPhone 模型首页、GitHub 天际线场景与旧吉祥物都已删除，three.js 只留给论坛场景页（加入我们在 #279 改成桌面窗口）。桌面默认壁纸「晴空」接着开机动画最后一帧画；菜单栏头像打开「账号资料」窗口（#280 起是桌面窗口）；组织架构读 `/api/public/departments`，代码仓库与终端按真实身份读取公开或成员项目并隔离旧私有状态，入口使用极客班统一登录；加入我们是桌面窗口（#279），要登录并显示当天剩余投递份数；前端埋点攒批发 `POST /api/events`。手机是同一套组件的主屏幕形态（状态栏、四列应用、主屏幕加三个主入口的 Dock，窗口按 iOS 页面卡片从底部升起，#233）。细节见 [portal](portal.md)。
 
 ## 运行
 

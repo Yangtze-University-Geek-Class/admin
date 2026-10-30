@@ -90,6 +90,18 @@ function destroySession(id: string): boolean {
 }
 
 /**
+ * 密码换掉之后作废这个账号的其它会话（PENTEST-20261029 finding 14）：原来只删掉发起请求的那条 sid，
+ * 账号被盗后受害者重置密码，攻击者手里的旧会话照样有效。保留刚签发（或当前这次）的那一条，其余全删。
+ */
+function revokeAccountSessions(accountId: string, keepSid: string | null): number {
+  const stmt = keepSid
+    ? db.prepare("DELETE FROM sessions WHERE openid = ? AND id <> ?")
+    : db.prepare("DELETE FROM sessions WHERE openid = ?");
+  const result = keepSid ? stmt.run(accountId, keepSid) : stmt.run(accountId);
+  return result.changes;
+}
+
+/**
  * 清一趟（#128）：删掉所有已过期的会话，再截断 WAL；返回删掉的行数和 WAL 截成没有。登录一次就不再回来的人，
  * 他的会话行和里面加密的高权限 GitHub token 不能一直留在库里；测试直接调这个函数，不用等计时器。
  * secure_delete（lib/db.ts）只让新写的页不带被删的内容，旧页还在 -wal 和库文件里：截断 WAL 时检查点把新页写回库文件、
@@ -215,5 +227,5 @@ async function revokeGrant(accessToken: string): Promise<void> {
   if (res.statusCode !== 204) throw Object.assign(new Error("grant revoke failed"), { code: "github_revoke_failed", status: res.statusCode });
 }
 
-return { createSession, getSession, destroySession, signedInLogins, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant, cleanupExpiredSessions, startCleanup, stopCleanup };
+return { createSession, getSession, destroySession, revokeAccountSessions, signedInLogins, buildAuthorizeUrl, exchangeCode, fetchAuthenticatedUser, revokeGrant, cleanupExpiredSessions, startCleanup, stopCleanup };
 }

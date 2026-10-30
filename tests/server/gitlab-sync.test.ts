@@ -37,7 +37,7 @@ const CONFIRMED = '2026-10-23T12:00:00.000Z';
  * 假 GitLab：只认管理员令牌，用户名和邮箱不分大小写唯一（主邮箱和次邮箱一起算），组成员按 user id 记权限。`fail` 让下一次匹配的请求失败。
  * 邮箱列表和真的 GitLab 一样连主邮箱也列出来（`emails` 只放次邮箱），主邮箱删不掉；换主邮箱后旧的留成已确认的次邮箱。
  */
-function fakeGitlab() {
+function fakeGitlab(base = GITLAB) {
   const users: FakeUser[] = [];
   let nextEmailId = 900;
   const owns = (user: FakeUser, email: string) => [user.email, ...(user.emails ?? []).map(item => item.email)].some(item => item.toLowerCase() === email.toLowerCase());
@@ -61,11 +61,13 @@ function fakeGitlab() {
   async function fetch(input: string, init: RequestInit = {}): Promise<Response> {
     if (unreachable) throw new TypeError('fetch failed');
     const url = new URL(input);
-    expect(url.origin).toBe(GITLAB);
+    expect(url.origin).toBe(new URL(base).origin);
     expect((init.headers as Record<string, string>)['PRIVATE-TOKEN']).toBe('test-gitlab-token');
     expect(init.redirect).toBe('error');
     const method = init.method ?? 'GET';
-    const path = url.pathname.replace(/^\/api\/v4/, '');
+    const prefix = `${new URL(base).pathname.replace(/\/+$/, '')}/api/v4`;
+    expect(url.pathname.startsWith(`${prefix}/`)).toBe(true);
+    const path = url.pathname.slice(prefix.length);
     const call = `${method} ${path}`;
     calls.push(call);
     const hold = holds.findIndex(item => call.startsWith(item.match));
@@ -205,7 +207,7 @@ const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const context of contexts.splice(0)) await context.close(); });
 
 async function setup(env: Record<string, string> = SYNC_ENV, profiles: Record<number, Record<string, unknown>> = {}, callback: string | null = `${GITLAB}/users/auth/openid_connect/callback`) {
-  const gitlab = fakeGitlab();
+  const gitlab = fakeGitlab(env.GITLAB_URL?.replace(/\/+$/, '') ?? GITLAB);
   const github = fakeGithub(profiles);
   const context = await testApp({ gitlabFetch: gitlab.fetch, githubProfileFetch: github.fetch }, false, env);
   contexts.push(context);
@@ -1076,6 +1078,38 @@ describe('console GitLab sync endpoints (#270)', () => {
   const sync = (app: FastifyInstance, accountId: string, headers: Record<string, string>) =>
     app.inject({ method: 'POST', url: `/api/console/gitlab/accounts/${accountId}/resync`, headers });
 
+  it('serves GitLab from a path on the site origin with its old sector: links, API base and console follow GITLAB_URL (#335)', async () => {
+    const base = 'https://example.test/gitlab';
+    const { app, admiral, member, accountOf, subOf, gitlab } = await consoleSetup({ ...SYNC_ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'git.example.test' });
+    // 搬家：先加新回调，验证过再去掉旧的；sector 钉在旧主机上
+    app.services.oidcStore.addRedirectUri('gitlab', `${base}/users/auth/openid_connect/callback`);
+    app.services.oidcStore.removeRedirectUri('gitlab', `${GITLAB}/users/auth/openid_connect/callback`);
+    gitlab.setProjects([
+      { id: 11, path_with_namespace: 'geek/site', name: 'site', description: '开源站点', visibility: 'public', web_url: `${base}/geek/site`, http_url_to_repo: `${base}/geek/site.git`, ssh_url_to_repo: 'git@example.test:geek/site.git', last_activity_at: '2026-10-18T00:00:00.000Z', star_count: 1 },
+    ]);
+    expect((await app.inject('/api/public/gitlab')).headers.location).toBe(`${base}/geek`);
+    const links = { web_url: `${base}/geek/site`, http_url_to_repo: `${base}/geek/site.git` };
+    expect((await app.inject('/api/public/gitlab/projects')).json().projects).toEqual([expect.objectContaining(links)]);
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: member })).json().projects).toEqual([expect.objectContaining(links)]);
+    expect((await app.inject({ url: '/api/console/gitlab/status', headers: admiral })).json()).toMatchObject({ url: base, healthy: true });
+    expect((await app.inject({ url: '/api/console/gitlab/accounts', headers: admiral })).json()).toMatchObject({ gitlab_url: base, client_registered: true });
+
+    const res = await sync(app, accountOf(101), admiral);
+    expect(res.json()).toMatchObject({ applied: true, error: null });
+    expect(userNamed(gitlab, 'alice')).toMatchObject({ extern_uid: subOf(101), email: 'alice@noreply.git.example.test' });
+    // 假 GitLab 只认 <基址路径>/api/v4 下的请求，走到这里说明一次也没丢掉 /gitlab
+    expect(gitlab.calls).toContain('POST /users');
+
+    // 库里钉住的 sector 不是本环境配置的：不认人、不建号，说出原因
+    const other = await setup({ ...SYNC_ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'example.test' });
+    signIn(other.app, 'alice', 101);
+    expect(await other.app.services.gitlab.reconcile()).toMatchObject({ skipped: 'gitlab_sector_mismatch', accounts: 0, outcomes: [] });
+    expect(await other.app.services.gitlab.syncAccount(other.accountOf(101), 'system')).toMatchObject({ error: 'gitlab_sector_mismatch', applied: false });
+    expect(other.app.services.gitlab.clientRegistered()).toBe(false);
+    expect(other.gitlab.calls).toEqual([]);
+    expect(other.app.services.oidcStore.existingSubject('git.example.test', other.accountOf(101))).toBeNull();
+  });
+
   it('lists every account with what is still to do, for the people who manage roles', async () => {
     const { app, admiral, member, accountOf } = await consoleSetup();
     const res = await app.inject({ url: '/api/console/gitlab/accounts', headers: admiral });
@@ -1215,15 +1249,94 @@ describe('GitLab console overview, projects and settings (#274)', () => {
     expect(res.json()).toEqual({ projects: [{ name: 'site', path_with_namespace: 'geek/site', description: '开源站点', web_url: `${GITLAB}/geek/site`, http_url_to_repo: `${GITLAB}/geek/site.git`, last_activity_at: '2026-10-18T00:00:00.000Z' }] });
   });
 
+  it('lets ordinary active members read private group projects without granting console access', async () => {
+    const { app, member } = await consoleSetup();
+    const result = await app.inject({ url: '/api/me/gitlab/projects', headers: member });
+    expect(result.statusCode).toBe(200);
+    expect(result.headers['cache-control']).toMatch(/(?:^|,)\s*no-store\s*(?:,|$)/);
+    expect(result.json().projects.map((project: { path_with_namespace: string }) => project.path_with_namespace)).toEqual(['geek/admin', 'geek/site']);
+    expect((await app.inject({ url: '/api/console/gitlab/projects', headers: member })).statusCode).toBe(403);
+    // 即使带成员 cookie，公开端点也不能混入私有项目。
+    const publicResult = await app.inject({ url: '/api/public/gitlab/projects', headers: member });
+    expect(publicResult.json().projects.map((project: { path_with_namespace: string }) => project.path_with_namespace)).toEqual(['geek/site']);
+  });
+
+  it('rejects guests, registered accounts, expired members and disabled sessions before querying private projects', async () => {
+    const { app, gitlab, accountOf } = await setup();
+    expect((await app.inject('/api/me/gitlab/projects')).statusCode).toBe(401);
+    const registered = rawSignIn(app, 'registered', 707);
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: { cookie: `sid=${registered}` } })).statusCode).toBe(403);
+    const expired = signIn(app, 'expired', 708);
+    app.services.storage.db.prepare("UPDATE perm_members SET expires_at = ? WHERE account_id = ? AND group_id = 'level.member'").run(Date.now() - 1, accountOf(708));
+    app.services.permissions.bump();
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: { cookie: `sid=${expired}` } })).statusCode).toBe(403);
+    const disabled = signIn(app, 'disabled', 709);
+    app.services.storage.db.prepare("UPDATE users SET status = 'disabled' WHERE id = ?").run(accountOf(709));
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: { cookie: `sid=${disabled}` } })).statusCode).toBe(401);
+    expect(gitlab.calls).toEqual([]);
+  });
+
+  it('allows active alumni and rechecks eligibility even when the private list is cached', async () => {
+    const { app, member, accountOf } = await consoleSetup();
+    const accountId = accountOf(101);
+    app.services.storage.db.prepare("UPDATE perm_members SET group_id = 'level.alumni' WHERE account_id = ? AND group_id = 'level.member'").run(accountId);
+    app.services.permissions.bump();
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: member })).json().projects[0].path_with_namespace).toBe('geek/admin');
+    app.services.identity.setSiteRole({ accountId, role: 'none', actor: 'system' });
+    const denied = await app.inject({ url: '/api/me/gitlab/projects', headers: member });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json()).not.toHaveProperty('projects');
+  });
+
+  it('does not send a late private list after membership is revoked during the GitLab request', async () => {
+    const { app, member, gitlab, accountOf } = await consoleSetup();
+    const held = gitlab.hold('GET /groups/geek');
+    const request = Promise.resolve(app.inject({ url: '/api/me/gitlab/projects', headers: member }));
+    await held.hit;
+    app.services.identity.setSiteRole({ accountId: accountOf(101), role: 'none', actor: 'system' });
+    held.release();
+    const result = await request;
+    expect(result.statusCode).toBe(403);
+    expect(result.json()).not.toHaveProperty('projects');
+  });
+
   it('tells the public endpoint apart from "really has zero public projects" when GitLab cannot be reached', async () => {
     const { app, gitlab } = await consoleSetup();
     gitlab.setUnreachable(true);
     expect((await app.inject('/api/public/gitlab/projects')).json()).toEqual({ projects: [], unavailable: true });
   });
 
+  it('does not turn a GitLab projects HTTP failure into a genuine empty member list', async () => {
+    const { app, gitlab, member } = await consoleSetup();
+    gitlab.fail('GET /groups/geek/projects', 503);
+    const result = await app.inject({ url: '/api/me/gitlab/projects', headers: member });
+    expect(result.statusCode).toBe(200);
+    expect(result.json()).toEqual({ projects: [], unavailable: true });
+  });
+
   it('reports unavailable without calling out when GitLab sync is not configured at all', async () => {
     const { app } = await setup({});
     expect((await app.inject('/api/public/gitlab/projects')).json()).toEqual({ projects: [], unavailable: true });
+  });
+
+  it('opens only the current environment group and preserves its GitLab base path', async () => {
+    const { app, gitlab } = await setup({ ...SYNC_ENV, GITLAB_URL: `${GITLAB}/gitlab/`, GITLAB_OIDC_CLIENT: 'gitlab_preview' });
+    expect((await app.inject('/api/public/gitlab?next=https://untrusted.example')).statusCode).toBe(400);
+    const entry = await app.inject('/api/public/gitlab');
+    expect(entry.statusCode).toBe(302);
+    expect(entry.headers.location).toBe(`${GITLAB}/gitlab/geek`);
+    expect(entry.headers['cache-control']).toContain('no-store');
+    app.services.oidcStore.registerClient({ name: 'Preview', clientId: 'gitlab_preview', redirectUris: ['https://preview.example.test/gitlab/users/auth/openid_connect/callback'] });
+    signIn(app, 'preview-member', 801);
+    const accountId = app.services.identity.accountForGithub(801)!;
+    await app.services.gitlab.reconcile();
+    const user = gitlab.users.find(user => user.username === 'preview-member');
+    expect(user?.extern_uid).toBe(app.services.oidcStore.existingSubject('preview.example.test', accountId));
+    expect(user?.extern_uid).toBeTruthy();
+    expect(app.services.oidcStore.existingSubject('git.example.test', accountId)).toBeNull();
+    expect((await app.inject('/api/public/gitlab/projects')).json().unavailable).not.toBe(true);
+    const disabled = await setup({});
+    expect((await disabled.app.inject('/api/public/gitlab')).statusCode).toBe(503);
   });
 });
 
@@ -1235,15 +1348,23 @@ describe('GitLab and OIDC configuration (#270)', () => {
   });
 
   it('keeps sync off by default and asks for the URL and token when it is on', () => {
-    expect(createConfig(env()).gitlab).toEqual({ mode: 'off', url: null, token: null, group: 'geek' });
-    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: `${GITLAB}/` }).gitlab).toEqual({ mode: 'on', url: GITLAB, token: 'test-gitlab-token', group: 'geek' });
+    expect(createConfig(env()).gitlab.mode).toBe('off');
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: `${GITLAB}/` }).gitlab.url).toBe(GITLAB);
     expect(() => createConfig({ ...env(), GITLAB_SYNC: 'yes' })).toThrow('off, dry-run or on');
     // dry-run 只算出要做什么，不调 GitLab，不要令牌；on 才要
-    expect(createConfig({ ...env(), GITLAB_SYNC: 'dry-run', GITLAB_URL: GITLAB }).gitlab).toEqual({ mode: 'dry-run', url: GITLAB, token: null, group: 'geek' });
+    expect(createConfig({ ...env(), GITLAB_SYNC: 'dry-run', GITLAB_URL: GITLAB }).gitlab.mode).toBe('dry-run');
     expect(() => createConfig({ ...env(), GITLAB_SYNC: 'dry-run' })).toThrow('GITLAB_SYNC needs GITLAB_URL');
     expect(() => createConfig({ ...env(), GITLAB_SYNC: 'on', GITLAB_URL: GITLAB })).toThrow('GITLAB_SYNC=on needs GITLAB_API_TOKEN');
-    expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: `${GITLAB}/gitlab` })).toThrow('plain HTTP(S) origin');
+    for (const url of ['file:///gitlab', `https://user:secret@git.example.test/gitlab`, `${GITLAB}/gitlab?token=x`, `${GITLAB}/gitlab#anchor`]) {
+      expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: url })).toThrow();
+    }
     expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_GROUP: 'geek group' })).toThrow('group path');
+    expect(createConfig({ ...env(), ...SYNC_ENV }).gitlab.sector).toBeNull();
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: 'Git.Example.Test' }).gitlab.sector).toBe('git.example.test');
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: '127.0.0.1:8930' }).gitlab.sector).toBe('127.0.0.1:8930');
+    for (const sector of ['https://git.example.test', 'git.example.test/gitlab', '-bad.example.test']) {
+      expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: sector })).toThrow('GITLAB_OIDC_SECTOR');
+    }
   });
 
   it('accepts a private RSA JWK Set as JSON or base64 and nothing else', async () => {

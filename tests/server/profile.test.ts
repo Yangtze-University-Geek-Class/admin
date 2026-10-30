@@ -47,10 +47,10 @@ describe('账号资料（GET/PATCH /api/identity/profile，#274）', () => {
     const first = await app.inject({ method: 'PATCH', url: '/api/identity/profile', headers: { cookie }, payload: { display_name: '极客', bio: '你好', prefs: { forum_theme: 'sky' } } });
     expect(first.statusCode).toBe(200);
     expect(first.json()).toMatchObject({ display_name: '极客', bio: '你好', prefs: { forum_theme: 'sky' } });
-    const second = await app.inject({ method: 'PATCH', url: '/api/identity/profile', headers: { cookie }, payload: { username: 'crosery_test', prefs: { start_note_seen_at: 123 } } });
+    const second = await app.inject({ method: 'PATCH', url: '/api/identity/profile', headers: { cookie }, payload: { username: 'fixture_test', prefs: { start_note_seen_at: 123 } } });
     expect(second.statusCode).toBe(200);
     // 第二次没传 forum_theme，应该还在；新传的 start_note_seen_at 也要在，证明是合并写
-    expect(second.json()).toMatchObject({ username: 'crosery_test', display_name: '极客', prefs: { forum_theme: 'sky', start_note_seen_at: 123 } });
+    expect(second.json()).toMatchObject({ username: 'fixture_test', display_name: '极客', prefs: { forum_theme: 'sky', start_note_seen_at: 123 } });
   });
 
   it('用户名被占用回 409', async () => {

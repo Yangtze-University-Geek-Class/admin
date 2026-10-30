@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { applySync, planSync } from "../../scripts/hotfix-sync.mjs";
+import { applySync, existingTagNames, mergedVersion, planSync, previewTagOf } from "../../scripts/hotfix-sync.mjs";
 
 // hotfix 合进 main 之后：main 同步到镜像，再合回 stage，保证 stage >= main。
 // 夹具是临时目录里的两个裸仓库（gitlab、github）加一个工作克隆，不碰 geek_main 的任何分支或远端。
@@ -15,7 +15,7 @@ const run = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user
 const NOW = new Date("2026-10-30T12:00:00+08:00");
 const registry = (status = "open") => `${JSON.stringify({
   schemaVersion: 1,
-  windows: [{ issue: 5, tag: "v1.2.3", status, approvedBy: "Crosery", approvedAt: "2026-10-28T19:11:00+08:00", expiresAt: "2026-11-04T19:11:00+08:00", quote: "这是一个必须走 hotfix 的 P0 问题" }],
+  windows: [{ issue: 5, tag: "v1.2.3", status, approvedBy: "所有者", approvedAt: "2026-10-28T19:11:00+08:00", expiresAt: "2026-11-04T19:11:00+08:00", approval: "这是一个必须走 hotfix 的 P0 问题" }],
 }, null, 2)}\n`;
 
 function fixture() {
@@ -33,14 +33,17 @@ function fixture() {
   run(work, "remote", "add", "gitlab", gitlab);
   run(work, "remote", "add", "origin", github);
   const commit = (file: string, content: string, message: string) => { mkdirSync(join(work, file, ".."), { recursive: true }); writeFileSync(join(work, file), content); run(work, "add", file); run(work, "commit", "-m", message); return run(work, "rev-parse", "HEAD"); };
-  commit("base.txt", "base\n", "baseline");
+  // 根 package.json 的 version 决定 -hf / -stable tag 的 X.Y.Z；基线里就是 1.2.3。
+  writeFileSync(join(work, "package.json"), `${JSON.stringify({ name: "fixture", version: "1.2.3" }, null, 2)}\n`);
+  run(work, "add", "package.json");
+  const base = commit("base.txt", "base\n", "baseline");
   run(work, "branch", "stage");
   const pushAll = (...refs: string[]) => { for (const remote of ["gitlab", "origin"]) for (const ref of refs) run(work, "push", "--quiet", remote, `${ref}:refs/heads/${ref}`); };
   pushAll("main", "stage");
   const head = (remote: string, branch: string) => run(work, "ls-remote", remote, `refs/heads/${branch}`).split("\t")[0];
   const sync = (options: Record<string, unknown> = {}) => applySync({ repo: work, source: "gitlab", mirror: "origin", now: NOW, ...options });
   const isAncestor = (a: string, b: string) => { try { run(work, "merge-base", "--is-ancestor", a, b); return true; } catch { return false; } };
-  return { work, gitlab, github, commit, pushAll, head, sync, isAncestor };
+  return { work, gitlab, github, commit, pushAll, head, sync, isAncestor, base };
 }
 
 describe("hotfix-sync", () => {
@@ -248,3 +251,189 @@ describe("hotfix-sync", () => {
   });
 
 });
+
+// --preview-tag：热修复合回 stage 之后，在新的 stage 提交上打预发布 tag（hf 或 stable），先推 origin 再推 gitlab。
+describe("hotfix-sync --preview-tag", () => {
+  /** 所有者对这次打 tag 的批准摘要：发布 tag 要对该版本的明确授权，写进 tag 说明。 */
+  const APPROVAL = "所有者 10-30 在会话中批准：热修复合回后打预发布 tag";
+  /** 基线上打正式 tag v1.2.3 并推到两个远端：预发布 tag 只属于已经正式发布过的版本。 */
+  const releaseTag = (f: ReturnType<typeof fixture>) => {
+    run(f.work, "tag", "-a", "v1.2.3", "-m", "v1.2.3", f.base);
+    for (const remote of ["gitlab", "origin"]) run(f.work, "push", "--quiet", remote, "refs/tags/v1.2.3:refs/tags/v1.2.3");
+  };
+  const remoteTags = (f: ReturnType<typeof fixture>, remote: string) => run(f.work, "ls-remote", "--tags", remote).split("\n").filter(Boolean).map(line => line.split("\t")[1].replace("refs/tags/", "")).filter(name => !name.endsWith("^{}"));
+  const allHeads = (f: ReturnType<typeof fixture>) => [f.head("gitlab", "main"), f.head("gitlab", "stage"), f.head("origin", "main"), f.head("origin", "stage")];
+
+  it("hf：合回 main 的热修复 → 新 stage 提交上打附注 v1.2.3-hf.1，推到两个远端；没有新提交时不再打", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "main");
+    const fix = f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const result = f.sync({ previewTag: true, tagApproval: APPROVAL });
+    expect(result.ok, result.messages.join("\n")).toBe(true);
+    expect(result.tag).toMatchObject({ kind: "hf", tag: "v1.2.3-hf.1", version: "1.2.3", number: 1, display: "1.2.3-hf.1" });
+    const stage = f.head("gitlab", "stage");
+    expect(f.isAncestor(fix, stage)).toBe(true);
+    for (const remote of ["gitlab", "origin"]) {
+      expect(remoteTags(f, remote)).toContain("v1.2.3-hf.1");
+      expect(f.head(remote, "stage")).toBe(stage);
+    }
+    expect(run(f.work, "cat-file", "-t", "refs/tags/v1.2.3-hf.1")).toBe("tag");
+    expect(run(f.work, "tag", "-l", "--format=%(contents)", "v1.2.3-hf.1")).toContain(`授权：${APPROVAL}`);
+    expect(run(f.work, "rev-parse", "v1.2.3-hf.1^{commit}")).toBe(stage);
+    expect(run(f.work, "worktree", "list").split("\n")).toHaveLength(1);
+
+    const again = f.sync({ previewTag: true, tagApproval: APPROVAL });
+    expect(again.ok).toBe(true);
+    expect(again.tag).toBeNull();
+    expect(run(f.work, "tag", "--list", "v1.2.3-hf.*")).toBe("v1.2.3-hf.1");
+  });
+
+  it("N 跨两个远端、也跨本地取最大值加一：origin 有 hf.1、gitlab 有 hf.2，这次是 hf.3，不复用已用的号", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "tag", "v1.2.3-hf.1", f.base);
+    run(f.work, "push", "--quiet", "origin", "refs/tags/v1.2.3-hf.1:refs/tags/v1.2.3-hf.1");
+    run(f.work, "tag", "v1.2.3-hf.2", f.base);
+    run(f.work, "push", "--quiet", "gitlab", "refs/tags/v1.2.3-hf.2:refs/tags/v1.2.3-hf.2");
+    run(f.work, "tag", "-d", "v1.2.3-hf.2");
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const result = f.sync({ previewTag: true, tagApproval: APPROVAL });
+    expect(result.ok, result.messages.join("\n")).toBe(true);
+    expect(result.tag?.tag).toBe("v1.2.3-hf.3");
+    expect(remoteTags(f, "origin")).toContain("v1.2.3-hf.3");
+    expect(remoteTags(f, "gitlab")).toContain("v1.2.3-hf.3");
+  });
+
+  it("stable：--close-window 带来的收尾提交打 v1.2.3-stable.1，展示不带 N，收尾登记在打 tag 的那个提交上", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "stage");
+    f.commit("unreleased.txt", "未发布功能\n", "feat: 只在 stage 的功能");
+    f.pushAll("stage");
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const evidence = "合回 stage 的提交 abc1234，线上 release.json 核对通过";
+    const result = f.sync({ closeWindow: 5, evidence, previewTag: true, tagApproval: APPROVAL });
+    expect(result.ok, result.messages.join("\n")).toBe(true);
+    expect(result.tag).toMatchObject({ kind: "stable", tag: "v1.2.3-stable.1", display: "1.2.3-stable" });
+    const stage = f.head("gitlab", "stage");
+    expect(run(f.work, "rev-parse", "v1.2.3-stable.1^{commit}")).toBe(stage);
+    for (const remote of ["gitlab", "origin"]) expect(remoteTags(f, remote)).toContain("v1.2.3-stable.1");
+    expect(JSON.parse(run(f.work, "show", `${stage}:deploy/hotfix/windows.json`)).windows[0]).toMatchObject({ status: "closed", evidence });
+  });
+
+  it("没有正式 tag，或 stage 的版本不是已发布版本：推送之前就停下，两个远端一个 ref 都不动，什么 tag 都不打", () => {
+    const unreleased = fixture();
+    run(unreleased.work, "checkout", "-q", "main");
+    unreleased.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(unreleased.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const before = allHeads(unreleased);
+    const refused = unreleased.sync({ previewTag: true, tagApproval: APPROVAL });
+    expect(refused.ok).toBe(false);
+    expect(refused.code).toBe(2);
+    expect(refused.messages.join("\n")).toContain("还没有正式 tag v1.2.3");
+    expect(allHeads(unreleased)).toEqual(before);
+    expect(remoteTags(unreleased, "origin")).toEqual([]);
+
+    const bumped = fixture();
+    releaseTag(bumped);
+    run(bumped.work, "checkout", "-q", "stage");
+    bumped.commit("package.json", `${JSON.stringify({ name: "fixture", version: "1.2.4" }, null, 2)}\n`, "chore: 升版本到 1.2.4");
+    bumped.pushAll("stage");
+    run(bumped.work, "checkout", "-q", "main");
+    bumped.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(bumped.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const mismatch = allHeads(bumped);
+    const versionRefused = bumped.sync({ previewTag: true, tagApproval: APPROVAL });
+    expect(versionRefused.ok).toBe(false);
+    expect(versionRefused.messages.join("\n")).toContain("v1.2.4");
+    expect(allHeads(bumped)).toEqual(mismatch);
+    expect(remoteTags(bumped, "origin")).toEqual(["v1.2.3"]);
+  });
+
+  it("没有 --tag-approval 就不打 tag：直接拒绝，两个远端一个 ref 都不动", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const before = allHeads(f);
+    for (const tagApproval of [undefined, "", "好的"]) {
+      const result = f.sync({ previewTag: true, tagApproval });
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe(2);
+      expect(result.messages.join("\n")).toContain("--tag-approval");
+    }
+    expect(allHeads(f)).toEqual(before);
+    expect(remoteTags(f, "origin")).toEqual(["v1.2.3"]);
+  });
+
+  it("重跑已经关过的 --close-window 不算收尾：这次合进来的是热修复就打 hf，不打 stable", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const evidence = "合回 stage 的提交 abc1234，线上 release.json 核对通过";
+    const closed = f.sync({ closeWindow: 5, evidence, previewTag: true, tagApproval: APPROVAL });
+    expect(closed.ok, closed.messages.join("\n")).toBe(true);
+    expect(closed.tag?.kind).toBe("stable");
+    // 另一个 P0 窗口 #6 开着，又一个热修复进了 main；命令行照旧带着 --close-window 5
+    run(f.work, "fetch", "--quiet", "gitlab");
+    run(f.work, "checkout", "-q", "-B", "main", "gitlab/main");
+    const both = JSON.parse(run(f.work, "show", "gitlab/main:deploy/hotfix/windows.json"));
+    both.windows.push({ ...JSON.parse(registry()).windows[0], issue: 6 });
+    f.commit("deploy/hotfix/windows.json", `${JSON.stringify(both, null, 2)}\n`, "fix: 第二个修复 (#6)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const again = f.sync({ closeWindow: 5, evidence, previewTag: true, tagApproval: APPROVAL });
+    expect(again.ok, again.messages.join("\n")).toBe(true);
+    expect(again.tag?.kind).toBe("hf");
+  });
+
+  it("只能在 source 与 origin（GitHub 镜像）两个不同远端之间用：其它组合直接拒绝，什么都不推", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const before = allHeads(f);
+    const result = applySync({ repo: f.work, source: "gitlab", mirror: "gitlab", now: NOW, previewTag: true, tagApproval: APPROVAL });
+    expect(result.ok).toBe(false);
+    expect(result.messages.join("\n")).toContain("--preview-tag 只能在 source 与 origin");
+    expect(allHeads(f)).toEqual(before);
+  });
+
+  it("plan 预告会打的 tag（只读）：hf 与 stable 各自的名字，不指定 --preview-tag 时写明不打", () => {
+    const f = fixture();
+    releaseTag(f);
+    run(f.work, "checkout", "-q", "main");
+    f.commit("deploy/hotfix/windows.json", registry(), "fix: 修复 (#5)");
+    run(f.work, "push", "--quiet", "gitlab", "main:refs/heads/main");
+    const before = allHeads(f);
+    const hf = execFileSync("node", [script, "plan", "--preview-tag"], { cwd: f.work, encoding: "utf8" });
+    expect(hf).toContain("将打 v1.2.3-hf.1（hf，展示 1.2.3-hf.1@<stage 提交前 12 位>）");
+    const stable = execFileSync("node", [script, "plan", "--preview-tag", "--close-window", "5"], { cwd: f.work, encoding: "utf8" });
+    expect(stable).toContain("将打 v1.2.3-stable.1（stable，展示 1.2.3-stable@<stage 提交前 12 位>）");
+    expect(execFileSync("node", [script, "plan"], { cwd: f.work, encoding: "utf8" })).toContain("不指定 --preview-tag");
+    expect(allHeads(f)).toEqual(before);
+    expect(run(f.work, "tag", "--list", "v1.2.3-*")).toBe("");
+  });
+
+  it("纯函数：N 与种类的选择；版本从合并结果的 package.json 读", () => {
+    const f = fixture();
+    releaseTag(f);
+    expect(previewTagOf({ moved: false, stableRun: false, hotfixMerged: true, version: "1.2.3", tagNames: [] })).toBeNull();
+    expect(previewTagOf({ moved: true, stableRun: false, hotfixMerged: false, version: "1.2.3", tagNames: [] })).toBeNull();
+    expect(previewTagOf({ moved: true, stableRun: true, hotfixMerged: false, version: "1.2.3", tagNames: ["v1.2.3-hf.4"] })).toMatchObject({ tag: "v1.2.3-stable.1", display: "1.2.3-stable" });
+    expect(previewTagOf({ moved: true, stableRun: false, hotfixMerged: true, version: "1.2.3", tagNames: ["v1.2.3-hf.4", "v1.2.2-hf.9"] })).toMatchObject({ tag: "v1.2.3-hf.5", display: "1.2.3-hf.5" });
+    expect(existingTagNames(f.work, ["gitlab", "origin"])).toEqual(["v1.2.3"]);
+    run(f.work, "checkout", "-q", "stage");
+    expect(mergedVersion(f.work, f.head("gitlab", "stage"), f.base)).toBe("1.2.3");
+  });
+});
+

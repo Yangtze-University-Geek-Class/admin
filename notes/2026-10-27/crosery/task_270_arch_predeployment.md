@@ -193,7 +193,7 @@
 ## 16:21:12 +08:00 · 提交 · #270 · 私有桶备份加三日期保留：prune-runs，上传核验后清理旧 run
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：garage-archive.mjs 新增 prune-runs（缺省只列清单，--apply 才删）；backup.sh 与 platform-archive.sh 在上传读回核验之后各调用一次，保留最近 3 个带完整 SHA256SUMS 的备份日期；所有者 2026-10-27 16:08 指示香港空间有限、备份要清理快照。文档核对：docs/ops/GITLAB.md、docs/ops/BACKUP.md 已改。
+- 做了什么：garage-archive.mjs 新增 prune-runs（缺省只列清单，--apply 才删）；backup.sh 与 platform-archive.sh 在上传读回核验之后各调用一次，保留最近 3 个带完整 SHA256SUMS 的备份日期；所有者 2026-10-27 16:08 指示[已脱敏]。文档核对：docs/ops/GITLAB.md、docs/ops/BACKUP.md 已改。
 - 结果：vitest tests/tooling/garage-archive（含 7 条新增清理用例）、platform-archive、gitlab-backup-storage 共 3 个文件 32 passed；shellcheck、check-secrets、check-doc-sync、check-architecture 通过。清理对象只限 geek-backup 的 gitlab/ 与 platform/<环境>/；有效日期不足 3 个、最新 run 清单对不上、目录结构异常均零删除。线上 geek-backup 目前没有可清理的真备份（3 个探针/演练对象），未对线上桶执行清理。
 
 ## 20:47:06 +08:00 · 返工 · #270 · 按独立审查收紧 prune-runs：逐 run 核验清单、清单最后上传、拒绝超前日期
@@ -226,7 +226,7 @@
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
 - 做了什么：对合并提交 fa624164 复核并把结论写成评论 1478 发到 MR !33，列出门禁实测、上一轮两个 Spec 阻塞项的处理、继承的 K10 与未验证项。
-- 结果：代码轴无未决阻塞；机器门禁只剩继承的 K10。所有者 10-27 要求全部并入 stage，据此合并，K10 仍待所有者裁决。
+- 结果：代码轴无未决阻塞；机器门禁只剩继承的 K10。所有者 10-27 要求[已脱敏]，据此合并，K10 仍待所有者裁决。
 
 ## 22:12:31 +08:00 · PR · #270 · MR !33 在 GitLab 开启，合并时核对出链路缺 PR 记录
 

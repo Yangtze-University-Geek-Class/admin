@@ -109,8 +109,10 @@
         "evidence": "GitLab 现在信任预发布签发者，预发布账号能登录（回填登记）"
       },
       "production": {
-        "status": "pending",
-        "action": "部署带 OIDC_JWKS 的正式版本后，在 GitHub Actions 手动触发 gitlab-cutover：先 migrate-subjects 演算、看过可迁/冲突/对不上三个数再 apply，再 switch-issuer（演算后 apply）；验收：status 显示 GitLab 签发者读宿主文件且 yzgc-oidc-issuer 是正式 origin，正式成员能经「极客班统一登录」进 GitLab，原有 GitLab 账号没有变成新账号。回滚：rollback-issuer。不需要登录目标机"
+        "status": "done",
+        "action": "部署带 OIDC_JWKS 的正式版本后，在 GitHub Actions 手动触发 gitlab-cutover：先 migrate-subjects 演算、看过可迁/冲突/对不上三个数再 apply，再 switch-issuer（演算后 apply）；验收：status 显示 GitLab 签发者读宿主文件且 yzgc-oidc-issuer 是正式 origin，正式成员能经「极客班统一登录」进 GitLab，原有 GitLab 账号没有变成新账号。回滚：rollback-issuer。不需要登录目标机",
+        "doneAt": "2026-10-30T18:05:07+08:00",
+        "evidence": "#308 的 gitlab-cutover 运行 40927060308 至 40930901538 完成 migrate-subjects 与 switch-issuer；10-30 status 运行 41037981251：GitLab 签发者读宿主文件 yzgc-oidc-issuer，值是正式 origin 的 /oidc，正式发现文档的 issuer 相同，正式库客户端为 gitlab；verify-accounts 运行 41036945384 有效成员 49 全部核对通过、sub 与改接前一致，GitLab 账号数没有增加；正式 GitLab 登录页跳正式 /oidc/auth（client gitlab）实测登录成功"
       },
       "release": "0.1.1"
     },
@@ -127,9 +129,9 @@
         "status": "waived",
         "action": "所有者登录 DNSPod 把 cdn 子域 A 记录指向香港边缘；验收：cdn-verify.sh 连续 12 次 200",
         "waiver": {
-          "by": "Crosery",
+          "by": "所有者",
           "at": "2026-10-28T22:32:15+08:00",
-          "quote": "cdn是另外一台服务器，指向我们的线上服务干嘛，cdn是边缘对象存储，不能解析到我们自己的服务器"
+          "approval": "所有者 2026-10-28 22:32 在会话中批准豁免：CDN 是边缘对象存储，不解析到自有服务器"
         }
       }
     },
@@ -144,8 +146,10 @@
         "evidence": "预发布 rc.29 的 portal 脚本在新 CDN 上（回填登记）"
       },
       "production": {
-        "status": "pending",
-        "action": "前置 P-0002、P-0008。下一次正式 hotfix 部署由 static-cdn 环境的凭据构建；验收：正式首页脚本地址在新 CDN 上，宣传片 HLS 能播"
+        "status": "done",
+        "action": "前置 P-0002、P-0008。下一次正式 hotfix 部署由 static-cdn 环境的凭据构建；验收：正式首页脚本地址在新 CDN 上，宣传片 HLS 能播",
+        "doneAt": "2026-10-29T08:37:29+08:00",
+        "evidence": "正式 hotfix 40729259328 attempt 2 全部10个job success；/release.json=production 0.1.1@9438af8b3f044d4ebcd2a8bf993e4f556749c9b5。真实浏览器入口脚本 https://cdn.yangtzeu.work/geek-public/static/site/assets/portal-3j-ZJlxy.js；宣传片加载新CDN的 media/promo/v5-tone-e1419fc9331a/master-h264.m3u8 和 h264_720/index.m3u8，readyState=4、paused=false、duration=105、currentTime=72.538444，观察到播放画面。未改CDN DNS。"
       },
       "release": "0.1.1"
     },
@@ -176,8 +180,10 @@
         "evidence": "预发布 GITLAB_SYNC 现为 on，已与 6 个 OIDC 身份对应；两边同时 on 会在同一个 GitLab 里抢建同名账号（docs/services/server/oidc.md 单写者规则）"
       },
       "production": {
-        "status": "pending",
-        "action": "先发预发布把 GITLAB_SYNC 改 off（需所有者授权 rc 标签），再把正式 GITLAB_SYNC 改 on 并重新部署；验收：正式 level.member 账号都有 GitLab 账号并在 geek 组内（只读核对数量）。这一步改的是 env 模板和部署，不需要登录目标机"
+        "status": "done",
+        "action": "先发预发布把 GITLAB_SYNC 改 off（需所有者授权 rc 标签），再把正式 GITLAB_SYNC 改 on 并重新部署；验收：正式 level.member 账号都有 GitLab 账号并在 geek 组内（只读核对数量）。这一步改的是 env 模板和部署，不需要登录目标机",
+        "doneAt": "2026-10-30T18:05:07+08:00",
+        "evidence": "两个环境已是两个独立的 GitLab 实例（#308 起预发布有自己的 GitLab 与 gitlab_preview 客户端，#335 后正式在正式入口的 /gitlab），各自只有本环境一个同步写者。正式：verify-accounts 运行 41036945384 显示 mode on（持久设置 on、令牌已配置），有效成员 49、已映射 49、已核对 49、failures 为空；正式控制台显示 GitLab 同步连接正常、同步已打开。预发布：运行中的 server 同步为 off，不写正式 GitLab；预发布 GitLab 自己的同步随预发布同构另行接通（#335 预发布对齐）"
       },
       "release": "0.1.1"
     },
@@ -195,6 +201,56 @@
         "action": "同一台 Arch，无需再做；部署后宿主层步骤会核对物料一致。复核：systemctl list-timers 'cdn-mirror*'，cat /srv/cdn-mirror/status.json 的 ok 为 true",
         "doneAt": "2026-10-28T21:04:01+08:00",
         "evidence": "Arch 实机 2026-10-28 21:03：install-host.sh plan 八项全是 same，verify 通过，cdn-mirror.sh watch 输出 ok；两个定时器已启用（下次 02:22）；status.json 的 ok 为 true，五个桶 verified"
+      }
+    },
+    {
+      "id": "P-0013",
+      "surface": "host",
+      "title": "GitLab预发布子路径入口的受限运维通道",
+      "issue": 308,
+      "preview": {
+        "doneAt": "2026-10-29T12:07:30+08:00",
+        "evidence": "所有者明确批准首次安装。香港已通过仓库install-host安装固定动作接收器；专用SSH plan成功、id被拒，候选Caddy配置真实validate通过。未激活预发布路由、未启动GitLab。"
+      },
+      "production": {
+        "status": "done",
+        "action": "在同一香港宿主保全正式Caddy块和原SSH授权；独立私钥仅存production环境GITLAB_EDGE_SSH_KEY，经required reviewers调用固定动作。核对正式配置摘要不变，不能把通道安装当成正式SSO或预发布实例验收。",
+        "doneAt": "2026-10-29T12:13:42+08:00",
+        "evidence": "同一香港宿主的首次受限通道安装已完成；专用key仅在production环境GITLAB_EDGE_SSH_KEY，真实required_reviewers仍存在。新key执行plan成功、id被拒，临时私钥已删除。Caddy未reload，正式配置摘要仍为c9ef6f81db7e9e2b569546b031669df5bf7f6469c66be4417d794694be92271a；本条不核销GitLab实例或SSO验收。"
+      }
+    },
+    {
+      "id": "P-0014",
+      "surface": "env",
+      "issue": 328,
+      "title": "发件地址改为环境密钥 MAIL_ALIYUN_FROM、MAIL_RESEND_FROM，env 模板不再写地址",
+      "preview": {
+        "doneAt": "2026-10-30T10:34:04+08:00",
+        "evidence": "2026-10-30T02:34Z 已在 GitHub 预发布环境 preview 里设好 MAIL_ALIYUN_FROM、MAIL_RESEND_FROM，API 回读到名字和 updated_at"
+      },
+      "production": {
+        "status": "done",
+        "action": "在 GitHub 正式环境 production 里设同名两个 secrets，部署流水线渲染进 .env.production；值不写进仓库或记录",
+        "doneAt": "2026-10-30T10:34:08+08:00",
+        "evidence": "2026-10-30T02:34Z 已在 GitHub 正式环境 production 里设好 MAIL_ALIYUN_FROM、MAIL_RESEND_FROM，API 回读到名字和 updated_at"
+      }
+    },
+    {
+      "id": "P-0017",
+      "surface": "host",
+      "title": "正式 GitLab 搬到正式入口的 /gitlab，旧主机只做 301（和预发布同构）",
+      "issue": 335,
+      "phase": "post_deploy",
+      "release": "0.1.1",
+      "preview": {
+        "doneAt": "2026-10-30T12:21:39+08:00",
+        "evidence": "预发布 GitLab 从 #308 起就在本环境入口的 /gitlab：香港预发布站点块的 /gitlab 处理器、gitlab_preview 客户端（sector 为预发布主机）；正式仍在子域名上，本条让正式同构"
+      },
+      "production": {
+        "status": "done",
+        "action": "走 #335 的 P0 热修复窗口（v0.1.1）。所有者批准后先重跑 install-host.sh apply --target edge 带两份模板升级香港接收器，再 verify；然后 deploy-hotfix（HOTFIX_ISSUE=335）发带 #335 的 server（认 oauth_clients.sector_id，正式 GITLAB_URL 换成 /gitlab），gitlab-cutover path-status 确认正式库「认得 sector 钉住」；再 move-production-path 先演算再 apply（前后各一次 GitLab 一致性备份、记账号基线、新回调先加、核对新地址 200、旧地址 301 同一路径、统一登录带新回调、抽样成员 sub 不变且没有多出不是成员号的 GitLab 账号之后才去掉旧回调，任一步失败两半都恢复），接着 verify-accounts，最后手动跑一次比赛贡献收集。验收：新地址能打开并能统一登录，旧地址 301，git clone/fetch/push 两个地址都能用，verify-accounts 通过，收集没有报 GitLab 错误。回滚：rollback-production-path；回调改完后不能直接退回旧 server 镜像，先回滚回调再退。Arch 不需要登录",
+        "doneAt": "2026-10-30T18:03:42+08:00",
+        "evidence": "gitlab-cutover 运行 41025896271、41026637638 把正式 GitLab 搬到正式入口的 /gitlab；deploy-hotfix 41033176202 十个 job 全绿（含 smoke），正式 release.json 为 0.1.1@28a2e7a4；verify-accounts 运行 41036945384：有效成员 49、已核对 49、failures 为空，抽样 49 个成员的 sub 与搬家前一致，GitLab 账号搬家前后都是 59 个、没有多出非成员号；新地址根路径与 geek/admin 都 302 到 /gitlab/users/sign_in，登录页表单走统一登录；本机 gitlab remote 用新地址 fetch/push 正常；旧主机的 DNS 已由所有者删除，不再核对 301；正式控制台的比赛贡献收集在部署后 17:53 自动跑过一轮（读 91 条，没有 GitLab 错误），手动点「立即收集」被控制台的重新登录门槛拦下（要所有者本人完成 GitHub 会话验证），以自动轮次为准"
       }
     }
   ]

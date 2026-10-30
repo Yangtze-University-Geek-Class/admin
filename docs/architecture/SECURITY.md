@@ -2,7 +2,7 @@
 
 > 区分核心后端授权、论坛服务端模式与本机演示；代码防护、真实环境配置和人工验收分别取证。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-30
 
 ## 核心服务
 
@@ -13,6 +13,10 @@
 **删掉的会话在库文件里也不留字节**：SQLite 默认只把删掉的行标成空闲，字节还在页里，在线备份会原样带走。`app/server/src/lib/db.ts` 给每个连接打开 `secure_delete`，删行、改短字段时把腾出来的空间写成 0；每趟清理删完之后做一次 `wal_checkpoint(TRUNCATE)`（`truncateWal`），把 WAL 写回库文件再截断：`data.db` 里的旧页被检查点覆盖，`-wal` 截成 0 字节。登出、读到过期、GitHub 拒绝令牌（#164）删掉的会话也在下一趟清理后不留字节。有别的连接正在读时这一趟截不成，不等待（不让事件循环卡在默认 5 秒的锁等待上），日志记 `wal truncate deferred`，下一趟再截。SQLite 在线 backup API 做的备份读的是最新的页，不带删掉的会话。`tests/server/session-cleanup.test.ts` 按字节核对 `data.db`、`-wal` 和在线备份里找不到被删会话的密文。
 
 **还剩的**：打开 `secure_delete` 之前删掉的行（本改动上线前预发布、正式库里删过的会话），字节留在空闲空间里，要等被新数据覆盖；本机实测正常运行几趟之后 30 条里还剩 3 条，做一次 `VACUUM` 后为 0。在预发布、正式库上做 `VACUUM` 是对业务数据库的维护操作，要先获得授权，另开 issue。上面这些保证只到文件为止：`data.db`、`-wal` 和在线备份这几个文件里找不到被删会话的字节；`-wal` 截断时交还给文件系统的块并没有写成 0，文件系统释放的块、卷或磁盘的块级快照和裸盘镜像不在范围内，卷本身泄漏时这些块里可能还有旧密文。
+
+**密码换掉之后旧会话、命令行令牌和对外授权一起作废**（2026-10-29 安全复核；#332 起包括令牌与授权）：`POST /auth/email/reset` 与 `POST /api/identity/password` 成功后，在写新密码的同一个 `BEGIN IMMEDIATE` 事务里调用 `lib/account-revoke.ts` 的 `revokeAccountCredentials`，只针对这一个账号：删掉除「本次新签发/当前会话」以外的全部 `sessions` 行；把它已兑换的 `gk_` 命令行令牌的 `token_expires_at` 改成现在（和 `geek logout` 同一判定，`device_grants`），已批准但还没兑换的设备授权的 `expires_at` 也改成现在；删掉它在各应用上的对外授权（`oauth_grants` 与 `oidc_payloads` 里的 Grant，连同它们的授权码和访问令牌），下次登录同一应用要重新同意。任何一步抛错，新密码、新会话与验证码占用一起回滚，密码不变、令牌仍有效。写 `auth.credentials_revoked`，meta 为 `{ sessions, cli_tokens, cli_grants, oidc_grants }` 四个数量。在此之前重置密码只删发起请求的那条 sid，账号被盗后受害者改密码也踢不掉攻击者手里的旧会话。用户名与昵称的占用判定同时扩到论坛命名空间（`forum.identityNameTaken`：官方账号名、其他成员用户名、`orgLogins` 历史登录名），避免把 `/api/identity/profile` 改成官方账号名后在匿名 `/api/forum/state` 里出现两个同名账号。
+
+**匿名入口的抗滥用与枚举**（2026-10-29 安全复核）：`POST /api/feedback` 与 `POST /api/portal/apply`（需要 `apply.submit`，不是匿名入口）共用的 PoW 证明加了去重——摘要进 `limit_events` 的 `pow.nonce` 桶，去重窗口 10 分钟（滑动），等于证明的整个有效时段（时间戳允许前后各 5 分钟偏差），同一份 `{timestamp,nonce}` 在有效期内第二次提交一律 400，未来时间戳的证明也一样（`tests/server/anonymous-surface-hardening.test.ts`）。OIDC 的协议端点（`/oidc/token`、`/oidc/token/revocation`、`/oidc/me` 等）对带 `Origin` 的请求统一回 401 `invalid_client`：`oidc-provider` 的 per-client Origin 校验排在客户端认证之前，原来已知 `client_id` 回 400、未知回 401，等于一个 `client_id` 枚举 oracle；目前的下游（GitLab）在服务器端调用这些端点、不带 `Origin`；发现文档与 JWKS 不认客户端，不在这条规则之内，带 `Origin` 照样返回。
 
 **登录门槛：开放注册，邀请码选填**（#274，SPEC §3.2）。GitHub、Google、邮箱三种方式第一次登录都可以建号：不填邀请码建成注册用户（`level.registered`），填了有效邀请码建成极客班成员（`level.member`），填了但无效回 `invite_invalid`，不悄悄降级。登录不再查 GitHub 组织，身份和权限只看站内的权限表（见下文「权限只认极客班账号」）。官网、论坛、控制台共用这一个登录和同一个 `sid`。建号受注册限额约束：同一个 IP（哈希）每个北京日 5 个、同一个设备（`yugc_vid`）每个北京日 3 个，超了 GitHub、Google 回跳带 `signin=registration_limited`，邮箱回 429 `bucket: "auth.register.daily"`（`lib/register-limits.ts`）；填错邀请码与 `POST /api/identity/invite/redeem` 共用同一套按 IP 的猜码锁定。以下是 GitHub 这条路：`/auth/callback` 通过签名 state 校验、换到 token、取到 `/user` 之后（`routes/admin/auth.ts`）：
 
@@ -32,7 +36,7 @@
 命令行的登录不走浏览器会话，按 RFC 8628 的 device authorization grant 换取受 scope 与既有权限节点双重约束的令牌（#262，源码 `app/server/src/lib/device-store.ts`、`app/server/src/routes/identity/device.ts`，接口见 [API](API.md)）：
 
 - **授权对象是极客班账号**：确认页要极客班 SSO 会话，允许操作还要 `account.cli.login`，写进 `device_grants.account_id` 的是会话的 `account_id`（`users.id`），不是 GitHub id；账号不是 `active` 时确认后的轮询回 `access_denied`，已有令牌在 `/auth/device/userinfo` 立即失效，不用等过期。
-- **凭据不入库、只发一次**：`device_code`（32 字节随机数）与 `access_token`（`gk_` 前缀加 32 字节随机数）只把 sha256 存进 `device_grants`，明文只出现在发码与换令牌的响应里；换过令牌的行改成 `consumed` 且记下令牌哈希，同一个 `device_code` 再轮询只会得到 `invalid_grant`。令牌 30 天到期，到期或账号停用后 `device_grants` 里的哈希不再能换成身份。
+- **凭据不入库、只发一次**：`device_code`（32 字节随机数）与 `access_token`（`gk_` 前缀加 32 字节随机数）只把 sha256 存进 `device_grants`，明文只出现在发码与换令牌的响应里；换过令牌的行改成 `consumed` 且记下令牌哈希，同一个 `device_code` 再轮询只会得到 `invalid_grant`。令牌 30 天到期，到期或账号停用后 `device_grants` 里的哈希不再能换成身份；改密码或重设密码时，这个账号已兑换的令牌一并到期（#332）。
 - **时限与节奏**：`user_code` 8 位、字符集去掉元音与易混字符（`BCDFGHJKLMNPQRSTVWXZ`），10 分钟有效；默认轮询间隔 5 秒，提前轮询回 `slow_down` 并把这一行的间隔加 5 秒写回，凭据泄漏时留给暴力尝试的窗口更小。
 - **限流按接口分开**：发码 10 次/分钟、轮询 60 次/分钟、确认页读取 30 次/分钟（`user_code` 空间有限，查询也要挡枚举）、确认 20 次/分钟，都按 IP 计，超额 429。`user_code` 输入的字符集与长度先做校验，不合法按不存在处理。
 - **确认页防钓鱼**：`/device` 显示客户端名（目前只有「极客班命令行」）、请求的 `scope`（逐项说成人话）、终端里那串代码与剩余时间，并在允许/拒绝上方明说「只有你刚在自己的电脑上运行了 `geek login`、终端里就是这串代码时才允许，别人发给你的代码不要确认」。代码不是 `pending` 或已经过期时不给按钮，只说明原因（过期、已被拒绝、已用过）。
@@ -42,23 +46,23 @@
 
 ## 邮箱、Google 登录与邀请码注册（#262）
 
-所有者 2026-10-23 定：「目前开放注册，现在的github注册的都算组织成员，后续需要邀请码去注册」「验证码和密码都支持」「按站内称号认」。源码在 `lib/email-login.ts`、`lib/google.ts`、`lib/invite-codes.ts`、`lib/identity-store.ts`、`routes/identity/email.ts`、`google.ts`、`account.ts` 与 `routes/console/invites.ts`，接口见 [API](API.md)。
+2026-10-23 的决定：目前开放注册，现在通过 GitHub 注册的都算组织成员，后续改为需要邀请码才能注册；验证码和密码两种登录都支持；权限按站内称号认定。源码在 `lib/email-login.ts`、`lib/google.ts`、`lib/invite-codes.ts`、`lib/identity-store.ts`、`routes/identity/email.ts`、`google.ts`、`account.ts` 与 `routes/console/invites.ts`，接口见 [API](API.md)。
 
 - **邀请码选填**（#274）：邮箱或 Google 第一次登录、还没有极客班账号时直接建号，不填邀请码是注册用户，填了可用的邀请码（没停用、没过期、次数没用完）是极客班成员，填了但无效回 `invite_invalid`。建号、兑换邀请码、占用验证码、建会话在一个 `BEGIN IMMEDIATE` 事务里，任何一步不成整体回滚，邀请码不白用、验证码不白丢。邀请码无效对外只说「无效」，不区分不存在、停用、过期或用完；填错的次数按 IP 计入猜码锁定。
 - **验证码**：6 位数字，10 分钟有效，同一个码最多错 5 次；库里只存 HMAC（密钥派生自 `SESSION_SECRET`），不存原文，日志不记地址和验证码。挑战 id 放在签名、HttpOnly 的 cookie 里，登录用 `Path=/auth/email`，绑定用 `Path=/api/identity/email`；绑定的挑战还记着发起的账号和会话指纹，换了会话就不算数。发码限额按收件箱（60 秒一封、每小时 5 封）和来源 IP（IPv6 按 /64，每小时 20 封）计，数在 `email_challenges` 表里，重启不清零；超额 429 带 `Retry-After`。`/auth/email/start` 对有没有账号的邮箱响应一样，不泄露邮箱是否注册。
-- **密码**：在账号页设，忘了时在登录页重设，至少 8 位、UTF-8 不超过 72 字节（bcrypt 上限），不要求大小写、数字或符号（所有者 2026-10-23 定，原来是至少 15 位），bcrypt cost 12。短密码更容易被猜中，在线猜测靠下面按 IP 与按邮箱的限次挡。密码登录对没账号、没设密码、密码不对回同一个错误，没有账号时也跑一次 bcrypt，响应时间不随邮箱是否注册变化；按 IP 每分钟 10 次之外，按邮箱另计 15 分钟 10 次（进程内计数）。设密码、绑定邮箱要求这次登录不超过 10 分钟（`step_up_required`）；已有密码时也可以填当前密码代替。忘了密码在登录页点「忘记密码？」，用邮箱验证码直接设新密码并登录（`POST /auth/email/reset`，#273）：和验证码登录是同一种挑战、同样的限次，先查新密码合规再碰验证码，邮箱没有账号时和验证码登录一样回 `invite_required`、不注册，登录页转到「注册」；能收到这个邮箱验证码的人本来就能用验证码登录，重设不多给权限。重设写 `identity_audit` 的 `password_reset` 与审计 `account.password`，旧密码立刻失效。
-- **登录邮箱必绑**（#273，所有者 2026-10-23 19:22：「之前只绑定了github账号没有绑定邮箱的再次进来或者登录的时候必须绑定邮箱」）：这个环境能发信时，没有邮箱登录方式的账号（只绑了 GitHub 或 Google）要先绑邮箱，判定在 `lib/email-gate.ts`。GitHub、Google 登录回调照常签发 `sid`，再改跳 `/bind-email?return_to=<原路径>`；对外授权的交互入口跳过去（允许过这个应用、签发者会话还在的也先进交互，不直接发授权码），同意页的详情与允许、设备授权的允许回 403 `email_required`，拒绝不拦；官网、论坛、控制台按 `/auth/me` 的 `email_required` 自己跳。绑定还是账号页那组接口，要求这次登录不超过 10 分钟。发不出信的环境不要求，收不到验证码就绑不上，不能把人关在门外。
-- **实名资料必填**（#280，所有者 2026-10-24 13:45：「我们后面要求实名制，无论是之前登录的还是后面新注册的极客班成员所有注册的成员需要填写所在年级」）：每个账号都要有真实姓名和年级，缺了先补，不看能不能发信。关口和绑邮箱同一处（`lib/email-gate.ts`），先邮箱后资料：登录回调与对外授权的交互入口跳 `/complete-profile?return_to=<原路径>`，同意页的详情与允许、设备授权的允许回 403 `profile_required`，拒绝不拦；官网、论坛、控制台按 `/auth/me` 的 `profile_required` 自己跳。邮箱注册时就要填（`/auth/email/verify` 只在要建号时要求，缺了 400 `real_info_required`，验证码和邀请码都不作废）。本人通过 `POST /api/identity/real-info` 只能填一次，之后由有 `users.manage` 的管理员在控制台改（要刚登录过）。年级不存，存入学年份，按北京时间的学年现算，下拉框只有大一到大四，不接受自己填写。
+- **密码**：在账号页设，忘了时在登录页重设，至少 8 位、UTF-8 不超过 72 字节（bcrypt 上限），不要求大小写、数字或符号（2026-10-23 的决定，原来是至少 15 位），bcrypt cost 12。短密码更容易被猜中，在线猜测靠下面按 IP 与按邮箱的限次挡。密码登录对没账号、没设密码、密码不对回同一个错误，没有账号时也跑一次 bcrypt，响应时间不随邮箱是否注册变化；按 IP 每分钟 10 次之外，按邮箱另计 15 分钟 10 次（进程内计数）。设密码、绑定邮箱要求这次登录不超过 10 分钟（`step_up_required`）；已有密码时也可以填当前密码代替。忘了密码在登录页点「忘记密码？」，用邮箱验证码直接设新密码并登录（`POST /auth/email/reset`，#273）：和验证码登录是同一种挑战、同样的限次，先查新密码合规再碰验证码，邮箱没有账号时和验证码登录一样回 `invite_required`、不注册，登录页转到「注册」；能收到这个邮箱验证码的人本来就能用验证码登录，重设不多给权限。重设写 `identity_audit` 的 `password_reset` 与审计 `account.password`，旧密码立刻失效。
+- **登录邮箱必绑**（#273，2026-10-23 19:22 的要求概括为：之前只绑定了 GitHub 账号、没有绑定邮箱的人，再次进来或登录时必须绑定邮箱）：这个环境能发信时，没有邮箱登录方式的账号（只绑了 GitHub 或 Google）要先绑邮箱，判定在 `lib/email-gate.ts`。GitHub、Google 登录回调照常签发 `sid`，再改跳 `/bind-email?return_to=<原路径>`；对外授权的交互入口跳过去（允许过这个应用、签发者会话还在的也先进交互，不直接发授权码），同意页的详情与允许、设备授权的允许回 403 `email_required`，拒绝不拦；官网、论坛、控制台按 `/auth/me` 的 `email_required` 自己跳。绑定还是账号页那组接口，要求这次登录不超过 10 分钟。发不出信的环境不要求，收不到验证码就绑不上，不能把人关在门外。
+- **实名资料必填**（#280，2026-10-24 13:45 的要求概括为：之后实行实名制，不论是之前登录的还是之后新注册的极客班成员，所有注册成员都要填写所在年级）：每个账号都要有真实姓名和年级，缺了先补，不看能不能发信。关口和绑邮箱同一处（`lib/email-gate.ts`），先邮箱后资料：登录回调与对外授权的交互入口跳 `/complete-profile?return_to=<原路径>`，同意页的详情与允许、设备授权的允许回 403 `profile_required`，拒绝不拦；官网、论坛、控制台按 `/auth/me` 的 `profile_required` 自己跳。邮箱注册时就要填（`/auth/email/verify` 只在要建号时要求，缺了 400 `real_info_required`，验证码和邀请码都不作废）。本人通过 `POST /api/identity/real-info` 只能填一次，之后由有 `users.manage` 的管理员在控制台改（要刚登录过）。年级不存，存入学年份，按北京时间的学年现算，下拉框只有大一到大四，不接受自己填写。
 - **日志**：请求日志不记 `/auth/*` 的查询串（`app.ts` 的 `requestLogFields`），OAuth 的 code、state 与 `/auth/google?invite=` 带的邀请码不进日志。
 - **Google**：两个接口按 IP 限流（发起每分钟 20 次，回调每分钟 10 次），挡住反复走授权试邀请码。OIDC 授权码加 PKCE S256、state 与 nonce，只申请 `openid email profile`；ID Token 用 Google 的 JWKS 验签（RS256），核对 `iss`、`aud`、`exp`、`nonce`。按 Google 的 `sub` 认人，**不按邮箱自动合并账号**：Google 邮箱已经属于别的极客班账号时拒绝（`email_taken`），要用邮箱验证码登录那个账号。没配 `GOOGLE_CLIENT_ID` 与 `GOOGLE_CLIENT_SECRET` 时两个接口都是 404，登录页也不出现 Google。
 - **没有 GitHub 令牌的会话**：邮箱、Google 会话没有本人的 GitHub 令牌，也不需要：权限照常按账号给（见下文「权限只认极客班账号」），#274 起服务器不再代理 GitHub 组织。
 - **运维建号**：`dist/cli/account.js provision` 只在服务器容器里由维护者执行，按 GitHub 数字 id 找到或建立账号、按 `--org-role` 设定身份（`admin` 进站长组，`member` 进成员）、绑定邮箱，不开 HTTP 接口；密码不由它设，本人用验证码登录后在账号页设。
 
-**残余风险**：没有登录邮箱的会话在服务端只在登录回调、对外授权和设备授权这几处被拦，其余接口照常可用；绑定邮箱靠页面引导，不是权限门。能发信但投递一直失败时，没有登录邮箱的人收不到验证码，会停在绑定邮箱页，只能退出登录。重设密码和账号页改密码一样不结束已有的会话：账号被别人登录过的话，重设密码踢不掉对方，要在控制台停用账号。邀请码一旦外泄，在停用前任何人都能凭它注册（次数和过期时间可以限住）。站内角色不随 GitHub 组织变化的风险见下节。
+**残余风险**：没有登录邮箱的会话在服务端只在登录回调、对外授权和设备授权这几处被拦，其余接口照常可用；绑定邮箱靠页面引导，不是权限门。能发信但投递一直失败时，没有登录邮箱的人收不到验证码，会停在绑定邮箱页，只能退出登录。重设密码和账号页改密码都会结束这个账号在本站的其它会话，并吊销命令行令牌与对外授权（见上面「密码换掉之后」一条，#332）。改密码要求刚登录过或知道当前密码，重设密码要求能收到登录邮箱的验证码；掌握这两样的人能把账号改回自己的，这种情况要在控制台停用账号。邀请码一旦外泄，在停用前任何人都能凭它注册（次数和过期时间可以限住）。站内角色不随 GitHub 组织变化的风险见下节。
 
 ## 权限只认极客班账号（#262 第四期，#274 改成权限节点）
 
-所有者 2026-10-23 定：「有关 GitHub 的权限是要放权的」「后续我们可能不仅仅只连 GitHub 了 因为我们现在还要做自己的仓库」。源码在 `lib/permissions.ts`（求值引擎）、`lib/access.ts`（身份摘要）与 `lib/identity-store.ts`（建号时定身份）。
+2026-10-23 的决定：与 GitHub 相关的权限要放权；之后可能不只连接 GitHub，因为还要做自己的仓库。源码在 `lib/permissions.ts`（求值引擎）、`lib/access.ts`（身份摘要）与 `lib/identity-store.ts`（建号时定身份）。
 
 - **身份只看权限表**：每个账号在 `perm_members` 里属于一个身份组（注册用户、极客班成员、往届成员；没登录的访客按访客组求值）、至多一个部门、若干称号，能做什么由这些组的条目按「拒绝优先」求出（详见下文「极客班控制台：权限节点模型」）。不论用 GitHub、邮箱还是 Google 登录都一样，不调用 GitHub、不看本人在 GitHub 组织里的角色；请求路径上没有任何地方再按 GitHub 角色同步身份，控制台里改过的身份不会被改回去。
 - **有效成员摘要**（GitHub #271）：`membershipOf/isMember/getAccountClaims/listAccountsForSync` 共用 active + 当前有效直接 member/alumni 资格（`expires_at` 为 NULL 或严格大于 now），不看回滚专用角色列；owner-only 不获得 OIDC 资格，普通 alumni 不获得额外写节点。有效直接 owner 只在成员资格成立时把对外 `site_role` 提升为 admin。论坛 `kind=member` 另指已登录身份，registered 仍能按其真实节点读取，不能混淆成游客或自动授予写权限。
@@ -69,9 +73,9 @@
 
 ## 对外授权与 GitLab 账号同步（#270）
 
-GitHub 账号被封后改用自建 GitLab，所有者 2026-10-23 定：「gitlab那边的登录可以走极客班的sso统一登录，因为毕竟数据都要一起统计」「所有有极客班登录身份的都有对应的gitlab账号」。源码在 `lib/oidc-provider.ts`、`lib/oidc-store.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/` 与 `routes/console/gitlab.ts`，协议细节见 [对外授权与 GitLab 账号同步](../services/server/oidc.md)。
+GitHub 账号被封后改用自建 GitLab，2026-10-23 的决定：GitLab 那边的登录走极客班的 SSO 统一登录，因为数据都要一起统计；所有有极客班登录身份的人都有对应的 GitLab 账号。源码在 `lib/oidc-provider.ts`、`lib/oidc-store.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/` 与 `routes/console/gitlab.ts`，协议细节见 [对外授权与 GitLab 账号同步](../services/server/oidc.md)。
 
-- **签发者**：内嵌的 `oidc-provider` 9.12.2，签发者 `<PUBLIC_ORIGIN>/oidc`。只做授权码流程，所有客户端都要 PKCE `S256`；动态注册、implicit、hybrid、单点登出、refresh token 都不开。回调地址按登记的完全一致匹配，只收 `https`（本机 `127.0.0.1`、`localhost` 除外），同一客户端的回调必须同一个主机。授权码 10 分钟、一次性，重放时撤销这份授权和它发出的令牌。
+- **签发者**：内嵌的 `oidc-provider` 9.12.2，签发者 `<PUBLIC_ORIGIN>/oidc`。只做授权码流程，所有客户端都要 PKCE `S256`；动态注册、implicit、hybrid、单点登出、refresh token 都不开。回调地址按登记的完全一致匹配，只收 `https`（本机 `127.0.0.1`、`localhost` 除外），同一客户端的回调必须同一个主机。授权码 10 分钟、一次性，重放时撤销这份授权和它发出的令牌。改密码或重设密码时，这个账号在各应用上的授权一并撤销（#332）。
 - **登录状态以 `sid` 为准**：签发者自己的会话只是缓存；`sid` 没了、换了账号、或账号已经不是成员时都回到交互入口，不成员的带 `access_denied` 回下游。已经发出的访问令牌在 userinfo 处按账号当前状态判断，停用或不再是成员立刻 401。
 - **同意**：第一次登录某个应用要本人在 `/authorize` 允许，页面写明应用名、回到哪个主机和要的信息；同意与拒绝接口要 `sid`，只认发起这次登录的账号（别人 409），经核心写请求的 Origin 门禁（外域 403），写审计 `oidc.consent` / `oidc.deny`。
 - **主体标识**：`sub` 按下游 sector（回调主机）生成 32 字节随机值存 `oauth_subjects`，不同下游拿到的不同，内部 `account_id` 不下发；换签名密钥不变。声明只有 `openid`、`profile`、`email`，邮箱只给验证过的。
@@ -113,7 +117,7 @@ GitHub 账号被封后改用自建 GitLab，所有者 2026-10-23 定：「gitlab
 
 **招聘邮件模板与测试邮箱试发**（#285，[mail](../services/server/mail.md)「邮件模板」）：信的内容是库里的模板，可以由有节点 `mail.template.manage` 的人改，所以防护放在渲染这一处而不是靠模板作者自觉。模板里只有带 `{{变量名}}` 的文字，变量清单固定在代码里，没有表达式；保存时不认识的变量、别的类别的变量、指向官网以外的按钮路径都当场回 400；变量的值先替换进文字字段，再由 `renderEnvelope` 统一转义，模板写不了 HTML、CSS、脚本和任意链接，投递人在姓名、特长里写的 `<script>`、`<img onerror>`、`javascript:` 和外站链接只会当成文字显示。节点默认只有站长的根通配拿到、不往下发：试发会真的往外发信，预览还能带投递的真实字段（另外要有 `apply.view`）。试发要刚登录过（step-up），只发到请求里填的一个地址、一封，数据只用示例，不读不写投递和审核记录；每个账号每小时 10 封、全站每小时 30 封，超过回 429；主题前加「【测试】」；这种信只试一次、失败不重试；操作记录只留脱敏的邮箱和模板 id，不留邮箱明文和信的内容。剩下的风险：持有该节点的人能用试发让「长江大学极客班」的发件地址向任意一个自己填的邮箱发出一封内容可控的样信（文字是自己写的模板，数据是示例），每个账号一小时 10 封，对方地址不在白名单时不发；这和能改模板、改状态发信是同一档信任，所以才不下放。控制台里的预览放在不带任何权限的 `sandbox` iframe 里（`srcdoc`，不执行脚本、不能访问页面），预览的 HTML 和真正发信走同一条渲染路径（`mailer.ts` 的 `previewLetter` 调 `recruitmentLetter`）。
 
-**投递确认信被拿来发给别人**（#148、#169）：投递接口不用登录，谁都能填别人的邮箱，服务器就会以「长江大学极客班」的名义发一封带投递人自己写的文字（姓名、特长原文）的「已收到」。2026-09-27 要求信本身不限、改在投递时限次数（「限制一个设备或一个IP最多申请5次」）：同一个来源 IP（IPv6 按 /64）、同一个设备各自 24 小时内最多 5 份成功的投递，第 6 份回 429、不落库、不发信（`routes/portal/apply.ts` 的 `APPLY_LIMITS`）。设备是投递接口发的 httpOnly cookie，只发给投递接口；计数表 `application_limits` 只存 IP（/64）和设备 id 的 sha256，最多留 24 小时。确认信只剩全站每小时 200 封（`lib/mail/mailer.ts` 的 `RECEIVED_LETTER_LIMITS`），防止换很多 IP 刷光发信额度、改状态的正式通知发不出去。改状态的信要「审核投递」能力才能触发，不设上限。投递接口不收末尾带点的域名、带引号的本地部分和 IP 字面量。剩下的风险：换 IP 又清 cookie 的人每个 IP 每天仍能让 5 个任意邮箱各收到一封带自己文字的信，同一个收件箱可能从不同 IP 收到多封；Turnstile 没开时（两个环境现在都没开），批量投递还受每个 IP 每分钟 5 次、工作量证明和蜜罐限制；换很多 IP 的人仍能把全站每小时 200 封打满，那一小时里真正投递的人收不到确认信。校园网、宿舍、热点共用一个出口 IP（或 IPv6 同一个 /64）时，同一出口一天里第 6 个人投递不了（页面写明原因，第二天可以再投）。预发布环境从 #169 起默认向所有人发信（`MAIL_RECIPIENTS=all`），在预发布测试投递或改状态会向真实邮箱发送包含预发布域名 `prev.yangtzeu.work` 链接的邮件，不再受白名单过滤拦截。开发信前要开 Turnstile 的话，见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。另外，控制台改状态带着页面上看到的状态和审核记录的版本号（`expected_status`、`expected_review_id`，最大的审核记录 id），别人刚处理过（包括改走又改回）时回 409、不发信，不会按旧画面给投递人发出互相矛盾的信；改状态不带这两项的请求（部署前打开的旧页面）同样回 409。
+**投递确认信被拿来发给别人**（#148、#169）：投递接口不用登录，谁都能填别人的邮箱，服务器就会以「长江大学极客班」的名义发一封带投递人自己写的文字（姓名、特长原文）的「已收到」。2026-09-27 要求信本身不限、改在投递时限次数（每个设备或每个 IP 的申请次数上限为 5 次）：同一个来源 IP（IPv6 按 /64）、同一个设备各自 24 小时内最多 5 份成功的投递，第 6 份回 429、不落库、不发信（`routes/portal/apply.ts` 的 `APPLY_LIMITS`）。设备是投递接口发的 httpOnly cookie，只发给投递接口；计数表 `application_limits` 只存 IP（/64）和设备 id 的 sha256，最多留 24 小时。确认信只剩全站每小时 200 封（`lib/mail/mailer.ts` 的 `RECEIVED_LETTER_LIMITS`），防止换很多 IP 刷光发信额度、改状态的正式通知发不出去。改状态的信要「审核投递」能力才能触发，不设上限。投递接口不收末尾带点的域名、带引号的本地部分和 IP 字面量。剩下的风险：换 IP 又清 cookie 的人每个 IP 每天仍能让 5 个任意邮箱各收到一封带自己文字的信，同一个收件箱可能从不同 IP 收到多封；Turnstile 没开时（两个环境现在都没开），批量投递还受每个 IP 每分钟 5 次、工作量证明和蜜罐限制；换很多 IP 的人仍能把全站每小时 200 封打满，那一小时里真正投递的人收不到确认信。校园网、宿舍、热点共用一个出口 IP（或 IPv6 同一个 /64）时，同一出口一天里第 6 个人投递不了（页面写明原因，第二天可以再投）。预发布环境从 #169 起默认向所有人发信（`MAIL_RECIPIENTS=all`），在预发布测试投递或改状态会向真实邮箱发送包含预发布域名 `prev.yangtzeu.work` 链接的邮件，不再受白名单过滤拦截。开发信前要开 Turnstile 的话，见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。另外，控制台改状态带着页面上看到的状态和审核记录的版本号（`expected_status`、`expected_review_id`，最大的审核记录 id），别人刚处理过（包括改走又改回）时回 409、不发信，不会按旧画面给投递人发出互相矛盾的信；改状态不带这两项的请求（部署前打开的旧页面）同样回 409。
 
 **残余风险**：降级、摘掉称号或停用之后，对方已有的会话还在 7 天有效期内，但从下一次请求起按它现在所在的组判定；论坛里没有 `forum.*` 写节点就只能读，这个人以前发的帖子和论坛用户留着。持有 `perm.manage` 的人能把站长组以外任何组的条目改宽，改动对组里所有人生效。官网和论坛在 `/api/public/org` 读不到时显示内置的默认称号，可能与控制台里改过的不一致（#275 换成 `/api/public/departments` 后这条退场）。论坛用户的称号在本人下一次请求论坛时才刷新，别人看到的是他最近一次访问时的称号。`/auth/me` 的 `console_link` 只决定显不显示入口，按钮显隐只是提示，授权只在服务端。
 

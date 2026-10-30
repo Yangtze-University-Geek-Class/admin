@@ -8,22 +8,33 @@
 //                                                                                    缺省只演算，--apply 才写
 //
 // import 只新增（INSERT）：目标库里该账号在该 sector 已有不同的 sub、或这个 sub 已属于别人，都记为冲突并拒绝整批写入，
-// 不覆盖任何已有行。输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
+// 不覆盖任何已有行。目标身份缺失或源账号无可对账身份时整批拒绝写入；只有显式 --provision-unmatched 才按 GitHub UID
+// 最小补建（sub 已属于别人就不建号；建号由 account.js 在一个事务里完成，失败不留半个账号；补建出来的账号写入前
+// 整批被拒时保留，重跑时直接复用）；演算时带它，能补建的单独计为「可最小补建」，不算对不上。
+// 输出只含计数和 provider_uid，不含邮箱、昵称或 sub 的值。
 import { createRequire } from 'node:module';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const SECTOR_RE = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 const PROVIDERS = new Set(['github', 'google']);
+// 导出时说明这个账号为什么不能在目标库最小补建，写入时随「对不上」一起打印
+const SKIP_REASONS = { inactive: '源账号不是有效状态', alumni: '源账号是校友，最小补建只建成员', not_member: '源账号不是极客班成员', no_github: '源账号没有 GitHub 身份' };
 
 export function loadDatabase() {
-  const require = createRequire(import.meta.url);
-  try { return require('better-sqlite3'); } catch { /* 容器里依赖在 pnpm 目录下 */ }
-  const store = '/app/node_modules/.pnpm';
-  const dir = readdirSync(store).find(name => name.startsWith('better-sqlite3@'));
-  if (!dir) throw new Error('找不到 better-sqlite3');
-  return createRequire(`${store}/${dir}/node_modules/`)('better-sqlite3');
+  // 工作区与容器都从 server 包解析；运维脚本可能挂在 /ops 或复制到 /tmp。
+  for (const anchor of [new URL('../../app/server/package.json', import.meta.url), new URL('file:///app/app/server/package.json')]) {
+    const require = createRequire(anchor);
+    let resolved;
+    try { resolved = require.resolve('better-sqlite3'); }
+    catch (error) {
+      if (error.code === 'MODULE_NOT_FOUND') continue;
+      throw error;
+    }
+    return require(resolved);
+  }
+  throw new Error('找不到 server 的 better-sqlite3 依赖');
 }
 
 export function assertSector(sector) {
@@ -32,11 +43,14 @@ export function assertSector(sector) {
 }
 
 /** 源环境：这个 sector 下每个账号的不可变身份和 sub。没有可对账身份的账号只计数。 */
-export function exportSubjects(db, sector) {
+export function exportSubjects(db, sector, now = Date.now()) {
   assertSector(sector);
   const rows = db.prepare('SELECT user_id, sub FROM oauth_subjects WHERE sector_id = ?').all(sector);
   const identitiesOf = db.prepare('SELECT provider, provider_uid, login FROM identities WHERE user_id = ? ORDER BY provider');
-  const accountOf = db.prepare("SELECT status, org_state, org_role FROM users WHERE id = ?");
+  const accountOf = db.prepare('SELECT status FROM users WHERE id = ?');
+  // 与 server 的 membershipFromRow（identity-store.ts）同一口径：成员看有效的 level.member，管理员看有效的站长称号；
+  // org_role、org_state 是已弃用的旧字段，不参与判定
+  const groupsOf = db.prepare("SELECT group_id FROM perm_members WHERE account_id = ? AND group_id IN ('level.member','level.alumni','title.site.owner') AND (expires_at IS NULL OR expires_at > ?)");
   const entries = [];
   let withoutIdentity = 0;
   for (const row of rows) {
@@ -44,21 +58,24 @@ export function exportSubjects(db, sector) {
     if (ids.length === 0) { withoutIdentity += 1; continue; }
     const account = accountOf.get(row.user_id);
     const github = ids.find(id => id.provider === 'github');
+    const groups = new Set(groupsOf.all(row.user_id, now).map(group => group.group_id));
+    const orgRole = groups.has('level.member') ? (groups.has('title.site.owner') ? 'admin' : 'member') : null;
+    const skip = !github ? 'no_github' : account?.status !== 'active' ? 'inactive' : orgRole ? null : groups.has('level.alumni') ? 'alumni' : 'not_member';
     entries.push({
       sub: row.sub,
       identities: ids.map(id => ({ provider: id.provider, provider_uid: String(id.provider_uid) })),
-      ...(github && account?.status === 'active' && account?.org_state === 'active' && (account.org_role === 'admin' || account.org_role === 'member')
-        ? { provision: { github_login: github.login || `github-${github.provider_uid}`, org_role: account.org_role } }
-        : {}),
+      ...(skip ? { provision_skip: skip } : { provision: { github_login: github.login || `github-${github.provider_uid}`, org_role: orgRole } }),
     });
   }
   return { sector, entries, withoutIdentity };
 }
 
-/** 目标环境：演算（或写入）。返回 { plan, conflicts, unmatched, applied }。 */
+/** 目标环境：演算（或写入）。返回 { plan, conflicts, unmatched, withoutIdentity, applied, provisioned, provisionable }。 */
 export function importSubjects(db, payload, { sector, apply = false, now = Date.now(), provisionUnmatched = false, provisionAccount = null } = {}) {
   assertSector(sector);
   if (payload?.sector !== sector || !Array.isArray(payload.entries)) throw new Error('输入不是同一个 sector 的 export 结果');
+  const withoutIdentity = payload.withoutIdentity ?? 0;
+  if (!Number.isSafeInteger(withoutIdentity) || withoutIdentity < 0) throw new Error('输入的无身份计数无效');
   const findUser = db.prepare('SELECT user_id FROM identities WHERE provider = ? AND provider_uid = ?');
   const currentSub = db.prepare('SELECT sub FROM oauth_subjects WHERE sector_id = ? AND user_id = ?');
   const subOwner = db.prepare('SELECT user_id FROM oauth_subjects WHERE sector_id = ? AND sub = ?');
@@ -66,6 +83,7 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
   const conflicts = [];
   const unmatched = [];
   const provisioned = [];
+  const provisionable = [];
   const claimed = new Map();
   for (const entry of payload.entries) {
     db.prepare('SAVEPOINT subject_entry').run();
@@ -85,12 +103,31 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
     if (users.size === 0) {
       const github = entry.identities.find(id => id.provider === 'github');
       const provision = apply && provisionUnmatched && entry.provision && github && provisionAccount;
-      if (!provision) { unmatched.push(label); rollbackEntry(); continue; }
+      // 演算时带 --provision-unmatched：写入时能按 GitHub UID 最小补建的单独计数，不当成对不上（停预发布写者之前要先知道）
+      if (!apply && provisionUnmatched && entry.provision && github && entry.identities.every(id => id.provider === 'github')) {
+        // 写入时补建出来的账号也要拿这个 sub：已经属于目标库别的账号，演算就报冲突，不等停了预发布写者才发现
+        const owner = subOwner.get(sector, entry.sub)?.user_id ?? claimed.get(entry.sub);
+        if (owner) conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`);
+        else { provisionable.push(label); claimed.set(entry.sub, `provision:${label}`); }
+        rollbackEntry();
+        continue;
+      }
+      if (!provision) {
+        unmatched.push(provisionUnmatched && SKIP_REASONS[entry.provision_skip] ? `${label}（${SKIP_REASONS[entry.provision_skip]}）` : label);
+        rollbackEntry();
+        continue;
+      }
       if (entry.identities.some(id => id.provider !== 'github')) {
         conflicts.push(`${label}：目标库缺失账号还有其它身份，不做最小补建`);
         rollbackEntry();
         continue;
       }
+      // 补建出来的账号要拿的 sub 已经属于别人：建号前就拒绝，不留下一个用不上的账号
+      const subTaken = subOwner.get(sector, entry.sub)?.user_id ?? claimed.get(entry.sub);
+      if (subTaken) { conflicts.push(`${label}：这个 sub 已属于目标库的另一个账号`); rollbackEntry(); continue; }
+      // 正式运行时补建在子进程里提交；这一条已经读过的快照看不到它，先结束读事务，建完再开新的
+      db.prepare('RELEASE subject_entry').run();
+      db.prepare('SAVEPOINT subject_entry').run();
       db.prepare('SAVEPOINT provision_unmatched').run();
       try {
         const created = provisionAccount({ githubId: Number(github.provider_uid), githubLogin: entry.provision.github_login, orgRole: entry.provision.org_role });
@@ -128,11 +165,11 @@ export function importSubjects(db, payload, { sector, apply = false, now = Date.
     db.prepare('RELEASE subject_entry').run();
   }
   let applied = 0;
-  if (apply && conflicts.length === 0 && plan.length > 0) {
+  if (apply && conflicts.length === 0 && unmatched.length === 0 && withoutIdentity === 0 && plan.length > 0) {
     const insert = db.prepare('INSERT INTO oauth_subjects(sector_id, user_id, sub, created_at) VALUES(?, ?, ?, ?)');
     db.transaction(() => { for (const item of plan) { insert.run(sector, item.userId, item.sub, now); applied += 1; } })();
   }
-  return { plan, conflicts, unmatched, applied, provisioned };
+  return { plan, conflicts, unmatched, withoutIdentity, applied, provisioned, provisionable };
 }
 
 function option(argv, name) {
@@ -153,21 +190,22 @@ function main(argv) {
   if (mode === 'import') {
     const apply = argv.includes('--apply');
     const provisionUnmatched = argv.includes('--provision-unmatched');
-    const db = new Database(dbPath, { fileMustExist: true });
+    const db = new Database(dbPath, { readonly: !apply, fileMustExist: true });
     db.pragma('busy_timeout = 5000');
     const provisionAccount = ({ githubId, githubLogin, orgRole }) => JSON.parse(execFileSync(process.execPath, [
       'app/server/dist/cli/account.js', 'provision-github', '--github-id', String(githubId), '--github-login', githubLogin, '--org-role', orgRole,
     ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
     const result = importSubjects(db, JSON.parse(readFileSync(0, 'utf8')), { sector, apply, provisionUnmatched, provisionAccount });
     const lines = [
-      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}${apply ? `，已写入 ${result.applied}` : ''}${result.provisioned.length ? `，最小补建 ${result.provisioned.length}` : ''}`,
+      `${apply ? '写入' : '演算'} sector=${sector}：可迁 ${result.plan.length}，冲突 ${result.conflicts.length}，目标库对不上 ${result.unmatched.length}，源账号无可对账身份 ${result.withoutIdentity}${apply ? `，已写入 ${result.applied}` : ''}${result.provisioned.length ? `，最小补建 ${result.provisioned.length}` : ''}${result.provisionable.length ? `，可最小补建 ${result.provisionable.length}` : ''}`,
       ...result.conflicts.map(item => `冲突 ${item}`),
       ...result.unmatched.map(item => `对不上 ${item}`),
       ...result.provisioned.map(item => `最小补建 ${item.label}（${item.created ? '新建' : '已存在'}）`),
+      ...result.provisionable.map(item => `可最小补建 ${item}`),
       ...(apply && result.applied > 0 ? [`回滚：DELETE FROM oauth_subjects WHERE sector_id='${sector}' AND user_id IN (${result.plan.map(item => `'${item.userId}'`).join(',')})`] : []),
     ];
     process.stdout.write(`${lines.join('\n')}\n`);
-    return result.conflicts.length > 0 ? 1 : 0;
+    return result.conflicts.length > 0 || result.unmatched.length > 0 || result.withoutIdentity > 0 ? 1 : 0;
   }
   process.stderr.write('用法：migrate-oidc-subjects.mjs export|import --sector <主机名> [--apply] [--provision-unmatched]\n');
   return 2;

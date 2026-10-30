@@ -47,7 +47,7 @@ describe('object keys and the prefix guard', () => {
     'yzgc/promo/film.m3u8',
     'promo/x.mp4',
     '/static/site/assets/x-12345678.js',
-    'crosery:static/site/assets/x-12345678.js',
+    'fixture-scope:static/site/assets/x-12345678.js',
     `static/site/assets/${'a'.repeat(300)}.js`,
   ])('refuses %s', key => {
     expect(() => assertKey(key)).toThrow(/拒绝写入/);
@@ -369,8 +369,8 @@ describe('built-in sticker images (#286)', () => {
 
 describe('retired-token refusal (old policy rejection cases remain refused)', () => {
   it.each([
-    ['the whole bucket', { scope: 'crosery' }, /scope/],
-    ['a wider prefix', { scope: 'crosery:yzgc/' }, /scope/],
+    ['the whole bucket', { scope: 'fixture-scope' }, /scope/],
+    ['a wider prefix', { scope: 'fixture-scope:yzgc/' }, /scope/],
     ['another bucket', { scope: 'other:static/site/' }, /scope/],
     ['an exact key instead of a prefix', { isPrefixalScope: 0 }, /isPrefixalScope/],
     ['overwrite allowed', { insertOnly: 0 }, /insertOnly/],
@@ -429,7 +429,7 @@ describe('CSP: built-in sticker images (#286)', () => {
     for (const name of ['preview', 'production']) {
       const policy = siteCsp(read(`deploy/nginx/${name}.conf`));
       expect(cspAllows(policy, 'img-src', url), name).toBe(true);
-      expect(cspAllows(policy, 'img-src', 'http://cdn.crosery.com/static/site/forum/stickers/x.webp'), `${name} 不放行 http`).toBe(false);
+      expect(cspAllows(policy, 'img-src', 'http://cdn-old.example.test/static/site/forum/stickers/x.webp'), `${name} 不放行 http`).toBe(false);
     }
   });
 });

@@ -35,6 +35,8 @@ export const SECRET_FIELDS = Object.freeze([
   'ENCRYPTION_KEY',
   'TURNSTILE_SITE_KEY',
   'TURNSTILE_SECRET_KEY',
+  'MAIL_ALIYUN_FROM',
+  'MAIL_RESEND_FROM',
   'MAIL_ALIYUN_ACCESS_KEY_ID',
   'MAIL_ALIYUN_ACCESS_KEY_SECRET',
   'MAIL_RESEND_API_KEY',
@@ -63,9 +65,14 @@ export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLO
  * 写成一行 base64（`oidc.js keygen` 直接输出这种形式）；GITLAB_API_TOKEN 只在 GITLAB_SYNC=on 时必填（server 启动也会拒绝）。
  */
 export const OIDC_GITLAB_SECRETS = Object.freeze(['OIDC_JWKS', 'GITLAB_API_TOKEN']);
+/**
+ * 发件地址是环境密钥（模板里留空，渲染时从环境密钥注入），只在它对应的发信商开启时必填：阿里云发信要 MAIL_ALIYUN_FROM，
+ * Resend 要 MAIL_RESEND_FROM。键值是这一项的开关，开关没配时发件地址照模板写空；渲染时仍要是不带显示名的邮箱地址。
+ */
+export const MAIL_SENDER_ENABLED_BY = Object.freeze({ MAIL_ALIYUN_FROM: 'MAIL_ALIYUN_ACCESS_KEY_ID', MAIL_RESEND_FROM: 'MAIL_RESEND_API_KEY' });
 /** 渲染时必填的密钥：上面几类可选项之外的全部。 */
 export const REQUIRED_SECRET_FIELDS = Object.freeze(
-  SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS].includes(field)),
+  SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...Object.keys(MAIL_SENDER_ENABLED_BY)].includes(field)),
 );
 /** 收件范围：all 发给所有人；allowlist 只发给 MAIL_ALLOWLIST 里的地址。两个环境现在都是 all（#169）。 */
 export const MAIL_RECIPIENT_MODES = Object.freeze(['all', 'allowlist']);
@@ -97,14 +104,18 @@ const REQUIRED_FIELDS = Object.freeze([
   'FORUM_DB_PATH',
   'FORUM_UPLOAD_DIR',
   'POW_DIFFICULTY',
-  'MAIL_ALIYUN_FROM',
-  'MAIL_RESEND_FROM',
   'MAIL_ASSET_BASE',
   'MAIL_REPLY_TO',
   'MAIL_RECIPIENTS',
   'GITLAB_SYNC',
   'GITLAB_URL',
   'GITLAB_GROUP',
+  'GITLAB_OIDC_CLIENT',
+  'GITLAB_OIDC_SECTOR',
+  'GITLAB_STACK_ROOT',
+  'GITLAB_HTTP_BIND',
+  'GITLAB_DOCKER_SUBNET',
+  'GITLAB_DOCKER_GATEWAY',
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */
@@ -494,10 +505,7 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     if (values.get('TRUST_PROXY') !== String(PROXY_HOPS)) {
       problem(`TRUST_PROXY 必须是反代层数 ${PROXY_HOPS}（宿主 nginx → web 容器 nginx → server）；true 会把客户端自己填的 X-Forwarded-For 当成客户端 IP，按 IP 的限流与审计 IP 都能被伪造：${values.get('TRUST_PROXY')}`);
     }
-    // 发信：发件地址、图片前缀、收件范围是可见事实；凭据与收件名单是可选密钥（见 renderRuntimeEnv）。
-    for (const field of ['MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']) {
-      if (values.has(field) && !isPlainAddress(values.get(field))) problem(`${field} 必须是不带显示名的邮箱地址（例 notify@example.com）：${values.get(field)}`);
-    }
+    // 发信：图片前缀、收件范围是可见事实；凭据、收件名单与发件地址是可选密钥（见 renderRuntimeEnv）。
     const replyTo = values.get('MAIL_REPLY_TO') ?? '';
     if (replyTo && !isPlainAddress(replyTo)) problem(`MAIL_REPLY_TO 只能留空或写一个不带显示名的邮箱地址：${replyTo}`);
     if (values.has('MAIL_ASSET_BASE')) {
@@ -509,21 +517,28 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     }
     const recipients = values.get('MAIL_RECIPIENTS');
     if (values.has('MAIL_RECIPIENTS')) {
-      // 预发布以前只能是 allowlist；2026-09-27 14:20 要求预发布的信都发出去（「我们官方发的那些邮件，肯定必须发过去」），#169 放开。
+      // 预发布以前只能是 allowlist；2026-09-27 14:20 的要求概括为：预发布的信都要发出去（官方发出的邮件都必须能送到收件人那里），#169 放开。
       if (!MAIL_RECIPIENT_MODES.includes(recipients)) problem(`MAIL_RECIPIENTS 只能是 ${MAIL_RECIPIENT_MODES.join(' 或 ')}：${recipients}`);
     }
-    // GitLab 账号同步（#270）：开关、GitLab 的 https origin、组路径都是可见事实；管理员令牌在密钥段。
+    // 每个环境使用自己的 GitLab 基址（可带部署子路径）与 OIDC 客户端，令牌仍只在密钥段。
     if (values.has('GITLAB_SYNC') && !GITLAB_SYNC_MODES.includes(values.get('GITLAB_SYNC'))) {
       problem(`GITLAB_SYNC 只能是 ${GITLAB_SYNC_MODES.join(' / ')}：${values.get('GITLAB_SYNC')}`);
     }
     if (values.has('GITLAB_URL')) {
       try {
-        if (parseHttpsOrigin(values.get('GITLAB_URL'), 'GITLAB_URL') !== values.get('GITLAB_URL')) problem(`GITLAB_URL 必须写成不带结尾 / 的 origin：${values.get('GITLAB_URL')}`);
+        const base = new URL(values.get('GITLAB_URL'));
+        if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash
+          || `${base.origin}${base.pathname.replace(/\/+$/, '')}` !== values.get('GITLAB_URL')) problem('GITLAB_URL 必须是规范 HTTPS 基址，不带凭据、查询、锚点或尾斜杠');
       } catch (error) {
         problem(error.message);
       }
     }
     if (values.has('GITLAB_GROUP') && !/^[A-Za-z0-9_.-]{1,255}$/.test(values.get('GITLAB_GROUP'))) problem(`GITLAB_GROUP 必须是 GitLab 的组路径：${values.get('GITLAB_GROUP')}`);
+    if (values.has('GITLAB_OIDC_CLIENT') && !/^[a-z0-9_]{3,64}$/.test(values.get('GITLAB_OIDC_CLIENT'))) problem('GITLAB_OIDC_CLIENT 必须是客户端标识');
+    // 一个环境一个域名（#335）：GitLab 挂在本环境入口的 /gitlab 下，不另开子域名
+    if (values.has('GITLAB_URL') && values.get('GITLAB_URL') !== `${expectedOrigin}/gitlab`) problem(`GITLAB_URL 必须是本环境入口下的 ${expectedOrigin}/gitlab`);
+    // sector 是成员 sub 的分区，GitLab 换地址时不跟着换，所以它可以是搬家前的主机
+    if (values.has('GITLAB_OIDC_SECTOR') && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/.test(values.get('GITLAB_OIDC_SECTOR'))) problem('GITLAB_OIDC_SECTOR 必须是主机名（可带端口），不带协议和路径');
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,
       stdio: ['ignore', 'ignore', 'ignore'],
@@ -624,6 +639,7 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
     ...(turnstileOff ? OPTIONAL_SECRET_PAIR : []),
     ...(googleOff ? GOOGLE_SECRET_PAIR : []),
     ...[...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS].filter(field => !filled(field)),
+    ...Object.keys(MAIL_SENDER_ENABLED_BY).filter(field => !filled(MAIL_SENDER_ENABLED_BY[field])),
   ]);
   for (const field of SECRET_FIELDS) {
     const value = env[field];
@@ -632,7 +648,9 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
       continue;
     }
     if (typeof value !== 'string' || !value) fail(`缺少环境密钥 ${field}：拒绝生成半配置的运行时环境文件`);
-    if (field === 'MAIL_ALLOWLIST') {
+    if (field in MAIL_SENDER_ENABLED_BY) {
+      if (!isPlainAddress(value)) fail(`环境密钥 ${field} 必须是不带显示名的邮箱地址（例 notify@example.com）：拒绝写入`);
+    } else if (field === 'MAIL_ALLOWLIST') {
       if (!isAddressList(value)) fail('环境密钥 MAIL_ALLOWLIST 必须是英文逗号隔开的邮箱地址（不接受空白、引号、显示名、空项）：拒绝写入');
     } else if (!SECRET_VALUE_RE.test(value)) {
       fail(`环境密钥 ${field} 含非法字符（不接受空白、引号、$、#）：拒绝写入`);

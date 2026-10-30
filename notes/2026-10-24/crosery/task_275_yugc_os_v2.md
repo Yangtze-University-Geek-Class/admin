@@ -61,19 +61,19 @@
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
 - 做了什么：2dbc4b73 把 stage b6420dee（#274 合并）合进 task 分支，没有冲突；生成的目录文件在 8222a9b3 按 pnpm catalog:generate 与 docs:index 重建。a927ef55 删掉调已删接口 /api/join/:token 的 /join/:token 落地页、它的 dev mock，以及没人读的 lib/org.ts 和只测它的 portal-org.test.ts。9d964dc0 比赛窗口顶上的「打开官网」只在比赛有 site_url（#278 的字段，只认本站 /c/<slug>/）时出现，补没有 site_url 和写法不对时不显示的用例。三个提交的时间是 11:35 到 11:39，当时没有逐条记，这里补记，时间是补记的时刻。
 - 结果：这三个提交之后的代码都包含在下一条的验证里：最终 HEAD 上 pnpm test 109 个文件 1776 条通过（见后面「提交」记录）；check-architecture 宏观对齐通过。
-- 下一步：所有者 10-24 中午提的三个问题：壁纸分辨率适配、意见箱跳转、别人合进来的界面体验
+- 下一步：所有者 10-24 中午提的三个问题：[已脱敏]
 
-## 13:04:04 +08:00 · 返工 · #275 · #275 所有者三个问题：壁纸面板与「晴空」适配、意见箱改成窗口、核对别人合进来的交互，6 个提交
+## 13:04:04 +08:00 · 返工 · #275 · #275 所有者三个问题：[已脱敏]，6 个提交
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
-- 做了什么：所有者原话：「1. 壁纸的分辨率 UI 适配问题…2. 意见箱跳转问题：点进意见箱时，会跳转到另外一个地址，而不是作为一个桌面窗口…3. UI 体验优化未体现：之前有个 PR 优化了相关 UI 体验，是别人提交的…很多还是遵循原版的交互逻辑」。dada1fc0 意见箱从 route 应用改成 window 应用，表单拆成 FeedbackBox；9d6bff06 壁纸面板缩略图同一比例、手机一行排开、「晴空」缩略图按显示尺寸和像素比重画，横屏「晴空」用 landFit 坐到 Dock 上面，手机横屏图标只占左边六成；792355f5 窗口最大高度按自己的 top 算到 Dock 上沿；70f41ab5「关于极客班」的称号名字照部门数据说，加扫源码的守卫用例；086013c1 清掉邀请落地页和 lib/org.ts 删除后留下的旧说法和样式；4bb8cbc1 写 docs/changes/275.json、补 ownership 证据并重建目录。第 3 项按 git 历史逐条核对：#233 手机底部面板（把手、遮罩、关闭、返回）、LYsnowQ 的宣传片加载遮罩与重开焦点、意见箱组织锁定、#238 比赛窗口逻辑都还在，只换了配色；看得见的回退在壁纸面板的排版，已经改回紧凑的一行。文档核对：docs/services/server/ 不用改——services.ts 只改了注释（官网改读 /api/public/departments、论坛还在读 /api/public/org，旧部门暂不归档），服务端行为和合同没变。
+- 做了什么：所有者原话：「[已脱敏]」。dada1fc0 意见箱从 route 应用改成 window 应用，表单拆成 FeedbackBox；9d6bff06 壁纸面板缩略图同一比例、手机一行排开、「晴空」缩略图按显示尺寸和像素比重画，横屏「晴空」用 landFit 坐到 Dock 上面，手机横屏图标只占左边六成；792355f5 窗口最大高度按自己的 top 算到 Dock 上沿；70f41ab5「关于极客班」的称号名字照部门数据说，加扫源码的守卫用例；086013c1 清掉邀请落地页和 lib/org.ts 删除后留下的旧说法和样式；4bb8cbc1 写 docs/changes/275.json、补 ownership 证据并重建目录。第 3 项按 git 历史逐条核对：#233 手机底部面板（把手、遮罩、关闭、返回）、LYsnowQ 的宣传片加载遮罩与重开焦点、意见箱组织锁定、#238 比赛窗口逻辑都还在，只换了配色；看得见的回退在壁纸面板的排版，已经改回紧凑的一行。文档核对：docs/services/server/ 不用改——services.ts 只改了注释（官网改读 /api/public/departments、论坛还在读 /api/public/org，旧部门暂不归档），服务端行为和合同没变。
 - 结果：ego-browser 在 1440×900、1280×720、1024×768、844×390、390×844、547×950、820×1180 下看过：缩略图一样大，窗口底边在 Dock 上沿之上，没有横向溢出（截图 /tmp/geek-takeover/cmp/fix-*、fix2-*、fb-*）。4bb8cbc1 上 pnpm test 109 个文件 1774 条通过；check 七项、typecheck 通过；check-architecture 宏观对齐通过（112 个变更文件）。
-- 下一步：所有者 12:48 新要求：改版退场的内容归档并写说明，旧页面和旧地址不上线
+- 下一步：所有者 12:48 新要求：[已脱敏]
 
-## 13:04:04 +08:00 · 返工 · #275 · #275 按所有者 12:48 的要求归档退场页面，旧地址 /feedback 只跳到意见箱窗口，3 个提交
+## 13:04:04 +08:00 · 返工 · #275 · #275 按所有者 12:48 的要求[已脱敏]，旧地址 /feedback 只跳到意见箱窗口，3 个提交
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
-- 做了什么：所有者原话：「记住，只要是我们进行了页面改动和大改动，那些内容都要归档到一个文件夹里面，然后里面写说明，而且不要让这些页面和旧路由地址上线，不然会影响交互体验和agent的体验」。f5d52f2a 建 docs/history/portal-yugc-os-v1/：这次删掉的 28 个文件和原来的意见箱页面按原路径放进 files/（和 b6420dee 逐字节相同，git hash-object 逐个核对），README 写每个文件原来是什么、换成了什么、哪个提交删的、旧地址去哪；书桌用的手机模型和署名说明从 app/ 移进来，CDN 上传用例的 GLB 样本改用临时文件。fbd4facd /feedback、/feedback/:org 改成跳到 /?open=feedback，YugcOs 读 ?open= 打开窗口并去掉参数；表单移到 components/os/FeedbackBox.tsx；文档页顶栏和控制台意见箱页的分享链接改成新地址。b16bb217 清单加 console 应用、归档目录覆盖、pages/Feedback.tsx 的 removals，ownership 证据改指新位置，目录重建。没动的旧页面：/forum-3d 和 /docs 这次没改版，照旧上线，作为候选写进 MR。
+- 做了什么：所有者原话：「[已脱敏]」。f5d52f2a 建 docs/history/portal-yugc-os-v1/：这次删掉的 28 个文件和原来的意见箱页面按原路径放进 files/（和 b6420dee 逐字节相同，git hash-object 逐个核对），README 写每个文件原来是什么、换成了什么、哪个提交删的、旧地址去哪；书桌用的手机模型和署名说明从 app/ 移进来，CDN 上传用例的 GLB 样本改用临时文件。fbd4facd /feedback、/feedback/:org 改成跳到 /?open=feedback，YugcOs 读 ?open= 打开窗口并去掉参数；表单移到 components/os/FeedbackBox.tsx；文档页顶栏和控制台意见箱页的分享链接改成新地址。b16bb217 清单加 console 应用、归档目录覆盖、pages/Feedback.tsx 的 removals，ownership 证据改指新位置，目录重建。没动的旧页面：/forum-3d 和 /docs 这次没改版，照旧上线，作为候选写进 MR。
 - 结果：新增两条用例（旧地址跳转、?open=feedback 打开窗口并去掉参数），把修复退回去时两条都失败。ego-browser 在 1440×900 和 390×844 打开 /sites/portal/feedback、/sites/portal/feedback/geek 和文档页顶栏的「意见箱」：都进桌面并打开意见箱窗口，地址剩 /sites/portal，没有单独的意见箱页，没有横向溢出（截图 /tmp/geek-takeover/cmp/redir-*）。pnpm test 109 个文件 1776 条通过；check:runtime、site-config、environments、boundaries、docs、secrets、catalog 和 typecheck 通过；check-architecture 宏观对齐通过（152 个变更文件，34 个关联节点）。
 - 下一步：推到 GitLab，开 MR，审查后合进 stage，发 rc.18 到预发布
 
@@ -84,7 +84,7 @@
 - 结果：本地 node scripts/pr-contract.mjs check --branch task/275/yugc_os_v2 --body-file <正文> --labels-file <标签> 通过：10 个段落齐全，有验收证据。MR !8 状态 opened：https://git.yangtzeu.work/geek/admin/-/merge_requests/8
 - 下一步：审查结论写进 MR 正文，合进 stage
 
-## 13:13:19 +08:00 · 审查 · #275 · #275 MR !8 审查：有条件通过（作者自审，所有者要求不开子 agent）
+## 13:13:19 +08:00 · 审查 · #275 · #275 MR !8 审查：有条件通过（作者自审，所有者要求[已脱敏]）
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
 - 做了什么：按 .agents/skills/code-review 的两条线核对 b6420dee...924fad3b：规范与安全看资料卡登录链接（只带本站路径）、头像上传 2MB、样板身份只在开发和预览构建、开机动画模块没有网络和存储副作用、?open= 只认 window 应用；需求对照 SPEC §4、ACCEPTANCE A1–A7、B1、B3、B4 和所有者 10-24 的原话；扫 app/ 的 mascot/pose- 和 Mascot（0 处）与界面 emoji（只在 shapes.ts 的 4 行注释）。

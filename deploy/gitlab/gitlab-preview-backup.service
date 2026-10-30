@@ -1,0 +1,14 @@
+[Unit]
+Description=Preview GitLab Backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/gitlab-preview-backup/env
+Environment=HOME=/root
+ExecStart=/srv/gitlab-preview/backup.sh --environment preview
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=4h

@@ -5,7 +5,7 @@
 ## 01:29:53 +08:00 · 返工 · #274 · 合入 stage 71e35d14，控制台全量过一遍并修概览 400 和投递列表窄屏
 
 - 执行者：agent-claude-geek-main-3c2a7a67（Claude Code 主会话，claude-opus-5-5）
-- 做了什么：697f790f 把 GitLab stage 71e35d14（含 #276 !17）合进分支：冲突只在表情插入用例、论坛和控制台服务文档同一行、ownership.json 同一处证据列表，两边都留，目录重新生成。按所有者 2026-10-25 00:13「你去全量看看哪能有那么丑的啊」，控制台 mock 数据下 14 个页面在 1440 和 390 各截一张（/tmp/geek-takeover/audit274）：概览「最近操作」显示 HTTP 400 querystring must NOT have additional properties——Overview.vue 请求 /api/console/activity?limit=6，和 #274 修过的操作记录页同一个错；390 下投递、比赛、邀请码、GitLab 账号、论坛分类的表格横向溢出。0dfbb3d6：概览不带 limit、只显示最新 6 条，加扫源码的回归用例（旧代码会命中）；投递列表窄于 640px 换成一份一张卡。88c9109b：274.json 登记两个页面；文档核对：docs/services/server/README.md——stage 上 991f7ca 的服务端改动（换带字表情的迁移）写在 data-model.md，README 不涉及迁移，核对本分支 README 的埋点一节后把「更新：」改成 2026-10-25。
+- 做了什么：697f790f 把 GitLab stage 71e35d14（含 #276 !17）合进分支：冲突只在表情插入用例、论坛和控制台服务文档同一行、ownership.json 同一处证据列表，两边都留，目录重新生成。按所有者 2026-10-25 00:13「[已脱敏]」，控制台 mock 数据下 14 个页面在 1440 和 390 各截一张（/tmp/geek-takeover/audit274）：概览「最近操作」显示 HTTP 400 querystring must NOT have additional properties——Overview.vue 请求 /api/console/activity?limit=6，和 #274 修过的操作记录页同一个错；390 下投递、比赛、邀请码、GitLab 账号、论坛分类的表格横向溢出。0dfbb3d6：概览不带 limit、只显示最新 6 条，加扫源码的回归用例（旧代码会命中）；投递列表窄于 640px 换成一份一张卡。88c9109b：274.json 登记两个页面；文档核对：docs/services/server/README.md——stage 上 991f7ca 的服务端改动（换带字表情的迁移）写在 data-model.md，README 不涉及迁移，核对本分支 README 的埋点一节后把「更新：」改成 2026-10-25。
 - 结果：check-architecture（对 71e35d14）通过，35 个变更文件、31 个关联节点；check-doc-sync、check:secrets、check:docs、论坛来源核对通过；tests/console 243 个、tests/server events/forum/activity 加 tests/console 合计 318 个、论坛 vitest 596 个通过；控制台 vue-tsc 通过。浏览器：390 投递列表是卡片、scrollWidth 390；1440 概览最近操作列出 6 条。比赛表格的窄屏放进 #278；邀请码、GitLab 账号、论坛分类的窄屏留作后续。
 - 下一步：推送分支，开 MR，作者自审。
 

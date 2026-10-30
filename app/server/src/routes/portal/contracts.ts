@@ -9,6 +9,13 @@ const proof = object({ timestamp: { type: "integer" }, nonce: text(32, 1) }, ["t
 const abuse = { pow: proof, website: text(200), homepage: text(200), url_ref: text(200), turnstile_token: text(4096) };
 // UUID v4：applications.id 的生成方式（node:crypto 的 randomUUID()），和 console/contracts.ts 的 UUID_PATTERN 一致。
 const APPLICATION_ID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
+const gitlabProjectList = object({
+  projects: { type: "array", items: object({
+    name: text(255, 1), path_with_namespace: text(255, 1), description: { anyOf: [text(2000), { type: "null" }] },
+    web_url: text(500, 1), http_url_to_repo: text(500, 1), last_activity_at: { anyOf: [text(40), { type: "null" }] },
+  }, ["name", "path_with_namespace", "description", "web_url", "http_url_to_repo", "last_activity_at"]) },
+  unavailable: { type: "boolean" },
+}, ["projects"]);
 export const portalContracts: RouteContracts = {
   "GET /api/public/competitions": { querystring: object({}), response: { 200: publicCompetitionList, ...competitionFailures } },
   "GET /api/public/competitions/:id": { ...competitionIdParam, response: { 200: publicCompetition, ...competitionFailures } },
@@ -26,17 +33,16 @@ export const portalContracts: RouteContracts = {
       titles: { type: "array", items: object({ id: text(64, 1), name: text(64, 1), weight: { type: "integer" } }, ["id", "name", "weight"]) },
     }, ["id", "name", "tone", "icon", "description", "titles"]) },
   }, ["departments"]) } },
+  "GET /api/public/gitlab": { querystring: object({}), response: {
+    302: { type: "string", description: "跳转到本环境 GitLab 群组" },
+    503: object({ error: text(64, 1), message: text(256), request_id: text(128) }, ["error", "message"]),
+  } },
   // 公开的代码仓库列表（#274）：只给 visibility=public 的项目；GitLab 没配或连不上时 projects 为空、unavailable 为 true
   "GET /api/public/gitlab/projects": {
     querystring: object({}),
-    response: { 200: object({
-      projects: { type: "array", items: object({
-        name: text(255, 1), path_with_namespace: text(255, 1), description: { anyOf: [text(2000), { type: "null" }] },
-        web_url: text(500, 1), http_url_to_repo: text(500, 1), last_activity_at: { anyOf: [text(40), { type: "null" }] },
-      }, ["name", "path_with_namespace", "description", "web_url", "http_url_to_repo", "last_activity_at"]) },
-      unavailable: { type: "boolean" },
-    }, ["projects"]) },
+    response: { 200: gitlabProjectList },
   },
+  "GET /api/me/gitlab/projects": { querystring: object({}), response: { 200: gitlabProjectList } },
   "GET /api/docs/:id": { params: object({ id: text(64, 1) }, ["id"]) },
   // 前端批量上报动作（#274 SPEC §3.7）：访客也能调，最多 20 条；白名单在 lib/activity.ts，不在契约里重复列。
   // `surface` 不传按门户算（既有调用点兼容）；论坛、控制台显式传自己的来源，一批只属于一个来源。

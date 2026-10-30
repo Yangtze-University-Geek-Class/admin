@@ -19,10 +19,10 @@ describe("join-us email check", () => {
   it("says what to fix: a missing @, or a stray dot, comma or space", () => {
     const form = (email: string) => validateJoin({ name: "张三", className: "软件2301", email, strengths: "会写 Python，也做过网页。", website: "" }).email;
     expect(form("zhangsan.qq.com")).toBe("邮箱格式不对，检查一下有没有漏掉 @");
-    for (const email of ["2021001234@qq.com.", "zhang..san@163.com", "name@qq,com", "\"me\"@qq.com"]) {
+    for (const email of ["20210001@example.test.", "zhang..san@example.test", "name@qq,com", "\"me\"@qq.com"]) {
       expect(form(email), email).toBe("邮箱格式不对，检查有没有多打的点、逗号或空格");
     }
     expect(form(`${"a".repeat(120)}@qq.com`)).toBe("邮箱最多 120 个字符");
-    expect(form("2021001234@qq.com")).toBeUndefined();
+    expect(form("20210001@example.test")).toBeUndefined();
   });
 });

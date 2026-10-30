@@ -33,7 +33,7 @@
 ## 03:59:08 +08:00 · 提交 · #252 · 提交精简后的项目 issue 与 PR 技能
 
 - 执行者：agent-codex-issue-pr-skills（Codex）
-- 做了什么：用户授权创建 PR，并要求注明 #252 是 GPT 自行建单；准备提交两个技能、入口导航、CLI 链接和执行记录。推送检查发现已关闭 #226 未收尾，确认工作区干净且 HEAD b8e397d 完整保存于 personal 远端后执行 task finish 226；按 NOTES 并入其历史与收尾记录，原记录保持原文
+- 做了什么：用户授权[已脱敏]，并要求[已脱敏]；准备提交两个技能、入口导航、CLI 链接和执行记录。推送检查发现已关闭 #226 未收尾，确认工作区干净且 HEAD b8e397d 完整保存于 personal 远端后执行 task finish 226；按 NOTES 并入其历史与收尾记录，原记录保持原文
 - 结果：pnpm verify：check 通过，73 个测试文件通过，1051 passed、28 skipped，server/web/console 构建通过；forum:check 因缺 Node >=26 退出 1，forum:generate 未执行。两个技能结构检查、文档同步、分支不变量、密钥扫描通过。拟开草稿 PR，issue 来源注明 GPT 自行创建；未合并或发布
 - 下一步：推送个人 fork，创建指向 stage 的草稿 PR并记录审查结论
 

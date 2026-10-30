@@ -5,7 +5,7 @@
 ## 16:11:12 +08:00 · 开工 · #291 · 开工：资料窗口绑定 Google 会新建账号（P0）
 
 - 执行者：agent-claude-geek-main-completion（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者 15:28 追加 P0：资料窗口里绑定谷歌之后是新创建了账号；据此建 issue #291（正文引原话），从 gitlab/stage cabb3625 拉 task/291/link_google_account 与独立 worktree；读 ProfileCard.tsx、routes/identity/google.ts、lib/identity-store.ts 定位原因，读 docs/plan/UNIFIED-LOGIN.md「绑定与解绑」取既定接口
+- 做了什么：所有者 15:28 追加 P0：[已脱敏]；据此建 issue #291（正文引原话），从 gitlab/stage cabb3625 拉 task/291/link_google_account 与独立 worktree；读 ProfileCard.tsx、routes/identity/google.ts、lib/identity-store.ts 定位原因，读 docs/plan/UNIFIED-LOGIN.md「绑定与解绑」取既定接口
 - 结果：原因：资料窗口的「绑定」链到 /auth/google（登录入口），回调一律 signInWithGoogle，sub 没绑过任何账号时 signInSecondChannel 建新账号并换会话；规划文档已定的 POST /api/identity/link 没有实现
 - 下一步：先在隔离栈（假 Google）上用 stage 代码复现，再按规划文档的接口实现绑定，先写失败用例
 

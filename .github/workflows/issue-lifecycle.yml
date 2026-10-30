@@ -154,6 +154,7 @@ jobs:
           sparse-checkout: |
             scripts/issue-sweep.mjs
             scripts/pr-contract.mjs
+            scripts/pr-markdown.mjs
             scripts/issue-labels.mjs
           sparse-checkout-cone-mode: false
 

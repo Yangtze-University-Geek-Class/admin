@@ -22,7 +22,7 @@ function jobs(text: string) {
 }
 
 describe('workflows run only on GitHub-hosted runners', () => {
-  it('covers the twelve workflows described in docs/ops/CICD.md', () => {
+  it('covers the thirteen workflows described in docs/ops/CICD.md', () => {
     expect(workflows.map(([name]) => name)).toEqual([
       'architecture-alignment.yml',
       'branch-hygiene.yml',
@@ -31,6 +31,7 @@ describe('workflows run only on GitHub-hosted runners', () => {
       'deploy-hotfix.yml',
       'deploy-preview.yml',
       'deploy-production.yml',
+      'github-entry.yml',
       'gitlab-cutover.yml',
       'issue-gate.yml',
       'issue-lifecycle.yml',

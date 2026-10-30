@@ -5,7 +5,7 @@
 ## 10:58:49 +08:00 · 开工 · #270 · 自建 GitLab 用极客班统一登录，每个极客班账号都有对应的 GitLab 账号
 
 - 执行者：agent-claude-geek-main-1c（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 01:01「……对应的仓库也成为我们进入桌面的一个应用和论坛，控制台，那些一样统一一个sso登录身份，而且所有有极客班登录身份的都有对应的gitlab账号……相关的所有ui设计都全部由你负责」，10:32「二阶段可以继续进行，我这边同意的」，10:45「gitlab那边的登录可以走极客班的sso统一登录，因为毕竟数据都要一起统计」。GitHub 账号被封，issue 建在自建 GitLab geek/admin：先按 GitHub 编号建 #1–#269 占位（只开 #239、#262），再建 #270（https://git.yangtzeu.work/geek/admin/-/work_items/270）。task.mjs start 要连 GitHub，不可用，按 #262 的做法从本机 stage 候选 b542b3be 用 git worktree add 建 task/270/gitlab_sso；与 #262 的分工已和另一个会话（geek-main-56）对好：本分支不改 SignIn.vue、signin.ts
+- 做了什么：所有者 2026-10-23 01:01「[已脱敏]」，10:32「[已脱敏]」，10:45「[已脱敏]」。GitHub 账号被封，issue 建在自建 GitLab geek/admin：先按 GitHub 编号建 #1–#269 占位（只开 #239、#262），再建 #270（https://git.yangtzeu.work/geek/admin/-/work_items/270）。task.mjs start 要连 GitHub，不可用，按 #262 的做法从本机 stage 候选 b542b3be 用 git worktree add 建 task/270/gitlab_sso；与 #262 的分工已和另一个会话（geek-main-56）对好：本分支不改 SignIn.vue、signin.ts
 - 结果：worktree .claude/worktrees/task-270，基于 b542b3be
 - 下一步：装依赖，写 OIDC 模块、授权页、gitlab-sync 与桌面应用
 
@@ -75,7 +75,7 @@
 ## 13:56:44 +08:00 · 提交 · #270 · 01fd42dd 预发布 GITLAB_SYNC 改成 on，GitLab 正式站上线前接预发布
 
 - 执行者：agent-claude-geek-main-1c（Claude Code，claude-opus-5-5）
-- 做了什么：geek-main-56 转来所有者 13:36 的选择「现在先接预发布（推荐）」（方案 A），并按所有者 12:35 的原话「必须统一接入我们的极客班登录才能访问仓库」定下四个仓库和 geek 组改 private、已有本地 GitLab 账号绑到对应极客班账号。提交 01fd42dd（12 个文件）：deploy/env/.env.preview 的 GITLAB_SYNC 从 dry-run 改成 on；oidc.md、ENVIRONMENTS、DEPLOY 写明正式站上线前接预发布、预发布数据库不能清空重建、上线后先把 GitLab 的 sub 迁到正式库再改 issuer；deployment-environment 的用例改成预发布模板是 on、没有令牌拒绝渲染；docs/changes/270.json 与项目目录。文档核对：SECURITY.md 不用改——残余风险写的是同步不是 on 时没人封禁、令牌外泄等于交出 GitLab，接哪个环境不影响这两条。
+- 做了什么：geek-main-56 转来所有者 13:36 的选择「[已脱敏]」（方案 A），并按所有者 12:35 的原话「[已脱敏]」定下四个仓库和 geek 组改 private、已有本地 GitLab 账号绑到对应极客班账号。提交 01fd42dd（12 个文件）：deploy/env/.env.preview 的 GITLAB_SYNC 从 dry-run 改成 on；oidc.md、ENVIRONMENTS、DEPLOY 写明正式站上线前接预发布、预发布数据库不能清空重建、上线后先把 GitLab 的 sub 迁到正式库再改 issuer；deployment-environment 的用例改成预发布模板是 on、没有令牌拒绝渲染；docs/changes/270.json 与项目目录。文档核对：SECURITY.md 不用改——残余风险写的是同步不是 on 时没人封禁、令牌外泄等于交出 GitLab，接哪个环境不影响这两条。
 - 结果：pnpm test 97 个文件 1596 条通过；typecheck 通过；check:environments、check:docs、check:catalog、check:secrets、check:notes 通过；check-architecture 与 check-doc-sync 按 --base 2101fe40 通过。
 - 下一步：推送；在 GitLab 上建同步用的管理员机器人与令牌
 

@@ -52,8 +52,9 @@ notes/
 - 必填三项：`执行者`、`做了什么`、`结果`；`下一步` 可选。每项一行。
 - 执行者写成 `agent-<工具>-<会话>（说明）` 或 `human-<GitHub 用户名>`，例：`agent-claude-geek-main-08（Claude Code，claude-opus-5-5）`、`agent-omp-geek-main-25`、`human-alice`。
 - 「结果」写能复查的东西：命令的真实输出摘要、提交 SHA、PR 号、CI 运行号、截图在 PR 里的位置。失败就写失败，没验证就写「未验证」。
-- 只能往文件末尾追加，已写的记录不改不删；写错了再追加一条说明。时间只能往后走。
-- 不写密钥、令牌、会话、真实个人信息和生产数据；需要时写「已本地核对，不公开」。
+- 只能往文件末尾追加，已写的记录不改不删；写错了再追加一条说明。时间只能往后走。唯一的例外是脱敏修订（下一条）。
+- 不写密钥、令牌、会话、联系方式（手机号、个人邮箱）、本机家目录路径、证件号和生产数据；需要时写「已本地核对，不公开」。不写用户原文：所有者在会话里说的话，不论是否加引号，都不写进仓库。批准写成摘要：角色、北京时间、渠道、范围，由记录人用自己的话写，例如「所有者 2026-10-30 07:43 在会话中批准：按 hotfix 发布某个版本」。为什么：原文常夹带密钥、联系方式和未公开的决定；`pnpm check:privacy` 与 `note.mjs check` 会拦住「原话」「所有者说」等标签后紧跟引号或冒号的写法。
+- 已写的记录若含上面列出的内容，只能做脱敏修订：把敏感片段替换成统一标记 `[已脱敏]`，标记以外的字节一个不改，替换不跨行；修订可以在末尾追加新记录。`node scripts/note.mjs check --pr` 用 `isRedactionRevision` 核对修订前后的文件：只差这些替换，外加末尾追加，才放行，夹带别的改动一律按「只能追加」拦下。为什么这样做：审计要能看出改了哪一处、改了什么，只换敏感片段才做得到；整段删改或重写就是改写历史。
 - 模块改了、文档里写的事实却没变时，在「做了什么」或「结果」里写一行 `文档核对：<文档路径> 不用改——<理由>`，文档同步检查会读它（[docs/README](../README.md)「文档跟着模块改」）。
 
 阶段只能用下面这些：
@@ -99,7 +100,7 @@ node scripts/task.mjs finish 91                      # 写「收尾」
 
 - 身份也可以用 `--user` / `--by` 传；两者都没有时拒绝写入。
 - **记录落在哪**：当前 worktree 正在这条链路的 task 分支上时，直接写进这个 worktree 的 `notes/`，并重新生成 `notes/INDEX.md`，随下一次提交入库。别的情况（在 release worktree 里打 tag、在主工作区、给别的链路补记、`task.mjs finish` 写收尾）先暂存到主工作区的 `.claude/notes-pending/`（已在 `.gitignore`），下一个 `task.mjs start` 会把它并进新的 task worktree，也可以在任意 task worktree 里手动 `node scripts/note.mjs flush`。暂存的记录要随最近的一个 PR 入库，不能一直留在本机。
-- 提交：记录和代码放在同一个提交里；开 PR、拿到审查结论后单独补的记录用 `docs(notes): <一句话>`。
+- 提交：记录和代码放在同一个提交里；开 PR、拿到审查结论后单独补的记录用 `docs(notes): <一句话>`。提交说明和提交作者邮箱同样受隐私门禁约束，规则见 [COMMITS](COMMITS.md)「隐私门禁」。
 - 新 task 即使还没有提交，也直接写进它的 worktree。合并状态以 `origin/stage` 中是否已有该 task 的执行链路文件判定（普通合并、squash 合并一致），不能只看 HEAD 的祖先关系；「合并 / 发布 / 验收 / 收尾」始终先暂存。
 - `node scripts/note.mjs index` 重新生成 `notes/INDEX.md`；`node scripts/note.mjs index --summary` 输出全部链路的一览表（负责人、链路、issue、执行者、条数、开工时间、最后一条）。
 
@@ -115,12 +116,17 @@ node scripts/task.mjs finish 91                      # 写「收尾」
 
 检查不过就补记录，不许改检查脚本来换绿色，也不许补写没发生过的事。脚本只能核对格式和是否记了，记的内容是否属实由审查人对照提交、PR 和 CI 核对（[CODE-REVIEW](CODE-REVIEW.md)）。
 
+### 链路顺序的历史例外
+
+两条已经记下、不能改字节的历史记录，各经所有者批准只放过自己这一条。`scripts/note.mjs` 的 `CHAIN_ORDER_EXCEPTIONS` 是这张表，每条的五个字段（链路、文件、时刻、阶段、规则）全部相等才放过：
+
+| 链路 | 记录 | 时刻（北京时间） | 阶段 | 规则 | 批准 |
+|---|---|---|---|---|---|
+| `task_276_forum_image_scan` | `notes/2026-10-24/crosery/task_276_forum_image_scan.md` | 2026-10-24 22:03:16 | 发布 | `after_closed`：收尾之后又记的那一条 | 所有者，范围只此一条（GitLab #298） |
+| `task_308_stage_close` | `notes/2026-10-29/crosery/task_308_stage_close.md` | 2026-10-29 23:51:18 | 推送 | `first_entry`：链路第一条不是「开工」的那一条 | 所有者 2026-10-30 07:43 在会话中批准：清理 PR 与 issue，并完成 GitHub 与 GitLab 的同步（#308 收尾同步在其中），范围只此一条（#328） |
+
+别的链路、同一链上的别的记录、之后新追加的任何记录仍然报错，`--pr` 模式的只追加核对不变。要加第三条例外，必须由所有者另行批准，并改这张表和本节。
+
 ## §7 与其它规范的关系
 
-issue、PR 评论的格式见 [TRACKING](TRACKING.md)，PR 正文见 [PULL-REQUESTS](PULL-REQUESTS.md)，task 分支和 worktree 见 [BRANCHING](BRANCHING.md)。实现在 `scripts/note.mjs`，`scripts/task.mjs` 的 start / finish 调用它；测试在 `tests/tooling/notes.test.ts`。
-
-## §6 收尾之后的历史例外
-
-`crosery/task_276_forum_image_scan` 在 2026-10-24 21:52:18 记了「收尾」，22:03:16 又记了一条「发布」（`notes/2026-10-24/crosery/task_276_forum_image_scan.md:47`）。这条记录是真实发生过的事，按「只追加、不改字节」的规矩不能删，也不能改，但按 §3 它违反「收尾之后不能再记」，`note.mjs check` 因此一直报红。所有者 2026-10-28 同意只放过这一条（GitLab #298）。
-
-`scripts/note.mjs` 里的 `CLOSED_CHAIN_EXCEPTIONS` 按用户、链路、文件、时刻和阶段五项一起匹配这一条记录。别的链路、同一链上的别的记录、之后新追加的任何记录，收尾之后再记仍然报错；`--pr` 模式的只追加核对不变。要加第二条例外，必须由所有者另行裁决并改这张表和本节。
+issue、PR 评论的格式见 [TRACKING](TRACKING.md)，PR 正文见 [PULL-REQUESTS](PULL-REQUESTS.md)，task 分支和 worktree 见 [BRANCHING](BRANCHING.md)。实现在 `scripts/note.mjs`，`scripts/task.mjs` 的 start / finish 调用它；测试在 `tests/tooling/notes.test.ts`。提交说明的内容与提交作者邮箱的隐私核对见 [COMMITS](COMMITS.md)。

@@ -7,7 +7,7 @@ import type { LinkNotice } from "../../lib/linkNotice";
 import { Suspense, lazy, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Link } from "react-router-dom";
 import { appConfig } from "@shared/config";
-import type { Account } from "../../lib/account";
+import { signInHref, type Account } from "../../lib/account";
 import { links } from "../../lib/links";
 import { useCodeRepos } from "../../lib/codeRepos";
 import { useDepartments } from "../../lib/departments";
@@ -277,10 +277,10 @@ export default function OsWindow({ win, front, onFocus, onClose, onMinimize, onZ
           {win.id === "competitions" && <CompetitionsApp phone={phone} onPhoneNav={setPhoneNav} account={account} accountLoaded={accountLoaded} />}
           {win.id === "terminal" && (
             <Suspense fallback={<p className="pt-empty">正在打开终端…</p>}>
-              <Terminal onOpen={onOpen} onClose={onClose} onTitle={setTitle} apps={apps} account={account} />
+              <Terminal key={`${account?.accountId ?? "guest"}:${account?.level ?? "visitor"}`} onOpen={onOpen} onClose={onClose} onTitle={setTitle} apps={apps} account={account} />
             </Suspense>
           )}
-          {win.id === "gitlab" && <CodeRepos />}
+          {win.id === "gitlab" && <CodeRepos account={account} accountLoaded={accountLoaded} />}
           {win.id === "feedback" && (
             <Suspense fallback={<p className="pt-empty">正在打开意见箱…</p>}>
               <FeedbackBox />
@@ -377,19 +377,21 @@ export function OrgChart() {
   );
 }
 
-/** 代码仓库：自建 GitLab 上的公开项目（#274 的 GET /api/public/gitlab/projects），点项目在新标签页打开；GitLab 连不上时照实说 */
-export function CodeRepos() {
-  const repos = useCodeRepos();
+/** 公开项目和成员项目分开读取；GitLab 登录与门户共用极客班身份。 */
+export function CodeRepos({ account, accountLoaded }: { account: Account | null; accountLoaded: boolean }) {
+  const repos = useCodeRepos(account, accountLoaded);
+  const member = account?.level === "member" || account?.level === "alumni";
   const now = Date.now();
   const gitlab = links.gitlab();
   return (
     <div className="pt-repos">
-      {repos.status === "loading" && <p className="pt-empty">正在读取公开项目…</p>}
-      {repos.status === "error" && <p className="pt-empty">公开项目没加载出来，可以直接去代码仓库看。</p>}
+      {repos.status === "loading" && <p className="pt-empty" role="status">正在读取项目…</p>}
+      {repos.status === "error" && <p className="pt-empty" role="alert">项目没加载出来，可以直接去代码仓库看。</p>}
+      {repos.status === "denied" && <p className="pt-empty" role="alert">当前登录状态或成员资格已失效，请重新登录核对账号身份。</p>}
       {repos.status === "unavailable" && <p className="pt-empty">代码仓库暂时连不上，稍后再试，或者直接去代码仓库看。</p>}
-      {repos.status === "ready" && repos.projects.length === 0 && <p className="pt-empty">还没有公开的项目。成员登录代码仓库后能看到全部项目。</p>}
+      {repos.status === "ready" && repos.projects.length === 0 && <p className="pt-empty">{member ? "当前没有可访问的项目。" : account ? "暂无公开项目。当前账号不是极客班成员。" : "暂无公开项目。登录极客班后可查看成员项目。"}</p>}
       {repos.status === "ready" && repos.projects.length > 0 && (
-        <ul className="pt-repos-list" aria-label="公开项目">
+        <ul className="pt-repos-list" aria-label={member ? "成员项目" : "公开项目"}>
           {repos.projects.map((project) => (
             <li key={project.path}>
               <a href={project.url} target="_blank" rel="noopener noreferrer">
@@ -406,11 +408,17 @@ export function CodeRepos() {
         </ul>
       )}
       <footer>
-        <span>极客班自己的 GitLab，成员用极客班账号登录</span>
-        <a className="pt-btn is-primary" href={gitlab} target="_blank" rel="noopener noreferrer">
-          <Icon name="gitlab-line" size={16} /> 打开代码仓库
-          <span className="pt-sr">{NEW_TAB_NOTE}</span>
-        </a>
+        <span>代码仓库使用极客班统一登录</span>
+        {member && repos.status !== "denied" ? (
+          <a className="pt-btn is-primary" href={gitlab} target="_blank" rel="noopener noreferrer">
+            <Icon name="gitlab-line" size={16} /> 进入代码仓库
+            <span className="pt-sr">{NEW_TAB_NOTE}</span>
+          </a>
+        ) : (
+          <a className="pt-btn is-primary" href={account && !member ? "/account" : signInHref("/?open=gitlab")}>
+            <Icon name="gitlab-line" size={16} /> {account && !member ? "查看账号身份" : "登录极客班"}
+          </a>
+        )}
       </footer>
     </div>
   );

@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "issue": 325,
+  "kind": "engineering",
+  "summary": "修 issue-gate 的 needs-evidence 死锁：该标签既是开工门禁的判定输入，又是 issue-gate 判定要不要打它的输出，导致标签一旦打上就永远摘不掉、issue 补齐证据后仍被永久拒绝开工。改为 issue-gate 判定补齐时忽略标签本身，开工门禁（task.mjs start）仍拒绝带标签的 issue。原为 GitHub #298 / PR #300，迁入 GitLab 后以 #325 编号。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不改任何业务规则、用户可见行为或数据。issue 提单门禁的要求（ui:* 要截图、func:* 要写涉及接口、带 needs-evidence 不得开工）逐条保持，只是让「补齐后自动摘掉」这个既有承诺真正生效。",
+      "evidence": [
+        "docs/conventions/ISSUES.md",
+        "scripts/issue-labels.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不新增或修改任何 Fastify 路由、请求响应约定与错误码；改动只在 issue 检查脚本 scripts/issue-gate.mjs 与 scripts/issue-labels.mjs 的内部函数，不动工作流文件。",
+      "evidence": [
+        "scripts/issue-gate.mjs",
+        "docs/architecture/catalog/routes.md"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "issue-gate.yml 的权限声明（issues: write）逐字未改；开工门禁对 needs-evidence 的拒绝逻辑保留，没有放宽任何授权或放行条件。",
+      "evidence": [
+        ".github/workflows/issue-gate.yml"
+      ]
+    },
+    "data": {
+      "status": "not-applicable",
+      "reason": "不读写数据库、缓存或持久化存储；只读 GitHub 风格的 issue 元数据并写标签与评论，表结构与数据模型没有变化。",
+      "evidence": [
+        "docs/architecture/catalog/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "没有新增 npm 包或外部服务；改动是同一组脚本内部函数的参数与返回值调整。",
+      "evidence": [
+        "package.json"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/conventions/ISSUES.md 的 needs-evidence 一条补充「判定补齐时不能把标签本身算成缺失」的原因（#325）；docs/ops/CICD.md 的 issue-gate 一行同步说明。两份都记录了这个循环依赖与修法，避免以后有人把开关改回去。",
+      "evidence": [
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "tests/tooling/issue-labels.test.ts 新增三个用例：带标签时开工门禁拒绝但 issue-gate 判定通过；忽略标签后仍不掩盖真正缺失的截图；没有标签时 evidenceLabeled 为 false。把 checkIssue 里的 ignoreEvidenceLabel 判断去掉后有 1 条失败（expected false to be true），恢复后 issue-labels.test.ts 27 条全绿；连同 task-worktree.test.ts 共 37 条通过。",
+      "evidence": [
+        "tests/tooling/issue-labels.test.ts",
+        "scripts/issue-labels.mjs"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "scripts/issue-gate.mjs 与 scripts/issue-labels.mjs 由 .github/workflows/issue-gate.yml 检出运行（工作流文件本身没改），属于 CI 交付面。镜像、compose、环境变量契约与部署流程都没动，也不触发任何环境的部署。issues 事件只跑默认分支 main 上的文件，所以随 stage 进入 main 后，下一次 issue 事件才用上新逻辑。",
+      "evidence": [
+        "scripts/issue-gate.mjs",
+        ".github/workflows/issue-gate.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/issue-labels.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "checkIssue 增加 ignoreEvidenceLabel 选项与 evidenceLabeled 返回值：默认（开工门禁）仍把 needs-evidence 算作错误；issue-gate 传入 true 时忽略它，从而能判定「证据是否已补齐」。"
+    },
+    {
+      "paths": [
+        "scripts/issue-gate.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "调用 checkIssue 时传 ignoreEvidenceLabel: true，让摘标签条件不再被标签自身阻断；评论正文增加「已摘掉 needs-evidence」的如实说明。"
+    },
+    {
+      "paths": [
+        "tests/tooling/issue-labels.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "新增三条回归覆盖两个调用方的相反要求，以及「忽略标签但不掩盖真实缺失」这一边界；修复前失败、修复后通过，能区分前后。"
+    },
+    {
+      "paths": [
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "记录 needs-evidence 的循环依赖与修法，说明判定补齐时必须忽略标签本身。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/ISSUES.md",
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/issue-labels.test.ts"
+  ],
+  "compatibility": "checkIssue 新增的参数可选、返回值只增字段，现有两处调用方（task.mjs start 与 issue-gate）行为分别是「不变」与「修好」；不涉及接口、数据或产物兼容性。",
+  "migration": "没有数据或配置迁移。脚本随 stage 进入 main 后，issue-gate 在下一次 issue 事件时使用新逻辑；在此之前 main 上仍是旧逻辑，标签补齐后也摘不掉。",
+  "rollback": "revert 本 PR 的合并提交即可恢复原逻辑，不影响其他服务；回滚后 needs-evidence 仍会自锁，需人工摘标签。"
+}

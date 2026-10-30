@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "issue": 330,
+  "kind": "engineering",
+  "summary": "GitHub 镜像跟不上 GitLab：宏观声明按平台分开，GitHub 同步工单不再覆盖 GitLab 同号声明；新增镜像状态命令、GitHub 入口说明与 GitHub 到 GitLab 的单向导入。",
+  "applications": [],
+  "domains": [
+    "platform",
+    "github",
+    "gitlab"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不改应用业务流程与接口。导入只在 GitLab 建 issue、在 GitHub 留回链，GitLab 议题的业务规则不变。",
+      "evidence": [
+        "scripts/github-import.mjs",
+        "docs/conventions/ISSUES.md"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不改 app/server 与 app/web 的源码、路由和中间件；变更只在 scripts/、.github/ 与 .gitlab-ci.yml。",
+      "evidence": [
+        "scripts/check-architecture.mjs",
+        "scripts/task.mjs"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "github-entry.yml 用 pull_request_target，只给 issues: write 与 pull-requests: write，不检出 PR 代码、不读 secrets；导入脚本的 Sudo 只在管理员令牌下对已对上账号的作者使用，对不上不加 Sudo。镜像同步的 GitHub 令牌 GITHUB_SYNC_TOKEN 是所有者放入的 masked 变量，AI 不读写；GitLab 侧 CI job token 推送受保护的 stage/main 需要项目允许。",
+      "evidence": [
+        "scripts/github-import.mjs",
+        ".github/workflows/github-entry.yml",
+        ".gitlab-ci.yml",
+        "scripts/github-mirror-sync.mjs"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不改表结构与应用数据。导入会在 GitLab 新增 issue，那是外部系统的数据，本仓库不存。",
+      "evidence": [
+        "scripts/github-import.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "新增对 GitHub REST（gh api）与 GitLab REST（PRIVATE-TOKEN，Sudo）的只读与写调用，写调用只在 github-import --apply 时发生；github-mirror 只读本机远端跟踪引用。github-mirror-sync 由 GitLab 流水线调用 gh 与 git push：推送同步分支、开或复用 PR、合并、快进 GitLab，只在项目变量 GITHUB_MIRROR_SYNC_ENABLED=true 时运行。",
+      "evidence": [
+        "scripts/github-import.mjs",
+        "scripts/github-mirror.mjs",
+        "scripts/github-mirror-sync.mjs",
+        ".gitlab-ci.yml"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "BRANCHING 增加 GitHub 同步工单声明位置、github_ 分支前缀与「GitHub 镜像同步」一节；ISSUES 增加 §5；CICD 增加 github-entry.yml 行并标注 --forge github。",
+      "evidence": [
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 architecture-alignment、architecture-workflow、task-worktree、github-mirror、github-import、github-entry 的回归；导入测试只注入虚构的 GitHub 与 GitLab 响应。",
+      "evidence": [
+        "tests/tooling/architecture-alignment.test.ts",
+        "tests/tooling/github-import.test.ts",
+        "tests/tooling/github-mirror.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "两个新工作流与一处既有工作流的参数变化只在 GitHub 上生效；github-entry.yml 在 stage 合入后才对 GitHub 新开的 issue 与 PR 生效（pull_request_target 用目标分支的文件），issues 事件要在 main 上。GitLab 的 github-mirror-sync 任务默认关闭，由所有者在项目变量里启用。",
+      "evidence": [
+        ".github/workflows/github-entry.yml",
+        ".github/workflows/architecture-alignment.yml",
+        ".gitlab-ci.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/check-architecture.mjs",
+        ".github/workflows/architecture-alignment.yml",
+        "tests/tooling/architecture-alignment.test.ts",
+        "tests/tooling/architecture-workflow.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "宏观声明按平台取：--forge github 读 docs/changes/github/，GitLab 一侧与默认行为不变；目标检查器不认 --forge 时 GitHub 工作流不传它，按旧参数调用，仍只取目标分支的检查器。"
+    },
+    {
+      "paths": [
+        "scripts/task.mjs",
+        "tests/tooling/task-worktree.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GEEK_FORGE=github 时 task 分支的 slug 必须以 github_ 开头，执行记录链路不与 GitLab 同号链路混淆。"
+    },
+    {
+      "paths": [
+        "scripts/github-mirror.mjs",
+        "tests/tooling/github-mirror.test.ts"
+      ],
+      "domains": [
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "只读比较两个远端的 main、stage：指向、文件树、独有文件与包含关系；不推送、不改分支。"
+    },
+    {
+      "paths": [
+        "scripts/github-import.mjs",
+        "tests/tooling/github-import.test.ts"
+      ],
+      "domains": [
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "GitHub 开着的 issue 与 PR 单向导入 GitLab：默认演算，作者按登录名精确对应，按原链接去重，失败不关 GitHub 条目。"
+    },
+    {
+      "paths": [
+        ".github/workflows/github-entry.yml",
+        ".github/ISSUE_TEMPLATE/config.yml",
+        "tests/tooling/github-entry.test.ts"
+      ],
+      "domains": [
+        "github"
+      ],
+      "nodes": [
+        "domain:github"
+      ],
+      "reason": "GitHub 新开 issue 与 PR 时指向 GitLab 主平台；contact_links 与工作流留言都只指向 GitLab，不 @ 任何人。"
+    },
+    {
+      "paths": [
+        "tests/tooling/hosted-runners.test.ts"
+      ],
+      "domains": [
+        "github"
+      ],
+      "nodes": [
+        "domain:github"
+      ],
+      "reason": "托管 runner 的工作流清单加入 github-entry.yml：它的 job 同样只用 ubuntu-latest 字面量，断言本身不改。"
+    },
+    {
+      "paths": [
+        "docs/changes/github/304.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GitHub 同步工单 #304 的宏观声明逐字节取自提交 08a01209，从 docs/changes/304.json 的同号覆盖中分出。"
+    },
+    {
+      "paths": [
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/ISSUES.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform",
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:platform",
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "规范与运维文档同步新的声明位置、分支前缀、镜像同步步骤、导入规则与新工作流。"
+    },
+    {
+      "paths": [
+        "scripts/github-mirror-sync.mjs",
+        "tests/tooling/github-mirror-sync.test.ts"
+      ],
+      "domains": [
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "GitHub 镜像自动同步：只靠两边祖先关系决定动作；落后则经同步 PR 推送、检查通过后合并，再快进 GitLab；分叉拒绝，main 要求 stage 已包含。git 与 gh 为注入的假适配器测试。"
+    },
+    {
+      "paths": [
+        "scripts/forge.mjs"
+      ],
+      "domains": [
+        "platform",
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:platform",
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "导出 gitConfig、新增 secureBase 与 resolveRepos（自导入器迁入），两个导入器共用，不再各写一份。"
+    },
+    {
+      "paths": [
+        ".gitlab-ci.yml"
+      ],
+      "domains": [
+        "platform",
+        "github",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:platform",
+        "domain:github",
+        "domain:gitlab"
+      ],
+      "reason": "新增 github-mirror-sync 任务，默认关闭（GITHUB_MIRROR_SYNC_ENABLED）；workflow 规则改为两个开关任一开启才建流水线，hotfix-sync 的条件下放到任务级，行为不变。"
+    },
+    {
+      "paths": [
+        "deploy/env/origin-exceptions.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "登记 github-entry.yml 中一处写死的正式 GitLab 地址（静态 YAML 读不了 env），只允许正式环境的域名，写明理由。"
+    },
+    {
+      "paths": [
+        "docs/conventions/ARCHITECTURE-ALIGNMENT.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "宏观对齐文档补上 docs/changes/github/ 的声明位置、检查器参数与分目录的理由。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "目录把 docs/conventions/ARCHITECTURE-ALIGNMENT.md 列为来源，该文档在返工中改了两次，目录的来源摘要随之更新；结构、路由、权限与数据模型的内容未变（pnpm catalog:generate 后 pnpm check:catalog 核对通过）。"
+    },
+    {
+      "paths": [
+        ".github/workflows/ci.yml",
+        "scripts/check-privacy.mjs",
+        "tests/tooling/check-privacy.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "github"
+      ],
+      "nodes": [
+        "domain:platform",
+        "domain:github"
+      ],
+      "reason": "隐私门禁的提交检查加 --published：GitHub 同步 PR 的范围会带上已经在 GitHub main 上、早已公开的 hotfix 提交，从 GitHub main 可达的提交不再检查，新进来的提交照查；引用解析不到时失败（所有者 2026-10-30 在会话中批准）。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/BRANCHING.md",
+    "docs/conventions/ISSUES.md",
+    "docs/ops/CICD.md",
+    "docs/conventions/ARCHITECTURE-ALIGNMENT.md"
+  ],
+  "tests": [
+    "tests/tooling/architecture-alignment.test.ts",
+    "tests/tooling/architecture-workflow.test.ts",
+    "tests/tooling/task-worktree.test.ts",
+    "tests/tooling/github-mirror.test.ts",
+    "tests/tooling/github-import.test.ts",
+    "tests/tooling/github-entry.test.ts",
+    "tests/tooling/github-mirror-sync.test.ts"
+  ],
+  "compatibility": "check-architecture 不传 --forge 时仍读 docs/changes/编号.json，行为不变；GitLab 一侧不改。GitHub 工作流在目标分支的检查器导出 FORGES 时传 --forge github，还不导出时按旧参数调用（不改用候选检查器）；首次同步由维护者手工完成，见 BRANCHING「首次同步」。config.yml 原表单内容保留，只在前面加 contact_links。",
+  "migration": "无数据库或存储结构变化。docs/changes/github/304.json 是 08a01209 同名文件的逐字节复制，docs/changes/304.json（GitLab 的论坛图片迁移声明）不动。",
+  "rollback": "revert 本 PR 的合并提交即可。github-import --apply 写到外部系统的 GitLab 议题与 GitHub 回链不随代码回滚撤销，需要时由维护者在 GitLab 关闭、在 GitHub 重开。"
+}

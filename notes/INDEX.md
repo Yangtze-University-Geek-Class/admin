@@ -2,17 +2,18 @@
 
 > 由 `node scripts/note.mjs index` 生成，不要手改。规则见 [NOTES](../docs/conventions/NOTES.md)。每个日期下按 GitHub 用户名分目录，目录里一条链路一个文件，文件名是分支名；全部链路的一览表见 `node scripts/note.mjs index --summary`，每次 CI 运行也会贴进运行摘要。
 
-- 2026-10-29：[crosery](2026-10-29/crosery/)
-- 2026-10-28：[crosery](2026-10-28/crosery/)
+- 2026-10-30：[crosery](2026-10-30/crosery/)
+- 2026-10-29：[crosery](2026-10-29/crosery/)、[yuminghuang738](2026-10-29/yuminghuang738/)
+- 2026-10-28：[crosery](2026-10-28/crosery/)、[yuminghuang738](2026-10-28/yuminghuang738/)
 - 2026-10-27：[crosery](2026-10-27/crosery/)
 - 2026-10-26：[crosery](2026-10-26/crosery/)
 - 2026-10-25：[crosery](2026-10-25/crosery/)
 - 2026-10-24：[crosery](2026-10-24/crosery/)
 - 2026-10-23：[crosery](2026-10-23/crosery/)
 - 2026-10-21：[crosery](2026-10-21/crosery/)
-- 2026-10-20：[crosery](2026-10-20/crosery/)
-- 2026-10-19：[crosery](2026-10-19/crosery/)
-- 2026-10-18：[crosery](2026-10-18/crosery/)、[zzdr1023](2026-10-18/zzdr1023/)
+- 2026-10-20：[crosery](2026-10-20/crosery/)、[yuminghuang738](2026-10-20/yuminghuang738/)
+- 2026-10-19：[crosery](2026-10-19/crosery/)、[yuminghuang738](2026-10-19/yuminghuang738/)
+- 2026-10-18：[crosery](2026-10-18/crosery/)、[yuminghuang738](2026-10-18/yuminghuang738/)、[zzdr1023](2026-10-18/zzdr1023/)
 - 2026-10-17：[crosery](2026-10-17/crosery/)、[kaiserunix](2026-10-17/kaiserunix/)
 - 2026-10-16：[crosery](2026-10-16/crosery/)、[lflower8113](2026-10-16/lflower8113/)、[zzdr1023](2026-10-16/zzdr1023/)
 - 2026-10-15：[crosery](2026-10-15/crosery/)、[lflower8113](2026-10-15/lflower8113/)

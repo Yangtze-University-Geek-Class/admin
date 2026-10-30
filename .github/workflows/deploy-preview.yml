@@ -1,8 +1,8 @@
-# 预发布部署（vX.Y.Z-rc.N → preview）
+# 预发布部署（vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N → preview）
 #
-# 触发：推送预发布 tag vX.Y.Z-rc.N（N 从 1 开始，提交必须在 stage 上），或手工 dispatch：
+# 触发：推送预发布 tag（N 从 1 开始，提交必须在 stage 上），或手工 dispatch：
 # 「Use workflow from」选这个 tag，并在 tag 输入框里再填同一个 tag。push stage / main 不再部署。
-# plan job 硬断言触发 ref 就是 refs/tags/<rc tag>，其它 ref（分支、正式 tag、格式不对的 tag）一律拒绝。
+# plan job 硬断言触发 ref 就是 refs/tags/<预发布 tag>，其它 ref（分支、正式 tag、格式不对的 tag）一律拒绝。
 # 开关：仓库级 vars.DEPLOY_PREVIEW_ENABLED 必须显式等于 enabled，未设置 = 不部署。
 # 运行位置：每个 job 都是 runs-on: ubuntu-latest（GitHub 托管 runner，每个 job 一台新机器，跑完即销毁，#139）。
 # 部署 job 会拿到部署私钥，所以写成字面量、不读仓库变量：换 runner 要改工作流、走 PR 审查（docs/ops/CICD.md「运行位置」）。
@@ -12,20 +12,20 @@
 #   * 构建（build job）不接触任何环境级密钥。静态资源 CDN（#146）的 S3 凭据只在 cdn-plan、cdn-upload
 #     两个 job 里出现（GitHub Environment `static-cdn`），这两个 job 不安装依赖；没有凭据时同源构建、不上传。
 #   * 部署用环境级 secrets（GitHub Environment `preview`），与 PR 构建、正式环境完全隔离。
-#   * 镜像 tag 只用提交 SHA 前 12 位，禁止 latest；展示版本是 X.Y.Z-rc.N@<sha12>。
+#   * 镜像 tag 只用提交 SHA 前 12 位，禁止 latest；展示版本是 X.Y.Z-rc.N@<sha12>、X.Y.Z-hf.N@<sha12> 或 X.Y.Z-stable@<sha12>。
 #   * 部署记录走 GitHub Deployments API（payload 带 rc tag），正式环境用它做「先预发布后正式」的证据。
 
 name: Deploy Preview
 
 on:
   push:
-    # GitHub 的过滤模式匹配整个 tag 名：只有 vX.Y.Z-rc.N 形状会触发，正式 tag vX.Y.Z 不会。
+    # GitHub 的过滤模式匹配整个 tag 名：只有 vX.Y.Z-rc.N / -hf.N / -stable.N 形状会触发，正式 tag vX.Y.Z 不会。
     # 前导 0 等细节由 plan job 的正则再判一次。
-    tags: ['v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-hf.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-stable.[0-9]+']
   workflow_dispatch:
     inputs:
       tag:
-        description: '预发布 tag（vX.Y.Z-rc.N），必须与「Use workflow from」选中的 tag 相同'
+        description: '预发布 tag（vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N），必须与「Use workflow from」选中的 tag 相同'
         required: true
         type: string
 
@@ -61,7 +61,7 @@ jobs:
       - name: 硬断言触发来源是预发布 tag
         id: source
         shell: bash
-        # 只有 vX.Y.Z-rc.N 能进预发布：分支、正式 tag、格式不对的 tag 一概拒绝，没有回落路径。
+        # 只有 vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N 能进预发布：分支、正式 tag、格式不对的 tag 一概拒绝，没有回落路径。
         # 手工触发时输入的 tag 必须就是运行所在的 ref，工作流定义与被部署的代码来自同一个 tag。
         env:
           INPUT_TAG: ${{ inputs.tag }}
@@ -72,9 +72,9 @@ jobs:
             workflow_dispatch) tag="${INPUT_TAG}" ;;
             *) echo "不支持的触发事件：${GITHUB_EVENT_NAME}" >&2; exit 1 ;;
           esac
-          rc_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$'
+          rc_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(rc|hf|stable)\.[1-9][0-9]*$'
           if ! [[ "$tag" =~ $rc_re ]]; then
-            echo "预发布只接受 vX.Y.Z-rc.N（N 从 1 开始，不带前导 0）：收到 '${tag}'" >&2
+            echo "预发布只接受 vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N（N 从 1 开始，不带前导 0）：收到 '${tag}'" >&2
             exit 1
           fi
           if [ "${GITHUB_REF}" != "refs/tags/${tag}" ]; then
@@ -543,6 +543,8 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          MAIL_ALIYUN_FROM: ${{ secrets.MAIL_ALIYUN_FROM }}
+          MAIL_RESEND_FROM: ${{ secrets.MAIL_RESEND_FROM }}
           MAIL_ALIYUN_ACCESS_KEY_ID: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_ID }}
           MAIL_ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_SECRET }}
           MAIL_RESEND_API_KEY: ${{ secrets.MAIL_RESEND_API_KEY }}

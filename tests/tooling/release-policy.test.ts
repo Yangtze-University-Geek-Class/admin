@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { RELEASE_TAG_RE, TAG_KINDS, parseReleaseTag, planDeployment, previewTagsFor } from '../../scripts/release-policy.mjs';
+import { RELEASE_TAG_RE, TAG_KINDS, displayBodyOf, nextPreviewNumber, parseReleaseTag, planDeployment, previewTagsFor } from '../../scripts/release-policy.mjs';
 import { validateEnvironmentFiles } from '../../scripts/deployment-environment.mjs';
 
 // 夹具全部是临时目录里合成出来的假仓库 + 真实的环境契约副本；从不改动 geek_main 的分支、tag 或工作区。
@@ -61,12 +61,36 @@ const plan = (cwd: string, tag: string, commit: string, extra: Record<string, un
   planDeployment({ repo: cwd, root: cwd, tag, commit, ...extra });
 
 describe('release tag grammar', () => {
-  it('pins the exact SemVer tag regex and maps rc → preview/stage, final → production/main', () => {
-    expect(RELEASE_TAG_RE.source).toBe('^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-rc\\.([1-9]\\d*))?$');
-    expect(TAG_KINDS).toEqual({ rc: { environment: 'preview', branch: 'stage' }, final: { environment: 'production', branch: 'main' } });
-    expect(parseReleaseTag('v0.1.0-rc.1')).toMatchObject({ kind: 'rc', version: '0.1.0', rc: 1, environment: 'preview', branch: 'stage' });
+  it('pins the exact SemVer tag regex and maps rc / hf / stable → preview/stage, final → production/main', () => {
+    expect(RELEASE_TAG_RE.source).toBe('^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-(rc|hf|stable)\\.([1-9]\\d*))?$');
+    expect(TAG_KINDS).toEqual({
+      rc: { environment: 'preview', branch: 'stage' },
+      hf: { environment: 'preview', branch: 'stage' },
+      stable: { environment: 'preview', branch: 'stage' },
+      final: { environment: 'production', branch: 'main' },
+    });
+    expect(parseReleaseTag('v0.1.0-rc.1')).toMatchObject({ kind: 'rc', version: '0.1.0', rc: 1, number: 1, environment: 'preview', branch: 'stage' });
     expect(parseReleaseTag('v10.20.30-rc.12')).toMatchObject({ kind: 'rc', version: '10.20.30', rc: 12 });
-    expect(parseReleaseTag('v0.1.0')).toMatchObject({ kind: 'final', version: '0.1.0', rc: null, environment: 'production', branch: 'main' });
+    expect(parseReleaseTag('v0.1.1-hf.3')).toMatchObject({ kind: 'hf', version: '0.1.1', number: 3, rc: null, environment: 'preview', branch: 'stage' });
+    expect(parseReleaseTag('v0.1.1-stable.2')).toMatchObject({ kind: 'stable', version: '0.1.1', number: 2, rc: null, environment: 'preview', branch: 'stage' });
+    expect(parseReleaseTag('v0.1.0')).toMatchObject({ kind: 'final', version: '0.1.0', rc: null, number: null, environment: 'production', branch: 'main' });
+  });
+
+  it('shows hf as X.Y.Z-hf.N and stable without its N, the way the owner wrote it', () => {
+    expect(displayBodyOf(parseReleaseTag('v0.1.1-hf.4'))).toBe('0.1.1-hf.4');
+    expect(displayBodyOf(parseReleaseTag('v0.1.1-stable.4'))).toBe('0.1.1-stable');
+    expect(displayBodyOf(parseReleaseTag('v0.1.1-rc.4'))).toBe('0.1.1-rc.4');
+    expect(displayBodyOf(parseReleaseTag('v0.1.1'))).toBe('0.1.1');
+  });
+
+  it('counts N per (X.Y.Z, kind) from 1, and never reuses or skips a number', () => {
+    expect(nextPreviewNumber([], { version: '0.1.1', kind: 'hf' })).toBe(1);
+    expect(nextPreviewNumber(['v0.1.1-hf.1', 'v0.1.1-hf.2', 'v0.1.1-rc.25', 'v0.1.1-stable.1'], { version: '0.1.1', kind: 'hf' })).toBe(3);
+    // 别的版本、别的种类不占这个号。
+    expect(nextPreviewNumber(['v0.1.2-hf.7', 'v0.1.1-stable.5', 'v0.1.1-rc.9'], { version: '0.1.1', kind: 'hf' })).toBe(1);
+    expect(nextPreviewNumber(['v0.1.1-stable.1', 'v0.1.1-stable.2'], { version: '0.1.1', kind: 'stable' })).toBe(3);
+    // 格式不合规的名字不计入。
+    expect(nextPreviewNumber(['v0.1.1-hf.01', 'v0.1.1-hf'], { version: '0.1.1', kind: 'hf' })).toBe(1);
   });
 
   it('rejects branch names, SHAs, latest and every malformed tag', () => {
@@ -75,6 +99,8 @@ describe('release tag grammar', () => {
       'a'.repeat(40), 'abcdef123456', '0.1.0', 'v0.1', 'v0.1.0.0', 'V0.1.0', 'v01.1.0', 'v0.01.0', 'v0.1.00',
       'v0.1.0-rc', 'v0.1.0-rc.0', 'v0.1.0-rc.01', 'v0.1.0-rc1', 'v0.1.0-RC.1', 'v0.1.0-beta.1', 'v0.1.0-rc.1.1',
       'v0.1.0+build', 'v0.1.0-rc.1@abcdef123456', 'release-0.1.0', 'prev-0.1.0', ' v0.1.0', 'v0.1.0\n', '',
+      'v0.1.0-hf', 'v0.1.0-hf.0', 'v0.1.0-hf.01', 'v0.1.0-hf.1.1', 'v0.1.0-HF.1', 'v0.1.0-hotfix.1',
+      'v0.1.0-stable', 'v0.1.0-stable.0', 'v0.1.0-stable.01', 'v0.1.0-stable@abcdef123456', 'v0.1.0-stable.1.1', 'v0.1.0-Stable.1',
     ]) {
       expect(parseReleaseTag(bad), bad).toBeNull();
     }
@@ -327,5 +353,142 @@ describe('release identity follows the tag, never a stored field', () => {
     const report = validateEnvironmentFiles({ root: f.cwd, checkCompose: false });
     expect(report.ok).toBe(false);
     expect(report.problems.join('\n')).toContain('GEEK_RELEASE_VERSION');
+  });
+});
+
+/** 在当前分支上提交一份热修复窗口登记，返回新提交。 */
+function commitWindowRegistry(cwd: string, text: string, message = 'chore(deploy): 关闭 hotfix 窗口 #9') {
+  mkdirSync(join(cwd, 'deploy/hotfix'), { recursive: true });
+  writeFileSync(join(cwd, 'deploy/hotfix/windows.json'), text);
+  git(cwd, 'add', 'deploy/hotfix/windows.json');
+  git(cwd, 'commit', '-m', message);
+  return git(cwd, 'rev-parse', 'HEAD');
+}
+const beijing = (ms: number) => `${new Date(ms + 8 * 3600e3).toISOString().slice(0, 19)}+08:00`;
+const APPROVAL = '所有者 10-29 在会话中批准：走 hotfix';
+const openWindow = (version: string) => `${JSON.stringify({
+  schemaVersion: 1,
+  windows: [{ issue: 9, tag: `v${version}`, status: 'open', approvedBy: '所有者', approvedAt: beijing(Date.now() - 3600e3), expiresAt: beijing(Date.now() + 3 * 86400e3), approval: APPROVAL }],
+}, null, 2)}\n`;
+const closedWindow = (version: string, evidence = '合回 stage 的提交与线上核对（测试夹具）') => `${JSON.stringify({
+  schemaVersion: 1,
+  windows: [{ issue: 9, tag: `v${version}`, status: 'closed', approvedBy: '所有者', approvedAt: beijing(Date.now() - 3600e3), closedAt: beijing(Date.now()), evidence, approval: APPROVAL }],
+}, null, 2)}\n`;
+/** 把 main 合进 stage（--no-ff，与 hotfix-sync 一致），返回合并提交。 */
+function mergeMainIntoStage(cwd: string) {
+  git(cwd, 'checkout', '--quiet', 'stage');
+  git(cwd, 'merge', '--no-ff', '--no-edit', '-m', "Merge branch 'main' into 'stage' (hotfix #9)", 'main');
+  return git(cwd, 'rev-parse', 'HEAD');
+}
+/** 在 main 上登记 #9 窗口并提交一个引用 #9 的修复，再合进 stage：hf 的形态。 */
+function hotfixMerge(cwd: string, version = '0.1.0', fix = 'fix(server): 登录回跳修正 #9') {
+  git(cwd, 'checkout', '--quiet', 'main');
+  commitWindowRegistry(cwd, openWindow(version), 'chore(deploy): 登记 hotfix 窗口 #9');
+  git(cwd, 'commit', '--allow-empty', '-m', fix);
+  return mergeMainIntoStage(cwd);
+}
+/** 在 main 上关闭 #9 窗口再合进 stage：stable 的形态。 */
+function closingMerge(cwd: string, version = '0.1.0', evidence?: string) {
+  git(cwd, 'checkout', '--quiet', 'main');
+  commitWindowRegistry(cwd, closedWindow(version, evidence));
+  return mergeMainIntoStage(cwd);
+}
+
+describe('hotfix and stable preview tags', () => {
+  it('plans hf on the merge that brings a main hotfix into stage, with X.Y.Z-hf.N@sha12, and keeps that answer after the window closes', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    const merged = hotfixMerge(f.cwd);
+    const hf = plan(f.cwd, 'v0.1.0-hf.1', merged);
+    const short = merged.slice(0, 12);
+    expect(hf).toMatchObject({
+      tag: 'v0.1.0-hf.1',
+      tagKind: 'hf',
+      rc: null,
+      branch: 'stage',
+      environment: 'preview',
+      version: '0.1.0',
+      releaseVersion: `0.1.0-hf.1@${short}`,
+      imageTag: short,
+      previewTags: [],
+      deploymentAuthorized: false,
+    });
+    expect(hf.buildEnv.GEEK_RELEASE_VERSION).toBe(`0.1.0-hf.1@${short}`);
+    // 判定只看提交本身：窗口之后关闭、main 继续前进，同一个 tag 重跑部署结论不变。
+    closingMerge(f.cwd);
+    expect(plan(f.cwd, 'v0.1.0-hf.1', merged).tag).toBe('v0.1.0-hf.1');
+  });
+
+  it('refuses hf on a commit that is not a merge from main, or on a merge whose main commits belong to no hotfix window', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    expect(() => plan(f.cwd, 'v0.1.0-hf.1', f.stageTip)).toThrow(/只打在把 main 合进 stage 的合并提交上/);
+    // task 分支合进 stage：是合并提交，但合进来的不在 main 上。
+    git(f.cwd, 'checkout', '--quiet', '-b', 'task/9/fix', 'stage');
+    git(f.cwd, 'commit', '--allow-empty', '-m', 'fix(server): 登录回跳修正 #9');
+    git(f.cwd, 'checkout', '--quiet', 'stage');
+    git(f.cwd, 'merge', '--no-ff', '--no-edit', 'task/9/fix');
+    expect(() => plan(f.cwd, 'v0.1.0-hf.1', git(f.cwd, 'rev-parse', 'HEAD'))).toThrow(/只打在把 main 合进 stage 的合并提交上/);
+    // main 合进 stage，但 main 上的提交没有引用开着的窗口（晋升窗口的合回就是这样）。
+    const f2 = fixture();
+    git(f2.cwd, 'tag', 'v0.1.0', f2.mainTip);
+    const plain = hotfixMerge(f2.cwd, '0.0.9', 'fix(server): 普通修正');
+    expect(() => plan(f2.cwd, 'v0.1.0-hf.1', plain)).toThrow(/不归属 v0\.1\.0 的 hotfix 窗口/);
+  });
+
+  it('plans stable only on the merge that newly closes a window for the same version, and shows it without N', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    const hf = hotfixMerge(f.cwd);
+    expect(() => plan(f.cwd, 'v0.1.0-stable.1', hf)).toThrow(/没有新关闭的 v0\.1\.0 hotfix 窗口/);
+    const closed = closingMerge(f.cwd);
+    const stable = plan(f.cwd, 'v0.1.0-stable.1', closed);
+    expect(stable).toMatchObject({ tagKind: 'stable', environment: 'preview', releaseVersion: `0.1.0-stable@${closed.slice(0, 12)}` });
+    expect(stable.buildEnv.GEEK_RELEASE_VERSION).not.toMatch(/stable\.1/);
+    // 已经关过的窗口随下一次合并再进 stage：不是新关闭，不算。
+    git(f.cwd, 'checkout', '--quiet', 'main');
+    git(f.cwd, 'commit', '--allow-empty', '-m', 'docs: 收尾说明 #9');
+    expect(() => plan(f.cwd, 'v0.1.0-stable.1', mergeMainIntoStage(f.cwd))).toThrow(/没有新关闭的 v0\.1\.0 hotfix 窗口/);
+    // 直接提交在 stage 上的收尾登记：不是从 main 合进来的。
+    // 换一句 evidence，保证这次提交确实改了文件（closedAt 精确到秒，同一秒内内容会相同）。
+    const direct = commitWindowRegistry(f.cwd, closedWindow('0.1.0', '直接写在 stage 上的收尾登记（测试夹具）'));
+    expect(() => plan(f.cwd, 'v0.1.0-stable.1', direct)).toThrow(/只打在把 main 合进 stage 的合并提交上/);
+  });
+
+  it('refuses stable when the registry on that commit is invalid or closes a window for another version', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    hotfixMerge(f.cwd);
+    expect(() => plan(f.cwd, 'v0.1.0-stable.1', closingMerge(f.cwd, '0.1.0', '短'))).toThrow(/不合规：#9：closed 要有 closedAt 和 evidence/);
+    const g = fixture();
+    git(g.cwd, 'tag', 'v0.1.0', g.mainTip);
+    hotfixMerge(g.cwd, '0.0.9');
+    expect(() => plan(g.cwd, 'v0.1.0-stable.1', closingMerge(g.cwd, '0.0.9'))).toThrow(/没有新关闭的 v0\.1\.0 hotfix 窗口/);
+  });
+
+  it('numbers hf from 1 with no gaps: an existing tag on the same commit is accepted, a skipped or reused-looking number is refused', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    const merged = hotfixMerge(f.cwd);
+    expect(() => plan(f.cwd, 'v0.1.0-hf.2', merged)).toThrow(/N 必须是 1/);
+    git(f.cwd, 'tag', 'v0.1.0-hf.1', merged);
+    expect(plan(f.cwd, 'v0.1.0-hf.1', merged).tag).toBe('v0.1.0-hf.1');
+    expect(() => plan(f.cwd, 'v0.1.0-hf.3', merged)).toThrow(/N 必须是 2/);
+    expect(plan(f.cwd, 'v0.1.0-hf.2', merged).releaseVersion).toBe(`0.1.0-hf.2@${merged.slice(0, 12)}`);
+  });
+
+  it('refuses hf or stable for a version that has no final tag yet, and keeps the X.Y.Z-equals-package.json rule', () => {
+    const f = fixture();
+    expect(() => plan(f.cwd, 'v0.1.0-hf.1', f.stageTip)).toThrow(/还没有正式 tag v0\.1\.0/);
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    expect(() => plan(f.cwd, 'v0.2.0-hf.1', f.stageTip)).toThrow(/package\.json 的 version 0\.1\.0/);
+  });
+
+  it('never lets hf or stable satisfy the rc that a final tag needs on the same commit', () => {
+    const f = fixture();
+    git(f.cwd, 'tag', 'v0.1.0-hf.1', f.mainTip);
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    expect(previewTagsFor(f.cwd, '0.1.0', f.mainTip)).toEqual([]);
+    expect(() => plan(f.cwd, 'v0.1.0', f.mainTip)).toThrow(/没有 v0\.1\.0-rc\.N/);
   });
 });

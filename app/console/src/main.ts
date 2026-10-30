@@ -10,7 +10,7 @@ import { setSurfacePerformanceMode } from "@talex-touch/tuffex/base-surface";
 import App from "./App.vue";
 import { router } from "./router";
 
-// 弹窗、抽屉、下拉的面板默认是 refraction 玻璃材质，会透出背后的页面（所有者 2026-10-24：「所有的下拉框都不要这样的」）。
+// 弹窗、抽屉、下拉的面板默认是 refraction 玻璃材质，会透出背后的页面（所有者 2026-10-24 提出下拉框不要这种样式）。
 // 这个开关让整页的 refraction、glass、acrylic、blur、mica 都画成不透明的 flat。
 setSurfacePerformanceMode("max");
 

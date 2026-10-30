@@ -5,7 +5,7 @@
 ## 00:38:06 +08:00 · 方案 · #262 · 架构裁决：#268 不以后端半成品关闭 #262，前端在本分支补齐
 
 - 执行者：agent-notion-geek-main-01（Notion AI 经 wanctl 远程操作）
-- 做了什么：按所有者 2026-10-21 指令把 #268 「关联」改为 Refs #262 并发审查记录；关闭 PR #261、#223，issue #222、#219 以 not planned 关闭并加 wontfix。本分支继续：① 三端入口改「登录」、统一跳 /signin?return_to=<同源路径>；② /signin 读 GET /auth/providers 渲染渠道；③ 登录失败回 /signin；④ RFC 8628 设备授权接口（委派 OMP deepseek-v4.1-flash 写 store 与测试，主 agent 审阅）
+- 做了什么：按所有者 2026-10-21 指令[已脱敏]；关闭 PR #261、#223，issue #222、#219 以 not planned 关闭并加 wontfix。本分支继续：① 三端入口改「登录」、统一跳 /signin?return_to=<同源路径>；② /signin 读 GET /auth/providers 渲染渠道；③ 登录失败回 /signin；④ RFC 8628 设备授权接口（委派 OMP deepseek-v4.1-flash 写 store 与测试，主 agent 审阅）
 - 结果：PR #268 正文已改、审查评论 issuecomment-6295804666；#261/#223 已关，#222/#219 已关
 
 ## 00:45:32 +08:00 · 开发 · #262 · RFC 8628 设备授权接口与测试

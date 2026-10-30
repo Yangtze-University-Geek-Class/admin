@@ -2,15 +2,15 @@
 
 > 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。
 
-状态：`current` · 更新：2026-10-29 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
+状态：`current` · 更新：2026-10-30 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
 
 ## 发布前置
 
-**先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：发版只靠打 tag。`vX.Y.Z-rc.N` 打在 `stage` 的提交上部署预发布；在预发布试用并明确批准后，`main` 快进到同一提交，再打 `vX.Y.Z` 部署正式。** push `stage`/`main` 不部署。发布内容由发布 tag 指向的提交决定；镜像 tag 是该提交的 `<sha12>`。
+**先遵守 [RELEASES](../conventions/RELEASES.md) 与 [BRANCHING](../conventions/BRANCHING.md)：发版只靠打 tag。`vX.Y.Z-rc.N` 打在 `stage` 的提交上部署预发布（热修复合回 `stage` 后另有 `vX.Y.Z-hf.N`，收尾后 `vX.Y.Z-stable.N`，两者同样打在 `stage` 的提交上，`scripts/hotfix-sync.mjs apply --preview-tag` 打出）；在预发布试用并明确批准后，`main` 快进到同一提交，再打 `vX.Y.Z` 部署正式。** push `stage`/`main` 不部署。发布内容由发布 tag 指向的提交决定；镜像 tag 是该提交的 `<sha12>`。
 
 发布前先过同构这一关（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md)）：预发布做过、不在提交里的事（表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务）正式都做完，`node scripts/parity.mjs check --release` 清零；`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 会在清单有 `pending` 时拒绝构建与部署。三份 env（`.env.production`、`.env.preview`、`.env.dev`）由 `pnpm check:env-isolation` 核对，正式的值不会混进预发布，反之亦然。
 
-hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗口是 `open` 且没过期（所有者批准的原话在登记里），否则 `deploy-hotfix` 的 plan 失败。GitLab 签发者改接走 `gitlab-cutover.yml`：先 `migrate-subjects` 演算，再 apply；正式库缺失的有效旧成员由 server 镜像的 `account.js provision-github` 按 GitHub UID 最小补建并保留原 `sub`，不按邮箱合号，随后才能 `switch-issuer`。登记里的原话若含正式站域名，`check-env-isolation` 会判为写死；原话不改写，在 `deploy/env/origin-exceptions.json` 登记 `deploy/hotfix/windows.json`（`max: 1`）并写理由（#310，2026-10-29）。`deploy/` 下每次改动后，文档的更新时间都要晚于这次改动，否则 plan 的文档同步检查失败。hotfix 的 MR 合进 `main` 后，立刻用 `node scripts/hotfix-sync.mjs apply` 把 `main` 同步到镜像远端并合回 `stage`；线上核对通过后加 `--close-window <issue> --evidence "…"` 关闭窗口。
+hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗口是 `open` 且没过期（所有者的批准摘要在登记里），否则 `deploy-hotfix` 的 plan 失败。GitLab 签发者改接走 `gitlab-cutover.yml`：先 `migrate-subjects` 演算，再 apply；正式库缺失的有效旧成员由 server 镜像的 `account.js provision-github` 按 GitHub UID 最小补建并保留原 `sub`，不按邮箱合号，随后才能 `switch-issuer`。登记里的批准摘要和收尾证据不写环境域名：`check-env-isolation` 会把写死的正式站域名判为违规。#308 的收尾证据已把域名改成路径描述（#328，2026-10-30），所以 `deploy/env/origin-exceptions.json` 里不再登记 `deploy/hotfix/windows.json`。`deploy/` 下每次改动后，文档的更新时间都要晚于这次改动，否则 plan 的文档同步检查失败。hotfix 的 MR 合进 `main` 后，立刻用 `node scripts/hotfix-sync.mjs apply` 把 `main` 同步到镜像远端并合回 `stage`；线上核对通过后加 `--close-window <issue> --evidence "…"` 关闭窗口。
 
 发布者明确目标环境、commit、镜像 tag、回滚对象和维护窗口。先在本地或 CI 完成 `pnpm verify` 与相关浏览器检查，再部署；不从含无关修改的工作区发布。核心与论坛使用两套工具链（Node 22/pnpm 9.15.9 与 Node ≥26/pnpm 11.24.0），镜像构建在容器内完成，不上传 Mac 原生依赖。
 
@@ -32,8 +32,8 @@ hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗
 ## 拓扑
 
 ```text
-当前链路（DNS 尚未切换）
-互联网 → 旧 VPS Nginx（仅转发）→ 香港 Caddy（TLS）
+当前链路（2026-10-30 核对：两个环境入口的 A 都已指向香港 156.238.244.78）
+互联网 → 香港 Caddy（TLS；DNS 切换前多经过旧 VPS Nginx 转发）
   → ssh -w 三层点对点隧道 10.66.0.1 ↔ 10.66.0.2
   → Arch web：10.66.0.2:18100 / 18200 → web 容器 nginx:8080
       ├─ /console、/admin、/signin 等 → 控制台静态入口
@@ -41,6 +41,7 @@ hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗
       ├─ /c/* → server 比赛官网（保留 sandbox CSP）
       ├─ /forum/* → 本环境 forum:3000（保留论坛内联哈希 CSP）
       └─ /sdk/*、/cli/*、其余路径 → SDK、CLI 分发、portal 静态产物
+  → 两个站点块的 /gitlab、/gitlab/*（香港 Caddy 直接转发，不经 web nginx）→ Arch 10.66.0.2:8929（正式，#335 搬家后）/ 8930（预发布，#308）→ GitLab 容器
 ```
 
 后端只信任 Caddy 与 web nginx 两层，`TRUST_PROXY=2`。DNS 过渡多经过旧 Nginx，但它覆盖外来 X-Real-IP，Caddy 仅对来自旧 VPS 地址的请求读取该值，其他请求按实际远端地址重建 X-Forwarded-For；客户端伪造头实测未被信任。`ssh -w` 不增加 HTTP 代理层，Arch 不叠宿主 nginx。DNS 后续指向香港 `156.238.244.78`，不是 Arch 私有地址。
@@ -52,6 +53,9 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 `scripts/render-arch-caddy.mjs --out <空待审目录>` 仍是待集成生成器，派生四份 Caddy 文件，不是当前香港配置的安装来源。它尚未包含 DNS 过渡期间信任旧入口并重建客户端地址的完整逻辑，不能覆盖 live 配置。默认不含旧 `github.yangtzeu.work`；该兼容跳转仍在旧 VPS，不因主域迁移而自动迁走。
 
 香港回环 `18480/18481` 仅是私有预检设计，不能代替真实域名验证。后续候选配置先留非 import 目录，获批前不放进自动加载的 `/etc/caddy/sites/*.caddy`；变更先 validate 再 reload，保留 GitLab handler，不 restart 相邻服务。
+
+#308 的独立预发布 GitLab 不使用上述整站生成器覆盖live配置。经所有者批准首次安装的受限 `edge-gitlab.py` 只变换现行配置中的预发布站点块，保留正式块、真实IP、论坛与比赛策略；后续动作由production保护的 `gitlab-cutover` 调用。新实例目录、端口、网络和备份与正式隔离，见 [GitLab双实例合同](GITLAB.md#独立预发布实例308)。通道安装、入口激活、实例部署和SSO验收分别取证，不把其中一项算成全部完成。#335 给同一接收器加了 `production-plan|apply|verify|rollback`：只在正式站点块加 `/gitlab` 处理器（带原来旧主机上的 NANO 头像规则；预发布处理器 #335 起也带同样的规则，装过的旧处理器在 `edge-apply` 时逐字核对后原地升级），并把旧 GitLab 主机的站点文件换成只做 301 的物料（`deploy/gitlab/gitlab.caddy`，由 `install-host.sh --target edge` 装到 `/usr/local/share/yzgc-edge/`）；由 `gitlab-cutover` 的 `move-production-path` 调用，见 [GitLab 搬到正式入口](GITLAB.md#搬到正式入口的-gitlab335)。
+
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
 
@@ -70,7 +74,7 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 
 | 项 | production（正式） | preview（预发布） |
 |---|---|---|
-| 发布 tag（提交所在分支） | `vX.Y.Z`（`main`） | `vX.Y.Z-rc.N`（`stage`） |
+| 发布 tag（提交所在分支） | `vX.Y.Z`（`main`） | `vX.Y.Z-rc.N` / `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N`（`stage`） |
 | 栈根目录 | `/opt/yzgc/production` | `/opt/yzgc/preview` |
 | compose 文件 | `deploy/compose/production.yml` | `deploy/compose/preview.yml` |
 | compose 项目名 | `yzgc-production` | `yzgc-preview` |
@@ -229,7 +233,7 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 
 ## 香港对象存储（站点静态资源与备份归档）
 
-`cdn.yangtzeu.work` 是香港一台 1 vCPU / 1 GiB 小机器上的 S3 兼容对象存储（Garage + Caddy + S3 Manager），承担站点带哈希静态资源、表情包、宣传片和邮件图片的公共出口（`geek-public`），以及 GitLab 与平台备份的归档（`geek-backup`）。预发布与正式的页面只有在边缘 CSP 放行 `https://cdn.yangtzeu.work/geek-public/static/site/` 后才会以 CDN 模式构建（`deploy-*.yml` 的 cdn-plan 读线上响应头）；七牛 `https://cdn.crosery.com` 不再增写，旧对象只留给 rc.25 及更早版本回滚。
+`cdn.yangtzeu.work` 是香港一台 1 vCPU / 1 GiB 小机器上的 S3 兼容对象存储（Garage + Caddy + S3 Manager），承担站点带哈希静态资源、表情包、宣传片和邮件图片的公共出口（`geek-public`），以及 GitLab 与平台备份的归档（`geek-backup`）。预发布与正式的页面只有在边缘 CSP 放行 `https://cdn.yangtzeu.work/geek-public/static/site/` 后才会以 CDN 模式构建（`deploy-*.yml` 的 cdn-plan 读线上响应头）；七牛旧 CDN 域名（个人域名）不再增写，旧对象只留给 rc.25 及更早版本回滚。
 
 - 配置模板在 [`deploy/storage-cdn/`](../../deploy/storage-cdn/)（`garage.toml`、`s3manager.env`、`Caddyfile`、`edge.caddy`、`scripts/upload_demo.py`），合同见 [STORAGE-CDN](STORAGE-CDN.md)。
 - 公网入口由主站香港 `156.238.244.78` 的 `/etc/caddy/sites/storage-cdn-edge.caddy` 反代到 Garage 机 `103.240.197.216`，保留 Host、S3 签名、CORS、Range、MIME 与缓存；`cdn` 的 A 记录回滚值是 `103.240.197.216`。

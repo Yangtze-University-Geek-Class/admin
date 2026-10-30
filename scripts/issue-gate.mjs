@@ -18,15 +18,20 @@ export const ISSUE_GATE_MARKER = "<!-- yzgc:issue-gate v1 -->";
 
 /**
  * 评论正文。similar 是 findSimilar 的结果，errors 是 checkIssue 的错误。
- * @param {{ errors: string[], similar: Array<{ number: number, title: string, state: string, linked?: boolean }>, added: string[], suggested?: string[], number?: number | string }} input
+ * `evidenceLabeled` 告诉评论「这个 issue 身上还挂着 needs-evidence」（#325）：标签不是错误来源，
+ * 而是这份评论要维护的状态，所以单独展示——通过时说清「已摘掉」，没通过时说清「补齐后自动摘」。
+ * @param {{ errors: string[], similar: Array<{ number: number, title: string, state: string, linked?: boolean }>, added: string[], suggested?: string[], number?: number | string, evidenceLabeled?: boolean }} input
  */
-export function buildGateComment({ errors, similar, added, suggested = [], number = "<n>" }) {
+export function buildGateComment({ errors, similar, added, suggested = [], number = "<n>", evidenceLabeled = false }) {
   const lines = [ISSUE_GATE_MARKER, errors.length ? "**提单检查**｜未通过，补齐前不得开工" : "**提单检查**｜通过", ""];
   if (added.length) lines.push(`已把表单「改动类型」里选的值加成标签：${added.map((n) => `\`${n}\``).join("、")}。`, "");
   if (suggested.length) {
     lines.push(`**按标题和正文推测可能的类型**：${suggested.map((n) => `\`${n}\``).join("、")}。这只是关键词推测，不会自动添加；判定口径见 docs/conventions/ISSUES.md §2，确认后自己加：`, "", `\`gh issue edit ${number} --add-label ${suggested[0]}\``, "");
   }
   if (errors.length) lines.push("**需要补的**：", ...errors.map((e) => `- ${e}`), "", "补齐后编辑 issue 正文或标签，本评论会自动更新。", "");
+  if (!errors.length && evidenceLabeled) {
+    lines.push("已摘掉 `needs-evidence` 标签：改动类型标签、截图与「涉及接口」都齐了，可以开工。", "");
+  }
   if (similar.length) {
     lines.push("**可能相关的 issue**（按标题匹配，只供核对）：");
     for (const item of similar) {
@@ -65,11 +70,13 @@ function main() {
   const current = (issue.labels ?? []).map((l) => (typeof l === "string" ? l : l.name));
   const fromForm = labelsFromForm(issue.body).filter((name) => !current.includes(name));
   const labels = [...current, ...fromForm];
-  const { errors } = checkIssue({ number: issue.number, labels, body: issue.body });
+  // 忽略 needs-evidence 标签本身（#325）：它是这里要维护的状态，不是「证据还缺什么」。
+  // 不忽略就会自锁——标签在 → 检查报错 → 认为还要证据 → 永远不摘 → 标签一直在。
+  const { errors, evidenceLabeled } = checkIssue({ number: issue.number, labels, body: issue.body, ignoreEvidenceLabel: true });
   const others = ghJson(["issue", "list", "--state", "all", "--limit", "500", "--json", "number,title,state"]);
   const similar = findSimilar({ number: issue.number, title: issue.title, body: issue.body }, others);
   const suggested = typeLabels(labels).length ? [] : suggestLabels(`${issue.title}\n${issue.body ?? ""}`);
-  const comment = buildGateComment({ errors, similar, added: fromForm, suggested, number: issue.number });
+  const comment = buildGateComment({ errors, similar, added: fromForm, suggested, number: issue.number, evidenceLabeled });
   const wantEvidence = errors.length > 0;
   const hasEvidence = current.includes(NEEDS_EVIDENCE_LABEL);
 

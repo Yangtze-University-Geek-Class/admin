@@ -5,7 +5,7 @@
 ## 14:40:50 +08:00 · 开工 · #306 · task/306 开工：v0.1.1 升级后旧 GitHub 用户的账号与成员资格补齐（hotfix）
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：GitLab #306、#307（所有者 2026-10-28 14:2x 与 14:30 原话：「用户github登录的信息怎么丢失了，然后就是为什么不支持谷歌登录了，相关的所有线上bug走hotfix快速修复」「所有的用户数据和相关对应的账号以及对应的数据不能丢失，丢失这个是重大上线事故」）。先查证：生产库 0.1.1 升级后 users 4、identities 5，旧库 sessions 89 行含 33 个 GitHub 登录名，论坛用户 33 行只有 4 行有账号，名册 25 行只有 2 行有账号；逐表对比发布前备份与现网库，除 sessions（登录状态）与 forum_topic_views 外没有旧表行减少，数据没有物理丢失，缺的是 GitHub 号到账号的映射与成员资格；4 个已建账号全是 level.registered，因为 backfillIdentity 建号时 org_role 为空，且 backfillSeedLedger 把刚认领的两条名册行预先记成已映射。发布前备份 backups/20261028T061720Z-3667551 已另存到 backups-keep 并核对校验和。从 stage 94140632（与 main 同一提交）新建 task/306/legacy_github_accounts 与 worktree。
+- 做了什么：GitLab #306、#307（所有者 2026-10-28 14:2x 与 14:30 原话：「[已脱敏]」「[已脱敏]」）。先查证：生产库 0.1.1 升级后 users 4、identities 5，旧库 sessions 89 行含 33 个 GitHub 登录名，论坛用户 33 行只有 4 行有账号，名册 25 行只有 2 行有账号；逐表对比发布前备份与现网库，除 sessions（登录状态）与 forum_topic_views 外没有旧表行减少，数据没有物理丢失，缺的是 GitHub 号到账号的映射与成员资格；4 个已建账号全是 level.registered，因为 backfillIdentity 建号时 org_role 为空，且 backfillSeedLedger 把刚认领的两条名册行预先记成已映射。发布前备份 backups/20261028T061720Z-3667551 已另存到 backups-keep 并核对校验和。从 stage 94140632（与 main 同一提交）新建 task/306/legacy_github_accounts 与 worktree。
 - 结果：worktree 已建；方案：启动迁移里补建账号与 GitHub 身份、认领论坛用户与名册、按旧记录恢复成员资格，一次性、只补不删；生产库副本演练后发 v0.1.2 hotfix
 
 ## 14:41:30 +08:00 · 提交 · #306 · 旧 GitHub 用户补齐迁移、台账修正、版本 0.1.2

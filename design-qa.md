@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-18
 
-- source visual truth path：`/Users/crosery/work_file/ibuki-node-map.html`；参考截图 `.tools/catalog/reference.png`，只用于本机对比，不公开其他项目拓扑。
+- source visual truth path：`~/work_file/ibuki-node-map.html`；参考截图 `.tools/catalog/reference.png`，只用于本机对比，不公开其他项目拓扑。
 - implementation：`docs/architecture/catalog/map.html`。
 - implementation screenshot：`.tools/catalog/map-desktop.png`、`map-mobile-detail.png`、`map-mobile-nav.png`。
 - viewport：1440×900 与 390×844，ego-browser TaskSpace 113。

@@ -211,7 +211,7 @@ export type TitleView = {
 export type OrgRole = "admin" | "member" | null;
 export type Access = {
   login: string;
-  /** 站内角色，不论这次用哪种方式登录（#262，所有者 2026-10-23「有关 GitHub 的权限是要放权的」） */
+  /** 站内角色，不论这次用哪种方式登录（#262，所有者 2026-10-23 表示与 GitHub 相关的权限要放权） */
   siteRole: OrgRole;
   /** 是不是极客班成员：账号记下的成员资格 */
   member: boolean;

@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "issue": 316,
+  "kind": "business",
+  "summary": "PENTEST-20261029 复核后的账号与登录链路加固：用户名/昵称占用判定并进论坛命名空间，挡住冒用官方账号；密码重置与改密码后吊销该账号其它会话；OAuth 回调先收敛 query 类型，重复 state 参数回 400 而不是 500。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "identity",
+    "audit",
+    "organization",
+    "forum",
+    "github",
+    "invitations",
+    "platform"
+  ],
+  "flows": [
+    "flow:identity.profile.update",
+    "flow:identity.email.reset",
+    "flow:identity.account.password",
+    "flow:identity.callback",
+    "flow:identity.google.callback",
+    "flow:forum.state"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "用户名/昵称的占用判定从 account_profiles 扩到论坛命名空间；改密码后旧会话不再有效。这两条都是用户可见的账号规则变化（同名不能再共用、换密码会踢掉其它设备）。",
+      "evidence": [
+        "app/server/src/routes/identity/profile.ts",
+        "app/server/src/lib/forum-store.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "PATCH /api/identity/profile 在写库前多一道占用判定（新增 409 display_name_taken）；两个回调路由在读取 query 前做类型收敛（重复参数回 400 invalid_state）；改密与重置路径新增 401 not_signed_in（改密时会话已失效）。auth 新增 revokeAccountSessions 并由两条改密路径调用。缺 state 的分支错误码由 missing_params 变为 invalid_state，见 compatibility。",
+      "evidence": [
+        "app/server/src/lib/auth.ts",
+        "app/server/src/routes/identity/email.ts",
+        "app/server/src/routes/admin/auth.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "占用判定按账号豁免自己、只拦别人的名字，不能用来占住他人的用户名；会话吊销只作用于该账号自己的 sessions 行，不跨账号。",
+      "evidence": [
+        "app/server/src/routes/identity/account.ts",
+        "app/server/src/routes/identity/google.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不新增表、不改物理结构：占用判定只读 forum_users，会话吊销只 DELETE sessions 行；没有迁移。",
+      "evidence": [
+        "app/server/src/lib/auth.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不新增依赖，不调用新的外部服务；邮箱重置仍走既有发信队列。",
+      "evidence": [
+        "app/server/src/routes/identity/email.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "安全模型文档补「密码换掉之后旧会话作废」与「用户名占用并进论坛命名空间」两条现状说明；服务接口契约（endpoint-contracts.md）同步 PATCH profile 的 409、改密与重置的会话吊销、回调的 invalid_state 范围。",
+      "evidence": [
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/endpoint-contracts.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 6 条回归：冒名、昵称撞官方名、登录名与官方名只差 -/_ 的归一撞名、改回原名、重复 state 400，另加 signin-methods 的「重置密码后旧会话失效」。未验证真实浏览器双设备流程。",
+      "evidence": [
+        "tests/server/auth-chain-hardening.test.ts",
+        "tests/server/signin-methods.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "not-applicable",
+      "reason": "不涉及镜像、环境变量、工作流或宿主配置，发布流程不变。",
+      "evidence": [
+        "docs/architecture/SECURITY.md"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/routes/identity/profile.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:PATCH /api/identity/profile",
+        "flow:identity.profile.update"
+      ],
+      "reason": "PATCH 资料：username/display_name 先过 identityNameTaken 再写库"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/forum-store.ts"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "domain:forum",
+        "flow:forum.state"
+      ],
+      "reason": "新增 identityNameTaken：与 displayNameTaken 共用 nameKey 命名空间"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/auth.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.callback"
+      ],
+      "reason": "新增 revokeAccountSessions，保留指定 sid、删其它会话行"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/email.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /auth/email/reset",
+        "flow:identity.email.reset"
+      ],
+      "reason": "重置密码成功后吊销其它会话，保留刚签发的这一条"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/account.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /api/identity/password",
+        "flow:identity.account.password"
+      ],
+      "reason": "改密码成功后吊销其它会话，保留当前会话（先算哈希再复核会话仍有效）"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/admin/auth.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:GET /auth/callback",
+        "flow:identity.callback"
+      ],
+      "reason": "回调 query 类型收敛，重复 state 回 400"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/google.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:GET /auth/google/callback",
+        "flow:identity.google.callback"
+      ],
+      "reason": "Google 回调同样的类型收敛"
+    },
+    {
+      "paths": [
+        "tests/server/auth-chain-hardening.test.ts",
+        "tests/server/signin-methods.test.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.profile.update",
+        "flow:identity.email.reset"
+      ],
+      "reason": "新增回归：冒名被拒、改名成功、重复 state 400、重置后旧会话失效"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "安全模型补两条现状说明：改密码与重置密码后吊销其它会话、用户名与昵称占用判定并入论坛命名空间"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/"
+      ],
+      "domains": [
+        "identity",
+        "forum"
+      ],
+      "nodes": [
+        "domain:identity",
+        "domain:forum"
+      ],
+      "reason": "源码行号与路由证据随本次改动重新生成，属于派生产物"
+    },
+    {
+      "paths": [
+        "docs/services/server/endpoint-contracts.md"
+      ],
+      "domains": [
+        "identity",
+        "forum"
+      ],
+      "nodes": [
+        "route:POST /auth/email/reset",
+        "flow:identity.email.reset",
+        "route:POST /api/identity/password",
+        "flow:identity.account.password",
+        "route:PATCH /api/identity/profile",
+        "flow:identity.profile.update",
+        "route:GET /auth/callback",
+        "flow:identity.callback",
+        "route:GET /auth/google/callback",
+        "flow:identity.google.callback"
+      ],
+      "reason": "接口契约同步：改密与重置后吊销其它会话的时序，资料改名的论坛命名空间与 409 display_name_taken，回调重复参数与缺 state 的错误码"
+    }
+  ],
+  "documents": [
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/endpoint-contracts.md"
+  ],
+  "tests": [
+    "tests/server/auth-chain-hardening.test.ts",
+    "tests/server/signin-methods.test.ts"
+  ],
+  "compatibility": "不改变既有成功响应形状。新增 409 display_name_taken、401 not_signed_in（改密时会话已失效）、400 invalid_state（重复参数）分支；例外：缺 state 的请求原先回 400 missing_params，现在回 400 invalid_state（HTTP 状态码不变，前端与控制台代码中没有读取 missing_params 的地方）。旧客户端把 409 当通用失败也能工作。",
+  "migration": "无数据迁移：不改表结构、不回填历史用户名；已有重名（若存在）仍能登录与显示，只是新的改名请求会被拦。",
+  "rollback": "revert 合并提交即可；会话吊销只多删 sessions 行，不影响其它表，回滚后旧会话需要重新登录。"
+}

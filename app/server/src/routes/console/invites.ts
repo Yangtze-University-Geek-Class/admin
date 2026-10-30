@@ -5,7 +5,7 @@ import { requireStepUp } from "../../middleware/require-step-up.js";
 import { InviteCodeError, inviteUsable, type InviteInput, type InvitePatch } from "../../lib/invite-codes.js";
 
 /**
- * 注册邀请码（#262，所有者 2026-10-23「在我们的admin控制台再额外加个邀请码的逻辑」）：控制台列出、新建、修改、停用。
+ * 注册邀请码（#262，所有者 2026-10-23 提出在 admin 控制台再加一层邀请码逻辑）：控制台列出、新建、修改、停用。
  * 节点 `invite.manage`（CONTRACT-274 §5）。
  */
 export default async function consoleInviteRoutes(app: FastifyInstance) {

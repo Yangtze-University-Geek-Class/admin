@@ -6,7 +6,7 @@
 
 ## 硬约束
 
-每个任务在 `docs/changes/<issue>.json` 保存本 PR 的影响声明，PR 正文必须有「宏观对齐」段落并引用该文件。它不是另一套接口/数据定义：节点、业务域和应用引用[项目目录](../architecture/catalog/README.md)，字段与 Schema 仍从源码生成。
+每个任务在 `docs/changes/<issue>.json` 保存本 PR 的影响声明（GitHub 镜像同步的声明在 `docs/changes/github/<编号>.json`，见「声明格式」），PR 正文必须有「宏观对齐」段落并引用该文件。它不是另一套接口/数据定义：节点、业务域和应用引用[项目目录](../architecture/catalog/README.md)，字段与 Schema 仍从源码生成。
 
 **缺声明、缺维度、实际 diff 未覆盖、假称纯 UI、未知节点、缺相关文档或缺回归，一律失败。** 审查发现设计只处理局部、遗漏资源授权、事务或外部副作用，即使机器检查通过，仍按 [CODE-REVIEW](CODE-REVIEW.md) 判为阻塞。
 
@@ -34,6 +34,10 @@
 | `documents` | 相关人工文档；生成目录、索引和执行记录不能代替业务说明 |
 | `tests` | 实际测试文件；代码或工作流变化必须在本 PR 增补回归 |
 | `compatibility`、`migration`、`rollback` | 兼容性、数据演进、恢复路径；不涉及时也说明理由 |
+
+GitHub 一侧的同步工单声明放 `docs/changes/github/<编号>.json`，由 `check-architecture.mjs --forge github` 读取。GitHub 与 GitLab 的编号各自增长，两边同号的声明不能放在同一个扁平目录，否则后写的会覆盖先写的。
+
+检查器的版本兼容（#330）：CI 的 `architecture-alignment` 只取 PR 目标分支（base）里的 `scripts/check-architecture.mjs`，候选分支改它不能自己放行。目标分支的检查器导出 `FORGES`（认 `--forge`）时，GitHub 一侧传 `--forge github`；不导出时按旧参数调用，只读扁平的 `docs/changes/<编号>.json`。目标分支连检查器文件都没有时失败关闭。GitHub `stage` 合入 #330 之前，同步 PR 按旧参数调用，首次同步的做法见 [BRANCHING](BRANCHING.md)「GitHub 镜像同步」的「首次同步」。
 
 `coverage.paths` 可写具体文件或具体模块目录，以 `/` 结尾表示目录。拒绝 `app/`、`docs/`、`scripts/`、整个应用根目录等过宽范围和通配符。路径不能逃逸仓库，引用不能只指向声明自身。
 

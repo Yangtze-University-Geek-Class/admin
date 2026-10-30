@@ -496,19 +496,29 @@ export function createIdentityStore(db: Database.Database, deps: IdentityDeps) {
     accountEvent(accountId, `password_${kind}`, "email", "ok", null, now);
   }
 
-  /** 设置或修改密码（哈希由路由用 lib/password-policy.ts 算好）；写 identity_audit 与 account.password。 */
-  function setPassword(accountId: string, hash: string, actor: { login: string; ip?: string }): void {
-    db.transaction(() => writePassword(accountId, hash, actor, false))();
+  /**
+   * 设置或修改密码（哈希由路由用 lib/password-policy.ts 算好）；写 identity_audit 与 account.password。
+   * `afterWrite` 与密码写入在同一个 BEGIN IMMEDIATE 事务里、写完之后执行（#332 吊销命令行令牌与对外授权）；它抛错整体回滚。
+   */
+  function setPassword(accountId: string, hash: string, actor: { login: string; ip?: string }, afterWrite?: () => void): void {
+    db.transaction(() => {
+      writePassword(accountId, hash, actor, false);
+      afterWrite?.();
+    }).immediate();
   }
 
   /**
    * 忘了密码（#273）：邮箱验证码核对过本人，在一个事务里登录（和验证码登录同一条路径：没有账号回 `no_account`、
    * 停用照旧拒绝、占用验证码、建会话）并换上新密码。不能注册新账号；任何一步不成整体回滚，验证码不白丢。
+   * `afterWrite` 拿到这次新签发的 sid，和新密码在同一个事务里执行（#332），它抛错时新会话与新密码都不落库。
    */
-  function resetPassword(input: { email: string; hash: string; previousSid?: string | null; ip?: string; claim: () => boolean }): SigninResult {
+  function resetPassword(input: { email: string; hash: string; previousSid?: string | null; ip?: string; claim: () => boolean; afterWrite?: (accountId: string, sid: string) => void }): SigninResult {
     return db.transaction((): SigninResult => {
       const result = signInSecondChannel({ provider: "email", uid: input.email, email: input.email, method: "reset", previousSid: input.previousSid, ip: input.ip, claim: input.claim, register: false });
-      if (result.ok) writePassword(result.accountId, input.hash, { login: sessionProfile(result.accountId).login, ip: input.ip }, true);
+      if (result.ok) {
+        writePassword(result.accountId, input.hash, { login: sessionProfile(result.accountId).login, ip: input.ip }, true);
+        input.afterWrite?.(result.accountId, result.sid);
+      }
       return result;
     }).immediate();
   }
@@ -648,7 +658,7 @@ export function createIdentityStore(db: Database.Database, deps: IdentityDeps) {
   }
 
   /**
-   * 运维用的建号（`dist/cli/account.js`，所有者 2026-10-23「给我的admin账号弄个邮箱登录」）：按 GitHub 数字 id 找到或建立账号，
+   * 运维用的建号（`dist/cli/account.js`，所有者 2026-10-23 要求给 admin 账号加邮箱登录）：按 GitHub 数字 id 找到或建立账号，
    * 刷新 GitHub 身份的登录名，记下组织角色，再按传入值绑定邮箱。可以重跑：已经绑好的不重复写。只在服务器上由维护者执行，不开接口。
    * 不传邮箱时只补 GitHub 身份与成员资格，供 GitLab 改接正式前补建旧成员（#308），不按邮箱合号。
    */

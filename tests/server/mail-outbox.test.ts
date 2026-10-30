@@ -166,7 +166,7 @@ describe('limits on the 已收到 letter', () => {
 
   it('refuses a domain ending in a dot, quoted or backslashed local parts and IP literals when applying', async () => {
     const { app, applicant, rows } = await setup(BOTH);
-    const odd = ['victim@gmail.com.', 'a@b..c', 'a@.b.c', 'vic..tim@gmail.com', '"victim"@gmail.com', 'vi\\ctim@gmail.com', 'victim@[1.2.3.4]'];
+    const odd = ['victim@example.test.', 'a@b..c', 'a@.b.c', 'vic..tim@example.test', '"victim"@example.test', 'vi\\ctim@example.test', 'victim@[1.2.3.4]'];
     for (const [i, email] of odd.entries()) {
       // 每个换一个来源 IP，不碰每个 IP 每分钟 5 次的限流，也不碰每个 IP 每天 10 次的投递上限
       const response = await app.inject({ method: 'POST', url: '/api/portal/apply', headers: applicant, remoteAddress: `198.51.100.${10 + i}`, payload: { ...APPLICANT, email, pow: { timestamp: Date.now(), nonce: 'test' } } });
@@ -275,7 +275,7 @@ describe('recipients and configuration', () => {
     // 密钥有了、发件地址没写：这家发信商不算配置好
     expect(createConfig({ ...env, MAIL_RESEND_API_KEY: 're_x' }).mail.resend).toBeNull();
     const boot = (extra: Record<string, string>) => buildApp({ config: testConfig({ ...env, ...extra }), staticRoot: false });
-    for (const [key, value] of [['MAIL_REPLY_TO', 'a@b.com\r\nBcc: x@evil.example'], ['MAIL_RESEND_FROM', 'x <a@b.com>'], ['MAIL_ASSET_BASE', 'http://cdn.example.test/mail/']]) {
+    for (const [key, value] of [['MAIL_REPLY_TO', 'a@example.test\r\nBcc: x@evil.example'], ['MAIL_RESEND_FROM', 'x <a@example.test>'], ['MAIL_ASSET_BASE', 'http://cdn.example.test/mail/']]) {
       const extra = key === 'MAIL_RESEND_FROM' ? { MAIL_RESEND_API_KEY: 're_x', [key]: value } : { [key]: value };
       await expect(boot(extra), key).rejects.toThrow(key);
       // 错误信息不带配置的值

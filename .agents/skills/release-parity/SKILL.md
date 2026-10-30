@@ -1,6 +1,6 @@
 ---
 name: release-parity
-description: "geek_main 发版、hotfix 与环境改动的同构核对。动 env 模板、密钥、部署工作流、宿主配置（Caddy/GitLab/nginx）、外部服务，或要打 rc/正式 tag、派发 deploy-hotfix，或用户说「预发布和正式不同步」「发正式前查一下」时使用。"
+description: "geek_main 发版、hotfix 与环境改动的同构核对。动 env 模板、密钥、部署工作流、宿主配置（Caddy/GitLab/nginx）、外部服务，或要打 rc/正式 tag、派发 deploy-hotfix，或用户提到预发布与正式不同步、要在发正式前先查一遍时使用。"
 ---
 
 # 预发布到正式的同构核对（geek_main）
@@ -29,7 +29,7 @@ pnpm check:env-isolation                  # 三份 env 与代码里的环境域�
   ```
 
 - 要在宿主或线上库上做的事，先在仓库里补流水线路径和 CI 测试（`deploy/remote/install-host.sh`、`gitlab-cutover.yml` 这类），清单条目的正式动作写那条路径；不要靠自己或别人登录目标机去改，开发者没有 SSH。
-- 在正式做完：`node scripts/parity.mjs done <P-编号> --evidence "…"`。确实不需要写 `not-applicable --reason`。豁免只有所有者能给：`waive --by Crosery --quote "原话"`，没有原话不写。
+- 在正式做完：`node scripts/parity.mjs done <P-编号> --evidence "…"`。确实不需要写 `not-applicable --reason`。豁免只有所有者能给：`waive --by 所有者 --approval "批准摘要"`，没有批准摘要不写。
 
 ## 发版或 hotfix 前后
 

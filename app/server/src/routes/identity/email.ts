@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { normalizeRealName } from "../../lib/account-profiles.js";
+import { revokeAccountCredentials } from "../../lib/account-revoke.js";
 import { CODE_TTL_MS, RESEND_AFTER_S, normalizeEmail, type CheckResult } from "../../lib/email-login.js";
 import { gatedReturn } from "../../lib/email-gate.js";
 import { enrollmentYearFor, isSelectableGrade, type SelectableGrade } from "../../lib/grade.js";
@@ -13,7 +14,7 @@ import { setSessionCookie } from "../../middleware/require-auth.js";
 import { attachVisitorId } from "../../middleware/visitor.js";
 
 /**
- * 邮箱登录（#262，所有者 2026-10-23：「验证码和密码都支持」；#274 邀请码改选填，SPEC §3.2）：
+ * 邮箱登录（#262，所有者 2026-10-23 决定验证码和密码都支持；#274 邀请码改选填，SPEC §3.2）：
  * - `POST /auth/email/start`：发 6 位验证码。不论邮箱有没有账号响应都一样（202 + 挑战 cookie），没有账号的邮箱也真的发。
  * - `POST /auth/email/verify`：核对验证码后登录；没有账号时不填邀请码就注册成注册用户，填了且有效注册成成员，
  *   填了但无效回 `invite_invalid` 并记一次失败（验证码不作废，还可以再试）。只在真的要新建账号这一步，
@@ -199,6 +200,8 @@ export default async function emailRoutes(app: FastifyInstance) {
       const hash = await hashPassword(req.body.password);
       const result = identity.resetPassword({
         email: challenge.email, hash, previousSid: req.cookies?.sid ?? null, ip: req.ip, claim: () => emailLogin.claim(challenge.id),
+        // 旧会话、命令行令牌与对外授权一律作废，只留这次刚签发的一条（PENTEST-20261029 finding 14；#332）。和新密码、验证码占用在同一个事务里。
+        afterWrite: (accountId, sid) => revokeAccountCredentials(app.services, req, accountId, sid),
       });
       if (!result.ok) {
         switch (result.reason) {

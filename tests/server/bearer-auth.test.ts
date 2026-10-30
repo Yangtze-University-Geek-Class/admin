@@ -111,7 +111,7 @@ describe('geek 命令行的 Bearer 鉴权（#277）', () => {
 
   it('无效或已撤销的令牌按未登录处理，和 cookie 过期一样，不单独报一种错', async () => {
     const { app } = await setup();
-    const response = await app.inject({ url: '/api/identity/profile', headers: bearer('gk_not-a-real-token') });
+    const response = await app.inject({ url: '/api/identity/profile', headers: bearer('gk_not-a-token') });
     expect(response.statusCode).toBe(401);
   });
 

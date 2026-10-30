@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "issue": 312,
+  "kind": "business",
+  "summary": "按 GitLab 统一登录事故与所有者 10-30 00:54 的要求强化规范：新增改动场景分流表（常规、P0 hotfix、预发布已验收的一部分先上正式、配置、表结构、宿主、正式数据修复、回滚、活动期间、主代码托管不可用）；新增部分晋升窗口（deploy/promotion/windows.json + promotion-windows.mjs，branch-guard 共用判定）；hotfix 合回 stage 时可打 vX.Y.Z-hf.N / vX.Y.Z-stable.N 预发布 tag，部署链路与论坛版本显示接受这两种形状；task.mjs 按本机 remote 走 GitLab 查 issue 与 MR；AGENT-START 增加执行中的默认做法；写事故复盘。",
+  "applications": [
+    "forum"
+  ],
+  "domains": [
+    "forum",
+    "identity",
+    "organization",
+    "audit",
+    "platform"
+  ],
+  "flows": [
+    "flow:forum.state"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "业务数据与接口不变。改的是交付流程：预发布里已验收的一部分可以经登记的部分晋升窗口先进 main（picks 只能 cherry-pick -x 自 stage，excludes 不得进 main，最长 3 天）；hotfix 合回 stage 后预发布显示 X.Y.Z-hf.N@sha12 或 X.Y.Z-stable@sha12；论坛关于页说明三种预发布 tag。",
+      "evidence": [
+        "scripts/promotion-windows.mjs",
+        "deploy/promotion/windows.json",
+        "scripts/hotfix-sync.mjs",
+        "app/forum/app/components/DeploymentInfo.vue",
+        "docs/conventions/CHANGE-PATHS.md"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不改 server 路由、中间件与 lib；论坛只改构建期部署元数据的版本校验（nuxt.config 调 createDeploymentMetadata），不加接口、不改 /api/forum/state。",
+      "evidence": [
+        "app/forum/shared/deployment.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "不改用户身份与权限节点。发布门禁新增两条受限的放行路径，并收紧原有判定：1）main 领先 stage 除 P0 hotfix 窗口外，新增部分晋升窗口：要所有者原话、最长 3 天，登记提交只在 main 上、只改登记文件、登记后除收尾字段外不能改（改过的窗口整体不放行），picks 只能 cherry-pick -x 自 stage 且 patch-id 一致，窗口开着期间 excludes 不得进 main（快进也算）；改晋升登记的提交不能借 hotfix 窗口放行。2）新增 hf / stable 预发布 tag，只能打在把 main 合进 stage 的合并提交上（hf 要合进来的提交归属同版本 hotfix 窗口，stable 要这次合并新关闭同版本窗口），hotfix-sync 打 tag 必须带所有者授权原话并写进附注 tag。3）pre-push 判定 main 能否推送时只认同一次推送的 stage 或远端跟踪的 stage，不再认本地 stage；祖先关系成立的推送也照样核对窗口。正式部署仍只认同一提交上的 rc 预发布证据，hf / stable 不能顶替。",
+      "evidence": [
+        "scripts/check-branch-invariants.mjs",
+        "scripts/promotion-windows.mjs",
+        "scripts/release-policy.mjs",
+        "scripts/hotfix-sync.mjs",
+        ".githooks/pre-push",
+        "tests/tooling/branch-invariants.test.ts",
+        "tests/tooling/promotion-windows.test.ts",
+        "tests/tooling/release-policy.test.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不改表结构与业务数据。新增仓库内登记文件 deploy/promotion/windows.json（空窗口列表）；维护快照导出接受 hf / stable 版本字符串，快照内容不变。",
+      "evidence": [
+        "deploy/promotion/windows.json",
+        "deploy/remote/export-stack-snapshot.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "task.mjs 改经 scripts/forge.mjs 访问代码托管：有 gitlab remote 时调 GitLab REST（令牌只进请求头，只发给 https 地址或本机回环，不跟重定向；读 GITLAB_TOKEN 或钥匙串），否则调 gh；查不到时返回未知，由调用方决定拦或警告。同一分支多个 MR 只看最新一个；finish 在 MR 已合并时还要核对本地分支已全部进了合并目标，合并之后的本地提交不删。不新增 npm 依赖。hotfix-sync --preview-tag 会在新的 stage 合并提交上建附注 tag 并推到 origin 与 source，必须同时给 --tag-approval（所有者授权原话），仍由有发布授权的人执行。",
+      "evidence": [
+        "scripts/forge.mjs",
+        "scripts/task.mjs",
+        "scripts/hotfix-sync.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "新增 CHANGE-PATHS 场景分流与事故复盘；BRANCHING 增加部分晋升窗口（登记只在 main、登记后不能改、patch-id 用 --verbatim、excludes 快进也拦）与 hotfix 合回打 hf/stable tag 的步骤和 --tag-approval；RELEASES 写清 hf / stable 打在哪种合并提交上；AGENT-START 增加执行中的默认做法（批准目标只覆盖 task 合进 stage，进 main 与发布另要原话）；AGENTS.md 写明两种窗口例外；CODE-REVIEW 与 code-review 技能的 tag 清单加 hf / stable；env 模板注释补预发布版本形状；CICD、DEPLOY、论坛 README 同步预发布 tag 形状；论坛 forum.state 流程登记部署信息证据。",
+      "evidence": [
+        "docs/conventions/CHANGE-PATHS.md",
+        "docs/reviews/GITLAB-INCIDENT-2026-10.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/conventions/CODE-REVIEW.md",
+        ".agents/skills/code-review/SKILL.md",
+        "AGENTS.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/services/forum/README.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 promotion-windows 用例（登记校验、登记只在 main、登记后改动整体失效、借 hotfix 窗口改登记被拒、收尾提交放行、picks 的 patch-id 与 -x 痕迹、空白改动不算同一补丁、excludes 进 main 含快进、过期、登记过的窗口在 main 或 stage 上被删改（含合并时丢掉、过期后删除、main 快进之后、task 分支自带另一版同号登记、没写 closedAt 与 evidence 的假关窗）按各自历史与 stage 对 main 的比对拦下、推 main 时按推送前的 main 核对且远端 main 不在本地就拦、标 closed 才解除 excludes）、branch-invariants（部分晋升窗口放行与拒绝、本地未推的 stage 不放行 main、同批推送与 --remote、hf / stable 只在 main 合进 stage 的合并提交上）、hotfix-sync --preview-tag 的 hf / stable 选择、远端限制与 --tag-approval、release-policy 的 hf / stable 合并形态与判定不随时间变、deploy-manual 的 tag 形状、task-worktree 的 GitLab 选择、只看最新 MR、合并后本地提交不删、令牌只发 https 且不跟重定向、slug 不能借 hotfix_sync_ 前缀、只豁免 hotfix-sync 临时目录里的同步 worktree、论坛部署元数据接受 hf / stable 并拒绝错形。Node 22 下 tests/tooling 全量 68 个文件 1478 passed、27 skipped。未验证：真实打 hf / stable tag 触发预发布部署（需要发布授权，本 PR 不打 tag）；git 2.39 以下没有 patch-id --verbatim（算不出时按不归属处理）。",
+      "evidence": [
+        "tests/tooling/promotion-windows.test.ts",
+        "tests/tooling/branch-invariants.test.ts",
+        "tests/tooling/hotfix-sync.test.ts",
+        "tests/tooling/release-policy.test.ts",
+        "tests/tooling/deploy-manual.test.ts",
+        "tests/tooling/task-worktree.test.ts",
+        "tests/tooling/platform-maintenance.test.ts",
+        "app/forum/tests/deployment.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "deploy-preview.yml 的 tag 触发与 plan 正则加 hf / stable；platform-maintenance.sh 的源镜像版本校验接受两种预发布形状；deploy-production.yml 不改。合进 stage 后随下一个 rc 进预发布，不新建或移动 tag。GitHub preview 环境的部署分支/tag 规则若只放行 rc，需要所有者在 GitHub 上加 hf / stable 两种形状（未验证）。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/ci.yml",
+        "deploy/remote/platform-maintenance.sh",
+        "scripts/deploy-manual.mjs"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/forge.mjs",
+        "scripts/task.mjs",
+        "tests/tooling/task-worktree.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "task.mjs 按本机 remote 选代码托管（GitLab 优先），查 issue 状态与 MR 合并状态。"
+    },
+    {
+      "paths": [
+        "scripts/promotion-windows.mjs",
+        "deploy/promotion/windows.json",
+        "scripts/check-branch-invariants.mjs",
+        "scripts/hotfix-windows.mjs",
+        ".githooks/pre-push",
+        "tests/tooling/promotion-windows.test.ts",
+        "tests/tooling/branch-invariants.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "部分晋升窗口登记与归属判定，branch-guard、pre-push 与 hotfix 窗口共用窗口读取；pre-push 把推送的远端名传给判定。"
+    },
+    {
+      "paths": [
+        "scripts/release-policy.mjs",
+        "scripts/hotfix-sync.mjs",
+        "scripts/deploy-manual.mjs",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/ci.yml",
+        "deploy/remote/platform-maintenance.sh",
+        "deploy/remote/export-stack-snapshot.mjs",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.production",
+        "tests/tooling/release-policy.test.ts",
+        "tests/tooling/hotfix-sync.test.ts",
+        "tests/tooling/deploy-manual.test.ts",
+        "tests/tooling/platform-maintenance.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "hotfix 合回 stage 时可打 hf / stable 预发布 tag，部署、手工部署、维护快照与 env 模板注释接受这两种预发布版本；正式仍只认 rc 证据。"
+    },
+    {
+      "paths": [
+        "app/forum/shared/deployment.ts",
+        "app/forum/app/components/DeploymentInfo.vue",
+        "app/forum/tests/deployment.test.ts",
+        "docs/services/forum/README.md"
+      ],
+      "domains": [
+        "forum",
+        "identity",
+        "organization",
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:forum",
+        "flow:forum.state"
+      ],
+      "reason": "论坛构建期部署元数据接受 hf / stable 预发布版本，关于页说明三种预发布 tag；不调接口，登记在关于页所在的 forum.state 流程证据下。"
+    },
+    {
+      "paths": [
+        "AGENTS.md",
+        "docs/README.md",
+        "docs/INDEX.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/conventions/CODE-REVIEW.md",
+        ".agents/skills/code-review/SKILL.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/CHANGE-PATHS.md",
+        "docs/conventions/README.md",
+        "docs/conventions/RELEASES.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/reviews/GITLAB-INCIDENT-2026-10.md",
+        "docs/reviews/README.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "改动场景分流、部分晋升窗口、agent 执行默认做法与事故复盘，索引随之更新。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "forum",
+        "identity",
+        "organization",
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:forum.state"
+      ],
+      "reason": "forum.state 流程登记部署信息两处证据与测试，目录重新生成。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/CHANGE-PATHS.md",
+    "docs/conventions/BRANCHING.md",
+    "docs/conventions/RELEASES.md",
+    "docs/conventions/AGENT-START.md",
+    "docs/conventions/CODE-REVIEW.md",
+    "docs/reviews/GITLAB-INCIDENT-2026-10.md",
+    "docs/ops/CICD.md",
+    "docs/ops/DEPLOY.md",
+    "docs/services/forum/README.md"
+  ],
+  "tests": [
+    "tests/tooling/promotion-windows.test.ts",
+    "tests/tooling/branch-invariants.test.ts",
+    "tests/tooling/hotfix-sync.test.ts",
+    "tests/tooling/release-policy.test.ts",
+    "tests/tooling/deploy-manual.test.ts",
+    "tests/tooling/task-worktree.test.ts",
+    "tests/tooling/platform-maintenance.test.ts",
+    "app/forum/tests/deployment.test.ts"
+  ],
+  "compatibility": "现有 rc 与正式 tag 的形状、部署和证据不变；没有开着的晋升窗口、也没有 hotfix 窗口时，main 仍不得领先 stage。行为有变化的地方：hotfix 窗口按说明里的 #N 归属时，还要求提交者时间在批准与过期之间（批准前的提交要列进窗口 commits）；pre-push 不再拿本地 stage 证明 main 可推，要先推 stage 或 fetch；hotfix-sync --preview-tag 要同时给 --tag-approval；task.mjs finish 遇到合并后的本地提交、或查不到 MR 合进哪条分支时不删；GitLab 地址是明文 http（本机回环除外）时 task.mjs 当作没配。task.mjs 在没有 gitlab remote 的克隆上仍走 gh。",
+  "migration": "无 DDL、无数据迁移。deploy/promotion/windows.json 以空窗口列表入库，需要时由所有者批准后登记。",
+  "rollback": "revert 本 MR 的合并提交。若期间已打过 hf / stable tag，tag 不动，后续预发布用新的 rc 覆盖；晋升窗口登记随 revert 一并移除。"
+}

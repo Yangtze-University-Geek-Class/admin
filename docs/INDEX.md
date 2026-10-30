@@ -15,11 +15,12 @@
 | [`AGENT-START.md`](./conventions/AGENT-START.md) | AI 进入 geek_main 的第一步：确认当前分支并完整读取 docs 中的适用规范；不能以记忆、任务紧急或测试通过替代。 | — |
 | [`ARCHITECTURE-ALIGNMENT.md`](./conventions/ARCHITECTURE-ALIGNMENT.md) | 每个 PR 都把业务、后端、权限、数据、依赖、文档、验证和交付对齐到实际变更；纯 UI、文档和工程改动也不能省略。 | — |
 | [`BRANCHING.md`](./conventions/BRANCHING.md) | 只有 `main`（正式）与 `stage`（预发布）两条长期分支；task 分支合并后必须立即删除，任何操作前先确认当前分支。 | — |
+| [`CHANGE-PATHS.md`](./conventions/CHANGE-PATHS.md) | 一件改动先判断属于哪种场景，再照这一行的路径、检查和授权点走；对不上任何一行时停下来问所有者，不自己拼路径。 | — |
 | [`CODE-REVIEW.md`](./conventions/CODE-REVIEW.md) | 本仓库专属的 diff 审查清单：触发时机、逐项检查、结论格式与审查记录位置。 | — |
 | [`COMMITS.md`](./conventions/COMMITS.md) | Conventional Commits 结构，中文说明，一次提交一个可回滚目的。 | [EN](./conventions/COMMITS.en.md) |
 | [`CONTRIBUTING.md`](./conventions/CONTRIBUTING.md) | 统一入口、最小变更、可审查的提交与资源隔离。 | [EN](./conventions/CONTRIBUTING.en.md) |
 | [`DOCUMENTATION.md`](./conventions/DOCUMENTATION.md) | 区分当前事实、已接受决策、未实施提议和历史材料；`docs/` 与 `app/` 严格对齐。 | — |
-| [`ISSUES.md`](./conventions/ISSUES.md) | issue 是经 Crosery 确认事项的主档：查证、查重、确认后建单；写清现象、验收条件和确认依据，进展以追踪记录留在评论里，PR 合并即关闭。 | [EN](./conventions/ISSUES.en.md) |
+| [`ISSUES.md`](./conventions/ISSUES.md) | issue 是经所有者确认事项的主档：查证、查重、确认后建单；写清现象、验收条件和确认依据，进展以追踪记录留在评论里，PR 合并即关闭。 | [EN](./conventions/ISSUES.en.md) |
 | [`MODULAR-DEVELOPMENT.md`](./conventions/MODULAR-DEVELOPMENT.md) | 职责清楚、依赖单向、契约明确；`app/` 与 `docs/services/` 严格对齐，不为目录形式制造部署复杂度。 | — |
 | [`NOTES.md`](./conventions/NOTES.md) | 每个人、每个 agent 做的每一步，都按北京时间写进仓库里的 `notes/<日期>/<GitHub 用户名>/<链路>.md`；开发前先记开工，开发后记到收尾，链路不完整的 PR 不能合并。 | — |
 | [`PROJECT.md`](./conventions/PROJECT.md) | 项目定位、授权边界、统一入口和完成定义。 | — |
@@ -57,7 +58,7 @@
 | [`data-model.md`](./services/server/data-model.md) | data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。 | — |
 | [`endpoint-contracts.md`](./services/server/endpoint-contracts.md) | 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，区分存量人工说明与已挂载的机器响应契约。 | — |
 | [`mail.md`](./services/server/mail.md) | 招新的四封信怎么拼、怎么渲染、怎么排队发出去：每类信的内容是库里的模板（可以有多套，控制台里编辑、预览、向测试邮箱试发），拼好后先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。 | — |
-| [`oidc.md`](./services/server/oidc.md) | 不同源的应用用极客班账号登录：核心服务内嵌一个 OpenID Connect 签发者，第一个下游是自建的 GitLab（`https://git.yangtzeu.work`）。同一模块按极客班账号在 GitLab 上建好用户、放进 `geek` 组，离开的封禁。 | — |
+| [`oidc.md`](./services/server/oidc.md) | 不同源的应用用极客班账号登录：核心服务内嵌一个 OpenID Connect 签发者，第一个下游是自建的 GitLab（正式 `https://yangtzeu.work/gitlab`；#335 搬家前是子域名 `git.yangtzeu.work`，现在只做跳转）。同一模块按极客班账号在 GitLab 上建好用户、放进 `geek` 组，离开的封禁。 | — |
 
 ## services/web/
 
@@ -136,7 +137,7 @@
 |---|---|---|
 | [`BACKUP.md`](./ops/BACKUP.md) | 平台沿用 `yzgc-system-backup@1` 系统归档恢复到独立空卷；数据、配置、身份映射和外发隔离分别验收，不把 GitLab 备份或文件 hash 当完整迁移。 | — |
 | [`CDN.md`](./ops/CDN.md) | #295：公开静态资源迁到 path-style S3；对象内容、发布来源和私有运维索引分别追溯。 | — |
-| [`CICD.md`](./ops/CICD.md) | 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
+| [`CICD.md`](./ops/CICD.md) | 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` / `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
 | [`DEPLOY.md`](./ops/DEPLOY.md) | 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。 | [EN](./ops/DEPLOY.en.md) |
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |
 | [`ENVIRONMENTS.md`](./ops/ENVIRONMENTS.md) | 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。 | — |
@@ -222,6 +223,7 @@ iPhone 15 Pro Max model attribution
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`DATA-CAPTURE-RELEASE-RULES.md`](./reviews/DATA-CAPTURE-RELEASE-RULES.md) | 原始数据已落在 Mac 私有目录，Agent 首步阅读及人工发版约定已落实；未导入新论坛，也未开启远程部署。 | — |
+| [`GITLAB-INCIDENT-2026-10.md`](./reviews/GITLAB-INCIDENT-2026-10.md) | 极客班成员在比赛期间进不了自己的 GitLab 号，参赛提交落到了 GitHub。复盘只看流程和门禁的缺口，不追究个人。 | — |
 | [`LOCAL-CONTENT-ENVIRONMENTS.md`](./reviews/LOCAL-CONTENT-ENVIRONMENTS.md) | 阶段记录：发布域名合同和论坛环境展示已实现，真实内容投影已生成；当时数据接口未落盘，页面接入未完成。本机只读快照接入已于 2026-09-13 中午完成，见 FORUM-DATA-CAPTURE 最新状态。 | — |
 | [`NORMALIZATION.md`](./reviews/NORMALIZATION.md) | 本地代码、文档和隔离测试的实际交付记录；生产环境与凭据轮换尚未执行。 | — |
 | [`TUFF-FORUM-ADOPTION.md`](./reviews/TUFF-FORUM-ADOPTION.md) | 已直接采用原仓前端并切换本机入口；不将缺少真实认证和后端的演示称为生产社区。 | — |
@@ -233,4 +235,4 @@ iPhone 15 Pro Max model attribution
 
 ---
 
-共 84 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 86 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

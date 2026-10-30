@@ -180,7 +180,7 @@ describe("mail envelope renderer", () => {
     const custom: EnvelopeMessage = { ...recruitmentMessage("rejected", inputs("小明").rejected), blocks: [{ kind: "paragraph", text: "有事直接回复这封邮件。" }] };
     expect(() => renderEnvelope(custom, { assetBase: CDN })).toThrow(MailTemplateError);
 
-    for (const replyTo of ["", "not-an-email", "a@b.com\r\nBcc: x@evil.example", "<a@b.com>", "a@b.com, c@d.com", "a b@c.com", "a@localhost"]) {
+    for (const replyTo of ["", "not-an-email", "a@example.test\r\nBcc: x@evil.example", "<a@example.test>", "a@example.test, c@example.test", "a b@example.test", "a@localhost"]) {
       expect(() => renderEnvelope({ ...custom, replyTo }, { assetBase: CDN }), JSON.stringify(replyTo)).toThrow(MailTemplateError);
       expect(() => safeReplyTo(replyTo), JSON.stringify(replyTo)).toThrow(MailTemplateError);
     }
@@ -279,11 +279,11 @@ describe("mail envelope renderer", () => {
 
   it("rejects an asset base that is not https, or does not end with a slash; file:// only when preview asks for it", () => {
     const message = recruitmentMessage("received", inputs("小明").received);
-    for (const assetBase of ["http://cdn.crosery.com/yzgc/mail/v1/", "https://cdn.yangtzeu.work/geek-public/mail/v1", "javascript:alert(1)//", "https://cdn.crosery.com/x/?a=1", "file:///tmp/mail-envelope/assets/"]) {
+    for (const assetBase of ["http://cdn-old.example.test/yzgc/mail/v1/", "https://cdn.yangtzeu.work/geek-public/mail/v1", "javascript:alert(1)//", "https://cdn-old.example.test/x/?a=1", "file:///tmp/mail-envelope/assets/"]) {
       expect(() => renderEnvelope(message, { assetBase }), assetBase).toThrow(MailTemplateError);
     }
     expect(() => renderEnvelope(message, { assetBase: "file:///tmp/mail-envelope/assets", allowFileAssets: true })).toThrow(MailTemplateError);
-    expect(() => renderEnvelope(message, { assetBase: "http://cdn.crosery.com/yzgc/mail/v1/", allowFileAssets: true })).toThrow(MailTemplateError);
+    expect(() => renderEnvelope(message, { assetBase: "http://cdn-old.example.test/yzgc/mail/v1/", allowFileAssets: true })).toThrow(MailTemplateError);
   });
 
   it("stays well under the 102KB clipping limit even with long content", () => {

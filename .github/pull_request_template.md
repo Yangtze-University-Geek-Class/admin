@@ -6,7 +6,7 @@ PR 正文契约：docs/conventions/PULL-REQUESTS.md。CI 的 pr-contract 检查�
 -->
 
 ### 目的
-<!-- 解决什么问题、谁提的、为什么现在做。引用 issue 里的原话。 -->
+<!-- 解决什么问题、谁提的、为什么现在做。概述 issue 里的需求，不照抄用户原文。 -->
 
 ### 关联
 Closes #<!-- issue 号，必须与分支名 task/<issue>/<slug> 一致 -->

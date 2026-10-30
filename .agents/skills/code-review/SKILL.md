@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: "geek_main 仓库级代码审查。当任何 MR/PR 要进入 stage 或 main、需要合并前自查，或用户说「审查这次改动 / review 这个 diff / 看看这个分支能不能合」时使用。"
+description: "geek_main 仓库级代码审查。当任何 MR/PR 要进入 stage 或 main、需要合并前自查，或用户要求审查改动（如 review 一个 diff、看分支能不能合）时使用。"
 ---
 
 # 代码审查（geek_main 仓库级）
@@ -12,7 +12,7 @@ description: "geek_main 仓库级代码审查。当任何 MR/PR 要进入 stage 
 - 任何要合入 `stage` 的 MR（含文档、脚本、配置）。
 - 任何要合入 `main` 的操作（`main` 只收 `stage`，这次审查是对当下 `stage` 的第二道复核）。
 - Dockerfile、compose、`.env` 契约、`deploy/remote/*.sh` 的变更，以及任何触及认证、授权、密钥、数据库 schema 的改动。
-- 用户要求「审查这次改动 / review 这个 diff / 看看这个分支能不能合」。
+- 用户要求审查这次改动、看 diff，或判断这个分支能不能合并。
 
 不适用：只需要解释代码、写测试、修 bug 的请求——先把活干完，再走本审查。纯历史材料、注释错字这类改动不必逐项过清单，但结论仍要写进 MR（写「无需逐项审查 + 理由」）。
 
@@ -65,12 +65,12 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 7. **测试与文档同步**：看真实验证证据（命令 + 输出），不是「本地通过」四个字；改动的 API、环境变量、命令、路径是否同步到 `docs/services/**`、`docs/architecture/API.md`、`docs/ops/ENVIRONMENTS.md`、根 `README.md`；`node scripts/docs-index.mjs --check` 与 `node scripts/check-docs.mjs` 是否通过。文档跟着模块改：`node scripts/check-doc-sync.mjs --base origin/stage --head <task 分支>` 是否通过；PR 里的文档改动是否真的对应模块的改动（只改「更新：」日期的不算），执行记录里的 `文档核对：<文档路径> 不用改——<理由>` 对照 diff 是否属实（规则在 `docs/README.md`「文档跟着模块改」）。
 8. **边界规则**：`pnpm check:boundaries`；`app/` 与 `docs/` 严格对齐（新增服务必须同时有 `docs/services/<svc>/README.md`）；站点互导、shared → 站点、路由模块互导、`lib` 反向依赖 `middleware`、论坛导入核心 React/Fastify 实现都是禁止方向。
 9. **提交信息规范**：按 `docs/conventions/COMMITS.md` 的 `<type>(<scope>): <中文简述>` 检查 `git log`；一次提交一个可独立回滚的目的，不出现 `update`/`WIP`。
-10. **旧模型残留**：在 diff 里扫 `next`、`feat/`/`fix/` 分支名、`release-*`/`prev-*` tag、「push `stage`/`main` 即部署」、systemd、`/opt/yzgc-admin`、宿主 3000 端口是否被当成现行模型（历史章节内须显式标注历史）。发布 tag 只能是 `vX.Y.Z-rc.N` / `vX.Y.Z`，部署只由它们触发（`docs/conventions/RELEASES.md`）。
+10. **旧模型残留**：在 diff 里扫 `next`、`feat/`/`fix/` 分支名、`release-*`/`prev-*` tag、「push `stage`/`main` 即部署」、systemd、`/opt/yzgc-admin`、宿主 3000 端口是否被当成现行模型（历史章节内须显式标注历史）。发布 tag 只能是 `vX.Y.Z-rc.N` / `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N` / `vX.Y.Z`，部署只由它们触发（`docs/conventions/RELEASES.md`）。
 11. **死分支**：`gh pr list --state merged --limit 20`、`git branch -r`、`git ls-remote --heads origin` 里不得残留已合并的 `task/**`，也不得有 `main`/`stage` 之外的长期分支。
 12. **绕过 CI**：diff 里出现 `|| true`、`continue-on-error`、`[skip ci]`、删断言、改校验器、放宽既有校验收绿色即阻塞。
 13. **危险操作**：数据库/数据目录变更是否有兼容与恢复路径，是否有删除数据、覆盖配置、顺带升级无关依赖、修改生产凭据，或「以测试通过代替人工验收」的表述。
 14. **执行记录**：`node scripts/note.mjs check --pr --for-review --base origin/stage --head <task 分支>` 必须通过；再打开 `notes/<日期>/<用户名>/<链路>.md` 对照 `git log`、PR 和 CI 运行号，核对记录的 SHA、命令输出、时间与实际一致，没有补写没发生过的事（`docs/conventions/NOTES.md`）。审查中允许暂缺「审查」记录，审查给出结论后由作者补记，CI 恢复全绿后方可合并。
-15. **合并后清理**（合并之后由合并的人当场跑，2026-09-26 定的强制规范）：先等这次合并触发的工作流跑完，`gh run list --workflow issue-lifecycle.yml --branch <task 分支> --limit 1` 与 `gh run list --workflow branch-hygiene.yml --branch <task 分支> --limit 1` 都是 `completed`；再查 `gh issue view <issue> --json state` 必须是 `CLOSED`；`git ls-remote --heads origin 'task/<issue>/*'` 必须没有输出；只读运行 `node scripts/issue-sweep.mjs`，报告里不能有「将补关」（合并不到一小时的 PR 它先不管，刚合并时以 `gh issue view` 为准）；开发者本机 `node scripts/task.mjs list --check` 必须通过。只有工作流失败、issue 还开着时（例如 fork PR 合并时工作流没有写权限，#137）才当场手工关，工作流还在跑时不手工关，免得留两条「关闭」；手工关的按 `docs/conventions/TRACKING.md` §3 留「关闭」记录（`docs/conventions/CODE-REVIEW.md` 第 12 项）。
+15. **合并后清理**（合并之后由合并的人当场跑，合并后不清理，死分支和开着的 issue 会堆积）：先等这次合并触发的工作流跑完，`gh run list --workflow issue-lifecycle.yml --branch <task 分支> --limit 1` 与 `gh run list --workflow branch-hygiene.yml --branch <task 分支> --limit 1` 都是 `completed`；再查 `gh issue view <issue> --json state` 必须是 `CLOSED`；`git ls-remote --heads origin 'task/<issue>/*'` 必须没有输出；只读运行 `node scripts/issue-sweep.mjs`，报告里不能有「将补关」（合并不到一小时的 PR 它先不管，刚合并时以 `gh issue view` 为准）；开发者本机 `node scripts/task.mjs list --check` 必须通过。只有工作流失败、issue 还开着时（例如 fork PR 合并时工作流没有写权限，#137）才当场手工关，工作流还在跑时不手工关，免得留两条「关闭」；手工关的按 `docs/conventions/TRACKING.md` §3 留「关闭」记录（`docs/conventions/CODE-REVIEW.md` 第 12 项）。
 16. **环境隔离与同构**（`docs/conventions/RELEASE-PARITY.md`，CODE-REVIEW 第 15 项）：`pnpm check:env-isolation`；`git diff <基线>...HEAD -- deploy .github/workflows scripts app | grep -nE 'yangtzeu\.work'` 看有没有另一个环境的域名新增、`deploy/env/origin-exceptions.json` 的新增登记理由是否真实；`node scripts/parity.mjs list` 看 `pending`，对照 diff 找预发布做过而没登记的事；`git diff <基线>...HEAD -- scripts/parity.mjs deploy/parity` 看有没有放宽检查或加豁免；数据只对齐格式，diff 里不该有把预发布数据行带到正式的做法；新增接口要能指出调用方，被替换的旧接口要删（RELEASE-PARITY 第九节）。
 
 ## 输出格式
@@ -95,5 +95,5 @@ gh pr checkout <N>   # 需要跑脚本或看完整仓库上下文时
 
 ## 边界
 
-- 默认只读：不改文件、不提交、不推送、不合并、不部署。用户明确要求「按审查意见修」时才动手，改完重新出结论。
+- 默认只读：不改文件、不提交、不推送、不合并、不部署。用户明确要求按审查意见修改时才动手，改完重新出结论。
 - 审查通过不等于发版授权，也不能代替 [RELEASES](../../../docs/conventions/RELEASES.md) 要求的人工试用与发布批准。

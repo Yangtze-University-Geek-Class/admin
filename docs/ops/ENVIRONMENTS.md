@@ -2,7 +2,7 @@
 
 > 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
 
-状态：`current` · 更新：2026-10-29 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
+状态：`current` · 更新：2026-10-30 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
 
 ## 可见性规则
 
@@ -41,14 +41,20 @@
 | `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，服务不打开旧 `forum.db`、不写上传目录；论坛数据在 `DB_PATH` 的 `forum_*` 表，头像也存在库里，#57） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
-| `MAIL_ALIYUN_FROM` | 可见 | `notify@mail.email-crosery.cn`（阿里云邮件推送的发信地址，不带显示名） | 同左 |
-| `MAIL_RESEND_FROM` | 可见 | `notify@email-crosery.cn`（Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`） | 同左 |
+| `MAIL_ALIYUN_FROM` | 密钥·留空，阿里云发信时必填 | 环境密钥：阿里云邮件推送的发信地址，不带显示名，由 CI/CD 注入 | 同左 |
+| `MAIL_RESEND_FROM` | 密钥·留空，Resend 发信时必填 | 环境密钥：Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`，由 CI/CD 注入 | 同左 |
 | `MAIL_ASSET_BASE` | 可见 | `https://cdn.yangtzeu.work/geek-public/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
 | `MAIL_REPLY_TO` | 可见·留空 | 空 = 信里不带 Reply-To，改请对方到官网意见箱留言；要填就写一个不带显示名的地址 | 空 |
 | `MAIL_RECIPIENTS` | 可见 | `all`，沿用接管前设置 | `all`，沿用接管前设置 |
-| `GITLAB_SYNC` | 可见 | `off`，不在迁移中切换身份源 | `on`，保留预发布权威源；数据库 effective mode 仍需独立核对 |
-| `GITLAB_URL` | 可见 | `https://git.yangtzeu.work`（自建 GitLab 的 origin，https、不带尾斜杠） | 同左 |
-| `GITLAB_GROUP` | 可见 | `geek`（成员进的组） | 同左 |
+| `GITLAB_SYNC` | 可见 | `off`，完整旧身份对账后才开启 | `on` 是独立实例的目标配置；切换前不能部署旧令牌或复用旧绑定 |
+| `GITLAB_URL` | 可见 | `https://yangtzeu.work/gitlab`（#335：和预发布一样在本环境入口的 `/gitlab` 下；旧主机 `git.yangtzeu.work` 只做 301） | `https://prev.yangtzeu.work/gitlab`；保留部署子路径的独立基址 |
+| `GITLAB_GROUP` | 可见 | `geek` | `geek`，两个实例各自的群组 |
+| `GITLAB_OIDC_CLIENT` | 可见 | `gitlab` | `gitlab_preview`，不覆盖仍被旧正式登录使用的预发布客户端 |
+| `GITLAB_OIDC_SECTOR` | 可见 | `git.yangtzeu.work`：`gitlab` 客户端钉住的 sector，沿用搬家前的主机，成员的 `sub` 不变（#335） | `prev.yangtzeu.work`；同步核对客户端钉住的 sector 和它一致，不一致整轮跳过 |
+| `GITLAB_STACK_ROOT` | 可见 | `/srv/gitlab`，保留原卷与账号 | `/srv/gitlab-preview`，全新独立数据 |
+| `GITLAB_HTTP_BIND` | 可见 | `10.66.0.2:8929` | `10.66.0.2:8930`，仅隧道入口 |
+| `GITLAB_DOCKER_SUBNET` | 可见 | `172.31.29.0/24` | `172.31.30.0/24`，不共享网络 |
+| `GITLAB_DOCKER_GATEWAY` | 可见 | `172.31.29.1` | `172.31.30.1` |
 | `GEEK_RELEASE_DISPLAY_SUFFIX` | **已移除** | 不再出现在 env 文件里：它是 `BUILD_ONLY_FIELDS`（发布身份只走 build args），写进 `.env` 不会被读取 | 同左 |
 | `OAUTH_CLIENT_ID` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
 | `OAUTH_CLIENT_SECRET` | **密钥·必须留空** | CI/CD 注入 | CI/CD 注入 |
@@ -71,9 +77,11 @@
 
 本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要真实后端时 `cp deploy/env/.env.dev .env` 后在 `.env` 或 shell 里补本机用的密钥，`.env` 不入库。只看界面直接 `pnpm dev:web` 或 `pnpm preview:local`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
 
-**正式与预发布的差异键**只有：`GEEK_DEPLOYMENT_ENVIRONMENT`、`GEEK_ENVIRONMENT_ORIGIN`、`COMPOSE_PROJECT_NAME`、`STACK_ROOT`、`WEB_BIND`、`SERVER_BIND`、`PUBLIC_ORIGIN`、`GITLAB_SYNC`（GitLab 同步只允许一个环境写）。其余键两份取值必须相同，新增差异键先登记在 `scripts/check-env-isolation.mjs` 的 `PER_ENVIRONMENT_KEYS` 并在上表说明原因。每份文件不得出现另外两个环境才有的域名、端口、镜像仓库和目录。代码与部署片段里的环境域名只能出现在 `deploy/env/origin-exceptions.json` 登记过的文件里。
+**正式与预发布的差异键**：原有环境身份、栈路径/端口与 `GITLAB_SYNC`，另加上表六项独立 GitLab 目标字段。其余键两份取值必须相同。`check-env-isolation.mjs` 另外拒绝两个实例复用 URL、目录、绑定、子网或网关；公开客户端标识不命名为凭据字段，密钥检查规则不放宽。实际凭据、运行绑定与模板分别核验，模板修改不等于已切换。
 
 **密钥在两个 GitHub 环境里必须同名同集**：预发布配了的密钥，正式也要配（第三方账号和域名不同，取值不同）。缺口登记在同构清单 `deploy/parity/ledger.json`，发版前清零（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第五节）。
+
+香港共享入口的专用运维密钥 `GITLAB_EDGE_SSH_KEY` 只放在受 required reviewers 保护的 `production` 环境，不进入业务 `.env`，也不下放到普通预发布部署。它仅能调用固定的入口动作；这是宿主运维权限，不是两套应用的业务密钥。预发布 GitLab 的备份另用 `GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID` / `GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY`，不能回落正式备份凭据。
 
 ## 副本启动安全门禁
 
@@ -81,7 +89,7 @@
 - `verify-arch-replica.mjs` 可只读核对指定 env/独立一致快照；持久 on/dry-run、缺原加密密钥、WAL/SHM/journal 状态均拒绝。成功只表示配置满足当前预部署合同，不证明密钥与原快照匹配或真实循环无外发；分发和命令见 [DEPLOY](DEPLOY.md#arch-副本启动前的独立门禁)。
 - 核心真实入口会启动 GitLab 同步和贡献收集循环；`competition-candidates.ts` 按有效 GitLab mode 判定，`dry-run` 不等同 off。启动前须在出站隔离中证明恢复库 **effective mode=off**、贡献收集不外发/不计分、邮件空白名单及队列无外发；Compose bridge 网络名 `internal` 不会自动断网。
 - 对恢复副本的设置调整属于数据写入，必须取得该环境和目标的明确批准；只操作获批复制库，保留原快照和旧源，不给出任意 UPDATE 线上库的捷径。保留原 `ENCRYPTION_KEY`、client、sector/sub 与 GitLab 关联；不为“安全副本”重建账号或随机换加密密钥。
-- 最终接管身份源按单写者顺序：先停旧源的**有效**同步/贡献收集并证明停止 → 对账/保全关联与 sub → 获批切换 issuer/client → 只开启新权威源。邮件恢复外发也须单独批准；真实 SSO 故障未因配置迁移解决。
+- 最终接管身份源按单写者顺序：先停旧源的**有效**同步/贡献收集并证明停止 → 对账/保全关联与 sub → 只开启新权威源并逐成员核验 → 获批切换 issuer/client。`gitlab-cutover` 已提供排空、持久写口、canonical env 原子更新和原镜像重启路径，不要求另发 rc。只读状态不证明旧进程已换模式；模板默认值也不等于运行状态。邮件恢复外发另行授权。
 
 ## SSH 与跳板绑定
 
@@ -108,6 +116,8 @@ CI/manual 都用生成的 `-F <配置> yzgc-target`，同一配置供 SSH/SCP：
 | `ENCRYPTION_KEY` | 32 字节密钥的 base64（GitHub token 加密） |
 | `TURNSTILE_SITE_KEY` | Cloudflare Turnstile 站点键 |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile 服务端密钥 |
+| `MAIL_ALIYUN_FROM` | 阿里云邮件推送的发信地址（配了阿里云那一对密钥时必填；不带显示名） |
+| `MAIL_RESEND_FROM` | Resend 的发件地址（配了 `MAIL_RESEND_API_KEY` 时必填；不带显示名） |
 | `MAIL_ALIYUN_ACCESS_KEY_ID` | 阿里云邮件推送的 AccessKey ID（可选，和下一项要么都配、要么都不配） |
 | `MAIL_ALIYUN_ACCESS_KEY_SECRET` | 阿里云邮件推送的 AccessKey Secret |
 | `MAIL_RESEND_API_KEY` | Resend 的 API Key（可选） |
@@ -151,8 +161,8 @@ OIDC/GitLab 环境字段承接历史 **GitLab geek/admin#270**，不是 GitHub a
 |---|---|---|
 | `yangtzeu.work` | A 仍为 `103.117.123.226`，无 AAAA；旧入口转发到 Arch 正式 | 所有者将 A 指向香港 `156.238.244.78` |
 | `prev.yangtzeu.work` | A 仍为 `103.117.123.226`，无 AAAA；旧入口转发到 Arch 预发布 | 同上；香港可信 TLS 与指定 IP 路径已验证 |
-| `github.yangtzeu.work` | 旧 VPS 保留 301；legacy Node 已停用 | 兼容入口收尾前不关闭旧机 |
-| `git.yangtzeu.work` | 香港 → Arch GitLab 原链路 | 本迁移不改其 DNS 或身份源 |
+| `github.yangtzeu.work` | 旧 VPS 保留 301；legacy Node 已停用。2026-10-30 核对：已没有 A 记录，这个 301 实际到不了 | `deploy/nginx/production.conf` 里的 301 块还在，删不删另行决定（#335 只登记不删） |
+| `git.yangtzeu.work` | 香港 → Arch GitLab 原链路（2026-10-30 核对：A 为香港 `156.238.244.78`） | #335 搬家后只做 301 到正式入口的 `/gitlab` 同一路径，DNS 不改；sector 仍是这个主机 |
 
 DNS 由所有者操作；切前核对 A/AAAA/CAA/TTL、SNI、证书签发/续期与回调。旧源 nginx/certbot 保留观察窗口；新边缘使用 Caddy 签证书，不搬私钥、不在 Arch 额外叠宿主 nginx。模板/回环 HTTP 不证明 HTTPS 或身份安全，真实验收见 [DEPLOY](DEPLOY.md)。
 

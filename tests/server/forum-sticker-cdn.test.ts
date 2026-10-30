@@ -184,7 +184,7 @@ describe('STATIC_CDN_BASE 的读法', () => {
     expect(parseStaticCdnBase('  ')).toBe('');
     expect(parseStaticCdnBase(STATIC_CDN_BASE)).toBe(STATIC_CDN_BASE);
     expect(createConfig({ ...env, STATIC_CDN_BASE }).staticCdnBase).toBe(STATIC_CDN_BASE);
-    for (const wrong of ['https://cdn.crosery.com/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn.crosery.com/yzgc/promo/']) {
+    for (const wrong of ['https://cdn-old.example.test/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
       expect(() => parseStaticCdnBase(wrong), wrong).toThrow(/只能为空或/);
       expect(() => createConfig({ ...env, STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
     }

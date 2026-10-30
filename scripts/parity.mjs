@@ -12,7 +12,7 @@
  *        --preview-evidence <预发布做了什么、怎么验证的> --production-action <正式要做的动作和命令> [--phase pre_deploy|post_deploy --release <版本>]
  *   node scripts/parity.mjs done <P-0001> --evidence <正式做了什么、怎么验证的>
  *   node scripts/parity.mjs not-applicable <P-0001> --reason <为什么正式不需要>
- *   node scripts/parity.mjs waive <P-0001> --by Crosery --quote <所有者的原话>   只记录所有者的豁免，不替所有者决定
+ *   node scripts/parity.mjs waive <P-0001> --by 所有者 --approval <所有者的批准摘要>   只记录所有者的豁免，不替所有者决定
  *   node scripts/parity.mjs smoke --origin <站点> --env <production|preview>    deploy/parity/smoke.json 的 require 段
  *   node scripts/parity.mjs compare --preview <站点> --production <站点>        mirror 段：两边状态、类型必须一致；sameShape 再比 JSON 的键和值类型（数据不比，只比格式）
  *
@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TIME_RE, text, validateOwnerApproval } from './owner-approval.mjs';
 
 export const LEDGER_FILE = 'deploy/parity/ledger.json';
 export const SMOKE_FILE = 'deploy/parity/smoke.json';
@@ -30,14 +31,11 @@ export const STATUSES = Object.freeze(['pending', 'done', 'not_applicable', 'wai
 // pre_deploy（缺省）：部署之前必须做完；post_deploy：依赖这次部署本身（如要等正式服务起来才能改接），部署后立刻做，--complete 收尾核对
 export const PHASES = Object.freeze(['pre_deploy', 'post_deploy']);
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\+08:00)?)?$/;
 
 export function beijingNow(date = new Date()) {
   const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(date);
   return `${parts.replace(' ', 'T')}+08:00`;
 }
-
-const text = (value, min = 8) => typeof value === 'string' && value.trim().length >= min;
 
 /** 校验清单，返回问题列表（空 = 格式正确）。 */
 export function validateLedger(ledger) {
@@ -54,13 +52,13 @@ export function validateLedger(ledger) {
     if (entry?.phase !== undefined && !PHASES.includes(entry.phase)) problems.push(`${at}：phase 只能是 ${PHASES.join('、')}`);
     if (entry?.phase === 'post_deploy' && !VERSION_RE.test(entry?.release ?? '')) problems.push(`${at}：post_deploy 要写 release（随哪个版本部署，形如 0.1.1），下一个版本发布前它必须已经收尾`);
     if (!Number.isInteger(entry?.issue) || entry.issue < 1) problems.push(`${at}：issue 必须是正整数`);
-    if (!DATE_RE.test(entry?.preview?.doneAt ?? '') || !text(entry?.preview?.evidence)) problems.push(`${at}：preview 要有 doneAt 和 evidence（预发布做了什么、怎么验证）`);
+    if (!TIME_RE.test(entry?.preview?.doneAt ?? '') || !text(entry?.preview?.evidence)) problems.push(`${at}：preview 要有 doneAt 和 evidence（预发布做了什么、怎么验证）`);
     const production = entry?.production ?? {};
     if (!STATUSES.includes(production.status)) problems.push(`${at}：production.status 只能是 ${STATUSES.join('、')}`);
     if (!text(production.action)) problems.push(`${at}：production.action 要写清正式要做的动作`);
-    if (production.status === 'done' && (!DATE_RE.test(production.doneAt ?? '') || !text(production.evidence))) problems.push(`${at}：done 要有 doneAt 和 evidence`);
+    if (production.status === 'done' && (!TIME_RE.test(production.doneAt ?? '') || !text(production.evidence))) problems.push(`${at}：done 要有 doneAt 和 evidence`);
     if (production.status === 'not_applicable' && !text(production.reason)) problems.push(`${at}：not_applicable 要写理由`);
-    if (production.status === 'waived' && !(production.waiver?.by === 'Crosery' && DATE_RE.test(production.waiver?.at ?? '') && text(production.waiver?.quote))) problems.push(`${at}：waived 要有所有者的 by、at 和原话 quote`);
+    if (production.status === 'waived' && !validateOwnerApproval({ by: production.waiver?.by, at: production.waiver?.at, approval: production.waiver?.approval })) problems.push(`${at}：waived 要有所有者的 by、at 和批准摘要 approval`);
   }
   return problems;
 }
@@ -288,7 +286,7 @@ export async function main(argv) {
   const id = rest[0];
   if (command === 'done') { writeLedger(updateEntry(ledger, id, { status: 'done', doneAt: beijingNow(), evidence: need(rest, 'evidence') })); console.log(`${id} 已标 done`); return 0; }
   if (command === 'not-applicable') { writeLedger(updateEntry(ledger, id, { status: 'not_applicable', reason: need(rest, 'reason') })); console.log(`${id} 已标 not_applicable`); return 0; }
-  if (command === 'waive') { writeLedger(updateEntry(ledger, id, { status: 'waived', waiver: { by: need(rest, 'by'), at: beijingNow(), quote: need(rest, 'quote') } })); console.log(`${id} 已记录所有者豁免`); return 0; }
+  if (command === 'waive') { writeLedger(updateEntry(ledger, id, { status: 'waived', waiver: { by: need(rest, 'by'), at: beijingNow(), approval: need(rest, 'approval') } })); console.log(`${id} 已记录所有者豁免`); return 0; }
   console.error('用法：node scripts/parity.mjs <list|check [--release --version <x.y.z>|--complete]|add|done|not-applicable|waive|smoke|compare>，详见文件头注释');
   return 2;
 }

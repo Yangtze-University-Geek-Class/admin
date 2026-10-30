@@ -108,11 +108,15 @@ export function createOidcProvider(deps: OidcProviderDeps): Provider {
     scopes: [...OIDC_SCOPES],
     subjectTypes: ["pairwise"],
     async pairwiseIdentifier(_ctx, accountId, client) {
-      // 客户端都登记成 pairwise，sector 是回调地址的主机名（oidc-provider 按 redirect_uris[0] 算出）
-      const sector: unknown = client.sectorIdentifier;
-      if (typeof sector !== "string" || !sector) throw new Error("client has no sector identifier");
+      // 客户端都登记成 pairwise。sector 取库里钉住的值，不用 oidc-provider 按 redirect_uris[0] 现算的：
+      // 应用换了回调地址（#335 GitLab 从子域名搬到主站路径），成员的 sub 也不能变
+      const sector = deps.store.sectorOf(String(client.clientId));
+      if (!sector) throw new Error("client has no sector identifier");
       return deps.store.subjectFor(sector, accountId);
     },
+    // 客户端元数据里的 sector_identifier_uri 只是钉住的 sector（oidc-store clientMetadata），没有可取的文档；
+    // 客户端只由服务器命令登记，不开动态注册，所以不去取它
+    sectorIdentifierUriValidate: () => false,
     pkce: { required: () => true },
     responseTypes: ["code"],
     clientAuthMethods: ["client_secret_basic", "client_secret_post"],

@@ -11,6 +11,8 @@ import { oidcContracts, oidcProtocolResponse } from "./contracts.js";
 export const AUTHORIZE_PAGE = "/authorize";
 /** 下游的服务器调的协议端点：发现文档、公钥、换令牌、撤销、userinfo。浏览器只来 /oidc/auth。 */
 const SERVER_ENDPOINT = /^\/oidc\/(?:\.well-known\/openid-configuration|jwks|token(?:\/revocation)?|me)(?:[/?]|$)/;
+/** 其中按客户端做 Origin 校验的端点：换令牌、撤销、userinfo。发现文档和公钥不认客户端，没有可枚举的差异。 */
+const CLIENT_ENDPOINT = /^\/oidc\/(?:token(?:\/revocation)?|me)(?:[/?]|$)/;
 /**
  * 协议端点每个 IP 每分钟的次数，服务器调用和浏览器跳转分开算：GitLab 每次登录要从它自己的服务器调好几次（发现文档、公钥、换令牌、
  * userinfo），一个班同时登录都算在它一个 IP 上，不能和校园网里共用出口的浏览器抢同一份额度。
@@ -176,6 +178,17 @@ export default async function oidcRoutes(app: FastifyInstance) {
         },
       },
       handler(req, reply) {
+        /**
+         * PENTEST-20261029 finding 25：oidc-provider 的 per-client Origin 校验排在客户端认证之前，
+         * 已知 client_id 回 400「origin ... not allowed for client」、未知的回 401 invalid_client，
+         * 未认证的人拿它当 client_id 枚举 oracle。带 Origin 的浏览器请求统一挡回同一句 401；
+         * 下游服务器换令牌/读 userinfo 不带 Origin，不受影响。
+         */
+        // 这里不看 Origin 是不是本站：换令牌是下游服务器的事，带 Origin 的一定是浏览器，浏览器本来就用不了这两个端点。
+        if (typeof req.headers.origin === "string" && CLIENT_ENDPOINT.test(req.url)) {
+          return reply.code(401).header("Cache-Control", "no-store")
+            .send({ error: "invalid_client", error_description: "client authentication failed" });
+        }
         loadSession(req);
         const raw = prepared(req) as IncomingMessage & { originalUrl?: string };
         raw.originalUrl = req.url;

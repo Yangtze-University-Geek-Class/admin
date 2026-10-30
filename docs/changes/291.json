@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 291,
   "kind": "business",
-  "summary": "P0（所有者 2026-10-25 15:28：「登录账号之后里面资料不是可以绑定谷歌还有一堆身份信息吗？但是实际这些绑定之后是新创建了账号」）：官网资料窗口里 Google 的「绑定」原来直接链到 /auth/google，那是登录入口，这个 Google 账号没绑过任何账号时会注册成新账号并换掉当前会话。改成按规划文档的接口绑定：POST /api/identity/link { provider: \"google\" } 记下给哪个账号、哪个会话绑并返回授权地址，/auth/google/callback 按 cookie 的 kind 分登录与绑定，绑定时不登录、不建号、不换会话，结果用 link 与 provider 两个地址参数带回资料窗口。",
+  "summary": "P0（所有者 2026-10-25 15:28：「[已脱敏]」）：官网资料窗口里 Google 的「绑定」原来直接链到 /auth/google，那是登录入口，这个 Google 账号没绑过任何账号时会注册成新账号并换掉当前会话。改成按规划文档的接口绑定：POST /api/identity/link { provider: \"google\" } 记下给哪个账号、哪个会话绑并返回授权地址，/auth/google/callback 按 cookie 的 kind 分登录与绑定，绑定时不登录、不建号、不换会话，结果用 link 与 provider 两个地址参数带回资料窗口。",
   "applications": [
     "server",
     "web"

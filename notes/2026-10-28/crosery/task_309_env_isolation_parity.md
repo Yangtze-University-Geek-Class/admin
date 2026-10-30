@@ -27,10 +27,10 @@
 - 做了什么：fix(deploy): 三份 env 严格隔离、去掉写死的环境域名并加同构门禁，42 个文件，从 origin/main 228be7bf 起；未推送
 - 结果：git log -1 为 1769ee84；工作区只剩 notes 两个文件
 
-## 19:56:11 +08:00 · 方案 · #309 · 所有者补充：接口与表对齐、数据只对齐格式、清死接口
+## 19:56:11 +08:00 · 方案 · #309 · 所有者补充：[已脱敏]
 
 - 执行者：agent-claude-geek-main-09（Claude Code，claude-sonnet-5-5）
-- 做了什么：19:43 所有者原话：对齐的本质是接口对齐，数据库表对齐，但是数据不是对齐的，谨记是格式的对齐，而且要清理对应的死接口，就是我们所有级页面都不存在的接口。据此：RELEASE-PARITY 增口径与第九节；烟测去掉内部赛事官网的正文比对，改比公开 JSON 的键和值类型；用 catalog 的 213 条显式路由逐条查页面、CLI、脚本、外部协议的调用方
+- 做了什么：19:43 所有者原话：[已脱敏]。据此：RELEASE-PARITY 增口径与第九节；烟测去掉内部赛事官网的正文比对，改比公开 JSON 的键和值类型；用 catalog 的 213 条显式路由逐条查页面、CLI、脚本、外部协议的调用方
 - 结果：静态搜索 44 条无直接匹配，逐条人工确认：forum-api.ts、competition-sdk、hubPaths 的 what 参数、console 的 base.value 拼接、CLI 的 {origin} 拼接、OIDC 同意页、nginx 反代的 llms.txt 都有调用方；只有 GET /api/console/departments 没有任何调用方，roles.ts 头注释早已写明只剩它和一条单测在读；已退役的旧论坛 410 兜底 28 条不算死接口，未动
 
 ## 19:56:11 +08:00 · 提交 · #309 · 本地提交 0c39d3c6
@@ -54,13 +54,13 @@
 ## 20:12:25 +08:00 · PR · #309 · GitLab MR !51 到 main
 
 - 执行者：agent-claude-geek-main-09（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者 20:02 同意推送；分支推到 gitlab 并用 push option 开了 MR !51（目标 main，描述含 Closes #309）；没有合并，没有触发任何流水线
+- 做了什么：所有者 20:02 同意[已脱敏]；分支推到 gitlab 并用 push option 开了 MR !51（目标 main，描述含 Closes #309）；没有合并，没有触发任何流水线
 - 结果：MR 地址 https://git.yangtzeu.work/geek/admin/-/merge_requests/51；完整 PR 正文草稿在 .tools/handoff/2026-10-28-hotfix-env-parity/PR-BODY.md，GitLab 没有 API 凭据，描述只写了一行，待所有者在网页补全
 
 ## 21:04:51 +08:00 · 开发 · #309 · 宿主层与一次性运维改走流水线，补 CDN 镜像、sub 迁移、同构清单 post_deploy 阶段
 
 - 执行者：agent-claude-geek-main-09（Claude Code，claude-sonnet-5-5）
-- 做了什么：20:49 所有者原话：我看你全称要走ssh去操控我们的机器，很多开发者他们没法操控的，那肯定是你这边的设计有问题，应该是不需要依赖ssh去更改也能通过ci和cd测试到。据此：新增 deploy/remote/install-host.sh（plan/apply/verify）并接进 deploy-preview/production/hotfix 三条工作流；新增 deploy/gitlab/cutover.sh 与手动触发的 gitlab-cutover.yml；CDN 镜像 cdn-mirror.sh 与 systemd 单元进仓库；migrate-oidc-subjects.mjs；parity.mjs 增 phase 与 check --complete；规范写进 RELEASE-PARITY 第十节与 AGENTS.md
+- 做了什么：20:49 所有者原话：[已脱敏]。据此：新增 deploy/remote/install-host.sh（plan/apply/verify）并接进 deploy-preview/production/hotfix 三条工作流；新增 deploy/gitlab/cutover.sh 与手动触发的 gitlab-cutover.yml；CDN 镜像 cdn-mirror.sh 与 systemd 单元进仓库；migrate-oidc-subjects.mjs；parity.mjs 增 phase 与 check --complete；规范写进 RELEASE-PARITY 第十节与 AGENTS.md
 - 结果：新增测试 install-host 10、gitlab-cutover 10、cdn-mirror 14、oidc-subject-migration 8、parity 22 全部通过；actionlint 通过；首次镜像同步 geek-public 436 个 css/js 被存成 gzip（rclone 带 Accept-Encoding: gzip 下载），逐对象核验 sizes differ 查出，关掉后 MD5 与 ETag 一致，五个桶 verified；已用 install-host.sh 在 Arch 上 plan/apply/verify 一遍（八项 same），定时器已启用。此前 20:00–20:45 为取证和先行落地手工用了 ssh：装 systemd 单元与镜像脚本、docker exec 登记 gitlab 客户端、在 Garage 上建 backup-reader 只读密钥，这些现在都有对应的仓库路径，客户端登记与密钥生成属于一次性凭据引导，已按规范写明
 - 下一步：合并前复跑全量检查；MR 描述补全；所有者批准后合并、同步 GitHub、派发 deploy-hotfix
 
@@ -83,10 +83,10 @@
 - 做了什么：cutover.sh、cdn-mirror.sh、migrate-oidc-subjects.mjs、install-host.sh、parity.mjs、三条部署工作流、规范与测试；ledger 的 post_deploy 条目补 release=0.1.1。文档核对：docs/ops/GITLAB.md、docs/conventions/RELEASE-PARITY.md、docs/ops/CICD.md、docs/conventions/RELEASES.md、.agents/skills/release-parity/SKILL.md 已随行为更新
 - 结果：同审查条目；未推送
 
-## 22:32:52 +08:00 · 开发 · #309 · 所有者 22:3x 两条指示：cdn 不解析到我们的服务器；P0 修完直接发正式、每次同步 stage
+## 22:32:52 +08:00 · 开发 · #309 · 所有者 22:3x 两条指示：[已脱敏]
 
 - 执行者：agent-claude-geek-main-09（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者原话：「cdn是另外一台服务器，指向我们的线上服务干嘛，cdn是边缘对象存储，不能解析到我们自己的服务器」；「你先把线上p0 bug全部修复之后直接推正式发版，这点不需要我同意，只不过每次记得同步下stage分支保证stage>= MAIN 就行」。据此：同构清单 P-0008（cdn 的 A 记录改到香港边缘）按这句原话 waive，不做任何 DNS 改动；#305 文档里改指边缘的段落（docs/ops/STORAGE-CDN.md:39-41、DEPLOY.md:235）与所有者意思冲突，本次未改；hotfix 窗口登记、门禁与 hotfix-sync 已提交 bba6f95b，独立评审进行中；部署派发与生产环境审批按所有者的授权由我执行
+- 做了什么：所有者原话：「[已脱敏]」；「[已脱敏]」。据此：同构清单 P-0008（cdn 的 A 记录改到香港边缘）按这句原话 waive，不做任何 DNS 改动；#305 文档里改指边缘的段落（docs/ops/STORAGE-CDN.md:39-41、DEPLOY.md:235）与所有者意思冲突，本次未改；hotfix 窗口登记、门禁与 hotfix-sync 已提交 bba6f95b，独立评审进行中；部署派发与生产环境审批按所有者的授权由我执行
 - 结果：parity.mjs check --release --version 0.1.1 退出 0，剩 P-0007、P-0009、P-0011 三条随本版本部署后处理；文档核对：docs/ops/STORAGE-CDN.md、docs/ops/DEPLOY.md 的 cdn 改指边缘段落不是本次改动，不改
 - 下一步：评审通过后合并 MR !52、推 main、hotfix-sync、派发 deploy-hotfix
 
@@ -121,7 +121,7 @@
 ## 23:23:23 +08:00 · 方案 · #309 · 接手 01a18305 的未完成 P0 hotfix
 
 - 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
-- 做了什么：通过 Uniflo 读取目标会话、上游 01a182ee 与原始 Claude e05007e2 的所有者授权：保持 0.1.1 同版本 hotfix、每次同步 stage、禁止 CDN DNS 改动。保留上一会话未提交的 mirror stage 分叉预检修复及回归。只读 ls-remote 核对双仓 main=604df9eb、stage=331c0b5a；GitLab task=9c9842cb，GitHub task=078eda0a。
+- 做了什么：通过 Uniflo 读取目标会话、上游 01a182ee 与原始 Claude e05007e2 的所有者授权：[已脱敏]。保留上一会话未提交的 mirror stage 分叉预检修复及回归。只读 ls-remote 核对双仓 main=604df9eb、stage=331c0b5a；GitLab task=9c9842cb，GitHub task=078eda0a。
 - 结果：历史证据：hotfix-sync 12 passed、pnpm check 退出 0，未重复全量测试。现行 GitLab CLI 未认证，凭据执行工具错误且浏览器 relay 不可用，改用现有受控 CLI 排查认证；没有修改部署、DNS、业务数据或发布 tag。
 
 ## 23:30:11 +08:00 · 返工 · #309 · 修复同步收尾夹带未发布功能、跳过钩子及删除固定分支
@@ -141,3 +141,21 @@
 - 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
 - 做了什么：人工逐项复核 0d5a3d9（origin/main...HEAD）：保留 P0 同版本例外、不新建/移动 tag、不改 CDN DNS；无密钥或数据变更；同步分叉、冲突、既有分支、钩子、关闭窗口不夹带 stage 功能均由真实行为覆盖。reviewer 子代理因模型 429 不可用，本条是本执行者实际审查，不伪称独立代理成功。审查结论与完整十段正文写入 MR !52。
 - 结果：有条件通过：已完成 core 2955 passed/27 skipped、forum 701 passed 和静态生成、CLI 对照；条件为 GitHub 受保护 stage 通过现有 #284 的 task PR 同步、真实 hotfix 工作流通过并由所有者完成 production 平台审批。GitLab 自动流水线仍默认关闭，未伪造运行或验收。
+
+## 23:42:05 +08:00 · 合并 · #309 · MR !52 合并，GitLab stage 已包含修复，GitHub main 已同步
+
+- 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
+- 做了什么：GitLab API 以 sha=930e9bb47869aa751d59f1d79361dd5dcbabbec6 合并 !52，merge_commit=86e504ac2fb5f542d7ad95f0290a80a0af2a24b8；没有删除来源分支、没有关闭 #309。hotfix-sync apply --source gitlab --mirror gitlab --issue 309 把 GitLab stage 推到 1f969194827c。GitHub main 使用新窗口门禁正常推送 86e504ac，无 --no-verify 或保护更改；GitHub stage 正通过既有 #284 的独立 task PR 同步。
+- 结果：GitLab stage>=main；GitHub main 已为 86e504ac，stage 尚等 #284 PR 必需检查。此前在旧 #284 检出上直接推 main 被旧钩子拒绝，没有绕过；合入已审查的新门禁后从 #309 正常通过。尚未派发生产部署。
+
+## 23:53:29 +08:00 · 发布 · #309 · 已派发生产同版本 hotfix，保留平台审批
+
+- 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
+- 做了什么：gh workflow run deploy-hotfix.yml --ref main，tag=v0.1.1、commit=86e504ac2fb5f542d7ad95f0290a80a0af2a24b8、issue=309；运行40719126473。plan与parity已成功，core/forum继续运行；不新建版本或rc，不改DNS，不代替production审查人。GitHub #285已建立受保护stage同步PR，来源head0256307，architecture与pr-contract已成功，完整CI仍在运行。
+- 结果：没有生产部署成功证据，仍待真实workflow与审批；P-0007、P-0009、P-0011保持pending，窗口open。PR自动合并功能仓库未开启，未修改设置，改为等待两个完整CI成功后执行正常merge（不使用admin绕过）。
+
+## 23:55:53 +08:00 · 验收 · #309 · 部署前正式站只读浏览器基线
+
+- 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
+- 做了什么：用独立 headless Chromium 访问真实正式站，启动YUGC OS并双击宣传片；读取真实video为readyState=4、paused=false、currentTime=17.379495、duration=105、error=null，截图记录播放器窗口；另打开/c/oss-challenge-2026-1/，页面标题为OSS CHALLENGE，含第一届内部赛、规则与进行中标识。两张托管tab已关闭，没有登录、报名、发帖、改数据或批准OAuth。
+- 结果：这是仍在运行的228be7bf的部署前基线，不是86e504ac上线验收；HLS主清单真实读取为application/vnd.apple.mpegurl、五档H264，播放器确实播放。截图：omp-sshots-15b81b80c0fe8b55.png（播放器）、15b81b9561aa9fee.png（赛事初始画面）；赛事天梯当时还在读取，未将其记为最终数据加载通过。

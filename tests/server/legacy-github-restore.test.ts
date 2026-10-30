@@ -44,10 +44,10 @@ const count = (db: Db, table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM 
 function productionShape(): Db {
   const db = bareDb();
   // 已建账号：所有者（论坛旧管理员）、有名册的 Cyclara、没有名册的论坛成员 quest
-  forumUser(db, "fu-owner", 100, "Crosery", "admin");
+  forumUser(db, "fu-owner", 100, "fixture-owner", "admin");
   forumUser(db, "fu-cyclara", 101, "Cyclara", "member");
   forumUser(db, "fu-quest", 102, "quest-123", "member");
-  existingAccount(db, "acct-owner", 100, "Crosery", "migration:2026-10-yugc-v2");
+  existingAccount(db, "acct-owner", 100, "fixture-owner", "migration:2026-10-yugc-v2");
   existingAccount(db, "acct-cyclara", 101, "Cyclara", "migration:2026-10-yugc-v2");
   existingAccount(db, "acct-quest", 102, "quest-123", "migration:2026-10-yugc-v2");
   db.prepare("UPDATE forum_users SET account_id = 'acct-owner' WHERE id = 'fu-owner'").run();

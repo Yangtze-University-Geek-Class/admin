@@ -66,7 +66,7 @@ export function activityParams(filters: ActivityFilters, extra: { cursor?: strin
 /** 常见动作的中文名：先按完整动作找，再按前缀找；都没有回空串，页面只显示动作本身。 */
 const ACTION_TEXT: Record<string, string> = {
   "auth.signin": "登录", "auth.signout": "退出登录", "auth.register": "注册", "auth.signin_denied": "登录被拒",
-  "auth.password_reset": "重设密码", "auth.link": "绑定登录方式", "auth.unlink": "解绑登录方式",
+  "auth.password_reset": "重设密码", "auth.credentials_revoked": "改密码后吊销了登录凭据", "auth.link": "绑定登录方式", "auth.unlink": "解绑登录方式",
   "invite.redeem": "兑换邀请码", "apply.submit": "投递简历", "apply.review": "处理投递", "apply.export": "导出投递",
   "forum.topic.view": "看帖", "forum.topic.create": "发帖", "forum.reply.create": "回帖", "forum.react": "表情回应", "forum.search": "论坛搜索",
   "forum.sticker.use": "使用表情",

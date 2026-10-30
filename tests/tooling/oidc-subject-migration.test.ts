@@ -12,13 +12,15 @@ const SECTOR = "git.example.test";
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string; orgRole?: 'admin' | 'member' | null }>) {
+function database(users: Array<{ id: string; identities?: Array<[string, string]>; sub?: string; orgRole?: 'admin' | 'member' | null; status?: string; levels?: Array<[string, number | null]> }>) {
   const db = new Database(":memory:");
   db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
     CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-    CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+    CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
   for (const user of users) {
-    db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
+    db.prepare("INSERT INTO users(id, org_role, status) VALUES(?, ?, ?)").run(user.id, user.orgRole ?? null, user.status ?? 'active');
+    for (const [group, expiresAt] of user.levels ?? []) db.prepare("INSERT INTO perm_members VALUES(?,?,'fixture',1,?)").run(user.id, group, expiresAt);
     for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
     if (user.sub) db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, user.id, user.sub, 1);
   }
@@ -29,7 +31,7 @@ const rows = (db: any) => db.prepare("SELECT user_id, sub FROM oauth_subjects WH
 describe("export", () => {
   it("按不可变身份导出 sub，没有可对账身份的账号只计数", () => {
     const db = database([
-      { id: "p1", identities: [["github", "100"]], sub: "sub-a", orgRole: "member" },
+      { id: "p1", identities: [["github", "100"]], sub: "sub-a", levels: [["level.member", null]] },
       { id: "p2", identities: [["github", "200"], ["google", "g-1"]], sub: "sub-b" },
       { id: "p3", sub: "sub-c" },
       { id: "p4", identities: [["github", "400"]] },
@@ -38,8 +40,45 @@ describe("export", () => {
     expect(out.withoutIdentity).toBe(1);
     expect(out.entries).toEqual([
       { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }], provision: { github_login: "user-100", org_role: "member" } },
-      { sub: "sub-b", identities: [{ provider: "github", provider_uid: "200" }, { provider: "google", provider_uid: "g-1" }] },
+      { sub: "sub-b", identities: [{ provider: "github", provider_uid: "200" }, { provider: "google", provider_uid: "g-1" }], provision_skip: "not_member" },
     ]);
+  });
+
+  it("与 server 同口径认成员：只看有效的 level.member 与站长称号，旧字段 org_role 不参与；补建不了的写明原因", () => {
+    const now = 1_000;
+    const db = database([
+      { id: "m1", identities: [["github", "101"]], sub: "sub-m1", levels: [["level.member", null]] },
+      { id: "m2", identities: [["github", "102"]], sub: "sub-m2", levels: [["level.member", now - 1]] },
+      { id: "a1", identities: [["github", "103"]], sub: "sub-a1", levels: [["level.alumni", null]] },
+      { id: "x1", identities: [["github", "104"]], sub: "sub-x1", status: "disabled", levels: [["level.member", null]] },
+      { id: "g1", identities: [["google", "g-9"]], sub: "sub-g1", levels: [["level.member", null]] },
+      { id: "o1", identities: [["github", "105"]], sub: "sub-o1", levels: [["level.member", null], ["title.site.owner", null]] },
+      { id: "r1", identities: [["github", "106"]], sub: "sub-r1", orgRole: "member" },
+      { id: "r2", identities: [["github", "107"]], sub: "sub-r2", orgRole: "admin", levels: [["level.member", null]] },
+      { id: "r3", identities: [["github", "108"]], sub: "sub-r3", levels: [["level.member", now]] },
+      { id: "r4", identities: [["github", "109"]], sub: "sub-r4", levels: [["level.member", null], ["title.site.owner", now - 1]] },
+    ]);
+    db.prepare("UPDATE users SET org_state = 'unknown' WHERE id = 'm1'").run();
+    const bySub = Object.fromEntries(exportSubjects(db, SECTOR, now).entries.map(entry => [entry.sub, entry]));
+    expect(bySub["sub-m1"].provision).toEqual({ github_login: "user-101", org_role: "member" });
+    expect(bySub["sub-m2"]).toMatchObject({ provision_skip: "not_member" });
+    expect(bySub["sub-a1"]).toMatchObject({ provision_skip: "alumni" });
+    expect(bySub["sub-x1"]).toMatchObject({ provision_skip: "inactive" });
+    expect(bySub["sub-g1"]).toMatchObject({ provision_skip: "no_github" });
+    expect(bySub["sub-o1"].provision).toEqual({ github_login: "user-105", org_role: "admin" });
+    // 旧字段说是成员、但没有有效 level.member：不补建；旧字段说是管理员、但没有站长称号：只按成员补建
+    expect(bySub["sub-r1"]).toMatchObject({ provision_skip: "not_member" });
+    expect(bySub["sub-r2"].provision).toEqual({ github_login: "user-107", org_role: "member" });
+    // expires_at 等于此刻已经过期（同 server 的 expires_at > now）
+    expect(bySub["sub-r3"]).toMatchObject({ provision_skip: "not_member" });
+    expect(bySub["sub-r4"].provision).toEqual({ github_login: "user-109", org_role: "member" });
+    // 写入端：补建不了的随「对不上」写明原因；不带 --provision-unmatched 时照旧只给身份
+    const target = database([]);
+    const payload = exportSubjects(db, SECTOR, now);
+    const dry = importSubjects(target, payload, { sector: SECTOR, provisionUnmatched: true });
+    expect([...dry.provisionable].sort()).toEqual(["github:101", "github:105", "github:107", "github:109"]);
+    expect([...dry.unmatched].sort()).toEqual(["github:102（源账号不是极客班成员）", "github:103（源账号是校友，最小补建只建成员）", "github:104（源账号不是有效状态）", "github:106（源账号不是极客班成员）", "github:108（源账号不是极客班成员）", "google:g-9（源账号没有 GitHub 身份）"]);
+    expect([...importSubjects(target, payload, { sector: SECTOR }).unmatched].sort()).toEqual(["github:101", "github:102", "github:103", "github:104", "github:105", "github:106", "github:107", "github:108", "github:109", "google:g-9"]);
   });
 
   it("sector 不是主机名时拒绝", () => {
@@ -66,10 +105,24 @@ describe("import", () => {
 
   it("--apply 在一个事务里新增，之后再跑一遍没有可迁的", () => {
     const db = target();
-    expect(importSubjects(db, payload, { sector: SECTOR, apply: true, now: 7 }).applied).toBe(2);
+    const complete = { ...payload, entries: payload.entries.slice(0, 2) };
+    expect(importSubjects(db, complete, { sector: SECTOR, apply: true, now: 7 }).applied).toBe(2);
     expect(rows(db)).toEqual([{ user_id: "q1", sub: "sub-a" }, { user_id: "q2", sub: "sub-b" }]);
-    const again = importSubjects(db, payload, { sector: SECTOR, apply: true });
+    const again = importSubjects(db, complete, { sector: SECTOR, apply: true });
     expect(again).toMatchObject({ plan: [], conflicts: [], applied: 0 });
+  });
+
+  it('目标身份缺失或源账号没有不可变身份时，拒绝整批写入', () => {
+    const missing = target();
+    const result = importSubjects(missing, payload, { sector: SECTOR, apply: true });
+    expect(result.unmatched).toEqual(['github:999']);
+    expect(result.applied).toBe(0);
+    expect(rows(missing)).toEqual([]);
+    const noIdentity = target();
+    const unprovable = importSubjects(noIdentity, { ...payload, entries: payload.entries.slice(0, 2), withoutIdentity: 1 }, { sector: SECTOR, apply: true });
+    expect(unprovable.withoutIdentity).toBe(1);
+    expect(unprovable.applied).toBe(0);
+    expect(rows(noIdentity)).toEqual([]);
   });
 
   it("目标库已有不同的 sub、或 sub 已属于别人时记冲突，整批都不写", () => {
@@ -99,17 +152,26 @@ describe("import", () => {
       db.prepare("INSERT INTO identities VALUES('new-member','github',?,?)").run(String(githubId), githubLogin);
       return { accountId: "new-member", created: true };
     };
+    // 不带补建的演算（切签发者、开正式写者之前的门禁）仍然算对不上
+    expect(importSubjects(db, source, { sector: SECTOR, provisionAccount })).toMatchObject({ unmatched: ["github:999"], provisionable: [] });
+    // 带补建的演算（停预发布写者之前）：写入时能补建的单独计数，不算对不上，也不建号
     const dry = importSubjects(db, source, { sector: SECTOR, provisionUnmatched: true, provisionAccount });
-    expect(dry.unmatched).toEqual(["github:999"]);
-    expect(dry.provisioned).toEqual([]);
+    expect(dry).toMatchObject({ unmatched: [], provisionable: ["github:999"], provisioned: [], applied: 0 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
+    const google = { sector: SECTOR, entries: [{ ...source.entries[0], identities: [...source.entries[0].identities, { provider: "google", provider_uid: "g-1" }] }] };
+    expect(importSubjects(db, google, { sector: SECTOR, provisionUnmatched: true, provisionAccount })).toMatchObject({ unmatched: ["github:999,google:g-1"], provisionable: [] });
+    // 补建出来的账号要拿的 sub 已经属于目标库的别人：演算就报冲突
+    db.prepare("INSERT INTO users(id, org_role) VALUES('someone', 'member')").run();
+    db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, "someone", "sub-legacy", 1);
+    expect(importSubjects(db, source, { sector: SECTOR, provisionUnmatched: true, provisionAccount })).toMatchObject({ provisionable: [], conflicts: ["github:999：这个 sub 已属于目标库的另一个账号"] });
+    db.prepare("DELETE FROM oauth_subjects WHERE user_id = 'someone'").run();
     const applied = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
     expect(applied).toMatchObject({ applied: 1, conflicts: [], unmatched: [] });
     expect(applied.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);
     expect(rows(db)).toEqual([{ user_id: "new-member", sub: "sub-legacy" }]);
   });
 
-  it("补建后 sub 冲突或建号失败时回滚这个账号，不留下半条迁移", () => {
+  it("补建要拿的 sub 已属于别人时不建号，整批拒绝", () => {
     const db = target();
     db.prepare("INSERT INTO oauth_subjects VALUES(?,?,?,?)").run(SECTOR, "q3", "sub-legacy", 1);
     const source = { sector: SECTOR, entries: [{ sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } }] };
@@ -124,6 +186,34 @@ describe("import", () => {
     expect(result.applied).toBe(0);
     expect(db.prepare("SELECT COUNT(*) AS n FROM users WHERE id = 'new-member'").get().n).toBe(0);
     expect(rows(db)).toEqual([{ user_id: "q3", sub: "sub-legacy" }]);
+  });
+
+  it("补建在另一个连接里提交时（正式运行走 account.js 子进程），同一次写入能对上新账号", () => {
+    const dir = mkdtempSync(join(tmpdir(), "oidc-sub-"));
+    dirs.push(dir);
+    const file = join(dir, "data.db");
+    const seed = database([{ id: "p1", identities: [["github", "100"]], orgRole: "member" }]);
+    seed.prepare("VACUUM INTO ?").run(file);
+    const db = new Database(file);
+    db.pragma("journal_mode = WAL");
+    const child = new Database(file);
+    const provisionAccount = ({ githubId, githubLogin, orgRole }: { githubId: number; githubLogin: string; orgRole: string }) => {
+      child.transaction(() => {
+        child.prepare("INSERT INTO users(id, org_role) VALUES('new-member', ?)").run(orgRole);
+        child.prepare("INSERT INTO identities VALUES('new-member','github',?,?)").run(String(githubId), githubLogin);
+      })();
+      return { accountId: "new-member", created: true };
+    };
+    const source = { sector: SECTOR, entries: [
+      { sub: "sub-a", identities: [{ provider: "github", provider_uid: "100" }] },
+      { sub: "sub-legacy", identities: [{ provider: "github", provider_uid: "999" }], provision: { github_login: "legacy-member", org_role: "member" } },
+    ] };
+    const result = importSubjects(db, source, { sector: SECTOR, apply: true, provisionUnmatched: true, provisionAccount });
+    expect(result).toMatchObject({ applied: 2, conflicts: [], unmatched: [] });
+    expect(result.provisioned).toEqual([{ label: "github:999", accountId: "new-member", created: true }]);
+    expect(rows(db)).toEqual([{ user_id: "new-member", sub: "sub-legacy" }, { user_id: "p1", sub: "sub-a" }]);
+    child.close();
+    db.close();
   });
 
   it("输入不是同一个 sector 的 export 结果时拒绝", () => {
@@ -141,7 +231,8 @@ describe("命令行", () => {
       const db = new Database(path);
       db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
         CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-        CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+        CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
       for (const user of users) {
         db.prepare("INSERT INTO users(id, org_role) VALUES(?, ?)").run(user.id, user.orgRole ?? null);
         for (const [provider, uid] of user.identities ?? []) db.prepare("INSERT INTO identities VALUES(?,?,?,?)").run(user.id, provider, uid, provider === 'github' ? `user-${uid}` : null);
@@ -172,7 +263,8 @@ describe("命令行", () => {
     const db = new Database(path);
     db.exec(`CREATE TABLE users(id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', org_state TEXT NOT NULL DEFAULT 'active', org_role TEXT);
       CREATE TABLE identities(user_id TEXT, provider TEXT, provider_uid TEXT, login TEXT);
-      CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));`);
+      CREATE TABLE oauth_subjects(sector_id TEXT NOT NULL, user_id TEXT NOT NULL, sub TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(sector_id, user_id), UNIQUE(sector_id, sub));
+    CREATE TABLE perm_members(account_id TEXT NOT NULL, group_id TEXT NOT NULL, granted_by TEXT, created_at INTEGER, expires_at INTEGER);`);
     db.transaction(() => {
       for (let i = 0; i < 1500; i += 1) {
         db.prepare("INSERT INTO users(id) VALUES(?)").run(`u${i}`);

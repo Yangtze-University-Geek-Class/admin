@@ -107,4 +107,4 @@ Two isolated Docker stacks on one host behind host nginx: production at `/opt/yz
 
 ## License
 
-Private project. The adopted [Tuff Forum](https://github.com/talex-touch/tuff-forum) keeps its copyright and MIT license in [app/forum/LICENSE](app/forum/LICENSE). README images were generated with crosery-ct `mox_image_generate`.
+Private project. The adopted [Tuff Forum](https://github.com/talex-touch/tuff-forum) keeps its copyright and MIT license in [app/forum/LICENSE](app/forum/LICENSE). README images were generated with a local image tool (`mox_image_generate`).

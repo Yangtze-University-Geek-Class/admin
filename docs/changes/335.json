@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "issue": 335,
+  "kind": "engineering",
+  "summary": "P0 hotfix #335 收尾三：正式与预发布是同一套服务。独立预发布 GitLab 已能统一登录，但界面配置、实例设置、外观和组 geek 都还是安装时的默认值，香港入口的预发布处理器也没有 NANO 头像路由。gitlab-cutover 新增 preview-parity，按正式的值只写预发布实例；preview-compose.yml 加载 yzgc-ui.rb，preview.py 能把按上一版模板装的实例原地升级；香港接收器的预发布处理器带上和正式相同的头像路由，已装的旧处理器原地升级。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "gitlab",
+    "platform"
+  ],
+  "flows": [
+    "flow:gitlab.entry.open"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "预发布成员打开 https://prev.yangtzeu.work/gitlab 时看到的标题、徽标、默认头像、默认可见性和组 geek 与正式一致；正式行为不变。",
+      "evidence": [
+        "deploy/gitlab/cutover.sh",
+        "deploy/gitlab/preview-parity.rb",
+        "deploy/remote/edge-gitlab.py",
+        "docs/ops/GITLAB.md"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "server 代码不改，没有接口变化；改的是 GitLab 预发布实例的运维脚本与香港入口接收器。",
+      "evidence": [
+        "deploy/gitlab/cutover.sh",
+        "deploy/remote/edge-gitlab.py"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "预发布 GitLab 新建私有组 geek，root 是所有者，Developer 可建项目、Maintainer 可建子组、允许申请加入，和正式一致；项目与组默认私有、关注册。成员不在本步骤加，由预发布同步按 GITLAB_GROUP=geek 加。正式 GitLab 与两套站点的权限不动。",
+      "evidence": [
+        "deploy/gitlab/preview-parity.rb",
+        "tests/tooling/gitlab-cutover.test.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "只写预发布 GitLab 自己的库：application_settings 的 8 项、appearances 一行和 4 张上传图、namespaces 的组 geek 一行与组头像、root 的所有者成员关系；不建项目，不复制正式成员或仓库。两套站点的库都不写。",
+      "evidence": [
+        "deploy/gitlab/preview-parity.rb"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "预发布 GitLab 加载 gitlab-ui.rb 后头像地址指向本环境 GitLab 地址下的 /nano-avatar/，由香港入口的预发布处理器从已有的头像文件给出；没有新依赖，脚本仍用 docker、jq、sha256sum、python3。",
+      "evidence": [
+        "deploy/gitlab/preview-compose.yml",
+        "deploy/remote/edge-gitlab.py"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "GITLAB.md 的安装映射、独立预发布实例、界面定制三节写明 preview-parity、yzgc-ui.rb 的加载、preview.py 的原地升级、预发布的 NANO 头像路由和一次走完的操作顺序；CICD.md、DEPLOY.md 跟着改。",
+      "evidence": [
+        "docs/ops/GITLAB.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "gitlab-cutover 测试新增三条（演算不写、apply 先装界面配置再写设置并清理临时图片；前置不满足什么都不写；reconfigure 失败恢复原文件）；gitlab-preview 测试新增两条（预发布处理器带头像路由并从旧处理器原地升级、回滚点不变、篡改与收据不符拒绝；preview.py 从上一版模板原地升级、失败写回、其它漂移拒绝）。真实 GitLab runner、真实 Caddy 解析没有验。",
+      "evidence": [
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/gitlab-preview.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "按 #335 的 P0 热修复窗口进 main。合并后：所有者批准的管理员步骤用 install-host.sh --target edge 升级香港接收器，再经 gitlab-cutover 跑 edge-apply、install-preview（重建预发布 GitLab 容器，停几分钟）、preview-parity。正式实例与正式站点块不变。",
+      "evidence": [
+        ".github/workflows/gitlab-cutover.yml",
+        "deploy/gitlab/preview.py",
+        "deploy/remote/edge-gitlab.py"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "deploy/gitlab/cutover.sh",
+        "deploy/gitlab/preview-parity.rb",
+        ".github/workflows/gitlab-cutover.yml",
+        "tests/tooling/gitlab-cutover.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.entry.open"
+      ],
+      "reason": "preview-parity：预发布 GitLab 的界面配置、实例设置、外观和组 geek 按正式的值写，只写预发布实例。"
+    },
+    {
+      "paths": [
+        "deploy/gitlab/preview-compose.yml",
+        "deploy/gitlab/preview.py",
+        "deploy/remote/edge-gitlab.py",
+        "tests/tooling/gitlab-preview.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.entry.open"
+      ],
+      "reason": "预发布实例加载 yzgc-ui.rb 并能从上一版模板原地升级；香港入口的预发布处理器带 NANO 头像路由，旧处理器原地升级。"
+    },
+    {
+      "paths": [
+        "docs/ops/GITLAB.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md"
+      ],
+      "domains": [
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.entry.open"
+      ],
+      "reason": "GITLAB、CICD、DEPLOY 三份运维文档跟着 preview-parity、预发布升级路径与头像路由改。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "项目目录生成物随 docs/ops/DEPLOY.md 的源码证据哈希更新（pnpm catalog:generate），没有人工改动；check:catalog 核对通过。"
+    }
+  ],
+  "documents": [
+    "docs/ops/GITLAB.md",
+    "docs/ops/CICD.md",
+    "docs/ops/DEPLOY.md"
+  ],
+  "tests": [
+    "tests/tooling/gitlab-cutover.test.ts",
+    "tests/tooling/gitlab-preview.test.ts"
+  ],
+  "compatibility": "正式实例、正式站点块与已有步骤不变（正式处理器的字节不变，测试核对）。预发布：按上一版模板装的实例由 install-preview 原地升级，不升级时 verify-preview 失败但实例照常运行；装过的旧香港处理器由 edge-apply 原地升级，升级前 edge-verify 失败但路由照常工作。preview-parity 重跑只补差异。",
+  "migration": "不涉及表结构迁移；预发布 GitLab 的设置、外观和组由 gitlab-rails runner 经 GitLab 自己的模型写入。",
+  "rollback": "revert 本 PR 的合并提交。预发布：删掉 /srv/gitlab-preview/config/yzgc-ui.rb 后 reconfigure 即撤回界面配置；edge-rollback 撤掉整个预发布处理器回到安装前；设置、外观和组 geek 是预发布 GitLab 的数据，需要时在预发布 GitLab 里改回，不影响正式。"
+}
