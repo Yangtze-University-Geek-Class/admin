@@ -1,274 +1,108 @@
 {
   "version": 1,
   "issue": 346,
-  "kind": "business",
-  "summary": "公开静态资源、宣传片和招聘邮件图片的地址改回七牛（cdn.crosery.com，桶内 yzgc/ 前缀），Garage 公开桶封存；库里带旧 Garage 前缀的论坛帖子图片与表情读取时改写到新地址，隐私门禁为 cdn.crosery.com 增加登记放行。",
+  "kind": "engineering",
+  "summary": "#346 改走 hotfix：版本号改回 0.1.1，登记 #346 的 hotfix 窗口（tag v0.1.1），同构清单 P-0018 归到 0.1.1。CDN 换回七牛的实现已在 MR !88 审查合入。",
   "applications": [
-    "web",
+    "console",
     "server",
-    "forum",
-    "console"
+    "web"
   ],
   "domains": [
-    "audit",
-    "competitions",
-    "feedback",
-    "forum",
-    "identity",
-    "invitations",
-    "mail",
-    "organization",
-    "permissions",
-    "platform",
-    "public_content",
-    "recruitment"
+    "platform"
   ],
-  "flows": [
-    "flow:forum.state",
-    "flow:platform.public_config",
-    "flow:mail.template.list",
-    "flow:application.cancel",
-    "flow:competition.public.list",
-    "flow:feedback.categories",
-    "flow:identity.authorize",
-    "flow:console.identity",
-    "flow:documentation.list",
-    "flow:forum.topic_posts",
-    "flow:forum.stickers.list",
-    "flow:application.submit",
-    "flow:identity.email.verify"
-  ],
+  "flows": [],
   "assessments": {
     "business": {
-      "status": "changed",
-      "reason": "论坛读帖子正文与招聘邮件预览的图片地址变了：读取时把旧 Garage 前缀换成新前缀，宣传片片源地址换成七牛。业务规则、授权与写入路径不变。",
+      "status": "unchanged",
+      "reason": "业务流程不变：只改版本号与发布登记。",
       "evidence": [
-        "app/forum/shared/post-markdown.ts",
-        "app/forum/shared/sticker-url.ts",
-        "app/web/sites/portal/lib/promo.ts",
-        "app/server/src/config.ts"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     },
     "backend": {
-      "status": "changed",
-      "reason": "服务端只改了静态 CDN 常量、镜像构建校验和邮件图片默认前缀；接口形状与错误处理不变。",
+      "status": "unchanged",
+      "reason": "app/server 只改 package.json 的 version 字段，接口与路由不变。",
       "evidence": [
-        "app/server/src/lib/static-cdn.ts",
-        "app/server/Dockerfile",
-        "app/server/src/config.ts"
+        "app/server/package.json"
       ]
     },
     "permissions": {
       "status": "unchanged",
-      "reason": "角色、能力与资源范围不变；改的是公开静态资源与图片的地址和上传目的地，CDN 上的对象都是公开只读，私有数据不经过它。",
+      "reason": "角色、能力与资源范围不变。",
       "evidence": [
-        "app/server/src/lib/static-cdn.ts",
-        "app/forum/shared/sticker-url.ts"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     },
     "data": {
       "status": "unchanged",
-      "reason": "表结构与库里数据不变；服务端只改静态 CDN 前缀常量与邮件图片默认前缀，旧帖里的自建存储前缀在读取与渲染时改写成新前缀，不写库。",
+      "reason": "表结构、迁移与业务数据不变。",
       "evidence": [
-        "app/server/src/lib/static-cdn.ts",
-        "app/server/src/config.ts",
-        "app/forum/shared/sticker-url.ts"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     },
     "dependencies": {
       "status": "changed",
-      "reason": "外部依赖从自建对象存储换成七牛：上传走七牛的 S3 兼容端点（桶名来自部署密钥 STATIC_CDN_S3_BUCKET），公开读走七牛绑定的 CDN 域名；不新增软件包。",
+      "reason": "四个 package.json 只把 version 从 0.1.2 改回 0.1.1，不增删依赖。",
       "evidence": [
-        "scripts/static-cdn-s3.mjs",
-        "app/server/Dockerfile",
-        "app/server/src/config.ts"
+        "app/console/package.json",
+        "app/server/package.json",
+        "app/web/package.json",
+        "package.json"
       ]
     },
     "documentation": {
-      "status": "changed",
-      "reason": "运维合同、部署与环境说明、服务文档和 API 文档里的公开地址与桶路径同步改为七牛，Garage 公开桶标注为封存。",
+      "status": "unchanged",
+      "reason": "文档事实不变：MR !88 的文档写的是 CDN 来源，没有写版本号。",
       "evidence": [
-        "docs/ops/CDN.md",
-        "docs/ops/STORAGE-CDN.md",
-        "docs/ops/DEPLOY.md",
-        "docs/ops/CICD.md",
-        "docs/ops/ENVIRONMENTS.md"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     },
     "verification": {
-      "status": "changed",
-      "reason": "静态 CDN、表情、论坛渲染、邮件与宣传片测试的断言改成新值，并补充旧前缀读取改写与隐私登记的回归。",
+      "status": "unchanged",
+      "reason": "不改代码与测试；hotfix-windows 与 parity 检查核对登记格式。",
       "evidence": [
-        "app/forum/tests/post-markdown.test.ts",
-        "app/forum/tests/sticker-url.test.ts",
-        "tests/tooling/static-cdn.test.ts",
-        "tests/tooling/static-cdn-http.test.ts"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "部署模板 CSP、环境文件中的邮件图片地址和工作流里的 S3 端点、区域、桶在下一次发布时生效；发布前需要把对象补传到七牛。",
+      "reason": "发布走 #346 的 hotfix 窗口：deploy-hotfix 以 v0.1.1 上正式，收尾后打 v0.1.1-stable.2 发预发布；P-0018 归到 0.1.1。",
       "evidence": [
-        "deploy/nginx/preview.conf",
-        "deploy/env/.env.production",
-        ".github/workflows/deploy-production.yml"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        ".env.example",
-        ".github/workflows/ci.yml",
-        ".github/workflows/deploy-hotfix.yml",
-        ".github/workflows/deploy-preview.yml",
-        ".github/workflows/deploy-production.yml",
         "app/console/package.json",
-        "app/forum/content/guides/admin-feedback.md",
-        "app/forum/content/guides/admin-forum-management.md",
-        "app/forum/content/guides/admin-invites.md",
-        "app/forum/content/guides/admin-permissions-titles.md",
-        "app/forum/content/guides/admin-users.md",
-        "app/forum/content/guides/dept-head-members.md",
-        "app/forum/content/guides/member-competition-signup.md",
-        "app/forum/content/guides/member-desktop-apps.md",
-        "app/forum/content/guides/member-forum-basics.md",
-        "app/forum/content/guides/member-login-and-account.md",
-        "app/forum/content/guides/organizer-contest-sdk-quickstart.md",
-        "app/forum/content/guides/organizer-contest-site-upload.md",
-        "app/forum/content/guides/organizer-create-competition.md",
-        "app/forum/content/guides/organizer-finalize-and-prizes.md",
-        "app/forum/content/guides/organizer-score-contributions.md",
-        "app/forum/content/published/topics.json",
-        "app/forum/shared/post-markdown.ts",
-        "app/forum/shared/sticker-url.ts",
-        "app/forum/tests/forum-api.test.ts",
-        "app/forum/tests/inline-stickers.test.ts",
-        "app/forum/tests/post-markdown.test.ts",
-        "app/forum/tests/site-state.test.ts",
-        "app/forum/tests/sticker-size-css.test.ts",
-        "app/forum/tests/sticker-url.test.ts",
-        "app/server/Dockerfile",
         "app/server/package.json",
-        "app/server/src/config.ts",
-        "app/server/src/lib/mail/envelope-pieces.ts",
-        "app/server/src/lib/mail/envelope.ts",
-        "app/server/src/lib/static-cdn.ts",
         "app/web/package.json",
-        "app/web/sites/portal/lib/promo.ts",
-        "deploy/env/.env.dev",
-        "deploy/env/.env.preview",
-        "deploy/env/.env.production",
-        "deploy/nginx/preview.conf",
-        "deploy/nginx/production.conf",
-        "docs/INDEX.md",
-        "docs/architecture/API.md",
-        "docs/architecture/catalog/CATALOG.md",
-        "docs/architecture/catalog/catalog.json",
-        "docs/architecture/catalog/data-model.md",
-        "docs/architecture/catalog/map.html",
-        "docs/architecture/catalog/permissions.md",
-        "docs/architecture/catalog/routes.md",
-        "docs/ops/CDN.md",
-        "docs/ops/CICD.md",
-        "docs/ops/DEPLOY.md",
-        "docs/ops/ENVIRONMENTS.md",
-        "docs/ops/STORAGE-CDN.md",
-        "docs/services/console/README.md",
-        "docs/services/forum/README.md",
-        "docs/services/server/README.md",
-        "docs/services/server/endpoint-contracts.md",
-        "docs/services/server/mail.md",
-        "docs/services/web/README.md",
-        "docs/services/web/portal.md",
         "package.json",
-        "scripts/check-privacy.mjs",
-        "scripts/privacy-exceptions.json",
-        "scripts/static-cdn-base.d.mts",
-        "scripts/static-cdn-base.mjs",
-        "scripts/static-cdn-manifest.mjs",
-        "scripts/static-cdn-s3.mjs",
-        "scripts/static-cdn.mjs",
-        "tests/console/boot-placeholder.test.ts",
-        "tests/e2e/workflows.spec.ts",
-        "tests/server/forum-sticker-cdn.test.ts",
-        "tests/server/forum.test.ts",
-        "tests/server/mail-envelope.test.ts",
-        "tests/server/mail-outbox.test.ts",
-        "tests/server/mail-template-content.test.ts",
-        "tests/tooling/cdn-store-fixture.ts",
-        "tests/tooling/check-privacy.test.ts",
-        "tests/tooling/deployment-environment.test.ts",
-        "tests/tooling/forum-csp.test.ts",
-        "tests/tooling/static-cdn-http.test.ts",
-        "tests/tooling/static-cdn-manifest.test.ts",
-        "tests/tooling/static-cdn-parity.test.ts",
-        "tests/tooling/static-cdn-s3.test.ts",
-        "tests/tooling/static-cdn-switch.test.ts",
-        "tests/tooling/static-cdn-workflows.test.ts",
-        "tests/tooling/static-cdn.test.ts",
-        "tests/tooling/sticker-manifest.test.ts",
-        "tests/tooling/web-nginx.test.ts",
-        "tests/web/portal-promo.test.ts"
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
       ],
       "domains": [
-        "audit",
-        "competitions",
-        "feedback",
-        "forum",
-        "identity",
-        "invitations",
-        "mail",
-        "organization",
-        "permissions",
-        "platform",
-        "public_content",
-        "recruitment"
+        "platform"
       ],
       "nodes": [
         "domain:platform"
       ],
-      "reason": "CDN 换回七牛：构建前缀、上传目的地、CSP、宣传片与邮件图片地址、论坛旧前缀改写、隐私门禁的域名放行与文档。"
+      "reason": "#346 改走 hotfix：四个 package.json 的版本号改回 0.1.1，hotfix 窗口登记与同构清单归到 0.1.1，属于平台发布流程。"
     }
   ],
   "documents": [
-    "docs/architecture/API.md",
-    "docs/ops/CDN.md",
-    "docs/ops/CICD.md",
-    "docs/ops/DEPLOY.md",
-    "docs/ops/ENVIRONMENTS.md",
-    "docs/ops/STORAGE-CDN.md",
-    "docs/services/console/README.md",
-    "docs/services/forum/README.md",
-    "docs/services/server/endpoint-contracts.md",
-    "docs/services/server/mail.md",
-    "docs/services/server/README.md",
-    "docs/services/web/portal.md",
-    "docs/services/web/README.md"
+    "docs/conventions/RELEASES.md"
   ],
-  "tests": [
-    "tests/console/boot-placeholder.test.ts",
-    "tests/e2e/workflows.spec.ts",
-    "tests/server/forum-sticker-cdn.test.ts",
-    "tests/server/forum.test.ts",
-    "tests/server/mail-envelope.test.ts",
-    "tests/server/mail-outbox.test.ts",
-    "tests/server/mail-template-content.test.ts",
-    "tests/tooling/cdn-store-fixture.ts",
-    "tests/tooling/deployment-environment.test.ts",
-    "tests/tooling/forum-csp.test.ts",
-    "tests/tooling/static-cdn-http.test.ts",
-    "tests/tooling/static-cdn-manifest.test.ts",
-    "tests/tooling/static-cdn-parity.test.ts",
-    "tests/tooling/static-cdn-s3.test.ts",
-    "tests/tooling/static-cdn-switch.test.ts",
-    "tests/tooling/static-cdn-workflows.test.ts",
-    "tests/tooling/static-cdn.test.ts",
-    "tests/tooling/sticker-manifest.test.ts",
-    "tests/tooling/web-nginx.test.ts",
-    "tests/web/portal-promo.test.ts"
-  ],
-  "compatibility": "旧 Garage 公开地址（cdn.yangtzeu.work/geek-public）仍在库里的旧帖与用户正文中：读取与进编辑器时改写到新前缀，不写库；Garage 上的对象与公开直链保留，不删除。",
-  "migration": "不改表结构，不改写库内容。上线后由发布流水线的 cdn-upload 把构建资源、表情、截图与旧帖图片补传到七牛 yzgc/static/site/；宣传片与邮件图片对象已在七牛上（只读核对 200）。",
-  "rollback": "revert 本分支提交即可恢复 Garage 前缀与旧工作流值；已发布镜像引用的 Garage 对象保留，因此回滚不会留下断链。"
+  "tests": [],
+  "compatibility": "接口、表结构与环境变量都不变。",
+  "migration": "不涉及迁移：只改版本号与发布登记，没有数据、配置或环境变量要迁移。",
+  "rollback": "revert 本次合并；窗口未用时由收尾关闭。"
 }
