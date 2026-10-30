@@ -8,7 +8,7 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STATIC_CDN_PREFIX, staticCdnOrigin, staticCdnPrefixURL } from './static-cdn-base.mjs';
 import { buildManifest, manifestProblem } from './sticker-manifest.mjs';
-import { assertObjectContent, assertStorageKey, boundedRequest, CDN_MIME_TYPES as MIME, createS3Storage, readS3Config, readUploadConcurrency, sha256 } from './static-cdn-s3.mjs';
+import { assertObjectContent, assertStorageKey, boundedRequest, CDN_MIME_TYPES as MIME, createS3Storage, readS3Config, readUploadConcurrency, sha256, uploadTimeoutMs } from './static-cdn-s3.mjs';
 import { contentIndex, createReleaseManifest, manifestText, readEntry, releaseKey, validateReleaseManifest } from './static-cdn-manifest.mjs';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -320,7 +320,8 @@ export async function verifyOne(entry, { referer, publicOrigin = staticCdnOrigin
   const url = publicURL(entry.key, publicOrigin);
   const get = async (method, extra = {}) => {
     for (let attempt = 1; ; attempt += 1) {
-      const result = await boundedRequest(url, { method, headers: { ...headers, ...extra } }, { fetch, timeoutMs });
+      // 从海外经 CDN 读回大文件同样慢：超时按条目体积放宽（与上传同一估算）。
+      const result = await boundedRequest(url, { method, headers: { ...headers, ...extra } }, { fetch, timeoutMs: Number.isInteger(entry.size) && entry.size > 0 ? uploadTimeoutMs(timeoutMs, entry.size) : timeoutMs });
       if ((result.status !== 429 && result.status < 500) || attempt >= attempts) return result;
       await sleep(backoff * attempt);
     }

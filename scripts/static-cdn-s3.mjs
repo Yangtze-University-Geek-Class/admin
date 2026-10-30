@@ -38,7 +38,7 @@ export const MAX_TIMEOUT_MS = 180000;
 export const UPLOAD_BYTES_PER_SECOND = 16 * 1024;
 /**
  * PUT 的超时 = 基础超时与「15 秒 + 体积 / 每秒字节数」取大者，最多 MAX_TIMEOUT_MS。
- * 覆盖的是响应头加响应体；GET 与 HEAD 仍用基础超时。
+ * 覆盖的是响应头加响应体；读回已知体积的 GET（写前核对、写后读回、经 CDN 校验）同样按体积放宽，HEAD 仍用基础超时。
  */
 export function uploadTimeoutMs(baseMs, bytes) {
   return Math.min(MAX_TIMEOUT_MS, Math.max(baseMs, 15000 + Math.ceil((bytes * 1000) / UPLOAD_BYTES_PER_SECOND)));
@@ -166,14 +166,16 @@ export function createS3Storage(config, {
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 3 || !Number.isFinite(backoff) || backoff < 0 || backoff > 5000
     || !Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) throw new Error('S3 重试或超时参数超限');
   const locks = new Map();
-  const request = async (method, key, { body, headers, retry = true } = {}) => {
+  // expectedBytes：GET 预期读回的体积（写前核对与写后读回都知道），超时同样按体积放宽。
+  const request = async (method, key, { body, headers, retry = true, expectedBytes = 0 } = {}) => {
     assertStorageKey(key);
     const limit = retry ? attempts : 1;
     for (let attempt = 1; ; attempt += 1) {
       const signed = signS3Request(config, method, key, { body, headers, now: now() });
       let result;
       try {
-        const requestTimeout = method === 'PUT' && body ? uploadTimeoutMs(timeoutMs, body.length) : timeoutMs;
+        const bytes = method === 'PUT' && body ? body.length : expectedBytes;
+        const requestTimeout = bytes > 0 ? uploadTimeoutMs(timeoutMs, bytes) : timeoutMs;
         result = await boundedRequest(signed.url, { method, headers: signed.headers, ...(body ? { body } : {}) }, { fetch, timeoutMs: requestTimeout });
       } catch (error) {
         // 泄漏保护：不回显可能含凭据的 fetch 异常或响应体。
@@ -188,7 +190,7 @@ export function createS3Storage(config, {
   const ensureUnlocked = async (key, body, mime) => {
     assertObjectContent(key, body, mime);
     for (let attempt = 1; ; attempt += 1) {
-      const current = await request('GET', key);
+      const current = await request('GET', key, { expectedBytes: body.length });
       if (current.status === 200) {
         if (!current.body.equals(body)) throw new Error(`${key}：SHA-256 / 字节冲突，拒绝覆盖`);
         return 'exists';
@@ -200,7 +202,7 @@ export function createS3Storage(config, {
           headers: { 'content-type': mime, 'cache-control': 'public, max-age=31536000, immutable', 'x-amz-meta-sha256': sha256(body) },
         });
         if (result.status !== 200) throw Object.assign(new Error(`S3 PUT ${key}：HTTP ${result.status}`), { permanent: result.status !== 429 && result.status < 500 });
-        const saved = await request('GET', key);
+        const saved = await request('GET', key, { expectedBytes: body.length });
         if (saved.status !== 200 || !saved.body.equals(body)) throw Object.assign(new Error(`${key}：写后 SHA-256 / 字节不一致`), { permanent: true });
         return 'stored';
       } catch (error) {
