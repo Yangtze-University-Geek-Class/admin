@@ -82,13 +82,13 @@ function authorizeUrl(params: Record<string, string>) {
 }
 
 /** 从授权请求一路跟到回调（最多 8 跳）；遇到授权页时返回它的交互 uid。 */
-async function follow(app: FastifyInstance, jar: Jar, url: string) {
+async function follow(app: FastifyInstance, jar: Jar, url: string, callback = CALLBACK) {
   let res = await visit(app, jar, url);
   for (let hops = 0; hops < 8; hops++) {
     const location = res.headers.location as string | undefined;
     if (res.statusCode !== 303 && res.statusCode !== 302) return { res, location: null, consentUid: null };
     if (!location) throw new Error('redirect without location');
-    if (location.startsWith(CALLBACK) || location.startsWith('/signin') || location.startsWith(`${ORIGIN}/bind-email?`) || location.startsWith(`${ORIGIN}/complete-profile?`)) return { res, location, consentUid: null };
+    if (location.startsWith(callback) || location.startsWith('/signin') || location.startsWith(`${ORIGIN}/bind-email?`) || location.startsWith(`${ORIGIN}/complete-profile?`)) return { res, location, consentUid: null };
     if (location.startsWith('/authorize?uid=')) return { res, location, consentUid: new URLSearchParams(location.split('?')[1]).get('uid') };
     res = await visit(app, jar, location);
   }
@@ -107,18 +107,18 @@ const accountOf = (app: FastifyInstance, githubId: number) =>
   (app.services.storage.db.prepare("SELECT user_id FROM identities WHERE provider = 'github' AND provider_uid = ?").get(String(githubId)) as { user_id: string }).user_id;
 
 /** 登录、同意、换令牌一次走完，返回令牌响应与回调里的参数。 */
-async function signInThroughGitlab(app: FastifyInstance, jar: Jar, secret: string) {
+async function signInThroughGitlab(app: FastifyInstance, jar: Jar, secret: string, redirectUri = CALLBACK) {
   const { verifier, challenge } = pkce();
-  const first = await follow(app, jar, authorizeUrl({ code_challenge: challenge, code_challenge_method: 'S256' }));
+  const first = await follow(app, jar, authorizeUrl({ code_challenge: challenge, code_challenge_method: 'S256', redirect_uri: redirectUri }), redirectUri);
   let location = first.location;
   if (first.consentUid) {
     const confirmed = await visit(app, jar, `/oidc/interaction/${first.consentUid}/confirm`, { method: 'POST' });
     expect(confirmed.statusCode).toBe(200);
-    location = (await follow(app, jar, confirmed.json().redirect_to)).location;
+    location = (await follow(app, jar, confirmed.json().redirect_to, redirectUri)).location;
   }
-  expect(location?.startsWith(CALLBACK)).toBe(true);
+  expect(location?.startsWith(redirectUri)).toBe(true);
   const callback = new URL(location!);
-  const token = await exchange(app, callback.searchParams.get('code')!, verifier, secret);
+  const token = await exchange(app, callback.searchParams.get('code')!, verifier, secret, redirectUri);
   return { token, callback, verifier, consented: Boolean(first.consentUid) };
 }
 
@@ -473,6 +473,39 @@ describe('OIDC provider for downstream apps (#270)', () => {
     expect((await app.inject({ url: '/oidc/interaction/AAAAAAAAAAAAAAAAAAAAA' })).statusCode).toBe(429);
   });
 
+  it('keeps the sub when GitLab moves its callback to a path on another host, and drops the old callback only when removed (#335)', async () => {
+    const { app, clientSecret } = await setup();
+    const store = app.services.oidcStore;
+    const moved = `${ORIGIN}/gitlab/users/auth/openid_connect/callback`;
+    const jar = new Jar();
+    jar.set('sid', signIn(app, 'alice', 101));
+    const subOf = (token: LightMyRequestResponse) => JSON.parse(Buffer.from(token.json().id_token.split('.')[1], 'base64url').toString()).sub as string;
+    const before = subOf((await signInThroughGitlab(app, jar, clientSecret)).token);
+    // 钉住之前登记的旧行没有 sector_id：照旧取第一个回调的主机
+    app.services.storage.db.prepare("UPDATE oauth_clients SET sector_id = NULL WHERE client_id = 'gitlab'").run();
+    expect(store.sectorOf('gitlab')).toBe('git.example.test');
+
+    expect(store.addRedirectUri('gitlab', moved)).toMatchObject({ changed: true, before: [CALLBACK], client: { redirect_uris: [CALLBACK, moved], sector: 'git.example.test' } });
+    expect(store.addRedirectUri('gitlab', moved).changed).toBe(false);
+    const both = await signInThroughGitlab(app, jar, clientSecret, moved);
+    expect(both.token.statusCode).toBe(200);
+    expect(subOf(both.token)).toBe(before);
+    expect(subOf((await signInThroughGitlab(app, jar, clientSecret)).token)).toBe(before);
+
+    expect(store.removeRedirectUri('gitlab', CALLBACK)).toMatchObject({ changed: true, client: { redirect_uris: [moved], sector: 'git.example.test' } });
+    expect(store.sectorOf('gitlab')).toBe('git.example.test');
+    const { challenge } = pkce();
+    const old = await visit(app, jar, authorizeUrl({ code_challenge: challenge, code_challenge_method: 'S256' }));
+    expect(old.statusCode).toBe(400);
+    expect(old.headers.location).toBeUndefined();
+    expect(old.body).toContain('invalid_redirect_uri');
+    expect(subOf((await signInThroughGitlab(app, jar, clientSecret, moved)).token)).toBe(before);
+    expect(() => store.removeRedirectUri('gitlab', moved)).toThrow(/at least one/);
+    expect(() => store.addRedirectUri('gitlab', 'http://example.test/gitlab/cb')).toThrow(/https/);
+    expect(() => store.addRedirectUri('nobody', moved)).toThrow(/not found/);
+    expect(store.listClients().find(client => client.client_id === 'gitlab')).toMatchObject({ redirect_uris: [moved], sector: 'git.example.test' });
+  });
+
   it('validates redirect URIs when registering a client', async () => {
     const { app } = await setup();
     const store = app.services.oidcStore;
@@ -480,6 +513,10 @@ describe('OIDC provider for downstream apps (#270)', () => {
     expect(() => store.registerClient({ name: 'A', redirectUris: ['https://a.example.test/cb', 'https://b.example.test/cb'] })).toThrow(/share a host/);
     expect(() => store.registerClient({ name: 'A', redirectUris: ['https://a.example.test/cb#x'] })).toThrow(/fragment/);
     expect(() => store.registerClient({ name: 'GitLab', clientId: 'gitlab', redirectUris: [CALLBACK] })).toThrow(/already exists/);
+    // 换地址的应用重新登记时钉住原来的 sector（#335）：回调可以在别的主机上
+    expect(store.registerClient({ name: 'Moved', clientId: 'moved', redirectUris: [`${ORIGIN}/gitlab/cb`], sector: 'git.example.test' }).client.sector).toBe('git.example.test');
+    expect(store.sectorOf('moved')).toBe('git.example.test');
+    expect(() => store.registerClient({ name: 'Bad', redirectUris: [`${ORIGIN}/gitlab/cb`], sector: 'https://git.example.test' })).toThrow(/host name/);
     const row = app.services.storage.db.prepare("SELECT secret_encrypted FROM oauth_clients WHERE client_id = 'gitlab'").get() as { secret_encrypted: string };
     expect(row.secret_encrypted).not.toContain(store.rotateSecret('gitlab'));
   });

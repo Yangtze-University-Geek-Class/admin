@@ -30,6 +30,7 @@ export function pendingText(mode: GitlabAccountsResponse["mode"], actions: Gitla
 const ERROR_TEXT: Record<string, string> = {
   gitlab_unreachable: "连不上 GitLab",
   gitlab_client_missing: "签发者里没有 GitLab 客户端",
+  gitlab_sector_mismatch: "GitLab 客户端的 sector 和本环境配置不一致",
   gitlab_username_exhausted: "用户名都被占用了",
   gitlab_sync_failed: "同步出错",
   github_avatar_unreachable: "连不上 GitHub 头像",

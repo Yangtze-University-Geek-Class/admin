@@ -38,7 +38,7 @@ const RESERVED_USERNAMES = new Set([
   "explore", "groups", "users", "dashboard", "projects", "snippets", "search", "import", "oauth", "public", "profile", "assets", "uploads",
 ]);
 
-export type GitlabSyncConfig = { mode: "off" | "dry-run" | "on"; url: string | null; token: string | null; group: string; clientId: string };
+export type GitlabSyncConfig = { mode: "off" | "dry-run" | "on"; url: string | null; token: string | null; group: string; clientId: string; sector?: string | null };
 export type GitlabSyncSettings = { mode: GitlabSyncConfig["mode"]; group: string; interval_minutes: number };
 
 export function readGitlabSyncSettings(db: Database.Database): Partial<GitlabSyncSettings> | null {
@@ -67,7 +67,7 @@ export type GitlabAccountRow = {
   avatar_source: string | null; emails_source: string | null; last_error: string | null; last_error_at: number | null; synced_at: number | null; created_at: number; updated_at: number;
 };
 export type SyncOutcome = { account_id: string; login: string; actions: SyncAction[]; applied: boolean; error: string | null };
-/** `skipped` 不为空时这一轮没做：GitLab 的客户端还没登记（gitlab_client_missing）。 */
+/** `skipped` 不为空时这一轮没做：GitLab 的客户端还没登记（gitlab_client_missing），或它钉住的 sector 不是 GITLAB_OIDC_SECTOR（gitlab_sector_mismatch）。 */
 export type SyncSummary = { mode: GitlabSyncConfig["mode"]; accounts: number; changed: number; failed: number; skipped: string | null; outcomes: SyncOutcome[] };
 export type SyncLogger = { info(details: Record<string, unknown>, message: string): void; error(details: Record<string, unknown>, message: string): void };
 /** 上一轮全量对账的小结（#274 控制台概览用），进程重启后清空。 */
@@ -109,8 +109,13 @@ export function createGitlabSync(db: Database.Database, deps: {
   const clock = deps.clock ?? Date.now;
   const fetchGitlab = deps.fetch ?? fetch;
   const fetchGithub = deps.githubFetch ?? fetch;
-  // sector 不取 GITLAB_URL 的主机，免得它和签发者给 GitLab 的 sub 对不上；客户端还没登记时为 null，这时 on 模式整轮跳过
-  const sector = () => deps.clients.sectorOf(config.clientId);
+  // sector 不取 GITLAB_URL 的主机，免得它和签发者给 GitLab 的 sub 对不上；客户端还没登记时为 null，这时 on 模式整轮跳过。
+  // 配了 GITLAB_OIDC_SECTOR 而库里钉住的不是它时也当作 null：宁可这一轮不做，也不拿另一个 sector 的 sub 去认人（#335）。
+  const sector = () => {
+    const pinned = deps.clients.sectorOf(config.clientId);
+    return pinned && (!config.sector || pinned === config.sector) ? pinned : null;
+  };
+  const skipReason = () => deps.clients.sectorOf(config.clientId) ? "gitlab_sector_mismatch" : "gitlab_client_missing";
   const selectRow = db.prepare("SELECT * FROM gitlab_accounts WHERE account_id = ?");
   const usernameTaken = db.prepare("SELECT 1 FROM gitlab_accounts WHERE username = ? COLLATE NOCASE AND account_id <> ?");
 
@@ -444,7 +449,7 @@ export function createGitlabSync(db: Database.Database, deps: {
    */
   async function create(account: DirectoryAccount, action: Extract<SyncAction, { kind: "create" }>): Promise<void> {
     const sectorId = sector();
-    if (!sectorId) throw new SyncError("gitlab_client_missing");
+    if (!sectorId) throw new SyncError(skipReason());
     const now = clock();
     let username = action.username;
     // 先占下用户名：建到一半失败时，下次沿用同一个名字
@@ -552,7 +557,7 @@ export function createGitlabSync(db: Database.Database, deps: {
       actions = plan(account);
       outcome.actions = actions;
       if (config.mode !== "on") return outcome;
-      if (!sector()) { outcome.error = "gitlab_client_missing"; return outcome; }
+      if (!sector()) { outcome.error = skipReason(); return outcome; }
       const row = rowOf(account.account_id);
       if (row?.gitlab_user_id != null) {
         const remote = await managedUser(account, row.gitlab_user_id);
@@ -605,7 +610,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     if (running) return running;
     running = (async () => {
       const outcomes: SyncOutcome[] = [];
-      if (config.mode === "on" && !sector()) return { mode: config.mode, accounts: 0, changed: 0, failed: 0, skipped: "gitlab_client_missing", outcomes };
+      if (config.mode === "on" && !sector()) return { mode: config.mode, accounts: 0, changed: 0, failed: 0, skipped: skipReason(), outcomes };
       for (const account of deps.directory.listForSync()) {
         if (config.mode === "off" || stopping) break;
         outcomes.push(await syncOne(account));
