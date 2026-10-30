@@ -2,7 +2,7 @@
 
 > 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。
 
-状态：`current` · 更新：2026-10-29 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
+状态：`current` · 更新：2026-10-30 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
 
 ## 发布前置
 
@@ -54,7 +54,7 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 
 香港回环 `18480/18481` 仅是私有预检设计，不能代替真实域名验证。后续候选配置先留非 import 目录，获批前不放进自动加载的 `/etc/caddy/sites/*.caddy`；变更先 validate 再 reload，保留 GitLab handler，不 restart 相邻服务。
 
-#308 的独立预发布 GitLab 不使用上述整站生成器覆盖live配置。经所有者批准首次安装的受限 `edge-gitlab.py` 只变换现行配置中的预发布站点块，保留正式块、真实IP、论坛与比赛策略；后续动作由production保护的 `gitlab-cutover` 调用。新实例目录、端口、网络和备份与正式隔离，见 [GitLab双实例合同](GITLAB.md#独立预发布实例308)。通道安装、入口激活、实例部署和SSO验收分别取证，不把其中一项算成全部完成。#335 给同一接收器加了 `production-plan|apply|verify|rollback`：只在正式站点块加 `/gitlab` 处理器（带原来旧主机上的 NANO 头像规则），并把旧 GitLab 主机的站点文件换成只做 301 的物料（`deploy/gitlab/gitlab.caddy`，由 `install-host.sh --target edge` 装到 `/usr/local/share/yzgc-edge/`）；由 `gitlab-cutover` 的 `move-production-path` 调用，见 [GitLab 搬到正式入口](GITLAB.md#搬到正式入口的-gitlab335)。
+#308 的独立预发布 GitLab 不使用上述整站生成器覆盖live配置。经所有者批准首次安装的受限 `edge-gitlab.py` 只变换现行配置中的预发布站点块，保留正式块、真实IP、论坛与比赛策略；后续动作由production保护的 `gitlab-cutover` 调用。新实例目录、端口、网络和备份与正式隔离，见 [GitLab双实例合同](GITLAB.md#独立预发布实例308)。通道安装、入口激活、实例部署和SSO验收分别取证，不把其中一项算成全部完成。#335 给同一接收器加了 `production-plan|apply|verify|rollback`：只在正式站点块加 `/gitlab` 处理器（带原来旧主机上的 NANO 头像规则；预发布处理器 #335 起也带同样的规则，装过的旧处理器在 `edge-apply` 时逐字核对后原地升级），并把旧 GitLab 主机的站点文件换成只做 301 的物料（`deploy/gitlab/gitlab.caddy`，由 `install-host.sh --target edge` 装到 `/usr/local/share/yzgc-edge/`）；由 `gitlab-cutover` 的 `move-production-path` 调用，见 [GitLab 搬到正式入口](GITLAB.md#搬到正式入口的-gitlab335)。
 
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。

@@ -25,12 +25,13 @@
 | `settings.sh` | Arch `/srv/gitlab/settings.sh`；用 `bash` 显式执行，写数据库应用设置，不随源码纳管自动执行 |
 | `backup.sh`、`restore-drill.sh`、仓库 `deploy/remote/garage-archive.mjs` | Arch `/srv/gitlab/`；前者由备份 service 调用，后者由获批操作者调用，共享归档器由两者调用 |
 | `gitlab-backup.service`、`gitlab-backup.timer` | Arch `/etc/systemd/system/`；timer → service → `/srv/gitlab/backup.sh` |
-| `gitlab-oidc.rb`、`gitlab-ui.rb` | 审核后合入 Arch `/srv/gitlab/config/gitlab.rb`，不是独立 Ruby 程序；不得反复追加或覆盖整份已有配置。回调和两条头像地址读 `/etc/gitlab/yzgc-gitlab-url`（Arch `/srv/gitlab/config/yzgc-gitlab-url`，一行，等于 `GITLAB_URL`，#335）；搬家时 `production-path.py` 只改 `gitlab.rb` 里这三行，每行必须恰好出现一次 |
+| `gitlab-oidc.rb`、`gitlab-ui.rb` | 审核后合入 Arch `/srv/gitlab/config/gitlab.rb`，不是独立 Ruby 程序；不得反复追加或覆盖整份已有配置。回调和两条头像地址读 `/etc/gitlab/yzgc-gitlab-url`（Arch `/srv/gitlab/config/yzgc-gitlab-url`，一行，等于 `GITLAB_URL`，#335）；搬家时 `production-path.py` 只改 `gitlab.rb` 里这三行，每行必须恰好出现一次。预发布实例不合入 `gitlab.rb`：`preview-sso` 把换了客户端的登录片段写成 `/srv/gitlab-preview/config/yzgc-oidc.rb`，`preview-parity` 把 `gitlab-ui.rb` 原样装成同目录的 `yzgc-ui.rb`，`preview-compose.yml` 按文件在不在加载这两份（#335） |
 | `migrate-oidc-subjects.mjs`（#309 新增，不属于 28 项导入基线） | 不安装到宿主：改接签发者时 `docker cp` 进两个 server 容器的 `/tmp/` 临时运行，用完删除；缺省只演算，`--apply` 才写正式库的 `oauth_subjects`（见上节第 3 步） |
 | `gitlab.caddy` | #335 起是旧主机只做 301 的物料：`install-host.sh --target edge` 装到香港 `/usr/local/share/yzgc-edge/gitlab-legacy.caddy`，接收器 `production-apply` 核对它只把旧主机跳到正式 `/gitlab` 后放进 `/etc/caddy/sites/gitlab.caddy`；原来的默认头像规则搬进正式站点块的 `/gitlab` 处理器（`deploy/remote/edge-gitlab.py`），搬家前这里反代到 `10.66.0.2:8929` |
 | `production-path.py`、`move-path.sh`（#335 新增，不属于 28 项导入基线） | 不安装到宿主：`gitlab-cutover` 每次把本次提交分发到 Arch 临时目录，`cutover.sh *-production-path` 调前者；后者在 runner 上串起 Arch、香港两半和公网核对 |
-| `ui/logo.png`、`group-avatar.png`、`favicon-32.png`、`project-*.png`（4 张） | 外观、组织和项目头像上传输入；没有自动上传脚本 |
-| `ui/nano-avatars/20261025/avatar-*.png`（8 张）与 `manifest.json` | 香港 `/var/lib/caddy/gitlab-avatars/20261025/`；Arch `/srv/gitlab/config/nano-avatars/20261025/` 的恢复副本只有实际安装后才会进入配置备份 |
+| `preview-parity.rb`（#335 新增，不属于 28 项导入基线） | 不安装到宿主：`cutover.sh preview-parity` 经 `docker exec -i gitlab-preview gitlab-rails runner -` 喂进预发布容器，写实例设置、外观和组 `geek`。目标值取自正式实例 2026-10-30 的 API 读数；正式的这些值是 `settings.sh` 加手工设置的，`settings.sh` 只覆盖其中 4 项和标题 |
+| `ui/logo.png`、`group-avatar.png`、`favicon-32.png`、`project-*.png`（4 张） | 外观、组织和项目头像上传输入。正式是手工上传的；预发布由 `preview-parity` 上传前三张（徽标、头部徽标、PWA 图标用 `logo.png`，站点图标用 `favicon-32.png`，组 `geek` 的头像用 `group-avatar.png`），项目图标不传（预发布不建项目） |
+| `ui/nano-avatars/20261025/avatar-*.png`（8 张）与 `manifest.json` | 香港 `/var/lib/caddy/gitlab-avatars/20261025/`，正式与预发布站点块的 `/gitlab` 处理器共用这一份；它们由前序任务放上去，没有流水线安装或核对；Arch `/srv/gitlab/config/nano-avatars/20261025/` 的恢复副本只有实际安装后才会进入配置备份 |
 | `ui/nano-avatars/20261025/preview.png` | 离线预览，不是站点运行依赖 |
 | `ui/cut-logo.py` | 离线图像处理，显式输入/输出路径，依赖 NumPy/Pillow；不需要为使用现有 PNG 重跑 |
 
@@ -95,10 +96,16 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 | OIDC 客户端/sector | `gitlab` / `git.yangtzeu.work`（钉住，搬家后不变） | `gitlab_preview` / `prev.yangtzeu.work` |
 | 备份角色/桶 | `gitlab-backup` / `geek-backup` | `gitlab-preview-backup` / `geek-preview-private` |
 
-- 编排来源为 `preview-compose.yml`，仅从 canonical preview 模板渲染已校验的非密字段；`preview.py plan|apply|verify --env-file <明确路径>` 不读取正式数据。真正安装还要 `apply --apply`。同镜像摘要、6GiB/3CPU限额、全新目录与网络；未知已有目录、符号链接、实例挂载或配置漂移拒绝。只用本机已存在镜像，不构建、不拉取。启动失败只停止本轮新实例，保留数据；健康后关闭注册，初始化不打开SSO。
+- 编排来源为 `preview-compose.yml`，仅从 canonical preview 模板渲染已校验的非密字段；`preview.py plan|apply|verify --env-file <明确路径>` 不读取正式数据。真正安装还要 `apply --apply`。同镜像摘要、6GiB/3CPU限额、全新目录与网络；未知已有目录、符号链接、实例挂载或配置漂移拒绝。只用本机已存在镜像，不构建、不拉取。启动失败只停止本轮新实例，保留数据；健康后关闭注册，初始化不打开SSO。模板后来加的行（`preview.py` 的 `ADDED_LINES`，#335 起是加载 `yzgc-ui.rb` 的那一行）：实例是按不带这些行的上一版模板渲染的、Compose 与登记逐字没改过时，`plan` 报 `upgrade: true`，`verify` 失败，`apply --apply` 原地换成新模板并重建容器等健康（数据目录不动），失败就写回上一版 Compose 与登记再重建；其它漂移照样拒绝。
 - 受保护 `gitlab-cutover` 增加 `preview-status`、`install-preview`、`verify-preview`；安装成功后经 `install-host.sh --target gitlab-preview` 安装备份/恢复脚本、归档器与独立 systemd 单元。单元只编排Docker，不运行宿主业务进程。备份凭据未配时不启用定时器，不能称备份已完成。
 - 统一登录（#335，正式与预发布一一对应）：`gitlab-cutover` 的 `preview-sso`（不勾 apply 只演算）要求预发布实例健康、预发布发现文档的 issuer 是 `<预发布 PUBLIC_ORIGIN>/oidc`、预发布 env 模板的 `GITLAB_URL` 是本环境的 `/gitlab`；勾 apply 时在预发布库登记 `gitlab_preview`（回调 `<GITLAB_URL>/users/auth/openid_connect/callback`，secret 只写 `/srv/gitlab-preview/config/yzgc-oidc-secret`，0600，不打印），写同目录的 `yzgc-oidc-issuer`、`yzgc-gitlab-url` 和由 [gitlab-oidc.rb](../../deploy/gitlab/gitlab-oidc.rb) 换成 `gitlab_preview` 客户端的 `yzgc-oidc.rb`，再对 `gitlab-preview` 做 reconfigure。正式实例、正式库都不碰；已登记但 secret 文件丢了时报错，不自动轮换。
-- 香港入口使用 `edge-gitlab.py` 固定动作接收器，`edge-status`、`edge-apply`、`edge-verify`、`edge-rollback` 均经同一 production 审批。仅改预发布站点块：精确匹配 `/gitlab` 与 `/gitlab/*`，不剥前缀，上传上限2GiB，保留GitLab自身CSP、WebSocket和既有真实IP处理；预发布动作不碰正式块与相邻路径（正式块的 `/gitlab` 由 #335 的 `production-*` 动作管理，两者改同一份文件时互相更新对方的收据与备份）。备份、候选validate、全配置validate、原子替换、reload及失败恢复均保留；配置漂移拒绝重放与回滚。
+- 界面与设置对齐正式（#335）：`gitlab-cutover` 的 `preview-parity`。前置：预发布 env 模板的 `GITLAB_URL` 是本环境的 `/gitlab`，`gitlab-preview` 健康，配置目录的 `yzgc-gitlab-url` 等于它（先 `preview-sso`），容器 env 里有加载 `yzgc-ui.rb` 的那一行（先重跑 `install-preview` 并勾 apply）；不满足什么都不写。不勾 apply 时用 [preview-parity.rb](../../deploy/gitlab/preview-parity.rb) 只读列出和正式不同的项。勾 apply：
+  - 仓库的 [gitlab-ui.rb](../../deploy/gitlab/gitlab-ui.rb) 原样装成 `/srv/gitlab-preview/config/yzgc-ui.rb` 后 reconfigure（关软件包和依赖代理，默认头像指向 `<GITLAB_URL>/nano-avatar/20261025/…`），reconfigure 失败就恢复原文件（原来没有就删掉）再 reconfigure 一次；
+  - 把 `ui/logo.png`、`ui/favicon-32.png`、`ui/group-avatar.png` 临时 `docker cp` 进容器的 `/tmp/yzgc-parity`，runner 核对摘要后写实例设置（默认语言中文、项目与组默认私有、只开 HTTP 克隆、制品 7 天过期、关注册、关 usage ping、开 Gravatar）、外观（标题、说明、PWA 名称与说明、系统消息配色，徽标、头部徽标、PWA 图标与站点图标）和组 `geek`（名称长江大学极客班、私有、Developer 可建项目、Maintainer 可建子组、允许申请加入、组头像，root 是所有者），结束删掉临时图片；
+  - 写完核对没有剩余差异、界面配置已生效（软件包与依赖代理关、头像地址对）、组在且 root 是所有者，打印一行 JSON 摘要：设置值、图片摘要前 8 位、组的公开字段与项目数，不含令牌或口令。
+  只建组，不建项目、不复制正式的成员或仓库；重跑只补差异，图片字节相同就不重传。正式 GitLab 与两套站点的库都不碰。
+- 香港入口使用 `edge-gitlab.py` 固定动作接收器，`edge-status`、`edge-apply`、`edge-verify`、`edge-rollback` 均经同一 production 审批。仅改预发布站点块：精确匹配 `/gitlab` 与 `/gitlab/*`，不剥前缀，上传上限2GiB，保留GitLab自身CSP、WebSocket和既有真实IP处理；和正式一样带 NANO 头像路由（`/gitlab/nano-avatar/20261025/<散列>` 与 `/gitlab/assets/no_avatar*.png`，读同一份 `/var/lib/caddy/gitlab-avatars/20261025/`，#335），装过不带这些路由的旧处理器时，`edge-apply` 核对旧处理器逐字相符、收据描述的就是现在的文件后原地升级，回滚点仍是安装前的文件，`edge-verify` 在升级前失败；预发布动作不碰正式块与相邻路径（正式块的 `/gitlab` 由 #335 的 `production-*` 动作管理，两者改同一份文件时互相更新对方的收据与备份）。备份、候选validate、全配置validate、原子替换、reload及失败恢复均保留；配置漂移拒绝重放与回滚。
+- 预发布对齐正式的顺序（#335，合并进 `main` 后一次走完，每步先不勾 apply 看演算）：① 所有者批准的管理员步骤 `install-host.sh apply --target edge …`（见下一条）升级香港接收器，再 `install-host.sh verify --target edge`；② `gitlab-cutover` 的 `edge-status` → `edge-apply` → `edge-verify`；③ `preview-status`（应报 `upgrade: true`）→ `install-preview` → `verify-preview`；④ `preview-parity`。③ 重建容器期间预发布 GitLab 停几分钟。
 - 首次通道安装由所有者明确批准的管理员步骤执行 `install-host.sh apply --target edge --source <仓库的 deploy/remote> --edge-env-file <canonical preview模板> --edge-production-env-file <canonical 正式模板> --edge-public-key-stdin`（#335 起两份模板都要给，物料多一份 `../gitlab/gitlab.caddy`；已装过的再跑一次可以不带公钥参数）；只接一把专用公钥，`restrict` 加固定command，旧授权行逐字保全，不静默轮换。私钥只存 `production` 环境的 `GITLAB_EDGE_SSH_KEY`。后续受限密钥不能上传代码、改目标或执行shell。
 - 2026-10-29已实测：专用SSH `plan` 成功，`id` 被拒；临时私钥已删除，Caddy未reload。真实Caddy `adapt --validate` 对候选配置通过且正式块逐字未变；这不等于新GitLab已部署或SSO已验收。
 - `backup.sh --environment preview` 与 `restore-drill.sh --environment preview --run <日期/run>` 只使用预发布目录、容器、锁和 `GITLAB_PREVIEW_BACKUP_S3_*`，凭据文件为 `/etc/gitlab-preview-backup/env`。默认production行为保持；两个桶中的相同 `gitlab/<日期>/<run>/` 前缀互不相见，预发布prune不读取或删除正式备份。恢复仍要求明确run、完整摘要、固定同版本CE和断网演练容器。预发布备份05:30，正式03:30，均为北京时间。
@@ -153,10 +160,10 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ## 界面定制、NANO 头像池与自定义头像保护
 
-[gitlab-ui.rb](../../deploy/gitlab/gitlab-ui.rb) 关闭 packages/dependency proxy，并把自定义 Libravatar 地址设为 `<GITLAB_URL>/nano-avatar/20261025/%{hash}?s=%{size}`（读 `yzgc-gitlab-url`，#335 前是旧主机根路径）。[manifest](../../deploy/gitlab/ui/nano-avatars/20261025/manifest.json) 的 8 张 PNG 为 4 张 Q 版、4 张正常比例，均为 512×512；本地已核对各图的大小、尺寸及 SHA-256。它们与论坛 `app/server/assets/stickers/manifest.json` 的 56 张表情是两组独立资产。
+[gitlab-ui.rb](../../deploy/gitlab/gitlab-ui.rb) 关闭 packages/dependency proxy，并把自定义 Libravatar 地址设为 `<GITLAB_URL>/nano-avatar/20261025/%{hash}?s=%{size}`（读 `yzgc-gitlab-url`，#335 前是旧主机根路径）；预发布由 `preview-parity` 原样装成 `yzgc-ui.rb`。[manifest](../../deploy/gitlab/ui/nano-avatars/20261025/manifest.json) 的 8 张 PNG 为 4 张 Q 版、4 张正常比例，均为 512×512；本地已核对各图的大小、尺寸及 SHA-256。它们与论坛 `app/server/assets/stickers/manifest.json` 的 56 张表情是两组独立资产。
 
 - Caddy 仅对 64 位小写十六进制散列取首位映射：`0/8→01`、`1/9→02`、`2/a→03`、`3/b→04`、`4/c→05`、`5/d→06`、`6/e→07`、`7/f→08`；`s` 参数不参与选图。
-- 两条规则在正式站点块的 `/gitlab` 处理器里，路径带 `/gitlab` 前缀（#335）；`/gitlab/assets/no_avatar[-<hash>].png` 回退至 `avatar-01.png`；已有上传头像路径不在这些匹配器内。**自定义头像优先**，不得为重放默认头像迁移而清除用户头像或改同步来源标记。
+- 两条规则在正式与预发布站点块的 `/gitlab` 处理器里（预发布 #335 起），路径带 `/gitlab` 前缀；`/gitlab/assets/no_avatar[-<hash>].png` 回退至 `avatar-01.png`；已有上传头像路径不在这些匹配器内。**自定义头像优先**，不得为重放默认头像迁移而清除用户头像或改同步来源标记。
 - 既有 8 张图已在前序任务交付；本任务不重新生成、上传或部署，不重做历史默认图清理。`manifest` 中的 `visual_review` 与原安装说明的截图/线上结果属于前序记录，不是本轮验收。
 - 完整恢复还需香港图片和 Caddy 规则；备份脚本不直接打包香港文件，只有事先存入 Arch `config/nano-avatars/` 的副本才随配置归档保存。外观/组织/项目已上传图片随 GitLab 数据备份；未上传的源码图片仍从本仓取得。
 
@@ -235,7 +242,8 @@ bash -n deploy/gitlab/restore-drill.sh &&
 bash -n deploy/gitlab/settings.sh &&
 python3 -c 'from pathlib import Path; p=Path("deploy/gitlab/ui/cut-logo.py"); compile(p.read_bytes(), str(p), "exec"); print("Python syntax OK")' &&
 ruby -c deploy/gitlab/gitlab-oidc.rb &&
-ruby -c deploy/gitlab/gitlab-ui.rb
+ruby -c deploy/gitlab/gitlab-ui.rb &&
+ruby -c deploy/gitlab/preview-parity.rb
 ```
 
 2026-10-26 的 28/28 来源哈希是导入基线；#295 后 `backup.sh`、`restore-drill.sh` 已因 Garage 迁移有意偏离该来源，新增共享归档器与平台归档步骤，不得再用导入基线证明这两个脚本当前字节。当前定向回归使用合成文件、假 rclone/GPG 覆盖完整上传下载、哈希冲突、日期选择和凭据隔离；语法与单测不执行真实安装、备份、恢复、联网或图像处理。

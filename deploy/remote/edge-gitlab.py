@@ -2,7 +2,8 @@
 """Only manage the GitLab handlers of the two site blocks; the SSH key cannot upload or execute code.
 
 The preview handler serves <preview origin>/gitlab (#308). The production handler (#335) serves <production origin>/gitlab
-with the NANO avatar pool, and replaces the old GitLab host file with the installed redirect-only material.
+and replaces the old GitLab host file with the installed redirect-only material. Both serve the same NANO avatar pool
+from the files shared on this host (#335).
 """
 import argparse
 import fcntl
@@ -67,26 +68,40 @@ def validate_config(config, origin_key='preview_origin'):
         raise ValueError('invalid private GitLab upstream')
 
 
-def transform(source, config):
-    validate_config(config)
+AVATAR_ROOT = '/var/lib/caddy/gitlab-avatars/20261025'
+
+
+def nano_avatar_routes():
+    """The NANO avatar pool under <origin>/gitlab; it used to live on the old GitLab host, same mapping and files."""
+    avatars = ''.join(f'                {digit} avatar-{"0123456789abcdef".index(digit) % 8 + 1:02d}.png\n' for digit in '08192a3b4c5d6e7f')
+    static = (
+        f'            root * {AVATAR_ROOT}\n'
+        '            rewrite * /{file}\n'
+        '            header Cache-Control "public, max-age=86400"\n'
+        '            header X-Content-Type-Options nosniff\n'
+        '            file_server\n'
+    )
+    return (
+        '        @gitlab_nano_avatar path_regexp gitlab_nano_avatar ^/gitlab/nano-avatar/20261025/([0-9a-f])[0-9a-f]{63}$\n'
+        + '        handle @gitlab_nano_avatar {\n'
+        + '            map {re.gitlab_nano_avatar.1} {gitlab_nano_avatar_file} {\n'
+        + avatars
+        + '            }\n'
+        + static.replace('{file}', '{gitlab_nano_avatar_file}')
+        + '        }\n'
+        + '        @gitlab_nano_fallback path_regexp ^/gitlab/assets/no_avatar(-[a-f0-9]+)?\\.png$\n'
+        + '        handle @gitlab_nano_fallback {\n'
+        + static.replace('{file}', 'avatar-01.png')
+        + '        }\n'
+    )
+
+
+PREVIEW_MARKER = '    # yzgc:gitlab-preview\n'
+
+
+def preview_handler(config, avatars=True):
+    """avatars=False is the exact handler installed before the preview got the NANO avatar routes (#335)."""
     host = urlsplit(config['preview_origin']).hostname
-    # Existing project host blocks use a column-zero closing brace. Refuse unfamiliar layouts.
-    pattern = re.compile(r'^' + re.escape(host) + r' \{\n.*?^\}', re.M | re.S)
-    matches = list(pattern.finditer(source))
-    if len(matches) != 1:
-        raise ValueError('preview site block is missing or ambiguous')
-    match = matches[0]
-    block = match[0]
-    marker = '    # yzgc:gitlab-preview\n'
-    if marker in block:
-        if block.count(marker) != 1 or f'reverse_proxy {config["upstream"]} {{' not in block:
-            raise ValueError('existing GitLab handler does not match installed target')
-        return source
-    required = ['    request_body {\n', '    @outside_forum not path /forum/*\n', '    @old_source remote_ip ', '    handle @old_source {\n']
-    if any(block.count(part) != 1 for part in required):
-        raise ValueError('unrecognized preview policy; refusing to replace it')
-    block = block.replace('    request_body {\n', '    @platform_body not path /gitlab /gitlab/*\n    request_body @platform_body {\n', 1)
-    block = block.replace('    @outside_forum not path /forum/*\n', '    @outside_forum not path /forum/* /gitlab /gitlab/*\n', 1)
     proxy = '''            reverse_proxy {upstream} {{
                 header_up Host {host}
                 header_up X-Forwarded-For {client}
@@ -98,17 +113,43 @@ def transform(source, config):
                 }}
             }}
 '''
-    handler = marker + '''    @gitlab_preview path /gitlab /gitlab/*
+    return PREVIEW_MARKER + '''    @gitlab_preview path /gitlab /gitlab/*
     handle @gitlab_preview {
         request_body {
             max_size 2147483648
         }
-        handle @old_source {
+''' + (nano_avatar_routes() if avatars else '') + '''        handle @old_source {
 ''' + proxy.format(upstream=config['upstream'], host=host, client='{http.request.header.X-Real-IP}') + '''        }
         handle {
 ''' + proxy.format(upstream=config['upstream'], host=host, client='{http.request.remote.host}') + '''        }
     }
 '''
+
+
+def transform(source, config):
+    validate_config(config)
+    host = urlsplit(config['preview_origin']).hostname
+    # Existing project host blocks use a column-zero closing brace. Refuse unfamiliar layouts.
+    pattern = re.compile(r'^' + re.escape(host) + r' \{\n.*?^\}', re.M | re.S)
+    matches = list(pattern.finditer(source))
+    if len(matches) != 1:
+        raise ValueError('preview site block is missing or ambiguous')
+    match = matches[0]
+    block = match[0]
+    handler = preview_handler(config)
+    if PREVIEW_MARKER in block:
+        if block.count(PREVIEW_MARKER) == 1 and block.count(handler) == 1:
+            return source
+        # A handler installed before the avatar routes is upgraded in place, but only if it is exactly that text.
+        earlier = preview_handler(config, avatars=False)
+        if block.count(PREVIEW_MARKER) != 1 or block.count(earlier) != 1:
+            raise ValueError('existing GitLab handler does not match installed target')
+        return source[:match.start()] + block.replace(earlier, handler, 1) + source[match.end():]
+    required = ['    request_body {\n', '    @outside_forum not path /forum/*\n', '    @old_source remote_ip ', '    handle @old_source {\n']
+    if any(block.count(part) != 1 for part in required):
+        raise ValueError('unrecognized preview policy; refusing to replace it')
+    block = block.replace('    request_body {\n', '    @platform_body not path /gitlab /gitlab/*\n    request_body @platform_body {\n', 1)
+    block = block.replace('    @outside_forum not path /forum/*\n', '    @outside_forum not path /forum/* /gitlab /gitlab/*\n', 1)
     block = block.replace('    handle @old_source {\n', handler + '    handle @old_source {\n', 1)
     return source[:match.start()] + block + source[match.end():]
 
@@ -120,7 +161,6 @@ PRODUCTION_EDITS = [
     ('    request_body {\n', '    @platform_body not path /gitlab /gitlab/*\n    request_body @platform_body {\n'),
     ('    @outside_forum not path /forum/*\n', '    @outside_forum not path /forum/* /gitlab /gitlab/*\n'),
 ]
-AVATAR_ROOT = '/var/lib/caddy/gitlab-avatars/20261025'
 
 
 def production_handler(config):
@@ -138,15 +178,6 @@ def production_handler(config):
         '                }}\n'
         '            }}\n'
     )
-    # The NANO avatar pool used to live on the old GitLab host; same mapping, now under the /gitlab prefix.
-    avatars = ''.join(f'                {digit} avatar-{"0123456789abcdef".index(digit) % 8 + 1:02d}.png\n' for digit in '08192a3b4c5d6e7f')
-    static = (
-        f'            root * {AVATAR_ROOT}\n'
-        '            rewrite * /{file}\n'
-        '            header Cache-Control "public, max-age=86400"\n'
-        '            header X-Content-Type-Options nosniff\n'
-        '            file_server\n'
-    )
     return (
         PRODUCTION_BEGIN
         + '    @gitlab_production path /gitlab /gitlab/*\n'
@@ -154,17 +185,7 @@ def production_handler(config):
         + '        request_body {\n'
         + '            max_size 2147483648\n'
         + '        }\n'
-        + '        @gitlab_nano_avatar path_regexp gitlab_nano_avatar ^/gitlab/nano-avatar/20261025/([0-9a-f])[0-9a-f]{63}$\n'
-        + '        handle @gitlab_nano_avatar {\n'
-        + '            map {re.gitlab_nano_avatar.1} {gitlab_nano_avatar_file} {\n'
-        + avatars
-        + '            }\n'
-        + static.replace('{file}', '{gitlab_nano_avatar_file}')
-        + '        }\n'
-        + '        @gitlab_nano_fallback path_regexp ^/gitlab/assets/no_avatar(-[a-f0-9]+)?\\.png$\n'
-        + '        handle @gitlab_nano_fallback {\n'
-        + static.replace('{file}', 'avatar-01.png')
-        + '        }\n'
+        + nano_avatar_routes()
         + '        handle @old_source {\n'
         + proxy.format(upstream=config['upstream'], host=host, client='{http.request.header.X-Real-IP}')
         + '        }\n'
@@ -376,19 +397,24 @@ def operate(root, action, caddy, systemctl):
                 raise ValueError('installed configuration differs from its activation receipt')
         if action == 'verify':
             if changed:
-                raise ValueError('GitLab preview handler is not installed')
+                raise ValueError('GitLab preview handler is missing or outdated')
             run([caddy, 'validate', '--config', str(main)])
             run([systemctl, 'is-active', '--quiet', 'caddy'])
             return {'action': action, 'verified': True, 'site_sha256': before_hash}
         if not changed:
             return {'action': action, 'changed': False, 'site_sha256': before_hash}
+        # Upgrading an installed handler keeps the pre-install backup, so rollback still removes the whole handler;
+        # that needs a receipt describing the current file.
+        upgrade = action == 'apply' and PREVIEW_MARKER in before.decode()
+        if upgrade and (not receipt.exists() or json.loads(receipt.read_text()).get('after') != before_hash):
+            raise ValueError('installed configuration differs from its activation receipt')
         fd, candidate_name = tempfile.mkstemp(prefix='yzgc-edge-', suffix='.caddy', dir=state_dir)
         os.close(fd)
         candidate = Path(candidate_name)
         try:
             candidate.write_bytes(after)
             run([caddy, 'validate', '--config', str(candidate), '--adapter', 'caddyfile'])
-            if action == 'apply':
+            if action == 'apply' and not upgrade:
                 atomic_write(backup, before)
             atomic_write(site, after, site.stat().st_mode & 0o777)
             try:
@@ -402,7 +428,8 @@ def operate(root, action, caddy, systemctl):
                 raise RuntimeError('edge activation failed; previous configuration restored')
             after_hash = hashlib.sha256(after).hexdigest()
             if action == 'apply':
-                atomic_write(receipt, json.dumps({'before': before_hash, 'after': after_hash}).encode())
+                original = json.loads(receipt.read_text())['before'] if upgrade else before_hash
+                atomic_write(receipt, json.dumps({'before': original, 'after': after_hash}).encode())
             return {'action': action, 'changed': True, 'site_sha256': after_hash}
         finally:
             candidate.unlink(missing_ok=True)

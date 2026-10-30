@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -13,7 +14,7 @@ afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: tru
 
 const RB_PREVIEW = `# 其它配置\n    issuer: '${PREVIEW}/oidc', discovery: true, client_auth_method: 'basic',\n    client_options: { identifier: 'gitlab', secret: File.read('/etc/gitlab/yzgc-oidc-secret').strip },\n`;
 
-function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number; previewMode?: string; productionMode?: string; stopExit?: number; backupExit?: number; baselineExit?: number; composeFailOnce?: boolean; repairExit?: number } = {}) {
+function fixture(options: { prodClients?: string[]; discovery?: string; rb?: string; importOutput?: string; importExit?: number; previewMode?: string; productionMode?: string; stopExit?: number; backupExit?: number; baselineExit?: number; composeFailOnce?: boolean; repairExit?: number; previewLoadsUi?: boolean; reconfigureExit?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "cutover-"));
   dirs.push(dir);
   const config = join(dir, "config");
@@ -37,6 +38,8 @@ function fixture(options: { prodClients?: string[]; discovery?: string; rb?: str
   writeFileSync(join(config, "yzgc-oidc-secret"), "preview-secret-value");
   writeFileSync(join(dir, "import-output.txt"), options.importOutput ?? "演算 sector=git.example.test：可迁 0，冲突 0，目标库对不上 0，源账号无可对账身份 0");
   writeFileSync(join(dir, "prod-clients.json"), JSON.stringify((options.prodClients ?? []).map(client_id => ({ client_id }))));
+  // 预发布 GitLab 容器的 env：按新模板重建过的才带加载 yzgc-ui.rb 的那一行（#335）
+  writeFileSync(join(dir, "preview-env.txt"), `GITLAB_OMNIBUS_CONFIG=external_url '${PREVIEW}/gitlab'\nfrom_file '/etc/gitlab/yzgc-oidc.rb' if File.file?('/etc/gitlab/yzgc-oidc.rb')\n${options.previewLoadsUi === false ? "" : "from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')\n"}`);
   // 假 docker：client list 读 prod-clients.json，client add 返回固定 secret，其余只记录调用
   writeFileSync(join(bin, "docker"), `#!/usr/bin/env bash
 echo "$*" >> "${calls}"
@@ -45,6 +48,7 @@ if [[ "$*" == *production* ]]; then environment=production; fi
 root="${dir}/$environment"
 if [[ "$1" == inspect ]]; then
   case "$3" in
+    *Config.Env*) cat "${dir}/preview-env.txt" ;;
     *Config.Image*) echo 'yzgc-fixture/server:unchanged' ;;
     *config_files*) echo "$root/compose.yml" ;;
     *StartedAt*) cat "$root/started" ;;
@@ -69,6 +73,20 @@ elif [[ "$1" == compose ]]; then
   if [[ '${options.composeFailOnce ?? false}' == true && ! -f "$root/compose-failed" ]]; then touch "$root/compose-failed"; exit 1; fi
   echo after > "$root/started"
   echo true > "$root/running"
+elif [[ "$1" == exec && "$*" == *"gitlab-preview gitlab-ctl reconfigure"* ]]; then
+  if [[ '${options.reconfigureExit ?? 0}' != 0 ]]; then exit ${options.reconfigureExit ?? 0}; fi
+  touch "${dir}/preview-reconfigured"
+elif [[ "$1" == exec && "$*" == *"gitlab-rails runner -"* ]]; then
+  # 假 runner：留下喂进来的脚本；界面配置只有 yzgc-ui.rb 装好并 reconfigure 过才生效，写入只在 YZGC_APPLY=1 时发生
+  cat > "${dir}/runner-stdin.rb"
+  echo 'runner warning line'
+  packages=true; avatar=null
+  if [[ -f "${dir}/preview-reconfigured" && -f "${dir}/preview-gitlab-config/yzgc-ui.rb" ]]; then
+    packages=false; avatar="\\"$(cat "${dir}/preview-gitlab-config/yzgc-gitlab-url")/nano-avatar/20261025/%{hash}?s=%{size}\\""
+  fi
+  remaining=null; group=null; apply=false
+  if [[ "$*" == *YZGC_APPLY=1* ]]; then apply=true; remaining='[]'; group='{"full_path":"geek","root_owner":true,"projects":0}'; fi
+  printf '{"apply":%s,"pending":["settings.default_preferred_language","appearance","group"],"remaining":%s,"gitlab_rb":{"packages_enabled":%s,"dependency_proxy_enabled":%s,"gravatar_plain_url":%s,"gravatar_ssl_url":%s},"group":%s}\n' "$apply" "$remaining" "$packages" "$packages" "$avatar" "$avatar" "$group"
 elif [[ "$1" == exec && "$*" == *process.env.GITLAB_SYNC* ]]; then sed -n 's/^GITLAB_SYNC=//p' "$root/.env.$environment"
 elif [[ "$1" == exec && "$*" == *"client list"* ]]; then
   if [[ "$2" == *production* ]]; then cat "${dir}/prod-clients.json"; else echo '[{"client_id":"gitlab"}]'; fi
@@ -724,5 +742,92 @@ describe("cutover.sh preview-sso（#335，正式与预发布一一对应）", ()
       expect(f.called()).not.toMatch(/client add|reconfigure/);
       expect(readdirSync(join(f.dir, "preview-gitlab-config"))).toEqual([]);
     }
+  });
+});
+
+describe("cutover.sh preview-parity（#335，预发布 GitLab 与正式对齐）", () => {
+  const ready = (options: Parameters<typeof fixture>[0] = {}) => {
+    const f = fixture(options);
+    const pre = join(f.dir, "preview-gitlab-config");
+    writeFileSync(join(pre, "yzgc-gitlab-url"), `${PREVIEW}/gitlab\n`);
+    return { ...f, pre };
+  };
+  const sha = (name: string) => createHash("sha256").update(readFileSync(resolve(process.cwd(), "deploy/gitlab/ui", name))).digest("hex");
+
+  it("缺省只演算：只读列出和正式不同的项，不装 yzgc-ui.rb、不 reconfigure、不往容器复制图片；--apply 先装界面配置并 reconfigure，再复制图片写设置、外观和组，结束删临时图片，正式不动", () => {
+    const f = ready();
+    const dry = f.run("preview-parity", "--preview-origin", PREVIEW);
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(dry.stdout).toContain("yzgc-ui.rb（将新建）");
+    expect(dry.stdout).toContain("和正式不同的项：settings.default_preferred_language、appearance、group");
+    expect(dry.stdout).toContain("演算");
+    expect(f.called()).toContain("YZGC_APPLY=0");
+    expect(f.called()).not.toMatch(/YZGC_APPLY=1|reconfigure| cp |mkdir/);
+    expect(readdirSync(f.pre)).toEqual(["yzgc-gitlab-url"]);
+
+    const applied = f.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(applied.status, applied.stderr).toBe(0);
+    expect(readFileSync(join(f.pre, "yzgc-ui.rb"), "utf8")).toBe(readFileSync(resolve(process.cwd(), "deploy/gitlab/gitlab-ui.rb"), "utf8"));
+    expect(readdirSync(f.pre).sort()).toEqual(["yzgc-gitlab-url", "yzgc-ui.rb"]);
+    expect(readFileSync(join(f.dir, "runner-stdin.rb"), "utf8")).toBe(readFileSync(resolve(process.cwd(), "deploy/gitlab/preview-parity.rb"), "utf8"));
+    const calls = f.called().trim().split("\n");
+    const reconfigure = calls.indexOf("exec gitlab-preview gitlab-ctl reconfigure");
+    const write = calls.findIndex(line => line.includes("YZGC_APPLY=1"));
+    expect(reconfigure).toBeGreaterThanOrEqual(0);
+    expect(write).toBeGreaterThan(reconfigure);
+    for (const name of ["logo.png", "favicon-32.png", "group-avatar.png"]) {
+      const copy = calls.findIndex(line => line === `cp ${resolve(process.cwd(), "deploy/gitlab/ui", name)} gitlab-preview:/tmp/yzgc-parity/${name}`);
+      expect(copy).toBeGreaterThan(reconfigure);
+      expect(copy).toBeLessThan(write);
+    }
+    expect(calls[write]).toContain(`YZGC_LOGO_SHA256=${sha("logo.png")}`);
+    expect(calls[write]).toContain(`YZGC_FAVICON_SHA256=${sha("favicon-32.png")}`);
+    expect(calls[write]).toContain(`YZGC_GROUP_AVATAR_SHA256=${sha("group-avatar.png")}`);
+    expect(calls[write]).toContain("gitlab-preview gitlab-rails runner -");
+    expect(calls.at(-1)).toBe("exec gitlab-preview rm -rf /tmp/yzgc-parity");
+    expect(applied.stdout).toContain('对齐结果：{"apply":true');
+    expect(applied.stdout).toContain(`"gravatar_plain_url":"${PREVIEW}/gitlab/nano-avatar/20261025/%{hash}?s=%{size}"`);
+    // 正式实例、两边的 server 都没碰
+    expect(f.called()).not.toMatch(/exec gitlab gitlab-ctl|yzgc-production-server|yzgc-preview-server/);
+    expect(existsSync(join(f.config, "yzgc-ui.rb"))).toBe(false);
+  });
+
+  it("前置不满足时什么都不写：模板地址不是本环境的 /gitlab、还没 preview-sso、容器还没按加载 yzgc-ui.rb 的模板重建", () => {
+    const wrongUrl = ready();
+    writeFileSync(join(wrongUrl.dir, "preview-template.env"), `PUBLIC_ORIGIN=${PREVIEW}\nGITLAB_URL=${PROD}/gitlab\n`);
+    const r1 = wrongUrl.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(r1.status).toBe(1);
+    expect(r1.stderr).toContain(`不是 ${PREVIEW}/gitlab`);
+
+    const noSso = fixture();
+    const r2 = noSso.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(r2.status).toBe(1);
+    expect(r2.stderr).toContain("先 preview-sso");
+
+    const oldContainer = ready({ previewLoadsUi: false });
+    const r3 = oldContainer.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(r3.status).toBe(1);
+    expect(r3.stderr).toContain("先重跑 install-preview");
+
+    for (const f of [wrongUrl, noSso, oldContainer]) {
+      expect(f.called()).not.toMatch(/reconfigure|gitlab-rails runner| cp |mkdir/);
+      expect(readdirSync(join(f.dir, "preview-gitlab-config")).filter(name => name !== "yzgc-gitlab-url")).toEqual([]);
+    }
+  });
+
+  it("reconfigure 失败：恢复原来的 yzgc-ui.rb（原来没有就删掉），不写设置、外观和组", () => {
+    const fresh = ready({ reconfigureExit: 1 });
+    const r1 = fresh.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(r1.status).toBe(1);
+    expect(r1.stderr).toContain("已恢复原 yzgc-ui.rb");
+    expect(readdirSync(fresh.pre)).toEqual(["yzgc-gitlab-url"]);
+
+    const upgrade = ready({ reconfigureExit: 1 });
+    writeFileSync(join(upgrade.pre, "yzgc-ui.rb"), "# 上一版界面配置\n");
+    const r2 = upgrade.run("preview-parity", "--preview-origin", PREVIEW, "--apply");
+    expect(r2.status).toBe(1);
+    expect(readFileSync(join(upgrade.pre, "yzgc-ui.rb"), "utf8")).toBe("# 上一版界面配置\n");
+    expect(readdirSync(upgrade.pre).sort()).toEqual(["yzgc-gitlab-url", "yzgc-ui.rb"]);
+    for (const f of [fresh, upgrade]) expect(f.called()).not.toMatch(/gitlab-rails runner| cp /);
   });
 });

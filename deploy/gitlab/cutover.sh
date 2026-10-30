@@ -15,6 +15,7 @@
 #   cutover.sh finish-production-path --production-origin <URL> --sector <主机> [--apply] 香港入口切好并核对之后：去掉旧回调，再备份一次
 #   cutover.sh rollback-production-path --production-origin <URL> --sector <主机> [--apply] 补回旧回调，恢复原 compose 与 gitlab.rb 并重建容器，再去掉新回调
 #   cutover.sh preview-sso      --preview-origin <URL> [--apply]                       独立预发布 GitLab 接预发布签发者：预发布库登记 gitlab_preview，只写 /srv/gitlab-preview/config 后 reconfigure（#335）
+#   cutover.sh preview-parity   --preview-origin <URL> [--apply]                       独立预发布 GitLab 的界面配置、实例设置、外观和组 geek 与正式对齐：只写 /srv/gitlab-preview/config 与 gitlab-preview 容器（#335）
 #   *-production-path 只改正式库的 gitlab 客户端，要求 GitLab 已信任正式签发者、正式 server 认得 sector 钉住（client show 带 sector_id）。
 #
 # --sector 是 gitlab 客户端钉住的 sector（正式 env 模板的 GITLAB_OIDC_SECTOR），GitLab 换地址时不变，成员的 sub 才不变。
@@ -73,6 +74,8 @@ PREVIEW_CONFIG="${PREVIEW_GITLAB_CONFIG:-/srv/gitlab-preview/config}"
 PREVIEW_GITLAB_CONTAINER="${PREVIEW_GITLAB_CONTAINER:-gitlab-preview}"
 PREVIEW_ENV_FILE="${PREVIEW_ENV_FILE:-${HERE}/../env/.env.preview}"
 PREVIEW_CLIENT=gitlab_preview
+# preview-compose.yml 加载 yzgc-ui.rb 的那一行；容器 env 里没有它，说明实例还没按新模板重建（#335）
+PREVIEW_UI_LOADER="from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')"
 
 die() { echo "cutover: $*" >&2; exit 1; }
 origin_ok() { [[ "$1" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]]; }
@@ -414,6 +417,65 @@ preview_sso() {
     echo "已接上：预发布 GitLab 用 ${PREVIEW_CLIENT} 走 ${PREVIEW_ORIGIN}/oidc 统一登录（secret 不打印）"
 }
 
+# 预发布 GitLab 与正式对齐（#335，正式与预发布是同一套服务）：仓库的 gitlab-ui.rb 装成预发布配置目录的 yzgc-ui.rb 后 reconfigure，
+# 实例设置、外观（标题、说明、PWA、系统消息颜色、徽标与图标）和组 geek（root 所有）由 preview-parity.rb 在 gitlab-preview 里写。
+# 只建组，不建项目、不复制正式数据；正式实例和两边的库都不碰。前置：preview-sso 已写 yzgc-gitlab-url，容器已按新模板重建（重跑 install-preview）。
+parity_runner() { # 在 gitlab-preview 里跑 preview-parity.rb，取最后一行 JSON；$1=1 才写
+    local out
+    out="$("${DOCKER}" exec -i -e "YZGC_APPLY=$1" -e "YZGC_LOGO_SHA256=$(sha256sum "${HERE}/ui/logo.png" | cut -d' ' -f1)" \
+      -e "YZGC_FAVICON_SHA256=$(sha256sum "${HERE}/ui/favicon-32.png" | cut -d' ' -f1)" -e "YZGC_GROUP_AVATAR_SHA256=$(sha256sum "${HERE}/ui/group-avatar.png" | cut -d' ' -f1)" \
+      "${PREVIEW_GITLAB_CONTAINER}" gitlab-rails runner - <"${HERE}/preview-parity.rb" | tail -n 1)" || return 1
+    jq -e 'type == "object"' <<<"${out}" >/dev/null 2>&1 || return 1
+    printf '%s\n' "${out}"
+}
+
+preview_parity() {
+    origin_ok "${PREVIEW_ORIGIN}" || die "--preview-origin 必须是 https://主机名"
+    local url state image ui_state out had_ui=0
+    url="$(sed -n 's/^GITLAB_URL=//p' "${PREVIEW_ENV_FILE}")"
+    [[ "${url}" == "${PREVIEW_ORIGIN}/gitlab" ]] || die "预发布 env 模板的 GITLAB_URL（${url:-空}）不是 ${PREVIEW_ORIGIN}/gitlab"
+    state="$("${DOCKER}" inspect --format '{{.State.Health.Status}}' "${PREVIEW_GITLAB_CONTAINER}" 2>/dev/null || true)"
+    [[ "${state}" == healthy ]] || die "预发布 GitLab 容器不健康（${state:-不存在}）：先 install-preview、verify-preview"
+    [[ -d "${PREVIEW_CONFIG}" ]] || die "预发布 GitLab 配置目录 ${PREVIEW_CONFIG} 不在"
+    # yzgc-ui.rb 的头像地址读这个文件，没有它 reconfigure 会失败
+    [[ "$(cat "${PREVIEW_CONFIG}/yzgc-gitlab-url" 2>/dev/null)" == "${url}" ]] || die "预发布配置目录的 yzgc-gitlab-url 不是 ${url}：先 preview-sso"
+    "${DOCKER}" inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${PREVIEW_GITLAB_CONTAINER}" | grep -qF "${PREVIEW_UI_LOADER}" \
+      || die "预发布 GitLab 容器还没按加载 yzgc-ui.rb 的模板重建：先重跑 install-preview（勾 apply）"
+    for image in "${HERE}/gitlab-ui.rb" "${HERE}/preview-parity.rb" "${HERE}/ui/logo.png" "${HERE}/ui/favicon-32.png" "${HERE}/ui/group-avatar.png"; do
+        [[ -f "${image}" ]] || die "本次分发缺 ${image#"${HERE}/"}"
+    done
+    if [[ ! -f "${PREVIEW_CONFIG}/yzgc-ui.rb" ]]; then ui_state=将新建; elif cmp -s "${HERE}/gitlab-ui.rb" "${PREVIEW_CONFIG}/yzgc-ui.rb"; then ui_state=已一致; else ui_state=将更新; fi
+    echo "预发布 GitLab 与正式对齐：gitlab-ui.rb 装成 ${PREVIEW_CONFIG}/yzgc-ui.rb（${ui_state}）后 reconfigure；实例设置、外观与图片、组 geek（root 所有，只建组）按正式的值写进 ${PREVIEW_GITLAB_CONTAINER}"
+    if [[ "${APPLY}" != 1 ]]; then
+        out="$(parity_runner 0)" || die "读不出预发布 GitLab 的现状"
+        echo "和正式不同的项：$(jq -r 'if (.pending | length) == 0 then "无" else .pending | join("、") end' <<<"${out}")"
+    fi
+    writes || return 0
+    if [[ -f "${PREVIEW_CONFIG}/yzgc-ui.rb" ]]; then had_ui=1; cp -p "${PREVIEW_CONFIG}/yzgc-ui.rb" "${PREVIEW_CONFIG}/yzgc-ui.rb.before"; fi
+    cp "${HERE}/gitlab-ui.rb" "${PREVIEW_CONFIG}/yzgc-ui.rb.new"
+    mv "${PREVIEW_CONFIG}/yzgc-ui.rb.new" "${PREVIEW_CONFIG}/yzgc-ui.rb"
+    if ! "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" gitlab-ctl reconfigure >/dev/null; then
+        if [[ "${had_ui}" == 1 ]]; then mv "${PREVIEW_CONFIG}/yzgc-ui.rb.before" "${PREVIEW_CONFIG}/yzgc-ui.rb"; else rm -f "${PREVIEW_CONFIG}/yzgc-ui.rb"; fi
+        "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" gitlab-ctl reconfigure >/dev/null || echo "cutover: 恢复原 yzgc-ui.rb 后的 reconfigure 也失败，需人工处理" >&2
+        die "预发布 GitLab reconfigure 失败，已恢复原 yzgc-ui.rb；实例设置、外观和组都没动"
+    fi
+    rm -f "${PREVIEW_CONFIG}/yzgc-ui.rb.before"
+    # 图片只临时放进容器的 /tmp/yzgc-parity，runner 以 git 用户读，结束就删
+    trap '"${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" rm -rf /tmp/yzgc-parity >/dev/null 2>&1 || true' EXIT
+    "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" rm -rf /tmp/yzgc-parity
+    "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" mkdir -m 0755 /tmp/yzgc-parity
+    for image in logo.png favicon-32.png group-avatar.png; do
+        "${DOCKER}" cp "${HERE}/ui/${image}" "${PREVIEW_GITLAB_CONTAINER}:/tmp/yzgc-parity/${image}"
+    done
+    "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" chmod 0644 /tmp/yzgc-parity/logo.png /tmp/yzgc-parity/favicon-32.png /tmp/yzgc-parity/group-avatar.png
+    out="$(parity_runner 1)" || die "预发布 GitLab 写实例设置、外观或组 geek 失败（界面配置已生效；重跑本步骤会接着做）"
+    echo "对齐结果：$(jq -c . <<<"${out}")"
+    jq -e --arg avatar "${url}/nano-avatar/20261025/%{hash}?s=%{size}" '.remaining == [] and .gitlab_rb.packages_enabled == false and .gitlab_rb.dependency_proxy_enabled == false
+      and .gitlab_rb.gravatar_plain_url == $avatar and .gitlab_rb.gravatar_ssl_url == $avatar and .group.full_path == "geek" and .group.root_owner == true' <<<"${out}" >/dev/null \
+      || die "写完之后预发布 GitLab 仍和正式不同：$(jq -r '[(.remaining // [])[]] | join("、")' <<<"${out}")"
+    echo "预发布 GitLab 的界面配置、实例设置、外观和组 geek 已与正式一致（组里不建项目）"
+}
+
 path_tool() { "${PYTHON}" "${HERE}/production-path.py" "$@" --env-file "${PROD_ENV_FILE}" --root "${GITLAB_ROOT}" --docker "${DOCKER}" --health-timeout "${GITLAB_HEALTH_TIMEOUT:-900}"; }
 
 issuer_origin() { # GitLab 现在信任的签发者所在环境的 origin
@@ -609,5 +671,6 @@ case "${STEP}" in
     finish-production-path) finish_production_path ;;
     rollback-production-path) rollback_production_path ;;
     preview-sso) preview_sso ;;
-    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer|path-status|move-production-path|check-production-path|finish-production-path|rollback-production-path|preview-sso [--apply] ..." >&2; exit 2 ;;
+    preview-parity) preview_parity ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer|path-status|move-production-path|check-production-path|finish-production-path|rollback-production-path|preview-sso|preview-parity [--apply] ..." >&2; exit 2 ;;
 esac

@@ -5,6 +5,7 @@
 # 先 status，再 register-client、migrate-subjects 演算，看过结果再 apply，最后 switch-issuer；出问题用 rollback-issuer。
 # GitLab 搬到正式入口的 /gitlab（#335）：path-status 只读；move-production-path 不勾 apply 只演算，勾了就由 deploy/gitlab/move-path.sh
 # 依次做 Arch 搬家、香港切入口、公网核对、去掉旧回调，任何一步失败都恢复原地址；rollback-production-path 回到搬家前。
+# 预发布与正式是同一套服务（#335）：preview-sso 接预发布签发者，preview-parity 把界面配置、实例设置、外观和组 geek 对齐正式，都只写预发布实例。
 
 name: GitLab cutover
 
@@ -31,6 +32,7 @@ on:
           - install-preview
           - verify-preview
           - preview-sso
+          - preview-parity
           - edge-status
           - edge-apply
           - edge-verify

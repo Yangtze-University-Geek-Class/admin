@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,6 +9,7 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const edge = resolve('deploy/remote/edge-gitlab.py');
 const preview = resolve('deploy/gitlab/preview.py');
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 function fixture() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'gitlab-preview-')));
@@ -96,6 +98,48 @@ describe('restricted preview edge receiver', () => {
     expect(f.act('rollback').status).toBe(0);
     expect(readFileSync(f.site, 'utf8')).toBe(f.initial);
     expect(f.calls().some(args => args.includes('restart'))).toBe(false);
+  });
+
+  it('serves the NANO avatar pool under /gitlab and upgrades a handler installed without it in place, keeping the pre-install rollback target', () => {
+    const f = edgeFixture();
+    expect(f.act('apply').status).toBe(0);
+    const current = readFileSync(f.site, 'utf8');
+    const block = current.slice(f.production.length);
+    expect(block).toContain('        @gitlab_nano_avatar path_regexp gitlab_nano_avatar ^/gitlab/nano-avatar/20261025/([0-9a-f])[0-9a-f]{63}$\n');
+    expect(block).toContain('        @gitlab_nano_fallback path_regexp ^/gitlab/assets/no_avatar(-[a-f0-9]+)?\\.png$\n');
+    expect(block).toContain('            root * /var/lib/caddy/gitlab-avatars/20261025\n');
+    expect(block).toContain('                f avatar-08.png\n');
+    expect(block.indexOf('@gitlab_nano_fallback')).toBeLessThan(block.indexOf('        handle @old_source {\n'));
+    // The handler installed before the avatar routes is the same text without them, with a receipt describing that file.
+    const routes = block.slice(block.indexOf('        @gitlab_nano_avatar'), block.indexOf('        handle @old_source {\n'));
+    const earlier = current.replace(routes, '');
+    const receiptPath = join(f.root, 'var/lib/yzgc-edge/receipt.json');
+    const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
+    const installEarlier = (text: string) => { writeFileSync(f.site, text); writeFileSync(receiptPath, JSON.stringify({ before: receipt.before, after: sha256(text) })); };
+    installEarlier(earlier);
+    expect(JSON.parse(f.act('plan').stdout).changed).toBe(true);
+    expect(f.act('verify').status).toBe(1);
+    const upgraded = f.act('apply');
+    expect(upgraded.status, upgraded.stderr).toBe(0);
+    expect(readFileSync(f.site, 'utf8')).toBe(current);
+    expect(f.act('verify').status).toBe(0);
+    expect(JSON.parse(f.act('apply').stdout).changed).toBe(false);
+    expect(f.act('rollback').status).toBe(0);
+    expect(readFileSync(f.site, 'utf8')).toBe(f.initial);
+
+    const changed = edgeFixture();
+    expect(changed.act('apply').status).toBe(0);
+    const tampered = earlier.replace('response_header_timeout 300s', 'response_header_timeout 30s');
+    writeFileSync(changed.site, tampered);
+    writeFileSync(join(changed.root, 'var/lib/yzgc-edge/receipt.json'), JSON.stringify({ before: receipt.before, after: sha256(tampered) }));
+    expect(changed.act('apply').status).toBe(1);
+    expect(readFileSync(changed.site, 'utf8')).toBe(tampered);
+    // An earlier handler the receipt does not describe is not upgraded either
+    const unreceipted = edgeFixture();
+    expect(unreceipted.act('apply').status).toBe(0);
+    writeFileSync(unreceipted.site, earlier);
+    expect(unreceipted.act('apply').status).toBe(1);
+    expect(readFileSync(unreceipted.site, 'utf8')).toBe(earlier);
   });
 
   it.each(['FAIL_VALIDATE', 'FAIL_RELOAD'])('restores the original bytes when %s fails', failure => {
@@ -313,7 +357,7 @@ if (args[0] === 'inspect') {
 if (args[0] === 'compose') {
   if (args.includes('up')) {
     const root = path.dirname(args[args.indexOf('-f') + 1]);
-    fs.writeFileSync(stateFile, JSON.stringify([{ Config: { Labels: { 'com.docker.compose.project': 'gitlab-preview' } }, State: { Running: true, Health: { Status: ${JSON.stringify(healthy ? 'healthy' : 'unhealthy')} } }, Mounts: [['config','/etc/gitlab'],['logs','/var/log/gitlab'],['data','/var/opt/gitlab']].map(([name,Destination]) => ({ Destination, Source: path.join(root,name) })) }]));
+    fs.writeFileSync(stateFile, JSON.stringify([{ Config: { Labels: { 'com.docker.compose.project': 'gitlab-preview' } }, State: { Running: true, Health: { Status: process.env.FAKE_PREVIEW_HEALTH || ${JSON.stringify(healthy ? 'healthy' : 'unhealthy')} } }, Mounts: [['config','/etc/gitlab'],['logs','/var/log/gitlab'],['data','/var/opt/gitlab']].map(([name,Destination]) => ({ Destination, Source: path.join(root,name) })) }]));
   }
   process.exit(0);
 }
@@ -335,6 +379,55 @@ describe('independent preview GitLab lifecycle', () => {
     expect(f.act('verify').status).toBe(0);
     expect(f.act('apply', ['--apply']).status).toBe(0);
     expect(f.calls().some(args => args.includes('pull') || args.includes('build') || args.includes('gitlab'))).toBe(false);
+  });
+
+  it('upgrades an instance rendered from the template without the yzgc-ui.rb line in place, restores it when the upgrade fails, and refuses other drift', () => {
+    const f = previewFixture();
+    expect(f.act('apply', ['--apply']).status).toBe(0);
+    const composePath = join(f.root, 'srv/gitlab-preview/docker-compose.yml');
+    const markerPath = join(f.root, 'srv/gitlab-preview/installation.json');
+    const current = readFileSync(composePath, 'utf8');
+    const marker = JSON.parse(readFileSync(markerPath, 'utf8'));
+    const loader = "        from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')\n";
+    expect(current).toContain("        from_file '/etc/gitlab/yzgc-oidc.rb' if File.file?('/etc/gitlab/yzgc-oidc.rb')\n" + loader);
+    const earlier = current.replace(loader, '');
+    const installed = (compose: string) => { writeFileSync(composePath, compose); writeFileSync(markerPath, JSON.stringify({ ...marker, compose_sha256: sha256(compose) })); };
+    const ups = (from: number) => f.calls().slice(from).filter(args => args[0] === 'compose' && args.includes('up')).length;
+
+    installed(earlier);
+    const plan = f.act('plan');
+    expect(plan.status, plan.stderr).toBe(0);
+    expect(JSON.parse(plan.stdout).upgrade).toBe(true);
+    expect(f.act('verify').stderr).toContain('earlier compose');
+    let from = f.calls().length;
+    const failed = f.run(preview, ['apply', '--root', f.root, '--env-file', f.envFile, '--docker', join(f.root, 'docker'), '--health-timeout', '0', '--apply'], { FAKE_PREVIEW_HEALTH: 'starting' });
+    expect(failed.status).toBe(1);
+    expect(failed.stderr).toContain('earlier compose restored');
+    expect(readFileSync(composePath, 'utf8')).toBe(earlier);
+    expect(JSON.parse(readFileSync(markerPath, 'utf8')).compose_sha256).toBe(sha256(earlier));
+    expect(ups(from)).toBe(2);
+    expect(f.calls().slice(from).some(args => args.includes('stop'))).toBe(false);
+
+    from = f.calls().length;
+    const upgraded = f.act('apply', ['--apply']);
+    expect(upgraded.status, upgraded.stderr).toBe(0);
+    expect(JSON.parse(upgraded.stdout).upgraded).toBe(true);
+    expect(readFileSync(composePath, 'utf8')).toBe(current);
+    expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toEqual(marker);
+    expect(ups(from)).toBe(1);
+    expect(f.act('verify').status).toBe(0);
+    expect(JSON.parse(f.act('apply', ['--apply']).stdout).upgraded).toBe(false);
+
+    for (const drift of [earlier + '# hand edit\n', current.replace('mem_limit: 6g', 'mem_limit: 8g')]) {
+      installed(drift);
+      const refused = f.act('apply', ['--apply']);
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain('drift');
+      expect(readFileSync(composePath, 'utf8')).toBe(drift);
+    }
+    writeFileSync(markerPath, JSON.stringify({ ...marker, compose_sha256: sha256(earlier) }));
+    writeFileSync(composePath, current);
+    expect(f.act('apply', ['--apply']).status).toBe(1);
   });
 
   it('stops only the new failed instance and retains its data directory', () => {
