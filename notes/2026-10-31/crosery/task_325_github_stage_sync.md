@@ -43,3 +43,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：static-cdn-s3.mjs 的 GET 带 expectedBytes，static-cdn.mjs 的 verifyOne 按条目体积放宽超时
 - 结果：static-cdn-s3、static-cdn 104 例通过
+
+## 01:34:38 +08:00 · 返工 · #325 · 补齐 CI 失败项
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：sticker-url.ts 补 ImportMeta.env 的全局声明（define 文本替换不受影响）；contest-rehearsal-fixture 从 .env.dev 读 STATIC_CDN_ORIGIN；307、349、352、354、356 的执行记录改回 GitHub stage 的版本（GitHub 上多了收尾条目，不能被 GitLab 版本覆盖）
+- 结果：forum check 725 例、competition-rehearsal 2 例本地通过
