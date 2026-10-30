@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 目标机部署脚本（docker 栈版）：load 镜像 → compose up -d → 健康检查 → 成功后清理 incoming；
 # compose up 失败或健康检查失败都自动回滚到上一个版本。
+# 首次 compose up（会执行建库迁移）之前先做迁移前备份：库快照 → gzip → gpg → 七牛私有备份桶（经 garage-archive.mjs），失败则不启动新版本。
 #
 # 与旧 systemd/release-bundle 流程的区别：目标机不再安装 Node、不再解包发布目录，
 # 只消费 CI 构建好的镜像归档 + 渲染好的 env 文件。
@@ -207,6 +208,88 @@ set_env_image_tag() {
   chmod 600 "$tmp"
   mv -f "$tmp" "$file"
 }
+
+predeploy_database_backup() {
+  # 迁移前备份：compose up 会启动新 server 并执行建库迁移，所以在这之前把库拍成在线快照（sqlite .backup 的 better-sqlite3 API），
+  # 压缩、gpg 加密，再经 garage-archive.mjs 只新增地写入七牛私有备份桶。首次部署没有数据卷，直接跳过。
+  # 任何一步失败都在 compose up 之前退出：旧版本继续运行，库结构不变。
+  local volume="${COMPOSE_PROJECT_NAME}-data" listed stamp day run out uid gid
+  local endpoint region bucket prefix access secret recipient
+  listed=$(docker volume ls -q) || die "读不到本机数据卷列表，拒绝在无法确认迁移前备份的情况下迁移"
+  if ! grep -qxF "$volume" <<<"$listed"; then
+    printf '迁移前备份：没有数据卷 %s（首次部署），跳过\n' "$volume"
+    return 0
+  fi
+  endpoint=$(env_value BACKUP_S3_ENDPOINT "$ENV_FILE")
+  region=$(env_value BACKUP_S3_REGION "$ENV_FILE")
+  bucket=$(env_value BACKUP_S3_BUCKET "$ENV_FILE")
+  prefix=$(env_value BACKUP_S3_PREFIX "$ENV_FILE")
+  access=$(env_value BACKUP_S3_ACCESS_KEY_ID "$ENV_FILE")
+  secret=$(env_value BACKUP_S3_SECRET_ACCESS_KEY "$ENV_FILE")
+  recipient=$(env_value BACKUP_GPG_RECIPIENT "$ENV_FILE")
+  if [ -z "$recipient" ] || [ -z "$bucket" ]; then
+    echo "警告：异地备份还没启用（BACKUP_GPG_RECIPIENT 或 BACKUP_S3_BUCKET 为空），跳过迁移前备份" >&2
+    return 0
+  fi
+  [ -n "$endpoint" ] && [ -n "$region" ] && [ -n "$bucket" ] && [ -n "$prefix" ] && [ -n "$access" ] && [ -n "$secret" ] \
+    || die "迁移前备份缺少 BACKUP_S3_* 配置（只报键名）：拒绝在没有异地备份的情况下迁移"
+  command -v gpg >/dev/null 2>&1 || die "目标机缺少 gpg，无法加密迁移前备份"
+  gpg --batch --list-keys "$recipient" >/dev/null 2>&1 || die "目标机钥匙环里没有 BACKUP_GPG_RECIPIENT 对应的公钥，拒绝迁移"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  day=$(TZ=Asia/Shanghai date +%F)
+  run="${stamp}-${IMAGE_TAG}"
+  mkdir -p "$STACK_ROOT/backups" && chmod 700 "$STACK_ROOT/backups"
+  out="$STACK_ROOT/backups/predeploy-$run"
+  mkdir -m 700 "$out"
+  uid=$(id -u); gid=$(id -g)
+  # 快照在本次新镜像里做（它已装载、带 better-sqlite3）。数据卷以读写挂载只为让 WAL 的 -shm/-wal 可用，代码只以 readonly 打开库。
+  # 明文 data.db 只在 /output（本次备份目录）里存在一瞬间，压缩后立即删除；输出文件归还给调用者的用户。
+  if ! docker run --rm --pull never --network none --read-only --memory 512m --cpus 0.5 --pids-limit 64 \
+    --cap-drop ALL --cap-add DAC_OVERRIDE --cap-add CHOWN --security-opt no-new-privileges:true --user 0:0 \
+    --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \
+    -e HOST_UID="$uid" -e HOST_GID="$gid" \
+    --mount "type=volume,src=$volume,dst=/source" \
+    --mount "type=bind,src=$out,dst=/output" \
+    --entrypoint node "$IMAGE_REPO/server:$IMAGE_TAG" -e "$PREDEPLOY_SNAPSHOT_JS" >/dev/null; then
+    rm -rf "$out"
+    die "迁移前库快照失败，未执行迁移"
+  fi
+  [ -s "$out/data.db.gz" ] || { rm -rf "$out"; die "迁移前库快照没有产出压缩文件，未执行迁移"; }
+  gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "$recipient" \
+    --output "$out/data.db.gz.gpg" --encrypt "$out/data.db.gz" || { rm -rf "$out"; die "迁移前库快照加密失败，未执行迁移"; }
+  rm -f "$out/data.db.gz"
+  printf '%s  %s\n' "$(sha256_of "$out/data.db.gz.gpg")" "data.db.gz.gpg" >"$out/SHA256SUMS"
+  chmod 600 "$out"/*
+  (
+    export BACKUP_S3_ENDPOINT="$endpoint" BACKUP_S3_REGION="$region" BACKUP_S3_BUCKET="$bucket" BACKUP_S3_PREFIX="$prefix"
+    export BACKUP_S3_ACCESS_KEY_ID="$access" BACKUP_S3_SECRET_ACCESS_KEY="$secret"
+    node "$SCRIPT_DIR/garage-archive.mjs" put-tree --role database-backup --source "$out" --prefix "database/$day/$run/" >/dev/null
+  ) || die "迁移前库备份上传失败（本地保留加密副本 ${out}），未执行迁移"
+  printf '迁移前备份已上传：database/%s/%s/（gpg 加密、读回核验通过）\n' "$day" "$run"
+  rm -rf "$out"
+  (
+    export BACKUP_S3_ENDPOINT="$endpoint" BACKUP_S3_REGION="$region" BACKUP_S3_BUCKET="$bucket" BACKUP_S3_PREFIX="$prefix"
+    export BACKUP_S3_ACCESS_KEY_ID="$access" BACKUP_S3_SECRET_ACCESS_KEY="$secret"
+    node "$SCRIPT_DIR/garage-archive.mjs" prune-runs --role database-backup --apply >/dev/null
+  ) || printf '::warning::迁移前备份的旧 run 清理失败（备份本身已上传并核验），请查看 garage-archive 输出\n' >&2
+}
+
+# 迁移前库快照在容器里执行：只读打开 /source/data.db，在线备份后 gzip，明文副本随即删除。
+PREDEPLOY_SNAPSHOT_JS=$(cat <<'JS'
+const { createRequire } = require('node:module');
+const fs = require('node:fs');
+const zlib = require('node:zlib');
+const { pipeline } = require('node:stream/promises');
+(async () => {
+  const Database = createRequire('/app/app/server/package.json')('better-sqlite3');
+  const db = new Database('/source/data.db', { readonly: true, fileMustExist: true });
+  try { await db.backup('/output/data.db'); } finally { db.close(); }
+  await pipeline(fs.createReadStream('/output/data.db'), zlib.createGzip({ level: 9 }), fs.createWriteStream('/output/data.db.gz', { flags: 'wx', mode: 0o600 }));
+  fs.rmSync('/output/data.db', { force: true });
+  fs.chownSync('/output/data.db.gz', Number(process.env.HOST_UID), Number(process.env.HOST_GID));
+})().catch(() => { console.error('迁移前库快照失败'); process.exit(1); });
+JS
+)
 
 compose_up() {
   docker compose --project-name "$COMPOSE_PROJECT_NAME" --env-file "$STACK_ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
@@ -449,6 +532,9 @@ if [ "$(cd -- "$(dirname -- "$ENV_FILE")" && pwd)/$(basename -- "$ENV_FILE")" !=
   mv -f "$tmp_env" "$STACK_ENV_FILE"
   printf '已安装 env 文件：%s（权限 600）\n' "$STACK_ENV_FILE"
 fi
+
+# ── 4b) 迁移前备份：库快照 → 压缩 → 加密 → 七牛私有备份桶（读回核验）；失败则不启动新版本 ──
+predeploy_database_backup
 
 # ── 5) 启动栈 + 健康检查 ──────────────────────────────────────
 # compose up 失败与健康检查超时走同一条失败路径：记 FAILED，有上一个版本就回滚。

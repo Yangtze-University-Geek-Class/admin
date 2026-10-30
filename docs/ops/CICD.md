@@ -119,6 +119,9 @@
 | `GOOGLE_CLIENT_SECRET` | Google 登录的 OAuth 客户端密钥 |
 | `OIDC_JWKS` | 对外授权的签名私钥（可选，#270）：`dist/cli/oidc.js keygen` 输出的一行 base64；为空时 `/oidc/*` 一律 404 |
 | `GITLAB_API_TOKEN` | 自建 GitLab 管理员的 `api` 令牌（#270）：只在 `GITLAB_SYNC=on` 时必填 |
+| `BACKUP_S3_BUCKET` | 七牛私有备份桶名（只放在 secret 里，仓库和文档不写）。渲染进目标机 `.env.<环境>` |
+| `BACKUP_S3_ACCESS_KEY_ID`、`BACKUP_S3_SECRET_ACCESS_KEY` | 备份专用的七牛 AccessKey，GitLab、平台与部署前数据库快照共用，每个环境一套；非密项 `BACKUP_S3_ENDPOINT`、`BACKUP_S3_REGION`、`BACKUP_S3_PREFIX` 在 `deploy/env/` 里预填 |
+| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人。目标机钥匙环里必须有对应公钥；缺失时部署前快照失败关闭，不迁移 |
 | `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY` | Garage 只读密钥 `backup-reader`（#309）：不进运行时 env，部署后的宿主层步骤经 stdin 写入目标机 `/etc/cdn-mirror/env`，供 CDN 镜像拉取五个桶；没配时沿用目标机已有的凭据 |
 
 两条部署工作流的「渲染运行时 env 文件」步骤把上表从 `OAUTH_CLIENT_ID` 起的每一项按同名传给 `scripts/deployment-environment.mjs render`，`scripts/deploy-manual.mjs` 的 `SECRET_ENV` 也是同一份名单；`tests/tooling/deploy-manual.test.ts` 核对这三处与 `SECRET_FIELDS` 一致。发信的凭据与收件名单（阿里云一对、Resend 密钥、收件名单）都没配时照常部署，server 不发信；发件地址只在对应的发信商开启时必填；Google 两项都没配时照常部署，登录页不出现 Google；`OIDC_JWKS` 没配时照常部署，对外授权关闭，`GITLAB_API_TOKEN` 没配而 `GITLAB_SYNC=on` 时渲染失败、不部署，见 [ENVIRONMENTS](ENVIRONMENTS.md)。
@@ -204,9 +207,11 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 | `cdn-upload` | 签名 S3 GET 逐字核对已存在对象，缺对象才 PUT；公开 HEAD、完整 GET SHA-256、Range、MIME、CORS 校验；资产通过后写 `yzgc/indexes/releases/<环境>/<完整提交>/manifest.json`，内容索引只生成私有产物 | `STATIC_CDN_S3_ACCESS_KEY_ID`、`STATIC_CDN_S3_SECRET_ACCESS_KEY`，不写镜像或日志 |
 | `deploy` | 仍依赖 `cdn-upload` 成功，不提前发布引用不存在资源的 HTML | 原有环境权限不变 |
 
-`STATIC_CDN_S3_ENDPOINT=https://s3.cn-south-1.qiniucs.com`、region `cn-south-1`、bucket 取部署密钥 `STATIC_CDN_S3_BUCKET`、forcePathStyle `true`（工作流里三个值照此写死，脚本只接受这三个值）。凭据只从受保护发布 job 的进程环境读取，不在仓库、业务 `.env`、命令行或构建 job 中出现。两项都不设置时下一次构建同源，现有镜像不会自动切换；宣传片、邮件、指南与旧帖 CDN 图片的固定地址也不跟这个开关走。
+`STATIC_CDN_S3_ENDPOINT=https://s3.cn-south-1.qiniucs.com`、region `cn-south-1`、bucket 取环境变量 `vars.STATIC_CDN_S3_BUCKET`（不放 secret：secret 会让 GitHub 把含同一字串的 CDN 地址从 cdn-plan 输出里打码丢掉）、forcePathStyle `true`（工作流里三个值照此写死，脚本只接受这三个值）。凭据只从受保护发布 job 的进程环境读取，不在仓库、业务 `.env`、命令行或构建 job 中出现。两项都不设置时下一次构建同源，现有镜像不会自动切换；宣传片、邮件、指南与旧帖 CDN 图片的固定地址也不跟这个开关走。
 
 当前基线 `.github/workflows/ci.yml` 仍有无凭据的 `docker-cdn` 构建，两个既有部署工作流的上传调用改传环境、完整 SHA 和提交时间，上传器生成稳定来源清单及独立私有内容索引。没有运行这些工作流，也未证明其环境保护状态。所有者本次以 GitLab 为主：父级 task270 的 GitLab 发版草稿应复用同一个 CLI、参数及“上传验证成功才能部署”门禁，不能把 GitHub 历史 token 步骤复制成新服务的配置能力。
+
+用户文件的对象存储（#352）：`deploy-preview.yml`、`deploy-production.yml`、`deploy-hotfix.yml` 的「渲染运行时 env 文件」步骤把环境变量 `vars.OBJECT_STORAGE_BUCKET` 与环境级 secrets `OBJECT_STORAGE_ACCESS_KEY_ID`、`OBJECT_STORAGE_SECRET_ACCESS_KEY` 传给渲染脚本（桶名不放 secret，免得含同一字串的地址被打码）。三项都不设时对象存储关闭，只设一部分渲染失败。端点、区域、前缀与公开地址在 env 模板里，不走 secrets。
 
 新增表情包仍只需维护目录和运行 `sticker-manifest.mjs write/check/urls`；之后由同一套上传链路带上。源文件清单规则见 [forum 合同](../services/forum/README.md)。旧 CDN 资源和发布清单不删除，保证旧镜像回滚。
 

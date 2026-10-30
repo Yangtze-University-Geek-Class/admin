@@ -72,6 +72,25 @@ case "$1" in
     mv "$images.tmp" "$images"; exit 0 ;;
   tag)
     echo "$3" >> "$images"; exit 0 ;;
+  volume)
+    # 本机已有的数据卷名单（volumes.txt）；没有这个文件时等于首次部署，没有任何卷
+    [ "$2" = ls ] || exit 2
+    cat "$state/volumes.txt" 2>/dev/null || true
+    exit 0 ;;
+  run)
+    # 迁移前快照：把假快照写进 --mount type=bind,...,dst=/output 指向的目录；FAKE_DOCKER_RUN_FAIL 非空时失败
+    [ -z "\${FAKE_DOCKER_RUN_FAIL:-}" ] || exit 1
+    dest=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --mount) case "$2" in *dst=/output*) dest=$(printf '%s' "$2" | sed -e 's/^type=bind,src=//' -e 's/,dst=.*$//') ;; esac; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    [ -n "$dest" ] || exit 1
+    printf 'snapshot' > "$dest/data.db.gz"
+    echo "snapshot" >> "$state/compose.log"
+    exit 0 ;;
   *) echo "fake docker: unsupported $*" >&2; exit 2 ;;
 esac
 `;
@@ -492,5 +511,90 @@ describe('rollback-stack.sh only rolls back to images of its own environment', (
     expect(readFileSync(join(h.state, 'in-use.txt'), 'utf8').split('\n').filter(Boolean).sort()).toEqual(refs('yzgc-preview', OLD).sort());
     // 回滚不清理镜像，也不碰另一环境。
     expect(images(h)).toEqual([...refs('yzgc-preview', SHA), ...refs('yzgc-production', OLD), ...refs('yzgc-preview', OLD)].sort());
+  });
+});
+
+// 假 gpg：--list-keys 直接成功；--encrypt 把最后一个参数（明文）写成 encrypted:<明文> 到 --output。
+const FAKE_GPG = `#!/bin/bash
+for a in "$@"; do [ "$a" = "--list-keys" ] && exit 0; done
+out=""; prev=""; last=""
+for a in "$@"; do
+  if [ "$prev" = "--output" ]; then out="$a"; fi
+  prev="$a"; last="$a"
+done
+{ printf 'encrypted:'; cat "$last"; } > "$out"
+`;
+
+describe('deploy-stack.sh backs up the database before compose up can migrate it', () => {
+  // 数据卷存在时，compose up 之前必须先：快照 → gpg 加密 → 上传到备份目标并读回核验；任何一步失败都不启动新版本。
+  const setup = (withBackupConfig: boolean) => {
+    const h = host();
+    const preview = stack(h.root, 'preview', SHA);
+    if (withBackupConfig) {
+      const text = readFileSync(preview.envFile, 'utf8')
+        .replace(/^BACKUP_S3_BUCKET=$/m, 'BACKUP_S3_BUCKET=synthetic-backup')
+        .replace(/^BACKUP_S3_ACCESS_KEY_ID=$/m, 'BACKUP_S3_ACCESS_KEY_ID=synthetic-access')
+        .replace(/^BACKUP_S3_SECRET_ACCESS_KEY=$/m, 'BACKUP_S3_SECRET_ACCESS_KEY=synthetic-secret-never-disclose')
+        .replace(/^BACKUP_GPG_RECIPIENT=$/m, 'BACKUP_GPG_RECIPIENT=backup@example.invalid');
+      writeFileSync(preview.envFile, text);
+    }
+    archive(join(preview.stackRoot, 'incoming'), `yzgc-images-preview-${SHA}.tar.gz`, refs('yzgc-preview', SHA));
+    writeFileSync(join(h.bin, 'gpg'), FAKE_GPG);
+    chmodSync(join(h.bin, 'gpg'), 0o755);
+    writeFileSync(join(h.bin, 'rclone'), `#!${process.execPath}\n${readFileSync(join(repoRoot, 'tests/tooling/fixtures/fake-garage-rclone.cjs'), 'utf8')}`);
+    chmodSync(join(h.bin, 'rclone'), 0o755);
+    const objects = join(h.root, 'objects');
+    mkdirSync(objects);
+    const deploy = (fakes: Record<string, string> = {}) => run(h, 'deploy-stack.sh', ['--environment', 'preview', '--incoming-dir', join(preview.stackRoot, 'incoming'), '--health-timeout', '5'], {
+      FAKE_RCLONE_OBJECTS: objects, FAKE_RCLONE_LOG: join(h.root, 'rclone.jsonl'), ...fakes,
+    });
+    const compose = () => existsSync(join(h.state, 'compose.log')) ? readFileSync(join(h.state, 'compose.log'), 'utf8').split('\n').filter(Boolean) : [];
+    return { h, preview, objects, deploy, compose };
+  };
+
+  it('uploads an encrypted snapshot to the backup target and only then starts the new version', () => {
+    const f = setup(true);
+    writeFileSync(join(f.h.state, 'volumes.txt'), 'yzgc-preview-data\n');
+    const result = f.deploy();
+    expect(result.stderr).toBe('');
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('迁移前备份已上传');
+    expect(f.compose()[0]).toBe('snapshot');
+    expect(f.compose().some(line => line.startsWith('up '))).toBe(true);
+    const day = readdirSync(join(f.objects, 'synthetic-backup', 'yzgc/preview/backup/database'));
+    expect(day).toHaveLength(1);
+    const [run] = readdirSync(join(f.objects, 'synthetic-backup', 'yzgc/preview/backup/database', day[0]));
+    const stored = join(f.objects, 'synthetic-backup', 'yzgc/preview/backup/database', day[0], run);
+    expect(readdirSync(stored).sort()).toEqual(['SHA256SUMS', 'data.db.gz.gpg']);
+    expect(readFileSync(join(stored, 'data.db.gz.gpg'), 'utf8')).toBe('encrypted:snapshot');
+    // 本地只留到上传核验通过：明文与加密副本都不留在栈根里
+    expect(readdirSync(join(f.preview.stackRoot, 'backups'))).toEqual([]);
+    expect(result.stdout + result.stderr).not.toContain('synthetic-secret-never-disclose');
+  });
+
+  it('skips the pre-migration backup with a warning while off-site backup is not enabled yet, and still deploys', () => {
+    const f = setup(false);
+    writeFileSync(join(f.h.state, 'volumes.txt'), 'yzgc-preview-data\n');
+    const result = f.deploy();
+    expect(result.stderr).toContain('异地备份还没启用');
+    expect(f.compose().some(line => line.startsWith('up '))).toBe(true);
+  });
+
+  it('refuses to migrate when the upload fails, without printing the secret', () => {
+    const f = setup(true);
+    writeFileSync(join(f.h.state, 'volumes.txt'), 'yzgc-preview-data\n');
+    const result = f.deploy({ FAKE_RCLONE_FAIL: '1' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('未执行迁移');
+    expect(f.compose().some(line => line.startsWith('up '))).toBe(false);
+    expect(result.stdout + result.stderr).not.toContain('synthetic-secret-never-disclose');
+  });
+
+  it('skips the snapshot on a first deploy that has no data volume yet', () => {
+    const f = setup(false);
+    const result = f.deploy();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('首次部署');
+    expect(f.compose().includes('snapshot')).toBe(false);
   });
 });

@@ -832,13 +832,13 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
       })();
     },
 
-    /** 头像按内容哈希存一份；换掉或删掉之后，没人再用的旧图一起删。 */
-    setAvatar(userId: string, hash: string, data: Buffer, now = Date.now()) {
+    /** 头像按内容哈希存一份；换掉或删掉之后，没人再用的旧图一起删。`data` 为 null 表示字节已在对象存储里（#352），库里不再存。 */
+    setAvatar(userId: string, hash: string, data: Buffer | null, now = Date.now()) {
       db.transaction(() => {
         const row = user(userId);
         const previous = row?.avatar_hash ?? null;
         if (row?.account_id && options.profiles?.findMany([row.account_id]).has(row.account_id)) options.profiles.setAvatar(row.account_id, hash, data);
-        db.prepare("INSERT OR IGNORE INTO forum_avatars(hash, data, created_at) VALUES(?, ?, ?)").run(hash, data, now);
+        if (data) db.prepare("INSERT OR IGNORE INTO forum_avatars(hash, data, created_at) VALUES(?, ?, ?)").run(hash, data, now);
         db.prepare("UPDATE forum_users SET avatar_hash = ?, updated_at = ? WHERE id = ?").run(hash, now, userId);
         if (previous !== hash) deleteAvatarIfUnused(previous);
       })();

@@ -51,11 +51,13 @@ fs.writeFileSync(output, Buffer.concat([Buffer.from('encrypted:'), fs.readFileSy
   const env = {
     PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: dir,
     FAKE_RCLONE_OBJECTS: objects, FAKE_RCLONE_LOG: calls, FAKE_GPG_LOG: join(dir, 'gpg.jsonl'),
-    PLATFORM_BACKUP_GPG_RECIPIENT: 'backup@example.invalid',
-    PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: 'preview-access',
-    PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: 'preview-secret-never-disclose',
-    PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID: 'production-access',
-    PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY: 'production-secret-never-disclose',
+    BACKUP_GPG_RECIPIENT: 'backup@example.invalid',
+    BACKUP_S3_ENDPOINT: 'https://s3.example.invalid',
+    BACKUP_S3_REGION: 'test-region-1',
+    BACKUP_S3_BUCKET: 'synthetic-backup',
+    BACKUP_S3_PREFIX: 'yzgc/test/backup/',
+    BACKUP_S3_ACCESS_KEY_ID: 'backup-access',
+    BACKUP_S3_SECRET_ACCESS_KEY: 'backup-secret-never-disclose',
   };
   const run = (extra: string[] = [], extraEnv: Record<string, string> = {}) => spawnSync('bash', [script, '--environment', environment, '--source', source, '--out', output, ...extra], {
     encoding: 'utf8', timeout: 15000, env: { ...env, ...extraEnv },
@@ -69,9 +71,9 @@ describe('platform encrypted off-host archive step', () => {
     const before = ['manifest.json', 'manifest.json.sha256', 'receipt.json', 'receipt.json.sha256', 'system-backup.tar.gz', 'system-backup.tar.gz.sha256'];
     const result = f.run();
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ environment: 'preview', prefix: f.prefix, prune: { mode: 'apply', keepDates: 3, removedRuns: [] } });
-    expect(readFileSync(join(f.objects, 'geek-backup', f.prefix, 'platform-backup.tar.gpg')).subarray(0, 10).toString()).toBe('encrypted:');
-    expect(readFileSync(join(f.objects, 'geek-backup', f.prefix, 'SHA256SUMS'), 'utf8')).toMatch(/platform-backup\.tar\.gpg/);
+    expect(JSON.parse(result.stdout)).toMatchObject({ environment: 'preview', prefix: f.prefix, prune: { mode: 'apply', runs: { complete: 1, kept: 1, removed: 0 } } });
+    expect(readFileSync(join(f.objects, 'synthetic-backup', 'yzgc/test/backup/', f.prefix, 'platform-backup.tar.gpg')).subarray(0, 10).toString()).toBe('encrypted:');
+    expect(readFileSync(join(f.objects, 'synthetic-backup', 'yzgc/test/backup/', f.prefix, 'SHA256SUMS'), 'utf8')).toMatch(/platform-backup\.tar\.gpg/);
     expect(before.every(name => existsSync(join(f.source, name)))).toBe(true);
     expect(readFileSync(join(f.source, 'system-backup.tar.gz')).toString()).toBe('synthetic platform backup');
     expect(readFileSync(f.env.FAKE_GPG_LOG, 'utf8')).toContain('--encrypt');
@@ -95,9 +97,9 @@ describe('platform encrypted off-host archive step', () => {
     expect(existsSync(damaged.calls)).toBe(false);
   });
 
-  it('uses environment-specific credentials and lets immutable remote conflicts fail closed', () => {
+  it('fails closed without backup credentials and lets immutable remote conflicts fail closed', () => {
     const f = fixture();
-    expect(f.run([], { PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: '' }).status).toBe(1);
+    expect(f.run([], { BACKUP_S3_SECRET_ACCESS_KEY: '' }).status).toBe(1);
     expect(existsSync(f.output)).toBe(false);
     expect(f.run().status).toBe(0);
     const secondOut = join(f.dir, 'encrypted-second');

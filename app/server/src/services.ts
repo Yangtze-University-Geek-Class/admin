@@ -45,6 +45,7 @@ import { createAccountDirectory } from "./lib/account-directory.js";
 import { createGitlabSync, type FetchLike as GitlabFetch } from "./lib/gitlab-sync.js";
 import { createGithubAvatarChecks } from "./lib/github-avatars.js";
 import { createAvatars } from "./lib/avatars.js";
+import { avatarKey, createObjectStorage, type ObjectFetch } from "./lib/object-storage.js";
 import { loadNanoAvatars } from "./lib/nano-avatar.js";
 import type { FetchLike } from "./lib/mail/providers.js";
 import { createPublicSubmission, POW_NONCE_TTL_MS } from "./middleware/pow.js";
@@ -61,6 +62,8 @@ import { createTurnstile } from "./middleware/turnstile.js";
 export type ServiceOverrides = {
   httpRequest?: typeof request; octokitFactory?: (token: string) => Octokit; mailFetch?: FetchLike;
   gitlabFetch?: GitlabFetch; githubProfileFetch?: GitlabFetch; clock?: () => number;
+  /** 对象存储（#352）的 HTTP 请求：测试换掉，不连真实七牛。 */
+  objectStorageFetch?: ObjectFetch;
 };
 /** Composition root. Only this module owns dependencies and database lifetimes. */
 export function createServices(config: AppConfig, overrides: ServiceOverrides = {}) {
@@ -148,9 +151,13 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const oidc = config.oidc
     ? { issuer: config.oidc.issuer, provider: createOidcProvider({ issuer: config.oidc.issuer, jwks: config.oidc.jwks, sessionSecret: config.sessionSecret, store: oidcStore, accounts: directory }) }
     : null;
+  // 用户文件对象存储（#352）：头像与论坛图片写七牛；config.objectStorage 为 null 时整体关闭。
+  const objectStorage = createObjectStorage(config.objectStorage, { fetch: overrides.objectStorageFetch });
   const gitlab = createGitlabSync(storage.db, {
     config: config.gitlab, directory, subjects: oidcStore, clients: oidcStore, avatars: profiles, githubAvatars, nanoAvatars, audit: storage.audit,
     fetch: overrides.gitlabFetch, githubFetch: overrides.githubProfileFetch, clock: overrides.clock,
+    // 新传的头像库里没有字节，同步到 GitLab 时去对象存储读（2 MiB 是头像上传的上限）。
+    avatarObject: objectStorage.enabled ? hash => objectStorage.readPublic(avatarKey(hash), 2 * 1024 * 1024) : undefined,
   });
   const permissions = createPermissionEngine(storage.db, overrides.clock);
   // 比赛官网托管（#278）：站点文件放在数据库旁边的 sites/（容器里是数据卷 /data/sites）；内存库（测试）用临时目录，关闭时删掉。
@@ -178,7 +185,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     competitionSignups,
     competitionScores,
     competitionRules, competitionSites, competitionPublic, competitionTeamPlaza, competitionPrizes, competitionCandidates,
-    config, storage, crypto, sitesRoot,
+    config, storage, crypto, sitesRoot, objectStorage,
     auth,
     identity,
     emailLogin, invites, google,

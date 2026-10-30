@@ -80,6 +80,10 @@
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 密钥·留空，可选的一对 | 没配：登录页不出现 Google | 同左 |
 | `OIDC_JWKS` | 密钥·留空，可选 | 没配：对外授权关闭，`/oidc/*` 一律 404 | 同左 |
 | `GITLAB_API_TOKEN` | 密钥·留空，`GITLAB_SYNC=on` 时必填 | `GITLAB_SYNC=on` 才用 | 同左，`on` 时必填 |
+| `BACKUP_S3_ENDPOINT` | 可见 | `https://s3.cn-south-1.qiniucs.com` | 同左 |
+| `BACKUP_S3_REGION` | 可见 | `cn-south-1` | 同左 |
+| `BACKUP_S3_PREFIX` | 可见 | `yzgc/production/backup/` | `yzgc/preview/backup/`，不能为空 |
+| `BACKUP_S3_BUCKET` / `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` / `BACKUP_GPG_RECIPIENT` | 密钥·留空 | CI/CD 注入 | 同左 |
 
 **一个环境只有一个域名**（2026-09-23 决定）：官网、管理端、论坛共用 `PUBLIC_ORIGIN`，按 URL 路径区分——`/admin`、`/admin/…`、`/console`、`/console/…`、`/signin`、`/device`、`/account`、`/authorize` 进管理端 SPA，`/forum/…` 进论坛，`/oidc/…`（对外授权，#270）进 server，其余进官网。旧的按站点分域名字段 `SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST` 已退役，校验器把模板里任何契约外的字段判为失败，防止重新长出第二份域名配置。
 
@@ -87,13 +91,13 @@
 
 **不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 tag `vX.Y.Z` → `X.Y.Z`；预发布 tag `vX.Y.Z-rc.N` → `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
-本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要真实后端时 `cp deploy/env/.env.dev .env` 后在 `.env` 或 shell 里补本机用的密钥，`.env` 不入库。只看界面直接 `pnpm dev:web` 或 `pnpm preview:local`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
+本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要本机后端时用 `pnpm local:up`（见 [TESTING](../conventions/TESTING.md)「本机开发」）：它把本机用的会话与加密密钥生成到 `.tools/local/secrets.json`，不写进 `.env`，也不需要复制模板。只看界面直接 `pnpm dev:web`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
 
 **正式与预发布的差异键**：原有环境身份、栈路径/端口与 `GITLAB_SYNC`，另加上表六项独立 GitLab 目标字段。其余键两份取值必须相同。`check-env-isolation.mjs` 另外拒绝两个实例复用 URL、目录、绑定、子网或网关；公开客户端标识不命名为凭据字段，密钥检查规则不放宽。实际凭据、运行绑定与模板分别核验，模板修改不等于已切换。
 
 **密钥在两个 GitHub 环境里必须同名同集**：预发布配了的密钥，正式也要配（第三方账号和域名不同，取值不同）。缺口登记在同构清单 `deploy/parity/ledger.json`，发版前清零（[RELEASE-PARITY](../conventions/RELEASE-PARITY.md) 第五节）。
 
-香港共享入口的专用运维密钥 `GITLAB_EDGE_SSH_KEY` 只放在受 required reviewers 保护的 `production` 环境，不进入业务 `.env`，也不下放到普通预发布部署。它仅能调用固定的入口动作；这是宿主运维权限，不是两套应用的业务密钥。预发布 GitLab 的备份另用 `GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID` / `GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY`，不能回落正式备份凭据。
+香港共享入口的专用运维密钥 `GITLAB_EDGE_SSH_KEY` 只放在受 required reviewers 保护的 `production` 环境，不进入业务 `.env`，也不下放到普通预发布部署。它仅能调用固定的入口动作；这是宿主运维权限，不是两套应用的业务密钥。预发布的备份凭据是预发布环境自己的 `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` 与 `BACKUP_S3_BUCKET`，不能回落正式备份凭据。
 
 ## 副本启动安全门禁
 
@@ -138,6 +142,9 @@ CI/manual 都用生成的 `-F <配置> yzgc-target`，同一配置供 SSH/SCP：
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google 登录的 OAuth 客户端（可选的一对；Google Cloud 里类型选「Web 应用」，已获授权的重定向 URI 填 `<origin>/auth/google/callback`） |
 | `OIDC_JWKS` | 对外授权的签名私钥（可选，#270）：在 server 容器里 `node app/server/dist/cli/oidc.js keygen` 生成的一行 base64（RSA 2048 的 JWK Set），环境密钥不收引号，不用 JSON 原文 |
 | `GITLAB_API_TOKEN` | 自建 GitLab 管理员的个人访问令牌（`api` 范围，#270）；`GITLAB_SYNC=on` 时必填，`off`、`dry-run` 可以留空 |
+| `BACKUP_S3_BUCKET` | 七牛私有备份桶名（只放在 secret 里，仓库和文档不写）。渲染进目标机 `.env.<环境>` |
+| `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` | 备份专用的七牛 AccessKey，GitLab、平台与部署前数据库快照共用，每个环境一套 |
+| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人。目标机钥匙环里必须有对应公钥；缺失时部署前快照失败关闭，不迁移 |
 
 Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `OPTIONAL_SECRET_PAIR`）：**都为空＝明确关闭**，渲染时写空值并提示；只填一项仍拒绝渲染；除 Turnstile 和下面的发信密钥外，其余密钥一律必填。关闭时服务端 `middleware/turnstile.ts` 不校验人机验证，公开的投递、反馈、邀请只靠工作量证明（`POW_DIFFICULTY`）、蜜罐字段与限流；遗留风险是批量脚本的成本只剩计算量，要开启时在 Cloudflare 建站点后把两项同时配进环境级 secrets 并重新部署。首次上线（2026-09-25）两个环境都关闭。
 
@@ -187,7 +194,7 @@ DNS 由所有者操作；切前核对 A/AAAA/CAA/TTL、SNI、证书签发/续期
    - 两份 nginx 模板保留为策略源；现行香港配置由迁移工具从各环境实际配置提取。`scripts/render-arch-caddy.mjs` 尚未覆盖旧入口过渡的 IP 信任逻辑，不可直接安装覆盖 live 配置。
    - 保留论坛上游内联哈希和比赛 sandbox CSP；新目标保持两层代理。模板一致不证明旧源或新边缘已安装，Caddy 生成/语法/真实域名分别取证。
 2. **S3 CDN 的公开读取与环境一致性**：
-   - 宣传片与公开静态资源放在 `https://cdn.crosery.com`（七牛桶的 `yzgc/` 下），路径、公私桶和凭据合同见 [CDN](CDN.md)；当前数据库、用户附件不外移。
+   - 宣传片与公开静态资源放在 `https://cdn.crosery.com`（七牛桶的 `yzgc/` 下），路径、公私桶和凭据合同见 [CDN](CDN.md)；数据库不外移。论坛图片与头像在对象存储开启后外移，前缀按环境分开（`OBJECT_STORAGE_PREFIX`：预发布 `yzgc/preview/`，正式 `yzgc/production/`），见 [CDN](CDN.md)「用户文件」。
    - 正式与预发布都须真实验证 CORS、Range、MIME、缓存和 CSP；旧七牛的 Referer 白名单与 insertOnly 不是新服务能力。
    - S3 上传凭据只在发布 job 的进程环境，不能放到这两份业务运行时 `.env` 或镜像。部分凭据、认证失败或新端点不可达均失败关闭。
 3. **域名绑定与第三方服务配置**：

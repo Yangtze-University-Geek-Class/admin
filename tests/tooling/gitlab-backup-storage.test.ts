@@ -164,20 +164,25 @@ const result = cp.spawnSync(real, process.argv.slice(2), { stdio: 'inherit' });
 process.exit(result.status ?? 1);
 `, { mode: 0o700 });
 
-  const run = (extra: string[] = []) => spawnSync(BASH, [restore, '--run', '2026-10-20/20261020T031500', ...extra], {
+  const run = (extra: string[] = [], extraEnv: Record<string, string> = {}) => spawnSync(BASH, [restore, '--run', '2026-10-20/20261020T031500', ...extra], {
     encoding: 'utf8',
     timeout: 20000,
     env: {
       PATH: `${bin}:/usr/bin:/bin`,
       HOME: dir,
       REAL_SHA256SUM,
-      GITLAB_BACKUP_S3_ACCESS_KEY_ID: 'synthetic_access_key',
-      GITLAB_BACKUP_S3_SECRET_ACCESS_KEY: 'synthetic_secret_key',
+      BACKUP_S3_ENDPOINT: 'https://s3.example.invalid',
+      BACKUP_S3_REGION: 'test-region-1',
+      BACKUP_S3_BUCKET: 'synthetic-backup',
+      BACKUP_S3_PREFIX: 'yzgc/test/backup/',
+      BACKUP_S3_ACCESS_KEY_ID: 'synthetic_access_key',
+      BACKUP_S3_SECRET_ACCESS_KEY: 'synthetic_secret_key',
       GPG_PASSPHRASE: 'synthetic_passphrase',
       GITLAB_DRILL_ROOT: drillRoot,
       GITLAB_COMPOSE_FILE: compose,
       GITLAB_ARCHIVE_TOOL: archiveTool,
       GITLAB_DRILL_STAMP: options.stamp ?? `test-${process.pid}-${++drillRunSerial}`,
+      ...extraEnv,
     },
   });
 
@@ -321,12 +326,12 @@ describe('GitLab restore drill failure teardown and image pinning', () => {
   });
 });
 
-describe('GitLab Garage backup wiring', () => {
-  it('refuses preview restoration when only production backup credentials are configured', () => {
+describe('GitLab backup wiring', () => {
+  it('refuses restoration before any download when the backup target has no credentials', () => {
     const f = drillFixture();
-    const result = f.run(['--environment', 'preview']);
+    const result = f.run(['--environment', 'preview'], { BACKUP_S3_ACCESS_KEY_ID: '' });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID');
+    expect(result.stderr).toContain('BACKUP_S3_ACCESS_KEY_ID');
     expect(existsSync(f.dockerCalls)).toBe(false);
     expect(existsSync(f.gpgCalls)).toBe(false);
   });

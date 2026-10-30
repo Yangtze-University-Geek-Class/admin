@@ -49,10 +49,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 case "${ENVIRONMENT}" in
-    production) INSTANCE=gitlab; ROLE=gitlab-backup; REQUIRED_VARS=(GITLAB_BACKUP_S3_ACCESS_KEY_ID GITLAB_BACKUP_S3_SECRET_ACCESS_KEY) ;;
-    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup; REQUIRED_VARS=(GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY) ;;
+    production) INSTANCE=gitlab; ROLE=gitlab-backup ;;
+    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup ;;
     *) echo 'Invalid GitLab restore environment' >&2; exit 2 ;;
 esac
+# 备份目标全部来自 /etc/<实例>-backup/env（BACKUP_S3_*），与 backup.sh 同一组键
+REQUIRED_VARS=(BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_PREFIX BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY)
 DRILL_CONTAINER="${INSTANCE}-drill"
 DRILL_ROOT="${GITLAB_DRILL_ROOT:-/srv/${INSTANCE}-drill}"
 COMPOSE_FILE="${GITLAB_COMPOSE_FILE:-/srv/${INSTANCE}/docker-compose.yml}"
@@ -70,7 +72,7 @@ if [[ -n "${TARGET_RUN}" && ! "${TARGET_RUN}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-
 fi
 
 # 手动执行时若变量未设置，尝试从标准路径读取
-if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[0]:-}" ]]; then
+if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[4]:-}" ]]; then
     set -a
     # shellcheck source=/dev/null
     . "${BACKUP_ENV}"

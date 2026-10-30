@@ -2,20 +2,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.FAKE_RCLONE_LOG, JSON.stringify({ args, config: {
-  type: process.env.RCLONE_CONFIG_GEEKGARAGE_TYPE,
-  provider: process.env.RCLONE_CONFIG_GEEKGARAGE_PROVIDER,
-  endpoint: process.env.RCLONE_CONFIG_GEEKGARAGE_ENDPOINT,
-  region: process.env.RCLONE_CONFIG_GEEKGARAGE_REGION,
-  pathStyle: process.env.RCLONE_CONFIG_GEEKGARAGE_FORCE_PATH_STYLE,
-  hasAccess: Boolean(process.env.RCLONE_CONFIG_GEEKGARAGE_ACCESS_KEY_ID),
-  hasSecret: Boolean(process.env.RCLONE_CONFIG_GEEKGARAGE_SECRET_ACCESS_KEY),
+  type: process.env.RCLONE_CONFIG_ARCHIVE_TYPE,
+  provider: process.env.RCLONE_CONFIG_ARCHIVE_PROVIDER,
+  endpoint: process.env.RCLONE_CONFIG_ARCHIVE_ENDPOINT,
+  region: process.env.RCLONE_CONFIG_ARCHIVE_REGION,
+  pathStyle: process.env.RCLONE_CONFIG_ARCHIVE_FORCE_PATH_STYLE,
+  hasAccess: Boolean(process.env.RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID),
+  hasSecret: Boolean(process.env.RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY),
 } }) + '\n');
 if (process.env.FAKE_RCLONE_FAIL === '1') {
-  console.error('provider error ' + process.env.RCLONE_CONFIG_GEEKGARAGE_SECRET_ACCESS_KEY);
+  console.error('provider error ' + process.env.RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY);
   process.exit(91);
 }
 function remote(value) {
-  const match = /^geekgarage:([^/]+)\/(.+)$/.exec(value || '');
+  const match = /^archive:([^/]+)\/(.+)$/.exec(value || '');
   if (!match) process.exit(92);
   return { bucket: match[1], key: match[2], file: path.join(process.env.FAKE_RCLONE_OBJECTS, match[1], ...match[2].split('/')) };
 }

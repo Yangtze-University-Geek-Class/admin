@@ -4,7 +4,9 @@
 # YZGC_APPLY=1 才写（图片此前已复制到 /tmp/yzgc-parity/）；否则只列出和目标不同的项。只建组，不建项目、不动成员数据。
 # 最后一行是 JSON 摘要：设置值、图片摘要前缀、组的公开字段，不含令牌或口令。
 require 'digest'
+require 'fileutils'
 require 'json'
+require 'tmpdir'
 
 apply = ENV['YZGC_APPLY'] == '1'
 upload_dir = '/tmp/yzgc-parity'
@@ -49,6 +51,14 @@ group_target = {
   request_access_enabled: true
 }
 
+# 上传器缓存时会把源文件移走：/tmp/yzgc-parity 归 root，runner 以 git 用户跑删不掉，所以每次先复制到 runner 自己的临时目录
+work = Dir.mktmpdir('yzgc-parity-')
+at_exit { FileUtils.remove_entry(work, true) }
+upload = ->(name) do
+  copy = File.join(work, "#{SecureRandom.hex(4)}-#{name}")
+  FileUtils.cp(File.join(upload_dir, name), copy)
+  File.open(copy)
+end
 uploaded = ->(uploader) { uploader.present? ? Digest::SHA256.hexdigest(uploader.read.to_s) : nil }
 stale = ->(record, target) { target.reject { |key, value| record.public_send(key) == value }.keys }
 
@@ -86,7 +96,7 @@ if apply && before.any?
   appearance_images.each do |field, name|
     next if uploaded.call(appearance.public_send(field)) == images[name]
 
-    appearance.public_send("#{field}=", File.open(File.join(upload_dir, name)))
+    appearance.public_send("#{field}=", upload.call(name))
   end
   appearance.save!
 
@@ -101,7 +111,7 @@ if apply && before.any?
     raise "组 geek 建不出来：#{group&.errors&.full_messages&.join('；')}" unless group&.persisted?
   end
   group.assign_attributes(group_target)
-  group.avatar = File.open(File.join(upload_dir, 'group-avatar.png')) unless uploaded.call(group.avatar) == images['group-avatar.png']
+  group.avatar = upload.call('group-avatar.png') unless uploaded.call(group.avatar) == images['group-avatar.png']
   group.save!
   group.add_owner(root) unless group.owned_by?(root)
 end

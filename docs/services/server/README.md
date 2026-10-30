@@ -113,6 +113,13 @@ GitHub #271 的定向回归入口：`tests/server/identity-eligibility.test.ts`�
 
 新公开桶、构建前缀、邮件图片、S3 凭据、完整 GET 哈希和并发覆盖边界见 [CDN 合同](../../ops/CDN.md)。不外移现有 DB、用户附件、表情 BLOB 或比赛站点包；服务端仍仅按构建开关更改内置图片地址。
 
+## 用户文件对象存储（#352）
+
+- 论坛上传的图片（`PUT /api/forum/uploads`）、账号头像（`PUT /api/identity/avatar`）、论坛头像（`PUT /api/forum/me/avatar`）在对象存储开启后，字节写七牛，库里不存，接口返回公开地址；关闭时行为与之前相同。配置与合同见 `lib/object-storage.ts`、[CDN](../../ops/CDN.md)「用户文件」。
+- 库里没有字节的头像读取（`GET /api/identity/avatar/:file`、`GET /api/forum/avatars/:file`）在开启后返回 302 到公开地址；库里有字节的旧数据照常读取。
+- 启动时 `lib/object-storage-backfill.ts` 在后台补传旧的头像与论坛图片，只记数量；GitLab 头像同步在库里没有字节时去公开地址读（`lib/gitlab-sync.ts` 的 `avatarObject`）。
+- 竞赛官网站点文件（`lib/competition-site-store.ts`）尚未迁移，仍写数据卷。
+
 ## 已知限制
 
 - 没有多实例/多进程协调：SQLite 单文件 + 命名卷，同一环境只跑一个 server 容器。

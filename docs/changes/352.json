@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "issue": 352,
+  "kind": "business",
+  "summary": "论坛图片、账号头像与论坛头像在对象存储开启后写七牛，接口返回公开地址，库里不再存字节；库里没有字节的头像读取跳到公开地址；启动时后台回填旧文件。端点、区域、桶、按环境分开的前缀与公开地址都从环境来，三项密钥留空即关闭。竞赛官网站点文件未迁移。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "forum",
+    "identity",
+    "gitlab",
+    "platform",
+    "permissions",
+    "audit",
+    "organization"
+  ],
+  "flows": [
+    "flow:forum.uploads.create",
+    "flow:forum.uploads.read_file",
+    "flow:forum.avatar.upload",
+    "flow:forum.avatar.read",
+    "flow:identity.avatar.upload",
+    "flow:identity.avatar.read",
+    "flow:gitlab.accounts.sync",
+    "flow:identity.profile.view"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "论坛上传图片、账号头像与论坛头像的字节去向变了：开启对象存储后写七牛，接口返回公开地址；库里没有字节的头像读取返回 302。授权、校验、限流与业务规则不变。",
+      "evidence": [
+        "app/server/src/routes/forum-api/uploads.ts",
+        "app/server/src/routes/identity/profile.ts",
+        "app/server/src/routes/forum-api/people.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增对象存储客户端（SigV4 HEAD/PUT，fetch 与 node:crypto）、启动回填和配置解析；头像与论坛图片的写入分支、GitLab 头像同步的回退读取、服务装配与启动钩子都改了。关闭时的接口形状不变。",
+      "evidence": [
+        "app/server/src/lib/object-storage.ts",
+        "app/server/src/lib/object-storage-backfill.ts",
+        "app/server/src/config.ts",
+        "app/server/src/services.ts",
+        "app/server/src/app.ts",
+        "app/server/src/index.ts",
+        "app/server/src/lib/gitlab-sync.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "权限节点与资源范围不变：上传仍要 forum.upload.image，头像仍要登录或成员身份。对象存储的写入凭据只在服务端进程里，不经过接口。",
+      "evidence": [
+        "app/server/src/routes/forum-api/uploads.ts",
+        "app/server/src/routes/identity/profile.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "表结构不变，不改写库内容。开启后新字节不再写入 forum_upload_files、forum_avatars、account_avatars；旧行保留。写入位置变化见迁移与回滚。",
+      "evidence": [
+        "app/server/src/lib/account-profiles.ts",
+        "app/server/src/lib/forum-store.ts",
+        "app/server/src/lib/object-storage-backfill.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "外部依赖新增七牛的 S3 兼容端点（写与探测签名，公开读走公开地址），不新增软件包；端点、区域、桶与密钥全部来自环境。",
+      "evidence": [
+        "app/server/src/lib/object-storage.ts",
+        "app/server/src/config.ts",
+        "deploy/env/.env.production"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "服务文档写了用户文件的写入与读取规则；CDN 合同新增用户文件小节；环境与部署文档补了对象存储的键与密钥；CI 文档补了渲染步骤的三个 secrets。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/ops/CDN.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 SigV4 与客户端的假 fetch 测试（含 AWS 文档的 GET 签名示例），以及论坛图片上传返回公开地址、不入库的路由测试。路由测试本机因主检出缺 oidc-provider 未能运行。",
+      "evidence": [
+        "tests/server/object-storage.test.ts",
+        "tests/server/object-storage-upload.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "env 模板新增四个非密钥项与三个密钥（留空）；compose 的 server 服务与三份部署工作流的渲染步骤接线；同构清单登记 P-0019，正式要在 GitHub 环境 production 设三个 secrets。三项密钥未设时对象存储关闭，发布不受影响。",
+      "evidence": [
+        "deploy/compose/production.yml",
+        ".github/workflows/deploy-production.yml",
+        "deploy/parity/ledger.json",
+        "scripts/deployment-environment.mjs"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/config.ts",
+        "app/server/src/index.ts",
+        "app/server/src/app.ts",
+        "app/server/src/services.ts",
+        "app/server/src/lib/object-storage.ts",
+        "app/server/src/lib/object-storage-backfill.ts",
+        "app/server/src/lib/account-profiles.ts",
+        "app/server/src/lib/forum-store.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "app/server/src/routes/forum-api/uploads.ts",
+        "app/server/src/routes/forum-api/people.ts",
+        "app/server/src/routes/identity/profile.ts",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "deploy/hotfix/windows.json",
+        "tests/tooling/deployment-environment.test.ts"
+      ],
+      "domains": [
+        "forum",
+        "identity",
+        "gitlab",
+        "platform",
+        "permissions"
+      ],
+      "nodes": [
+        "route:PUT /api/forum/uploads",
+        "route:GET /api/forum/uploads/:file",
+        "route:PUT /api/forum/me/avatar",
+        "route:GET /api/forum/avatars/:file",
+        "route:PUT /api/identity/avatar",
+        "route:GET /api/identity/avatar/:file",
+        "table:forum_upload_files",
+        "table:forum_avatars",
+        "table:account_avatars",
+        "flow:forum.uploads.create",
+        "flow:forum.avatar.upload",
+        "flow:identity.avatar.upload",
+        "flow:gitlab.accounts.sync",
+        "domain:platform",
+        "domain:permissions"
+      ],
+      "reason": "服务端写入与读取分支、对象存储客户端、启动回填、配置解析与装配。"
+    },
+    {
+      "paths": [
+        "tests/server/object-storage.test.ts",
+        "tests/server/object-storage-upload.test.ts"
+      ],
+      "domains": [
+        "forum",
+        "identity"
+      ],
+      "nodes": [
+        "route:PUT /api/forum/uploads",
+        "flow:forum.uploads.create"
+      ],
+      "reason": "对象存储签名与客户端的回归，以及论坛图片上传返回公开地址的回归。"
+    },
+    {
+      "paths": [
+        "deploy/compose/preview.yml",
+        "deploy/compose/production.yml",
+        "deploy/env/.env.dev",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.production",
+        "deploy/parity/ledger.json",
+        ".github/workflows/deploy-hotfix.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        "scripts/check-env-isolation.mjs",
+        "scripts/deployment-environment.mjs",
+        "scripts/privacy-exceptions.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "环境模板、渲染校验、隔离检查、compose 与部署工作流的对象存储接线，以及同构清单条目。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md",
+        "docs/ops/CDN.md",
+        "docs/ops/STORAGE-CDN.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform",
+        "forum",
+        "identity"
+      ],
+      "nodes": [
+        "document:docs/services/server/README.md"
+      ],
+      "reason": "服务文档与运维合同里的用户文件小节。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "platform",
+        "forum",
+        "identity"
+      ],
+      "nodes": [
+        "domain:platform",
+        "domain:forum",
+        "domain:identity"
+      ],
+      "reason": "两个新源码文件的业务域归属（对象存储客户端与回填归平台，服务论坛与账号）。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/ops/CDN.md",
+    "docs/ops/STORAGE-CDN.md",
+    "docs/ops/DEPLOY.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/server/object-storage.test.ts",
+    "tests/server/object-storage-upload.test.ts"
+  ],
+  "compatibility": "默认关闭（三项密钥留空）时接口与数据和之前一致。开启后新上传的图片与头像不再写库，返回的是公开地址；库里已有的站内地址继续可读。",
+  "migration": "不改表结构，不改写库内容。开启后启动回填（lib/object-storage-backfill.ts）把账号头像、论坛头像、论坛图片中对象存储没有的补传，先 HEAD 再 PUT，日志只记数量。",
+  "rollback": "清空三项密钥并重新部署，新上传回到写库。开启期间新传的头像只在对象存储里，回滚后它们的站内地址没有字节可读；回滚前要保持开启，或先把这些对象回填成库里的字节。论坛图片的公开地址不受影响。"
+}

@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const script = join(root, 'deploy/remote/garage-archive.mjs');
 const roots: string[] = [];
+// 备份目标的桶与前缀只来自环境变量：测试用合成值，桶内路径 = 桶/前缀/角色键
+const TEST_PREFIX = 'yzgc/test/backup/';
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 function fixture(): ArchiveFixture {
@@ -25,20 +27,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, config: {
-  type: process.env.RCLONE_CONFIG_GEEKGARAGE_TYPE,
-  provider: process.env.RCLONE_CONFIG_GEEKGARAGE_PROVIDER,
-  endpoint: process.env.RCLONE_CONFIG_GEEKGARAGE_ENDPOINT,
-  region: process.env.RCLONE_CONFIG_GEEKGARAGE_REGION,
-  pathStyle: process.env.RCLONE_CONFIG_GEEKGARAGE_FORCE_PATH_STYLE,
-  hasAccess: Boolean(process.env.RCLONE_CONFIG_GEEKGARAGE_ACCESS_KEY_ID),
-  hasSecret: Boolean(process.env.RCLONE_CONFIG_GEEKGARAGE_SECRET_ACCESS_KEY),
+  type: process.env.RCLONE_CONFIG_ARCHIVE_TYPE,
+  provider: process.env.RCLONE_CONFIG_ARCHIVE_PROVIDER,
+  endpoint: process.env.RCLONE_CONFIG_ARCHIVE_ENDPOINT,
+  region: process.env.RCLONE_CONFIG_ARCHIVE_REGION,
+  pathStyle: process.env.RCLONE_CONFIG_ARCHIVE_FORCE_PATH_STYLE,
+  hasAccess: Boolean(process.env.RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID),
+  hasSecret: Boolean(process.env.RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY),
 } }) + '\\n');
 if (process.env.FAKE_RCLONE_FAIL === '1') {
-  console.error('provider error ' + process.env.RCLONE_CONFIG_GEEKGARAGE_SECRET_ACCESS_KEY);
+  console.error('provider error ' + process.env.RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY);
   process.exit(91);
 }
 function remote(value) {
-  const match = /^geekgarage:([^/]+)\\/(.+)$/.exec(value || '');
+  const match = /^archive:([^/]+)\\/(.+)$/.exec(value || '');
   if (!match) process.exit(92);
   return { bucket: match[1], key: match[2], file: path.join(${JSON.stringify(objects)}, match[1], ...match[2].split('/')) };
 }
@@ -86,14 +88,12 @@ if (args[0] === 'lsjson' && args.includes('--stat')) {
 }
 `, { mode: 0o700 });
   const credentials = {
-    GITLAB_BACKUP_S3_ACCESS_KEY_ID: 'synthetic-access',
-    GITLAB_BACKUP_S3_SECRET_ACCESS_KEY: 'synthetic-secret-never-disclose',
-    GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: 'gitlab-preview-access',
-    GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: 'gitlab-preview-secret-never-disclose',
-    PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: 'preview-access',
-    PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY: 'preview-secret-never-disclose',
-    PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID: 'production-access',
-    PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY: 'production-secret-never-disclose',
+    BACKUP_S3_ENDPOINT: 'https://s3.example.invalid',
+    BACKUP_S3_REGION: 'test-region-1',
+    BACKUP_S3_BUCKET: 'synthetic-backup',
+    BACKUP_S3_PREFIX: TEST_PREFIX,
+    BACKUP_S3_ACCESS_KEY_ID: 'synthetic-access',
+    BACKUP_S3_SECRET_ACCESS_KEY: 'synthetic-secret-never-disclose',
     PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID: 'preview-index-access',
     PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY: 'preview-index-secret-never-disclose',
     PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID: 'production-index-access',
@@ -120,7 +120,7 @@ interface ArchiveFixture {
 }
 
 // 用真实 SHA-256 造一个 run：manifest 模式覆盖正常、缺清单、被截断、摘要被伪造四种情况
-function writeRun(f: ArchiveFixture, prefix: string, files: Record<string, string>, mode: ManifestMode = 'full') {
+function writeRun(f: ArchiveFixture, prefix: string, files: Record<string, string>, mode: ManifestMode = 'full', role = 'gitlab-backup', extraEnv: Record<string, string> = {}) {
   const source = join(f.dir, 'run-src', prefix.replaceAll('/', '_'));
   mkdirSync(source, { recursive: true });
   for (const [name, body] of Object.entries(files)) writeFileSync(join(source, name), body, { mode: 0o600 });
@@ -133,12 +133,12 @@ function writeRun(f: ArchiveFixture, prefix: string, files: Record<string, strin
     });
     writeFileSync(join(source, 'SHA256SUMS'), `${lines.join('\n')}\n`, { mode: 0o600 });
   }
-  const uploaded = f.run(['put-tree', '--role', 'gitlab-backup', '--source', source, '--prefix', prefix]);
+  const uploaded = f.run(['put-tree', '--role', role, '--source', source, '--prefix', prefix], extraEnv);
   expect(uploaded.status, uploaded.stderr).toBe(0);
   return source;
 }
 
-describe('Garage immutable archive adapter', () => {
+describe('archive adapter with the env-driven backup target', () => {
   it('uploads a GitLab run additively, reuses byte-identical objects and rejects a conflicting key', () => {
     const f = fixture();
     const source = join(f.dir, 'gitlab-run');
@@ -148,8 +148,8 @@ describe('Garage immutable archive adapter', () => {
     const args = ['put-tree', '--role', 'gitlab-backup', '--source', source, '--prefix', 'gitlab/2026-10-27/20261027T040500/'];
     const first = f.run(args);
     expect(first.status, first.stderr).toBe(0);
-    expect(JSON.parse(first.stdout)).toMatchObject({ stored: 2, exists: 0, bucket: 'geek-backup' });
-    expect(readFileSync(join(f.objects, 'geek-backup/gitlab/2026-10-27/20261027T040500/backup.tar.gpg'), 'utf8')).toBe('encrypted backup');
+    expect(JSON.parse(first.stdout)).toMatchObject({ stored: 2, exists: 0, role: 'gitlab-backup' });
+    expect(readFileSync(join(f.objects, 'synthetic-backup', TEST_PREFIX + 'gitlab/2026-10-27/20261027T040500/backup.tar.gpg'), 'utf8')).toBe('encrypted backup');
 
     const second = f.run(args);
     expect(second.status, second.stderr).toBe(0);
@@ -161,11 +161,11 @@ describe('Garage immutable archive adapter', () => {
     expect(conflict.status).toBe(1);
     expect(conflict.stderr).toContain('同键内容冲突');
     expect(conflict.stdout + conflict.stderr).not.toContain('synthetic-secret-never-disclose');
-    expect(readFileSync(join(f.objects, 'geek-backup/gitlab/2026-10-27/20261027T040500/backup.tar.gpg'), 'utf8')).toBe('encrypted backup');
+    expect(readFileSync(join(f.objects, 'synthetic-backup', TEST_PREFIX + 'gitlab/2026-10-27/20261027T040500/backup.tar.gpg'), 'utf8')).toBe('encrypted backup');
 
     for (const call of f.calls()) {
       expect(call.config).toEqual({
-        type: 's3', provider: 'Other', endpoint: 'https://cdn.yangtzeu.work', region: 'garage', pathStyle: 'true', hasAccess: true, hasSecret: true,
+        type: 's3', provider: 'Other', endpoint: 'https://s3.example.invalid', region: 'test-region-1', pathStyle: 'true', hasAccess: true, hasSecret: true,
       });
       expect(['lsjson', 'copyto', 'cat']).toContain(call.args[0]);
       expect(call.args).not.toContain('sync');
@@ -185,7 +185,7 @@ describe('Garage immutable archive adapter', () => {
     const destination = join(f.dir, 'download');
     const downloaded = f.run(['get-tree', '--role', 'gitlab-backup', '--prefix', 'gitlab/2026-10-27/run-a/', '--destination', destination]);
     expect(downloaded.status, downloaded.stderr).toBe(0);
-    expect(JSON.parse(downloaded.stdout)).toMatchObject({ downloaded: 2, bucket: 'geek-backup' });
+    expect(JSON.parse(downloaded.stdout)).toMatchObject({ downloaded: 2, role: 'gitlab-backup' });
     expect(readFileSync(join(destination, 'a.gpg'), 'utf8')).toBe('alpha');
     expect(readFileSync(join(destination, 'nested/b.gpg'), 'utf8')).toBe('beta');
     expect(statSync(join(destination, 'a.gpg')).mode & 0o777).toBe(0o600);
@@ -203,7 +203,7 @@ describe('Garage immutable archive adapter', () => {
     for (const environment of ['preview', 'production'] as const) {
       const result = f.run(['put-file', '--role', `${environment}-content-index`, '--source', index, '--key', `indexes/content/${commit}/sha256.json`]);
       expect(result.status, result.stderr).toBe(0);
-      expect(JSON.parse(result.stdout).bucket).toBe(`geek-${environment}-private`);
+      expect(JSON.parse(result.stdout).role).toBe(`${environment}-content-index`);
       expect(readFileSync(join(f.objects, `geek-${environment}-private/indexes/content/${commit}/sha256.json`), 'utf8')).toContain('schema_version');
     }
     chmodSync(index, 0o644);
@@ -381,9 +381,9 @@ describe('Garage immutable archive adapter', () => {
     const f = fixture();
     const source = join(f.dir, 'one.gpg');
     writeFileSync(source, 'encrypted', { mode: 0o600 });
-    const missing = f.run(['put-file', '--role', 'gitlab-backup', '--source', source, '--key', 'gitlab/2026-10-27/run/one.gpg'], { GITLAB_BACKUP_S3_SECRET_ACCESS_KEY: '' });
+    const missing = f.run(['put-file', '--role', 'gitlab-backup', '--source', source, '--key', 'gitlab/2026-10-27/run/one.gpg'], { BACKUP_S3_SECRET_ACCESS_KEY: '' });
     expect(missing.status).toBe(1);
-    expect(missing.stderr).toContain('GITLAB_BACKUP_S3_SECRET_ACCESS_KEY');
+    expect(missing.stderr).toContain('BACKUP_S3_SECRET_ACCESS_KEY');
     const failed = f.run(['put-file', '--role', 'gitlab-backup', '--source', source, '--key', 'gitlab/2026-10-27/run/one.gpg'], { FAKE_RCLONE_FAIL: '1' });
     expect(failed.status).toBe(1);
     expect(failed.stderr).toContain('rclone');
@@ -391,108 +391,91 @@ describe('Garage immutable archive adapter', () => {
   });
 });
 
-describe('Garage archive retention (prune-runs)', () => {
+describe('archive retention (prune-runs, daily 7 / weekly 4 / monthly 3)', () => {
   const day = (date: string, run = 'run1') => `gitlab/${date}/${run}/`;
   // 对象存储没有目录：假 rclone 删完文件会留下空目录，只数还剩文件的前缀
   const hasFiles = (path: string): boolean => existsSync(path)
     && readdirSync(path, { withFileTypes: true }).some(entry => (entry.isDirectory() ? hasFiles(join(path, entry.name)) : true));
-  const exists = (f: ArchiveFixture, prefix: string) => hasFiles(join(f.objects, 'geek-backup', ...prefix.split('/').filter(Boolean)));
+  const exists = (f: ArchiveFixture, prefix: string) => hasFiles(join(f.objects, 'synthetic-backup', TEST_PREFIX, prefix));
   const seed = (f: ArchiveFixture, dates: string[]) => { for (const date of dates) writeRun(f, day(date), { 'a.gpg': `a-${date}`, 'b.gpg': `b-${date}` }); };
+  // 与 garage-archive.mjs 的 RETENTION 一致的手算场景：保留 08-20、09-28、10-05、10-12 与 10-24 至 10-30；删除 07-15、08-10、09-02、10-19、10-23
+  const SCENARIO = ['2026-07-15', '2026-08-10', '2026-08-20', '2026-09-02', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-23',
+    '2026-10-24', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30'];
+  const DROPPED = ['2026-07-15', '2026-08-10', '2026-09-02', '2026-10-19', '2026-10-23'];
+  const KEPT = SCENARIO.filter(date => !DROPPED.includes(date));
 
-  it('preview upload, selection and pruning cannot read or delete production GitLab backups', () => {
+  it('lists the decision as counts and deletes nothing by default', () => {
     const f = fixture();
-    const dates = ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'];
-    for (const date of dates) {
-      const source = writeRun(f, day(date), { 'backup.gpg': `encrypted-${date}` });
-      const upload = f.run(['put-tree', '--role', 'gitlab-preview-backup', '--source', source, '--prefix', day(date)]);
-      expect(upload.status, upload.stderr).toBe(0);
-    }
-    const denied = f.run(['list-gitlab-runs', '--role', 'gitlab-preview-backup'], { GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID: '' });
-    expect(denied.status).toBe(1);
-    const pruned = f.run(['prune-runs', '--role', 'gitlab-preview-backup', '--apply']);
-    expect(pruned.status, pruned.stderr).toBe(0);
-    expect(existsSync(join(f.objects, 'geek-preview-private', day(dates[0]), 'backup.gpg'))).toBe(false);
-    for (const date of dates) expect(readFileSync(join(f.objects, 'geek-backup', day(date), 'backup.gpg'), 'utf8')).toBe(`encrypted-${date}`);
-    const missing = f.run(['resolve-gitlab-run', '--role', 'gitlab-preview-backup', '--run', `${dates[0]}/run1`]);
-    expect(missing.status).toBe(1);
-    const production = f.run(['resolve-gitlab-run', '--run', `${dates[0]}/run1`]);
-    expect(production.status, production.stderr).toBe(0);
-  });
-
-  it('lists what it would remove by default and deletes nothing', () => {
-    const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    seed(f, SCENARIO);
     const result = f.run(['prune-runs', '--role', 'gitlab-backup']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      mode: 'dry-run', keepDates: 3, keptDates: ['2026-10-22', '2026-10-23', '2026-10-24'],
-      removedRuns: [day('2026-10-20'), day('2026-10-21')], objects: 6,
+    expect(JSON.parse(result.stdout)).toEqual({
+      mode: 'dry-run', retention: { daily: 7, weekly: 4, monthly: 3 }, runs: { complete: 16, kept: 11, removed: 5, incomplete: 0 }, objects: 15, bytes: expect.any(Number),
     });
+    expect(result.stdout).not.toContain('2026-07-15');
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
-    expect(exists(f, day('2026-10-20'))).toBe(true);
+    for (const date of DROPPED) expect(exists(f, day(date))).toBe(true);
   });
 
-  it('with --apply removes only runs older than the newest three dates, manifest first', () => {
+  it('with --apply removes exactly the runs outside the daily, weekly and monthly keep sets, manifest first', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    seed(f, SCENARIO);
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ mode: 'apply', objects: 6 });
-    expect(exists(f, day('2026-10-20'))).toBe(false);
-    expect(exists(f, day('2026-10-21'))).toBe(false);
-    for (const date of ['2026-10-22', '2026-10-23', '2026-10-24']) expect(exists(f, day(date))).toBe(true);
+    expect(JSON.parse(result.stdout)).toMatchObject({ mode: 'apply', runs: { complete: 16, kept: 11, removed: 5 }, objects: 15 });
+    for (const date of DROPPED) expect(exists(f, day(date))).toBe(false);
+    for (const date of KEPT) expect(exists(f, day(date))).toBe(true);
     const deletes = f.calls().filter(call => call.args[0] === 'deletefile').map(call => String(call.args[1]));
-    expect(deletes).toHaveLength(6);
-    expect(deletes[0]).toBe('geekgarage:geek-backup/gitlab/2026-10-20/run1/SHA256SUMS');
+    expect(deletes).toHaveLength(15);
+    expect(deletes[0]).toBe(`archive:synthetic-backup/${TEST_PREFIX}gitlab/2026-07-15/run1/SHA256SUMS`);
     for (const call of f.calls()) for (const banned of ['sync', 'purge', 'delete', 'move']) expect(call.args).not.toContain(banned);
     expect(JSON.stringify(f.calls())).not.toContain('synthetic-secret-never-disclose');
   });
 
-  it('keeps everything while fewer than the retention count of dated backups exist', () => {
+  it('keeps everything while the archive holds fewer runs than the retention allows', () => {
     const f = fixture();
     seed(f, ['2026-10-23', '2026-10-24']);
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ removedRuns: [], objects: 0 });
+    expect(JSON.parse(result.stdout)).toMatchObject({ runs: { complete: 2, kept: 2, removed: 0 }, objects: 0 });
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
   });
 
-  it('never counts an upload in progress as a kept backup and never removes it', () => {
+  it('never removes an upload in progress that is newer than the kept window, but clears older residue', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
-    writeRun(f, day('2026-10-24'), { 'a.gpg': 'partial' }, 'missing');
+    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    writeRun(f, day('2026-10-30'), { 'a.gpg': 'in progress' }, 'missing');
+    writeRun(f, day('2026-10-01'), { 'a.gpg': 'interrupted' }, 'missing');
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ keptDates: ['2026-10-21', '2026-10-22', '2026-10-23'] });
-    expect(exists(f, day('2026-10-20'))).toBe(false);
-    expect(exists(f, day('2026-10-24'))).toBe(true);
+    expect(JSON.parse(result.stdout)).toMatchObject({ runs: { complete: 5, kept: 5, removed: 1, incomplete: 2 }, objects: 1 });
+    expect(exists(f, day('2026-10-01'))).toBe(false);
+    expect(exists(f, day('2026-10-30'))).toBe(true);
   });
 
-  it('refuses to delete anything when the newest backup does not match its SHA256SUMS', () => {
+  it('refuses to delete anything when a kept run no longer matches its SHA256SUMS', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22']);
-    writeRun(f, day('2026-10-23'), { 'a.gpg': 'one', 'b.gpg': 'two' }, 'truncated');
+    seed(f, ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    // 远端对象不可覆盖，所以直接改存储里的清单：只列出一个对象，与真实列表对不上
+    writeFileSync(join(f.objects, 'synthetic-backup', TEST_PREFIX, 'gitlab', '2026-10-20', 'run1', 'SHA256SUMS'), `${createHash('sha256').update('a-2026-10-20').digest('hex')}  a.gpg\n`);
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('SHA256SUMS');
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
-    expect(exists(f, day('2026-10-20'))).toBe(true);
+    expect(exists(f, day('2026-10-16'))).toBe(true);
   });
 
-  it('refuses unexpected layouts, bad retention counts and roles that have no backup family', () => {
+  it('refuses unexpected layouts, a combined --apply/--dry-run and roles that have no backup family', () => {
     const f = fixture();
     seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
-    const stray = join(f.objects, 'geek-backup', 'gitlab', 'loose.txt');
+    const stray = join(f.objects, 'synthetic-backup', TEST_PREFIX, 'gitlab', 'loose.txt');
     writeFileSync(stray, 'x');
-    const layout = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
-    expect(layout.status).toBe(1);
+    expect(f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']).status).toBe(1);
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
     rmSync(stray);
-    for (const bad of ['0', '31', '2.5', 'abc']) {
-      const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--keep-dates', bad]);
-      expect(result.status, bad).toBe(1);
-      expect(result.stderr).toContain('--keep-dates');
-    }
+    const both = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply', '--dry-run']);
+    expect(both.status).toBe(1);
+    expect(both.stderr).toContain('只能二选一');
     const index = f.run(['prune-runs', '--role', 'preview-content-index', '--apply']);
     expect(index.status).toBe(1);
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
@@ -503,30 +486,29 @@ describe('Garage archive retention (prune-runs)', () => {
     writeRun(f, day('2026-10-24'), { 'a.gpg': 'a', 'z.gpg': 'z', 'm.gpg': 'm' });
     const targets = f.calls().filter(call => call.args[0] === 'copyto').map(call => String(call.args[2]));
     expect(targets).toHaveLength(4);
-    expect(targets.at(-1)).toBe('geekgarage:geek-backup/gitlab/2026-10-24/run1/SHA256SUMS');
+    expect(targets.at(-1)).toBe(`archive:synthetic-backup/${TEST_PREFIX}gitlab/2026-10-24/run1/SHA256SUMS`);
   });
 
-  it('does not count a run whose manifest lists an object that is not there, and keeps it', () => {
+  it('refuses to delete anything when a kept run lists an object that is missing', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
-    rmSync(join(f.objects, 'geek-backup', 'gitlab', '2026-10-23', 'run1', 'b.gpg'));
+    seed(f, ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    rmSync(join(f.objects, 'synthetic-backup', TEST_PREFIX, 'gitlab', '2026-10-22', 'run1', 'b.gpg'));
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
-    expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      keptDates: ['2026-10-21', '2026-10-22', '2026-10-24'], unverifiedRuns: [day('2026-10-23')], removedRuns: [day('2026-10-20')],
-    });
-    expect(exists(f, day('2026-10-20'))).toBe(false);
-    for (const date of ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']) expect(exists(f, day(date))).toBe(true);
+    expect(result.status).toBe(1);
+    expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
+    expect(exists(f, day('2026-10-16'))).toBe(true);
   });
 
-  it('does not count a run whose manifest is unreadable as a backup date', () => {
+  it('does not count a manifest-less run as a kept backup date', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
-    writeFileSync(join(f.objects, 'geek-backup', 'gitlab', '2026-10-22', 'run1', 'SHA256SUMS'), 'not a manifest\n');
+    seed(f, ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    rmSync(join(f.objects, 'synthetic-backup', TEST_PREFIX, 'gitlab', '2026-10-24', 'run1', 'SHA256SUMS'));
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ keptDates: ['2026-10-20', '2026-10-21', '2026-10-23', '2026-10-24'].slice(1), unverifiedRuns: [day('2026-10-22')], removedRuns: [day('2026-10-20')] });
-    expect(exists(f, day('2026-10-22'))).toBe(true);
+    // 10-24 没有清单，不计入保留日期：完整 run 的日保留为 10-17 至 10-23，周与月的最新也都在其中，只有 10-16 被删；残缺的 10-24 比最旧保留日新，留着
+    expect(JSON.parse(result.stdout)).toMatchObject({ runs: { complete: 8, kept: 7, removed: 1, incomplete: 1 } });
+    expect(exists(f, day('2026-10-16'))).toBe(false);
+    expect(exists(f, day('2026-10-24'))).toBe(true);
   });
 
   it('refuses to delete anything when a run is dated after Beijing today', () => {
@@ -536,7 +518,6 @@ describe('Garage archive retention (prune-runs)', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('北京今天');
     expect(f.calls().filter(call => call.args[0] === 'deletefile')).toHaveLength(0);
-    expect(exists(f, day('2026-10-20'))).toBe(true);
   });
 
   it('keeps the platform put-tree and get-tree prefixes pinned to a single run', () => {
@@ -553,10 +534,52 @@ describe('Garage archive retention (prune-runs)', () => {
     expect(f.calls().filter(call => ['copyto', 'cat', 'lsjson'].includes(call.args[0]))).toHaveLength(0);
   });
 
+  it('keeps preview and production backups apart by the environment prefix', () => {
+    const f = fixture();
+    const preview = { BACKUP_S3_PREFIX: 'yzgc/preview/backup/' };
+    const production = { BACKUP_S3_PREFIX: 'yzgc/production/backup/' };
+    writeRun(f, 'gitlab/2026-10-01/run1/', { 'a.gpg': 'production-old' }, 'full', 'gitlab-backup', production);
+    for (const date of ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']) {
+      writeRun(f, day(date), { 'a.gpg': `preview-${date}` }, 'full', 'gitlab-preview-backup', preview);
+    }
+    const pruned = f.run(['prune-runs', '--role', 'gitlab-preview-backup', '--apply'], preview);
+    expect(pruned.status, pruned.stderr).toBe(0);
+    expect(JSON.parse(pruned.stdout)).toMatchObject({ runs: { removed: 2 } });
+    expect(readFileSync(join(f.objects, 'synthetic-backup', 'yzgc/production/backup/gitlab/2026-10-01/run1/a.gpg'), 'utf8')).toBe('production-old');
+  });
+
+  it('fails closed when the backup target is missing its prefix, endpoint or credentials', () => {
+    const f = fixture();
+    const source = join(f.dir, 'one');
+    mkdirSync(source);
+    writeFileSync(join(source, 'a.gpg'), 'x', { mode: 0o600 });
+    const args = ['put-tree', '--role', 'gitlab-backup', '--source', source, '--prefix', 'gitlab/2026-10-27/run/'];
+    const noPrefix = f.run(args, { BACKUP_S3_PREFIX: '' });
+    expect(noPrefix.status).toBe(1);
+    expect(noPrefix.stderr).toContain('BACKUP_S3_PREFIX');
+    const plainEndpoint = f.run(args, { BACKUP_S3_ENDPOINT: 'http://s3.example.invalid' });
+    expect(plainEndpoint.status).toBe(1);
+    expect(plainEndpoint.stderr).toContain('BACKUP_S3_ENDPOINT');
+    const noSecret = f.run(args, { BACKUP_S3_SECRET_ACCESS_KEY: '' });
+    expect(noSecret.status).toBe(1);
+    expect(noSecret.stderr).toContain('BACKUP_S3_SECRET_ACCESS_KEY');
+    expect(f.calls()).toHaveLength(0);
+  });
+
+  it('prunes the database snapshot family under the same retention', () => {
+    const f = fixture();
+    for (const date of ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']) {
+      writeRun(f, `database/${date}/20261030T120000Z-abcdef012345/`, { 'data.db.gz.gpg': `db-${date}` }, 'full', 'database-backup');
+    }
+    const result = f.run(['prune-runs', '--role', 'database-backup']);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ mode: 'dry-run', runs: { complete: 9, kept: 7, removed: 2 } });
+  });
+
   it('leaves other backup families in the same bucket alone', () => {
     const f = fixture();
-    seed(f, ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
-    const platform = join(f.objects, 'geek-backup', 'platform', 'production', '2026-10-01', 'run1');
+    seed(f, ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
+    const platform = join(f.objects, 'synthetic-backup', TEST_PREFIX, 'platform', 'production', '2026-10-01', 'run1');
     mkdirSync(platform, { recursive: true });
     writeFileSync(join(platform, 'platform-backup.tar.gpg'), 'old platform');
     const result = f.run(['prune-runs', '--role', 'gitlab-backup', '--apply']);

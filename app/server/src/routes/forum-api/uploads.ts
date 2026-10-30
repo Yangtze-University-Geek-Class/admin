@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { FORUM_LIMITS, ForumError } from "../../lib/forum-rules.js";
 import { notFound, requireWriter } from "./viewer.js";
 import { hourlyLimited } from "./forum-limits.js";
+import { uploadKey } from "../../lib/object-storage.js";
 
 const UPLOAD_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
 const DECODED_FORMATS = new Set(["png", "jpeg", "webp", "gif"]);
@@ -36,7 +37,7 @@ async function processUpload(input: Buffer): Promise<{ hash: string; mime: strin
 }
 
 export default async function forumUploadRoutes(app: FastifyInstance) {
-  const { forum } = app.services;
+  const { forum, objectStorage } = app.services;
 
   await app.register(async uploadApp => {
     uploadApp.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: FORUM_LIMITS.uploadBytesMax }, (_req, body, done) => done(null, body));
@@ -55,10 +56,18 @@ export default async function forumUploadRoutes(app: FastifyInstance) {
         throw new ForumError(415, "unsupported_media_type", "只支持 PNG、JPEG、WebP、GIF 图片");
       }
       const { hash, mime, data, width, height } = await processUpload(req.body);
-      forum.saveUpload(hash, mime, data, width, height, viewer.accountId);
+      let url: string;
+      if (objectStorage.enabled) {
+        // 对象存储开启（#352）：字节写七牛、库里不存，返回的就是公开地址。
+        url = await objectStorage.ensure(uploadKey(hash, mime), data, mime).catch(() => {
+          throw new ForumError(503, "object_storage_unavailable", "图片暂时存不下，请稍后再试");
+        });
+      } else {
+        forum.saveUpload(hash, mime, data, width, height, viewer.accountId);
+        url = `/api/forum/uploads/${hash}.${mime === "image/gif" ? "gif" : "webp"}`;
+      }
       app.services.activity.recordActivity(req, { action: "forum.upload.image", surface: "forum", target_type: "upload", target_id: hash, outcome: "ok" });
-      const ext = mime === "image/gif" ? "gif" : "webp";
-      return { url: `/api/forum/uploads/${hash}.${ext}`, width, height };
+      return { url, width, height };
     });
   });
 
