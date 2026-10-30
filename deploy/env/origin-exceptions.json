@@ -112,8 +112,8 @@
     },
     {
       "file": "deploy/hotfix/windows.json",
-      "max": 1,
-      "reason": "热修复窗口登记里所有者批准的原话（#310 确认依据）含正式站域名，按原话保留，不改写"
+      "max": 2,
+      "reason": "热修复窗口登记里所有者批准的原话（#310 确认依据）与 #335 的批准摘要含正式站域名，按原样保留，不改写"
     },
     {
       "file": "deploy/nginx/preview.conf",
@@ -162,7 +162,7 @@
     {
       "host": "cdn.yangtzeu.work",
       "anywhere": true,
-      "reason": "cdn 是独立的对象存储边缘服务器，不属于站点入口，#335 不动它"
+      "reason": "独立对象存储入口，所有者确认保留"
     },
     {
       "host": "forum.yangtzeu.work",
@@ -174,7 +174,7 @@
       "host": "git.yangtzeu.work",
       "file": "deploy/env/.env.production",
       "max": 1,
-      "reason": "gitlab 客户端钉住的 pairwise sector 沿用搬家前的主机，成员的 sub 才不变"
+      "reason": "GITLAB_OIDC_SECTOR 是 gitlab 客户端的 pairwise sector 标识，不是在用的访问地址；沿用搬家前的主机名，成员的 sub 才不变"
     },
     {
       "host": "git.yangtzeu.work",

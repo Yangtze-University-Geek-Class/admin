@@ -42,6 +42,15 @@
       "closedAt": "2026-10-29T23:44:49+08:00",
       "evidence": "修复 217050f4+5930046a 经 deploy-hotfix 40891492605 十个 job 全绿上线（含 smoke），release.json=production 0.1.1@5930046a；桌面 1280×800 与手机 390×844 浏览器实测代码仓库整页直达零弹窗（GitLab #311 accept note 1848）；合回 stage b734c992。",
       "quote": "主界面里面的代码仓库点击的时候不走弹窗和论坛一样直接跳转过去，大哥就这样了，差不多走hotfix快速上线吧"
+    },
+    {
+      "issue": 335,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "Crosery",
+      "approvedAt": "2026-10-30T10:52:00+08:00",
+      "expiresAt": "2026-11-06T10:52:00+08:00",
+      "quote": "所有者 2026-10-30 10:52 在会话中批准：按 P0 立即把正式 GitLab 切到主站路径 yangtzeu.work/gitlab，旧子域名只留 301。P0 依据：所有者多次要求、代码仓库入口与规则不一致"
     }
   ]
 }
