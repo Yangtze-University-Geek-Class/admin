@@ -208,7 +208,9 @@
         "tests/tooling/static-cdn.test.ts",
         "tests/tooling/sticker-manifest.test.ts",
         "tests/tooling/web-nginx.test.ts",
-        "tests/web/portal-promo.test.ts"
+        "tests/web/portal-promo.test.ts",
+        "scripts/note.mjs",
+        "docs/conventions/NOTES.md"
       ],
       "domains": [
         "audit",
