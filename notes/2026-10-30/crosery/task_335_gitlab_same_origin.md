@@ -68,3 +68,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：按 code-review 技能逐项核对 4ff39b98..314a9d84 的 11 个提交：同源路径 /gitlab、Caddy 片段、edge 接收器两份模板、同构清单 P-0017、测试与文档
 - 结果：结论：通过；未验证项：线上 edge-apply、deploy-hotfix 与 path-status 仍待流水线执行
+
+## 15:56:25 +08:00 · 提交 · #335 · 旧子域名解析不到时搬家核对放行
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：move-production-path 首次 apply（run 41022243588）新地址登录页 200，但旧子域名 DNS 已撤、curl 退出码 6，核对判失败并整批回滚；改为退出码 6 记「解析不到（子域名已撤）」算通过，解析得到仍须 301；先写失败用例再修
+- 结果：gitlab-move-path 与 gitlab-cutover 两个测试文件 51 条通过；新增解析不到与解析得到却连不上两条用例
