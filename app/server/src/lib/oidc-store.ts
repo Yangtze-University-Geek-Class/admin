@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { createCrypto } from "./crypto.js";
 
@@ -175,6 +175,29 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
     return (selectSubject.get(sectorId, accountId) as { sub: string } | undefined)?.sub ?? null;
   }
 
+  /** 只读：钉住的 sector（sector_id 列）；钉住之前登记的旧行是 null，没登记的应用是 undefined。 */
+  function pinnedSectorOf(clientId: string): string | null | undefined {
+    const row = selectClient.get(clientId) as ClientRow | undefined;
+    return row ? row.sector_id : undefined;
+  }
+
+  /** 只读：这个 sector 里有 `sub` 的账号，按账号 id 取前 limit 个（#335 换地址前后抽样核对用）。 */
+  function subjectAccounts(sectorId: string, limit: number): string[] {
+    return (db.prepare("SELECT user_id FROM oauth_subjects WHERE sector_id = ? ORDER BY user_id LIMIT ?").all(sectorId, limit) as { user_id: string }[]).map(row => row.user_id);
+  }
+
+  /** 只读：一批账号在这个 sector 的 `sub` 按给定顺序算出的 sha256 摘要，不生成新的 sub；只给计数和摘要，不给 sub 本身。 */
+  function subjectDigest(sectorId: string, accounts: string[]): { count: number; missing: number; digest: string } {
+    const hash = createHash("sha256");
+    let missing = 0;
+    for (const account of accounts) {
+      const sub = existingSubject(sectorId, account);
+      if (!sub) missing += 1;
+      hash.update(`${account}\t${sub ?? ""}\n`);
+    }
+    return { count: accounts.length - missing, missing, digest: hash.digest("hex") };
+  }
+
   /** 按 `sub` 反查账号（GitLab 同步对账用）；不是本 sector 的 sub 查不到。 */
   function accountForSubject(sectorId: string, sub: string): string | null {
     return (selectAccountBySub.get(sectorId, sub) as { user_id: string } | undefined)?.user_id ?? null;
@@ -244,7 +267,7 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
 
   return {
     registerClient, rotateSecret, setClientStatus, addRedirectUri, removeRedirectUri, listClients, getClient, sectorOf, clientMetadata,
-    subjectFor, existingSubject, accountForSubject, rememberGrant, rememberedGrant, sweepExpired, adapterFor,
+    subjectFor, existingSubject, pinnedSectorOf, subjectAccounts, subjectDigest, accountForSubject, rememberGrant, rememberedGrant, sweepExpired, adapterFor,
   };
 }
 export type OidcStore = ReturnType<typeof createOidcStore>;

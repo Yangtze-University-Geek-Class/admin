@@ -1,4 +1,6 @@
 import { createHash, generateKeyPairSync, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { OIDC_PROTOCOL_LIMIT } from '../../app/server/src/routes/oidc/index';
@@ -506,6 +508,66 @@ describe('OIDC provider for downstream apps (#270)', () => {
     expect(store.listClients().find(client => client.client_id === 'gitlab')).toMatchObject({ redirect_uris: [moved], sector: 'git.example.test' });
   });
 
+  it('keeps a fixed sub for a member of a legacy GitLab row after the callback moves to another host (golden, #335)', async () => {
+    const { app, clientSecret } = await setup();
+    const store = app.services.oidcStore;
+    const db = app.services.storage.db;
+    const moved = `${ORIGIN}/gitlab/users/auth/openid_connect/callback`;
+    // 固定的账号与 sub：正式库里 GitLab 已经绑着的值，是 #335 之前按旧主机生成并存下的
+    const GOLDEN = 'kq3Zb0x9WlqvYH2m7tC5u1fJp8sRdNe4aGiLoV6yTwE';
+    db.prepare("UPDATE oauth_clients SET sector_id = NULL WHERE client_id = 'gitlab'").run();
+    const jar = new Jar();
+    jar.set('sid', signIn(app, 'golden', 4242));
+    const account = accountOf(app, 4242);
+    db.prepare('INSERT INTO oauth_subjects(sector_id, user_id, sub, created_at) VALUES(?, ?, ?, ?)').run('git.example.test', account, GOLDEN, 1);
+    const subOf = (token: LightMyRequestResponse) => JSON.parse(Buffer.from(token.json().id_token.split('.')[1], 'base64url').toString()).sub as string;
+    expect(subOf((await signInThroughGitlab(app, jar, clientSecret)).token)).toBe(GOLDEN);
+
+    store.addRedirectUri('gitlab', moved);
+    store.removeRedirectUri('gitlab', CALLBACK);
+    expect(store.listClients().find(client => client.client_id === 'gitlab')?.redirect_uris).toEqual([moved]);
+    const after = await signInThroughGitlab(app, jar, clientSecret, moved);
+    expect(subOf(after.token)).toBe(GOLDEN);
+    const userinfo = await app.inject({ url: '/oidc/me', headers: { authorization: `Bearer ${after.token.json().access_token}` } });
+    expect(userinfo.json().sub).toBe(GOLDEN);
+    // 没有在新主机的 sector 下给这个成员另起一个 sub
+    expect(db.prepare('SELECT sector_id, sub FROM oauth_subjects WHERE user_id = ?').all(account)).toEqual([{ sector_id: 'git.example.test', sub: GOLDEN }]);
+  });
+
+  it('samples members by sector and digests their subs without creating or printing any (#335)', async () => {
+    const { app, clientSecret } = await setup();
+    const store = app.services.oidcStore;
+    const db = app.services.storage.db;
+    expect(store.pinnedSectorOf('gitlab')).toBe('git.example.test');
+    db.prepare("UPDATE oauth_clients SET sector_id = NULL WHERE client_id = 'gitlab'").run();
+    expect(store.pinnedSectorOf('gitlab')).toBeNull();
+    expect(store.pinnedSectorOf('nobody')).toBeUndefined();
+    for (const [login, id] of [['ann', 301], ['bob', 302], ['cat', 303]] as const) {
+      const jar = new Jar();
+      jar.set('sid', signIn(app, login, id));
+      await signInThroughGitlab(app, jar, clientSecret);
+    }
+    const accounts = store.subjectAccounts('git.example.test', 2);
+    expect(accounts).toEqual([...accounts].sort());
+    expect(accounts).toHaveLength(2);
+    const rows = () => db.prepare('SELECT COUNT(*) AS n FROM oauth_subjects').get() as { n: number };
+    const before = rows().n;
+    const digest = store.subjectDigest('git.example.test', accounts);
+    expect(digest).toMatchObject({ count: 2, missing: 0 });
+    expect(digest.digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(store.subjectDigest('git.example.test', accounts)).toEqual(digest);
+    // 回调搬到别的主机之后，同一批账号的摘要不变
+    store.addRedirectUri('gitlab', `${ORIGIN}/gitlab/users/auth/openid_connect/callback`);
+    store.removeRedirectUri('gitlab', CALLBACK);
+    expect(store.subjectDigest(store.sectorOf('gitlab')!, accounts)).toEqual(digest);
+    // 别的 sector 里没有这批账号：只报缺几个，不生成
+    expect(store.subjectDigest('example.test', accounts)).toMatchObject({ count: 0, missing: 2 });
+    expect(rows().n).toBe(before);
+    // 任何一个账号的 sub 变了，摘要就变
+    db.prepare('UPDATE oauth_subjects SET sub = ? WHERE sector_id = ? AND user_id = ?').run('changed', 'git.example.test', accounts[0]);
+    expect(store.subjectDigest('git.example.test', accounts).digest).not.toBe(digest.digest);
+  });
+
   it('validates redirect URIs when registering a client', async () => {
     const { app } = await setup();
     const store = app.services.oidcStore;
@@ -519,5 +581,59 @@ describe('OIDC provider for downstream apps (#270)', () => {
     expect(() => store.registerClient({ name: 'Bad', redirectUris: [`${ORIGIN}/gitlab/cb`], sector: 'https://git.example.test' })).toThrow(/host name/);
     const row = app.services.storage.db.prepare("SELECT secret_encrypted FROM oauth_clients WHERE client_id = 'gitlab'").get() as { secret_encrypted: string };
     expect(row.secret_encrypted).not.toContain(store.rotateSecret('gitlab'));
+  });
+});
+
+/**
+ * 直接用安装的 oidc-provider（版本钉在 app/server/package.json）核对多主机回调的规则（#335）：pairwise 客户端的回调跨两个主机时，
+ * 不带 sector_identifier_uri 它拒绝加载；带上之后，默认会去取这个地址上的文档，所以要关掉 sectorIdentifierUriValidate 才能加载。
+ * oidc-store 的 clientMetadata 一直带着钉住的 sector，oidc-provider.ts 关掉了去取文档，所以换地址的过渡期新旧回调可以同时在。
+ */
+describe('oidc-provider multi-host pairwise clients (#335)', () => {
+  const serverPackage = new URL('../../app/server/package.json', import.meta.url);
+  const two = [CALLBACK, `${ORIGIN}/gitlab/users/auth/openid_connect/callback`];
+  const base = { client_id: 'gitlab', client_secret: 's'.repeat(43), grant_types: ['authorization_code'], response_types: ['code'], token_endpoint_auth_method: 'client_secret_basic', subject_type: 'pairwise' };
+  async function load(metadata: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+    type Loaded = { sectorIdentifier: string; redirectUris: string[] } | undefined;
+    const { default: Provider } = await import(createRequire(serverPackage).resolve('oidc-provider')) as { default: new (issuer: string, configuration: Record<string, unknown>) => { Client: { find(id: string): Promise<Loaded> } } };
+    const adapter = class {
+      constructor(private name: string) {}
+      async find() { return this.name === 'Client' ? metadata : undefined; }
+      async upsert() {}
+      async findByUid() { return undefined; }
+      async findByUserCode() { return undefined; }
+      async consume() {}
+      async destroy() {}
+      async revokeByGrantId() {}
+    };
+    const provider = new Provider(`${ORIGIN}/oidc`, { adapter, subjectTypes: ['pairwise'], pairwiseIdentifier: async (_ctx: unknown, accountId: string) => accountId, ...extra });
+    return provider.Client.find('gitlab');
+  }
+
+  it('is the pinned version', () => {
+    expect(JSON.parse(readFileSync(serverPackage, 'utf8')).dependencies['oidc-provider']).toBe('9.12.2');
+  });
+
+  it('refuses two hosts without sector_identifier_uri, and loads them with it once fetching the document is off', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    try {
+      expect((await load({ ...base, redirect_uris: [CALLBACK] }))?.sectorIdentifier).toBe('git.example.test');
+      await expect(load({ ...base, redirect_uris: two })).rejects.toMatchObject({ name: 'InvalidClientMetadata', error_description: 'sector_identifier_uri is mandatory property' });
+      await expect(load({ ...base, redirect_uris: two, sector_identifier_uri: 'https://git.example.test/' })).rejects.toMatchObject({ error_description: 'could not load sector_identifier_uri response' });
+      const loaded = await load({ ...base, redirect_uris: two, sector_identifier_uri: 'https://git.example.test/' }, { sectorIdentifierUriValidate: () => false });
+      expect(loaded?.redirectUris).toEqual(two);
+      expect(loaded?.sectorIdentifier).toBe('git.example.test');
+    } finally {
+      warn.mockRestore();
+      info.mockRestore();
+    }
+  });
+
+  it('gets that metadata from the store for a client whose callbacks span two hosts', async () => {
+    const { app } = await setup();
+    const store = app.services.oidcStore;
+    store.addRedirectUri('gitlab', two[1]);
+    expect(store.clientMetadata('gitlab')).toMatchObject({ redirect_uris: two, subject_type: 'pairwise', sector_identifier_uri: 'https://git.example.test/' });
   });
 });

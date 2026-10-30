@@ -1,4 +1,5 @@
 import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { loadConfig } from "../config.js";
 import { createDatabase } from "../lib/db.js";
 import { createCrypto } from "../lib/crypto.js";
@@ -17,6 +18,14 @@ import { createOidcStore } from "../lib/oidc-store.js";
  *     列出应用（不含 secret，带 sector）；换 secret（旧的立即失效，输出新的）；停用或恢复。
  *   … client add-redirect --client-id <id> --redirect-uri <回调地址> | client remove-redirect --client-id <id> --redirect-uri <回调地址>
  *     下游换地址时加一个回调、确认新地址能用之后再去掉旧的（#335）。sector 钉住不变，成员的 sub 不变；至少留一个回调。
+ *   … client show --client-id <id>
+ *     一个应用（不含 secret）：生效的 sector，以及库里钉住的 sector_id（钉住之前登记的旧行是 null）。带 sector_id 字段就说明
+ *     这个版本认得 sector 钉住，GitLab 换地址的流水线改回调之前先看它（#335）。
+ *   … client subjects --client-id <id> [--limit <n>]
+ *     只读：在应用现在的 sector 里按账号 id 取前 n 个（缺省 50）有 sub 的账号，输出账号 id、计数和这批 sub 的摘要。
+ *   … client subjects --client-id <id> --accounts-stdin
+ *     只读：标准输入给一行账号 id 的 JSON 数组（上一条输出的 accounts），按应用现在的 sector 重算同一批账号的摘要。
+ *     换地址前后各算一次，摘要相同就说明这批成员的 sub 没变（#335）。两条都不输出 sub 本身，也不生成新的 sub。
  */
 function option(args: string[], name: string): string | undefined {
   const index = args.indexOf(`--${name}`);
@@ -39,7 +48,7 @@ async function main(argv: string[]): Promise<number> {
   const [command, sub, ...args] = argv;
   if (command === "keygen") return keygen();
   if (command !== "client") {
-    process.stderr.write("usage: oidc.js keygen | client add|list|rotate|disable|enable|add-redirect|remove-redirect …\n");
+    process.stderr.write("usage: oidc.js keygen | client add|list|show|subjects|rotate|disable|enable|add-redirect|remove-redirect …\n");
     return 2;
   }
   const config = loadConfig();
@@ -67,6 +76,28 @@ async function main(argv: string[]): Promise<number> {
       process.stderr.write(`usage: oidc.js client ${sub ?? "<命令>"} --client-id <id>\n`);
       return 2;
     }
+    if (sub === "show") {
+      const client = store.getClient(clientId);
+      if (!client) throw new Error(`client ${clientId} not found`);
+      print({ client_id: client.client_id, name: client.name, redirect_uris: client.redirect_uris, sector: client.sector, sector_id: store.pinnedSectorOf(clientId) ?? null, status: client.status });
+      return 0;
+    }
+    if (sub === "subjects") {
+      const sector = store.sectorOf(clientId);
+      if (!sector) throw new Error(`client ${clientId} not found`);
+      let accounts: string[];
+      if (args.includes("--accounts-stdin")) {
+        const input: unknown = JSON.parse(readFileSync(0, "utf8"));
+        if (!Array.isArray(input) || input.length > 1000 || !input.every(item => typeof item === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(item))) throw new Error("accounts must be a JSON array of account ids");
+        accounts = input;
+      } else {
+        const limit = Number(option(args, "limit") ?? 50);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error("limit must be 1 to 1000");
+        accounts = store.subjectAccounts(sector, limit);
+      }
+      print({ client_id: clientId, sector, accounts, ...store.subjectDigest(sector, accounts) });
+      return 0;
+    }
     if (sub === "add-redirect" || sub === "remove-redirect") {
       const uri = option(args, "redirect-uri");
       if (!uri) {
@@ -90,7 +121,7 @@ async function main(argv: string[]): Promise<number> {
       print({ client_id: clientId, status: sub === "disable" ? "disabled" : "active" });
       return 0;
     }
-    process.stderr.write("usage: oidc.js client add|list|rotate|disable|enable|add-redirect|remove-redirect …\n");
+    process.stderr.write("usage: oidc.js client add|list|show|subjects|rotate|disable|enable|add-redirect|remove-redirect …\n");
     return 2;
   } catch (error) {
     process.stderr.write(`${(error as Error).message}\n`);

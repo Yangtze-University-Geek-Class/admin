@@ -49,9 +49,15 @@ docker compose … exec server node app/server/dist/cli/oidc.js client add --nam
 … oidc.js client list | client rotate --client-id gitlab | client disable --client-id gitlab | client enable --client-id gitlab
 # 下游换地址（#335）：先加新回调，新地址验过再去掉旧的；sector 不变，至少留一个回调；有改动时写审计 oidc.client.redirects
 … oidc.js client add-redirect --client-id gitlab --redirect-uri <新回调> | client remove-redirect --client-id gitlab --redirect-uri <旧回调>
+# 一个客户端（不含 secret）：生效的 sector 和库里钉住的 sector_id（旧行是 null）；带 sector_id 字段说明这个版本认得 sector 钉住
+… oidc.js client show --client-id gitlab
+# 只读抽样（#335 搬家前后核对）：按账号 id 取前 n 个有 sub 的账号，输出账号 id、计数和这批 sub 的 sha256 摘要；
+# 第二条从标准输入读同一批账号 id（JSON 数组），按客户端现在的 sector 重算。两条都不输出 sub，也不生成新的 sub
+… oidc.js client subjects --client-id gitlab --limit 50
+… oidc.js client subjects --client-id gitlab --accounts-stdin
 ```
 
-回调地址只收 `https`（本机 `127.0.0.1`、`localhost` 可以用 `http`），不带锚点和账号口令。没给 `--sector` 登记时，同一客户端的回调地址必须同一个主机，这个主机就是 sector；sector 一经钉住（登记时，或第一次 `add-redirect`/`remove-redirect` 时把旧行的主机写进 `sector_id`），回调可以跨主机，sector 不跟着变（#335：GitLab 从子域名搬到主站路径，成员的 `sub` 不能变）。回调跨主机时 `oidc-provider` 要求客户端写明 `sector_identifier_uri`：客户端元数据一直带 `https://<sector>/`，签发者配置 `sectorIdentifierUriValidate` 返回 false，不去取这个地址；`pairwiseIdentifier` 用的是同一个 sector。同步客户端由 `GITLAB_OIDC_CLIENT` 选择：正式保留 `gitlab`，独立预发布使用 `gitlab_preview`；标识只收3–64位小写字母、数字和下划线。同步按选定客户端钉住的 sector 算 `sub`，不按 API 基址猜 sector；`GITLAB_OIDC_SECTOR`（主机名，可带端口）写明本环境期望的 sector，客户端的 sector 和它不一样时整轮跳过并报 `gitlab_sector_mismatch`。签发者的 cookie 用 `SESSION_SECRET` 派生的密钥签名（`oidc_session`、`oidc_interaction`、`oidc_resume`），换 `SESSION_SECRET` 会让进行中的登录失效，不影响 `sub`。
+回调地址只收 `https`（本机 `127.0.0.1`、`localhost` 可以用 `http`），不带锚点和账号口令。没给 `--sector` 登记时，同一客户端的回调地址必须同一个主机，这个主机就是 sector；sector 一经钉住（登记时，或第一次 `add-redirect`/`remove-redirect` 时把旧行的主机写进 `sector_id`），回调可以跨主机，sector 不跟着变（#335：GitLab 从子域名搬到主站路径，成员的 `sub` 不能变）。回调跨主机时 `oidc-provider`（9.12.2）要求客户端写明 `sector_identifier_uri`，不写就拒绝加载这个客户端（`sector_identifier_uri is mandatory property`）；写了而不关掉校验，它会去取这个地址上的文档，取不到也拒绝。所以客户端元数据一直带 `https://<sector>/`，签发者配置 `sectorIdentifierUriValidate` 返回 false，不去取这个地址；`pairwiseIdentifier` 用的是同一个 sector。换地址的过渡期新旧两个回调可以同时在，不用停机原子替换。同步客户端由 `GITLAB_OIDC_CLIENT` 选择：正式保留 `gitlab`，独立预发布使用 `gitlab_preview`；标识只收3–64位小写字母、数字和下划线。同步按选定客户端钉住的 sector 算 `sub`，不按 API 基址猜 sector；`GITLAB_OIDC_SECTOR`（主机名，可带端口）写明本环境期望的 sector，客户端的 sector 和它不一样时整轮跳过并报 `gitlab_sector_mismatch`。签发者的 cookie 用 `SESSION_SECRET` 派生的密钥签名（`oidc_session`、`oidc_interaction`、`oidc_resume`），换 `SESSION_SECRET` 会让进行中的登录失效，不影响 `sub`。
 
 ## 数据
 
@@ -128,6 +134,6 @@ gitlab_rails['omniauth_providers'] = [{
 
 - GitHub #271 新回归：`tests/server/identity-eligibility.test.ts`、`tests/server/oidc-eligibility.test.ts` 和 `tests/server/public-profile-consumers.test.ts`。使用真实内存路由及合成下游验证资格到期、alumni/owner 30/50、两轮身份稳定与公开资料来源；不是已部署或真实 GitLab 已验收的证明。
 
-- `tests/server/oidc.test.ts`：发现文档与 JWKS、没登录去 `/signin`、首次同意与记住同意、pairwise `sub`、授权码重放撤销授权、错回调与未知客户端不跳转、PKCE 缺失与错误、拒绝、同意接口只认发起登录的账号、换账号、`sid` 结束后重新登录、不再是成员、停用客户端、过期交互、没配密钥时 404、限流（服务器调用与浏览器跳转分开算）、同意页详情不缓存、回调地址校验与钉住 sector、GitLab 换到另一主机的路径后 `sub` 不变且旧回调去掉后不再被接受（#335）。
+- `tests/server/oidc.test.ts`：发现文档与 JWKS、没登录去 `/signin`、首次同意与记住同意、pairwise `sub`、授权码重放撤销授权、错回调与未知客户端不跳转、PKCE 缺失与错误、拒绝、同意接口只认发起登录的账号、换账号、`sid` 结束后重新登录、不再是成员、停用客户端、过期交互、没配密钥时 404、限流（服务器调用与浏览器跳转分开算）、同意页详情不缓存、回调地址校验与钉住 sector、GitLab 换到另一主机的路径后 `sub` 不变且旧回调去掉后不再被接受、钉住之前登记的旧行上固定的 `sub`（金值）换地址后不变、抽样摘要不生成新 `sub`、用安装的 oidc-provider 核对两个主机的回调不带 `sector_identifier_uri` 被拒而带上并关掉校验后能加载（#335）。
 - `tests/server/gitlab-sync.test.ts`：用假的 GitLab 管理接口与 GitHub 公开资料核对建号、邮箱回退、用户名加后缀、封禁与解封、按身份沿用、没同步过就离开的按身份找到并封禁、立即同步与定时对账不同时做同一个账号、sector 取 `gitlab` 客户端、没登记客户端时不建号、不合法的网站不传、停下时结束这一轮、论坛资料优先、失败记录与重试、邮箱同步（noreply 邮箱、换掉占位地址、加和删其它邮箱、没确认的重加、被拒后重试、一直被拒时删掉的邮箱照样删、头像失败不耽误邮箱、没变时不调 GitLab）、`dry-run` 与 `off`、控制台两个接口、GitLab 在主站路径下时链接、API 基址与控制台跟着 `GITLAB_URL` 走而 `sub` 与 noreply 地址沿用旧 sector、sector 对不上时不调 GitLab（#335）、`GITLAB_*` 与 `OIDC_JWKS` 的配置校验。
 - `tests/console/authorize.test.ts`：同意页的纯逻辑（交互编号、接口地址、登录回跳、文案）。
