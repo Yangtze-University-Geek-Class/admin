@@ -5,20 +5,16 @@ umask 077
 # 演练只允许使用经审查的镜像摘要：compose 漂移到 tag/latest 或换摘要时，必须在解密与启动之前失败
 EXPECTED_IMAGE="gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e991ecdd6cae11ca7d7e5d36fc3"
 EXPECTED_IMAGE_PATTERN='^gitlab/gitlab-ce@sha256:[0-9a-f]{64}$'
-DRILL_CONTAINER="gitlab-drill"
-
-# 生产路径固定；允许环境变量重定向，便于用假的 docker/归档工具做回归测试
-DRILL_ROOT="${GITLAB_DRILL_ROOT:-/srv/gitlab-drill}"
-COMPOSE_FILE="${GITLAB_COMPOSE_FILE:-/srv/gitlab/docker-compose.yml}"
-ARCHIVE_TOOL="${GITLAB_ARCHIVE_TOOL:-/srv/gitlab/garage-archive.mjs}"
 
 WORK_DIR=""
 TARGET_DAY=""
 TARGET_RUN=""
 CLEANUP=0
+ENVIRONMENT=production
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --environment) ENVIRONMENT="${2:-}"; shift 2 ;;
         --run)
             if [[ $# -lt 2 || "$2" =~ ^-- ]]; then
                 echo "Error: --run requires an archive selector <YYYY-MM-DD>/<run>" >&2
@@ -52,6 +48,16 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+case "${ENVIRONMENT}" in
+    production) INSTANCE=gitlab; ROLE=gitlab-backup; REQUIRED_VARS=(GITLAB_BACKUP_S3_ACCESS_KEY_ID GITLAB_BACKUP_S3_SECRET_ACCESS_KEY) ;;
+    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup; REQUIRED_VARS=(GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY) ;;
+    *) echo 'Invalid GitLab restore environment' >&2; exit 2 ;;
+esac
+DRILL_CONTAINER="${INSTANCE}-drill"
+DRILL_ROOT="${GITLAB_DRILL_ROOT:-/srv/${INSTANCE}-drill}"
+COMPOSE_FILE="${GITLAB_COMPOSE_FILE:-/srv/${INSTANCE}/docker-compose.yml}"
+ARCHIVE_TOOL="${GITLAB_ARCHIVE_TOOL:-/srv/${INSTANCE}/garage-archive.mjs}"
+BACKUP_ENV="/etc/${INSTANCE}-backup/env"
 
 if [[ -n "${TARGET_DAY}" && ! "${TARGET_DAY}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
     echo "Error: --day must be in YYYY-MM-DD format: ${TARGET_DAY}" >&2
@@ -64,18 +70,14 @@ if [[ -n "${TARGET_RUN}" && ! "${TARGET_RUN}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-
 fi
 
 # 手动执行时若变量未设置，尝试从标准路径读取
-if [[ -f /etc/gitlab-backup/env && -z "${GITLAB_BACKUP_S3_ACCESS_KEY_ID:-}" ]]; then
+if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[0]:-}" ]]; then
     set -a
     # shellcheck source=/dev/null
-    . /etc/gitlab-backup/env
+    . "${BACKUP_ENV}"
     set +a
 fi
 
 # 检查必需环境变量
-REQUIRED_VARS=(
-    GITLAB_BACKUP_S3_ACCESS_KEY_ID
-    GITLAB_BACKUP_S3_SECRET_ACCESS_KEY
-)
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
         echo "Error: Required environment variable ${var} is not set" >&2
@@ -107,9 +109,9 @@ fi
 # 恢复必须点名 run：没有 --run 时只列候选并退出，绝不按时间或字典序替你挑“最新”
 if [[ -z "${TARGET_RUN}" ]]; then
     if [[ -n "${TARGET_DAY}" ]]; then
-        AVAILABLE_RUNS="$(node "${ARCHIVE_TOOL}" list-gitlab-runs --day "${TARGET_DAY}")"
+        AVAILABLE_RUNS="$(node "${ARCHIVE_TOOL}" list-gitlab-runs --role "${ROLE}" --day "${TARGET_DAY}")"
     else
-        AVAILABLE_RUNS="$(node "${ARCHIVE_TOOL}" list-gitlab-runs)"
+        AVAILABLE_RUNS="$(node "${ARCHIVE_TOOL}" list-gitlab-runs --role "${ROLE}")"
     fi
     echo "Error: --run <YYYY-MM-DD>/<run> is required; restore never auto-selects a run" >&2
     node --input-type=module - "${AVAILABLE_RUNS}" <<'NODE' >&2
@@ -141,7 +143,7 @@ if [[ "${IMAGE}" != "${EXPECTED_IMAGE}" ]]; then
     echo "Error: Image '${IMAGE}' from ${COMPOSE_FILE} is not the reviewed image; expected ${EXPECTED_IMAGE}" >&2
     exit 1
 fi
-RUN_JSON="$(node "${ARCHIVE_TOOL}" resolve-gitlab-run --run "${TARGET_RUN}")"
+RUN_JSON="$(node "${ARCHIVE_TOOL}" resolve-gitlab-run --role "${ROLE}" --run "${TARGET_RUN}")"
 readarray -t RUN_FIELDS < <(node --input-type=module - "${RUN_JSON}" <<'NODE'
 const value = JSON.parse(process.argv[2]);
 if (!/^\d{4}-\d{2}-\d{2}$/.test(value.day ?? '') || !/^gitlab\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/$/.test(value.prefix ?? '')) process.exit(2);
@@ -231,7 +233,7 @@ trap 'exit 143' TERM
 
 # 1. 逐对象完整 GET 下载被点名的不可变运行；适配器先核对存在与长度，再按 SHA256SUMS 全量校验，
 #    清单缺失、被截断或与对象集合不一致都直接失败（不会退化成只校验部分文件）。摘要打印在 stderr。
-node "${ARCHIVE_TOOL}" get-tree --role gitlab-backup --prefix "${REMOTE_PREFIX}" --destination "${WORK_DIR}/dl" --require-manifest >/dev/null
+node "${ARCHIVE_TOOL}" get-tree --role "${ROLE}" --prefix "${REMOTE_PREFIX}" --destination "${WORK_DIR}/dl" --require-manifest >/dev/null
 
 (
     cd "${WORK_DIR}/dl"
@@ -297,16 +299,16 @@ if [[ -n "${UNSAFE_TYPES}" ]]; then
 fi
 tar -xf "${DECRYPTED_CONFIG}" -C "${EXTRACTED_CONFIG_DIR}" --no-same-owner --no-same-permissions
 
-SECRETS_SRC="${EXTRACTED_CONFIG_DIR}/srv/gitlab/config/gitlab-secrets.json"
+SECRETS_SRC="${EXTRACTED_CONFIG_DIR}/srv/${INSTANCE}/config/gitlab-secrets.json"
 if [[ ! -f "${SECRETS_SRC}" ]]; then
     echo "Error: gitlab-secrets.json not found in config archive" >&2
     exit 1
 fi
 # 配置归档里记着备份当时的 compose：它的镜像必须与被复核过的固定 digest 一致，
 # 否则这次演练证明的只是「某个别的版本能读这份备份」。
-ARCHIVED_COMPOSE="${EXTRACTED_CONFIG_DIR}/srv/gitlab/docker-compose.yml"
+ARCHIVED_COMPOSE="${EXTRACTED_CONFIG_DIR}/srv/${INSTANCE}/docker-compose.yml"
 if [[ ! -f "${ARCHIVED_COMPOSE}" ]]; then
-    echo "Error: 配置归档里没有 srv/gitlab/docker-compose.yml，无法核对备份时的 GitLab 版本" >&2
+    echo "Error: 配置归档里没有 srv/${INSTANCE}/docker-compose.yml，无法核对备份时的 GitLab 版本" >&2
     exit 1
 fi
 ARCHIVED_IMAGE="$(grep -E '^[[:space:]]*image:[[:space:]]*gitlab/gitlab-ce' "${ARCHIVED_COMPOSE}" | head -n 1 | sed -E 's/^[[:space:]]*image:[[:space:]]*//; s/[[:space:]"'"'"']+$//')"
@@ -402,10 +404,10 @@ fi
 docker exec "${DRILL_CONTAINER}" gitlab-rake gitlab:check SANITIZE=true
 docker exec "${DRILL_CONTAINER}" gitlab-rake gitlab:doctor:secrets
 
-# 8. 打印演练实例与正式实例的对象计数对比
+# 8. 只与同一环境的在线实例比较，不读取另一个环境的对象计数
 COUNT_RB='puts({projects: Project.count, users: User.count, issues: Issue.count}.to_json)'
 DRILL_COUNTS="$(docker exec "${DRILL_CONTAINER}" gitlab-rails runner "${COUNT_RB}" | tail -n 1)"
-LIVE_COUNTS="$(docker exec gitlab gitlab-rails runner "${COUNT_RB}" | tail -n 1)"
+LIVE_COUNTS="$(docker exec "${INSTANCE}" gitlab-rails runner "${COUNT_RB}" | tail -n 1)"
 echo "drill: ${DRILL_COUNTS}"
 echo "live:  ${LIVE_COUNTS}"
 # 备份之后线上可能又新增了数据，计数不同只提示，不判失败

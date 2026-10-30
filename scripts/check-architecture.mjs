@@ -24,12 +24,22 @@ const humanDoc = path => /\.md$/.test(path) && !/^notes\//.test(path)
   && !/^docs\/architecture\/catalog\/(?:CATALOG|routes|data-model|permissions)\.md$/.test(path) && path !== "docs/INDEX.md";
 const broadScopes = new Set(["app/", "docs/", "scripts/", "tests/", ".github/", "deploy/", "app/server/", "app/web/", "app/console/", "app/forum/"]);
 const GENERATED = new Set(["docs/INDEX.md", ...["catalog.json", "CATALOG.md", "routes.md", "data-model.md", "permissions.md", "map.html"].map(name => `docs/architecture/catalog/${name}`)]);
+export const FORGES = ["gitlab", "github"];
+
+/**
+ * 宏观声明的路径。GitLab 一侧是 docs/changes/<编号>.json（编号以 GitLab 为准）；GitHub 一侧的同步工单另放在
+ * docs/changes/github/<编号>.json，两边同号时各取各的，不会互相覆盖（#330）。
+ */
+export function manifestPathFor(issue, forge = "gitlab") {
+  if (!FORGES.includes(forge)) throw new Error(`forge 只能是 gitlab 或 github：${forge}`);
+  return forge === "github" ? `docs/changes/github/${issue}.json` : `docs/changes/${issue}.json`;
+}
 
 /** 公开检查接口：调用方提供实际 diff 和存在性查询，测试与 CI 使用同一判定。 */
-export function checkAlignment({ issue, manifest, catalog, baseCatalog = null, changedFiles, exists, evidenceExists = exists, body = null, documentWaiverText = "", syncMap = [], deletedFiles = [], readBaseFile = () => null, readHeadFile = () => null }) {
+export function checkAlignment({ issue, manifest, catalog, baseCatalog = null, changedFiles, exists, evidenceExists = exists, body = null, documentWaiverText = "", syncMap = [], deletedFiles = [], readBaseFile = () => null, readHeadFile = () => null, forge = "gitlab" }) {
   const errors = [];
   const fail = message => errors.push(message);
-  const manifestPath = `docs/changes/${issue}.json`;
+  const manifestPath = manifestPathFor(issue, forge);
   const changed = [...new Set(changedFiles)].sort();
   const material = changed.filter(path => !path.startsWith("notes/") && path !== manifestPath);
   const authored = material.filter(path => !GENERATED.has(path));
@@ -197,7 +207,7 @@ function git(root, args) {
 function commit(root, ref) {
   return git(root, ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]).trim();
 }
-export function inspectChange({ root, base = "origin/stage", head, branch, body = null }) {
+export function inspectChange({ root, base = "origin/stage", head, branch, body = null, forge = "gitlab" }) {
   const task = TASK.exec(branch);
   if (!task) throw new Error("每个 PR 必须来自 task/<issue>/<slug>，不能跳过宏观对齐");
   const baseSha = commit(root, base), headSha = commit(root, head ?? "HEAD");
@@ -219,7 +229,7 @@ export function inspectChange({ root, base = "origin/stage", head, branch, body 
     if (head) return existsAt(path) ? git(root, ["show", `${headSha}:${path}`]) : null;
     return local(path) ? readFileSync(resolve(root, path), "utf8") : null;
   }
-  const issue = Number(task[1]), manifestPath = `docs/changes/${issue}.json`;
+  const issue = Number(task[1]), manifestPath = manifestPathFor(issue, forge);
   const parse = path => { const text = read(path); return text === null ? null : JSON.parse(text); };
   const chain = branch.replaceAll("/", "_");
   const notePaths = changed.filter(path => /^notes\/\d{4}-\d{2}-\d{2}\/[a-z0-9_-]+\//.test(path) && path.endsWith(`/${chain}.md`));
@@ -241,6 +251,7 @@ export function inspectChange({ root, base = "origin/stage", head, branch, body 
     evidenceExists: path => (head ? existsAt(path) : local(path)) || existsAt(path, ancestor), body, documentWaiverText, syncMap, deletedFiles,
     readBaseFile: path => safePath(path) && existsAt(path, ancestor) ? git(root, ["show", `${ancestor}:${path}`]) : null,
     readHeadFile: read,
+    forge,
   });
   return { ...result, base: ancestor, head: head ? headSha : "working-tree", branch };
 }
@@ -267,19 +278,21 @@ function defaultBase(root, branch, explicit) {
 
 function main() {
   const options = {};
-  const allowed = new Set(["root", "base", "head", "branch", "body-file", "report"]);
+  const allowed = new Set(["root", "base", "head", "branch", "body-file", "report", "forge"]);
   for (let i = 2; i < process.argv.length; i += 2) {
     const name = process.argv[i].replace(/^--/, "");
-    if (!allowed.has(name) || !process.argv[i].startsWith("--") || !process.argv[i + 1] || name in options) throw new Error("参数无效：--root --base --head --branch --body-file --report");
+    if (!allowed.has(name) || !process.argv[i].startsWith("--") || !process.argv[i + 1] || name in options) throw new Error("参数无效：--root --base --head --branch --body-file --report --forge gitlab|github");
     options[name] = process.argv[i + 1];
   }
+  const forge = options.forge ?? "gitlab";
+  if (!FORGES.includes(forge)) throw new Error(`--forge 只能是 gitlab 或 github：${forge}`);
   const root = resolve(options.root ?? process.cwd());
   const branch = options.branch ?? (process.env.GITHUB_HEAD_REF || git(root, ["branch", "--show-current"]).trim());
   if (!options.branch && !options.head && !TASK.test(branch)) {
     console.log("非任务检出：逐 PR 宏观对齐由 architecture-alignment 检查；目录新鲜度仍由 check:catalog 核对。"); return;
   }
   const body = options["body-file"] ? readFileSync(options["body-file"], "utf8") : null;
-  const result = inspectChange({ root, base: defaultBase(root, branch, options.base), head: options.head, branch, body });
+  const result = inspectChange({ root, base: defaultBase(root, branch, options.base), head: options.head, branch, body, forge });
   if (options.report) writeFileSync(resolve(options.report), `${JSON.stringify(result, null, 2)}\n`);
   for (const error of result.errors) console.error(`宏观对齐：${JSON.stringify(error)}`);
   console.log(`宏观对齐${result.ok ? "通过" : "失败"}：#${result.issue}，${result.changedFiles.length} 个变更文件，${result.affectedNodeIds.length} 个关联节点。`);

@@ -1,0 +1,755 @@
+{
+  "version": 1,
+  "issue": 328,
+  "kind": "business",
+  "summary": "去标识化与用户原文清理：规范、运维与服务文档去掉所有者个人名字、「某日某时定的」式引用与本机路径；审批与豁免的判定字段由 quote 改为 approval（批准摘要），身份仍为字面值「所有者」，登记数据同步迁移；新增用户原话形态门禁（check:privacy 全仓核对、note.mjs 核对新增行），拦住用户原文写进仓库；执行记录与文档中的用户原文改为 [已脱敏] 或概述。隐私门禁的逐条放行登记在 scripts/privacy-exceptions.json：按「文件 + 精确值」或「文件 + 整行内容的摘要」放行，理由必填，不按目录整体豁免。",
+  "applications": [
+    "server",
+    "console",
+    "cli",
+    "forum",
+    "web"
+  ],
+  "domains": [
+    "platform",
+    "identity",
+    "organization",
+    "recruitment",
+    "feedback",
+    "audit",
+    "competitions",
+    "gitlab",
+    "forum",
+    "github",
+    "invitations",
+    "mail",
+    "permissions",
+    "public_content"
+  ],
+  "flows": [
+    "flow:identity.callback",
+    "flow:identity.email.start",
+    "flow:identity.email.verify",
+    "flow:identity.invites.create",
+    "flow:console.summary",
+    "flow:competition.create",
+    "flow:forum.stickers.list",
+    "flow:competition.team_plaza.list",
+    "flow:platform.system_backup",
+    "flow:identity.account.view",
+    "flow:forum.site-markdown.index"
+  ],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不改用户可见的业务规则、页面或接口。审批、豁免与窗口的判定条件不变（身份字面值、批准时间、摘要非空、窗口未过期）；涉及的业务源码只改注释里的历史引语，逐域列在覆盖中。",
+      "evidence": [
+        "scripts/hotfix-windows.mjs",
+        "scripts/promotion-windows.mjs",
+        "scripts/parity.mjs",
+        "app/server/src/lib/identity-store.ts",
+        "app/console/src/main.ts"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "服务端只改注释（去掉历史引语）；app/server/src/cli/account.ts 只改帮助示例；不改路由、中间件、数据库或接口契约。",
+      "evidence": [
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/cli/account.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "hotfix 窗口、晋升窗口与豁免登记的批准人仍为字面值「所有者」，判定的其余部分不变，没有扩大谁能批准；批准依据字段由 quote 改名为 approval（批准摘要），非空检查不变。account.ts 只改帮助示例，不改权限判定。",
+      "evidence": [
+        "scripts/hotfix-windows.mjs",
+        "scripts/promotion-windows.mjs",
+        "scripts/parity.mjs",
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json",
+        "app/server/src/cli/account.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "登记数据的字段名与值变化，表结构不变：deploy/hotfix/windows.json 的 4 个窗口 quote 改为 approval（批准摘要），deploy/parity/ledger.json 的 1 处豁免 quote 改为 approval。晋升窗口当前无登记，历史核对不触发；hotfix 与 ledger 无历史比对。account.ts 不读写数据。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json",
+        "scripts/promotion-windows.mjs",
+        "scripts/note.mjs",
+        "app/server/src/cli/account.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不新增依赖与外部服务；package.json 只新增 check:privacy 脚本并接入 pnpm check 链，锁文件不变。",
+      "evidence": [
+        "package.json",
+        "scripts/check-privacy.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "规范、技能、服务与运维文档去掉用户原文，改为批准摘要或概述；NOTES 新增「不写用户原文」与脱敏修订规则；BRANCHING、RELEASE-PARITY、RELEASES、AGENTS 的 quote 字段、--quote 与 --tag-approval 说明改为 approval 与批准摘要。INDEX 与目录派生产物随之重生成。",
+      "evidence": [
+        "AGENTS.md",
+        "docs/conventions/NOTES.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/RELEASE-PARITY.md",
+        "docs/conventions/RELEASES.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "check-privacy 测试 17 个（所有者账号名、家目录、手机号、令牌形态、证件号、邮箱，以及用户原话形态的红与绿、全仓审计插入与删除）；notes 测试覆盖脱敏修订与 PR 新增行的用户原话拦截；validator 测试的字段改为 approval。未验证：全量 pnpm test 与 check:notes 的既有失败（task_308 记录，不在本 PR 范围）。",
+      "evidence": [
+        "tests/tooling/check-privacy.test.ts",
+        "tests/tooling/notes.test.ts",
+        "tests/tooling/branch-invariants.test.ts",
+        "tests/tooling/parity.test.ts",
+        "tests/tooling/promotion-windows.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "pnpm check 里的 check:privacy 多核对全仓用户原话形态；deploy/env/origin-exceptions.json 里 deploy/hotfix/windows.json 的上限由 1 改为 2，理由写明：#308 收尾证据里的签发者地址是验收事实，原文保留；不改镜像、运行栈、部署或环境文件。",
+      "evidence": [
+        "package.json",
+        "scripts/check-privacy.mjs",
+        "deploy/env/origin-exceptions.json",
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/cli/account.ts",
+        "app/server/src/lib/identity-store.ts",
+        "app/server/src/lib/invite-codes.ts",
+        "app/server/src/routes/console/invites.ts",
+        "app/server/src/routes/identity/email.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.callback",
+        "flow:identity.email.verify",
+        "flow:identity.invites.create"
+      ],
+      "reason": "只改注释里的历史引语，不改业务规则与流程；邮箱登录、注册邀请码与控制台邀请码的代码归属身份域。"
+    },
+    {
+      "paths": [
+        "app/console/src/main.ts",
+        "app/server/src/lib/migrations/2026-10-forum-v2.ts",
+        "app/server/src/lib/roles.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "identity",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:audit",
+        "domain:competitions",
+        "domain:feedback",
+        "domain:forum",
+        "domain:github",
+        "domain:identity",
+        "domain:organization",
+        "domain:recruitment"
+      ],
+      "reason": "只改注释里的历史引语；这些源码归属多个业务域，逐域列出，不改任何流程。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "项目目录与地图由 catalog:generate 重生成，不手工编辑。"
+    },
+    {
+      "paths": [
+        "deploy/env/origin-exceptions.json",
+        "deploy/gitlab/ui/nano-avatars/20261025/manifest.json",
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "环境与部署数据：登记值改为批准摘要，origin 例外按真实留存的验收事实更新，流水线与运行栈不变。"
+    },
+    {
+      "paths": [
+        "scripts/check-branch-invariants.mjs",
+        "scripts/check-privacy.mjs",
+        "scripts/deployment-environment.mjs",
+        "scripts/hotfix-policy.mjs",
+        "scripts/hotfix-sync.mjs",
+        "scripts/hotfix-windows.mjs",
+        "scripts/note.mjs",
+        "scripts/owner-approval.mjs",
+        "scripts/parity.mjs",
+        "scripts/privacy-exceptions.json",
+        "scripts/promotion-windows.mjs",
+        "scripts/release-policy.mjs",
+        "tests/tooling/architecture-alignment.test.ts",
+        "tests/tooling/branch-invariants.test.ts",
+        "tests/tooling/check-privacy.test.ts",
+        "tests/tooling/hotfix-policy.test.ts",
+        "tests/tooling/hotfix-sync.test.ts",
+        "tests/tooling/notes.test.ts",
+        "tests/tooling/owner-approval.test.ts",
+        "tests/tooling/parity.test.ts",
+        "tests/tooling/promotion-windows.test.ts",
+        "tests/tooling/release-policy.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "隐私与执行记录门禁、validator 的批准摘要字段（approval）与对应回归；工具链的字段名与消息随之更新。；隐私门禁扫描 app 下全部文本文件，锁文件、二进制与构建产物除外；登记放行只按文件与精确值或整行摘要，登记过但不再命中的条目让门禁失败。所有者批准的三项判定抽成 scripts/owner-approval.mjs（hotfix 窗口、晋升窗口与同构清单豁免共用），隐私门禁的个人邮箱与提交地址共用一条判定。窗口登记的读取兼容：读提交里的登记时接受迁移前的署名与 quote 字段，工作区仍严格（hotfix-policy、release-policy、promotion-windows 的读取点）。hotfix-policy 与 release-policy 读 main 上的窗口登记，同样走迁移前格式的兼容校验。"
+    },
+    {
+      "paths": [
+        ".agents/skills/code-review/SKILL.md",
+        ".agents/skills/release-parity/SKILL.md",
+        ".github/pull_request_template.md",
+        "AGENTS.md",
+        "README.en.md",
+        "README.md",
+        "app/forum/ADOPTION.json",
+        "design-qa.md",
+        "docs/INDEX.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/changes/278.json",
+        "docs/changes/282.json",
+        "docs/changes/286.json",
+        "docs/changes/294.json",
+        "docs/changes/309.json",
+        "docs/conventions/AGENT-ADAPTERS.md",
+        "docs/conventions/AGENT-START.md",
+        "docs/conventions/BRANCHING.md",
+        "docs/conventions/CHANGE-PATHS.md",
+        "docs/conventions/CODE-REVIEW.md",
+        "docs/conventions/CONTRIBUTING.md",
+        "docs/conventions/ISSUES.md",
+        "docs/conventions/NOTES.md",
+        "docs/conventions/PROJECT.md",
+        "docs/conventions/PULL-REQUESTS.md",
+        "docs/conventions/RELEASE-PARITY.md",
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/TRACKING.md",
+        "docs/decisions/0003-adopt-tuff-forum.md",
+        "docs/decisions/0005-sso-extend-core-server.md",
+        "docs/design/DESIGN.md",
+        "docs/handovers/2026-09-13-geek-main-handover.md",
+        "docs/history/changes/gitlab/270.json",
+        "docs/history/changes/gitlab/276.json",
+        "docs/history/portal-yugc-os-v1/files/app/web/sites/portal/three/props.ts",
+        "docs/ops/CDN.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/FORUM-DATA-CAPTURE.md",
+        "docs/ops/GITLAB.md",
+        "docs/ops/STORAGE-CDN.md",
+        "docs/plan/COMPETITION-APP.md",
+        "docs/plan/UNIFIED-LOGIN.md",
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/services/server/README.md",
+        "docs/services/server/competition-rehearsal.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/mail.md",
+        "docs/services/web/README.md",
+        "docs/services/web/portal.md",
+        "package.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "规范、服务契约、决策与历史文档：去掉用户原文，改成批准摘要或概述；规则含义不变。web 服务契约只做核对：本分支对 app/web 的改动是两处组件注释，契约事实不变，更新日期跟上模块。论坛采用记录 app/forum/ADOPTION.json 里两处所有者原话改为概述，依赖清单与上游对齐数据不变。"
+    },
+    {
+      "paths": [
+        ".github/workflows/architecture-alignment.yml",
+        ".github/workflows/ci.yml",
+        "docs/conventions/COMMITS.md",
+        "tests/tooling/deploy-doc-sync.test.ts",
+        "tests/tooling/task-worktree.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "提交门禁接入 branch-guard 的 PR 检查；宏观对齐的复制清单与两处测试夹具补上 check-privacy.mjs（note.mjs 现在导入它）；COMMITS 写明提交说明与作者邮箱的规则。"
+    },
+    {
+      "paths": [
+        ".github/workflows/deploy-hotfix.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/pr-agent.yml",
+        "tests/tooling/pr-agent-workflow.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "部署流水线的渲染步骤把发件地址改为环境密钥（MAIL_ALIYUN_FROM、MAIL_RESEND_FROM）；pr-agent 的 API 地址改用仓库变量。部署开关、发布 tag 与运行栈不变。工作流测试断言网关地址变量为空时审查步骤不运行。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.dev",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.production"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "两个发件地址键留空、移入环境密钥；键集与其它值不变，check:env-isolation 核对通过。"
+    },
+    {
+      "paths": [
+        "scripts/deploy-manual.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "手工部署脚本的密钥清单与 CI 的 SECRET_FIELDS 同步加入两个发件地址。"
+    },
+    {
+      "paths": [
+        "docs/ops/ENVIRONMENTS.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "发信两行改为环境密钥口径，密钥名表补两项。"
+    },
+    {
+      "paths": [
+        "docs/history/SECURITY.md",
+        "docs/history/SECURITY.en.md",
+        "docs/history/changes/gitlab/272.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "历史文档去掉个人名字与域名，只改文字，不改记录的事实与结论。"
+    },
+    {
+      "paths": [
+        "tests/tooling/deploy-manual.test.ts",
+        "tests/tooling/deployment-environment.test.ts",
+        "tests/tooling/static-cdn.test.ts",
+        "tests/tooling/static-cdn-parity.test.ts",
+        "tests/tooling/static-cdn-switch.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "测试夹具的个人标识改为中性占位，断言不变；发件地址测试覆盖新的环境密钥口径。"
+    },
+    {
+      "paths": [
+        "tests/server/bearer-auth.test.ts",
+        "tests/server/profile.test.ts",
+        "tests/server/signin-methods.test.ts",
+        "tests/server/yugc-v2-migration.test.ts",
+        "tests/server/legacy-github-restore.test.ts",
+        "tests/console/signin.test.ts",
+        "tests/web/portal-profile-card.test.tsx"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "测试夹具的个人标识与占位邮箱改为中性值，断言不变；不改业务规则。"
+    },
+    {
+      "paths": [
+        "tests/server/forum-sticker-cdn.test.ts"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "domain:forum"
+      ],
+      "reason": "测试夹具的旧 CDN 域名改为占位，断言不变。"
+    },
+    {
+      "paths": [
+        "tests/server/mail-envelope.test.ts",
+        "tests/server/mail-outbox.test.ts",
+        "tests/server/mail-templates.test.ts",
+        "tests/console/mail-templates.test.ts"
+      ],
+      "domains": [
+        "mail"
+      ],
+      "nodes": [
+        "domain:mail"
+      ],
+      "reason": "测试夹具的邮箱与域名改为占位；mail-outbox 中 Gmail 与 IDNA 规范化的用例仍用其服务商域名，见执行记录的未决项。"
+    },
+    {
+      "paths": [
+        "tests/web/portal-join.test.ts"
+      ],
+      "domains": [
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:recruitment"
+      ],
+      "reason": "测试夹具的报名邮箱改为占位，校验断言不变。"
+    },
+    {
+      "paths": [
+        "app/forum/tests/sticker-url.test.ts"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "application:forum"
+      ],
+      "reason": "测试夹具的旧 CDN 域名改为占位，断言不变。"
+    },
+    {
+      "paths": [
+        "app/cli/tests/device_protocol.rs",
+        "app/cli/tests/offline_credentials.rs",
+        "docs/services/cli/README.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "application:cli",
+        "domain:identity"
+      ],
+      "reason": "CLI 设备码登录的测试令牌夹具改回短值 gk_fixture、gk_offline，避开隐私门禁的令牌形态；服务契约补一句夹具约定并把更新日期改到 2026-10-30。协议与断言不变。"
+    },
+    {
+      "paths": [
+        "app/console/src/styles/controls.css",
+        "tests/console/date-field.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:console"
+      ],
+      "reason": "控制台控件样式与日期字段测试的注释改成概述，去掉原文引语；样式与断言不变。"
+    },
+    {
+      "paths": [
+        "scripts/contest-score-sim.mjs"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions"
+      ],
+      "reason": "比赛计分模拟脚本的注释改成概述，去掉原文引语；计算不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/db.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:audit",
+        "domain:competitions",
+        "domain:feedback",
+        "domain:forum",
+        "domain:gitlab",
+        "domain:identity",
+        "domain:invitations",
+        "domain:mail",
+        "domain:organization",
+        "domain:permissions",
+        "domain:platform",
+        "domain:recruitment"
+      ],
+      "reason": "数据库初始化里比赛个人赛与规划中状态的注释改成概述，去掉原文引语；SQL 与种子数据不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/email-gate.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "邮箱关口的注释改成概述，去掉原文引语；判定不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/competition-team-plaza.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions"
+      ],
+      "reason": "组队广场聚合的注释改成概述，去掉原文引语；逻辑不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/system-backup.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "一键系统备份的注释改成概述，去掉原文引语；逻辑不变。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/components/os/ProfileCard.tsx"
+      ],
+      "domains": [
+        "competitions",
+        "feedback",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:web"
+      ],
+      "reason": "账号资料窗口的注释改成概述，去掉原文引语；界面与接口不变。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/components/os/competitions/TeamPlaza.tsx"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "application:web"
+      ],
+      "reason": "组队广场页签的注释改成概述，去掉原文引语；界面与接口不变。"
+    },
+    {
+      "paths": [
+        "docs/changes/262.json",
+        "docs/changes/280.json",
+        "docs/changes/291.json",
+        "docs/history/changes/gitlab/273.json"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "历史变更记录里的所有者原话改为「[已脱敏]」或概述，记录的事实与结论不变。"
+    },
+    {
+      "paths": [
+        "docs/changes/283.json",
+        "docs/changes/292.json",
+        "docs/history/changes/gitlab/274.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "历史变更记录里的所有者原话改为「[已脱敏]」或概述，记录的事实与结论不变。"
+    },
+    {
+      "paths": [
+        "docs/changes/293.json"
+      ],
+      "domains": [
+        "mail"
+      ],
+      "nodes": [
+        "domain:mail"
+      ],
+      "reason": "历史变更记录里的所有者原话改为「[已脱敏]」或概述，记录的事实与结论不变。"
+    },
+    {
+      "paths": [
+        "docs/history/changes/gitlab/284.json"
+      ],
+      "domains": [
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:recruitment"
+      ],
+      "reason": "历史变更记录里的所有者原话改为「[已脱敏]」或概述，记录的事实与结论不变。"
+    },
+    {
+      "paths": [
+        "docs/history/changes/gitlab/271.json"
+      ],
+      "domains": [
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:gitlab"
+      ],
+      "reason": "历史变更记录里的所有者原话改为「[已脱敏]」或概述，记录的事实与结论不变。"
+    },
+    {
+      "paths": [
+        "docs/history/portal-contest-night/README.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions"
+      ],
+      "reason": "历史目录的说明里所有者原话改为「[已脱敏]」，事实不变。"
+    },
+    {
+      "paths": [
+        "docs/services/server/endpoint-contracts.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "服务契约里邮箱关口的所有者原话改为概述，接口与判定不变。"
+    },
+    {
+      "paths": [
+        "tests/tooling/architecture-workflow.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "宏观对齐工作流的回归测试：基线没有隐私门禁时不复制它，固定住 set -eu 下的条件复制。"
+    },
+    {
+      "paths": [
+        "docs/services/web/README.md"
+      ],
+      "domains": [
+        "public_content"
+      ],
+      "nodes": [
+        "application:web"
+      ],
+      "reason": "web 服务合同：核对了文档描述的门户组件与桌面窗口，事实未变（只是注释改动），更新日期到 2026-10-30；核对记录在执行记录里。"
+    }
+  ],
+  "documents": [
+    "AGENTS.md",
+    "docs/conventions/NOTES.md",
+    "docs/conventions/COMMITS.md",
+    "docs/conventions/BRANCHING.md",
+    "docs/conventions/ISSUES.md",
+    "docs/conventions/RELEASE-PARITY.md",
+    "docs/ops/GITLAB.md",
+    "docs/architecture/SECURITY.md"
+  ],
+  "tests": [
+    "tests/tooling/check-privacy.test.ts",
+    "tests/tooling/notes.test.ts",
+    "tests/tooling/branch-invariants.test.ts",
+    "tests/tooling/architecture-alignment.test.ts",
+    "tests/tooling/hotfix-policy.test.ts",
+    "tests/tooling/hotfix-sync.test.ts",
+    "tests/tooling/parity.test.ts",
+    "tests/tooling/promotion-windows.test.ts",
+    "tests/tooling/release-policy.test.ts"
+  ],
+  "compatibility": "运行时行为不变：批准依据字段由 quote 改名为 approval，判定身份仍为字面值「所有者」。旧 quote 字段不再被识别，所以代码与登记数据必须同一提交合入（本 PR 已同提交迁移 4 个窗口与 1 处豁免）。执行记录只做脱敏修订，不改写历史提交；已进入 gitlab/stage 与 main 的历史提交里仍有原文，是否另行处理由所有者决定。",
+  "migration": "不涉及表结构或配置键。登记字段 quote 改名为 approval：deploy/hotfix/windows.json 的 4 个窗口、deploy/parity/ledger.json 的 1 处豁免，同提交内完成；晋升窗口登记当前为空。",
+  "rollback": "revert 本 PR 的全部提交即可恢复原字段与判定；只回滚代码而保留 approval 字段会使 hotfix 与豁免校验失败，二者须一起回滚。"
+}

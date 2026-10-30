@@ -24,6 +24,14 @@ describe('deploy-manual arguments', () => {
     expect(() => parseArgs(['--environment', 'production', '--tag', 'v0.1.0-rc.1', '--acceptance', APPROVAL])).toThrow(/只进/);
   });
 
+  it('sends hotfix and stable preview tags only to preview, never to production', () => {
+    for (const tag of ['v0.1.1-hf.1', 'v0.1.1-stable.2']) {
+      expect(parseArgs(['--environment', 'preview', '--tag', tag])).toMatchObject({ environment: 'preview', tag });
+      expect(() => parseArgs(['--environment', 'production', '--tag', tag, '--acceptance', APPROVAL])).toThrow(/只进/);
+    }
+    expect(() => parseArgs(['--environment', 'preview', '--tag', 'v0.1.1-stable'])).toThrow(/发布 tag/);
+  });
+
   it('requires a GitHub comment link as the approval for production and refuses it for preview', () => {
     expect(() => parseArgs(['--environment', 'production', '--tag', 'v0.1.0'])).toThrow(/--acceptance/);
     for (const link of ['https://x.test', 'http://github.com/o/r/issues/1#issuecomment-2', `https://github.com/${REPO}/issues/63`]) {
@@ -213,7 +221,7 @@ function fakeWorld({ environment = 'preview', tag = 'v0.1.0-rc.1', permission = 
     stackRoot: `/opt/yzgc/${environment}`, incomingDir: `/opt/yzgc/${environment}/incoming`, origin: 'https://prev.yangtzeu.work',
   };
   const env: Record<string, string> = {
-    DEPLOY_TARGET_ENVIRONMENT: environment, PATH: '/usr/bin', HOME: '/home/x',
+    DEPLOY_TARGET_ENVIRONMENT: environment, PATH: '/usr/bin', HOME: '/tmp/deploy-manual-home',
     OAUTH_CLIENT_ID: 'id', OAUTH_CLIENT_SECRET: 'secret-value', SESSION_SECRET: 'session-value', ENCRYPTION_KEY: 'key-value',
     MAIL_RESEND_API_KEY: 'resend-value', MAIL_ALLOWLIST: 'tester@example.com,other@example.org',
     DEPLOY_SSH_HOST: '203.0.113.9', DEPLOY_SSH_PORT: '22000', DEPLOY_SSH_USER: 'root', DEPLOY_SSH_KEY_FILE: '/k', DEPLOY_SSH_KNOWN_HOSTS_FILE: '/h',

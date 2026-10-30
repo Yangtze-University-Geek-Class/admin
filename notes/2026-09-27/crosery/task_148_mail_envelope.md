@@ -37,14 +37,14 @@
 ## 11:17:27 +08:00 · 方案 · #148 · 投递状态改成四个，改状态时发对应的信，信里写全报名信息
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-09-27 11:02「别人投信之后回复别人是不是固定为小明头像了，取第一个姓名的第一个字，还有投递的那些所有信息去写这些信」、11:04「这个状态就改为 已收到，待面试，已录取，未通过， 而且改变状态之后会同步更新邮件发送过去」、11:09「邮件的提交时间也有问题……我们这边用的是北京时间」。定的做法：状态去掉评估中（旧的 reviewing 行改回 received，历史记录照常显示）；新表 mail_outbox 落库发信，同一事件只发一次，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，发完清掉收件地址和正文只留哈希；发信商阿里云在前、Resend 兜底，两家都没配时记「发信没有配置」；预发布只发白名单（MAIL_RECIPIENTS=allowlist）；投递成功发「已收到」，控制台改成待面试、已录取、未通过时发对应的信（可取消勾选），改回已收到不发；信里加「你的报名信息」（姓名、班级、邮箱、投递时间、报名编号），已收到的信附上特长与优点原文，抬头左边一个圆形头像写姓名第一个字；所有时间按 Asia/Shanghai；待面试没有回信地址时改成指向意见箱。分三块并行：server、console、deploy 与环境契约
+- 做了什么：所有者 2026-09-27 11:02「[已脱敏]」、11:04「[已脱敏]」、11:09「[已脱敏]」。定的做法：状态去掉评估中（旧的 reviewing 行改回 received，历史记录照常显示）；新表 mail_outbox 落库发信，同一事件只发一次，失败按 1 分钟、5 分钟、30 分钟、2 小时、6 小时重试，发完清掉收件地址和正文只留哈希；发信商阿里云在前、Resend 兜底，两家都没配时记「发信没有配置」；预发布只发白名单（MAIL_RECIPIENTS=allowlist）；投递成功发「已收到」，控制台改成待面试、已录取、未通过时发对应的信（可取消勾选），改回已收到不发；信里加「你的报名信息」（姓名、班级、邮箱、投递时间、报名编号），已收到的信附上特长与优点原文，抬头左边一个圆形头像写姓名第一个字；所有时间按 Asia/Shanghai；待面试没有回信地址时改成指向意见箱。分三块并行：server、console、deploy 与环境契约
 - 结果：样例信里的「小明」只是发样例时填的名字，模板本来按投递人的姓名写抬头；现在全站还没接发信
 - 下一步：server、console、deploy 三块并行实现，主会话集成验证
 
 ## 12:05:38 +08:00 · 开发 · #148 · 发信队列、四个投递状态、改状态发信、信里写全报名信息，按姓称呼
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：三个子代理按 /tmp/t148/contract.md 并行实现，主会话集成：t148-server（mail_outbox、阿里云与 Resend 适配器、重试与租约、白名单、投递成功与改状态的触发、GET 详情带每封信的状态、四封信加「你的报名信息」与特长原文、北京时间、按姓称呼含 38 个复姓、去掉评估中并迁移）；t148-console（四个状态、通知投递人一栏与必填校验、提示与按钮随能不能发出而变、审核记录与确认信显示发信状态、控制台时间固定北京时间、样板数据）；t148-deploy（两份 env 的 MAIL_* 字段、可选密钥与阿里云成对校验、预发布必须 allowlist、compose、两个部署工作流的渲染步骤、deploy-manual、文档）。所有者 11:30 说明是按姓称呼（「张同学」），去掉了一度加上的头像。主会话另外发现 cdn.crosery.com 的 Referer 白名单对 https://mail.qq.com/ 回 403（不带 Referer 是 200），给每张图加 referrerpolicy="no-referrer" 并加测试
+- 做了什么：三个子代理按 /tmp/t148/contract.md 并行实现，主会话集成：t148-server（mail_outbox、阿里云与 Resend 适配器、重试与租约、白名单、投递成功与改状态的触发、GET 详情带每封信的状态、四封信加「你的报名信息」与特长原文、北京时间、按姓称呼含 38 个复姓、去掉评估中并迁移）；t148-console（四个状态、通知投递人一栏与必填校验、提示与按钮随能不能发出而变、审核记录与确认信显示发信状态、控制台时间固定北京时间、样板数据）；t148-deploy（两份 env 的 MAIL_* 字段、可选密钥与阿里云成对校验、预发布必须 allowlist、compose、两个部署工作流的渲染步骤、deploy-manual、文档）。所有者 11:30 说明[已脱敏]（「[已脱敏]」），去掉了一度加上的头像。主会话另外发现 cdn.crosery.com 的 Referer 白名单对 https://mail.qq.com/ 回 403（不带 Referer 是 200），给每张图加 referrerpolicy="no-referrer" 并加测试
 - 结果：pnpm verify 退出码 0：pnpm test 59 files / 898 tests，forum 30 files / 541 tests，build 与 forum generate 通过。变异：server 子代理 14 项全被抓到；referrerpolicy 去掉时测试失败。本机 harness（真实路由、临时 SQLite、假的 Resend 把信写到 /tmp/geek148/mails2）在 ego TaskSpace 254 里：1440 宽改成待面试不填时间地点提示两项必填，填好后「保存并发邮件」，审核记录「邮件：已发出」、确认信「已发出」；信里「张同学，你好：」「欧阳同学，你好：」、你的报名信息、投递时间 12:00（北京时间，当时是北京时间 12:00）、特长原文、四张图都加载；375 宽信件无横向滚动；390 宽不在白名单的投递改成未通过，提示「预发布只给白名单里的邮箱发信，这封不会发出」，按钮是「保存」，记录「预发布未发送（不在白名单）」，没有生成信。TaskSpace 已 finish。未验证：真实发信（阿里云、Resend）、QQ 等真实邮件客户端里的显示、referrerpolicy 在网页邮箱里是否生效
 - 下一步：提交，独立审查，开 PR
 
@@ -96,7 +96,7 @@
 ## 13:28:14 +08:00 · 返工 · #148 · 按复审返工：按收件箱归并限量、按 IP 限量、审核记录版本号、旧页面不能改状态
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：server：outbox 加 limitKey（去掉 + 标签、域名末尾的点，Gmail 去掉本地部分的点、googlemail 算 gmail），新列 limit_hash 与索引，按收件箱限量；投递的邮箱正则不收末尾带点、连续的点、以点开头的域名。所有者 13:22「防止盗刷……单IP里禁止连续发多个邮件，给它限制一个数量」：OutboxEntry 加 source，新列 source_hash（只存 sha256）与索引，RECEIVED_LETTER_LIMITS 加 perSourceHour 5、perSourceDay 20，apply 传 ipSubject(req.ip)（IPv6 按 /64），超出记 source_limited，投递照样成功。PATCH 加 expected_review_id（页面上最新一条审核记录的 id，没有时是 0），和库里不同回 409；改状态却缺 expected_status 或 expected_review_id 回 409「这个页面是旧版本，刷新后再改」，只补备注可以不带；409 的说法改成「这份投递刚被别人处理过，现在是「…」，看过最新的记录再改」。console：reviewPatch 带 expected_review_id（detail.reviews[0]?.id ?? 0），样板同样核对，source_limited 的说法「没有发：同一个网络这段时间投递得太多」。docs：mail.md、API、SECURITY 中英、data-model、console README、TESTING。c153777 已推送不回写，这次按服务分提交，PR 里写明各提交包含哪几件事。另外所有者 13:10 同意后，用 gh secret set 把 MAIL_ALLOWLIST 设成所有者的邮箱（preview 环境），ENVIRONMENTS 改成白名单里是所有者自己的一个邮箱，地址不进仓库
+- 做了什么：server：outbox 加 limitKey（去掉 + 标签、域名末尾的点，Gmail 去掉本地部分的点、googlemail 算 gmail），新列 limit_hash 与索引，按收件箱限量；投递的邮箱正则不收末尾带点、连续的点、以点开头的域名。所有者 13:22「[已脱敏]」：OutboxEntry 加 source，新列 source_hash（只存 sha256）与索引，RECEIVED_LETTER_LIMITS 加 perSourceHour 5、perSourceDay 20，apply 传 ipSubject(req.ip)（IPv6 按 /64），超出记 source_limited，投递照样成功。PATCH 加 expected_review_id（页面上最新一条审核记录的 id，没有时是 0），和库里不同回 409；改状态却缺 expected_status 或 expected_review_id 回 409「这个页面是旧版本，刷新后再改」，只补备注可以不带；409 的说法改成「这份投递刚被别人处理过，现在是「…」，看过最新的记录再改」。console：reviewPatch 带 expected_review_id（detail.reviews[0]?.id ?? 0），样板同样核对，source_limited 的说法「没有发：同一个网络这段时间投递得太多」。docs：mail.md、API、SECURITY 中英、data-model、console README、TESTING。c153777 已推送不回写，这次按服务分提交，PR 里写明各提交包含哪几件事。另外所有者 13:10 同意后，用 gh secret set 把 MAIL_ALLOWLIST 设成所有者的邮箱（preview 环境），ENVIRONMENTS 改成白名单里是所有者自己的一个邮箱，地址不进仓库
 - 结果：tsc、vue-tsc 通过；tests/server、tests/console、deployment-environment 19 个文件 349 条通过；变异 11 项全被抓到（+标签不归并、Gmail 的点不归并、旧邮箱正则、不比审核记录、旧页面不强制、RECEIVED_LETTER_LIMITS 去掉按 IP、IPv6 不按 /64、去掉按 IP 的一天窗口、控制台不带 expected_review_id、样板不拦旧页面、source_limited 的说法）。本机 harness 在 ego TaskSpace 6 里：另一个会话把欧阳娜娜改成待面试（发了面试信）又改回已收到，旧页面改成未通过点「保存并发邮件」，请求体带 expected_review_id 0，回「没有保存 这份投递刚被别人处理过，现在是「已收到」，看过最新的记录再改」，只发出 3 封（两封确认信、一封面试信），拒信没有发；截图 /tmp/t148/shots2/desktop-aba-409.png。TaskSpace 已 finish，harness 已停
 
 ## 13:30:01 +08:00 · 提交 · #148 · bc81afa、546b3f8、c6dd58d、d42819a：第二轮返工按服务提交
@@ -120,7 +120,7 @@
 ## 13:47:20 +08:00 · 返工 · #148 · 按第二轮复审返工：版本号取最大 id、邮箱正则收紧并与官网一致、写清共用出口的影响
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：server：lastReviewId 改成 MAX(id)，加时钟往回拨 2 分钟的用例；EMAIL_REGEX 本地部分和域名按点分段、不收引号、反斜杠、方括号等分隔符，用例加四种写法。console：newestReviewId，详情页和样板都用它，样板里钱思远（按时间第一是 16、最大是 18）核对。portal：JoinUs.tsx 的 EMAIL_RE 与后端逐字一致，tests/web/portal-join.test.ts 按源码核对。docs：mailer.ts 注释、mail.md、SECURITY 中英写清同一出口一小时第 6 个、24 小时第 21 个起没有确认信和投满 20 份耗尽出口的风险，5 和 20 没有真实分布做依据；API、console README、TESTING、portal.md 同步。5 与 20 这两个数没改：所有者 13:22 要的是防盗刷，投递本身不受影响，控制台写明原因，招新时按 source_limited 的多少再调
+- 做了什么：server：lastReviewId 改成 MAX(id)，加时钟往回拨 2 分钟的用例；EMAIL_REGEX 本地部分和域名按点分段、不收引号、反斜杠、方括号等分隔符，用例加四种写法。console：newestReviewId，详情页和样板都用它，样板里钱思远（按时间第一是 16、最大是 18）核对。portal：JoinUs.tsx 的 EMAIL_RE 与后端逐字一致，tests/web/portal-join.test.ts 按源码核对。docs：mailer.ts 注释、mail.md、SECURITY 中英写清同一出口一小时第 6 个、24 小时第 21 个起没有确认信和投满 20 份耗尽出口的风险，5 和 20 没有真实分布做依据；API、console README、TESTING、portal.md 同步。5 与 20 这两个数没改：所有者 13:22 要的是[已脱敏]，投递本身不受影响，控制台写明原因，招新时按 source_limited 的多少再调
 - 结果：变异 5 项全被抓到（服务端按时间取第一条、控制台取 reviews[0]、样板取第一条、服务端旧正则、官网旧正则）；pnpm verify 退出码 0：根 60 个文件 914 条，论坛 541 条，build 与 forum generate 通过。官网表单没有在浏览器里点过，只按源码核对正则一致
 
 ## 13:47:20 +08:00 · 提交 · #148 · 第三轮返工按用途拆成 5 个提交

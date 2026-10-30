@@ -35,11 +35,13 @@ jobs:
       pull-requests: write
     steps:
       - name: PR-Agent 审查
+        # 网关地址没配时不运行：空值会让 PR-Agent 回落到默认端点，模型 key 就发了出去。
+        if: ${{ vars.PR_AGENT_API_BASE != '' }}
         uses: docker://pragent/pr-agent@sha256:31b9aac6ab067bada9a0c1b001d30ebc500ea4487e00a93c18c59b9ef5fa66db
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI__KEY: ${{ secrets.PR_AGENT_LLM_KEY }}
-          OPENAI__API_BASE: https://ai.crosery.com/v1
+          OPENAI__API_BASE: ${{ vars.PR_AGENT_API_BASE }}
           CONFIG__MODEL: openai/gemini-3.8-flash-high
           CONFIG__FALLBACK_MODELS: '["openai/gemini-3.5-flash-lite"]'
           CONFIG__CUSTOM_MODEL_MAX_TOKENS: '200000'

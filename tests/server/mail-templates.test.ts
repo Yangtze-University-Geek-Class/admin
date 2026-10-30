@@ -482,7 +482,7 @@ describe('测试邮箱试发', () => {
   it('地址不合法、模板有问题、渲染不出来时不入队也不占次数', async () => {
     const { api, footprint, db } = await setup();
     const before = footprint();
-    for (const to of ['不是邮箱', 'a@b', 'a@b.com\r\nBcc: x@evil.example', 'two@example.test,three@example.test', 'x <y@example.test>']) {
+    for (const to of ['不是邮箱', 'a@b', 'a@example.test\r\nBcc: x@evil.example', 'two@example.test,three@example.test', 'x <y@example.test>']) {
       const response = await api.testSend({ template_id: 'default-rejected', to });
       expect(response.statusCode, to).toBe(400);
       expect(response.json(), to).toMatchObject({ error: 'invalid_address' });

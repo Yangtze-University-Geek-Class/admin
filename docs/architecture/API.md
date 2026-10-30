@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-30
 
 方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
 
@@ -55,7 +55,7 @@ portal 包括 /api/docs、/api/feedback、/api/portal/apply、/api/public/config
 | `POST /auth/email/start` | 匿名 | 10 次/分钟；同一邮箱 60 秒一封、每小时 5 封，同一 IP（IPv6 按 /64）每小时 20 封 | 202 `{ resend_after: 60 }`，写签名的 `email_challenge` cookie（`Path=/auth/email`，10 分钟）；邮箱有没有账号响应都一样（#262）。body `{ email, return_to?, purpose? }`，`purpose: "reset"` 只把信换成重设密码的那一封（#273） | 400 `bad_email`；429 `rate_limited`，带 `Retry-After` 与 `retry_after`（秒） |
 | `POST /auth/email/verify` | `email_challenge` cookie | 30 次/分钟 | 200 `{ return_to, registered }` 并签发 `sid`（`provider: "email"`）；body `{ code, invite_code? }`，没有账号时不填 `invite_code` 就注册成注册用户，填了且有效注册成成员（#274 SPEC §3.2） | 400 `invalid_code`（带 `attempts_left`，同一个码最多错 5 次）/ `code_expired` / `invite_invalid`（邀请码无效，计一次失败，验证码不作废）；403 `account_disabled` |
 | `POST /auth/email/password` | 匿名 | 10 次/分钟；按邮箱另计 15 分钟 10 次 | 200 `{ return_to }` 并签发 `sid`；body `{ email, password, return_to? }` | 400 `invalid_credentials`（没账号、没设密码、密码不对都是它）；403 `account_disabled`；429 |
-| `POST /auth/email/reset` | `email_challenge` cookie | 10 次/分钟 | 200 `{ return_to }` 并签发 `sid`（`provider: "email"`）；body `{ code, password }`：忘了密码时用 `/auth/email/start` 发的验证码设新密码并登录，只给已有账号的邮箱，不注册（#273）。审计 `auth.signin`（`method: "reset"`）与 `account.password`（`action: "reset"`），账号记录 `password_reset` | 400 `password_too_short` / `password_exceeds_bcrypt_limit`（先查，不碰验证码）/ `invalid_code`（带 `attempts_left`）/ `code_expired` / `no_account`（邮箱没有账号；不注册，验证码不作废）；403 `account_disabled` |
+| `POST /auth/email/reset` | `email_challenge` cookie | 10 次/分钟 | 200 `{ return_to }` 并签发 `sid`（`provider: "email"`）；body `{ code, password }`：忘了密码时用 `/auth/email/start` 发的验证码设新密码并登录，只给已有账号的邮箱，不注册（#273）。审计 `auth.signin`（`method: "reset"`）与 `account.password`（`action: "reset"`），账号记录 `password_reset`；成功后与写新密码在同一个事务里吊销本账号的其它会话、命令行令牌与对外授权（#332，审计 `auth.credentials_revoked`） | 400 `password_too_short` / `password_exceeds_bcrypt_limit`（先查，不碰验证码）/ `invalid_code`（带 `attempts_left`）/ `code_expired` / `no_account`（邮箱没有账号；不注册，验证码不作废）；403 `account_disabled` |
 | `GET /auth/google?return_to=&invite=` | 匿名 | 20 次/分钟 | 302 到 Google 授权页（`openid email profile`，state、nonce、PKCE S256），写签名的 `google_oauth_state` cookie；`invite`（#274 SPEC §3.2）选填 | 404 `provider_not_enabled`（没配凭据） |
 | `GET /auth/google/callback` | `google_oauth_state` cookie | 10 次/分钟 | 成功 302 回 `return_to`（账号还没有登录邮箱时改去 `/bind-email?return_to=<原路径>`，Google 给的邮箱不算，#273）；按 Google `sub` 认人，没有账号时不填 `invite` 也注册成功（进 `level.registered`），填了且有效进 `level.member`，不按邮箱合并账号 | 没成功一律 302 到 `/signin?signin=<cancelled\|failed\|invite_invalid\|email_taken\|account_disabled>&provider=google&return_to=…`；缺参数或 state 无效 400；404 `provider_not_enabled`。cookie 是 `google-link`（`POST /api/identity/link` 发起）时是绑定：核对当前还是发起绑定的那个会话，把 Google `sub` 绑到发起的账号上，一律 302 回发起时的页面 `?link=<linked\|conflict\|exists\|cancelled\|failed>&provider=google`，失败不去登录页，也不会因为这个 Google 账号没绑过任何账号就建新账号（#291） |
 | `POST /api/identity/link` | `sid`，这次登录不超过 10 分钟 | 每账号 10 次/分钟 | 200 `{ authorize_url }`：body `{ provider: "google", return_to? }`，给本账号绑定 Google；写签名 cookie `google_oauth_state`（`kind: "google-link"`，带账号 id 与会话指纹），`return_to` 只收本站地址，缺省 `/account`。授权回来由 `GET /auth/google/callback` 处理，不登录、不建号、不换会话（#291） | 400（`provider` 不是 `google`）；403 `step_up_required`；404 `provider_not_enabled`；409 `identity_exists`（本账号已绑 Google）；429 |
@@ -63,7 +63,7 @@ portal 包括 /api/docs、/api/feedback、/api/portal/apply、/api/public/config
 | `POST /api/identity/email/start` | `sid`，这次登录不超过 10 分钟 | 10 次/分钟；发码限额同登录 | 202 `{ resend_after: 60 }`：给本账号绑定邮箱，验证码只对这次会话有效；一个账号最多 5 个邮箱，第一个是主邮箱（#272） | 400 `bad_email`；403 `step_up_required`（带 `reauth: { return_to: "/account" }`）；409 `identity_exists`（已经绑在本账号上）/ `email_limit`（已经有 5 个）；429 |
 | `POST /api/identity/email/verify` | `sid`（发起绑定的同一会话） | 10 次/分钟 | 200 `{ ok: true }` | 400 `invalid_code` / `code_expired`；409 `identity_conflict`（邮箱属于别的账号）/ `identity_exists` / `email_limit` |
 | `POST /api/identity/email/remove` | `sid`，这次登录不超过 10 分钟 | 10 次/分钟 | 200 `{ ok: true }`：body `{ identity_id }`，删掉一个不是主邮箱的邮箱（#272） | 403 `step_up_required`；404 `not_found`；409 `primary_email` |
-| `POST /api/identity/password` | `sid`，账号已绑邮箱 | 10 次/分钟 | 200 `{ ok: true }`：body `{ password, current_password? }`，至少 8 位、UTF-8 不超过 72 字节；已有密码且登录超过 10 分钟时要 `current_password` | 400 `password_too_short` / `password_exceeds_bcrypt_limit` / `invalid_credentials`；403 `step_up_required`；409 `email_required` |
+| `POST /api/identity/password` | `sid`，账号已绑邮箱 | 10 次/分钟 | 200 `{ ok: true }`：body `{ password, current_password? }`，至少 8 位、UTF-8 不超过 72 字节；已有密码且登录超过 10 分钟时要 `current_password`；成功后与写新密码在同一个事务里吊销本账号的其它会话、命令行令牌与对外授权（#332） | 400 `password_too_short` / `password_exceeds_bcrypt_limit` / `invalid_credentials`；403 `step_up_required`；409 `email_required` |
 | `GET /oidc/.well-known/openid-configuration`、`GET /oidc/jwks`、`GET /oidc/auth` | 匿名或 `sid` | 发现文档、公钥算下游服务器调用，与换令牌、撤销、userinfo 合计 600 次/分钟；授权端点另计 120 次/分钟（都按 IP） | 发现文档、公钥、授权端点，由 `oidc-provider` 处理（#270）。签发者 `<PUBLIC_ORIGIN>/oidc`；授权端点按本站 `sid` 判断登录，已登录且同意过时 303 回下游带 `code`，否则 303 到 `/oidc/interaction/<uid>`。只做授权码流程，PKCE 必须 `S256`，scope 只有 `openid`、`profile`、`email` | 没配 `OIDC_JWKS` 时所有 `/oidc/*` 404；未知客户端、回调地址不一致 400 HTML 错误页，不跳转；PKCE 缺失或方法不对带 `error` 回下游 |
 | `POST /oidc/token`、`GET\|POST /oidc/me`、`POST /oidc/token/revocation` | 客户端 `client_secret_basic` / `client_secret_post`；userinfo 用 Bearer 访问令牌 | 下游服务器调用合计 600 次/分钟（按 IP，与发现文档、公钥共用） | 200 `{ access_token, id_token, token_type, expires_in, scope }`，不发 refresh token；userinfo 给 `sub`、`name`、`preferred_username`、`picture`、`email`、`email_verified`（按同意的 scope） | 401 `invalid_client`；400 `invalid_grant`（授权码过期、用过、PKCE 不对；重放时撤销这份授权和它的令牌）；userinfo 对停用或不再是成员的账号 401 |
 | `GET /oidc/interaction/:uid` | 浏览器，凭签名 cookie `oidc_interaction` | 30 次/分钟 | 没 `sid` 303 到 `/signin?return_to=/oidc/interaction/<uid>`；账号还没有登录邮箱 303 到 `/bind-email?return_to=/oidc/interaction/<uid>`（#273）；要同意 303 到 `/authorize?uid=<uid>`；要登录时按 `sid` 账号登录后 303 回授权端点 | 交互不认 400 HTML 错误页；账号不是成员 303 回下游带 `error=access_denied` |
@@ -122,7 +122,7 @@ portal 包括 /api/docs、/api/feedback、/api/portal/apply、/api/public/config
 
 ### 比赛信息发布合同（#238）
 
-`competitions` 只存赛事事实；报名、组队与积分见下一节。新建必填 `name`、`kind`、`start_at`、`end_at`，可选 `signup_deadline`、`url`、`description`、`planning`（布尔，#278 重开，所有者 2026-10-25「比赛是有状态的，规划中，进行中，已结束」；不填按不规划处理，默认 `false`）；PATCH 是非空字段子集，可另带 `offline`。名称去首尾空白后至少 2 个 Unicode 码点、最多 80 个；说明最多 1000 个码点；链接最多 500 个码点（控制台与 JSON Schema 同口径，扩展汉字不按两个 UTF-16 码元重复计数），所有类型都可不填，非空必须能解析为 HTTPS URL。请求 Schema 检查类型、范围与形状，路由调用 `competitionError` 校验名称、链接与时间关系；失败不写库、不记成功审计。五个操作同时挂载真实成功响应及共同错误 Schema，公开 DTO 不含内部字段，详见 `app/server/src/lib/competition-contract.ts`。
+`competitions` 只存赛事事实；报名、组队与积分见下一节。新建必填 `name`、`kind`、`start_at`、`end_at`，可选 `signup_deadline`、`url`、`description`、`planning`（布尔，#278 重开，所有者 2026-10-25 提出比赛要有状态（规划中、进行中、已结束）；不填按不规划处理，默认 `false`）；PATCH 是非空字段子集，可另带 `offline`。名称去首尾空白后至少 2 个 Unicode 码点、最多 80 个；说明最多 1000 个码点；链接最多 500 个码点（控制台与 JSON Schema 同口径，扩展汉字不按两个 UTF-16 码元重复计数），所有类型都可不填，非空必须能解析为 HTTPS URL。请求 Schema 检查类型、范围与形状，路由调用 `competitionError` 校验名称、链接与时间关系；失败不写库、不记成功审计。五个操作同时挂载真实成功响应及共同错误 Schema，公开 DTO 不含内部字段，详见 `app/server/src/lib/competition-contract.ts`。
 
 时间是 UTC 毫秒整数，范围 `0..8639999971200000`（Date 有效上限减北京时间八小时偏移）；结束不早于开始，报名截止不晚于结束。控制台新建的日期取北京时间整天；编辑时只 PATCH 修改过的字段，未修改日期保留 API 原始时分。省略 `url` / `signup_deadline` / `planning` 保留原值（创建时省略 `planning` 按 `false`）。显式 `null` 才清空 `url` / `signup_deadline`（`planning` 不接受 `null`，只是布尔）。`offline` 只影响公开可见性，重新上线保留原记录；DELETE 真删，重复删除 404。有未取消的报名后 PATCH 不能改 `kind`（409 `kind_locked`），已开放报名时不能把 `signup_deadline` 清成 null（409 `deadline_required`），有报名记录（含已取消）的比赛不能 DELETE（409 `has_signups`）。三种写操作与各自审计在同一事务内，审计失败回滚业务写入，GitHub 权限检查在事务前完成。
 
@@ -289,6 +289,12 @@ CONTRACT-276 在上面这套 #57/#156/#274 的基础上加了六件事：话题�
 - `429 { error: "rate_limited", bucket: "apply.daily", message, retry_after }`（#169，#274 改成按账号为主）：账号当天（北京时间零点重置）的投递额度（`meta.limit.apply.daily`：注册用户 3 份、极客班成员不限）、来源 IP（IPv6 按 /64）当天 10 份、设备当天 5 份，三条线任一超限都回这个形状，不区分是哪一条（不给探测哪条更松的机会）；`retry_after` 是到下一个北京零点的秒数。这一份不落库、不写信、不计入任何一条线的额度。计数见 [数据模型](../services/server/data-model.md) 的 `limit_events`（`application_limits` 表已弃用，只留历史数据）。
 
 边界行为：蜜罐检查在字段校验之前，命中时返回与成功完全一致的 `201` 形状但不落库，不向脚本暴露陷阱；公开表单通用的蜜罐 400 `请求被拒绝` 在本端点走不到。字段约束在路由内单一校验层实现，该端点不注册 `contracts.ts` body schema；除三个蜜罐字段外，未知字段被忽略而不是让投递失败。落库与审计见 `app/server/src/routes/portal/apply.ts`、[server 合同](../services/server/README.md) 与 [数据模型](../services/server/data-model.md)：审计动作 `application.received` 记录目标 id、来源 IP（`ip` 列）与 `account_id`，details 只含脱敏邮箱、班级、`name_length` 和 `strengths_length`，不记姓名与完整 `strengths`。回归测试见 `tests/server/applications.test.ts`、`tests/server/rate-limits.test.ts`、`tests/server/mail-outbox.test.ts`。
+
+## 门户代码仓库
+
+`GET /api/public/gitlab` 是门户的跨环境入口：匿名302到本环境GitLab群组，保留基址子路径且不缓存；无基址503，未知查询字段400。目的地只由服务端配置决定，不接受客户端指定跳转地址。
+
+公开 `GET /api/public/gitlab/projects` 始终只给 public 项目；成员 `GET /api/me/gitlab/projects` 要有效会话和同 OIDC 口径的有效直接 member/alumni，不要求控制台管理节点。返回相同的最小项目 DTO，成员接口不开放账号或同步管理信息；游客401、无资格403，网络等待后再次核验资格。上游不可用与真实空列表分开，响应不缓存。完整响应和验证见[成员项目契约](../services/server/endpoint-contracts.md#门户代码仓库列表)。
 
 ## 错误
 

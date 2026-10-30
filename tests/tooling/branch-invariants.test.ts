@@ -22,7 +22,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-const git = (cwd: string, ...args: string[]) =>
+const gitWith = (cwd: string, env: NodeJS.ProcessEnv, args: string[]) =>
   execFileSync(
     'git',
     [
@@ -38,8 +38,12 @@ const git = (cwd: string, ...args: string[]) =>
       'user.email=fixture@example.invalid',
       ...args,
     ],
-    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env },
   ).trim();
+const git = (cwd: string, ...args: string[]) => gitWith(cwd, process.env, args);
+/** 固定作者与提交者时间：窗口归属按提交者时间判定，夹具不能依赖运行测试时的真实时钟。 */
+const gitAt = (cwd: string, committedAt: string, ...args: string[]) =>
+  gitWith(cwd, { ...process.env, GIT_AUTHOR_DATE: committedAt, GIT_COMMITTER_DATE: committedAt }, args);
 
 function fixture({ divergent = false } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), 'geek-branch-guard-'));
@@ -50,6 +54,8 @@ function fixture({ divergent = false } = {}) {
   git(cwd, 'checkout', '-b', 'stage');
   git(cwd, 'commit', '--allow-empty', '-m', 'stage integration');
   const stageTip = git(cwd, 'rev-parse', 'HEAD');
+  // 夹具模拟已经 fetch 过的远端：推 main 的判定只认远端跟踪的 stage（或同一批推送里的 stage），不认本地 stage。
+  git(cwd, 'update-ref', 'refs/remotes/origin/stage', stageTip);
   if (divergent) {
     // main 领先 stage：main 上一笔从未进入 stage 的提交。
     git(cwd, 'checkout', 'main');
@@ -311,6 +317,62 @@ describe('pre-push guard', () => {
   });
 });
 
+describe('pre-push: where the stage evidence for a main push comes from', () => {
+  const NONE = '0'.repeat(40);
+  const mainPush = (localSha: string) => ({ localRef: 'refs/heads/main', localSha, remoteRef: 'refs/heads/main', remoteSha: NONE });
+
+  it('does not let an unpushed local stage commit authorize a main push of that commit (E1)', () => {
+    const f = fixture();
+    git(f.cwd, 'checkout', 'stage');
+    git(f.cwd, 'commit', '--allow-empty', '-m', 'stage unpushed work');
+    const unpushed = git(f.cwd, 'rev-parse', 'HEAD');
+    git(f.cwd, 'checkout', 'main');
+    git(f.cwd, 'merge', '--ff-only', 'stage');
+    const result = checkPushes({ repo: f.cwd, pushes: [mainPush(unpushed)] });
+    expect(result.ok).toBe(false);
+    const joined = result.violations.join('\n');
+    expect(joined).toContain(INVARIANTS[1]);
+    expect(joined).toContain(`${unpushed.slice(0, 12)}：`);
+  });
+
+  it('judges a main push against the stage pushed in the same batch, not against origin/stage', () => {
+    const f = fixture({ divergent: true });
+    git(f.cwd, 'checkout', 'stage');
+    git(f.cwd, 'merge', '--no-ff', '-m', 'merge main into stage', 'main');
+    const newStage = git(f.cwd, 'rev-parse', 'HEAD');
+    const stagePush = { localRef: 'refs/heads/stage', localSha: newStage, remoteRef: 'refs/heads/stage', remoteSha: f.stageTip };
+    expect(checkPushes({ repo: f.cwd, pushes: [mainPush(f.mainAhead)] }).ok).toBe(false);
+    const together = checkPushes({ repo: f.cwd, pushes: [stagePush, mainPush(f.mainAhead)] });
+    expect(together.violations).toEqual([]);
+    expect(together.ok).toBe(true);
+  });
+
+  it('uses refs/remotes/<remote>/stage for --remote, and origin/stage without it', () => {
+    const f = fixture({ divergent: true });
+    git(f.cwd, 'checkout', 'stage');
+    git(f.cwd, 'merge', '--no-ff', '-m', 'merge main into stage', 'main');
+    git(f.cwd, 'update-ref', 'refs/remotes/gitlab/stage', 'stage');
+    // origin/stage 仍停在旧提交上，只有 --remote gitlab 才应当拿 gitlab/stage 作证据。
+    expect(checkPushes({ repo: f.cwd, remote: 'gitlab', pushes: [mainPush(f.mainAhead)] }).violations).toEqual([]);
+    expect(checkPushes({ repo: f.cwd, pushes: [mainPush(f.mainAhead)] }).ok).toBe(false);
+    const line = `refs/heads/main ${f.mainAhead} refs/heads/main ${NONE}\n`;
+    const named = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd, '--remote', 'gitlab'], { encoding: 'utf8', input: line });
+    expect(named.status).toBe(0);
+    const unnamed = spawnSync(process.execPath, [script, '--push', '--repo', f.cwd], { encoding: 'utf8', input: line });
+    expect(unnamed.status).toBe(1);
+  });
+
+  it('refuses a main push when no remote-tracking stage exists, even though the local stage contains the commit', () => {
+    const f = fixture();
+    git(f.cwd, 'update-ref', '-d', 'refs/remotes/origin/stage');
+    const result = checkPushes({ repo: f.cwd, pushes: [mainPush(f.mainTip)] });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join('\n')).toContain('本地 stage 不算证据');
+    const named = checkPushes({ repo: f.cwd, remote: 'gitlab', pushes: [mainPush(f.mainTip)] });
+    expect(named.violations.join('\n')).toContain('refs/remotes/gitlab/stage');
+  });
+});
+
 /**
  * 发布 tag 夹具：带 package.json（version 0.1.0）的 main/stage 仓库。
  * mainTip 是 stageTip 的祖先；taskTip 在一条未合并的任务分支上。
@@ -441,6 +503,68 @@ describe('pre-push guard: release tags', () => {
     expect(warnings).toContain('refs/tags/old-note：删除的是非发布 tag');
   });
 
+  it('checks hf and stable tags: released version first, N without gaps, only on the merge that brings main into stage', () => {
+    const f = releaseFixture();
+    const beijing = (ms: number) => `${new Date(ms + 8 * 3600e3).toISOString().slice(0, 19)}+08:00`;
+    const registry = (window: Record<string, unknown>) => `${JSON.stringify({ schemaVersion: 1, windows: [{ issue: 9, tag: 'v0.1.0', approvedBy: '所有者', approvedAt: beijing(Date.now() - 3600e3), approval: '所有者 10-29 在会话中批准：走 hotfix', ...window }] }, null, 2)}\n`;
+    const commitRegistry = (text: string, message: string) => {
+      mkdirSync(join(f.cwd, 'deploy/hotfix'), { recursive: true });
+      writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), text);
+      git(f.cwd, 'add', 'deploy/hotfix/windows.json');
+      git(f.cwd, 'commit', '-q', '-m', message);
+    };
+    /** main 合进 stage（--no-ff），远端跟踪引用跟上：pre-push 只认远端的 main，不认本地 main。 */
+    const mergeMain = () => {
+      git(f.cwd, 'checkout', '-q', 'stage');
+      git(f.cwd, 'merge', '-q', '--no-ff', '--no-edit', 'main');
+      git(f.cwd, 'update-ref', 'refs/remotes/origin/main', 'main');
+      git(f.cwd, 'update-ref', 'refs/remotes/origin/stage', 'stage');
+      return git(f.cwd, 'rev-parse', 'HEAD');
+    };
+    git(f.cwd, 'checkout', '-q', 'main');
+    commitRegistry(registry({ status: 'open', expiresAt: beijing(Date.now() + 3 * 86400e3) }), 'chore(deploy): 登记 hotfix 窗口 #9');
+    git(f.cwd, 'commit', '-q', '--allow-empty', '-m', 'fix(server): 登录回跳修正 #9');
+    const hfMerge = mergeMain();
+
+    const unreleased = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.1', hfMerge)] });
+    expect(unreleased.ok).toBe(false);
+    expect(unreleased.violations.join('\n')).toContain('还没有正式 tag v0.1.0');
+
+    git(f.cwd, 'tag', 'v0.1.0', f.mainTip);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.1', hfMerge)] }).ok).toBe(true);
+    // 不是合并提交（stage 上普通的集成提交）：拒绝。
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.1', f.stageTip)] }).violations.join('\n')).toContain('只打在把 main 合进 stage 的合并提交上');
+    const gap = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.2', hfMerge)] });
+    expect(gap.ok).toBe(false);
+    expect(gap.violations.join('\n')).toContain('N 必须是 1');
+    git(f.cwd, 'tag', 'v0.1.0-hf.1', hfMerge);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.2', hfMerge)] }).ok).toBe(true);
+    // 远端已有且指向同一提交：重复推送不再核对 N，也不算移动。
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.1', hfMerge, hfMerge)] }).ok).toBe(true);
+    // 远端已有、这次要换到别的提交：移动，拒绝。
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf.1', f.mainTip, hfMerge)] }).violations.join('\n')).toContain('拒绝移动发布 tag refs/tags/v0.1.0-hf.1');
+    expect(checkPushes({ repo: f.cwd, pushes: [{ localRef: '(delete)', localSha: zero, remoteRef: 'refs/tags/v0.1.0-hf.1', remoteSha: hfMerge }] }).violations.join('\n')).toContain('拒绝删除发布 tag');
+
+    // 窗口还开着的合并：没有新关闭的窗口，不打 stable。
+    const noWindow = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-stable.1', hfMerge)] });
+    expect(noWindow.ok).toBe(false);
+    expect(noWindow.violations.join('\n')).toContain('没有新关闭的 v0.1.0 hotfix 窗口');
+    git(f.cwd, 'checkout', '-q', 'main');
+    commitRegistry(registry({ status: 'closed', closedAt: beijing(Date.now()), evidence: '合回 stage 的提交与线上核对（测试夹具）' }), 'chore(deploy): 关闭 hotfix 窗口 #9');
+    const closedMerge = mergeMain();
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-stable.1', closedMerge)] }).ok).toBe(true);
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-stable.2', closedMerge)] }).ok).toBe(false);
+
+    // 没有远端的 main：确认不了合进来的是 main，拒绝；同一次推送里带着 main 时按它判定。
+    git(f.cwd, 'update-ref', '-d', 'refs/remotes/origin/main');
+    expect(checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-stable.1', closedMerge)] }).violations.join('\n')).toContain('本地没有 main 的引用');
+    const main = git(f.cwd, 'rev-parse', 'main');
+    expect(checkPushes({ repo: f.cwd, pushes: [{ localRef: 'refs/heads/main', localSha: main, remoteRef: 'refs/heads/main', remoteSha: f.mainTip }, tagPush('v0.1.0-stable.1', closedMerge)] }).violations.join('\n')).not.toContain('本地没有 main 的引用');
+
+    const malformed = checkPushes({ repo: f.cwd, pushes: [tagPush('v0.1.0-hf', hfMerge), tagPush('v0.1.0-stable', hfMerge)] });
+    expect(malformed.violations.join('\n')).toContain('格式不对');
+  });
+
   it('rejects a release tag when neither the local nor the remote-tracking branch exists', () => {
     const f = releaseFixture();
     git(f.cwd, 'checkout', 'task/7/tag_release');
@@ -472,20 +596,24 @@ describe('pre-push guard: release tags', () => {
 // P0 hotfix 窗口：main 在已登记的窗口内可以领先 stage，每个领先的提交都要归属于窗口。
 describe('hotfix windows', () => {
   const window = (overrides: Record<string, unknown> = {}) => ({
-    issue: 5, tag: 'v1.2.3', status: 'open', approvedBy: 'Crosery', approvedAt: '2026-10-28T19:11:00+08:00',
-    expiresAt: '2026-11-04T19:11:00+08:00', quote: '这是一个必须走 hotfix 的 P0 问题', ...overrides,
+    issue: 5, tag: 'v1.2.3', status: 'open', approvedBy: '所有者', approvedAt: '2026-10-28T19:11:00+08:00',
+    expiresAt: '2026-11-04T19:11:00+08:00', approval: '这是一个必须走 hotfix 的 P0 问题', ...overrides,
   });
   const registryOf = (...windows: Record<string, unknown>[]) => JSON.stringify({ schemaVersion: 1, windows });
   const NOW = new Date('2026-10-30T00:00:00+08:00');
 
-  /** stage 有自己的提交；main 上的第一笔提交带登记文件（可为空），其后每条消息一笔提交。 */
-  function hotfixRepo({ registry, messages }: { registry?: string; messages: string[] }) {
+  // 默认提交时间落在窗口批准与过期之间；需要「批准前」「过期后」的提交时由用例自己指定。
+  const COMMITTED = '2026-10-29T12:00:00+08:00';
+
+  /** stage 有自己的提交；main 上的第一笔提交带登记文件（可为空），其后每条消息一笔提交，提交者时间都是 committedAt。 */
+  function hotfixRepo({ registry, messages, committedAt = COMMITTED }: { registry?: string; messages: string[]; committedAt?: string }) {
     const cwd = mkdtempSync(join(tmpdir(), 'geek-hotfix-window-'));
     roots.push(cwd);
     git(cwd, 'init', '--initial-branch=main');
     git(cwd, 'commit', '--allow-empty', '-m', 'baseline');
     git(cwd, 'checkout', '-b', 'stage');
     git(cwd, 'commit', '--allow-empty', '-m', 'stage only work');
+    git(cwd, 'update-ref', 'refs/remotes/origin/stage', 'stage');
     git(cwd, 'checkout', 'main');
     const shas: string[] = [];
     messages.forEach((message, index) => {
@@ -494,7 +622,7 @@ describe('hotfix windows', () => {
         writeFileSync(join(cwd, 'deploy/hotfix/windows.json'), registry);
         git(cwd, 'add', 'deploy/hotfix/windows.json');
       }
-      git(cwd, 'commit', '--allow-empty', '-m', message);
+      gitAt(cwd, committedAt, 'commit', '--allow-empty', '-m', message);
       shas.push(git(cwd, 'rev-parse', 'HEAD'));
     });
     return { cwd, shas, stageTip: git(cwd, 'rev-parse', 'stage') };
@@ -521,20 +649,44 @@ describe('hotfix windows', () => {
   });
 
   it('attributes a commit that the window lists by SHA even without an issue reference', () => {
-    // 登记提交不能列自己的 SHA：被列的提交在登记之前
-    const f = hotfixRepo({ messages: ['fix: 窗口建立之前的提交，没写编号'] });
+    // 登记提交不能列自己的 SHA：被列的提交在登记之前（批准前的提交，说明里也没写编号）
+    const f = hotfixRepo({ messages: ['fix: 窗口建立之前的提交，没写编号'], committedAt: '2026-10-28T10:00:00+08:00' });
     const registry = (commits: string[]) => registryOf(window({ commits }));
     mkdirSync(join(f.cwd, 'deploy/hotfix'), { recursive: true });
     writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), registry([f.shas[0]]));
     git(f.cwd, 'add', 'deploy/hotfix/windows.json');
-    git(f.cwd, 'commit', '-m', 'chore: 登记 hotfix 窗口 (#5)');
+    gitAt(f.cwd, COMMITTED, 'commit', '-m', 'chore: 登记 hotfix 窗口 (#5)');
     expect(checkInvariants({ repo: f.cwd, now: NOW }).ok).toBe(true);
     // 列的不是这个提交，就不归属
     writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), registry(['0'.repeat(40)]));
-    git(f.cwd, 'commit', '-am', 'chore: 改登记 (#5)');
+    gitAt(f.cwd, COMMITTED, 'commit', '-am', 'chore: 改登记 (#5)');
     const result = checkInvariants({ repo: f.cwd, now: NOW });
     expect(result.ok).toBe(false);
     expect(result.violations.join('\n')).toContain(f.shas[0].slice(0, 12));
+  });
+
+  it('does not attribute a commit that cites the window but was committed before approval, unless the window lists it', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix: 修复 (#5)'], committedAt: '2026-10-28T10:00:00+08:00' });
+    const before = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(before.ok).toBe(false);
+    const joined = before.violations.join('\n');
+    expect(joined).toContain(f.shas[0].slice(0, 12));
+    expect(joined).toContain('早于 #5 的批准时间');
+    expect(joined).toContain(`把 ${f.shas[0]} 写进窗口 commits，或者不要把它推进 main`);
+    // 把它列进窗口 commits 之后放行（登记提交本身在窗口之内，按 #5 归属）
+    mkdirSync(join(f.cwd, 'deploy/hotfix'), { recursive: true });
+    writeFileSync(join(f.cwd, 'deploy/hotfix/windows.json'), registryOf(window({ commits: [f.shas[0]] })));
+    git(f.cwd, 'add', 'deploy/hotfix/windows.json');
+    gitAt(f.cwd, COMMITTED, 'commit', '-m', 'chore: 登记 hotfix 窗口 (#5)');
+    expect(checkInvariants({ repo: f.cwd, now: NOW }).ok).toBe(true);
+  });
+
+  it('does not attribute a commit that cites the window but was committed after its expiresAt', () => {
+    const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix: 修复 (#5)'], committedAt: '2026-11-06T10:00:00+08:00' });
+    const result = checkInvariants({ repo: f.cwd, now: NOW });
+    expect(result.ok).toBe(false);
+    expect(result.violations.join('\n')).toContain(f.shas[0].slice(0, 12));
+    expect(result.violations.join('\n')).toContain('晚于 #5 的 expiresAt');
   });
 
   it('treats a closed window, an expired window and a missing or broken registry as no window', () => {
@@ -549,10 +701,10 @@ describe('hotfix windows', () => {
     expect(broken.violations.join('\n')).toContain('不是合法 JSON');
   });
 
-  it('rejects a registry without the owner quote and a window longer than 7 days', () => {
-    const noQuote = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ quote: '' })), messages: ['fix (#5)'] }).cwd, now: NOW });
-    expect(noQuote.ok).toBe(false);
-    expect(noQuote.violations.join('\n')).toContain('批准原话');
+  it('rejects a registry without the owner approval and a window longer than 7 days', () => {
+    const noApproval = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ approval: '' })), messages: ['fix (#5)'] }).cwd, now: NOW });
+    expect(noApproval.ok).toBe(false);
+    expect(noApproval.violations.join('\n')).toContain('批准摘要');
     const tooLong = checkInvariants({ repo: hotfixRepo({ registry: registryOf(window({ expiresAt: '2026-11-20T00:00:00+08:00' })), messages: ['fix (#5)'] }).cwd, now: NOW });
     expect(tooLong.ok).toBe(false);
     expect(tooLong.violations.join('\n')).toContain('最长 7 天');
@@ -564,6 +716,8 @@ describe('hotfix windows', () => {
     const f = hotfixRepo({ registry: registryOf(window()), messages: ['fix (#5)'] });
     git(f.cwd, 'checkout', 'stage');
     git(f.cwd, 'merge', '--no-ff', '-m', 'merge main into stage', 'main');
+    // stage 推上去之后远端跟踪分支跟着走；证据读的是远端跟踪的 stage。
+    git(f.cwd, 'update-ref', 'refs/remotes/origin/stage', 'stage');
     const result = checkInvariants({ repo: f.cwd, now: NOW });
     expect(result.ok).toBe(true);
     expect(result.notes.join('\n')).not.toContain('hotfix 窗口');

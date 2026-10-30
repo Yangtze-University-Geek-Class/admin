@@ -14,7 +14,7 @@ AI 先执行 [AGENT-START](AGENT-START.md) 的阅读门禁，不能先运行下�
 
 长期分支只有 `main`（正式）和 `stage`（预发布），完整规则（含不变量、禁止事项、清理要求）见 [BRANCHING](BRANCHING.md)：
 
-- 开发前先按 [ISSUES](ISSUES.md) 查证、查重，向 Crosery 提出候选并获具体事项确认后建单，正文保留确认依据和「相关 issue」；取消事项不自动恢复，拆单与后续跟进同样先确认。issue 带「组:类」改动类型标签（`ui:*` 要截图，`func:*` 要写涉及接口，缺了 `task.mjs start` 拒绝开工），再用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 拉 `task/<issue>/<slug>`（例 `task/12/portal_redesign`；分支名不用 `-`），**同时得到一个独立的 worktree**，所有开发都在里面做，不在主工作区切分支（见 [BRANCHING](BRANCHING.md)「task worktree」）；
+- 开发前先按 [ISSUES](ISSUES.md) 查证、查重，向所有者提出候选并获具体事项确认后建单，正文保留确认依据和「相关 issue」；取消事项不自动恢复，拆单与后续跟进同样先确认。issue 带「组:类」改动类型标签（`ui:*` 要截图，`func:*` 要写涉及接口，缺了 `task.mjs start` 拒绝开工），再用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 拉 `task/<issue>/<slug>`（例 `task/12/portal_redesign`；分支名不用 `-`），**同时得到一个独立的 worktree**，所有开发都在里面做，不在主工作区切分支（见 [BRANCHING](BRANCHING.md)「task worktree」）；
 - 一次任务一条 task 分支、一个 worktree，MR 回 `stage`，正文按 [PULL-REQUESTS](PULL-REQUESTS.md) 的契约写，PR 的「组:类」标签要覆盖 issue 的标签（`ui:*` 放改前改后截图，`func:*` 放接口测试与接口验证）；合并只用 merge commit（`gh pr merge <PR> --merge`），不用 squash 或 rebase（原因见 [BRANCHING](BRANCHING.md)）；
 - 从开工到收尾，每一步都按 [NOTES](NOTES.md) 写进 `notes/`：`task.mjs start` / `finish` 自动记开工和收尾，中间的提交、PR、审查、返工用 `node scripts/note.mjs add` 记；
 - **MR 合并后远端分支与 issue 自动清理，本机用 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支**，不留死分支、死目录；

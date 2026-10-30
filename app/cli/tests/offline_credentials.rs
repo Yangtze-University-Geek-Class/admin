@@ -29,15 +29,15 @@ fn missing_tokens_and_failed_revocation_have_honest_exit_codes() {
     assert_eq!(code, Some(0));
     assert_eq!(status["data"]["signed_in"], false);
     assert_eq!(status["data"]["token_valid"], false);
-    let (code, revoke) = run("logout", Some("gk_synthetic_offline"));
+    let (code, revoke) = run("logout", Some("gk_offline"));
     assert_eq!(code, Some(6));
     assert_eq!(revoke["ok"], false);
     assert_eq!(revoke["error"]["code"], "network_error");
-    let (code, status) = run("status", Some("gk_synthetic_offline"));
+    let (code, status) = run("status", Some("gk_offline"));
     assert_eq!(code, Some(0));
     assert_eq!(status["data"]["token_source"], "GEEK_TOKEN 环境变量");
     assert_eq!(status["data"]["signed_in"], true);
     assert_eq!(status["data"]["token_valid"], false);
-    assert!(!status.to_string().contains("gk_synthetic_offline"));
+    assert!(!status.to_string().contains("gk_offline"));
     std::fs::remove_dir_all(home).unwrap();
 }

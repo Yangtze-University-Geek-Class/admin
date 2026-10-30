@@ -5,7 +5,7 @@
 ## 01:26:26 +08:00 · 发布 · #262 #239 · 本机构建并部署预发布 0.1.1-rc.7（4eabb10273af）
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 00:37 批准本机发预发布（账号被封期间的临时做法，跳过 CI 与 GitHub 部署记录）。本地 tag v0.1.1-rc.7 → 4eabb102（未推送）；docker build --platform linux/amd64 三个镜像，构建参数与 deploy-preview.yml 相同，STATIC_CDN_BASE 留空走同源；docker save | gzip -9，sha256 e3be4323…；部署前在目标机 sqlite3 .backup 预发布库到 /root/yzgc-backups/preview-20261023T0049-7a25ec804b1f.db（integrity_check ok）；scp 归档、deploy-stack.sh 与 compose；env 用目标机现有 .env.preview 只换 IMAGE_TAG（密钥不离开目标机）；按工作流同一组参数运行 deploy-stack.sh
+- 做了什么：所有者 2026-10-23 00:37 批准[已脱敏]（账号被封期间的临时做法，跳过 CI 与 GitHub 部署记录）。本地 tag v0.1.1-rc.7 → 4eabb102（未推送）；docker build --platform linux/amd64 三个镜像，构建参数与 deploy-preview.yml 相同，STATIC_CDN_BASE 留空走同源；docker save | gzip -9，sha256 e3be4323…；部署前在目标机 sqlite3 .backup 预发布库到 /root/yzgc-backups/preview-20261023T0049-7a25ec804b1f.db（integrity_check ok）；scp 归档、deploy-stack.sh 与 compose；env 用目标机现有 .env.preview 只换 IMAGE_TAG（密钥不离开目标机）；按工作流同一组参数运行 deploy-stack.sh
 - 结果：部署成功：健康检查 18201/18200 返回 ok，deploy-history 记 2026-10-22T16:55:38Z preview 4eabb10273af OK；https://prev.yangtzeu.work/release.json 为 0.1.1-rc.7@4eabb10273af；/auth/me、/auth/providers、/api/public/competitions、/signin、/device 返回 200，报名、天梯、名单接口匿名 401 not_signed_in；表 29→38、比赛 0→1（种子赛事 oss-challenge-2026-1），旧数据未丢
 
 ## 01:26:26 +08:00 · 发布 · #262 · 本机构建并部署预发布 0.1.1-rc.8（bba4b066cd04），修登录页宽屏拉满

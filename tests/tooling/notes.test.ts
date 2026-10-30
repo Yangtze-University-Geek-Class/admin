@@ -5,9 +5,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   addNote, beijingNow, branchSlug, checkAll, checkChainFile, checkPullRequest, collectChains, checkChainOrder,
-  flushPending, mergeEntries, record as recordNote, renderIndex, renderSummary,
+  flushPending, isRedactionRevision, mergeEntries, record as recordNote, renderIndex, renderSummary, REDACTED,
+  CHAIN_ORDER_EXCEPTIONS,
 } from "../../scripts/note.mjs";
 import { finishTitle } from "../../scripts/task.mjs";
+
+// 历史例外登记的真实笔记目录（notes/<日期>/<用户名>/），测试从登记表取用户名，不写死账号名
+const noteUser = CHAIN_ORDER_EXCEPTIONS.find(item => item.slug === "task_276_forum_image_scan")!.rel.split("/")[2];
 
 // scripts/note.mjs：执行记录的写入、索引与核对（docs/conventions/NOTES.md，#91）。全部在临时目录里跑。
 const dirs: string[] = [];
@@ -129,7 +133,7 @@ describe("核对", () => {
   });
 
   describe("收尾之后又记的历史例外（GitLab #298）", () => {
-    const history = { ...base, user: "crosery", chain: "task/276/forum_image_scan", issues: ["276"] };
+    const history = { ...base, user: noteUser, chain: "task/276/forum_image_scan", issues: ["276"] };
     const seed = (extra?: (root: string) => void) => {
       const root = temp();
       addNote(root, { ...history, stage: "开工", title: "开工", now: at("2026-10-24T13:48:13Z") });
@@ -139,13 +143,13 @@ describe("核对", () => {
       return root;
     };
 
-    it("只放过 crosery/task_276_forum_image_scan 在 2026-10-24 22:03:16 的那一条发布", () => {
-      expect(checkChainOrder(collectChains(seed()).get("crosery/task_276_forum_image_scan"))).toEqual([]);
+    it("只放过 task_276_forum_image_scan 在 2026-10-24 22:03:16 的那一条发布", () => {
+      expect(checkChainOrder(collectChains(seed()).get(`${noteUser}/task_276_forum_image_scan`))).toEqual([]);
     });
 
     it("同一链上之后再追加任何记录仍然报错", () => {
       const root = seed(r => addNote(r, { ...history, stage: "验收", title: "验收", now: at("2026-10-24T14:10:00Z") }));
-      expect(checkChainOrder(collectChains(root).get("crosery/task_276_forum_image_scan")).join()).toMatch(/已经收尾/);
+      expect(checkChainOrder(collectChains(root).get(`${noteUser}/task_276_forum_image_scan`)).join()).toMatch(/已经收尾/);
     });
 
     it("同一链上时间或阶段不同的收尾后记录仍然报错", () => {
@@ -153,12 +157,12 @@ describe("核对", () => {
       addNote(root, { ...history, stage: "开工", title: "开工", now: at("2026-10-24T13:48:13Z") });
       addNote(root, { ...history, stage: "收尾", title: "收尾", now: at("2026-10-24T13:52:18Z") });
       addNote(root, { ...history, stage: "发布", title: "发布", now: at("2026-10-24T14:03:17Z") });
-      expect(checkChainOrder(collectChains(root).get("crosery/task_276_forum_image_scan")).join()).toMatch(/已经收尾/);
+      expect(checkChainOrder(collectChains(root).get(`${noteUser}/task_276_forum_image_scan`)).join()).toMatch(/已经收尾/);
       const other = temp();
       addNote(other, { ...history, stage: "开工", title: "开工", now: at("2026-10-24T13:48:13Z") });
       addNote(other, { ...history, stage: "收尾", title: "收尾", now: at("2026-10-24T13:52:18Z") });
       addNote(other, { ...history, stage: "验收", title: "验收", now: at("2026-10-24T14:03:16Z") });
-      expect(checkChainOrder(collectChains(other).get("crosery/task_276_forum_image_scan")).join()).toMatch(/已经收尾/);
+      expect(checkChainOrder(collectChains(other).get(`${noteUser}/task_276_forum_image_scan`)).join()).toMatch(/已经收尾/);
     });
 
     it("别的链路出现同样的收尾后发布仍然报错", () => {
@@ -167,7 +171,46 @@ describe("核对", () => {
       addNote(root, { ...other, stage: "开工", title: "开工", now: at("2026-10-24T13:48:13Z") });
       addNote(root, { ...other, stage: "收尾", title: "收尾", now: at("2026-10-24T13:52:18Z") });
       addNote(root, { ...other, stage: "发布", title: "发布", now: at("2026-10-24T14:03:16Z") });
-      expect(checkChainOrder(collectChains(root).get("crosery/task_277_other_task")).join()).toMatch(/已经收尾/);
+      expect(checkChainOrder(collectChains(root).get(`${noteUser}/task_277_other_task`)).join()).toMatch(/已经收尾/);
+    });
+  });
+
+  describe("第一条不是开工的历史例外（GitLab #308）", () => {
+    const stageClose = { ...base, user: noteUser, chain: "task/308/stage_close", issues: ["308"] };
+    const seed = (iso: string, stage: string) => {
+      const root = temp();
+      addNote(root, { ...stageClose, stage, title: "关闭 #310/#311 hotfix 窗口登记", now: at(iso) });
+      return root;
+    };
+    const chainKey = `${noteUser}/task_308_stage_close`;
+
+    it("只放过 task_308_stage_close 在 2026-10-29 23:51:18 的那一条推送", () => {
+      expect(checkChainOrder(collectChains(seed("2026-10-29T15:51:18Z", "推送")).get(chainKey))).toEqual([]);
+    });
+
+    it("同一链路时间不同或阶段不同仍然报错", () => {
+      expect(checkChainOrder(collectChains(seed("2026-10-29T15:51:19Z", "推送")).get(chainKey)).join()).toMatch(/第一条必须是「开工」/);
+      expect(checkChainOrder(collectChains(seed("2026-10-29T15:51:18Z", "发布")).get(chainKey)).join()).toMatch(/第一条必须是「开工」/);
+    });
+
+    it("别的链路出现同样时刻和阶段的第一条仍然报错", () => {
+      const root = temp();
+      addNote(root, { ...stageClose, chain: "task/309/other_task", issues: ["309"], stage: "推送", title: "关闭 #310/#311 hotfix 窗口登记", now: at("2026-10-29T15:51:18Z") });
+      expect(checkChainOrder(collectChains(root).get(`${noteUser}/task_309_other_task`)).join()).toMatch(/第一条必须是「开工」/);
+    });
+
+    it("规则不同不放过：收尾之后的那条推送不算第一条例外，仍然报错", () => {
+      const root = temp();
+      addNote(root, { ...stageClose, stage: "开工", title: "开工", now: at("2026-10-29T10:00:00Z") });
+      addNote(root, { ...stageClose, stage: "收尾", title: "收尾", now: at("2026-10-29T11:00:00Z") });
+      addNote(root, { ...stageClose, stage: "推送", title: "关闭 #310/#311 hotfix 窗口登记", now: at("2026-10-29T15:51:18Z") });
+      expect(checkChainOrder(collectChains(root).get(chainKey)).join()).toMatch(/已经收尾/);
+    });
+
+    it("第一条例外只按 first_entry 规则放过，不放过 276 那一条的收尾后发布", () => {
+      const root = temp();
+      addNote(root, { ...stageClose, chain: "task/276/forum_image_scan", issues: ["276"], stage: "发布", title: "发布", now: at("2026-10-24T14:03:16Z") });
+      expect(checkChainOrder(collectChains(root).get(`${noteUser}/task_276_forum_image_scan`)).join()).toMatch(/第一条必须是「开工」/);
     });
   });
 
@@ -355,6 +398,93 @@ describe("checkPullRequest", () => {
 
     const problems = checkPullRequest(root, { base: "stage", head: "task/91/agent_notes" });
     expect(problems.join("\n")).toMatch(/发现删除或修改已有记录的行/);
+  });
+  it("PR 里只做脱敏修订的已有记录放行；夹带别的改动就拒绝", () => {
+    const root = repo();
+    record(root, "开工", 0);
+    record(root, "提交", 5);
+    record(root, "PR", 10);
+    record(root, "审查", 20);
+    commit(root);
+    git(root, "checkout", "-q", "stage");
+    git(root, "merge", "-q", "task/91/agent_notes");
+    git(root, "checkout", "-q", "task/91/agent_notes");
+    const chainPath = join(root, "notes/2026-09-26/alice/task_91_agent_notes.md");
+    writeFileSync(chainPath, readFileSync(chainPath, "utf8").replace("有结果", REDACTED));
+    record(root, "返工", 30);
+    commit(root);
+    expect(pr(root)).toBe("");
+
+    writeFileSync(chainPath, readFileSync(chainPath, "utf8").replace("做了一件事", "改了一件事"));
+    commit(root);
+    expect(pr(root)).toMatch(/发现删除或修改已有记录的行/);
+  });
+
+  it("PR 新增的记录里有用户原话形态就拒绝（只报行数，不回显内容）；改写成批准摘要就放行", () => {
+    const root = repo();
+    record(root, "开工", 0);
+    record(root, "提交", 5);
+    record(root, "PR", 10);
+    record(root, "审查", 20);
+    commit(root);
+    git(root, "checkout", "-q", "stage");
+    git(root, "merge", "-q", "task/91/agent_notes");
+    git(root, "checkout", "-q", "task/91/agent_notes");
+    const chainPath = join(root, "notes/2026-09-26/alice/task_91_agent_notes.md");
+    // 标签与引号、冒号在测试里拼接，避免本文件自己命中门禁
+    const quoted = ["- 做了什么：", "原话", "：", "「", "这是一句话", "」"].join("");
+    writeFileSync(chainPath, `${readFileSync(chainPath, "utf8")}${quoted}\n`);
+    commit(root);
+    const problems = pr(root);
+    expect(problems).toMatch(/含用户原话形态/);
+    expect(problems).not.toContain("这是一句话");
+
+    const summary = "- 做了什么：所有者 2026-10-30 07:43 在会话中批准：按 hotfix 发布";
+    writeFileSync(chainPath, readFileSync(chainPath, "utf8").replace(quoted, summary));
+    commit(root);
+    expect(pr(root)).not.toMatch(/用户原话/);
+  });
+
+});
+
+describe("脱敏修订（NOTES §3）", () => {
+  const before = "- 做了什么：用 " + ["/Users/", "alice/x"].join("") + " 跑了检查\n- 结果：通过\n";
+
+  it("只把敏感片段换成标记、其余字节不变；末尾追加整行记录也算", () => {
+    expect(isRedactionRevision(before, "- 做了什么：用 [已脱敏]/x 跑了检查\n- 结果：通过\n")).toBe(true);
+    expect(isRedactionRevision(before, "- 做了什么：用 /Users/[已脱敏] 跑了检查\n- 结果：[已脱敏]\n")).toBe(true);
+    expect(isRedactionRevision(before, "- 做了什么：用 [已脱敏]/x 跑了检查\n- 结果：通过\n## 09:00:00 +08:00 · 返工 · #91 · 脱敏\n")).toBe(true);
+  });
+
+  it("标记之外有改动、替换的片段为空、跨行替换、追加不从行首开始，都不算", () => {
+    expect(isRedactionRevision(before, "- 做了什么：用 [已脱敏]/x 跑了检查\n- 结果：不通过\n")).toBe(false);
+    expect(isRedactionRevision("ab", "a[已脱敏][已脱敏]b")).toBe(false);
+    expect(isRedactionRevision("a\nb", "a[已脱敏]b")).toBe(false);
+    expect(isRedactionRevision("x\n", "x[已脱敏] 追加")).toBe(false);
+    expect(isRedactionRevision(before, before)).toBe(false);
+  });
+
+  it("整行替换不算：标题行与普通段落整行换成标记都拒绝", () => {
+    expect(isRedactionRevision("## 10:00:00 +08:00 · 收尾 · #328 · 标题\n", "[已脱敏]\n")).toBe(false);
+    expect(isRedactionRevision("普通段落\n", "[已脱敏]\n")).toBe(false);
+  });
+
+  it("标题行的时间与记录类型不能换，标题可以换", () => {
+    const header = "## 10:00:00 +08:00 · 收尾 · #328 · 标题\n";
+    expect(isRedactionRevision(header, "## [已脱敏] · 收尾 · #328 · 标题\n")).toBe(false);
+    expect(isRedactionRevision(header, "## 10:00:00 +08:00 · [已脱敏] · #328 · 标题\n")).toBe(false);
+    expect(isRedactionRevision(header, "## 10:00:00 +08:00 · 收尾 · #328 · [已脱敏]\n")).toBe(true);
+  });
+
+  it("标签行的标签不能换，标签后的值可以换，「」里的内容可以换", () => {
+    expect(isRedactionRevision("- 结果：通过\n", "[已脱敏]：通过\n")).toBe(false);
+    expect(isRedactionRevision("- 结果：通过\n", "- 结果：[已脱敏]\n")).toBe(true);
+    expect(isRedactionRevision("- 做了什么：说了「这是一句话」\n", "- 做了什么：说了「[已脱敏]」\n")).toBe(true);
+  });
+
+  it("没有标记的修订不是脱敏修订", () => {
+    expect(REDACTED).toBe("[已脱敏]");
+    expect(isRedactionRevision(before, before.replace("通过", "未通过"))).toBe(false);
   });
 });
 

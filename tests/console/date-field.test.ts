@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // #283：控制台的日期都走 components/DateField.vue（Tuffex 日期选择器，中文、周一开头），弹窗不超过视口。
-// 所有者 2026-10-24 22:09：「这个部分没有用tuff的组件库吧」；22:17：「admin的这个弹窗丑死了」。
+// 所有者 2026-10-24 22:09 指出这个部分没有用 Tuffex 组件库；22:17 指出管理员弹窗太丑。
 const SRC = fileURLToPath(new URL("../../app/console/src/", import.meta.url));
 
 function vueFiles(dir: string): string[] {

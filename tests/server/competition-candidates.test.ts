@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { activityRows, grantPermNode } from './helpers';
 import { contestSetup, HOUR, type ContestContext } from './contest-fixtures';
+import { closingIssueIids } from '../../app/server/src/lib/competition-candidates';
 
 const GITLAB = 'https://git.example.test';
 const ENV = { GITLAB_SYNC: 'on', GITLAB_URL: GITLAB, GITLAB_API_TOKEN: 'test-gitlab-token', GITLAB_GROUP: 'geek' };
@@ -14,7 +15,7 @@ type Item = Record<string, unknown>;
 type LabelEvent = { id: number; action: 'add' | 'remove'; user: { id: number; username: string }; created_at: string; label: { name: string } };
 
 /** 一个只认比赛收集会发的那几个 GET 的假 GitLab。 */
-function fakeGitlab() {
+function fakeGitlab(base = GITLAB) {
   const mrs: Item[] = [];
   const issues: Item[] = [];
   const labelEvents = new Map<string, LabelEvent[]>();
@@ -27,11 +28,13 @@ function fakeGitlab() {
     new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
   async function fetch(input: string, init: RequestInit = {}): Promise<Response> {
     const url = new URL(input);
-    expect(url.origin).toBe(GITLAB);
+    expect(url.origin).toBe(new URL(base).origin);
     expect(init.method ?? 'GET').toBe('GET');
     expect((init.headers as Record<string, string>)['PRIVATE-TOKEN']).toBe('test-gitlab-token');
     expect(init.redirect).toBe('error');
-    const path = url.pathname.replace(/^\/api\/v4/, '');
+    const prefix = `${new URL(base).pathname.replace(/\/+$/, '')}/api/v4`;
+    expect(url.pathname.startsWith(`${prefix}/`)).toBe(true);
+    const path = url.pathname.slice(prefix.length);
     calls.push(`${path}${url.search}`);
     const reply = replies.findIndex(item => `${path}${url.search}`.startsWith(item.match));
     if (reply >= 0) return replies.splice(reply, 1)[0].respond();
@@ -53,6 +56,12 @@ function fakeGitlab() {
     if (match) return json(200, labelEvents.get(`${match[1]}:${match[2]}`) ?? []);
     match = /^\/projects\/geek%2Fadmin\/issues\/(\d+)\/closed_by$/.exec(path);
     if (match) return json(200, closedBy.get(Number(match[1])) ?? []);
+    match = /^\/projects\/geek%2Fadmin\/issues\/(\d+)$/.exec(path);
+    if (match) {
+      const iid = Number(match[1]);
+      const issue = issues.find(item => item.iid === iid);
+      return issue ? json(200, issue) : json(404, { message: '404 Not Found' });
+    }
     return json(404, { message: '404 Not Found' });
   }
   return { fetch, mrs, issues, labelEvents, closedBy, calls, subjects, responses, json,
@@ -65,9 +74,9 @@ afterEach(async () => {
   for (const context of contexts.splice(0)) await context.close();
 });
 
-async function setup() {
-  const gitlab = fakeGitlab();
-  const context = await contestSetup({ gitlabFetch: gitlab.fetch }, ENV);
+async function setup(env: Record<string, string> = ENV) {
+  const gitlab = fakeGitlab(env.GITLAB_URL);
+  const context = await contestSetup({ gitlabFetch: gitlab.fetch }, env);
   contexts.push(context);
   const { app, as, accountId, createCompetition, signUp } = context;
   const id = await createCompetition();
@@ -116,6 +125,16 @@ async function setup() {
 }
 
 describe('收集候选贡献', () => {
+  it('GitLab 搬到主站路径后照常收集：接口走 <基址>/api/v4，sector 不变，缺 web_url 时按新基址拼链接（#335）', async () => {
+    const base = 'https://example.test/gitlab';
+    const { gitlab, mr, collect, list } = await setup({ ...ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'git.example.test' });
+    const { web_url: _ignored, ...bare } = mr(1, 'alice', ['重要程度::重要', '核心度::业务']);
+    gitlab.mrs.push(bare);
+    expect(await collect()).toMatchObject({ fetched: 1, created: 1, error: null });
+    expect((await list()).items).toEqual([expect.objectContaining({ gitlab_iid: 1, url: `${base}/geek/admin/-/merge_requests/1`, status: 'pending' })]);
+    expect(gitlab.calls.some(call => call.startsWith('/projects/geek%2Fadmin/merge_requests'))).toBe(true);
+  });
+
   it('不把失配的远端作者或审核人经缓存 id 归到本地账号', async () => {
     const { gitlab, mr, review, collect, list } = await setup();
     gitlab.mrs.push(mr(801, 'alice', review('merge_requests:801', 'bob')));
@@ -265,6 +284,152 @@ describe('收集候选贡献', () => {
     await app.services.gitlab.applySettings({ mode: 'off' });
     const off = await app.inject({ method: 'POST', url: `/api/console/competitions/${id}/candidates/collect`, headers: as('bob') });
     expect(off.json().error).toBe('gitlab_sync_off');
+  });
+
+  // #331：MR 合进任意分支（主要是 stage）时 GitLab 不会自动关 Issue，靠正文的关闭关键字认 Issue；Issue 开着关着都收。
+  const closedIssue = (iid: number, login: string, state = 'closed', createdAt = Date.now() - 3 * 24 * HOUR) => ({
+    iid, title: `Issue ${iid}`, web_url: `${GITLAB}/geek/admin/-/issues/${iid}`, author: { id: GITLAB_IDS[login] },
+    labels: [], created_at: new Date(createdAt).toISOString(), state, merge_requests_count: 1,
+  });
+
+  it('MR 合进 stage、正文写 Closes #n 时，已关闭的 Issue 收为 Issue 候选，作者是 Issue 的作者，时间是 MR 合并时间', async () => {
+    const { accountId, gitlab, mr, collect, list, recent } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), target_branch: 'stage', description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    expect(await collect()).toMatchObject({ created: 2, accepted: 0, error: null });
+    const issue = (await list()).items.find((row: { kind: string }) => row.kind === 'issue');
+    expect(issue).toMatchObject({ gitlab_iid: 20, status: 'pending', url: `${GITLAB}/geek/admin/-/issues/20`,
+      account: { account_id: accountId('carol') }, contributed_at: Date.parse(recent) });
+  });
+
+  it('关闭关键字按 GitLab 官方列表识别，一个关键字可接多个编号；Refs、Related to 与跨项目写法不算', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Fixes #20\n\nResolves #21 and closes #22, #23\n\nRefs #24, related to #25\n\nCloses geek/other#26' });
+    for (const iid of [20, 21, 22, 23, 24, 25, 26]) gitlab.issues.push(closedIssue(iid, 'carol'));
+    expect(await collect()).toMatchObject({ created: 5, error: null });
+    const iids = (await list()).items.filter((row: { kind: string }) => row.kind === 'issue')
+      .map((row: { gitlab_iid: number }) => row.gitlab_iid).sort((a: number, b: number) => a - b);
+    expect(iids).toEqual([20, 21, 22, 23]);
+  });
+
+  it('只写 Refs 的 MR、未合并的 MR 与合并在窗外的 MR 都不收 Issue 候选，也不去读它们引用的 Issue', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push(
+      { ...mr(801, 'alice', []), description: 'Refs #20' },
+      { ...mr(802, 'alice', []), state: 'opened', merged_at: null, description: 'Closes #21' },
+      { ...mr(803, 'alice', [], new Date(Date.now() - 48 * HOUR).toISOString()), description: 'Closes #22' },
+    );
+    gitlab.issues.push(closedIssue(20, 'carol'), closedIssue(21, 'carol'), closedIssue(22, 'carol'));
+    expect(await collect()).toMatchObject({ created: 1, error: null });
+    const page = await list();
+    expect(page.items.map((row: { kind: string; gitlab_iid: number }) => `${row.kind}${row.gitlab_iid}`)).toEqual(['pr801']);
+    expect(gitlab.calls.filter(call => /\/issues\/\d+$/.test(call))).toEqual([]);
+  });
+
+  it('Issue 合进 stage 后仍开着也收为待确认候选，分数仍要标签或控制台确认', async () => {
+    const { accountId, gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), target_branch: 'stage', description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol', 'opened'));
+    expect(await collect()).toMatchObject({ created: 2, accepted: 0, error: null });
+    expect((await list()).items.find((row: { kind: string }) => row.kind === 'issue')).toMatchObject({
+      gitlab_iid: 20, status: 'pending', account: { account_id: accountId('carol') } });
+  });
+
+  it('MR 正文为 null（GitLab 对没写正文的 MR 这样返回）时只收 MR 本身', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: null });
+    expect(await collect()).toMatchObject({ created: 1, error: null });
+    expect((await list()).items.map((row: { kind: string; gitlab_iid: number }) => `${row.kind}${row.gitlab_iid}`)).toEqual(['pr801']);
+  });
+
+  it('重复收集不产生重复候选，第二轮不新建', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    expect(await collect()).toMatchObject({ created: 2, error: null });
+    expect(await collect()).toMatchObject({ created: 0, accepted: 0, error: null });
+    expect((await list()).counts).toEqual({ pending: 2, accepted: 0, rejected: 0 });
+  });
+
+  it('Issue 既在窗口内被列出、又被 MR 正文关闭时只收一条，也不再为它单独读一次详情', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol', 'closed', Date.now() - HOUR / 2));
+    gitlab.closedBy.set(20, [{ iid: 801, state: 'merged' }]);
+    expect(await collect()).toMatchObject({ created: 2, error: null });
+    expect((await list()).items.filter((row: { kind: string; gitlab_iid: number }) => row.kind === 'issue' && row.gitlab_iid === 20)).toHaveLength(1);
+    expect(gitlab.calls).not.toContain('/projects/geek%2Fadmin/issues/20');
+  });
+
+  it('MR 正文关闭的编号读不到（404）时跳过这一个，其它照常收', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #99, #20' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    expect(await collect()).toMatchObject({ created: 2, skipped: 1, error: null });
+    expect((await list()).items.filter((row: { kind: string }) => row.kind === 'issue').map((row: { gitlab_iid: number }) => row.gitlab_iid)).toEqual([20]);
+  });
+
+  it('读不到的编号（403、5xx）只跳过它并计入 skipped，整轮不失败', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #20, #21 and #22' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    gitlab.responses.set('/projects/geek%2Fadmin/issues/21', () => gitlab.json(403, { message: '403 Forbidden' }));
+    gitlab.responses.set('/projects/geek%2Fadmin/issues/22', () => gitlab.json(503, { message: 'Service Unavailable' }));
+    expect(await collect()).toMatchObject({ created: 2, skipped: 2, error: null });
+    expect((await list()).items.map((row: { kind: string; gitlab_iid: number }) => `${row.kind}${row.gitlab_iid}`).sort()).toEqual(['issue20', 'pr801']);
+  });
+
+  it('已驳回的候选不再读 Issue 详情，之后就算 Issue 挂上有用和两档标签也不复活', async () => {
+    const { app, as, id, gitlab, mr, review, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    expect(await collect()).toMatchObject({ created: 2, error: null });
+    const candidate = (await list()).items.find((row: { kind: string }) => row.kind === 'issue').id;
+    expect((await app.inject({ method: 'POST', url: `/api/console/competitions/${id}/candidates/${candidate}/reject`, headers: as('bob'), payload: { reason: '重复' } })).statusCode).toBe(200);
+    gitlab.issues[0].labels = review('issues:20', 'bob');
+    gitlab.calls.length = 0;
+    expect(await collect()).toMatchObject({ created: 0, accepted: 0, error: null });
+    expect(gitlab.calls).not.toContain('/projects/geek%2Fadmin/issues/20');
+    expect((await list('rejected')).items.find((row: { id: string }) => row.id === candidate)).toMatchObject({ status: 'rejected' });
+    expect((await list()).counts.accepted).toBe(0);
+  });
+
+  it('Issue 在窗口前创建、之后才挂上有用和两档标签，下一轮收集照样按标签自动加分', async () => {
+    const { gitlab, mr, review, collect, list, scoreOf } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes #20' });
+    gitlab.issues.push(closedIssue(20, 'carol'));
+    expect(await collect()).toMatchObject({ created: 2, accepted: 0, error: null });
+    gitlab.issues[0].labels = review('issues:20', 'bob');
+    expect(await collect()).toMatchObject({ accepted: 1, error: null });
+    expect((await list()).items.find((row: { kind: string }) => row.kind === 'issue')).toMatchObject({ status: 'accepted', accepted_via: 'label' });
+    expect(await scoreOf('carol')).toBeGreaterThan(0);
+  });
+
+  it('关闭关键字可以带冒号（Closes: #n），也可以写本项目的完整路径（geek/admin#n）', async () => {
+    const { gitlab, mr, collect, list } = await setup();
+    gitlab.mrs.push({ ...mr(801, 'alice', []), description: 'Closes: #20' }, { ...mr(802, 'alice', []), description: 'Fixes geek/admin#21' });
+    gitlab.issues.push(closedIssue(20, 'carol'), closedIssue(21, 'carol'));
+    expect(await collect()).toMatchObject({ created: 4, error: null });
+    const iids = (await list()).items.filter((row: { kind: string }) => row.kind === 'issue')
+      .map((row: { gitlab_iid: number }) => row.gitlab_iid).sort((a: number, b: number) => a - b);
+    expect(iids).toEqual([20, 21]);
+  });
+});
+
+describe('closingIssueIids', () => {
+  // 官方关闭关键字（大小写不计，可带冒号）后面的 `#n` 或本项目完整路径的 `geek/admin#n` 才算；Refs、Related to 与其它项目不算。
+  it.each([
+    ['Closes #4', [4]],
+    ['Closes: #4', [4]],
+    ['closed geek/admin#20 and fixes #21', [20, 21]],
+    ['Resolves #21 and closes #22, #23', [21, 22, 23]],
+    ['Fixes Geek/Admin#27', [27]],
+    ['Closes geek/other#26', []],
+    ['Refs #24, related to #25', []],
+    ['Closes #8 and geek/other#9', [8]],
+    [null, []],
+  ])('%s', (description, expected) => {
+    expect(closingIssueIids(description, 'geek/admin')).toEqual(expected);
   });
 });
 

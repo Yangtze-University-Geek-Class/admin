@@ -8,9 +8,12 @@
  *   I1  `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须为真（即 stage ≥ main）。
  *   I2  `main` 不得领先 `stage`：任何写入 `main` 的提交都必须已经存在于 `stage`（只允许把 stage 快进/合并进 main）。
  *
- * 唯一的例外是已登记的 P0 hotfix 窗口（deploy/hotfix/windows.json，读 main 上的那一份，规则见 scripts/hotfix-windows.mjs）：
- * main 领先 stage 的每个提交都必须归属于一个 open、没过期的窗口（提交说明引用窗口 issue 的 #N 或 task/N/，或窗口显式列出 SHA），
- * 有一个不归属就按原样失败。窗口超过 7 天还开着也失败；窗口 closed 之后不变量恢复原样。
+ * 唯一的例外是两类已登记的窗口（登记都读 main 上的那一份）：
+ *   P0 hotfix 窗口（deploy/hotfix/windows.json，规则见 scripts/hotfix-windows.mjs）：窗口 commits 列出的 SHA，或者说明引用窗口 issue
+ *   （#N 或 task/N/）且提交者时间在 approvedAt 与 expiresAt 之间。窗口超过 7 天还开着也失败。
+ *   部分晋升窗口（deploy/promotion/windows.json，规则见 scripts/promotion-windows.mjs）：main 独有的提交带着 `(cherry picked from commit P)`，
+ *   P 在窗口 picks 里，且 patch-id 与 P 一致（冲突解决改了内容的不算）；登记提交只在 main 上、登记后不能改。合并提交不算。窗口超过 3 天还开着也失败。
+ * main 领先 stage 的每个提交都必须归属于其中一个 open、没过期的窗口，有一个不归属就按原样失败；窗口 closed 之后不变量恢复原样。
  *
  * 分支命名规范（2026-09-23 起分支名一律不用 `-`，只用 `/` 分层；每段只含小写字母与数字，段内多个词用 `_` 连接）：
  *   main / stage         长期分支，只允许这两条
@@ -23,14 +26,17 @@
  *   node scripts/check-branch-invariants.mjs [--repo <path>] [--require-remote-refs] [--strict-long-lived] [--json] [--push]
  *
  * --push 模式从 stdin 读 pre-push 的四段行：`<local ref> <local sha> <remote ref> <remote sha>`，
- * 并额外断言：推 refs/heads/main 的提交必须已经存在于 stage；推 refs/heads/stage 只能来自
- * stage 自身或 task/<issue>/<slug> 分支，且必须已经包含 origin/main；不得删除远端 main/stage。
+ * 并额外断言：推 refs/heads/main 的提交必须已经存在于远端 stage，或领先的提交都归属开着的 hotfix / 晋升窗口；
+ * 推 refs/heads/stage 只能来自 stage 自身或 task/<issue>/<slug> 分支，必须已经包含远端 main，且不能删改登记过的晋升窗口；
+ * 不得删除远端 main/stage。
  *
  * 发布 tag（发版只靠打 tag，规则唯一实现见 scripts/release-policy.mjs）在 --push 模式下：
- *   v 开头且紧跟数字的 tag 都按发布 tag 判定，格式不是 vX.Y.Z-rc.N / vX.Y.Z → 违规
- *   vX.Y.Z-rc.N 的提交不在 stage / origin/stage 里 → 违规
+ *   v 开头且紧跟数字的 tag 都按发布 tag 判定，格式不是 vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N / vX.Y.Z → 违规
+ *   vX.Y.Z-rc.N、-hf.N、-stable.N 的提交不在 stage / origin/stage 里 → 违规
  *   vX.Y.Z 的提交不在 main / origin/main 里 → 违规；同一提交本地没有 vX.Y.Z-rc.N → 告警（以 CI 证据为准）
  *   X.Y.Z 与该提交 package.json 的 version 不一致、或给已正式发布的版本再打 rc → 违规
+ *   -hf.N / -stable.N：版本必须已有正式 tag；N 从 1 起连续；提交必须是把 main 合进 stage 的合并提交；
+ *     hf 合进来的提交要归属同版本的 hotfix 窗口，stable 要这次合并新关闭同版本的窗口 → 否则违规
  *   删除或移动（force）发布 tag → 违规（删除格式不合规的 v 开头 tag 只告警，属于清理）
  *   其它 tag 只告警：不参与发版。
  */
@@ -39,8 +45,9 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { RELEASE_TAG_RE, listTagCommits, packageVersionAt, parseReleaseTag, previewTagsFor } from './release-policy.mjs';
-import { WINDOWS_FILE, activeWindows, expiredWindows, readRegistryAt, validateWindows, windowOf } from './hotfix-windows.mjs';
+import { RELEASE_TAG_RE, hotfixTagProblems, listTagCommits, packageVersionAt, parseReleaseTag, previewTagsFor } from './release-policy.mjs';
+import { WINDOWS_FILE } from './hotfix-windows.mjs';
+import { PROMOTION_FILE, judgeAhead } from './promotion-windows.mjs';
 
 /** 两条硬不变量原文（失败时必须原样打印）。 */
 export const INVARIANTS = Object.freeze([
@@ -151,45 +158,27 @@ function branchNamingMessage(branch) {
   return null;
 }
 
-const AHEAD_LIMIT = 500;
-
 /**
- * main 领先 stage 的提交，逐个看是否归属于已登记的 hotfix 窗口。登记读 mainSha 那一版；
- * 没有登记文件、登记不合法或窗口过期，都等于没有窗口：领先的提交全部算未归属。
+ * main 领先 stage 的提交，逐个看是否归属于开着的 hotfix 窗口或晋升窗口，判定在 scripts/promotion-windows.mjs 的 judgeAhead。
+ * 登记读 mainSha 那一版；没有登记文件、登记不合法或窗口过期，都等于没有窗口：领先的提交全部算未归属。
  */
-export function analyzeAhead({ repo, mainSha, stageSha, now = new Date() }) {
-  const range = git(repo, ['log', `--max-count=${AHEAD_LIMIT}`, '--format=%H%x00%B%x01', `${stageSha}..${mainSha}`]);
-  const ahead = range.status === 0
-    ? (range.stdout ?? '').split('\x01').map(entry => entry.replace(/^\n/, '')).filter(Boolean).map(entry => {
-      const [sha, message = ''] = entry.split('\x00');
-      return { sha, message };
-    })
-    : [];
-  const problems = [];
-  let registry = null;
-  if (ahead.length) {
-    try { registry = readRegistryAt(repo, mainSha); } catch (error) { problems.push(error.message); }
-    if (registry) {
-      const invalid = validateWindows(registry);
-      if (invalid.length) { problems.push(`${WINDOWS_FILE} 格式有误：${invalid.join('；')}`); registry = null; }
-    }
-  }
-  const stale = registry ? expiredWindows(registry, now) : [];
-  for (const item of stale) problems.push(`hotfix 窗口 #${item.issue} 已超过 expiresAt（${item.expiresAt}）还没收尾：合回 stage 并把窗口标 closed，或由所有者重新批准。`);
-  const windows = registry ? activeWindows(registry, now) : [];
-  const unattributed = [];
-  const attributed = [];
-  for (const entry of ahead) {
-    const owner = windowOf(entry.sha, entry.message, windows);
-    (owner ? attributed : unattributed).push(owner ? { sha: entry.sha, issue: owner.issue } : entry.sha);
-  }
-  return { ahead: ahead.map(entry => entry.sha), attributed, unattributed, windows, problems };
+export function analyzeAhead({ repo, mainSha, stageSha, priorMainSha = null, now = new Date() }) {
+  const judged = judgeAhead({ repo, mainSha, stageSha, priorMainSha, now });
+  return { ahead: judged.ahead.map(entry => entry.sha), attributed: judged.attributed, unattributed: judged.unattributed, windows: judged.windows, problems: judged.problems, tampered: judged.tampered };
 }
 
-const shortList = list => list.map(sha => sha.slice(0, 12)).join(' ');
+/** 每个不归属的提交一行：短 SHA 加原因与下一步。 */
+const unattributedLines = list => list.map(item => `    ${item.sha.slice(0, 12)}：${item.reason}`).join('\n');
 const windowNote = (analysis, label) => {
-  const issues = [...new Set(analysis.attributed.map(item => `#${item.issue}`))].join('、');
-  return `${label}：hotfix 窗口 ${issues} 内 main 领先 stage ${analysis.ahead.length} 个提交，已逐个核对归属；合回 stage 并把窗口标 closed 后不变量恢复。`;
+  const issuesOf = kind => [...new Set(analysis.attributed.filter(item => item.kind === kind).map(item => `#${item.issue}`))].join('、');
+  const hotfix = analysis.attributed.filter(item => item.kind === 'hotfix').length;
+  const promotion = analysis.attributed.filter(item => item.kind === 'promotion').length;
+  const registration = analysis.attributed.filter(item => item.kind === 'registration').length;
+  const parts = [];
+  if (hotfix) parts.push(`hotfix 窗口 ${issuesOf('hotfix')} 内 main 领先 stage ${hotfix} 个提交`);
+  if (promotion) parts.push(`部分晋升窗口 ${issuesOf('promotion')} 挑进 main 的提交 ${promotion} 个`);
+  if (registration) parts.push(`部分晋升窗口 ${issuesOf('registration')} 登记提交 ${registration} 个`);
+  return `${label}：${parts.join('；')}，已逐个核对归属；合回 stage 并把窗口标 closed 后不变量恢复。`;
 };
 
 /** 默认模式：两条硬不变量（hotfix 窗口内按登记放行）+ 分支命名卫生。 */
@@ -207,8 +196,8 @@ export function checkInvariants({ repo = process.cwd(), requireRemote = false, s
   for (const problem of analysis.problems) violations.push(problem);
   if (analysis.unattributed.length) {
     violations.push(`${INVARIANTS[0]}\n  证据：${main.sha.slice(0, 12)} 不是 ${stage.sha.slice(0, 12)} 的祖先，stage 缺少 main 的提交。`);
-    violations.push(`${INVARIANTS[1]}\n  证据：main 领先 stage 的提交 ${shortList(analysis.unattributed)}${analysis.windows.length ? `（不属于已登记的 hotfix 窗口 ${analysis.windows.map(item => `#${item.issue}`).join('、')}）` : ''}`);
-  } else if (analysis.ahead.length) {
+    violations.push(`${INVARIANTS[1]}\n  证据：main 领先 stage 且不归属任何开着的窗口的提交：\n${unattributedLines(analysis.unattributed)}`);
+  } else if (analysis.ahead.length && !analysis.problems.length) {
     notes.push(windowNote(analysis, '证据'));
   }
   for (const branch of collectBranches(repo)) {
@@ -235,16 +224,34 @@ export function parsePushLines(text) {
     });
 }
 
-function pickStageRef(repo) {
-  for (const ref of ['refs/heads/stage', 'refs/remotes/origin/stage']) {
+/**
+ * 推 main 时拿来比的 stage：同一次推送里一起推的 stage 优先，其次是被推远端的 stage 跟踪分支，再次 origin/stage。
+ * 不用本地 refs/heads/stage：本地 stage 可能带着没推上去的提交，拿它比会放行远端 stage 里还没有的提交。
+ */
+function pickStageRef(repo, { remote = null, pushes = [] } = {}) {
+  const together = pushes.find(push => push.remoteRef === 'refs/heads/stage' && SHA_RE.test(push.localSha) && !ZERO_SHA.test(push.localSha));
+  if (together) return { ref: `本次一起推送的 ${together.localRef}`, sha: together.localSha };
+  const refs = [...new Set([remote ? `refs/remotes/${remote}/stage` : null, 'refs/remotes/origin/stage'].filter(Boolean))];
+  for (const ref of refs) {
     const sha = resolveCommit(repo, ref);
     if (sha) return { ref, sha };
   }
   return null;
 }
 
-function pickMainRef(repo) {
-  for (const ref of ['refs/remotes/origin/main', 'refs/heads/main']) {
+/** hf / stable tag 核对「合进来的是 main」用的 main 位置：同一次推送里的 main 优先，其次远端跟踪引用（不认本地 main）。 */
+function pickTagMainSha(repo, { remote = null, pushes = [] } = {}) {
+  const together = pushes.find(push => push.remoteRef === 'refs/heads/main' && SHA_RE.test(push.localSha) && !ZERO_SHA.test(push.localSha));
+  if (together) return together.localSha;
+  for (const ref of [...new Set([remote ? `refs/remotes/${remote}/main` : null, 'refs/remotes/origin/main'].filter(Boolean))]) {
+    const sha = resolveCommit(repo, ref);
+    if (sha) return sha;
+  }
+  return null;
+}
+
+function pickMainRef(repo, remote = null) {
+  for (const ref of [...new Set([remote ? `refs/remotes/${remote}/main` : null, 'refs/remotes/origin/main', 'refs/heads/main'].filter(Boolean))]) {
     const sha = resolveCommit(repo, ref);
     if (sha) return { ref, sha };
   }
@@ -252,7 +259,7 @@ function pickMainRef(repo) {
 }
 
 /** pre-push 模式：main/stage 与发布 tag 的推送规则。 */
-export function checkPushes({ repo = process.cwd(), pushes }) {
+export function checkPushes({ repo = process.cwd(), pushes, remote = null }) {
   const violations = [];
   const warnings = [];
   const notes = [];
@@ -260,7 +267,7 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
     const { localRef, localSha, remoteRef, remoteSha } = push;
     const target = `${localRef} → ${remoteRef}`;
     if (remoteRef.startsWith('refs/tags/')) {
-      checkTagPush({ repo, push, violations, warnings, notes });
+      checkTagPush({ repo, push, violations, warnings, notes, mainSha: pickTagMainSha(repo, { remote, pushes }) });
       continue;
     }
     // githooks(5)：删除时 <local ref> 为 `(delete)`、<local sha> 全 0；<remote sha> 全 0 只表示远端还没有这个 ref
@@ -276,22 +283,29 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
       continue;
     }
     if (remoteRef === 'refs/heads/main') {
-      const stage = pickStageRef(repo);
+      const stage = pickStageRef(repo, { remote, pushes });
       if (!stage) {
         violations.push(
-          `拒绝推送到 refs/heads/main：本地既没有 refs/heads/stage 也没有 refs/remotes/origin/stage，无法确认被推提交已经在 stage 里。\n`
-            + '  修复：git fetch origin stage && git switch stage（或先执行 git fetch 取回 origin/stage）。',
+          `拒绝推送到 refs/heads/main：没有${remote ? ` refs/remotes/${remote}/stage，也没有` : ''} refs/remotes/origin/stage，无法确认被推提交已经在远端 stage 里（本地 stage 不算证据）。\n`
+            + `  修复：git fetch ${remote ?? 'origin'} stage 后再推。`,
         );
         continue;
       }
-      if (!isAncestor(repo, localSha, stage.sha)) {
-        const analysis = analyzeAhead({ repo, mainSha: localSha, stageSha: stage.sha });
+      // 推送前的远端 main：它上面开着的晋升窗口，这次推送不能删改。
+      const analysis = analyzeAhead({ repo, mainSha: localSha, stageSha: stage.sha, priorMainSha: ZERO_SHA.test(remoteSha) ? null : remoteSha });
+      if (isAncestor(repo, localSha, stage.sha)) {
+        if (analysis.problems.length) {
+          violations.push(`拒绝推送到 refs/heads/main：main tip ${localSha.slice(0, 12)} 在 ${stage.ref} 里，但窗口登记有问题：\n  ${analysis.problems.join('\n  ')}`);
+          continue;
+        }
+      } else {
         if (analysis.problems.length || analysis.unattributed.length) {
           violations.push(
             `${INVARIANTS[1]}\n  证据：被推的 main tip ${localSha.slice(0, 12)} 不在 ${stage.ref}@${stage.sha.slice(0, 12)} 的历史里`
-              + `${analysis.unattributed.length ? `，其中 ${shortList(analysis.unattributed)} 不属于已登记的 hotfix 窗口` : ''}。`
+              + `${analysis.unattributed.length ? `，其中这些提交不归属任何开着的窗口：\n${unattributedLines(analysis.unattributed)}` : ''}。`
               + `${analysis.problems.length ? `\n  ${analysis.problems.join('\n  ')}` : ''}\n${FIX_MAIN}\n`
-              + `  P0 hotfix：先在 main 上登记窗口（${WINDOWS_FILE}，需要所有者原话），提交说明引用窗口 issue 的 #N。`,
+              + `  P0 hotfix：先在 main 上登记窗口（${WINDOWS_FILE}，需要所有者批准摘要），提交说明引用窗口 issue 的 #N，或把提交列进窗口 commits。`
+              + `\n  只挑个别提交：在 ${PROMOTION_FILE} 登记晋升窗口（需要所有者批准摘要），用 git cherry-pick -x <stage 上的 pick> 挑进 main。`,
           );
           continue;
         }
@@ -309,14 +323,15 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
           `拒绝推送到 refs/heads/stage：来源 ${localRef} 既不是 stage 自身，也不是 task/<issue>/<slug> 分支（dev/<username> 与其它分支不得进入 stage）。\n${FIX_STAGE}`,
         );
       }
-      const main = pickMainRef(repo);
+      const main = pickMainRef(repo, remote);
       if (!main) {
         warnings.push('本地找不到 main 或 origin/main：无法在推送前确认 stage ≥ main，交由 CI 的 branch-guard 再判定。');
       } else if (!isAncestor(repo, main.sha, localSha)) {
         const analysis = analyzeAhead({ repo, mainSha: main.sha, stageSha: localSha });
         if (analysis.problems.length || analysis.unattributed.length) {
           violations.push(
-            `${INVARIANTS[0]}\n  证据：被推的 stage tip ${localSha.slice(0, 12)} 不包含 ${main.ref}@${main.sha.slice(0, 12)}。\n`
+            `${INVARIANTS[0]}\n  证据：被推的 stage tip ${localSha.slice(0, 12)} 不包含 ${main.ref}@${main.sha.slice(0, 12)}。`
+              + `${analysis.unattributed.length ? `\n  其中这些 main 提交不归属任何开着的窗口：\n${unattributedLines(analysis.unattributed)}` : ''}\n`
               + '  修复：git switch stage && git merge --no-ff origin/main && git push origin stage'
               + `${analysis.problems.length ? `\n  ${analysis.problems.join('\n  ')}` : ''}`,
           );
@@ -324,7 +339,10 @@ export function checkPushes({ repo = process.cwd(), pushes }) {
           notes.push(windowNote(analysis, target));
         }
       } else {
-        notes.push(`${target}：stage ≥ main 成立，允许推送。`);
+        // stage ≥ main 时只拦删改晋升窗口（过期的窗口也不能删改）；main 上窗口过期未收尾要靠合回 stage 收尾，这一类问题这里不拦。
+        const { tampered } = analyzeAhead({ repo, mainSha: main.sha, stageSha: localSha });
+        if (tampered.length) violations.push(`拒绝推送到 refs/heads/stage：${tampered.join('\n  ')}`);
+        else notes.push(`${target}：stage ≥ main 成立，允许推送。`);
       }
       continue;
     }
@@ -345,7 +363,7 @@ function firstContaining(repo, commit, refs) {
 }
 
 /** pre-push 模式：refs/tags/* 的推送规则（发布 tag 不可删、不可移、只能打在对应长期分支的提交上）。 */
-export function checkTagPush({ repo, push, violations, warnings, notes }) {
+export function checkTagPush({ repo, push, violations, warnings, notes, mainSha = null }) {
   const { localRef, localSha, remoteRef, remoteSha } = push;
   const name = remoteRef.slice('refs/tags/'.length);
   const releaseShaped = RELEASE_SHAPED_TAG_RE.test(name);
@@ -360,7 +378,7 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
   const moving = !ZERO_SHA.test(remoteSha) && remoteSha !== localSha;
   if (!releaseShaped) {
     warnings.push(
-      `${remoteRef} 不是发布 tag（只有 vX.Y.Z-rc.N 与 vX.Y.Z 会触发部署）${moving ? '，并且这次推送会移动远端已有的同名 tag' : ''}。`,
+      `${remoteRef} 不是发布 tag（只有 vX.Y.Z-rc.N、vX.Y.Z-hf.N、vX.Y.Z-stable.N 与 vX.Y.Z 会参与发版）${moving ? '，并且这次推送会移动远端已有的同名 tag' : ''}。`,
     );
     return;
   }
@@ -373,7 +391,7 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
   }
   const release = parseReleaseTag(name);
   if (!release) {
-    violations.push(`发布 tag ${name} 格式不对：只接受 vX.Y.Z-rc.N（预发布，N 从 1 开始）或 vX.Y.Z（正式），正则 ${RELEASE_TAG_RE}。`);
+    violations.push(`发布 tag ${name} 格式不对：只接受 vX.Y.Z-rc.N / vX.Y.Z-hf.N / vX.Y.Z-stable.N（预发布，N 从 1 开始）或 vX.Y.Z（正式），正则 ${RELEASE_TAG_RE}。`);
     return;
   }
   const commit = SHA_RE.test(localSha) ? resolveCommit(repo, localSha) : null;
@@ -382,7 +400,8 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
     return;
   }
   const short = commit.slice(0, 12);
-  const refs = release.kind === 'rc'
+  // 预发布（rc / hf / stable）只能打在 stage 上，正式 tag 只能打在 main 上：按种类的分支选证据。
+  const refs = release.branch === 'stage'
     ? ['refs/heads/stage', 'refs/remotes/origin/stage']
     : ['refs/heads/main', 'refs/remotes/origin/main'];
   const { available, container } = firstContaining(repo, commit, refs);
@@ -393,7 +412,7 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
   if (!container) {
     const where = available.map(entry => `${entry.ref}@${entry.sha.slice(0, 12)}`).join('、');
     violations.push(
-      release.kind === 'rc'
+      release.branch === 'stage'
         ? `预发布 tag ${name} 必须打在 stage 的提交上：${short} 不在 ${where} 的历史里。先把改动经 task PR 合进 stage，再在 stage 的提交上打 tag。`
         : `正式 tag ${name} 必须打在 main 的提交上：${short} 不在 ${where} 的历史里。先把 main 快进到验收过的 rc 提交（git merge --ff-only v${release.version}-rc.<N>），再打正式 tag。`,
     );
@@ -418,6 +437,15 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
     notes.push(`${name}：${short} 在 ${container.ref} 里，version ${version} 一致，推送后触发预发布部署（开关打开时）。`);
     return;
   }
+  if (release.kind === 'hf' || release.kind === 'stable') {
+    const problems = hotfixTagProblems({ repo, release, commit, tagNames: listTagCommits(repo).map(entry => entry.name), isNew: ZERO_SHA.test(remoteSha), mainSha });
+    if (problems.length) {
+      violations.push(`拒绝推送 ${name}：${problems.join('；')}。`);
+      return;
+    }
+    notes.push(`${name}：${short} 在 ${container.ref} 里，version ${version} 一致，热修复后的预发布 tag（推送后触发预发布部署，开关打开时）。`);
+    return;
+  }
   const previews = previewTagsFor(repo, release.version, commit);
   if (!previews.length) {
     warnings.push(`正式 tag ${name} 所在提交 ${short} 本地没有 v${release.version}-rc.N：正式部署的证据 job 会拒绝它（本地缺 tag 时先 git fetch --tags 再确认）。`);
@@ -426,8 +454,9 @@ export function checkTagPush({ repo, push, violations, warnings, notes }) {
 
 const USAGE = `分支模型门禁：
   node scripts/check-branch-invariants.mjs [--repo <path>] [--require-remote-refs] [--strict-long-lived] [--json]
-  node scripts/check-branch-invariants.mjs --push [--repo <path>] < pre-push-stdin
-    pre-push 行格式：<local ref> <local sha> <remote ref> <remote sha>
+  node scripts/check-branch-invariants.mjs --push [--repo <path>] [--remote <name>] < pre-push-stdin
+    pre-push 行格式：<local ref> <local sha> <remote ref> <remote sha>；--remote 是被推的远端（钩子的第一个参数），
+    推 main 时拿它的 stage 跟踪分支作证据，不用本地 stage。
 
 不变量：\n  1. ${INVARIANTS[0]}\n  2. ${INVARIANTS[1]}
 
@@ -437,7 +466,7 @@ const USAGE = `分支模型门禁：
   dev/<username>       ${DEV_BRANCH_RE}
 
 发布 tag（--push 模式判定）：
-  vX.Y.Z-rc.N 打在 stage 的提交上，vX.Y.Z 打在 main 的提交上  ${RELEASE_TAG_RE}`;
+  vX.Y.Z-rc.N、vX.Y.Z-hf.N、vX.Y.Z-stable.N 打在 stage 的提交上，vX.Y.Z 打在 main 的提交上  ${RELEASE_TAG_RE}`;
 
 function annotationEscape(text) {
   return text.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
@@ -469,7 +498,7 @@ function report(result, { json }) {
 }
 
 function main(argv) {
-  const options = { repo: process.cwd(), push: false, requireRemote: false, strictLongLived: false, json: false };
+  const options = { repo: process.cwd(), push: false, remote: null, requireRemote: false, strictLongLived: false, json: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') {
@@ -480,14 +509,18 @@ function main(argv) {
     else if (arg === '--require-remote-refs') options.requireRemote = true;
     else if (arg === '--strict-long-lived') options.strictLongLived = true;
     else if (arg === '--json') options.json = true;
-    else if (arg === '--repo') {
+    else if (arg === '--remote') {
+      const value = argv[++index];
+      if (!value || value.startsWith('--')) throw new Error('--remote 需要远端名');
+      options.remote = value;
+    } else if (arg === '--repo') {
       const value = argv[++index];
       if (!value || value.startsWith('--')) throw new Error('--repo 需要目录路径');
       options.repo = resolve(value);
     } else throw new Error(`未知参数：${arg}`);
   }
   const result = options.push
-    ? checkPushes({ repo: options.repo, pushes: parsePushLines(readFileSync(0, 'utf8')) })
+    ? checkPushes({ repo: options.repo, remote: options.remote, pushes: parsePushLines(readFileSync(0, 'utf8')) })
     : checkInvariants({ repo: options.repo, requireRemote: options.requireRemote, strictLongLived: options.strictLongLived });
   report(result, options);
   if (result.ok) {

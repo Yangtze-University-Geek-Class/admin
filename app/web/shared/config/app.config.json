@@ -30,8 +30,7 @@
     }
   },
   "urls": {
-    "githubOrg": "https://github.com/Yangtze-University-Geek-Class",
-    "gitlab": "https://git.yangtzeu.work/geek"
+    "githubOrg": "https://github.com/Yangtze-University-Geek-Class"
   },
   "features": {
     "development": {

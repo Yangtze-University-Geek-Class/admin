@@ -18,7 +18,7 @@
 ## 23:03:40 +08:00 · 开发 · #202 · 完整 verify 与论坛工具链核验
 
 - 执行者：agent-codex-geek-main-closure-20261003
-- 做了什么：首次根 verify 在 forum:check 因未指定隔离 pnpm 11.24.0 退出 1，forum:generate 未执行；复用主工作区已有 pnpm 工具并以 FORUM_NODE=/opt/homebrew/bin/node、FORUM_PNPM=/Users/crosery/work_file/geek_main/.tools/pnpm11/package/bin/pnpm.cjs 运行 forum:install（frozen-lockfile）与 fnm exec --using=22.23.2 pnpm verify
+- 做了什么：首次根 verify 在 forum:check 因未指定隔离 pnpm 11.24.0 退出 1，forum:generate 未执行；复用主工作区已有 pnpm 工具并以 FORUM_NODE=/opt/homebrew/bin/node、FORUM_PNPM=/Users/[已脱敏]/work_file/geek_main/.tools/pnpm11/package/bin/pnpm.cjs 运行 forum:install（frozen-lockfile）与 fnm exec --using=22.23.2 pnpm verify
 - 结果：论坛安装 pnpm 11.24.0 退出 0；完整 verify 退出 0：check、核心 73 文件 1027 passed、server/web/console build、论坛类型/ESLint/样式检查与 30 文件 548 passed、静态生成 61 路由均成功；未跑浏览器与远端 CI；stage protection 仍 HTTP 404，rulesets []
 - 下一步：补收尾恢复边界回归、自查完整 diff；未提交未开 PR未远端启用
 

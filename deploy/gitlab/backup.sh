@@ -2,21 +2,29 @@
 set -Eeuo pipefail
 umask 077
 
-LOCK_FILE="/run/gitlab-backup.lock"
+ENVIRONMENT=production
+if [[ "${1:-}" == --environment && $# == 2 ]]; then ENVIRONMENT="$2"; elif [[ $# != 0 ]]; then echo 'Usage: backup.sh [--environment production|preview]' >&2; exit 2; fi
+case "${ENVIRONMENT}" in
+    production) INSTANCE=gitlab; ROLE=gitlab-backup; REQUIRED_VARS=(GITLAB_BACKUP_S3_ACCESS_KEY_ID GITLAB_BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT) ;;
+    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup; REQUIRED_VARS=(GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT) ;;
+    *) echo 'Invalid GitLab backup environment' >&2; exit 2 ;;
+esac
+BASE="/srv/${INSTANCE}"
+BACKUP_ENV="/etc/${INSTANCE}-backup/env"
+LOCK_FILE="/run/${INSTANCE}-backup.lock"
 exec 200>"${LOCK_FILE}"
 if ! flock -n 200; then
     echo "Error: Another backup instance is already running (${LOCK_FILE} is locked)" >&2
     exit 1
 fi
 
-if [[ -f /etc/gitlab-backup/env && -z "${GITLAB_BACKUP_S3_ACCESS_KEY_ID:-}" ]]; then
+if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[0]:-}" ]]; then
     set -a
     # shellcheck source=/dev/null
-    . /etc/gitlab-backup/env
+    . "${BACKUP_ENV}"
     set +a
 fi
 
-REQUIRED_VARS=(GITLAB_BACKUP_S3_ACCESS_KEY_ID GITLAB_BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT)
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
         echo "Error: Required environment variable ${var} is not set" >&2
@@ -24,7 +32,7 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
-ARCHIVE_TOOL="/srv/gitlab/garage-archive.mjs"
+ARCHIVE_TOOL="${BASE}/garage-archive.mjs"
 if [[ ! -f "${ARCHIVE_TOOL}" || -L "${ARCHIVE_TOOL}" ]]; then
     echo "Error: ${ARCHIVE_TOOL} is missing or unsafe" >&2
     exit 1
@@ -34,17 +42,17 @@ if ! gpg --batch --list-keys "${GPG_RECIPIENT}" >/dev/null 2>&1; then
     echo "Error: GPG public key ${GPG_RECIPIENT} not found in keyring" >&2
     exit 1
 fi
-if [[ "$(docker inspect -f '{{.State.Running}}' gitlab 2>/dev/null || true)" != "true" ]]; then
-    echo "Error: Container 'gitlab' is not running" >&2
+if [[ "$(docker inspect -f '{{.State.Running}}' "${INSTANCE}" 2>/dev/null || true)" != "true" ]]; then
+    echo "Error: Container '${INSTANCE}' is not running" >&2
     exit 1
 fi
 
 DAY=$(TZ=Asia/Shanghai date +%F)
 STAMP=$(TZ=Asia/Shanghai date +%Y%m%dT%H%M%S)
-DAY_DIR="/srv/gitlab/backups-enc/${DAY}"
+DAY_DIR="${BASE}/backups-enc/${DAY}"
 STAGE_DIR="${DAY_DIR}/${STAMP}"
 CONFIG_TAR="${STAGE_DIR}/gitlab_config_${STAMP}.tar"
-MARKER_FILE="/srv/gitlab/data/backups/.backup_marker_${STAMP}"
+MARKER_FILE="${BASE}/data/backups/.backup_marker_${STAMP}"
 
 cleanup() {
     [[ -n "${CONFIG_TAR:-}" && -f "${CONFIG_TAR}" ]] && rm -f "${CONFIG_TAR}"
@@ -54,14 +62,14 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p /srv/gitlab/data/backups "${DAY_DIR}"
+mkdir -p "${BASE}/data/backups" "${DAY_DIR}"
 mkdir -m 0700 "${STAGE_DIR}"
 touch "${MARKER_FILE}"
-docker exec gitlab gitlab-backup create SKIP=registry STRATEGY=copy CRON=1
+docker exec "${INSTANCE}" gitlab-backup create SKIP=registry STRATEGY=copy CRON=1
 
 BACKUP_TAR=""
-if [[ -d /srv/gitlab/data/backups ]]; then
-    BACKUP_TAR="$(find /srv/gitlab/data/backups -maxdepth 1 -type f -name '*_gitlab_backup.tar' -newer "${MARKER_FILE}" -printf '%T@\t%p\n' 2>/dev/null | sort -n | tail -n 1 | cut -f2-)"
+if [[ -d "${BASE}/data/backups" ]]; then
+    BACKUP_TAR="$(find "${BASE}/data/backups" -maxdepth 1 -type f -name '*_gitlab_backup.tar' -newer "${MARKER_FILE}" -printf '%T@\t%p\n' 2>/dev/null | sort -n | tail -n 1 | cut -f2-)"
 fi
 rm -f "${MARKER_FILE}"
 if [[ -z "${BACKUP_TAR}" || ! -f "${BACKUP_TAR}" || -L "${BACKUP_TAR}" ]]; then
@@ -70,8 +78,8 @@ if [[ -z "${BACKUP_TAR}" || ! -f "${BACKUP_TAR}" || -L "${BACKUP_TAR}" ]]; then
 fi
 
 CONFIG_CANDIDATE_PATHS=(
-    srv/gitlab/config srv/gitlab/docker-compose.yml srv/gitlab/backup.sh srv/gitlab/restore-drill.sh srv/gitlab/garage-archive.mjs
-    etc/systemd/system/gitlab-backup.service etc/systemd/system/gitlab-backup.timer etc/systemd/system/gitlab-compose.service
+    "srv/${INSTANCE}/config" "srv/${INSTANCE}/docker-compose.yml" "srv/${INSTANCE}/backup.sh" "srv/${INSTANCE}/restore-drill.sh" "srv/${INSTANCE}/garage-archive.mjs"
+    "etc/systemd/system/${INSTANCE}-backup.service" "etc/systemd/system/${INSTANCE}-backup.timer" "etc/systemd/system/${INSTANCE}-compose.service"
 )
 CONFIG_PATHS=()
 for rel_path in "${CONFIG_CANDIDATE_PATHS[@]}"; do
@@ -94,9 +102,9 @@ rm -f "${CONFIG_TAR}"
 )
 chmod 0600 "${STAGE_DIR}"/*
 
-node "${ARCHIVE_TOOL}" put-tree --role gitlab-backup --source "${STAGE_DIR}" --prefix "gitlab/${DAY}/${STAMP}/" >/dev/null
+node "${ARCHIVE_TOOL}" put-tree --role "${ROLE}" --source "${STAGE_DIR}" --prefix "gitlab/${DAY}/${STAMP}/" >/dev/null
 echo "OK gitlab/${DAY}/${STAMP}/ $(find "${STAGE_DIR}" -maxdepth 1 -type f | wc -l | tr -d ' ') files"
 # 香港对象存储空间有限：这份上传并读回核验之后，只保留最近 3 个备份日期，更早的整日 run 由适配器核对后删除。
 # 清理失败时本脚本退出非零（单元显示失败，磁盘不会悄悄涨满），刚上传的这份已经完整可用。
-PRUNE_JSON=$(node "${ARCHIVE_TOOL}" prune-runs --role gitlab-backup --keep-dates 3 --apply)
+PRUNE_JSON=$(node "${ARCHIVE_TOOL}" prune-runs --role "${ROLE}" --keep-dates 3 --apply)
 echo "PRUNE ${PRUNE_JSON}"

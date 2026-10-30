@@ -46,7 +46,7 @@ describe("对外授权的同意页 (authorize)", () => {
 
   it("开发预览给一份待同意的样板，允许与拒绝按只读回 501", async () => {
     const view = await mockApi<AuthorizeView>(detailsPath("Ab3_-xyz0123"));
-    expect(view).toMatchObject({ client: { id: "gitlab", name: "GitLab", host: "git.yangtzeu.work" }, scopes: ["openid", "profile", "email"] });
+    expect(view).toMatchObject({ client: { id: "gitlab", name: "GitLab", host: "example.test" }, scopes: ["openid", "profile", "email"] });
     expect(view.expires_at).toBeGreaterThan(Date.now());
     await expect(mockApi(decisionPath("Ab3_-xyz0123", "confirm"), { method: "POST" })).rejects.toMatchObject({ status: 501 });
   });

@@ -101,7 +101,7 @@ export function createConfig(env: Record<string, string | undefined>) {
     return { issuer: `${publicOrigin}/oidc`, jwks: { keys } };
   })();
   // GitLab 账号同步（#270）：GITLAB_SYNC 是 off（不同步）、dry-run（只算出要做什么，不调 GitLab）或 on。不是 off 时要有
-  // GITLAB_URL（GitLab 的 origin），on 时还要 GITLAB_API_TOKEN（管理员令牌，api 范围）；GITLAB_GROUP 是成员进的组，默认 geek。
+  // GITLAB_URL（GitLab 的 HTTP(S) 基址，可带部署子路径），on 时还要 GITLAB_API_TOKEN（管理员令牌，api 范围）；GITLAB_GROUP 是成员进的组，默认 geek。
   const gitlab = (() => {
     const value = (key: string) => (env[key] ?? "").trim();
     const mode = value("GITLAB_SYNC").toLowerCase() || "off";
@@ -110,17 +110,22 @@ export function createConfig(env: Record<string, string | undefined>) {
     let url: string | null = null;
     if (rawUrl) {
       const parsed = (() => { try { return new URL(rawUrl); } catch { return null; } })();
-      if (!parsed || !["http:", "https:"].includes(parsed.protocol) || parsed.pathname !== "/" || parsed.search || parsed.hash || parsed.username) {
-        throw new Error("GITLAB_URL must be a plain HTTP(S) origin");
+      if (!parsed || !["http:", "https:"].includes(parsed.protocol) || parsed.search || parsed.hash || parsed.username || parsed.password) {
+        throw new Error("GITLAB_URL must be an HTTP(S) base URL without credentials, query or fragment");
       }
-      url = parsed.origin;
+      url = `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
     }
     const token = value("GITLAB_API_TOKEN") || null;
     const group = value("GITLAB_GROUP") || "geek";
+    const clientId = value("GITLAB_OIDC_CLIENT") || "gitlab";
+    if (!/^[a-z0-9_]{3,64}$/.test(clientId)) throw new Error("GITLAB_OIDC_CLIENT must be a client identifier");
+    // GITLAB_OIDC_SECTOR：这个客户端的 pairwise sector（主机名，可带端口）。GitLab 换地址时它不跟着换，成员的 sub 才不变（#335）；空 = 不核对。
+    const sector = value("GITLAB_OIDC_SECTOR").toLowerCase() || null;
+    if (sector && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/.test(sector)) throw new Error("GITLAB_OIDC_SECTOR must be a host name");
     if (!/^[A-Za-z0-9_.-]{1,255}$/.test(group)) throw new Error("GITLAB_GROUP must be a group path");
     if (mode !== "off" && !url) throw new Error("GITLAB_SYNC needs GITLAB_URL");
     if (mode === "on" && !token) throw new Error("GITLAB_SYNC=on needs GITLAB_API_TOKEN");
-    return { mode: mode as "off" | "dry-run" | "on", url, token, group };
+    return { mode: mode as "off" | "dry-run" | "on", url, token, group, clientId, sector };
   })();
   return {
     production, port, publicOrigin, host: listenHost, trustProxy,

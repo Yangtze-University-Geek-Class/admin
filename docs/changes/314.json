@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "issue": 314,
+  "kind": "engineering",
+  "summary": "每日 issue 巡检的 sweep job 补上漏检出的 scripts/pr-markdown.mjs（pr-contract.mjs 的本地 import），并新增回归：逐个 job 核对 sparse-checkout 清单与其所跑脚本的本地 import 闭包。原为 GitHub #282 / PR #283，迁入 GitLab 后以 #314 编号。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不改任何业务规则、用户可见行为或数据流转。只让本该每天运行的 issue 巡检恢复，补关已合并 issue、给超期与缺记录留追踪记录的行为仍由 scripts/issue-sweep.mjs 原样决定。",
+      "evidence": [
+        "docs/conventions/TRACKING.md",
+        "scripts/issue-sweep.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不新增或修改任何 Fastify 路由、请求响应约定与错误码；改动只在 CI 工作流的检出文件清单与测试工具，服务端代码一行未动。",
+      "evidence": [
+        ".github/workflows/issue-lifecycle.yml",
+        "docs/architecture/catalog/routes.md"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "sweep job 的 permissions（contents: read、issues: write、pull-requests: read）逐字未改；本次只多检出一个脚本文件，不扩大任何授权范围，也不改变谁能触发巡检。",
+      "evidence": [
+        ".github/workflows/issue-lifecycle.yml"
+      ]
+    },
+    "data": {
+      "status": "not-applicable",
+      "reason": "不读写数据库、缓存或任何持久化存储；工作流只读 GitHub issue 与 PR 元数据并写评论，表结构与数据模型没有变化。",
+      "evidence": [
+        "docs/architecture/catalog/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "没有新增 npm 包、外部服务或构建步骤。pr-markdown.mjs 早已在 stage 上，pr-contract.mjs 直接 import 它；本次只是让 sweep job 也检出它，没有版本变化。",
+      "evidence": [
+        "scripts/pr-markdown.mjs",
+        "scripts/pr-contract.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/ops/CICD.md 的 issue-lifecycle 行把 sweep 的检出脚本清单改成与工作流一致，并写清漏检出会让 job 启动即 ERR_MODULE_NOT_FOUND。模块路径 .github/workflows/ 在文档对照表内，必须同一 PR 同步。",
+      "evidence": [
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 tests/tooling/workflow-sparse-checkout.test.ts，逐个 job 把它实际运行的脚本展开成本地 import 闭包，再与 sparse-checkout 清单比对。在 gitlab/stage 的 issue-lifecycle.yml 上运行该测试失败（缺 scripts/pr-markdown.mjs），加上本 PR 的一行后 27 条全绿。",
+      "evidence": [
+        "tests/tooling/workflow-sparse-checkout.test.ts",
+        ".github/workflows/issue-lifecycle.yml"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "改了 .github/workflows/issue-lifecycle.yml 的 sweep 检出清单，属于 CI 交付面；镜像、compose、环境变量契约与部署流程都没动，也不触发任何环境的部署。工作流文件随 PR 进 stage，进入 main 后定时任务才使用新清单。",
+      "evidence": [
+        ".github/workflows/issue-lifecycle.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        ".github/workflows/issue-lifecycle.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "sweep job 的 sparse-checkout 增加一行 scripts/pr-markdown.mjs，使 issue-sweep.mjs → pr-contract.mjs → pr-markdown.mjs 这条导入链在检出后完整；pr-contract job 的清单不动。"
+    },
+    {
+      "paths": [
+        "tests/tooling/workflow-sparse-checkout.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "新增回归：逐个 job 比对「实际运行脚本的本地 import 闭包」与检出/复制清单，覆盖 sparse-checkout 与复制到临时目录两种写法；在 gitlab/stage 的工作流上失败、本 PR 后通过，能区分前后。"
+    },
+    {
+      "paths": [
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "工作流表格里 issue-lifecycle 行的 sweep 检出脚本清单与漏检出的后果。docs/ops/CICD.md 不在目录的 document 节点里（目录只登记 API、ARCHITECTURE、SECURITY 等少数几份），所以对齐到它所属的 platform 域。"
+    }
+  ],
+  "documents": [
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/workflow-sparse-checkout.test.ts"
+  ],
+  "compatibility": "只改工作流的检出文件清单、测试与一行文档；不改任何接口、数据或产物；sweep 的判定逻辑（scripts/issue-sweep.mjs）一行未动。",
+  "migration": "没有数据或配置迁移。工作流随 PR 合入 stage，进入 main 后定时运行才会使用新清单；在此之前 main 上的 sweep job 仍按旧清单运行。",
+  "rollback": "revert 本 PR 的合并提交即可恢复原清单；回滚后 sweep 退回缺 scripts/pr-markdown.mjs 的旧清单。不影响其他服务。"
+}

@@ -44,7 +44,7 @@
 - 结果：#206 OPEN，当前明确尚未完成；未新建issue或扩大登录协议范围。git diff --check exit0；真实预览仍是同一PID且GitHub登录模式开启，未重启服务。源码本轮未改。独立登录复现探针仍为预期红结果，未声称修复或完整OAuth成功。
 - 下一步：Crosery确认独立登录问题的跟踪安排；手机UI返工仍保留在#206
 
-## 01:46:47 +08:00 · 返工 · #206 · 手机四角仍方正，按所有者要求改用现成模型
+## 01:46:47 +08:00 · 返工 · #206 · 手机四角仍方正，按所有者要求[已脱敏]
 
 - 执行者：agent-codex-geek-main-206
 - 做了什么：用户追加手机方角与现成模型要求；恢复阅读门禁和原issue，保留已有改动；开始核对iPhone模型的原作者授权、体积和屏幕几何
@@ -153,7 +153,7 @@
 - 执行者：agent-codex-geek-main-206
 - 做了什么：使用既有start-with-oauth.ts经credential-broker注入两项本机开发凭据，从task206启动local-preview；task206/.tools/local-preview链接至主仓.tools/acceptance206/local-preview持久目录；恢复论坛20260926只读快照与pnpm dev:console；运行精确5173隔离浏览器探针、verify-oauth.mjs和HTTP资源/跳转检查；实际查看手机书桌、主屏及电脑截图
 - 结果：5173/3000 PID52833，file库且github_login=true；论坛3456 PID52978为local-snapshot，控制台5186 PID52916。390x844与1440x900均PASS，iPhone模型与两张手机版HTTP200，无未捕获浏览器错误或横溢出；11项OAuth入口/签名取消回调/拒绝检查PASS且exit0，论坛控制台HTTP200。截图和探针日志保存主仓.tools/acceptance206。较早local-preview库及keys未动；原/private/tmp验收目录已不存在，昨日临时数据/登录会话未恢复。真实GitHub授权成功、Safari真机未验证；源码未变，不重跑全量verify/E2E，不接管用户Ego空间，无提交推送PR合并tag或线上部署
-- 下一步：Crosery打开http://127.0.0.1:5173/sites/portal/?__data=live验收；以后重启用bun .tools/local-preview/start-with-oauth.ts start /Users/crosery/work_file/geek_main/.claude/worktrees/task-206。finish206前停止服务并改向已合并stage，保留主仓.tools/acceptance206的本地数据
+- 下一步：Crosery打开http://127.0.0.1:5173/sites/portal/?__data=live验收；以后重启用bun .tools/local-preview/start-with-oauth.ts start /Users/[已脱敏]/work_file/geek_main/.claude/worktrees/task-206。finish206前停止服务并改向已合并stage，保留主仓.tools/acceptance206的本地数据
 
 ## 14:25:24 +08:00 · 方案 · #206 · 按所有者验收授权完成stage合并与清理闭环
 

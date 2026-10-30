@@ -46,6 +46,10 @@ export default async function authRoutes(app: FastifyInstance) {
     "/auth/callback",
     async (req, reply) => {
       const { code, state, error } = req.query;
+      // 重复的查询参数会解析成数组，不先收敛类型的话 state.startsWith 会抛 500（PENTEST-20261029 finding 31）
+      if (typeof state !== "string" || (code !== undefined && typeof code !== "string") || (error !== undefined && typeof error !== "string")) {
+        return reply.code(400).send({ error: "invalid_state" });
+      }
       if (!state || (!code && !error)) return reply.code(400).send({ error: "missing_params" });
       if (state.startsWith("forum-")) return reply.code(410).send({ error: "legacy_forum_retired" });
       const flow = readOAuthState(req, reply, "oauth_state", state);

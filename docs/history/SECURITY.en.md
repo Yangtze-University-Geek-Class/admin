@@ -165,4 +165,4 @@ Injected `<script>` won't execute; iframe embedding blocked.
 
 ## Reporting vulnerabilities
 
-Privately contact the `Yangtze-University-Geek-Class` org owner (GitHub login: Crosery).
+Privately contact the `Yangtze-University-Geek-Class` org owner (the owner account listed in the organization settings).

@@ -1,0 +1,52 @@
+name: gitlab-preview
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e991ecdd6cae11ca7d7e5d36fc3
+    container_name: gitlab-preview
+    restart: unless-stopped
+    shm_size: 256m
+    mem_limit: 6g
+    cpus: 3
+    ports:
+      - "${GITLAB_HTTP_BIND}:80"
+    volumes:
+      - ${GITLAB_STACK_ROOT}/config:/etc/gitlab
+      - ${GITLAB_STACK_ROOT}/logs:/var/log/gitlab
+      - ${GITLAB_STACK_ROOT}/data:/var/opt/gitlab
+    networks:
+      - gitlab
+    environment:
+      TZ: Asia/Shanghai
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url '${GITLAB_URL}'
+        gitlab_rails['time_zone'] = 'Asia/Shanghai'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        letsencrypt['enable'] = false
+        nginx['real_ip_trusted_addresses'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '${GITLAB_DOCKER_GATEWAY}']
+        nginx['real_ip_header'] = 'X-Forwarded-For'
+        nginx['real_ip_recursive'] = 'on'
+        gitlab_rails['trusted_proxies'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '${GITLAB_DOCKER_GATEWAY}']
+        registry['enable'] = false
+        gitlab_rails['registry_enabled'] = false
+        gitlab_rails['usage_ping_enabled'] = false
+        gitlab_rails['backup_keep_time'] = 1209600
+        puma['worker_processes'] = 2
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+        from_file '/etc/gitlab/yzgc-oidc.rb' if File.file?('/etc/gitlab/yzgc-oidc.rb')
+        from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1/gitlab/-/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
+
+networks:
+  gitlab:
+    ipam:
+      config:
+        - subnet: ${GITLAB_DOCKER_SUBNET}
+          gateway: ${GITLAB_DOCKER_GATEWAY}

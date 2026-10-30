@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 271,
   "kind": "business",
-  "summary": "同步到 GitLab 的账号补上头像（#271，#270 的续作，所有者 2026-10-23 16:54「我最烦的就是交付一半然后来问我了」）：头像改成同步里单独的一步 set_avatar，论坛头像优先，没有时下载 256 像素的 GitHub 头像，200 KiB 以内才传；拿不到能传的图或 GitLab 没收都记错误、下一轮再试；gitlab_accounts 新增 avatar_source 记下 GitLab 收下的来源，已经建好的账号补传，来源变了再传。",
+  "summary": "同步到 GitLab 的账号补上头像（#271，#270 的续作，所有者 2026-10-23 16:54「[已脱敏]」）：头像改成同步里单独的一步 set_avatar，论坛头像优先，没有时下载 256 像素的 GitHub 头像，200 KiB 以内才传；拿不到能传的图或 GitLab 没收都记错误、下一轮再试；gitlab_accounts 新增 avatar_source 记下 GitLab 收下的来源，已经建好的账号补传，来源变了再传。",
   "applications": [
     "server",
     "console"

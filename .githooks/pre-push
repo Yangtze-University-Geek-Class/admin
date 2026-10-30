@@ -4,11 +4,13 @@
 # 每次 push 前强制两条硬不变量与来源规则：
 #   I1 stage 必须包含 main（git merge-base --is-ancestor origin/main origin/stage 为真）
 #   I2 main 不得领先 stage（写入 main 的提交必须已经存在于 stage）
-#   *  推 refs/heads/main  ：被推的 main tip 必须已经在 stage 里（main 只做 stage 的快进）
-#   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>/<slug> 分支，且必须已包含 origin/main
+#   *  推 refs/heads/main  ：被推的 main tip 必须已经在远端 stage 里（同一次推送的 stage 或远端跟踪的 stage，本地 stage 不算）；
+#                            领先 stage 的提交只能归属开着的 hotfix 窗口或部分晋升窗口（scripts/promotion-windows.mjs）
+#   *  推 refs/heads/stage ：只能来自 stage 自身或 task/<issue>/<slug> 分支，且必须已包含远端 main；不能删改登记过的晋升窗口
 #   *  删除远端 main/stage：一律拒绝；首次推送的新分支（远端 SHA 全 0）照常判定命名
 #   *  推发布 tag（发版只靠打 tag，见 docs/conventions/RELEASES.md）：
 #        vX.Y.Z-rc.N 必须打在 stage（本地 stage 或 origin/stage）的提交上 → 否则拒绝
+#        vX.Y.Z-hf.N / vX.Y.Z-stable.N 只能打在把 main 合进 stage 的合并提交上（规则见 scripts/release-policy.mjs）
 #        vX.Y.Z      必须打在 main（本地 main 或 origin/main）的提交上 → 否则拒绝；
 #                    同一提交本地没有 vX.Y.Z-rc.N 只告警，以 CI 的预发布证据为准
 #        X.Y.Z 必须等于该提交 package.json 的 version；格式不对的 v 开头 tag 一律拒绝
@@ -16,15 +18,15 @@
 #   本钩子只做推送前的本地拦截，不会替你创建 tag，也不代表发版已获授权。
 #   *  task worktree 生命周期（docs/conventions/BRANCHING.md「task worktree」）：
 #        本机有 PR 已合并、或 issue 已关闭（放弃）却还没 node scripts/task.mjs finish 的 worktree → 拒绝，
-#        提示清理命令。这一项用 gh 只读查询 GitHub；gh 没装、没登录、离线或超时只警告，不拦。
+#        提示清理命令。这一项经 scripts/forge.mjs 按本机 remote 只读查询 GitLab 或 GitHub；没有令牌、没登录、离线或超时只警告，不拦。
 #
 # 启用方式（每台克隆各做一次，写入本仓库的 .git/config，不影响其它仓库）：
 #   git config core.hooksPath .githooks
 # 停用：git config --unset core.hooksPath
-# 临时跳过单次检查：git push --no-verify（CI 仍会独立重判，跳过本地钩子省不掉远端门禁）
+# git push --no-verify 能跳过本钩子，但不能用它绕过门禁（AGENTS.md §1）；CI 仍会独立重判。
 #
-# 分支与 tag 规则只读本地 Git 证据，不 fetch、不改 refs；worktree 检查只用 gh 读 issue 与 PR 的状态，
-# 不改 GitHub 上的任何东西。git 自己会把「<local ref> <local sha> <remote ref> <remote sha>」
+# 分支与 tag 规则只读本地 Git 证据，不 fetch、不改 refs；worktree 检查只读 issue 与 MR / PR 的状态，
+# 不改 GitLab / GitHub 上的任何东西。git 自己会把「<local ref> <local sha> <remote ref> <remote sha>」
 # 逐行写到本脚本的 stdin。
 
 set -eu
@@ -44,7 +46,8 @@ if ! command -v "$node_bin" >/dev/null 2>&1; then
 fi
 
 # 不吞掉 stdin：把它原样交给校验脚本，由脚本逐行解析。
-if ! "$node_bin" "$script" --push --repo "$repo_root"; then
+# 第一个参数是被推的远端名（git 传的），推 main 时拿它的 stage 跟踪分支作证据。
+if ! "$node_bin" "$script" --push --repo "$repo_root" ${1:+--remote "$1"}; then
   echo "" >&2
   echo "pre-push: 分支或发布 tag 规则未通过，推送已被本地钩子拒绝。" >&2
   echo "  启用/停用方式：git config core.hooksPath .githooks / git config --unset core.hooksPath" >&2

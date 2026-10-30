@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 272,
   "kind": "business",
-  "summary": "GitLab 上的提交显示提交人的头像（#272，所有者 2026-10-23 19:22「首先头像没有对上commit的头像」）：GitLab 按提交里的作者邮箱认人，只认用户名下已确认的邮箱，而 GitLab 没配发信。账号页的邮箱改成列表，一个账号最多 5 个，第一个是主邮箱、不能删，其它的可以删，每个都能登录；GitLab 同步多一步 set_emails，把主邮箱、其它邮箱和 GitHub noreply 邮箱以已确认的加到 GitLab 用户名下，删掉的从 GitLab 删掉，gitlab_accounts 新增 emails_source 记下同步过去的邮箱。",
+  "summary": "GitLab 上的提交显示提交人的头像（#272，所有者 2026-10-23 19:22「[已脱敏]」）：GitLab 按提交里的作者邮箱认人，只认用户名下已确认的邮箱，而 GitLab 没配发信。账号页的邮箱改成列表，一个账号最多 5 个，第一个是主邮箱、不能删，其它的可以删，每个都能登录；GitLab 同步多一步 set_emails，把主邮箱、其它邮箱和 GitHub noreply 邮箱以已确认的加到 GitLab 用户名下，删掉的从 GitLab 删掉，gitlab_accounts 新增 emails_source 记下同步过去的邮箱。",
   "applications": [
     "server",
     "console"
@@ -37,7 +37,7 @@
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "GitLab 首页最新提交 61da3fea 的作者邮箱不在 GitLab 用户 Crosery 名下，提交那一行是默认图案；预发布 stage 的历史里 113 个提交用 GitHub noreply 邮箱、700 多个用工作邮箱，也都认不出人。现在 GitHub noreply 邮箱自动加到本人的 GitLab 用户名下；别的提交邮箱，成员在「我的账号」里加上并用验证码确认，下一轮同步加到 GitLab，这些提交就显示本人的头像。一个账号最多 5 个邮箱，第一个是主邮箱（收验证码和通知），不能删；每个邮箱都能用来登录，删掉的不能再登录，也从 GitLab 上删掉。",
+      "reason": "GitLab 首页最新提交 61da3fea 的作者邮箱不在 GitLab 所有者账号名下，提交那一行是默认图案；预发布 stage 的历史里 113 个提交用 GitHub noreply 邮箱、700 多个用工作邮箱，也都认不出人。现在 GitHub noreply 邮箱自动加到本人的 GitLab 用户名下；别的提交邮箱，成员在「我的账号」里加上并用验证码确认，下一轮同步加到 GitLab，这些提交就显示本人的头像。一个账号最多 5 个邮箱，第一个是主邮箱（收验证码和通知），不能删；每个邮箱都能用来登录，删掉的不能再登录，也从 GitLab 上删掉。",
       "evidence": [
         "app/server/src/lib/identity-store.ts",
         "app/server/src/lib/gitlab-sync.ts",

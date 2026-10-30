@@ -5,7 +5,7 @@
 ## 08:44:55 +08:00 · 开工 · #303 · task/303 开工：garage-archive 存在性判断
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：GitLab #303（基于所有者 2026-10-28 08:10「弄好了预发布流程没啥问题了直接处理完正式相关的工作…然后发正式版0.1.1」）；GitHub 运行 40608443241（v0.1.1-rc.27，提交 0f26b44c）cdn-upload 作业写内容索引失败：同键内容冲突。用本机 rclone v1.75.0 对 Garage 复现：不存在的键 lsjson --stat 退出码 0 并返回 IsDir=true 的空条目。从 stage 0f26b44c 建 task/303/garage_archive_missing_object 与 worktree。
+- 做了什么：GitLab #303（基于所有者 2026-10-28 08:10「[已脱敏]」）；GitHub 运行 40608443241（v0.1.1-rc.27，提交 0f26b44c）cdn-upload 作业写内容索引失败：同键内容冲突。用本机 rclone v1.75.0 对 Garage 复现：不存在的键 lsjson --stat 退出码 0 并返回 IsDir=true 的空条目。从 stage 0f26b44c 建 task/303/garage_archive_missing_object 与 worktree。
 - 结果：worktree 已建，根因已复现。
 
 ## 08:44:56 +08:00 · 提交 · #303 · 存在性判断只认普通对象并让假 rclone 对齐真实行为

@@ -14,7 +14,7 @@
 
 ## 已完成的范围
 
-实际通过 crosery-mac 的 OpenSSH 连接已记录的极客班服务器，使用已有身份和严格主机密钥校验，未读取/输出 SSH 私钥、密码或应用 .env。连接成功且发现论坛部署目录、现用 forum.db 和历史 mbbs 数据。现场查询时旧 systemd 服务 `yzgc-admin` 为 active（该部署模型已在 2026-09-23 退役，见 [DEPLOY](DEPLOY.md) 历史章节）。
+实际通过维护者本机的 OpenSSH 连接已记录的极客班服务器，使用已有身份和严格主机密钥校验，未读取/输出 SSH 私钥、密码或应用 .env。连接成功且发现论坛部署目录、现用 forum.db 和历史 mbbs 数据。现场查询时旧 systemd 服务 `yzgc-admin` 为 active（该部署模型已在 2026-09-23 退役，见 [DEPLOY](DEPLOY.md) 历史章节）。
 
 采集工具 `scripts/forum-migration/capture.py` 以只读连接打开源库，调用 SQLite online backup 创建独立镜像，再经 SSH 加密传输。远端只新建本次私有临时导出目录，结束即清理；没有修改原库内容、checkpoint、重启服务、修改 Nginx 或执行部署。不是直接复制正在使用的 WAL 主文件。
 
@@ -23,8 +23,8 @@
 私有数据都在主工作区的 `.tools/` 下。采集、核验、投影和导出工具在 task worktree 里运行时，也按 `git rev-parse --git-common-dir` 找到主工作区，把相对路径（`.tools/forum-migration/<名字>`、`.tools/forum-runtime/<名字>`）按主工作区解析；`task.mjs finish` 删掉 worktree 时不会带走这些唯一的副本。
 
 ```text
-/Users/crosery/work_file/geek_main/.tools/forum-migration/20260926-new-posts/   2026-09-26 增量采集，结构同下
-/Users/crosery/work_file/geek_main/.tools/forum-migration/20260913-initial/
+.tools/forum-migration/20260926-new-posts/   2026-09-26 增量采集，结构同下
+.tools/forum-migration/20260913-initial/
 ├── transfer.tar.gz
 └── source/
     ├── manifest.json
@@ -99,7 +99,7 @@ python3 scripts/forum-migration/verify.py --snapshot .tools/forum-migration/2026
   --archive-sha256 6992367e1bde203c9572f0525c8e650b13bea5e63557db2c448a6dfad41f23fe
 python3 scripts/forum-migration/prepare.py --snapshot .tools/forum-migration/20260926-new-posts \
   --archive-sha256 6992367e1bde203c9572f0525c8e650b13bea5e63557db2c448a6dfad41f23fe \
-  --name geek-20260926 --node /Users/crosery/work_file/geek_main/.tools/node/bin/node
+  --name geek-20260926 --node .tools/node/bin/node
 ```
 
 远端仍只建本次的私有临时导出目录，结束后已确认不存在；没有改原库、checkpoint、重启服务或改 nginx。第一次按旧的 240 秒超时中断，第二次为了改成脱离终端会话运行而手动停止；两次的半截归档都已删除，远端临时目录也已确认清理。

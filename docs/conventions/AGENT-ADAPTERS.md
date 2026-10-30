@@ -49,7 +49,7 @@ OMP：直接调用本次已装包的 provider。路径随安装位置变化时�
 
 ```bash
 bun --eval '
-import { loadAgentsMd } from "/Users/crosery/.bun/install/global/node_modules/@oh-my-pi/pi-coding-agent/src/discovery/agents-md.ts";
+import { loadAgentsMd } from "<HOME>/.bun/install/global/node_modules/@oh-my-pi/pi-coding-agent/src/discovery/agents-md.ts";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
@@ -75,7 +75,7 @@ import path from "node:path";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-const bytes = fs.readFileSync("/Users/crosery/.bun/install/global/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude");
+const bytes = fs.readFileSync("<HOME>/.bun/install/global/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude");
 assert.equal(createHash("sha256").update(bytes).digest("hex"), "5262ce9de86243fed0d21edc39b271555d56780d0112e2b194439fe1c6662d37");
 const source = (start, end) => bytes.subarray(start, end).toString()
   .replace(/import(?:[^;]*?from)?"\/\$bunfs\/[^"\n]+";/g, "")

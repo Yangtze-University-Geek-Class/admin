@@ -13,7 +13,7 @@
 //
 // 密钥只从进程环境读取（与 CI 同名），只经子进程环境传给 render，永不进命令行参数、永不回显：
 //   OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET SESSION_SECRET ENCRYPTION_KEY [TURNSTILE_SITE_KEY TURNSTILE_SECRET_KEY]
-//   [MAIL_ALIYUN_ACCESS_KEY_ID MAIL_ALIYUN_ACCESS_KEY_SECRET] [MAIL_RESEND_API_KEY] [MAIL_ALLOWLIST] [GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET]
+//   [MAIL_ALIYUN_ACCESS_KEY_ID MAIL_ALIYUN_ACCESS_KEY_SECRET] [MAIL_RESEND_API_KEY] [MAIL_ALLOWLIST] [GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET] [MAIL_ALIYUN_FROM MAIL_RESEND_FROM]
 //   [OIDC_JWKS] [GITLAB_API_TOKEN]（GITLAB_SYNC=on 时必填）
 //   （方括号里的可以不配，成对的要么都配要么都不配）
 //   DEPLOY_TARGET_ENVIRONMENT（必须等于 --environment，防止拿错环境的密钥）
@@ -29,7 +29,7 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const PREVIEW_ORIGIN = JSON.parse(readFileSync(new URL('../deploy/environments.json', import.meta.url), 'utf8')).environments.preview.origin;
 const ENVIRONMENTS = ['preview', 'production'];
 /** 与 scripts/release-policy.mjs 的 RELEASE_TAG_RE 逐字一致（tests/tooling/deploy-manual.test.ts 核对）。 */
-export const RELEASE_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.([1-9]\d*))?$/;
+export const RELEASE_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc|hf|stable)\.([1-9]\d*))?$/;
 /** 会拼进远端命令的值（目录、镜像 tag、归档名）只允许这些字符，远端再用单引号包起来。 */
 const REMOTE_SAFE = /^[A-Za-z0-9._/-]+$/;
 /** 部署记录只要求 CI 的这项检查通过；默认的「全部检查」会把正在运行或失败的部署 job 也算进去而一直 409。 */
@@ -53,13 +53,14 @@ export const deployStackCommand = (plan, environment) =>
 const SSH_ENV = ['DEPLOY_SSH_HOST', 'DEPLOY_SSH_PORT', 'DEPLOY_SSH_USER', 'DEPLOY_SSH_KEY_FILE', 'DEPLOY_SSH_KNOWN_HOSTS_FILE'];
 /** 与 scripts/deployment-environment.mjs 的 SECRET_FIELDS 逐项一致（tests/tooling/deploy-manual.test.ts 核对）。 */
 export const SECRET_ENV = ['OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY',
+  'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM',
   'MAIL_ALIYUN_ACCESS_KEY_ID', 'MAIL_ALIYUN_ACCESS_KEY_SECRET', 'MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
   'OIDC_JWKS', 'GITLAB_API_TOKEN'];
 /** 取出哪些路径：规划器、环境契约、render 与远端物料都在这里面。 */
 const MATERIAL_PATHS = ['deploy', 'scripts', 'package.json'];
 
 export const USAGE = `维护者机器部署（只部署 CI 为该发布 tag 构建过的镜像归档，物料取自 tag 指向的提交）：
-  node scripts/deploy-manual.mjs --environment preview --tag vX.Y.Z-rc.N [--dry-run]
+  node scripts/deploy-manual.mjs --environment preview --tag vX.Y.Z-rc.N|vX.Y.Z-hf.N|vX.Y.Z-stable.N [--dry-run]
   node scripts/deploy-manual.mjs --environment production --tag vX.Y.Z --acceptance <批准评论的链接> [--dry-run]
 
 --acceptance 必须是本仓库 issue 或 PR 里的一条评论（…#issuecomment-<id>）：作者是仓库管理员、没有被编辑过也没有被折叠、
@@ -82,8 +83,9 @@ export function parseArgs(argv) {
   if (!ENVIRONMENTS.includes(options.environment)) throw new Error(`--environment 只能是 ${ENVIRONMENTS.join(' / ')}`);
   const match = RELEASE_TAG_RE.exec(options.tag ?? '');
   if (!match) throw new Error(`--tag 不是发布 tag：${options.tag ?? ''}`);
-  const isRc = match[4] !== undefined;
-  if ((options.environment === 'preview') !== isRc) throw new Error(`${options.tag} 不能部署到 ${options.environment}：rc tag 只进预发布，正式 tag 只进正式`);
+  // 第 4 组是预发布种类（rc / hf / stable）：它们只进预发布，正式 tag 只进正式。
+  const isPreview = match[4] !== undefined;
+  if ((options.environment === 'preview') !== isPreview) throw new Error(`${options.tag} 不能部署到 ${options.environment}：预发布 tag（rc / hf / stable）只进预发布，正式 tag 只进正式`);
   if (options.environment === 'production') {
     if (!acceptanceComment(options.acceptance ?? '')) throw new Error('正式部署必须带 --acceptance <https://github.com/<仓库>/(issues|pull)/<号>#issuecomment-<id>>');
   } else if (options.acceptance) {

@@ -48,10 +48,10 @@ describe("同构清单", () => {
     expect(() => updateEntry(base(), "P-9999", { status: "done" })).toThrow(/没有这条/);
   });
 
-  it("豁免只认所有者的署名和原话", () => {
-    expect(() => updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "agent", at: "2026-10-28", quote: "先上线" } })).toThrow(/所有者/);
-    expect(() => updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "Crosery", at: "2026-10-28", quote: "" } })).toThrow(/所有者/);
-    const waived = updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "Crosery", at: "2026-10-28", quote: "这条先不做，下个版本补" } });
+  it("豁免只认所有者的署名和批准摘要", () => {
+    expect(() => updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "agent", at: "2026-10-28", approval: "先上线" } })).toThrow(/所有者/);
+    expect(() => updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "所有者", at: "2026-10-28", approval: "" } })).toThrow(/所有者/);
+    const waived = updateEntry(base(), "P-0001", { status: "waived", waiver: { by: "所有者", at: "2026-10-28", approval: "这条先不做，下个版本补" } });
     expect(pendingEntries(waived)).toEqual([]);
   });
 
@@ -87,6 +87,8 @@ describe("同构清单", () => {
     mkdirSync(join(dir, "scripts"), { recursive: true });
     mkdirSync(join(dir, "deploy", "parity"), { recursive: true });
     copyFileSync(resolve("scripts/parity.mjs"), join(dir, "scripts", "parity.mjs"));
+    // parity.mjs 从同目录的 owner-approval.mjs 取审批校验，整份脚本要一起拷过去
+    copyFileSync(resolve("scripts/owner-approval.mjs"), join(dir, "scripts", "owner-approval.mjs"));
     const cli = (...args: string[]) => spawnSync(process.execPath, [join(dir, "scripts", "parity.mjs"), "check", ...args], { cwd: dir, encoding: "utf8" });
     writeFileSync(join(dir, LEDGER_FILE), JSON.stringify(base(), null, 2));
     expect(cli("--relase").status).toBe(2);

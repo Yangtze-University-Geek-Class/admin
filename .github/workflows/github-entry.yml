@@ -1,0 +1,59 @@
+# GitHub 入口指向 GitLab（docs/conventions/ISSUES.md「GitHub 入口」，#330）
+#
+# GitHub 只做代码镜像和 CI；issue、合并请求与编号以 GitLab 为准。新开的 issue、PR（作者不是机器人时）
+# 在这里留一条中文说明，指向 GitLab；维护者用 scripts/github-import.mjs 把它们迁过去，迁移后这里留回链并关闭。
+# 权限：pull_request_target 只为拿到写评论的 GITHUB_TOKEN 而用，不检出 PR 代码，不执行 PR 里的任何内容；
+# 只给 issues: write 与 pull-requests: write。
+
+name: GitHub entry
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  notice:
+    name: 指向 GitLab 的说明
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      KIND: ${{ github.event_name == 'issues' && 'issue' || 'pr' }}
+      NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+      AUTHOR_TYPE: ${{ github.event.issue.user.type || github.event.pull_request.user.type }}
+    steps:
+      - name: 作者不是机器人时留一条说明
+        shell: bash
+        run: |
+          set -eu
+          if [ "$AUTHOR_TYPE" = "Bot" ]; then
+            echo "作者是机器人账号，不留说明。"
+            exit 0
+          fi
+          body="${RUNNER_TEMP}/github-entry.md"
+          {
+            echo "这个仓库是 GitHub 镜像，只做代码镜像和 CI。"
+            echo ""
+            echo "主平台是 GitLab：https://yangtzeu.work/gitlab/geek/admin 。"
+            if [ "$KIND" = "pr" ]; then
+              echo "这个 PR 的代码请到 GitLab 以合并请求提交；编号和计分都以 GitLab 为准。"
+            else
+              echo "这个 issue 请到 GitLab 提交；编号和计分都以 GitLab 为准。"
+            fi
+            echo ""
+            echo "维护者会把这条内容迁到 GitLab 继续处理，迁移后这里会留一条回链并关闭。"
+          } > "$body"
+          if [ "$KIND" = "pr" ]; then
+            gh pr comment "$NUMBER" --body-file "$body"
+          else
+            gh issue comment "$NUMBER" --body-file "$body"
+          fi
+          echo "已在 GitHub #${NUMBER} 留下指向 GitLab 的说明。"

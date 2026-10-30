@@ -26,6 +26,18 @@ it.each([
   ['preview', '1.2.0', sha],
   ['preview', '1.2.0-rc.1', sha],
   ['preview', '1.2.0-rc.1@bbbbbbbbbbbb', sha],
+  ['preview', '1.2.0-hf.1', sha],
+  ['preview', '1.2.0-hf.0@aaaaaaaaaaaa', sha],
+  ['preview', '1.2.0-hf.01@aaaaaaaaaaaa', sha],
+  ['preview', '1.2.0-hf.1@bbbbbbbbbbbb', sha],
+  ['preview', '1.2.0-hf@aaaaaaaaaaaa', sha],
+  ['preview', '1.2.0-stable.1@aaaaaaaaaaaa', sha],
+  ['preview', '1.2.0-stable@bbbbbbbbbbbb', sha],
+  ['preview', '1.2.0-stable', sha],
+  ['preview', '1.2.0-stable@aaaaaaaaaaaa.1', sha],
+  ['production', '1.2.0-hf.1', sha],
+  ['production', '1.2.0-stable', sha],
+  ['production', '1.2.0-stable@aaaaaaaaaaaa', sha],
   ['preview', '1.2.0-rc.0@aaaaaaaaaaaa', sha],
   ['preview', '1.2.0-rc.01@aaaaaaaaaaaa', sha],
   ['preview', '1.2.0-rc1@aaaaaaaaaaaa', sha],
@@ -37,6 +49,11 @@ it.each([
   ['production', '01.2.0', sha],
 ])('rejects invalid release metadata %s %s', (environment, version, commit) => {
   expect(() => createDeploymentMetadata(contract, environment, version, commit)).toThrow()
+})
+it('shows the hotfix and stable preview versions bound to the same commit', () => {
+  expect(createDeploymentMetadata(contract, 'preview', '1.2.0-hf.1@aaaaaaaaaaaa', sha).displayVersion).toBe('1.2.0-hf.1@aaaaaaaaaaaa')
+  expect(createDeploymentMetadata(contract, 'preview', '1.2.0-hf.12@aaaaaaaaaaaa', sha).displayVersion).toBe('1.2.0-hf.12@aaaaaaaaaaaa')
+  expect(createDeploymentMetadata(contract, 'preview', '1.2.0-stable@aaaaaaaaaaaa', sha).displayVersion).toBe('1.2.0-stable@aaaaaaaaaaaa')
 })
 it('production uses a bare version without a commit suffix', () => {
   const value = createDeploymentMetadata(contract, 'production', '1.2.0', sha)

@@ -2,20 +2,24 @@
 
 > 发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上发预发布，在预发布验收通过后，在同一提交上打 `vX.Y.Z` 发正式。tag 不可移动、不可删除，版本号不自动提升。
 
-状态：`current` · 更新：2026-10-28 · 依据：2026-09-24 指令：「后续所有相关的 都是走发版的逻辑，通过打 tag 去发版。目前所有的发版流程是：先发预发布版，预发布版测试没啥问题的时候，再发正式版。」写法选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
+状态：`current` · 更新：2026-10-30 · 依据：2026-09-24 确定：发版只靠打 tag，先发预发布版、测试没问题后再发正式版。写法选定为 SemVer。分支规则见 [BRANCHING](BRANCHING.md)。
 
 ## 发布模型：tag 驱动
 
 | tag | 形状 | 打在哪里 | 触发的工作流 | 部署到 | 展示版本 |
 |---|---|---|---|---|---|
 | 预发布 | `vX.Y.Z-rc.N`（N 从 1 开始） | `stage` 上的提交（`origin/stage` 或它的祖先） | `deploy-preview.yml` | 预发布栈 `/opt/yzgc/preview` → `https://prev.yangtzeu.work` | `X.Y.Z-rc.N@<sha12>` |
-| 正式 | `vX.Y.Z` | `main` 上的提交，且这个提交上已经有同一 `X.Y.Z` 的 rc tag | `deploy-production.yml` | 正式栈 `/opt/yzgc/production` → `https://yangtzeu.work` | `X.Y.Z` |
+| 预发布（hotfix 合回） | `vX.Y.Z-hf.N`（N 按 X.Y.Z 从 1 开始） | 把 `main` 合进 `stage` 的合并提交，合进来的提交里有归属 `vX.Y.Z` hotfix 窗口的；`vX.Y.Z` 已存在 | `deploy-preview.yml` | 同上 | `X.Y.Z-hf.N@<sha12>` |
+| 预发布（hotfix 收尾） | `vX.Y.Z-stable.N` | 把 `main` 合进 `stage` 的合并提交，这次合并新关闭了一个 `vX.Y.Z` 的 hotfix 窗口，且登记合规；`vX.Y.Z` 已存在 | `deploy-preview.yml` | 同上 | `X.Y.Z-stable@<sha12>` |
+| 正式 | `vX.Y.Z` | `main` 上的提交，且这个提交上已经有同一 `X.Y.Z` 的 rc tag（hf、stable 不算） | `deploy-production.yml` | 正式栈 `/opt/yzgc/production` → `https://yangtzeu.work` | `X.Y.Z` |
 
 发布 tag 的唯一正则（与 [scripts/release-policy.mjs](../../scripts/release-policy.mjs) 的 `RELEASE_TAG_RE` 逐字一致，测试核对两处相同）：
 
-`^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.([1-9]\d*))?$`
+`^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc|hf|stable)\.([1-9]\d*))?$`
 
 - `X.Y.Z` 必须等于**该提交里**根 `package.json` 的 `version`（不看工作区）。
+- hf 与 stable 让预发布在 hotfix 之后跟上正式：hotfix 合回 `stage` 时打 hf，窗口关闭登记合回时打 stable。它们由 `node scripts/hotfix-sync.mjs apply --preview-tag --tag-approval "<所有者授权摘要>"` 选号并在推送前核对（同一 X.Y.Z、同一种类的 N 不跳号、不复用），授权摘要写进附注 tag，不替代正式发布要求的 rc 验收。pre-push 与部署工作流的 plan 用同一套规则（`hotfixTagProblems`）再核对一次；规则只看提交本身，窗口之后关闭，同一个 tag 重跑部署结论不变。
+- `stage` 上已经把 `version` 改到下一个版本时，合并提交里的 `package.json` 不再是 hotfix 的 `X.Y.Z`，hf 与 stable 都打不上：这时 `hotfix-sync.mjs apply` 不带 `--preview-tag`，只做合回，预发布等下一个 rc。
 - push `stage` / `main` 只跑 CI，**不部署任何环境**。2026-09-23 至 2026-09-24 短暂使用过的「推分支即部署」模型已退役。
 - 部署开关 `vars.DEPLOY_PREVIEW_ENABLED`、`vars.DEPLOY_PRODUCTION_ENABLED` 仍默认关闭：开关关闭时推 tag 只会规划和构建镜像归档，不会部署。
 - 其它 tag（包括历史上的 `release-X.Y.Z` / `prev-X.Y.Z`）不触发任何部署。
@@ -23,7 +27,7 @@
 ## 发布流程
 
 1. `task/<issue>/<slug>` 经 [CODE-REVIEW](CODE-REVIEW.md) 合入 `stage`。
-2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」取得 Crosery 对版本变更事项与建单的确认，再走普通 task PR 改 `version`，同样合入 `stage`。
+2. 这次要发的版本号还没写进 `package.json` 时，先按下文「版本号」取得所有者对版本变更事项与建单的确认，再走普通 task PR 改 `version`，同样合入 `stage`。
 3. 发布这个预发布版本获得授权后，先确认要打 tag 的提交文档是同步的，再在这个 `stage` 的提交上打 rc tag 并推送。确认的办法有两种：这个提交上 push `stage` 触发的 `CI` 运行里，`core`（其中的 `pnpm check` 含文档同步）和 `verify (required check)` 都通过；或者像下面这样在这个提交的 detached 检出上运行 `node scripts/check-doc-sync.mjs`（只用 Node 内置模块，不用装依赖），看到「文档同步通过：……按第一父链的时间核对。」。下面的命令块不切分支，在主工作区或 release worktree 里都能跑；`git merge-base --is-ancestor` 和第 4 步的 plan 一样，先核对这个提交在 `origin/stage` 上。不同步的提交打了 rc，第 4 步的 plan 会失败；rc tag 不能移动，这个编号只能作废，在 `stage` 上补好文档后在补好的提交上打下一个。
 
    ```bash
@@ -78,7 +82,7 @@
 
 ## 版本号
 
-- `package.json` 的 `version` 何时改、改成多少，要先有 Crosery 的明确决定（写在对应 issue 里）。建单遵循 [ISSUES](ISSUES.md) §1 的确认门禁，修改走普通 task PR、经审查合入 `stage`，合入以后才能打这个版本的 rc。版本号按 SemVer 2.0.0 选择升哪一位。
+- `package.json` 的 `version` 何时改、改成多少，要先有所有者的明确决定（写在对应 issue 里）。建单遵循 [ISSUES](ISSUES.md) §1 的确认门禁，修改走普通 task PR、经审查合入 `stage`，合入以后才能打这个版本的 rc。版本号按 SemVer 2.0.0 选择升哪一位。
 - 禁止 semantic-release、版本机器人或按 commit type 推算版本的脚本；`feat`/`fix` 提交消息不是发版许可。工作流不会改版本号，也不会打 tag。
 - 发布版本只取**提交态根** `package.json` 的 `version`（`scripts/release-policy.mjs` 与两条部署工作流都读根清单）。`app/forum/package.json` 由上游溯源固定：`scripts/check-forum-adoption.mjs` 按 `app/forum/UPSTREAM.json` 核对上游清单与锁文件，只认 `app/forum/ADOPTION.json` 的 `approvedDependencies` 里所有者逐个批准、写死版本的依赖和审过的那一份锁文件（`scripts/forum-dependencies.mjs`，#276 的 Milkdown 两个包），其它改动要先单独复审一次上游升级。升号 PR 不改论坛清单，它与根清单版本不同不是缺陷。
 
@@ -128,17 +132,17 @@ Agent 可以整理候选改动、测试结果、差异和空白模板，**不能
 
 ## 线上紧急缺陷（Hotfix）规约
 
-2026-10-28 所有者明确授权 P0 hotfix 的独立路径：从最新 `main` 修复，保持当前正式版本，不发 rc、不新建版本 tag，正式修复并验证后再合回 `stage`。本节是上文常规发布的明确例外，不以常规 rc 前置阻塞已授权的线上止血。
+P0 hotfix 走独立路径（线上止血不能等常规 rc 周期）：从最新 `main` 修复，保持当前正式版本，不发 rc、不新建版本 tag，正式修复并验证后再合回 `stage`。本节是上文常规发布的明确例外，不以常规 rc 前置阻塞线上止血。
 
 `deploy-hotfix.yml` 只允许 `workflow_dispatch` 从 `main` 发起，输入既有正式 `tag`、当前 main 的完整 `commit` 和已批准的 P0 `issue`；`issue` 必须是 `deploy/hotfix/windows.json` 里 `open`、没过期且绑定这个 `tag` 的窗口（登记规则见 [BRANCHING 的 Hotfix 规约](BRANCHING.md#线上紧急修复hotfix规约)）。`scripts/hotfix-policy.mjs` 核对工作流 SHA、HEAD、origin/main 三者相同；既有 tag 必须是修复提交的祖先，两个提交的版本都等于 tag 去掉 v。tag 只作版本锚点，保持原对象不动；`release.json.commit`、镜像 `<sha12>` 与部署记录标明真正的修复提交，不能把新代码伪称为旧 tag 的字节。
 
 hotfix 不读取或制造 rc 验收记录。它独立运行完整核心检查/测试/构建和论坛检查/生成，以 `hotfix-verify` 汇总；核对当前线上同版本和同 SHA 成功生产部署记录，审批后再核对一次避免版本漂移。生产审批、环境哨兵、SSH 目标、CDN 完整校验、生产备份及隔离恢复、镜像校验和、部署锁、健康门与回滚均保留。`required_contexts` 明确要求 `hotfix-verify`，不把普通 CI 在 hotfix 窗口内的 main/stage 不变量失败写成成功。hotfix MR 合进 `main` 后立刻用 `scripts/hotfix-sync.mjs` 把 `main` 合回 `stage`（[BRANCHING](BRANCHING.md#hotfix-合并后的自动同步)），重新核对常规 CI 与 `stage >= main`。
 
 正式发布后暴露的影响用户的问题按 [BRANCHING.md](BRANCHING.md) 处理：
-1. **开 Issue 与打标**：按 [ISSUES](ISSUES.md) §1 先取得 Crosery 对紧急事项、操作范围和建单安排的确认，再开 Issue 记录故障现象并打上 `hot-fix` 与 `P0` 标签；不得因紧急或事后补单自动建单。
+1. **开 Issue 与打标**：按 [ISSUES](ISSUES.md) §1 先取得所有者对紧急事项、操作范围和建单安排的确认，再开 Issue 记录故障现象并打上 `hot-fix` 与 `P0` 标签；不得因紧急或事后补单自动建单。
 2. **基线拉取与紧急上线**：直接以 `origin/main` 作为基线拉出快速修复，关键路径验证通过后合入 `main` 快速发布上线。修复改了模块（[docs/README](../README.md)「文档跟着模块改」表里的路径），就在同一个改动里把对应文档改对；文档里的事实确实没变时，在随修复一起提交的执行记录里写文档核对。没跟文档的修复，在它上面打的发布 tag 会被部署工作流的 plan 拦下。
 3. **强制合回 stage**：正式环境修复上线且验收通过后，**必须立即把该提交合并回 `stage`**，执行 `git merge-base --is-ancestor origin/main origin/stage` 恢复并确保 `stage >= main` 硬不变量成立。合回的合并提交把修复的模块改动和文档（或文档核对）一起带进 `stage`；修复没跟文档时，这个合并提交在 `stage` 上就不同步（例：`9b38684`、`7c01897`），push `stage` 的 CI `core` 报红，在它和它之后、文档补上之前的提交上打的 rc 都会被 plan 拦下，只能作废编号，补好文档后再打下一个。
-4. **同构预防**：预发布与正式环境必须保持最高同构（Nginx 模板、CSP 头、跨域白名单与环境变量结构对齐），任何配置与依赖在正式上线前必须在预发布真实走过完整改动路径，确保线上可控。hotfix 不豁免同构：修复动了表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务，同样登记同构清单；`deploy-hotfix.yml` 同样被 `parity` job 把关，部署后跑 `smoke`；清单里有历史欠账时先做完，或由所有者逐条豁免并留原话（[RELEASE-PARITY](RELEASE-PARITY.md) 第七节）。
+4. **同构预防**：预发布与正式环境必须保持最高同构（Nginx 模板、CSP 头、跨域白名单与环境变量结构对齐），任何配置与依赖在正式上线前必须在预发布真实走过完整改动路径，确保线上可控。hotfix 不豁免同构：修复动了表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务，同样登记同构清单；`deploy-hotfix.yml` 同样被 `parity` job 把关，部署后跑 `smoke`；清单里有历史欠账时先做完，或由所有者逐条豁免并留批准摘要（[RELEASE-PARITY](RELEASE-PARITY.md) 第七节）。
 
 ## tag 不可变
 

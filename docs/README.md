@@ -2,11 +2,11 @@
 
 > 所有项目规范集中于 docs；`docs/` 与 `app/` 严格对齐，根目录及工具文件只负责导航。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-30
 
 ## AI 第一操作
 
-Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md)、[RELEASE-PARITY](conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务时）和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
+Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-current`），第二件事是停止业务操作并完整读取 [AGENT-START](conventions/AGENT-START.md)、[PROJECT](conventions/PROJECT.md)、[BRANCHING](conventions/BRANCHING.md)、[CHANGE-PATHS](conventions/CHANGE-PATHS.md)、[CONTRIBUTING](conventions/CONTRIBUTING.md)、[TRACKING](conventions/TRACKING.md)、[NOTES](conventions/NOTES.md)、[CODE-REVIEW](conventions/CODE-REVIEW.md)、[RELEASES](conventions/RELEASES.md)、[RELEASE-PARITY](conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务时）和任务适用文档，再开始实施。根 [AGENTS](../AGENTS.md) 保存硬门禁摘要；不能先执行再补读。
 
 ## 项目地图
 
@@ -69,7 +69,8 @@ Agent 进入仓库的第一件事是**确认当前分支**（`git branch --show-
 |---|---|
 | 应用、业务、接口、数据结构与能力的统一入口 | [项目目录](architecture/catalog/README.md)（可重建的内部工程目录，含源码证据；不代表已部署） |
 | 每个 PR 的业务、接口、权限、数据与文档对齐 | [ARCHITECTURE-ALIGNMENT](conventions/ARCHITECTURE-ALIGNMENT.md) |
-| 分支模型、不变量、合并后删分支 | [BRANCHING](conventions/BRANCHING.md) |
+| 分支模型、不变量、合并后删分支、hotfix 与部分晋升窗口 | [BRANCHING](conventions/BRANCHING.md) |
+| 改动走哪条路（常规、P0、部分晋升、配置、数据、宿主、回滚、活动期、代码托管不可用） | [CHANGE-PATHS](conventions/CHANGE-PATHS.md) |
 | diff 审查清单与结论格式 | [CODE-REVIEW](conventions/CODE-REVIEW.md) |
 | 打 tag 发版、人工验收、版本展示、回滚 | [RELEASES](conventions/RELEASES.md) |
 | 三份 env 的隔离、去硬编码、预发布到正式的同构清单与发版烟测、无损迁移 | [RELEASE-PARITY](conventions/RELEASE-PARITY.md) |

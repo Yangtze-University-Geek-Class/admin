@@ -1,6 +1,6 @@
 {
   "version": "20261025",
-  "generator": "crosery-ct -> crapi",
+  "generator": "本机生成工具 -> crapi",
   "model": "gpt-image-2.5-sunburst",
   "quality": "high",
   "references": [

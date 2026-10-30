@@ -587,6 +587,8 @@ jobs:
       # 读本次运行的镜像归档（scripts/fetch-artifact.mjs 经 REST API 下载）。
       actions: read
       deployments: write
+      checks: read
+      statuses: write
     env:
       RELEASE_TAG: ${{ needs.plan.outputs.tag }}
       RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
@@ -693,6 +695,8 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          MAIL_ALIYUN_FROM: ${{ secrets.MAIL_ALIYUN_FROM }}
+          MAIL_RESEND_FROM: ${{ secrets.MAIL_RESEND_FROM }}
           MAIL_ALIYUN_ACCESS_KEY_ID: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_ID }}
           MAIL_ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_SECRET }}
           MAIL_RESEND_API_KEY: ${{ secrets.MAIL_RESEND_API_KEY }}
@@ -721,6 +725,12 @@ jobs:
           chmod 600 "$RUNNER_TEMP/ssh/id_deploy"
           chmod 644 "$RUNNER_TEMP/ssh/known_hosts"
           echo "SSH 物料就绪：私钥 $(wc -l < "$RUNNER_TEMP/ssh/id_deploy") 行，known_hosts $(wc -l < "$RUNNER_TEMP/ssh/known_hosts") 行"
+
+      - name: 将本次成功检查绑定到部署状态接口
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/hotfix-policy.mjs publish-check "$RUNNER_TEMP/hotfix-plan.json"
 
       - name: 创建部署记录（in_progress）
         id: record

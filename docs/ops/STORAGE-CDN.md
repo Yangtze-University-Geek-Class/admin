@@ -9,7 +9,7 @@
 | 是 | 不是 |
 |---|---|
 | 一个 S3 兼容的**对象存储**（Garage），带公共桶直链与私有桶预签名外链 | 带边缘节点的多地 CDN：只有香港这一台，掉线时没有第二份可回源 |
-| 站点静态资源的公共出口：官网、控制台、论坛带哈希的 JS、CSS、字体、图片和论坛内置表情包放在 `geek-public/static/site/`（见 [CICD](CICD.md#静态资源-cdn146)、[CDN](CDN.md)） | 七牛 `https://cdn.crosery.com` 的运行依赖：新构建不再引用它，旧对象只留给 rc.25 及更早版本回滚 |
+| 站点静态资源的公共出口：官网、控制台、论坛带哈希的 JS、CSS、字体、图片和论坛内置表情包放在 `geek-public/static/site/`（见 [CICD](CICD.md#静态资源-cdn146)、[CDN](CDN.md)） | 七牛旧 CDN 域名（个人域名）的运行依赖：新构建不再引用它，旧对象只留给 rc.25 及更早版本回滚 |
 | 平台与 GitLab 备份的归档目的地（私有桶 `geek-backup`） | Arch 本机备份的替代：单副本，本机副本继续保留 |
 | 图床/开放文档的公共桶（`geek-public`、`cdn`） | 一个多节点集群：`replication_factor = 1`，单机单副本 |
 
@@ -62,7 +62,7 @@ Caddy 的路由顺序是合同的一部分：S3 签名请求 → 桶策略桥接
 | Garage `rpc_secret` / `admin_token` / `metrics_token` | 目标机 `/etc/garage.toml` | 仓库模板里留空 |
 | 控制台 basic-auth 口令哈希 | 目标机 systemd 环境变量 `S3MANAGER_ADMIN_HASH`（bcrypt） | Caddyfile 里写 `{$S3MANAGER_ADMIN_HASH}`；变量缺失时 Caddy 拒绝启动（失败关闭） |
 
-轮换顺序：先在 Garage 生成新 key（`garage key new --name …`），把新值写进 `/etc/s3manager.env` 并 `systemctl restart s3manager`，确认控制台能列出桶，再停用旧 key（`garage key deny/delete`）。导入/导出凭据走 `crosery-ct cred` 注入进程环境，不写文件、不进 shell 历史、不进日志；示例脚本 [`upload_demo.py`](../../deploy/storage-cdn/scripts/upload_demo.py) 只从 `S3_ACCESS_KEY_ID` / `S3_SECRET_KEY` 读。
+轮换顺序：先在 Garage 生成新 key（`garage key new --name …`），把新值写进 `/etc/s3manager.env` 并 `systemctl restart s3manager`，确认控制台能列出桶，再停用旧 key（`garage key deny/delete`）。导入/导出凭据走本机凭据工具注入进程环境，不写文件、不进 shell 历史、不进日志；示例脚本 [`upload_demo.py`](../../deploy/storage-cdn/scripts/upload_demo.py) 只从 `S3_ACCESS_KEY_ID` / `S3_SECRET_KEY` 读。
 
 ## 仓库里没有这些东西
 
@@ -118,7 +118,7 @@ Garage 是单节点单副本（`replication_factor = 1`），这台机器没有�
 
 恢复到一个新的 Garage：先按「日常运维」里的命令重建桶（`garage bucket create`，公共桶 `garage bucket website --allow`）并为应用生成写密钥，再把镜像推回去：`rclone copy /srv/cdn-mirror/current/<桶> <远端>:<桶>`。恢复的是对象内容；桶别名、website 开关和密钥不在镜像里，按本文件的桶表重建。镜像只保证内容，不替代 Garage 本机元数据备份。
 
-GitLab 与平台备份不走这里。Arch 上实际运行的 GitLab 备份是七牛版 `/srv/gitlab/backup.sh`（SHA-256 `74b4f357…`，每日 03:30，本机加密副本加七牛 `crosery-backup/gitlab/<日期>/`，保留最近 3 天）；仓库里的 [`deploy/gitlab/backup.sh`](../../deploy/gitlab/backup.sh) 是写 Garage `geek-backup` 的版本，目标机尚未安装，Garage 上也没有对应的写密钥。两者不能混着当“已备份”：七牛有 GitLab 备份，Garage 的 `geek-backup` 目前只有 3 个对象。
+GitLab 与平台备份不走这里。Arch 上实际运行的 GitLab 备份是七牛版 `/srv/gitlab/backup.sh`（SHA-256 `74b4f357…`，每日 03:30，本机加密副本加七牛 `<备份桶>/gitlab/<日期>/`，保留最近 3 天）；仓库里的 [`deploy/gitlab/backup.sh`](../../deploy/gitlab/backup.sh) 是写 Garage `geek-backup` 的版本，目标机尚未安装，Garage 上也没有对应的写密钥。两者不能混着当“已备份”：七牛有 GitLab 备份，Garage 的 `geek-backup` 目前只有 3 个对象。
 
 ## 冷热分层（规划，未实施）
 

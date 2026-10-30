@@ -590,7 +590,7 @@ console（`app/console`）：`pages/Competitions.vue` 每行加「名单」；�
 
 ## 计分规则（2026-10-24）
 
-所有者 2026-10-24 16:59：「还有比赛的记分规则一定要对低年级足够的友好，特别是大一，大一那边的有效issue和pr的得分会很高，我们的目的是鼓励大一，你去多数据模拟评分规则，还有pr不能拿代码行数评判，按照贡献的pr对项目的重要程度和核心度，其实issue他们提的时候我们负责人会处理下，因为issue也会按照这个去评判，重要程度和核心度」
+所有者 2026-10-24 16:59 的要求概括为：比赛记分规则要对低年级足够友好，尤其是大一（大一的有效 issue 和 PR 得分会较高，目的是鼓励大一）；需要多做数据模拟来校准评分规则；PR 不能按代码行数评判，要按贡献的 PR 对项目的重要程度和核心度评判；issue 由负责人处理时，同样按重要程度和核心度评判
 
 规则只有一份：`app/server/src/lib/competition-rubric.ts`。服务端算分、控制台试算、官网和门户的计分表都从它来；模拟脚本 `scripts/contest-score-sim.mjs` 也直接读它。
 
@@ -727,7 +727,7 @@ console（`app/console`）：`pages/Competitions.vue` 每行加「名单」；�
 - 官网托管与 SDK：所有者 2026-10-19 补充：内部比赛可以有比赛官网，由我们帮忙部署，办赛人提供部署包，部署包必须对接我们的比赛接口，因此要出 SDK 和相关文档；比赛要有报名、组队；所有内容都要有截图认证。
 - 现有实现：`app/server/src/lib/competition-store.ts:59`、`app/server/src/lib/db.ts:188`、`app/server/src/lib/roles.ts:87`、`app/web/sites/portal/components/os/competitions/CompetitionsApp.tsx`（#265；#238 时在 `Windows.tsx`）、`app/web/sites/portal/lib/osApps.ts:46`。
 - 后端草稿：fork `Yuminghuang738/admin` 分支 `task/239/competition_signup` 的提交 `90fc376`（基于 `a42272d6`；2026-10-19 重构后开 [PR #261](https://github.com/Yangtze-University-Geek-Class/admin/pull/261)）：`app/server/src/lib/competition-signup-store.ts`、`app/server/src/routes/portal/competition-signups.ts`、`app/server/src/routes/console/competition-roster.ts`。
-- 身份：[ADR-0005](../decisions/0005-sso-extend-core-server.md)（`accepted`，未实施；PR #242）；所有者 2026-10-19：「我们的登录不再是github登录了，是长江大学极客班统一登录的」，GitHub、Google、邮箱验证码都绑定到同一个极客班账号；跨业务口径见[统一登录实施规格](./UNIFIED-LOGIN.md)（`accepted`，未实施）；统一资料来自所有者同日的「全局的头像还有相关的信息比赛，首页，管理后端，论坛都是用一套的，而且可以同步的更改」。
+- 身份：[ADR-0005](../decisions/0005-sso-extend-core-server.md)（`accepted`，未实施；PR #242）；所有者 2026-10-19 表示：登录不再是 GitHub 登录，而是长江大学极客班统一登录，GitHub、Google、邮箱验证码都绑定到同一个极客班账号；跨业务口径见[统一登录实施规格](./UNIFIED-LOGIN.md)（`accepted`，未实施）；统一资料来自所有者同日的说明：全局头像和相关信息在比赛、首页、管理后端、论坛之间是同一套，并且可以同步修改。
 - 草图：`docs/assets/competition-app/*.webp`，由静态 HTML 渲染，数据虚构。
 ## 演练结论（GitHub #276，2026-10-27）
 

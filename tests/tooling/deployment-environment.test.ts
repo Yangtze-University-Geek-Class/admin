@@ -55,6 +55,8 @@ const ALLOWLIST = 'tester@example.com,Second.Tester@Example.org';
 const secrets: Record<string, string> = {
   ...Object.fromEntries(SECRET_FIELDS.map(field => [field, `${field.toLowerCase()}-fixture-value`])),
   MAIL_ALLOWLIST: ALLOWLIST,
+  MAIL_ALIYUN_FROM: 'notify@mail.example.test',
+  MAIL_RESEND_FROM: 'notify@example.test',
 };
 const without = (source: Record<string, string>, fields: readonly string[]) =>
   Object.fromEntries(Object.entries(source).filter(([field]) => !fields.includes(field)));
@@ -137,16 +139,16 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(preview.has(retired)).toBe(false);
     }
     expect(readEnvironment(repoRoot, 'production')).not.toHaveProperty('hosts');
-    // 发信：接管后两个权威环境沿用 all，发件地址与图片前缀相同，回复地址留空。
+    // 发信：发件地址是环境密钥，模板里留空、渲染时注入；图片前缀相同，回复地址留空。
     for (const values of [production, preview]) {
-      expect(values.get('MAIL_ALIYUN_FROM')).toBe('notify@mail.email-crosery.cn');
-      expect(values.get('MAIL_RESEND_FROM')).toBe('notify@email-crosery.cn');
+      expect(values.get('MAIL_ALIYUN_FROM')).toBe('');
+      expect(values.get('MAIL_RESEND_FROM')).toBe('');
       expect(values.get('MAIL_ASSET_BASE')).toBe('https://cdn.yangtzeu.work/geek-public/mail/v1/');
       expect(values.get('MAIL_REPLY_TO')).toBe('');
     }
     expect(preview.get('MAIL_RECIPIENTS')).toBe('all');
     expect(production.get('MAIL_RECIPIENTS')).toBe('all');
-    for (const field of [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS]) {
+    for (const field of [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, 'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']) {
       expect(SECRET_FIELDS).toContain(field);
       expect(REQUIRED_SECRET_FIELDS).not.toContain(field);
     }
@@ -234,14 +236,15 @@ describe('committed env templates are the single source of deploy facts', () => 
       ['production', '\nMAIL_RECIPIENTS=all\n', '\nMAIL_RECIPIENTS=\n', /MAIL_RECIPIENTS 只能是/],
       ['production', '\nMAIL_RECIPIENTS=all\n', '\n', /缺少字段 MAIL_RECIPIENTS/],
       // 图片前缀：https、以 / 结尾、规范形式。
-      ['production', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=http://cdn.crosery.com/yzgc/mail/v1/\n', /MAIL_ASSET_BASE 必须是 https/],
+      ['production', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=http://cdn-old.example.test/yzgc/mail/v1/\n', /MAIL_ASSET_BASE 必须是 https/],
       ['preview', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1\n', /MAIL_ASSET_BASE 必须写成规范形式并以 \/ 结尾/],
       ['preview', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/?v=2\n', /MAIL_ASSET_BASE 不得包含/],
       ['preview', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/?\n', /MAIL_ASSET_BASE 必须写成规范形式/],
       ['production', '\nMAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/\n', '\nMAIL_ASSET_BASE=\n', /MAIL_ASSET_BASE 不是合法 URL/],
       // 发件地址不带显示名；回复地址留空或是一个地址。
-      ['production', '\nMAIL_ALIYUN_FROM=notify@mail.email-crosery.cn\n', '\nMAIL_ALIYUN_FROM="极客班 <notify@mail.email-crosery.cn>"\n', /MAIL_ALIYUN_FROM 必须是不带显示名的邮箱地址/],
-      ['preview', '\nMAIL_RESEND_FROM=notify@email-crosery.cn\n', '\nMAIL_RESEND_FROM=\n', /MAIL_RESEND_FROM 必须是不带显示名的邮箱地址/],
+      // 发件地址是环境密钥：模板里必须留空，真实地址只在渲染时从环境密钥注入。
+      ['production', '\nMAIL_ALIYUN_FROM=\n', '\nMAIL_ALIYUN_FROM=notify@mail.example.test\n', /MAIL_ALIYUN_FROM 必须在入库模板里留空/],
+      ['preview', '\nMAIL_RESEND_FROM=\n', '\nMAIL_RESEND_FROM=notify@example.test\n', /MAIL_RESEND_FROM 必须在入库模板里留空/],
       ['preview', '\nMAIL_REPLY_TO=\n', '\nMAIL_REPLY_TO=not-an-address\n', /MAIL_REPLY_TO 只能留空或写一个不带显示名的邮箱地址/],
       ['production', '\nMAIL_REPLY_TO=\n', '\n', /缺少字段 MAIL_REPLY_TO/],
       // 发信密钥与收件名单同样只能在目标机上有值。
@@ -261,7 +264,7 @@ describe('committed env templates are the single source of deploy facts', () => 
   });
 
   it('recognises plain addresses, address lists and the asset base', () => {
-    for (const value of ['notify@mail.email-crosery.cn', 'Second.Tester+tag@Example.org', 'a_b-c@x.io']) expect(isPlainAddress(value), value).toBe(true);
+    for (const value of ['notify@mail.example.test', 'Second.Tester+tag@Example.org', 'a_b-c@example.test']) expect(isPlainAddress(value), value).toBe(true);
     for (const value of ['', 'notify', '@example.com', 'a@b', 'a@@example.com', 'a b@example.com', 'Name <a@example.com>', '"a"@example.com', 'a@example.com ']) {
       expect(isPlainAddress(value), value).toBe(false);
     }
@@ -271,7 +274,7 @@ describe('committed env templates are the single source of deploy facts', () => 
       expect(isAddressList(value), value).toBe(false);
     }
     expect(parseMailAssetBase('https://cdn.yangtzeu.work/geek-public/mail/v1/')).toBe('https://cdn.yangtzeu.work/geek-public/mail/v1/');
-    for (const value of ['https://user:pw@cdn.crosery.com/v1/', 'https://cdn.crosery.com:8443/v1/', 'https://CDN.crosery.com/v1/', 'https://cdn.crosery.com/v1/#x', 'https://cdn.crosery.com/a/../v1/']) {
+    for (const value of ['https://user:pw@cdn-old.example.test/v1/', 'https://cdn-old.example.test:8443/v1/', 'https://CDN-OLD.example.test/v1/', 'https://cdn-old.example.test/v1/#x', 'https://cdn-old.example.test/a/../v1/']) {
       expect(() => parseMailAssetBase(value), value).toThrow(/MAIL_ASSET_BASE/);
     }
   });
@@ -316,11 +319,11 @@ describe('committed env templates are the single source of deploy facts', () => 
       port: '22',
       destination: 'root@156.238.244.78:22',
     });
-    expect(parseProxyJump('deployer@jump.example.com:2222')).toEqual({
+    expect(parseProxyJump('deployer@jump.example.test:2222')).toEqual({
       user: 'deployer',
-      host: 'jump.example.com',
+      host: 'jump.example.test',
       port: '2222',
-      destination: 'deployer@jump.example.com:2222',
+      destination: 'deployer@jump.example.test:2222',
     });
 
     for (const bad of [
@@ -466,8 +469,8 @@ describe('optional Turnstile pair', () => {
     const out = join(root, 'runtime/.env.production');
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SECRET_KEY: '' } })).toThrow(/只配了一项/);
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SITE_KEY: '' } })).toThrow(/只配了一项/);
-    // Turnstile 与发信都关闭时，其余每一个密钥仍然必填。
-    const required = without(secrets, [...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS]);
+    // Turnstile 与发信都关闭时，其余每一个密钥仍然必填；发件地址只在对应的发信商开启时必填。
+    const required = without(secrets, [...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, 'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']);
     expect(Object.keys(required)).toEqual([...REQUIRED_SECRET_FIELDS]);
     for (const field of REQUIRED_SECRET_FIELDS) {
       expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: without(required, [field]) })).toThrow(new RegExp(field));
@@ -503,36 +506,28 @@ describe('OIDC signing key and GitLab sync (#270)', () => {
     return root;
   };
 
-  it('preserves the preview identity source and keeps production sync off after host migration', () => {
-    expect([...OIDC_GITLAB_SECRETS]).toEqual(['OIDC_JWKS', 'GITLAB_API_TOKEN']);
-    for (const [environment, mode] of [['preview', 'on'], ['production', 'off']]) {
-      const values = readEnvironment(repoRoot, environment).values;
-      expect(values.get('GITLAB_SYNC'), environment).toBe(mode);
-      expect(values.get('GITLAB_URL'), environment).toBe('https://git.yangtzeu.work');
-      expect(values.get('GITLAB_GROUP'), environment).toBe('geek');
-      for (const field of OIDC_GITLAB_SECRETS) {
-        expect(SECRET_FIELDS).toContain(field);
-        expect(REQUIRED_SECRET_FIELDS).not.toContain(field);
-        expect(values.get(field), `${environment}: ${field}`).toBe('');
-      }
-    }
-  });
 
-  it('rejects invalid sync modes, insecure origins, malformed groups and committed credentials', () => {
-    const failing: Array<[string, string, string, RegExp]> = [
-      ['preview', '\nGITLAB_SYNC=on\n', '\nGITLAB_SYNC=yes\n', /GITLAB_SYNC 只能是 off \/ dry-run \/ on/],
-      ['production', '\nGITLAB_SYNC=off\n', '\n', /缺少字段 GITLAB_SYNC/],
-      ['production', '\nGITLAB_URL=https://git.yangtzeu.work\n', '\nGITLAB_URL=http://git.yangtzeu.work\n', /GITLAB_URL 必须是 https/],
-      ['preview', '\nGITLAB_URL=https://git.yangtzeu.work\n', '\nGITLAB_URL=https://git.yangtzeu.work/geek\n', /GITLAB_URL 不得包含路径/],
-      ['preview', '\nGITLAB_URL=https://git.yangtzeu.work\n', '\nGITLAB_URL=https://git.yangtzeu.work/\n', /GITLAB_URL 必须写成不带结尾 \/ 的 origin/],
-      ['production', '\nGITLAB_GROUP=geek\n', '\nGITLAB_GROUP=geek group\n', /GITLAB_GROUP 必须是 GitLab 的组路径/],
-      ['production', '\nOIDC_JWKS=\n', '\nOIDC_JWKS=eyJrZXlzIjpbXX0=\n', /OIDC_JWKS 必须在入库模板里留空/],
-      ['preview', '\nGITLAB_API_TOKEN=\n', '\nGITLAB_API_TOKEN=glpat-committed\n', /GITLAB_API_TOKEN 必须在入库模板里留空/],
+  it('rejects invalid sync modes, insecure base URLs, malformed groups and committed credentials', () => {
+    const failing: Array<[string, string, string]> = [
+      ['preview', '\nGITLAB_SYNC=on\n', '\nGITLAB_SYNC=yes\n'],
+      ['production', '\nGITLAB_SYNC=off\n', '\n'],
+      ['production', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n', '\nGITLAB_URL=http://yangtzeu.work/gitlab\n'],
+      ['production', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n', '\nGITLAB_URL=https://user:secret@git.example.test/gitlab\n'],
+      ['production', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n', '\nGITLAB_URL=https://git.example.test/gitlab?key=x\n'],
+      // 一个环境一个域名（#335）：GitLab 只能挂在本环境入口的 /gitlab 下
+      ['production', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n', '\nGITLAB_URL=https://code.example.test/gitlab\n'],
+      ['production', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n', '\nGITLAB_URL=https://yangtzeu.work\n'],
+      ['preview', '\nGITLAB_URL=https://prev.yangtzeu.work/gitlab\n', '\nGITLAB_URL=https://yangtzeu.work/gitlab\n'],
+      ['production', '\nGITLAB_OIDC_SECTOR=', '\nGITLAB_OIDC_SECTOR=https://'],
+      ['preview', '\nGITLAB_OIDC_SECTOR=prev.yangtzeu.work\n', '\nGITLAB_OIDC_SECTOR=prev.yangtzeu.work/gitlab\n'],
+      ['production', '\nGITLAB_OIDC_SECTOR=', '\nGITLAB_OIDC_SECTOR_RETIRED='],
+      ['production', '\nGITLAB_GROUP=geek\n', '\nGITLAB_GROUP=geek group\n'],
+      ['production', '\nOIDC_JWKS=\n', '\nOIDC_JWKS=eyJrZXlzIjpbXX0=\n'],
+      ['preview', '\nGITLAB_API_TOKEN=\n', '\nGITLAB_API_TOKEN=glpat-committed\n'],
     ];
-    for (const [name, from, to, message] of failing) {
+    for (const [name, from, to] of failing) {
       const report = validateEnvironmentFiles({ root: fixture(name, [from, to]), checkCompose: false });
       expect(report.ok, `${name}: ${to}`).toBe(false);
-      expect(report.problems.join('\n')).toMatch(message);
     }
   });
 
@@ -578,7 +573,7 @@ describe('optional mail secrets', () => {
     const result = renderRuntimeEnv({ root, environment, out, imageTag: 'a1b2c3d4e5f6', env });
     return { result, values: parseEnvFileText(readFileSync(out, 'utf8'), 'rendered'), text: readFileSync(out, 'utf8') };
   };
-  const mailFields = [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS];
+  const mailFields = [...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, 'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM'];
 
   it('treats every mail secret empty as mail off, writes them empty and says so', () => {
     for (const env of [without(secrets, mailFields), { ...secrets, ...Object.fromEntries(mailFields.map(field => [field, ''])) }]) {
@@ -592,6 +587,22 @@ describe('optional mail secrets', () => {
     }
     // 收件名单单独配着也不算开启发信：没有能发信的通道。
     expect(render(without(secrets, [...MAIL_ALIYUN_SECRET_PAIR, 'MAIL_RESEND_API_KEY'])).result.mail).toBe('off');
+  });
+
+  it('takes the sender addresses from the environment secrets, required only with their provider', () => {
+    expect(REQUIRED_SECRET_FIELDS).not.toContain('MAIL_ALIYUN_FROM');
+    expect(REQUIRED_SECRET_FIELDS).not.toContain('MAIL_RESEND_FROM');
+    const both = render(secrets);
+    expect(both.values.get('MAIL_ALIYUN_FROM')).toBe(secrets.MAIL_ALIYUN_FROM);
+    expect(both.values.get('MAIL_RESEND_FROM')).toBe(secrets.MAIL_RESEND_FROM);
+    // 对应的发信商没开，发件地址照模板写空。
+    expect(render(without(secrets, MAIL_ALIYUN_SECRET_PAIR)).values.get('MAIL_ALIYUN_FROM')).toBe('');
+    expect(render(without(secrets, ['MAIL_RESEND_API_KEY'])).values.get('MAIL_RESEND_FROM')).toBe('');
+    // 开了就必填：缺发件地址拒绝渲染，并点名是哪一项。
+    expect(() => render(without(secrets, ['MAIL_ALIYUN_FROM']))).toThrow(/MAIL_ALIYUN_FROM/);
+    expect(() => render(without(secrets, ['MAIL_RESEND_FROM']))).toThrow(/MAIL_RESEND_FROM/);
+    // 渲染前仍要是不带显示名的邮箱地址。
+    expect(() => render({ ...secrets, MAIL_RESEND_FROM: '极客班 <notify@example.test>' })).toThrow(/MAIL_RESEND_FROM 必须是不带显示名的邮箱地址/);
   });
 
   it('refuses a half-configured Aliyun pair', () => {

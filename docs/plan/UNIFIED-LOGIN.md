@@ -8,20 +8,20 @@
 
 **实施进度**：#262（PR #268）实施了交付 1 的全部四项：后端底座（`users`、`identities`、`identity_audit` 三张表，`sessions`、`role_assignments`、`forum_users`、`audit_logs` 加列与启动回填，GitHub 登录事务的建号、合并链、认领、停用拒绝与整体回滚，`GET /auth/providers`，`/auth/me` 加 `account_id`、`provider`）；统一登录页 `/signin` 改版（标题「极客班统一登录」，登录方式按 `/auth/providers` 动态渲染，`return_to` 只认同源路径，五种 `signin` 结果在页内说明）；官网菜单栏、论坛右上角、控制台的登录入口统一改成「登录」并去 `/signin`；`/auth/callback` 失败改为 302 到 `/signin?signin=<原因>&return_to=<原路径>`；另加 RFC 8628 设备授权（`/auth/device/code`、`/auth/device/token`、`/auth/device/userinfo`、`/api/identity/device`、`/api/identity/device/approve` 与确认页 `/device`，为 `geek login` 预留，见 [SECURITY](../architecture/SECURITY.md)「设备授权」）。交付 2–4（账号页 `/account`、邮箱验证码、Google、成员资格模块、统一资料）当时未实施。
 
-**第二、三期（#262，2026-10-23）**：所有者定了「目前开放注册，现在的github注册的都算组织成员，后续需要邀请码去注册，在我们的admin控制台再额外加个邀请码的逻辑」「验证码和密码都支持」「按站内称号认」，与本文下面的部分规则不同，以 [ADR-0005「2026-10-23 修订」](../decisions/0005-sso-extend-core-server.md#2026-10-23-修订262-第二三期所有者决定) 为准。已实施：邮箱验证码与密码登录（`/auth/email/start`、`/verify`、`/password`，新表 `email_challenges`），Google 登录（`/auth/google`、`/callback`，没配凭据时不出现），邮箱或 Google 第一次登录凭邀请码注册（新表 `invite_codes`，控制台 `/console/invites`，能力 `accounts.invites.manage`），账号页 `/account`（登录方式、绑定邮箱、设密码、成员资格、这次登录、账号记录），邮箱、Google 会话的 `github.*` 回 `github_session_required`、控制台对应页面提示「用 GitHub 继续」，运维建号命令 `dist/cli/account.js`。没做：GitHub 的绑定，账号页上的 Google 绑定入口（官网资料窗口里的已由 #291 做了，见下一段），解绑与合并，资格凭据与实时资格核验（`membership_verification_required` / `membership_unavailable`），统一资料（交付 4）；论坛对没有 GitHub 身份的账号仍按游客处理。
+**第二、三期（#262，2026-10-23）**：所有者定了：目前开放注册，现在通过 GitHub 注册的都算组织成员，后续需要邀请码才能注册，并在 admin 控制台再加一层邀请码逻辑；验证码和密码两种登录都支持；权限按站内称号认定，与本文下面的部分规则不同，以 [ADR-0005「2026-10-23 修订」](../decisions/0005-sso-extend-core-server.md#2026-10-23-修订262-第二三期所有者决定) 为准。已实施：邮箱验证码与密码登录（`/auth/email/start`、`/verify`、`/password`，新表 `email_challenges`），Google 登录（`/auth/google`、`/callback`，没配凭据时不出现），邮箱或 Google 第一次登录凭邀请码注册（新表 `invite_codes`，控制台 `/console/invites`，能力 `accounts.invites.manage`），账号页 `/account`（登录方式、绑定邮箱、设密码、成员资格、这次登录、账号记录），邮箱、Google 会话的 `github.*` 回 `github_session_required`、控制台对应页面提示「用 GitHub 继续」，运维建号命令 `dist/cli/account.js`。没做：GitHub 的绑定，账号页上的 Google 绑定入口（官网资料窗口里的已由 #291 做了，见下一段），解绑与合并，资格凭据与实时资格核验（`membership_verification_required` / `membership_unavailable`），统一资料（交付 4）；论坛对没有 GitHub 身份的账号仍按游客处理。
 
 **绑定 Google（#291，2026-10-25）**：按下面「绑定与解绑」的接口实施——`POST /api/identity/link { provider: "google" }` 发起，`/auth/google/callback` 按 cookie 的 `kind: "google-link"` 走绑定，结果用 `?link=<linked|conflict|exists|cancelled|failed>&provider=google` 带回发起时的页面（缺省 `/account`，官网资料窗口传 `/?open=profile`）。官网资料窗口的「绑定」之前直接链到 `/auth/google`，那是登录入口：Google 账号没绑过任何账号时会注册成新账号并换掉当前会话，现在改走这个接口。账号页 `/account` 的 Google 绑定入口与 `POST /api/identity/unlink` 仍未实施。
 
-**第四期（#262，2026-10-23）**：所有者说「有关 GitHub 的权限是要放权的」「后续我们可能不仅仅只连 GitHub 了」，以 [ADR-0005「2026-10-23 第二次修订」](../decisions/0005-sso-extend-core-server.md#2026-10-23-第二次修订262-第四期) 为准，本文「成员资格」「要本人 GitHub 令牌的接口」两节与「不同身份看到什么」「错误码」「代码落点」里写的 `github_session_required` 锁定、`blocked` 与 GitHub 角色上限都已不适用。已实施：权限只认账号记下的站内角色（`users.org_role`）与称号，不论用哪种方式登录；提督在「成员与权限」里改站内角色（`PATCH /api/console/people/:account_id/site-role`）；控制台的 GitHub 组织页面由服务器接入的 GitHub 执行（GitHub App，没配时本人 GitHub 会话，都没有回 409 `github_not_connected`）；`/api/me/orgs` 仍要 GitHub 会话。
+**第四期（#262，2026-10-23）**：所有者说明 GitHub 的权限要放开，并表示之后可能不只连接 GitHub，以 [ADR-0005「2026-10-23 第二次修订」](../decisions/0005-sso-extend-core-server.md#2026-10-23-第二次修订262-第四期) 为准，本文「成员资格」「要本人 GitHub 令牌的接口」两节与「不同身份看到什么」「错误码」「代码落点」里写的 `github_session_required` 锁定、`blocked` 与 GitHub 角色上限都已不适用。已实施：权限只认账号记下的站内角色（`users.org_role`）与称号，不论用哪种方式登录；提督在「成员与权限」里改站内角色（`PATCH /api/console/people/:account_id/site-role`）；控制台的 GitHub 组织页面由服务器接入的 GitHub 执行（GitHub App，没配时本人 GitHub 会话，都没有回 409 `github_not_connected`）；`/api/me/orgs` 仍要 GitHub 会话。
 
-**忘记密码与必绑邮箱（#273，2026-10-23）**：所有者 19:22 说「sso登录的时候没有忘记密码改密码相关的信息吧，还有就是之前只绑定了github账号没有绑定邮箱的再次进来或者登录的时候必须绑定邮箱」。已实施：登录页「忘记密码？」用邮箱验证码重设密码并登录（`POST /auth/email/reset`）；能发信的环境里，没有邮箱登录方式的账号登录后先到 `/bind-email` 绑邮箱，`/auth/me`、`/api/identity/me`、`/api/console/me` 带 `email_required`。行为见 [接口行为契约](../services/server/endpoint-contracts.md) 与 [SECURITY](../architecture/SECURITY.md)「邮箱、Google 登录与邀请码注册」。
+**忘记密码与必绑邮箱（#273，2026-10-23）**：所有者 19:22 指出 SSO 登录缺少忘记密码、改密码相关的功能，并要求：之前只绑定了 GitHub 账号、没绑定邮箱的人，再次进来或登录时必须绑定邮箱。已实施：登录页「忘记密码？」用邮箱验证码重设密码并登录（`POST /auth/email/reset`）；能发信的环境里，没有邮箱登录方式的账号登录后先到 `/bind-email` 绑邮箱，`/auth/me`、`/api/identity/me`、`/api/console/me` 带 `email_required`。行为见 [接口行为契约](../services/server/endpoint-contracts.md) 与 [SECURITY](../architecture/SECURITY.md)「邮箱、Google 登录与邀请码注册」。
 
 除上面已实施的部分外，本文是已接受、未实施的方案：其余接口、表和界面都**还不存在**，现行行为以 [server 合同](../services/server/README.md)、[接口行为契约](../services/server/endpoint-contracts.md) 和 [SECURITY](../architecture/SECURITY.md) 为准。为什么这样选见 [ADR-0005](../decisions/0005-sso-extend-core-server.md)（`accepted`），本文只写怎么做；两者不一致时先改 ADR 再改本文。文中图片都是**方案草图**（静态 HTML 渲染，数据虚构），不是实现截图。
 
 ## 给开工 Agent 的读法
 
 1. 先读 ADR-0005 的「决策」1–10 和「登录方式」一节；本文把它展开到字段、错误码、文件和测试，不重复理由。
-2. 文末四个[候选 issue](#候选-issue未建单) 各对应一项交付。**Crosery 逐个批准之前不建单、不开 task 分支、不写 `app/` 代码**（[ISSUES](../conventions/ISSUES.md) §1）。批准后按候选正文建单；PR 正文按 [PULL-REQUESTS](../conventions/PULL-REQUESTS.md)，`docs/changes/<issue>.json` 按 [ARCHITECTURE-ALIGNMENT](../conventions/ARCHITECTURE-ALIGNMENT.md) 声明 `business`。
+2. 文末四个[候选 issue](#候选-issue未建单) 各对应一项交付。**所有者逐个批准之前不建单、不开 task 分支、不写 `app/` 代码**（[ISSUES](../conventions/ISSUES.md) §1）。批准后按候选正文建单；PR 正文按 [PULL-REQUESTS](../conventions/PULL-REQUESTS.md)，`docs/changes/<issue>.json` 按 [ARCHITECTURE-ALIGNMENT](../conventions/ARCHITECTURE-ALIGNMENT.md) 声明 `business`。
 3. 一个交付一个 PR：数据库、接口、三端界面、文档和测试在同一个 PR 里改完；不按层拆，也不把「表建好了」单独报完成（ADR「后果」第 1 条）。
 4. 字段名和错误码是建议值，以实施时 `contracts.ts` 的 Schema 为准；改了名字同步回本文。
 5. 测试里 GitHub、Google、发信商一律只注入虚构响应（[TESTING](../conventions/TESTING.md)，`tests/server/helpers.ts`）；真实 OAuth 往返和真实收信另记在 PR 里，不能用模拟结果代替。
@@ -288,7 +288,7 @@ flowchart LR
 
 ### 统一资料（交付 4）
 
-所有者 2026-10-19 的原话：「还有因为统一sso登录了，所有用户是我们自己维护的一套，全局的头像还有相关的信息比赛，首页，管理后端，论坛都是用一套的，而且可以同步的更改」。
+所有者 2026-10-19 的要求（要点）：统一登录后，头像、资料、比赛、首页、管理后端与论坛用同一套用户信息，并可以同步修改。
 
 - **一个账号一份资料**：`user_profiles` 一行对应一个 `account_id`（[DDL](#交付-4资料表)），存用户名、昵称、个人签名、所在地、个人网站、头像来源、上传头像的哈希和头像底色。称号和部门本来就按账号统一（`role_assignments`），资料卡片上一起显示，本人不能改。
 - **读取时取，不存快照**：业务表只存 `account_id`，显示时按它取资料，接口照旧 `no-store`。改一处，别处的下一次请求就是新的；不用通知各业务，也不会出现「这里改了、那里还是旧的」。已有的名字列（审计的 `actor`、意见箱的 `submitter_login` 等）记的是当时的事实，不动。
@@ -870,7 +870,7 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 ## 候选 issue（候选 1 已建单 #262 并交付，其余未建单）
 
-按 [ISSUES](../conventions/ISSUES.md) 需求正文的顺序写好，Crosery 批准后照抄建单，正文链接本文作为方案。四张单都要写「与现状不同的行为」里属于自己的条目。
+按 [ISSUES](../conventions/ISSUES.md) 需求正文的顺序写好，所有者批准后照抄建单，正文链接本文作为方案。四张单都要写「与现状不同的行为」里属于自己的条目。
 
 查重（2026-10-19）：#226、#228、#203 是 `not planned`；#229 的 PR 已关闭、只借用它的 DDL；#128（过期会话清理）、#164（GitHub 收回授权后会话失效）、#191（429 形状）已完成，本方案沿用；#237 是规划单；#239 的报名依赖候选 1；#57（已完成）做了论坛资料，候选 4 把它升到账号。没有重复的开放 issue。
 
@@ -878,7 +878,7 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 标签：`enhancement`、`server`、`P1`、`func:auth`、`func:data`、`func:api`、`ui:content`、`ui:layout`
 
-- **确认依据**：建单时写 Crosery 批准本候选的原话与时间、批准的范围。本文与 ADR-0005 已被接受（`accepted`），但那只是定了方向，不能当作对本候选的批准。**已实施**：本候选由 #262 建单，交付 1 的全部范围（含登录页改版与三端入口）已在 PR #268 交付，另加了本文未列的 RFC 8628 设备授权（所有者在 #262 的任务里追加）；其余三项仍未建单。
+- **确认依据**：建单时写所有者批准本候选的时间与批准范围（不写原话）。本文与 ADR-0005 已被接受（`accepted`），但那只是定了方向，不能当作对本候选的批准。**已实施**：本候选由 #262 建单，交付 1 的全部范围（含登录页改版与三端入口）已在 PR #268 交付，另加了本文未列的 RFC 8628 设备授权（所有者在 #262 的任务里追加）；其余三项仍未建单。
 - **现状与问题**：登录和业务数据都以 GitHub 账号为主语，称号缺 GitHub id 时按登录名匹配，改名或旧名被别人注册会认错人；官网、论坛、控制台各写一份「用 GitHub 登录」，被拒原因带回发起页各自解释；没有能挂第二种登录方式的账号。
 - **期望的结果**：GitHub 登录落到一个极客班账号；三端都进统一登录页，登录后回到原页面，被拒原因在登录页讲清楚；GitHub 改名不丢称号和帖子。
 - **范围与不做什么**：做交付 1（[交付总览](#交付总览)）。不做邮箱、Google、账号页、成员资格模块、账号合并和停用管理界面。
@@ -942,7 +942,7 @@ SELECT COUNT(*) FROM user_profiles p WHERE p.avatar_hash IS NOT NULL
 
 ## 来源
 
-- 需求：#237 正文与 ADR-0005「背景」里记录的所有者原话；本方案的颗粒度要求来自 2026-10-19 的会话（「要考虑业务逻辑和后端以及数据库模型等等的协调和颗粒度对齐」）。
-- 统一资料：2026-10-19 的会话（「还有因为统一sso登录了，所有用户是我们自己维护的一套，全局的头像还有相关的信息比赛，首页，管理后端，论坛都是用一套的，而且可以同步的更改，其他的你看看有没有更好的解决方案」）。现状在 `4e9caa24` 上核对：`app/server/src/lib/db.ts:193`、`:199`，`lib/forum-store.ts:111`、`:123`、`:302`、`:394`、`:541`，`lib/forum-avatar.ts`，`lib/forum-rules.ts:64`，`routes/forum-api/people.ts:32`、`:80`、`:91`、`:99`，`middleware/http-policy.ts:39`，`app/web/sites/portal/lib/account.ts`，`app/console/src/components/ConsoleNav.vue:74`，`app/forum/app/pages/u/[username]/preferences.vue`；#57 是论坛资料的来源。
+- 需求：#237 正文与 ADR-0005「背景」里记录的所有者原话；本方案的颗粒度要求来自 2026-10-19 的会话（要求考虑业务逻辑、后端和数据库模型等之间的协调与颗粒度对齐）。
+- 统一资料：2026-10-19 的会话（统一 SSO 登录后，所有用户由我们自己维护一套；全局头像和相关信息在比赛、首页、管理后端、论坛之间共用一套，并且可以同步修改；其他方面请看看有没有更好的方案）。现状在 `4e9caa24` 上核对：`app/server/src/lib/db.ts:193`、`:199`，`lib/forum-store.ts:111`、`:123`、`:302`、`:394`、`:541`，`lib/forum-avatar.ts`，`lib/forum-rules.ts:64`，`routes/forum-api/people.ts:32`、`:80`、`:91`、`:99`，`middleware/http-policy.ts:39`，`app/web/sites/portal/lib/account.ts`，`app/console/src/components/ConsoleNav.vue:74`，`app/forum/app/pages/u/[username]/preferences.vue`；#57 是论坛资料的来源。
 - 现状：文中的 `file:line` 在本分支 `b44bcb2d` 上核对（本分支只改文档，`app/` 与分出时的 `stage` 相同）；流程数量来自 `docs/architecture/catalog/catalog.json`。
 - 外部规范：同 ADR-0005「参考资料」——OpenID Connect Core 1.0、RFC 9700（PKCE 与回调）、Google OpenID Connect、GitHub REST 的组织成员资格接口与 `organization` webhook 事件。

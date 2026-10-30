@@ -14,7 +14,7 @@ MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，�
 
 | 段落（`### 标题`） | 要求 | CI 核对 |
 |---|---|---|
-| 目的 | 解决什么问题、谁提的、为什么现在做；引用 issue 里的原话 | 非空 |
+| 目的 | 解决什么问题、谁提的、为什么现在做；概述 issue 里的需求（不照抄用户原文） | 非空 |
 | 关联 | `Closes #<issue>`，与分支号一致、只关这一个；相关的写 `Refs #n`，依赖写 `Depends on #n`。PR 的「组:类」标签要覆盖这个 issue 的标签（[ISSUES](ISSUES.md) §2） | issue 号一致、issue 存在且开着、不关别的 issue；issue 编号 ≥ 235 时标签集合覆盖 |
 | 变更范围 | 按服务列出改了什么，再写明「不做什么」 | 非空 |
 | 宏观对齐 | 引用 `docs/changes/<issue>.json`，说明八维影响与关键取舍；纯 UI/文档也须给出不变的理由与证据，规则见 [ARCHITECTURE-ALIGNMENT](ARCHITECTURE-ALIGNMENT.md) | 段落非空；独立 architecture-alignment 核对声明、目录和真实 diff |
@@ -31,7 +31,7 @@ MR 只能指向 `stage`。`main` 不接受来自 `task/**`、`dev/**` 的 MR，�
 
 - 审查意见、返工、人工验收结果写成评论，格式统一用 [TRACKING](TRACKING.md) §3 的追踪记录（`review` / `rework` / `accept`），不改写已发出的评论。
 - 合并进 `stage` 后：它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理（[ISSUES](ISSUES.md) §1）。`branch-hygiene` 删除 task 分支，`issue-lifecycle` 关闭 issue 并在 issue 与 PR 上各留一条「关闭」记录。自动化没关上的（工作流失败，或者 fork 来的 PR 合并时工作流没有写权限，#137）由合并的人当场手工补齐，按 [CODE-REVIEW](CODE-REVIEW.md) 第 12 项核对。
-- 已合并的 PR 不再追加提交；验收发现的新问题先按 [ISSUES](ISSUES.md) §1 提候选，Crosery 确认后才建续作 issue 并 `Refs #<原 issue>`，不自动拆单或恢复取消事项。
+- 已合并的 PR 不再追加提交；验收发现的新问题先按 [ISSUES](ISSUES.md) §1 提候选，所有者确认后才建续作 issue 并 `Refs #<原 issue>`，不自动拆单或恢复取消事项。
 
 ## 审查要求
 

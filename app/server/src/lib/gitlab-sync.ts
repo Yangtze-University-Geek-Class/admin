@@ -16,8 +16,6 @@ import type { DirectoryAccount } from "./account-directory.js";
  * 只有这个模块读写 gitlab_accounts；`mode` 为 dry-run 时只算出要做什么，不写表、不改 GitLab。
  */
 export const GITLAB_OIDC_PROVIDER = "openid_connect";
-/** GitLab 在签发者那里登记的 client id（oidc.js client add --client-id gitlab）。sector 取它的回调地址的主机，和签发者给 GitLab 的 `sub` 是同一个。 */
-export const GITLAB_OIDC_CLIENT_ID = "gitlab";
 /** GitLab 组成员的权限级别：Developer 30，Owner 50。 */
 export const GITLAB_ACCESS = { developer: 30, owner: 50 } as const;
 /** on 模式下每 10 分钟对一次账（启动时先对一次）。 */
@@ -40,7 +38,20 @@ const RESERVED_USERNAMES = new Set([
   "explore", "groups", "users", "dashboard", "projects", "snippets", "search", "import", "oauth", "public", "profile", "assets", "uploads",
 ]);
 
-export type GitlabSyncConfig = { mode: "off" | "dry-run" | "on"; url: string | null; token: string | null; group: string };
+export type GitlabSyncConfig = { mode: "off" | "dry-run" | "on"; url: string | null; token: string | null; group: string; clientId: string; sector?: string | null };
+export type GitlabSyncSettings = { mode: GitlabSyncConfig["mode"]; group: string; interval_minutes: number };
+
+export function readGitlabSyncSettings(db: Database.Database): Partial<GitlabSyncSettings> | null {
+  const row = db.prepare("SELECT value FROM app_state WHERE key = ?").get("gitlab_settings") as { value: string } | undefined;
+  if (!row) return null;
+  try { return JSON.parse(row.value) as Partial<GitlabSyncSettings>; } catch { return null; }
+}
+
+/** 只改持久值。运行中的实例仍须 applySettings()；离线运维必须先停实例，再写入并重启。 */
+export function writeGitlabSyncSettings(db: Database.Database, settings: GitlabSyncSettings): void {
+  db.prepare("INSERT INTO app_state(key, value, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+    .run("gitlab_settings", JSON.stringify(settings), Date.now());
+}
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export type SyncAction =
   | { kind: "create"; username: string; access_level: number }
@@ -56,7 +67,7 @@ export type GitlabAccountRow = {
   avatar_source: string | null; emails_source: string | null; last_error: string | null; last_error_at: number | null; synced_at: number | null; created_at: number; updated_at: number;
 };
 export type SyncOutcome = { account_id: string; login: string; actions: SyncAction[]; applied: boolean; error: string | null };
-/** `skipped` 不为空时这一轮没做：GitLab 的客户端还没登记（gitlab_client_missing）。 */
+/** `skipped` 不为空时这一轮没做：GitLab 的客户端还没登记（gitlab_client_missing），或它钉住的 sector 不是 GITLAB_OIDC_SECTOR（gitlab_sector_mismatch）。 */
 export type SyncSummary = { mode: GitlabSyncConfig["mode"]; accounts: number; changed: number; failed: number; skipped: string | null; outcomes: SyncOutcome[] };
 export type SyncLogger = { info(details: Record<string, unknown>, message: string): void; error(details: Record<string, unknown>, message: string): void };
 /** 上一轮全量对账的小结（#274 控制台概览用），进程重启后清空。 */
@@ -92,25 +103,19 @@ export function createGitlabSync(db: Database.Database, deps: {
 }) {
   // 可变：控制台「GitLab 设置」（#274）能在运行时改 mode、group、对账间隔，存在 app_state（键 gitlab_settings），
   // 重启后从这里读回来盖在 env 的初始值上；令牌只读 env，不在这里改、不持久化。
-  const SETTINGS_KEY = "gitlab_settings";
-  type PersistedSettings = { mode?: GitlabSyncConfig["mode"]; group?: string; interval_minutes?: number };
-  function readPersisted(): PersistedSettings | null {
-    const row = db.prepare("SELECT value FROM app_state WHERE key = ?").get(SETTINGS_KEY) as { value: string } | undefined;
-    if (!row) return null;
-    try { return JSON.parse(row.value) as PersistedSettings; } catch { return null; }
-  }
-  function writePersisted(settings: Required<PersistedSettings>): void {
-    db.prepare("INSERT INTO app_state(key, value, updated_at) VALUES(?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
-      .run(SETTINGS_KEY, JSON.stringify(settings), Date.now());
-  }
-  const persisted = readPersisted();
+  const persisted = readGitlabSyncSettings(db);
   let config = { ...deps.config, ...(persisted?.mode !== undefined ? { mode: persisted.mode } : {}), ...(persisted?.group !== undefined ? { group: persisted.group } : {}) };
   let intervalMs = persisted?.interval_minutes !== undefined ? persisted.interval_minutes * 60_000 : GITLAB_SYNC_INTERVAL_MS;
   const clock = deps.clock ?? Date.now;
   const fetchGitlab = deps.fetch ?? fetch;
   const fetchGithub = deps.githubFetch ?? fetch;
-  // sector 不取 GITLAB_URL 的主机，免得它和签发者给 GitLab 的 sub 对不上；客户端还没登记时为 null，这时 on 模式整轮跳过
-  const sector = () => deps.clients.sectorOf(GITLAB_OIDC_CLIENT_ID);
+  // sector 不取 GITLAB_URL 的主机，免得它和签发者给 GitLab 的 sub 对不上；客户端还没登记时为 null，这时 on 模式整轮跳过。
+  // 配了 GITLAB_OIDC_SECTOR 而库里钉住的不是它时也当作 null：宁可这一轮不做，也不拿另一个 sector 的 sub 去认人（#335）。
+  const sector = () => {
+    const pinned = deps.clients.sectorOf(config.clientId);
+    return pinned && (!config.sector || pinned === config.sector) ? pinned : null;
+  };
+  const skipReason = () => deps.clients.sectorOf(config.clientId) ? "gitlab_sector_mismatch" : "gitlab_client_missing";
   const selectRow = db.prepare("SELECT * FROM gitlab_accounts WHERE account_id = ?");
   const usernameTaken = db.prepare("SELECT 1 FROM gitlab_accounts WHERE username = ? COLLATE NOCASE AND account_id <> ?");
 
@@ -444,7 +449,7 @@ export function createGitlabSync(db: Database.Database, deps: {
    */
   async function create(account: DirectoryAccount, action: Extract<SyncAction, { kind: "create" }>): Promise<void> {
     const sectorId = sector();
-    if (!sectorId) throw new SyncError("gitlab_client_missing");
+    if (!sectorId) throw new SyncError(skipReason());
     const now = clock();
     let username = action.username;
     // 先占下用户名：建到一半失败时，下次沿用同一个名字
@@ -552,7 +557,7 @@ export function createGitlabSync(db: Database.Database, deps: {
       actions = plan(account);
       outcome.actions = actions;
       if (config.mode !== "on") return outcome;
-      if (!sector()) { outcome.error = "gitlab_client_missing"; return outcome; }
+      if (!sector()) { outcome.error = skipReason(); return outcome; }
       const row = rowOf(account.account_id);
       if (row?.gitlab_user_id != null) {
         const remote = await managedUser(account, row.gitlab_user_id);
@@ -605,7 +610,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     if (running) return running;
     running = (async () => {
       const outcomes: SyncOutcome[] = [];
-      if (config.mode === "on" && !sector()) return { mode: config.mode, accounts: 0, changed: 0, failed: 0, skipped: "gitlab_client_missing", outcomes };
+      if (config.mode === "on" && !sector()) return { mode: config.mode, accounts: 0, changed: 0, failed: 0, skipped: skipReason(), outcomes };
       for (const account of deps.directory.listForSync()) {
         if (config.mode === "off" || stopping) break;
         outcomes.push(await syncOne(account));
@@ -674,7 +679,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     stopping = false;
     const run = () => {
       reconcile().then(summary => {
-        if (summary.skipped) logger.error({ reason: summary.skipped, client_id: GITLAB_OIDC_CLIENT_ID }, "gitlab sync skipped");
+        if (summary.skipped) logger.error({ reason: summary.skipped, client_id: config.clientId }, "gitlab sync skipped");
         else if (summary.changed || summary.failed) logger.info({ changed: summary.changed, failed: summary.failed }, "gitlab sync finished");
       }).catch(error => logger.error({ error: (error as Error)?.name ?? "error" }, "gitlab sync failed"));
     };
@@ -733,18 +738,17 @@ export function createGitlabSync(db: Database.Database, deps: {
       }
       const projects: GitlabProjectInfo[] = [];
       const listed = await gitlab("GET", `/groups/${groupPath}/projects?include_subgroups=true&per_page=100&order_by=last_activity_at`);
-      if (listed.status === 200 && Array.isArray(listed.data)) {
-        for (const item of listed.data as Record<string, unknown>[]) {
-          if (typeof item.id !== "number") continue;
-          projects.push({
-            id: item.id, path_with_namespace: String(item.path_with_namespace ?? ""), name: String(item.name ?? ""),
-            description: typeof item.description === "string" ? item.description : null,
-            visibility: String(item.visibility ?? "private"), web_url: String(item.web_url ?? ""),
-            http_url_to_repo: String(item.http_url_to_repo ?? ""), ssh_url_to_repo: String(item.ssh_url_to_repo ?? ""),
-            last_activity_at: typeof item.last_activity_at === "string" ? item.last_activity_at : null,
-            star_count: typeof item.star_count === "number" ? item.star_count : 0,
-          });
-        }
+      if (listed.status !== 200 || !Array.isArray(listed.data)) return { groups: [], projects: [], available: false };
+      for (const item of listed.data as Record<string, unknown>[]) {
+        if (typeof item.id !== "number") continue;
+        projects.push({
+          id: item.id, path_with_namespace: String(item.path_with_namespace ?? ""), name: String(item.name ?? ""),
+          description: typeof item.description === "string" ? item.description : null,
+          visibility: String(item.visibility ?? "private"), web_url: String(item.web_url ?? ""),
+          http_url_to_repo: String(item.http_url_to_repo ?? ""), ssh_url_to_repo: String(item.ssh_url_to_repo ?? ""),
+          last_activity_at: typeof item.last_activity_at === "string" ? item.last_activity_at : null,
+          star_count: typeof item.star_count === "number" ? item.star_count : 0,
+        });
       }
       return { groups, projects, available: true };
     } catch {
@@ -763,7 +767,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     stopping = false; // stop() 是为关进程设计的永久停止；这里只是暂停去换设置，manual reconcile/syncAccount 照常要能跑
     config = { ...config, ...(patch.mode !== undefined ? { mode: patch.mode } : {}), ...(patch.group !== undefined ? { group: patch.group } : {}) };
     if (patch.intervalMinutes !== undefined) intervalMs = patch.intervalMinutes * 60_000;
-    writePersisted({ mode: config.mode, group: config.group, interval_minutes: Math.round(intervalMs / 60_000) });
+    writeGitlabSyncSettings(db, { mode: config.mode, group: config.group, interval_minutes: Math.round(intervalMs / 60_000) });
     if (activeLogger) start(activeLogger);
   }
 

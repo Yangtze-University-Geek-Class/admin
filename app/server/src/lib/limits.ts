@@ -118,6 +118,8 @@ export const BUCKET_RETENTION_MS: Record<string, number> = {
   "forum.react.hourly": 2 * HOUR_MS,
   "forum.upload.hourly": 2 * HOUR_MS,
   "forum.suggest.per_minute": HOUR_MS,
+  // PENTEST-20261029：PoW 证明的一次性去重桶，窗口 10 分钟（POW_NONCE_TTL_MS），多留一截方便排查
+  "pow.nonce": HOUR_MS,
   "forum.visitor.pages": 2 * DAY_MS,
   // #285：控制台向测试邮箱试发招聘信，每账号每小时限量。
   "mail.test.hourly": 2 * HOUR_MS,

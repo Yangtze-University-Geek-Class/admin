@@ -1,0 +1,33 @@
+# task/335/stage_sync · crosery · 2026-10-30
+
+负责人：crosery
+
+## 17:47:58 +08:00 · 开工 · #335 · hotfix main 合回 GitLab stage
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：#335 与 #311 进 main（28a2e7a4）后跑 hotfix-sync apply --source gitlab --mirror gitlab：12 个文件冲突（6 个是生成物），脚本停下要求在独立 worktree 人工解决。从 gitlab/stage 37abf3c6 拉 task/335/stage_sync。
+- 结果：需要把 gitlab/main 28a2e7a4 合进 gitlab/stage，让 stage 重新包含 main。
+
+## 17:47:58 +08:00 · 提交 · #335 · 合并 main 进 stage
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：f556fb6a：git merge --no-ff gitlab/main。冲突按两边取并集：oidc-store.ts 的导出两边都留；windows.json 用 stage 的批准摘要格式并带上 #335 窗口；origin-exceptions.json 留 stage 的 github-entry.yml 与 main 的 Cargo.toml、gitlab.caddy；ledger.json 同时留 P-0014 与 P-0017；RELEASE-PARITY.md 用 stage 去标识的依据行、日期取 10-30；CICD.md 用 stage 的行，gitlab-cutover 行取 main 带 #335 搬家动作的版本；docs/architecture/catalog 六个生成物按合并后的源码重生成。
+- 结果：check:catalog 通过（305 方法路径、69 表）。
+
+## 17:47:58 +08:00 · 提交 · #335 · forge 认 /gitlab 子路径
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：6d67b1e6：合并带进来的子域名检查报 stage 上 forge.mjs、github-import.mjs 与两份测试还写着旧子域名。parseRemoteUrl 把 /gitlab 这一段归入地址（至少还剩组和项目两段才算），提示文字改成不写域名，测试改用 example.test，新增子路径、多级组与名叫 gitlab 的组三个样例。
+- 结果：改前 task-worktree 与 github-import 测试 8 条失败（项目路径被推成 gitlab/geek/admin），改后 2 个文件 45 条通过；check-env-isolation 通过；不设覆盖变量时 task.mjs list 能从真实 GitLab 读到各 issue 的状态。
+
+## 17:53:33 +08:00 · 审查 · #335 · 同步合并自查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：核对 f556fb6a 相对 gitlab/stage 只带进 main 自分叉点改过的内容；冲突取两边并集，没有丢 stage 的去标识改动（RELEASE-PARITY 的 waive 用法、批准摘要格式仍是 stage 版）。pnpm check：runtime、site-config、environments、env-isolation、boundaries、docs、doc-sync、notes、secrets、privacy、catalog 通过；check-architecture 默认基线是过期的 origin/stage，改用 --base gitlab/stage 后报的是 main 上 #335 各 MR 的并集，它们进 main 时已各自对齐，hotfix 合回 stage 按 BRANCHING「hotfix 合并后的自动同步」不另开 PR；check:cli、typecheck 通过。全量测试 201 个文件 3401 条通过、13 条跳过。
+- 结果：结论：可以合回 GitLab stage，合回后 stage 包含 main。
+
+## 18:05:51 +08:00 · 提交 · #335 · 同构清单收尾与执行记录归位
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：正式部署后核对 #335：verify-accounts 41036945384 有效成员 49 全部通过、sub 不变、GitLab 账号数不变；status 41037981251 签发者读宿主文件且为正式 /oidc；新地址 302 到登录页、登录走统一登录。parity.mjs done P-0017、P-0007、P-0011（两套 GitLab 已各自独立，正式同步 on 且 49 人全映射，预发布运行中为 off）。把暂存队列里 #335 两条链路的收尾、#328 的合并与收尾按原文追加到各自文件；#328 收尾之后那条更正记录违反「收尾之后没有记录」，没有并入，更正内容已在 GitLab #328 的关闭记录里
+- 结果：parity.mjs check --complete：15 条、pending 0；note.mjs check 通过

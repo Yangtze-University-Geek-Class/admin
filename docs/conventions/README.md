@@ -6,6 +6,7 @@
 |---|---|
 | [`AGENT-START.md`](./AGENT-START.md) | 作为 AI/Agent 进入仓库的第一件事（确认分支 + 读规范） |
 | [`BRANCHING.md`](./BRANCHING.md) | 任何提交/推送/切分支之前；确认自己在 `main`/`stage`/`task/<issue>/<slug>` 上 |
+| [`CHANGE-PATHS.md`](./CHANGE-PATHS.md) | 动手前判断这件改动走常规、P0 hotfix、部分晋升、配置、数据、宿主还是回滚路径 |
 | [`CODE-REVIEW.md`](./CODE-REVIEW.md) | review 别人的 diff，或提交 MR 想合入 `stage` 之前 |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | 第一次参与，或需要确认分支/环境/沟通约定 |
 | [`RELEASES.md`](./RELEASES.md) | 打发布 tag、把 `main` 快进到被验收的提交、改版本号或准备部署之前 |

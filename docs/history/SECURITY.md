@@ -168,4 +168,4 @@ form-action 'self' https://github.com
 
 ## 报告漏洞
 
-私下联系 `Yangtze-University-Geek-Class` 组织 owner（GitHub login: Crosery）。
+私下联系 `Yangtze-University-Geek-Class` 组织 owner（组织设置里列出的所有者账号）。

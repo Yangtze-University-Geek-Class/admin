@@ -4,7 +4,7 @@
 #   * 只做机器验证——隔离安装、静态检查、测试、构建、镜像构建、环境契约、工作流自检、分支不变量。
 #   * 机器 PASS 不等于人工试用；它不构成任何发版授权或验收记录。
 #   * 不部署任何环境（既不碰 prev.yangtzeu.work，也不碰 yangtzeu.work）：push stage / main 只跑本工作流。
-#     发版只由发布 tag 触发（vX.Y.Z-rc.N → deploy-preview.yml，vX.Y.Z → deploy-production.yml）。
+#     发版只由发布 tag 触发（vX.Y.Z-rc.N / -hf.N / -stable.N → deploy-preview.yml，vX.Y.Z → deploy-production.yml）。
 #   * 不创建/移动/删除 tag，不修改版本号，不写 approved 之类的放行状态。
 #   * 不挂载任何 secrets；顶层权限仅 contents: read；不使用 pull_request_target。
 #     docker-cdn 按静态资源 CDN 开关打开构建（#146），只列上传清单，不上传，也不需要上传 token。
@@ -70,6 +70,16 @@ jobs:
       - name: 判定分支不变量
         shell: bash
         run: node scripts/check-branch-invariants.mjs --require-remote-refs
+
+      # 提交门禁（docs/conventions/COMMITS.md「隐私门禁」）：PR 里每条提交的说明不带用户原文、账号、本机路径与凭据，
+      # 作者和提交者邮箱只能是 noreply 或角色地址。检出的是合并提交，范围取目标分支的基线到 HEAD（含合并提交本身）。
+      - name: 提交说明与作者邮箱（隐私门禁）
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # 已经在 GitHub main 上的提交早已公开、改不掉（所有者 2026-10-30 在会话中批准：隐私门禁不再检查已在 GitHub main 上的提交），新进来的提交照查
+        run: node scripts/check-privacy.mjs --commits "${BASE_SHA}..HEAD" --published origin/main
 
       # 执行记录（docs/conventions/NOTES.md）：task 分支进 stage 的 PR 必须新增引用本 issue 的 notes/ 记录。
       # 分支名经环境变量传入，不直接拼进脚本。

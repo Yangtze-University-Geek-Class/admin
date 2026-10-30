@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-27",
+  "updated": "2026-10-29",
   "applications": [
     {
       "id": "web",
@@ -1189,7 +1189,7 @@
         },
         {
           "path": "app/web/sites/portal/components/os/Terminal.tsx",
-          "needle": "  const shell = useMemo(() => createShell({ account, apps }), [account?.username, appKey]);"
+          "needle": "  const shell = useMemo(() => createShell({ account, apps }), [account?.accountId, account?.level, account?.username, appKey]);"
         },
         {
           "path": "app/server/src/lib/grade.ts",
@@ -1441,15 +1441,22 @@
         "users",
         "sessions",
         "identity_audit",
-        "activity_events"
+        "activity_events",
+        "device_grants",
+        "oauth_grants",
+        "oidc_payloads"
       ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：匿名，凭 /auth/email/start 发的挑战 cookie（path=/auth/email）；每分钟 10 次（按 IP），同一个码最多错 5 次；只给已有账号的邮箱，不注册（#273，所有者 2026-10-23 19:22）。",
         "响应与错误：200 {return_to} 并写 sid（provider=email）；先查新密码，不到 8 位 400 password_too_short、超过 72 字节 400 password_exceeds_bcrypt_limit，这时不碰验证码；验证码不对 400 invalid_code（带 attempts_left），失效 400 code_expired；邮箱没有账号时和验证码登录一样 400 invite_required（不注册，验证码不作废，登录页转到「注册」）；停用 403 account_disabled，不是成员 403 not_member。",
-        "数据与副作用：占用验证码、建会话、删旧会话、写 users.password_hash（bcrypt cost 12）、identity_audit（login 与 password_reset）、auth.signin（method=reset）与 account.password（action=reset）在一个 BEGIN IMMEDIATE 事务里；成功后这个邮箱的密码错误计数清零。"
+        "数据与副作用：占用验证码、建会话、删旧会话、写 users.password_hash（bcrypt cost 12）、identity_audit（login 与 password_reset）、auth.signin（method=reset）与 account.password（action=reset），以及吊销命令行令牌（已兑换的与未兑换的已批准授权）和对外授权、写 auth.credentials_revoked（#332），都在一个 BEGIN IMMEDIATE 事务里，吊销抛错整体回滚；成功后这个邮箱的密码错误计数清零。"
       ],
       "evidence": [
+        {
+          "path": "app/server/src/lib/account-revoke.ts",
+          "needle": "export function revokeAccountCredentials("
+        },
         {
           "path": "app/server/src/routes/identity/email.ts",
           "needle": "    \"/auth/email/reset\","
@@ -1927,15 +1934,22 @@
         "users",
         "identity_audit",
         "activity_events",
-        "sessions"
+        "sessions",
+        "device_grants",
+        "oauth_grants",
+        "oidc_payloads"
       ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：有效会话，账号已绑定邮箱（否则 409 email_required）；已有密码时要填当前密码或 10 分钟内刚登录过，还没有密码时要 10 分钟内刚登录过（否则 403 step_up_required）。",
         "响应与错误：200 {ok:true}；不到 8 位 400 password_too_short，超过 72 字节 400 password_exceeds_bcrypt_limit，当前密码不对 400 invalid_credentials。",
-        "数据与副作用：users.password_hash 存 bcrypt（cost 12）与 password_updated_at；写 identity_audit（password_set 或 password_change）与 account.password 审计，不记密码。"
+        "数据与副作用：users.password_hash 存 bcrypt（cost 12）与 password_updated_at；与吊销本账号其它会话、命令行令牌与对外授权（#332，写 auth.credentials_revoked）在同一个 BEGIN IMMEDIATE 事务里，吊销抛错则密码不变；写 identity_audit（password_set 或 password_change）与 account.password 审计，不记密码。"
       ],
       "evidence": [
+        {
+          "path": "app/server/src/lib/account-revoke.ts",
+          "needle": "export function revokeAccountCredentials("
+        },
         {
           "path": "app/server/src/routes/identity/account.ts",
           "needle": "  app.post<{ Body: { password: string; current_password?: string } }>(\"/api/identity/password\", writes, async (req, reply) => {"
@@ -2961,13 +2975,15 @@
       "reads": [
         "application_limits",
         "mail_outbox",
-        "app_state"
+        "app_state",
+        "limit_events"
       ],
       "writes": [
         "applications",
         "application_limits",
         "mail_outbox",
-        "activity_events"
+        "activity_events",
+        "limit_events"
       ],
       "doesNotEnqueue": [],
       "invariants": [
@@ -3036,6 +3052,10 @@
         {
           "path": "app/server/src/lib/mail/envelope-pieces.ts",
           "needle": "export const ENVELOPE_PIECES = {"
+        },
+        {
+          "path": "app/server/src/middleware/pow.ts",
+          "needle": "export function createPublicSubmission(REQUIRED_PREFIX_ZEROS: number, deps: PublicSubmissionDeps = {}) {"
         },
         {
           "path": "app/web/sites/portal/components/os/WindowLoadFailed.tsx",
@@ -3782,18 +3802,21 @@
       "domain": "feedback",
       "relatedDomains": [
         "identity",
-        "audit"
+        "audit",
+        "platform"
       ],
       "assessment": "declared-with-source-evidence",
       "operation": "POST /api/feedback",
       "capabilities": [],
       "reads": [
-        "sessions"
+        "sessions",
+        "limit_events"
       ],
       "writes": [
         "feedback",
         "activity_events",
-        "sessions"
+        "sessions",
+        "limit_events"
       ],
       "doesNotEnqueue": [],
       "invariants": [
@@ -3809,6 +3832,10 @@
         {
           "path": "app/web/sites/portal/components/os/FeedbackBox.tsx",
           "needle": "const r = await api<{ ok: boolean; message: string }>(\"/api/feedback\", {"
+        },
+        {
+          "path": "app/server/src/middleware/pow.ts",
+          "needle": "export function createPublicSubmission(REQUIRED_PREFIX_ZEROS: number, deps: PublicSubmissionDeps = {}) {"
         }
       ],
       "tests": [
@@ -4152,6 +4179,14 @@
         {
           "path": "app/forum/shared/site-state.ts",
           "needle": "export function siteForumState()"
+        },
+        {
+          "path": "app/forum/shared/deployment.ts",
+          "needle": "export function createDeploymentMetadata("
+        },
+        {
+          "path": "app/forum/app/components/DeploymentInfo.vue",
+          "needle": "<span>版本：{{ deployment.displayVersion }}</span>"
         }
       ],
       "tests": [
@@ -4161,7 +4196,8 @@
         "app/forum/tests/forum-category-visibility.test.ts",
         "app/forum/tests/forum-server-store.test.ts",
         "app/forum/tests/site-state.test.ts",
-        "app/forum/tests/site-account.test.ts"
+        "app/forum/tests/site-account.test.ts",
+        "app/forum/tests/deployment.test.ts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
@@ -10673,11 +10709,7 @@
         },
         {
           "path": "app/web/sites/portal/lib/links.ts",
-          "needle": "gitlab: (): string => appConfig.urls.gitlab"
-        },
-        {
-          "path": "app/web/shared/config/index.ts",
-          "needle": "gitlab: string"
+          "needle": "gitlab: (): string => \"/api/public/gitlab\""
         },
         {
           "path": "app/web/sites/portal/components/os/Widgets.tsx",
@@ -11284,6 +11316,26 @@
       ]
     },
     {
+      "id": "gitlab.entry.open",
+      "title": "门户进入本环境的 GitLab 群组",
+      "domain": "gitlab",
+      "relatedDomains": ["platform"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/public/gitlab",
+      "capabilities": [], "reads": [], "writes": [], "doesNotEnqueue": [],
+      "invariants": [
+        "只按本环境 GITLAB_URL 与有效群组设置生成 302 Location，保留部署子路径；查询参数不能改变目的地。",
+        "无基址返回 503；不发送管理员令牌、不读私有项目、不缓存重定向。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/public/gitlab\","},
+        {"path": "app/server/src/routes/portal/contracts.ts", "needle": "\"GET /api/public/gitlab\":"},
+        {"path": "app/web/sites/portal/lib/links.ts", "needle": "gitlab: (): string => \"/api/public/gitlab\""}
+      ],
+      "tests": ["tests/server/gitlab-sync.test.ts"],
+      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
+    },
+    {
       "id": "gitlab.projects.public.list",
       "title": "门户公开查看 GitLab 上公开的代码仓库",
       "domain": "gitlab",
@@ -11342,7 +11394,7 @@
         },
         {
           "path": "app/web/sites/portal/components/os/Terminal.tsx",
-          "needle": "    if (repos.status === \"ready\") shell.setRepos(repos.projects);"
+          "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);"
         }
       ],
       "tests": [
@@ -11354,6 +11406,36 @@
         "docs/architecture/API.md",
         "docs/services/web/portal.md"
       ]
+    },
+    {
+      "id": "gitlab.projects.member.list",
+      "title": "有效极客班成员从门户与终端查看成员项目",
+      "domain": "gitlab",
+      "relatedDomains": ["identity", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/me/gitlab/projects",
+      "capabilities": [],
+      "reads": ["sessions", "users", "perm_members"],
+      "writes": ["sessions"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "仅有效 sid 且 active、当前有效直接 member/alumni 可读；没有 gitlab.view 也能读取，不开放控制台账号与同步管理权限。",
+        "服务端在等待 GitLab 前后核对资格；匿名401、非成员403，缓存不能跳过资格；响应 no-store。公开端点即使带cookie仍只给public项目。",
+        "门户按 account_id 隔离状态，退出或换人立即隐藏旧列表并忽略迟到响应；终端同时重建且存盘按稳定账号与身份等级隔离。",
+        "只返回项目名称、路径、说明、HTTPS链接和最近活动，不返回管理令牌、身份绑定、内部管理字段。"
+      ],
+      "evidence": [
+        { "path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/me/gitlab/projects\"" },
+        { "path": "app/server/src/routes/portal/contracts.ts", "needle": "  \"GET /api/me/gitlab/projects\":" },
+        { "path": "app/server/src/lib/identity-store.ts", "needle": "function isMember(" },
+        { "path": "app/web/sites/portal/lib/codeRepos.ts", "needle": "export function useCodeRepos(" },
+        { "path": "app/web/sites/portal/components/os/Windows.tsx", "needle": "export function CodeRepos(" },
+        { "path": "app/web/sites/portal/components/os/Terminal.tsx", "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);" },
+        { "path": "app/web/sites/portal/lib/shell/index.ts", "needle": "  const storageKey = account ?" },
+        { "path": "app/web/sites/portal/lib/shell/commands.ts", "needle": "function repos(ctx: Ctx): Io {" }
+      ],
+      "tests": ["tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts"],
+      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
     },
     {
       "id": "gitlab.settings.read",
@@ -11395,7 +11477,7 @@
         },
         {
           "path": "app/server/src/lib/gitlab-sync.ts",
-          "needle": "function readPersisted("
+          "needle": "export function readGitlabSyncSettings("
         },
         {
           "path": "app/console/src/pages/gitlab/Settings.vue",
@@ -11457,7 +11539,7 @@
         },
         {
           "path": "app/server/src/lib/gitlab-sync.ts",
-          "needle": "function writePersisted("
+          "needle": "export function writeGitlabSyncSettings("
         }
       ],
       "tests": [
@@ -12741,6 +12823,9 @@
       "audit",
       "recruitment",
       "competitions"
+    ],
+    "app/server/src/lib/account-revoke.ts": [
+      "identity"
     ],
     "app/server/src/lib/auth.ts": [
       "identity"

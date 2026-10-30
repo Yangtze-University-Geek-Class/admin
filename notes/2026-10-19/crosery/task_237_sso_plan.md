@@ -131,7 +131,7 @@
 ## 13:53:41 +08:00 · 方案 · #237 · 补充GitHub、Google与邮箱验证码登录方式和绑定规则
 
 - 执行者：agent-notion-geek-handoff（Notion AI，接手 Codex PR 跟进）
-- 做了什么：按所有者2026-10-19「登录改为长江大学极客班统一登录，其他登录绑定到我们的账号，看能否支持谷歌、GitHub、邮箱认证登录」修订ADR-0005：摘要与决策5改为三种登录方式绑定同一账号、建号仍需GitHub组织成员；决策6增加只读GitHub App资格来源（待确认）；登录页标题与渲染、接口表加Google与邮箱入口；新增「登录方式」一节（可行性表、绑定规则、Google与邮箱验证码流程、资格来源A/B、所有者准备项、验证、3条待确认）；交付清单与参考资料同步（Google OIDC、品牌验证、GitHub成员接口与organization事件，2026-10-19核对）
+- 做了什么：按所有者2026-10-19「[已脱敏]」修订ADR-0005：摘要与决策5改为三种登录方式绑定同一账号、建号仍需GitHub组织成员；决策6增加只读GitHub App资格来源（待确认）；登录页标题与渲染、接口表加Google与邮箱入口；新增「登录方式」一节（可行性表、绑定规则、Google与邮箱验证码流程、资格来源A/B、所有者准备项、验证、3条待确认）；交付清单与参考资料同步（Google OIDC、品牌验证、GitHub成员接口与organization事件，2026-10-19核对）
 - 结果：docs:index、check:docs、check:architecture通过；凭据库没有Google凭据，crosery-ct收码邮箱可用于邮件实测；只改文档，方案保持proposed，未合并
 - 下一步：等同head检查；所有者确认建号范围、资格来源与OIDC时机后再建实现issue
 
@@ -146,8 +146,8 @@
 
 - 执行者：agent-notion-geek-handoff（Notion AI，接手 Codex PR 跟进）
 - 做了什么：复核 b44bcb2d 相对 74ca08ad 的增量：Google 发布状态与验证限制按官方文档改正；邮箱验证码改为响应后异步投递，已绑定与未绑定的响应一致；/auth/me 的 membership_state 注明第二渠道交付时再加。15:01 刷新了 #242 正文的审查结论与 head（当时没有写记录，本条为补记）
-- 结果：增量复核通过；head b44bcb2d671d2bd8cc8b1c548f5eabfad5f3e2b8 的 CI 与 e2e 全部通过，PR 可合并（clean，base stage），按所有者要求保持开放、不合并
-- 下一步：按所有者 2026-10-19 的要求补统一登录实施规格与登录方案草图
+- 结果：增量复核通过；head b44bcb2d671d2bd8cc8b1c548f5eabfad5f3e2b8 的 CI 与 e2e 全部通过，PR 可合并（clean，base stage），按所有者要求[已脱敏]
+- 下一步：按所有者 2026-10-19 的要求[已脱敏]
 
 ## 17:23:19 +08:00 · 提交 · #237 · 补充统一登录实施规格与登录方案草图
 

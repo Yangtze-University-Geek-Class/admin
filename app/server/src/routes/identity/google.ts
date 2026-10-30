@@ -62,6 +62,10 @@ export default async function googleRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/auth/google/callback", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
     if (!google.enabled) return reply.code(404).send({ error: "provider_not_enabled", message: "本站没有启用 Google 登录" });
     const { code, state, error } = req.query;
+    // 同 /auth/callback：重复参数是数组，先收敛类型再读（PENTEST-20261029 finding 31）
+    if (typeof state !== "string" || (code !== undefined && typeof code !== "string") || (error !== undefined && typeof error !== "string")) {
+      return reply.code(400).send({ error: "invalid_state" });
+    }
     if (!state || (!code && !error)) return reply.code(400).send({ error: "missing_params" });
     const flow = readOAuthState(req, reply, "google_oauth_state", state);
     if (!flow) return reply.code(400).send({ error: "invalid_state" });

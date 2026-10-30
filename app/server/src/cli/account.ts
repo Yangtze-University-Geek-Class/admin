@@ -9,7 +9,7 @@ import { normalizeEmail } from "../lib/email-login.js";
  * 维护者在服务器上用的账号工具（#262，所有者 2026-10-23）。只开数据库，不起服务、不发信、不调用 GitHub；
  * 在运行中的容器里执行，和服务共用同一个库（WAL，可以同时写）：
  *
- *   docker exec <server 容器> node app/server/dist/cli/account.js provision --github-id 130495739 --github-login Crosery --org-role admin --email you@example.com
+ *   docker exec <server 容器> node app/server/dist/cli/account.js provision --github-id 583231 --github-login octocat --org-role admin --email you@example.com
  *     按 GitHub 数字 id 找到或建立账号，记下组织角色，绑定邮箱（之后用邮箱验证码登录，再在账号页设密码）。可以重跑。
  *   docker exec -i <server 容器> node app/server/dist/cli/account.js invite --note 默认邀请码 < 邀请码文件
  *     新建一个注册邀请码，邀请码从标准输入读，不出现在命令行和进程列表里。

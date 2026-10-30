@@ -165,13 +165,11 @@ fn serve(mut stream: TcpStream, origin: &str, state: &Mutex<State>) {
                 _ if state.polls == 1 => (400, json!({"error":"authorization_pending"})),
                 _ => (
                     200,
-                    json!({"access_token":"gk_synthetic_fixture","scope":"openid profile forum apply competition repo","account_id":"fixture-account"}),
+                    json!({"access_token":"gk_fixture","scope":"openid profile forum apply competition repo","account_id":"fixture-account"}),
                 ),
             }
         }
-        ("get", "/auth/device/userinfo")
-            if state.revoked || auth != "bearer gk_synthetic_fixture" =>
-        {
+        ("get", "/auth/device/userinfo") if state.revoked || auth != "bearer gk_fixture" => {
             (401, json!({"error":"invalid_token","message":"令牌无效"}))
         }
         ("get", "/auth/device/userinfo") => (
@@ -240,10 +238,7 @@ fn pending_login_profile_revoke_and_missing_token_follow_the_http_protocol() {
     result(fixture.run(&["logout", "--json"], None), 0);
     assert!(fixture.state.lock().unwrap().revoked);
     assert_eq!(
-        result(
-            fixture.run(&["whoami", "--json"], Some("gk_synthetic_fixture")),
-            3
-        )["error"]["code"],
+        result(fixture.run(&["whoami", "--json"], Some("gk_fixture")), 3)["error"]["code"],
         "invalid_token"
     );
     assert_eq!(

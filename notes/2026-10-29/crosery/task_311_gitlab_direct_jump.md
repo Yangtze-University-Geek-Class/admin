@@ -5,7 +5,7 @@
 ## 20:21:00 +08:00 · 开工 · #311 · 代码仓库整页直达，不再弹窗（hotfix，基线 origin/main = gitlab/main = 53e40b1a）
 
 - 执行者：agent-claude-gitlab-direct-311（Claude Code，claude-haiku-5-5）
-- 做了什么：所有者 2026-10-29 原话（见 #311 确认依据）要求代码仓库像论坛一样直接跳转；GitLab 建 #311（labels P0、hot-fix、portal、ui:interaction）。task.mjs start 从 stage 拉分支，但 hotfix 修复必须从 main 拉，改用 git worktree add -b task/311/gitlab_direct_jump .claude/worktrees/task-311 gitlab/main。
+- 做了什么：所有者 2026-10-29 原话（见 #311 确认依据）要求[已脱敏]；GitLab 建 #311（labels P0、hot-fix、portal、ui:interaction）。task.mjs start 从 stage 拉分支，但 hotfix 修复必须从 main 拉，改用 git worktree add -b task/311/gitlab_direct_jump .claude/worktrees/task-311 gitlab/main。
 - 结果：分支 task/311/gitlab_direct_jump 位于 53e40b1a；改动是 6 个修改文件、1 个新增的架构声明 docs/changes/311.json，外加 deploy/hotfix/windows.json 的 #311 窗口登记。
 
 ## 20:24:00 +08:00 · 提交 · #311 · 代码仓库改为整页直达，并同步测试与门户文档

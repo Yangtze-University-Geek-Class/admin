@@ -88,12 +88,12 @@ describe('deploy workflows check doc sync on the release tag commit before build
     expect(script.split('\n')[0]).toBe('set -eu');
     expect(script.split('\n').filter(Boolean).at(-1)).toBe('node scripts/check-doc-sync.mjs');
     expect(script).not.toMatch(/\|\||set \+e|--base|--head|\btrue\b/);
-    // plan job 不装依赖：check-doc-sync 与它导入的 note.mjs 只用 Node 内置模块
+    // plan job 不装依赖：check-doc-sync 与它导入的 note.mjs、check-privacy.mjs 只用 Node 内置模块
     expect(code(plan)).not.toMatch(/pnpm|npm (?:ci|install)|corepack/);
-    for (const file of ['scripts/check-doc-sync.mjs', 'scripts/note.mjs']) {
+    for (const file of ['scripts/check-doc-sync.mjs', 'scripts/note.mjs', 'scripts/check-privacy.mjs']) {
       const imports = [...read(file).matchAll(/^import .* from ["'](.+)["'];$/gm)].map((match) => match[1]);
       expect(imports.length, file).toBeGreaterThan(0);
-      for (const spec of imports) expect(spec, file).toMatch(/^(?:node:|\.\/note\.mjs$)/);
+      for (const spec of imports) expect(spec, file).toMatch(/^(?:node:|\.\/(?:note|check-privacy)\.mjs$)/);
       expect(read(file), file).not.toMatch(/\bimport\(|\brequire\(/);
     }
     expect(text).not.toMatch(/continue-on-error/);
@@ -160,7 +160,7 @@ function release() {
   git(root, ['config', 'commit.gpgsign', 'false']);
   git(root, ['config', 'tag.gpgsign', 'false']);
   mkdirSync(join(root, 'scripts'));
-  for (const file of ['check-doc-sync.mjs', 'note.mjs']) copyFileSync(join(repoRoot, 'scripts', file), join(root, 'scripts', file));
+  for (const file of ['check-doc-sync.mjs', 'note.mjs', 'check-privacy.mjs']) copyFileSync(join(repoRoot, 'scripts', file), join(root, 'scripts', file));
   commit(root, '2026-09-25T10:00:00+08:00', 'base', {
     'docs/README.md': MAP,
     'app/svc/index.ts': 'export const a = 1;\n',

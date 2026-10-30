@@ -43,3 +43,15 @@
 - 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
 - 做了什么：审查新增两条cargo fetch：都在锁定依赖安装与原单测之间，使用既有Cargo.lock且--locked，不改crate版本、Cargo.lock、生产业务源码、offline约束、失败传播或环境审批。冷缓存演练3条真实用例通过；source同步身份隔离12条仍为既有验证路径，无新增实现。
 - 结果：有条件通过：需新head的完整CI与三项必需检查成功；前次core的2条offline缺依赖失败已记录，不冒称前次CI通过。
+
+## 00:44:55 +08:00 · 合并 · #284 · GitHub PR #285 按必需检查合入 stage，恢复 main 祖先关系
+
+- 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
+- 做了什么：62562c42879ec7f11fd048cdf2a2f869eee7e61b 的PR CI40725858113与push CI40725844522均success；正常merge（未用admin或保护修改）生成9438af8b3f044d4ebcd2a8bf993e4f556749c9b5。GitHub #284已关闭；主工作区stage仅ff快进，原有两项用户未跟踪文件保留。
+- 结果：核心/论坛/环境/分支/actionlint/CLI五目标/三镜像/CDN开关构建全部通过；原GitLab284声明原字节保全。准备将同一stage提交快进到GitLab，再保持stage>=main推进已授权同版本P0。
+
+## 00:44:57 +08:00 · 收尾 · #284 · PR #285 已合并，清理 worktree
+
+- 执行者：agent-omp-geek-main-handoff（omp，gpt-6.1-sol）
+- 做了什么：node scripts/task.mjs finish 284：删 worktree .claude/worktrees/task-284 与本地分支 task/284/hotfix_sync
+- 结果：PR 已合并

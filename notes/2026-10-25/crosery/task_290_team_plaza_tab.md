@@ -5,7 +5,7 @@
 ## 15:18:32 +08:00 · 开工 · #290 · 开工：比赛窗口点开组队广场后赛事按钮仍是选中样式
 
 - 执行者：agent-claude-geek-main-completion（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者 15:10 发来比赛窗口截图并说「点击组队广场的时候出现的bug，这个应该很简单，很快可以修好」；据此建 issue #290（正文引原话），从 gitlab/stage c56c3874 拉 task/290/team_plaza_tab 与独立 worktree；读代码定位原因
+- 做了什么：所有者 15:10 发来比赛窗口截图并说「[已脱敏]」；据此建 issue #290（正文引原话），从 gitlab/stage c56c3874 拉 task/290/team_plaza_tab 与独立 worktree；读代码定位原因
 - 结果：CompetitionsApp.tsx 里「赛事」按钮 aria-pressed={!mineScope}，选中组队广场时也成立，样式 .pt-cx-view[aria-pressed=true] 给它白底
 - 下一步：先写三视图互斥的失败用例，再改选中判定
 

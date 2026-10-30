@@ -1098,7 +1098,7 @@ function open(ctx: Ctx): Io {
 }
 
 function repos(ctx: Ctx): Io {
-  if (!ctx.sh.repos.length) return ok(`${paint(ctx.tty, C.dim, "代码仓库里还没有公开项目")}\n`);
+  if (!ctx.sh.repos.length) return ok(`${paint(ctx.tty, C.dim, "代码仓库里还没有可访问的项目")}\n`);
   return ok(joinLines(ctx.sh.repos.map((repo) => `${paint(ctx.tty, C.key, repo.path.padEnd(24))} ${repo.description || repo.url}${repo.description ? `  ${repo.url}` : ""}`)));
 }
 
@@ -1278,7 +1278,7 @@ export const COMMANDS: Record<string, CommandSpec> = {
   passwd: { run: () => fail("passwd: 这台机器上的账号就是你的极客班账号，密码在资料卡和账号页改"), usage: "passwd", summary: "改密码", topic: S },
   neofetch: { run: neofetch, usage: "neofetch", summary: "显示系统和你的身份信息", topic: D },
   open: { run: open, usage: "open 应用...", summary: "打开桌面应用；也可以直接运行 ~/Desktop 里的 .app", topic: D, example: "open forum\n./Desktop/competitions.app" },
-  repos: { run: repos, usage: "repos", summary: "列出代码仓库里的公开项目，~/projects 里也有", topic: D },
+  repos: { run: repos, usage: "repos", summary: "列出代码仓库中可访问的项目，~/projects 里也有", topic: D },
   learn: { run: learn, usage: "learn", summary: "Linux 启明道场的课程，以及每一关在这里练哪些命令", topic: D },
   if: { run: control, usage: "if", summary: "控制结构（不支持）", builtin: true, topic: V },
   for: { run: control, usage: "for", summary: "控制结构（不支持）", builtin: true, topic: V },

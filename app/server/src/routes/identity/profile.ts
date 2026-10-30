@@ -17,7 +17,7 @@ const byAccount = (req: FastifyRequest) => req.session!.account_id;
  */
 
 export default async function identityProfileRoutes(app: FastifyInstance) {
-  const { profiles, storage, permissions, limits } = app.services;
+  const { profiles, storage, permissions, limits, forum } = app.services;
   const db = storage.db;
 
   app.get("/api/identity/profile", { preHandler: requireAuth }, async req => profiles.get(req.session!.account_id));
@@ -26,7 +26,21 @@ export default async function identityProfileRoutes(app: FastifyInstance) {
     "/api/identity/profile",
     { preHandler: requirePermission("account.profile.edit"), config: { rateLimit: { max: 30, timeWindow: "1 hour", keyGenerator: byAccount, hook: "preHandler" } } },
     async (req, reply) => {
-      const result = profiles.update(req.session!.account_id, req.body);
+      // 用户名/昵称和论坛共用一个命名空间（PENTEST-20261029 finding 9/11）：官方账号、别人的用户名与历史登录名都算占用。
+      const accountId = req.session!.account_id;
+      const current = profiles.get(accountId);
+      const ownLogin = req.session!.login;
+      const changed = (value: string | undefined, now: string) => (value !== undefined && value !== now ? value : undefined);
+      const wantedUsername = changed(req.body.username, current.username);
+      const wantedDisplayName = changed(req.body.display_name, current.display_name);
+      const taken = (name: string) => forum.identityNameTaken(name, { accountId, login: ownLogin });
+      if (wantedUsername !== undefined && taken(wantedUsername)) {
+        return reply.code(409).send({ error: "username_taken", message: "这个用户名已经被用了" });
+      }
+      if (wantedDisplayName !== undefined && taken(wantedDisplayName)) {
+        return reply.code(409).send({ error: "display_name_taken", message: "这个昵称是官方账号或别人的用户名，换一个吧" });
+      }
+      const result = profiles.update(accountId, req.body);
       if (!result.ok) return reply.code(409).send({ error: "username_taken", message: "这个用户名已经被用了" });
       app.services.activity.recordActivity(req, { action: "profile.update", surface: "portal", outcome: "ok", meta: { fields: Object.keys(req.body) } });
       return result.profile;

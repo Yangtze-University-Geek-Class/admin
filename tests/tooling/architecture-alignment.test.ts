@@ -1,9 +1,10 @@
 import { afterEach, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { checkAlignment, DIMENSIONS, inspectChange } from "../../scripts/check-architecture.mjs";
+import { fileURLToPath } from "node:url";
+import { checkAlignment, DIMENSIONS, inspectChange, manifestPathFor } from "../../scripts/check-architecture.mjs";
 
 function fixture() {
   const files = ["app/web/styles/theme.css", "docs/services/web/README.md", "tests/web/theme.test.ts", "docs/changes/12.json"];
@@ -232,8 +233,8 @@ it("checks actual Git snapshots, not an unrelated dirty worktree, without execut
 it("hotfix 窗口开着时，宏观对齐的默认基线是 origin/main，其余情况仍是 origin/stage", async () => {
   const { hotfixBase } = await import("../../scripts/check-architecture.mjs");
   const registry = { schemaVersion: 1, windows: [{
-    issue: 309, tag: "v0.1.1", status: "open", approvedBy: "Crosery",
-    approvedAt: "2026-10-28T19:11:00+08:00", expiresAt: "2026-11-04T19:11:00+08:00", quote: "线上 bug 必须全部走 hotfix",
+    issue: 309, tag: "v0.1.1", status: "open", approvedBy: "所有者",
+    approvedAt: "2026-10-28T19:11:00+08:00", expiresAt: "2026-11-04T19:11:00+08:00", approval: "线上 bug 必须全部走 hotfix",
   }] };
   const now = new Date("2026-10-28T23:00:00+08:00");
   expect(hotfixBase(registry, "task/309/env_isolation_parity", now)).toBe("origin/main");
@@ -244,4 +245,70 @@ it("hotfix 窗口开着时，宏观对齐的默认基线是 origin/main，其余
   expect(hotfixBase(closed, "task/309/env_isolation_parity", now)).toBe(null);
   const expired = { schemaVersion: 1, windows: [{ ...registry.windows[0], expiresAt: "2026-10-29T19:11:00+08:00" }] };
   expect(hotfixBase(expired, "task/309/env_isolation_parity", new Date("2026-10-30T09:00:00+08:00"))).toBe(null);
+});
+
+const manifest12 = () => fixture().manifest;
+/** 临时 Git 仓库：基线里放入 files（含两份声明），候选提交只改三个源文件，用来比较不同平台取到的声明。 */
+function forgeRepo(files: Record<string, string>) {
+  const input = fixture();
+  const root = mkdtempSync(join(tmpdir(), "architecture-forge-"));
+  temporary.push(root);
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const write = (path: string, content: string) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), content); };
+  git("init", "-b", "stage"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.invalid");
+  for (const path of input.changedFiles.slice(0, 3)) write(path, "baseline");
+  write("docs/architecture/catalog/catalog.json", JSON.stringify(input.catalog));
+  for (const [path, content] of Object.entries(files)) write(path, content);
+  git("add", "."); git("commit", "-m", "fixture baseline");
+  const base = git("rev-parse", "HEAD");
+  git("switch", "-c", "task/12/ui_spacing");
+  for (const path of input.changedFiles.slice(0, 3)) write(path, "updated fixture");
+  git("add", "."); git("commit", "-m", "fixture candidate");
+  const head = git("rev-parse", "HEAD");
+  return { root, base, head, body: input.body };
+}
+
+it("按平台取宏观声明：GitHub 同步工单读 docs/changes/github/<编号>.json，同号的 GitLab 声明各取各的（#330）", () => {
+  expect(manifestPathFor(306)).toBe("docs/changes/306.json");
+  expect(manifestPathFor(306, "gitlab")).toBe("docs/changes/306.json");
+  expect(manifestPathFor(306, "github")).toBe("docs/changes/github/306.json");
+  expect(() => manifestPathFor(306, "gitea")).toThrow("forge 只能是 gitlab 或 github");
+  const { root, base, head, body } = forgeRepo({
+    "docs/changes/12.json": JSON.stringify(manifest12()),
+    "docs/changes/github/12.json": JSON.stringify({ ...manifest12(), kind: "engineering", summary: "GitHub 同步工单的工程声明，与 GitLab 同号声明互不覆盖。" }),
+  });
+  const branch = "task/12/ui_spacing";
+  const gitlab = inspectChange({ root, base, head, branch, body });
+  expect(gitlab.ok).toBe(true);
+  expect(gitlab.kind).toBe("ui-only");
+  const github = inspectChange({ root, base, head, branch, body: body.replace("docs/changes/12.json", "docs/changes/github/12.json"), forge: "github" });
+  expect(github.ok).toBe(true);
+  expect(github.kind).toBe("engineering");
+  expect(inspectChange({ root, base, head, branch, body, forge: "github" }).errors.join()).toContain("docs/changes/github/12.json");
+});
+
+it("--forge github 缺 github/ 下的声明时报错，不回退去读 GitLab 的同号声明", () => {
+  const { root, base, head, body } = forgeRepo({ "docs/changes/12.json": JSON.stringify(manifest12()) });
+  const branch = "task/12/ui_spacing";
+  expect(inspectChange({ root, base, head, branch, body }).ok).toBe(true);
+  const github = inspectChange({ root, base, head, branch, body, forge: "github" });
+  expect(github.ok).toBe(false);
+  expect(github.errors.join()).toContain("docs/changes/github/12.json");
+  expect(checkAlignment({ ...fixture(), manifest: null, forge: "github" }).errors.join()).toContain("docs/changes/github/12.json");
+});
+
+it("不传 forge 时与旧行为一致：只读 docs/changes/<编号>.json", () => {
+  const { root, base, head, body } = forgeRepo({ "docs/changes/12.json": JSON.stringify(manifest12()) });
+  const branch = "task/12/ui_spacing";
+  const implicit = inspectChange({ root, base, head, branch, body });
+  const explicit = inspectChange({ root, base, head, branch, body, forge: "gitlab" });
+  expect(implicit).toEqual(explicit);
+  expect(implicit.ok).toBe(true);
+});
+
+it("命令行 --forge 只接受 gitlab 或 github，其它值退出码非 0 且不写报告", () => {
+  const { root } = forgeRepo({ "docs/changes/12.json": JSON.stringify(manifest12()) });
+  const result = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), "../../scripts/check-architecture.mjs"), "--root", root, "--branch", "task/12/ui_spacing", "--forge", "gitea"], { encoding: "utf8" });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("--forge 只能是 gitlab 或 github");
 });

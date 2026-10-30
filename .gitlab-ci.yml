@@ -1,14 +1,20 @@
-# GitLab 上唯一的流水线：hotfix 的 MR 合进 main 之后，自动把 main 合回 stage，保证 stage >= main。
-# 逻辑和冲突处理都在 scripts/hotfix-sync.mjs（有测试），这里只负责在 main 更新后调用它。
-# 默认关闭：项目 CI/CD 变量 HOTFIX_SYNC_ENABLED 设为 true 才运行；还要求项目允许 CI job token 推送仓库，
-# 并且 GitHub 一侧由 GitLab 的推送镜像同步（docs/conventions/BRANCHING.md「hotfix 合并后的自动同步」）。
+# GitLab 上的流水线：hotfix 的 MR 合进 main 之后自动把 main 合回 stage，stage 更新后把 stage 与 main 同步到 GitHub 镜像。
+# 逻辑与冲突处理都在 scripts/hotfix-sync.mjs（有测试）与 scripts/github-mirror-sync.mjs（有测试），这里只负责调用。
+# 两个任务都默认关闭，由项目 CI/CD 变量显式启用：
+#   HOTFIX_SYNC_ENABLED=true          hotfix-sync（还要求项目允许 CI job token 推送仓库，见 BRANCHING「hotfix 合并后的自动同步」）
+#   GITHUB_MIRROR_SYNC_ENABLED=true   github-mirror-sync（还要求下面的变量齐全，见 BRANCHING「GitHub 镜像同步」）
+#     GITHUB_SYNC_TOKEN   masked、protected 的 GitHub 令牌：对镜像仓库的代码、PR 读写；所有者放入，AI 不读写
+#     GITHUB_MIRROR_REPO  GitHub 镜像仓库，owner/repo
+#     GITHUB_SYNC_ISSUE   同步工单在 GitLab 上的编号（同步分支名 task/<编号>/github_<分支>_sync）
 workflow:
   rules:
-    - if: '$HOTFIX_SYNC_ENABLED == "true" && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && ($HOTFIX_SYNC_ENABLED == "true" || $GITHUB_MIRROR_SYNC_ENABLED == "true")'
 
 hotfix-sync:
   tags: [macos, arm64]
   timeout: 15 minutes
+  rules:
+    - if: '$HOTFIX_SYNC_ENABLED == "true" && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
   variables:
     GIT_DEPTH: "0"
   script:
@@ -17,3 +23,19 @@ hotfix-sync:
     - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - node scripts/hotfix-sync.mjs plan --source origin --mirror origin
     - node scripts/hotfix-sync.mjs apply --source origin --mirror origin
+
+github-mirror-sync:
+  tags: [macos, arm64]
+  timeout: 40 minutes
+  rules:
+    - if: '$GITHUB_MIRROR_SYNC_ENABLED == "true" && $CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "stage" || $CI_COMMIT_BRANCH == "main")'
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - git config user.name "github-mirror-sync"
+    - git config user.email "github-mirror-sync@users.noreply.invalid"
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/${GITHUB_MIRROR_REPO}.git"
+    - export GH_TOKEN="${GITHUB_SYNC_TOKEN}"
+    - node scripts/github-mirror-sync.mjs --branch stage --issue "${GITHUB_SYNC_ISSUE}" --primary origin --mirror github --repo "${GITHUB_MIRROR_REPO}"
+    - node scripts/github-mirror-sync.mjs --branch main --issue "${GITHUB_SYNC_ISSUE}" --primary origin --mirror github --repo "${GITHUB_MIRROR_REPO}"

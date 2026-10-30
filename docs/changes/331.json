@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "issue": 331,
+  "kind": "business",
+  "summary": "GitLab #331 比赛收集器：合进任意分支（主要是 stage）的 MR 正文写了关闭关键字指向的 Issue（开着关着都收），也收为候选；分数只来自 Issue 上的「有用」与两档标签或控制台确认，关闭本身不加分；「有用」判定与作者不能自审、映射与报名过滤不变。",
+  "applications": [
+    "server",
+    "forum"
+  ],
+  "domains": [
+    "competitions",
+    "gitlab",
+    "identity",
+    "permissions",
+    "audit",
+    "public_content",
+    "platform"
+  ],
+  "flows": [
+    "flow:competition.candidates.collect",
+    "flow:documentation.list",
+    "flow:documentation.read"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "候选来源多一路：窗口内合并、合进任意分支的 MR 正文写了 GitLab 官方关闭关键字（Close/Fix/Resolve/Implement 系列）后跟本项目 #n，就收这个 Issue（不要求已经关闭），按 MR 合并时间记，作者是 Issue 作者。关闭不自动加分，分数仍只来自「有用」与两档标签（自动）或控制台确认。",
+      "evidence": [
+        "app/server/src/lib/competition-candidates.ts",
+        "tests/server/competition-candidates.test.ts",
+        "app/forum/content/guides/organizer-score-contributions.md"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "收集器新增两处读取：从已经读过的已合并 MR 列表里解析正文关闭关键字（不增加请求），再逐个按编号读 Issue 详情（只为被引用的编号；404、403、5xx 只跳过这一个编号并计入 skipped，其它失败整轮不应用；驳回或控制台确认过的候选不再读）。HTTP 仍在事务外，应用时仍在事务内重查比赛状态。",
+      "evidence": [
+        "app/server/src/lib/competition-candidates.ts",
+        "tests/server/competition-candidates.test.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "授权点不变：加分仍要 competition.score.review 且不能审自己的贡献；作者仍须经 gitlab_accounts 对到账号并已报名；控制台确认与驳回的权限与 step-up 不变。新路径只生成候选，不新增任何写入权限；加分仍只在标签或控制台确认时发生。",
+      "evidence": [
+        "app/server/src/lib/competition-candidates.ts",
+        "app/server/src/lib/competition-score-store.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不改表结构、不迁移数据：候选仍写 competition_score_candidates，唯一键仍是 比赛、类型、项目、编号；新路径的 contributed_at 取 MR 合并时间，与已有 MR 候选一致。已存在的候选不因新规则重算。",
+      "evidence": [
+        "app/server/src/lib/competition-candidates.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "GitLab 新增只读调用 GET /projects/:id/issues/:iid，仅针对合并 MR 正文引用的编号，计入既有的每轮 300 请求预算；未调用 related_merge_requests。无新增生产依赖、凭据或外部写入。",
+      "evidence": [
+        "app/server/src/lib/competition-candidates.ts",
+        "tests/server/competition-candidates.test.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "同步服务端接口契约「收集规则」一段，并在组织者计分指南与参赛者指南里写清：Closes 候选记在 Issue 作者名下，不要求 Issue 已经关闭；分数来自标签或控制台确认，关闭本身不加分。",
+      "evidence": [
+        "docs/services/server/endpoint-contracts.md",
+        "app/forum/content/guides/organizer-score-contributions.md",
+        "app/forum/content/guides/member-competition-signup.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 12 条收集用例（Closes 收候选；Issue 开着关着都收；关键字列表与 Refs、跨项目不算；Refs、未合并、窗外的 MR 不收也不读 Issue；正文为 null；重复收集；closed_by 与正文重叠只收一条；404 与 403/5xx 只跳过；驳回后不复活且不再读；窗口前的 Issue 之后挂标签仍自动加分；冒号与完整路径）和 9 条 closingIssueIids 解析用例，原有收集用例照跑。收集用例用注入的假 GitLab 响应；真实 geek/admin 只读核对记在 MR 的验证段，不写 GitLab。",
+      "evidence": [
+        "tests/server/competition-candidates.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "unchanged",
+      "reason": "无配置、镜像、CI、部署或迁移变动。guides 随服务端镜像播种，服务启动时按仓库内容同步，无需单独发布动作。",
+      "evidence": [
+        "app/forum/content/guides/guides-index.md"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/competition-candidates.ts"
+      ],
+      "domains": [
+        "competitions",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.candidates.collect"
+      ],
+      "reason": "收集器新增关闭关键字解析与 Issue 详情读取，应用逻辑与事务边界不变。"
+    },
+    {
+      "paths": [
+        "tests/server/competition-candidates.test.ts"
+      ],
+      "domains": [
+        "competitions",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.candidates.collect"
+      ],
+      "reason": "注入假 GitLab 响应覆盖新规则的正例与各类反例，原有收集用例保持不变。"
+    },
+    {
+      "paths": [
+        "docs/services/server/endpoint-contracts.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.candidates.collect"
+      ],
+      "reason": "接口契约里的收集规则同步新路径。"
+    },
+    {
+      "paths": [
+        "app/forum/content/guides/organizer-score-contributions.md",
+        "app/forum/content/guides/member-competition-signup.md"
+      ],
+      "domains": [
+        "competitions",
+        "public_content"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:documentation.list",
+        "flow:documentation.read"
+      ],
+      "reason": "使用说明正文增加关闭关键字的候选规则；只改正文，目录与播种方式不变。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "项目目录生成物随源码证据哈希更新（pnpm catalog:generate），没有人工改动；check:catalog 核对通过。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/endpoint-contracts.md",
+    "app/forum/content/guides/organizer-score-contributions.md",
+    "app/forum/content/guides/member-competition-signup.md"
+  ],
+  "tests": [
+    "tests/server/competition-candidates.test.ts"
+  ],
+  "compatibility": "HTTP 接口、候选字段和状态不变；已有的标签与 closed_by 路径判定不变。新路径只多出候选：Issue 上有「有用」和两档标签时按标签自动加分（与 MR 的判定相同），否则留在待确认。",
+  "migration": "无 schema 与数据迁移。已经收过的候选保持原样，下一轮收集才会按新规则补收。",
+  "rollback": "revert 本 MR 的合并提交即可停止新路径；已经生成的待确认候选留在库里，可在控制台驳回。"
+}

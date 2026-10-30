@@ -28,7 +28,7 @@
     },
     "permissions": {
       "status": "changed",
-      "reason": "放行 main 领先 stage 的唯一依据是 main 上登记的窗口：必须有所有者 Crosery 署名、批准时间和原话，最长 7 天，超期或格式不对一律按原不变量失败；deploy-hotfix 的 issue 必须是开着的窗口，生产环境审批仍由所有者在 GitHub 点。.gitlab-ci.yml 只用 CI job token，默认关闭。",
+      "reason": "放行 main 领先 stage 的唯一依据是 main 上登记的窗口：必须有所有者批准的标记（`approvedBy` 字面值「所有者」）、批准时间和原话，最长 7 天，超期或格式不对一律按原不变量失败；deploy-hotfix 的 issue 必须是开着的窗口，生产环境审批仍由所有者在 GitHub 点。.gitlab-ci.yml 只用 CI job token，默认关闭。",
       "evidence": [
         "scripts/hotfix-windows.mjs",
         "scripts/hotfix-policy.mjs",

@@ -41,10 +41,10 @@ function Prompt({ text }: { text: string }) {
 }
 
 export default function Terminal({ onOpen, onClose, onTitle, apps, account }: { onOpen: OpenApp; onClose: () => void; onTitle: (title: string) => void; apps: readonly OsApp[]; account: Account | null }) {
-  const repos = useCodeRepos();
+  const repos = useCodeRepos(account, true);
   const appKey = apps.map((app) => app.id).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 换了登录身份或应用清单才重建，家目录跟着用户名走
-  const shell = useMemo(() => createShell({ account, apps }), [account?.username, appKey]);
+  const shell = useMemo(() => createShell({ account, apps }), [account?.accountId, account?.level, account?.username, appKey]);
   const [lines, setLines] = useState<TermLine[]>(() => MOTD.map((text) => ({ kind: "out", text })));
   const [value, setValue] = useState("");
   const [prompt, setPrompt] = useState(shell.prompt());
@@ -52,7 +52,7 @@ export default function Terminal({ onOpen, onClose, onTitle, apps, account }: { 
   const out = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (repos.status === "ready") shell.setRepos(repos.projects);
+    shell.setRepos(repos.status === "ready" ? repos.projects : []);
   }, [repos, shell]);
   useEffect(() => {
     setPrompt(shell.prompt());

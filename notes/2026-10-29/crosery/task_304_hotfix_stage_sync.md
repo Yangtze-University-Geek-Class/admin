@@ -37,3 +37,9 @@
 - 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
 - 做了什么：按 CODE-REVIEW 逐项核对同步 diff（29 个变更文件）：分支不变量、无直推常规 main/stage、无密钥、无 env/镜像改动、文档核对真实（deploy/ 三份）、无边界违规、执行记录链路完整、宏观对齐声明与真实 diff 一致（--base origin/stage 29 文件 16 节点）、env-isolation 通过、不部署不动 tag
 - 结果：审查结论：通过（逐条结论与结论行在 PR #305 正文「审查结论」段）
+
+## 23:50:33 +08:00 · 收尾 · #304 · PR #305 已合并，清理 worktree
+
+- 执行者：agent-omp-7ef9371a（OMP，crosery/mimo-v2.6-pro）
+- 做了什么：node scripts/task.mjs finish 304：删 worktree .claude/worktrees/task-304 与本地分支 task/304/hotfix_stage_sync
+- 结果：PR 已合并

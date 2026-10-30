@@ -1,0 +1,361 @@
+{
+  "version": 1,
+  "issue": 332,
+  "kind": "business",
+  "summary": "GitLab #332：改密码或重设密码成功后，吊销该账号的 gk_ 命令行令牌、尚未兑换的已批准设备授权，以及对外授权（OIDC 的 Grant、授权码与访问令牌，oauth_grants 行）。吊销与新密码写入在同一个 BEGIN IMMEDIATE 事务里，吊销抛错则整体回滚；原有的会话吊销同事务完成。新增操作记录 auth.credentials_revoked，meta 为四个数量。",
+  "applications": [
+    "server",
+    "console"
+  ],
+  "domains": [
+    "identity",
+    "audit",
+    "forum",
+    "competitions",
+    "feedback",
+    "github",
+    "organization",
+    "recruitment",
+    "platform",
+    "permissions"
+  ],
+  "flows": [
+    "flow:identity.account.password",
+    "flow:identity.email.reset",
+    "flow:identity.device.userinfo",
+    "flow:identity.oidc.confirm",
+    "flow:identity.oidc.token",
+    "flow:audit.console.activity.list",
+    "flow:feedback.categories",
+    "flow:application.list",
+    "flow:competition.public.list",
+    "flow:identity.callback"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "改密码（账号页）和重设密码（忘了密码）成功后，这个账号已经发出的 geek 命令行令牌、已批准但未兑换的设备授权和对外授权一并失效：下游应用（GitLab 等）下次登录要重新同意，命令行要重新 geek login。其它会话仍按原规则作废，当前这次照常可用。被拒绝的改密码或重设（当前密码不对、缺少重新验证、验证码错或过期）什么都不吊销。",
+      "evidence": [
+        "app/server/src/lib/account-revoke.ts",
+        "app/server/src/routes/identity/account.ts",
+        "app/server/src/routes/identity/email.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "device.revokeAccountTokens 按账号改已兑换令牌与已批准未兑换授权的到期时间，返回两类数量；oidcStore.revokeAccountGrants 删 Grant 行及其授权码、访问令牌和 oauth_grants 行；identity-store 的 setPassword、resetPassword 接受 afterWrite，把吊销放进密码写入的同一个事务；两条路由调 lib/account-revoke.ts，由它写 auth.credentials_revoked。接口路径、请求与成功响应不变。",
+      "evidence": [
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/lib/oidc-store.ts",
+        "app/server/src/lib/account-revoke.ts",
+        "app/server/src/lib/identity-store.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "吊销只作用于调用者本人的账号：改密码用会话里的 account_id，重设密码用验证码核对出来的账号。别的账号的令牌和授权不动。命令行令牌仍然只认 cli 允许接口，改密码接口对 gk_ 令牌继续 403 cli_not_allowed（bearer-auth.ts 未改）。",
+      "evidence": [
+        "app/server/src/routes/identity/account.ts",
+        "app/server/src/routes/identity/email.ts",
+        "app/server/src/middleware/bearer-auth.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "不改表结构、不迁移、不回填。改动的是已有表里的行：device_grants 的 token_expires_at 与已批准行的 expires_at 改成现在；oauth_grants 的行删掉；oidc_payloads 里该账号的 Grant 与它下发的 AuthorizationCode、AccessToken 行删掉；sessions 行删掉（当前会话除外）。这些行只属于本账号。users.password_hash、identity_audit、sessions 的写入与吊销在同一个 BEGIN IMMEDIATE 事务里，吊销抛错则密码、新会话、验证码占用一起回滚，不留半截状态。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/device-store.ts",
+        "app/server/src/lib/oidc-store.ts",
+        "app/server/src/lib/identity-store.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "身份路由经 lib/account-revoke.ts 调用 auth、device、oidcStore 与 activity 四个已有服务，新增的是这条调用边；没有新外部服务、没有新依赖包。下游影响：GitLab（及其它登记的 OIDC 应用）下次登录要重新同意，命令行要重新 geek login，已批准但未兑换的设备码失效。副作用只有本地库里的行改写和一条操作记录。",
+      "evidence": [
+        "app/server/src/lib/account-revoke.ts",
+        "app/server/src/services.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "服务合同（身份段的吊销范围、事务边界）、契约表（两个改密码接口的副作用与失败回滚）、安全边界（「密码换掉之后」一条与残余风险）、API（两个改密码接口）、对外授权（改密码后的撤销）、数据模型（三张表的写入说明）同步改写；目录的流程写入表与副作用同步到 ownership.json，生成物随之重建。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/oidc.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "tests/server/password-revoke.test.ts 共 9 个用例：两条改密码路径的 gk_ 令牌、/api/console/me、/auth/device/userinfo、OIDC 访问令牌变成 401，当前会话可用，别的会话被踢，别的账号不动，下次登录重新同意，操作记录计数；已批准未兑换的设备码改密码后兑换回 expired_token；注入吊销故障时密码不变、令牌仍有效、重设时验证码仍可用；错误当前密码、缺少重新验证、错误或过期验证码都不吊销。修复前：两条路径的操作记录计数、已批准设备码用例、注入故障用例失败；修复后全部通过。",
+      "evidence": [
+        "tests/server/password-revoke.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "随 server 镜像发布，env、compose、宿主配置不变。上线后只影响此后改密码或重设密码的账号；已经发出的令牌和授权在上线前不做批量吊销。",
+      "evidence": [
+        "app/server/src/lib/account-revoke.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/account-revoke.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.account.password",
+        "flow:identity.email.reset"
+      ],
+      "reason": "新增：改密码与重设密码共用的吊销入口。在调用方的事务里按同一口径调会话、命令行令牌（含未兑换的已批准授权）与对外授权三处，并写 auth.credentials_revoked，meta 为四个数量。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/identity-store.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.account.password",
+        "flow:identity.email.reset"
+      ],
+      "reason": "setPassword 改为 BEGIN IMMEDIATE 事务并接受 afterWrite；resetPassword 接受 afterWrite，在新密码与会话同一事务里执行，抛错整体回滚。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/activity.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "控制台操作记录的中文名表加一条 auth.credentials_revoked（改密码后吊销了登录凭据）。同一文件被这些业务域的操作记录共用，其余动作名不改。"
+    },
+    {
+      "paths": [
+        "docs/services/server/endpoint-contracts.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /auth/email/reset",
+        "route:POST /api/identity/password"
+      ],
+      "reason": "两个改密码接口的契约表：吊销范围、和密码写入同一个 BEGIN IMMEDIATE 事务、吊销失败整体回滚。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/account.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /api/identity/password",
+        "flow:identity.account.password"
+      ],
+      "reason": "改密码时把 revokeAccountCredentials 放进 identity.setPassword 的 afterWrite，与密码写入同一事务（替换原来只删会话的一行）；auth.password_change/auth.password_set 记录保持不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/email.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /auth/email/reset",
+        "flow:identity.email.reset"
+      ],
+      "reason": "重设密码把 revokeAccountCredentials 放进 identity.resetPassword 的 afterWrite，与新密码、验证码占用同一事务；去掉路由里事后的吊销与重复的操作记录，auth.password_reset 保持不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/device-store.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.account.password",
+        "flow:identity.device.userinfo"
+      ],
+      "reason": "新增 revokeAccountTokens：按账号把已兑换令牌的 token_expires_at、已批准未兑换授权的 expires_at 改成现在，authenticate() 与 poll() 按同一时间判定，userinfo 与 Bearer 中间件随即 401，poll 回 expired_token。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/oidc-store.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.oidc.token",
+        "flow:identity.oidc.confirm"
+      ],
+      "reason": "新增 revokeAccountGrants：按账号找出 Grant（oauth_grants 记的与 oidc_payloads 里现有的），删 Grant 行（按 id）及 grant_id 指向它的授权码与访问令牌，删 oauth_grants 行；下次同意页重新出现。"
+    },
+    {
+      "paths": [
+        "tests/server/password-revoke.test.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.account.password",
+        "flow:identity.email.reset"
+      ],
+      "reason": "回归：两条改密码路径的 gk_ 与 OIDC 访问令牌变 401、当前会话与其它账号不动、重新同意、操作记录计数；已批准未兑换设备码、注入吊销故障回滚、错误当前密码、缺少重新验证、错误或过期验证码。先红后绿。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.account.password",
+        "flow:identity.email.reset"
+      ],
+      "reason": "两条流程的写入表补上 device_grants、oauth_grants、oidc_payloads，副作用加上吊销的说明。"
+    },
+    {
+      "paths": [
+        "docs/architecture/API.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /api/identity/password",
+        "route:POST /auth/email/reset"
+      ],
+      "reason": "两个改密码接口的副作用写进接口表：成功后吊销本账号的会话、命令行令牌与对外授权，并写 auth.credentials_revoked；头部日期同步。"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.account.password",
+        "flow:identity.email.reset",
+        "flow:identity.device.userinfo"
+      ],
+      "reason": "「密码换掉之后」一条改成三类凭据一并吊销；设备授权与对外授权段补充；残余风险里「重设密码不结束已有会话」的旧说法改正。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "application:server",
+        "flow:identity.account.password",
+        "flow:identity.email.reset"
+      ],
+      "reason": "源码地图登记 lib/account-revoke.ts；身份契约新增改密码与重设密码的吊销范围。"
+    },
+    {
+      "paths": [
+        "docs/services/server/oidc.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.oidc.confirm"
+      ],
+      "reason": "登录与同意第 5 条：改密码或重设密码时这个账号的授权一并撤销，下次登录要重新同意。"
+    },
+    {
+      "paths": [
+        "docs/services/server/data-model.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "table:device_grants",
+        "table:oauth_grants",
+        "table:oidc_payloads"
+      ],
+      "reason": "三张表的写入说明补充改密码与重设密码时的吊销改写和删除。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity"
+      ],
+      "reason": "派生产物：由 ownership.json 的流程写入表、moduleOwners 与 account-revoke.ts 重新生成，来源摘要随之变化。"
+    },
+    {
+      "paths": [
+        "docs/services/console/README.md"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "控制台服务合同的操作记录段补一句：改密码后的 auth.credentials_revoked 记录显示什么、meta 含哪四个数量；头部更新日期同步到 2026-10-30。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/architecture/SECURITY.md",
+    "docs/architecture/API.md",
+    "docs/services/server/oidc.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/endpoint-contracts.md"
+  ],
+  "tests": [
+    "tests/server/password-revoke.test.ts",
+    "tests/server/signin-methods.test.ts",
+    "tests/server/oidc.test.ts",
+    "tests/server/bearer-auth.test.ts"
+  ],
+  "compatibility": "接口路径、请求体与成功响应 {ok:true} / {return_to} 不变；操作记录多一种 auth.credentials_revoked，meta 为 sessions、cli_tokens、cli_grants、oidc_grants 四个数量。上线前已经发出的 gk_ 令牌与对外授权保留，直到该账号下一次改密码或重设密码。",
+  "migration": "无迁移、无回填。吊销只在改密码或重设密码成功时发生，不做上线时的批量吊销。",
+  "rollback": "回滚到旧镜像即可。已经被吊销的令牌、已批准的设备授权与对外授权不会自动恢复，本人重新 geek login 与重新同意。"
+}

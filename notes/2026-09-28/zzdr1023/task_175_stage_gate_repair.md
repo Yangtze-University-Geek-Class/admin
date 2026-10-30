@@ -32,7 +32,7 @@
 
 - 执行者：agent-pi-geek-main-02（pi coding agent，dsf）
 - 做了什么：提交后重新 git fetch origin stage 发现：origin/stage 从 9b38684 前进到 0c32616，其中 f9da30f（Crosery，2026-09-27 23:54 +0800）以 Closes #175 的方式自己修了同一件事——preferences.vue 用 class 上的 Uno 任意变体 [&_.tx-block-input__gap-4 等替换 <style scoped>，并补了 docs/services/web、docs/services/forum、docs/ops/DEPLOY、docs/ops/ENVIRONMENTS 四处说明；issue #175 于 2026-09-27T15:55:13Z 被关闭并留了「关闭」记录。核验新 stage：check-doc-sync 通过（6 组，按第一父链）、check-styles clean（125 文件）、CI 在 f9da30f 上 success，门禁确实已绿，#174 也已 MERGED。我的分支与这条修复是等价的两套写法；本机 task/175/stage_gate_repair（6312b38 + 07fc156）尚未推送（origin 与 fork 上都没有 task/175/* 分支）。
-- 结果：同时量到新 stage 上仍有一处残留：f9da30f 的 Uno 写法在 <=640px 只改 flex-direction: column 与 align-items，没有解除 TxBlockSlot 的固定 height:56px（相关行类里也没有 !h-auto），四个输入行在 390x844 实测 slot.y=386 落在 row(325+56=381) 之外，控件溢出到下一行；改前的 <style scoped> 版本同样如此（用户可见表现为「内资料」分组里输入框压住下一行）。我的分支改法（max-[640px]:!h-auto）在同样条件下 rowH 56→97、不再溢出，桌面截图与改前逐字节相同（md5 b4322f31）。证据与补丁存于 /home/zzdr1023/task175-evidence/（两张桌面/手机截图、三版并列对比图、几何 JSON、format-patch）。
+- 结果：同时量到新 stage 上仍有一处残留：f9da30f 的 Uno 写法在 <=640px 只改 flex-direction: column 与 align-items，没有解除 TxBlockSlot 的固定 height:56px（相关行类里也没有 !h-auto），四个输入行在 390x844 实测 slot.y=386 落在 row(325+56=381) 之外，控件溢出到下一行；改前的 <style scoped> 版本同样如此（用户可见表现为「内资料」分组里输入框压住下一行）。我的分支改法（max-[640px]:!h-auto）在同样条件下 rowH 56→97、不再溢出，桌面截图与改前逐字节相同（md5 b4322f31）。证据与补丁存于 /home/[已脱敏]/task175-evidence/（两张桌面/手机截图、三版并列对比图、几何 JSON、format-patch）。
 - 下一步：等所有者决定：#175 已关，我的等价改动是否可以关掉；窄屏溢出这一处要不要另开 issue（不在已关闭的 #175 上继续）
 
 ## 01:18:21 +08:00 · 收尾 · #175 · 放弃，清理 worktree

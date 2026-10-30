@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 270,
   "kind": "business",
-  "summary": "自建 GitLab 接极客班统一登录（#270，所有者 2026-10-23：「gitlab那边的登录可以走极客班的sso统一登录，因为毕竟数据都要一起统计」「所有有极客班登录身份的都有对应的gitlab账号」）：核心服务内嵌 OpenID Connect 签发者（/oidc/*，oidc-provider 9.12.2，ADR-0005 决策 8 与交付第 3 项），控制台新增同意页 /authorize；按极客班账号在 GitLab 上建号、进组、封禁（GITLAB_SYNC，正式 off；正式站上线前 GitLab 接预发布，预发布 on，所有者 2026-10-23 13:36 选定），控制台加 GitLab 账号状态与立即同步两个接口；官网桌面加「代码仓库」应用，接过 3 键与便签第 3 行。",
+  "summary": "自建 GitLab 接极客班统一登录（#270，所有者 2026-10-23 决定 GitLab 登录走极客班统一登录（数据要一起统计），并要求每个有极客班身份的人都对应一个 GitLab 账号）：核心服务内嵌 OpenID Connect 签发者（/oidc/*，oidc-provider 9.12.2，ADR-0005 决策 8 与交付第 3 项），控制台新增同意页 /authorize；按极客班账号在 GitLab 上建号、进组、封禁（GITLAB_SYNC，正式 off；正式站上线前 GitLab 接预发布，预发布 on，所有者 2026-10-23 13:36 选定），控制台加 GitLab 账号状态与立即同步两个接口；官网桌面加「代码仓库」应用，接过 3 键与便签第 3 行。",
   "applications": [
     "server",
     "web",

@@ -5,7 +5,7 @@
 ## 00:29:44 +08:00 · 阻塞 · #262 #239 · GitHub 账号 Crosery 被封，推送、PR、合并与发版暂停，改在本地推进
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：接手 Notion 会话 3ff31553 留下的 #262、#239。核对：github.com/Crosery 返回 404；匿名 git ls-remote 看到远端 stage 4beda55e、main 61da3fea、task/262/unified_login 9cd3157e、task/239/competition_hub f0a633b0，本地 a1345688 未推送。所有者 2026-10-23 00:21 指示：「等后面账号恢复我们的所有操作和发版以及发布都走本地，然后接手目前的事情去做完」
+- 做了什么：接手 Notion 会话 3ff31553 留下的 #262、#239。核对：github.com/Crosery 返回 404；匿名 git ls-remote 看到远端 stage 4beda55e、main 61da3fea、task/262/unified_login 9cd3157e、task/239/competition_hub f0a633b0，本地 a1345688 未推送。所有者 2026-10-23 00:21 指示：「[已脱敏]」
 - 结果：GitHub 上的推送、PR 评论与合并、发布 tag 和两条部署工作流都用不了（deploy-manual.mjs 也要下载 CI 归档、写 GitHub 部署记录）；本地开发、测试、提交照常。线上：预发布 0.1.1-rc.6@7a25ec804b1f，正式 0.1.0
 - 下一步：本地发版的做法等所有者确认；账号恢复后补推 task/239 并同步 PR 与 issue 记录
 

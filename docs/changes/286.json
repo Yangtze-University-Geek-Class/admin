@@ -39,7 +39,7 @@
   "assessments": {
     "business": {
       "status": "changed",
-      "reason": "表情面板、编辑器、帖子正文和回应里的内置表情图片，在 CDN 开关打开时从 https://cdn.crosery.com/yzgc/static/site/forum/stickers/ 加载，关闭时仍是同源；站长在控制台上传的表情不在清单里，一直同源。新增表情包不再改代码：在 app/server/assets/stickers/ 下加一个目录和 pack.json，重新生成清单，启动时补进库里，控制台已有的包卡片、启停、改名、排序、上传、新建包照常用，新包同样可以管理。第一次用这个机制加包：「极客日常」16 张、「聊天回应」16 张，排在「极客娘」之后。",
+      "reason": "表情面板、编辑器、帖子正文和回应里的内置表情图片，在 CDN 开关打开时从七牛旧 CDN 的 `/yzgc/static/site/forum/stickers/` 加载，关闭时仍是同源；站长在控制台上传的表情不在清单里，一直同源。新增表情包不再改代码：在 app/server/assets/stickers/ 下加一个目录和 pack.json，重新生成清单，启动时补进库里，控制台已有的包卡片、启停、改名、排序、上传、新建包照常用，新包同样可以管理。第一次用这个机制加包：「极客日常」16 张、「聊天回应」16 张，排在「极客娘」之后。",
       "evidence": [
         "app/server/src/lib/sticker-manifest.ts",
         "app/server/src/lib/migrations/2026-10-sticker-packs.ts",

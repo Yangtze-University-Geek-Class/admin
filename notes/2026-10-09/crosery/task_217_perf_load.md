@@ -47,7 +47,7 @@
 ## 20:44:14 +08:00 · 开发 · #217 · 按所有者授权配置 CDN 与宿主 nginx
 
 - 执行者：agent-claude-geek-217
-- 做了什么：所有者 2026-10-09 授权代配。static-cdn 环境加 tag 规则 v*；临时分支实测规则管得到 deployment:false 的 job，探针分支已删；建 tag ruleset release-tags-immutable；备份后装入 preview/production 两份 nginx 模板，nginx -t 通过并 reload；签发 STATIC_CDN_UPLOAD_TOKEN 直接写入环境 secret。服务器实测：回环 API 8ms、CPU 近 0，公网首字节 230–500ms 来自链路（连接 55ms，偶发丢包 1s）。文档核对：CICD.md 已补落实记录
+- 做了什么：所有者 2026-10-09 授权[已脱敏]。static-cdn 环境加 tag 规则 v*；临时分支实测规则管得到 deployment:false 的 job，探针分支已删；建 tag ruleset release-tags-immutable；备份后装入 preview/production 两份 nginx 模板，nginx -t 通过并 reload；签发 STATIC_CDN_UPLOAD_TOKEN 直接写入环境 secret。服务器实测：回环 API 8ms、CPU 近 0，公网首字节 230–500ms 来自链路（连接 55ms，偶发丢包 1s）。文档核对：CICD.md 已补落实记录
 - 结果：公网两个域名 200，CSP 含 CDN 前缀，archive 旧链接 301 生效
 
 ## 20:49:27 +08:00 · 收尾 · #217 · PR #218 已合并，清理 worktree

@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "issue": 317,
+  "kind": "business",
+  "summary": "PENTEST-20261029 复核后的匿名入口加固：意见箱与投递共用的 PoW 证明改为一次性（摘要进 limit_events 的 pow.nonce 桶，5 分钟窗口），同一份证明重放回 400，并把 pow.nonce 桶登记进 limit_events 的留存表避免只涨不消；OIDC 协议端点对带 Origin 的浏览器请求统一回 401 invalid_client，去掉 client_id 枚举 oracle。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "identity",
+    "invitations",
+    "organization",
+    "platform",
+    "public_content",
+    "recruitment",
+    "mail"
+  ],
+  "flows": [
+    "flow:feedback.submit",
+    "flow:application.submit",
+    "flow:identity.callback",
+    "flow:identity.google.callback",
+    "flow:identity.oidc.token",
+    "flow:identity.oidc.protocol",
+    "flow:competition.create",
+    "flow:forum.state",
+    "flow:documentation.read"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "防刷规则收紧：PoW 证明在整个有效时段（时间戳前后各 5 分钟，去重记 10 分钟）内只能提交一次；OIDC 对带 Origin 的请求统一 401，不再区分 client_id 是否存在。两者都是对外行为变化。",
+      "evidence": [
+        "app/server/src/middleware/pow.ts",
+        "app/server/src/routes/oidc/index.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "checkPow 返回摘要，preflight 增加 consumeNonce 回调；services 把它接到 limits.hit；OIDC 协议端点在交给 oidc-provider 之前拦掉带 Origin 的请求。",
+      "evidence": [
+        "app/server/src/middleware/pow.ts",
+        "app/server/src/services.ts",
+        "app/server/src/routes/oidc/index.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "不新增权限节点；但匿名写入面被收紧（一次性证明），OIDC 协议端点对浏览器来源统一拒绝，授权边界更明确。",
+      "evidence": [
+        "app/server/src/services.ts"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不新增表、不改结构：向 limit_events 写 pow.nonce 桶的行，并把该桶登记进 BUCKET_RETENTION_MS 由既有 pruneAll 清理。",
+      "evidence": [
+        "app/server/src/services.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不新增依赖，不调用新的外部服务；OIDC 仍走 oidc-provider 内部实现。",
+      "evidence": [
+        "app/server/src/routes/oidc/index.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "安全模型补匿名入口一条；服务合同里意见箱提交的 PoW 与 OIDC token 的错误码说明同步更新。",
+      "evidence": [
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/endpoint-contracts.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 2 条回归：同一份 PoW 即时重放回 400 且不落库；带 Origin 的 token 请求，已登记与未登记 client_id 状态码与响应体一致。未覆盖窗口过后的重放（2026-10-30 探测确认会通过），未验证 pruneAll 在真实库上的执行。",
+      "evidence": [
+        "tests/server/anonymous-surface-hardening.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "not-applicable",
+      "reason": "不涉及镜像、环境变量、工作流或宿主配置，发布流程不变。",
+      "evidence": [
+        "docs/architecture/SECURITY.md"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/middleware/pow.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:feedback.submit",
+        "flow:application.submit"
+      ],
+      "reason": "PoW 校验返回摘要并接入去重消费（5 分钟窗口），意见箱与投递共用"
+    },
+    {
+      "paths": [
+        "app/server/src/services.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "把 consumeNonce 接到 limits 的 pow.nonce 桶（max 1，窗口 5 分钟）"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/oidc/index.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "route:POST /oidc/*",
+        "flow:identity.oidc.token"
+      ],
+      "reason": "协议端点带 Origin 统一回 401，不再暴露 client_id 是否存在"
+    },
+    {
+      "paths": [
+        "tests/server/anonymous-surface-hardening.test.ts"
+      ],
+      "domains": [
+        "identity",
+        "feedback"
+      ],
+      "nodes": [
+        "flow:identity.oidc.token",
+        "flow:feedback.submit"
+      ],
+      "reason": "新增两条回归：PoW 重放与 OIDC client_id 不可区分"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/README.md"
+      ],
+      "domains": [
+        "identity",
+        "feedback"
+      ],
+      "nodes": [
+        "domain:identity",
+        "domain:feedback"
+      ],
+      "reason": "安全模型与接口合同同步新行为与新错误码"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/"
+      ],
+      "domains": [
+        "identity",
+        "feedback",
+        "platform"
+      ],
+      "nodes": [
+        "domain:identity",
+        "domain:feedback",
+        "domain:platform"
+      ],
+      "reason": "ownership 增加 pow 中间件的流程证据，目录按源码重新生成"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/limits.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:application.submit"
+      ],
+      "reason": "把 pow.nonce 登记进 BUCKET_RETENTION_MS（1 小时留存），pruneAll 才会清掉这个桶"
+    }
+  ],
+  "documents": [
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/endpoint-contracts.md"
+  ],
+  "tests": [
+    "tests/server/anonymous-surface-hardening.test.ts"
+  ],
+  "compatibility": "客户端不需要改：PoW 的摘要公式不变，同一份证明在有效期内不能用第二次；OIDC 只影响带 Origin 的浏览器访问换令牌、撤销与 userinfo，发现文档与 JWKS 不变，下游服务器（不带 Origin）行为不变。",
+  "migration": "无数据迁移；pow.nonce 的行按既有 limit_events 清理策略过期，不回填历史。",
+  "rollback": "revert 合并提交即可；pow.nonce 行是独立桶，不参与其它限流判断，回滚后不影响既有计数。"
+}

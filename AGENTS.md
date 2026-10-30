@@ -10,12 +10,13 @@
 2. [AGENT-START](docs/conventions/AGENT-START.md)
 3. [PROJECT](docs/conventions/PROJECT.md)
 4. [BRANCHING](docs/conventions/BRANCHING.md)
-5. [CONTRIBUTING](docs/conventions/CONTRIBUTING.md)
-6. [TRACKING](docs/conventions/TRACKING.md)
-7. [NOTES](docs/conventions/NOTES.md)
-8. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
-9. [RELEASES](docs/conventions/RELEASES.md)
-10. [RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务的任务必读）
+5. [CHANGE-PATHS](docs/conventions/CHANGE-PATHS.md)（改动走哪条路：常规、P0 hotfix、部分晋升、配置、数据、宿主、回滚、活动期、代码托管不可用）
+6. [CONTRIBUTING](docs/conventions/CONTRIBUTING.md)
+7. [TRACKING](docs/conventions/TRACKING.md)
+8. [NOTES](docs/conventions/NOTES.md)
+9. [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)
+10. [RELEASES](docs/conventions/RELEASES.md)
+11. [RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md)（发版、hotfix、动 env / 部署 / 宿主 / 外部服务的任务必读）
 
 再按任务读取适用规范与服务契约（`docs/services/` 下的服务文档、[TESTING](docs/conventions/TESTING.md)、安全与运维文档等）。
 
@@ -30,23 +31,24 @@
 **长期分支只有两条：`main`（正式）与 `stage`（预发布）；其余分支必须是短生命周期。**
 
 - `stage` 必须包含 `main`：`git merge-base --is-ancestor origin/main origin/stage` 必须成功；`main` 不得领先 `stage`，写进 `main` 的提交必须已经存在于 `stage`。
-- 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。唯一的例外是 `deploy/hotfix/windows.json` 里所有者批准、未过期的 P0 hotfix 窗口：窗口内 `main` 可以领先 `stage`，领先的每个提交都要归属于该窗口 issue，hotfix MR 合进 `main` 后立刻运行 `node scripts/hotfix-sync.mjs apply` 合回 `stage`，保证 `stage >= main`（[BRANCHING](docs/conventions/BRANCHING.md)「线上紧急修复」）；不用 `--no-verify` 绕过门禁。
+- 禁止直接向 `main` 提交或推送；`main` 只能由 `stage` 合并进入。例外只有两种窗口，都要所有者的批准摘要、都会过期，分支门禁按登记逐个提交核对。第一种是 `deploy/hotfix/windows.json` 里所有者批准、未过期的 P0 hotfix 窗口：窗口内 `main` 可以领先 `stage`，领先的每个提交都要归属于该窗口 issue，hotfix MR 合进 `main` 后立刻运行 `node scripts/hotfix-sync.mjs apply` 合回 `stage`，保证 `stage >= main`（[BRANCHING](docs/conventions/BRANCHING.md)「线上紧急修复」）；不用 `--no-verify` 绕过门禁。
+- 第二种是部分晋升窗口：预发布里已验收的一部分要先上正式、又不是 P0 时，不借用 hotfix 窗口：先考虑功能开关和前缀快进，都不行才登记 `deploy/promotion/windows.json` 的部分晋升窗口（所有者的批准摘要、最长 3 天），`main` 领先 `stage` 的提交只能是登记提交和 `git cherry-pick -x` 挑来的 picks，由 `scripts/promotion-windows.mjs` 与 branch-guard 核对（[BRANCHING](docs/conventions/BRANCHING.md)「部分晋升窗口」）。
 - 分支名一律不用 `-`，只用 `/` 分层，段内多词用 `_`（正则见 [BRANCHING](docs/conventions/BRANCHING.md)）。
 - 任务分支命名 `task/<issue>/<slug>`（例 `task/12/portal_redesign`），**只能从 `stage` 拉出**；MR 合并后必须立即删除，不得残留死分支。
 - `dev/<github-username>`（例 `dev/alice`）是个人自由开发区，不作为进入 `stage` 的凭据，也不部署。
-- 推送分支不部署：push `stage`/`main` 只跑 CI。发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上 → 预发布 `https://prev.yangtzeu.work`；`vX.Y.Z` 打在 `main` 的同一提交上 → 正式 `https://yangtzeu.work`。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
+- 推送分支不部署：push `stage`/`main` 只跑 CI。发版只靠打 tag：`vX.Y.Z-rc.N` 打在 `stage` 的提交上 → 预发布 `https://prev.yangtzeu.work`；`vX.Y.Z` 打在 `main` 的同一提交上 → 正式 `https://yangtzeu.work`；hotfix 合回 `stage` 的合并提交上打 `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N`，也发预发布（[RELEASES](docs/conventions/RELEASES.md)）。本机 localhost/127.0.0.1 只是本地开发，不是预发布。
 - 规则存在不等于远程保护已生效：域名、环境文件或分支保护配置齐全，不代表 DNS、TLS、CI 或部署已经落地。
 
 细节见 [BRANCHING](docs/conventions/BRANCHING.md)。
 
 ## 2. 工作流硬门禁
 
-**建单先由 Crosery 确认。** Agent 先查证、查重，用「痛点／解决方案／最终效果与验收条件」提出候选；只有 Crosery 明确批准具体事项后，才可新建、拆分、补建、重开或建立替代 issue，并在正文保留确认依据（[ISSUES](docs/conventions/ISSUES.md) §1–§2）。未确认只保留候选，不建 issue 或 task 分支、不擅自实施候选；「先 issue」、审查建议、巡检、紧急补单与后续跟进都不是建单授权。所有者取消的事项不自动恢复。
+**建单先由所有者确认。** Agent 先查证、查重，用「痛点／解决方案／最终效果与验收条件」提出候选；只有所有者明确批准具体事项后，才可新建、拆分、补建、重开或建立替代 issue，并在正文保留确认依据（[ISSUES](docs/conventions/ISSUES.md) §1–§2）。未确认只保留候选，不建 issue 或 task 分支、不擅自实施候选；「先 issue」、审查建议、巡检、紧急补单与后续跟进都不是建单授权。所有者取消的事项不自动恢复。
 
 **所有者确认建单 → issue → 从 `stage` 拉 task 分支 → MR 回 `stage` → 在 `stage` 的提交上打 `vX.Y.Z-rc.N` 发预发布 → 所有者验收 → `main` 快进到同一提交 → 打 `vX.Y.Z` 发正式。**
 
 - **一件事 = 一个 issue = 一个 `task/<issue>/<slug>` 分支 = 一个 git worktree = 一个 PR**，生命周期跟着 issue 走（[TRACKING](docs/conventions/TRACKING.md)）。开工用 `node scripts/task.mjs start <issue> <slug>` 从最新 `stage` 建分支和独立 worktree，所有开发都在 worktree 里做，不在主工作区切分支；合并后 `node scripts/task.mjs finish <issue>` 删 worktree 与本地分支（[BRANCHING](docs/conventions/BRANCHING.md)「task worktree」）；本机有 PR 已合并或 issue 已关、还没 finish 的 worktree 时，`pre-push` 拒绝任何推送（钩子每台克隆用 `pnpm hooks:enable` 启用一次）。开发前先按 [ISSUES](docs/conventions/ISSUES.md) 开 issue；PR 按 [PULL-REQUESTS](docs/conventions/PULL-REQUESTS.md) 的正文契约写（`Closes #<issue>`、解决链路、验收证据截图 / 录屏、人工验收步骤），CI 的 `pr-contract` 核对；**合并进 `stage` 即删分支、关 issue**，issue 与 PR 两边都要留记录。
-- issue 做完当场关（2026-09-26 定的强制规范：「完成的pr管理的issue必须清理」）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理；`issue-lifecycle` 自动关 issue、`branch-hygiene` 自动删远端分支，自动化没关上的（例如 fork PR 没有写权限，#137）由合并的人当场手工关并留「关闭」记录，本机 worktree 由开发者 `task.mjs finish`。不走 PR 做完的（运维操作、被别的改动顺带解决）由做完的人当场写「关闭」记录再关；所有者取消的用 `not planned` 关闭，取消不表示修复或职责完成。只剩外部等待或新发现的问题先提出候选，由 Crosery 决定是否继续、拆分或建单，不自动生成替代 issue。每天的巡检补关 PR 已合并还开着的 issue，给 14 天没动静的留「超期」、给关了却没有 PR 也没有记录的留「缺记录」。每个生命周期在哪里强制见 [TRACKING](docs/conventions/TRACKING.md) §1。
+- issue 做完当场关（合并后不清理，死分支和开着的 issue 会无人看管）：PR 合并进 `stage` 后，它 `Closes` 的 issue 必须关闭，task 分支与 worktree 必须清理；`issue-lifecycle` 自动关 issue、`branch-hygiene` 自动删远端分支，自动化没关上的（例如 fork PR 没有写权限，#137）由合并的人当场手工关并留「关闭」记录，本机 worktree 由开发者 `task.mjs finish`。不走 PR 做完的（运维操作、被别的改动顺带解决）由做完的人当场写「关闭」记录再关；所有者取消的用 `not planned` 关闭，取消不表示修复或职责完成。只剩外部等待或新发现的问题先提出候选，由所有者决定是否继续、拆分或建单，不自动生成替代 issue。每天的巡检补关 PR 已合并还开着的 issue，给 14 天没动静的留「超期」、给关了却没有 PR 也没有记录的留「缺记录」。每个生命周期在哪里强制见 [TRACKING](docs/conventions/TRACKING.md) §1。
 - 每个阶段的进展以 [TRACKING](docs/conventions/TRACKING.md) §3 的「追踪记录」格式写成 issue / PR 评论；恢复上下文先读 issue 正文和最后几条追踪记录，不凭记忆续做。
 - **执行记录前后必须写**（[NOTES](docs/conventions/NOTES.md)）：每一步按北京时间记进 `notes/<日期>/<GitHub 用户名>/<链路>.md`，入口是 `notes/INDEX.md`。开发前由 `task.mjs start` 记「开工」（要带 `GEEK_NOTES_USER` 与 `GEEK_NOTES_BY` 身份），开发中每次提交、开 PR、审查、返工都记，合并、发布、验收照记，`task.mjs finish` 记「收尾」。task PR 的链路缺「开工」「提交」「PR」「审查」时 CI 不通过，不能合并。
 - 任何进入 `stage` 的内容必须走 [CODE-REVIEW](docs/conventions/CODE-REVIEW.md)：按 [code-review 技能](.agents/skills/code-review/SKILL.md) 逐项核对 diff，并把审查结论贴进 MR。**没有审查结论的 MR 不允许合并。**
@@ -64,10 +66,11 @@
 - 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview` / `deploy/env/.env.dev`（本机调试，脱敏入库，默认走本地），前两份由 `docker compose --env-file` 消费；三份键集一致、值互相隔离，`pnpm check:env-isolation` 核对（含在 `pnpm check` 里）。不得另建环境文件或在别处定义第二份环境变量。
 - 代码、工作流、宿主配置片段不写另一个环境的域名、端口、签发者、镜像仓库：从该环境的 env 文件或 `deploy/environments.json` 读，宿主片段读宿主文件；确需写死的位置登记在 `deploy/env/origin-exceptions.json` 并写理由（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第二节）。
 - 对齐的是接口和数据库表结构；数据不对齐，只对齐格式（用户、帖子、报名等内容各环境自有，不复制不同步）；没有任何页面调用的接口不留（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第九节）。
-- 预发布做过的每一件事，正式都要有对应动作：代码靠提交和 tag，表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务靠同构清单 `deploy/parity/ledger.json`（`node scripts/parity.mjs`）。`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 在清单还有 `pending` 时不构建、不部署；部署后 `smoke` job 核对线上，含内部赛事官网。hotfix 同样适用，豁免只能由所有者逐条留原话。
+- 一个外部系统（GitLab、对象存储、邮件、数据库）同一时刻只有一个环境在写：切换写者先停旧的、核对停了，再开新的。2026-10-29 两个环境的 GitLab 同步同时开着，建出 6 个重复号（[事故复盘](docs/reviews/GITLAB-INCIDENT-2026-10.md)）。
+- 预发布做过的每一件事，正式都要有对应动作：代码靠提交和 tag，表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务靠同构清单 `deploy/parity/ledger.json`（`node scripts/parity.mjs`）。`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 在清单还有 `pending` 时不构建、不部署；部署后 `smoke` job 核对线上，含内部赛事官网。hotfix 同样适用，豁免只能由所有者逐条批准，并留下批准摘要。
 - 非密钥项（origin、host、端口、路径、开关）预填真实值；**密钥留空，真实值只存在于目标机 `.env.<环境>`**，由 CI/CD 用环境级 secrets 填充。
 - 密钥不得入库、不得进镜像、不得进日志或发布记录。
-- 部署只由发布 tag 触发（`deploy-preview.yml` / `deploy-production.yml`），部署开关默认关闭，未显式开启不部署。AI 不得自行部署、不得创建/推送/移动/删除发布 tag、不得修改版本号或镜像 tag、不得触发流水线。
+- 部署只由发布 tag 触发（`deploy-preview.yml` / `deploy-production.yml`），部署开关默认关闭，未显式开启不部署。AI 不得自行部署、不得创建/推送/移动/删除发布 tag、不得修改版本号或镜像 tag、不得触发流水线。`hotfix-sync.mjs apply --preview-tag` 也是在创建发布 tag，同样要所有者对这个版本的授权，并用 `--tag-approval "<批准摘要>"` 写进 tag。
 - 唯一的例外路径：GitHub 计划使部署 job 按设计失败关闭时，用 `scripts/deploy-manual.mjs` 从本机部署**同一发布 tag 由 CI 构建的镜像归档**，物料取自 tag 指向的提交，核对与 CI 相同（正式还要仓库里有「批准发布」评论）。它只能在这次发布已获授权之后运行，由经授权的人，或经明确授权的 agent 执行；不得用它部署未打 tag 的提交或本机构建的镜像。
 - 发布 tag 不可移动、不可删除；创建发布 tag 需要对该版本号的明确授权，正式 tag 还需要对同一提交的预发布验收记录。
 - 禁止用 systemd、pm2 或手工 `node` 进程替代 Docker 栈；禁止在目标机手工修改运行中的栈。
@@ -93,7 +96,7 @@
 - 把 `proposed`/`historical` 文档当现行规范执行；规范冲突时自己挑一份照做而不报告。
 - 伪造审查结论、验收证据、测试结果或审批记录。
 - 不写执行记录就开发、合并或发布；改写、删除已写的记录，手填时间，或补写没发生过的事。
-- 未经 Crosery 对具体事项确认就新建、拆分、补建、重开或建立替代 issue，或把取消关闭写成已修复。
+- 未经所有者对具体事项确认就新建、拆分、补建、重开或建立替代 issue，或把取消关闭写成已修复。
 - 未经授权创建或推送发布 tag，或者移动、删除已推送的发布 tag。
 
 ## 6. 文档路由表

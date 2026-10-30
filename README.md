@@ -188,7 +188,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 - 原镜像、完整卷、会话与身份密钥分别保全并核对；Arch 为唯一写入源。旧应用及旧看护已停止，旧 VPS 只保留 HTTPS 转发、兼容跳转及恢复资料。
 - DNS 未修改，由所有者后续指向香港 `156.238.244.78`，不是 Arch 私有地址。两域名新旧入口 52 项路径与 20 次交替 SNI 检查通过。
 - GitHub 双环境已更新 10 项 SSH 配置并同步 22 项原应用 secret，补齐预发布 Google/OIDC/GitLab 配置；共享 `ssh-config` 生成的严格跳板配置已实测 SSH/SCP。个人私钥不进入 CI。
-- 本机 `ssh yzgc`、`crosery-ct service yzgc` 指向 Arch；后续发布不再使用旧 VPS。原版应用没有升级，新工作流源码仍待集成，未执行新 Actions 发布或补推 tag。
+- 本机 `ssh yzgc`、维护者本机工具的 `service yzgc` 入口指向 Arch；后续发布不再使用旧 VPS。原版应用没有升级，新工作流源码仍待集成，未执行新 Actions 发布或补推 tag。
 - 现有 task270 与 GitHub stage 相差 2,363 个文件，宏观声明同号冲突与历史 notes 门禁仍阻塞合并；未覆盖历史记录或降低检查。
 
 操作合同：[DEPLOY](docs/ops/DEPLOY.md) · [ENVIRONMENTS](docs/ops/ENVIRONMENTS.md) · [CICD](docs/ops/CICD.md) · [平台备份/恢复](docs/ops/BACKUP.md) · [旁路 GitLab](docs/ops/GITLAB.md)。平台与 GitLab 备份分别验收，旧宿主看护含全局清理，不能原样装进 Arch timer。
@@ -232,7 +232,7 @@ issue ──▶ task/<issue>/<slug>（独立 worktree）──▶ PR → stage �
 
 ## 许可与出处
 
-私有项目；未经授权不发布内部代码、文档或凭据。论坛采用的 [Tuff Forum](https://github.com/talex-touch/tuff-forum) 原有版权与 MIT 许可证完整保留在 [app/forum/LICENSE](app/forum/LICENSE)，不因本项目私有而删除上游声明。README 配图由 crosery-ct 的 `mox_image_generate` 生成。
+私有项目；未经授权不发布内部代码、文档或凭据。论坛采用的 [Tuff Forum](https://github.com/talex-touch/tuff-forum) 原有版权与 MIT 许可证完整保留在 [app/forum/LICENSE](app/forum/LICENSE)，不因本项目私有而删除上游声明。README 配图由本机图片工具的 `mox_image_generate` 生成。
 
 <div align="center">
 <sub>长江大学极客班 · YUGC</sub>

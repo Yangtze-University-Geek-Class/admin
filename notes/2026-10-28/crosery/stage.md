@@ -48,7 +48,7 @@
 ## 18:22:13 +08:00 · 阻塞 · #308 · P0：成员没有 GitLab 访问入口，已建单并定位到正式缺 OIDC_JWKS 与 GITLAB_API_TOKEN
 
 - 执行者：agent-omp-geek-main-fece2da2（omp，deepseek-v4.1-flash）
-- 做了什么：按所有者 17:56 原话「gitlab他们都没有访问权限，你都记录下」建 GitLab #308（bug/P0/func:auth/hot-fix/infra:deploy）；只读核对 gitlab-psql：真人账号 7、signup_enabled=f、oauth_applications 0、admin 仓库私有、组 geek 只有 5 位 30 权限；正式 .env.production 的 OIDC_JWKS 与 GITLAB_API_TOKEN 为空、GITLAB_SYNC=off、gitlab_accounts=0
+- 做了什么：按所有者 17:56 原话「[已脱敏]」建 GitLab #308（bug/P0/func:auth/hot-fix/infra:deploy）；只读核对 gitlab-psql：真人账号 7、signup_enabled=f、oauth_applications 0、admin 仓库私有、组 geek 只有 5 位 30 权限；正式 .env.production 的 OIDC_JWKS 与 GITLAB_API_TOKEN 为空、GITLAB_SYNC=off、gitlab_accounts=0
 - 结果：issue https://git.yangtzeu.work/geek/admin/-/work_items/308 已开，附根因评论（CICD.md:18 记载 preview 17 / production 15 项 secrets，缺的正是这两项；API.md:67 无 OIDC_JWKS 时 /oidc/* 404）。未改任何线上配置，补齐环境级密钥需所有者授权
 - 下一步：所有者确认补 OIDC_JWKS/GITLAB_API_TOKEN 与 GitLab 客户端登记后，再开 task 分支
 

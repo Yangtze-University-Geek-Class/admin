@@ -237,6 +237,7 @@ describe('platform maintenance CLI', () => {
     { buildEnvironment: 'production' },
     { commit: 'f'.repeat(40) },
     { version: '0.1.1' },
+    { version: '0.1.1-stable.1@02cb751c0b83' },
   ])('refuses source drift before starting any helper: %j', patch => {
     const f = fixture();
     writeFileSync(f.stateFile, JSON.stringify({ ...f.state, ...patch }));

@@ -41,7 +41,7 @@
 ## 19:24:16 +08:00 · 提交 · #124 · 仓库公开后更新 CICD 文档
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 17:49 决定公开 admin；公开前 gitleaks 扫全部历史，公开后设 fork PR 批准、删 CI_RUNNER、runner 组 yzgc-deploy 放行公开仓库、preview 环境只放行 rc tag；把这些写进 docs/ops/CICD.md
+- 做了什么：所有者 17:49 决定[已脱敏]；公开前 gitleaks 扫全部历史，公开后设 fork PR 批准、删 CI_RUNNER、runner 组 yzgc-deploy 放行公开仓库、preview 环境只放行 rc tag；把这些写进 docs/ops/CICD.md
 - 结果：提交 0ec8d72；pnpm check 退出 0
 - 下一步：推送，PR #125 第二轮审查
 

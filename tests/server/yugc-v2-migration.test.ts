@@ -165,15 +165,15 @@ describe("account_profiles 建档（SPEC §3.6 第 6 条）", () => {
     const a = "acct-profile-a", b = "acct-profile-b";
     db.prepare("INSERT INTO users(id, created_at, updated_at) VALUES (?, ?, ?)").run(a, now, now);
     db.prepare("INSERT INTO users(id, created_at, updated_at) VALUES (?, ?, ?)").run(b, now, now);
-    db.prepare("INSERT INTO identities(id, user_id, provider, provider_uid, login, created_at) VALUES ('id-a', ?, 'github', '1', 'crosery', ?)").run(a, now);
-    db.prepare("INSERT INTO identities(id, user_id, provider, provider_uid, email, created_at) VALUES ('id-b', ?, 'email', 'e2', 'crosery@example.test', ?)").run(b, now);
-    db.prepare("INSERT INTO forum_users(id, kind, username, display_name, bio, avatar_color, account_id, joined_at, updated_at) VALUES ('fu-a', 'member', 'crosery-forum', '论坛昵称', '简介', '#111', ?, ?, ?)").run(a, now, now);
+    db.prepare("INSERT INTO identities(id, user_id, provider, provider_uid, login, created_at) VALUES ('id-a', ?, 'github', '1', 'fixtureowner', ?)").run(a, now);
+    db.prepare("INSERT INTO identities(id, user_id, provider, provider_uid, email, created_at) VALUES ('id-b', ?, 'email', 'e2', 'fixtureowner@example.test', ?)").run(b, now);
+    db.prepare("INSERT INTO forum_users(id, kind, username, display_name, bio, avatar_color, account_id, joined_at, updated_at) VALUES ('fu-a', 'member', 'fixtureforum', '论坛昵称', '简介', '#111', ?, ?, ?)").run(a, now, now);
     runYugcV2Migration(db, now);
     const profileA = db.prepare("SELECT username, display_name, bio FROM account_profiles WHERE account_id = ?").get(a) as { username: string; display_name: string; bio: string };
     const profileB = db.prepare("SELECT username FROM account_profiles WHERE account_id = ?").get(b) as { username: string };
-    expect(profileA.username).toBe("crosery");
+    expect(profileA.username).toBe("fixtureowner");
     expect(profileA.display_name).toBe("论坛昵称"); // 论坛已有资料的沿用论坛头像/昵称
-    expect(profileB.username).toBe("crosery2"); // 邮箱前缀撞上 github 登录名，加后缀
+    expect(profileB.username).toBe("fixtureowner2"); // 邮箱前缀撞上 github 登录名，加后缀
   });
 
   it("论坛作者的头像字节一并搬进 account_avatars，不是只搬 hash（#274 残留修复 H）", () => {
@@ -215,7 +215,7 @@ describe("audit_logs → activity_events（SPEC §3.6 第 7 条，按水位线�
     const { db } = makeStorage();
     const now = Date.now();
     const token = "abcdef0123456789fulltoken";
-    db.prepare("INSERT INTO audit_logs(actor, action, target, created_at) VALUES ('crosery', 'invite_link.create', ?, ?)").run(token, now);
+    db.prepare("INSERT INTO audit_logs(actor, action, target, created_at) VALUES ('fixtureowner', 'invite_link.create', ?, ?)").run(token, now);
     db.prepare("INSERT INTO audit_logs(actor, action, created_at) VALUES (?, 'invite.sent', ?)").run(`public:${token}`, now);
     runYugcV2Migration(db, now);
     const linkRow = db.prepare("SELECT target_id FROM activity_events WHERE action = 'invite_link.create'").get() as { target_id: string };

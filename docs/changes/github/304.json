@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "issue": 304,
+  "kind": "business",
+  "summary": "GitHub 受保护 stage 同步：把已合入两仓 main 的 #310 加入我们窗口边界修复与 #311 代码仓库整页直达（含测试对齐）合回 stage，恢复两仓 stage >= main。源事项为 GitLab geek/admin#310、#311，不冒充 GitHub 同号 issue；不直推、不取消保护、不创建或移动发布 tag。本文件因两仓 issue 共用 docs/changes 扁平命名空间而接管同号文件（所有者 2026-10-29 定夺沿用 #301 先例），GitLab #304 的原声明保留在提交 b37beca5。",
+  "applications": [
+    "web"
+  ],
+  "domains": [
+    "recruitment",
+    "mail",
+    "audit",
+    "platform",
+    "identity",
+    "invitations",
+    "permissions",
+    "feedback",
+    "competitions",
+    "public_content",
+    "organization"
+  ],
+  "flows": [
+    "flow:application.submit",
+    "flow:identity.invite.redeem",
+    "flow:identity.current",
+    "flow:feedback.submit",
+    "flow:feedback.public.list",
+    "flow:competition.public.list",
+    "flow:documentation.read",
+    "flow:platform.public_config"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "合回 #310 的加入我们窗口边界修复（窗口层叠与分包失败回退）与 #311 的代码仓库整页直达（同论坛，不再开窗口）；同步本身不新增任何产品规则。",
+      "evidence": [
+        "app/web/sites/portal/App.tsx",
+        "app/web/sites/portal/components/os/JoinBox.tsx",
+        "app/web/sites/portal/components/os/FeedbackBox.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/lib/shell/commands.ts"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "两件 hotfix 全部是 portal 前端改动，服务端路由、接口与权限代码零改动（diff 无 app/server 路径）。",
+      "evidence": [
+        "tests/web/portal-window-css-entry.test.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "不涉及身份、授权与资源范围的变化；代码仓库访问权限仍由 GitLab 决定。",
+      "evidence": [
+        "docs/architecture/catalog/permissions.md"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不涉及表结构、数据与事务，全部是前端展示与测试。",
+      "evidence": [
+        "docs/services/server/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "package.json 与锁文件没有改动；只合回已审查的既有代码与测试。",
+      "evidence": [
+        "package.json"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/services/web/portal.md 随两件 hotfix 同步了加入我们窗口与代码仓库整页直达的说明；目录生成物随源码证据重生成。",
+      "evidence": [
+        "docs/services/web/portal.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "五份回归测试随修复合回：窗口 CSS 入口（#310）、入口直达与 os 链接（#311）、手机单击直达与宣传片遮挡（#311 测试对齐），全部在源 MR 与本次同步中全量通过。",
+      "evidence": [
+        "tests/web/portal-window-css-entry.test.ts",
+        "tests/web/portal-os-entries.test.tsx",
+        "tests/web/portal-os.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "deploy/hotfix/windows.json 合回 #310 与 #311 的 P0 窗口登记（tag v0.1.1，所有者原话与批准时间在登记里）；部署流程、工作流与环境不变，本 PR 不部署。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/web/sites/portal/App.tsx",
+        "app/web/sites/portal/components/os/JoinBox.tsx",
+        "app/web/sites/portal/components/os/FeedbackBox.tsx",
+        "app/web/sites/portal/components/os/Windows.tsx",
+        "app/web/sites/portal/styles/os.css"
+      ],
+      "domains": [
+        "recruitment",
+        "feedback",
+        "competitions",
+        "platform",
+        "public_content",
+        "invitations",
+        "identity",
+        "organization"
+      ],
+      "nodes": [
+        "domain:recruitment",
+        "domain:feedback",
+        "domain:competitions",
+        "domain:platform",
+        "domain:public_content",
+        "domain:invitations",
+        "domain:identity",
+        "domain:organization"
+      ],
+      "reason": "#310 加入我们窗口边界修复合回：窗口分包失败回退、窗口层叠与样式入口。"
+    },
+    {
+      "paths": [
+        "app/web/sites/portal/components/os/YugcOs.tsx",
+        "app/web/sites/portal/lib/osApps.ts",
+        "app/web/sites/portal/lib/shell/commands.ts"
+      ],
+      "domains": [
+        "recruitment",
+        "feedback",
+        "competitions",
+        "identity",
+        "invitations",
+        "organization",
+        "public_content",
+        "platform"
+      ],
+      "nodes": [
+        "domain:recruitment",
+        "domain:feedback",
+        "domain:competitions",
+        "domain:identity",
+        "domain:invitations",
+        "domain:organization",
+        "domain:public_content",
+        "domain:platform"
+      ],
+      "reason": "#311 代码仓库整页直达合回：应用清单改为 site 直达，桌面注释与终端离线提示同步。"
+    },
+    {
+      "paths": [
+        "tests/web/portal-window-css-entry.test.ts",
+        "tests/web/portal-os-entries.test.tsx",
+        "tests/web/portal-os.test.ts",
+        "tests/web/portal-phone.test.tsx",
+        "tests/web/portal-promo-desktop.test.tsx"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "两件 hotfix 的回归测试合回，断言窗口边界与整页直达行为。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "项目目录生成物随源码证据哈希重生成（pnpm catalog:generate），没有人工改动。"
+    },
+    {
+      "paths": [
+        "docs/changes/310.json",
+        "docs/changes/311.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "两件 hotfix 各自 PR 的影响声明随同步合回，审查结论存档不变。"
+    },
+    {
+      "paths": [
+        "deploy/hotfix/windows.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "hotfix 窗口登记合回：#310 与 #311 的 open 窗口条目（tag v0.1.1，所有者批准原话在登记里）。"
+    },
+    {
+      "paths": [
+        "docs/services/web/portal.md"
+      ],
+      "domains": [
+        "public_content"
+      ],
+      "nodes": [
+        "domain:public_content"
+      ],
+      "reason": "门户文档同步两件 hotfix 的行为说明。"
+    }
+  ],
+  "documents": [
+    "docs/services/web/portal.md"
+  ],
+  "tests": [
+    "tests/web/portal-window-css-entry.test.ts",
+    "tests/web/portal-os-entries.test.tsx",
+    "tests/web/portal-os.test.ts",
+    "tests/web/portal-phone.test.tsx",
+    "tests/web/portal-promo-desktop.test.tsx"
+  ],
+  "compatibility": "不改 HTTP 接口、表结构、环境变量与既有账号；合回的是已在两仓 main 审查、CI 全绿并经 deploy-hotfix 40891492605 部署与 smoke 的 #310/#311 修复，无新增改动。",
+  "migration": "无数据或配置迁移：只合回已上线的前端修复、回归测试、hotfix 窗口登记、目录生成物与执行记录。",
+  "rollback": "revert 本次同步合并即可把 stage 退回同步前状态；线上运行的是 main 的镜像，不受 stage 同步影响（RELEASES「回滚」）。"
+}

@@ -5,7 +5,7 @@
 ## 13:53:21 +08:00 · 开工 · #262 · 密码最短从 15 位降到 8 位，不要求大小写和符号
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 13:52：「为什么设计的那么复杂，支持（两个密码例子，是所有者的真实密码，已本地核对，不公开）这样就行了啊」（之前 13:36 选了自己设 15 位以上的新密码，看到 15 位的要求后改口）。按所有者 00:21「所有操作和发版以及发布都走本地」，从 GitLab stage 2101fe40 用 git worktree add 建 task/262/password_rule（task.mjs start 要连 GitHub，不可用），挂在 #262 下
+- 做了什么：所有者 2026-10-23 13:52：「[已脱敏]」（之前 13:36 选了[已脱敏]，看到 15 位的要求后改口）。按所有者 00:21「[已脱敏]」，从 GitLab stage 2101fe40 用 git worktree add 建 task/262/password_rule（task.mjs start 要连 GitHub，不可用），挂在 #262 下
 - 结果：worktree .claude/worktrees/task-262-password，pnpm install --frozen-lockfile 通过（Node 22.23.2）
 - 下一步：改服务端 password-policy、控制台 passwordRuleProblem 与提示文字、相关文档和测试
 
@@ -39,7 +39,7 @@
 ## 14:23:55 +08:00 · PR · #262 · 开 GitLab MR !3（task/262/password_rule → stage）
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：GitHub 账号被封期间按所有者 10:32「暂时全部迁移到gitlab」在 GitLab 开 MR：https://git.yangtzeu.work/geek/admin/-/merge_requests/3 ，头 9b64311c，标签 func:auth、ui:content，合并后删源分支。正文十节：写明最短 8 位是实施方按所有者例子定的、密码例子与长度不公开、推送前合成提交、执行记录为去掉密码信息改过三次；验收证据是注册页改前（rc.12）改后（本机开发服务器）桌面与手机各一张、账号页改后两张，都用 ego-browser 截。只写 Refs #262，不自动关单
+- 做了什么：GitHub 账号被封期间按所有者 10:32「[已脱敏]」在 GitLab 开 MR：https://git.yangtzeu.work/geek/admin/-/merge_requests/3 ，头 9b64311c，标签 func:auth、ui:content，合并后删源分支。正文十节：写明最短 8 位是实施方按所有者例子定的、密码例子与长度不公开、推送前合成提交、执行记录为去掉密码信息改过三次；验收证据是注册页改前（rc.12）改后（本机开发服务器）桌面与手机各一张、账号页改后两张，都用 ego-browser 截。只写 Refs #262，不自动关单
 - 结果：MR !3 已开，截图匿名可读（HTTP 200）
 - 下一步：提交这条记录推上去，合进 stage，构建部署 rc.13
 
@@ -53,6 +53,6 @@
 ## 14:37:01 +08:00 · 发布 · #262 · 本机构建并部署预发布 rc.13（6f574328cc5c）
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：按所有者 00:37 批准的「本机发预发布」：在 6f574328 上打本地 tag v0.1.1-rc.13（没推送）；本机 docker build --platform linux/amd64 构建 server、web、forum，GEEK_RELEASE_VERSION=0.1.1-rc.13@6f574328cc5c，docker save | gzip -9 后 sha256 5a307b25…ef6ddf；部署前用 sqlite3 .backup 备份预发布库到 /root/yzgc-backups/preview-20261023-062524-2101fe40448a.db（integrity_check ok，权限改成 600）；scp 归档、校验和、deploy-stack.sh 与 preview.yml，目标机上把现有 .env.preview 只换 IMAGE_TAG 生成 incoming/.env.preview，跑 deploy-stack.sh
+- 做了什么：按所有者 00:37 批准的「[已脱敏]」：在 6f574328 上打本地 tag v0.1.1-rc.13（没推送）；本机 docker build --platform linux/amd64 构建 server、web、forum，GEEK_RELEASE_VERSION=0.1.1-rc.13@6f574328cc5c，docker save | gzip -9 后 sha256 5a307b25…ef6ddf；部署前用 sqlite3 .backup 备份预发布库到 /root/yzgc-backups/preview-20261023-062524-2101fe40448a.db（integrity_check ok，权限改成 600）；scp 归档、校验和、deploy-stack.sh 与 preview.yml，目标机上把现有 .env.preview 只换 IMAGE_TAG 生成 incoming/.env.preview，跑 deploy-stack.sh
 - 结果：部署成功：preview 6f574328cc5c，两个 healthz 都 ok；/release.json 是 0.1.1-rc.13@6f574328cc5c；/auth/providers 仍是 github、google、email；POST /api/identity/password 不带登录回 401；ego-browser 看 /signin 注册与密码登录的占位文字都是「至少 8 位」，桌面与手机横向溢出 0；users 表仍是 2 行。部署证据贴在 MR !3 评论 343。回滚用 2101fe40448a
 - 下一步：所有者用验证码登录，10 分钟内在「我的账号」设 8 位以上的密码，再用邮箱加密码登录

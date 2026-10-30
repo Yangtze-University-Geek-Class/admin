@@ -2,7 +2,8 @@
 //
 // 后台每 10 分钟（GitLab 同步不是 off 时）把比赛配置的 GitLab 项目里、比赛时间窗内的贡献收成候选：
 //   - 已合并的 MR（按合并时间算窗口）；
-//   - 带「有用」标签或被 MR 关闭的 Issue（按创建时间算窗口）。
+//   - 带「有用」标签或被 MR 关闭的 Issue（按创建时间算窗口，closed_by）；
+//   - 合进任意分支的 MR 正文写了关闭关键字指向的 Issue（按 MR 合并时间算，见 closingIssueIids；Issue 开着关着都收）。
 // 作者经 gitlab_accounts 对到极客班账号，且这个账号已报名这场比赛，否则跳过。唯一约束保证重复拉取不产生重复行。
 // 分数不看改动行数（所有者 2026-10-24 16:59），只看审核人选的重要程度和核心度（lib/competition-rubric.ts）。
 //
@@ -68,16 +69,36 @@ export function levelsFromLabels(labels: string[]): { importance: Importance | n
   return { importance: pick(IMPORTANCE_LABEL_PREFIX, IMPORTANCE_BY_LABEL), core: pick(CORE_LABEL_PREFIX, CORE_BY_LABEL) };
 }
 
+const REF = String.raw`(?:[\w.-]+(?:\/[\w.-]+)+)?#\d+\b`;
+/** GitLab 官方关闭关键字（大小写不计，后面可带冒号），接一个或多个编号，用逗号或 and 连接。 */
+const CLOSING_RE = new RegExp(String.raw`\b(?:close[sd]?|closing|fix(?:es|ed)?|fixing|resolve[sd]?|resolving|implement(?:s|ed)?|implementing):?\s+(${REF}(?:\s*(?:,|and)\s*${REF})*)`, "gi");
+const REF_RE = /((?:[\w.-]+(?:\/[\w.-]+)+)?)#(\d+)\b/g;
+const issueKey = (project: string, iid: number) => `${project}#${iid}`;
+/** 正文里关闭本项目 Issue 的编号（去重）。`#n` 与本项目完整路径的 `group/project#n` 算；`Refs`、`Related to` 与其它项目都不算。 */
+export function closingIssueIids(description: unknown, project: string): number[] {
+  if (typeof description !== "string") return [];
+  const iids = new Set<number>();
+  for (const match of description.matchAll(CLOSING_RE)) {
+    for (const [, path, iid] of match[1].matchAll(REF_RE)) {
+      if (path && path.toLowerCase() !== project.toLowerCase()) continue;
+      iids.add(Number(iid));
+    }
+  }
+  return [...iids];
+}
+/** 这条候选的结果还要看标签：待确认等标签自动计分，经标签加的分要等「有用」被拿掉。控制台确认或驳回的，标签改不了结果。 */
+const labelsMatter = (row: CandidateRow) => row.status === "pending" || (row.status === "accepted" && row.accepted_via === "label");
+
 type GitlabReader = {
   readonly mode: "off" | "dry-run" | "on";
   readonly url: string | null;
   readApi(path: string): Promise<{ status: number; data: unknown; nextPage: number | null }>;
   accountForGitlabUser(gitlabUserId: number): string | null | Promise<string | null>;
 };
-type Logger = { info(details: Record<string, unknown>, message: string): void; error(details: Record<string, unknown>, message: string): void };
+type Logger = { info(details: Record<string, unknown>, message: string): void; error(details: Record<string, unknown>, message: string): void; warn(details: Record<string, unknown>, message: string): void };
 type GitlabItem = {
   iid?: unknown; title?: unknown; web_url?: unknown; author?: { id?: unknown } | null; labels?: unknown;
-  merged_at?: unknown; created_at?: unknown; state?: unknown; merge_requests_count?: unknown;
+  merged_at?: unknown; created_at?: unknown; state?: unknown; merge_requests_count?: unknown; description?: unknown;
 };
 type LabelEvent = { id?: unknown; action?: unknown; created_at?: unknown; label?: { name?: unknown } | null; user?: { id?: unknown; username?: unknown } | null };
 
@@ -116,6 +137,8 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
 
   const lastRuns = new Map<string, CollectRun>();
   const running = new Map<string, Promise<CollectRun>>();
+  /** start 时注入的日志；收集中跳过单个编号时写一行原因（和 gitlab-sync 一样，只在定时器开着时有）。 */
+  let activeLogger: Logger | null = null;
 
   function view(row: CandidateRow, personOf: (accountId: string) => { account_id: string; username: string; display_name: string; avatar_url: string | null }) {
     return {
@@ -306,6 +329,9 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
       events: Map<string, LatestLabel> | null;
     };
     const snapshot: SnapshotEntry[] = [];
+    /** MR 正文关闭的 Issue（键为 项目#编号），记最早一次合并的时间；列表里已经按规则进来的不再重复准备。 */
+    const closingRefs = new Map<string, { project: string; iid: number; contributedAt: number }>();
+    const preparedIssues = new Set<string>();
 
     const prepare = async (kind: "pr" | "issue", project: string, item: GitlabItem, contributedAt: number) => {
       const iid = Number(item.iid);
@@ -404,6 +430,11 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
           if (mergedAt === null) continue;
           run.fetched++;
           await prepare("pr", project, item, mergedAt);
+          for (const iid of closingIssueIids(item.description, project)) {
+            const key = issueKey(project, iid);
+            const known = closingRefs.get(key);
+            if (!known || mergedAt < known.contributedAt) closingRefs.set(key, { project, iid, contributedAt: mergedAt });
+          }
         }
         const issues = await readList<GitlabItem>(`/projects/${encoded}/issues?created_after=${encodeURIComponent(since)}&created_before=${encodeURIComponent(until)}`);
         for (const item of issues) {
@@ -421,7 +452,32 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
           if (!qualifies) continue;
           run.fetched++;
           await prepare("issue", project, item, createdAt);
+          preparedIssues.add(issueKey(project, iid));
         }
+      }
+      // GitLab 只在合进默认分支时自动关 Issue，合进 stage 的 MR 不会让 closed_by 有结果，所以这里认正文的关闭关键字。
+      // Issue 不要求已经关闭（团队合进 stage 后不一定马上关）。不用 related_merge_requests：它还包括只写 Refs 的 MR。
+      // `#n` 只指 Issue（MR 写作 `!n`）。404、403、5xx 只跳过这一个编号并记日志，其它失败整轮不应用。
+      for (const ref of closingRefs.values()) {
+        const key = issueKey(ref.project, ref.iid);
+        if (preparedIssues.has(key)) continue;
+        // 驳回或控制台确认过的候选，标签改不了结果，就不再读详情省预算；待确认和经标签加分的仍要读，标签的变化要跟着来。
+        const known = selectByKey.get(record.id, "issue", ref.project, ref.iid) as CandidateRow | undefined;
+        if (known && !labelsMatter(known)) continue;
+        const result = await read(`/projects/${encodeURIComponent(ref.project)}/issues/${ref.iid}`);
+        if (result.status === 403 || result.status === 404 || result.status >= 500) {
+          run.skipped++;
+          activeLogger?.warn({ project: ref.project, iid: ref.iid, status: result.status }, "competition collect skipped a closing reference");
+          continue;
+        }
+        if (result.status !== 200 || !result.data || typeof result.data !== "object") {
+          throw Object.assign(new Error("issue"), { code: `gitlab_http_${result.status}` });
+        }
+        const item = result.data as GitlabItem;
+        if (Number(item.iid) !== ref.iid) continue;
+        run.fetched++;
+        await prepare("issue", ref.project, item, ref.contributedAt);
+        preparedIssues.add(key);
       }
 
       db.transaction(() => {
@@ -479,6 +535,7 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
   let loop: Promise<unknown> | null = null;
   /** 每 10 分钟收一轮（启动时先收一轮）；每一轮开始时才看 GitLab 同步开没开，控制台改设置不用重排定时器。 */
   function start(logger: Logger): void {
+    activeLogger = logger;
     if (timer) return;
     stopping = false;
     const tick = () => {

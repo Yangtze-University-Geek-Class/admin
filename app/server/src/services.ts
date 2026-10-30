@@ -41,7 +41,7 @@ import { createOidcProvider } from "./lib/oidc-provider.js";
 import { createAccountDirectory } from "./lib/account-directory.js";
 import { createGitlabSync, type FetchLike as GitlabFetch } from "./lib/gitlab-sync.js";
 import type { FetchLike } from "./lib/mail/providers.js";
-import { createPublicSubmission } from "./middleware/pow.js";
+import { createPublicSubmission, POW_NONCE_TTL_MS } from "./middleware/pow.js";
 import { createTurnstile } from "./middleware/turnstile.js";
 
 /**
@@ -184,7 +184,10 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     forum,
     mail,
     oidcStore, directory, oidc, gitlab,
-    publicSubmission: createPublicSubmission(config.powDifficulty),
+    // PoW 只认一次：nonce 摘要进 `pow.nonce` 桶，记满证明的整个有效时段（PENTEST-20261029 finding 8）
+    publicSubmission: createPublicSubmission(config.powDifficulty, {
+      consumeNonce: digest => limits.hit({ bucket: "pow.nonce", subject: digest, window: { ms: POW_NONCE_TTL_MS }, max: 1 }).ok,
+    }),
     turnstile: createTurnstile(config, overrides.httpRequest),
     close() {
       void mail.stop(); void gitlab.stop(); void competitionCandidates.stop(); auth.stopCleanup(); storage.db.close();

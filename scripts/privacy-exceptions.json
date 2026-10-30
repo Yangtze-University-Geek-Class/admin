@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "note": "隐私门禁的逐条放行，只按「文件 + 精确值」或「文件 + 整行内容的摘要」放行，不按目录整体豁免。只存摘要，不存明文（明文会被门禁自己命中）。登记过但已经不再命中的条目会让门禁失败，删掉即可。可以写 maxCount（正整数），超过次数的那几处照样报。",
+  "exceptions": [
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "valueSha256": "88e5185025b24514b82bd640a87ead8d702c4b90b537d85c2c7314d48ed5c407",
+      "reason": "Gmail 地址规范化用例（点号与 + 标签），要用这个服务商的域名才能测到 GMAIL_DOMAINS 分支（app/server/src/lib/mail/outbox.ts）"
+    },
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "valueSha256": "788d50257f30b88739d86afedd92c1d7616b943e3f6798c2b3f52375174f62ce",
+      "reason": "Gmail 的 + 标签去除用例，和上一条是同一个服务商域名"
+    },
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "valueSha256": "621dbdb9b391ef4634a9763a4f9f8ccf321f12747c8b992c1bf5167ca7cdaa97",
+      "reason": "googlemail.com 归并为 gmail.com 的用例，要用别名域名才能测到"
+    },
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "valueSha256": "e057780910ef809102b1a0340fd9ad1ff2b9e96f71bc72c79c14afe8156db8a3",
+      "reason": "IDNA 域名规范化用例的 punycode 形式（xn-- 标签），需要这种形状的域名"
+    },
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "valueSha256": "0e39b268c018d2f658b4c0899460d3695477313e8f2c43a1526cb4ee5e0c9d92",
+      "reason": "阿里云官方签名样例的收件人，改了收件人签名就对不上（测试本身固定这个样例）"
+    },
+    {
+      "file": "notes/2026-10-02/lysnowq/task_122_joinus_gate_loading.md",
+      "lineSha256": "d900d6d8ac9dc470fa81e06b62272715388c6e686c950a6780f11cf22d39935b",
+      "reason": "引用的不是所有者输入，NOTES §3 不允许改已有记录"
+    },
+    {
+      "file": "app/forum/app/data/seed-content.ts",
+      "valueSha256": "3701b3e187d69bb36b71c0f11c86873bdd1085bd47b0ce52daa9875bdbef05b6",
+      "reason": "视网膜图标文件名里的倍图后缀，不是邮箱地址"
+    },
+    {
+      "file": "app/forum/Dockerfile",
+      "valueSha256": "4d3eb55e2d58c166e2f100231e374fe0625a54755a71ce96f229637c385e96c2",
+      "reason": "CodeMirror 语法表压缩后形似邮箱的随机串，不是地址"
+    },
+    {
+      "file": "app/forum/app/data/seed-content.ts",
+      "valueSha256": "f78aa2093631366477613924f149d9ee14288a7fb6f4c576fd2f02d5e95e2ad2",
+      "maxCount": 1,
+      "reason": "上游论坛演示数据里的虚构用户路径，不是真人标识"
+    }
+  ]
+}

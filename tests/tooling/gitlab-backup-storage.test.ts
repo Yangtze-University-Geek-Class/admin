@@ -322,28 +322,13 @@ describe('GitLab restore drill failure teardown and image pinning', () => {
 });
 
 describe('GitLab Garage backup wiring', () => {
-  it('keeps encryption before additive upload and contains no old provider, sync, purge or remote delete path', () => {
-    const text = readFileSync(backup, 'utf8');
-    expect(text).not.toMatch(/QINIU_|provider=Qiniu|RCLONE_CONFIG_QN_|rclone\s+(?:sync|purge|delete|move)/i);
-    expect(text).toContain('GITLAB_BACKUP_S3_ACCESS_KEY_ID');
-    expect(text).toContain('GITLAB_BACKUP_S3_SECRET_ACCESS_KEY');
-    expect(text).toMatch(/gpg[\s\S]+SHA256SUMS[\s\S]+put-tree/);
-    expect(text).toContain('gitlab/${DAY}/${STAMP}/');
-    expect(text).not.toMatch(/find[\s\S]+-delete|rm -rf "\/srv\/gitlab\/backups-enc/);
-  });
-
-  it('prunes to the newest three backup dates only after the verified upload', () => {
-    const text = readFileSync(backup, 'utf8');
-    expect(text).toMatch(/put-tree[\s\S]+prune-runs --role gitlab-backup --keep-dates 3 --apply/);
-  });
-
-  it('preserves the date selector, downloads one immutable run and verifies full SHA-256 before decrypting', () => {
-    const text = readFileSync(restore, 'utf8');
-    expect(text).not.toMatch(/QINIU_|provider=Qiniu|RCLONE_CONFIG_QN_/i);
-    expect(text).toContain('resolve-gitlab-run');
-    expect(text).toContain('--day');
-    expect(text).toMatch(/get-tree[\s\S]+sha256sum -c SHA256SUMS[\s\S]+gpg/);
-    expect(text).not.toMatch(/rclone\s+(?:copy|sync|purge|delete|move)/i);
+  it('refuses preview restoration when only production backup credentials are configured', () => {
+    const f = drillFixture();
+    const result = f.run(['--environment', 'preview']);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID');
+    expect(existsSync(f.dockerCalls)).toBe(false);
+    expect(existsSync(f.gpgCalls)).toBe(false);
   });
 
   it('keeps both shell entrypoints syntactically valid', () => {

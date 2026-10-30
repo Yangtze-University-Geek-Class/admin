@@ -47,7 +47,7 @@
 ## 16:06:37 +08:00 · 开发 · #109 · 在 ego 里补验竖屏后退复位，不改 e2e
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 16:02 要求 e2e 都在 ego 里跑并及时释放（本机 Playwright 整套跑时被杀、会话重启），所以没有在 spec 里加竖屏变体。本机 vite 5192 + ego-browser 390×844（mobile，DPR 2）：点「班级公告」到 3456 的 /c/announcements，Page.navigateToHistoryEntry 后退；TaskSpace 147 用完即 finish，vite 按 PID 停掉
+- 做了什么：所有者 16:02 要求 [已脱敏]（本机 Playwright 整套跑时被杀、会话重启），所以没有在 spec 里加竖屏变体。本机 vite 5192 + ego-browser 390×844（mobile，DPR 2）：点「班级公告」到 3456 的 /c/announcements，Page.navigateToHistoryEntry 后退；TaskSpace 147 用完即 finish，vite 按 PID 停掉
 - 结果：竖屏进场 basePos (1.7, 6.1016, 14.8048)、baseOffset (0, 0.1032)，后退后逐项相同，遮罩 0，画面回到气泡环（截图已存本机）；e2e 用例保持只测横屏，PR 正文写明
 
 ## 19:17:31 +08:00 · 合并 · #109 · PR #113 合入 stage

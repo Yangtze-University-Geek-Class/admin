@@ -1,13 +1,14 @@
-// 「代码仓库」窗口和终端 repos 命令读的公开项目（#274 的 GET /api/public/gitlab/projects，CONTRACT-274 §6）：
-// 只有自建 GitLab 上 visibility=public 的项目；GitLab 没配或连不上时服务端回 { projects: [], unavailable: true }。
+// 访客读公开项目，有效极客班成员读成员项目；切换账号时不保留上一身份的列表。
 import { useEffect, useState } from "react";
 import { api } from "@shared/lib/api";
+import { Account } from "./account";
 
 export type CodeProject = { name: string; path: string; description: string; url: string; cloneUrl: string; activeAt: number | null };
 
-export type CodeRepos = { status: "loading" } | { status: "ready"; projects: CodeProject[] } | { status: "unavailable" } | { status: "error" };
+export type CodeRepos = { status: "loading" } | { status: "ready"; projects: CodeProject[] } | { status: "unavailable" } | { status: "error" } | { status: "denied" };
 
 export const CODE_REPOS_URL = "/api/public/gitlab/projects";
+export const MEMBER_CODE_REPOS_URL = "/api/me/gitlab/projects";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
@@ -33,19 +34,30 @@ export function readCodeRepos(body: unknown): CodeRepos {
   return { status: "ready", projects: projects.sort((a, b) => (b.activeAt ?? 0) - (a.activeAt ?? 0)) };
 }
 
-export function useCodeRepos(): CodeRepos {
-  const [state, setState] = useState<CodeRepos>({ status: "loading" });
+export function useCodeRepos(account: Account | null, enabled: boolean): CodeRepos {
+  const member = account?.level === "member" || account?.level === "alumni";
+  const accountId = account?.accountId ?? null;
+  const scope = member ? `member:${accountId ?? ""}` : "public";
+  const [result, setResult] = useState<{ scope: string; state: CodeRepos }>({ scope: "", state: { status: "loading" } });
   useEffect(() => {
+    if (!enabled) return;
+    if (member && !accountId) {
+      setResult({ scope, state: { status: "denied" } });
+      return;
+    }
     const controller = new AbortController();
-    api<unknown>(CODE_REPOS_URL, { signal: controller.signal, headers: { Accept: "application/json" } }).then(
+    setResult({ scope, state: { status: "loading" } });
+    api<unknown>(member ? MEMBER_CODE_REPOS_URL : CODE_REPOS_URL, { signal: controller.signal, headers: { Accept: "application/json" } }).then(
       (body) => {
-        if (!controller.signal.aborted) setState(readCodeRepos(body));
+        if (!controller.signal.aborted) setResult({ scope, state: readCodeRepos(body) });
       },
-      () => {
-        if (!controller.signal.aborted) setState({ status: "error" });
+      (error: unknown) => {
+        if (controller.signal.aborted) return;
+        const denied = isRecord(error) && (error.status === 401 || error.status === 403);
+        setResult({ scope, state: { status: denied ? "denied" : "error" } });
       },
     );
     return () => controller.abort();
-  }, []);
-  return state;
+  }, [enabled, scope, member, accountId]);
+  return enabled && result.scope === scope ? result.state : { status: "loading" };
 }

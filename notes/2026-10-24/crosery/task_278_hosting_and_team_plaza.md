@@ -5,7 +5,7 @@
 ## 23:44:57 +08:00 · 开工 · #278 · 重开交付：内部赛托管缺口——组队广场、人员/队伍公开接口、SDK 开发工具
 
 - 执行者：agent-claude-sonnet-host278（Claude Code 子 agent，claude-sonnet-5-5）
-- 做了什么：team-lead 分派：补齐所有者 10-24 22:17/22:25/22:27 提的内部比赛托管缺口（组队广场、必带接口、SDK 开发体验）；worktree 由 team-lead 预先建好（非 task.mjs start），本条为补记——此前已经读完 docs/README.md 起第 0 节全部规范，并实现了参赛者/队伍公开接口、组队广场开关与跨比赛聚合、contest-site.mjs dev 子命令、起步模板与组织者上手指南
+- 做了什么：team-lead 分派：补齐所有者 10-24 22:17/22:25/22:27 提的[已脱敏]；worktree 由 team-lead 预先建好（非 task.mjs start），本条为补记——此前已经读完 docs/README.md 起第 0 节全部规范，并实现了参赛者/队伍公开接口、组队广场开关与跨比赛聚合、contest-site.mjs dev 子命令、起步模板与组织者上手指南
 - 结果：worktree 在 .claude/worktrees/task-278-host，分支 task/278/hosting_and_team_plaza（基于 stage 19c5db46），未读写其它 worktree
 - 下一步：补写提交记录、跑全部检查门禁、提交
 

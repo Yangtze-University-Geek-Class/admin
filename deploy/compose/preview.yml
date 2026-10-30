@@ -76,9 +76,12 @@ services:
       # 对外授权（#270）：签名私钥，空时 /oidc/* 一律 404；填了读不出来 server 启动失败。
       OIDC_JWKS: ${OIDC_JWKS:-}
       # GitLab 账号同步（#270）：开关、地址、组是 env 文件里的可见值；管理员令牌是密钥，GITLAB_SYNC=on 而令牌空时 server 启动失败。
+      # 客户端与它钉住的 sector（#335）：库里的 sector 和这里对不上时同步整轮跳过（gitlab_sector_mismatch），不拿错 sector 的 sub 认人。
       GITLAB_SYNC: ${GITLAB_SYNC:-off}
       GITLAB_URL: ${GITLAB_URL:-}
       GITLAB_GROUP: ${GITLAB_GROUP:-}
+      GITLAB_OIDC_CLIENT: ${GITLAB_OIDC_CLIENT:?}
+      GITLAB_OIDC_SECTOR: ${GITLAB_OIDC_SECTOR:?}
       GITLAB_API_TOKEN: ${GITLAB_API_TOKEN:-}
     ports:
       # 宿主回环，只给本机调试与部署脚本的健康检查用。

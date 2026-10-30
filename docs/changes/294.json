@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 294,
   "kind": "business",
-  "summary": "所有者 2026-10-25 18:57：「表情包太大了，一般你看b站里面的，它们的表情包和文字大小一致，而且看起来也清晰，这个很好修复的，你快速修复去发版」；问大小时答：「不一定需要文字和表情包一样大，但是底部需要对齐」。实测原因：回复框里表情的样式只认同源地址 /api/forum/stickers/，#286 起内置表情走 CDN 地址，规则不再命中，回复框里的表情按图片原尺寸撑成 256px；帖子里则写死 4rem。改成一条规则（shared/sticker-css.ts）：帖子的 .forum-sticker 和回复框里同源或 CDN 地址的表情图片都是两个字高，底部对齐文字底部（vertical-align: text-bottom，量过 B 站评论区：表情 21px、正文 15px，同样对齐）。地址前缀取自 shared/sticker-url.ts 的白名单常量。",
+  "summary": "所有者 2026-10-25 18:57 反馈表情包太大，希望像 B 站那样表情与文字大小一致、看起来清晰，这个好修，要快速修复并发版；问大小时所有者答：表情不一定要和文字一样大，但底部需要对齐。实测原因：回复框里表情的样式只认同源地址 /api/forum/stickers/，#286 起内置表情走 CDN 地址，规则不再命中，回复框里的表情按图片原尺寸撑成 256px；帖子里则写死 4rem。改成一条规则（shared/sticker-css.ts）：帖子的 .forum-sticker 和回复框里同源或 CDN 地址的表情图片都是两个字高，底部对齐文字底部（vertical-align: text-bottom，量过 B 站评论区：表情 21px、正文 15px，同样对齐）。地址前缀取自 shared/sticker-url.ts 的白名单常量。",
   "applications": [
     "forum"
   ],

@@ -17,7 +17,7 @@
 ## 14:45:19 +08:00 · 开发 · #169 · 投递次数、确认信不限量、预发布发给所有人、发信并发测试
 
 - 执行者：agent-claude-geek-main-08（Claude Code，claude-opus-5-5）
-- 做了什么：apply.ts：APPLY_LIMITS、yugc_apply_device cookie、admit 事务、429 apply_limited；db.ts：application_limits；mailer.ts：RECEIVED_LETTER_LIMITS 只留 perHour 200；.env.preview、deployment-environment.mjs；测试：applications.test.ts 投递次数 4 条（含开着慢人机验证时 10 份并发正好收 5 份），mail-outbox.test.ts 改写上限用例、加并发 2 条（50 封同时来且发信商慢、一半阿里云失败换 Resend），legacy-database 表清单，deployment-environment 契约；文档 API、数据模型、mail.md、SECURITY 中英、TESTING、ENVIRONMENTS、CICD、portal.md、server 与 console README。所有者 14:35 问「并发会不会导致漏发邮件。这是不是要搞个队列之类的？」：已经是队列（mail_outbox + 单轮发信循环 + 原子领取 + 重试），补了并发测试
+- 做了什么：apply.ts：APPLY_LIMITS、yugc_apply_device cookie、admit 事务、429 apply_limited；db.ts：application_limits；mailer.ts：RECEIVED_LETTER_LIMITS 只留 perHour 200；.env.preview、deployment-environment.mjs；测试：applications.test.ts 投递次数 4 条（含开着慢人机验证时 10 份并发正好收 5 份），mail-outbox.test.ts 改写上限用例、加并发 2 条（50 封同时来且发信商慢、一半阿里云失败换 Resend），legacy-database 表清单，deployment-environment 契约；文档 API、数据模型、mail.md、SECURITY 中英、TESTING、ENVIRONMENTS、CICD、portal.md、server 与 console README。所有者 14:35 问「[已脱敏]」：已经是队列（mail_outbox + 单轮发信循环 + 原子领取 + 重试），补了并发测试
 - 结果：变异 14 项都被抓到（投递次数 7 项、确认信按收件箱、预发布契约 2 项、两轮发信领同一封、新信不接着发、阿里云失败不换 Resend、查次数与写入之间有 await）。本机 harness（真实路由、临时库、假 Resend、官网生产构建）在 ego TaskSpace 11：同一邮箱同一 IP 先投 5 份，5 封都发，第 6 份信纸下显示「同一台设备或同一个网络 24 小时内最多投递 5 次，之前投的都已经收到了。」，没有第 6 封；harness 已按 PID 停，TaskSpace 已 finish
 
 ## 14:45:35 +08:00 · 提交 · #169 · 5d816f9、587585f、dee7820：按用途三个提交

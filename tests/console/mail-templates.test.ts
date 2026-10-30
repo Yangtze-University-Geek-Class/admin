@@ -30,7 +30,7 @@ const content = (patch: Partial<MailTemplateContent> = {}): MailTemplateContent 
 });
 const template = (patch: Partial<MailTemplate> = {}): MailTemplate => ({
   id: "t-1", name: "简短", kind: "interview", enabled: true, is_default: false, ...content(),
-  created_by: "crosery", created_at: 1, updated_by: "crosery", updated_at: 7, ...patch,
+  created_by: "fixture-owner", created_at: 1, updated_by: "fixture-owner", updated_at: 7, ...patch,
 });
 
 describe("draft and request body", () => {
@@ -605,11 +605,11 @@ describe("development preview data (mock)", () => {
     as("ai_head");
     await expect(post("/api/console/mail-templates", { name: "x" })).rejects.toMatchObject({ status: 403, payload: expect.objectContaining({ node: "mail.template.manage" }) });
     as("owner_stale");
-    await expect(post("/api/console/mail-templates/test-send", { to: "a@b.co" })).rejects.toMatchObject({ status: 403, code: "step_up_required" });
+    await expect(post("/api/console/mail-templates/test-send", { to: "a@example.test" })).rejects.toMatchObject({ status: 403, code: "step_up_required" });
     as("owner");
     await expect(post("/api/console/mail-templates", { name: "x" })).rejects.toMatchObject({ status: 501, code: "mock_read_only" });
     await expect(mockApi("/api/console/mail-templates/default-interview", { method: "DELETE" })).rejects.toMatchObject({ status: 501, code: "mock_read_only" });
-    await expect(post("/api/console/mail-templates/test-send", { to: "a@b.co" })).rejects.toMatchObject({ status: 501, code: "mock_read_only" });
+    await expect(post("/api/console/mail-templates/test-send", { to: "a@example.test" })).rejects.toMatchObject({ status: 501, code: "mock_read_only" });
   });
 
   it("rejects a status change that picks a template of another kind, as the server does", async () => {

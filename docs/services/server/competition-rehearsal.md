@@ -85,7 +85,7 @@
 从本task worktree运行（Node22、pnpm9，workers≤2）：
 
 ```sh
-export PATH=/Users/crosery/work_file/geek_main/.tools/node/bin:$PATH
+export PATH=.tools/node/bin:$PATH
 pnpm exec vitest run tests/server/competition*.test.ts tests/tooling/contest-*.test.ts tests/console/competition*.test.ts tests/web/*competition*.test.* tests/web/contest-site.test.ts tests/web/portal-team-plaza.test.ts --maxWorkers=2
 pnpm exec tsc -p app/server/tsconfig.json --noEmit
 pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --strict --esModuleInterop --skipLibCheck --types node scripts/contest-rehearsal.mts

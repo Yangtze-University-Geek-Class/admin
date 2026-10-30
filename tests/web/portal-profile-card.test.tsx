@@ -223,11 +223,11 @@ describe("账号资料窗口", () => {
     mount();
     const { card } = await openCard("账号：nano");
     const username = card.getByRole("textbox", { name: "用户名" }) as HTMLInputElement;
-    fireEvent.change(username, { target: { value: "Crosery" } });
+    fireEvent.change(username, { target: { value: "Fixture_Owner" } });
     fireEvent.blur(username);
     expect((await card.findByRole("alert")).textContent).toBe("这个用户名已经有人用了");
-    expect(writes()[0].body).toEqual({ username: "crosery" });
-    expect(username.value).toBe("Crosery");
+    expect(writes()[0].body).toEqual({ username: "fixture_owner" });
+    expect(username.value).toBe("Fixture_Owner");
   });
 
   it("删邮箱要点两次（删除、确认删除），发 identity_id；要重新登录时给重新登录的链接", async () => {

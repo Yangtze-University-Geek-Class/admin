@@ -5,7 +5,7 @@
 ## 01:49:57 +08:00 · 开工 · #262 · 邮箱验证码与密码登录、Google 登录、邀请码注册、控制台按站内称号授权
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 00:57 截图反馈「不支持邮箱登录和注册，还有就是不支持谷歌注册和登录」，01:30 定：「目前开放注册，现在的github注册的都算组织成员，后续需要邀请码去注册，在我们的admin控制台再额外加个邀请码的逻辑，默认的邀请码是…」（默认邀请码原文已本地核对，不公开，只存在钥匙串里）；邮箱「验证码和密码都支持」（密码沿用至少 15 位）；控制台「按站内称号认」，只有 GitHub 组织页面要 GitHub 会话。GitHub 账号被封、建不了 issue，按所有者 00:21「所有操作和发版以及发布都走本地」从本机 stage 候选 bba4b066 用 git worktree add 建 task/262/signin_methods（task.mjs start 要连 GitHub，不可用），挂在 #262 下
+- 做了什么：所有者 2026-10-23 00:57 截图反馈「[已脱敏]」，01:30 定：「[已脱敏]」（默认邀请码原文已本地核对，不公开，只存在钥匙串里）；邮箱「[已脱敏]」（密码沿用至少 15 位）；控制台「[已脱敏]」，只有 GitHub 组织页面要 GitHub 会话。GitHub 账号被封、建不了 issue，按所有者 00:21「[已脱敏]」从本机 stage 候选 bba4b066 用 git worktree add 建 task/262/signin_methods（task.mjs start 要连 GitHub，不可用），挂在 #262 下
 - 结果：worktree .claude/worktrees/task-262-signin，pnpm install --frozen-lockfile 通过（Node 22.23.2）
 - 下一步：读身份、会话、称号、成员守卫代码，定服务端与控制台改动
 
@@ -24,14 +24,14 @@
 ## 03:37:45 +08:00 · 合并 · #262 · 本机把 task/262/signin_methods（92baf969）合进 stage 候选 02003548
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：账号被封期间按所有者 2026-10-23 00:37「本机发预发布」在本地合并：在 stage 候选 bba4b066 上 git merge --no-ff task/262/signin_methods 得到 merge commit 02003548，没有 PR、没有推送。合并树与 task 分支的树相同，沿用 task 分支上的验证：pnpm check 各步（architecture 与 doc-sync 用 --base bba4b066，本机 origin/stage 停在 4beda55e）、typecheck、pnpm test 92 个文件 1503 个用例、pnpm build 均为 0
+- 做了什么：账号被封期间按所有者 2026-10-23 00:37「[已脱敏]」在本地合并：在 stage 候选 bba4b066 上 git merge --no-ff task/262/signin_methods 得到 merge commit 02003548，没有 PR、没有推送。合并树与 task 分支的树相同，沿用 task 分支上的验证：pnpm check 各步（architecture 与 doc-sync 用 --base bba4b066，本机 origin/stage 停在 4beda55e）、typecheck、pnpm test 92 个文件 1503 个用例、pnpm build 均为 0
 - 结果：stage 候选 02003548，本地 tag v0.1.1-rc.9（未推送）。缺 GitHub PR 和 PR 上的审查结论，note.mjs check --pr 只差「PR」一条，账号恢复后补
 - 下一步：账号恢复后推 stage、开 PR 补 PR 记录与审查结论
 
 ## 09:55:33 +08:00 · 提交 · #262 · 提交第四期：权限只认极客班账号，GitHub 改由服务器接入 555477f3
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 07:52「有关 GitHub 的权限是要放权的 而且在后续 我们可能不仅仅只连 GitHub 了」之后在本分支接着做第四期，git commit 555477f3（feat(auth)，114 个文件，含生成的目录与 docs/changes/262.json）：站内角色由站内决定并可在控制台改（PATCH /api/console/people/:account_id/site-role，至少留一位管理员）；组织成员首次 GitHub 登录记为成员，所有者只在站内还没有管理员时记为管理员；权限只看称号，去掉 GitHub 角色上限；lib/github-connection.ts 先用 GitHub App 安装令牌、没有就用本人会话令牌、都没有回 409 github_not_connected；/api/admin/:org/* 改挂 require-github.ts 只管 CONSOLE_ORG；可选 secret 对改名 GH_APP_ID、GH_APP_PRIVATE_KEY（GitHub 不许 secret 名以 GITHUB_ 开头），两份 env 模板留空；控制台成员表加站内角色列与对话框、邀请链接页不接 GitHub 也能打开；以及下一条审查记录里的修复。提交前先 note.mjs flush 并进暂存的 rc.9 合并与发布记录
+- 做了什么：所有者 2026-10-23 07:52「[已脱敏]」之后在本分支接着做第四期，git commit 555477f3（feat(auth)，114 个文件，含生成的目录与 docs/changes/262.json）：站内角色由站内决定并可在控制台改（PATCH /api/console/people/:account_id/site-role，至少留一位管理员）；组织成员首次 GitHub 登录记为成员，所有者只在站内还没有管理员时记为管理员；权限只看称号，去掉 GitHub 角色上限；lib/github-connection.ts 先用 GitHub App 安装令牌、没有就用本人会话令牌、都没有回 409 github_not_connected；/api/admin/:org/* 改挂 require-github.ts 只管 CONSOLE_ORG；可选 secret 对改名 GH_APP_ID、GH_APP_PRIVATE_KEY（GitHub 不许 secret 名以 GITHUB_ 开头），两份 env 模板留空；控制台成员表加站内角色列与对话框、邀请链接页不接 GitHub 也能打开；以及下一条审查记录里的修复。提交前先 note.mjs flush 并进暂存的 rc.9 合并与发布记录
 - 结果：提交前在工作区：check:runtime、site-config、environments、boundaries、docs、doc-sync、notes、secrets、catalog 均 exit 0；node scripts/check-architecture.mjs --base bba4b066 通过（151 个变更文件，291 个关联节点）；pnpm typecheck exit 0；vitest server 375、console 185、tooling 727、web 237 例通过；此前同一改动上 pnpm build exit 0，论坛 node scripts/forum.mjs test 548 例与 check 通过；控制台样板数据在 ego-browser 里看过成员表「还没记录」行与站内角色对话框、邀请链接页、GitHub 没接上的提示（截图 /tmp/geek262/shots/20–23）；未推送（GitHub 账号被封）
 
 ## 09:55:50 +08:00 · 审查 · #262 · 第四期的审查：有条件通过（修复后提交为 555477f3）
@@ -43,7 +43,7 @@
 ## 09:57:36 +08:00 · 合并 · #262 · 本机把 task/262/signin_methods（c0db1999）合进 stage 候选 b6974015
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：账号被封期间按所有者 2026-10-23 00:37「本机发预发布」在本地合并：在 stage 候选 02003548 上 git merge --no-ff task/262/signin_methods 得到 merge commit b6974015，没有 PR、没有推送。git diff --quiet task/262/signin_methods b6974015 为 0（合并树与 task 分支的树相同），沿用 task 分支上 555477f3 提交前的验证
+- 做了什么：账号被封期间按所有者 2026-10-23 00:37「[已脱敏]」在本地合并：在 stage 候选 02003548 上 git merge --no-ff task/262/signin_methods 得到 merge commit b6974015，没有 PR、没有推送。git diff --quiet task/262/signin_methods b6974015 为 0（合并树与 task 分支的树相同），沿用 task 分支上 555477f3 提交前的验证
 - 结果：stage 候选 b6974015，本地 tag v0.1.1-rc.10（未推送）。缺 GitHub PR 和 PR 上的审查结论，账号恢复后补
 - 下一步：账号恢复后按 .tools/pending/RECOVERY-CHECKLIST.md 推 task 分支、开 PR、再快进 stage
 
@@ -74,7 +74,7 @@
 ## 11:04:35 +08:00 · 返工 · #262 · 按所有者 10:32 的三条意见返工：侧栏悬停高亮、登录页注册标签、跳转登录挪到下面
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：所有者 2026-10-23 10:32：「admin端这边的侧边居中背景色不会跟随鼠标的热点」「目前这个没有谷歌登录，而且谷歌登录和github登录常规的登录窗口逻辑是在下面，还有就是没有邮箱注册的逻辑」。侧栏：TxSidebarNav 的悬停高亮是 __body 里的绝对定位块，位置按条目框减 __body 框算、不加 scrollTop，之前让 __body 自己滚动，滚过之后高亮比鼠标所在条目高出滚动距离；改成根滚动、__body 随条目一起移动，品牌和账号区用 sticky 留在两端（z-index 2，盖住 z-index 1 的条目行）。登录页：TxTabs 分「登录」「注册」两个标签；注册是邮箱、邀请码、验证码、可不填的密码，按钮「注册并登录」；登录用验证码时邮箱还没有账号会切到注册标签并提示；「或者」分隔线下面放 GitHub、Google 按钮（Google 只在服务器配了凭据时出现，注册标签里写「用 Google 注册」，要先填邀请码）。lib/signin.ts 加 initialSignInTab、registerProblem、setFreshPassword，tests/console/signin.test.ts 加两例
+- 做了什么：所有者 2026-10-23 10:32：「[已脱敏]」「[已脱敏]」。侧栏：TxSidebarNav 的悬停高亮是 __body 里的绝对定位块，位置按条目框减 __body 框算、不加 scrollTop，之前让 __body 自己滚动，滚过之后高亮比鼠标所在条目高出滚动距离；改成根滚动、__body 随条目一起移动，品牌和账号区用 sticky 留在两端（z-index 2，盖住 z-index 1 的条目行）。登录页：TxTabs 分「登录」「注册」两个标签；注册是邮箱、邀请码、验证码、可不填的密码，按钮「注册并登录」；登录用验证码时邮箱还没有账号会切到注册标签并提示；「或者」分隔线下面放 GitHub、Google 按钮（Google 只在服务器配了凭据时出现，注册标签里写「用 Google 注册」，要先填邀请码）。lib/signin.ts 加 initialSignInTab、registerProblem、setFreshPassword，tests/console/signin.test.ts 加两例
 - 结果：样板数据下在 ego-browser 里看过：侧栏滚到 120 和 318 时悬停仓库、邀请链接、注册邀请码，高亮的 top 与条目 top 相同；登录页 1440×900 与 390×844 顺序为标签、邮箱表单、分隔线、跳转登录、说明，横向溢出 0。Google 按钮要等预发布配上凭据才出现，这一轮未在真实环境验证
 
 ## 11:04:35 +08:00 · 提交 · #262 · 提交 4cb4c44b：登录页注册标签与侧栏悬停高亮
@@ -147,11 +147,11 @@
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
 - 做了什么：从 GitLab 新克隆一份到 /tmp，本地 stage 指到 2101fe40，启用 .githooks 后 git push origin stage（release 工作区是分离头，钩子要求从本地 stage 推，所以换了克隆，没有跳过钩子）；确认 78e93256 已在 stage 里后，用接口删除 GitLab 上的 task/262/signin_methods
-- 结果：b542b3b..2101fe4 快进，pre-push 分支规则通过；MR !1 state merged，merge_commit_sha 2101fe40；删除分支返回 204。本机 worktree 与本地分支没清理：task.mjs finish 要用 gh 查 PR 与 issue，GitHub 被封期间查不到，与 task/262/unified_login 一样等账号恢复或所有者另定。#262 没关，按所有者 2026-10-21 指令由所有者决定
+- 结果：b542b3b..2101fe4 快进，pre-push 分支规则通过；MR !1 state merged，merge_commit_sha 2101fe40；删除分支返回 204。本机 worktree 与本地分支没清理：task.mjs finish 要用 gh 查 PR 与 issue，GitHub 被封期间查不到，与 task/262/unified_login 一样等账号恢复或所有者另定。#262 没关，按所有者 2026-10-21 指令[已脱敏]
 - 下一步：所有者在 prev 验收 rc.12；决定 #262 关不关
 
 ## 12:08:35 +08:00 · PR · #262 · 在自建 GitLab 开 MR !1（task/262/signin_methods → stage）
 
 - 执行者：agent-claude-geek-main-8f7d12b7（Claude Code，claude-opus-5-5）
-- 做了什么：GitHub 账号被封，按所有者 2026-10-23 10:32「暂时全部迁移到gitlab」把 PR 开在 https://git.yangtzeu.work/geek/admin/-/merge_requests/1：十段正文，标签 ui:layout、ui:interaction、func:auth；改前改后截图（登录页桌面与手机、侧栏裁到左侧 260px）传到项目附件；关联写 Refs #262（所有者 2026-10-21 定的不自动关单）；正文里不写个人邮箱。之后把正文里注册说明与按钮宽度的核对环境改成本机开发服务器
+- 做了什么：GitHub 账号被封，按所有者 2026-10-23 10:32「[已脱敏]」把 PR 开在 https://git.yangtzeu.work/geek/admin/-/merge_requests/1：十段正文，标签 ui:layout、ui:interaction、func:auth；改前改后截图（登录页桌面与手机、侧栏裁到左侧 260px）传到项目附件；关联写 Refs #262（所有者 2026-10-21 定的[已脱敏]）；正文里不写个人邮箱。之后把正文里注册说明与按钮宽度的核对环境改成本机开发服务器
 - 结果：MR !1 已建；本地 pr-contract 只报缺少关单关键字一项，是按所有者指令保留的

@@ -56,6 +56,38 @@ describe("issue 检查", () => {
     expect(checkIssue({ number: 300, labels: ["infra:ci"], body: "改工作流" }).ok).toBe(true);
   });
 
+  // #325：needs-evidence 既是这个检查的输入，又是 issue-gate 判定要不要打它的输出。
+  // 不区分调用方就会自锁：标签在 → 报错 → 认为还缺证据 → 永远不摘 → 标签一直在。
+  it("带 needs-evidence 的 issue：开工门禁拒绝，但 issue-gate 能判定它已补齐（#325）", () => {
+    const labels = ["ui:layout", "needs-evidence"];
+    const body = `手机上溢出了 ${shot}`;
+
+    // 开工门禁（task.mjs start 用它）：带标签就不得开工，这条不能放宽
+    const gate = checkIssue({ number: 300, labels, body });
+    expect(gate.ok).toBe(false);
+    expect(gate.errors.join()).toContain("needs-evidence");
+
+    // issue-gate（决定要不要摘标签）：忽略标签本身后应当通过，否则摘除条件永远不成立
+    const gated = checkIssue({ number: 300, labels, body, ignoreEvidenceLabel: true });
+    expect(gated.ok).toBe(true);
+    expect(gated.errors).toEqual([]);
+    expect(gated.evidenceLabeled).toBe(true);
+  });
+
+  it("ignoreEvidenceLabel 不掩盖真正缺的证据（#325）", () => {
+    // 没有截图：即使忽略标签本身，也必须仍然不通过，否则会把缺证据的 issue 放行
+    const gated = checkIssue({ number: 300, labels: ["ui:layout", "needs-evidence"], body: "手机上溢出了，图还没传", ignoreEvidenceLabel: true });
+    expect(gated.ok).toBe(false);
+    expect(gated.errors.join()).toContain("截图");
+    expect(gated.evidenceLabeled).toBe(true);
+  });
+
+  it("没有 needs-evidence 时 evidenceLabeled 为 false，开工门禁照常通过", () => {
+    const gate = checkIssue({ number: 300, labels: ["infra:ci"], body: "改工作流" });
+    expect(gate.ok).toBe(true);
+    expect(gate.evidenceLabeled).toBe(false);
+  });
+
   it("跨类的两边都要满足", () => {
     const result = checkIssue({ number: 300, labels: ["ui:visual", "func:api"], body: "没图没接口" });
     expect(result.errors).toHaveLength(2);

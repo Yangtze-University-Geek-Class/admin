@@ -5,7 +5,7 @@
 ## 01:50:25 +08:00 · 开工 · #300 · task/300 开工：install.ps1 解析失败
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：GitLab #300（基于所有者 2026-10-28 01:18「这些不应该是卡点，快点弄好发版吧」）；GitHub CI 运行 40551716425 的 core 作业里 cli-release-wiring 的 PowerShell 用例失败：install.ps1:70 ParserError。从 stage 124a846b 建 task/300/windows_installer_parse 与 worktree；下载官方 pwsh 7.4.6（sha256 a482d668…72a8 与发布页一致）到仓库外的 .tools/pwsh-7.4.6，用它在本机复现红灯。
+- 做了什么：GitLab #300（基于所有者 2026-10-28 01:18「[已脱敏]」）；GitHub CI 运行 40551716425 的 core 作业里 cli-release-wiring 的 PowerShell 用例失败：install.ps1:70 ParserError。从 stage 124a846b 建 task/300/windows_installer_parse 与 worktree；下载官方 pwsh 7.4.6（sha256 a482d668…72a8 与发布页一致）到仓库外的 .tools/pwsh-7.4.6，用它在本机复现红灯。
 - 结果：worktree 已建，红灯已复现（ParserError，Unexpected token）。
 
 ## 01:50:25 +08:00 · 提交 · #300 · install.ps1 的 PATH 提示行改成合法写法并加解析回归

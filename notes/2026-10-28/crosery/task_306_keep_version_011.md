@@ -5,7 +5,7 @@
 ## 15:03:52 +08:00 · 开工 · #306 · task/306 续：hotfix 沿用 0.1.1，包版本号回到 0.1.1
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，claude-sonnet-5-5）
-- 做了什么：所有者 2026-10-28 15:01 原话：「我们这个是走hotfix，直接以main为基线，快修复开上线，而且不需要新tag，还是0.1.1的tag，因为没有满足0.1.1的上线的稳定有p0紧急bug，这个直接修复好快上线之后，然后处理完p0紧急bug之后再同步和stage里面去保证stage >= main」。MR !49（331c0b5a）已把包版本升到 0.1.2，而发布流水线的 release-policy 要求 tag 的 X.Y.Z 等于该提交 package.json 的 version，所以本 task 把 package.json 与 app/{server,web,console}/package.json 的版本改回 0.1.1。已向所有者说明：不另发新版本号时，正式 tag 与 evidence 作业（同提交需要 rc 预发布部署）仍然要走，v0.1.1 的移动由所有者此条决定授权。从 stage 331c0b5a 新建 task/306/keep_version_011 与 worktree。
+- 做了什么：所有者 2026-10-28 15:01 原话：「[已脱敏]」。MR !49（331c0b5a）已把包版本升到 0.1.2，而发布流水线的 release-policy 要求 tag 的 X.Y.Z 等于该提交 package.json 的 version，所以本 task 把 package.json 与 app/{server,web,console}/package.json 的版本改回 0.1.1。已向所有者说明：不另发新版本号时，正式 tag 与 evidence 作业（同提交需要 rc 预发布部署）仍然要走，v0.1.1 的移动由所有者此条决定授权。从 stage 331c0b5a 新建 task/306/keep_version_011 与 worktree。
 - 结果：worktree 已建；包版本已改回 0.1.1
 
 ## 15:05:07 +08:00 · 开发 · #306 · 文档核对：server 服务文档
@@ -29,7 +29,7 @@
 ## 15:14:21 +08:00 · 方案 · #306 · 执行所有者确认的同版本 hotfix，纠正此前 rc 路径
 
 - 执行者：agent-claude-geek-main-fece2da2（Claude Code，gpt-6-astra）
-- 做了什么：所有者 15:01 已明确要求 main 基线、无 rc、保留 0.1.1、先正式修复后同步 stage。此前本链开工记录写仍要 rc 与授权移动 tag，不是用户决定，现纠正：不发 rc，不创建新版本 tag，不移动已有 v0.1.1；将同名版本作为发布锚点，以 main 的明确修复 SHA 构建热修订，release.json 记录真实 SHA。补充受控 hotfix 入口，不删除常规发布门禁，不临时解除保护。MR !49 曾误先合入 stage，该事实保留，不改写历史；当前 main 仍94140632、stage331c0b5a，差异仅已审修复。原记录所称复核通过是作者验证，不是独立审查人重新通过；发布前再次核对。
+- 做了什么：所有者 15:01 已明确要求 [已脱敏]。此前本链开工记录写仍要 rc 与授权移动 tag，不是用户决定，现纠正：不发 rc，不创建新版本 tag，不移动已有 v0.1.1；将同名版本作为发布锚点，以 main 的明确修复 SHA 构建热修订，release.json 记录真实 SHA。补充受控 hotfix 入口，不删除常规发布门禁，不临时解除保护。MR !49 曾误先合入 stage，该事实保留，不改写历史；当前 main 仍94140632、stage331c0b5a，差异仅已审修复。原记录所称复核通过是作者验证，不是独立审查人重新通过；发布前再次核对。
 - 结果：子 agent 只实现发布入口/测试/对应规范；主 agent 核对真实数据、Google配置和最终整合，尚未触发发布
 
 ## 15:30:02 +08:00 · 阻塞 · #307 · Google 正式开放受 Branding 配置阻塞

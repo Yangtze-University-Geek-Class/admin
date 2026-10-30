@@ -14,6 +14,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { scanUserQuotes } from "./check-privacy.mjs";
 
 export const TIME_ZONE = "Asia/Shanghai";
 /** 链路里一条记录的阶段；开工在最前，收尾在最后。 */
@@ -46,6 +47,70 @@ export function beijingNow(now = new Date()) {
 /** 分支名 → 链路文件名：非字母数字换成 `_`（`task/91/agent_notes` → `task_91_agent_notes`）。 */
 export function branchSlug(branch) {
   return String(branch ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/** 脱敏修订里替换敏感片段的标记（NOTES §3）；标记以外的字节必须与原文一致。 */
+export const REDACTED = "[已脱敏]";
+
+/**
+ * `core` 能否由 `before` 把若干非空、不跨行的片段替换成标记得到；能的话返回这些片段在 `before` 里的 [起点, 终点) 列表，否则 null。
+ * 各段按顺序找最靠前的位置：越早结束，后面的段越有余地，所以最靠前的匹配就够了。
+ */
+function redactedSpans(before, core) {
+  const pieces = core.split(REDACTED);
+  if (pieces.length === 1) return pieces[0] === before ? [] : null;
+  if (!before.startsWith(pieces[0])) return null;
+  const spans = [];
+  let at = pieces[0].length;
+  for (const piece of pieces.slice(1, -1)) {
+    const found = before.indexOf(piece, at + 1);
+    if (found < 0 || before.slice(at, found).includes("\n")) return null;
+    spans.push([at, found]);
+    at = found + piece.length;
+  }
+  const last = pieces[pieces.length - 1];
+  const start = before.length - last.length;
+  if (!before.endsWith(last) || start <= at || before.slice(at, start).includes("\n")) return null;
+  spans.push([at, start]);
+  return spans;
+}
+
+/** 行首到这里的前缀不能换：标题行保留「## 时间 · 记录类型 · 」，「标签：」行保留标签；其它行没有受保护的前缀。 */
+function protectedPrefixLength(line) {
+  if (line.startsWith("## ")) {
+    const first = line.indexOf(" · ");
+    const second = first < 0 ? -1 : line.indexOf(" · ", first + 3);
+    return second < 0 ? line.length : second + 3;
+  }
+  if (line.startsWith("- ")) {
+    const colon = line.indexOf("：");
+    return colon < 0 ? 0 : colon + 1;
+  }
+  return 0;
+}
+
+/** 一段替换只能落在行内可换的部分，不能把整行换掉。 */
+function replacementAllowed(before, [start, end]) {
+  const lineStart = start === 0 ? 0 : before.lastIndexOf("\n", start - 1) + 1;
+  const newline = before.indexOf("\n", start);
+  const lineEnd = newline < 0 ? before.length : newline;
+  if (start === lineStart && end === lineEnd) return false;
+  return start >= lineStart + protectedPrefixLength(before.slice(lineStart, lineEnd));
+}
+
+/**
+ * `after` 是不是 `before` 把若干敏感片段替换成 REDACTED，外加末尾追加的记录得到的（NOTES §3）。
+ * 追加只能从行首开始，不能把别的改动藏在行中间；替换不能整行换掉，也不能动标题行的时间与记录类型、标签行的标签。
+ */
+export function isRedactionRevision(before, after) {
+  if (!after.includes(REDACTED)) return false;
+  for (let cut = after.length; cut >= 0; cut -= 1) {
+    const lineBoundary = cut === after.length || cut === 0 || after[cut - 1] === "\n" || after[cut] === "\n";
+    if (!lineBoundary) continue;
+    const spans = redactedSpans(before, after.slice(0, cut));
+    if (spans && spans.every(span => replacementAllowed(before, span))) return true;
+  }
+  return false;
 }
 
 export function chainFile(root, { date, user, chain }) {
@@ -221,26 +286,29 @@ export function collectChains(root) {
 }
 
 /**
- * 收尾之后又记了一条的历史例外。原记录保持原字节，所有者 2026-10-28 裁决只放过这一条（GitLab #298）：
- * 不是通用规则，别的链路、同一链上的别的记录、之后新追加的记录仍然报错。
+ * 链路顺序的历史例外。原记录保持原字节，经所有者批准只放过下面列出的几条（GitLab #298、#308）：
+ * rule 说明放过哪一条规则：after_closed 放过收尾之后又记的那一条，first_entry 放过链路第一条不是「开工」的那一条。
+ * 五个字段（链路、文件、时刻、阶段、规则）全部相等才放过；别的链路、同一链上的别的记录、之后新追加的记录仍然报错。
  */
-export const CLOSED_CHAIN_EXCEPTIONS = [
-  { user: "crosery", slug: "task_276_forum_image_scan", rel: "notes/2026-10-24/crosery/task_276_forum_image_scan.md", time: "22:03:16", stage: "发布" },
+// rel 已含用户目录（notes/<日期>/<用户名>/<链路>.md），所以不再单列用户名
+export const CHAIN_ORDER_EXCEPTIONS = [
+  { rule: "after_closed", slug: "task_276_forum_image_scan", rel: "notes/2026-10-24/crosery/task_276_forum_image_scan.md", time: "22:03:16", stage: "发布" },
+  { rule: "first_entry", slug: "task_308_stage_close", rel: "notes/2026-10-29/crosery/task_308_stage_close.md", time: "23:51:18", stage: "推送" },
 ];
 
-function isClosedChainException(chain, entry) {
-  return CLOSED_CHAIN_EXCEPTIONS.some(item => item.user === chain.user && item.slug === chain.slug
+function isChainOrderException(chain, entry, rule) {
+  return CHAIN_ORDER_EXCEPTIONS.some(item => item.rule === rule && item.slug === chain.slug
     && item.rel === entry.rel && item.time === entry.time && item.stage === entry.stage);
 }
 
-/** task 链路的规则：第一条是开工；收尾之后不能再有记录（上面列出的一条历史例外除外）。stage、main 等链路只记发布与验收，不要求。 */
+/** task 链路的规则：第一条是开工；收尾之后不能再有记录（上面列出的历史例外除外）。stage、main 等链路只记发布与验收，不要求。 */
 export function checkChainOrder(chain) {
   const problems = [];
   const all = chain.files.flatMap(file => file.entries.map(entry => ({ ...entry, rel: file.rel })));
   if (!all.length || !TASK_RE.test(chain.chain ?? "")) return problems;
-  if (all[0].stage !== "开工") problems.push(`${all[0].rel}:${all[0].line}：链路 ${chain.user}/${chain.slug} 的第一条必须是「开工」（开发前先记），现在是「${all[0].stage}」`);
+  if (all[0].stage !== "开工" && !isChainOrderException(chain, all[0], "first_entry")) problems.push(`${all[0].rel}:${all[0].line}：链路 ${chain.user}/${chain.slug} 的第一条必须是「开工」（开发前先记），现在是「${all[0].stage}」`);
   const closed = all.findIndex(entry => entry.stage === "收尾");
-  const afterClosed = closed >= 0 ? all.slice(closed + 1).filter(entry => !isClosedChainException(chain, entry)) : [];
+  const afterClosed = closed >= 0 ? all.slice(closed + 1).filter(entry => !isChainOrderException(chain, entry, "after_closed")) : [];
   if (afterClosed.length) problems.push(`${afterClosed[0].rel}:${afterClosed[0].line}：链路 ${chain.user}/${chain.slug} 已经收尾，后面不能再记；重新开始要开新的 task`);
   return problems;
 }
@@ -306,6 +374,25 @@ function git(root, args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
+/** 文件在 merge-base 与 HEAD 之间只做了脱敏修订（NOTES §3）。读不出来按「不是」处理，不放行。 */
+function isRedactionCommit(root, base, file) {
+  try {
+    const mergeBase = git(root, ["merge-base", base, "HEAD"]).trim();
+    return isRedactionRevision(showAt(root, mergeBase, file), showAt(root, "HEAD", file));
+  } catch {
+    return false;
+  }
+}
+
+/** 文件在某个版本里的内容；那个版本里没有这个文件时是空串（新增的文件）。 */
+function showAt(root, rev, file) {
+  try {
+    return git(root, ["show", `${rev}:${file}`]);
+  } catch {
+    return "";
+  }
+}
+
 /**
  * task/<issue>/<slug> 进 stage 的 PR：这个分支的链路里必须有引用 #<issue> 的开工、提交、PR、审查，
  * 并且这次改动新增了引用 #<issue> 的记录。forReview 为 true 时允许暂缺「审查」记录。
@@ -340,6 +427,7 @@ export function checkPullRequest(root, { base, head, forReview = false }) {
     }
     const diffLines = git(root, ["diff", "--no-renames", "--unified=0", "--no-color", `${base}...HEAD`, "--", "notes/"]).split("\n");
     let currentDiffFile = "";
+    const removed = new Map();
     for (const line of diffLines) {
       if (line.startsWith("diff --git a/")) {
         const parts = line.split(" ");
@@ -347,16 +435,21 @@ export function checkPullRequest(root, { base, head, forReview = false }) {
         continue;
       }
       if (currentDiffFile === "notes/INDEX.md") continue;
-      if (line.startsWith("-") && !line.startsWith("--- ")) {
-        problems.push(`${currentDiffFile}：发现删除或修改已有记录的行（「${line.slice(1).trim()}」），违反「只能往末尾追加，已写的记录不改不删」`);
-        break;
-      }
+      if (line.startsWith("-") && !line.startsWith("--- ") && !removed.has(currentDiffFile)) removed.set(currentDiffFile, line.slice(1).trim());
+    }
+    // 删改已有行只允许脱敏修订：整个文件相对 merge-base 只把敏感片段换成标记（NOTES §3）
+    for (const [file, sample] of removed) {
+      if (isRedactionCommit(root, base, file)) continue;
+      problems.push(`${file}：发现删除或修改已有记录的行（「${sample}」），违反「只能往末尾追加，已写的记录不改不删」；脱敏修订只允许把敏感片段替换成 ${REDACTED}，其余字节不变（NOTES §3）`);
     }
   } catch (err) {}
 
   const diff = git(root, ["diff", "--no-renames", "--unified=0", "--no-color", "--diff-filter=AM", `${base}...HEAD`, "--", "notes/"]);
   const added = diff.split("\n").filter(line => line.startsWith("+## ")).map(line => ENTRY_RE.exec(line.slice(1))).filter(Boolean);
   if (!added.some(m => m[5].split(" ").includes(`#${issue}`))) problems.push(`这次改动没有新增引用 #${issue} 的记录：链路要随开发持续往后记。`);
+  // 新增的记录不写用户原文（NOTES §3）：标签后紧跟冒号或引号的写法拦下；只报行数，不回显内容
+  const quoted = diff.split("\n").filter(line => line.startsWith("+") && !line.startsWith("+++") && scanUserQuotes(line.slice(1)).length);
+  if (quoted.length) problems.push(`新增的执行记录有 ${quoted.length} 行含用户原话形态（「原话」「所有者说」等标签后紧跟冒号或引号）：仓库里不写用户原文，改成批准摘要，或把原文换成 ${REDACTED}（NOTES §3）。`);
   return problems;
 }
 
