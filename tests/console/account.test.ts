@@ -6,7 +6,7 @@ import {
 import { dateEdge } from "../../app/console/src/lib/competitions";
 import { mockAccount, MOCK_PERSONAS, routeConsole } from "../../app/console/src/mock/console";
 import { mockApi } from "../../app/console/src/mock";
-import { INVITE_CODE_PATTERN, inviteUsable } from "../../app/server/src/lib/invite-codes";
+import { INVITE_CODE_CREATE_PATTERN, inviteUsable } from "../../app/server/src/lib/invite-codes";
 import { passwordError } from "../../app/server/src/lib/password-policy";
 import { EMAILS_MAX as SERVER_EMAILS_MAX } from "../../app/server/src/lib/identity-store";
 import type { InviteCode } from "../../app/console/src/lib/types";
@@ -82,7 +82,7 @@ describe("账号页 (lib/account)", () => {
 
 describe("注册邀请码 (lib/invites)", () => {
   it("邀请码格式与服务端一致，随机生成的总能用", () => {
-    expect(CONSOLE_INVITE_PATTERN.source).toBe(INVITE_CODE_PATTERN);
+    expect(CONSOLE_INVITE_PATTERN.source).toBe(INVITE_CODE_CREATE_PATTERN);
     for (let i = 0; i < 20; i += 1) expect(randomInviteCode()).toMatch(CONSOLE_INVITE_PATTERN);
   });
 

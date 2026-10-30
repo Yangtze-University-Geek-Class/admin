@@ -1,9 +1,9 @@
 // 注册邀请码（#262）控制台页面的纯逻辑：状态文案、表单与提交内容。不导入 Vue，tests/console 直接测。
-// 规则与服务端一致（app/server/src/lib/invite-codes.ts）：邀请码 4–40 位字母、数字、_、-，存成小写；次数、过期为空表示不限。
+// 规则与服务端一致（app/server/src/lib/invite-codes.ts）：新建的邀请码 8–40 位字母、数字、_、-，存成小写；次数、过期为空表示不限。
 import { beijingDate, dateEdge } from "./competitions";
 import type { InviteCode } from "./types";
 
-export const INVITE_CODE_PATTERN = /^[A-Za-z0-9_-]{4,40}$/;
+export const INVITE_CODE_PATTERN = /^[A-Za-z0-9_-]{8,40}$/;
 export const INVITE_MAX_USES = 100_000;
 
 export type InviteState = "usable" | "disabled" | "expired" | "used_up";
@@ -40,7 +40,7 @@ type Field = "code" | "note" | "maxUses" | "expiresDate";
 /** 逐条校验，空对象表示可以提交。`creating` 为 false 时不看邀请码（建好后不能改）。 */
 export function inviteErrors(form: InviteForm, creating: boolean, now = Date.now()): Partial<Record<Field, string>> {
   const errors: Partial<Record<Field, string>> = {};
-  if (creating && !INVITE_CODE_PATTERN.test(form.code.trim())) errors.code = "邀请码是 4–40 位字母、数字、下划线或短横线";
+  if (creating && !INVITE_CODE_PATTERN.test(form.code.trim())) errors.code = "邀请码是 8–40 位字母、数字、下划线或短横线";
   if ([...form.note.trim()].length > 100) errors.note = "备注最多 100 个字";
   const uses = form.maxUses.trim();
   if (uses && (!/^\d+$/.test(uses) || Number(uses) < 1 || Number(uses) > INVITE_MAX_USES)) errors.maxUses = `次数是 1 到 ${INVITE_MAX_USES} 的整数，不限就留空`;

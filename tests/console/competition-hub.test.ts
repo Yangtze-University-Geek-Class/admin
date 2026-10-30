@@ -1,13 +1,14 @@
 // 比赛报名与积分（#239）控制台页面的纯逻辑：设置表单、积分表单、名单统计与链接、样板名单。
 // 不渲染组件（tests/console 里没有挂载 Vue 页面的先例），只测这些函数与 mock 的只读样板。
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  activeSignups, emptyScoreForm, exportRateLimitNotice, matchSignups, rosterCsvName, rosterCsvPath,
+  activeSignups, canRemoveSignup, emptyScoreForm, exportRateLimitNotice, matchSignups, removalNotice, removalResultText, rosterCsvName, rosterCsvPath,
   rosterStats, scoreErrors, scorePayload, scoreTargetText, scoreTargetUrl,
   settingsErrors, settingsForm, settingsPayload, teamLeader, type SettingsForm,
 } from "../../app/console/src/lib/competition-hub";
 import { ApiError } from "../../app/console/src/lib/http";
 import { routeConsole } from "../../app/console/src/mock/console";
+import { mockApi } from "../../app/console/src/mock";
 import type { CompetitionRoster, RosterSignup, RosterTeam, ScoreForm } from "../../app/console/src/lib/types";
 
 const settings = (patch: Partial<SettingsForm> = {}): SettingsForm => ({
@@ -221,5 +222,68 @@ describe("console mock roster", () => {
 
   it("hides roster data for an unknown competition", () => {
     expect(() => routeConsole(new URL("http://mock.local/api/console/competitions/nope/roster"))).toThrowError(/比赛不存在/);
+  });
+});
+
+describe("removing a signup (#342)", () => {
+  const member = (login: string, role: "leader" | "member", joined_at: number) => ({ account_id: `mock-${login}`, login, avatar_url: null, role, joined_at });
+  const team = (patch: Partial<RosterTeam> = {}): RosterTeam => ({
+    id: "t1", name: "夜航星", slogan: "", status: "recruiting", leader_account_id: "mock-chen",
+    members: [member("chen", "leader", 1), member("li", "member", 2), member("wang", "member", 3)], member_count: 3,
+    created_at: 0, disbanded_at: null, ...patch,
+  });
+  const roster = (teams: RosterTeam[], team_min = 1) => ({
+    settings: { enabled: true, participation: "team" as const, team_min, team_max: 3, scoring: "none" as const }, teams,
+  });
+  const inTeam = (login: string, role: "leader" | "member") => person(login, { team_id: "t1", team_name: "夜航星", role });
+
+  it("offers the action on active rows only, and never once the competition is finalized", () => {
+    expect(canRemoveSignup(person("chen"), false)).toBe(true);
+    expect(canRemoveSignup(person("chen", { status: "cancelled" }), false)).toBe(false);
+    expect(canRemoveSignup(person("chen"), true)).toBe(false);
+  });
+
+  it("explains the team consequence the way the server applies it", () => {
+    const base = "报名会改为已取消，不再算进报名人数和天梯；已登记的积分记录保留。";
+    expect(removalNotice(person("zhao"), roster([team()]))).toEqual({ title: "把 @zhao 移出这场比赛？", body: base });
+    expect(removalNotice(inTeam("li", "member"), roster([team()])).body).toBe(`${base}@li 会退出「夜航星」。`);
+    // 领队交给名单里领队之后的第一位，也就是最早入队的队员
+    expect(removalNotice(inTeam("chen", "leader"), roster([team()])).body)
+      .toBe(`${base}@chen 是「夜航星」的领队，领队会交给最早入队的 @li，然后 @chen 退出队伍。`);
+    const solo = team({ members: [member("chen", "leader", 1)], member_count: 1 });
+    expect(removalNotice(inTeam("chen", "leader"), roster([solo])).body).toBe(`${base}「夜航星」只有 @chen 一人，队伍会解散。`);
+  });
+
+  it("warns when a confirmed team drops below the minimum, and stays quiet when it does not", () => {
+    const locked = team({ status: "locked" });
+    expect(removalNotice(inTeam("wang", "member"), roster([locked], 3)).body)
+      .toContain("「夜航星」已确认参赛，移出后只剩 2 人，少于最低 3 人，会退回招募中。");
+    expect(removalNotice(inTeam("wang", "member"), roster([locked], 2)).body).not.toContain("退回招募中");
+    expect(removalNotice(inTeam("chen", "leader"), roster([locked], 3)).body).toContain("会退回招募中");
+  });
+
+  it("describes the server's result in the toast", () => {
+    expect(removalResultText({ team_action: "none", unlocked: false })).toBe("报名已取消。");
+    expect(removalResultText({ team_action: "left", unlocked: true })).toBe("已退出队伍。队伍人数不够，已退回招募中。");
+    expect(removalResultText({ team_action: "transferred", unlocked: false })).toBe("领队已交给最早入队的队员。");
+    expect(removalResultText({ team_action: "disbanded", unlocked: false })).toBe("队伍已解散。");
+  });
+});
+
+describe("preview removal checks like the server, then stays read-only", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const as = (persona: string) => vi.stubGlobal("window", { location: { search: `?__persona=${persona}` } });
+  const remove = (competition: string, account: string) =>
+    mockApi(`/api/console/competitions/${competition}/signups/${account}`, { method: "DELETE" });
+
+  it("refuses without the node, without a fresh login, or without an active signup", async () => {
+    as("member");
+    await expect(remove("c1001", "mock-chen_hang")).rejects.toMatchObject({ status: 403 });
+    as("owner_stale");
+    await expect(remove("c1001", "mock-chen_hang")).rejects.toMatchObject({ status: 403, code: "step_up_required" });
+    as("owner");
+    await expect(remove("nope", "mock-chen_hang")).rejects.toMatchObject({ status: 404, code: "not_found" });
+    await expect(remove("c1001", "mock-he_miao")).rejects.toMatchObject({ status: 409, code: "not_signed_up" });
+    await expect(remove("c1001", "mock-chen_hang")).rejects.toMatchObject({ status: 501, code: "mock_read_only" });
   });
 });

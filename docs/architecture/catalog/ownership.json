@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-29",
+  "updated": "2026-10-30",
   "applications": [
     {
       "id": "web",
@@ -76,7 +76,8 @@
         "oauth_grants",
         "oidc_payloads",
         "account_profiles",
-        "account_avatars"
+        "account_avatars",
+        "github_avatar_checks"
       ]
     },
     {
@@ -240,7 +241,10 @@
       ],
       "tables": [
         "app_state",
-        "limit_events"
+        "limit_events",
+        "ip_blocks",
+        "rate_limit_counters",
+        "shield_signals"
       ]
     },
     {
@@ -317,6 +321,7 @@
     "app/server/src/routes/console/competition-results.ts": "competitions",
     "app/server/src/routes/sites/index.ts": "competitions",
     "app/server/src/routes/console/backup.ts": "platform",
+    "app/server/src/routes/console/security.ts": "platform",
     "app/server/src/routes/forum-api/markdown.ts": "forum"
   },
   "routeOverrides": {
@@ -333,7 +338,7 @@
     "accounts": "identity"
   },
   "tableNotes": {
-    "app_state": "键值表：现有 gitlab_settings（GitLab 同步设置的覆盖值，lib/gitlab-sync.ts）与 apply_open（招新总开关，#284，lib/apply-settings.ts）两个键；没有 apply_open 这一行就是开放。目录不读取记录。",
+    "app_state": "键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间，缺行/损坏/到期关闭，最长60分钟）。目录不读取记录。",
     "applications": "包含候选人个人信息。具体读取范围、字段下发和取消规则见业务文档；目录不包含记录。",
     "sessions": "包含加密会话凭据。目录仅记录列与约束，不读取会话值。",
     "users": "极客班账号：id 就是接口里的 account_id（极客班 OpenID），随机生成、永不复用；只有身份模块（lib/identity-store.ts）读写。目录不读取记录。",
@@ -8642,6 +8647,105 @@
       ]
     },
     {
+      "id": "competition.signup.remove",
+      "title": "控制台移出报名",
+      "domain": "competitions",
+      "relatedDomains": [
+        "identity",
+        "organization",
+        "audit",
+        "platform",
+        "permissions"
+      ],
+      "assessment": "declared-with-source-evidence",
+      "operation": "DELETE /api/console/competitions/:competition_id/signups/:account_id",
+      "capabilities": [
+        "competitions.manage"
+      ],
+      "reads": [
+        "competitions",
+        "competition_finals",
+        "competition_signup_settings",
+        "competition_signups",
+        "competition_teams",
+        "competition_team_members",
+        "sessions",
+        "users",
+        "perm_members",
+        "perm_entries",
+        "perm_groups",
+        "perm_group_parents"
+      ],
+      "writes": [
+        "competition_signups",
+        "competition_teams",
+        "competition_team_members",
+        "activity_events"
+      ],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：有效全站sid与competition.manage，写操作要step-up（刚登录过）；比赛不存在404 not_found，已定榜409 competition_finalized，没有报名或已取消409 not_signed_up；限流每分钟30次。",
+        "和本人取消不同，报名截止后、队伍已确认、领队队里还有别人都照样移出：报名改cancelled并记cancelled_at，不删行；队员的成员关系改left；领队先把领队交给最早入队的在队成员（同时刻按成员关系id）再退出；只有领队一人的队伍解散；已确认的队伍低于team_min时退回recruiting、locked_at清空。",
+        "本人在这场的待处理申请与邀请一并关闭；200 {team_action: none|left|transferred|disbanded, unlocked}。",
+        "写入与competition.signup.remove审计同一事务，details只记account_id、team_action、unlocked，不记留言与队名，审计失败一起回滚；成功后失效本场公开缓存。",
+        "已登记的积分记录不删；天梯、公开天梯与待确认贡献按有效报名过滤，被移出的人不再出现，重新报名后照常计入。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/console/competition-roster.ts",
+          "needle": "\"/api/console/competitions/:competition_id/signups/:account_id\""
+        },
+        {
+          "path": "app/server/src/routes/console/competition-roster.ts",
+          "needle": "action: \"competition.signup.remove\""
+        },
+        {
+          "path": "app/server/src/lib/competition-signup-store.ts",
+          "needle": "function removeSignup("
+        },
+        {
+          "path": "app/server/src/lib/competition-signup-store.ts",
+          "needle": "const selectSuccessor = db.prepare("
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "\"DELETE /api/console/competitions/:competition_id/signups/:account_id\": {"
+        },
+        {
+          "path": "app/server/src/lib/competition-candidates.ts",
+          "needle": "const AUTHOR_SIGNED_UP ="
+        },
+        {
+          "path": "app/console/src/lib/competition-hub.ts",
+          "needle": "export function removalNotice("
+        },
+        {
+          "path": "app/console/src/lib/types.ts",
+          "needle": "export type SignupRemoval ="
+        },
+        {
+          "path": "app/console/src/pages/CompetitionHub.vue",
+          "needle": "async function askRemoveSignup("
+        },
+        {
+          "path": "app/console/src/mock/console.ts",
+          "needle": "const removal = path.match("
+        }
+      ],
+      "tests": [
+        "tests/server/competition-roster-remove.test.ts",
+        "tests/server/competition-candidates.test.ts",
+        "tests/console/competition-hub.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    {
       "id": "competition.score_events.list",
       "title": "读取积分记录",
       "domain": "competitions",
@@ -9858,6 +9962,7 @@
       "invariants": [
         "权限与资源：competition.score.review；比赛不存在 404。",
         "200 {items, next_cursor, counts, last_run}：按状态（pending/accepted/rejected）筛，每页 50 条，新的在前；counts 是三种状态的条数；last_run 只记在服务端进程里，重启后为 null，直到下一轮收集。",
+        "#342：作者没有有效报名（本人取消或控制台移出）的候选不列出，也不算进 counts 与概览的 candidates_pending；候选行保留。",
         "只读。"
       ],
       "evidence": [
@@ -9888,7 +9993,8 @@
       ],
       "tests": [
         "tests/server/competition-candidates.test.ts",
-        "tests/console/competition-contest.test.ts"
+        "tests/console/competition-contest.test.ts",
+        "tests/server/competition-roster-remove.test.ts"
       ],
       "docs": [
         "docs/services/server/endpoint-contracts.md",
@@ -11117,6 +11223,9 @@
         "identities",
         "forum_users",
         "forum_avatars",
+        "account_profiles",
+        "account_avatars",
+        "github_avatar_checks",
         "oauth_subjects",
         "sessions",
         "role_assignments",
@@ -11125,6 +11234,8 @@
       ],
       "writes": [
         "gitlab_accounts",
+        "github_avatar_checks",
+        "account_avatars",
         "oauth_subjects",
         "activity_events",
         "sessions"
@@ -11133,7 +11244,7 @@
       "invariants": [
         "权限与资源：有效 sid、同源 Origin、gitlab.sync 与 step-up；每个 IP 每分钟 30 次；管理员令牌只在服务端。",
         "响应与错误：200 {mode,account_id,login,actions,applied,error}；GITLAB_SYNC=off 时 409 gitlab_sync_off；账号不存在 404 account_not_found；GitLab 出错不回 5xx，写进 error 与 last_error。",
-        "数据与副作用：按 OIDC 身份（provider=openid_connect，extern_uid=gitlab 客户端 sector 的 sub）找或建 GitLab 用户、调组权限、封禁或解封、传头像（论坛头像或 256 像素的 GitHub 头像，200 KiB 以内，来源记进 avatar_source，#271）、同步邮箱（主邮箱、账号页绑的其它邮箱和 GitHub noreply 邮箱以已确认的加到 GitLab 用户名下，在极客班删掉的从 GitLab 删掉，记进 emails_source，#272），从不删除 GitLab 用户；dry-run 只返回 actions 不写；写操作记录 gitlab.sync，操作人是会话账号。",
+        "数据与副作用：按 OIDC 身份（provider=openid_connect，extern_uid=gitlab 客户端 sector 的 sub）找或建 GitLab 用户、调组权限、封禁或解封、传头像（#271，#343 起是统一头像：上传的头像、GitHub 头像的站内副本或 256 像素原图、NANO 默认头像；还没识别的 GitHub 头像当场识别并记进 github_avatar_checks，像素图改传 NANO；200 KiB 以内，来源记进 avatar_source，默认头像是 nano:<版本>/<编号>）、同步邮箱（主邮箱、账号页绑的其它邮箱和 GitHub noreply 邮箱以已确认的加到 GitLab 用户名下，在极客班删掉的从 GitLab 删掉，记进 emails_source，#272），从不删除 GitLab 用户；dry-run 只返回 actions 不写；写操作记录 gitlab.sync，操作人是会话账号。",
         "有效直接 member/alumni 且 active 才有资格；既有 sector/sub 与远端 OIDC 绑定精确核验，管理员、bot、服务账号及无有效映射对象不写。未知 HTTP、超时、429/5xx、畸形或截断分页不作封禁依据；明确失去资格的受管账号仍封禁，远端漂移重新撤权。",
         "每次远端写前重读资格，等待时变化在同一账号锁内最多重算两次；定时与立即同步串行，不协调跨环境双权威。"
       ],
@@ -11149,6 +11260,14 @@
         {
           "path": "app/server/src/lib/gitlab-sync.ts",
           "needle": "export function createGitlabSync("
+        },
+        {
+          "path": "app/server/src/lib/gitlab-sync.ts",
+          "needle": "export function avatarSource(avatar: Avatar): string {"
+        },
+        {
+          "path": "app/server/src/lib/github-avatars.ts",
+          "needle": "async function check(url: string): Promise<GithubAvatarVerdict> {"
         },
         {
           "path": "app/server/src/lib/db.ts",
@@ -11681,6 +11800,52 @@
         "docs/services/server/endpoint-contracts.md",
         "docs/services/server/README.md",
         "docs/architecture/API.md"
+      ]
+    },
+    {
+      "id": "identity.avatar.default",
+      "title": "公开取回 NANO 默认头像",
+      "domain": "identity",
+      "relatedDomains": [
+        "gitlab"
+      ],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/identity/default-avatar/:version/:file",
+      "capabilities": [],
+      "reads": [],
+      "writes": [],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：匿名；:version 必须是 8 位数字、:file 必须匹配 ^[1-8]\\.png$；版本不是当前这套（20261025）时 404 not_found。",
+        "响应与错误：200 image/png 二进制，Cache-Control: public, max-age=31536000, immutable、Content-Security-Policy: default-src 'none'、X-Content-Type-Options: nosniff；这条路径是 Cache-Control: no-store 的例外（middleware/http-policy.ts）。",
+        "数据与副作用：不读库、不解析会话、不审计；8 张图随 server 镜像发布，和 GitLab 前置用的是同一份文件（deploy/gitlab/ui/nano-avatars/20261025），启动时按 manifest.json 核对字节，缺图或对不上启动失败，不依赖 GitLab 或 CDN。",
+        "统一头像（lib/avatars.ts）：没上传头像、GitHub 头像是自动生成的像素图或没有 GitHub 的账号，所有接口给的 avatar_url 都是这里的某一张，按 GitLab 主邮箱（没有时用占位地址）的 SHA-256 第一位模 8 挑，和 GitLab 头像服务挑的同一张。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/routes/identity/profile.ts",
+          "needle": "app.get<{ Params: { version: string; file: string } }>(\"/api/identity/default-avatar/:version/:file\", async (req, reply) => {"
+        },
+        {
+          "path": "app/server/src/middleware/http-policy.ts",
+          "needle": "req.url.startsWith(\"/api/identity/default-avatar/\")"
+        },
+        {
+          "path": "app/server/src/lib/nano-avatar.ts",
+          "needle": "export function nanoAvatarIndex(identifier: string): number {"
+        },
+        {
+          "path": "app/server/src/lib/avatars.ts",
+          "needle": "export function createAvatars("
+        }
+      ],
+      "tests": [
+        "tests/server/avatars.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/README.md",
+        "docs/services/server/oidc.md"
       ]
     },
     {
@@ -12791,13 +12956,183 @@
         "docs/services/forum/README.md",
         "docs/services/web/README.md"
       ]
+    },
+    {
+      "id": "security.decoy.read",
+      "title": "控制台查看临时合成蜜罐状态",
+      "domain": "platform",
+      "relatedDomains": ["permissions", "audit"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/console/security/decoy",
+      "capabilities": [],
+      "reads": ["app_state"], "writes": [], "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：有效会话及 security.manage；页面按同一节点显示，命中记录另需 activity.read，IP 沿用 activity.read.ip 打码。",
+        "响应与错误：200 {available,active,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间。",
+        "数据与副作用：只读 security_decoy_until，不连接外部服务，不记录原始探针路径或请求内容。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/console/security.ts", "needle": "app.get(\"/api/console/security/decoy\""},
+        {"path": "app/server/src/lib/security-decoy.ts", "needle": "export function createSecurityDecoy("},
+        {"path": "app/console/src/pages/Security.vue", "needle": "const settings = useResource("},
+        {"path": "app/console/src/router.ts", "needle": "{ path: \"security\","},
+        {"path": "app/console/src/lib/nav.ts", "needle": "id: \"security\""},
+        {"path": "app/console/src/lib/types.ts", "needle": "export type SecurityDecoyStatus"},
+        {"path": "app/console/src/mock/console.ts", "needle": "if (path === \"/api/console/security/decoy\" ||"},
+        {"path": "app/console/src/lib/activity.ts", "needle": "\"security.decoy.hit\":"}
+      ],
+      "tests": ["tests/server/security-decoy.test.ts", "tests/console/nav.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/services/console/README.md", "docs/architecture/SECURITY.md"]
+    },
+    {
+      "id": "security.decoy.update",
+      "title": "控制台限时开启或关闭合成蜜罐",
+      "domain": "platform",
+      "relatedDomains": ["permissions", "audit"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "PUT /api/console/security/decoy",
+      "capabilities": [],
+      "reads": ["app_state"], "writes": ["app_state", "activity_events"], "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：security.manage、10分钟内登录及既有 Origin 检查；生产发布身份且基础防护开启才能开启。",
+        "响应与错误：开启只收 enabled:true 和1至60整数 duration_minutes；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
+        "数据与副作用：设置与 security.decoy.update 同事务；审计失败整体回滚。页面确认后才写，失败保留错误，离页取消未答复的确认。关闭不解封。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/console/security.ts", "needle": "action: \"security.decoy.update\", surface:"},
+        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"PUT /api/console/security/decoy\":"},
+        {"path": "app/server/src/lib/security-decoy.ts", "needle": "function setEnabled("},
+        {"path": "app/server/src/config.ts", "needle": "deploymentEnvironment: env.GEEK_DEPLOYMENT_ENVIRONMENT"},
+        {"path": "app/console/src/pages/Security.vue", "needle": "const change = useAction("}
+      ],
+      "tests": ["tests/server/security-decoy.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/services/console/README.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+    },
+    {
+      "id": "security.blocks.list",
+      "title": "控制台查看访问封禁列表",
+      "domain": "platform",
+      "relatedDomains": ["audit"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/console/security/blocks",
+      "capabilities": [],
+      "reads": ["ip_blocks"],
+      "writes": ["activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：有效全站 sid，security.manage（站长根通配 * 默认拿到）；只列生效中的封禁（blocked_until 晚于现在）。",
+        "响应与错误：200 { blocks: [{ ip, level, blocked_until, retry_after, reason, created_at, updated_at }] }。",
+        "数据与副作用：只读封禁表；每次查看写一条 security.blocks.view 操作记录，meta 只记条数。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/console/security.ts", "needle": "  app.get(\"/api/console/security/blocks\", manage, async (req) => {"},
+        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"GET /api/console/security/blocks\": {"},
+        {"path": "app/server/src/routes/console/index.ts", "needle": "import security from \"./security.js\";"},
+        {"path": "app/server/src/lib/permission-nodes.ts", "needle": "node: \"security.manage\""},
+        {"path": "app/console/src/lib/permission-nodes.ts", "needle": "\"security.manage\": \"管理访问封禁\","}
+      ],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+    },
+    {
+      "id": "security.block.clear",
+      "title": "控制台解封访问封禁",
+      "domain": "platform",
+      "relatedDomains": ["audit"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "DELETE /api/console/security/blocks/:ip",
+      "capabilities": [],
+      "reads": ["ip_blocks"],
+      "writes": ["ip_blocks", "shield_signals", "activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：security.manage 且刚登录过（step-up）；IP 格式不对回 400 bad_ip。",
+        "响应与错误：200 { ip, cleared: true }；没有生效中的封禁回 404 not_found，不写记录。",
+        "数据与副作用：立即结束生效中的封禁、级别归零、清掉信号，与 security.block.clear 操作记录同事务提交（meta 记原级别）；审计失败时回滚，原封禁保持。自动封禁 security.block 由服务端计分时写系统记录。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/routes/console/security.ts", "needle": "  app.delete<{ Params: { ip: string } }>(\"/api/console/security/blocks/:ip\", clear, async (req, reply) => {"},
+        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"DELETE /api/console/security/blocks/:ip\": {"}
+      ],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+    },
+    {
+      "id": "security.shield",
+      "title": "访问防护：异常 IP 计分、封禁与逐级加长",
+      "domain": "platform",
+      "relatedDomains": ["audit", "competitions", "feedback", "forum", "github", "gitlab", "identity", "invitations", "mail", "organization", "permissions", "public_content", "recruitment"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "POST /auth/email/start",
+      "capabilities": [],
+      "reads": ["ip_blocks", "shield_signals", "rate_limit_counters", "app_state"],
+      "writes": ["ip_blocks", "shield_signals", "rate_limit_counters", "activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "合成蜜罐：管理员显式限时开启后，未封禁且非豁免来源的首次 GET/HEAD 返回有界合成诊断；HEAD 无正文。命中封禁与 security.decoy.hit 同事务，审计仅含方法、固定探针族、状态与合成标记；其余方法、关闭或到期仍按原规则404并封禁。",
+        "权限与资源：不依赖登录态，按 req.ip（TRUST_PROXY 之后的真实客户端）判断；SHIELD_ALLOWLIST 里的网段不计分、不封禁。",
+        "响应与错误：生效中的封禁回 403 { error: \"ip_blocked\", message, request_id, retry_after }，不计分、不逐条写操作记录；限流计数落库，重启不清零。",
+        "数据与副作用：429 计 2 分，/api、/auth 下 400/409/413/422 计 1 分，发码、登录、重设密码失败与 PoW 失败各加 3 分；窗口内总分达到 SHIELD_THRESHOLD 就封禁，级别按 SHIELD_BLOCK_MINUTES 逐级加长，安静满 SHIELD_DECAY_HOURS 后归零；封禁与解封写审计。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/lib/shield.ts", "needle": "export function createShield("},
+        {"path": "app/server/src/middleware/shield.ts", "needle": "export function registerShield("},
+        {"path": "app/server/src/lib/rate-store.ts", "needle": "export function createRateLimitStore("},
+        {"path": "app/server/src/middleware/http-policy.ts", "needle": "if (req.shieldBlocked) return;"},
+        {"path": "app/server/src/middleware/visitor.ts", "needle": "export function hasVisitorCookie("},
+        {"path": "app/server/src/middleware/pow.ts", "needle": "import { SHIELD_POINTS } from \"../lib/shield.js\";"},
+        {"path": "app/server/src/lib/activity.ts", "needle": "export function startActivityCleanup("},
+        {"path": "app/server/src/lib/limits.ts", "needle": "\"site.email.daily\": 2 * DAY_MS,"}
+      ],
+      "tests": ["tests/server/abuse-shield.test.ts", "tests/server/abuse-notice.test.ts", "tests/tooling/abuse-notices.test.ts", "tests/tooling/web-nginx.test.ts", "tests/server/legacy-database.test.ts"],
+      "docs": ["docs/architecture/SECURITY.md", "docs/architecture/API.md", "docs/ops/ENVIRONMENTS.md", "docs/services/server/README.md"]
+    },
+    {
+      "id": "security.site_quota",
+      "title": "全站每日上限：发码、注册、意见箱、设备码",
+      "domain": "platform",
+      "relatedDomains": ["feedback", "identity", "invitations", "mail"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "POST /api/feedback",
+      "capabilities": [],
+      "reads": ["limit_events"],
+      "writes": ["limit_events"],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：全站计数不分用户与 IP，按北京自然日（day-bj）；SITE_QUOTA_* 设为 -1 时不限。",
+        "响应与错误：全站上限用完回 429 { error: \"site_quota_exceeded\", message（中文）, retry_after }；发码的单收件人上限仍回 rate_limited，bucket 为 email.recipient.daily。",
+        "数据与副作用：计数写 limit_events（北京日窗口）。"
+      ],
+      "evidence": [
+        {"path": "app/server/src/lib/site-quota.ts", "needle": "export function siteCheck("},
+        {"path": "app/server/src/routes/portal/feedback.ts", "needle": "app.services.limits.hit(siteCheck(SITE_BUCKETS.feedback"}
+      ],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/architecture/API.md", "docs/architecture/SECURITY.md", "docs/ops/ENVIRONMENTS.md"]
     }
   ],
   "moduleOwners": {
+    "app/server/src/lib/security-decoy.ts": ["platform"],
+    "app/console/src/pages/Security.vue": ["platform", "permissions", "audit"],
     "app/server/src/lib/system-backup.ts": [
       "platform"
     ],
     "app/server/src/lib/tar-stream.ts": [
+      "platform"
+    ],
+    "app/server/src/lib/shield.ts": [
+      "platform"
+    ],
+    "app/server/src/lib/rate-store.ts": [
+      "platform"
+    ],
+    "app/server/src/lib/site-quota.ts": [
+      "platform",
+      "identity",
+      "mail",
+      "feedback"
+    ],
+    "app/server/src/middleware/shield.ts": [
       "platform"
     ],
     "app/console/src/pages/Backup.vue": [
@@ -13049,6 +13384,19 @@
     ],
     "app/server/src/lib/account-profiles.ts": [
       "identity"
+    ],
+    "app/server/src/lib/avatars.ts": [
+      "identity",
+      "forum",
+      "competitions",
+      "gitlab"
+    ],
+    "app/server/src/lib/github-avatars.ts": [
+      "identity"
+    ],
+    "app/server/src/lib/nano-avatar.ts": [
+      "identity",
+      "gitlab"
     ],
     "app/server/src/lib/activity.ts": [
       "audit"

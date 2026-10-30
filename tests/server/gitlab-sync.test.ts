@@ -3,7 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { createConfig } from '../../app/server/src/config';
 import { createGitlabSync, gitlabUsername } from '../../app/server/src/lib/gitlab-sync';
 import type { DirectoryAccount } from '../../app/server/src/lib/account-directory';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { REPO_ROOT } from '../../app/server/src/config';
+import { NANO_AVATAR_VERSION, nanoAvatarIndex } from '../../app/server/src/lib/nano-avatar';
 import { activityRows, signIn as rawSignIn, testApp } from './helpers';
+
+const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp') as typeof import('../../app/server/node_modules/sharp');
 
 /**
  * 这个文件里登录的每一个人都是在测「同步给成员做的事」（GitLab 账号、OIDC 身份、头像、组权限），
@@ -250,7 +257,8 @@ describe('GitLab managed identity safety (#271)', () => {
             return current && id === accountOf(101) ? { ...current, ...invalid } as DirectoryAccount : current;
           },
         },
-        subjects: services.oidcStore, clients: services.oidcStore, avatars: services.profiles, audit: services.storage.audit,
+        subjects: services.oidcStore, clients: services.oidcStore, avatars: services.profiles,
+        githubAvatars: services.githubAvatars, nanoAvatars: services.nanoAvatars, audit: services.storage.audit,
         fetch: gitlab.fetch, githubFetch: github.fetch,
       });
       const writes = gitlab.writes().length;
@@ -764,6 +772,47 @@ describe('GitLab account sync (#270)', () => {
     expect(alice.avatar).toBe('image/webp 16 avatar.webp');
     expect(row(101)).toMatchObject({ avatar_source: `forum:${'b'.repeat(64)}` });
     expect(app.services.gitlab.status()[0].pending).toEqual([]);
+  });
+
+  it('uploads the same unified avatar the site shows: identicon → NANO, real GitHub photo → its site copy, upload → the site file (#343)', async () => {
+    const { app, gitlab, github, accountOf, row, db } = await setup();
+    // GitHub 自动生成的像素图（420×420、#F0F0F0 底、一种前景色）和一张渐变照片
+    const pixels = Buffer.alloc(420 * 420 * 3, 0xf0);
+    for (let y = 35; y < 385; y++) for (let x = 35; x < 385; x++) if (((x - 35) / 70 | 0) % 2 === ((y - 35) / 70 | 0) % 2) pixels.set([0x5b, 0x9b, 0xd5], (y * 420 + x) * 3);
+    const identicon = await sharp(pixels, { raw: { width: 420, height: 420, channels: 3 } }).png().toBuffer();
+    const gradient = Buffer.alloc(420 * 420 * 3);
+    for (let i = 0; i < 420 * 420; i++) gradient.set([i % 420 * 255 / 420 | 0, (i / 420 | 0) * 255 / 420 | 0, 128], i * 3);
+    const photo = await sharp(gradient, { raw: { width: 420, height: 420, channels: 3 } }).jpeg().toBuffer();
+    github.avatar(() => new Response(new Uint8Array(identicon), { status: 200, headers: { 'content-type': 'image/png' } }));
+    signIn(app, 'pixel', 301, 'https://avatars.githubusercontent.com/u/301?v=4');
+    expect(await app.services.gitlab.reconcile()).toMatchObject({ failed: 0 });
+    const pixel = userNamed(gitlab, 'pixel')!;
+    // GitLab 头像服务按主邮箱挑图，站内用的是同一个地址：这里没有主邮箱，是建号用的占位地址
+    const index = nanoAvatarIndex(pixel.email);
+    const nano = readFileSync(join(REPO_ROOT, 'deploy/gitlab/ui/nano-avatars', NANO_AVATAR_VERSION, `avatar-0${index}.png`));
+    expect(pixel.avatar).toBe(`image/png ${nano.length} avatar.png`);
+    expect(row(301)).toMatchObject({ avatar_source: `nano:${NANO_AVATAR_VERSION}/${index}`, last_error: null });
+    expect(app.services.avatars.urlOf(accountOf(301))).toBe(`/api/identity/default-avatar/${NANO_AVATAR_VERSION}/${index}.png`);
+
+    github.avatar(() => new Response(new Uint8Array(photo), { status: 200, headers: { 'content-type': 'image/jpeg' } }));
+    signIn(app, 'photo', 302, 'https://avatars.githubusercontent.com/u/302?v=4');
+    await app.services.gitlab.reconcile();
+    const site = app.services.avatars.ofAccount(accountOf(302));
+    expect(site).toMatchObject({ kind: 'github', checked: true, url: expect.stringMatching(/^\/api\/identity\/avatar\/[0-9a-f]{64}\.webp$/) });
+    const copy = app.services.profiles.avatar((site as { hash: string }).hash)!;
+    expect(userNamed(gitlab, 'photo')!.avatar).toBe(`image/webp ${copy.length} avatar.webp`);
+    expect(row(302)).toMatchObject({ avatar_source: 'https://avatars.githubusercontent.com/u/302?v=4', last_error: null });
+
+    // 同一张像素图下一轮不再传；在站内上传了头像就改传站内那张
+    const before = gitlab.writes().length;
+    await app.services.gitlab.reconcile();
+    expect(gitlab.writes().slice(before)).toEqual([]);
+    const now = Date.now();
+    db.prepare('INSERT INTO account_avatars(hash, data, mime, created_at) VALUES(?, ?, ?, ?)').run('d'.repeat(64), Buffer.from('RIFF0000WEBPVP8 '), 'image/webp', now);
+    db.prepare('UPDATE account_profiles SET avatar_hash = ?, updated_at = ? WHERE account_id = ?').run('d'.repeat(64), now, accountOf(301));
+    await app.services.gitlab.reconcile();
+    expect(pixel.avatar).toBe('image/webp 16 avatar.webp');
+    expect(row(301)).toMatchObject({ avatar_source: `forum:${'d'.repeat(64)}` });
   });
 
   it('blocks the user GitLab created at sign-in when the account leaves before it was ever synced', async () => {

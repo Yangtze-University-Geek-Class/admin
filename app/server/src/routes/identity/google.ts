@@ -8,7 +8,7 @@ import { linkResultUrl, safeReturnTo, signinFailureUrl, type SigninOutcome } fro
 import { gatedReturn } from "../../lib/email-gate.js";
 import { readOAuthState, sessionFingerprint, setOAuthState } from "../../middleware/oauth-state.js";
 import { requireAuth, setSessionCookie } from "../../middleware/require-auth.js";
-import { attachVisitorId } from "../../middleware/visitor.js";
+import { attachVisitorId, hasVisitorCookie } from "../../middleware/visitor.js";
 import { STEP_UP_MS } from "./account.js";
 
 /**
@@ -102,8 +102,9 @@ export default async function googleRoutes(app: FastifyInstance) {
     }
     let result;
     try {
+      const hadCookie = hasVisitorCookie(req);
       await attachVisitorId(req, reply);
-      const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!);
+      const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!, { cookie: hadCookie, quotas: app.services.config.quotas });
       result = identity.signInWithGoogle({
         sub: claims.sub, email: claims.email ? normalizeEmail(claims.email) : null, invite: flow.invite ?? null,
         previousSid: req.cookies?.sid ?? null, ip: req.ip, registrationLimit,

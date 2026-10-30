@@ -28,6 +28,7 @@ import SitePanel from "./competition/SitePanel.vue";
 import FinalPanel from "./competition/FinalPanel.vue";
 import ScoreLevels from "./competition/ScoreLevels.vue";
 import { api, jsonBody } from "../lib/http";
+import { confirm } from "../lib/confirm";
 import { useSession } from "../lib/session";
 import { vSnapIndicator } from "../lib/tabs";
 import { eventPointsNote } from "../lib/competition-contest";
@@ -36,11 +37,12 @@ import { useAction, useResource } from "../lib/resource";
 import { KIND_TEXT, STATUS_TEXT } from "../lib/competitions";
 import {
   PARTICIPATION_TEXT, ROLE_TEXT, SCORE_KIND_TEXT, SCORING_TEXT, SIGNUP_STATUS_TEXT, TEAM_STATUS_TEXT,
-  emptyScoreForm, exportRateLimitNotice, matchSignups, rosterCsvName, rosterCsvPath, rosterStats, scoreErrors, scorePayload,
+  canRemoveSignup, emptyScoreForm, exportRateLimitNotice, matchSignups, removalNotice, removalResultText,
+  rosterCsvName, rosterCsvPath, rosterStats, scoreErrors, scorePayload,
   scoreTargetText, scoreTargetUrl, settingsErrors, settingsForm, settingsPayload, teamLeader,
   type ScoreErrors, type ScoreForm, type SettingsErrors, type SettingsForm,
 } from "../lib/competition-hub";
-import type { CompetitionRecord, CompetitionRoster, CompetitionRules, RosterSignup, RosterTeam, ScoreEvent, ScoreEventList } from "../lib/types";
+import type { CompetitionRecord, CompetitionRoster, CompetitionRules, RosterSignup, RosterTeam, ScoreEvent, ScoreEventList, SignupRemoval } from "../lib/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -119,6 +121,7 @@ const signupColumns = [
   { key: "team", title: "队伍", width: 140 },
   { key: "role", title: "角色", width: 76 },
   { key: "created_at", title: "报名时间（北京时间）", width: 170 },
+  { key: "actions", title: "操作", width: 92, align: "right" as const },
 ];
 const teamColumns = [
   { key: "name", title: "队名", minWidth: 180 },
@@ -149,6 +152,24 @@ async function exportCsv() {
   } finally {
     exporting.value = false;
   }
+}
+
+// —— 移出（#342）：定榜后不能改名单，按钮跟着藏起来；读不到规则时照常显示，服务端仍会拒绝 ——
+
+const finalized = computed(() => rules.data.value?.finalized === true);
+const removeSignup = useAction(async (row: RosterSignup) => {
+  const result = await api<SignupRemoval>(
+    `/api/console/competitions/${encodeURIComponent(id.value)}/signups/${encodeURIComponent(row.account_id)}`, { method: "DELETE" },
+  );
+  toast({ title: `已移出 @${row.login}`, description: removalResultText(result), variant: "success" });
+  await roster.reload();
+});
+async function askRemoveSignup(row: RosterSignup) {
+  const data = roster.data.value;
+  if (!data) return;
+  const notice = removalNotice(row, data);
+  const ok = await confirm({ title: notice.title, body: notice.body, confirmText: "移出", danger: true });
+  if (ok) await removeSignup.execute(row);
 }
 
 // —— 积分 ——
@@ -313,6 +334,7 @@ const teamTone = (team: RosterTeam) => (team.status === "locked" ? "success" : t
                 </span>
               </div>
               <ErrorAlert v-if="exportError" :error="exportError" @close="exportError = null" />
+              <ErrorAlert v-if="removeSignup.error.value" :error="removeSignup.error.value" @close="removeSignup.reset()" />
               <div class="stats">
                 <div v-for="item in rosterStats(roster.data.value, competition.kind)" :key="item.key" class="stat">
                   <span class="stat__value">{{ item.value }}</span>
@@ -322,7 +344,7 @@ const teamTone = (team: RosterTeam) => (team.status === "locked" ? "success" : t
               </div>
 
               <h3 class="subhead">报名</h3>
-              <TxDataTable style="--table-min: 880px" :columns="signupColumns" :data="roster.data.value.signups" row-key="account_id" table-layout="fixed" scroll-x>
+              <TxDataTable style="--table-min: 972px" :columns="signupColumns" :data="roster.data.value.signups" row-key="account_id" table-layout="fixed" scroll-x>
                 <template #cell-person="{ row }: { row: RosterSignup }">
                   <UserCell :login="row.login" :src="row.avatar_url" />
                 </template>
@@ -346,6 +368,10 @@ const teamTone = (team: RosterTeam) => (team.status === "locked" ? "success" : t
                 </template>
                 <template #cell-created_at="{ row }: { row: RosterSignup }">
                   <span class="muted">{{ fmtDate(row.created_at) }}</span>
+                </template>
+                <template #cell-actions="{ row }: { row: RosterSignup }">
+                  <TxButton v-if="canRemoveSignup(row, finalized)" size="sm" variant="ghost" class="danger-text" :aria-label="`把 ${row.login} 移出这场比赛`" :loading="removeSignup.pending.value" @click="askRemoveSignup(row)">移出</TxButton>
+                  <span v-else class="muted">—</span>
                 </template>
                 <template #empty><TxEmptyState title="还没有人报名" description="门户里有成员报名后会出现在这里。" size="small" /></template>
               </TxDataTable>

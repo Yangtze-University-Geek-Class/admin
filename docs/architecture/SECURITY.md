@@ -101,7 +101,7 @@ GitHub 账号被封后改用自建 GitLab，2026-10-23 的决定：GitLab 那边
 - **`console.access`**：是否显示控制台入口由这一个节点决定（`/auth/me` 的 `console_link` 直接查 `permissions.check(accountId, "console.access")`），不看任何旧的能力白名单。
 - **种子只应用一次**：`lib/migrations/2026-10-yugc-v2.ts` 的种子（默认组、继承边、默认条目）和旧 `role_assignments` 到新组的映射，由 `perm_seed_applied(key, applied_at)` 台账按稳定 key 记一次，应用过之后不管所有者怎么改（删掉条目、收紧某个限额、撤销某人的 `title.site.owner`、把某人从 `level.member` 降回 `level.registered`），服务器重启都不会把种子的原值种回来——这张迁移在 `createDatabase()` 里无条件重跑，旧实现按「现在的状态符不符合种子」判断要不要写，分不清「所有者故意改掉了」和「从来没种过」，是曾经的真实回归点。台账从空表第一次创建时按当前已有的组/边/条目/映射回填（已知局限：台账上线前就已经被所有者删掉的种子，回填时已经不存在，会在上线后的这一次启动被种回来最后一次，此后台账记住、不会再种第二次）。
 - **旧 GitHub 用户补齐**（#306）：升级到账号体系之前，「谁是 GitHub 用户」只写在会话、`forum_users.github_user_id` 与 `role_assignments.github_user_id` 里；`backfillIdentity` 只给未过期会话建号。`lib/migrations/2026-10-legacy-github.ts` 在升级前就存在（早于 `console_seeds.identity_v1`）的论坛用户和名册行里，给还没有 GitHub 身份的人补账号和身份，认领论坛用户与名册，并按旧记录恢复成员资格（论坛旧管理员 → 成员与站长，论坛成员与名册里的成员、队长、舰长 → 成员，只有往届 → 往届成员）；已建账号里停在自动授予（来源 `migration:2026-10-yugc-v2` 或 `github-signin`）的注册用户的旧成员同样恢复，控制台或邀请码给过的不动。两步各用 `console_seeds` 标记只跑一次（`legacy_github_v1`、`legacy_github_v1_levels`），之后所有者怎么改都不会被改回；只补不删，不动任何旧表行。种子台账的回填也改了：账号还没有任何权限成员记录的名册行不再预先记成已映射，否则启动回填刚认领的名册行会被 `mapRoleAssignments` 跳过。
-- **操作记录**：控制台写操作的轨迹走 `app.services.activity.recordActivity()`，落 `activity_events`（`console/activity.ts` 的 `GET /api/console/activity`、`.csv` 读取，`activity.read`/`activity.export`，IP 默认打码，部长按本部门范围过滤）；403 拒绝与 429 限流经 `middleware/http-policy.ts` 的 `recordDenialOrLimit` 统一记一条，同一主体（账号，没账号按访客编号，都没有按 IP）、同一动作、同一分钟只留一行、`meta.count` 累加，不会被刷屏灌满。旧的 `audit_logs` 表只保留历史数据，启动时把尚未复制的行一次性搬进 `activity_events`（按水位线增量、不重复），其中 `invite_link.*` 的邀请链接 token 只留前 6 位再搬，不把完整 token 带进新表。
+- **操作记录**：控制台写操作的轨迹走 `app.services.activity.recordActivity()`，落 `activity_events`（`console/activity.ts` 的 `GET /api/console/activity`、`.csv` 读取，`activity.read`/`activity.export`，IP 默认打码，部长按本部门范围过滤）；403 拒绝与 429 限流经 `middleware/http-policy.ts` 的 `recordDenialOrLimit` 统一记一条，`meta` 带方法、匹配到的路由模板（例如 `/api/console/security/blocks/:ip`，没匹配到路由为 `null`）与状态码（#333），不记原始路径、查询串和请求体；同一主体（账号，没账号按访客编号，都没有按 IP）、同一动作、同一方法/路由模板/状态码、同一分钟只留一行、`meta.count` 累加，不会被刷屏灌满。旧的 `audit_logs` 表只保留历史数据，启动时把尚未复制的行一次性搬进 `activity_events`（按水位线增量、不重复），其中 `invite_link.*` 的邀请链接 token 只留前 6 位再搬，不把完整 token 带进新表。
 - **公开的组织架构**：`GET /api/public/departments` 匿名可读，只给部门与称号的显示信息（名字、图标、色调、说明、层级），不含权限、不含任何人。
 - **论坛能力在服务端执行**（#57，#274）：登录但没有对应节点的账号在论坛能读不能写（没有 `forum.topic.create`/`forum.reply.create`/`forum.react` 等节点时，`routes/forum-api/viewer.ts` 的 `requireWriter()` 挡住，不再看旧的 `access.member`/组织角色）；置顶（`forum.moderate.pin`）、关闭（`forum.moderate.close`）、编辑或删除他人帖子（`forum.moderate.edit`/`.delete`）按话题所在分类 scope 判定，`lib/console-scope.ts` 的部门级 deny 规则同样适用。动他人帖子、置顶、关闭写审计（`storage.audit`，细节同旧机制但只记开关与编号，不记正文）。
 
@@ -128,7 +128,7 @@ GitHub 账号被封后改用自建 GitLab，2026-10-23 的决定：GitLab 那边
 - **匿名与本场无关的成员**：公开接口只有赛事事实与报名摘要（是否开放、个人或团队、人数、积分），不含报名人数、队伍、成员或任何待处理信息。匿名的公开接口（单场、天梯、动态、统计、快照）放开 `Access-Control-Allow-Origin: *`，只读、不读会话，给托管的比赛官网与 SDK 用；人只给昵称、用户名与头像，见下一节。
 - **成员**：登录且是极客班成员才能读写；成员守卫只看会话账号与组织身份，比赛路由不自己调 GitHub。成员能看到统计数字、未解散队伍的在队成员（账号、登录名、头像、角色）与「找队友」里本人写的留言。
 - **待处理的范围**：门户的待处理只含当事人自己的申请与邀请，以及本人所在队伍的待处理项（含申请留言）；其他队伍与匿名看不到任何待处理。本队普通队员能看见本队的申请，但只有领队能操作，服务端按记录判断「关系是否属于这支队伍」和角色，越权回 403 `not_team_leader` 或 404，不靠按钮是否显示；被拒绝、撤回、退出的历史不出现在门户。
-- **组织者**：名单、设置与积分复用 `competitions.manage`，没有新增能力；名单含已取消与已解散的记录，只在控制台下发。导出 CSV 写 `competition.roster.export` 审计（只有比赛 id 与行数），单元格走 `csvCell` 防公式注入；报名设置写 `competition.signup_settings.update`，积分登记与撤销写 `competition.score.add` / `competition.score.revoke`，`details` 不记留言、队名原文与撤销原因的全文。写入与审计同一事务，审计失败一起回滚。
+- **组织者**：名单、设置与积分复用 `competitions.manage`，没有新增能力；名单含已取消与已解散的记录，只在控制台下发。导出 CSV 写 `competition.roster.export` 审计（只有比赛 id 与行数），单元格走 `csvCell` 防公式注入；报名设置写 `competition.signup_settings.update`，移出报名（#342，另要 step-up）写 `competition.signup.remove`（只有被移出的账号与对队伍做了什么），积分登记与撤销写 `competition.score.add` / `competition.score.revoke`，`details` 不记留言、队名原文与撤销原因的全文。写入与审计同一事务，审计失败一起回滚。
 - **自助操作留痕**：门户报名、组队与取消写 `activity_events`，与业务写入同一事务，操作记录失败则业务回滚；不写旧 `audit_logs` 或本人的 `identity_audit`。成功即时失效本场公开缓存，人员/统计不会保留取消前的结果。
 - **限流**：成员写操作每人每分钟 30 次、名单导出每分钟 5 次，超额 429；读接口不限流，靠登录与成员门槛限制访问面。
 
@@ -150,6 +150,30 @@ GitHub 账号被封后改用自建 GitLab，2026-10-23 的决定：GitLab 那边
 site 模式不再把旧帖正文、`llms.txt`、`t/*.md` 或 `published/*.webp` 放进客户端/静态镜像后只在 UI 隐藏。网页 bootstrap 为空；身份变化先清空旧投影并使迟到的 state、正文、搜索和写回答失效。外部 `/forum/llms.txt`、`/forum/t/:id.md`、`/forum/published/:file` 由核心按当前 `sid` 和有效可见性实时授权，文本与图片都 `private, no-store`；图片拒绝统一 404。demo 与明确本机快照仍是隔离的本地数据合同。已经被公开浏览器或代理缓存过的旧静态内容无法由本次代码回收。
 
 旧论坛的密码策略、上传重新编码、归档后端保护等实现已经随旧源码退役；这些不能继续被列为新论坛已具备的防护。新的论坛后端（#57，核心服务 `/api/forum/*`，[ADR-0004](../decisions/0004-forum-backend-in-core-server.md)）重新实现了身份（只认 `sid`）、授权（`forum.*` 能力）、游客滥用防护、计数与事务（编号来自数据库计数器，写操作在事务里）、审计和头像上传：头像只收 PNG / JPEG / WebP、≤2MB，登录与每小时 10 次的额度在读请求体之前核对，每次上传都计数（解码失败也算），以 sharp 解码出的真实格式为准，解码前按像素上限（4096×4096）拒绝解压炸弹，动图只取第一帧，重新编码成 256×256 WebP、不带原图元数据，按内容哈希以 `image/webp`、`nosniff`、`default-src 'none'` 提供。`state` 里别人的通知设置不下发真实值（给初始值），一条帖子的 @提及最多通知 10 人。帖子正文按 Markdown 原样存储，服务端不做 HTML 净化：输出到页面前转义原始 HTML、拦 `javascript:` 等链接由论坛前端的渲染器负责（#107 核对并补测试），这一层没通过验收之前，论坛写入口就是站点脚本注入的入口。
+
+## 访问防护与全站上限（#333）
+
+- **按真实客户端 IP 计分**：服务端用 Fastify 的 `req.ip`（沿用 `TRUST_PROXY=2`，只信任 HK Caddy 与 web nginx 两层），不再读客户端自己带的头。429 记 2 分；`/api/`、`/auth/` 下的 400、409、413、422 记 1 分（401 与 403 不计，它们是正常的未登录与权限探测，`invalid_origin` 也不计）；密码、邀请码失败各加 3 分，验证码只有真的比对过才加 3 分（猜错，含用完挑战的第 5 次；过期、已用、没有挑战只算普通的 400），PoW 校验失败（含重放）加 3 分。窗口 10 分钟，总分到 120 分封禁（`SHIELD_THRESHOLD`、`SHIELD_WINDOW_MINUTES`）。
+- **外站诱导的浏览器请求**：浏览器写着 `Sec-Fetch-Site: cross-site`、且没有 Origin 或 Origin 不是本站的请求（别的网站用 `<img>`、`<script>`、无 cors 的 fetch 让访客的浏览器发来），不触发蜜罐封禁，也不按 429/4xx 计分，否则任何外站页面都能让它的访客、乃至同一个校园出口后面的所有人被封。Origin 写成本站却说 cross-site 的视为伪造，照常计分。这两个头是客户端写的线索，不是授权：鉴权、Origin 核对（跨站写请求照样 403 `invalid_origin`）、路由限流、全站上限与生效中的封禁都照旧；脚本也能带上这个头躲开启发式加分，躲开的只是加分，底下的限制照样拦它（`lib/shield.ts` 的 `crossSiteBrowserRequest`）。
+- **逐级加长，安静后归零**：封禁依次为 15 分钟、1 小时、6 小时、24 小时（`SHIELD_BLOCK_MINUTES`），到顶为止；上一段封禁结束后安静满 24 小时（`SHIELD_DECAY_HOURS`）级别归零。被封禁的请求不再计分。`SHIELD_ALLOWLIST` 里的网段永远不计分、不封禁，留空 = 没有豁免。
+- **落库与审计**：封禁表 `ip_blocks`、信号表 `shield_signals` 在 SQLite 里，重启后仍然有效；每次封禁写 `security.block`（系统记录），查看与解封分别写 `security.blocks.view`、`security.block.clear`。解封和对应审计在同一个事务里提交；审计失败则保持原封禁，不出现返回错误却已解封的状态。站长（根通配 `*`）默认拿到 `security.manage`，部长与其它角色没有。
+- **限流计数落库**：`@fastify/rate-limit` 的计数写在 `rate_limit_counters`（`lib/rate-store.ts`），重启后同一窗口内的次数不清零。
+- **全站北京日上限**：发码（`SITE_QUOTA_EMAIL_DAILY`，默认 2000）、注册（`SITE_QUOTA_REGISTER_DAILY`，默认 300）、意见箱（`SITE_QUOTA_FEEDBACK_DAILY`，默认 200）、设备码（`SITE_QUOTA_DEVICE_CODE_DAILY`，默认 500）；同一收件人每天 `EMAIL_RECIPIENT_QUOTA_DAILY`（默认 10）封，换 IP 无效（#319）。计数走 `limit_events`，按北京日零点重置，`-1` 为不限。
+- **没有 visitor cookie 的注册**：按 IP 另计 `REGISTER_NO_COOKIE_IP_DAILY`（默认 3），丢掉 cookie 不能绕过设备限额。
+- **边缘与 nginx**：web 容器的 nginx 按真实客户端 IP 限流，只从隧道两端和 Docker 网段读取 `X-Forwarded-For`；写请求（除 GET、HEAD、OPTIONS）突发 60、每秒 5 个，读桶突发 200、每秒 30 个，连接每个 IP 最多 100 个。与 server 共用 `SHIELD_ENABLED` 和 `SHIELD_ALLOWLIST`：关闭或白名单来源不进入 nginx 限流桶；应用路由自身的限额与全站配额不因此取消。信任名单不能放宽。HK 入口 WAF、人机挑战不在本次范围，对应 GitLab #326。
+- **剩余风险**：IP级防护不能区分校园NAT后的不同使用者，登录用户也可能被同一出口的异常请求牵连。控制台 `/console/security` 允许持有 `security.manage` 的管理员核对并确认解封，写入还要求近期登录。阈值没有因拒绝样本而下调；成功请求基线与真实环境验收仍需另验。防护不替代Turnstile（未配置）与人工复核。
+- **蜜罐与法律告知（#333 追加）**：`/.env`、`/.git/`、`/wp-login.php`、`/wp-admin`、`/phpmyadmin`、`/actuator/`、`/server-status`、`/.aws/` 等常见扫描目标（前缀表是 `lib/shield.ts` 的 `HONEYPOT_PREFIXES`，web nginx 的 `location ~*` 由同一份生成，`tests/tooling/abuse-notices.test.ts` 核对）第一次命中就直接封禁，回 404。nginx 按规整后的路径匹配、转发原始请求行，server 也按同样的规整写法比较（解一次百分号编码、合并重复的 `/`、解析 `.` 与 `..`），`/%2Eenv`、`//.env` 绕不过去。被拦下的回应（403 `ip_blocked`、429、蜜罐 404）带一句中文 `notice`（`SHIELD_NOTICE`）：本次请求已被安全策略限制，援引《网络安全法》第二十九条，要求未经授权的自动化工具与 AI 代理停止操作、不得绕过，已授权的维护与测试按站方约定范围进行。正常回应不带。`/.well-known/security.txt`（RFC 9116）从 `PUBLIC_ORIGIN` 拼，Contact 指向意见箱；被封禁的来源也拿得到，误封的人能找到站方。
+- **临时合成蜜罐**：上述404是默认行为；管理员在 `/console/security` 确认开启后，仅 `GEEK_DEPLOYMENT_ENVIRONMENT=production` 且基础防护开启的实例，对未封禁、非白名单、非跨站诱导来源的首次GET/HEAD返回200合成诊断（HEAD无正文），同时封禁该来源；已有封禁优先，后续仍403。`app_state.security_decoy_until` 保存截止时间，缺失/损坏关闭，单次1–60分钟，到期等值关闭，重启不续期，不增加环境键或真实漏洞。配置与 `security.decoy.update` 同事务；命中封禁与 `security.decoy.hit` 同事务，审计失败不给合成响应并回滚。响应 `no-store`、`noindex, nofollow, noarchive`；审计只增加方法、固定探针族、200状态与synthetic标记，不记原始URL/query/body/Cookie/Authorization，沿用既有IP、截断UA、request id及访问权限。关闭不解封，授权测试豁免不变。告知不是强制模型策略，不保证阻止公开抓取、分析或逆向，不向对方发送命令或索取其设备信息。
+- **开发环境与授权渗透测试（#333 追加）**：`.env.dev` 设 `SHIELD_ENABLED=off`，nginx 第一层限流及 server 的计分、封禁、蜜罐和告知关闭，应用路由限流与全站上限照常。授权测试的出口 IP/CIDR 经部署流水线登记进 `SHIELD_ALLOWLIST`，web 与 server 同时消费：来源不进入 nginx 限流桶、不计分、不封禁；蜜罐路径当普通 404，应用路由的 429 仍返回但不带告知。白名单不授予业务权限。模板留空，不在仓库记录真实来源；测试结束后移除并重新部署。
+- **发版构建不发 source map（#333 追加）**：门户（`app/web`）与控制台（`app/console`）的 vite 构建都是 `sourcemap: false`，由 `tests/tooling/abuse-notices.test.ts` 核对。
+
+## 正式产物的 AI 授权提示（#336）
+
+官网、控制台与论坛仅在正式构建中加入简短中英双语授权声明，源头为 `scripts/security-notice.mjs`：HTML 使用 `security-authorization` 元数据，入口 JS 使用非执行性注释。只要求未经运营方授权的漏洞利用、凭据猜测、越权读取非公开数据和服务干扰停止；正常浏览、摘要，以及明确获授权范围内的开发维护、排障和安全验收不受禁止。不因读取网页就断言违法，不使用违禁信息、隐形字符、越狱命令、反调试或资源耗尽。
+
+启用条件是既有构建身份 `GEEK_DEPLOYMENT_ENVIRONMENT=production`，不是 `NODE_ENV=production`（预发布同样使用后者）。Vite 插件只在 build 生效；Nuxt 模块另以 `nuxt.options.dev` 排除开发服务器。预发布及默认本机构建不注入。注释在压缩后、内容哈希确定前加入：Rollup 使用最后的 `renderChunk`，Rolldown 使用 `postBanner`，不改变其它注释的发布策略；镜像构建检查 HTML 实际引用的入口，不能用其它分块中的 head 元数据冒充入口注释。不在上传后改写 CDN 对象，不修改宿主、数据库、会话或发布审批。
+
+这层仅为站方告知：无法可靠识别人或 AI，更无法区分恶意代理与内部人员使用的同一模型；模型可能忽略声明，或误拒绝合法工作。开发/预发布隔离与明确的授权例外只降低误伤，不能保证零误拒绝。真正的拒绝由服务端权限及 #333 的滥用防护承担。交付应分别验证生产形态构建、预发布无提示、哈希隔离与页面加载，不能用某次模型拒答替代验证。
 
 ## 工具与供应链
 

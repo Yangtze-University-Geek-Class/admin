@@ -5,6 +5,7 @@ import {
   displayUserCode, normalizeScope, type DeviceClientId,
 } from "../../lib/device-store.js";
 import { emailRequired, gateRefusal, gateRefusalBody, profileRequired } from "../../lib/email-gate.js";
+import { SITE_BUCKETS, siteCheck, siteQuotaRefusal } from "../../lib/site-quota.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requirePermission } from "../../middleware/require-permission.js";
 
@@ -41,6 +42,12 @@ export default async function deviceRoutes(app: FastifyInstance) {
       if (!DEVICE_CLIENTS[clientId as DeviceClientId]) return reply.code(400).send(oauthError("invalid_client", "未登记的客户端"));
       const scope = normalizeScope(clientId, typeof body.scope === "string" ? body.scope : undefined);
       if (!scope) return reply.code(400).send(oauthError("invalid_scope", "不支持的 scope"));
+      // 全站每个北京日的设备授权码上限（#333）：超了不发码，用 site_quota_exceeded 说明原因
+      const quota = app.services.limits.hit(siteCheck(SITE_BUCKETS.deviceCode, config.quotas.siteDeviceCode));
+      if (!quota.ok) {
+        const refused = siteQuotaRefusal(app.services.limits, SITE_BUCKETS.deviceCode, app.services.clock());
+        return reply.code(429).header("Retry-After", String(refused.retryAfter)).send(refused.body);
+      }
       const grant = device.createGrant({ clientId, scope });
       // verification_uri 跟随环境的唯一 origin，不写死域名。
       const verificationUri = `${config.publicOrigin}/device`;
@@ -149,7 +156,8 @@ export default async function deviceRoutes(app: FastifyInstance) {
     // 年级给命令行展示身份用；真实姓名不在这里（#277 的硬约束：命令行拿不到任何账号的真实姓名，
     // 哪怕是本人——account-profiles.ts 的注释也只把这一项许给本人浏览器会话和有 users.manage 的管理员）。
     const { grade, grade_label } = app.services.profiles.realInfo(identity.accountId);
-    const profile = publicProfile(app.services.profiles.get(identity.accountId), { login: identity.login, avatarUrl: identity.avatarUrl });
+    // 头像是统一头像（lib/avatars.ts，#343），和网页上看到的同一张
+    const profile = publicProfile(app.services.profiles.get(identity.accountId), { login: identity.login, avatarUrl: app.services.avatars.urlOf(identity.accountId) });
     return {
       sub: identity.accountId,
       account_id: identity.accountId,

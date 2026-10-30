@@ -3,7 +3,7 @@ import { loadConfig } from "./config.js";
 
 async function main() {
   const config = loadConfig();
-  const app = await buildApp({ config, logger: true, mailWorker: true, sessionCleanup: true, gitlabSync: true, activityCleanup: true });
+  const app = await buildApp({ config, logger: true, mailWorker: true, sessionCleanup: true, gitlabSync: true, activityCleanup: true, githubAvatarCheck: true });
   let closing = false;
   const close = async () => {
     if (closing) return;

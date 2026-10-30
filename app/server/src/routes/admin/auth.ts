@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { readOAuthState, setOAuthState } from "../../middleware/oauth-state.js";
 import { clearSessionCookies, setSessionCookie } from "../../middleware/require-auth.js";
-import { attachVisitorId } from "../../middleware/visitor.js";
+import { attachVisitorId, hasVisitorCookie } from "../../middleware/visitor.js";
 
 export default async function authRoutes(app: FastifyInstance) {
   const { buildAuthorizeUrl,
@@ -70,8 +70,9 @@ export default async function authRoutes(app: FastifyInstance) {
       // 外部请求到此做完；建号（邀请码选填）、认领、插入会话、删旧会话、审计在一个事务里（lib/identity-store.ts），失败整体回滚。
       let signin;
       try {
+        const hadCookie = hasVisitorCookie(req);
         await attachVisitorId(req, reply);
-        const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!);
+        const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!, { cookie: hadCookie, quotas: app.services.config.quotas });
         signin = identity.signInWithGithub({ github: account, accessToken: token, invite: flow.invite ?? null, previousSid: req.cookies?.sid ?? null, ip: req.ip, registrationLimit });
       } catch (cause) {
         req.log.error({ code: (cause as { code?: string })?.code ?? "signin_transaction_failed", requestId: req.id }, "sign-in transaction failed");
@@ -152,8 +153,8 @@ export default async function authRoutes(app: FastifyInstance) {
    * access.resolve 里那次 GitHub API 调用失败的识别，这类调用在 /auth/me 里已经不存在了；真的调 GitHub（登录
    * 本身）出错仍由 middleware/http-policy.ts 的通用兜底处理，不受这次改动影响。
    * 登录了在旧字段基础上加 `level`/`level_name`/`department`/`titles`（lib/permissions.ts 的 groupsOf）、
-   * `permissions`/`quota`、账号资料的 `prefs`/`username`/`display_name`/`bio`，`avatar_url` 改成账号资料里
-   * 上传的头像优先，没传过时回退到登录渠道自带的头像，以及打码邮箱与绑定渠道的 `identities`。
+   * `permissions`/`quota`、账号资料的 `prefs`/`username`/`display_name`/`bio`，`avatar_url` 是统一头像（lib/avatars.ts，#343：
+   * 上传的、GitHub 的、NANO 默认头像），以及打码邮箱与绑定渠道的 `identities`。
    */
   app.get("/auth/me", async (req) => {
     const sid = req.cookies?.sid;
@@ -166,7 +167,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const real = profiles.realInfo(s.account_id);
     // account_id：极客班账号（官网、论坛、控制台读到的是同一个值）；provider：这次的登录方式。user_id 仍是 GitHub 数字 id。
     return {
-      signed_in: true, login: s.login, user_id: s.user_id, avatar_url: profile.avatar_url ?? s.avatar_url,
+      signed_in: true, login: s.login, user_id: s.user_id, avatar_url: app.services.avatars.urlOf(s.account_id),
       account_id: s.account_id, provider: s.provider, console_link: permissions.check(s.account_id, "console.access"),
       email_required: emailRequired(app.services, s.account_id), profile_required: profileRequired(app.services, s.account_id),
       real_name: real.real_name, grade: real.grade, grade_label: real.grade_label,

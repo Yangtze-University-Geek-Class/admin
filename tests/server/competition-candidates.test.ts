@@ -264,7 +264,8 @@ describe('收集候选贡献', () => {
     expect(byIid.issue10).toMatchObject({ importance: null, core: 'edge' });
     expect(Object.keys(byIid.pr1)).not.toEqual(expect.arrayContaining(['size_hint']));
     expect(Object.keys(byIid.pr1)).not.toEqual(expect.arrayContaining(['suggested']));
-    expect(page.items[0].account).toEqual({ account_id: expect.any(String), username: expect.any(String), display_name: expect.any(String), avatar_url: null });
+    // 统一头像（#343）：绑了 GitHub、没上传头像的人是 GitHub 头像
+    expect(page.items[0].account).toEqual({ account_id: expect.any(String), username: expect.any(String), display_name: expect.any(String), avatar_url: expect.stringMatching(/^https:\/\/avatars\.githubusercontent\.com\/u\/\d+$/) });
     expect(page.last_run).toMatchObject({ created: 3 });
     expect(gitlab.calls.filter(call => /\/(diffs|changes)(\?|$)/.test(call))).toEqual([]);
 
@@ -505,7 +506,12 @@ describe('GitLab 有限故障与竞态矩阵', () => {
       payload: change === 'accept' ? { importance: 'critical', core: 'core' } : { reason: '合成驳回' } })).statusCode).toBe(200);
     release(); const run = await pending;
     expect(run.error).toBe(change === 'rules' ? 'collection_state_changed' : null);
-    const current = (await c.list()).items[0];
+    const listed = (await c.list()).items;
+    // 作者取消报名后候选不再列出（#342），行本身还是待确认、没有被旧快照加分
+    if (change === 'cancel') expect(listed).toEqual([]);
+    const current = change === 'cancel'
+      ? c.app.services.storage.db.prepare('SELECT status, accepted_via FROM competition_score_candidates WHERE id = ?').get(candidate.id) as { status: string; accepted_via: string | null }
+      : listed[0];
     expect(current.status).toBe(change === 'accept' ? 'accepted' : change === 'reject' ? 'rejected' : 'pending');
     expect(current.accepted_via).toBe(change === 'accept' ? 'console' : null);
     const events = (await c.app.inject({ url: `/api/console/competitions/${c.id}/score-events`, headers: c.as('bob') })).json().events;

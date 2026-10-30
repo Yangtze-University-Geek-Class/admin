@@ -8,6 +8,7 @@ import { EMAILS_MAX } from "../../lib/identity-store.js";
 import { clearChallengeCookie, readChallengeCookie, sendCode, setChallengeCookie, tooSoon } from "./email.js";
 import { loginProviders } from "./providers.js";
 import { emailRequired, profileRequired } from "../../lib/email-gate.js";
+import { emailQuotaChecks, emailQuotaRefusal, spendEmailQuota } from "../../lib/site-quota.js";
 import { normalizeRealName } from "../../lib/account-profiles.js";
 import { enrollmentYearFor, type SelectableGrade } from "../../lib/grade.js";
 import { revokeAccountCredentials } from "../../lib/account-revoke.js";
@@ -69,8 +70,13 @@ export default async function accountRoutes(app: FastifyInstance) {
     if (!fresh(req)) return stepUp(reply);
     const refusal = identity.emailAddRefusal(session.account_id, email);
     if (refusal) return refusal === "identity_exists" ? emailExists(reply) : emailLimit(reply);
+    // 绑定邮箱也要发码，和登录用同一套发码上限（#319、#333）
+    const quota = emailQuotaChecks(email, app.services.config.quotas);
+    const refused = emailQuotaRefusal(app.services.limits, quota, app.services.clock());
+    if (refused) return reply.code(429).header("Retry-After", String(refused.retryAfter)).send(refused.body);
     const started = emailLogin.start({ purpose: "link", email, ip: req.ip, replaces: readChallengeCookie(req), accountId: session.account_id, sessionHash: sessionFingerprint(session.id) });
     if (!started.ok) return tooSoon(reply, started.retryAfter);
+    spendEmailQuota(app.services.limits, quota);
     sendCode(req, email, started.code, "link", started.id);
     setChallengeCookie(reply, started.id, CHALLENGE_PATH);
     return reply.code(202).send({ resend_after: RESEND_AFTER_S });

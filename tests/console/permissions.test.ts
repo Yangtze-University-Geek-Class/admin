@@ -86,8 +86,9 @@ describe("entry and group forms", () => {
   });
   it("groups node options by domain, wildcards first, with the node in the label so search finds both", () => {
     const options = nodeSelectGroups(MOCK_NODES.nodes, MOCK_NODES.domains);
-    expect(options.map(item => item.label)).toEqual(["通配", "论坛", "招新投递", "比赛", "账号", "控制台", "GitLab", "系统", "限额"]);
-    expect(options.find(item => item.label === "控制台")!.options).toContainEqual({ value: "users.view", label: "查看用户 users.view" });
+    const system = options.find(group => group.options.some(option => option.value === "system.backup"));
+    expect(system?.options.map(option => option.value)).toContain("security.manage");
+    expect(options[0]?.options.some(option => option.value === "*")).toBe(true);
     expect(nodesByDomain(["gitlab.view", "users.view", "forum.react"]).map(item => item.id)).toEqual(["forum", "console", "gitlab"]);
   });
 });

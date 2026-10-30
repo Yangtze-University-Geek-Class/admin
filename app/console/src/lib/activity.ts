@@ -73,6 +73,8 @@ const ACTION_TEXT: Record<string, string> = {
   "os.boot.played": "看完开机动画", "os.boot.skipped": "跳过开机动画", "os.app.open": "打开桌面应用", "os.note.dismissed": "收起新生便签",
   "forum.theme.change": "换论坛主题", "page.view": "打开页面", "events.rejected": "上报被丢弃",
   "system.backup.export": "导出系统备份",
+  "security.decoy.hit": "命中合成蜜罐", "security.decoy.update": "调整合成蜜罐",
+  "security.block": "自动封禁", "security.blocks.view": "查看封禁", "security.block.clear": "解除封禁",
   "application.settings.update": "开放或关闭招新", "http.apply_closed": "投递被拒（招新已关闭）",
   "mail.template.create": "新建邮件模板", "mail.template.update": "修改邮件模板", "mail.template.delete": "删除邮件模板",
   "mail.template.preview": "预览投递人的邮件", "mail.template.test_send": "发测试邮件",

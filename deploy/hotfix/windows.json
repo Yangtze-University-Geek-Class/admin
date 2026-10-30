@@ -90,6 +90,42 @@
       ],
       "closedAt": "2026-10-30T19:09:45+08:00",
       "evidence": "补登的 24 个 #308 提交已在 GitLab stage（14e46e6d 起），GitHub stage 经同步 PR 合回；补登后 GitHub main 推送的 branch-guard 通过。"
+    },
+    {
+      "issue": 333,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T19:15:00+08:00",
+      "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
+      "expiresAt": "2026-11-02T19:15:00+08:00"
+    },
+    {
+      "issue": 336,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T19:15:00+08:00",
+      "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
+      "expiresAt": "2026-11-02T19:15:00+08:00"
+    },
+    {
+      "issue": 342,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T19:15:00+08:00",
+      "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
+      "expiresAt": "2026-11-02T19:15:00+08:00"
+    },
+    {
+      "issue": 343,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T19:15:00+08:00",
+      "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
+      "expiresAt": "2026-11-02T19:15:00+08:00"
     }
   ]
 }

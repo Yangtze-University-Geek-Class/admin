@@ -2,7 +2,7 @@
 // 不导入 Vue，tests/console/competition-hub.test.ts 直接测。规则以服务端 competition-contract.ts 为准，
 // 这里只做输入前的基本校验（必填、长度、两档要选），错误码与中文 message 仍原样显示服务端的。
 import type {
-  CompetitionKind, CompetitionRoster, Core, Importance, RosterSignup, RosterTeam, ScoreEvent, ScoreKind, SignupSettings,
+  CompetitionKind, CompetitionRoster, Core, Importance, RosterSignup, RosterTeam, ScoreEvent, ScoreKind, SignupRemoval, SignupSettings,
 } from "./types";
 import { ApiError } from "./http";
 
@@ -122,6 +122,47 @@ export function teamLeader(team: RosterTeam) {
   return team.members.find(member => member.role === "leader")
     ?? team.members.find(member => member.account_id === team.leader_account_id)
     ?? null;
+}
+
+// —— 移出（#342） ——
+
+/** 只有有效报名能移出；定榜后名单不能再改，和服务端一致。 */
+export const canRemoveSignup = (row: RosterSignup, finalized: boolean) => row.status === "active" && !finalized;
+
+/**
+ * 确认框的标题与正文：先说报名会怎样，再按服务端的规则说队伍会怎样（队员退出；领队交给最早入队的队员，
+ * 即名单里领队之后的第一位；只剩领队一人就解散；已确认的队伍低于最低人数退回招募中）。
+ */
+export function removalNotice(row: RosterSignup, roster: Pick<CompetitionRoster, "settings" | "teams">): { title: string; body: string } {
+  const title = `把 @${row.login} 移出这场比赛？`;
+  const lines = ["报名会改为已取消，不再算进报名人数和天梯；已登记的积分记录保留。"];
+  const team = row.team_id ? roster.teams.find(item => item.id === row.team_id && item.status !== "disbanded") : undefined;
+  if (team) {
+    const others = team.members.filter(member => member.account_id !== row.account_id);
+    if (!others.length) {
+      lines.push(`「${team.name}」只有 @${row.login} 一人，队伍会解散。`);
+    } else {
+      const successor = row.role === "leader" ? others[0] : null;
+      lines.push(successor
+        ? `@${row.login} 是「${team.name}」的领队，领队会交给最早入队的 @${successor.login}，然后 @${row.login} 退出队伍。`
+        : `@${row.login} 会退出「${team.name}」。`);
+      if (team.status === "locked" && others.length < roster.settings.team_min) {
+        lines.push(`「${team.name}」已确认参赛，移出后只剩 ${others.length} 人，少于最低 ${roster.settings.team_min} 人，会退回招募中。`);
+      }
+    }
+  }
+  return { title, body: lines.join("") };
+}
+
+/** 移出成功后的提示：按服务端返回的结果说队伍怎样了。 */
+export function removalResultText(result: SignupRemoval): string {
+  const team = {
+    none: "报名已取消。",
+    left: "已退出队伍。",
+    transferred: "领队已交给最早入队的队员。",
+    disbanded: "队伍已解散。",
+  }[result.team_action];
+  return result.unlocked ? `${team}队伍人数不够，已退回招募中。` : team;
 }
 
 /** CSV 的同源地址。接口每分钟限 5 次。 */

@@ -31,7 +31,7 @@ async function setup(overrides: Parameters<typeof testApp>[0] = {}) {
     }
     return new Response(new Uint8Array(response.rawPayload), { status: response.statusCode, headers });
   };
-  const author = signIn(app, 'profile-author', 92101, 'https://avatars.example.test/author.png');
+  const author = signIn(app, 'profile-author', 92101, 'https://avatars.githubusercontent.com/test/author.png');
   const reader = signIn(app, 'profile-reader', 92102);
   grantPermGroup(app, accountIdOf(app, 'profile-author'), 'level.member');
   const request = (path: string, sid?: string, method = 'GET', body?: unknown) => fetch(`${origin}${path}`, {
@@ -71,7 +71,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     };
     expect(canonical).toMatchObject({ display_name: '', avatar_url: null });
 
-    signIn(app, 'profile-renamed', 92101, 'https://avatars.example.test/renamed.png');
+    signIn(app, 'profile-renamed', 92101, 'https://avatars.githubusercontent.com/test/renamed.png');
     expect(accountIdOf(app, 'profile-renamed')).toBe(accountId);
 
     for (const sid of [reader, undefined]) {
@@ -82,7 +82,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
         id: authorId,
         username: canonical.username,
         displayName: 'profile-renamed',
-        avatarUrl: 'https://avatars.example.test/renamed.png',
+        avatarUrl: 'https://avatars.githubusercontent.com/test/renamed.png',
       });
       expect(projected).not.toHaveProperty('email');
       expect(projected).not.toHaveProperty('real_name');
@@ -95,7 +95,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
       id: authorId,
       username: canonical.username,
       displayName: 'profile-renamed',
-      avatarUrl: 'https://avatars.example.test/renamed.png',
+      avatarUrl: 'https://avatars.githubusercontent.com/test/renamed.png',
     })]);
     const oldSearch = await request('/api/forum/search?q=profile-author', reader);
     expect(oldSearch.status).toBe(200);
@@ -105,7 +105,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     expect((await suggest.json()).users).toEqual([{
       username: canonical.username,
       display_name: 'profile-renamed',
-      avatar_url: 'https://avatars.example.test/renamed.png',
+      avatar_url: 'https://avatars.githubusercontent.com/test/renamed.png',
     }]);
   });
 
@@ -172,7 +172,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     expect(after).not.toHaveProperty('email');
     expect(after).not.toHaveProperty('emails');
     expect(after).not.toHaveProperty('prefs');
-    signIn(app, 'provider-renamed', 92101, 'https://avatars.example.test/new.png');
+    signIn(app, 'provider-renamed', 92101, 'https://avatars.githubusercontent.com/test/new.png');
     expect(accountIdOf(app, 'provider-renamed')).toBe(accountId);
     expect(app.services.identity.getAccountClaims(accountId)?.github?.id).toBe(92101);
     expect(await read()).toMatchObject({ sub: accountId, username: 'device_author', display_name: '设备昵称', bio: '设备简介', avatar_url });
@@ -192,7 +192,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     const suggest = await request('/api/forum/users/suggest?q=search_', reader);
     expect(suggest.status).toBe(200);
     expect((await suggest.json()).users).toEqual([{
-      username: 'search_author', display_name: '搜索新昵称', avatar_url: 'https://avatars.example.test/author.png',
+      username: 'search_author', display_name: '搜索新昵称', avatar_url: 'https://avatars.githubusercontent.com/test/author.png',
     }]);
     const literal = await request('/api/forum/users/suggest?q=search%25', reader);
     expect(literal.status).toBe(200);
@@ -243,13 +243,13 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     expect((await request('/api/identity/avatar', author, 'PUT', PNG)).status).toBe(200);
     const removed = await request('/api/forum/me/avatar', author, 'DELETE');
     expect(removed.status).toBe(200);
-    expect((await removed.json()).changes.users[0].avatarUrl).toBe('https://avatars.example.test/author.png');
+    expect((await removed.json()).changes.users[0].avatarUrl).toBe('https://avatars.githubusercontent.com/test/author.png');
     expect((await (await request('/api/identity/profile', author)).json()).avatar_url).toBeNull();
     const state = await (await request('/api/forum/state', reader)).json();
-    expect(state.state.users.find((user: ForumUser) => user.id === 'm92101').avatarUrl).toBe('https://avatars.example.test/author.png');
+    expect(state.state.users.find((user: ForumUser) => user.id === 'm92101').avatarUrl).toBe('https://avatars.githubusercontent.com/test/author.png');
     const info = await fetch(`${origin}/auth/device/userinfo`, { headers: { authorization: `Bearer ${token}` } });
     expect(info.status).toBe(200);
-    expect((await info.json()).avatar_url).toBe('https://avatars.example.test/author.png');
+    expect((await info.json()).avatar_url).toBe('https://avatars.githubusercontent.com/test/author.png');
   });
 
   it('新统一用户名的 @ 提及仍指向同一论坛作者', async () => {
@@ -298,7 +298,7 @@ describe('统一公开资料的真实 HTTP 消费者', () => {
     const projected = state.state.users.find((user: ForumUser) => user.id === authorId);
     expect(projected).toMatchObject({
       username: 'legacy_author', displayName: '迁移时昵称', bio: '迁移时简介',
-      avatarUrl: 'https://avatars.example.test/author.png',
+      avatarUrl: 'https://avatars.githubusercontent.com/test/author.png',
     });
     const info = await fetch(`${origin}/auth/device/userinfo`, { headers: { authorization: `Bearer ${token}` } });
     expect(info.status).toBe(200);

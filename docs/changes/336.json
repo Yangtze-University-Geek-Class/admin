@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "issue": 336,
+  "kind": "engineering",
+  "summary": "正式构建注入非执行性的 AI 安全测试授权提示；开发和预发布不注入，维持内容哈希与 CSP，和 #333 的服务端拦截分层。",
+  "applications": [
+    "web",
+    "console",
+    "forum"
+  ],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "不改变正常浏览、业务功能或授权范围，仅为正式产物添加站方告知。",
+      "evidence": [
+        "scripts/security-notice.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "没有 API 或服务端逻辑变化；#333 的封禁与拦截通知在独立任务处理。",
+      "evidence": [
+        "app/web/vite.config.ts",
+        "app/console/vite.config.ts",
+        "app/forum/modules/security-notice.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "提示明确不授予访问权；不替代现有会话、权限和滥用防护，保留已授权维护与验收。",
+      "evidence": [
+        "scripts/security-notice.mjs",
+        "docs/architecture/SECURITY.md"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "只处理静态构建文本，不读写用户数据、数据库或真实凭据。",
+      "evidence": [
+        "scripts/security-notice.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "复用已有 Vite/Nuxt Kit，无新增依赖、外部请求或服务；论坛模块按现有集成清单登记。",
+      "evidence": [
+        "app/forum/modules/security-notice.ts",
+        "app/forum/ADOPTION.json"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "三端服务合同、安全边界和测试说明同步正式专属的构建行为与软性提示限制。",
+      "evidence": [
+        "docs/services/web/README.md",
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/architecture/SECURITY.md",
+        "docs/conventions/TESTING.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "真实压缩构建覆盖环境隔离、开发模式、哈希确定性、执行语义和 CSP；三端实际产物与浏览器另做本地烟测，不冒称线上或模型效果。",
+      "evidence": [
+        "tests/tooling/security-notice.test.ts",
+        "app/forum/tests/security-notice.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "使用已有 GEEK_DEPLOYMENT_ENVIRONMENT；按实际打包器在压缩后、内容哈希前加入注释，镜像检查 HTML 实际引用的入口，不改变其它注释策略，不新增发布开关、宿主操作或秘密。",
+      "evidence": [
+        "app/web/Dockerfile",
+        "app/forum/Dockerfile",
+        "scripts/security-notice.mjs"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/security-notice.mjs",
+        "scripts/security-notice.d.mts",
+        "app/web/vite.config.ts",
+        "app/web/Dockerfile",
+        "app/console/vite.config.ts",
+        "app/forum/modules/security-notice.ts",
+        "app/forum/tests/security-notice.test.ts",
+        "app/forum/Dockerfile",
+        "app/forum/ADOPTION.json",
+        "tests/tooling/security-notice.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "三端构建期的正式身份选择、静态告知、镜像输入与真实构建回归。"
+    },
+    {
+      "paths": [
+        "docs/services/web/README.md",
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/architecture/SECURITY.md",
+        "docs/conventions/TESTING.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "三端构建与授权提示的现行服务说明、安全边界和验证约定。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "服务与安全说明变化后按现有生成器更新来源摘要，不新增业务接口或能力。"
+    }
+  ],
+  "documents": [
+    "docs/services/web/README.md",
+    "docs/services/console/README.md",
+    "docs/services/forum/README.md",
+    "docs/architecture/SECURITY.md",
+    "docs/conventions/TESTING.md"
+  ],
+  "tests": [
+    "tests/tooling/security-notice.test.ts",
+    "app/forum/tests/security-notice.test.ts"
+  ],
+  "compatibility": "开发和预发布不注入；正式只增加 meta 与注释，不引入运行时代码、UI 或接口变化，入口哈希随最终字节生成。",
+  "migration": "无数据迁移、环境键或秘密变化；通过现有 tag 发布所构建的各环境镜像交付，不在本任务自动发布。",
+  "rollback": "使用原有镜像回滚路径；没有数据结构或宿主修改，不能移动已发布 tag。"
+}

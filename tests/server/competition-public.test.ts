@@ -33,7 +33,7 @@ describe('公开接口只给公开字段', () => {
     expect(board.headers['access-control-allow-origin']).toBe('*');
     expect(board.headers['access-control-allow-credentials']).toBeUndefined();
     const body = board.json();
-    expect(body.individuals[0]).toEqual({ rank: 1, username: expect.any(String), display_name: '爱丽丝', avatar_url: null, team_name: '夜猫子', score: 25 });
+    expect(body.individuals[0]).toEqual({ rank: 1, username: expect.any(String), display_name: '爱丽丝', avatar_url: expect.stringMatching(/^https:\/\/avatars\.githubusercontent\.com\/u\/\d+$/), team_name: '夜猫子', score: 25 });
     expect(body.teams[0]).toMatchObject({ rank: 1, name: '夜猫子', score: 25, members: [{ display_name: '爱丽丝' }] });
     expect(Object.keys(body.teams[0].members[0]).sort()).toEqual(['avatar_url', 'display_name', 'username']);
 

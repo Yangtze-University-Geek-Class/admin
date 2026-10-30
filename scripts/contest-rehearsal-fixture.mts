@@ -1,6 +1,6 @@
 // #276 隔离演练：真实应用/存储/OAuth 路由，只替换外部 HTTP。此模块不被生产应用导入。
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +35,13 @@ export async function createRehearsal(options: { port?: number; staticRoot?: Bui
   const gitlabSubjects = new Map<number, string>();
   const ids = new Map<Role, string>();
   const cookies = new Map<Role, string>();
+  // 每个角色是一台设备：回调时带自己的访客 cookie（和真实浏览器一样）。没有 cookie 的注册按更严的 IP 额度算（#333），
+  // 同一个 IP 上的五个角色不带 cookie 会被挡在第四个。
+  const visitors = new Map<Role, string>();
+  const visitorCookie = (role: Role) => {
+    if (!visitors.has(role)) visitors.set(role, randomUUID());
+    return `yugc_vid=${visitors.get(role)}`;
+  };
   let competitionId = '';
   let app: Awaited<ReturnType<typeof buildApp>>;
   let closed = false;
@@ -83,7 +90,7 @@ export async function createRehearsal(options: { port?: number; staticRoot?: Bui
     assert.equal(started.statusCode, 302);
     const state = new URL(String(started.headers.location)).searchParams.get('state')!;
     const cookie = ([] as string[]).concat(started.headers['set-cookie'] ?? []).find(value => value.startsWith('oauth_state='))!.split(';')[0];
-    const signed = await app.inject({ url: `/auth/callback?code=${role}&state=${encodeURIComponent(state)}`, headers: { cookie } });
+    const signed = await app.inject({ url: `/auth/callback?code=${role}&state=${encodeURIComponent(state)}`, headers: { cookie: `${cookie}; ${visitorCookie(role)}` } });
     const setCookies = ([] as string[]).concat(signed.headers['set-cookie'] ?? []);
     const sid = setCookies.find(value => value.startsWith('sid='));
     assert.equal(signed.statusCode, 302);

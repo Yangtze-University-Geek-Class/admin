@@ -5,6 +5,7 @@ import { ACCOUNT_AVATAR_BYTES_MAX, ACCOUNT_AVATAR_TYPES, AccountAvatarError, pro
 import { redeemInvite } from "../../lib/invite-codes.js";
 import { setExclusiveGroupMembership } from "../../lib/permissions.js";
 import { hashIp, INVITE_LOCK_MAX_ACCOUNT, INVITE_LOCK_MAX_IP, INVITE_LOCK_WINDOW_MS } from "../../lib/identity-store.js";
+import { NANO_AVATAR_VERSION } from "../../lib/nano-avatar.js";
 
 const byAccount = (req: FastifyRequest) => req.session!.account_id;
 
@@ -17,7 +18,7 @@ const byAccount = (req: FastifyRequest) => req.session!.account_id;
  */
 
 export default async function identityProfileRoutes(app: FastifyInstance) {
-  const { profiles, storage, permissions, limits, forum } = app.services;
+  const { profiles, storage, permissions, limits, forum, nanoAvatars } = app.services;
   const db = storage.db;
 
   app.get("/api/identity/profile", { preHandler: requireAuth }, async req => profiles.get(req.session!.account_id));
@@ -52,6 +53,17 @@ export default async function identityProfileRoutes(app: FastifyInstance) {
     if (!data) return reply.code(404).send({ error: "not_found", message: "头像不存在" });
     return reply
       .header("Content-Type", "image/webp")
+      .header("Cache-Control", "public, max-age=31536000, immutable")
+      .header("Content-Security-Policy", "default-src 'none'")
+      .send(data);
+  });
+
+  // NANO 默认头像（#343）：图随 server 镜像发布（lib/nano-avatar.ts），不依赖 GitLab 和 CDN；地址带版本号，内容不变，长期缓存。
+  app.get<{ Params: { version: string; file: string } }>("/api/identity/default-avatar/:version/:file", async (req, reply) => {
+    const data = req.params.version === NANO_AVATAR_VERSION ? nanoAvatars(Number(req.params.file.slice(0, -".png".length))) : null;
+    if (!data) return reply.code(404).send({ error: "not_found", message: "头像不存在" });
+    return reply
+      .header("Content-Type", "image/png")
       .header("Cache-Control", "public, max-age=31536000, immutable")
       .header("Content-Security-Policy", "default-src 'none'")
       .send(data);

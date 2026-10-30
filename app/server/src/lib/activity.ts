@@ -61,8 +61,8 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
     VALUES (@at, @account_id, @visitor_id, @surface, @action, @target_type, @target_id, @outcome, @ip, @ua, @request_id, @meta)
   `);
   // 同一主体（账号，没账号时按访客编号，连访客编号都没有——console/identity/oidc 这类没挂 attachVisitorId
-  // 的路由——按 IP）、同一 action、同一结果、同一分钟内，拒绝/限流只留一行，count 往上加，不是 403/429
-  // 刷屏就一条一条插（#274 残留修复 F，blocker 相邻项）。IFNULL 比较让 NULL 和 NULL 算相等。
+  // 的路由——按 IP）、同一 action、同一结果、同一请求形状（方法、路由模板、状态码，#333）、同一分钟内，拒绝/限流只留
+  // 一行，count 往上加，不是 403/429 刷屏就一条一条插（#274 残留修复 F，blocker 相邻项）。IFNULL 比较让 NULL 和 NULL 算相等。
   const findDenialBucket = db.prepare(`
     SELECT id, meta FROM activity_events
     WHERE action = @action AND outcome = @outcome
@@ -70,6 +70,9 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
       AND IFNULL(visitor_id,'') = IFNULL(@visitor_id,'')
       AND IFNULL(ip,'') = IFNULL(@ip,'')
       AND at >= @bucket_start
+      AND json_extract(meta, '$.method') IS @method
+      AND json_extract(meta, '$.route') IS @route
+      AND json_extract(meta, '$.status') IS @status
     ORDER BY id DESC LIMIT 1
   `);
   const bumpDenialCount = db.prepare("UPDATE activity_events SET meta = @meta WHERE id = @id");
@@ -107,8 +110,11 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
     });
   }
 
-  /** 403/429 专用：见上面 findDenialBucket 的注释。只用于 middleware/http-policy.ts 的 recordDenialOrLimit。 */
-  function recordDenial(req: FastifyRequest, input: RecordActivityInput): void {
+  /**
+   * 403/429 专用：见上面 findDenialBucket 的注释。只用于 middleware/http-policy.ts 的 recordDenialOrLimit。
+   * `request` 是方法、匹配到的路由模板（没匹配到为 null）与状态码，写进 meta 并参与合并；不收原始路径与查询串。
+   */
+  function recordDenial(req: FastifyRequest, input: RecordActivityInput, request: { method: string; route: string | null; status: number }): void {
     const now = clock();
     const { accountId, visitorId } = subjectOf(req, input);
     const ip = req.ip ?? null;
@@ -116,6 +122,7 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
     const bucketStart = Math.floor(now / 60_000) * 60_000;
     const existing = findDenialBucket.get({
       action: input.action, outcome, account_id: accountId, visitor_id: visitorId, ip, bucket_start: bucketStart,
+      method: request.method, route: request.route, status: request.status,
     }) as { id: number; meta: string } | undefined;
     if (existing) {
       const meta = JSON.parse(existing.meta || "{}") as Record<string, unknown>;
@@ -136,7 +143,7 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
       ip,
       ua: truncateUa((req.headers["user-agent"] as string | undefined) ?? null),
       request_id: String(req.id),
-      meta: JSON.stringify({ ...(input.meta ?? {}), count: 1 }),
+      meta: JSON.stringify({ ...(input.meta ?? {}), ...request, count: 1 }),
     });
   }
 
@@ -164,7 +171,7 @@ export type ActivityCleanupLogger = { info(details: Record<string, unknown>, mes
  * lib/limits.ts 的 `limit_events` 也清一遍（idn274 发现的缺口：`prune()` 实现了却没有调用点，和
  * 操作记录共用同一个「启动清一次 + 每天一次」定时器，不用另起一个）。
  */
-export function startActivityCleanup(recorder: ActivityRecorder, logger: ActivityCleanupLogger, limits?: LimitsService): () => void {
+export function startActivityCleanup(recorder: ActivityRecorder, logger: ActivityCleanupLogger, limits?: LimitsService, more: { label: string; prune: () => number }[] = []): () => void {
   const run = () => {
     try {
       const { deleted, ipMasked } = recorder.pruneExpired();
@@ -177,6 +184,14 @@ export function startActivityCleanup(recorder: ActivityRecorder, logger: Activit
       if (deleted > 0) logger.info({ deleted }, "limit events pruned");
     } catch (error) {
       logger.error({ error: (error as Error)?.name ?? "error", code: (error as { code?: unknown })?.code }, "limit events cleanup failed");
+    }
+    for (const { label, prune } of more) {
+      try {
+        const deleted = prune();
+        if (deleted > 0) logger.info({ deleted }, `${label} pruned`);
+      } catch (error) {
+        logger.error({ error: (error as Error)?.name ?? "error", code: (error as { code?: unknown })?.code }, `${label} cleanup failed`);
+      }
     }
   };
   run();

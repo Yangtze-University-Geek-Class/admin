@@ -41,6 +41,7 @@ export const SECRET_FIELDS = Object.freeze([
   'MAIL_ALIYUN_ACCESS_KEY_SECRET',
   'MAIL_RESEND_API_KEY',
   'MAIL_ALLOWLIST',
+  'SHIELD_ALLOWLIST',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'OIDC_JWKS',
@@ -56,10 +57,10 @@ export const MAIL_ALIYUN_SECRET_PAIR = Object.freeze(['MAIL_ALIYUN_ACCESS_KEY_ID
 /** Google 登录（#262）的 OAuth 客户端也是可选的一对：都空 = 登录页不出现 Google，只填一项拒绝渲染（server 启动也会拒绝）。 */
 export const GOOGLE_SECRET_PAIR = Object.freeze(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
 /**
- * 可选的单项密钥：MAIL_RESEND_API_KEY 空 = 不走 Resend；MAIL_ALLOWLIST 是 MAIL_RECIPIENTS=allowlist 时的收件名单（逗号隔开的邮箱，个人信息，所以当密钥存）。
+ * 可选的单项密钥：MAIL_RESEND_API_KEY 空 = 不走 Resend；MAIL_ALLOWLIST 是 MAIL_RECIPIENTS=allowlist 时的收件名单（逗号隔开的邮箱，个人信息，所以当密钥存）；SHIELD_ALLOWLIST 是访问防护的豁免网段（授权渗透测试的来源，同样当密钥存，空 = 没有豁免）。
  * 阿里云与 Resend 都没配时发信关闭，server 把每封信记为「发信没有配置」，一封也不发。
  */
-export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST']);
+export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST', 'SHIELD_ALLOWLIST']);
 /**
  * 对外授权与 GitLab 同步（#270）的两项单独可选密钥：OIDC_JWKS 空 = /oidc/* 一律 404，GitLab 不能用极客班账号登录，
  * 写成一行 base64（`oidc.js keygen` 直接输出这种形式）；GITLAB_API_TOKEN 只在 GITLAB_SYNC=on 时必填（server 启动也会拒绝）。
@@ -80,6 +81,20 @@ export const MAIL_RECIPIENT_MODES = Object.freeze(['all', 'allowlist']);
 export const GITLAB_SYNC_MODES = Object.freeze(['off', 'dry-run', 'on']);
 /** 允许为空但不属于密钥的字段（留空是明确的语义）。MAIL_REPLY_TO 空 = 信里不带 Reply-To，改指向官网意见箱。 */
 const EMPTY_IS_MEANINGFUL = Object.freeze(new Set([...SECRET_FIELDS, 'COOKIE_DOMAIN', 'MAIL_REPLY_TO', 'DEPLOY_PROXY_JUMP']));
+/** 访问防护（#333）的可见键：阈值、封禁时长与全站上限，三份模板都要有（值可以按环境不同，键集一致）。 */
+const VISIBLE_SHIELD_FIELDS = Object.freeze([
+  'SHIELD_ENABLED',
+  'SHIELD_THRESHOLD',
+  'SHIELD_WINDOW_MINUTES',
+  'SHIELD_BLOCK_MINUTES',
+  'SHIELD_DECAY_HOURS',
+  'SITE_QUOTA_EMAIL_DAILY',
+  'SITE_QUOTA_REGISTER_DAILY',
+  'SITE_QUOTA_FEEDBACK_DAILY',
+  'SITE_QUOTA_DEVICE_CODE_DAILY',
+  'EMAIL_RECIPIENT_QUOTA_DAILY',
+  'REGISTER_NO_COOKIE_IP_DAILY',
+]);
 /** 模板里必须存在的非密钥字段。 */
 const REQUIRED_FIELDS = Object.freeze([
   'GEEK_DEPLOYMENT_ENVIRONMENT',
@@ -116,6 +131,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'GITLAB_HTTP_BIND',
   'GITLAB_DOCKER_SUBNET',
   'GITLAB_DOCKER_GATEWAY',
+  ...VISIBLE_SHIELD_FIELDS,
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */

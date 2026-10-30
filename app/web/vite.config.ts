@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { staticCdnBase } from "../../scripts/static-cdn-base.mjs";
+import { productionSecurityNotice } from "../../scripts/security-notice.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 
@@ -76,7 +77,7 @@ function devSiteFallback(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), devSiteFallback()],
+  plugins: [react(), devSiteFallback(), productionSecurityNotice()],
   resolve: {
     // 与 tsconfig.json 的 paths 保持一致：@shared/* → app/web/shared/*
     alias: { "@shared": `${here}shared` },

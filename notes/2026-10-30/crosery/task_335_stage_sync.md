@@ -31,3 +31,10 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：正式部署后核对 #335：verify-accounts 41036945384 有效成员 49 全部通过、sub 不变、GitLab 账号数不变；status 41037981251 签发者读宿主文件且为正式 /oidc；新地址 302 到登录页、登录走统一登录。parity.mjs done P-0017、P-0007、P-0011（两套 GitLab 已各自独立，正式同步 on 且 49 人全映射，预发布运行中为 off）。把暂存队列里 #335 两条链路的收尾、#328 的合并与收尾按原文追加到各自文件；#328 收尾之后那条更正记录违反「收尾之后没有记录」，没有并入，更正内容已在 GitLab #328 的关闭记录里
 - 结果：parity.mjs check --complete：15 条、pending 0；note.mjs check 通过
+
+## 19:23:34 +08:00 · 提交 · #343 · 合入四项并登记 hotfix 窗口
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：把 task/333/abuse_shield、task/336/production_security_notice、task/342/contest_remove_member、task/343/unified_avatar 依次合进 stage（MR !80–!83）；冲突只在生成的目录、SECURITY.md 的两段新增、config.ts 的 import、server 服务文档与表结构测试，两边都保留；登记四个 v0.1.1 hotfix 窗口
+- 结果：server 类型检查通过，tests/server/legacy-database.test.ts 9/9 通过；hotfix-windows 校验通过
+- 下一步：推 GitLab stage，main 快进，派发 deploy-hotfix

@@ -1,13 +1,14 @@
 import { afterEach, expect, it } from 'vitest';
 import type { ServiceOverrides } from '../../app/server/src/services';
+import { SHIELD_NOTICE } from '../../app/server/src/lib/shield';
 import { accountIdOf, grantPermGroup, signIn, testApp } from './helpers';
 
 const CONSOLE_ORG = 'Yangtze-University-Geek-Class';
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const c of contexts.splice(0)) await c.close(); });
 
-/** 路由级限流（@fastify/rate-limit）超额时的错误体，和论坛自己数次数的 429 是同一个（#191）。 */
-const LIMITED = { error: 'rate_limited', message: '操作太频繁，请稍后再试', request_id: expect.stringMatching(/\S/) };
+/** 路由级限流（@fastify/rate-limit）超额时的错误体，和论坛自己数次数的 429 是同一个（#191）；访问防护打开时多一句 notice（#333）。 */
+const LIMITED = { error: 'rate_limited', message: '操作太频繁，请稍后再试', request_id: expect.stringMatching(/\S/), notice: SHIELD_NOTICE };
 
 /** 模拟 GitHub：alice 是 CONSOLE_ORG 的 owner（控制台的全部能力），别的调用一律当测试漏洞。 */
 const github = (() => ({
@@ -67,5 +68,6 @@ it('同一个访客反复撞同一个限额，429 只在操作记录里留一行
     { outcome: string; action: string; meta: string }[];
   expect(rows).toHaveLength(1); // 3 次限流只留一行，没有一条一条插
   expect(rows[0].action).toBe('http.rate_limited');
-  expect(JSON.parse(rows[0].meta)).toEqual({ count: 3 });
+  // 同一行记着方法、匹配到的路由模板与状态码（#333），不记原始路径和查询串
+  expect(JSON.parse(rows[0].meta)).toEqual({ method: 'POST', route: '/api/feedback', status: 429, count: 3 });
 });

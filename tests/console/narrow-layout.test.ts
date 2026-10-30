@@ -16,7 +16,7 @@ const layout = readFileSync(join(root, "styles/layout.css"), "utf8");
 // 窄屏一行一张卡的表格：宽屏显示表格、窄屏显示卡片，两边的空状态都要有。
 const CARD_PAGES = [
   "pages/Invites.vue", "pages/gitlab/Accounts.vue", "pages/forum/CategoriesTab.vue", "pages/Backup.vue",
-  "pages/permissions/NodesTab.vue", "pages/competition/RulesPanel.vue",
+  "pages/permissions/NodesTab.vue", "pages/competition/RulesPanel.vue", "pages/Security.vue",
 ];
 
 describe("narrow screens (#287)", () => {

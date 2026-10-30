@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { APP_ROOT, type AppConfig } from "./config.js";
 import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
 import { rateLimited, registerHttpPolicy } from "./middleware/http-policy.js";
+import { registerShield } from "./middleware/shield.js";
 import { registerBearerAuth } from "./middleware/bearer-auth.js";
 import { startActivityCleanup } from "./lib/activity.js";
 
@@ -44,6 +45,8 @@ export function resolveSiteEntry(url: string): string {
  * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
  * `gitlabSync`：GITLAB_SYNC=on 时定时对一次 GitLab 账号（启动时一次，之后每 10 分钟；app.close() 时等它停下）；只有 index.ts 打开，测试直接调 gitlab.reconcile()。
  *   同一个开关也开比赛贡献收集（#278，GitLab 同步不是 off 时每 10 分钟一轮）；测试直接调 competitionCandidates.collect()。
+ * `githubAvatarCheck`：识别 GitHub 头像是不是自动生成的像素图（#343，启动时一轮，之后每 10 分钟；app.close() 时等它停下）；
+ *   只有 index.ts 打开，测试直接调 githubAvatars.runOnce()。
  */
 /**
  * 请求日志的字段：同 Fastify 默认，只是 `/auth/*` 不记查询串——里面有 OAuth 的 code、state 和注册邀请码（#262）；
@@ -56,7 +59,7 @@ export function requestLogFields(req: { method: string; url: string; host?: stri
 
 export type BuildAppOptions = {
   config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean;
-  mailWorker?: boolean; sessionCleanup?: boolean; gitlabSync?: boolean; activityCleanup?: boolean; observeRoute?: (route: RouteOptions) => void;
+  mailWorker?: boolean; sessionCleanup?: boolean; gitlabSync?: boolean; activityCleanup?: boolean; githubAvatarCheck?: boolean; observeRoute?: (route: RouteOptions) => void;
 };
 export async function buildApp(options: BuildAppOptions) {
   const config = options.config;
@@ -77,6 +80,7 @@ export async function buildApp(options: BuildAppOptions) {
     if (options.sessionCleanup) services.auth.stopCleanup();
     if (options.gitlabSync) await services.gitlab.stop();
     if (options.gitlabSync) await services.competitionCandidates.stop();
+    if (options.githubAvatarCheck) await services.githubAvatars.stop();
     stopActivityCleanup?.();
     if (!options.services) services.close();
   });
@@ -84,9 +88,16 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.mailWorker) app.addHook("onReady", async () => { services.mail.start(app.log); });
   if (options.sessionCleanup) app.addHook("onReady", async () => { services.auth.startCleanup(app.log); });
   if (options.gitlabSync) app.addHook("onReady", async () => { services.gitlab.start(app.log); services.competitionCandidates.start(app.log); });
+  if (options.githubAvatarCheck) app.addHook("onReady", async () => { services.githubAvatars.start(app.log); });
   // 操作记录每天清一次过期行、按 90 天打码 IP（lib/activity.ts，SPEC §3.7），顺带清 lib/limits.ts 的
   // limit_events（SPEC §3.8）；测试直接调 services.activity.pruneExpired() / services.limits.pruneAll()。
-  if (options.activityCleanup) app.addHook("onReady", async () => { stopActivityCleanup = startActivityCleanup(services.activity, app.log, services.limits); });
+  // 访问防护的信号窗口与封禁表（#333）、限流计数的过期行，和上面两张表一起每天清一次。
+  if (options.activityCleanup) app.addHook("onReady", async () => {
+    stopActivityCleanup = startActivityCleanup(services.activity, app.log, services.limits, [
+      { label: "shield", prune: () => services.shield.prune() },
+      { label: "rate limit counters", prune: () => services.rateLimits.pruneBefore(Date.now() - 24 * 3600_000) },
+    ]);
+  });
   // #274 残留修复 N：迁移报告只在启动时记一次，只记数量（表的前后行数、各类 this_run 计数），
   // 不记 unmapped_heads 里真实的 GitHub 登录名——那是个人数据，只记条数。
   app.addHook("onReady", async () => {
@@ -103,12 +114,15 @@ export async function buildApp(options: BuildAppOptions) {
     });
   });
   registerHttpPolicy(app);
+  // 访问防护（#333）：封禁的 IP 在路由之前就被拦下；计分在响应结束后做
+  registerShield(app);
   await app.register(cookie, { secret: config.sessionSecret });
   // geek 命令行的 Bearer 鉴权（#277）：必须在 cookie 插件之后挂，它要读 req.cookies 判断「同一个请求
   // 不能同时带 cookie 和 Bearer」。
   registerBearerAuth(app);
-  // 只限写了 config.rateLimit 的路由；超额一律 429 rate_limited，路由不另写 errorResponseBuilder（#191）
-  await app.register(rateLimit, { global: false, errorResponseBuilder: () => rateLimited() });
+  // 只限写了 config.rateLimit 的路由；超额一律 429 rate_limited，路由不另写 errorResponseBuilder（#191）。
+  // 计数落库（#333，lib/rate-store.ts），重启后同一窗口内的次数不清零。
+  await app.register(rateLimit, { global: false, store: services.rateLimits.Store, errorResponseBuilder: () => rateLimited() });
 
   await app.register(portalRoutes);
   await app.register(adminRoutes);
