@@ -118,7 +118,7 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
   2. `move-production-path`：不勾 apply 演算两半。勾 apply 时 `move-path.sh` 依次做：
      - Arch `move-production-path --apply`：`gitlab-backup.service` 一致性备份和 `yzgc-backup@production`；记下账号基线 `/srv/gitlab/path-move/accounts.json`（按账号 id 抽样 50 个成员在 `gitlab` 客户端 sector 下的 `sub` 摘要、GitLab 账号数与最大账号 id，只有计数、摘要和本库账号 id）；给正式库的 `gitlab` 客户端加新回调，旧回调留着；`production-path.py` 写地址文件、改 `gitlab.rb` 三行、按模板写 Compose（模板带 json-file 日志轮转，取值和两套站点栈一样 `max-size: "10m"`、`max-file: "3"`，这次重建一起生效），`docker compose up -d --no-build --pull never` 重建（数据卷、镜像、网络不变），在容器里等 `/gitlab/-/health`。重建失败就恢复原文件、按原地址重建等健康，撤回新回调。
      - 香港 `production-apply`：正式站点块加 `/gitlab` 处理器，旧主机文件换成 301；候选与全配置 validate 后 reload，失败恢复原文件。
-     - runner 上的公网核对：新地址登录页 200；旧地址 `…/geek/admin.git/info/refs?service=git-upload-pack` 301 到新地址的同一路径（git 只在第一次请求跟随跳转，之后的推拉直接打新地址）；登录页的统一登录跳到签发者 `/oidc/auth` 并带新回调，签发者对这个回调回 302 或 303。
+     - runner 上的公网核对：新地址登录页 200；旧地址 `…/geek/admin.git/info/refs?service=git-upload-pack` 301 到新地址的同一路径（git 只在第一次请求跟随跳转，之后的推拉直接打新地址）；旧子域名的 DNS 已撤（2026-10-30 起不再解析）时 curl 解析不到主机，记「旧地址：解析不到（子域名已撤）」并算通过，解析得到时仍必须 301；登录页的统一登录跳到签发者 `/oidc/auth` 并带新回调，签发者对这个回调回 302 或 303。
      - Arch `check-production-path`（只读）：同一批成员按 `gitlab` 客户端现在的 sector 重算 `sub` 摘要，必须和基线一样；搬家后 GitLab 新增的账号（id 比基线最大的大）只能是正式库映射着的成员号（同步给新成员建的），多出一个不是的，就是有成员登录时 GitLab 没认出原来的号。
      - 全部通过后 Arch `finish-production-path --apply`：去掉旧回调，再做一次 GitLab 备份。
      香港切换、公网核对或账号核对失败时两半都恢复（香港切换失败时接收器已自己恢复，只恢复 Arch），然后报失败；收尾失败时搬家已经完成，重跑 `move-production-path` 会再备份一次（不覆盖基线），然后接着收尾。

@@ -39,16 +39,23 @@ for origin in ${ISSUER_ORIGINS}; do origin_ok "${origin}" || die "--issuer-origi
 
 http() { "${CURL}" --silent --show-error --max-time 30 "$@"; }
 
-# 三项公网核对：新地址能打开；旧地址 301 到新地址的同一路径（带查询串，git 跟着它走）；统一登录跳到签发者并带新回调，签发者接受这个回调
+# 三项公网核对：新地址能打开；旧地址 301 到新地址的同一路径（带查询串，git 跟着它走），旧子域名的 DNS 已撤时解析不到也算通过；统一登录跳到签发者并带新回调，签发者接受这个回调
 verify() {
-    local code redirect jar token location expected status
+    local code redirect rc jar token location expected status
     code="$(http -o /dev/null -w '%{http_code}' "${GITLAB_URL}/users/sign_in?auto_sign_in=false")" || code=000
     echo "新地址登录页：HTTP ${code}"
     [[ "${code}" == 200 ]] || return 1
     expected="${GITLAB_URL}/geek/admin.git/info/refs?service=git-upload-pack"
-    redirect="$(http -o /dev/null -w '%{http_code} %{redirect_url}' "${LEGACY_ORIGIN}/geek/admin.git/info/refs?service=git-upload-pack")" || redirect=000
-    echo "旧地址：HTTP ${redirect%% *}，$([[ "${redirect}" == "301 ${expected}" ]] && echo '跳到新地址的同一路径' || echo '没有跳到新地址的同一路径')"
-    [[ "${redirect}" == "301 ${expected}" ]] || return 1
+    rc=0
+    redirect="$(http -o /dev/null -w '%{http_code} %{redirect_url}' "${LEGACY_ORIGIN}/geek/admin.git/info/refs?service=git-upload-pack")" || rc=$?
+    # 旧子域名的 DNS 已撤（curl 退出码 6，解析不到主机）时旧入口已不存在，算通过；解析得到就必须 301 到新地址的同一路径
+    if [[ "${rc}" == 6 ]]; then
+        echo "旧地址：解析不到（子域名已撤）"
+    else
+        [[ "${rc}" == 0 ]] || redirect=000
+        echo "旧地址：HTTP ${redirect%% *}，$([[ "${redirect}" == "301 ${expected}" ]] && echo '跳到新地址的同一路径' || echo '没有跳到新地址的同一路径')"
+        [[ "${redirect}" == "301 ${expected}" ]] || return 1
+    fi
     jar="$(mktemp)"
     token="$(http -c "${jar}" "${GITLAB_URL}/users/sign_in?auto_sign_in=false" | sed -n 's/.*<meta name="csrf-token" content="\([^"]*\)".*/\1/p' | head -1)" || token=""
     location=""
