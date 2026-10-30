@@ -39,3 +39,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 local-stack 只管自己起的进程（按状态文件里的 PID 停，不按端口杀）、密钥首次启动生成到不入库目录、.env.dev 键集不变；本机 3000/5173/5186 被别的会话的预览进程占着，没有停它，成功路径的烟测未跑
 - 结果：结论：通过（本机全栈烟测未验证）
+
+## 23:27:54 +08:00 · 收尾 · #356 · PR !100 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 356：删 worktree .claude/worktrees/task-356 与本地分支 task/356/local_stack
+- 结果：PR 已合并

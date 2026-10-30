@@ -18,6 +18,13 @@
 
 /** 站内按内容哈希的表情图片地址前缀（服务端 routes/forum-api/stickers.ts）。 */
 export const STICKER_SAME_ORIGIN_PREFIX = '/api/forum/stickers/'
+// shared/ 也进服务端的类型上下文，那里没有 Vite 的 import.meta.env；在这里补上同形的声明（与 vite/client 的 ImportMeta.env 类型一致，可以合并）。
+// 下面那一行必须保持 import.meta.env.GEEK_STATIC_CDN_BASE 的原样：构建与 vitest 的 define 按文本替换。
+declare global {
+  interface ImportMetaEnv { readonly GEEK_STATIC_CDN_BASE?: string }
+  interface ImportMeta { readonly env: ImportMetaEnv }
+}
+
 /** 受控 CDN 的静态资源前缀：构建参数 STATIC_CDN_BASE，由 nuxt.config.ts 注入；空串 = 同源，表情 CDN 识别关闭。 */
 export const STATIC_CDN_PREFIX: string = import.meta.env.GEEK_STATIC_CDN_BASE ?? ''
 /** 受控 CDN 上表情图片的地址前缀；开关关闭时为空串，不参与白名单。 */

@@ -37,3 +37,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 diff：窗口关闭、三个工作流只换桶名来源、preview-parity 上传修复、首条例外与过期放行
 - 结果：结论：通过
+
+## 23:12:31 +08:00 · 收尾 · #349 · PR !95 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 349：删 worktree .claude/worktrees/task-349 与本地分支 task/349/hotfix_close
+- 结果：PR 已合并
