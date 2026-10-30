@@ -19,3 +19,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 24 个 SHA 与 PR #312 的 branch-guard 报出的列表一致，全是 #308 的提交（GitLab stage 已在 14e46e6d 合回）；只改登记文件与执行记录，不放宽任何检查；窗口在 GitHub stage 同步合入后随 #309、#335 一起关闭。
 - 结果：结论：可以先推 GitLab main 与 GitHub main，再合回 GitLab stage
+
+## 18:49:25 +08:00 · 提交 · #344 · 文档核对
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：文档核对：docs/ops/DEPLOY.md 不用改——只在 deploy/hotfix/windows.json 加一条窗口登记，部署、环境与流水线的事实都没变；文档核对：docs/ops/ENVIRONMENTS.md 不用改——只在 deploy/hotfix/windows.json 加一条窗口登记，部署、环境与流水线的事实都没变；文档核对：docs/ops/CICD.md 不用改——只在 deploy/hotfix/windows.json 加一条窗口登记，部署、环境与流水线的事实都没变
+- 结果：check-doc-sync 按时间核对要求的记录
