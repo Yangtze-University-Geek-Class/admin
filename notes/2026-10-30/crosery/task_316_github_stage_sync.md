@@ -37,3 +37,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：CI core 的 note check 拦下 task_346_hotfix_0_1_1 第一条是「提交」（分支手工建，没走 task.mjs start）；所有者 21:55 认为这条规则对这次没有意义、要求尽快发版；CHAIN_ORDER_EXCEPTIONS 与 NOTES §6 表各加一条，只放过这一条
 - 结果：note check 通过 186 条链路；notes.test.ts 46 条通过；check-architecture、doc-sync 通过
+
+## 21:59:36 +08:00 · 提交 · #316 · 删掉过期的隐私放行
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：CI core 的 check:privacy 报 docs/changes/346.json 的放行不再命中（MR !90 重写了声明）；从 scripts/privacy-exceptions.json 删掉这一条
+- 结果：check-privacy 通过；check-architecture 通过
