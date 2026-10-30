@@ -30,7 +30,7 @@ import { useSession } from "../../lib/session";
 import { vSnapIndicator } from "../../lib/tabs";
 import { DEPT_TONE_SWATCH, deptTone } from "../../lib/tone";
 import { SITE_OWNER_TITLE, departmentChoices, departmentOf, draftFromUser, nameOf, titleChoices, titleTone, userPatch, withDepartment, type UserDraft } from "../../lib/users";
-import type { ActivityEvent, ActivityList, ConsoleUser, EffectivePermissions, PublicDepartment } from "../../lib/types";
+import type { ActivityEvent, ActivityPage, ConsoleUser, EffectivePermissions, PublicDepartment } from "../../lib/types";
 
 /**
  * 用户详情抽屉：资料与修改（真实姓名和年级、身份、部门、称号、站长、停用）、这个人的操作记录、有效权限。
@@ -109,7 +109,7 @@ async function loadActivity(more = false) {
   activity.value = { account, data: before, error: null, loading: true };
   try {
     const cursor = before?.next ? `?cursor=${encodeURIComponent(before.next)}` : "";
-    const data = await api<ActivityList>(`/api/console/accounts/${encodeURIComponent(account)}/activity${cursor}`);
+    const data = await api<ActivityPage>(`/api/console/accounts/${encodeURIComponent(account)}/activity${cursor}`);
     if (props.user?.account_id !== account) return;
     activity.value = { account, data: { items: [...(before?.items ?? []), ...data.items], next: data.next_cursor }, error: null, loading: false };
   } catch (error) {

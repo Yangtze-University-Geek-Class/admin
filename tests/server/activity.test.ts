@@ -129,6 +129,24 @@ describe('GET /api/console/activity（CONTRACT-274 §4：activity.read，IP 默�
     const seen = new Set([...firstBody.items, ...secondBody.items].map(item => item.action));
     expect(seen.size).toBe(51);
   });
+
+  it('按页翻（#370）：offset 指定从第几条读起，total 是筛选条件下的总条数，和页码无关', async () => {
+    const { app, as, accountId, insertEvent } = await setup();
+    const aliceId = accountId('alice');
+    grantPermNode(app, aliceId, 'activity.read');
+    const base = Date.now();
+    for (let i = 0; i < 51; i += 1) insertEvent({ at: base - i, action: `test.event.${i}` });
+    insertEvent({ at: base - 100, action: 'other.event' });
+    type Page = { items: { action: string }[]; total: number };
+    const first = (await app.inject({ url: '/api/console/activity?action=test.', headers: as('alice') })).json() as Page;
+    const second = (await app.inject({ url: '/api/console/activity?action=test.&offset=50', headers: as('alice') })).json() as Page;
+    expect(first.total).toBe(51);
+    expect(second.total).toBe(51);
+    expect(second.items.map(item => item.action)).toEqual(['test.event.50']);
+    expect(new Set([...first.items, ...second.items].map(item => item.action)).size).toBe(51);
+    const bad = await app.inject({ url: '/api/console/activity?offset=-1', headers: as('alice') });
+    expect(bad.statusCode).toBe(400);
+  });
 });
 
 describe('GET /api/console/activity.csv（CONTRACT-274 §4：activity.export，5000 行上限）', () => {

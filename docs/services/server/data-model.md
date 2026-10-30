@@ -2,7 +2,7 @@
 
 > data.db 每张表的用途、写入方、读取方和个人信息字段，以及当前没有消费者的表、列和索引；表结构以 `app/server/src/lib/db.ts` 为唯一来源。
 
-状态：`current` · 更新：2026-10-30 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
+状态：`current` · 更新：2026-10-31 · 源码：`app/server/src/lib/db.ts` · 上级合同：[server](README.md)
 
 ## 约定
 
@@ -77,7 +77,7 @@
 | `oauth_grants` | 本人允许过的 (账号, 应用)（#270） | 只有 `lib/oidc-store.ts`：同意页 `POST /oidc/interaction/:uid/confirm` 时写或覆盖；改密码、重设密码时（#332）整账号的行删掉 | `oidc-provider` 的 `loadExistingGrant`：换个浏览器登录也不再问 | `grant_id` 指向 `oidc_payloads` 里的授权；授权被撤销（授权码重放）后这一行悬空，下次登录重新同意时覆盖 |
 | `oidc_payloads` | `oidc-provider` 的存储（#270）：签发者的会话、登录交互、授权码、访问令牌、授权 | 只有 `lib/oidc-store.ts`（`oidc-provider` 的适配器）：写入时按 `expires_at` 每小时删一次过期行；授权码用过写 `consumed_at`；撤销按 `grant_id` 删；改密码、重设密码时（#332）按账号找出 Grant，Grant 行按 id 删，它下发的码和令牌按 `grant_id` 删 | 同一个适配器 | `payload` 是 `oidc-provider` 的 JSON，含授权码、令牌 id 与账号 id，不进日志；`expires_at`、`consumed_at` 是毫秒（交给 `oidc-provider` 时换成秒）；`uid`、`grant_id`、`user_code` 各有部分索引 |
 | `gitlab_accounts` | 极客班账号在自建 GitLab 上的用户（#270） | 只有 `lib/gitlab-sync.ts`：建号前先写一行 `pending` 占下用户名，建好写 `gitlab_user_id` 和 `active`，封禁、解封改 `state`，改组权限写 `access_level`，传完头像写 `avatar_source`（#271），同步完邮箱写 `emails_source`（#272），失败写 `last_error`（错误代码）与时间 | 同一个模块：控制台 `GET /api/console/gitlab/accounts`；`gitlabUserFor` / `accountForGitlabUser` 给以后的比赛记分（#239） | `username` 大小写不敏感唯一，第一次同步时定下、之后不改；`state` 只取 `pending` / `active` / `blocked`；还没同步过就离开、但在 GitLab 上按身份找到了人的，这时才写一行（直接对上那个用户并封禁）；从不删除行，也从不删除 GitLab 用户 |
-| `app_state` | 键值状态：`gitlab_settings`（JSON）、`apply_open`（1开放/0关闭）、`security_decoy_until`（毫秒截止时间，0关闭） | 分别仅由 `lib/gitlab-sync.ts`、`lib/apply-settings.ts`、`lib/security-decoy.ts` 写各自键和 `updated_at`；蜜罐设置与审计同事务 | 同上三个模块；招新消费者不变，蜜罐由防护中间件及控制台读取 | 无个人信息；缺 `apply_open` 仍开放，缺蜜罐键则关闭；蜜罐截止晚于更新时间且跨度≤60分钟才有效，到期等值关闭，重启不续期；无结构迁移，旧版本忽略新增键 |
+| `app_state` | 键值状态：`gitlab_settings`（JSON）、`apply_open`（1开放/0关闭）、`security_decoy_until`（毫秒截止时间，0关闭；`permanent` 为永久开启） | 分别仅由 `lib/gitlab-sync.ts`、`lib/apply-settings.ts`、`lib/security-decoy.ts` 写各自键和 `updated_at`；蜜罐设置与审计同事务 | 同上三个模块；招新消费者不变，蜜罐由防护中间件及控制台读取 | 无个人信息；缺 `apply_open` 仍开放，缺蜜罐键则关闭；蜜罐截止晚于更新时间且跨度≤60分钟才有效，到期等值关闭，重启不续期；`permanent` 不限时长、不随时间失效，其它写法按关闭处理；无结构迁移，旧版本忽略新增键 |
 
 ### 论坛（`forum_*`，#57）
 

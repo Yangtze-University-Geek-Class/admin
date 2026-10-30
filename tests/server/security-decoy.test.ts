@@ -103,13 +103,77 @@ describe('临时合成蜜罐', () => {
     const { app, clock, status, put } = await setup();
     const saved = clock.value;
     const upsert = app.services.storage.db.prepare('INSERT INTO app_state(key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at');
-    for (const value of ['oops', '-1', 'Infinity', '1e99', String(saved + 61 * 60_000), String(Number.MAX_SAFE_INTEGER + 1)]) {
+    for (const value of ['oops', '-1', 'Infinity', '1e99', 'PERMANENT', 'permanent ', String(saved + 61 * 60_000), String(Number.MAX_SAFE_INTEGER + 1)]) {
       upsert.run('security_decoy_until', value, saved);
       expect(await status()).toMatchObject({ active: false, expires_at: null });
     }
     await put({ enabled: true, duration_minutes: 15 });
     clock.value = saved - 1;
     expect((await status()).active).toBe(false);
+  });
+
+  it('永久开启不随时间到期，重启后仍开着，关闭立即失效，审计记下是否永久', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'security-decoy-'));
+    dirs.push(dir);
+    const env = { DB_PATH: join(dir, 'data.db') };
+    const first = await setup(env);
+    const enabled = await first.put({ enabled: true, permanent: true });
+    expect(enabled.statusCode).toBe(200);
+    expect(enabled.json()).toMatchObject({ active: true, permanent: true, expires_at: null });
+    await first.context.close();
+    contexts.pop();
+    first.clock.value += 10 * 365 * 24 * 60 * 60_000;
+    const second = await setup(env, first.clock);
+    expect(await second.status()).toMatchObject({ active: true, permanent: true, expires_at: null });
+    expect((await second.app.inject({ url: '/.env', remoteAddress: '198.51.100.91' })).statusCode).toBe(200);
+    expect((await second.put({ enabled: false })).json()).toMatchObject({ active: false, permanent: false, expires_at: null });
+    expect((await second.app.inject({ url: '/.env', remoteAddress: '198.51.100.92' })).statusCode).toBe(404);
+    expect(activityRows(second.app, { action: 'security.decoy.update' }).map(row => row.meta)).toEqual([
+      { enabled: true, duration_minutes: null, permanent: true, expires_at: null },
+      { enabled: false, duration_minutes: null, permanent: false, expires_at: null },
+    ]);
+  });
+
+  it('状态接口的 permanent 只在永久开启时为 true', async () => {
+    const { put, status } = await setup();
+    expect(await status()).toMatchObject({ permanent: false, active: false });
+    await put({ enabled: true, duration_minutes: 15 });
+    expect(await status()).toMatchObject({ permanent: false, active: true });
+    await put({ enabled: true, permanent: true });
+    expect(await status()).toMatchObject({ permanent: true, active: true, expires_at: null });
+    await put({ enabled: false });
+    expect(await status()).toMatchObject({ permanent: false, active: false, expires_at: null });
+  });
+
+  it.each([
+    { enabled: true, permanent: true, duration_minutes: 15 },
+    { enabled: true, permanent: true, duration_minutes: 60 },
+    { enabled: true, permanent: false },
+    { enabled: true, permanent: 'true' },
+    { enabled: false, permanent: true },
+  ])('永久开启不接受时长或非真值 %j', async body => {
+    const { put, status } = await setup();
+    expect((await put(body)).statusCode).toBe(400);
+    expect(await status()).toMatchObject({ active: false, permanent: false, expires_at: null });
+  });
+
+  it('永久开启同样受正式环境与基础防护限制', async () => {
+    const preview = await setup({ GEEK_DEPLOYMENT_ENVIRONMENT: 'preview' });
+    const unavailable = await preview.put({ enabled: true, permanent: true });
+    expect(unavailable.statusCode).toBe(409);
+    expect(unavailable.json().error).toBe('decoy_unavailable');
+    const shieldOff = await setup({ SHIELD_ENABLED: 'off' });
+    const disabled = await shieldOff.put({ enabled: true, permanent: true });
+    expect(disabled.statusCode).toBe(409);
+    expect(disabled.json().error).toBe('shield_disabled');
+    expect(await shieldOff.status()).toMatchObject({ active: false, permanent: false });
+  });
+
+  it('永久开启的审计失败时整体回滚', async () => {
+    const { app, put, status } = await setup();
+    auditFailure(app, 'security.decoy.update');
+    expect((await put({ enabled: true, permanent: true })).statusCode).toBe(500);
+    expect(await status()).toMatchObject({ active: false, permanent: false, expires_at: null });
   });
 
   it.each([true, false])('设置审计失败时整体回滚：enabled=%s', async enabled => {

@@ -61,6 +61,7 @@
 | `GITLAB_SYNC` | 可见 | `off`，完整旧身份对账后才开启 | `on` 是独立实例的目标配置；切换前不能部署旧令牌或复用旧绑定 |
 | `GITLAB_URL` | 可见 | `https://yangtzeu.work/gitlab`（#335：和预发布一样在本环境入口的 `/gitlab` 下；旧主机 `git.yangtzeu.work` 只做 301） | `https://prev.yangtzeu.work/gitlab`；保留部署子路径的独立基址 |
 | `GITLAB_GROUP` | 可见 | `geek` | `geek`，两个实例各自的群组 |
+| `GITLAB_EVENTS_INTERVAL_MINUTES` | 可见 | `10`：GitLab 项目事件只读拉取的间隔（分钟）；`0` 关闭，`1`–`1440` 为间隔，留空按 10；与 `GITLAB_SYNC` 无关（#370） | `10`，与正式相同 |
 | `GITLAB_OIDC_CLIENT` | 可见 | `gitlab` | `gitlab_preview`，不覆盖仍被旧正式登录使用的预发布客户端 |
 | `GITLAB_OIDC_SECTOR` | 可见 | `git.yangtzeu.work`：`gitlab` 客户端钉住的 sector，沿用搬家前的主机，成员的 `sub` 不变（#335） | `prev.yangtzeu.work`；同步核对客户端钉住的 sector 和它一致，不一致整轮跳过 |
 | `GITLAB_STACK_ROOT` | 可见 | `/srv/gitlab`，保留原卷与账号 | `/srv/gitlab-preview`，全新独立数据 |
@@ -92,7 +93,7 @@
 
 **不在 env 文件里的发布身份**：`GEEK_RELEASE_VERSION`（正式 tag `vX.Y.Z` → `X.Y.Z`；预发布 tag `vX.Y.Z-rc.N` → `X.Y.Z-rc.N@<sha12>`）与 `GEEK_RELEASE_COMMIT`（完整 40 位 SHA）由 CI/CD 作为**构建参数**传给镜像构建，不写进 `.env`——写死就等于让展示值与实际 commit 脱钩。展示规则见 [RELEASES](../conventions/RELEASES.md)。
 
-本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要本机后端时用 `pnpm local:up`（见 [TESTING](../conventions/TESTING.md)「本机开发」）：它把本机用的会话与加密密钥生成到 `.tools/local/secrets.json`，不写进 `.env`，也不需要复制模板。只看界面直接 `pnpm dev:web`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
+本机调试用 `deploy/env/.env.dev`（入库，已脱敏）：`GEEK_DEPLOYMENT_ENVIRONMENT=local`（沿用论坛构建里的 `local`）、`PUBLIC_ORIGIN=http://127.0.0.1:5173`、数据在 `.tools/local-preview/`、`GITLAB_SYNC=off`、`GITLAB_EVENTS_INTERVAL_MINUTES=0`（本机 GitLab 通常不在运行，不拉事件）、`MAIL_RECIPIENTS=allowlist` 且名单为空；部署目标、镜像标签这类本机没有的键留空，密钥全部留空。需要本机后端时用 `pnpm local:up`（见 [TESTING](../conventions/TESTING.md)「本机开发」）：它把本机用的会话与加密密钥生成到 `.tools/local/secrets.json`，不写进 `.env`，也不需要复制模板。只看界面直接 `pnpm dev:web`，不连任何远端。字段说明与最小占位见 [ENVIRONMENT](ENVIRONMENT.md)。
 
 **正式与预发布的差异键**：原有环境身份、栈路径/端口与 `GITLAB_SYNC`，另加上表六项独立 GitLab 目标字段。其余键两份取值必须相同。`check-env-isolation.mjs` 另外拒绝两个实例复用 URL、目录、绑定、子网或网关；公开客户端标识不命名为凭据字段，密钥检查规则不放宽。实际凭据、运行绑定与模板分别核验，模板修改不等于已切换。
 

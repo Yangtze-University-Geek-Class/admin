@@ -637,3 +637,53 @@ describe('relaxing forum_topics.visibility to a nullable column (#276)', () => {
     after.close();
   });
 });
+
+describe('activity_events accepts the gitlab surface (#370)', () => {
+  it('rebuilds a table whose surface CHECK predates gitlab, keeps every row and index, and is a no-op on the next boot', () => {
+    // 生产库里 activity_events 的 CHECK 只认六个来源；重建后旧行原样保留、五个索引建回来，新来源能写，再启动一次什么也不动。
+    const dir = mkdtempSync(join(tmpdir(), 'geek-legacy-activity-gitlab-'));
+    dirs.push(dir);
+    const path = join(dir, 'data.db');
+    const raw = new Database(path);
+    raw.exec(`
+      CREATE TABLE activity_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        account_id TEXT,
+        visitor_id TEXT,
+        surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system')),
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'denied', 'limited', 'error')),
+        ip TEXT,
+        ua TEXT,
+        request_id TEXT,
+        meta TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX idx_activity_events_at ON activity_events(at);
+      CREATE INDEX idx_activity_events_account ON activity_events(account_id, at);
+      CREATE INDEX idx_activity_events_visitor ON activity_events(visitor_id, at);
+      CREATE INDEX idx_activity_events_action ON activity_events(action, at);
+      CREATE INDEX idx_activity_events_outcome ON activity_events(outcome, at);
+      INSERT INTO activity_events(at, surface, action, outcome, meta) VALUES (1000, 'console', 'test.a', 'ok', '{}'), (2000, 'forum', 'test.b', 'ok', '{}');
+    `);
+    raw.close();
+
+    expect(() => createDatabase(path)).not.toThrow();
+    const after = new Database(path);
+    // 启动时迁移还会往这张表补 identity.backfill 行（见 activity.test.ts），这里只看本用例写进去的行
+    expect(after.prepare("SELECT id, at, surface FROM activity_events WHERE action LIKE 'test.%' ORDER BY id").all()).toEqual([
+      { id: 1, at: 1000, surface: 'console' }, { id: 2, at: 2000, surface: 'forum' },
+    ]);
+    const indexes = (after.pragma('index_list(activity_events)') as { name: string }[]).map(index => index.name);
+    expect(indexes).toEqual(expect.arrayContaining(['idx_activity_events_at', 'idx_activity_events_account', 'idx_activity_events_visitor', 'idx_activity_events_action', 'idx_activity_events_outcome']));
+    expect(() => after.prepare("INSERT INTO activity_events(at, surface, action, outcome, meta) VALUES (3000, 'gitlab', 'gitlab.issue.opened', 'ok', '{}')").run()).not.toThrow();
+    after.close();
+
+    expect(() => createDatabase(path)).not.toThrow();
+    const again = new Database(path, { readonly: true });
+    expect(again.prepare("SELECT COUNT(*) AS n FROM activity_events WHERE action LIKE 'test.%' OR action = 'gitlab.issue.opened'").get()).toEqual({ n: 3 });
+    again.close();
+  });
+});

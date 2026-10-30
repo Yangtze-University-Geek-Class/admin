@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { TxCard } from "@talex-touch/tuffex/card";
 import { TxDataTable } from "@talex-touch/tuffex/data-table";
-import { TxFilterChips } from "@talex-touch/tuffex/filter-chips";
-import { TxForm, TxFormItem } from "@talex-touch/tuffex/form";
 import { TxInput } from "@talex-touch/tuffex/input";
+import { TxSelect } from "@talex-touch/tuffex/select";
 import { TxButton } from "@talex-touch/tuffex/button";
+import { TxAvatar } from "@talex-touch/tuffex/avatar";
+import { TxTag } from "@talex-touch/tuffex/tag";
 import { TxCellLink } from "@talex-touch/tuffex/cell-link";
 import { TxStatusBadge } from "@talex-touch/tuffex/status-badge";
 import { TxTooltip } from "@talex-touch/tuffex/tooltip";
 import { TxEmptyState } from "@talex-touch/tuffex/empty-state";
+import { TxPagination } from "@talex-touch/tuffex/pagination";
 import { TxDrawer } from "@talex-touch/tuffex/drawer";
 import { toast } from "@talex-touch/tuffex/utils";
-import DateField from "../components/DateField.vue";
 import PageHeader from "../components/PageHeader.vue";
 import AccountPicker from "../components/AccountPicker.vue";
 import ErrorPanel from "../components/ErrorPanel.vue";
@@ -24,8 +25,9 @@ import { isMock } from "../lib/runtime";
 import { useResource } from "../lib/resource";
 import { useSession } from "../lib/session";
 import {
-  ACTIVITY_OUTCOMES, ACTIVITY_SURFACES, OUTCOME_STATUS, OUTCOME_TEXT, SURFACE_TEXT, actionText, activityParams, actorText, bucketText,
-  filtersFromQuery, filtersToQuery, outcomeText, rangeProblem, surfaceText, targetText, type ActivityFilters,
+  ACTIVITY_OUTCOMES, ACTIVITY_PAGE_SIZE, ACTIVITY_SURFACES, OUTCOME_STATUS, OUTCOME_TEXT, SURFACE_TEXT, TIME_PRESETS, actionFamily, actionText,
+  activityParams, actorText, bucketText, eventSubText, extraFilterTags, filtersFromQuery, filtersToQuery, outcomeText, presetOf, presetRange,
+  surfaceText, targetText, type ActivityFilters, type TimePreset,
 } from "../lib/activity";
 import type { ActivityEvent, ActivityList } from "../lib/types";
 
@@ -33,49 +35,45 @@ const route = useRoute();
 const router = useRouter();
 const { can } = useSession();
 
+// 筛选只留一行四样（#370）：谁、来源、时间范围、结果。访客、动作和自定义日期只从详情或别的页面带进来，显示成可关掉的标签。
 const filters = computed(() => filtersFromQuery(route.query));
-const draft = reactive<ActivityFilters>({ ...filters.value });
-watch(filters, value => Object.assign(draft, value));
-const problem = ref<string | null>(null);
+const page = computed(() => Math.max(1, Math.floor(Number(route.query.page)) || 1));
+const draft = reactive({ account: filters.value.account });
+watch(filters, value => { draft.account = value.account; });
 
+/** 改了筛选条件就回到第一页。 */
 function apply(next: Partial<ActivityFilters>) {
-  const merged = { ...filters.value, ...next };
-  problem.value = rangeProblem(merged);
-  if (problem.value) return;
-  void router.replace({ query: filtersToQuery(merged) });
+  void router.replace({ query: filtersToQuery({ ...filters.value, ...next }) });
 }
-// 文字和日期改完点「筛选」才生效；账号、来源、结果选了就生效。
-const submit = () => apply({ visitor: draft.visitor.trim(), action: draft.action.trim(), from: draft.from, to: draft.to });
-const clearAll = () => { problem.value = null; void router.replace({ query: {} }); };
+const clearAll = () => void router.replace({ query: {} });
 const filtered = computed(() => Object.values(filters.value).some(Boolean));
 
-const list = useResource(() => api<ActivityList>(`/api/console/activity?${activityParams(filters.value)}`), [filters]);
-const extra = shallowRef<ActivityEvent[]>([]);
-const nextCursor = ref<string | null>(null);
-const more = ref<{ pending: boolean; error: unknown }>({ pending: false, error: null });
-watch(() => list.data.value, data => {
-  extra.value = [];
-  nextCursor.value = data?.next_cursor ?? null;
-});
-const rows = computed(() => [...(list.data.value?.items ?? []), ...extra.value]);
-async function loadMore() {
-  if (!nextCursor.value || more.value.pending) return;
-  more.value = { pending: true, error: null };
-  try {
-    const data = await api<ActivityList>(`/api/console/activity?${activityParams(filters.value, { cursor: nextCursor.value })}`);
-    extra.value = [...extra.value, ...data.items];
-    nextCursor.value = data.next_cursor;
-    more.value = { pending: false, error: null };
-  } catch (error) {
-    more.value = { pending: false, error };
-  }
+const logCard = ref<{ $el?: HTMLElement } | null>(null);
+function goPage(value: number) {
+  void router.replace({ query: { ...filtersToQuery(filters.value), ...(value > 1 ? { page: String(value) } : {}) } });
+  logCard.value?.$el?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
+
+const list = useResource(() => api<ActivityList>(`/api/console/activity?${activityParams(filters.value, { page: page.value })}`), [filters, page]);
+const rows = computed(() => list.data.value?.items ?? []);
+const total = computed(() => list.data.value?.total ?? 0);
 
 const blocked = computed(() => [...(list.data.value?.blocked_today ?? [])].sort((a, b) => b.count - a.count));
 const blockedTotal = computed(() => blocked.value.reduce((sum, item) => sum + item.count, 0));
 
-const surfaceChips = [{ value: "", label: "全部来源" }, ...ACTIVITY_SURFACES.map(id => ({ value: id, label: SURFACE_TEXT[id] }))];
-const outcomeChips = [{ value: "", label: "全部结果" }, ...ACTIVITY_OUTCOMES.map(id => ({ value: id, label: OUTCOME_TEXT[id] }))];
+// TxSelect 的「全部」用 all 占位，写回地址栏时换成空
+const ALL = "all";
+const pick = (value: unknown) => (value === ALL ? "" : String(value ?? ""));
+const surfaceOptions = [{ value: ALL, label: "全部来源" }, ...ACTIVITY_SURFACES.map(id => ({ value: id, label: SURFACE_TEXT[id] }))];
+const outcomeOptions = [{ value: ALL, label: "全部结果" }, ...ACTIVITY_OUTCOMES.map(id => ({ value: id, label: OUTCOME_TEXT[id] }))];
+const timePreset = computed(() => presetOf(filters.value));
+// 地址栏带的是自定义日期时，下拉显示「自定义日期」，具体日期在下面的标签里
+const timeOptions = computed(() => [
+  ...TIME_PRESETS.map(item => ({ value: item.value || ALL, label: item.label })),
+  ...(timePreset.value === null ? [{ value: "custom", label: "自定义日期", disabled: true }] : []),
+]);
+const blockedHint = computed(() => blocked.value.map(item => `${bucketText(item.bucket) || item.bucket} ${item.count}`).join("，"));
+const tags = computed(() => extraFilterTags(filters.value));
 
 /** 地址栏只带了账号编号：从读到的记录里找这个人的名字给选择框。 */
 const accountText = computed(() => {
@@ -84,20 +82,24 @@ const accountText = computed(() => {
 });
 
 const columns = [
-  { key: "at", title: "时间", width: 112 },
-  { key: "who", title: "谁", width: 180 },
-  { key: "surface", title: "来源", width: 80 },
+  { key: "at", title: "时间", width: 148 },
+  { key: "who", title: "谁", width: 190 },
   // key 不能叫 action：Tuffex 把叫 action(s) 的列当操作列，钉在表格右边，窄屏会盖住别的列
-  { key: "event", title: "动作", width: 220, align: "left" as const },
-  { key: "target", title: "目标", width: 160 },
-  { key: "outcome", title: "结果", width: 80 },
-  { key: "ip", title: "IP", width: 130 },
+  { key: "event", title: "做了什么", align: "left" as const },
+  { key: "surface", title: "来源", width: 84 },
+  { key: "outcome", title: "结果", width: 88 },
 ];
+const rowClass = (row: ActivityEvent) => (row.outcome === "ok" ? "" : "row--problem");
 const exportHref = computed(() => `/api/console/activity.csv?${activityParams(filters.value)}`);
 
 const open = ref<ActivityEvent | null>(null);
 const drawerOpen = computed({ get: () => open.value !== null, set: value => { if (!value) open.value = null; } });
 const metaText = (event: ActivityEvent) => JSON.stringify(event.meta ?? {}, null, 2);
+const gitlabLink = (event: ActivityEvent) => (event.surface === "gitlab" && typeof event.meta?.url === "string" ? event.meta.url : "");
+function narrow(next: Partial<ActivityFilters>) {
+  apply(next);
+  open.value = null;
+}
 async function copy(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -110,7 +112,7 @@ async function copy(text: string) {
 
 <template>
   <div class="page">
-    <PageHeader title="操作记录" description="官网、论坛、控制台和命令行上的操作，以及被拒绝、被限流的请求。记录保留 180 天，IP 保留 90 天。">
+    <PageHeader title="操作记录" description="谁在官网、论坛、控制台、命令行和 GitLab 上做了什么。记录保留 180 天，IP 保留 90 天。">
       <template v-if="can('activity.export')" #actions>
         <TxTooltip v-if="isMock()" content="开发预览不能导出，请连接本地后端">
           <TxButton icon="i-carbon-download" disabled>导出 CSV</TxButton>
@@ -121,118 +123,99 @@ async function copy(text: string) {
       </template>
     </PageHeader>
 
-    <TxCard v-if="list.data.value" class="blocked">
-      <div class="card-head">
-        <h2 class="section-title">今天被拦下 {{ blockedTotal }} 次</h2>
-        <span class="card-head__actions">
-          <TxButton v-if="blockedTotal && filters.outcome !== 'limited'" size="sm" variant="ghost" @click="apply({ outcome: 'limited' })">只看被限流的</TxButton>
+    <TxCard ref="logCard" :padding="0" class="log">
+      <div class="toolbar">
+        <div class="toolbar__who">
+          <AccountPicker v-if="can('users.view')" :model-value="filters.account" :initial-text="accountText" label="谁" placeholder="谁：用户名或昵称" @update:model-value="value => apply({ account: value })" />
+          <TxInput v-else v-model="draft.account" class="fill-width mono" placeholder="账号编号" spellcheck="false" autocomplete="off" @keydown.enter.prevent="apply({ account: draft.account.trim() })" @blur="apply({ account: draft.account.trim() })" />
+        </div>
+        <TxSelect :model-value="filters.surface || ALL" :options="surfaceOptions" class="toolbar__select" aria-label="来源" :searchable="false" panel-background="pure" @update:model-value="(value: unknown) => apply({ surface: pick(value) })" />
+        <TxSelect :model-value="timePreset === null ? 'custom' : timePreset || ALL" :options="timeOptions" class="toolbar__select" aria-label="时间" :searchable="false" panel-background="pure" @update:model-value="(value: unknown) => apply(presetRange(pick(value) as TimePreset))" />
+        <TxSelect :model-value="filters.outcome || ALL" :options="outcomeOptions" class="toolbar__select" aria-label="结果" :searchable="false" panel-background="pure" @update:model-value="(value: unknown) => apply({ outcome: pick(value) })" />
+        <span class="toolbar__end">
+          <TxTooltip v-if="blockedTotal && filters.outcome !== 'limited'" :content="`按限流规则：${blockedHint}`">
+            <TxButton size="sm" variant="ghost" @click="apply({ outcome: 'limited', ...presetRange('today') })">今天被拦下 {{ blockedTotal }} 次</TxButton>
+          </TxTooltip>
+          <span v-if="list.data.value" class="total">共 {{ total.toLocaleString("zh-CN") }} 条</span>
+          <TxButton v-if="filtered" size="sm" variant="ghost" @click="clearAll">清空</TxButton>
         </span>
       </div>
-      <ul v-if="blocked.length" class="buckets">
-        <li v-for="item in blocked" :key="item.bucket" class="bucket">
-          <span class="bucket__count">{{ item.count }}</span>
-          <span class="cell-stack">
-            <span>{{ bucketText(item.bucket) || item.bucket }}</span>
-            <span v-if="bucketText(item.bucket)" class="cell-sub mono">{{ item.bucket }}</span>
-          </span>
-        </li>
-      </ul>
-      <p v-else class="muted note">今天还没有请求被限流。北京时间零点重新计数。</p>
-    </TxCard>
-
-    <TxCard>
-      <TxForm :model="draft" label-position="top" class="filters" @submit="submit">
-        <div class="filter-grid">
-          <TxFormItem label="账号">
-            <AccountPicker v-if="can('users.view')" :model-value="filters.account" :initial-text="accountText" label="账号" @update:model-value="value => apply({ account: value })" />
-            <TxInput v-else v-model="draft.account" class="fill-width mono" placeholder="账号编号" spellcheck="false" autocomplete="off" @keydown.enter.prevent="apply({ account: draft.account.trim() })" @blur="apply({ account: draft.account.trim() })" />
-          </TxFormItem>
-          <TxFormItem label="访客编号">
-            <TxInput v-model="draft.visitor" class="fill-width mono" placeholder="访客编号" spellcheck="false" autocomplete="off" />
-          </TxFormItem>
-          <TxFormItem label="动作前缀">
-            <TxInput v-model="draft.action" class="fill-width mono" placeholder="例如 auth. 或 forum.topic" spellcheck="false" autocomplete="off" />
-          </TxFormItem>
-          <TxFormItem label="开始日期">
-            <DateField v-model="draft.from" clearable />
-          </TxFormItem>
-          <TxFormItem label="结束日期">
-            <DateField v-model="draft.to" clearable />
-          </TxFormItem>
-          <div class="filter-actions">
-            <TxButton variant="primary" native-type="submit" icon="i-carbon-filter">筛选</TxButton>
-            <TxButton v-if="filtered" variant="secondary" native-type="button" @click="clearAll">清空</TxButton>
-          </div>
-        </div>
-        <p v-if="problem" class="field-error" role="alert">{{ problem }}</p>
-      </TxForm>
-      <div class="chips">
-        <TxFilterChips :model-value="filters.surface" :items="surfaceChips" aria-label="按来源筛选" @update:model-value="value => apply({ surface: String(value) })" />
-        <TxFilterChips :model-value="filters.outcome" :items="outcomeChips" aria-label="按结果筛选" @update:model-value="value => apply({ outcome: String(value) })" />
+      <div v-if="tags.length" class="tags">
+        <TxTag v-for="tag in tags" :key="tag.key" :label="tag.text" size="sm" variant="soft" closable :close-aria-label="`去掉 ${tag.text}`" @close="apply(tag.clear)" />
       </div>
-    </TxCard>
 
-    <ErrorPanel v-if="list.error.value" :error="list.error.value" :retry="list.reload" />
-    <LoadingBlock v-else-if="!list.data.value" :lines="8" />
-    <TxCard v-else :padding="0" class="table-card">
-      <TxDataTable
-        style="--table-min: 962px"
-        :columns="columns"
-        :data="rows"
-        row-key="id"
-        table-layout="fixed"
-        scroll-x
-        :loading="list.loading.value"
-        @row-click="({ row }: { row: ActivityEvent }) => (open = row)"
-      >
-        <template #cell-at="{ row }: { row: ActivityEvent }">
-          <span class="muted" :title="fmtDate(row.at)">{{ fmtRelative(row.at) }}</span>
-        </template>
-        <template #cell-who="{ row }: { row: ActivityEvent }">
-          <span class="cell-stack">
-            <template v-if="row.account">
+      <ErrorPanel v-if="list.error.value" :error="list.error.value" :retry="list.reload" class="log__state" />
+      <LoadingBlock v-else-if="!list.data.value" :lines="8" class="log__state" />
+      <template v-else>
+        <TxDataTable
+          style="--table-min: 760px"
+          :columns="columns"
+          :data="rows"
+          row-key="id"
+          table-layout="fixed"
+          scroll-x
+          :row-class="rowClass"
+          :loading="list.loading.value"
+          @row-click="({ row }: { row: ActivityEvent }) => (open = row)"
+        >
+          <template #cell-at="{ row }: { row: ActivityEvent }">
+            <span class="mono nowrap" :title="fmtRelative(row.at)">{{ fmtDate(row.at) }}</span>
+          </template>
+          <template #cell-who="{ row }: { row: ActivityEvent }">
+            <span class="who">
+              <TxAvatar v-if="row.account" :src="row.account.avatar_url ?? undefined" :name="actorText(row).text" :size="22" />
               <TxCellLink
+                v-if="row.account"
                 :href="`/console/activity?account=${encodeURIComponent(row.account.id)}`"
                 :label="actorText(row).text"
+                :title="`@${row.account.username}`"
                 :aria-label="`只看 ${actorText(row).text} 的记录`"
                 class="ellipsis"
                 @open="apply({ account: row.account.id })"
               />
-              <span class="cell-sub mono ellipsis">@{{ row.account.username }}</span>
-            </template>
-            <span v-else class="muted ellipsis" :class="{ mono: row.visitor_id }">{{ actorText(row).text }}</span>
-          </span>
-        </template>
-        <template #cell-surface="{ row }: { row: ActivityEvent }">{{ surfaceText(row.surface) }}</template>
-        <template #cell-event="{ row }: { row: ActivityEvent }">
-          <span class="cell-stack">
-            <span v-if="actionText(row.action)" class="ellipsis">{{ actionText(row.action) }}</span>
-            <span class="mono ellipsis" :class="{ 'cell-sub': actionText(row.action) }" :title="row.action">{{ row.action }}</span>
-          </span>
-        </template>
-        <template #cell-target="{ row }: { row: ActivityEvent }">
-          <span v-if="targetText(row)" class="mono ellipsis cell-sub" :title="targetText(row)">{{ targetText(row) }}</span>
-          <span v-else class="muted">-</span>
-        </template>
-        <template #cell-outcome="{ row }: { row: ActivityEvent }">
-          <TxStatusBadge :text="outcomeText(row.outcome)" :status="OUTCOME_STATUS[row.outcome] ?? 'muted'" size="sm" />
-        </template>
-        <template #cell-ip="{ row }: { row: ActivityEvent }">
-          <span class="mono ellipsis cell-sub">{{ row.ip ?? "-" }}</span>
-        </template>
-        <template #empty>
-          <TxEmptyState
-            :variant="filtered ? 'search-empty' : 'no-data'"
-            :title="filtered ? '没有符合条件的记录' : '还没有记录'"
-            :description="filtered ? '换一个筛选条件，或者点「清空」看全部。' : '有人登录、发帖或在控制台里操作后会记在这里。'"
-            size="small"
-          />
-        </template>
-      </TxDataTable>
-      <div v-if="nextCursor || more.error" class="pager">
-        <span v-if="more.error" class="pager__error">没有读到更多，点按钮再试一次。</span>
-        <TxButton variant="secondary" :loading="more.pending" @click="loadMore">加载更多</TxButton>
-      </div>
+              <span v-else class="muted ellipsis" :class="{ mono: row.visitor_id }" :title="actorText(row).text">{{ actorText(row).text }}</span>
+            </span>
+          </template>
+          <template #cell-event="{ row }: { row: ActivityEvent }">
+            <span class="event ellipsis" :title="row.action">
+              <span v-if="actionText(row.action)">{{ actionText(row.action) }}</span>
+              <span v-else class="mono">{{ row.action }}</span>
+              <span v-if="eventSubText(row)" class="event__sub mono">{{ eventSubText(row) }}</span>
+            </span>
+          </template>
+          <template #cell-surface="{ row }: { row: ActivityEvent }">
+            <span class="muted">{{ surfaceText(row.surface) }}</span>
+          </template>
+          <template #cell-outcome="{ row }: { row: ActivityEvent }">
+            <span v-if="row.outcome === 'ok'" class="muted">成功</span>
+            <TxStatusBadge v-else :text="outcomeText(row.outcome)" :status="OUTCOME_STATUS[row.outcome] ?? 'muted'" size="sm" />
+          </template>
+          <template #empty>
+            <TxEmptyState
+              :variant="filtered ? 'search-empty' : 'no-data'"
+              :title="filtered ? '没有符合条件的记录' : '还没有记录'"
+              :description="filtered ? '换一个筛选条件，或者点「清空」看全部。' : '有人登录、发帖、在控制台或 GitLab 里操作后会记在这里。'"
+              size="small"
+            />
+          </template>
+        </TxDataTable>
+        <div v-if="total > ACTIVITY_PAGE_SIZE" class="pager">
+          <TxPagination
+            :current-page="page"
+            :page-size="ACTIVITY_PAGE_SIZE"
+            :total="total"
+            show-info
+            aria-label="翻页"
+            prev-label="上一页"
+            next-label="下一页"
+            first-label="第一页"
+            last-label="最后一页"
+            @update:current-page="goPage"
+          >
+            <template #info="{ currentPage, totalPages }">第 {{ currentPage }} / {{ totalPages }} 页，每页 {{ ACTIVITY_PAGE_SIZE }} 条</template>
+          </TxPagination>
+        </div>
+      </template>
     </TxCard>
 
     <TxDrawer v-model:visible="drawerOpen" title="记录详情" direction="right" size="min(520px, 100vw)" :mobile-adapt="false" :show-footer="false">
@@ -246,7 +229,7 @@ async function copy(text: string) {
           </dd>
           <template v-if="open.visitor_id"><dt>访客编号</dt><dd class="mono">{{ open.visitor_id }}</dd></template>
           <dt>来源</dt><dd>{{ surfaceText(open.surface) }}</dd>
-          <dt>动作</dt><dd><span v-if="actionText(open.action)">{{ actionText(open.action) }} </span><span class="mono">{{ open.action }}</span></dd>
+          <dt>动作</dt><dd class="action"><span v-if="actionText(open.action)">{{ actionText(open.action) }}</span><span class="mono muted">{{ open.action }}</span></dd>
           <dt>目标</dt><dd class="mono">{{ targetText(open) || "-" }}</dd>
           <dt>结果</dt><dd><TxStatusBadge :text="outcomeText(open.outcome)" :status="OUTCOME_STATUS[open.outcome] ?? 'muted'" size="sm" /></dd>
           <dt>IP</dt><dd class="mono">{{ open.ip ?? "-" }}</dd>
@@ -264,8 +247,11 @@ async function copy(text: string) {
           <pre class="pre">{{ metaText(open) }}</pre>
         </section>
         <div class="detail__links">
-          <TxButton v-if="open.account" variant="secondary" @click="apply({ account: open.account.id }); open = null">只看这个人的记录</TxButton>
+          <TxButton v-if="open.account" variant="secondary" @click="narrow({ account: open.account.id })">只看这个人</TxButton>
+          <TxButton v-if="open.visitor_id" variant="secondary" @click="narrow({ visitor: open.visitor_id })">只看这个访客</TxButton>
+          <TxButton variant="secondary" @click="narrow({ action: actionFamily(open.action) })">只看同类动作</TxButton>
           <RouterLink v-if="open.account && can('users.view')" :to="{ path: '/console/users', query: { q: open.account.username } }" class="more-link">打开用户详情</RouterLink>
+          <a v-if="gitlabLink(open)" :href="gitlabLink(open)" target="_blank" rel="noopener noreferrer" class="more-link">在 GitLab 里打开</a>
         </div>
       </div>
     </TxDrawer>
@@ -276,94 +262,84 @@ async function copy(text: string) {
 .export-link {
   text-decoration: none;
 }
-.blocked .card-head {
-  margin-bottom: 10px;
-}
-.buckets {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px 16px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.bucket {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: 14px;
-}
-.bucket__count {
-  min-width: 2.5ch;
-  font-size: 20px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--tx-color-warning);
-}
-.note {
-  margin: 0;
-  font-size: 13px;
-}
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px 16px;
-  align-items: end;
-}
-/* 网格里每一格自己排，不吃 .tx-form--label-top 相邻项的上边距。 */
-.filter-grid > :deep(.tx-form-item) {
-  margin-top: 0;
-}
-.filter-actions {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 16px;
 }
-.filter-actions :deep(button),
-.pager :deep(button),
-.detail__links :deep(button) {
-  min-height: 44px;
-  min-width: 44px;
+.toolbar__who {
+  flex: 0 1 240px;
+  min-width: 200px;
 }
-.filters :deep(.tx-input),
-.filters :deep(.tx-date-picker-field) {
-  min-height: 44px;
+.toolbar__select {
+  width: 116px;
 }
-.field-error {
-  margin: 0;
+.toolbar__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px 10px;
+  margin-left: auto;
+}
+.total {
   font-size: 13px;
-  color: var(--tx-color-danger);
+  font-variant-numeric: tabular-nums;
+  color: var(--tx-text-color-secondary);
 }
-.chips {
+.tags {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 0 16px 12px;
+}
+.log__state {
+  margin: 0 16px 16px;
+}
+.log :deep(.tx-data-table) {
   border-top: 1px solid var(--tx-border-color-lighter);
 }
-.table-card :deep(tbody tr) {
+.log :deep(tbody tr) {
   cursor: pointer;
+}
+/* 被拒绝、被限流、出错的行底色稍深一点，一眼能扫到 */
+.log :deep(tbody tr.row--problem) {
+  background: color-mix(in srgb, var(--tx-color-warning) 6%, transparent);
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.event {
+  display: block;
+}
+.event__sub {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--tx-text-color-secondary);
 }
 .pager {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px 12px;
+  justify-content: flex-end;
   padding: 12px 16px;
   border-top: 1px solid var(--tx-border-color-lighter);
-}
-.pager__error {
-  font-size: 13px;
-  color: var(--tx-color-danger);
 }
 .detail {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
 }
 .ua {
   font-size: 13px;
@@ -381,11 +357,20 @@ async function copy(text: string) {
   flex-direction: column;
   gap: 8px;
 }
+/* GitLab 事件的 meta 带完整链接，折行显示，不在抽屉边上截断 */
+.meta .pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .detail__links {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
+}
+.detail__links :deep(button) {
+  min-height: 44px;
+  min-width: 44px;
 }
 .more-link {
   display: inline-flex;
@@ -393,17 +378,16 @@ async function copy(text: string) {
   min-height: 44px;
   font-size: 14px;
 }
-@media (max-width: 1080px) {
-  .filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 640px) {
-  .filter-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .toolbar__who {
+    flex-basis: 100%;
   }
-  .filter-actions {
-    padding-bottom: 0;
+  .toolbar__select {
+    flex: 1 1 96px;
+    width: auto;
+  }
+  .toolbar__end {
+    margin-left: 0;
   }
 }
 </style>

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "issue": 377,
+  "kind": "engineering",
+  "summary": "登记 #369（合成蜜罐永久开启）与 #370（操作记录接入 GitLab 事件、页面改版）的 0.1.1 hotfix 窗口：所有者 2026-10-31 01:47 批准随七牛 CDN 修复一起按 hotfix 发正式与预发布，期限 2 天。代码已在 MR !104、!107 审查合入。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务流程不变：只登记发布窗口，#369、#370 的实现已在各自 MR 审查合入。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不改 app/server 与接口。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变；窗口只决定 deploy-hotfix 接受哪些 issue 编号。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不碰数据库与业务数据：windows.json 只是发布登记，部署脚本读它决定能否派发 hotfix。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不增删依赖，不改环境变量键。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "documentation": {
+      "status": "unchanged",
+      "reason": "文档事实不变：RELEASES 与 BRANCHING 已写明窗口的登记方式，这里只是新增两条登记。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "validateWindows 对登记表无报错；activeWindows 现在返回 352、354、356、360、369、370。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "同步到 GitHub stage、main 快进后按 #370 派发 deploy-hotfix（tag v0.1.1）；正式核对后关闭本轮全部 v0.1.1 窗口，在收尾提交上打 v0.1.1-stable.3 发预发布。",
+      "evidence": [
+        "deploy/hotfix/windows.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "deploy/hotfix/windows.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "登记 #369、#370 的 hotfix 窗口（tag v0.1.1，approvedAt 2026-10-31T01:47+08:00，expiresAt 2026-11-02T01:47+08:00），属于平台发布流程。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/RELEASES.md"
+  ],
+  "tests": [],
+  "compatibility": "接口、表结构与环境变量都不变。",
+  "migration": "不涉及迁移：只新增两条发布窗口登记，没有数据、配置或环境变量要迁移。",
+  "rollback": "revert 本次合并；窗口未用时由收尾关闭。"
+}

@@ -147,6 +147,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'GITLAB_SYNC',
   'GITLAB_URL',
   'GITLAB_GROUP',
+  'GITLAB_EVENTS_INTERVAL_MINUTES',
   'GITLAB_OIDC_CLIENT',
   'GITLAB_OIDC_SECTOR',
   'GITLAB_STACK_ROOT',
@@ -591,6 +592,10 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
       }
     }
     if (values.has('GITLAB_GROUP') && !/^[A-Za-z0-9_.-]{1,255}$/.test(values.get('GITLAB_GROUP'))) problem(`GITLAB_GROUP 必须是 GitLab 的组路径：${values.get('GITLAB_GROUP')}`);
+    if (values.has('GITLAB_EVENTS_INTERVAL_MINUTES')) {
+      const minutes = values.get('GITLAB_EVENTS_INTERVAL_MINUTES');
+      if (!/^(0|[1-9]\d{0,3})$/.test(minutes) || Number(minutes) > 1440) problem(`GITLAB_EVENTS_INTERVAL_MINUTES 必须是 0（关闭）或 1 到 1440 的整数：${minutes}`);
+    }
     if (values.has('GITLAB_OIDC_CLIENT') && !/^[a-z0-9_]{3,64}$/.test(values.get('GITLAB_OIDC_CLIENT'))) problem('GITLAB_OIDC_CLIENT 必须是客户端标识');
     // 一个环境一个域名（#335）：GitLab 挂在本环境入口的 /gitlab 下，不另开子域名
     if (values.has('GITLAB_URL') && values.get('GITLAB_URL') !== `${expectedOrigin}/gitlab`) problem(`GITLAB_URL 必须是本环境入口下的 ${expectedOrigin}/gitlab`);

@@ -24,7 +24,7 @@ describe("控制台的日期框和弹窗（#283）", () => {
     const pickers = files.filter(({ text }) => /<TxDatePicker(?=\s|>)/.test(text)).map(({ path }) => path);
     expect(pickers).toEqual(["components/DateField.vue"]);
     const users = files.filter(({ text }) => /<DateField(?=\s|>)/.test(text)).map(({ path }) => path).sort();
-    expect(users).toEqual(["pages/Activity.vue", "pages/Competitions.vue", "pages/Invites.vue", "pages/permissions/EntryDialog.vue", "pages/permissions/GroupDetail.vue"]);
+    expect(users).toEqual(["pages/Competitions.vue", "pages/Invites.vue", "pages/permissions/EntryDialog.vue", "pages/permissions/GroupDetail.vue"]);
   });
 
   it("DateField 写了中文文案、周一开头，用下拉日历", () => {

@@ -1409,6 +1409,14 @@ describe('GitLab and OIDC configuration (#270)', () => {
       expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: url })).toThrow();
     }
     expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_GROUP: 'geek group' })).toThrow('group path');
+    // GitLab 项目事件的间隔（#370）：空是 10 分钟，0 是关闭，1 到 1440 是间隔；不看 GITLAB_SYNC
+    expect(createConfig({ ...env(), ...SYNC_ENV }).gitlab.eventsIntervalMinutes).toBe(10);
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_EVENTS_INTERVAL_MINUTES: '0' }).gitlab.eventsIntervalMinutes).toBe(0);
+    expect(createConfig({ ...env(), GITLAB_URL: GITLAB, GITLAB_EVENTS_INTERVAL_MINUTES: '30' }).gitlab.eventsIntervalMinutes).toBe(30);
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_EVENTS_INTERVAL_MINUTES: '1440' }).gitlab.eventsIntervalMinutes).toBe(1440);
+    for (const minutes of ['-1', '01', '1441', '1.5', 'ten']) {
+      expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_EVENTS_INTERVAL_MINUTES: minutes })).toThrow('GITLAB_EVENTS_INTERVAL_MINUTES');
+    }
     expect(createConfig({ ...env(), ...SYNC_ENV }).gitlab.sector).toBeNull();
     expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: 'Git.Example.Test' }).gitlab.sector).toBe('git.example.test');
     expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: '127.0.0.1:8930' }).gitlab.sector).toBe('127.0.0.1:8930');

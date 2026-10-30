@@ -524,6 +524,11 @@ describe('OIDC signing key and GitLab sync (#270)', () => {
       ['preview', '\nGITLAB_OIDC_SECTOR=prev.yangtzeu.work\n', '\nGITLAB_OIDC_SECTOR=prev.yangtzeu.work/gitlab\n'],
       ['production', '\nGITLAB_OIDC_SECTOR=', '\nGITLAB_OIDC_SECTOR_RETIRED='],
       ['production', '\nGITLAB_GROUP=geek\n', '\nGITLAB_GROUP=geek group\n'],
+      // GitLab 项目事件间隔（#370）：分钟，1 到 1440 的整数
+      ['production', '\nGITLAB_EVENTS_INTERVAL_MINUTES=10\n', '\nGITLAB_EVENTS_INTERVAL_MINUTES=-1\n'],
+      ['preview', '\nGITLAB_EVENTS_INTERVAL_MINUTES=10\n', '\nGITLAB_EVENTS_INTERVAL_MINUTES=01\n'],
+      ['production', '\nGITLAB_EVENTS_INTERVAL_MINUTES=10\n', '\nGITLAB_EVENTS_INTERVAL_MINUTES=1441\n'],
+      ['preview', '\nGITLAB_EVENTS_INTERVAL_MINUTES=10\n', '\nGITLAB_EVENTS_INTERVAL_MINUTES=10.5\n'],
       ['production', '\nOIDC_JWKS=\n', '\nOIDC_JWKS=eyJrZXlzIjpbXX0=\n'],
       ['preview', '\nGITLAB_API_TOKEN=\n', '\nGITLAB_API_TOKEN=glpat-committed\n'],
     ];

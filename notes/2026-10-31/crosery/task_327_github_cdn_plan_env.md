@@ -28,3 +28,9 @@
 - 做了什么：按 code-review 核对 diff：三条工作流各加一行 env、一条回归用例、CICD 文档一行与声明
 - 结果：通过：值来自已有 plan 输出，不涉及密钥，用例对修复前版本失败、对修复后通过，三个调用点都覆盖；未验证 actionlint（CI）与真实部署（合并后）
 - 下一步：CI 通过后合并，main 快进，重跑 deploy-hotfix
+
+## 03:05:00 +08:00 · 收尾 · #327 · PR #328 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 327：删 worktree .claude/worktrees/task-327 与本地分支 task/327/github_cdn_plan_env
+- 结果：PR 已合并

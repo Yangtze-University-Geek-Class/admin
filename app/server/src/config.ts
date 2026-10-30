@@ -130,7 +130,13 @@ export function createConfig(env: Record<string, string | undefined>) {
     if (!/^[A-Za-z0-9_.-]{1,255}$/.test(group)) throw new Error("GITLAB_GROUP must be a group path");
     if (mode !== "off" && !url) throw new Error("GITLAB_SYNC needs GITLAB_URL");
     if (mode === "on" && !token) throw new Error("GITLAB_SYNC=on needs GITLAB_API_TOKEN");
-    return { mode: mode as "off" | "dry-run" | "on", url, token, group, clientId, sector };
+    // GITLAB_EVENTS_INTERVAL_MINUTES：GitLab 项目事件拉取（#370，lib/gitlab-events.ts）的间隔，分钟。0 = 关闭，1–1440 = 间隔，空 = 10。
+    // 只读，不看 GITLAB_SYNC（那个开关只管账号对账的写入）。
+    const eventsRaw = value("GITLAB_EVENTS_INTERVAL_MINUTES");
+    if (eventsRaw && !/^(0|[1-9]\d{0,3})$/.test(eventsRaw)) throw new Error("GITLAB_EVENTS_INTERVAL_MINUTES must be 0 (off) or an integer from 1 to 1440");
+    const eventsIntervalMinutes = eventsRaw ? Number(eventsRaw) : 10;
+    if (eventsIntervalMinutes > 1440) throw new Error("GITLAB_EVENTS_INTERVAL_MINUTES must be 0 (off) or an integer from 1 to 1440");
+    return { mode: mode as "off" | "dry-run" | "on", url, token, group, clientId, sector, eventsIntervalMinutes };
   })();
   // 访问防护（#333，lib/shield.ts）：按真实客户端 IP（req.ip，沿用上面的 TRUST_PROXY）累计异常信号，超过阈值就封禁，再犯逐级加长。
   // 全部可调，默认值按现有流量留余量；校园出口 NAT（一个 IP 后面很多人）不能被一次正常使用误伤，所以阈值按 10 分钟计，封禁从 15 分钟起。

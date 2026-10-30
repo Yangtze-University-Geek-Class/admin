@@ -2,7 +2,7 @@
 
 > 不同源的应用用极客班账号登录：核心服务内嵌一个 OpenID Connect 签发者，第一个下游是自建的 GitLab（正式 `https://yangtzeu.work/gitlab`；#335 搬家前是子域名 `git.yangtzeu.work`，现在只做跳转）。同一模块按极客班账号在 GitLab 上建好用户、放进 `geek` 组，离开的封禁。
 
-状态：`current` · 更新：2026-10-30 · 源码：`app/server/src/lib/oidc-store.ts`、`lib/oidc-provider.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/`、`routes/console/gitlab.ts`、`cli/oidc.ts`；同意页 `app/console/src/pages/Authorize.vue` · 上级合同：[server](README.md) · 历史来源：GitLab geek/admin #270、#271（头像）、#272（邮箱）；当前回归：GitHub Yangtze-University-Geek-Class/admin #271（不同命名空间，旧声明见 `docs/history/changes/gitlab/271.json`） · 决策：[ADR-0005](../../decisions/0005-sso-extend-core-server.md) 决策 3、8
+状态：`current` · 更新：2026-10-31 · 源码：`app/server/src/lib/oidc-store.ts`、`lib/oidc-provider.ts`、`lib/account-directory.ts`、`lib/gitlab-sync.ts`、`routes/oidc/`、`routes/console/gitlab.ts`、`cli/oidc.ts`；同意页 `app/console/src/pages/Authorize.vue` · 上级合同：[server](README.md) · 历史来源：GitLab geek/admin #270、#271（头像）、#272（邮箱）；当前回归：GitHub Yangtze-University-Geek-Class/admin #271（不同命名空间，旧声明见 `docs/history/changes/gitlab/271.json`） · 决策：[ADR-0005](../../decisions/0005-sso-extend-core-server.md) 决策 3、8
 
 ## 签发者与端点
 
@@ -75,6 +75,8 @@ docker compose … exec server node app/server/dist/cli/oidc.js client add --nam
 ## GitLab 账号同步
 
 `GITLAB_SYNC` 是 `off`（默认）、`dry-run`（只算出要做什么，不写表、不改 GitLab）或 `on`。不是 `off` 时要有 `GITLAB_URL`（HTTP(S) 基址，可带部署子路径；去掉尾斜杠，拒绝凭据、查询与锚点），`on` 时还要本实例独立的 `GITLAB_API_TOKEN`（管理员 `api` 令牌；`dry-run` 不调用 GitLab）；`GITLAB_GROUP` 默认 `geek`。API 请求保留完整基址后追加 `/api/v4`，不跟随重定向。`on` 启动即对账，此后每10分钟一次，同账号串行并在轮到时重读资格；停机排空当前账号。
+
+`GITLAB_EVENTS_INTERVAL_MINUTES` 控制 GitLab 项目事件拉取（#370）：大于 0 且配了 `GITLAB_URL` 与 `GITLAB_API_TOKEN` 时，每隔这么多分钟只读地取组内项目的事件进操作记录；与 `GITLAB_SYNC` 无关（`off`、`dry-run`、`on` 都照样拉取）。0 为关闭，空为 10。合同与游标见 [server 合同](README.md)「GitLab 项目事件进操作记录」。
 
 - 每个有效成员在本环境的 GitLab 上有一个用户，按 `openid_connect` / 原 `sub` 认人；sector 取 `GITLAB_OIDC_CLIENT` 客户端钉住的 sector，不取 API 基址。客户端未登记时整轮跳过并报 `gitlab_client_missing`，sector 和 `GITLAB_OIDC_SECTOR` 不一样时报 `gitlab_sector_mismatch`。先精确找身份、找到沿用、没有才建号；新实例不得沿用另一个实例的数字用户 ID。
 - 用户名在第一次建号时定下，之后不改：有 GitHub 的用 GitHub 登录名，没有的用站内登录名；GitLab 的保留名、和组同名、或已被别人占用时依次加 `_yz`、`_yz2`。邮箱用验证过的 `canonical_email`，没有或在 GitLab 上被占用时用 `<用户名>@noreply.<sector>`（正式的 sector 搬家后仍是 `git.yangtzeu.work`，地址不变）。建号带 `skip_confirmation` 与随机密码，成员不用密码登录。

@@ -44,7 +44,7 @@ export function resolveSiteEntry(url: string): string {
  * `staticRoot`：false 关闭静态托管；不传时依次查找 app/web/dist 与 app/console/dist。
  * `mailWorker`：开发信循环（每 15 秒发一次到期的信，app.close() 时停下）；只有 index.ts 打开，测试直接调 services.mail.drain()。
  * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
- * `gitlabSync`：GITLAB_SYNC=on 时定时对一次 GitLab 账号（启动时一次，之后每 10 分钟；app.close() 时等它停下）；只有 index.ts 打开，测试直接调 gitlab.reconcile()。
+ * `gitlabSync`：GITLAB_SYNC=on 时定时对一次 GitLab 账号（启动时一次，之后每 10 分钟；app.close() 时等它停下）；GitLab 项目事件拉取（#370）也由这个选项决定开不开，但它不看 GITLAB_SYNC，间隔为 0 时不排定时器；只有 index.ts 打开，测试直接调 gitlab.reconcile() 或 gitlabEvents.collectOnce()。
  *   同一个开关也开比赛贡献收集（#278，GitLab 同步不是 off 时每 10 分钟一轮）；测试直接调 competitionCandidates.collect()。
  * `objectStorageBackfill`：启动后台回填头像与论坛图片到对象存储（#352），只在对象存储开启时跑，只记数量；index.ts 打开，测试不跑。
  * `githubAvatarCheck`：识别 GitHub 头像是不是自动生成的像素图（#343，启动时一轮，之后每 10 分钟；app.close() 时等它停下）；
@@ -82,6 +82,7 @@ export async function buildApp(options: BuildAppOptions) {
     if (options.sessionCleanup) services.auth.stopCleanup();
     if (options.gitlabSync) await services.gitlab.stop();
     if (options.gitlabSync) await services.competitionCandidates.stop();
+    if (options.gitlabSync) await services.gitlabEvents.stop();
     if (options.githubAvatarCheck) await services.githubAvatars.stop();
     stopActivityCleanup?.();
     if (!options.services) services.close();
@@ -89,7 +90,7 @@ export async function buildApp(options: BuildAppOptions) {
   // 应用就绪（listen 之前）才开发信循环：路由注册失败时不会留下一个没人关的定时器
   if (options.mailWorker) app.addHook("onReady", async () => { services.mail.start(app.log); });
   if (options.sessionCleanup) app.addHook("onReady", async () => { services.auth.startCleanup(app.log); });
-  if (options.gitlabSync) app.addHook("onReady", async () => { services.gitlab.start(app.log); services.competitionCandidates.start(app.log); });
+  if (options.gitlabSync) app.addHook("onReady", async () => { services.gitlab.start(app.log); services.competitionCandidates.start(app.log); services.gitlabEvents.start(app.log); });
   if (options.githubAvatarCheck) app.addHook("onReady", async () => { services.githubAvatars.start(app.log); });
   if (options.objectStorageBackfill) {
     app.addHook("onReady", async () => {

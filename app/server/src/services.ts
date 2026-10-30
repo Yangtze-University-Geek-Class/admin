@@ -43,6 +43,7 @@ import { createOidcStore } from "./lib/oidc-store.js";
 import { createOidcProvider } from "./lib/oidc-provider.js";
 import { createAccountDirectory } from "./lib/account-directory.js";
 import { createGitlabSync, type FetchLike as GitlabFetch } from "./lib/gitlab-sync.js";
+import { createGitlabEvents } from "./lib/gitlab-events.js";
 import { createGithubAvatarChecks } from "./lib/github-avatars.js";
 import { createAvatars } from "./lib/avatars.js";
 import { avatarKey, createObjectStorage, type ObjectFetch } from "./lib/object-storage.js";
@@ -153,11 +154,17 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     : null;
   // 用户文件对象存储（#352）：头像与论坛图片写七牛；config.objectStorage 为 null 时整体关闭。
   const objectStorage = createObjectStorage(config.objectStorage, { fetch: overrides.objectStorageFetch });
+  // 操作记录唯一写入口（#274 SPEC §3.7）：lib/activity.ts 的 recordActivity，路由自己调用；清理定时器由 buildApp 的 activityCleanup 决定开不开。
+  const activity = createActivityRecorder(storage.db, overrides.clock);
   const gitlab = createGitlabSync(storage.db, {
     config: config.gitlab, directory, subjects: oidcStore, clients: oidcStore, avatars: profiles, githubAvatars, nanoAvatars, audit: storage.audit,
     fetch: overrides.gitlabFetch, githubFetch: overrides.githubProfileFetch, clock: overrides.clock,
     // 新传的头像库里没有字节，同步到 GitLab 时去对象存储读（2 MiB 是头像上传的上限）。
     avatarObject: objectStorage.enabled ? hash => objectStorage.readPublic(avatarKey(hash), 2 * 1024 * 1024) : undefined,
+  });
+  // GitLab 项目事件进操作记录（#370）：只读拉取，与 GITLAB_SYNC 无关；间隔为 0 时不拉取。定时器由 buildApp 的 gitlabSync 决定开不开（index.ts 打开）。
+  const gitlabEvents = createGitlabEvents(storage.db, {
+    gitlab, activity, intervalMinutes: config.gitlab.eventsIntervalMinutes, clock: overrides.clock,
   });
   const permissions = createPermissionEngine(storage.db, overrides.clock);
   // 比赛官网托管（#278）：站点文件放在数据库旁边的 sites/（容器里是数据卷 /data/sites）；内存库（测试）用临时目录，关闭时删掉。
@@ -200,8 +207,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     clock: overrides.clock ?? Date.now,
     profiles,
     avatars, githubAvatars, nanoAvatars,
-    // 操作记录唯一写入口（#274 SPEC §3.7）：lib/activity.ts 的 recordActivity，路由自己调用；清理定时器由 buildApp 的 activityCleanup 决定开不开。
-    activity: createActivityRecorder(storage.db, overrides.clock),
+    activity,
     limits,
     shield,
     decoy: createSecurityDecoy(storage.db, { available: config.deploymentEnvironment === "production", shieldEnabled: config.shield.enabled, clock: overrides.clock }),
@@ -211,14 +217,14 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     feedback,
     forum,
     mail,
-    oidcStore, directory, oidc, gitlab,
+    oidcStore, directory, oidc, gitlab, gitlabEvents,
     // PoW 只认一次：nonce 摘要进 `pow.nonce` 桶，记满证明的整个有效时段（PENTEST-20261029 finding 8）
     publicSubmission: createPublicSubmission(config.powDifficulty, {
       consumeNonce: digest => limits.hit({ bucket: "pow.nonce", subject: digest, window: { ms: POW_NONCE_TTL_MS }, max: 1 }).ok,
     }),
     turnstile: createTurnstile(config, overrides.httpRequest),
     close() {
-      void mail.stop(); void gitlab.stop(); void competitionCandidates.stop(); void githubAvatars.stop(); auth.stopCleanup(); storage.db.close();
+      void mail.stop(); void gitlab.stop(); void gitlabEvents.stop(); void competitionCandidates.stop(); void githubAvatars.stop(); auth.stopCleanup(); storage.db.close();
       if (memorySites) rmSync(memorySites, { recursive: true, force: true });
     },
   };
