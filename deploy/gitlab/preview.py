@@ -16,6 +16,9 @@ from urllib.parse import urlsplit
 
 
 CONTAINER = 'gitlab-preview'
+# Lines added to preview-compose.yml after instances were installed from it. An instance rendered from the template
+# without them, and still byte-for-byte as rendered, is upgraded in place by apply --apply (#335: yzgc-ui.rb).
+ADDED_LINES = ["        from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')\n"]
 
 
 def read_config(path):
@@ -95,13 +98,25 @@ def install(args):
     if len(images) != 1 or images != production_images or not re.fullmatch(r'gitlab/gitlab-ce@sha256:[0-9a-f]{64}', images[0]):
         raise ValueError('preview image must match the locked production CE digest')
     rendered_values = {**config, 'GITLAB_STACK_ROOT': str(stack)}
-    rendered = re.sub(r'\$\{([A-Z_]+)\}', lambda match: rendered_values[match[1]], source).encode()
+    def render(text):
+        return re.sub(r'\$\{([A-Z_]+)\}', lambda match: rendered_values[match[1]], text).encode()
+    rendered = render(source)
     digest = hashlib.sha256(rendered).hexdigest()
+    earlier = source
+    for line in ADDED_LINES:
+        if earlier.count(line) != 1:
+            raise ValueError('preview compose template is missing an upgrade line')
+        earlier = earlier.replace(line, '', 1)
+    earlier_digest = hashlib.sha256(render(earlier)).hexdigest()
     if stack.exists() and not marker.is_file():
         raise ValueError('existing unowned preview directory; refusing to adopt or overwrite')
+    upgrade = False
     if marker.exists():
         saved = json.loads(marker.read_text())
-        if saved != {'config': config, 'compose_sha256': digest} or not compose.exists() or hashlib.sha256(compose.read_bytes()).hexdigest() != digest:
+        installed = hashlib.sha256(compose.read_bytes()).hexdigest() if compose.exists() else None
+        if saved == {'config': config, 'compose_sha256': earlier_digest} and installed == earlier_digest:
+            upgrade = True
+        elif saved != {'config': config, 'compose_sha256': digest} or installed != digest:
             raise ValueError('preview installation drift; refusing implicit reconfiguration')
     current = run([args.docker, 'inspect', CONTAINER], absent=True)
     if current:
@@ -113,10 +128,12 @@ def install(args):
             raise ValueError('preview container mounts do not match this instance')
     run([args.docker, 'image', 'inspect', images[0]])
     if args.action == 'plan':
-        return {'action': 'plan', 'container': CONTAINER, 'installed': marker.exists(), 'running': bool(current), 'compose_sha256': digest}
+        return {'action': 'plan', 'container': CONTAINER, 'installed': marker.exists(), 'upgrade': upgrade, 'running': bool(current), 'compose_sha256': digest}
     if args.action == 'verify':
         if not marker.exists() or not current or details[0]['State'].get('Health', {}).get('Status') != 'healthy':
             raise ValueError('preview instance is not installed and healthy')
+        if upgrade:
+            raise ValueError('preview instance runs the earlier compose; rerun apply --apply')
         return {'action': 'verify', 'container': CONTAINER, 'healthy': True, 'compose_sha256': digest}
     if not args.apply:
         raise ValueError('writes require apply --apply')
@@ -128,6 +145,10 @@ def install(args):
             stack.mkdir(parents=True, exist_ok=False, mode=0o700)
             for directory in ['config', 'logs', 'data']:
                 (stack / directory).mkdir(mode=0o700)
+            atomic_write(compose, rendered)
+            atomic_write(marker, json.dumps({'config': config, 'compose_sha256': digest}).encode())
+        elif upgrade:
+            earlier_files = compose.read_bytes(), marker.read_bytes()
             atomic_write(compose, rendered)
             atomic_write(marker, json.dumps({'config': config, 'compose_sha256': digest}).encode())
         command = [args.docker, 'compose', '-f', str(compose)]
@@ -143,11 +164,17 @@ def install(args):
                     raise RuntimeError('preview readiness timed out')
                 time.sleep(min(3, max(0, deadline - time.monotonic())))
             run([args.docker, 'exec', '-i', CONTAINER, 'gitlab-rails', 'runner', '-'], input="ApplicationSetting.current.update!(signup_enabled: false, enabled_git_access_protocol: 'http', usage_ping_enabled: false)\nputs 'preview registration disabled'\n")
-        except Exception:
+        except Exception as error:
+            if upgrade:
+                # Recreate the instance from the compose it ran before; its data directories are untouched either way.
+                atomic_write(compose, earlier_files[0])
+                atomic_write(marker, earlier_files[1])
+                run([*command, 'up', '-d', '--no-build', '--pull', 'never'])
+                raise RuntimeError(f'preview upgrade failed ({error}); earlier compose restored') from None
             if not was_running:
                 run([*command, 'stop', '--timeout', '120'])
             raise
-        return {'action': 'apply', 'container': CONTAINER, 'healthy': True, 'registration': 'disabled', 'compose_sha256': digest}
+        return {'action': 'apply', 'container': CONTAINER, 'healthy': True, 'upgraded': upgrade, 'registration': 'disabled', 'compose_sha256': digest}
 
 
 def main():

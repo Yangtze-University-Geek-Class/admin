@@ -36,6 +36,7 @@ services:
         sidekiq['concurrency'] = 5
         prometheus_monitoring['enable'] = false
         from_file '/etc/gitlab/yzgc-oidc.rb' if File.file?('/etc/gitlab/yzgc-oidc.rb')
+        from_file '/etc/gitlab/yzgc-ui.rb' if File.file?('/etc/gitlab/yzgc-ui.rb')
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1/gitlab/-/health"]
       interval: 30s
