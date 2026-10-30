@@ -94,38 +94,42 @@
     {
       "issue": 333,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T19:15:00+08:00",
       "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
-      "expiresAt": "2026-11-02T19:15:00+08:00"
+      "closedAt": "2026-10-30T20:21:00+08:00",
+      "evidence": "四项已在 GitLab stage 与 main（eaa451dd，MR !80–!83）；GitHub main 66d89152（树同 eaa451dd）经 deploy-hotfix 41049756867 上线，计划、同构清单、测试、构建、CDN、部署与线上烟测全部通过，正式 /release.json 为 0.1.1@66d89152；GitHub stage 经同步 PR 合回"
     },
     {
       "issue": 336,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T19:15:00+08:00",
       "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
-      "expiresAt": "2026-11-02T19:15:00+08:00"
+      "closedAt": "2026-10-30T20:21:00+08:00",
+      "evidence": "四项已在 GitLab stage 与 main（eaa451dd，MR !80–!83）；GitHub main 66d89152（树同 eaa451dd）经 deploy-hotfix 41049756867 上线，计划、同构清单、测试、构建、CDN、部署与线上烟测全部通过，正式 /release.json 为 0.1.1@66d89152；GitHub stage 经同步 PR 合回"
     },
     {
       "issue": 342,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T19:15:00+08:00",
       "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
-      "expiresAt": "2026-11-02T19:15:00+08:00"
+      "closedAt": "2026-10-30T20:21:00+08:00",
+      "evidence": "四项已在 GitLab stage 与 main（eaa451dd，MR !80–!83）；GitHub main 66d89152（树同 eaa451dd）经 deploy-hotfix 41049756867 上线，计划、同构清单、测试、构建、CDN、部署与线上烟测全部通过，正式 /release.json 为 0.1.1@66d89152；GitHub stage 经同步 PR 合回"
     },
     {
       "issue": 343,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T19:15:00+08:00",
       "approval": "所有者 2026-10-30 19:15 在会话中批准：#333、#336、#342、#343 一起按 hotfix 合入，0.1.1 与预发布 stable 以此封版（tag v0.1.1）",
-      "expiresAt": "2026-11-02T19:15:00+08:00"
+      "closedAt": "2026-10-30T20:21:00+08:00",
+      "evidence": "四项已在 GitLab stage 与 main（eaa451dd，MR !80–!83）；GitHub main 66d89152（树同 eaa451dd）经 deploy-hotfix 41049756867 上线，计划、同构清单、测试、构建、CDN、部署与线上烟测全部通过，正式 /release.json 为 0.1.1@66d89152；GitHub stage 经同步 PR 合回"
     }
   ]
 }
