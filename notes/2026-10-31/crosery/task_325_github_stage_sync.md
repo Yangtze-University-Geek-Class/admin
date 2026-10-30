@@ -31,3 +31,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 git diff gitlab/stage HEAD 只剩 GitHub 独有声明与记录、#360 收尾记录和控制台合同日期；内容审查见 GitLab MR !103
 - 结果：通过
+
+## 01:14:11 +08:00 · 返工 · #325 · 修 CI 门禁
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：ci.yml 去掉单引号里的模板串（actionlint SC2016）；app/forum/ADOPTION.json 登记 vitest.config.ts；控制台文档日期改动使目录摘要变化，重新生成目录
+- 结果：本地 pnpm check 各项、forum adoption、branch-guard、提交门禁通过；actionlint 本机没有，未验证
