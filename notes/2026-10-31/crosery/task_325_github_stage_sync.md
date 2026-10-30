@@ -37,3 +37,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：ci.yml 去掉单引号里的模板串（actionlint SC2016）；app/forum/ADOPTION.json 登记 vitest.config.ts；控制台文档日期改动使目录摘要变化，重新生成目录
 - 结果：本地 pnpm check 各项、forum adoption、branch-guard、提交门禁通过；actionlint 本机没有，未验证
+
+## 01:15:33 +08:00 · 返工 · #325 · 读回超时随体积放宽
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：static-cdn-s3.mjs 的 GET 带 expectedBytes，static-cdn.mjs 的 verifyOne 按条目体积放宽超时
+- 结果：static-cdn-s3、static-cdn 104 例通过
