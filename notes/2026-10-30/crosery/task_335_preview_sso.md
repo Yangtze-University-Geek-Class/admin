@@ -13,3 +13,15 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：cutover.sh 新增 preview_sso（预发布库登记 gitlab_preview，只写 /srv/gitlab-preview/config 后 reconfigure），工作流加步骤，测试两条，GITLAB.md 与 CICD.md 补说明；文档核对：docs/ops/DEPLOY.md 不用改——DEPLOY 已写独立预发布 GitLab 的通道、入口、实例与 SSO 分别取证，步骤细节在 GITLAB.md；文档核对：docs/ops/ENVIRONMENTS.md 不用改——环境键与地址没变，GITLAB_URL 与 GITLAB_OIDC_CLIENT 已在 #335 首个 PR 写过
 - 结果：gitlab-cutover 测试 35 条通过
+
+## 16:44:10 +08:00 · 审查 · #335 · preview-sso 审查结论通过
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：按 CODE-REVIEW 核对 origin/main..HEAD 的 8 个文件：写入只在预发布配置目录与预发布 server，secret 0600 不打印，已登记不重登，aa101771 合并无冲突
+- 结果：结论：通过；未验证：线上 preview-sso apply 与真人登录
+
+## 16:44:10 +08:00 · PR · #335 · 开 PR 进 main（#335 收尾二）
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：task/335/preview_sso 推到 GitHub，开 PR 指向 main，正文十段带审查结论
+- 结果：合并后跑 preview-sso，同一提交推到 GitLab main
