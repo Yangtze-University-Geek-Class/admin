@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：task/335/legacy_dns_check 推到 GitHub，开 PR 指向 main，正文按 PULL-REQUESTS 十段写，带审查结论
 - 结果：PR 开出后等 CI，合并后重跑 move-production-path
+
+## 16:04:40 +08:00 · 提交 · #335 · 文档核对
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：文档核对：docs/ops/DEPLOY.md 不用改——5d126b5 只把同构清单条目改号为 P-0017，DEPLOY 不写条目编号；文档核对：docs/ops/ENVIRONMENTS.md 不用改——环境键与地址没有变化；文档核对：docs/ops/CICD.md 不用改——工作流与步骤没有变化；文档核对：docs/services/console/ 不用改——163d38e 只把控制台 mock 里的 GitLab 示例地址换成 example.test/gitlab，界面与接口行为没变
+- 结果：doc-sync 对 origin/main 的既有不同步写了文档核对
