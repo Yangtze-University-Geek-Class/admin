@@ -1,56 +1,6 @@
-# git.yangtzeu.work → Arch 主机上的 GitLab（经 hk-tunnel）
+# 旧 GitLab 地址只做跳转（#335）：GitLab 搬到正式入口的 /gitlab 下，路径和查询串原样带过去，git clone/fetch/push 跟着 301 走。
+# 香港 /etc/caddy/sites/gitlab.caddy 的唯一来源：install-host.sh --target edge 把它装到 /usr/local/share/yzgc-edge/gitlab-legacy.caddy，
+# 受限入口 production-apply 核对它只把这个主机跳到 <正式 PUBLIC_ORIGIN>/gitlab 之后才替换原来的反代块；NANO 头像随 GitLab 一起搬到 /gitlab/nano-avatar/。
 git.yangtzeu.work {
-	request_body {
-		max_size 2GB
-	}
-
-	log {
-		output file /var/log/caddy/gitlab-access.log {
-			roll_size 50MiB
-			roll_keep 10
-		}
-	}
-
-	@nano_avatar path_regexp nano_avatar ^/nano-avatar/20261025/([0-9a-f])[0-9a-f]{63}$
-	handle @nano_avatar {
-		map {re.nano_avatar.1} {nano_avatar_file} {
-			0 avatar-01.png
-			8 avatar-01.png
-			1 avatar-02.png
-			9 avatar-02.png
-			2 avatar-03.png
-			a avatar-03.png
-			3 avatar-04.png
-			b avatar-04.png
-			4 avatar-05.png
-			c avatar-05.png
-			5 avatar-06.png
-			d avatar-06.png
-			6 avatar-07.png
-			e avatar-07.png
-			7 avatar-08.png
-			f avatar-08.png
-		}
-		root * /var/lib/caddy/gitlab-avatars/20261025
-		rewrite * /{nano_avatar_file}
-		header Cache-Control "public, max-age=86400"
-		header X-Content-Type-Options nosniff
-		file_server
-	}
-
-	@nano_fallback path_regexp ^/assets/no_avatar(-[a-f0-9]+)?\.png$
-	handle @nano_fallback {
-		root * /var/lib/caddy/gitlab-avatars/20261025
-		rewrite * /avatar-01.png
-		header Cache-Control "public, max-age=86400"
-		header X-Content-Type-Options nosniff
-		file_server
-	}
-
-	handle {
-		reverse_proxy 10.66.0.2:8929 {
-			flush_interval -1
-			header_up X-Forwarded-Proto https
-		}
-	}
+	redir https://yangtzeu.work/gitlab{uri} 301
 }

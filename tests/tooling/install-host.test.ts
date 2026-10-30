@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -123,6 +123,27 @@ describe("install-host.sh", () => {
     dirs.push(empty);
     expect(spawnSync("bash", [installer, "plan", "--source", empty, "--root", f.root], { encoding: "utf8" }).status).toBe(2);
     expect(existsSync(join(f.root, "etc"))).toBe(false);
+  });
+
+  it("edge：同时装接收器与旧 GitLab 主机的跳转物料，两份模板都要给（#335）", () => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "install-host-edge-")));
+    dirs.push(dir);
+    const root = join(dir, "root");
+    mkdirSync(root);
+    const edge = (mode: string, extra: string[] = []) => spawnSync("bash", [installer, mode, "--target", "edge", "--source", source, "--root", root, ...extra], { encoding: "utf8" });
+    const preview = resolve(process.cwd(), "deploy/env/.env.preview");
+    const production = resolve(process.cwd(), "deploy/env/.env.production");
+    const plan = edge("plan");
+    expect(plan.stdout.trim().split("\n")).toEqual(["missing  /usr/local/libexec/yzgc-edge", "missing  /usr/local/share/yzgc-edge/gitlab-legacy.caddy"]);
+    expect(edge("apply", ["--edge-env-file", preview]).status).toBe(2);
+    expect(readdirSync(root)).toEqual([]);
+    const applied = edge("apply", ["--edge-env-file", preview, "--edge-production-env-file", production]);
+    expect(applied.status, applied.stderr).toBe(0);
+    expect(readFileSync(join(root, "usr/local/share/yzgc-edge/gitlab-legacy.caddy"), "utf8")).toBe(readFileSync(resolve(process.cwd(), "deploy/gitlab/gitlab.caddy"), "utf8"));
+    expect(JSON.parse(readFileSync(join(root, "etc/yzgc-edge/gitlab-production.json"), "utf8"))).toEqual({ production_origin: new URL(readFileSync(production, "utf8").match(/^PUBLIC_ORIGIN=(.*)$/m)![1]).origin, upstream: readFileSync(production, "utf8").match(/^GITLAB_HTTP_BIND=(.*)$/m)![1] });
+    expect(edge("verify").status).toBe(0);
+    rmSync(join(root, "etc/yzgc-edge/gitlab-production.json"));
+    expect(edge("verify").status).toBe(1);
   });
 });
 

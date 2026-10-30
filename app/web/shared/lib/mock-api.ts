@@ -136,9 +136,9 @@ const demoDepartments = [
 
 /** GET /api/public/gitlab/projects（契约 §6）：只有公开项目；last_activity_at 照 GitLab 给 ISO 时间字符串 */
 const demoProjects = [
-  { name: "geek_main", path_with_namespace: "geek/geek_main", description: "官网、论坛、控制台和后端", web_url: "https://git.yangtzeu.work/geek/geek_main", http_url_to_repo: "https://git.yangtzeu.work/geek/geek_main.git", last_activity_at: new Date(now - 2 * HOUR).toISOString() },
-  { name: "geek_bot", path_with_namespace: "geek/geek_bot", description: "合并请求审查机器人", web_url: "https://git.yangtzeu.work/geek/geek_bot", http_url_to_repo: "https://git.yangtzeu.work/geek/geek_bot.git", last_activity_at: new Date(now - 3 * DAY).toISOString() },
-  { name: "oj-problems", path_with_namespace: "geek/oj-problems", description: "校内算法赛题目和数据", web_url: "https://git.yangtzeu.work/geek/oj-problems", http_url_to_repo: "https://git.yangtzeu.work/geek/oj-problems.git", last_activity_at: new Date(now - 12 * DAY).toISOString() },
+  { name: "geek_main", path_with_namespace: "geek/geek_main", description: "官网、论坛、控制台和后端", web_url: "https://example.test/gitlab/geek/geek_main", http_url_to_repo: "https://example.test/gitlab/geek/geek_main.git", last_activity_at: new Date(now - 2 * HOUR).toISOString() },
+  { name: "geek_bot", path_with_namespace: "geek/geek_bot", description: "合并请求审查机器人", web_url: "https://example.test/gitlab/geek/geek_bot", http_url_to_repo: "https://example.test/gitlab/geek/geek_bot.git", last_activity_at: new Date(now - 3 * DAY).toISOString() },
+  { name: "oj-problems", path_with_namespace: "geek/oj-problems", description: "校内算法赛题目和数据", web_url: "https://example.test/gitlab/geek/oj-problems", http_url_to_repo: "https://example.test/gitlab/geek/oj-problems.git", last_activity_at: new Date(now - 12 * DAY).toISOString() },
 ];
 
 function route(path: string): unknown {

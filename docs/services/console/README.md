@@ -2,7 +2,7 @@
 
 > 极客班控制台前端：Vue 3 + Tuffex 单页应用，按权限节点显示页面；接口全部来自 `app/server`，产物由 web 镜像托管。
 
-状态：`current` · 更新：2026-10-28 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
+状态：`current` · 更新：2026-10-30 · 源码：`app/console/` · 产物：`app/console/dist/`（随 `yzgc/web:<tag>` 镜像发布）
 
 ## 为什么是独立的包
 
@@ -45,7 +45,7 @@
 | `/console/permissions` | 权限：组、节点、解释三个页签（见下文「权限」） | `perm.view` 或 `perm.manage` |
 | `/console/invites` | 注册邀请码：列出、新建、编辑、停用与启用 | `invite.manage` |
 | `/console/gitlab` | GitLab 概览：同步模式、连接、上次同步、最近 24 小时出错数（四张 `TxStatCard`，和概览页一样取值在上、名称在下），地址、群组、版本、令牌配没配 | 任一 `gitlab.view`、`gitlab.sync`、`gitlab.settings` |
-| `/console/gitlab/accounts` | 账号同步：每个账号在 GitLab 上的用户名、组权限、还要做的事和最后一次错误；「全部 / 出错的 / 还有事要做」筛选和搜索；有 `gitlab.sync` 时每行「重试」或「立即同步」（`POST /api/console/gitlab/accounts/:id/resync`） | 同上 |
+| `/console/gitlab/accounts` | 账号同步：每个账号在 GitLab 上的用户名、组权限、还要做的事和最后一次错误（客户端的 sector 和本环境 `GITLAB_OIDC_SECTOR` 不一致时显示「GitLab 客户端的 sector 和本环境配置不一致」，#335）；「全部 / 出错的 / 还有事要做」筛选和搜索；有 `gitlab.sync` 时每行「重试」或「立即同步」（`POST /api/console/gitlab/accounts/:id/resync`） | 同上 |
 | `/console/gitlab/projects` | 群组与项目：同步群组下的子群组和项目，HTTPS、SSH 克隆地址各带复制按钮 | 同上 |
 | `/console/gitlab/settings` | GitLab 设置：同步模式（关闭、预演、打开）、群组路径、同步间隔（5–1440 分钟）；令牌只显示「已配置」或「未配置」 | `gitlab.settings` |
 | `/console/activity` | 操作记录（见下文「操作记录」） | `activity.read` |

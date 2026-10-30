@@ -463,16 +463,16 @@ function activityPage(rows: ActivityEvent[], cursor: string | null, limit: numbe
 // ---- GitLab ----
 
 const MOCK_GITLAB_STATUS: GitlabStatus = {
-  mode: "on", url: "https://git.yangtzeu.work", group: "geek", token_configured: true, version: "17.6.1", healthy: true,
+  mode: "on", url: "https://example.test/gitlab", group: "geek", token_configured: true, version: "17.6.1", healthy: true,
   last_run: { at: now - 8 * MIN, changed: 2, failed: 1 }, errors_24h: 1,
 };
 const MOCK_GITLAB_PROJECTS: GitlabProjectsResponse = {
   groups: [{ id: 1, full_path: "geek", name: "geek", visibility: "private" }, { id: 2, full_path: "geek/courses", name: "courses", visibility: "internal" }],
   projects: [
-    { id: 101, path_with_namespace: "geek/portal", name: "portal", description: "官网、控制台和论坛", visibility: "private", web_url: "https://git.yangtzeu.work/geek/portal", http_url_to_repo: "https://git.yangtzeu.work/geek/portal.git", ssh_url_to_repo: "git@git.yangtzeu.work:geek/portal.git", last_activity_at: now - 2 * HOUR, star_count: 6 },
-    { id: 102, path_with_namespace: "geek/geek-cli", name: "geek-cli", description: "命令行工具", visibility: "internal", web_url: "https://git.yangtzeu.work/geek/geek-cli", http_url_to_repo: "https://git.yangtzeu.work/geek/geek-cli.git", ssh_url_to_repo: "git@git.yangtzeu.work:geek/geek-cli.git", last_activity_at: now - DAY, star_count: 3 },
-    { id: 103, path_with_namespace: "geek/courses/ai-bootcamp-2026-autumn-handouts", name: "ai-bootcamp-2026-autumn-handouts", description: "2026 秋季 AI 训练营讲义和作业，按周整理", visibility: "public", web_url: "https://git.yangtzeu.work/geek/courses/ai-bootcamp-2026-autumn-handouts", http_url_to_repo: "https://git.yangtzeu.work/geek/courses/ai-bootcamp-2026-autumn-handouts.git", ssh_url_to_repo: "git@git.yangtzeu.work:geek/courses/ai-bootcamp-2026-autumn-handouts.git", last_activity_at: now - 3 * DAY, star_count: 12 },
-    { id: 104, path_with_namespace: "geek/sandbox", name: "sandbox", description: null, visibility: "private", web_url: "https://git.yangtzeu.work/geek/sandbox", http_url_to_repo: "https://git.yangtzeu.work/geek/sandbox.git", ssh_url_to_repo: "git@git.yangtzeu.work:geek/sandbox.git", last_activity_at: null, star_count: 0 },
+    { id: 101, path_with_namespace: "geek/portal", name: "portal", description: "官网、控制台和论坛", visibility: "private", web_url: "https://example.test/gitlab/geek/portal", http_url_to_repo: "https://example.test/gitlab/geek/portal.git", ssh_url_to_repo: "git@example.test:geek/portal.git", last_activity_at: now - 2 * HOUR, star_count: 6 },
+    { id: 102, path_with_namespace: "geek/geek-cli", name: "geek-cli", description: "命令行工具", visibility: "internal", web_url: "https://example.test/gitlab/geek/geek-cli", http_url_to_repo: "https://example.test/gitlab/geek/geek-cli.git", ssh_url_to_repo: "git@example.test:geek/geek-cli.git", last_activity_at: now - DAY, star_count: 3 },
+    { id: 103, path_with_namespace: "geek/courses/ai-bootcamp-2026-autumn-handouts", name: "ai-bootcamp-2026-autumn-handouts", description: "2026 秋季 AI 训练营讲义和作业，按周整理", visibility: "public", web_url: "https://example.test/gitlab/geek/courses/ai-bootcamp-2026-autumn-handouts", http_url_to_repo: "https://example.test/gitlab/geek/courses/ai-bootcamp-2026-autumn-handouts.git", ssh_url_to_repo: "git@example.test:geek/courses/ai-bootcamp-2026-autumn-handouts.git", last_activity_at: now - 3 * DAY, star_count: 12 },
+    { id: 104, path_with_namespace: "geek/sandbox", name: "sandbox", description: null, visibility: "private", web_url: "https://example.test/gitlab/geek/sandbox", http_url_to_repo: "https://example.test/gitlab/geek/sandbox.git", ssh_url_to_repo: "git@example.test:geek/sandbox.git", last_activity_at: null, star_count: 0 },
   ],
 };
 const MOCK_GITLAB_SETTINGS: GitlabSettings = { sync_mode: "on", group_path: "geek", interval_minutes: 10, token_configured: true };
@@ -497,7 +497,7 @@ export function mockGitlabAccounts(): GitlabAccountsResponse {
     if (account.gitlab.state === "blocked") return { ...base, pending: [{ kind: "unblock" }] };
     return base;
   });
-  return { mode: "on", gitlab_url: "https://git.yangtzeu.work", group: "geek", client_registered: true, accounts };
+  return { mode: "on", gitlab_url: "https://example.test/gitlab", group: "geek", client_registered: true, accounts };
 }
 
 // ---- 投递样板（#148，照旧）----
@@ -615,13 +615,13 @@ const MOCK_SCORE_EVENTS: Record<string, ScoreEvent[]> = {
 // #278 的只读样板：一期开源赛的待确认贡献、计分规则与奖项、官网版本、定榜预览（写操作在开发预览里照旧回 501）
 const contestPerson = (login: string, name: string) => ({ account_id: `mock-${login}`, username: login, display_name: name, avatar_url: null });
 const MOCK_CANDIDATES: Candidate[] = [
-  { id: "cd1001", account: contestPerson("zhao_yi", "赵一"), kind: "pr", gitlab_project: "geek/admin", gitlab_iid: 41, url: "https://git.yangtzeu.work/geek/admin/-/merge_requests/41",
+  { id: "cd1001", account: contestPerson("zhao_yi", "赵一"), kind: "pr", gitlab_project: "geek/admin", gitlab_iid: 41, url: "https://example.test/gitlab/geek/admin/-/merge_requests/41",
     title: "天梯接口加十秒缓存", importance: "important", core: "core", status: "pending", final_points: null, reason: null, reviewed_by: null, reviewed_at: null, accepted_via: null,
     note: "「有用」标签由 zhao_yi 添加，这是作者本人，未计分", contributed_at: now - 5 * HOUR, created_at: now - 4 * HOUR },
-  { id: "cd1002", account: contestPerson("sun_qiao", "孙乔"), kind: "issue", gitlab_project: "geek/admin", gitlab_iid: 77, url: "https://git.yangtzeu.work/geek/admin/-/issues/77",
+  { id: "cd1002", account: contestPerson("sun_qiao", "孙乔"), kind: "issue", gitlab_project: "geek/admin", gitlab_iid: 77, url: "https://example.test/gitlab/geek/admin/-/issues/77",
     title: "手机上天梯表格横向滚动", importance: null, core: null, status: "pending", final_points: null, reason: null, reviewed_by: null, reviewed_at: null, accepted_via: null,
     note: null, contributed_at: now - DAY, created_at: now - DAY + HOUR },
-  { id: "cd1003", account: contestPerson("chen_hang", "陈航"), kind: "pr", gitlab_project: "geek/admin", gitlab_iid: 38, url: "https://git.yangtzeu.work/geek/admin/-/merge_requests/38",
+  { id: "cd1003", account: contestPerson("chen_hang", "陈航"), kind: "pr", gitlab_project: "geek/admin", gitlab_iid: 38, url: "https://example.test/gitlab/geek/admin/-/merge_requests/38",
     title: "比赛官网的动态流", importance: "important", core: "business", status: "accepted", final_points: 45, reason: null, reviewed_by: contestPerson("xu_yan", "徐言"), reviewed_at: now - 3 * HOUR, accepted_via: "label",
     note: null, contributed_at: now - 2 * DAY, created_at: now - 2 * DAY + HOUR },
 ];

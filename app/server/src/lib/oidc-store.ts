@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { createCrypto } from "./crypto.js";
 
@@ -6,8 +6,8 @@ import type { createCrypto } from "./crypto.js";
  * 对外授权的存储（#270，ADR-0005 决策 3、8）：登记的下游应用、给下游的 `sub`、本人允许过的应用，以及 oidc-provider
  * 自己的授权码、令牌、交互与会话。只有这个模块读写 oauth_clients、oauth_subjects、oauth_grants 与 oidc_payloads。
  */
-export type OidcClient = { client_id: string; name: string; redirect_uris: string[]; status: "active" | "disabled"; created_at: number; updated_at: number };
-type ClientRow = { client_id: string; name: string; secret_encrypted: string; redirect_uris: string; status: "active" | "disabled"; created_at: number; updated_at: number };
+export type OidcClient = { client_id: string; name: string; redirect_uris: string[]; sector: string; status: "active" | "disabled"; created_at: number; updated_at: number };
+type ClientRow = { client_id: string; name: string; secret_encrypted: string; redirect_uris: string; sector_id: string | null; status: "active" | "disabled"; created_at: number; updated_at: number };
 type PayloadRow = { payload: string; expires_at: number | null; consumed_at: number | null };
 
 /** oidc-provider 的存储接口（Adapter）。payload 是它自己的对象，这里只按 JSON 存取。 */
@@ -31,10 +31,11 @@ const newSubject = () => randomBytes(32).toString("base64url");
 const PAYLOAD_SWEEP_MS = 60 * 60 * 1000;
 
 /**
- * 回调地址：只收 https（本机开发可以用 http://127.0.0.1 与 http://localhost），不带 # 片段；同一个应用的回调必须在同一个主机上，
- * 这个主机就是它的 sector——同一个 sector 的应用拿到同一个 `sub`。
+ * 回调地址：只收 https（本机开发可以用 http://127.0.0.1 与 http://localhost），不带 # 片段。新登记的应用，回调必须在同一个主机上，
+ * 这个主机就是它的 sector——同一个 sector 的应用拿到同一个 `sub`。已经钉住 sector 的应用（`pinned`）换地址时回调可以跨主机，
+ * sector 不跟着回调走（#335：GitLab 从子域名搬到主站路径，成员的 `sub` 不能变）。
  */
-export function validateRedirectUris(uris: string[]): { ok: true; sector: string } | { ok: false; reason: string } {
+export function validateRedirectUris(uris: string[], pinned: string | null = null): { ok: true; sector: string } | { ok: false; reason: string } {
   if (uris.length === 0) return { ok: false, reason: "at least one redirect URI is required" };
   const hosts = new Set<string>();
   for (const raw of uris) {
@@ -45,9 +46,13 @@ export function validateRedirectUris(uris: string[]): { ok: true; sector: string
     if (url.hash || url.username || url.password) return { ok: false, reason: `redirect URI must not carry a fragment or credentials: ${raw}` };
     hosts.add(url.host);
   }
+  if (pinned) return { ok: true, sector: pinned };
   if (hosts.size !== 1) return { ok: false, reason: "all redirect URIs of one client must share a host" };
   return { ok: true, sector: [...hosts][0] };
 }
+
+/** 应用的 sector：登记时钉住的值；钉住之前登记的旧行没有这一列，取第一个回调的主机（和 oidc-provider 按 redirect_uris[0] 算的一致）。 */
+const sectorOfRow = (row: ClientRow) => row.sector_id ?? new URL((JSON.parse(row.redirect_uris) as string[])[0]).host;
 
 export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof createCrypto>, clock: () => number = Date.now) {
   const selectClient = db.prepare("SELECT * FROM oauth_clients WHERE client_id = ?");
@@ -56,13 +61,15 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
   const selectAccountBySub = db.prepare("SELECT user_id FROM oauth_subjects WHERE sector_id = ? AND sub = ?");
 
   const toClient = (row: ClientRow): OidcClient => ({
-    client_id: row.client_id, name: row.name, redirect_uris: JSON.parse(row.redirect_uris) as string[], status: row.status,
+    client_id: row.client_id, name: row.name, redirect_uris: JSON.parse(row.redirect_uris) as string[], sector: sectorOfRow(row), status: row.status,
     created_at: row.created_at, updated_at: row.updated_at,
   });
 
   /** 登记一个下游应用，返回 client id 与 secret。secret 只在这里出现一次，之后只能轮换。 */
-  function registerClient(input: { name: string; redirectUris: string[]; clientId?: string }): { client: OidcClient; clientSecret: string } {
-    const checked = validateRedirectUris(input.redirectUris);
+  /** `sector` 给了就钉成它（换地址的应用重新登记时沿用原来的 sector，#335），不给就是回调的主机。 */
+  function registerClient(input: { name: string; redirectUris: string[]; clientId?: string; sector?: string }): { client: OidcClient; clientSecret: string } {
+    if (input.sector !== undefined && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/.test(input.sector)) throw new Error("sector must be a host name");
+    const checked = validateRedirectUris(input.redirectUris, input.sector ?? null);
     if (!checked.ok) throw new Error(checked.reason);
     const name = input.name.trim();
     if (!name || name.length > 60) throw new Error("client name must be 1 to 60 characters");
@@ -71,8 +78,8 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
     if (selectClient.get(clientId)) throw new Error(`client ${clientId} already exists`);
     const secret = newSecret();
     const now = clock();
-    db.prepare("INSERT INTO oauth_clients(client_id, name, secret_encrypted, redirect_uris, status, created_at, updated_at) VALUES(?, ?, ?, ?, 'active', ?, ?)")
-      .run(clientId, name, crypto.encrypt(secret), JSON.stringify(input.redirectUris), now, now);
+    db.prepare("INSERT INTO oauth_clients(client_id, name, secret_encrypted, redirect_uris, sector_id, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, 'active', ?, ?)")
+      .run(clientId, name, crypto.encrypt(secret), JSON.stringify(input.redirectUris), checked.sector, now, now);
     return { client: toClient(selectClient.get(clientId) as ClientRow), clientSecret: secret };
   }
 
@@ -90,10 +97,37 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
     if (!changed) throw new Error(`client ${clientId} not found`);
   }
 
-  /** 这个应用的 sector：回调地址的主机，和 oidc-provider 按 redirect_uris[0] 算出的一致；停用的照样算，没登记为 null。 */
+  /**
+   * 换回调地址（#335）：加一个或去掉一个，sector 不变。改之前先把当前 sector 钉进 sector_id（旧行原来没有这一列），
+   * 之后回调可以换到别的主机，`sub` 照旧；至少留一个回调。地址已经在（或已经不在）时不改，changed 为 false。
+   */
+  const updateRedirects = db.transaction((clientId: string, change: (uris: string[]) => string[]) => {
+    const row = selectClient.get(clientId) as ClientRow | undefined;
+    if (!row) throw new Error(`client ${clientId} not found`);
+    const sector = sectorOfRow(row);
+    const before = JSON.parse(row.redirect_uris) as string[];
+    const after = change(before);
+    const checked = validateRedirectUris(after, sector);
+    if (!checked.ok) throw new Error(checked.reason);
+    const changed = JSON.stringify(after) !== JSON.stringify(before);
+    if (changed || row.sector_id === null) {
+      db.prepare("UPDATE oauth_clients SET redirect_uris = ?, sector_id = ?, updated_at = ? WHERE client_id = ?").run(JSON.stringify(after), sector, clock(), clientId);
+    }
+    return { client: toClient(selectClient.get(clientId) as ClientRow), changed, before };
+  });
+
+  function addRedirectUri(clientId: string, uri: string) {
+    return updateRedirects(clientId, uris => (uris.includes(uri) ? uris : [...uris, uri]));
+  }
+
+  function removeRedirectUri(clientId: string, uri: string) {
+    return updateRedirects(clientId, uris => uris.filter(item => item !== uri));
+  }
+
+  /** 这个应用的 sector（给成员算 `sub` 的分区）：登记时钉住，换回调地址不变；停用的照样算，没登记为 null。 */
   function sectorOf(clientId: string): string | null {
-    const client = getClient(clientId);
-    return client ? new URL(client.redirect_uris[0]).host : null;
+    const row = selectClient.get(clientId) as ClientRow | undefined;
+    return row ? sectorOfRow(row) : null;
   }
 
   function listClients(): OidcClient[] {
@@ -120,6 +154,8 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
       response_types: ["code"],
       token_endpoint_auth_method: "client_secret_basic",
       subject_type: "pairwise",
+      // 换地址的过渡期新旧回调不在一个主机上，oidc-provider 要求这时写明 sector；一直带上，和 pairwiseIdentifier 用的是同一个值
+      sector_identifier_uri: `https://${sectorOfRow(row)}/`,
     };
   }
 
@@ -137,6 +173,29 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
   /** 只读：这个账号在这个 sector 有没有 `sub`（有过就说明下游拿到过他的身份），没有时不生成。 */
   function existingSubject(sectorId: string, accountId: string): string | null {
     return (selectSubject.get(sectorId, accountId) as { sub: string } | undefined)?.sub ?? null;
+  }
+
+  /** 只读：钉住的 sector（sector_id 列）；钉住之前登记的旧行是 null，没登记的应用是 undefined。 */
+  function pinnedSectorOf(clientId: string): string | null | undefined {
+    const row = selectClient.get(clientId) as ClientRow | undefined;
+    return row ? row.sector_id : undefined;
+  }
+
+  /** 只读：这个 sector 里有 `sub` 的账号，按账号 id 取前 limit 个（#335 换地址前后抽样核对用）。 */
+  function subjectAccounts(sectorId: string, limit: number): string[] {
+    return (db.prepare("SELECT user_id FROM oauth_subjects WHERE sector_id = ? ORDER BY user_id LIMIT ?").all(sectorId, limit) as { user_id: string }[]).map(row => row.user_id);
+  }
+
+  /** 只读：一批账号在这个 sector 的 `sub` 按给定顺序算出的 sha256 摘要，不生成新的 sub；只给计数和摘要，不给 sub 本身。 */
+  function subjectDigest(sectorId: string, accounts: string[]): { count: number; missing: number; digest: string } {
+    const hash = createHash("sha256");
+    let missing = 0;
+    for (const account of accounts) {
+      const sub = existingSubject(sectorId, account);
+      if (!sub) missing += 1;
+      hash.update(`${account}\t${sub ?? ""}\n`);
+    }
+    return { count: accounts.length - missing, missing, digest: hash.digest("hex") };
   }
 
   /** 按 `sub` 反查账号（GitLab 同步对账用）；不是本 sector 的 sub 查不到。 */
@@ -207,8 +266,8 @@ export function createOidcStore(db: Database.Database, crypto: ReturnType<typeof
   }
 
   return {
-    registerClient, rotateSecret, setClientStatus, listClients, getClient, sectorOf, clientMetadata,
-    subjectFor, existingSubject, accountForSubject, rememberGrant, rememberedGrant, sweepExpired, adapterFor,
+    registerClient, rotateSecret, setClientStatus, addRedirectUri, removeRedirectUri, listClients, getClient, sectorOf, clientMetadata,
+    subjectFor, existingSubject, pinnedSectorOf, subjectAccounts, subjectDigest, accountForSubject, rememberGrant, rememberedGrant, sweepExpired, adapterFor,
   };
 }
 export type OidcStore = ReturnType<typeof createOidcStore>;

@@ -7,11 +7,11 @@
 
 ## 架构拓扑与运行网络
 
-源码声明的既有链路：公网 `git.yangtzeu.work` → 香港 Caddy（TLS 终止）→ `hk-tunnel.service` 的 `ssh -w` 三层点对点隧道（`10.66.0.1` ↔ `10.66.0.2`）→ Arch `10.66.0.2:8929` → GitLab 容器 HTTP 80。隧道实现依据原始迁移调查，不由 Compose 文件推断。
+源码声明的链路（#335 搬家后）：公网 `https://yangtzeu.work/gitlab` → 香港 Caddy 正式站点块的 `/gitlab` 处理器（TLS 终止，不剥前缀）→ `hk-tunnel.service` 的 `ssh -w` 三层点对点隧道（`10.66.0.1` ↔ `10.66.0.2`）→ Arch `10.66.0.2:8929` → GitLab 容器 HTTP 80（`external_url` 带 `/gitlab`）。旧主机 `git.yangtzeu.work` 只做 301，跳到新地址的同一路径（带查询串）；搬家前它直接反代到同一个 Arch 端口。线上搬没搬以 `gitlab-cutover` 的 `path-status` 为准：2026-10-30 核对时 `https://yangtzeu.work/gitlab/users/sign_in` 回的还是官网页面，旧主机仍在反代。隧道实现依据原始迁移调查，不由 Compose 文件推断。
 
-- [docker-compose.yml](../../deploy/gitlab/docker-compose.yml) 只发布 `10.66.0.2:8929:80` 和 `127.0.0.1:8929:80`，不发布容器 SSH；成员通过 HTTPS/PAT 推拉。
+- [docker-compose.yml](../../deploy/gitlab/docker-compose.yml) 是模板（#335）：[production-path.py](../../deploy/gitlab/production-path.py) 用 `deploy/env/.env.production` 的 `GITLAB_URL`、`GITLAB_HTTP_BIND`、`GITLAB_STACK_ROOT`、子网与网关渲染，只发布 `<GITLAB_HTTP_BIND>:80`（正式 `10.66.0.2:8929`）和 `127.0.0.1:<同端口>:80`，不发布容器 SSH；成员通过 HTTPS/PAT 推拉。镜像行仍是字面值（`preview.py` 与 `restore-drill.sh` 照读）。模板不写 `hostname`：改成主站主机名时 Docker 会把它写进容器的 `/etc/hosts`，签发者 `<PUBLIC_ORIGIN>/oidc` 就会解析回容器自己。
 - [gitlab-compose.service](../../deploy/gitlab/gitlab-compose.service) 等待 `tun0` 的 `10.66.0.2` 后执行 Docker Compose；它不是应用平台两套栈的部署入口。
-- 容器内 Nginx/Rails 的代理信任地址为 `10.66.0.1`、`10.66.0.2`、`127.0.0.1`、`172.31.29.1`；真实 IP、防伪造头及 DNS/TLS 仍需目标链路取证。
+- 容器内 Nginx/Rails 的代理信任地址为 `10.66.0.1`、`10.66.0.2`、`127.0.0.1` 和 Docker 网关 `GITLAB_DOCKER_GATEWAY`（正式 `172.31.29.1`）；真实 IP、防伪造头及 DNS/TLS 仍需目标链路取证。
 - GitLab 是既有旁路服务，不加入 `yzgc-production` / `yzgc-preview`，不因本任务重启、reconfigure、改签发者或启停同步。本轮没有读取运行配置或探测线上健康。
 
 ## 源码纳管与运行安装映射
@@ -20,14 +20,15 @@
 
 | 仓库源码（`deploy/gitlab/` 下） | 获批安装时的目标 / 调用关系 |
 |---|---|
-| `docker-compose.yml` | Arch `/srv/gitlab/docker-compose.yml`；由 `gitlab-compose.service` 引用 |
+| `docker-compose.yml` | Arch `/srv/gitlab/docker-compose.yml`，#335 起由 `production-path.py` 从模板渲染（容器日志 json-file 轮转，`max-size: "10m"`、`max-file: "3"`，和两套站点栈一样）；由 `gitlab-compose.service` 引用 |
 | `gitlab-compose.service` | Arch `/etc/systemd/system/`；依赖既有 Docker、隧道服务 |
 | `settings.sh` | Arch `/srv/gitlab/settings.sh`；用 `bash` 显式执行，写数据库应用设置，不随源码纳管自动执行 |
 | `backup.sh`、`restore-drill.sh`、仓库 `deploy/remote/garage-archive.mjs` | Arch `/srv/gitlab/`；前者由备份 service 调用，后者由获批操作者调用，共享归档器由两者调用 |
 | `gitlab-backup.service`、`gitlab-backup.timer` | Arch `/etc/systemd/system/`；timer → service → `/srv/gitlab/backup.sh` |
-| `gitlab-oidc.rb`、`gitlab-ui.rb` | 审核后合入 Arch `/srv/gitlab/config/gitlab.rb`，不是独立 Ruby 程序；不得反复追加或覆盖整份已有配置 |
+| `gitlab-oidc.rb`、`gitlab-ui.rb` | 审核后合入 Arch `/srv/gitlab/config/gitlab.rb`，不是独立 Ruby 程序；不得反复追加或覆盖整份已有配置。回调和两条头像地址读 `/etc/gitlab/yzgc-gitlab-url`（Arch `/srv/gitlab/config/yzgc-gitlab-url`，一行，等于 `GITLAB_URL`，#335）；搬家时 `production-path.py` 只改 `gitlab.rb` 里这三行，每行必须恰好出现一次 |
 | `migrate-oidc-subjects.mjs`（#309 新增，不属于 28 项导入基线） | 不安装到宿主：改接签发者时 `docker cp` 进两个 server 容器的 `/tmp/` 临时运行，用完删除；缺省只演算，`--apply` 才写正式库的 `oauth_subjects`（见上节第 3 步） |
-| `gitlab.caddy` | 香港 `/etc/caddy/sites/gitlab.caddy`；默认头像规则优先，其余反代到 `10.66.0.2:8929` |
+| `gitlab.caddy` | #335 起是旧主机只做 301 的物料：`install-host.sh --target edge` 装到香港 `/usr/local/share/yzgc-edge/gitlab-legacy.caddy`，接收器 `production-apply` 核对它只把旧主机跳到正式 `/gitlab` 后放进 `/etc/caddy/sites/gitlab.caddy`；原来的默认头像规则搬进正式站点块的 `/gitlab` 处理器（`deploy/remote/edge-gitlab.py`），搬家前这里反代到 `10.66.0.2:8929` |
+| `production-path.py`、`move-path.sh`（#335 新增，不属于 28 项导入基线） | 不安装到宿主：`gitlab-cutover` 每次把本次提交分发到 Arch 临时目录，`cutover.sh *-production-path` 调前者；后者在 runner 上串起 Arch、香港两半和公网核对 |
 | `ui/logo.png`、`group-avatar.png`、`favicon-32.png`、`project-*.png`（4 张） | 外观、组织和项目头像上传输入；没有自动上传脚本 |
 | `ui/nano-avatars/20261025/avatar-*.png`（8 张）与 `manifest.json` | 香港 `/var/lib/caddy/gitlab-avatars/20261025/`；Arch `/srv/gitlab/config/nano-avatars/20261025/` 的恢复副本只有实际安装后才会进入配置备份 |
 | `ui/nano-avatars/20261025/preview.png` | 离线预览，不是站点运行依赖 |
@@ -84,30 +85,53 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ## 独立预发布实例（#308）
 
-所有者于2026-10-29明确接受已有预发布域名 `/gitlab/` 的 Beta 部署风险；现有 `git.yangtzeu.work`、`gitlab` 容器、`/srv/gitlab` 和全部旧账号/仓库保留为正式。官方依据：[Linux package relative URL](https://docs.gitlab.com/omnibus/settings/configuration/#configure-a-relative-url-for-gitlab)。不新增子域名、不改DNS、不升级镜像，不复制正式业务数据。
+所有者于2026-10-29明确接受已有预发布域名 `/gitlab/` 的 Beta 部署风险；现有 `gitlab` 容器、`/srv/gitlab` 和全部旧账号/仓库保留为正式（入口原为 `git.yangtzeu.work`，#335 起改为正式入口的 `/gitlab`，见下一节）。官方依据：[Linux package relative URL](https://docs.gitlab.com/omnibus/settings/configuration/#configure-a-relative-url-for-gitlab)。不新增子域名、不改DNS、不升级镜像，不复制正式业务数据。
 
 | 项目 | 正式 | 独立预发布 |
 |---|---|---|
-| 入口 | `https://git.yangtzeu.work` | `https://prev.yangtzeu.work/gitlab` |
+| 入口 | `https://yangtzeu.work/gitlab`（#335；旧主机 `git.yangtzeu.work` 只做 301） | `https://prev.yangtzeu.work/gitlab` |
 | 容器/数据根 | `gitlab` / `/srv/gitlab`，保持现有 | `gitlab-preview` / `/srv/gitlab-preview` |
 | 隧道绑定/子网 | `10.66.0.2:8929` / `172.31.29.0/24` | `10.66.0.2:8930` / `172.31.30.0/24` |
-| OIDC 客户端/sector | `gitlab` / `git.yangtzeu.work` | `gitlab_preview` / `prev.yangtzeu.work` |
+| OIDC 客户端/sector | `gitlab` / `git.yangtzeu.work`（钉住，搬家后不变） | `gitlab_preview` / `prev.yangtzeu.work` |
 | 备份角色/桶 | `gitlab-backup` / `geek-backup` | `gitlab-preview-backup` / `geek-preview-private` |
 
 - 编排来源为 `preview-compose.yml`，仅从 canonical preview 模板渲染已校验的非密字段；`preview.py plan|apply|verify --env-file <明确路径>` 不读取正式数据。真正安装还要 `apply --apply`。同镜像摘要、6GiB/3CPU限额、全新目录与网络；未知已有目录、符号链接、实例挂载或配置漂移拒绝。只用本机已存在镜像，不构建、不拉取。启动失败只停止本轮新实例，保留数据；健康后关闭注册，初始化不打开SSO。
 - 受保护 `gitlab-cutover` 增加 `preview-status`、`install-preview`、`verify-preview`；安装成功后经 `install-host.sh --target gitlab-preview` 安装备份/恢复脚本、归档器与独立 systemd 单元。单元只编排Docker，不运行宿主业务进程。备份凭据未配时不启用定时器，不能称备份已完成。
-- 香港入口使用 `edge-gitlab.py` 固定动作接收器，`edge-status`、`edge-apply`、`edge-verify`、`edge-rollback` 均经同一 production 审批。仅改预发布站点块：精确匹配 `/gitlab` 与 `/gitlab/*`，不剥前缀，上传上限2GiB，保留GitLab自身CSP、WebSocket和既有真实IP处理；正式块与相邻路径保持原样。备份、候选validate、全配置validate、原子替换、reload及失败恢复均保留；配置漂移拒绝重放与回滚。
-- 首次通道安装由所有者明确批准的管理员步骤执行 `install-host.sh apply --target edge --source <物料目录> --edge-env-file <canonical preview模板> --edge-public-key-stdin`；只接一把专用公钥，`restrict` 加固定command，旧授权行逐字保全，不静默轮换。私钥只存 `production` 环境的 `GITLAB_EDGE_SSH_KEY`。后续受限密钥不能上传代码、改目标或执行shell。
+- 香港入口使用 `edge-gitlab.py` 固定动作接收器，`edge-status`、`edge-apply`、`edge-verify`、`edge-rollback` 均经同一 production 审批。仅改预发布站点块：精确匹配 `/gitlab` 与 `/gitlab/*`，不剥前缀，上传上限2GiB，保留GitLab自身CSP、WebSocket和既有真实IP处理；预发布动作不碰正式块与相邻路径（正式块的 `/gitlab` 由 #335 的 `production-*` 动作管理，两者改同一份文件时互相更新对方的收据与备份）。备份、候选validate、全配置validate、原子替换、reload及失败恢复均保留；配置漂移拒绝重放与回滚。
+- 首次通道安装由所有者明确批准的管理员步骤执行 `install-host.sh apply --target edge --source <仓库的 deploy/remote> --edge-env-file <canonical preview模板> --edge-production-env-file <canonical 正式模板> --edge-public-key-stdin`（#335 起两份模板都要给，物料多一份 `../gitlab/gitlab.caddy`；已装过的再跑一次可以不带公钥参数）；只接一把专用公钥，`restrict` 加固定command，旧授权行逐字保全，不静默轮换。私钥只存 `production` 环境的 `GITLAB_EDGE_SSH_KEY`。后续受限密钥不能上传代码、改目标或执行shell。
 - 2026-10-29已实测：专用SSH `plan` 成功，`id` 被拒；临时私钥已删除，Caddy未reload。真实Caddy `adapt --validate` 对候选配置通过且正式块逐字未变；这不等于新GitLab已部署或SSO已验收。
 - `backup.sh --environment preview` 与 `restore-drill.sh --environment preview --run <日期/run>` 只使用预发布目录、容器、锁和 `GITLAB_PREVIEW_BACKUP_S3_*`，凭据文件为 `/etc/gitlab-preview-backup/env`。默认production行为保持；两个桶中的相同 `gitlab/<日期>/<run>/` 前缀互不相见，预发布prune不读取或删除正式备份。恢复仍要求明确run、完整摘要、固定同版本CE和断网演练容器。预发布备份05:30，正式03:30，均为北京时间。
 - **切换前置仍未完成**：旧主体完整认领、旧写者排空、正式issuer改接、新预发布API令牌/客户端/绑定与应用版本交付，必须完成后才能启用新实例SSO。不能把新URL配给旧管理员令牌，也不能把旧 `gitlab_accounts` 数字ID当新实例ID。两个缺失正式身份的补建选择工具超时不构成人工授权；不因此补建账号或授予资格。
 
 
+## 搬到正式入口的 /gitlab（#335）
+
+所有者 2026-10-30 在会话中要求正式 GitLab 和预发布一样放在本环境入口的 `/gitlab` 下，仓库里不再用子域名；10:52 批准按 P0 走热修复窗口（`deploy/hotfix/windows.json` 的 #335，绑定 `v0.1.1`，到 2026-11-06 10:52）。实例、容器名、数据目录、镜像、网络、账号和仓库都不变，变的只有对外地址。操作手册（停机、逐步核对、公告草稿）在交接目录的 `GITLAB-PATH-CUTOVER.md`。
+
+- 地址只有一个来源：`deploy/env/.env.production` 的 `GITLAB_URL=https://yangtzeu.work/gitlab`，`deployment-environment.mjs` 要求它等于 `<PUBLIC_ORIGIN>/gitlab`。`GITLAB_OIDC_SECTOR=git.yangtzeu.work` 是 `gitlab` 客户端钉住的 pairwise sector 标识，不是在用的地址：成员的 `sub` 按它分区，搬家后不变，GitLab 上的 `openid_connect` 绑定和 GitLab 用户 ID 都不用动。
+- 先发 server，再搬家：`deploy-hotfix`（`HOTFIX_ISSUE=335`，沿用 `v0.1.1`）把认得 sector 钉住的 server 和新的 `GITLAB_URL` 一起发到正式。`*-production-path` 改回调之前先用 `client show --client-id gitlab` 确认正式 server 认得 sector 钉住（输出带 `sector_id` 字段），旧版本不认得这条命令，`cutover.sh` 拒绝，什么都不改；`path-status` 会写明正式库「认得 sector 钉住」还是要先发版本。从发布到搬家完成之间，官网的代码仓库链接会跳到还没接上的 `/gitlab`（回的是官网页面），同步与贡献收集调 GitLab API 也会失败（失败只记 error，不撤分），这段时间要尽量短。
+- 只改正式库：GitLab 已经信任正式签发者（2026-10-30 11:20 核对过登录跳转到 `https://yangtzeu.work/oidc/auth`），`cutover.sh` 要求 `gitlab.rb` 里的签发者是正式的，只给正式库的 `gitlab` 客户端加减回调，不碰预发布库。因此搬家之后不能直接 `rollback-issuer` 退回预发布签发者，要先 `rollback-production-path`。
+- 新旧回调可以同时在：oidc-provider 9.12.2 对回调跨两个主机的 pairwise 客户端要求 `sector_identifier_uri`，我们的客户端元数据一直带钉住的 sector，并关掉了去取这个地址（`tests/server/oidc.test.ts` 用安装的 oidc-provider 核对过：不带就拒绝加载，带上并关掉校验就能加载）。所以过渡期不用原子替换回调，也不因此多停机。
+- 香港接收器先升级：所有者批准的管理员步骤按上一节的 `install-host.sh apply --target edge …` 重跑（带两份模板），再 `install-host.sh verify --target edge`。
+- `gitlab-cutover` 的三个步骤（production 审批，不勾 apply 只读或演算）：
+  1. `path-status`：Arch 报当前地址、目标地址、是否已搬、上次搬家前的地址、正式库 `gitlab` 客户端的 sector 与回调、有没有搬家前的账号基线；香港 `production-plan` 报两份文件会不会变。
+  2. `move-production-path`：不勾 apply 演算两半。勾 apply 时 `move-path.sh` 依次做：
+     - Arch `move-production-path --apply`：`gitlab-backup.service` 一致性备份和 `yzgc-backup@production`；记下账号基线 `/srv/gitlab/path-move/accounts.json`（按账号 id 抽样 50 个成员在 `gitlab` 客户端 sector 下的 `sub` 摘要、GitLab 账号数与最大账号 id，只有计数、摘要和本库账号 id）；给正式库的 `gitlab` 客户端加新回调，旧回调留着；`production-path.py` 写地址文件、改 `gitlab.rb` 三行、按模板写 Compose（模板带 json-file 日志轮转，取值和两套站点栈一样 `max-size: "10m"`、`max-file: "3"`，这次重建一起生效），`docker compose up -d --no-build --pull never` 重建（数据卷、镜像、网络不变），在容器里等 `/gitlab/-/health`。重建失败就恢复原文件、按原地址重建等健康，撤回新回调。
+     - 香港 `production-apply`：正式站点块加 `/gitlab` 处理器，旧主机文件换成 301；候选与全配置 validate 后 reload，失败恢复原文件。
+     - runner 上的公网核对：新地址登录页 200；旧地址 `…/geek/admin.git/info/refs?service=git-upload-pack` 301 到新地址的同一路径（git 只在第一次请求跟随跳转，之后的推拉直接打新地址）；登录页的统一登录跳到签发者 `/oidc/auth` 并带新回调，签发者对这个回调回 302 或 303。
+     - Arch `check-production-path`（只读）：同一批成员按 `gitlab` 客户端现在的 sector 重算 `sub` 摘要，必须和基线一样；搬家后 GitLab 新增的账号（id 比基线最大的大）只能是正式库映射着的成员号（同步给新成员建的），多出一个不是的，就是有成员登录时 GitLab 没认出原来的号。
+     - 全部通过后 Arch `finish-production-path --apply`：去掉旧回调，再做一次 GitLab 备份。
+     香港切换、公网核对或账号核对失败时两半都恢复（香港切换失败时接收器已自己恢复，只恢复 Arch），然后报失败；收尾失败时搬家已经完成，重跑 `move-production-path` 会再备份一次（不覆盖基线），然后接着收尾。
+  3. `rollback-production-path`：勾 apply 时香港先恢复，Arch 再补回旧回调、恢复原 Compose 与 `gitlab.rb` 并重建、去掉新回调；全程要求正式 server 仍认得 sector 钉住。回调改完后不能直接退回旧镜像：旧版本按第一个回调的主机算 sector，回调里有新主机时成员的 `sub` 会变（见 [数据模型](../services/server/data-model.md)）。要退 server 镜像，先跑完 `rollback-production-path`，回调只剩旧主机之后再退。
+- 搬完再跑 `verify-accounts`：逐人核对绑定、原 GitLab ID 与组权限不变；有账号基线时再核对一次抽样 `sub` 摘要和没有多出不是成员号的 GitLab 账号，任何一项对不上就失败，按手册整批 `rollback-production-path`。
+- 停机从容器重建开始，到 GitLab 健康、香港 reload 完成为止（Omnibus 启动加 reconfigure，通常几分钟）；两次备份在停机前后，不计入停机，但整个 job 可能要几十分钟，超时 120 分钟。
+- 输出只有步骤、HTTP 状态、计数和公开的 GitLab 账号 id，不打印令牌、cookie、跳转参数或 sub。测试见 `tests/tooling/gitlab-cutover.test.ts`、`gitlab-preview.test.ts`、`gitlab-move-path.test.ts`、`install-host.test.ts` 与 `tests/server/oidc.test.ts`；都是假 docker、假 curl、临时根或内存库，真实 Caddy 解析、真实 GitLab 重建、真实 `gitlab-rails` 计数和真人统一登录没有验过。
+
 ## 极客班统一登录（OIDC）契约
 
-身份实现及服务验收以 [Server OIDC 合同](../services/server/oidc.md)、[安全模型](../architecture/SECURITY.md#对外授权与-gitlab-账号同步270) 为准；导入的 [gitlab-oidc.rb](../../deploy/gitlab/gitlab-oidc.rb) 仅保存 GitLab 侧片段：client id `gitlab`、`uid_field: sub`、PKCE、回调 `https://git.yangtzeu.work/users/auth/openid_connect/callback`。签发者和 secret 都不写在片段里（#309）：`File.read('/etc/gitlab/yzgc-oidc-issuer')` 读一行 `<PUBLIC_ORIGIN>/oidc`，`File.read('/etc/gitlab/yzgc-oidc-secret')` 读 secret，两者都在宿主配置挂载内（Arch `/srv/gitlab/config/`）。GitLab 信任哪个环境，就在 `yzgc-oidc-issuer` 里写哪个环境的 `PUBLIC_ORIGIN`（`deploy/env/.env.production|.env.preview`）；仓库里不存在任何环境的签发者域名，`scripts/check-env-isolation.mjs` 在 `pnpm check` 里核对这一点。
+身份实现及服务验收以 [Server OIDC 合同](../services/server/oidc.md)、[安全模型](../architecture/SECURITY.md#对外授权与-gitlab-账号同步270) 为准；导入的 [gitlab-oidc.rb](../../deploy/gitlab/gitlab-oidc.rb) 仅保存 GitLab 侧片段：client id `gitlab`、`uid_field: sub`、PKCE、回调 `<GITLAB_URL>/users/auth/openid_connect/callback`，地址读 `/etc/gitlab/yzgc-gitlab-url`（#335）。签发者和 secret 都不写在片段里（#309）：`File.read('/etc/gitlab/yzgc-oidc-issuer')` 读一行 `<PUBLIC_ORIGIN>/oidc`，`File.read('/etc/gitlab/yzgc-oidc-secret')` 读 secret，两者都在宿主配置挂载内（Arch `/srv/gitlab/config/`）。GitLab 信任哪个环境，就在 `yzgc-oidc-issuer` 里写哪个环境的 `PUBLIC_ORIGIN`（`deploy/env/.env.production|.env.preview`）；仓库里不存在任何环境的签发者域名，`scripts/check-env-isolation.mjs` 在 `pnpm check` 里核对这一点。
 
-- `users.id` 是内部账号 ID，不是给 GitLab 的主体标识；下游 `sub` 按 sector（回调主机）生成 32 字节随机值，持久化于 `oauth_subjects`，不能从账号 ID 重新计算。GitLab `openid_connect` 的 `extern_uid` 必须沿用该值。
+- `users.id` 是内部账号 ID，不是给 GitLab 的主体标识；下游 `sub` 按客户端钉住的 sector（正式 `git.yangtzeu.work`，搬家后不变，见 [oidc](../services/server/oidc.md#客户端与密钥)）生成 32 字节随机值，持久化于 `oauth_subjects`，不能从账号 ID 重新计算。GitLab `openid_connect` 的 `extern_uid` 必须沿用该值。
 - 迁移保全 `oauth_clients`、GitLab sector 的 `oauth_subjects`、`gitlab_accounts` 和原 `ENCRYPTION_KEY`；跨库内部 ID 可不同，须按不可变身份及认领证明对账，不按邮箱/昵称自动合号或直接照抄内部 ID。
 - 改接必须是单写者：旧预发布排空停写 → 保全原 sector/sub、client 与账号关联 → 正式唯一写者对账并核验 → 改 GitLab issuer/client secret。不能只写 env 或 app_state 就声称旧进程停写；运行进程缓存设置，须替换并核对健康。
 - 已完成的前置（2026-10-28）：正式 `OIDC_JWKS`、`GITLAB_API_TOKEN` 写进 GitHub 环境 `production`，由 hotfix 部署渲染进正式 env；正式库登记了 `gitlab` 客户端，明文 secret 只在 Arch `/srv/gitlab/config/yzgc-oidc-secret.production`（0600）。GitLab 现在读的 `yzgc-oidc-secret` 仍是预发布的，改接之前不动它。
@@ -128,10 +152,10 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ## 界面定制、NANO 头像池与自定义头像保护
 
-[gitlab-ui.rb](../../deploy/gitlab/gitlab-ui.rb) 关闭 packages/dependency proxy，并把自定义 Libravatar 地址设为同站 `/nano-avatar/20261025/%{hash}?s=%{size}`。[manifest](../../deploy/gitlab/ui/nano-avatars/20261025/manifest.json) 的 8 张 PNG 为 4 张 Q 版、4 张正常比例，均为 512×512；本地已核对各图的大小、尺寸及 SHA-256。它们与论坛 `app/server/assets/stickers/manifest.json` 的 56 张表情是两组独立资产。
+[gitlab-ui.rb](../../deploy/gitlab/gitlab-ui.rb) 关闭 packages/dependency proxy，并把自定义 Libravatar 地址设为 `<GITLAB_URL>/nano-avatar/20261025/%{hash}?s=%{size}`（读 `yzgc-gitlab-url`，#335 前是旧主机根路径）。[manifest](../../deploy/gitlab/ui/nano-avatars/20261025/manifest.json) 的 8 张 PNG 为 4 张 Q 版、4 张正常比例，均为 512×512；本地已核对各图的大小、尺寸及 SHA-256。它们与论坛 `app/server/assets/stickers/manifest.json` 的 56 张表情是两组独立资产。
 
 - Caddy 仅对 64 位小写十六进制散列取首位映射：`0/8→01`、`1/9→02`、`2/a→03`、`3/b→04`、`4/c→05`、`5/d→06`、`6/e→07`、`7/f→08`；`s` 参数不参与选图。
-- `/assets/no_avatar[-<hash>].png` 回退至 `avatar-01.png`；已有上传头像路径不在这些匹配器内。**自定义头像优先**，不得为重放默认头像迁移而清除用户头像或改同步来源标记。
+- 两条规则在正式站点块的 `/gitlab` 处理器里，路径带 `/gitlab` 前缀（#335）；`/gitlab/assets/no_avatar[-<hash>].png` 回退至 `avatar-01.png`；已有上传头像路径不在这些匹配器内。**自定义头像优先**，不得为重放默认头像迁移而清除用户头像或改同步来源标记。
 - 既有 8 张图已在前序任务交付；本任务不重新生成、上传或部署，不重做历史默认图清理。`manifest` 中的 `visual_review` 与原安装说明的截图/线上结果属于前序记录，不是本轮验收。
 - 完整恢复还需香港图片和 Caddy 规则；备份脚本不直接打包香港文件，只有事先存入 Arch `config/nano-avatars/` 的副本才随配置归档保存。外观/组织/项目已上传图片随 GitLab 数据备份；未上传的源码图片仍从本仓取得。
 
@@ -173,7 +197,7 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ## 本地验收与交付边界
 
-以下从仓库根执行；表中 28 项仍是原始导入基线。#295 明确豁免 `backup.sh`、`restore-drill.sh` 的目标字节一致性：来源必须继续符合表中摘要，仓库目标必须已偏离旧摘要；其余 26 项仍逐字一致。共享 Garage 工具在 `deploy/remote/`，不混入这份来源清单。不读取来源目录中的环境文件、密钥或备份数据。
+以下从仓库根执行；表中 28 项仍是原始导入基线。#295 明确豁免 `backup.sh`、`restore-drill.sh` 的目标字节一致性，#335 又有意改了 `docker-compose.yml`、`gitlab-oidc.rb`、`gitlab-ui.rb`、`gitlab.caddy`（换地址）：来源必须继续符合表中摘要，这 6 项仓库目标必须已偏离旧摘要，其余 22 项应逐字一致。`deploy/gitlab/` 里后来新增的文件不在基线里，脚本只核对基线这 28 项。2026-10-30 核对：`ui/nano-avatars/20261025/manifest.json` 自 2026-10-27 的提交起已偏离基线（不是 #335 改的），脚本会在它上面停下，要先核对那次改动再决定怎么登记；来源目录的 `gitlab-oidc.rb` 也已和基线不同，没有核对原因。共享 Garage 工具在 `deploy/remote/`，不混入这份来源清单。不读取来源目录中的环境文件、密钥或备份数据。
 
 ```bash
 python3 - /Users/crosery/work_file/geek_gitlab <<'PY'
@@ -187,8 +211,8 @@ target = Path("deploy/gitlab")
 contract = Path("docs/ops/GITLAB.md").read_text()
 rows = re.findall(r"^\| `([^`]+)` \| [\d,]+ B \| `([0-9a-f]{64})` \|$", contract, re.M)
 files = sorted(p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file())
-assert len(rows) == 28 and files == sorted(path for path, _ in rows)
-changed = {"backup.sh", "restore-drill.sh"}
+assert len(rows) == 28 and set(path for path, _ in rows) <= set(files)
+changed = {"backup.sh", "restore-drill.sh", "docker-compose.yml", "gitlab-oidc.rb", "gitlab-ui.rb", "gitlab.caddy"}
 for path, expected in rows:
     source_file = source / path
     target_file = target / path
@@ -197,12 +221,12 @@ for path, expected in rows:
     assert hashlib.sha256(source_file.read_bytes()).hexdigest() == expected, source_file
     actual = hashlib.sha256(target_file.read_bytes()).hexdigest()
     if path in changed:
-        assert actual != expected, f"{path} unexpectedly reverted to the retired provider baseline"
+        assert actual != expected, f"{path} unexpectedly reverted to its import baseline"
         print(f"MIGRATED {path} {actual}")
     else:
         assert actual == expected, target_file
         print(f"MATCH {path} {expected}")
-print("26/26 untouched imports matched; 2/2 backup adapters intentionally migrated")
+print("22/22 untouched imports matched; 6/6 intentionally changed (2 backup adapters, 4 for the path move)")
 PY
 
 bash -n deploy/gitlab/backup.sh &&

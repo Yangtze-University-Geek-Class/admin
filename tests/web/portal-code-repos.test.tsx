@@ -19,7 +19,7 @@ afterEach(() => {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const project = (name: string, at: string | null, description: string | null = null) => ({
   id: name.length, name, path_with_namespace: `geek/${name}`, description,
-  web_url: `https://git.yangtzeu.work/geek/${name}`, http_url_to_repo: `https://git.yangtzeu.work/geek/${name}.git`, last_activity_at: at,
+  web_url: `https://example.test/gitlab/geek/${name}`, http_url_to_repo: `https://example.test/gitlab/geek/${name}.git`, last_activity_at: at,
 });
 
 function serve(response: (url: string, init?: RequestInit) => Promise<Response>) {
@@ -37,7 +37,7 @@ it("访客只展示公开项目，按活动排序，登录回到同一个代码�
   render(ui());
   const list = await screen.findByRole("list", { name: "公开项目" });
   const items = within(list).getAllByRole("link");
-  expect(items.map(item => item.getAttribute("href"))).toEqual(["https://git.yangtzeu.work/geek/fresh", "https://git.yangtzeu.work/geek/old"]);
+  expect(items.map(item => item.getAttribute("href"))).toEqual(["https://example.test/gitlab/geek/fresh", "https://example.test/gitlab/geek/old"]);
   expect(fetchMock.mock.calls[0][0]).toBe(CODE_REPOS_URL);
   for (const item of items) {
     expect(item.getAttribute("target")).toBe("_blank");
@@ -50,7 +50,7 @@ it.each(["member", "alumni"] as const)("有效 %s 使用成员项目，不把私
   const fetchMock = serve(async () => json({ projects: [project("private-project", null)] }));
   render(ui({ ...member, level }));
   const list = await screen.findByRole("list", { name: "成员项目" });
-  expect(within(list).getByRole("link").getAttribute("href")).toBe("https://git.yangtzeu.work/geek/private-project");
+  expect(within(list).getByRole("link").getAttribute("href")).toBe("https://example.test/gitlab/geek/private-project");
   expect(fetchMock.mock.calls[0][0]).toBe(MEMBER_CODE_REPOS_URL);
   expect(screen.queryByRole("list", { name: "公开项目" })).toBeNull();
   const entry = screen.getByRole("link", { name: /进入代码仓库/ });
@@ -144,7 +144,7 @@ describe("readCodeRepos", () => {
       ["no-time", null],
     ]);
     expect(state.projects[1]).toEqual({
-      name: "iso", path: "geek/iso", description: "说明", url: "https://git.yangtzeu.work/geek/iso", cloneUrl: "https://git.yangtzeu.work/geek/iso.git", activeAt: Date.UTC(2026, 9, 1),
+      name: "iso", path: "geek/iso", description: "说明", url: "https://example.test/gitlab/geek/iso", cloneUrl: "https://example.test/gitlab/geek/iso.git", activeAt: Date.UTC(2026, 9, 1),
     });
   });
 

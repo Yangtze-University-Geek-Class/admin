@@ -111,8 +111,8 @@ function devSampleSnapshot(competitionId, variant, withPrizes) {
     { rank: 2, name: "破壁人", members: ["suqing"].map(login => publicPerson(DEV_SAMPLE_PEOPLE.find(p => p.username === login))), score: 140 },
   ] : [];
   const feedItems = [
-    { id: "sample-1", at: now - 3_600_000, ...publicPerson(DEV_SAMPLE_PEOPLE[0]), kind: "pr", title: "修复站点包的符号链接校验", url: "https://git.yangtzeu.work/geek/admin/-/merge_requests/1", points: 45, importance: "important", core: "business" },
-    { id: "sample-2", at: now - 7_200_000, ...publicPerson(DEV_SAMPLE_PEOPLE[1]), kind: "issue", title: "官网倒计时在零点前后跳了一秒", url: "https://git.yangtzeu.work/geek/admin/-/issues/1", points: 8, importance: "normal", core: "business" },
+    { id: "sample-1", at: now - 3_600_000, ...publicPerson(DEV_SAMPLE_PEOPLE[0]), kind: "pr", title: "修复站点包的符号链接校验", url: "https://example.test/gitlab/geek/admin/-/merge_requests/1", points: 45, importance: "important", core: "business" },
+    { id: "sample-2", at: now - 7_200_000, ...publicPerson(DEV_SAMPLE_PEOPLE[1]), kind: "issue", title: "官网倒计时在零点前后跳了一秒", url: "https://example.test/gitlab/geek/admin/-/issues/1", points: 8, importance: "normal", core: "business" },
     { id: "sample-3", at: now - 10_800_000, ...publicPerson(DEV_SAMPLE_PEOPLE[3]), kind: "penalty", title: null, url: null, points: -50, importance: null, core: null },
   ];
   const participants = { items: DEV_SAMPLE_PEOPLE.map(person => ({ ...publicPerson(person), department: person.department })), next_cursor: null };

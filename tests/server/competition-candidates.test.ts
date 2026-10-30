@@ -14,7 +14,7 @@ type Item = Record<string, unknown>;
 type LabelEvent = { id: number; action: 'add' | 'remove'; user: { id: number; username: string }; created_at: string; label: { name: string } };
 
 /** 一个只认比赛收集会发的那几个 GET 的假 GitLab。 */
-function fakeGitlab() {
+function fakeGitlab(base = GITLAB) {
   const mrs: Item[] = [];
   const issues: Item[] = [];
   const labelEvents = new Map<string, LabelEvent[]>();
@@ -27,11 +27,13 @@ function fakeGitlab() {
     new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
   async function fetch(input: string, init: RequestInit = {}): Promise<Response> {
     const url = new URL(input);
-    expect(url.origin).toBe(GITLAB);
+    expect(url.origin).toBe(new URL(base).origin);
     expect(init.method ?? 'GET').toBe('GET');
     expect((init.headers as Record<string, string>)['PRIVATE-TOKEN']).toBe('test-gitlab-token');
     expect(init.redirect).toBe('error');
-    const path = url.pathname.replace(/^\/api\/v4/, '');
+    const prefix = `${new URL(base).pathname.replace(/\/+$/, '')}/api/v4`;
+    expect(url.pathname.startsWith(`${prefix}/`)).toBe(true);
+    const path = url.pathname.slice(prefix.length);
     calls.push(`${path}${url.search}`);
     const reply = replies.findIndex(item => `${path}${url.search}`.startsWith(item.match));
     if (reply >= 0) return replies.splice(reply, 1)[0].respond();
@@ -65,9 +67,9 @@ afterEach(async () => {
   for (const context of contexts.splice(0)) await context.close();
 });
 
-async function setup() {
-  const gitlab = fakeGitlab();
-  const context = await contestSetup({ gitlabFetch: gitlab.fetch }, ENV);
+async function setup(env: Record<string, string> = ENV) {
+  const gitlab = fakeGitlab(env.GITLAB_URL);
+  const context = await contestSetup({ gitlabFetch: gitlab.fetch }, env);
   contexts.push(context);
   const { app, as, accountId, createCompetition, signUp } = context;
   const id = await createCompetition();
@@ -116,6 +118,16 @@ async function setup() {
 }
 
 describe('收集候选贡献', () => {
+  it('GitLab 搬到主站路径后照常收集：接口走 <基址>/api/v4，sector 不变，缺 web_url 时按新基址拼链接（#335）', async () => {
+    const base = 'https://example.test/gitlab';
+    const { gitlab, mr, collect, list } = await setup({ ...ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'git.example.test' });
+    const { web_url: _ignored, ...bare } = mr(1, 'alice', ['重要程度::重要', '核心度::业务']);
+    gitlab.mrs.push(bare);
+    expect(await collect()).toMatchObject({ fetched: 1, created: 1, error: null });
+    expect((await list()).items).toEqual([expect.objectContaining({ gitlab_iid: 1, url: `${base}/geek/admin/-/merge_requests/1`, status: 'pending' })]);
+    expect(gitlab.calls.some(call => call.startsWith('/projects/geek%2Fadmin/merge_requests'))).toBe(true);
+  });
+
   it('不把失配的远端作者或审核人经缓存 id 归到本地账号', async () => {
     const { gitlab, mr, review, collect, list } = await setup();
     gitlab.mrs.push(mr(801, 'alice', review('merge_requests:801', 'bob')));

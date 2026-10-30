@@ -3,6 +3,8 @@
 # 开发者不需要登录目标机：这些宿主侧步骤由本工作流经部署用的 SSH 通道执行，步骤本身是 deploy/gitlab/cutover.sh，
 # 缺省只读或演算，勾选 apply 才写。只在默认分支上手动触发；和正式部署一样要过 production 环境的审批。
 # 先 status，再 register-client、migrate-subjects 演算，看过结果再 apply，最后 switch-issuer；出问题用 rollback-issuer。
+# GitLab 搬到正式入口的 /gitlab（#335）：path-status 只读；move-production-path 不勾 apply 只演算，勾了就由 deploy/gitlab/move-path.sh
+# 依次做 Arch 搬家、香港切入口、公网核对、去掉旧回调，任何一步失败都恢复原地址；rollback-production-path 回到搬家前。
 
 name: GitLab cutover
 
@@ -32,6 +34,9 @@ on:
           - edge-apply
           - edge-verify
           - edge-rollback
+          - path-status
+          - move-production-path
+          - rollback-production-path
       apply:
         description: 真正写入（不勾选只读或演算）
         required: true
@@ -50,7 +55,8 @@ jobs:
     name: cutover (${{ inputs.step }}${{ inputs.apply && ', apply' || '' }})
     if: vars.DEPLOY_PRODUCTION_ENABLED == 'enabled' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 搬家前后各一次 GitLab 一致性备份加容器重建，30 分钟不够
+    timeout-minutes: 120
     environment:
       name: production
       deployment: false
@@ -153,8 +159,62 @@ jobs:
             -o ClearAllForwardings=yes -o "UserKnownHostsFile=$RUNNER_TEMP/ssh/known_hosts" \
             -i "$key" "$edge_target" "$operation" | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: GitLab 搬到正式入口的 /gitlab（#335）
+        if: contains(fromJSON('["path-status", "move-production-path", "rollback-production-path"]'), inputs.step)
+        shell: bash
+        env:
+          GITLAB_EDGE_SSH_KEY: ${{ secrets.GITLAB_EDGE_SSH_KEY }}
+        run: |
+          set -eu
+          test -n "$GITLAB_EDGE_SSH_KEY"
+          cfg="$RUNNER_TEMP/ssh/config"
+          key="$RUNNER_TEMP/ssh/id_edge"
+          printf '%s\n' "$GITLAB_EDGE_SSH_KEY" > "$key"
+          chmod 600 "$key"
+          trap 'rm -f "$key"' EXIT
+          production_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.production)"
+          preview_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.preview)"
+          production_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.production)"
+          preview_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.preview)"
+          sector="$(sed -n 's/^GITLAB_OIDC_SECTOR=//p' deploy/env/.env.production)"
+          gitlab_url="$(sed -n 's/^GITLAB_URL=//p' deploy/env/.env.production)"
+          # 旧地址只在跳转片段里有：它的站点地址就是要跳走的主机
+          legacy_origin="https://$(sed -n 's/^\([a-z0-9.-]*\) {$/\1/p' deploy/gitlab/gitlab.caddy)"
+          edge_target="$(node --input-type=module -e 'import {readEnvironment} from "./scripts/deployment-environment.mjs"; const u=new URL("ssh://"+readEnvironment(process.cwd(),"production").values.get("DEPLOY_PROXY_JUMP")); if(u.port && u.port!=="22") throw Error("unexpected edge port"); console.log(u.username+"@"+u.hostname);')"
+          work_dir="/opt/yzgc/cutover-incoming-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh -F "$cfg" yzgc-target "rm -rf $work_dir && install -d -m 755 $work_dir"
+          tar -cf - deploy/gitlab deploy/remote/garage-archive.mjs deploy/remote/install-host.sh deploy/env/.env.production deploy/env/.env.preview app/server/src/lib/gitlab-sync.ts | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
+          # move-path.sh 的两只手：arch 在 Arch 上跑本次分发的 cutover.sh，edge 只能发受限入口的固定动作
+          cat > "$RUNNER_TEMP/arch" <<EOF
+          #!/usr/bin/env bash
+          exec ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/gitlab/cutover.sh \$1 --production-origin $production_origin --preview-origin $preview_origin --production-stack-root $production_root --preview-stack-root $preview_root --sector $sector \${2:-}"
+          EOF
+          cat > "$RUNNER_TEMP/edge" <<EOF
+          #!/usr/bin/env bash
+          exec ssh -F /dev/null -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ClearAllForwardings=yes -o "UserKnownHostsFile=$RUNNER_TEMP/ssh/known_hosts" -i "$key" "$edge_target" "\$1"
+          EOF
+          chmod 700 "$RUNNER_TEMP/arch" "$RUNNER_TEMP/edge"
+          case "$STEP" in
+            path-status) action=status ;;
+            move-production-path) action=move ;;
+            rollback-production-path) action=rollback ;;
+            *) exit 2 ;;
+          esac
+          flag=""
+          if [ "$APPLY" = "true" ]; then flag="--apply"; fi
+          {
+            echo "## GitLab 搬到主站路径：${STEP}$([ -n "$flag" ] && echo '（apply）' || echo '（只读或演算）')"
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          ARCH="$RUNNER_TEMP/arch" EDGE="$RUNNER_TEMP/edge" bash deploy/gitlab/move-path.sh "$action" --gitlab-url "$gitlab_url" --legacy-origin "$legacy_origin" --issuer-origins "$production_origin $preview_origin" $flag 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ssh -F "$cfg" yzgc-target "rm -rf $work_dir"
+          exit "$status"
+
       - name: 执行 cutover.sh
-        if: "!startsWith(inputs.step, 'edge-')"
+        if: "!startsWith(inputs.step, 'edge-') && !contains(fromJSON('[\"path-status\", \"move-production-path\", \"rollback-production-path\"]'), inputs.step)"
         shell: bash
         run: |
           set -eu
@@ -163,10 +223,11 @@ jobs:
           preview_origin="$(sed -n 's/^PUBLIC_ORIGIN=//p' deploy/env/.env.preview)"
           production_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.production)"
           preview_root="$(sed -n 's/^STACK_ROOT=//p' deploy/env/.env.preview)"
+          sector="$(sed -n 's/^GITLAB_OIDC_SECTOR=//p' deploy/env/.env.production)"
           work_dir="/opt/yzgc/cutover-incoming-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           # 这里只分发无密钥源码；server 镜像以 UID 1000 只读挂载 /ops，必须可遍历此目录。
           ssh -F "$cfg" yzgc-target "rm -rf $work_dir && install -d -m 755 $work_dir"
-          tar -cf - deploy/gitlab deploy/remote/garage-archive.mjs deploy/remote/install-host.sh deploy/env/.env.preview app/server/src/lib/gitlab-sync.ts | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
+          tar -cf - deploy/gitlab deploy/remote/garage-archive.mjs deploy/remote/install-host.sh deploy/env/.env.production deploy/env/.env.preview app/server/src/lib/gitlab-sync.ts | ssh -F "$cfg" yzgc-target "tar -C $work_dir -xf -"
           flag=""
           if [ "$APPLY" = "true" ]; then flag="--apply"; fi
           {
@@ -185,7 +246,7 @@ jobs:
                 ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/remote/install-host.sh apply --target gitlab-preview --source $work_dir/deploy/remote && bash $work_dir/deploy/remote/install-host.sh verify --target gitlab-preview --source $work_dir/deploy/remote" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$?
               fi ;;
             *)
-              ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/gitlab/cutover.sh $STEP --production-origin $production_origin --preview-origin $preview_origin --production-stack-root $production_root --preview-stack-root $preview_root $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$? ;;
+              ssh -F "$cfg" yzgc-target "bash $work_dir/deploy/gitlab/cutover.sh $STEP --production-origin $production_origin --preview-origin $preview_origin --production-stack-root $production_root --preview-stack-root $preview_root --sector $sector $flag" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || status=$? ;;
           esac
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           ssh -F "$cfg" yzgc-target "rm -rf $work_dir"

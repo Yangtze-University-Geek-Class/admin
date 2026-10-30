@@ -1078,6 +1078,38 @@ describe('console GitLab sync endpoints (#270)', () => {
   const sync = (app: FastifyInstance, accountId: string, headers: Record<string, string>) =>
     app.inject({ method: 'POST', url: `/api/console/gitlab/accounts/${accountId}/resync`, headers });
 
+  it('serves GitLab from a path on the site origin with its old sector: links, API base and console follow GITLAB_URL (#335)', async () => {
+    const base = 'https://example.test/gitlab';
+    const { app, admiral, member, accountOf, subOf, gitlab } = await consoleSetup({ ...SYNC_ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'git.example.test' });
+    // 搬家：先加新回调，验证过再去掉旧的；sector 钉在旧主机上
+    app.services.oidcStore.addRedirectUri('gitlab', `${base}/users/auth/openid_connect/callback`);
+    app.services.oidcStore.removeRedirectUri('gitlab', `${GITLAB}/users/auth/openid_connect/callback`);
+    gitlab.setProjects([
+      { id: 11, path_with_namespace: 'geek/site', name: 'site', description: '开源站点', visibility: 'public', web_url: `${base}/geek/site`, http_url_to_repo: `${base}/geek/site.git`, ssh_url_to_repo: 'git@example.test:geek/site.git', last_activity_at: '2026-10-18T00:00:00.000Z', star_count: 1 },
+    ]);
+    expect((await app.inject('/api/public/gitlab')).headers.location).toBe(`${base}/geek`);
+    const links = { web_url: `${base}/geek/site`, http_url_to_repo: `${base}/geek/site.git` };
+    expect((await app.inject('/api/public/gitlab/projects')).json().projects).toEqual([expect.objectContaining(links)]);
+    expect((await app.inject({ url: '/api/me/gitlab/projects', headers: member })).json().projects).toEqual([expect.objectContaining(links)]);
+    expect((await app.inject({ url: '/api/console/gitlab/status', headers: admiral })).json()).toMatchObject({ url: base, healthy: true });
+    expect((await app.inject({ url: '/api/console/gitlab/accounts', headers: admiral })).json()).toMatchObject({ gitlab_url: base, client_registered: true });
+
+    const res = await sync(app, accountOf(101), admiral);
+    expect(res.json()).toMatchObject({ applied: true, error: null });
+    expect(userNamed(gitlab, 'alice')).toMatchObject({ extern_uid: subOf(101), email: 'alice@noreply.git.example.test' });
+    // 假 GitLab 只认 <基址路径>/api/v4 下的请求，走到这里说明一次也没丢掉 /gitlab
+    expect(gitlab.calls).toContain('POST /users');
+
+    // 库里钉住的 sector 不是本环境配置的：不认人、不建号，说出原因
+    const other = await setup({ ...SYNC_ENV, GITLAB_URL: base, GITLAB_OIDC_SECTOR: 'example.test' });
+    signIn(other.app, 'alice', 101);
+    expect(await other.app.services.gitlab.reconcile()).toMatchObject({ skipped: 'gitlab_sector_mismatch', accounts: 0, outcomes: [] });
+    expect(await other.app.services.gitlab.syncAccount(other.accountOf(101), 'system')).toMatchObject({ error: 'gitlab_sector_mismatch', applied: false });
+    expect(other.app.services.gitlab.clientRegistered()).toBe(false);
+    expect(other.gitlab.calls).toEqual([]);
+    expect(other.app.services.oidcStore.existingSubject('git.example.test', other.accountOf(101))).toBeNull();
+  });
+
   it('lists every account with what is still to do, for the people who manage roles', async () => {
     const { app, admiral, member, accountOf } = await consoleSetup();
     const res = await app.inject({ url: '/api/console/gitlab/accounts', headers: admiral });
@@ -1327,6 +1359,12 @@ describe('GitLab and OIDC configuration (#270)', () => {
       expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_URL: url })).toThrow();
     }
     expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_GROUP: 'geek group' })).toThrow('group path');
+    expect(createConfig({ ...env(), ...SYNC_ENV }).gitlab.sector).toBeNull();
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: 'Git.Example.Test' }).gitlab.sector).toBe('git.example.test');
+    expect(createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: '127.0.0.1:8930' }).gitlab.sector).toBe('127.0.0.1:8930');
+    for (const sector of ['https://git.example.test', 'git.example.test/gitlab', '-bad.example.test']) {
+      expect(() => createConfig({ ...env(), ...SYNC_ENV, GITLAB_OIDC_SECTOR: sector })).toThrow('GITLAB_OIDC_SECTOR');
+    }
   });
 
   it('accepts a private RSA JWK Set as JSON or base64 and nothing else', async () => {

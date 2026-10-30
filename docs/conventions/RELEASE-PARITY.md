@@ -2,7 +2,7 @@
 
 > 对齐的是接口和表结构，数据只对齐格式；预发布上做过的每一件事，正式都有对应动作；地址、端口、签发者只来自各环境自己的 env 文件；发版前同构清单清零，发版后烟测通过。
 
-状态：`current` · 更新：2026-10-28 · 依据：所有者 2026-10-28 19:11 的指令（原话在 GitLab #309 正文的确认依据），以及 19:43 的补充：对齐的本质是接口对齐、数据库表对齐，数据不对齐、只对齐格式，并清理没有任何页面调用的死接口。分支与发布流程见 [BRANCHING](BRANCHING.md)、[RELEASES](RELEASES.md)，环境变量契约见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
+状态：`current` · 更新：2026-10-30 · 依据：所有者 2026-10-28 19:11 的指令（原话在 GitLab #309 正文的确认依据），以及 19:43 的补充：对齐的本质是接口对齐、数据库表对齐，数据不对齐、只对齐格式，并清理没有任何页面调用的死接口。分支与发布流程见 [BRANCHING](BRANCHING.md)、[RELEASES](RELEASES.md)，环境变量契约见 [ENVIRONMENTS](../ops/ENVIRONMENTS.md)。
 
 ## 为什么要有这份规范
 
@@ -153,7 +153,8 @@ hotfix 从 `main` 修（[RELEASES](RELEASES.md)「线上紧急缺陷（Hotfix）
 |---|---|---|
 | systemd 单元、隧道看门狗覆盖项、CDN 镜像脚本等宿主层物料 | `deploy/remote/install-host.sh`（`plan` 只读比对、`apply` 备份后覆盖并 daemon-reload、`verify` 核对一致与 systemd 状态）；`deploy-preview/production/hotfix.yml` 在栈部署成功后自动运行（物料落在 `/opt/yzgc/host-incoming-<运行编号>`，preview 与 production 同时发布互不踩；这一步失败让部署 job 变红，随后的线上烟测 job 因此被跳过：先按 `docs/ops/DEPLOY.md` 查宿主层，再在本机运行 `node scripts/parity.mjs smoke --origin <正式 origin> --env production` 补做线上核对，只读 HTTP，不需要登录目标机），镜像凭据由环境 secret `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY` 经 stdin 写入 | `tests/tooling/install-host.test.ts`：临时根目录加假 systemctl，覆盖 changed/missing、备份、凭据 0600 与不回显、绝不重启服务 |
 | GitLab 统一登录改接（登记客户端、搬 `sub`、换签发者与 secret、回滚） | `deploy/gitlab/cutover.sh`，由 `gitlab-cutover.yml` 手动触发（production 环境审批，缺省演算，勾 `apply` 才写） | `tests/tooling/gitlab-cutover.test.ts`：假 docker 与 curl，覆盖前置检查、备份、回滚、不回显 secret |
-| GitLab 独立预发布与香港入口 | `gitlab-cutover` 的 `install-preview` 与 `edge-*`；首次受限通道由所有者单独批准，经 `install-host.sh --target edge` 安装，后续密钥只执行固定动作；正式Caddy块不变 | `tests/tooling/gitlab-preview.test.ts`：真实CLI、临时根、失败恢复、漂移拒绝与受限命令；真实Caddy解析另验 |
+| GitLab 独立预发布与香港入口 | `gitlab-cutover` 的 `install-preview` 与 `edge-*`；首次受限通道由所有者单独批准，经 `install-host.sh --target edge` 安装，后续密钥只执行固定动作；预发布动作不改正式Caddy块 | `tests/tooling/gitlab-preview.test.ts`：真实CLI、临时根、失败恢复、漂移拒绝与受限命令；真实Caddy解析另验 |
+| 正式 GitLab 搬到正式入口的 `/gitlab`（#335） | `gitlab-cutover` 的 `path-status`、`move-production-path`、`rollback-production-path`：`deploy/gitlab/move-path.sh` 串起 Arch 的 `cutover.sh *-production-path`（`production-path.py` 渲染 Compose、改 `gitlab.rb` 三行与地址文件，重建容器等健康）和香港接收器的 `production-*`（正式块加 `/gitlab`，旧主机换成 301）；先后各一次 GitLab 一致性备份，搬家前记账号基线，新回调先加，公网核对与账号核对（抽样 `sub` 摘要不变、没有多出不是成员号的 GitLab 账号）全过才去旧回调，任一步失败两半都恢复；只改正式库，改回调前确认正式 server 认得 sector 钉住。先经 `deploy-hotfix` 发 server，再搬家。接收器升级（`install-host.sh --target edge` 带 `--edge-production-env-file`）由所有者单独批准 | `tests/tooling/gitlab-cutover.test.ts`（假 docker、systemctl：正常、健康检查失败恢复、OIDC 更新失败、旧版本与签发者不对时拒绝、账号核对、收尾、回滚）、`tests/server/oidc.test.ts`（金值 `sub`、抽样摘要、安装的 oidc-provider 的多主机规则）、`tests/tooling/gitlab-preview.test.ts`（真实接收器 CLI、临时根、双块互不影响、失败恢复、漂移拒绝）、`tests/tooling/gitlab-move-path.test.ts`（假两半与假 curl：核对失败两半都恢复）、`tests/tooling/install-host.test.ts`；真实 Caddy 解析与真实 GitLab 另验 |
 | 预发布到正式的数据格式迁移、一次性数据修复 | 先写成带演算模式的脚本放进仓库，再接进上面这类工作流 | 临时库上的测试 |
 
 凭据的第一次生成（例如在 Garage 上建只读密钥、在 GitLab 上建访问令牌）需要对应系统的管理员权限，不在流水线里：生成后只写进 GitHub 环境 secret，之后的安装与轮换都走流水线。清单条目里要写明这一步由谁、用什么命令做。

@@ -487,8 +487,9 @@ CREATE INDEX IF NOT EXISTS idx_device_grants_account ON device_grants(account_id
 `);
 
 // 对外授权（#270，ADR-0005 决策 3、8）：只有 lib/oidc-store.ts 读写这四张表。
-// oauth_clients：登记的下游应用，client secret 用 ENCRYPTION_KEY 加密存；redirect_uris 是 JSON 数组，精确匹配。
-// oauth_subjects：给下游的 `sub`，按 sector（回调地址的主机名）各生成一个随机值，一经生成不改，不随签名密钥轮换。
+// oauth_clients：登记的下游应用，client secret 用 ENCRYPTION_KEY 加密存；redirect_uris 是 JSON 数组，精确匹配；
+//   sector_id 是登记时钉住的 sector（第一个回调的主机），换回调地址不变（#335），旧行为空时按第一个回调的主机算。
+// oauth_subjects：给下游的 `sub`，按 sector 各生成一个随机值，一经生成不改，不随签名密钥轮换。
 // oauth_grants：本人在授权页点过「允许」的应用，下次登录同一个应用不再问。
 // oidc_payloads：oidc-provider 的授权码、令牌、交互与会话，过期的随写入顺手清掉。
 db.exec(`
@@ -1192,6 +1193,8 @@ addColumn("competition_teams", "plaza_updated_at", "INTEGER");
 // 开赛时间，这个标记就不再生效，照原有规则走进行中/已结束（不会把已经开赛的比赛卡在「规划中」，见 competition-store.ts）。
 // 旧比赛都是 0，行为不变。
 addColumn("competitions", "planning", "INTEGER NOT NULL DEFAULT 0 CHECK (planning IN (0, 1))");
+// 对外授权应用钉住的 sector（#335）：空的旧行不回填，第一次换回调地址时由 oidc-store 钉住当时的值。
+addColumn("oauth_clients", "sector_id", "TEXT");
 
 // 第一期的计分规则、奖项与 GitLab 项目（#278，所有者 2026-10-24 13:45）：用 `console_seeds` 标记，只插一次；
 // 组织者之后在控制台改掉，重启也不再补回来。比赛本身被删掉时什么也不插。

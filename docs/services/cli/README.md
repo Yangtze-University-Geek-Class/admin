@@ -2,7 +2,7 @@
 
 > 极客班命令行 `geek`（Rust）：设备码登录、论坛/比赛/代码仓库只读与写操作、给 Claude Code/Codex/omp 装一份极客班技能（#277）。独立工具链，不进 Node 工作区；产物不单独成镜像，随 `app/web` 镜像的 `/cli/` 路径分发。
 
-状态：`current` · 更新：2026-10-28 · 源码：`app/cli/` · 产物：`dist/cli/`（随环境镜像 `yzgc-production/web` 或 `yzgc-preview/web` 的 `/cli/` 路径分发）；本合同不证明某个已发布镜像实际含 CLI。
+状态：`current` · 更新：2026-10-30 · 源码：`app/cli/` · 产物：`dist/cli/`（随环境镜像 `yzgc-production/web` 或 `yzgc-preview/web` 的 `/cli/` 路径分发）；本合同不证明某个已发布镜像实际含 CLI。
 
 ## 源码地图
 
@@ -27,7 +27,7 @@
 ## 迁移与包元数据
 
 - 现行 CLI 是 `app/cli` 的 RFC 8628 设备授权实现，Rust/Cargo 与核心 Node22/pnpm9、论坛 Node26/pnpm11 分开；不要拿旧 `../geek_cli` 的 GitHub Device OAuth 实现或锁文件覆盖它。
-- 当前 Cargo 包 `geek-cli` 的版本为 `0.1.0`，分发器读取该字段，不从根应用发布版本推算；迁移不自行升号。Cargo `repository` 已对齐实际 GitLab 路径 `https://git.yangtzeu.work/geek/admin`，仅改元数据，不改变 CLI 行为或依赖。
+- 当前 Cargo 包 `geek-cli` 的版本为 `0.1.0`，分发器读取该字段，不从根应用发布版本推算；迁移不自行升号。Cargo `repository` 跟着 GitLab 搬到正式入口的路径（#335）：`<正式 GITLAB_URL>/geek/admin`，旧主机只做 301；仅改元数据，不改变 CLI 行为或依赖。
 - token 按 origin 分开存，网页域名未变不等于设备授权已验；用预发布 token 不代表后续无 `--env` 的命令仍选预发布。迁移验收所有命令都显式 `--env preview`，不读取/复制个人凭据文件，也不把 token 写进命令行或报告。
 - 同版本镜像的 `/cli/install.sh`、`latest.json`、目标二进制和 `.sha256` 必须相互对应；CLI 版本号不是二进制缓存键，同一 `0.1.0` 重新构建时内容不同就必须得到不同的摘要文件名，不能覆盖旧文件或继续复用已缓存一年的旧 URL。先核对已发布物料再验安装、允许/拒绝/过期/撤销及真实 harness 技能加载。Arch 迁移不改变 CLI 服务端权限或自动补齐 CI 缺少的跨平台产物。
 
