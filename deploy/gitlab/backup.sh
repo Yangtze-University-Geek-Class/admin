@@ -5,10 +5,12 @@ umask 077
 ENVIRONMENT=production
 if [[ "${1:-}" == --environment && $# == 2 ]]; then ENVIRONMENT="$2"; elif [[ $# != 0 ]]; then echo 'Usage: backup.sh [--environment production|preview]' >&2; exit 2; fi
 case "${ENVIRONMENT}" in
-    production) INSTANCE=gitlab; ROLE=gitlab-backup; REQUIRED_VARS=(GITLAB_BACKUP_S3_ACCESS_KEY_ID GITLAB_BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT) ;;
-    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup; REQUIRED_VARS=(GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT) ;;
+    production) INSTANCE=gitlab; ROLE=gitlab-backup ;;
+    preview) INSTANCE=gitlab-preview; ROLE=gitlab-preview-backup ;;
     *) echo 'Invalid GitLab backup environment' >&2; exit 2 ;;
 esac
+# 备份目标（端点、区域、桶、前缀、凭据）全部来自 /etc/<实例>-backup/env；前缀按环境区分，必须非空，否则会写到桶根下
+REQUIRED_VARS=(BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_PREFIX BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT)
 BASE="/srv/${INSTANCE}"
 BACKUP_ENV="/etc/${INSTANCE}-backup/env"
 LOCK_FILE="/run/${INSTANCE}-backup.lock"
@@ -18,7 +20,7 @@ if ! flock -n 200; then
     exit 1
 fi
 
-if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[0]:-}" ]]; then
+if [[ -f "${BACKUP_ENV}" && -z "${!REQUIRED_VARS[4]:-}" ]]; then
     set -a
     # shellcheck source=/dev/null
     . "${BACKUP_ENV}"
@@ -93,8 +95,9 @@ tar -C / -cf "${CONFIG_TAR}" "${CONFIG_PATHS[@]}"
 
 ENC_BACKUP="${STAGE_DIR}/$(basename "${BACKUP_TAR}").gpg"
 ENC_CONFIG="${CONFIG_TAR}.gpg"
-gpg --batch --yes --trust-model always --recipient "${GPG_RECIPIENT}" --output "${ENC_BACKUP}" --encrypt "${BACKUP_TAR}"
-gpg --batch --yes --trust-model always --recipient "${GPG_RECIPIENT}" --output "${ENC_CONFIG}" --encrypt "${CONFIG_TAR}"
+# GitLab 能读的备份必须是未压缩的 tar，压缩放在加密之前：gpg 对明文按 ZIP 压缩
+gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${GPG_RECIPIENT}" --output "${ENC_BACKUP}" --encrypt "${BACKUP_TAR}"
+gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${GPG_RECIPIENT}" --output "${ENC_CONFIG}" --encrypt "${CONFIG_TAR}"
 rm -f "${CONFIG_TAR}"
 (
     cd "${STAGE_DIR}"
@@ -104,7 +107,7 @@ chmod 0600 "${STAGE_DIR}"/*
 
 node "${ARCHIVE_TOOL}" put-tree --role "${ROLE}" --source "${STAGE_DIR}" --prefix "gitlab/${DAY}/${STAMP}/" >/dev/null
 echo "OK gitlab/${DAY}/${STAMP}/ $(find "${STAGE_DIR}" -maxdepth 1 -type f | wc -l | tr -d ' ') files"
-# 香港对象存储空间有限：这份上传并读回核验之后，只保留最近 3 个备份日期，更早的整日 run 由适配器核对后删除。
+# 这份上传并读回核验之后，按 日 7 / 周 4 / 月 3 的保留策略清理旧 run，由适配器核对后删除（见 garage-archive.mjs 的 RETENTION）。
 # 清理失败时本脚本退出非零（单元显示失败，磁盘不会悄悄涨满），刚上传的这份已经完整可用。
-PRUNE_JSON=$(node "${ARCHIVE_TOOL}" prune-runs --role "${ROLE}" --keep-dates 3 --apply)
+PRUNE_JSON=$(node "${ARCHIVE_TOOL}" prune-runs --role "${ROLE}" --apply)
 echo "PRUNE ${PRUNE_JSON}"

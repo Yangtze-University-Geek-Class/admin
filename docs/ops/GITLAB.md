@@ -94,7 +94,7 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 | 容器/数据根 | `gitlab` / `/srv/gitlab`，保持现有 | `gitlab-preview` / `/srv/gitlab-preview` |
 | 隧道绑定/子网 | `10.66.0.2:8929` / `172.31.29.0/24` | `10.66.0.2:8930` / `172.31.30.0/24` |
 | OIDC 客户端/sector | `gitlab` / `git.yangtzeu.work`（钉住，搬家后不变） | `gitlab_preview` / `prev.yangtzeu.work` |
-| 备份角色/桶 | `gitlab-backup` / `geek-backup` | `gitlab-preview-backup` / `geek-preview-private` |
+| 备份角色/桶 | `gitlab-backup` / 七牛私有备份桶（`BACKUP_S3_*`，前缀 `yzgc/production/backup/`） | `gitlab-preview-backup` / 七牛私有备份桶（`BACKUP_S3_*`，前缀 `yzgc/preview/backup/`） |
 
 - 编排来源为 `preview-compose.yml`，仅从 canonical preview 模板渲染已校验的非密字段；`preview.py plan|apply|verify --env-file <明确路径>` 不读取正式数据。真正安装还要 `apply --apply`。同镜像摘要、6GiB/3CPU限额、全新目录与网络；未知已有目录、符号链接、实例挂载或配置漂移拒绝。只用本机已存在镜像，不构建、不拉取。启动失败只停止本轮新实例，保留数据；健康后关闭注册，初始化不打开SSO。模板后来加的行（`preview.py` 的 `ADDED_LINES`，#335 起是加载 `yzgc-ui.rb` 的那一行）：实例是按不带这些行的上一版模板渲染的、Compose 与登记逐字没改过时，`plan` 报 `upgrade: true`，`verify` 失败，`apply --apply` 原地换成新模板并重建容器等健康（数据目录不动），失败就写回上一版 Compose 与登记再重建；其它漂移照样拒绝。
 - 受保护 `gitlab-cutover` 增加 `preview-status`、`install-preview`、`verify-preview`；安装成功后经 `install-host.sh --target gitlab-preview` 安装备份/恢复脚本、归档器与独立 systemd 单元。单元只编排Docker，不运行宿主业务进程。备份凭据未配时不启用定时器，不能称备份已完成。
@@ -108,7 +108,7 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 - 预发布对齐正式的顺序（#335，合并进 `main` 后一次走完，每步先不勾 apply 看演算）：① 所有者批准的管理员步骤 `install-host.sh apply --target edge …`（见下一条）升级香港接收器，再 `install-host.sh verify --target edge`；② `gitlab-cutover` 的 `edge-status` → `edge-apply` → `edge-verify`；③ `preview-status`（应报 `upgrade: true`）→ `install-preview` → `verify-preview`；④ `preview-parity`。③ 重建容器期间预发布 GitLab 停几分钟。
 - 首次通道安装由所有者明确批准的管理员步骤执行 `install-host.sh apply --target edge --source <仓库的 deploy/remote> --edge-env-file <canonical preview模板> --edge-production-env-file <canonical 正式模板> --edge-public-key-stdin`（#335 起两份模板都要给，物料多一份 `../gitlab/gitlab.caddy`；已装过的再跑一次可以不带公钥参数）；只接一把专用公钥，`restrict` 加固定command，旧授权行逐字保全，不静默轮换。私钥只存 `production` 环境的 `GITLAB_EDGE_SSH_KEY`。后续受限密钥不能上传代码、改目标或执行shell。
 - 2026-10-29已实测：专用SSH `plan` 成功，`id` 被拒；临时私钥已删除，Caddy未reload。真实Caddy `adapt --validate` 对候选配置通过且正式块逐字未变；这不等于新GitLab已部署或SSO已验收。
-- `backup.sh --environment preview` 与 `restore-drill.sh --environment preview --run <日期/run>` 只使用预发布目录、容器、锁和 `GITLAB_PREVIEW_BACKUP_S3_*`，凭据文件为 `/etc/gitlab-preview-backup/env`。默认production行为保持；两个桶中的相同 `gitlab/<日期>/<run>/` 前缀互不相见，预发布prune不读取或删除正式备份。恢复仍要求明确run、完整摘要、固定同版本CE和断网演练容器。预发布备份05:30，正式03:30，均为北京时间。
+- `backup.sh --environment preview` 与 `restore-drill.sh --environment preview --run <日期/run>` 只使用预发布目录、容器、锁，以及预发布的 `BACKUP_S3_*`，凭据文件为 `/etc/gitlab-preview-backup/env`。默认production行为保持；两环境的 `BACKUP_S3_PREFIX` 不同（`yzgc/production/backup/`、`yzgc/preview/backup/`），预发布prune只列出和删除自己前缀下的 run，不读取正式备份。恢复仍要求明确run、完整摘要、固定同版本CE和断网演练容器。预发布备份05:30，正式03:30，均为北京时间。
 - **切换前置仍未完成**：旧主体完整认领、旧写者排空、正式issuer改接、新预发布API令牌/客户端/绑定与应用版本交付，必须完成后才能启用新实例SSO。不能把新URL配给旧管理员令牌，也不能把旧 `gitlab_accounts` 数字ID当新实例ID。两个缺失正式身份的补建选择工具超时不构成人工授权；不因此补建账号或授予资格。
 
 
@@ -171,18 +171,18 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ### 备份合同
 
-[backup.sh](../../deploy/gitlab/backup.sh) 使用 `flock`、`umask 077`，由 [timer](../../deploy/gitlab/gitlab-backup.timer) 每日 `03:30 Asia/Shanghai` 调用。它先 `gitlab-backup create SKIP=registry STRATEGY=copy CRON=1`，再分别 GPG 公钥加密数据 tar 与配置 tar，写 `SHA256SUMS`，最后调用共享 [garage-archive.mjs](../../deploy/remote/garage-archive.mjs) 归档。适配器固定 `https://cdn.yangtzeu.work`、region `garage`、path-style 和私有桶 `geek-backup`；上传前完整 GET 已有对象，逐字相同才复用，不同则失败，新增后再次完整 GET 核对 SHA-256。它没有覆盖、移动、sync 或 purge 接口。`put-tree` 把 `SHA256SUMS` 放在最后上传，远端出现清单就说明同一 run 的数据对象都已写入并读回核验过。香港机空间有限，上传核验之后脚本接着执行 `prune-runs --keep-dates 3 --apply`：从新到旧逐个 run 读 `SHA256SUMS`，与对象列表逐项相等才算一个有效备份日期，保留最近 3 个有效日期，更早的整日 run 先删清单再删对象；保留窗口内清单对不上的旧 run 不计入日期、也不会被删，结果的 `unverifiedRuns` 会列出它们。有效日期不足 3 个、最新一份带清单的 run 对不上、出现晚于北京今天的日期（疑似主机时钟错误）、目录结构出现意外对象时一律零删除。缺省（不带 `--apply`）只列出会删什么。所有者 2026-10-27 16:08 指示备份要记得清理快照，这条保留策略据此生效。
+[backup.sh](../../deploy/gitlab/backup.sh) 使用 `flock`、`umask 077`，由 [timer](../../deploy/gitlab/gitlab-backup.timer) 每日 `03:30 Asia/Shanghai` 调用。它先 `gitlab-backup create SKIP=registry STRATEGY=copy CRON=1`，再分别 GPG 公钥加密数据 tar 与配置 tar，写 `SHA256SUMS`，最后调用共享 [garage-archive.mjs](../../deploy/remote/garage-archive.mjs) 归档。备份角色的端点、区域、桶与前缀来自环境变量 `BACKUP_S3_*`（path-style，见 [BACKUP](BACKUP.md)「七牛私有备份桶」）；上传前完整 GET 已有对象，逐字相同才复用，不同则失败，新增后再次完整 GET 核对 SHA-256。它没有覆盖、移动、sync 或 purge 接口。`put-tree` 把 `SHA256SUMS` 放在最后上传，远端出现清单就说明同一 run 的数据对象都已写入并读回核验过。上传核验之后脚本接着执行 `prune-runs --role gitlab-backup --apply`，按 GFS 保留（日 7、周 4、月 3，取并集，见 [BACKUP](BACKUP.md)「七牛私有备份桶」）。保留下来的完整 run 都先与对象列表逐项核对，任一不一致或目录结构出现意外对象时零删除；删除时先删 `SHA256SUMS` 再删对象。出现晚于北京今天的日期（疑似主机时钟错误）也拒绝清理。缺省（不带 `--apply`）只输出计数。
 
 - GitLab 路径为 `gitlab/YYYY-MM-DD/<run>/`。恢复必须点名 run：`restore-drill.sh --run YYYY-MM-DD/<run>` 只核对被点名的这一个 run，不带 `--run` 时只列候选并退出 1，**不再**自动挑“字典序最新”的那一个；`--day YYYY-MM-DD` 只是列候选时的过滤器。旧 `gitlab/YYYY-MM-DD/` 单层目录不再由新备份写入，也不会出现在候选列表里（适配器只认 `<日期>/<run>/SHA256SUMS`）；要恢复这类历史对象只能先把它们重新归档成 `<日期>/<run>/` 形状，不能靠改选择器绕过。
-- 凭据只从 `/etc/gitlab-backup/env` 或进程环境的 `GITLAB_BACKUP_S3_ACCESS_KEY_ID`、`GITLAB_BACKUP_S3_SECRET_ACCESS_KEY` 注入；endpoint、region、桶和 path-style 不接受环境改写。凭据不得进入配置归档、日志、argv 或源码。
+- 凭据从 systemd `EnvironmentFile` 注入：正式为 `/etc/gitlab-backup/env`，预发布为 `/etc/gitlab-preview-backup/env`，键名是 `BACKUP_S3_ACCESS_KEY_ID`、`BACKUP_S3_SECRET_ACCESS_KEY`。端点、区域、桶与前缀同样来自 `BACKUP_S3_*`，仓库里不写死。GitLab 脚本的 GPG 收件人仍是主机 env 里的 `GPG_RECIPIENT`，与流水线渲染的 `BACKUP_GPG_RECIPIENT` 是两个文件、两个名字，改名要同时改脚本与测试，本次未动。目标机上旧文件里的 `GITLAB_BACKUP_S3_*`、`GITLAB_PREVIEW_BACKUP_S3_*` 要先改成新名字，否则脚本报缺少变量并退出。凭据不得进入配置归档、日志、argv 或源码。
 - 配置候选恰为 `/srv/gitlab/config`、Compose、backup/restore 两脚本及三个 systemd unit，只归档存在项；不是缺任一项都会失败。`config` 必须含原 `gitlab-secrets.json` 与 `yzgc-oidc-secret`，另含头像恢复副本才能宣称可恢复这些内容。
 - `/etc/gitlab-backup/env`、七牛 AK/SK、GPG 私钥/口令不在配置归档内；GitLab 配置包本身**包含运行 secret**，仅允许加密保存，绝不能导入源码仓库。明文配置 tar 在加密后及退出 trap 中删除；这不是磁盘块级安全擦除。
-- 换源不授权清理：新脚本不删除旧明文 tar、本地加密运行或旧供应商的任何对象；唯一的删除是 `geek-backup` 里 `gitlab/` 与 `platform/<环境>/` 下早于最近 3 个备份日期的整日 run。旧供应商材料与既有恢复证据保留；旧材料的清理和迁移另行批准。平台的一键系统备份见 [BACKUP](BACKUP.md)，不能用 GitLab 备份代替。
-- Garage 不提供服务端 WORM、对象锁或 `If-None-Match` 原子创建。客户端完整 GET/比对/写后读回与单次脚本锁只能防止本程序主动覆盖，不能隔离跨进程竞态或恶意写入者；桶级最小权限、串行写入与外部独占网关须在真实环境另验。
+- 换源不授权清理：新脚本不删除旧明文 tar、本地加密运行或旧供应商（Garage `geek-backup`、Arch 上旧七牛版脚本写入的对象）的任何对象；唯一的删除是 `prune-runs`，只在本角色的备份前缀下按 GFS 保留（见 [BACKUP](BACKUP.md)）。旧供应商材料与既有恢复证据保留；旧材料的清理和迁移另行批准。平台的一键系统备份见 [BACKUP](BACKUP.md)，不能用 GitLab 备份代替。
+- Garage 不提供服务端 WORM、对象锁或 `If-None-Match` 原子创建；七牛 S3 接口是否提供，未核实，不能假定。客户端完整 GET/比对/写后读回与单次脚本锁只能防止本程序主动覆盖，不能隔离跨进程竞态或恶意写入者；桶级最小权限、串行写入与外部独占网关须在真实环境另验。
 
 ### 平台快照异机归档
 
-`platform-maintenance.sh backup` 仍只在 `platform-backup@.service` 的 `RestrictAddressFamilies=AF_UNIX` 沙箱里生成本地快照、SHA-256 和收据，不联网。收据新增固定目标 `geek-backup/platform/<production|preview>/<北京日期>/<run>/`。独立 [platform-archive.sh](../../deploy/remote/platform-archive.sh) 在获批的可联网、最小权限执行环境中重新核对本地三份 SHA，打成明文 tar 后用 `PLATFORM_BACKUP_GPG_RECIPIENT` 加密，仅把 `.gpg` 与其 `SHA256SUMS` 交给共享归档器；明文 tar 退出时删除，本地原快照不删除。上传核验之后同样按 3 个备份日期清理本环境在 `geek-backup` 里的旧 run，不碰另一个环境。正式与预发布分别只接受 `PLATFORM_PRODUCTION_BACKUP_S3_*`、`PLATFORM_PREVIEW_BACKUP_S3_*`，不能共用默认凭据或从业务 `.env` 读取。
+`platform-maintenance.sh backup` 仍只在 `platform-backup@.service` 的 `RestrictAddressFamilies=AF_UNIX` 沙箱里生成本地快照、SHA-256 和收据，不联网。收据新增固定目标 `platform/<production|preview>/<北京日期>/<run>/`（写入 `BACKUP_S3_PREFIX` 之下的七牛私有备份桶）。独立 [platform-archive.sh](../../deploy/remote/platform-archive.sh) 在获批的可联网、最小权限执行环境中重新核对本地三份 SHA，打成明文 tar 后用 `BACKUP_GPG_RECIPIENT` 加密，仅把 `.gpg` 与其 `SHA256SUMS` 交给共享归档器；明文 tar 退出时删除，本地原快照不删除。上传核验之后同样执行 `prune-runs --role platform-<环境>-backup --apply`（GFS 保留），只清理本环境的旧 run，不碰另一个环境。平台归档只读 `BACKUP_S3_*`，不再读 `PLATFORM_*_BACKUP_S3_*`；脚本只检查键是否存在，不打印值。
 
 发布生成的 0600 私有内容索引由同一归档器写入 `geek-production-private` 或 `geek-preview-private` 的 `indexes/content/<40位commit>/sha256.json`，凭据分别是 `PRODUCTION_PRIVATE_INDEX_S3_*` 与 `PREVIEW_PRIVATE_INDEX_S3_*`。索引 schema、权限、键和完整读回均在上传前后核对；同键不同字节失败，runner 临时文件未归档时不得称持久追溯完成。
 
@@ -246,6 +246,6 @@ ruby -c deploy/gitlab/gitlab-ui.rb &&
 ruby -c deploy/gitlab/preview-parity.rb
 ```
 
-2026-10-26 的 28/28 来源哈希是导入基线；#295 后 `backup.sh`、`restore-drill.sh` 已因 Garage 迁移有意偏离该来源，新增共享归档器与平台归档步骤，不得再用导入基线证明这两个脚本当前字节。当前定向回归使用合成文件、假 rclone/GPG 覆盖完整上传下载、哈希冲突、日期选择和凭据隔离；语法与单测不执行真实安装、备份、恢复、联网或图像处理。
+2026-10-26 的 28/28 来源哈希是导入基线；#295 后 `backup.sh`、`restore-drill.sh` 已因 Garage 迁移、#354 的七牛切换有意偏离该来源，新增共享归档器与平台归档步骤，不得再用导入基线证明这两个脚本当前字节。当前定向回归使用合成文件、假 rclone/GPG 覆盖完整上传下载、哈希冲突、日期选择和凭据隔离；语法与单测不执行真实安装、备份、恢复、联网或图像处理。
 
 **未验证**：目标文件权限/存在性、当前 GitLab 版本与健康、Caddy/Compose 的目标环境解析、私有桶策略及实际对象、加解密/恢复、真实 SSO、图片的线上呈现和正式验收；许可材料缺口未解除。本轮没有提交、推送、发布、SSH、网络写入、外发或服务启停。文档索引及本次 PR 的全局门禁由协调者集成，不能把这些局部证据写为全套验证通过。

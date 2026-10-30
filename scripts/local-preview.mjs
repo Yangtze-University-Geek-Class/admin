@@ -51,8 +51,9 @@ async function start() {
     cwd: root, detached: true, stdio: ["ignore", output, output],
     env: {
       PATH: `${dirname(executable)}:/usr/bin:/bin:/usr/sbin:/sbin`, HOME: process.env.HOME ?? root, TMPDIR: process.env.TMPDIR ?? tmpdir(), NODE_ENV: "development",
-      // 只透传 GitHub 登录需要的两项；其余环境变量一概不带进预览进程
+      // 只透传 GitHub 登录需要的两项，以及 local-stack 写在 .tools/local/secrets.json 的本机密钥；其余环境变量一概不带进预览进程
       ...(process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET && { OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET }),
+      ...(process.env.LOCAL_PREVIEW_SESSION_SECRET && process.env.LOCAL_PREVIEW_ENCRYPTION_KEY && { LOCAL_PREVIEW_SESSION_SECRET: process.env.LOCAL_PREVIEW_SESSION_SECRET, LOCAL_PREVIEW_ENCRYPTION_KEY: process.env.LOCAL_PREVIEW_ENCRYPTION_KEY }),
       ...(proxy && { LOCAL_PREVIEW_PROXY: proxy }),
     },
   });
@@ -96,7 +97,10 @@ async function serve(instance) {
       const undici = await import(pathToFileURL(createRequire(join(root, "app/server/package.json")).resolve("undici")).href);
       undici.setGlobalDispatcher(new undici.ProxyAgent(process.env.LOCAL_PREVIEW_PROXY));
     }
-    const keys = github ? await localKeys() : { session: randomBytes(32).toString("hex"), encryption: randomBytes(32).toString("base64") };
+    // 调用方给了本机密钥（local-stack 的 .tools/local/secrets.json）就用它，重启后的会话与已存的令牌仍能解开
+    const keys = process.env.LOCAL_PREVIEW_SESSION_SECRET && process.env.LOCAL_PREVIEW_ENCRYPTION_KEY
+      ? { session: process.env.LOCAL_PREVIEW_SESSION_SECRET, encryption: process.env.LOCAL_PREVIEW_ENCRYPTION_KEY }
+      : github ? await localKeys() : { session: randomBytes(32).toString("hex"), encryption: randomBytes(32).toString("base64") };
     const config = createConfig({
       NODE_ENV: "development", PUBLIC_ORIGIN: webOrigin, PORT: "3000", POW_DIFFICULTY: "0",
       DB_PATH: github ? join(stateDir, "core.db") : ":memory:",

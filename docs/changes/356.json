@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "issue": 356,
+  "kind": "engineering",
+  "summary": "#356 本机一键起全栈：pnpm local:up 起核心 API、官网、控制台与论坛，local:down 只停本命令启动的进程，local:status 看每个服务的 HTTP 状态。不连远端、不碰 Docker、不动共享浏览器配置。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务流程与用户可见行为不变：只新增本机开发用的启动、停止和状态命令。",
+      "evidence": [
+        "scripts/local-stack.mjs",
+        "package.json"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "app/server 的源码、路由与配置解析不变；local-preview.mjs 只多透传两个可选环境变量给服务端启动参数，不设时行为与原来相同。",
+      "evidence": [
+        "scripts/local-preview.mjs",
+        "scripts/local-stack.mjs"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变；本机仍是隔离模式（不给 OAuth 凭据时 GitHub 登录返回 503），凭据只从调用方环境变量透传，不写入任何文件。",
+      "evidence": [
+        "scripts/local-preview.mjs",
+        "scripts/local-stack.mjs"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "表结构与迁移不变。本机数据仍在 .tools/local-preview/；新增的 .tools/local/secrets.json 与 stack.json 都在 git 忽略目录里，不入库。",
+      "evidence": [
+        "scripts/local-stack.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "没有新增 npm 依赖，package.json 只增加三条 local:* 命令。local-stack 新增对本机进程的调用：用 node 运行 local-preview.mjs 与 forum.mjs 的 start、status、stop，用 pnpm 运行控制台的 vite dev 与服务端构建，停止时只向本脚本记录的进程组发 SIGTERM。",
+      "evidence": [
+        "package.json",
+        "scripts/local-stack.mjs",
+        "scripts/local-preview.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/conventions/TESTING.md 新增「本机开发」一节；docs/ops/LOCAL-PREVIEW.md 指向新命令；docs/ops/ENVIRONMENTS.md 与 deploy/env/.env.dev 的注释改为本机密钥由 local:up 生成到 .tools/local/secrets.json。",
+      "evidence": [
+        "docs/conventions/TESTING.md",
+        "docs/ops/LOCAL-PREVIEW.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "deploy/env/.env.dev"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 tests/tooling/local-stack.test.ts，覆盖本机密钥规则、三条根命令的包装关系与「不强制结束进程、不碰 Docker」的约定。另在本机实跑 local:status、local:down（无记录与身份不符两种）与 local:up 的端口冲突路径；全栈 HTTP 烟测因端口被其它进程占用未完成，见执行记录。",
+      "evidence": [
+        "tests/tooling/local-stack.test.ts",
+        "scripts/local-stack.mjs"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "只影响本机。不进镜像、不改 preview 或 production 的 env 值与部署工作流；.env.dev 的键集与值不变，只改注释。local:up 会在本机重建 app/server/dist，该目录已被忽略。",
+      "evidence": [
+        "deploy/env/.env.dev",
+        "package.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/local-stack.mjs",
+        "scripts/local-preview.mjs",
+        "tests/tooling/local-stack.test.ts",
+        "package.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "本机全栈启动的脚本、它包装的核心预览入口、回归测试与根命令。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.dev",
+        "docs/conventions/TESTING.md",
+        "docs/ops/LOCAL-PREVIEW.md",
+        "docs/ops/ENVIRONMENTS.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "本机开发模板的注释与说明文档，随本机启动方式一起更新；键集与 preview、production 的值不变。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/TESTING.md",
+    "docs/ops/LOCAL-PREVIEW.md",
+    "docs/ops/ENVIRONMENTS.md"
+  ],
+  "tests": [
+    "tests/tooling/local-stack.test.ts"
+  ],
+  "compatibility": "生产与预发布不受影响：本命令只在本机运行。local-preview.mjs 新增的两项可选透传（SESSION_SECRET、ENCRYPTION_KEY）只在两者都设置时生效，不设时与原来相同。",
+  "migration": "不涉及数据迁移。本机新增 .tools/local/secrets.json（0600）与 stack.json，都在 git 忽略目录里，删除即可重新生成。",
+  "rollback": "revert 本次提交即可：删除 scripts/local-stack.mjs 与三条 local:* 根命令，local-preview.mjs 的两处透传随之撤回。已生成的 .tools/local 可直接删除。"
+}

@@ -10,6 +10,25 @@
 
 浏览器分别执行 `pnpm test:e2e`（同时起官网 5179 与控制台 5189 两个 dev server，控制台用样板数据与 `__persona`）和 `pnpm forum:verify`。后者保留上游样式 guard 自测、四套 CDP 行为测试和全路由 smoke，并验证图标真正渲染。未找到浏览器不能算套件通过。工具版本分别固定，不能让 Node 26 测试复用核心 SQLite 的 Node 22 二进制。
 
+## 本机开发
+
+改了代码想在本机看效果，用根目录三条命令（只用回环地址，不连 preview 或 production，不碰 Docker，不动共享浏览器配置）：
+
+```bash
+pnpm install        # 根目录，Node 22（根 package.json 的 engines）
+pnpm local:up       # 起核心 API、官网、控制台；论坛工具链就绪时一并起来
+pnpm local:status   # 每个服务的 HTTP 状态，以及是不是本命令启动的
+pnpm local:down     # 只停本命令启动的进程
+```
+
+- 地址：官网 `http://127.0.0.1:5173/sites/portal/`，控制台 `http://127.0.0.1:5186/console`，核心 `http://127.0.0.1:3000/healthz`，论坛 `http://127.0.0.1:3456/`。
+- `up` 每次先重建 `app/server/dist`；已经在跑的核心不会热替换，改了服务端代码要先 `pnpm local:down` 再 `pnpm local:up`。
+- 本机会话与加密密钥首次 `up` 生成到 `.tools/local/secrets.json`（0600，不入库），之后复用，不写进 `deploy/env/.env.dev`。
+- 不设 `OAUTH_CLIENT_ID` 与 `OAUTH_CLIENT_SECRET` 就是隔离模式（内存库，GitHub 登录返回 503）；两项都在启动命令的环境里给出，才走真实 GitHub 登录，数据留在 `.tools/local-preview/`，细节见 [LOCAL-PREVIEW](../ops/LOCAL-PREVIEW.md)。
+- 论坛需要 Node ≥26 与 pnpm 11.24.0（[TUFF-FORUM](../ops/TUFF-FORUM.md)），依赖用 `pnpm forum:install` 装过。缺任一项时 `up` 只把论坛标为跳过并写明原因，其它服务照起。
+- 端口被别的进程占着时，`up` 拒绝启动该服务并列出占用者，不停它，也不按端口杀进程；`down` 只停记在 `.tools/local/stack.json` 里的进程。
+- 日志：控制台 `.tools/local/console.log`，核心与官网 `.tools/local-preview/preview.log`，论坛 `.tools/tuff-forum/dev.log`，本命令自己的记录 `.tools/local/stack.log`。
+
 ## 隔离
 
 核心使用 `buildApp`/`inject` 注册真实路由，仅 `DB_PATH` 指向内存库，外部 HTTP 和 GitHub 默认拒绝，需响应的用例明确注入模拟；发信商（阿里云、Resend）的请求同样默认拒绝（`tests/server/helpers.ts` 的 `mailFetch`），不发真实邮件。不能复制 handler 验证另一份实现，不读取 `.env` 或业务数据库，不发送真实邀请。

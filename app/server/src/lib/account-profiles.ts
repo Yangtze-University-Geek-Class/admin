@@ -83,9 +83,10 @@ export function createAccountProfiles(db: Database.Database, deps: { clock?: () 
     return { ok: true, profile: get(accountId) };
   }
 
-  function setAvatar(accountId: string, hash: string, data: Buffer): void {
+  /** `data` 为 null 表示字节已经在对象存储里（#352），库里不再存一份。 */
+  function setAvatar(accountId: string, hash: string, data: Buffer | null): void {
     ensure(accountId);
-    insertAvatarData.run(hash, data, clock());
+    if (data) insertAvatarData.run(hash, data, clock());
     setAvatarStmt.run(hash, clock(), accountId);
   }
 

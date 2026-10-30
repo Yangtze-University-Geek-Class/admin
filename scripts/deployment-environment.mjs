@@ -46,6 +46,13 @@ export const SECRET_FIELDS = Object.freeze([
   'GOOGLE_CLIENT_SECRET',
   'OIDC_JWKS',
   'GITLAB_API_TOKEN',
+  'BACKUP_S3_BUCKET',
+  'BACKUP_S3_ACCESS_KEY_ID',
+  'BACKUP_S3_SECRET_ACCESS_KEY',
+  'BACKUP_GPG_RECIPIENT',
+  'OBJECT_STORAGE_BUCKET',
+  'OBJECT_STORAGE_ACCESS_KEY_ID',
+  'OBJECT_STORAGE_SECRET_ACCESS_KEY',
 ]);
 /**
  * Cloudflare Turnstile 是可选的一对：两项都为空 = 明确关闭（服务端 middleware/turnstile.ts 此时只靠工作量证明与限流），
@@ -61,6 +68,8 @@ export const GOOGLE_SECRET_PAIR = Object.freeze(['GOOGLE_CLIENT_ID', 'GOOGLE_CLI
  * 阿里云与 Resend 都没配时发信关闭，server 把每封信记为「发信没有配置」，一封也不发。
  */
 export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST', 'SHIELD_ALLOWLIST']);
+/** 异地备份（#354）：四项都空 = 还没启用，迁移前备份跳过并告警；填了才上传。 */
+export const BACKUP_SECRETS = Object.freeze(['BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_GPG_RECIPIENT']);
 /**
  * 对外授权与 GitLab 同步（#270）的两项单独可选密钥：OIDC_JWKS 空 = /oidc/* 一律 404，GitLab 不能用极客班账号登录，
  * 写成一行 base64（`oidc.js keygen` 直接输出这种形式）；GITLAB_API_TOKEN 只在 GITLAB_SYNC=on 时必填（server 启动也会拒绝）。
@@ -71,9 +80,15 @@ export const OIDC_GITLAB_SECRETS = Object.freeze(['OIDC_JWKS', 'GITLAB_API_TOKEN
  * Resend 要 MAIL_RESEND_FROM。键值是这一项的开关，开关没配时发件地址照模板写空；渲染时仍要是不带显示名的邮箱地址。
  */
 export const MAIL_SENDER_ENABLED_BY = Object.freeze({ MAIL_ALIYUN_FROM: 'MAIL_ALIYUN_ACCESS_KEY_ID', MAIL_RESEND_FROM: 'MAIL_RESEND_API_KEY' });
+/**
+ * 用户文件对象存储（#352）的三项密钥：要么都填（头像与论坛图片写七牛），要么都留空（关闭，照旧存库）；只填一部分渲染失败。
+ * 非密钥项在模板里，开启时必须都有值。
+ */
+export const OBJECT_STORAGE_SECRETS = Object.freeze(['OBJECT_STORAGE_BUCKET', 'OBJECT_STORAGE_ACCESS_KEY_ID', 'OBJECT_STORAGE_SECRET_ACCESS_KEY']);
+export const OBJECT_STORAGE_FIELDS = Object.freeze(['OBJECT_STORAGE_ENDPOINT', 'OBJECT_STORAGE_REGION', 'OBJECT_STORAGE_PREFIX', 'OBJECT_STORAGE_PUBLIC_BASE']);
 /** 渲染时必填的密钥：上面几类可选项之外的全部。 */
 export const REQUIRED_SECRET_FIELDS = Object.freeze(
-  SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...Object.keys(MAIL_SENDER_ENABLED_BY)].includes(field)),
+  SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...OBJECT_STORAGE_SECRETS, ...BACKUP_SECRETS, ...Object.keys(MAIL_SENDER_ENABLED_BY)].includes(field)),
 );
 /** 收件范围：all 发给所有人；allowlist 只发给 MAIL_ALLOWLIST 里的地址。两个环境现在都是 all（#169）。 */
 export const MAIL_RECIPIENT_MODES = Object.freeze(['all', 'allowlist']);
@@ -95,6 +110,8 @@ const VISIBLE_SHIELD_FIELDS = Object.freeze([
   'EMAIL_RECIPIENT_QUOTA_DAILY',
   'REGISTER_NO_COOKIE_IP_DAILY',
 ]);
+/** 迁移前备份与归档的非密钥键：端点、区域、前缀（按环境区分）。桶名、凭据与加密收件人是 SECRET_FIELDS。 */
+const BACKUP_VISIBLE_FIELDS = Object.freeze(['BACKUP_S3_ENDPOINT', 'BACKUP_S3_REGION', 'BACKUP_S3_PREFIX']);
 /** 模板里必须存在的非密钥字段。 */
 const REQUIRED_FIELDS = Object.freeze([
   'GEEK_DEPLOYMENT_ENVIRONMENT',
@@ -118,6 +135,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'DB_PATH',
   'FORUM_DB_PATH',
   'FORUM_UPLOAD_DIR',
+  ...OBJECT_STORAGE_FIELDS,
   'POW_DIFFICULTY',
   'MAIL_ASSET_BASE',
   'MAIL_REPLY_TO',
@@ -132,6 +150,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'GITLAB_DOCKER_SUBNET',
   'GITLAB_DOCKER_GATEWAY',
   ...VISIBLE_SHIELD_FIELDS,
+  ...BACKUP_VISIBLE_FIELDS,
   ...SECRET_FIELDS,
 ]);
 /** 发布身份是构建期 build args：绝不写进部署 env 文件。 */
@@ -191,6 +210,15 @@ const ENV_FILE_DIR = 'deploy/env';
 
 export function repositoryRoot() {
   return resolve(dirname(fileURLToPath(import.meta.url)), '..');
+}
+
+function isHttpsOrigin(text) {
+  try {
+    const url = new URL(text);
+    return url.protocol === 'https:' && url.origin === text;
+  } catch {
+    return false;
+  }
 }
 
 function fail(message) {
@@ -531,6 +559,13 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
         problem(error.message);
       }
     }
+    // 用户文件对象存储（#352）：端点是 https 源（无路径），公开地址是 https 源加 /，前缀是桶内目录（以 / 结尾）；可以整体留空（关闭）。
+    const storageEndpoint = values.get('OBJECT_STORAGE_ENDPOINT') ?? '';
+    const storagePublicBase = values.get('OBJECT_STORAGE_PUBLIC_BASE') ?? '';
+    const storagePrefix = values.get('OBJECT_STORAGE_PREFIX') ?? '';
+    if (storageEndpoint && !isHttpsOrigin(storageEndpoint)) problem(`OBJECT_STORAGE_ENDPOINT 必须是 https 源（不带路径与尾斜杠）：${storageEndpoint}`);
+    if (storagePublicBase && !(storagePublicBase.endsWith('/') && isHttpsOrigin(storagePublicBase.slice(0, -1)))) problem(`OBJECT_STORAGE_PUBLIC_BASE 必须是 https 源加 /：${storagePublicBase}`);
+    if (storagePrefix && !/^[a-z0-9][a-z0-9_-]*(?:\/[a-z0-9][a-z0-9_-]*)*\/$/.test(storagePrefix)) problem(`OBJECT_STORAGE_PREFIX 必须是以 / 结尾的桶内目录：${storagePrefix}`);
     const recipients = values.get('MAIL_RECIPIENTS');
     if (values.has('MAIL_RECIPIENTS')) {
       // 预发布以前只能是 allowlist；2026-09-27 14:20 的要求概括为：预发布的信都要发出去（官方发出的邮件都必须能送到收件人那里），#169 放开。
@@ -572,7 +607,7 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
   if (byName.size === ENVIRONMENTS.length) {
     const production = byName.get('production');
     const preview = byName.get('preview');
-    for (const field of ['STACK_ROOT', 'COMPOSE_PROJECT_NAME', 'WEB_BIND', 'SERVER_BIND', 'PUBLIC_ORIGIN']) {
+    for (const field of ['STACK_ROOT', 'COMPOSE_PROJECT_NAME', 'WEB_BIND', 'SERVER_BIND', 'PUBLIC_ORIGIN', 'OBJECT_STORAGE_PREFIX']) {
       if (production.values.get(field) === preview.values.get(field)) {
         problems.push(`两套栈必须完全隔离：production 与 preview 的 ${field} 相同（${production.values.get(field)}）`);
       }
@@ -651,7 +686,16 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
     ...(filled('MAIL_RESEND_API_KEY') ? ['resend'] : []),
   ];
   // 没填的可选密钥照模板写空值（模板里本来就是空）；必填密钥缺一项就失败关闭。
+  // 对象存储三项：要么全填，要么全空（关闭）；全填时非密钥项必须在模板里有值。
+  const storageFilled = OBJECT_STORAGE_SECRETS.filter(filled).length;
+  if (storageFilled !== 0 && storageFilled !== OBJECT_STORAGE_SECRETS.length) {
+    fail(`${OBJECT_STORAGE_SECRETS.join('、')} 只配了一部分：要么都填（开启对象存储），要么都留空（关闭）`);
+  }
+  if (storageFilled === OBJECT_STORAGE_SECRETS.length) {
+    for (const field of OBJECT_STORAGE_FIELDS) if (!deployment.values.get(field)) fail(`开启对象存储时模板里的 ${field} 不能为空`);
+  }
   const skipped = new Set([
+    ...(storageFilled === 0 ? OBJECT_STORAGE_SECRETS : []),
     ...(turnstileOff ? OPTIONAL_SECRET_PAIR : []),
     ...(googleOff ? GOOGLE_SECRET_PAIR : []),
     ...[...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS].filter(field => !filled(field)),

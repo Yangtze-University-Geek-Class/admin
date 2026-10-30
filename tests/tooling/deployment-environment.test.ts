@@ -10,6 +10,8 @@ import {
   GOOGLE_SECRET_PAIR,
   MAIL_ALIYUN_SECRET_PAIR,
   OIDC_GITLAB_SECRETS,
+  OBJECT_STORAGE_SECRETS,
+  BACKUP_SECRETS,
   OPTIONAL_SECRETS,
   OPTIONAL_SECRET_PAIR,
   PROXY_HOPS,
@@ -470,7 +472,7 @@ describe('optional Turnstile pair', () => {
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SECRET_KEY: '' } })).toThrow(/只配了一项/);
     expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: { ...secrets, TURNSTILE_SITE_KEY: '' } })).toThrow(/只配了一项/);
     // Turnstile 与发信都关闭时，其余每一个密钥仍然必填；发件地址只在对应的发信商开启时必填。
-    const required = without(secrets, [...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, 'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']);
+    const required = without(secrets, [...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...OBJECT_STORAGE_SECRETS, ...BACKUP_SECRETS, 'MAIL_ALIYUN_FROM', 'MAIL_RESEND_FROM']);
     expect(Object.keys(required)).toEqual([...REQUIRED_SECRET_FIELDS]);
     for (const field of REQUIRED_SECRET_FIELDS) {
       expect(() => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env: without(required, [field]) })).toThrow(new RegExp(field));

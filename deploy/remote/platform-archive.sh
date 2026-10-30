@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把 platform-maintenance.sh 的本地快照封装并加密后，交给 Garage 只新增归档器；独立运行，不放宽 backup service 的 AF_UNIX。
+# 把 platform-maintenance.sh 的本地快照压缩、加密后，交给只新增归档器写入 BACKUP_S3_* 指定的七牛私有备份桶；独立运行，不放宽 backup service 的 AF_UNIX。
 set -Eeuo pipefail
 umask 077
 
@@ -87,22 +87,18 @@ if [[ -z "${ROLE}" || -z "${PREFIX}" ]]; then
     exit 1
 fi
 
-if [[ -z "${PLATFORM_BACKUP_GPG_RECIPIENT:-}" ]]; then
-    echo "Error: PLATFORM_BACKUP_GPG_RECIPIENT is required" >&2
+if [[ -z "${BACKUP_GPG_RECIPIENT:-}" ]]; then
+    echo "Error: BACKUP_GPG_RECIPIENT is required" >&2
     exit 1
 fi
-if [[ "${ENVIRONMENT}" == "preview" ]]; then
-    ACCESS_VAR=PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID
-    SECRET_VAR=PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY
-else
-    ACCESS_VAR=PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID
-    SECRET_VAR=PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY
-fi
-if [[ -z "${!ACCESS_VAR:-}" || -z "${!SECRET_VAR:-}" ]]; then
-    echo "Error: ${ACCESS_VAR} and ${SECRET_VAR} are required" >&2
-    exit 1
-fi
-if ! gpg --batch --list-keys "${PLATFORM_BACKUP_GPG_RECIPIENT}" >/dev/null 2>&1; then
+# 备份目标的端点、区域、桶、前缀与凭据都来自环境（BACKUP_S3_*），这里只查键是否存在，取值不打印
+for var in BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
+    if [[ -z "${!var:-}" ]]; then
+        echo "Error: ${var} is required" >&2
+        exit 1
+    fi
+done
+if ! gpg --batch --list-keys "${BACKUP_GPG_RECIPIENT}" >/dev/null 2>&1; then
     echo "Error: platform backup GPG recipient is unavailable" >&2
     exit 1
 fi
@@ -112,8 +108,9 @@ PLAIN="${OUTPUT}/platform-backup.tar"
 ENCRYPTED="${OUTPUT}/platform-backup.tar.gpg"
 cleanup() { rm -f "${PLAIN}"; }
 trap cleanup EXIT
+# 快照里的 system-backup.tar.gz 本身已是 gzip；外层 tar 只包 3 个小文件，gpg 加密时再按 ZIP 压缩
 tar -C "${SOURCE}" -cf "${PLAIN}" "${EXPECTED[@]}"
-gpg --batch --yes --trust-model always --recipient "${PLATFORM_BACKUP_GPG_RECIPIENT}" --output "${ENCRYPTED}" --encrypt "${PLAIN}"
+gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${BACKUP_GPG_RECIPIENT}" --output "${ENCRYPTED}" --encrypt "${PLAIN}"
 rm -f "${PLAIN}"
 node --input-type=module - "${ENCRYPTED}" "${OUTPUT}/SHA256SUMS" <<'NODE'
 import { createHash } from 'node:crypto';
@@ -126,8 +123,8 @@ NODE
 chmod 0600 "${ENCRYPTED}" "${OUTPUT}/SHA256SUMS"
 
 UPLOAD_JSON=$(node "${HERE}/garage-archive.mjs" put-tree --role "${ROLE}" --source "${OUTPUT}" --prefix "${PREFIX}")
-# 香港对象存储空间有限：这份上传并读回核验之后，只保留本环境最近 3 个备份日期，更早的整日 run 由适配器核对后删除。
-PRUNE_JSON=$(node "${HERE}/garage-archive.mjs" prune-runs --role "${ROLE}" --keep-dates 3 --apply)
+# 上传并读回核验之后，按 日 7 / 周 4 / 月 3 的保留策略清理旧 run（见 garage-archive.mjs 的 RETENTION），清理由适配器核对后删除。
+PRUNE_JSON=$(node "${HERE}/garage-archive.mjs" prune-runs --role "${ROLE}" --apply)
 node --input-type=module - "${ENVIRONMENT}" "${PREFIX}" "${UPLOAD_JSON}" "${PRUNE_JSON}" <<'NODE'
 const [environment, prefix, upload, prune] = process.argv.slice(2);
 console.log(JSON.stringify({ environment, prefix, upload: JSON.parse(upload), prune: JSON.parse(prune) }));

@@ -6426,6 +6426,14 @@
           "needle": "export function createForumStore("
         },
         {
+          "path": "app/server/src/lib/object-storage.ts",
+          "needle": "export function isHttpsOrigin(text: string): boolean {"
+        },
+        {
+          "path": "app/server/src/lib/object-storage-backfill.ts",
+          "needle": "export async function backfillObjectStorage("
+        },
+        {
           "path": "app/server/src/routes/forum-api/viewer.ts",
           "needle": "export async function forumViewer("
         },
@@ -13380,6 +13388,16 @@
       "permissions"
     ],
     "app/server/src/lib/account-avatar.ts": [
+      "identity"
+    ],
+    "app/server/src/lib/object-storage.ts": [
+      "platform",
+      "forum",
+      "identity"
+    ],
+    "app/server/src/lib/object-storage-backfill.ts": [
+      "platform",
+      "forum",
       "identity"
     ],
     "app/server/src/lib/account-profiles.ts": [

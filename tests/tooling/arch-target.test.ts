@@ -137,7 +137,7 @@ describe('deployment SSH configuration CLI', () => {
     mkdirSync(join(world.root, 'deploy/remote'), { recursive: true });
     mkdirSync(join(world.root, 'deploy/compose'), { recursive: true });
     mkdirSync(join(world.root, 'bundle'));
-    for (const name of ['deploy-stack.sh', 'rollback-stack.sh']) {
+    for (const name of ['deploy-stack.sh', 'rollback-stack.sh', 'garage-archive.mjs']) {
       const text = readFileSync(join(repoRoot, 'deploy/remote', name), 'utf8') + `\n# tagged workflow fixture ${environment}\n`;
       tagged.set(name, text);
       writeFileSync(join(world.root, 'deploy/remote', name), text);

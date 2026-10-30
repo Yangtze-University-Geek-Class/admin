@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Garage 私有归档适配器：复用 rclone 的 S3/SigV4 实现，只新增、完整读回核验，不提供覆盖命令。
-// 唯一的删除入口是 prune-runs：备份桶在一台小机器上，空间有限，只清理备份角色名下早于保留窗口的整日 run。
+// 私有归档适配器：复用 rclone 的 S3/SigV4 实现，只新增、完整读回核验，不提供覆盖命令。
+// 备份角色（GitLab、平台、迁移前数据库）写入 BACKUP_S3_* 指定的 S3 兼容私有桶（七牛），端点、区域、桶、前缀和凭据全部来自环境变量；
+// 内容索引角色仍写 Garage 的私有桶（不是备份，未随本次迁移）。
+// 唯一的删除入口是 prune-runs：只清理备份角色名下的整日 run，按 日/周/月 保留（见 RETENTION），核验不过零删除。
 import { createHash } from 'node:crypto';
 import {
   createReadStream, createWriteStream, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync,
@@ -11,39 +13,48 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
-const ENDPOINT = 'https://cdn.yangtzeu.work';
-const REGION = 'garage';
-const REMOTE = 'geekgarage';
+const REMOTE = 'archive';
+// 内容索引仍在 Garage 私有桶（非备份）；只有这一组端点是代码里的常量，备份端点一律来自 BACKUP_S3_ENDPOINT。
+const GARAGE = Object.freeze({ endpoint: 'https://cdn.yangtzeu.work', region: 'garage' });
+const BACKUP_TARGET = 'backup';
 const ROLES = Object.freeze({
   'gitlab-backup': {
-    bucket: 'geek-backup', access: 'GITLAB_BACKUP_S3_ACCESS_KEY_ID', secret: 'GITLAB_BACKUP_S3_SECRET_ACCESS_KEY',
+    target: BACKUP_TARGET,
     key: /^gitlab\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
     prefix: /^gitlab\/(?:\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/?)?$/,
   },
   'gitlab-preview-backup': {
-    bucket: 'geek-preview-private', access: 'GITLAB_PREVIEW_BACKUP_S3_ACCESS_KEY_ID', secret: 'GITLAB_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY',
+    target: BACKUP_TARGET,
     key: /^gitlab\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
     prefix: /^gitlab\/(?:\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/?)?$/,
   },
   'platform-preview-backup': {
-    bucket: 'geek-backup', access: 'PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID', secret: 'PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY',
+    target: BACKUP_TARGET,
     key: /^platform\/preview\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
     prefix: /^platform\/preview\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/$/,
   },
   'platform-production-backup': {
-    bucket: 'geek-backup', access: 'PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID', secret: 'PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY',
+    target: BACKUP_TARGET,
     key: /^platform\/production\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
     prefix: /^platform\/production\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/$/,
   },
+  // 部署前的数据库快照：deploy-stack.sh 在 compose up（即迁移）之前写入，前缀按环境由 BACKUP_S3_PREFIX 区分
+  'database-backup': {
+    target: BACKUP_TARGET,
+    key: /^database\/\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+$/,
+    prefix: /^database\/(?:\d{4}-\d{2}-\d{2}\/[A-Za-z0-9._-]+\/)?$/,
+  },
   'preview-content-index': {
-    bucket: 'geek-preview-private', access: 'PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID', secret: 'PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY',
+    target: 'garage', bucket: 'geek-preview-private', access: 'PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID', secret: 'PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY',
     key: /^indexes\/content\/[0-9a-f]{40}\/sha256\.json$/,
   },
   'production-content-index': {
-    bucket: 'geek-production-private', access: 'PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID', secret: 'PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY',
+    target: 'garage', bucket: 'geek-production-private', access: 'PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID', secret: 'PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY',
     key: /^indexes\/content\/[0-9a-f]{40}\/sha256\.json$/,
   },
 });
+// 保留策略（GFS）：每个北京日期、每个 ISO 周、每个自然月各保留最新的一份完整 run；最近 7 天、4 周、3 个月有备份的桶。三条取并集。
+const RETENTION = Object.freeze({ daily: 7, weekly: 4, monthly: 3 });
 
 class ArchiveError extends Error {}
 const requireThat = (condition, message) => { if (!condition) throw new ArchiveError(message); };
@@ -56,11 +67,11 @@ function parseArgs(argv) {
     'get-tree': ['--role', '--prefix', '--destination'],
     'resolve-gitlab-run': ['--run', '--role'],
     'list-gitlab-runs': ['--day', '--role'],
-    'prune-runs': ['--role', '--keep-dates'],
+    'prune-runs': ['--role'],
   };
-  // 无值布尔开关：恢复路径必须显式要求清单校验，缺省下载保持通用；清理缺省只列清单，--apply 才删除
-  const flagsByCommand = { 'get-tree': ['--require-manifest'], 'prune-runs': ['--apply'] };
-  requireThat(Object.hasOwn(allowedByCommand, command), '用法：garage-archive.mjs put-tree|put-file|get-tree|resolve-gitlab-run|list-gitlab-runs|prune-runs');
+  // 无值布尔开关：恢复路径必须显式要求清单校验，缺省下载保持通用；清理缺省只列清单（同 --dry-run），--apply 才删除
+  const flagsByCommand = { 'get-tree': ['--require-manifest'], 'prune-runs': ['--apply', '--dry-run'] };
+  requireThat(Object.hasOwn(allowedByCommand, command), '用法：garage-archive.mjs put-tree|put-file|get-tree|resolve-gitlab-run|list-gitlab-runs|prune-runs [--dry-run|--apply]');
   const allowed = new Set(allowedByCommand[command]);
   const flags = new Set(flagsByCommand[command] ?? []);
   const options = Object.create(null);
@@ -109,27 +120,45 @@ function assertObjectPath(role, key, kind = 'key') {
   return key;
 }
 
+// 备份目标只从环境变量读取；错误信息只报键名，不回显任何取值（桶名与凭据都不进日志）。
+function backupTarget(env) {
+  const endpoint = env.BACKUP_S3_ENDPOINT ?? '';
+  requireThat(/^https:\/\/[a-z0-9][a-z0-9.-]*[a-z0-9](?::\d{2,5})?$/.test(endpoint), '缺少或非法 BACKUP_S3_ENDPOINT（必须是 https:// 主机，不带路径）');
+  const region = env.BACKUP_S3_REGION ?? '';
+  requireThat(/^[a-z0-9-]{2,32}$/.test(region), '缺少或非法 BACKUP_S3_REGION');
+  const bucket = env.BACKUP_S3_BUCKET ?? '';
+  requireThat(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket), '缺少或非法 BACKUP_S3_BUCKET');
+  const prefix = env.BACKUP_S3_PREFIX ?? '';
+  // 前缀必须非空：备份不能写在桶根下，否则与桶里其它对象混在同一个清理范围
+  requireThat(/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9._-]+)*\/$/.test(prefix) && !prefix.includes('..'), 'BACKUP_S3_PREFIX 必须是以 / 结尾的非空相对前缀，不能写在桶根下');
+  return { endpoint, region, bucket, prefix, access: env.BACKUP_S3_ACCESS_KEY_ID ?? '', secret: env.BACKUP_S3_SECRET_ACCESS_KEY ?? '' };
+}
+
 function roleConfig(name, env = process.env) {
   const role = ROLES[name];
   requireThat(role, '未知归档角色');
-  const access = env[role.access] ?? '';
-  const secret = env[role.secret] ?? '';
-  requireThat(access && !/[\s:\x00-\x1f\x7f]/.test(access), `缺少或非法 ${role.access}`);
-  requireThat(secret && !/[\x00-\x1f\x7f]/.test(secret), `缺少或非法 ${role.secret}`);
+  const target = role.target === BACKUP_TARGET
+    ? backupTarget(env)
+    : { endpoint: GARAGE.endpoint, region: GARAGE.region, bucket: role.bucket, prefix: '', access: env[role.access] ?? '', secret: env[role.secret] ?? '' };
+  const accessKey = role.target === BACKUP_TARGET ? 'BACKUP_S3_ACCESS_KEY_ID' : role.access;
+  const secretKey = role.target === BACKUP_TARGET ? 'BACKUP_S3_SECRET_ACCESS_KEY' : role.secret;
+  requireThat(target.access && !/[\s:\x00-\x1f\x7f]/.test(target.access), `缺少或非法 ${accessKey}`);
+  requireThat(target.secret && !/[\x00-\x1f\x7f]/.test(target.secret), `缺少或非法 ${secretKey}`);
   const childEnv = {
     PATH: env.PATH ?? '/usr/bin:/bin', HOME: env.HOME ?? '/', LANG: 'C.UTF-8',
     ...(env.FAKE_RCLONE_FAIL ? { FAKE_RCLONE_FAIL: env.FAKE_RCLONE_FAIL } : {}),
     ...(env.FAKE_RCLONE_OBJECTS ? { FAKE_RCLONE_OBJECTS: env.FAKE_RCLONE_OBJECTS } : {}),
     ...(env.FAKE_RCLONE_LOG ? { FAKE_RCLONE_LOG: env.FAKE_RCLONE_LOG } : {}),
-    RCLONE_CONFIG_GEEKGARAGE_TYPE: 's3', RCLONE_CONFIG_GEEKGARAGE_PROVIDER: 'Other',
-    RCLONE_CONFIG_GEEKGARAGE_ACCESS_KEY_ID: access, RCLONE_CONFIG_GEEKGARAGE_SECRET_ACCESS_KEY: secret,
-    RCLONE_CONFIG_GEEKGARAGE_REGION: REGION, RCLONE_CONFIG_GEEKGARAGE_ENDPOINT: ENDPOINT,
-    RCLONE_CONFIG_GEEKGARAGE_FORCE_PATH_STYLE: 'true', RCLONE_CONFIG_GEEKGARAGE_NO_CHECK_BUCKET: 'true',
+    RCLONE_CONFIG_ARCHIVE_TYPE: 's3', RCLONE_CONFIG_ARCHIVE_PROVIDER: 'Other',
+    RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID: target.access, RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY: target.secret,
+    RCLONE_CONFIG_ARCHIVE_REGION: target.region, RCLONE_CONFIG_ARCHIVE_ENDPOINT: target.endpoint,
+    RCLONE_CONFIG_ARCHIVE_FORCE_PATH_STYLE: 'true', RCLONE_CONFIG_ARCHIVE_NO_CHECK_BUCKET: 'true',
   };
-  return { ...role, name, childEnv };
+  return { ...role, name, bucket: target.bucket, keyPrefix: target.prefix, childEnv };
 }
 
-const remotePath = (role, key) => `${REMOTE}:${role.bucket}/${key}`;
+// 桶内的对象键 = 角色前缀（BACKUP_S3_PREFIX，按环境区分）+ 角色内相对键；调用方只用相对键
+const remotePath = (role, key) => `${REMOTE}:${role.bucket}/${role.keyPrefix}${key}`;
 
 function runJson(args, role, { missingOk = false } = {}) {
   const result = spawnSync('rclone', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env: role.childEnv });
@@ -230,7 +259,7 @@ async function putTree(role, source, prefix) {
   const results = [];
   for (const { file, rel } of items) results.push(await putFile(role, file, `${prefix}${rel}`));
   return {
-    bucket: role.bucket, prefix, total: results.length,
+    role: role.name, prefix, total: results.length,
     stored: results.filter(item => item.status === 'stored').length,
     exists: results.filter(item => item.status === 'exists').length,
     objects: results.map(({ key, bytes, sha256 }) => ({ key, bytes, sha256 })),
@@ -244,7 +273,8 @@ function listPrefix(role, prefix) {
 
 // 调用方负责保证 prefix 受信；每个返回对象的键仍要通过角色的 key 正则
 function listObjects(role, prefix) {
-  const list = runJson(['lsjson', remotePath(role, prefix), '--recursive', '--files-only', '--no-modtime', '--no-mimetype'], role);
+  // 前缀还没有任何对象（例如第一次清理前的新角色）时 rclone 可能退出码 3：按空列表处理，由调用方决定报错还是跳过
+  const list = runJson(['lsjson', remotePath(role, prefix), '--recursive', '--files-only', '--no-modtime', '--no-mimetype'], role, { missingOk: true }) ?? [];
   requireThat(Array.isArray(list), 'rclone lsjson 结果无效');
   return list.map(item => {
     const path = item?.Path;
@@ -327,7 +357,7 @@ async function getTree(role, prefix, destination, { requireManifest = false } = 
     for (const item of downloaded) process.stderr.write(`[garage-archive]   ${item.path} ${item.bytes} ${item.sha256}\n`);
   }
   return {
-    bucket: role.bucket, prefix, downloaded: downloaded.length, manifestVerified: Boolean(entries), objects: downloaded,
+    role: role.name, prefix, downloaded: downloaded.length, manifestVerified: Boolean(entries), objects: downloaded,
   };
 }
 
@@ -371,8 +401,8 @@ const PRUNE_FAMILIES = Object.freeze({
   'gitlab-preview-backup': 'gitlab/',
   'platform-preview-backup': 'platform/preview/',
   'platform-production-backup': 'platform/production/',
+  'database-backup': 'database/',
 });
-const DEFAULT_KEEP_DATES = 3;
 
 function catText(role, key) {
   const result = spawnSync('rclone', ['cat', remotePath(role, key)], { encoding: 'utf8', maxBuffer: 1024 * 1024, env: role.childEnv });
@@ -380,11 +410,29 @@ function catText(role, key) {
   return result.stdout;
 }
 
-// 保留最近 N 个「清单与对象列表逐项对得上的备份日期」，更早的整日 run 删除。
-// 任何前置核对不过都零删除：目录结构意外、出现晚于北京今天的日期（主机时钟超前会把截止日推后）、
-// 已核验的日期不足 N 个、最新一份带清单的 run 对不上。保留窗口内对不上的旧 run 不计入日期，也不会被删。
-// 每个 run 先删 SHA256SUMS：中途失败时它变成无清单的残缺 run，恢复路径不会再选它，下一次清理会收走剩余对象。
+// 清理只看北京日期（与 run 名无关）：日期、ISO 周（取周一的日期）、自然月。
 const beijingToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+function isoWeekStart(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  utc.setUTCDate(utc.getUTCDate() - ((utc.getUTCDay() + 6) % 7));
+  return utc.toISOString().slice(0, 10);
+}
+const runId = entry => `${entry.date}/${entry.run}`;
+
+// 每个桶（日 / 周 / 月）取最新的一份完整 run，三种桶各取最近的 N 个，并集即保留集合。entries 必须按时间从旧到新排序。
+function retainedRunIds(entries) {
+  const keep = new Set();
+  const newestPerBucket = (bucketOf, count) => {
+    const newest = new Map();
+    for (const entry of entries) newest.set(bucketOf(entry.date), entry);
+    for (const bucket of [...newest.keys()].sort().slice(-count)) keep.add(runId(newest.get(bucket)));
+  };
+  newestPerBucket(date => date, RETENTION.daily);
+  newestPerBucket(isoWeekStart, RETENTION.weekly);
+  newestPerBucket(date => date.slice(0, 7), RETENTION.monthly);
+  return keep;
+}
 
 function runMatchesManifest(role, entry) {
   let entries;
@@ -394,10 +442,12 @@ function runMatchesManifest(role, entry) {
   return listed.size === entries.size && [...entries.keys()].every(name => listed.get(name)?.bytes > 0);
 }
 
-function pruneRuns(role, { keepDates = DEFAULT_KEEP_DATES, apply = false } = {}) {
+// 只删整日 run：先选出要保留的完整 run（有 SHA256SUMS），逐个核对它与对象列表一致，任一不一致就零删除。
+// 删除的是其余完整 run；没有清单的残缺 run（上传中断留下的）只在保留窗口最旧的日期之前才清理。
+// 每个 run 先删 SHA256SUMS：中途失败时它变成无清单的残缺 run，恢复路径不会再选它，下一次清理会收走剩余对象。
+function pruneRuns(role, { apply = false } = {}) {
   const family = PRUNE_FAMILIES[role.name];
   requireThat(family, '该角色不支持清理');
-  requireThat(Number.isSafeInteger(keepDates) && keepDates >= 1 && keepDates <= 30, '--keep-dates 必须是 1 到 30 的整数');
   const runs = new Map();
   for (const item of listObjects(role, family)) {
     const match = /^(\d{4}-\d{2}-\d{2})\/([A-Za-z0-9._-]+)\/(.+)$/.exec(item.path);
@@ -412,22 +462,23 @@ function pruneRuns(role, { keepDates = DEFAULT_KEEP_DATES, apply = false } = {})
   for (const entry of runs.values()) requireThat(entry.date <= today, `${entry.prefix}：日期晚于北京今天 ${today}，疑似主机时钟错误，拒绝清理`);
 
   const byAge = (a, b) => a.date.localeCompare(b.date, 'en') || a.run.localeCompare(b.run, 'en');
-  const withManifest = [...runs.values()].filter(entry => entry.objects.some(object => object.name === MANIFEST_NAME)).sort(byAge);
-  const verifiedDates = new Set();
-  const unverifiedRuns = [];
-  // 从新到旧逐个核验，凑够 N 个日期就停：窗口之外更旧的 run 不需要读清单
-  for (let index = withManifest.length - 1; index >= 0 && verifiedDates.size < keepDates; index -= 1) {
-    const entry = withManifest[index];
-    if (runMatchesManifest(role, entry)) { verifiedDates.add(entry.date); continue; }
-    requireThat(index !== withManifest.length - 1, `${entry.prefix} 最新一份 run 的 SHA256SUMS 与对象列表不一致，拒绝清理`);
-    unverifiedRuns.push(entry.prefix);
-  }
-  const kept = [...verifiedDates].sort();
-  const result = { bucket: role.bucket, family, mode: apply ? 'apply' : 'dry-run', keepDates, keptDates: kept, unverifiedRuns, removedRuns: [], objects: 0, bytes: 0 };
-  if (kept.length < keepDates) return result;
-
-  const cutoff = kept[0];
-  const doomed = [...runs.values()].filter(entry => entry.date < cutoff).sort(byAge);
+  const complete = [...runs.values()].filter(entry => entry.objects.some(object => object.name === MANIFEST_NAME)).sort(byAge);
+  const incomplete = [...runs.values()].filter(entry => !complete.includes(entry));
+  const keep = retainedRunIds(complete);
+  const kept = complete.filter(entry => keep.has(runId(entry)));
+  for (const entry of kept) requireThat(runMatchesManifest(role, entry), `${entry.prefix} 的 SHA256SUMS 与对象列表不一致，拒绝清理`);
+  const oldestKept = kept[0]?.date;
+  const doomed = [
+    ...complete.filter(entry => !keep.has(runId(entry))),
+    ...(oldestKept ? incomplete.filter(entry => entry.date < oldestKept) : []),
+  ].sort(byAge);
+  const result = {
+    mode: apply ? 'apply' : 'dry-run',
+    retention: { ...RETENTION },
+    runs: { complete: complete.length, kept: kept.length, removed: doomed.length, incomplete: incomplete.length },
+    objects: 0,
+    bytes: 0,
+  };
   for (const entry of doomed) {
     const ordered = [...entry.objects].sort((a, b) => Number(b.name === MANIFEST_NAME) - Number(a.name === MANIFEST_NAME));
     for (const object of ordered) {
@@ -438,7 +489,6 @@ function pruneRuns(role, { keepDates = DEFAULT_KEEP_DATES, apply = false } = {})
       result.objects += 1;
       result.bytes += object.bytes;
     }
-    result.removedRuns.push(entry.prefix);
   }
   return result;
 }
@@ -446,8 +496,8 @@ function pruneRuns(role, { keepDates = DEFAULT_KEEP_DATES, apply = false } = {})
 export async function main(argv = process.argv.slice(2), env = process.env) {
   const { command, options } = parseArgs(argv);
   if (command === 'prune-runs') {
-    const keepDates = options['--keep-dates'] === undefined ? DEFAULT_KEEP_DATES : Number(options['--keep-dates']);
-    return pruneRuns(roleConfig(options['--role'], env), { keepDates, apply: options['--apply'] === true });
+    requireThat(!(options['--apply'] && options['--dry-run']), '--apply 与 --dry-run 只能二选一');
+    return pruneRuns(roleConfig(options['--role'], env), { apply: options['--apply'] === true });
   }
   const gitlabRole = options['--role'] ?? 'gitlab-backup';
   if (command === 'list-gitlab-runs' || command === 'resolve-gitlab-run') requireThat(['gitlab-backup', 'gitlab-preview-backup'].includes(gitlabRole), 'GitLab 恢复只接受 GitLab 备份角色');
@@ -460,7 +510,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     return resolveGitlabRun(options['--run'], env, gitlabRole);
   }
   const role = roleConfig(options['--role'], env);
-  if (command === 'put-file') return { bucket: role.bucket, ...(await putFile(role, options['--source'], options['--key'])) };
+  if (command === 'put-file') return { role: role.name, ...(await putFile(role, options['--source'], options['--key'])) };
   if (command === 'put-tree') return await putTree(role, options['--source'], options['--prefix']);
   if (command === 'get-tree') return await getTree(role, options['--prefix'], options['--destination'], { requireManifest: options['--require-manifest'] === true });
   throw new ArchiveError('未知命令');

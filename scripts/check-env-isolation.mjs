@@ -45,6 +45,9 @@ export const PER_ENVIRONMENT_KEYS = Object.freeze([
   'GITLAB_HTTP_BIND',
   'GITLAB_DOCKER_SUBNET',
   'GITLAB_DOCKER_GATEWAY',
+  'BACKUP_S3_PREFIX',
+  // 用户文件对象存储（#352）：前缀按环境分开（yzgc/production/ 与 yzgc/preview/），端点与公开地址两边相同
+  'OBJECT_STORAGE_PREFIX',
 ]);
 
 /** 名字像密钥的键：三份模板都必须留空。 */

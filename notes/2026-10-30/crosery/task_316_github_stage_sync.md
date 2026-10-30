@@ -43,3 +43,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：CI core 的 check:privacy 报 docs/changes/346.json 的放行不再命中（MR !90 重写了声明）；从 scripts/privacy-exceptions.json 删掉这一条
 - 结果：check-privacy 通过；check-architecture 通过
+
+## 22:17:51 +08:00 · 收尾 · #316 · PR #317 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 316：删 worktree .claude/worktrees/task-316 与本地分支 task/316/github_stage_sync
+- 结果：PR 已合并

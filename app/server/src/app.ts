@@ -13,6 +13,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { APP_ROOT, type AppConfig } from "./config.js";
 import { createServices, type AppServices, type ServiceOverrides } from "./services.js";
+import { backfillObjectStorage } from "./lib/object-storage-backfill.js";
 import { rateLimited, registerHttpPolicy } from "./middleware/http-policy.js";
 import { registerShield } from "./middleware/shield.js";
 import { registerBearerAuth } from "./middleware/bearer-auth.js";
@@ -45,6 +46,7 @@ export function resolveSiteEntry(url: string): string {
  * `sessionCleanup`：定时清过期会话（启动时一次，之后每小时；app.close() 时停下）；index.ts 和本机预览（scripts/local-preview.mjs）打开，测试直接调 auth.cleanupExpiredSessions()。
  * `gitlabSync`：GITLAB_SYNC=on 时定时对一次 GitLab 账号（启动时一次，之后每 10 分钟；app.close() 时等它停下）；只有 index.ts 打开，测试直接调 gitlab.reconcile()。
  *   同一个开关也开比赛贡献收集（#278，GitLab 同步不是 off 时每 10 分钟一轮）；测试直接调 competitionCandidates.collect()。
+ * `objectStorageBackfill`：启动后台回填头像与论坛图片到对象存储（#352），只在对象存储开启时跑，只记数量；index.ts 打开，测试不跑。
  * `githubAvatarCheck`：识别 GitHub 头像是不是自动生成的像素图（#343，启动时一轮，之后每 10 分钟；app.close() 时等它停下）；
  *   只有 index.ts 打开，测试直接调 githubAvatars.runOnce()。
  */
@@ -59,7 +61,7 @@ export function requestLogFields(req: { method: string; url: string; host?: stri
 
 export type BuildAppOptions = {
   config: AppConfig; services?: AppServices; overrides?: ServiceOverrides; staticRoot?: string | string[] | false; logger?: boolean;
-  mailWorker?: boolean; sessionCleanup?: boolean; gitlabSync?: boolean; activityCleanup?: boolean; githubAvatarCheck?: boolean; observeRoute?: (route: RouteOptions) => void;
+  mailWorker?: boolean; sessionCleanup?: boolean; gitlabSync?: boolean; activityCleanup?: boolean; githubAvatarCheck?: boolean; objectStorageBackfill?: boolean; observeRoute?: (route: RouteOptions) => void;
 };
 export async function buildApp(options: BuildAppOptions) {
   const config = options.config;
@@ -89,6 +91,12 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.sessionCleanup) app.addHook("onReady", async () => { services.auth.startCleanup(app.log); });
   if (options.gitlabSync) app.addHook("onReady", async () => { services.gitlab.start(app.log); services.competitionCandidates.start(app.log); });
   if (options.githubAvatarCheck) app.addHook("onReady", async () => { services.githubAvatars.start(app.log); });
+  if (options.objectStorageBackfill) {
+    app.addHook("onReady", async () => {
+      // 后台跑，不挡启动；失败只记一行，下次启动再补。
+      void backfillObjectStorage(services.storage.db, services.objectStorage, app.log).catch(() => app.log.warn("对象存储回填中断"));
+    });
+  }
   // 操作记录每天清一次过期行、按 90 天打码 IP（lib/activity.ts，SPEC §3.7），顺带清 lib/limits.ts 的
   // limit_events（SPEC §3.8）；测试直接调 services.activity.pruneExpired() / services.limits.pruneAll()。
   // 访问防护的信号窗口与封禁表（#333）、限流计数的过期行，和上面两张表一起每天清一次。

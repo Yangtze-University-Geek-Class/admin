@@ -15,7 +15,7 @@
 
 export const STATIC_CDN_ORIGIN = "https://cdn.crosery.com";
 export const STATIC_CDN_S3_ENDPOINT = "https://s3.cn-south-1.qiniucs.com";
-// 桶名不入库：桶名里带所有者的个人标识，只放在部署密钥 STATIC_CDN_S3_BUCKET 里（#346）；这里只核对形状。
+// 桶名不入库：桶名里带所有者的个人标识，只放在 GitHub 环境变量 STATIC_CDN_S3_BUCKET 里（#346、#349）；这里只核对形状。
 export const S3_BUCKET_RE = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
 /** 项目在桶里的对象命名空间：旧七牛对象（静态、宣传片、邮件图片）都在 yzgc/ 下。 */
 export const STATIC_CDN_NAMESPACE = "yzgc/";

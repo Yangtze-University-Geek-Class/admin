@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "issue": 354,
+  "kind": "engineering",
+  "summary": "#354 备份改写七牛私有备份桶：GitLab 备份、平台归档与部署前数据库快照经 BACKUP_S3_* 环境变量写入，压缩后 gpg 加密，按日 7、周 4、月 3 保留并在删除前核对清单。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务流程与用户可见行为不变：只改备份存放位置、变量名与留存规则，控制台备份页和业务导出语义不动。",
+      "evidence": [
+        "docs/ops/BACKUP.md"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "app/server 源码、接口与路由不变；部署前快照只在新镜像里用 node 调用已装的 better-sqlite3 只读打开库，不改服务代码。",
+      "evidence": [
+        "deploy/remote/deploy-stack.sh"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变；备份凭据只进入归档进程，compose 只引用列出的变量，不把 BACKUP_S3_* 带进容器环境。",
+      "evidence": [
+        "deploy/compose/production.yml",
+        "deploy/remote/garage-archive.mjs"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "表结构、迁移与业务数据不变；部署前快照只读取数据库生成副本，不改写数据行。",
+      "evidence": [
+        "deploy/remote/deploy-stack.sh"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "不新增 npm 依赖、不改 package.json；脚本沿用已有的 gpg、gzip 与 rclone 路径。目标机缺 gpg 时部署前快照失败关闭。",
+      "evidence": [
+        "deploy/remote/deploy-stack.sh",
+        "deploy/remote/garage-archive.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "BACKUP、GITLAB、STORAGE-CDN、CDN、DEPLOY、ENVIRONMENTS、CICD 同步改写备份路径、变量名、留存策略与部署前快照说明。",
+      "evidence": [
+        "docs/ops/BACKUP.md",
+        "docs/ops/GITLAB.md",
+        "docs/ops/STORAGE-CDN.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "更新四个工具测试文件：GFS 保留与清单核对、部署前快照的失败关闭路径、平台加密归档、GitLab 备份存储与变量隔离；未跑全量套件。",
+      "evidence": [
+        "tests/tooling/garage-archive.test.ts",
+        "tests/tooling/deploy-scripts.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "三条部署工作流的渲染步骤新增 BACKUP_S3_BUCKET、BACKUP_S3_ACCESS_KEY_ID、BACKUP_S3_SECRET_ACCESS_KEY、BACKUP_GPG_RECIPIENT 四个 secret，并上传 garage-archive.mjs；deploy-stack.sh 在 compose up 前做迁移前快照。真实目标机与七牛未验证。",
+      "evidence": [
+        ".github/workflows/deploy-production.yml",
+        "deploy/remote/deploy-stack.sh"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "deploy/gitlab/backup.sh",
+        "deploy/gitlab/restore-drill.sh",
+        "deploy/remote/deploy-stack.sh",
+        "deploy/remote/garage-archive.mjs",
+        "deploy/remote/platform-archive.sh",
+        "tests/tooling/deployment-environment.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "备份与归档脚本属于平台运维链路：GitLab 备份、平台一键归档与发布前数据库快照都经共享归档器写入七牛私有备份桶。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.dev",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.production"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "三份环境模板新增 BACKUP_S3_* 非密项（端点、区域、前缀）与留空的密钥项，键集一致，由 check:env-isolation 核对。"
+    },
+    {
+      "paths": [
+        ".github/workflows/deploy-hotfix.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        "scripts/check-env-isolation.mjs",
+        "scripts/deploy-manual.mjs",
+        "scripts/deployment-environment.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "部署流水线的渲染与手工部署名单、环境隔离检查要与新增的四个密钥名和 BACKUP_S3_PREFIX 保持同一份清单。"
+    },
+    {
+      "paths": [
+        "docs/ops/BACKUP.md",
+        "docs/ops/CDN.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/GITLAB.md",
+        "docs/ops/STORAGE-CDN.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "运维文档随备份链路同步改写：目的地、变量名、留存与迁移注意事项。"
+    },
+    {
+      "paths": [
+        "tests/tooling/deploy-scripts.test.ts",
+        "tests/tooling/fixtures/fake-garage-rclone.cjs",
+        "tests/tooling/garage-archive.test.ts",
+        "tests/tooling/gitlab-backup-storage.test.ts",
+        "tests/tooling/platform-archive.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "回归测试覆盖新的变量名、保留策略、清单核对与迁移前快照的失败关闭路径，并用假 rclone、gpg、docker 验证脚本行为。"
+    }
+  ],
+  "documents": [
+    "docs/ops/BACKUP.md",
+    "docs/ops/CDN.md",
+    "docs/ops/CICD.md",
+    "docs/ops/DEPLOY.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/GITLAB.md",
+    "docs/ops/STORAGE-CDN.md"
+  ],
+  "tests": [
+    "tests/tooling/deploy-scripts.test.ts",
+    "tests/tooling/garage-archive.test.ts",
+    "tests/tooling/gitlab-backup-storage.test.ts",
+    "tests/tooling/platform-archive.test.ts"
+  ],
+  "compatibility": "接口、表结构与应用 env 键不变。备份脚本不再读取 GITLAB_BACKUP_S3_*、GITLAB_PREVIEW_BACKUP_S3_*、PLATFORM_*_BACKUP_S3_* 与 PLATFORM_BACKUP_GPG_RECIPIENT；目标机的旧 env 文件要先改成新键名。Garage 的 geek-backup 旧对象保留，读取路径不变。",
+  "migration": "没有数据迁移。上线前目标机 /etc/gitlab-backup/env 与 /etc/gitlab-preview-backup/env 要改成 BACKUP_S3_* 键名，目标机钥匙环要有 BACKUP_GPG_RECIPIENT 对应的公钥；这两步由流水线或所有者执行。仓库版本安装前，Arch 上现行的 /srv/gitlab/backup.sh 继续运行。",
+  "rollback": "revert 本次合并即回到原写入路径；已写入七牛的备份对象保留，清理需所有者批准。部署前快照失败时新版本不启动，旧版本与库结构都不动，无需回滚数据。"
+}

@@ -2,7 +2,7 @@
 
 > 本机起官网、核心后端与论坛；启动时给出 GitHub OAuth 应用的两项凭据就走真实 GitHub 登录（数据留在 `.tools/local-preview/`），不给就是隔离的内存模式。
 
-状态：`current` · 更新：2026-10-21
+状态：`current` · 更新：2026-10-30
 
 ## 地址
 
@@ -26,7 +26,7 @@ node scripts/forum.mjs status
 node scripts/forum.mjs stop
 ```
 
-根 `pnpm preview:local` 启动两者（控制台另用 `pnpm dev:console` 启动）。`local-preview.mjs start` 需要先 `pnpm build`（读 `app/server/dist/`）。核心选择项目 Node 22；论坛选择 Node >=26 和独立 pnpm 11。两者均核对本任务实例标识，不因端口占用停止无关进程。端口仅绑定回环，不开放局域网/公网，没有开机自启。
+根 `pnpm preview:local` 启动两者（控制台另用 `pnpm dev:console` 启动）。四个服务一起起停用 `pnpm local:up`、`pnpm local:down`、`pnpm local:status`，见 [TESTING](../conventions/TESTING.md)「本机开发」；`scripts/local-stack.mjs` 只包装上面这些入口，只停自己启动的进程。`local-preview.mjs start` 需要先 `pnpm build`（读 `app/server/dist/`）。核心选择项目 Node 22；论坛选择 Node >=26 和独立 pnpm 11。两者均核对本任务实例标识，不因端口占用停止无关进程。端口仅绑定回环，不开放局域网/公网，没有开机自启。
 
 核心日志在 `.tools/local-preview/preview.log`，论坛日志在 `.tools/tuff-forum/dev.log`；目录属于本机缓存，不入库。已有 4173 等服务不因本任务停止。
 

@@ -2,6 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseStaticCdnBase } from "./lib/static-cdn.js";
+import { isHttpsOrigin, type ObjectStorageConfig } from "./lib/object-storage.js";
 import { parseShieldAllowlist } from "./lib/shield.js";
 import { NANO_AVATAR_VERSION } from "./lib/nano-avatar.js";
 
@@ -181,10 +182,34 @@ export function createConfig(env: Record<string, string | undefined>) {
     // 静态资源 CDN 开关（#146、#286）：构建参数 STATIC_CDN_BASE 由 app/server/Dockerfile 带进运行环境，空 = 同源；
     // 非空只能是 lib/static-cdn.ts 里的那个常量，别的值直接让启动失败。不是 deploy/env/*.env 里的项，部署不用配。
     staticCdnBase: parseStaticCdnBase(env.STATIC_CDN_BASE),
+    // 用户文件对象存储（#352）：头像与论坛图片写七牛；三项密钥都留空 = 关闭，文件照旧存在库里。
+    objectStorage: parseObjectStorage(env),
     turnstile: { siteKey: env.TURNSTILE_SITE_KEY ?? "", secretKey: env.TURNSTILE_SECRET_KEY ?? "" },
     powDifficulty,
     mail,
   };
+}
+/**
+ * 用户文件对象存储（#352）：端点、区域、前缀、公开地址和三项密钥都从环境来。三项密钥全空 = 关闭（返回 null）；
+ * 只填一部分、或者非密钥项不合法就启动失败，不静默关掉。错误信息只写变量名，不回显值。
+ */
+function parseObjectStorage(env: Record<string, string | undefined>): ObjectStorageConfig | null {
+  const bucket = (env.OBJECT_STORAGE_BUCKET ?? "").trim();
+  const accessKeyId = (env.OBJECT_STORAGE_ACCESS_KEY_ID ?? "").trim();
+  const secretAccessKey = (env.OBJECT_STORAGE_SECRET_ACCESS_KEY ?? "").trim();
+  const filled = [bucket, accessKeyId, secretAccessKey].filter(value => value !== "").length;
+  if (filled === 0) return null;
+  if (filled !== 3) throw new Error("OBJECT_STORAGE_BUCKET、OBJECT_STORAGE_ACCESS_KEY_ID、OBJECT_STORAGE_SECRET_ACCESS_KEY 要么都填，要么都留空");
+  if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error("OBJECT_STORAGE_BUCKET 只能是小写字母、数字和连字符");
+  const endpoint = (env.OBJECT_STORAGE_ENDPOINT ?? "").trim();
+  if (!isHttpsOrigin(endpoint)) throw new Error("OBJECT_STORAGE_ENDPOINT 必须是 https 源（不带路径与尾斜杠）");
+  const region = (env.OBJECT_STORAGE_REGION ?? "").trim();
+  if (!/^[a-z0-9-]+$/.test(region)) throw new Error("OBJECT_STORAGE_REGION 不合法");
+  const prefix = (env.OBJECT_STORAGE_PREFIX ?? "").trim();
+  if (!/^[a-z0-9][a-z0-9_-]*(?:\/[a-z0-9][a-z0-9_-]*)*\/$/.test(prefix)) throw new Error("OBJECT_STORAGE_PREFIX 必须是以 / 结尾的桶内目录");
+  const publicBase = (env.OBJECT_STORAGE_PUBLIC_BASE ?? "").trim();
+  if (!publicBase.endsWith("/") || !isHttpsOrigin(publicBase.slice(0, -1))) throw new Error("OBJECT_STORAGE_PUBLIC_BASE 必须是 https 源加 /");
+  return { endpoint, region, bucket, accessKeyId, secretAccessKey, prefix, publicBase };
 }
 /** 整数配置项：不设用默认值，设了必须是 min 到 max 之间的整数（写错就启动失败，不静默用默认值）。 */
 function wholeEnv(env: Record<string, string | undefined>, key: string, fallback: number, min: number, max: number): number {

@@ -307,7 +307,7 @@ jobs:
           STATIC_CDN_S3_SECRET_ACCESS_KEY: ${{ secrets.STATIC_CDN_S3_SECRET_ACCESS_KEY }}
           STATIC_CDN_S3_ENDPOINT: https://s3.cn-south-1.qiniucs.com
           STATIC_CDN_S3_REGION: cn-south-1
-          STATIC_CDN_S3_BUCKET: ${{ secrets.STATIC_CDN_S3_BUCKET }}
+          STATIC_CDN_S3_BUCKET: ${{ vars.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
@@ -544,7 +544,7 @@ jobs:
           STATIC_CDN_S3_SECRET_ACCESS_KEY: ${{ secrets.STATIC_CDN_S3_SECRET_ACCESS_KEY }}
           STATIC_CDN_S3_ENDPOINT: https://s3.cn-south-1.qiniucs.com
           STATIC_CDN_S3_REGION: cn-south-1
-          STATIC_CDN_S3_BUCKET: ${{ secrets.STATIC_CDN_S3_BUCKET }}
+          STATIC_CDN_S3_BUCKET: ${{ vars.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
@@ -690,6 +690,13 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           OIDC_JWKS: ${{ secrets.OIDC_JWKS }}
           GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_GPG_RECIPIENT: ${{ secrets.BACKUP_GPG_RECIPIENT }}
+          OBJECT_STORAGE_BUCKET: ${{ vars.OBJECT_STORAGE_BUCKET }}
+          OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY_ID }}
+          OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_ACCESS_KEY }}
         run: |
           set -eu
           node scripts/deployment-environment.mjs render \
@@ -745,7 +752,7 @@ jobs:
             "mkdir -p '$INCOMING_DIR' '$STACK_ROOT/deploy/compose' && chmod 700 '$INCOMING_DIR'"
           scp -F "$cfg" \
             "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}" "$RUNNER_TEMP/bundle/${IMAGES_ARCHIVE}.sha256" \
-            "$RUNNER_TEMP/bundle/.env.production" deploy/remote/deploy-stack.sh deploy/remote/rollback-stack.sh \
+            "$RUNNER_TEMP/bundle/.env.production" deploy/remote/deploy-stack.sh deploy/remote/rollback-stack.sh deploy/remote/garage-archive.mjs \
             "yzgc-target:${INCOMING_DIR}/"
           scp -F "$cfg" \
             deploy/compose/production.yml deploy/compose/preview.yml \

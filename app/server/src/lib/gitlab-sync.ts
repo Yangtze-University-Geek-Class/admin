@@ -116,6 +116,8 @@ export function createGitlabSync(db: Database.Database, deps: {
   subjects: { subjectFor(sectorId: string, accountId: string): string; existingSubject(sectorId: string, accountId: string): string | null };
   clients: { sectorOf(clientId: string): string | null };
   avatars: { avatar(hash: string): Buffer | null };
+  /** 库里没有字节的上传头像（对象存储开启后新传的）去对象存储读；返回 null 即当作缺失（#352）。 */
+  avatarObject?: (hash: string) => Promise<Buffer | null>;
   /** 还没识别过的 GitHub 头像当场识别一次（#343）。 */
   githubAvatars: Pick<GithubAvatarChecks, "check">;
   /** 1–8 号 NANO 默认头像的 PNG（#343）。 */
@@ -306,7 +308,7 @@ export function createGitlabSync(db: Database.Database, deps: {
    */
   async function avatarFor(avatar: Avatar): Promise<Blob> {
     if (avatar.kind === "upload") {
-      const data = deps.avatars.avatar(avatar.hash);
+      const data = deps.avatars.avatar(avatar.hash) ?? (deps.avatarObject ? await deps.avatarObject(avatar.hash) : null);
       if (!data) throw new SyncError("forum_avatar_missing");
       if (data.length > AVATAR_MAX_BYTES) throw new SyncError("avatar_too_large");
       return new Blob([new Uint8Array(data)], { type: "image/webp" });

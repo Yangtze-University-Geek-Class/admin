@@ -770,6 +770,10 @@ describe("cutover.sh preview-parity（#335，预发布 GitLab 与正式对齐）
     expect(readFileSync(join(f.pre, "yzgc-ui.rb"), "utf8")).toBe(readFileSync(resolve(process.cwd(), "deploy/gitlab/gitlab-ui.rb"), "utf8"));
     expect(readdirSync(f.pre).sort()).toEqual(["yzgc-gitlab-url", "yzgc-ui.rb"]);
     expect(readFileSync(join(f.dir, "runner-stdin.rb"), "utf8")).toBe(readFileSync(resolve(process.cwd(), "deploy/gitlab/preview-parity.rb"), "utf8"));
+    // 上传器缓存时会移走源文件，root 的 /tmp/yzgc-parity 里的文件 git 用户删不掉：只能交给上传器 runner 自己临时目录里的副本
+    const runner = readFileSync(resolve(process.cwd(), "deploy/gitlab/preview-parity.rb"), "utf8");
+    expect(runner).not.toMatch(/File\.open\(File\.join\(upload_dir/);
+    expect(runner).toMatch(/Dir\.mktmpdir/);
     const calls = f.called().trim().split("\n");
     const reconfigure = calls.indexOf("exec gitlab-preview gitlab-ctl reconfigure");
     const write = calls.findIndex(line => line.includes("YZGC_APPLY=1"));

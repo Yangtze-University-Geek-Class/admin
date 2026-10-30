@@ -2,11 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { AVATAR_TYPES, processAvatar } from "../../lib/forum-avatar.js";
 import { FORUM_LIMITS, ForumError, NAME_RULE_MESSAGE, hasControlChars, hasControlCharsMultiline, isAllowedName, isAllowedWebsite, normalizeName } from "../../lib/forum-rules.js";
 import type { ProfilePatch } from "../../lib/forum-store.js";
+import { avatarKey, isContentHash } from "../../lib/object-storage.js";
 import { forumChanges, notFound, rateLimited, requireMember, requireWriter } from "./viewer.js";
 
 /** 关注、通知、账号资料、头像与 @ 自动补全。 */
 export default async function forumPeopleRoutes(app: FastifyInstance) {
-  const { forum } = app.services;
+  const { forum, objectStorage } = app.services;
 
   /** @ 自动补全（#276 CONTRACT §6）：需要登录，不需要是成员；每账号每分钟 30 次，不回邮箱。 */
   app.get<{ Querystring: { q: string } }>("/api/forum/users/suggest", async (req, reply) => {
@@ -97,7 +98,13 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
         throw new ForumError(415, "unsupported_media_type", "头像只支持 PNG、JPEG、WebP 图片");
       }
       const { hash, data } = await processAvatar(req.body);
-      forum.setAvatar(viewer.userId, hash, data);
+      if (objectStorage.enabled) {
+        // 对象存储开启（#352）：字节写七牛、库里不存。
+        await objectStorage.ensure(avatarKey(hash), data, "image/webp").catch(() => {
+          throw new ForumError(503, "object_storage_unavailable", "头像暂时存不下，请稍后再试");
+        });
+      }
+      forum.setAvatar(viewer.userId, hash, objectStorage.enabled ? null : data);
       return forumChanges(req, viewer, {});
     });
 
@@ -110,8 +117,13 @@ export default async function forumPeopleRoutes(app: FastifyInstance) {
 
   /** 按内容哈希取头像：内容永不改变，所以长期缓存（http-policy 只对这个前缀的 200 不改写 Cache-Control）。 */
   app.get<{ Params: { file: string } }>("/api/forum/avatars/:file", async (req, reply) => {
-    const data = forum.avatar(req.params.file.slice(0, -".webp".length));
-    if (!data) throw notFound("头像不存在");
+    const hash = req.params.file.slice(0, -".webp".length);
+    const data = forum.avatar(hash);
+    if (!data) {
+      // 对象存储开启后新传的头像只在七牛（#352）：跳到公开地址。
+      if (objectStorage.enabled && isContentHash(hash)) return reply.code(302).header("Location", objectStorage.publicUrl(avatarKey(hash))).send();
+      throw notFound("头像不存在");
+    }
     return reply
       .header("Content-Type", "image/webp")
       .header("Cache-Control", "public, max-age=31536000, immutable")

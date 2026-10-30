@@ -6,6 +6,7 @@ import { redeemInvite } from "../../lib/invite-codes.js";
 import { setExclusiveGroupMembership } from "../../lib/permissions.js";
 import { hashIp, INVITE_LOCK_MAX_ACCOUNT, INVITE_LOCK_MAX_IP, INVITE_LOCK_WINDOW_MS } from "../../lib/identity-store.js";
 import { NANO_AVATAR_VERSION } from "../../lib/nano-avatar.js";
+import { avatarKey, isContentHash } from "../../lib/object-storage.js";
 
 const byAccount = (req: FastifyRequest) => req.session!.account_id;
 
@@ -18,7 +19,7 @@ const byAccount = (req: FastifyRequest) => req.session!.account_id;
  */
 
 export default async function identityProfileRoutes(app: FastifyInstance) {
-  const { profiles, storage, permissions, limits, forum, nanoAvatars } = app.services;
+  const { profiles, storage, permissions, limits, forum, nanoAvatars, objectStorage } = app.services;
   const db = storage.db;
 
   app.get("/api/identity/profile", { preHandler: requireAuth }, async req => profiles.get(req.session!.account_id));
@@ -49,8 +50,13 @@ export default async function identityProfileRoutes(app: FastifyInstance) {
   );
 
   app.get<{ Params: { file: string } }>("/api/identity/avatar/:file", async (req, reply) => {
-    const data = profiles.avatar(req.params.file.slice(0, -".webp".length));
-    if (!data) return reply.code(404).send({ error: "not_found", message: "头像不存在" });
+    const hash = req.params.file.slice(0, -".webp".length);
+    const data = profiles.avatar(hash);
+    if (!data) {
+      // 对象存储开启后新传的头像只在七牛（#352）：跳到公开地址，不再由服务器发字节。
+      if (objectStorage.enabled && isContentHash(hash)) return reply.code(302).header("Location", objectStorage.publicUrl(avatarKey(hash))).send();
+      return reply.code(404).send({ error: "not_found", message: "头像不存在" });
+    }
     return reply
       .header("Content-Type", "image/webp")
       .header("Cache-Control", "public, max-age=31536000, immutable")
@@ -86,9 +92,15 @@ export default async function identityProfileRoutes(app: FastifyInstance) {
         }
         try {
           const { hash, data } = await processAccountAvatar(req.body as Buffer);
-          profiles.setAvatar(req.session!.account_id, hash, data);
+          if (objectStorage.enabled) {
+            // 对象存储开启（#352）：字节写七牛、库里不存。
+            await objectStorage.ensure(avatarKey(hash), data, "image/webp").catch(() => {
+              throw new AccountAvatarError(503, "object_storage_unavailable", "头像暂时存不下，请稍后再试");
+            });
+          }
+          profiles.setAvatar(req.session!.account_id, hash, objectStorage.enabled ? null : data);
           app.services.activity.recordActivity(req, { action: "profile.avatar", surface: "portal", outcome: "ok" });
-          return { avatar_url: profiles.avatarUrl(hash) };
+          return { avatar_url: objectStorage.enabled ? objectStorage.publicUrl(avatarKey(hash)) : profiles.avatarUrl(hash) };
         } catch (cause) {
           if (cause instanceof AccountAvatarError) return reply.code(cause.status).send({ error: cause.code, message: cause.message });
           throw cause;

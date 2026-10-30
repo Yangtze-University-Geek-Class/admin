@@ -63,3 +63,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：GitHub 共用环境 static-cdn 的上传密钥换成七牛的值并新增 STATIC_CDN_S3_BUCKET（值不入库、不打印）；等 v0.1.1-stable.1 的 cdn-upload 跑完才换；清单加 P-0018（external，pre_deploy，0.1.2）
 - 结果：parity check：pending 0；三个密钥更新时间 13:32Z
+
+## 21:47:25 +08:00 · 收尾 · #346 · PR !88 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 346：删 worktree .claude/worktrees/task-346 与本地分支 task/346/cdn_back_to_qiniu
+- 结果：PR 已合并

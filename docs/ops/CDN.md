@@ -6,7 +6,7 @@
 
 ## 桶与路径
 
-上传端点（S3 兼容）为 `https://s3.cn-south-1.qiniucs.com`，region 为 `cn-south-1`，桶名来自部署密钥 `STATIC_CDN_S3_BUCKET`（桶名带个人标识，不入库），`forcePathStyle=true`，签名 URL 是 端点 / 桶 / 对象键。公开入口是 `https://cdn.crosery.com`：域名已绑定到该桶，公开地址就是 `origin` 加对象键，路径里没有桶名。这是目标合同；供应商可用性和桶权限是否生效以下面「验证与环境责任」的实测为准。
+上传端点（S3 兼容）为 `https://s3.cn-south-1.qiniucs.com`，region 为 `cn-south-1`，桶名来自 GitHub 环境变量 `STATIC_CDN_S3_BUCKET`（环境 static-cdn 的 vars；桶名带个人标识，不入库；不放 secret，否则 GitHub 会把含同一字串的 CDN 地址从 job 输出里打码丢掉），`forcePathStyle=true`，签名 URL 是 端点 / 桶 / 对象键。公开入口是 `https://cdn.crosery.com`：域名已绑定到该桶，公开地址就是 `origin` 加对象键，路径里没有桶名。这是目标合同；供应商可用性和桶权限是否生效以下面「验证与环境责任」的实测为准。
 
 | 对象 | 桶内对象键 | 公开地址 |
 |---|---|---|
@@ -17,11 +17,28 @@
 
 项目对象都在桶的 `yzgc/` 命名空间下。上传器只写 `yzgc/static/site/` 与 `yzgc/indexes/releases/`，宣传片与邮件图片由人工按本表放入，不由上传器写。
 
-私有桶不在这次迁移范围：`geek-production-private`、`geek-preview-private` 与 `geek-backup`（Garage 上的私有业务对象预留与运维备份）保持 #295 的合同和现有位置，本任务不移动、不新建私有对象。
+私有桶不在这次迁移范围：`geek-production-private`、`geek-preview-private`（Garage 上的私有索引与业务对象预留）保持 #295 的合同和现有位置，本任务不移动、不新建私有对象。备份不再写 Garage：仓库里的备份脚本写七牛私有备份桶（#354，见 [BACKUP](BACKUP.md)），`geek-backup` 只保留已有对象。
 
-**Garage 的公开桶已封存。** Garage 上的 `geek-public` 与 `cdn` 不再接收任何公开对象（构建参数与上传目的地已切到七牛），已有对象、桶配置与 Caddy 出口保留，不删除。Garage 仍是备份的写入目的地：`deploy/gitlab/backup.sh`、平台归档与内容索引的私有桶写入，以及 `deploy/remote/cdn-mirror.sh` 的镜像，都还指向 Garage，它们要等 #346 的后续步骤另行切换。旧 Garage 公开地址（`https://cdn.yangtzeu.work/geek-public/…`）只留给库里已有的旧帖内容，读取时改写到新前缀（见 [论坛服务](../services/forum/README.md)）。
+**Garage 的公开桶已封存。** Garage 上的 `geek-public` 与 `cdn` 不再接收任何公开对象（构建参数与上传目的地已切到七牛），已有对象、桶配置与 Caddy 出口保留，不删除。备份写入已在仓库里改到七牛（#354，`BACKUP_S3_*`，见 [BACKUP](BACKUP.md)）。内容索引的私有桶写入，以及 `deploy/remote/cdn-mirror.sh` 的镜像，还指向 Garage，它们要等 #346 的后续步骤另行切换。旧 Garage 公开地址（`https://cdn.yangtzeu.work/geek-public/…`）只留给库里已有的旧帖内容，读取时改写到新前缀（见 [论坛服务](../services/forum/README.md)）。
 
 七牛上的旧对象已经是 `yzgc/` 下的同名键（`yzgc/static/site/`、`yzgc/static/promo/`、`yzgc/mail/`），本任务不改它们。Garage 上的 `static/site/` 不迁移：发布流水线按内容哈希把对象补传到七牛，已存在则逐字比对，不覆盖。
+
+## 用户文件（#352）
+
+论坛上传的图片、账号头像和论坛头像在对象存储开启后写到七牛，不再存进库里。端点、区域、桶、前缀与公开地址都从环境来，代码里不写死。
+
+| 对象 | 对象键（前缀之后） | 公开地址 |
+|---|---|---|
+| 论坛上传的图片 | `uploads/<sha256>.webp`，动图是 `.gif` | `<OBJECT_STORAGE_PUBLIC_BASE><OBJECT_STORAGE_PREFIX>uploads/<sha256>.<扩展名>` |
+| 账号头像、论坛头像 | `avatars/<sha256>.webp` | `<OBJECT_STORAGE_PUBLIC_BASE><OBJECT_STORAGE_PREFIX>avatars/<sha256>.webp` |
+
+- 前缀按环境分开：预发布 `yzgc/preview/`，正式 `yzgc/production/`，写在 env 模板里（`OBJECT_STORAGE_PREFIX`，`check:env-isolation` 把它列为按环境的键）。端点 `OBJECT_STORAGE_ENDPOINT` 与区域 `OBJECT_STORAGE_REGION` 和上传端点相同，公开地址 `OBJECT_STORAGE_PUBLIC_BASE` 是域名绑定到桶的入口，地址里没有桶名。
+- 桶名是环境变量 `vars.OBJECT_STORAGE_BUCKET`（不放 secret，免得 GitHub 把含同一字串的地址打码），访问密钥是环境级 secrets `OBJECT_STORAGE_ACCESS_KEY_ID`、`OBJECT_STORAGE_SECRET_ACCESS_KEY`，三项要么都填、要么都留空。留空即关闭，文件照旧存在库里；只填一部分时部署渲染失败，服务启动也失败。
+- 写入由 `app/server/src/lib/object-storage.ts` 完成：SigV4 path-style，只用 fetch 与 node:crypto。先 HEAD，已存在不再 PUT；写不进去时接口返回 503，不返回指向空对象的地址。
+- 读取：库里还有字节的旧地址照常从库里读。库里没有字节的账号头像和论坛头像，`GET /api/identity/avatar/:file`、`GET /api/forum/avatars/:file` 返回 302 到公开地址。
+- 回填：服务启动后台跑一次 `lib/object-storage-backfill.ts`，把库里的账号头像、论坛头像、论坛图片中对象存储没有的补传；日志只记数量，已存在的对象只做 HEAD。
+- 竞赛官网的站点文件（`lib/competition-site-store.ts`）没有改，仍写数据卷。
+- 回滚：关闭密钥后，新上传的图片回到写库。开启期间新传的头像只在对象存储里，关闭后它们的站内地址没有字节可读；在回滚前要保持开启，或先把这些对象回填成库里的字节。
 
 ## 公开发布清单与私有内容索引
 
@@ -60,12 +77,12 @@
 | `STATIC_CDN_S3_SECRET_ACCESS_KEY` | 对应 secret；不得写日志或文件 |
 | `STATIC_CDN_S3_ENDPOINT` | 可省略，固定为 `https://s3.cn-south-1.qiniucs.com`；其他值拒绝 |
 | `STATIC_CDN_S3_REGION` | 可省略，只接受 `cn-south-1` |
-| `STATIC_CDN_S3_BUCKET` | 必填，部署密钥，只核对桶名形状（小写字母、数字、连字符） |
+| `STATIC_CDN_S3_BUCKET` | 必填，环境 static-cdn 的变量（vars），只核对桶名形状（小写字母、数字、连字符） |
 | `STATIC_CDN_S3_FORCE_PATH_STYLE` | 可省略，只接受 `true` |
 
 两项密钥都不设时 `decide` 保持同源；只设一项、非法目的地、配置旧 `STATIC_CDN_UPLOAD_TOKEN` 时失败。完整凭据下先读环境首页 CSP：未放行新 CDN 时仍按原约定同源构建。CSP 放行后对 S3 做签名探测（探测对象键不存在时 404 也算端点在响应），401/403、网络失败、超时均失败关闭，不自动回旧供应商。
 
-私有归档凭据按用途和环境拆分：GitLab 用 `GITLAB_BACKUP_S3_ACCESS_KEY_ID` / `GITLAB_BACKUP_S3_SECRET_ACCESS_KEY`；平台快照分别用 `PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY` 与 `PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY`；私有内容索引分别用 `PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY` 与 `PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY`。它们只进入对应受控归档进程，不进入业务运行 env、镜像、argv、日志或公开清单；endpoint、region、桶与 path-style 固定在适配器合同里。这些归档仍指向 Garage，见上文「Garage 的公开桶已封存」。
+私有归档凭据按用途和环境拆分：备份（GitLab、平台、部署前数据库快照）统一用 `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY`，每个环境各一套；私有内容索引分别用 `PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY` 与 `PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY`。它们只进入对应受控归档进程，不进入业务运行 env、镜像、argv、日志或公开清单；备份的 endpoint、region、桶与前缀来自 `BACKUP_S3_*`；内容索引的 endpoint、region、桶与 path-style 固定在适配器合同里。内容索引归档仍指向 Garage，见上文「Garage 的公开桶已封存」。
 
 构建参数 `STATIC_CDN_BASE` 只能为空或 `https://cdn.crosery.com/yzgc/static/site/`。空值保持 JS/CSS/字体/构建图片及内置表情同源；HTML、接口、release.json 和不带哈希的 public 文件一直同源。宣传片、邮件图片、指南正文地址不随构建开关切回同源。旧帖清单里显式标 `cdn: true` 的图片也固定走 CDN；其余旧帖图片继续按 viewer 从核心同源读取。镜像仍保存构建资产、内置表情与旧帖图片的同源副本。
 
@@ -101,7 +118,7 @@ node scripts/static-cdn.mjs verify-manifest --manifest <清单文件> \
 
 本分支基于 stage，不引入 task270 的 Arch/Compose/GitLab 全套草稿。集成时逐块合并两份部署工作流的 `cdn-plan`/`cdn-upload`、两份 `deploy/env` 的邮件 base、`docs/ops/{CICD,DEPLOY,ENVIRONMENTS}.md` 和生成目录，不能用任一任务整文件覆盖另一任务。
 
-task270 的 `deploy/gitlab/backup.sh`、`restore-drill.sh` 已改为调用共享 Garage 归档器：新写入位于 `gitlab/YYYY-MM-DD/<run>/`，恢复仍可按日期选最新运行，完整下载后核对 `SHA256SUMS`，不再使用 sync/purge。`deploy/remote/platform-maintenance.sh` 在本地收据中固定 `platform/<environment>/<date>/<run>/`，独立 `platform-archive.sh` 验证本地 SHA、先加密再归档；原 `platform-backup@.service` 的 `AF_UNIX` sandbox 不放宽，联网归档须由另一个获批、可联网但最小权限的受控步骤调用。本分支不移动现有数据，也不声称真实服务器已安装或恢复通过。这些备份路径在 #346 后续步骤切换之前仍写 Garage 的私有桶。
+task270 的 `deploy/gitlab/backup.sh`、`restore-drill.sh` 已改为调用共享 Garage 归档器：新写入位于 `gitlab/YYYY-MM-DD/<run>/`，恢复仍可按日期选最新运行，完整下载后核对 `SHA256SUMS`，不再使用 sync/purge。`deploy/remote/platform-maintenance.sh` 在本地收据中固定 `platform/<environment>/<date>/<run>/`，独立 `platform-archive.sh` 验证本地 SHA、先加密再归档；原 `platform-backup@.service` 的 `AF_UNIX` sandbox 不放宽，联网归档须由另一个获批、可联网但最小权限的受控步骤调用。本分支不移动现有数据，也不声称真实服务器已安装或恢复通过。#354 起这些备份路径改写七牛私有备份桶（`BACKUP_S3_*`，见 [BACKUP](BACKUP.md)），`geek-backup` 只保留已有对象。
 
 ## 验证与环境责任
 

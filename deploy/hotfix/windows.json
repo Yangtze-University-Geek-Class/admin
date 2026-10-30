@@ -134,11 +134,39 @@
     {
       "issue": 346,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T21:44:00+08:00",
       "approval": "所有者 2026-10-30 21:44 在会话中批准：#346 静态资源 CDN 换回七牛不走 0.1.2，按 hotfix 进 0.1.1 正式与预发布 0.1.1 stable（tag v0.1.1）",
-      "expiresAt": "2026-11-01T21:44:00+08:00"
+      "closedAt": "2026-10-30T23:06:00+08:00",
+      "evidence": "GitLab stage 与 main 3643fb14（MR !88、!90）；GitHub main 5683253f 经 deploy-hotfix 41070798501 上线，计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过，正式 /release.json 为 0.1.1@5683253f；GitHub stage 经同步 PR #317 合回"
+    },
+    {
+      "issue": 352,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T22:37:00+08:00",
+      "approval": "所有者 2026-10-30 22:37 在会话中批准：上传、头像等所有资源存七牛、不占服务器带宽，和本轮 0.1.1 基线一起按 hotfix 发（tag v0.1.1）",
+      "expiresAt": "2026-11-01T22:37:00+08:00"
+    },
+    {
+      "issue": 354,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T22:38:00+08:00",
+      "approval": "所有者 2026-10-30 22:38 在会话中批准：数据库与迁移内容备份到七牛并定期清理，和本轮 0.1.1 基线一起按 hotfix 发（tag v0.1.1）",
+      "expiresAt": "2026-11-01T22:38:00+08:00"
+    },
+    {
+      "issue": 356,
+      "tag": "v0.1.1",
+      "status": "open",
+      "approvedBy": "所有者",
+      "approvedAt": "2026-10-30T23:00:00+08:00",
+      "approval": "所有者 2026-10-30 23:00 在会话中批准：本地调试配置与一键起服务算进基线，和 #352、#354 一起按 hotfix 发（tag v0.1.1）",
+      "expiresAt": "2026-11-01T23:00:00+08:00"
     }
   ]
 }

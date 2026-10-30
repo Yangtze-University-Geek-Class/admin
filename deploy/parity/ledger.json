@@ -270,6 +270,22 @@
         "doneAt": "2026-10-30T21:32:53+08:00",
         "evidence": "同预发布：共用环境 static-cdn 的三个密钥已在 2026-10-30 13:32Z 更新"
       }
+    },
+    {
+      "id": "P-0019",
+      "surface": "env",
+      "title": "用户文件对象存储：env 键与三项密钥接线（头像、论坛图片写七牛）",
+      "issue": 352,
+      "preview": {
+        "doneAt": "2026-10-30T23:20:00+08:00",
+        "evidence": "GitHub 环境 preview 与 production 各设好访问密钥 secrets OBJECT_STORAGE_ACCESS_KEY_ID、OBJECT_STORAGE_SECRET_ACCESS_KEY 与变量 vars.OBJECT_STORAGE_BUCKET（2026-10-30 22:4x 设置，值不入库、不打印）；部署后启动时回填一次头像与论坛图片"
+      },
+      "production": {
+        "status": "done",
+        "action": "在 GitHub 环境 production 设访问密钥两个 secrets 与桶名变量（值只存在 GitHub，不写进仓库或记录），与预发布同构；设好后启动时回填一次头像与论坛图片，回填只记数量",
+        "doneAt": "2026-10-30T23:20:00+08:00",
+        "evidence": "GitHub 环境 preview 与 production 各设好访问密钥 secrets OBJECT_STORAGE_ACCESS_KEY_ID、OBJECT_STORAGE_SECRET_ACCESS_KEY 与变量 vars.OBJECT_STORAGE_BUCKET（2026-10-30 22:4x 设置，值不入库、不打印）；部署后启动时回填一次头像与论坛图片"
+      }
     }
   ]
 }
