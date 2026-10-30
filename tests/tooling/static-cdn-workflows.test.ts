@@ -104,6 +104,28 @@ describe('deploy workflows', () => {
   });
 });
 
+describe('deploy workflows: every static-cdn.mjs step gets the origin', () => {
+  // GitHub #327：#360 把源站移进环境文件后，build job 挑文件那一步的 env 没带 STATIC_CDN_ORIGIN，
+  // static-cdn.mjs 失败关闭，正式 hotfix 的 CDN 上传和部署都被跳过（run 41104027422）。
+  const ORIGIN = 'STATIC_CDN_ORIGIN: ${{ needs.plan.outputs.static_cdn_origin }}\n';
+  it('passes STATIC_CDN_ORIGIN from plan to each step that runs the script, at step or job level', () => {
+    for (const name of ['deploy-preview', 'deploy-production', 'deploy-hotfix']) {
+      const text = read(`.github/workflows/${name}.yml`);
+      let checked = 0;
+      for (const id of ['cdn-plan', 'build', 'cdn-upload']) {
+        const block = job(text, id);
+        const head = block.slice(0, block.indexOf('\n    steps:\n') + 1);
+        for (const step of block.split('\n      - name: ').slice(1)) {
+          if (!step.includes('node scripts/static-cdn.mjs')) continue;
+          checked += 1;
+          expect(head.includes(`      ${ORIGIN}`) || step.includes(`          ${ORIGIN}`), `${name} ${id}: ${step.split('\n')[0]}`).toBe(true);
+        }
+      }
+      expect(checked, name).toBe(3);
+    }
+  });
+});
+
 describe('ci: the switch-on build path runs on every push, without uploading', () => {
   const ci = read('.github/workflows/ci.yml');
   const cdn = job(ci, 'docker-cdn');
