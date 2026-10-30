@@ -20,3 +20,27 @@
 - 做了什么：env 与 compose、production-path.py、cutover.sh 的 *-production-path、香港接收器 production-*、move-path.sh、gitlab-cutover 三个步骤、子域名登记门禁、中性值替换、同构清单 P-0014、docs/changes/335.json 与文档；文档核对：docs/services/web/ 不用改——只把 mock-api.ts 样板数据里的 GitLab 地址换成中性值，官网的接口、页面和链接逻辑都没变
 - 结果：改前→改后：env-isolation 6 失败→1 失败（剩下的是 deploy/hotfix/windows.json 3 处超过登记的 1 处，基线 14e46e6d 就有）；deployment-environment 4→0；task-worktree 2→0；gitlab-cutover 7→0（31 个）；gitlab-preview 7→0（23 个）；gitlab-move-path 13→0（14 个）；install-host 1→0（12 个）。actionlint 与 shellcheck 通过；check-architecture、check-doc-sync（--base gitlab/stage）通过
 - 下一步：交给 lead 审查；note check 被 notes/2026-10-29/crosery/task_308_stage_close.md 首条不是开工拦下（基线就有），env-isolation 被 windows.json 拦下，两项都不是本分支造成
+
+## 13:20:51 +08:00 · 方案 · #335 · 改走 P0 热修复窗口，基线换成 origin/main
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：按所有者 2026-10-30 10:52 在会话中的批准改走热修复窗口；git rebase --onto origin/main gitlab/stage 把三个提交搬到 origin/main 4ff39b98：57ec8fb0→e10b1fa3，71295502→163d38eb，1ab3dcf4→bc0da2d0。冲突：scripts/forge.mjs 在 main 上不存在（只在 stage 上），删掉本分支对它的改动；tests/tooling/task-worktree.test.ts 与六个生成的目录文件取 main 的版本后重新生成；docs/ops/CICD.md 只保留本分支改的 gitlab-cutover 一行
+- 结果：note check 通过（151 条链路）；main 上的 task.mjs 只认 GitHub，list --check 对 #335 报「查不到 issue 的状态」只警告，因 task-306 未 finish 以 1 退出；顺序门要求先 deploy-hotfix 再搬家，和最早排的先 cutover 相反，手册按前者写
+
+## 13:20:51 +08:00 · 提交 · #335 · 7130beda 登记 #335 热修复窗口
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：deploy/hotfix/windows.json 加 #335 窗口（v0.1.1，open，2026-10-30 10:52 到 2026-11-06 10:52，批准摘要写明 P0 依据）；origin-exceptions.json：windows.json 正式站域名上限 1→2，cdn 理由改为所有者确认保留，GITLAB_OIDC_SECTOR 写明是 pairwise sector 标识
+- 结果：validateWindows 无问题，开着的窗口 #309、#308、#335；check-env-isolation 通过
+
+## 13:20:51 +08:00 · 提交 · #335 · 795b1083 client show、sub 抽样与金值测试
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：oidc.js 加 client show（带 sector_id）与 client subjects（只读抽样，输出账号 id、计数和摘要）；oidc-store 加 pinnedSectorOf、subjectAccounts、subjectDigest；oidc.test.ts 加金值 sub、抽样摘要与安装的 oidc-provider 多主机规则三组用例
+- 结果：oidc.test.ts 26 个全过；去掉钉住后金值用例失败（拿到的是新随机 sub）；oidc-provider 9.12.2：两个主机不带 sector_identifier_uri 报 sector_identifier_uri is mandatory property，带上并关掉取文档后加载
+
+## 13:20:51 +08:00 · 提交 · #335 · e41049d0 只改正式库、账号核对、日志轮转
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：cutover.sh 的 *-production-path 只改正式库，改回调前 client show 确认版本、签发者必须是正式；move-production-path 记账号基线，新增 check-production-path；move-path.sh 公网核对后调它，失败整批恢复；verify-accounts 有基线时再核对；GitLab compose 模板加 json-file 日志轮转，path-status 报容器日志设置；P-0014、GITLAB.md、CICD.md、RELEASE-PARITY.md、335.json 跟着改；交接目录手册按热修复顺序重写
+- 结果：相关 20 个测试文件 500 个通过 10 个跳过；改动前的脚本跑 #335 用例 10 个失败；日志轮转用例对改动前的模板失败；bash -n、actionlint、shellcheck 通过；check-architecture、check-doc-sync（--base gitlab/stage）通过；pnpm check 停在 check:architecture（默认对 origin/stage 比，把 main 上 46 个不属于本分支的文件算进来），其余各项与 check:cli、typecheck 通过
