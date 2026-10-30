@@ -14,3 +14,17 @@
 - 做了什么：提交 1cf69340：git read-tree 取 GitLab stage d0c1ece9（#369 蜜罐永久开启、#370 操作记录接 GitLab 事件并按页翻、#375 回带、#377 窗口登记）的树，从 origin/stage 恢复 GitHub 独有的 docs/changes/307.json、docs/changes/github/、task_307/314/316/323/325/327 链路；声明 docs/changes/github/329.json 由 GitLab #369、#370、#377 的声明合成，coverage 只留实际改动的路径
 - 结果：check-architecture（--forge github --base origin/stage）通过：59 个变更文件
 - 下一步：跑其余门禁，开 PR
+
+## 03:08:21 +08:00 · 审查 · #329 · 同步自查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：按 code-review 核对：git diff gitlab/stage HEAD 只有 GitHub 独有的 307/314/316/323/325/327/329 声明与执行记录；业务改动的树取自 GitLab stage d0c1ece9，与 GitLab 审查合入的版本相同；GITLAB_EVENTS_INTERVAL_MINUTES 是非密钥项，三份 env 预填；parity 0.1.1 pending 0
+- 结果：结论：通过
+- 下一步：开 PR
+
+## 03:08:21 +08:00 · PR · #329 · 开 PR 进 GitHub stage
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：推 task/329/github_stage_sync，开 PR 进 stage，标签 hot-fix、infra:deploy，正文按 PR 契约写
+- 结果：等 architecture-alignment、pr-contract、verify
+- 下一步：检查通过后合并，main 快进，deploy-hotfix 派发 issue 370
