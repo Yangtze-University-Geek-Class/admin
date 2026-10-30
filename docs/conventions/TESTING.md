@@ -2,7 +2,7 @@
 
 > 核心真实路由与上游论坛演示分别验收；类型、行为、构建和生产证据不相互替代。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-30
 
 ## 根入口和分工
 
@@ -16,6 +16,8 @@
 
 论坛上游测试操作确定性种子和浏览器 localStorage。每次 CDP 使用自己创建的临时 profile，不打开用户已有浏览器配置，不清理用户示例数据。只关闭本次创建的进程组，禁止广泛 pkill。其登录/权限测试证明演示交互，不证明真实身份或服务器授权。`forum:verify` 只对示例种子运行；3456 上若是快照模式或 site 模式（极客班论坛）预览，先 `forum:stop`。快照解析规则用虚构夹具单测（`app/forum/tests/local-snapshot.test.ts`），不读取真实投影。
 
+
+安全防护（#333）：`tests/server/security-decoy.test.ts` 使用真实路由、内存及临时文件SQLite，覆盖生产身份（不依赖NODE_ENV）、权限/step-up/Origin、1–60分钟边界、未知字段拒绝、精确到期与重启不续期、坏值关闭、开关和命中审计失败回滚、GET/HEAD有界合成响应、已有封禁优先、授权出口和跨站诱导豁免及审计隐私。`abuse-notice.test.ts` 保留单层编码规整/双编码不误判，`abuse-shield.test.ts` 验证解封事务及既有限额，`tests/console/nav.test.ts` 验证安全入口显式授权。真实本地管理页另验取消、开启、关闭、自然到期、解封、审计跳转及桌面/390px，不把样板只读或构建成功当作可写功能证明。
 ## 回归矩阵
 
 CLI（`app/cli`）独立使用 Cargo：根 `pnpm cli:build`/`pnpm cli:test` 固定 locked 与 jobs=2，
@@ -76,6 +78,8 @@ CDN 迁移（#295）：`tests/tooling/static-cdn{,-s3,-http,-manifest}.test.ts` 
 ## 分支、环境与发布门禁回归
 
 `tests/tooling/deployment-environment.test.ts` 在临时目录合成夹具，验证 `.env.production` / `.env.preview` 的字段契约（非密值必须预填、契约外字段拒绝、密钥必须留空、`PUBLIC_ORIGIN` 逐字等于环境 origin、两环境端口与域名必须不同、`TRUST_PROXY` 等于宿主 nginx 与 web 容器 nginx 两层；发信：`MAIL_RECIPIENTS` 只能是 `all` 或 `allowlist`（两个环境模板现在都是 `all`，#169），发信密钥可以全部留空，阿里云两项只填一项拒绝，名单格式不对拒绝且报错不带名单内容，发不出信或带不了 Reply-To 的组合给提示）与 [deploy/environments.json](../../deploy/environments.json) 的一致性；它不读取真实密钥、不连接服务器。
+
+正式产物授权提示（#336）：`tests/tooling/security-notice.test.ts` 分别使用官网和控制台实际安装的 Vite，在临时目录真实压缩构建，验证开发/预发布与无插件基线逐字节一致、生产内容哈希隔离及确定性、原生 Node 加载产物的导出与动态分块、页面正文和 CSP 内联脚本哈希不变、继承 production 变量的开发服务器仍不注入，以及实际入口注释丢失时发布检查器必须拒绝。`app/forum/tests/security-notice.test.ts` 独立使用 Nuxt 依赖的 Vite 8 验证原生压缩后的入口、执行结果和环境间哈希；不让根测试依赖论坛工具链。论坛另执行 `forum:check` 与两种发布身份的 site 静态生成；真实页面烟测使用本地隔离实例，不代表线上验收或模型拒答效果。
 
 分支不变量由 `scripts/check-branch-invariants.mjs` 检查（`tests/tooling/branch-invariants.test.ts` 用临时 Git 仓库覆盖不变量、命名规则与 pre-push 的发布 tag 规则：格式错误、rc 不在 stage、正式 tag 不在 main、同提交缺 rc 只告警、版本号不符、删除或移动发布 tag、附注 tag、非发布 tag 只告警）：`--require-remote-refs` 在 CI 上核对真实远端 refs，`--push` 供本地 pre-push 使用；本地也可以用同一命令自查（见 [BRANCHING](BRANCHING.md)）。这类检查只读 Git 证据，不 fetch、不改 refs。
 

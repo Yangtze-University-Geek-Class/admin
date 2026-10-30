@@ -2,9 +2,9 @@
 
 > 从真实建库函数产生的内存 SQLite 提取表、列、索引和物理外键；不读取业务记录。
 
-状态：`current` · 更新：2026-10-29 · 自动生成，不手工编辑。
+状态：`current` · 更新：2026-10-30 · 自动生成，不手工编辑。
 
-来源摘要：`1d58b739207c448d320127c576cf435775066a23613dfd0ea84c4dca010315aa`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`e11fc14903cab5b91b17e8bc5721dcbf27e658d29da85cc4a0510114f9955682`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -58,6 +58,7 @@ flowchart LR
   forum_topics["forum_topics"]
   forum_upload_files["forum_upload_files"]
   forum_users["forum_users"]
+  github_avatar_checks["github_avatar_checks"]
   gitlab_accounts["gitlab_accounts"]
   identities["identities"]
   identity_audit["identity_audit"]
@@ -65,6 +66,7 @@ flowchart LR
   invite_attempts["invite_attempts"]
   invite_codes["invite_codes"]
   invite_links["invite_links"]
+  ip_blocks["ip_blocks"]
   limit_events["limit_events"]
   mail_outbox["mail_outbox"]
   mail_templates["mail_templates"]
@@ -79,8 +81,10 @@ flowchart LR
   perm_nodes["perm_nodes"]
   perm_seed_applied["perm_seed_applied"]
   perm_state["perm_state"]
+  rate_limit_counters["rate_limit_counters"]
   role_assignments["role_assignments"]
   sessions["sessions"]
+  shield_signals["shield_signals"]
   titles["titles"]
   users["users"]
   account_profiles -->|"account_id → id"| users
@@ -229,7 +233,7 @@ CREATE TABLE account_profiles (
 
 ## activity_events
 
-业务域：`audit`；结构来源：[app/server/src/lib/db.ts:837](../../../app/server/src/lib/db.ts#L837)。
+业务域：`audit`；结构来源：[app/server/src/lib/db.ts:848](../../../app/server/src/lib/db.ts#L848)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -285,7 +289,7 @@ CREATE TABLE activity_events (
 
 业务域：`platform`；结构来源：[app/server/src/lib/db.ts:34](../../../app/server/src/lib/db.ts#L34)。
 
-键值表：现有 gitlab_settings（GitLab 同步设置的覆盖值，lib/gitlab-sync.ts）与 apply_open（招新总开关，#284，lib/apply-settings.ts）两个键；没有 apply_open 这一行就是开放。目录不读取记录。
+键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间，缺行/损坏/到期关闭，最长60分钟）。目录不读取记录。
 
 | 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
 |---|---|---|---|---|---|
@@ -473,7 +477,7 @@ CREATE TABLE audit_logs (
 
 ## competition_finals
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1145](../../../app/server/src/lib/db.ts#L1145)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1185](../../../app/server/src/lib/db.ts#L1185)。
 
 定榜：一场一行，standings 是定榜那一刻的严格名次快照，之后加分、撤销都不再改它；撤销定榜删行。只有 lib/competition-prizes.ts 读写。
 
@@ -510,7 +514,7 @@ CREATE TABLE competition_finals (
 
 ## competition_gitlab_sources
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1099](../../../app/server/src/lib/db.ts#L1099)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1139](../../../app/server/src/lib/db.ts#L1139)。
 
 比赛从哪些 GitLab 项目收集贡献，控制台「计分与奖项」整份替换；没有行的比赛不收集。由 lib/competition-rules-store.ts 写，收集任务读。
 
@@ -543,7 +547,7 @@ CREATE TABLE competition_gitlab_sources (
 
 ## competition_prizes
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1152](../../../app/server/src/lib/db.ts#L1152)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1192](../../../app/server/src/lib/db.ts#L1192)。
 
 定榜时给每个得奖的人一行：兑奖码只存 SHA-256 散列、AES-GCM 密文与末四位，不存明文；核销只改 redeemed_at/redeemed_by；公开接口从不返回这三列。只有 lib/competition-prizes.ts 读写。
 
@@ -602,7 +606,7 @@ CREATE TABLE competition_prizes (
 
 ## competition_rules
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1136](../../../app/server/src/lib/db.ts#L1136)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1176](../../../app/server/src/lib/db.ts#L1176)。
 
 比赛的计分规则：年级系数（百分数，150 = 1.5）与可选奖项 JSON；没有行用默认系数、没有奖项；定榜后不能改。只有 lib/competition-rules-store.ts 读写。
 
@@ -640,7 +644,7 @@ CREATE TABLE competition_rules (
 
 ## competition_score_candidates
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1108](../../../app/server/src/lib/db.ts#L1108)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1148](../../../app/server/src/lib/db.ts#L1148)。
 
 GitLab 收来的候选贡献（合并的 MR、带「有用」标签或被 MR 关闭的 Issue）：唯一约束挡住重复收集；accepted_via 区分 GitLab 标签与控制台确认；状态变化只改列，不删行。只有 lib/competition-candidates.ts 读写。
 
@@ -886,7 +890,7 @@ CREATE TABLE competition_signups (
 
 ## competition_site_versions
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1077](../../../app/server/src/lib/db.ts#L1077)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1117](../../../app/server/src/lib/db.ts#L1117)。
 
 比赛官网站点包的版本：一次上传一行，通过（passed）或拒绝（rejected）都留，report 是逐条校验结果；拒绝的版本不落文件。文件本身在数据库旁边的 sites/<competition_id>/<version_id>/，不进库。只有 lib/competition-site-store.ts 读写。
 
@@ -935,7 +939,7 @@ CREATE TABLE competition_site_versions (
 
 ## competition_sites
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1091](../../../app/server/src/lib/db.ts#L1091)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1131](../../../app/server/src/lib/db.ts#L1131)。
 
 比赛官网的发布状态：一场一行，slug 唯一且第一次发布后不能改，live_version_id 为空即已下线（版本与 slug 保留）。只有 lib/competition-site-store.ts 读写。
 
@@ -1455,7 +1459,7 @@ CREATE TABLE forum_bookmarks (
 
 ## forum_category_settings
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:919](../../../app/server/src/lib/db.ts#L919)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:959](../../../app/server/src/lib/db.ts#L959)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1713,7 +1717,7 @@ CREATE TABLE forum_rate_events (
 
 ## forum_reactions
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:953](../../../app/server/src/lib/db.ts#L953)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:993](../../../app/server/src/lib/db.ts#L993)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1753,7 +1757,7 @@ CREATE TABLE forum_reactions (
 
 ## forum_sticker_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:935](../../../app/server/src/lib/db.ts#L935)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:975](../../../app/server/src/lib/db.ts#L975)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1785,7 +1789,7 @@ CREATE TABLE forum_sticker_files (
 
 ## forum_sticker_packs
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:926](../../../app/server/src/lib/db.ts#L926)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:966](../../../app/server/src/lib/db.ts#L966)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1819,7 +1823,7 @@ CREATE TABLE forum_sticker_packs (
 
 ## forum_stickers
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:942](../../../app/server/src/lib/db.ts#L942)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:982](../../../app/server/src/lib/db.ts#L982)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1989,7 +1993,7 @@ CREATE TABLE forum_topics (
 
 ## forum_upload_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:963](../../../app/server/src/lib/db.ts#L963)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1003](../../../app/server/src/lib/db.ts#L1003)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2095,6 +2099,38 @@ CREATE TABLE forum_users (
   joined_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 , account_id TEXT REFERENCES users(id), account_titles TEXT);
+```
+
+</details>
+
+## github_avatar_checks
+
+业务域：`identity`；结构来源：[app/server/src/lib/db.ts:834](../../../app/server/src/lib/db.ts#L834)。
+
+字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
+
+| 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
+|---|---|---|---|---|---|
+| `url` | `TEXT` | 0 | 1 | 未声明 | 0 |
+| `verdict` | `TEXT` | 1 | 0 | 未声明 | 0 |
+| `avatar_hash` | `TEXT` | 0 | 0 | 未声明 | 0 |
+| `checked_at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+
+NOT NULL 与主键分别保留 SQLite 元数据，不把主键标记当作 NOT NULL 标记。
+
+| 索引 | 列 | 唯一 | 来源 | 部分索引 | SQL |
+|---|---|---|---|---|---|
+| `sqlite_autoindex_github_avatar_checks_1` | `url` | 1 | pk | 0 | `SQLite 自动索引` |
+
+<details><summary>建表 SQL</summary>
+
+```sql
+CREATE TABLE github_avatar_checks (
+  url TEXT PRIMARY KEY,
+  verdict TEXT NOT NULL CHECK (verdict IN ('real', 'identicon')),
+  avatar_hash TEXT,
+  checked_at INTEGER NOT NULL
+);
 ```
 
 </details>
@@ -2422,9 +2458,46 @@ CREATE TABLE invite_links (
 
 </details>
 
+## ip_blocks
+
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:887](../../../app/server/src/lib/db.ts#L887)。
+
+字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
+
+| 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
+|---|---|---|---|---|---|
+| `ip` | `TEXT` | 0 | 1 | 未声明 | 0 |
+| `level` | `INTEGER` | 1 | 0 | `0` | 0 |
+| `blocked_until` | `INTEGER` | 1 | 0 | `0` | 0 |
+| `reason` | `TEXT` | 1 | 0 | 未声明 | 0 |
+| `created_at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+| `updated_at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+
+NOT NULL 与主键分别保留 SQLite 元数据，不把主键标记当作 NOT NULL 标记。
+
+| 索引 | 列 | 唯一 | 来源 | 部分索引 | SQL |
+|---|---|---|---|---|---|
+| `idx_ip_blocks_until` | `blocked_until` | 0 | c | 0 | `CREATE INDEX idx_ip_blocks_until ON ip_blocks(blocked_until)` |
+| `sqlite_autoindex_ip_blocks_1` | `ip` | 1 | pk | 0 | `SQLite 自动索引` |
+
+<details><summary>建表 SQL</summary>
+
+```sql
+CREATE TABLE ip_blocks (
+  ip TEXT PRIMARY KEY,
+  level INTEGER NOT NULL DEFAULT 0,
+  blocked_until INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+```
+
+</details>
+
 ## limit_events
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:858](../../../app/server/src/lib/db.ts#L858)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:869](../../../app/server/src/lib/db.ts#L869)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2530,7 +2603,7 @@ CREATE TABLE mail_outbox (
 
 ## mail_templates
 
-业务域：`mail`；结构来源：[app/server/src/lib/db.ts:976](../../../app/server/src/lib/db.ts#L976)。
+业务域：`mail`；结构来源：[app/server/src/lib/db.ts:1016](../../../app/server/src/lib/db.ts#L1016)。
 
 招聘邮件的模板文字（主题、抬头、正文块、按钮、落款），不含任何投递人的信息；每类信有且只有一套默认，种子来自代码里的内置默认。改模板不影响已入队的信，信在入队时已渲染成成品。
 
@@ -3012,6 +3085,37 @@ CREATE TABLE perm_state (
 
 </details>
 
+## rate_limit_counters
+
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:899](../../../app/server/src/lib/db.ts#L899)。
+
+字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
+
+| 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
+|---|---|---|---|---|---|
+| `key` | `TEXT` | 0 | 1 | 未声明 | 0 |
+| `hits` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+| `window_start` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+
+NOT NULL 与主键分别保留 SQLite 元数据，不把主键标记当作 NOT NULL 标记。
+
+| 索引 | 列 | 唯一 | 来源 | 部分索引 | SQL |
+|---|---|---|---|---|---|
+| `idx_rate_limit_counters_start` | `window_start` | 0 | c | 0 | `CREATE INDEX idx_rate_limit_counters_start ON rate_limit_counters(window_start)` |
+| `sqlite_autoindex_rate_limit_counters_1` | `key` | 1 | pk | 0 | `SQLite 自动索引` |
+
+<details><summary>建表 SQL</summary>
+
+```sql
+CREATE TABLE rate_limit_counters (
+  key TEXT PRIMARY KEY,
+  hits INTEGER NOT NULL,
+  window_start INTEGER NOT NULL
+);
+```
+
+</details>
+
 ## role_assignments
 
 业务域：`organization`；结构来源：[app/server/src/lib/db.ts:171](../../../app/server/src/lib/db.ts#L171)。
@@ -3106,6 +3210,39 @@ CREATE TABLE sessions (
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 , openid TEXT REFERENCES users(id), provider TEXT);
+```
+
+</details>
+
+## shield_signals
+
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:879](../../../app/server/src/lib/db.ts#L879)。
+
+字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
+
+| 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
+|---|---|---|---|---|---|
+| `ip` | `TEXT` | 1 | 0 | 未声明 | 0 |
+| `at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+| `points` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+| `reason` | `TEXT` | 1 | 0 | 未声明 | 0 |
+
+NOT NULL 与主键分别保留 SQLite 元数据，不把主键标记当作 NOT NULL 标记。
+
+| 索引 | 列 | 唯一 | 来源 | 部分索引 | SQL |
+|---|---|---|---|---|---|
+| `idx_shield_signals_at` | `at` | 0 | c | 0 | `CREATE INDEX idx_shield_signals_at ON shield_signals(at)` |
+| `idx_shield_signals_ip` | `ip`、`at` | 0 | c | 0 | `CREATE INDEX idx_shield_signals_ip ON shield_signals(ip, at)` |
+
+<details><summary>建表 SQL</summary>
+
+```sql
+CREATE TABLE shield_signals (
+  ip TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  points INTEGER NOT NULL,
+  reason TEXT NOT NULL
+);
 ```
 
 </details>

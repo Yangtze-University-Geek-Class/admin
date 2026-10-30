@@ -51,6 +51,8 @@ function syntheticGitlab() {
       if (method === "GET" && accountPath[2] === "emails") {
         return json(200, [{ id: user.id * 100, email: user.email, confirmed_at: "2026-10-26T00:00:00Z" }]);
       }
+      // 统一头像（#343）：没有 GitHub 的账号也会传一张 NANO 默认头像
+      if (method === "PUT" && !accountPath[2] && init.body instanceof FormData && init.body.get("avatar") instanceof Blob) return json(200, user);
       if (method === "POST" && (accountPath[2] === "block" || accountPath[2] === "unblock")) {
         user.state = accountPath[2] === "block" ? "blocked" : "active";
         return json(201, true);

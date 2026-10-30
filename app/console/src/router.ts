@@ -46,6 +46,7 @@ const routes: RouteRecordRaw[] = [
       { path: "gitlab/settings", ...gated(["gitlab.settings"], () => import("./pages/gitlab/Settings.vue")) },
       { path: "activity", ...gated(["activity.read"], () => import("./pages/Activity.vue")) },
       { path: "feedback", ...gated(["feedback.view"], () => import("./pages/Feedback.vue")) },
+      { path: "security", ...gated(["security.manage"], () => import("./pages/Security.vue")) },
       { path: "backup", ...gated(["system.backup"], () => import("./pages/Backup.vue")) },
       // 改版前的地址（#274）：成员与权限、审计日志拆成了用户、权限、操作记录；GitHub 组织整组去掉了。
       { path: "people", redirect: to => ({ path: "/console/users", query: to.query }) },

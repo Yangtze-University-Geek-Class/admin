@@ -5,7 +5,6 @@
 // 定榜之后个人名次换成定榜快照里的严格名次（和发奖用的一致），定榜前同分并列（1,1,3）。
 import { createHash } from "node:crypto";
 import type Database from "better-sqlite3";
-import { avatarPath } from "./account-profiles.js";
 import { toPublicCompetition, type CompetitionRecord, type CompetitionStore } from "./competition-store.js";
 import type { CompetitionSignupStore } from "./competition-signup-store.js";
 import type { CompetitionScoreStore } from "./competition-score-store.js";
@@ -47,7 +46,7 @@ export const publicCachePrefix = (competitionId: string) => `competition-public:
 /** 门户比赛窗口里这场比赛的深链（`?open=competitions&competition=<id>`，YugcOs 打开窗口、CompetitionsApp 选中这场）。 */
 export const competitionAppUrl = (competitionId: string) => `/?open=competitions&competition=${encodeURIComponent(competitionId)}`;
 
-type ProfileRow = { username: string | null; display_name: string; avatar_hash: string | null };
+type ProfileRow = { username: string | null; display_name: string };
 type FeedRow = {
   id: string; account_id: string; kind: string; points: number; weighted_points: number | null; created_at: number;
   importance: string | null; core: string | null; title: string | null; url: string | null;
@@ -73,7 +72,7 @@ export function createCompetitionPublic(db: Database.Database, deps: {
   rules: Pick<CompetitionRulesStore, "get">;
   sites: Pick<CompetitionSiteStore, "site">;
 }) {
-  const selectProfile = db.prepare("SELECT username, display_name, avatar_hash FROM account_profiles WHERE account_id = ?");
+  const selectProfile = db.prepare("SELECT username, display_name FROM account_profiles WHERE account_id = ?");
   const selectFinal = db.prepare("SELECT finalized_at, standings FROM competition_finals WHERE competition_id = ?");
   const selectFeedFirst = db.prepare(`SELECT e.id, e.account_id, e.kind, e.points, e.weighted_points, e.created_at, e.importance, e.core, c.title, c.url
     FROM competition_score_events e LEFT JOIN competition_score_candidates c ON c.score_event_id = e.id
@@ -105,7 +104,7 @@ export function createCompetitionPublic(db: Database.Database, deps: {
     return map;
   }
 
-  /** 一个人的公开资料；没上传头像时退回 GitHub 头像（signups.person 给的），都没有为 null。 */
+  /** 一个人的公开资料；头像是 signups.person 给的统一头像（lib/avatars.ts，#343：上传的、GitHub 的、NANO 默认头像）。 */
   function personOf(accountId: string): PublicPerson {
     const row = selectProfile.get(accountId) as ProfileRow | undefined;
     const fallback = deps.signups.person(accountId);
@@ -113,7 +112,7 @@ export function createCompetitionPublic(db: Database.Database, deps: {
     return {
       username,
       display_name: row?.display_name?.trim() || username,
-      avatar_url: row?.avatar_hash ? avatarPath(row.avatar_hash) : fallback.avatar_url,
+      avatar_url: fallback.avatar_url,
     };
   }
 

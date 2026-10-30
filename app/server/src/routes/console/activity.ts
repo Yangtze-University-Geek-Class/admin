@@ -25,7 +25,7 @@ function maskIp(ip: string | null): string | null {
 type Row = {
   id: number; at: number; account_id: string | null; visitor_id: string | null; surface: string; action: string;
   target_type: string | null; target_id: string | null; outcome: string; ip: string | null; ua: string | null; request_id: string | null; meta: string;
-  username: string | null; display_name: string | null; avatar_hash: string | null;
+  username: string | null; display_name: string | null;
 };
 
 type Cursor = { at: number; id: number };
@@ -37,7 +37,7 @@ const PAGE_SIZE = 50;
 /** 操作记录（CONTRACT-274 §4）：读 activity_events，取代旧的「审计日志」。写入口 recordActivity() 在 Phase D 做，
  * 这里只读；迁移时已经把 audit_logs 的历史数据一次性复制进了 activity_events（见 migrations/2026-10-yugc-v2.ts）。 */
 export default async function consoleActivityRoutes(app: FastifyInstance) {
-  const { storage, profiles } = app.services;
+  const { storage, avatars } = app.services;
   const db = storage.db;
   app.addHook("preHandler", requireAuth);
 
@@ -67,7 +67,7 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
   function fetchRows(where: string, params: unknown[], limit: number): Row[] {
     return db.prepare(`
       SELECT e.id, e.at, e.account_id, e.visitor_id, e.surface, e.action, e.target_type, e.target_id, e.outcome, e.ip, e.ua, e.request_id, e.meta,
-        p.username AS username, p.display_name AS display_name, p.avatar_hash AS avatar_hash
+        p.username AS username, p.display_name AS display_name
       FROM activity_events e
       LEFT JOIN account_profiles p ON p.account_id = e.account_id
       ${where}
@@ -76,10 +76,11 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
     `).all(...params, limit) as Row[];
   }
 
-  function itemView(row: Row, fullIp: boolean) {
+  /** `avatarUrls`：这一页账号的统一头像（lib/avatars.ts，#343），按页批量取。 */
+  function itemView(row: Row, fullIp: boolean, avatarUrls: Map<string, string>) {
     return {
       id: row.id, at: row.at,
-      account: row.account_id ? { id: row.account_id, username: row.username, display_name: row.display_name, avatar_url: profiles.avatarUrl(row.avatar_hash) } : null,
+      account: row.account_id ? { id: row.account_id, username: row.username, display_name: row.display_name, avatar_url: avatarUrls.get(row.account_id)! } : null,
       visitor_id: row.visitor_id, surface: row.surface, action: row.action, target_type: row.target_type, target_id: row.target_id,
       outcome: row.outcome, ip: fullIp ? row.ip : maskIp(row.ip), ua: row.ua, request_id: row.request_id, meta: JSON.parse(row.meta || "{}"),
     };
@@ -92,12 +93,13 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
     const page = rows.slice(0, PAGE_SIZE);
     const nextCursor = rows.length > PAGE_SIZE ? encodeCursor({ at: page[page.length - 1]!.at, id: page[page.length - 1]!.id }) : null;
     const todayStart = beijingDayStart(Date.now());
-    // 被拦下的请求按 (subject, action,分钟) 合并成一行、累加 meta.count（lib/activity.ts 的 recordDenial，
-    // #274 残留修复 F），这里要按合并后的次数求和，不能直接数行——数行只会数出「合并成了多少行」，不是真实拦截次数。
+    // 被拦下的请求按 (subject, action, 方法/路由模板/状态码, 分钟) 合并成一行、累加 meta.count（lib/activity.ts 的 recordDenial，
+    // #274 残留修复 F、#333），这里要按合并后的次数求和，不能直接数行——数行只会数出「合并成了多少行」，不是真实拦截次数。
     const blockedRows = db.prepare(
       "SELECT json_extract(meta, '$.bucket') AS bucket, SUM(COALESCE(json_extract(meta, '$.count'), 1)) AS n FROM activity_events WHERE outcome = 'limited' AND at >= ? AND json_extract(meta, '$.bucket') IS NOT NULL GROUP BY bucket",
     ).all(todayStart) as { bucket: string; n: number }[];
-    return { items: page.map(row => itemView(row, fullIp)), next_cursor: nextCursor, blocked_today: blockedRows.map(row => ({ bucket: row.bucket, count: row.n })) };
+    const avatarUrls = avatars.urlsOf(page.flatMap(row => row.account_id ? [row.account_id] : []));
+    return { items: page.map(row => itemView(row, fullIp, avatarUrls)), next_cursor: nextCursor, blocked_today: blockedRows.map(row => ({ bucket: row.bucket, count: row.n })) };
   });
 
   app.get("/api/console/activity.csv", { preHandler: requirePermission("activity.export") }, async (req, reply) => {
@@ -125,6 +127,7 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
     const rows = fetchRows(where, params, PAGE_SIZE + 1);
     const page = rows.slice(0, PAGE_SIZE);
     const nextCursor = rows.length > PAGE_SIZE ? encodeCursor({ at: page[page.length - 1]!.at, id: page[page.length - 1]!.id }) : null;
-    return { items: page.map(row => itemView(row, fullIp)), next_cursor: nextCursor };
+    const avatarUrls = avatars.urlsOf(page.flatMap(row => row.account_id ? [row.account_id] : []));
+    return { items: page.map(row => itemView(row, fullIp, avatarUrls)), next_cursor: nextCursor };
   });
 }

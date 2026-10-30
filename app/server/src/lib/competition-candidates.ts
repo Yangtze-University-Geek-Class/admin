@@ -131,9 +131,14 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
       final_points = NULL, reason = NULL, score_event_id = NULL, note = @note, updated_at = @now WHERE id = @id`);
   const revokeEvent = db.prepare("UPDATE competition_score_events SET status = 'revoked', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE id = ? AND status = 'active'");
   const selectByEvent = db.prepare("SELECT * FROM competition_score_candidates WHERE score_event_id = ?");
-  const countByStatus = db.prepare("SELECT status, COUNT(*) AS n FROM competition_score_candidates WHERE competition_id = ? GROUP BY status");
+  // 作者已经不在名单上（本人取消或控制台移出，#342）的候选不列、不计数；行和已登记的积分都留着，重新报名后照常出现。
+  const AUTHOR_SIGNED_UP = `EXISTS (SELECT 1 FROM competition_signups s
+    WHERE s.competition_id = c.competition_id AND s.account_id = c.account_id AND s.status = 'active')`;
+  const countByStatus = db.prepare(`SELECT c.status AS status, COUNT(*) AS n FROM competition_score_candidates c
+    WHERE c.competition_id = ? AND ${AUTHOR_SIGNED_UP} GROUP BY c.status`);
   const pendingAll = db.prepare(`SELECT COUNT(*) AS n FROM competition_score_candidates c
-    WHERE c.status = 'pending' AND NOT EXISTS (SELECT 1 FROM competition_finals f WHERE f.competition_id = c.competition_id)`);
+    WHERE c.status = 'pending' AND ${AUTHOR_SIGNED_UP}
+      AND NOT EXISTS (SELECT 1 FROM competition_finals f WHERE f.competition_id = c.competition_id)`);
 
   const lastRuns = new Map<string, CollectRun>();
   const running = new Map<string, Promise<CollectRun>>();
@@ -152,11 +157,11 @@ export function createCompetitionCandidates(db: Database.Database, deps: {
 
   function list(competitionId: string, status: CandidateStatus | null, cursor: string | null) {
     const params: unknown[] = [competitionId];
-    let where = "competition_id = ?";
-    if (status) { where += " AND status = ?"; params.push(status); }
+    let where = `c.competition_id = ? AND ${AUTHOR_SIGNED_UP}`;
+    if (status) { where += " AND c.status = ?"; params.push(status); }
     const after = cursor ? /^([0-9]{1,15})_([0-9a-f-]{36})$/.exec(cursor) : null;
-    if (after) { where += " AND (created_at < ? OR (created_at = ? AND id < ?))"; params.push(Number(after[1]), Number(after[1]), after[2]); }
-    const rows = db.prepare(`SELECT * FROM competition_score_candidates WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ?`)
+    if (after) { where += " AND (c.created_at < ? OR (c.created_at = ? AND c.id < ?))"; params.push(Number(after[1]), Number(after[1]), after[2]); }
+    const rows = db.prepare(`SELECT c.* FROM competition_score_candidates c WHERE ${where} ORDER BY c.created_at DESC, c.id DESC LIMIT ?`)
       .all(...params, CANDIDATE_PAGE + 1) as CandidateRow[];
     const page = rows.slice(0, CANDIDATE_PAGE);
     const last = page[page.length - 1];

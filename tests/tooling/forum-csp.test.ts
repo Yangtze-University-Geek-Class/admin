@@ -225,10 +225,14 @@ describe.skipIf(!nginxBinary)('forum CSP through host → web → forum (live ng
       writeFileSync(join(webRoot, entry), `<main data-entry="${name}"></main>\n`);
     }
     writeFileSync(join(front, '90-proxy-headers.conf'), heredoc(webDockerfile, 'NGINX_HEADERS'));
+    writeFileSync(join(front, 'shield-render.sh'), heredoc(webDockerfile, 'SHIELD_RENDER'));
+    const shield = spawnSync('sh', [join(front, 'shield-render.sh'), join(front, 'exempt.conf')], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(shield.status, shield.stderr).toBe(0);
     const web = heredoc(webDockerfile, 'NGINX_SITE')
       .replace('listen 8080;', `listen 127.0.0.1:${ports.web};`)
       .replace('root /usr/share/nginx/html;', `root ${webRoot};`)
       .replaceAll('/etc/nginx/conf.d/90-proxy-headers.conf', join(front, '90-proxy-headers.conf'))
+      .replaceAll('/etc/nginx/yzgc-shield/exempt.conf', join(front, 'exempt.conf'))
       .replaceAll('http://server:3000', `http://127.0.0.1:${ports.server}`)
       .replaceAll('http://forum:3000/', `http://127.0.0.1:${ports.forum}/`)
       .replaceAll('/dev/stdout', join(front, 'access.log'))

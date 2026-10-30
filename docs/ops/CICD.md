@@ -114,6 +114,7 @@
 | `MAIL_ALIYUN_ACCESS_KEY_SECRET` | 阿里云邮件推送的 AccessKey Secret |
 | `MAIL_RESEND_API_KEY` | Resend 的 API Key（可选） |
 | `MAIL_ALLOWLIST` | allowlist 模式的私密收件名单；当前权威源保持 all，独立恢复副本必须另行禁用外发 |
+| `SHIELD_ALLOWLIST` | 访问防护的豁免网段（IP 或 CIDR，逗号分隔）；只给授权渗透测试的来源用，server 与 web 容器 nginx 的第一层限流都按它豁免，测完移除并重新部署；空 = 没有豁免（#333） |
 | `GOOGLE_CLIENT_ID` | Google 登录的 OAuth 客户端 ID（可选，和下一项要么都配、要么都不配；回调地址 `<origin>/auth/google/callback`，#262） |
 | `GOOGLE_CLIENT_SECRET` | Google 登录的 OAuth 客户端密钥 |
 | `OIDC_JWKS` | 对外授权的签名私钥（可选，#270）：`dist/cli/oidc.js keygen` 输出的一行 base64；为空时 `/oidc/*` 一律 404 |

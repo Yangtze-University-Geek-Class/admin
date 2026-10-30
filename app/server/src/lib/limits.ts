@@ -123,4 +123,11 @@ export const BUCKET_RETENTION_MS: Record<string, number> = {
   "forum.visitor.pages": 2 * DAY_MS,
   // #285：控制台向测试邮箱试发招聘信，每账号每小时限量。
   "mail.test.hourly": 2 * HOUR_MS,
+  // #333、#319：全站北京日上限（lib/site-quota.ts）、单个收件人的日上限、无 visitor cookie 的注册额度。
+  "site.email.daily": 2 * DAY_MS,
+  "site.register.daily": 2 * DAY_MS,
+  "site.feedback.daily": 2 * DAY_MS,
+  "site.device_code.daily": 2 * DAY_MS,
+  "email.recipient.daily": 2 * DAY_MS,
+  "auth.register.nocookie.daily.ip": 2 * DAY_MS,
 };

@@ -216,6 +216,11 @@ export const identityContracts: RouteContracts = {
     params: object({ file: pattern("^[0-9a-f]{64}\\.webp$") }, ["file"]),
     response: { 200: { type: "string", description: "image/webp; binary" } },
   },
+  // NANO 默认头像（#343，lib/nano-avatar.ts）：响应是 PNG 字节流，版本号不对或编号不在 1–8 时 404。
+  "GET /api/identity/default-avatar/:version/:file": {
+    params: object({ version: pattern("^[0-9]{8}$"), file: pattern("^[1-8]\\.png$") }, ["version", "file"]),
+    response: { 200: { type: "string", description: "image/png; binary" } },
+  },
   "PUT /api/identity/avatar": { querystring: object({}), response: { 200: object({ avatar_url: { anyOf: [text(500), { type: "null" }] } }, ["avatar_url"]), ...failures } },
   "POST /api/identity/invite/redeem": {
     querystring: object({}),

@@ -270,6 +270,8 @@ export type RosterTeam = {
   created_at: number; disbanded_at: number | null;
 };
 export type CompetitionRoster = { settings: SignupSettings; stats: RosterStats; signups: RosterSignup[]; teams: RosterTeam[] };
+/** `DELETE .../signups/:account_id`（#342）：移出后对队伍做了什么，已确认的队伍是否退回招募中。 */
+export type SignupRemoval = { team_action: "none" | "left" | "transferred" | "disbanded"; unlocked: boolean };
 
 export type ScoreKind = "issue" | "pr" | "penalty";
 /** 两档评定（#278，所有者 2026-10-24 16:59）：重要程度与核心度，基础分查表。 */
@@ -376,3 +378,11 @@ export type ForumCategoriesResponse = { categories: ForumCategoryRow[] };
 export type ConsoleSticker = { id: string; shortcode: string; label: string; url: string; sort: number; enabled: boolean; use_count: number };
 export type ConsoleStickerPack = { id: string; name: string; sort: number; enabled: boolean; stickers: ConsoleSticker[] };
 export type ConsoleStickersResponse = { packs: ConsoleStickerPack[] };
+
+export type SecurityDecoyStatus = {
+  available: boolean; active: boolean; expires_at: number | null; now: number; max_minutes: number; shield_enabled: boolean;
+};
+export type SecurityBlock = {
+  ip: string; level: number; blocked_until: number; reason: string; created_at: number; updated_at: number; retry_after: number;
+};
+export type SecurityBlocks = { blocks: SecurityBlock[] };

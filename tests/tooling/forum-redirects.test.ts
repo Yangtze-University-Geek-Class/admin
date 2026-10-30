@@ -149,17 +149,21 @@ describe.skipIf(!nginxBinary)('forum redirects through host → web → forum (l
     const legacyForum = forum(ports.legacyForum).replace('try_files $uri $uri/index.html /200.html;', 'try_files $uri $uri/ /200.html;');
     expect(legacyForum).toContain('try_files $uri $uri/ /200.html;');
     // web 容器：只换端口、站点根、include 路径、上游地址与日志去向；第二份的论坛上游是 legacyForum。
-    const web = (listen: number, forumUpstream: number) => {
+    const web = (listen: number, forumUpstream: number, includeGlobals = true) => {
       const text = logs(webSite)
         .replace('listen 8080;', `listen 127.0.0.1:${listen};`)
         .replace('root /usr/share/nginx/html;', `root ${webHtml};`)
         .replaceAll('/etc/nginx/conf.d/90-proxy-headers.conf', join(root, '90-proxy-headers.conf'))
+        .replaceAll('/etc/nginx/yzgc-shield/exempt.conf', join(root, 'exempt.conf'))
         .replaceAll('http://server:3000', `http://127.0.0.1:${ports.server}`)
         .replaceAll('http://forum:3000/', `http://127.0.0.1:${forumUpstream}/`);
       expect(text).not.toMatch(/listen 8080|\/usr\/share\/nginx|\/etc\/nginx|server:3000|forum:3000|\/dev\/std/);
-      return text;
+      return includeGlobals ? text : text.slice(text.indexOf('\nserver {'));
     };
     writeFileSync(join(root, '90-proxy-headers.conf'), heredoc(webDockerfile, 'NGINX_HEADERS'));
+    writeFileSync(join(root, 'shield-render.sh'), heredoc(webDockerfile, 'SHIELD_RENDER'));
+    const shield = spawnSync('sh', [join(root, 'shield-render.sh'), join(root, 'exempt.conf')], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(shield.status, shield.stderr).toBe(0);
     // 宿主：preview.conf 里 443 server 的 location / 原样使用（去掉 TLS），只换上游端口。
     const hostLocation = /^    location \/ \{\n        proxy_pass http:\/\/127\.0\.0\.1:18200;\n[\s\S]*?^    \}$/m.exec(hostConf('preview'))?.[0] ?? '';
     expect(hostLocation).toContain('proxy_set_header Host $host;');
@@ -176,7 +180,7 @@ describe.skipIf(!nginxBinary)('forum redirects through host → web → forum (l
       `  access_log ${join(root, 'access.log')};`, ...temps,
       `  server { listen 127.0.0.1:${ports.host};`, host, '  }',
       web(ports.web, ports.forum),
-      web(ports.webLegacy, ports.legacyForum),
+      web(ports.webLegacy, ports.legacyForum, false),
       forum(ports.forum),
       legacyForum,
       `  server { listen 127.0.0.1:${ports.server}; access_log off; location / { default_type text/plain; return 200 "$request_uri|$http_cookie"; } }`,

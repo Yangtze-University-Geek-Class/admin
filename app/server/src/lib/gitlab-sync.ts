@@ -2,13 +2,17 @@ import type Database from "better-sqlite3";
 import type { AuditActor } from "./db.js";
 import type { ActivityOutcome, ActivitySurface } from "./activity.js";
 import type { DirectoryAccount } from "./account-directory.js";
+import type { Avatar } from "./avatars.js";
+import { downloadGithubAvatar, GithubAvatarError, type GithubAvatarChecks } from "./github-avatars.js";
+import { NANO_AVATAR_VERSION } from "./nano-avatar.js";
 
 /**
  * GitLab 账号同步（#270）：每个是成员的极客班账号在自建 GitLab 上有一个用户，进 `GITLAB_GROUP` 组（舰员 Developer，提督 Owner）；
  * 停用或不再是成员的封禁（block），恢复后解封，从不删除。GitLab 用户按 OIDC 身份（provider = openid_connect，extern_uid =
  * 这个账号在 GitLab 那个客户端的 sector 里的 `sub`）认人，不按用户名或邮箱认。用户名在第一次同步时定下：有 GitHub 的用 GitHub 登录名，
  * 没有的用站内登录名（yz_…），被占用或是保留名时加后缀，之后不再改名。
- * 头像（#271）：论坛上传的头像优先，没有时用 GitHub 头像；GitLab 收下后记下来源（avatar_source），来源变了再传，传失败下一轮再试。
+ * 头像（#271，#343 改成统一头像）：传的是 lib/avatars.ts 给这个人算出的同一张——上传的头像、GitHub 头像（像素图不算）或 NANO 默认头像；
+ * GitLab 收下后记下来源（avatar_source），来源变了再传，传失败下一轮再试。
  * 还没记过来源的（以前建的号、GitLab 在登录时自动建的号）会传一次，盖掉 GitLab 上原来的头像。
  * 邮箱（#272）：GitLab 按提交里的作者邮箱认人，只认用户名下已确认的邮箱。主邮箱写成 GitLab 的主邮箱，其它绑定的邮箱和 GitHub 给的
  * noreply 邮箱以「已确认」加到用户名下（GitLab 没配发信，成员自己加的邮箱确认不了）；在极客班删掉的从 GitLab 删掉。
@@ -26,9 +30,6 @@ const AVATAR_MAX_BYTES = 200 * 1024;
 /** 向 GitHub 要的头像边长（像素），原图常常超过 GitLab 的上限。 */
 const GITHUB_AVATAR_SIZE = 256;
 const AVATAR_EXTENSIONS: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
-/** avatar_source 里论坛头像的写法：前缀加图的散列；GitHub 头像直接写地址。 */
-const FORUM_AVATAR_PREFIX = "forum:";
-const GITHUB_AVATAR_BASE = "https://avatars.githubusercontent.com/";
 const GITHUB_NOREPLY_DOMAIN = "users.noreply.github.com";
 /** 没有验证过的邮箱、或邮箱在 GitLab 上被占用时，建号用的占位地址。 */
 const placeholderEmail = (username: string, sectorId: string) => `${username.toLowerCase()}@noreply.${sectorId}`;
@@ -90,12 +91,35 @@ export function gitlabUsername(base: string): string {
   return cleaned || "member";
 }
 
+/**
+ * 这个人在 GitLab 上的主邮箱，NANO 默认头像按它挑（#343，lib/nano-avatar.ts）：站内（lib/avatars.ts）和这里传头像用的是同一个函数，
+ * 两边不会挑出两张。有主邮箱就是主邮箱；没有时是建号用的占位地址 `<GitLab 用户名>@noreply.<sector>`，还没建号的按第一次同步
+ * 会取的用户名算（`login` 是 GitHub 登录名或站内登录名）；GitLab 的客户端还没登记、没有 sector 时只有用户名，
+ * 和 GitLab 头像服务「邮箱，没有时用户名」的回退一样。
+ */
+export function gitlabAvatarIdentifier(input: { email: string | null; gitlabUsername: string | null; login: string; sector: string | null }): string {
+  if (input.email) return input.email;
+  const username = input.gitlabUsername ?? gitlabUsername(input.login);
+  return input.sector ? placeholderEmail(username, input.sector) : username;
+}
+
+/** GitLab 同步记在 avatar_source 的来源：上传的头像沿用 #271 的 `forum:<散列>`，GitHub 头像是地址，默认头像是 `nano:<版本>/<编号>`。 */
+export function avatarSource(avatar: Avatar): string {
+  if (avatar.kind === "upload") return `forum:${avatar.hash}`;
+  if (avatar.kind === "github") return avatar.source;
+  return `nano:${NANO_AVATAR_VERSION}/${avatar.index}`;
+}
+
 export function createGitlabSync(db: Database.Database, deps: {
   config: GitlabSyncConfig;
   directory: { listForSync(): DirectoryAccount[]; account(accountId: string): DirectoryAccount | null };
   subjects: { subjectFor(sectorId: string, accountId: string): string; existingSubject(sectorId: string, accountId: string): string | null };
   clients: { sectorOf(clientId: string): string | null };
   avatars: { avatar(hash: string): Buffer | null };
+  /** 还没识别过的 GitHub 头像当场识别一次（#343）。 */
+  githubAvatars: Pick<GithubAvatarChecks, "check">;
+  /** 1–8 号 NANO 默认头像的 PNG（#343）。 */
+  nanoAvatars: (index: number) => Buffer | null;
   audit: (actor: AuditActor, action: string, target?: string, details?: unknown, ip?: string, opts?: { surface?: ActivitySurface; outcome?: ActivityOutcome }) => void;
   fetch?: FetchLike;
   githubFetch?: FetchLike;
@@ -147,14 +171,6 @@ export function createGitlabSync(db: Database.Database, deps: {
     }
   }
 
-  /** 头像从哪来：论坛上传的头像（forum:<散列>），否则 GitHub 头像（没记下地址时按 GitHub 数字 id 拼）；都没有为 null。 */
-  function avatarSource(account: DirectoryAccount): string | null {
-    if (account.profile?.avatarHash) return `${FORUM_AVATAR_PREFIX}${account.profile.avatarHash}`;
-    if (!account.github) return null;
-    const url = account.github.avatar_url;
-    return url?.startsWith(GITHUB_AVATAR_BASE) ? url : `${GITHUB_AVATAR_BASE}u/${account.github.id}`;
-  }
-
   /**
    * GitLab 上要有的邮箱（都转小写）：主邮箱（没有时为 null，GitLab 上留着建号时的占位地址），其它绑定的邮箱加上 GitHub noreply 邮箱。
    * GitHub 的 noreply 邮箱有按数字 id 的新式和按登录名的旧式两种，在 GitHub 网页上提交、或者打开了邮箱保护时提交里用的就是它。
@@ -173,7 +189,7 @@ export function createGitlabSync(db: Database.Database, deps: {
 
   /**
    * 这个账号现在要做什么（不碰 GitLab）。是成员、还没建号的建号；建过的按成员资格封禁或解封、调组权限。
-   * 是成员、有头像来源、和上次传上去的来源不同（包括从没传过）时传头像；要有的邮箱和上次同步过去的不同（包括从没同步过）时同步邮箱。
+   * 是成员、头像来源和上次传上去的不同（包括从没传过）时传头像；要有的邮箱和上次同步过去的不同（包括从没同步过）时同步邮箱。
    * 不是成员、也没有对上 GitLab 用户的：只要他在 GitLab 的 sector 有过 `sub`（用极客班登录过 GitLab，GitLab 可能已经自动建了号，
    * 例如同步关着时、或者在下一轮对账之前），每一轮都去 GitLab 按身份找，找到就封禁。找不到也不记「找过了」：他可能回来、
    * 用极客班登录一次（GitLab 又自动建号）、在下一轮之前又离开。这类账号很少，每人每轮一次只读请求。
@@ -181,11 +197,10 @@ export function createGitlabSync(db: Database.Database, deps: {
   function plan(account: DirectoryAccount): SyncAction[] {
     const row = rowOf(account.account_id);
     const access = wantedAccess(account);
-    const avatar = avatarSource(account);
+    const avatar = avatarSource(account.avatar);
     if (!row || row.state === "pending" || row.gitlab_user_id === null) {
       if (wanted(account)) {
-        const actions: SyncAction[] = [{ kind: "create", username: row?.username ?? freeUsername(account), access_level: access }];
-        if (avatar) actions.push({ kind: "set_avatar" });
+        const actions: SyncAction[] = [{ kind: "create", username: row?.username ?? freeUsername(account), access_level: access }, { kind: "set_avatar" }];
         if (emailsSource(account) !== row?.emails_source) actions.push({ kind: "set_emails" });
         return actions;
       }
@@ -196,7 +211,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     const actions: SyncAction[] = [];
     if (row.state === "blocked") actions.push({ kind: "unblock" });
     if (row.access_level !== access) actions.push({ kind: "set_access", access_level: access });
-    if (avatar && avatar !== row.avatar_source) actions.push({ kind: "set_avatar" });
+    if (avatar !== row.avatar_source) actions.push({ kind: "set_avatar" });
     if (emailsSource(account) !== row.emails_source) actions.push({ kind: "set_emails" });
     return actions;
   }
@@ -284,41 +299,57 @@ export function createGitlabSync(db: Database.Database, deps: {
   }
 
   /**
-   * 要传的头像：论坛上传的（WebP）直接取库里的；GitHub 头像下载 256 像素的。拿不到能传的图都抛错、记进 last_error，下一轮再试：
+   * 要传的头像：上传的（WebP）直接取库里的；NANO 默认头像取镜像里的 PNG；GitHub 头像用站内那份副本（网站显示的就是它），
+   * 没有副本时下载 256 像素的。拿不到能传的图都抛错、记进 last_error，下一轮再试：
    * GitHub 连不上（github_avatar_unreachable）或不是 200（github_avatar_<状态码>）、不是图片（github_avatar_not_image）、
-   * 超过 GitLab 的 200 KiB（avatar_too_large）、论坛里已经没有这张图（forum_avatar_missing）。在论坛上换个头像，来源变了就按新的来。
+   * 超过 GitLab 的 200 KiB（avatar_too_large）、库里已经没有这张上传的图（forum_avatar_missing）。在站内换个头像，来源变了就按新的来。
    */
-  async function avatarFor(source: string): Promise<Blob> {
-    if (source.startsWith(FORUM_AVATAR_PREFIX)) {
-      const data = deps.avatars.avatar(source.slice(FORUM_AVATAR_PREFIX.length));
+  async function avatarFor(avatar: Avatar): Promise<Blob> {
+    if (avatar.kind === "upload") {
+      const data = deps.avatars.avatar(avatar.hash);
       if (!data) throw new SyncError("forum_avatar_missing");
       if (data.length > AVATAR_MAX_BYTES) throw new SyncError("avatar_too_large");
       return new Blob([new Uint8Array(data)], { type: "image/webp" });
     }
-    const url = new URL(source);
-    url.searchParams.set("s", String(GITHUB_AVATAR_SIZE));
-    let res: Response;
-    let data: ArrayBuffer;
-    try {
-      res = await fetchGithub(url.href, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-      data = res.ok ? await res.arrayBuffer() : new ArrayBuffer(0);
-    } catch {
-      throw new SyncError("github_avatar_unreachable");
+    if (avatar.kind === "nano") {
+      const data = deps.nanoAvatars(avatar.index);
+      if (!data) throw new SyncError("nano_avatar_missing");
+      return new Blob([new Uint8Array(data)], { type: "image/png" });
     }
-    if (!res.ok) throw new SyncError(`github_avatar_${res.status}`);
-    const type = (res.headers.get("content-type") ?? "").split(";")[0];
+    const copy = avatar.hash ? deps.avatars.avatar(avatar.hash) : null;
+    if (copy && copy.length <= AVATAR_MAX_BYTES) return new Blob([new Uint8Array(copy)], { type: "image/webp" });
+    const url = new URL(avatar.source);
+    url.searchParams.set("s", String(GITHUB_AVATAR_SIZE));
+    const { type, data } = await githubAvatar(() => downloadGithubAvatar(fetchGithub, url.href));
     if (!AVATAR_EXTENSIONS[type]) throw new SyncError("github_avatar_not_image");
     if (data.byteLength > AVATAR_MAX_BYTES) throw new SyncError("avatar_too_large");
     return new Blob([data], { type });
   }
 
-  /** 传头像，GitLab 收下（200）后记下来源，来源不变就不再传；GitLab 没收（例如 400 太大）抛错，下一轮再试。 */
+  /** GitHub 头像的下载与识别失败换成同步自己的错误码（码不变，见 lib/github-avatars.ts）。 */
+  async function githubAvatar<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      throw error instanceof GithubAvatarError ? new SyncError(error.code) : error;
+    }
+  }
+
+  /**
+   * 传头像，GitLab 收下（200）后记下来源，来源不变就不再传；GitLab 没收（例如 400 太大）抛错，下一轮再试。
+   * 还没识别过的 GitHub 头像先当场识别（#343）：是像素图就改传这个人的 NANO 默认头像，GitLab 上不会再出现像素图。
+   */
   async function setAvatar(account: DirectoryAccount, userId: number): Promise<void> {
-    const source = avatarSource(account);
-    if (!source) return;
-    const avatar = await avatarFor(source);
+    let avatar = account.avatar;
+    if (avatar.kind === "github" && !avatar.checked) {
+      const url = avatar.source;
+      await githubAvatar(() => deps.githubAvatars.check(url));
+      avatar = deps.directory.account(account.account_id)?.avatar ?? avatar;
+    }
+    const source = avatarSource(avatar);
+    const file = await avatarFor(avatar);
     const form = new FormData();
-    form.append("avatar", avatar, `avatar.${AVATAR_EXTENSIONS[avatar.type]}`);
+    form.append("avatar", file, `avatar.${AVATAR_EXTENSIONS[file.type]}`);
     const result = await writeApi(account, "PUT", `/users/${userId}`, form);
     if (result.status !== 200) throw new SyncError(`gitlab_avatar_${result.status}`);
     db.prepare("UPDATE gitlab_accounts SET avatar_source = ?, updated_at = ? WHERE account_id = ?").run(source, clock(), account.account_id);

@@ -49,7 +49,7 @@ export default async function consoleMeRoutes(app: FastifyInstance) {
 
     return {
       account_id: accountId, login: req.session!.login, username: profile.username, display_name: profile.display_name,
-      avatar_url: profile.avatar_url, level, level_name: LEVEL_NAME[level] ?? level,
+      avatar_url: app.services.avatars.urlOf(accountId), level, level_name: LEVEL_NAME[level] ?? level,
       department: row?.department_id ? { id: row.department_id, name: row.department_name, tone: row.department_tone } : null,
       titles, permissions: [...effective.allow, ...extra],
       provider: req.session!.provider, email_required: emailRequired(app.services, accountId), profile_required: profileRequired(app.services, accountId),
@@ -77,8 +77,8 @@ export default async function consoleMeRoutes(app: FastifyInstance) {
       result.registrations_today = registrations.n;
     }
     if (check("activity.read")) {
-      // 按合并后的 meta.count 求和，不是数行——console/activity.ts 的 recordDenial 把同一 (subject, action,
-      // 分钟) 的拦截合并成一行累加计数（#274 残留修复 F），这里要和那边的统计口径一致。
+      // 按合并后的 meta.count 求和，不是数行——lib/activity.ts 的 recordDenial 把同一 (subject, action,
+      // 方法/路由模板/状态码, 分钟) 的拦截合并成一行累加计数（#274 残留修复 F、#333），这里要和那边的统计口径一致。
       const blocked = db.prepare("SELECT SUM(COALESCE(json_extract(meta, '$.count'), 1)) AS n FROM activity_events WHERE outcome = 'limited' AND at >= ?").get(todayStart) as { n: number | null };
       result.blocked_today = blocked.n ?? 0;
     }

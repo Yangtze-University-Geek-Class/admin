@@ -19,6 +19,7 @@
 | `app/forum/shared/` | `content-source.ts`（按构建环境选内容来源、站名与登录方式）、`site-state.ts`（site 的空初始状态）、`published.ts`（只供导出/确定性检查的旧帖源投影，不进 site 客户端）、`local-snapshot.ts`（投影校验）、`local-curation.ts`（编辑层）、`deployment.ts`（环境/版本展示）、`forum-markdown.ts`（话题 Markdown 与 llms.txt 的生成规则）、`forum-api.ts`（论坛后端的浏览器客户端与返回值校验；`topicPosts()` 与 `search()` 是 #156 加的两个读接口）、`post-markdown.ts`（帖子正文渲染前的转义、表情短码与图片互换、引用的写法）、`sticker-url.ts`（表情图片地址的白名单：同源或受控 CDN，#286）、`site-notice.ts`（极客班论坛现状的几句话，提示条、关于页与 llms.txt 共用） |
 | `app/forum/content/` | `curation.json` 与 `posts/*.md`，快照之上的人工编辑层；核心播种的分类、标签和旧帖源也取自这里，但 site 客户端不直接打包；`guides/*.md` 是按身份写的使用说明，`guide-images/` 是说明里的截图（#281，只由 server 播种、截图走 CDN，不进论坛产物） |
 | `app/forum/scripts/` | 上游样式 guard、路由 smoke、CDP 四套验证脚本；`csp-header.mjs`（本项目新增）在镜像构建时把产物里内联脚本的 sha256 加进站点 CSP，写成容器 nginx 的 `add_header` |
+| `app/forum/modules/security-notice.ts` | #336 构建模块：非 dev 且发布身份为 production 时，复用根 `scripts/security-notice.mjs` 注入 HTML 授权元数据和入口 JS 注释；预发布、本机与开发服务器不注入，不修改论坛数据和权限 |
 | `app/forum/UPSTREAM.json` `ADOPTION.json` `LICENSE` | 上游文件摘要、本项目集成差异清单、MIT 声明（必须保留） |
 | `app/forum/Dockerfile` | Node ≥26 + pnpm 11.24.0 构建 Nuxt 静态产物 → 静态服务；镜像按 `GEEK_FORUM_SOURCE=site`（极客班论坛，见下文「内容来源」）和 `GEEK_FORUM_BASE_PATH=/forum/` 构建（资源与路由带前缀），构建内删除并断言不存在 `llms.txt`、`t/*.md`、`published/` 和两篇旧帖原文，产物里没有上游示例内容（`Tuff 2.5`、`CoreBox`），容器内监听 3000，不发布宿主端口；构建参数 `GEEK_DEPLOYMENT_ENVIRONMENT`/`GEEK_RELEASE_VERSION`/`GEEK_RELEASE_COMMIT` 会被校验，组合不符直接构建失败；容器 nginx 的页面路由是 `try_files $uri $uri/index.html /200.html`：预渲染过的路由（`users/`、`about/` …）带不带结尾斜杠都直接返回目录里的 `index.html`，不再 301 补斜杠（那条跳转没有 `/forum` 前缀，还带 `:3000`，#140），其余路径和没有 `index.html` 的目录回落 `200.html`；server 块 `absolute_redirect off` 兜底，万一再发跳转也只发相对地址，由 web 容器补回前缀；容器 nginx 对 `llms.txt`、`t/*.md`、`published/*.webp` 直接返回 404、不回落页面；外部同名路径由 web nginx 直达核心；页面带一份 CSP（站点策略取自 `deploy/nginx/production.conf` 的 map，加上本次产物内联脚本的哈希），宿主在 `/forum/` 下看到后不再叠加；页面与回落页都不缓存（`expires -1`）；`/_nuxt/` 用 `location ^~` 整个目录缓存一年（字体、图片也是，不被「图片、字体 7 天」的正则截走），其中唯一不带哈希的 `_nuxt/builds/latest.json` 精确匹配、不缓存（#146，`tests/tooling/hashed-asset-cache.test.ts`）；gzip 级别 6，与 web 容器一致（#146）；`nuxt.config.ts` 用 rolldown `codeSplitting` 把 `@talex-touch/*` 合成 `tuffex` 一个分包、论坛 `app/` 代码合成 `app` 一个分包，入口脚本从 70 个降到 6 个、请求 71→13，消除三层依赖瀑布（#217）；构建参数 `STATIC_CDN_BASE` 见下文「静态资源 CDN 开关」，构建内断言入口地址与开关一致 |
 
@@ -31,6 +32,8 @@
 - 关掉 Nuxt 的新版本检查（`experimental.checkOutdatedBuildInterval: false`）：它读 `_nuxt/builds/latest.json`，文件名固定、每次内容都变，上传只增不改，不传它。旧版本的哈希文件一直留在 CDN 上，开着的旧页面照样能加载自己的分块，刷新即拿到新版本。
 
 页面 CSP 取自宿主模板，`script-src`、`style-src`、`font-src` 已放行这个前缀。上传、核对与凭据见 [CICD](../../ops/CICD.md)「静态资源 CDN」。
+
+正式产物的授权提示（#336）由构建模块在内容哈希确定前加入。Vite 8 的 Rolldown 原生压缩晚于 `renderChunk`，因此使用其 `postBanner` 在压缩后加入提示，不改变其它注释的发布策略；`tests/security-notice.test.ts` 使用 Nuxt 实际依赖的打包器验证入口、执行结果、环境间哈希隔离，以及其它原本被压缩去掉的注释不被意外恢复。HTML 元数据不引入可执行脚本；镜像在静态生成后检查 `index.html`、`200.html` 实际引用的入口 JS，再按实际内联脚本计算 CSP，不放宽策略。构建模块只读现有 `GEEK_DEPLOYMENT_ENVIRONMENT`，不新增环境键或宿主操作；开发服务器优先跳过，即使继承正式身份也不注入。普通浏览与已授权维护/验收不受声明限制；外部 AI 是否遵从不是防护成功的证明，见 [SECURITY](../../architecture/SECURITY.md#正式产物的-ai-授权提示336)。
 
 ## 表情包（#286）
 

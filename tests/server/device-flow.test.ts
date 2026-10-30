@@ -159,7 +159,7 @@ describe('device authorization (#262, RFC 8628)', () => {
   it('exchanges an approved code once for a token bound to the session account', async () => {
     const { app } = await setup();
     const db = app.services.storage.db;
-    const sid = signIn(app, 'octocat', 4242, 'https://avatars.test/octocat.png');
+    const sid = signIn(app, 'octocat', 4242, 'https://avatars.githubusercontent.com/test/octocat.png');
     const accountId = accountOfGithub(db, '4242');
     const code = (await issueCode(app)).json();
 
@@ -193,7 +193,7 @@ describe('device authorization (#262, RFC 8628)', () => {
     expect(info.json()).toMatchObject({
       sub: accountId, account_id: accountId, login: 'octocat',
       username: expect.any(String), display_name: expect.any(String), bio: expect.any(String),
-      avatar_url: 'https://avatars.test/octocat.png', scope: 'openid profile', email_required: false, profile_required: false,
+      avatar_url: 'https://avatars.githubusercontent.com/test/octocat.png', scope: 'openid profile', email_required: false, profile_required: false,
       // signIn() 新建的测试账号默认补过资料（helpers.ts 的 completeProfile）；它传的默认年级是 2，但
       // enrollmentYearFor() 没有接这个文件的 `clock`、按真实当前时间算入学年份，年级又按这里固定的
       // 测试时钟现算，两边时间不一致，算出来就是 1/大一，不是传入的 2（helpers.ts 的已知问题，不在

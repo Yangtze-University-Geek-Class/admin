@@ -63,6 +63,7 @@ export const NODE_LABELS: Record<Permission, string> = {
   "gitlab.sync": "手动同步",
   "gitlab.settings": "修改 GitLab 设置",
   "system.backup": "导出系统备份",
+  "security.manage": "管理访问封禁",
   "meta.limit.apply.daily": "每天投递上限",
   "meta.limit.forum.topic.hourly": "每小时发话题上限",
   "meta.limit.forum.reply.hourly": "每小时回复上限",
@@ -80,6 +81,7 @@ const APPLY_PREFIXES = ["mail"];
 export const nodeDomain = (node: Permission): string => {
   const head = node.split(".")[0] ?? "";
   if (CONSOLE_PREFIXES.includes(head)) return "console";
+  if (head === "security") return "system";
   return APPLY_PREFIXES.includes(head) ? "apply" : head || "unknown";
 };
 export const domainLabel = (id: string): string => PERMISSION_DOMAINS.find(item => item.id === id)?.label ?? id;

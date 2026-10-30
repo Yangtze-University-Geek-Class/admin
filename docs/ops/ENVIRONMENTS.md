@@ -41,6 +41,17 @@
 | `FORUM_DB_PATH` / `FORUM_UPLOAD_DIR` | 可见（兼容字段，服务不打开旧 `forum.db`、不写上传目录；论坛数据在 `DB_PATH` 的 `forum_*` 表，头像也存在库里，#57） | `/data/forum.db` / `/data/forum-uploads` | 同左 |
 | `COOKIE_DOMAIN` | 可见·留空 | 空 = host-only；**禁止**填写 | 空 = host-only；**禁止** `.yangtzeu.work` |
 | `POW_DIFFICULTY` | 可见 | `3` | `3` |
+| `SHIELD_ENABLED` | 可见 | `on`：访问防护总开关，server 与 web 容器 nginx 都读；`off` 时 server 的计分、封禁、蜜罐与告知都不生效（server 自己的全站上限与接口限流计数照常），web nginx 的第一层限流也整体不生效。只认 `on`、`off`，写错时 server 与 web 都起不来（开发环境 `.env.dev` 用，#333） | `off`（仅 `.env.dev`），正式与预发布 `on` |
+| `SHIELD_THRESHOLD` | 可见 | `120`：10 分钟内总分到此封禁（#333） | `120` |
+| `SHIELD_WINDOW_MINUTES` | 可见 | `10`：信号的计分窗口 | `10` |
+| `SHIELD_BLOCK_MINUTES` | 可见 | `15,60,360,1440`：逐级封禁的分钟数，到顶为止 | `15,60,360,1440` |
+| `SHIELD_DECAY_HOURS` | 可见 | `24`：上一段封禁结束后安静这么久，级别归零 | `24` |
+| `SITE_QUOTA_EMAIL_DAILY` | 可见 | `2000`：全站每个北京日的发码上限，`-1` 不限（#319） | `2000` |
+| `SITE_QUOTA_REGISTER_DAILY` | 可见 | `300`：全站每个北京日的新注册上限 | `300` |
+| `SITE_QUOTA_FEEDBACK_DAILY` | 可见 | `200`：全站每个北京日的意见箱上限 | `200` |
+| `SITE_QUOTA_DEVICE_CODE_DAILY` | 可见 | `500`：全站每个北京日的命令行设备码上限 | `500` |
+| `EMAIL_RECIPIENT_QUOTA_DAILY` | 可见 | `10`：同一收件人每个北京日的验证码上限（#319） | `10` |
+| `REGISTER_NO_COOKIE_IP_DAILY` | 可见 | `3`：没有 visitor cookie 的注册，每个 IP 每个北京日的上限 | `3` |
 | `MAIL_ALIYUN_FROM` | 密钥·留空，阿里云发信时必填 | 环境密钥：阿里云邮件推送的发信地址，不带显示名，由 CI/CD 注入 | 同左 |
 | `MAIL_RESEND_FROM` | 密钥·留空，Resend 发信时必填 | 环境密钥：Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`，由 CI/CD 注入 | 同左 |
 | `MAIL_ASSET_BASE` | 可见 | `https://cdn.yangtzeu.work/geek-public/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
@@ -65,6 +76,7 @@
 | `MAIL_ALIYUN_ACCESS_KEY_ID` / `MAIL_ALIYUN_ACCESS_KEY_SECRET` | 密钥·留空，可选的一对 | CI/CD 注入，可以不配 | 同左 |
 | `MAIL_RESEND_API_KEY` | 密钥·留空，可选 | CI/CD 注入，可以不配 | 同左 |
 | `MAIL_ALLOWLIST` | 密钥·留空，可选 | `allowlist` 模式使用；迁移副本必须空，不得从原环境秘密注入后误放行 | 同左 |
+| `SHIELD_ALLOWLIST` | 密钥·留空，可选 | 访问防护的豁免网段（IP 或 CIDR，逗号分隔）：server 不计分、不封，web 容器 nginx 的第一层限流也不计；写错时两个容器都起不来，错误只报第几段、不打印网段；空 = 没有豁免（#333） | 同左 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 密钥·留空，可选的一对 | 没配：登录页不出现 Google | 同左 |
 | `OIDC_JWKS` | 密钥·留空，可选 | 没配：对外授权关闭，`/oidc/*` 一律 404 | 同左 |
 | `GITLAB_API_TOKEN` | 密钥·留空，`GITLAB_SYNC=on` 时必填 | `GITLAB_SYNC=on` 才用 | 同左，`on` 时必填 |
@@ -121,6 +133,7 @@ CI/manual 都用生成的 `-F <配置> yzgc-target`，同一配置供 SSH/SCP：
 | `MAIL_ALIYUN_ACCESS_KEY_ID` | 阿里云邮件推送的 AccessKey ID（可选，和下一项要么都配、要么都不配） |
 | `MAIL_ALIYUN_ACCESS_KEY_SECRET` | 阿里云邮件推送的 AccessKey Secret |
 | `MAIL_RESEND_API_KEY` | Resend 的 API Key（可选） |
+| `SHIELD_ALLOWLIST` | 访问防护的豁免网段：英文逗号隔开的 IP 或 CIDR（可选，#333）；按密钥存，空 = 没有豁免 |
 | `MAIL_ALLOWLIST` | 收件名单：英文逗号隔开的邮箱，不带空格（可选；`MAIL_RECIPIENTS=allowlist` 时只发给这些地址） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google 登录的 OAuth 客户端（可选的一对；Google Cloud 里类型选「Web 应用」，已获授权的重定向 URI 填 `<origin>/auth/google/callback`） |
 | `OIDC_JWKS` | 对外授权的签名私钥（可选，#270）：在 server 容器里 `node app/server/dist/cli/oidc.js keygen` 生成的一行 base64（RSA 2048 的 JWK Set），环境密钥不收引号，不用 JSON 原文 |

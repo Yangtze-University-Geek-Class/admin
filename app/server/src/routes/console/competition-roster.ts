@@ -22,7 +22,7 @@ const settingsAudit = (settings: SignupSettings) => ({
 });
 
 /**
- * 控制台的比赛报名：报名设置、名单与导出（#239，节点 `competition.manage`）、积分登记与撤销
+ * 控制台的比赛报名：报名设置、名单、移出与导出（#239、#342，节点 `competition.manage`）、积分登记与撤销
  * （节点 `competition.score.review`，CONTRACT-274 §5）。写操作与审计在同一个事务里；报名设置
  * 与 #238 的比赛写入共用同一张错误码表。
  */
@@ -62,6 +62,27 @@ export default async function consoleCompetitionRosterRoutes(app: FastifyInstanc
     async (req, reply) => {
       const result = signups.roster(req.params.competition_id);
       return result.ok ? result.value : refuse(reply, result.error);
+    },
+  );
+
+  // 移出（#342）：审计只记被移出的账号与对队伍做了什么，不记留言、队名原文。
+  app.delete<{ Params: { competition_id: string; account_id: string } }>(
+    "/api/console/competitions/:competition_id/signups/:account_id",
+    { preHandler: manage, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const { competition_id: id, account_id: accountId } = req.params;
+      const removed = db.transaction(() => {
+        const result = signups.removeSignup(id, accountId, req.session!.account_id, Date.now());
+        if (result.ok) {
+          app.services.activity.recordActivity(req, {
+            action: "competition.signup.remove", surface: "console", target_type: "competition", target_id: id, outcome: "ok",
+            meta: { account_id: accountId, team_action: result.value.team_action, unlocked: result.value.unlocked },
+          });
+        }
+        return result;
+      })();
+      if (removed.ok) cache.invalidate(publicCachePrefix(id));
+      return removed.ok ? reply.send(removed.value) : refuse(reply, removed.error);
     },
   );
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { SHIELD_POINTS } from "../lib/shield.js";
 
 /**
  * `consumeNonce`（PENTEST-20261029 finding 8）：同一份 PoW 只认一次。原来只校验前导零、不消费 nonce，
@@ -66,11 +67,14 @@ async function preflightPublicSubmission(
   }
   const pow = body?.pow as { timestamp: number; nonce: string } | undefined;
   const r = checkPow(bodyForHash, pow);
+  // 访问防护（#333）：PoW 校验失败（含重放）记一笔失败信号
   if (!r.ok) {
+    req.server.services.shield.signal(req.ip, SHIELD_POINTS.failedPow, "pow");
     return reply.code(400).send({ error: "防滥用校验失败，请刷新页面重试" }), false;
   }
   // 摘要进一次性桶：同一份证明第二次提交（原样或改分类/联系方式）一律当作校验失败
   if (deps.consumeNonce && !deps.consumeNonce(r.digest)) {
+    req.server.services.shield.signal(req.ip, SHIELD_POINTS.failedPow, "pow");
     return reply.code(400).send({ error: "防滥用校验失败，请刷新页面重试" }), false;
   }
   return true;

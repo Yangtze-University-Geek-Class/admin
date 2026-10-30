@@ -152,6 +152,10 @@ export const competitionRoster = object({
   teams: { type: "array", items: rosterTeam },
 }, ["settings", "stats", "signups", "teams"]);
 export const signupSettingsResult = object({ settings: signupSummary }, ["settings"]);
+/** 控制台移出（#342）的结果：对队伍做了什么，已确认的队伍是否退回招募中。 */
+export const signupRemoveResult = object({
+  team_action: choices("none", "left", "transferred", "disbanded"), unlocked: { type: "boolean" },
+}, ["team_action", "unlocked"]);
 
 // 积分账本（#239 第二部分）：控制台登记与撤销，门户只读天梯。
 const scoreEventFields = {
@@ -371,6 +375,9 @@ export const consoleCompetitionIdParam = { params: object({ competition_id: text
 export const teamIdParam = { params: object({ id: text(64, 1) }, ["id"]) };
 export const scoreEventParam = {
   params: object({ competition_id: text(128, 1), event_id: text(64, 1) }, ["competition_id", "event_id"]),
+};
+export const signupAccountParam = {
+  params: object({ competition_id: text(128, 1), account_id: text(64, 1) }, ["competition_id", "account_id"]),
 };
 
 

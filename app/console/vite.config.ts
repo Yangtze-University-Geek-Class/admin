@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import UnoCSS from "unocss/vite";
 import { staticCdnBase } from "../../scripts/static-cdn-base.mjs";
+import { productionSecurityNotice } from "../../scripts/security-notice.mjs";
 
 /**
  * 产物布局与 app/web 的约定一致：入口页在 `sites/console/index.html`，带哈希的 JS/CSS 在
@@ -75,6 +76,7 @@ export default defineConfig({
     UnoCSS(),
     stylesheetsAfterBootPlaceholder(),
     emitEntryUnderSites(),
+    productionSecurityNotice(),
   ],
   server: {
     host: "127.0.0.1",

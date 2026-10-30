@@ -62,10 +62,14 @@ export type Challenge = {
   return_to: string | null; attempts: number; created_at: number; expires_at: number;
 };
 export type StartResult = { ok: true; id: string; code: string } | { ok: false; retryAfter: number };
+/**
+ * `code_expired` 的 `guessed`：这一次真的拿验证码比对过（第 5 次猜错把挑战用完）。过期、已用、不存在或早已用完的
+ * 挑战没有比对，不带这个标记——访问防护（#333）只给真的猜过的失败加分，回来晚了、重复提交的用户不算猜。
+ */
 export type CheckResult =
   | { ok: true; challenge: Challenge }
   | { ok: false; error: "invalid_code"; attemptsLeft: number }
-  | { ok: false; error: "code_expired" };
+  | { ok: false; error: "code_expired"; guessed?: true };
 
 export function createEmailLogin(db: Database.Database, deps: { sessionSecret: string; clock?: () => number }) {
   const clock = deps.clock ?? Date.now;
@@ -132,7 +136,7 @@ export function createEmailLogin(db: Database.Database, deps: { sessionSecret: s
       if (!given || !timingSafeEqual(actual, expected)) {
         fail.run(id);
         const left = CODE_MAX_ATTEMPTS - row.attempts - 1;
-        return left > 0 ? { ok: false, error: "invalid_code", attemptsLeft: left } : { ok: false, error: "code_expired" };
+        return left > 0 ? { ok: false, error: "invalid_code", attemptsLeft: left } : { ok: false, error: "code_expired", guessed: true };
       }
       const { code_hmac: _hmac, used_at: _used, ...challenge } = row;
       return { ok: true, challenge };

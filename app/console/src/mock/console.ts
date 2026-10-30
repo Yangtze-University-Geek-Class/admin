@@ -859,11 +859,28 @@ function checkGroupWrite(persona: Persona, method: string, id: string | null, bo
 export function checkConsoleWrite(url: URL, method: string, body: unknown): void {
   const path = url.pathname;
   const persona = requireSignedIn();
+  if ((path === "/api/console/security/decoy" && method === "PUT") || (/^\/api\/console\/security\/blocks\/[^/]+$/.test(path) && method === "DELETE")) {
+    gate(persona, "security.manage");
+    requireStepUp(persona);
+    return;
+  }
   const application = path.match(/^\/api\/console\/applications\/([0-9a-f-]{36})$/);
   if (method === "PATCH" && application) return checkApplicationReview(application[1], body);
   if (path === "/api/console/applications/settings" && method === "PATCH") {
     gate(persona, "apply.settings");
     requireStepUp(persona);
+    return;
+  }
+  // 移出报名（#342）：和服务端同样的顺序拒绝，合法的照旧落到只读 501
+  const removal = path.match(/^\/api\/console\/competitions\/([^/]+)\/signups\/([^/]+)$/);
+  if (removal && method === "DELETE") {
+    gate(persona, "competition.manage");
+    requireStepUp(persona);
+    const competitionId = decodeURIComponent(removal[1]);
+    if (!MOCK_COMPETITIONS.some(row => row.id === competitionId)) fail(404, "not_found", "比赛不存在或已下线");
+    if (MOCK_RULES[competitionId]?.finalized) fail(409, "competition_finalized", "这场比赛已经定榜，名单与报名设置不能再改");
+    const accountId = decodeURIComponent(removal[2]);
+    if (!(MOCK_SIGNUPS[competitionId] ?? []).some(row => row.account_id === accountId && row.status === "active")) fail(409, "not_signed_up", "请先报名这场比赛");
     return;
   }
   if (/^\/api\/console\/competitions(?:\/[^/]+)?$/.test(path) && ["POST", "PATCH", "DELETE"].includes(method)) {
@@ -1058,6 +1075,11 @@ export function routeConsole(url: URL): unknown {
   if (path === "/api/console/me") return mockMe(persona);
   if (path === "/api/console/summary") return routeSummary(persona);
   if (path === "/api/console/users") return routeUsers(persona, search);
+  if (path === "/api/console/security/decoy" || path === "/api/console/security/blocks") {
+    gate(persona, "security.manage");
+    assertKnownQuery(search, []);
+    return path.endsWith("/blocks") ? { blocks: [] } : { available: false, active: false, expires_at: null, now: Date.now(), max_minutes: 60, shield_enabled: false };
+  }
 
   const account = path.match(/^\/api\/console\/accounts\/([^/]+)\/(activity|effective)$/);
   if (account) {

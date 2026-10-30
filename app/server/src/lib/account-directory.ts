@@ -1,5 +1,5 @@
 import type { AccountClaims, IdentityStore } from "./identity-store.js";
-import { avatarPath } from "./account-profiles.js";
+import type { Avatar, Avatars } from "./avatars.js";
 import { publicProfile } from "./public-profile.js";
 
 /**
@@ -10,8 +10,10 @@ import { publicProfile } from "./public-profile.js";
 export type DirectoryProfile = { username: string; displayName: string; bio: string; avatarHash: string | null };
 export type DirectoryAccount = AccountClaims & {
   name: string;
-  /** 头像的完整地址：账号资料里上传的头像，没有时用 GitHub 头像，都没有为 null */
-  picture: string | null;
+  /** 统一头像（#343，lib/avatars.ts）：上传的头像、GitHub 头像（像素图不算）或 NANO 默认头像；GitLab 同步传的就是它 */
+  avatar: Avatar;
+  /** 统一头像的完整地址（站内的路径前面补上本环境的 origin），不会是 null */
+  picture: string;
   profile: DirectoryProfile | null;
 };
 /** 对外授权的声明：只给是成员的账号。 */
@@ -20,22 +22,26 @@ export type OidcAccount = { accountId: string; login: string; username: string; 
 export function createAccountDirectory(deps: {
   identity: Pick<IdentityStore, "getAccountClaims" | "listAccountsForSync">;
   profiles: { get(accountId: string): { username: string; display_name: string; bio: string; avatar_url: string | null } };
+  avatars: Pick<Avatars, "ofAccounts">;
   publicOrigin: string;
 }) {
-  const withProfile = (claims: AccountClaims): DirectoryAccount => {
-    // account_profiles.get() 会兜底建档（ensure()），所以这里永远有资料行；avatar_url 已经是 `/api/identity/avatar/<hash>.webp`
-    // 这样的路径，截出 hash 部分供 GitLab 同步按内容去重、判断头像有没有变过。
-    const row = deps.profiles.get(claims.account_id);
-    const visible = publicProfile(row, { login: claims.login, avatarUrl: claims.github?.avatar_url ?? null });
+  type ProfileRow = ReturnType<typeof deps.profiles.get>;
+  const withProfile = (claims: AccountClaims, row: ProfileRow, avatar: Avatar): DirectoryAccount => {
+    // avatar_url 是 `/api/identity/avatar/<hash>.webp` 这样的路径，截出 hash 部分留在资料里。
+    const visible = publicProfile(row, { login: claims.login, avatarUrl: avatar.url });
     const avatarHash = row.avatar_url ? row.avatar_url.replace(/^\/api\/identity\/avatar\//, "").replace(/\.webp$/, "") : null;
     const profile: DirectoryProfile = { username: row.username, displayName: row.display_name, bio: row.bio, avatarHash };
-    const picture = avatarHash ? `${deps.publicOrigin}${avatarPath(avatarHash)}` : visible.avatar_url;
-    return { ...claims, name: visible.display_name, picture, profile };
+    const picture = avatar.url.startsWith("/") ? `${deps.publicOrigin}${avatar.url}` : avatar.url;
+    return { ...claims, name: visible.display_name, avatar, picture, profile };
   };
 
+  // account_profiles.get() 会兜底建档（ensure()），头像在建好资料行之后再算：没有资料行的旧账号会用论坛上传的头像
+  // （lib/avatars.ts），先算就会这一轮是论坛的、下一轮是资料行的，GitLab 同步跟着多传一次。
   function account(accountId: string): DirectoryAccount | null {
     const claims = deps.identity.getAccountClaims(accountId);
-    return claims ? withProfile(claims) : null;
+    if (!claims) return null;
+    const row = deps.profiles.get(accountId);
+    return withProfile(claims, row, deps.avatars.ofAccounts([accountId]).get(accountId)!);
   }
 
   /** 发给下游的声明；停用的、不是成员的账号为 null，授权与换令牌都会失败。 */
@@ -46,7 +52,10 @@ export function createAccountDirectory(deps: {
   }
 
   function listForSync(): DirectoryAccount[] {
-    return deps.identity.listAccountsForSync().map(withProfile);
+    const accounts = deps.identity.listAccountsForSync();
+    const rows = accounts.map(claims => deps.profiles.get(claims.account_id));
+    const avatars = deps.avatars.ofAccounts(accounts.map(claims => claims.account_id));
+    return accounts.map((claims, index) => withProfile(claims, rows[index]!, avatars.get(claims.account_id)!));
   }
 
   return { account, oidcAccount, listForSync };

@@ -8,10 +8,12 @@ import { enrollmentYearFor, isSelectableGrade, type SelectableGrade } from "../.
 import type { LoginCodePurpose } from "../../lib/mail/login-code.js";
 import { PASSWORD_MIN_LENGTH, createLoginThrottle, hashPassword, passwordError } from "../../lib/password-policy.js";
 import { registrationGuardFor, registrationLimitedBody } from "../../lib/register-limits.js";
+import { SHIELD_POINTS } from "../../lib/shield.js";
+import { emailQuotaChecks, emailQuotaRefusal, spendEmailQuota } from "../../lib/site-quota.js";
 import { safeReturnTo } from "../../lib/safe-return.js";
 import { rateLimited } from "../../middleware/http-policy.js";
 import { setSessionCookie } from "../../middleware/require-auth.js";
-import { attachVisitorId } from "../../middleware/visitor.js";
+import { attachVisitorId, hasVisitorCookie } from "../../middleware/visitor.js";
 
 /**
  * 邮箱登录（#262，所有者 2026-10-23 决定验证码和密码都支持；#274 邀请码改选填，SPEC §3.2）：
@@ -25,6 +27,7 @@ import { attachVisitorId } from "../../middleware/visitor.js";
  * - `POST /auth/email/reset`（#273，忘了密码）：用 `/auth/email/start` 发的验证码（`purpose: "reset"` 只改信的文字，
  *   挑战还是登录用的那一种）核对邮箱，设新密码并登录。不能注册：邮箱没有账号回 `no_account`，验证码不作废。
  * 成功都写 `sid` 并回 `{ return_to }`，前端整页跳转；账号缺姓名或年级时 `return_to` 先指向补资料页（lib/email-gate.ts）。
+ * 发码每个收件人每个北京日有上限，全站每日也有上限（#319、#333，lib/site-quota.ts）；验证码或密码核对失败记访问防护的失败信号（#333）。
  */
 export const CHALLENGE_COOKIE = "email_challenge";
 /** 没有账号时也跑一次 bcrypt，响应时间不随邮箱是否注册变化（cost 与 lib/password-policy.ts 的 12 相同）；第一次用到时才算。 */
@@ -76,10 +79,12 @@ export default async function emailRoutes(app: FastifyInstance) {
   /**
    * 验证码核对不过：验证码登录和重设密码回同样的错误。400 不经 middleware/http-policy.ts 的 403/429 通用记录
    * 钩子，这里自己记一条 auth.signin_failed（#274 review round 1，SPEC §3.7「auth.* 的失败」），meta 只留
-   * 种类，不留邮箱和验证码。
+   * 种类，不留邮箱和验证码。访问防护（#333）的登录失败分只记真的比对过的（猜错，含用完挑战的第 5 次）；
+   * 过期、已用、没有挑战只算普通的 400。
    */
   const codeFailure = (req: FastifyRequest, reply: FastifyReply, checked: Exclude<CheckResult, { ok: true }>) => {
     app.services.activity.recordActivity(req, { action: "auth.signin_failed", surface: "portal", outcome: "denied", meta: { provider: "email", method: "code", reason: checked.error } });
+    if (checked.error === "invalid_code" || checked.guessed) app.services.shield.signal(req.ip, SHIELD_POINTS.failedSignIn, "auth.code");
     return checked.error === "invalid_code"
       ? reply.code(400).send({ error: "invalid_code", message: `验证码不对，还可以试 ${checked.attemptsLeft} 次`, attempts_left: checked.attemptsLeft })
       : reply.code(400).send({ error: "code_expired", message: "验证码已失效，请重新获取" });
@@ -94,8 +99,12 @@ export default async function emailRoutes(app: FastifyInstance) {
       const email = normalizeEmail(req.body.email);
       if (!email) return reply.code(400).send({ error: "bad_email", message: "邮箱格式不对" });
       const returnTo = safeReturnTo(req.body.return_to, config, fallback);
+      const quota = emailQuotaChecks(email, config.quotas);
+      const refused = emailQuotaRefusal(app.services.limits, quota, app.services.clock());
+      if (refused) return reply.code(429).header("Retry-After", String(refused.retryAfter)).send(refused.body);
       const started = emailLogin.start({ purpose: "signin", email, ip: req.ip, replaces: readChallengeCookie(req), returnTo });
       if (!started.ok) return tooSoon(reply, started.retryAfter);
+      spendEmailQuota(app.services.limits, quota);
       sendCode(req, email, started.code, req.body.purpose === "reset" ? "reset" : "signin", started.id);
       setChallengeCookie(reply, started.id, "/auth/email");
       return reply.code(202).send({ resend_after: RESEND_AFTER_S });
@@ -123,8 +132,9 @@ export default async function emailRoutes(app: FastifyInstance) {
         if (!name) return reply.code(400).send({ error: "bad_real_name", message: "姓名填 2 到 32 个字，只能是文字、空格和「·」" });
         realInfo = { name, enrollmentYear: enrollmentYearFor(req.body.grade, app.services.clock()) };
       }
+      const hadCookie = hasVisitorCookie(req);
       await attachVisitorId(req, reply);
-      const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!);
+      const registrationLimit = registrationGuardFor(app.services.limits, req.ip, req.visitorId!, { cookie: hadCookie, quotas: config.quotas });
       const result = identity.signInWithEmailCode({
         email: challenge.email, invite: req.body.invite_code?.trim() || null,
         previousSid: req.cookies?.sid ?? null, ip: req.ip, claim: () => emailLogin.claim(challenge.id), registrationLimit,
@@ -133,6 +143,7 @@ export default async function emailRoutes(app: FastifyInstance) {
         switch (result.reason) {
           case "invite_invalid": {
             const left = emailLogin.penalize(challenge.id);
+            app.services.shield.signal(req.ip, SHIELD_POINTS.failedSignIn, "auth.invite");
             app.services.activity.recordActivity(req, { action: "auth.signin_failed", surface: "portal", outcome: "denied", meta: { provider: "email", method: "code", reason: "invite_invalid" } });
             return reply.code(400).send({ error: "invite_invalid", message: left > 0 ? `邀请码无效，还可以试 ${left} 次` : "邀请码无效，验证码已失效，请重新获取", attempts_left: left });
           }
@@ -142,7 +153,7 @@ export default async function emailRoutes(app: FastifyInstance) {
             app.services.activity.recordActivity(req, { action: "auth.signin_denied", surface: "portal", outcome: "denied", meta: { provider: "email", method: "code", reason: "account_disabled" }, account_id: result.accountId ?? null });
             return refused(reply);
           case "registration_limited": {
-            const { retryAfter, body } = registrationLimitedBody(app.services.limits, Date.now());
+            const { retryAfter, body } = registrationLimitedBody(app.services.limits, app.services.clock(), config.quotas.siteRegister);
             return reply.code(429).header("Retry-After", String(retryAfter)).send(body);
           }
           default:
@@ -170,6 +181,7 @@ export default async function emailRoutes(app: FastifyInstance) {
       const matched = await bcrypt.compare(req.body.password, record?.hash ?? await dummy());
       if (!record?.hash || !matched) {
         app.services.activity.recordActivity(req, { action: "auth.signin_failed", surface: "portal", outcome: "denied", meta: { provider: "email", method: "password", reason: "invalid_credentials" } });
+        app.services.shield.signal(req.ip, SHIELD_POINTS.failedSignIn, "auth.password");
         return wrong();
       }
       const result = identity.signInWithPassword({ email, previousSid: req.cookies?.sid ?? null, ip: req.ip });

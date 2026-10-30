@@ -226,15 +226,16 @@ export default async function consolePermissionGroupsRoutes(app: FastifyInstance
   app.get<{ Params: { id: string } }>("/api/console/permission-groups/:id/members", view, async (req, reply) => {
     if (!db.prepare("SELECT 1 FROM perm_groups WHERE id = ?").get(req.params.id)) return reply.code(404).send({ error: "not_found", message: "没有这个权限组" });
     const members = db.prepare(`
-      SELECT pm.account_id AS account_id, p.username AS username, p.display_name AS display_name, p.avatar_hash AS avatar_hash,
+      SELECT pm.account_id AS account_id, p.username AS username, p.display_name AS display_name,
         pm.expires_at AS expires_at, pm.granted_by AS granted_by, pm.created_at AS created_at
       FROM perm_members pm LEFT JOIN account_profiles p ON p.account_id = pm.account_id
       WHERE pm.group_id = ? ORDER BY pm.created_at ASC
-    `).all(req.params.id) as { account_id: string; username: string | null; display_name: string | null; avatar_hash: string | null; expires_at: number | null; granted_by: string; created_at: number }[];
+    `).all(req.params.id) as { account_id: string; username: string | null; display_name: string | null; expires_at: number | null; granted_by: string; created_at: number }[];
+    const avatarUrls = app.services.avatars.urlsOf(members.map(row => row.account_id));
     return {
       members: members.map(row => ({
         account_id: row.account_id, username: row.username, display_name: row.display_name,
-        avatar_url: row.avatar_hash ? `/api/identity/avatar/${row.avatar_hash}.webp` : null,
+        avatar_url: avatarUrls.get(row.account_id)!,
         expires_at: row.expires_at, granted_by: row.granted_by, created_at: row.created_at,
       })),
     };

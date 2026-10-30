@@ -111,8 +111,7 @@ FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddf
 
 ENV NODE_ENV=production
 
-# 运行阶段也保留发布身份：只为 `docker inspect` 能追溯「这个镜像对应哪次构建」，
-# 静态产物与进程都不读它们（运行时的事实来源仍是 env 文件）。
+# 运行阶段保留受控发布身份；server 只按该身份开放生产专属的合成蜜罐，不能用 NODE_ENV 区分预发布与正式。
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
 ARG GEEK_RELEASE_COMMIT=""
@@ -148,6 +147,10 @@ COPY --chown=node:node app/forum/public/published/ /app/app/forum/public/publish
 # forum_sticker_files 与表情包表，库里已有的包和表情不动（migrations/2026-10-sticker-packs.ts）；缺图片不阻塞启动，
 # 但缺了就只会种出一部分表情。清单也决定哪些图片可以走 CDN。加一个包 = 在这个目录里加一个子目录并重新生成清单。
 COPY --chown=node:node app/server/assets/stickers/ /app/app/server/assets/stickers/
+
+# NANO 默认头像（#343，src/config.ts 的 nanoAvatarDir = REPO_ROOT/deploy/gitlab/ui/nano-avatars/<版本>）：和 GitLab 前置用的是同一份图，
+# 按仓库里的相对位置放，只带 8 张图和清单（preview.png 不要）。启动时按 manifest.json 核对字节，缺图或对不上就启动失败。
+COPY --chown=node:node deploy/gitlab/ui/nano-avatars/20261025/manifest.json deploy/gitlab/ui/nano-avatars/20261025/avatar-0*.png /app/deploy/gitlab/ui/nano-avatars/20261025/
 
 # 命名卷挂到 /data 时由镜像目录继承属主，容器内的 node 用户才能写 SQLite 与上传文件。
 RUN mkdir -p /data && chown node:node /data

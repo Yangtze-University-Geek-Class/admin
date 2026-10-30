@@ -93,8 +93,10 @@ export function createAccountProfiles(db: Database.Database, deps: { clock?: () 
     const previous = selectRow.get(accountId) as { avatar_hash: string | null } | undefined;
     setAvatarStmt.run(null, clock(), accountId);
     if (previous?.avatar_hash) {
-      db.prepare("DELETE FROM account_avatars WHERE hash = ? AND NOT EXISTS (SELECT 1 FROM account_profiles WHERE avatar_hash = ?)")
-        .run(previous.avatar_hash, previous.avatar_hash);
+      // 同一张图也可能是某个 GitHub 头像的副本（#343，github_avatar_checks.avatar_hash），还有人用就留着
+      db.prepare(`DELETE FROM account_avatars WHERE hash = ? AND NOT EXISTS (SELECT 1 FROM account_profiles WHERE avatar_hash = ?)
+        AND NOT EXISTS (SELECT 1 FROM github_avatar_checks WHERE avatar_hash = ?)`)
+        .run(previous.avatar_hash, previous.avatar_hash, previous.avatar_hash);
     }
   }
 

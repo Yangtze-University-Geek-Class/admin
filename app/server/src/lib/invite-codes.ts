@@ -6,8 +6,12 @@ import type Database from "better-sqlite3";
  * 邀请码是控制台里的管理员数据（持有 `accounts.invites.manage`），存原文：管理员要看得到、复制得了才能发给人。
  * 比较不分大小写，存小写。只有这个模块读写 `invite_codes`；建号时的兑换在身份模块的登录事务里调 `redeemInvite`。
  */
+/** 兑换时接受的格式：历史上建过 4 位码，兑换一律照收（#319）。 */
 export const INVITE_CODE_PATTERN = "^[A-Za-z0-9_-]{4,40}$";
+/** 新建的邀请码至少 8 位（#319，32^8 约 10^12，和 4 位的 105 万不可比）。 */
+export const INVITE_CODE_CREATE_PATTERN = "^[A-Za-z0-9_-]{8,40}$";
 const CODE_RE = new RegExp(INVITE_CODE_PATTERN);
+const CREATE_CODE_RE = new RegExp(INVITE_CODE_CREATE_PATTERN);
 
 export type InviteCode = {
   id: number; code: string; note: string; max_uses: number | null; used_count: number; expires_at: number | null;
@@ -64,7 +68,7 @@ export function createInviteCodeStore(db: Database.Database, clock: () => number
   /** 新建一个邀请码；同名（不分大小写）已存在时抛 invite_code_taken。 */
   function create(input: InviteInput, actor: string): InviteCode {
     const code = normalizeInviteCode(input.code);
-    if (!code) throw new InviteCodeError("invalid_invite_code", "邀请码只能用 4–40 位字母、数字、- 和 _");
+    if (!code || !CREATE_CODE_RE.test(code)) throw new InviteCodeError("invalid_invite_code", "邀请码只能用 8–40 位字母、数字、- 和 _");
     const now = clock();
     try {
       const { lastInsertRowid } = db.prepare(`INSERT INTO invite_codes(code, note, max_uses, expires_at, disabled, created_by, created_at, updated_at)

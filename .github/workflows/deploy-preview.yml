@@ -549,6 +549,7 @@ jobs:
           MAIL_ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.MAIL_ALIYUN_ACCESS_KEY_SECRET }}
           MAIL_RESEND_API_KEY: ${{ secrets.MAIL_RESEND_API_KEY }}
           MAIL_ALLOWLIST: ${{ secrets.MAIL_ALLOWLIST }}
+          SHIELD_ALLOWLIST: ${{ secrets.SHIELD_ALLOWLIST }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           OIDC_JWKS: ${{ secrets.OIDC_JWKS }}

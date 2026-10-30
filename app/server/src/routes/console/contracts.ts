@@ -1,12 +1,14 @@
 import { choices, integer, object, text, type RouteContracts } from "../../lib/http-contracts.js";
 import { APPLICATION_STATUS_IDS } from "../../lib/roles.js";
 import { FEEDBACK_STATUSES } from "../../lib/feedback-store.js";
-import { INVITE_CODE_PATTERN } from "../../lib/invite-codes.js";
+import { INVITE_CODE_CREATE_PATTERN } from "../../lib/invite-codes.js";
 import { mailTemplateContracts, templateId } from "../../lib/mail/template-contract.js";
 import { FORUM_LIMITS } from "../../lib/forum-rules.js";
+import { DECOY_MAX_MINUTES } from "../../lib/security-decoy.js";
 import {
   competitionFields, competitionFailures, competitionDeleted, consoleCompetitionList, consoleCompetitionResult,
   competitionRoster, signupSettingsResult, signupBody, consoleCompetitionIdParam, scoreEventList, scoreEventResult, scoreEventParam,
+  signupRemoveResult, signupAccountParam,
   scorePreview, scorePreviewQuery,
   consoleSiteState, consoleSiteVersion, sitePublishBody, candidateList, candidateResult, collectResult, candidateQuery, candidateParam, candidateBody,
   rulesView, rulesBody, finalView, redeemResult, prizeCodeBody,
@@ -60,6 +62,14 @@ const inviteFailures = {
   "4xx": object({ error: { type: "string" }, message: { type: "string" }, request_id: { type: "string" }, capability: { type: "string" } }, ["error"], true),
   "5xx": object({ error: { type: "string" }, message: { type: "string" }, request_id: { type: "string" } }, ["error"], true),
 };
+// 访问防护（#333）：封禁列表的一项；失败体与注册邀请码相同（共同错误处理器的扩展字段照样保留）
+const blockView = object({
+  ip: text(64, 2), level: integer(1), blocked_until: integer(0), retry_after: integer(1), reason: text(64, 1), created_at: integer(0), updated_at: integer(0),
+}, ["ip", "level", "blocked_until", "retry_after", "reason", "created_at", "updated_at"]);
+const decoyStatus = object({
+  available: { type: "boolean" }, active: { type: "boolean" }, expires_at: nullableCount,
+  now: integer(0), max_minutes: integer(DECOY_MAX_MINUTES, DECOY_MAX_MINUTES), shield_enabled: { type: "boolean" },
+}, ["available", "active", "expires_at", "now", "max_minutes", "shield_enabled"]);
 // 招新总开关（#284）：updated_at 是最近一次开关的时间，从没动过为 null
 const applySettingsResult = object({ open: { type: "boolean" }, updated_at: nullableCount }, ["open", "updated_at"]);
 const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
@@ -259,6 +269,10 @@ export const consoleContracts: RouteContracts = {
     response: { 200: signupSettingsResult, ...competitionFailures },
   },
   "GET /api/console/competitions/:competition_id/roster": { ...noQuery, ...competitionParams, response: { 200: competitionRoster, ...competitionFailures } },
+  "DELETE /api/console/competitions/:competition_id/signups/:account_id": {
+    ...noQuery, ...signupAccountParam,
+    response: { 200: signupRemoveResult, ...competitionFailures },
+  },
   // 200 是 text/csv 字符串（UTF-8 BOM、CRLF 换行），处理函数先设 Content-Type，Fastify 不会再按 JSON 序列化它；失败仍是 JSON。
   "GET /api/console/competitions/:competition_id/roster.csv": {
     ...noQuery, ...competitionParams,
@@ -300,7 +314,7 @@ export const consoleContracts: RouteContracts = {
   "POST /api/console/invites": {
     ...noQuery,
     body: object({
-      code: { type: "string", pattern: INVITE_CODE_PATTERN }, note: text(100),
+      code: { type: "string", pattern: INVITE_CODE_CREATE_PATTERN }, note: text(100),
       max_uses: { anyOf: [integer(1, 100000), { type: "null" }] }, expires_at: { anyOf: [integer(0), { type: "null" }] },
     }, ["code"]),
     response: { 201: inviteView, ...inviteFailures },
@@ -312,6 +326,18 @@ export const consoleContracts: RouteContracts = {
       expires_at: { anyOf: [integer(0), { type: "null" }] }, disabled: { type: "boolean" },
     }),
     response: { 200: inviteView, ...inviteFailures },
+  },
+  // 访问防护（#333）：生效中的封禁列表；解封把级别归零，没有生效中的封禁回 404
+  "GET /api/console/security/blocks": { ...noQuery, response: { 200: object({ blocks: { type: "array", items: blockView } }, ["blocks"]), ...inviteFailures } },
+  "DELETE /api/console/security/blocks/:ip": { ...noQuery, response: { 200: object({ ip: text(64, 2), cleared: { type: "boolean" } }, ["ip", "cleared"]), ...inviteFailures } },
+  "GET /api/console/security/decoy": { ...noQuery, response: { 200: decoyStatus, ...consoleFailures } },
+  "PUT /api/console/security/decoy": {
+    ...noQuery,
+    body: { oneOf: [
+      object({ enabled: { const: true }, duration_minutes: integer(1, DECOY_MAX_MINUTES) }, ["enabled", "duration_minutes"]),
+      object({ enabled: { const: false } }, ["enabled"]),
+    ] },
+    response: { 200: decoyStatus, ...consoleFailures },
   },
   // #274 新权限体系（CONTRACT-274 §5）
   "GET /api/console/permissions/nodes": {

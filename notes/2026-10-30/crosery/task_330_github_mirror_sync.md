@@ -241,3 +241,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：task/330/github_mirror_sync 推到 GitLab，开 MR 指向 stage，正文按 PULL-REQUESTS 十段，引用 docs/changes/330.json
 - 结果：合并后关 #330，task.mjs finish 330 清理 worktree
+
+## 17:11:09 +08:00 · 收尾 · #330 · PR !77 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 330：删 worktree .claude/worktrees/task-330 与本地分支 task/330/github_mirror_sync
+- 结果：PR 已合并

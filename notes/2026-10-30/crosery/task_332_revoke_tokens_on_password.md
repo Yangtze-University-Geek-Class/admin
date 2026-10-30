@@ -95,3 +95,15 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：按 CODE-REVIEW 逐项核对 dff62c58：吊销与密码写入同一 BEGIN IMMEDIATE 事务；范围只限本账号的其它会话、命令行令牌、已批准未兑换的设备授权与对外授权；provider 会话以站点会话为准不另删；操作记录只记条数；接口证据按测试断言改正为三类请求 200→401
 - 结果：结论通过；全量 pnpm test 196 个文件全部通过（3272 通过、13 跳过），另有 4 个 vitest worker 通信超时不对应用例（load 56–85）；PR 正文契约通过；残留：一个提交的作者邮箱留待合并后的统一改写
+
+## 13:41:22 +08:00 · 合并 · #332 · MR !73 合进 stage（e1683654）
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitLab 合并 MR !73，merge commit，删源分支；合并后手工关闭 #332 并留关闭记录（GitLab 合进 stage 不按 Closes 自动关）
+- 结果：gitlab/stage = e1683654，第二父提交 9ea84e02；#332 closed
+
+## 13:41:25 +08:00 · 收尾 · #332 · PR !73 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 332：删 worktree .claude/worktrees/task-332 与本地分支 task/332/revoke_tokens_on_password
+- 结果：PR 已合并

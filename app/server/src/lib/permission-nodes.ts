@@ -80,6 +80,8 @@ export const PERMISSION_NODES: PermissionNodeDef[] = [
   { node: "gitlab.settings", domain: "gitlab", label: "修改 GitLab 设置", description: "修改同步开关、群组路径、同步间隔" },
   // 系统（#282）：导出的归档含全部账号与密码哈希，不往下发到部门部长，只留给站长的根通配 `*`
   { node: "system.backup", domain: "system", label: "导出系统备份", description: "下载整个系统的数据库快照与站点文件打包" },
+  // 访问防护（#333）：查看被封禁的 IP、手工解封；只留给站长的根通配 `*`，每次查看与解封都写操作记录
+  { node: "security.manage", domain: "system", label: "管理访问封禁", description: "查看被封禁的 IP，手工解封（解封后级别归零）" },
   // 限额（meta）：不参与 allow/deny，取值见 permissions.ts
   { node: "meta.limit.apply.daily", domain: "meta", label: "每天投递上限", description: "每个账号每天（北京时间）最多投递次数，-1 为不限", meta: true },
   { node: "meta.limit.forum.topic.hourly", domain: "meta", label: "每小时发话题上限", description: "每小时最多发起的话题数，-1 为不限", meta: true },
