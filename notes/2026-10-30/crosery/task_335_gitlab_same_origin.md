@@ -74,3 +74,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：move-production-path 首次 apply（run 41022243588）新地址登录页 200，但旧子域名 DNS 已撤、curl 退出码 6，核对判失败并整批回滚；改为退出码 6 记「解析不到（子域名已撤）」算通过，解析得到仍须 301；先写失败用例再修
 - 结果：gitlab-move-path 与 gitlab-cutover 两个测试文件 51 条通过；新增解析不到与解析得到却连不上两条用例
+
+## 15:59:30 +08:00 · 提交 · #335 · 335 声明按收尾先例重写，补文档核对
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：docs/changes/335.json 按 #311 收尾先例重写为本次修复的影响声明；文档核对：docs/ops/DEPLOY.md 不用改——5d126b5 只把同构清单条目改号为 P-0017，DEPLOY 不写条目编号；文档核对：docs/ops/ENVIRONMENTS.md 不用改——同上，环境键与地址没有变化；文档核对：docs/ops/CICD.md 不用改——同上，工作流与步骤没有变化
+- 结果：check-architecture --base origin/main 通过（5 个变更文件，2 个关联节点）
