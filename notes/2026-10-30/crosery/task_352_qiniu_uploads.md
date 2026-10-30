@@ -47,9 +47,3 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 SigV4 实现、头像与论坛图片写对象存储、启动回填幂等、配置全读 env、旧数据回退可读
 - 结果：结论：通过（比赛站点文件未迁，原因见上条）
-
-## 23:25:27 +08:00 · 收尾 · #352 · PR !97 已合并，清理 worktree
-
-- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
-- 做了什么：node scripts/task.mjs finish 352：删 worktree .claude/worktrees/task-352 与本地分支 task/352/qiniu_uploads
-- 结果：PR 已合并

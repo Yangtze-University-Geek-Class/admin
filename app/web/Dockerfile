@@ -82,14 +82,16 @@ ARG GEEK_RELEASE_COMMIT=""
 # 静态资源 CDN 开关（#146）：空 = 同源（默认）；非空只能是 scripts/static-cdn-base.mjs 里的地址，
 # 两个 Vite 配置读它，值不对直接构建失败。只在构建阶段声明，运行阶段不继承。
 ARG STATIC_CDN_BASE=""
+# 源站 STATIC_CDN_ORIGIN（#360）：来自 deploy/env 的环境文件，只在构建阶段声明；开关打开时 Vite 配置与 security-notice 用它核对 STATIC_CDN_BASE。
+ARG STATIC_CDN_ORIGIN=""
 
 # 前端不含环境域名；正式构建额外包含授权提示，预发布不注入。环境身份仍写入 release.json。
 # 入口页的脚本地址必须与开关一致：打开时指向 CDN 上的 assets/、console-assets/，关掉时是站内的 /assets/、/console-assets/。
 RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
- && GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/web build \
- && GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/console build \
- && node scripts/security-notice.mjs --root app/web/dist --entry sites/portal/index.html \
- && node scripts/security-notice.mjs --root app/console/dist --entry sites/console/index.html \
+ && GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/web build \
+ && GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" STATIC_CDN_BASE="$STATIC_CDN_BASE" pnpm --filter @yzgc/console build \
+ && STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" node scripts/security-notice.mjs --root app/web/dist --entry sites/portal/index.html \
+ && STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" node scripts/security-notice.mjs --root app/console/dist --entry sites/console/index.html \
  && test -f app/console/dist/sites/console/index.html \
  && test -f app/web/dist/sdk/competition/v1.js \
  && grep -q "src=\"${STATIC_CDN_BASE:-/}assets/" app/web/dist/sites/portal/index.html \

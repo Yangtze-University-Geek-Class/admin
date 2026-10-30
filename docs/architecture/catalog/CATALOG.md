@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-30 · 自动生成，不手工编辑。
 
-来源摘要：`e76b60e1d6df52a44b5e85aef151c431d6600a9488874b967c4ae690cf481750`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`fee8377512b22ebce3e3e28abf7b5b5a2b56d053a99115b5412441dbb170d756`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -540,7 +540,7 @@
 - 数据与副作用：只读；level/department/titles 来自 perm_members/perm_groups（不再是 role_assignments），permissions 是 effective().allow 加上「只在本部门范围内允许」的节点（SCOPE_AWARE_NODES：users.view、apply.view、apply.review、activity.read、dept.manage），给前端判断导航显隐用，范围由各接口自己再收窄。
 - CONTRACT-274 §5 把旧的 site_role、capabilities、head_of、github 字段整体下线：旧的 people/departments/titles/assignments/catalogue/audit 路由已删，是唯一读过旧形状的地方，确认没有别的调用方。
 
-源码：[app/server/src/routes/console/me.ts:29](../../../app/server/src/routes/console/me.ts#L29) · [app/server/src/lib/permissions.ts:375](../../../app/server/src/lib/permissions.ts#L375) · [app/console/src/pages/Overview.vue:70](../../../app/console/src/pages/Overview.vue#L70) · [app/console/src/lib/session.ts:49](../../../app/console/src/lib/session.ts#L49) · [app/console/src/components/ConsoleShell.vue:21](../../../app/console/src/components/ConsoleShell.vue#L21) · [app/console/src/pages/ConsoleRoot.vue:38](../../../app/console/src/pages/ConsoleRoot.vue#L38)
+源码：[app/console/src/App.vue:10](../../../app/console/src/App.vue#L10) · [app/server/src/routes/console/me.ts:29](../../../app/server/src/routes/console/me.ts#L29) · [app/server/src/lib/permissions.ts:375](../../../app/server/src/lib/permissions.ts#L375) · [app/console/src/pages/Overview.vue:70](../../../app/console/src/pages/Overview.vue#L70) · [app/console/src/lib/session.ts:49](../../../app/console/src/lib/session.ts#L49) · [app/console/src/components/ConsoleShell.vue:21](../../../app/console/src/components/ConsoleShell.vue#L21) · [app/console/src/pages/ConsoleRoot.vue:38](../../../app/console/src/pages/ConsoleRoot.vue#L38)
 
 测试入口：[tests/server/console.test.ts](../../../tests/server/console.test.ts) · [tests/server/signin-methods.test.ts](../../../tests/server/signin-methods.test.ts) · [tests/console/account.test.ts](../../../tests/console/account.test.ts) · [tests/server/permission-expiry.test.ts](../../../tests/server/permission-expiry.test.ts)。生成器未执行这些测试。
 
@@ -1435,7 +1435,7 @@
 - 响应与错误：200 {packs:[{id,name,stickers:[{id,shortcode,label,url}]}]}，只含 enabled=1 的包与表情；url 由 forum-store 的 stickerUrl 决定：构建参数 STATIC_CDN_BASE 打开时仓库内置的表情（按图片哈希在 manifest.json 里）是 CDN 地址，其余（开关关闭、站长在控制台上传的）是同源 /api/forum/stickers/哈希.webp；进程内缓存60秒（cache.cached），控制台改过表情后显式 invalidate 这个 key。
 - 数据与副作用：纯读，不写任何表；短码即表情 id，前端据此渲染正文里的短码。
 
-源码：[app/server/src/routes/forum-api/stickers.ts:11](../../../app/server/src/routes/forum-api/stickers.ts#L11) · [app/server/src/lib/forum-store.ts:237](../../../app/server/src/lib/forum-store.ts#L237) · [app/server/src/lib/migrations/2026-10-forum-v2.ts:19](../../../app/server/src/lib/migrations/2026-10-forum-v2.ts#L19) · [app/forum/app/components/StickerPicker.vue:1](../../../app/forum/app/components/StickerPicker.vue#L1) · [app/forum/app/composables/useStickers.ts:12](../../../app/forum/app/composables/useStickers.ts#L12) · [app/server/src/lib/sticker-manifest.ts:48](../../../app/server/src/lib/sticker-manifest.ts#L48) · [app/server/src/lib/sticker-manifest.ts:91](../../../app/server/src/lib/sticker-manifest.ts#L91) · [app/server/src/lib/static-cdn.ts:9](../../../app/server/src/lib/static-cdn.ts#L9) · [app/server/src/lib/migrations/2026-10-sticker-packs.ts:23](../../../app/server/src/lib/migrations/2026-10-sticker-packs.ts#L23) · [app/server/src/lib/db.ts:22](../../../app/server/src/lib/db.ts#L22) · [app/forum/shared/sticker-url.ts:44](../../../app/forum/shared/sticker-url.ts#L44) · [app/forum/shared/forum-api.ts:3](../../../app/forum/shared/forum-api.ts#L3) · [app/forum/shared/post-markdown.ts:45](../../../app/forum/shared/post-markdown.ts#L45) · [app/forum/app/editor/inline-stickers.ts:3](../../../app/forum/app/editor/inline-stickers.ts#L3) · [app/forum/shared/sticker-css.ts:25](../../../app/forum/shared/sticker-css.ts#L25) · [app/forum/uno.config.ts:128](../../../app/forum/uno.config.ts#L128)
+源码：[app/server/src/routes/forum-api/stickers.ts:11](../../../app/server/src/routes/forum-api/stickers.ts#L11) · [app/server/src/lib/forum-store.ts:237](../../../app/server/src/lib/forum-store.ts#L237) · [app/server/src/lib/migrations/2026-10-forum-v2.ts:19](../../../app/server/src/lib/migrations/2026-10-forum-v2.ts#L19) · [app/forum/app/components/StickerPicker.vue:1](../../../app/forum/app/components/StickerPicker.vue#L1) · [app/forum/app/composables/useStickers.ts:12](../../../app/forum/app/composables/useStickers.ts#L12) · [app/server/src/lib/sticker-manifest.ts:48](../../../app/server/src/lib/sticker-manifest.ts#L48) · [app/server/src/lib/sticker-manifest.ts:91](../../../app/server/src/lib/sticker-manifest.ts#L91) · [app/server/src/lib/static-cdn.ts:25](../../../app/server/src/lib/static-cdn.ts#L25) · [app/server/src/lib/migrations/2026-10-sticker-packs.ts:23](../../../app/server/src/lib/migrations/2026-10-sticker-packs.ts#L23) · [app/server/src/lib/db.ts:22](../../../app/server/src/lib/db.ts#L22) · [app/forum/shared/sticker-url.ts:46](../../../app/forum/shared/sticker-url.ts#L46) · [app/forum/shared/forum-api.ts:3](../../../app/forum/shared/forum-api.ts#L3) · [app/forum/shared/post-markdown.ts:45](../../../app/forum/shared/post-markdown.ts#L45) · [app/forum/app/editor/inline-stickers.ts:3](../../../app/forum/app/editor/inline-stickers.ts#L3) · [app/forum/shared/sticker-css.ts:26](../../../app/forum/shared/sticker-css.ts#L26) · [app/forum/uno.config.ts:128](../../../app/forum/uno.config.ts#L128)
 
 测试入口：[tests/server/forum-v2-endpoints.test.ts](../../../tests/server/forum-v2-endpoints.test.ts) · [tests/server/forum-sticker-cdn.test.ts](../../../tests/server/forum-sticker-cdn.test.ts) · [tests/server/sticker-packs-migration.test.ts](../../../tests/server/sticker-packs-migration.test.ts) · [app/forum/tests/sticker-url.test.ts](../../../app/forum/tests/sticker-url.test.ts) · [app/forum/tests/sticker-size-css.test.ts](../../../app/forum/tests/sticker-size-css.test.ts)。生成器未执行这些测试。
 
@@ -1660,7 +1660,7 @@
 - 数据与副作用：PNG/JPEG/WebP 统一转 webp（sharp quality 85），GIF 若是动图原样保留；按 sha256 内容寻址存 forum_upload_files，去重不重复存；写审计 forum.upload.image。
 - 身份条件副作用：forumViewer()按会话的账号认人创建/刷新forum_users的角色、称号、部门和GitHub头像；getSession()发现会话过期或账号已停用时删除该行会话，不续期。
 
-源码：[app/server/src/routes/forum-api/uploads.ts:51](../../../app/server/src/routes/forum-api/uploads.ts#L51) · [app/server/src/lib/forum-store.ts:237](../../../app/server/src/lib/forum-store.ts#L237) · [app/server/src/lib/object-storage.ts:37](../../../app/server/src/lib/object-storage.ts#L37) · [app/server/src/lib/object-storage-backfill.ts:16](../../../app/server/src/lib/object-storage-backfill.ts#L16) · [app/server/src/routes/forum-api/viewer.ts:55](../../../app/server/src/routes/forum-api/viewer.ts#L55) · [app/server/src/lib/permissions.ts:324](../../../app/server/src/lib/permissions.ts#L324) · [app/server/src/routes/forum-api/index.ts:25](../../../app/server/src/routes/forum-api/index.ts#L25)
+源码：[app/server/src/routes/forum-api/uploads.ts:51](../../../app/server/src/routes/forum-api/uploads.ts#L51) · [app/server/src/lib/forum-store.ts:237](../../../app/server/src/lib/forum-store.ts#L237) · [app/server/src/lib/object-storage.ts:38](../../../app/server/src/lib/object-storage.ts#L38) · [app/server/src/lib/object-storage-backfill.ts:16](../../../app/server/src/lib/object-storage-backfill.ts#L16) · [app/server/src/routes/forum-api/viewer.ts:55](../../../app/server/src/routes/forum-api/viewer.ts#L55) · [app/server/src/lib/permissions.ts:324](../../../app/server/src/lib/permissions.ts#L324) · [app/server/src/routes/forum-api/index.ts:25](../../../app/server/src/routes/forum-api/index.ts#L25)
 
 测试入口：[tests/server/forum-v2-endpoints.test.ts](../../../tests/server/forum-v2-endpoints.test.ts)。生成器未执行这些测试。
 
@@ -2371,7 +2371,7 @@
 - 匿名；只把 /c/<slug> 301 到 /c/<slug>/（Cache-Control: no-store），不查库、不读会话。
 - 和 /c/:slug/* 一样经站点路由的 onSend 带 sandbox CSP、nosniff、Access-Control-Allow-Origin: *，并去掉 Set-Cookie。
 
-源码：[app/server/src/routes/sites/index.ts:57](../../../app/server/src/routes/sites/index.ts#L57) · [app/server/src/routes/sites/index.ts:13](../../../app/server/src/routes/sites/index.ts#L13) · [app/server/src/app.ts:142](../../../app/server/src/app.ts#L142)
+源码：[app/server/src/routes/sites/index.ts:74](../../../app/server/src/routes/sites/index.ts#L74) · [app/server/src/routes/sites/index.ts:16](../../../app/server/src/routes/sites/index.ts#L16) · [app/server/src/app.ts:142](../../../app/server/src/app.ts#L142)
 
 测试入口：[tests/server/competition-site.test.ts](../../../tests/server/competition-site.test.ts)。生成器未执行这些测试。
 
@@ -2389,7 +2389,7 @@
 - 预览：~preview/<version_id>/ 要会话有 competition.site.publish 且版本通过校验，302 到一小时有效的签名地址 ~preview/<version_id>.<到期秒>.<签名>/（HMAC，SESSION_SECRET）；签名地址不看会话、private, no-store；条件不满足一律 404。
 - 只读，不写业务表；读会话时过期会话照常删除。web 容器的 nginx 只把 /c/ 原样转给 server，宿主的站点 CSP 与 sandbox CSP 叠加后同样只允许 'self'。
 
-源码：[app/server/src/routes/sites/index.ts:59](../../../app/server/src/routes/sites/index.ts#L59) · [app/server/src/lib/competition-site-store.ts:42](../../../app/server/src/lib/competition-site-store.ts#L42) · [app/server/src/lib/competition-site-store.ts:14](../../../app/server/src/lib/competition-site-store.ts#L14) · [app/web/sites/portal/components/os/competitions/ContestSite.tsx:8](../../../app/web/sites/portal/components/os/competitions/ContestSite.tsx#L8) · [app/web/Dockerfile:227](../../../app/web/Dockerfile#L227)
+源码：[app/server/src/routes/sites/index.ts:76](../../../app/server/src/routes/sites/index.ts#L76) · [app/server/src/lib/competition-site-store.ts:52](../../../app/server/src/lib/competition-site-store.ts#L52) · [app/server/src/lib/competition-site-store.ts:22](../../../app/server/src/lib/competition-site-store.ts#L22) · [app/web/sites/portal/components/os/competitions/ContestSite.tsx:8](../../../app/web/sites/portal/components/os/competitions/ContestSite.tsx#L8) · [app/web/Dockerfile:229](../../../app/web/Dockerfile#L229) · [app/server/src/routes/sites/index.ts:98](../../../app/server/src/routes/sites/index.ts#L98)
 
 测试入口：[tests/server/competition-site.test.ts](../../../tests/server/competition-site.test.ts) · [tests/tooling/web-nginx.test.ts](../../../tests/tooling/web-nginx.test.ts) · [tests/web/contest-site.test.ts](../../../tests/web/contest-site.test.ts)。生成器未执行这些测试。
 
@@ -2441,7 +2441,7 @@
 - body {version_id, slug?}：第一次发布必须带 slug（^[a-z0-9][a-z0-9-]{2,31}$），之后不能改（409 slug_locked），被别的比赛占用 409 slug_taken；回滚就是发布旧版本。
 - 200 发布状态；写 competition.site.publish 操作记录（带上一个在线版本），清掉这场比赛的公开缓存，门户与公开接口的 site_url 随之出现。
 
-源码：[app/server/src/routes/console/competition-site.ts:78](../../../app/server/src/routes/console/competition-site.ts#L78) · [app/server/src/routes/console/contracts.ts:296](../../../app/server/src/routes/console/contracts.ts#L296) · [app/console/src/pages/competition/SitePanel.vue:65](../../../app/console/src/pages/competition/SitePanel.vue#L65) · [app/console/src/lib/competition-contest.ts:169](../../../app/console/src/lib/competition-contest.ts#L169)
+源码：[app/server/src/routes/console/competition-site.ts:78](../../../app/server/src/routes/console/competition-site.ts#L78) · [app/server/src/routes/console/contracts.ts:296](../../../app/server/src/routes/console/contracts.ts#L296) · [app/console/src/pages/competition/SitePanel.vue:65](../../../app/console/src/pages/competition/SitePanel.vue#L65) · [app/console/src/lib/competition-contest.ts:169](../../../app/console/src/lib/competition-contest.ts#L169) · [app/server/src/lib/competition-site-store.ts:169](../../../app/server/src/lib/competition-site-store.ts#L169) · [app/server/src/lib/object-storage.ts:132](../../../app/server/src/lib/object-storage.ts#L132)
 
 测试入口：[tests/server/competition-site.test.ts](../../../tests/server/competition-site.test.ts) · [tests/console/competition-contest.test.ts](../../../tests/console/competition-contest.test.ts)。生成器未执行这些测试。
 
@@ -2458,7 +2458,7 @@
 - 200 发布状态：在线版本置空，版本与 slug 保留，可以再发布；/c/<slug>/ 回 404。
 - 写 competition.site.unpublish 操作记录并清掉公开缓存；已经发布官网的比赛不能改成外部赛（PATCH 回 409 competition_site_published）。
 
-源码：[app/server/src/routes/console/competition-site.ts:102](../../../app/server/src/routes/console/competition-site.ts#L102) · [app/server/src/routes/console/contracts.ts:297](../../../app/server/src/routes/console/contracts.ts#L297) · [app/console/src/pages/competition/SitePanel.vue:84](../../../app/console/src/pages/competition/SitePanel.vue#L84)
+源码：[app/server/src/routes/console/competition-site.ts:110](../../../app/server/src/routes/console/competition-site.ts#L110) · [app/server/src/routes/console/contracts.ts:297](../../../app/server/src/routes/console/contracts.ts#L297) · [app/console/src/pages/competition/SitePanel.vue:84](../../../app/console/src/pages/competition/SitePanel.vue#L84)
 
 测试入口：[tests/server/competition-site.test.ts](../../../tests/server/competition-site.test.ts) · [tests/console/competition-contest.test.ts](../../../tests/console/competition-contest.test.ts)。生成器未执行这些测试。
 
@@ -3426,7 +3426,7 @@
 - 响应与错误：允许时200 image/webp；无引用、仅隐藏话题引用、非法名或磁盘缺文件都统一404，不泄漏附件存在性；private,no-store,nosniff。
 - 数据与副作用：只读核心数据库引用和server镜像内保留的原始图片；forum site镜像删除published目录，不删除源文件或历史帖子。
 
-源码：[app/server/src/routes/forum-api/markdown.ts:52](../../../app/server/src/routes/forum-api/markdown.ts#L52) · [app/server/src/lib/forum-store.ts:581](../../../app/server/src/lib/forum-store.ts#L581) · [app/server/Dockerfile:143](../../../app/server/Dockerfile#L143) · [app/web/Dockerfile:285](../../../app/web/Dockerfile#L285) · [app/forum/Dockerfile:94](../../../app/forum/Dockerfile#L94)
+源码：[app/server/src/routes/forum-api/markdown.ts:52](../../../app/server/src/routes/forum-api/markdown.ts#L52) · [app/server/src/lib/forum-store.ts:581](../../../app/server/src/lib/forum-store.ts#L581) · [app/server/Dockerfile:141](../../../app/server/Dockerfile#L141) · [app/web/Dockerfile:287](../../../app/web/Dockerfile#L287) · [app/forum/Dockerfile:97](../../../app/forum/Dockerfile#L97)
 
 测试入口：[tests/server/forum-category-visibility.test.ts](../../../tests/server/forum-category-visibility.test.ts) · [tests/tooling/forum-site-content.test.ts](../../../tests/tooling/forum-site-content.test.ts) · [tests/tooling/forum-redirects.test.ts](../../../tests/tooling/forum-redirects.test.ts)。生成器未执行这些测试。
 
@@ -3477,7 +3477,7 @@
 - 响应与错误：开启只收 enabled:true 和1至60整数 duration_minutes；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。
 - 数据与副作用：设置与 security.decoy.update 同事务；审计失败整体回滚。页面确认后才写，失败保留错误，离页取消未答复的确认。关闭不解封。
 
-源码：[app/server/src/routes/console/security.ts:24](../../../app/server/src/routes/console/security.ts#L24) · [app/server/src/routes/console/contracts.ts:334](../../../app/server/src/routes/console/contracts.ts#L334) · [app/server/src/lib/security-decoy.ts:42](../../../app/server/src/lib/security-decoy.ts#L42) · [app/server/src/config.ts:163](../../../app/server/src/config.ts#L163) · [app/console/src/pages/Security.vue:48](../../../app/console/src/pages/Security.vue#L48)
+源码：[app/server/src/routes/console/security.ts:24](../../../app/server/src/routes/console/security.ts#L24) · [app/server/src/routes/console/contracts.ts:334](../../../app/server/src/routes/console/contracts.ts#L334) · [app/server/src/lib/security-decoy.ts:42](../../../app/server/src/lib/security-decoy.ts#L42) · [app/server/src/config.ts:165](../../../app/server/src/config.ts#L165) · [app/console/src/pages/Security.vue:48](../../../app/console/src/pages/Security.vue#L48)
 
 测试入口：[tests/server/security-decoy.test.ts](../../../tests/server/security-decoy.test.ts)。生成器未执行这些测试。
 

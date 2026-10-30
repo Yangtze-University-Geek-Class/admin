@@ -32,6 +32,24 @@ export function readS3Config(env = process.env) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const MAX_BYTES = 10 * 1024 * 1024;
+/** 单次请求超时的上限（毫秒）。大文件从海外上传到 cn-south-1 时 15 秒不够，见 uploadTimeoutMs。 */
+export const MAX_TIMEOUT_MS = 180000;
+/** 上传按这个速率估算需要的时间：每秒 16 KiB 以上才算正常；超过就放宽超时，而不是白白重试（#360）。 */
+export const UPLOAD_BYTES_PER_SECOND = 16 * 1024;
+/**
+ * PUT 的超时 = 基础超时与「15 秒 + 体积 / 每秒字节数」取大者，最多 MAX_TIMEOUT_MS。
+ * 覆盖的是响应头加响应体；GET 与 HEAD 仍用基础超时。
+ */
+export function uploadTimeoutMs(baseMs, bytes) {
+  return Math.min(MAX_TIMEOUT_MS, Math.max(baseMs, 15000 + Math.ceil((bytes * 1000) / UPLOAD_BYTES_PER_SECOND)));
+}
+/** 上传并发数：环境变量 STATIC_CDN_UPLOAD_CONCURRENCY，未设为 4，允许 1–8 的整数。 */
+export function readUploadConcurrency(env = process.env) {
+  const raw = (env.STATIC_CDN_UPLOAD_CONCURRENCY ?? '').trim();
+  if (!raw) return 4;
+  if (!/^[1-8]$/.test(raw)) throw new Error('STATIC_CDN_UPLOAD_CONCURRENCY 必须是 1–8 的整数');
+  return Number(raw);
+}
 const hmac = (key, text) => createHmac('sha256', key).update(text).digest();
 
 export function assertStorageKey(key) {
@@ -146,7 +164,7 @@ export function createS3Storage(config, {
 } = {}) {
   validateConfig(config, allowLoopbackForTests);
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 3 || !Number.isFinite(backoff) || backoff < 0 || backoff > 5000
-    || !Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new Error('S3 重试或超时参数超限');
+    || !Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) throw new Error('S3 重试或超时参数超限');
   const locks = new Map();
   const request = async (method, key, { body, headers, retry = true } = {}) => {
     assertStorageKey(key);
@@ -155,7 +173,8 @@ export function createS3Storage(config, {
       const signed = signS3Request(config, method, key, { body, headers, now: now() });
       let result;
       try {
-        result = await boundedRequest(signed.url, { method, headers: signed.headers, ...(body ? { body } : {}) }, { fetch, timeoutMs });
+        const requestTimeout = method === 'PUT' && body ? uploadTimeoutMs(timeoutMs, body.length) : timeoutMs;
+        result = await boundedRequest(signed.url, { method, headers: signed.headers, ...(body ? { body } : {}) }, { fetch, timeoutMs: requestTimeout });
       } catch (error) {
         // 泄漏保护：不回显可能含凭据的 fetch 异常或响应体。
         if (error.message.includes('重定向') || error.message.includes('长度')) throw new Error(`S3 ${method} ${key}：${error.message}`);

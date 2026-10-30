@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { expect, it } from "vitest";
 import { buildApp, type BuildAppOptions } from "../../app/server/src/app";
 import { testConfig } from "./helpers";
@@ -5,7 +6,7 @@ import { testConfig } from "./helpers";
 it("observes the real root, nested and generated routes without listening or changing responses", async () => {
   const routes: { method: string | string[]; url: string; schema?: unknown }[] = [];
   const config = testConfig({
-    NODE_ENV: "test", PUBLIC_ORIGIN: "https://example.test", DB_PATH: ":memory:",
+    NODE_ENV: "test", PUBLIC_ORIGIN: "https://example.test", STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ":memory:",
     SESSION_SECRET: "isolated-core-test-secret-at-least-32",
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
     OAUTH_CLIENT_ID: "test-client", OAUTH_CLIENT_SECRET: "test-only-placeholder",

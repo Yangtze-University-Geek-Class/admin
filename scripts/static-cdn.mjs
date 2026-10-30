@@ -6,9 +6,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from './static-cdn-base.mjs';
+import { STATIC_CDN_PREFIX, staticCdnOrigin, staticCdnPrefixURL } from './static-cdn-base.mjs';
 import { buildManifest, manifestProblem } from './sticker-manifest.mjs';
-import { assertObjectContent, assertStorageKey, boundedRequest, CDN_MIME_TYPES as MIME, createS3Storage, readS3Config, sha256 } from './static-cdn-s3.mjs';
+import { assertObjectContent, assertStorageKey, boundedRequest, CDN_MIME_TYPES as MIME, createS3Storage, readS3Config, readUploadConcurrency, sha256 } from './static-cdn-s3.mjs';
 import { contentIndex, createReleaseManifest, manifestText, readEntry, releaseKey, validateReleaseManifest } from './static-cdn-manifest.mjs';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -180,11 +180,11 @@ export function collectGuideImages(root = REPO_ROOT) {
 }
 
 /** 只收 topics.json 实际引用的旧帖 CDN 图片；文件名与内容 SHA-256 前 16 位必须一致。 */
-export function collectPublishedImages(root = REPO_ROOT) {
+export function collectPublishedImages(root = REPO_ROOT, base = staticCdnPrefixURL()) {
   const topicsFile = join(root, PUBLISHED_IMAGES.topics);
   if (!existsSync(topicsFile)) return [];
   const topics = JSON.parse(readFileSync(topicsFile, 'utf8'));
-  const prefix = `${STATIC_CDN_BASE}${PUBLISHED_IMAGES.mount}`;
+  const prefix = `${base}${PUBLISHED_IMAGES.mount}`;
   const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const names = new Set();
   for (const topic of topics.topics ?? []) {
@@ -268,10 +268,10 @@ function assertHttpsOrigin(value, name) {
 }
 
 /**
- * 决定这次构建的 STATIC_CDN_BASE。
+ * 决定这次构建的 STATIC_CDN_BASE（CDN 源站来自 env 的 STATIC_CDN_ORIGIN）。
  * @returns {Promise<{ base: string, notices: string[], warnings: string[] }>}
  */
-export async function decide({ config, token, origin, fetch = globalThis.fetch, storage, timeoutMs = 15000 }) {
+export async function decide({ config, token, origin, fetch = globalThis.fetch, storage, timeoutMs = 15000, env = process.env }) {
   const site = assertHttpsOrigin(origin, '--origin');
   if (site.pathname !== '/') throw new Error('--origin 只写协议和域名');
   if (token) throw new Error('七牛 token 已退役');
@@ -286,13 +286,14 @@ export async function decide({ config, token, origin, fetch = globalThis.fetch, 
   } catch {
     return { base: '', notices, warnings: ['读不到首页 CSP：这次同源构建，不上传 CDN。'] };
   }
-  const missing = CSP_DIRECTIVES.filter(directive => !cspAllows(csp, directive, STATIC_CDN_BASE));
+  const base = staticCdnPrefixURL(env);
+  const missing = CSP_DIRECTIVES.filter(directive => !cspAllows(csp, directive, base));
   if (missing.length) return { base: '', notices, warnings: [`CSP 未在 ${missing.join('、')} 放行新 CDN：这次同源构建。`] };
   const adapter = storage ?? createS3Storage(config, { fetch, timeoutMs });
   const probe = await adapter.request('HEAD', `${STATIC_CDN_PREFIX}assets/cdn-probe-00000000.js`);
   if (![200, 404].includes(probe.status)) throw new Error(`S3 认证探测失败：HTTP ${probe.status}`);
-  notices.push(`CSP 已放行 ${STATIC_CDN_BASE}，S3 端点已响应；启用 CDN。`);
-  return { base: STATIC_CDN_BASE, notices, warnings };
+  notices.push(`CSP 已放行 ${base}，S3 端点已响应；启用 CDN。`);
+  return { base, notices, warnings };
 }
 
 // ── 上传与核对 ────────────────────────────────────────────────────────────────
@@ -309,7 +310,7 @@ export async function uploadOne(entry, { config, storage, fetch = globalThis.fet
 }
 
 /** HEAD、完整 GET SHA-256 与 Range 都走公开入口，不发送 S3 Authorization。ETag 只当作不透明值。 */
-export async function verifyOne(entry, { referer, publicOrigin = STATIC_CDN_ORIGIN, fetch = globalThis.fetch, attempts = 3, backoff = 300, timeoutMs = 15000 }) {
+export async function verifyOne(entry, { referer, publicOrigin = staticCdnOrigin(), fetch = globalThis.fetch, attempts = 3, backoff = 300, timeoutMs = 15000 }) {
   assertStorageKey(entry.key);
   const site = assertHttpsOrigin(referer, '--referer');
   if (site.pathname !== '/') throw new Error('--referer 必须是环境根地址');
@@ -370,7 +371,7 @@ async function pool(items, size, task) {
   return results;
 }
 
-export async function uploadAll(entries, { config, storage, referer, publicOrigin = STATIC_CDN_ORIGIN, fetch = globalThis.fetch, concurrency = 4, log = console.error, backoff = 300, timeoutMs = 15000, manifest }) {
+export async function uploadAll(entries, { config, storage, referer, publicOrigin = staticCdnOrigin(), fetch = globalThis.fetch, concurrency = 4, log = console.error, backoff = 300, timeoutMs = 15000, manifest }) {
   if (assertHttpsOrigin(referer, '--referer').pathname !== '/') throw new Error('--referer 必须是环境根地址');
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error('concurrency 必须在 1–8');
   const keys = new Set();
@@ -426,10 +427,10 @@ export function parseArgs(argv) {
   return options;
 }
 
-export async function main(argv, { env = process.env, stdout = process.stdout, log = console.error, fetch = globalThis.fetch, storage, publicOrigin = STATIC_CDN_ORIGIN, sourceRoot = REPO_ROOT } = {}) {
+export async function main(argv, { env = process.env, stdout = process.stdout, log = console.error, fetch = globalThis.fetch, storage, publicOrigin, sourceRoot = REPO_ROOT } = {}) {
   const options = parseArgs(argv);
   if (options.command === 'decide') {
-    const result = await decide({ config: readS3Config(env), origin: options.origin, fetch, storage });
+    const result = await decide({ config: readS3Config(env), origin: options.origin, fetch, storage, env });
     for (const line of [...result.notices, ...result.warnings]) log(line);
     stdout.write(`base=${result.base}\n`);
     return result;
@@ -440,7 +441,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
     try { parsed = JSON.parse(text); } catch { throw new Error('清单 JSON 无效'); }
     const manifest = validateReleaseManifest(parsed);
     for (const object of manifest.objects) {
-      const problem = await verifyOne({ key: object.key, sha256: object.sha256, size: object.bytes, mime: object.content_type }, { referer: options.referer, publicOrigin, fetch });
+      const problem = await verifyOne({ key: object.key, sha256: object.sha256, size: object.bytes, mime: object.content_type }, { referer: options.referer, publicOrigin: publicOrigin ?? staticCdnOrigin(env), fetch });
       if (problem) throw new Error(problem);
     }
     log(`恢复追溯核对：${manifest.environment}/${manifest.commit}，${manifest.objects.length} 个对象完整 GET SHA-256 一致`);
@@ -448,7 +449,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
   }
   const config = options.command === 'upload' ? readS3Config(env) : undefined;
   if (options.command === 'upload' && !config && !storage) throw new Error('没有完整 S3 凭据：不能上传');
-  const entries = [...collect({ web: options.web, forum: options.forum }), ...collectGuideImages(sourceRoot), ...collectStickers(sourceRoot), ...collectPublishedImages(sourceRoot)];
+  const entries = [...collect({ web: options.web, forum: options.forum }), ...collectGuideImages(sourceRoot), ...collectStickers(sourceRoot), ...collectPublishedImages(sourceRoot, staticCdnPrefixURL(env))];
   let manifest;
   const outputs = [options.manifest, options.contentIndex].filter(Boolean).map(file => resolve(file));
   if (new Set(outputs).size !== outputs.length || outputs.some(file => existsSync(file))) throw new Error('本地清单或私有索引已存在，拒绝覆盖');
@@ -465,7 +466,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
     log(`共 ${entries.length} 个文件，全部在 ${STATIC_CDN_PREFIX} 下；内置表情图片 ${entries.filter(entry => entry.key.startsWith(`${STATIC_CDN_PREFIX}${STICKERS.mount}`)).length} 个对象`);
     return { entries, manifest };
   }
-  const result = await uploadAll(entries, { config, storage, referer: options.referer, publicOrigin, fetch, log, manifest });
+  const result = await uploadAll(entries, { config, storage, referer: options.referer, publicOrigin: publicOrigin ?? staticCdnOrigin(env), concurrency: readUploadConcurrency(env), fetch, log, manifest });
   writeOutputs();
   return result;
 }

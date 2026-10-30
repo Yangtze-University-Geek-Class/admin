@@ -1,7 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseStaticCdnBase } from "./lib/static-cdn.js";
+import { parseStaticCdnBase, parseStaticCdnOrigin } from "./lib/static-cdn.js";
 import { isHttpsOrigin, type ObjectStorageConfig } from "./lib/object-storage.js";
 import { parseShieldAllowlist } from "./lib/shield.js";
 import { NANO_AVATAR_VERSION } from "./lib/nano-avatar.js";
@@ -65,6 +65,8 @@ export function createConfig(env: Record<string, string | undefined>) {
   // 发信商要同时有密钥和发件地址才算配置好；阿里云的两把密钥要么都有、要么都没有。地址格式在 lib/mail/mailer.ts 里核对。
   const mail = (() => {
     const value = (key: string) => (env[key] ?? "").trim();
+    // 图片地址前缀没写时由 CDN 源站派生（#360）；源站也没有就留空，发信模块启动时核对并失败关闭，不发没有图片地址的信。
+    const cdnOrigin = parseStaticCdnOrigin(env.STATIC_CDN_ORIGIN);
     const aliyunKeyId = value("MAIL_ALIYUN_ACCESS_KEY_ID");
     const aliyunKeySecret = value("MAIL_ALIYUN_ACCESS_KEY_SECRET");
     if (Boolean(aliyunKeyId) !== Boolean(aliyunKeySecret)) throw new Error("MAIL_ALIYUN_ACCESS_KEY_ID and MAIL_ALIYUN_ACCESS_KEY_SECRET must be set together");
@@ -77,7 +79,7 @@ export function createConfig(env: Record<string, string | undefined>) {
     return {
       aliyun: aliyunKeyId && aliyunFrom ? { accessKeyId: aliyunKeyId, accessKeySecret: aliyunKeySecret, from: aliyunFrom } : null,
       resend: resendKey && resendFrom ? { apiKey: resendKey, from: resendFrom } : null,
-      assetBase: value("MAIL_ASSET_BASE") || "https://cdn.crosery.com/yzgc/mail/v1/",
+      assetBase: value("MAIL_ASSET_BASE") || (cdnOrigin ? `${cdnOrigin}/yzgc/mail/v1/` : ""),
       // 空 = 信里不请人直接回复，改成指向官网意见箱
       replyTo: value("MAIL_REPLY_TO") || null,
       recipients: recipients as "all" | "allowlist",
@@ -180,8 +182,8 @@ export function createConfig(env: Record<string, string | undefined>) {
     // NANO 默认头像（#343）：和 GitLab 前置是同一份文件，镜像按仓库里的相对位置带上（app/server/Dockerfile），不按环境换目录。
     nanoAvatarDir: resolve(REPO_ROOT, "deploy/gitlab/ui/nano-avatars", NANO_AVATAR_VERSION),
     // 静态资源 CDN 开关（#146、#286）：构建参数 STATIC_CDN_BASE 由 app/server/Dockerfile 带进运行环境，空 = 同源；
-    // 非空只能是 lib/static-cdn.ts 里的那个常量，别的值直接让启动失败。不是 deploy/env/*.env 里的项，部署不用配。
-    staticCdnBase: parseStaticCdnBase(env.STATIC_CDN_BASE),
+    // 非空只能是 STATIC_CDN_ORIGIN 派生的 yzgc/static/site/ 地址，别的值直接让启动失败。STATIC_CDN_ORIGIN 来自 deploy/env 的环境文件（#360）。
+    staticCdnBase: parseStaticCdnBase(env.STATIC_CDN_BASE, env.STATIC_CDN_ORIGIN),
     // 用户文件对象存储（#352）：头像与论坛图片写七牛；三项密钥都留空 = 关闭，文件照旧存在库里。
     objectStorage: parseObjectStorage(env),
     turnstile: { siteKey: env.TURNSTILE_SITE_KEY ?? "", secretKey: env.TURNSTILE_SECRET_KEY ?? "" },

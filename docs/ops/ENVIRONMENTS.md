@@ -2,7 +2,7 @@
 
 > 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
 
-状态：`current` · 更新：2026-10-30 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
+状态：`current` · 更新：2026-10-31 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
 
 ## 可见性规则
 
@@ -55,6 +55,7 @@
 | `MAIL_ALIYUN_FROM` | 密钥·留空，阿里云发信时必填 | 环境密钥：阿里云邮件推送的发信地址，不带显示名，由 CI/CD 注入 | 同左 |
 | `MAIL_RESEND_FROM` | 密钥·留空，Resend 发信时必填 | 环境密钥：Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`，由 CI/CD 注入 | 同左 |
 | `MAIL_ASSET_BASE` | 可见 | `https://cdn.crosery.com/yzgc/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
+| `STATIC_CDN_ORIGIN` | 可见 | 静态资源 CDN 的源站（https，不带路径、尾斜杠和查询），三份 env 的值相同。构建开关 `STATIC_CDN_BASE` 与服务端只接受由它派生的 `<源站>/yzgc/static/site/`；开关打开而缺它时失败关闭（#360） | 同左 |
 | `MAIL_REPLY_TO` | 可见·留空 | 空 = 信里不带 Reply-To，改请对方到官网意见箱留言；要填就写一个不带显示名的地址 | 空 |
 | `MAIL_RECIPIENTS` | 可见 | `all`，沿用接管前设置 | `all`，沿用接管前设置 |
 | `GITLAB_SYNC` | 可见 | `off`，完整旧身份对账后才开启 | `on` 是独立实例的目标配置；切换前不能部署旧令牌或复用旧绑定 |
@@ -83,7 +84,7 @@
 | `BACKUP_S3_ENDPOINT` | 可见 | `https://s3.cn-south-1.qiniucs.com` | 同左 |
 | `BACKUP_S3_REGION` | 可见 | `cn-south-1` | 同左 |
 | `BACKUP_S3_PREFIX` | 可见 | `yzgc/production/backup/` | `yzgc/preview/backup/`，不能为空 |
-| `BACKUP_S3_BUCKET` / `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` / `BACKUP_GPG_RECIPIENT` | 密钥·留空 | CI/CD 注入 | 同左 |
+| `BACKUP_S3_BUCKET` / `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` / `BACKUP_GPG_RECIPIENT` / `BACKUP_GPG_PUBLIC_KEY` | 密钥·留空 | CI/CD 注入 | 同左 |
 
 **一个环境只有一个域名**（2026-09-23 决定）：官网、管理端、论坛共用 `PUBLIC_ORIGIN`，按 URL 路径区分——`/admin`、`/admin/…`、`/console`、`/console/…`、`/signin`、`/device`、`/account`、`/authorize` 进管理端 SPA，`/forum/…` 进论坛，`/oidc/…`（对外授权，#270）进 server，其余进官网。旧的按站点分域名字段 `SITE_ORIGIN`、`ADMIN_HOST`、`PORTAL_HOST`、`FORUM_HOST` 已退役，校验器把模板里任何契约外的字段判为失败，防止重新长出第二份域名配置。
 
@@ -144,7 +145,8 @@ CI/manual 都用生成的 `-F <配置> yzgc-target`，同一配置供 SSH/SCP：
 | `GITLAB_API_TOKEN` | 自建 GitLab 管理员的个人访问令牌（`api` 范围，#270）；`GITLAB_SYNC=on` 时必填，`off`、`dry-run` 可以留空 |
 | `BACKUP_S3_BUCKET` | 七牛私有备份桶名（只放在 secret 里，仓库和文档不写）。渲染进目标机 `.env.<环境>` |
 | `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY` | 备份专用的七牛 AccessKey，GitLab、平台与部署前数据库快照共用，每个环境一套 |
-| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人。目标机钥匙环里必须有对应公钥；缺失时部署前快照失败关闭，不迁移 |
+| `BACKUP_GPG_PUBLIC_KEY` | 备份加密的公钥：ASCII 公钥块的 base64（一行）。有它时部署前快照用 `--recipient-file` 加密，目标机钥匙环不需要这把钥匙，优先于 `BACKUP_GPG_RECIPIENT`。 |
+| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人（只在没有 `BACKUP_GPG_PUBLIC_KEY` 时用）。目标机钥匙环里必须有对应公钥；两项都空时跳过迁移前备份并告警，缺钥匙时快照失败关闭，不迁移 |
 
 Turnstile 两项是可选的一对（`scripts/deployment-environment.mjs` 的 `OPTIONAL_SECRET_PAIR`）：**都为空＝明确关闭**，渲染时写空值并提示；只填一项仍拒绝渲染；除 Turnstile 和下面的发信密钥外，其余密钥一律必填。关闭时服务端 `middleware/turnstile.ts` 不校验人机验证，公开的投递、反馈、邀请只靠工作量证明（`POW_DIFFICULTY`）、蜜罐字段与限流；遗留风险是批量脚本的成本只剩计算量，要开启时在 Cloudflare 建站点后把两项同时配进环境级 secrets 并重新部署。首次上线（2026-09-25）两个环境都关闭。
 

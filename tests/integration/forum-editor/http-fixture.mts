@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+// 源站从环境文件读（三份相同），不在测试里写死。
+const CDN_ORIGIN = /^STATIC_CDN_ORIGIN=(.+)$/m.exec(readFileSync(new URL('../../../deploy/env/.env.production', import.meta.url), 'utf8'))?.[1]?.trim() ?? ''
 // Test transport only. Requests use buildApp's real routes and in-memory SQLite.
 import type { buildApp as BuildApp } from '../../../app/server/src/app'
 import type { ServiceOverrides } from '../../../app/server/src/services'
@@ -84,7 +87,7 @@ try {
   origin = `http://127.0.0.1:${address.port}`
   app = await buildApp({
     config: testConfig({
-      NODE_ENV: 'test', PUBLIC_ORIGIN: origin, DB_PATH: ':memory:',
+      NODE_ENV: 'test', PUBLIC_ORIGIN: origin, STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
       SESSION_SECRET: randomBytes(32).toString('hex'),
       ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       OAUTH_CLIENT_ID: 'forum-editor-fixture', OAUTH_CLIENT_SECRET: randomBytes(32).toString('hex'),

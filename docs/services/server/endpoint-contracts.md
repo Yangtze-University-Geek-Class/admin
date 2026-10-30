@@ -2,7 +2,7 @@
 
 > 按真实 handler、授权执行点与存储实现核对现有接口；关联目录中的业务用例，区分存量人工说明与已挂载的机器响应契约。
 
-状态：`current` · 更新：2026-10-30
+状态：`current` · 更新：2026-10-31
 
 ## 口径与共同边界
 
@@ -1394,7 +1394,7 @@ SQLite读写：无。源码：[app/forum/server/routes/api/local-forum/assets/[h
 
 | 方法与路径 | 谁 | 成功与副作用 |
 |---|---|---|
-| `GET /c/:slug`、`GET /c/:slug/*` · `flow:competition.site.redirect`、`flow:competition.site.serve` | 匿名 | 读已发布版本的文件：目录回 `index.html`，没有扩展名但有同名目录的 301 到带 `/` 的地址；比赛下线、不是内部赛、没发布或文件不存在 404。所有响应带 sandbox CSP（见 [SECURITY](../../architecture/SECURITY.md)「比赛官网」）、`Cache-Control`（HTML 是 `no-cache`，换版本后浏览器不会拿旧页面去找已经不在的资源文件；其它文件 `public, max-age=300`）、`nosniff`、`Access-Control-Allow-Origin: *`，去掉 `Set-Cookie`。 |
+| `GET /c/:slug`、`GET /c/:slug/*` · `flow:competition.site.redirect`、`flow:competition.site.serve` | 匿名 | 读已发布版本的文件：目录回 `index.html`，没有扩展名但有同名目录的 301 到带 `/` 的地址；比赛下线、不是内部赛、没发布或文件不存在 404。所有响应带 sandbox CSP（见 [SECURITY](../../architecture/SECURITY.md)「比赛官网」）、`Cache-Control`（HTML 是 `no-cache`，换版本后浏览器不会拿旧页面去找已经不在的资源文件；其它文件 `public, max-age=300`）、`nosniff`、`Access-Control-Allow-Origin: *`，去掉 `Set-Cookie`。对象存储开启（#360）时，已上线版本的 js、css、图片、字体 302 到 `OBJECT_STORAGE_PUBLIC_BASE` + `OBJECT_STORAGE_PREFIX` + `contest-sites/<比赛>/<路径>`，HTML 与预览仍由本站回；发布时同步上传，再发布时删掉上一版多出的文件。 |
 | `GET /c/:slug/~preview/:version_id/*` · `flow:competition.site.serve` | 会话有 `competition.site.publish` | 302 到 `~preview/<version_id>.<到期秒>.<签名>/`，签名覆盖比赛、版本与到期时间（HMAC，`SESSION_SECRET`），一小时有效；签名地址不看会话（sandbox 页面的子资源请求不带 cookie），`Cache-Control: private, no-store`。没有权限、版本没通过或不属于这场比赛一律 404，不暴露版本在不在。没有 slug 的比赛用比赛 id 预览。 |
 | `GET /api/console/competitions/:competition_id/site` · `flow:competition.site.read` | `competition.manage` 或 `competition.site.publish` | 200 `{ slug, live_version_id, site_url, versions }`；每个版本带 `report`（逐条原因）、上传人、`preview_url`（只有通过的版本有）。 |
 | `POST /api/console/competitions/:competition_id/site/versions` · `flow:competition.site.upload` | `competition.site.publish` + step-up，10 次/分钟 | 请求体是 zip（`Content-Type: application/zip`，上限 20MB）；201 版本行；校验不通过 422 `{ error: "site_rejected", report }`，只留一条 `rejected` 版本、不落文件；外部赛 409 `competition_not_internal`。校验规则见 [lib/site-package.ts](../../../app/server/src/lib/site-package.ts)：≤500 个文件、解压后 ≤50MB、扩展名白名单、拒绝绝对路径、`..`、空段、以 `.` 开头的段、符号链接、加密、zip64、重复文件，解压时按声明大小封顶并核对 CRC；根目录要有 `index.html` 与 `yzgc-site.json`（`name`、`version`、`sdk`，可选的 `competition_id` 要等于这场比赛）。写 `competition.site.upload`。 |

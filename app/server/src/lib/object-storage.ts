@@ -4,7 +4,7 @@ import { createHash, createHmac } from "node:crypto";
  * 用户文件的对象存储（#352）：头像与论坛图片写到七牛的 S3 兼容端点，path-style 与 SigV4，服务 `s3`。
  * 只用 fetch 与 node:crypto，不加依赖。桶是公开读的：读取走公开地址、不签名；写入与探测存在才签名。
  * 端点、区域、桶、前缀与公开地址全部来自环境（lib 之外的 config.ts 解析），这里不写死任何一个。
- * 对象键只允许 `a-z0-9._-` 与 `/`，不含 `..`，所以路径不需要再做百分号编码。
+ * 对象键只允许 `A-Za-z0-9._-` 与 `/`，不含 `..`，都是 RFC 3986 的非保留字符，所以路径不需要再做百分号编码。
  */
 
 export type ObjectStorageConfig = {
@@ -22,7 +22,8 @@ export type ObjectStorageConfig = {
 export type ObjectFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 const TIMEOUT_MS = 15_000;
-const KEY_PATTERN = /^[a-z0-9][a-z0-9._/-]{0,199}$/;
+// 比赛官网的站点文件名保留原样（Vite 产物带大写字母与下划线），最长 14 + 36 + 200 个字符，留足余量。
+const KEY_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._/-]{0,399}$/;
 const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 /** 头像的对象键：账号头像与论坛头像内容相同时同一个键（按内容寻址，两边都是 WebP）。 */
@@ -93,7 +94,7 @@ export function createObjectStorage(config: ObjectStorageConfig | null, deps: { 
     return `${config.publicBase}${config.prefix}${checkedKey(key)}`;
   }
 
-  async function request(method: "HEAD" | "PUT", key: string, body: Buffer | null, contentType: string | null): Promise<Response> {
+  async function request(method: "HEAD" | "PUT" | "DELETE", key: string, body: Buffer | null, contentType: string | null): Promise<Response> {
     const config = open();
     // path-style：端点 / 桶 / 前缀 + 对象键；前缀与对象键都只含签名不需要编码的字符。
     const url = new URL(`${config.endpoint}/${config.bucket}/${config.prefix}${checkedKey(key)}`);
@@ -127,6 +128,19 @@ export function createObjectStorage(config: ObjectStorageConfig | null, deps: { 
     return publicUrl(key);
   }
 
+  /** 删除一个对象：200、204 与 404 都算删掉了（重复删、本来就没有都无所谓）；别的状态抛错。 */
+  async function remove(key: string): Promise<void> {
+    const response = await request("DELETE", key, null, null);
+    await response.arrayBuffer().catch(() => undefined);
+    if (response.ok || response.status === 404) return;
+    throw new Error(`对象存储 DELETE 失败（HTTP ${response.status}）`);
+  }
+
+  /** 公开地址的前缀（基址 + 桶内前缀，以 / 结尾）；没开启时为 null。比赛官网的 CSP 与重定向都从这里取。 */
+  function publicPrefix(): string | null {
+    return config ? `${config.publicBase}${config.prefix}` : null;
+  }
+
   /** 先 HEAD，没有才 PUT：内容寻址的对象重复上传、回填重跑都不会再传一遍。 */
   async function ensure(key: string, body: Buffer, contentType: string): Promise<string> {
     if (!(await exists(key))) await put(key, body, contentType);
@@ -144,6 +158,6 @@ export function createObjectStorage(config: ObjectStorageConfig | null, deps: { 
     return data.length <= maxBytes ? data : null;
   }
 
-  return { enabled, publicUrl, exists, put, ensure, readPublic };
+  return { enabled, publicUrl, publicPrefix, exists, put, ensure, remove, readPublic };
 }
 export type ObjectStorage = ReturnType<typeof createObjectStorage>;

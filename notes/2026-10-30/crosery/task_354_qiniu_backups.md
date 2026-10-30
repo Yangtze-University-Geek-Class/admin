@@ -49,9 +49,3 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对备份目标全读 env、保留策略日 7 周 4 月 3、迁移前快照、未配置时不挡部署
 - 结果：结论：通过（加密公钥待配，见上条）
-
-## 23:27:06 +08:00 · 收尾 · #354 · PR !99 已合并，清理 worktree
-
-- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
-- 做了什么：node scripts/task.mjs finish 354：删 worktree .claude/worktrees/task-354 与本地分支 task/354/qiniu_backups
-- 结果：PR 已合并

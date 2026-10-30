@@ -52,6 +52,7 @@ jobs:
       image_repository: ${{ steps.identity.outputs.image_repository }}
       release_version: ${{ steps.identity.outputs.release_version }}
       origin: ${{ steps.identity.outputs.origin }}
+      static_cdn_origin: ${{ steps.identity.outputs.static_cdn_origin }}
       stack_root: ${{ steps.identity.outputs.stack_root }}
       incoming_dir: ${{ steps.identity.outputs.incoming_dir }}
       runtime_env_file: ${{ steps.identity.outputs.runtime_env_file }}
@@ -120,6 +121,7 @@ jobs:
             echo "image_repository=$(jq -r '.imageRepository' "$RUNNER_TEMP/plan.json")"
             echo "release_version=$(jq -r '.releaseVersion' "$RUNNER_TEMP/plan.json")"
             echo "origin=$(jq -r '.origin' "$RUNNER_TEMP/plan.json")"
+            echo "static_cdn_origin=$(node --input-type=module -e "import { readFileSync } from 'node:fs'; import { parseEnvFileText } from './scripts/deployment-environment.mjs'; process.stdout.write(parseEnvFileText(readFileSync('deploy/env/.env.preview', 'utf8')).get('STATIC_CDN_ORIGIN') ?? '')")"
             echo "stack_root=$(jq -r '.stackRoot' "$RUNNER_TEMP/plan.json")"
             echo "incoming_dir=$(jq -r '.incomingDir' "$RUNNER_TEMP/plan.json")"
             echo "runtime_env_file=$(jq -r '.runtimeEnvFile' "$RUNNER_TEMP/plan.json")"
@@ -187,6 +189,7 @@ jobs:
           STATIC_CDN_S3_REGION: cn-south-1
           STATIC_CDN_S3_BUCKET: ${{ vars.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
+          STATIC_CDN_ORIGIN: ${{ needs.plan.outputs.static_cdn_origin }}
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
           set -eu
@@ -270,6 +273,7 @@ jobs:
           GEEK_RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
           GEEK_RELEASE_COMMIT: ${{ needs.plan.outputs.commit }}
           STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}
+          STATIC_CDN_ORIGIN: ${{ needs.plan.outputs.static_cdn_origin }}
         run: |
           set -eu
           for service in server web forum; do
@@ -279,7 +283,7 @@ jobs:
               *) mirror_args=(--build-arg NPM_REGISTRY="$NPM_REGISTRY") ;;
             esac
             # 静态资源 CDN 开关（#146、#286）：web、forum 的前端产物，以及 server 里内置表情图片的地址都跟着它；空 = 同源。
-            cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE")
+            cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" --build-arg STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN")
             case "$service" in
               web) context_args=(--build-context cli=dist/cli) ;;
               *) context_args=() ;;
@@ -380,6 +384,7 @@ jobs:
       actions: read
     env:
       STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}
+      STATIC_CDN_ORIGIN: ${{ needs.plan.outputs.static_cdn_origin }}
     steps:
       - name: 开关状态
         shell: bash
@@ -427,6 +432,7 @@ jobs:
           STATIC_CDN_S3_REGION: cn-south-1
           STATIC_CDN_S3_BUCKET: ${{ vars.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
+          STATIC_CDN_UPLOAD_CONCURRENCY: '4'
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
           set -eu
@@ -558,6 +564,7 @@ jobs:
           BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
           BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
           BACKUP_GPG_RECIPIENT: ${{ secrets.BACKUP_GPG_RECIPIENT }}
+          BACKUP_GPG_PUBLIC_KEY: ${{ secrets.BACKUP_GPG_PUBLIC_KEY }}
           OBJECT_STORAGE_BUCKET: ${{ vars.OBJECT_STORAGE_BUCKET }}
           OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY_ID }}
           OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_ACCESS_KEY }}

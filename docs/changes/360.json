@@ -1,0 +1,490 @@
+{
+  "version": 1,
+  "issue": 360,
+  "kind": "business",
+  "summary": "控制台与论坛冷启动提速：控制台确认框与提示条异步加载、logo 压到显示尺寸；论坛去掉手动分包，首屏预加载 JS 减少；备份加密支持 BACKUP_GPG_PUBLIC_KEY，不依赖目标机钥匙环。接口路径与权限不变。 比赛官网在对象存储开启时，已上线版本的静态资源 302 到 CDN，宿主 CSP 只放行本环境的一段前缀（#360）。接口路径与权限不变。",
+  "applications": [
+    "console",
+    "forum",
+    "server",
+    "web"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "identity",
+    "organization",
+    "permissions",
+    "platform",
+    "recruitment"
+  ],
+  "flows": [
+    "flow:console.identity",
+    "flow:audit.console.activity.list",
+    "flow:competition.console.list",
+    "flow:feedback.console.list",
+    "flow:application.list",
+    "flow:identity.callback",
+    "flow:competition.site.publish",
+    "flow:competition.site.serve",
+    "flow:forum.stickers.list"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "比赛官网在对象存储开启时，已上线版本的 js、css、图片、字体改为 302 到 CDN；页面、接口路径与可操作性不变。控制台根组件把确认框与提示条改为异步加载（渲染结果相同），论坛只改构建分块，logo 只换成同尺寸的压缩图。",
+      "evidence": [
+        "app/server/src/routes/sites/index.ts",
+        "app/console/src/App.vue",
+        "app/forum/nuxt.config.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "比赛官网发布路由先按既有规则校验，再同步对象存储，失败返回 503 且不切换版本；静态路由对已上线版本的资源 302，CSP 按环境前缀生成。部署脚本的备份加密收件人改为可选公钥。",
+      "evidence": [
+        "app/server/src/routes/console/competition-site.ts",
+        "app/server/src/routes/sites/index.ts",
+        "app/server/src/lib/competition-site-store.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "发布仍要 competition.site.publish 与 step-up，权限检查位于发布路由原处；资源 302 与公开站点一样匿名，预览仍用会话换签名地址、不跳 CDN。备份公钥只在部署机的临时文件里使用，不进入接口。",
+      "evidence": [
+        "app/server/src/routes/console/competition-site.ts",
+        "app/server/src/routes/sites/index.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "表结构不变。每场比赛在本地站点目录新增 cdn.json，记录已同步到对象存储的文件与版本；对象存储里的文件随发布覆盖、随再发布删除。迁移前快照的加密方式变化，快照内容和上传位置不变。",
+      "evidence": [
+        "app/server/src/lib/competition-site-store.ts",
+        "scripts/deploy-manual.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "没有新增软件包（package.json 与锁文件不变）。对象存储客户端只新增 remove 与公开前缀读取；备份加密新增可选环境密钥 BACKUP_GPG_PUBLIC_KEY，由三条部署工作流渲染；比赛官网的 CDN 前缀由 OBJECT_STORAGE_PUBLIC_BASE 与 OBJECT_STORAGE_PREFIX 算出。",
+      "evidence": [
+        "app/server/src/lib/object-storage.ts",
+        "scripts/deployment-environment.mjs",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/render-arch-caddy.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "控制台与论坛服务合同补了冷启动分包与 logo 尺寸；环境、CI、备份与部署运维文档补了 BACKUP_GPG_PUBLIC_KEY 与比赛官网的 CDN 上线顺序；安全、接口与服务合同改写了比赛官网 CSP 的规则。",
+      "evidence": [
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md",
+        "docs/ops/BACKUP.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/DEPLOY.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增比赛官网 CDN 的 API 用例（发布、302、再发布删旧文件、未配置时同源）与边缘生成器的前缀用例；部署脚本的公钥加密用例；控制台 Vitest 与论坛 nuxt generate 的核对。论坛与控制台的浏览器验收、真实 CDN 与真实边缘 Caddy 未做，列为未验证。",
+      "evidence": [
+        "tests/server/competition-site-cdn.test.ts",
+        "tests/tooling/arch-caddy.test.ts",
+        "tests/tooling/deploy-scripts.test.ts",
+        "tests/tooling/deployment-environment.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "前端产物变小（控制台入口 JS 与论坛首屏 JS 都减少，logo 体积减小）；部署新增一个可选密钥；比赛官网资源在对象存储开启后走 CDN。两者未设对应键时行为与之前一致。",
+      "evidence": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "scripts/deploy-manual.mjs",
+        "scripts/render-arch-caddy.mjs",
+        "app/console/src/assets/logo.png",
+        "app/forum/public/logo.png"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/console/src/App.vue",
+        "app/console/src/assets/logo.png",
+        "deploy/hotfix/windows.json",
+        "scripts/privacy-exceptions.json"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:console",
+        "domain:organization",
+        "domain:recruitment",
+        "domain:audit",
+        "domain:feedback",
+        "domain:competitions"
+      ],
+      "reason": "控制台根组件（挂载路由、确认框与提示条）与品牌图标压缩；根组件归属各业务域，页面、接口与权限都不变。"
+    },
+    {
+      "paths": [
+        "app/forum/nuxt.config.ts",
+        "app/forum/public/logo.png"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "application:forum",
+        "flow:forum.state"
+      ],
+      "reason": "论坛构建分块策略与头部 logo 图片；不改动论坛的数据流与接口。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "scripts/deployment-environment.mjs",
+        "scripts/deploy-manual.mjs",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:platform.public_config"
+      ],
+      "reason": "备份加密公钥的环境键、密钥名单与三条工作流的渲染映射。"
+    },
+    {
+      "paths": [
+        "deploy/remote/deploy-stack.sh",
+        "deploy/remote/platform-archive.sh",
+        "deploy/gitlab/backup.sh"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "迁移前快照、平台归档与 GitLab 备份的加密收件人规则。"
+    },
+    {
+      "paths": [
+        "tests/tooling/deploy-scripts.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "迁移前备份的公钥加密用例。"
+    },
+    {
+      "paths": [
+        "docs/services/console/README.md",
+        "docs/services/forum/README.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md",
+        "docs/ops/BACKUP.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/services/console/README.md",
+        "document:docs/services/forum/README.md"
+      ],
+      "reason": "服务合同与运维文档随本 PR 的改动同步。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "organization"
+      ],
+      "nodes": [
+        "flow:console.identity"
+      ],
+      "reason": "项目目录随 App.vue 的 console.identity 流程证据重新生成（ownership.json 文本插入一条证据，其余为生成物）；不手改生成内容。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/competition-site-store.ts",
+        "app/server/src/routes/console/competition-site.ts",
+        "app/server/src/routes/sites/index.ts",
+        "tests/server/competition-site-cdn.test.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.site.publish",
+        "flow:competition.site.serve"
+      ],
+      "reason": "比赛官网发布时先校验、再同步到对象存储，在线静态资源 302 到 CDN；未开启对象存储时仍同源返回。页面与接口路径、权限节点不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/object-storage.ts",
+        "app/server/src/services.ts"
+      ],
+      "domains": [
+        "competitions",
+        "forum",
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "domain:forum",
+        "domain:identity",
+        "domain:platform",
+        "flow:competition.site.publish"
+      ],
+      "reason": "对象存储客户端同时服务比赛官网（上传、删除上一版多出的文件）、论坛图片（#352）与账号头像。本次只新增 remove 与公开前缀读取，既有键、签名与上传路径不变。"
+    },
+    {
+      "paths": [
+        "scripts/render-arch-caddy.mjs",
+        "tests/tooling/arch-caddy.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "边缘配置生成器：比赛官网的对象存储前缀按环境并入宿主 CSP，两个环境各只放行自己的一段；未设对象存储的环境策略与原来一字不差。"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/README.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "document:docs/architecture/SECURITY.md",
+        "document:docs/architecture/API.md",
+        "document:docs/services/server/endpoint-contracts.md",
+        "document:docs/services/server/README.md"
+      ],
+      "reason": "记录比赛官网资源上 CDN 的 CSP 规则（只放行一段前缀）与 302 行为，并说明为什么不是整个 CDN 域名。"
+    },
+    {
+      "paths": [
+        "docs/ops/DEPLOY.md",
+        "docs/ops/STORAGE-CDN.md",
+        "tests/tooling/arch-target.test.ts",
+        "tests/tooling/deploy-manual.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/ops/DEPLOY.md",
+        "domain:platform"
+      ],
+      "reason": "部署运维文档补边缘与对象存储的上线顺序；手工部署名单带上对象存储密钥（cherry-pick 自 7e879b55），两份测试随之对齐。"
+    },
+    {
+      "paths": [
+        "app/server/src/config.ts",
+        "app/server/src/lib/static-cdn.ts",
+        "app/server/Dockerfile",
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        "tests/server/helpers.ts",
+        "tests/server/abuse-shield.test.ts",
+        "tests/server/applications.test.ts",
+        "tests/server/catalog.test.ts",
+        "tests/server/competitions.test.ts",
+        "tests/server/configuration.test.ts",
+        "tests/server/core.test.ts",
+        "tests/server/forum-sticker-cdn.test.ts",
+        "tests/server/forum.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/mail-outbox.test.ts",
+        "tests/server/session-cleanup.test.ts",
+        "tests/server/upstream-errors.test.ts",
+        "tests/tooling/static-cdn-parity.test.ts",
+        "tests/tooling/static-cdn-switch.test.ts",
+        "tests/tooling/static-cdn-http.test.ts",
+        "docs/services/server/mail.md",
+        "tests/integration/forum-editor/http-fixture.mts",
+        "tests/e2e/competitions.spec.mts",
+        "tests/e2e/application-cancelled.spec.mts"
+      ],
+      "domains": [
+        "platform",
+        "forum",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:platform",
+        "domain:forum",
+        "flow:forum.stickers.list",
+        "document:docs/services/server/README.md",
+        "document:docs/ops/ENVIRONMENTS.md"
+      ],
+      "reason": "服务端静态资源 CDN 的源站改从环境文件 STATIC_CDN_ORIGIN 读取（compose 传入），构建开关只接受由它派生的地址，开关打开而缺源站就启动失败；Dockerfile 只查形状。邮件图片地址前缀缺省时由同一源站派生，两者都没有则发信模块启动失败。测试夹具改从 deploy/env/.env.production 读取源站，不再在测试里写死域名。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "scripts/deployment-environment.mjs",
+        "scripts/static-cdn-base.mjs",
+        "scripts/static-cdn-base.d.mts",
+        "scripts/static-cdn.mjs",
+        "scripts/sticker-manifest.mjs",
+        "scripts/forum-migration/export-published.mjs",
+        "scripts/privacy-exceptions.json",
+        "tests/static-cdn-fixture.ts",
+        "tests/static-cdn-hooks.ts",
+        "tests/tooling/static-cdn.test.ts",
+        "tests/tooling/sticker-manifest.test.ts",
+        "tests/tooling/forum-sticker-url-parity.test.ts",
+        "tests/tooling/forum-csp.test.ts",
+        "tests/tooling/static-cdn-workflows.test.ts",
+        "tests/tooling/static-cdn-http.test.ts",
+        "tests/web/portal-promo.test.ts",
+        "docs/ops/CDN.md",
+        "scripts/catalog/collect.ts"
+      ],
+      "domains": [
+        "platform",
+        "forum",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:forum.stickers.list",
+        "document:docs/ops/ENVIRONMENTS.md",
+        "domain:platform"
+      ],
+      "reason": "STATIC_CDN_ORIGIN 作为契约字段进入三份 env 模板（键集一致，值相同，https 源校验）；scripts/static-cdn-base.mjs 不再写死源站，新增 staticCdnOrigin 与 staticCdnPrefixURL，staticCdnBase 非空时必须等于派生值；上传、清单与旧帖脚本改用它。门禁脚本只删除已经不再命中的旧域名放行，没有放宽次数。 项目目录采集只用虚构配置，补一个虚构的 STATIC_CDN_ORIGIN，不改目录内容。"
+    },
+    {
+      "paths": [
+        "app/forum/shared/sticker-url.ts",
+        "app/forum/shared/sticker-css.ts",
+        "app/forum/nuxt.config.ts",
+        "app/forum/vitest.config.ts",
+        "app/forum/Dockerfile",
+        "app/web/Dockerfile",
+        "vitest.config.ts",
+        "docs/services/web/README.md",
+        "docs/services/forum/README.md"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "application:forum",
+        "flow:forum.stickers.list",
+        "document:docs/services/forum/README.md",
+        "document:docs/services/web/README.md"
+      ],
+      "reason": "论坛表情白名单的 CDN 前缀由构建参数 STATIC_CDN_BASE 经 nuxt.config.ts 的 define 注入（开关为空时前缀为空，CDN 地址不参与识别，样式选择器也不加），旧 Garage 前缀保留兼容；构建阶段多接收 STATIC_CDN_ORIGIN 供核对。测试配置注入同一个派生值。"
+    },
+    {
+      "paths": [
+        ".github/workflows/ci.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "docker-cdn 任务不再写死 STATIC_CDN_BASE：第一步从 deploy/env/.env.dev 读 STATIC_CDN_ORIGIN，派生后写进 GITHUB_ENV，构建与 plan 沿用；仍是无凭据的构建，不接触 secret，不上传。"
+    },
+    {
+      "paths": [
+        "scripts/static-cdn-s3.mjs",
+        "tests/tooling/static-cdn-s3.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "静态资源 CDN 上传：PUT 超时随体积放宽（上限 180 秒），并发数由 STATIC_CDN_UPLOAD_CONCURRENCY 决定（默认 4，1–8）；网络错误重试前的退避已有并由用例覆盖。"
+    },
+    {
+      "paths": [
+        "AGENTS.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "仓库入口规范：§3 与 §5 补充「配置不写死、值来自环境文件」的规则，不改任何已有门禁。"
+    }
+  ],
+  "documents": [
+    "docs/services/console/README.md",
+    "docs/services/forum/README.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/CICD.md",
+    "docs/ops/BACKUP.md",
+    "docs/architecture/SECURITY.md",
+    "docs/architecture/API.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/server/README.md",
+    "docs/ops/DEPLOY.md",
+    "docs/services/web/README.md",
+    "docs/services/server/mail.md",
+    "docs/ops/CDN.md"
+  ],
+  "tests": [
+    "tests/tooling/deploy-scripts.test.ts",
+    "tests/tooling/deployment-environment.test.ts",
+    "tests/server/competition-site-cdn.test.ts",
+    "tests/tooling/arch-caddy.test.ts"
+  ],
+  "compatibility": "两个公钥与收件人都留空时，迁移前备份仍跳过并告警，其它行为与之前一致。BACKUP_GPG_PUBLIC_KEY 留空时三个脚本走原来的 BACKUP_GPG_RECIPIENT 钥匙环路径。前端的接口、路由与页面结构不变，只改分块与图片文件。",
+  "migration": "不改表结构，不改写数据。需要公钥加密的环境由所有者在 GitHub 环境 production、preview 设置 BACKUP_GPG_PUBLIC_KEY；未设置时行为与之前一致。",
+  "rollback": "回退本 PR 即可。前端回退后控制台与论坛回到原来的分块与 logo 文件，没有数据影响；BACKUP_GPG_PUBLIC_KEY 清空即关闭公钥加密路径。"
+}

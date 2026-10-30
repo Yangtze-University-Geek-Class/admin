@@ -1,10 +1,11 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { REPO_ROOT, createConfig } from '../../app/server/src/config';
 import { setExclusiveGroupMembership } from '../../app/server/src/lib/permissions';
-import { STATIC_CDN_BASE, parseStaticCdnBase } from '../../app/server/src/lib/static-cdn';
+import { parseStaticCdnBase } from '../../app/server/src/lib/static-cdn';
 import { createStickerUrl, loadStickerManifest, stickerSameOriginUrl } from '../../app/server/src/lib/sticker-manifest';
 import { accountIdOf, grantPermNode, signIn, testApp } from './helpers';
 
@@ -16,6 +17,11 @@ const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp')
  * 打开时仓库内置的表情（内容哈希在 app/server/assets/stickers/manifest.json 里）走 CDN 绝对地址，
  * 站长在控制台上传的、CDN 上没有的仍走同源。
  */
+/** 测试夹具：CDN 源站与由它派生的开关值（夹具可以写字面量；生产代码只从 STATIC_CDN_ORIGIN 读）。 */
+const STATIC_CDN_ORIGIN = CDN_ORIGIN;
+const STATIC_CDN_BASE = `${STATIC_CDN_ORIGIN}/yzgc/static/site/`;
+const CDN_ON = { STATIC_CDN_BASE, STATIC_CDN_ORIGIN };
+
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
 afterEach(async () => { for (const context of contexts.splice(0)) await context.close(); });
 
@@ -74,7 +80,7 @@ describe('开关关闭（不传 STATIC_CDN_BASE）：图片地址全是同源', 
 
 describe('开关打开（STATIC_CDN_BASE 等于固定值）：内置表情走 CDN，站长上传的仍同源', () => {
   it('每个内置表情的地址是 STATIC_CDN_BASE 加清单里的对象键，库里的哈希与清单一致', async () => {
-    const { app } = await setup({ STATIC_CDN_BASE });
+    const { app } = await setup(CDN_ON);
     const stickers = await publicStickers(app);
     expect(stickers.length).toBe(builtIn.length);
     const rows = app.services.storage.db.prepare('SELECT id, file_hash FROM forum_stickers').all() as { id: string; file_hash: string }[];
@@ -86,7 +92,7 @@ describe('开关打开（STATIC_CDN_BASE 等于固定值）：内置表情走 CD
   });
 
   it('站长在控制台上传的表情不在清单里，CDN 上没有它，地址仍是同源；内置的照样走 CDN', async () => {
-    const { app, as, member } = await setup({ STATIC_CDN_BASE });
+    const { app, as, member } = await setup(CDN_ON);
     member('cdn-mod', 9921);
     grantPermNode(app, accountIdOf(app, 'cdn-mod'), 'forum.sticker.manage');
     const png = await sharp({ create: { width: 12, height: 12, channels: 3, background: '#33aa77' } }).png().toBuffer();
@@ -110,7 +116,7 @@ describe('开关打开（STATIC_CDN_BASE 等于固定值）：内置表情走 CD
   });
 
   it('表情回应里的图片地址同样走 CDN', async () => {
-    const { app, member } = await setup({ STATIC_CDN_BASE });
+    const { app, member } = await setup(CDN_ON);
     const wave = builtIn.find(item => item.shortcode === 'yugc-wave')!;
     const res = await app.inject({ method: 'PUT', url: '/api/forum/posts/body-73/reactions/yugc-wave', headers: member('cdn-mem', 9922) });
     expect(res.statusCode).toBe(200);
@@ -120,7 +126,7 @@ describe('开关打开（STATIC_CDN_BASE 等于固定值）：内置表情走 CD
 
 describe('同源图片路由（开关关闭时的唯一来源，开关打开时的退路）', () => {
   it('每张内置图片都取得到，一年 immutable，不带 Content-Encoding，字节与清单一致', async () => {
-    const { app } = await setup({ STATIC_CDN_BASE });
+    const { app } = await setup(CDN_ON);
     for (const item of builtIn) {
       const res = await app.inject(stickerSameOriginUrl(item.sha256));
       expect(res.statusCode, item.shortcode).toBe(200);
@@ -172,21 +178,23 @@ describe('createStickerUrl', () => {
 
 describe('STATIC_CDN_BASE 的读法', () => {
   const env = {
-    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
+    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder',
   };
 
   it('未设置、空串、纯空白都是同源（空）；等于固定值才打开；别的值一律拒绝', () => {
     expect(createConfig(env).staticCdnBase).toBe('');
-    expect(parseStaticCdnBase(undefined)).toBe('');
-    expect(parseStaticCdnBase('')).toBe('');
-    expect(parseStaticCdnBase('  ')).toBe('');
-    expect(parseStaticCdnBase(STATIC_CDN_BASE)).toBe(STATIC_CDN_BASE);
-    expect(createConfig({ ...env, STATIC_CDN_BASE }).staticCdnBase).toBe(STATIC_CDN_BASE);
-    for (const wrong of ['https://cdn-old.example.test/', 'https://cdn.crosery.com/yzgc/static/site', 'http://cdn.crosery.com/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
-      expect(() => parseStaticCdnBase(wrong), wrong).toThrow(/只能为空或/);
-      expect(() => createConfig({ ...env, STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
+    expect(parseStaticCdnBase(undefined, undefined)).toBe('');
+    expect(parseStaticCdnBase('', STATIC_CDN_ORIGIN)).toBe('');
+    expect(parseStaticCdnBase('  ', undefined)).toBe('');
+    expect(parseStaticCdnBase(STATIC_CDN_BASE, STATIC_CDN_ORIGIN)).toBe(STATIC_CDN_BASE);
+    expect(() => parseStaticCdnBase(STATIC_CDN_BASE, undefined), '开关打开、没有源站').toThrow(/STATIC_CDN_ORIGIN/);
+    expect(() => parseStaticCdnBase(STATIC_CDN_BASE, `${STATIC_CDN_ORIGIN}/`), '源站带尾斜杠').toThrow(/STATIC_CDN_ORIGIN/);
+    expect(createConfig({ ...env, ...CDN_ON }).staticCdnBase).toBe(STATIC_CDN_BASE);
+    for (const wrong of ['https://cdn-old.example.test/yzgc/static/site/', `${STATIC_CDN_ORIGIN}/yzgc/static/site`, `http://${new URL(STATIC_CDN_ORIGIN).host}/yzgc/static/site/`, 'https://evil.example/yzgc/static/site/', `${STATIC_CDN_ORIGIN}/yzgc/promo/`]) {
+      expect(() => parseStaticCdnBase(wrong, STATIC_CDN_ORIGIN), wrong).toThrow(/只能为空或/);
+      expect(() => createConfig({ ...env, ...CDN_ON, STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
     }
   });
 });

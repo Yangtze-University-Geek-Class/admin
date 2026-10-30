@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+// 源站从环境文件读（三份相同），不在测试里写死。
+const CDN_ORIGIN = /^STATIC_CDN_ORIGIN=(.+)$/m.exec(readFileSync(new URL('../../deploy/env/.env.production', import.meta.url), 'utf8'))?.[1]?.trim() ?? ''
 import { expect, test } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { buildApp } from "../../app/server/src/app.js";
@@ -21,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   const app = await buildApp({
     config: {
       ...createConfig({
-        NODE_ENV: "test", PUBLIC_ORIGIN: CONSOLE_ORIGIN, DB_PATH: ":memory:",
+        NODE_ENV: "test", PUBLIC_ORIGIN: CONSOLE_ORIGIN, STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ":memory:",
         SESSION_SECRET: "isolated-competition-test-secret-at-least-32",
         ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
         OAUTH_CLIENT_ID: "test-client", OAUTH_CLIENT_SECRET: "test-only-placeholder", POW_DIFFICULTY: "0",

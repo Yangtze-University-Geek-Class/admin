@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { createHash, randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
@@ -265,10 +266,10 @@ describe('recipients and configuration', () => {
 
   it('boots with every mail variable empty and refuses half-configured or malformed ones', async () => {
     const env = {
-      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
       ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder',
     };
-    expect(createConfig(env).mail).toEqual({ aliyun: null, resend: null, assetBase: 'https://cdn.crosery.com/yzgc/mail/v1/', replyTo: null, recipients: 'allowlist', allowlist: [] });
+    expect(createConfig(env).mail).toEqual({ aliyun: null, resend: null, assetBase: `${CDN_ORIGIN}/yzgc/mail/v1/`, replyTo: null, recipients: 'allowlist', allowlist: [] });
     expect(() => createConfig({ ...env, MAIL_ALIYUN_ACCESS_KEY_ID: 'only-the-id' })).toThrow('must be set together');
     expect(() => createConfig({ ...env, MAIL_ALIYUN_ACCESS_KEY_SECRET: 'only-the-secret' })).toThrow('must be set together');
     expect(() => createConfig({ ...env, MAIL_RECIPIENTS: 'everyone' })).toThrow('MAIL_RECIPIENTS');
@@ -409,7 +410,7 @@ describe('sending: provider order, retries and the final state', () => {
   it('sends right after enqueue when the worker runs in the server process, and stops with the app', async () => {
     const fetch = fakeFetch();
     const config = testConfig({
-      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
       ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
       ...BOTH,
     });
@@ -436,7 +437,7 @@ describe('many letters at once (#169)', () => {
       return fake.fetch(url, init);
     }) as unknown as typeof fake.fetch;
     const config = testConfig({
-      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
       ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',
       ...BOTH,
     });

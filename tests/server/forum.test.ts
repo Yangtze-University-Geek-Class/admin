@@ -12,7 +12,7 @@ import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
 import { setExclusiveGroupMembership } from '../../app/server/src/lib/permissions';
 import { FORUM_FIXTURE_DIR, accountIdOf, activityRows, grantPermGroup, grantPermNode, signIn, testApp } from './helpers';
-import { STATIC_CDN_BASE } from '../../app/server/src/lib/static-cdn';
+import { STATIC_CDN_BASE } from '../static-cdn-fixture';
 
 /** sharp 是 app/server 的依赖，根目录没有它；从 server 包里取，用来生成真实的测试图片和核对输出。 */
 const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp') as typeof import('../../app/server/node_modules/sharp');

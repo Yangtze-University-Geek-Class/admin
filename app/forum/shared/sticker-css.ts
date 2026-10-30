@@ -15,11 +15,12 @@ export const STICKER_INLINE_SIZE = '2em'
  * A rendered post puts `.forum-sticker` on the picture (shared/post-markdown.ts). The composer keeps Milkdown's plain
  * <img>, so it is told apart by its address, which is one of the two forms shared/sticker-url.ts lets through.
  */
+// CDN 前缀为空（开关关闭）时不加这一条：[src^=""] 会匹配所有图片。
 export const STICKER_SELECTORS = [
   '.forum-sticker',
   `.milkdown img[src^="${STICKER_SAME_ORIGIN_PREFIX}"]`,
-  `.milkdown img[src^="${STICKER_CDN_PREFIX}"]`,
-] as const
+  ...(STICKER_CDN_PREFIX ? [`.milkdown img[src^="${STICKER_CDN_PREFIX}"]`] : []),
+]
 
 /** The one rule for a sticker sitting between words; uno.config.ts puts it in FORUM_THEME_CSS. */
 export function stickerInlineCss(): string {

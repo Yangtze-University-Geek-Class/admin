@@ -98,13 +98,11 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
 
 # 静态资源 CDN 开关（#146、#286）：与 web、forum 镜像是同一个构建参数 STATIC_CDN_BASE，决定内置表情图片的地址
 # 指向 CDN 还是同源（src/lib/sticker-manifest.ts 的 createStickerUrl）。空 = 同源；非空只能逐字等于下面这个值。
-# 规则的唯一来源是 scripts/static-cdn-base.mjs，本镜像的构建上下文里没有 scripts/，所以这里和 src/lib/static-cdn.ts
-# 各写一份，tests/tooling/static-cdn-parity.test.ts 核对一致。放在编译之后：开关变化不让依赖层和编译层失效。
+# 这里只查形状（空，或 https 主机加 /yzgc/static/site/）：域名来自环境文件的 STATIC_CDN_ORIGIN，构建阶段不写死它，
+# 逐字核对由运行时的 src/lib/static-cdn.ts（parseStaticCdnBase）完成。放在编译之后：开关变化不让依赖层和编译层失效。
 ARG STATIC_CDN_BASE=""
-RUN case "$STATIC_CDN_BASE" in \
-      "" | "https://cdn.crosery.com/yzgc/static/site/") ;; \
-      *) echo "STATIC_CDN_BASE 只能为空或 https://cdn.crosery.com/yzgc/static/site/" >&2; exit 1 ;; \
-    esac
+RUN printf '%s\n' "$STATIC_CDN_BASE" | grep -Eq '^(https://[A-Za-z0-9][A-Za-z0-9.-]*/yzgc/static/site/)?$' \
+ || { echo "STATIC_CDN_BASE 只能为空或 https://<主机>/yzgc/static/site/" >&2; exit 1; }
 
 # ── 运行阶段：Node 22、非 root、保持仓库布局 ──────────────────
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime

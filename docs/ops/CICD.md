@@ -2,7 +2,7 @@
 
 > 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` / `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。
 
-状态：`accepted` · 更新：2026-10-30 · 适用：现有发布流程及 GitHub admin#270 的 Arch 迁移接管。源码入口为 `.github/workflows/ci.yml`、两条 `deploy-*.yml`、架构/issue/分支/测试报告工作流；CI 与部署使用 GitHub 托管 runner。历史已发布状态、保护配置与本 task 未提交变更分别取证，不把旧 actionlint/CI 通过记录推广到本次候选。
+状态：`accepted` · 更新：2026-10-31 · 适用：现有发布流程及 GitHub admin#270 的 Arch 迁移接管。源码入口为 `.github/workflows/ci.yml`、两条 `deploy-*.yml`、架构/issue/分支/测试报告工作流；CI 与部署使用 GitHub 托管 runner。历史已发布状态、保护配置与本 task 未提交变更分别取证，不把旧 actionlint/CI 通过记录推广到本次候选。
 
 发布规则以 [RELEASES](../conventions/RELEASES.md) 为唯一完整规范，分支模型以 [BRANCHING](../conventions/BRANCHING.md) 为准，环境字段契约见 [ENVIRONMENTS](ENVIRONMENTS.md)。
 
@@ -121,7 +121,8 @@
 | `GITLAB_API_TOKEN` | 自建 GitLab 管理员的 `api` 令牌（#270）：只在 `GITLAB_SYNC=on` 时必填 |
 | `BACKUP_S3_BUCKET` | 七牛私有备份桶名（只放在 secret 里，仓库和文档不写）。渲染进目标机 `.env.<环境>` |
 | `BACKUP_S3_ACCESS_KEY_ID`、`BACKUP_S3_SECRET_ACCESS_KEY` | 备份专用的七牛 AccessKey，GitLab、平台与部署前数据库快照共用，每个环境一套；非密项 `BACKUP_S3_ENDPOINT`、`BACKUP_S3_REGION`、`BACKUP_S3_PREFIX` 在 `deploy/env/` 里预填 |
-| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人。目标机钥匙环里必须有对应公钥；缺失时部署前快照失败关闭，不迁移 |
+| `BACKUP_GPG_PUBLIC_KEY` | 备份加密的公钥（ASCII 公钥块的 base64）。部署流水线渲染进 `.env.<环境>`，部署前快照用它加密，不依赖目标机钥匙环。 |
+| `BACKUP_GPG_RECIPIENT` | 备份加密的 GPG 收件人，只在没有 `BACKUP_GPG_PUBLIC_KEY` 时用，要求目标机钥匙环里有对应公钥。 |
 | `CDN_MIRROR_ACCESS_KEY_ID`、`CDN_MIRROR_SECRET_ACCESS_KEY` | Garage 只读密钥 `backup-reader`（#309）：不进运行时 env，部署后的宿主层步骤经 stdin 写入目标机 `/etc/cdn-mirror/env`，供 CDN 镜像拉取五个桶；没配时沿用目标机已有的凭据 |
 
 两条部署工作流的「渲染运行时 env 文件」步骤把上表从 `OAUTH_CLIENT_ID` 起的每一项按同名传给 `scripts/deployment-environment.mjs render`，`scripts/deploy-manual.mjs` 的 `SECRET_ENV` 也是同一份名单；`tests/tooling/deploy-manual.test.ts` 核对这三处与 `SECRET_FIELDS` 一致。发信的凭据与收件名单（阿里云一对、Resend 密钥、收件名单）都没配时照常部署，server 不发信；发件地址只在对应的发信商开启时必填；Google 两项都没配时照常部署，登录页不出现 Google；`OIDC_JWKS` 没配时照常部署，对外授权关闭，`GITLAB_API_TOKEN` 没配而 `GITLAB_SYNC=on` 时渲染失败、不部署，见 [ENVIRONMENTS](ENVIRONMENTS.md)。

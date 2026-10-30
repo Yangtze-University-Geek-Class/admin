@@ -84,7 +84,7 @@
 
 私有归档凭据按用途和环境拆分：备份（GitLab、平台、部署前数据库快照）统一用 `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY`，每个环境各一套；私有内容索引分别用 `PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY` 与 `PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY`。它们只进入对应受控归档进程，不进入业务运行 env、镜像、argv、日志或公开清单；备份的 endpoint、region、桶与前缀来自 `BACKUP_S3_*`；内容索引的 endpoint、region、桶与 path-style 固定在适配器合同里。内容索引归档仍指向 Garage，见上文「Garage 的公开桶已封存」。
 
-构建参数 `STATIC_CDN_BASE` 只能为空或 `https://cdn.crosery.com/yzgc/static/site/`。空值保持 JS/CSS/字体/构建图片及内置表情同源；HTML、接口、release.json 和不带哈希的 public 文件一直同源。宣传片、邮件图片、指南正文地址不随构建开关切回同源。旧帖清单里显式标 `cdn: true` 的图片也固定走 CDN；其余旧帖图片继续按 viewer 从核心同源读取。镜像仍保存构建资产、内置表情与旧帖图片的同源副本。
+构建参数 `STATIC_CDN_BASE` 只能为空或由环境文件的 `STATIC_CDN_ORIGIN` 派生的 `<源站>/yzgc/static/site/`（#360，源站不写在代码或工作流里）。空值保持 JS/CSS/字体/构建图片及内置表情同源；HTML、接口、release.json 和不带哈希的 public 文件一直同源。宣传片、邮件图片、指南正文地址不随构建开关切回同源。旧帖清单里显式标 `cdn: true` 的图片也固定走 CDN；其余旧帖图片继续按 viewer 从核心同源读取。镜像仍保存构建资产、内置表情与旧帖图片的同源副本。
 
 ## 上传协议、保护与限制
 

@@ -2,7 +2,7 @@
 
 > 直接采用 Tuff Forum 原代码、TuffEx 组件与验证方式；线上镜像是极客班论坛：帖子、回复、资料存在核心服务（同域 `/api/forum/*`，#57），话题按身份分级可见（公开、注册用户、成员），没登录只能看公开的帖子；成员用全站登录（极客班账号）后发帖、回复、点赞、用表情回应、收藏、关注、改资料，注册用户填邀请码成为成员之前只能看；本机可显示极客班论坛快照；上游验收与本机示例预览仍是浏览器里的示例数据。
 
-状态：`current` · 更新：2026-10-30 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
+状态：`current` · 更新：2026-10-31 · 源码：`app/forum/` · 镜像：`yzgc-<environment>/forum:<sha12>`
 
 ## 源码地图
 
@@ -25,7 +25,7 @@
 
 ## 静态资源 CDN 开关（#146）
 
-构建参数 `STATIC_CDN_BASE` 为空时与原来一样，`/forum/_nuxt/` 同源加载。等于 `https://cdn.crosery.com/yzgc/static/site/` 时（规则在仓库根的 `scripts/static-cdn-base.mjs`，别的非空值让构建失败），`nuxt.config.ts` 做三件事：
+构建参数 `STATIC_CDN_BASE` 为空时与原来一样，`/forum/_nuxt/` 同源加载。等于由环境文件 `STATIC_CDN_ORIGIN` 派生的 `<源站>/yzgc/static/site/` 时（#360，规则在仓库根的 `scripts/static-cdn-base.mjs`，别的非空值让构建失败），`nuxt.config.ts` 做三件事：
 
 - `app.cdnURL` 设为 `<base>forum/`，`_nuxt/` 下的文件从 `https://cdn.crosery.com/yzgc/static/site/forum/_nuxt/…` 加载，页面、`/api/forum/*` 与 `llms.txt` 仍走源站；公开旧帖里由清单显式标 `cdn: true` 的图片从 `forum/published/<16位哈希>.webp` 加载，其余旧帖图片继续按 viewer 从核心同源读取；
 - `cdnURL` 也会改写代码里写的 `public/` 地址（如顶栏的 `/logo.png`），那是不带哈希的固定文件名，不上传。所以开关打开时加一个 Vite 插件 `hashPublicImports`：代码引用的 `public/` 文件按普通构建资源处理，带上内容哈希进 `_nuxt/`，和其它产物一起上传；
@@ -94,6 +94,8 @@ app/server/assets/stickers/
 唯一活动实现为 `app/forum`。上游 `talex-touch/tuff-forum`，固定提交 `37164f75c0258b65922ea2151592e1f4efce8bde`，MIT © 2026 TalexDreamSoul。原始文件摘要见 `UPSTREAM.json`。旧 React 页面、Fastify 论坛路由和专属身份实现已归档，不再修出平行论坛。决策见 [ADR-0003](../../decisions/0003-adopt-tuff-forum.md)。
 
 ## 工程边界
+
+构建分包（#360）：`nuxt.config.ts` 不再手动合并 `tuffex` 与 `app` 两组分块。旧配置把整个 Tuffex 与全部页面、组件各并成一块，入口静态依赖其中任何一个就整块预加载；现在首屏预加载 13 个文件，约 169 KB（gzip，原 4 个文件、约 301 KB），路由仍是动态导入。`public/logo.png` 压到 56px（显示 28px 的两倍），93 KB 降到 6 KB。
 
 Node ≥26、pnpm 11.24.0；Nuxt 4/Vue 3、Pinia、UnoCSS、TuffEx 0.9.1（上游是 0.6.0，所有者 2026-10-24 19:30 要求把组件库都更新一遍，记在 `ADOPTION.json` 的 `approvedDependencies.upgrades`，来源校验只认这一处版本变化）。独立 pnpm workspace 和锁文件，根命令只做进程编排，不能跨包导入核心 React 页面、Fastify 模块或数据库。`app/pages` 管路由，`components` 管组合，`composables` 管交互状态，`stores` 管原仓数据和操作，`data` 管类型、种子、权限与序列化。镜像以 `/forum/` 为 base 构建：会离开路由器的地址（`TxCellLink` 的 `href`、复制与分享的链接）统一经 `app/composables/useAppLink.ts` 用 `router.resolve` 带上 base，`router.push`/`navigateTo` 仍传不带前缀的路由路径。
 

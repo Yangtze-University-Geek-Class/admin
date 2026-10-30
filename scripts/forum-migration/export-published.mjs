@@ -21,7 +21,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, wr
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { applyRedactions, publishedProblems, rewriteLinks } from './published-transform.mjs'
-import { STATIC_CDN_BASE } from '../static-cdn-base.mjs'
+import { staticCdnPrefixURL } from '../static-cdn-base.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const mainRoot = dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root, encoding: 'utf8' }).trim())
 const snapshotDir = resolve(mainRoot, process.argv[2] ?? '')
@@ -194,7 +194,7 @@ for (const item of manifest.topics) {
   const paths = new Map()
   for (const [target, plan] of pending) {
     const image = await encode(plan.key, await plan.read(), plan)
-    paths.set(target, plan.rule?.cdn ? `${STATIC_CDN_BASE}forum/published/${image.name}` : `../published/${image.name}`)
+    paths.set(target, plan.rule?.cdn ? `${staticCdnPrefixURL()}forum/published/${image.name}` : `../published/${image.name}`)
   }
   const { content, report } = rewriteLinks(redacted, { titles, image: (target) => {
     const plan = imagePlan(target)

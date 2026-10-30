@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-30 · 自动生成，不手工编辑。
 
-来源摘要：`e76b60e1d6df52a44b5e85aef151c431d6600a9488874b967c4ae690cf481750`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`fee8377512b22ebce3e3e28abf7b5b5a2b56d053a99115b5412441dbb170d756`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -20,7 +20,7 @@ Schema 完整内容在机器目录；这里的授权项只是源码检查证据�
 | `DELETE /api/console/competitions/:competition_id` | `competitions` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/competitions.ts:93](../../../app/server/src/routes/console/competitions.ts#L93) |
 | `DELETE /api/console/competitions/:competition_id/final` | `competitions` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/competition-results.ts:144](../../../app/server/src/routes/console/competition-results.ts#L144) |
 | `DELETE /api/console/competitions/:competition_id/signups/:account_id` | `competitions` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/competition-roster.ts:69](../../../app/server/src/routes/console/competition-roster.ts#L69) |
-| `DELETE /api/console/competitions/:competition_id/site` | `competitions` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/competition-site.ts:102](../../../app/server/src/routes/console/competition-site.ts#L102) |
+| `DELETE /api/console/competitions/:competition_id/site` | `competitions` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/competition-site.ts:110](../../../app/server/src/routes/console/competition-site.ts#L110) |
 | `DELETE /api/console/feedback/:id` | `feedback` | 显式 | `params`、`querystring` | 未声明 | `requireAuth` | [app/server/src/routes/console/feedback.ts:31](../../../app/server/src/routes/console/feedback.ts#L31) |
 | `DELETE /api/console/mail-templates/:template_id` | `mail` | 显式 | `params`、`querystring` | 已挂载 | `requireAuth` | [app/server/src/routes/console/mail-templates.ts:202](../../../app/server/src/routes/console/mail-templates.ts#L202) |
 | `DELETE /api/console/permission-groups/:id` | `permissions` | 显式 | `params`、`querystring` | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/console/permission-groups.ts:210](../../../app/server/src/routes/console/permission-groups.ts#L210) |
@@ -114,8 +114,8 @@ Schema 完整内容在机器目录；这里的授权项只是源码检查证据�
 | `GET /auth/google/callback` | `identity` | 显式 | `params`、`querystring` | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/identity/google.ts:62](../../../app/server/src/routes/identity/google.ts#L62) |
 | `GET /auth/me` | `identity` | 显式 | `params`、`querystring` | 未声明 | 需查看 handler 与继承策略 | [app/server/src/routes/admin/auth.ts:159](../../../app/server/src/routes/admin/auth.ts#L159) |
 | `GET /auth/providers` | `identity` | 显式 | `params`、`querystring` | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/identity/providers.ts:30](../../../app/server/src/routes/identity/providers.ts#L30) |
-| `GET /c/:slug` | `competitions` | 显式 | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:57](../../../app/server/src/routes/sites/index.ts#L57) |
-| `GET /c/:slug/*` | `competitions` | 显式 | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:59](../../../app/server/src/routes/sites/index.ts#L59) |
+| `GET /c/:slug` | `competitions` | 显式 | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:74](../../../app/server/src/routes/sites/index.ts#L74) |
+| `GET /c/:slug/*` | `competitions` | 显式 | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:76](../../../app/server/src/routes/sites/index.ts#L76) |
 | `GET /forum/llms.txt` | `forum` | 显式 | `params`、`querystring` | 已挂载 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:32](../../../app/server/src/routes/forum-api/markdown.ts#L32) |
 | `GET /forum/published/:file` | `forum` | 显式 | `params`、`querystring` | 已挂载 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:52](../../../app/server/src/routes/forum-api/markdown.ts#L52) |
 | `GET /forum/t/:topic_id.md` | `forum` | 显式 | `params`、`querystring` | 已挂载 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:39](../../../app/server/src/routes/forum-api/markdown.ts#L39) |
@@ -201,8 +201,8 @@ Schema 完整内容在机器目录；这里的授权项只是源码检查证据�
 | `HEAD /auth/google/callback` | `identity` | 自动 HEAD | `params`、`querystring` | 未声明 | 需查看 handler 与继承策略 | [app/server/src/routes/identity/google.ts:62](../../../app/server/src/routes/identity/google.ts#L62) |
 | `HEAD /auth/me` | `identity` | 自动 HEAD | `params`、`querystring` | 未声明 | 需查看 handler 与继承策略 | [app/server/src/routes/admin/auth.ts:159](../../../app/server/src/routes/admin/auth.ts#L159) |
 | `HEAD /auth/providers` | `identity` | 自动 HEAD | `params`、`querystring` | 未声明 | 需查看 handler 与继承策略 | [app/server/src/routes/identity/providers.ts:30](../../../app/server/src/routes/identity/providers.ts#L30) |
-| `HEAD /c/:slug` | `competitions` | 自动 HEAD | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:57](../../../app/server/src/routes/sites/index.ts#L57) |
-| `HEAD /c/:slug/*` | `competitions` | 自动 HEAD | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:59](../../../app/server/src/routes/sites/index.ts#L59) |
+| `HEAD /c/:slug` | `competitions` | 自动 HEAD | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:74](../../../app/server/src/routes/sites/index.ts#L74) |
+| `HEAD /c/:slug/*` | `competitions` | 自动 HEAD | 未声明 | 已挂载 | 需查看 handler 与继承策略 | [app/server/src/routes/sites/index.ts:76](../../../app/server/src/routes/sites/index.ts#L76) |
 | `HEAD /forum/llms.txt` | `forum` | 自动 HEAD | `params`、`querystring` | 未声明 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:32](../../../app/server/src/routes/forum-api/markdown.ts#L32) |
 | `HEAD /forum/published/:file` | `forum` | 自动 HEAD | `params`、`querystring` | 未声明 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:52](../../../app/server/src/routes/forum-api/markdown.ts#L52) |
 | `HEAD /forum/t/:topic_id.md` | `forum` | 自动 HEAD | `params`、`querystring` | 未声明 | `forumViewer(req)` | [app/server/src/routes/forum-api/markdown.ts:39](../../../app/server/src/routes/forum-api/markdown.ts#L39) |

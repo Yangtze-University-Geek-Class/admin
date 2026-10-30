@@ -65,6 +65,7 @@
 
 - 环境变量只走 `deploy/env/.env.production` / `deploy/env/.env.preview` / `deploy/env/.env.dev`（本机调试，脱敏入库，默认走本地），前两份由 `docker compose --env-file` 消费；三份键集一致、值互相隔离，`pnpm check:env-isolation` 核对（含在 `pnpm check` 里）。不得另建环境文件或在别处定义第二份环境变量。
 - 代码、工作流、宿主配置片段不写另一个环境的域名、端口、签发者、镜像仓库：从该环境的 env 文件或 `deploy/environments.json` 读，宿主片段读宿主文件；确需写死的位置登记在 `deploy/env/origin-exceptions.json` 并写理由（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第二节）。
+- 域名、源站、桶、端口、开关等配置不写死在代码、工作流或宿主片段里：值只从该环境的 env 文件读取（缺值时失败关闭或保持同源，不回退到写死的地址）；测试夹具除外。
 - 对齐的是接口和数据库表结构；数据不对齐，只对齐格式（用户、帖子、报名等内容各环境自有，不复制不同步）；没有任何页面调用的接口不留（[RELEASE-PARITY](docs/conventions/RELEASE-PARITY.md) 第九节）。
 - 一个外部系统（GitLab、对象存储、邮件、数据库）同一时刻只有一个环境在写：切换写者先停旧的、核对停了，再开新的。2026-10-29 两个环境的 GitLab 同步同时开着，建出 6 个重复号（[事故复盘](docs/reviews/GITLAB-INCIDENT-2026-10.md)）。
 - 预发布做过的每一件事，正式都要有对应动作：代码靠提交和 tag，表结构的手工步骤、数据格式、env 键与密钥、宿主配置、外部服务靠同构清单 `deploy/parity/ledger.json`（`node scripts/parity.mjs`）。`deploy-production.yml` 与 `deploy-hotfix.yml` 的 `parity` job 在清单还有 `pending` 时不构建、不部署；部署后 `smoke` job 核对线上，含内部赛事官网。hotfix 同样适用，豁免只能由所有者逐条批准，并留下批准摘要。
@@ -86,6 +87,7 @@
 
 - 没读完第 0 节的规范就开始开发、安装依赖、跑脚本或操作数据。
 - 在代码、工作流或宿主片段里写另一个环境的域名，或不写理由地扩大 `deploy/env/origin-exceptions.json`；预发布做了而正式没做就打正式 tag、派发 hotfix；把预发布的数据行或数据库文件复制到正式；用 `waive`、`not-applicable` 或改 `parity.mjs`、`smoke.json`、检查脚本绕过同构清单。
+- 在代码、工作流或宿主片段里硬编码配置（域名、源站、桶、端口、开关），而不是从该环境的 env 文件读取；测试夹具除外。
 - 在 `main` 上直接提交/推送，或让 task/dev 分支直接进 `main`。
 - task 分支合并后残留死分支或死 worktree、合并后关联 issue 仍开着，或新建 `main`/`stage` 之外的长期分支。
 - 在主工作区里切 task 分支开发，或在同一个 worktree 里做两个 issue。

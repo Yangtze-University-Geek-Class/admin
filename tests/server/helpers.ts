@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app/server/src/app';
@@ -19,7 +20,7 @@ export function testConfig(env: Record<string, string | undefined>) {
 export async function testApp(overrides: ServiceOverrides = {}, production = false, env: Record<string, string> = {}) {
   const config = testConfig({
     NODE_ENV: production ? 'production' : 'test',
-    PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
+    PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),

@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -95,7 +96,7 @@ describe('IP 封禁（#333）', () => {
     const dir = mkdtempSync(join(tmpdir(), 'yzgc-shield-'));
     dirs.push(dir);
     const now = { value: Date.now() };
-    const env = { PUBLIC_ORIGIN: 'https://example.test', SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0', FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db', DB_PATH: join(dir, 'data.db'), ...SHIELD_ENV };
+    const env = { PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0', FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db', DB_PATH: join(dir, 'data.db'), ...SHIELD_ENV };
     const open = async () => {
       const app = await buildApp({ config: testConfig(env), staticRoot: false, overrides: { clock: () => now.value, httpRequest: deny, octokitFactory: deny, mailFetch: deny } });
       await app.ready();
@@ -133,7 +134,7 @@ describe('IP 封禁（#333）', () => {
     const dir = mkdtempSync(join(tmpdir(), 'yzgc-ratelimit-'));
     dirs.push(dir);
     const now = { value: Date.now() };
-    const env = { PUBLIC_ORIGIN: 'https://example.test', SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0', FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db', DB_PATH: join(dir, 'data.db') };
+    const env = { PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0', FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db', DB_PATH: join(dir, 'data.db') };
     const open = async () => {
       const app = await buildApp({ config: testConfig(env), staticRoot: false, overrides: { clock: () => now.value, httpRequest: deny, octokitFactory: deny, mailFetch: deny } });
       await app.ready();
