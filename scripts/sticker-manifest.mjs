@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STATIC_CDN_BASE } from './static-cdn-base.mjs';
+import { staticCdnPrefixURL } from './static-cdn-base.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const STICKER_ASSETS_DIR = join(REPO_ROOT, 'app/server/assets/stickers');
@@ -182,8 +182,8 @@ export function manifestProblem(dir = STICKER_ASSETS_DIR) {
 }
 
 /** 一张表情的 CDN 地址。 */
-export function stickerCdnUrl(sticker) {
-  return `${STATIC_CDN_BASE}${sticker.key}`;
+export function stickerCdnUrl(sticker, base = staticCdnPrefixURL()) {
+  return `${base}${sticker.key}`;
 }
 
 const USAGE = 'node scripts/sticker-manifest.mjs write|check|report|urls [--dir <目录>]';
@@ -219,7 +219,7 @@ export function main(argv, { stdout = process.stdout, log = console.error } = {}
   }
   const manifest = buildManifest(options.dir);
   if (options.command === 'urls') {
-    for (const url of new Set(manifest.packs.flatMap(pack => pack.stickers.map(stickerCdnUrl)))) stdout.write(`${url}\n`);
+    for (const url of new Set(manifest.packs.flatMap(pack => pack.stickers.map(sticker => stickerCdnUrl(sticker))))) stdout.write(`${url}\n`);
     return { manifest };
   }
   // report

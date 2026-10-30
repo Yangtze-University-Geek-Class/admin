@@ -81,6 +81,30 @@ it('includes legacy admin sites only when explicitly requested, keeping the defa
   for (const file of ['common.caddy', 'preflight.caddy', 'preview.caddy']) expect(readFileSync(join(optional, file), 'utf8')).not.toContain('github.yangtzeu.work');
 });
 
+it('gives each environment only its own contest-site prefix in the host CSP, and changes nothing else', () => {
+  const f = fixture();
+  const plain = f.run();
+  expect(plain.status, plain.stderr).toBe(0);
+  writeFileSync(join(f.root, 'deploy/env/.env.preview'), 'WEB_BIND=10.66.0.2:18200\nPUBLIC_ORIGIN=https://prev.yangtzeu.work\nOBJECT_STORAGE_PUBLIC_BASE=https://cdn.example.test/\nOBJECT_STORAGE_PREFIX=yzgc/preview/\n');
+  writeFileSync(join(f.root, 'deploy/env/.env.production'), 'WEB_BIND=10.66.0.2:18100\nPUBLIC_ORIGIN=https://yangtzeu.work\nOBJECT_STORAGE_PUBLIC_BASE=https://cdn.example.test/\nOBJECT_STORAGE_PREFIX=yzgc/production/\n');
+  const out = join(f.root, 'with-storage');
+  const result = f.run(out);
+  expect(result.status, result.stderr).toBe(0);
+  const snippet = (text: string, name: string) => text.slice(text.indexOf(`(${name}) {`), text.indexOf('\n}\n', text.indexOf(`(${name}) {`)));
+  const policy = (text: string, name: string) => /@forum \?Content-Security-Policy "([^"]+)"/.exec(snippet(text, name))![1];
+  const withStorage = readFileSync(join(out, 'common.caddy'), 'utf8');
+  const baseline = readFileSync(join(f.out, 'common.caddy'), 'utf8');
+  for (const [name, prefix] of [['yzgc-security-preview', 'https://cdn.example.test/yzgc/preview/contest-sites/'], ['yzgc-security-production', 'https://cdn.example.test/yzgc/production/contest-sites/']] as const) {
+    expect(snippet(withStorage, name)).toContain(prefix);
+    // 同一条策略在 /forum/ 与其它路径各出现一次，每次写进 script-src、style-src、font-src 三条
+    expect(snippet(withStorage, name).split(prefix).length - 1, name).toBe(6);
+    expect(policy(withStorage, name).replaceAll(` ${prefix}`, ''), name).toBe(policy(baseline, name));
+    expect(snippet(withStorage, name).includes(name === 'yzgc-security-preview' ? 'yzgc/production/contest-sites' : 'yzgc/preview/contest-sites'), name).toBe(false);
+  }
+  expect(readFileSync(join(out, 'preview.caddy'), 'utf8')).toContain('import yzgc-security-preview ');
+  expect(readFileSync(join(out, 'production.caddy'), 'utf8')).toContain('import yzgc-security-production ');
+});
+
 const caddyImage = process.env.ARCH_CADDY_IMAGE;
 const nodeImage = process.env.ARCH_RUNTIME_IMAGE ?? 'node:22-bookworm-slim';
 const liveAvailable = caddyImage && spawnSync('docker', ['image', 'inspect', caddyImage, nodeImage], { stdio: 'ignore', timeout: 5000 }).status === 0;

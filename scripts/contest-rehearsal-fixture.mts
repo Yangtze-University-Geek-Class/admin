@@ -1,7 +1,7 @@
 // #276 隔离演练：真实应用/存储/OAuth 路由，只替换外部 HTTP。此模块不被生产应用导入。
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,8 @@ type Role = typeof ROLES[number];
 const isRole = (value: string): value is Role => ROLES.includes(value as Role);
 const HOUR = 3600_000;
 const GITLAB = 'https://gitlab.rehearsal.test';
+// 邮件图片地址前缀由 STATIC_CDN_ORIGIN 派生，源站取本机 env（deploy/env/.env.dev），这里不写死（#360）。
+const STATIC_CDN_ORIGIN = /^STATIC_CDN_ORIGIN=(.+)$/m.exec(readFileSync(new URL('../deploy/env/.env.dev', import.meta.url), 'utf8'))?.[1]?.trim() ?? '';
 type Contribution = { iid: number; author: { id: number }; title: string; web_url: string; labels: string[]; state: string; merged_at?: string; created_at?: string };
 
 export async function createRehearsal(options: { port?: number; staticRoot?: BuildAppOptions['staticRoot'] } = {}) {
@@ -22,7 +24,7 @@ export async function createRehearsal(options: { port?: number; staticRoot?: Bui
   const origin = `http://127.0.0.1:${options.port ?? 5198}`;
   const config = {
     ...createConfig({
-      NODE_ENV: 'test', PUBLIC_ORIGIN: origin, DB_PATH: join(root, 'data.db'),
+      NODE_ENV: 'test', PUBLIC_ORIGIN: origin, STATIC_CDN_ORIGIN, DB_PATH: join(root, 'data.db'),
       SESSION_SECRET: randomBytes(48).toString('base64url'), ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       OAUTH_CLIENT_ID: 'synthetic-client', OAUTH_CLIENT_SECRET: randomBytes(32).toString('hex'),
       POW_DIFFICULTY: '0', GITLAB_SYNC: 'on', GITLAB_URL: GITLAB, GITLAB_GROUP: 'rehearsal',

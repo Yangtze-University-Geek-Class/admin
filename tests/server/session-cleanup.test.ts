@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -47,7 +48,7 @@ async function rawApp(sessionCleanup: boolean) {
   const time = clock();
   const deny = () => { throw new Error('Unexpected external network request in isolated core test'); };
   const config = testConfig({
-    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
+    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder', POW_DIFFICULTY: '0',

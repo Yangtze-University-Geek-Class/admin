@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from "vue";
 import { RouterView } from "vue-router";
-import { TxToastHost } from "@talex-touch/tuffex/toast";
-import ConfirmHost from "./components/ConfirmHost.vue";
+
+const ConfirmHost = defineAsyncComponent(() => import("./components/ConfirmHost.vue"));
+const TxToastHost = defineAsyncComponent(() => import("@talex-touch/tuffex/toast").then(m => m.TxToastHost));
 </script>
 
 <template>

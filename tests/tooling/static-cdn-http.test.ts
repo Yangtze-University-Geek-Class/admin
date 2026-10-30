@@ -5,8 +5,11 @@ import { dirname, join } from 'node:path';
 import { collect, decide, main, uploadAll, uploadOne, verifyOne } from '../../scripts/static-cdn.mjs';
 import { boundedRequest, createS3Storage, readS3Config, sha256 } from '../../scripts/static-cdn-s3.mjs';
 import { createReleaseManifest, manifestText, releaseKey } from '../../scripts/static-cdn-manifest.mjs';
-import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
+import { CDN_ENV, STATIC_CDN_BASE } from '../static-cdn-fixture';
+import { useStaticCdnOrigin } from '../static-cdn-hooks';
 import { fixtureEnv, startCdnStore, type StoreFault } from './cdn-store-fixture';
+
+useStaticCdnOrigin();
 
 const identity = { environment: 'preview', commit: 'b'.repeat(40), generatedAt: '2026-10-26T17:21:00.000Z' };
 const REFERER = 'https://prev.yangtzeu.work/';
@@ -164,7 +167,7 @@ describe('release manifest and restore provenance at the CLI seam', () => {
     const f = await fixture();
     const file = join(f.dir, 'bad-manifest.json');
     writeFileSync(file, 'fixture-secret-must-not-appear');
-    await expect(main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: {}, ...f.options })).rejects.toThrow('清单 JSON 无效');
+    await expect(main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: CDN_ENV, ...f.options })).rejects.toThrow('清单 JSON 无效');
     expect(f.store.calls).toHaveLength(0);
   });
 
@@ -179,10 +182,10 @@ describe('release manifest and restore provenance at the CLI seam', () => {
     await expect(uploadAll(f.entries, { ...f.options, manifest: changed })).rejects.toThrow(/冲突/);
     expect(f.store.calls.filter(call => call.method === 'PUT' && call.key === key)).toHaveLength(1);
     const file = join(f.dir, 'release.json'); writeFileSync(file, manifestText(manifest));
-    const result = await main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: {}, ...f.options });
+    const result = await main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: CDN_ENV, ...f.options });
     expect(result.manifest.commit).toBe(identity.commit);
     f.store.objects.delete(f.entries[0].key);
-    await expect(main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: {}, ...f.options })).rejects.toThrow(/HTTP 404/);
+    await expect(main(['verify-manifest', '--manifest', file, '--referer', REFERER], { env: CDN_ENV, ...f.options })).rejects.toThrow(/HTTP 404/);
   });
 
   it('never publishes a release index when asset verification fails or its object list was tampered', async () => {
@@ -203,19 +206,19 @@ describe('release manifest and restore provenance at the CLI seam', () => {
     const args = ['upload', '--web', f.roots.web, '--forum', f.roots.forum, '--referer', REFERER,
       '--environment', identity.environment, '--commit', identity.commit, '--generated-at', identity.generatedAt,
       '--manifest', manifest, '--content-index', index];
-    await main(args, { env: {}, ...f.options, sourceRoot });
+    await main(args, { env: CDN_ENV, ...f.options, sourceRoot });
     expect(statSync(index).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(index, 'utf8'))).not.toHaveProperty('commit');
     expect([...f.store.objects.keys()].sort()).toEqual([...f.entries.map(entry => entry.key), releaseKey(identity)].sort());
     expect(JSON.stringify([...f.store.objects.values()].map(object => object.body.toString()))).not.toContain('"hashes"');
-    await main(['verify-manifest', '--manifest', manifest, '--referer', REFERER], { env: {}, ...f.options });
+    await main(['verify-manifest', '--manifest', manifest, '--referer', REFERER], { env: CDN_ENV, ...f.options });
     f.store.calls.length = 0;
-    await expect(main(args, { env: {}, ...f.options, sourceRoot })).rejects.toThrow(/存在|EEXIST/);
+    await expect(main(args, { env: CDN_ENV, ...f.options, sourceRoot })).rejects.toThrow(/存在|EEXIST/);
     expect(f.store.calls).toHaveLength(0);
     const failed = join(f.dir, 'failed.json');
     f.store.fault.acao = null;
     const retry = [...args]; retry[retry.indexOf(manifest)] = failed; retry[retry.indexOf(index)] = join(f.dir, 'failed-index.json');
-    await expect(main(retry, { env: {}, ...f.options, sourceRoot })).rejects.toThrow(/Access-Control/);
+    await expect(main(retry, { env: CDN_ENV, ...f.options, sourceRoot })).rejects.toThrow(/Access-Control/);
     expect(existsSync(failed)).toBe(false);
   });
 
@@ -224,8 +227,8 @@ describe('release manifest and restore provenance at the CLI seam', () => {
     const stdout = { write: () => true };
     const offline = async () => { throw new Error('offline'); };
     const args = ['--web', f.roots.web, '--forum', f.roots.forum];
-    expect((await main(['plan', ...args], { env: {}, stdout: stdout as never, log: quiet, fetch: offline })).entries.length).toBeGreaterThan(3);
-    await expect(main(['upload', ...args, '--referer', REFERER, '--environment', identity.environment, '--commit', identity.commit, '--generated-at', identity.generatedAt], { env: {}, fetch: offline })).rejects.toThrow(/没有完整 S3/);
+    expect((await main(['plan', ...args], { env: CDN_ENV, stdout: stdout as never, log: quiet, fetch: offline })).entries.length).toBeGreaterThan(3);
+    await expect(main(['upload', ...args, '--referer', REFERER, '--environment', identity.environment, '--commit', identity.commit, '--generated-at', identity.generatedAt], { env: CDN_ENV, fetch: offline })).rejects.toThrow(/没有完整 S3/);
     for (const args of [['mint-token'], ['upload', '--owner-env-file', '/private/.env'], ['delete']]) await expect(main(args, { env: fixtureEnv })).rejects.toThrow(/退役|不认识|用法/);
   });
 });
@@ -234,7 +237,7 @@ describe('build selection', () => {
   const csp = `script-src ${STATIC_CDN_BASE}; style-src ${STATIC_CDN_BASE}; font-src ${STATIC_CDN_BASE}`;
   it('keeps the original no-credentials/CSP fallback but fails closed on S3 401 instead of reverting provider', async () => {
     const f = await fixture();
-    const opts = { origin: 'https://prev.yangtzeu.work', config: readS3Config(fixtureEnv), storage: f.storage };
+    const opts = { origin: 'https://prev.yangtzeu.work', config: readS3Config(fixtureEnv), storage: f.storage, env: CDN_ENV };
     expect(await decide({ origin: opts.origin, fetch: async () => { throw new Error('no request'); } })).toMatchObject({ base: '' });
     for (const policy of ['', "default-src 'self'"]) expect(await decide({ ...opts, fetch: async () => new Response(null, { headers: { 'content-security-policy': policy } }) })).toMatchObject({ base: '' });
     expect(await decide({ ...opts, fetch: async () => new Response(null, { headers: { 'content-security-policy': csp } }) })).toMatchObject({ base: STATIC_CDN_BASE });

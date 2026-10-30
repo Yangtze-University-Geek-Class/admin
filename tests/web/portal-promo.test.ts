@@ -13,7 +13,7 @@ import {
   startLevelIndex,
   startVariant,
 } from "../../app/web/sites/portal/lib/promo";
-import { STATIC_CDN_ORIGIN } from "../../scripts/static-cdn-base.mjs";
+import { STATIC_CDN_ORIGIN } from "../static-cdn-fixture";
 
 describe("宣传片：只自动播一次的 cookie", () => {
   it("只认 yugc_promo_seen=1 这一个完整的键值", () => {

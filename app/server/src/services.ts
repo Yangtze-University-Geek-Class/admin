@@ -165,7 +165,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   // #282 一键备份要打包同一份目录，和 competitionSites 的 root 必须是同一个值，所以提成局部变量复用，
   // 并在下面的 services 对象上单独导出（lib/system-backup.ts 不应该重新猜它在哪）。
   const sitesRoot = memorySites ?? resolve(dirname(config.dbPath), "sites");
-  const competitionSites = createCompetitionSiteStore(storage.db, { root: sitesRoot, secret: config.sessionSecret });
+  const competitionSites = createCompetitionSiteStore(storage.db, { root: sitesRoot, secret: config.sessionSecret, objectStorage });
   const competitionPublic = createCompetitionPublic(storage.db, {
     competitions, signups: competitionSignups, scores: competitionScores, rules: competitionRules, sites: competitionSites,
   });

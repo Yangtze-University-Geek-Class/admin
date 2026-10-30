@@ -63,8 +63,32 @@ const policies = ['production', 'preview'].map(environment => {
   };
 });
 if (JSON.stringify(policies[0]) !== JSON.stringify(policies[1])) throw new Error('两环境 nginx 网关策略不一致，拒绝生成');
-const { csp: policy, maxBody, redirects, headers, gzipLevel, gzipMinimum, gzipTypes, readTimeout, upgrade } = policies[0];
-const common = `(yzgc-security) {
+const { csp, maxBody, redirects, headers, gzipLevel, gzipMinimum, gzipTypes, readTimeout, upgrade } = policies[0];
+/**
+ * 比赛官网资源的对象前缀，与 app/server 的 publicPrefix() 同样拼法：OBJECT_STORAGE_PUBLIC_BASE + OBJECT_STORAGE_PREFIX + contest-sites/。
+ * 宿主只放行这一段（不是整个 CDN 域名）；未设 OBJECT_STORAGE_PUBLIC_BASE 时返回 null，策略与原来一字不差。
+ */
+function contestSitePrefix(values) {
+  const publicBase = values.get('OBJECT_STORAGE_PUBLIC_BASE') ?? '';
+  if (!publicBase) return null;
+  const prefix = values.get('OBJECT_STORAGE_PREFIX') ?? '';
+  if (!/^https:\/\/[^/\s]+\/$/.test(publicBase) || !/^[a-z0-9][a-z0-9_-]*(?:\/[a-z0-9][a-z0-9_-]*)*\/$/.test(prefix)) {
+    throw new Error('OBJECT_STORAGE_PUBLIC_BASE 或 OBJECT_STORAGE_PREFIX 格式不对，拒绝生成比赛官网的 CSP');
+  }
+  return `${publicBase}${prefix}contest-sites/`;
+}
+/** 比赛官网页面的资源从这段前缀加载（302 到对象存储），宿主的 script-src、style-src、font-src 都要放行它。 */
+function withContestSites(policy, prefix) {
+  if (!prefix) return policy;
+  const directives = policy.split(';').map(part => part.trim());
+  for (const name of ['script-src', 'style-src', 'font-src']) {
+    const index = directives.findIndex(part => part.startsWith(`${name} `));
+    if (index < 0) throw new Error(`宿主 CSP 缺少 ${name}，拒绝生成比赛官网的放行策略`);
+    directives[index] = `${directives[index]} ${prefix}`;
+  }
+  return directives.join('; ');
+}
+const securitySnippet = (name, policy) => `(${name}) {
 	request_body {
 		max_size ${maxBody}
 	}
@@ -92,7 +116,8 @@ ${redirects.map(({ pattern, status, target }, index) => {
 }).join('\n')}
 }
 `;
-const files = new Map([['common.caddy', common]]);
+const files = new Map();
+const snippets = new Map();
 const preflight = [];
 for (const [environment, port] of [['production', 18480], ['preview', 18481]]) {
   const text = readFileSync(resolve(root, 'deploy/env', `.env.${environment}`), 'utf8');
@@ -105,7 +130,8 @@ for (const [environment, port] of [['production', 18480], ['preview', 18481]]) {
     throw new Error(`${environment} 不是已确认的 Arch 私有入口`);
   }
   const host = new URL(origin).hostname;
-  const handler = `	import yzgc-security ${host}
+  snippets.set(environment, securitySnippet(`yzgc-security-${environment}`, withContestSites(csp, contestSitePrefix(values))));
+  const handler = `	import yzgc-security-${environment} ${host}
 	reverse_proxy ${bind} {
 		header_up Host ${host}
 		header_up X-Forwarded-For {http.request.remote.host}
@@ -134,6 +160,7 @@ ${upgradeHosts.map(name => `http://${name} {\n\tredir https://${name}{uri} ${upg
 ${handler}}
 `);
 }
+files.set('common.caddy', [...snippets.values()].join('\n'));
 files.set('preflight.caddy', preflight.join('\n'));
 for (const [name, text] of files) writeFileSync(resolve(out, name), text, { flag: 'wx', mode: 0o600 });
 console.log(`已生成 ${out}：common / preflight / production / preview；preflight 仅香港回环，正式站点须在最终迁移门禁后启用。旧管理域名${includeLegacyAdmin ? '已按显式参数包含' : '未包含'}；--include-legacy-admin 需要旧管理域名迁移的独立授权。`);

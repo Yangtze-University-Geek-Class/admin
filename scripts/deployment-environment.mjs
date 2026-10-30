@@ -50,6 +50,7 @@ export const SECRET_FIELDS = Object.freeze([
   'BACKUP_S3_ACCESS_KEY_ID',
   'BACKUP_S3_SECRET_ACCESS_KEY',
   'BACKUP_GPG_RECIPIENT',
+  'BACKUP_GPG_PUBLIC_KEY',
   'OBJECT_STORAGE_BUCKET',
   'OBJECT_STORAGE_ACCESS_KEY_ID',
   'OBJECT_STORAGE_SECRET_ACCESS_KEY',
@@ -68,8 +69,8 @@ export const GOOGLE_SECRET_PAIR = Object.freeze(['GOOGLE_CLIENT_ID', 'GOOGLE_CLI
  * 阿里云与 Resend 都没配时发信关闭，server 把每封信记为「发信没有配置」，一封也不发。
  */
 export const OPTIONAL_SECRETS = Object.freeze(['MAIL_RESEND_API_KEY', 'MAIL_ALLOWLIST', 'SHIELD_ALLOWLIST']);
-/** 异地备份（#354）：四项都空 = 还没启用，迁移前备份跳过并告警；填了才上传。 */
-export const BACKUP_SECRETS = Object.freeze(['BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_GPG_RECIPIENT']);
+/** 异地备份（#354）：S3 三项与加密收件人（公钥 base64 或收件人邮箱，二选一）都空 = 还没启用，迁移前备份跳过并告警；填了才上传。 */
+export const BACKUP_SECRETS = Object.freeze(['BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY', 'BACKUP_GPG_RECIPIENT', 'BACKUP_GPG_PUBLIC_KEY']);
 /**
  * 对外授权与 GitLab 同步（#270）的两项单独可选密钥：OIDC_JWKS 空 = /oidc/* 一律 404，GitLab 不能用极客班账号登录，
  * 写成一行 base64（`oidc.js keygen` 直接输出这种形式）；GITLAB_API_TOKEN 只在 GITLAB_SYNC=on 时必填（server 启动也会拒绝）。
@@ -86,6 +87,8 @@ export const MAIL_SENDER_ENABLED_BY = Object.freeze({ MAIL_ALIYUN_FROM: 'MAIL_AL
  */
 export const OBJECT_STORAGE_SECRETS = Object.freeze(['OBJECT_STORAGE_BUCKET', 'OBJECT_STORAGE_ACCESS_KEY_ID', 'OBJECT_STORAGE_SECRET_ACCESS_KEY']);
 export const OBJECT_STORAGE_FIELDS = Object.freeze(['OBJECT_STORAGE_ENDPOINT', 'OBJECT_STORAGE_REGION', 'OBJECT_STORAGE_PREFIX', 'OBJECT_STORAGE_PUBLIC_BASE']);
+/** 静态资源 CDN 的源站（#360）：非密钥、三份 env 相同；构建开关 STATIC_CDN_BASE 与服务端都从它派生，和 OBJECT_STORAGE_PUBLIC_BASE 一样是公开域名。 */
+export const STATIC_CDN_FIELDS = Object.freeze(['STATIC_CDN_ORIGIN']);
 /** 渲染时必填的密钥：上面几类可选项之外的全部。 */
 export const REQUIRED_SECRET_FIELDS = Object.freeze(
   SECRET_FIELDS.filter(field => ![...OPTIONAL_SECRET_PAIR, ...MAIL_ALIYUN_SECRET_PAIR, ...GOOGLE_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...OBJECT_STORAGE_SECRETS, ...BACKUP_SECRETS, ...Object.keys(MAIL_SENDER_ENABLED_BY)].includes(field)),
@@ -136,6 +139,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'FORUM_DB_PATH',
   'FORUM_UPLOAD_DIR',
   ...OBJECT_STORAGE_FIELDS,
+  ...STATIC_CDN_FIELDS,
   'POW_DIFFICULTY',
   'MAIL_ASSET_BASE',
   'MAIL_REPLY_TO',
@@ -561,6 +565,8 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     }
     // 用户文件对象存储（#352）：端点是 https 源（无路径），公开地址是 https 源加 /，前缀是桶内目录（以 / 结尾）；可以整体留空（关闭）。
     const storageEndpoint = values.get('OBJECT_STORAGE_ENDPOINT') ?? '';
+    const staticCdnOrigin = values.get('STATIC_CDN_ORIGIN') ?? '';
+    if (!isHttpsOrigin(staticCdnOrigin)) problem('STATIC_CDN_ORIGIN 必须是 https 源（不带路径与尾斜杠）');
     const storagePublicBase = values.get('OBJECT_STORAGE_PUBLIC_BASE') ?? '';
     const storagePrefix = values.get('OBJECT_STORAGE_PREFIX') ?? '';
     if (storageEndpoint && !isHttpsOrigin(storageEndpoint)) problem(`OBJECT_STORAGE_ENDPOINT 必须是 https 源（不带路径与尾斜杠）：${storageEndpoint}`);

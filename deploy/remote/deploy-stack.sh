@@ -214,7 +214,7 @@ predeploy_database_backup() {
   # 压缩、gpg 加密，再经 garage-archive.mjs 只新增地写入七牛私有备份桶。首次部署没有数据卷，直接跳过。
   # 任何一步失败都在 compose up 之前退出：旧版本继续运行，库结构不变。
   local volume="${COMPOSE_PROJECT_NAME}-data" listed stamp day run out uid gid
-  local endpoint region bucket prefix access secret recipient
+  local endpoint region bucket prefix access secret recipient public_key
   listed=$(docker volume ls -q) || die "读不到本机数据卷列表，拒绝在无法确认迁移前备份的情况下迁移"
   if ! grep -qxF "$volume" <<<"$listed"; then
     printf '迁移前备份：没有数据卷 %s（首次部署），跳过\n' "$volume"
@@ -227,14 +227,18 @@ predeploy_database_backup() {
   access=$(env_value BACKUP_S3_ACCESS_KEY_ID "$ENV_FILE")
   secret=$(env_value BACKUP_S3_SECRET_ACCESS_KEY "$ENV_FILE")
   recipient=$(env_value BACKUP_GPG_RECIPIENT "$ENV_FILE")
-  if [ -z "$recipient" ] || [ -z "$bucket" ]; then
-    echo "警告：异地备份还没启用（BACKUP_GPG_RECIPIENT 或 BACKUP_S3_BUCKET 为空），跳过迁移前备份" >&2
+  # 公钥（base64 的 ASCII 公钥块）优先：用 --recipient-file 加密，目标机钥匙环里不需要有它；只配了 BACKUP_GPG_RECIPIENT 时才查钥匙环。
+  public_key=$(env_value BACKUP_GPG_PUBLIC_KEY "$ENV_FILE")
+  if { [ -z "$public_key" ] && [ -z "$recipient" ]; } || [ -z "$bucket" ]; then
+    echo "警告：异地备份还没启用（BACKUP_GPG_PUBLIC_KEY、BACKUP_GPG_RECIPIENT 都为空，或 BACKUP_S3_BUCKET 为空），跳过迁移前备份" >&2
     return 0
   fi
   [ -n "$endpoint" ] && [ -n "$region" ] && [ -n "$bucket" ] && [ -n "$prefix" ] && [ -n "$access" ] && [ -n "$secret" ] \
     || die "迁移前备份缺少 BACKUP_S3_* 配置（只报键名）：拒绝在没有异地备份的情况下迁移"
   command -v gpg >/dev/null 2>&1 || die "目标机缺少 gpg，无法加密迁移前备份"
-  gpg --batch --list-keys "$recipient" >/dev/null 2>&1 || die "目标机钥匙环里没有 BACKUP_GPG_RECIPIENT 对应的公钥，拒绝迁移"
+  if [ -z "$public_key" ]; then
+    gpg --batch --list-keys "$recipient" >/dev/null 2>&1 || die "目标机钥匙环里没有 BACKUP_GPG_RECIPIENT 对应的公钥，拒绝迁移"
+  fi
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   day=$(TZ=Asia/Shanghai date +%F)
   run="${stamp}-${IMAGE_TAG}"
@@ -255,8 +259,17 @@ predeploy_database_backup() {
     die "迁移前库快照失败，未执行迁移"
   fi
   [ -s "$out/data.db.gz" ] || { rm -rf "$out"; die "迁移前库快照没有产出压缩文件，未执行迁移"; }
-  gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "$recipient" \
-    --output "$out/data.db.gz.gpg" --encrypt "$out/data.db.gz" || { rm -rf "$out"; die "迁移前库快照加密失败，未执行迁移"; }
+  if [ -n "$public_key" ]; then
+    printf '%s' "$public_key" | base64 -d >"$out/recipient.asc" 2>/dev/null \
+      && grep -q -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$out/recipient.asc" \
+      || { rm -rf "$out"; die "BACKUP_GPG_PUBLIC_KEY 不是 base64 编码的 ASCII 公钥，拒绝迁移"; }
+    gpg --batch --yes --trust-model always --compress-algo ZIP --recipient-file "$out/recipient.asc" \
+      --output "$out/data.db.gz.gpg" --encrypt "$out/data.db.gz" || { rm -rf "$out"; die "迁移前库快照加密失败，未执行迁移"; }
+    rm -f "$out/recipient.asc"
+  else
+    gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "$recipient" \
+      --output "$out/data.db.gz.gpg" --encrypt "$out/data.db.gz" || { rm -rf "$out"; die "迁移前库快照加密失败，未执行迁移"; }
+  fi
   rm -f "$out/data.db.gz"
   printf '%s  %s\n' "$(sha256_of "$out/data.db.gz.gpg")" "data.db.gz.gpg" >"$out/SHA256SUMS"
   chmod 600 "$out"/*

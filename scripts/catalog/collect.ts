@@ -15,7 +15,7 @@ export async function collectRuntime(root = ROOT) {
   if (resolve(root) !== resolve(ROOT)) throw new Error("运行时提取必须使用当前工具所属检出，不能把另一目录的源码与本检出的运行时混合");
   const config = {
     ...createConfig({
-      NODE_ENV: "test", PUBLIC_ORIGIN: "https://catalog.invalid", DB_PATH: ":memory:",
+      NODE_ENV: "test", PUBLIC_ORIGIN: "https://catalog.invalid", STATIC_CDN_ORIGIN: "https://catalog.invalid", DB_PATH: ":memory:",
       FORUM_DB_PATH: "/catalog-must-not-open-a-file.db",
       SESSION_SECRET: randomBytes(32).toString("hex"), ENCRYPTION_KEY: randomBytes(32).toString("base64"),
       OAUTH_CLIENT_ID: "catalog-fixture", OAUTH_CLIENT_SECRET: "catalog-fixture",

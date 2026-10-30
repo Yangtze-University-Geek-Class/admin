@@ -2,9 +2,12 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_BASE } from '../static-cdn-fixture';
+import { useStaticCdnOrigin } from '../static-cdn-hooks';
 import { stickerCdnUrl } from '../../scripts/sticker-manifest.mjs';
 import { STICKER_KEY_PREFIX as SERVER_KEY_PREFIX, createStickerUrl, loadStickerManifest, stickerSameOriginUrl } from '../../app/server/src/lib/sticker-manifest';
+
+useStaticCdnOrigin();
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 

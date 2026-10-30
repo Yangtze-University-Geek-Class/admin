@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN } from '../static-cdn-fixture';
 
 // 静态资源 CDN（#146）在两条部署工作流里的接线：上传 token 只进 cdn-plan、cdn-upload 两个不装依赖的 job，
 // build job 按开关构建并挑文件，deploy 等 cdn-upload 成功。
@@ -82,7 +82,8 @@ describe('deploy workflows', () => {
       expect(build, name).toMatch(/\n {4}needs: \[plan, (?:evidence, )?cdn-plan(?:, parity)?\]\n/);
       expect(build, name).toContain('          STATIC_CDN_BASE: ${{ needs.cdn-plan.outputs.base }}\n');
       // 三个镜像都带这个构建参数：web、forum 的前端产物，server 里内置表情图片的地址（#286）。
-      expect(build, name).toContain('            cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE")\n');
+      // 源站同样由 plan 从环境文件读出（#360），构建阶段的 Vite 与 security-notice 用它核对 STATIC_CDN_BASE。
+      expect(build, name).toContain('            cdn_args=(--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" --build-arg STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN")\n');
       expect(build, name).not.toMatch(/server\) cdn_args=\(\)/);
       expect(build, name).toContain('              "${mirror_args[@]}" \\\n              "${cdn_args[@]}" \\\n');
       expect(build.split(GATE), name).toHaveLength(4);
@@ -107,13 +108,17 @@ describe('ci: the switch-on build path runs on every push, without uploading', (
   const ci = read('.github/workflows/ci.yml');
   const cdn = job(ci, 'docker-cdn');
 
-  it('builds web and forum with the one allowed STATIC_CDN_BASE, and server not at all', () => {
-    expect(cdn).toContain(`      STATIC_CDN_BASE: ${STATIC_CDN_BASE}\n`);
-    // 第一步先用 scripts/static-cdn-base.mjs 核对这个值，不另写一份规则。
+  it('builds web and forum with the origin and base read from the env file, and server not at all', () => {
+    // 源站与开关值不写在工作流里（#360）：第一步从 deploy/env/.env.dev 读 STATIC_CDN_ORIGIN，派生后写进 $GITHUB_ENV。
+    expect(ci).not.toContain(STATIC_CDN_ORIGIN);
+    expect(cdn).not.toMatch(/^      STATIC_CDN_(BASE|ORIGIN): https?:/m);
+    expect(stepRun(cdn, '从环境文件读取静态资源 CDN 源站并派生开关值')).toContain('parseEnvFileText(readFileSync("deploy/env/.env.dev", "utf8")');
+    expect(stepRun(cdn, '从环境文件读取静态资源 CDN 源站并派生开关值')).toContain('appendFileSync(process.env.GITHUB_ENV');
+    // 第二步用 scripts/static-cdn-base.mjs 核对这个值，不另写一份规则。
     expect(stepRun(cdn, '核对开关值并解析提交态的发布身份')).toContain('await import("./scripts/static-cdn-base.mjs")');
     const build = stepRun(cdn, '按开关打开构建 web、forum 镜像');
     expect(build).toContain('for service in web forum; do\n');
-    expect(build).toContain('--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" \\\n');
+    expect(build).toContain('--build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" \\\n              --build-arg STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" \\\n');
     expect(build).toContain('--build-arg GEEK_DEPLOYMENT_ENVIRONMENT=production \\\n');
     expect(cdn).not.toMatch(/server/);
   });

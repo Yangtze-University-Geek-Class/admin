@@ -2357,6 +2357,10 @@
       "domain": "organization",
       "evidence": [
         {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
+        {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
         },
@@ -5900,7 +5904,7 @@
           "path": "app/server/src/lib/sticker-manifest.ts"
         },
         {
-          "line": 9,
+          "line": 25,
           "path": "app/server/src/lib/static-cdn.ts"
         },
         {
@@ -5912,7 +5916,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 44,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -5928,7 +5932,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 25,
+          "line": 26,
           "path": "app/forum/shared/sticker-css.ts"
         },
         {
@@ -6710,7 +6714,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -9485,11 +9489,11 @@
       "domain": "competitions",
       "evidence": [
         {
-          "line": 57,
+          "line": 74,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 13,
+          "line": 16,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
@@ -9527,15 +9531,15 @@
       "domain": "competitions",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -9543,8 +9547,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "id": "flow:competition.site.serve",
@@ -9768,6 +9776,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "id": "flow:competition.site.publish",
@@ -9819,7 +9835,7 @@
       "domain": "competitions",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -13557,15 +13573,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -13737,7 +13753,7 @@
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 163,
+          "line": 165,
           "path": "app/server/src/config.ts"
         },
         {
@@ -17833,7 +17849,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "e76b60e1d6df52a44b5e85aef151c431d6600a9488874b967c4ae690cf481750",
+    "fingerprint": "ac482727a4443d71b3a7c42f2440a8ea9ff0b7dc298f27f9e16b5cdb82a27a94",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17849,7 +17865,7 @@
       },
       {
         "path": "app/console/src/App.vue",
-        "sha256": "171fd8e87736a7f4246b8e8ff7575b625b0953db5cc019e3156c6237b128ca70"
+        "sha256": "14f7e91b209e9b40a9ead28e5416fea1514327b5e4d088529ec2a8bdd62fd691"
       },
       {
         "path": "app/console/src/components/AccountPicker.vue",
@@ -18241,7 +18257,7 @@
       },
       {
         "path": "app/forum/Dockerfile",
-        "sha256": "5cf87d0d83d0fcf6a19cccf32aebbdd07d049ba5fda73846553bd2549fd3c8f8"
+        "sha256": "c392a53a54ba6d9747e700f4c636b7a4cc9139642b2f09628d7dcc22d5bb5e5b"
       },
       {
         "path": "app/forum/app/app.vue",
@@ -18581,7 +18597,7 @@
       },
       {
         "path": "app/forum/nuxt.config.ts",
-        "sha256": "4a23e1c04b3eecfc3908c097aefeb0110538226277c3333889ff720fd530ec6b"
+        "sha256": "257d2f9a2f77d7763ccd1fa72927a57bea677e59690772dfddb8f56011fb5ad6"
       },
       {
         "path": "app/forum/package.json",
@@ -18657,11 +18673,11 @@
       },
       {
         "path": "app/forum/shared/sticker-css.ts",
-        "sha256": "dc6b611403386319541e7e67194e8ec9bc0a8d939e011cbecc4865fd55272691"
+        "sha256": "901e67cef4682532605788e78765e1c30ff6d46d3ca2fb7c84fe73cf4d1cc91d"
       },
       {
         "path": "app/forum/shared/sticker-url.ts",
-        "sha256": "3bba734bcd191b799d3fd1c84dabd3d4e389e575835d1af266dcf91df6313a29"
+        "sha256": "7ee5d0bb059a9eae2b9f3b725b7700a6156cfdf0e61ea49aea41023256d24e7d"
       },
       {
         "path": "app/forum/tests/activity-beacon.test.ts",
@@ -18717,7 +18733,7 @@
       },
       {
         "path": "app/server/Dockerfile",
-        "sha256": "c6a736b36e2736417060213484fd9749dd6396771cbe5e9c97c35cb09357b8af"
+        "sha256": "1dbde07c05cdfa2bf9966c97942ba92ea83af01c30b2b3ef17c57328ebfc8077"
       },
       {
         "path": "app/server/package.json",
@@ -18737,7 +18753,7 @@
       },
       {
         "path": "app/server/src/config.ts",
-        "sha256": "7ef0a3e82841e94a590e59449cc6295df79a88dc2fba45b42aefa6d31abcbc96"
+        "sha256": "06bceab86e7a2ca65dac96ab0886f6a5e4e8359ad2e158f1bfc80064969f74a1"
       },
       {
         "path": "app/server/src/index.ts",
@@ -18825,7 +18841,7 @@
       },
       {
         "path": "app/server/src/lib/competition-site-store.ts",
-        "sha256": "7feba299f0a2cb32d2ef5e7e7d0b9ffccad95c196a693fdd14128e66751f193e"
+        "sha256": "e862ab0940ccdbeb721f0dd73681f4ae3add9fa26efb28c05892a4488e1c6941"
       },
       {
         "path": "app/server/src/lib/competition-store.ts",
@@ -18993,7 +19009,7 @@
       },
       {
         "path": "app/server/src/lib/object-storage.ts",
-        "sha256": "c1c2f12f95aef674118b521bd5a79c6708a671abf167bcc10f8285de71478662"
+        "sha256": "964dddec95cfd57385ad3f24363b5013760eaaa2fb4986d1ad30adcf4f74ff8f"
       },
       {
         "path": "app/server/src/lib/oidc-provider.ts",
@@ -19065,7 +19081,7 @@
       },
       {
         "path": "app/server/src/lib/static-cdn.ts",
-        "sha256": "de998ba395b7f0c7fa503f313cec37dde50ab606a82b276d9851822ad6c7c5db"
+        "sha256": "a92d5330fae98279608eef2e5a7395cf6d6a4f33b008c90f3967e3a0f513e677"
       },
       {
         "path": "app/server/src/lib/sticker-manifest.ts",
@@ -19165,7 +19181,7 @@
       },
       {
         "path": "app/server/src/routes/console/competition-site.ts",
-        "sha256": "412acf7fd452008e76f2034e6103cf49bd0e4481d504e9578fa991149b08d1ea"
+        "sha256": "9121c3250e2f088c8efd77300c227f77314b45574693d7fd1390b1d864c7acf3"
       },
       {
         "path": "app/server/src/routes/console/competitions.ts",
@@ -19349,15 +19365,15 @@
       },
       {
         "path": "app/server/src/routes/sites/index.ts",
-        "sha256": "06af1e1d6fa4c6699b886d415d4bd718c3395c8430de19237a1b517497cf3f83"
+        "sha256": "1f734392a5f896ac18ecf2f0e9ba71378a8cf9cc9b7bf9d822f4787e48764f4c"
       },
       {
         "path": "app/server/src/services.ts",
-        "sha256": "66b3eee2f677cda2db73b6fa9c9aa9830492eba5b1c6343ee5e42502103a7808"
+        "sha256": "1e8f5eda478b6e4af3ece26158ee9aea68e4fa70682ee17d94bf416ff593dde3"
       },
       {
         "path": "app/web/Dockerfile",
-        "sha256": "b02b51bf0e9d89fd62ad482021f5dafd0a81d1b5720576b9a448292b5f7cf7d0"
+        "sha256": "1ca531918237644eaf18b9d15387d603cff873d9bbe38ae99e5806778bd207d1"
       },
       {
         "path": "app/web/package.json",
@@ -19805,15 +19821,15 @@
       },
       {
         "path": "deploy/compose/preview.yml",
-        "sha256": "1975cd2689c7e0f2bf2a4e88426dcc7c723509a2d05ac43f7f14e11bbed692dc"
+        "sha256": "d23a2da371e3f42be97ff6c49c3e89d57b89429029e371cbea4c40329d860c8f"
       },
       {
         "path": "deploy/compose/production.yml",
-        "sha256": "acb4ec6fccd3389eed6968336cbfca126f61ed0607a6f7b6b8c6c93dae5e0a85"
+        "sha256": "5a859c341ced0f82064930ef71fb051efe9464cb230706006093ea953fa972e7"
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "1008d97e9f3193a972a6b932796bd242f4cf527d5a5cd4b153d7b8f6b07820e3"
+        "sha256": "869e383964f1d59b0e70ca5a9f222c0563398dda9487d233970b9e4eb99e81ef"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -19821,11 +19837,11 @@
       },
       {
         "path": "docs/architecture/SECURITY.md",
-        "sha256": "acd5a1f6b17add603d662be3701cba7dcb939e5efde623140d5690df1c19155c"
+        "sha256": "6e7cc5e9f2d3dbc8f60b1779464dc458403b7047fcc124a958bed003002b0a48"
       },
       {
         "path": "docs/architecture/catalog/ownership.json",
-        "sha256": "eb0c25e2e20675f80a2e3799c22d16d9e6d410f3ebda5c396a9155c51b9e75e7"
+        "sha256": "54f8db8d28ee84dd31f72408903488d68fb52df2e58a5b5649c45bff5e50089d"
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
@@ -19841,15 +19857,15 @@
       },
       {
         "path": "docs/ops/BACKUP.md",
-        "sha256": "d2c36a5d629a33cd86f2f3de6a97fa1440b91f8cde2d232e145caecf1f002c84"
+        "sha256": "f5d51ed330d601c60689b094ab62ef8177a468aa9863ba2f96ccc3dbf79ad36c"
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "21804ad94a1be4704741627bdd4450921fc3d7a8a036be148455ddc3e99ac656"
+        "sha256": "e6234c73503de3d11e6013571435856e09629182239cf9ff460befceb5625383"
       },
       {
         "path": "docs/ops/ENVIRONMENTS.md",
-        "sha256": "b915478a250715c69395f78d20e186d0000a2fea813f611d1ba1a962e83f5e76"
+        "sha256": "8576aa0da44d47ce6a8a860bba7d0f92c8dfc5537f64065f2cba85f9f1f23dce"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -19869,15 +19885,15 @@
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "15696c5813ad500fa60cb88e271044a4020f003247c612842db68bcfc2d2cc07"
+        "sha256": "05a6a932f3468655d953ac2aac5cdc7db7e8abe87d74ab704997f44e9a65f006"
       },
       {
         "path": "docs/services/forum/README.md",
-        "sha256": "40cbf3ccbb99454b16698be7a8536c6d515cb1f55f09b729cbde2a4515d5dce7"
+        "sha256": "d7fa1e534e55a5b0e2183968f3b4e621e884c8df4e8bc1769ebf8c1af63cb503"
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "a2a6eccc9c814d9409ed9bfdd0148715bb65dce8072c83c521470a93857ec93b"
+        "sha256": "734c7f1263b70baaaa29f8f2589e3bc79fa0e24868bfe43946221e2222b3c315"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19889,11 +19905,11 @@
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
-        "sha256": "3c8838c9042a0eb2151f0f1ab8b0b738f9519b302f9b43dfb1651086911a2925"
+        "sha256": "155628494e74931b29d067ed2a5fb55fa1b9d23f1f7b66d1f898a68a11bfb77e"
       },
       {
         "path": "docs/services/server/mail.md",
-        "sha256": "ac7f8b9460d58fdf8f9e23598a0ee7d9770cbd30c9556dd2556f29a1b3f840fa"
+        "sha256": "62d0360cbbe839889c254cb94d635f7848c73e3c04f0d2ac912990ab394f8b8a"
       },
       {
         "path": "docs/services/server/oidc.md",
@@ -19901,7 +19917,7 @@
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "e37d427323a49325015020968c19df75a6e53a6fb5b49f9016c6d95e6446c494"
+        "sha256": "a265fc5d74b0aef0f18ea6c973c8ce8e5e4e7c43b6f703e76f6cebf982d5a7c5"
       },
       {
         "path": "docs/services/web/portal.md",
@@ -19917,7 +19933,7 @@
       },
       {
         "path": "scripts/catalog/collect.ts",
-        "sha256": "56c35a58a1566b7aa97663af0bf18698c80424ecac076cde1be72cad731e2b33"
+        "sha256": "e95799828f2841c9594d2086ff1c80d456f73dc3b0647a0c257a6cadd345995c"
       },
       {
         "path": "scripts/catalog/geometry.mjs",
@@ -20013,7 +20029,7 @@
       },
       {
         "path": "tests/e2e/competitions.spec.mts",
-        "sha256": "2b866db4a5e8835e6107ae7370a3c022caa4c778781ffb7bf8253662afffde3d"
+        "sha256": "a8213dbfdb16a752afc227da9387c737ad998fcc8b22f29be1c6bfda1b4339db"
       },
       {
         "path": "tests/e2e/portal-competitions.spec.ts",
@@ -20029,7 +20045,7 @@
       },
       {
         "path": "tests/server/abuse-shield.test.ts",
-        "sha256": "92b61355ffd0fbbad16d0a8707fb58d00ba1a710dd3d3a70c186dd17b1b61547"
+        "sha256": "d6c8b3df852933a4b5718c706b133fb213ae8c17b455a5a602baac73617b2484"
       },
       {
         "path": "tests/server/activity.test.ts",
@@ -20037,7 +20053,7 @@
       },
       {
         "path": "tests/server/applications.test.ts",
-        "sha256": "7811985cf44aba0e83422ce2da2190faebfa324a16209841e4b0fc6146b53bb0"
+        "sha256": "0760177363739d5c8b2d8ca1961ca085458ed03da1d049bf65cf4673f8a08ce3"
       },
       {
         "path": "tests/server/apply-switch.test.ts",
@@ -20097,11 +20113,11 @@
       },
       {
         "path": "tests/server/competitions.test.ts",
-        "sha256": "8ba2a90846e3a1d1c1a498122e9162ad01732562d816b0e8053ef81f81b3e50a"
+        "sha256": "1c5ca6628bfe633c0f20512e5d68a6bbeb3d593ac78100f774908cb10a81ae66"
       },
       {
         "path": "tests/server/configuration.test.ts",
-        "sha256": "bb23d36715b76d2e65eb9599552d0456916e8e0a9c3c44f72422d3f498d011d6"
+        "sha256": "d57a5f8f6cc77299f3d3c9a2f3d8be000304d9ad030311591c11ae32114274fc"
       },
       {
         "path": "tests/server/console-owner-eligibility.test.ts",
@@ -20121,7 +20137,7 @@
       },
       {
         "path": "tests/server/core.test.ts",
-        "sha256": "683eb5923bc0c989e8eaa3dab284d6b65a69f03dd87ac758c5a00ba7cf56acd7"
+        "sha256": "d10bf6e244a8bbdc3189dbfd85a8243c787e70c7b3824a2c21164f1528deb082"
       },
       {
         "path": "tests/server/device-flow.test.ts",
@@ -20141,7 +20157,7 @@
       },
       {
         "path": "tests/server/forum-sticker-cdn.test.ts",
-        "sha256": "5a45541560f24ce3e020141176f6d36156bbc61e856b73046320e004cdfd22d5"
+        "sha256": "62f200bfd47437954a8693eb904a2514525aaf9bda324fa560f4d7597bbecceb"
       },
       {
         "path": "tests/server/forum-v2-endpoints.test.ts",
@@ -20149,11 +20165,11 @@
       },
       {
         "path": "tests/server/forum.test.ts",
-        "sha256": "791df39ebb2902a69f02f76e5cb0855b36731e836270f9aa355b3f2be5fbc8b4"
+        "sha256": "7818138d84712e5428cd6e8a07da0d69a0d4943f4e342453e4879b5f3ea4ec5c"
       },
       {
         "path": "tests/server/gitlab-sync.test.ts",
-        "sha256": "2c4354d0b4f0f2c3dab67886cfb1a77c2e408b7078e5f2ed42f0cffcd58c89fd"
+        "sha256": "2718eaa31634ced5b894b758abdcfde84ec124a7b6a9f2f21e1b9f3800fb7bd3"
       },
       {
         "path": "tests/server/grade.test.ts",
@@ -20169,7 +20185,7 @@
       },
       {
         "path": "tests/server/legacy-database.test.ts",
-        "sha256": "4c2cd0077d6102c68fef40df03d9a84faeff6827cdbc482bed67831f092743a2"
+        "sha256": "2edc70456b39bd3d0ecaac84d4dbe7edfa547c088b50d96f454509377f2f944c"
       },
       {
         "path": "tests/server/mail-envelope.test.ts",
@@ -20177,7 +20193,7 @@
       },
       {
         "path": "tests/server/mail-outbox.test.ts",
-        "sha256": "541bbf1043470308731be1b9e5177485c4a34ed9d5fcebaa78717f7d30f47798"
+        "sha256": "60a4c7b138f24f5a66ce393c71d976f8ed425fc1e31854f33c03bdced56d334c"
       },
       {
         "path": "tests/server/mail-template-content.test.ts",
@@ -20225,7 +20241,7 @@
       },
       {
         "path": "tests/server/session-cleanup.test.ts",
-        "sha256": "cfbf015cfb03bf3c9dc67e0c2b0da5461756651ead1664b82943391e3391f74d"
+        "sha256": "747777567b99950f7f9bfae71feea579e0ff5ae35f11081e996af712a89a93c0"
       },
       {
         "path": "tests/server/signin-methods.test.ts",
@@ -20492,7 +20508,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         }
       ],
@@ -21716,7 +21732,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 57,
+          "line": 74,
           "path": "app/server/src/routes/sites/index.ts"
         }
       ],
@@ -21728,7 +21744,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         }
       ],
@@ -22856,7 +22872,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 57,
+          "line": 74,
           "path": "app/server/src/routes/sites/index.ts"
         }
       ],
@@ -22868,7 +22884,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         }
       ],
@@ -45552,6 +45568,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45576,6 +45600,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45600,6 +45632,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45624,6 +45664,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45648,6 +45696,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45672,6 +45728,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45696,6 +45760,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45720,6 +45792,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45744,6 +45824,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45780,6 +45868,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45804,6 +45900,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45828,6 +45932,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -45852,6 +45964,14 @@
         {
           "line": 169,
           "path": "app/console/src/lib/competition-contest.ts"
+        },
+        {
+          "line": 169,
+          "path": "app/server/src/lib/competition-site-store.ts"
+        },
+        {
+          "line": 132,
+          "path": "app/server/src/lib/object-storage.ts"
         }
       ],
       "from": "flow:competition.site.publish",
@@ -46368,11 +46488,11 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 57,
+          "line": 74,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 13,
+          "line": 16,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
@@ -46418,15 +46538,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46434,8 +46554,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46446,15 +46570,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46462,8 +46586,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46474,15 +46602,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46490,8 +46618,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46502,15 +46634,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46518,8 +46650,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46530,15 +46666,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46546,8 +46682,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46558,15 +46698,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46574,8 +46714,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46586,15 +46730,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46602,8 +46746,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46614,15 +46762,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46630,8 +46778,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46642,15 +46794,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46658,8 +46810,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46688,15 +46844,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46704,8 +46860,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46716,15 +46876,15 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 59,
+          "line": 76,
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 42,
+          "line": 52,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
-          "line": 14,
+          "line": 22,
           "path": "app/server/src/lib/competition-site-store.ts"
         },
         {
@@ -46732,8 +46892,12 @@
           "path": "app/web/sites/portal/components/os/competitions/ContestSite.tsx"
         },
         {
-          "line": 227,
+          "line": 229,
           "path": "app/web/Dockerfile"
+        },
+        {
+          "line": 98,
+          "path": "app/server/src/routes/sites/index.ts"
         }
       ],
       "from": "flow:competition.site.serve",
@@ -46768,7 +46932,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46788,7 +46952,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46808,7 +46972,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46828,7 +46992,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46848,7 +47012,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46868,7 +47032,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46888,7 +47052,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46908,7 +47072,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46940,7 +47104,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46960,7 +47124,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -46980,7 +47144,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -47000,7 +47164,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 102,
+          "line": 110,
           "path": "app/server/src/routes/console/competition-site.ts"
         },
         {
@@ -55314,6 +55478,10 @@
       "basis": "declaration",
       "evidence": [
         {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
+        {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
         },
@@ -55345,6 +55513,10 @@
     {
       "basis": "declaration",
       "evidence": [
+        {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
         {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
@@ -55378,6 +55550,10 @@
       "basis": "declaration",
       "evidence": [
         {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
+        {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
         },
@@ -55409,6 +55585,10 @@
     {
       "basis": "declaration",
       "evidence": [
+        {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
         {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
@@ -55465,6 +55645,10 @@
     {
       "basis": "declaration",
       "evidence": [
+        {
+          "line": 10,
+          "path": "app/console/src/App.vue"
+        },
         {
           "line": 29,
           "path": "app/server/src/routes/console/me.ts"
@@ -65430,15 +65614,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65458,15 +65642,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65486,15 +65670,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65514,15 +65698,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65542,15 +65726,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65570,15 +65754,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65598,15 +65782,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65626,15 +65810,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65672,15 +65856,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65700,15 +65884,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65728,15 +65912,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -65756,15 +65940,15 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 143,
+          "line": 141,
           "path": "app/server/Dockerfile"
         },
         {
-          "line": 285,
+          "line": 287,
           "path": "app/web/Dockerfile"
         },
         {
-          "line": 94,
+          "line": 97,
           "path": "app/forum/Dockerfile"
         }
       ],
@@ -68510,7 +68694,7 @@
           "path": "app/server/src/lib/sticker-manifest.ts"
         },
         {
-          "line": 9,
+          "line": 25,
           "path": "app/server/src/lib/static-cdn.ts"
         },
         {
@@ -68522,7 +68706,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 44,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68538,7 +68722,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 25,
+          "line": 26,
           "path": "app/forum/shared/sticker-css.ts"
         },
         {
@@ -68582,7 +68766,7 @@
           "path": "app/server/src/lib/sticker-manifest.ts"
         },
         {
-          "line": 9,
+          "line": 25,
           "path": "app/server/src/lib/static-cdn.ts"
         },
         {
@@ -68594,7 +68778,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 44,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68610,7 +68794,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 25,
+          "line": 26,
           "path": "app/forum/shared/sticker-css.ts"
         },
         {
@@ -68684,7 +68868,7 @@
           "path": "app/server/src/lib/sticker-manifest.ts"
         },
         {
-          "line": 9,
+          "line": 25,
           "path": "app/server/src/lib/static-cdn.ts"
         },
         {
@@ -68696,7 +68880,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 44,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68712,7 +68896,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 25,
+          "line": 26,
           "path": "app/forum/shared/sticker-css.ts"
         },
         {
@@ -71984,7 +72168,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72020,7 +72204,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72056,7 +72240,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72092,7 +72276,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72128,7 +72312,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72164,7 +72348,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72206,7 +72390,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72242,7 +72426,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72278,7 +72462,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72314,7 +72498,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72350,7 +72534,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -72386,7 +72570,7 @@
           "path": "app/server/src/lib/forum-store.ts"
         },
         {
-          "line": 37,
+          "line": 38,
           "path": "app/server/src/lib/object-storage.ts"
         },
         {
@@ -89880,7 +90064,7 @@
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 163,
+          "line": 165,
           "path": "app/server/src/config.ts"
         },
         {
@@ -89914,7 +90098,7 @@
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 163,
+          "line": 165,
           "path": "app/server/src/config.ts"
         },
         {
@@ -89942,7 +90126,7 @@
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 163,
+          "line": 165,
           "path": "app/server/src/config.ts"
         },
         {
@@ -89970,7 +90154,7 @@
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 163,
+          "line": 165,
           "path": "app/server/src/config.ts"
         },
         {
@@ -96967,7 +97151,7 @@
         }
       },
       "source": {
-        "line": 102,
+        "line": 110,
         "path": "app/server/src/routes/console/competition-site.ts"
       }
     },
@@ -114708,7 +114892,7 @@
         }
       },
       "source": {
-        "line": 57,
+        "line": 74,
         "path": "app/server/src/routes/sites/index.ts"
       }
     },
@@ -114753,7 +114937,7 @@
         }
       },
       "source": {
-        "line": 59,
+        "line": 76,
         "path": "app/server/src/routes/sites/index.ts"
       }
     },
@@ -120923,7 +121107,7 @@
         }
       },
       "source": {
-        "line": 57,
+        "line": 74,
         "path": "app/server/src/routes/sites/index.ts"
       }
     },
@@ -120968,7 +121152,7 @@
         }
       },
       "source": {
-        "line": 59,
+        "line": 76,
         "path": "app/server/src/routes/sites/index.ts"
       }
     },

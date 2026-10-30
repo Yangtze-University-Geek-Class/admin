@@ -87,8 +87,8 @@ if [[ -z "${ROLE}" || -z "${PREFIX}" ]]; then
     exit 1
 fi
 
-if [[ -z "${BACKUP_GPG_RECIPIENT:-}" ]]; then
-    echo "Error: BACKUP_GPG_RECIPIENT is required" >&2
+if [[ -z "${BACKUP_GPG_RECIPIENT:-}" && -z "${BACKUP_GPG_PUBLIC_KEY:-}" ]]; then
+    echo "Error: BACKUP_GPG_PUBLIC_KEY or BACKUP_GPG_RECIPIENT is required" >&2
     exit 1
 fi
 # 备份目标的端点、区域、桶、前缀与凭据都来自环境（BACKUP_S3_*），这里只查键是否存在，取值不打印
@@ -98,7 +98,7 @@ for var in BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_ACCESS
         exit 1
     fi
 done
-if ! gpg --batch --list-keys "${BACKUP_GPG_RECIPIENT}" >/dev/null 2>&1; then
+if [[ -z "${BACKUP_GPG_PUBLIC_KEY:-}" ]] && ! gpg --batch --list-keys "${BACKUP_GPG_RECIPIENT}" >/dev/null 2>&1; then
     echo "Error: platform backup GPG recipient is unavailable" >&2
     exit 1
 fi
@@ -106,11 +106,22 @@ fi
 mkdir -m 0700 "${OUTPUT}"
 PLAIN="${OUTPUT}/platform-backup.tar"
 ENCRYPTED="${OUTPUT}/platform-backup.tar.gpg"
-cleanup() { rm -f "${PLAIN}"; }
+PUBKEY="${OUTPUT}/recipient.asc"
+cleanup() { rm -f "${PLAIN}" "${PUBKEY}"; }
 trap cleanup EXIT
 # 快照里的 system-backup.tar.gz 本身已是 gzip；外层 tar 只包 3 个小文件，gpg 加密时再按 ZIP 压缩
 tar -C "${SOURCE}" -cf "${PLAIN}" "${EXPECTED[@]}"
-gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${BACKUP_GPG_RECIPIENT}" --output "${ENCRYPTED}" --encrypt "${PLAIN}"
+if [[ -n "${BACKUP_GPG_PUBLIC_KEY:-}" ]]; then
+    # 公钥是 base64 的 ASCII 公钥块，解到本次输出目录里用 --recipient-file 加密（不需要钥匙环），用完即删
+    if ! { printf '%s' "${BACKUP_GPG_PUBLIC_KEY}" | base64 -d > "${PUBKEY}"; } 2>/dev/null || ! grep -q -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "${PUBKEY}"; then
+        echo "Error: BACKUP_GPG_PUBLIC_KEY is not a base64 ASCII public key" >&2
+        exit 1
+    fi
+    gpg --batch --yes --trust-model always --compress-algo ZIP --recipient-file "${PUBKEY}" --output "${ENCRYPTED}" --encrypt "${PLAIN}"
+    rm -f "${PUBKEY}"
+else
+    gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${BACKUP_GPG_RECIPIENT}" --output "${ENCRYPTED}" --encrypt "${PLAIN}"
+fi
 rm -f "${PLAIN}"
 node --input-type=module - "${ENCRYPTED}" "${OUTPUT}/SHA256SUMS" <<'NODE'
 import { createHash } from 'node:crypto';

@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 // 比赛（#238）：公开列表与控制台维护。公开接口不带成员信息，写入只在服务端按能力判定。
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -58,7 +59,7 @@ it('registers response contracts for competition and capability configuration op
   const deny = () => { throw new Error('Unexpected external request'); };
   const app = await buildApp({
     config: testConfig({
-      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
+      NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
       SESSION_SECRET: 'isolated-core-test-secret-at-least-32', ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
       OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder',
     }),

@@ -72,6 +72,8 @@ ARG GEEK_RELEASE_COMMIT=""
 # 静态资源 CDN 开关（#146）：空 = 同源（默认）；非空只能是 scripts/static-cdn-base.mjs 里的地址，
 # nuxt.config.ts 据此设 app.cdnURL=<地址>forum/。只在构建阶段声明，运行阶段不继承。
 ARG STATIC_CDN_BASE=""
+# 源站 STATIC_CDN_ORIGIN（#360）：来自 deploy/env 的环境文件，只在构建阶段声明；nuxt.config.ts 用它核对 STATIC_CDN_BASE。
+ARG STATIC_CDN_ORIGIN=""
 
 # GEEK_FORUM_SOURCE=site：镜像是极客班论坛的界面壳，话题、分类、正文、Markdown 与旧帖图片都由核心
 # 按当前 viewer 动态提供。源数据仍参与 server 镜像播种，但不进入论坛客户端/静态产物；不带上游示例帖子，
@@ -86,10 +88,11 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_DEPLOYMENT_ENVIRONMENT="$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_RELEASE_VERSION="$GEEK_RELEASE_VERSION" \
     GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
+    STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" \
     STATIC_CDN_BASE="$STATIC_CDN_BASE" \
     pnpm exec nuxt generate \
- && node /repo/scripts/security-notice.mjs --root .output/public --entry index.html --base /forum/ \
- && node /repo/scripts/security-notice.mjs --root .output/public --entry 200.html --base /forum/ \
+ && STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" node /repo/scripts/security-notice.mjs --root .output/public --entry index.html --base /forum/ \
+ && STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" node /repo/scripts/security-notice.mjs --root .output/public --entry 200.html --base /forum/ \
  # site 的 llms、话题 Markdown 与 published 图片必须只走核心授权面；即使 Nuxt/public 以后又复制出来也在镜像层删掉。
  && rm -rf .output/public/llms.txt .output/public/t/*.md .output/public/published \
  # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。入口在开关打开时是 CDN 上的 <地址>forum/_nuxt/，

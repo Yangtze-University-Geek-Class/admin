@@ -2,7 +2,7 @@
 
 > 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。
 
-状态：`current` · 更新：2026-10-30 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
+状态：`current` · 更新：2026-10-31 · 适用：GitHub admin#270 的迁移接管及后续发布；GitLab 同号身份事项与既有旁路服务见 [GITLAB](GITLAB.md)。
 
 ## 发布前置
 
@@ -217,7 +217,7 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 
 - 容器内进程非 root 运行（web 容器 nginx 以 nginx 用户跑非特权 8080）；镜像只含运行必需的代码与静态产物。
 - **CSP 与代理等价性**：现行安全头由香港 Caddy 下发，旧入口已去掉重复头。论坛保留上游内联 `sha256-` CSP，不叠冲突策略；迁移复验首页和论坛均只有一份 CSP。原生产与预发布版本的策略差异保留，没有借迁移升级生产策略。HLS、GLB、CDN 和比赛 sandbox 的完整业务路径仍分别验证，生成器通过不代表已安装。
-- **比赛官网**：`/c/<slug>/` 的 server sandbox CSP 必须与默认策略取交集，不被边缘覆盖。容器仅比赛 zip 上传入口放宽到 21m，站点网关策略源仍为 6m，生成器沿用该上限；大包经整条链可能 413，不能顺带扩权。论坛 CSP、sandbox、上传/旧链接/HLS、Host/SNI、Secure Cookie/OIDC 和真实 IP 防伪造都列为目标验收，不由直连 `/healthz` 代替。
+- **比赛官网**：`/c/<slug>/` 的 server sandbox CSP 必须与默认策略取交集，不被边缘覆盖。容器仅比赛 zip 上传入口放宽到 21m，站点网关策略源仍为 6m，生成器沿用该上限；大包经整条链可能 413，不能顺带扩权。对象存储开启（#360）时，比赛官网的资源 302 到 CDN，边缘生成器 `scripts/render-arch-caddy.mjs` 按各环境模板的 `OBJECT_STORAGE_PUBLIC_BASE` 与 `OBJECT_STORAGE_PREFIX` 把 `contest-sites/` 前缀并入 script-src、style-src、font-src；边缘配置必须先重新生成、审核并上线，再让服务开启对象存储，否则资源被边缘 CSP 拦下。论坛 CSP、sandbox、上传/旧链接/HLS、Host/SNI、Secure Cookie/OIDC 和真实 IP 防伪造都列为目标验收，不由直连 `/healthz` 代替。
 - 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
 - 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料；incoming 里分发来的归档与 env 副本在部署成功后删除（见「incoming 清理」）。
 
@@ -235,7 +235,7 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 ## 香港对象存储（站点静态资源与备份归档）
 
 #346 起公开静态资源（站点带哈希资源、表情包、使用说明截图、宣传片和邮件图片）回到七牛：上传端点 `https://s3.cn-south-1.qiniucs.com`，桶名取环境变量 `vars.STATIC_CDN_S3_BUCKET`，公开入口 `https://cdn.crosery.com`。预发布与正式的页面只有在边缘 CSP 放行 `https://cdn.crosery.com/yzgc/static/site/` 后才会以 CDN 模式构建（`deploy-*.yml` 的 cdn-plan 读线上响应头）。香港的 `cdn.yangtzeu.work`（Garage + Caddy + S3 Manager）公开桶已封存：不再接收公开对象，已有对象和直链保留；仓库里的 GitLab 与平台备份、部署前数据库快照已改写七牛私有备份桶（#354，见 [BACKUP](BACKUP.md)）；内容索引私有桶与 CDN 镜像仍在 Garage，等 #346 的后续步骤切换。
-用户文件的对象存储（#352）：`OBJECT_STORAGE_ENDPOINT`、`OBJECT_STORAGE_REGION`、`OBJECT_STORAGE_PREFIX`、`OBJECT_STORAGE_PUBLIC_BASE` 在三份 env 模板里，前缀按环境分开；桶名是环境变量 `vars.OBJECT_STORAGE_BUCKET`，两项访问密钥是环境 secrets，三项要么都填、要么都留空（留空即关闭）。合同见 [CDN](CDN.md)「用户文件」。
+用户文件的对象存储（#352）：`OBJECT_STORAGE_ENDPOINT`、`OBJECT_STORAGE_REGION`、`OBJECT_STORAGE_PREFIX`、`OBJECT_STORAGE_PUBLIC_BASE` 在三份 env 模板里，前缀按环境分开；桶名是环境变量 `vars.OBJECT_STORAGE_BUCKET`，两项访问密钥是环境 secrets，三项要么都填、要么都留空（留空即关闭）。合同见 [CDN](CDN.md)「用户文件」。静态资源 CDN 的源站 `STATIC_CDN_ORIGIN`（#360）同样来自环境文件，三份相同；compose 把它传给 server 容器，启动时核对 `STATIC_CDN_BASE`。
 
 - 配置模板在 [`deploy/storage-cdn/`](../../deploy/storage-cdn/)（`garage.toml`、`s3manager.env`、`Caddyfile`、`edge.caddy`、`scripts/upload_demo.py`），合同见 [STORAGE-CDN](STORAGE-CDN.md)。
 - 公网入口由主站香港 `156.238.244.78` 的 `/etc/caddy/sites/storage-cdn-edge.caddy` 反代到 Garage 机 `103.240.197.216`，保留 Host、S3 签名、CORS、Range、MIME 与缓存；`cdn` 的 A 记录回滚值是 `103.240.197.216`。

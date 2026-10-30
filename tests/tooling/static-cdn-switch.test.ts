@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX, forumCdnURL, staticCdnBase } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_PREFIX, forumCdnURL, staticCdnBase, staticCdnOrigin, staticCdnPrefixURL } from '../../scripts/static-cdn-base.mjs';
+import { CDN_ENV, STATIC_CDN_BASE, STATIC_CDN_ORIGIN } from '../static-cdn-fixture';
 
 // 静态资源 CDN（#146）的构建开关：STATIC_CDN_BASE 的取值规则、官网与控制台的 Vite 配置、论坛的 Nuxt 配置，
 // 以及 web、forum 两个 Dockerfile 的接线。上传脚本在 static-cdn.test.ts，部署工作流在 static-cdn-workflows.test.ts。
@@ -11,16 +12,23 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 
 describe('build switch STATIC_CDN_BASE', () => {
-  it('is empty (same origin) unless set to exactly the one CDN base', () => {
-    expect(STATIC_CDN_BASE).toBe(`${STATIC_CDN_ORIGIN}/${STATIC_CDN_PREFIX}`);
-    expect(STATIC_CDN_BASE).toBe('https://cdn.crosery.com/yzgc/static/site/');
+  it('is empty (same origin) unless set to exactly the one CDN base derived from STATIC_CDN_ORIGIN', () => {
     expect(STATIC_CDN_PREFIX.startsWith('yzgc/static/')).toBe(true);
+    expect(staticCdnPrefixURL(CDN_ENV)).toBe(STATIC_CDN_BASE);
     expect(staticCdnBase({})).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE: '' })).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE: '  ' })).toBe('');
-    expect(staticCdnBase({ STATIC_CDN_BASE })).toBe(STATIC_CDN_BASE);
+    expect(staticCdnBase(CDN_ENV)).toBe(STATIC_CDN_BASE);
+    expect(() => staticCdnBase({ STATIC_CDN_BASE }), '开关打开而没有源站').toThrow(/STATIC_CDN_ORIGIN/);
     for (const wrong of ['https://cdn-old.example.test/', 'https://cdn-old.example.test/yzgc/static/site', 'http://cdn-old.example.test/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
-      expect(() => staticCdnBase({ STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
+      expect(() => staticCdnBase({ ...CDN_ENV, STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
+    }
+  });
+
+  it('reads STATIC_CDN_ORIGIN strictly: https origin only, no path, slash or query', () => {
+    expect(staticCdnOrigin(CDN_ENV)).toBe(STATIC_CDN_ORIGIN);
+    for (const bad of ['', 'http://cdn.example.test', `${STATIC_CDN_ORIGIN}/`, `${STATIC_CDN_ORIGIN}/x`, `${STATIC_CDN_ORIGIN}?a=1`, 'not a url']) {
+      expect(() => staticCdnOrigin({ STATIC_CDN_ORIGIN: bad }), bad).toThrow();
     }
   });
 
@@ -38,6 +46,7 @@ describe('build switch STATIC_CDN_BASE', () => {
     const load = async (value: string) => {
       vi.resetModules();
       vi.stubEnv('STATIC_CDN_BASE', value);
+      vi.stubEnv('STATIC_CDN_ORIGIN', STATIC_CDN_ORIGIN);
       const web = (await import('../../app/web/vite.config.ts')).default as { base?: string; experimental?: { renderBuiltUrl?: (file: string, ctx: { type: string }) => unknown } };
       const admin = (await import('../../app/console/vite.config.ts')).default as typeof web;
       return { web, admin };
@@ -106,8 +115,8 @@ describe('images', () => {
     expect(dockerfile).not.toMatch(/assets\/stickers\/yugc/);
   });
 
-  it('the server build stage accepts exactly the empty value and the one CDN base, the same answer as staticCdnBase', () => {
-    const check = /\nRUN (case "\$STATIC_CDN_BASE" in[\s\S]*?\n {4}esac)\n/.exec(read('app/server/Dockerfile'));
+  it('the server build stage only checks the shape: empty or https://<host>/yzgc/static/site/ (the origin is checked at runtime)', () => {
+    const check = /\nRUN (printf '%s\\n' "\$STATIC_CDN_BASE"[\s\S]*?exit 1; \})\n/.exec(read('app/server/Dockerfile'));
     expect(check, '找不到构建阶段对 STATIC_CDN_BASE 的核对').not.toBeNull();
     const runs = (value: string) => {
       try {
@@ -117,12 +126,9 @@ describe('images', () => {
         return false;
       }
     };
-    // 纯空白：staticCdnBase 当作空，镜像里的核对更严（不接受），所以不放进对照表；工作流只会传空或固定值。
-    for (const value of ['', STATIC_CDN_BASE, 'https://cdn-old.example.test/', 'https://cdn-old.example.test/yzgc/static/site', 'http://cdn-old.example.test/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', `${STATIC_CDN_BASE}forum/`, 'https://cdn-old.example.test/yzgc/promo/', '$(id)', '"; exit 0; "']) {
-      const accepted = (() => { try { staticCdnBase({ STATIC_CDN_BASE: value }); return true; } catch { return false; } })();
-      expect(runs(value), JSON.stringify(value)).toBe(accepted);
-    }
-    expect(runs(' ')).toBe(false);
+    for (const value of ['', 'https://cdn.example.test/yzgc/static/site/', STATIC_CDN_BASE]) expect(runs(value), JSON.stringify(value)).toBe(true);
+    for (const value of ['https://cdn.example.test/yzgc/static/site', 'http://cdn.example.test/yzgc/static/site/', 'https://evil.example/x/yzgc/static/site/', 'https://cdn.example.test/yzgc/static/site/forum/', 'https:///yzgc/static/site/', ' ']) expect(runs(value), JSON.stringify(value)).toBe(false);
+    expect(runs(STATIC_CDN_BASE)).toBe(true);
   });
 
   it('compress text at the same gzip level in the web and forum containers (the web proxy does not re-compress forum responses)', () => {

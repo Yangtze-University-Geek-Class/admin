@@ -10,7 +10,7 @@ case "${ENVIRONMENT}" in
     *) echo 'Invalid GitLab backup environment' >&2; exit 2 ;;
 esac
 # 备份目标（端点、区域、桶、前缀、凭据）全部来自 /etc/<实例>-backup/env；前缀按环境区分，必须非空，否则会写到桶根下
-REQUIRED_VARS=(BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_PREFIX BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY GPG_RECIPIENT)
+REQUIRED_VARS=(BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_PREFIX BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY)
 BASE="/srv/${INSTANCE}"
 BACKUP_ENV="/etc/${INSTANCE}-backup/env"
 LOCK_FILE="/run/${INSTANCE}-backup.lock"
@@ -40,7 +40,21 @@ if [[ ! -f "${ARCHIVE_TOOL}" || -L "${ARCHIVE_TOOL}" ]]; then
     exit 1
 fi
 export HOME="${HOME:-/root}"
-if ! gpg --batch --list-keys "${GPG_RECIPIENT}" >/dev/null 2>&1; then
+# 收件人二选一：BACKUP_GPG_PUBLIC_KEY（base64 的 ASCII 公钥，用 --recipient-file，不需要钥匙环）优先，否则用 GPG_RECIPIENT 查钥匙环
+if [[ -z "${BACKUP_GPG_PUBLIC_KEY:-}" && -z "${GPG_RECIPIENT:-}" ]]; then
+    echo "Error: BACKUP_GPG_PUBLIC_KEY or GPG_RECIPIENT is required" >&2
+    exit 1
+fi
+RECIPIENT_ARGS=(--recipient "${GPG_RECIPIENT:-}")
+GPG_KEY_FILE=""
+if [[ -n "${BACKUP_GPG_PUBLIC_KEY:-}" ]]; then
+    GPG_KEY_FILE=$(mktemp "${TMPDIR:-/tmp}/gitlab-backup-recipient.XXXXXX")
+    if ! { printf '%s' "${BACKUP_GPG_PUBLIC_KEY}" | base64 -d > "${GPG_KEY_FILE}"; } 2>/dev/null || ! grep -q -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "${GPG_KEY_FILE}"; then
+        echo "Error: BACKUP_GPG_PUBLIC_KEY is not a base64 ASCII public key" >&2
+        exit 1
+    fi
+    RECIPIENT_ARGS=(--recipient-file "${GPG_KEY_FILE}")
+elif ! gpg --batch --list-keys "${GPG_RECIPIENT}" >/dev/null 2>&1; then
     echo "Error: GPG public key ${GPG_RECIPIENT} not found in keyring" >&2
     exit 1
 fi
@@ -57,6 +71,7 @@ CONFIG_TAR="${STAGE_DIR}/gitlab_config_${STAMP}.tar"
 MARKER_FILE="${BASE}/data/backups/.backup_marker_${STAMP}"
 
 cleanup() {
+    [[ -n "${GPG_KEY_FILE:-}" && -f "${GPG_KEY_FILE}" ]] && rm -f "${GPG_KEY_FILE}"
     [[ -n "${CONFIG_TAR:-}" && -f "${CONFIG_TAR}" ]] && rm -f "${CONFIG_TAR}"
     [[ -n "${MARKER_FILE:-}" && -f "${MARKER_FILE}" ]] && rm -f "${MARKER_FILE}"
 }
@@ -96,8 +111,8 @@ tar -C / -cf "${CONFIG_TAR}" "${CONFIG_PATHS[@]}"
 ENC_BACKUP="${STAGE_DIR}/$(basename "${BACKUP_TAR}").gpg"
 ENC_CONFIG="${CONFIG_TAR}.gpg"
 # GitLab 能读的备份必须是未压缩的 tar，压缩放在加密之前：gpg 对明文按 ZIP 压缩
-gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${GPG_RECIPIENT}" --output "${ENC_BACKUP}" --encrypt "${BACKUP_TAR}"
-gpg --batch --yes --trust-model always --compress-algo ZIP --recipient "${GPG_RECIPIENT}" --output "${ENC_CONFIG}" --encrypt "${CONFIG_TAR}"
+gpg --batch --yes --trust-model always --compress-algo ZIP "${RECIPIENT_ARGS[@]}" --output "${ENC_BACKUP}" --encrypt "${BACKUP_TAR}"
+gpg --batch --yes --trust-model always --compress-algo ZIP "${RECIPIENT_ARGS[@]}" --output "${ENC_CONFIG}" --encrypt "${CONFIG_TAR}"
 rm -f "${CONFIG_TAR}"
 (
     cd "${STAGE_DIR}"

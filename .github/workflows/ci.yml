@@ -443,8 +443,7 @@ jobs:
     env:
       # 与 docker job 相同，以 build arg 传给 Dockerfile 的构建阶段。
       NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
-      # 只能是 scripts/static-cdn-base.mjs 里的 STATIC_CDN_BASE（下面第一步核对），与部署工作流 cdn-plan 打开时的输出相同。
-      STATIC_CDN_BASE: https://cdn.crosery.com/yzgc/static/site/
+      # STATIC_CDN_ORIGIN 与由它派生的 STATIC_CDN_BASE 由下面的第一步从 deploy/env/.env.dev 读出，写进 $GITHUB_ENV（#360）：工作流里不写域名。
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -458,14 +457,31 @@ jobs:
           # 本 job 不在 runner 上装依赖，只跑仓库自带的零依赖脚本。
           package-manager-cache: false
 
+      - name: 从环境文件读取静态资源 CDN 源站并派生开关值
+        shell: bash
+        # 源站只来自 deploy/env/.env.dev 的 STATIC_CDN_ORIGIN（三份 env 的值相同），不写在工作流里（#360）。
+        # 缺值或不是 https 源就失败；派生规则是 scripts/static-cdn-base.mjs 的 staticCdnPrefixURL。
+        run: |
+          set -eu
+          node --input-type=module -e '
+            import { appendFileSync, readFileSync } from "node:fs";
+            import { parseEnvFileText } from "./scripts/deployment-environment.mjs";
+            import { staticCdnPrefixURL } from "./scripts/static-cdn-base.mjs";
+            const env = Object.fromEntries(parseEnvFileText(readFileSync("deploy/env/.env.dev", "utf8"), "deploy/env/.env.dev"));
+            const origin = env.STATIC_CDN_ORIGIN ?? "";
+            const base = staticCdnPrefixURL({ STATIC_CDN_ORIGIN: origin });
+            appendFileSync(process.env.GITHUB_ENV, "STATIC_CDN_ORIGIN=" + origin + "\nSTATIC_CDN_BASE=" + base + "\n");
+          '
+
       - name: 核对开关值并解析提交态的发布身份
         shell: bash
         run: |
           set -eu
           node --input-type=module -e '
-            const { STATIC_CDN_BASE, staticCdnBase } = await import("./scripts/static-cdn-base.mjs");
-            if (!staticCdnBase(process.env) || staticCdnBase(process.env) !== STATIC_CDN_BASE) throw new Error("STATIC_CDN_BASE 必须等于 " + STATIC_CDN_BASE);
-            console.log("静态资源 CDN 开关：" + STATIC_CDN_BASE);
+            const { staticCdnBase, staticCdnPrefixURL } = await import("./scripts/static-cdn-base.mjs");
+            const base = staticCdnBase(process.env);
+            if (!base || base !== staticCdnPrefixURL(process.env)) throw new Error("STATIC_CDN_BASE 必须等于 STATIC_CDN_ORIGIN 派生的地址");
+            console.log("静态资源 CDN 开关：" + base);
           '
           version="$(node -p "require('./package.json').version")"
           {
@@ -487,6 +503,7 @@ jobs:
               --build-arg GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
               --build-arg NPM_REGISTRY="$NPM_REGISTRY" \
               --build-arg STATIC_CDN_BASE="$STATIC_CDN_BASE" \
+              --build-arg STATIC_CDN_ORIGIN="$STATIC_CDN_ORIGIN" \
               --tag "${IMAGE_REPOSITORY}/${service}:${IMAGE_TAG}" .
           done
 

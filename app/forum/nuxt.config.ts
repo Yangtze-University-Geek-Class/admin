@@ -62,26 +62,16 @@ export default defineNuxtConfig({
   // 构建时常量：极客班论坛的构建里，app/stores/forum.ts 的初始状态直接是 siteForumState()，
   // createSeed 与上游示例帖子因此整段不进浏览器产物（镜像构建断言产物里没有示例帖子标题）。
   vite: {
-    define: { 'import.meta.env.GEEK_FORUM_SITE': JSON.stringify(contentSource === 'site') },
-    plugins: cdnBase ? [hashPublicImports()] : [],
-    // 分包：SPA 首屏要用到的 Tuffex 组件与论坛自己的组件、页面各合成一个分包。默认按动态导入切成 70 个文件（37 个不到 3KB），
-    // 入口脚本执行后才发现下一批，要串三层请求，每层都叠一次服务端往返（#217）。
-    build: {
-      rollupOptions: {
-        output: {
-          // Vite 的类型仍是 rollup 的 OutputOptions，运行时的打包器是 rolldown，它认 codeSplitting
-          // @ts-expect-error codeSplitting 是 rolldown 的输出选项
-          codeSplitting: {
-            groups: [
-              { name: 'tuffex', test: /node_modules[\\/]@talex-touch[\\/]/, priority: 20 },
-              { name: 'app', test: /[\\/]app[\\/](components|pages|composables|stores|data|layouts)[\\/]/, priority: 10 },
-            ],
-          },
-        },
-      },
+    define: {
+      'import.meta.env.GEEK_FORUM_SITE': JSON.stringify(contentSource === 'site'),
+      // 表情 CDN 前缀（shared/sticker-url.ts）：开关为空时是空串，同源。
+      'import.meta.env.GEEK_STATIC_CDN_BASE': JSON.stringify(cdnBase),
     },
+    plugins: cdnBase ? [hashPublicImports()] : [],
+    // 不做手动分包（#360）：旧的 tuffex、app 两组会把整个 Tuffex 和全部组件、页面各并成一个分块，入口只要静态依赖其中
+    // 任何一个，整块（含没有访问的页面和 Markdown、表格等组件）都在首屏预加载。去掉后由 Rollup 按依赖切分，首屏预加载的 JS
+    // 从约 300 KB（gzip）降到约 165 KB；路由仍是 Nuxt 的动态导入，首屏依赖由 HTML 的 modulepreload 并行取回，不再逐层串行（#217）。
   },
-
   // The editorial layer over the read-only snapshot (categories, tags,
   // polished bodies) lives in ./content and is read by server/utils through
   // `useStorage('assets:content')`.

@@ -119,8 +119,8 @@ bash /opt/yzgc/tools/deploy/remote/platform-maintenance.sh backup \
 
 - `BACKUP_S3_ENDPOINT=https://s3.cn-south-1.qiniucs.com`，`BACKUP_S3_REGION=cn-south-1`，path-style SigV4。
 - `BACKUP_S3_PREFIX` 按环境区分：正式 `yzgc/production/backup/`，预发布 `yzgc/preview/backup/`。不能为空，否则备份会落到桶根。
-- `BACKUP_S3_BUCKET`、`BACKUP_S3_ACCESS_KEY_ID`、`BACKUP_S3_SECRET_ACCESS_KEY`、`BACKUP_GPG_RECIPIENT` 仓库里留空。它们由 GitHub 环境 secret 经部署流水线写入目标机的 `.env.<环境>`。桶名不写进仓库和文档。
-- GPG 加密带 `--compress-algo ZIP`。
+- `BACKUP_S3_BUCKET`、`BACKUP_S3_ACCESS_KEY_ID`、`BACKUP_S3_SECRET_ACCESS_KEY`、`BACKUP_GPG_PUBLIC_KEY`（或 `BACKUP_GPG_RECIPIENT`）仓库里留空。它们由 GitHub 环境 secret 经部署流水线写入目标机的 `.env.<环境>`。桶名不写进仓库和文档。
+- GPG 加密带 `--compress-algo ZIP`。收件人优先用 `BACKUP_GPG_PUBLIC_KEY`（base64 的 ASCII 公钥，写成 `--recipient-file` 加密，不需要目标机钥匙环）；只配了 `BACKUP_GPG_RECIPIENT` 时才查钥匙环。`deploy/remote/platform-archive.sh` 与 `deploy/gitlab/backup.sh` 的收件人规则相同。
 
 留存（GFS）：每个日期（取最近 7 个有完整备份的日期）、每个 ISO 周（最近 4 周）、每个自然月（最近 3 个月）各保留最新的一份完整 run，三条取并集。删除只发生在本角色前缀下的整日 run，并且先核对保留下来的 run 的 manifest；核对不过则一个都不删。没有 manifest 的残缺 run 只在早于最早保留日期时删除。
 

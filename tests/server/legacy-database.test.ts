@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -222,7 +223,7 @@ const octokitFactory = (() => ({
 async function boot(dbPath: string) {
   const config = testConfig({
     NODE_ENV: 'test',
-    PUBLIC_ORIGIN: 'https://example.test', DB_PATH: dbPath,
+    PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: dbPath,
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
     SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
     ENCRYPTION_KEY,

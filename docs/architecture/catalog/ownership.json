@@ -2253,6 +2253,10 @@
       ],
       "evidence": [
         {
+          "path": "app/console/src/App.vue",
+          "needle": "<RouterView />"
+        },
+        {
           "path": "app/server/src/routes/console/me.ts",
           "needle": "app.get(\"/api/console/me\", async (req) => {"
         },
@@ -5641,7 +5645,7 @@
         },
         {
           "path": "app/server/src/lib/static-cdn.ts",
-          "needle": "export function parseStaticCdnBase(raw: string | undefined): string {"
+          "needle": "export function parseStaticCdnBase(raw: string | undefined, origin: string | undefined): string {"
         },
         {
           "path": "app/server/src/lib/migrations/2026-10-sticker-packs.ts",
@@ -9136,6 +9140,10 @@
         {
           "path": "app/web/Dockerfile",
           "needle": "    location ^~ /c/ {"
+        },
+        {
+          "path": "app/server/src/routes/sites/index.ts",
+          "needle": "const cdn = sites.assetUrl("
         }
       ],
       "tests": [
@@ -9352,6 +9360,14 @@
         {
           "path": "app/console/src/lib/competition-contest.ts",
           "needle": "export function slugError("
+        },
+        {
+          "path": "app/server/src/lib/competition-site-store.ts",
+          "needle": "async function mirrorToStorage(competitionId: string, versionId: string)"
+        },
+        {
+          "path": "app/server/src/lib/object-storage.ts",
+          "needle": "async function remove(key: string)"
         }
       ],
       "tests": [
@@ -11446,21 +11462,42 @@
       "id": "gitlab.entry.open",
       "title": "门户进入本环境的 GitLab 群组",
       "domain": "gitlab",
-      "relatedDomains": ["platform"],
+      "relatedDomains": [
+        "platform"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/public/gitlab",
-      "capabilities": [], "reads": [], "writes": [], "doesNotEnqueue": [],
+      "capabilities": [],
+      "reads": [],
+      "writes": [],
+      "doesNotEnqueue": [],
       "invariants": [
         "只按本环境 GITLAB_URL 与有效群组设置生成 302 Location，保留部署子路径；查询参数不能改变目的地。",
         "无基址返回 503；不发送管理员令牌、不读私有项目、不缓存重定向。"
       ],
       "evidence": [
-        {"path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/public/gitlab\","},
-        {"path": "app/server/src/routes/portal/contracts.ts", "needle": "\"GET /api/public/gitlab\":"},
-        {"path": "app/web/sites/portal/lib/links.ts", "needle": "gitlab: (): string => \"/api/public/gitlab\""}
+        {
+          "path": "app/server/src/routes/portal/gitlab.ts",
+          "needle": "app.get(\"/api/public/gitlab\","
+        },
+        {
+          "path": "app/server/src/routes/portal/contracts.ts",
+          "needle": "\"GET /api/public/gitlab\":"
+        },
+        {
+          "path": "app/web/sites/portal/lib/links.ts",
+          "needle": "gitlab: (): string => \"/api/public/gitlab\""
+        }
       ],
-      "tests": ["tests/server/gitlab-sync.test.ts"],
-      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
+      "tests": [
+        "tests/server/gitlab-sync.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/oidc.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/services/web/portal.md"
+      ]
     },
     {
       "id": "gitlab.projects.public.list",
@@ -11538,12 +11575,21 @@
       "id": "gitlab.projects.member.list",
       "title": "有效极客班成员从门户与终端查看成员项目",
       "domain": "gitlab",
-      "relatedDomains": ["identity", "permissions"],
+      "relatedDomains": [
+        "identity",
+        "permissions"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/me/gitlab/projects",
       "capabilities": [],
-      "reads": ["sessions", "users", "perm_members"],
-      "writes": ["sessions"],
+      "reads": [
+        "sessions",
+        "users",
+        "perm_members"
+      ],
+      "writes": [
+        "sessions"
+      ],
       "doesNotEnqueue": [],
       "invariants": [
         "仅有效 sid 且 active、当前有效直接 member/alumni 可读；没有 gitlab.view 也能读取，不开放控制台账号与同步管理权限。",
@@ -11552,17 +11598,50 @@
         "只返回项目名称、路径、说明、HTTPS链接和最近活动，不返回管理令牌、身份绑定、内部管理字段。"
       ],
       "evidence": [
-        { "path": "app/server/src/routes/portal/gitlab.ts", "needle": "app.get(\"/api/me/gitlab/projects\"" },
-        { "path": "app/server/src/routes/portal/contracts.ts", "needle": "  \"GET /api/me/gitlab/projects\":" },
-        { "path": "app/server/src/lib/identity-store.ts", "needle": "function isMember(" },
-        { "path": "app/web/sites/portal/lib/codeRepos.ts", "needle": "export function useCodeRepos(" },
-        { "path": "app/web/sites/portal/components/os/Windows.tsx", "needle": "export function CodeRepos(" },
-        { "path": "app/web/sites/portal/components/os/Terminal.tsx", "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);" },
-        { "path": "app/web/sites/portal/lib/shell/index.ts", "needle": "  const storageKey = account ?" },
-        { "path": "app/web/sites/portal/lib/shell/commands.ts", "needle": "function repos(ctx: Ctx): Io {" }
+        {
+          "path": "app/server/src/routes/portal/gitlab.ts",
+          "needle": "app.get(\"/api/me/gitlab/projects\""
+        },
+        {
+          "path": "app/server/src/routes/portal/contracts.ts",
+          "needle": "  \"GET /api/me/gitlab/projects\":"
+        },
+        {
+          "path": "app/server/src/lib/identity-store.ts",
+          "needle": "function isMember("
+        },
+        {
+          "path": "app/web/sites/portal/lib/codeRepos.ts",
+          "needle": "export function useCodeRepos("
+        },
+        {
+          "path": "app/web/sites/portal/components/os/Windows.tsx",
+          "needle": "export function CodeRepos("
+        },
+        {
+          "path": "app/web/sites/portal/components/os/Terminal.tsx",
+          "needle": "    shell.setRepos(repos.status === \"ready\" ? repos.projects : []);"
+        },
+        {
+          "path": "app/web/sites/portal/lib/shell/index.ts",
+          "needle": "  const storageKey = account ?"
+        },
+        {
+          "path": "app/web/sites/portal/lib/shell/commands.ts",
+          "needle": "function repos(ctx: Ctx): Io {"
+        }
       ],
-      "tests": ["tests/server/gitlab-sync.test.ts", "tests/web/portal-code-repos.test.tsx", "tests/web/portal-shell.test.ts"],
-      "docs": ["docs/services/server/oidc.md", "docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/services/web/portal.md"]
+      "tests": [
+        "tests/server/gitlab-sync.test.ts",
+        "tests/web/portal-code-repos.test.tsx",
+        "tests/web/portal-shell.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/oidc.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/services/web/portal.md"
+      ]
     },
     {
       "id": "gitlab.settings.read",
@@ -12969,63 +13048,139 @@
       "id": "security.decoy.read",
       "title": "控制台查看临时合成蜜罐状态",
       "domain": "platform",
-      "relatedDomains": ["permissions", "audit"],
+      "relatedDomains": [
+        "permissions",
+        "audit"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/console/security/decoy",
       "capabilities": [],
-      "reads": ["app_state"], "writes": [], "doesNotEnqueue": [],
+      "reads": [
+        "app_state"
+      ],
+      "writes": [],
+      "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：有效会话及 security.manage；页面按同一节点显示，命中记录另需 activity.read，IP 沿用 activity.read.ip 打码。",
         "响应与错误：200 {available,active,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间。",
         "数据与副作用：只读 security_decoy_until，不连接外部服务，不记录原始探针路径或请求内容。"
       ],
       "evidence": [
-        {"path": "app/server/src/routes/console/security.ts", "needle": "app.get(\"/api/console/security/decoy\""},
-        {"path": "app/server/src/lib/security-decoy.ts", "needle": "export function createSecurityDecoy("},
-        {"path": "app/console/src/pages/Security.vue", "needle": "const settings = useResource("},
-        {"path": "app/console/src/router.ts", "needle": "{ path: \"security\","},
-        {"path": "app/console/src/lib/nav.ts", "needle": "id: \"security\""},
-        {"path": "app/console/src/lib/types.ts", "needle": "export type SecurityDecoyStatus"},
-        {"path": "app/console/src/mock/console.ts", "needle": "if (path === \"/api/console/security/decoy\" ||"},
-        {"path": "app/console/src/lib/activity.ts", "needle": "\"security.decoy.hit\":"}
+        {
+          "path": "app/server/src/routes/console/security.ts",
+          "needle": "app.get(\"/api/console/security/decoy\""
+        },
+        {
+          "path": "app/server/src/lib/security-decoy.ts",
+          "needle": "export function createSecurityDecoy("
+        },
+        {
+          "path": "app/console/src/pages/Security.vue",
+          "needle": "const settings = useResource("
+        },
+        {
+          "path": "app/console/src/router.ts",
+          "needle": "{ path: \"security\","
+        },
+        {
+          "path": "app/console/src/lib/nav.ts",
+          "needle": "id: \"security\""
+        },
+        {
+          "path": "app/console/src/lib/types.ts",
+          "needle": "export type SecurityDecoyStatus"
+        },
+        {
+          "path": "app/console/src/mock/console.ts",
+          "needle": "if (path === \"/api/console/security/decoy\" ||"
+        },
+        {
+          "path": "app/console/src/lib/activity.ts",
+          "needle": "\"security.decoy.hit\":"
+        }
       ],
-      "tests": ["tests/server/security-decoy.test.ts", "tests/console/nav.test.ts"],
-      "docs": ["docs/services/server/endpoint-contracts.md", "docs/services/console/README.md", "docs/architecture/SECURITY.md"]
+      "tests": [
+        "tests/server/security-decoy.test.ts",
+        "tests/console/nav.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/console/README.md",
+        "docs/architecture/SECURITY.md"
+      ]
     },
     {
       "id": "security.decoy.update",
       "title": "控制台限时开启或关闭合成蜜罐",
       "domain": "platform",
-      "relatedDomains": ["permissions", "audit"],
+      "relatedDomains": [
+        "permissions",
+        "audit"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "PUT /api/console/security/decoy",
       "capabilities": [],
-      "reads": ["app_state"], "writes": ["app_state", "activity_events"], "doesNotEnqueue": [],
+      "reads": [
+        "app_state"
+      ],
+      "writes": [
+        "app_state",
+        "activity_events"
+      ],
+      "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：security.manage、10分钟内登录及既有 Origin 检查；生产发布身份且基础防护开启才能开启。",
         "响应与错误：开启只收 enabled:true 和1至60整数 duration_minutes；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
         "数据与副作用：设置与 security.decoy.update 同事务；审计失败整体回滚。页面确认后才写，失败保留错误，离页取消未答复的确认。关闭不解封。"
       ],
       "evidence": [
-        {"path": "app/server/src/routes/console/security.ts", "needle": "action: \"security.decoy.update\", surface:"},
-        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"PUT /api/console/security/decoy\":"},
-        {"path": "app/server/src/lib/security-decoy.ts", "needle": "function setEnabled("},
-        {"path": "app/server/src/config.ts", "needle": "deploymentEnvironment: env.GEEK_DEPLOYMENT_ENVIRONMENT"},
-        {"path": "app/console/src/pages/Security.vue", "needle": "const change = useAction("}
+        {
+          "path": "app/server/src/routes/console/security.ts",
+          "needle": "action: \"security.decoy.update\", surface:"
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "\"PUT /api/console/security/decoy\":"
+        },
+        {
+          "path": "app/server/src/lib/security-decoy.ts",
+          "needle": "function setEnabled("
+        },
+        {
+          "path": "app/server/src/config.ts",
+          "needle": "deploymentEnvironment: env.GEEK_DEPLOYMENT_ENVIRONMENT"
+        },
+        {
+          "path": "app/console/src/pages/Security.vue",
+          "needle": "const change = useAction("
+        }
       ],
-      "tests": ["tests/server/security-decoy.test.ts"],
-      "docs": ["docs/services/server/endpoint-contracts.md", "docs/services/console/README.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+      "tests": [
+        "tests/server/security-decoy.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/console/README.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md"
+      ]
     },
     {
       "id": "security.blocks.list",
       "title": "控制台查看访问封禁列表",
       "domain": "platform",
-      "relatedDomains": ["audit"],
+      "relatedDomains": [
+        "audit"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "GET /api/console/security/blocks",
       "capabilities": [],
-      "reads": ["ip_blocks"],
-      "writes": ["activity_events"],
+      "reads": [
+        "ip_blocks"
+      ],
+      "writes": [
+        "activity_events"
+      ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：有效全站 sid，security.manage（站长根通配 * 默认拿到）；只列生效中的封禁（blocked_until 晚于现在）。",
@@ -13033,25 +13188,54 @@
         "数据与副作用：只读封禁表；每次查看写一条 security.blocks.view 操作记录，meta 只记条数。"
       ],
       "evidence": [
-        {"path": "app/server/src/routes/console/security.ts", "needle": "  app.get(\"/api/console/security/blocks\", manage, async (req) => {"},
-        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"GET /api/console/security/blocks\": {"},
-        {"path": "app/server/src/routes/console/index.ts", "needle": "import security from \"./security.js\";"},
-        {"path": "app/server/src/lib/permission-nodes.ts", "needle": "node: \"security.manage\""},
-        {"path": "app/console/src/lib/permission-nodes.ts", "needle": "\"security.manage\": \"管理访问封禁\","}
+        {
+          "path": "app/server/src/routes/console/security.ts",
+          "needle": "  app.get(\"/api/console/security/blocks\", manage, async (req) => {"
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "\"GET /api/console/security/blocks\": {"
+        },
+        {
+          "path": "app/server/src/routes/console/index.ts",
+          "needle": "import security from \"./security.js\";"
+        },
+        {
+          "path": "app/server/src/lib/permission-nodes.ts",
+          "needle": "node: \"security.manage\""
+        },
+        {
+          "path": "app/console/src/lib/permission-nodes.ts",
+          "needle": "\"security.manage\": \"管理访问封禁\","
+        }
       ],
-      "tests": ["tests/server/abuse-shield.test.ts"],
-      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+      "tests": [
+        "tests/server/abuse-shield.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md"
+      ]
     },
     {
       "id": "security.block.clear",
       "title": "控制台解封访问封禁",
       "domain": "platform",
-      "relatedDomains": ["audit"],
+      "relatedDomains": [
+        "audit"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "DELETE /api/console/security/blocks/:ip",
       "capabilities": [],
-      "reads": ["ip_blocks"],
-      "writes": ["ip_blocks", "shield_signals", "activity_events"],
+      "reads": [
+        "ip_blocks"
+      ],
+      "writes": [
+        "ip_blocks",
+        "shield_signals",
+        "activity_events"
+      ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：security.manage 且刚登录过（step-up）；IP 格式不对回 400 bad_ip。",
@@ -13059,22 +13243,58 @@
         "数据与副作用：立即结束生效中的封禁、级别归零、清掉信号，与 security.block.clear 操作记录同事务提交（meta 记原级别）；审计失败时回滚，原封禁保持。自动封禁 security.block 由服务端计分时写系统记录。"
       ],
       "evidence": [
-        {"path": "app/server/src/routes/console/security.ts", "needle": "  app.delete<{ Params: { ip: string } }>(\"/api/console/security/blocks/:ip\", clear, async (req, reply) => {"},
-        {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"DELETE /api/console/security/blocks/:ip\": {"}
+        {
+          "path": "app/server/src/routes/console/security.ts",
+          "needle": "  app.delete<{ Params: { ip: string } }>(\"/api/console/security/blocks/:ip\", clear, async (req, reply) => {"
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "\"DELETE /api/console/security/blocks/:ip\": {"
+        }
       ],
-      "tests": ["tests/server/abuse-shield.test.ts"],
-      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/API.md", "docs/architecture/SECURITY.md"]
+      "tests": [
+        "tests/server/abuse-shield.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md"
+      ]
     },
     {
       "id": "security.shield",
       "title": "访问防护：异常 IP 计分、封禁与逐级加长",
       "domain": "platform",
-      "relatedDomains": ["audit", "competitions", "feedback", "forum", "github", "gitlab", "identity", "invitations", "mail", "organization", "permissions", "public_content", "recruitment"],
+      "relatedDomains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "gitlab",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "public_content",
+        "recruitment"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "POST /auth/email/start",
       "capabilities": [],
-      "reads": ["ip_blocks", "shield_signals", "rate_limit_counters", "app_state"],
-      "writes": ["ip_blocks", "shield_signals", "rate_limit_counters", "activity_events"],
+      "reads": [
+        "ip_blocks",
+        "shield_signals",
+        "rate_limit_counters",
+        "app_state"
+      ],
+      "writes": [
+        "ip_blocks",
+        "shield_signals",
+        "rate_limit_counters",
+        "activity_events"
+      ],
       "doesNotEnqueue": [],
       "invariants": [
         "合成蜜罐：管理员显式限时开启后，未封禁且非豁免来源的首次 GET/HEAD 返回有界合成诊断；HEAD 无正文。命中封禁与 security.decoy.hit 同事务，审计仅含方法、固定探针族、状态与合成标记；其余方法、关闭或到期仍按原规则404并封禁。",
@@ -13083,28 +13303,72 @@
         "数据与副作用：429 计 2 分，/api、/auth 下 400/409/413/422 计 1 分，发码、登录、重设密码失败与 PoW 失败各加 3 分；窗口内总分达到 SHIELD_THRESHOLD 就封禁，级别按 SHIELD_BLOCK_MINUTES 逐级加长，安静满 SHIELD_DECAY_HOURS 后归零；封禁与解封写审计。"
       ],
       "evidence": [
-        {"path": "app/server/src/lib/shield.ts", "needle": "export function createShield("},
-        {"path": "app/server/src/middleware/shield.ts", "needle": "export function registerShield("},
-        {"path": "app/server/src/lib/rate-store.ts", "needle": "export function createRateLimitStore("},
-        {"path": "app/server/src/middleware/http-policy.ts", "needle": "if (req.shieldBlocked) return;"},
-        {"path": "app/server/src/middleware/visitor.ts", "needle": "export function hasVisitorCookie("},
-        {"path": "app/server/src/middleware/pow.ts", "needle": "import { SHIELD_POINTS } from \"../lib/shield.js\";"},
-        {"path": "app/server/src/lib/activity.ts", "needle": "export function startActivityCleanup("},
-        {"path": "app/server/src/lib/limits.ts", "needle": "\"site.email.daily\": 2 * DAY_MS,"}
+        {
+          "path": "app/server/src/lib/shield.ts",
+          "needle": "export function createShield("
+        },
+        {
+          "path": "app/server/src/middleware/shield.ts",
+          "needle": "export function registerShield("
+        },
+        {
+          "path": "app/server/src/lib/rate-store.ts",
+          "needle": "export function createRateLimitStore("
+        },
+        {
+          "path": "app/server/src/middleware/http-policy.ts",
+          "needle": "if (req.shieldBlocked) return;"
+        },
+        {
+          "path": "app/server/src/middleware/visitor.ts",
+          "needle": "export function hasVisitorCookie("
+        },
+        {
+          "path": "app/server/src/middleware/pow.ts",
+          "needle": "import { SHIELD_POINTS } from \"../lib/shield.js\";"
+        },
+        {
+          "path": "app/server/src/lib/activity.ts",
+          "needle": "export function startActivityCleanup("
+        },
+        {
+          "path": "app/server/src/lib/limits.ts",
+          "needle": "\"site.email.daily\": 2 * DAY_MS,"
+        }
       ],
-      "tests": ["tests/server/abuse-shield.test.ts", "tests/server/abuse-notice.test.ts", "tests/tooling/abuse-notices.test.ts", "tests/tooling/web-nginx.test.ts", "tests/server/legacy-database.test.ts"],
-      "docs": ["docs/architecture/SECURITY.md", "docs/architecture/API.md", "docs/ops/ENVIRONMENTS.md", "docs/services/server/README.md"]
+      "tests": [
+        "tests/server/abuse-shield.test.ts",
+        "tests/server/abuse-notice.test.ts",
+        "tests/tooling/abuse-notices.test.ts",
+        "tests/tooling/web-nginx.test.ts",
+        "tests/server/legacy-database.test.ts"
+      ],
+      "docs": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/services/server/README.md"
+      ]
     },
     {
       "id": "security.site_quota",
       "title": "全站每日上限：发码、注册、意见箱、设备码",
       "domain": "platform",
-      "relatedDomains": ["feedback", "identity", "invitations", "mail"],
+      "relatedDomains": [
+        "feedback",
+        "identity",
+        "invitations",
+        "mail"
+      ],
       "assessment": "declared-with-source-evidence",
       "operation": "POST /api/feedback",
       "capabilities": [],
-      "reads": ["limit_events"],
-      "writes": ["limit_events"],
+      "reads": [
+        "limit_events"
+      ],
+      "writes": [
+        "limit_events"
+      ],
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：全站计数不分用户与 IP，按北京自然日（day-bj）；SITE_QUOTA_* 设为 -1 时不限。",
@@ -13112,16 +13376,34 @@
         "数据与副作用：计数写 limit_events（北京日窗口）。"
       ],
       "evidence": [
-        {"path": "app/server/src/lib/site-quota.ts", "needle": "export function siteCheck("},
-        {"path": "app/server/src/routes/portal/feedback.ts", "needle": "app.services.limits.hit(siteCheck(SITE_BUCKETS.feedback"}
+        {
+          "path": "app/server/src/lib/site-quota.ts",
+          "needle": "export function siteCheck("
+        },
+        {
+          "path": "app/server/src/routes/portal/feedback.ts",
+          "needle": "app.services.limits.hit(siteCheck(SITE_BUCKETS.feedback"
+        }
       ],
-      "tests": ["tests/server/abuse-shield.test.ts"],
-      "docs": ["docs/architecture/API.md", "docs/architecture/SECURITY.md", "docs/ops/ENVIRONMENTS.md"]
+      "tests": [
+        "tests/server/abuse-shield.test.ts"
+      ],
+      "docs": [
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/ENVIRONMENTS.md"
+      ]
     }
   ],
   "moduleOwners": {
-    "app/server/src/lib/security-decoy.ts": ["platform"],
-    "app/console/src/pages/Security.vue": ["platform", "permissions", "audit"],
+    "app/server/src/lib/security-decoy.ts": [
+      "platform"
+    ],
+    "app/console/src/pages/Security.vue": [
+      "platform",
+      "permissions",
+      "audit"
+    ],
     "app/server/src/lib/system-backup.ts": [
       "platform"
     ],

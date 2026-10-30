@@ -36,7 +36,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 ```
 
 - `EnvelopeMessage`：主题、收件箱摘要（preheader）、信纸左上角的小字、抬头、正文块（`paragraph` 段落、`facts` 两列事实栏，可带标题、`list` 编号列表，空条目会去掉、`quote` 带标题的多行引用）、可选按钮、落款日期、页脚几行字、页脚的站点链接、可选的回信地址 `replyTo`。以后的站内通知（#149）只要拼出同样的结构就能复用版式。
-- `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（正式发信用 `https://cdn.crosery.com/yzgc/mail/v1/`）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
+- `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（环境文件里的值见 `MAIL_ASSET_BASE`；环境文件没写时由 `STATIC_CDN_ORIGIN` 派生）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
 - 发件人名是 `MAIL_SENDER_NAME`（长江大学极客班），发信模块写 `From` 头时用同一个常量。
 - 控制台有五种投递状态（`lib/roles.ts` 的 `APPLICATION_STATUSES`），其中只有下面四种对应信件；`cancelled` 没有信件模板：
   - `received` 已收到：投递成功时发，附上投递人写的特长与优点原文（`quote`，一行一行照写、经过转义）。
@@ -129,7 +129,7 @@ mail.drain() / mail.start(logger) / mail.stop()
   - 带回信地址的信只交给 Resend：阿里云这一边不写按封的 Reply-To（原因见「已知限制」）。配了 `MAIL_REPLY_TO` 时每封信都带回信地址，`mailer.ts` 只把能带 Reply-To 的发信商交给发信队列；只配了阿里云时按没有配置发信商处理，信记成 `skipped` / `mail_disabled`，控制台的 `mail.enabled`、`deliverable` 都是 false，不会说「保存并发邮件」。发信队列里还留着一道检查：真有一封带回信地址的信没有发信商能发时，记成 `failed`，`last_error` 是 `reply_to_unsupported`。
 - 请求只用全局 `fetch` 和 `node:crypto`，没有新增依赖；每个请求 15 秒超时。测试注入假的 `fetch`（`ServiceOverrides.mailFetch`），`tests/server/helpers.ts` 默认拒绝任何发信请求。
 - 发信循环只在服务进程里开：`index.ts` 调 `buildApp({ mailWorker: true })`，应用就绪时开始、每 15 秒一轮，`app.close()` 时打断正在发的请求、等这一轮收尾再关库（被打断的那次按一次失败记）。测试不开循环，直接调 `mail.drain()`，时钟用 `ServiceOverrides.clock`。
-- 配置（都是可选的，都不设时服务照常启动、不发信）：`MAIL_ALIYUN_ACCESS_KEY_ID` 与 `MAIL_ALIYUN_ACCESS_KEY_SECRET`（两个要么都有、要么都没有，只有一个时启动失败）、`MAIL_ALIYUN_FROM`、`MAIL_RESEND_API_KEY`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`（不写时是 `https://cdn.crosery.com/yzgc/mail/v1/`）、`MAIL_REPLY_TO`、`MAIL_RECIPIENTS`、`MAIL_ALLOWLIST`。发件地址和回信地址只收一个普通的邮箱地址，`MAIL_ASSET_BASE` 只收以 `/` 结尾的 https 地址，写错时启动失败，错误信息不带配置的值。每个环境的取值见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
+- 配置（都是可选的，都不设时服务照常启动、不发信）：`MAIL_ALIYUN_ACCESS_KEY_ID` 与 `MAIL_ALIYUN_ACCESS_KEY_SECRET`（两个要么都有、要么都没有，只有一个时启动失败）、`MAIL_ALIYUN_FROM`、`MAIL_RESEND_API_KEY`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`（不写时由 `STATIC_CDN_ORIGIN` 派生为 `<源站>/yzgc/mail/v1/`；两者都没有时发信模块启动失败，#360）、`MAIL_REPLY_TO`、`MAIL_RECIPIENTS`、`MAIL_ALLOWLIST`。发件地址和回信地址只收一个普通的邮箱地址，`MAIL_ASSET_BASE` 只收以 `/` 结尾的 https 地址，写错时启动失败，错误信息不带配置的值。每个环境的取值见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
 - 信里的链接指向 `PUBLIC_ORIGIN`（正式或预发布站点）；本机和测试的 `PUBLIC_ORIGIN` 不是这两个站点时，链接指向正式站点 `https://yangtzeu.work`。
 
 ## 重试

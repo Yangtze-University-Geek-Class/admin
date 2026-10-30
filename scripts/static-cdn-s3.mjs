@@ -32,6 +32,24 @@ export function readS3Config(env = process.env) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const MAX_BYTES = 10 * 1024 * 1024;
+/** 单次请求超时的上限（毫秒）。大文件从海外上传到 cn-south-1 时 15 秒不够，见 uploadTimeoutMs。 */
+export const MAX_TIMEOUT_MS = 180000;
+/** 上传按这个速率估算需要的时间：每秒 16 KiB 以上才算正常；超过就放宽超时，而不是白白重试（#360）。 */
+export const UPLOAD_BYTES_PER_SECOND = 16 * 1024;
+/**
+ * PUT 的超时 = 基础超时与「15 秒 + 体积 / 每秒字节数」取大者，最多 MAX_TIMEOUT_MS。
+ * 覆盖的是响应头加响应体；读回已知体积的 GET（写前核对、写后读回、经 CDN 校验）同样按体积放宽，HEAD 仍用基础超时。
+ */
+export function uploadTimeoutMs(baseMs, bytes) {
+  return Math.min(MAX_TIMEOUT_MS, Math.max(baseMs, 15000 + Math.ceil((bytes * 1000) / UPLOAD_BYTES_PER_SECOND)));
+}
+/** 上传并发数：环境变量 STATIC_CDN_UPLOAD_CONCURRENCY，未设为 4，允许 1–8 的整数。 */
+export function readUploadConcurrency(env = process.env) {
+  const raw = (env.STATIC_CDN_UPLOAD_CONCURRENCY ?? '').trim();
+  if (!raw) return 4;
+  if (!/^[1-8]$/.test(raw)) throw new Error('STATIC_CDN_UPLOAD_CONCURRENCY 必须是 1–8 的整数');
+  return Number(raw);
+}
 const hmac = (key, text) => createHmac('sha256', key).update(text).digest();
 
 export function assertStorageKey(key) {
@@ -146,16 +164,19 @@ export function createS3Storage(config, {
 } = {}) {
   validateConfig(config, allowLoopbackForTests);
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 3 || !Number.isFinite(backoff) || backoff < 0 || backoff > 5000
-    || !Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new Error('S3 重试或超时参数超限');
+    || !Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) throw new Error('S3 重试或超时参数超限');
   const locks = new Map();
-  const request = async (method, key, { body, headers, retry = true } = {}) => {
+  // expectedBytes：GET 预期读回的体积（写前核对与写后读回都知道），超时同样按体积放宽。
+  const request = async (method, key, { body, headers, retry = true, expectedBytes = 0 } = {}) => {
     assertStorageKey(key);
     const limit = retry ? attempts : 1;
     for (let attempt = 1; ; attempt += 1) {
       const signed = signS3Request(config, method, key, { body, headers, now: now() });
       let result;
       try {
-        result = await boundedRequest(signed.url, { method, headers: signed.headers, ...(body ? { body } : {}) }, { fetch, timeoutMs });
+        const bytes = method === 'PUT' && body ? body.length : expectedBytes;
+        const requestTimeout = bytes > 0 ? uploadTimeoutMs(timeoutMs, bytes) : timeoutMs;
+        result = await boundedRequest(signed.url, { method, headers: signed.headers, ...(body ? { body } : {}) }, { fetch, timeoutMs: requestTimeout });
       } catch (error) {
         // 泄漏保护：不回显可能含凭据的 fetch 异常或响应体。
         if (error.message.includes('重定向') || error.message.includes('长度')) throw new Error(`S3 ${method} ${key}：${error.message}`);
@@ -169,7 +190,7 @@ export function createS3Storage(config, {
   const ensureUnlocked = async (key, body, mime) => {
     assertObjectContent(key, body, mime);
     for (let attempt = 1; ; attempt += 1) {
-      const current = await request('GET', key);
+      const current = await request('GET', key, { expectedBytes: body.length });
       if (current.status === 200) {
         if (!current.body.equals(body)) throw new Error(`${key}：SHA-256 / 字节冲突，拒绝覆盖`);
         return 'exists';
@@ -181,7 +202,7 @@ export function createS3Storage(config, {
           headers: { 'content-type': mime, 'cache-control': 'public, max-age=31536000, immutable', 'x-amz-meta-sha256': sha256(body) },
         });
         if (result.status !== 200) throw Object.assign(new Error(`S3 PUT ${key}：HTTP ${result.status}`), { permanent: result.status !== 429 && result.status < 500 });
-        const saved = await request('GET', key);
+        const saved = await request('GET', key, { expectedBytes: body.length });
         if (saved.status !== 200 || !saved.body.equals(body)) throw Object.assign(new Error(`${key}：写后 SHA-256 / 字节不一致`), { permanent: true });
         return 'stored';
       } catch (error) {

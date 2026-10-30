@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createS3Storage, readS3Config, sha256, signS3Request } from '../../scripts/static-cdn-s3.mjs';
+import { createS3Storage, readS3Config, readUploadConcurrency, sha256, signS3Request, uploadTimeoutMs } from '../../scripts/static-cdn-s3.mjs';
 import { fixtureEnv, startCdnStore } from './cdn-store-fixture';
 
 describe('CDN S3 credentials and destination', () => {
@@ -70,5 +70,56 @@ describe('S3 HTTP adapter', () => {
       expect(await Promise.all([storage.ensure(key, body, 'text/javascript'), storage.ensure(key, body, 'text/javascript')])).toEqual(['stored', 'exists']);
       expect(store.calls.filter(call => call.method === 'PUT')).toHaveLength(1);
     } finally { await store.close(); }
+  });
+});
+
+describe('CDN upload timeout and retry (#360)', () => {
+  const loopback = { endpoint: 'http://127.0.0.1:9', bucket: 'test-bucket', region: 'cn-south-1', forcePathStyle: true, accessKey: 'AK-TEST', secretKey: 'SK-TEST' };
+  const key = 'yzgc/static/site/assets/app-abcd1234.js';
+
+  it('a 16 KiB PUT on a link that takes 300 ms still succeeds under a 50 ms base timeout, because the PUT timeout grows with the body', async () => {
+    expect(uploadTimeoutMs(15000, 0)).toBe(15000);
+    expect(uploadTimeoutMs(15000, 2 * 1024 * 1024)).toBe(143000);
+    expect(uploadTimeoutMs(15000, 100 * 1024 * 1024)).toBe(180000);
+    expect(readUploadConcurrency({})).toBe(4);
+    expect(readUploadConcurrency({ STATIC_CDN_UPLOAD_CONCURRENCY: '8' })).toBe(8);
+    expect(() => readUploadConcurrency({ STATIC_CDN_UPLOAD_CONCURRENCY: '9' })).toThrow(/1–8/);
+    const objects = new Map<string, Buffer>();
+    const slowPut = async (url: string, init: RequestInit) => {
+      const path = new URL(url).pathname.replace('/test-bucket/', '');
+      if (init.method === 'PUT') {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        objects.set(path, Buffer.from(init.body as Buffer));
+        return new Response(null, { status: 200 });
+      }
+      return objects.has(path) ? new Response(objects.get(path), { status: 200 }) : new Response(null, { status: 404 });
+    };
+    const storage = createS3Storage(loopback, { allowLoopbackForTests: true, backoff: 0, timeoutMs: 50, fetch: slowPut as typeof fetch });
+    const body = Buffer.alloc(16 * 1024, 'a');
+    expect(await storage.ensure(key, body, 'text/javascript')).toBe('stored');
+    expect(objects.get(key)?.equals(body)).toBe(true);
+  });
+
+  it('a GET still uses the base timeout, so the same 50 ms limit cuts a slow GET', async () => {
+    const slowGet = async () => {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return new Response('late', { status: 200 });
+    };
+    const storage = createS3Storage(loopback, { allowLoopbackForTests: true, backoff: 0, attempts: 1, timeoutMs: 50, fetch: slowGet as typeof fetch });
+    await expect(storage.request('GET', key)).rejects.toThrow(/请求失败或超时/);
+  });
+
+  it('waits before retrying after a network error instead of hammering the endpoint', async () => {
+    const times: number[] = [];
+    const flaky = async () => {
+      times.push(Date.now());
+      if (times.length === 1) throw new TypeError('socket hang up');
+      return new Response('ok', { status: 200 });
+    };
+    const storage = createS3Storage(loopback, { allowLoopbackForTests: true, backoff: 100, fetch: flaky as typeof fetch });
+    const response = await storage.request('GET', key);
+    expect(response.status).toBe(200);
+    expect(times).toHaveLength(2);
+    expect(times[1] - times[0]).toBeGreaterThanOrEqual(90);
   });
 });

@@ -516,7 +516,8 @@ describe('rollback-stack.sh only rolls back to images of its own environment', (
 
 // 假 gpg：--list-keys 直接成功；--encrypt 把最后一个参数（明文）写成 encrypted:<明文> 到 --output。
 const FAKE_GPG = `#!/bin/bash
-for a in "$@"; do [ "$a" = "--list-keys" ] && exit 0; done
+[ -n "$FAKE_GPG_LOG" ] && printf '%s\\n' "$*" >> "$FAKE_GPG_LOG"
+for a in "$@"; do [ "$a" = "--list-keys" ] && { [ -n "$FAKE_GPG_EMPTY_KEYRING" ] && exit 2; exit 0; }; done
 out=""; prev=""; last=""
 for a in "$@"; do
   if [ "$prev" = "--output" ]; then out="$a"; fi
@@ -577,6 +578,24 @@ describe('deploy-stack.sh backs up the database before compose up can migrate it
     writeFileSync(join(f.h.state, 'volumes.txt'), 'yzgc-preview-data\n');
     const result = f.deploy();
     expect(result.stderr).toContain('异地备份还没启用');
+    expect(f.compose().some(line => line.startsWith('up '))).toBe(true);
+  });
+
+  it('encrypts to BACKUP_GPG_PUBLIC_KEY with --recipient-file, so the host keyring is not needed', () => {
+    const f = setup(true);
+    const publicKey = Buffer.from('-----BEGIN PGP PUBLIC KEY BLOCK-----\nsynthetic-public-key\n-----END PGP PUBLIC KEY BLOCK-----\n').toString('base64');
+    writeFileSync(f.preview.envFile, readFileSync(f.preview.envFile, 'utf8')
+      .replace(/^BACKUP_GPG_RECIPIENT=.*$/m, 'BACKUP_GPG_RECIPIENT=')
+      .replace(/^BACKUP_GPG_PUBLIC_KEY=$/m, `BACKUP_GPG_PUBLIC_KEY=${publicKey}`));
+    writeFileSync(join(f.h.state, 'volumes.txt'), 'yzgc-preview-data\n');
+    const gpgLog = join(f.h.root, 'gpg.log');
+    const result = f.deploy({ FAKE_GPG_LOG: gpgLog, FAKE_GPG_EMPTY_KEYRING: '1' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('迁移前备份已上传');
+    const calls = readFileSync(gpgLog, 'utf8').split('\n').filter(Boolean);
+    expect(calls.some(call => call.includes('--list-keys'))).toBe(false);
+    expect(calls.some(call => call.includes('--recipient-file'))).toBe(true);
+    expect(result.stdout + result.stderr).not.toContain('synthetic-public-key');
     expect(f.compose().some(line => line.startsWith('up '))).toBe(true);
   });
 

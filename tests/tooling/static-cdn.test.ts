@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { siteCsp } from '../../app/forum/scripts/csp-header.mjs';
-import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_PREFIX } from '../../scripts/static-cdn-base.mjs';
+import { CDN_ENV, STATIC_CDN_BASE, STATIC_CDN_ORIGIN } from '../static-cdn-fixture';
+import { useStaticCdnOrigin } from '../static-cdn-hooks';
 import {
   AREAS, GUIDE_IMAGES, MAX_FILE_BYTES, PUBLIC_DIRS, PUBLISHED_IMAGES, STICKERS,
   assertKey, collect, collectGuideImages, collectPublishedImages, collectStickers, cspAllows, guideImageHash, main, mimeFor, originPathOf,
@@ -14,6 +16,8 @@ import {
 import { createS3Storage, readS3Config, sha256 } from '../../scripts/static-cdn-s3.mjs';
 import { startCdnStore } from './cdn-store-fixture';
 import { buildManifest, manifestText } from '../../scripts/sticker-manifest.mjs';
+
+useStaticCdnOrigin();
 
 // 静态资源 CDN（#295）：保留收集与前缀拒绝用例，旧 token 一律退役；S3 使用本地 HTTP 假存储与合成凭据。
 // 上传协议、发布清单和构建开关分别在 static-cdn-{http,s3,manifest,switch}.test.ts。
@@ -328,7 +332,7 @@ describe('built-in sticker images (#286)', () => {
     const lines: string[] = [];
     const logs: string[] = [];
     const offline = (() => { throw new Error('plan 不联网'); }) as unknown as typeof fetch;
-    const { entries } = await main(['plan', '--web', join(web, 'web'), '--forum', join(web, 'forum')], { env: {}, stdout: { write: (text: string) => { lines.push(text); return true; } } as never, log: (text: string) => { logs.push(text); }, fetch: offline, now: NOW });
+    const { entries } = await main(['plan', '--web', join(web, 'web'), '--forum', join(web, 'forum')], { env: CDN_ENV, stdout: { write: (text: string) => { lines.push(text); return true; } } as never, log: (text: string) => { logs.push(text); }, fetch: offline, now: NOW });
     const stickers = entries.filter((entry: { key: string }) => entry.key.startsWith(`${STATIC_CDN_PREFIX}forum/stickers/`));
     const manifest = buildManifest();
     const distinct = new Set(manifest.packs.flatMap(pack => pack.stickers.map(sticker => sticker.sha256)));

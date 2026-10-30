@@ -83,6 +83,14 @@ export default async function consoleCompetitionSiteRoutes(app: FastifyInstance)
       if (!record) return missingCompetition(reply);
       if (record.kind !== "internal") return reply.code(409).send({ error: "competition_not_internal", message: "只有内部赛能托管官网" });
       const before = sites.state(id).live_version_id;
+      // 先校验、再同步对象存储、最后才写库：同步失败时在线版本不变，资源仍从服务端回。
+      const refusal = sites.checkPublish(id, req.body.version_id, req.body.slug);
+      if (refusal) return refuse(reply, refusal);
+      try {
+        await sites.mirrorToStorage(id, req.body.version_id);
+      } catch {
+        return reply.code(503).send({ error: "storage_unavailable", message: "官网文件没能同步到对象存储，这次没有发布，过一会儿再试" });
+      }
       const result = db.transaction(() => {
         const published = sites.publish(id, req.body.version_id, req.body.slug, req.session!.account_id, clock());
         if (published.ok) {

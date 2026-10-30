@@ -4,13 +4,16 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, sy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_BASE } from '../static-cdn-fixture';
+import { useStaticCdnOrigin } from '../static-cdn-hooks';
 import {
   LARGE_STICKER_BYTES, MANIFEST_FILE, MAX_STICKER_BYTES, PACK_FILE, STICKER_ASSETS_DIR, STICKER_KEY_PREFIX,
   buildManifest, main, manifestProblem, manifestText, parseArgs, stickerCdnUrl, stickerObjectKey,
 } from '../../scripts/sticker-manifest.mjs';
 import { FORUM_LIMITS } from '../../app/server/src/lib/forum-rules';
 import { loadStickerManifest } from '../../app/server/src/lib/sticker-manifest';
+
+useStaticCdnOrigin();
 
 // 内置表情包的清单（#286）：scripts/sticker-manifest.mjs 从 app/server/assets/stickers/<包>/ 的 pack.json 与图片生成
 // manifest.json，服务启动、CDN 上传都读它。这里核对三件事：仓库里的清单与目录一致；清单的生成规则；脚本的命令行。
@@ -161,7 +164,7 @@ describe('buildManifest: adding a pack is a directory plus pack.json', () => {
     writeFileSync(join(root, 'cats/bye.webp'), readFileSync(join(root, 'cats/hi.webp')));
     const cats = buildManifest(root).packs.find(pack => pack.id === 'cats')!;
     expect(cats.stickers[0].key).toBe(cats.stickers[1].key);
-    expect(new Set(main(['urls', '--dir', root], { stdout: { write: () => true } as never, log: () => {} }).manifest.packs.flatMap(pack => pack.stickers.map(stickerCdnUrl))).size).toBe(2);
+    expect(new Set(main(['urls', '--dir', root], { stdout: { write: () => true } as never, log: () => {} }).manifest.packs.flatMap(pack => pack.stickers.map(sticker => stickerCdnUrl(sticker)))).size).toBe(2);
   });
 
   it('ignores dot files and the manifest itself in the pack directory listing', () => {
@@ -349,6 +352,6 @@ describe('commands', () => {
     const hash = 'ab'.repeat(32);
     expect(stickerObjectKey(hash)).toBe(`forum/stickers/${hash}.webp`);
     expect(STICKER_KEY_PREFIX).toBe('forum/stickers/');
-    expect(stickerCdnUrl({ key: stickerObjectKey(hash) })).toBe(`https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`);
+    expect(stickerCdnUrl({ key: stickerObjectKey(hash) }, STATIC_CDN_BASE)).toBe(`${STATIC_CDN_BASE}forum/stickers/${hash}.webp`);
   });
 });

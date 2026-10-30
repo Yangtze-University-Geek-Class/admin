@@ -1,3 +1,4 @@
+import { STATIC_CDN_ORIGIN as CDN_ORIGIN } from '../static-cdn-fixture';
 import { afterEach, expect, it } from 'vitest';
 import { buildApp } from '../../app/server/src/app';
 import { requireAuth } from '../../app/server/src/middleware/require-auth';
@@ -22,7 +23,7 @@ afterEach(async () => { for (const c of contexts.splice(0)) await c.app.close();
  */
 async function upstreamFixture() {
   const config = testConfig({
-    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:',
+    NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', STATIC_CDN_ORIGIN: CDN_ORIGIN, DB_PATH: ':memory:',
     FORUM_DB_PATH: '/nonexistent/never-open-legacy-forum.db',
     SESSION_SECRET: 'isolated-upstream-test-secret-at-least-32',
     ENCRYPTION_KEY: Buffer.alloc(32, 3).toString('base64'),
