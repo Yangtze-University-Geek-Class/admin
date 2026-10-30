@@ -30,6 +30,7 @@ on:
           - preview-status
           - install-preview
           - verify-preview
+          - preview-sso
           - edge-status
           - edge-apply
           - edge-verify
