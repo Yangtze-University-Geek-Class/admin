@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：task/335/preview_sso 推到 GitHub，开 PR 指向 main，正文十段带审查结论
 - 结果：合并后跑 preview-sso，同一提交推到 GitLab main
+
+## 16:53:43 +08:00 · 提交 · #335 · CI 返工：#308 关闭证据去域名
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：core 的 check:env-isolation 报 windows.json 域名 4 处超过登记上限 2；#308 关闭证据里的两处域名改成与 gitlab/stage 相同的「正式站点的 /oidc、/authorize 路径」写法，提交 e2506f0a
+- 结果：本地 check:env-isolation、doc-sync、notes、secrets 通过；catalog 因本 worktree 未装 tsx 未在本机跑，交 CI
