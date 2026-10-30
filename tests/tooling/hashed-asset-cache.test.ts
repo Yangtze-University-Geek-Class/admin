@@ -216,10 +216,14 @@ describe.skipIf(!nginxBinary)('hashed output folders through host → web → fo
       .replace('listen 8080;', `listen 127.0.0.1:${ports.web};`)
       .replace('root /usr/share/nginx/html;', `root ${webHtml};`)
       .replaceAll('/etc/nginx/conf.d/90-proxy-headers.conf', join(root, '90-proxy-headers.conf'))
+      .replaceAll('/etc/nginx/yzgc-shield/exempt.conf', join(root, 'exempt.conf'))
       .replaceAll('http://server:3000', 'http://127.0.0.1:9')
       .replaceAll('http://forum:3000/', `http://127.0.0.1:${ports.forum}/`);
     expect(web).not.toMatch(/listen 8080|\/usr\/share\/nginx|\/etc\/nginx|server:3000|forum:3000|\/dev\/std/);
     writeFileSync(join(root, '90-proxy-headers.conf'), heredoc(webDockerfile, 'NGINX_HEADERS'));
+    writeFileSync(join(root, 'shield-render.sh'), heredoc(webDockerfile, 'SHIELD_RENDER'));
+    const shield = spawnSync('sh', [join(root, 'shield-render.sh'), join(root, 'exempt.conf')], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(shield.status, shield.stderr).toBe(0);
     // 宿主：preview.conf 的 CSP map 与 443 server 原样使用，只去掉 TLS、换监听端口与上游端口。
     const preview = read('deploy/nginx/preview.conf');
     const map = /^map [\s\S]*?^\}$/m.exec(preview)?.[0] ?? '';

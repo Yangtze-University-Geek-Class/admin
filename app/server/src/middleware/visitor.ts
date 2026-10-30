@@ -13,6 +13,12 @@ const TTL_S = 365 * 24 * 3600;
 /** 标准 UUID（含随机版本号与变体位），不管大小写；带来的 cookie 不合这个形状就当没有，重发一个。 */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** 请求原本带没带一个合法的访客 cookie（在 attachVisitorId 之前调用）：没带的注册按更严的无 cookie 额度算（#333）。 */
+export function hasVisitorCookie(req: FastifyRequest): boolean {
+  const existing = req.cookies?.[VISITOR_COOKIE];
+  return Boolean(existing && UUID_RE.test(existing));
+}
+
 /**
  * 访客 cookie（#274 SPEC §3.x）：门户、论坛接口第一次收到请求、还没有这个 cookie 时发一个随机 UUID——
  * HttpOnly、SameSite=Lax，生产环境再加 Secure，1 年有效期。已经带着合法的就原样沿用，不重发、不续期

@@ -1,0 +1,422 @@
+{
+  "version": 1,
+  "issue": 343,
+  "kind": "business",
+  "summary": "P0 统一头像：同一个人在官网、论坛、控制台、比赛（含比赛官网）、命令行、OIDC 和 GitLab 同步上是同一张头像，按上传的头像、GitHub 头像（GitHub 自动生成的像素图不算）、NANO 默认头像的顺序取；NANO 按 GitLab 主邮箱挑，和 GitLab 前置是同一张。",
+  "applications": [
+    "server"
+  ],
+  "domains": [
+    "identity",
+    "forum",
+    "competitions",
+    "gitlab",
+    "permissions",
+    "organization",
+    "audit",
+    "platform",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "mail",
+    "github",
+    "public_content"
+  ],
+  "flows": [
+    "flow:identity.avatar.default",
+    "flow:identity.current",
+    "flow:identity.device.userinfo",
+    "flow:identity.oidc.protocol",
+    "flow:identity.oidc.details",
+    "flow:console.identity",
+    "flow:users.list",
+    "flow:users.update",
+    "flow:permissions.groups.members.list",
+    "flow:audit.console.activity.list",
+    "flow:audit.console.activity.account",
+    "flow:forum.state",
+    "flow:forum.search",
+    "flow:forum.users.suggest",
+    "flow:forum.avatar.clear",
+    "flow:competition.leaderboard.read",
+    "flow:competition.team_plaza.list",
+    "flow:competition.public.leaderboard",
+    "flow:competition.public.participants",
+    "flow:gitlab.accounts.sync",
+    "flow:competition.teams.list",
+    "flow:application.submit",
+    "flow:feedback.public.list",
+    "flow:identity.invites.list",
+    "flow:identity.callback",
+    "flow:documentation.list"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "以前各端各算一套：控制台只认上传的头像、比赛和论坛退回 GitHub 地址、GitLab 同步另取 GitHub 头像，GitHub 给没设头像的人生成的像素图也被当成头像，没有 GitHub 的人在不同端是首字母、空或色块。现在由 lib/avatars.ts 统一取：上传的头像 → GitHub 头像（像素图不算）→ NANO 默认头像（GitLab 主邮箱 canonical_email，没有时是建号占位地址，SHA-256 第一位模 8，和 deploy/remote/edge-gitlab.py 生成的 GitLab 前置映射同一条规则）。每个账号都有头像；资料卡读的 GET/PATCH /api/identity/profile 与 PUT /api/identity/avatar 仍只表示上传的头像。",
+      "evidence": [
+        "app/server/src/lib/avatars.ts",
+        "app/server/src/lib/nano-avatar.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "tests/server/avatars.test.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "新增 lib/avatars.ts（批量取统一头像）、lib/github-avatars.ts（sharp 识别像素图：420×420、出现最多两种颜色占 97% 以上且有 #F0F0F0；结论按地址记库，后台每 10 分钟一轮，buildApp 的 githubAvatarCheck 只在 index.ts 打开）、lib/nano-avatar.ts（读镜像里的 8 张图，按 manifest.json 核对字节，缺图启动失败）。新接口 GET /api/identity/default-avatar/:version/:file（带响应 Schema）。账号目录、比赛报名与公开接口、论坛投影、控制台 me/users/权限组成员/操作记录、/auth/me、设备 userinfo 改为从 avatars 取；GitLab 同步传同一张（像素图传 NANO、真头像传站内副本、还没识别的当场识别），avatar_source 增加 nano:版本号/编号。网站请求不下载 GitHub 图片，还没结论时先给 GitHub 地址。",
+      "evidence": [
+        "app/server/src/lib/avatars.ts",
+        "app/server/src/lib/github-avatars.ts",
+        "app/server/src/lib/nano-avatar.ts",
+        "app/server/src/lib/account-directory.ts",
+        "app/server/src/lib/forum-store.ts",
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/lib/competition-public.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "app/server/src/routes/identity/profile.ts",
+        "app/server/src/routes/identity/contracts.ts",
+        "app/server/src/services.ts",
+        "app/server/src/app.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "不改任何权限节点和授权执行点：各接口照旧先过原有的 requireAuth / requirePermission / requireScopedPermission，只是头像字段换来源；新接口和 GET /api/identity/avatar/:file 一样匿名只读公开图片，不读会话、不读库，参数只认 8 位版本号和 1–8 号 PNG。",
+      "evidence": [
+        "app/server/src/routes/identity/profile.ts",
+        "app/server/src/routes/identity/contracts.ts",
+        "app/server/src/routes/console/users.ts",
+        "tests/server/avatars.test.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "新增 github_avatar_checks(url 主键, verdict real/identicon, avatar_hash, checked_at)，CREATE TABLE IF NOT EXISTS 可重复执行，不改已有表；真 GitHub 头像的 512 WebP 副本写进既有 account_avatars，副本和上传的头像共用一张表，撤销上传与换副本时还被 account_profiles 或 github_avatar_checks 引用的散列不删。只存公开的 GitHub 头像地址与结论，不含账号 id 或个人信息。gitlab_accounts.avatar_source 多一种取值 nano:20261025/编号。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/github-avatars.ts",
+        "app/server/src/lib/account-profiles.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/avatars.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "后台任务匿名下载 avatars.githubusercontent.com 的头像（不跟随跳转、15 秒超时、2MB 以内才识别，日志只记个数），用的是已有的 sharp，不加新依赖。server 镜像多带 deploy/gitlab/ui/nano-avatars/20261025 的 8 张图和清单，和 GitLab 前置同一份文件，不依赖 GitLab、CDN 或边缘。GitLab 同步对每个账号多传一次头像（没有 GitHub 的账号以前不传）。库的开销按人算：GitHub 头像是真头像的人，account_avatars 多一行 512×512 WebP 副本（用 lib/account-avatar.ts 的 processAccountAvatar 转，质量 82；按内容散列去重，同一张图只存一份；7 天重看换了图时删掉没人再用的旧副本，所以每个地址至多留一份）；在仓库里的样图上实测每张 4–54 KiB（8 张 NANO 人像 50–54 KiB），真实 GitHub 照片没有实测；github_avatar_checks 每个 GitHub 头像地址一行（地址、结论、散列、时间）。上传了头像的人和像素图的人不存副本。下载或转码失败时不记副本，照常显示 GitHub 地址，不挡取头像。",
+      "evidence": [
+        "app/server/src/lib/github-avatars.ts",
+        "tests/server/avatars.test.ts",
+        "app/server/Dockerfile",
+        "app/server/src/config.ts",
+        "app/server/src/index.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/oidc-eligibility.test.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "server 服务合同新增「统一头像」一条并更新源码地图、表清单、数据所有权与设备 userinfo；数据模型加表与回滚；接口契约加新接口和统一头像说明；oidc.md 的 picture 与 GitLab 头像一节改成统一头像；API.md 的缓存例外与公开资料一节同步。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/oidc.md",
+        "docs/architecture/API.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "新增 tests/server/avatars.test.ts：NANO 挑图与 edge-gitlab.py 生成的前置映射一致、清单核对与篡改拒绝、默认头像接口的头与 404/400、像素图识别（正例两种颜色、反例照片/别的尺寸/深色底/坏字节，图都在测试里用 sharp 生成）、取法顺序三种来源、7 天重看与旧副本清理、共享副本不误删、未对上账号的旧论坛成员、同一个人在九个出口地址一致、转不出副本时照常给 GitHub 地址且到期重看补副本、重看下载失败保留原副本、比赛官网头像小工具（app/web/sites/contests/oss-2026-1/src/util.ts 的 avatarHtml）对站内副本、上传的与 NANO 地址都渲染成图片且这些地址真能取到图。gitlab-sync.test.ts 新增像素图→NANO、真头像→站内副本、上传→站内文件。既有测试按新语义改期望（GitHub 头像地址统一成 GitHub 域名、没上传的账号不再是 null）。未验证：真实 GitHub 头像的识别准确率只用合成图测过；预发布与正式环境未部署。",
+      "evidence": [
+        "tests/server/avatars.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/public-profile-consumers.test.ts",
+        "tests/server/forum.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "只改 server 镜像：多带 8 张 NANO 图与清单，启动时核对，缺了启动失败；不改环境变量、compose、宿主或前端产物。上线后后台第一轮识别前，GitHub 头像仍显示 GitHub 地址（比赛官网这时显示首字母）。生产 GitLab 同步仍关着，打开后每个账号按统一头像补传一次。",
+      "evidence": [
+        "app/server/Dockerfile",
+        "app/server/src/config.ts",
+        "app/server/src/services.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/github-avatars.ts",
+        "app/server/src/lib/account-profiles.ts",
+        "app/server/src/routes/identity/profile.ts",
+        "app/server/src/routes/identity/contracts.ts",
+        "app/server/src/routes/identity/device.ts",
+        "app/server/src/routes/admin/auth.ts",
+        "tests/server/avatars.test.ts",
+        "tests/server/device-flow.test.ts",
+        "tests/server/legacy-database.test.ts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.avatar.default",
+        "flow:identity.current",
+        "flow:identity.device.userinfo",
+        "flow:identity.oidc.protocol",
+        "flow:identity.oidc.details",
+        "table:github_avatar_checks",
+        "table:account_avatars"
+      ],
+      "reason": "像素图识别与结论表、账号头像存储的共享引用，以及身份侧出口（/auth/me、设备 userinfo、OIDC picture、默认头像接口）改为从统一头像取。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/avatars.ts",
+        "app/server/src/lib/nano-avatar.ts",
+        "app/server/src/lib/account-directory.ts"
+      ],
+      "domains": [
+        "identity",
+        "forum",
+        "competitions",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.avatar.default",
+        "flow:identity.oidc.protocol",
+        "flow:gitlab.accounts.sync",
+        "flow:forum.state",
+        "flow:competition.teams.list"
+      ],
+      "reason": "统一头像的唯一取法（上传 → GitHub（像素图不算）→ NANO）与 NANO 挑图规则；账号目录把它带给 OIDC picture 与 GitLab 同步，论坛与比赛按同一个函数取，所以牵连这四个业务域。"
+    },
+    {
+      "paths": [
+        "app/server/src/services.ts",
+        "app/server/src/app.ts",
+        "app/server/src/index.ts",
+        "app/server/src/config.ts",
+        "app/server/Dockerfile"
+      ],
+      "domains": [
+        "platform",
+        "identity"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:identity.avatar.default"
+      ],
+      "reason": "组装：启动时读并核对 NANO 图（缺图启动失败），建识别任务与统一头像并传给各存储；buildApp 新开关 githubAvatarCheck 只在 index.ts 打开；镜像多带 8 张 NANO 图与清单；config 增加 nanoAvatarDir。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/db.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "table:github_avatar_checks",
+        "flow:identity.avatar.default",
+        "flow:gitlab.accounts.sync"
+      ],
+      "reason": "db.ts 是全库表定义的唯一来源，文件级归属会牵连它定义的全部业务域；这次只新增 github_avatar_checks 一张表（CREATE TABLE IF NOT EXISTS），不改任何已有表、列和迁移，其它业务域的表与接口不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/middleware/http-policy.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "identity",
+        "invitations",
+        "organization",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:identity.avatar.default"
+      ],
+      "reason": "http-policy 是所有接口共用的响应头与错误处理，文件级归属牵连全部业务域；这次只让 /api/identity/default-avatar/ 的 200 响应不被统一的 no-store 覆盖、用路由自己的一年 immutable，404 与其它 /api 响应仍是 no-store，来源校验与错误处理不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/forum-store.ts",
+        "tests/server/forum.test.ts",
+        "tests/server/forum-v2-endpoints.test.ts",
+        "tests/server/public-profile-consumers.test.ts"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "domain:forum",
+        "flow:forum.state",
+        "flow:forum.search",
+        "flow:forum.users.suggest",
+        "flow:forum.avatar.clear"
+      ],
+      "reason": "论坛成员的头像改为统一头像；未对上账号的旧成员按论坛上传、记下的 GitHub 头像（像素图不算）、按用户名挑的 NANO 取，游客与官方账号不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/lib/competition-public.ts",
+        "tests/server/competition-candidates.test.ts",
+        "tests/server/competition-public.test.ts",
+        "tests/server/competition-signups.test.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions",
+        "flow:competition.leaderboard.read",
+        "flow:competition.team_plaza.list",
+        "flow:competition.public.leaderboard",
+        "flow:competition.public.participants"
+      ],
+      "reason": "比赛报名、组队、控制台比赛接口与公开接口的人员头像都经 signups.person 取统一头像；识别过的 GitHub 头像给同源副本，比赛官网的 sandbox CSP 下也能显示。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/gitlab-sync.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/oidc-eligibility.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "identity"
+      ],
+      "nodes": [
+        "domain:gitlab",
+        "flow:gitlab.accounts.sync",
+        "table:gitlab_accounts"
+      ],
+      "reason": "GitLab 同步传统一头像：像素图传 NANO（avatar_source nano:版本号/编号），真头像传站内副本，上传的传站内文件；来源不变不重传。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/users.ts",
+        "app/server/src/routes/console/permission-groups.ts"
+      ],
+      "domains": [
+        "permissions"
+      ],
+      "nodes": [
+        "domain:permissions",
+        "flow:users.list",
+        "flow:users.update",
+        "flow:permissions.groups.members.list"
+      ],
+      "reason": "控制台用户列表、改身份的响应与权限组成员的头像按一页账号批量取统一头像；授权不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/me.ts"
+      ],
+      "domains": [
+        "organization"
+      ],
+      "nodes": [
+        "domain:organization",
+        "flow:console.identity"
+      ],
+      "reason": "控制台本人身份的头像取统一头像。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/activity.ts"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:audit.console.activity.list",
+        "flow:audit.console.activity.account"
+      ],
+      "reason": "操作记录里账号的头像按一页批量取统一头像；记录本身不变。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/oidc.md",
+        "docs/architecture/API.md",
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "domain:identity",
+        "flow:identity.avatar.default"
+      ],
+      "reason": "统一头像的服务合同、数据模型、接口契约、OIDC 与 GitLab 头像一节、API 缓存例外，目录登记新流程与三个新模块的归属。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "新接口、新表与新流程登记后由 catalog:generate 重新生成的项目目录（生成物，不手工编辑）。"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/server/oidc.md",
+    "docs/architecture/API.md"
+  ],
+  "tests": [
+    "tests/server/avatars.test.ts",
+    "tests/server/gitlab-sync.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/server/oidc-eligibility.test.ts",
+    "tests/server/public-profile-consumers.test.ts",
+    "tests/server/forum.test.ts",
+    "tests/server/forum-v2-endpoints.test.ts",
+    "tests/server/competition-candidates.test.ts",
+    "tests/server/competition-public.test.ts",
+    "tests/server/competition-signups.test.ts",
+    "tests/server/device-flow.test.ts"
+  ],
+  "compatibility": "接口字段与形状不变，只有 avatar_url / picture / avatarUrl 的取值变了：没上传头像的账号从 null 或首字母变成 GitHub 地址、站内副本或 /api/identity/default-avatar/20261025/编号.png，契约里的 null 保留。资料卡的三个接口仍只表示上传的头像。前端（控制台 TxAvatar/UserCell、论坛、官网、比赛官网）都只按地址显示，不需要改。还没识别过的 GitHub 头像照旧显示 GitHub 地址。",
+  "migration": "启动时 CREATE TABLE IF NOT EXISTS 建 github_avatar_checks，空表；后台任务启动时立即跑一轮识别，之后每 10 分钟一轮，结论超过 7 天重看。GitLab 同步打开后，每个账号的 avatar_source 和新来源比，不同的补传一次。",
+  "rollback": "换回上一镜像即可：旧代码不认识 github_avatar_checks，接口回到旧的头像取法；account_avatars 里的副本保留，不影响旧代码。avatar_source 是 nano: 的行，旧代码下一轮对有 GitHub 的账号改传 GitHub 头像，没有 GitHub 的不动。"
+}

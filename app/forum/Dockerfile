@@ -64,6 +64,7 @@ COPY deploy/nginx/production.conf /repo/deploy/nginx/production.conf
 COPY deploy/environments.json /repo/deploy/environments.json
 # nuxt.config.ts 也 import 静态资源 CDN 开关的解析（../../scripts/static-cdn-base.mjs，#146）。
 COPY scripts/static-cdn-base.mjs /repo/scripts/static-cdn-base.mjs
+COPY scripts/security-notice.mjs /repo/scripts/security-notice.mjs
 
 ARG GEEK_DEPLOYMENT_ENVIRONMENT
 ARG GEEK_RELEASE_VERSION=""
@@ -87,6 +88,8 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
     GEEK_RELEASE_COMMIT="$GEEK_RELEASE_COMMIT" \
     STATIC_CDN_BASE="$STATIC_CDN_BASE" \
     pnpm exec nuxt generate \
+ && node /repo/scripts/security-notice.mjs --root .output/public --entry index.html --base /forum/ \
+ && node /repo/scripts/security-notice.mjs --root .output/public --entry 200.html --base /forum/ \
  # site 的 llms、话题 Markdown 与 published 图片必须只走核心授权面；即使 Nuxt/public 以后又复制出来也在镜像层删掉。
  && rm -rf .output/public/llms.txt .output/public/t/*.md .output/public/published \
  # 断言 baseURL 真的进了产物：失败信息比线上 404 好读得多。入口在开关打开时是 CDN 上的 <地址>forum/_nuxt/，

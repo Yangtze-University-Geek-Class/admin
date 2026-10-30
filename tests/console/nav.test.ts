@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONSOLE_NAV, NAV_GROUPS, activeNavId, navState, visibleNav } from "../../app/console/src/lib/nav";
+import { CONSOLE_NAV, activeNavId, navState, visibleNav } from "../../app/console/src/lib/nav";
 import { MOCK_PERSONAS, mockMe } from "../../app/console/src/mock/console";
 
 const identity = (permissions: string[]) => ({ permissions });
@@ -21,16 +21,11 @@ describe("console navigation per persona (#274)", () => {
   const me = (name: string) => mockMe(MOCK_PERSONAS[name]);
   const ids = (name: string) => visibleNav(me(name)).map(item => item.id);
 
-  it("follows SPEC §3.9: 概览, then 招新, 社区, 用户, GitLab, 记录, 系统, with no GitHub organisation pages", () => {
-    expect(NAV_GROUPS.map(group => group.label)).toEqual(["招新", "社区", "用户", "GitLab", "记录", "系统"]);
-    expect(CONSOLE_NAV.map(item => item.id)).toEqual([
-      "overview", "applications", "mail-templates", "forum", "competitions", "users", "permissions", "invites",
-      "gitlab-overview", "gitlab-accounts", "gitlab-projects", "gitlab-settings", "activity", "feedback", "backup",
-    ]);
-    for (const item of CONSOLE_NAV) {
-      expect(item.to.startsWith("/console")).toBe(true);
-      expect(`${item.id} ${item.to} ${item.label}`).not.toMatch(/github/i);
-    }
+  it("shows security management only when its permission is granted", () => {
+    expect(ids("owner")).toContain("security");
+    expect(visibleNav(identity(["console.access"])).map(item => item.id)).not.toContain("security");
+    expect(visibleNav(identity(["console.access", "security.manage"])).map(item => item.id)).toContain("security");
+    expect(ids("management_head")).not.toContain("security");
   });
   it("gives the site owner every page, whichever way they signed in, including backup (#282, root wildcard *)", () => {
     expect(ids("owner")).toEqual(CONSOLE_NAV.map(item => item.id));

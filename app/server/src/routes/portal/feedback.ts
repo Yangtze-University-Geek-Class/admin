@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { DEFAULT_CONSOLE_ORG } from "../../config.js";
 import { normalizeFeedbackOrg } from "../../lib/feedback-store.js";
+import { SITE_BUCKETS, siteCheck, siteQuotaRefusal } from "../../lib/site-quota.js";
 
 type Body = {
   org: string;
@@ -41,6 +42,13 @@ export default async function feedbackRoutes(app: FastifyInstance) {
 
     const captchaOk = await verifyTurnstile(turnstile_token, req.ip);
     if (!captchaOk) return reply.code(400).send({ error: "人机验证失败" });
+
+    // 全站每个北京日的意见上限（#333）：通过了所有校验才计数，和落库一起做
+    const quota = app.services.limits.hit(siteCheck(SITE_BUCKETS.feedback, app.services.config.quotas.siteFeedback));
+    if (!quota.ok) {
+      const refused = siteQuotaRefusal(app.services.limits, SITE_BUCKETS.feedback, app.services.clock());
+      return reply.code(429).header("Retry-After", String(refused.retryAfter)).send(refused.body);
+    }
 
     let submitter_login: string | null = null;
     let submitter_id: number | null = null;

@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import { competitionStatus, type CompetitionRecord, type CompetitionStore } from "./competition-store.js";
+import type { Avatars } from "./avatars.js";
 
 export type SignupParticipation = "individual" | "team";
 export type SignupScoring = "none" | "contribution";
@@ -22,7 +23,7 @@ export const DEFAULT_SIGNUP_SETTINGS: SignupSettings = Object.freeze({
   enabled: false, participation: "individual", team_min: 1, team_max: 1, scoring: "none",
 });
 
-/** 一个人的公开资料：账号、绑定的 GitHub 登录名与头像（统一资料上线前就是这个形状）。 */
+/** 一个人的公开资料：账号、绑定的 GitHub 登录名与头像（统一头像，lib/avatars.ts，#343；统一资料上线前就是这个形状）。 */
 export type Person = { account_id: string; login: string; avatar_url: string | null };
 export type TeamMember = Person & { role: "leader" | "member"; joined_at: number };
 /**
@@ -81,6 +82,8 @@ export type RosterSignup = Person & {
 };
 export type RosterTeam = Omit<Team, "status"> & { status: "recruiting" | "locked" | "disbanded"; disbanded_at: number | null };
 export type Roster = { settings: SignupSettings; stats: Stats; signups: RosterSignup[]; teams: RosterTeam[] };
+/** 控制台移出（#342）对队伍做了什么：不在队伍里、退出、交出领队后退出、解散；`unlocked` 是已确认的队伍是否退回了招募中。 */
+export type SignupRemoval = { team_action: "none" | "left" | "transferred" | "disbanded"; unlocked: boolean };
 
 /**
  * 业务错误的稳定错误码。状态冲突一律 409（输入不合法才 400），与报名、组队的提示文案一一对应。
@@ -152,7 +155,7 @@ type MemberRow = {
   message: string; created_by: string; decided_by: string | null; created_at: number; decided_at: number | null;
   updated_at: number;
 };
-type ProfileRow = { id: string; login: string | null; avatar_url: string | null; status: string };
+type ProfileRow = { id: string; login: string | null; status: string };
 type CountRow = { n: number };
 
 const SIGNUP_COLUMNS = "id, competition_id, account_id, status, looking_for_team, note, created_at, updated_at, cancelled_at";
@@ -235,13 +238,14 @@ export interface CompetitionSignupStore {
   setPlaza(teamId: string, accountId: string, input: { recruiting: boolean; note?: string; wanted_skills?: string[] }, now: number): SignupResult<MyStatus>;
   withdrawPlaza(teamId: string, accountId: string, now: number): SignupResult<MyStatus>;
   roster(competitionId: string): SignupResult<Roster>;
+  removeSignup(competitionId: string, accountId: string, actorAccountId: string, now: number): SignupResult<SignupRemoval>;
   updateSettings(competitionId: string, input: SignupSettings, updatedBy: string, now: number): SignupResult<SignupSettings>;
   person(accountId: string): Person;
   /** 本场未取消的报名，按报名先后；排行榜用它保证 0 分的人也列出。 */
   activeSignups(competitionId: string): (Person & { created_at: number })[];
 }
 
-export function createCompetitionSignupStore(db: Database.Database, competitions: Pick<CompetitionStore, "get">): CompetitionSignupStore {
+export function createCompetitionSignupStore(db: Database.Database, competitions: Pick<CompetitionStore, "get">, avatars: Pick<Avatars, "urlOf">): CompetitionSignupStore {
   const selectFinal = db.prepare("SELECT 1 FROM competition_finals WHERE competition_id = ?");
   const isFinalized = (id: string) => Boolean(selectFinal.get(id));
   const selectSettings = db.prepare("SELECT * FROM competition_signup_settings WHERE competition_id = ?");
@@ -289,6 +293,9 @@ export function createCompetitionSignupStore(db: Database.Database, competitions
     WHERE team_id = ? AND account_id = ? AND status = 'active'`);
   const selectPendingBetween = db.prepare(`SELECT ${MEMBER_COLUMNS} FROM competition_team_members
     WHERE team_id = ? AND account_id = ? AND status IN ('applied', 'invited')`);
+  // 领队被移出时接任的人：除领队外最早入队的在队成员，同时刻按 id，和 selectMembers 的顺序一致。
+  const selectSuccessor = db.prepare(`SELECT ${MEMBER_COLUMNS} FROM competition_team_members
+    WHERE team_id = ? AND status = 'active' AND id <> ? ORDER BY created_at, id LIMIT 1`);
   const insertMember = db.prepare(`INSERT INTO competition_team_members(${MEMBER_COLUMNS})
     VALUES(@id, @team_id, @competition_id, @account_id, @role, @status, @message, @created_by, NULL, @now, NULL, @now)`);
   const decideMember = db.prepare(`UPDATE competition_team_members SET status = @status, decided_by = @decided_by,
@@ -335,9 +342,9 @@ export function createCompetitionSignupStore(db: Database.Database, competitions
     WHERE s.competition_id = ? AND s.status = 'active'
       AND NOT EXISTS (SELECT 1 FROM competition_team_members m WHERE m.competition_id = s.competition_id AND m.account_id = s.account_id AND m.status = 'active')`);
 
-  // 身份表由 lib/identity-store.ts 写；这里只读登录名、头像与账号状态给名单和成员检查，不碰会话与账号状态机。
-  // 没有绑定 GitHub 的账号（邮箱、Google 注册，#262）用账号自己的 yz_ 登录名。
-  const selectProfile = db.prepare(`SELECT u.id AS id, COALESCE(i.login, u.handle) AS login, i.avatar_url AS avatar_url, u.status AS status
+  // 身份表由 lib/identity-store.ts 写；这里只读登录名与账号状态给名单和成员检查，不碰会话与账号状态机。
+  // 没有绑定 GitHub 的账号（邮箱、Google 注册，#262）用账号自己的 yz_ 登录名。头像统一由 lib/avatars.ts 算（#343）。
+  const selectProfile = db.prepare(`SELECT u.id AS id, COALESCE(i.login, u.handle) AS login, u.status AS status
     FROM users u LEFT JOIN identities i ON i.user_id = u.id AND i.provider = 'github' WHERE u.id = ?`);
   // #274 SPEC §3.2：成员资格不再看 org_state，看权限引擎的 level.member 组（perm_members），和 requireCompetitionNode 同一个口径。
   const selectLevelMember = db.prepare("SELECT 1 FROM perm_members WHERE account_id = ? AND group_id = 'level.member' AND (expires_at IS NULL OR expires_at > ?)");
@@ -349,7 +356,7 @@ export function createCompetitionSignupStore(db: Database.Database, competitions
 
   function person(accountId: string): Person {
     const row = selectProfile.get(accountId) as ProfileRow | undefined;
-    return { account_id: accountId, login: row?.login ?? "", avatar_url: row?.avatar_url ?? null };
+    return { account_id: accountId, login: row?.login ?? "", avatar_url: avatars.urlOf(accountId) };
   }
 
   /**
@@ -878,6 +885,47 @@ export function createCompetitionSignupStore(db: Database.Database, competitions
     return { ok: true, value: { settings, stats: statsOf(competitionId, settings), signups, teams: teamsView } };
   }
 
+  /**
+   * 控制台移出（#342）：管理员取消一个人的有效报名。和本人取消不同，报名截止后、队伍已确认、领队队里还有别人时
+   * 都照样移出：队员退出；领队先把领队交给最早入队的队员再退出；只有领队一人的队伍解散；已确认的队伍因此低于
+   * 最低人数时退回招募中。只拦比赛不存在、已定榜和没有有效报名；比赛下线不看，和名单一致。
+   */
+  function removeSignup(competitionId: string, accountId: string, actorAccountId: string, now: number): SignupResult<SignupRemoval> {
+    if (!competitions.get(competitionId)) return failure("not_found");
+    return db.transaction((): SignupResult<SignupRemoval> => {
+      if (isFinalized(competitionId)) return failure("competition_finalized");
+      const signup = selectSignup.get(competitionId, accountId) as SignupRow | undefined;
+      if (!signup || signup.status !== "active") return failure("not_signed_up");
+      let teamAction: SignupRemoval["team_action"] = "none";
+      let unlocked = false;
+      const membership = selectActiveMembership.get(competitionId, accountId) as MemberRow | undefined;
+      if (membership) {
+        const team = selectTeam.get(membership.team_id) as TeamRow | undefined;
+        const successor = team && membership.role === "leader" ? selectSuccessor.get(team.id, membership.id) as MemberRow | undefined : undefined;
+        if (team && membership.role === "leader" && !successor) {
+          disbandTeamRow.run(now, now, team.id);
+          closeDisbandedMembers.run({ team: team.id, decided_by: actorAccountId, now });
+          teamAction = "disbanded";
+        } else {
+          if (team && successor) {
+            setTeamLeader.run(successor.account_id, now, team.id);
+            setMemberRole.run("leader", now, successor.id);
+            setMemberRole.run("member", now, membership.id);
+          }
+          decideMember.run({ id: membership.id, status: "left", decided_by: actorAccountId, now });
+          teamAction = successor ? "transferred" : "left";
+          if (team?.status === "locked" && count(countActiveMembers, team.id) < settingsOf(competitionId).team_min) {
+            setTeamStatus.run("recruiting", null, now, team.id);
+            unlocked = true;
+          }
+        }
+      }
+      closeAccountPending.run({ competition: competitionId, account: accountId, except: "", decided_by: actorAccountId, now });
+      cancelSignupRow.run(now, now, signup.id);
+      return { ok: true, value: { team_action: teamAction, unlocked } };
+    })();
+  }
+
   /** 报名设置（控制台）：全量写入，写前按已有数据判冲突，与审计在同一个事务里。 */
   function updateSettings(competitionId: string, input: SignupSettings, updatedBy: string, now: number): SignupResult<SignupSettings> {
     const record = competitions.get(competitionId);
@@ -917,7 +965,7 @@ export function createCompetitionSignupStore(db: Database.Database, competitions
     signupEnabled: (competitionId: string) => settingsOf(competitionId).enabled,
     myStatus, myCompetitions, signUp, cancelSignUp, teams, freeAgents, createTeam,
     apply, invite, respond, leave, transfer, disband, lock, unlock, setPlaza, withdrawPlaza,
-    roster, updateSettings, person,
+    roster, removeSignup, updateSettings, person,
     activeSignups: (competitionId: string) =>
       (selectActiveSignups.all(competitionId) as SignupRow[]).map(row => ({ ...person(row.account_id), created_at: row.created_at })),
   };

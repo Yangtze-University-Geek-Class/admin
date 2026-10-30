@@ -827,6 +827,17 @@ CREATE TABLE IF NOT EXISTS account_avatars (
   created_at INTEGER NOT NULL
 );
 `);
+// GitHub 头像识别结论（#343，lib/github-avatars.ts）：按头像地址记是不是 GitHub 自动生成的像素图（identicon 不算头像，统一头像改用
+// NANO 默认头像）；真头像在 account_avatars 存一份 512 WebP（avatar_hash），网站和比赛页显示这份同源副本，转不出来时为空、照常显示 GitHub 地址。
+// 没有这行就是还没识别；结论超过 7 天重看一次。
+db.exec(`
+CREATE TABLE IF NOT EXISTS github_avatar_checks (
+  url TEXT PRIMARY KEY,
+  verdict TEXT NOT NULL CHECK (verdict IN ('real', 'identicon')),
+  avatar_hash TEXT,
+  checked_at INTEGER NOT NULL
+);
+`);
 // 实名信息（#280）：真实姓名只给本人和有 users.manage 的管理员看；年级不存，存入学年份，由 lib/grade.ts 按学年现算
 addColumn("account_profiles", "real_name", "TEXT");
 addColumn("account_profiles", "enrollment_year", "INTEGER");
@@ -862,6 +873,35 @@ CREATE TABLE IF NOT EXISTS limit_events (
 );
 CREATE INDEX IF NOT EXISTS idx_limit_events_subject ON limit_events(bucket, subject, at);
 CREATE INDEX IF NOT EXISTS idx_limit_events_at ON limit_events(at);
+
+-- 访问防护（#333，lib/shield.ts）：异常信号按 IP 计分（窗口外的每天清一次）、生效中与最近结束的封禁（级别、结束时刻）。
+-- 只有 lib/shield.ts 读写这两张表。
+CREATE TABLE IF NOT EXISTS shield_signals (
+  ip TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  points INTEGER NOT NULL,
+  reason TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_shield_signals_ip ON shield_signals(ip, at);
+CREATE INDEX IF NOT EXISTS idx_shield_signals_at ON shield_signals(at);
+CREATE TABLE IF NOT EXISTS ip_blocks (
+  ip TEXT PRIMARY KEY,
+  level INTEGER NOT NULL DEFAULT 0,
+  blocked_until INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ip_blocks_until ON ip_blocks(blocked_until);
+
+-- 接口限流的固定窗口计数（#333，lib/rate-store.ts，@fastify/rate-limit 的 store）：重启后同一窗口内的次数不清零。
+-- 过期行由清理任务按窗口起点删掉。
+CREATE TABLE IF NOT EXISTS rate_limit_counters (
+  key TEXT PRIMARY KEY,
+  hits INTEGER NOT NULL,
+  window_start INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_start ON rate_limit_counters(window_start);
 `);
 // 话题可见范围（#274 建表，#276 使用）：NULL 表示跟随分类，非 NULL 是版主调高过的覆盖值（CONTRACT-276 §1）。
 // #274 最初建的列是 `NOT NULL DEFAULT 'public'`——那时还没有分级可见、没有人调用过还不存在的 PATCH visibility

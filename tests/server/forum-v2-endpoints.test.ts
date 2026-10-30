@@ -414,7 +414,7 @@ describe('@ 自动补全 GET /api/forum/users/suggest（#276 CONTRACT §6）', (
     const res = await s.call('GET', '/api/forum/users/suggest?q=sugg', 'reg');
     expect(res.statusCode).toBe(200);
     const users = res.json().users as Record<string, unknown>[];
-    expect(users).toEqual([{ username: 'sugg1', display_name: 'sugg1', avatar_url: null }]);
+    expect(users).toEqual([{ username: 'sugg1', display_name: 'sugg1', avatar_url: expect.stringMatching(/^https:\/\/avatars\.githubusercontent\.com\/u\/\d+$/) }]);
     expect(JSON.stringify(users)).not.toMatch(/@.*\./); // 没有邮箱字样
   });
 

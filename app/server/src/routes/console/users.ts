@@ -23,7 +23,7 @@ function gitlabView(row: GitlabRow | undefined) {
 }
 
 type UserRow = {
-  account_id: string; status: "active" | "disabled"; created_at: number; username: string | null; display_name: string | null; avatar_hash: string | null;
+  account_id: string; status: "active" | "disabled"; created_at: number; username: string | null; display_name: string | null;
   real_name: string | null; enrollment_year: number | null;
   github_login: string | null; providers: string | null; last_login_at: number | null; level_id: string | null;
   department_id: string | null; department_name: string | null; department_tone: string | null;
@@ -35,7 +35,7 @@ type TitleView = { id: string; name: string; department_id: string | null };
  * 不能各写一份、字段慢慢长歪）；`lvl.id`/`dept.id` 给完整 id，不在 SQL 里用 SUBSTR 切前缀（残留修复 P）。 */
 const USER_ROW_SQL = `
   SELECT u.id AS account_id, u.status AS status, u.created_at AS created_at,
-    p.username AS username, p.display_name AS display_name, p.avatar_hash AS avatar_hash,
+    p.username AS username, p.display_name AS display_name,
     p.real_name AS real_name, p.enrollment_year AS enrollment_year,
     g.login AS github_login,
     (SELECT group_concat(i.provider) FROM identities i WHERE i.user_id = u.id) AS providers,
@@ -50,14 +50,17 @@ const USER_ROW_SQL = `
   LEFT JOIN gitlab_accounts ga ON ga.account_id = u.id
 `;
 
-/** `withRealName`：调用者有 `users.manage` 时才带真实姓名（#280），没有时不回这个键；年级只有用户管理的查看权限也能看。 */
-function userItemView(row: UserRow, titles: TitleView[], withRealName: boolean) {
+/**
+ * `withRealName`：调用者有 `users.manage` 时才带真实姓名（#280），没有时不回这个键；年级只有用户管理的查看权限也能看。
+ * `avatarUrl`：统一头像（lib/avatars.ts，#343），调用方按一页账号批量取。
+ */
+function userItemView(row: UserRow, titles: TitleView[], withRealName: boolean, avatarUrl: string) {
   const grade = gradeOf(row.enrollment_year);
   return {
     account_id: row.account_id, username: row.username, display_name: row.display_name,
     ...(withRealName ? { real_name: row.real_name || null } : {}),
     grade, grade_label: grade === null ? null : GRADE_LABELS[grade],
-    avatar_url: row.avatar_hash ? `/api/identity/avatar/${row.avatar_hash}.webp` : null,
+    avatar_url: avatarUrl,
     status: row.status, level: row.level_id ? levelSuffix(row.level_id) : "registered",
     department: row.department_id ? { id: row.department_id, name: row.department_name, tone: row.department_tone } : null,
     titles,
@@ -72,7 +75,7 @@ function userItemView(row: UserRow, titles: TitleView[], withRealName: boolean) 
  * `/api/console/people`（旧接口暂时保留给旧控制台前端用，不在这次改动删除，见执行记录里的范围说明）。
  */
 export default async function consoleUsersRoutes(app: FastifyInstance) {
-  const { permissions, storage } = app.services;
+  const { permissions, storage, avatars } = app.services;
   const db = storage.db;
 
   function titlesByIds(accountIds: string[]): Map<string, TitleView[]> {
@@ -142,7 +145,8 @@ export default async function consoleUsersRoutes(app: FastifyInstance) {
 
     const page = rows.slice(0, PAGE_SIZE);
     const titlesByAccount = titlesByIds(page.map(row => row.account_id));
-    const items = page.map(row => userItemView(row, titlesByAccount.get(row.account_id) ?? [], withRealName));
+    const avatarUrls = avatars.urlsOf(page.map(row => row.account_id));
+    const items = page.map(row => userItemView(row, titlesByAccount.get(row.account_id) ?? [], withRealName, avatarUrls.get(row.account_id)!));
     const nextCursor = rows.length > PAGE_SIZE ? encodeCursor({ created_at: page[page.length - 1]!.created_at, id: page[page.length - 1]!.account_id }) : null;
 
     const counts = { visitor_today: 0, registered: 0, member: 0, alumni: 0 };
@@ -255,7 +259,7 @@ export default async function consoleUsersRoutes(app: FastifyInstance) {
       app.services.activity.recordActivity(req, { action: "users.update", surface: "console", target_type: "user", target_id: id, outcome: "ok", meta: { before, after: snapshot(), real_name_changed: realNameChanged } });
       // #274 残留修复 D：回和列表一样形状的完整行（不是只有 account_id），控制台改完不用再拉一次列表才能刷新这一行。
       const row = db.prepare(`${USER_ROW_SQL} WHERE u.id = ?`).get(id) as UserRow;
-      return userItemView(row, titlesByIds([id]).get(id) ?? [], true);
+      return userItemView(row, titlesByIds([id]).get(id) ?? [], true, avatars.urlOf(id));
     },
   );
 }

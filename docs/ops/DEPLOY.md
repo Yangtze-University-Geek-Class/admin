@@ -44,7 +44,7 @@ hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗
   → 两个站点块的 /gitlab、/gitlab/*（香港 Caddy 直接转发，不经 web nginx）→ Arch 10.66.0.2:8929（正式，#335 搬家后）/ 8930（预发布，#308）→ GitLab 容器
 ```
 
-后端只信任 Caddy 与 web nginx 两层，`TRUST_PROXY=2`。DNS 过渡多经过旧 Nginx，但它覆盖外来 X-Real-IP，Caddy 仅对来自旧 VPS 地址的请求读取该值，其他请求按实际远端地址重建 X-Forwarded-For；客户端伪造头实测未被信任。`ssh -w` 不增加 HTTP 代理层，Arch 不叠宿主 nginx。DNS 后续指向香港 `156.238.244.78`，不是 Arch 私有地址。
+后端只信任 Caddy 与 web nginx 两层，`TRUST_PROXY=2`。web 容器 nginx 的第一层限流（#333）按同一个真实客户端 IP 计数：只从隧道两端（10.66.0.1、10.66.0.2）与 Docker 网段（172.16.0.0/12）读取 `X-Forwarded-For`，写法与超额行为见 [web 服务合同](../services/web/README.md)。这一层同样读 `SHIELD_ENABLED`、`SHIELD_ALLOWLIST`（compose 传进 web 容器，启动时校验并渲染，写错 web 容器起不来）：`off` 不限，白名单来源不计；信任名单不随白名单扩大。DNS 过渡多经过旧 Nginx，但它覆盖外来 X-Real-IP，Caddy 仅对来自旧 VPS 地址的请求读取该值，其他请求按实际远端地址重建 X-Forwarded-For；客户端伪造头实测未被信任。`ssh -w` 不增加 HTTP 代理层，Arch 不叠宿主 nginx。DNS 后续指向香港 `156.238.244.78`，不是 Arch 私有地址。
 
 web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控制台），把两份 dist 叠进同一个站点根（`sites/portal/` + `assets/`，`sites/console/` + `console-assets/`，目录不重叠）。
 

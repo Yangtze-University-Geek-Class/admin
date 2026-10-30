@@ -47,9 +47,13 @@ function actionFor(body: unknown): string {
  * 所有被 403 拒绝、被 429 拦下的请求记一条操作记录（SPEC §3.7「所有被 403 拒绝的请求记 outcome = 'denied'，
  * 被 429 拦下的记 outcome = 'limited'」），集中在这一个钩子里做，不要求每个路由自己记——这样新加的写接口
  * 天然就有这条覆盖，不会漏。放在 onSend（有响应体可读）而不是 onResponse（没有）。
+ * 记下方法、匹配到的路由模板（`/api/console/security/blocks/:ip`，不是实际地址，没匹配到路由是 null）与状态码（#333），
+ * 不记原始路径、查询串和请求体：排查时能分清是哪个接口被拦，又不把路径里的编号、地址带进记录。
  */
 function recordDenialOrLimit(req: FastifyRequest, statusCode: number, payload: unknown): void {
   if (statusCode !== 403 && statusCode !== 429) return;
+  // 被访问防护拦下的请求（#333）不逐条记：封禁本身已经写了审计，攻击时逐条写会把操作记录撑大
+  if (req.shieldBlocked) return;
   let body: unknown = null;
   if (typeof payload === "string") { try { body = JSON.parse(payload); } catch { /* 不是 JSON，按通用名记 */ } }
   // console/activity.ts 的 blocked_today 按 meta.bucket 分组统计；只有路由自己数的限额（回了 bucket 字段的）
@@ -58,7 +62,7 @@ function recordDenialOrLimit(req: FastifyRequest, statusCode: number, payload: u
   req.server.services.activity.recordDenial(req, {
     action: actionFor(body), surface: surfaceFor(req.url), outcome: statusCode === 429 ? "limited" : "denied",
     meta: typeof bucket === "string" ? { bucket } : undefined,
-  });
+  }, { method: req.method, route: req.routeOptions.url ?? null, status: statusCode });
 }
 
 /** Fail closed for browser cross-origin writes; bearer-only clients remain usable. */
@@ -75,10 +79,11 @@ export function registerHttpPolicy(app: FastifyInstance) {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("X-Frame-Options", "DENY");
     reply.header("Referrer-Policy", "strict-origin-when-cross-origin");
-    // 例外：论坛头像、账号头像（#274）、论坛表情图片（#286）都按内容哈希寻址、内容永不改变，成功的响应由路由自己下发长期缓存。
-    // 表情的列表接口（/api/forum/stickers，没有斜杠与哈希）不在其中，仍然不缓存。
+    // 例外：论坛头像、账号头像（#274）、论坛表情图片（#286）都按内容哈希寻址、内容永不改变，NANO 默认头像（#343）地址带版本号，
+    // 成功的响应由路由自己下发长期缓存。表情的列表接口（/api/forum/stickers，没有斜杠与哈希）不在其中，仍然不缓存。
     const immutable = reply.statusCode === 200
-      && (req.url.startsWith("/api/forum/avatars/") || req.url.startsWith("/api/identity/avatar/") || req.url.startsWith("/api/forum/stickers/"));
+      && (req.url.startsWith("/api/forum/avatars/") || req.url.startsWith("/api/identity/avatar/") || req.url.startsWith("/api/forum/stickers/")
+        || req.url.startsWith("/api/identity/default-avatar/"));
     if ((req.url.startsWith("/auth") || req.url.startsWith("/api") || req.url.startsWith("/oidc/")) && !immutable) reply.header("Cache-Control", "no-store");
     recordDenialOrLimit(req, reply.statusCode, payload);
     return payload;

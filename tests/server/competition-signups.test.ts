@@ -29,7 +29,7 @@ async function setup() {
   const granted = new Set<string>();
   const sign = (login: string) => {
     if (!sessions.has(login)) {
-      const sid = signIn(app, login, USERS[login], `https://avatars.test/${login}.png`);
+      const sid = signIn(app, login, USERS[login], `https://avatars.githubusercontent.com/test/${login}.png`);
       sessions.set(login, sid);
       // alice 是提督（控制台建比赛要 competitions.manage，旧能力系统，#274 阶段 2b 还没切换）；
       // bob/carol/dave 是普通成员；两者都会被 syncPermissionLevel 同步进新权限引擎的 level.member 组。
@@ -324,7 +324,7 @@ describe('teams', () => {
     expect(leaderPending).toHaveLength(1);
     expect(leaderPending[0]).toMatchObject({
       kind: 'application', team_id: first.team.id, team_name: '一队',
-      person: { login: 'bob', avatar_url: 'https://avatars.test/bob.png' }, message: '带带我',
+      person: { login: 'bob', avatar_url: 'https://avatars.githubusercontent.com/test/bob.png' }, message: '带带我',
     });
     // 不相干的人看不到别人的待处理项
     expect((await myStatus(id, 'dave')).pending).toEqual([]);

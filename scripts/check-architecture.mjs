@@ -284,7 +284,8 @@ function main() {
     if (!allowed.has(name) || !process.argv[i].startsWith("--") || !process.argv[i + 1] || name in options) throw new Error("参数无效：--root --base --head --branch --body-file --report --forge gitlab|github");
     options[name] = process.argv[i + 1];
   }
-  const forge = options.forge ?? "gitlab";
+  // GitHub Actions 只跑在 GitHub 镜像上：没传 --forge 时读 GitHub 一侧的声明，core 的 pnpm check 与 architecture-alignment 读同一份（#335）。
+  const forge = options.forge ?? (process.env.GITHUB_ACTIONS === "true" ? "github" : "gitlab");
   if (!FORGES.includes(forge)) throw new Error(`--forge 只能是 gitlab 或 github：${forge}`);
   const root = resolve(options.root ?? process.cwd());
   const branch = options.branch ?? (process.env.GITHUB_HEAD_REF || git(root, ["branch", "--show-current"]).trim());

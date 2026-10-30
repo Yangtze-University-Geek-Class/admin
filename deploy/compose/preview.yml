@@ -70,6 +70,19 @@ services:
       MAIL_ALIYUN_ACCESS_KEY_SECRET: ${MAIL_ALIYUN_ACCESS_KEY_SECRET:-}
       MAIL_RESEND_API_KEY: ${MAIL_RESEND_API_KEY:-}
       MAIL_ALLOWLIST: ${MAIL_ALLOWLIST:-}
+      # 访问防护（#333）：阈值、封禁时长与全站上限是 env 文件里的可见值；SHIELD_ALLOWLIST 是可选密钥，空 = 没有豁免。
+      SHIELD_ENABLED: ${SHIELD_ENABLED:-}
+      SHIELD_THRESHOLD: ${SHIELD_THRESHOLD:-}
+      SHIELD_WINDOW_MINUTES: ${SHIELD_WINDOW_MINUTES:-}
+      SHIELD_BLOCK_MINUTES: ${SHIELD_BLOCK_MINUTES:-}
+      SHIELD_DECAY_HOURS: ${SHIELD_DECAY_HOURS:-}
+      SITE_QUOTA_EMAIL_DAILY: ${SITE_QUOTA_EMAIL_DAILY:-}
+      SITE_QUOTA_REGISTER_DAILY: ${SITE_QUOTA_REGISTER_DAILY:-}
+      SITE_QUOTA_FEEDBACK_DAILY: ${SITE_QUOTA_FEEDBACK_DAILY:-}
+      SITE_QUOTA_DEVICE_CODE_DAILY: ${SITE_QUOTA_DEVICE_CODE_DAILY:-}
+      EMAIL_RECIPIENT_QUOTA_DAILY: ${EMAIL_RECIPIENT_QUOTA_DAILY:-}
+      REGISTER_NO_COOKIE_IP_DAILY: ${REGISTER_NO_COOKIE_IP_DAILY:-}
+      SHIELD_ALLOWLIST: ${SHIELD_ALLOWLIST:-}
       # Google 登录（#262）：可选的一对，都空时登录页不出现 Google；只填一项 server 启动失败。
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -112,6 +125,11 @@ services:
         condition: service_healthy
       forum:
         condition: service_started
+    # 访问防护（#333）的开关与白名单也管 web 容器 nginx 的第一层限流：启动时由镜像里的 yzgc-shield-render 校验并渲染，写错容器起不来。
+    # 与 server 读同一对键，两层对同一个来源的处理一致；SHIELD_ALLOWLIST 是可选密钥，空 = 没有豁免。
+    environment:
+      SHIELD_ENABLED: ${SHIELD_ENABLED:-}
+      SHIELD_ALLOWLIST: ${SHIELD_ALLOWLIST:-}
     ports:
       # Arch tun0 → 容器 8080（容器内 nginx 以 nginx 用户运行，不监听特权端口）。
       - "${WEB_BIND:?}:8080"

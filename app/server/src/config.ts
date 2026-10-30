@@ -2,6 +2,8 @@ import { config as loadEnv } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseStaticCdnBase } from "./lib/static-cdn.js";
+import { parseShieldAllowlist } from "./lib/shield.js";
+import { NANO_AVATAR_VERSION } from "./lib/nano-avatar.js";
 
 /** 仓库根：geek_main/。配置、docs、pnpm 工作区清单都在这里。 */
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -127,8 +129,37 @@ export function createConfig(env: Record<string, string | undefined>) {
     if (mode === "on" && !token) throw new Error("GITLAB_SYNC=on needs GITLAB_API_TOKEN");
     return { mode: mode as "off" | "dry-run" | "on", url, token, group, clientId, sector };
   })();
+  // 访问防护（#333，lib/shield.ts）：按真实客户端 IP（req.ip，沿用上面的 TRUST_PROXY）累计异常信号，超过阈值就封禁，再犯逐级加长。
+  // 全部可调，默认值按现有流量留余量；校园出口 NAT（一个 IP 后面很多人）不能被一次正常使用误伤，所以阈值按 10 分钟计，封禁从 15 分钟起。
+  const shield = (() => {
+    const blockMinutes = ((env.SHIELD_BLOCK_MINUTES ?? "").trim() || "15,60,360,1440").split(",").map(item => item.trim());
+    if (!blockMinutes.every(item => /^\d+$/.test(item) && Number(item) >= 1 && Number(item) <= 10080)) {
+      throw new Error("SHIELD_BLOCK_MINUTES must be a comma-separated list of minutes from 1 to 10080");
+    }
+    // 开发环境（.env.dev）设 off：计分、封禁、蜜罐与告知都不生效；全站上限与限流计数照常。
+    const enabled = (env.SHIELD_ENABLED ?? "").trim() || "on";
+    if (enabled !== "on" && enabled !== "off") throw new Error("SHIELD_ENABLED must be on or off");
+    return {
+      enabled: enabled === "on",
+      allowlist: parseShieldAllowlist((env.SHIELD_ALLOWLIST ?? "").split(",")),
+      thresholdPoints: wholeEnv(env, "SHIELD_THRESHOLD", 120, 1, 1_000_000),
+      windowMs: wholeEnv(env, "SHIELD_WINDOW_MINUTES", 10, 1, 1440) * 60_000,
+      blockMs: blockMinutes.map(item => Number(item) * 60_000),
+      decayMs: wholeEnv(env, "SHIELD_DECAY_HOURS", 24, 1, 8760) * 3600_000,
+    };
+  })();
+  // 全站北京日上限（#319、#333）与新注册的额度：-1 表示不限。默认值按现有流量留余量，发码与注册的上限可按需调高。
+  const quotas = {
+    siteEmail: wholeEnv(env, "SITE_QUOTA_EMAIL_DAILY", 2000, -1, 1_000_000),
+    siteRegister: wholeEnv(env, "SITE_QUOTA_REGISTER_DAILY", 300, -1, 1_000_000),
+    siteFeedback: wholeEnv(env, "SITE_QUOTA_FEEDBACK_DAILY", 200, -1, 1_000_000),
+    siteDeviceCode: wholeEnv(env, "SITE_QUOTA_DEVICE_CODE_DAILY", 500, -1, 1_000_000),
+    emailRecipient: wholeEnv(env, "EMAIL_RECIPIENT_QUOTA_DAILY", 10, -1, 1000),
+    registerNoCookieIp: wholeEnv(env, "REGISTER_NO_COOKIE_IP_DAILY", 3, -1, 1000),
+  };
   return {
-    production, port, publicOrigin, host: listenHost, trustProxy,
+    production, port, publicOrigin, host: listenHost, trustProxy, shield, quotas,
+    deploymentEnvironment: env.GEEK_DEPLOYMENT_ENVIRONMENT ?? "local",
     oidc, gitlab,
     cookieDomain: env.COOKIE_DOMAIN || undefined,
     cookieSecure: publicOrigin.startsWith("https:"),
@@ -145,6 +176,8 @@ export function createConfig(env: Record<string, string | undefined>) {
     forumPublishedDir: resolve(APP_ROOT, "forum/public/published"),
     // 内置表情包（#276、#286）：清单 manifest.json 与各包的图片，仓库里的通用素材，不按环境或测试换目录。
     stickerAssetsDir: resolve(APP_ROOT, "server/assets/stickers"),
+    // NANO 默认头像（#343）：和 GitLab 前置是同一份文件，镜像按仓库里的相对位置带上（app/server/Dockerfile），不按环境换目录。
+    nanoAvatarDir: resolve(REPO_ROOT, "deploy/gitlab/ui/nano-avatars", NANO_AVATAR_VERSION),
     // 静态资源 CDN 开关（#146、#286）：构建参数 STATIC_CDN_BASE 由 app/server/Dockerfile 带进运行环境，空 = 同源；
     // 非空只能是 lib/static-cdn.ts 里的那个常量，别的值直接让启动失败。不是 deploy/env/*.env 里的项，部署不用配。
     staticCdnBase: parseStaticCdnBase(env.STATIC_CDN_BASE),
@@ -152,6 +185,14 @@ export function createConfig(env: Record<string, string | undefined>) {
     powDifficulty,
     mail,
   };
+}
+/** 整数配置项：不设用默认值，设了必须是 min 到 max 之间的整数（写错就启动失败，不静默用默认值）。 */
+function wholeEnv(env: Record<string, string | undefined>, key: string, fallback: number, min: number, max: number): number {
+  const raw = (env[key] ?? "").trim();
+  if (raw === "") return fallback;
+  const value = Number(raw);
+  if (!/^-?\d+$/.test(raw) || !Number.isInteger(value) || value < min || value > max) throw new Error(`${key} must be an integer from ${min} to ${max}`);
+  return value;
 }
 export type AppConfig = ReturnType<typeof createConfig>;
 export type MailConfig = AppConfig["mail"];

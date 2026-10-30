@@ -11,6 +11,7 @@ import { stickerSameOriginUrl } from "./sticker-manifest.js";
 import type { AccountProfileStore } from "./account-profiles.js";
 import type { IdentityStore, PublicIdentityFallback } from "./identity-store.js";
 import { publicProfile, type PublicAccountProfile } from "./public-profile.js";
+import type { Avatars } from "./avatars.js";
 
 /**
  * 论坛的持久化与业务规则（#57）：forum_* 表的全部 SQL、编号、通知规则和整份 `ForumState` 的组装。
@@ -151,9 +152,10 @@ const DEFAULT_NOTIFY_PREFS: Record<ForumUserKind, NotifyPrefs> = {
   official: { reply: false, like: false, follow: false },
 };
 
-function toUser(row: UserRow, ownPrefs = true, profile?: PublicAccountProfile, fallback?: PublicIdentityFallback): ForumUser {
+/** `avatar`：成员的统一头像（#343，ForumStoreOptions.avatars）；没传时按 #274 的旧口径取。 */
+function toUser(row: UserRow, ownPrefs = true, profile?: PublicAccountProfile, fallback?: PublicIdentityFallback, avatar?: string): ForumUser {
   const visible = profile ? publicProfile(profile, fallback ?? { login: row.username, avatarUrl: row.github_avatar_url }) : null;
-  const avatarUrl = visible ? visible.avatar_url : row.avatar_hash ? avatarPath(row.avatar_hash) : row.kind === "member" && row.github_avatar_url ? row.github_avatar_url : undefined;
+  const avatarUrl = avatar ?? (visible ? visible.avatar_url : row.avatar_hash ? avatarPath(row.avatar_hash) : row.kind === "member" && row.github_avatar_url ? row.github_avatar_url : undefined);
   const title = row.title ? JSON.parse(row.title) as ForumTitle : undefined;
   const accountTitles = row.account_titles ? JSON.parse(row.account_titles) as { department: AccountDepartmentView; titles: AccountTitleView[] } : null;
   return {
@@ -225,6 +227,11 @@ export type ForumStoreOptions = {
   stickerUrl?: (hash: string) => string;
   profiles?: Pick<AccountProfileStore, "findMany" | "update" | "setAvatar" | "clearAvatar">;
   identity?: Pick<IdentityStore, "publicFallbacks">;
+  /**
+   * 统一头像（#343）：成员的头像都从这里取，和控制台、比赛、OIDC、GitLab 同一张。对上账号的成员按账号算；还没对上账号的旧成员
+   * 按论坛自己上传的头像、记下的 GitHub 头像、按用户名挑的 NANO 默认头像算。游客和官方账号不变（论坛上传的头像，没有就是色块）。
+   */
+  avatars?: Pick<Avatars, "ofAccounts" | "resolveMany">;
 };
 
 export function createForumStore(db: Database.Database, content: ForumContent, options: ForumStoreOptions = {}) {
@@ -242,13 +249,29 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
     return { profiles, fallbacks };
   }
 
+  /** 一批论坛用户里成员的统一头像，按论坛用户 id；没传 `avatars` 时为空。 */
+  function avatarsFor(rows: UserRow[]): Map<string, string> {
+    if (!options.avatars) return new Map();
+    const members = rows.filter(row => row.kind === "member");
+    const linked = options.avatars.ofAccounts(members.flatMap(row => row.account_id ? [row.account_id] : []));
+    const legacy = options.avatars.resolveMany(new Map(members.filter(row => !row.account_id).map(row => [row.id, {
+      uploadUrl: row.avatar_hash ? avatarPath(row.avatar_hash) : null, uploadHash: row.avatar_hash, githubUrl: row.github_avatar_url, identifier: row.username,
+    }])));
+    return new Map(members.flatMap(row => {
+      const avatar = row.account_id ? linked.get(row.account_id) : legacy.get(row.id);
+      return avatar ? [[row.id, avatar.url] as const] : [];
+    }));
+  }
+
   function projectUsers(rows: UserRow[], viewerId?: string | null): ForumUser[] {
     const { profiles, fallbacks } = profilesFor(rows);
+    const avatars = avatarsFor(rows);
     return rows.map(row => toUser(
       row,
       viewerId === undefined || row.id === viewerId,
       row.account_id ? profiles?.get(row.account_id) : undefined,
       row.account_id ? fallbacks?.get(row.account_id) : undefined,
+      avatars.get(row.id),
     ));
   }
 
@@ -295,7 +318,8 @@ export function createForumStore(db: Database.Database, content: ForumContent, o
       selected.sort(compare);
       if (selected.length > cap) selected.pop();
     }
-    return selected.map(({ row, profile, fallback }) => toUser(row, row.id === viewerId, profile, fallback));
+    const avatars = avatarsFor(selected.map(({ row }) => row));
+    return selected.map(({ row, profile, fallback }) => toUser(row, row.id === viewerId, profile, fallback, avatars.get(row.id)));
   }
 
   /**

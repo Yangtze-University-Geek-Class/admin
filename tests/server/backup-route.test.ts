@@ -4,6 +4,7 @@
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { unpackTarGz } from '../../app/server/src/lib/tar-stream';
+import { SHIELD_NOTICE } from '../../app/server/src/lib/shield';
 import { accountIdOf, activityRows, grantPermGroup, grantPermNode, signIn, testApp } from './helpers';
 
 const contexts: Awaited<ReturnType<typeof testApp>>[] = [];
@@ -83,7 +84,7 @@ describe('GET /api/console/backup（#282）', () => {
     expect(first.statusCode).toBe(200);
     const second = await app.inject({ method: 'GET', url: '/api/console/backup', headers: { cookie: `sid=${ownerSid}` } });
     expect(second.statusCode).toBe(429);
-    expect(second.json()).toEqual({ error: 'rate_limited', message: '操作太频繁，请稍后再试', request_id: expect.stringMatching(/\S/) });
+    expect(second.json()).toEqual({ error: 'rate_limited', message: '操作太频繁，请稍后再试', request_id: expect.stringMatching(/\S/), notice: SHIELD_NOTICE });
 
     const otherSid = signIn(app, 'bob', 903);
     grantPermNode(app, accountIdOf(app, 'bob'), 'system.backup');

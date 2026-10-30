@@ -52,6 +52,8 @@
     "app/components/TopicListNav.vue": "The category and tag TxSelect controls pass panel-background=\"pure\": Tuffex's default refraction panel bends the topic list behind it, so its text shows through with coloured fringes (owner 2026-10-24: 「所有的下拉框都不要这样的」; tests/dropdown-panels.test.ts). A TxSelect with 8 or more options gets a search box in Tuffex 0.9.1, with English placeholder and empty text by default, so the category select passes search-placeholder 「搜索类别」 and empty-text 「没有这个类别」. Nothing else differs from upstream."
   },
   "addedIntegrationFiles": [
+    "modules/security-notice.ts",
+    "tests/security-notice.test.ts",
     "shared/deployment.ts",
     "shared/local-snapshot.ts",
     "shared/local-curation.ts",

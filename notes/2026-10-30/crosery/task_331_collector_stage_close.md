@@ -92,3 +92,15 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：按 CODE-REVIEW 核对 f3f96d3f：只认 GitLab 官方关闭关键字、跨项目与 Refs 不算；按 MR 合并时间算窗口并取最早一次；403/404/5xx 只跳过单个编号，其它非 200 整轮不应用；驳回与已确认候选不再读详情
 - 结果：结论通过；全量 pnpm test 196 个文件全部通过（3293 通过、13 跳过），1 个 vitest worker 通信超时不对应用例；PR 正文契约通过；残留：URL 形式的关闭写法认不出
+
+## 13:52:07 +08:00 · 合并 · #331 · MR !74 合进 stage（f06afbc0）
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitLab 合并 MR !74，merge commit，删源分支；合并后手工关闭 #331 并留关闭记录
+- 结果：gitlab/stage = f06afbc0，第二父提交 5a7b042a；#331 closed
+
+## 13:52:09 +08:00 · 收尾 · #331 · PR !74 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 331：删 worktree .claude/worktrees/task-331 与本地分支 task/331/collector_stage_close
+- 结果：PR 已合并

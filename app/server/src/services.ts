@@ -19,6 +19,9 @@ import { createRoleStore } from "./lib/role-store.js";
 import { archiveOldDepartments } from "./lib/migrations/2026-10-yugc-v2.js";
 import { createPermissionEngine } from "./lib/permissions.js";
 import { createLimits } from "./lib/limits.js";
+import { createShield } from "./lib/shield.js";
+import { createSecurityDecoy } from "./lib/security-decoy.js";
+import { createRateLimitStore } from "./lib/rate-store.js";
 import { createApplySettings } from "./lib/apply-settings.js";
 import { createAccountProfiles } from "./lib/account-profiles.js";
 import { createActivityRecorder } from "./lib/activity.js";
@@ -40,6 +43,9 @@ import { createOidcStore } from "./lib/oidc-store.js";
 import { createOidcProvider } from "./lib/oidc-provider.js";
 import { createAccountDirectory } from "./lib/account-directory.js";
 import { createGitlabSync, type FetchLike as GitlabFetch } from "./lib/gitlab-sync.js";
+import { createGithubAvatarChecks } from "./lib/github-avatars.js";
+import { createAvatars } from "./lib/avatars.js";
+import { loadNanoAvatars } from "./lib/nano-avatar.js";
 import type { FetchLike } from "./lib/mail/providers.js";
 import { createPublicSubmission, POW_NONCE_TTL_MS } from "./middleware/pow.js";
 import { createTurnstile } from "./middleware/turnstile.js";
@@ -49,7 +55,8 @@ import { createTurnstile } from "./middleware/turnstile.js";
  * `octokitFactory`：测试换掉 GitHub API 客户端；#274 review round 1 删了 lib/github-connection.ts 与
  * `/api/join/:token`（GitHub 组织邀请链接，CONTRACT-274 §8）之后，服务端自己不再用它发真实请求，但保留这个
  * 覆盖点不动——大量既有测试的 `testApp({ octokitFactory })` 调用还在，不属于本轮复核的范围。
- * `gitlabFetch`、`githubProfileFetch`：测试换掉 GitLab 管理接口与建号时读 GitHub 公开资料、头像的请求（lib/gitlab-sync.ts）。
+ * `gitlabFetch`、`githubProfileFetch`：测试换掉 GitLab 管理接口与建号时读 GitHub 公开资料、头像的请求（lib/gitlab-sync.ts）；
+ * GitHub 头像的像素图识别（lib/github-avatars.ts，#343）下载头像也走 `githubProfileFetch`。
  */
 export type ServiceOverrides = {
   httpRequest?: typeof request; octokitFactory?: (token: string) => Octokit; mailFetch?: FetchLike;
@@ -58,7 +65,14 @@ export type ServiceOverrides = {
 /** Composition root. Only this module owns dependencies and database lifetimes. */
 export function createServices(config: AppConfig, overrides: ServiceOverrides = {}) {
   const crypto = createCrypto(config.encryptionKey);
+  // NANO 默认头像（#343）缺图或字节对不上就让启动失败；先读，失败时还没有要关的库。
+  const nanoAvatars = loadNanoAvatars(config.nanoAvatarDir);
   const storage = createDatabase(config.dbPath, config.stickerAssetsDir);
+  // OIDC 客户端表提前建好：统一头像要按 GitLab 客户端的 sector 算默认头像（#343），比赛报名、论坛、账号目录都要用统一头像。
+  const oidcStore = createOidcStore(storage.db, crypto, overrides.clock);
+  // 统一头像（#343）：上传的头像、GitHub 头像（像素图不算）、NANO 默认头像；像素图的识别结论由后台查好记在库里（buildApp 的 githubAvatarCheck）。
+  const githubAvatars = createGithubAvatarChecks(storage.db, { fetch: overrides.githubProfileFetch, clock: overrides.clock });
+  const avatars = createAvatars(storage.db, { checks: githubAvatars, sector: () => oidcStore.sectorOf(config.gitlab.clientId) });
   // #274 review round 1：lib/github-connection.ts（控制台接 GitHub App 管理组织）删掉了，github 服务现在
   // 没有生产代码读它；保留这个工厂只是因为 ServiceOverrides.octokitFactory 还有一批既有测试在用，见上面的注释。
   const github = createGithub(overrides.octokitFactory);
@@ -75,6 +89,9 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   // #274 SPEC §3.8：防盗刷计数唯一入口；提到 identity 前面建好，注册限额与邀请码猜测锁定
   // （signInWithGithub/signInSecondChannel，#274 review round 1）也要用它。
   const limits = createLimits(storage.db, { clock: overrides.clock });
+  // 访问防护（#333）：封禁与信号落库；接口限流的计数也落库（app.ts 把 Store 交给 @fastify/rate-limit），重启后不清零。
+  const shield = createShield(storage.db, { config: config.shield, clock: overrides.clock, audit: storage.audit });
+  const rateLimits = createRateLimitStore(storage.db, overrides.clock ?? Date.now);
   const identity = createIdentityStore(storage.db, { createSession: auth.createSession, audit: storage.audit, limits, clock: overrides.clock });
   const device = createDeviceStore(storage.db, { clock: overrides.clock });
   // 邮箱验证码、邀请码与 Google 登录（#262，所有者 2026-10-23）
@@ -84,7 +101,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   const feedback = createFeedbackStore(storage.db);
   const competitions = createCompetitionStore(storage.db);
   // 报名、组队与积分（#239）：认人用会话里的 account_id，表在 lib/db.ts 里随启动建好。
-  const competitionSignups = createCompetitionSignupStore(storage.db, competitions);
+  const competitionSignups = createCompetitionSignupStore(storage.db, competitions, avatars);
   // 年级系数、奖项与 GitLab 项目（#278）：记分时按这里的系数加权，记下的分之后不再重算。
   const competitionRules = createCompetitionRulesStore(storage.db);
   const competitionScores = createCompetitionScoreStore(storage.db, competitions, competitionSignups, competitionRules);
@@ -107,6 +124,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
         stickerUrl: createStickerUrl({ cdnBase: config.staticCdnBase, manifest: storage.stickerManifest }),
         profiles,
         identity,
+        avatars,
       });
       store.seed();
       return store;
@@ -126,13 +144,12 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   })();
   // 对外授权与 GitLab 同步（#270，#274 改成读统一资料 account_profiles）：账号目录把账号和统一资料拼起来；
   // OIDC_JWKS 没设时不开 /oidc（oidc 为 null）。
-  const oidcStore = createOidcStore(storage.db, crypto, overrides.clock);
-  const directory = createAccountDirectory({ identity, profiles, publicOrigin: config.publicOrigin });
+  const directory = createAccountDirectory({ identity, profiles, avatars, publicOrigin: config.publicOrigin });
   const oidc = config.oidc
     ? { issuer: config.oidc.issuer, provider: createOidcProvider({ issuer: config.oidc.issuer, jwks: config.oidc.jwks, sessionSecret: config.sessionSecret, store: oidcStore, accounts: directory }) }
     : null;
   const gitlab = createGitlabSync(storage.db, {
-    config: config.gitlab, directory, subjects: oidcStore, clients: oidcStore, avatars: profiles, audit: storage.audit,
+    config: config.gitlab, directory, subjects: oidcStore, clients: oidcStore, avatars: profiles, githubAvatars, nanoAvatars, audit: storage.audit,
     fetch: overrides.gitlabFetch, githubFetch: overrides.githubProfileFetch, clock: overrides.clock,
   });
   const permissions = createPermissionEngine(storage.db, overrides.clock);
@@ -175,9 +192,13 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     // （由 auth.ts 的 createSession 用这同一个 clock 盖的时间戳），不能各用各的，测试拨慢/拨快时钟时才站得住。
     clock: overrides.clock ?? Date.now,
     profiles,
+    avatars, githubAvatars, nanoAvatars,
     // 操作记录唯一写入口（#274 SPEC §3.7）：lib/activity.ts 的 recordActivity，路由自己调用；清理定时器由 buildApp 的 activityCleanup 决定开不开。
     activity: createActivityRecorder(storage.db, overrides.clock),
     limits,
+    shield,
+    decoy: createSecurityDecoy(storage.db, { available: config.deploymentEnvironment === "production", shieldEnabled: config.shield.enabled, clock: overrides.clock }),
+    rateLimits,
     // 招新总开关（#284）：官网公开配置、投递接口和控制台「投递」页读写的是同一个值。
     applySettings: createApplySettings(storage.db, overrides.clock),
     feedback,
@@ -190,7 +211,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     }),
     turnstile: createTurnstile(config, overrides.httpRequest),
     close() {
-      void mail.stop(); void gitlab.stop(); void competitionCandidates.stop(); auth.stopCleanup(); storage.db.close();
+      void mail.stop(); void gitlab.stop(); void competitionCandidates.stop(); void githubAvatars.stop(); auth.stopCleanup(); storage.db.close();
       if (memorySites) rmSync(memorySites, { recursive: true, force: true });
     },
   };

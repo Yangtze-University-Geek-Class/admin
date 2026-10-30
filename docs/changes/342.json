@@ -1,0 +1,362 @@
+{
+  "version": 1,
+  "issue": 342,
+  "kind": "business",
+  "summary": "GitLab #342：控制台「比赛 → 报名与名单」可以把一个人移出比赛。有 competition.manage 并刚登录过的管理员调用 DELETE /api/console/competitions/:competition_id/signups/:account_id，把这个人的有效报名改为已取消；队员退出，领队交给最早入队的队员，单人队解散，已确认的队伍低于最低人数退回招募中。积分记录保留，天梯与待确认贡献不再列出这个人；移出与操作记录 competition.signup.remove 同一个事务。",
+  "applications": [
+    "server",
+    "console"
+  ],
+  "domains": [
+    "competitions",
+    "identity",
+    "organization",
+    "audit",
+    "platform",
+    "permissions",
+    "feedback",
+    "github",
+    "recruitment",
+    "forum",
+    "gitlab",
+    "mail"
+  ],
+  "flows": [
+    "flow:competition.signup.remove",
+    "flow:competition.roster.read",
+    "flow:competition.leaderboard.read",
+    "flow:competition.candidates.list",
+    "flow:competition.my_status",
+    "flow:feedback.console.list",
+    "flow:application.list",
+    "flow:mail.template.list",
+    "flow:console.forum.categories.list",
+    "flow:gitlab.status.read",
+    "flow:identity.callback"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "新增管理员移出报名：只移出有效报名，比赛已定榜时拒绝，报名截止后仍可移出。和本人取消不同，已确认的队伍、带队员的领队也能移出：队员退出；领队把领队交给最早入队的在队成员再退出；只剩领队一人的队伍解散；已确认的队伍因此低于 team_min 时退回招募中。被移出的人在门户看到未报名，不再算进报名人数、已确认人数与天梯；已登记的积分记录不删。待确认贡献只列作者有有效报名的候选。不做：禁止再次报名、恢复报名、批量移出。",
+      "evidence": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/lib/competition-candidates.ts",
+        "app/console/src/pages/CompetitionHub.vue"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "competition-signup-store 新增 removeSignup(competitionId, accountId, actorAccountId, now)，在事务里重读定榜与报名状态再写，返回 {team_action, unlocked}；选接任领队的 selectSuccessor 与 selectMembers 同序。路由 DELETE /api/console/competitions/:competition_id/signups/:account_id 挂 competition.manage + requireStepUp，每分钟 30 次，错误码复用 SIGNUP_ERRORS（404 not_found、409 competition_finalized / not_signed_up）；请求参数与 200 响应 Schema 在 competition-contract.ts 与 console contracts.ts 挂载。competition-candidates 的列表、计数与概览待确认数加作者有效报名的 EXISTS 条件。名单、my-status、天梯接口的返回结构不变。",
+      "evidence": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/lib/competition-contract.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/lib/competition-candidates.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "新接口由服务端 requirePermission(\"competition.manage\") 与 requireStepUp 拦截：没有节点 403 forbidden，会话超过 10 分钟 403 step_up_required，命令行令牌永远过不了 step-up。资源范围是路径上的比赛与账号，store 只改这场比赛里这个账号的报名、成员关系与所在队伍。控制台按钮只是展示，拒绝以服务端为准。",
+      "evidence": [
+        "app/server/src/routes/console/competition-roster.ts",
+        "tests/server/competition-roster-remove.test.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "不改表结构、不迁移。改已有行：competition_signups 改 cancelled 并记 cancelled_at；competition_team_members 的成员关系改 left / disbanded，接任者 role 改 leader；competition_teams 改 leader_account_id、disbanded 或回到 recruiting 并清空 locked_at；本人的待处理申请与邀请改 withdrawn / declined。competition_score_events 与 competition_score_candidates 一行不删。全部写入与 activity_events 在同一个事务里，审计失败一起回滚。",
+      "evidence": [
+        "app/server/src/lib/competition-signup-store.ts",
+        "app/server/src/routes/console/competition-roster.ts",
+        "tests/server/competition-roster-remove.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "新增 competition.signup.remove 操作记录，meta 只有 account_id、team_action、unlocked，不记留言与队名；成功后失效本场公开缓存（publicCachePrefix），公开天梯、人员、统计下次读到新结果。没有新外部服务、没有邮件或队列，没有新依赖包。",
+      "evidence": [
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/server/src/lib/competition-public.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "API 手册与接口行为契约新增这个接口的权限、限流、队伍规则、错误与审计；契约里待确认贡献补上作者无有效报名时不列；安全边界的组织者一节补审计动作；server 服务合同补路由与报名规则；console 服务合同补「移出」按钮、确认文案、错误显示与样板数据核对；目录 ownership.json 新增 flow:competition.signup.remove 并更新候选列表流程，生成物随之重建。",
+      "evidence": [
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "tests/server/competition-roster-remove.test.ts 12 个用例：无权限 403、未刚登录 403、已定榜 409、没有报名与已取消 409、比赛不存在 404；个人赛截止后移出与审计 meta；队员退出与待处理申请关闭；领队转交；单人队解散；已确认队伍低于最低人数退回招募中与不低于时保持；审计触发器失败时整次回滚、重试成功；天梯、公开天梯、队伍分与积分记录；待确认贡献与概览计数。候选用例在没有过滤时失败、加上过滤后通过。competition-candidates.test.ts 的 G06-cancel 改为直接查库核对候选仍待确认。tests/console/competition-hub.test.ts 新增移出按钮条件、确认文案、结果提示与样板拒绝顺序。",
+      "evidence": [
+        "tests/server/competition-roster-remove.test.ts",
+        "tests/server/competition-candidates.test.ts",
+        "tests/console/competition-hub.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "随 server 镜像与 web 镜像里的控制台产物发布；env、compose、宿主配置、表结构不变，同构清单无新增项。回滚镜像后接口消失，已经移出的报名保持已取消，本人可以在报名截止前重新报名。",
+      "evidence": [
+        "app/server/src/routes/console/competition-roster.ts",
+        "app/console/src/pages/CompetitionHub.vue"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/competition-signup-store.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:competition.roster.read",
+        "flow:competition.my_status"
+      ],
+      "reason": "新增 removeSignup 与 selectSuccessor：事务里按定榜、有效报名判定，再按成员角色退出、转交、解散，已确认的队伍低于最低人数时退回招募中。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/competition-roster.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "route:DELETE /api/console/competitions/:competition_id/signups/:account_id"
+      ],
+      "reason": "新增 DELETE 路由：competition.manage + step-up，每分钟 30 次；移出与 competition.signup.remove 审计同事务，成功后失效公开缓存。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/competition-contract.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "route:DELETE /api/console/competitions/:competition_id/signups/:account_id"
+      ],
+      "reason": "新增移出接口的路径参数 signupAccountParam 与 200 响应 Schema signupRemoveResult {team_action, unlocked}。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/contracts.ts"
+      ],
+      "domains": [
+        "competitions",
+        "audit",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "route:DELETE /api/console/competitions/:competition_id/signups/:account_id",
+        "flow:feedback.console.list",
+        "flow:application.list",
+        "flow:mail.template.list",
+        "flow:console.forum.categories.list",
+        "flow:gitlab.status.read"
+      ],
+      "reason": "控制台共用的 Schema 表只加了比赛移出这一条（失败体沿用 competitionFailures）；文件同时登记反馈、招新、邮件模板、论坛、GitLab 等接口的 Schema，那些条目一行未改，列出的流程只为说明它们不受影响。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/competition-candidates.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.candidates.list"
+      ],
+      "reason": "候选列表、按状态计数与概览待确认数只算作者有有效报名的候选，被移出或本人取消的人不再出现；行保留。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/competition-hub.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove"
+      ],
+      "reason": "控制台纯逻辑：能否移出、确认框按队伍规则写后果、成功提示按服务端结果。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/types.ts"
+      ],
+      "domains": [
+        "competitions",
+        "audit",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:feedback.console.list",
+        "flow:application.list",
+        "flow:identity.callback"
+      ],
+      "reason": "控制台共用类型文件只新增 SignupRemoval；文件里反馈、招新、GitHub 身份、操作记录等类型没有改动，列出的流程只为说明它们不受影响。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/CompetitionHub.vue"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:competition.roster.read"
+      ],
+      "reason": "报名表加操作列「移出」：只在有效报名、未定榜时显示；危险确认、成功提示后重读名单，失败用 ErrorAlert 显示服务端的说法。"
+    },
+    {
+      "paths": [
+        "app/console/src/mock/console.ts"
+      ],
+      "domains": [
+        "competitions",
+        "audit",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:feedback.console.list",
+        "flow:application.list",
+        "flow:identity.callback"
+      ],
+      "reason": "开发预览的移出写请求按服务端顺序核对节点、step-up、比赛、定榜与有效报名，合法的照旧 501 只读；样板里反馈、招新、身份与操作记录的数据和核对没有改动。"
+    },
+    {
+      "paths": [
+        "tests/server/competition-roster-remove.test.ts",
+        "tests/server/competition-candidates.test.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:competition.candidates.list",
+        "flow:competition.leaderboard.read"
+      ],
+      "reason": "移出接口的拒绝路径、四种队伍结果、审计回滚、天梯与候选；G06-cancel 跟着候选过滤改为查库核对。"
+    },
+    {
+      "paths": [
+        "tests/console/competition-hub.test.ts"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove"
+      ],
+      "reason": "移出按钮条件、确认文案、结果提示与样板数据的拒绝顺序。"
+    },
+    {
+      "paths": [
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/architecture/SECURITY.md",
+        "docs/services/server/README.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "route:DELETE /api/console/competitions/:competition_id/signups/:account_id",
+        "flow:competition.candidates.list"
+      ],
+      "reason": "接口、规则、审计与候选过滤的人工文档。"
+    },
+    {
+      "paths": [
+        "docs/services/console/README.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:competition.roster.read"
+      ],
+      "reason": "控制台名单的移出操作、确认文案与样板数据核对。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "flow:competition.signup.remove",
+        "flow:competition.candidates.list"
+      ],
+      "reason": "登记新流程并更新候选列表流程的不变量与测试。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "competitions"
+      ],
+      "nodes": [
+        "domain:competitions"
+      ],
+      "reason": "pnpm catalog:generate 重建的目录生成物。"
+    }
+  ],
+  "documents": [
+    "docs/architecture/API.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/architecture/SECURITY.md",
+    "docs/services/server/README.md",
+    "docs/services/console/README.md"
+  ],
+  "tests": [
+    "tests/server/competition-roster-remove.test.ts",
+    "tests/server/competition-candidates.test.ts",
+    "tests/console/competition-hub.test.ts"
+  ],
+  "compatibility": "新增一个控制台接口；名单、my-status、门户天梯与公开天梯的返回结构不变，内容随移出变化。待确认贡献列表与计数不再包含作者没有有效报名的候选（此前本人取消报名后仍会列出）。",
+  "migration": "无表结构变化、无迁移、无回填。",
+  "rollback": "回滚 server 与 web 镜像即可，接口与按钮一起消失；已经移出的报名保持已取消，队伍的转交、解散与退回招募中不会自动恢复，本人可在报名截止前重新报名，候选过滤随旧镜像撤掉。"
+}

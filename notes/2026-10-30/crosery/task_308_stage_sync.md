@@ -19,3 +19,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对：冲突全是 project-catalog.ts 的生成物，按源码重生成后 check:catalog 通过；pnpm check 的 runtime、site-config、environments、env-isolation、boundaries、docs（含 docs-index）、doc-sync、secrets、catalog、cli、typecheck 通过。check:notes 报 notes/2026-10-29/crosery/task_308_stage_close.md 第一条是「推送」：该文件来自 gitlab/stage 313dafb5，本次未改动，属既有问题，按规定不改写记录、不改校验器，交所有者裁决。check-architecture --base gitlab/stage 报的是 #308 三个 main MR（!53、!66、!67）的并集，三者进 main 时各自对 gitlab/main 通过宏观对齐，hotfix 合回 stage 按 BRANCHING「hotfix 合并后的自动同步」不另开 PR。
 - 结果：结论：可以合回 GitLab stage；GitHub stage 受保护，需该平台的同步工单与 PR，另行处理。
+
+## 17:27:40 +08:00 · 收尾 · #308 · 放弃，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 308：删 worktree .claude/worktrees/task-308 与本地分支 task/308/stage_sync
+- 结果：issue 已关闭，没有 PR（放弃）

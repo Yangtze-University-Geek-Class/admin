@@ -39,7 +39,7 @@ async function setup(options: { env?: Record<string, string> } = {}) {
   const sids = new Map<string, string>();
   const as = (login: string) => {
     if (!sids.has(login)) {
-      sids.set(login, signIn(app, login, USERS[login], `https://avatars.example.test/${login}`, `token-${login}`));
+      sids.set(login, signIn(app, login, USERS[login], `https://avatars.githubusercontent.com/test/${login}`, `token-${login}`));
       // 这些场景约定了明确的 @用户名；注册时自动生成的 acct_* 不是 GitHub 登录名。
       expect(app.services.profiles.update(accountIdOf(app, login), { username: login.replace(/-/g, '_') }).ok).toBe(true);
     }
@@ -151,7 +151,7 @@ describe('state', () => {
       nodes: ['forum.topic.create', 'forum.reply.create', 'forum.react', 'forum.sticker.use', 'forum.upload.image', 'forum.moderate.edit'],
     });
     const alice = first.users.find((u: { id: string }) => u.id === 'm101');
-    expect(alice).toMatchObject({ username: 'alice', displayName: 'alice', role: 'admin', title: { id: 'admin' }, avatarUrl: 'https://avatars.example.test/alice', kind: 'member', notifyPrefs: { reply: true, like: true, follow: true } });
+    expect(alice).toMatchObject({ username: 'alice', displayName: 'alice', role: 'admin', title: { id: 'admin' }, avatarUrl: 'https://avatars.githubusercontent.com/test/alice', kind: 'member', notifyPrefs: { reply: true, like: true, follow: true } });
     expect(Object.keys(alice)).not.toContain('github_user_id');
 
     // carol、dave 都是部门账号，拿到同一份 forum.moderate.* 授权（见上面 setup() 的注释：新权限体系不再有
@@ -172,9 +172,9 @@ describe('state', () => {
     // GitHub 头像换了：下一次请求就刷新，自己改的昵称不动。往 role_assignments 里插一条称号指派
     // 不再影响论坛徽章——那张表迁移后只给控制台旧页面读，论坛称号只认 title.site.owner / level.alumni。
     s.app.services.roles.insertAssignment({ github_login: 'bob', github_user_id: 102, role: 'head', department_id: 'tech', note: null, granted_by: 'fixture' });
-    signIn(s.app, 'bob', 102, 'https://avatars.example.test/bob-new', 'token-bob-new');
+    signIn(s.app, 'bob', 102, 'https://avatars.githubusercontent.com/test/bob-new', 'token-bob-new');
     const bob = (await s.state('bob')).users.find((u: { id: string }) => u.id === 'm102');
-    expect(bob).toMatchObject({ displayName: '小博', avatarUrl: 'https://avatars.example.test/bob-new' });
+    expect(bob).toMatchObject({ displayName: '小博', avatarUrl: 'https://avatars.githubusercontent.com/test/bob-new' });
     expect(bob.title).toBeUndefined();
   });
 
@@ -1150,7 +1150,7 @@ describe('avatars', () => {
     expect((await upload(await samplePng(), 'image/png', null)).statusCode).toBe(401);
 
     const removed = await s.call('DELETE', '/api/forum/me/avatar', 'bob');
-    expect(removed.json().changes.users.find((u: { id: string }) => u.id === 'm102').avatarUrl).toBe('https://avatars.example.test/bob');
+    expect(removed.json().changes.users.find((u: { id: string }) => u.id === 'm102').avatarUrl).toBe('https://avatars.githubusercontent.com/test/bob');
     const gone = await s.app.inject(avatarUrl);
     expect(gone.statusCode).toBe(404);
     expect(gone.headers['cache-control']).toBe('no-store');

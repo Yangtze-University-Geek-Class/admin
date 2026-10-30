@@ -1,0 +1,569 @@
+{
+  "version": 1,
+  "issue": 333,
+  "kind": "business",
+  "summary": "访问防护（#333）：按真实客户端 IP（沿用 TRUST_PROXY）累计异常信号，超过阈值封禁并逐级加长，封禁表与信号表落库；接口限流计数落库（重启不清零）；发码、注册、意见箱、设备码加全站北京日上限，发码另有单个收件人的日上限（#319）；没有 visitor cookie 的注册另按 IP 计更严额度；邀请码新建至少 8 位（#319）；控制台 GET 封禁列表与 DELETE 解封（新节点 security.manage，写审计）；web 容器 nginx 按真实客户端 IP 做第一层 limit_req / limit_conn。",
+  "applications": [
+    "server",
+    "web",
+    "console"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "gitlab",
+    "identity",
+    "invitations",
+    "mail",
+    "organization",
+    "permissions",
+    "platform",
+    "public_content",
+    "recruitment"
+  ],
+  "flows": [
+    "flow:security.blocks.list",
+    "flow:security.block.clear",
+    "flow:security.decoy.read",
+    "flow:security.decoy.update",
+    "flow:console.identity",
+    "flow:audit.console.activity.list",
+    "flow:audit.console.activity.export",
+    "flow:feedback.submit",
+    "flow:identity.email.start",
+    "flow:identity.email.verify",
+    "flow:identity.email.password",
+    "flow:identity.email.reset",
+    "flow:identity.device.code",
+    "flow:identity.callback",
+    "flow:identity.google.callback",
+    "flow:identity.account.email.start",
+    "flow:identity.invites.create",
+    "flow:security.shield",
+    "flow:security.site_quota"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "保留访问防护与全站上限；新增Admin安全防护页面，管理生产专属、默认关闭且最长60分钟的合成蜜罐，核对与解除封禁，复用命中审计。",
+      "evidence": [
+        "app/server/src/lib/shield.ts",
+        "app/server/src/lib/site-quota.ts",
+        "app/server/src/routes/identity/email.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "保留计分、防护、持久限流及跨站诱导豁免；新增GET/PUT蜜罐状态，固定有界合成响应、精确到期、配置与命中审计分别原子提交，HEAD无正文，不放宽鉴权。",
+      "evidence": [
+        "app/server/src/middleware/shield.ts",
+        "app/server/src/lib/rate-store.ts",
+        "app/server/src/app.ts",
+        "app/server/src/services.ts",
+        "app/server/src/lib/register-limits.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "security.manage仅站长根通配默认持有，管理蜜罐和封禁；写口需近期登录，Origin校验保留。页面按同一节点显示，审计另需activity.read且沿用IP脱敏权限。",
+      "evidence": [
+        "app/server/src/lib/permission-nodes.ts",
+        "app/server/src/routes/console/security.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "新增三张防护表；蜜罐复用app_state保存绝对截止时间，缺失或坏值关闭、重启不续期。开关、命中封禁及解封均与相应审计同事务，失败回滚；不保存原始探针URL/query/body/凭据。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/shield.ts",
+        "app/server/src/lib/rate-store.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不新增依赖；@fastify/rate-limit 只换了 store 实现（它本来就支持自定义 store）；封禁写审计走既有的 storage.audit。",
+      "evidence": [
+        "app/server/src/lib/rate-store.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "服务合同、API 错误与端点、安全模型、环境契约、部署拓扑（web nginx 的真实 IP 与限流）、控制台邀请码规则都已同步。",
+      "evidence": [
+        "docs/services/server/README.md",
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/DEPLOY.md",
+        "docs/services/web/README.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "回归覆盖既有计分、持久化、配额、跨站与授权豁免及解封；新增生产身份、权限/step-up/Origin、输入边界、精确到期、重启、坏值、HEAD及两类审计失败回滚。真实本地HTTP与页面另验，Linux镜像、BusyBox、uid101及线上未验证。",
+      "evidence": [
+        "tests/server/abuse-shield.test.ts",
+        "tests/tooling/web-nginx.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "scripts/contest-rehearsal-fixture.mts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "三份 env 模板登记防护键，SHIELD_ALLOWLIST 按密钥段留空；web 与 server 共用开关和白名单，nginx 启动时渲染豁免网段；不调整现有阈值和信任列表，不改变发布流程。",
+      "evidence": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "app/web/Dockerfile",
+        "deploy/compose/production.yml",
+        ".github/workflows/deploy-production.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": ["app/server/src/lib/security-decoy.ts", "app/server/Dockerfile", "app/console/src/pages/Security.vue", "tests/server/security-decoy.test.ts", "tests/console/nav.test.ts", "docs/services/server/data-model.md", "docs/services/server/endpoint-contracts.md", "docs/conventions/TESTING.md"],
+      "domains": ["platform", "permissions", "audit"],
+      "nodes": ["flow:security.decoy.read", "flow:security.decoy.update", "flow:security.shield", "flow:security.blocks.list", "flow:security.block.clear"],
+      "reason": "生产专属限时合成蜜罐状态、真实管理页面、封禁操作、回归与契约；Dockerfile只修正发布身份已被运行时使用的注释，不改环境键或部署。"
+    },
+    {
+      "paths": ["app/console/src/router.ts", "app/console/src/lib/nav.ts", "app/console/src/lib/types.ts", "app/console/src/lib/activity.ts", "app/console/src/mock/console.ts"],
+      "domains": ["platform", "permissions", "audit", "competitions", "feedback", "github", "organization", "recruitment"],
+      "nodes": ["flow:security.decoy.read", "flow:security.decoy.update", "flow:console.identity"],
+      "reason": "共享路由/导航、DTO、动作名称与只读样板接入防护；列出共享文件全部归属，其余业务接口及权限不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/middleware/http-policy.ts",
+        "app/server/src/middleware/visitor.ts",
+        "app/server/src/middleware/pow.ts",
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/activity.ts",
+        "app/server/src/routes/console/activity.ts",
+        "app/server/src/routes/console/me.ts",
+        "app/server/src/lib/limits.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "github",
+        "gitlab",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "public_content",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:console.identity",
+        "flow:audit.console.activity.list",
+        "flow:audit.console.activity.export",
+        "flow:security.site_quota"
+      ],
+      "reason": "共享入口：防护计分与拒绝、访客标记、PoW 失败信号、建表、操作记录与限额留存；这些文件被各业务域的请求经过，逐域归属由目录给出，本 PR 的行为变化由 flow:security.shield 统一说明"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/shield.ts",
+        "app/server/src/middleware/shield.ts",
+        "app/server/src/lib/rate-store.ts",
+        "app/server/src/config.ts",
+        "app/server/src/app.ts",
+        "app/server/src/services.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield"
+      ],
+      "reason": "访问防护核心：计分、封禁、解封、钩子、限流计数落库，以及配置键、组装与清理任务的接入点"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/site-quota.ts"
+      ],
+      "domains": [
+        "platform",
+        "identity",
+        "mail",
+        "feedback"
+      ],
+      "nodes": [
+        "flow:security.site_quota"
+      ],
+      "reason": "全站北京日上限的核对与计数，发码、注册、意见箱、设备码共用"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/index.ts",
+        "app/server/src/routes/console/contracts.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:security.blocks.list",
+        "flow:security.block.clear",
+        "flow:identity.invites.create"
+      ],
+      "reason": "控制台路由注册与接口契约（共享文件）：新增封禁列表与解封两条路由的注册和契约，邀请码 POST 的契约改为新建 8 位"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/permission-nodes.ts"
+      ],
+      "domains": [
+        "platform",
+        "permissions"
+      ],
+      "nodes": [
+        "flow:security.blocks.list",
+        "flow:security.block.clear"
+      ],
+      "reason": "控制台封禁列表与解封（platform）；security.manage 节点目录（permissions）"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/email.ts",
+        "app/server/src/lib/email-login.ts",
+        "app/server/src/routes/identity/account.ts"
+      ],
+      "domains": [
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "flow:identity.email.start",
+        "flow:identity.email.verify",
+        "flow:identity.email.password",
+        "flow:identity.email.reset",
+        "flow:identity.account.email.start"
+      ],
+      "reason": "发码的单收件人与全站上限、失败信号、注册守卫的 cookie 标记"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/register-limits.ts",
+        "app/server/src/routes/admin/auth.ts",
+        "app/server/src/routes/identity/google.ts"
+      ],
+      "domains": [
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "flow:identity.callback",
+        "flow:identity.google.callback",
+        "flow:identity.email.verify"
+      ],
+      "reason": "注册守卫：无 visitor cookie 额度与全站注册上限，三处建号入口都传入 cookie 标记"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/identity/device.ts"
+      ],
+      "domains": [
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "flow:identity.device.code"
+      ],
+      "reason": "设备授权码的全站北京日上限"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/portal/feedback.ts"
+      ],
+      "domains": [
+        "feedback",
+        "platform"
+      ],
+      "nodes": [
+        "flow:feedback.submit"
+      ],
+      "reason": "意见箱的全站上限（通过校验后计数）"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/invite-codes.ts",
+        "app/console/src/lib/invites.ts"
+      ],
+      "domains": [
+        "identity",
+        "invitations"
+      ],
+      "nodes": [
+        "flow:identity.invites.create",
+        "flow:identity.email.verify"
+      ],
+      "reason": "邀请码新建至少 8 位（#319），兑换仍接受历史的 4 位码；控制台前端的校验文案同步"
+    },
+    {
+      "paths": [
+        "app/web/Dockerfile"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield"
+      ],
+      "reason": "web 容器 nginx 的第一层真实 IP 与 limit_req / limit_conn，只作用于 /api/ 与 /auth/"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:security.site_quota"
+      ],
+      "reason": "新增访问防护与全站上限的环境键，三份键集一致"
+    },
+    {
+      "paths": [
+        "docs/architecture/API.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/DEPLOY.md",
+        "docs/services/server/README.md",
+        "docs/services/web/README.md"
+      ],
+      "domains": [
+        "platform",
+        "identity",
+        "feedback",
+        "invitations"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:security.site_quota",
+        "flow:security.blocks.list",
+        "flow:security.block.clear",
+        "flow:feedback.submit",
+        "flow:identity.invites.create",
+        "flow:identity.device.code"
+      ],
+      "reason": "接口表、安全说明、环境键、部署说明与服务契约同步本 PR 的行为"
+    },
+    {
+      "paths": [
+        "docs/services/console/README.md"
+      ],
+      "domains": [
+        "identity",
+        "invitations"
+      ],
+      "nodes": [
+        "flow:identity.invites.create"
+      ],
+      "reason": "控制台邀请码规则 8–40 位（#319）"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.blocks.list",
+        "flow:security.shield"
+      ],
+      "reason": "项目目录的生成物与源（ownership.json）：新增两条流程、三张表与一条节点"
+    },
+    {
+      "paths": [
+        "tests/server/abuse-shield.test.ts",
+        "tests/server/rate-limits.test.ts",
+        "tests/server/backup-route.test.ts",
+        "tests/tooling/web-nginx.test.ts",
+        "tests/tooling/forum-csp.test.ts",
+        "tests/tooling/forum-redirects.test.ts",
+        "tests/tooling/hashed-asset-cache.test.ts",
+        "tests/console/permissions.test.ts",
+        "tests/server/legacy-database.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "identity",
+        "feedback",
+        "invitations"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:security.site_quota",
+        "flow:security.blocks.list",
+        "flow:security.block.clear"
+      ],
+      "reason": "回归测试：计分封禁与持久化、全站上限、控制台解封、邀请码长度、nginx 按真实 IP 计数、表清单"
+    },
+    {
+      "paths": [
+        "scripts/contest-rehearsal-fixture.mts"
+      ],
+      "domains": [
+        "identity"
+      ],
+      "nodes": [
+        "flow:identity.callback"
+      ],
+      "reason": "竞赛彩排夹具带 visitor cookie 走 OAuth 回调，避免被无 cookie 注册额度误拦"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/permission-nodes.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:security.blocks.list"
+      ],
+      "reason": "控制台权限节点展示：补 security.manage 中文名并按服务端契约归入 system，避免独立的未知 security 分组。"
+    },
+    {
+      "paths": [
+        "tests/console/account.test.ts"
+      ],
+      "domains": [
+        "identity",
+        "invitations"
+      ],
+      "nodes": [
+        "flow:identity.invites.create"
+      ],
+      "reason": "控制台邀请码格式测试改为比对服务端的创建规则（8–40 位）"
+    },
+    {
+      "paths": [
+        "tests/server/abuse-notice.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "feedback"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:feedback.submit"
+      ],
+      "reason": "蜜罐路径首次命中封禁、403 与 429 的 notice、正常回应不带 notice、security.txt 字段"
+    },
+    {
+      "paths": [
+        "tests/tooling/abuse-notices.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield"
+      ],
+      "reason": "静态告知（robots.txt、门户注释、主 JS 注释）与 nginx 蜜罐、security.txt、429 体的核对"
+    },
+    {
+      "paths": [
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        "scripts/deploy-manual.mjs",
+        "scripts/deployment-environment.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield",
+        "flow:security.site_quota"
+      ],
+      "reason": "compose 把防护开关和白名单传给 web 与 server，全站上限仍由 server 消费；三条部署流水线和手工部署脚本传递既有 SHIELD_ALLOWLIST；环境契约登记新键。"
+    },
+    {
+      "paths": [
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.shield"
+      ],
+      "reason": "CI/CD 文档：三条部署流水线的密钥清单加 SHIELD_ALLOWLIST（只在白名单需要时手工设置）"
+    }
+  ],
+  "documents": [
+    "docs/services/server/README.md",
+    "docs/architecture/API.md",
+    "docs/architecture/SECURITY.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/DEPLOY.md",
+    "docs/services/web/README.md",
+    "docs/services/console/README.md",
+    "docs/services/server/data-model.md",
+    "docs/conventions/TESTING.md",
+    "docs/services/server/endpoint-contracts.md"
+  ],
+  "tests": [
+    "tests/server/abuse-shield.test.ts",
+    "tests/server/security-decoy.test.ts",
+    "tests/console/nav.test.ts",
+    "tests/server/rate-limits.test.ts",
+    "tests/server/backup-route.test.ts",
+    "tests/tooling/web-nginx.test.ts",
+    "tests/tooling/forum-csp.test.ts",
+    "tests/tooling/forum-redirects.test.ts",
+    "tests/tooling/hashed-asset-cache.test.ts",
+    "tests/console/permissions.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/server/competition-rehearsal.test.ts",
+    "tests/server/abuse-notice.test.ts",
+    "tests/tooling/abuse-notices.test.ts"
+  ],
+  "compatibility": "旧接口路径、旧错误码都不变；新增的 403 ip_blocked、429 site_quota_exceeded 只出现在新的防护条件下。邀请码新建从 4 位收紧到 8 位，已有的 4 位码照常兑换。注册守卫对带 visitor cookie 的请求行为不变。",
+  "migration": "新增三张表，CREATE TABLE IF NOT EXISTS，启动时自动建；蜜罐复用app_state新增security_decoy_until键，无键默认关闭，无回填。两个环境各自存值，不复制数据。",
+  "rollback": "回退镜像：旧版忽略新增表和蜜罐状态键；先在管理页面关闭可清除蜜罐截止时间，既有封禁不受开关影响。nginx限流配置随镜像回退。"
+}

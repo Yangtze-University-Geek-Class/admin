@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推送 task/307/github_stage_sync，gh pr create --base stage，正文十段
 - 结果：等 architecture-alignment、pr-contract、verify
+
+## 19:39:49 +08:00 · 收尾 · #307 · PR #313 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 307：删 worktree .claude/worktrees/task-gh307 与本地分支 task/307/github_stage_sync
+- 结果：PR 已合并
