@@ -31,3 +31,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：所有者决定不打 0.1.2：本分支应用 GitLab stage 3bd632a8..3643fb14（版本号回 0.1.1、#346 hotfix 窗口）；声明覆盖按实际改动重算
 - 结果：check-architecture --forge github --base origin/stage：通过，101 个变更文件
+
+## 21:57:02 +08:00 · 提交 · #316 · 放过 #346 hotfix 链路首条
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：CI core 的 note check 拦下 task_346_hotfix_0_1_1 第一条是「提交」（分支手工建，没走 task.mjs start）；所有者 21:55 认为这条规则对这次没有意义、要求尽快发版；CHAIN_ORDER_EXCEPTIONS 与 NOTES §6 表各加一条，只放过这一条
+- 结果：note check 通过 186 条链路；notes.test.ts 46 条通过；check-architecture、doc-sync 通过
