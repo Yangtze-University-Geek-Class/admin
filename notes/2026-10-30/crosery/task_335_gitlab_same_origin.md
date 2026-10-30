@@ -50,3 +50,9 @@
 - 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
 - 做了什么：tests/tooling/gitlab-cutover.test.ts 的夹具说明还写着两个库的回调改动，改成正式库，并写明预发布库的客户端文件只用来核对没被碰过
 - 结果：只改注释；gitlab-cutover.test.ts 33 个用例照旧通过
+
+## 13:49:05 +08:00 · 提交 · #335 · 5d126b55 同构清单条目改号为 P-0017
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：主控核对编号后指定：P-0014 已由 #328 使用，#329 用 P-0015，#305 用 P-0016；本分支的搬家条目从 P-0014 改为 P-0017，deploy/parity/ledger.json 与 docs/changes/335.json 两处引用一起改，交接目录手册里的 parity.mjs done 命令同步改号；本链路之前写 P-0014 的记录不改，以这一条为准
+- 结果：parity.mjs check --release --version 0.1.1 列出 P-0017 为部署后立刻要做的、格式正确共 14 条；parity、gitlab-cutover、gitlab-move-path 三个测试文件 72 个通过；仓库里除旧记录外已无 P-0014 引用
