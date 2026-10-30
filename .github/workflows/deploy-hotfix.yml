@@ -426,9 +426,11 @@ jobs:
         shell: bash
         # 从刚构建的 web、forum 镜像里原样拷出三个产物目录，再按 scripts/static-cdn.mjs 的规则挑文件（不联网）：
         # 有不带内容哈希的文件就在这里失败。上传在 cdn-upload job 里做，本 job 不接触 S3 凭据。
+        # STATIC_CDN_ORIGIN 是 plan 从环境文件读出的源站（#360），static-cdn.mjs 没有它就失败关闭（GitHub #327）。
         env:
           IMAGE_TAG: ${{ needs.plan.outputs.image_tag }}
           IMAGE_REPOSITORY: ${{ needs.plan.outputs.image_repository }}
+          STATIC_CDN_ORIGIN: ${{ needs.plan.outputs.static_cdn_origin }}
         run: |
           set -eu
           out="${RUNNER_TEMP}/static-cdn"

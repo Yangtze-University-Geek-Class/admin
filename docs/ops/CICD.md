@@ -204,7 +204,7 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 | job | 当前源码接线 | 凭据范围 |
 |---|---|---|
 | `cdn-plan` | `static-cdn.mjs decide --origin <环境>`；无凭据或 CSP 未放行仍按原约定同源，部分凭据或 S3 探测失败直接失败 | 仅此 job 与上传 job 注入 S3 两项凭据 |
-| `build` | 同一个新 `STATIC_CDN_BASE` 传给 web/forum/server；镜像仍带全部同源资源；离线 `plan` 只收哈希构建资源、指南截图、内置表情和旧帖正文实际引用的 CDN 图片 | 不接密钥，不挂 Environment |
+| `build` | 同一个新 `STATIC_CDN_BASE` 传给 web/forum/server；镜像仍带全部同源资源；离线 `plan` 只收哈希构建资源、指南截图、内置表情和旧帖正文实际引用的 CDN 图片。构建与挑文件两步都从 plan 拿 `STATIC_CDN_ORIGIN`（环境文件里的源站），缺它时 `static-cdn.mjs` 失败关闭（GitHub #327） | 不接密钥，不挂 Environment |
 | `cdn-upload` | 签名 S3 GET 逐字核对已存在对象，缺对象才 PUT；公开 HEAD、完整 GET SHA-256、Range、MIME、CORS 校验；资产通过后写 `yzgc/indexes/releases/<环境>/<完整提交>/manifest.json`，内容索引只生成私有产物 | `STATIC_CDN_S3_ACCESS_KEY_ID`、`STATIC_CDN_S3_SECRET_ACCESS_KEY`，不写镜像或日志 |
 | `deploy` | 仍依赖 `cdn-upload` 成功，不提前发布引用不存在资源的 HTML | 原有环境权限不变 |
 

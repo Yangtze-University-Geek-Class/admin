@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "issue": 327,
+  "kind": "engineering",
+  "summary": "三条部署工作流（预发布、正式、hotfix）build job 挑 CDN 文件的一步补上 STATIC_CDN_ORIGIN（plan 从环境文件读出的源站）。#360 把源站移进环境文件后这一步缺它，static-cdn.mjs 失败关闭，正式 hotfix run 41104027422 的 CDN 上传与部署被跳过。加一条工作流测试：三条工作流里每个调用 static-cdn.mjs 的步骤都要在步骤或 job 的 env 里拿到它。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务流程与页面不变：只修发布工作流的一个环境变量。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不改 app/server 与接口。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变；这一步仍在不接密钥、不挂 Environment 的 build job 里，源站不是密钥。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "表结构、迁移与业务数据不变。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不增删依赖；源站值来自既有 plan 输出 static_cdn_origin，与同 job 的构建步骤用的是同一个值。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/ops/CICD.md 静态资源 CDN 表的 build 行写明构建与挑文件两步都从 plan 拿 STATIC_CDN_ORIGIN，缺它时失败关闭。",
+      "evidence": [
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "static-cdn-workflows 新增一条：三条部署工作流里每个调用 static-cdn.mjs 的步骤（decide、plan、upload，共 3 个）都要在步骤或 job 的 env 里拿到 STATIC_CDN_ORIGIN；去掉 hotfix 的修复时这条失败，恢复后通过。",
+      "evidence": [
+        "tests/tooling/static-cdn-workflows.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "合并后 main 快进到合并提交，重跑 deploy-hotfix（issue 360，tag v0.1.1）；预发布在 stable 发布时同样用到这一步。修复随后带回 GitLab stage。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "build job 的「取出要上传 CDN 的带哈希文件」一步 env 补 STATIC_CDN_ORIGIN，取自 plan 输出。"
+    },
+    {
+      "paths": [
+        "tests/tooling/static-cdn-workflows.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "回归测试：每个调用 static-cdn.mjs 的步骤都要拿到源站。"
+    },
+    {
+      "paths": [
+        "docs/ops/CICD.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "运维文档的 CDN 表随工作流同步。"
+    }
+  ],
+  "documents": [
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/static-cdn-workflows.test.ts"
+  ],
+  "compatibility": "接口、表结构与环境变量键都不变；只是把已有的 plan 输出多传给一个步骤。",
+  "migration": "不涉及迁移：只给工作流的一个步骤多传一个已有的 plan 输出，没有数据、表结构或环境变量键要迁移。",
+  "rollback": "revert 本次合并；回退后正式与预发布开着 CDN 开关的构建会在挑文件这一步失败，不会部署半套资源。"
+}
