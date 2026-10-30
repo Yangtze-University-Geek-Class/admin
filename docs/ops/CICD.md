@@ -136,7 +136,7 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 
 ### GitLab 双实例的受保护运维入口（#308）
 
-`gitlab-cutover.yml` 仍仅从main运行并要求production的真实required reviewers、哨兵、受控Arch目标和部署开关；不放行task分支或取消审批。新增 `preview-status` / `install-preview` / `verify-preview` 分发同一提交的独立编排与安装器，默认plan，`install-preview` 且勾apply才安装；不替换平台应用镜像、不复制正式数据。安装后经 `install-host.sh --target gitlab-preview` 安装该实例的备份与开机单元。
+`gitlab-cutover.yml` 仍仅从main运行并要求production的真实required reviewers、哨兵、受控Arch目标和部署开关；不放行task分支或取消审批。新增 `preview-status` / `install-preview` / `verify-preview` 分发同一提交的独立编排与安装器，默认plan，`install-preview` 且勾apply才安装；#335 起再加 `preview-sso`：不勾apply只演算，勾apply才在预发布库登记 `gitlab_preview` 并只写预发布实例的配置目录后reconfigure（见 [GITLAB](GITLAB.md#独立预发布实例308)）；不替换平台应用镜像、不复制正式数据。安装后经 `install-host.sh --target gitlab-preview` 安装该实例的备份与开机单元。
 
 香港入口动作 `edge-status` / `edge-apply` / `edge-verify` / `edge-rollback` 使用独立环境secret `GITLAB_EDGE_SSH_KEY`，主机从canonical `DEPLOY_PROXY_JUMP` 推导，沿用已核验known_hosts。专用key服务端只允许固定动作，不能取shell或上传任意配置；edge-apply写入前还要核对独立预发布容器healthy。首次受限通道安装由所有者单独批准，不能拿个人root私钥替代。候选配置通过真实Caddy解析不是已上线证据，SSO/Git/Issue/MR仍须真实验收。
 

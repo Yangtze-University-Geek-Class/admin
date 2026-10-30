@@ -8,12 +8,10 @@
   ],
   "domains": [
     "gitlab",
-    "identity",
     "platform"
   ],
   "flows": [
-    "flow:gitlab.entry.open",
-    "flow:identity.oidc.protocol"
+    "flow:gitlab.entry.open"
   ],
   "assessments": {
     "business": {
@@ -86,19 +84,18 @@
       ],
       "domains": [
         "gitlab",
-        "identity",
         "platform"
       ],
       "nodes": [
         "domain:platform",
-        "flow:gitlab.entry.open",
-        "flow:identity.oidc.protocol"
+        "flow:gitlab.entry.open"
       ],
       "reason": "preview-sso：预发布独立 GitLab 接预发布签发者，只写预发布配置目录。"
     },
     {
       "paths": [
-        "docs/ops/GITLAB.md"
+        "docs/ops/GITLAB.md",
+        "docs/ops/CICD.md"
       ],
       "domains": [
         "gitlab",
@@ -124,7 +121,8 @@
     }
   ],
   "documents": [
-    "docs/ops/GITLAB.md"
+    "docs/ops/GITLAB.md",
+    "docs/ops/CICD.md"
   ],
   "tests": [
     "tests/tooling/gitlab-cutover.test.ts"
