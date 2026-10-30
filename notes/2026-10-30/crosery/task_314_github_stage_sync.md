@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推 task/314/github_stage_sync 到 GitHub，开 PR（Closes #314，标签 hot-fix、infra:deploy）
 - 结果：等必需检查
+
+## 20:38:20 +08:00 · 提交 · #314 · 带上检查器修复
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：core 失败：pnpm check 不传 --forge，读到 GitLab #314 的 docs/changes/314.json。GitLab MR !85 修复后合入 stage 3765fdbf；本分支应用 e1723c12..3765fdbf 的同一份改动
+- 结果：GITHUB_ACTIONS=true 时本机检查器读 docs/changes/github/314.json：见下一条命令输出
