@@ -5916,7 +5916,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 46,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -17849,7 +17849,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "04cd47c3bb3fa80fbd6dd3dfb88b8707c0f8d1f6b9086b1144e2f4b903776679",
+    "fingerprint": "ac482727a4443d71b3a7c42f2440a8ea9ff0b7dc298f27f9e16b5cdb82a27a94",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18677,7 +18677,7 @@
       },
       {
         "path": "app/forum/shared/sticker-url.ts",
-        "sha256": "486a4ef91ba6698a535c74ad476b2623447574bc63b905f8ccc06cefca9e6a6c"
+        "sha256": "7ee5d0bb059a9eae2b9f3b725b7700a6156cfdf0e61ea49aea41023256d24e7d"
       },
       {
         "path": "app/forum/tests/activity-beacon.test.ts",
@@ -68706,7 +68706,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 46,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68778,7 +68778,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 46,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68880,7 +68880,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 46,
+          "line": 53,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
