@@ -174,8 +174,7 @@
         "tests/tooling/local-stack.test.ts",
         "tests/tooling/platform-archive.test.ts",
         "tests/tooling/deploy-manual.test.ts",
-        "tests/tooling/arch-target.test.ts",
-        "tests/tooling/storage-cdn-config.test.ts"
+        "tests/tooling/arch-target.test.ts"
       ],
       "domains": [
         "forum",
