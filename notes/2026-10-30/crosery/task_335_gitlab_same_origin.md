@@ -56,3 +56,15 @@
 - 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
 - 做了什么：主控核对编号后指定：P-0014 已由 #328 使用，#329 用 P-0015，#305 用 P-0016；本分支的搬家条目从 P-0014 改为 P-0017，deploy/parity/ledger.json 与 docs/changes/335.json 两处引用一起改，交接目录手册里的 parity.mjs done 命令同步改号；本链路之前写 P-0014 的记录不改，以这一条为准
 - 结果：parity.mjs check --release --version 0.1.1 列出 P-0017 为部署后立刻要做的、格式正确共 14 条；parity、gitlab-cutover、gitlab-move-path 三个测试文件 72 个通过；仓库里除旧记录外已无 P-0014 引用
+
+## 14:41:21 +08:00 · PR · #335 · 主代码托管不可用期间在 GitHub 开 hotfix PR #308 进 main
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：按主代码托管不可用的改动路径，所有者同意临时以 GitHub 为源；task/335/gitlab_same_origin 推到 GitHub，开 PR #308 指向 main，分叉点 4ff39b98
+- 结果：PR #308 已开，pr-contract 本地通过；GitLab 恢复后迁回 MR 并只在一侧计分
+
+## 14:41:21 +08:00 · 审查 · #335 · #335 审查结论通过
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：按 code-review 技能逐项核对 4ff39b98..314a9d84 的 11 个提交：同源路径 /gitlab、Caddy 片段、edge 接收器两份模板、同构清单 P-0017、测试与文档
+- 结果：结论：通过；未验证项：线上 edge-apply、deploy-hotfix 与 path-status 仍待流水线执行
