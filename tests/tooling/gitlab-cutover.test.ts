@@ -85,9 +85,11 @@ echo '${options.discovery ?? JSON.stringify({ issuer: `${PROD}/oidc` })}'
   // 流水线总是带上正式 env 模板里的 GITLAB_OIDC_SECTOR；用例自己给的 --sector 写在后面，覆盖它
   const run = (step: string, ...args: string[]) => spawnSync("bash", [script, step, '--sector', 'git.example.test', ...args, '--production-stack-root', join(dir, 'production'), '--preview-stack-root', join(dir, 'preview')], {
     encoding: "utf8",
-    env: { ...process.env, GITLAB_CONFIG: config, DOCKER: join(bin, "docker"), CURL: join(bin, "curl"), SYSTEMCTL: join(bin, 'systemctl'), FLOCK: join(bin, 'flock'), PROD_ENV_FILE: join(dir, 'production-template.env') },
+    env: { ...process.env, GITLAB_CONFIG: config, DOCKER: join(bin, "docker"), CURL: join(bin, "curl"), SYSTEMCTL: join(bin, 'systemctl'), FLOCK: join(bin, 'flock'), PROD_ENV_FILE: join(dir, 'production-template.env'), PREVIEW_GITLAB_CONFIG: join(dir, 'preview-gitlab-config'), PREVIEW_ENV_FILE: join(dir, 'preview-template.env') },
   });
   writeFileSync(join(dir, 'production-template.env'), `PUBLIC_ORIGIN=${PROD}\nGITLAB_URL=${PROD}/gitlab\n`);
+  mkdirSync(join(dir, 'preview-gitlab-config'));
+  writeFileSync(join(dir, 'preview-template.env'), `PUBLIC_ORIGIN=${PREVIEW}\nGITLAB_URL=${PREVIEW}/gitlab\n`);
   return { config, calls, dir, run, read: (name: string) => readFileSync(join(config, name), "utf8"), called: () => (existsSync(calls) ? readFileSync(calls, "utf8") : "") };
 }
 
@@ -673,5 +675,54 @@ describe("cutover.sh GitLab 搬到主站路径（#335）", () => {
     expect(f.rb()).toBe(before);
     expect(readFileSync(join(f.state, "running-url"), "utf8").trim()).toBe(OLD);
     expect(f.clients("production")).toEqual([`${OLD}${CB}`]);
+  });
+});
+
+describe("cutover.sh preview-sso（#335，正式与预发布一一对应）", () => {
+  const previewDiscovery = JSON.stringify({ issuer: `${PREVIEW}/oidc` });
+
+  it("缺省只演算；--apply 在预发布库登记 gitlab_preview，只写预发布实例的配置目录后 reconfigure，正式不动、secret 不打印", () => {
+    const f = fixture({ discovery: previewDiscovery });
+    const pre = join(f.dir, "preview-gitlab-config");
+    const dry = f.run("preview-sso", "--preview-origin", PREVIEW);
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(dry.stdout).toContain(`将登记，回调 ${PREVIEW}/gitlab/users/auth/openid_connect/callback`);
+    expect(dry.stdout).toContain("演算");
+    expect(f.called()).not.toMatch(/client add|reconfigure/);
+    expect(readdirSync(pre)).toEqual([]);
+
+    const applied = f.run("preview-sso", "--preview-origin", PREVIEW, "--apply");
+    expect(applied.status, applied.stderr).toBe(0);
+    expect(f.called()).toContain(`exec yzgc-preview-server node app/server/dist/cli/oidc.js client add --name GitLab --client-id gitlab_preview --redirect-uri ${PREVIEW}/gitlab/users/auth/openid_connect/callback`);
+    expect(f.called()).toContain("exec gitlab-preview gitlab-ctl reconfigure");
+    expect(f.called()).not.toMatch(/exec yzgc-production-server .*client add|exec gitlab gitlab-ctl/);
+    expect(readFileSync(join(pre, "yzgc-oidc-secret"), "utf8")).toBe("brand-new-secret");
+    expect(statSync(join(pre, "yzgc-oidc-secret")).mode & 0o777).toBe(0o600);
+    expect(readFileSync(join(pre, "yzgc-oidc-issuer"), "utf8")).toBe(`${PREVIEW}/oidc\n`);
+    expect(readFileSync(join(pre, "yzgc-gitlab-url"), "utf8")).toBe(`${PREVIEW}/gitlab\n`);
+    const rb = readFileSync(join(pre, "yzgc-oidc.rb"), "utf8");
+    expect(rb).toContain("identifier: 'gitlab_preview',");
+    expect(rb).not.toContain("identifier: 'gitlab',");
+    // 正式实例的配置一个文件都没多
+    expect(existsSync(join(f.config, "yzgc-oidc-issuer"))).toBe(false);
+    expect(applied.stdout + applied.stderr).not.toContain("brand-new-secret");
+  });
+
+  it("前置不满足时什么都不写：发现文档不是预发布签发者、模板地址不是本环境的 /gitlab", () => {
+    const wrongIssuer = fixture();
+    const r1 = wrongIssuer.run("preview-sso", "--preview-origin", PREVIEW, "--apply");
+    expect(r1.status).toBe(1);
+    expect(r1.stderr).toContain("issuer 不是");
+
+    const wrongUrl = fixture({ discovery: previewDiscovery });
+    writeFileSync(join(wrongUrl.dir, "preview-template.env"), `PUBLIC_ORIGIN=${PREVIEW}\nGITLAB_URL=${PROD}/gitlab\n`);
+    const r2 = wrongUrl.run("preview-sso", "--preview-origin", PREVIEW, "--apply");
+    expect(r2.status).toBe(1);
+    expect(r2.stderr).toContain(`不是 ${PREVIEW}/gitlab`);
+
+    for (const f of [wrongIssuer, wrongUrl]) {
+      expect(f.called()).not.toMatch(/client add|reconfigure/);
+      expect(readdirSync(join(f.dir, "preview-gitlab-config"))).toEqual([]);
+    }
   });
 });

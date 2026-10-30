@@ -14,6 +14,7 @@
 #   cutover.sh check-production-path --production-origin <URL> --sector <主机>           只读：抽样成员的 sub 和搬家前一样，GitLab 没有多出不是成员号的账号
 #   cutover.sh finish-production-path --production-origin <URL> --sector <主机> [--apply] 香港入口切好并核对之后：去掉旧回调，再备份一次
 #   cutover.sh rollback-production-path --production-origin <URL> --sector <主机> [--apply] 补回旧回调，恢复原 compose 与 gitlab.rb 并重建容器，再去掉新回调
+#   cutover.sh preview-sso      --preview-origin <URL> [--apply]                       独立预发布 GitLab 接预发布签发者：预发布库登记 gitlab_preview，只写 /srv/gitlab-preview/config 后 reconfigure（#335）
 #   *-production-path 只改正式库的 gitlab 客户端，要求 GitLab 已信任正式签发者、正式 server 认得 sector 钉住（client show 带 sector_id）。
 #
 # --sector 是 gitlab 客户端钉住的 sector（正式 env 模板的 GITLAB_OIDC_SECTOR），GitLab 换地址时不变，成员的 sub 才不变。
@@ -67,6 +68,11 @@ SECRET_FILE="${CONFIG}/yzgc-oidc-secret"
 SECRET_PRODUCTION="${CONFIG}/yzgc-oidc-secret.production"
 GITLAB_RB="${CONFIG}/gitlab.rb"
 ISSUER_LINE_RE="^([[:space:]]*)issuer: '[^']*'"
+# 独立预发布 GitLab（#308）的配置目录与容器；正式实例和正式库都不碰（#335）
+PREVIEW_CONFIG="${PREVIEW_GITLAB_CONFIG:-/srv/gitlab-preview/config}"
+PREVIEW_GITLAB_CONTAINER="${PREVIEW_GITLAB_CONTAINER:-gitlab-preview}"
+PREVIEW_ENV_FILE="${PREVIEW_ENV_FILE:-${HERE}/../env/.env.preview}"
+PREVIEW_CLIENT=gitlab_preview
 
 die() { echo "cutover: $*" >&2; exit 1; }
 origin_ok() { [[ "$1" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]]; }
@@ -373,6 +379,41 @@ rollback_issuer() {
 
 # ── GitLab 搬到主站路径（#335）────────────────────────────────────────────────
 
+# 独立预发布 GitLab 接预发布签发者（#335，正式与预发布一一对应）：预发布库登记 gitlab_preview（回调按预发布 env 模板的 GITLAB_URL），
+# secret、签发者、地址和登录片段只写预发布实例的配置目录，再 reconfigure。登录片段取仓库的 gitlab-oidc.rb，只把客户端换成 gitlab_preview。
+preview_sso() {
+    origin_ok "${PREVIEW_ORIGIN}" || die "--preview-origin 必须是 https://主机名"
+    local url callback state registered=no out
+    url="$(sed -n 's/^GITLAB_URL=//p' "${PREVIEW_ENV_FILE}")"
+    [[ "${url}" == "${PREVIEW_ORIGIN}/gitlab" ]] || die "预发布 env 模板的 GITLAB_URL（${url:-空}）不是 ${PREVIEW_ORIGIN}/gitlab"
+    callback="${url}${CALLBACK_PATH}"
+    state="$("${DOCKER}" inspect --format '{{.State.Health.Status}}' "${PREVIEW_GITLAB_CONTAINER}" 2>/dev/null || true)"
+    [[ "${state}" == healthy ]] || die "预发布 GitLab 容器不健康（${state:-不存在}）：先 install-preview、verify-preview"
+    [[ "$(discovery_issuer "${PREVIEW_ORIGIN}")" == "${PREVIEW_ORIGIN}/oidc" ]] || die "预发布的发现文档不可用或 issuer 不是 ${PREVIEW_ORIGIN}/oidc"
+    [[ -d "${PREVIEW_CONFIG}" ]] || die "预发布 GitLab 配置目录 ${PREVIEW_CONFIG} 不在"
+    if [[ ",$(client_ids "${PREVIEW_SERVER}")," == *",${PREVIEW_CLIENT},"* ]]; then registered=yes; fi
+    if [[ "${registered}" == yes && ! -f "${PREVIEW_CONFIG}/yzgc-oidc-secret" ]]; then
+        die "预发布库已有 ${PREVIEW_CLIENT} 客户端但 secret 文件不在：需要轮换 secret（oidc.js client rotate），不自动处理"
+    fi
+    echo "预发布 GitLab 接预发布签发者：客户端 ${PREVIEW_CLIENT}（$([[ "${registered}" == yes ]] && echo 已登记 || echo "将登记，回调 ${callback}")），签发者 ${PREVIEW_ORIGIN}/oidc，地址 ${url}；只写 ${PREVIEW_CONFIG}，再 reconfigure"
+    writes || return 0
+    if [[ "${registered}" == no ]]; then
+        out="$("${DOCKER}" exec "${PREVIEW_SERVER}" "${OIDC_CLI[@]}" client add --name GitLab --client-id "${PREVIEW_CLIENT}" --redirect-uri "${callback}")"
+        jq -ej '.client_secret' <<<"${out}" >"${PREVIEW_CONFIG}/yzgc-oidc-secret.new"
+        chmod 0600 "${PREVIEW_CONFIG}/yzgc-oidc-secret.new"
+        mv "${PREVIEW_CONFIG}/yzgc-oidc-secret.new" "${PREVIEW_CONFIG}/yzgc-oidc-secret"
+    fi
+    printf '%s/oidc\n' "${PREVIEW_ORIGIN}" >"${PREVIEW_CONFIG}/yzgc-oidc-issuer.new"
+    mv "${PREVIEW_CONFIG}/yzgc-oidc-issuer.new" "${PREVIEW_CONFIG}/yzgc-oidc-issuer"
+    printf '%s\n' "${url}" >"${PREVIEW_CONFIG}/yzgc-gitlab-url.new"
+    mv "${PREVIEW_CONFIG}/yzgc-gitlab-url.new" "${PREVIEW_CONFIG}/yzgc-gitlab-url"
+    sed "s/identifier: 'gitlab',/identifier: '${PREVIEW_CLIENT}',/" "${HERE}/gitlab-oidc.rb" >"${PREVIEW_CONFIG}/yzgc-oidc.rb.new"
+    grep -q "identifier: '${PREVIEW_CLIENT}'," "${PREVIEW_CONFIG}/yzgc-oidc.rb.new" || { rm -f "${PREVIEW_CONFIG}/yzgc-oidc.rb.new"; die "登录片段里找不到 identifier: 'gitlab'，没有改写"; }
+    mv "${PREVIEW_CONFIG}/yzgc-oidc.rb.new" "${PREVIEW_CONFIG}/yzgc-oidc.rb"
+    "${DOCKER}" exec "${PREVIEW_GITLAB_CONTAINER}" gitlab-ctl reconfigure >/dev/null
+    echo "已接上：预发布 GitLab 用 ${PREVIEW_CLIENT} 走 ${PREVIEW_ORIGIN}/oidc 统一登录（secret 不打印）"
+}
+
 path_tool() { "${PYTHON}" "${HERE}/production-path.py" "$@" --env-file "${PROD_ENV_FILE}" --root "${GITLAB_ROOT}" --docker "${DOCKER}" --health-timeout "${GITLAB_HEALTH_TIMEOUT:-900}"; }
 
 issuer_origin() { # GitLab 现在信任的签发者所在环境的 origin
@@ -567,5 +608,6 @@ case "${STEP}" in
     check-production-path) check_production_path ;;
     finish-production-path) finish_production_path ;;
     rollback-production-path) rollback_production_path ;;
-    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer|path-status|move-production-path|check-production-path|finish-production-path|rollback-production-path [--apply] ..." >&2; exit 2 ;;
+    preview-sso) preview_sso ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer|path-status|move-production-path|check-production-path|finish-production-path|rollback-production-path|preview-sso [--apply] ..." >&2; exit 2 ;;
 esac
