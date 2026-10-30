@@ -39,6 +39,9 @@ if (url === ${JSON.stringify(`${GITLAB}/users/sign_in?auto_sign_in=false`)}) {
   if (format) process.stdout.write(env.FAKE_SIGNIN || '200');
   else process.stdout.write('<head><meta name="csrf-token" content="csrf-secret-token" /></head>');
 } else if (url === ${JSON.stringify(`${LEGACY}/geek/admin.git/info/refs?service=git-upload-pack`)}) {
+  // 旧子域名的 DNS 撤掉以后，真实 curl 写出 000 并以 6（解析不到主机）退出
+  if (env.FAKE_LEGACY === 'nxdomain') { process.stdout.write('000 '); process.exit(6); }
+  if (env.FAKE_LEGACY === 'refused') { process.stdout.write('000 '); process.exit(7); }
   process.stdout.write(env.FAKE_LEGACY || ${JSON.stringify(`301 ${GITLAB}/geek/admin.git/info/refs?service=git-upload-pack`)});
 } else if (url === ${JSON.stringify(`${GITLAB}/users/auth/openid_connect`)}) {
   const callback = env.FAKE_CALLBACK || ${JSON.stringify(CALLBACK)};
@@ -93,9 +96,18 @@ describe('move-path.sh（#335）', () => {
     expect(result.stdout + result.stderr).not.toMatch(/csrf-secret-token|session-secret|state=/);
   });
 
+  it('finishes the move when the legacy host no longer resolves (subdomain removed)', () => {
+    const f = fixture();
+    const result = f.run(['move', ...base, '--apply'], { FAKE_LEGACY: 'nxdomain' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('旧地址：解析不到（子域名已撤）');
+    expect(f.calls().slice(-2)).toEqual(['arch check-production-path', 'arch finish-production-path --apply']);
+  });
+
   it.each([
     ['新地址打不开', { FAKE_SIGNIN: '502' }],
     ['旧地址没有跳到同一路径', { FAKE_LEGACY: `301 ${GITLAB}/` }],
+    ['旧地址解析得到却连不上', { FAKE_LEGACY: 'refused' }],
     ['统一登录还带旧回调', { FAKE_CALLBACK: `${LEGACY}/users/auth/openid_connect/callback` }],
     ['签发者不接受新回调', { FAKE_AUTH: '400' }],
   ])('restores both halves when the public check fails: %s', (_name, env) => {
