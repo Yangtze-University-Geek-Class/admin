@@ -49,12 +49,6 @@
       "reason": "上游论坛演示数据里的虚构用户路径，不是真人标识"
     },
     {
-      "file": "docs/changes/346.json",
-      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
-      "maxCount": 2,
-      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
-    },
-    {
       "file": ".github/workflows/ci.yml",
       "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
       "maxCount": 1,
