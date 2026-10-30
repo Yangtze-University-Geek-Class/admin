@@ -19,3 +19,15 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：文档核对：docs/services/console/ 不用改——同步提交只带进 GitLab MR !103 已审查的内容，控制台合同在 #360 里已按异步加载与 logo 改动更新（更新：2026-10-30），这次没有新的控制台改动
 - 结果：记录核对结论
+
+## 00:56:27 +08:00 · PR · #325 · 开 PR #326
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：PR #326 task/325/github_stage_sync → stage，正文按 PR 契约写
+- 结果：已开，等 CI
+
+## 00:56:27 +08:00 · 审查 · #325 · 同步审查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：核对 git diff gitlab/stage HEAD 只剩 GitHub 独有声明与记录、#360 收尾记录和控制台合同日期；内容审查见 GitLab MR !103
+- 结果：通过
