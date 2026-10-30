@@ -209,7 +209,9 @@
         "tests/tooling/static-cdn.test.ts",
         "tests/tooling/sticker-manifest.test.ts",
         "tests/tooling/web-nginx.test.ts",
-        "tests/web/portal-promo.test.ts"
+        "tests/web/portal-promo.test.ts",
+        "deploy/parity/ledger.json",
+        "docs/changes/346.json"
       ],
       "domains": [
         "audit",
