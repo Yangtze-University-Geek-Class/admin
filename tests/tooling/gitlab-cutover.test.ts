@@ -405,68 +405,97 @@ function renderCompose(url: string) {
   return readFileSync(resolve(process.cwd(), "deploy/gitlab/docker-compose.yml"), "utf8").replace(/\$\{([A-Z_]+)\}/g, (_, key: string) => values[key]);
 }
 
-function pathFixture(options: { legacy?: boolean; sector?: string; previewClient?: boolean; issuer?: string } = {}) {
+function pathFixture(options: { legacy?: boolean; sector?: string; issuer?: string } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "cutover-path-"));
   dirs.push(dir);
   const root = realpathOf(dir, "root");
+  const stacks = realpathOf(dir, "stacks");
   const gitlab = join(root, "srv/gitlab");
   const config = join(gitlab, "config");
   const bin = join(dir, "bin");
   const state = join(dir, "state");
   const calls = join(dir, "calls.log");
-  for (const path of [config, bin, state, join(dir, "clients")]) mkdirSync(path, { recursive: true });
-  // 现在的正式 GitLab：旧模板渲染出的 compose 带着旧地址和 hostname
-  const original = renderCompose(OLD).replace("    container_name: gitlab\n", "    container_name: gitlab\n    hostname: git.example.test\n");
+  for (const path of [config, bin, state, join(dir, "clients"), join(stacks, "production"), join(stacks, "preview")]) mkdirSync(path, { recursive: true });
+  for (const environment of ["production", "preview"]) writeFileSync(join(stacks, environment, `.env.${environment}`), `GITLAB_SYNC=${environment === "production" ? "on" : "off"}\n`);
+  // 现在的正式 GitLab：旧模板渲染出的 compose 带着旧地址和 hostname，也还没有日志轮转
+  const original = renderCompose(OLD).replace("    container_name: gitlab\n", "    container_name: gitlab\n    hostname: git.example.test\n").replace(/ {4}# 容器日志的轮转[^\n]*\n {4}logging:\n(?: {6,}[^\n]*\n)+/, "");
   writeFileSync(join(gitlab, "docker-compose.yml"), original);
-  writeFileSync(join(config, "gitlab.rb"), RB_MOVE.replace(`${PREVIEW}/oidc`, `${options.issuer ?? PREVIEW}/oidc`));
+  writeFileSync(join(config, "gitlab.rb"), RB_MOVE.replace(`${PREVIEW}/oidc`, `${options.issuer ?? PROD}/oidc`));
   writeFileSync(join(dir, "template.env"), TEMPLATE_ENV);
   writeFileSync(join(state, "running-url"), OLD);
-  const client = (environment: string) => ({ client_id: "gitlab", redirect_uris: [`${OLD}${CB}`], ...(options.legacy ? {} : { sector: environment === "production" ? options.sector ?? "git.example.test" : "git.example.test" }) });
-  writeFileSync(join(dir, "clients/production.json"), JSON.stringify(client("production")));
-  if (options.previewClient !== false) writeFileSync(join(dir, "clients/preview.json"), JSON.stringify(client("preview")));
+  // 搬家前后：抽样成员的 sub 摘要、GitLab 的账号数与新增账号、正式库映射着的 GitLab 号
+  writeFileSync(join(state, "digest"), "digest-1");
+  writeFileSync(join(state, "new-accounts"), JSON.stringify({ users: 10, new_ids: [] }));
+  const client = (environment: string) => ({ client_id: "gitlab", redirect_uris: [`${OLD}${CB}`], sector: environment === "production" ? options.sector ?? "git.example.test" : "git.example.test", sector_id: null });
+  for (const environment of ["production", "preview"]) writeFileSync(join(dir, `clients/${environment}.json`), JSON.stringify(client(environment)));
   writeFileSync(join(bin, "systemctl"), `#!/usr/bin/env bash
 echo "systemctl $*" >> '${calls}'
 if [[ -f '${state}/fail-unit-'"$2" ]]; then exit 1; fi
 exit 0
 `, { mode: 0o755 });
+  writeFileSync(join(bin, "flock"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
   writeFileSync(join(bin, "docker"), `#!/usr/bin/env bash
 echo "docker $*" >> '${calls}'
 state='${state}'
 case "$1" in
   compose)
     [[ -f "$state/compose-fail" ]] && exit 1
-    sed -n "s/^ *external_url '\\(.*\\)'$/\\1/p" "$3" > "$state/running-url" ;;
+    sed -n "s/^ *external_url '\\(.*\\)'$/\\1/p" "$3" > "$state/running-url"
+    if grep -q 'max-size: "10m"' "$3"; then touch "$state/log-rotated"; else rm -f "$state/log-rotated"; fi ;;
+  inspect)
+    if [[ "$*" == *LogConfig* ]]; then
+      if [[ -f "$state/log-rotated" ]]; then echo '{"Type":"json-file","Config":{"max-file":"3","max-size":"10m"}}'; else echo '{"Type":"json-file","Config":{}}'; fi
+    else echo server-image; fi ;;
+  run)
+    if [[ "$*" == *"sync-control.mjs status"* ]]; then
+      mode=on; [[ "$*" == *yzgc-preview-server* ]] && mode=off
+      echo "{\\"configuration\\":{\\"mode\\":\\"$mode\\"},\\"bindings\\":[{\\"gitlab_id\\":101},{\\"gitlab_id\\":null}]}"
+    elif [[ "$*" == *"sync-control.mjs verify"* ]]; then
+      cat >/dev/null; echo '{"failures":[]}'
+    fi ;;
   exec)
-    if [[ "$2" == gitlab && "$3" == curl ]]; then
+    shift
+    [[ "$1" == -i ]] && shift
+    if [[ "$1" == gitlab && "$2" == curl ]]; then
       running="$(cat "$state/running-url")"
       relative="$(sed -E 's#^https?://[^/]+##' <<<"$running")"
       [[ "\${!#}" == "http://127.0.0.1\${relative}/-/health" ]] || exit 22
       [[ -n "$relative" && -f "$state/new-unhealthy" ]] && exit 22
       exit 0
     fi
+    if [[ "$1" == gitlab && "$2" == gitlab-rails ]]; then
+      echo "rails 启动的杂项输出"
+      if [[ "$*" == *maximum* ]]; then echo '{"users":10,"max_id":100}'; else cat "$state/new-accounts"; fi
+      exit 0
+    fi
+    if [[ "$2" == node && "$3" == -p ]]; then echo off; exit 0; fi
     environment=preview
-    [[ "$2" == *production* ]] && environment=production
+    [[ "$1" == *production* ]] && environment=production
     file='${dir}/clients/'"$environment.json"
-    if [[ "$*" == *"client list"* ]]; then
-      if [[ -f "$file" ]]; then jq -c '[.]' "$file"; else echo '[]'; fi
+    if [[ "$*" == *"client show"* ]]; then
+      ${options.legacy ? 'echo "usage: oidc.js client add|list|rotate|disable|enable|add-redirect|remove-redirect …" >&2; exit 2' : 'cat "$file"'}
+    elif [[ "$*" == *"client subjects"* ]]; then
+      [[ "$*" == *--accounts-stdin* ]] && [[ "$(cat)" != '["acct-a","acct-b"]' ]] && exit 1
+      jq -c --arg digest "$(cat "$state/digest")" '{client_id, sector, accounts: ["acct-a","acct-b"], count: 2, missing: 0, digest: $digest}' "$file"
     elif [[ "$*" == *-redirect* ]]; then
       [[ -f "$state/fail-redirect-$environment" ]] && exit 1
       uri="\${!#}"
       before="$(cat "$file")"
-      if [[ "$*" == *add-redirect* ]]; then jq --arg u "$uri" 'if (.redirect_uris | index($u)) then . else .redirect_uris += [$u] end' <<<"$before" > "$file"
-      else jq --arg u "$uri" '.redirect_uris -= [$u]' <<<"$before" > "$file"; fi
+      if [[ "$*" == *add-redirect* ]]; then jq -c --arg u "$uri" 'if (.redirect_uris | index($u)) then . else .redirect_uris += [$u] end | .sector_id = .sector' <<<"$before" > "$file"
+      else jq -c --arg u "$uri" '.redirect_uris -= [$u] | .sector_id = .sector' <<<"$before" > "$file"; fi
       jq -c --argjson before "$before" '{client_id, redirect_uris, sector, changed: (.redirect_uris != $before.redirect_uris)}' "$file"
     fi ;;
 esac
 exit 0
 `, { mode: 0o755 });
-  const run = (step: string, ...args: string[]) => spawnSync("bash", [script, step, "--production-origin", PROD, "--preview-origin", PREVIEW, "--sector", "git.example.test", ...args], {
+  const run = (step: string, ...args: string[]) => spawnSync("bash", [script, step, "--production-origin", PROD, "--preview-origin", PREVIEW, "--production-stack-root", join(stacks, "production"), "--preview-stack-root", join(stacks, "preview"), "--sector", "git.example.test", ...args], {
     encoding: "utf8",
-    env: { ...process.env, GITLAB_CONFIG: config, GITLAB_ROOT: root, DOCKER: join(bin, "docker"), SYSTEMCTL: join(bin, "systemctl"), PROD_ENV_FILE: join(dir, "template.env"), GITLAB_HEALTH_TIMEOUT: "0" },
+    env: { ...process.env, GITLAB_CONFIG: config, GITLAB_ROOT: root, DOCKER: join(bin, "docker"), SYSTEMCTL: join(bin, "systemctl"), FLOCK: join(bin, "flock"), PROD_ENV_FILE: join(dir, "template.env"), GITLAB_HEALTH_TIMEOUT: "0" },
   });
   const clients = (environment: string) => JSON.parse(readFileSync(join(dir, `clients/${environment}.json`), "utf8")).redirect_uris as string[];
   return {
     run, clients, original, state, gitlab, config,
+    baseline: join(gitlab, "path-move/accounts.json"),
     compose: () => readFileSync(join(gitlab, "docker-compose.yml"), "utf8"),
     rb: () => readFileSync(join(config, "gitlab.rb"), "utf8"),
     called: () => (existsSync(calls) ? readFileSync(calls, "utf8") : ""),
@@ -480,42 +509,58 @@ function realpathOf(dir: string, name: string) {
 }
 
 describe("cutover.sh GitLab 搬到主站路径（#335）", () => {
-  it("path-status 与缺省的 move 都只读：报现在与目标地址、两个库的回调，不备份、不改回调、不重建", () => {
+  it("path-status 与缺省的 move 都只读：报现在与目标地址、正式库的回调，不备份、不改回调、不重建", () => {
     const f = pathFixture();
     const status = f.run("path-status");
     expect(status.status, status.stderr).toBe(0);
     expect(status.stdout).toContain(`GitLab 现在：${OLD}；目标：${NEW}；已搬：false`);
-    expect(status.stdout).toContain(`GitLab 信任的签发者：${PREVIEW}/oidc`);
-    expect(status.stdout).toContain("production 库：sector=git.example.test，回调 1 个，现地址回调在，目标地址回调不在");
+    expect(status.stdout).toContain(`GitLab 信任的签发者：${PROD}/oidc`);
+    expect(status.stdout).toContain("GitLab 容器日志：json-file，每份 不限，留 不限 份");
+    expect(status.stdout).toContain("正式库：认得 sector 钉住，sector=git.example.test，钉住值=还没钉（第一次改回调时钉住），回调 1 个，现地址回调在，目标地址回调不在");
     const dry = f.run("move-production-path");
     expect(dry.status, dry.stderr).toBe(0);
     expect(dry.stdout).toContain("演算");
-    expect(f.called()).not.toMatch(/systemctl|redirect|compose/);
+    expect(f.called()).not.toMatch(/systemctl|redirect|compose|gitlab-rails|subjects/);
     expect(f.compose()).toBe(f.original);
+    // 旧版本的 server：path-status 照样报，只说先发版本
+    const old = pathFixture({ legacy: true }).run("path-status");
+    expect(old.status, old.stderr).toBe(0);
+    expect(old.stdout).toContain("正式库：server 还不认得 sector 钉住（或没有 gitlab 客户端），搬家前先用 deploy-hotfix 发带 #335 的版本");
   });
 
-  it("--apply 先备份，再给两个库加新回调，按模板重建容器并等健康；旧回调留着，sector 不变", () => {
+  it("--apply 先备份、记账号基线，再给正式库加新回调，按模板重建容器（带日志轮转）并等健康；旧回调留着，预发布库不动", () => {
     const f = pathFixture();
     const result = f.run("move-production-path", "--apply");
     expect(result.status, result.stderr).toBe(0);
     const calls = f.called();
-    const order = ["systemctl start gitlab-backup.service", "systemctl start yzgc-backup@production.service", "systemctl start yzgc-backup@preview.service", "add-redirect", "docker compose"].map(item => calls.indexOf(item));
+    const order = ["systemctl start gitlab-backup.service", "systemctl start yzgc-backup@production.service", "client subjects --client-id gitlab --limit 50", "gitlab-rails runner", "add-redirect", "docker compose"].map(item => calls.indexOf(item));
     expect(order.every(index => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const environment of ["production", "preview"]) expect(f.clients(environment)).toEqual([`${OLD}${CB}`, `${NEW}${CB}`]);
+    expect(calls).not.toContain("yzgc-backup@preview");
+    expect(calls).not.toMatch(/exec yzgc-preview-server/);
+    expect(f.clients("production")).toEqual([`${OLD}${CB}`, `${NEW}${CB}`]);
+    expect(f.clients("preview")).toEqual([`${OLD}${CB}`]);
+    expect(JSON.parse(readFileSync(f.baseline, "utf8"))).toEqual({ sector: "git.example.test", accounts: ["acct-a", "acct-b"], count: 2, missing: 0, digest: "digest-1", gitlab_users: 10, gitlab_max_id: 100 });
+    expect(statSync(f.baseline).mode & 0o777).toBe(0o600);
+    expect(result.stdout).toContain("搬家前基线：抽样 2 个成员（有 sub 的 2 个），GitLab 账号 10 个");
     expect(f.compose()).toBe(renderCompose(NEW));
     expect(f.compose()).not.toMatch(/hostname:/);
+    expect(f.compose()).toContain('    logging:\n      driver: json-file\n      options:\n        max-size: "10m"\n        max-file: "3"\n');
     expect(readFileSync(join(f.config, "yzgc-gitlab-url"), "utf8")).toBe(`${NEW}\n`);
     expect(f.rb()).toContain("redirect_uri: File.read('/etc/gitlab/yzgc-gitlab-url').strip + '/users/auth/openid_connect/callback' },");
     expect(f.rb()).toContain("gitlab_rails['gravatar_ssl_url'] = File.read('/etc/gitlab/yzgc-gitlab-url').strip + '/nano-avatar/20261025/%{hash}?s=%{size}'");
     expect(f.rb()).not.toContain(OLD);
-    expect(f.rb()).toContain(`issuer: '${PREVIEW}/oidc'`);
+    expect(f.rb()).toContain(`issuer: '${PROD}/oidc'`);
     expect(calls).toContain("docker exec gitlab curl --fail --silent --max-time 10 http://127.0.0.1/gitlab/-/health");
-    // 重跑不再改任何东西
+    // 重跑不再改任何东西，也不覆盖搬家前的基线
+    writeFileSync(join(f.state, "digest"), "digest-after");
     const again = f.run("move-production-path", "--apply");
     expect(again.status, again.stderr).toBe(0);
     expect(f.clients("production")).toEqual([`${OLD}${CB}`, `${NEW}${CB}`]);
-    expect(f.run("path-status").stdout).toContain("已搬：true");
+    expect(JSON.parse(readFileSync(f.baseline, "utf8")).digest).toBe("digest-1");
+    const moved = f.run("path-status").stdout;
+    expect(moved).toContain("已搬：true");
+    expect(moved).toContain("GitLab 容器日志：json-file，每份 10m，留 3 份");
   });
 
   it("新容器健康检查失败：恢复原 compose 与 gitlab.rb、重建原容器，撤回新回调，返回失败", () => {
@@ -529,27 +574,72 @@ describe("cutover.sh GitLab 搬到主站路径（#335）", () => {
     expect(f.rb()).toBe(before);
     expect(existsSync(join(f.config, "yzgc-gitlab-url"))).toBe(false);
     expect(readFileSync(join(f.state, "running-url"), "utf8").trim()).toBe(OLD);
-    for (const environment of ["production", "preview"]) expect(f.clients(environment)).toEqual([`${OLD}${CB}`]);
+    expect(f.clients("production")).toEqual([`${OLD}${CB}`]);
     expect(f.called().match(/docker compose/g)).toHaveLength(2);
   });
 
-  it("签发者库更新失败：已加的回调撤回，GitLab 不动；server 版本太旧或 sector 不对时什么都不改", () => {
+  it("加新回调失败时 GitLab 不动；server 还是旧版本、sector 不对、GitLab 还信任预发布签发者时什么都不改", () => {
     const f = pathFixture();
-    writeFileSync(join(f.state, "fail-redirect-preview"), "");
+    writeFileSync(join(f.state, "fail-redirect-production"), "");
     const failed = f.run("move-production-path", "--apply");
     expect(failed.status).toBe(1);
-    expect(failed.stderr).toContain("preview 库加新回调失败");
-    expect(f.clients("production")).toEqual([`${OLD}${CB}`]);
+    expect(failed.stderr).toContain("正式库加新回调失败");
     expect(f.compose()).toBe(f.original);
     expect(f.called()).not.toContain("docker compose");
 
-    for (const options of [{ legacy: true }, { sector: "example.test" }]) {
+    for (const [options, message] of [
+      [{ legacy: true }, /先用 deploy-hotfix 发带 #335 的版本/],
+      [{ sector: "example.test" }, /sector 不是 git\.example\.test/],
+      [{ issuer: PREVIEW }, /不是正式的：先完成 switch-issuer/],
+    ] as const) {
       const g = pathFixture(options);
+      for (const step of ["move-production-path", "rollback-production-path", "finish-production-path"]) {
+        const refused = g.run(step, "--apply");
+        expect(refused.status).toBe(1);
+      }
       const refused = g.run("move-production-path", "--apply");
-      expect(refused.status).toBe(1);
-      expect(refused.stderr).toMatch(/版本太旧|sector 不是 git\.example\.test/);
-      expect(g.called()).not.toMatch(/systemctl|redirect|compose/);
+      expect(refused.stderr).toMatch(message);
+      expect(g.called()).not.toMatch(/systemctl|redirect|compose|gitlab-rails|subjects/);
     }
+  });
+
+  it("check-production-path 只读：抽样成员的 sub 与搬家前一样、新增的 GitLab 账号都是同步建的成员号才通过", () => {
+    const f = pathFixture();
+    expect(f.run("check-production-path").stderr).toContain("GitLab 还没搬到");
+    expect(f.run("move-production-path", "--apply").status).toBe(0);
+    writeFileSync(join(f.state, "new-accounts"), JSON.stringify({ users: 11, new_ids: [101] }));
+    const ok = f.run("check-production-path");
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain("抽样 2 个成员的 sub：和搬家前一致");
+    expect(ok.stdout).toContain("GitLab 账号：搬家前 10 个，现在 11 个；搬家后新增 1 个，其中不是同步建的成员号 0 个");
+    expect(f.clients("production")).toEqual([`${OLD}${CB}`, `${NEW}${CB}`]);
+
+    writeFileSync(join(f.state, "new-accounts"), JSON.stringify({ users: 12, new_ids: [101, 102] }));
+    const stray = f.run("check-production-path");
+    expect(stray.status).toBe(1);
+    expect(stray.stderr).toContain("搬家后多出不是成员号的 GitLab 账号 [102]");
+
+    writeFileSync(join(f.state, "new-accounts"), JSON.stringify({ users: 10, new_ids: [] }));
+    writeFileSync(join(f.state, "digest"), "digest-2");
+    const changed = f.run("check-production-path");
+    expect(changed.status).toBe(1);
+    expect(changed.stderr).toContain("抽样的 2 个成员里有人的 sub 和搬家前对不上");
+    expect(changed.stdout + changed.stderr).not.toMatch(/acct-a|acct-b/);
+  });
+
+  it("verify-accounts 在搬过地址之后再比一次基线：sub 摘要变了或多出不是成员号的账号就失败", () => {
+    const f = pathFixture();
+    const before = f.run("verify-accounts");
+    expect(before.status, before.stderr).toBe(0);
+    expect(before.stdout).not.toContain("抽样");
+    expect(f.run("move-production-path", "--apply").status).toBe(0);
+    const ok = f.run("verify-accounts");
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain("抽样 2 个成员的 sub：和搬家前一致");
+    writeFileSync(join(f.state, "new-accounts"), JSON.stringify({ users: 11, new_ids: [103] }));
+    const stray = f.run("verify-accounts");
+    expect(stray.status).toBe(1);
+    expect(stray.stderr).toContain("[103]");
   });
 
   it("finish 去掉旧回调并再备份一次；没搬之前拒绝", () => {
@@ -561,19 +651,24 @@ describe("cutover.sh GitLab 搬到主站路径（#335）", () => {
     expect(f.clients("production")).toHaveLength(2);
     const done = f.run("finish-production-path", "--apply");
     expect(done.status, done.stderr).toBe(0);
-    for (const environment of ["production", "preview"]) expect(f.clients(environment)).toEqual([`${NEW}${CB}`]);
+    expect(f.clients("production")).toEqual([`${NEW}${CB}`]);
+    expect(f.clients("preview")).toEqual([`${OLD}${CB}`]);
     expect(f.called().match(/systemctl start gitlab-backup\.service/g)).toHaveLength(2);
   });
 
-  it("rollback 先补回旧回调，恢复原 compose 与 gitlab.rb 并重建，健康后去掉新回调；签发者之外没有客户端的库跳过", () => {
-    expect(pathFixture({ previewClient: false }).run("move-production-path", "--apply").stderr).toContain("preview 签发者库里没有 gitlab 客户端");
-    const f = pathFixture({ previewClient: false, issuer: PROD });
+  it("rollback 先补回旧回调，再恢复原 compose 与 gitlab.rb 并重建，健康后去掉新回调", () => {
+    const f = pathFixture();
     const before = f.rb();
     expect(f.run("move-production-path", "--apply").status).toBe(0);
     expect(f.run("finish-production-path", "--apply").status).toBe(0);
     expect(f.clients("production")).toEqual([`${NEW}${CB}`]);
+    const start = f.called().length;
     const back = f.run("rollback-production-path", "--apply");
     expect(back.status, back.stderr).toBe(0);
+    const calls = f.called().slice(start);
+    const order = ["add-redirect", "docker compose", "remove-redirect"].map(item => calls.indexOf(item));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(f.compose()).toBe(f.original);
     expect(f.rb()).toBe(before);
     expect(readFileSync(join(f.state, "running-url"), "utf8").trim()).toBe(OLD);

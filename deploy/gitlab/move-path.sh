@@ -3,7 +3,7 @@
 # Arch 那一半是 cutover.sh 的 *-production-path，香港那一半是受限入口的 production-*，核对走公网。缺省只演算，--apply 才写。
 #
 #   move-path.sh status   --gitlab-url <URL> --legacy-origin <URL> --issuer-origins "<正式> <预发布>"
-#   move-path.sh move     … [--apply]   Arch 搬家 → 香港切入口 → 核对新地址、旧地址 301、统一登录跳转 → 去掉旧回调
+#   move-path.sh move     … [--apply]   Arch 搬家 → 香港切入口 → 核对新地址、旧地址 301、统一登录跳转 → 核对成员的 sub 与 GitLab 账号 → 去掉旧回调
 #   move-path.sh rollback … [--apply]   香港入口恢复 → Arch 恢复原地址与旧回调
 #
 # ARCH 与 EDGE 是两个可执行文件：ARCH <cutover 步骤> [--apply] 在 Arch 上跑 cutover.sh，EDGE <动作> 调受限入口。
@@ -95,6 +95,8 @@ case "${ACTION}" in
         # 接收器切换失败时自己恢复原配置、不写收据，这里只需恢复 Arch
         if ! "${EDGE}" production-apply; then restore_arch || die "香港入口切换失败，Arch 恢复也没有完成"; die "香港入口切换失败，已恢复"; fi
         if ! verify; then restore || die "公网核对未通过，恢复也没有完成"; die "公网核对未通过，已恢复原地址"; fi
+        # 抽样成员的 sub 与搬家前一样、GitLab 没有多出不是成员号的账号；有一项对不上就整批恢复
+        if ! "${ARCH}" check-production-path; then restore || die "账号核对未通过，恢复也没有完成"; die "账号核对未通过，已整批恢复原地址"; fi
         "${ARCH}" finish-production-path --apply || die "搬家与核对都已完成，但去掉旧回调或搬家后的备份失败：重跑 move 会从这一步接着做"
         echo "GitLab 已在 ${GITLAB_URL}；旧地址只做跳转" ;;
     rollback)

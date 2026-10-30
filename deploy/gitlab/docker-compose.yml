@@ -53,6 +53,12 @@ services:
       timeout: 15s
       retries: 5
       start_period: 300s
+    # 容器日志的轮转取值和两套站点栈（deploy/compose/production.yml、preview.yml）一样；GitLab 自己的日志在 logs 卷里，不受这里管
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   gitlab:

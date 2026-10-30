@@ -20,7 +20,7 @@
 
 | 仓库源码（`deploy/gitlab/` 下） | 获批安装时的目标 / 调用关系 |
 |---|---|
-| `docker-compose.yml` | Arch `/srv/gitlab/docker-compose.yml`，#335 起由 `production-path.py` 从模板渲染；由 `gitlab-compose.service` 引用 |
+| `docker-compose.yml` | Arch `/srv/gitlab/docker-compose.yml`，#335 起由 `production-path.py` 从模板渲染（容器日志 json-file 轮转，`max-size: "10m"`、`max-file: "3"`，和两套站点栈一样）；由 `gitlab-compose.service` 引用 |
 | `gitlab-compose.service` | Arch `/etc/systemd/system/`；依赖既有 Docker、隧道服务 |
 | `settings.sh` | Arch `/srv/gitlab/settings.sh`；用 `bash` 显式执行，写数据库应用设置，不随源码纳管自动执行 |
 | `backup.sh`、`restore-drill.sh`、仓库 `deploy/remote/garage-archive.mjs` | Arch `/srv/gitlab/`；前者由备份 service 调用，后者由获批操作者调用，共享归档器由两者调用 |
@@ -106,23 +106,26 @@ Compose 固定 `gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e99
 
 ## 搬到正式入口的 /gitlab（#335）
 
-所有者 2026-10-30 在会话中要求正式 GitLab 和预发布一样放在本环境入口的 `/gitlab` 下，仓库里不再用子域名。实例、容器名、数据目录、镜像、网络、账号和仓库都不变，变的只有对外地址。操作手册（停机、逐步核对、公告草稿）在交接目录的 `GITLAB-PATH-CUTOVER.md`。
+所有者 2026-10-30 在会话中要求正式 GitLab 和预发布一样放在本环境入口的 `/gitlab` 下，仓库里不再用子域名；10:52 批准按 P0 走热修复窗口（`deploy/hotfix/windows.json` 的 #335，绑定 `v0.1.1`，到 2026-11-06 10:52）。实例、容器名、数据目录、镜像、网络、账号和仓库都不变，变的只有对外地址。操作手册（停机、逐步核对、公告草稿）在交接目录的 `GITLAB-PATH-CUTOVER.md`。
 
-- 地址只有一个来源：`deploy/env/.env.production` 的 `GITLAB_URL=https://yangtzeu.work/gitlab`，`deployment-environment.mjs` 要求它等于 `<PUBLIC_ORIGIN>/gitlab`。`GITLAB_OIDC_SECTOR=git.yangtzeu.work` 是 `gitlab` 客户端钉住的 sector：成员的 `sub` 按它分区，搬家后不变，GitLab 上的 `openid_connect` 绑定和 GitLab 用户 ID 都不用动。
-- 先发 server，再搬家：搬家要求持有 `gitlab` 客户端的每个签发者库都已经是认 `sector_id` 的镜像（`client list` 带 `sector`），否则 `cutover.sh` 拒绝。同一次发布把正式 server 的 `GITLAB_URL` 换成新地址；正式 `GITLAB_SYNC=off`，同步不受影响，但从发布到搬家完成之间官网的代码仓库链接会跳到还没接上的 `/gitlab`（回的是官网页面），贡献收集调 API 也会失败（失败只记 error，不撤分），这段时间要尽量短。
+- 地址只有一个来源：`deploy/env/.env.production` 的 `GITLAB_URL=https://yangtzeu.work/gitlab`，`deployment-environment.mjs` 要求它等于 `<PUBLIC_ORIGIN>/gitlab`。`GITLAB_OIDC_SECTOR=git.yangtzeu.work` 是 `gitlab` 客户端钉住的 pairwise sector 标识，不是在用的地址：成员的 `sub` 按它分区，搬家后不变，GitLab 上的 `openid_connect` 绑定和 GitLab 用户 ID 都不用动。
+- 先发 server，再搬家：`deploy-hotfix`（`HOTFIX_ISSUE=335`，沿用 `v0.1.1`）把认得 sector 钉住的 server 和新的 `GITLAB_URL` 一起发到正式。`*-production-path` 改回调之前先用 `client show --client-id gitlab` 确认正式 server 认得 sector 钉住（输出带 `sector_id` 字段），旧版本不认得这条命令，`cutover.sh` 拒绝，什么都不改；`path-status` 会写明正式库「认得 sector 钉住」还是要先发版本。从发布到搬家完成之间，官网的代码仓库链接会跳到还没接上的 `/gitlab`（回的是官网页面），同步与贡献收集调 GitLab API 也会失败（失败只记 error，不撤分），这段时间要尽量短。
+- 只改正式库：GitLab 已经信任正式签发者（2026-10-30 11:20 核对过登录跳转到 `https://yangtzeu.work/oidc/auth`），`cutover.sh` 要求 `gitlab.rb` 里的签发者是正式的，只给正式库的 `gitlab` 客户端加减回调，不碰预发布库。因此搬家之后不能直接 `rollback-issuer` 退回预发布签发者，要先 `rollback-production-path`。
+- 新旧回调可以同时在：oidc-provider 9.12.2 对回调跨两个主机的 pairwise 客户端要求 `sector_identifier_uri`，我们的客户端元数据一直带钉住的 sector，并关掉了去取这个地址（`tests/server/oidc.test.ts` 用安装的 oidc-provider 核对过：不带就拒绝加载，带上并关掉校验就能加载）。所以过渡期不用原子替换回调，也不因此多停机。
 - 香港接收器先升级：所有者批准的管理员步骤按上一节的 `install-host.sh apply --target edge …` 重跑（带两份模板），再 `install-host.sh verify --target edge`。
 - `gitlab-cutover` 的三个步骤（production 审批，不勾 apply 只读或演算）：
-  1. `path-status`：Arch 报当前地址、目标地址、是否已搬、上次搬家前的地址；香港 `production-plan` 报两份文件会不会变。
-  2. `move-production-path`：不勾 apply 演算两半并列出要加新回调的库。勾 apply 时 `move-path.sh` 依次做：
-     - Arch `move-production-path --apply`：`gitlab-backup.service` 一致性备份，持有客户端的每个签发者库各跑一次 `yzgc-backup@<环境>`；给这些库的 `gitlab` 客户端加新回调，旧回调留着；`production-path.py` 写地址文件、改 `gitlab.rb` 三行、按模板写 Compose，`docker compose up -d --no-build --pull never` 重建（数据卷、镜像、网络不变），在容器里等 `/gitlab/-/health`。重建失败就恢复原文件、按原地址重建等健康，撤回新回调。
+  1. `path-status`：Arch 报当前地址、目标地址、是否已搬、上次搬家前的地址、正式库 `gitlab` 客户端的 sector 与回调、有没有搬家前的账号基线；香港 `production-plan` 报两份文件会不会变。
+  2. `move-production-path`：不勾 apply 演算两半。勾 apply 时 `move-path.sh` 依次做：
+     - Arch `move-production-path --apply`：`gitlab-backup.service` 一致性备份和 `yzgc-backup@production`；记下账号基线 `/srv/gitlab/path-move/accounts.json`（按账号 id 抽样 50 个成员在 `gitlab` 客户端 sector 下的 `sub` 摘要、GitLab 账号数与最大账号 id，只有计数、摘要和本库账号 id）；给正式库的 `gitlab` 客户端加新回调，旧回调留着；`production-path.py` 写地址文件、改 `gitlab.rb` 三行、按模板写 Compose（模板带 json-file 日志轮转，取值和两套站点栈一样 `max-size: "10m"`、`max-file: "3"`，这次重建一起生效），`docker compose up -d --no-build --pull never` 重建（数据卷、镜像、网络不变），在容器里等 `/gitlab/-/health`。重建失败就恢复原文件、按原地址重建等健康，撤回新回调。
      - 香港 `production-apply`：正式站点块加 `/gitlab` 处理器，旧主机文件换成 301；候选与全配置 validate 后 reload，失败恢复原文件。
      - runner 上的公网核对：新地址登录页 200；旧地址 `…/geek/admin.git/info/refs?service=git-upload-pack` 301 到新地址的同一路径（git 只在第一次请求跟随跳转，之后的推拉直接打新地址）；登录页的统一登录跳到签发者 `/oidc/auth` 并带新回调，签发者对这个回调回 302 或 303。
+     - Arch `check-production-path`（只读）：同一批成员按 `gitlab` 客户端现在的 sector 重算 `sub` 摘要，必须和基线一样；搬家后 GitLab 新增的账号（id 比基线最大的大）只能是正式库映射着的成员号（同步给新成员建的），多出一个不是的，就是有成员登录时 GitLab 没认出原来的号。
      - 全部通过后 Arch `finish-production-path --apply`：去掉旧回调，再做一次 GitLab 备份。
-     香港切换或公网核对失败时两半都恢复（香港切换失败时接收器已自己恢复，只恢复 Arch），然后报失败；收尾失败时搬家已经完成，重跑 `move-production-path` 会再备份一次，然后接着收尾。
-  3. `rollback-production-path`：勾 apply 时香港先恢复，Arch 再补回旧回调、恢复原 Compose 与 `gitlab.rb` 并重建、去掉新回调。回滚之后回调只剩旧主机，server 可以照常回退到不认 `sector_id` 的旧镜像；回调还带新主机时不能回退（见 [数据模型](../services/server/data-model.md)）。
-- 搬完再跑 `verify-accounts`，逐人核对绑定、原 GitLab ID 与组权限不变。
+     香港切换、公网核对或账号核对失败时两半都恢复（香港切换失败时接收器已自己恢复，只恢复 Arch），然后报失败；收尾失败时搬家已经完成，重跑 `move-production-path` 会再备份一次（不覆盖基线），然后接着收尾。
+  3. `rollback-production-path`：勾 apply 时香港先恢复，Arch 再补回旧回调、恢复原 Compose 与 `gitlab.rb` 并重建、去掉新回调；全程要求正式 server 仍认得 sector 钉住。回调改完后不能直接退回旧镜像：旧版本按第一个回调的主机算 sector，回调里有新主机时成员的 `sub` 会变（见 [数据模型](../services/server/data-model.md)）。要退 server 镜像，先跑完 `rollback-production-path`，回调只剩旧主机之后再退。
+- 搬完再跑 `verify-accounts`：逐人核对绑定、原 GitLab ID 与组权限不变；有账号基线时再核对一次抽样 `sub` 摘要和没有多出不是成员号的 GitLab 账号，任何一项对不上就失败，按手册整批 `rollback-production-path`。
 - 停机从容器重建开始，到 GitLab 健康、香港 reload 完成为止（Omnibus 启动加 reconfigure，通常几分钟）；两次备份在停机前后，不计入停机，但整个 job 可能要几十分钟，超时 120 分钟。
-- 输出只有步骤、HTTP 状态和计数，不打印令牌、cookie、跳转参数或 sub。测试见 `tests/tooling/gitlab-cutover.test.ts`、`gitlab-preview.test.ts`、`gitlab-move-path.test.ts`、`install-host.test.ts`；都是假 docker、假 curl 或临时根，真实 Caddy 解析、真实 GitLab 重建和真人统一登录没有验过。
+- 输出只有步骤、HTTP 状态、计数和公开的 GitLab 账号 id，不打印令牌、cookie、跳转参数或 sub。测试见 `tests/tooling/gitlab-cutover.test.ts`、`gitlab-preview.test.ts`、`gitlab-move-path.test.ts`、`install-host.test.ts` 与 `tests/server/oidc.test.ts`；都是假 docker、假 curl、临时根或内存库，真实 Caddy 解析、真实 GitLab 重建、真实 `gitlab-rails` 计数和真人统一登录没有验过。
 
 ## 极客班统一登录（OIDC）契约
 

@@ -995,7 +995,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -1139,7 +1139,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -3368,7 +3368,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 975,
+          "line": 976,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -8450,7 +8450,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -9541,7 +9541,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -10501,11 +10501,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -10521,7 +10521,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -10829,7 +10829,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -11122,7 +11122,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -11130,7 +11130,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -11206,7 +11206,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -11526,7 +11526,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -11597,7 +11597,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -11609,7 +11609,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -11617,11 +11617,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -11693,11 +11693,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11758,7 +11758,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -12075,7 +12075,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -17098,7 +17098,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "c3dfaa654a08b2d19f5df76b3026c4e0c063d247abc9ffc9baa7e5c34cfd0f76",
+    "fingerprint": "98dc2ee34e56f77985cbf3833126bbb525e1cbed43e4afaa36be181da5ef7ee9",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17226,7 +17226,7 @@
       },
       {
         "path": "app/console/src/lib/gitlab.ts",
-        "sha256": "98bcacbdb30f0693ffbdd086596dfc7c008164cb90d2b39aeaeb9074aedca97a"
+        "sha256": "a85a9b2a48e607d0e7330cdf59355fee40ec995bc08cabd75da54ab5dfae8380"
       },
       {
         "path": "app/console/src/lib/grade.ts",
@@ -17302,11 +17302,11 @@
       },
       {
         "path": "app/console/src/mock/console.ts",
-        "sha256": "a4d0603c001bd79f6e87ed805aa6dc82945d3ce203f17ba3bba87fc20ecf0b28"
+        "sha256": "8e9a7cf3d2224ac641453beec65c3b7557032549e38c73c1fe437c4dc474082d"
       },
       {
         "path": "app/console/src/mock/index.ts",
-        "sha256": "bad26e5ece9d7e3059382c7dd1fc98b21b7906339f1218ed1c57d19cdfb57620"
+        "sha256": "2f8e8d7879389a13287caf30221de362c2e00cf8f28c248bf082cdeb32bb289a"
       },
       {
         "path": "app/console/src/mock/mail-templates.ts",
@@ -17990,11 +17990,11 @@
       },
       {
         "path": "app/server/src/cli/oidc.ts",
-        "sha256": "8da5e55530c4dfbedc1d0eba14fb6af39ffa2d23ae416a0bee0f34820c892810"
+        "sha256": "6f2108afaa1147574c3f33153d4a462ea014800528ab921e6cf43c1d2d896683"
       },
       {
         "path": "app/server/src/config.ts",
-        "sha256": "4c1e3d3876a24873b20fc67f931cba18f201a016300b7cf405d2893125f7a499"
+        "sha256": "dd26a0a532c21c783566688c8e134cd253c247d21e9d7aed385902be04f6f67f"
       },
       {
         "path": "app/server/src/index.ts",
@@ -18098,7 +18098,7 @@
       },
       {
         "path": "app/server/src/lib/db.ts",
-        "sha256": "f7a84591fbd05464bdb66d3dba83378bb0fa1122c669b086d4d87d31250f0fe7"
+        "sha256": "ab0f9cd228a3608f84379356bb459f5b7be822237ba8eeef3af8bd1bf11a240d"
       },
       {
         "path": "app/server/src/lib/device-store.ts",
@@ -18142,7 +18142,7 @@
       },
       {
         "path": "app/server/src/lib/gitlab-sync.ts",
-        "sha256": "2b9568b626c5b33a570f37f5ac0083c40cf7c0a0ead48de4ab99ff2912f8e66e"
+        "sha256": "c2537eb842c649175ceaa517359916fed0df068bd9f1055588bb8169e5692c6a"
       },
       {
         "path": "app/server/src/lib/google.ts",
@@ -18230,11 +18230,11 @@
       },
       {
         "path": "app/server/src/lib/oidc-provider.ts",
-        "sha256": "a5749c64812c4f2b0cfb31d1d6c5e9ab743d6a54c88a6e4454cc70e66f822e97"
+        "sha256": "e4dc3982419ad809385a32437a115b8b50f0a84ac81c371ac0de6b6301120a5c"
       },
       {
         "path": "app/server/src/lib/oidc-store.ts",
-        "sha256": "beb667db24005ce5d96e1589efb8e2674f6a8fbf9598166c35208f19c48e9a91"
+        "sha256": "ebdcc8b1874c73708099f48173672f239658a976acefd6383fced72623885a92"
       },
       {
         "path": "app/server/src/lib/password-policy.ts",
@@ -18598,7 +18598,7 @@
       },
       {
         "path": "app/web/shared/lib/mock-api.ts",
-        "sha256": "2b5336d2c9f8d639e062a016ffb7f84abc4e37791f100bc920af6a9a5139d7ac"
+        "sha256": "a130ca6dd84451191afd252a7dffc75ec9adf60dd484c419df6454646d95befc"
       },
       {
         "path": "app/web/shared/lib/mount.tsx",
@@ -19014,11 +19014,11 @@
       },
       {
         "path": "deploy/compose/preview.yml",
-        "sha256": "46780c506bdcca3d58fed0e3040d10d7878c43df50098d782831b3cc3dea7999"
+        "sha256": "8abad3fce4e96075171ef5cad711aa67efeab6cc24dfab842d5f791a7d8060f4"
       },
       {
         "path": "deploy/compose/production.yml",
-        "sha256": "645b7492718b7f0d816ce3052f1787926022f8675fb9041699b3dde134987fb7"
+        "sha256": "4939b08fa2815eea3f7c74db0b12839d7e4c4010d2a258ebc3161f50ebd52486"
       },
       {
         "path": "docs/architecture/API.md",
@@ -19054,7 +19054,7 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "862ed7ce51a16b2cbf63b7e5a9749a603fad8c56a86dab361528977857adda4c"
+        "sha256": "212d36700103294a2eed2e1a02b4839f0b6522944bcb4d2d92478df1f7f03b89"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -19070,11 +19070,11 @@
       },
       {
         "path": "docs/services/cli/README.md",
-        "sha256": "a6fb360eaf77d4ddae95338681b0d3f6efbe95d145a6b45549b093843d1facd1"
+        "sha256": "3b9b6a269fc084592c21acff4fb3e8e0f9fdcc32c9453c5e65a0e75336031a23"
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "87f147958f9d877afba80f2fbc89e3d9b232190b64ea499faa19f5617d3dc304"
+        "sha256": "31d66204ca3070a69013a95c78374f74a807a1f62717ceb966024caa8eaff84c"
       },
       {
         "path": "docs/services/forum/README.md",
@@ -19082,7 +19082,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "a7acd9eee8c5a270cb2400673625c876a4c6bc5fe19184f6699eb828f1453675"
+        "sha256": "234530e3e077583283560b0880884085ef4ec0586958758d1b3e92da85b8470c"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19090,7 +19090,7 @@
       },
       {
         "path": "docs/services/server/data-model.md",
-        "sha256": "baeccc94feb9ec5eec5781ffa3c53a452c8af713dd9144160414e0bcc234be16"
+        "sha256": "7b3ece34f04ea99ff3952339774c7f4a6ae3af897a7945cb72c552fdfab48fed"
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
@@ -19102,11 +19102,11 @@
       },
       {
         "path": "docs/services/server/oidc.md",
-        "sha256": "fc1653cf8b4fd4fcd1bf23561835fe4462a77f29d6f7fe7e63989174244149db"
+        "sha256": "1ef6165b6af613d81a1a4e1c456f229340311eb22e94f49220fa41dbb76fb3cc"
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "b32a867c6eb61cec6474021bb227f2ca2a345f71c9928c3461e1f3eedefe03d9"
+        "sha256": "5eb44311270ee8e628b3df2ad61a771fcf20ed9645129d27183a2cf3937a674c"
       },
       {
         "path": "docs/services/web/portal.md",
@@ -19150,7 +19150,7 @@
       },
       {
         "path": "scripts/contest-site.mjs",
-        "sha256": "b553e0efb4279a937f9a4a9e8c57349eb6a281b1ae37539c3f35df0aa9566e4a"
+        "sha256": "e1de4b1df68a516be781991a1e5d9bb11490a7bc8330f12ffd7ad409f6403d53"
       },
       {
         "path": "scripts/project-catalog.ts",
@@ -19170,7 +19170,7 @@
       },
       {
         "path": "tests/console/authorize.test.ts",
-        "sha256": "d37269ebff1f3ce36cf330108bacd22e9b8c1529a55b2f126ead1f89488e839d"
+        "sha256": "c86ecaaef1468791f8a8000594e72af8afa75eb9977f9dc16c26974ffe2bab1b"
       },
       {
         "path": "tests/console/competition-contest.test.ts",
@@ -19250,7 +19250,7 @@
       },
       {
         "path": "tests/server/competition-candidates.test.ts",
-        "sha256": "aa2f404907199293e99adaa8b90093a1b6567818ef5b7a141d61bc5de08792d9"
+        "sha256": "349dc04f0ca29cfa5c59ded341bb1a369d1a5b0acc08f440b7ee0473ac2cf4b8"
       },
       {
         "path": "tests/server/competition-prizes.test.ts",
@@ -19342,7 +19342,7 @@
       },
       {
         "path": "tests/server/gitlab-sync.test.ts",
-        "sha256": "636f8551ec016272fdd30293e8d2202e9a4ff795a439967e2feffd7607dee5f8"
+        "sha256": "35b3e612f2cb7873365669b14c617492fcb269d5eae6ece642485e7ec6e9c8b4"
       },
       {
         "path": "tests/server/grade.test.ts",
@@ -19386,7 +19386,7 @@
       },
       {
         "path": "tests/server/oidc.test.ts",
-        "sha256": "684810f8411b90798db029701a802295007eb826486fe971d0625e1568ec53ba"
+        "sha256": "5f61cb2db2093ea535c2d35130c0e7ce2665fb031ca3f733d9f383b6955f158e"
       },
       {
         "path": "tests/server/permission-expiry.test.ts",
@@ -19466,7 +19466,7 @@
       },
       {
         "path": "tests/web/portal-code-repos.test.tsx",
-        "sha256": "d6f973c7d06b81d0c6dcb34f7f350647fdccf5ffd139f8639c571d9cc614788f"
+        "sha256": "1805d7324ba63bd7ba684bb9b5f5371d1f0687569f644c5c3948c5b6e5593dc1"
       },
       {
         "path": "tests/web/portal-competition-hub.test.tsx",
@@ -19502,7 +19502,7 @@
       },
       {
         "path": "tests/web/portal-shell.test.ts",
-        "sha256": "0049586fe2f5cf222931bb018b1f476831dca10377444910f95530202b97e888"
+        "sha256": "3f93d98e67073edfe07a02b439a4ba1f3eec7b80595e4096ad776bead26399a5"
       }
     ]
   },
@@ -27515,11 +27515,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27535,7 +27535,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27575,11 +27575,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27595,7 +27595,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27635,11 +27635,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27655,7 +27655,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27695,11 +27695,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27715,7 +27715,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27755,11 +27755,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27775,7 +27775,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27815,11 +27815,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27835,7 +27835,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27875,11 +27875,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27895,7 +27895,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27935,11 +27935,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27955,7 +27955,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -27995,11 +27995,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28015,7 +28015,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28055,11 +28055,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28075,7 +28075,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28115,11 +28115,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28135,7 +28135,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28175,11 +28175,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28195,7 +28195,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28235,11 +28235,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28255,7 +28255,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28295,11 +28295,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28315,7 +28315,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28355,11 +28355,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28375,7 +28375,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28415,11 +28415,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28435,7 +28435,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28499,11 +28499,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28519,7 +28519,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28559,11 +28559,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28579,7 +28579,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28619,11 +28619,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28639,7 +28639,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28679,11 +28679,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28699,7 +28699,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28739,11 +28739,11 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 227,
+          "line": 232,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28759,7 +28759,7 @@
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 655,
+          "line": 660,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -31073,7 +31073,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31101,7 +31101,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31129,7 +31129,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31157,7 +31157,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31185,7 +31185,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31213,7 +31213,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31241,7 +31241,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31269,7 +31269,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31297,7 +31297,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31325,7 +31325,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31353,7 +31353,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31381,7 +31381,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31433,7 +31433,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31461,7 +31461,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31489,7 +31489,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31517,7 +31517,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -31545,7 +31545,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -44973,7 +44973,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45009,7 +45009,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45045,7 +45045,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45081,7 +45081,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45117,7 +45117,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45153,7 +45153,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45189,7 +45189,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45225,7 +45225,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45279,7 +45279,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45315,7 +45315,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45351,7 +45351,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -45387,7 +45387,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47855,7 +47855,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -47887,7 +47887,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -47919,7 +47919,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -47951,7 +47951,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -47983,7 +47983,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48015,7 +48015,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48047,7 +48047,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48079,7 +48079,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48111,7 +48111,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48143,7 +48143,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48175,7 +48175,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48225,7 +48225,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48257,7 +48257,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -48289,7 +48289,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1185,
+          "line": 1186,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -70981,7 +70981,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71021,7 +71021,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71061,7 +71061,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71101,7 +71101,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71141,7 +71141,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71181,7 +71181,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71221,7 +71221,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71261,7 +71261,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71313,7 +71313,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71353,7 +71353,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 84,
+          "line": 85,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71415,7 +71415,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71427,7 +71427,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71435,11 +71435,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71463,7 +71463,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71475,7 +71475,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71483,11 +71483,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71511,7 +71511,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71523,7 +71523,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71531,11 +71531,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71559,7 +71559,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71571,7 +71571,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71579,11 +71579,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71607,7 +71607,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71619,7 +71619,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71627,11 +71627,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71655,7 +71655,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71667,7 +71667,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71675,11 +71675,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71703,7 +71703,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71715,7 +71715,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71723,11 +71723,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71751,7 +71751,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71763,7 +71763,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71771,11 +71771,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71799,7 +71799,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71811,7 +71811,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71819,11 +71819,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71847,7 +71847,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71859,7 +71859,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71867,11 +71867,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71919,7 +71919,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71931,7 +71931,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71939,11 +71939,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -71967,7 +71967,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -71979,7 +71979,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -71987,11 +71987,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72015,7 +72015,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -72027,7 +72027,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -72035,11 +72035,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72063,7 +72063,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -72075,7 +72075,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -72083,11 +72083,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72111,7 +72111,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -72123,7 +72123,7 @@
           "path": "app/console/src/pages/gitlab/Accounts.vue"
         },
         {
-          "line": 80,
+          "line": 81,
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
@@ -72131,11 +72131,11 @@
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 417,
+          "line": 422,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 121,
+          "line": 126,
           "path": "app/server/src/lib/gitlab-sync.ts"
         }
       ],
@@ -72241,7 +72241,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72269,7 +72269,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72297,7 +72297,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72325,7 +72325,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72353,7 +72353,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72381,7 +72381,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72415,7 +72415,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -72443,7 +72443,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 719,
+          "line": 724,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73065,7 +73065,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73089,7 +73089,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73113,7 +73113,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73137,7 +73137,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73161,7 +73161,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73191,7 +73191,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73215,7 +73215,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73239,7 +73239,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 760,
+          "line": 765,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73293,11 +73293,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73321,11 +73321,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73349,11 +73349,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73377,11 +73377,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73405,11 +73405,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73433,11 +73433,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73461,11 +73461,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73495,11 +73495,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -73523,11 +73523,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 702,
+          "line": 707,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 696,
+          "line": 701,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75653,7 +75653,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75705,7 +75705,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75775,7 +75775,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75827,7 +75827,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75879,7 +75879,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75931,7 +75931,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -75983,7 +75983,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76035,7 +76035,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76087,7 +76087,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76139,7 +76139,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1229,
+          "line": 1232,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76239,7 +76239,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76371,7 +76371,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76503,7 +76503,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76635,7 +76635,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76767,7 +76767,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -76899,7 +76899,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -77031,7 +77031,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -77163,7 +77163,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -77379,7 +77379,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -77511,7 +77511,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -77643,7 +77643,7 @@
           "path": "app/server/src/lib/auth.ts"
         },
         {
-          "line": 732,
+          "line": 733,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82117,7 +82117,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82125,7 +82125,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82161,7 +82161,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82169,7 +82169,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82205,7 +82205,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82213,7 +82213,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82249,7 +82249,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82257,7 +82257,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82293,7 +82293,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82301,7 +82301,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82337,7 +82337,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82345,7 +82345,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82381,7 +82381,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82389,7 +82389,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82425,7 +82425,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82433,7 +82433,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82481,7 +82481,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82489,7 +82489,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82525,7 +82525,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82533,7 +82533,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82569,7 +82569,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82577,7 +82577,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82613,7 +82613,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         },
         {
@@ -82621,7 +82621,7 @@
           "path": "app/server/src/lib/account-directory.ts"
         },
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -82693,7 +82693,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82713,7 +82713,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82733,7 +82733,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82753,7 +82753,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82773,7 +82773,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82793,7 +82793,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82813,7 +82813,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82839,7 +82839,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82859,7 +82859,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82879,7 +82879,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -82899,7 +82899,7 @@
           "path": "app/server/src/lib/oidc-provider.ts"
         },
         {
-          "line": 52,
+          "line": 57,
           "path": "app/server/src/lib/oidc-store.ts"
         }
       ],
@@ -83809,7 +83809,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 975,
+          "line": 976,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -83911,7 +83911,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 975,
+          "line": 976,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -89269,7 +89269,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 822,
+          "line": 823,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89287,7 +89287,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 812,
+          "line": 813,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89299,7 +89299,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 812,
+          "line": 813,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89317,7 +89317,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 836,
+          "line": 837,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89437,7 +89437,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1144,
+          "line": 1145,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89449,7 +89449,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1144,
+          "line": 1145,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89461,7 +89461,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1144,
+          "line": 1145,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89479,7 +89479,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1098,
+          "line": 1099,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89491,7 +89491,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1098,
+          "line": 1099,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89509,7 +89509,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89521,7 +89521,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89533,7 +89533,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89545,7 +89545,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1151,
+          "line": 1152,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89563,7 +89563,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1135,
+          "line": 1136,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89575,7 +89575,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1135,
+          "line": 1136,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89593,7 +89593,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89605,7 +89605,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89617,7 +89617,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89629,7 +89629,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1107,
+          "line": 1108,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89647,7 +89647,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 628,
+          "line": 629,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89659,7 +89659,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 628,
+          "line": 629,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89671,7 +89671,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 628,
+          "line": 629,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89683,7 +89683,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 628,
+          "line": 629,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89695,7 +89695,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 628,
+          "line": 629,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89713,7 +89713,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 561,
+          "line": 562,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89725,7 +89725,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 561,
+          "line": 562,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89737,7 +89737,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 561,
+          "line": 562,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89755,7 +89755,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 575,
+          "line": 576,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89767,7 +89767,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 575,
+          "line": 576,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89779,7 +89779,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 575,
+          "line": 576,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89797,7 +89797,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89809,7 +89809,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1076,
+          "line": 1077,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89827,7 +89827,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1090,
+          "line": 1091,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89839,7 +89839,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1090,
+          "line": 1091,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89851,7 +89851,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1090,
+          "line": 1091,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89869,7 +89869,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89881,7 +89881,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89893,7 +89893,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89905,7 +89905,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89917,7 +89917,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89929,7 +89929,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 606,
+          "line": 607,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89947,7 +89947,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 589,
+          "line": 590,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89959,7 +89959,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 589,
+          "line": 590,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -89971,7 +89971,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 589,
+          "line": 590,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90061,7 +90061,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 684,
+          "line": 685,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90073,7 +90073,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 684,
+          "line": 685,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90169,7 +90169,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 918,
+          "line": 919,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90391,7 +90391,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 952,
+          "line": 953,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90403,7 +90403,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 952,
+          "line": 953,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90415,7 +90415,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 952,
+          "line": 953,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90427,7 +90427,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 952,
+          "line": 953,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90445,7 +90445,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 934,
+          "line": 935,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90463,7 +90463,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 925,
+          "line": 926,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90481,7 +90481,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 941,
+          "line": 942,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90493,7 +90493,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 941,
+          "line": 942,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90505,7 +90505,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 941,
+          "line": 942,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90601,7 +90601,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 962,
+          "line": 963,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90613,7 +90613,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 962,
+          "line": 963,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90673,7 +90673,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90685,7 +90685,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 542,
+          "line": 543,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90799,7 +90799,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 671,
+          "line": 672,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90835,7 +90835,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 857,
+          "line": 858,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90871,7 +90871,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 975,
+          "line": 976,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90889,7 +90889,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 495,
+          "line": 496,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90907,7 +90907,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 514,
+          "line": 515,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90919,7 +90919,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 514,
+          "line": 515,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90931,7 +90931,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 514,
+          "line": 515,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90949,7 +90949,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 505,
+          "line": 506,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90961,7 +90961,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 505,
+          "line": 506,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90979,7 +90979,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 522,
+          "line": 523,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -90997,7 +90997,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 769,
+          "line": 770,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91015,7 +91015,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 763,
+          "line": 764,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91027,7 +91027,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 763,
+          "line": 764,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91039,7 +91039,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 763,
+          "line": 764,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91057,7 +91057,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 748,
+          "line": 749,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91075,7 +91075,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 785,
+          "line": 786,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91087,7 +91087,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 785,
+          "line": 786,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91099,7 +91099,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 785,
+          "line": 786,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91117,7 +91117,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 739,
+          "line": 740,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91135,7 +91135,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 803,
+          "line": 804,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -91153,7 +91153,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 795,
+          "line": 796,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -138009,7 +138009,7 @@
       "name": "account_avatars",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 822,
+        "line": 823,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE account_avatars (\n  hash TEXT PRIMARY KEY,\n  data BLOB NOT NULL,\n  mime TEXT NOT NULL,\n  created_at INTEGER NOT NULL\n)"
@@ -138168,7 +138168,7 @@
       "name": "account_profiles",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 812,
+        "line": 813,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE account_profiles (\n  account_id TEXT PRIMARY KEY REFERENCES users(id),\n  username TEXT UNIQUE COLLATE NOCASE,\n  display_name TEXT NOT NULL DEFAULT '',\n  bio TEXT NOT NULL DEFAULT '',\n  avatar_hash TEXT,\n  prefs TEXT NOT NULL DEFAULT '{}',\n  updated_at INTEGER NOT NULL\n, real_name TEXT, enrollment_year INTEGER)"
@@ -138459,7 +138459,7 @@
       "name": "activity_events",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 836,
+        "line": 837,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE activity_events (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  at INTEGER NOT NULL,\n  account_id TEXT,\n  visitor_id TEXT,\n  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system')),\n  action TEXT NOT NULL,\n  target_type TEXT,\n  target_id TEXT,\n  outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'denied', 'limited', 'error')),\n  ip TEXT,\n  ua TEXT,\n  request_id TEXT,\n  meta TEXT NOT NULL DEFAULT '{}'\n)"
@@ -139223,7 +139223,7 @@
       "name": "competition_finals",
       "note": "定榜：一场一行，standings 是定榜那一刻的严格名次快照，之后加分、撤销都不再改它；撤销定榜删行。只有 lib/competition-prizes.ts 读写。",
       "source": {
-        "line": 1144,
+        "line": 1145,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_finals (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  finalized_at INTEGER NOT NULL,\n  finalized_by TEXT NOT NULL REFERENCES users(id),\n  standings TEXT NOT NULL\n)"
@@ -139302,7 +139302,7 @@
       "name": "competition_gitlab_sources",
       "note": "比赛从哪些 GitLab 项目收集贡献，控制台「计分与奖项」整份替换；没有行的比赛不收集。由 lib/competition-rules-store.ts 写，收集任务读。",
       "source": {
-        "line": 1098,
+        "line": 1099,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_gitlab_sources (\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  project_path TEXT NOT NULL,\n  PRIMARY KEY (competition_id, project_path)\n)"
@@ -139550,7 +139550,7 @@
       "name": "competition_prizes",
       "note": "定榜时给每个得奖的人一行：兑奖码只存 SHA-256 散列、AES-GCM 密文与末四位，不存明文；核销只改 redeemed_at/redeemed_by；公开接口从不返回这三列。只有 lib/competition-prizes.ts 读写。",
       "source": {
-        "line": 1151,
+        "line": 1152,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_prizes (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  rank INTEGER NOT NULL,\n  points INTEGER NOT NULL,\n  amount_cny INTEGER NOT NULL,\n  title TEXT NOT NULL DEFAULT '',\n  code_hash TEXT NOT NULL UNIQUE,\n  code_cipher TEXT NOT NULL,\n  code_hint TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  redeemed_at INTEGER,\n  redeemed_by TEXT REFERENCES users(id),\n  UNIQUE (competition_id, account_id)\n)"
@@ -139648,7 +139648,7 @@
       "name": "competition_rules",
       "note": "比赛的计分规则：年级系数（百分数，150 = 1.5）与可选奖项 JSON；没有行用默认系数、没有奖项；定榜后不能改。只有 lib/competition-rules-store.ts 读写。",
       "source": {
-        "line": 1135,
+        "line": 1136,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_rules (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  grade_factors TEXT NOT NULL,\n  prizes TEXT NOT NULL DEFAULT '[]',\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -140025,7 +140025,7 @@
       "name": "competition_score_candidates",
       "note": "GitLab 收来的候选贡献（合并的 MR、带「有用」标签或被 MR 关闭的 Issue）：唯一约束挡住重复收集；accepted_via 区分 GitLab 标签与控制台确认；状态变化只改列，不删行。只有 lib/competition-candidates.ts 读写。",
       "source": {
-        "line": 1107,
+        "line": 1108,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_score_candidates (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  kind TEXT NOT NULL CHECK (kind IN ('pr', 'issue')),\n  gitlab_project TEXT NOT NULL,\n  gitlab_iid INTEGER NOT NULL,\n  url TEXT NOT NULL,\n  title TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),\n  reviewed_by TEXT REFERENCES users(id),\n  reviewed_at INTEGER,\n  importance TEXT CHECK (importance IS NULL OR importance IN ('normal', 'important', 'critical')),\n  core TEXT CHECK (core IS NULL OR core IN ('edge', 'business', 'core')),\n  final_points INTEGER,\n  reason TEXT,\n  score_event_id TEXT,\n  accepted_via TEXT CHECK (accepted_via IS NULL OR accepted_via IN ('label', 'console')),\n  note TEXT,\n  contributed_at INTEGER NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  UNIQUE (competition_id, kind, gitlab_project, gitlab_iid)\n)"
@@ -140412,7 +140412,7 @@
       "name": "competition_score_events",
       "note": "积分账本：issue/pr 带仓库与编号并按 CHECK 限分（5–30、15–100），penalty 固定 −50 且不带仓库编号；撤销只改 status 为 revoked 并记撤销人与原因，不删行；唯一索引防止同一条 Issue/PR 重复记分。只有 lib/competition-score-store.ts 读写。",
       "source": {
-        "line": 628,
+        "line": 629,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_score_events (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  kind TEXT NOT NULL CHECK (kind IN ('issue', 'pr', 'penalty')),\n  repo TEXT,\n  number INTEGER,\n  points INTEGER NOT NULL,\n  reason TEXT NOT NULL DEFAULT '',\n  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),\n  created_by TEXT NOT NULL REFERENCES users(id),\n  created_at INTEGER NOT NULL,\n  revoked_by TEXT REFERENCES users(id),\n  revoked_at INTEGER,\n  revoke_reason TEXT, grade TEXT, grade_factor INTEGER, weighted_points INTEGER, importance TEXT, core TEXT, damp_percent INTEGER, contributed_at INTEGER,\n  CHECK ((kind = 'issue' AND points BETWEEN 5 AND 30)\n      OR (kind = 'pr' AND points BETWEEN 15 AND 100)\n      OR (kind = 'penalty' AND points = -50))\n)"
@@ -140547,7 +140547,7 @@
       "name": "competition_signup_settings",
       "note": "每场一行；没有行就是未开放报名（默认个人赛、不计分）。enabled、participation、team_min/team_max（团队赛才有，1–20）、scoring（none / contribution）由控制台整体写入；更新人 updated_by 是操作人的极客班账号，系统种子为 NULL。只有 lib/competition-signup-store.ts 读写。",
       "source": {
-        "line": 561,
+        "line": 562,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_signup_settings (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),\n  participation TEXT NOT NULL CHECK (participation IN ('individual', 'team')),\n  team_min INTEGER,\n  team_max INTEGER,\n  scoring TEXT NOT NULL DEFAULT 'none' CHECK (scoring IN ('none', 'contribution')),\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT REFERENCES users(id),\n  CHECK ((participation = 'individual' AND team_min IS NULL AND team_max IS NULL)\n      OR (participation = 'team' AND team_min IS NOT NULL AND team_max IS NOT NULL\n          AND team_min BETWEEN 1 AND 20 AND team_max BETWEEN team_min AND 20))\n)"
@@ -140749,7 +140749,7 @@
       "name": "competition_signups",
       "note": "一人一场一行（UNIQUE(competition_id, account_id)），status 只取 active/cancelled，取消保留行与时间；note ≤200 字，成员可见，填写处提示不要写联系方式；looking_for_team 只在团队赛生效。身份键是会话里的 account_id，不按 GitHub 登录名。只有 lib/competition-signup-store.ts 读写。",
       "source": {
-        "line": 575,
+        "line": 576,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_signups (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  status TEXT NOT NULL CHECK (status IN ('active', 'cancelled')),\n  looking_for_team INTEGER NOT NULL DEFAULT 0 CHECK (looking_for_team IN (0, 1)),\n  note TEXT NOT NULL DEFAULT '' CHECK (length(note) <= 200),\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  cancelled_at INTEGER,\n  UNIQUE (competition_id, account_id)\n)"
@@ -140925,7 +140925,7 @@
       "name": "competition_site_versions",
       "note": "比赛官网站点包的版本：一次上传一行，通过（passed）或拒绝（rejected）都留，report 是逐条校验结果；拒绝的版本不落文件。文件本身在数据库旁边的 sites/<competition_id>/<version_id>/，不进库。只有 lib/competition-site-store.ts 读写。",
       "source": {
-        "line": 1076,
+        "line": 1077,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_site_versions (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  version TEXT NOT NULL,\n  size INTEGER NOT NULL,\n  files INTEGER NOT NULL,\n  sha256 TEXT NOT NULL,\n  uploaded_by TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  status TEXT NOT NULL CHECK (status IN ('passed', 'rejected')),\n  report TEXT NOT NULL\n)"
@@ -141058,7 +141058,7 @@
       "name": "competition_sites",
       "note": "比赛官网的发布状态：一场一行，slug 唯一且第一次发布后不能改，live_version_id 为空即已下线（版本与 slug 保留）。只有 lib/competition-site-store.ts 读写。",
       "source": {
-        "line": 1090,
+        "line": 1091,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_sites (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  slug TEXT NOT NULL UNIQUE,\n  live_version_id TEXT REFERENCES competition_site_versions(id),\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -141391,7 +141391,7 @@
       "name": "competition_team_members",
       "note": "在队成员与待处理的申请、邀请同一张表：status 取 applied/invited/active/declined/withdrawn/left/removed/disbanded；两个部分唯一索引分别保证一人一队和同一队伍对同一人只有一条待处理记录。message ≤100 字，只给队伍领队与当事人看。只有 lib/competition-signup-store.ts 读写。",
       "source": {
-        "line": 606,
+        "line": 607,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_team_members (\n  id TEXT PRIMARY KEY,\n  team_id TEXT NOT NULL REFERENCES competition_teams(id) ON DELETE CASCADE,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  role TEXT NOT NULL CHECK (role IN ('leader', 'member')),\n  status TEXT NOT NULL CHECK (status IN\n    ('applied', 'invited', 'active', 'declined', 'withdrawn', 'left', 'removed', 'disbanded')),\n  message TEXT NOT NULL DEFAULT '' CHECK (length(message) <= 100),\n  created_by TEXT NOT NULL REFERENCES users(id),\n  decided_by TEXT REFERENCES users(id),\n  created_at INTEGER NOT NULL,\n  decided_at INTEGER,\n  updated_at INTEGER NOT NULL\n)"
@@ -141655,7 +141655,7 @@
       "name": "competition_teams",
       "note": "队伍事实：name_key 是 trim + NFKC + 小写后的查重键，唯一索引只约束未解散的队伍；status 只改 recruiting/locked/disbanded 并记时间，不物理删除；leader_account_id 指向极客班账号。只有 lib/competition-signup-store.ts 读写。",
       "source": {
-        "line": 589,
+        "line": 590,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_teams (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  name TEXT NOT NULL,\n  name_key TEXT NOT NULL,\n  slogan TEXT NOT NULL DEFAULT '',\n  leader_account_id TEXT NOT NULL REFERENCES users(id),\n  status TEXT NOT NULL CHECK (status IN ('recruiting', 'locked', 'disbanded')),\n  locked_at INTEGER,\n  disbanded_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, plaza_recruiting INTEGER NOT NULL DEFAULT 0 CHECK (plaza_recruiting IN (0, 1)), plaza_note TEXT NOT NULL DEFAULT '', plaza_skills TEXT NOT NULL DEFAULT '[]', plaza_updated_at INTEGER)"
@@ -142552,7 +142552,7 @@
       "name": "email_challenges",
       "note": "邮箱验证码（#262）：一行是一次发码，只存验证码的 HMAC（密钥由 SESSION_SECRET 派生）、按邮箱的限流键和按 IP 前缀的 HMAC，不存验证码原文和 IP；10 分钟过期、最多试 5 次，用过写 used_at；过期一小时后由会话清理一起删除。只有 lib/email-login.ts 读写，目录不读取记录。",
       "source": {
-        "line": 684,
+        "line": 685,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE email_challenges (\n  id TEXT PRIMARY KEY,\n  purpose TEXT NOT NULL CHECK (purpose IN ('signin', 'link')),\n  email TEXT NOT NULL,\n  limit_key TEXT NOT NULL,\n  account_id TEXT REFERENCES users(id),\n  session_hash TEXT,\n  return_to TEXT,\n  code_hmac TEXT NOT NULL,\n  attempts INTEGER NOT NULL DEFAULT 0,\n  ip_key TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  used_at INTEGER,\n  CHECK (purpose = 'signin' OR (account_id IS NOT NULL AND session_hash IS NOT NULL))\n)"
@@ -142999,7 +142999,7 @@
       "name": "forum_category_settings",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 918,
+        "line": 919,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_category_settings (\n  category_id TEXT PRIMARY KEY,\n  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'registered', 'member')),\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -143884,7 +143884,7 @@
       "name": "forum_reactions",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 952,
+        "line": 953,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_reactions (\n  post_id TEXT NOT NULL REFERENCES forum_posts(id),\n  account_id TEXT NOT NULL REFERENCES users(id),\n  sticker_id TEXT NOT NULL REFERENCES forum_stickers(id),\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (post_id, account_id, sticker_id)\n)"
@@ -143962,7 +143962,7 @@
       "name": "forum_sticker_files",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 934,
+        "line": 935,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_sticker_files (\n  hash TEXT PRIMARY KEY,\n  mime TEXT NOT NULL,\n  bytes BLOB NOT NULL,\n  created_at INTEGER NOT NULL\n)"
@@ -144049,7 +144049,7 @@
       "name": "forum_sticker_packs",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 925,
+        "line": 926,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_sticker_packs (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  sort INTEGER NOT NULL DEFAULT 0,\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),\n  created_at INTEGER NOT NULL\n)"
@@ -144233,7 +144233,7 @@
       "name": "forum_stickers",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 941,
+        "line": 942,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_stickers (\n  id TEXT PRIMARY KEY,\n  pack_id TEXT NOT NULL REFERENCES forum_sticker_packs(id),\n  shortcode TEXT NOT NULL UNIQUE,\n  label TEXT NOT NULL,\n  file_hash TEXT NOT NULL REFERENCES forum_sticker_files(hash),\n  sort INTEGER NOT NULL DEFAULT 0,\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1))\n)"
@@ -144777,7 +144777,7 @@
       "name": "forum_upload_files",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 962,
+        "line": 963,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_upload_files (\n  hash TEXT PRIMARY KEY,\n  mime TEXT NOT NULL,\n  bytes BLOB NOT NULL,\n  width INTEGER NOT NULL,\n  height INTEGER NOT NULL,\n  uploaded_by TEXT REFERENCES users(id),\n  created_at INTEGER NOT NULL\n)"
@@ -145306,7 +145306,7 @@
       "name": "gitlab_accounts",
       "note": "极客班账号在自建 GitLab 上的用户（#270）：用户名在第一次同步时定下、之后不改（大小写不敏感唯一），state 只取 pending/active/blocked，从不删除；avatar_source 是传上去的头像来自哪里（forum:<散列> 或 GitHub 头像地址，#271），空是还没传过；emails_source 是上次同步过去的邮箱（JSON：主邮箱与其它邮箱，#272），空是还没同步过；last_error 只存错误代码。只有 lib/gitlab-sync.ts 读写。",
       "source": {
-        "line": 542,
+        "line": 543,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE gitlab_accounts (\n  account_id TEXT PRIMARY KEY REFERENCES users(id),\n  gitlab_user_id INTEGER UNIQUE,\n  username TEXT NOT NULL UNIQUE COLLATE NOCASE,\n  state TEXT NOT NULL CHECK (state IN ('pending','active','blocked')),\n  access_level INTEGER,\n  last_error TEXT,\n  last_error_at INTEGER,\n  synced_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, avatar_source TEXT, emails_source TEXT)"
@@ -146150,7 +146150,7 @@
       "name": "invite_codes",
       "note": "注册邀请码（#262）：code 存小写明文（要能在控制台里复制给人），used_count 由注册事务里的条件更新加一，max_uses、expires_at 为空表示不限；不删，停用用 disabled。users.invite_code_id 记着账号是用哪一个注册的。只有 lib/invite-codes.ts 与 lib/identity-store.ts 读写。",
       "source": {
-        "line": 671,
+        "line": 672,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE invite_codes (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  code TEXT NOT NULL UNIQUE,\n  note TEXT NOT NULL DEFAULT '',\n  max_uses INTEGER CHECK (max_uses IS NULL OR max_uses > 0),\n  used_count INTEGER NOT NULL DEFAULT 0,\n  expires_at INTEGER,\n  disabled INTEGER NOT NULL DEFAULT 0 CHECK (disabled IN (0, 1)),\n  created_by TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
@@ -146426,7 +146426,7 @@
       "name": "limit_events",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 857,
+        "line": 858,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE limit_events (\n  bucket TEXT NOT NULL,\n  subject TEXT NOT NULL,\n  at INTEGER NOT NULL\n)"
@@ -147101,7 +147101,7 @@
       "name": "mail_templates",
       "note": "招聘邮件的模板文字（主题、抬头、正文块、按钮、落款），不含任何投递人的信息；每类信有且只有一套默认，种子来自代码里的内置默认。改模板不影响已入队的信，信在入队时已渲染成成品。",
       "source": {
-        "line": 975,
+        "line": 976,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE mail_templates (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  kind TEXT NOT NULL CHECK (kind IN ('received','interview','accepted','rejected')),\n  subject TEXT NOT NULL,\n  preheader TEXT NOT NULL DEFAULT '',\n  kicker TEXT NOT NULL DEFAULT '',\n  greeting TEXT NOT NULL DEFAULT '{{称呼}}',\n  blocks TEXT NOT NULL,\n  button_label TEXT,\n  button_path TEXT,\n  footer TEXT NOT NULL DEFAULT '[]',\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),\n  is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),\n  created_by TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_by TEXT NOT NULL,\n  updated_at INTEGER NOT NULL,\n  CHECK ((button_label IS NULL) = (button_path IS NULL)),\n  CHECK (is_default = 0 OR enabled = 1)\n)"
@@ -147170,6 +147170,15 @@
           "notnull": 1,
           "pk": 0,
           "type": "INTEGER"
+        },
+        {
+          "cid": 7,
+          "dflt_value": null,
+          "hidden": 0,
+          "name": "sector_id",
+          "notnull": 0,
+          "pk": 0,
+          "type": "TEXT"
         }
       ],
       "database": "data.db",
@@ -147206,10 +147215,10 @@
       "name": "oauth_clients",
       "note": "对外授权登记的下游应用（#270）：回调地址必须同一个主机（就是 sector），secret 只存 AES-256-GCM 密文；停用用 status，不删。只有 lib/oidc-store.ts 读写，客户端只能用 cli/oidc.ts 登记。目录不读取记录。",
       "source": {
-        "line": 495,
+        "line": 496,
         "path": "app/server/src/lib/db.ts"
       },
-      "sql": "CREATE TABLE oauth_clients (\n  client_id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  secret_encrypted TEXT NOT NULL,\n  redirect_uris TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
+      "sql": "CREATE TABLE oauth_clients (\n  client_id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  secret_encrypted TEXT NOT NULL,\n  redirect_uris TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, sector_id TEXT)"
     },
     {
       "columns": [
@@ -147313,7 +147322,7 @@
       "name": "oauth_grants",
       "note": "本人允许过的 (账号, 应用) → oidc-provider 的授权 id：之后同一应用登录不再问。授权被撤销（例如授权码重放）后这一行指向的授权不存在，下次登录重新同意并覆盖。只有 lib/oidc-store.ts 读写。",
       "source": {
-        "line": 514,
+        "line": 515,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE oauth_grants (\n  user_id TEXT NOT NULL REFERENCES users(id),\n  client_id TEXT NOT NULL REFERENCES oauth_clients(client_id),\n  grant_id TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (user_id, client_id)\n)"
@@ -147443,7 +147452,7 @@
       "name": "oauth_subjects",
       "note": "下游看到的 sub（ADR-0005 决策 3）：按 sector 给每个账号一个 32 字节随机值，(sector_id,user_id) 与 (sector_id,sub) 都唯一，不随登录或换签名密钥变化；内部 account_id 不下发。只有 lib/oidc-store.ts 读写。",
       "source": {
-        "line": 505,
+        "line": 506,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE oauth_subjects (\n  sector_id TEXT NOT NULL,\n  user_id TEXT NOT NULL REFERENCES users(id),\n  sub TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (sector_id, user_id),\n  UNIQUE (sector_id, sub)\n)"
@@ -147681,7 +147690,7 @@
       "name": "oidc_payloads",
       "note": "oidc-provider 的存储（会话、交互、授权码、访问令牌、授权）：payload 是它的 JSON，按 expires_at 过期，每小时顺手清一次过期行；令牌与授权码只在这里，不进日志。只有 lib/oidc-store.ts 读写，目录不读取记录。",
       "source": {
-        "line": 522,
+        "line": 523,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE oidc_payloads (\n  model TEXT NOT NULL,\n  id TEXT NOT NULL,\n  payload TEXT NOT NULL,\n  grant_id TEXT,\n  uid TEXT,\n  user_code TEXT,\n  expires_at INTEGER,\n  consumed_at INTEGER,\n  PRIMARY KEY (model, id)\n)"
@@ -147846,7 +147855,7 @@
       "name": "perm_entries",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 769,
+        "line": 770,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_entries (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  subject_type TEXT NOT NULL CHECK (subject_type IN ('group', 'account')),\n  subject_id TEXT NOT NULL,\n  node TEXT NOT NULL,\n  value INTEGER CHECK (value IS NULL OR value IN (0, 1)),\n  meta_value TEXT,\n  scope TEXT NOT NULL DEFAULT '{}',\n  expires_at INTEGER,\n  granted_by TEXT NOT NULL DEFAULT '',\n  created_at INTEGER NOT NULL,\n  CHECK ((value IS NULL) <> (meta_value IS NULL))\n)"
@@ -147935,7 +147944,7 @@
       "name": "perm_group_parents",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 763,
+        "line": 764,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_group_parents (\n  group_id TEXT NOT NULL REFERENCES perm_groups(id) ON DELETE CASCADE,\n  parent_id TEXT NOT NULL REFERENCES perm_groups(id) ON DELETE CASCADE,\n  PRIMARY KEY (group_id, parent_id)\n)"
@@ -148085,7 +148094,7 @@
       "name": "perm_groups",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 748,
+        "line": 749,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_groups (\n  id TEXT PRIMARY KEY,\n  kind TEXT NOT NULL CHECK (kind IN ('level', 'department', 'title', 'custom')),\n  name TEXT NOT NULL,\n  description TEXT NOT NULL DEFAULT '',\n  weight INTEGER NOT NULL DEFAULT 0,\n  department_id TEXT,\n  icon TEXT,\n  tone TEXT,\n  sort INTEGER NOT NULL DEFAULT 0,\n  system INTEGER NOT NULL DEFAULT 0 CHECK (system IN (0, 1)),\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
@@ -148226,7 +148235,7 @@
       "name": "perm_members",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 785,
+        "line": 786,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_members (\n  account_id TEXT NOT NULL REFERENCES users(id),\n  group_id TEXT NOT NULL REFERENCES perm_groups(id),\n  expires_at INTEGER,\n  granted_by TEXT NOT NULL DEFAULT '',\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (account_id, group_id)\n)"
@@ -148322,7 +148331,7 @@
       "name": "perm_nodes",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 739,
+        "line": 740,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_nodes (\n  node TEXT PRIMARY KEY,\n  domain TEXT NOT NULL,\n  label TEXT NOT NULL,\n  description TEXT NOT NULL DEFAULT '',\n  meta INTEGER NOT NULL DEFAULT 0 CHECK (meta IN (0, 1)),\n  sort INTEGER NOT NULL DEFAULT 0\n)"
@@ -148382,7 +148391,7 @@
       "name": "perm_seed_applied",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 803,
+        "line": 804,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_seed_applied (\n  key TEXT PRIMARY KEY,\n  applied_at INTEGER NOT NULL\n)"
@@ -148442,7 +148451,7 @@
       "name": "perm_state",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 795,
+        "line": 796,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE perm_state (\n  key TEXT PRIMARY KEY,\n  value INTEGER NOT NULL\n)"

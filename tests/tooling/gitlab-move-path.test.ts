@@ -78,13 +78,13 @@ describe('move-path.sh（#335）', () => {
     expect(dry.calls()).toEqual(['arch move-production-path', 'edge production-plan']);
   });
 
-  it('moves Arch, then the edge, verifies in public, and only then removes the old callback', () => {
+  it('moves Arch, then the edge, verifies in public, checks the members, and only then removes the old callback', () => {
     const f = fixture();
     const result = f.run(['move', ...base, '--apply']);
     expect(result.status, result.stderr).toBe(0);
     expect(f.calls()).toEqual([
       'arch move-production-path --apply', 'edge production-apply', ...VERIFY,
-      expect.stringMatching(/^curl https:\/\/site\.example\.test\/oidc\/auth\?/), 'arch finish-production-path --apply',
+      expect.stringMatching(/^curl https:\/\/site\.example\.test\/oidc\/auth\?/), 'arch check-production-path', 'arch finish-production-path --apply',
     ]);
     expect(result.stdout).toContain('新地址登录页：HTTP 200');
     expect(result.stdout).toContain('旧地址：HTTP 301，跳到新地址的同一路径');
@@ -105,6 +105,15 @@ describe('move-path.sh（#335）', () => {
     expect(result.stderr).toContain('公网核对未通过，已恢复原地址');
     expect(f.calls().slice(0, 2)).toEqual(['arch move-production-path --apply', 'edge production-apply']);
     expect(f.calls().slice(-2)).toEqual(RESTORE);
+    expect(f.calls()).not.toContain('arch finish-production-path --apply');
+  });
+
+  it('restores both halves when the members check fails (a sub changed or GitLab got an account nobody owns)', () => {
+    const f = fixture();
+    const result = f.run(['move', ...base, '--apply'], { FAIL_ARCH: 'check-production-path' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('账号核对未通过，已整批恢复原地址');
+    expect(f.calls().slice(-3)).toEqual(['arch check-production-path', ...RESTORE]);
     expect(f.calls()).not.toContain('arch finish-production-path --apply');
   });
 
@@ -155,6 +164,17 @@ describe('move-path.sh（#335）', () => {
     args[args.indexOf(flag) + 1] = value;
     expect(f.run(['move', ...args, '--apply']).status).toBe(1);
     expect(f.calls()).toEqual([]);
+  });
+
+  it('the GitLab compose template rotates container logs with the same json-file values as both site stacks', () => {
+    const logging = (file: string) => [...readFileSync(resolve(file), 'utf8').matchAll(/^ {4}logging:\n {6}driver: (\S+)\n {6}options:\n {8}max-size: "([^"]+)"\n {8}max-file: "([^"]+)"\n/gm)].map(match => match.slice(1));
+    const gitlab = logging('deploy/gitlab/docker-compose.yml');
+    expect(gitlab).toEqual([['json-file', '10m', '3']]);
+    for (const stack of ['deploy/compose/production.yml', 'deploy/compose/preview.yml']) {
+      const values = logging(stack);
+      expect(values.length).toBeGreaterThan(0);
+      for (const value of values) expect(value).toEqual(gitlab[0]);
+    }
   });
 
   it('gitlab-cutover.yml sends the three steps to move-path.sh with the template values and keeps them out of cutover.sh', () => {

@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 335,
   "kind": "business",
-  "summary": "正式 GitLab 和预发布一样放到本环境入口的 /gitlab 下，旧子域名只做 301，仓库里除登记项外不再写子域名。oidc 客户端钉住 sector（oauth_clients.sector_id），GitLab 换地址成员的 sub 不变；gitlab-cutover 增加 path-status / move-production-path / rollback-production-path，先备份、先加新回调、核对全过才去旧回调，失败两半都恢复；check-env-isolation 新增子域名登记门禁。",
+  "summary": "正式 GitLab 和预发布一样放到本环境入口的 /gitlab 下，旧子域名只做 301，仓库里除登记项外不再写子域名。走 #335 的 P0 热修复窗口（v0.1.1，基线 main）。oidc 客户端钉住 sector（oauth_clients.sector_id），GitLab 换地址成员的 sub 不变；gitlab-cutover 增加 path-status / move-production-path / rollback-production-path，只改正式库，先确认正式 server 认得 sector 钉住，先备份、记账号基线、先加新回调，公网核对与账号核对全过才去旧回调，失败两半都恢复；GitLab 容器日志轮转与站点栈一致；check-env-isolation 新增子域名登记门禁。",
   "applications": [
     "server",
     "console",
@@ -54,7 +54,7 @@
     },
     "backend": {
       "status": "changed",
-      "reason": "oidc-store 新增 sector 钉住、addRedirectUri/removeRedirectUri，clientMetadata 一直带 sector_identifier_uri，provider 配置 sectorIdentifierUriValidate 返回 false；oidc CLI 新增 client add --sector、add-redirect、remove-redirect；config 读 GITLAB_OIDC_SECTOR，同步在客户端 sector 和它不一致时整轮跳过并报 gitlab_sector_mismatch。公开、成员与控制台 GitLab 接口的输入输出形状不变，只是地址跟着 GITLAB_URL。",
+      "reason": "oidc-store 新增 sector 钉住、addRedirectUri/removeRedirectUri，clientMetadata 一直带 sector_identifier_uri，provider 配置 sectorIdentifierUriValidate 返回 false；oidc CLI 新增 client add --sector、add-redirect、remove-redirect、show（带 sector_id，供改回调前确认版本）、subjects（只读抽样 sub 摘要，不输出 sub、不生成 sub）；config 读 GITLAB_OIDC_SECTOR，同步在客户端 sector 和它不一致时整轮跳过并报 gitlab_sector_mismatch。公开、成员与控制台 GitLab 接口的输入输出形状不变，只是地址跟着 GITLAB_URL。",
       "evidence": [
         "app/server/src/lib/oidc-store.ts",
         "app/server/src/lib/oidc-provider.ts",
@@ -88,7 +88,7 @@
     },
     "dependencies": {
       "status": "changed",
-      "reason": "宿主侧：Arch GitLab 容器按模板重建（镜像、卷、网络不变），gitlab.rb 三行改读 yzgc-gitlab-url；香港 Caddy 正式站点块加 /gitlab，旧主机文件换成 301；搬家前后各触发一次 gitlab-backup 与签发者库的 yzgc-backup。CLI 元数据与 forge.mjs 的 GitLab 地址改为从环境模板读。",
+      "reason": "宿主侧：Arch GitLab 容器按模板重建（镜像、卷、网络不变，加上和站点栈一样的 json-file 日志轮转），gitlab.rb 三行改读 yzgc-gitlab-url；香港 Caddy 正式站点块加 /gitlab，旧主机文件换成 301；搬家前后各触发一次 gitlab-backup 与正式库的 yzgc-backup，搬家前在 GitLab 容器里用 gitlab-rails 记账号数与最大 id。CLI 元数据的 GitLab 地址改为新地址。热修复窗口登记在 deploy/hotfix/windows.json。",
       "evidence": [
         "app/server/src/lib/gitlab-sync.ts",
         "app/server/src/lib/oidc-provider.ts",
@@ -97,8 +97,9 @@
         "deploy/gitlab/move-path.sh",
         "deploy/remote/edge-gitlab.py",
         "deploy/remote/install-host.sh",
-        "scripts/forge.mjs",
-        "app/cli/Cargo.toml"
+        "app/cli/Cargo.toml",
+        "deploy/gitlab/docker-compose.yml",
+        "deploy/hotfix/windows.json"
       ]
     },
     "documentation": {
@@ -116,14 +117,13 @@
     },
     "verification": {
       "status": "changed",
-      "reason": "先红后绿：服务端与前端相关 7 个文件、env 隔离、部署环境、forge、cutover、香港接收器、move-path、install-host 的测试都在改动前失败、改动后通过。未验证：真实 Caddy 解析新片段、真实 GitLab 用相对路径重建、真人统一登录与 git push 经 301。tests/console/gitlab.test.ts 没改，照样跑过。",
+      "reason": "先红后绿：服务端与前端相关 7 个文件、env 隔离、部署环境、cutover、香港接收器、move-path、install-host 的测试都在改动前失败、改动后通过；金值 sub 测试在去掉钉住时失败；cutover 与 move-path 的 #335 用例对改动前的脚本 10 个失败；日志轮转测试对改动前的模板失败；用安装的 oidc-provider 9.12.2 核对多主机回调规则。未验证：真实 Caddy 解析新片段、真实 GitLab 用相对路径重建、真实 gitlab-rails 计数、真人统一登录与 git push 经 301。tests/console/gitlab.test.ts 没改，照样跑过。",
       "evidence": [
         "tests/server/oidc.test.ts",
         "tests/server/gitlab-sync.test.ts",
         "tests/server/competition-candidates.test.ts",
         "tests/tooling/env-isolation.test.ts",
         "tests/tooling/deployment-environment.test.ts",
-        "tests/tooling/task-worktree.test.ts",
         "tests/tooling/gitlab-cutover.test.ts",
         "tests/tooling/gitlab-preview.test.ts",
         "tests/tooling/gitlab-move-path.test.ts",
@@ -132,14 +132,15 @@
     },
     "delivery": {
       "status": "changed",
-      "reason": "正式 GITLAB_URL 改为 /gitlab，三份 env 新增 GITLAB_OIDC_SECTOR，两份 compose 把 GITLAB_OIDC_CLIENT 与 GITLAB_OIDC_SECTOR 传进 server（预发布 server 从此用 gitlab_preview 客户端）；gitlab-cutover.yml 新增三个步骤、超时 120 分钟。搬家是 post_deploy 的同构清单 P-0014：先发布本版本，再经所有者批准升级香港接收器，再跑 move-production-path。",
+      "reason": "正式 GITLAB_URL 改为 /gitlab，三份 env 新增 GITLAB_OIDC_SECTOR，两份 compose 把 GITLAB_OIDC_CLIENT 与 GITLAB_OIDC_SECTOR 传进 server（预发布 server 从此用 gitlab_preview 客户端）；gitlab-cutover.yml 新增三个步骤、超时 120 分钟。按 #335 的 P0 热修复窗口交付：MR 进 main，deploy-hotfix 先发 server，确认认得 sector 钉住后再跑 move-production-path、verify-accounts 和一次贡献收集（post_deploy 的同构清单 P-0014），之后 hotfix-sync 合回 stage。",
       "evidence": [
         "deploy/env/.env.production",
         "deploy/env/.env.preview",
         "deploy/compose/production.yml",
         "deploy/compose/preview.yml",
         ".github/workflows/gitlab-cutover.yml",
-        "deploy/parity/ledger.json"
+        "deploy/parity/ledger.json",
+        "deploy/hotfix/windows.json"
       ]
     }
   },
@@ -158,7 +159,7 @@
       "nodes": [
         "flow:identity.oidc.protocol"
       ],
-      "reason": "客户端钉住 sector，换回调地址 sub 不变，旧回调去掉后不再被接受；改回调写审计 oidc.client.redirects。"
+      "reason": "客户端钉住 sector，换回调地址 sub 不变，旧回调去掉后不再被接受；改回调写审计 oidc.client.redirects；client show 带 sector_id，client subjects 只读抽样 sub 摘要。"
     },
     {
       "paths": [
@@ -262,9 +263,7 @@
     {
       "paths": [
         "app/cli/Cargo.toml",
-        "scripts/forge.mjs",
-        "scripts/contest-site.mjs",
-        "tests/tooling/task-worktree.test.ts"
+        "scripts/contest-site.mjs"
       ],
       "domains": [
         "platform",
@@ -273,7 +272,7 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "CLI 元数据与工具里的 GitLab 地址改为新地址或从环境模板读，支持带子路径的 GitLab。"
+      "reason": "CLI 元数据与工具里的 GitLab 地址改为新地址，支持带子路径的 GitLab。"
     },
     {
       "paths": [
@@ -334,7 +333,7 @@
         "domain:platform",
         "flow:gitlab.entry.open"
       ],
-      "reason": "流水线搬家：Arch 重建、香港切入口、公网核对、去旧回调，失败两半都恢复。"
+      "reason": "流水线搬家：只改正式库，先确认正式 server 认得 sector 钉住；Arch 备份、记账号基线、重建（带日志轮转），香港切入口，公网核对与账号核对（抽样 sub、GitLab 新增账号）全过才去旧回调，失败两半都恢复。"
     },
     {
       "paths": [
@@ -382,6 +381,18 @@
         "flow:identity.oidc.protocol"
       ],
       "reason": "pnpm catalog:generate 与 docs-index 重新生成：oauth_clients 多一列 sector_id，源码行号与摘要跟着变。"
+    },
+    {
+      "paths": [
+        "deploy/hotfix/windows.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "登记 #335 的 P0 热修复窗口：所有者 2026-10-30 10:52 批准，绑定 v0.1.1，到 2026-11-06 10:52；main 领先 stage 的 #335 提交归属这个窗口。"
     }
   ],
   "documents": [
@@ -406,7 +417,6 @@
     "tests/web/portal-shell.test.ts",
     "tests/tooling/env-isolation.test.ts",
     "tests/tooling/deployment-environment.test.ts",
-    "tests/tooling/task-worktree.test.ts",
     "tests/tooling/gitlab-cutover.test.ts",
     "tests/tooling/gitlab-preview.test.ts",
     "tests/tooling/gitlab-move-path.test.ts",
@@ -414,5 +424,5 @@
   ],
   "compatibility": "接口形状不变；旧 oauth_clients 行没有 sector_id 时按第一个回调的主机算，和旧镜像一致。旧地址经 301 继续可用，git 跟随第一次跳转。预发布 server 从此按 gitlab_preview 客户端同步，没登记时整轮跳过。",
   "migration": "addColumn oauth_clients.sector_id（可空）。搬家本身是 gitlab-cutover 的 post_deploy 步骤（P-0014），不改 oauth_subjects、gitlab_accounts 或 GitLab 用户。",
-  "rollback": "gitlab-cutover 的 rollback-production-path 回到原地址并去掉新回调，之后 server 可回退旧镜像；代码层 revert 本 PR 的合并提交。"
+  "rollback": "gitlab-cutover 的 rollback-production-path 先补回旧回调、恢复原地址，再去掉新回调；回调改完后不能直接退回旧 server 镜像，先跑完这一步再退。代码层 revert 本 PR 的合并提交。"
 }

@@ -209,6 +209,23 @@ def wait_healthy(docker, url, deadline_seconds):
         time.sleep(min(5, max(0, deadline - time.monotonic())))
 
 
+def log_config(docker):
+    """The running container's Docker log settings, or None when it cannot be read (plan and verify only report it)."""
+    result = subprocess.run(
+        [docker, "inspect", "--format", "{{json .HostConfig.LogConfig}}", CONTAINER],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode:
+        return None
+    try:
+        return json.loads(result.stdout)
+    except ValueError:
+        return None
+
+
 def operate(args):
     root = Path(args.root)
     if not root.is_absolute() or root.resolve() != root:
@@ -264,12 +281,17 @@ def operate(args):
     }
 
     if args.action == "plan":
-        return {"action": "plan", **report}
+        return {"action": "plan", **report, "log_config": log_config(args.docker)}
     if args.action == "verify":
         if not moved:
             raise ValueError("GitLab is not on its target path")
         wait_healthy(args.docker, config["GITLAB_URL"], 0)
-        return {"action": "verify", "healthy": True, **report}
+        return {
+            "action": "verify",
+            "healthy": True,
+            **report,
+            "log_config": log_config(args.docker),
+        }
     if not args.apply:
         raise ValueError("writes require --apply")
 

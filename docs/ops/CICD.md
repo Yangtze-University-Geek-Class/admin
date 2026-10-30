@@ -140,7 +140,7 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 
 香港入口动作 `edge-status` / `edge-apply` / `edge-verify` / `edge-rollback` 使用独立环境secret `GITLAB_EDGE_SSH_KEY`，主机从canonical `DEPLOY_PROXY_JUMP` 推导，沿用已核验known_hosts。专用key服务端只允许固定动作，不能取shell或上传任意配置；edge-apply写入前还要核对独立预发布容器healthy。首次受限通道安装由所有者单独批准，不能拿个人root私钥替代。候选配置通过真实Caddy解析不是已上线证据，SSO/Git/Issue/MR仍须真实验收。
 
-`path-status` / `move-production-path` / `rollback-production-path`（#335）在同一 job 里分发本次提交的 `deploy/gitlab` 与两份环境模板到 Arch，再在 runner 上跑 `deploy/gitlab/move-path.sh`：Arch 一半经部署 SSH 调 `cutover.sh` 的 `path-status|move-production-path|finish-production-path|rollback-production-path`，香港一半经 `GITLAB_EDGE_SSH_KEY` 调受限接收器的 `production-plan|apply|rollback`，公网核对从 runner 发起。`GITLAB_URL`、sector 从 `deploy/env/.env.production` 读，旧地址从 `deploy/gitlab/gitlab.caddy` 的站点行读，签发者是两份模板的 `PUBLIC_ORIGIN`；不勾 apply 只演算。原 `cutover.sh` 步骤现在也带 `--sector`（`GITLAB_OIDC_SECTOR`），并多分发 `.env.production`（无密钥模板）。`tests/tooling/gitlab-move-path.test.ts` 核对这三个选项的接线。
+`path-status` / `move-production-path` / `rollback-production-path`（#335）在同一 job 里分发本次提交的 `deploy/gitlab` 与两份环境模板到 Arch，再在 runner 上跑 `deploy/gitlab/move-path.sh`：Arch 一半经部署 SSH 调 `cutover.sh` 的 `path-status|move-production-path|check-production-path|finish-production-path|rollback-production-path`（`check-production-path` 只读，在公网核对之后、去掉旧回调之前核对抽样成员的 `sub` 与 GitLab 新增账号，对不上整批恢复），香港一半经 `GITLAB_EDGE_SSH_KEY` 调受限接收器的 `production-plan|apply|rollback`，公网核对从 runner 发起。`GITLAB_URL`、sector 从 `deploy/env/.env.production` 读，旧地址从 `deploy/gitlab/gitlab.caddy` 的站点行读，签发者是两份模板的 `PUBLIC_ORIGIN`；不勾 apply 只演算。原 `cutover.sh` 步骤现在也带 `--sector`（`GITLAB_OIDC_SECTOR`），并多分发 `.env.production`（无密钥模板）。`tests/tooling/gitlab-move-path.test.ts` 核对这三个选项的接线。
 
 
 
