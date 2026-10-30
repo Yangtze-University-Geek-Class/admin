@@ -31,3 +31,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：core 失败：pnpm check 不传 --forge，读到 GitLab #314 的 docs/changes/314.json。GitLab MR !85 修复后合入 stage 3765fdbf；本分支应用 e1723c12..3765fdbf 的同一份改动
 - 结果：GITHUB_ACTIONS=true 时本机检查器读 docs/changes/github/314.json：见下一条命令输出
+
+## 20:51:10 +08:00 · 提交 · #314 · 带上目录重新生成
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：core 复现：check:catalog 报目录过期（MR !85 改了目录来源文件）。GitLab MR !86 重新生成后合入 stage 293b3191；本分支应用 3765fdbf..293b3191 的同一份改动
+- 结果：GITHUB_ACTIONS=true 下 pnpm check 见下条命令
