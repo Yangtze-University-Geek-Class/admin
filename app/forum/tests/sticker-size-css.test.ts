@@ -11,7 +11,7 @@ import { isStickerUrl } from '../shared/sticker-url'
  */
 const HASH = 'ab12'.repeat(16)
 const SAME = `/api/forum/stickers/${HASH}.webp`
-const CDN = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${HASH}.webp`
+const CDN = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${HASH}.webp`
 
 /** The attribute-prefix selector of an `img[src^="…"]` entry, or null for the class selector. */
 const prefixOf = (selector: string): string | null => /\[src\^="([^"]+)"\]/.exec(selector)?.[1] ?? null
@@ -28,7 +28,7 @@ describe('sticker size in the line', () => {
 
   it('does not touch an uploaded picture or a picture from another address', () => {
     const prefixes = STICKER_SELECTORS.map(prefixOf).filter((prefix): prefix is string => prefix !== null)
-    for (const address of ['/api/forum/uploads/ab12.webp', `https://evil.example/yzgc/static/site/forum/stickers/${HASH}.webp`, 'https://cdn.yangtzeu.work/geek-public/static/site/forum/uploads/x.webp']) {
+    for (const address of ['/api/forum/uploads/ab12.webp', `https://evil.example/yzgc/static/site/forum/stickers/${HASH}.webp`, 'https://cdn.crosery.com/yzgc/static/site/forum/uploads/x.webp']) {
       expect(prefixes.some(prefix => address.startsWith(prefix)), address).toBe(false)
     }
   })

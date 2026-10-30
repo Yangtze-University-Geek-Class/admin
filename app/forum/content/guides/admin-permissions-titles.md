@@ -12,7 +12,7 @@ date: 2026-10-24
 
 1. 打开 `/console/permissions`，有三个页签：组、节点、解释。
 
-![权限页「组」页签，左边组列表右边组详情](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-permissions-groups.uKmDanN5.webp)
+![权限页「组」页签，左边组列表右边组详情](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-permissions-groups.uKmDanN5.webp)
 
 2. 「组」页签左边按身份、部门、称号、自定义分类列出所有组，每个组写着人数和权重；右边是选中组的详情，能改名称、说明、权重和继承关系。下面的条目表列出这个组被赋予了哪些权限节点、是允许还是拒绝、范围是什么、有没有过期时间。
 3. 点「添加条目」，在节点下拉框里选一个权限节点（通配的在前面，可以按中文名或节点本身搜索），选允许或拒绝，范围留空就是不限范围，想限定在某个部门用「只限本部门」的快捷填法，到期时间可以不填。
@@ -21,7 +21,7 @@ date: 2026-10-24
 6. 想新建一个不在默认身份、部门、称号里的权限组合，点页头「新建自定义组」，编号用小写字母、数字和下划线，填好名称、说明、权重和继承的组，建好后自动选中它，再往里加条目和成员。
 7. 「节点」页签是整份权限节点目录，可以按业务域筛选、搜索，看每个节点的中文名、说明，以及哪些组直接写了这个节点。
 
-![权限页「节点」页签，节点目录列表](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-permissions-nodes.PpzOFO3r.webp)
+![权限页「节点」页签，节点目录列表](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-permissions-nodes.PpzOFO3r.webp)
 
 8. 「解释」页签用来排查「这个人为什么能做/不能做某件事」：选一个账号和一个具体节点，会给出允许、拒绝还是没有设置，并逐条列出命中了哪些规则，包括从哪个组继承来的。
 9. 称号的名字、部门的名字都是后台数据，改了会立刻在用户页、论坛和官网的「组织架构」窗口里一起变。

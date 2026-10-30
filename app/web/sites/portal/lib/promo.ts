@@ -1,9 +1,9 @@
 // 宣传片（#77）：地址、「只自动播一次」的 cookie、按浏览器能力挑编码与播放方式（纯逻辑，tests/web/portal-promo.test.ts 覆盖）。
 // 片子是 HLS：fMP4 分片 4 秒一段，AV1 三档（480p、720p、1080p）与 H.264 五档（240p、360p、480p、720p、1080p）各一份 master，
-// 所有档位关键帧对齐。240p、360p 两档音频 64k，给弱网手机（#103）。文件只在公开 S3 桶（geek-public/media/promo/<版本>-<内容哈希>/），不进仓库；路径带内容哈希，换片子就换目录。
+// 所有档位关键帧对齐。240p、360p 两档音频 64k，给弱网手机（#103）。文件只在公开 S3 桶（yzgc/static/promo/<版本>-<内容哈希>/），不进仓库；路径带内容哈希，换片子就换目录。
 // 新端点的 CORS、Range 与 MIME 必须在预发布和正式分别验收，不沿用旧供应商的防盗链结论。
 
-export const PROMO_BASE = "https://cdn.yangtzeu.work/geek-public/media/promo/v5-tone-e1419fc9331a/";
+export const PROMO_BASE = "https://cdn.crosery.com/yzgc/static/promo/v5-tone-e1419fc9331a/";
 
 export const PROMO = {
   masters: { av1: `${PROMO_BASE}master-av1.m3u8`, h264: `${PROMO_BASE}master-h264.m3u8` },

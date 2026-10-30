@@ -76,7 +76,7 @@ export function createConfig(env: Record<string, string | undefined>) {
     return {
       aliyun: aliyunKeyId && aliyunFrom ? { accessKeyId: aliyunKeyId, accessKeySecret: aliyunKeySecret, from: aliyunFrom } : null,
       resend: resendKey && resendFrom ? { apiKey: resendKey, from: resendFrom } : null,
-      assetBase: value("MAIL_ASSET_BASE") || "https://cdn.yangtzeu.work/geek-public/mail/v1/",
+      assetBase: value("MAIL_ASSET_BASE") || "https://cdn.crosery.com/yzgc/mail/v1/",
       // 空 = 信里不请人直接回复，改成指向官网意见箱
       replyTo: value("MAIL_REPLY_TO") || null,
       recipients: recipients as "all" | "allowlist",

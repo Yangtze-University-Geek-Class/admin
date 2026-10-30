@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { buildForumCsp, inlineScriptHashes, siteCsp, withScriptHashes } from '../../app/forum/scripts/csp-header.mjs';
 import { ADMIN_SPA_ENTRY, PORTAL_SPA_ENTRY } from '../../app/server/src/app';
+import { STATIC_CDN_BASE } from '../../scripts/static-cdn-base.mjs';
 
 // 论坛页面的 CSP（#78）：站点策略只写在宿主 nginx 模板的 map 里，论坛镜像构建时加上内联脚本的哈希，
 // 宿主只在 /forum/ 下、上游已带 CSP 时不再叠加。这里核对脚本本身、两份宿主模板与两份 Dockerfile 的接线，
@@ -75,7 +76,7 @@ describe('forum CSP script', () => {
   it('reads the site policy from each host template and keeps both templates on the same policy', () => {
     const preview = siteCsp(hostConf('preview'));
     // 第二个来源是静态资源 CDN 的前缀（#146），与 scripts/static-cdn-base.mjs 的一致性在 static-cdn.test.ts 里核对。
-    expect(preview).toMatch(/^default-src 'self'; script-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/cdn\.yangtzeu\.work\/geek-public\/static\/site\/;/);
+    expect(preview.startsWith(`default-src 'self'; script-src 'self' https://challenges.cloudflare.com ${STATIC_CDN_BASE};`)).toBe(true);
     expect(preview).toContain("object-src 'none'");
     expect(preview).toContain("frame-ancestors 'none'");
     expect(siteCsp(hostConf('production'))).toBe(preview);

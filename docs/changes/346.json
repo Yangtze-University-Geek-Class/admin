@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "issue": 346,
+  "kind": "engineering",
+  "summary": "#346 改走 hotfix：版本号改回 0.1.1，登记 #346 的 hotfix 窗口（tag v0.1.1），同构清单 P-0018 归到 0.1.1。CDN 换回七牛的实现已在 MR !88 审查合入。",
+  "applications": [
+    "console",
+    "server",
+    "web"
+  ],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "业务流程不变：只改版本号与发布登记。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "app/server 只改 package.json 的 version 字段，接口与路由不变。",
+      "evidence": [
+        "app/server/package.json"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "表结构、迁移与业务数据不变。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "四个 package.json 只把 version 从 0.1.2 改回 0.1.1，不增删依赖。",
+      "evidence": [
+        "app/console/package.json",
+        "app/server/package.json",
+        "app/web/package.json",
+        "package.json"
+      ]
+    },
+    "documentation": {
+      "status": "unchanged",
+      "reason": "文档事实不变：MR !88 的文档写的是 CDN 来源，没有写版本号。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    },
+    "verification": {
+      "status": "unchanged",
+      "reason": "不改代码与测试；hotfix-windows 与 parity 检查核对登记格式。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "发布走 #346 的 hotfix 窗口：deploy-hotfix 以 v0.1.1 上正式，收尾后打 v0.1.1-stable.2 发预发布；P-0018 归到 0.1.1。",
+      "evidence": [
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/console/package.json",
+        "app/server/package.json",
+        "app/web/package.json",
+        "package.json",
+        "deploy/hotfix/windows.json",
+        "deploy/parity/ledger.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "#346 改走 hotfix：四个 package.json 的版本号改回 0.1.1，hotfix 窗口登记与同构清单归到 0.1.1，属于平台发布流程。"
+    }
+  ],
+  "documents": [
+    "docs/conventions/RELEASES.md"
+  ],
+  "tests": [],
+  "compatibility": "接口、表结构与环境变量都不变。",
+  "migration": "不涉及迁移：只改版本号与发布登记，没有数据、配置或环境变量要迁移。",
+  "rollback": "revert 本次合并；窗口未用时由收尾关闭。"
+}

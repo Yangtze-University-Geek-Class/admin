@@ -1,29 +1,31 @@
 # CDN 与对象存储合同
 
-> #295：公开静态资源迁到 path-style S3；对象内容、发布来源和私有运维索引分别追溯。
+> #346：公开静态资源改回七牛（域名绑定到桶，上传走 path-style S3）；Garage 的公开桶封存，对象内容与配置保留。对象内容、发布来源和私有运维索引分别追溯。
 
-状态：`current` · 更新：2026-10-28
+状态：`current` · 更新：2026-10-30
 
 ## 桶与路径
 
-S3 endpoint 为 `https://cdn.yangtzeu.work`，region 为 `garage`，`forcePathStyle=true`。公开基础地址为 `https://cdn.yangtzeu.work/geek-public`。这是目标合同，不是供应商可用性或桶权限已生效的证据。
+上传端点（S3 兼容）为 `https://s3.cn-south-1.qiniucs.com`，region 为 `cn-south-1`，桶名来自部署密钥 `STATIC_CDN_S3_BUCKET`（桶名带个人标识，不入库），`forcePathStyle=true`，签名 URL 是 端点 / 桶 / 对象键。公开入口是 `https://cdn.crosery.com`：域名已绑定到该桶，公开地址就是 `origin` 加对象键，路径里没有桶名。这是目标合同；供应商可用性和桶权限是否生效以下面「验证与环境责任」的实测为准。
 
-| 桶 | 可见性与用途 | 对象路径 |
+| 对象 | 桶内对象键 | 公开地址 |
 |---|---|---|
-| `geek-public` | 仅公开静态资源；不允许匿名列桶、写入 | `static/site/{assets,console-assets,forum/_nuxt,forum/guides,forum/stickers,forum/published}/`；保持构建或源文件内容哈希文件名 |
-| `geek-public` | 宣传片；保持相对 HLS 主清单、子清单、初始化段、分片和海报关系 | `media/promo/<版本与内容哈希>/` |
-| `geek-public` | 邮件图片 | `mail/v1/`，`MAIL_ASSET_BASE=https://cdn.yangtzeu.work/geek-public/mail/v1/` |
-| `geek-production-private` | 正式环境私有业务对象预留 | 按业务合同另行确定；本任务不外移 DB、头像、附件或站点包 |
-| `geek-preview-private` | 预发布环境私有业务对象预留 | 与正式隔离；本任务不移动任何现有业务对象 |
-| `geek-backup` | 私有、加密运维备份及运维索引 | 平台 `platform/<environment>/<date>/<run>/`；GitLab 保持 `gitlab/YYYY-MM-DD/`，兼容恢复选择器 |
+| 站点静态资源：带哈希的构建资源、表情、使用说明截图、旧帖图片 | `yzgc/static/site/{assets,console-assets,forum/_nuxt,forum/guides,forum/stickers,forum/published}/` | `https://cdn.crosery.com/yzgc/static/site/…`，保持构建或源文件内容哈希文件名 |
+| 宣传片：保持相对 HLS 主清单、子清单、初始化段、分片和海报关系 | `yzgc/static/promo/<版本与内容哈希>/`（当前 `v5-tone-e1419fc9331a`） | `https://cdn.crosery.com/yzgc/static/promo/v5-tone-e1419fc9331a/` |
+| 邮件图片 | `yzgc/mail/v1/`，`MAIL_ASSET_BASE=https://cdn.crosery.com/yzgc/mail/v1/` | `https://cdn.crosery.com/yzgc/mail/v1/` |
+| 公开发布清单 | `yzgc/indexes/releases/<production\|preview>/<完整提交>/manifest.json` | `https://cdn.crosery.com/yzgc/indexes/releases/…` |
 
-除下述明确允许公开的发布来源清单外，业务、内容哈希反查和运维索引只允许放私有桶。上传器不会把私有桶内容或私有索引同步到公开桶。
+项目对象都在桶的 `yzgc/` 命名空间下。上传器只写 `yzgc/static/site/` 与 `yzgc/indexes/releases/`，宣传片与邮件图片由人工按本表放入，不由上传器写。
 
-旧 `yzgc/static/site/` 映射到 `static/site/`，旧 `yzgc/static/promo/` 映射到 `media/promo/`，旧 `yzgc/mail/` 映射到 `mail/`。旧实际域名主要为七牛侧的个人域名，不是仅 `.cn`。历史 notes、changes、archive、已发布 tag 不改写；旧版本回滚所需的旧供应商对象不能由此源码任务删除。
+私有桶不在这次迁移范围：`geek-production-private`、`geek-preview-private` 与 `geek-backup`（Garage 上的私有业务对象预留与运维备份）保持 #295 的合同和现有位置，本任务不移动、不新建私有对象。
+
+**Garage 的公开桶已封存。** Garage 上的 `geek-public` 与 `cdn` 不再接收任何公开对象（构建参数与上传目的地已切到七牛），已有对象、桶配置与 Caddy 出口保留，不删除。Garage 仍是备份的写入目的地：`deploy/gitlab/backup.sh`、平台归档与内容索引的私有桶写入，以及 `deploy/remote/cdn-mirror.sh` 的镜像，都还指向 Garage，它们要等 #346 的后续步骤另行切换。旧 Garage 公开地址（`https://cdn.yangtzeu.work/geek-public/…`）只留给库里已有的旧帖内容，读取时改写到新前缀（见 [论坛服务](../services/forum/README.md)）。
+
+七牛上的旧对象已经是 `yzgc/` 下的同名键（`yzgc/static/site/`、`yzgc/static/promo/`、`yzgc/mail/`），本任务不改它们。Garage 上的 `static/site/` 不迁移：发布流水线按内容哈希把对象补传到七牛，已存在则逐字比对，不覆盖。
 
 ## 公开发布清单与私有内容索引
 
-公开来源索引：`indexes/releases/<production|preview>/<完整40位小写commit>/manifest.json`。schema 固定为：
+公开来源索引：`yzgc/indexes/releases/<production|preview>/<完整40位小写commit>/manifest.json`。schema 固定为：
 
 ```json
 {
@@ -32,7 +34,7 @@ S3 endpoint 为 `https://cdn.yangtzeu.work`，region 为 `garage`，`forcePathSt
   "commit": "0000000000000000000000000000000000000000",
   "generated_at": "2026-10-26T17:21:00.000Z",
   "objects": [{
-    "key": "static/site/assets/app-12345678.js",
+    "key": "yzgc/static/site/assets/app-12345678.js",
     "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     "bytes": 3,
     "content_type": "text/javascript",
@@ -54,26 +56,26 @@ S3 endpoint 为 `https://cdn.yangtzeu.work`，region 为 `garage`，`forcePathSt
 
 | 变量 | 约定 |
 |---|---|
-| `STATIC_CDN_S3_ACCESS_KEY_ID` | CDN 发布凭据 ID；不进运行时镜像和业务 `.env` |
+| `STATIC_CDN_S3_ACCESS_KEY_ID` | CDN 发布凭据 ID；不进运行时镜像和业务 `.env`；名字不变，值由所有者在 GitHub 环境 secret 里设 |
 | `STATIC_CDN_S3_SECRET_ACCESS_KEY` | 对应 secret；不得写日志或文件 |
-| `STATIC_CDN_S3_ENDPOINT` | 可省略，固定上述 HTTPS endpoint；其他值拒绝 |
-| `STATIC_CDN_S3_REGION` | 可省略，只接受 `garage` |
-| `STATIC_CDN_S3_BUCKET` | 可省略，只接受 `geek-public` |
+| `STATIC_CDN_S3_ENDPOINT` | 可省略，固定为 `https://s3.cn-south-1.qiniucs.com`；其他值拒绝 |
+| `STATIC_CDN_S3_REGION` | 可省略，只接受 `cn-south-1` |
+| `STATIC_CDN_S3_BUCKET` | 必填，部署密钥，只核对桶名形状（小写字母、数字、连字符） |
 | `STATIC_CDN_S3_FORCE_PATH_STYLE` | 可省略，只接受 `true` |
 
-两项密钥都不设时 `decide` 保持同源；只设一项、非法目的地、配置旧 `STATIC_CDN_UPLOAD_TOKEN` 时失败。完整凭据下先读环境首页 CSP：未放行新 CDN 时仍按原约定同源构建。CSP 放行后对 S3 做签名探测，401/403、网络失败、超时均失败关闭，不自动回旧供应商。
+两项密钥都不设时 `decide` 保持同源；只设一项、非法目的地、配置旧 `STATIC_CDN_UPLOAD_TOKEN` 时失败。完整凭据下先读环境首页 CSP：未放行新 CDN 时仍按原约定同源构建。CSP 放行后对 S3 做签名探测（探测对象键不存在时 404 也算端点在响应），401/403、网络失败、超时均失败关闭，不自动回旧供应商。
 
-私有归档凭据按用途和环境拆分：GitLab 用 `GITLAB_BACKUP_S3_ACCESS_KEY_ID` / `GITLAB_BACKUP_S3_SECRET_ACCESS_KEY`；平台快照分别用 `PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY` 与 `PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY`；私有内容索引分别用 `PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY` 与 `PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY`。它们只进入对应受控归档进程，不进入业务运行 env、镜像、argv、日志或公开清单；endpoint、region、桶与 path-style 固定在适配器合同里。
+私有归档凭据按用途和环境拆分：GitLab 用 `GITLAB_BACKUP_S3_ACCESS_KEY_ID` / `GITLAB_BACKUP_S3_SECRET_ACCESS_KEY`；平台快照分别用 `PLATFORM_PREVIEW_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PREVIEW_BACKUP_S3_SECRET_ACCESS_KEY` 与 `PLATFORM_PRODUCTION_BACKUP_S3_ACCESS_KEY_ID` / `PLATFORM_PRODUCTION_BACKUP_S3_SECRET_ACCESS_KEY`；私有内容索引分别用 `PREVIEW_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PREVIEW_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY` 与 `PRODUCTION_PRIVATE_INDEX_S3_ACCESS_KEY_ID` / `PRODUCTION_PRIVATE_INDEX_S3_SECRET_ACCESS_KEY`。它们只进入对应受控归档进程，不进入业务运行 env、镜像、argv、日志或公开清单；endpoint、region、桶与 path-style 固定在适配器合同里。这些归档仍指向 Garage，见上文「Garage 的公开桶已封存」。
 
-构建参数 `STATIC_CDN_BASE` 只能为空或 `https://cdn.yangtzeu.work/geek-public/static/site/`。空值保持 JS/CSS/字体/构建图片及内置表情同源；HTML、接口、release.json 和不带哈希的 public 文件一直同源。宣传片、邮件图片、指南正文地址不随构建开关切回同源。旧帖清单里显式标 `cdn: true` 的图片也固定走 CDN；其余旧帖图片继续按 viewer 从核心同源读取。镜像仍保存构建资产、内置表情与旧帖图片的同源副本。
+构建参数 `STATIC_CDN_BASE` 只能为空或 `https://cdn.crosery.com/yzgc/static/site/`。空值保持 JS/CSS/字体/构建图片及内置表情同源；HTML、接口、release.json 和不带哈希的 public 文件一直同源。宣传片、邮件图片、指南正文地址不随构建开关切回同源。旧帖清单里显式标 `cdn: true` 的图片也固定走 CDN；其余旧帖图片继续按 viewer 从核心同源读取。镜像仍保存构建资产、内置表情与旧帖图片的同源副本。
 
 ## 上传协议、保护与限制
 
-`scripts/static-cdn-s3.mjs` 使用 Node 内置 crypto/fetch 实现 SigV4：服务 `s3`、region `garage`、完整 `x-amz-content-sha256`，签名包含 Host、日期及写入元信息。只允许 GET、HEAD、经过 `ensure` 的 PUT，没有删除、移动、改元信息接口。拒绝路径穿越、编码路径、查询串、用户信息、非合同目的地及无哈希静态对象名。
+`scripts/static-cdn-s3.mjs` 使用 Node 内置 crypto/fetch 实现 SigV4：服务 `s3`、region `cn-south-1`、完整 `x-amz-content-sha256`，签名包含 Host、日期及写入元信息。只允许 GET、HEAD、经过 `ensure` 的 PUT，没有删除、移动、改元信息接口。拒绝路径穿越、编码路径、查询串、用户信息、非合同目的地及无哈希静态对象名。
 
 内容寻址：构建对象保留构建内容哈希名，截图重算文件名中的摘要，表情用完整 SHA-256；每个实际对象的完整 SHA-256 记录于清单。每次写之前先完整签名 GET；已存在则逐字比对，不发送 PUT；冲突立即失败。不存在时 PUT 后再完整 GET 核对。PUT 响应丢失时先重新 GET 对账，不盲目重发 PUT。同一适配器按键串行化；整批先校验键、大小、类型与摘要，最大单文件 10 MiB、并发最多 8，默认 4。网络/429/5xx 最多 3 次，重试等待有界，每次 15 秒超时覆盖响应体，响应读取有大小上限。重定向一律拒绝，错误不打印上游原文、签名或凭据。
 
-**这不是七牛 insertOnly 的等价服务端保障。** Garage 不支持 `If-None-Match` 条件创建、对象锁或 WORM，不能把 BucketPolicy 当作 Amazon S3 的完整等价实现。客户端不会主动覆盖已存在对象，但 GET/PUT 之间存在竞态；不同进程、恶意或其他持有写权限的写入者仍可能覆盖。凭据桶范围、发布串行化、只读发布归档或外部独占写入网关需由运维明确实现并真实验证，不能靠空断言宣称已经隔离。此任务未添加这些服务端能力，也未把真实端点的 401 绕成 BasicAuth。
+**防覆盖只在客户端执行。** 七牛 S3 兼容接口是否支持 `If-None-Match` 条件创建、对象锁或 WORM，本任务没有实测，不能假定其存在。客户端不会主动覆盖已存在对象，但 GET/PUT 之间存在竞态；不同进程、恶意或其他持有写权限的写入者仍可能覆盖。凭据的桶范围、发布串行化、只读发布归档或外部独占写入网关需由运维明确实现并真实验证，不能靠空断言宣称已经隔离。此任务未添加这些服务端能力，也未把真实端点的 401 绕成 BasicAuth。
 
 ## 命令与发布接线
 
@@ -93,20 +95,22 @@ node scripts/static-cdn.mjs verify-manifest --manifest <清单文件> \
   --referer https://prev.yangtzeu.work/
 ```
 
-本地输出使用 `wx`，拒绝覆盖已有文件。新服务不再有 `mint-token`、`--owner-env-file` 或七牛表单上传步骤。GitLab 是本次事项与外部操作的主入口：父级 task270 的 GitLab 发版草稿须接入本 CLI，传入完整 SHA、提交时间和环境，并在上传/公开校验成功后才部署。当前基线 `.github/workflows/{ci,deploy-preview,deploy-production}.yml` 的既有接线同步为新协议，不代表已经创建或运行 GitLab 流水线。
+本地输出使用 `wx`，拒绝覆盖已有文件。新服务不再有 `mint-token`、`--owner-env-file` 或七牛表单上传步骤。GitLab 是本次事项与外部操作的主入口：父级 task270 的 GitLab 发版草稿须接入本 CLI，传入完整 SHA、提交时间和环境，并在上传/公开校验成功后才部署。当前基线 `.github/workflows/{ci,deploy-preview,deploy-production,deploy-hotfix}.yml` 的既有接线同步为新协议，不代表已经创建或运行 GitLab 流水线。
 
 ### 与 task270 的合并边界
 
 本分支基于 stage，不引入 task270 的 Arch/Compose/GitLab 全套草稿。集成时逐块合并两份部署工作流的 `cdn-plan`/`cdn-upload`、两份 `deploy/env` 的邮件 base、`docs/ops/{CICD,DEPLOY,ENVIRONMENTS}.md` 和生成目录，不能用任一任务整文件覆盖另一任务。
 
-task270 的 `deploy/gitlab/backup.sh`、`restore-drill.sh` 已改为调用共享 Garage 归档器：新写入位于 `gitlab/YYYY-MM-DD/<run>/`，恢复仍可按日期选最新运行，完整下载后核对 `SHA256SUMS`，不再使用 sync/purge。`deploy/remote/platform-maintenance.sh` 在本地收据中固定 `platform/<environment>/<date>/<run>/`，独立 `platform-archive.sh` 验证本地 SHA、先加密再归档；原 `platform-backup@.service` 的 `AF_UNIX` sandbox 不放宽，联网归档须由另一个获批、可联网但最小权限的受控步骤调用。本分支不移动现有数据，也不声称真实服务器已安装或恢复通过。
+task270 的 `deploy/gitlab/backup.sh`、`restore-drill.sh` 已改为调用共享 Garage 归档器：新写入位于 `gitlab/YYYY-MM-DD/<run>/`，恢复仍可按日期选最新运行，完整下载后核对 `SHA256SUMS`，不再使用 sync/purge。`deploy/remote/platform-maintenance.sh` 在本地收据中固定 `platform/<environment>/<date>/<run>/`，独立 `platform-archive.sh` 验证本地 SHA、先加密再归档；原 `platform-backup@.service` 的 `AF_UNIX` sandbox 不放宽，联网归档须由另一个获批、可联网但最小权限的受控步骤调用。本分支不移动现有数据，也不声称真实服务器已安装或恢复通过。这些备份路径在 #346 后续步骤切换之前仍写 Garage 的私有桶。
 
 ## 验证与环境责任
 
 公开对象逐个校验 HEAD 200、完整 GET 200 的 SHA-256/字节数、Range 206 和 `Content-Range`/字节、MIME、公开缓存以及浏览器需要的 CORS。ETag 视为不透明值，不依赖等于 qetag、MD5 或 SHA-256。
 
-本地 HTTP 假存储故意允许服务端覆盖，以证明已有对象保护确实在客户端执行。受限运行器不能 bind 时，测试通过 Node 原生 HTTP client/server 的进程内双向字节流执行；`CDN_TEST_TCP=1` 改为真实回环 TCP。它们是协议/源码回归，不证明公网、TLS、浏览器或供应商安全能力。
+本地 HTTP 假存储故意允许服务端覆盖，以证明已有对象保护确实在客户端执行。假存储在 `/fixture-bucket/<键>` 上模拟 path-style S3，在 `/yzgc/<键>` 上模拟公开域名直链。受限运行器不能 bind 时，测试通过 Node 原生 HTTP client/server 的进程内双向字节流执行；`CDN_TEST_TCP=1` 改为真实回环 TCP。它们是协议/源码回归，不证明公网、TLS、浏览器或供应商安全能力。
 
-父级负责旧对象下载/上传、逐项完整 GET 哈希、桶权限与凭据、真实 TLS/SigV4、匿名不能列桶/写公开对象/读私有对象、两环境 MIME/CORS/Range、HLS 全链、邮件图片、指南与表情、真实浏览器及备份恢复。新端点目前所报的 S3 401 是环境阻塞；未经这些实测不得标为上线通过。
+2026-10-30 的只读核对（HEAD、不写对象）：`https://cdn.crosery.com` 上宣传片的 `master-av1.m3u8`、`master-h264.m3u8`、`poster.jpg`、`poster-640.jpg` 与 8 个档位播放列表都是 200，每个档位的初始化段与首分片也是 200；邮件的四个图片对象是 200；表情（抽样 1 个）与使用说明截图（抽样 1 个）是 200；旧帖图片 `forum/published/` 抽样 1 个是 404，即这些对象还没有上传到七牛，要靠下一次发布的 `cdn-upload` 补传。
+
+父级仍负责：旧对象的逐项完整 GET 哈希、桶权限与凭据、真实 TLS/SigV4、匿名不能列桶/写公开对象/读私有对象、两环境 MIME/CORS/Range、HLS 全链、邮件图片、指南与表情、真实浏览器及备份恢复。未经这些实测不得标为上线通过。
 
 回滚源码/构建开关不删除任何对象；已发布旧镜像仍引用旧服务时，必须保留其资源与迁移清单。新服务缺对象或凭据失效不会自动退回旧 CDN。

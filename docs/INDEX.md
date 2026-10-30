@@ -136,7 +136,7 @@
 | 文档 | 说明 | EN |
 |---|---|---|
 | [`BACKUP.md`](./ops/BACKUP.md) | 平台沿用 `yzgc-system-backup@1` 系统归档恢复到独立空卷；数据、配置、身份映射和外发隔离分别验收，不把 GitLab 备份或文件 hash 当完整迁移。 | — |
-| [`CDN.md`](./ops/CDN.md) | #295：公开静态资源迁到 path-style S3；对象内容、发布来源和私有运维索引分别追溯。 | — |
+| [`CDN.md`](./ops/CDN.md) | #346：公开静态资源改回七牛（域名绑定到桶，上传走 path-style S3）；Garage 的公开桶封存，对象内容与配置保留。对象内容、发布来源和私有运维索引分别追溯。 | — |
 | [`CICD.md`](./ops/CICD.md) | 持续集成、宏观对齐与 `.env` 驱动的发布控制；发版只由发布 tag 触发（`vX.Y.Z-rc.N` / `vX.Y.Z-hf.N` / `vX.Y.Z-stable.N` → 预发布，`vX.Y.Z` → 正式），push 分支只跑 CI；部署开关默认关闭，机器检查不替代人工验收。 | — |
 | [`DEPLOY.md`](./ops/DEPLOY.md) | 两套隔离 Linux Docker 栈运行于 Arch，香港 Caddy 提供 HTTPS 入口；DNS 过渡期间旧 VPS 仅转发，不再运行应用或写库。 | [EN](./ops/DEPLOY.en.md) |
 | [`ENVIRONMENT.md`](./ops/ENVIRONMENT.md) | 仅包含占位符；已有环境文件不由代码规范化任务读取或覆盖。 | — |

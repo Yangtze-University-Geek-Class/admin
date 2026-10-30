@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 // 新 CDN 静态资源：离线 collect/plan、CSP 构建开关、path-style S3 上传与完整 GET 验证。
-// 不读取凭据文件，不调用旧供应商，不删除对象；Garage 不提供 insertOnly/WORM 语义。
+// 不读取凭据文件，不调用旧供应商，不删除对象；七牛 S3 兼容接口不提供条件创建，防覆盖在客户端执行。
 // 合同见 docs/ops/CDN.md；发布身份用于独立的、不可主动覆盖的公开清单。
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STATIC_CDN_BASE, STATIC_CDN_BUCKET, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from './static-cdn-base.mjs';
+import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX } from './static-cdn-base.mjs';
 import { buildManifest, manifestProblem } from './sticker-manifest.mjs';
 import { assertObjectContent, assertStorageKey, boundedRequest, CDN_MIME_TYPES as MIME, createS3Storage, readS3Config, sha256 } from './static-cdn-s3.mjs';
 import { contentIndex, createReleaseManifest, manifestText, readEntry, releaseKey, validateReleaseManifest } from './static-cdn-manifest.mjs';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const USAGE = 'static-cdn.mjs decide --origin <https://…> | plan --web <目录> --forum <目录> | upload --web <目录> --forum <目录> --referer <https://…/> --environment <preview|production> --commit <完整SHA> --generated-at <提交时间> | verify-manifest --manifest <文件> --referer <https://…/>';
-if (STATIC_CDN_PREFIX !== 'static/site/' || STATIC_CDN_BUCKET !== 'geek-public') throw new Error('CDN 目的地不符合合同');
+if (STATIC_CDN_PREFIX !== 'yzgc/static/site/') throw new Error('CDN 目的地不符合合同');
 
 // ── 对象键 ─────────────────────────────────────────────────────────────────
 
@@ -297,7 +297,8 @@ export async function decide({ config, token, origin, fetch = globalThis.fetch, 
 
 // ── 上传与核对 ────────────────────────────────────────────────────────────────
 const sleep = ms => new Promise(done => setTimeout(done, ms));
-const publicURL = (key, storage) => `${storage?.config.endpoint ?? STATIC_CDN_ORIGIN}/${STATIC_CDN_BUCKET}/${key}`;
+/** 公开地址是域名绑定到桶之后的 origin + 对象键，不经过 S3 端点，也没有桶名这一段。 */
+const publicURL = (key, publicOrigin) => `${publicOrigin}/${key}`;
 
 export async function uploadOne(entry, { config, storage, fetch = globalThis.fetch, attempts = 3, backoff = 300, timeoutMs = 15000 }) {
   assertKey(entry.key);
@@ -308,14 +309,14 @@ export async function uploadOne(entry, { config, storage, fetch = globalThis.fet
 }
 
 /** HEAD、完整 GET SHA-256 与 Range 都走公开入口，不发送 S3 Authorization。ETag 只当作不透明值。 */
-export async function verifyOne(entry, { referer, storage, fetch = globalThis.fetch, attempts = 3, backoff = 300, timeoutMs = 15000 }) {
+export async function verifyOne(entry, { referer, publicOrigin = STATIC_CDN_ORIGIN, fetch = globalThis.fetch, attempts = 3, backoff = 300, timeoutMs = 15000 }) {
   assertStorageKey(entry.key);
   const site = assertHttpsOrigin(referer, '--referer');
   if (site.pathname !== '/') throw new Error('--referer 必须是环境根地址');
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 3 || !Number.isFinite(backoff) || backoff < 0 || backoff > 5000) throw new Error('校验重试参数超限');
   const expectedHash = entry.sha256 ?? sha256(readEntry(entry));
   const headers = { Referer: referer, Origin: site.origin, 'Accept-Encoding': 'identity' };
-  const url = publicURL(entry.key, storage);
+  const url = publicURL(entry.key, publicOrigin);
   const get = async (method, extra = {}) => {
     for (let attempt = 1; ; attempt += 1) {
       const result = await boundedRequest(url, { method, headers: { ...headers, ...extra } }, { fetch, timeoutMs });
@@ -369,7 +370,7 @@ async function pool(items, size, task) {
   return results;
 }
 
-export async function uploadAll(entries, { config, storage, referer, fetch = globalThis.fetch, concurrency = 4, log = console.error, backoff = 300, timeoutMs = 15000, manifest }) {
+export async function uploadAll(entries, { config, storage, referer, publicOrigin = STATIC_CDN_ORIGIN, fetch = globalThis.fetch, concurrency = 4, log = console.error, backoff = 300, timeoutMs = 15000, manifest }) {
   if (assertHttpsOrigin(referer, '--referer').pathname !== '/') throw new Error('--referer 必须是环境根地址');
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error('concurrency 必须在 1–8');
   const keys = new Set();
@@ -388,13 +389,13 @@ export async function uploadAll(entries, { config, storage, referer, fetch = glo
   const adapter = storage ?? createS3Storage(config, { fetch, backoff, timeoutMs });
   const counts = { stored: 0, exists: 0 };
   await pool(entries, concurrency, async entry => { counts[await uploadOne(entry, { storage: adapter, fetch, backoff, timeoutMs })] += 1; });
-  const problems = (await pool(entries, concurrency, entry => verifyOne(entry, { referer, storage: adapter, fetch, backoff, timeoutMs }))).filter(Boolean);
+  const problems = (await pool(entries, concurrency, entry => verifyOne(entry, { referer, publicOrigin, fetch, backoff, timeoutMs }))).filter(Boolean);
   if (problems.length) throw new Error(`CDN 核对不通过：\n${problems.sort().join('\n')}`);
   if (manifest) {
     const key = releaseKey(manifest);
     const body = Buffer.from(manifestText(manifest));
     await adapter.ensure(key, body, 'application/json');
-    const problem = await verifyOne({ key, size: body.length, mime: 'application/json', sha256: sha256(body) }, { referer, storage: adapter, fetch, backoff, timeoutMs });
+    const problem = await verifyOne({ key, size: body.length, mime: 'application/json', sha256: sha256(body) }, { referer, publicOrigin, fetch, backoff, timeoutMs });
     if (problem) throw new Error(problem);
   }
   const bytes = entries.reduce((sum, entry) => sum + entry.size, 0);
@@ -425,7 +426,7 @@ export function parseArgs(argv) {
   return options;
 }
 
-export async function main(argv, { env = process.env, stdout = process.stdout, log = console.error, fetch = globalThis.fetch, storage, sourceRoot = REPO_ROOT } = {}) {
+export async function main(argv, { env = process.env, stdout = process.stdout, log = console.error, fetch = globalThis.fetch, storage, publicOrigin = STATIC_CDN_ORIGIN, sourceRoot = REPO_ROOT } = {}) {
   const options = parseArgs(argv);
   if (options.command === 'decide') {
     const result = await decide({ config: readS3Config(env), origin: options.origin, fetch, storage });
@@ -439,7 +440,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
     try { parsed = JSON.parse(text); } catch { throw new Error('清单 JSON 无效'); }
     const manifest = validateReleaseManifest(parsed);
     for (const object of manifest.objects) {
-      const problem = await verifyOne({ key: object.key, sha256: object.sha256, size: object.bytes, mime: object.content_type }, { referer: options.referer, storage, fetch });
+      const problem = await verifyOne({ key: object.key, sha256: object.sha256, size: object.bytes, mime: object.content_type }, { referer: options.referer, publicOrigin, fetch });
       if (problem) throw new Error(problem);
     }
     log(`恢复追溯核对：${manifest.environment}/${manifest.commit}，${manifest.objects.length} 个对象完整 GET SHA-256 一致`);
@@ -464,7 +465,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, l
     log(`共 ${entries.length} 个文件，全部在 ${STATIC_CDN_PREFIX} 下；内置表情图片 ${entries.filter(entry => entry.key.startsWith(`${STATIC_CDN_PREFIX}${STICKERS.mount}`)).length} 个对象`);
     return { entries, manifest };
   }
-  const result = await uploadAll(entries, { config, storage, referer: options.referer, fetch, log, manifest });
+  const result = await uploadAll(entries, { config, storage, referer: options.referer, publicOrigin, fetch, log, manifest });
   writeOutputs();
   return result;
 }

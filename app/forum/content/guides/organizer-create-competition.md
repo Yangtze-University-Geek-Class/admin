@@ -12,7 +12,7 @@ date: 2026-10-25
 
 1. 打开 `/console/competitions`，点右上角「新建比赛」。
 
-![新建比赛弹窗，类型、名称、规划中、日期和参赛形式](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-competition-new.iP0PHELA.webp)
+![新建比赛弹窗，类型、名称、规划中、日期和参赛形式](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-competition-new.iP0PHELA.webp)
 
 2. 「类型」选「内部比赛」：报名、组队、积分、奖项和官网都在本站管。外部比赛只登记时间和赛事官网链接（必须是 https），报名在对方网站上，下面几步都不涉及。
 3. 填「比赛名称」「开始日期」「结束日期」。日期按北京时间选，服务端按世界时间存。「报名截止」打算开放报名时要填，当天整天都能报。
@@ -20,7 +20,7 @@ date: 2026-10-25
 5. 「参赛形式」选个人赛或团队赛，团队赛再填每队最低和最高人数（默认 2 到 4 人）。个人赛没有队伍，每人单独计分；团队赛有队伍和组队广场。有人报名后不能再改形式。点「新建」保存。
 6. 新建好之后，列表里这一行点「报名、积分与官网」，进入「报名设置」页签。
 
-![报名设置页签，在线报名开关、参赛形式和人数](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-signup-settings.p42SZK-K.webp)
+![报名设置页签，在线报名开关、参赛形式和人数](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-signup-settings.p42SZK-K.webp)
 
 7. 打开「在线报名」开关，参赛形式和人数已经是新建时选的，需要的话可以在这里改。「计分」选「不计分」或「开源贡献积分」，选了后者才能在比赛进行中登记积分、看天梯。点「保存设置」。
 8. 开了积分之后，到「计分与奖项」页签：上面的两档基础分表是固定的，不能改；下面「年级系数」六格可以改，默认大一到大四依次是 3.5、2.2、1.4、1，已毕业和没填年级的是 1；改了系数只影响之后记的分，已经记过的不会跟着变。

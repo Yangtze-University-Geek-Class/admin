@@ -65,7 +65,7 @@ describe('web container nginx picks the SPA entry by path', () => {
     expect(production.split(' ')).toContain('blob:');
     expect(preview).toBe(production);
     // 只放开 blob:，不多放任何外部域名
-    expect(production).toBe("'self' blob: https://challenges.cloudflare.com https://cdn.yangtzeu.work");
+    expect(production).toBe("'self' blob: https://challenges.cloudflare.com https://cdn.crosery.com");
   });
 
   it('keeps each host nginx template to one origin, with the retired admin domain redirected', () => {

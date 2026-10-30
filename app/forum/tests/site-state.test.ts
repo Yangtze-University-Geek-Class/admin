@@ -11,6 +11,7 @@ import { parseSnapshotState } from '../shared/local-snapshot'
 import { publishedForumState, publishedTopicIds } from '../shared/published'
 import { SITE_NOTICE, siteMarkdownNotice } from '../shared/site-notice'
 import { siteForumState } from '../shared/site-state'
+import { STATIC_CDN_PREFIX } from '../shared/sticker-url'
 
 // Source publication stays testable, but the deployed site bootstrap is empty:
 // core is the only authority that may project these records to a viewer.
@@ -117,7 +118,7 @@ describe('siteForumState', () => {
     const text = JSON.stringify(published)
     expect(text).not.toContain('luoxi2334.oss-cn-shanghai.aliyuncs.com')
     const names = new Set<string>()
-    for (const match of text.matchAll(/https:\/\/cdn\.yangtzeu\.work\/geek-public\/static\/site\/forum\/published\/([a-f0-9]{16}\.webp)/g)) {
+    for (const match of text.matchAll(new RegExp(`${STATIC_CDN_PREFIX.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}forum/published/([a-f0-9]{16}\\.webp)`, 'g'))) {
       names.add(match[1]!)
       expect(existsSync(new URL(`../public/published/${match[1]}`, import.meta.url)), match[1]).toBe(true)
     }

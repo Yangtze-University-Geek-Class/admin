@@ -1,7 +1,7 @@
 /**
  * 信封模板的固定尺寸图片部件（#148）。
  *
- * 图片不进仓库，也不进 server 镜像：生成后上传到 CDN（正式发信用 https://cdn.yangtzeu.work/geek-public/mail/v1/），
+ * 图片不进仓库，也不进 server 镜像：生成后上传到 CDN（正式发信用 https://cdn.crosery.com/yzgc/mail/v1/），
  * 渲染时由调用方传入 assetBase 拼出地址。文件名带内容 sha256 的前 8 位，换图必然换名，已发出的邮件继续指向旧图。
  * width / height 是邮件里显示的尺寸（CSS 像素），文件本身按 2 倍导出。
  * 生成方法、原图来源和上传步骤见 docs/services/server/mail.md。

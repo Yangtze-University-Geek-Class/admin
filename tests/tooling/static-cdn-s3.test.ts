@@ -10,18 +10,19 @@ describe('CDN S3 credentials and destination', () => {
     expect(readS3Config({
       STATIC_CDN_S3_ACCESS_KEY_ID: 'fixture-access',
       STATIC_CDN_S3_SECRET_ACCESS_KEY: 'fixture-secret',
+      STATIC_CDN_S3_BUCKET: 'fixture-bucket',
     })).toMatchObject({
-      endpoint: 'https://cdn.yangtzeu.work', bucket: 'geek-public', region: 'garage', forcePathStyle: true,
+      endpoint: 'https://s3.cn-south-1.qiniucs.com', bucket: 'fixture-bucket', region: 'cn-south-1', forcePathStyle: true,
     });
   });
 
   it.each([
-    { STATIC_CDN_S3_BUCKET: 'other' }, { STATIC_CDN_S3_BUCKET: 'geek-backup' },
+    { STATIC_CDN_S3_BUCKET: '' }, { STATIC_CDN_S3_BUCKET: 'Bad_Bucket' }, { STATIC_CDN_S3_BUCKET: 'fixture-bucket/../other' },
     { STATIC_CDN_S3_REGION: 'us-east-1' }, { STATIC_CDN_S3_FORCE_PATH_STYLE: 'false' },
-    { STATIC_CDN_S3_ENDPOINT: 'https://evil.example' }, { STATIC_CDN_S3_ENDPOINT: 'http://cdn.yangtzeu.work' },
-    { STATIC_CDN_S3_ENDPOINT: 'https://cdn.yangtzeu.work@evil.example' },
-    { STATIC_CDN_S3_ENDPOINT: 'https://cdn.yangtzeu.work/private/' },
-    { STATIC_CDN_S3_ENDPOINT: 'https://cdn.yangtzeu.work?key=fixture' },
+    { STATIC_CDN_S3_ENDPOINT: 'https://evil.example' }, { STATIC_CDN_S3_ENDPOINT: 'http://s3.cn-south-1.qiniucs.com' }, { STATIC_CDN_S3_ENDPOINT: 'https://cdn.crosery.com' },
+    { STATIC_CDN_S3_ENDPOINT: 's3.cn-south-1.qiniucs.com@evil.example' },
+    { STATIC_CDN_S3_ENDPOINT: 'https://s3.cn-south-1.qiniucs.com/private/' },
+    { STATIC_CDN_S3_ENDPOINT: 'https://s3.cn-south-1.qiniucs.com?key=fixture' },
     { STATIC_CDN_S3_ENDPOINT: 'http://127.0.0.1:19095' },
     { STATIC_CDN_S3_ACCESS_KEY_ID: 'fixture\ninjected' }, { STATIC_CDN_S3_SECRET_ACCESS_KEY: 'fixture\ninjected' },
     { STATIC_CDN_S3_ACCESS_KEY_ID: '' }, { STATIC_CDN_S3_SECRET_ACCESS_KEY: '' },
@@ -32,8 +33,8 @@ describe('CDN S3 credentials and destination', () => {
   it('does not expose a raw delete or overwrite request even to callers of the adapter', async () => {
     const config = readS3Config(fixtureEnv);
     const storage = createS3Storage(config);
-    for (const method of ['DELETE', 'POST', 'PUT']) expect(() => storage.request(method, 'static/site/assets/a-12345678.js')).toThrow(/仅允许读取/);
-    expect(() => signS3Request(config, 'DELETE', 'static/site/assets/a-12345678.js')).toThrow(/不允许/);
+    for (const method of ['DELETE', 'POST', 'PUT']) expect(() => storage.request(method, 'yzgc/static/site/assets/a-12345678.js')).toThrow(/仅允许读取/);
+    expect(() => signS3Request(config, 'DELETE', 'yzgc/static/site/assets/a-12345678.js')).toThrow(/不允许/);
   });
 });
 
@@ -42,7 +43,7 @@ describe('S3 HTTP adapter', () => {
     const store = await startCdnStore();
     try {
       const storage = createS3Storage(store.config, { allowLoopbackForTests: true, backoff: 0, fetch: store.fetch });
-      const key = `static/site/forum/stickers/${sha256(Buffer.from('fixture'))}.webp`;
+      const key = `yzgc/static/site/forum/stickers/${sha256(Buffer.from('fixture'))}.webp`;
       expect(await storage.ensure(key, Buffer.from('fixture'), 'image/webp')).toBe('stored');
       expect(await storage.ensure(key, Buffer.from('fixture'), 'image/webp')).toBe('exists');
       await expect(storage.ensure(key, Buffer.from('different'), 'image/webp')).rejects.toThrow(/SHA-256|字节/);
@@ -60,12 +61,12 @@ describe('S3 HTTP adapter', () => {
       const storage = createS3Storage(store.config, { allowLoopbackForTests: true, backoff: 0, fetch: store.fetch });
       const body = Buffer.from('fixture');
       for (const [key, type] of [
-        [`static/site/forum/stickers/${'ab'.repeat(32)}.webp`, 'image/webp'],
-        ['static/site/forum/guides/screen-1.12345678.png', 'image/png'],
-        ['static/site/assets/app-12345678.js', 'text/html'],
+        [`yzgc/static/site/forum/stickers/${'ab'.repeat(32)}.webp`, 'image/webp'],
+        ['yzgc/static/site/forum/guides/screen-1.12345678.png', 'image/png'],
+        ['yzgc/static/site/assets/app-12345678.js', 'text/html'],
       ]) await expect(storage.ensure(key, body, type)).rejects.toThrow(/哈希|SHA-256|类型/);
       expect(store.calls).toHaveLength(0);
-      const key = 'static/site/assets/app-12345678.js';
+      const key = 'yzgc/static/site/assets/app-12345678.js';
       expect(await Promise.all([storage.ensure(key, body, 'text/javascript'), storage.ensure(key, body, 'text/javascript')])).toEqual(['stored', 'exists']);
       expect(store.calls.filter(call => call.method === 'PUT')).toHaveLength(1);
     } finally { await store.close(); }

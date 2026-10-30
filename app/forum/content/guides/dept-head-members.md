@@ -12,7 +12,7 @@ date: 2026-10-24
 
 1. 打开 `/console/users`。部长看到的这张表只有本部门的人，不是全校；表格列出头像、昵称、用户名、年级、身份、部门、称号、GitLab 同步状态和最近登录时间。
 
-![用户页，筛选到本部门成员的列表](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-users-scoped.awOeQZAB.webp)
+![用户页，筛选到本部门成员的列表](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-users-scoped.awOeQZAB.webp)
 
 2. 点一个人的昵称打开右侧抽屉，能看到「资料」页签（真实姓名是否显示要看有没有 `users.manage` 这项权限）、「操作记录」页签（本部门内，要有查操作记录的权限）；没有改资料的权限时，表单只能看不能改，也没有「保存」按钮。
 3. 想给某个成员调整部门或者加称号，这件事目前要由有「管理用户」权限的人来做（默认是管理部部长和站长），把人、要改成什么说清楚，对方在同一个用户详情抽屉里改好保存即可。

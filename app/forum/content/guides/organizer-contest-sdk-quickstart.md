@@ -12,7 +12,7 @@ date: 2026-10-25
 
 1. 在控制台「比赛」列表里找到这场比赛，记下它的比赛 id（内部比赛的地址或「报名、积分与官网」链接里能看到）。
 
-![控制台比赛列表，能看到比赛 id](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-competitions-list.gPcWPlY6.webp)
+![控制台比赛列表，能看到比赛 id](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-competitions-list.gPcWPlY6.webp)
 
 2. 在自己的站点包里用 ES module 的方式加载 SDK，不用安装任何依赖：
 

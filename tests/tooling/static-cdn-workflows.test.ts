@@ -43,7 +43,7 @@ describe('deploy workflows', () => {
         const block = job(text, id);
         expect(block, `${name} ${id}`).toContain('          STATIC_CDN_S3_ACCESS_KEY_ID: ${{ secrets.STATIC_CDN_S3_ACCESS_KEY_ID }}\n');
         expect(block, `${name} ${id}`).toContain('          STATIC_CDN_S3_SECRET_ACCESS_KEY: ${{ secrets.STATIC_CDN_S3_SECRET_ACCESS_KEY }}\n');
-        expect(block, `${name} ${id}`).toContain('          STATIC_CDN_S3_REGION: garage\n');
+        expect(block, `${name} ${id}`).toContain('          STATIC_CDN_S3_REGION: cn-south-1\n');
         expect(block, `${name} ${id}`).toContain(ENVIRONMENT);
         expect(block, `${name} ${id}`).not.toMatch(/^ *[^ #\n].*(?:pnpm|npm (?:ci|install)|docker )/m);
       }

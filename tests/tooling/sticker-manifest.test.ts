@@ -349,6 +349,6 @@ describe('commands', () => {
     const hash = 'ab'.repeat(32);
     expect(stickerObjectKey(hash)).toBe(`forum/stickers/${hash}.webp`);
     expect(STICKER_KEY_PREFIX).toBe('forum/stickers/');
-    expect(stickerCdnUrl({ key: stickerObjectKey(hash) })).toBe(`https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`);
+    expect(stickerCdnUrl({ key: stickerObjectKey(hash) })).toBe(`https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`);
   });
 });

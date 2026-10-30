@@ -252,6 +252,24 @@
         "doneAt": "2026-10-30T18:03:42+08:00",
         "evidence": "gitlab-cutover 运行 41025896271、41026637638 把正式 GitLab 搬到正式入口的 /gitlab；deploy-hotfix 41033176202 十个 job 全绿（含 smoke），正式 release.json 为 0.1.1@28a2e7a4；verify-accounts 运行 41036945384：有效成员 49、已核对 49、failures 为空，抽样 49 个成员的 sub 与搬家前一致，GitLab 账号搬家前后都是 59 个、没有多出非成员号；新地址根路径与 geek/admin 都 302 到 /gitlab/users/sign_in，登录页表单走统一登录；本机 gitlab remote 用新地址 fetch/push 正常；旧主机的 DNS 已由所有者删除，不再核对 301；正式控制台的比赛贡献收集在部署后 17:53 自动跑过一轮（读 91 条，没有 GitLab 错误），手动点「立即收集」被控制台的重新登录门槛拦下（要所有者本人完成 GitHub 会话验证），以自动轮次为准"
       }
+    },
+    {
+      "id": "P-0018",
+      "surface": "external",
+      "title": "静态资源 CDN 换回七牛：上传密钥与目标桶改成七牛的值",
+      "issue": 346,
+      "phase": "pre_deploy",
+      "release": "0.1.1",
+      "preview": {
+        "doneAt": "2026-10-30T21:32:53+08:00",
+        "evidence": "GitHub 环境 static-cdn 的 STATIC_CDN_S3_ACCESS_KEY_ID、STATIC_CDN_S3_SECRET_ACCESS_KEY 换成七牛的值，新增 STATIC_CDN_S3_BUCKET；三个都在 2026-10-30 13:32Z 更新。换之前等 v0.1.1-stable.1 的 cdn-upload 先跑完，旧代码不读新值"
+      },
+      "production": {
+        "status": "done",
+        "action": "static-cdn 是 deploy-preview、deploy-production、deploy-hotfix 共用的环境，三个密钥只有一份，预发布这一步同时覆盖正式。正式走 #346 的 hotfix 窗口（v0.1.1）时只核对 cdn-upload 传到七牛、页面从新地址取资源",
+        "doneAt": "2026-10-30T21:32:53+08:00",
+        "evidence": "同预发布：共用环境 static-cdn 的三个密钥已在 2026-10-30 13:32Z 更新"
+      }
     }
   ]
 }

@@ -84,6 +84,8 @@ const TOKEN_RE = /[A-Za-z0-9]+/g;
 const CHAIN_ID_RE = /[A-Za-z0-9_-]+\/(?=task[_/]\d)/g;
 const NOREPLY_ADDRESS_RE = /[A-Za-z0-9._+-]+@(?:users\.)?noreply\.[A-Za-z0-9.-]+/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+/** 主机形状的候选（整个点分名，前后都不能再接主机字符或 @）：登记的精确主机只在登记过的文件里放行（#346）。 */
+const HOST_CANDIDATE_RE = /(?<![A-Za-z0-9.@-])(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?![A-Za-z0-9@-]|\.[A-Za-z0-9])/g;
 /** URL 的用户信息：`scheme://用户@主机`、`scheme://用户:口令@主机` 里 @ 前的部分；只认 :// 之后紧跟的用户段，别的冒号照常报。 */
 const URL_USERINFO_RE = /[A-Za-z][A-Za-z0-9+.-]*:\/\/(?:[^\s/@]*:)?$/;
 /** 用户原话形态：标签后短距离内是冒号（不是网址的 ://）或引号，或「所有者 / 用户 + 日期、时间、动词 + 引号」；引号内以 [已脱敏] 开头的不算。 */
@@ -208,7 +210,7 @@ export function parseExceptions(data) {
   return data.exceptions.map((entry, index) => {
     const where = `隐私登记表第 ${index + 1} 条`;
     if (typeof entry.file !== 'string' || !entry.file || entry.file.startsWith('/') || entry.file.split('/').includes('..')) throw new Error(`${where}：file 必须是仓库内的相对路径`);
-    const kinds = ['valueSha256', 'lineSha256'].filter(key => entry[key] !== undefined);
+    const kinds = ['valueSha256', 'lineSha256', 'hostSha256'].filter(key => entry[key] !== undefined);
     if (kinds.length !== 1) throw new Error(`${where}：valueSha256 与 lineSha256 只能二选一`);
     if (typeof entry[kinds[0]] !== 'string' || !DIGEST_RE.test(entry[kinds[0]])) throw new Error(`${where}：摘要必须是 64 位小写十六进制`);
     if (typeof entry.reason !== 'string' || entry.reason.trim().length < 6) throw new Error(`${where}：必须写理由（至少 6 个字）`);
@@ -263,7 +265,10 @@ export function auditRepository({ repoRoot = root, files, identityDigests, excep
     }
     if (!inScope(file)) continue;
     checked += 1;
-    for (const { line, rule, digest } of scanText(text, { identityDigests, notesLayout: file.startsWith('notes/') })) {
+    // 登记的精确主机先从文字里拿掉（同长度的空格，行号不变），每个登记的出现次数都计入 maxCount；别的主机照常扫描。
+    const hosted = exceptions.some(item => item.file === file && item.kind === 'hostSha256');
+    const masked = hosted ? text.replace(HOST_CANDIDATE_RE, host => (allowed(file, 'hostSha256', sha256(host)) ? ' '.repeat(host.length) : host)) : text;
+    for (const { line, rule, digest } of scanText(masked, { identityDigests, notesLayout: file.startsWith('notes/') })) {
       if (digest !== undefined && allowed(file, 'valueSha256', digest)) continue;
       findings.push(`${file}:${line}: ${rule}（命中内容未输出；按规范改成角色描述、「[已脱敏]」或删除）`);
     }

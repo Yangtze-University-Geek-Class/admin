@@ -15,7 +15,7 @@ describe('server STATIC_CDN_BASE rule equals scripts/static-cdn-base.mjs', () =>
   });
 
   it('never reflects credentials accidentally pasted into a build URL', () => {
-    const raw = 'https://fixture-user:fixture-private@cdn.yangtzeu.work/geek-public/static/site/';
+    const raw = STATIC_CDN_BASE.replace('https://', 'https://fixture-user:fixture-private@');
     for (const read of [() => staticCdnBase({ STATIC_CDN_BASE: raw }), () => parseStaticCdnBase(raw)]) {
       expect(run(read)).toHaveProperty('error');
       expect(JSON.stringify(run(read))).not.toContain('fixture-private');
@@ -24,8 +24,8 @@ describe('server STATIC_CDN_BASE rule equals scripts/static-cdn-base.mjs', () =>
 
   it.each([
     undefined, '', ' ', '\n', '\t ', STATIC_CDN_BASE, ` ${STATIC_CDN_BASE} `, `${STATIC_CDN_BASE}\n`,
-    'https://cdn-old.example.test', 'https://cdn-old.example.test/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/',
-    'https://CDN.yangtzeu.work/geek-public/static/site/', 'https://cdn.yangtzeu.work/geek-public/static/site//', 'https://cdn.yangtzeu.work/geek-public/static/site/forum/',
+    'https://cdn-old.example.test', 'https://cdn-old.example.test/', 'https://cdn.yangtzeu.work/geek-public/static/site/', 'https://cdn.crosery.com/yzgc/static/site', 'http://cdn.crosery.com/yzgc/static/site/',
+    STATIC_CDN_BASE.replace('https://cdn.', 'https://CDN.'), 'https://cdn.crosery.com/yzgc/static/site//', 'https://cdn.crosery.com/yzgc/static/site/forum/',
     'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/', '/yzgc/static/site/', 'null', '0',
   ])('gives the same answer for %j', raw => {
     expect(run(() => parseStaticCdnBase(raw))).toEqual(run(() => staticCdnBase({ STATIC_CDN_BASE: raw })));
@@ -48,6 +48,6 @@ describe('server manifest reader equals scripts/sticker-manifest.mjs', () => {
   it('the same-origin address is the CDN address without the prefix: <origin>/api/forum/stickers/<hash>.webp vs <base>forum/stickers/<hash>.webp', () => {
     const hash = 'cd'.repeat(32);
     expect(stickerSameOriginUrl(hash)).toBe(`/api/forum/stickers/${hash}.webp`);
-    expect(`${STATIC_CDN_BASE}${SERVER_KEY_PREFIX}${hash}.webp`).toBe(`https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`);
+    expect(`${STATIC_CDN_BASE}${SERVER_KEY_PREFIX}${hash}.webp`).toBe(`https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`);
   });
 });

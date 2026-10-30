@@ -182,3 +182,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推送 task/333/abuse_shield，在 GitLab 开 MR 进 stage
 - 结果：合入后随 0.1.1 hotfix 封版
+
+## 21:38:32 +08:00 · 收尾 · #333 · PR !80 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 333：删 worktree .claude/worktrees/task-333 与本地分支 task/333/abuse_shield
+- 结果：PR 已合并

@@ -271,7 +271,7 @@ app/console/dist/
   console-assets/*.js|css|png   # 带哈希的资源，不与官网的 /assets/ 重名
 ```
 
-`base` 是 `/`，不读 `public/`（favicon 与 logo 作为模块导入进 `console-assets/`）。静态资源 CDN 开关（#146，构建参数 `STATIC_CDN_BASE`）打开时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把 `console-assets/` 下的文件改写到 `https://cdn.yangtzeu.work/geek-public/static/site/console-assets/…`，入口页与路由仍走源站；为空时同源。规则与 web 相同，见 [web 合同](../web/README.md)「静态资源 CDN 开关」。web 镜像把这份 dist 叠进 nginx 站点根，`/console`、`/console/…`、`/admin`、`/admin/…`、`/signin`、`/device`、`/account`、`/authorize`、`/bind-email` 回落到 `sites/console/index.html`；服务端 `resolveSiteEntry` 与开发态 Vite 的 `/device` 代理同一规则（直连 server 时）。详见 [web 合同](../web/README.md) 与 [DEPLOY](../../ops/DEPLOY.md)。
+`base` 是 `/`，不读 `public/`（favicon 与 logo 作为模块导入进 `console-assets/`）。静态资源 CDN 开关（#146，构建参数 `STATIC_CDN_BASE`）打开时，`vite.config.ts` 用 `experimental.renderBuiltUrl` 把 `console-assets/` 下的文件改写到 `https://cdn.crosery.com/yzgc/static/site/console-assets/…`，入口页与路由仍走源站；为空时同源。规则与 web 相同，见 [web 合同](../web/README.md)「静态资源 CDN 开关」。web 镜像把这份 dist 叠进 nginx 站点根，`/console`、`/console/…`、`/admin`、`/admin/…`、`/signin`、`/device`、`/account`、`/authorize`、`/bind-email` 回落到 `sites/console/index.html`；服务端 `resolveSiteEntry` 与开发态 Vite 的 `/device` 代理同一规则（直连 server 时）。详见 [web 合同](../web/README.md) 与 [DEPLOY](../../ops/DEPLOY.md)。
 
 正式构建复用 `scripts/security-notice.mjs`（#336），只在 HTML 元数据和入口 JS 注释中提示安全测试的授权边界，不显示弹窗、不新增脚本、不改变登录与业务授权。开发服务器即使继承了正式环境变量也不注入，预发布和默认本机构建同样不注入；web 镜像显式把既有环境身份传给两次 Vite 构建。提示不是访问控制，详见 [SECURITY](../../architecture/SECURITY.md#正式产物的-ai-授权提示336)。
 

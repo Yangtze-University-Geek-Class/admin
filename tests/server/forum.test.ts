@@ -12,6 +12,7 @@ import { ipSubject, nameKey } from '../../app/server/src/lib/forum-rules';
 import { createForumStore } from '../../app/server/src/lib/forum-store';
 import { setExclusiveGroupMembership } from '../../app/server/src/lib/permissions';
 import { FORUM_FIXTURE_DIR, accountIdOf, activityRows, grantPermGroup, grantPermNode, signIn, testApp } from './helpers';
+import { STATIC_CDN_BASE } from '../../app/server/src/lib/static-cdn';
 
 /** sharp 是 app/server 的依赖，根目录没有它；从 server 包里取，用来生成真实的测试图片和核对输出。 */
 const sharp = createRequire(join(REPO_ROOT, 'app/server/package.json'))('sharp') as typeof import('../../app/server/node_modules/sharp');
@@ -1219,7 +1220,7 @@ describe('seeding', () => {
     const s = await setup();
     await s.call('PATCH', '/api/forum/posts/body-9', 'alice', { content: '人工改过的旧帖，保留阿里原链接' });
     const content = loadForumContent(FORUM_FIXTURE_DIR);
-    const topics = content.topics.map(topic => ({ ...topic, content: `${topic.content}\n\n![迁移](https://cdn.yangtzeu.work/geek-public/static/site/forum/published/0123456789abcdef.webp)` }));
+    const topics = content.topics.map(topic => ({ ...topic, content: `${topic.content}\n\n![迁移](https://cdn.crosery.com/yzgc/static/site/forum/published/0123456789abcdef.webp)` }));
     const next = createForumStore(s.db, { ...content, topics });
     expect(next.seed()).toBe(0);
     expect(next.seed()).toBe(0);
@@ -1262,7 +1263,7 @@ describe('seeding', () => {
       expect(item.content, item.id).not.toMatch(/\p{Extended_Pictographic}/u);
       expect(item.content, item.id).not.toMatch(/\*\*|__/);
       expect(item.content, item.id).not.toMatch(/[\w.+-]+@[\w-]+\.[a-z]{2,}/);
-      const withoutCdnImages = item.content.replace(/!\[([^\]\n]*)\]\(https:\/\/cdn\.yangtzeu\.work\/geek-public\/static\/site\/forum\/guides\/[a-z0-9-]+\.[A-Za-z0-9_-]{8}\.(?:webp|png)\)/g, '$1');
+      const withoutCdnImages = item.content.replace(new RegExp(`!\\[([^\\]\\n]*)\\]\\(${STATIC_CDN_BASE.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}forum/guides/[a-z0-9-]+\\.[A-Za-z0-9_-]{8}\\.(?:webp|png)\\)`, 'g'), '$1');
       expect(withoutCdnImages, item.id).not.toMatch(/yangtzeu\.work/);
     }
   });

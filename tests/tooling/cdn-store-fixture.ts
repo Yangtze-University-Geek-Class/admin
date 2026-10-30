@@ -7,6 +7,7 @@ export const fixtureKeys = { accessKey: 'fixture-access', secretKey: 'fixture-se
 export const fixtureEnv = {
   STATIC_CDN_S3_ACCESS_KEY_ID: fixtureKeys.accessKey,
   STATIC_CDN_S3_SECRET_ACCESS_KEY: fixtureKeys.secretKey,
+  STATIC_CDN_S3_BUCKET: 'fixture-bucket',
 };
 export type StoredObject = { body: Buffer; type: string };
 export type StoreFault = {
@@ -22,7 +23,7 @@ function authentic(req: IncomingMessage, body: Buffer): boolean {
   const auth = /^AWS4-HMAC-SHA256 Credential=([^/]+)\/([^,]+), SignedHeaders=([^,]+), Signature=([0-9a-f]{64})$/.exec(String(req.headers.authorization));
   if (!auth || auth[1] !== fixtureKeys.accessKey) return false;
   const [date, region, service, terminal] = auth[2].split('/');
-  if (region !== 'garage' || service !== 's3' || terminal !== 'aws4_request') return false;
+  if (region !== 'cn-south-1' || service !== 's3' || terminal !== 'aws4_request') return false;
   const stamp = String(req.headers['x-amz-date']);
   if (!stamp.startsWith(date)) return false;
   const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
@@ -46,10 +47,13 @@ export async function startCdnStore(fault: StoreFault = {}) {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const body = Buffer.concat(chunks);
-    const key = req.url!.replace(/^\/geek-public\//, '');
     const signed = Boolean(req.headers.authorization);
+    // S3 请求是 path-style：/fixture-bucket/<键>，必须签名（GET/HEAD 不签也放行，和旧假存储一致）；公开读走域名，路径是 /<键>，不签名。
+    const bucketPath = req.url!.startsWith('/fixture-bucket/');
+    const publicRead = !signed && !bucketPath && req.url!.startsWith('/yzgc/');
+    const key = bucketPath ? req.url!.slice('/fixture-bucket/'.length) : req.url!.slice(1);
     calls.push({ method: req.method!, key, signed, headers: req.headers });
-    if (!req.url!.startsWith('/geek-public/') || (signed && !authentic(req, body))) {
+    if ((!bucketPath && !publicRead) || (signed && !authentic(req, body))) {
       res.writeHead(403).end(); return;
     }
     if (fault.redirect) { res.writeHead(307, { location: fault.redirect }).end(); return; }
@@ -136,7 +140,7 @@ export async function startCdnStore(fault: StoreFault = {}) {
   };
   return {
     objects, calls, fault, endpoint, fetch: httpFetch,
-    config: { ...fixtureKeys, endpoint, bucket: 'geek-public', region: 'garage', forcePathStyle: true },
+    config: { ...fixtureKeys, endpoint, bucket: 'fixture-bucket', region: 'cn-south-1', forcePathStyle: true },
     get maxActive() { return maxActive; },
     async close() {
       for (const socket of sockets) socket.destroy();

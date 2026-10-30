@@ -12,7 +12,7 @@ import {
   type TemplateContent,
 } from "../../app/server/src/lib/mail/template-content";
 
-const CDN = "https://cdn.yangtzeu.work/geek-public/mail/v1/";
+const CDN = "https://cdn.crosery.com/yzgc/mail/v1/";
 const CONTEXT = { siteOrigin: "https://yangtzeu.work", sentAt: Date.UTC(2026, 8, 26, 17, 31) };
 
 /** 最小的合法模板：每个用例只改它要测的那一处。 */

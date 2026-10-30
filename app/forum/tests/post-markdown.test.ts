@@ -286,7 +286,7 @@ describe('the Bilibili way of writing a sticker, [包名_名字] (#276)', () => 
 
 describe('stickers served from the controlled CDN (#286)', () => {
   const hash = 'c'.repeat(64)
-  const CDN = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`
+  const CDN = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`
   const SAME = `/api/forum/stickers/${hash}.webp`
   const WAVE = { shortcode: 'yugc-wave', label: '挥手', url: CDN }
   const stickers = stickerIndex([{ name: '极客娘', stickers: [WAVE] }])
@@ -300,9 +300,9 @@ describe('stickers served from the controlled CDN (#286)', () => {
   it('never turns a list entry on another domain, another CDN folder or with a path trick into a picture', () => {
     for (const url of [
       `https://evil.example/yzgc/static/site/forum/stickers/${hash}.webp`,
-      `https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/${hash}.webp`,
-      `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/../${hash}.webp`,
-      `http://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`,
+      `https://cdn.crosery.com/yzgc/static/site/forum/guides/${hash}.webp`,
+      `https://cdn.crosery.com/yzgc/static/site/forum/stickers/../${hash}.webp`,
+      `http://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`,
       'javascript:alert(1)',
     ])
       expect(rendered(':odd:', stickerIndex([{ stickers: [{ shortcode: 'odd', label: '外', url }] }]))).not.toContain('<img')
@@ -324,10 +324,44 @@ describe('stickers served from the controlled CDN (#286)', () => {
   })
 
   it('leaves a picture of another hash, another domain or another CDN folder a picture', () => {
-    const other = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${'d'.repeat(64)}.webp`
-    const guide = `https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/${hash}.webp`
+    const other = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${'d'.repeat(64)}.webp`
+    const guide = `https://cdn.crosery.com/yzgc/static/site/forum/guides/${hash}.webp`
     const evil = `https://evil.example/yzgc/static/site/forum/stickers/${hash}.webp`
     expect(imagesToStickers(`![a](${other}) ![b](${guide}) ![c](${evil})`, stickers)).toBe(`![a](${other}) ![b](${guide}) ![c](${evil})`)
   })
 })
 
+
+describe('addresses written under the old Garage prefix (#346)', () => {
+  const hash = 'e'.repeat(64)
+  const OLD_STICKER = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`
+  const NEW_STICKER = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`
+  const OLD_PICTURE = 'https://cdn.yangtzeu.work/geek-public/static/site/forum/published/0123456789abcdef.webp'
+  const NEW_PICTURE = 'https://cdn.crosery.com/yzgc/static/site/forum/published/0123456789abcdef.webp'
+  const stickers = stickerIndex([{ name: '极客娘', stickers: [{ shortcode: 'yugc-wave', label: '挥手', url: NEW_STICKER }] }])
+
+  it('shows a published picture stored with the old prefix under the new prefix, the stored text untouched', () => {
+    const source = `旧帖 ![图](${OLD_PICTURE} "标题")`
+    const html = marked.parse(renderableMarkdown(source))
+    expect(html).toContain(`src="${NEW_PICTURE}"`)
+    expect(html).not.toContain('geek-public')
+    expect(source).toContain(OLD_PICTURE)
+  })
+
+  it('rewrites the same address in a raw <img>, in a reference definition, and as a sticker picture', () => {
+    expect(marked.parse(renderableMarkdown(`<img src="${OLD_PICTURE}" alt="图">`))).toContain(`src="${NEW_PICTURE}"`)
+    expect(renderableMarkdown(`![图][p]\n\n[p]: ${OLD_PICTURE}`)).toContain(`[p]: ${NEW_PICTURE}`)
+    expect(marked.parse(renderableMarkdown(`![挥手](${OLD_STICKER})`, stickers))).toContain(`src="${NEW_STICKER}"`)
+  })
+
+  it('still refuses an unsafe scheme after the rewrite', () => {
+    expect(renderableMarkdown(`![x](javascript:alert(1))`)).not.toContain('](javascript:')
+  })
+
+  it('goes into the editor as the new picture and comes back as the shortcode, whichever prefix it was stored with', () => {
+    expect(stickersToImages(`早 ![挥手](${OLD_STICKER})`, stickers)).toBe(`早 ![挥手](${NEW_STICKER})`)
+    expect(stickersToImages(`早 :yugc-wave:`, stickers)).toBe(`早 ![挥手](${NEW_STICKER})`)
+    expect(imagesToStickers(`![挥手](${OLD_STICKER})`, stickers)).toBe(':yugc-wave:')
+    expect(stickersToImages(`![图](${OLD_PICTURE})`, new Map())).toBe(`![图](${NEW_PICTURE})`)
+  })
+})

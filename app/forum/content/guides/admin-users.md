@@ -13,11 +13,11 @@ date: 2026-10-24
 1. 打开 `/console/users`，表格列出所有注册过的账号：头像、昵称、用户名、真实姓名（要有「管理用户」权限才看得到）、年级、身份、部门、称号、GitLab 同步状态、最近登录和状态。
 2. 页头有筛选：身份（全部、注册用户、极客班成员、往届成员）、状态（全部、正常、已停用）在左边；部门下拉和按用户名或昵称搜索在右边。
 
-![用户页列表，顶部筛选和表格](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-users-list.OhC0LPFS.webp)
+![用户页列表，顶部筛选和表格](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-users-list.OhC0LPFS.webp)
 
 3. 点一个人的昵称打开右侧抽屉，「资料」页签下面是编辑表单：「真实姓名」输入框、「年级」下拉框、「身份」三选一（注册用户、极客班成员、往届成员）、「部门」六选一（含「无部门」）、「称号」只列当前部门下的称号，换部门会清掉原来的称号。
 
-![用户详情抽屉的资料编辑表单](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-user-drawer.41UJJEsF.webp)
+![用户详情抽屉的资料编辑表单](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-user-drawer.41UJJEsF.webp)
 
 4. 「站长」单独是一个开关，开了就是站长，站长拥有全部权限；给人设站长或者去掉最后一位站长时会先弹确认框。改完点「保存」，只有改动过的字段会提交；什么都没改「保存」按钮是灰的。
 5. 「操作记录」页签能看这个人最近的操作；「有效权限」页签能看这个人实际生效的权限来自哪个组、哪条规则，底部有「在权限里查某一项为什么允许或拒绝」的入口，直接跳到对应的解释。

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CDN_BASE, STATIC_CDN_BUCKET, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX, forumCdnURL, staticCdnBase } from '../../scripts/static-cdn-base.mjs';
+import { STATIC_CDN_BASE, STATIC_CDN_ORIGIN, STATIC_CDN_PREFIX, forumCdnURL, staticCdnBase } from '../../scripts/static-cdn-base.mjs';
 
 // 静态资源 CDN（#146）的构建开关：STATIC_CDN_BASE 的取值规则、官网与控制台的 Vite 配置、论坛的 Nuxt 配置，
 // 以及 web、forum 两个 Dockerfile 的接线。上传脚本在 static-cdn.test.ts，部署工作流在 static-cdn-workflows.test.ts。
@@ -12,9 +12,9 @@ const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 
 describe('build switch STATIC_CDN_BASE', () => {
   it('is empty (same origin) unless set to exactly the one CDN base', () => {
-    expect(STATIC_CDN_BASE).toBe(`${STATIC_CDN_ORIGIN}/${STATIC_CDN_BUCKET}/${STATIC_CDN_PREFIX}`);
-    expect(STATIC_CDN_BASE).toBe('https://cdn.yangtzeu.work/geek-public/static/site/');
-    expect(STATIC_CDN_PREFIX.startsWith('static/')).toBe(true);
+    expect(STATIC_CDN_BASE).toBe(`${STATIC_CDN_ORIGIN}/${STATIC_CDN_PREFIX}`);
+    expect(STATIC_CDN_BASE).toBe('https://cdn.crosery.com/yzgc/static/site/');
+    expect(STATIC_CDN_PREFIX.startsWith('yzgc/static/')).toBe(true);
     expect(staticCdnBase({})).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE: '' })).toBe('');
     expect(staticCdnBase({ STATIC_CDN_BASE: '  ' })).toBe('');

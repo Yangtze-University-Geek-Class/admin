@@ -12,7 +12,7 @@ date: 2026-10-24
 
 1. 打开 `/console/invites`，表格列出已有的邀请码：码本身（带复制按钮）、备注、谁在哪天建的、已用次数、过期日期和状态（可用、已停用、已过期、次数用完）。
 
-![邀请码列表和新建弹窗](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-invites-list.TPpLaY4W.webp)
+![邀请码列表和新建弹窗](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-invites-list.TPpLaY4W.webp)
 
 2. 点右上角「新建邀请码」，默认会生成一个 10 位随机码（去掉了容易看错的 0、1、l、o），不满意可以点「换一个」，也可以自己写一个 4 到 40 位的字母、数字、下划线或连字符组合，不分大小写。
 3. 「备注（选填）」写清楚这个码发给谁、什么用途，方便以后查。「最多用几次（留空不限）」和「过期日期（留空不过期，当天整天都能用）」按需要填，留空就是不限。

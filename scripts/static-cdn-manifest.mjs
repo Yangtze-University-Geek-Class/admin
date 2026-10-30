@@ -2,23 +2,24 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { basename, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { STATIC_CDN_NAMESPACE, STATIC_CDN_PREFIX } from './static-cdn-base.mjs';
 import { assertObjectContent, assertStorageKey, CDN_MIME_TYPES as TYPES, sha256 } from './static-cdn-s3.mjs';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
 const MAX_BYTES = 10 * 1024 * 1024;
 export function releaseKey({ environment, commit }) {
   if (!['production', 'preview'].includes(environment) || typeof commit !== 'string' || !/^[0-9a-f]{40}$/.test(commit)) throw new Error('发布必须指定 production/preview 和完整小写 commit');
-  return `indexes/releases/${environment}/${commit}/manifest.json`;
+  return `${STATIC_CDN_NAMESPACE}indexes/releases/${environment}/${commit}/manifest.json`;
 }
 function shape(key) {
   assertStorageKey(key);
-  const sub = key.slice('static/site/'.length);
-  if (key.startsWith('static/site/assets/')) return { role: 'portal-asset', source: `build/web/${sub}` };
-  if (key.startsWith('static/site/console-assets/')) return { role: 'console-asset', source: `build/web/${sub}` };
-  if (key.startsWith('static/site/forum/_nuxt/')) return { role: 'forum-asset', source: `build/forum/${sub.slice('forum/'.length)}` };
-  if (key.startsWith('static/site/forum/guides/')) return { role: 'guide-image', source: `app/forum/content/guide-images/${basename(key)}` };
-  if (key.startsWith('static/site/forum/stickers/')) return { role: 'sticker', source: null };
-  if (key.startsWith('static/site/forum/published/')) return { role: 'published-image', source: `app/forum/public/published/${basename(key)}` };
+  const sub = key.slice(STATIC_CDN_PREFIX.length);
+  if (key.startsWith(`${STATIC_CDN_PREFIX}assets/`)) return { role: 'portal-asset', source: `build/web/${sub}` };
+  if (key.startsWith(`${STATIC_CDN_PREFIX}console-assets/`)) return { role: 'console-asset', source: `build/web/${sub}` };
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/_nuxt/`)) return { role: 'forum-asset', source: `build/forum/${sub.slice('forum/'.length)}` };
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/guides/`)) return { role: 'guide-image', source: `app/forum/content/guide-images/${basename(key)}` };
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/stickers/`)) return { role: 'sticker', source: null };
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/published/`)) return { role: 'published-image', source: `app/forum/public/published/${basename(key)}` };
   throw new Error('清单对象不在公开静态资源范围');
 }
 function fields(object, required) {
@@ -72,7 +73,7 @@ export function createReleaseManifest(entries, { environment, commit, generatedA
   return validateReleaseManifest({ schema_version: 1, environment, commit, generated_at: new Date(generatedAt).toISOString(), objects });
 }
 
-/** 仅写入私有构建产物，父级可存入环境私有桶；不上传到 geek-public。 */
+/** 仅写入私有构建产物，父级可存入环境私有桶；不上传到公开桶。 */
 export function contentIndex(manifest) {
   validateReleaseManifest(manifest);
   const hashes = {};

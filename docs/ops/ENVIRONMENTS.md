@@ -54,7 +54,7 @@
 | `REGISTER_NO_COOKIE_IP_DAILY` | 可见 | `3`：没有 visitor cookie 的注册，每个 IP 每个北京日的上限 | `3` |
 | `MAIL_ALIYUN_FROM` | 密钥·留空，阿里云发信时必填 | 环境密钥：阿里云邮件推送的发信地址，不带显示名，由 CI/CD 注入 | 同左 |
 | `MAIL_RESEND_FROM` | 密钥·留空，Resend 发信时必填 | 环境密钥：Resend 的发件地址，发出时写成 `长江大学极客班 <地址>`，由 CI/CD 注入 | 同左 |
-| `MAIL_ASSET_BASE` | 可见 | `https://cdn.yangtzeu.work/geek-public/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
+| `MAIL_ASSET_BASE` | 可见 | `https://cdn.crosery.com/yzgc/mail/v1/`（信里图片的地址前缀：https，以 `/` 结尾，不带查询串） | 同左 |
 | `MAIL_REPLY_TO` | 可见·留空 | 空 = 信里不带 Reply-To，改请对方到官网意见箱留言；要填就写一个不带显示名的地址 | 空 |
 | `MAIL_RECIPIENTS` | 可见 | `all`，沿用接管前设置 | `all`，沿用接管前设置 |
 | `GITLAB_SYNC` | 可见 | `off`，完整旧身份对账后才开启 | `on` 是独立实例的目标配置；切换前不能部署旧令牌或复用旧绑定 |
@@ -187,7 +187,7 @@ DNS 由所有者操作；切前核对 A/AAAA/CAA/TTL、SNI、证书签发/续期
    - 两份 nginx 模板保留为策略源；现行香港配置由迁移工具从各环境实际配置提取。`scripts/render-arch-caddy.mjs` 尚未覆盖旧入口过渡的 IP 信任逻辑，不可直接安装覆盖 live 配置。
    - 保留论坛上游内联哈希和比赛 sandbox CSP；新目标保持两层代理。模板一致不证明旧源或新边缘已安装，Caddy 生成/语法/真实域名分别取证。
 2. **S3 CDN 的公开读取与环境一致性**：
-   - 宣传片与公开静态资源迁到 `https://cdn.yangtzeu.work/geek-public`，路径、公私桶和凭据合同见 [CDN](CDN.md)；当前数据库、用户附件不外移。
+   - 宣传片与公开静态资源放在 `https://cdn.crosery.com`（七牛桶的 `yzgc/` 下），路径、公私桶和凭据合同见 [CDN](CDN.md)；当前数据库、用户附件不外移。
    - 正式与预发布都须真实验证 CORS、Range、MIME、缓存和 CSP；旧七牛的 Referer 白名单与 insertOnly 不是新服务能力。
    - S3 上传凭据只在发布 job 的进程环境，不能放到这两份业务运行时 `.env` 或镜像。部分凭据、认证失败或新端点不可达均失败关闭。
 3. **域名绑定与第三方服务配置**：

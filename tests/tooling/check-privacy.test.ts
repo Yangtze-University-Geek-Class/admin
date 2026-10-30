@@ -450,3 +450,68 @@ describe("登记放行：文件 + 精确值，或文件 + 该行内容的摘要�
     expect(readFileSync(path, "utf8")).not.toMatch(/@/);
   });
 });
+
+// 登记的精确主机（#346）：公开静态资源域名的主机名本身只在登记过的文件里放行；它的分段（个人标识的同一段）、
+// 别的域名和带后缀的主机照常报。登记只存摘要，测试里的主机与分段按同一个常量推出。
+describe("登记的精确主机（#346）", () => {
+  const HOST = "cdn.crosery.com";
+  const SEGMENT = HOST.split(".")[1];
+  const hostDigest = createHash("sha256").update(HOST).digest("hex");
+  const hostEntry = (file: string, maxCount?: number) => ({ file, kind: "hostSha256", digest: hostDigest, reason: "测试用登记", ...(maxCount === undefined ? {} : { maxCount }) });
+  const tree = (files: Record<string, string>) => {
+    const repoRoot = mkdtempSync(join(tmpdir(), "geek-privacy-host-"));
+    dirs.push(repoRoot);
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(repoRoot, file)), { recursive: true });
+      writeFileSync(join(repoRoot, file), text);
+    }
+    return repoRoot;
+  };
+
+  it("放行登记文件里不超过次数的精确主机", () => {
+    const file = "app/web/sites/portal/lib/promo.ts";
+    const repoRoot = tree({ [file]: `export const BASE = "https://${HOST}/yzgc/static/promo/";\n` });
+    expect(auditRepository({ repoRoot, files: [file], identityDigests: [digest(SEGMENT)], exceptions: [hostEntry(file, 1)] })).toMatchObject({ ok: true, checked: 1 });
+  });
+
+  it("未登记的文件里同样的主机照常报", () => {
+    const file = "app/web/sites/portal/lib/other.ts";
+    const repoRoot = tree({ [file]: `export const BASE = "https://${HOST}/x";\n` });
+    const result = auditRepository({ repoRoot, files: [file], identityDigests: [digest(SEGMENT)], exceptions: [] });
+    expect(result.ok).toBe(false);
+    expect(result.findings).toEqual([expect.stringMatching(/^app\/web\/sites\/portal\/lib\/other\.ts:1: 个人标识/)]);
+  });
+
+  it("只放行精确主机：裸分段、别的域名、带后缀或用户信息的同段主机都照常报", () => {
+    const file = "app/web/sites/portal/lib/lookalike.ts";
+    for (const line of [
+      `const a = "https://${SEGMENT}/yzgc/x";`,
+      `const b = "https://cdn.${SEGMENT}.cn/x";`,
+      `const c = "https://${HOST}.evil.example/x";`,
+      `const d = "https://${HOST}@evil.example/x";`,
+      `const e = "https://evil.example/${SEGMENT}";`,
+    ]) {
+      const repoRoot = tree({ [file]: `${line}\n` });
+      const result = auditRepository({ repoRoot, files: [file], identityDigests: [digest(SEGMENT)], exceptions: [hostEntry(file, 5)] });
+      expect(result.ok, line).toBe(false);
+      expect(result.findings.join("\n"), line).toMatch(/个人标识/);
+    }
+  });
+
+  it("超过登记次数的出现照常报，登记过但已不再命中的条目让门禁失败", () => {
+    const file = "app/web/sites/portal/lib/twice.ts";
+    const repoRoot = tree({ [file]: `const a = "https://${HOST}/a";\nconst b = "https://${HOST}/b";\n` });
+    const over = auditRepository({ repoRoot, files: [file], identityDigests: [digest(SEGMENT)], exceptions: [hostEntry(file, 1)] });
+    expect(over.findings).toEqual([expect.stringMatching(/^app\/web\/sites\/portal\/lib\/twice\.ts:2: 个人标识/)]);
+    const stale = auditRepository({ repoRoot: tree({ [file]: "const a = 1;\n" }), files: [file], identityDigests: [digest(SEGMENT)], exceptions: [hostEntry(file, 1)] });
+    expect(stale.ok).toBe(false);
+    expect(stale.findings.join("\n")).toMatch(/已经不再命中/);
+  });
+
+  it("登记表只接受摘要，不接受明文主机", () => {
+    expect(parseExceptions({ schemaVersion: 1, exceptions: [{ file: "a.ts", hostSha256: hostDigest, maxCount: 1, reason: "合法的登记理由" }] })).toEqual([
+      expect.objectContaining({ file: "a.ts", kind: "hostSha256", digest: hostDigest, maxCount: 1 }),
+    ]);
+    expect(() => parseExceptions({ schemaVersion: 1, exceptions: [{ file: "a.ts", hostSha256: "not-a-digest", reason: "合法的登记理由" }] })).toThrow(/摘要/);
+  });
+});

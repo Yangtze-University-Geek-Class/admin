@@ -286,7 +286,7 @@ export function collectChains(root) {
 }
 
 /**
- * 链路顺序的历史例外。原记录保持原字节，经所有者批准只放过下面列出的几条（GitLab #298、#308）：
+ * 链路顺序的历史例外。原记录保持原字节，经所有者批准只放过下面列出的几条（GitLab #298、#308、#346）：
  * rule 说明放过哪一条规则：after_closed 放过收尾之后又记的那一条，first_entry 放过链路第一条不是「开工」的那一条。
  * 五个字段（链路、文件、时刻、阶段、规则）全部相等才放过；别的链路、同一链上的别的记录、之后新追加的记录仍然报错。
  */
@@ -294,6 +294,7 @@ export function collectChains(root) {
 export const CHAIN_ORDER_EXCEPTIONS = [
   { rule: "after_closed", slug: "task_276_forum_image_scan", rel: "notes/2026-10-24/crosery/task_276_forum_image_scan.md", time: "22:03:16", stage: "发布" },
   { rule: "first_entry", slug: "task_308_stage_close", rel: "notes/2026-10-29/crosery/task_308_stage_close.md", time: "23:51:18", stage: "推送" },
+  { rule: "first_entry", slug: "task_346_hotfix_0_1_1", rel: "notes/2026-10-30/crosery/task_346_hotfix_0_1_1.md", time: "21:46:52", stage: "提交" },
 ];
 
 function isChainOrderException(chain, entry, rule) {

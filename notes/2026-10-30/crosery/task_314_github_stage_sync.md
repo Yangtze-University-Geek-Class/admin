@@ -37,3 +37,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：core 复现：check:catalog 报目录过期（MR !85 改了目录来源文件）。GitLab MR !86 重新生成后合入 stage 293b3191；本分支应用 3765fdbf..293b3191 的同一份改动
 - 结果：GITHUB_ACTIONS=true 下 pnpm check 见下条命令
+
+## 21:14:11 +08:00 · 收尾 · #314 · PR #315 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 314：删 worktree .claude/worktrees/task-314 与本地分支 task/314/github_stage_sync
+- 结果：PR 已合并

@@ -258,7 +258,7 @@ CONTRACT-276 在上面这套 #57/#156/#274 的基础上加了六件事：话题�
 |---|---|---|---|---|
 | `GET /api/forum/topics?cursor=&limit=&q=` | 所有人 | 同 `/search`（每 IP 30 次/分钟）；访客带 `cursor` 翻页另按天最多 10 次 | 200 `{ topics, nextCursor }`，按最后活跃时间倒序；`limit` 缺省 20、最大 50；`nextCursor` 为 `null` 表示没有更多 | 400 `validation_error`（`limit`、`q`）；429 `rate_limited` |
 | `PATCH /api/forum/topics/:id/visibility` | 持 `forum.moderate.edit`（按话题分类限定 scope） | 无 | 200，`changes` 有这个话题；body `{ visibility: "public" \| "registered" \| "member" \| null }` | 401；403；404；400 `visibility_too_open`（比分类更松） |
-| `GET /api/forum/stickers` | 所有人 | 无（进程内缓存 60 秒） | 200 `{ packs: [{ id, name, stickers: [{ id, shortcode, label, url }] }] }`；`url` 是同源 `/api/forum/stickers/<哈希>.webp`，CDN 开关（`STATIC_CDN_BASE`）打开时内置表情是 `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/<哈希>.webp`（#286） | — |
+| `GET /api/forum/stickers` | 所有人 | 无（进程内缓存 60 秒） | 200 `{ packs: [{ id, name, stickers: [{ id, shortcode, label, url }] }] }`；`url` 是同源 `/api/forum/stickers/<哈希>.webp`，CDN 开关（`STATIC_CDN_BASE`）打开时内置表情是 `https://cdn.crosery.com/yzgc/static/site/forum/stickers/<哈希>.webp`（#286） | — |
 | `GET /api/forum/stickers/<hash>.webp` | 所有人 | 无 | 200 `image/webp`，`public, max-age=31536000, immutable`，不压缩（#286） | 404（`no-store`） |
 | `PUT /api/forum/posts/:post_id/reactions/:sticker_id` | `forum.react` | 按账号每小时（`meta.limit.forum.react.hourly`） | 200 `{ reactions }`：这条帖子的表情聚合 | 401；403；404；409 `post_deleted`；400 `unknown_sticker`；429 |
 | `DELETE /api/forum/posts/:post_id/reactions/:sticker_id` | `forum.react` | 无 | 200 `{ reactions }` | 401；403；404 |

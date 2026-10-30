@@ -10,6 +10,7 @@
  *    代码块之外的 `<img>` 换成等价的 Markdown 图片 `![alt](src)`，属性只留 src 和 alt。
  * 3. 链接和图片的地址只放行 http(s)、mailto 和不带协议的站内地址；`javascript:`、`data:`、`vbscript:`
  *    等其它协议（包括写成实体、夹着控制字符的）前面加 `#`，变成页内锚点。引用式定义 `[x]: …` 同样处理。
+ *    旧 Garage 前缀的图片地址（#346 之前写进库里的）读取时改成当前的 CDN 前缀，库里的内容不改。
  *
  * 4. 表情（#276）：代码之外的 `:yugc-wave:` 这类短码，只要在表情白名单里（`GET /api/forum/stickers`
  *    给的、启用中的），换成 `<img class="forum-sticker" alt="<名字>" title="[包名_名字]" src="<图片地址>">`。
@@ -26,7 +27,7 @@
  */
 
 import { postLine } from '../app/utils/excerpt'
-import { isStickerUrl, STICKER_URL_PATTERN, stickerHash } from './sticker-url'
+import { currentCdnUrl, isStickerUrl, STICKER_URL_PATTERN, stickerHash } from './sticker-url'
 
 export const WORD_JOINER = '\u2060'
 
@@ -62,7 +63,7 @@ const DEFINITION_DESTINATION = /(\]:[ \t]*(?:\n[ \t]*)?<?)([^\s>]*)/g
 
 export function renderableMarkdown(source: string, stickers?: ReadonlyMap<string, StickerRef>): string {
   const withImages = convertImgTags(source)
-  const withSafeLinks = withImages
+  const withSafeLinks = currentDestinations(withImages)
     .replace(INLINE_DESTINATION, neutralize)
     .replace(DEFINITION_DESTINATION, neutralize)
   const escaped = escapeHtmlStarts(withSafeLinks)
@@ -112,12 +113,23 @@ export function stickerIndex(packs: ReadonlyArray<{ name?: string, stickers: Rea
   }))).map(sticker => [sticker.shortcode, sticker]))
 }
 
+/**
+ * 旧 Garage 前缀的地址（#346 之前写进库里的旧帖与正文）改成当前 CDN 前缀，`](地址` 与 `]: 地址` 两种写法都换。
+ * 只换前缀；渲染和进编辑器时都用，库里的文字不动。
+ */
+export function currentDestinations(source: string): string {
+  return source
+    .replace(INLINE_DESTINATION, (_match, lead: string, destination: string) => `${lead}${currentCdnUrl(destination)}`)
+    .replace(DEFINITION_DESTINATION, (_match, lead: string, destination: string) => `${lead}${currentCdnUrl(destination)}`)
+}
+
 /** 进编辑器之前：代码之外白名单里的短码（和 `[包名_名字]`）换成 Markdown 图片，编辑时看到的就是表情。 */
 export function stickersToImages(source: string, stickers: ReadonlyMap<string, StickerRef>): string {
+  const current = currentDestinations(source)
   if (!stickers.size)
-    return source
+    return current
   const byToken = tokenIndex(stickers)
-  return mapOutsideCode(source, text => withShortcodes(text, byToken).replace(SHORTCODE, (match, code: string) => {
+  return mapOutsideCode(current, text => withShortcodes(text, byToken).replace(SHORTCODE, (match, code: string) => {
     const sticker = stickers.get(code)
     return sticker && isStickerUrl(sticker.url) ? `![${sticker.label.replace(/[\\[\]]/g, '')}](${sticker.url})` : match
   }))

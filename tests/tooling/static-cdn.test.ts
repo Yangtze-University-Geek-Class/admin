@@ -23,43 +23,43 @@ const read = (path: string) => readFileSync(join(repoRoot, path), 'utf8');
 const NOW = Date.parse('2026-10-26T17:21:00Z');
 const DAY = 24 * 3600;
 describe('object keys and the prefix guard', () => {
-  it('accepts only files under the three build output folders of static/site/', () => {
+  it('accepts only files under the three build output folders of yzgc/static/site/', () => {
     for (const key of [
-      'static/site/assets/portal-Br-Bop_b.js',
-      'static/site/console-assets/index-12345678.css',
-      'static/site/forum/_nuxt/Bh2i2wUT.js',
-      'static/site/forum/_nuxt/builds/meta/7bc7befa-4c9a-46aa-ad06-8073788e081b.json',
+      'yzgc/static/site/assets/portal-Br-Bop_b.js',
+      'yzgc/static/site/console-assets/index-12345678.css',
+      'yzgc/static/site/forum/_nuxt/Bh2i2wUT.js',
+      'yzgc/static/site/forum/_nuxt/builds/meta/7bc7befa-4c9a-46aa-ad06-8073788e081b.json',
     ]) expect(assertKey(key)).toBe(key);
   });
 
   it.each([
-    'static/site/index.html',
-    'static/site/forum/index.html',
-    'static/site/forum/logo.png',
-    'static/site/assets/',
-    'static/site/assets//x-12345678.js',
-    'static/site/assets/./x-12345678.js',
-    'static/site/assets/../../../promo/x.m3u8',
-    'static/site/assets/x 12345678.js',
-    'static/site/assets/x-12345678.js?v=1',
+    'yzgc/static/site/index.html',
+    'yzgc/static/site/forum/index.html',
+    'yzgc/static/site/forum/logo.png',
+    'yzgc/static/site/assets/',
+    'yzgc/static/site/assets//x-12345678.js',
+    'yzgc/static/site/assets/./x-12345678.js',
+    'yzgc/static/site/assets/../../../promo/x.m3u8',
+    'yzgc/static/site/assets/x 12345678.js',
+    'yzgc/static/site/assets/x-12345678.js?v=1',
     'yzgc/static/other/assets/x-12345678.js',
     'yzgc/static/assets/x-12345678.js',
     'yzgc/promo/film.m3u8',
     'promo/x.mp4',
     '/static/site/assets/x-12345678.js',
-    'fixture-scope:static/site/assets/x-12345678.js',
-    `static/site/assets/${'a'.repeat(300)}.js`,
+    'fixture-scope:yzgc/static/site/assets/x-12345678.js',
+    `yzgc/static/site/assets/${'a'.repeat(300)}.js`,
   ])('refuses %s', key => {
     expect(() => assertKey(key)).toThrow(/拒绝写入/);
   });
 
   it('refuses non-strings', () => {
-    for (const key of [undefined, null, 1, ['static/site/assets/a-12345678.js']]) expect(() => assertKey(key)).toThrow(/拒绝写入/);
+    for (const key of [undefined, null, 1, ['yzgc/static/site/assets/a-12345678.js']]) expect(() => assertKey(key)).toThrow(/拒绝写入/);
   });
 
   it('maps every key back to the same path on the origin', () => {
-    expect(originPathOf('static/site/assets/a-12345678.js')).toBe('/assets/a-12345678.js');
-    expect(originPathOf('static/site/forum/_nuxt/Bh2i2wUT.js')).toBe('/forum/_nuxt/Bh2i2wUT.js');
+    expect(originPathOf('yzgc/static/site/assets/a-12345678.js')).toBe('/assets/a-12345678.js');
+    expect(originPathOf('yzgc/static/site/forum/_nuxt/Bh2i2wUT.js')).toBe('/forum/_nuxt/Bh2i2wUT.js');
   });
 
   it('knows the content type of every kind of build output, and nothing else', () => {
@@ -108,13 +108,13 @@ describe('collect: which files of a build get uploaded', () => {
     fixture();
     const entries = collect(roots(), { publicDirs: publicDirs() });
     expect(entries.map(entry => entry.key)).toEqual([
-      'static/site/assets/MapleMono-Regular-CzQ1iDN2.woff2',
-      'static/site/assets/portal-Br-Bop_b.js',
-      'static/site/console-assets/index-12345678.css',
-      'static/site/forum/_nuxt/Bh2i2wUT.js',
-      'static/site/forum/_nuxt/builds/meta/7bc7befa-4c9a-46aa-ad06-8073788e081b.json',
-      'static/site/forum/_nuxt/entry.AbCdEfGh.css',
-      'static/site/forum/_nuxt/logo.aFxUkDTw.png',
+      'yzgc/static/site/assets/MapleMono-Regular-CzQ1iDN2.woff2',
+      'yzgc/static/site/assets/portal-Br-Bop_b.js',
+      'yzgc/static/site/console-assets/index-12345678.css',
+      'yzgc/static/site/forum/_nuxt/Bh2i2wUT.js',
+      'yzgc/static/site/forum/_nuxt/builds/meta/7bc7befa-4c9a-46aa-ad06-8073788e081b.json',
+      'yzgc/static/site/forum/_nuxt/entry.AbCdEfGh.css',
+      'yzgc/static/site/forum/_nuxt/logo.aFxUkDTw.png',
     ]);
     const js = entries.find(entry => entry.key.endsWith('Bh2i2wUT.js'))!;
     expect(js.file).toBe(join(dir, 'forum/_nuxt/Bh2i2wUT.js'));
@@ -205,7 +205,7 @@ describe('usage guide screenshots (#281)', () => {
     const text = existsSync(guidesDir) ? readdirSync(guidesDir).filter(name => name.endsWith('.md')).map(name => read(`app/forum/content/guides/${name}`)).join('\n') : '';
     const used = new Set([...text.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)].map(match => match[1]));
     for (const url of used) expect(url.startsWith(`${STATIC_CDN_BASE}forum/guides/`), url).toBe(true);
-    expect([...used].sort()).toEqual(entries.map(entry => `${STATIC_CDN_ORIGIN}/geek-public/${entry.key}`).sort());
+    expect([...used].sort()).toEqual(entries.map(entry => `${STATIC_CDN_ORIGIN}/${entry.key}`).sort());
   });
 });
 
@@ -337,7 +337,7 @@ describe('built-in sticker images (#286)', () => {
     expect(logs.join('\n')).toContain(`内置表情图片 ${distinct.size} 个对象`);
     expect(bytes).toBeGreaterThan(0);
     expect(lines.filter(line => line.includes('/forum/stickers/'))).toHaveLength(distinct.size);
-    for (const line of lines.filter(line => line.includes('/forum/stickers/'))) expect(line).toMatch(/^static\/site\/forum\/stickers\/[0-9a-f]{64}\.webp\t\d+\timage\/webp\n$/);
+    for (const line of lines.filter(line => line.includes('/forum/stickers/'))) expect(line).toMatch(/^yzgc\/static\/site\/forum\/stickers\/[0-9a-f]{64}\.webp\t\d+\timage\/webp\n$/);
     expect(entries.length).toBe(3 + collectGuideImages().length + distinct.size + collectPublishedImages().length);
   });
 
@@ -347,12 +347,12 @@ describe('built-in sticker images (#286)', () => {
     try {
       const storage = createS3Storage(store.config, { fetch: store.fetch, allowLoopbackForTests: true, backoff: 0 });
       const entries = collectStickers(root);
-      expect(await uploadAll(entries, { storage, fetch: store.fetch, referer: 'https://prev.yangtzeu.work/', log: () => {}, backoff: 0 })).toMatchObject({ stored: 2, total: 2 });
-      expect(await uploadAll(entries, { storage, fetch: store.fetch, referer: 'https://yangtzeu.work/', log: () => {}, backoff: 0 })).toMatchObject({ exists: 2, total: 2 });
+      expect(await uploadAll(entries, { storage, fetch: store.fetch, publicOrigin: store.endpoint, referer: 'https://prev.yangtzeu.work/', log: () => {}, backoff: 0 })).toMatchObject({ stored: 2, total: 2 });
+      expect(await uploadAll(entries, { storage, fetch: store.fetch, publicOrigin: store.endpoint, referer: 'https://yangtzeu.work/', log: () => {}, backoff: 0 })).toMatchObject({ exists: 2, total: 2 });
       const first = entries[0];
       store.objects.set(first.key, { body: Buffer.from('someone else'), type: 'image/webp' });
       const writes = store.calls.filter(call => call.method === 'PUT').length;
-      await expect(uploadAll([first], { storage, fetch: store.fetch, referer: 'https://prev.yangtzeu.work/', log: () => {} })).rejects.toThrow(/SHA-256.*冲突/);
+      await expect(uploadAll([first], { storage, fetch: store.fetch, publicOrigin: store.endpoint, referer: 'https://prev.yangtzeu.work/', log: () => {} })).rejects.toThrow(/SHA-256.*冲突/);
       expect(store.objects.get(first.key)?.body.toString()).toBe('someone else');
       expect(store.calls.filter(call => call.method === 'PUT')).toHaveLength(writes);
     } finally { await store.close(); }
@@ -371,7 +371,7 @@ describe('retired-token refusal (old policy rejection cases remain refused)', ()
   it.each([
     ['the whole bucket', { scope: 'fixture-scope' }, /scope/],
     ['a wider prefix', { scope: 'fixture-scope:yzgc/' }, /scope/],
-    ['another bucket', { scope: 'other:static/site/' }, /scope/],
+    ['another bucket', { scope: 'other:yzgc/static/site/' }, /scope/],
     ['an exact key instead of a prefix', { isPrefixalScope: 0 }, /isPrefixalScope/],
     ['overwrite allowed', { insertOnly: 0 }, /insertOnly/],
     ['insertOnly missing', { insertOnly: undefined }, /insertOnly/],
@@ -400,9 +400,9 @@ describe('retired-token refusal (old policy rejection cases remain refused)', ()
 
 describe('CSP: the CDN must be allowed before the switch goes on', () => {
   it('reads directives like a browser, conservatively', () => {
-    const policy = "default-src 'self'; script-src 'self' https://cdn.yangtzeu.work/geek-public/static/site/; style-src 'self'; font-src https://cdn.yangtzeu.work";
+    const policy = "default-src 'self'; script-src 'self' https://cdn.crosery.com/yzgc/static/site/; style-src 'self'; font-src https://cdn.crosery.com";
     expect(cspAllows(policy, 'script-src', STATIC_CDN_BASE)).toBe(true);
-    expect(cspAllows(policy, 'script-src', 'https://cdn.yangtzeu.work/yzgc/promo/x.js')).toBe(false);
+    expect(cspAllows(policy, 'script-src', 'https://cdn.crosery.com/yzgc/promo/x.js')).toBe(false);
     expect(cspAllows(policy, 'style-src', STATIC_CDN_BASE)).toBe(false);
     expect(cspAllows(policy, 'font-src', STATIC_CDN_BASE)).toBe(true);
     expect(cspAllows("default-src https:", 'font-src', STATIC_CDN_BASE)).toBe(true);
