@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推 task/323/github_stage_sync，开 PR（Closes #323）
 - 结果：等必需检查
+
+## 23:49:02 +08:00 · 提交 · #323 · 修 core 的 4 条失败
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：手工部署密钥名单补对象存储、测试认桶名走 vars、分发夹具带备份脚本、存储合同写明备份写入方
+- 结果：三个测试文件 43 条本地通过；e2e 失败在 #317 已存在、不进 verify
