@@ -2,7 +2,7 @@
 
 > 三份仓库环境模板（正式、预发布、本机）、Arch/HK 发布目标与副本外发门禁；已接管的权威源保持原行为，模板、运行配置和数据库有效设置分别核对。
 
-状态：`current` · 更新：2026-10-29 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
+状态：`current` · 更新：2026-10-30 · 适用：两套隔离栈；机器身份：[deploy/environments.json](../../deploy/environments.json)，运行现状及授权见 [DEPLOY](DEPLOY.md#迁移现状与授权边界)。
 
 ## 可见性规则
 
@@ -47,9 +47,10 @@
 | `MAIL_REPLY_TO` | 可见·留空 | 空 = 信里不带 Reply-To，改请对方到官网意见箱留言；要填就写一个不带显示名的地址 | 空 |
 | `MAIL_RECIPIENTS` | 可见 | `all`，沿用接管前设置 | `all`，沿用接管前设置 |
 | `GITLAB_SYNC` | 可见 | `off`，完整旧身份对账后才开启 | `on` 是独立实例的目标配置；切换前不能部署旧令牌或复用旧绑定 |
-| `GITLAB_URL` | 可见 | `https://git.yangtzeu.work` | `https://prev.yangtzeu.work/gitlab`；保留部署子路径的独立基址 |
+| `GITLAB_URL` | 可见 | `https://yangtzeu.work/gitlab`（#335：和预发布一样在本环境入口的 `/gitlab` 下；旧主机 `git.yangtzeu.work` 只做 301） | `https://prev.yangtzeu.work/gitlab`；保留部署子路径的独立基址 |
 | `GITLAB_GROUP` | 可见 | `geek` | `geek`，两个实例各自的群组 |
 | `GITLAB_OIDC_CLIENT` | 可见 | `gitlab` | `gitlab_preview`，不覆盖仍被旧正式登录使用的预发布客户端 |
+| `GITLAB_OIDC_SECTOR` | 可见 | `git.yangtzeu.work`：`gitlab` 客户端钉住的 sector，沿用搬家前的主机，成员的 `sub` 不变（#335） | `prev.yangtzeu.work`；同步核对客户端钉住的 sector 和它一致，不一致整轮跳过 |
 | `GITLAB_STACK_ROOT` | 可见 | `/srv/gitlab`，保留原卷与账号 | `/srv/gitlab-preview`，全新独立数据 |
 | `GITLAB_HTTP_BIND` | 可见 | `10.66.0.2:8929` | `10.66.0.2:8930`，仅隧道入口 |
 | `GITLAB_DOCKER_SUBNET` | 可见 | `172.31.29.0/24` | `172.31.30.0/24`，不共享网络 |
@@ -158,8 +159,8 @@ OIDC/GitLab 环境字段承接历史 **GitLab geek/admin#270**，不是 GitHub a
 |---|---|---|
 | `yangtzeu.work` | A 仍为 `103.117.123.226`，无 AAAA；旧入口转发到 Arch 正式 | 所有者将 A 指向香港 `156.238.244.78` |
 | `prev.yangtzeu.work` | A 仍为 `103.117.123.226`，无 AAAA；旧入口转发到 Arch 预发布 | 同上；香港可信 TLS 与指定 IP 路径已验证 |
-| `github.yangtzeu.work` | 旧 VPS 保留 301；legacy Node 已停用 | 兼容入口收尾前不关闭旧机 |
-| `git.yangtzeu.work` | 香港 → Arch GitLab 原链路 | 本迁移不改其 DNS 或身份源 |
+| `github.yangtzeu.work` | 旧 VPS 保留 301；legacy Node 已停用。2026-10-30 核对：已没有 A 记录，这个 301 实际到不了 | `deploy/nginx/production.conf` 里的 301 块还在，删不删另行决定（#335 只登记不删） |
+| `git.yangtzeu.work` | 香港 → Arch GitLab 原链路（2026-10-30 核对：A 为香港 `156.238.244.78`） | #335 搬家后只做 301 到正式入口的 `/gitlab` 同一路径，DNS 不改；sector 仍是这个主机 |
 
 DNS 由所有者操作；切前核对 A/AAAA/CAA/TTL、SNI、证书签发/续期与回调。旧源 nginx/certbot 保留观察窗口；新边缘使用 Caddy 签证书，不搬私钥、不在 Arch 额外叠宿主 nginx。模板/回环 HTTP 不证明 HTTPS 或身份安全，真实验收见 [DEPLOY](DEPLOY.md)。
 

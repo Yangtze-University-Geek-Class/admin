@@ -106,6 +106,7 @@ const REQUIRED_FIELDS = Object.freeze([
   'GITLAB_URL',
   'GITLAB_GROUP',
   'GITLAB_OIDC_CLIENT',
+  'GITLAB_OIDC_SECTOR',
   'GITLAB_STACK_ROOT',
   'GITLAB_HTTP_BIND',
   'GITLAB_DOCKER_SUBNET',
@@ -532,6 +533,10 @@ export function validateEnvironmentFiles({ root = repositoryRoot(), checkCompose
     }
     if (values.has('GITLAB_GROUP') && !/^[A-Za-z0-9_.-]{1,255}$/.test(values.get('GITLAB_GROUP'))) problem(`GITLAB_GROUP 必须是 GitLab 的组路径：${values.get('GITLAB_GROUP')}`);
     if (values.has('GITLAB_OIDC_CLIENT') && !/^[a-z0-9_]{3,64}$/.test(values.get('GITLAB_OIDC_CLIENT'))) problem('GITLAB_OIDC_CLIENT 必须是客户端标识');
+    // 一个环境一个域名（#335）：GitLab 挂在本环境入口的 /gitlab 下，不另开子域名
+    if (values.has('GITLAB_URL') && values.get('GITLAB_URL') !== `${expectedOrigin}/gitlab`) problem(`GITLAB_URL 必须是本环境入口下的 ${expectedOrigin}/gitlab`);
+    // sector 是成员 sub 的分区，GitLab 换地址时不跟着换，所以它可以是搬家前的主机
+    if (values.has('GITLAB_OIDC_SECTOR') && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/.test(values.get('GITLAB_OIDC_SECTOR'))) problem('GITLAB_OIDC_SECTOR 必须是主机名（可带端口），不带协议和路径');
     const ignored = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'check-ignore', '--quiet', path], {
       cwd: root,
       stdio: ['ignore', 'ignore', 'ignore'],

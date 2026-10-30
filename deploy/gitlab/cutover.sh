@@ -9,7 +9,13 @@
 #   cutover.sh repair-duplicates --production-origin <URL> [--sector <主机>] [--apply]  正式同步提前建出的重复号：解绑并封禁重复号，正式库改回原号的 sub 与映射（要求正式同步已停）
 #   cutover.sh switch-issuer     --production-origin <URL> [--apply]                    签发者与 secret 换成正式的，reconfigure；先备份，前置不满足就拒绝
 #   cutover.sh rollback-issuer   --preview-origin <URL> [--apply]                       签发者写回预发布，secret 与 gitlab.rb 用最近一次备份，reconfigure
+#   cutover.sh path-status       --production-origin <URL> --sector <主机>               只读：GitLab 现在的地址、目标地址、两个库里 gitlab 客户端的回调与 sector（#335）
+#   cutover.sh move-production-path --production-origin <URL> --sector <主机> [--apply]   GitLab 搬到 <正式入口>/gitlab：先备份，加新回调（旧的留着），重建容器并等健康；失败恢复原样
+#   cutover.sh finish-production-path --production-origin <URL> --sector <主机> [--apply] 香港入口切好并核对之后：去掉旧回调，再备份一次
+#   cutover.sh rollback-production-path --production-origin <URL> --sector <主机> [--apply] 补回旧回调，恢复原 compose 与 gitlab.rb 并重建容器，再去掉新回调
 #
+# --sector 是 gitlab 客户端钉住的 sector（正式 env 模板的 GITLAB_OIDC_SECTOR），GitLab 换地址时不变，成员的 sub 才不变。
+# 正式 GitLab 的目标地址读同一次分发里的正式 env 模板（deploy/env/.env.production 的 GITLAB_URL）。
 # 不打印任何 secret、sub 的值；对账明细只有计数和 provider_uid。
 set -Eeuo pipefail
 umask 077
@@ -19,7 +25,7 @@ STEP="${1:-}"
 APPLY=0
 PROD_ORIGIN=""
 PREVIEW_ORIGIN=""
-SECTOR="git.yangtzeu.work"
+SECTOR=""
 PROD_ROOT=""
 PREVIEW_ROOT=""
 while [[ $# -gt 0 ]]; do
@@ -43,8 +49,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_SERVER="${PROD_SERVER:-yzgc-production-server}"
 PREVIEW_SERVER="${PREVIEW_SERVER:-yzgc-preview-server}"
 GITLAB_CONTAINER="${GITLAB_CONTAINER:-gitlab}"
+GITLAB_BACKUP_UNIT="${GITLAB_BACKUP_UNIT:-gitlab-backup.service}"
+PYTHON="${PYTHON:-python3}"
+# production-path.py 的 --root；测试换成演练目录
+GITLAB_ROOT="${GITLAB_ROOT:-/}"
+PROD_ENV_FILE="${PROD_ENV_FILE:-${HERE}/../env/.env.production}"
 OIDC_CLI=(node app/server/dist/cli/oidc.js)
-CALLBACK="https://${SECTOR}/users/auth/openid_connect/callback"
+CALLBACK_PATH="/users/auth/openid_connect/callback"
 ISSUER_FILE="${CONFIG}/yzgc-oidc-issuer"
 SECRET_FILE="${CONFIG}/yzgc-oidc-secret"
 SECRET_PRODUCTION="${CONFIG}/yzgc-oidc-secret.production"
@@ -54,7 +65,13 @@ ISSUER_LINE_RE="^([[:space:]]*)issuer: '[^']*'"
 die() { echo "cutover: $*" >&2; exit 1; }
 origin_ok() { [[ "$1" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]]; }
 need_production() { origin_ok "${PROD_ORIGIN}" || die "--production-origin 必须是 https://主机名"; }
-sector_ok() { [[ "${SECTOR}" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "--sector 必须是主机名"; }
+sector_ok() { [[ "${SECTOR}" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "--sector 必须是主机名（正式 env 模板的 GITLAB_OIDC_SECTOR）"; }
+gitlab_url() { # 正式 GitLab 的目标地址：本次分发的正式 env 模板里的 GITLAB_URL
+    local url
+    url="$(sed -n 's/^GITLAB_URL=//p' "${PROD_ENV_FILE}" 2>/dev/null)"
+    [[ "${url}" == "${PROD_ORIGIN}/gitlab" ]] || die "正式 env 模板的 GITLAB_URL 不是 ${PROD_ORIGIN}/gitlab"
+    echo "${url}"
+}
 writes() { if [[ "${APPLY}" == 1 ]]; then return 0; fi; echo "（演算，未写入；加 --apply 才执行）"; return 1; }
 
 client_ids() { "${DOCKER}" exec "$1" "${OIDC_CLI[@]}" client list 2>/dev/null | jq -r '[.[].client_id] | join(",")'; }
@@ -70,6 +87,7 @@ issuer_mode() {
 sync_control() {
     local environment="$1" network="$2" access="$3"
     shift 3
+    sector_ok
     local root container image
     if [[ "${environment}" == production ]]; then root="${PROD_ROOT}"; container="${PROD_SERVER}"; else root="${PREVIEW_ROOT}"; container="${PREVIEW_SERVER}"; fi
     [[ "${root}" =~ ^/[A-Za-z0-9_./-]+/${environment}$ && "${root}" != *'/../'* ]] || die "缺少有效的 ${environment} stack root"
@@ -236,10 +254,12 @@ register_client() {
         [[ -f "${SECRET_PRODUCTION}" ]] || die "客户端已登记但 ${SECRET_PRODUCTION##*/} 不在：需要轮换 secret（oidc.js client rotate），不自动处理"
         return 0
     fi
-    echo "正式库没有 gitlab 客户端：将登记 name=GitLab redirect=${CALLBACK}"
+    sector_ok
+    local callback out
+    callback="$(gitlab_url)${CALLBACK_PATH}"
+    echo "正式库没有 gitlab 客户端：将登记 name=GitLab redirect=${callback} sector=${SECTOR}"
     writes || return 0
-    local out
-    out="$("${DOCKER}" exec "${PROD_SERVER}" "${OIDC_CLI[@]}" client add --name GitLab --client-id gitlab --redirect-uri "${CALLBACK}")"
+    out="$("${DOCKER}" exec "${PROD_SERVER}" "${OIDC_CLI[@]}" client add --name GitLab --client-id gitlab --redirect-uri "${callback}" --sector "${SECTOR}")"
     jq -ej '.client_secret' <<<"${out}" >"${SECRET_PRODUCTION}.new"
     chmod 0600 "${SECRET_PRODUCTION}.new"
     mv "${SECRET_PRODUCTION}.new" "${SECRET_PRODUCTION}"
@@ -343,6 +363,128 @@ rollback_issuer() {
     echo "已回滚到预发布签发者"
 }
 
+# ── GitLab 搬到主站路径（#335）────────────────────────────────────────────────
+
+path_tool() { "${PYTHON}" "${HERE}/production-path.py" "$@" --env-file "${PROD_ENV_FILE}" --root "${GITLAB_ROOT}" --docker "${DOCKER}" --health-timeout "${GITLAB_HEALTH_TIMEOUT:-900}"; }
+
+issuer_origin() { # GitLab 现在信任的签发者所在环境的 origin
+    local issuer
+    if [[ "$(grep -Ec "${ISSUER_LINE_RE}" "${GITLAB_RB}" || true)" == 1 ]]; then issuer="$(grep -E "${ISSUER_LINE_RE}" "${GITLAB_RB}" | sed -E "s/.*issuer: '([^']*)'.*/\1/")"
+    elif grep -q "File.read('/etc/gitlab/yzgc-oidc-issuer')" "${GITLAB_RB}" && [[ -f "${ISSUER_FILE}" ]]; then issuer="$(tr -d '\n' <"${ISSUER_FILE}")"
+    else die "读不出 GitLab 信任的签发者"; fi
+    echo "${issuer%/oidc}"
+}
+
+server_of() { if [[ "$1" == production ]]; then echo "${PROD_SERVER}"; else echo "${PREVIEW_SERVER}"; fi; }
+
+gitlab_client() { "${DOCKER}" exec "$(server_of "$1")" "${OIDC_CLI[@]}" client list 2>/dev/null | jq -c '[.[] | select(.client_id == "gitlab")] | first // empty'; }
+
+# 要改回调的库：签发者所在环境必须有 gitlab 客户端，另一个环境有就一起改（改接签发者或回滚时还能登录）。
+# 每个库的 server 都要认得 sector 钉住（client list 带 sector），sector 必须是 --sector；任何一个不满足，什么都不改。
+oidc_holders() {
+    local issuer="$1" environment client found=()
+    [[ "${issuer}" == "${PROD_ORIGIN}" || "${issuer}" == "${PREVIEW_ORIGIN}" ]] || die "GitLab 信任的签发者不是正式也不是预发布"
+    for environment in production preview; do
+        client="$(gitlab_client "${environment}")"
+        if [[ -z "${client}" ]]; then
+            if { [[ "${environment}" == production && "${issuer}" == "${PROD_ORIGIN}" ]] || [[ "${environment}" == preview && "${issuer}" == "${PREVIEW_ORIGIN}" ]]; }; then
+                die "GitLab 信任的 ${environment} 签发者库里没有 gitlab 客户端"
+            fi
+            continue
+        fi
+        jq -e 'has("sector")' <<<"${client}" >/dev/null || die "${environment} server 还不认得 sector 钉住（版本太旧）：先发带 #335 的版本"
+        [[ "$(jq -r '.sector' <<<"${client}")" == "${SECTOR}" ]] || die "${environment} 的 gitlab 客户端 sector 不是 ${SECTOR}，拒绝改回调"
+        found+=("${environment}")
+    done
+    echo "${found[*]}"
+}
+
+redirect() { # 环境 add|remove 回调地址 → 输出 true/false（改了没有）；sector 不是 --sector 就失败
+    local out
+    out="$("${DOCKER}" exec "$(server_of "$1")" "${OIDC_CLI[@]}" client "$2-redirect" --client-id gitlab --redirect-uri "$3")" || return 1
+    [[ "$(jq -r '.sector' <<<"${out}")" == "${SECTOR}" ]] || { echo "cutover: $1 的 gitlab 客户端 sector 不是 ${SECTOR}" >&2; return 1; }
+    jq -r '.changed' <<<"${out}"
+}
+
+has_redirect() { [[ "$(gitlab_client "$1" | jq -r --arg uri "$2" '.redirect_uris | index($uri) != null')" == true ]]; }
+
+path_status() {
+    need_production
+    sector_ok
+    local plan issuer environment client current target
+    plan="$(path_tool plan)" || die "GitLab 地址演算失败"
+    current="$(jq -r '.current_url' <<<"${plan}")"
+    target="$(jq -r '.target_url' <<<"${plan}")"
+    echo "GitLab 现在：${current}；目标：${target}；已搬：$(jq -r '.moved' <<<"${plan}")"
+    issuer="$(issuer_origin)"
+    echo "GitLab 信任的签发者：${issuer}/oidc"
+    for environment in production preview; do
+        client="$(gitlab_client "${environment}")"
+        if [[ -z "${client}" ]]; then echo "${environment} 库：没有 gitlab 客户端"; continue; fi
+        jq -r --arg old "${current}${CALLBACK_PATH}" --arg new "${target}${CALLBACK_PATH}" --arg env "${environment}" \
+          '"\($env) 库：sector=\(.sector // "未钉住（server 版本太旧）")，回调 \(.redirect_uris | length) 个，现地址回调\(if (.redirect_uris | index($old)) != null then "在" else "不在" end)，目标地址回调\(if (.redirect_uris | index($new)) != null then "在" else "不在" end)"' <<<"${client}"
+    done
+}
+
+move_production_path() {
+    need_production
+    sector_ok
+    local plan current target holders environment changed added=()
+    plan="$(path_tool plan)" || die "GitLab 地址演算失败"
+    current="$(jq -r '.current_url' <<<"${plan}")"
+    target="$(jq -r '.target_url' <<<"${plan}")"
+    holders="$(oidc_holders "$(issuer_origin)")"
+    echo "将把 GitLab 从 ${current} 搬到 ${target}：先做 GitLab 与签发者库的一致性备份，给 ${holders} 库的 gitlab 客户端加新回调（旧的留着），按模板重建容器（数据卷、镜像、网络不变）并等健康"
+    writes || return 0
+    "${SYSTEMCTL}" start "${GITLAB_BACKUP_UNIT}" || die "搬家前的 GitLab 备份失败，什么都没改"
+    for environment in ${holders}; do "${SYSTEMCTL}" start "yzgc-backup@${environment}.service" || die "${environment} 库备份失败，什么都没改"; done
+    undo_redirects() {
+        local item
+        for item in "${added[@]}"; do redirect "${item}" remove "${target}${CALLBACK_PATH}" >/dev/null || echo "cutover: ${item} 库的新回调没撤掉，需人工处理" >&2; done
+    }
+    for environment in ${holders}; do
+        if ! changed="$(redirect "${environment}" add "${target}${CALLBACK_PATH}")"; then undo_redirects; die "${environment} 库加新回调失败；已加的已撤回，GitLab 未动"; fi
+        if [[ "${changed}" == true ]]; then added+=("${environment}"); fi
+    done
+    if ! path_tool apply --apply; then undo_redirects; die "GitLab 重建失败，已恢复原地址；新回调已撤回"; fi
+    echo "GitLab 已在 ${target} 健康运行；新旧回调都在（${holders}）。下一步：香港入口 production-apply，核对通过后 finish-production-path"
+}
+
+finish_production_path() {
+    need_production
+    sector_ok
+    local plan target previous holders environment
+    plan="$(path_tool plan)" || die "GitLab 地址演算失败"
+    target="$(jq -r '.target_url' <<<"${plan}")"
+    previous="$(jq -r '.previous_url // empty' <<<"${plan}")"
+    [[ "$(jq -r '.moved' <<<"${plan}")" == true && -n "${previous}" ]] || die "GitLab 还没搬到 ${target}：先 move-production-path"
+    path_tool verify >/dev/null || die "GitLab 在 ${target} 不健康，旧回调留着"
+    holders="$(oidc_holders "$(issuer_origin)")"
+    for environment in ${holders}; do has_redirect "${environment}" "${target}${CALLBACK_PATH}" || die "${environment} 库还没有新回调，旧回调留着"; done
+    echo "将从 ${holders} 库的 gitlab 客户端去掉旧回调 ${previous}${CALLBACK_PATH}，再做一次 GitLab 备份"
+    writes || return 0
+    for environment in ${holders}; do redirect "${environment}" remove "${previous}${CALLBACK_PATH}" >/dev/null || die "${environment} 库去掉旧回调失败"; done
+    "${SYSTEMCTL}" start "${GITLAB_BACKUP_UNIT}" || die "旧回调已去掉，但搬家后的 GitLab 备份失败：重跑 finish-production-path 补备份"
+    echo "已去掉旧回调；搬家后的 GitLab 备份完成"
+}
+
+rollback_production_path() {
+    need_production
+    sector_ok
+    local plan target previous holders environment
+    plan="$(path_tool plan)" || die "GitLab 地址演算失败"
+    target="$(jq -r '.target_url' <<<"${plan}")"
+    previous="$(jq -r '.previous_url // empty' <<<"${plan}")"
+    [[ -n "${previous}" ]] || die "没有搬家留下的记录，无法回滚"
+    holders="$(oidc_holders "$(issuer_origin)")"
+    echo "将给 ${holders} 库补回旧回调，恢复 ${previous} 的 compose 与 gitlab.rb 并重建容器，健康后去掉新回调"
+    writes || return 0
+    for environment in ${holders}; do redirect "${environment}" add "${previous}${CALLBACK_PATH}" >/dev/null || die "${environment} 库补回旧回调失败，GitLab 未动"; done
+    path_tool rollback --apply || die "GitLab 恢复原地址失败；新旧回调都留着"
+    for environment in ${holders}; do redirect "${environment}" remove "${target}${CALLBACK_PATH}" >/dev/null || die "GitLab 已回到 ${previous}，但 ${environment} 库的新回调没去掉"; done
+    echo "已回到 ${previous}，新回调已去掉"
+}
+
 case "${STEP}" in
     status) status ;;
     sync-status) sync_status ;;
@@ -355,5 +497,9 @@ case "${STEP}" in
     repair-duplicates) repair_duplicates ;;
     switch-issuer) switch_issuer ;;
     rollback-issuer) rollback_issuer ;;
-    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer [--apply] ..." >&2; exit 2 ;;
+    path-status) path_status ;;
+    move-production-path) move_production_path ;;
+    finish-production-path) finish_production_path ;;
+    rollback-production-path) rollback_production_path ;;
+    *) echo "用法：cutover.sh status|sync-status|stop-production-sync|stop-preview-sync|enable-production-sync|verify-accounts|register-client|migrate-subjects|repair-duplicates|switch-issuer|rollback-issuer|path-status|move-production-path|finish-production-path|rollback-production-path [--apply] ..." >&2; exit 2 ;;
 esac

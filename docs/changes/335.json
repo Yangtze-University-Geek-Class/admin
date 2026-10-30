@@ -1,0 +1,418 @@
+{
+  "version": 1,
+  "issue": 335,
+  "kind": "business",
+  "summary": "正式 GitLab 和预发布一样放到本环境入口的 /gitlab 下，旧子域名只做 301，仓库里除登记项外不再写子域名。oidc 客户端钉住 sector（oauth_clients.sector_id），GitLab 换地址成员的 sub 不变；gitlab-cutover 增加 path-status / move-production-path / rollback-production-path，先备份、先加新回调、核对全过才去旧回调，失败两半都恢复；check-env-isolation 新增子域名登记门禁。",
+  "applications": [
+    "server",
+    "console",
+    "web",
+    "cli"
+  ],
+  "domains": [
+    "gitlab",
+    "identity",
+    "competitions",
+    "platform",
+    "audit",
+    "organization",
+    "forum",
+    "permissions",
+    "recruitment",
+    "feedback",
+    "invitations",
+    "mail",
+    "github"
+  ],
+  "flows": [
+    "flow:gitlab.entry.open",
+    "flow:gitlab.projects.public.list",
+    "flow:gitlab.projects.member.list",
+    "flow:gitlab.status.read",
+    "flow:gitlab.settings.read",
+    "flow:gitlab.accounts.list",
+    "flow:gitlab.accounts.sync",
+    "flow:identity.oidc.protocol",
+    "flow:competition.candidates.collect",
+    "flow:identity.oidc.details",
+    "flow:competition.public.list",
+    "flow:console.summary",
+    "flow:identity.callback",
+    "flow:identity.invites.list",
+    "flow:mail.template.preview"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "成员从 https://yangtzeu.work/gitlab 打开 GitLab 并统一登录，旧地址的链接与 git 远端经 301 继续可用；成员、权限、GitLab 用户 ID 和 sub 不变。贡献收集、门户项目和控制台都跟着 GITLAB_URL 走。",
+      "evidence": [
+        "deploy/env/.env.production",
+        "app/server/src/lib/gitlab-sync.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/competition-candidates.test.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "oidc-store 新增 sector 钉住、addRedirectUri/removeRedirectUri，clientMetadata 一直带 sector_identifier_uri，provider 配置 sectorIdentifierUriValidate 返回 false；oidc CLI 新增 client add --sector、add-redirect、remove-redirect；config 读 GITLAB_OIDC_SECTOR，同步在客户端 sector 和它不一致时整轮跳过并报 gitlab_sector_mismatch。公开、成员与控制台 GitLab 接口的输入输出形状不变，只是地址跟着 GITLAB_URL。",
+      "evidence": [
+        "app/server/src/lib/oidc-store.ts",
+        "app/server/src/lib/oidc-provider.ts",
+        "app/server/src/cli/oidc.ts",
+        "app/server/src/config.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "tests/server/oidc.test.ts",
+        "tests/server/gitlab-sync.test.ts"
+      ]
+    },
+    "permissions": {
+      "status": "changed",
+      "reason": "OIDC 回调白名单改为按钉住的 sector 判定：钉住后允许跨主机回调，旧回调去掉后签发者不再接受它（测试覆盖）；改回调只能经容器里的 CLI，写审计 oidc.client.redirects。GitLab 侧的组权限、控制台节点（gitlab.view/sync/settings）不变。香港受限入口新增的 production-* 仍是固定动作，SSH 命令白名单测试覆盖。",
+      "evidence": [
+        "app/server/src/lib/oidc-store.ts",
+        "app/server/src/cli/oidc.ts",
+        "deploy/remote/edge-gitlab.py",
+        "tests/server/oidc.test.ts",
+        "tests/tooling/gitlab-preview.test.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "oauth_clients 加可空列 sector_id（addColumn，可重复执行），旧行为空时按第一个回调的主机算，第一次改回调时写入；oauth_subjects 不改。回调已跨主机后不能换回不认这一列的旧镜像，回滚 GitLab 后回调只剩原主机即可回退。",
+      "evidence": [
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/oidc-store.ts",
+        "docs/services/server/data-model.md",
+        "tests/server/oidc.test.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "宿主侧：Arch GitLab 容器按模板重建（镜像、卷、网络不变），gitlab.rb 三行改读 yzgc-gitlab-url；香港 Caddy 正式站点块加 /gitlab，旧主机文件换成 301；搬家前后各触发一次 gitlab-backup 与签发者库的 yzgc-backup。CLI 元数据与 forge.mjs 的 GitLab 地址改为从环境模板读。",
+      "evidence": [
+        "app/server/src/lib/gitlab-sync.ts",
+        "app/server/src/lib/oidc-provider.ts",
+        "deploy/gitlab/production-path.py",
+        "deploy/gitlab/cutover.sh",
+        "deploy/gitlab/move-path.sh",
+        "deploy/remote/edge-gitlab.py",
+        "deploy/remote/install-host.sh",
+        "scripts/forge.mjs",
+        "app/cli/Cargo.toml"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "GITLAB.md 写拓扑、模板渲染、搬家步骤、停机与回滚；oidc.md、data-model.md、server README 写 sector 钉住与新命令；ENVIRONMENTS.md 写 GITLAB_URL 与 GITLAB_OIDC_SECTOR、DNS 核对；DEPLOY.md、CICD.md、RELEASE-PARITY.md 写新链路与流水线步骤；console、cli 服务文档跟着改。",
+      "evidence": [
+        "docs/ops/GITLAB.md",
+        "docs/services/server/oidc.md",
+        "docs/services/server/data-model.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md",
+        "docs/ops/DEPLOY.md",
+        "docs/conventions/RELEASE-PARITY.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "先红后绿：服务端与前端相关 7 个文件、env 隔离、部署环境、forge、cutover、香港接收器、move-path、install-host 的测试都在改动前失败、改动后通过。未验证：真实 Caddy 解析新片段、真实 GitLab 用相对路径重建、真人统一登录与 git push 经 301。tests/console/gitlab.test.ts 没改，照样跑过。",
+      "evidence": [
+        "tests/server/oidc.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/server/competition-candidates.test.ts",
+        "tests/tooling/env-isolation.test.ts",
+        "tests/tooling/deployment-environment.test.ts",
+        "tests/tooling/task-worktree.test.ts",
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/gitlab-preview.test.ts",
+        "tests/tooling/gitlab-move-path.test.ts",
+        "tests/tooling/install-host.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "正式 GITLAB_URL 改为 /gitlab，三份 env 新增 GITLAB_OIDC_SECTOR，两份 compose 把 GITLAB_OIDC_CLIENT 与 GITLAB_OIDC_SECTOR 传进 server（预发布 server 从此用 gitlab_preview 客户端）；gitlab-cutover.yml 新增三个步骤、超时 120 分钟。搬家是 post_deploy 的同构清单 P-0014：先发布本版本，再经所有者批准升级香港接收器，再跑 move-production-path。",
+      "evidence": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        ".github/workflows/gitlab-cutover.yml",
+        "deploy/parity/ledger.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/oidc-store.ts",
+        "app/server/src/lib/oidc-provider.ts",
+        "app/server/src/cli/oidc.ts",
+        "tests/server/oidc.test.ts"
+      ],
+      "domains": [
+        "identity",
+        "audit"
+      ],
+      "nodes": [
+        "flow:identity.oidc.protocol"
+      ],
+      "reason": "客户端钉住 sector，换回调地址 sub 不变，旧回调去掉后不再被接受；改回调写审计 oidc.client.redirects。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/db.ts"
+      ],
+      "domains": [
+        "identity",
+        "gitlab",
+        "competitions",
+        "feedback",
+        "forum",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment",
+        "audit"
+      ],
+      "nodes": [
+        "flow:identity.oidc.protocol"
+      ],
+      "reason": "db.ts 按文件归属牵连全部表所在的业务域；这次只给 oauth_clients 加可空列 sector_id，别的表不动。"
+    },
+    {
+      "paths": [
+        "app/server/src/config.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "tests/server/gitlab-sync.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "flow:gitlab.accounts.sync",
+        "flow:gitlab.accounts.list",
+        "flow:gitlab.status.read",
+        "flow:gitlab.settings.read",
+        "flow:gitlab.entry.open",
+        "flow:gitlab.projects.public.list",
+        "flow:gitlab.projects.member.list"
+      ],
+      "reason": "config 读 GITLAB_OIDC_SECTOR；同步按钉住的 sector 认人，和它不一致时跳过；入口、项目与控制台跟着 GITLAB_URL。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/gitlab.ts",
+        "app/console/src/mock/console.ts",
+        "app/console/src/mock/index.ts",
+        "tests/console/authorize.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "flow:gitlab.accounts.list",
+        "flow:identity.oidc.details",
+        "flow:console.summary"
+      ],
+      "reason": "控制台 lib/gitlab.ts 与两个 mock 文件按文件归属牵连控制台全部业务域；这次只给 gitlab_sector_mismatch 加一条中文说法，样板数据里的 GitLab 地址与同意页主机换成中性值。"
+    },
+    {
+      "paths": [
+        "app/web/shared/lib/mock-api.ts",
+        "tests/web/portal-code-repos.test.tsx",
+        "tests/web/portal-shell.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "gitlab",
+        "competitions"
+      ],
+      "nodes": [
+        "flow:gitlab.entry.open",
+        "flow:competition.public.list"
+      ],
+      "reason": "官网本地样板数据里的代码仓库地址换成中性值，测试跟着改。"
+    },
+    {
+      "paths": [
+        "tests/server/competition-candidates.test.ts"
+      ],
+      "domains": [
+        "competitions",
+        "gitlab"
+      ],
+      "nodes": [
+        "flow:competition.candidates.collect"
+      ],
+      "reason": "GitLab 在主站路径下时贡献收集照常。"
+    },
+    {
+      "paths": [
+        "app/cli/Cargo.toml",
+        "scripts/forge.mjs",
+        "scripts/contest-site.mjs",
+        "tests/tooling/task-worktree.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "CLI 元数据与工具里的 GitLab 地址改为新地址或从环境模板读，支持带子路径的 GitLab。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        "scripts/deployment-environment.mjs",
+        "tests/tooling/deployment-environment.test.ts"
+      ],
+      "domains": [
+        "platform",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "正式 GITLAB_URL 改为 /gitlab，新增 GITLAB_OIDC_SECTOR 并传进 server，模板校验要求 GITLAB_URL 等于入口加 /gitlab。"
+    },
+    {
+      "paths": [
+        "deploy/env/origin-exceptions.json",
+        "scripts/check-env-isolation.mjs",
+        "tests/tooling/env-isolation.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "子域名登记门禁：环境入口之外的 *.yangtzeu.work 必须登记理由。"
+    },
+    {
+      "paths": [
+        "deploy/gitlab/cutover.sh",
+        "deploy/gitlab/production-path.py",
+        "deploy/gitlab/move-path.sh",
+        "deploy/gitlab/docker-compose.yml",
+        "deploy/gitlab/gitlab-oidc.rb",
+        "deploy/gitlab/gitlab-ui.rb",
+        "deploy/gitlab/gitlab.caddy",
+        "deploy/remote/edge-gitlab.py",
+        "deploy/remote/install-host.sh",
+        ".github/workflows/gitlab-cutover.yml",
+        "deploy/parity/ledger.json",
+        "tests/tooling/gitlab-cutover.test.ts",
+        "tests/tooling/gitlab-preview.test.ts",
+        "tests/tooling/gitlab-move-path.test.ts",
+        "tests/tooling/install-host.test.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:gitlab.entry.open"
+      ],
+      "reason": "流水线搬家：Arch 重建、香港切入口、公网核对、去旧回调，失败两半都恢复。"
+    },
+    {
+      "paths": [
+        "docs/ops/GITLAB.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/DEPLOY.md",
+        "docs/ops/CICD.md",
+        "docs/conventions/RELEASE-PARITY.md",
+        "docs/services/server/oidc.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md",
+        "docs/services/cli/README.md",
+        "docs/services/web/README.md"
+      ],
+      "domains": [
+        "gitlab",
+        "identity",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:identity.oidc.protocol",
+        "flow:gitlab.accounts.sync"
+      ],
+      "reason": "文档跟着地址、sector 钉住与流水线步骤改。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/INDEX.md"
+      ],
+      "domains": [
+        "identity",
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:identity.oidc.protocol"
+      ],
+      "reason": "pnpm catalog:generate 与 docs-index 重新生成：oauth_clients 多一列 sector_id，源码行号与摘要跟着变。"
+    }
+  ],
+  "documents": [
+    "docs/ops/GITLAB.md",
+    "docs/services/server/oidc.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/README.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/DEPLOY.md",
+    "docs/ops/CICD.md",
+    "docs/conventions/RELEASE-PARITY.md",
+    "docs/services/console/README.md",
+    "docs/services/cli/README.md",
+    "docs/services/web/README.md"
+  ],
+  "tests": [
+    "tests/server/oidc.test.ts",
+    "tests/server/gitlab-sync.test.ts",
+    "tests/server/competition-candidates.test.ts",
+    "tests/console/authorize.test.ts",
+    "tests/web/portal-code-repos.test.tsx",
+    "tests/web/portal-shell.test.ts",
+    "tests/tooling/env-isolation.test.ts",
+    "tests/tooling/deployment-environment.test.ts",
+    "tests/tooling/task-worktree.test.ts",
+    "tests/tooling/gitlab-cutover.test.ts",
+    "tests/tooling/gitlab-preview.test.ts",
+    "tests/tooling/gitlab-move-path.test.ts",
+    "tests/tooling/install-host.test.ts"
+  ],
+  "compatibility": "接口形状不变；旧 oauth_clients 行没有 sector_id 时按第一个回调的主机算，和旧镜像一致。旧地址经 301 继续可用，git 跟随第一次跳转。预发布 server 从此按 gitlab_preview 客户端同步，没登记时整轮跳过。",
+  "migration": "addColumn oauth_clients.sector_id（可空）。搬家本身是 gitlab-cutover 的 post_deploy 步骤（P-0014），不改 oauth_subjects、gitlab_accounts 或 GitLab 用户。",
+  "rollback": "gitlab-cutover 的 rollback-production-path 回到原地址并去掉新回调，之后 server 可回退旧镜像；代码层 revert 本 PR 的合并提交。"
+}

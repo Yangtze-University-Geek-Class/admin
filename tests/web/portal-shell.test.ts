@@ -274,9 +274,9 @@ describe("桌面", () => {
 
   it("repos 和 ~/projects 随可访问项目更新，撤掉列表后移除旧项目", () => {
     const shell = make();
-    shell.setRepos([{ name: "admin", path: "geek/admin", description: "官网和后端", url: "https://git.yangtzeu.work/geek/admin", cloneUrl: "https://git.yangtzeu.work/geek/admin.git", activeAt: null }]);
+    shell.setRepos([{ name: "admin", path: "geek/admin", description: "官网和后端", url: "https://example.test/gitlab/geek/admin", cloneUrl: "https://example.test/gitlab/geek/admin.git", activeAt: null }]);
     expect(sh(shell, "repos").out).toContain("geek/admin");
-    expect(sh(shell, "cat ~/projects/admin/README.md").out).toContain("https://git.yangtzeu.work/geek/admin");
+    expect(sh(shell, "cat ~/projects/admin/README.md").out).toContain("https://example.test/gitlab/geek/admin");
     shell.setRepos([]);
     expect(sh(shell, "ls ~/projects").out).toBe("");
     expect(sh(shell, "cat ~/projects/admin/README.md").err).toContain("No such file");

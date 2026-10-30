@@ -1,5 +1,7 @@
-# GitLab CE：Arch 主机 /srv/gitlab/docker-compose.yml
-# 公网入口在香港 Caddy（git.yangtzeu.work → 10.66.0.2:8929，经 hk-tunnel）；本机只绑 tun0 与回环，不开 SSH 端口。
+# GitLab CE：Arch 主机 /srv/gitlab/docker-compose.yml 的模板。${…} 由 production-path.py 用正式 env 模板渲染（#335），
+# GITLAB_HTTP_PORT 取 GITLAB_HTTP_BIND 的端口；不要把渲染结果抄回这里。
+# 公网入口在香港 Caddy（<PUBLIC_ORIGIN>/gitlab → GITLAB_HTTP_BIND，经 hk-tunnel）；本机只绑 tun0 与回环，不开 SSH 端口。
+# 不设 hostname：Docker 会把它写进容器的 /etc/hosts，入口域名就指回容器自己，GitLab 连不上同一个域名下的签发者。
 # 镜像按摘要锁定：2026-10-23 拉取时 Docker Hub 上 latest 的摘要（Hub 更新于 2026-10-21）。升级时先 pull 新的 latest，读 RepoDigests 再改这一行。
 name: gitlab
 
@@ -7,35 +9,34 @@ services:
   gitlab:
     image: gitlab/gitlab-ce@sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e991ecdd6cae11ca7d7e5d36fc3
     container_name: gitlab
-    hostname: git.yangtzeu.work
     restart: unless-stopped
     shm_size: 256m
     mem_limit: 10g
     cpus: 6
     ports:
-      - "10.66.0.2:8929:80"
-      - "127.0.0.1:8929:80"
+      - "${GITLAB_HTTP_BIND}:80"
+      - "127.0.0.1:${GITLAB_HTTP_PORT}:80"
     volumes:
-      - /srv/gitlab/config:/etc/gitlab
-      - /srv/gitlab/logs:/var/log/gitlab
-      - /srv/gitlab/data:/var/opt/gitlab
+      - ${GITLAB_STACK_ROOT}/config:/etc/gitlab
+      - ${GITLAB_STACK_ROOT}/logs:/var/log/gitlab
+      - ${GITLAB_STACK_ROOT}/data:/var/opt/gitlab
     networks:
       - gitlab
     environment:
       TZ: Asia/Shanghai
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'https://git.yangtzeu.work'
+        external_url '${GITLAB_URL}'
         gitlab_rails['time_zone'] = 'Asia/Shanghai'
 
         # TLS 在香港 Caddy 终止，容器里只听 80
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
         letsencrypt['enable'] = false
-        # 10.66.0.1 是 Caddy 经隧道连进来的源地址；172.31.29.1 是本机 127.0.0.1:8929 经 docker-proxy 进来的网关
-        nginx['real_ip_trusted_addresses'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '172.31.29.1']
+        # 10.66.0.1 是 Caddy 经隧道连进来的源地址；网关是本机回环端口经 docker-proxy 进来的源地址
+        nginx['real_ip_trusted_addresses'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '${GITLAB_DOCKER_GATEWAY}']
         nginx['real_ip_header'] = 'X-Forwarded-For'
         nginx['real_ip_recursive'] = 'on'
-        gitlab_rails['trusted_proxies'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '172.31.29.1']
+        gitlab_rails['trusted_proxies'] = ['10.66.0.1', '10.66.0.2', '127.0.0.1', '${GITLAB_DOCKER_GATEWAY}']
 
         registry['enable'] = false
         gitlab_rails['registry_enabled'] = false
@@ -46,10 +47,16 @@ services:
         puma['worker_processes'] = 2
         sidekiq['concurrency'] = 10
         prometheus_monitoring['enable'] = false
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1/gitlab/-/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
 
 networks:
   gitlab:
     ipam:
       config:
-        - subnet: 172.31.29.0/24
-          gateway: 172.31.29.1
+        - subnet: ${GITLAB_DOCKER_SUBNET}
+          gateway: ${GITLAB_DOCKER_GATEWAY}

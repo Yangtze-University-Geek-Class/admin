@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "代码和部署片段里允许写死环境域名的文件。只登记确需写死的位置，写理由和次数上限；only 限定该文件只能出现一个环境的域名。新增写死位置要先审，再改这里。",
+  "note": "代码和部署片段里允许写死环境域名的文件。只登记确需写死的位置，写理由和次数上限；only 限定该文件只能出现一个环境的域名。新增写死位置要先审，再改这里。 subdomains 登记环境入口之外仍要写的 *.yangtzeu.work 子域名（#335）：anywhere 表示全仓都可以出现，否则按文件写上限。",
   "exceptions": [
     {
       "file": ".github/workflows/cert-watch.yml",
@@ -16,6 +16,12 @@
       "file": ".github/workflows/deploy-production.yml",
       "max": 2,
       "reason": "证据 job 读预发布 release.json，核对正式 tag 对应的 rc 提交仍在预发布运行"
+    },
+    {
+      "file": "app/cli/Cargo.toml",
+      "max": 1,
+      "only": "production",
+      "reason": "crate 元数据里的源码仓库地址，cargo 只收字面值"
     },
     {
       "file": "app/cli/src/config.rs",
@@ -99,6 +105,12 @@
       "reason": "环境身份的唯一机器配置"
     },
     {
+      "file": "deploy/gitlab/gitlab.caddy",
+      "max": 1,
+      "only": "production",
+      "reason": "旧地址只做跳转，跳到正式入口的 /gitlab"
+    },
+    {
       "file": "deploy/hotfix/windows.json",
       "max": 1,
       "reason": "热修复窗口登记里所有者批准的原话（#310 确认依据）含正式站域名，按原话保留，不改写"
@@ -144,6 +156,91 @@
       "file": "scripts/release-policy.mjs",
       "max": 2,
       "reason": "命令行 --help 的用法文字，不参与运行"
+    }
+  ],
+  "subdomains": [
+    {
+      "host": "cdn.yangtzeu.work",
+      "anywhere": true,
+      "reason": "cdn 是独立的对象存储边缘服务器，不属于站点入口，#335 不动它"
+    },
+    {
+      "host": "forum.yangtzeu.work",
+      "file": "scripts/forum-migration/prepare.py",
+      "max": 2,
+      "reason": "论坛旧站数据迁移脚本认旧论坛主机的历史链接，一次性工具"
+    },
+    {
+      "host": "git.yangtzeu.work",
+      "file": "deploy/env/.env.production",
+      "max": 1,
+      "reason": "gitlab 客户端钉住的 pairwise sector 沿用搬家前的主机，成员的 sub 才不变"
+    },
+    {
+      "host": "git.yangtzeu.work",
+      "file": "deploy/gitlab/gitlab.caddy",
+      "max": 1,
+      "reason": "旧地址只做跳转"
+    },
+    {
+      "host": "git.yangtzeu.work",
+      "file": "tests/tooling/env-isolation.test.ts",
+      "max": 11,
+      "reason": "子域名检查自己的测试，样例必须写真实形状的子域名"
+    },
+    {
+      "host": "github.yangtzeu.work",
+      "file": "deploy/nginx/production.conf",
+      "max": 6,
+      "reason": "旧管理域名只做跳转；这个主机已没有 DNS 记录，删不删另行决定"
+    },
+    {
+      "host": "github.yangtzeu.work",
+      "file": "tests/tooling/arch-caddy.test.ts",
+      "max": 6,
+      "reason": "核对旧管理域名跳转只在显式参数下生成"
+    },
+    {
+      "host": "github.yangtzeu.work",
+      "file": "tests/tooling/deployment-environment.test.ts",
+      "max": 2,
+      "reason": "环境契约测试：旧管理域名必须被拒绝"
+    },
+    {
+      "host": "github.yangtzeu.work",
+      "file": "tests/tooling/env-isolation.test.ts",
+      "max": 1,
+      "reason": "子域名检查自己的测试，样例必须写真实形状的子域名"
+    },
+    {
+      "host": "linux.yangtzeu.work",
+      "file": "app/web/sites/portal/lib/shell/commands.ts",
+      "max": 1,
+      "reason": "Linux 学习站由香港入口单独托管，不在两套站点栈里，门户只放外链"
+    },
+    {
+      "host": "linux.yangtzeu.work",
+      "file": "tests/tooling/env-isolation.test.ts",
+      "max": 2,
+      "reason": "子域名检查自己的测试，样例必须写真实形状的子域名"
+    },
+    {
+      "host": "linux.yangtzeu.work",
+      "file": "tests/web/portal-shell.test.ts",
+      "max": 4,
+      "reason": "核对门户外链指向香港入口单独托管的 Linux 学习站"
+    },
+    {
+      "host": "prev-admin.yangtzeu.work",
+      "file": "tests/tooling/deployment-environment.test.ts",
+      "max": 1,
+      "reason": "环境契约测试：旧预发布管理域名必须被拒绝"
+    },
+    {
+      "host": "www.yangtzeu.work",
+      "file": "tests/tooling/forum-published.test.ts",
+      "max": 1,
+      "reason": "旧论坛历史话题地址的样例，解析时要认 www 前缀"
     }
   ]
 }

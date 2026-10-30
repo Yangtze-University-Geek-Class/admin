@@ -214,6 +214,22 @@
         "doneAt": "2026-10-29T12:13:42+08:00",
         "evidence": "同一香港宿主的首次受限通道安装已完成；专用key仅在production环境GITLAB_EDGE_SSH_KEY，真实required_reviewers仍存在。新key执行plan成功、id被拒，临时私钥已删除。Caddy未reload，正式配置摘要仍为c9ef6f81db7e9e2b569546b031669df5bf7f6469c66be4417d794694be92271a；本条不核销GitLab实例或SSO验收。"
       }
+    },
+    {
+      "id": "P-0014",
+      "surface": "host",
+      "title": "正式 GitLab 搬到正式入口的 /gitlab，旧主机只做 301（和预发布同构）",
+      "issue": 335,
+      "phase": "post_deploy",
+      "release": "0.1.1",
+      "preview": {
+        "doneAt": "2026-10-30T12:21:39+08:00",
+        "evidence": "预发布 GitLab 从 #308 起就在本环境入口的 /gitlab：香港预发布站点块的 /gitlab 处理器、gitlab_preview 客户端（sector 为预发布主机）；正式仍在子域名上，本条让正式同构"
+      },
+      "production": {
+        "status": "pending",
+        "action": "先发布含 #335 的正式版本（server 认 oauth_clients.sector_id，正式 GITLAB_URL 换成 /gitlab）；所有者批准后重跑 install-host.sh apply --target edge 带两份模板升级香港接收器；再在 GitHub Actions 手动触发 gitlab-cutover：path-status，move-production-path 先演算再 apply（前后各一次 GitLab 一致性备份、新回调先加、核对新地址 200、旧地址 301 同一路径、统一登录带新回调后才去掉旧回调，任一步失败两半都恢复），最后 verify-accounts。验收：新地址能打开并能统一登录，旧地址 301，git clone/fetch/push 两个地址都能用，verify-accounts 通过。回滚：rollback-production-path。不需要登录目标机"
+      }
     }
   ]
 }

@@ -20,6 +20,7 @@ ROOT="/"
 MIRROR_ENV_STDIN=0
 TARGET="arch"
 EDGE_ENV=""
+EDGE_PRODUCTION_ENV=""
 EDGE_KEY_STDIN=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -28,6 +29,7 @@ while [[ $# -gt 0 ]]; do
         --mirror-env-stdin) MIRROR_ENV_STDIN=1; shift ;;
         --target) TARGET="${2:-}"; shift 2 ;;
         --edge-env-file) EDGE_ENV="${2:-}"; shift 2 ;;
+        --edge-production-env-file) EDGE_PRODUCTION_ENV="${2:-}"; shift 2 ;;
         --edge-public-key-stdin) EDGE_KEY_STDIN=1; shift ;;
         *) echo "install-host: 未知参数 $1" >&2; exit 2 ;;
     esac
@@ -36,7 +38,7 @@ done
 [[ -d "${SOURCE}" ]] || { echo "install-host: --source 目录不存在" >&2; exit 2; }
 [[ "${ROOT}" == /* ]] || { echo "install-host: --root 必须是绝对路径" >&2; exit 2; }
 [[ "${TARGET}" == arch || "${TARGET}" == edge || "${TARGET}" == gitlab-preview ]] || { echo "install-host: --target 必须是 arch、edge 或 gitlab-preview" >&2; exit 2; }
-if [[ "${TARGET}" == edge && "${MODE}" == apply && ! -f "${EDGE_ENV}" ]]; then echo "install-host: edge 首次安装需要 --edge-env-file" >&2; exit 2; fi
+if [[ "${TARGET}" == edge && "${MODE}" == apply && ( ! -f "${EDGE_ENV}" || ! -f "${EDGE_PRODUCTION_ENV}" ) ]]; then echo "install-host: edge 安装需要 --edge-env-file（预发布模板）与 --edge-production-env-file（正式模板）" >&2; exit 2; fi
 ROOT="${ROOT%/}"
 
 # 源文件相对路径 → 目标路径 → 权限。新增物料只改这张表。
@@ -51,7 +53,8 @@ MANIFEST=(
     "systemd/hk-tunnel-watchdog.service.d/tolerate-loss.conf|/etc/systemd/system/hk-tunnel-watchdog.service.d/tolerate-loss.conf|0644"
 )
 if [[ "${TARGET}" == edge ]]; then
-    MANIFEST=("edge-gitlab.py|/usr/local/libexec/yzgc-edge|0755")
+    # 旧 GitLab 主机只做跳转的片段（#335）：接收器 production-apply 时校验后装进 /etc/caddy/sites/gitlab.caddy
+    MANIFEST=("edge-gitlab.py|/usr/local/libexec/yzgc-edge|0755" "../gitlab/gitlab.caddy|/usr/local/share/yzgc-edge/gitlab-legacy.caddy|0644")
     [[ "${MIRROR_ENV_STDIN}" == 0 ]] || { echo "install-host: edge 不接收 CDN 凭据" >&2; exit 2; }
 fi
 if [[ "${TARGET}" == gitlab-preview ]]; then
@@ -138,7 +141,7 @@ apply() {
     if [[ "${TARGET}" == edge ]]; then
         local key_args=()
         if [[ "${EDGE_KEY_STDIN}" == 1 ]]; then key_args=(--public-key-stdin); fi
-        python3 "${ROOT}/usr/local/libexec/yzgc-edge" bootstrap --root "${ROOT:-/}" --env-file "${EDGE_ENV}" "${key_args[@]}"
+        python3 "${ROOT}/usr/local/libexec/yzgc-edge" bootstrap --root "${ROOT:-/}" --env-file "${EDGE_ENV}" --production-env-file "${EDGE_PRODUCTION_ENV}" "${key_args[@]}"
         return
     fi
     if [[ "${TARGET}" == gitlab-preview ]]; then
@@ -169,7 +172,7 @@ verify() {
         return "${failed}"
     fi
     if [[ "${TARGET}" == edge ]]; then
-        [[ -f "${ROOT}/etc/yzgc-edge/gitlab-preview.json" ]] || failed=1
+        [[ -f "${ROOT}/etc/yzgc-edge/gitlab-preview.json" && -f "${ROOT}/etc/yzgc-edge/gitlab-production.json" ]] || failed=1
         [[ "${failed}" == 0 ]] && echo "verify：入口安装器与固定目标已安装"
         return "${failed}"
     fi

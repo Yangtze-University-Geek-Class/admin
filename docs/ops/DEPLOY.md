@@ -32,8 +32,8 @@ hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗
 ## 拓扑
 
 ```text
-当前链路（DNS 尚未切换）
-互联网 → 旧 VPS Nginx（仅转发）→ 香港 Caddy（TLS）
+当前链路（2026-10-30 核对：两个环境入口的 A 都已指向香港 156.238.244.78）
+互联网 → 香港 Caddy（TLS；DNS 切换前多经过旧 VPS Nginx 转发）
   → ssh -w 三层点对点隧道 10.66.0.1 ↔ 10.66.0.2
   → Arch web：10.66.0.2:18100 / 18200 → web 容器 nginx:8080
       ├─ /console、/admin、/signin 等 → 控制台静态入口
@@ -41,6 +41,7 @@ hotfix 派发前先确认 `deploy/hotfix/windows.json` 里这个 P0 issue 的窗
       ├─ /c/* → server 比赛官网（保留 sandbox CSP）
       ├─ /forum/* → 本环境 forum:3000（保留论坛内联哈希 CSP）
       └─ /sdk/*、/cli/*、其余路径 → SDK、CLI 分发、portal 静态产物
+  → 两个站点块的 /gitlab、/gitlab/*（香港 Caddy 直接转发，不经 web nginx）→ Arch 10.66.0.2:8929（正式，#335 搬家后）/ 8930（预发布，#308）→ GitLab 容器
 ```
 
 后端只信任 Caddy 与 web nginx 两层，`TRUST_PROXY=2`。DNS 过渡多经过旧 Nginx，但它覆盖外来 X-Real-IP，Caddy 仅对来自旧 VPS 地址的请求读取该值，其他请求按实际远端地址重建 X-Forwarded-For；客户端伪造头实测未被信任。`ssh -w` 不增加 HTTP 代理层，Arch 不叠宿主 nginx。DNS 后续指向香港 `156.238.244.78`，不是 Arch 私有地址。
@@ -53,7 +54,7 @@ web 镜像构建阶段分别构建 `app/web`（官网）与 `app/console`（控�
 
 香港回环 `18480/18481` 仅是私有预检设计，不能代替真实域名验证。后续候选配置先留非 import 目录，获批前不放进自动加载的 `/etc/caddy/sites/*.caddy`；变更先 validate 再 reload，保留 GitLab handler，不 restart 相邻服务。
 
-#308 的独立预发布 GitLab 不使用上述整站生成器覆盖live配置。经所有者批准首次安装的受限 `edge-gitlab.py` 只变换现行配置中的预发布站点块，保留正式块、真实IP、论坛与比赛策略；后续动作由production保护的 `gitlab-cutover` 调用。新实例目录、端口、网络和备份与正式隔离，见 [GitLab双实例合同](GITLAB.md#独立预发布实例308)。通道安装、入口激活、实例部署和SSO验收分别取证，不把其中一项算成全部完成。
+#308 的独立预发布 GitLab 不使用上述整站生成器覆盖live配置。经所有者批准首次安装的受限 `edge-gitlab.py` 只变换现行配置中的预发布站点块，保留正式块、真实IP、论坛与比赛策略；后续动作由production保护的 `gitlab-cutover` 调用。新实例目录、端口、网络和备份与正式隔离，见 [GitLab双实例合同](GITLAB.md#独立预发布实例308)。通道安装、入口激活、实例部署和SSO验收分别取证，不把其中一项算成全部完成。#335 给同一接收器加了 `production-plan|apply|verify|rollback`：只在正式站点块加 `/gitlab` 处理器（带原来旧主机上的 NANO 头像规则），并把旧 GitLab 主机的站点文件换成只做 301 的物料（`deploy/gitlab/gitlab.caddy`，由 `install-host.sh --target edge` 装到 `/usr/local/share/yzgc-edge/`）；由 `gitlab-cutover` 的 `move-production-path` 调用，见 [GitLab 搬到正式入口](GITLAB.md#搬到正式入口的-gitlab335)。
 
 
 `/release.json` 由 **web 镜像内置**（构建时用 build args 生成的静态文件，`Cache-Control: no-store`），不再是宿主 nginx 的 alias。
