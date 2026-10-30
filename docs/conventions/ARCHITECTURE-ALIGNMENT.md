@@ -2,7 +2,7 @@
 
 > 每个 PR 都把业务、后端、权限、数据、依赖、文档、验证和交付对齐到实际变更；纯 UI、文档和工程改动也不能省略。
 
-状态：`current` · 更新：2026-10-18 · 适用：所有进入本仓库的 PR，不按 issue 编号、作者、标签或文件路径跳过。
+状态：`current` · 更新：2026-10-30 · 适用：所有进入本仓库的 PR，不按 issue 编号、作者、标签或文件路径跳过。
 
 ## 硬约束
 
@@ -35,7 +35,7 @@
 | `tests` | 实际测试文件；代码或工作流变化必须在本 PR 增补回归 |
 | `compatibility`、`migration`、`rollback` | 兼容性、数据演进、恢复路径；不涉及时也说明理由 |
 
-GitHub 一侧的同步工单声明放 `docs/changes/github/<编号>.json`，由 `check-architecture.mjs --forge github` 读取。GitHub 与 GitLab 的编号各自增长，两边同号的声明不能放在同一个扁平目录，否则后写的会覆盖先写的。
+GitHub 一侧的同步工单声明放 `docs/changes/github/<编号>.json`，由 `check-architecture.mjs --forge github` 读取；命令行不传 `--forge` 时，在 GitHub Actions 里（`GITHUB_ACTIONS=true`）按 github 读，别处按 gitlab 读，core 的 `pnpm check` 与 `architecture-alignment` 读的是同一份（#335）。GitHub 与 GitLab 的编号各自增长，两边同号的声明不能放在同一个扁平目录，否则后写的会覆盖先写的。
 
 检查器的版本兼容（#330）：CI 的 `architecture-alignment` 只取 PR 目标分支（base）里的 `scripts/check-architecture.mjs`，候选分支改它不能自己放行。目标分支的检查器导出 `FORGES`（认 `--forge`）时，GitHub 一侧传 `--forge github`；不导出时按旧参数调用，只读扁平的 `docs/changes/<编号>.json`。目标分支连检查器文件都没有时失败关闭。GitHub `stage` 合入 #330 之前，同步 PR 按旧参数调用，首次同步的做法见 [BRANCHING](BRANCHING.md)「GitHub 镜像同步」的「首次同步」。
 

@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -304,6 +304,22 @@ it("不传 forge 时与旧行为一致：只读 docs/changes/<编号>.json", () 
   const explicit = inspectChange({ root, base, head, branch, body, forge: "gitlab" });
   expect(implicit).toEqual(explicit);
   expect(implicit.ok).toBe(true);
+});
+
+it("命令行不传 --forge 时，在 GitHub Actions 里读 GitHub 一侧的声明，别处仍读 GitLab 的（#335）", () => {
+  const { root, base, head, body } = forgeRepo({
+    "docs/changes/12.json": JSON.stringify(manifest12()),
+    "docs/changes/github/12.json": JSON.stringify({ ...manifest12(), kind: "engineering", summary: "GitHub 同步工单的工程声明，与 GitLab 同号声明互不覆盖。" }),
+  });
+  const bodyFile = join(root, "body.md"), report = join(root, "report.json");
+  const run = (env: Record<string, string>, text: string) => {
+    writeFileSync(bodyFile, text);
+    const result = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), "../../scripts/check-architecture.mjs"), "--root", root, "--base", base, "--head", head, "--branch", "task/12/ui_spacing", "--body-file", bodyFile, "--report", report], { encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "", ...env } });
+    expect(result.status).toBe(0);
+    return JSON.parse(readFileSync(report, "utf8"));
+  };
+  expect(run({ GITHUB_ACTIONS: "true" }, body.replace("docs/changes/12.json", "docs/changes/github/12.json")).kind).toBe("engineering");
+  expect(run({}, body).kind).toBe("ui-only");
 });
 
 it("命令行 --forge 只接受 gitlab 或 github，其它值退出码非 0 且不写报告", () => {

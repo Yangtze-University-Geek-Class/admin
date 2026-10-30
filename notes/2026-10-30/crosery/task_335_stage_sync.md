@@ -45,3 +45,16 @@
 - 做了什么：GitLab main 快进到 eaa451dd；GitHub stage 经 PR #313 合回（15a81b1f），GitHub main 推 66d89152（树同 eaa451dd，加 GitHub 独有的 307 声明与记录）；派发 deploy-hotfix 41049756867（issue 343，tag v0.1.1）；四个窗口改 closed
 - 结果：deploy-hotfix 全部 job 通过（含线上烟测）；正式 /release.json 为 0.1.1@66d89152，构建于 2026-10-30T12:03:56Z
 - 下一步：GitHub main 收尾提交，同步 PR 合回 GitHub stage，打 v0.1.1-stable.1 发预发布
+
+## 20:35:59 +08:00 · 提交 · #335 · 检查器在 GitHub Actions 里默认读 GitHub 声明
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitHub 同步 PR #315 的 core 失败：pnpm check 不传 --forge，GitHub #314 与 GitLab #314 同号，读到了 GitLab 的 docs/changes/314.json。scripts/check-architecture.mjs 不传 --forge 时按 GITHUB_ACTIONS 选平台；新增命令行用例；ARCHITECTURE-ALIGNMENT「声明格式」补一句；docs/changes/335.json 改为覆盖本次三处改动
+- 结果：tests/tooling/architecture-alignment.test.ts 28/28 通过；check-architecture --base gitlab/stage 通过
+- 下一步：开 MR 进 GitLab stage，审查后合入，再同步 GitHub
+
+## 20:36:13 +08:00 · 审查 · #335 · 检查器默认平台的自查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：逐项核对 diff：只改不传 --forge 时的默认值，传了 --forge 的调用（architecture-alignment）不变；GitLab 一侧与本机默认仍是 gitlab；GITHUB_ACTIONS 的判断与 check-branch-invariants.mjs 相同；检查器没有新增导入，目标分支单文件复制的用法不受影响；新用例覆盖两种环境
+- 结果：结论：通过
