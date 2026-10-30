@@ -32,7 +32,7 @@
       "approvedAt": "2026-10-29T13:03:00+08:00",
       "quote": "肯定批转啊，全部极客班成员都有我们仓库的访问权限，支持极客班的统一sso登录",
       "closedAt": "2026-10-30T08:14:44+08:00",
-      "evidence": "修复 4ff39b98（!66 7f5656ae、!67）经 1e2bc535 合回 gitlab/stage；gitlab-cutover 运行 40927060308 至 40930901538 完成改接：verify-accounts 有效成员 49、已映射 49、权限不符 0，issuer=https://yangtzeu.work/oidc，GitLab 登录页跳到 yangtzeu.work/authorize 实测登录成功，匿名访问 geek/admin 与 sign_up 均 302 到 sign_in。正式应用 0.1.1@b57a3616，b57a3616..4ff39b98 只改 GitLab 改接脚本、工作流、文档与测试，应用不需重新部署。"
+      "evidence": "修复 4ff39b98（!66 7f5656ae、!67）经 1e2bc535 合回 gitlab/stage；gitlab-cutover 运行 40927060308 至 40930901538 完成改接：verify-accounts 有效成员 49、已映射 49、权限不符 0，issuer 为正式站点的 /oidc 路径，GitLab 登录页跳到正式站点的 /authorize 实测登录成功，匿名访问 geek/admin 与 sign_up 均 302 到 sign_in。正式应用 0.1.1@b57a3616，b57a3616..4ff39b98 只改 GitLab 改接脚本、工作流、文档与测试，应用不需重新部署。"
     },
     {
       "issue": 311,
