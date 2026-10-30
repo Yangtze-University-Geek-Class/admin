@@ -6,7 +6,6 @@
 
 > #346 封存：公开静态资源（站点、表情、宣传片、邮件图片）已改回七牛，合同见 [CDN](CDN.md)。本机的公开桶 `geek-public` 与 `cdn` 不再接收新对象，已有对象、配置和公共直链保留、不删除。#354 起仓库里的备份脚本不再写本机：GitLab 备份、平台归档与部署前数据库快照写七牛私有备份桶（见 [BACKUP](BACKUP.md)），本机 `geek-backup` 只保留已有对象。内容索引的私有桶（`geek-production-private`、`geek-preview-private`）仍在本机。
 > #352：论坛图片与头像在对象存储开启后写七牛，不再写本机；合同见 [CDN](CDN.md)「用户文件」。
-> #346 封存：公开静态资源（站点、表情、宣传片、邮件图片）已改回七牛，合同见 [CDN](CDN.md)。本机的公开桶 `geek-public` 与 `cdn` 不再接收新对象，已有对象、配置和公共直链保留、不删除。私有桶与备份（`geek-backup` 等）仍写本机，直到 #346 的后续步骤切换。
 
 ## 它是什么、不是什么
 
@@ -122,7 +121,7 @@ Garage 是单节点单副本（`replication_factor = 1`），这台机器没有�
 
 恢复到一个新的 Garage：先按「日常运维」里的命令重建桶（`garage bucket create`，公共桶 `garage bucket website --allow`）并为应用生成写密钥，再把镜像推回去：`rclone copy /srv/cdn-mirror/current/<桶> <远端>:<桶>`。恢复的是对象内容；桶别名、website 开关和密钥不在镜像里，按本文件的桶表重建。镜像只保证内容，不替代 Garage 本机元数据备份。
 
-GitLab 备份、平台归档和部署前数据库快照不走这里，也不再写 Garage。仓库里的 [`deploy/gitlab/backup.sh`](../../deploy/gitlab/backup.sh) 与 [`deploy/remote/platform-archive.sh`](../../deploy/remote/platform-archive.sh) 写七牛私有备份桶，端点、桶名与密钥都来自环境变量 `BACKUP_S3_*`，细节见 [BACKUP](BACKUP.md)。Arch 上当前运行的 `/srv/gitlab/backup.sh`（SHA-256 `74b4f357…`，每日 03:30，保留最近 3 天）是 #354 之前的七牛版，读的仍是旧变量名；仓库版本安装前不要当成已经切换。Garage 的 `geek-backup` 目前只有 3 个历史对象，不属于现行备份链路。
+GitLab 备份、平台归档和部署前数据库快照不走这里，也不再写 Garage。仓库里的 [`deploy/gitlab/backup.sh`](../../deploy/gitlab/backup.sh) 与 [`deploy/remote/platform-archive.sh`](../../deploy/remote/platform-archive.sh) 写七牛私有备份桶（上传、读回核验与按保留策略清理都经 [`deploy/remote/garage-archive.mjs`](../../deploy/remote/garage-archive.mjs)），端点、桶名与密钥都来自环境变量 `BACKUP_S3_*`，细节见 [BACKUP](BACKUP.md)。Arch 上当前运行的 `/srv/gitlab/backup.sh`（SHA-256 `74b4f357…`，每日 03:30，保留最近 3 天）是 #354 之前的七牛版，读的仍是旧变量名；仓库版本安装前不要当成已经切换。Garage 的 `geek-backup` 目前只有 3 个历史对象，不属于现行备份链路。
 
 ## 冷热分层（规划，未实施）
 

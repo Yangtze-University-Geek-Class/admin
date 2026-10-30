@@ -128,8 +128,10 @@ describe('deploy-manual helpers', () => {
       const workflow = readFileSync(new URL(`../../.github/workflows/deploy-${env}.yml`, import.meta.url), 'utf8');
       const step = workflow.slice(workflow.indexOf('- name: 渲染运行时 env 文件'), workflow.indexOf('deployment-environment.mjs render'));
       expect(step.length, env).toBeGreaterThan(0);
-      const passed = [...step.matchAll(/^\s+([A-Z][A-Z0-9_]*): \$\{\{ secrets\.([A-Z][A-Z0-9_]*) \}\}$/gm)].map(match => {
-        expect(match[2]).toBe(match[1]);
+      // 桶名不是密钥，走 vars：写进 secrets 会被 GitHub 打码，连带丢掉含桶名的输出。
+      const passed = [...step.matchAll(/^\s+([A-Z][A-Z0-9_]*): \$\{\{ (secrets|vars)\.([A-Z][A-Z0-9_]*) \}\}$/gm)].map(match => {
+        expect(match[3]).toBe(match[1]);
+        if (match[2] === 'vars') expect(match[1]).toMatch(/_BUCKET$/);
         return match[1];
       });
       expect(passed, env).toEqual([...SECRET_FIELDS]);
