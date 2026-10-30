@@ -470,7 +470,7 @@ jobs:
             const env = Object.fromEntries(parseEnvFileText(readFileSync("deploy/env/.env.dev", "utf8"), "deploy/env/.env.dev"));
             const origin = env.STATIC_CDN_ORIGIN ?? "";
             const base = staticCdnPrefixURL({ STATIC_CDN_ORIGIN: origin });
-            appendFileSync(process.env.GITHUB_ENV, `STATIC_CDN_ORIGIN=${origin}\nSTATIC_CDN_BASE=${base}\n`);
+            appendFileSync(process.env.GITHUB_ENV, "STATIC_CDN_ORIGIN=" + origin + "\nSTATIC_CDN_BASE=" + base + "\n");
           '
 
       - name: 核对开关值并解析提交态的发布身份

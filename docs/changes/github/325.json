@@ -461,7 +461,8 @@
     },
     {
       "paths": [
-        "docs/changes/360.json"
+        "docs/changes/360.json",
+        "app/forum/ADOPTION.json"
       ],
       "domains": [
         "platform"

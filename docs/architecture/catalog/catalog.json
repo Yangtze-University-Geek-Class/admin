@@ -17849,7 +17849,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "fee8377512b22ebce3e3e28abf7b5b5a2b56d053a99115b5412441dbb170d756",
+    "fingerprint": "04cd47c3bb3fa80fbd6dd3dfb88b8707c0f8d1f6b9086b1144e2f4b903776679",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -19885,7 +19885,7 @@
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "befd0427cf198b0ba2fb89282a0671809c69c6bf3d3e311e83383fa75cf835cd"
+        "sha256": "05a6a932f3468655d953ac2aac5cdc7db7e8abe87d74ab704997f44e9a65f006"
       },
       {
         "path": "docs/services/forum/README.md",
@@ -20029,7 +20029,7 @@
       },
       {
         "path": "tests/e2e/competitions.spec.mts",
-        "sha256": "2b866db4a5e8835e6107ae7370a3c022caa4c778781ffb7bf8253662afffde3d"
+        "sha256": "a8213dbfdb16a752afc227da9387c737ad998fcc8b22f29be1c6bfda1b4339db"
       },
       {
         "path": "tests/e2e/portal-competitions.spec.ts",
