@@ -378,7 +378,7 @@ describe('唯一同步写者切换', () => {
 });
 
 
-// GitLab 搬到主站路径（#335）：假 docker 记下 compose 重建、健康检查与两个库的回调改动；GitLab 配置放在演练目录。
+// GitLab 搬到主站路径（#335）：假 docker 记下 compose 重建、健康检查、账号核对与正式库的回调改动（预发布库的客户端文件只用来核对没被碰过）；GitLab 配置放在演练目录。
 const OLD = "https://git.example.test";
 const NEW = `${PROD}/gitlab`;
 const CB = "/users/auth/openid_connect/callback";
