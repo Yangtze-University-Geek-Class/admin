@@ -105,7 +105,7 @@
         "domain:platform",
         "flow:gitlab.entry.open"
       ],
-      "reason": "运维文档跟着步骤改。"
+      "reason": "GITLAB 与 CICD 两份运维文档跟着 preview-sso 步骤改。"
     },
     {
       "paths": [
