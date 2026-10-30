@@ -41,9 +41,10 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
   const db = storage.db;
   app.addHook("preHandler", requireAuth);
 
-  function buildQuery(req: { query: Record<string, string | undefined> }, departmentScope: string[] | null | undefined, accountId?: string) {
+  /** `useCursor: false`：不加游标条件——按页读取（`offset`）与数总条数时用。 */
+  function buildQuery(req: { query: Record<string, string | undefined> }, departmentScope: string[] | null | undefined, accountId?: string, useCursor = true) {
     const { account, visitor, action, surface, outcome, from, to, cursor: cursorParam } = req.query;
-    const cursor = decodeCursor(cursorParam, isCursor);
+    const cursor = useCursor ? decodeCursor(cursorParam, isCursor) : null;
     const conditions: string[] = [];
     const params: unknown[] = [];
     if (accountId) { conditions.push("e.account_id = ?"); params.push(accountId); }
@@ -64,7 +65,7 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
     return { where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "", params };
   }
 
-  function fetchRows(where: string, params: unknown[], limit: number): Row[] {
+  function fetchRows(where: string, params: unknown[], limit: number, offset = 0): Row[] {
     return db.prepare(`
       SELECT e.id, e.at, e.account_id, e.visitor_id, e.surface, e.action, e.target_type, e.target_id, e.outcome, e.ip, e.ua, e.request_id, e.meta,
         p.username AS username, p.display_name AS display_name
@@ -72,8 +73,8 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
       LEFT JOIN account_profiles p ON p.account_id = e.account_id
       ${where}
       ORDER BY e.at DESC, e.id DESC
-      LIMIT ?
-    `).all(...params, limit) as Row[];
+      LIMIT ? OFFSET ?
+    `).all(...params, limit, offset) as Row[];
   }
 
   /** `avatarUrls`：这一页账号的统一头像（lib/avatars.ts，#343），按页批量取。 */
@@ -88,9 +89,13 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
 
   app.get("/api/console/activity", { preHandler: requireScopedPermission("activity.read") }, async (req) => {
     const fullIp = app.services.permissions.check(req.session!.account_id, "activity.read.ip");
-    const { where, params } = buildQuery(req as never, req.departmentScope);
-    const rows = fetchRows(where, params, PAGE_SIZE + 1);
+    // 控制台按页翻（`offset`，#370）：带了 offset 就不看游标；`total` 是筛选条件下的总条数，不受游标与页码影响。
+    const offsetParam = (req.query as { offset?: string }).offset;
+    const { where, params } = buildQuery(req as never, req.departmentScope, undefined, !offsetParam);
+    const rows = fetchRows(where, params, PAGE_SIZE + 1, offsetParam ? Number(offsetParam) : 0);
     const page = rows.slice(0, PAGE_SIZE);
+    const counted = buildQuery(req as never, req.departmentScope, undefined, false);
+    const total = (db.prepare(`SELECT COUNT(*) AS n FROM activity_events e ${counted.where}`).get(...counted.params) as { n: number }).n;
     const nextCursor = rows.length > PAGE_SIZE ? encodeCursor({ at: page[page.length - 1]!.at, id: page[page.length - 1]!.id }) : null;
     const todayStart = beijingDayStart(Date.now());
     // 被拦下的请求按 (subject, action, 方法/路由模板/状态码, 分钟) 合并成一行、累加 meta.count（lib/activity.ts 的 recordDenial，
@@ -99,7 +104,7 @@ export default async function consoleActivityRoutes(app: FastifyInstance) {
       "SELECT json_extract(meta, '$.bucket') AS bucket, SUM(COALESCE(json_extract(meta, '$.count'), 1)) AS n FROM activity_events WHERE outcome = 'limited' AND at >= ? AND json_extract(meta, '$.bucket') IS NOT NULL GROUP BY bucket",
     ).all(todayStart) as { bucket: string; n: number }[];
     const avatarUrls = avatars.urlsOf(page.flatMap(row => row.account_id ? [row.account_id] : []));
-    return { items: page.map(row => itemView(row, fullIp, avatarUrls)), next_cursor: nextCursor, blocked_today: blockedRows.map(row => ({ bucket: row.bucket, count: row.n })) };
+    return { items: page.map(row => itemView(row, fullIp, avatarUrls)), next_cursor: nextCursor, total, blocked_today: blockedRows.map(row => ({ bucket: row.bucket, count: row.n })) };
   });
 
   app.get("/api/console/activity.csv", { preHandler: requirePermission("activity.export") }, async (req, reply) => {

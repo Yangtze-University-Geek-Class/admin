@@ -22,7 +22,8 @@ const { can } = useSession();
 const settings = useResource(() => api<SecurityDecoyStatus>("/api/console/security/decoy"));
 const blocks = useResource(() => api<SecurityBlocks>("/api/console/security/blocks"));
 const records = useResource(() => api<ActivityList>("/api/console/activity?action=security.decoy.hit"), [], { enabled: () => can("activity.read") });
-const duration = ref(30);
+/** 开启时长：分钟数，或 permanent（永久开启，不随时间到期，只能手动关闭）。 */
+const duration = ref<number | "permanent">(30);
 const tick = ref(performance.now());
 let receivedAt = tick.value;
 let disposed = false;
@@ -31,7 +32,11 @@ watch(settings.data, () => { receivedAt = performance.now(); tick.value = receiv
 // 只用服务器时间加单调时钟的已逝时长，浏览器时区或本机时钟偏差不会延长有效期。
 const now = computed(() => (settings.data.value?.now ?? 0) + Math.max(0, tick.value - receivedAt));
 const remaining = computed(() => Math.max(0, Math.ceil(((settings.data.value?.expires_at ?? 0) - now.value) / 1000)));
-const active = computed(() => Boolean(settings.data.value?.active && remaining.value > 0));
+const permanent = computed(() => Boolean(settings.data.value?.permanent));
+// 永久开启没有截止时间，只看服务器给的 active；临时开启仍要看剩余时间。
+const active = computed(() => Boolean(settings.data.value?.active && (permanent.value || remaining.value > 0)));
+// 有截止时间或永久开启才有可关闭的设置。
+const hasSetting = computed(() => Boolean(settings.data.value && (settings.data.value.permanent || settings.data.value.expires_at !== null)));
 const hits = computed(() => records.data.value?.items.slice(0, 10) ?? []);
 const timer = window.setInterval(() => { tick.value = performance.now(); }, 1000);
 onScopeDispose(() => {
@@ -46,17 +51,18 @@ async function ask(options: ConfirmOptions) {
   return accepted && !disposed;
 }
 const change = useAction(async (enabled: boolean) => {
-  const minutes = duration.value;
+  const choice = duration.value;
+  const forever = choice === "permanent";
+  const scope = forever ? "永久开启，不会自动到期，直到手动关闭" : `开启 ${choice} 分钟，之后自动到期`;
   if (!await ask({
     title: enabled ? "开启合成蜜罐？" : "关闭合成蜜罐？",
     body: enabled
-      ? `开启 ${minutes} 分钟，之后自动到期。首次符合条件的探测只收到合成诊断数据和授权告知，来源仍被封禁。不会开放管理权限或业务数据。`
+      ? `${scope}。首次符合条件的探测只收到合成诊断数据和授权告知，来源仍被封禁。不会开放管理权限或业务数据。`
       : "停止返回合成诊断数据，基础防护和已有封禁保持不变。",
     confirmText: enabled ? "确认开启" : "确认关闭",
   })) return;
-  const status = await api<SecurityDecoyStatus>("/api/console/security/decoy", {
-    method: "PUT", body: JSON.stringify(enabled ? { enabled: true, duration_minutes: minutes } : { enabled: false }),
-  });
+  const body = !enabled ? { enabled: false } : forever ? { enabled: true, permanent: true } : { enabled: true, duration_minutes: choice };
+  const status = await api<SecurityDecoyStatus>("/api/console/security/decoy", { method: "PUT", body: JSON.stringify(body) });
   if (disposed) return;
   settings.data.value = status;
   await settings.reload();
@@ -86,7 +92,7 @@ const hitColumns = [
 
 <template>
   <div class="page">
-    <PageHeader title="安全防护" description="管理临时合成蜜罐，核对封禁与探测记录。">
+    <PageHeader title="安全防护" description="管理合成蜜罐的开启与关闭，核对封禁与探测记录。">
       <template #actions><TxButton variant="secondary" icon="i-carbon-renew" :disabled="busy || settings.loading.value || blocks.loading.value || records.loading.value" @click="refresh">刷新</TxButton></template>
     </PageHeader>
     <ErrorAlert v-if="change.error.value" :error="change.error.value" @close="change.reset" />
@@ -97,17 +103,18 @@ const hitColumns = [
         <h2>合成蜜罐</h2>
         <TxStatusBadge :status="active ? 'warning' : 'info'" :text="active ? '已开启' : settings.data.value.expires_at && remaining === 0 ? '已到期' : '已关闭'" />
       </div>
-      <p>基础防护：{{ settings.data.value.shield_enabled ? '已开启' : '已关闭' }}。合成蜜罐仅在正式环境可开启，单次最多 {{ settings.data.value.max_minutes }} 分钟。</p>
+      <p>基础防护：{{ settings.data.value.shield_enabled ? '已开启' : '已关闭' }}。合成蜜罐仅在正式环境可开启：临时开启最多 {{ settings.data.value.max_minutes }} 分钟，或永久开启直到手动关闭。</p>
       <p v-if="!settings.data.value.available">当前不是正式环境，不能开启合成蜜罐。</p>
       <p v-else-if="!settings.data.value.shield_enabled">先开启基础防护，才能使用合成蜜罐。</p>
       <p>只返回有界的合成诊断信息与 AI 授权告知，不返回真实凭据、管理权限或业务数据。告知不能保证阻止 AI 抓取或分析；鉴权、限流和封禁始终保留。</p>
       <p v-if="settings.data.value.expires_at">截止时间：{{ fmtDate(settings.data.value.expires_at) }}<span v-if="active"> · 剩余 {{ Math.floor(remaining / 60) }} 分 {{ remaining % 60 }} 秒</span></p>
+      <p v-else-if="permanent">已设为永久开启，不会自动到期，只能手动关闭。</p>
       <TxRadioGroup v-model="duration" aria-label="开启时长" :disabled="busy || active || !settings.data.value.available || !settings.data.value.shield_enabled">
-        <TxRadio :value="15">15 分钟</TxRadio><TxRadio :value="30">30 分钟</TxRadio><TxRadio :value="60">60 分钟</TxRadio>
+        <TxRadio :value="15">15 分钟</TxRadio><TxRadio :value="30">30 分钟</TxRadio><TxRadio :value="60">60 分钟</TxRadio><TxRadio value="permanent">永久开启</TxRadio>
       </TxRadioGroup>
       <div class="actions">
         <TxButton :disabled="busy || settings.loading.value || active || !settings.data.value.available || !settings.data.value.shield_enabled" @click="change.execute(true)">开启合成蜜罐</TxButton>
-        <TxButton variant="secondary" :disabled="busy || settings.loading.value || settings.data.value.expires_at === null" @click="change.execute(false)">关闭合成蜜罐</TxButton>
+        <TxButton variant="secondary" :disabled="busy || settings.loading.value || !hasSetting" @click="change.execute(false)">关闭合成蜜罐</TxButton>
         <RouterLink v-if="can('activity.read')" to="/console/activity?action=security.">查看防护操作记录</RouterLink>
       </div>
     </TxCard>

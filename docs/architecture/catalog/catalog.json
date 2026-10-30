@@ -269,7 +269,7 @@
     "businessOperations": 191,
     "businessOperationsWithFlow": 191,
     "capabilities": 16,
-    "declaredFlows": 200,
+    "declaredFlows": 201,
     "responseSchemas": 160,
     "routeMethods": 314,
     "supplementalInterfaces": 6,
@@ -999,7 +999,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -2477,6 +2477,101 @@
       "assessment": "declared-with-source-evidence",
       "capabilities": [],
       "docs": [
+        "docs/services/server/README.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/oidc.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/services/console/README.md"
+      ],
+      "doesNotEnqueue": [],
+      "domain": "audit",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "id": "flow:audit.gitlab.activity.sync",
+      "invariants": [
+        "权限与资源：后台定时任务没有请求身份，经由 GET /api/console/activity 读出（需要 activity.read）；只用服务端的 GITLAB_API_TOKEN 读 GITLAB_GROUP 的项目列表（分页，最多 10 页）与每个项目的 GET /projects/:id/events（每页 100 条，一轮最多 5 页），不发写请求。",
+        "响应与错误：间隔为 0 时不调 GitLab（跳过原因 events_off）；缺 GITLAB_URL 或 GITLAB_API_TOKEN 报 gitlab_not_configured、不调 GitLab；不看 GITLAB_SYNC。某个项目抓取失败（连不上、非 200、分页不完整、事件缺编号或时间）时这个项目整轮不写、游标不动，记 warn，其它项目照常；翻到 5 页上限仍有下一页时停下，写已拿到的，游标跟到拿到的最新一条，记截断告警。",
+        "数据与副作用：游标存 app_state（键 gitlab_events_cursor:<项目编号>，值为已处理的最大事件编号）；只写游标之后的事件，同一项目的写入与游标推进在一个事务里，按时间从旧到新写入 activity_events（surface gitlab，动作 gitlab.<对象>.<动作>，target_type 与 target_id 为对象类型与编号，meta 含 project、url、gitlab_event_id、gitlab_user_id、gitlab_username、linked；推送带 ref 与 commit_count）。不记提交说明、评论正文或 diff。",
+        "作者按 gitlab_accounts.gitlab_user_id 查本地库对账（不发请求）；对不上时账号为空、meta.linked 为 false，照样写。早于操作记录保留期（180 天）的事件不写。"
+      ],
+      "operation": "GET /api/console/activity",
+      "operationLabel": "GET /api/console/activity",
+      "operationNodeId": "route:GET /api/console/activity",
+      "reads": [
+        "app_state",
+        "gitlab_accounts"
+      ],
+      "relatedDomains": [
+        "gitlab",
+        "identity",
+        "platform"
+      ],
+      "testStatus": "linked-not-executed-by-generator",
+      "tests": [
+        "tests/server/gitlab-events.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/console/activity.test.ts"
+      ],
+      "title": "GitLab 项目事件后台拉取，写入控制台操作记录（#370；后台任务，没有自己的 HTTP 入口，经由操作记录接口读出）",
+      "writes": [
+        "activity_events",
+        "app_state"
+      ]
+    },
+    {
+      "assessment": "declared-with-source-evidence",
+      "capabilities": [],
+      "docs": [
         "docs/services/server/endpoint-contracts.md",
         "docs/services/server/README.md",
         "docs/architecture/API.md"
@@ -2485,7 +2580,7 @@
       "domain": "audit",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -2493,11 +2588,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -2505,7 +2600,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -2552,7 +2647,7 @@
       "domain": "audit",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -2560,7 +2655,7 @@
           "path": "app/server/src/lib/sql-text.ts"
         },
         {
-          "line": 354,
+          "line": 355,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -2602,12 +2697,16 @@
       "domain": "audit",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "id": "flow:audit.console.activity.account",
@@ -2656,15 +2755,15 @@
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
-          "line": 26,
+          "line": 27,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 28,
+          "line": 29,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -3404,7 +3503,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 1016,
+          "line": 1052,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -3428,7 +3527,7 @@
           "path": "app/console/src/lib/permission-nodes.ts"
         },
         {
-          "line": 203,
+          "line": 206,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -3502,11 +3601,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -6285,7 +6384,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -6596,7 +6695,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -7125,7 +7224,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -7141,7 +7240,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -7212,7 +7311,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -8510,7 +8609,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -9114,7 +9213,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -9122,7 +9221,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -9497,7 +9596,7 @@
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 142,
+          "line": 143,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -9615,11 +9714,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -9627,7 +9726,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -9707,7 +9806,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -10452,7 +10551,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -10677,7 +10776,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -10685,7 +10784,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -10693,11 +10792,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -10785,7 +10884,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -10929,7 +11028,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -11005,7 +11104,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -11706,11 +11805,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -11797,7 +11896,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -11882,11 +11981,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -11947,7 +12046,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -12264,7 +12363,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -12650,7 +12749,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 343,
+          "line": 344,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -12708,7 +12807,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -12758,7 +12857,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -12804,7 +12903,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -12867,7 +12966,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 359,
+          "line": 360,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -12910,7 +13009,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -12955,7 +13054,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -13000,7 +13099,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 386,
+          "line": 387,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -13044,7 +13143,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 391,
+          "line": 392,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -13090,7 +13189,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 397,
+          "line": 398,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -13131,7 +13230,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -13199,7 +13298,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -13249,7 +13348,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -13676,7 +13775,7 @@
           "path": "app/server/src/routes/console/security.ts"
         },
         {
-          "line": 22,
+          "line": 27,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
@@ -13692,22 +13791,22 @@
           "path": "app/console/src/lib/nav.ts"
         },
         {
-          "line": 382,
+          "line": 385,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 1078,
+          "line": 1083,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 76,
+          "line": 118,
           "path": "app/console/src/lib/activity.ts"
         }
       ],
       "id": "flow:security.decoy.read",
       "invariants": [
         "权限与资源：有效会话及 security.manage；页面按同一节点显示，命中记录另需 activity.read，IP 沿用 activity.read.ip 打码。",
-        "响应与错误：200 {available,active,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间。",
+        "响应与错误：200 {available,active,permanent,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间；permanent 为真时永久开启且 expires_at 为 null。",
         "数据与副作用：只读 security_decoy_until，不连接外部服务，不记录原始探针路径或请求内容。"
       ],
       "operation": "GET /api/console/security/decoy",
@@ -13741,7 +13840,7 @@
       "domain": "platform",
       "evidence": [
         {
-          "line": 24,
+          "line": 26,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -13749,22 +13848,22 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 42,
+          "line": 53,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 165,
+          "line": 171,
           "path": "app/server/src/config.ts"
         },
         {
-          "line": 48,
+          "line": 53,
           "path": "app/console/src/pages/Security.vue"
         }
       ],
       "id": "flow:security.decoy.update",
       "invariants": [
         "权限与资源：security.manage、10分钟内登录及既有 Origin 检查；生产发布身份且基础防护开启才能开启。",
-        "响应与错误：开启只收 enabled:true 和1至60整数 duration_minutes；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
+        "响应与错误：开启只收 enabled:true 加1至60整数 duration_minutes，或 enabled:true 加 permanent:true（永久开启，与时长不能同给）；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
         "数据与副作用：设置与 security.decoy.update 同事务；审计失败整体回滚。页面确认后才写，失败保留错误，离页取消未答复的确认。关闭不解封。"
       ],
       "operation": "PUT /api/console/security/decoy",
@@ -13781,7 +13880,7 @@
       "tests": [
         "tests/server/security-decoy.test.ts"
       ],
-      "title": "控制台限时开启或关闭合成蜜罐",
+      "title": "控制台限时或永久开启、关闭合成蜜罐",
       "writes": [
         "app_state",
         "activity_events"
@@ -13799,7 +13898,7 @@
       "domain": "platform",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -13855,7 +13954,7 @@
       "domain": "platform",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -13926,7 +14025,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -14410,6 +14509,11 @@
       "id": "flow:audit.events.report",
       "kind": "flow",
       "title": "前端批量上报白名单动作（访客也能调）"
+    },
+    {
+      "id": "flow:audit.gitlab.activity.sync",
+      "kind": "flow",
+      "title": "GitLab 项目事件后台拉取，写入控制台操作记录（#370；后台任务，没有自己的 HTTP 入口，经由操作记录接口读出）"
     },
     {
       "id": "flow:competition.candidates.accept",
@@ -15319,7 +15423,7 @@
     {
       "id": "flow:security.decoy.update",
       "kind": "flow",
-      "title": "控制台限时开启或关闭合成蜜罐"
+      "title": "控制台限时或永久开启、关闭合成蜜罐"
     },
     {
       "id": "flow:security.shield",
@@ -17632,6 +17736,11 @@
       "title": "tests/server/forum.test.ts"
     },
     {
+      "id": "test:tests/server/gitlab-events.test.ts",
+      "kind": "test",
+      "title": "tests/server/gitlab-events.test.ts"
+    },
+    {
       "id": "test:tests/server/gitlab-sync.test.ts",
       "kind": "test",
       "title": "tests/server/gitlab-sync.test.ts"
@@ -17849,7 +17958,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "ac482727a4443d71b3a7c42f2440a8ea9ff0b7dc298f27f9e16b5cdb82a27a94",
+    "fingerprint": "611b9545aa0682b21d1767efca791614f36ddd103e837cb3109d02164e816ebf",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -17929,7 +18038,7 @@
       },
       {
         "path": "app/console/src/lib/activity.ts",
-        "sha256": "465f01555ed806c2d5add31d2da368c44e01138dc727bfb993c8a5b20eae1523"
+        "sha256": "35176fe86431b06ad410aa6f0e7883b4d8075d85c4e9dfbf9cbe3cea8566b83f"
       },
       {
         "path": "app/console/src/lib/applications.ts",
@@ -18041,7 +18150,7 @@
       },
       {
         "path": "app/console/src/lib/types.ts",
-        "sha256": "22064de08c6750f644cb0873bb4056d0386776f3f496d12c6ad998ae1e8e76b2"
+        "sha256": "d5b7fe1214d6e9c0f91d9dc4a0f1c16cf310e2601c38f2a86c7303b5829135cd"
       },
       {
         "path": "app/console/src/lib/users.ts",
@@ -18053,7 +18162,7 @@
       },
       {
         "path": "app/console/src/mock/console.ts",
-        "sha256": "06047c997635ea31d224dbe5b0c3da82ea64cac5d6e2d166ec375d89918a8350"
+        "sha256": "516c2773e14db7e1e92327ede37e47cafdfce4391b199717bd8d1fecf8f80e4d"
       },
       {
         "path": "app/console/src/mock/index.ts",
@@ -18069,7 +18178,7 @@
       },
       {
         "path": "app/console/src/pages/Activity.vue",
-        "sha256": "e909771f824436c4f48b7f215e8c7c1e63bd6de60613931ab6f742b411e7888e"
+        "sha256": "86e04a6c386b584c35ee5a6da7e05e0b157bb26df53341ec1ecb0fec0447c4c2"
       },
       {
         "path": "app/console/src/pages/ApplicationDetail.vue",
@@ -18141,7 +18250,7 @@
       },
       {
         "path": "app/console/src/pages/Security.vue",
-        "sha256": "438d07185c513b2d6ffb8715549446b4bf255f949978ba06c78074a49a28957d"
+        "sha256": "bbd38cd91cc625ee97e98bfbe2a4b8c31967432694cc56988c4521c39c9aeb66"
       },
       {
         "path": "app/console/src/pages/SignIn.vue",
@@ -18249,7 +18358,7 @@
       },
       {
         "path": "app/console/src/pages/users/UserDrawer.vue",
-        "sha256": "efd02c320f8d62d6b0225123933234107082d9fd6ae9f2b2968333d06abc29ca"
+        "sha256": "f2398a9c1de62d2deb3431d609a9fb2f9965fc505b8e6c9ddae885f8956218f2"
       },
       {
         "path": "app/console/src/router.ts",
@@ -18741,7 +18850,7 @@
       },
       {
         "path": "app/server/src/app.ts",
-        "sha256": "eb1511fb41796ce842a1e22505c77ca72151c31d9af9381794b5c9d4ce397514"
+        "sha256": "b1f1a18a76dc606ff2e7b6385623824a1e11cd0f5e79f131a91513d87b388d38"
       },
       {
         "path": "app/server/src/cli/account.ts",
@@ -18753,7 +18862,7 @@
       },
       {
         "path": "app/server/src/config.ts",
-        "sha256": "06bceab86e7a2ca65dac96ab0886f6a5e4e8359ad2e158f1bfc80064969f74a1"
+        "sha256": "5da5dcc7c4e0051a4b6c38efb13411bd5ba7db5e39aa6d8475523cd96a588476"
       },
       {
         "path": "app/server/src/index.ts",
@@ -18781,7 +18890,7 @@
       },
       {
         "path": "app/server/src/lib/activity.ts",
-        "sha256": "f772aad3fc37686c6c19c29c900182a45d55bb3ee5546d96358b0e945d55b149"
+        "sha256": "06cb8f0ed9ff509b70897e204ef6edb566ce88206b8bbc88eea6841253f03d5e"
       },
       {
         "path": "app/server/src/lib/apply-quota.ts",
@@ -18865,7 +18974,7 @@
       },
       {
         "path": "app/server/src/lib/db.ts",
-        "sha256": "147d73bfc5ecf10e96e62845fb1fe518b7b1de89016eba1bddffda6f3a33f012"
+        "sha256": "b6a8d04d09ce5480758ed2862e492a72c292a3067432619a57926ad12a781c18"
       },
       {
         "path": "app/server/src/lib/device-store.ts",
@@ -18912,8 +19021,12 @@
         "sha256": "cc08b34a2b7d56485ce2d2159c02a3a1818b1b930caa14b643a8f441f19c9a5c"
       },
       {
+        "path": "app/server/src/lib/gitlab-events.ts",
+        "sha256": "4e573b289203355f62e3cde18f1b63f7e9bb27f7253050a7d47c388256dbb032"
+      },
+      {
         "path": "app/server/src/lib/gitlab-sync.ts",
-        "sha256": "8924b364c6a169556bb898cb555375ad2eb1a111e58a1972c883e47be81f3d76"
+        "sha256": "3c329e2beabe6e2791a0c63392d3d322c47490c9195063be434a3291277ee882"
       },
       {
         "path": "app/server/src/lib/google.ts",
@@ -19057,7 +19170,7 @@
       },
       {
         "path": "app/server/src/lib/security-decoy.ts",
-        "sha256": "2257448d09448ae0617c25f0a9a3e2a1d9f4f97cdce1932cf721c115cca74c0e"
+        "sha256": "9f7a7026f62c3e9649a5e563628121464a4db6749b31d1ed030a27335e25f595"
       },
       {
         "path": "app/server/src/lib/session.ts",
@@ -19157,7 +19270,7 @@
       },
       {
         "path": "app/server/src/routes/console/activity.ts",
-        "sha256": "7c660b21040d9a8acb8296e9184d871b709d61c7d7c045c3812c761acd6edb3c"
+        "sha256": "bbc02fa413eaa4255e55006b664e10dbb4beb76a50dc21f0c783ef5e94b6c98b"
       },
       {
         "path": "app/server/src/routes/console/applications.ts",
@@ -19189,7 +19302,7 @@
       },
       {
         "path": "app/server/src/routes/console/contracts.ts",
-        "sha256": "1666268874b6c4cf9ffda654479dd00c819b9db713a72d325f589f47ff507242"
+        "sha256": "29b68cc5a3260d459bcce6e602efa867d1d8e608a2abd964186fc4b9faa72c36"
       },
       {
         "path": "app/server/src/routes/console/feedback.ts",
@@ -19229,7 +19342,7 @@
       },
       {
         "path": "app/server/src/routes/console/security.ts",
-        "sha256": "63bf9fb23666d04ea9a976643410f7e9802c5396fd6cceea942b01e6928043dc"
+        "sha256": "344076a5867780555e6e911409b98a614389c99e9d8bf9392dd22b79536013ca"
       },
       {
         "path": "app/server/src/routes/console/users.ts",
@@ -19369,7 +19482,7 @@
       },
       {
         "path": "app/server/src/services.ts",
-        "sha256": "1e8f5eda478b6e4af3ece26158ee9aea68e4fa70682ee17d94bf416ff593dde3"
+        "sha256": "fb967e48ea51a7b38c127581dfc85bf30247476d46487792026e7d39bdd29f14"
       },
       {
         "path": "app/web/Dockerfile",
@@ -19821,15 +19934,15 @@
       },
       {
         "path": "deploy/compose/preview.yml",
-        "sha256": "d23a2da371e3f42be97ff6c49c3e89d57b89429029e371cbea4c40329d860c8f"
+        "sha256": "58aab5926bef9ea194fc22eb4256de8ccb0ac9b945431ea684620c60f7b5a9e5"
       },
       {
         "path": "deploy/compose/production.yml",
-        "sha256": "5a859c341ced0f82064930ef71fb051efe9464cb230706006093ea953fa972e7"
+        "sha256": "cb15072311f568e5a39ad7cf488ca32199fefd84d2b86fed9565267a103fcb2b"
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "869e383964f1d59b0e70ca5a9f222c0563398dda9487d233970b9e4eb99e81ef"
+        "sha256": "77a797379db3c88dca77df679f9125e12afac3aa22de88bb495cb496506a5c01"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -19837,11 +19950,11 @@
       },
       {
         "path": "docs/architecture/SECURITY.md",
-        "sha256": "6e7cc5e9f2d3dbc8f60b1779464dc458403b7047fcc124a958bed003002b0a48"
+        "sha256": "dd93230810cc286d9db2e77c3f0d425b3000ce130867bcdabbcbc5e908fbb352"
       },
       {
         "path": "docs/architecture/catalog/ownership.json",
-        "sha256": "54f8db8d28ee84dd31f72408903488d68fb52df2e58a5b5649c45bff5e50089d"
+        "sha256": "c37e5bfc1fd2b4fbb9aec21de7d14dd985ec874bc671cef78033b9b1c0d5dc31"
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
@@ -19865,7 +19978,7 @@
       },
       {
         "path": "docs/ops/ENVIRONMENTS.md",
-        "sha256": "8576aa0da44d47ce6a8a860bba7d0f92c8dfc5537f64065f2cba85f9f1f23dce"
+        "sha256": "b071eb7ef73a131226cd4143f0ce540ab0701d0ee541e05345e9fdf06a27d9e1"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -19885,7 +19998,7 @@
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "05a6a932f3468655d953ac2aac5cdc7db7e8abe87d74ab704997f44e9a65f006"
+        "sha256": "badfe539a4ce21a85ebdbd0d47575aff5a7f6e501203819c9f83533a89d78248"
       },
       {
         "path": "docs/services/forum/README.md",
@@ -19893,7 +20006,7 @@
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "734c7f1263b70baaaa29f8f2589e3bc79fa0e24868bfe43946221e2222b3c315"
+        "sha256": "f30c10bf30539ce7e2f170d9fd26461995f608657c77cfbf0f33b9e0e0721add"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19901,11 +20014,11 @@
       },
       {
         "path": "docs/services/server/data-model.md",
-        "sha256": "707a2436f8b3b313df42d45214b7eb90382c9e2ee799c5e746359ef421fa8642"
+        "sha256": "a3c0f5111181ce8be0bdb89dd7b53e9736338e3a26476480645fe3a02a650329"
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
-        "sha256": "155628494e74931b29d067ed2a5fb55fa1b9d23f1f7b66d1f898a68a11bfb77e"
+        "sha256": "45aae66cd9a4c2b3fdd7ec24cbc8b33af726e891de223585cbac62425e7abe65"
       },
       {
         "path": "docs/services/server/mail.md",
@@ -19913,7 +20026,7 @@
       },
       {
         "path": "docs/services/server/oidc.md",
-        "sha256": "828c6cad1e44c21f3c66ddec3417b2dceaa21916169f3ab1159b6acd74f9e8fc"
+        "sha256": "5dc35d36cfda2299c3af5f223fb3b1ebfe86aded5e0bfd6051f46da29a3f8e6a"
       },
       {
         "path": "docs/services/web/README.md",
@@ -19964,6 +20077,10 @@
         "sha256": "e1de4b1df68a516be781991a1e5d9bb11490a7bc8330f12ffd7ad409f6403d53"
       },
       {
+        "path": "scripts/deployment-environment.mjs",
+        "sha256": "27bc57d8c5a32c5c6d84614864b608e51470e92d540c16318e42a2fd19afde70"
+      },
+      {
         "path": "scripts/project-catalog.ts",
         "sha256": "f823b76da2cb111db0e49983f3484409ff75d09d3c62a0208ef0c75bae947e9c"
       },
@@ -19973,7 +20090,7 @@
       },
       {
         "path": "tests/console/activity.test.ts",
-        "sha256": "7d87450a076b0e96366388b6623cabf321efffb99fee40a64eb285d30cf4a735"
+        "sha256": "73fce6a969a28c363ae4219a9311bd87a4f4ec3ccd9441b2b41e9cf938154a94"
       },
       {
         "path": "tests/console/applications.test.ts",
@@ -20049,7 +20166,7 @@
       },
       {
         "path": "tests/server/activity.test.ts",
-        "sha256": "171095b68554a4178cb89372856398743a14fa1e0a3917ac2ad48c1bb51f6a4b"
+        "sha256": "71977c75fdd24efdff9efabe63860328dee38b97a46b3807a72cc12dc4e8e877"
       },
       {
         "path": "tests/server/applications.test.ts",
@@ -20168,8 +20285,12 @@
         "sha256": "7818138d84712e5428cd6e8a07da0d69a0d4943f4e342453e4879b5f3ea4ec5c"
       },
       {
+        "path": "tests/server/gitlab-events.test.ts",
+        "sha256": "88f1e8de26411aca1df541894eba4d0f7d08b6640b6ccd39386be78d5a87411a"
+      },
+      {
         "path": "tests/server/gitlab-sync.test.ts",
-        "sha256": "2718eaa31634ced5b894b758abdcfde84ec124a7b6a9f2f21e1b9f3800fb7bd3"
+        "sha256": "279ebba9d13a20340217c29a598f13a956c4b92dcf47c104b05c6ce906adac1f"
       },
       {
         "path": "tests/server/grade.test.ts",
@@ -20185,7 +20306,7 @@
       },
       {
         "path": "tests/server/legacy-database.test.ts",
-        "sha256": "2edc70456b39bd3d0ecaac84d4dbe7edfa547c088b50d96f454509377f2f944c"
+        "sha256": "f176f9de352bead06c033779721f4c85c8787f7b8614e7ae8ae9e6cdabc80136"
       },
       {
         "path": "tests/server/mail-envelope.test.ts",
@@ -20237,7 +20358,7 @@
       },
       {
         "path": "tests/server/security-decoy.test.ts",
-        "sha256": "cfba3237f126ed7d904da40580b48ba31be889394ad5eebbd3949990ef6013ac"
+        "sha256": "de0c28f1f37d7583b3dcea0cfbf2864e9c1043b378f5bba014c56faa22100f48"
       },
       {
         "path": "tests/server/session-cleanup.test.ts",
@@ -20568,7 +20689,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         }
       ],
@@ -20580,7 +20701,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -20592,7 +20713,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -20676,7 +20797,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -20688,7 +20809,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -20700,7 +20821,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 173,
+          "line": 174,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -20760,7 +20881,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -20784,7 +20905,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -20796,7 +20917,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -21144,7 +21265,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         }
       ],
@@ -21240,7 +21361,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21252,7 +21373,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21660,7 +21781,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21756,7 +21877,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 153,
+          "line": 154,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21768,7 +21889,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 153,
+          "line": 154,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21816,7 +21937,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21828,7 +21949,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 159,
+          "line": 160,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21876,7 +21997,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 173,
+          "line": 174,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -21936,7 +22057,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -21960,7 +22081,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -21972,7 +22093,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         }
       ],
@@ -22320,7 +22441,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         }
       ],
@@ -22416,7 +22537,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22428,7 +22549,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22800,7 +22921,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22896,7 +23017,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 153,
+          "line": 154,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22908,7 +23029,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 153,
+          "line": 154,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22956,7 +23077,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -22968,7 +23089,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 159,
+          "line": 160,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23016,7 +23137,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23028,7 +23149,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23040,7 +23161,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23052,7 +23173,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23208,7 +23329,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23220,7 +23341,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23280,7 +23401,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23292,7 +23413,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23592,7 +23713,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -23604,7 +23725,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24012,7 +24133,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24036,7 +24157,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24132,7 +24253,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24144,7 +24265,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24204,7 +24325,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -24216,7 +24337,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 149,
+          "line": 150,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -27342,12 +27463,16 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "from": "flow:audit.console.activity.account",
@@ -27358,12 +27483,16 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "from": "flow:audit.console.activity.account",
@@ -27374,12 +27503,16 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "from": "flow:audit.console.activity.account",
@@ -27390,12 +27523,16 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "from": "flow:audit.console.activity.account",
@@ -27412,12 +27549,16 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 119,
+          "line": 124,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
-          "line": 355,
+          "line": 356,
           "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 112,
+          "path": "app/console/src/pages/users/UserDrawer.vue"
         }
       ],
       "from": "flow:audit.console.activity.account",
@@ -27452,7 +27593,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27460,7 +27601,7 @@
           "path": "app/server/src/lib/sql-text.ts"
         },
         {
-          "line": 354,
+          "line": 355,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -27472,7 +27613,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27480,7 +27621,7 @@
           "path": "app/server/src/lib/sql-text.ts"
         },
         {
-          "line": 354,
+          "line": 355,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -27498,7 +27639,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27506,7 +27647,7 @@
           "path": "app/server/src/lib/sql-text.ts"
         },
         {
-          "line": 354,
+          "line": 355,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -27518,7 +27659,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 105,
+          "line": 110,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27526,7 +27667,7 @@
           "path": "app/server/src/lib/sql-text.ts"
         },
         {
-          "line": 354,
+          "line": 355,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -27562,7 +27703,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27570,11 +27711,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -27582,7 +27723,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -27598,7 +27739,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27606,11 +27747,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -27618,7 +27759,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -27634,7 +27775,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27642,11 +27783,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -27654,7 +27795,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -27670,7 +27811,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27678,11 +27819,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -27690,7 +27831,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -27718,7 +27859,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 89,
+          "line": 90,
           "path": "app/server/src/routes/console/activity.ts"
         },
         {
@@ -27726,11 +27867,11 @@
           "path": "app/server/src/lib/cursor.ts"
         },
         {
-          "line": 353,
+          "line": 354,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 27,
+          "line": 28,
           "path": "app/console/src/pages/Activity.vue"
         },
         {
@@ -27738,7 +27879,7 @@
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 1021,
+          "line": 1025,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -27798,15 +27939,15 @@
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
-          "line": 26,
+          "line": 27,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 28,
+          "line": 29,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -27902,15 +28043,15 @@
           "path": "app/server/src/routes/portal/contracts.ts"
         },
         {
-          "line": 26,
+          "line": 27,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 28,
+          "line": 29,
           "path": "app/server/src/lib/activity.ts"
         },
         {
-          "line": 30,
+          "line": 31,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -27992,6 +28133,352 @@
       ],
       "from": "flow:audit.events.report",
       "to": "table:activity_events",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "domain:audit",
+      "type": "belongs-to"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/architecture/SECURITY.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/ops/ENVIRONMENTS.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/services/console/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/services/server/README.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/services/server/endpoint-contracts.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "document:docs/services/server/oidc.md",
+      "type": "documented-by"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "table:app_state",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "table:gitlab_accounts",
+      "type": "reads"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "test:tests/console/activity.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "test:tests/server/gitlab-events.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "test:tests/server/gitlab-sync.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "test:tests/server/legacy-database.test.ts",
+      "type": "test-entry"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "route:GET /api/console/activity",
+      "type": "uses"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "table:activity_events",
+      "type": "writes"
+    },
+    {
+      "basis": "declaration",
+      "evidence": [
+        {
+          "line": 108,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 64,
+          "path": "app/server/src/lib/gitlab-events.ts"
+        },
+        {
+          "line": 177,
+          "path": "app/server/src/lib/activity.ts"
+        },
+        {
+          "line": 813,
+          "path": "app/server/src/lib/gitlab-sync.ts"
+        },
+        {
+          "line": 166,
+          "path": "app/server/src/services.ts"
+        },
+        {
+          "line": 93,
+          "path": "app/server/src/app.ts"
+        },
+        {
+          "line": 137,
+          "path": "app/server/src/config.ts"
+        },
+        {
+          "line": 845,
+          "path": "app/server/src/lib/db.ts"
+        },
+        {
+          "line": 155,
+          "path": "app/server/src/routes/console/contracts.ts"
+        },
+        {
+          "line": 150,
+          "path": "scripts/deployment-environment.mjs"
+        },
+        {
+          "line": 138,
+          "path": "app/console/src/lib/activity.ts"
+        },
+        {
+          "line": 103,
+          "path": "app/console/src/lib/types.ts"
+        }
+      ],
+      "from": "flow:audit.gitlab.activity.sync",
+      "to": "table:app_state",
       "type": "writes"
     },
     {
@@ -28714,7 +29201,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -28722,7 +29209,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -28730,11 +29217,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28774,7 +29261,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -28782,7 +29269,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -28790,11 +29277,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28834,7 +29321,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -28842,7 +29329,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -28850,11 +29337,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28894,7 +29381,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -28902,7 +29389,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -28910,11 +29397,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -28954,7 +29441,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -28962,7 +29449,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -28970,11 +29457,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29014,7 +29501,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29022,7 +29509,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29030,11 +29517,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29074,7 +29561,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29082,7 +29569,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29090,11 +29577,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29134,7 +29621,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29142,7 +29629,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29150,11 +29637,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29194,7 +29681,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29202,7 +29689,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29210,11 +29697,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29254,7 +29741,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29262,7 +29749,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29270,11 +29757,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29314,7 +29801,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29322,7 +29809,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29330,11 +29817,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29374,7 +29861,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29382,7 +29869,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29390,11 +29877,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29434,7 +29921,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29442,7 +29929,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29450,11 +29937,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29494,7 +29981,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29502,7 +29989,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29510,11 +29997,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29554,7 +30041,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29562,7 +30049,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29570,11 +30057,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29614,7 +30101,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29622,7 +30109,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29630,11 +30117,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29698,7 +30185,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29706,7 +30193,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29714,11 +30201,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29758,7 +30245,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29766,7 +30253,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29774,11 +30261,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29818,7 +30305,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29826,7 +30313,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29834,11 +30321,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29878,7 +30365,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29886,7 +30373,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29894,11 +30381,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -29938,7 +30425,7 @@
           "path": "app/console/src/lib/competition-contest.ts"
         },
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -29946,7 +30433,7 @@
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 92,
+          "line": 93,
           "path": "app/server/src/app.ts"
         },
         {
@@ -29954,11 +30441,11 @@
           "path": "app/server/src/lib/competition-candidates.ts"
         },
         {
-          "line": 180,
+          "line": 187,
           "path": "app/server/src/services.ts"
         },
         {
-          "line": 693,
+          "line": 694,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -30014,7 +30501,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30046,7 +30533,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30078,7 +30565,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30110,7 +30597,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30142,7 +30629,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30174,7 +30661,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30206,7 +30693,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30238,7 +30725,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30288,7 +30775,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30320,7 +30807,7 @@
           "path": "app/console/src/pages/competition/CandidatesPanel.vue"
         },
         {
-          "line": 617,
+          "line": 621,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -30720,7 +31207,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30736,7 +31223,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30760,7 +31247,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30776,7 +31263,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30800,7 +31287,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30816,7 +31303,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30840,7 +31327,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30856,7 +31343,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30880,7 +31367,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30896,7 +31383,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30920,7 +31407,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -30936,7 +31423,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -30984,7 +31471,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -31000,7 +31487,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -31024,7 +31511,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -31040,7 +31527,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -31064,7 +31551,7 @@
           "path": "app/console/src/pages/Competitions.vue"
         },
         {
-          "line": 243,
+          "line": 246,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -31080,7 +31567,7 @@
           "path": "app/console/src/router.ts"
         },
         {
-          "line": 572,
+          "line": 576,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -31144,7 +31631,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31172,7 +31659,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31200,7 +31687,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31228,7 +31715,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31256,7 +31743,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31284,7 +31771,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31336,7 +31823,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31364,7 +31851,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31392,7 +31879,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31420,7 +31907,7 @@
           "path": "app/server/src/lib/roles.ts"
         },
         {
-          "line": 105,
+          "line": 106,
           "path": "app/server/src/services.ts"
         }
       ],
@@ -31806,7 +32293,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31834,7 +32321,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31862,7 +32349,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31890,7 +32377,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31918,7 +32405,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31946,7 +32433,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -31974,7 +32461,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32002,7 +32489,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32030,7 +32517,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32058,7 +32545,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32086,7 +32573,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32114,7 +32601,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32142,7 +32629,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32182,7 +32669,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32210,7 +32697,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 662,
+          "line": 666,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -32278,7 +32765,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32306,7 +32793,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32334,7 +32821,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32362,7 +32849,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32390,7 +32877,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32418,7 +32905,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32446,7 +32933,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32474,7 +32961,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32502,7 +32989,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32530,7 +33017,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32558,7 +33045,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32586,7 +33073,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32638,7 +33125,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32666,7 +33153,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32694,7 +33181,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32722,7 +33209,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -32750,7 +33237,7 @@
           "path": "app/console/src/pages/competition/FinalPanel.vue"
         },
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -40454,7 +40941,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40490,7 +40977,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40526,7 +41013,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40562,7 +41049,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40598,7 +41085,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40634,7 +41121,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40670,7 +41157,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40706,7 +41193,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40742,7 +41229,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40778,7 +41265,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40826,7 +41313,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -40862,7 +41349,7 @@
           "path": "app/console/src/pages/competition/RulesPanel.vue"
         },
         {
-          "line": 647,
+          "line": 651,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -43636,7 +44123,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43644,7 +44131,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43684,7 +44171,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43692,7 +44179,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43732,7 +44219,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43740,7 +44227,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43780,7 +44267,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43788,7 +44275,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43828,7 +44315,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43836,7 +44323,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43876,7 +44363,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43884,7 +44371,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43924,7 +44411,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43932,7 +44419,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -43972,7 +44459,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -43980,7 +44467,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44020,7 +44507,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44028,7 +44515,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44068,7 +44555,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44076,7 +44563,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44116,7 +44603,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44124,7 +44611,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44164,7 +44651,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44172,7 +44659,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44212,7 +44699,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44220,7 +44707,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44278,7 +44765,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44286,7 +44773,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44326,7 +44813,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44334,7 +44821,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44374,7 +44861,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44382,7 +44869,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44422,7 +44909,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44430,7 +44917,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -44470,7 +44957,7 @@
           "path": "app/console/src/lib/competition-hub.ts"
         },
         {
-          "line": 274,
+          "line": 277,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -44478,7 +44965,7 @@
           "path": "app/console/src/pages/CompetitionHub.vue"
         },
         {
-          "line": 875,
+          "line": 879,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -46018,11 +46505,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46030,7 +46517,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46058,11 +46545,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46070,7 +46557,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46098,11 +46585,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46110,7 +46597,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46138,11 +46625,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46150,7 +46637,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46178,11 +46665,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46190,7 +46677,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46218,11 +46705,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46230,7 +46717,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46258,11 +46745,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46270,7 +46757,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46298,11 +46785,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46310,7 +46797,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46338,11 +46825,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46350,7 +46837,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46390,11 +46877,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46402,7 +46889,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46430,11 +46917,11 @@
           "path": "app/console/src/pages/competition/SitePanel.vue"
         },
         {
-          "line": 307,
+          "line": 310,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 655,
+          "line": 659,
           "path": "app/console/src/mock/console.ts"
         },
         {
@@ -46442,7 +46929,7 @@
           "path": "app/server/src/routes/console/index.ts"
         },
         {
-          "line": 168,
+          "line": 175,
           "path": "app/server/src/services.ts"
         },
         {
@@ -46496,7 +46983,7 @@
           "path": "app/server/src/routes/sites/index.ts"
         },
         {
-          "line": 142,
+          "line": 143,
           "path": "app/server/src/app.ts"
         }
       ],
@@ -47244,7 +47731,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47280,7 +47767,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47316,7 +47803,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47352,7 +47839,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47388,7 +47875,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47424,7 +47911,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47460,7 +47947,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47496,7 +47983,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47550,7 +48037,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47586,7 +48073,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47622,7 +48109,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -47658,7 +48145,7 @@
           "path": "scripts/contest-site.mjs"
         },
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -50126,7 +50613,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50158,7 +50645,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50190,7 +50677,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50222,7 +50709,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50254,7 +50741,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50286,7 +50773,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50318,7 +50805,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50350,7 +50837,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50382,7 +50869,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50414,7 +50901,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50446,7 +50933,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50496,7 +50983,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50528,7 +51015,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -50560,7 +51047,7 @@
           "path": "app/server/src/lib/competition-contract.ts"
         },
         {
-          "line": 1226,
+          "line": 1262,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -53496,7 +53983,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53524,7 +54011,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53552,7 +54039,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53580,7 +54067,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53608,7 +54095,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53636,7 +54123,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53664,7 +54151,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53698,7 +54185,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -53726,7 +54213,7 @@
           "path": "app/server/src/lib/permissions.ts"
         },
         {
-          "line": 423,
+          "line": 424,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -54050,7 +54537,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54082,7 +54569,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54114,7 +54601,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54146,7 +54633,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54178,7 +54665,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54210,7 +54697,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54254,7 +54741,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54286,7 +54773,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54318,7 +54805,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -54350,7 +54837,7 @@
           "path": "app/console/src/lib/forum.ts"
         },
         {
-          "line": 912,
+          "line": 916,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -73606,11 +74093,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73646,11 +74133,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73686,11 +74173,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73726,11 +74213,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73766,11 +74253,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73806,11 +74293,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73846,11 +74333,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73886,11 +74373,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73938,11 +74425,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -73978,11 +74465,11 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 1121,
+          "line": 1126,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 139,
+          "line": 142,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -74060,7 +74547,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74116,7 +74603,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74172,7 +74659,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74228,7 +74715,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74284,7 +74771,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74340,7 +74827,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74396,7 +74883,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74452,7 +74939,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74508,7 +74995,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74564,7 +75051,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74620,7 +75107,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74676,7 +75163,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74732,7 +75219,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74812,7 +75299,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74868,7 +75355,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74924,7 +75411,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -74980,7 +75467,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -75036,7 +75523,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -75092,7 +75579,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -75148,7 +75635,7 @@
           "path": "app/console/src/lib/gitlab.ts"
         },
         {
-          "line": 140,
+          "line": 143,
           "path": "app/console/src/lib/types.ts"
         },
         {
@@ -75262,7 +75749,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75290,7 +75777,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75318,7 +75805,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75346,7 +75833,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75374,7 +75861,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75402,7 +75889,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75436,7 +75923,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -75464,7 +75951,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 757,
+          "line": 758,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76086,7 +76573,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76110,7 +76597,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76134,7 +76621,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76158,7 +76645,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76182,7 +76669,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76212,7 +76699,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76236,7 +76723,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76260,7 +76747,7 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 798,
+          "line": 799,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76314,11 +76801,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76342,11 +76829,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76370,11 +76857,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76398,11 +76885,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76426,11 +76913,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76454,11 +76941,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76482,11 +76969,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76516,11 +77003,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -76544,11 +77031,11 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 740,
+          "line": 741,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
-          "line": 734,
+          "line": 735,
           "path": "app/server/src/lib/gitlab-sync.ts"
         },
         {
@@ -78844,7 +79331,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -78896,7 +79383,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -78966,7 +79453,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79018,7 +79505,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79070,7 +79557,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79122,7 +79609,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79174,7 +79661,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79226,7 +79713,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79278,7 +79765,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -79330,7 +79817,7 @@
           "path": "app/server/src/lib/identity-store.ts"
         },
         {
-          "line": 1272,
+          "line": 1308,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -86690,11 +87177,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -86738,11 +87225,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -86804,11 +87291,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -86852,11 +87339,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -86900,11 +87387,11 @@
           "path": "app/console/src/pages/mail-templates/FieldRow.vue"
         },
         {
-          "line": 79,
+          "line": 121,
           "path": "app/console/src/lib/activity.ts"
         },
         {
-          "line": 919,
+          "line": 923,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -87132,7 +87619,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 1016,
+          "line": 1052,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -87156,7 +87643,7 @@
           "path": "app/console/src/lib/permission-nodes.ts"
         },
         {
-          "line": 203,
+          "line": 206,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -87234,7 +87721,7 @@
           "path": "app/server/src/lib/migrations/2026-10-mail-templates.ts"
         },
         {
-          "line": 1016,
+          "line": 1052,
           "path": "app/server/src/lib/db.ts"
         },
         {
@@ -87258,7 +87745,7 @@
           "path": "app/console/src/lib/permission-nodes.ts"
         },
         {
-          "line": 203,
+          "line": 206,
           "path": "app/console/src/lib/types.ts"
         }
       ],
@@ -88056,7 +88543,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88072,7 +88559,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88088,7 +88575,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88104,7 +88591,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88120,7 +88607,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88142,7 +88629,7 @@
           "path": "app/server/src/routes/console/accounts.ts"
         },
         {
-          "line": 351,
+          "line": 352,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88182,7 +88669,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88202,7 +88689,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88222,7 +88709,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88242,7 +88729,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88262,7 +88749,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88288,7 +88775,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 347,
+          "line": 348,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88332,7 +88819,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 359,
+          "line": 360,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88354,7 +88841,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 359,
+          "line": 360,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88370,7 +88857,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 359,
+          "line": 360,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88386,7 +88873,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 359,
+          "line": 360,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88426,7 +88913,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88448,7 +88935,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88464,7 +88951,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88480,7 +88967,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88496,7 +88983,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88512,7 +88999,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 382,
+          "line": 383,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88552,7 +89039,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88588,7 +89075,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88624,7 +89111,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88660,7 +89147,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88702,7 +89189,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 358,
+          "line": 359,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -88762,7 +89249,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 391,
+          "line": 392,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88778,7 +89265,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 391,
+          "line": 392,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88806,7 +89293,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 391,
+          "line": 392,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88822,7 +89309,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 391,
+          "line": 392,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88862,7 +89349,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 386,
+          "line": 387,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88878,7 +89365,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 386,
+          "line": 387,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88894,7 +89381,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 386,
+          "line": 387,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88916,7 +89403,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 386,
+          "line": 387,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88968,7 +89455,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 397,
+          "line": 398,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -88984,7 +89471,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 397,
+          "line": 398,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89024,7 +89511,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89052,7 +89539,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89068,7 +89555,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89084,7 +89571,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89100,7 +89587,7 @@
           "path": "app/server/src/routes/console/permission-groups.ts"
         },
         {
-          "line": 369,
+          "line": 370,
           "path": "app/server/src/routes/console/contracts.ts"
         }
       ],
@@ -89146,7 +89633,7 @@
           "path": "app/server/src/routes/console/permissions.ts"
         },
         {
-          "line": 343,
+          "line": 344,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -89706,7 +90193,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89728,7 +90215,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89744,7 +90231,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89760,7 +90247,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89776,7 +90263,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 37,
+          "line": 42,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89816,7 +90303,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89850,7 +90337,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89878,7 +90365,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 31,
+          "line": 36,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -89934,7 +90421,7 @@
           "path": "app/server/src/routes/console/security.ts"
         },
         {
-          "line": 22,
+          "line": 27,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
@@ -89950,15 +90437,15 @@
           "path": "app/console/src/lib/nav.ts"
         },
         {
-          "line": 382,
+          "line": 385,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 1078,
+          "line": 1083,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 76,
+          "line": 118,
           "path": "app/console/src/lib/activity.ts"
         }
       ],
@@ -89986,7 +90473,7 @@
           "path": "app/server/src/routes/console/security.ts"
         },
         {
-          "line": 22,
+          "line": 27,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
@@ -90002,15 +90489,15 @@
           "path": "app/console/src/lib/nav.ts"
         },
         {
-          "line": 382,
+          "line": 385,
           "path": "app/console/src/lib/types.ts"
         },
         {
-          "line": 1078,
+          "line": 1083,
           "path": "app/console/src/mock/console.ts"
         },
         {
-          "line": 76,
+          "line": 118,
           "path": "app/console/src/lib/activity.ts"
         }
       ],
@@ -90052,7 +90539,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 24,
+          "line": 26,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -90060,15 +90547,15 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 42,
+          "line": 53,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 165,
+          "line": 171,
           "path": "app/server/src/config.ts"
         },
         {
-          "line": 48,
+          "line": 53,
           "path": "app/console/src/pages/Security.vue"
         }
       ],
@@ -90086,7 +90573,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 24,
+          "line": 26,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -90094,15 +90581,15 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 42,
+          "line": 53,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 165,
+          "line": 171,
           "path": "app/server/src/config.ts"
         },
         {
-          "line": 48,
+          "line": 53,
           "path": "app/console/src/pages/Security.vue"
         }
       ],
@@ -90114,7 +90601,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 24,
+          "line": 26,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -90122,15 +90609,15 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 42,
+          "line": 53,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 165,
+          "line": 171,
           "path": "app/server/src/config.ts"
         },
         {
-          "line": 48,
+          "line": 53,
           "path": "app/console/src/pages/Security.vue"
         }
       ],
@@ -90142,7 +90629,7 @@
       "basis": "declaration",
       "evidence": [
         {
-          "line": 24,
+          "line": 26,
           "path": "app/server/src/routes/console/security.ts"
         },
         {
@@ -90150,15 +90637,15 @@
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
-          "line": 42,
+          "line": 53,
           "path": "app/server/src/lib/security-decoy.ts"
         },
         {
-          "line": 165,
+          "line": 171,
           "path": "app/server/src/config.ts"
         },
         {
-          "line": 48,
+          "line": 53,
           "path": "app/console/src/pages/Security.vue"
         }
       ],
@@ -90224,7 +90711,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90264,7 +90751,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90304,7 +90791,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90344,7 +90831,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90414,7 +90901,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90454,7 +90941,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90494,7 +90981,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90534,7 +91021,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90574,7 +91061,7 @@
           "path": "app/server/src/middleware/pow.ts"
         },
         {
-          "line": 174,
+          "line": 199,
           "path": "app/server/src/lib/activity.ts"
         },
         {
@@ -90696,7 +91183,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -90764,7 +91251,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -90780,7 +91267,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -90848,7 +91335,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -90864,7 +91351,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -90932,7 +91419,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -90948,7 +91435,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91016,7 +91503,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -91032,7 +91519,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91100,7 +91587,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -91116,7 +91603,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91184,7 +91671,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -91218,7 +91705,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 402,
+          "line": 403,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91286,7 +91773,7 @@
           "path": "app/console/src/components/ToneTag.vue"
         },
         {
-          "line": 993,
+          "line": 997,
           "path": "app/console/src/mock/console.ts"
         }
       ],
@@ -91326,7 +91813,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91366,7 +91853,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91406,7 +91893,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91446,7 +91933,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91510,7 +91997,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91550,7 +92037,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91590,7 +92077,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91630,7 +92117,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -91670,7 +92157,7 @@
           "path": "app/server/src/routes/console/users.ts"
         },
         {
-          "line": 409,
+          "line": 410,
           "path": "app/server/src/routes/console/contracts.ts"
         },
         {
@@ -93680,7 +94167,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 848,
+          "line": 884,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93800,7 +94287,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1185,
+          "line": 1221,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93812,7 +94299,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1185,
+          "line": 1221,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93824,7 +94311,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1185,
+          "line": 1221,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93842,7 +94329,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1139,
+          "line": 1175,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93854,7 +94341,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1139,
+          "line": 1175,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93872,7 +94359,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93884,7 +94371,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93896,7 +94383,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93908,7 +94395,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1192,
+          "line": 1228,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93926,7 +94413,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1176,
+          "line": 1212,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93938,7 +94425,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1176,
+          "line": 1212,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93956,7 +94443,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93968,7 +94455,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93980,7 +94467,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -93992,7 +94479,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1148,
+          "line": 1184,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94160,7 +94647,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94172,7 +94659,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1117,
+          "line": 1153,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94190,7 +94677,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1131,
+          "line": 1167,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94202,7 +94689,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1131,
+          "line": 1167,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94214,7 +94701,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1131,
+          "line": 1167,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94532,7 +95019,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 959,
+          "line": 995,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94754,7 +95241,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 993,
+          "line": 1029,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94766,7 +95253,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 993,
+          "line": 1029,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94778,7 +95265,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 993,
+          "line": 1029,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94790,7 +95277,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 993,
+          "line": 1029,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94808,7 +95295,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 975,
+          "line": 1011,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94826,7 +95313,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 966,
+          "line": 1002,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94844,7 +95331,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 982,
+          "line": 1018,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94856,7 +95343,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 982,
+          "line": 1018,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94868,7 +95355,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 982,
+          "line": 1018,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94964,7 +95451,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1003,
+          "line": 1039,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -94976,7 +95463,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1003,
+          "line": 1039,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -95216,7 +95703,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 887,
+          "line": 923,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -95234,7 +95721,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 869,
+          "line": 905,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -95270,7 +95757,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 1016,
+          "line": 1052,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -95570,7 +96057,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 899,
+          "line": 935,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -95648,7 +96135,7 @@
       "basis": "runtime",
       "evidence": [
         {
-          "line": 879,
+          "line": 915,
           "path": "app/server/src/lib/db.ts"
         }
       ],
@@ -97578,7 +98065,7 @@
         }
       },
       "source": {
-        "line": 37,
+        "line": 42,
         "path": "app/server/src/routes/console/security.ts"
       }
     },
@@ -97604,7 +98091,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -97630,7 +98117,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -99437,7 +99924,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -99463,7 +99950,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -99489,7 +99976,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 173,
+        "line": 174,
         "path": "app/server/src/app.ts"
       }
     },
@@ -100770,6 +101257,10 @@
               "pattern": "^[0-9]{1,15}$",
               "type": "string"
             },
+            "offset": {
+              "pattern": "^[0-9]{1,8}$",
+              "type": "string"
+            },
             "outcome": {
               "enum": [
                 "ok",
@@ -100786,7 +101277,8 @@
                 "console",
                 "cli",
                 "api",
-                "system"
+                "system",
+                "gitlab"
               ],
               "type": "string"
             },
@@ -100929,7 +101421,8 @@
                         "console",
                         "cli",
                         "api",
-                        "system"
+                        "system",
+                        "gitlab"
                       ],
                       "type": "string"
                     },
@@ -101023,7 +101516,7 @@
         }
       },
       "source": {
-        "line": 119,
+        "line": 124,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -101200,6 +101693,10 @@
               "pattern": "^[0-9]{1,15}$",
               "type": "string"
             },
+            "offset": {
+              "pattern": "^[0-9]{1,8}$",
+              "type": "string"
+            },
             "outcome": {
               "enum": [
                 "ok",
@@ -101216,7 +101713,8 @@
                 "console",
                 "cli",
                 "api",
-                "system"
+                "system",
+                "gitlab"
               ],
               "type": "string"
             },
@@ -101380,7 +101878,8 @@
                         "console",
                         "cli",
                         "api",
-                        "system"
+                        "system",
+                        "gitlab"
                       ],
                       "type": "string"
                     },
@@ -101463,11 +101962,17 @@
                     "type": "null"
                   }
                 ]
+              },
+              "total": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
               }
             },
             "required": [
               "items",
               "next_cursor",
+              "total",
               "blocked_today"
             ],
             "type": "object"
@@ -101475,7 +101980,7 @@
         }
       },
       "source": {
-        "line": 89,
+        "line": 90,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -101532,6 +102037,10 @@
               "pattern": "^[0-9]{1,15}$",
               "type": "string"
             },
+            "offset": {
+              "pattern": "^[0-9]{1,8}$",
+              "type": "string"
+            },
             "outcome": {
               "enum": [
                 "ok",
@@ -101548,7 +102057,8 @@
                 "console",
                 "cli",
                 "api",
-                "system"
+                "system",
+                "gitlab"
               ],
               "type": "string"
             },
@@ -101573,7 +102083,7 @@
         }
       },
       "source": {
-        "line": 105,
+        "line": 110,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -107491,7 +108001,7 @@
         }
       },
       "source": {
-        "line": 31,
+        "line": 36,
         "path": "app/server/src/routes/console/security.ts"
       }
     },
@@ -107565,6 +108075,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "permanent": {
+                "type": "boolean"
+              },
               "shield_enabled": {
                 "type": "boolean"
               }
@@ -107572,6 +108085,7 @@
             "required": [
               "available",
               "active",
+              "permanent",
               "expires_at",
               "now",
               "max_minutes",
@@ -108455,7 +108969,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -108481,7 +108995,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -114425,7 +114939,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -114963,7 +115477,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 153,
+        "line": 154,
         "path": "app/server/src/app.ts"
       }
     },
@@ -114989,7 +115503,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 153,
+        "line": 154,
         "path": "app/server/src/app.ts"
       }
     },
@@ -115247,7 +115761,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -115273,7 +115787,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 159,
+        "line": 160,
         "path": "app/server/src/app.ts"
       }
     },
@@ -115644,7 +116158,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 173,
+        "line": 174,
         "path": "app/server/src/app.ts"
       }
     },
@@ -116001,7 +116515,7 @@
         }
       },
       "source": {
-        "line": 119,
+        "line": 124,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -116138,7 +116652,7 @@
         }
       },
       "source": {
-        "line": 89,
+        "line": 90,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -116204,7 +116718,7 @@
         }
       },
       "source": {
-        "line": 105,
+        "line": 110,
         "path": "app/server/src/routes/console/activity.ts"
       }
     },
@@ -118196,7 +118710,7 @@
         }
       },
       "source": {
-        "line": 31,
+        "line": 36,
         "path": "app/server/src/routes/console/security.ts"
       }
     },
@@ -118681,7 +119195,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -118707,7 +119221,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -120750,7 +121264,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121178,7 +121692,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 153,
+        "line": 154,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121204,7 +121718,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 153,
+        "line": 154,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121444,7 +121958,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121470,7 +121984,7 @@
       "registration": "automatic-head",
       "schema": {},
       "source": {
-        "line": 159,
+        "line": 160,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121711,7 +122225,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121737,7 +122251,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121763,7 +122277,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -121789,7 +122303,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -124154,7 +124668,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -124180,7 +124694,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -124692,7 +125206,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -124718,7 +125232,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -131388,7 +131902,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -131414,7 +131928,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -137824,7 +138338,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -137914,7 +138428,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -139034,6 +139548,22 @@
               "additionalProperties": false,
               "properties": {
                 "enabled": {
+                  "const": true
+                },
+                "permanent": {
+                  "const": true
+                }
+              },
+              "required": [
+                "enabled",
+                "permanent"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
                   "const": false
                 }
               },
@@ -139088,6 +139618,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "permanent": {
+                "type": "boolean"
+              },
               "shield_enabled": {
                 "type": "boolean"
               }
@@ -139095,6 +139628,7 @@
             "required": [
               "available",
               "active",
+              "permanent",
               "expires_at",
               "now",
               "max_minutes",
@@ -139176,7 +139710,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -139202,7 +139736,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -139617,7 +140151,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     },
@@ -139643,7 +140177,7 @@
       "registration": "explicit",
       "schema": {},
       "source": {
-        "line": 149,
+        "line": 150,
         "path": "app/server/src/app.ts"
       }
     }
@@ -141400,6 +141934,13 @@
         "identity"
       ],
       "path": "app/server/src/lib/github-http.ts"
+    },
+    {
+      "domains": [
+        "audit",
+        "gitlab"
+      ],
+      "path": "app/server/src/lib/gitlab-events.ts"
     },
     {
       "domains": [
@@ -143966,10 +144507,10 @@
       "name": "activity_events",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 848,
+        "line": 884,
         "path": "app/server/src/lib/db.ts"
       },
-      "sql": "CREATE TABLE activity_events (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  at INTEGER NOT NULL,\n  account_id TEXT,\n  visitor_id TEXT,\n  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system')),\n  action TEXT NOT NULL,\n  target_type TEXT,\n  target_id TEXT,\n  outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'denied', 'limited', 'error')),\n  ip TEXT,\n  ua TEXT,\n  request_id TEXT,\n  meta TEXT NOT NULL DEFAULT '{}'\n)"
+      "sql": "CREATE TABLE activity_events (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  at INTEGER NOT NULL,\n  account_id TEXT,\n  visitor_id TEXT,\n  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system', 'gitlab')),\n  action TEXT NOT NULL,\n  target_type TEXT,\n  target_id TEXT,\n  outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'denied', 'limited', 'error')),\n  ip TEXT,\n  ua TEXT,\n  request_id TEXT,\n  meta TEXT NOT NULL DEFAULT '{}'\n)"
     },
     {
       "columns": [
@@ -144033,7 +144574,7 @@
         }
       ],
       "name": "app_state",
-      "note": "键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间，缺行/损坏/到期关闭，最长60分钟）。目录不读取记录。",
+      "note": "键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间或 permanent 永久开启，缺行/损坏/到期关闭，临时最长60分钟）。目录不读取记录。",
       "source": {
         "line": 34,
         "path": "app/server/src/lib/db.ts"
@@ -144730,7 +145271,7 @@
       "name": "competition_finals",
       "note": "定榜：一场一行，standings 是定榜那一刻的严格名次快照，之后加分、撤销都不再改它；撤销定榜删行。只有 lib/competition-prizes.ts 读写。",
       "source": {
-        "line": 1185,
+        "line": 1221,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_finals (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  finalized_at INTEGER NOT NULL,\n  finalized_by TEXT NOT NULL REFERENCES users(id),\n  standings TEXT NOT NULL\n)"
@@ -144809,7 +145350,7 @@
       "name": "competition_gitlab_sources",
       "note": "比赛从哪些 GitLab 项目收集贡献，控制台「计分与奖项」整份替换；没有行的比赛不收集。由 lib/competition-rules-store.ts 写，收集任务读。",
       "source": {
-        "line": 1139,
+        "line": 1175,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_gitlab_sources (\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  project_path TEXT NOT NULL,\n  PRIMARY KEY (competition_id, project_path)\n)"
@@ -145057,7 +145598,7 @@
       "name": "competition_prizes",
       "note": "定榜时给每个得奖的人一行：兑奖码只存 SHA-256 散列、AES-GCM 密文与末四位，不存明文；核销只改 redeemed_at/redeemed_by；公开接口从不返回这三列。只有 lib/competition-prizes.ts 读写。",
       "source": {
-        "line": 1192,
+        "line": 1228,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_prizes (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  rank INTEGER NOT NULL,\n  points INTEGER NOT NULL,\n  amount_cny INTEGER NOT NULL,\n  title TEXT NOT NULL DEFAULT '',\n  code_hash TEXT NOT NULL UNIQUE,\n  code_cipher TEXT NOT NULL,\n  code_hint TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  redeemed_at INTEGER,\n  redeemed_by TEXT REFERENCES users(id),\n  UNIQUE (competition_id, account_id)\n)"
@@ -145155,7 +145696,7 @@
       "name": "competition_rules",
       "note": "比赛的计分规则：年级系数（百分数，150 = 1.5）与可选奖项 JSON；没有行用默认系数、没有奖项；定榜后不能改。只有 lib/competition-rules-store.ts 读写。",
       "source": {
-        "line": 1176,
+        "line": 1212,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_rules (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  grade_factors TEXT NOT NULL,\n  prizes TEXT NOT NULL DEFAULT '[]',\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -145532,7 +146073,7 @@
       "name": "competition_score_candidates",
       "note": "GitLab 收来的候选贡献（合并的 MR、带「有用」标签或被 MR 关闭的 Issue）：唯一约束挡住重复收集；accepted_via 区分 GitLab 标签与控制台确认；状态变化只改列，不删行。只有 lib/competition-candidates.ts 读写。",
       "source": {
-        "line": 1148,
+        "line": 1184,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_score_candidates (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES users(id),\n  kind TEXT NOT NULL CHECK (kind IN ('pr', 'issue')),\n  gitlab_project TEXT NOT NULL,\n  gitlab_iid INTEGER NOT NULL,\n  url TEXT NOT NULL,\n  title TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),\n  reviewed_by TEXT REFERENCES users(id),\n  reviewed_at INTEGER,\n  importance TEXT CHECK (importance IS NULL OR importance IN ('normal', 'important', 'critical')),\n  core TEXT CHECK (core IS NULL OR core IN ('edge', 'business', 'core')),\n  final_points INTEGER,\n  reason TEXT,\n  score_event_id TEXT,\n  accepted_via TEXT CHECK (accepted_via IS NULL OR accepted_via IN ('label', 'console')),\n  note TEXT,\n  contributed_at INTEGER NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  UNIQUE (competition_id, kind, gitlab_project, gitlab_iid)\n)"
@@ -146432,7 +146973,7 @@
       "name": "competition_site_versions",
       "note": "比赛官网站点包的版本：一次上传一行，通过（passed）或拒绝（rejected）都留，report 是逐条校验结果；拒绝的版本不落文件。文件本身在数据库旁边的 sites/<competition_id>/<version_id>/，不进库。只有 lib/competition-site-store.ts 读写。",
       "source": {
-        "line": 1117,
+        "line": 1153,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_site_versions (\n  id TEXT PRIMARY KEY,\n  competition_id TEXT NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,\n  version TEXT NOT NULL,\n  size INTEGER NOT NULL,\n  files INTEGER NOT NULL,\n  sha256 TEXT NOT NULL,\n  uploaded_by TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  status TEXT NOT NULL CHECK (status IN ('passed', 'rejected')),\n  report TEXT NOT NULL\n)"
@@ -146565,7 +147106,7 @@
       "name": "competition_sites",
       "note": "比赛官网的发布状态：一场一行，slug 唯一且第一次发布后不能改，live_version_id 为空即已下线（版本与 slug 保留）。只有 lib/competition-site-store.ts 读写。",
       "source": {
-        "line": 1131,
+        "line": 1167,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE competition_sites (\n  competition_id TEXT PRIMARY KEY REFERENCES competitions(id) ON DELETE CASCADE,\n  slug TEXT NOT NULL UNIQUE,\n  live_version_id TEXT REFERENCES competition_site_versions(id),\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -148506,7 +149047,7 @@
       "name": "forum_category_settings",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 959,
+        "line": 995,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_category_settings (\n  category_id TEXT PRIMARY KEY,\n  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'registered', 'member')),\n  updated_at INTEGER NOT NULL,\n  updated_by TEXT\n)"
@@ -149391,7 +149932,7 @@
       "name": "forum_reactions",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 993,
+        "line": 1029,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_reactions (\n  post_id TEXT NOT NULL REFERENCES forum_posts(id),\n  account_id TEXT NOT NULL REFERENCES users(id),\n  sticker_id TEXT NOT NULL REFERENCES forum_stickers(id),\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (post_id, account_id, sticker_id)\n)"
@@ -149469,7 +150010,7 @@
       "name": "forum_sticker_files",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 975,
+        "line": 1011,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_sticker_files (\n  hash TEXT PRIMARY KEY,\n  mime TEXT NOT NULL,\n  bytes BLOB NOT NULL,\n  created_at INTEGER NOT NULL\n)"
@@ -149556,7 +150097,7 @@
       "name": "forum_sticker_packs",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 966,
+        "line": 1002,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_sticker_packs (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  sort INTEGER NOT NULL DEFAULT 0,\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),\n  created_at INTEGER NOT NULL\n)"
@@ -149740,7 +150281,7 @@
       "name": "forum_stickers",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 982,
+        "line": 1018,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_stickers (\n  id TEXT PRIMARY KEY,\n  pack_id TEXT NOT NULL REFERENCES forum_sticker_packs(id),\n  shortcode TEXT NOT NULL UNIQUE,\n  label TEXT NOT NULL,\n  file_hash TEXT NOT NULL REFERENCES forum_sticker_files(hash),\n  sort INTEGER NOT NULL DEFAULT 0,\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1))\n)"
@@ -150284,7 +150825,7 @@
       "name": "forum_upload_files",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 1003,
+        "line": 1039,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE forum_upload_files (\n  hash TEXT PRIMARY KEY,\n  mime TEXT NOT NULL,\n  bytes BLOB NOT NULL,\n  width INTEGER NOT NULL,\n  height INTEGER NOT NULL,\n  uploaded_by TEXT REFERENCES users(id),\n  created_at INTEGER NOT NULL\n)"
@@ -152022,7 +152563,7 @@
       "name": "ip_blocks",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 887,
+        "line": 923,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE ip_blocks (\n  ip TEXT PRIMARY KEY,\n  level INTEGER NOT NULL DEFAULT 0,\n  blocked_until INTEGER NOT NULL DEFAULT 0,\n  reason TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
@@ -152132,7 +152673,7 @@
       "name": "limit_events",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 869,
+        "line": 905,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE limit_events (\n  bucket TEXT NOT NULL,\n  subject TEXT NOT NULL,\n  at INTEGER NOT NULL\n)"
@@ -152807,7 +153348,7 @@
       "name": "mail_templates",
       "note": "招聘邮件的模板文字（主题、抬头、正文块、按钮、落款），不含任何投递人的信息；每类信有且只有一套默认，种子来自代码里的内置默认。改模板不影响已入队的信，信在入队时已渲染成成品。",
       "source": {
-        "line": 1016,
+        "line": 1052,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE mail_templates (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  kind TEXT NOT NULL CHECK (kind IN ('received','interview','accepted','rejected')),\n  subject TEXT NOT NULL,\n  preheader TEXT NOT NULL DEFAULT '',\n  kicker TEXT NOT NULL DEFAULT '',\n  greeting TEXT NOT NULL DEFAULT '{{称呼}}',\n  blocks TEXT NOT NULL,\n  button_label TEXT,\n  button_path TEXT,\n  footer TEXT NOT NULL DEFAULT '[]',\n  enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),\n  is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),\n  created_by TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_by TEXT NOT NULL,\n  updated_at INTEGER NOT NULL,\n  CHECK ((button_label IS NULL) = (button_path IS NULL)),\n  CHECK (is_default = 0 OR enabled = 1)\n)"
@@ -154251,7 +154792,7 @@
       "name": "rate_limit_counters",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 899,
+        "line": 935,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE rate_limit_counters (\n  key TEXT PRIMARY KEY,\n  hits INTEGER NOT NULL,\n  window_start INTEGER NOT NULL\n)"
@@ -154829,7 +155370,7 @@
       "name": "shield_signals",
       "note": "字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。",
       "source": {
-        "line": 879,
+        "line": 915,
         "path": "app/server/src/lib/db.ts"
       },
       "sql": "CREATE TABLE shield_signals (\n  ip TEXT NOT NULL,\n  at INTEGER NOT NULL,\n  points INTEGER NOT NULL,\n  reason TEXT NOT NULL\n)"

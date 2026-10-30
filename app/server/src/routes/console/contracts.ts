@@ -67,9 +67,9 @@ const blockView = object({
   ip: text(64, 2), level: integer(1), blocked_until: integer(0), retry_after: integer(1), reason: text(64, 1), created_at: integer(0), updated_at: integer(0),
 }, ["ip", "level", "blocked_until", "retry_after", "reason", "created_at", "updated_at"]);
 const decoyStatus = object({
-  available: { type: "boolean" }, active: { type: "boolean" }, expires_at: nullableCount,
+  available: { type: "boolean" }, active: { type: "boolean" }, permanent: { type: "boolean" }, expires_at: nullableCount,
   now: integer(0), max_minutes: integer(DECOY_MAX_MINUTES, DECOY_MAX_MINUTES), shield_enabled: { type: "boolean" },
-}, ["available", "active", "expires_at", "now", "max_minutes", "shield_enabled"]);
+}, ["available", "active", "permanent", "expires_at", "now", "max_minutes", "shield_enabled"]);
 // 招新总开关（#284）：updated_at 是最近一次开关的时间，从没动过为 null
 const applySettingsResult = object({ open: { type: "boolean" }, updated_at: nullableCount }, ["open", "updated_at"]);
 const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
@@ -152,20 +152,20 @@ const summaryResult = object({
 const activityAccountView = { anyOf: [object({ id: accountId, username: { anyOf: [text(24, 1), { type: "null" }] }, display_name: { anyOf: [text(32, 0), { type: "null" }] }, avatar_url: { anyOf: [text(500), { type: "null" }] } }, ["id", "username", "display_name", "avatar_url"]), { type: "null" }] };
 const activityItemView = object({
   id: integer(), at: integer(0), account: activityAccountView, visitor_id: { anyOf: [text(64), { type: "null" }] },
-  surface: choices("portal", "forum", "console", "cli", "api", "system"), action: text(100, 1),
+  surface: choices("portal", "forum", "console", "cli", "api", "system", "gitlab"), action: text(100, 1),
   target_type: { anyOf: [text(32), { type: "null" }] }, target_id: { anyOf: [text(100), { type: "null" }] },
   outcome: choices("ok", "denied", "limited", "error"), ip: { anyOf: [text(64), { type: "null" }] }, ua: { anyOf: [text(300), { type: "null" }] },
   request_id: { anyOf: [text(64), { type: "null" }] }, meta: freeObject,
 }, ["id", "at", "account", "visitor_id", "surface", "action", "target_type", "target_id", "outcome", "ip", "ua", "request_id", "meta"]);
 const activityListResult = object({
-  items: { type: "array", items: activityItemView }, next_cursor: { anyOf: [text(2000), { type: "null" }] },
+  items: { type: "array", items: activityItemView }, next_cursor: { anyOf: [text(2000), { type: "null" }] }, total: integer(0),
   blocked_today: { type: "array", items: object({ bucket: { type: "string" }, count: integer(0) }, ["bucket", "count"]) },
-}, ["items", "next_cursor", "blocked_today"]);
+}, ["items", "next_cursor", "total", "blocked_today"]);
 const accountActivityListResult = object({ items: { type: "array", items: activityItemView }, next_cursor: { anyOf: [text(2000), { type: "null" }] } }, ["items", "next_cursor"]);
 const activityQuery = object({
-  account: accountId, visitor: text(64), action: text(100), surface: choices("portal", "forum", "console", "cli", "api", "system"),
+  account: accountId, visitor: text(64), action: text(100), surface: choices("portal", "forum", "console", "cli", "api", "system", "gitlab"),
   outcome: choices("ok", "denied", "limited", "error"), from: { type: "string", pattern: "^[0-9]{1,15}$" }, to: { type: "string", pattern: "^[0-9]{1,15}$" },
-  cursor: text(2000),
+  cursor: text(2000), offset,
 });
 
 /** `/api/console/*` 的输入协议源。所有 body 与 query 都拒绝未知字段。 */
@@ -335,6 +335,7 @@ export const consoleContracts: RouteContracts = {
     ...noQuery,
     body: { oneOf: [
       object({ enabled: { const: true }, duration_minutes: integer(1, DECOY_MAX_MINUTES) }, ["enabled", "duration_minutes"]),
+      object({ enabled: { const: true }, permanent: { const: true } }, ["enabled", "permanent"]),
       object({ enabled: { const: false } }, ["enabled"]),
     ] },
     response: { 200: decoyStatus, ...consoleFailures },

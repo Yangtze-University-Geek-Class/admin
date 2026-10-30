@@ -100,7 +100,7 @@ export type EffectivePermissions = {
 
 // ---- 操作记录 ----
 
-export type ActivitySurface = "portal" | "forum" | "console" | "cli" | "api" | "system";
+export type ActivitySurface = "portal" | "forum" | "console" | "cli" | "api" | "system" | "gitlab";
 export type ActivityOutcome = "ok" | "denied" | "limited" | "error";
 export type ActivityAccountRef = { id: string; username: string; display_name: string; avatar_url: string | null };
 export type ActivityEvent = {
@@ -109,7 +109,10 @@ export type ActivityEvent = {
   outcome: ActivityOutcome; ip: string | null; ua: string | null; request_id: string | null; meta: Record<string, unknown>;
 };
 export type ActivityBlockedBucket = { bucket: string; count: number };
-export type ActivityList = { items: ActivityEvent[]; next_cursor: string | null; blocked_today: ActivityBlockedBucket[] };
+/** 某个账号的记录（GET /api/console/accounts/:id/activity）：只按游标往后读。 */
+export type ActivityPage = { items: ActivityEvent[]; next_cursor: string | null };
+/** 操作记录页（GET /api/console/activity）：`total` 是筛选条件下的总条数，按 `offset` 翻页（#370）。 */
+export type ActivityList = ActivityPage & { total: number; blocked_today: ActivityBlockedBucket[] };
 
 // ---- GitLab ----
 
@@ -380,7 +383,7 @@ export type ConsoleStickerPack = { id: string; name: string; sort: number; enabl
 export type ConsoleStickersResponse = { packs: ConsoleStickerPack[] };
 
 export type SecurityDecoyStatus = {
-  available: boolean; active: boolean; expires_at: number | null; now: number; max_minutes: number; shield_enabled: boolean;
+  available: boolean; active: boolean; permanent: boolean; expires_at: number | null; now: number; max_minutes: number; shield_enabled: boolean;
 };
 export type SecurityBlock = {
   ip: string; level: number; blocked_until: number; reason: string; created_at: number; updated_at: number; retry_after: number;

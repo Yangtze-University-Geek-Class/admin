@@ -338,7 +338,7 @@
     "accounts": "identity"
   },
   "tableNotes": {
-    "app_state": "键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间，缺行/损坏/到期关闭，最长60分钟）。目录不读取记录。",
+    "app_state": "键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间或 permanent 永久开启，缺行/损坏/到期关闭，临时最长60分钟）。目录不读取记录。",
     "applications": "包含候选人个人信息。具体读取范围、字段下发和取消规则见业务文档；目录不包含记录。",
     "sessions": "包含加密会话凭据。目录仅记录列与约束，不读取会话值。",
     "users": "极客班账号：id 就是接口里的 account_id（极客班 OpenID），随机生成、永不复用；只有身份模块（lib/identity-store.ts）读写。目录不读取记录。",
@@ -2350,6 +2350,98 @@
       ]
     },
     {
+      "id": "audit.gitlab.activity.sync",
+      "title": "GitLab 项目事件后台拉取，写入控制台操作记录（#370；后台任务，没有自己的 HTTP 入口，经由操作记录接口读出）",
+      "domain": "audit",
+      "relatedDomains": [
+        "gitlab",
+        "identity",
+        "platform"
+      ],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/console/activity",
+      "capabilities": [],
+      "reads": [
+        "app_state",
+        "gitlab_accounts"
+      ],
+      "writes": [
+        "activity_events",
+        "app_state"
+      ],
+      "doesNotEnqueue": [],
+      "invariants": [
+        "权限与资源：后台定时任务没有请求身份，经由 GET /api/console/activity 读出（需要 activity.read）；只用服务端的 GITLAB_API_TOKEN 读 GITLAB_GROUP 的项目列表（分页，最多 10 页）与每个项目的 GET /projects/:id/events（每页 100 条，一轮最多 5 页），不发写请求。",
+        "响应与错误：间隔为 0 时不调 GitLab（跳过原因 events_off）；缺 GITLAB_URL 或 GITLAB_API_TOKEN 报 gitlab_not_configured、不调 GitLab；不看 GITLAB_SYNC。某个项目抓取失败（连不上、非 200、分页不完整、事件缺编号或时间）时这个项目整轮不写、游标不动，记 warn，其它项目照常；翻到 5 页上限仍有下一页时停下，写已拿到的，游标跟到拿到的最新一条，记截断告警。",
+        "数据与副作用：游标存 app_state（键 gitlab_events_cursor:<项目编号>，值为已处理的最大事件编号）；只写游标之后的事件，同一项目的写入与游标推进在一个事务里，按时间从旧到新写入 activity_events（surface gitlab，动作 gitlab.<对象>.<动作>，target_type 与 target_id 为对象类型与编号，meta 含 project、url、gitlab_event_id、gitlab_user_id、gitlab_username、linked；推送带 ref 与 commit_count）。不记提交说明、评论正文或 diff。",
+        "作者按 gitlab_accounts.gitlab_user_id 查本地库对账（不发请求）；对不上时账号为空、meta.linked 为 false，照样写。早于操作记录保留期（180 天）的事件不写。"
+      ],
+      "evidence": [
+        {
+          "path": "app/server/src/lib/gitlab-events.ts",
+          "needle": "export function createGitlabEvents("
+        },
+        {
+          "path": "app/server/src/lib/gitlab-events.ts",
+          "needle": "function parseEvent(raw: unknown, projectId: number): ParsedEvent {"
+        },
+        {
+          "path": "app/server/src/lib/activity.ts",
+          "needle": "function recordExternal(rows: ExternalActivityInput[]): number {"
+        },
+        {
+          "path": "app/server/src/lib/gitlab-sync.ts",
+          "needle": "accountForGitlabUser, mappedAccount, start, stop, applySettings, readApi,"
+        },
+        {
+          "path": "app/server/src/services.ts",
+          "needle": "const gitlabEvents = createGitlabEvents(storage.db, {"
+        },
+        {
+          "path": "app/server/src/app.ts",
+          "needle": "services.gitlabEvents.start(app.log);"
+        },
+        {
+          "path": "app/server/src/config.ts",
+          "needle": "const eventsIntervalMinutes = eventsRaw ? Number(eventsRaw) : 10;"
+        },
+        {
+          "path": "app/server/src/lib/db.ts",
+          "needle": "activity_events.surface 的 CHECK 原来不认 'gitlab'"
+        },
+        {
+          "path": "app/server/src/routes/console/contracts.ts",
+          "needle": "surface: choices(\"portal\", \"forum\", \"console\", \"cli\", \"api\", \"system\", \"gitlab\"), action: text(100, 1),"
+        },
+        {
+          "path": "scripts/deployment-environment.mjs",
+          "needle": "'GITLAB_EVENTS_INTERVAL_MINUTES',"
+        },
+        {
+          "path": "app/console/src/lib/activity.ts",
+          "needle": "export function gitlabActionText(action: string): string {"
+        },
+        {
+          "path": "app/console/src/lib/types.ts",
+          "needle": "export type ActivitySurface = \"portal\" | \"forum\" | \"console\" | \"cli\" | \"api\" | \"system\" | \"gitlab\";"
+        }
+      ],
+      "tests": [
+        "tests/server/gitlab-events.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/console/activity.test.ts"
+      ],
+      "docs": [
+        "docs/services/server/README.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/oidc.md",
+        "docs/architecture/SECURITY.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/services/console/README.md"
+      ]
+    },
+    {
       "id": "audit.console.activity.list",
       "title": "控制台查看操作记录（取代旧的 /api/console/audit）",
       "domain": "audit",
@@ -2388,7 +2480,7 @@
         },
         {
           "path": "app/console/src/pages/Activity.vue",
-          "needle": "ACTIVITY_OUTCOMES, ACTIVITY_SURFACES, OUTCOME_STATUS, OUTCOME_TEXT, SURFACE_TEXT, actionText, activityParams, actorText, bucketText,"
+          "needle": "ACTIVITY_OUTCOMES, ACTIVITY_PAGE_SIZE, ACTIVITY_SURFACES, OUTCOME_STATUS, OUTCOME_TEXT, SURFACE_TEXT, TIME_PRESETS, actionFamily, actionText,"
         },
         {
           "path": "app/console/src/lib/activity.ts",
@@ -2492,6 +2584,10 @@
         {
           "path": "app/server/src/routes/console/contracts.ts",
           "needle": "\"GET /api/console/accounts/:id/activity\": {"
+        },
+        {
+          "path": "app/console/src/pages/users/UserDrawer.vue",
+          "needle": "const data = await api<ActivityPage>(`/api/console/accounts/${encodeURIComponent(account)}/activity${cursor}`);"
         }
       ],
       "tests": [
@@ -13062,7 +13158,7 @@
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：有效会话及 security.manage；页面按同一节点显示，命中记录另需 activity.read，IP 沿用 activity.read.ip 打码。",
-        "响应与错误：200 {available,active,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间。",
+        "响应与错误：200 {available,active,permanent,expires_at,now,max_minutes,shield_enabled}；缺配置默认关闭，非法持久值失败关闭，到期等值关闭，重启不延长截止时间；permanent 为真时永久开启且 expires_at 为 null。",
         "数据与副作用：只读 security_decoy_until，不连接外部服务，不记录原始探针路径或请求内容。"
       ],
       "evidence": [
@@ -13111,7 +13207,7 @@
     },
     {
       "id": "security.decoy.update",
-      "title": "控制台限时开启或关闭合成蜜罐",
+      "title": "控制台限时或永久开启、关闭合成蜜罐",
       "domain": "platform",
       "relatedDomains": [
         "permissions",
@@ -13130,7 +13226,7 @@
       "doesNotEnqueue": [],
       "invariants": [
         "权限与资源：security.manage、10分钟内登录及既有 Origin 检查；生产发布身份且基础防护开启才能开启。",
-        "响应与错误：开启只收 enabled:true 和1至60整数 duration_minutes；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
+        "响应与错误：开启只收 enabled:true 加1至60整数 duration_minutes，或 enabled:true 加 permanent:true（永久开启，与时长不能同给）；关闭只收 enabled:false，额外字段拒绝。非生产409 decoy_unavailable，基础防护关闭409 shield_disabled。",
         "数据与副作用：设置与 security.decoy.update 同事务；审计失败整体回滚。页面确认后才写，失败保留错误，离页取消未答复的确认。关闭不解封。"
       ],
       "evidence": [
@@ -13634,6 +13730,10 @@
     "app/server/src/lib/account-directory.ts": [
       "identity",
       "forum"
+    ],
+    "app/server/src/lib/gitlab-events.ts": [
+      "audit",
+      "gitlab"
     ],
     "app/server/src/lib/gitlab-sync.ts": [
       "gitlab",

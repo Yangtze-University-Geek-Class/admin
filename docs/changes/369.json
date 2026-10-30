@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "issue": 369,
+  "kind": "business",
+  "summary": "合成蜜罐支持永久开启：PUT /api/console/security/decoy 接受 {enabled:true,permanent:true}，状态接口返回 permanent，审计 meta 记录是否永久；控制台安全页在时长选项旁增加「永久开启」，开启前仍要确认。其余规则（仅正式环境、基础防护开启、已有封禁优先、白名单与跨站诱导豁免、审计与配置同事务）不变。接口路径与权限节点不变。",
+  "applications": [
+    "console",
+    "server"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "gitlab",
+    "identity",
+    "mail",
+    "organization",
+    "permissions",
+    "platform",
+    "recruitment"
+  ],
+  "flows": [
+    "flow:security.decoy.read",
+    "flow:security.decoy.update",
+    "flow:console.identity",
+    "flow:competition.console.list",
+    "flow:feedback.console.list",
+    "flow:console.forum.categories.list",
+    "flow:gitlab.status.read",
+    "flow:identity.callback",
+    "flow:mail.template.list",
+    "flow:application.list"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "合成蜜罐在正式环境可以永久开启：不随时间到期，重启后仍开着，只能手动关闭。临时开启 1 至 60 分钟的规则不变。开启与关闭的业务规则（环境、基础防护、已有封禁优先、白名单、跨站诱导豁免）不变。",
+      "evidence": [
+        "app/server/src/lib/security-decoy.ts",
+        "app/server/src/routes/console/security.ts",
+        "app/console/src/pages/Security.vue"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "PUT 请求体从两种形态变为三种（临时、永久、关闭），三者互斥，额外字段与时长同时给出都返回 400。GET 与 PUT 的 200 响应新增必填字段 permanent。调用方只通过 setEnabled 与 get 访问，中间件仍只读 active，不需要改动。",
+      "evidence": [
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/security-decoy.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "两个路由的 preHandler 不变：GET 需要 security.manage，PUT 需要 security.manage 加 step-up。永久开启不增加可见资源，也不扩大哪些账号能操作。环境与基础防护的拒绝在 setEnabled 里执行，永久开启同样经过这些检查。",
+      "evidence": [
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/security-decoy.ts"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "表结构不变。app_state 的 security_decoy_until 新增取值 permanent，与原有的毫秒截止时间和 0 并存；写入仍与审计在同一个事务里，失败整体回滚。缺失、损坏或大小写不同的值仍按关闭处理。",
+      "evidence": [
+        "app/server/src/lib/security-decoy.ts",
+        "docs/services/server/data-model.md"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "没有新增外部服务、邮件或后台任务。security.decoy.update 审计的 meta 多一个 permanent 字段，仍在同一个事务里写入；命中审计 security.decoy.hit 不变。",
+      "evidence": [
+        "app/server/src/routes/console/security.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "安全模型的合成蜜罐段改写为临时或永久两种开启方式；接口与数据库的说明补充 permanent 取值与请求体形态；服务合同的端点表与控制台页面说明同步；目录里两个用例的不变量与 app_state 说明同步。",
+      "evidence": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md",
+        "docs/architecture/catalog/ownership.json"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "服务端新增用例：永久开启在时钟前进十年后仍生效、重启后仍开着、关闭立即失效，审计 meta 记录 permanent；状态接口的 permanent 字段；与时长同时给出、非真值及其它组合返回 400；正式环境与基础防护限制；永久开启的审计失败整体回滚；损坏值变体（大小写、空白）关闭。控制台新增源码核对：永久选项、请求体形态、关闭判断与确认步骤。浏览器中的真实页面未验证。",
+      "evidence": [
+        "tests/server/security-decoy.test.ts",
+        "tests/console/security-decoy.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "控制台与服务端产物随镜像更新，行为变化只在页面与接口。没有新增环境键、密钥、宿主配置或部署步骤；回滚不需要数据操作。",
+      "evidence": [
+        "app/console/src/pages/Security.vue",
+        "app/server/src/lib/security-decoy.ts"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/security-decoy.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:platform",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update"
+      ],
+      "reason": "蜜罐状态与设置的唯一读写方：新增 permanent 持久值与对应的状态字段；临时开启的截止时间、到期、时钟回拨与损坏值规则不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/security.ts"
+      ],
+      "domains": [
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:security.decoy.update"
+      ],
+      "reason": "PUT 处理把请求体映射为时长或永久开启，并在同一事务里写入 security.decoy.update 的 meta（新增 permanent）；preHandler 与 step-up 不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/contracts.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "route:GET /api/console/security/decoy",
+        "route:PUT /api/console/security/decoy",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "flow:console.identity",
+        "flow:competition.console.list",
+        "flow:feedback.console.list",
+        "flow:console.forum.categories.list",
+        "flow:gitlab.status.read",
+        "flow:identity.callback",
+        "flow:mail.template.list",
+        "flow:application.list"
+      ],
+      "reason": "控制台共享合同表，同一文件登记多个业务域的路由。本 PR 只改安全防护的两条合同：PUT 请求体新增永久开启分支，GET 与 PUT 的响应新增必填的 permanent。其它域的合同没有改动；列出这些域与对应流程，只因为文件归属，用于目录的归属核对，不代表这些域的行为有变化。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/Security.vue",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:console",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "flow:console.identity",
+        "flow:competition.console.list",
+        "flow:feedback.console.list",
+        "flow:identity.callback",
+        "flow:application.list"
+      ],
+      "reason": "安全页在时长选项旁加「永久开启」，确认步骤仍在请求前；没有倒计时的永久状态不判为未开启，且仍可关闭。类型与 mock 的 SecurityDecoyStatus 新增 permanent。types.ts 与 mock 是控制台共享文件，归属多个业务域（列出的域与流程只因文件归属），这些域的类型与 mock 数据没有改动。"
+    },
+    {
+      "paths": [
+        "tests/server/security-decoy.test.ts",
+        "tests/console/security-decoy.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "test:tests/server/security-decoy.test.ts"
+      ],
+      "reason": "蜜罐接口的回归：永久开启的时间推进与重启、关闭即失效、时长与永久互斥、状态字段、环境与基础防护限制、审计回滚与损坏值；控制台的源码核对。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "route:PUT /api/console/security/decoy"
+      ],
+      "reason": "项目目录随合同重新生成；ownership.json 只改两个用例的不变量、app_state 的说明与用例标题，其余生成内容不手改。"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/architecture/SECURITY.md",
+        "document:docs/architecture/API.md",
+        "document:docs/services/server/endpoint-contracts.md",
+        "document:docs/services/server/data-model.md",
+        "document:docs/services/server/README.md",
+        "document:docs/services/console/README.md"
+      ],
+      "reason": "合成蜜罐的安全说明、接口请求体与响应、app_state 取值、服务模块说明与控制台页面说明同步到永久开启。"
+    }
+  ],
+  "documents": [
+    "docs/architecture/SECURITY.md",
+    "docs/architecture/API.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/README.md",
+    "docs/services/console/README.md"
+  ],
+  "tests": [
+    "tests/server/security-decoy.test.ts",
+    "tests/console/security-decoy.test.ts"
+  ],
+  "compatibility": "旧客户端只发 duration_minutes 或 enabled:false 时行为不变；状态接口只新增 permanent 字段，旧消费者忽略即可。缺失、损坏的持久值仍按关闭处理。",
+  "migration": "不改表结构，不改写数据。security_decoy_until 新增取值 permanent，原有的截止时间与 0 不变，无需手工步骤。",
+  "rollback": "回退本 PR 即可。若回退时库里仍是 permanent，旧版本把它当作损坏值，蜜罐关闭（失败关闭）；需要时先在控制台关闭蜜罐再回退。"
+}

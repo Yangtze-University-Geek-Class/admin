@@ -1,0 +1,654 @@
+{
+  "version": 1,
+  "issue": 329,
+  "kind": "business",
+  "summary": "同步 GitLab stage d0c1ece9（MR !111）进 GitHub 受保护 stage：GitLab #369：合成蜜罐支持永久开启：PUT /api/console/security/decoy 接受 {enabled:true,permanent:true}，状态接口返回 permanent，审计 meta 记录是否永久；控制台安全页在时长选项旁增加「永久开启」，开启前仍要确认。其余规则（仅正式环境、基础防护开启、已有封禁优先、白名单与跨站诱导豁免、审计与配置同事务）不变。接口路径与权限节点不变。 GitLab #370：GitLab 项目事件进控制台操作记录：后台按 GITLAB_EVENTS_INTERVAL_MINUTES（0 为关闭，默认 10 分钟）只读拉取 GITLAB_GROUP 下各项目的事件，与 GITLAB_SYNC 无关；正式与预发布部署后开始拉取，本机为 0 不拉取，每个项目一个游标，只写游标之后的事件到 activity_events（来源 gitlab，动作 gitlab.对象类型.动作）。对不上极客班账号的照样记为未关联；不记提交说明、评论正文与 diff。控制台操作记录的来源筛选增加 GitLab。接口路径与权限不变。操作记录页同时简化：筛选只剩表格上方一行（谁、来源、时间范围、结果），访客与动作前缀改为详情里点出的可关闭标签；每条记录一行、五列，IP、浏览器与动作本身移进详情；不再「加载更多」，改为按页翻（接口新增 offset 参数与 total 字段）。 GitLab #377：登记 #369（合成蜜罐永久开启）与 #370（操作记录接入 GitLab 事件、页面改版）的 0.1.1 hotfix 窗口：所有者 2026-10-31 01:47 批准随七牛 CDN 修复一起按 hotfix 发正式与预发布，期限 2 天。代码已在 MR !104、!107 审查合入。",
+  "applications": [
+    "console",
+    "server"
+  ],
+  "domains": [
+    "audit",
+    "competitions",
+    "feedback",
+    "forum",
+    "github",
+    "gitlab",
+    "identity",
+    "invitations",
+    "mail",
+    "organization",
+    "permissions",
+    "platform",
+    "recruitment"
+  ],
+  "flows": [
+    "flow:security.decoy.read",
+    "flow:security.decoy.update",
+    "flow:console.identity",
+    "flow:competition.console.list",
+    "flow:feedback.console.list",
+    "flow:console.forum.categories.list",
+    "flow:gitlab.status.read",
+    "flow:identity.callback",
+    "flow:mail.template.list",
+    "flow:application.list",
+    "flow:audit.gitlab.activity.sync",
+    "flow:audit.console.activity.list",
+    "flow:gitlab.accounts.list",
+    "flow:platform.public_config",
+    "flow:forum.state",
+    "flow:identity.invites.list",
+    "flow:permissions.nodes.list",
+    "flow:audit.console.activity.account"
+  ],
+  "assessments": {
+    "business": {
+      "status": "changed",
+      "reason": "GitLab #369：合成蜜罐在正式环境可以永久开启：不随时间到期，重启后仍开着，只能手动关闭。临时开启 1 至 60 分钟的规则不变。开启与关闭的业务规则（环境、基础防护、已有封禁优先、白名单、跨站诱导豁免）不变。 GitLab #370：操作记录新增 GitLab 来源：项目的推送、议题、合并请求、评论等动作由后台写进同一张表，控制台列表与来源筛选认 gitlab；未对上账号的动作显示 GitLab 用户名并标未关联。权限不变。页面结构变了：筛选从五个输入框加两排标签减到表格上方一行四个下拉：谁、来源、时间范围（全部、今天、近 7 天、近 30 天）、结果；「今天被拦下」从单独的卡片收进同一行，访客与动作前缀从详情抽屉点出、显示成可关闭标签；每条记录一行、五列；按页翻代替无限加载。",
+      "evidence": [
+        "app/server/src/lib/security-decoy.ts",
+        "app/server/src/routes/console/security.ts",
+        "app/console/src/pages/Security.vue",
+        "app/console/src/lib/activity.ts",
+        "app/console/src/pages/Activity.vue",
+        "app/server/src/lib/gitlab-events.ts",
+        "app/server/src/routes/console/contracts.ts"
+      ]
+    },
+    "backend": {
+      "status": "changed",
+      "reason": "GitLab #369：PUT 请求体从两种形态变为三种（临时、永久、关闭），三者互斥，额外字段与时长同时给出都返回 400。GET 与 PUT 的 200 响应新增必填字段 permanent。调用方只通过 setEnabled 与 get 访问，中间件仍只读 active，不需要改动。 GitLab #370：新增后台拉取模块：组项目列表与项目事件分页（每页 100，一轮最多 5 页），按游标续拉，抓取失败的项目整轮不写；activity.ts 新增单事务的批量外部写入（不来自请求）；gitlab-sync.ts 导出只查本地表的账号映射（不发请求）与只读的地址、令牌配置标记；app.ts 与 services.ts 在 buildApp 的 gitlabSync 选项打开时启动与关闭定时器，间隔为 0 时不排定时器。GET /api/console/activity 新增可选查询参数 offset（带了就不看 cursor）与返回字段 total（筛选条件下的总条数，同一 where 再数一次，不含游标条件），供控制台按页翻；cursor 与 next_cursor 保留，概览、安全防护、备份页照旧只读第一页。",
+      "evidence": [
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/security-decoy.ts",
+        "app/server/src/app.ts",
+        "app/server/src/config.ts",
+        "app/server/src/lib/activity.ts",
+        "app/server/src/lib/gitlab-events.ts",
+        "app/server/src/lib/gitlab-sync.ts",
+        "app/server/src/routes/console/activity.ts",
+        "app/server/src/services.ts"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "GitLab #369：两个路由的 preHandler 不变：GET 需要 security.manage，PUT 需要 security.manage 加 step-up。永久开启不增加可见资源，也不扩大哪些账号能操作。环境与基础防护的拒绝在 setEnabled 里执行，永久开启同样经过这些检查。 GitLab #370：GET /api/console/activity 的节点 activity.read、部门范围与 IP 打码规则不变，contracts.ts 只是把 gitlab 加进 surface 取值。后台拉取不经请求、没有身份，只用服务端已有的 GITLAB_API_TOKEN 做只读调用，不新增节点或权限。 GitLab #377：角色、能力与资源范围不变；窗口只决定 deploy-hotfix 接受哪些 issue 编号。",
+      "evidence": [
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/security-decoy.ts",
+        "app/server/src/routes/console/contracts.ts",
+        "app/server/src/lib/gitlab-events.ts",
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "data": {
+      "status": "changed",
+      "reason": "GitLab #369：表结构不变。app_state 的 security_decoy_until 新增取值 permanent，与原有的毫秒截止时间和 0 并存；写入仍与审计在同一个事务里，失败整体回滚。缺失、损坏或大小写不同的值仍按关闭处理。 GitLab #370：activity_events.surface 的 CHECK 放开 gitlab：已有库在启动时事务内重建表，保留全部行与五个索引；游标存 app_state（键 gitlab_events_cursor 加项目编号），不新增表。作者按 gitlab_accounts.gitlab_user_id 查库对账，不改该表。保留 180 天沿用既有清理。",
+      "evidence": [
+        "app/server/src/lib/security-decoy.ts",
+        "docs/services/server/data-model.md",
+        "app/server/src/lib/db.ts",
+        "app/server/src/lib/gitlab-events.ts",
+        "app/server/src/lib/activity.ts"
+      ]
+    },
+    "dependencies": {
+      "status": "changed",
+      "reason": "GitLab #369：没有新增外部服务、邮件或后台任务。security.decoy.update 审计的 meta 多一个 permanent 字段，仍在同一个事务里写入；命中审计 security.decoy.hit 不变。 GitLab #370：新增对 GitLab 的只读调用（GET /groups/:group/projects 与 GET /projects/:id/events），复用 gitlab-sync 的 readApi：同一管理令牌、不跟随跳转、15 秒超时。没有新增软件包（package.json 与锁文件不变）。",
+      "evidence": [
+        "app/server/src/routes/console/security.ts",
+        "app/server/src/lib/gitlab-events.ts",
+        "app/server/src/lib/gitlab-sync.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "GitLab #369：安全模型的合成蜜罐段改写为临时或永久两种开启方式；接口与数据库的说明补充 permanent 取值与请求体形态；服务合同的端点表与控制台页面说明同步；目录里两个用例的不变量与 app_state 说明同步。 GitLab #370：服务合同与接口合同写明后台拉取、游标、5 页上限、失败不写半份、未关联标记、动作格式与不记的内容；环境表补 GITLAB_EVENTS_INTERVAL_MINUTES；安全文档写明操作记录新增的 GitLab 来源；控制台说明补来源与动作的显示。",
+      "evidence": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md",
+        "docs/architecture/catalog/ownership.json",
+        "docs/services/server/oidc.md",
+        "docs/ops/ENVIRONMENTS.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "GitLab #369：服务端新增用例：永久开启在时钟前进十年后仍生效、重启后仍开着、关闭立即失效，审计 meta 记录 permanent；状态接口的 permanent 字段；与时长同时给出、非真值及其它组合返回 400；正式环境与基础防护限制；永久开启的审计失败整体回滚；损坏值变体（大小写、空白）关闭。控制台新增源码核对：永久选项、请求体形态、关闭判断与确认步骤。浏览器中的真实页面未验证。 GitLab #370：新增 tests/server/gitlab-events.test.ts：游标续拉不重复、失败不写半份、GitLab 连不上不抛出、未关联、翻页上限、推送与评论不记正文、间隔为 0 时不调 GitLab、GITLAB_SYNC 关着仍拉取、缺令牌报错、surface=gitlab 只回这些行；legacy-database.test.ts 增加 CHECK 重建用例；配置与环境契约增加间隔越界用例。真实 GitLab 与三个环境的线上验收未做，列为未验证。 GitLab #377：validateWindows 对登记表无报错；activeWindows 现在返回 352、354、356、360、369、370。",
+      "evidence": [
+        "tests/server/security-decoy.test.ts",
+        "tests/console/security-decoy.test.ts",
+        "tests/server/gitlab-events.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/gitlab-sync.test.ts",
+        "tests/tooling/deployment-environment.test.ts",
+        "tests/console/activity.test.ts",
+        "deploy/hotfix/windows.json"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "GitLab #369：控制台与服务端产物随镜像更新，行为变化只在页面与接口。没有新增环境键、密钥、宿主配置或部署步骤；回滚不需要数据操作。 GitLab #370：三份 env 模板新增非密钥键 GITLAB_EVENTS_INTERVAL_MINUTES（正式与预发布 10，本机 0），两个 compose 文件传给 server。正式部署后开始只读拉取 GitLab 项目事件，不看 GITLAB_SYNC（正式的账号同步仍是 off，不受影响）；本机为 0，不拉取。 GitLab #377：同步到 GitHub stage、main 快进后按 #370 派发 deploy-hotfix（tag v0.1.1）；正式核对后关闭本轮全部 v0.1.1 窗口，在收尾提交上打 v0.1.1-stable.3 发预发布。",
+      "evidence": [
+        "app/console/src/pages/Security.vue",
+        "app/server/src/lib/security-decoy.ts",
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        "scripts/deployment-environment.mjs",
+        "deploy/hotfix/windows.json"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "app/server/src/lib/security-decoy.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:platform",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update"
+      ],
+      "reason": "蜜罐状态与设置的唯一读写方：新增 permanent 持久值与对应的状态字段；临时开启的截止时间、到期、时钟回拨与损坏值规则不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/security.ts"
+      ],
+      "domains": [
+        "audit",
+        "platform"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:security.decoy.update"
+      ],
+      "reason": "PUT 处理把请求体映射为时长或永久开启，并在同一事务里写入 security.decoy.update 的 meta（新增 permanent）；preHandler 与 step-up 不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/contracts.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "route:GET /api/console/security/decoy",
+        "route:PUT /api/console/security/decoy",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "flow:console.identity",
+        "flow:competition.console.list",
+        "flow:feedback.console.list",
+        "flow:console.forum.categories.list",
+        "flow:gitlab.status.read",
+        "flow:identity.callback",
+        "flow:mail.template.list",
+        "flow:application.list"
+      ],
+      "reason": "控制台共享合同表，同一文件登记多个业务域的路由。本 PR 只改安全防护的两条合同：PUT 请求体新增永久开启分支，GET 与 PUT 的响应新增必填的 permanent。其它域的合同没有改动；列出这些域与对应流程，只因为文件归属，用于目录的归属核对，不代表这些域的行为有变化。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/Security.vue",
+        "app/console/src/lib/types.ts",
+        "app/console/src/mock/console.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:console",
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "flow:console.identity",
+        "flow:competition.console.list",
+        "flow:feedback.console.list",
+        "flow:identity.callback",
+        "flow:application.list"
+      ],
+      "reason": "安全页在时长选项旁加「永久开启」，确认步骤仍在请求前；没有倒计时的永久状态不判为未开启，且仍可关闭。类型与 mock 的 SecurityDecoyStatus 新增 permanent。types.ts 与 mock 是控制台共享文件，归属多个业务域（列出的域与流程只因文件归属），这些域的类型与 mock 数据没有改动。"
+    },
+    {
+      "paths": [
+        "tests/server/security-decoy.test.ts",
+        "tests/console/security-decoy.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "test:tests/server/security-decoy.test.ts"
+      ],
+      "reason": "蜜罐接口的回归：永久开启的时间推进与重启、关闭即失效、时长与永久互斥、状态字段、环境与基础防护限制、审计回滚与损坏值；控制台的源码核对。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md",
+        "docs/architecture/catalog/ownership.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "flow:security.decoy.read",
+        "flow:security.decoy.update",
+        "route:PUT /api/console/security/decoy"
+      ],
+      "reason": "项目目录随合同重新生成；ownership.json 只改两个用例的不变量、app_state 的说明与用例标题，其余生成内容不手改。"
+    },
+    {
+      "paths": [
+        "docs/architecture/SECURITY.md",
+        "docs/architecture/API.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/data-model.md",
+        "docs/services/server/README.md",
+        "docs/services/console/README.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/architecture/SECURITY.md",
+        "document:docs/architecture/API.md",
+        "document:docs/services/server/endpoint-contracts.md",
+        "document:docs/services/server/data-model.md",
+        "document:docs/services/server/README.md",
+        "document:docs/services/console/README.md"
+      ],
+      "reason": "合成蜜罐的安全说明、接口请求体与响应、app_state 取值、服务模块说明与控制台页面说明同步到永久开启。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/gitlab-events.ts"
+      ],
+      "domains": [
+        "audit",
+        "gitlab"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:audit",
+        "domain:gitlab",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "新增的后台拉取模块：项目与事件分页、游标、失败整项目不写、作者对账与行的生成。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/activity.ts"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:audit.console.activity.list",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "操作记录的唯一写入口新增不来自请求的批量写入（单事务），recordActivity 与拒绝合并逻辑不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/db.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "invitations",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:audit",
+        "domain:gitlab",
+        "domain:platform",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "db.ts 同时定义全站的表（目录按表把它归到各业务域）。本次只改 activity_events 的 surface 取值与旧库的一次性重建（事务内，保留行与索引），其它表的结构与迁移不动。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/contracts.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "forum",
+        "gitlab",
+        "identity",
+        "mail",
+        "organization",
+        "permissions",
+        "platform",
+        "recruitment"
+      ],
+      "nodes": [
+        "domain:audit",
+        "flow:audit.console.activity.list",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "控制台契约文件（目录按路由目录归属到各业务域）。本次只把 activity 的 surface 取值加上 gitlab，其它契约不动。"
+    },
+    {
+      "paths": [
+        "app/server/src/lib/gitlab-sync.ts"
+      ],
+      "domains": [
+        "gitlab",
+        "identity"
+      ],
+      "nodes": [
+        "domain:gitlab",
+        "domain:identity",
+        "flow:gitlab.accounts.list"
+      ],
+      "reason": "导出已有的本地账号映射函数 mappedAccount，供操作记录按 GitLab 用户编号对账；只查 gitlab_accounts，不发请求，新增只读的 configured 标记（地址与令牌都配了，供事件拉取判断），同步行为不变。"
+    },
+    {
+      "paths": [
+        "app/server/src/services.ts",
+        "app/server/src/app.ts",
+        "app/server/src/config.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:platform",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "组装根创建 gitlabEvents 并共用同一个操作记录写入器；buildApp 的 gitlabSync 选项打开时开定时器（间隔为 0 时不排）、关闭时停下；config.ts 解析 GITLAB_EVENTS_INTERVAL_MINUTES（0 为关闭，空为 10，1–1440）。"
+    },
+    {
+      "paths": [
+        "app/console/src/lib/activity.ts",
+        "app/console/src/lib/types.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:console",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "控制台操作记录的来源列表与文字加上 GitLab；GitLab 动作显示为「对象 · 动作」；未关联的 GitLab 用户显示用户名。类型文件的 ActivitySurface 同步加上 gitlab。Activity.vue 的来源筛选由 ACTIVITY_SURFACES 生成，页面文件本身不改。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/Activity.vue"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "application:console",
+        "domain:audit",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "操作记录页简化筛选并改为按页翻（TxPagination）"
+    },
+    {
+      "paths": [
+        "app/console/src/mock/console.ts"
+      ],
+      "domains": [
+        "audit",
+        "competitions",
+        "feedback",
+        "github",
+        "organization",
+        "recruitment"
+      ],
+      "nodes": [
+        "application:console",
+        "domain:audit",
+        "domain:competitions",
+        "domain:feedback",
+        "domain:github",
+        "domain:organization",
+        "domain:recruitment",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "开发预览的样板数据是全部控制台页面共用的一个文件，这次只改操作记录部分：记录接口认 offset、返回 total，加三条 GitLab 事件样例（IP、浏览器为 null）；其他页面的样板数据不变。"
+    },
+    {
+      "paths": [
+        "app/console/src/pages/users/UserDrawer.vue"
+      ],
+      "domains": [
+        "audit",
+        "permissions"
+      ],
+      "nodes": [
+        "application:console",
+        "domain:audit",
+        "domain:permissions",
+        "flow:audit.console.activity.account"
+      ],
+      "reason": "用户详情里的「最近操作」读 GET /api/console/accounts/:id/activity，只按游标翻页、没有 total：改用新拆出的 ActivityPage 类型，行为不变。抽屉里的权限页签不动。"
+    },
+    {
+      "paths": [
+        "app/server/src/routes/console/activity.ts"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "application:server",
+        "domain:audit",
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "列表接口按 offset 读一页并返回 total；带 offset 时不加游标条件。"
+    },
+    {
+      "paths": [
+        "deploy/env/.env.production",
+        "deploy/env/.env.preview",
+        "deploy/env/.env.dev",
+        "deploy/compose/production.yml",
+        "deploy/compose/preview.yml",
+        "scripts/deployment-environment.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:platform.public_config"
+      ],
+      "reason": "GITLAB_EVENTS_INTERVAL_MINUTES 作为非密钥键进入三份模板（键集一致；正式与预发布为 10，本机为 0），两个 compose 传给 server，环境契约脚本登记并校验范围；不进入 PER_ENVIRONMENT_KEYS：正式与预发布取值相同，check:env-isolation 只比较这两份。"
+    },
+    {
+      "paths": [
+        "tests/server/gitlab-events.test.ts",
+        "tests/server/legacy-database.test.ts",
+        "tests/server/gitlab-sync.test.ts"
+      ],
+      "domains": [
+        "audit",
+        "gitlab"
+      ],
+      "nodes": [
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "GitLab 事件拉取的回归（游标、失败、未关联、翻页上限、筛选、不记正文）、旧库 CHECK 重建的迁移用例，间隔配置的解析用例（0 合法，负数、前导零、超过 1440 与非整数拒绝），以及拉取与 GITLAB_SYNC 解耦、间隔 0 关闭、缺令牌报错的用例。"
+    },
+    {
+      "paths": [
+        "tests/console/activity.test.ts",
+        "tests/console/date-field.test.ts",
+        "tests/server/activity.test.ts"
+      ],
+      "domains": [
+        "audit"
+      ],
+      "nodes": [
+        "flow:audit.console.activity.list"
+      ],
+      "reason": "来源文字从六个变成七个，并覆盖 GitLab 动作与未关联用户的显示。；按页翻、时间范围、可关闭标签与 offset/total 的用例；日期选择框不再用于操作记录页。"
+    },
+    {
+      "paths": [
+        "tests/tooling/deployment-environment.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "环境契约的反例：负数、前导零、超过 1440、非整数时校验失败；0 合法。"
+    },
+    {
+      "paths": [
+        "docs/services/server/README.md",
+        "docs/services/server/endpoint-contracts.md",
+        "docs/services/server/oidc.md",
+        "docs/services/console/README.md",
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/architecture/SECURITY.md"
+      ],
+      "domains": [
+        "audit",
+        "gitlab",
+        "platform"
+      ],
+      "nodes": [
+        "document:docs/services/server/README.md",
+        "document:docs/services/server/endpoint-contracts.md",
+        "document:docs/services/server/oidc.md",
+        "document:docs/services/console/README.md",
+        "document:docs/ops/ENVIRONMENTS.md",
+        "document:docs/architecture/SECURITY.md"
+      ],
+      "reason": "服务合同、接口合同、GitLab 合同、控制台说明、环境表与安全文档随本 PR 的改动同步，各自的「更新：」都是 2026-10-31。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/ownership.json",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "audit",
+        "gitlab"
+      ],
+      "nodes": [
+        "domain:audit",
+        "domain:gitlab",
+        "flow:audit.gitlab.activity.sync"
+      ],
+      "reason": "ownership.json 文本插入一条 audit.gitlab.activity.sync 流程（证据锚点指向新增与改动的源码，操作挂在 GET /api/console/activity 上，因为后台任务没有自己的 HTTP 入口）；其余为 pnpm catalog:generate 的生成物，不手改。"
+    },
+    {
+      "paths": [
+        "deploy/hotfix/windows.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "登记 #369、#370 的 hotfix 窗口（tag v0.1.1，approvedAt 2026-10-31T01:47+08:00，expiresAt 2026-11-02T01:47+08:00），属于平台发布流程。"
+    },
+    {
+      "paths": [
+        "docs/changes/369.json",
+        "docs/changes/370.json",
+        "docs/changes/375.json",
+        "docs/changes/377.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GitLab 上 #369、#370、#375、#377 各自的宏观对齐声明随同步带到 GitHub；GitHub 这边的声明是本文件，内容不变。"
+    }
+  ],
+  "documents": [
+    "docs/architecture/SECURITY.md",
+    "docs/architecture/API.md",
+    "docs/services/server/endpoint-contracts.md",
+    "docs/services/server/data-model.md",
+    "docs/services/server/README.md",
+    "docs/services/console/README.md",
+    "docs/services/server/oidc.md",
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/conventions/RELEASES.md"
+  ],
+  "tests": [
+    "tests/server/security-decoy.test.ts",
+    "tests/console/security-decoy.test.ts",
+    "tests/console/activity.test.ts",
+    "tests/console/date-field.test.ts",
+    "tests/server/activity.test.ts",
+    "tests/server/gitlab-events.test.ts",
+    "tests/server/gitlab-sync.test.ts",
+    "tests/server/legacy-database.test.ts",
+    "tests/tooling/deployment-environment.test.ts"
+  ],
+  "compatibility": "GitLab #369：旧客户端只发 duration_minutes 或 enabled:false 时行为不变；状态接口只新增 permanent 字段，旧消费者忽略即可。缺失、损坏的持久值仍按关闭处理。 GitLab #370：GITLAB_EVENTS_INTERVAL_MINUTES 为 0 的环境（本机）不调 GitLab，行为与之前一致。正式与预发布为 10，正式部署后会开始只读拉取 GitLab 项目事件，与 GITLAB_SYNC 无关；已有的 surface 取值不变，接口只做加法：多出 gitlab 这一种来源、可选的 offset 参数和 total 字段，旧调用方（只读第一页或按 cursor 翻）不受影响；账号详情里的记录接口不变。 GitLab #377：接口、表结构与环境变量都不变。",
+  "migration": "GitLab #369：不改表结构，不改写数据。security_decoy_until 新增取值 permanent，原有的截止时间与 0 不变，无需手工步骤。 GitLab #370：没有人工步骤。activity_events 的 CHECK 放开 gitlab 由启动时的一次性重建完成，事务内、结构相同、只多一个取值，已建过的库再次启动是空操作；游标键按需创建，不改已有键。 GitLab #377：不涉及迁移：只新增两条发布窗口登记，没有数据、配置或环境变量要迁移。",
+  "rollback": "revert 本次同步的合并提交即回到 GitHub stage 上一版。GitLab #369：回退本 PR 即可。若回退时库里仍是 permanent，旧版本把它当作损坏值，蜜罐关闭（失败关闭）；需要时先在控制台关闭蜜罐再回退。 GitLab #370：回退本 PR 即可。旧镜像不写 gitlab 行；遇到已经写入的 gitlab 行时，它的列表照常显示（来源显示为原始值 gitlab），不会因为新的 CHECK 出错。要停止拉取，把 GITLAB_EVENTS_INTERVAL_MINUTES 改成 0（与 GITLAB_SYNC 无关），不需要删数据；游标与已写的行留在库里。 GitLab #377：revert 本次合并；窗口未用时由收尾关闭。"
+}

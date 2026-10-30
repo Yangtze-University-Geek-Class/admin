@@ -842,6 +842,42 @@ CREATE TABLE IF NOT EXISTS github_avatar_checks (
 addColumn("account_profiles", "real_name", "TEXT");
 addColumn("account_profiles", "enrollment_year", "INTEGER");
 
+// activity_events.surface 的 CHECK 原来不认 'gitlab'（#370，GitLab 项目事件进操作记录）：已经建过表的库（CREATE TABLE IF NOT EXISTS
+// 不会补）要重建表才能放开，SQLite 不能直接改 CHECK。没有其它表引用它，所以不用关外键检查。重建时把五个索引一起建回来；
+// 按 sqlite_master 的建表语句判断，重复执行安全；新库表还不存在，这里什么也不做，下面的 CREATE TABLE 直接带上新的 CHECK。
+(() => {
+  const existing = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'activity_events'").get() as { sql: string } | undefined;
+  if (existing && !existing.sql.includes("'gitlab'")) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE activity_events_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          at INTEGER NOT NULL,
+          account_id TEXT,
+          visitor_id TEXT,
+          surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system', 'gitlab')),
+          action TEXT NOT NULL,
+          target_type TEXT,
+          target_id TEXT,
+          outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'denied', 'limited', 'error')),
+          ip TEXT,
+          ua TEXT,
+          request_id TEXT,
+          meta TEXT NOT NULL DEFAULT '{}'
+        );
+        INSERT INTO activity_events_new(id, at, account_id, visitor_id, surface, action, target_type, target_id, outcome, ip, ua, request_id, meta)
+          SELECT id, at, account_id, visitor_id, surface, action, target_type, target_id, outcome, ip, ua, request_id, meta FROM activity_events;
+        DROP TABLE activity_events;
+        ALTER TABLE activity_events_new RENAME TO activity_events;
+        CREATE INDEX IF NOT EXISTS idx_activity_events_at ON activity_events(at);
+        CREATE INDEX IF NOT EXISTS idx_activity_events_account ON activity_events(account_id, at);
+        CREATE INDEX IF NOT EXISTS idx_activity_events_visitor ON activity_events(visitor_id, at);
+        CREATE INDEX IF NOT EXISTS idx_activity_events_action ON activity_events(action, at);
+        CREATE INDEX IF NOT EXISTS idx_activity_events_outcome ON activity_events(outcome, at);
+      `);
+    })();
+  }
+})();
 // 操作记录与限额（#274 SPEC §3.7、§3.8）：写入只走 lib/activity.ts 的 recordActivity()；
 // limit_events 是通用计数表，取代 application_limits 那种一事一表的模式（旧表保留，不再新增同类表）。
 db.exec(`
@@ -850,7 +886,7 @@ CREATE TABLE IF NOT EXISTS activity_events (
   at INTEGER NOT NULL,
   account_id TEXT,
   visitor_id TEXT,
-  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system')),
+  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system', 'gitlab')),
   action TEXT NOT NULL,
   target_type TEXT,
   target_id TEXT,

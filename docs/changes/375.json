@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "issue": 375,
+  "kind": "business",
+  "summary": "把 0.1.1 发版时只在 GitHub 上补的修复带回 GitLab stage（GitHub PR #326、#328）：论坛 sticker-url 的 import.meta.env 类型声明与采用清单登记；ci.yml 写 GITHUB_ENV 改字符串拼接（actionlint SC2016）；比赛演练夹具从 .env.dev 读 STATIC_CDN_ORIGIN；CDN 上传的读回与核对超时随体积放宽；三条部署工作流挑 CDN 文件一步补 STATIC_CDN_ORIGIN 及其回归用例；CICD 文档一行。另把 GitHub 上已有的 #349、#352、#354、#356、#360 收尾记录追加到 GitLab，项目目录重新生成。",
+  "applications": [
+    "forum"
+  ],
+  "domains": [
+    "platform",
+    "forum",
+    "competitions"
+  ],
+  "flows": [
+    "flow:forum.stickers.list"
+  ],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "论坛表情列表（flow:forum.stickers.list）的地址拼法不变：sticker-url 只补 import.meta.env 的类型声明，构建时仍由 Vite 把 GEEK_STATIC_CDN_BASE 原样替换；static-cdn.mjs 收集表情与比赛资源的规则不变，只放宽读回与核对的超时。页面、接口与可操作性不变。",
+      "evidence": [
+        "app/forum/shared/sticker-url.ts",
+        "scripts/static-cdn.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "不改 app/server。",
+      "evidence": [
+        "scripts/static-cdn.mjs"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "角色、能力与资源范围不变；部署工作流多传的源站不是密钥，build job 仍不接密钥。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "不碰数据库：没有表结构、迁移或业务数据变化；对象存储里上传的文件集合与路径规则不变，只是读回核对等得更久，超时上限仍是 180 秒。",
+      "evidence": [
+        "scripts/static-cdn-s3.mjs",
+        "scripts/static-cdn.mjs"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "不增删依赖；论坛只加类型声明，采用清单登记已改过的上游文件。",
+      "evidence": [
+        "app/forum/ADOPTION.json",
+        "app/forum/shared/sticker-url.ts"
+      ]
+    },
+    "documentation": {
+      "status": "changed",
+      "reason": "docs/ops/CICD.md 的 CDN 表写明构建与挑文件两步都从 plan 拿 STATIC_CDN_ORIGIN；项目目录重新生成；执行记录追加 GitHub 上已有的收尾记录。",
+      "evidence": [
+        "docs/ops/CICD.md",
+        "docs/architecture/catalog/CATALOG.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "static-cdn-workflows 带回回归用例（每个调用 static-cdn.mjs 的步骤都要拿到源站）；static-cdn、static-cdn-s3 用例覆盖读回与核对超时。",
+      "evidence": [
+        "tests/tooling/static-cdn-workflows.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "GitLab 与 GitHub 在这些文件上一致，下一次同步不再把它们回退；正式与预发布的 CDN 发布靠部署工作流的这一步。",
+      "evidence": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        ".github/workflows/ci.yml"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        ".github/workflows/deploy-preview.yml",
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-hotfix.yml",
+        ".github/workflows/ci.yml"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "三条部署工作流 build job 挑 CDN 文件一步补 STATIC_CDN_ORIGIN（取 plan 输出）；ci.yml 的 docker-cdn 写 GITHUB_ENV 改用字符串拼接，满足 actionlint SC2016。"
+    },
+    {
+      "paths": [
+        "app/forum/shared/sticker-url.ts"
+      ],
+      "domains": [
+        "forum"
+      ],
+      "nodes": [
+        "application:forum",
+        "flow:forum.stickers.list",
+        "document:docs/services/forum/README.md"
+      ],
+      "reason": "论坛表情地址：补 ImportMeta/ImportMetaEnv 的全局类型声明，论坛 typecheck 不再报 TS2339；运行时仍由构建期替换，不改地址。"
+    },
+    {
+      "paths": [
+        "scripts/static-cdn.mjs"
+      ],
+      "domains": [
+        "platform",
+        "forum",
+        "competitions"
+      ],
+      "nodes": [
+        "domain:platform",
+        "flow:forum.stickers.list"
+      ],
+      "reason": "CDN 清单与核对：verifyOne 的超时按文件体积放宽，和上传一致；收集表情、指南截图与比赛资源的规则不变。"
+    },
+    {
+      "paths": [
+        "scripts/static-cdn-s3.mjs"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "S3 请求接受 expectedBytes，ensureUnlocked 的 GET 按体积放宽超时，修 GitHub runner 读回大文件超时。"
+    },
+    {
+      "paths": [
+        "app/forum/ADOPTION.json",
+        "scripts/contest-rehearsal-fixture.mts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "论坛采用清单登记改过的 vitest.config.ts；比赛演练夹具从 deploy/env/.env.dev 读 STATIC_CDN_ORIGIN 传给 createConfig，不再缺 MAIL_ASSET_BASE。"
+    },
+    {
+      "paths": [
+        "tests/tooling/static-cdn-workflows.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "回归用例：三条部署工作流里每个调用 static-cdn.mjs 的步骤都要在步骤或 job 的 env 里拿到 STATIC_CDN_ORIGIN，修复前的 hotfix 工作流会失败。"
+    },
+    {
+      "paths": [
+        "docs/ops/CICD.md",
+        "docs/architecture/catalog/CATALOG.md",
+        "docs/architecture/catalog/catalog.json",
+        "docs/architecture/catalog/data-model.md",
+        "docs/architecture/catalog/map.html",
+        "docs/architecture/catalog/permissions.md",
+        "docs/architecture/catalog/routes.md"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "CICD 文档的 CDN 表写明 build job 两步都拿源站；项目目录随源码证据重新生成。"
+    }
+  ],
+  "documents": [
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/static-cdn-workflows.test.ts",
+    "tests/tooling/static-cdn-s3.test.ts",
+    "tests/tooling/static-cdn.test.ts"
+  ],
+  "compatibility": "接口、表结构与环境变量键都不变。",
+  "migration": "不涉及迁移：只改工作流、脚本与类型声明，没有数据或环境变量键要迁移。",
+  "rollback": "revert 本次合并；GitHub 上已有同样的修复，回退只影响 GitLab 一侧，下一次同步前要重新带回。"
+}

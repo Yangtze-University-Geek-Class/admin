@@ -14,7 +14,8 @@ function truncateUa(ua: string | null): string | null {
 // 这里 import 反而会被 check-boundaries.mjs 判「lib 依赖 middleware」。
 
 export type ActivityOutcome = "ok" | "denied" | "limited" | "error";
-export type ActivitySurface = "portal" | "forum" | "console" | "cli" | "api" | "system";
+/** `gitlab`：GitLab 项目事件（#370，lib/gitlab-events.ts 写入），不来自任何请求。 */
+export type ActivitySurface = "portal" | "forum" | "console" | "cli" | "api" | "system" | "gitlab";
 
 /**
  * `POST /api/events` 只收这几种（SPEC §3.7）；不在对应来源白名单里的直接丢弃，合并计一条 `events.rejected`。
@@ -33,6 +34,12 @@ export const EVENT_WHITELIST_BY_SURFACE: Record<EventsSurface, readonly string[]
   portal: EVENT_WHITELIST, forum: FORUM_EVENT_WHITELIST, console: CONSOLE_EVENT_WHITELIST,
 };
 export type WhitelistedEvent = (typeof EVENT_WHITELIST)[number] | (typeof FORUM_EVENT_WHITELIST)[number] | (typeof CONSOLE_EVENT_WHITELIST)[number];
+
+/** 不来自请求的一行（GitLab 项目事件，#370）：没有 req，所以没有 IP、UA、访客与请求编号；账号为空表示没对上极客班账号。 */
+export type ExternalActivityInput = {
+  at: number; account_id: string | null; surface: ActivitySurface; action: string;
+  target_type: string | null; target_id: string | null; outcome?: ActivityOutcome; meta?: Record<string, unknown>;
+};
 
 export type RecordActivityInput = {
   action: string;
@@ -154,7 +161,25 @@ export function createActivityRecorder(db: Database.Database, clock: () => numbe
     return { deleted, ipMasked };
   }
 
-  return { recordActivity, recordDenial, pruneExpired };
+  /**
+   * 批量写不来自请求的行（#370）：同一个事务里全部写入，要么整批进去、要么一行都不进。写入口仍只在这个文件里。
+   * 调用方（lib/gitlab-events.ts）自己保证只传还没写过的事件；这里不做去重。
+   */
+  const insertExternal = db.transaction((rows: ExternalActivityInput[]) => {
+    for (const row of rows) {
+      insert.run({
+        at: row.at, account_id: row.account_id, visitor_id: null, surface: row.surface, action: row.action,
+        target_type: row.target_type, target_id: row.target_id, outcome: row.outcome ?? "ok",
+        ip: null, ua: null, request_id: null, meta: JSON.stringify(row.meta ?? {}),
+      });
+    }
+  });
+  function recordExternal(rows: ExternalActivityInput[]): number {
+    insertExternal(rows);
+    return rows.length;
+  }
+
+  return { recordActivity, recordDenial, recordExternal, pruneExpired };
 }
 export type ActivityRecorder = ReturnType<typeof createActivityRecorder>;
 

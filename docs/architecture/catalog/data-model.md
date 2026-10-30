@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-30 · 自动生成，不手工编辑。
 
-来源摘要：`ac482727a4443d71b3a7c42f2440a8ea9ff0b7dc298f27f9e16b5cdb82a27a94`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`611b9545aa0682b21d1767efca791614f36ddd103e837cb3109d02164e816ebf`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -233,7 +233,7 @@ CREATE TABLE account_profiles (
 
 ## activity_events
 
-业务域：`audit`；结构来源：[app/server/src/lib/db.ts:848](../../../app/server/src/lib/db.ts#L848)。
+业务域：`audit`；结构来源：[app/server/src/lib/db.ts:884](../../../app/server/src/lib/db.ts#L884)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -271,7 +271,7 @@ CREATE TABLE activity_events (
   at INTEGER NOT NULL,
   account_id TEXT,
   visitor_id TEXT,
-  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system')),
+  surface TEXT NOT NULL CHECK (surface IN ('portal', 'forum', 'console', 'cli', 'api', 'system', 'gitlab')),
   action TEXT NOT NULL,
   target_type TEXT,
   target_id TEXT,
@@ -289,7 +289,7 @@ CREATE TABLE activity_events (
 
 业务域：`platform`；结构来源：[app/server/src/lib/db.ts:34](../../../app/server/src/lib/db.ts#L34)。
 
-键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间，缺行/损坏/到期关闭，最长60分钟）。目录不读取记录。
+键值表：gitlab_settings（GitLab 同步设置）、apply_open（招新总开关，缺行开放）与 security_decoy_until（合成蜜罐截止时间或 permanent 永久开启，缺行/损坏/到期关闭，临时最长60分钟）。目录不读取记录。
 
 | 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
 |---|---|---|---|---|---|
@@ -477,7 +477,7 @@ CREATE TABLE audit_logs (
 
 ## competition_finals
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1185](../../../app/server/src/lib/db.ts#L1185)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1221](../../../app/server/src/lib/db.ts#L1221)。
 
 定榜：一场一行，standings 是定榜那一刻的严格名次快照，之后加分、撤销都不再改它；撤销定榜删行。只有 lib/competition-prizes.ts 读写。
 
@@ -514,7 +514,7 @@ CREATE TABLE competition_finals (
 
 ## competition_gitlab_sources
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1139](../../../app/server/src/lib/db.ts#L1139)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1175](../../../app/server/src/lib/db.ts#L1175)。
 
 比赛从哪些 GitLab 项目收集贡献，控制台「计分与奖项」整份替换；没有行的比赛不收集。由 lib/competition-rules-store.ts 写，收集任务读。
 
@@ -547,7 +547,7 @@ CREATE TABLE competition_gitlab_sources (
 
 ## competition_prizes
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1192](../../../app/server/src/lib/db.ts#L1192)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1228](../../../app/server/src/lib/db.ts#L1228)。
 
 定榜时给每个得奖的人一行：兑奖码只存 SHA-256 散列、AES-GCM 密文与末四位，不存明文；核销只改 redeemed_at/redeemed_by；公开接口从不返回这三列。只有 lib/competition-prizes.ts 读写。
 
@@ -606,7 +606,7 @@ CREATE TABLE competition_prizes (
 
 ## competition_rules
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1176](../../../app/server/src/lib/db.ts#L1176)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1212](../../../app/server/src/lib/db.ts#L1212)。
 
 比赛的计分规则：年级系数（百分数，150 = 1.5）与可选奖项 JSON；没有行用默认系数、没有奖项；定榜后不能改。只有 lib/competition-rules-store.ts 读写。
 
@@ -644,7 +644,7 @@ CREATE TABLE competition_rules (
 
 ## competition_score_candidates
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1148](../../../app/server/src/lib/db.ts#L1148)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1184](../../../app/server/src/lib/db.ts#L1184)。
 
 GitLab 收来的候选贡献（合并的 MR、带「有用」标签或被 MR 关闭的 Issue）：唯一约束挡住重复收集；accepted_via 区分 GitLab 标签与控制台确认；状态变化只改列，不删行。只有 lib/competition-candidates.ts 读写。
 
@@ -890,7 +890,7 @@ CREATE TABLE competition_signups (
 
 ## competition_site_versions
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1117](../../../app/server/src/lib/db.ts#L1117)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1153](../../../app/server/src/lib/db.ts#L1153)。
 
 比赛官网站点包的版本：一次上传一行，通过（passed）或拒绝（rejected）都留，report 是逐条校验结果；拒绝的版本不落文件。文件本身在数据库旁边的 sites/<competition_id>/<version_id>/，不进库。只有 lib/competition-site-store.ts 读写。
 
@@ -939,7 +939,7 @@ CREATE TABLE competition_site_versions (
 
 ## competition_sites
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1131](../../../app/server/src/lib/db.ts#L1131)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1167](../../../app/server/src/lib/db.ts#L1167)。
 
 比赛官网的发布状态：一场一行，slug 唯一且第一次发布后不能改，live_version_id 为空即已下线（版本与 slug 保留）。只有 lib/competition-site-store.ts 读写。
 
@@ -1459,7 +1459,7 @@ CREATE TABLE forum_bookmarks (
 
 ## forum_category_settings
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:959](../../../app/server/src/lib/db.ts#L959)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:995](../../../app/server/src/lib/db.ts#L995)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1717,7 +1717,7 @@ CREATE TABLE forum_rate_events (
 
 ## forum_reactions
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:993](../../../app/server/src/lib/db.ts#L993)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1029](../../../app/server/src/lib/db.ts#L1029)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1757,7 +1757,7 @@ CREATE TABLE forum_reactions (
 
 ## forum_sticker_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:975](../../../app/server/src/lib/db.ts#L975)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1011](../../../app/server/src/lib/db.ts#L1011)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1789,7 +1789,7 @@ CREATE TABLE forum_sticker_files (
 
 ## forum_sticker_packs
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:966](../../../app/server/src/lib/db.ts#L966)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1002](../../../app/server/src/lib/db.ts#L1002)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1823,7 +1823,7 @@ CREATE TABLE forum_sticker_packs (
 
 ## forum_stickers
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:982](../../../app/server/src/lib/db.ts#L982)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1018](../../../app/server/src/lib/db.ts#L1018)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1993,7 +1993,7 @@ CREATE TABLE forum_topics (
 
 ## forum_upload_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1003](../../../app/server/src/lib/db.ts#L1003)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1039](../../../app/server/src/lib/db.ts#L1039)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2460,7 +2460,7 @@ CREATE TABLE invite_links (
 
 ## ip_blocks
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:887](../../../app/server/src/lib/db.ts#L887)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:923](../../../app/server/src/lib/db.ts#L923)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2497,7 +2497,7 @@ CREATE TABLE ip_blocks (
 
 ## limit_events
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:869](../../../app/server/src/lib/db.ts#L869)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:905](../../../app/server/src/lib/db.ts#L905)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2603,7 +2603,7 @@ CREATE TABLE mail_outbox (
 
 ## mail_templates
 
-业务域：`mail`；结构来源：[app/server/src/lib/db.ts:1016](../../../app/server/src/lib/db.ts#L1016)。
+业务域：`mail`；结构来源：[app/server/src/lib/db.ts:1052](../../../app/server/src/lib/db.ts#L1052)。
 
 招聘邮件的模板文字（主题、抬头、正文块、按钮、落款），不含任何投递人的信息；每类信有且只有一套默认，种子来自代码里的内置默认。改模板不影响已入队的信，信在入队时已渲染成成品。
 
@@ -3087,7 +3087,7 @@ CREATE TABLE perm_state (
 
 ## rate_limit_counters
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:899](../../../app/server/src/lib/db.ts#L899)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:935](../../../app/server/src/lib/db.ts#L935)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -3216,7 +3216,7 @@ CREATE TABLE sessions (
 
 ## shield_signals
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:879](../../../app/server/src/lib/db.ts#L879)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:915](../../../app/server/src/lib/db.ts#L915)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 

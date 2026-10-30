@@ -398,7 +398,8 @@ const event = (minutesAgo: number, surface: ActivityEvent["surface"], action: st
     id: 5000 - eventSeq, at: now - minutesAgo * MIN,
     account: account ? { id: account.account_id, username: account.username, display_name: account.display_name, avatar_url: account.avatar_url } : null,
     visitor_id: init.visitor ?? null, surface, action, target_type: init.target_type ?? null, target_id: init.target_id ?? null, outcome,
-    ip: init.ip ?? `10.21.${(eventSeq * 7) % 200}.${(eventSeq * 13) % 250}`, ua: init.ua ?? UA_DESKTOP,
+    // GitLab 事件没有 IP 和浏览器：传 null 就是 null，不传才用默认值
+    ip: init.ip !== undefined ? init.ip : `10.21.${(eventSeq * 7) % 200}.${(eventSeq * 13) % 250}`, ua: init.ua !== undefined ? init.ua : UA_DESKTOP,
     request_id: `req_${(0x5a17 + eventSeq * 977).toString(16)}${eventSeq.toString(36)}`, meta: init.meta ?? {},
   };
 };
@@ -419,6 +420,9 @@ export const MOCK_ACTIVITY: ActivityEvent[] = [
   event(70, "portal", "apply.submit", "limited", { who: "zhou_zihan", meta: { bucket: "apply.daily", retry_after: 35_000 } }),
   event(95, "cli", "auth.signin", "ok", { who: "he_miao", ua: UA_CLI, meta: { provider: "device" } }),
   event(120, "console", "users.update", "ok", { who: "chen_hang", target_type: "account", target_id: "mock-qin_lan", meta: { before: { titles: [] }, after: { titles: ["title.ai.deputy"] } } }),
+  event(33, "gitlab", "gitlab.merge_request.opened", "ok", { who: "he_miao", target_type: "merge_request", target_id: "42", ip: null, ua: null, meta: { project: "geek/portal", url: "https://example.test/gitlab/geek/portal/-/merge_requests/42", gitlab_username: "he_miao", linked: true } }),
+  event(58, "gitlab", "gitlab.push.pushed_to", "ok", { target_type: "push", ip: null, ua: null, meta: { project: "geek/sandbox", url: "https://example.test/gitlab/geek/sandbox/-/commits/main", ref: "main", commit_count: 3, gitlab_username: "guest_dev", linked: false } }),
+  event(110, "gitlab", "gitlab.issue.closed", "ok", { who: "chen_hang", target_type: "issue", target_id: "17", ip: null, ua: null, meta: { project: "geek/geek-cli", url: "https://example.test/gitlab/geek/geek-cli/-/issues/17", gitlab_username: "chen_hang", linked: true } }),
   event(150, "console", "gitlab.resync", "error", { who: "chen_hang", target_type: "account", target_id: "mock-fang_lin", meta: { error: "gitlab_avatar_400" } }),
   event(200, "api", "events.rejected", "denied", { visitor: V2, meta: { action: "os.debug.dump" } }),
   event(240, "portal", "auth.signin_denied", "denied", { who: "mo_chen", meta: { reason: "account_disabled" } }),
@@ -1013,7 +1017,7 @@ function routeUsers(persona: Persona, search: URLSearchParams): UsersResponse {
 /** 和服务端 activityQuery 契约（app/server/src/routes/console/contracts.ts 的 `activityQuery`）同一份允许字段：
  * 预览环境没有 ajv，不手动核对的话，调用点悄悄传一个契约之外的参数（例如 `limit`）在这里会被默默忽略，
  * 只有连真实后端才会报 400，问题拖到上线才暴露（#274 的操作记录筛选 400）。 */
-const ACTIVITY_QUERY_KEYS = ["account", "visitor", "action", "surface", "outcome", "from", "to", "cursor"];
+const ACTIVITY_QUERY_KEYS = ["account", "visitor", "action", "surface", "outcome", "from", "to", "cursor", "offset"];
 function assertKnownQuery(search: URLSearchParams, allowed: string[]): void {
   for (const key of search.keys()) if (!allowed.includes(key)) fail(400, "validation_error", "querystring must NOT have additional properties");
 }
@@ -1035,8 +1039,9 @@ function routeActivity(persona: Persona, search: URLSearchParams): ActivityList 
     && (!get("outcome") || row.outcome === get("outcome"))
     && (from === null || row.at >= from)
     && (to === null || row.at <= to));
-  const page = activityPage(rows, search.get("cursor"), 50, permissionsOf(persona).includes("activity.read.ip"));
-  return { ...page, blocked_today: scoped ? [] : MOCK_BLOCKED_TODAY };
+  // 预览里的游标就是偏移量；按页翻（#370）直接传 offset。
+  const page = activityPage(rows, search.get("offset") ?? search.get("cursor"), 50, permissionsOf(persona).includes("activity.read.ip"));
+  return { ...page, total: rows.length, blocked_today: scoped ? [] : MOCK_BLOCKED_TODAY };
 }
 
 function routeSummary(persona: Persona): Summary {
@@ -1078,7 +1083,7 @@ export function routeConsole(url: URL): unknown {
   if (path === "/api/console/security/decoy" || path === "/api/console/security/blocks") {
     gate(persona, "security.manage");
     assertKnownQuery(search, []);
-    return path.endsWith("/blocks") ? { blocks: [] } : { available: false, active: false, expires_at: null, now: Date.now(), max_minutes: 60, shield_enabled: false };
+    return path.endsWith("/blocks") ? { blocks: [] } : { available: false, active: false, permanent: false, expires_at: null, now: Date.now(), max_minutes: 60, shield_enabled: false };
   }
 
   const account = path.match(/^\/api\/console\/accounts\/([^/]+)\/(activity|effective)$/);

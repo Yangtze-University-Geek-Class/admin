@@ -16,13 +16,18 @@ export default async function securityRoutes(app: FastifyInstance) {
   const clear = { preHandler: [requirePermission("security.manage"), requireStepUp] };
 
   app.get("/api/console/security/decoy", manage, async () => decoy.get());
-  app.put<{ Body: { enabled: true; duration_minutes: number } | { enabled: false } }>("/api/console/security/decoy", clear, async (req) => {
+  app.put<{ Body: { enabled: true; duration_minutes: number } | { enabled: true; permanent: true } | { enabled: false } }>("/api/console/security/decoy", clear, async (req) => {
     return storage.db.transaction(() => {
-      const minutes = req.body.enabled ? req.body.duration_minutes : null;
-      const status = decoy.setEnabled(req.body.enabled, minutes ?? undefined);
+      const body = req.body;
+      // 合同已保证 permanent 与 duration_minutes 二选一；这里只做映射。
+      const duration = body.enabled ? ("permanent" in body ? "permanent" : body.duration_minutes) : undefined;
+      const status = decoy.setEnabled(body.enabled, duration);
       activity.recordActivity(req, {
         action: "security.decoy.update", surface: "console", outcome: "ok",
-        meta: { enabled: req.body.enabled, duration_minutes: minutes, expires_at: status.expires_at },
+        meta: {
+          enabled: body.enabled, duration_minutes: typeof duration === "number" ? duration : null,
+          permanent: duration === "permanent", expires_at: status.expires_at,
+        },
       });
       return status;
     }).immediate();

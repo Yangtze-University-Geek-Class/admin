@@ -2,7 +2,7 @@
 
 > 模块自有 Schema、明确错误语义和外部副作用约定。
 
-状态：`current` · 更新：2026-10-30
+状态：`current` · 更新：2026-10-31
 
 方法路径的完整注册清单与已挂载 Schema 见[接口目录](catalog/routes.md)和[机器目录](catalog/catalog.json)。逐接口成功/失败响应、资源授权与数据副作用见[接口行为契约](../services/server/endpoint-contracts.md)。本手册继续维护跨接口约定；目录不把人工说明冒充已挂载的响应 Schema。
 
@@ -119,8 +119,8 @@ portal 包括 /api/docs、/api/feedback、/api/portal/apply、/api/public/config
 | `POST /api/console/invites` | `accounts.invites.manage` | 30 次/分钟 | 201 邀请码一行：body `{ code, note?, max_uses?, expires_at? }`，`code` 8–40 位字母、数字、`_`、`-`（#319，新建至少 8 位；兑换仍接受历史上的 4 位码），存小写；`max_uses`、`expires_at` 为 `null` 表示不限；审计 `invite.create` | 400；409 `invite_code_taken` |
 | `GET /api/console/security/blocks` | `security.manage`（站长根通配 `*` 默认拿到） | 无 | 200 `{ blocks: [{ ip, level, blocked_until, retry_after, reason, created_at, updated_at }] }`：只列生效中的封禁（`blocked_until` 为毫秒时间戳，`retry_after` 为剩余秒数）；每次查看写一条 `security.blocks.view` 操作记录（#333） | — |
 | `DELETE /api/console/security/blocks/:ip` | `security.manage`，并要求刚登录过（step-up） | 无 | 200 `{ ip, cleared: true }`：立即结束这个 IP 生效中的封禁，级别归零（下一次封禁从第一级重新算），写一条 `security.block.clear` 操作记录（#333） | 400 `bad_ip`（不是 IP 地址）；404 `not_found`（没有生效中的封禁） |
-| `GET /api/console/security/decoy` | `security.manage` | 无 | 200 `{available,active,expires_at,now,max_minutes,shield_enabled}`，时间为毫秒；缺配置默认关闭，合法过期截止仍保留用于展示 | 401；403 |
-| `PUT /api/console/security/decoy` | `security.manage` + step-up | 无 | body为 `{enabled:true,duration_minutes:1..60整数}` 或 `{enabled:false}`；拒绝额外字段；200返回同上状态。保存与 `security.decoy.update` 同事务，审计失败回滚 | 400 `validation_error`；409 `decoy_unavailable`（非正式身份）、`shield_disabled`；401/403；500审计失败 |
+| `GET /api/console/security/decoy` | `security.manage` | 无 | 200 `{available,active,permanent,expires_at,now,max_minutes,shield_enabled}`，时间为毫秒；`permanent` 为真时永久开启、`expires_at` 为 null；缺配置默认关闭，合法过期截止仍保留用于展示 | 401；403 |
+| `PUT /api/console/security/decoy` | `security.manage` + step-up | 无 | body为 `{enabled:true,duration_minutes:1..60整数}`、`{enabled:true,permanent:true}` 或 `{enabled:false}`；拒绝额外字段，时长与永久开启不能同时给；200返回同上状态。保存与 `security.decoy.update` 同事务，审计失败回滚 | 400 `validation_error`；409 `decoy_unavailable`（非正式身份）、`shield_disabled`；401/403；500审计失败 |
 | `PATCH /api/console/invites/:id` | `accounts.invites.manage` | 30 次/分钟 | 200 邀请码一行：只改 `note`、`max_uses`、`expires_at`、`disabled`，邀请码本身不能改、不能删；有改动才审计 `invite.update` | 404 `not_found` |
 | `GET /api/console/gitlab/accounts` | `gitlab.view` | 无 | 200 `{ mode, gitlab_url, group, client_registered, accounts }`：每个极客班账号对应的 GitLab 用户 id、用户名、状态、组权限、最后一次错误和还要做的事（#270） | 401；403 `missing_capability` |
 | `POST /api/console/gitlab/accounts/:account_id/resync` | `gitlab.sync` 加 step-up | 30 次/分钟 | 200 `{ mode, …同步后的状态 }`：立即同步一个账号；`dry-run` 只返回要做什么 | 404 `account_not_found`；409 `gitlab_sync_off` |

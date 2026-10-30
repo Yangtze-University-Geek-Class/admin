@@ -685,6 +685,7 @@ export function createGitlabSync(db: Database.Database, deps: {
     return row && row.gitlab_user_id !== null ? { gitlabUserId: row.gitlab_user_id, username: row.username, state: row.state } : null;
   }
 
+  /** 本地已经记下的对应关系（gitlab_accounts.gitlab_user_id），只查库、不发请求；给操作记录（#370）用，身份认定仍走 accountForGitlabUser。 */
   function mappedAccount(gitlabUserId: number): string | null {
     return (db.prepare("SELECT account_id FROM gitlab_accounts WHERE gitlab_user_id = ?").get(gitlabUserId) as { account_id: string } | undefined)?.account_id ?? null;
   }
@@ -806,8 +807,10 @@ export function createGitlabSync(db: Database.Database, deps: {
 
   return {
     get mode() { return config.mode; }, get url() { return config.url; }, get group() { return config.group; },
+    /** GITLAB_URL 与 GITLAB_API_TOKEN 都配了（GitLab 项目事件拉取用，不看 mode）。 */
+    get configured() { return Boolean(config.url && config.token); },
     get intervalMinutes() { return Math.round(intervalMs / 60_000); },
-    plan, reconcile, syncAccount, status, clientRegistered, gitlabUserFor, accountForGitlabUser, start, stop, applySettings, readApi,
+    plan, reconcile, syncAccount, status, clientRegistered, gitlabUserFor, accountForGitlabUser, mappedAccount, start, stop, applySettings, readApi,
     lastRun: () => lastRun, errors24h, health, listProjects,
   };
 }
