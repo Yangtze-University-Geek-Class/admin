@@ -58,3 +58,15 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：逐项核对 diff：只改不传 --forge 时的默认值，传了 --forge 的调用（architecture-alignment）不变；GitLab 一侧与本机默认仍是 gitlab；GITHUB_ACTIONS 的判断与 check-branch-invariants.mjs 相同；检查器没有新增导入，目标分支单文件复制的用法不受影响；新用例覆盖两种环境
 - 结果：结论：通过
+
+## 20:49:32 +08:00 · 提交 · #335 · 补生成项目目录
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：MR !85 改了 docs/conventions/ARCHITECTURE-ALIGNMENT.md（项目目录的来源文件），合入时没有重新生成目录，stage 上 check:catalog 报过期；pnpm catalog:generate 只改指纹与该文件摘要
+- 结果：pnpm check:catalog 通过
+
+## 20:50:43 +08:00 · 审查 · #335 · 目录重新生成的自查
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：核对 diff：六个目录生成物只变指纹与 ARCHITECTURE-ALIGNMENT 的摘要，与 GitHub 同步分支上独立生成的结果逐字节相同；声明改为 docs-only 覆盖目录
+- 结果：结论：通过；check:catalog、check-architecture --base gitlab/stage 通过

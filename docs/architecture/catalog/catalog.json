@@ -17825,7 +17825,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "e11fc14903cab5b91b17e8bc5721dcbf27e658d29da85cc4a0510114f9955682",
+    "fingerprint": "6052e889432e74b356803f5807140dae4192e89e7933bb51ede773a2543e9b9e",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -19813,7 +19813,7 @@
       },
       {
         "path": "docs/conventions/ARCHITECTURE-ALIGNMENT.md",
-        "sha256": "e5c55cedebf21c7c29c0f528f256ecc49b7656801fe230fbf858d59dfd43fa5c"
+        "sha256": "c7cf4e030e972080a739debbcc3e217b9b840eea5301fa7c501a12290014241e"
       },
       {
         "path": "docs/conventions/DOCUMENTATION.md",
