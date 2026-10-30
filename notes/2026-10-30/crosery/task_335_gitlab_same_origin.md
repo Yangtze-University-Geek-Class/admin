@@ -44,3 +44,9 @@
 - 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
 - 做了什么：cutover.sh 的 *-production-path 只改正式库，改回调前 client show 确认版本、签发者必须是正式；move-production-path 记账号基线，新增 check-production-path；move-path.sh 公网核对后调它，失败整批恢复；verify-accounts 有基线时再核对；GitLab compose 模板加 json-file 日志轮转，path-status 报容器日志设置；P-0014、GITLAB.md、CICD.md、RELEASE-PARITY.md、335.json 跟着改；交接目录手册按热修复顺序重写
 - 结果：相关 20 个测试文件 500 个通过 10 个跳过；改动前的脚本跑 #335 用例 10 个失败；日志轮转用例对改动前的模板失败；bash -n、actionlint、shellcheck 通过；check-architecture、check-doc-sync（--base gitlab/stage）通过；pnpm check 停在 check:architecture（默认对 origin/stage 比，把 main 上 46 个不属于本分支的文件算进来），其余各项与 check:cli、typecheck 通过
+
+## 13:23:46 +08:00 · 提交 · #335 · 0e450ed0 搬家用例说明改成只动正式库
+
+- 执行者：agent-claude-t335（Claude Code，claude-opus-5-5）
+- 做了什么：tests/tooling/gitlab-cutover.test.ts 的夹具说明还写着两个库的回调改动，改成正式库，并写明预发布库的客户端文件只用来核对没被碰过
+- 结果：只改注释；gitlab-cutover.test.ts 33 个用例照旧通过
