@@ -5,14 +5,15 @@
     {
       "issue": 309,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "Crosery",
       "approvedAt": "2026-10-28T19:11:00+08:00",
-      "expiresAt": "2026-11-04T19:11:00+08:00",
       "quote": "我们目前有很严重的线上bug，必须全部走hotfix",
       "commits": [
         "228be7bfe3390208644864ab9834e2cfefe3b79a"
-      ]
+      ],
+      "closedAt": "2026-10-30T19:09:45+08:00",
+      "evidence": "修复 228be7bf 随正式 0.1.1 上线，deploy-hotfix 41033176202 十个 job 全绿（含 smoke），正式 release.json 为 0.1.1@28a2e7a4；同构清单 P-0011 已 done（正式同步 on，49 人全映射）；合回 GitLab stage 666c2d5f，GitHub stage 经同步 PR 合回。"
     },
     {
       "issue": 310,
@@ -47,19 +48,19 @@
     {
       "issue": 335,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "Crosery",
       "approvedAt": "2026-10-30T10:52:00+08:00",
-      "expiresAt": "2026-11-06T10:52:00+08:00",
-      "quote": "所有者 2026-10-30 10:52 在会话中批准：按 P0 立即把正式 GitLab 切到主站路径 yangtzeu.work/gitlab，旧子域名只留 301。P0 依据：所有者多次要求、代码仓库入口与规则不一致"
+      "quote": "所有者 2026-10-30 10:52 在会话中批准：按 P0 立即把正式 GitLab 切到主站路径 yangtzeu.work/gitlab，旧子域名只留 301。P0 依据：所有者多次要求、代码仓库入口与规则不一致",
+      "closedAt": "2026-10-30T19:09:45+08:00",
+      "evidence": "正式 GitLab 搬到正式入口的 /gitlab（gitlab-cutover 41025896271、41026637638），deploy-hotfix 41033176202 全绿，verify-accounts 41036945384 有效成员 49 全部通过、sub 不变，P-0017 已 done；预发布统一登录（PR #311）与预发布 GitLab 对齐（PR #312：edge-apply 41044091013、install-preview 41044386021、preview-parity 41045121292 写入实例设置；外观与组 geek 的图片上传修复留在 task/335/parity_upload_fix，走 stage 正常发版）；合回 GitLab stage 666c2d5f。"
     },
     {
       "issue": 344,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "Crosery",
       "approvedAt": "2026-10-30T18:33:00+08:00",
-      "expiresAt": "2026-11-01T18:33:00+08:00",
       "quote": "所有者 2026-10-30 18:33 在会话中批准：给 #308 已在 main 上、还没合回 GitHub stage 的 24 个提交补登合回窗口（tag v0.1.1）",
       "commits": [
         "aa101771f52c4dc7b2e2323e440e9c195eec0215",
@@ -86,7 +87,9 @@
         "9ae30662adcbf4b11f18709f70d470b0ad1f2ff8",
         "76e91522c0fedc20f8e11b5e9f9e7ed4b8dfe1b9",
         "a57c9eec9380a3e974f25b831edc83fcad0edc5c"
-      ]
+      ],
+      "closedAt": "2026-10-30T19:09:45+08:00",
+      "evidence": "补登的 24 个 #308 提交已在 GitLab stage（14e46e6d 起），GitHub stage 经同步 PR 合回；补登后 GitHub main 推送的 branch-guard 通过。"
     }
   ]
 }
