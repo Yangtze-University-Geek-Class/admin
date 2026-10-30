@@ -59,14 +59,14 @@ describe('stickers, reactions and uploads (#276)', () => {
   })
 
   it('takes the controlled CDN address of a content hash too (#286), and no other off-site address', () => {
-    const cdn = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`
+    const cdn = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`
     expect(isStickerUrl(cdn)).toBe(true)
-    for (const url of [`https://evil.example/yzgc/static/site/forum/stickers/${hash}.webp`, `http://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`, `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/../x/${hash}.webp`, `${cdn}?x=1`])
+    for (const url of [`https://evil.example/yzgc/static/site/forum/stickers/${hash}.webp`, `http://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`, `https://cdn.crosery.com/yzgc/static/site/forum/stickers/../x/${hash}.webp`, `${cdn}?x=1`])
       expect(isStickerUrl(url)).toBe(false)
   })
 
   it('keeps sticker packs, reactions and snapshot reactions whose picture is on the CDN, and drops the ones whose picture is on another domain', () => {
-    const cdn = `https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${hash}.webp`
+    const cdn = `https://cdn.crosery.com/yzgc/static/site/forum/stickers/${hash}.webp`
     const evil = `https://evil.example/yzgc/static/site/forum/stickers/${hash}.webp`
     expect(parseStickerPacks({ packs: [{ id: 'yugc', name: '极客娘', stickers: [
       { id: 'yugc-wave', shortcode: 'yugc-wave', label: '打招呼', url: cdn },

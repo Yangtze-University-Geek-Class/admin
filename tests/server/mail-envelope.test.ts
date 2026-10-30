@@ -14,7 +14,7 @@ import {
 } from "../../app/server/src/lib/mail/envelope";
 import { COMPOUND_SURNAMES, greetingFor, recruitmentMessage, type RecruitmentInput, type RecruitmentKind } from "../../app/server/src/lib/mail/recruitment";
 
-const CDN = "https://cdn.yangtzeu.work/geek-public/mail/v1/";
+const CDN = "https://cdn.crosery.com/yzgc/mail/v1/";
 const HOSTILE = `<img src=x onerror=alert(1)> & "q"`;
 const APPLICATION_ID = "5f0c2a8e-3d41-4b6f-9a7e-1c2d3e4f5a6b";
 // 2026-09-27 01:30 北京时间
@@ -279,7 +279,7 @@ describe("mail envelope renderer", () => {
 
   it("rejects an asset base that is not https, or does not end with a slash; file:// only when preview asks for it", () => {
     const message = recruitmentMessage("received", inputs("小明").received);
-    for (const assetBase of ["http://cdn-old.example.test/yzgc/mail/v1/", "https://cdn.yangtzeu.work/geek-public/mail/v1", "javascript:alert(1)//", "https://cdn-old.example.test/x/?a=1", "file:///tmp/mail-envelope/assets/"]) {
+    for (const assetBase of ["http://cdn-old.example.test/yzgc/mail/v1/", "https://cdn.crosery.com/yzgc/mail/v1", "javascript:alert(1)//", "https://cdn-old.example.test/x/?a=1", "file:///tmp/mail-envelope/assets/"]) {
       expect(() => renderEnvelope(message, { assetBase }), assetBase).toThrow(MailTemplateError);
     }
     expect(() => renderEnvelope(message, { assetBase: "file:///tmp/mail-envelope/assets", allowFileAssets: true })).toThrow(MailTemplateError);

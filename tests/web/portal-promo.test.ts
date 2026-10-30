@@ -13,6 +13,7 @@ import {
   startLevelIndex,
   startVariant,
 } from "../../app/web/sites/portal/lib/promo";
+import { STATIC_CDN_ORIGIN } from "../../scripts/static-cdn-base.mjs";
 
 describe("宣传片：只自动播一次的 cookie", () => {
   it("只认 yugc_promo_seen=1 这一个完整的键值", () => {
@@ -53,8 +54,9 @@ describe("宣传片：挑播放方式", () => {
     expect(choosePlayback(none)).toBeNull();
   });
 
-  it("所有地址都在S3 CDN 的 geek-public/media/promo/<版本>-<内容哈希>/ 下", () => {
-    expect(PROMO_BASE).toMatch(/^https:\/\/cdn\.yangtzeu\.work\/geek-public\/media\/promo\/[a-z0-9-]+-[0-9a-f]{12}\/$/);
+  it("所有地址都在公开 CDN 的 yzgc/static/promo/<版本>-<内容哈希>/ 下", () => {
+    expect(PROMO_BASE.startsWith(`${STATIC_CDN_ORIGIN}/yzgc/static/promo/`)).toBe(true);
+    expect(PROMO_BASE.slice(STATIC_CDN_ORIGIN.length)).toMatch(/^\/yzgc\/static\/promo\/[a-z0-9-]+-[0-9a-f]{12}\/$/);
     for (const url of [PROMO.masters.av1, PROMO.masters.h264, PROMO.poster]) expect(url.startsWith(PROMO_BASE)).toBe(true);
     expect(PROMO.masters.av1).toMatch(/master-av1\.m3u8$/);
     expect(PROMO.masters.h264).toMatch(/master-h264\.m3u8$/);

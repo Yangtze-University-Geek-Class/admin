@@ -268,7 +268,7 @@ describe('recipients and configuration', () => {
       NODE_ENV: 'test', PUBLIC_ORIGIN: 'https://example.test', DB_PATH: ':memory:', SESSION_SECRET: 'isolated-core-test-secret-at-least-32',
       ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), OAUTH_CLIENT_ID: 'test-client', OAUTH_CLIENT_SECRET: 'test-only-placeholder',
     };
-    expect(createConfig(env).mail).toEqual({ aliyun: null, resend: null, assetBase: 'https://cdn.yangtzeu.work/geek-public/mail/v1/', replyTo: null, recipients: 'allowlist', allowlist: [] });
+    expect(createConfig(env).mail).toEqual({ aliyun: null, resend: null, assetBase: 'https://cdn.crosery.com/yzgc/mail/v1/', replyTo: null, recipients: 'allowlist', allowlist: [] });
     expect(() => createConfig({ ...env, MAIL_ALIYUN_ACCESS_KEY_ID: 'only-the-id' })).toThrow('must be set together');
     expect(() => createConfig({ ...env, MAIL_ALIYUN_ACCESS_KEY_SECRET: 'only-the-secret' })).toThrow('must be set together');
     expect(() => createConfig({ ...env, MAIL_RECIPIENTS: 'everyone' })).toThrow('MAIL_RECIPIENTS');

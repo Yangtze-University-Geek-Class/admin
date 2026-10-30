@@ -6,7 +6,7 @@ import { createReleaseManifest, contentIndex, validateReleaseManifest } from '..
 
 const identity = { environment: 'preview', commit: 'a'.repeat(40), generatedAt: '2026-10-26T17:21:00.000Z' };
 const object = {
-  key: 'static/site/assets/app-12345678.js',
+  key: 'yzgc/static/site/assets/app-12345678.js',
   sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
   bytes: 3, content_type: 'text/javascript', source_path: 'build/web/assets/app-12345678.js', role: 'portal-asset',
 };
@@ -26,7 +26,7 @@ describe('release provenance and private content index', () => {
     { sha256: 'opaque-etag' }, { bytes: -1 }, { bytes: 1.5 }, { bytes: 10 * 1024 * 1024 + 1 },
     { content_type: 'text/html' }, { role: 'private-upload' }, { source_path: '/private/.env' },
     { source_path: 'build/web/assets/../../private.txt' }, { secret: 'fixture' },
-    { key: 'indexes/content/fixture/sha256.json' }, { key: 'static/site/assets/app-12345678.js?token=fixture' },
+    { key: 'indexes/content/fixture/sha256.json' }, { key: 'yzgc/static/site/assets/app-12345678.js?token=fixture' },
   ])('rejects unsafe object metadata %j', change => {
     expect(() => validateReleaseManifest({ ...valid(), objects: [{ ...object, ...change }] })).toThrow();
   });
@@ -35,11 +35,11 @@ describe('release provenance and private content index', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cdn-manifest-'));
     try {
       const file = join(dir, 'a.js'); writeFileSync(file, 'abc');
-      const manifest = createReleaseManifest([{ file, key: 'static/site/assets/app-12345678.js', size: 3, mime: 'text/javascript' }], identity);
+      const manifest = createReleaseManifest([{ file, key: 'yzgc/static/site/assets/app-12345678.js', size: 3, mime: 'text/javascript' }], identity);
       expect(manifest).toEqual({
         schema_version: 1, environment: 'preview', commit: 'a'.repeat(40), generated_at: identity.generatedAt,
         objects: [{
-          key: 'static/site/assets/app-12345678.js',
+          key: 'yzgc/static/site/assets/app-12345678.js',
           sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
           bytes: 3, content_type: 'text/javascript', source_path: 'build/web/assets/app-12345678.js', role: 'portal-asset',
         }],
@@ -50,7 +50,7 @@ describe('release provenance and private content index', () => {
       expect(() => validateReleaseManifest({ ...manifest, secret: 'fixture' })).toThrow(/字段/);
       expect(() => validateReleaseManifest({ ...manifest, objects: [...manifest.objects, manifest.objects[0]] })).toThrow(/重复/);
       expect(() => validateReleaseManifest({ ...manifest, objects: [{ ...manifest.objects[0], source_path: '/private/.env' }] })).toThrow(/来源/);
-      for (const key of ['static/site/assets/nohash.js', 'static/site/forum/_nuxt/builds/latest.json', 'static/site/assets/.hidden-12345678.js']) {
+      for (const key of ['yzgc/static/site/assets/nohash.js', 'yzgc/static/site/forum/_nuxt/builds/latest.json', 'yzgc/static/site/assets/.hidden-12345678.js']) {
         expect(() => validateReleaseManifest({ ...manifest, objects: [{ ...manifest.objects[0], key }] })).toThrow();
       }
       expect(() => validateReleaseManifest({ ...manifest, commit: [manifest.commit] })).toThrow();
@@ -61,7 +61,7 @@ describe('release provenance and private content index', () => {
   it('records exported forum images as public, content-addressed release objects', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cdn-published-manifest-'));
     try {
-      const key = 'static/site/forum/published/ba7816bf8f01cfea.webp';
+      const key = 'yzgc/static/site/forum/published/ba7816bf8f01cfea.webp';
       const file = join(dir, 'ba7816bf8f01cfea.webp');
       writeFileSync(file, 'abc');
       const manifest = createReleaseManifest([{ file, key, size: 3, mime: 'image/webp' }], identity);

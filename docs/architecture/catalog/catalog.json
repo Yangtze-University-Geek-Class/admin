@@ -4458,7 +4458,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -4912,7 +4912,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -5912,7 +5912,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 33,
+          "line": 44,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -5920,7 +5920,7 @@
           "path": "app/forum/shared/forum-api.ts"
         },
         {
-          "line": 44,
+          "line": 45,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -17825,7 +17825,7 @@
   ],
   "provenance": {
     "basis": "source-and-isolated-runtime",
-    "fingerprint": "6052e889432e74b356803f5807140dae4192e89e7933bb51ede773a2543e9b9e",
+    "fingerprint": "a9e5999b1b3c8d8f1f9a3b95feadec0109e0fc5444b8f28a0c9af42acc1c81eb",
     "sources": [
       {
         "path": "app/cli/package.json",
@@ -18625,7 +18625,7 @@
       },
       {
         "path": "app/forum/shared/post-markdown.ts",
-        "sha256": "19544a56e860598cc73c24e5b556b364a0ac6d7d922a14f553973b27df26c11f"
+        "sha256": "496e0771cdc3ecd8c890071ddcd25b506907fd630ce95a149a09b15835e459bd"
       },
       {
         "path": "app/forum/shared/published.ts",
@@ -18653,7 +18653,7 @@
       },
       {
         "path": "app/forum/shared/sticker-url.ts",
-        "sha256": "668b757631e885629ca248486dff99b8e7297109cceb6126161455eabf3f1484"
+        "sha256": "3bba734bcd191b799d3fd1c84dabd3d4e389e575835d1af266dcf91df6313a29"
       },
       {
         "path": "app/forum/tests/activity-beacon.test.ts",
@@ -18693,15 +18693,15 @@
       },
       {
         "path": "app/forum/tests/site-state.test.ts",
-        "sha256": "fcd9e27caea6df0d03b17b2b62ec6beab53c53008b18f76750dcd86045c452ae"
+        "sha256": "f8132e0e545277293f9f6a057dff0d5df8c859b8c3585bb6ea75f042aedf0408"
       },
       {
         "path": "app/forum/tests/sticker-size-css.test.ts",
-        "sha256": "0f10e6d33a24433b4c7493c5d67d4e2c8fa7adaae9c231de5d50c6ade6c42aae"
+        "sha256": "4cbc84e937d5971a5d48bded6953b53814de5c4205bef082a67a6b07b7e5c26e"
       },
       {
         "path": "app/forum/tests/sticker-url.test.ts",
-        "sha256": "4d10f0a03eb5aba017b0611d3790f9cef81c2cfef42b75c43c6524d201b4787a"
+        "sha256": "ba6ca53d149394b88d51b433c9e288d43c6714b4d5d8a32144441c4e74d79219"
       },
       {
         "path": "app/forum/uno.config.ts",
@@ -18709,7 +18709,7 @@
       },
       {
         "path": "app/server/Dockerfile",
-        "sha256": "2a0a274a844f77582ebbebfca9fef278e7b951133e37ec0f36359e1b0cd40d6f"
+        "sha256": "c6a736b36e2736417060213484fd9749dd6396771cbe5e9c97c35cb09357b8af"
       },
       {
         "path": "app/server/package.json",
@@ -18729,7 +18729,7 @@
       },
       {
         "path": "app/server/src/config.ts",
-        "sha256": "dd12ab972f61b5ba20aa08a326cdc0a7e20cea77d1a87e101b162ec879c614e0"
+        "sha256": "4ed5b9e10c03cf7c9d475d6f3eade88e56b582229201342cb25353aa9fedfa38"
       },
       {
         "path": "app/server/src/index.ts",
@@ -18917,11 +18917,11 @@
       },
       {
         "path": "app/server/src/lib/mail/envelope-pieces.ts",
-        "sha256": "b24efdcecd41b00687725dd937830eb0c6c6c91cf9ffbd172b0e9fdc377b58e7"
+        "sha256": "61a782cf61d6fd535cd2a12b4341ab0f9fcec8a79cf2064f2bccdc9d47e2306e"
       },
       {
         "path": "app/server/src/lib/mail/envelope.ts",
-        "sha256": "06dc10f1a6699b0ffd2d3fec9274a2d1ebdbb7a80e1ff710dad8e7080877b9e3"
+        "sha256": "a764331ff177ac26de500f30768b656a1a73ea78b890778c24e3331eb407cca7"
       },
       {
         "path": "app/server/src/lib/mail/login-code.ts",
@@ -19049,7 +19049,7 @@
       },
       {
         "path": "app/server/src/lib/static-cdn.ts",
-        "sha256": "861f2f39976025351277eabc6238038c7f401105d34f4fe2989eaa9424cc7626"
+        "sha256": "de998ba395b7f0c7fa503f313cec37dde50ab606a82b276d9851822ad6c7c5db"
       },
       {
         "path": "app/server/src/lib/sticker-manifest.ts",
@@ -19717,7 +19717,7 @@
       },
       {
         "path": "app/web/sites/portal/lib/promo.ts",
-        "sha256": "c8b076b1e846d0721d5d7f8d1d86ee429c31d98b1127210da88cbee42a162f39"
+        "sha256": "08a6a81e3c99ed92917876ac40c6f8066d800b5c1d380cb39cb3d394c47833ec"
       },
       {
         "path": "app/web/sites/portal/lib/promoWindow.ts",
@@ -19797,7 +19797,7 @@
       },
       {
         "path": "docs/architecture/API.md",
-        "sha256": "ce654dcd4bda35e579a14d967504310eb6ed6f04333ab4559a58f2eb03b779d4"
+        "sha256": "1008d97e9f3193a972a6b932796bd242f4cf527d5a5cd4b153d7b8f6b07820e3"
       },
       {
         "path": "docs/architecture/ARCHITECTURE.md",
@@ -19829,11 +19829,11 @@
       },
       {
         "path": "docs/ops/DEPLOY.md",
-        "sha256": "8390c06b1026633ceaaa553f1070ae5962ab9a60854c07e3ce00208014547fdf"
+        "sha256": "ce939fbec18c90a53fe922cd38a6bcf073071973b154dae6721d1a6ea91b6b12"
       },
       {
         "path": "docs/ops/ENVIRONMENTS.md",
-        "sha256": "c4517a9220635a3e2dbc01b18cc3a8b09aaa32c416f3f5e9f6b799c94769af9a"
+        "sha256": "9b85da96c4aa2df642e5699c1ddeea7e83cf5673393ff49f8a1a4664ef2ed1b0"
       },
       {
         "path": "docs/ops/USAGE.md",
@@ -19853,15 +19853,15 @@
       },
       {
         "path": "docs/services/console/README.md",
-        "sha256": "c1861441e951e60da57b155c14ca05c1eadbce384feb5d1c96f7be2c459b7d9a"
+        "sha256": "15696c5813ad500fa60cb88e271044a4020f003247c612842db68bcfc2d2cc07"
       },
       {
         "path": "docs/services/forum/README.md",
-        "sha256": "2aec5b43886fa15f7ffa0d5773e3e52993298238b09b2dc8d1199de7aacd7ea5"
+        "sha256": "40cbf3ccbb99454b16698be7a8536c6d515cb1f55f09b729cbde2a4515d5dce7"
       },
       {
         "path": "docs/services/server/README.md",
-        "sha256": "792315279d6f8db6045aaaf01c7e3cc92ce401bac911535c37f68557e1d972c0"
+        "sha256": "ac6eb2774099b37b3b3f04c18db36d7e1214c985c8d41775f9108304d535ecfb"
       },
       {
         "path": "docs/services/server/competition-rehearsal.md",
@@ -19873,11 +19873,11 @@
       },
       {
         "path": "docs/services/server/endpoint-contracts.md",
-        "sha256": "21dc09f941328eeaeeec26ec87be4c99f77821f4e20b7a300869f4ab55f59caf"
+        "sha256": "3c8838c9042a0eb2151f0f1ab8b0b738f9519b302f9b43dfb1651086911a2925"
       },
       {
         "path": "docs/services/server/mail.md",
-        "sha256": "6b9d224cb300e7bd806f55434df121aafb7971784012d30f7cc8cd005698ac3d"
+        "sha256": "ac7f8b9460d58fdf8f9e23598a0ee7d9770cbd30c9556dd2556f29a1b3f840fa"
       },
       {
         "path": "docs/services/server/oidc.md",
@@ -19885,11 +19885,11 @@
       },
       {
         "path": "docs/services/web/README.md",
-        "sha256": "86071d6b1b27bb044324cb745f0634dc8f0c7746f612b28d8a9df12d44b69d45"
+        "sha256": "e37d427323a49325015020968c19df75a6e53a6fb5b49f9016c6d95e6446c494"
       },
       {
         "path": "docs/services/web/portal.md",
-        "sha256": "3250f214079c8631452c0e7ccc029f6064979885d33dab020b8fad8ad8981974"
+        "sha256": "e68fcde59d1caeb012009d9e92258c441d92d7b49a6dd212429427b8289ea77a"
       },
       {
         "path": "pnpm-lock.yaml",
@@ -20005,7 +20005,7 @@
       },
       {
         "path": "tests/e2e/workflows.spec.ts",
-        "sha256": "bab3df6ba042a886868dca67bad096f9a6d003681bfdd5f5290db0eabaebb427"
+        "sha256": "781d8c64ec536c52160396be5fd894c434744c2f90bf9588b1ea932e1cc7f337"
       },
       {
         "path": "tests/server/abuse-notice.test.ts",
@@ -20125,7 +20125,7 @@
       },
       {
         "path": "tests/server/forum-sticker-cdn.test.ts",
-        "sha256": "08059aa707da36325288dee92d0922b6acdc37ec69ee9a25483002e1d2c0621a"
+        "sha256": "5a45541560f24ce3e020141176f6d36156bbc61e856b73046320e004cdfd22d5"
       },
       {
         "path": "tests/server/forum-v2-endpoints.test.ts",
@@ -20133,7 +20133,7 @@
       },
       {
         "path": "tests/server/forum.test.ts",
-        "sha256": "a47251ab9cd69aa0990d88ae174c457868dbd6b2afc4a53b83cde96b7b1eb0ec"
+        "sha256": "791df39ebb2902a69f02f76e5cb0855b36731e836270f9aa355b3f2be5fbc8b4"
       },
       {
         "path": "tests/server/gitlab-sync.test.ts",
@@ -20157,15 +20157,15 @@
       },
       {
         "path": "tests/server/mail-envelope.test.ts",
-        "sha256": "fec9dd076434c54b839b872114d6959679d228dc5444354f15dd36cf57707a6c"
+        "sha256": "f474fc007b54112c0016adfbd9ec712d6c8a2531a83c3264075c86b98a9e6787"
       },
       {
         "path": "tests/server/mail-outbox.test.ts",
-        "sha256": "bd8200ae058cb4b3c09fde3f91197a9b3909eede5554a1641aa5e3dae6591549"
+        "sha256": "541bbf1043470308731be1b9e5177485c4a34ed9d5fcebaa78717f7d30f47798"
       },
       {
         "path": "tests/server/mail-template-content.test.ts",
-        "sha256": "fdd713441be1bbadbf4d675b8748d0aee3103edc3ca9ed3c8724d42de5595b2e"
+        "sha256": "47858d1201beef68f388b007f71c0fdb7c52c34004d7087e775a44ece363854b"
       },
       {
         "path": "tests/server/mail-templates.test.ts",
@@ -20249,7 +20249,7 @@
       },
       {
         "path": "tests/tooling/web-nginx.test.ts",
-        "sha256": "89201799a78ccfe1dc9dcddc1e4f98a11d289d9863128d13eed2601b6d195c41"
+        "sha256": "f076c79a92c2e448a2b42f27ce9c25ec67335ec94c87b8e3a23c7f39720c491a"
       },
       {
         "path": "tests/web/competition-sdk.test.ts",
@@ -60668,7 +60668,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -60732,7 +60732,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -60796,7 +60796,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -60860,7 +60860,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -60924,7 +60924,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -60988,7 +60988,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61052,7 +61052,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61116,7 +61116,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61180,7 +61180,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61244,7 +61244,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61308,7 +61308,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61372,7 +61372,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61436,7 +61436,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61500,7 +61500,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61564,7 +61564,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61634,7 +61634,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61698,7 +61698,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61762,7 +61762,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61826,7 +61826,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61890,7 +61890,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -61954,7 +61954,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -62018,7 +62018,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -62082,7 +62082,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -62146,7 +62146,7 @@
           "path": "app/forum/app/editor/inline-stickers.ts"
         },
         {
-          "line": 63,
+          "line": 64,
           "path": "app/forum/shared/post-markdown.ts"
         }
       ],
@@ -68506,7 +68506,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 33,
+          "line": 44,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68514,7 +68514,7 @@
           "path": "app/forum/shared/forum-api.ts"
         },
         {
-          "line": 44,
+          "line": 45,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68578,7 +68578,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 33,
+          "line": 44,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68586,7 +68586,7 @@
           "path": "app/forum/shared/forum-api.ts"
         },
         {
-          "line": 44,
+          "line": 45,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68680,7 +68680,7 @@
           "path": "app/server/src/lib/db.ts"
         },
         {
-          "line": 33,
+          "line": 44,
           "path": "app/forum/shared/sticker-url.ts"
         },
         {
@@ -68688,7 +68688,7 @@
           "path": "app/forum/shared/forum-api.ts"
         },
         {
-          "line": 44,
+          "line": 45,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68830,7 +68830,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68874,7 +68874,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68918,7 +68918,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -68962,7 +68962,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69006,7 +69006,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69050,7 +69050,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69094,7 +69094,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69138,7 +69138,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69200,7 +69200,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69244,7 +69244,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69288,7 +69288,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69332,7 +69332,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {
@@ -69376,7 +69376,7 @@
           "path": "app/forum/app/pages/t/[id].vue"
         },
         {
-          "line": 31,
+          "line": 32,
           "path": "app/forum/shared/post-markdown.ts"
         },
         {

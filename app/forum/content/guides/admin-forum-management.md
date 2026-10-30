@@ -13,12 +13,12 @@ date: 2026-10-24
 1. 打开 `/console/forum`，按自己持有的权限节点显示「分类」「表情」「我的论坛权限」几个页签。
 2. 「分类」页签是一张表，列出每个分类、话题数和「谁能看」：所有人、注册用户、极客班成员三个按钮，点哪个就立刻改成哪个，改完提示「「分类」改成X能看」。
 
-![论坛管理「分类」页签，谁能看的三个按钮](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-forum-categories.Ff4BGzDy.webp)
+![论坛管理「分类」页签，谁能看的三个按钮](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-forum-categories.Ff4BGzDy.webp)
 
 3. 没登录的人只能看「所有人」能看的分类；单个话题可以在论坛页面的「话题管理」里单独设得比分类更严，不能设得更松。分类本身（新增、改名）不在这里做，来自项目里维护的一份配置文件。
 4. 「表情」页签每个表情包一张卡片，写着包名、表情数和是否停用；右上角「新建表情包」填名字和排序就能建一个空包，表情包不能重名。点一张卡片进到这个包里，上面有「改名和排序」「停用整包」或「启用整包」「加表情」。
 
-![论坛管理「表情」页签，表情包卡片列表](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-forum-stickers.tjEBotSO.webp)
+![论坛管理「表情」页签，表情包卡片列表](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-forum-stickers.tjEBotSO.webp)
 
 5. 点「加表情」，可以一次选多张图（每张 PNG、JPEG 或 WebP，不超过 2MB），每张填短码（小写字母、数字和连字符，建好后不能改）和名字，提交后马上能在论坛的表情面板和回应面板里用。短码重名、或者同一个包里名字重复会提示冲突，改一个再提交。名字会出现在论坛的 `[包名_名字]` 写法里，改名字不影响已经发出去的帖子。
 6. 单个表情能「编辑」改名字和排序，也能单独停用、启用这一个表情，不用整包下架。表情不删，不用了就停用。

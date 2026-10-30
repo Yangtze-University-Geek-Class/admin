@@ -12,7 +12,7 @@ date: 2026-10-24
 
 1. 打开 `/signin`。页面上列出能用的登录方式：邮箱，以及 GitHub、启用了的话还有 Google。
 
-![登录页，上面是邮箱的登录和注册标签，下面是跳转按钮](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/signin-form.eX3hpwMA.webp)
+![登录页，上面是邮箱的登录和注册标签，下面是跳转按钮](https://cdn.crosery.com/yzgc/static/site/forum/guides/signin-form.eX3hpwMA.webp)
 
 2. 第一次用邮箱的人点「注册」标签，填邮箱、真实姓名、所在年级，邀请码可以不填，再填验证码，密码也可以不填，最后点「注册并登录」。
 3. 邀请码可以不填。填了有效的邀请码，注册后就是极客班成员；不填，先是注册用户，以后再补邀请码也能变成成员，见下一步。
@@ -20,7 +20,7 @@ date: 2026-10-24
 5. 忘了密码，在「登录」标签切到「密码」，下面点「忘记密码？」，填邮箱、验证码和新密码重设。
 6. 日常改资料：在官网桌面右上角点头像，打开「账号资料」窗口。
 
-![账号资料窗口，显示头像、昵称、用户名、简介和登录方式](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/profile-card.2EFvNlaC.webp)
+![账号资料窗口，显示头像、昵称、用户名、简介和登录方式](https://cdn.crosery.com/yzgc/static/site/forum/guides/profile-card.2EFvNlaC.webp)
 
 7. 窗口里能换头像、改昵称、@用户名和简介，失焦或按回车就保存。真实姓名和所在年级在这里只能看，改不了，填错了找管理员在控制台改。
 8. 登录方式（邮箱、GitHub、Google）、设密码、绑定或删除邮箱在「账号资料」窗口的「账号设置」里，也可以直接打开 `/account`。

@@ -305,9 +305,9 @@ jobs:
         env:
           STATIC_CDN_S3_ACCESS_KEY_ID: ${{ secrets.STATIC_CDN_S3_ACCESS_KEY_ID }}
           STATIC_CDN_S3_SECRET_ACCESS_KEY: ${{ secrets.STATIC_CDN_S3_SECRET_ACCESS_KEY }}
-          STATIC_CDN_S3_ENDPOINT: https://cdn.yangtzeu.work
-          STATIC_CDN_S3_REGION: garage
-          STATIC_CDN_S3_BUCKET: geek-public
+          STATIC_CDN_S3_ENDPOINT: https://s3.cn-south-1.qiniucs.com
+          STATIC_CDN_S3_REGION: cn-south-1
+          STATIC_CDN_S3_BUCKET: ${{ secrets.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
@@ -542,9 +542,9 @@ jobs:
         env:
           STATIC_CDN_S3_ACCESS_KEY_ID: ${{ secrets.STATIC_CDN_S3_ACCESS_KEY_ID }}
           STATIC_CDN_S3_SECRET_ACCESS_KEY: ${{ secrets.STATIC_CDN_S3_SECRET_ACCESS_KEY }}
-          STATIC_CDN_S3_ENDPOINT: https://cdn.yangtzeu.work
-          STATIC_CDN_S3_REGION: garage
-          STATIC_CDN_S3_BUCKET: geek-public
+          STATIC_CDN_S3_ENDPOINT: https://s3.cn-south-1.qiniucs.com
+          STATIC_CDN_S3_REGION: cn-south-1
+          STATIC_CDN_S3_BUCKET: ${{ secrets.STATIC_CDN_S3_BUCKET }}
           STATIC_CDN_S3_FORCE_PATH_STYLE: 'true'
           ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |

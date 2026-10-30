@@ -220,9 +220,9 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 - 部署用户的 SSH 密钥只存在于 GitHub 环境级 secrets 与维护者机器（`scripts/deploy-manual.mjs` 通过 `DEPLOY_SSH_KEY_FILE` 读取）；不在仓库、脚本或日志中出现。
 - 镜像与 env 文件按 600/最小权限落在栈根，发布产物不包含 `.env`、真实数据库或 SSH 材料；incoming 里分发来的归档与 env 副本在部署成功后删除（见「incoming 清理」）。
 
-## 静态资源 CDN（#295）
+## 静态资源 CDN（#295，#346 改回七牛）
 
-完整合同见 [CDN](CDN.md)，发布接线见 [CICD](CICD.md)。只允许构建前缀 `https://cdn.yangtzeu.work/geek-public/static/site/`，公开对象在 `geek-public`；HLS 在 `media/promo/`，邮件图片在 `mail/v1/`，业务数据不外移。
+完整合同见 [CDN](CDN.md)，发布接线见 [CICD](CICD.md)。只允许构建前缀 `https://cdn.crosery.com/yzgc/static/site/`，公开对象在七牛桶的 `yzgc/` 下；宣传片在 `yzgc/static/promo/`，邮件图片在 `yzgc/mail/v1/`，业务数据不外移。
 
 - 先在香港按两环境策略源核对现行 Caddy 配置，保留论坛内联哈希与比赛 sandbox，备份、validate 并在授权后 reload，再经公网核对 CSP，再由受保护发布 job 注入 S3 环境凭据。无凭据或未放行 CSP 时按原约定同源构建；签名请求401或网络失败不得绕过认证或回旧服务。
 - 镜像始终保留全部同源构建资源，表情 BLOB 同源接口保持可用；宣传片、邮件和指南的固定 CDN 地址不能靠空构建开关恢复。
@@ -233,7 +233,7 @@ bash /opt/yzgc/production/incoming/rollback-stack.sh --environment production --
 
 ## 香港对象存储（站点静态资源与备份归档）
 
-`cdn.yangtzeu.work` 是香港一台 1 vCPU / 1 GiB 小机器上的 S3 兼容对象存储（Garage + Caddy + S3 Manager），承担站点带哈希静态资源、表情包、宣传片和邮件图片的公共出口（`geek-public`），以及 GitLab 与平台备份的归档（`geek-backup`）。预发布与正式的页面只有在边缘 CSP 放行 `https://cdn.yangtzeu.work/geek-public/static/site/` 后才会以 CDN 模式构建（`deploy-*.yml` 的 cdn-plan 读线上响应头）；七牛旧 CDN 域名（个人域名）不再增写，旧对象只留给 rc.25 及更早版本回滚。
+#346 起公开静态资源（站点带哈希资源、表情包、使用说明截图、宣传片和邮件图片）回到七牛：上传端点 `https://s3.cn-south-1.qiniucs.com`，桶名取部署密钥 `STATIC_CDN_S3_BUCKET`，公开入口 `https://cdn.crosery.com`。预发布与正式的页面只有在边缘 CSP 放行 `https://cdn.crosery.com/yzgc/static/site/` 后才会以 CDN 模式构建（`deploy-*.yml` 的 cdn-plan 读线上响应头）。香港的 `cdn.yangtzeu.work`（Garage + Caddy + S3 Manager）公开桶已封存：不再接收公开对象，已有对象和直链保留；它仍承担 GitLab 与平台备份的私有归档（`geek-backup`）、内容索引私有桶与 CDN 镜像，这些等 #346 的后续步骤切换。
 
 - 配置模板在 [`deploy/storage-cdn/`](../../deploy/storage-cdn/)（`garage.toml`、`s3manager.env`、`Caddyfile`、`edge.caddy`、`scripts/upload_demo.py`），合同见 [STORAGE-CDN](STORAGE-CDN.md)。
 - 公网入口由主站香港 `156.238.244.78` 的 `/etc/caddy/sites/storage-cdn-edge.caddy` 反代到 Garage 机 `103.240.197.216`，保留 Host、S3 签名、CORS、Range、MIME 与缓存；`cdn` 的 A 记录回滚值是 `103.240.197.216`。

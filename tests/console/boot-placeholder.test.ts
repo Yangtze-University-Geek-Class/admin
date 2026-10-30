@@ -92,9 +92,9 @@ describe("moveStylesheetsToBodyEnd", () => {
     '    <link rel="icon" type="image/png" sizes="32x32" href="/console-assets/favicon-32-a1.png" />',
     "    <title>极客班控制台</title>",
     "    <style>.console-boot { display: grid; }</style>",
-    '    <script type="module" crossorigin src="https://cdn.yangtzeu.work/geek-public/static/site/console-assets/index-b2.js"></script>',
-    '    <link rel="modulepreload" crossorigin href="https://cdn.yangtzeu.work/geek-public/static/site/console-assets/vendor-c3.js">',
-    '    <link rel="stylesheet" crossorigin href="https://cdn.yangtzeu.work/geek-public/static/site/console-assets/index-d4.css">',
+    '    <script type="module" crossorigin src="https://cdn.crosery.com/yzgc/static/site/console-assets/index-b2.js"></script>',
+    '    <link rel="modulepreload" crossorigin href="https://cdn.crosery.com/yzgc/static/site/console-assets/vendor-c3.js">',
+    '    <link rel="stylesheet" crossorigin href="https://cdn.crosery.com/yzgc/static/site/console-assets/index-d4.css">',
     "    <link rel=stylesheet href=/console-assets/extra-e5.css>",
     "  </head>",
     "  <body>",
@@ -112,7 +112,7 @@ describe("moveStylesheetsToBodyEnd", () => {
     for (const kept of ['rel="icon"', "<style>.console-boot", '<script type="module"', 'rel="modulepreload"']) expect(outHead).toContain(kept);
     expect(out).toContain([
       '    <div class="console-boot" role="status"><span>正在加载控制台</span></div>',
-      '    <link rel="stylesheet" crossorigin href="https://cdn.yangtzeu.work/geek-public/static/site/console-assets/index-d4.css">',
+      '    <link rel="stylesheet" crossorigin href="https://cdn.crosery.com/yzgc/static/site/console-assets/index-d4.css">',
       "    <link rel=stylesheet href=/console-assets/extra-e5.css>",
       "  </body>",
       "</html>",

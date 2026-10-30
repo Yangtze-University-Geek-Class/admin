@@ -1112,7 +1112,7 @@ owner 特殊边界（GitHub #271）：isSiteOwner/siteOwnerCount 只计 active �
 
 权限与资源：公开只读，不要求登录，不判身份。
 
-响应与错误：200 {packs:[{id,name,stickers:[{id,shortcode,label,url}]}]}，只含enabled=1的包与表情；进程内缓存60秒，控制台改过表情后显式invalidate这个key。url由服务端按CDN开关决定（#286，STATIC_CDN_BASE）：开关关闭全是同源/api/forum/stickers/<哈希>.webp；开关打开，清单（app/server/assets/stickers/manifest.json）里的内置表情是CDN绝对地址https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/<哈希>.webp，站长在控制台上传的、不在清单里的仍是同源地址。
+响应与错误：200 {packs:[{id,name,stickers:[{id,shortcode,label,url}]}]}，只含enabled=1的包与表情；进程内缓存60秒，控制台改过表情后显式invalidate这个key。url由服务端按CDN开关决定（#286，STATIC_CDN_BASE）：开关关闭全是同源/api/forum/stickers/<哈希>.webp；开关打开，清单（app/server/assets/stickers/manifest.json）里的内置表情是CDN绝对地址https://cdn.crosery.com/yzgc/static/site/forum/stickers/<哈希>.webp，站长在控制台上传的、不在清单里的仍是同源地址。
 
 数据与副作用：纯读，不写任何表；短码即表情id，前端据此渲染正文里的短码。
 

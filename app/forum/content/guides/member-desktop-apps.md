@@ -10,14 +10,14 @@ date: 2026-10-24
 
 这篇给刚接触官网桌面的人看。官网首页是一张桌面，桌面上的图标和 Dock 打开的都是窗口，不是单独的网页。
 
-![官网桌面，图标和 Dock 可见](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/desktop-home.zkL5w5Fu.webp)
+![官网桌面，图标和 Dock 可见](https://cdn.crosery.com/yzgc/static/site/forum/guides/desktop-home.zkL5w5Fu.webp)
 
 1. 第一次打开官网会先播一段开机动画，播完或跳过后进入桌面；今天已经播过的话直接进桌面。
 2. 桌面图标和 Dock 上有：加入我们（投递简历）、论坛（整页跳转到论坛首页）、代码仓库（弹窗列出公开项目，点项目在新标签页打开）、比赛、组织架构、意见箱、终端，登录后有控制台权限的人还会多一个「控制台」图标。
 3. 点一次图标就打开对应窗口；电脑上窗口能拖动、最小化、放大，手机上从底部升起。
 4. 「组织架构」窗口列出极客班的部门和每个部门的称号。
 
-![组织架构窗口，列出部门卡片](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/org-window.l_yl9Bi7.webp)
+![组织架构窗口，列出部门卡片](https://cdn.crosery.com/yzgc/static/site/forum/guides/org-window.l_yl9Bi7.webp)
 
 5. 「比赛」窗口列出近期的比赛，报名、组队和天梯在另一篇里讲。
 6. 「意见箱」窗口不用登录也能提意见，提交后管理员会在控制台回复。

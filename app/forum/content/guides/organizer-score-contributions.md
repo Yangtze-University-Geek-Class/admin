@@ -15,14 +15,14 @@ date: 2026-10-24
 
 3. 没有打两档标签、或者想手工确认的，到比赛详情的「待确认贡献」页签。
 
-![待确认贡献页签，列出待确认、已加分、已驳回的条目](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-candidates-tab.OyRK9pDF.webp)
+![待确认贡献页签，列出待确认、已加分、已驳回的条目](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-candidates-tab.OyRK9pDF.webp)
 
 4. 列表按「待确认」「已加分」「已驳回」筛选。点一条的「确认」，弹窗里选「重要程度」和「核心度」，默认带着 GitLab 标签上的值，选好会直接显示试算的分数，说明可以不填，点「确认加分」。
 5. 不该算分的点「驳回」，驳回原因要填，不填不能提交，作者会在记录里看到；已经加过分的条目被驳回时，这条分会被一起撤销。
 6. 右上角「立即收集」能马上去 GitLab 再收一轮，不用等 10 分钟的周期。
 7. 作弊扣分或者要手工登记不是来自 GitLab 的贡献，到「积分」页签。
 
-![积分页签，选手、类型和两档评定的登记表单](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-score-tab.zHib8QwB.webp)
+![积分页签，选手、类型和两档评定的登记表单](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-score-tab.zHib8QwB.webp)
 
 8. 「选手」按登录名搜索已报名的人，「类型」选 Issue、合入的 MR 或「作弊扣分」；选 Issue 或 MR 要填仓库路径和编号，再选两档；扣分固定减 50 分，不乘年级系数，也不用填仓库和两档。「说明」写清楚理由，点「登记积分」。
 9. 登记错了在下面的记录表里点「撤销」，只改状态，记录本身保留，方便事后核对。

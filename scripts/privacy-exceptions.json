@@ -47,6 +47,378 @@
       "valueSha256": "f78aa2093631366477613924f149d9ee14288a7fb6f4c576fd2f02d5e95e2ad2",
       "maxCount": 1,
       "reason": "上游论坛演示数据里的虚构用户路径，不是真人标识"
+    },
+    {
+      "file": "docs/changes/346.json",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/admin-feedback.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/admin-forum-management.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/admin-invites.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/admin-permissions-titles.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/admin-users.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/dept-head-members.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/member-competition-signup.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/member-desktop-apps.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/member-forum-basics.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/member-login-and-account.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/organizer-contest-sdk-quickstart.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/organizer-contest-site-upload.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/organizer-create-competition.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/organizer-finalize-and-prizes.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/guides/organizer-score-contributions.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/content/published/topics.json",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 63,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/shared/sticker-url.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/tests/forum-api.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 4,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/tests/inline-stickers.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/tests/post-markdown.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 8,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/tests/sticker-size-css.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/forum/tests/sticker-url.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 8,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/server/Dockerfile",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/server/src/config.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/server/src/lib/mail/envelope-pieces.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/server/src/lib/mail/envelope.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/server/src/lib/static-cdn.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "app/web/sites/portal/lib/promo.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "deploy/env/.env.dev",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "deploy/env/.env.preview",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "deploy/env/.env.production",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "deploy/nginx/preview.conf",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 6,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "deploy/nginx/production.conf",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 6,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/architecture/API.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/ops/CDN.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 8,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/ops/DEPLOY.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/ops/ENVIRONMENTS.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/console/README.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/forum/README.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/server/README.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/server/endpoint-contracts.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/server/mail.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/web/README.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "docs/services/web/portal.md",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "scripts/static-cdn-base.mjs",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/console/boot-placeholder.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 4,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/e2e/workflows.spec.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/server/forum-sticker-cdn.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/server/forum.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/server/mail-envelope.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 2,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/server/mail-outbox.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/server/mail-template-content.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/check-privacy.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/deployment-environment.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 11,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/static-cdn-parity.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 5,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/static-cdn-s3.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/static-cdn-switch.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/static-cdn.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 3,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/sticker-manifest.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
+    },
+    {
+      "file": "tests/tooling/web-nginx.test.ts",
+      "hostSha256": "335f27f9c31df43825d1c9a682449e67e49e29ac5499ba24a82c7b771775b2f0",
+      "maxCount": 1,
+      "reason": "公开静态资源的 CDN 域名（#346，所有者批准的窄放行：只放行精确主机，按文件与次数登记）"
     }
   ]
 }

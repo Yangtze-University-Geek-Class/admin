@@ -2,7 +2,7 @@
 
 > 招新的四封信怎么拼、怎么渲染、怎么排队发出去：每类信的内容是库里的模板（可以有多套，控制台里编辑、预览、向测试邮箱试发），拼好后先写进 data.db 的发信队列，再由服务进程里的发信循环交给阿里云邮件推送或 Resend；信封版式照官网「加入我们」的信纸，图片部件放在 CDN 上。
 
-状态：`current` · 更新：2026-10-27 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148、#204、#262、#285
+状态：`current` · 更新：2026-10-30 · 源码：`app/server/src/lib/mail/` · 上级合同：[server](README.md) · issue：#148、#204、#262、#285
 
 ## 现状
 
@@ -36,7 +36,7 @@ mail.drain() / mail.start(logger) / mail.stop()
 ```
 
 - `EnvelopeMessage`：主题、收件箱摘要（preheader）、信纸左上角的小字、抬头、正文块（`paragraph` 段落、`facts` 两列事实栏，可带标题、`list` 编号列表，空条目会去掉、`quote` 带标题的多行引用）、可选按钮、落款日期、页脚几行字、页脚的站点链接、可选的回信地址 `replyTo`。以后的站内通知（#149）只要拼出同样的结构就能复用版式。
-- `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（正式发信用 `https://cdn.yangtzeu.work/geek-public/mail/v1/`）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
+- `assetBase`：图片部件的地址前缀，必须以 `/` 结尾，只能是 `https://`（正式发信用 `https://cdn.crosery.com/yzgc/mail/v1/`）。本机预览要用 `file://` 时显式传 `allowFileAssets: true`；发信时不传，配置写错成 `file://` 会直接抛错，不会发出一封图片全失效的信。
 - 发件人名是 `MAIL_SENDER_NAME`（长江大学极客班），发信模块写 `From` 头时用同一个常量。
 - 控制台有五种投递状态（`lib/roles.ts` 的 `APPLICATION_STATUSES`），其中只有下面四种对应信件；`cancelled` 没有信件模板：
   - `received` 已收到：投递成功时发，附上投递人写的特长与优点原文（`quote`，一行一行照写、经过转义）。
@@ -129,7 +129,7 @@ mail.drain() / mail.start(logger) / mail.stop()
   - 带回信地址的信只交给 Resend：阿里云这一边不写按封的 Reply-To（原因见「已知限制」）。配了 `MAIL_REPLY_TO` 时每封信都带回信地址，`mailer.ts` 只把能带 Reply-To 的发信商交给发信队列；只配了阿里云时按没有配置发信商处理，信记成 `skipped` / `mail_disabled`，控制台的 `mail.enabled`、`deliverable` 都是 false，不会说「保存并发邮件」。发信队列里还留着一道检查：真有一封带回信地址的信没有发信商能发时，记成 `failed`，`last_error` 是 `reply_to_unsupported`。
 - 请求只用全局 `fetch` 和 `node:crypto`，没有新增依赖；每个请求 15 秒超时。测试注入假的 `fetch`（`ServiceOverrides.mailFetch`），`tests/server/helpers.ts` 默认拒绝任何发信请求。
 - 发信循环只在服务进程里开：`index.ts` 调 `buildApp({ mailWorker: true })`，应用就绪时开始、每 15 秒一轮，`app.close()` 时打断正在发的请求、等这一轮收尾再关库（被打断的那次按一次失败记）。测试不开循环，直接调 `mail.drain()`，时钟用 `ServiceOverrides.clock`。
-- 配置（都是可选的，都不设时服务照常启动、不发信）：`MAIL_ALIYUN_ACCESS_KEY_ID` 与 `MAIL_ALIYUN_ACCESS_KEY_SECRET`（两个要么都有、要么都没有，只有一个时启动失败）、`MAIL_ALIYUN_FROM`、`MAIL_RESEND_API_KEY`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`（不写时是 `https://cdn.yangtzeu.work/geek-public/mail/v1/`）、`MAIL_REPLY_TO`、`MAIL_RECIPIENTS`、`MAIL_ALLOWLIST`。发件地址和回信地址只收一个普通的邮箱地址，`MAIL_ASSET_BASE` 只收以 `/` 结尾的 https 地址，写错时启动失败，错误信息不带配置的值。每个环境的取值见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
+- 配置（都是可选的，都不设时服务照常启动、不发信）：`MAIL_ALIYUN_ACCESS_KEY_ID` 与 `MAIL_ALIYUN_ACCESS_KEY_SECRET`（两个要么都有、要么都没有，只有一个时启动失败）、`MAIL_ALIYUN_FROM`、`MAIL_RESEND_API_KEY`、`MAIL_RESEND_FROM`、`MAIL_ASSET_BASE`（不写时是 `https://cdn.crosery.com/yzgc/mail/v1/`）、`MAIL_REPLY_TO`、`MAIL_RECIPIENTS`、`MAIL_ALLOWLIST`。发件地址和回信地址只收一个普通的邮箱地址，`MAIL_ASSET_BASE` 只收以 `/` 结尾的 https 地址，写错时启动失败，错误信息不带配置的值。每个环境的取值见 [ENVIRONMENTS](../../ops/ENVIRONMENTS.md)。
 - 信里的链接指向 `PUBLIC_ORIGIN`（正式或预发布站点）；本机和测试的 `PUBLIC_ORIGIN` 不是这两个站点时，链接指向正式站点 `https://yangtzeu.work`。
 
 ## 重试
@@ -238,5 +238,5 @@ pnpm exec vitest run tests/server/mail-template-content.test.ts tests/server/mai
 - 信在写进队列时渲染，落款日期是写进队列那天；重试拖过北京时间零点时，落款日期比实际发出早一天。
 - 还没有在真实邮件客户端里看过（QQ 邮箱、网易、Gmail、Outlook、Apple Mail），只在 Chromium 里按 640px、375px、去掉 `<style>` 的 375px 和深色模式看过预览（2026-09-27 按 375px、去掉 `<style>` 的 375px 和 640px 深色模式又看过「你的报名信息」和特长引用）。
 - 强制反色的客户端（Outlook.com、部分手机 App 的深色模式）不认媒体查询，会自己改背景和字色；图片部件都是透明底，不会出现白色色块，但颜色以客户端为准。
-- 图片走新公开 S3 桶 `geek-public/mail/v1/`，没有 CID 内嵌；每张 `<img>` 保留 `referrerpolicy="no-referrer"`，不泄漏网页邮箱地址。旧七牛 CDN 域名的 Referer 白名单实测只属于旧服务，不能证明新端点已经支持邮件取图。父级须验证匿名 GET/HEAD、MIME、缓存及 QQ 邮箱、网易、Gmail 等真实客户端或代理取图，不通过时停止切换，不能回到七牛配置补丁绕过新服务问题。
+- 图片走公开 CDN 的 `yzgc/mail/v1/`（七牛，#346），没有 CID 内嵌；每张 `<img>` 保留 `referrerpolicy="no-referrer"`，不泄漏网页邮箱地址。旧七牛 CDN 域名的 Referer 白名单实测只属于旧服务，不能证明新端点已经支持邮件取图。父级须验证匿名 GET/HEAD、MIME、缓存及 QQ 邮箱、网易、Gmail 等真实客户端或代理取图，不通过时停止切换，不能回到七牛配置补丁绕过新服务问题。
 - 没有 `replyTo` 时信里指向官网意见箱；意见箱的内容和回复是公开的，只有联系方式一栏不公开。

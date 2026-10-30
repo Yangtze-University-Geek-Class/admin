@@ -80,7 +80,7 @@ describe('开关打开（STATIC_CDN_BASE 等于固定值）：内置表情走 CD
     const rows = app.services.storage.db.prepare('SELECT id, file_hash FROM forum_stickers').all() as { id: string; file_hash: string }[];
     for (const item of builtIn) {
       expect(rows.find(row => row.id === item.shortcode)?.file_hash, item.shortcode).toBe(item.sha256);
-      expect(stickers.find(sticker => sticker.shortcode === item.shortcode)?.url, item.shortcode).toBe(`https://cdn.yangtzeu.work/geek-public/static/site/forum/stickers/${item.sha256}.webp`);
+      expect(stickers.find(sticker => sticker.shortcode === item.shortcode)?.url, item.shortcode).toBe(`https://cdn.crosery.com/yzgc/static/site/forum/stickers/${item.sha256}.webp`);
       expect(item.key).toBe(`forum/stickers/${item.sha256}.webp`);
     }
   });
@@ -184,7 +184,7 @@ describe('STATIC_CDN_BASE 的读法', () => {
     expect(parseStaticCdnBase('  ')).toBe('');
     expect(parseStaticCdnBase(STATIC_CDN_BASE)).toBe(STATIC_CDN_BASE);
     expect(createConfig({ ...env, STATIC_CDN_BASE }).staticCdnBase).toBe(STATIC_CDN_BASE);
-    for (const wrong of ['https://cdn-old.example.test/', 'https://cdn.yangtzeu.work/geek-public/static/site', 'http://cdn.yangtzeu.work/geek-public/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
+    for (const wrong of ['https://cdn-old.example.test/', 'https://cdn.crosery.com/yzgc/static/site', 'http://cdn.crosery.com/yzgc/static/site/', 'https://evil.example/yzgc/static/site/', 'https://cdn-old.example.test/yzgc/promo/']) {
       expect(() => parseStaticCdnBase(wrong), wrong).toThrow(/只能为空或/);
       expect(() => createConfig({ ...env, STATIC_CDN_BASE: wrong }), wrong).toThrow(/只能为空或/);
     }

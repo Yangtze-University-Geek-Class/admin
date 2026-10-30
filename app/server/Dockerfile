@@ -102,8 +102,8 @@ RUN test -n "$GEEK_DEPLOYMENT_ENVIRONMENT" \
 # 各写一份，tests/tooling/static-cdn-parity.test.ts 核对一致。放在编译之后：开关变化不让依赖层和编译层失效。
 ARG STATIC_CDN_BASE=""
 RUN case "$STATIC_CDN_BASE" in \
-      "" | "https://cdn.yangtzeu.work/geek-public/static/site/") ;; \
-      *) echo "STATIC_CDN_BASE 只能为空或 https://cdn.yangtzeu.work/geek-public/static/site/" >&2; exit 1 ;; \
+      "" | "https://cdn.crosery.com/yzgc/static/site/") ;; \
+      *) echo "STATIC_CDN_BASE 只能为空或 https://cdn.crosery.com/yzgc/static/site/" >&2; exit 1 ;; \
     esac
 
 # ── 运行阶段：Node 22、非 root、保持仓库布局 ──────────────────

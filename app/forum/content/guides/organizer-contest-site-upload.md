@@ -12,7 +12,7 @@ date: 2026-10-25
 
 1. 打开比赛详情的「官网」页签。最上面「怎么开发」写了三步：复制起步模板 `app/web/sites/contests/_starter` 并把 `site.config.ts` 的 id 改成这场比赛的 id；用 `pnpm contest:site dev <构建产物目录>` 在本机预览，加 `--api <预发布站点地址>` 就读预发布上这场比赛的真实公开数据；最后 `pnpm contest:site pack` 打出 zip。
 
-![官网页签，开发说明、官网地址和上传区](https://cdn.yangtzeu.work/geek-public/static/site/forum/guides/console-site-tab._Xa_FDoF.webp)
+![官网页签，开发说明、官网地址和上传区](https://cdn.crosery.com/yzgc/static/site/forum/guides/console-site-tab._Xa_FDoF.webp)
 
 2. 站点包是一个 zip：最大 20MB、最多 500 个文件，根目录要有 `index.html` 和 `yzgc-site.json`，页面里只能引用这个站点包自己带的文件，不能引用外部地址。本地可以用项目自带的打包命令 `pnpm contest:site pack` 先打一份，跑的是和服务端同一套校验，省得上传了才发现不通过。
 3. 点「选择 zip」挑文件，再点「上传并校验」。没通过的话会逐条列出原因，常见的是文件太大、超出文件数、根目录缺文件或者引用了外部地址，改完重新打包再上传。

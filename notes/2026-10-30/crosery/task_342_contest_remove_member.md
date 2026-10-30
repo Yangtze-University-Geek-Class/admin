@@ -37,3 +37,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：推送 task/342/contest_remove_member，在 GitLab 开 MR 进 stage
 - 结果：合入后随 0.1.1 hotfix 封版
+
+## 21:39:15 +08:00 · 收尾 · #342 · PR !82 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 342：删 worktree .claude/worktrees/task-342 与本地分支 task/342/contest_remove_member
+- 结果：PR 已合并

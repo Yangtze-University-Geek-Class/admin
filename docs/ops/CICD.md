@@ -193,18 +193,18 @@ CI/manual 均从同一 tag 物料分发 `deploy-stack.sh` 和 `rollback-stack.sh
 
 部署 job 的失败关闭行为：镜像 sha256 校验失败、env 校验失败、SSH 失败或健康门失败都让整条流水线失败，**不自动重试到未知状态**。部署脚本内部在 `docker compose up -d` 失败或健康门失败时（两者走同一条路，见 [DEPLOY](DEPLOY.md)「失败即回滚」）会把 `IMAGE_TAG` 切回部署前的值、重新 `compose up -d` 并复检，结果记为 `ROLLED_BACK`（复检也失败记 `ROLLBACK_FAILED`）——这是脚本的环境自愈，不等于发布成功，也不改变「流水线失败」的结论；不写 `approved=true` 之类的放行状态，不自动覆盖更晚的部署。
 
-## 静态资源 CDN（#295）
+## 静态资源 CDN（#295，#346 改回七牛）
 
-目的地、桶、公私索引、SigV4、失败关闭和客户端防覆盖限制唯一合同见 [CDN](CDN.md)。旧七牛 token、表单上传、insertOnly 和 qetag 核对已经退役，不能用旧服务的配置记录证明 Garage 能力。
+目的地、桶、公私索引、SigV4、失败关闭和客户端防覆盖限制唯一合同见 [CDN](CDN.md)。旧七牛 token、表单上传和 qetag 核对已经退役；#346 起公开对象回到七牛 S3 兼容端点，它是否支持条件创建没有实测，防覆盖仍只在客户端执行。
 
 | job | 当前源码接线 | 凭据范围 |
 |---|---|---|
 | `cdn-plan` | `static-cdn.mjs decide --origin <环境>`；无凭据或 CSP 未放行仍按原约定同源，部分凭据或 S3 探测失败直接失败 | 仅此 job 与上传 job 注入 S3 两项凭据 |
 | `build` | 同一个新 `STATIC_CDN_BASE` 传给 web/forum/server；镜像仍带全部同源资源；离线 `plan` 只收哈希构建资源、指南截图、内置表情和旧帖正文实际引用的 CDN 图片 | 不接密钥，不挂 Environment |
-| `cdn-upload` | 签名 S3 GET 逐字核对已存在对象，缺对象才 PUT；公开 HEAD、完整 GET SHA-256、Range、MIME、CORS 校验；资产通过后写 `indexes/releases/<环境>/<完整提交>/manifest.json`，内容索引只生成私有产物 | `STATIC_CDN_S3_ACCESS_KEY_ID`、`STATIC_CDN_S3_SECRET_ACCESS_KEY`，不写镜像或日志 |
+| `cdn-upload` | 签名 S3 GET 逐字核对已存在对象，缺对象才 PUT；公开 HEAD、完整 GET SHA-256、Range、MIME、CORS 校验；资产通过后写 `yzgc/indexes/releases/<环境>/<完整提交>/manifest.json`，内容索引只生成私有产物 | `STATIC_CDN_S3_ACCESS_KEY_ID`、`STATIC_CDN_S3_SECRET_ACCESS_KEY`，不写镜像或日志 |
 | `deploy` | 仍依赖 `cdn-upload` 成功，不提前发布引用不存在资源的 HTML | 原有环境权限不变 |
 
-`STATIC_CDN_S3_ENDPOINT=https://cdn.yangtzeu.work`、region `garage`、bucket `geek-public`、forcePathStyle `true`。凭据只从受保护发布 job 的进程环境读取，不在仓库、业务 `.env`、命令行或构建 job 中出现。两项都不设置时下一次构建同源，现有镜像不会自动切换；宣传片、邮件、指南与旧帖 CDN 图片的固定地址也不跟这个开关走。
+`STATIC_CDN_S3_ENDPOINT=https://s3.cn-south-1.qiniucs.com`、region `cn-south-1`、bucket 取部署密钥 `STATIC_CDN_S3_BUCKET`、forcePathStyle `true`（工作流里三个值照此写死，脚本只接受这三个值）。凭据只从受保护发布 job 的进程环境读取，不在仓库、业务 `.env`、命令行或构建 job 中出现。两项都不设置时下一次构建同源，现有镜像不会自动切换；宣传片、邮件、指南与旧帖 CDN 图片的固定地址也不跟这个开关走。
 
 当前基线 `.github/workflows/ci.yml` 仍有无凭据的 `docker-cdn` 构建，两个既有部署工作流的上传调用改传环境、完整 SHA 和提交时间，上传器生成稳定来源清单及独立私有内容索引。没有运行这些工作流，也未证明其环境保护状态。所有者本次以 GitLab 为主：父级 task270 的 GitLab 发版草稿应复用同一个 CLI、参数及“上传验证成功才能部署”门禁，不能把 GitHub 历史 token 步骤复制成新服务的配置能力。
 

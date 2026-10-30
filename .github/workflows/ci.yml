@@ -444,7 +444,7 @@ jobs:
       # 与 docker job 相同，以 build arg 传给 Dockerfile 的构建阶段。
       NPM_REGISTRY: ${{ vars.NPM_REGISTRY || 'https://registry.npmjs.org' }}
       # 只能是 scripts/static-cdn-base.mjs 里的 STATIC_CDN_BASE（下面第一步核对），与部署工作流 cdn-plan 打开时的输出相同。
-      STATIC_CDN_BASE: https://cdn.yangtzeu.work/geek-public/static/site/
+      STATIC_CDN_BASE: https://cdn.crosery.com/yzgc/static/site/
     steps:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -3,7 +3,7 @@
  * 空 = 同源；非空只能逐字等于下面这个常量。规则的唯一来源是仓库根的 `scripts/static-cdn-base.mjs`，
  * 镜像里没有 scripts/，所以这里写一份同样的，`tests/tooling/static-cdn-parity.test.ts` 逐项核对两边一致。
  */
-export const STATIC_CDN_BASE = "https://cdn.yangtzeu.work/geek-public/static/site/";
+export const STATIC_CDN_BASE = "https://cdn.crosery.com/yzgc/static/site/";
 
 /** 空或未设置返回空串（同源）；非空必须逐字等于 STATIC_CDN_BASE，否则抛错，不带着一个 CSP 不认的地址启动。 */
 export function parseStaticCdnBase(raw: string | undefined): string {

@@ -73,7 +73,7 @@ test("legacy /apply and /join-us open the 加入我们 window on the desktop (#2
   }
 });
 
-const PROMO_CDN = "https://cdn.yangtzeu.work/geek-public/media/promo/**";
+const PROMO_CDN = "https://cdn.crosery.com/yzgc/static/promo/**";
 const LETTER = "致 长江大学极客班：";
 
 test("first open of 加入我们 never gets stuck behind the promo: whatever the player does, the letter opens", async ({ page }) => {

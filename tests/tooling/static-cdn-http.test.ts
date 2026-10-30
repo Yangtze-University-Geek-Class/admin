@@ -30,7 +30,8 @@ async function fixture(fault: StoreFault = {}) {
   const storage = createS3Storage(store.config, { allowLoopbackForTests: true, fetch: store.fetch, backoff: 0, timeoutMs: 150 });
   const roots = { web: join(dir, 'web'), forum: join(dir, 'forum') };
   const entries = collect(roots);
-  return { dir, roots, store, storage, entries, options: { storage, fetch: store.fetch, backoff: 0, timeoutMs: 150, referer: REFERER, log: quiet } };
+  // 公开地址不经 S3 端点：测试里把公开入口指向假存储，生产里默认是 STATIC_CDN_ORIGIN。
+  return { dir, roots, store, storage, entries, options: { storage, fetch: store.fetch, backoff: 0, timeoutMs: 150, referer: REFERER, log: quiet, publicOrigin: store.endpoint } };
 }
 
 describe('HTTP upload and public verification', () => {
@@ -99,7 +100,7 @@ describe('HTTP upload and public verification', () => {
       ['json', 'application/json', true], ['woff2', 'font/woff2', true],
     ] as const) {
       const file = join(f.dir, `fixture.${extension}`); writeFileSync(file, 'fixture');
-      const entry = { key: `static/site/assets/file-12345678.${extension}`, file, size: 7, mime };
+      const entry = { key: `yzgc/static/site/assets/file-12345678.${extension}`, file, size: 7, mime };
       if (cors) await expect(uploadAll([entry], f.options)).rejects.toThrow(/Access-Control-Allow-Origin/);
       else expect(await uploadAll([entry], f.options)).toMatchObject({ total: 1 });
     }
@@ -121,9 +122,9 @@ describe('HTTP upload and public verification', () => {
     const f = await fixture();
     const entry = f.entries[0];
     for (const key of [
-      'yzgc/promo/film.m3u8', 'static/site/index.html', 'static/site/assets/../../promo/x.js',
-      'static/site/assets/%2e%2e/x.js', 'static/site/assets/x.js?token=fixture', '//evil.example/x',
-      'static/site/assets/./x.js', 'static/site/assets/x\\evil.js',
+      'yzgc/promo/film.m3u8', 'yzgc/static/site/index.html', 'yzgc/static/site/assets/../../promo/x.js',
+      'yzgc/static/site/assets/%2e%2e/x.js', 'yzgc/static/site/assets/x.js?token=fixture', '//evil.example/x',
+      'yzgc/static/site/assets/./x.js', 'yzgc/static/site/assets/x\\evil.js',
     ]) {
       await expect(uploadOne({ ...entry, key }, f.options)).rejects.toThrow(/拒绝写入/);
     }
@@ -148,13 +149,13 @@ describe('HTTP upload and public verification', () => {
   it('times out delayed headers and stalled bodies, with finite request and response limits', async () => {
     const f = await fixture({ delayMs: 50 });
     const start = Date.now();
-    await expect(boundedRequest(`${f.store.endpoint}/geek-public/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch, timeoutMs: 10 })).rejects.toThrow(/超时/);
+    await expect(boundedRequest(`${f.store.endpoint}/fixture-bucket/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch, timeoutMs: 10 })).rejects.toThrow(/超时/);
     expect(Date.now() - start).toBeLessThan(1000);
     f.store.fault.delayMs = 0; f.store.fault.hangBody = true;
     f.store.objects.set(f.entries[0].key, { body: Buffer.from('fixture'), type: 'text/javascript' });
-    await expect(boundedRequest(`${f.store.endpoint}/geek-public/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch, timeoutMs: 10 })).rejects.toThrow(/超时/);
+    await expect(boundedRequest(`${f.store.endpoint}/fixture-bucket/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch, timeoutMs: 10 })).rejects.toThrow(/超时/);
     f.store.fault.hangBody = false; f.store.fault.length = 11 * 1024 * 1024;
-    await expect(boundedRequest(`${f.store.endpoint}/geek-public/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch })).rejects.toThrow(/长度超限/);
+    await expect(boundedRequest(`${f.store.endpoint}/fixture-bucket/${f.entries[0].key}`, { method: 'GET' }, { fetch: f.store.fetch })).rejects.toThrow(/长度超限/);
   });
 });
 

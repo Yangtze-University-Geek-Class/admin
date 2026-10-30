@@ -53,7 +53,7 @@ export type EnvelopeMessage = {
 };
 
 export type EnvelopeOptions = {
-  /** 图片部件的地址前缀，以 / 结尾：正式发信用 https://cdn.yangtzeu.work/geek-public/mail/v1/ */
+  /** 图片部件的地址前缀，以 / 结尾：正式发信用 https://cdn.crosery.com/yzgc/mail/v1/ */
   assetBase: string;
   /** 只给本机预览用：允许 assetBase 是 file:///…；发信时不要打开 */
   allowFileAssets?: boolean;

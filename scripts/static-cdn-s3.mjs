@@ -1,8 +1,8 @@
 // CDN 的 path-style S3 / SigV4 适配器。只读环境，不读取凭据文件；不实现删除或覆盖接口。
 import { createHash, createHmac } from 'node:crypto';
-import { STATIC_CDN_BUCKET, STATIC_CDN_ORIGIN } from './static-cdn-base.mjs';
+import { S3_BUCKET_RE, STATIC_CDN_PREFIX, STATIC_CDN_S3_ENDPOINT } from './static-cdn-base.mjs';
 
-export const S3_REGION = 'garage';
+export const S3_REGION = 'cn-south-1';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const CDN_MIME_TYPES = Object.freeze({
   js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json',
@@ -20,12 +20,12 @@ export function readS3Config(env = process.env) {
   if (!accessKey || !secretKey || /[\s:\x00-\x1f\x7f]/.test(accessKey) || /[\x00-\x1f\x7f]/.test(secretKey)) {
     throw new Error('须提供完整且合法的 STATIC_CDN_S3_ACCESS_KEY_ID / STATIC_CDN_S3_SECRET_ACCESS_KEY');
   }
-  const endpoint = env.STATIC_CDN_S3_ENDPOINT || STATIC_CDN_ORIGIN;
-  const bucket = env.STATIC_CDN_S3_BUCKET || STATIC_CDN_BUCKET;
+  const endpoint = env.STATIC_CDN_S3_ENDPOINT || STATIC_CDN_S3_ENDPOINT;
+  const bucket = env.STATIC_CDN_S3_BUCKET?.trim() ?? '';
   const region = env.STATIC_CDN_S3_REGION || S3_REGION;
-  if (endpoint !== STATIC_CDN_ORIGIN || bucket !== STATIC_CDN_BUCKET || region !== S3_REGION
+  if (endpoint !== STATIC_CDN_S3_ENDPOINT || !S3_BUCKET_RE.test(bucket) || region !== S3_REGION
     || (env.STATIC_CDN_S3_FORCE_PATH_STYLE && env.STATIC_CDN_S3_FORCE_PATH_STYLE !== 'true')) {
-    throw new Error('S3 目的地必须是固定 CDN、geek-public、garage、forcePathStyle=true');
+    throw new Error('S3 目的地必须是固定七牛端点、STATIC_CDN_S3_BUCKET 给出的桶、cn-south-1、forcePathStyle=true');
   }
   return { endpoint, bucket, region, forcePathStyle: true, accessKey, secretKey };
 }
@@ -38,18 +38,18 @@ export function assertStorageKey(key) {
   const parts = typeof key === 'string' ? key.split('/') : [];
   if (!parts.length || key.length > 300 || !/^[a-zA-Z0-9_./-]+$/.test(key)
     || parts.some(part => !part || part === '.' || part === '..' || part.startsWith('.'))
-    || !(/^(?:static\/site\/(?:assets|console-assets|forum\/(?:_nuxt|guides|stickers|published))\/.+|indexes\/releases\/(?:production|preview)\/[0-9a-f]{40}\/manifest\.json)$/.test(key))) {
+    || !(/^(?:yzgc\/static\/site\/(?:assets|console-assets|forum\/(?:_nuxt|guides|stickers|published))\/.+|yzgc\/indexes\/releases\/(?:production|preview)\/[0-9a-f]{40}\/manifest\.json)$/.test(key))) {
     throw new Error('拒绝写入：对象键不在 CDN 允许范围或包含恶意路径');
   }
-  if (key.startsWith('static/site/')) {
+  if (key.startsWith(STATIC_CDN_PREFIX)) {
     const hash = '[A-Za-z0-9_-]{8}';
     const name = '[A-Za-z0-9_.-]+';
     const valid = [
-      new RegExp(`^static/site/(?:assets|console-assets)/${name}-${hash}\\.[a-z0-9]+$`),
-      new RegExp(`^static/site/forum/_nuxt/(?:${hash}\\.js|${name}\\.${hash}\\.[a-z0-9]+|builds/meta/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json)$`),
-      new RegExp(`^static/site/forum/guides/[a-z0-9-]+\\.${hash}\\.(?:webp|png)$`),
-      /^static\/site\/forum\/stickers\/[0-9a-f]{64}\.webp$/,
-      /^static\/site\/forum\/published\/[0-9a-f]{16}\.webp$/,
+      new RegExp(`^yzgc/static/site/(?:assets|console-assets)/${name}-${hash}\\.[a-z0-9]+$`),
+      new RegExp(`^yzgc/static/site/forum/_nuxt/(?:${hash}\\.js|${name}\\.${hash}\\.[a-z0-9]+|builds/meta/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json)$`),
+      new RegExp(`^yzgc/static/site/forum/guides/[a-z0-9-]+\\.${hash}\\.(?:webp|png)$`),
+      /^yzgc\/static\/site\/forum\/stickers\/[0-9a-f]{64}\.webp$/,
+      /^yzgc\/static\/site\/forum\/published\/[0-9a-f]{16}\.webp$/,
     ].some(pattern => pattern.test(key));
     if (!valid) throw new Error('拒绝写入：静态对象键必须保留合同中的内容哈希文件名');
   }
@@ -60,9 +60,9 @@ export function assertObjectContent(key, body, mime) {
   assertStorageKey(key);
   if (!Buffer.isBuffer(body) || body.length > MAX_BYTES) throw new Error('对象必须是上限以内的 Buffer');
   if (!CDN_MIME_TYPES[key.split('.').at(-1)] || CDN_MIME_TYPES[key.split('.').at(-1)] !== mime) throw new Error('对象 Content-Type 类型不符合合同');
-  if (key.startsWith('static/site/forum/stickers/') && key.split('/').at(-1) !== `${sha256(body)}.webp`) throw new Error('表情键与内容 SHA-256 不符');
-  if (key.startsWith('static/site/forum/guides/') && key.split('.').at(-2) !== Buffer.from(sha256(body), 'hex').toString('base64url').slice(0, 8)) throw new Error('截图键与内容哈希不符');
-  if (key.startsWith('static/site/forum/published/') && key.split('/').at(-1) !== `${sha256(body).slice(0, 16)}.webp`) throw new Error('旧帖图片键与内容 SHA-256 不符');
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/stickers/`) && key.split('/').at(-1) !== `${sha256(body)}.webp`) throw new Error('表情键与内容 SHA-256 不符');
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/guides/`) && key.split('.').at(-2) !== Buffer.from(sha256(body), 'hex').toString('base64url').slice(0, 8)) throw new Error('截图键与内容哈希不符');
+  if (key.startsWith(`${STATIC_CDN_PREFIX}forum/published/`) && key.split('/').at(-1) !== `${sha256(body).slice(0, 16)}.webp`) throw new Error('旧帖图片键与内容 SHA-256 不符');
 }
 
 /** S3 不折叠路径、不用 ETag 校验内容；所有写入使用完整 payload SHA-256 签名。 */
@@ -135,8 +135,8 @@ function validateConfig(config, allowLoopbackForTests) {
     || /[\s:\x00-\x1f\x7f]/.test(config.accessKey) || /[\x00-\x1f\x7f]/.test(config.secretKey)) throw new Error('须提供完整且合法 S3 凭据');
   const url = new URL(config.endpoint);
   const local = allowLoopbackForTests && url.protocol === 'http:' && url.hostname === '127.0.0.1';
-  if ((config.endpoint !== STATIC_CDN_ORIGIN && !local) || url.username || url.password || url.pathname !== '/' || url.search || url.hash
-    || config.region !== S3_REGION || config.bucket !== STATIC_CDN_BUCKET || config.forcePathStyle !== true) {
+  if ((config.endpoint !== STATIC_CDN_S3_ENDPOINT && !local) || url.username || url.password || url.pathname !== '/' || url.search || url.hash
+    || config.region !== S3_REGION || !S3_BUCKET_RE.test(config.bucket ?? '') || config.forcePathStyle !== true) {
     throw new Error('S3 目的地不在合同允许范围');
   }
 }

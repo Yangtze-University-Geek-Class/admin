@@ -70,3 +70,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 diff：六个目录生成物只变指纹与 ARCHITECTURE-ALIGNMENT 的摘要，与 GitHub 同步分支上独立生成的结果逐字节相同；声明改为 docs-only 覆盖目录
 - 结果：结论：通过；check:catalog、check-architecture --base gitlab/stage 通过
+
+## 21:38:39 +08:00 · 收尾 · #335 · PR !86 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 335：删 worktree .claude/worktrees/task-335e 与本地分支 task/335/stage_sync
+- 结果：PR 已合并
