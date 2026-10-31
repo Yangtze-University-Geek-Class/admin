@@ -19,3 +19,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：按 code-review 核对 origin/stage...001efd7f：与 GitLab 3122ef0b 的差异只有 GitHub 独有的 19 个文件与本单记录；窗口改动即 MR !131 已审查合入的内容；18 个 v0.1.1 窗口全部关闭；无密钥、另一环境域名、用户原话与个人标识；无绕过 CI
 - 结果：通过；未验证：预发布部署在合并、打 tag 后进行
+
+## 12:38:57 +08:00 · PR · #336 · 开 PR #337 同步 #380 窗口关闭
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：推送 task/336/github_stage_sync（76d93110），开 PR #337 → stage，标签 infra:deploy，正文按 PULL-REQUESTS 写九段，验收证据为无界面变化；#335 因撞号作废，为不让 pre-push 误判本机 GitLab #335 的 worktree，临时重开占位并在单上写明原因
+- 结果：PR #337 已开，https://github.com/Yangtze-University-Geek-Class/admin/pull/337
