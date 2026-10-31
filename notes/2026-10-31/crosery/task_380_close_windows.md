@@ -28,3 +28,9 @@
 - 做了什么：开 MR !127（task/380/close_windows → stage），标签 P0、infra:deploy，正文按 PR 契约写，审查结论通过
 - 结果：MR 已开，等门禁
 - 下一步：合并后同步 GitHub、main 快进，按 #370 窗口重发 deploy-hotfix
+
+## 10:04:00 +08:00 · 收尾 · #380 · PR !127 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 380：删 worktree .claude/worktrees/task-380 与本地分支 task/380/close_windows
+- 结果：PR 已合并

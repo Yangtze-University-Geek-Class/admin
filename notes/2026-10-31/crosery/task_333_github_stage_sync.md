@@ -31,3 +31,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：GitHub PR #334（task/333/github_stage_sync → stage），标签 hot-fix、infra:deploy，正文按 PR 契约写，审查结论通过
 - 结果：PR 已开，等 CI
+
+## 11:47:31 +08:00 · 收尾 · #333 · PR #334 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 333：删 worktree .claude/worktrees/task-333 与本地分支 task/333/github_stage_sync
+- 结果：PR 已合并
