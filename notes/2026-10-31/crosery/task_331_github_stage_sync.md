@@ -27,3 +27,9 @@
 - 做了什么：开 PR #332（task/331/github_stage_sync → stage），标签 hot-fix、infra:deploy，正文按 PR 契约写，审查结论通过
 - 结果：PR 已开，等必需检查
 - 下一步：合并后 main 快进，按 #370 窗口重发 deploy-hotfix
+
+## 10:26:24 +08:00 · 收尾 · #331 · PR #332 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 331：删 worktree .claude/worktrees/task-331 与本地分支 task/331/github_stage_sync
+- 结果：PR 已合并

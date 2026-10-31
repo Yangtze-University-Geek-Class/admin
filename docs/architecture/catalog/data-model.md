@@ -4,7 +4,7 @@
 
 状态：`current` · 更新：2026-10-30 · 自动生成，不手工编辑。
 
-来源摘要：`34eea91a93934d8bb2731902ce924cd1846e52aca7c63aaee078914301c363ce`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
+来源摘要：`f1bf19b7357468f8555f304739386ec9999f0233cef658f1a29eacbb515dfd23`。更新日期指目录声明版本，数据新鲜度由摘要和 `pnpm check:catalog` 核对。
 
 [使用与维护](README.md) · [总览](CATALOG.md) · [接口](routes.md) · [数据](data-model.md) · [权限](permissions.md) · [机器目录](catalog.json)
 
@@ -83,6 +83,7 @@ flowchart LR
   perm_state["perm_state"]
   rate_limit_counters["rate_limit_counters"]
   role_assignments["role_assignments"]
+  security_ip_allowlist["security_ip_allowlist"]
   sessions["sessions"]
   shield_signals["shield_signals"]
   titles["titles"]
@@ -149,6 +150,7 @@ flowchart LR
   perm_members -->|"group_id → id"| perm_groups
   perm_members -->|"account_id → id"| users
   role_assignments -->|"account_id → id"| users
+  security_ip_allowlist -->|"created_by → id"| users
   sessions -->|"openid → id"| users
   users -->|"invite_code_id → id"| invite_codes
   users -->|"merged_into → id"| users
@@ -477,7 +479,7 @@ CREATE TABLE audit_logs (
 
 ## competition_finals
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1221](../../../app/server/src/lib/db.ts#L1221)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1234](../../../app/server/src/lib/db.ts#L1234)。
 
 定榜：一场一行，standings 是定榜那一刻的严格名次快照，之后加分、撤销都不再改它；撤销定榜删行。只有 lib/competition-prizes.ts 读写。
 
@@ -514,7 +516,7 @@ CREATE TABLE competition_finals (
 
 ## competition_gitlab_sources
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1175](../../../app/server/src/lib/db.ts#L1175)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1188](../../../app/server/src/lib/db.ts#L1188)。
 
 比赛从哪些 GitLab 项目收集贡献，控制台「计分与奖项」整份替换；没有行的比赛不收集。由 lib/competition-rules-store.ts 写，收集任务读。
 
@@ -547,7 +549,7 @@ CREATE TABLE competition_gitlab_sources (
 
 ## competition_prizes
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1228](../../../app/server/src/lib/db.ts#L1228)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1241](../../../app/server/src/lib/db.ts#L1241)。
 
 定榜时给每个得奖的人一行：兑奖码只存 SHA-256 散列、AES-GCM 密文与末四位，不存明文；核销只改 redeemed_at/redeemed_by；公开接口从不返回这三列。只有 lib/competition-prizes.ts 读写。
 
@@ -606,7 +608,7 @@ CREATE TABLE competition_prizes (
 
 ## competition_rules
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1212](../../../app/server/src/lib/db.ts#L1212)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1225](../../../app/server/src/lib/db.ts#L1225)。
 
 比赛的计分规则：年级系数（百分数，150 = 1.5）与可选奖项 JSON；没有行用默认系数、没有奖项；定榜后不能改。只有 lib/competition-rules-store.ts 读写。
 
@@ -644,7 +646,7 @@ CREATE TABLE competition_rules (
 
 ## competition_score_candidates
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1184](../../../app/server/src/lib/db.ts#L1184)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1197](../../../app/server/src/lib/db.ts#L1197)。
 
 GitLab 收来的候选贡献（合并的 MR、带「有用」标签或被 MR 关闭的 Issue）：唯一约束挡住重复收集；accepted_via 区分 GitLab 标签与控制台确认；状态变化只改列，不删行。只有 lib/competition-candidates.ts 读写。
 
@@ -890,7 +892,7 @@ CREATE TABLE competition_signups (
 
 ## competition_site_versions
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1153](../../../app/server/src/lib/db.ts#L1153)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1166](../../../app/server/src/lib/db.ts#L1166)。
 
 比赛官网站点包的版本：一次上传一行，通过（passed）或拒绝（rejected）都留，report 是逐条校验结果；拒绝的版本不落文件。文件本身在数据库旁边的 sites/<competition_id>/<version_id>/，不进库。只有 lib/competition-site-store.ts 读写。
 
@@ -939,7 +941,7 @@ CREATE TABLE competition_site_versions (
 
 ## competition_sites
 
-业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1167](../../../app/server/src/lib/db.ts#L1167)。
+业务域：`competitions`；结构来源：[app/server/src/lib/db.ts:1180](../../../app/server/src/lib/db.ts#L1180)。
 
 比赛官网的发布状态：一场一行，slug 唯一且第一次发布后不能改，live_version_id 为空即已下线（版本与 slug 保留）。只有 lib/competition-site-store.ts 读写。
 
@@ -1459,7 +1461,7 @@ CREATE TABLE forum_bookmarks (
 
 ## forum_category_settings
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:995](../../../app/server/src/lib/db.ts#L995)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1008](../../../app/server/src/lib/db.ts#L1008)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1717,7 +1719,7 @@ CREATE TABLE forum_rate_events (
 
 ## forum_reactions
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1029](../../../app/server/src/lib/db.ts#L1029)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1042](../../../app/server/src/lib/db.ts#L1042)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1757,7 +1759,7 @@ CREATE TABLE forum_reactions (
 
 ## forum_sticker_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1011](../../../app/server/src/lib/db.ts#L1011)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1024](../../../app/server/src/lib/db.ts#L1024)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1789,7 +1791,7 @@ CREATE TABLE forum_sticker_files (
 
 ## forum_sticker_packs
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1002](../../../app/server/src/lib/db.ts#L1002)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1015](../../../app/server/src/lib/db.ts#L1015)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1823,7 +1825,7 @@ CREATE TABLE forum_sticker_packs (
 
 ## forum_stickers
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1018](../../../app/server/src/lib/db.ts#L1018)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1031](../../../app/server/src/lib/db.ts#L1031)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -1993,7 +1995,7 @@ CREATE TABLE forum_topics (
 
 ## forum_upload_files
 
-业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1039](../../../app/server/src/lib/db.ts#L1039)。
+业务域：`forum`；结构来源：[app/server/src/lib/db.ts:1052](../../../app/server/src/lib/db.ts#L1052)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -2603,7 +2605,7 @@ CREATE TABLE mail_outbox (
 
 ## mail_templates
 
-业务域：`mail`；结构来源：[app/server/src/lib/db.ts:1052](../../../app/server/src/lib/db.ts#L1052)。
+业务域：`mail`；结构来源：[app/server/src/lib/db.ts:1065](../../../app/server/src/lib/db.ts#L1065)。
 
 招聘邮件的模板文字（主题、抬头、正文块、按钮、落款），不含任何投递人的信息；每类信有且只有一套默认，种子来自代码里的内置默认。改模板不影响已入队的信，信在入队时已渲染成成品。
 
@@ -3087,7 +3089,7 @@ CREATE TABLE perm_state (
 
 ## rate_limit_counters
 
-业务域：`platform`；结构来源：[app/server/src/lib/db.ts:935](../../../app/server/src/lib/db.ts#L935)。
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:948](../../../app/server/src/lib/db.ts#L948)。
 
 字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
 
@@ -3163,6 +3165,51 @@ CREATE TABLE role_assignments (
   created_at INTEGER NOT NULL, account_id TEXT REFERENCES users(id),
   CHECK ((role = 'head' AND department_id <> '') OR (role IN ('captain','alumni') AND department_id = '') OR role = 'member'),
   UNIQUE (github_login, role, department_id)
+);
+```
+
+</details>
+
+## security_ip_allowlist
+
+业务域：`platform`；结构来源：[app/server/src/lib/db.ts:934](../../../app/server/src/lib/db.ts#L934)。
+
+字段隐私、保留周期及读写范围需结合数据模型和业务实现核对，物理结构不能代替业务规则。
+
+| 列 | 类型 | NOT NULL | 主键序号 | 默认值 | 隐藏/生成标记 |
+|---|---|---|---|---|---|
+| `id` | `INTEGER` | 0 | 1 | 未声明 | 0 |
+| `cidr_hash` | `TEXT` | 1 | 0 | 未声明 | 0 |
+| `cidr_encrypted` | `TEXT` | 1 | 0 | 未声明 | 0 |
+| `note` | `TEXT` | 1 | 0 | `''` | 0 |
+| `enabled` | `INTEGER` | 1 | 0 | `1` | 0 |
+| `created_by` | `TEXT` | 0 | 0 | 未声明 | 0 |
+| `created_at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+| `updated_at` | `INTEGER` | 1 | 0 | 未声明 | 0 |
+
+NOT NULL 与主键分别保留 SQLite 元数据，不把主键标记当作 NOT NULL 标记。
+
+| 外键列 | 引用 | ON UPDATE | ON DELETE |
+|---|---|---|---|
+| `created_by` | `users.id` | NO ACTION | SET NULL |
+
+| 索引 | 列 | 唯一 | 来源 | 部分索引 | SQL |
+|---|---|---|---|---|---|
+| `idx_security_ip_allowlist_enabled` | `enabled`、`id` | 0 | c | 0 | `CREATE INDEX idx_security_ip_allowlist_enabled ON security_ip_allowlist(enabled, id)` |
+| `sqlite_autoindex_security_ip_allowlist_1` | `cidr_hash` | 1 | u | 0 | `SQLite 自动索引` |
+
+<details><summary>建表 SQL</summary>
+
+```sql
+CREATE TABLE security_ip_allowlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cidr_hash TEXT NOT NULL UNIQUE,
+  cidr_encrypted TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 ```
 

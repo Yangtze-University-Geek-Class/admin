@@ -50,7 +50,7 @@
 | `/console/gitlab/settings` | GitLab 设置：同步模式（关闭、预演、打开）、群组路径、同步间隔（5–1440 分钟）；令牌只显示「已配置」或「未配置」 | `gitlab.settings` |
 | `/console/activity` | 操作记录（见下文「操作记录」） | `activity.read` |
 | `/console/feedback` | 意见箱；右边的公开提交链接是官网的 `/?open=feedback`，进桌面打开意见箱窗口 | `feedback.view` |
-| `/console/security` | 安全防护：限时合成蜜罐、封禁列表与确认解封；有 `activity.read` 时查看最近命中 | `security.manage` |
+| `/console/security` | 单页安全防护：严格熔断、动态 IP/CIDR 白名单、合成蜜罐、封禁列表与审计；有 `activity.read` 时查看最近命中 | `security.manage` |
 | `/console/backup` | 备份（#282，见下文「备份」） | `system.backup` |
 | `/console/people`、`/console/audit` | 带着查询参数跳到 `/console/users`、`/console/activity` | — |
 | `/admin`、`/admin/**` | 跳到 `/console` | — |
@@ -140,6 +140,8 @@ GitHub 组织那一整组页面（`/console/github/**`）和它们用的 `/api/a
 封禁来自 `GET /api/console/security/blocks`，逐行确认后 `DELETE /api/console/security/blocks/:ip`；写操作要求 `security.manage` 和近期登录，失败交给 `ErrorAlert`，step-up过期给重新登录。读取失败不伪装成关闭或空列表。确认期间禁用重复操作，离页取消未答复的确认，写成功后重新读取并丢弃旧GET；倒计时基于服务器时间加单调时钟，到期重新读取。
 
 最近命中复用 `GET /api/console/activity?action=security.decoy.hit`，不传 `limit`，显示最近10条并链接完整记录；`action=security.` 查看开关与解封记录。无 `activity.read` 时不请求或展示审计区，IP由服务端按 `activity.read.ip` 打码。桌面表格、手机 `row-cards`，沿用Tuffex及统一确认/错误组件。mock只给不可用、关闭与空列表，写请求仍拒绝为501。
+
+`#387` 在同一页增加快速防护卡和放行白名单卡：严格模式默认关闭，管理员可设置短窗口和触发分；白名单支持 IPv4/IPv6、备注、添加和删除。页面只给管理员看简短状态、计数和动作，不展示普通用户可见的分数、阈值或来源关联；所有写操作要求近期登录，失败、越权、并发冲突和审计失败都保持原状态。使用 Tuffex 的 `TxSwitch`、`TxInput`、`TxForm`、`TxDataTable`、`TxStatusBadge` 和统一确认/错误组件，桌面与窄屏共用这一页。
 
 ### 备份
 

@@ -930,6 +930,19 @@ CREATE TABLE IF NOT EXISTS ip_blocks (
 );
 CREATE INDEX IF NOT EXISTS idx_ip_blocks_until ON ip_blocks(blocked_until);
 
+-- 严格防护的运行策略与管理员维护的动态 IP/CIDR 白名单（#387）。完整网段加密保存，哈希仅用于去重；匹配缓存由 security-policy.ts 重建。
+CREATE TABLE IF NOT EXISTS security_ip_allowlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cidr_hash TEXT NOT NULL UNIQUE,
+  cidr_encrypted TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_security_ip_allowlist_enabled ON security_ip_allowlist(enabled, id);
+
 -- 接口限流的固定窗口计数（#333，lib/rate-store.ts，@fastify/rate-limit 的 store）：重启后同一窗口内的次数不清零。
 -- 过期行由清理任务按窗口起点删掉。
 CREATE TABLE IF NOT EXISTS rate_limit_counters (

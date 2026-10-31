@@ -70,6 +70,19 @@ const decoyStatus = object({
   available: { type: "boolean" }, active: { type: "boolean" }, permanent: { type: "boolean" }, expires_at: nullableCount,
   now: integer(0), max_minutes: integer(DECOY_MAX_MINUTES, DECOY_MAX_MINUTES), shield_enabled: { type: "boolean" },
 }, ["available", "active", "permanent", "expires_at", "now", "max_minutes", "shield_enabled"]);
+const securityPolicy = object({
+  strict_mode: { type: "boolean" }, strict_threshold: integer(1, 1000), strict_window_seconds: integer(1, 60), version: integer(0),
+  shield_enabled: { type: "boolean" }, allowlist_count: integer(0),
+}, ["strict_mode", "strict_threshold", "strict_window_seconds", "version", "shield_enabled", "allowlist_count"]);
+const securityPolicyBody = object({
+  strict_mode: { type: "boolean" }, strict_threshold: integer(1, 1000), strict_window_seconds: integer(1, 60), version: integer(0),
+}, ["strict_mode", "strict_threshold", "strict_window_seconds", "version"]);
+const allowlistEntry = object({
+  id: integer(1), cidr: text(64, 2), note: text(160, 0), enabled: { type: "boolean" }, created_by: { anyOf: [accountId, { type: "null" }] }, created_at: integer(0), updated_at: integer(0),
+}, ["id", "cidr", "note", "enabled", "created_by", "created_at", "updated_at"]);
+const allowlistResult = object({ items: { type: "array", items: allowlistEntry } }, ["items"]);
+const allowlistBody = object({ cidr: text(64, 2), note: text(160, 0), version: integer(0) }, ["cidr", "note", "version"]);
+const allowlistDeleteBody = object({ confirm: { const: true }, version: integer(0) }, ["confirm", "version"]);
 // 招新总开关（#284）：updated_at 是最近一次开关的时间，从没动过为 null
 const applySettingsResult = object({ open: { type: "boolean" }, updated_at: nullableCount }, ["open", "updated_at"]);
 const applicationParams = { params: object({ application_id: { type: "string", pattern: UUID_PATTERN } }, ["application_id"]) };
@@ -340,6 +353,11 @@ export const consoleContracts: RouteContracts = {
     ] },
     response: { 200: decoyStatus, ...consoleFailures },
   },
+  "GET /api/console/security/policy": { ...noQuery, response: { 200: securityPolicy, ...consoleFailures } },
+  "PUT /api/console/security/policy": { ...noQuery, body: securityPolicyBody, response: { 200: securityPolicy, ...consoleFailures } },
+  "GET /api/console/security/allowlist": { ...noQuery, response: { 200: allowlistResult, ...consoleFailures } },
+  "POST /api/console/security/allowlist": { ...noQuery, body: allowlistBody, response: { 201: allowlistEntry, ...consoleFailures } },
+  "DELETE /api/console/security/allowlist/:id": { params: object({ id: { type: "string", pattern: "^[1-9][0-9]{0,8}$" } }, ["id"]), body: allowlistDeleteBody, response: { 200: object({ ok: { const: true }, version: integer(0) }, ["ok", "version"]), ...consoleFailures } },
   // #274 新权限体系（CONTRACT-274 §5）
   "GET /api/console/permissions/nodes": {
     ...noQuery,

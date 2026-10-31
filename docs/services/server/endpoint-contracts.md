@@ -121,11 +121,8 @@
 `GET /auth/device/userinfo` · `flow:identity.device.userinfo`
 
 权限与资源：只认Authorization: Bearer <access_token>（geek login换到的gk_…令牌），不读cookie、不要会话；#277起这个令牌不止在这个接口有效，`middleware/bearer-auth.ts`把它接到了`geek-cli`申请过scope（`forum apply competition repo`）的那些业务接口上，响应形状不变。
-
-响应与错误：200 {sub,account_id,login,username,display_name,bio,avatar_url,scope,grade,grade_label,email_required,profile_required}，sub与account_id都是极客班账号；email_required、profile_required 同 /auth/me，命令行读到 true 就提示先到网页上绑邮箱、补姓名和年级（#280）；grade/grade_label 是年级展示用（按入学年份现算），不回真实姓名——命令行在这个接口和它接到的任何业务接口上都拿不到任何账号的 real_name，哪怕是本人（#277 的硬约束）；令牌缺失、不存在、过期或账号不是active时401 invalid_token，并带WWW-Authenticate: Bearer error="invalid_token"。
-
+响应与错误：200 {sub,account_id,login,username,display_name,bio,avatar_url,scope,grade,grade_label,email_required,profile_required}，sub与account_id都是极客班账号；`login` 保留，公开资料与头像来自统一 DTO，`grade`/`grade_label` 按入学年份现算，不含真实姓名；命令行令牌缺失、不存在、过期或账号不是 active 时 401 `invalid_token`，带 `WWW-Authenticate: Bearer error="invalid_token"`。
 数据与副作用：按令牌的 sha256 查行、读 users/identities 保留 login；公开字段来自 account_profiles 经 public-profile 映射，空昵称回退 login，上传头像优先且可为本站相对路径。当前账号的 profiles.get() 可能兜底建档，不能称绝对只读；批量历史作者投影另走只查已有行的 findMany。不记录令牌明文。
-
 本地表读取：device_grants、users、identities、account_profiles。本地表写入：account_profiles（仅本人缺行时兜底建档）。
 
 源码：[app/server/src/routes/identity/device.ts:125](../../../app/server/src/routes/identity/device.ts#L125)、[app/server/src/lib/device-store.ts](../../../app/server/src/lib/device-store.ts)（`authenticate`）。验证入口：[tests/server/device-flow.test.ts](../../../tests/server/device-flow.test.ts)。
@@ -1431,9 +1428,9 @@ SQLite读写：无。源码：[app/forum/server/routes/api/local-forum/assets/[h
 验证入口：[打包与流式 tar+gzip](../../../tests/server/system-backup.test.ts)、[tar-stream.ts 单测](../../../tests/server/tar-stream.test.ts)、[下载路由、权限与限流](../../../tests/server/backup-route.test.ts)、[恢复脚本](../../../tests/tooling/backup-restore.test.ts)。
 
 
-## 安全防护（#333）
+## 安全防护（#333/#387）
 
-调用方为控制台 `/console/security`（`Security.vue`），所有接口需有效会话及 `security.manage`；PUT/DELETE另需10分钟内登录，既有Origin门禁不变。无登录401、缺节点403、旧登录403 `step_up_required`。Schema在 `routes/console/contracts.ts`。
+调用方为控制台 `/console/security`（`Security.vue`），所有接口需有效会话及 `security.manage`；PUT/POST/DELETE 另需 10 分钟内登录，Origin/Fetch Metadata 门禁不变。无登录401、缺节点403、旧登录403 `step_up_required`。Schema在 `routes/console/contracts.ts`。
 
 | 方法与路径 | 用例 | 成功与副作用 |
 |---|---|---|
@@ -1441,6 +1438,11 @@ SQLite读写：无。源码：[app/forum/server/routes/api/local-forum/assets/[h
 | `PUT /api/console/security/decoy` | `flow:security.decoy.update` | body为 `{enabled:true,duration_minutes}`（1–60整数）、`{enabled:true,permanent:true}`（永久开启）或 `{enabled:false}`，额外字段拒绝400，时长与永久开启不能同时给。200返回新状态；非production开启409 `decoy_unavailable`，基础防护关闭时开启409 `shield_disabled`，关闭可清陈旧设置。设置与 `security.decoy.update` 同事务（meta 记 `enabled`、`duration_minutes`、`permanent`），审计失败500且状态不变。 |
 | `GET /api/console/security/blocks` | `flow:security.blocks.list` | 200 `{blocks:[{ip,level,blocked_until,retry_after,reason,created_at,updated_at}]}`，只列生效中的封禁；写 `security.blocks.view`，meta只有条数。 |
 | `DELETE /api/console/security/blocks/:ip` | `flow:security.block.clear` | 200 `{ip,cleared:true}`，立即结束封禁并清信号、归零级别；与 `security.block.clear` 同事务，审计失败封禁不变。非法IP400 `bad_ip`，没有生效封禁404 `not_found`。 |
+| `GET /api/console/security/policy` | `security.policy.read` | 200 返回严格模式状态、窗口、触发分、策略版本、基础防护状态和白名单数量；不返回密文或原始策略。读取写审计。 |
+| `PUT /api/console/security/policy` | `security.policy.update` | body `{strict_mode,strict_threshold,strict_window_seconds,version}`；版本冲突409，基础防护关闭时开启409；策略用 `ENCRYPTION_KEY` 加密，更新与审计同事务，成功版本递增。 |
+| `GET /api/console/security/allowlist` | `security.allowlist.list` | 200 `{items:[{id,cidr,note,enabled,created_by,created_at,updated_at}]}`；只给安全管理员，读取写审计。 |
+| `POST /api/console/security/allowlist` | `security.allowlist.add` | body `{cidr,note,version}`；规范化 IPv4/IPv6（IPv4 映射地址按 IPv4），非法或主机位不为 0 回 400 `bad_cidr`、比 IPv4 `/16`、IPv6 `/48` 大回 400 `cidr_too_broad`、重叠409、版本冲突409；完整网段加密保存，成功递增与策略共用的版本，事务提交前仅失效缓存，与审计同事务。 |
+| `DELETE /api/console/security/allowlist/:id` | `security.allowlist.remove` | body `{confirm:true,version}`；成功 `{ok:true,version}`，不存在404、版本冲突409；删除成功后仅失效匹配缓存，与审计同事务，失败保留数据库旧状态。 |
 
 生产专属由既有受控发布身份判定，不用 `NODE_ENV`。合成蜜罐缺配置默认关闭，截止时间持久化，到期等值失效，重启不续期；永久开启（`permanent`）不随时间到期、重启后仍开着，只能 `PUT {enabled:false}` 关闭；关闭不解封。开启期间未封禁且非豁免来源首次GET/HEAD命中已有敏感路径时，只返回固定有界合成诊断、授权告知（HEAD无正文，no-store/noindex），封禁与 `security.decoy.hit` 同事务；其它方法及关闭/过期仍按原规则404并封禁。审计仅含方法、固定探针族、响应状态与合成标记，沿用既有IP/截断UA/request id，不采集原始URL、查询、正文、Cookie或Authorization。查看命中复用 `GET /api/console/activity?action=security.decoy.hit`，仍需 `activity.read`，IP仍按 `activity.read.ip` 打码，不另开日志接口。
 
