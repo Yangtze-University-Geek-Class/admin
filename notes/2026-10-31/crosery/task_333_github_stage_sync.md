@@ -19,3 +19,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：核对 git diff --name-only gitlab/stage HEAD：只有 GitHub 独有的 17 个文件、本单声明与记录；git diff origin/stage HEAD 的代码部分即 GitLab MR !130 已审查合入的改动（审查结论见 MR !130，结论通过）；没有覆盖 GitHub 独有文件
 - 结果：结论：通过；未验证：派发后的 deploy-hotfix 与正式页面
+
+## 11:24:03 +08:00 · 审查 · #333 · 文档核对：同步带来的窗口登记
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：同步带来的 deploy/ 改动只有 deploy/hotfix/windows.json 加 #387 窗口。文档核对：docs/ops/DEPLOY.md 不用改——只在登记表里加一条窗口，部署步骤不变。文档核对：docs/ops/ENVIRONMENTS.md 不用改——不动任何环境变量。文档核对：docs/ops/CICD.md 不用改——deploy-hotfix 按登记表取窗口的做法不变
+- 结果：check-doc-sync 对 origin/stage 通过
