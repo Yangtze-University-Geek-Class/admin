@@ -8,6 +8,7 @@ import { buildApp } from '../../app/server/src/app';
 import type { ServiceOverrides } from '../../app/server/src/services';
 import { DEFAULT_CONSOLE_ORG } from '../../app/server/src/config';
 import { redeemInvite } from '../../app/server/src/lib/invite-codes';
+import { normalizeCidr } from '../../app/server/src/lib/security-policy';
 import { accountIdOf, grantPermGroup, signIn, testApp, testConfig } from './helpers';
 
 /**
@@ -310,6 +311,133 @@ describe('控制台封禁列表与解封（#333）', () => {
     ]);
     expect(JSON.stringify(rows)).not.toContain('198.51.100.77');
     expect(JSON.stringify(rows)).not.toContain('198.51.100.78');
+  });
+});
+
+describe('严格防护与动态 IP 白名单（#387）', () => {
+  it('管理员可动态开启快速熔断，白名单可增删且完整 IP 不落库', async () => {
+    const { app } = await setup();
+    const owner = signIn(app, 'strict-owner', 407);
+    grantPermGroup(app, accountIdOf(app, 'strict-owner'), 'title.site.owner');
+    const headers = { cookie: `sid=${owner}` };
+    const before = await app.inject({ url: '/api/console/security/policy', headers });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toMatchObject({ strict_mode: false, version: 0, allowlist_count: 0 });
+    const enabled = await app.inject({ method: 'PUT', url: '/api/console/security/policy', headers, payload: { strict_mode: true, strict_threshold: 4, strict_window_seconds: 15, version: 0 } });
+    expect(enabled.statusCode).toBe(200);
+    expect(enabled.json()).toMatchObject({ strict_mode: true, strict_threshold: 4, strict_window_seconds: 15, version: 1 });
+
+    // 一次失败登录记 4 分：够严格阈值 4，不够普通阈值 8，封禁只能来自严格模式
+    await failSignIn(app, '198.51.100.70', 1);
+    expect((await app.inject({ ...SIGN_IN_PROBE, remoteAddress: '198.51.100.70' })).json()).toMatchObject({ error: 'ip_blocked' });
+    expect(app.services.storage.db.prepare('SELECT reason FROM ip_blocks WHERE ip=?').get('198.51.100.70')).toMatchObject({ reason: 'strict_burst' });
+
+    const added = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.71/32', note: '维护出口', version: 1 } });
+    expect(added.statusCode).toBe(201);
+    expect(added.json()).toMatchObject({ cidr: '198.51.100.71/32', note: '维护出口', enabled: true });
+    expect(app.services.storage.db.prepare('SELECT cidr_encrypted FROM security_ip_allowlist WHERE id=?').get(added.json().id).cidr_encrypted).not.toContain('198.51.100.71');
+    await failSignIn(app, '198.51.100.71', 2);
+    expect((await app.inject({ ...SIGN_IN_PROBE, remoteAddress: '198.51.100.71' })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/api/console/security/allowlist', headers })).json().items).toHaveLength(1);
+    expect((await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.72/32', note: '', version: 1 } })).statusCode).toBe(409);
+
+    const removed = await app.inject({ method: 'DELETE', url: `/api/console/security/allowlist/${added.json().id}`, headers, payload: { confirm: true, version: 2 } });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ ok: true, version: 3 });
+    await failSignIn(app, '198.51.100.71', 2);
+    expect((await app.inject({ ...SIGN_IN_PROBE, remoteAddress: '198.51.100.71' })).json()).toMatchObject({ error: 'ip_blocked' });
+    const actions = (app.services.storage.db.prepare("SELECT action FROM activity_events WHERE action LIKE 'security.%' ORDER BY id").all() as { action: string }[]).map(row => row.action);
+    expect(actions).toEqual(expect.arrayContaining(['security.policy.update', 'security.allowlist.add', 'security.allowlist.remove']));
+  });
+
+  it('策略和白名单审计失败时回滚数据库并清理未提交缓存', async () => {
+    const { app } = await setup();
+    const owner = signIn(app, 'strict-atomic', 410);
+    grantPermGroup(app, accountIdOf(app, 'strict-atomic'), 'title.site.owner');
+    const headers = { cookie: `sid=${owner}` };
+    const db = app.services.storage.db;
+    db.exec("CREATE TRIGGER reject_policy_audit BEFORE INSERT ON activity_events WHEN NEW.action = 'security.policy.update' BEGIN SELECT RAISE(FAIL, 'synthetic audit failure'); END");
+    expect((await app.inject({ method: 'PUT', url: '/api/console/security/policy', headers, payload: { strict_mode: true, strict_threshold: 6, strict_window_seconds: 15, version: 0 } })).statusCode).toBe(500);
+    expect((await app.inject({ url: '/api/console/security/policy', headers })).json()).toMatchObject({ strict_mode: false, version: 0 });
+    db.exec('DROP TRIGGER reject_policy_audit');
+
+    db.exec("CREATE TRIGGER reject_allowlist_add_audit BEFORE INSERT ON activity_events WHEN NEW.action = 'security.allowlist.add' BEGIN SELECT RAISE(FAIL, 'synthetic audit failure'); END");
+    expect((await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.80/32', note: '', version: 0 } })).statusCode).toBe(500);
+    expect((await app.inject({ url: '/api/console/security/allowlist', headers })).json().items).toHaveLength(0);
+    expect(app.services.securityPolicy.allowlisted('198.51.100.80')).toBe(false);
+    db.exec('DROP TRIGGER reject_allowlist_add_audit');
+
+    const added = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.80/32', note: '', version: 0 } });
+    expect(added.statusCode).toBe(201);
+    db.exec("CREATE TRIGGER reject_allowlist_remove_audit BEFORE INSERT ON activity_events WHEN NEW.action = 'security.allowlist.remove' BEGIN SELECT RAISE(FAIL, 'synthetic audit failure'); END");
+    expect((await app.inject({ method: 'DELETE', url: `/api/console/security/allowlist/${added.json().id}`, headers, payload: { confirm: true, version: 1 } })).statusCode).toBe(500);
+    expect((await app.inject({ url: '/api/console/security/allowlist', headers })).json().items).toHaveLength(1);
+    expect(app.services.securityPolicy.allowlisted('198.51.100.80')).toBe(true);
+  });
+
+  it('拒绝重叠网段、越权管理和跨站策略写入', async () => {
+    // 这里连着十几次 400/409，普通阈值抬高，免得管理员自己的来源先被计分封掉
+    const { app } = await setup({ env: { SHIELD_THRESHOLD: '100' } });
+    const owner = signIn(app, 'strict-overlap', 408);
+    grantPermGroup(app, accountIdOf(app, 'strict-overlap'), 'title.site.owner');
+    const headers = { cookie: `sid=${owner}` };
+    const first = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '203.0.113.0/24', note: '', version: 0 } });
+    expect(first.statusCode).toBe(201);
+    const ipv6 = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '2001:DB8:0:0::/48', note: 'IPv6维护出口', version: 1 } });
+    expect(ipv6.statusCode).toBe(201);
+    expect(ipv6.json().cidr).toBe('2001:db8::/48');
+    const overlap = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '203.0.113.9/32', note: '', version: 2 } });
+    expect(overlap.statusCode).toBe(409);
+    // IPv4 映射写法按 IPv4 比较重叠
+    const mapped = await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '::ffff:203.0.113.9', note: '', version: 2 } });
+    expect(mapped.json()).toMatchObject({ error: 'allowlist_overlap' });
+    for (const cidr of ['0.0.0.0/0', '::/0', '10.0.0.0/15', '2001:db8::/47', '::/48', '::ffff:0:0/96']) {
+      expect((await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr, note: '', version: 2 } })).json(), cidr).toMatchObject({ error: 'cidr_too_broad' });
+    }
+    expect((await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.8/24', note: '', version: 2 } })).json()).toMatchObject({ error: 'bad_cidr' });
+    expect(app.services.securityPolicy.allowlisted('8.8.8.8')).toBe(false);
+    const other = signIn(app, 'strict-other', 409);
+    expect((await app.inject({ method: 'PUT', url: '/api/console/security/policy', headers: { cookie: `sid=${other}` }, payload: { strict_mode: true, strict_threshold: 6, strict_window_seconds: 15, version: 0 } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'PUT', url: '/api/console/security/policy', headers: { ...headers, origin: 'https://evil.example' }, payload: { strict_mode: true, strict_threshold: 6, strict_window_seconds: 15, version: 0 } })).statusCode).toBe(403);
+  });
+});
+
+describe('白名单网段规范化（#387）', () => {
+  it('压缩 IPv6、IPv4 映射地址转成 IPv4，网段过大或主机位不为 0 时拒绝', () => {
+    expect(normalizeCidr('2001:0DB8:0000:0000:0000:0000:0000:0001').canonical).toBe('2001:db8::1/128');
+    expect(normalizeCidr('::ffff:198.51.100.7')).toMatchObject({ canonical: '198.51.100.7/32', family: 4 });
+    expect(normalizeCidr('::ffff:198.51.100.0/120')).toMatchObject({ canonical: '198.51.100.0/24', family: 4 });
+    expect(normalizeCidr('10.0.0.0/16').canonical).toBe('10.0.0.0/16');
+    const codeOf = (value: string) => { try { normalizeCidr(value); return 'ok'; } catch (error) { return (error as { code?: string }).code; } };
+    expect(codeOf('203.0.113.8/0')).toBe('cidr_too_broad');
+    expect(codeOf('203.0.113.8/24')).toBe('bad_cidr');
+    expect(codeOf('::ffff:198.51.100.7/95')).toBe('bad_cidr');
+    expect(codeOf('::fffe:0:0/95')).toBe('cidr_too_broad');
+  });
+
+  it('解不开的一行不放行、不让请求出错，列表里能看到并删掉', async () => {
+    const { app } = await setup();
+    const db = app.services.storage.db;
+    db.prepare('INSERT INTO security_ip_allowlist(cidr_hash,cidr_encrypted,note,enabled,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').run('broken-hash', 'not-a-ciphertext', '', 1, null, 1, 1);
+    expect((await app.inject({ ...SIGN_IN_PROBE, remoteAddress: '198.51.100.90' })).statusCode).toBe(400);
+    expect(app.services.securityPolicy.allowlisted('198.51.100.90')).toBe(false);
+    expect(app.services.securityPolicy.get().allowlist_count).toBe(0);
+    const owner = signIn(app, 'strict-broken', 411);
+    grantPermGroup(app, accountIdOf(app, 'strict-broken'), 'title.site.owner');
+    const headers = { cookie: `sid=${owner}` };
+    const items = (await app.inject({ url: '/api/console/security/allowlist', headers })).json().items;
+    expect(items).toEqual([expect.objectContaining({ cidr: '无法读取' })]);
+    expect((await app.inject({ method: 'POST', url: '/api/console/security/allowlist', headers, payload: { cidr: '198.51.100.90/32', note: '', version: 0 } })).statusCode).toBe(201);
+    expect((await app.inject({ method: 'DELETE', url: `/api/console/security/allowlist/${items[0].id}`, headers, payload: { confirm: true, version: 1 } })).statusCode).toBe(200);
+  });
+
+  it('基础防护关闭时不能开启严格模式', async () => {
+    const { app } = await setup({ env: { SHIELD_ENABLED: 'off' } });
+    const owner = signIn(app, 'strict-off', 412);
+    grantPermGroup(app, accountIdOf(app, 'strict-off'), 'title.site.owner');
+    const res = await app.inject({ method: 'PUT', url: '/api/console/security/policy', headers: { cookie: `sid=${owner}` }, payload: { strict_mode: true, strict_threshold: 6, strict_window_seconds: 15, version: 0 } });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: 'shield_disabled' });
   });
 });
 

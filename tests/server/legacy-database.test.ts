@@ -141,8 +141,8 @@ const FORUM_V2_TABLES = [
 ];
 /** 招聘邮件模板（#285）：同样只新增；首次启动把四类信现在的内容种成默认模板，另加一套面试邀请的简短版。 */
 const MAIL_TEMPLATE_TABLES = ['mail_templates'];
-// 访问防护（#333，lib/shield.ts 与 lib/rate-store.ts）：封禁表、信号表与接口限流计数表
-const ABUSE_SHIELD_TABLES = ['ip_blocks', 'rate_limit_counters', 'shield_signals'];
+// 访问防护（#333/#387，lib/shield.ts、lib/security-policy.ts 与 lib/rate-store.ts）：封禁、信号、接口限流和动态白名单表
+const ABUSE_SHIELD_TABLES = ['ip_blocks', 'rate_limit_counters', 'shield_signals', 'security_ip_allowlist'];
 /** 统一头像（#343）：GitHub 头像的像素图识别结论，同样只新增。 */
 const AVATAR_TABLES = ['github_avatar_checks'];
 

@@ -244,7 +244,8 @@
         "limit_events",
         "ip_blocks",
         "rate_limit_counters",
-        "shield_signals"
+        "shield_signals",
+        "security_ip_allowlist"
       ]
     },
     {
@@ -13358,6 +13359,86 @@
       ]
     },
     {
+      "id": "security.policy.read",
+      "title": "控制台查看严格防护策略",
+      "domain": "platform",
+      "relatedDomains": ["audit", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/console/security/policy",
+      "capabilities": [],
+      "reads": ["app_state", "security_ip_allowlist"],
+      "writes": ["activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": ["权限与资源：有效会话及 security.manage；只返回严格模式状态、脱敏版本和白名单数量，不返回策略密文或完整来源。", "数据与副作用：查看写 security.policy.view，meta 只记版本和数量。"],
+      "evidence": [{"path": "app/server/src/routes/console/security.ts", "needle": "app.get(\"/api/console/security/policy\", manage"}, {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"GET /api/console/security/policy\": {"}],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/SECURITY.md", "docs/services/console/README.md"]
+    },
+    {
+      "id": "security.policy.update",
+      "title": "控制台更新严格防护策略",
+      "domain": "platform",
+      "relatedDomains": ["audit", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "PUT /api/console/security/policy",
+      "capabilities": [],
+      "reads": ["app_state"],
+      "writes": ["app_state", "activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": ["权限与资源：security.manage、step-up、同源请求；版本冲突和基础防护关闭时拒绝开启严格模式。", "数据与副作用：策略用 ENCRYPTION_KEY 加密，更新和 security.policy.update 审计同事务。"],
+      "evidence": [{"path": "app/server/src/routes/console/security.ts", "needle": "app.put<{ Body: { strict_mode"}, {"path": "app/server/src/lib/security-policy.ts", "needle": "const setRuntime ="}],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/SECURITY.md", "docs/services/console/README.md"]
+    },
+    {
+      "id": "security.allowlist.list",
+      "title": "控制台查看动态 IP 白名单",
+      "domain": "platform",
+      "relatedDomains": ["audit", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "GET /api/console/security/allowlist",
+      "capabilities": [],
+      "reads": ["security_ip_allowlist"],
+      "writes": ["activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": ["权限与资源：有效会话及 security.manage；只向安全管理员显示规范化 CIDR、备注和操作元数据。"],
+      "evidence": [{"path": "app/server/src/routes/console/security.ts", "needle": "app.get(\"/api/console/security/allowlist\", manage"}, {"path": "app/server/src/routes/console/contracts.ts", "needle": "\"GET /api/console/security/allowlist\": {"}],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/SECURITY.md", "docs/services/console/README.md"]
+    },
+    {
+      "id": "security.allowlist.add",
+      "title": "控制台添加动态 IP 白名单",
+      "domain": "platform",
+      "relatedDomains": ["audit", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "POST /api/console/security/allowlist",
+      "capabilities": [],
+      "reads": ["security_ip_allowlist"],
+      "writes": ["security_ip_allowlist", "activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": ["权限与资源：security.manage、step-up、同源请求；规范化 IPv4/IPv6，重叠网段拒绝。", "数据与副作用：完整 CIDR 加密保存，匹配缓存立即重建；白名单只绕过安全封禁，不授予业务权限。"],
+      "evidence": [{"path": "app/server/src/routes/console/security.ts", "needle": "app.post<{ Body: { cidr"}, {"path": "app/server/src/lib/security-policy.ts", "needle": "const add ="}, {"path": "app/server/src/lib/db.ts", "needle": "CREATE TABLE IF NOT EXISTS security_ip_allowlist"}],
+      "tests": ["tests/server/abuse-shield.test.ts", "tests/server/legacy-database.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/SECURITY.md", "docs/services/console/README.md"]
+    },
+    {
+      "id": "security.allowlist.remove",
+      "title": "控制台删除动态 IP 白名单",
+      "domain": "platform",
+      "relatedDomains": ["audit", "permissions"],
+      "assessment": "declared-with-source-evidence",
+      "operation": "DELETE /api/console/security/allowlist/:id",
+      "capabilities": [],
+      "reads": ["security_ip_allowlist"],
+      "writes": ["security_ip_allowlist", "activity_events"],
+      "doesNotEnqueue": [],
+      "invariants": ["权限与资源：security.manage、step-up、confirm=true 和同源请求；不存在的条目回 404。", "数据与副作用：删除和 security.allowlist.remove 审计同事务，缓存立即重建，审计失败保留白名单。"],
+      "evidence": [{"path": "app/server/src/routes/console/security.ts", "needle": "app.delete<{ Params: { id: string"}, {"path": "app/server/src/lib/security-policy.ts", "needle": "const remove ="}],
+      "tests": ["tests/server/abuse-shield.test.ts"],
+      "docs": ["docs/services/server/endpoint-contracts.md", "docs/architecture/SECURITY.md", "docs/services/console/README.md"]
+    },
+    {
       "id": "security.shield",
       "title": "访问防护：异常 IP 计分、封禁与逐级加长",
       "domain": "platform",
@@ -13505,6 +13586,11 @@
     ],
     "app/server/src/lib/tar-stream.ts": [
       "platform"
+    ],
+    "app/server/src/lib/security-policy.ts": [
+      "platform",
+      "permissions",
+      "audit"
     ],
     "app/server/src/lib/shield.ts": [
       "platform"

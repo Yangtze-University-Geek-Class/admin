@@ -226,6 +226,7 @@ iPhone 15 Pro Max model attribution
 | [`GITLAB-INCIDENT-2026-10.md`](./reviews/GITLAB-INCIDENT-2026-10.md) | 极客班成员在比赛期间进不了自己的 GitLab 号，参赛提交落到了 GitHub。复盘只看流程和门禁的缺口，不追究个人。 | — |
 | [`LOCAL-CONTENT-ENVIRONMENTS.md`](./reviews/LOCAL-CONTENT-ENVIRONMENTS.md) | 阶段记录：发布域名合同和论坛环境展示已实现，真实内容投影已生成；当时数据接口未落盘，页面接入未完成。本机只读快照接入已于 2026-09-13 中午完成，见 FORUM-DATA-CAPTURE 最新状态。 | — |
 | [`NORMALIZATION.md`](./reviews/NORMALIZATION.md) | 本地代码、文档和隔离测试的实际交付记录；生产环境与凭据轮换尚未执行。 | — |
+| [`STRICT-SHIELD-387.md`](./reviews/STRICT-SHIELD-387.md) |  | — |
 | [`TUFF-FORUM-ADOPTION.md`](./reviews/TUFF-FORUM-ADOPTION.md) | 已直接采用原仓前端并切换本机入口；不将缺少真实认证和后端的演示称为生产社区。 | — |
 | [`TUFFEX-DOCS.md`](./reviews/TUFFEX-DOCS.md) | 固定官方源码提交的离线文档、示例、类型参考、AI 检索与项目选型约定。 | — |
 
@@ -235,4 +236,4 @@ iPhone 15 Pro Max model attribution
 
 ---
 
-共 86 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。
+共 87 篇文档（另有 20 篇英文版）。索引按目录分组，组内按文件名排序。

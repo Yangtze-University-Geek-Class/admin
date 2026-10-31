@@ -61,6 +61,7 @@ export function crossSiteBrowserRequest(headers: Record<string, string | string[
 }
 
 export type ShieldConfig = { enabled: boolean; allowlist: BlockList; thresholdPoints: number; windowMs: number; blockMs: number[]; decayMs: number };
+export type ShieldRuntime = { strict_mode: boolean; strict_threshold: number; strict_window_seconds: number };
 export type ShieldBlock = { ip: string; level: number; blocked_until: number; reason: string; created_at: number; updated_at: number };
 export type ShieldBlockView = ShieldBlock & { retry_after: number };
 /** 封禁与解封写审计时用的写入函数，和 lib/db.ts 的 `audit` 同形（避免 lib 之间互相 import）。 */
@@ -91,9 +92,10 @@ function allowed(list: BlockList, ip: string): boolean {
   return list.check(value, family === 4 ? "ipv4" : "ipv6");
 }
 
-export function createShield(db: Database.Database, deps: { config: ShieldConfig; clock?: () => number; audit?: ShieldAudit }) {
+export function createShield(db: Database.Database, deps: { config: ShieldConfig; clock?: () => number; audit?: ShieldAudit; allowlisted?: (ip: string) => boolean; runtime?: () => ShieldRuntime }) {
   const clock = deps.clock ?? Date.now;
   const { config } = deps;
+  const isAllowed = (ip: string) => allowed(config.allowlist, ip) || Boolean(deps.allowlisted?.(ip));
   const insertSignal = db.prepare("INSERT INTO shield_signals(ip, at, points, reason) VALUES (?, ?, ?, ?)");
   const sumSince = db.prepare("SELECT COALESCE(SUM(points), 0) AS points FROM shield_signals WHERE ip = ? AND at > ?");
   const clearSignals = db.prepare("DELETE FROM shield_signals WHERE ip = ?");
@@ -114,7 +116,7 @@ export function createShield(db: Database.Database, deps: { config: ShieldConfig
 
   /** 请求进来时查：生效中的封禁返回剩余秒数，否则 null。 */
   function check(ip: string): ShieldBlockView | null {
-    if (!config.enabled || allowed(config.allowlist, ip)) return null;
+    if (!config.enabled || isAllowed(ip)) return null;
     const now = clock();
     const row = active(ip, now);
     return row ? { ...row, retry_after: Math.max(1, Math.ceil((row.blocked_until - now) / 1000)) } : null;
@@ -136,14 +138,19 @@ export function createShield(db: Database.Database, deps: { config: ShieldConfig
    * 查分、写信号、封禁判断在一个事务里做，并发的两个失败不会各自漏过阈值。
    */
   function signal(ip: string, points: number, reason: string): boolean {
-    if (!config.enabled || allowed(config.allowlist, ip)) return false;
+    if (!config.enabled || isAllowed(ip)) return false;
     return db.transaction((): boolean => {
       const now = clock();
       if (active(ip, now)) return true;
       insertSignal.run(ip, now, points, reason);
       const total = (sumSince.get(ip, now - config.windowMs) as { points: number }).points;
-      if (total < config.thresholdPoints) return false;
-      block(ip, now, reason, total);
+      const runtime = deps.runtime?.();
+      const strictTotal = runtime?.strict_mode
+        ? (sumSince.get(ip, now - runtime.strict_window_seconds * 1000) as { points: number }).points
+        : 0;
+      if (runtime?.strict_mode && strictTotal >= runtime.strict_threshold) block(ip, now, "strict_burst", strictTotal);
+      else if (total >= config.thresholdPoints) block(ip, now, reason, total);
+      else return false;
       return true;
     }).immediate();
   }
@@ -157,7 +164,7 @@ export function createShield(db: Database.Database, deps: { config: ShieldConfig
 
   /** 蜜罐命中（#333 追加）：不累计，直接封禁（已经在封禁中就不再加级别）。白名单网段不封。 */
   function trap(ip: string, reason: string): void {
-    if (!config.enabled || allowed(config.allowlist, ip)) return;
+    if (!config.enabled || isAllowed(ip)) return;
     db.transaction((): void => {
       const now = clock();
       if (!active(ip, now)) block(ip, now, reason, config.thresholdPoints);
@@ -191,7 +198,7 @@ export function createShield(db: Database.Database, deps: { config: ShieldConfig
   }
 
   /** 中间件用：开关与白名单（白名单来源不走蜜罐的告知）。 */
-  const allowlisted = (ip: string): boolean => allowed(config.allowlist, ip);
+  const allowlisted = (ip: string): boolean => isAllowed(ip);
   return { enabled: config.enabled, allowlisted, check, signal, observe, trap, list, unblock, prune };
 }
 export type ShieldService = ReturnType<typeof createShield>;

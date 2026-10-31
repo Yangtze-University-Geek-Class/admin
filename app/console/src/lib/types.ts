@@ -389,3 +389,10 @@ export type SecurityBlock = {
   ip: string; level: number; blocked_until: number; reason: string; created_at: number; updated_at: number; retry_after: number;
 };
 export type SecurityBlocks = { blocks: SecurityBlock[] };
+export type SecurityPolicy = {
+  strict_mode: boolean; strict_threshold: number; strict_window_seconds: number; version: number; shield_enabled: boolean; allowlist_count: number;
+};
+export type SecurityAllowlistEntry = {
+  id: number; cidr: string; note: string; enabled: boolean; created_by: string | null; created_at: number; updated_at: number;
+};
+export type SecurityAllowlist = { items: SecurityAllowlistEntry[] };

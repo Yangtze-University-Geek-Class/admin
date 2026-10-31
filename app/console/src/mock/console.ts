@@ -863,7 +863,7 @@ function checkGroupWrite(persona: Persona, method: string, id: string | null, bo
 export function checkConsoleWrite(url: URL, method: string, body: unknown): void {
   const path = url.pathname;
   const persona = requireSignedIn();
-  if ((path === "/api/console/security/decoy" && method === "PUT") || (/^\/api\/console\/security\/blocks\/[^/]+$/.test(path) && method === "DELETE")) {
+  if ((path === "/api/console/security/decoy" && method === "PUT") || (path === "/api/console/security/policy" && method === "PUT") || (path === "/api/console/security/allowlist" && method === "POST") || (/^\/api\/console\/security\/allowlist\/[^/]+$/.test(path) && method === "DELETE") || (/^\/api\/console\/security\/blocks\/[^/]+$/.test(path) && method === "DELETE")) {
     gate(persona, "security.manage");
     requireStepUp(persona);
     return;
@@ -1080,10 +1080,13 @@ export function routeConsole(url: URL): unknown {
   if (path === "/api/console/me") return mockMe(persona);
   if (path === "/api/console/summary") return routeSummary(persona);
   if (path === "/api/console/users") return routeUsers(persona, search);
-  if (path === "/api/console/security/decoy" || path === "/api/console/security/blocks") {
+  if (path === "/api/console/security/decoy" || path === "/api/console/security/blocks" || path === "/api/console/security/policy" || path === "/api/console/security/allowlist") {
     gate(persona, "security.manage");
     assertKnownQuery(search, []);
-    return path.endsWith("/blocks") ? { blocks: [] } : { available: false, active: false, permanent: false, expires_at: null, now: Date.now(), max_minutes: 60, shield_enabled: false };
+    if (path.endsWith("/blocks")) return { blocks: [] };
+    if (path.endsWith("/policy")) return { strict_mode: false, strict_threshold: 20, strict_window_seconds: 15, version: 0, shield_enabled: false, allowlist_count: 0 };
+    if (path.endsWith("/allowlist")) return { items: [] };
+    return { available: false, active: false, permanent: false, expires_at: null, now: Date.now(), max_minutes: 60, shield_enabled: false };
   }
 
   const account = path.match(/^\/api\/console\/accounts\/([^/]+)\/(activity|effective)$/);

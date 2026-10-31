@@ -20,6 +20,7 @@ import { archiveOldDepartments } from "./lib/migrations/2026-10-yugc-v2.js";
 import { createPermissionEngine } from "./lib/permissions.js";
 import { createLimits } from "./lib/limits.js";
 import { createShield } from "./lib/shield.js";
+import { createSecurityPolicy } from "./lib/security-policy.js";
 import { createSecurityDecoy } from "./lib/security-decoy.js";
 import { createRateLimitStore } from "./lib/rate-store.js";
 import { createApplySettings } from "./lib/apply-settings.js";
@@ -93,8 +94,9 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
   // #274 SPEC §3.8：防盗刷计数唯一入口；提到 identity 前面建好，注册限额与邀请码猜测锁定
   // （signInWithGithub/signInSecondChannel，#274 review round 1）也要用它。
   const limits = createLimits(storage.db, { clock: overrides.clock });
-  // 访问防护（#333）：封禁与信号落库；接口限流的计数也落库（app.ts 把 Store 交给 @fastify/rate-limit），重启后不清零。
-  const shield = createShield(storage.db, { config: config.shield, clock: overrides.clock, audit: storage.audit });
+  // 访问防护（#333/#387）：动态策略与管理员白名单在数据库中持久化，白名单完整网段加密保存。
+  const securityPolicy = createSecurityPolicy(storage.db, { crypto, secret: config.sessionSecret, shieldEnabled: config.shield.enabled, baseAllowlist: config.shield.allowlist, clock: overrides.clock });
+  const shield = createShield(storage.db, { config: config.shield, clock: overrides.clock, audit: storage.audit, allowlisted: securityPolicy.allowlisted, runtime: securityPolicy.runtime });
   const rateLimits = createRateLimitStore(storage.db, overrides.clock ?? Date.now);
   const identity = createIdentityStore(storage.db, { createSession: auth.createSession, audit: storage.audit, limits, clock: overrides.clock });
   const device = createDeviceStore(storage.db, { clock: overrides.clock });
@@ -210,6 +212,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     activity,
     limits,
     shield,
+    securityPolicy,
     decoy: createSecurityDecoy(storage.db, { available: config.deploymentEnvironment === "production", shieldEnabled: config.shield.enabled, clock: overrides.clock }),
     rateLimits,
     // 招新总开关（#284）：官网公开配置、投递接口和控制台「投递」页读写的是同一个值。
