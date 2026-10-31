@@ -25,3 +25,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：同步带来的 deploy/ 改动只有 deploy/hotfix/windows.json 加 #387 窗口。文档核对：docs/ops/DEPLOY.md 不用改——只在登记表里加一条窗口，部署步骤不变。文档核对：docs/ops/ENVIRONMENTS.md 不用改——不动任何环境变量。文档核对：docs/ops/CICD.md 不用改——deploy-hotfix 按登记表取窗口的做法不变
 - 结果：check-doc-sync 对 origin/stage 通过
+
+## 11:25:07 +08:00 · PR · #333 · 开 PR #334 合进 stage
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：GitHub PR #334（task/333/github_stage_sync → stage），标签 hot-fix、infra:deploy，正文按 PR 契约写，审查结论通过
+- 结果：PR 已开，等 CI
