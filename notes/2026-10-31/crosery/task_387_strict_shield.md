@@ -80,3 +80,9 @@
 - 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
 - 做了什么：按 code-review 核对 gitlab/stage...task/387/strict_shield：初审（只读）阻塞 1、应修 5，修复后复审七条修复正确；权限、审计、数据兼容、密钥、环境域名、窗口登记逐项核对，结论写进 MR !130 正文「审查结论」
 - 结果：结论：通过；未验证：预发布与正式真实流量、严格模式误封率、回滚后再升级
+
+## 11:20:55 +08:00 · 收尾 · #387 · PR !130 已合并，清理 worktree
+
+- 执行者：agent-claude-01d717b4（Claude Code，claude-opus-5-5）
+- 做了什么：node scripts/task.mjs finish 387：删 worktree .claude/worktrees/task-387 与本地分支 task/387/strict_shield
+- 结果：PR 已合并

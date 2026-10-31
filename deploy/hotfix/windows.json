@@ -144,65 +144,72 @@
     {
       "issue": 352,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T22:37:00+08:00",
       "approval": "所有者 2026-10-30 22:37 在会话中批准：上传、头像等所有资源存七牛、不占服务器带宽，和本轮 0.1.1 基线一起按 hotfix 发（tag v0.1.1）",
-      "expiresAt": "2026-11-01T22:37:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 354,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T22:38:00+08:00",
       "approval": "所有者 2026-10-30 22:38 在会话中批准：数据库与迁移内容备份到七牛并定期清理，和本轮 0.1.1 基线一起按 hotfix 发（tag v0.1.1）",
-      "expiresAt": "2026-11-01T22:38:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 356,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T23:00:00+08:00",
       "approval": "所有者 2026-10-30 23:00 在会话中批准：本地调试配置与一键起服务算进基线，和 #352、#354 一起按 hotfix 发（tag v0.1.1）",
-      "expiresAt": "2026-11-01T23:00:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 360,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-30T23:34:00+08:00",
       "approval": "所有者 2026-10-30 23:15–23:34 在会话中批准：控制台与论坛冷启动优化、比赛官网资源与发版资源上七牛、备份公钥加密，算进基线按 hotfix 发（tag v0.1.1）",
-      "expiresAt": "2026-11-01T23:34:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 369,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-31T01:47:00+08:00",
       "approval": "所有者 2026-10-31 01:47 在会话中批准：合成蜜罐支持永久开启（#369）随七牛 CDN 修复一起按 hotfix 发正式与预发布（tag v0.1.1）",
-      "expiresAt": "2026-11-02T01:47:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 370,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-31T01:47:00+08:00",
       "approval": "所有者 2026-10-31 01:47 在会话中批准：操作记录接入 GitLab 事件、筛选收成一行并按页翻（#370）随七牛 CDN 修复一起按 hotfix 发正式与预发布（tag v0.1.1）",
-      "expiresAt": "2026-11-02T01:47:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     },
     {
       "issue": 387,
       "tag": "v0.1.1",
-      "status": "open",
+      "status": "closed",
       "approvedBy": "所有者",
       "approvedAt": "2026-10-31T10:46:00+08:00",
       "approval": "所有者 2026-10-31 10:46 在会话中批准：严格防护与动态来源白名单（#387）审查通过后作为 0.1.1 最后一个 hotfix 发正式与预发布（tag v0.1.1）",
-      "expiresAt": "2026-11-02T10:46:00+08:00"
+      "closedAt": "2026-10-31T12:24:00+08:00",
+      "evidence": "本轮 0.1.1 hotfix 全部上线：deploy-hotfix 41160067564（issue 370，main 03bb9418）带上 #352、#354、#356、#360、#369、#370 与七牛 CDN 修复，deploy-hotfix 41165921767（issue 387，main 40949c09）带上 #387，两次的计划、同构清单、测试、构建、CDN 上传、部署与线上烟测全部通过；正式 release.json 为 0.1.1@40949c09，安全策略与白名单接口未登录回 401。合回 GitLab stage dd3c0d8b，GitHub stage 经 PR #332、#334 合回。"
     }
   ]
 }

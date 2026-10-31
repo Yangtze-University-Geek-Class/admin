@@ -2,7 +2,7 @@
   "version": 1,
   "issue": 380,
   "kind": "engineering",
-  "summary": "本轮 0.1.1 hotfix 收尾：先修部署渲染把异地备份密钥当成必填的问题（#354 声明的可选组没落到 render，正式只配了加密公钥时 deploy-hotfix 在渲染运行时环境文件这一步失败关闭），修好后再按 #370 窗口重发正式；正式核对后关闭本轮窗口、发 v0.1.1-stable.3。",
+  "summary": "本轮 0.1.1 hotfix 收尾第二步：部署渲染修复（第一步，已合入）随 #370 重发正式、#387 也发到正式后，按正式核对结果关闭本轮七个 v0.1.1 hotfix 窗口，在收尾同步的合并提交上打 v0.1.1-stable.3 发预发布。",
   "applications": [],
   "domains": [
     "platform"
@@ -11,67 +11,67 @@
   "assessments": {
     "business": {
       "status": "unchanged",
-      "reason": "业务流程不变：只改部署流水线生成运行时环境文件时对备份密钥的判定。",
+      "reason": "业务流程不变：只把已在正式核对过的 hotfix 窗口标记为关闭。",
       "evidence": [
-        "scripts/deployment-environment.mjs"
+        "deploy/hotfix/windows.json"
       ]
     },
     "backend": {
       "status": "unchanged",
-      "reason": "不改 app/server 与接口；server 不读备份密钥。",
+      "reason": "不改 app/server 与接口，窗口登记只被发布脚本与分支门禁读取。",
       "evidence": [
-        "scripts/deployment-environment.mjs"
+        "scripts/hotfix-windows.mjs"
       ]
     },
     "permissions": {
       "status": "unchanged",
-      "reason": "角色、能力与资源范围不变。",
+      "reason": "角色、能力与资源范围不变；关闭窗口后 main 不再允许领先 stage，门禁比之前更严。",
       "evidence": [
-        "scripts/deployment-environment.mjs"
+        "scripts/hotfix-windows.mjs"
       ]
     },
     "data": {
       "status": "unchanged",
-      "reason": "不碰数据库与业务数据。迁移前备份是否上传仍由 deploy-stack.sh 判定：桶名与一项加密收件人都有才上传，S3 配置缺项时拒绝迁移。",
+      "reason": "不碰数据库与业务数据，不触发迁移。",
       "evidence": [
-        "deploy/remote/deploy-stack.sh"
+        "deploy/hotfix/windows.json"
       ]
     },
     "dependencies": {
       "status": "unchanged",
       "reason": "不增删依赖，不改环境变量键与三份 env 模板。",
       "evidence": [
-        "scripts/deployment-environment.mjs"
+        "deploy/hotfix/windows.json"
       ]
     },
     "documentation": {
       "status": "unchanged",
-      "reason": "文档事实不变：ENVIRONMENTS 与 CICD 已写明备份加密公钥优先、收件人只在没有公钥时用、两项都空时告警跳过；这次是让渲染照文档做。",
+      "reason": "RELEASES 与 BRANCHING 已写明窗口在正式核对后关闭、关闭后在合并提交上打 stable tag；这次照规则执行，不改规则。",
       "evidence": [
-        "docs/ops/ENVIRONMENTS.md",
-        "docs/ops/CICD.md"
+        "docs/conventions/RELEASES.md",
+        "docs/conventions/BRANCHING.md"
       ]
     },
     "verification": {
-      "status": "changed",
-      "reason": "deployment-environment 测试新增一条：只配公钥或只配收件人都能渲染，备份密钥全空时渲染并提示，S3 三项缺一项拒绝；改动前这条测试报的正是正式部署的那句错误。",
+      "status": "unchanged",
+      "reason": "不改代码与测试；窗口格式、closedAt 与 main/stage 关系由 hotfix-windows 校验与分支门禁在 CI 上核对。",
       "evidence": [
-        "tests/tooling/deployment-environment.test.ts"
+        "scripts/hotfix-windows.mjs",
+        "tests/tooling/hotfix-policy.test.ts"
       ]
     },
     "delivery": {
       "status": "changed",
-      "reason": "合进 GitLab stage 后同步到 GitHub stage、main 快进，按 #370 窗口重新派发 deploy-hotfix（tag v0.1.1）；正式核对后关闭本轮全部 v0.1.1 窗口，在收尾合并提交上打 v0.1.1-stable.3 发预发布。",
+      "reason": "关闭本轮全部七个 v0.1.1 窗口（#352、#354、#356、#360、#369、#370、#387），closedAt 与 evidence 引用正式部署运行与 0.1.1@40949c09；合入后同步到 GitHub stage，在同步合并提交上打 v0.1.1-stable.3 发预发布。main 停在正式发布的提交，不带 stage 上之后合入的改动。",
       "evidence": [
-        "scripts/deployment-environment.mjs"
+        "deploy/hotfix/windows.json"
       ]
     }
   },
   "coverage": [
     {
       "paths": [
-        "scripts/deployment-environment.mjs",
-        "tests/tooling/deployment-environment.test.ts"
+        "deploy/hotfix/windows.json"
       ],
       "domains": [
         "platform"
@@ -79,29 +79,17 @@
       "nodes": [
         "domain:platform"
       ],
-      "reason": "部署流水线渲染运行时环境文件时，异地备份密钥按可选组处理：S3 三项全填或全空，加密收件人二选一，没填的照模板写空。"
-    },
-    {
-      "paths": [
-        "docs/architecture/catalog/"
-      ],
-      "domains": [
-        "platform"
-      ],
-      "nodes": [
-        "domain:platform"
-      ],
-      "reason": "scripts/deployment-environment.mjs 是项目目录的来源文件，改动后重新生成的目录，只变指纹与该文件摘要。"
+      "reason": "正式核对后关闭本轮 v0.1.1 的七个 hotfix 窗口（#352、#354、#356、#360、#369、#370、#387），写 closedAt 与 evidence，属于平台发布流程。"
     }
   ],
   "documents": [
-    "docs/ops/ENVIRONMENTS.md",
-    "docs/ops/CICD.md"
+    "docs/conventions/RELEASES.md",
+    "docs/conventions/BRANCHING.md"
   ],
   "tests": [
-    "tests/tooling/deployment-environment.test.ts"
+    "tests/tooling/hotfix-policy.test.ts"
   ],
-  "compatibility": "接口、表结构与环境变量键都不变；四项备份密钥都填时渲染结果与改动前相同。",
+  "compatibility": "接口、表结构与环境变量键都不变；只改窗口状态。",
   "migration": "不涉及迁移：没有数据、配置或环境变量要迁移。",
-  "rollback": "revert 本次合并；回滚后正式只配公钥时 deploy-hotfix 会照旧在渲染一步失败关闭，不会带着半配置上线。"
+  "rollback": "revert 本次合并即恢复窗口为开启；已打的 stable tag 不移动，回滚后不再打新 tag。"
 }
