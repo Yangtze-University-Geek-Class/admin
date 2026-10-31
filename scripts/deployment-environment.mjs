@@ -705,11 +705,19 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
   if (storageFilled === OBJECT_STORAGE_SECRETS.length) {
     for (const field of OBJECT_STORAGE_FIELDS) if (!deployment.values.get(field)) fail(`开启对象存储时模板里的 ${field} 不能为空`);
   }
+  // 异地备份（#354）：S3 三项要么都填，要么都留空；加密收件人用 BACKUP_GPG_PUBLIC_KEY 或 BACKUP_GPG_RECIPIENT，二选一，没填的照模板写空。
+  // 真正备不备份由 deploy-stack.sh 在迁移前判定：桶名与一项加密收件人都有才上传，否则告警跳过。
+  const backupS3 = BACKUP_SECRETS.filter(field => field.startsWith('BACKUP_S3_'));
+  const backupS3Filled = backupS3.filter(filled).length;
+  if (backupS3Filled !== 0 && backupS3Filled !== backupS3.length) {
+    fail(`${backupS3.join('、')} 只配了一部分：要么都填（开启异地备份），要么都留空（关闭）`);
+  }
+  const backupOff = backupS3Filled === 0 || (!filled('BACKUP_GPG_PUBLIC_KEY') && !filled('BACKUP_GPG_RECIPIENT'));
   const skipped = new Set([
     ...(storageFilled === 0 ? OBJECT_STORAGE_SECRETS : []),
     ...(turnstileOff ? OPTIONAL_SECRET_PAIR : []),
     ...(googleOff ? GOOGLE_SECRET_PAIR : []),
-    ...[...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS].filter(field => !filled(field)),
+    ...[...MAIL_ALIYUN_SECRET_PAIR, ...OPTIONAL_SECRETS, ...OIDC_GITLAB_SECRETS, ...BACKUP_SECRETS].filter(field => !filled(field)),
     ...Object.keys(MAIL_SENDER_ENABLED_BY).filter(field => !filled(MAIL_SENDER_ENABLED_BY[field])),
   ]);
   for (const field of SECRET_FIELDS) {
@@ -755,6 +763,7 @@ export function renderRuntimeEnv({ root = repositoryRoot(), environment, out, im
   const notices = [];
   if (turnstileOff) notices.push(`${OPTIONAL_SECRET_PAIR.join('、')} 都为空：Turnstile 关闭，公开表单只靠工作量证明与限流。`);
   if (googleOff) notices.push(`${GOOGLE_SECRET_PAIR.join('、')} 都为空：Google 登录关闭，登录页不出现 Google。`);
+  if (backupOff) notices.push(`${backupS3.join('、')} 都为空，或 BACKUP_GPG_PUBLIC_KEY、BACKUP_GPG_RECIPIENT 都为空：异地备份没有启用，迁移前备份告警跳过。`);
   if (!filled('OIDC_JWKS')) notices.push('OIDC_JWKS 为空：对外授权关闭，/oidc/* 一律 404，GitLab 不能用极客班账号登录。');
   if (!mailProviders.length) {
     notices.push(`${[...MAIL_ALIYUN_SECRET_PAIR, 'MAIL_RESEND_API_KEY'].join('、')} 都为空：发信关闭，server 把每封信记为「发信没有配置」，一封也不发。`);

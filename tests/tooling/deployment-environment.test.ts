@@ -496,6 +496,29 @@ describe('optional Turnstile pair', () => {
     expect(render(secrets).google).toBe('on');
   });
 
+  it('treats offsite backup as an optional group: S3 all or nothing, either encryption recipient (#354)', () => {
+    const root = fixtureRoot();
+    const out = join(root, 'runtime/.env.production');
+    const render = (env: Record<string, string>) => renderRuntimeEnv({ root, environment: 'production', out, imageTag: 'a1b2c3d4e5f6', env });
+    const rendered = () => parseEnvFileText(readFileSync(out, 'utf8'), 'rendered');
+    const offNotice = (notices: string[]) => notices.some(text => text.includes('异地备份没有启用'));
+    // 正式与预发布现在只配了公钥：BACKUP_GPG_RECIPIENT 留空照样渲染，公钥照写。
+    for (const field of ['BACKUP_GPG_RECIPIENT', 'BACKUP_GPG_PUBLIC_KEY']) {
+      const result = render(without(secrets, [field]));
+      expect(rendered().get(field)).toBe('');
+      expect(offNotice(result.notices)).toBe(false);
+    }
+    expect(rendered().get('BACKUP_GPG_RECIPIENT')).toBe(secrets.BACKUP_GPG_RECIPIENT);
+    for (const field of BACKUP_SECRETS) expect(REQUIRED_SECRET_FIELDS).not.toContain(field);
+    const off = render(without(secrets, BACKUP_SECRETS));
+    expect(offNotice(off.notices)).toBe(true);
+    for (const field of BACKUP_SECRETS) expect(rendered().get(field)).toBe('');
+    expect(offNotice(render(without(secrets, ['BACKUP_GPG_RECIPIENT', 'BACKUP_GPG_PUBLIC_KEY'])).notices)).toBe(true);
+    for (const field of ['BACKUP_S3_BUCKET', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY']) {
+      expect(() => render(without(secrets, [field]))).toThrow(/只配了一部分/);
+    }
+  });
+
 });
 
 describe('OIDC signing key and GitLab sync (#270)', () => {

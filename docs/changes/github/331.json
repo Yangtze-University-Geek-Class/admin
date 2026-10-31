@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "issue": 331,
+  "kind": "engineering",
+  "summary": "同步 GitLab stage 18a4d30d（MR !127）进 GitHub 受保护 stage：GitLab #380：本轮 0.1.1 hotfix 收尾：先修部署渲染把异地备份密钥当成必填的问题（#354 声明的可选组没落到 render，正式只配了加密公钥时 deploy-hotfix 在渲染运行时环境文件这一步失败关闭），修好后再按 #370 窗口重发正式；正式核对后关闭本轮窗口、发 v0.1.1-stable.3。",
+  "applications": [],
+  "domains": [
+    "platform"
+  ],
+  "flows": [],
+  "assessments": {
+    "business": {
+      "status": "unchanged",
+      "reason": "GitLab #380：业务流程不变：只改部署流水线生成运行时环境文件时对备份密钥的判定。",
+      "evidence": [
+        "scripts/deployment-environment.mjs"
+      ]
+    },
+    "backend": {
+      "status": "unchanged",
+      "reason": "GitLab #380：不改 app/server 与接口；server 不读备份密钥。",
+      "evidence": [
+        "scripts/deployment-environment.mjs"
+      ]
+    },
+    "permissions": {
+      "status": "unchanged",
+      "reason": "GitLab #380：角色、能力与资源范围不变。",
+      "evidence": [
+        "scripts/deployment-environment.mjs"
+      ]
+    },
+    "data": {
+      "status": "unchanged",
+      "reason": "GitLab #380：不碰数据库与业务数据。迁移前备份是否上传仍由 deploy-stack.sh 判定：桶名与一项加密收件人都有才上传，S3 配置缺项时拒绝迁移。",
+      "evidence": [
+        "deploy/remote/deploy-stack.sh"
+      ]
+    },
+    "dependencies": {
+      "status": "unchanged",
+      "reason": "GitLab #380：不增删依赖，不改环境变量键与三份 env 模板。",
+      "evidence": [
+        "scripts/deployment-environment.mjs"
+      ]
+    },
+    "documentation": {
+      "status": "unchanged",
+      "reason": "GitLab #380：文档事实不变：ENVIRONMENTS 与 CICD 已写明备份加密公钥优先、收件人只在没有公钥时用、两项都空时告警跳过；这次是让渲染照文档做。",
+      "evidence": [
+        "docs/ops/ENVIRONMENTS.md",
+        "docs/ops/CICD.md"
+      ]
+    },
+    "verification": {
+      "status": "changed",
+      "reason": "GitLab #380：deployment-environment 测试新增一条：只配公钥或只配收件人都能渲染，备份密钥全空时渲染并提示，S3 三项缺一项拒绝；改动前这条测试报的正是正式部署的那句错误。",
+      "evidence": [
+        "tests/tooling/deployment-environment.test.ts"
+      ]
+    },
+    "delivery": {
+      "status": "changed",
+      "reason": "GitLab #380：合进 GitLab stage 后同步到 GitHub stage、main 快进，按 #370 窗口重新派发 deploy-hotfix（tag v0.1.1）；正式核对后关闭本轮全部 v0.1.1 窗口，在收尾合并提交上打 v0.1.1-stable.3 发预发布。",
+      "evidence": [
+        "scripts/deployment-environment.mjs"
+      ]
+    }
+  },
+  "coverage": [
+    {
+      "paths": [
+        "scripts/deployment-environment.mjs",
+        "tests/tooling/deployment-environment.test.ts"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "部署流水线渲染运行时环境文件时，异地备份密钥按可选组处理：S3 三项全填或全空，加密收件人二选一，没填的照模板写空。"
+    },
+    {
+      "paths": [
+        "docs/architecture/catalog/"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "scripts/deployment-environment.mjs 是项目目录的来源文件，改动后重新生成的目录，只变指纹与该文件摘要。"
+    },
+    {
+      "paths": [
+        "docs/changes/380.json"
+      ],
+      "domains": [
+        "platform"
+      ],
+      "nodes": [
+        "domain:platform"
+      ],
+      "reason": "GitLab 上 #380 的宏观对齐声明随同步带到 GitHub；GitHub 这边的声明是本文件，内容不变。"
+    }
+  ],
+  "documents": [
+    "docs/ops/ENVIRONMENTS.md",
+    "docs/ops/CICD.md"
+  ],
+  "tests": [
+    "tests/tooling/deployment-environment.test.ts"
+  ],
+  "compatibility": "GitLab #380：接口、表结构与环境变量键都不变；四项备份密钥都填时渲染结果与改动前相同。",
+  "migration": "GitLab #380：不涉及迁移：没有数据、配置或环境变量要迁移。",
+  "rollback": "revert 本次同步的合并提交即回到 GitHub stage 上一版。GitLab #380：revert 本次合并；回滚后正式只配公钥时 deploy-hotfix 会照旧在渲染一步失败关闭，不会带着半配置上线。"
+}
